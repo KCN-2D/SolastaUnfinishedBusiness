@@ -7,11 +7,11 @@ using System.Linq;
 using System.Reflection;
 using UnityEngine;
 
-namespace SolastaCommunityExpansion.Json
+namespace SolastaCommunityExpansion.DataMiner
 {
     public static class JsonUtil
     {
-        public static JsonSerializerSettings CreateSettings()
+        public static JsonSerializerSettings CreateSettings(PreserveReferencesHandling referencesHandling)
         {
             var refJsonSerializerSettings = new JsonSerializerSettings
             {
@@ -29,7 +29,7 @@ namespace SolastaCommunityExpansion.Json
                 MissingMemberHandling = MissingMemberHandling.Ignore,
                 NullValueHandling = NullValueHandling.Include,
                 ObjectCreationHandling = ObjectCreationHandling.Replace,
-                PreserveReferencesHandling = PreserveReferencesHandling.Objects,
+                PreserveReferencesHandling = referencesHandling,
                 ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
                 StringEscapeHandling = StringEscapeHandling.Default,
                 TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
@@ -41,12 +41,42 @@ namespace SolastaCommunityExpansion.Json
             return refJsonSerializerSettings;
         }
 
-        public static void Dump(IEnumerable<BaseDefinition> definitions, string path)
+        public static void CEBlueprintDump(IEnumerable<BaseDefinition> definitions, string path, Action<int, int> progress)
         {
-            JsonSerializer serializer = JsonSerializer.Create(CreateSettings());
             using StreamWriter sw = new StreamWriter(path);
             using JsonWriter writer = new JsonTextWriter(sw);
-            serializer.Serialize(writer, definitions);
+
+            // NOTE: currently needs to be assembled one definition at a time into a single file
+            // Problem 1) serializing the whole array doesn't emit everything
+            // Problem 2) serializing into individual files exceeds the folder path limit because some CE definitions have very long namessssssssss....
+            sw.WriteLine("[");
+            var lastDefinition = definitions.Last();
+            int total = definitions.Count();
+
+            foreach (var d in definitions.Select((d, i) => new { Definition = d, Index = i }))
+            {
+                JsonSerializer serializer = JsonSerializer.Create(CreateSettings(PreserveReferencesHandling.None));
+                serializer.Serialize(writer, d.Definition);
+                if (d.Definition != lastDefinition)
+                {
+                    sw.WriteLine(",");
+                }
+
+                progress(d.Index, total);
+            }
+
+            sw.WriteLine("]");
+
+            progress(total, total);
+        }
+
+        public static void TABlueprintDump(BaseDefinition definition, string path)
+        {
+            // This crashes if PreserveReferencesHandling.None is set - TODO: find out why
+            JsonSerializer serializer = JsonSerializer.Create(CreateSettings(PreserveReferencesHandling.Objects));
+            using StreamWriter sw = new StreamWriter(path);
+            using JsonWriter writer = new JsonTextWriter(sw);
+            serializer.Serialize(writer, definition);
         }
 
         public static bool IsBlacklisted(MemberInfo _)
