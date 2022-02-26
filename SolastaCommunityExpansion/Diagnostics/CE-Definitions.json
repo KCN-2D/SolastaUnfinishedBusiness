@@ -5391,7 +5391,7 @@
   "isFocusItem": true,
   "focusItemDefinition": {
     "$type": "FocusItemDescription, Assembly-CSharp",
-    "focusType": "Arcane",
+    "focusType": "Druidic",
     "shownAsFocus": true
   },
   "isWealthPile": false,
@@ -125808,7 +125808,7 @@
   "isFocusItem": true,
   "focusItemDefinition": {
     "$type": "FocusItemDescription, Assembly-CSharp",
-    "focusType": "Arcane",
+    "focusType": "Druidic",
     "shownAsFocus": true
   },
   "isWealthPile": false,
@@ -126311,7 +126311,7 @@
   "isFocusItem": true,
   "focusItemDefinition": {
     "$type": "FocusItemDescription, Assembly-CSharp",
-    "focusType": "Arcane",
+    "focusType": "Druidic",
     "shownAsFocus": true
   },
   "isWealthPile": false,
