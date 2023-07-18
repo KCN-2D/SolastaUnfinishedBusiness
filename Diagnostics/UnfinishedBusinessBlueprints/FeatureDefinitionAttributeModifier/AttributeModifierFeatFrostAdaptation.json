@@ -1,13 +1,17 @@
 {
-  "$type": "FeatureDefinitionBonusCantrips, Assembly-CSharp",
-  "bonusCantrips": [
-    "Definition:SacredFlame_B:6e2fce5f13d308d4e9913485371243f8"
-  ],
+  "$type": "FeatureDefinitionAttributeModifier, Assembly-CSharp",
+  "modifiedAttribute": "Constitution",
+  "modifierOperation": "Additive",
+  "modifierValue": 1,
+  "modifierAbilityScore": "Constitution",
+  "situationalContext": "None",
+  "minimum1": false,
+  "useBonusFromCaster": false,
   "guiPresentation": {
     "$type": "GuiPresentation, Assembly-CSharp",
-    "hidden": false,
-    "title": "Feature/&BonusCantripsBackgroundDevotedTitle",
-    "description": "Feature/&BonusCantripsBackgroundDevotedDescription",
+    "hidden": true,
+    "title": "Feature/&NoContentTitle",
+    "description": "Feature/&NoContentTitle",
     "spriteReference": {
       "$type": "UnityEngine.AddressableAssets.AssetReferenceSprite, Unity.Addressables",
       "m_AssetGUID": "",
@@ -27,7 +31,7 @@
     "usedInValleyDLC": false
   },
   "contentCopyright": "UserContent",
-  "guid": "315853d3-914c-573c-b20a-9ef383292631",
+  "guid": "b499b6ea-17e6-583d-9532-b1bff792c577",
   "contentPack": 9999,
-  "name": "BonusCantripsBackgroundDevoted"
+  "name": "AttributeModifierFeatFrostAdaptation"
 }
