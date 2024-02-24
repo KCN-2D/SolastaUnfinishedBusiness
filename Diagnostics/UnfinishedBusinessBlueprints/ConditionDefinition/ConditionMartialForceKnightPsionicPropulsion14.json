@@ -5,8 +5,8 @@
   "conditionType": "Beneficial",
   "features": [
     "Definition:CombatAffinityDisengaging:9dda4a1eb70c8f94d9fb16a802947a2a",
-    "Definition:MoveModeFly10:983b70804daf71d42a2bc3e844c00987",
-    "Definition:MoveModeMove10:998d8b8df7417a940829ff6548ba5ca7"
+    "Definition:MoveModeFly14:e36200ce-233b-500c-82e2-4dfbce7a6b58",
+    "Definition:MoveModeMove14:9f0985b9-dcfb-5656-b53e-4c0b7c3e1676"
   ],
   "allowMultipleInstances": false,
   "silentWhenAdded": false,
@@ -291,7 +291,7 @@
     "usedInValleyDLC": false
   },
   "contentCopyright": "UserContent",
-  "guid": "32fbb7c8-c36a-5146-92d9-c4c0b1399509",
+  "guid": "d48e16ff-9ec1-54fc-8c19-c37abb9cc6f7",
   "contentPack": 9999,
-  "name": "ConditionMartialForceKnightPsionicPropulsion10"
+  "name": "ConditionMartialForceKnightPsionicPropulsion14"
 }

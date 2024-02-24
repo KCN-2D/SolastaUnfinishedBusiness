@@ -1,12 +1,11 @@
 {
   "$type": "ConditionDefinition, Assembly-CSharp",
   "inDungeonEditor": false,
-  "parentCondition": "Definition:ConditionFlying:ec82fae48f9a55a41a49fd96d93b49b5",
+  "parentCondition": null,
   "conditionType": "Beneficial",
   "features": [
-    "Definition:CombatAffinityDisengaging:9dda4a1eb70c8f94d9fb16a802947a2a",
-    "Definition:MoveModeFly10:983b70804daf71d42a2bc3e844c00987",
-    "Definition:MoveModeMove10:998d8b8df7417a940829ff6548ba5ca7"
+    "Definition:AttributeModifierShielded:e2bdfbaee1dd9a745afee348167a143c",
+    "Definition:MagicAffinityConditionShielded:d693eed024ffd63478a2c67a97d769e5"
   ],
   "allowMultipleInstances": false,
   "silentWhenAdded": false,
@@ -26,10 +25,7 @@
   "interruptionDamageThreshold": 0,
   "keepConditionIfSavingThrowSucceeds": false,
   "interruptionSavingThrowAffinity": "None",
-  "conditionTags": [
-    "Verticality",
-    "Verticality"
-  ],
+  "conditionTags": [],
   "recurrentEffectForms": [],
   "cancellingConditions": [],
   "additionalDamageWhenHit": false,
@@ -227,7 +223,7 @@
   },
   "timeToWaitBeforeApplyingShader": 0.5,
   "timeToWaitBeforeRemovingShader": 0.5,
-  "possessive": true,
+  "possessive": false,
   "amountOrigin": "None",
   "baseAmount": 0,
   "additiveAmount": false,
@@ -270,12 +266,12 @@
   "guiPresentation": {
     "$type": "GuiPresentation, Assembly-CSharp",
     "hidden": false,
-    "title": "Feature/&PowerMartialForceKnightPsionicPropulsionTitle",
-    "description": "Feature/&NoContentTitle",
+    "title": "Rules/&ConditionShieldedTitle",
+    "description": "Rules/&ConditionShieldedDescription",
     "spriteReference": {
       "$type": "UnityEngine.AddressableAssets.AssetReferenceSprite, Unity.Addressables",
-      "m_AssetGUID": "77cdd4e7a89c9c04c934505ffedebdfa",
-      "m_SubObjectName": "ConditionPositiveAirborne",
+      "m_AssetGUID": "869bb1641c1c46242931a9fb5819c792",
+      "m_SubObjectName": "ConditionShielded",
       "m_SubObjectType": "UnityEngine.Sprite, UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null"
     },
     "color": {
@@ -291,7 +287,7 @@
     "usedInValleyDLC": false
   },
   "contentCopyright": "UserContent",
-  "guid": "32fbb7c8-c36a-5146-92d9-c4c0b1399509",
+  "guid": "747338e3-930c-5a26-8881-03996eb5ec68",
   "contentPack": 9999,
-  "name": "ConditionMartialForceKnightPsionicPropulsion10"
+  "name": "ConditionOathOfAltruismSpiritualShielding"
 }

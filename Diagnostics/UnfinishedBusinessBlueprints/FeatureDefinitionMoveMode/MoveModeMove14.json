@@ -1,15 +1,17 @@
 {
-  "$type": "FeatureDefinition, Assembly-CSharp",
+  "$type": "FeatureDefinitionMoveMode, Assembly-CSharp",
+  "moveMode": "Walk",
+  "speed": 14,
   "guiPresentation": {
     "$type": "GuiPresentation, Assembly-CSharp",
     "hidden": false,
-    "title": "Feature/&FeatureOathOfAltruismSpiritualShieldingTitle",
-    "description": "Feature/&FeatureOathOfAltruismSpiritualShieldingDescription",
+    "title": "Feature/&MoveTitle",
+    "description": "Feature/&MoveWalkDescription",
     "spriteReference": {
       "$type": "UnityEngine.AddressableAssets.AssetReferenceSprite, Unity.Addressables",
-      "m_AssetGUID": "42d9d312013d64043a49b3d3e82a0ba3",
-      "m_SubObjectName": "ShieldOfFaith",
-      "m_SubObjectType": "UnityEngine.Sprite, UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null"
+      "m_AssetGUID": "",
+      "m_SubObjectName": "",
+      "m_SubObjectType": ""
     },
     "color": {
       "$type": "UnityEngine.Color, UnityEngine.CoreModule",
@@ -24,7 +26,7 @@
     "usedInValleyDLC": false
   },
   "contentCopyright": "UserContent",
-  "guid": "5ae7a4f1-d00d-5c43-8abc-94f37e7fa58e",
+  "guid": "9f0985b9-dcfb-5656-b53e-4c0b7c3e1676",
   "contentPack": 9999,
-  "name": "FeatureOathOfAltruismSpiritualShielding"
+  "name": "MoveModeMove14"
 }
