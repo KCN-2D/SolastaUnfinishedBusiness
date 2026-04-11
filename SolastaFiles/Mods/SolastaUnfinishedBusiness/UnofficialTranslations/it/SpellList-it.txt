@@ -1,0 +1,9 @@
+SpellList/&SpellListClericTitle=Incantesimi del chierico
+SpellList/&SpellListDruidTitle=Incantesimi druidici
+SpellList/&SpellListPaladinTitle=Incantesimi del Paladino
+SpellList/&SpellListRangerTitle=Incantesimi del Ranger
+SpellList/&SpellListSorcererTitle=Incantesimi da stregone
+SpellList/&SpellListSpellbladeTitle=Incantesimi della lama incantata
+SpellList/&SpellListTraditionLightTitle=Incantesimi del Monaco (Via della Luce).
+SpellList/&SpellListWarlockTitle=Incantesimi degli stregoni
+SpellList/&SpellListWizardTitle=Incantesimi da mago

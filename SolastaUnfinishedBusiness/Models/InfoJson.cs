@@ -8,6 +8,9 @@ public class InfoJson
     public string Id { get; set; }
     public string DisplayName { get; set; }
     public string Version { get; set; }
+    public bool CustomBuild { get; set; }
+    public string CustomBuildLabel { get; set; }
+    public string CustomBuildBaseVersion { get; set; }
     public string GameVersion { get; set; }
     public string ManagerVersion { get; set; }
     public string AssemblyName { get; set; }

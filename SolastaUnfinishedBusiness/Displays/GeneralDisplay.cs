@@ -131,6 +131,12 @@ internal static class ToolsDisplay
     {
         UI.Label();
 
+        if (UpdateContext.IsCustomBuild)
+        {
+            UI.Label($"Custom build: {UpdateContext.CustomBuildLabel} (based on {UpdateContext.CustomBuildBaseVersion})");
+            UI.Label();
+        }
+
 #if DEBUG
         var size = IsUnityExplorerEnabled ? 195f : 145f;
 #else

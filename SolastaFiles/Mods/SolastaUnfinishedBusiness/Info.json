@@ -1,0 +1,16 @@
+{
+    "Id":  "SolastaUnfinishedBusiness",
+    "DisplayName":  "Unfinished Business [CUSTOM 157a15065b]",
+    "Version":  "1.5.97.126",
+    "GameVersion":  "1.5.97",
+    "ManagerVersion":  "0.24.0",
+    "AssemblyName":  "SolastaUnfinishedBusiness.dll",
+    "EntryMethod":  "SolastaUnfinishedBusiness.Main.Load",
+    "HomePage":  "https://github.com/EnderWiggin/SolastaUnfinishedBusiness/wiki",
+    "Repository":  "https://github.com/EnderWiggin/SolastaUnfinishedBusiness",
+    "VersionURL":  "https://raw.githubusercontent.com/EnderWiggin/SolastaUnfinishedBusiness/refs/heads/release/SolastaUnfinishedBusiness/Info.json",
+    "Changelog":  "https://raw.githubusercontent.com/EnderWiggin/SolastaUnfinishedBusiness/refs/heads/release/SolastaUnfinishedBusiness/ChangelogHistory.txt",
+    "CustomBuild":  true,
+    "CustomBuildLabel":  "CUSTOM 157a15065b",
+    "CustomBuildBaseVersion":  "1.5.97.126"
+}

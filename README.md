@@ -31,7 +31,7 @@ Do you have a mod you want to see included here? We are happy to take new contri
 
 0. Install all required development pre-requisites:
     - [Visual Studio 2022 Community Edition](https://visualstudio.microsoft.com/downloads/)
-    - [.NET x64 6.00.300 SDK](https://dotnet.microsoft.com/download/visual-studio-sdks)
+    - [.NET SDK 9 or newer](https://dotnet.microsoft.com/download)
 1. Download and install [Unity Mod Manager (UMM)](https://www.nexusmods.com/site/mods/21)
 2. Execute UMM, Select Solasta, and Install
 3. Create the environment variable *SolastaInstallDir* and point it to your Solasta game home folder
@@ -39,6 +39,21 @@ Do you have a mod you want to see included here? We are happy to take new contri
 4. Open the project and clean the solution. This is key to allow the publicize assembly to be created
 5. Build project on "Release Workflow" to create translation data
 6. Use "Release Install" or "Debug Install" to have the Mod installed directly to your Game Mods folder
+
+## One-click UMM test build
+
+If you want a ZIP you can drag directly onto the UMM Mods tab for in-game testing, double-click `BuildReleasePackage.cmd` at the repo root.
+
+- It requires .NET SDK 9 or newer.
+- It also requires `tar.exe` in `PATH` (included with current Windows 10/11 installs).
+- It always builds with `Release Workflow`.
+- It uses the repo-local `SolastaFiles` folder as `SolastaInstallDir`.
+- It builds against the repo-local `SolastaFiles` snapshot, not your live game install.
+- It packages the ZIP with `tar.exe` so UMM receives standard `/`-separated archive entries.
+- It is intended for testing changes in game through UMM, not direct install into your live Mods folder.
+- Install the produced ZIP with UMM by dragging it onto the Mods tab.
+- Use only UMM versions `0.24.0` through `0.27.10`.
+- On success it creates `SolastaUnfinishedBusiness.zip` at the repo root, ready for UMM drag-and-drop installation.
 
 NOTE Unity Mod Manager and this mod template make use of [Harmony](https://go.microsoft.com/fwlink/?linkid=874338)
 

@@ -25,11 +25,14 @@ internal static class UpdateContext
     private static InfoJson Info { get; set; }
     private static string BaseURL { get; set; }
     private static string VersionURL { get; set; }
-    private static string InstalledVersion { get; set; }
     private static string LatestVersion { get; set; }
     private static string PreviousVersion { get; set; }
     internal static bool InProgress { get; private set; }
     internal static int Progress { get; private set; }
+    internal static bool IsCustomBuild { get; private set; }
+    internal static string CustomBuildLabel { get; private set; }
+    internal static string InstalledVersion { get; private set; }
+    internal static string CustomBuildBaseVersion { get; private set; }
 
     private static bool ShouldUpdate;
 
@@ -41,9 +44,23 @@ internal static class UpdateContext
         BaseURL = Info.Repository + "/releases/download";
         VersionURL = Info.VersionURL;
         InstalledVersion = Info.Version;
+        IsCustomBuild = Info.CustomBuild;
+        CustomBuildLabel = string.IsNullOrWhiteSpace(Info.CustomBuildLabel) ? "CUSTOM local" : Info.CustomBuildLabel;
+        CustomBuildBaseVersion = string.IsNullOrWhiteSpace(Info.CustomBuildBaseVersion)
+            ? InstalledVersion
+            : Info.CustomBuildBaseVersion;
         PreviousVersion = GetPreviousVersion();
 
-        LatestVersion = GetLatestVersion(out ShouldUpdate);
+        if (IsCustomBuild)
+        {
+            LatestVersion = InstalledVersion;
+            ShouldUpdate = false;
+        }
+        else
+        {
+            LatestVersion = GetLatestVersion(out ShouldUpdate);
+        }
+
         if (ShouldUpdate)
         {
             DisplayUpdateMessage();
@@ -108,6 +125,12 @@ internal static class UpdateContext
 
     internal static void UpdateMod(bool toLatest = true)
     {
+        if (IsCustomBuild)
+        {
+            DisplayCustomBuildUpdateDisabledMessage();
+            return;
+        }
+
         if (InProgress) { return; }
 
         if (!ShouldUpdate && toLatest)
@@ -229,11 +252,23 @@ internal static class UpdateContext
 
     internal static void DisplayRollbackMessage()
     {
+        if (IsCustomBuild)
+        {
+            DisplayCustomBuildUpdateDisabledMessage();
+            return;
+        }
+
         if (InProgress) { return; }
 
         ShowMessage($"Would you like to rollback to {PreviousVersion}?",
             "Message/&MessageOkTitle", () => UpdateMod(false),
             "Message/&MessageCancelTitle");
+    }
+
+    internal static void DisplayCustomBuildUpdateDisabledMessage()
+    {
+        ShowMessage("This is a custom build. Official update / rollback is disabled to avoid overwriting local changes.",
+            "Message/&MessageOkTitle");
     }
 
     private static void DisplayUpdateMessage()
