@@ -107,6 +107,7 @@ ModUi/&EnableAdditionalIconsOnLevelMap=Zusätzliche Symbole für Lager, Ausgäng
 ModUi/&EnableAdditionalItemsInDungeonMaker=Modifizierte Elemente zum Editor hinzufügen
 ModUi/&EnableAllyMovementAllowsFlight=Erlauben Sie Funktionen, die sich selbst oder Verbündete bewegen, um Positionen in der Luft einzuschließen, wenn diese Kreatur fliegt (z. B. <color=#D89555>Manövrierender Schlag</color>, <color=#D89555>Instinktiver Sprung</color>).
 ModUi/&EnableAlternateHuman=Aktiviere den alternativen <color=#D89555>Menschen</color> <i><color=#F0DAA0>[+1 Talent / +2 Attributauswahl / +1 Fertigkeit]</color></i>
+ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
 ModUi/&EnableAlternateVotingSystem=Alternatives Abstimmungssystem aktivieren <i><color=#F0DAA0>[Auswahlgewicht = Stimmen * Charisma-Modifikator des Helden]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=Aktivieren Sie die Implementierung von <b>Abjurer</b> <color=#D89555>Arcane Ward</color>, damit sie sich wie BG3 verhält
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[Verringert sich jedes Mal um 1, wenn Schaden verhindert wird, statt um verhinderten Schaden. Es ist nicht nötig, einen Bannzauber zu wirken, um aktiv zu sein,\naber der Maximalwert beträgt 2x Zaubererstufe statt 2x Zaubererstufe + INT-Mod und wird bei einer langen Pause nur auf die Hälfte aufgeladen]</color></i>
@@ -494,3 +495,6 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Setzen Sie alle Waffen -Meist
 ModUi/&WeaponMasterySystemCustomizeToggle=Passen Sie die Meisterschaften der Waffenmeisterschaft an
 ModUi/&WideScreenBattleUI=Aktivieren Sie die Breitbild-Kampf-Benutzeroberfläche <i><color=#F0DAA0>(Für Auflösungen mit einem Seitenverhältnis von mehr als 16:9)</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white>Setze den Schwellenwert für die Chance des <color=#D89555>Sorcerer Wild Magic</color>-Würfels:</color>\n<i><color=#F0DAA0>[Wild Surge wird ausgelöst, wenn der Würfel kleiner oder gleich dem Schwellenwert ist]</color></i>
+ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race <i><color=#F0DAA0>[Flexible Races is incompatible and will be toggled off]</color></i>
+ModUi/&EnableBackgroundBonusFeats=Enable background bonus feats <i><color=#F0DAA0>[Flexible Backgrounds is incompatible and will be toggled off]</color></i>
+ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn

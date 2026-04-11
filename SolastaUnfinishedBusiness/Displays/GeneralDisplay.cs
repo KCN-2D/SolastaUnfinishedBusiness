@@ -4,6 +4,7 @@ using System.Linq;
 using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
+using UnityEngine;
 #if DEBUG
 using UnityExplorer;
 #endif
@@ -1064,6 +1065,34 @@ internal static class ToolsDisplay
         UI.Label("<color=#F0DAA0>" + Gui.Localize("ModUi/&DocsRaces") + ":</color>");
         UI.Label();
 
+        toggle = Main.Settings.EnableBackgroundASI;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableBackgroundAbilityScoreIncreases"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableBackgroundASI = toggle;
+
+            if (toggle)
+            {
+                Main.Settings.EnableFlexibleRaces = false;
+            }
+
+            FlexibleRacesContext.SwitchFlexibleRaces();
+            Tabletop2024Context.ApplyBackgroundOptions();
+        }
+
+        toggle = Main.Settings.EnableBackgroundBonusFeats;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableBackgroundBonusFeats"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableBackgroundBonusFeats = toggle;
+
+            if (toggle)
+            {
+                Main.Settings.EnableFlexibleBackgrounds = false;
+            }
+
+            FlexibleBackgroundsContext.SwitchFlexibleBackgrounds();
+            Tabletop2024Context.ApplyBackgroundOptions();
+        }
+
         toggle = Main.Settings.RaceLightSensitivityApplyOutdoorsOnly;
         if (UI.Toggle(Gui.Localize("ModUi/&RaceLightSensitivityApplyOutdoorsOnly"), ref toggle, UI.AutoWidth()))
         {
@@ -1587,11 +1616,20 @@ internal static class ToolsDisplay
 
         UI.Label();
 
-        toggle = Main.Settings.EnableAlternateHuman;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableAlternateHuman"), ref toggle, UI.AutoWidth()))
+        toggle = Tabletop2024Context.IsAlternateHumanEffectivelyEnabled();
+        if (Tabletop2024Context.IsAlternateHumanForcedByBackgroundASI())
+        {
+            var enabled = GUI.enabled;
+
+            GUI.enabled = false;
+            UI.Toggle(Gui.Localize("ModUi/&EnableAlternateHuman"), ref toggle, UI.AutoWidth());
+            GUI.enabled = enabled;
+            UI.Label(Gui.Localize("ModUi/&EnableAlternateHumanForcedByBackgroundASI"));
+        }
+        else if (UI.Toggle(Gui.Localize("ModUi/&EnableAlternateHuman"), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.EnableAlternateHuman = toggle;
-            FeatsContext.SwitchFirstLevelTotalFeats();
+            Tabletop2024Context.ApplyBackgroundOptions();
         }
 
         toggle = Main.Settings.UseOfficialSmallRacesDisWithHeavyWeapons;

@@ -107,6 +107,7 @@ ModUi/&EnableAdditionalIconsOnLevelMap=レベルマップ上のキャンプ、�
 ModUi/&EnableAdditionalItemsInDungeonMaker=エディターに改造アイテムを追加する
 ModUi/&EnableAllyMovementAllowsFlight=クリーチャーが飛行している場合、自分または仲間を移動する機能に空中位置を含めることを許可する (例: <color=#D89555>機動攻撃</color>、<color=#D89555>本能的な飛びかかり</color>)
 ModUi/&EnableAlternateHuman=代替の <color=#D89555>人間</color> を有効にする <i><color=#F0DAA0>[+1 特技 / +2 属性選択 / +1 スキル]</color></i>
+ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>背景能力値上昇が有効な間、人間は種族ASIを失う代わりに代替人間の特技と技能パッケージを自動で使用します。</color></i>
 ModUi/&EnableAlternateVotingSystem=代替投票システムを有効にする <i><color=#F0DAA0>[選択の重み = 投票数 * ヒーローのカリスマ性補正値]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=<b>Abjurer</b> の <color=#D89555>Arcane Ward</color> 実装を有効にして、BG3 のように動作させます。
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[ダメージを防ぐたびに 1 減少します (防いだダメージの数ではありません)。有効にするために防御呪文を唱える必要はありません\nただし、最大値はウィザード レベルの 2 倍 (ウィザード レベル + INT 修正値の 2 倍) であり、長い休憩でのみ半分に再充電されます]</color></i>
@@ -494,3 +495,6 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=すべての武器の習得�
 ModUi/&WeaponMasterySystemCustomizeToggle=武器の習得プロパティをカスタマイズします
 ModUi/&WideScreenBattleUI=ワイド スクリーン バトル UI を有効にする <i><color=#F0DAA0>(アスペクト比が 16:9 を超える解像度の場合)</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white><color=#D89555>ソーサラー ワイルド マジック</color> の確率ダイスしきい値を設定します:</color>\n<i><color=#F0DAA0>[ロールがしきい値以下であればワイルド サージが発動します]</color></i>
+ModUi/&EnableBackgroundAbilityScoreIncreases=能力値上昇を種族ではなく背景から得る <i><color=#F0DAA0>[Flexible Races とは両立せず、自動で無効化されます]</color></i>
+ModUi/&EnableBackgroundBonusFeats=背景のボーナス特技を有効化する <i><color=#F0DAA0>[Flexible Backgrounds とは両立せず、自動で無効化されます]</color></i>
+ModUi/&AddOriginFeatsToAutoLearn= + Origin Feat を自動学習候補に追加

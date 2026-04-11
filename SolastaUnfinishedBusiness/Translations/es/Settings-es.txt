@@ -107,6 +107,7 @@ ModUi/&EnableAdditionalIconsOnLevelMap=Habilitar íconos adicionales para campam
 ModUi/&EnableAdditionalItemsInDungeonMaker=Agregar elementos modificados al editor
 ModUi/&EnableAllyMovementAllowsFlight=Permitir que las características que mueven a uno mismo o a sus aliados incluyan posiciones en el aire si esa criatura está volando (por ejemplo, <color=#D89555>Golpe maniobrable</color>, <color=#D89555>Salto instintivo</color>)
 ModUi/&EnableAlternateHuman=Habilitar el <color=#D89555>Humano</color> alternativo <i><color=#F0DAA0>[+1 dote / +2 opciones de atributo / +1 habilidad]</color></i>
+ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
 ModUi/&EnableAlternateVotingSystem=Habilitar sistema de votación alternativo <i><color=#F0DAA0>[peso de la elección = votos * modificador de Carisma del héroe]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=Habilitar la implementación de <color=#D89555>Arcane Ward</color> de Abjurer para que se comporte como BG3
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[Disminuye en 1 cada vez que previene daño, en lugar de por el daño prevenido. No es necesario lanzar un hechizo de abjuración para estar activo\npero el valor máximo es 2 veces el nivel de mago en lugar de 2 veces el nivel de mago + mod de INT y solo se recarga a la mitad en un descanso prolongado]</color></i>
@@ -494,3 +495,6 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Restablecerá todas las propi
 ModUi/&WeaponMasterySystemCustomizeToggle=Personalizar propiedades de dominio de armas
 ModUi/&WideScreenBattleUI=Habilite la interfaz de usuario de batalla en pantalla ancha <i><color=#F0DAA0>(Para resoluciones con una relación de aspecto superior a 16:9)</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white>Establecer umbral de dados de probabilidad de <color=#D89555>Magia salvaje de hechicero</color>:</color><99}<i><color=#F0DAA0>[la oleada salvaje se activa si los resultados son menores o iguales al umbral]</color></i>
+ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race <i><color=#F0DAA0>[Flexible Races is incompatible and will be toggled off]</color></i>
+ModUi/&EnableBackgroundBonusFeats=Enable background bonus feats <i><color=#F0DAA0>[Flexible Backgrounds is incompatible and will be toggled off]</color></i>
+ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn

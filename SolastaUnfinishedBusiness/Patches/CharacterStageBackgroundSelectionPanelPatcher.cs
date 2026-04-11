@@ -38,4 +38,20 @@ public static class CharacterStageBackgroundSelectionPanelPatcher
             __instance.compatibleBackgrounds.Sort(__instance);
         }
     }
+
+    [HarmonyPatch(typeof(CharacterStageBackgroundSelectionPanel),
+        nameof(CharacterStageBackgroundSelectionPanel.FillBackgroundFeatures))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class FillBackgroundFeatures_Patch
+    {
+        private static readonly AccessTools.FieldRef<CharacterStageBackgroundSelectionPanel, bool> NewBackgroundSelected =
+            AccessTools.FieldRefAccess<CharacterStageBackgroundSelectionPanel, bool>("newBackgroundSelected");
+
+        [UsedImplicitly]
+        public static bool Prefix(CharacterStageBackgroundSelectionPanel __instance)
+        {
+            return NewBackgroundSelected(__instance);
+        }
+    }
 }

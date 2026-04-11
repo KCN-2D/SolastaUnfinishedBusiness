@@ -178,6 +178,12 @@ internal static class OtherFeats
             featPickPocket,
             FeatStealthy);
 
+        GroupFeats.FeatGroupOrigin.AddFeats(
+            FeatAlert,
+            featHealer,
+            featLucky,
+            featTough);
+
         GroupFeats.MakeGroup("FeatGroupGeneralAdept", null,
             featArcaneArcherAdept,
             featEldritchAdept,
@@ -361,6 +367,11 @@ internal static class OtherFeats
                 .AddToDB();
 
             magicInitiateFeats.Add(featMagicInitiate);
+
+            if (className is "Bard" or "Cleric" or "Wizard")
+            {
+                GroupFeats.FeatGroupOrigin.AddFeats(featMagicInitiate);
+            }
         }
 
         return GroupFeats.MakeGroup("FeatGroupMagicInitiate", NAME, magicInitiateFeats);

@@ -107,6 +107,7 @@ ModUi/&EnableAdditionalIconsOnLevelMap=Abilita icone aggiuntive per campi, uscit
 ModUi/&EnableAdditionalItemsInDungeonMaker=Aggiungi elementi modificati all'editor
 ModUi/&EnableAllyMovementAllowsFlight=Consenti alle caratteristiche che muovono se stessi o gli alleati di includere posizioni a mezz'aria se la creatura sta volando (ad esempio <color=#D89555>Colpo di manovra</color>, <color=#D89555>Balzo istintivo</color>)
 ModUi/&EnableAlternateHuman=Abilita l'alternativa <color=#D89555>Umano</color> <i><color=#F0DAA0>[+1 talento / +2 scelte attributo / +1 abilità]</color></i>
+ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
 ModUi/&EnableAlternateVotingSystem=Abilita il sistema di voto alternativo <i><color=#F0DAA0>[peso della scelta = voti * modificatore Carisma dell'eroe]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=Abilita l'implementazione di <b>Abjurer</b> <color=#D89555>Arcane Ward</color> per comportarsi come BG3
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[Diminuisce di 1 ogni volta che previene danni, invece di per danni prevenuti. Non c'è bisogno di lanciare un incantesimo di abjurazione per essere attivo\nma il valore massimo è 2x livello mago invece di 2x livello mago + mod INT e si ricarica solo a metà con un riposo lungo]</color></i>
@@ -494,3 +495,6 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Ripristinerà tutte le propri
 ModUi/&WeaponMasterySystemCustomizeToggle=Personalizza le proprietà della padronanza delle armi
 ModUi/&WideScreenBattleUI=Abilita l'interfaccia utente della battaglia su schermo ampio <i><color=#F0DAA0>(per risoluzioni con proporzioni superiori a 16:9)</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white>Imposta la soglia di probabilità di dado <color=#D89555>Magia selvaggia dello stregone</color>:</color>\n<i><color=#F0DAA0>[L'ondata selvaggia si innesca se i tiri sono inferiori o uguali alla soglia]</color></i>
+ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race <i><color=#F0DAA0>[Flexible Races is incompatible and will be toggled off]</color></i>
+ModUi/&EnableBackgroundBonusFeats=Enable background bonus feats <i><color=#F0DAA0>[Flexible Backgrounds is incompatible and will be toggled off]</color></i>
+ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn

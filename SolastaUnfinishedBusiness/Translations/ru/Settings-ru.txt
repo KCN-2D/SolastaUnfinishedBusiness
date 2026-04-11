@@ -107,6 +107,7 @@ ModUi/&EnableAdditionalIconsOnLevelMap=Включить дополнительн
 ModUi/&EnableAdditionalItemsInDungeonMaker=Добавить предметы мода в редактор
 ModUi/&EnableAllyMovementAllowsFlight=Позволить умениям, перемещающим персонажа или союзника, учитывать положение в воздухе, если существо летает (например <color=#D89555>Атака с манёвром</color> или <color=#D89555>Инстинктивный бросок</color>)
 ModUi/&EnableAlternateHuman=Включить альтернативное происхождение <color=#D89555>Человека</color> <i><color=#F0DAA0>[+1 черта / +2 очка характеристик / +1 навык]</color></i>
+ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
 ModUi/&EnableAlternateVotingSystem=Включить альтернативную систему голосования <i><color=#F0DAA0>[весомость выбора = голоса * модификатор Харизмы героя]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=Включить реализацию <color=#D89555>Магической защиты</color> Волшебника школы <b>Ограждения</b> как в BG3
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[Уменьшать на 1 каждый раз при предотвращении урона вместо уменьшения на количество предотвращённого урона. Нет необходимости в накладывании заклинания школы Ограждения для активации,\nно максимальные хиты защиты равны двукратному уровню Волшебника без модификатора ИНТ, восстанавливается наполовину после долгого отдыха]</color></i>
@@ -494,3 +495,6 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Сбросит все сво�
 ModUi/&WeaponMasterySystemCustomizeToggle=Настроить свойства мастерства оружия
 ModUi/&WideScreenBattleUI=Включить широкоэкранный пользовательский интерфейс боя <i><color=#F0DAA0>(Для разрешений с соотношением сторон более 16:9)</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white>Установить пороговое значение вероятности срабатывания <color=#D89555>Дикой магии Чародея</color>:</color>\n<i><color=#F0DAA0>[Волна дикой магии срабатывает, если бросок меньше или равен пороговому значению]</color></i>
+ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race <i><color=#F0DAA0>[Flexible Races is incompatible and will be toggled off]</color></i>
+ModUi/&EnableBackgroundBonusFeats=Enable background bonus feats <i><color=#F0DAA0>[Flexible Backgrounds is incompatible and will be toggled off]</color></i>
+ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn

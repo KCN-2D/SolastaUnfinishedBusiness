@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Reflection;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Models;
@@ -11,6 +13,12 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterStageProficiencySelectionPanelPatcher
 {
+    // Keep auto-learned fixed background feat steps suppressed on revisit within the same proficiency stage.
+    private static readonly HashSet<string> AutoLearnedOriginFeatSteps = [];
+    private static readonly MethodInfo OnLearnAutoImplMethod =
+        AccessTools.Method(typeof(CharacterStageProficiencySelectionPanel), nameof(CharacterStageProficiencySelectionPanel.OnLearnAutoImpl));
+    private static bool _autoLearningOriginFeat;
+
     private static LearnStepItem CurrentStepItem(CharacterStageProficiencySelectionPanel __instance)
     {
         var table = __instance.learnStepsTable;
@@ -30,6 +38,25 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         }
 
         return item;
+    }
+
+    private static string BuildAutoLearnKey(CharacterStageProficiencySelectionPanel __instance, LearnStepItem item)
+    {
+        return $"{__instance.currentHero?.Guid}:{__instance.currentLearnStep}:{item.PoolType}:{item.Tag}";
+    }
+
+    private static bool ShouldAutoLearnOriginFeat(
+        CharacterStageProficiencySelectionPanel __instance,
+        LearnStepItem item)
+    {
+        return !_autoLearningOriginFeat &&
+               item &&
+               item.PoolType == Feat &&
+               Main.Settings.EnableBackgroundBonusFeats &&
+               Tabletop2024Context.TryGetSingleOriginRestrictedFeat(
+                   __instance.currentHero?.GetHeroBuildingData(),
+                   item.Tag,
+                   out _);
     }
 
     [HarmonyPatch(typeof(CharacterStageProficiencySelectionPanel),
@@ -87,13 +114,40 @@ public static class CharacterStageProficiencySelectionPanelPatcher
                 }
             }
 
-            if (!needSkip)
+            if (needSkip)
+            {
+                item.ignoreAvailable = true;
+                item.Refresh(LearnStepItem.Status.InProgress);
+
+                return;
+            }
+
+            if (!ShouldAutoLearnOriginFeat(__instance, item))
             {
                 return;
             }
 
-            item.ignoreAvailable = true;
-            item.Refresh(LearnStepItem.Status.InProgress);
+            var autoLearnKey = BuildAutoLearnKey(__instance, item);
+
+            if (!AutoLearnedOriginFeatSteps.Add(autoLearnKey) || OnLearnAutoImplMethod == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _autoLearningOriginFeat = true;
+                OnLearnAutoImplMethod.Invoke(__instance, [null]);
+            }
+            catch
+            {
+                AutoLearnedOriginFeatSteps.Remove(autoLearnKey);
+                throw;
+            }
+            finally
+            {
+                _autoLearningOriginFeat = false;
+            }
         }
     }
 
@@ -148,6 +202,7 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         [UsedImplicitly]
         public static void Prefix(CharacterStageProficiencySelectionPanel __instance)
         {
+            AutoLearnedOriginFeatSteps.Clear();
             CampaignsContext.RefreshMetamagicOffering(__instance.metamagicSubPanel);
         }
     }

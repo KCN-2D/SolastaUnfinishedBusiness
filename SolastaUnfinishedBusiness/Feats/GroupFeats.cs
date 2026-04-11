@@ -45,6 +45,7 @@ internal static class GroupFeats
         MeltingTouch);
 
     internal static FeatDefinition FeatGroupFightingStyle { get; } = MakeGroup("FeatGroupFightingStyle", FightingStyle);
+    internal static FeatDefinition FeatGroupOrigin { get; } = MakeGroup("FeatGroupOrigin", null);
 
     //
     // Crusher & Piercer

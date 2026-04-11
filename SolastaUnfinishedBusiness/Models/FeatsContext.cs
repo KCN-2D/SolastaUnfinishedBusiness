@@ -70,6 +70,8 @@ internal static class FeatsContext
             FeatGroups.Remove(child);
         }
 
+        FeatGroups.Remove(GroupFeats.FeatGroupOrigin);
+
         foreach (var featGroup in FeatGroups
                      .Where(featGroup =>
                          !string.IsNullOrEmpty(featGroup.FamilyTag) &&
@@ -276,11 +278,37 @@ internal static class FeatsContext
         var dbFeatDefinition = DatabaseRepository.GetDatabase<FeatDefinition>();
         var visibleFeats = dbFeatDefinition
             .Where(x => !x.GuiPresentation.Hidden)
-            .ToArray();
+            .ToHashSet();
+
+        var restrictedOriginFeatNames = Tabletop2024Context.GetActiveOriginRestrictedFeatNames(panel.InspectedCharacter);
+
+        if (restrictedOriginFeatNames.Count > 0)
+        {
+            foreach (var featName in restrictedOriginFeatNames)
+            {
+                if (dbFeatDefinition.TryGetElement(featName, out var featDefinition))
+                {
+                    visibleFeats.Add(featDefinition);
+                }
+            }
+        }
 
         panel.relevantFeats.SetRange(visibleFeats
-            .Where(f => f.GetFirstSubFeatureOfType<IGroupedFeat>() is not { } group
-                        || group.GetSubFeats().Count(s => visibleFeats.Contains(s)) > 1)
+            .Where(f =>
+            {
+                if (f.GetFirstSubFeatureOfType<IGroupedFeat>() is not { } group)
+                {
+                    return true;
+                }
+
+                if (restrictedOriginFeatNames.Count > 0 &&
+                    group.GetSubFeats(true).Any(subFeat => restrictedOriginFeatNames.Contains(subFeat.Name)))
+                {
+                    return false;
+                }
+
+                return group.GetSubFeats().Count(visibleFeats.Contains) > 1;
+            })
         );
     }
 
@@ -356,14 +384,16 @@ internal static class FeatsContext
 
     internal static void SwitchFirstLevelTotalFeats()
     {
+        var effectiveAlternateHuman = Tabletop2024Context.IsAlternateHumanEffectivelyEnabled();
+
         if (PreviousTotalFeatsGrantedFirstLevel > -1)
         {
             UnloadRacesLevel1Feats(PreviousTotalFeatsGrantedFirstLevel, PreviousAlternateHuman);
         }
 
         PreviousTotalFeatsGrantedFirstLevel = Main.Settings.TotalFeatsGrantedFirstLevel;
-        PreviousAlternateHuman = Main.Settings.EnableAlternateHuman;
-        LoadRacesLevel1Feats(Main.Settings.TotalFeatsGrantedFirstLevel, Main.Settings.EnableAlternateHuman);
+        PreviousAlternateHuman = effectiveAlternateHuman;
+        LoadRacesLevel1Feats(Main.Settings.TotalFeatsGrantedFirstLevel, effectiveAlternateHuman);
     }
 
     private static void LoadRacesLevel1Feats(int initialFeats, bool alternateHuman)
