@@ -640,6 +640,39 @@ internal static class Level20Context
     // HELPERS
     //
 
+    internal static bool HasFreeWizardCast(
+        RulesetCharacter caster,
+        RulesetSpellRepertoire spellRepertoire,
+        SpellDefinition spellDefinition,
+        int castLevel)
+    {
+        return WizardSpellMastery.HasFreeCast(spellRepertoire, spellDefinition, castLevel) ||
+               WizardSignatureSpells.HasFreeCast(caster, spellRepertoire, spellDefinition, castLevel);
+    }
+
+    private static void PrepareWizardExtraSpellSelection(RulesetSpellRepertoire spellRepertoire, string tag)
+    {
+        spellRepertoire.ExtraSpellsByTag.TryAdd(tag, []);
+        spellRepertoire.PreparedSpells.SetRange(
+            spellRepertoire.AutoPreparedSpells
+                .Concat(spellRepertoire.ExtraSpellsByTag[tag])
+                .Distinct());
+        spellRepertoire.ExtraSpellsByTag[tag].Clear();
+    }
+
+    private static void FinalizeWizardExtraSpellSelection(
+        RulesetSpellRepertoire spellRepertoire,
+        string tag,
+        SpellDefinition[] preparedSpellsClone)
+    {
+        spellRepertoire.ExtraSpellsByTag[tag].SetRange(
+            spellRepertoire.PreparedSpells
+                .Except(spellRepertoire.AutoPreparedSpells)
+                .Distinct());
+        spellRepertoire.PreparedSpells.SetRange(preparedSpellsClone);
+        spellRepertoire.PreparedSpells.RemoveAll(x => spellRepertoire.ExtraSpellsByTag[tag].Contains(x));
+    }
+
     internal static class WizardSpellMastery
     {
         private const string Mastery = "SpellMastery";
@@ -681,12 +714,21 @@ internal static class Level20Context
                 AttributeDefinitions.TagEffect, $"Condition{Mastery}");
         }
 
+        internal static bool HasFreeCast(
+            RulesetSpellRepertoire spellRepertoire,
+            SpellDefinition spellDefinition,
+            int castLevel)
+        {
+            return spellRepertoire != null &&
+                   spellDefinition != null &&
+                   castLevel == spellDefinition.SpellLevel &&
+                   spellRepertoire.ExtraSpellsByTag.TryGetValue(Mastery, out var masteryPreparedSpells) &&
+                   masteryPreparedSpells.Contains(spellDefinition);
+        }
+
         internal static bool ShouldConsumeSlot(RulesetCharacter caster, RulesetEffectSpell activeSpell)
         {
-            if (!activeSpell.SpellRepertoire.ExtraSpellsByTag.TryGetValue(Mastery,
-                    out var signaturePreparedSpells) ||
-                !signaturePreparedSpells.Contains(activeSpell.SpellDefinition) ||
-                activeSpell.EffectLevel != activeSpell.SpellDefinition.SpellLevel)
+            if (!HasFreeCast(activeSpell.SpellRepertoire, activeSpell.SpellDefinition, activeSpell.EffectLevel))
             {
                 return true;
             }
@@ -732,9 +774,7 @@ internal static class Level20Context
 
                 var preparedSpellsClone = spellRepertoire.PreparedSpells.ToArray();
 
-                spellRepertoire.ExtraSpellsByTag.TryAdd(Mastery, [.. spellRepertoire.AutoPreparedSpells]);
-                spellRepertoire.PreparedSpells.SetRange(spellRepertoire.ExtraSpellsByTag[Mastery]);
-                spellRepertoire.ExtraSpellsByTag[Mastery] = [];
+                PrepareWizardExtraSpellSelection(spellRepertoire, Mastery);
 
                 var activeCondition = hero.InflictCondition(
                     $"Condition{Mastery}",
@@ -760,10 +800,7 @@ internal static class Level20Context
                     yield return null;
                 }
 
-                spellRepertoire.ExtraSpellsByTag[Mastery]
-                    .SetRange(spellRepertoire.PreparedSpells.Except(spellRepertoire.AutoPreparedSpells));
-                spellRepertoire.PreparedSpells.SetRange(preparedSpellsClone);
-                spellRepertoire.PreparedSpells.RemoveAll(x => spellRepertoire.ExtraSpellsByTag[Mastery].Contains(x));
+                FinalizeWizardExtraSpellSelection(spellRepertoire, Mastery, preparedSpellsClone);
                 partyStatusScreen.SetupDisplayPreferences(true, true, true);
                 hero.RemoveCondition(activeCondition);
             }
@@ -819,9 +856,36 @@ internal static class Level20Context
                 spell.SpellLevel is not 3;
         }
 
+        internal static bool HasFreeCast(
+            RulesetCharacter caster,
+            RulesetSpellRepertoire spellRepertoire,
+            SpellDefinition spellDefinition,
+            int castLevel)
+        {
+            if (spellRepertoire == null ||
+                spellDefinition == null ||
+                caster == null ||
+                castLevel != spellDefinition.SpellLevel ||
+                !spellRepertoire.ExtraSpellsByTag.TryGetValue(Signature, out var signaturePreparedSpells))
+            {
+                return false;
+            }
+
+            var index = signaturePreparedSpells.IndexOf(spellDefinition);
+
+            if (index is < 0 or > 1)
+            {
+                return false;
+            }
+
+            var usablePower = PowerProvider.Get(PowerSignatureSpells, caster);
+
+            return usablePower != null && (usablePower.remainingUses & (1 << index)) != 0;
+        }
+
         internal static bool ShouldConsumeSlot(RulesetCharacter caster, RulesetEffectSpell activeSpell)
         {
-            if (activeSpell.EffectLevel != activeSpell.SpellDefinition.SpellLevel)
+            if (!HasFreeCast(caster, activeSpell.SpellRepertoire, activeSpell.SpellDefinition, activeSpell.EffectLevel))
             {
                 return true;
             }
@@ -832,31 +896,24 @@ internal static class Level20Context
                 return true;
             }
 
-            var usablePower = PowerProvider.Get(PowerSignatureSpells, caster);
+            var index = signaturePreparedSpells.IndexOf(activeSpell.SpellDefinition);
 
-            if (usablePower.remainingUses == 0)
+            if (index is < 0 or > 1)
             {
                 return true;
             }
 
-            for (var i = 0; i < signaturePreparedSpells.Count; i++)
+            var usablePower = PowerProvider.Get(PowerSignatureSpells, caster);
+
+            if (usablePower == null)
             {
-                if (signaturePreparedSpells[i] == activeSpell.SpellDefinition)
-                {
-                    switch (i)
-                    {
-                        case 0 when usablePower.remainingUses == 2:
-                        case 1 when usablePower.remainingUses == 1:
-                            return true;
-                        default:
-                            usablePower.remainingUses -= i == 0 ? 1 : 2;
-                            caster.LogCharacterUsedFeature(PowerSignatureSpells);
-                            return false;
-                    }
-                }
+                return true;
             }
 
-            return true;
+            usablePower.remainingUses &= ~(1 << index);
+            caster.LogCharacterUsedFeature(PowerSignatureSpells);
+
+            return false;
         }
 
         internal static FeatureDefinition BuildWizardSignatureSpells()
@@ -895,9 +952,7 @@ internal static class Level20Context
 
                 var preparedSpellsClone = spellRepertoire.PreparedSpells.ToArray();
 
-                spellRepertoire.ExtraSpellsByTag.TryAdd(Signature, [.. spellRepertoire.AutoPreparedSpells]);
-                spellRepertoire.PreparedSpells.SetRange(spellRepertoire.ExtraSpellsByTag[Signature]);
-                spellRepertoire.ExtraSpellsByTag[Signature] = [];
+                PrepareWizardExtraSpellSelection(spellRepertoire, Signature);
 
                 var activeCondition = hero.InflictCondition(
                     $"Condition{Signature}",
@@ -923,10 +978,7 @@ internal static class Level20Context
                     yield return null;
                 }
 
-                spellRepertoire.ExtraSpellsByTag[Signature]
-                    .SetRange(spellRepertoire.PreparedSpells.Except(spellRepertoire.AutoPreparedSpells));
-                spellRepertoire.PreparedSpells.SetRange(preparedSpellsClone);
-                spellRepertoire.PreparedSpells.RemoveAll(x => spellRepertoire.ExtraSpellsByTag[Signature].Contains(x));
+                FinalizeWizardExtraSpellSelection(spellRepertoire, Signature, preparedSpellsClone);
                 partyStatusScreen.SetupDisplayPreferences(true, true, true);
                 hero.RemoveCondition(activeCondition);
             }

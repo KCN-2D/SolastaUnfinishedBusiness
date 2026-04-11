@@ -50,9 +50,13 @@ public static class SpellActivationBoxPatcher
             RulesetCharacter caster,
             SpellActivationBox spellActivationBox)
         {
+            var spellDefinition = spellActivationBox.GuiSpellDefinition?.SpellDefinition;
+            var hasFreeWizardCast = Level20Context.HasFreeWizardCast(caster, repertoire, spellDefinition, spellLevel);
+
             if (caster.IsSpellPointsEnabled())
             {
-                var canCastSpell = SpellPointsContext.CanCastSpellOfLevel(caster, spellLevel);
+                var canCastSpell = hasFreeWizardCast ||
+                                   SpellPointsContext.CanCastSpellOfLevel(caster, repertoire, spellLevel);
 
                 max = 1; // irrelevant
                 remaining = canCastSpell ? 1 : 0;
@@ -65,6 +69,12 @@ public static class SpellActivationBoxPatcher
             else
             {
                 repertoire.GetSlotsNumber(spellLevel, out remaining, out max);
+
+                if (remaining == 0 && hasFreeWizardCast)
+                {
+                    remaining = 1;
+                    max = max == 0 ? 1 : max;
+                }
             }
         }
 
