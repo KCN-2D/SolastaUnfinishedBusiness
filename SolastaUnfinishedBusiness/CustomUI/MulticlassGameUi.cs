@@ -325,7 +325,8 @@ internal static class MulticlassGameUi
 
     /**Adds available slot level options to optionsAvailability and returns index of pre-picked option, or -1*/
     internal static int AddAvailableSubLevels(Dictionary<int, bool> optionsAvailability, RulesetCharacterHero hero,
-        [NotNull] RulesetSpellRepertoire spellRepertoire, int minSpellLevel = 1, int maxSpellLevel = 0)
+        [NotNull] RulesetSpellRepertoire spellRepertoire, int minSpellLevel = 1, int maxSpellLevel = 0,
+        SpellDefinition spellDefinition = null)
     {
         var selectedSlot = -1;
 
@@ -352,10 +353,25 @@ internal static class MulticlassGameUi
                 continue;
             }
 
-            optionsAvailability.Add(level, remaining > 0);
+            var isAvailable = remaining > 0;
+
+            if (spellDefinition != null)
+            {
+                if (hero.IsSpellPointsEnabled())
+                {
+                    isAvailable = SpellPointsContext.CanCastSpellOfLevel(hero, spellRepertoire, level);
+                }
+
+                if (!isAvailable)
+                {
+                    isAvailable = Level20Context.HasFreeWizardCast(hero, spellRepertoire, spellDefinition, level);
+                }
+            }
+
+            optionsAvailability.Add(level, isAvailable);
             options++;
 
-            if (selected || remaining <= 0)
+            if (selected || !isAvailable)
             {
                 continue;
             }

@@ -99,6 +99,22 @@ internal static class SpellPointsContext
         return remaining >= SpellCostByLevel[level];
     }
 
+    internal static bool CanCastSpellOfLevel(
+        RulesetCharacter rulesetCharacter,
+        RulesetSpellRepertoire spellRepertoire,
+        int level)
+    {
+        if (spellRepertoire != null &&
+            level is > 5 and <= 9 &&
+            spellRepertoire.usedSpellsSlots.TryGetValue(level, out var used) &&
+            used > 0)
+        {
+            return false;
+        }
+
+        return CanCastSpellOfLevel(rulesetCharacter, level);
+    }
+
     internal static bool IsSpellPointsEnabled(this RulesetCharacter character)
     {
         return Main.Settings.UseAlternateSpellPointsSystem && character is RulesetCharacterHero;
