@@ -55,7 +55,7 @@ public sealed class CircleOfTheLife : AbstractSubclass
         var conditionVerdancy = ConditionDefinitionBuilder
             .Create(ConditionVerdancy)
             .SetGuiPresentation(Category.Condition, ConditionChildOfDarkness_DimLight)
-            .SetSpecialDuration(DurationType.Round, 3, (TurnOccurenceType)ExtraTurnOccurenceType.StartOfSourceTurn)
+            .SetSpecialDuration(DurationType.Round, 3, TurnOccurenceType.EndOfTurn)
             .SetPossessive()
             .CopyParticleReferences(ConditionAided)
             .AllowMultipleInstances()
@@ -64,7 +64,7 @@ public sealed class CircleOfTheLife : AbstractSubclass
 
         var conditionVerdancy14 = ConditionDefinitionBuilder
             .Create(conditionVerdancy, ConditionVerdancy14)
-            .SetSpecialDuration(DurationType.Round, 5, (TurnOccurenceType)ExtraTurnOccurenceType.StartOfSourceTurn)
+            .SetSpecialDuration(DurationType.Round, 5, TurnOccurenceType.EndOfTurn)
             .AddCustomSubFeatures(OnConditionAddedOrRemovedVerdancy.Marker, CharacterTurnStartListenerVerdancy.Marker)
             .AddToDB();
 

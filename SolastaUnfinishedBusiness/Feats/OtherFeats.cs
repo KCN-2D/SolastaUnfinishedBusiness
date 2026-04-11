@@ -1953,8 +1953,13 @@ internal static class OtherFeats
             return !attackModeDamage && damageTypes.Contains(damageForm.DamageType);
         }
 
-        public void ModifyDamageAffinity(RulesetActor attacker, RulesetActor defender, List<FeatureDefinition> features)
+        public void ModifyDamageAffinity(RulesetActor defender, RulesetActor attacker, List<FeatureDefinition> features)
         {
+            if (attacker?.GetSubFeaturesByType<IModifyDamageAffinity>().Contains(this) != true)
+            {
+                return;
+            }
+
             features.RemoveAll(x =>
                 x is IDamageAffinityProvider { DamageAffinityType: DamageAffinityType.Resistance } y &&
                 damageTypes.Contains(y.DamageType));

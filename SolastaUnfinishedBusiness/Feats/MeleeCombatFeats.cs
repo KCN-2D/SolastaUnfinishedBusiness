@@ -852,8 +852,6 @@ internal static class MeleeCombatFeats
                 }
             }
 
-            retaliationMode.AddAttackTagAsNeeded(AttacksOfOpportunity.NotAoOTag);
-
             yield return ally.MyReactForOpportunityAttack(
                 standingUpCharacter,
                 standingUpCharacter,

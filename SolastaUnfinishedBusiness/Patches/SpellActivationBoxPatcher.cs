@@ -22,23 +22,13 @@ public static class SpellActivationBoxPatcher
             FeatureDefinitionCastSpell featureDefinitionCastSpell,
             RulesetCharacter character)
         {
-            //PATCH: offers upcast using higher spell slots on Warlock repertoire
-            if (character is not RulesetCharacterHero hero || !SharedSpellsContext.IsMulticaster(hero))
+            //PATCH: MC casters must use the standard slot picker so shared and pact slots can coexist
+            if (character.GetOriginalHero() is not RulesetCharacterHero hero)
             {
                 return featureDefinitionCastSpell.UniqueLevelSlots;
             }
 
-            var sharedSpellLevel = SharedSpellsContext.GetSharedSpellLevel(hero);
-            var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
-            var pactMaxSlots = SharedSpellsContext.GetWarlockMaxSlots(hero);
-            var pactUsedSlots = SharedSpellsContext.GetWarlockUsedSlots(hero);
-            var pactAvailableSlots = pactMaxSlots - pactUsedSlots;
-
-            return featureDefinitionCastSpell.UniqueLevelSlots &&
-                   // this ensures game does std slot calculation when out of pact slots
-                   pactAvailableSlots > 0 &&
-                   // this ensures game does std slot calculation if we can upcast warlock spells
-                   sharedSpellLevel <= warlockSpellLevel;
+            return featureDefinitionCastSpell.UniqueLevelSlots && !SharedSpellsContext.IsMulticaster(hero);
         }
 
         [UsedImplicitly]
@@ -68,7 +58,14 @@ public static class SpellActivationBoxPatcher
             }
             else
             {
-                repertoire.GetSlotsNumber(spellLevel, out remaining, out max);
+                if (caster.GetOriginalHero() is RulesetCharacterHero hero)
+                {
+                    repertoire.GetDisplaySlotNumbers(hero, spellLevel, out remaining, out max);
+                }
+                else
+                {
+                    repertoire.GetSlotsNumber(spellLevel, out remaining, out max);
+                }
 
                 if (remaining == 0 && hasFreeWizardCast)
                 {

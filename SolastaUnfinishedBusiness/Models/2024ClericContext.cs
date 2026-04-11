@@ -163,6 +163,18 @@ public static partial class Tabletop2024Context
 
     private static readonly Dictionary<string, List<string>> AdditionalDamageBlessedStrikes = new()
     {
+        {
+            "DomainDefiler", [
+                "PowerClericBlessedStrikesDamageNecrotic",
+                "PowerClericBlessedStrikesDamageRadiant"
+            ]
+        },
+        {
+            "DomainLife", [
+                "PowerClericBlessedStrikesDamageNecrotic",
+                "PowerClericBlessedStrikesDamageRadiant"
+            ]
+        },
         { "DomainMischief", ["PowerClericBlessedStrikesDamagePsychic"] },
         {
             "DomainNature", [
@@ -173,6 +185,12 @@ public static partial class Tabletop2024Context
         },
         { "DomainOrder", ["PowerClericBlessedStrikesDamagePsychic"] },
         { "DomainSmith", ["PowerClericBlessedStrikesDamageFire"] },
+        {
+            "DomainSun", [
+                "PowerClericBlessedStrikesDamageNecrotic",
+                "PowerClericBlessedStrikesDamageRadiant"
+            ]
+        },
         { "DomainTempest", ["PowerClericBlessedStrikesDamageThunder"] }
     };
 

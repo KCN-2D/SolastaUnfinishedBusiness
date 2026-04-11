@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Models;
@@ -328,59 +329,50 @@ internal static class MulticlassGameUi
         [NotNull] RulesetSpellRepertoire spellRepertoire, int minSpellLevel = 1, int maxSpellLevel = 0,
         SpellDefinition spellDefinition = null)
     {
-        var selectedSlot = -1;
-
-        var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
-        var isMulticaster = SharedSpellsContext.IsMulticaster(hero);
-        var hasPactMagic = warlockSpellLevel > 0;
-
-        var maxRepertoireLevel = SharedSpellsContext.GetSharedSpellLevel(hero);
-        var selected = false;
+        var availableSlotLevels = new List<int>();
 
         if (maxSpellLevel == 0)
         {
-            maxSpellLevel = Math.Max(maxRepertoireLevel, warlockSpellLevel);
+            maxSpellLevel = Math.Max(
+                SharedSpellsContext.GetSharedSpellLevel(hero),
+                SharedSpellsContext.GetWarlockSpellLevel(hero));
         }
 
-        var options = -1;
         for (var level = minSpellLevel; level <= maxSpellLevel; ++level)
         {
-            spellRepertoire.GetSlotsNumber(level, out var remaining, out var max);
-
-            if (max <= 0 || ((level > maxRepertoireLevel || (!isMulticaster && hasPactMagic)) &&
-                             level != warlockSpellLevel))
+            if (!spellRepertoire.TryGetAvailableSlotLevel(hero, level, spellDefinition, out var isAvailable))
             {
                 continue;
-            }
-
-            var isAvailable = remaining > 0;
-
-            if (spellDefinition != null)
-            {
-                if (hero.IsSpellPointsEnabled())
-                {
-                    isAvailable = SpellPointsContext.CanCastSpellOfLevel(hero, spellRepertoire, level);
-                }
-
-                if (!isAvailable)
-                {
-                    isAvailable = Level20Context.HasFreeWizardCast(hero, spellRepertoire, spellDefinition, level);
-                }
             }
 
             optionsAvailability.Add(level, isAvailable);
-            options++;
 
-            if (selected || !isAvailable)
+            if (isAvailable)
             {
-                continue;
+                availableSlotLevels.Add(level);
             }
-
-            selected = true;
-            selectedSlot = options;
         }
 
-        return selectedSlot;
+        var selectedLevel = spellRepertoire.GetPreferredSlotLevel(hero, availableSlotLevels);
+
+        if (selectedLevel == 0)
+        {
+            return -1;
+        }
+
+        var option = 0;
+
+        foreach (var slotLevel in optionsAvailability.Keys)
+        {
+            if (slotLevel == selectedLevel)
+            {
+                return option;
+            }
+
+            option++;
+        }
+
+        return -1;
     }
 
     [CanBeNull]

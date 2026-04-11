@@ -414,8 +414,18 @@ public static class GameLocationCharacterExtensions
 
     private const string ShiftKeyState = "ShiftKeyState";
 
+    internal static bool GetShiftState(this GameLocationCharacter character)
+    {
+        return character is not null && character.GetSpecialFeatureUses(ShiftKeyState) == 1;
+    }
+
     internal static bool GetAndClearShiftState(this GameLocationCharacter character)
     {
+        if (character is null)
+        {
+            return false;
+        }
+
         var result = character.GetSpecialFeatureUses(ShiftKeyState) == 1;
 
         character.SetSpecialFeatureUses(ShiftKeyState, 0);
