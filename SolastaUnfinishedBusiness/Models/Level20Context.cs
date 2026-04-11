@@ -650,6 +650,45 @@ internal static class Level20Context
                WizardSignatureSpells.HasFreeCast(caster, spellRepertoire, spellDefinition, castLevel);
     }
 
+    private static SpellDefinition GetWizardFreeCastSpell(SpellDefinition spellDefinition)
+    {
+        return spellDefinition != null &&
+               SpellsContext.SpellsChildMaster.TryGetValue(spellDefinition, out var parentSpell)
+            ? parentSpell
+            : spellDefinition;
+    }
+
+    private static bool TryGetWizardFreeCastSpell(
+        SpellDefinition spellDefinition,
+        int castLevel,
+        out SpellDefinition normalizedSpellDefinition,
+        out int normalizedCastLevel)
+    {
+        normalizedSpellDefinition = GetWizardFreeCastSpell(spellDefinition);
+        normalizedCastLevel = castLevel;
+
+        return normalizedSpellDefinition != null;
+    }
+
+    private static bool TryGetWizardFreeCastSpell(
+        RulesetEffectSpell activeSpell,
+        out SpellDefinition normalizedSpellDefinition,
+        out int normalizedCastLevel)
+    {
+        if (activeSpell == null)
+        {
+            normalizedSpellDefinition = null;
+            normalizedCastLevel = 0;
+
+            return false;
+        }
+
+        var castLevel = activeSpell.SlotLevel > 0 ? activeSpell.SlotLevel : activeSpell.EffectLevel;
+
+        return TryGetWizardFreeCastSpell(activeSpell.SpellDefinition, castLevel,
+            out normalizedSpellDefinition, out normalizedCastLevel);
+    }
+
     private static void PrepareWizardExtraSpellSelection(RulesetSpellRepertoire spellRepertoire, string tag)
     {
         spellRepertoire.ExtraSpellsByTag.TryAdd(tag, []);
@@ -719,8 +758,13 @@ internal static class Level20Context
             SpellDefinition spellDefinition,
             int castLevel)
         {
+            if (!TryGetWizardFreeCastSpell(spellDefinition, castLevel,
+                    out spellDefinition, out castLevel))
+            {
+                return false;
+            }
+
             return spellRepertoire != null &&
-                   spellDefinition != null &&
                    castLevel == spellDefinition.SpellLevel &&
                    spellRepertoire.ExtraSpellsByTag.TryGetValue(Mastery, out var masteryPreparedSpells) &&
                    masteryPreparedSpells.Contains(spellDefinition);
@@ -728,7 +772,8 @@ internal static class Level20Context
 
         internal static bool ShouldConsumeSlot(RulesetCharacter caster, RulesetEffectSpell activeSpell)
         {
-            if (!HasFreeCast(activeSpell.SpellRepertoire, activeSpell.SpellDefinition, activeSpell.EffectLevel))
+            if (!TryGetWizardFreeCastSpell(activeSpell, out var spellDefinition, out var castLevel) ||
+                !HasFreeCast(activeSpell.SpellRepertoire, spellDefinition, castLevel))
             {
                 return true;
             }
@@ -862,8 +907,13 @@ internal static class Level20Context
             SpellDefinition spellDefinition,
             int castLevel)
         {
+            if (!TryGetWizardFreeCastSpell(spellDefinition, castLevel,
+                    out spellDefinition, out castLevel))
+            {
+                return false;
+            }
+
             if (spellRepertoire == null ||
-                spellDefinition == null ||
                 caster == null ||
                 castLevel != spellDefinition.SpellLevel ||
                 !spellRepertoire.ExtraSpellsByTag.TryGetValue(Signature, out var signaturePreparedSpells))
@@ -885,7 +935,8 @@ internal static class Level20Context
 
         internal static bool ShouldConsumeSlot(RulesetCharacter caster, RulesetEffectSpell activeSpell)
         {
-            if (!HasFreeCast(caster, activeSpell.SpellRepertoire, activeSpell.SpellDefinition, activeSpell.EffectLevel))
+            if (!TryGetWizardFreeCastSpell(activeSpell, out var spellDefinition, out var castLevel) ||
+                !HasFreeCast(caster, activeSpell.SpellRepertoire, spellDefinition, castLevel))
             {
                 return true;
             }
@@ -896,7 +947,7 @@ internal static class Level20Context
                 return true;
             }
 
-            var index = signaturePreparedSpells.IndexOf(activeSpell.SpellDefinition);
+            var index = signaturePreparedSpells.IndexOf(spellDefinition);
 
             if (index is < 0 or > 1)
             {
