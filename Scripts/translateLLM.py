@@ -249,7 +249,7 @@ Japanese terminology guidance:
 - Translate Banishing Smite as 放逐の一撃, Reverse Gravity as 重力反転, Dragon's Breath as 竜の吐息, and Cloud of Daggers as 短剣の群れ in system text.
 - Translate Savage Attack as 凶暴な一撃, Savage Attacker as 凶暴な戦士, and Savage Attacks as 猛打 in system text.
 - Translate Spell Scroll as 呪文の巻物 and Scroll as 巻物 in item contexts, but keep UI scroll operations as スクロール.
-- Translate Protection from Energy as 元素からの保護, Stoneskin as 石の皮膚, Warding Bond as 守りの紐帯, and Resistance as 抵抗力 in system text.
+- Translate Protection from Energy as 元素からの保護, Stoneskin as 石の皮膚, Warding Bond as 守りの紐帯, the spell Resistance as 抵抗力, and generic damage-halving resistance as 抵抗 in system text.
 - Translate Finesse weapon-property labels as 妙技.
 - Translate Heavy weapon-property labels as 重武器, but do not rewrite weapon nouns such as Heavy Crossbow.
 - Translate Piercing damage/type labels as 刺突, but do not rewrite ordinary verbs such as 突き刺す.
@@ -259,6 +259,8 @@ Japanese terminology guidance:
 - Translate Major Gate as メジャーゲート in repo-specific player-facing text.
 - Translate Eldritch Versatility as エルドリッチ・バーサティリティ and Versatility as バーサティリティ in repo-specific system text.
 - Translate Illuminated as 照らされた, Illuminating Strike as 照らしの一撃, and Illuminating Burst as 照らしの爆発 in repo-specific system text.
+- Use ヒューマン for race labels and settings such as Race/&HumanTitle and EnableAlternateHuman, but keep 人間 for generic prose.
+- Use 氏族 for clan labels, 姓 for family-name labels, and 異名 for nickname labels in UI text.
 - Translate Thunder Step as 雷鳴の一跳び in system text.
 - Translate Blinding Smite as 目潰す一撃 in system text.
 - Translate Foresight as 予知 in system text.
@@ -282,7 +284,7 @@ Japanese terminology guidance:
 - In prose, do not leave ability abbreviations such as CON/WIS/INT/STR/DEX/CHA; expand them into Japanese ability names such as 耐久力 and 判断力.
 - Translate Sentinel as 守護戦士 when it is the feat name, and use 見張り only for non-feat/general contexts.
 - Skill names must use 〈〉, for example 〈魔法学〉 and 〈ペテン〉.
-- In system explanations, spell references should use 〈…〉 and feat references should use 特技《…》.
+- In system explanations, spell references should use 〈…〉 and feat references should use official feat names without 《》.
 - Feat and feature titles that vary by ability score must use the base title plus a full-width suffix such as ［魅力］, ［知力］, ［判断力］, ［筋力］, ［敏捷力］, or ［耐久力］.
 - Never leave feat/UI labels as 偉業; use 特技.
 - Use official feat names exactly, for example Defensive Duelist => 守りの決闘術 and Great Weapon Master => 大業物の使い手.

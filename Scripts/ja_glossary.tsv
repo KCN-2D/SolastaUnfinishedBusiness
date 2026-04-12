@@ -31,6 +31,10 @@ Sleight of Hand	〈手先の早業〉	手先の巧みさ	skill	技能名は山�
 Stealth	〈隠密〉	ステルス	skill	技能名は山括弧付き。
 Survival	〈生存〉	生存	skill	技能名は山括弧付き。
 Humanoid	人型生物	ヒューマノイド	creature_type	種別は人型生物。
+Human (race label)	ヒューマン	人間	ui	種族ラベルや設定名ではヒューマンを使う。
+Family (label)	姓	Family	ui	姓や家名のラベルには姓を使う。
+Clan (label)	氏族	Clan|クラン	ui	氏族ラベルには氏族を使う。
+Nickname (label)	異名	Nickname|ニックネーム	ui	通り名や異名のラベルには異名を使う。
 radiant	光輝	放射	damage_type	ダメージ種別は光輝。
 necrotic	死霊	壊死|壊死性	damage_type	ダメージ種別は死霊。
 force	力場	フォース	damage_type	ダメージ種別は力場。

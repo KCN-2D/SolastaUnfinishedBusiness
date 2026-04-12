@@ -428,6 +428,7 @@ SYSTEM_KEY_EXPECTATIONS = {
     "Screen/&ProficiencyToggleMetamagicTitle": "呪文修正",
     "Rules/&RateSorceryPointsFormatTitle": "魔力点",
     "Modal/&DamageAffinityTypeImmunityTitle": "完全耐性",
+    "Modal/&DamageAffinityTypeResistanceTitle": "抵抗",
     "Tooltip/&TagFinesseTitle": "妙技",
     "Tooltip/&TagHeavyTitle": "重武器",
     "Tooltip/&TagPolearmWeaponTitle": "長柄武器",
@@ -462,7 +463,17 @@ SYSTEM_KEY_EXPECTATIONS = {
     "Screen/&JournalNewDayTitle": "日",
     "Screen/&JournalQuestLogTitle": "<color=#F5B486>クエスト</color><color=#F5B486>記録</color>",
     "Screen/&JournalTutorialTitle": "<color=#F5B486>チュートリアル</color>",
+    "Race/&HumanTitle": "ヒューマン",
     "Race/&ElfTitle": "エルフ",
+    "CharacterTemplate/&RosLastName": "ロス",
+    "Prop/&CellTitle": "マス",
+    "Feature/&DamageResistanceFormat": "{0}に対する抵抗: ダメージは半分になります",
+    "Feature/&DragonbornDamageResistanceTitle": "ダメージ抵抗",
+    "Feature/&FeatureSetTieflingHellishResistanceTitle": "地獄の抵抗力",
+    "Reaction/&IndomitableResistanceTitle": "不屈",
+    "ModUi/&DocsInfusions": "注入",
+    "ModUi/&DocsRaces": "種族",
+    "ModUi/&DocsSubraces": "亜種族",
     "Spell/&DaylightTitle": "陽光",
     "Equipment/&ScrollDaylightTitle": "陽光の巻物",
     "EffectProxy/&ProxyDaylightTitle": "陽光",
@@ -689,6 +700,11 @@ MANUAL_BANNED_PATTERNS = [
     (lambda key: True, re.compile(r"ヒット ダイス|ヒットダイス"), "ヒット・ダイス"),
     (lambda key: True, re.compile(r"【(?:筋力|敏捷力|耐久力|知力|判断力|魅力)】"), "能力値名の全角括弧を削除"),
     (lambda key: True, re.compile(r"《(?:長柄の使い手|重装鎧の達人)》"), "特技名の山括弧を削除"),
+    (lambda key: key == "Race/&HumanTitle" or "EnableAlternateHuman" in key, re.compile(r"人間"), "ヒューマン"),
+    (lambda key: key in {"Race/&DragonbornSurNameTitle", "Race/&DwarfSurNameTitle", "Race/&GnomeSurNameTitle"}, re.compile(r"クラン"), "氏族"),
+    (lambda key: key == "Race/&TieflingSurNameTitle", re.compile(r"ニックネーム"), "異名"),
+    (lambda key: key.endswith("SurNameTitle") and "Human" in key or key.endswith("SurNameTitle") and "Elf" in key or key.endswith("SurNameTitle") and "HalfElf" in key or key.endswith("SurNameTitle") and "Halfling" in key, re.compile(r"家族|ファミリー"), "姓"),
+    (lambda key: key == "CharacterTemplate/&RosLastName", re.compile(r"\bRos\b"), "ロス"),
     (lambda key: True, re.compile(r"メイズ"), "迷路"),
     (lambda key: "WallOfThorns" in key, re.compile(r"いばらの壁\((?:ライン|リング)\)|いばらの壁"), "イバラの壁（直線） / イバラの壁（輪） / イバラの壁"),
     (lambda key: True, re.compile(r"ガルガンチュアン"), "超巨大"),
@@ -699,7 +715,20 @@ MANUAL_BANNED_PATTERNS = [
     (lambda key: True, re.compile(r"\b(?:CON|DEX|STR|INT|WIS|CHA)セーヴィング・スロー"), "能力値名を日本語にしてください"),
     (lambda key: True, re.compile(r"\b(?:CON|DEX|STR|INT|WIS|CHA)ボーナス"), "能力値名を日本語にしてください"),
     (lambda key: True, re.compile(r"\b(?:CON|DEX|STR|INT|WIS|CHA)修正"), "能力値名を日本語にしてください"),
+    (lambda key: key == "Attribute/&CharacterLevelDescription", re.compile(r"クラス レベル"), "クラスレベル"),
+    (lambda key: key == "Attribute/&ProficiencyBonusDescription", re.compile(r"スキル/ツール 判定"), "スキル判定やツール判定"),
+    (lambda key: key == "Attribute/&TagBackgroundToolTypeTitle", re.compile(r"バックグラウンドツール"), "背景ツール"),
+    (lambda key: key == "Attribute/&TagClassLanguageTitle", re.compile(r"クラス言語"), "クラスの言語"),
+    (lambda key: key == "Attribute/&TagClassToolTypeTitle", re.compile(r"授業ツール"), "クラスのツール"),
+    (lambda key: key == "Attribute/&TagRaceAnyCantripOrSpellTitle", re.compile(r"^初級呪文または呪文$"), "種族の任意の初級呪文または呪文"),
+    (lambda key: key == "Attribute/&TagSubclassAnyCantripOrSpellTitle", re.compile(r"^初級呪文または呪文$"), "サブクラスの任意の初級呪文または呪文"),
+    (lambda key: key == "Attribute/&TagSubclassLanguageTitle", re.compile(r"サブクラス言語"), "サブクラスの言語"),
+    (lambda key: key == "Attribute/&TagSubclassToolTypeTitle", re.compile(r"サブクラスツール"), "サブクラスのツール"),
     (lambda key: True, re.compile(r"フリー アクション"), "フリーアクション"),
+    (lambda key: key == "ModUi/&AllowAllPlayersOnNarrativeSequences", re.compile(r"ナラティブ シーケンス"), "ナラティブシーケンス"),
+    (lambda key: key.startswith("ModUi/&") and "Races" in key, re.compile(r"人種|レース|亜人種"), "種族 / 亜種族"),
+    (lambda key: key == "ModUi/&AltOnlyHighlightItemsInPartyFieldOfView", re.compile(r"ハイ光表示"), "ハイライト表示"),
+    (lambda key: key == "ModUi/&DocsInfusions", re.compile(r"点滴"), "注入"),
     (lambda key: True, re.compile(r"力場 ダメージ"), "力場ダメージ"),
     (lambda key: True, re.compile(r"力場 ポイント"), "力場ポイント"),
     (lambda key: True, re.compile(r"呪文 難易度|スペル セーブ 難易度|スペルセーブ難易度"), "呪文セーヴ難易度"),
@@ -840,6 +869,14 @@ def build_glossary_variants(glossary: dict[str, dict[str, str]]) -> list[tuple[s
         category = row["category"].strip()
         alt_text = row["alt_ja"].strip()
         source = row["source"].strip()
+
+        if source in {
+            "Human (race label)",
+            "Family (label)",
+            "Clan (label)",
+            "Nickname (label)",
+        }:
+            continue
 
         for alt in [part.strip() for part in alt_text.split("|") if part.strip()]:
             if source == "Eldritch Invocation" and alt == "呼び出し":

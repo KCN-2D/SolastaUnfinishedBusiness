@@ -23,7 +23,7 @@ ModUi/&AddPickPocketableLoot=スリ可能な戦利品を追加 <i><color=#F0DAA0
 ModUi/&AddToStore={0} を追加
 ModUi/&Advanced=<color=#F0DAA0>詳細:</color> <b><i><color=#C04040E0>[再起動が必要]</color></i></b>
 ModUi/&AdvancedHelp=• <b><color=#C04040E0>注意:</color></b> これらの設定を行うには、プレイヤーがこのMODをインストールしている必要があります。
-ModUi/&AllowAllPlayersOnNarrativeSequences=<i>+ ナラティブ シーケンスですべてのプレイヤーを許可する</i>
+ModUi/&AllowAllPlayersOnNarrativeSequences=<i>+ 物語シーンですべてのプレイヤーを許可する</i>
 ModUi/&AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness=自然の暗闇にいるときに味方が<b>GloomStalker</b>を感知できるようにする
 ModUi/&AllowAnyClassToWearSylvanArmor=どのクラスでも <color=#D89555>シルヴァンアーマー</color> または <color=#D89555>光ブリンガー服</color> を着用できるようにします
 ModUi/&AllowBladeCantripsToUseReach=<color=#D89555>ブレード初級呪文</color>が 1マスではなくリーチを使用できるようにします
@@ -34,15 +34,15 @@ ModUi/&AllowDungeonsMaxLevel20=最大レベル20のダンジョンを許可す�
 ModUi/&AllowFlightSuspend=アイテムや呪文による飛行を一時的に停止できるようにします <i><color=#F0DAA0>[自然の化身や飛行種族には影響しません]</color></i>
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=ガジェットや小道具を配置する際のチェックをバイパスするために、<color=#1E81B0>CTRL</color> クリックを有効にします
 ModUi/&AllowHasteCasting=速攻により追加アクションの呪文を唱えられるようになります <i><color=#F0DAA0>[1 ラウンドあたりアクション呪文は 1 つに制限されます]</color></i>
-ModUi/&AllowHornsOnAllRaces=すべての人種で角を許可します <i><color=#F0DAA0>[人種、頭、角によっては結果がひどくなる可能性があります]</color></i>
+ModUi/&AllowHornsOnAllRaces=すべての種族で角を許可します <i><color=#F0DAA0>[種族、頭部、角の組み合わせによっては見た目が崩れる場合があります]</color></i>
 ModUi/&AllowMoreRealStateOnRestPanel=休憩パネルでよりリアルな状態を許可 <i><color=#F0DAA0>[休憩前のパネルでの休憩後のアクションと休憩後のパネルでの回復機能を非表示にする]</color></i>
 ModUi/&AllowStackedMaterialComponent=積み重ねられた材料コンポーネントを許可します <i><color=#F0DAA0>[例: 2x500gp ダイヤモンドは 1000gp ダイヤモンドに相当します]</color></i>
 ModUi/&AllowTargetingSelectionWhenCastingChainLightningSpell=<color=#D89555>連鎖電撃</color>呪文を唱える際にターゲット選択を許可します
-ModUi/&AltOnlyHighlightItemsInPartyFieldOfView=<color=#1E81B0>ALT</color> キーはパーティの視野内のガジェットのみをハイ光表示します <i><color=#F0DAA0>[カスタム ダンジョンのみ]</color></i>
+ModUi/&AltOnlyHighlightItemsInPartyFieldOfView=<color=#1E81B0>ALT</color>キーは、パーティの視界内にあるガジェットだけを強調表示します <i><color=#F0DAA0>[カスタムダンジョンのみ]</color></i>
 ModUi/&AlwaysSpendPactSlotsFirst=<i>+ 可能であれば常に<color=#D89555>ウォーロック</color> の協定スロットを最初に消費してください</i>
 ModUi/&ArcaneShieldstaffOptions=<color=#D89555>アーケイン 盾スタッフ</color>をどのクラスでも調整できるようにする
 ModUi/&Backgrounds=<color=#F0DAA0>背景</color>
-ModUi/&BackgroundsAndRaces=背景と人種
+ModUi/&BackgroundsAndRaces=背景と種族
 ModUi/&Basic=<color=#F0DAA0>基本:</color>
 ModUi/&Bestiary=動物図鑑
 ModUi/&BestowCurseNoConcentrationRequiredForSlotLevel5OrAbove=<color=#D89555>呪いの付与</color>は、L5以上の呪文スロットで唱える場合、集中力を必要としません。
@@ -51,7 +51,7 @@ ModUi/&Blueprints=設計図
 ModUi/&Campaigns=キャンペーン
 ModUi/&Cancel=キャンセル
 ModUi/&Category=カテゴリ
-ModUi/&ChangeDragonbornElementalBreathUsages=<color=#D89555>Dragonborn</color> のエレメンタル祝福の使用回数を小休憩ごとの 耐久力 修正値に変更します
+ModUi/&ChangeDragonbornElementalBreathUsages=<color=#D89555>ドラゴンボーン</color>の元素ブレスの使用回数を、小休憩ごとの耐久力修正値に変更します
 ModUi/&ChangeSleetStormToCube=<color=#D89555>みぞれ混じりの嵐</color> を、円柱ではなく立方体で使うように変更します。
 ModUi/&Changelog=<b><color=#D89555>変更ログ</color></b>
 ModUi/&Character=キャラクター
@@ -84,14 +84,14 @@ ModUi/&DocsBackgrounds=背景
 ModUi/&DocsClasses=クラス
 ModUi/&DocsFeats=特技
 ModUi/&DocsFightingStyles=戦闘スタイル
-ModUi/&DocsInfusions=点滴
+ModUi/&DocsInfusions=注入
 ModUi/&DocsInvocations=妖術
 ModUi/&DocsManeuvers=作戦
 ModUi/&DocsMetamagic=呪文修正
-ModUi/&DocsRaces=レース
+ModUi/&DocsRaces=種族
 ModUi/&DocsSpells=呪文
 ModUi/&DocsSubclasses=サブクラス
-ModUi/&DocsSubraces=亜人種
+ModUi/&DocsSubraces=亜種族
 ModUi/&DocsVersatilities=エルドリッチ・バーサティリティ
 ModUi/&DontEndTurnAfterReady=<color=#D89555>準備完了</color>アクションの後にターンを終了しない <i><color=#F0DAA0>[ボーナスアクションまたは他のソースからのその他のアクションを許可]</color></i>
 ModUi/&DontFollowCharacterInBattle=キャラクターがすでに画面上にいる場合、戦闘カメラは追従しません
@@ -106,8 +106,8 @@ ModUi/&EnableAdditionalBackstoryDisplay=背景調査で追加のバックスト�
 ModUi/&EnableAdditionalIconsOnLevelMap=レベルマップ上のキャンプ、出口、瞬間移動装置の追加アイコンを有効にする
 ModUi/&EnableAdditionalItemsInDungeonMaker=エディターに改造アイテムを追加する
 ModUi/&EnableAllyMovementAllowsFlight=クリーチャーが飛行している場合、自分または仲間を移動する機能に空中位置を含めることを許可する (例: <color=#D89555>機動攻撃</color>、<color=#D89555>本能的な飛びかかり</color>)
-ModUi/&EnableAlternateHuman=代替の <color=#D89555>人間</color> を有効にする <i><color=#F0DAA0>[+1 特技 / +2 属性選択 / +1 スキル]</color></i>
-ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>背景能力値上昇が有効な間、人間は種族ASIを失う代わりに代替人間の特技と技能パッケージを自動で使用します。</color></i>
+ModUi/&EnableAlternateHuman=代替の<color=#D89555>ヒューマン</color>を有効にする <i><color=#F0DAA0>[+1特技 / +2能力値選択 / +1技能]</color></i>
+ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>背景の能力値上昇が有効な間、ヒューマンは種族の能力値上昇を失う代わりに、代替ヒューマンの特技と技能パッケージを自動的に使用します。</color></i>
 ModUi/&EnableAlternateVotingSystem=代替投票システムを有効にする <i><color=#F0DAA0>[選択の重み = 投票数 * ヒーローの魅力補正値]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=<b>Abjurer</b> の <color=#D89555>秘術の防壁</color> 実装を有効にし、BG3 のように動作させます。
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[ダメージを防ぐたびに 1 減少します (防いだダメージの数ではありません)。有効にするために防御呪文を唱える必要はありません\nただし、最大値はウィザード レベルの 2 倍 (ウィザード レベル + 知力 修正値の 2 倍) であり、大休憩でのみ半分に再充電されます]</color></i>
@@ -370,8 +370,8 @@ ModUi/&Pause=一時停止
 ModUi/&PortraitsOpenFolder=ポートレートフォルダを開く
 ModUi/&PrimedItems=プライムアイテム
 ModUi/&QuickCastLightCantripOnWornItemsFirst=クイックキャスト<color=#D89555>光初級呪文</color>を有効にすると、頭、首、または胴体に装備したアイテムが優先されます。
-ModUi/&RaceLightSensitivityApplyOutdoorsOnly=<color=#D89555>Darkelf</color>、<color=#D89555>Dark Kobold</color>、<color=#D89555>Gray Dwarf</color> の <color=#D89555>光 Sensitivity</color> を有効にすると、屋外でのみトリガーされます\n<i><color=#F0DAA0>[ロード画面なしでアクセス可能な屋外の場所の屋内エリアは、ゲーム エンジンによって屋外とみなされます]</color></i>
-ModUi/&Races=<color=#F0DAA0>レース</color>
+ModUi/&RaceLightSensitivityApplyOutdoorsOnly=<color=#D89555>ダークエルフ</color>、<color=#D89555>ダークコボルド</color>、<color=#D89555>グレイドワーフ</color>の<color=#D89555>光感受性</color>を有効にすると、屋外でのみ発動します\n<i><color=#F0DAA0>[ロード画面なしでアクセスできる屋外ロケーションの屋内エリアも、ゲームエンジン上は屋外として扱われます]</color></i>
+ModUi/&Races=<color=#F0DAA0>種族</color>
 ModUi/&RecipeCost=<color=white>レシピのコスト</color>
 ModUi/&RefreshVoice=ボイスリストを更新
 ModUi/&RelicForgeries=遺物の偽造
