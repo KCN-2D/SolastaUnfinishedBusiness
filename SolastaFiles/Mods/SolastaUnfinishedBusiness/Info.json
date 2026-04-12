@@ -1,6 +1,6 @@
 {
     "Id":  "SolastaUnfinishedBusiness",
-    "DisplayName":  "Unfinished Business [CUSTOM 00599d6aa1]",
+    "DisplayName":  "Unfinished Business [CUSTOM 2a2574ed9d]",
     "Version":  "1.5.97.126",
     "GameVersion":  "1.5.97",
     "ManagerVersion":  "0.24.0",
@@ -11,6 +11,6 @@
     "VersionURL":  "https://raw.githubusercontent.com/EnderWiggin/SolastaUnfinishedBusiness/refs/heads/release/SolastaUnfinishedBusiness/Info.json",
     "Changelog":  "https://raw.githubusercontent.com/EnderWiggin/SolastaUnfinishedBusiness/refs/heads/release/SolastaUnfinishedBusiness/ChangelogHistory.txt",
     "CustomBuild":  true,
-    "CustomBuildLabel":  "CUSTOM 00599d6aa1",
+    "CustomBuildLabel":  "CUSTOM 2a2574ed9d",
     "CustomBuildBaseVersion":  "1.5.97.126"
 }

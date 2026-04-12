@@ -195,7 +195,7 @@ ModUi/&EnableOneDndDivineFavorSpell=<color=#D89555>神の恩寵</color> 5e 2024 
 ModUi/&EnableOneDndGuidanceSpell=<color=#D89555>導き</color> 5e 2024 呪文バージョンを有効にします <i><color=#F0DAA0>[発動時にスキルを 1 つ選択し、最大 1 分間ボーナスを獲得します。]</color></i>
 ModUi/&EnableOneDndHealingSpellsUpgrade=<color=#D89555>傷治療</color>、<color=#D89555>偽りの生命</color>、<color=#D89555>癒しの言葉</color>、<color=#D89555>Mass 傷治療</color>、<color=#D89555>Mass 癒しの言葉</color> 5e 2024 呪文バージョン <i><color=#F0DAA0>[better healing]</color></i> を有効にします
 ModUi/&EnableOneDndHideousLaughterSpell=<color=#D89555>抱腹絶倒</color> 5e 2024 呪文バージョンを有効にする <i><color=#F0DAA0>[+1 ターゲット/アップキャスト]</color></i>
-ModUi/&EnableOneDndHuntersMarkSpell=<color=#D89555>ハンターズマーク</color> 5e 2024 呪文バージョン <i><color=#F0DAA0>[力場ダメージ]</color></i> を有効にする
+ModUi/&EnableOneDndHuntersMarkSpell=<color=#D89555>狩人の印</color>5e 2024版の呪文<i><color=#F0DAA0>[力場ダメージ]</color></i>を有効にする
 ModUi/&EnableOneDndLesserRestorationSpell=<color=#D89555>初級回復術</color> の 5e 2024 版呪文を有効にします <i><color=#F0DAA0>[ボーナス・アクション]</color></i>
 ModUi/&EnableOneDndMagicWeaponSpell=<color=#D89555>魔法の武器</color> 5e 2024 呪文バージョン <i><color=#F0DAA0>[ボーナス・アクション、集中力なし、呪文レベル 3 および 6 で強化アップグレード]</color></i> を有効にします
 ModUi/&EnableOneDndPowerWordStunSpell=<color=#D89555>力の言葉:朦朧</color> 5e 2024 呪文バージョンを有効にする <i><color=#F0DAA0>[対象のヒット・ポイントが150を超えている場合、1ターン朦朧状態にします]</color></i>
@@ -224,11 +224,11 @@ ModUi/&EnableRangerDeftExplorer2024=レベル 2 で <color=#D89555>Deft Explorer
 ModUi/&EnableRangerExpertise2024=レベル 9 で <color=#D89555>専門知識</color> を有効にする <i><color=#F0DAA0>[レンジャー スキルに関する専門知識を 2 つ取得]</color></i>
 ModUi/&EnableRangerFavoredEnemy2024=<color=#D89555>得意な敵</color>と<color=#D89555>得意な地形</color>を<color=#D89555>得意な敵</color> 5e 2024バージョンと入れ替えます
 ModUi/&EnableRangerFeralSenses2024=<color=#D89555>Feral Senses</color> を 5e 2024 バージョンの <i><color=#F0DAA0>[6マスの盲視力を得る]</color></i> と入れ替えます
-ModUi/&EnableRangerFoeSlayers2024=<color=#D89555>Foe Slayer</color> を 5e 2024 バージョンの <i><color=#F0DAA0>[Hunter's Mark ダイスを d10 に増加]</color></i> と入れ替えます
+ModUi/&EnableRangerFoeSlayers2024=<color=#D89555>仇敵殺し</color>を5e 2024版<i><color=#F0DAA0>[狩人の印のダイスをd10に増加]</color></i>へ置き換える
 ModUi/&EnableRangerNatureShroud2024=レベル 14 で <color=#D89555>自然のベール</color> を有効にし、<color=#D89555>消える</color> を置き換えます <i><color=#F0DAA0>[ボーナス・アクションとして、次のターンの開始時まで魔法で透明になります]</color></i>
-ModUi/&EnableRangerPreciseHunter2024=レベル 17 で <color=#D89555>精密ハンター</color> を有効にする <i><color=#F0DAA0>[ハンターによってマークされたクリーチャーに対して有利]</color></i>
-ModUi/&EnableRangerRelentlessHunter2024=レベル 13 で <color=#D89555>執拗なハンター</color> を有効にする <i><color=#F0DAA0>[ハンターのマークへの集中力が失われない]</color></i>
-ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ 代わりにハンターズマークの集中力要件を削除します</i>
+ModUi/&EnableRangerPreciseHunter2024=レベル17で<color=#D89555>精密な狩人</color>を有効にする<i><color=#F0DAA0>[狩人の印を受けたクリーチャーへの攻撃に有利]</color></i>
+ModUi/&EnableRangerRelentlessHunter2024=レベル13で<color=#D89555>執拗な狩人</color>を有効にする<i><color=#F0DAA0>[狩人の印への精神集中を失わない]</color></i>
+ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ 代わりに狩人の印の精神集中要件を削除する</i>
 ModUi/&EnableRangerRoving2024=レベル 6 で <color=#D89555>移動</color> を有効にする <i><color=#F0DAA0>[重装鎧を使用していないときに 2マス移動し、同じ登攀速度を得る]</color></i>
 ModUi/&EnableRangerSpellCastingAtLevel1=<color=#D89555>呪文発動</color>をレベル2ではなくレベル1で有効にする
 ModUi/&EnableRangerTireless2024=レベル 10 で <color=#D89555>不屈の精神</color> を <color=#D89555>隠れた視界</color> と置き換えて有効にします <i><color=#F0DAA0>[一時的にヒット・ポイントを獲得]</color></i>

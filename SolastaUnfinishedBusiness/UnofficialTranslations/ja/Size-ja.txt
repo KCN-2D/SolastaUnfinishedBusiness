@@ -1,5 +1,5 @@
-Size/&GargantuanTitle=超巨大
-Size/&HugeTitle=巨大
+Size/&GargantuanTitle=巨大
+Size/&HugeTitle=超大型
 Size/&LargeTitle=大型
 Size/&MediumTitle=中型
 Size/&SmallTitle=小型

@@ -174,9 +174,14 @@ Spirit Guardians	護りの霊	Spirit Guardians|スピリット・ガーディア
 Web	クモの巣	Web|ウェブ	spell	システム文では漢字和訳を優先。
 Wall of Thorns	イバラの壁	Wall of Thorns|ウォール・オヴ・ソーンズ	spell	システム文では漢字和訳を優先。
 Maze	迷路	メイズ|Maze	spell	システム文では漢字和訳を優先。
+Dominate Beast	野獣支配	ドミネート・ビースト|ドミネイト・ビースト|Dominate Beast	spell	システム文では漢字和訳を優先。
+Dreadful Omen	凶兆	ドレッドフル・オーメン|恐ろしい予兆|Dreadful Omen	spell	glossary 未掲載のため既存公式訳パターンに合わせて自然な漢字訳を採用。
 Create Food and Water	食糧と水の創造	クリエイト・フード・アンド・ウォーター|Create Food and Water	spell	システム文では漢字和訳を優先。
 Death Ward	死からの守り	デス・ウォード|Death Ward	spell	システム文では漢字和訳を優先。
 Eyebite	魔眼	アイバイト|Eyebite	spell	システム文では漢字和訳を優先。
+Feeblemind	知能低下	フィーブルマインド|Feeblemind	spell	システム文では漢字和訳を優先。
+Finger of Death	死神の指	フィンガー・オヴ・デス|フィンガー・オブ・デス|Finger of Death	spell	システム文では漢字和訳を優先。
+Hunter's Mark	狩人の印	ハンターズ・マーク|ハンターズマーク|Hunter's Mark	spell	システム文では漢字和訳を優先。
 Guiding Bolt	導きの矢	ガイディング・ボルト|Guiding Bolt	spell	システム文では漢字和訳を優先。
 Gust of Wind	強風	ガスト・オヴ・ウィンド|Gust of Wind	spell	システム文では漢字和訳を優先。
 Heavy Armor Master	重装鎧の達人	重装鎧マスター|Heavy Armor Master	feat	公式特技名を優先。
@@ -192,7 +197,9 @@ Sunbeam	陽光	サンビーム|Sunbeam	spell	システム文では漢字和訳�
 Sunburst	陽光爆発	サンバースト|Sunburst	spell	システム文では漢字和訳を優先。
 Tongues	言語会話	タンズ|Tongues	spell	システム文では漢字和訳を優先。
 Vicious Mockery	悪意ある嘲り	ヴィシャス・モッカリィ|ヴィシャス・モッカリー|Vicious Mockery	spell	システム文では漢字和訳を優先。
-Gargantuan	超巨大	ガルガンチュアン|Gargantuan	rule	サイズ区分のシステム文では漢字和訳を優先。
+Foe Slayer	仇敵殺し	Foe Slayer|敵スレイヤー	class_feature	公式クラス特徴名を優先。
+Huge	超大型	Huge	rule	サイズ区分のシステム文では漢字和訳を優先。
+Gargantuan	巨大	ガルガンチュアン|Gargantuan	rule	サイズ区分のシステム文では漢字和訳を優先。
 Fiendish Resilience	魔物の抵抗力	悪魔の回復力|Fiendish Resilience	class_feature	公式クラス特徴名を優先。
 Steel Defender	スチール・ディフェンダー	Steel Defender|スティールディフェンダー|スティール・ディフェンダー|スチールディフェンダー	creature	公式クリーチャー名を優先。
 Cunning Strike	カニング・ストライク	Cunning Strike|狡猾な一撃	feature	repo 内基準訳。

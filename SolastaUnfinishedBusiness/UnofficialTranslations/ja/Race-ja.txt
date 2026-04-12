@@ -259,7 +259,7 @@ Race/&HalflingSurName7Title=ウーリー
 Race/&HalflingSurName8Title=ルス
 Race/&HalflingSurNameTitle=姓
 Race/&HalflingTitle=ハーフリング
-Race/&HumanDescription=もともとティルマールで生まれ、大変動の前にソラスタに連れてこられた<color=#B5D3DE>ヒューマン</color>は、その独自の才覚によって新しい世界に適応してきました。どこにでも住むことができ、どんな仕事にも就くことができ、何よりも多才です。
+Race/&HumanDescription=もともとティルマールで生まれ、大変動の前にソラスタへ連れてこられた<color=#B5D3DE>人間</color>は、その独自の才覚によって新しい世界に適応してきました。どこにでも住み、どんな仕事にも就くことができ、何よりも多才です。
 Race/&HumanFemaleName1Title=ジョディ
 Race/&HumanFemaleName2Title=セリア
 Race/&HumanFemaleName3Title=エリサ
