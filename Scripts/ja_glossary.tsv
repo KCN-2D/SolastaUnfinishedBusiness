@@ -147,7 +147,7 @@ Arcane Archer	秘術の射手	Arcane Archer	subclass	サブクラス名。
 Lesser Restoration	初級回復術	弱回復|Lesser Restoration	spell	公式呪文名を優先。
 Greater Restoration	上級回復術	グレーター・レストレーション|Greater Restoration	spell	システム文では漢字和訳を優先。
 Remove Curse	呪いの除去	リムーブ・カース|Remove Curse	spell	システム文では漢字和訳を優先。
-True Seeing	真視	True Seeing	spell	既存ゲーム訳に合わせる。
+True Seeing	真実の目	トゥルー・シーイング|True Seeing|真視	spell	システム文では漢字和訳を優先。
 death saving throw	死のセーヴィング・スロー		feature	システム文で使用。
 Cantrip	初級呪文	キャントリップ	system	system/UI では初級呪文に統一。
 Spare the Dying	救命措置	スペア・ザ・ダイイング|Spare the Dying	spell	システム文では漢字和訳を優先。
@@ -169,6 +169,27 @@ Find Traps	罠発見	Find Traps|ファインド・トラップス	spell	シス�
 Spirit Guardians	護りの霊	Spirit Guardians|スピリット・ガーディアンズ	spell	システム文では漢字和訳を優先。
 Web	クモの巣	Web|ウェブ	spell	システム文では漢字和訳を優先。
 Wall of Thorns	イバラの壁	Wall of Thorns|ウォール・オヴ・ソーンズ	spell	システム文では漢字和訳を優先。
+Maze	迷路	メイズ|Maze	spell	システム文では漢字和訳を優先。
+Create Food and Water	食糧と水の創造	クリエイト・フード・アンド・ウォーター|Create Food and Water	spell	システム文では漢字和訳を優先。
+Death Ward	死からの守り	デス・ウォード|Death Ward	spell	システム文では漢字和訳を優先。
+Eyebite	魔眼	アイバイト|Eyebite	spell	システム文では漢字和訳を優先。
+Guiding Bolt	導きの矢	ガイディング・ボルト|Guiding Bolt	spell	システム文では漢字和訳を優先。
+Gust of Wind	強風	ガスト・オヴ・ウィンド|Gust of Wind	spell	システム文では漢字和訳を優先。
+Heavy Armor Master	重装鎧の達人	重装鎧マスター|Heavy Armor Master	feat	公式特技名を優先。
+Holy Aura	聖なるオーラ	ホーリィ・オーラ|ホーリー・オーラ|Holy Aura	spell	システム文では漢字和訳を優先。
+Hypnotic Pattern	催眠文様	ヒプノティック・パターン|催眠パターン|Hypnotic Pattern	spell	システム文では漢字和訳を優先。
+Ice Storm	氷の嵐	アイス・ストーム|アイスストーム|Ice Storm	spell	システム文では漢字和訳を優先。
+Polearm Master	長柄の使い手	ポールアームマスター|Polearm Master	feat	公式特技名を優先。
+Phantasmal Killer	幻の殺し屋	ファンタズマル・キラー|Phantasmal Killer	spell	システム文では漢字和訳を優先。
+Raise Dead	死者の復活	レイズ・デッド|Raise Dead	spell	システム文では漢字和訳を優先。
+Spike Growth	トゲ密生	スパイク・グロウス|Spike Growth	spell	システム文では漢字和訳を優先。
+Spiritual Weapon	心霊武器	スピリチュアル・ウェポン|Spiritual Weapon	spell	システム文では漢字和訳を優先。
+Sunbeam	陽光	サンビーム|Sunbeam	spell	システム文では漢字和訳を優先。
+Sunburst	陽光爆発	サンバースト|Sunburst	spell	システム文では漢字和訳を優先。
+Tongues	言語会話	タンズ|Tongues	spell	システム文では漢字和訳を優先。
+Vicious Mockery	悪意ある嘲り	ヴィシャス・モッカリィ|ヴィシャス・モッカリー|Vicious Mockery	spell	システム文では漢字和訳を優先。
+Gargantuan	超巨大	ガルガンチュアン|Gargantuan	rule	サイズ区分のシステム文では漢字和訳を優先。
+Fiendish Resilience	魔物の抵抗力	悪魔の回復力|Fiendish Resilience	class_feature	公式クラス特徴名を優先。
 Steel Defender	スチール・ディフェンダー	Steel Defender|スティールディフェンダー|スティール・ディフェンダー|スチールディフェンダー	creature	公式クリーチャー名を優先。
 Cunning Strike	カニング・ストライク	Cunning Strike|狡猾な一撃	feature	repo 内基準訳。
 Blade Flourish	ブレード・フラリッシュ	Blade Flourish	feature	repo 内基準訳。

@@ -406,7 +406,7 @@ Feedback/&TacticalMindCheckToHitRollFailure={0} は {1} を使用し、判定 �
 Feedback/&TacticalMindCheckToHitRollSuccess={0}は{1}を使用し、チェックロールに{2}を追加し、結果を変更し、底力を消費します
 Feedback/&TriggerFeatureLine={0} が {1} をトリガーします
 Feedback/&TriggerRerollLine={0} は {1} をアクティブにして、{2} = {3} を再ロールします
-Feedback/&TrueSightAndIllusionSpells={0}は真視を持つため、この呪文の影響を受けません
+Feedback/&TrueSightAndIllusionSpells={0}は真実の目を持つため、この呪文の影響を受けません
 Format/&LevelAndExperienceFormat=レベル: {0}\n経験値: レベル {3} に到達するには {1}\n{2} ポイントが必要です
 Format/&LevelAndExperienceMaxedFormat=レベル: {0}\n経験値: {1}\n最大レベルに到達しました
 Invocation/&DevilsSightExtendedDescription=暗闇の中でも、魔法のようなものもそうでないものも、16マスの距離まで通常見ることができます。
@@ -566,7 +566,7 @@ Screen/&CharacterInspectionModeBattleUnlimitedTitle=1 ラウンドあたり無�
 Screen/&ClassExtraSpellDescriptionFormat=この呪文は {0} クラスで知っていますね。
 Screen/&DomainsTitle=ドメイン
 Screen/&EditorLocationSize3Title=巨大な
-Screen/&EditorLocationSize4Title=ガルガンチュアン
+Screen/&EditorLocationSize4Title=超巨大
 Screen/&MulticlassExtraSpellDescription=この呪文は他のレパートリーでもよく知られています。
 Screen/&MulticlassExtraSpellTitle=マルチクラス
 Screen/&PaladinSpellTitle=パラディン

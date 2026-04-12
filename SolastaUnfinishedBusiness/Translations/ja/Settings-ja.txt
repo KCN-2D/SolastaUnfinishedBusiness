@@ -316,7 +316,7 @@ ModUi/&HighContrastTargetingAoeColor=AoE クリーチャーを変更する <b><c
 ModUi/&HighContrastTargetingSingleColor=単一のクリーチャーを変更する <b><color=$$$$$$>選択した色を強調表示</color></b>
 ModUi/&IdentifyAfterRest=小休憩または大休憩中に<color=#D89555>魔法のアイテムを識別する</color>パワーを追加します
 ModUi/&IgnoreHandXbowFreeHandRequirements=<color=#D89555>ハンドクロスボウ</color>を使用するのに自由な手は必要ありません
-ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=幻術呪文は範囲内で<color=#D89555>真視</color>を持つ対象に対して自動的に失敗する
+ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=幻術呪文は範囲内で<color=#D89555>真実の目</color>を持つ対象に対して自動的に失敗する
 ModUi/&IncreaseGameTimeBy=ゲーム時間を増やす
 ModUi/&IncreaseMaxAttunedItems=レベル 10 で最大 <color=#D89555>調整アイテム</color> を 4 個、レベル 18 で 5 個に増加
 ModUi/&Invocations=<color=#F0DAA0>召喚</color>

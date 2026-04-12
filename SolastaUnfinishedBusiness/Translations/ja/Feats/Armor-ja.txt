@@ -1,5 +1,5 @@
 Feat/&FeatHeavyArmorMasterDescription=鎧を使って、本来なら致命的な打撃を受け流せます。筋力を 1 増加させ、最大 20 まで高めます。重装鎧を着用している間、攻撃によって受ける殴打、刺突、斬撃ダメージは 3 減少します。
-Feat/&FeatHeavyArmorMasterTitle=重装鎧マスター
+Feat/&FeatHeavyArmorMasterTitle=重装鎧の達人
 Feat/&FeatMediumArmorDexDescription=敏捷力を 1 増加させ、最大 20 まで高めます。\n中装鎧と盾に習熟します。
 Feat/&FeatMediumArmorDexTitle=中装防具習熟［敏捷力］
 Feat/&FeatMediumArmorMasterDescription=中型防具を着用して移動する練習をすることで、以下の利点が得られます:\n• 中型防具を着用しても、敏捷力 (隠密) 判定に不利な点はありません。\n• 中型防具を着用しているとき、敏捷力が 16 以上であれば、AC に 2 ではなく 3 を追加できます。

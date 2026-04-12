@@ -232,6 +232,7 @@ Japanese terminology guidance:
 - Translate Create or Destroy Water as 水の生成・破壊, Divine Word as 神言, Earthquake as 地震, Darkness as 暗闇, Contagion as 感染, and Cone of Cold as 冷気噴射 in system text.
 - Translate Abi-Dalzim's Horrid Wilting as アビー・ダルジムの恐るべき枯渇 in system text.
 - Translate See Invisibility as 不可視視認, Searing Smite as 灼熱の一撃, Call Lightning as 招雷, Cloudkill as 殺戮の雲, Command as 命令, Blindness/Deafness as 視覚・聴覚剥奪, Calm Emotions as 感情鎮静化, and Blur as かすみ in system text.
+- Translate Vicious Mockery as 悪意ある嘲り, Raise Dead as 死者の復活, Sunbeam as 陽光, Sunburst as 陽光爆発, Phantasmal Killer as 幻の殺し屋, Pass without Trace as 跡を残さぬ移動, Flame Blade as 炎の刃, True Seeing as 真実の目, Tongues as 言語会話, Hypnotic Pattern as 催眠文様, Ice Storm as 氷の嵐, Holy Aura as 聖なるオーラ, Spiritual Weapon as 心霊武器, Spike Growth as トゲ密生, Gust of Wind as 強風, Guiding Bolt as 導きの矢, Eyebite as 魔眼, Death Ward as 死からの守り, Create Food and Water as 食糧と水の創造, Maze as 迷路, Wall of Thorns as イバラの壁, Gargantuan as 超巨大, Polearm Master as 長柄の使い手, and Heavy Armor Master as 重装鎧の達人 in system text.
 - Translate Power Word Stun as 力の言葉:朦朧 in system text.
 - Translate Chain Lightning as 連鎖電撃 in system text.
 - Translate Elemental Bane as 元素禍 in system text.

@@ -1,4 +1,4 @@
-Size/&GargantuanTitle=ガルガンチュアン
+Size/&GargantuanTitle=超巨大
 Size/&HugeTitle=巨大
 Size/&LargeTitle=大型
 Size/&MediumTitle=中型

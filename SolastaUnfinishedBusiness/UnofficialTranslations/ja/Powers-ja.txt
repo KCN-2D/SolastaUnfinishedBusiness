@@ -15,5 +15,5 @@ Powers/&Orenetis_DraconicRegen_Description=オレネティスは竜族の起源�
 Powers/&Orenetis_DraconicRegen_Title=竜の再生
 Powers/&Power_Deady_Leap_Description=このモンスターは走りながらジャンプし、圧倒的な力で敵に着地することができます。
 Powers/&Power_Deady_Leap_Title=デッドリー・リープ
-Powers/&Power_Ghast_Stench_Description=ガストは隣接する細胞に耐え難い悪臭を放ち、中毒を引き起こす可能性があります。
+Powers/&Power_Ghast_Stench_Description=ガストは隣接するマスに耐え難い悪臭を放ち、中毒を引き起こす可能性があります。
 Powers/&Power_Ghast_Stench_Title=悪臭
