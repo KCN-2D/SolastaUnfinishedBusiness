@@ -1,5 +1,5 @@
-EffectProxy/&DelayedBlastFireballDefinition=あなたのコマンド、または呪文が終了または中断されるたびに爆発する火の玉。
-EffectProxy/&DelayedBlastFireballTitle=ディレイブラストファイアボール
+EffectProxy/&DelayedBlastFireballDefinition=あなたの命令、または呪文の終了か中断により爆発する遅発火球。
+EffectProxy/&DelayedBlastFireballTitle=遅発火球
 EffectProxy/&ProxyArcaneSwordDescription=武器を最大 4 マスまで移動し、敵を攻撃します。
 EffectProxy/&ProxyArcaneSwordTitle=アーケインソード
 EffectProxy/&ProxyCallLightningDescription=衝撃から 1 セル以内のすべてのターゲットに雷ダメージを与えます。
@@ -8,7 +8,7 @@ EffectProxy/&ProxyCloudKillDescription=濃くて恐ろしい有毒な霧。
 EffectProxy/&ProxyDancingLightsDescription=ライトを最大 12 セルまで移動します
 EffectProxy/&ProxyDancingLightsTitle=ダンシングライト
 EffectProxy/&ProxyDarknessDescription=魔法のような暗闇のエリア。
-EffectProxy/&ProxyDaylightTitle=明け
+EffectProxy/&ProxyDaylightTitle=陽光
 EffectProxy/&ProxyFlamingSphereDescription=球を最大 6 マス移動するか、敵に叩きつけます
 EffectProxy/&ProxyFlamingSphereTitle=炎の球体
 EffectProxy/&ProxyFogCloudDescription=非常に濃い霧。

@@ -1,7 +1,7 @@
 Feature/&AttributeModifierBattlebornBonusACTitle=難解な回復力
-Feature/&FeatureSetBattlebornAbilityScoreIncreaseDescription=体質+2、他のスコア1点を1点増加。
+Feature/&FeatureSetBattlebornAbilityScoreIncreaseDescription=耐久力+2、他のスコア1点を1点増加。
 Feature/&FeatureSetBattlebornAbilityScoreIncreaseTitle=能力値増加
-Feature/&FeatureSetBattlebornArcaneResilienceDescription=あなたは、次の利点によって表される、驚くべき不屈の精神を持って創造されています:\n・アーマークラスに +1 ボーナスを獲得します。\n・毒に対してセーヴィング スローで有利であり、毒ダメージに対する耐性があります。 \n・あなたには病気に対する免疫があります。\n・寝る必要はありませんし、魔法でも眠らせることはできません。
+Feature/&FeatureSetBattlebornArcaneResilienceDescription=あなたは、次の利点によって表される、驚くべき不屈の精神を持って創造されています:\n・ACに +1 ボーナスを獲得します。\n・毒に対してセーヴィング・スローで有利であり、毒ダメージに対する耐性があります。 \n・あなたには病気に対する免疫があります。\n・寝る必要はありませんし、魔法でも眠らせることはできません。
 Feature/&FeatureSetBattlebornArcaneResilienceTitle=難解な回復力
 Feature/&FeatureSetBattlebornSpecializedInfusionDescription=あなたは、選択したスキル熟練度とツール熟練度を 1 つずつ獲得します。
 Feature/&FeatureSetBattlebornSpecializedInfusionTitle=特殊な輸液

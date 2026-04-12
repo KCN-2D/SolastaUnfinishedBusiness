@@ -1,4 +1,4 @@
-Format/&CurrentAndTemporaryHitPointsDescription=このクリーチャーの現在のヒット・ポイント+一時的なヒット・ポイント。一時的なヒットポイントが最初に失われます。
+Format/&CurrentAndTemporaryHitPointsDescription=このクリーチャーの現在のヒット・ポイント+一時的なヒット・ポイント。一時的なヒット・ポイントが最初に失われます。
 Format/&CurrentHitPointsDescription=このクリーチャーの現在のヒット・ポイント。
 Format/&DifficultyEasyFormat=簡単
 Format/&DifficultyHardFormat=難しい

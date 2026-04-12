@@ -1,0 +1,279 @@
+source	preferred_ja	alt_ja	category	notes
+feat	特技	偉業	feat	feat/UI surfaces では常に特技を使う。
+ability check	能力値判定	能力チェック	system	判定の基本形。
+saving throw	セーヴィング・スロー	セービングスロー|セービング スロー|セーヴィング スロー	system	ルール文では中黒ありを優先。
+saving throw DC	セーヴ難易度	セーブDC|スペルセーブ難易度	system	可能な限り短く統一。
+hit points	ヒット・ポイント	ヒットポイント|ヒット ポイント	system	中黒ありを優先。
+temporary hit points	一時ヒット・ポイント	一時的なヒットポイント|一時的なヒット ポイント	system	中黒ありを優先。
+Proficiency Bonus	習熟ボーナス	熟練度ボーナス	system	5e公式表記を優先。
+initiative	イニシアチブ	イニシアティブ|Initiative	system	ルール語はイニシアチブに統一。
+short rest	小休憩	短い休息|短い休憩|短い休み|Short Rest|Short Rests	class_feature	ルール語は小休憩に統一。
+long rest	大休憩	長い休息|長い休憩|長い休み|Long Rest|Long Rests	class_feature	ルール語は大休憩に統一。
+Armor Class	AC	アーマークラス|アーマー クラス	system	ラベルは AC を優先。
+simple weapon	簡易武器	単純な武器|シンプル武器	weapon	武器区分は簡易武器を優先。
+martial weapon	軍用武器	格闘武器|武術武器|武道武器|武用武器	weapon	武器区分は軍用武器を優先。
+medium armor	中装鎧	中装甲|中型鎧|中程度の鎧	armor	防具区分は中装鎧を優先。
+heavy armor	重装鎧	重装甲	armor	防具区分は重装鎧を優先。
+Strength	筋力	強さ|腕力	ability	能力値ラベルは筋力。
+Dexterity	敏捷力	器用さ|敏捷性	ability	能力値ラベルは敏捷力。
+Constitution	耐久力	憲法|体質	ability	能力値ラベルは耐久力。
+Intelligence	知力	知性	ability	能力値ラベルは知力。
+Wisdom	判断力	知恵	ability	能力値ラベルは判断力。
+Charisma	魅力	カリスマ性	ability	能力値ラベルは魅力。
+Acrobatics	〈軽業〉	アクロバット	skill	技能名は山括弧付き。
+Animal Handling	〈動物使い〉	動物の取り扱い	skill	技能名は山括弧付き。
+Athletics	〈運動〉	陸上競技|アスレチック	skill	技能名は山括弧付き。
+Insight	〈看破〉	洞察力	skill	技能名は山括弧付き。
+Medicine	〈医術〉	医学	skill	技能名は山括弧付き。
+Perception	〈知覚〉	知覚	skill	技能名は山括弧付き。
+Sleight of Hand	〈手先の早業〉	手先の巧みさ	skill	技能名は山括弧付き。
+Stealth	〈隠密〉	ステルス	skill	技能名は山括弧付き。
+Survival	〈生存〉	生存	skill	技能名は山括弧付き。
+Humanoid	人型生物	ヒューマノイド	creature_type	種別は人型生物。
+radiant	光輝	放射	damage_type	ダメージ種別は光輝。
+necrotic	死霊	壊死|壊死性	damage_type	ダメージ種別は死霊。
+force	力場	フォース	damage_type	ダメージ種別は力場。
+Acid Splash	酸の飛沫	アシッド・スプラッシュ	spell	システム文では漢字和訳を優先。
+Aid	助力	エイド	spell	システム文では漢字和訳を優先。
+Burning Hands	火炎双手	バーニング・ハンズ|バーニングハンズ|燃える手	spell	システム文では漢字和訳を優先。
+Healing Word	癒しの言葉	ヒーリング・ワード|ヒーリング ワード	spell	システム文では漢字和訳を優先。
+Cure Wounds	傷治療	キュア・ウーンズ|キュア ウーンズ	spell	システム文では漢字和訳を優先。
+Misty Step	霧渡り	ミスティ・ステップ|ミスティ ステップ	spell	システム文では漢字和訳を優先。
+Hellish Rebuke	地獄の叱咤	ヘリッシュ・リビューク|地獄の叱責	spell	システム文では漢字和訳を優先。
+Scorching Ray	灼熱の光線	スコーチング・レイ|スコーチングレイ	spell	システム文では漢字和訳を優先。
+Faerie Fire	妖精の火	フェアリー・ファイアー|フェアリー・ファイア	spell	システム文では漢字和訳を優先。
+Charm Person	人物魅了	チャーム・パーソン|チャーム・パースン|チャーム パーソン|魅力者	spell	システム文では漢字和訳を優先。
+Color Spray	色しぶき	カラー・スプレー|カラー スプレー|カラースプレー	spell	システム文では漢字和訳を優先。
+Chromatic Orb	万色弾	クロマティック・オーブ|クロマティックオーブ	spell	システム文では漢字和訳を優先。
+Comprehend Languages	言語理解	コンプリヘンド・ランゲージズ	spell	システム文では漢字和訳を優先。
+Detect Magic	魔法の感知	ディテクト・マジック|ディテクトマジック|Detect Magic	spell	システム文では漢字和訳を優先。
+Dispel Magic	魔法解呪	ディスペル・マジック|Dispel Magic	spell	システム文では漢字和訳を優先。
+Earth Tremor	微震	アース・トレマー|アーストレマー	spell	システム文では漢字和訳を優先。
+Expeditious Retreat	迅速退却	エクスペディシャス・リトリート|エクスペディオス・リトリート|迅速な撤退|Expeditious Retreat	spell	システム文では漢字和訳を優先。
+Feather Fall	軟着陸	フェザー・フォール|フェザー フォール|フェザーフォール	spell	システム文では漢字和訳を優先。
+Fire Bolt	炎の矢	ファイアー・ボルト|ファイア・ボルト|ファイアボルト	spell	システム文では漢字和訳を優先。
+Fireball	火球	ファイアーボール	spell	システム文では漢字和訳を優先。
+Delayed Blast Fireball	遅発火球	ディレイド・ブラスト・ファイアーボール|ディレイド・ブラスト・火球|ディレイブラスト火球	spell	システム文では漢字和訳を優先。
+Find Familiar	使い魔獲得	ファインド・ファミリアー|おなじみを見つける	spell	システム文では漢字和訳を優先。
+Flame Blade	炎の刃	フレイム・ブレード|Flame Blade|炎刃	spell	システム文では漢字和訳を優先。
+Fog Cloud	濃霧	フォッグ・クラウド|Fog Cloud|霧雲	spell	システム文では漢字和訳を優先。
+Grease	脂	グリース	spell	システム文では漢字和訳を優先。
+Hideous Laughter	抱腹絶倒	ヒディアス・ラフター|Hideous Laughter|恐ろしい笑い	spell	Tasha's Hideous Laughter の公式和訳に合わせる。
+Identify	識別	アイデンティファイ|Identify	spell	システム文では漢字和訳を優先。
+Ice Knife	氷のナイフ	アイス・ナイフ|アイスナイフ	spell	システム文では漢字和訳を優先。
+Jump	跳躍	ジャンプ	spell	システム文では漢字和訳を優先。
+Levitate	空中浮揚	レヴィテート|レビテート|Levitate	spell	システム文では漢字和訳を優先。
+Longstrider	健脚	ロングストライダー	spell	システム文では漢字和訳を優先。
+Mage Armor	魔道士の鎧	メイジ・アーマー|Mage Armor|魔術師の鎧	spell	システム文では漢字和訳を優先。
+Magic Missile	魔法の矢	マジック・ミサイル|マジック ミサイル|マジックミサイル	spell	システム文では漢字和訳を優先。
+Bless	祝福	ブレス	spell	システム文では漢字和訳を優先。
+Heroism	勇壮	ヒロイズム|英雄	spell	システム文では漢字和訳を優先。
+Enhance Ability	能力強化	エンハンス・アビリティ	spell	システム文では漢字和訳を優先。
+Inflict Wounds	傷付与	インフリクト・ウーンズ|傷を負わせる|負傷	spell	システム文では漢字和訳を優先。
+Protection from Poison	毒からの保護	プロテクション・フロム・ポイズン	spell	システム文では漢字和訳を優先。
+Barkskin	樹皮の肌	バークスキン	spell	システム文では漢字和訳を優先。
+Entangle	からみつき	エンタングル	spell	システム文では漢字和訳を優先。
+Goodberry	良き漿果	グッドベリー	spell	システム文では漢字和訳を優先。
+Produce Flame	火炎作成	プロデュース・フレイム|Produce Flame	spell	システム文では漢字和訳を優先。
+Protection from Evil and Good	善悪からの保護	プロテクション・フロム・イーヴル・アンド・グッド|守る vs 悪と善	spell	システム文では漢字和訳を優先。
+Shield	盾	シールド	spell	システム文では漢字和訳を優先。
+Shocking Grasp	電撃の手	ショッキング・グラスプ	spell	システム文では漢字和訳を優先。
+Sleep	睡眠	スリープ|眠り	spell	システム文では漢字和訳を優先。
+Spider Climb	蜘蛛歩き	スパイダー・クライム|スパイダークライム	spell	システム文では漢字和訳を優先。
+Thunderwave	雷鳴波	サンダーウェーブ|サンダーウェイヴ	spell	システム文では漢字和訳を優先。
+Witch Bolt	魔女の矢	ウィッチ・ボルト|ウィッチボルト	spell	システム文では漢字和訳を優先。
+Zephyr Strike	微風の打撃	ゼファー・ストライク|ゼファーストライク|Zephyr Strike	spell	システム文では漢字和訳を優先。
+Telekinesis	念動力	テレキネシス|Telekinesis	spell	システム文では漢字和訳を優先。
+Elemental Weapon	元素武器	エレメンタルウェポン|エレメンタル・ウェポン|Elemental Weapon	spell	システム文では漢字和訳を優先。
+Sorcery Points	魔力点	ソーサリー・ポイント|ソーサリー ポイント|ソーサリーポイント|魔術ポイント	system	ソーサラーのルール用語は魔力点に統一。
+Wild Magic	荒ぶる魔法	ワイルドマジック|Wild Magic	subclass	サブクラス名は公式訳を優先。
+Wild Magic Surge	魔法暴走	ワイルドマジックサージ|Wild Magic Surge	feature	特徴名は公式訳を優先。
+Tides of Chaos	混沌潮流	混沌の潮流|Tides of Chaos	feature	特徴名は公式訳を優先。
+Bend Luck	運命改変	ベンドラック|Bend Luck	feature	特徴名は公式訳を優先。
+Controlled Chaos	混沌制御	制御された混沌|Controlled Chaos	feature	特徴名は公式訳を優先。
+Spell Bombardment	呪文猛撃	呪文爆撃|Spell Bombardment	feature	特徴名は公式訳を優先。
+Wrathful Smite	憤怒の一撃	怒りのスマイト|ラスフル・スマイト	spell	システム文では漢字和訳を優先。
+Zone of Truth	真実の場	ゾーン・オヴ・トゥルース	spell	システム文では漢字和訳を優先。
+Arcane Ward	秘術の防壁	アーケイン・ワード	feature	防御術系の用語を優先。
+Arcane Deflection	秘術偏向	難解な偏向	feature	防御術系の用語を優先。
+Arcane Recovery	秘術回復		feature	ウィザード機能名。
+Arcane Shot	秘術射撃	アーケインショット|Arcane Shot	feature	アーチャー系機能名。
+Arcane Archer	秘術の射手	Arcane Archer	subclass	サブクラス名。
+Lesser Restoration	初級回復術	弱回復|Lesser Restoration	spell	公式呪文名を優先。
+Remove Curse	呪い解除	Remove Curse	spell	既存ゲーム訳に合わせる。
+True Seeing	真視	True Seeing	spell	既存ゲーム訳に合わせる。
+death saving throw	死のセーヴィング・スロー		feature	システム文で使用。
+Cantrip	初級呪文	キャントリップ	system	system/UI では初級呪文に統一。
+Spare the Dying	救命措置	スペア・ザ・ダイイング|Spare the Dying	spell	システム文では漢字和訳を優先。
+Eldritch Invocation	妖術	呼び出し|異界の呼び出し	feature	ウォーロックの Invocation 系は妖術に統一。
+Eldritch Blast	怪光線	エルドリッチ・ブラスト|Eldritch Blast	spell	system 文では和訳を優先。
+Channel Divinity	神性伝導	Channel Divinity	class_feature	公式ルール語を優先。
+Metamagic	呪文修正	メタマジック|Metamagic	class_feature	公式クラス特徴名を優先。
+metamagic option	呪文修正能力	メタマジック オプション|メタマジックのオプション|メタマジックオプション|Metamagic option	class_feature	公式ルール語を優先。
+Bardic Inspiration	バードの声援	Bardic Inspiration|Bardic Inspire	class_feature	公式クラス特徴名を優先。
+Flurry of Blows	連打	Flurry of Blows	class_feature	公式クラス特徴名を優先。
+Divine Smite	神聖なる一撃	Divine Smite	class_feature	公式クラス特徴名を優先。
+Animal Friendship	獣の友	Animal Friendship|アニマル・フレンドシップ	spell	システム文では漢字和訳を優先。
+Find Traps	罠発見	Find Traps|ファインド・トラップス	spell	システム文では漢字和訳を優先。
+Spirit Guardians	護りの霊	Spirit Guardians|スピリット・ガーディアンズ	spell	システム文では漢字和訳を優先。
+Web	クモの巣	Web|ウェブ	spell	システム文では漢字和訳を優先。
+Wall of Thorns	イバラの壁	Wall of Thorns|ウォール・オヴ・ソーンズ	spell	システム文では漢字和訳を優先。
+Steel Defender	スチール・ディフェンダー	Steel Defender|スティールディフェンダー|スティール・ディフェンダー|スチールディフェンダー	creature	公式クリーチャー名を優先。
+Cunning Strike	カニング・ストライク	Cunning Strike|狡猾な一撃	feature	repo 内基準訳。
+Blade Flourish	ブレード・フラリッシュ	Blade Flourish	feature	repo 内基準訳。
+Transmute Force	変成の力	Transmute Force	feature	repo 内基準訳。
+Nature Strikes	自然の打撃	Nature Strikes	feature	repo 内基準訳。
+Way of Blade	刃の道	Way of Blade	subclass	repo 内基準訳。
+Second Wind	底力	Second Wind|セカンド ウィンド|セカンドウィンド	class_feature	公式クラス特徴名を優先。
+Song of Rest	休息の歌	Song of Rest|ソング・オブ・レスト	class_feature	公式クラス特徴名を優先。
+Sleet Storm	みぞれ混じりの嵐	Sleet Storm|スリート・ストーム	spell	システム文では漢字和訳を優先。
+Conjure Celestial	セレスチャル召喚	Conjure Celestial|カンジャー・セレスチャル	spell	システム文では漢字和訳を優先。
+Stinking Cloud	悪臭の雲	Stinking Cloud|スティンキング・クラウド	spell	システム文では漢字和訳を優先。
+Persistent Rage	終らぬ激怒	Persistent Rage	class_feature	公式クラス特徴名を優先。
+Primal Strike	原始の打撃	Primal Strike|プライマルストライク|プライマル・ストライク	feature	公式特徴名を優先。
+Elemental Fury	エレメンタル・フューリー	Elemental Fury|エレメンタルフューリー	feature	repo 内基準訳。
+Brutal Strike	ブルータル・ストライク	Brutal Strike|ブルータルストライク|ブルータル ストライク	feature	repo 内基準訳。
+Wild Shape	自然の化身	Wild Shape|Wildshape|ワイルドシェイプ|ワイルド シェイプ|野生形態|野生の形態|野生の姿	feature	公式特徴名を優先。
+Combat Wild Shape	戦う自然の化身	Combat Wild Shape|コンバットワイルドシェイプ	feature	公式特徴名を優先。
+Elemental Wild Shape	自然の元素の化身	Elemental Wild Shape	feature	公式特徴名を優先。
+Wild Shape Improvement	自然の化身強化	Wild Shape Improvement	feature	公式特徴名を優先。
+Arcana	〈魔法学〉	魔法学|アルカナ	skill	技能名は山括弧付き。
+Deception	〈ペテン〉	ペテン|欺瞞	skill	技能名は山括弧付き。
+History	〈歴史〉	歴史	skill	技能名は山括弧付き。
+Intimidation	〈威圧〉	威圧|脅迫	skill	技能名は山括弧付き。
+Investigation	〈捜査〉	捜査|調査	skill	技能名は山括弧付き。
+Nature	〈自然〉	自然	skill	技能名は山括弧付き。
+Performance	〈芸能〉	芸能|パフォーマンス	skill	技能名は山括弧付き。
+Persuasion	〈説得〉	説得	skill	技能名は山括弧付き。
+Religion	〈宗教〉	宗教	skill	技能名は山括弧付き。
+Alert	警戒	アラート	feat	UI タイトルは裸の名称を使う。
+Athlete	運動選手	アスリート	feat	UI タイトルは裸の名称を使う。
+Dungeon Delver	ダンジョン探険家	ダンジョンデルバー	feat	UI タイトルは裸の名称を使う。
+Elven Accuracy	エルフの正確さ	エルフの精度|エルフの命中率|エルフの命中	feat	UI タイトルは裸の名称を使う。
+Elemental Adept	元素の達人	エレメンタルアデプト	feat	UI タイトルは裸の名称を使う。
+Fey Teleportation	フェイの瞬間移動	フェイのテレポーテーション|フェイテレポーテーション	feat	UI タイトルは裸の名称を使う。
+Dragon Fear	竜の恐怖	ドラゴンフィアー	feat	UI タイトルは裸の名称を使う。
+Dragon Hide	竜鱗竜爪	ドラゴンの皮	feat	UI タイトルは裸の名称を使う。
+Fade Away	姿消し	フェードアウェイ	feat	UI タイトルは裸の名称を使う。
+Flames of Phlegethos	プレゲトスの炎	フレゲトスの炎	feat	UI タイトルは裸の名称を使う。
+Grappler	組み技の達人	グラップラー	feat	UI タイトルは裸の名称を使う。
+Healer	癒し手	ヒーラー	feat	UI タイトルは裸の名称を使う。
+Lucky	強運	ラッキー	feat	UI タイトルは裸の名称を使う。
+Mage Slayer	魔道士退治	メイジスレイヤー	feat	UI タイトルは裸の名称を使う。
+Magic Initiate	魔法のたしなみ	マジック・イニシエイト|マジックイニシエイト	feat	UI タイトルは裸の名称を使う。
+Mobile	機動力	携帯|モバイル	feat	UI タイトルは裸の名称を使う。
+Weapon Master	武器の使い手	ウェポンマスター	feat	UI タイトルは裸の名称を使う。
+Spell Sniper	呪文狙撃手	スペルスナイパー	feat	UI タイトルは裸の名称を使う。
+Squat Nimbleness	すばやい短足	スクワットの敏捷力	feat	UI タイトルは裸の名称を使う。
+War Caster	戦場の術者	ウォーキャスター	feat	UI タイトルは裸の名称を使う。
+Apothecary	薬師	薬屋|アポセカリー	feat	この特技基底名は薬師で統一。
+Toxicologist	毒物学者		feat	この特技基底名は毒物学者で統一。
+Great Weapon Master	大業物の使い手	グレート武器の使い手|偉大な武器の達人|Great Weapon Master|Great 武器の使い手	feat	公式特技名を優先。
+Defensive Duelist	守りの決闘術	守備型デュエリスト|Defensive Duelist	feat	公式特技名を優先。
+Charger	突撃者	充電器|Charger	feat	公式特技名を優先。
+Tough	追加hp	Tough	feat	公式特技名を優先。
+Weapon Mastery	武器マスタリー	武器の習得|Weapon Mastery	ui	2024系 UI では武器マスタリーに統一。
+Daylight	陽光	デイ・ライト|デイライト|Daylight	spell	システム文では漢字和訳を優先。
+Primal Order	原始秩序	Primal Order	class_feature	2024 系ドルイド特徴名。
+Tactical Master	戦術マスター	Tactical Master	feature	2024系戦士特徴名。
+Cleave	薙ぎ払い	切り裂く|Cleave	feature	武器マスタリー特性名。
+Graze	かすめ打ち	グレイズ|Graze	feature	武器マスタリー特性名。
+Nick	連撃	ニック|Nick	feature	武器マスタリー特性名。
+Push	押し出し	押す|Push	feature	武器マスタリー特性名。
+Sap	かく乱	弱体化|Sap	feature	武器マスタリー特性名。
+Topple	足払い	転倒|Topple	feature	武器マスタリー特性名。
+Vex	崩し	翻弄|Vex	feature	武器マスタリー特性名。
+Blade Ward	防刃	ブレードウォード|ブレード・ウォード	spell	システム文では漢字和訳を優先。
+Booming Blade	唸る剣	ブーミングブレード|ブーミング・ブレード	spell	システム文では漢字和訳を優先。
+Create Bonfire	焚き火作成	クリエイト・ボンファイアー|焚き火を作る	spell	システム文では漢字和訳を優先。
+Guidance	導き	ガイダンス|ガイド付き	spell	システム文では漢字和訳を優先。
+Infestation	寄生生物の群	インフェステイション|感染	spell	システム文では漢字和訳を優先。
+Magic Stone	魔法の石つぶて	マジック・ストーン|魔法の石	spell	システム文では漢字和訳を優先。
+Poison Spray	毒噴射	ポイズン・スプレー	spell	システム文では漢字和訳を優先。
+Ray of Frost	冷気光線	レイ・オヴ・フロスト|レイ・オブ・フロスト	spell	システム文では漢字和訳を優先。
+Toll the Dead	とむらいの鐘	トール・ザ・デッド	spell	システム文では漢字和訳を優先。
+Word of Radiance	光輝の言葉	輝きの言葉	spell	システム文では漢字和訳を優先。
+Chill Touch	負力の接触	チル・タッチ	spell	システム文では漢字和訳を優先。
+Dancing Lights	踊る灯	ダンシング・ライト|ダンシング・ライツ	spell	システム文では漢字和訳を優先。
+Green-Flame Blade	緑の炎の剣	グリーンフレイムブレード|緑炎の刃	spell	システム文では漢字和訳を優先。
+Lightning Lure	電撃の引き寄せ	ライトニングルアー|ライトニング・ルアー	spell	システム文では漢字和訳を優先。
+Primal Savagery	原始の獣性	プライマル・サヴェジリィ|原始的な野蛮さ	spell	システム文では漢字和訳を優先。
+Sword Burst	剣の爆発	ソードバースト|ソード・バースト	spell	システム文では漢字和訳を優先。
+Thorn Whip	イバラの鞭	とげの鞭|ソーン・ウィップ	spell	システム文では漢字和訳を優先。
+Detect Evil and Good	善悪感知	ディテクト・イーヴル・アンド・グッド|Detect Evil and Good	spell	システム文では漢字和訳を優先。
+Dispel Evil and Good	善悪解呪	ディスペル・イーヴル・アンド・グッド|Dispel Evil and Good	spell	システム文では漢字和訳を優先。
+Conjure Animals	動物召喚	カンジャー・アニマルズ|Conjure Animals	spell	システム文では漢字和訳を優先。
+Freedom of Movement	移動の自由	フリーダム・オヴ・ムーヴメント|Freedom of Movement	spell	システム文では漢字和訳を優先。
+See Invisibility	不可視視認	シー・インヴィジビリティ|See Invisibility	spell	システム文では漢字和訳を優先。
+Shield of Faith	信仰の盾	シールド・オヴ・フェイス|Shield of Faith	spell	システム文では漢字和訳を優先。
+Invisibility	不可視化	インヴィジビリティ|Invisibility	spell	システム文では漢字和訳を優先。
+Hold Monster	怪物金縛り	ホールドモンスター|Hold Monster	spell	システム文では漢字和訳を優先。
+False Life	偽りの生命	フォールス・ライフ|False Life	spell	システム文では漢字和訳を優先。
+Haste	加速	ヘイスト|Haste	spell	システム文では漢字和訳を優先。
+Pass without Trace	跡を残さぬ移動	パス・ウィズアウト・トレイス|Pass Without Trace	spell	システム文では漢字和訳を優先。
+Bestow Curse	呪詛	ビストウ・カース|Bestow Curse	spell	システム文では漢字和訳を優先。
+Confusion	精神混乱	コンフュージョン|Confusion	spell	システム文では漢字和訳を優先。
+Slow	減速	Slow	spell	システム文では漢字和訳を優先。
+Insect Plague	蝗群	インセクト・プレイグ|Insect Plague	spell	システム文では漢字和訳を優先。
+Light	光	ライト	spell	システム文では漢字和訳を優先。
+Vicious Mockery	悪意ある嘲り	ヴィシャス・モッカリィ|Vicious Mockery	spell	システム文では漢字和訳を優先。
+Shillelagh	棍棒	シャレイリ|Shillelagh	spell	システム文では漢字和訳を優先。
+Sacred Flame	聖なる炎	セイクリッド・フレイム|Sacred Flame	spell	システム文では漢字和訳を優先。
+Greatsword	グレートソード	大剣	weapon	公式武器名はグレートソードを維持。
+Battleaxe	バトルアックス	戦斧	weapon	公式武器名はバトルアックスを維持。
+Greataxe	グレートアックス	大斧|グレートアクス	weapon	公式武器名はグレートアックスを維持。
+Halberd	ハルバード	ハルバード	weapon	公式武器名を維持。
+Handaxe	ハンドアックス	手斧	weapon	公式武器名を維持。
+Dagger	ダガー	短剣	weapon	公式武器名を維持。
+Dart	ダーツ	ダーツ	weapon	公式武器名を維持。
+Club	クラブ		weapon	公式武器名を維持。
+Greatclub	グレートクラブ	大棍棒	weapon	公式武器名を維持。
+Longbow	ロングボウ	ロングボウ	weapon	公式武器名を維持。
+Longsword	ロングソード	ロングソード	weapon	公式武器名を維持。
+Mace	メイス	メイス	weapon	公式武器名を維持。
+Morningstar	モーニングスター	モーニングスター	weapon	公式武器名を維持。
+Quarterstaff	クオータースタッフ	クォータースタッフ	weapon	公式武器名を維持。
+Rapier	レイピア	レイピア	weapon	公式武器名を維持。
+Scimitar	シミター	シミター	weapon	公式武器名を維持。
+Shortbow	ショートボウ	ショートボウ	weapon	公式武器名を維持。
+Shortsword	ショートソード	ショートソード	weapon	公式武器名を維持。
+Flail	フレイル	フレイル	weapon	公式武器名を維持。
+Glaive	グレイヴ		weapon	公式武器名を優先。
+Javelin	ジャヴェリン	やり投げ|ジャベリン	weapon	公式武器名を優先。
+Lance	ランス	ランス	weapon	公式武器名を維持。
+Net	ネット	Net	weapon	公式武器名を優先。
+chain mail	チェイン・メイル	チェインメイル|Chain Mail	armor	公式防具名を優先。
+half plate	ハーフ・プレート	ハーフプレート|半皿|Half Plate	armor	公式防具名を優先。
+breastplate	ブレストプレート	胸当て|Breastplate	armor	公式防具名を優先。
+scale mail	スケイル・メイル	スケールメール|Scale Mail	armor	公式防具名を優先。
+ring mail	リング・メイル	リングメイル|Ring Mail	armor	公式防具名を優先。
+studded leather	スタデッド・レザー	Studded Leather	armor	公式防具名を優先。
+Loading	装填	読み込み中|Loading	weapon	武器の特性名を優先。
+Darkvision	暗視	ダークヴィジョン|Darkvision	system	ルール語を優先。
+Finesse	妙技	Finesse	weapon	武器特性を優先。
+Versatile	両用	Versatile	weapon	武器特性を優先。
+Spy	密偵	Spy	creature	公式クリーチャー名を優先。
+Orc	オーク	Orc	creature	公式クリーチャー名を優先。
+Oni	オニ	Oni	creature	公式クリーチャー名を優先。
+Roc	ルフ	Roc	creature	公式クリーチャー名を優先。
+Ancient Remorhaz	古代レモルハズ	Ancient Remorhaz	proper_noun	クリーチャー名を統一。
+Artificer	アーティフィサー	Artificer	class_feature	system 文では短いクラス名を使う。
+Ki	気	Ki	class_feature	system 文では気を使う。
+Rod	ロッド	Rod	item	公式の一般語を優先。
+Sap	弱体化	Sap	ui	2024 武器マスタリー名の repo 内基準訳。
+Vex	翻弄	Vex	ui	2024 武器マスタリー名の repo 内基準訳。
+Topple	転倒	Topple	ui	2024 武器マスタリー名の repo 内基準訳。
+Malediction	マレディクション	Malediction	spell	homebrew 呪文名を統一。
+Sign of Ill Omen	不吉な予兆	Sign of Ill Omen	feature	妖術名を統一。
+Soul Hex	魂の呪い	Soul Hex	feature	特徴名を統一。
+Raise Skeletal Enforcer	スケルトン・エンフォーサー召喚	Raise Skeletal Enforcer	spell	homebrew 呪文名を統一。
+Arcaneum	アルケイナム	Arcaneum|アーケイナム	proper_noun	組織名を統一。
+Silent Whisper	サイレント・ウィスパー	Silent Whisper|サイレントウィスパー|サイレント ウィスパー	proper_noun	組織名を統一。
+Snow Alliance	雪同盟	Snow Alliance	proper_noun	組織名を統一。
+Cylordir Redblade	シロディール・レッドブレード	Cylordir Redblade|シロディール レッドブレード	proper_noun	人名を統一。
+Defineth Sharpsight	ディファインス・シャープサイト	Defineth Sharpsight|ディファインス シャープサイト|ディフェンス・シャープサイト	proper_noun	人名を統一。
+Defineth Sharpeye	ディファインス・シャープアイ	Defineth Sharpeye|ディファインス シャープアイ	proper_noun	人名を統一。
+Kenaloth Darkmind	ケナロス・ダークマインド	Kenaloth Darkmind|ケナロス ダークマインド	proper_noun	人名を統一。
+Elgador Keenspirit	エルガドール・キーンスピリット	Elgador Keenspirit	proper_noun	人名を統一。
+Violet Goodcheer	ヴァイオレット・グッドチア	Violet Goodcheer	proper_noun	人名を統一。
+Exonaïka	エクソナイカ	Exonaïka|エグソナイカ	proper_noun	人名を統一。

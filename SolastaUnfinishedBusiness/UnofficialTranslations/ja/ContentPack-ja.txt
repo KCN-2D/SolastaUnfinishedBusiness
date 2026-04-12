@@ -1,6 +1,6 @@
-ContentPack/&BackerItemsDescription=One Ring、Dwarven Bread、6 League Boots、Spoon of Discord、Early Bird アイテムのロックを解除します。評議会の隣の記念碑の近くの宝箱の中にあります。
+ContentPack/&BackerItemsDescription=ワン・リング、ドワーヴン・ブレッド、シックス・リーグ・ブーツ、スプーン・オヴ・ディスコード、アーリー・バードのアイテムを解禁します。評議会の隣の記念碑近くにある宝箱の中にあります。
 ContentPack/&BackerItemsTitle=後援者アイテムパック
-ContentPack/&DigitalBackerContentDescription=永遠のトーチ アイテムと、特別な VFX バージョンの Burning Hands と Sacred Flame のロックを解除します。評議会の隣の記念碑の近くの宝箱の中にあります。
+ContentPack/&DigitalBackerContentDescription=永遠のトーチと、〈火炎双手〉および〈聖なる炎〉の特別な VFX 版を解禁します。評議会の隣の記念碑近くにある宝箱の中にあります。
 ContentPack/&DigitalBackerContentTitle=デジタル版パック
 ContentPack/&InnerStrengthDescription=新しい冒険者がゲームに参加し、モンク、バード、ウォーロックの各クラスと、ドラゴンボーンの祖先が導入されます。
 ContentPack/&InnerStrengthTitle=内面的な強さ

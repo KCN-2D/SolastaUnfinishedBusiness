@@ -1,0 +1,706 @@
+#!/usr/bin/env python3
+"""Validate Japanese system localization terminology and formatting."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import re
+import sys
+from collections import Counter
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+TRANSLATIONS_JA = ROOT / "SolastaUnfinishedBusiness" / "Translations" / "ja"
+TRANSLATIONS_EN = ROOT / "SolastaUnfinishedBusiness" / "Translations" / "en"
+UNOFFICIAL_JA = ROOT / "SolastaUnfinishedBusiness" / "UnofficialTranslations" / "ja"
+OFFICIAL_EN = ROOT / "Diagnostics" / "OfficialTranslations-en.txt"
+GLOSSARY_PATH = ROOT / "Scripts" / "ja_glossary.tsv"
+
+PHASE1_TRANSLATIONS = [
+    "Settings-ja.txt",
+    "Others-ja.txt",
+    "Level20-ja.txt",
+    "Feats/**/*.txt",
+    "Spells/**/*.txt",
+    "SubClasses/**/*.txt",
+]
+
+PHASE1_UNOFFICIAL = [
+    "Feature-ja.txt",
+    "Rules-ja.txt",
+    "Spell-ja.txt",
+    "Setting-ja.txt",
+    "Equipment-ja.txt",
+    "Skill-ja.txt",
+    "Tooltip-ja.txt",
+]
+
+SYSTEM_TRANSLATIONS = [
+    "Backgrounds-ja.txt",
+    "FightingStyles-ja.txt",
+    "Invocations-ja.txt",
+    "Others-ja.txt",
+    "Settings-ja.txt",
+    "UI-ja.txt",
+    "WeaponMastery-ja.txt",
+    "Feats/**/*.txt",
+    "Races/**/*.txt",
+    "SubClasses/**/*.txt",
+    "Spells/**/*.txt",
+]
+
+SYSTEM_UNOFFICIAL = [
+    "Attribute-ja.txt",
+    "Failure-ja.txt",
+    "Feature-ja.txt",
+    "Feat-ja.txt",
+    "Invocation-ja.txt",
+    "Reaction-ja.txt",
+    "Rules-ja.txt",
+    "Screen-ja.txt",
+    "Skill-ja.txt",
+    "Spell-ja.txt",
+    "Stage-ja.txt",
+    "Tag-ja.txt",
+    "Tooltip-ja.txt",
+    "TutorialStep-ja.txt",
+]
+
+FULL_TRANSLATIONS = ["**/*.txt"]
+FULL_UNOFFICIAL = ["**/*.txt"]
+
+PLACEHOLDER_RE = re.compile(r"\{[^{}]+\}")
+URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
+HTML_TAG_RE = re.compile(
+    r"(?:</?(?:b|i|color|sprite)\b[^>]*>|<#[0-9A-Fa-f]{6,8}>)",
+    re.IGNORECASE,
+)
+BAD_COLOR_SHORTHAND_RE = re.compile(r"<#[0-9A-Fa-f]{6,8}>")
+OPEN_COLOR_TAG_RE = re.compile(r"<color(?:=[^>]+)?>", re.IGNORECASE)
+CLOSE_COLOR_TAG_RE = re.compile(r"</color>", re.IGNORECASE)
+JAPANESE_CHAR_RE = r"[一-龠々ぁ-んァ-ヶー]"
+MID_WORD_JP_CHAR_RE = r"[一-龠々ァ-ヶー]"
+MID_WORD_COLOR_TAG_RE = re.compile(
+    rf"<color(?:=[^>]+)?>{MID_WORD_JP_CHAR_RE}</color>{MID_WORD_JP_CHAR_RE}|"
+    rf"{MID_WORD_JP_CHAR_RE}<color(?:=[^>]+)?>{MID_WORD_JP_CHAR_RE}</color>"
+)
+ASCII_WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9+#'/-]{2,}")
+HEX_COLOR_RE = re.compile(r"#[0-9A-Fa-f]{6,8}")
+ASCII_SOURCE_RE = re.compile(r"^[A-Za-z0-9 +#'/-]+$")
+BROKEN_VALUE_KEY_RE = re.compile(
+    r"(?:^|=)(?:Action|Attribute|Background|Campaign|Caption|CharacterFamily|Condition|ContentPack|"
+    r"EnvironmentEffect|Equipment|Failure|Faction|Feat|Feature|Feedback|Format|Functor|Gadget|"
+    r"Invocation|Item|Language|Legal|Location|MainMenu|Map|Marketing|Message|Modal|Monster|"
+    r"MonsterAttacks|Narration|NPC|Power|Prop|Quest|Race|Reaction|RestActivity|Rules|Screen|"
+    r"Setting|Skill|Spell|Stage|Status|Tag|Tip|Tooltip|Tutorial|TutorialStep|UI)/&"
+)
+BROKEN_PLACEHOLDER_RE = re.compile(r"\b(?:TBC|TBD)\b|Error 500|WHO[？?]", re.IGNORECASE)
+
+COMMON_ENGLISH_TOKENS = {
+    "Cantrip",
+    "Day",
+    "Eldritch",
+    "Invocation",
+    "Loading",
+    "Wildshape",
+}
+
+WHITELIST_TOKENS = {
+    "AC",
+    "ALT",
+    "AMD",
+    "BG3",
+    "CTRL",
+    "DC",
+    "DEX",
+    "DLC",
+    "FXAA",
+    "HP",
+    "INT",
+    "JSON",
+    "Ki",
+    "NPC",
+    "NPCs",
+    "OGL",
+    "PNG",
+    "Solasta",
+    "SRD",
+    "Steam",
+    "STR",
+    "UI",
+    "UMM",
+    "URL",
+    "VSync",
+    "WASD",
+    "Wiki",
+    "Xbox",
+}
+
+SKILL_VARIANTS = {
+    "アクロバット",
+    "アルカナ",
+    "パフォーマンス",
+    "ペテン",
+    "医学",
+    "威圧",
+    "宗教",
+    "手先の早業",
+    "捜査",
+    "歴史",
+    "生存",
+    "知覚",
+    "自然",
+    "芸能",
+    "脅迫",
+    "調査",
+    "説得",
+    "賺し",
+    "隠密",
+    "魔法学",
+}
+
+AMBIGUOUS_SPELL_TERMS = {
+    "Detect Magic",
+    "Dispel Magic",
+    "感染",
+    "英雄",
+    "Guidance",
+    "Identify",
+    "Jump",
+    "Light",
+    "Longstrider",
+    "Magic Stone",
+    "Shield",
+    "Sleep",
+    "Slow",
+    "Spider Climb",
+    "ブレス",
+    "ガイダンス",
+    "緑炎の刃",
+    "グリース",
+    "ジャンプ",
+    "シールド",
+    "スパイダークライム",
+    "スリープ",
+    "スロー",
+    "ライト",
+    "レビテート",
+    "レヴィテート",
+    "眠り",
+    "傷を負わせる",
+    "負傷",
+}
+
+SOURCE_TOKEN_MISMATCH_EXCEPTIONS = {
+    "Caption/&TargetMultipleCaption",
+    "Caption/&TargetMultipleUniqueCaption",
+    "Caption/&TargetProximityMultipleCaption",
+    "Caption/&TargetProximitySingleCaption",
+    "Caption/&TargetRequiredConditionCaption",
+    "Caption/&TargetRequiredCreatureTypeCaption",
+    "Caption/&TargetRequiredUnarmoredCaption",
+    "Caption/&TargetShareUniqueCaption",
+    "Feature/&PowerInnovationArmorSwitchModeGuardianDescription",
+}
+
+SPELL_SURFACE_RE = re.compile(
+    r"^(?:"
+    r"Spell/&.+(?:Title|Description)|"
+    r"Equipment/&Scroll.+(?:Title|Description)|"
+    r"Rules/&.+(?:Title|Description)|"
+    r"Screen/&.+(?:Title|Description)|"
+    r"Reaction/&SubitemSelect.+Description|"
+    r"Invocation/&.+(?:Title|Description)|"
+    r"Condition/&.+(?:Title|Description)|"
+    r"Failure/&Must.+|"
+    r"Feat/&.+Description|"
+    r"Feature/&.+Description|"
+    r"Tooltip/&.+Description|"
+    r"Tag/&.+Title|"
+    r"Attribute/&.+Title|"
+    r"Stage/&.+Title"
+    r")$"
+)
+
+GENERAL_SYSTEM_KEY_RE = re.compile(
+    r"^(?:Action|Attribute|Background|Condition|Equipment|Failure|Feat|Feature|Feedback|"
+    r"FightingStyle|Invocation|Item|Language|ModUI|ModUi|Monster|Reaction|RestActivity|Rules|"
+    r"Screen|Skill|Spell|Stage|Subclass|Tag|Tooltip|UI|CharacterFamily)/&"
+)
+
+INVOCATION_CONTEXT_RE = re.compile(
+    r"(?:Invocation|CastInvocation|FeatEldritchAdept|ProficiencyToggleInvocation|"
+    r"TrendInvocation|PointPoolWarlockInvocation|Tag.+Invocation)"
+)
+
+ABILITY_SUFFIX_RE = re.compile(
+    r"[\[【]\s*(?:Cha|Int|Wis|Con|Dex|Str|チャ|ウィス|ウィズ|デックス|コン|スト|インテ|ウィスコンシン州)\s*[\]】]"
+)
+ENGLISH_FEAT_RE = re.compile(r"\bfeats?\b", re.IGNORECASE)
+
+SYSTEM_KEY_EXPECTATIONS = {
+    "Tooltip/&FeatTitle": "特技",
+    "Tooltip/&FeatGroupTitle": "特技グループ",
+    "Attribute/&TagRaceFeatTitle": "種族の特技",
+    "Attribute/&HitPointsTitle": "ヒット・ポイント",
+    "Attribute/&TagInvocationSpellTitle": "妖術の呪文",
+    "Skill/&ArcanaTitle": "〈魔法学〉",
+    "Skill/&DeceptionTitle": "〈ペテン〉",
+    "Skill/&HistoryTitle": "〈歴史〉",
+    "Skill/&IntimidationTitle": "〈威圧〉",
+    "Skill/&InvestigationTitle": "〈捜査〉",
+    "Skill/&NatureTitle": "〈自然〉",
+    "Skill/&PerformanceTitle": "〈芸能〉",
+    "Skill/&PersuasionTitle": "〈説得〉",
+    "Skill/&ReligionTitle": "〈宗教〉",
+    "Skill/&SleightOfHandTitle": "〈手先の早業〉",
+    "Feat/&FeatWarCasterTitle": "戦場の術者",
+    "Feat/&FeatCleavingAttackTitle": "大業物の使い手",
+    "Feat/&FeatDefensiveDuelistTitle": "守りの決闘術",
+    "Action/&CleavingAttackToggleTitle": "大業物の使い手",
+    "Condition/&ConditionFeatCleavingAttackFinishTitle": "大業物の使い手",
+    "Tooltip/&CleavingAttackConcentration": "大業物の使い手を無効化します。",
+    "Reaction/&UseDefensiveDuelistTitle": "守りの決闘術",
+    "Equipment/&WeaponTagLoadingTitle": "装填",
+    "Modal/&LoadingTipTitle": "ヒント",
+    "Screen/&KnownCantripsTitle": "既知の初級呪文",
+    "Screen/&ProficiencyToggleInvocationTitle": "妖術",
+    "Rules/&SpellLevel0FormatTitle": "初級呪文",
+    "Rules/&ConditionTemporaryHitPointsTitle": "一時ヒット・ポイント",
+    "Attribute/&TagClassCantripTitle": "クラスの初級呪文",
+    "Spell/&FireBoltTitle": "炎の矢",
+    "Spell/&MageArmorTitle": "魔道士の鎧",
+    "Spell/&DelayedBlastFireballTitle": "遅発火球",
+    "Spell/&TelekinesisTitle": "念動力",
+    "Spell/&ElementalWeaponTitle": "元素武器",
+    "Spell/&StrikeWithTheWindTitle": "微風の打撃",
+    "Condition/&ConditionStrikeWithTheWindTitle": "微風の打撃",
+    "Condition/&ConditionStrikeWithTheWindAttackTitle": "微風の打撃",
+    "Feature/&PowerStrikeWithTheWindTitle": "微風の打撃",
+    "CharacterFamily/&HumanoidTitle": "人型生物",
+    "Item/&Greatsword_Bearclaw_Title": "ベアクロウ・グレートソード",
+    "Item/&Battleaxe_Lightbringer_Title": "ライトブリンガー・バトルアックス",
+    "Feature/&PowerDruidWildShapeTitle": "自然の化身",
+    "Feature/&PowerCircleOfTheNightWildShapeCombatTitle": "戦う自然の化身",
+    "Feature/&PowerCircleOfTheNightPrimalStrikeTitle": "原始の打撃",
+    "Feature/&PowerSorcerousWildMagicD02Title": "火球",
+    "Feature/&PowerSorcerousWildMagicBendLuckTitle": "運命改変",
+    "Feature/&PowerSorcerousWildMagicControlledChaosTitle": "混沌制御",
+    "Feature/&PowerSorcerousWildMagicTidesOfChaosTitle": "混沌潮流",
+    "Feature/&PowerSorcerousWildMagicWildMagicSurgeTitle": "魔法暴走",
+    "Feature/&FeatureSorcerousWildMagicSpellBombardmentTitle": "呪文猛撃",
+    "Attribute/&SorceryPointsTitle": "魔力点",
+    "Feature/&ClericChannelDivinityTitle": "神性伝導",
+    "Feature/&PointPoolSorcererMetamagicTitle": "呪文修正",
+    "Screen/&ProficiencyToggleMetamagicTitle": "呪文修正",
+    "Rules/&RateSorceryPointsFormatTitle": "魔力点",
+    "NamedPlace/&SNOWALLIANCE_Title": "雪同盟",
+    "Subclass/&SorcerousWildMagicTitle": "荒ぶる魔法",
+    "Screen/&JournalAdventureTitle": "<color=#F5B486>冒険</color><color=#F5B486>記録</color>",
+    "Screen/&JournalBestiaryTitle": "<color=#F5B486>モンスター図鑑</color>",
+    "Screen/&JournalFactionStatusTitle": "<color=#F5B486>派閥</color>",
+    "Screen/&JournalInvestigationTitle": "<color=#F5B486>調査</color>",
+    "Screen/&JournalNewDayColorTitle": "<color=#F5B486>日</color>",
+    "Screen/&JournalNewDayTitle": "日",
+    "Screen/&JournalQuestLogTitle": "<color=#F5B486>クエスト</color><color=#F5B486>記録</color>",
+    "Screen/&JournalTutorialTitle": "<color=#F5B486>チュートリアル</color>",
+    "Race/&ElfTitle": "エルフ",
+    "Spell/&DaylightTitle": "陽光",
+    "Equipment/&ScrollDaylightTitle": "陽光の巻物",
+    "EffectProxy/&ProxyDaylightTitle": "陽光",
+    "Gadget/&ParameterDurationTypeDayTitle": "日",
+    "Modal/&ContentPropertyDurationDayTitle": "日",
+}
+
+SYSTEM_REQUIRED_SUBSTRINGS = {
+    "Feat/&FeatWarCasterDescription": ["耐久力", "セーヴィング・スロー", "初級呪文"],
+    "Feat/&FeatEldritchAdeptDescription": ["妖術"],
+    "Monster/&AncientRemorhaz_Regeneration_Description": ["古代レモルハズ", "ヒット・ポイント"],
+    "Feature/&PowerSorcerousWildMagicBendLuckDescription": ["魔力点", "能力値判定", "セーヴィング・スロー"],
+    "Feature/&PointPoolSorcererMetamagicDescription": ["呪文修正能力"],
+}
+
+MANUAL_BANNED_PATTERNS = [
+    (lambda key: True, re.compile(r"キャントリップ"), "初級呪文"),
+    (lambda key: True, re.compile(r"セービング(?: |)スロー"), "セーヴィング・スロー"),
+    (lambda key: True, re.compile(r"セービング ロール"), "セーヴィング・スロー"),
+    (lambda key: True, re.compile(r"火の玉|ファイアボール"), "火球"),
+    (lambda key: True, re.compile(r"テレキネシス"), "念動力"),
+    (lambda key: True, re.compile(r"エレメンタル(?:・|)ウェポン"), "元素武器"),
+    (lambda key: True, re.compile(r"混沌の潮流"), "混沌潮流"),
+    (lambda key: True, re.compile(r"ベンドラック"), "運命改変"),
+    (lambda key: True, re.compile(r"制御された混沌"), "混沌制御"),
+    (lambda key: True, re.compile(r"ワイルドマジックサージ"), "魔法暴走"),
+    (lambda key: True, re.compile(r"ワイルドマジック(?!サージ)"), "荒ぶる魔法"),
+    (lambda key: True, re.compile(r"呪文爆撃"), "呪文猛撃"),
+    (lambda key: True, re.compile(r"Snow Alliance|スノー ?アライアンス"), "雪同盟"),
+    (lambda key: True, re.compile(r"イニシアティブ"), "イニシアチブ"),
+    (lambda key: True, re.compile(r"短い休(?:息|憩|み)|小休み|小休止"), "小休憩"),
+    (lambda key: True, re.compile(r"長い休(?:息|憩|み)"), "大休憩"),
+    (lambda key: True, re.compile(r"チャネル(?:・|)ディヴィニティ|チャンネル神性|チャネル神性|Divinityをチャネル|ディヴィニティをチャンネル?化"), "神性伝導"),
+    (lambda key: True, re.compile(r"メタマジック(?:の)? ?オプション|メタマジック"), "呪文修正 / 呪文修正能力"),
+    (lambda key: True, re.compile(r"神性伝導:"), "神性伝導："),
+    (lambda key: INVOCATION_CONTEXT_RE.search(key) is not None, re.compile(r"呼び出し"), "妖術"),
+    (
+        lambda key: GENERAL_SYSTEM_KEY_RE.match(key) is not None,
+        re.compile(r"(?<![A-Za-z])HP(?![A-Za-z])"),
+        "ヒット・ポイント",
+    ),
+    (lambda key: True, re.compile(r"ヒット ダイス|ヒットダイス"), "ヒット・ダイス"),
+    (lambda key: True, re.compile(r"ソーサリー・ポイント|ソーサリー ポイント|ソーサリーポイント|魔術ポイント"), "魔力点"),
+    (lambda key: True, re.compile(r"力場 ダメージ"), "力場ダメージ"),
+    (lambda key: True, re.compile(r"力場 ポイント"), "力場ポイント"),
+    (lambda key: True, re.compile(r"呪文 難易度|スペル セーブ 難易度|スペルセーブ難易度"), "呪文セーヴ難易度"),
+    (lambda key: True, re.compile(r"呪文セーヴ 難易度"), "呪文セーヴ難易度"),
+    (lambda key: True, re.compile(r"ソーサラー ポイント"), "魔力点"),
+    (lambda key: True, re.compile(r"アクション ステータス"), "アクション・ステータス"),
+]
+
+
+def is_feat_system_key(key: str) -> bool:
+    return (
+        key.startswith("Feat/&")
+        or key.startswith("Tooltip/&Feat")
+        or key.startswith("Attribute/&Tag") and "Feat" in key
+        or key.startswith("ModUi/&DocsFeats")
+        or "ModFeats" in key
+        or "EnableFeats" in key
+        or "Feat" in key and key.startswith(("Screen/&", "Stage/&", "UI/&"))
+    )
+
+
+def is_title_like_key(key: str) -> bool:
+    return key.endswith(("Title", "Header")) or key.startswith("UI/&CustomFeatureSelectionTooltipType")
+
+
+def has_unbalanced_color_tags(value: str) -> bool:
+    return len(OPEN_COLOR_TAG_RE.findall(value)) != len(CLOSE_COLOR_TAG_RE.findall(value))
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Check Japanese localization consistency.")
+    parser.add_argument("--phase1", action="store_true", help="Scan the original phase-1 target files only.")
+    parser.add_argument("--system", action="store_true", help="Scan the broader system/UI profile.")
+    parser.add_argument("--full-ja", action="store_true", help="Scan the full Japanese tree.")
+    args = parser.parse_args()
+    enabled = [flag for flag in (args.phase1, args.system, args.full_ja) if flag]
+    if len(enabled) > 1:
+        parser.error("--phase1, --system, and --full-ja are mutually exclusive")
+    return args
+
+
+def load_tsv_glossary(path: Path) -> dict[str, dict[str, str]]:
+    glossary: dict[str, dict[str, str]] = {}
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        for row in reader:
+            glossary[row["source"]] = row
+    return glossary
+
+
+def load_key_value_file(path: Path) -> dict[str, str]:
+    entries: dict[str, str] = {}
+    if not path.exists():
+        return entries
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        if not raw_line or "=" not in raw_line:
+            continue
+        key, value = raw_line.split("=", 1)
+        entries[key] = value
+    return entries
+
+
+def collect_files(base: Path, patterns: list[str]) -> list[Path]:
+    files: set[Path] = set()
+    for pattern in patterns:
+        files.update(base.glob(pattern))
+    return sorted(files)
+
+
+def source_entries_for(path: Path, official_en: dict[str, str]) -> dict[str, str]:
+    if path.is_relative_to(TRANSLATIONS_JA):
+        relative = path.relative_to(TRANSLATIONS_JA)
+        source_name = relative.name.replace("-ja", "-en")
+        source_path = TRANSLATIONS_EN / relative.parent / source_name
+        return load_key_value_file(source_path)
+    return official_en
+
+
+def normalize_control_token(token: str) -> str:
+    shorthand = re.fullmatch(r"<#([0-9A-Fa-f]{6,8})>", token)
+    if shorthand:
+        return f"<color=#{shorthand.group(1).upper()}>"
+    color_open = re.fullmatch(r"<color=#([0-9A-Fa-f]{6,8})>", token, re.IGNORECASE)
+    if color_open:
+        return f"<color=#{color_open.group(1).upper()}>"
+    if token.lower() == "</color>":
+        return "</color>"
+    return token
+
+
+def extract_control_tokens(text: str) -> Counter[str]:
+    tokens = Counter(PLACEHOLDER_RE.findall(text))
+    tokens.update(re.findall(r"\\n", text))
+    tokens.update(normalize_control_token(tag) for tag in HTML_TAG_RE.findall(text))
+    return tokens
+
+
+def english_tokens(value: str) -> list[str]:
+    scrubbed = URL_RE.sub(" ", value)
+    scrubbed = HEX_COLOR_RE.sub(" ", scrubbed)
+    tokens: list[str] = []
+    for token in ASCII_WORD_RE.findall(scrubbed):
+        if token in WHITELIST_TOKENS:
+            continue
+        if token.startswith("sprite") or token.startswith("Index"):
+            continue
+        if token in COMMON_ENGLISH_TOKENS:
+            tokens.append(token)
+    return tokens
+
+
+def skill_variant_patterns(alt: str) -> list[re.Pattern[str]]:
+    escaped = re.escape(alt)
+    return [
+        re.compile(rf"(?:(?<=\()|(?<=（)){escaped}(?:(?=\))|(?=）))"),
+        re.compile(rf"(?<!〈){escaped}(?!〉)(?:判定|チェック|スキル)"),
+    ]
+
+
+def literal_pattern(term: str) -> re.Pattern[str]:
+    if term == "ニック":
+        return re.compile(r"(?<![ァ-ヶー])ニック(?!(?:[ァ-ヶー]|ネーム))")
+    if ASCII_SOURCE_RE.fullmatch(term):
+        return re.compile(rf"\b{re.escape(term)}\b")
+    return re.compile(re.escape(term))
+
+
+def build_glossary_variants(glossary: dict[str, dict[str, str]]) -> list[tuple[str, str, str, list[re.Pattern[str]]]]:
+    variants: list[tuple[str, str, str, list[re.Pattern[str]]]] = []
+    for row in glossary.values():
+        preferred = row["preferred_ja"].strip()
+        category = row["category"].strip()
+        alt_text = row["alt_ja"].strip()
+        source = row["source"].strip()
+
+        for alt in [part.strip() for part in alt_text.split("|") if part.strip()]:
+            if source == "Eldritch Invocation" and alt == "呼び出し":
+                continue
+            if category == "spell" and alt in AMBIGUOUS_SPELL_TERMS:
+                continue
+            if category == "skill" and alt in SKILL_VARIANTS:
+                patterns = skill_variant_patterns(alt)
+            else:
+                patterns = [literal_pattern(alt)]
+            variants.append((alt, preferred, category, patterns))
+
+        if (
+            source
+            and ASCII_SOURCE_RE.fullmatch(source)
+            and category in {
+                "spell",
+                "feat",
+                "feature",
+                "system",
+                "weapon",
+                "armor",
+                "item",
+                "creature",
+                "creature_type",
+                "class_feature",
+                "ui",
+                "proper_noun",
+                "skill",
+            }
+            and not (category == "spell" and source in AMBIGUOUS_SPELL_TERMS)
+        ):
+            variants.append((source, preferred, category, [literal_pattern(source)]))
+
+    return variants
+
+
+def should_check_variant(key: str, category: str) -> bool:
+    if category == "spell":
+        return SPELL_SURFACE_RE.match(key) is not None
+    if category == "skill":
+        return key.startswith("Skill/&") or "Guidance" in key
+    if category == "ability":
+        return key.startswith(
+            (
+                "Action/&",
+                "Attribute/&",
+                "Condition/&",
+                "Feat/&",
+                "Feature/&",
+                "Reaction/&",
+                "Rules/&",
+                "Screen/&",
+                "Skill/&",
+                "Spell/&",
+                "Stage/&",
+                "Tag/&",
+                "Tooltip/&",
+                "UI/&",
+            )
+        )
+    if category == "feat":
+        return (
+            key.startswith("Feat/&")
+            or ("Feat" in key and key.endswith(("Title", "Description")))
+            or SPELL_SURFACE_RE.match(key) is not None
+        )
+    if category == "feature":
+        return SPELL_SURFACE_RE.match(key) is not None or INVOCATION_CONTEXT_RE.search(key) is not None
+    if category in {"weapon", "armor", "item"}:
+        return key.startswith(
+            (
+                "Action/&",
+                "Condition/&",
+                "Equipment/&",
+                "Feat/&",
+                "Feature/&",
+                "Item/&",
+                "Reaction/&",
+                "Screen/&",
+                "Tooltip/&",
+            )
+        )
+    if category == "proper_noun":
+        return True
+    if category == "creature":
+        return key.startswith(
+            (
+                "CharacterFamily/&",
+                "Equipment/&",
+                "Feat/&",
+                "Feature/&",
+                "Language/&",
+                "Monster/&",
+                "Tooltip/&",
+            )
+        )
+    if category in {"ui", "class_feature"}:
+        return GENERAL_SYSTEM_KEY_RE.match(key) is not None and not key.startswith(
+            (
+                "Campaign/&",
+                "Narration/&",
+                "Quest/&",
+            )
+        )
+    if category in {"system", "damage_type", "creature_type", "subclass"}:
+        return GENERAL_SYSTEM_KEY_RE.match(key) is not None and not key.startswith(
+            (
+                "Narration/&",
+                "Quest/&",
+            )
+        )
+    return GENERAL_SYSTEM_KEY_RE.match(key) is not None
+
+
+def main() -> int:
+    args = parse_args()
+    if args.phase1:
+        profile = "phase1"
+        translation_patterns = PHASE1_TRANSLATIONS
+        unofficial_patterns = PHASE1_UNOFFICIAL
+    elif args.full_ja:
+        profile = "full"
+        translation_patterns = FULL_TRANSLATIONS
+        unofficial_patterns = FULL_UNOFFICIAL
+    else:
+        profile = "system"
+        translation_patterns = SYSTEM_TRANSLATIONS
+        unofficial_patterns = SYSTEM_UNOFFICIAL
+
+    glossary = load_tsv_glossary(GLOSSARY_PATH)
+    variants = build_glossary_variants(glossary)
+    official_en = load_key_value_file(OFFICIAL_EN)
+
+    files = collect_files(TRANSLATIONS_JA, translation_patterns)
+    files += collect_files(UNOFFICIAL_JA, unofficial_patterns)
+
+    errors: list[str] = []
+
+    for path in files:
+        source_entries = source_entries_for(path, official_en)
+        seen_keys: set[str] = set()
+        for line_no, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if not raw_line.strip():
+                errors.append(f"{path}:{line_no}:format blank line")
+                continue
+
+            if "=" not in raw_line:
+                errors.append(f"{path}:{line_no}:format missing '='")
+                continue
+
+            key, value = raw_line.split("=", 1)
+            source_value = source_entries.get(key)
+            if key in seen_keys:
+                errors.append(f"{path}:{line_no}:format duplicate key '{key}'")
+            seen_keys.add(key)
+            if not value.strip() and (source_value is None or source_value.strip()):
+                errors.append(f"{path}:{line_no}:format empty value")
+            if profile in {"system", "full"} and BROKEN_VALUE_KEY_RE.search(value):
+                errors.append(f"{path}:{line_no}:format embedded key in value")
+            if profile in {"system", "full"} and BROKEN_PLACEHOLDER_RE.search(value):
+                errors.append(f"{path}:{line_no}:format unresolved placeholder text")
+            if profile in {"system", "full"} and BAD_COLOR_SHORTHAND_RE.search(value):
+                errors.append(f"{path}:{line_no}:format shorthand color tag")
+            if profile in {"system", "full"} and has_unbalanced_color_tags(value):
+                errors.append(f"{path}:{line_no}:format unbalanced color tags")
+            if profile in {"system", "full"} and MID_WORD_COLOR_TAG_RE.search(value):
+                errors.append(f"{path}:{line_no}:format color tag splits Japanese word")
+
+            expected = SYSTEM_KEY_EXPECTATIONS.get(key)
+            if profile in {"system", "full"} and expected is not None and value != expected:
+                errors.append(f"{path}:{line_no}:expected '{expected}'")
+
+            required_terms = SYSTEM_REQUIRED_SUBSTRINGS.get(key, [])
+            if profile in {"system", "full"}:
+                for required in required_terms:
+                    if required not in value:
+                        errors.append(f"{path}:{line_no}:missing '{required}'")
+
+            for predicate, pattern, preferred in MANUAL_BANNED_PATTERNS:
+                if profile in {"system", "full"} and predicate(key) and pattern.search(value):
+                    errors.append(f"{path}:{line_no}:term '{pattern.pattern}' -> '{preferred}'")
+
+            if profile == "full":
+                if is_feat_system_key(key) and "偉業" in value:
+                    errors.append(f"{path}:{line_no}:term '偉業' -> '特技'")
+                if (key.startswith(("Feat/&", "Feature/&")) and key.endswith("Title")) and ABILITY_SUFFIX_RE.search(value):
+                    errors.append(f"{path}:{line_no}:term ability suffix must use ［能力値名］")
+                if is_feat_system_key(key) and ENGLISH_FEAT_RE.search(value):
+                    errors.append(f"{path}:{line_no}:term 'feat' -> '特技'")
+
+            for alt, preferred, category, patterns in variants:
+                if not should_check_variant(key, category):
+                    continue
+                if alt and alt in preferred and preferred in value:
+                    continue
+                if any(pattern.search(value) for pattern in patterns):
+                    errors.append(f"{path}:{line_no}:term '{alt}' -> '{preferred}'")
+
+            if source_value is not None and key not in SOURCE_TOKEN_MISMATCH_EXCEPTIONS:
+                if extract_control_tokens(source_value) != extract_control_tokens(value):
+                    errors.append(f"{path}:{line_no}:format control tokens differ from source")
+
+            for token in english_tokens(value):
+                errors.append(f"{path}:{line_no}:english '{token}'")
+
+    errors = sorted(set(errors))
+
+    if errors:
+        for error in errors:
+            print(error)
+        print(f"\n{len(errors)} issue(s) found.")
+        return 1
+
+    print("No issues found.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

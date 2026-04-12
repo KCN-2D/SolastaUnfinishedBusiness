@@ -16,5 +16,5 @@ Tutorials/&Tutorial_DLC_HiddenMinorGate_Description=小門はこの葉の中に�
 Tutorials/&Tutorial_DLC_HiddenMinorGate_Title=隠されたマイナーゲート
 Tutorials/&Tutorial_DLC_PushTree_Description=冒険では、移動可能なオブジェクトを押してヒーローのための道を作る必要があることがよくあります。ジャングルの木が典型的な例ですが、岩や柱などを押すこともできます。\n\nアスレチックのスキルや、ジャンプ、フライ、テレポートなどの呪文を持っていない場合、一部の道は通行できない場合があります。 。
 Tutorials/&Tutorial_DLC_PushTree_Title=可動オブジェクトのプッシュ
-Tutorials/&Tutorial_DLC_ShootTree_Description=これらの対話可能なオブジェクトのほとんどは、弓、クロスボウ、さらにはダーツなどの遠距離武器を使用して、遠くからでもトリガーできます。攻撃キャントリップを使用することもできます。\nただし、トリガーするにはターゲットを攻撃する必要があることに注意してください。
+Tutorials/&Tutorial_DLC_ShootTree_Description=これらの対話可能なオブジェクトのほとんどは、弓、クロスボウ、さらにはダーツなどの遠距離武器を使って、離れた場所から起動できます。攻撃初級呪文を使うこともできます。\nただし、起動するには対象に命中させる必要があります。
 Tutorials/&Tutorial_DLC_ShootTree_Title=リモートトリガー

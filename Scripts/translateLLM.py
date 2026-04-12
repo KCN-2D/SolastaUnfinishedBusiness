@@ -33,6 +33,7 @@ import sys
 import codecs
 import time
 import argparse
+import csv
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Set
 from dataclasses import dataclass, field
@@ -57,6 +58,7 @@ BATCH_SIZE = int(os.getenv('BATCH_SIZE', '10'))
 MAX_RETRIES = int(os.getenv('MAX_RETRIES', '3'))
 RETRY_DELAY = int(os.getenv('RETRY_DELAY', '2'))
 MAX_WORKERS = int(os.getenv('MAX_WORKERS', '3'))
+GLOSSARY_PATH = Path(__file__).parent / 'ja_glossary.tsv'
 
 # Validate configuration
 if not API_KEY:
@@ -85,6 +87,180 @@ LANGUAGE_NAMES = {
     'pt-BR': 'Brazilian Portuguese',
     'ru': 'Russian'
 }
+
+
+def load_ja_glossary() -> List[Dict[str, str]]:
+    """Load the Japanese terminology glossary used for prompt steering."""
+    if not GLOSSARY_PATH.exists():
+        return []
+
+    with open(GLOSSARY_PATH, 'r', encoding='utf-8', newline='') as handle:
+        reader = csv.DictReader(handle, delimiter='\t')
+        return list(reader)
+
+
+def select_relevant_ja_glossary(
+    entries: List[Tuple[str, str]],
+    glossary: List[Dict[str, str]],
+    limit: int = 48
+) -> List[Dict[str, str]]:
+    """Pick glossary rows that are relevant to the current translation batch."""
+    if not glossary:
+        return []
+
+    batch_text = "\n".join(f"{key}={text}" for key, text in entries)
+    batch_text_lower = batch_text.lower()
+    always_include = {
+        "system",
+        "ability",
+        "damage_type",
+        "skill",
+        "weapon",
+        "armor",
+        "item",
+        "creature",
+        "creature_type",
+        "ui",
+        "class_feature",
+        "proper_noun",
+    }
+    scored_rows: List[Tuple[int, str, Dict[str, str]]] = []
+
+    for row in glossary:
+        source = row["source"].strip()
+        preferred = row["preferred_ja"].strip()
+        alt_text = row["alt_ja"].strip()
+        category = row["category"].strip()
+        alts = [part.strip() for part in alt_text.split("|") if part.strip()]
+
+        score = 0
+        if category in always_include:
+            score += 2
+
+        if source and source.lower() in batch_text_lower:
+            score += 8
+
+        if preferred and preferred in batch_text:
+            score += 4
+
+        for alt in alts:
+            if alt and alt in batch_text:
+                score += 6
+                break
+
+        if category == "feat" and ("Feat/&" in batch_text or "特技" in batch_text):
+            score += 2
+        elif category == "spell" and ("Spell/&" in batch_text or "Cantrip" in batch_text or "初級呪文" in batch_text):
+            score += 2
+        elif category == "skill" and "Skill/&" in batch_text:
+            score += 2
+        elif category in {"weapon", "armor", "item"} and ("Item/&" in batch_text or "Equipment/&" in batch_text):
+            score += 2
+        elif category in {"creature", "creature_type"} and (
+            "Monster/&" in batch_text or "CharacterFamily/&" in batch_text or "Language/&" in batch_text
+        ):
+            score += 2
+        elif category == "proper_noun" and (
+            "Item/&" in batch_text
+            or "Equipment/&" in batch_text
+            or "Monster/&" in batch_text
+            or "CharacterFamily/&" in batch_text
+            or "Narration/&" in batch_text
+            or "Quest/&" in batch_text
+            or "Faction/&" in batch_text
+            or "Location/&" in batch_text
+        ):
+            score += 2
+        elif category in {"class_feature", "ui"} and (
+            "Feature/&" in batch_text or "Screen/&" in batch_text or "UI/&" in batch_text or "ModUi/&" in batch_text
+        ):
+            score += 2
+        elif source == "Eldritch Invocation" and ("Invocation" in batch_text or "妖術" in batch_text):
+            score += 4
+
+        if score > 0:
+            scored_rows.append((score, source.lower(), row))
+
+    scored_rows.sort(key=lambda item: (-item[0], item[1]))
+    return [row for _, _, row in scored_rows[:limit]]
+
+
+def build_target_language_guidance(
+    target_lang_code: str,
+    entries: List[Tuple[str, str]],
+) -> Tuple[str, str]:
+    """Build extra prompt guidance for a specific target language."""
+    if target_lang_code != 'ja':
+        return "", ""
+
+    glossary = load_ja_glossary()
+    glossary = select_relevant_ja_glossary(entries, glossary)
+    glossary_lines = []
+    for row in glossary:
+        source = row['source'].strip()
+        preferred = row['preferred_ja'].strip()
+        alt = row['alt_ja'].strip()
+        suffix = f" (avoid: {alt})" if alt else ""
+        glossary_lines.append(f"- {source} => {preferred}{suffix}")
+
+    system_guidance = (
+        "When the target language is Japanese, use official D&D 5e/5.5e terminology whenever available. "
+        "Prefer glossary-approved wording, keep keyword spelling consistent, distinguish flavorful text from "
+        "mechanical rules text, and prioritize system accuracy over style when the text is rule-bearing."
+    )
+
+    user_guidance = f"""
+
+Japanese terminology guidance:
+- Use official tabletop D&D Japanese terms whenever possible.
+- Treat Scripts/ja_glossary.tsv as the repo-local authority derived from dnd5eja's archive/DnD_Glossary_JP.txt first and lang/ja.json second.
+- If dnd5eja's archive/DnD_Glossary_JP.txt and lang/ja.json disagree, use the archive wording.
+- Prefer kanji-based official renderings in system text when the official glossary lists both katakana and kanji.
+- When the official glossary lists a katakana/kanji pair separated by a slash, prefer the Japanese-side rendering in system text.
+- If the official glossary only gives a katakana rendering for a weapon, armor, creature, or item noun, keep that katakana form instead of inventing a kanji synonym.
+- If a proper noun is not in the official glossary, do not leave it in English. Transliterate it into consistent katakana and reuse the same spelling everywhere in the repo.
+- Translate Cantrip as 初級呪文.
+- Translate Wild Shape as 自然の化身.
+- Translate Zephyr Strike as 微風の打撃 in system text.
+- Translate Telekinesis as 念動力 in system text.
+- Translate Elemental Weapon as 元素武器 in system text.
+- Translate Daylight as 陽光 in system text.
+- Translate Weapon Mastery as 武器マスタリー in system text.
+- Translate Eldritch Invocation as 妖術.
+- Translate initiative as イニシアチブ.
+- Translate short rest as 小休憩 and long rest as 大休憩.
+- Translate saving throw as セーヴィング・スロー.
+- Skill names must use 〈〉, for example 〈魔法学〉 and 〈ペテン〉.
+- In system explanations, spell references should use 〈…〉 and feat references should use 特技《…》.
+- Feat and feature titles that vary by ability score must use the base title plus a full-width suffix such as ［魅力］, ［知力］, ［判断力］, ［筋力］, ［敏捷力］, or ［耐久力］.
+- Never leave feat/UI labels as 偉業; use 特技.
+- Use official feat names exactly, for example Defensive Duelist => 守りの決闘術 and Great Weapon Master => 大業物の使い手.
+- For item names, keep proper names as proper names and translate the item type/common noun into natural Japanese, such as ライトブリンガーの戦斧.
+- For mechanics text, prioritize exact conditions, targets, damage types, durations, scaling, action economy, and prerequisites over style.
+- Preserve numbers, placeholders, tags, and source ordering whenever the line describes a rule.
+- Normalize color tags as <color=#RRGGBB>…</color>; never emit shorthand tags like <#F5B486>.
+- Do not split a Japanese lexical unit with color tags; wrap the whole word or remove the decoration.
+  - Avoid half-width spaces inside Japanese compounds such as ヒット・ダイス, 魔力点, アクション・ステータス, パーティーエディター.
+- For flavorful text, keep natural Japanese and avoid unnecessary symbolic markup; for system text, keep references explicit and consistent.
+  - Use these terminology preferences:
+  - Sorcery Points -> 魔力点.
+  - Channel Divinity -> 神性伝導.
+  - Metamagic -> 呪文修正.
+  - metamagic option -> 呪文修正能力.
+  - Fireball -> 火球.
+  - Delayed Blast Fireball -> 遅発火球.
+  - Wild Magic -> 荒ぶる魔法.
+  - Wild Magic Surge -> 魔法暴走.
+  - Tides of Chaos -> 混沌潮流.
+  - Bend Luck -> 運命改変.
+  - Controlled Chaos -> 混沌制御.
+  - Spell Bombardment -> 呪文猛撃.
+  - Snow Alliance -> 雪同盟.
+  - Reject these older/community spellings in system text: 火の玉, ソーサリー・ポイント, チャネルディヴィニティ, メタマジック, イニシアティブ, 短い休息, 長い休息, セービングスロー, 呪文セーヴ 難易度.
+{chr(10).join(glossary_lines)}
+"""
+
+    return system_guidance, user_guidance
 
 
 @dataclass
@@ -213,7 +389,12 @@ def write_localization_file(filename: str, data: Dict[str, str]):
             f.write(f"{key}={data[key]}\n")
 
 
-def translate_batch_api(entries: List[Tuple[str, str]], source_lang: str, target_lang: str) -> Dict[str, str]:
+def translate_batch_api(
+    entries: List[Tuple[str, str]],
+    source_lang: str,
+    target_lang: str,
+    target_lang_code: str
+) -> Dict[str, str]:
     """
     Translate a batch of entries using the LLM API.
     
@@ -231,6 +412,8 @@ def translate_batch_api(entries: List[Tuple[str, str]], source_lang: str, target
     # Prepare the prompt
     entries_text = "\n".join([f"{i+1}. {key}={text}" for i, (key, text) in enumerate(entries)])
     
+    system_guidance, user_guidance = build_target_language_guidance(target_lang_code, entries)
+
     prompt = f"""You are a professional translator for a video game localization project.
 Translate the following game text entries from {source_lang} to {target_lang}.
 
@@ -241,6 +424,8 @@ IMPORTANT INSTRUCTIONS:
 4. Return ONLY the translated entries in the exact same format: "key=translated_text"
 5. Return each entry on a new line, numbered as shown below
 6. Do not add explanations or comments
+7. Keep terminology consistent across the batch
+{user_guidance}
 
 Entries to translate:
 {entries_text}
@@ -253,7 +438,14 @@ Respond with the translated entries in the same numbered format."""
             response = client.chat.completions.create(
                 model=MODEL_ID,
                 messages=[
-                    {"role": "system", "content": "You are a professional game localization translator. You provide accurate translations while preserving all formatting codes and game terminology."},
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a professional game localization translator. "
+                            "You provide accurate translations while preserving all formatting codes and game terminology. "
+                            f"{system_guidance}"
+                        ).strip()
+                    },
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3
@@ -320,7 +512,7 @@ def process_translation_batch(batch: TranslationBatch, manager: TranslationManag
         source_lang_name = LANGUAGE_NAMES.get(batch.source_lang, batch.source_lang)
         target_lang_name = LANGUAGE_NAMES.get(batch.target_lang, batch.target_lang)
         
-        translations = translate_batch_api(batch.entries, source_lang_name, target_lang_name)
+        translations = translate_batch_api(batch.entries, source_lang_name, target_lang_name, batch.target_lang)
         
         # Update file data
         with file_data.lock:

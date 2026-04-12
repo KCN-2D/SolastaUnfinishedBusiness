@@ -2,6 +2,9 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "../dnd5eja"
 		}
 	],
 	"settings": {
