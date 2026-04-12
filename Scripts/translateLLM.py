@@ -226,6 +226,12 @@ Japanese terminology guidance:
 - Translate Elemental Weapon as 元素武器 in system text.
 - Translate Counterspell as 呪文妨害 in system text.
 - Translate Dispel Magic as 魔法解呪 in system text.
+- Translate Aganazzar's Scorcher as アガナザーの火炎放射 in system text.
+- Translate Hold Person as 対人金縛り and Hold Monster as 怪物金縛り in system text.
+- Translate Disintegrate as 分解, Dispel Evil and Good as 善悪解呪, Dominate Person as 人物支配, and Dominate Monster as 怪物支配 in system text.
+- Translate Create or Destroy Water as 水の生成・破壊, Divine Word as 神言, Earthquake as 地震, Darkness as 暗闇, Contagion as 感染, and Cone of Cold as 冷気噴射 in system text.
+- Translate Abi-Dalzim's Horrid Wilting as アビー・ダルジムの恐るべき枯渇 in system text.
+- Translate See Invisibility as 不可視視認, Searing Smite as 灼熱の一撃, Call Lightning as 招雷, Cloudkill as 殺戮の雲, Command as 命令, Blindness/Deafness as 視覚・聴覚剥奪, Calm Emotions as 感情鎮静化, and Blur as かすみ in system text.
 - Translate Power Word Stun as 力の言葉:朦朧 in system text.
 - Translate Chain Lightning as 連鎖電撃 in system text.
 - Translate Elemental Bane as 元素禍 in system text.
@@ -242,6 +248,7 @@ Japanese terminology guidance:
 - Translate Banishing Smite as 放逐の一撃, Reverse Gravity as 重力反転, Dragon's Breath as 竜の吐息, and Cloud of Daggers as 短剣の群れ in system text.
 - Translate Savage Attack as 凶暴な一撃, Savage Attacker as 凶暴な戦士, and Savage Attacks as 猛打 in system text.
 - Translate Spell Scroll as 呪文の巻物 and Scroll as 巻物 in item contexts, but keep UI scroll operations as スクロール.
+- Translate Protection from Energy as 元素からの保護, Stoneskin as 石の皮膚, Warding Bond as 守りの紐帯, and Resistance as 抵抗力 in system text.
 - Translate Finesse weapon-property labels as 妙技.
 - Translate Heavy weapon-property labels as 重武器, but do not rewrite weapon nouns such as Heavy Crossbow.
 - Translate Piercing damage/type labels as 刺突, but do not rewrite ordinary verbs such as 突き刺す.
@@ -249,6 +256,8 @@ Japanese terminology guidance:
 - Translate Charmed as 魅了状態 for condition/status titles and 魅了 for effect prose.
 - Translate Opportunity Attack / Attack of Opportunity as 機会攻撃 in system text.
 - Translate Major Gate as メジャーゲート in repo-specific player-facing text.
+- Translate Eldritch Versatility as エルドリッチ・バーサティリティ and Versatility as バーサティリティ in repo-specific system text.
+- Translate Illuminated as 照らされた, Illuminating Strike as 照らしの一撃, and Illuminating Burst as 照らしの爆発 in repo-specific system text.
 - Translate Thunder Step as 雷鳴の一跳び in system text.
 - Translate Blinding Smite as 目潰す一撃 in system text.
 - Translate Foresight as 予知 in system text.
@@ -301,7 +310,7 @@ Japanese terminology guidance:
   - Controlled Chaos -> 混沌制御.
   - Spell Bombardment -> 呪文猛撃.
   - Snow Alliance -> 雪同盟.
-  - Reject these older/community spellings in system text: 火の玉, 先見の明, 形状変化, 変身, 奇妙な, 奇怪, マスヒール, タイムストップ, パワーワードヒール, パワーワードキル, パワーワードスタン, サイキックスクリーム, ファーステップ, 生命のオーラ, ソーサリー・ポイント, チャネルディヴィニティ, メタマジック, イニシアティブ, 短い休息, 長い休息, セービングスロー, 呪文セーヴ 難易度, 免疫, フレイムアロー, ライトニングアロー, チェイン光ニング, チェインライトニング, カウンタースペル, ディスペルマジック, エレメンタルベイン, カウンターチャーム, フライト, スクロール, フィネス, ヘビー, チャーム, イリュージョン, オポチュニティ アタック, ブランディング・スマイト, サンダース・スマイト, ディバイン・スマイト, 改良型ディヴァイン・スマイト, ラディアント, ラジアント, レディアント, サベージアタック, サベージアタッカー, テレポート, バニシング・スマイト, リバースグラビティ, ドラゴンブレス, ダガーの雲, 枯れて咲く.
+- Reject these older/community spellings in system text: 火の玉, 先見の明, 形状変化, 変身, 奇妙な, 奇怪, マスヒール, タイムストップ, パワーワードヒール, パワーワードキル, パワーワードスタン, サイキックスクリーム, ファーステップ, 生命のオーラ, ソーサリー・ポイント, チャネルディヴィニティ, メタマジック, イニシアティブ, 短い休息, 長い休息, セービングスロー, 呪文セーヴ 難易度, 免疫, フレイムアロー, ライトニングアロー, チェイン光ニング, チェインライトニング, カウンタースペル, ディスペルマジック, エレメンタルベイン, カウンターチャーム, フライト, スクロール, フィネス, ヘビー, チャーム, イリュージョン, オポチュニティ アタック, ブランディング・スマイト, サンダース・スマイト, ディバイン・スマイト, 改良型ディヴァイン・スマイト, ラディアント, ラジアント, レディアント, サベージアタック, サベージアタッカー, テレポート, バニシング・スマイト, リバースグラビティ, ドラゴンブレス, ダガーの雲, 枯れて咲く, アガナザールのスコーチャー, ホールド・パーソン, ホールド・モンスター, ディスインテグレイト, ディスペル・イービル・アンド・グッド, ドミネート・モンスター, ドミネート・パーソン, ディバイン・ワード, アースクエイク, ダークネス, コンテイジョン, コーン・オブ・コールド, アビ・ダルジムの恐ろしい萎縮, インビジビリティ・サイト, 灼熱のスマイト, コール・ライトニング, クラウド・キル, コマンド, ブラインドネス, カーム・エモーションズ, ブラー, 異界の汎用性, イルミネーション付き.
 {chr(10).join(glossary_lines)}
 """
 

@@ -282,6 +282,24 @@ SYSTEM_KEY_EXPECTATIONS = {
     "Spell/&FireBoltTitle": "炎の矢",
     "Spell/&MageArmorTitle": "魔道士の鎧",
     "Spell/&DelayedBlastFireballTitle": "遅発火球",
+    "Spell/&AganazzarScorcherTitle": "アガナザーの火炎放射",
+    "Spell/&BlindnessTitle": "視覚・聴覚剥奪",
+    "Spell/&BlurTitle": "かすみ",
+    "Spell/&CallLightningTitle": "招雷",
+    "Spell/&CalmEmotionsTitle": "感情鎮静化",
+    "Spell/&CommandTitle": "命令",
+    "Spell/&CloudKillTitle": "殺戮の雲",
+    "Spell/&ConeOfColdTitle": "冷気噴射",
+    "Spell/&ContagionTitle": "感染",
+    "Spell/&DisintegrateTitle": "分解",
+    "Spell/&DispelEvilAndGoodTitle": "善悪解呪",
+    "Spell/&DivineWordTitle": "神言",
+    "Spell/&DominateMonsterTitle": "怪物支配",
+    "Spell/&DominatePersonTitle": "人物支配",
+    "Spell/&EarthquakeTitle": "地震",
+    "Spell/&DarknessTitle": "暗闇",
+    "Spell/&HoldMonsterTitle": "怪物金縛り",
+    "Spell/&HoldPersonTitle": "対人金縛り",
     "Spell/&TelekinesisTitle": "念動力",
     "Spell/&ElementalWeaponTitle": "元素武器",
     "Spell/&MindBlankTitle": "空白の心",
@@ -349,6 +367,10 @@ SYSTEM_KEY_EXPECTATIONS = {
     "Tooltip/&TagFinesseTitle": "妙技",
     "Tooltip/&TagHeavyTitle": "重武器",
     "Tooltip/&TagScrollTitle": "巻物",
+    "Action/&EldritchVersatilityTitle": "バーサティリティ",
+    "Feature/&PowerEldritchVersatilityPointPoolTitle": "エルドリッチ・バーサティリティ",
+    "Condition/&ConditionPathOfTheLightEyesOfTruthTitle": "不可視視認",
+    "Condition/&ConditionPathOfTheLightIlluminatedTitle": "照らされた",
     "Rules/&DamagePiercingTitle": "刺突",
     "Tooltip/&TagShapeChangeTitle": "変幻自在",
     "Rules/&DamageRadiantTitle": "光輝",
@@ -406,6 +428,27 @@ MANUAL_BANNED_PATTERNS = [
     (lambda key: True, re.compile(r"サイキックスクリーム"), "心砕く叫び"),
     (lambda key: True, re.compile(r"ファーステップ"), "遠くへの一跳び"),
     (lambda key: "AuraOfVitality" in key, re.compile(r"生命のオーラ"), "活力のオーラ"),
+    (lambda key: "AganazzarScorcher" in key, re.compile(r"アガナザールのスコーチャー"), "アガナザーの火炎放射"),
+    (lambda key: "HoldPerson" in key, re.compile(r"ホールド・パーソン"), "対人金縛り"),
+    (lambda key: "HoldMonster" in key, re.compile(r"ホールド・モンスター"), "怪物金縛り"),
+    (lambda key: "Disintegrate" in key, re.compile(r"ディスインテグレイト"), "分解"),
+    (lambda key: "DispelEvilAndGood" in key, re.compile(r"ディスペル・イービル・アンド・グッド"), "善悪解呪"),
+    (lambda key: "DominateMonster" in key, re.compile(r"ドミネート・モンスター|ドミネイトモンスター"), "怪物支配"),
+    (lambda key: "DominatePerson" in key, re.compile(r"ドミネート・パーソン|ドミネイトパーソン"), "人物支配"),
+    (lambda key: "DivineWord" in key, re.compile(r"ディバイン・ワード|ディヴァイン・ワード"), "神言"),
+    (lambda key: "Earthquake" in key, re.compile(r"アースクエイク|アースクウェイク"), "地震"),
+    (lambda key: "Darkness" in key, re.compile(r"ダークネス"), "暗闇"),
+    (lambda key: "Contagion" in key, re.compile(r"コンテイジョン"), "感染"),
+    (lambda key: "ConeOfCold" in key, re.compile(r"コーン・オブ・コールド"), "冷気噴射"),
+    (lambda key: "AbiDalzim" in key, re.compile(r"アビ・ダルジムの恐ろしい萎縮"), "アビー・ダルジムの恐るべき枯渇"),
+    (lambda key: "SeeInvisibility" in key, re.compile(r"インビジビリティ・サイト"), "不可視視認"),
+    (lambda key: "SearingSmite" in key, re.compile(r"灼熱のスマイト"), "灼熱の一撃"),
+    (lambda key: "CallLightning" in key, re.compile(r"コール・ライトニング"), "招雷"),
+    (lambda key: "CloudKill" in key, re.compile(r"クラウド・キル|クラウドキル"), "殺戮の雲"),
+    (lambda key: "Command" in key, re.compile(r"コマンド"), "命令"),
+    (lambda key: "Blindness" in key, re.compile(r"ブラインドネス"), "視覚・聴覚剥奪"),
+    (lambda key: "CalmEmotions" in key, re.compile(r"カーム・エモーションズ"), "感情鎮静化"),
+    (lambda key: "Blur" in key, re.compile(r"ブラー"), "かすみ"),
     (lambda key: "PowerWordStun" in key, re.compile(r"パワーワードスタン"), "力の言葉:朦朧"),
     (lambda key: "ChainLightning" in key or "AllowTargetingSelectionWhenCastingChainLightningSpell" in key, re.compile(r"チェイン光ニング|チェインライトニング"), "連鎖電撃"),
     (lambda key: "Counterspell" in key or "CounterSpell" in key, re.compile(r"カウンタースペル"), "呪文妨害"),
@@ -436,8 +479,18 @@ MANUAL_BANNED_PATTERNS = [
         re.compile(r"スクロール"),
         "巻物",
     ),
+    (
+        lambda key: "EldritchVersatility" in key,
+        re.compile(r"異界の汎用性|汎用性(?!の達人)|汎用性切替"),
+        "エルドリッチ・バーサティリティ / バーサティリティ",
+    ),
     (lambda key: "Illusion" in key, re.compile(r"イリュージョン"), "幻 / 幻術"),
     (lambda key: "Charm" in key or "Charmed" in key, re.compile(r"チャームド|チャーム"), "魅了 / 魅了状態"),
+    (
+        lambda key: "PathOfTheLight" in key,
+        re.compile(r"インビジビリティ・サイト|イルミネーション付き|イルミネーションストライク|イルミネイティング"),
+        "不可視視認 / 照らされた / 照らしの一撃",
+    ),
     (
         lambda key: (
             "DamagePiercing" in key
@@ -623,6 +676,8 @@ def skill_variant_patterns(alt: str) -> list[re.Pattern[str]]:
 def literal_pattern(term: str) -> re.Pattern[str]:
     if term == "ニック":
         return re.compile(r"(?<![ァ-ヶー])ニック(?!(?:[ァ-ヶー]|ネーム))")
+    if term == "放射":
+        return re.compile(r"(?<!火炎)放射")
     if ASCII_SOURCE_RE.fullmatch(term):
         return re.compile(rf"\b{re.escape(term)}\b")
     return re.compile(re.escape(term))

@@ -52,6 +52,14 @@ Counterspell	呪文妨害	カウンタースペル|Counterspell	spell	システ�
 Earth Tremor	微震	アース・トレマー|アーストレマー	spell	システム文では漢字和訳を優先。
 Expeditious Retreat	迅速退却	エクスペディシャス・リトリート|エクスペディオス・リトリート|迅速な撤退|Expeditious Retreat	spell	システム文では漢字和訳を優先。
 Feather Fall	軟着陸	フェザー・フォール|フェザー フォール|フェザーフォール	spell	システム文では漢字和訳を優先。
+Bestow Curse	呪詛	ビストウ・カース|ビストウ・カーズ|Bestow Curse	spell	システム文では漢字和訳を優先。
+Conjure Animals	動物召喚	カンジャー・アニマルズ|カンジャー・アニマルス|Conjure Animals	spell	システム文では漢字和訳を優先。
+Conjure Celestial	セレスチャル召喚	カンジャー・セレスチャル|Conjure Celestial	spell	システム文では漢字和訳を優先。
+Conjure Elemental	エレメンタル召喚	カンジャー・エレメンタル|Conjure Elemental	spell	システム文では漢字和訳を優先。
+Conjure Minor Elementals	小型エレメンタル群召喚	カンジャー・マイナー・エレメンタルズ|カンジャー・マイナー・エレメンタルス|Conjure Minor Elementals	spell	システム文では漢字和訳を優先。
+Detect Evil and Good	善悪感知	ディテクト・イーヴル・アンド・グッド|ディテクト・イービル・アンド・グッド|Detect Evil and Good	spell	システム文では漢字和訳を優先。
+Detect Poison and Disease	毒と病気の感知	ディテクト・ポイズン・アンド・ディジーズ|ディテクト・ポイズン・アンド・ディスイーズ|Detect Poison and Disease	spell	システム文では漢字和訳を優先。
+Dimension Door	次元扉	ディメンジョン・ドア|ディメンション・ドア|Dimension Door	spell	システム文では漢字和訳を優先。
 Fire Bolt	炎の矢	ファイアー・ボルト|ファイア・ボルト|ファイアボルト	spell	システム文では漢字和訳を優先。
 Fireball	火球	ファイアーボール	spell	システム文では漢字和訳を優先。
 Delayed Blast Fireball	遅発火球	ディレイド・ブラスト・ファイアーボール|ディレイド・ブラスト・火球|ディレイブラスト火球	spell	システム文では漢字和訳を優先。
@@ -78,6 +86,8 @@ Goodberry	良き漿果	グッドベリー	spell	システム文では漢字和�
 Produce Flame	火炎作成	プロデュース・フレイム|Produce Flame	spell	システム文では漢字和訳を優先。
 Protection from Evil and Good	善悪からの保護	プロテクション・フロム・イーヴル・アンド・グッド|守る vs 悪と善	spell	システム文では漢字和訳を優先。
 Shield	盾	シールド	spell	システム文では漢字和訳を優先。
+Water Breathing	水中呼吸	ウォーター・ブリージング|Water Breathing	spell	システム文では漢字和訳を優先。
+Water Walk	水上歩行	ウォーター・ウォーク|Water Walk	spell	システム文では漢字和訳を優先。
 Shocking Grasp	電撃の手	ショッキング・グラスプ	spell	システム文では漢字和訳を優先。
 Sleep	睡眠	スリープ|眠り	spell	システム文では漢字和訳を優先。
 Spider Climb	蜘蛛歩き	スパイダー・クライム|スパイダークライム	spell	システム文では漢字和訳を優先。
@@ -326,3 +336,30 @@ Kenaloth Darkmind	ケナロス・ダークマインド	Kenaloth Darkmind|ケナ�
 Elgador Keenspirit	エルガドール・キーンスピリット	Elgador Keenspirit	proper_noun	人名を統一。
 Violet Goodcheer	ヴァイオレット・グッドチア	Violet Goodcheer	proper_noun	人名を統一。
 Exonaïka	エクソナイカ	Exonaïka|エグソナイカ	proper_noun	人名を統一。
+Aganazzar's Scorcher	アガナザーの火炎放射	アガナザーズ・スコーチャー|Aganazzar's Scorcher	spell	システム文では漢字和訳を優先。
+Blindness/Deafness	視覚・聴覚剥奪	ブラインドネス／デフネス|Blindness/Deafness	spell	システム文では漢字和訳を優先。
+Blur	かすみ	ブラー|Blur	spell	システム文では漢字和訳を優先。
+Call Lightning	招雷	コール・ライトニング|Call Lightning	spell	システム文では漢字和訳を優先。
+Calm Emotions	感情鎮静化	カーム・エモーションズ|Calm Emotions	spell	システム文では漢字和訳を優先。
+Command	命令	コマンド|Command	spell	システム文では漢字和訳を優先。
+Cloudkill	殺戮の雲	クラウドキル|Cloud Kill|Cloudkill	spell	システム文では漢字和訳を優先。
+Cone of Cold	冷気噴射	コーン・オヴ・コールド|Cone of Cold	spell	システム文では漢字和訳を優先。
+Contagion	感染	コンテイジョン|Contagion	spell	システム文では漢字和訳を優先。
+Create or Destroy Water	水の生成・破壊	クリエイト・オア・デストロイ・ウォーター|Create or Destroy Water	spell	システム文では漢字和訳を優先。
+Darkness	暗闇	ダークネス|Darkness	spell	システム文では漢字和訳を優先。
+Darkness	暗闇	ダークネス|Darkness	system	一般ルール文でも暗闇を優先。
+Disintegrate	分解	ディスインテグレイト|Disintegrate	spell	システム文では漢字和訳を優先。
+Divine Word	神言	ディヴァイン・ワード|Divine Word	spell	システム文では漢字和訳を優先。
+Dominate Monster	怪物支配	ドミネイト・モンスター|Dominate Monster	spell	システム文では漢字和訳を優先。
+Dominate Person	人物支配	ドミネイト・パースン|Dominate Person	spell	システム文では漢字和訳を優先。
+Earthquake	地震	アースクウェイク|Earthquake	spell	システム文では漢字和訳を優先。
+Eldritch Versatility	エルドリッチ・バーサティリティ	異界の汎用性|Eldritch Versatility	class_feature	repo 内用語を自然な日本語へ統一。
+Versatility	バーサティリティ	汎用性|Versatility	ui	repo 内用語を自然な日本語へ統一。
+Hold Person	対人金縛り	ホールド・パースン|Hold Person	spell	システム文では漢字和訳を優先。
+Illuminated	照らされた	イルミネーション付き|Illuminated	condition	repo 内状態名を自然な日本語へ統一。
+Illuminating Burst	照らしの爆発	イルミネイティングバースト|Illuminating Burst	feature	repo 内特徴名を自然な日本語へ統一。
+Illuminating Strike	照らしの一撃	イルミネイティングストライク|イルミネーションストライク|Illuminating Strike	feature	repo 内特徴名を自然な日本語へ統一。
+Protection from Energy	元素からの保護	プロテクション・フロム・エナジー|Protection from Energy	spell	システム文では漢字和訳を優先。
+Resistance	抵抗力	レジスタンス|Resistance	spell	呪文名は抵抗力を優先。
+Stoneskin	石の皮膚	ストーンスキン|Stoneskin	spell	システム文では漢字和訳を優先。
+Warding Bond	守りの紐帯	ウォーディング・ボンド|Warding Bond	spell	システム文では漢字和訳を優先。

@@ -1,4 +1,4 @@
-Condition/&ConditionInnovationArmorGuardianModeDescription=フリーハンドがある場合は<b>サンダー ガントレット</b> (1d8 サンダー ダメージ) 武器を獲得し、<b>ディフェンス フィールド</b> ボーナス・アクションを獲得して、工匠レベルに等しい一時的な ヒット・ポイント を獲得します。
+Condition/&ConditionInnovationArmorGuardianModeDescription=片手が空いている場合、<b>サンダー・ガントレット</b>（1d8 雷ダメージ）を武器として得て、<b>ディフェンス・フィールド</b>のボーナス・アクションを使用できるようになります。さらに、工匠レベルに等しい一時的ヒット・ポイントを得ます。
 Condition/&ConditionInnovationArmorGuardianModeTitle=ガーディアン
 Condition/&ConditionInnovationArmorInfiltratorModeDescription=<b>ライトニング ランチャー</b> の遠距離攻撃を獲得します（1d6 の雷ダメージ、ラウンド内の最初の攻撃は 2d6 を与えます）。
 Condition/&ConditionInnovationArmorInfiltratorModeTitle=インフィルトレーター
