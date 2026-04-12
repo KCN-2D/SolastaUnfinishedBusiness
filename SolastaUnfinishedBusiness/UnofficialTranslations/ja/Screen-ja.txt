@@ -62,7 +62,7 @@ Screen/&BackDungeonMakerTitle=ダンジョンメーカー
 Screen/&BackTitle=戻る
 Screen/&BackgroundFeaturesTitle=背景特性
 Screen/&BackgroundHeaderTitle=背景
-Screen/&BardicInspirationDieDescription=あなたのバーディック インスピレーション ダイスは {0} で、残りの使用回数は {1} です。
+Screen/&BardicInspirationDieDescription=あなたの声援ダイスは {0} で、残りの使用回数は {1} です。
 Screen/&BattleIntroTitle=戦いが始まる！
 Screen/&BattleVictoryTitle=勝利！
 Screen/&BonusAttackTitle=ボーナスアタック
@@ -735,7 +735,7 @@ Screen/&JournalTutorialTitle=<color=#F5B486>チュートリアル</color>
 Screen/&JournalTutorialWikiAddress=Https://forums.solasta-game.com/
 Screen/&JournalTutorialWikiDescription=Solasta Universe とユニークなコンテンツについて詳しくは、オンライン Wiki\n[近日公開] をご覧ください。
 Screen/&JournalTutorialWikiTitle=Wiki にアクセスする
-Screen/&KiPointsRecoveredDescription=気 ポイントの使用がすべて復元されます。
+Screen/&KiPointsRecoveredDescription=消費した気ポイントがすべて回復します。
 Screen/&KickButtonDescription=プレイヤーをセッションから除外する
 Screen/&KickButtonTitle=キックプレイヤー
 Screen/&KnownCantripsTitle=既知の初級呪文

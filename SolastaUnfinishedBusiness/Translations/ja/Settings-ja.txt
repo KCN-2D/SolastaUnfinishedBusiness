@@ -26,21 +26,21 @@ ModUi/&AdvancedHelp=• <b><color=#C04040E0>注意:</color></b> これらの設�
 ModUi/&AllowAllPlayersOnNarrativeSequences=<i>+ 物語シーンですべてのプレイヤーを許可する</i>
 ModUi/&AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness=自然の暗闇にいるときに味方が<b>GloomStalker</b>を感知できるようにする
 ModUi/&AllowAnyClassToWearSylvanArmor=どのクラスでも <color=#D89555>シルヴァンアーマー</color> または <color=#D89555>光ブリンガー服</color> を着用できるようにします
-ModUi/&AllowBladeCantripsToUseReach=<color=#D89555>ブレード初級呪文</color>が 1マスではなくリーチを使用できるようにします
+ModUi/&AllowBladeCantripsToUseReach=<color=#D89555>ブレード初級呪文</color>が1マスではなくリーチを使用できるようにします
 ModUi/&AllowClubsToBeThrown=<color=#D89555>クラブ</color>を<color=#D89555>ダガー</color>や<color=#D89555>ハンドアックス</color>のように投げられるようになります
 ModUi/&AllowDisplayingNonSuggestedSpells=各リストでmodの非推奨呪文を許可する
 ModUi/&AllowDisplayingOfficialSpells=各リストでゲーム公式呪文を許可する
 ModUi/&AllowDungeonsMaxLevel20=最大レベル20のダンジョンを許可する
 ModUi/&AllowFlightSuspend=アイテムや呪文による飛行を一時的に停止できるようにします <i><color=#F0DAA0>[自然の化身や飛行種族には影響しません]</color></i>
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=ガジェットや小道具を配置する際のチェックをバイパスするために、<color=#1E81B0>CTRL</color> クリックを有効にします
-ModUi/&AllowHasteCasting=速攻により追加アクションの呪文を唱えられるようになります <i><color=#F0DAA0>[1 ラウンドあたりアクション呪文は 1 つに制限されます]</color></i>
+ModUi/&AllowHasteCasting=速攻により追加アクションの呪文を唱えられるようになります <i><color=#F0DAA0>[1ラウンドあたりアクション呪文は1つに制限されます]</color></i>
 ModUi/&AllowHornsOnAllRaces=すべての種族で角を許可します <i><color=#F0DAA0>[種族、頭部、角の組み合わせによっては見た目が崩れる場合があります]</color></i>
 ModUi/&AllowMoreRealStateOnRestPanel=休憩パネルでよりリアルな状態を許可 <i><color=#F0DAA0>[休憩前のパネルでの休憩後のアクションと休憩後のパネルでの回復機能を非表示にする]</color></i>
 ModUi/&AllowStackedMaterialComponent=積み重ねられた材料コンポーネントを許可します <i><color=#F0DAA0>[例: 2x500gp ダイヤモンドは 1000gp ダイヤモンドに相当します]</color></i>
 ModUi/&AllowTargetingSelectionWhenCastingChainLightningSpell=<color=#D89555>連鎖電撃</color>呪文を唱える際にターゲット選択を許可します
 ModUi/&AltOnlyHighlightItemsInPartyFieldOfView=<color=#1E81B0>ALT</color>キーは、パーティの視界内にあるガジェットだけを強調表示します <i><color=#F0DAA0>[カスタムダンジョンのみ]</color></i>
 ModUi/&AlwaysSpendPactSlotsFirst=<i>+ 可能であれば常に<color=#D89555>ウォーロック</color> の協定スロットを最初に消費してください</i>
-ModUi/&ArcaneShieldstaffOptions=<color=#D89555>アーケイン 盾スタッフ</color>をどのクラスでも調整できるようにする
+ModUi/&ArcaneShieldstaffOptions=<color=#D89555>アーケイン・シールドスタッフ</color>をどのクラスでも同調できるようにする
 ModUi/&Backgrounds=<color=#F0DAA0>背景</color>
 ModUi/&BackgroundsAndRaces=背景と種族
 ModUi/&Basic=<color=#F0DAA0>基本:</color>
@@ -114,21 +114,21 @@ ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[ダメージを防�
 ModUi/&EnableBarbarianBrutalStrike2024=レベル 9、13、17 で <color=#D89555>残忍な一撃</color> と <color=#D89555>残忍な一撃の改善</color> を有効にして、<color=#D89555>残忍なクリティカル</color> を置き換えます
 ModUi/&EnableBarbarianFightingStyle=レベル2で<color=#D89555>戦闘スタイル</color>の選択を有効にする
 ModUi/&EnableBarbarianInstinctivePounce2024=レベル 7 で <color=#D89555>本能的な飛びかかり</color> を有効にする
-ModUi/&EnableBarbarianPersistentRage2024=<color=#D89555>終らぬ激怒</color> を 5e 2024 バージョンと入れ替える
+ModUi/&EnableBarbarianPersistentRage2024=<color=#D89555>終らぬ激怒</color>を5e 2024バージョンと入れ替える
 ModUi/&EnableBarbarianPrimalKnowledge2024=レベル3で<color=#D89555>原始の知識</color>を有効にする
-ModUi/&EnableBarbarianRage2024=<color=#D89555>Rage</color> を 5e 2024 バージョンの <i><color=#F0DAA0>[小休憩で 1 回の使用回数を回復]</color></i> と入れ替えます
+ModUi/&EnableBarbarianRage2024=<color=#D89555>激怒</color>を5e 2024版 <i><color=#F0DAA0>[小休憩で1回の使用回数を回復]</color></i> と入れ替えます
 ModUi/&EnableBarbarianReckless2024=<color=#D89555>無謀な攻撃</color>を5e 2024バージョン<i><color=#F0DAA0>[次のターンの開始時にバフとデバフが終了]</color></i>と入れ替えます
-ModUi/&EnableBarbarianRelentlessRage2024=<color=#D89555>Relentless Rage</color> を 5e 2024 バージョンの <i><color=#F0DAA0>[ヒット・ポイントはクラス レベルの 1 倍ではなく 2 倍に設定されます]</color></i> と入れ替えます
+ModUi/&EnableBarbarianRelentlessRage2024=<color=#D89555>倒れずの激怒</color>を5e 2024版 <i><color=#F0DAA0>[ヒット・ポイントはクラスレベルの1倍ではなく2倍に設定されます]</color></i> と入れ替えます
 ModUi/&EnableBardCounterCharm2024=<color=#D89555>心を守る歌</color>をレベル6のアクションではなく、レベル7のリアクションとして有効にします
 ModUi/&EnableBardExpertiseOneLevelBefore2024=<color=#D89555>エキスパート</color>をレベル3と10ではなくレベル2と9で有効にする
 ModUi/&EnableBardHealingBalladOnLongRest=大休憩時に<b>希望の大学</b> <color=#D89555>癒しのバラード</color>を有効にする
 ModUi/&EnableBardMagicalSecrets2024=<color=#D89555>Magical Secrets</color> を 5e 2024 バージョンと入れ替える
 ModUi/&EnableBardSuperiorInspiration2024=<color=#D89555>優れたインスピレーション</color>をレベル20ではなくレベル18で有効化し、リチャージ回数を1回ではなく2回付与する
 ModUi/&EnableBardWordsOfCreation2024=レベル20で<color=#D89555>創造の言葉</color>を有効にする
-ModUi/&EnableBardicInspiration2024=<color=#D89555>バード インスピレーション</color> を 5e 2024 バージョン <i><color=#F0DAA0>[持続時間は 10 分ではなく 1 時間]</color></i> と入れ替えます
+ModUi/&EnableBardicInspiration2024=<color=#D89555>バードの声援</color>を5e 2024バージョン<i><color=#F0DAA0>[持続時間は10分ではなく1時間]</color></i>と入れ替えます
 ModUi/&EnableBetaContent=ベータ版コンテンツを有効にする <b><i><color=#C04040E0>[再起動が必要]</color></i></b>
 ModUi/&EnableCancelEditOnRightMouseClick=マウスの右クリックでキャンセルアクションを有効にする
-ModUi/&EnableCantripsTriggeringOnWarMagic=呪文で<color=#D89555>戦争魔法</color>の追加ボーナス攻撃を発動できるようにする
+ModUi/&EnableCantripsTriggeringOnWarMagic=初級呪文で<color=#D89555>戦争魔法</color>の追加ボーナス攻撃を発動できるようにする
 ModUi/&EnableCharactersOnFireToEmitLight=<color=#D89555>炎上中</color> のキャラクターが光を放つようにします <i><color=#F0DAA0>[光のキューブ、ファイア・エレメンタル、ファイア・ジェスター、ファイア・オスプレイ、ファイア・スパイダー、および炎上状態ファミリー]</color></i>
 ModUi/&EnableClericBlessedStrikes2024=レベル 7 と 14 で <color=#D89555>祝福された一撃</color> と <color=#D89555>改良された祝福された一撃</color> を有効にします\n<i><color=#F0DAA0>[汚染、生命、悪戯、自然、鍛冶、太陽、嵐の領域にのみ影響]</color></i>
 ModUi/&EnableClericChannelDivinity2024=<color=#D89555>神性伝導</color>を 5e 2024 版 <i><color=#F0DAA0>[用途が異なります]</color></i> と入れ替えます
@@ -151,7 +151,7 @@ ModUi/&EnableEpicPointsAndArray=壮大な 35 ポイント購入システムと�
 ModUi/&EnableExtendedProficienciesPanelDisplay=拡張熟練度パネルの表示を有効にする <i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[キャラクター検査時にパフォーマンスが低下します。自己責任で使用してください]</color></i></b>
 ModUi/&EnableFeatsAtEvenLevels=レベル2、10、18で<color=#D89555>特技</color>選択を有効にする
 ModUi/&EnableFeatsAtEvenLevelsMiddle=レベル6と14で<color=#D89555>特技</color>選択を有効にする
-ModUi/&EnableFighterIndomitableSaving2024=<color=#D89555>Indomitable Resistance</color> を 5e 2024 バージョンの <i><color=#F0DAA0>[セーヴィング・スローの再ロールにクラス レベルをボーナスとして追加]</color></i> と入れ替えます
+ModUi/&EnableFighterIndomitableSaving2024=<color=#D89555>不屈</color>を5e 2024バージョンの<i><color=#F0DAA0>[セーヴィング・スローの再ロールにクラスレベルをボーナスとして追加]</color></i>と入れ替えます
 ModUi/&EnableFighterSecondWind2024=<color=#D89555>底力</color> を 5e 2024 バージョン <i><color=#F0DAA0>[異なる使用法の進行]</color></i> と入れ替えます
 ModUi/&EnableFighterSkillOptions2024=レベル1のスキルオプションに<color=#D89555>説得</color>を追加します
 ModUi/&EnableFighterStudiedAttacks2024=レベル 13 で <color=#D89555>研究された攻撃</color> を有効にする <i><color=#F0DAA0>[そのラウンドのクリーチャーに対する前回の攻撃が失敗した場合、有利]</color></i>
@@ -189,13 +189,13 @@ ModUi/&EnableMonkUncannyMetabolism2024=レベル2で <color=#D89555>超新陳代
 ModUi/&EnableMulticlass=<color=#D89555>マルチクラス</color>を有効にする <b><i><color=#C04040E0>[再起動が必要]</color></i></b>
 ModUi/&EnableOneDndBarkskinSpell=<color=#D89555>樹皮の肌</color> の 5e 2024 版呪文を有効化する <i><color=#F0DAA0>[ボーナス・アクション、集中不要、AC を 17 に設定]</color></i>
 ModUi/&EnableOneDndBladeWardCantrip=<color=#D89555>防刃</color> の 5e 2024 版初級呪文を有効にします <i><color=#F0DAA0>[1 分間の集中、攻撃者は攻撃ロールから 1d4 を減算]</color></i>
-ModUi/&EnableOneDndChillTouchCantrip=<color=#D89555>負力の接触</color> 5e 2024 版初級呪文を有効にする <i><color=#F0DAA0>[ダメージ・ダイスが D8 ではなく D10 になり、射程 24マスの代わりに近接攻撃になります]</color></i>
+ModUi/&EnableOneDndChillTouchCantrip=<color=#D89555>負力の接触</color>の5e 2024版初級呪文を有効にする <i><color=#F0DAA0>[ダメージ・ダイスがD8ではなくD10になり、射程24マスの代わりに近接攻撃になります]</color></i>
 ModUi/&EnableOneDndDamagingSpellsUpgrade=<color=#D89555>秘術の剣</color>、<color=#D89555>死の円環</color>、<color=#D89555>火炎撃</color>、<color=#D89555>氷の嵐</color>、<color=#D89555>虹色の噴射</color>、<color=#D89555>悪意ある嘲り</color> 5e 2024 呪文バージョンを有効にします <i><color=#F0DAA0>[ダメージ向上]</color></i>
 ModUi/&EnableOneDndDivineFavorSpell=<color=#D89555>神寵</color> 5e 2024 呪文バージョン <i><color=#F0DAA0>[集中なし]</color></i> を有効にする
 ModUi/&EnableOneDndGuidanceSpell=<color=#D89555>導き</color> 5e 2024 呪文バージョンを有効にします <i><color=#F0DAA0>[発動時にスキルを 1 つ選択し、最大 1 分間ボーナスを獲得します。]</color></i>
 ModUi/&EnableOneDndHealingSpellsUpgrade=<color=#D89555>傷治療</color>、<color=#D89555>偽りの生命</color>、<color=#D89555>癒しの言葉</color>、<color=#D89555>Mass 傷治療</color>、<color=#D89555>Mass 癒しの言葉</color> 5e 2024 呪文バージョン <i><color=#F0DAA0>[better healing]</color></i> を有効にします
 ModUi/&EnableOneDndHideousLaughterSpell=<color=#D89555>抱腹絶倒</color> 5e 2024 呪文バージョンを有効にする <i><color=#F0DAA0>[+1 ターゲット/アップキャスト]</color></i>
-ModUi/&EnableOneDndHuntersMarkSpell=<color=#D89555>狩人の印</color>5e 2024版の呪文<i><color=#F0DAA0>[力場ダメージ]</color></i>を有効にする
+ModUi/&EnableOneDndHuntersMarkSpell=<color=#D89555>狩人の印</color>の5e 2024版呪文 <i><color=#F0DAA0>[力場ダメージ]</color></i>を有効にする
 ModUi/&EnableOneDndLesserRestorationSpell=<color=#D89555>初級回復術</color> の 5e 2024 版呪文を有効にします <i><color=#F0DAA0>[ボーナス・アクション]</color></i>
 ModUi/&EnableOneDndMagicWeaponSpell=<color=#D89555>魔法の武器</color> 5e 2024 呪文バージョン <i><color=#F0DAA0>[ボーナス・アクション、集中力なし、呪文レベル 3 および 6 で強化アップグレード]</color></i> を有効にします
 ModUi/&EnableOneDndPowerWordStunSpell=<color=#D89555>力の言葉:朦朧</color> 5e 2024 呪文バージョンを有効にする <i><color=#F0DAA0>[対象のヒット・ポイントが150を超えている場合、1ターン朦朧状態にします]</color></i>
@@ -208,7 +208,7 @@ ModUi/&EnableOutOfCombatTargetingSightLines=非戦闘時にターゲットを設
 ModUi/&EnablePaladinAbjureFoes2024=レベル 9 で <color=#D89555>敵の拒絶</color> を有効にする
 ModUi/&EnablePaladinAnyFightingStyle2024=<color=#D89555>パラディン</color>が任意の戦闘スタイルを選択できるようにする <i><color=#F0DAA0>[アーチェリーと二刀流を追加]</color></i>
 ModUi/&EnablePaladinChannelDivinity2024=<color=#D89555>神性伝導</color>を 5e 2024 版 <i><color=#F0DAA0>[用途が異なります]</color></i> と入れ替えます
-ModUi/&EnablePaladinLayOnHands2024=<color=#D89555>Lay on Hands</color> を 5e 2024 バージョンの <i><color=#F0DAA0>[ボーナス・アクション]</color></i> と入れ替えます
+ModUi/&EnablePaladinLayOnHands2024=<color=#D89555>癒しの手</color>を5e 2024版の<i><color=#F0DAA0>[ボーナス・アクション]</color></i>と入れ替えます
 ModUi/&EnablePaladinRestoreLevel20Feature=<color=#D89555>レベル20</color>サブクラスパワーをレベル5スロットで再充電できるようにする
 ModUi/&EnablePaladinRestoringTouch2024=レベル14で<color=#D89555>浄化のタッチ</color>の代わりに<color=#D89555>回復のタッチ</color>を有効にする
 ModUi/&EnablePaladinSmite2024=<color=#D89555>神聖なる一撃</color>を 5e 2024 版と入れ替えます <i><color=#F0DAA0>[命中時に発動するボーナス・アクション呪文]</color></i>
@@ -318,7 +318,7 @@ ModUi/&IdentifyAfterRest=小休憩または大休憩中に<color=#D89555>魔法�
 ModUi/&IgnoreHandXbowFreeHandRequirements=<color=#D89555>ハンドクロスボウ</color>を使用するのに自由な手は必要ありません
 ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=幻術呪文は範囲内で<color=#D89555>真実の目</color>を持つ対象に対して自動的に失敗する
 ModUi/&IncreaseGameTimeBy=ゲーム時間を増やす
-ModUi/&IncreaseMaxAttunedItems=レベル 10 で最大 <color=#D89555>調整アイテム</color> を 4 個、レベル 18 で 5 個に増加
+ModUi/&IncreaseMaxAttunedItems=レベル10で最大<color=#D89555>同調アイテム</color>を4個、レベル18で5個に増加
 ModUi/&Invocations=<color=#F0DAA0>召喚</color>
 ModUi/&Items=<color=#F0DAA0>アイテム:</color>
 ModUi/&ItemsHelp1=<color=#C04040E0>キャラクター検査画面を開いてヒーローにアイテムを追加します...</color>
@@ -375,7 +375,7 @@ ModUi/&Races=<color=#F0DAA0>種族</color>
 ModUi/&RecipeCost=<color=white>レシピのコスト</color>
 ModUi/&RefreshVoice=ボイスリストを更新
 ModUi/&RelicForgeries=遺物の偽造
-ModUi/&RemoveAttunementRequirements=調整要件を削除します <b><i><color=#C04040E0>[再起動が必要です]</color></i></b>
+ModUi/&RemoveAttunementRequirements=同調要件を削除します <b><i><color=#C04040E0>[再起動が必要です]</color></i></b>
 ModUi/&RemoveBardSongOfRest2024=レベル2で<color=#D89555>安息の歌</color>を削除します
 ModUi/&RemoveBugVisualModels=ゲーム内のクモのようなモデルをクマのようなモデルに置き換えます <i><color=#F0DAA0>[クモ恐怖症]</color></i> <b><i><color=#C04040E0>[再起動が必要]</color></i></b>
 ModUi/&RemoveHumanoidFilterOnHideousLaughter=<color=#D89555>抱腹絶倒</color> の人型生物 フィルターを削除します

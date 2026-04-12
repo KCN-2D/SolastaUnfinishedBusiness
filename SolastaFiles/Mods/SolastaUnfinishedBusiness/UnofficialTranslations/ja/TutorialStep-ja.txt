@@ -5,9 +5,9 @@ TutorialStep/&CautiousModeDescription=慎重モードをアクティブにする
 TutorialStep/&CautiousModeTitle=慎重モード
 TutorialStep/&ConfigWeapons2Description=インベントリ内のショートカットを変更できます。\n武器、盾、その他のアイテムを手のスロットにドラッグ アンド ドロップして、ショートカットを変更します。
 TutorialStep/&ConfigWeapons2Title=武器のショートカットを変更する
-TutorialStep/&ConfigWeaponsDescription=ショートカットを使用して装備を切り替えることができます。\nデフォルトでは 3 つの武器設定ショートカットがあります。\n最後のショートカットはライト ショートカットです。これはトーチまたは他の光源を含む 3 番目の構成を使用します。\n呪文リストにライト 初級呪文がある場合は、ライト ボタンを押すとすぐにそれを発動できます。
+TutorialStep/&ConfigWeaponsDescription=ショートカットを使って装備を切り替えられます。\n既定では3つの武器設定ショートカットがあります。\n最後のショートカットはライト用ショートカットで、たいまつや他の光源を含む3番目の構成を使います。\n呪文リストに初級呪文〈ライト〉がある場合は、ライトボタンを押すだけですぐ発動できます。
 TutorialStep/&ConfigWeaponsTitle=装備のショートカット
-TutorialStep/&ConfigWeaponsXBoxDescription=ショートカットを使用して機器を切り替えることができます。\nこれらのショートカットにアクセスするには、<sprite index={12}> を押してください。デフォルトでは 3 つの武器設定ショートカットがあります。\n最後のショートカットはライト ショートカットです。トーチまたはその他の光源を含む 3 番目の構成を使用します。\n呪文リストにライト 初級呪文がある場合は、4 番目のショートカットですぐにそれを唱えることができます。
+TutorialStep/&ConfigWeaponsXBoxDescription=ショートカットを使って装備を切り替えられます。\nこれらのショートカットにアクセスするには、<sprite index={12}>を押してください。既定では3つの武器設定ショートカットがあります。\n最後のショートカットはライト用ショートカットで、たいまつや他の光源を含む3番目の構成を使います。\n呪文リストに初級呪文〈ライト〉がある場合は、4番目のショートカットからすぐに発動できます。
 TutorialStep/&Crafting01Description=ソラスタでは様々なアイテムをクラフトすることができます。そのためには、適切な機器、材料、スキル、時間が必要です。魔法のアイテムの場合、場合によっては呪文を知る必要があります。\n\nパーティーがキャンプを設営してもまだ寝ていないとき、旅行中に作成が実行されます。\n\nキャラクターは自由時間の一部を費やすことができます。現在の製作タスクに取り組むことになります。
 TutorialStep/&Crafting01Title=クラフト
 TutorialStep/&Crafting02Description=作成に必要なツールは次のとおりです:\n\n- ポーション: 薬草学キット\n- 巻物: 巻物キット\n- 毒: 毒殺者のキット\n- 魔法の武器と防具: マナカロン ロザリオ\n\n これらのツールを使用するには、これらのツールに習熟する必要があります。
@@ -44,8 +44,8 @@ TutorialStep/&OutgameCharacterCreationAbilityScoresDescription=能力スコア�
 TutorialStep/&OutgameCharacterCreationAbilityScoresTitle=能力値
 TutorialStep/&OutgameCharacterCreationAncestryDescription=キャラクター作成の最初のステップは、祖先を選択することです。これにより、あなたの外観と右側にリストされているゲームプレイ能力が決定されます。\n\n一部の祖先は、ゲームプレイ能力をさらに洗練するための血統サブオプションを提供しています。キャラクター。
 TutorialStep/&OutgameCharacterCreationAncestryTitle=祖先の選択
-TutorialStep/&OutgameCharacterCreationBackground2Description=経歴によって提供される性格フラグに加えて、法/混沌と善/悪の倫理軸に基づいて 2 つの性格フラグも選択する必要があります。\n\nソラスタでは、調整は性格の 2 番目の形式です。カスタマイズ。
-TutorialStep/&OutgameCharacterCreationBackground2Title=位置合わせ
+TutorialStep/&OutgameCharacterCreationBackground2Description=経歴によって提供される性格フラグに加えて、法/混沌と善/悪の倫理軸に基づいて2つの性格フラグも選択する必要があります。\n\nソラスタでは、属性は性格のもう1つの形です。
+TutorialStep/&OutgameCharacterCreationBackground2Title=属性
 TutorialStep/&OutgameCharacterCreationBackground3Description=同じフラグを 2 回選択すると、性格特性を強化できます。フラグはゲームプレイ、選択肢、ダイアログ オプションには影響しませんが、キャラクターの話し方、口調、マナーを変更するだけです。\n\n結果として得られる性格は、画面の左下にまとめられており、最も濃い色が表示されます。最強の個性を表します。
 TutorialStep/&OutgameCharacterCreationBackground3Title=結果として生じる性格
 TutorialStep/&OutgameCharacterCreationBackgroundDescription=背景は、冒険生活に先立つキャラクターの歴史を決定します。\n\n背景には、装備や熟練度だけでなく、性格フラグを選択する機能も含まれています。これらは、物語シーケンス中のキャラクターの社会的行動を決定します。
@@ -74,7 +74,7 @@ TutorialStep/&OutgameCharacterSelectionDescription=このプールには、冒�
 TutorialStep/&OutgameCharacterSelectionTitle=パーティーのセットアップ
 TutorialStep/&OutgameMainMenuDescription=ソラスタへようこそ!\n\nこの一連のパネルでは、ゲームを発見しながらその主な概念を紹介します。\n\n新しいゲームを開始するには、画面右側のオプションの 1 つを選択してください。冒険したりキャラクターを作成したり
 TutorialStep/&OutgameMainMenuTitle=ゲーム内ヘルプ
-TutorialStep/&OutgameMainMenuXBoxDescription=Solasta のゲームパッド バージョンへようこそ。\n<sprite index={0}> を押して開始してください。
+TutorialStep/&OutgameMainMenuXBoxDescription=Solastaのゲームパッド版へようこそ。\n<sprite index={0}>を押して開始してください。
 TutorialStep/&OutgameMainMenuXBoxTitle=ゲーム内ヘルプ (これは Xbox テストです)
 TutorialStep/&OutgameNewAdventureDescription=この画面では、ソラスタの世界で「キャンペーン」と呼ばれる新しい冒険を開始できます。\n\nゲームのリリース後、さらに多くのキャンペーンが計画されています。\n\n選択する必要があります。レベル 1 キャラクター 4 人でソラスタ キャンペーンを開始します。
 TutorialStep/&OutgameNewAdventureTitle=新しい冒険
@@ -118,10 +118,10 @@ TutorialStep/&Tuto01_Selection_Description=3D ビューでキャラクターを�
 TutorialStep/&Tuto01_Selection_Title=キャラクター選択と基本動作
 TutorialStep/&Tuto02_Cautious_Stealth_Description=慎重モードを有効にすると動作が遅くなりますが、隠されたオブジェクトや罠が見つけやすくなり、敵に発見されにくくなるという 2 つの利点があります。\n敵があなたの存在に気づき始めると、敵の頭上にゲージが表示され、反応して隠れるまでの時間が与えられます。\nこのモードでは敵の 3マス上に留まれば、検出されることはありません。
 TutorialStep/&Tuto02_Cautious_Stealth_Title=慎重モード
-TutorialStep/&Tuto02_HealingXbox_Description=キャラクターが回復呪文を唱えることができる場合 (たとえば聖職者など)、<sprite index={2}> を押して Cast Spell メニューにアクセスし、失われたヒット・ポイントを回復するために呪文を選択します。\n\nあなたは近くの戦利品で見つかったポーションを使用することもできます。 <sprite index={3}> を押してインベントリを開きます。ポーションを選択し、<sprite index={7}> を押して使用します。
+TutorialStep/&Tuto02_HealingXbox_Description=キャラクターが回復呪文を唱えられる場合（たとえばクレリックなど）、<sprite index={2}>を押して呪文メニューにアクセスし、失われたヒット・ポイントを回復するための呪文を選択します。\n\n近くの戦利品で見つかったポーションを使うこともできます。<sprite index={3}>を押してインベントリを開き、ポーションを選択して<sprite index={7}>を押し、使用します。
 TutorialStep/&Tuto02_Healing_Description=キャラクターが回復呪文を唱えることができる場合（聖職者など）、失われたヒット・ポイントを回復するには、「呪文を唱える」ボタンを押して呪文を選択します。\n\n近くの戦利品で見つかったポーションを使用することもできます。インベントリを開き、ポーションを右クリックして使用します。
 TutorialStep/&Tuto02_Healing_Title=ヒーリング
-TutorialStep/&Tuto02_Light_Up_Description=ホルダー上のトーチなどの可燃性アイテムに点火するには、トーチを持った状態でアイテムを操作するか、初級呪文<i>ファイア ボルト</i>などの炎の呪文を唱えます。
+TutorialStep/&Tuto02_Light_Up_Description=ホルダー上のたいまつなどの可燃性アイテムに点火するには、たいまつを持った状態でそのアイテムを操作するか、<i>炎の矢</i> のような火の呪文を唱えます。
 TutorialStep/&Tuto02_Light_Up_Title=照明アイテム
 TutorialStep/&Tuto02_Rest_Description=ヒット・ポイント、特殊能力、呪文を回復するには、大休憩を取る必要があります。\n\nそのためには、安全な場所にパーティーを集め、パーティー メンバーごとに 1 つの食料を用意する必要があります。\n\n安全な場所はキャンプファイヤーで表されます。所在地図にも掲載されています。
 TutorialStep/&Tuto02_Rest_Title=ゆっくり休んでください

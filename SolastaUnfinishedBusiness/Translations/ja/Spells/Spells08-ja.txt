@@ -1,6 +1,6 @@
 Condition/&ConditionMindBlankDescription=精神ダメージおよび魅了状態に対する完全耐性。
 Condition/&ConditionMindBlankTitle=空白の心
-Condition/&ConditionSoulExpulsionCombatAffinityTitle=落ち着かない
+Condition/&ConditionSoulExpulsionCombatAffinityTitle=動揺
 Spell/&AbiDalzimHorridWiltingDescription=範囲内で選択した点を中心とした 6マスの立方体内のすべてのクリーチャーから水分を吸い取ります。そのエリア内の各クリーチャーは耐久力セーヴィング・スローを実行する必要があります。人造生物とアンデッドは影響を受けませんが、植物と氷の精霊は不利な条件でこのセーヴィング・スローを実行します。セーヴィングに失敗するとクリーチャーは 10d8 の死霊ダメージを受け、成功すると半分のダメージを受けます。
 Spell/&AbiDalzimHorridWiltingTitle=アビー・ダルジムの恐るべき枯渇
 Spell/&GlibnessDescription=呪文が終了するまで、魅力判定を行う際に、出た目を 15 に置き換えることができます。

@@ -144,7 +144,7 @@ Spell Bombardment	呪文猛撃	呪文爆撃|Spell Bombardment	feature	特徴名�
 Wrathful Smite	憤怒の一撃	怒りのスマイト|ラスフル・スマイト	spell	システム文では漢字和訳を優先。
 Zone of Truth	真実の場	ゾーン・オヴ・トゥルース	spell	システム文では漢字和訳を優先。
 Arcane Ward	秘術の防壁	アーケイン・ワード	feature	防御術系の用語を優先。
-Arcane Deflection	秘術偏向	難解な偏向	feature	防御術系の用語を優先。
+Arcane Deflection	跳ね返しの秘術	難解な偏向|秘術偏向	feature	防御術系の用語を優先。
 Arcane Recovery	秘術回復		feature	ウィザード機能名。
 Arcane Shot	秘術射撃	アーケインショット|Arcane Shot	feature	アーチャー系機能名。
 Arcane Archer	秘術の射手	Arcane Archer	subclass	サブクラス名。
@@ -299,25 +299,58 @@ See Invisibility	不可視視認	シー・インヴィジビリティ|See Invisi
 Shield of Faith	信仰の盾	シールド・オヴ・フェイス|Shield of Faith	spell	システム文では漢字和訳を優先。
 Absorb Elements	元素吸収	要素を吸収する|エレメントを吸収|Absorb Elements	spell	システム文では漢字和訳を優先。
 Alarm	警報	アラーム|Alarm	spell	システム文では漢字和訳を優先。
+Armor of Agathys	アガシスの鎧	アガティスの鎧|Armor of Agathys	spell	ユーザー指定の表記を優先。
 Annoying Bee	幻蜂	アノイング・ビー|Annoying Bee	spell	repo 内呪文名を自然な漢字和訳へ統一。
 Arcane Sword	秘術の剣	アーケイン・ソード|アーケインソード|Arcane Sword	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Caustic Zap	腐食電撃	カウスティックザップ|Caustic Zap	spell	repo 内呪文名を自然な漢字和訳へ統一。
 Chaos Bolt	混沌の矢	ケイオス・ボルト|カオス・ボルト|カオスボルト|Chaos bolt|Chaos Bolt	spell	公式対訳の漢字側を優先。
 Circle of Death	死の円環	サークル・オブ・デス|死の輪|Circle of Death	spell	システム文では漢字和訳を優先。
+Circle of Power	力の円環	パワーの輪|Circle of Power	spell	システム文では漢字和訳を優先。
 Divine Favor	神寵	ディバイン・フェイバー|神の恩寵|神の好意|Divine Favor	spell	システム文では漢字和訳を優先。
 Divine Blade	神剣	ディバイン・ブレード|ディヴァイン・ブレード|Divine Blade	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Demiplane	擬似次元界	デミプレーン|Demiplane	spell	システム文では漢字和訳を優先。
 Evard's Black Tentacles	エヴァードの黒い触手	ブラック・テンタクル|黒い触手|Evard's Black Tentacles	spell	システム文では漢字和訳を優先。
+Flame Strike	天罰の火	フレイム・ストライク|Flame Strike	spell	システム文では漢字和訳を優先。
+Flaming Sphere	炎の球体	フレイミング・スフィアー|Flaming Sphere	spell	システム文では漢字和訳を優先。
+Floating Disk	浮遊盤	フローティング・ディスク|Floating Disk	spell	システム文では漢字和訳を優先。
+Fox's Cunning	狐の知力	フォックスの狡猾さ|Fox's Cunning	spell	システム文では漢字和訳を優先。
 Giant Insect	蟲類巨大化	ジャイアント・インセクト|巨大昆虫|Giant Insect	spell	システム文では漢字和訳を優先。
+Greater Invisibility	上級不可視化	グレーター・インビジぶりティ|Greater Invisibility	spell	システム文では漢字和訳を優先。
 Gravity Slam	重力撃	グラビティ・スラム|重力スラム|Gravity Slam	spell	repo 内呪文名を自然な漢字和訳へ統一。
 Mind Twist	精神ねじり	マインド・ツウィスト|マインドツイスト|Mind Twist	spell	repo 内呪文名を自然な漢字和訳へ統一。
 Moonbeam	月光	ムーンビーム|ムーン・ビーム|Moonbeam	spell	システム文では漢字和訳を優先。
+Bear's Endurance	熊の耐久力	クマの耐久力|Bear's Endurance	spell	システム文では漢字和訳を優先。
+Bull's Strength	雄牛の筋力	Bull's Strength	spell	システム文では漢字和訳を優先。
+Cat's Grace	猫の敏捷力	キャッツグレース|Cat's Grace	spell	システム文では漢字和訳を優先。
+Eagle's Splendor	鷲の魅力	イーグルの素晴らしさ|Eagle's Splendor	spell	システム文では漢字和訳を優先。
+Owl's Wisdom	梟の判断力	フクロウの判断力|Owl's Wisdom	spell	システム文では漢字和訳を優先。
 Otiluke's Freezing Sphere	オティルークの冷凍球	フリージング・スフィア|フリージングスフィア|Otiluke's Freezing Sphere	spell	システム文では漢字和訳を優先。
+Parry	受け流し	パリー|パリィ|Parry	system	ルール語は受け流しに統一。
+Pulse Wave	脈波	パルス波|Pulse Wave	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Pulse Wave Pull	脈波（引き寄せ）	脈波：プル|Pulse Wave: Pull	spell	repo 内派生名を統一。
+Pulse Wave Push	脈波（押し出し）	パルス波：プッシュ|Pulse Wave: Push	spell	repo 内派生名を統一。
+Reaction Shot	反応射撃	リアクションショット|Reaction Shot	system	repo 内リアクション名を自然な日本語へ統一。
+Recall Item	アイテム回収	アイテムのリコール|Recall Item	system	repo 内アクション名を自然な日本語へ統一。
+Dazzle	幻惑	ダズル|Dazzle	system	repo 内状態・呪文名を統一。
+Unsettled	動揺	落ち着かない|Unsettled	system	repo 内状態名を自然な日本語へ統一。
+Lay on Hands	癒しの手	レイ オン ハンズ|Lay on Hands	class_feature	公式クラス特徴名を優先。
+Repelling Blast	拒絶の怪光線	弾くブラスト|Repelling Blast	invocation	妖術名は公式和訳を優先。
+Dodge	回避	ドッジ|Dodge	action	アクション名は公式和訳を優先。
+Uncanny Dodge	直感回避	不気味な回避|Uncanny Dodge	feature	ローグ特徴名は公式和訳を優先。
+Shadowy Dodge	朧影	影の回避|シャドウドッジ|Shadowy Dodge	feature	repo 内特徴名を自然な日本語へ統一。
+Attunement	同調	アチューンメント	feature	魔法アイテムのルール語は同調に統一。
+Strike of Chaos	混沌の一撃	ストライク・オブ・カオス|Strike of Chaos	feature	repo 内特徴名を自然な日本語へ統一。
+Deflection	偏向	ディフレクション|たわみ|Deflection	system	repo 内接尾辞は偏向に統一。
 Shadow Armor	影の鎧	シャドウ・アーマー|Shadow Armor	spell	repo 内呪文名を自然な漢字和訳へ統一。
 Shadow Dagger	影の短剣	シャドウ・ダガー|Shadow Dagger	spell	repo 内呪文名を自然な漢字和訳へ統一。
 Shine	発光	シャイン|Shine	spell	repo 内呪文名を自然な漢字和訳へ統一。
 Sparkle	きらめき	スパークル|Sparkle	spell	repo 内呪文名を自然な漢字和訳へ統一。
 Synaptic Static	脳神経抑圧	シナプススタティック|シナプティック・スタティック|Synaptic Static	spell	システム文では漢字和訳を優先。
 Tasha's Caustic Brew	ターシャのコースティック・ブリュー	ターシャのコースティック ブリュー|Vile Brew|Tasha's Caustic Brew	spell	公式訳不在のため自然なカタカナへ統一。
+Tasha's Mind Whip	ターシャの精神の鞭	ターシャのマインドウィップ|Tasha's Mind Whip	spell	システム文では漢字和訳を優先。
 Thunderstorm	雷雨	サンダーストーム|Thunderstorm	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Vampiric Touch	吸血の手	ヴァンピリック・タッチ|ヴァンパイアリックタッチ|Vampiric Touch	spell	システム文では漢字和訳を優先。
+Venom Spike	毒針	ベノム・スパイク|Venom Spike	spell	repo 内呪文名を自然な漢字和訳へ統一。
 Wind Wall	風の壁	ウィンド・ウォール|Wind Wall	spell	システム文では漢字和訳を優先。
 Invisibility	不可視化	インヴィジビリティ|Invisibility	spell	システム文では漢字和訳を優先。
 Hold Monster	怪物金縛り	ホールドモンスター|Hold Monster	spell	システム文では漢字和訳を優先。
@@ -384,7 +417,7 @@ Rod	ロッド	Rod	item	公式の一般語を優先。
 Sap	弱体化	Sap	ui	2024 武器マスタリー名の repo 内基準訳。
 Vex	翻弄	Vex	ui	2024 武器マスタリー名の repo 内基準訳。
 Topple	転倒	Topple	ui	2024 武器マスタリー名の repo 内基準訳。
-Malediction	マレディクション	Malediction	spell	homebrew 呪文名を統一。
+Malediction	悪呪	マレディクション|Malediction	spell	homebrew 呪文名を自然な漢字和訳へ統一。
 Sign of Ill Omen	不吉な予兆	Sign of Ill Omen	feature	妖術名を統一。
 Soul Hex	魂の呪い	Soul Hex	feature	特徴名を統一。
 Raise Skeletal Enforcer	スケルトン・エンフォーサー召喚	Raise Skeletal Enforcer	spell	homebrew 呪文名を統一。
@@ -426,3 +459,5 @@ Protection from Energy	元素からの保護	プロテクション・フロム�
 Resistance	抵抗力	レジスタンス|Resistance	spell	呪文名は抵抗力を優先。
 Stoneskin	石の皮膚	ストーンスキン|Stoneskin	spell	システム文では漢字和訳を優先。
 Warding Bond	守りの紐帯	ウォーディング・ボンド|Warding Bond	spell	システム文では漢字和訳を優先。
+Bardic Inspiration	バードの声援	バード インスピレーション|バーディック インスピレーション|Bardic Inspiration	class_feature	system/UI ではバードの声援に統一。
+Bardic Inspiration die	声援ダイス	バード インスピレーション ダイス|バーディック インスピレーション ダイス|Bardic Inspiration die	ui	system/UI では声援ダイスに統一。

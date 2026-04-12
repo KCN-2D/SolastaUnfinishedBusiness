@@ -25,6 +25,6 @@ Alignment/&NeutralGoodTitle=中立にして善
 Alignment/&NeutralGoodTitleShort=NG
 Alignment/&NeutralTitle=真なる中立
 Alignment/&NeutralTitleShort=N
-Alignment/&UnalignedDescription=合理的思考の能力を欠いているほとんどの生き物は調整を持っていません…彼らは調整されていません。そのような生き物は道徳的または倫理的な選択をすることができず、獣としての性質に従って行動します。たとえば、サメは凶暴な捕食者ですが、悪ではありません。彼らには調整がありません。
+Alignment/&UnalignedDescription=合理的思考の能力を欠いているほとんどの生き物は属性を持っていません。そうした生き物は道徳的または倫理的な選択を行えず、獣としての性質に従って行動します。たとえば、サメは凶暴な捕食者ですが、悪ではありません。彼らは無属性です。
 Alignment/&UnalignedTitle=無属性
 Alignment/&UnalignedTitleShort=UN
