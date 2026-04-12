@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using I2.Loc;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -187,9 +188,61 @@ internal static class RulesContext
         }
     }
 
+    private static void AddAdditionalNameToRace(
+        CharacterRaceDefinition raceDefinition,
+        string raceName,
+        string gender,
+        string name,
+        IDictionary<string, int> additionalNameCounts)
+    {
+        var term = BuildAdditionalNameTerm(raceName, gender, name, additionalNameCounts);
+
+        EnsureAdditionalNameEnglishFallback(term, name);
+        AddNameToRace(raceDefinition, gender, term);
+    }
+
+    private static string BuildAdditionalNameTerm(
+        string raceName,
+        string gender,
+        string name,
+        IDictionary<string, int> additionalNameCounts)
+    {
+        var sanitizedName = new string(name.Where(char.IsLetterOrDigit).ToArray());
+
+        if (string.IsNullOrEmpty(sanitizedName))
+        {
+            sanitizedName = "Value";
+        }
+
+        var baseTerm = $"Race/&AdditionalLoreFriendly{raceName}{gender}{sanitizedName}";
+
+        additionalNameCounts.TryGetValue(baseTerm, out var occurrence);
+        occurrence++;
+        additionalNameCounts[baseTerm] = occurrence;
+
+        return occurrence == 1 ? $"{baseTerm}Title" : $"{baseTerm}{occurrence}Title";
+    }
+
+    private static void EnsureAdditionalNameEnglishFallback(string term, string englishText)
+    {
+        var languageSourceData = LocalizationManager.Sources[0];
+        var englishIndex = languageSourceData.GetLanguageIndexFromCode(TranslatorContext.English);
+
+        if (englishIndex < 0)
+        {
+            Main.Error($"English language index not found for additional lore-friendly name term {term}.");
+
+            return;
+        }
+
+        var termData = languageSourceData.AddTerm(term);
+        termData.Languages[englishIndex] = englishText;
+    }
+
     private static void LoadAdditionalNames()
     {
         char[] separator = ['\t'];
+        var additionalNameCounts = new Dictionary<string, int>();
 
         if (!SettingsContext.GuiModManagerInstance.UnlockAdditionalLoreFriendlyNames)
         {
@@ -218,13 +271,13 @@ internal static class RulesContext
             {
                 if (race.subRaces.Count == 0)
                 {
-                    AddNameToRace(race, gender, name);
+                    AddAdditionalNameToRace(race, raceName, gender, name, additionalNameCounts);
                 }
                 else
                 {
                     foreach (var subRace in race.SubRaces)
                     {
-                        AddNameToRace(subRace, gender, name);
+                        AddAdditionalNameToRace(subRace, raceName, gender, name, additionalNameCounts);
                     }
                 }
             }
