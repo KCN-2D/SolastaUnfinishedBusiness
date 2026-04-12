@@ -14,6 +14,7 @@ simple weapon	簡易武器	単純な武器|シンプル武器	weapon	武器区�
 martial weapon	軍用武器	格闘武器|武術武器|武道武器|武用武器	weapon	武器区分は軍用武器を優先。
 medium armor	中装鎧	中装甲|中型鎧|中程度の鎧	armor	防具区分は中装鎧を優先。
 heavy armor	重装鎧	重装甲	armor	防具区分は重装鎧を優先。
+Polearm	長柄武器	ポールアーム|Polearm	weapon	武器カテゴリでは長柄武器を優先。
 Strength	筋力	強さ|腕力	ability	能力値ラベルは筋力。
 Dexterity	敏捷力	器用さ|敏捷性	ability	能力値ラベルは敏捷力。
 Constitution	耐久力	憲法|体質	ability	能力値ラベルは耐久力。
@@ -34,6 +35,7 @@ radiant	光輝	放射	damage_type	ダメージ種別は光輝。
 necrotic	死霊	壊死|壊死性	damage_type	ダメージ種別は死霊。
 force	力場	フォース	damage_type	ダメージ種別は力場。
 Acid Splash	酸の飛沫	アシッド・スプラッシュ	spell	システム文では漢字和訳を優先。
+Acid Arrow	酸の矢	アシッド・アロー|Acid Arrow	spell	システム文では漢字和訳を優先。
 Aid	助力	エイド	spell	システム文では漢字和訳を優先。
 Burning Hands	火炎双手	バーニング・ハンズ|バーニングハンズ|燃える手	spell	システム文では漢字和訳を優先。
 Healing Word	癒しの言葉	ヒーリング・ワード|ヒーリング ワード	spell	システム文では漢字和訳を優先。
@@ -143,12 +145,17 @@ Arcane Recovery	秘術回復		feature	ウィザード機能名。
 Arcane Shot	秘術射撃	アーケインショット|Arcane Shot	feature	アーチャー系機能名。
 Arcane Archer	秘術の射手	Arcane Archer	subclass	サブクラス名。
 Lesser Restoration	初級回復術	弱回復|Lesser Restoration	spell	公式呪文名を優先。
-Remove Curse	呪い解除	Remove Curse	spell	既存ゲーム訳に合わせる。
+Greater Restoration	上級回復術	グレーター・レストレーション|Greater Restoration	spell	システム文では漢字和訳を優先。
+Remove Curse	呪いの除去	リムーブ・カース|Remove Curse	spell	システム文では漢字和訳を優先。
 True Seeing	真視	True Seeing	spell	既存ゲーム訳に合わせる。
 death saving throw	死のセーヴィング・スロー		feature	システム文で使用。
 Cantrip	初級呪文	キャントリップ	system	system/UI では初級呪文に統一。
 Spare the Dying	救命措置	スペア・ザ・ダイイング|Spare the Dying	spell	システム文では漢字和訳を優先。
 Eldritch Invocation	妖術	呼び出し|異界の呼び出し	feature	ウォーロックの Invocation 系は妖術に統一。
+Eldritch Aegis	エルドリッチ・イージス	異界のイージス|Eldritch Aegis	class_feature	repo 内用語を自然な日本語へ統一。
+Eldritch Ward	エルドリッチ・ウォード	異界の護り|Eldritch Ward	class_feature	repo 内用語を自然な日本語へ統一。
+Eldritch Pool	エルドリッチ・プール	異界プール|Eldritch Pool	ui	repo 内用語を自然な日本語へ統一。
+Eldritch Point	エルドリッチ・ポイント	異界ポイント|Eldritch Point	ui	repo 内用語を自然な日本語へ統一。
 Eldritch Blast	怪光線	エルドリッチ・ブラスト|Eldritch Blast	spell	system 文では和訳を優先。
 Channel Divinity	神性伝導	Channel Divinity	class_feature	公式ルール語を優先。
 Metamagic	呪文修正	メタマジック|Metamagic	class_feature	公式クラス特徴名を優先。
@@ -166,6 +173,8 @@ Steel Defender	スチール・ディフェンダー	Steel Defender|スティー�
 Cunning Strike	カニング・ストライク	Cunning Strike|狡猾な一撃	feature	repo 内基準訳。
 Blade Flourish	ブレード・フラリッシュ	Blade Flourish	feature	repo 内基準訳。
 Transmute Force	変成の力	Transmute Force	feature	repo 内基準訳。
+Force Jolt	力場の衝撃	力場ジョルト|Force Jolt	class_feature	repo 内用語を自然な日本語へ統一。
+Force Slash	力場の斬撃	力場スラッシュ|Force Slash	class_feature	repo 内用語を自然な日本語へ統一。
 Nature Strikes	自然の打撃	Nature Strikes	feature	repo 内基準訳。
 Way of Blade	刃の道	Way of Blade	subclass	repo 内基準訳。
 Second Wind	底力	Second Wind|セカンド ウィンド|セカンドウィンド	class_feature	公式クラス特徴名を優先。
