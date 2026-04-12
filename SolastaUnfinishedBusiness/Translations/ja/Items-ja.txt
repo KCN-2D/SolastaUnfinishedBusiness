@@ -1,5 +1,5 @@
 Feature/&PerceptionAffinityHelmOfAwarenessDescription=驚くことはできません。
-Feature/&PowerHandwrapsOfPullingDescription=ボーナスアクションとして、15フィート以内の生き物を自分に近づけることができます。
+Feature/&PowerHandwrapsOfPullingDescription=ボーナスアクションとして、3マス以内の生き物を自分に近づけることができます。
 Feature/&PowerHandwrapsOfPullingTitle=リールイン
 Feedback/&ExtraDamageDescription=ライトニングスピアによる追加ダメージ。
 Feedback/&ExtraDamageTitle=ライトニングスピアの追加ダメージ
@@ -582,8 +582,8 @@ Item/&Scimitar_Warden_Description=この魔法の武器は、マナカロンの�
 Item/&Scimitar_Warden_Title=ウォーデン・シミター
 Item/&Scimitar_Whiteburn_Description=この魔法の武器は、マナカロンの鍛冶職人の古代の知識を使用して作成されました。ホワイトバーンは、シオルタフィン川とスカラフィン川の間の彼の領土の南にある沼地からのトロールの侵略と戦うために、最初のダナンタールによって創設されました。
 Item/&Scimitar_Whiteburn_Title=ホワイトバーン・シミター
-Item/&Scroll_Of_Description=このスクロールを使用すると、{0}スペルをキャストします。
-Item/&Scroll_Of_Title={0}のスクロール
+Item/&Scroll_Of_Description=この巻物を使用すると、呪文〈{0}〉を唱えます。
+Item/&Scroll_Of_Title={0}の巻物
 Item/&Shield_Deflection_Description=この魔法の鎧は、マナカロンの熟練鎧職人の古代の知識を使用して作成されました。イルドゥリアル・ストロングハンドは、皇帝の個人護衛のためにそれらの鎧の最初のものを鍛造しました。
 Item/&Shield_Deflection_Title=たわみの盾
 Item/&Shield_FlameDancing_Description=この魔法の鎧は、マナカロンの熟練鎧職人の古代の知識を使用して作成されました。イルドゥリアル・ストロングハンドは、皇帝の個人護衛のためにそれらの鎧の最初のものを鍛造しました。

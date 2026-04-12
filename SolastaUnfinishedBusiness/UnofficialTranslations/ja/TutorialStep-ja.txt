@@ -29,7 +29,7 @@ TutorialStep/&InventorySpaceDescription=キャラクターは、負担になる�
 TutorialStep/&InventorySpaceTitle=在庫管理
 TutorialStep/&LightingDescription=ソラスタでは、自然光源のない深く暗い場所を探索します。特にダークビジョンを持たないキャラクターにとっては、探索と戦闘が難しくなります。\n\nたいまつを装備したり、光の呪文を唱えたりして、グループ全体に環境を明らかにすることができます。
 TutorialStep/&LightingTitle=照明と光源
-TutorialStep/&MajorGateBoneKeep_Description=このマイナー ゲートを使用すると、城の外にテレポートできます。\n\n後ろのメジャー ゲートを使用して、ケール サイフレンにテレポートすることもできます。
+TutorialStep/&MajorGateBoneKeep_Description=このマイナーゲートを使うと、城の外へ瞬間移動できます。\n\n後ろのメジャーゲートを使えば、ケール・サイフレンへ瞬間移動することもできます。
 TutorialStep/&MajorGateBoneKeep_Title=メジャーゲート
 TutorialStep/&MechanismsDescription=場合によっては、通路のロックを解除したり、システムをアクティブにしたりするために、インタラクティブなアイテムを見つける必要があります。\n探索し、慎重モードを使用して検出の可能性を高め、インタラクションの可能性を示す歯車アイコンを探します。\nその後、準備は完了です。あなたへ: アクティブ化しますか?
 TutorialStep/&MechanismsTitle=インタラクティブなオブジェクト
@@ -40,7 +40,7 @@ TutorialStep/&OutgameCharacterCreationAbilityScores2Description=能力スコア�
 TutorialStep/&OutgameCharacterCreationAbilityScores2Title=能力値の決定
 TutorialStep/&OutgameCharacterCreationAbilityScores3Description=すべてのキャラクターの祖先は一部の能力スコアにボーナスを提供し、興味深い祖先/クラスの相乗効果をもたらします。\n\n能力スコアはレベル 4、8 などで増加できます。戦闘機はさらに頻繁に増加します。
 TutorialStep/&OutgameCharacterCreationAbilityScores3Title=能力値の向上
-TutorialStep/&OutgameCharacterCreationAbilityScoresDescription=能力スコアは、キャラクターの優れた点を定義する 6 つの中心的な属性です: 筋力、敏捷力、耐久力、知力、判断力、魅力。値は 3 ～ 20 です。\n\n各スコアの下のボーナスは、関連するアクションに適用されます。たとえば、【筋力】 ボーナスは筋力に基づいて攻撃ロールに追加されます。
+TutorialStep/&OutgameCharacterCreationAbilityScoresDescription=能力スコアは、キャラクターの優れた点を定義する 6 つの中心的な属性です: 筋力、敏捷力、耐久力、知力、判断力、魅力。値は 3 ～ 20 です。\n\n各スコアの下のボーナスは、関連するアクションに適用されます。たとえば、筋力 ボーナスは筋力に基づいて攻撃ロールに追加されます。
 TutorialStep/&OutgameCharacterCreationAbilityScoresTitle=能力値
 TutorialStep/&OutgameCharacterCreationAncestryDescription=キャラクター作成の最初のステップは、祖先を選択することです。これにより、あなたの外観と右側にリストされているゲームプレイ能力が決定されます。\n\n一部の祖先は、ゲームプレイ能力をさらに洗練するための血統サブオプションを提供しています。キャラクター。
 TutorialStep/&OutgameCharacterCreationAncestryTitle=祖先の選択
@@ -91,16 +91,16 @@ TutorialStep/&Tuto01_Climbing_and_jumping2_Description=上: 筋力が 15 未満�
 TutorialStep/&Tuto01_Climbing_and_jumping2_Title=ジャンプ距離
 TutorialStep/&Tuto01_Climbing_and_jumping3_Description=一般に、優れた身体能力を持たないキャラクターにはクリティカル パスが常に開かれています。ただし、オプションの戦利品にはアクセスするのが難しい場合があります。\n\nただし、諦めないでください。この宝箱に到達する別の方法が見つかるかもしれません。
 TutorialStep/&Tuto01_Climbing_and_jumping3_Title=代替パス
-TutorialStep/&Tuto01_Climbing_and_jumpingXbox_Description=ジャンプしたり登ったりするには、移動したい場所にカーソルを置き、<sprite index={0}> を押します。\n\nキャラクターの筋力と陸上競技の習熟度に応じて、2 ～ 5 マスの間でジャンプしたり登ったりできます。 .\n\nいつでも 2 つのマスを飛び越えたり、3 つのマスを落としたり、1 つのマスを登ったり、はしごやロープなどの簡単な表面を問題なく登ることができます。
-TutorialStep/&Tuto01_Climbing_and_jumping_Description=ジャンプしたり登ったりするには、目的地をクリックするだけです。\n\nキャラクターの筋力と陸上競技の習熟度に応じて、2 ～ 5 マスの間でジャンプしたり登ったりできます。\n\nいつでも 2 マスを飛び越えることができます。セルを移動し、3 つのセルを落として 1 つのセルを登ったり、はしごやロープなどの簡単な面を問題なく登ったりできます。
+TutorialStep/&Tuto01_Climbing_and_jumpingXbox_Description=ジャンプしたり登ったりするには、移動したい場所にカーソルを置き、<sprite index={0}> を押します。\n\nキャラクターの筋力と陸上競技の習熟度に応じて、2 ～ 5マスの間でジャンプしたり登ったりできます。 .\n\nいつでも 2 つのマスを飛び越えたり、3 つのマスを落としたり、1 つのマスを登ったり、はしごやロープなどの簡単な表面を問題なく登ることができます。
+TutorialStep/&Tuto01_Climbing_and_jumping_Description=ジャンプしたり登ったりするには、目的地をクリックするだけです。\n\nキャラクターの筋力と陸上競技の習熟度に応じて、2 ～ 5マスの間でジャンプしたり登ったりできます。\n\nいつでも 2マスを飛び越えることができます。マスを移動し、3 つのマスを落として 1 つのマスを登ったり、はしごやロープなどの簡単な面を問題なく登ったりできます。
 TutorialStep/&Tuto01_Climbing_and_jumping_Title=木登りとジャンプ
 TutorialStep/&Tuto01_CrawlingXbox_Description=穴の中を這うには、カーソルを穴の近くに置き、<sprite index={0}> を押します。\n\nカメラを回転すると、反対側の様子をよりよく見ることができます。 <sprite index={23}>を使用するか、<sprite index={4}>を使用してカメラを移動します。\n\nキャラクターは目的地に向かう途中で、必要に応じて自動的にひざまずいたり、這ったり、立ち上がったりします。。
 TutorialStep/&Tuto01_Crawling_Description=穴を通り抜けるには、反対側をクリックします。\n\nカメラを回転すると、反対側をよりよく見ることができます。 Q または E を使用するか、左ボタンを押したままマウスを動かします。\n\nキャラクターは、目的の目的地に向かう途中で、必要に応じて自動的にひざまずいたり、這ったり、立ち上がったりします。
 TutorialStep/&Tuto01_Crawling_Title=這う
 TutorialStep/&Tuto01_Interacting_Description=ハイライト表示された要素はインタラクティブです。\n\nカーソルは、開く、押す、起動する、鍵を開けるなど、実行できるアクションを示します。\n\nアクションにサイコロの目が必要な場合、難易度クラスは次のようになります。表示されます。
 TutorialStep/&Tuto01_Interacting_Title=インタラクティブな要素
-TutorialStep/&Tuto01_Looting2Xbox_Description=一部のアイテムはインベントリ内の同じセルに積み重ねられます。ひとつの山に重ねられる最大数はアイテムによって異なります。\n\nアイテムの山を分けるには、<sprite index={7}> を押して表示されるオプションを使うか、<sprite index={0}> を 2 回押して半分を一度に取得します。
-TutorialStep/&Tuto01_Looting2_Description=一部のアイテムはインベントリの同じセルにスタックできます。最大ユニット数はアイテムによって異なります。\n\nアイテムのスタックを分割するには、CTRL キーを押しながらスタックを空のセルにドラッグ アンド ドロップします。これにより、スタックから 1 つのユニットが取得されます。
+TutorialStep/&Tuto01_Looting2Xbox_Description=一部のアイテムはインベントリ内の同じマスに積み重ねられます。ひとつの山に重ねられる最大数はアイテムによって異なります。\n\nアイテムの山を分けるには、<sprite index={7}> を押して表示されるオプションを使うか、<sprite index={0}> を 2 回押して半分を一度に取得します。
+TutorialStep/&Tuto01_Looting2_Description=一部のアイテムはインベントリの同じマスにスタックできます。最大ユニット数はアイテムによって異なります。\n\nアイテムのスタックを分割するには、CTRL キーを押しながらスタックを空きマスにドラッグ アンド ドロップします。これにより、スタックから 1 つのユニットが取得されます。
 TutorialStep/&Tuto01_Looting2_Title=積み重ね可能なアイテム
 TutorialStep/&Tuto01_LootingXbox_Description=チェストやその他のコンテナを略奪するには、その上にカーソルを置き、<sprite index={0}> を押します。\n\n持ち運ぶものはすべて体重ゲージに影響するため、重量制限に達しないように注意してください。これにより、速度が大幅に低下します。\n\n機器と光源は、使用する前に適切なスロットに配置する必要があります。
 TutorialStep/&Tuto01_Looting_Description=チェストやその他のコンテナをクリックして略奪します。\n\n運んでいるものはすべて体重ゲージに影響するため、体重制限に達すると速度が大幅に低下するため注意してください。\n\n装備と光源は、使用する前に適切なスロットに配置する必要があります。
@@ -116,7 +116,7 @@ TutorialStep/&Tuto01_Refocus_Title=キャラクターを中心に
 TutorialStep/&Tuto01_SelectionXbox_Description=3D ビュー内でキャラクターにカーソルを合わせて選択するか、<sprite index={13}> または <sprite index={15}> を使って各キャラクターを順に切り替えます。\nパーティー全体を選ぶには、まず <sprite index={10}> を押したまま、<sprite index={3}> を押します。\n\n移動するには、<sprite index={4}> でカーソルを動かし、<sprite index={0}> を押してカーソル位置へパーティーを移動させます。有効な移動先では丸いマーカーが表示され、無効な移動先では「進入禁止」マークが表示されます。
 TutorialStep/&Tuto01_Selection_Description=3D ビューでキャラクターをクリックするか、キャラクターのポートレートをクリックして、キャラクターを選択します。パーティー全体を選択するには、ポートレート表示の下部にある [すべて選択] ボタンを使用します。 1 つまたは複数の文字を囲む四角形をドラッグして選択することもできます。\n\n移動するには、移動先を左クリックします。有効な目的地にマウスを置くと、丸いマーカーが表示されます。無効な目的地には「禁止」の標識が表示されます。
 TutorialStep/&Tuto01_Selection_Title=キャラクター選択と基本動作
-TutorialStep/&Tuto02_Cautious_Stealth_Description=慎重モードを有効にすると動作が遅くなりますが、隠されたオブジェクトや罠が見つけやすくなり、敵に発見されにくくなるという 2 つの利点があります。\n敵があなたの存在に気づき始めると、敵の頭上にゲージが表示され、反応して隠れるまでの時間が与えられます。\nこのモードでは敵の 3 マス上に留まれば、検出されることはありません。
+TutorialStep/&Tuto02_Cautious_Stealth_Description=慎重モードを有効にすると動作が遅くなりますが、隠されたオブジェクトや罠が見つけやすくなり、敵に発見されにくくなるという 2 つの利点があります。\n敵があなたの存在に気づき始めると、敵の頭上にゲージが表示され、反応して隠れるまでの時間が与えられます。\nこのモードでは敵の 3マス上に留まれば、検出されることはありません。
 TutorialStep/&Tuto02_Cautious_Stealth_Title=慎重モード
 TutorialStep/&Tuto02_HealingXbox_Description=キャラクターが回復呪文を唱えることができる場合 (たとえば聖職者など)、<sprite index={2}> を押して Cast Spell メニューにアクセスし、失われたヒット・ポイントを回復するために呪文を選択します。\n\nあなたは近くの戦利品で見つかったポーションを使用することもできます。 <sprite index={3}> を押してインベントリを開きます。ポーションを選択し、<sprite index={7}> を押して使用します。
 TutorialStep/&Tuto02_Healing_Description=キャラクターが回復呪文を唱えることができる場合（聖職者など）、失われたヒット・ポイントを回復するには、「呪文を唱える」ボタンを押して呪文を選択します。\n\n近くの戦利品で見つかったポーションを使用することもできます。インベントリを開き、ポーションを右クリックして使用します。
@@ -249,7 +249,7 @@ TutorialStep/&Tuto_TeamBalance_Title=パーティーバランス
 TutorialStep/&Tuto_Telema_CameraElevationXbpx_Description=フリー カメラは通常、地面の標高に従います。\n\nナビゲーション ゾーンが重なっている場合は、<sprite index={7}> を 1 回押してから <sprite index={22}> を移動すると、カメラを上下に移動できます。。このモードを終了するには、もう一度 <sprite index={7}> を押します。
 TutorialStep/&Tuto_Telema_CameraElevation_Description=通常、フリー カメラは地面の標高に従います。\n\nナビゲーション ゾーンが重なっている場合は、マウス ホイールまたはコンパスの矢印ボタンを使用してカメラを上下に移動できます。\n\nコンパスの矢印が表示されます。このような状況では、身長差が大きい場合には画面上にアイコンが表示されます。
 TutorialStep/&Tuto_Telema_CameraElevation_Title=カメラの仰角
-TutorialStep/&Tuto_Telema_Crafting2_Description=キャラクターインベントリで作成インターフェイスを開き、魔法のミサイルの巻物を選択します。ヴァイオレットは必要な材料を使って魔法のインクを作ることから始め、それから巻物を書きます。\n\nこれには何時間もかかり、旅行中に休憩時間を利用する必要があります。テレマの遺跡を探索している間はスクロールを完了することはできません。
+TutorialStep/&Tuto_Telema_Crafting2_Description=キャラクターのインベントリで作成画面を開き、〈魔法の矢〉の巻物を選択します。ヴァイオレットは必要な材料を使って魔法のインクを作り、その後で巻物を書き上げます。\n\nこれには何時間もかかるため、旅の途中の休憩時間を利用する必要があります。テレマの遺跡を探索している間は巻物を書き上げられません。
 TutorialStep/&Tuto_Telema_Crafting2_Title=クラフト
 TutorialStep/&Tuto_Telema_Crafting_Description=関連する製作キット、知識、材料、レシピを使用して、さまざまなアイテムを製作できます。\n\nバイオレットは薬草キットと薬のスキルに熟練しています。彼女がレシピを学習し、必要な材料を持っていれば、治癒のポーションを作ることができます!\n\nレシピの知識はパーティー全体で共有されることに注意してください。
 TutorialStep/&Tuto_Telema_Crafting_Title=クラフト
@@ -259,7 +259,7 @@ TutorialStep/&Tuto_Telema_Identify2_Description=〈魔法の感知〉や〈識�
 TutorialStep/&Tuto_Telema_Identify2_Title=儀式の鋳造
 TutorialStep/&Tuto_UseCovers_Description=戦闘では、壁、バリケード、その他の設定要素に盾のアイコンが表示されることがよくあります。\n\nハーフカバーは敵に遠距離攻撃を当てると-2のペナルティを与える。もちろん、カバーの向こう側にいる必要があります。 4分の3カバーすると-5のペナルティが与えられます。フルカバーはターゲットにならないことを意味します。\nこれは近接攻撃や呪文の効果範囲には影響しません。
 TutorialStep/&Tuto_UseCovers_Title=カバーを取る！
-TutorialStep/&Tuto_Utility_Description=戦闘では、インベントリは 1 ターンに 1 回のみ使用できます。これには武器の切り替えも含まれます。\n\nまた、インベントリ アクションを消費せずにアイテムにアクセスして使用できるユーティリティ スロットもあります。\n\nここにポーションを置くかスクロールすると、ポーションを使用できるようになります。直接。これは引き続きアクションとしてカウントされます。
+TutorialStep/&Tuto_Utility_Description=戦闘中、インベントリは1ターンに1回しか使用できません。これには武器の切り替えも含まれます。\n\nただし、インベントリ・アクションを消費せずにアイテムへアクセスして使用できるユーティリティ・スロットもあります。\n\nここにポーションや巻物を置けば、すぐに使用できます。ただし、その使用自体は通常どおりアクションとして数えられます。
 TutorialStep/&Tuto_Utility_Title=インベントリとユーティリティスロット
 TutorialStep/&Tuto_WarlockInvocations01_Description=発動は、ウォーロックが新しいレベルに到達するときに学習する特別な能力です。\n一部の能力では永続的なボーナスが得られますが、他の能力では呪文を唱えることができます。\nこれらの呪文の中には、自由に唱えるものもありますが、呪文スロットを消費し、通常はリチャージするために大休憩を必要とするものもあります。
 TutorialStep/&Tuto_WarlockInvocations01_Title=ウォーロックの妖術

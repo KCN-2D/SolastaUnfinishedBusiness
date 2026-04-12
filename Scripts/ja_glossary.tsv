@@ -48,6 +48,7 @@ Chromatic Orb	万色弾	クロマティック・オーブ|クロマティック�
 Comprehend Languages	言語理解	コンプリヘンド・ランゲージズ	spell	システム文では漢字和訳を優先。
 Detect Magic	魔法の感知	ディテクト・マジック|ディテクトマジック|Detect Magic	spell	システム文では漢字和訳を優先。
 Dispel Magic	魔法解呪	ディスペル・マジック|Dispel Magic	spell	システム文では漢字和訳を優先。
+Counterspell	呪文妨害	カウンタースペル|Counterspell	spell	システム文では漢字和訳を優先。
 Earth Tremor	微震	アース・トレマー|アーストレマー	spell	システム文では漢字和訳を優先。
 Expeditious Retreat	迅速退却	エクスペディシャス・リトリート|エクスペディオス・リトリート|迅速な撤退|Expeditious Retreat	spell	システム文では漢字和訳を優先。
 Feather Fall	軟着陸	フェザー・フォール|フェザー フォール|フェザーフォール	spell	システム文では漢字和訳を優先。
@@ -85,7 +86,39 @@ Witch Bolt	魔女の矢	ウィッチ・ボルト|ウィッチボルト	spell	シ
 Zephyr Strike	微風の打撃	ゼファー・ストライク|ゼファーストライク|Zephyr Strike	spell	システム文では漢字和訳を優先。
 Telekinesis	念動力	テレキネシス|Telekinesis	spell	システム文では漢字和訳を優先。
 Elemental Weapon	元素武器	エレメンタルウェポン|エレメンタル・ウェポン|Elemental Weapon	spell	システム文では漢字和訳を優先。
+Flame Arrows	火矢	フレイムアロー|フレイム・アローズ|Flame Arrows	spell	システム文では漢字和訳を優先。
+Lightning Arrow	電撃の矢	ライトニングアロー|ライトニング・アロー|Lightning Arrow	spell	システム文では漢字和訳を優先。
+Mind Blank	空白の心	マインドブランク|マインド・ブランク|Mind Blank	spell	システム文では漢字和訳を優先。
+Mass Heal	集団大治癒	マスヒール|Mass Heal	spell	システム文では漢字和訳を優先。
+Thunder Step	雷鳴の一跳び	サンダーステップ|サンダー・ステップ|Thunder Step	spell	システム文では漢字和訳を優先。
+Blinding Smite	目潰す一撃	ブラインディング・スマイト|Blinding Smite	spell	システム文では漢字和訳を優先。
+Foresight	予知	先見の明|フォアサイト|Foresight	spell	システム文では漢字和訳を優先。
+Power Word Heal	力の言葉：癒し	パワーワードヒール|パワー・ワード・ヒール|Power Word Heal	spell	システム文では漢字和訳を優先。
+Power Word Kill	力の言葉：死	パワーワードキル|パワー・ワード・キル|Power Word Kill	spell	システム文では漢字和訳を優先。
+Power Word Stun	力の言葉:朦朧	パワーワードスタン|パワー・ワード・スタン|Power Word Stun	spell	システム文では漢字和訳を優先。
+Psychic Scream	心砕く叫び	サイキックスクリーム|サイキック・スクリーム|Psychic Scream	spell	システム文では漢字和訳を優先。
+Shapechange	変幻自在	形状変化|Shapechange	spell	システム文では漢字和訳を優先。
+Far Step	遠くへの一跳び	ファーステップ|ファー・ステップ|Far Step	spell	システム文では漢字和訳を優先。
+Aura of Vitality	活力のオーラ	オーラ・オヴ・ヴァイタリティ|Aura of Vitality	spell	システム文では漢字和訳を優先。
+Branding Smite	烙印の一撃	ブランディング・スマイト|Branding Smite	spell	システム文では漢字和訳を優先。
+Thunderous Smite	雷鳴の一撃	サンダース・スマイト|サンダラス・スマイト|Thunderous Smite	spell	システム文では漢字和訳を優先。
+Time Stop	時間停止	タイムストップ|Time Stop	spell	システム文では漢字和訳を優先。
+Weird	不吉な運命	Weird	spell	システム文では漢字和訳を優先。
+Teleport	瞬間移動	テレポート|Teleport	spell	システム文では漢字和訳を優先。
+Teleporter	瞬間移動装置	テレポーター|Teleporter	ui	system/UI では漢字和訳を優先。
+Teleportation Circle	瞬間移動の魔法円	テレポーテーションサークル|Teleportation Circle	spell	システム文では漢字和訳を優先。
+Banishing Smite	放逐の一撃	追放のスマイト|バニシング・スマイト|Banishing Smite	spell	システム文では漢字和訳を優先。
+Reverse Gravity	重力反転	リバースグラビティ|Reverse Gravity	spell	システム文では漢字和訳を優先。
+Dragon's Breath	竜の吐息	ドラゴンブレス|Dragon's Breath	spell	システム文では漢字和訳を優先。
+Cloud of Daggers	短剣の群れ	ダガーの雲|Cloud of Daggers	spell	システム文では漢字和訳を優先。
+Chain Lightning	連鎖電撃	チェイン光ニング|チェインライトニング|チェイン・ライトニング|Chain Lightning	spell	システム文では漢字和訳を優先。
+Elemental Bane	元素禍	エレメンタルベイン|エレメンタル・ベイン|Elemental Bane	spell	システム文では漢字和訳を優先。
+Wither and Bloom	ウィザー・アンド・ブルーム	枯れて咲く|Wither and Bloom	spell	公式未掲載のため自然なカタカナを採用。
+Freedom of Movement	移動の自由	フリーダム・オブ・ムーブメント|Freedom of Movement	spell	システム文では漢字和訳を優先。
+Heroes' Feast	英雄たちの饗宴	ヒーローズ・フィースト|Heroes' Feast	spell	システム文では漢字和訳を優先。
 Sorcery Points	魔力点	ソーサリー・ポイント|ソーサリー ポイント|ソーサリーポイント|魔術ポイント	system	ソーサラーのルール用語は魔力点に統一。
+immunity	完全耐性	免疫	system	プレイヤー向け表示は完全耐性に統一。
+immune	完全耐性	免疫	system	プレイヤー向け表示は完全耐性に統一。
 Wild Magic	荒ぶる魔法	ワイルドマジック|Wild Magic	subclass	サブクラス名は公式訳を優先。
 Wild Magic Surge	魔法暴走	ワイルドマジックサージ|Wild Magic Surge	feature	特徴名は公式訳を優先。
 Tides of Chaos	混沌潮流	混沌の潮流|Tides of Chaos	feature	特徴名は公式訳を優先。
@@ -113,6 +146,7 @@ metamagic option	呪文修正能力	メタマジック オプション|メタマ
 Bardic Inspiration	バードの声援	Bardic Inspiration|Bardic Inspire	class_feature	公式クラス特徴名を優先。
 Flurry of Blows	連打	Flurry of Blows	class_feature	公式クラス特徴名を優先。
 Divine Smite	神聖なる一撃	Divine Smite	class_feature	公式クラス特徴名を優先。
+Improved Divine Smite	神聖なる攻撃	改良型ディヴァイン・スマイト|Improved Divine Smite	class_feature	公式クラス特徴名を優先。
 Animal Friendship	獣の友	Animal Friendship|アニマル・フレンドシップ	spell	システム文では漢字和訳を優先。
 Find Traps	罠発見	Find Traps|ファインド・トラップス	spell	システム文では漢字和訳を優先。
 Spirit Guardians	護りの霊	Spirit Guardians|スピリット・ガーディアンズ	spell	システム文では漢字和訳を優先。
@@ -170,6 +204,7 @@ Apothecary	薬師	薬屋|アポセカリー	feat	この特技基底名は薬師�
 Toxicologist	毒物学者		feat	この特技基底名は毒物学者で統一。
 Great Weapon Master	大業物の使い手	グレート武器の使い手|偉大な武器の達人|Great Weapon Master|Great 武器の使い手	feat	公式特技名を優先。
 Defensive Duelist	守りの決闘術	守備型デュエリスト|Defensive Duelist	feat	公式特技名を優先。
+Sentinel	守護戦士	センチネル|Sentinel	feat	特技名では公式特技名を優先。
 Charger	突撃者	充電器|Charger	feat	公式特技名を優先。
 Tough	追加hp	Tough	feat	公式特技名を優先。
 Weapon Mastery	武器マスタリー	武器の習得|Weapon Mastery	ui	2024系 UI では武器マスタリーに統一。
@@ -193,7 +228,12 @@ Poison Spray	毒噴射	ポイズン・スプレー	spell	システム文では�
 Ray of Frost	冷気光線	レイ・オヴ・フロスト|レイ・オブ・フロスト	spell	システム文では漢字和訳を優先。
 Toll the Dead	とむらいの鐘	トール・ザ・デッド	spell	システム文では漢字和訳を優先。
 Word of Radiance	光輝の言葉	輝きの言葉	spell	システム文では漢字和訳を優先。
-Chill Touch	負力の接触	チル・タッチ	spell	システム文では漢字和訳を優先。
+Chill Touch	負力の接触	死霊の手|チル・タッチ	spell	明示指定により負力の接触を維持。
+Savage Attack	凶暴な一撃	サベージアタック|Savage Attack	feat	mod 固有特技名は自然な和訳を採用。
+Savage Attacker	凶暴な戦士	サベージアタッカー|Savage Attacker	feat	公式特技名を優先。
+Savage Attacks	猛打	野蛮な攻撃|Savage Attacks	feature	公式特徴名を優先。
+Countercharm	心を守る歌	カウンターチャーム|Countercharm	feature	公式特徴名を優先。
+Flight	飛行	フライト|Flight	feature	system 文では飛行を優先。
 Dancing Lights	踊る灯	ダンシング・ライト|ダンシング・ライツ	spell	システム文では漢字和訳を優先。
 Green-Flame Blade	緑の炎の剣	グリーンフレイムブレード|緑炎の刃	spell	システム文では漢字和訳を優先。
 Lightning Lure	電撃の引き寄せ	ライトニングルアー|ライトニング・ルアー	spell	システム文では漢字和訳を優先。
@@ -251,7 +291,15 @@ studded leather	スタデッド・レザー	Studded Leather	armor	公式防具�
 Loading	装填	読み込み中|Loading	weapon	武器の特性名を優先。
 Darkvision	暗視	ダークヴィジョン|Darkvision	system	ルール語を優先。
 Finesse	妙技	Finesse	weapon	武器特性を優先。
+Heavy	重武器	Heavy	weapon	武器特性名では重武器を優先。
 Versatile	両用	Versatile	weapon	武器特性を優先。
+Piercing	刺突	ピアス|Piercing	damage_type	ダメージ種別では刺突を優先。
+Spell Scroll	呪文の巻物	Spell Scroll	item	巻物文脈では呪文の巻物を優先。
+Scroll	巻物	Scroll	item	巻物文脈では巻物を優先。
+Illusion	幻術	イリュージョン|Illusion	school	魔法系統名では幻術を優先。
+Illusion	幻	イリュージョン|Illusion	system	一般効果文脈では幻を優先。
+Charmed	魅了状態	チャームド|Charmed	condition	状態名では魅了状態を優先。
+Opportunity Attack	機会攻撃	オポチュニティ アタック|Attack of Opportunity|Opportunity Attack	system	ルール語は機会攻撃に統一。
 Spy	密偵	Spy	creature	公式クリーチャー名を優先。
 Orc	オーク	Orc	creature	公式クリーチャー名を優先。
 Oni	オニ	Oni	creature	公式クリーチャー名を優先。
@@ -270,6 +318,7 @@ Raise Skeletal Enforcer	スケルトン・エンフォーサー召喚	Raise Skel
 Arcaneum	アルケイナム	Arcaneum|アーケイナム	proper_noun	組織名を統一。
 Silent Whisper	サイレント・ウィスパー	Silent Whisper|サイレントウィスパー|サイレント ウィスパー	proper_noun	組織名を統一。
 Snow Alliance	雪同盟	Snow Alliance	proper_noun	組織名を統一。
+Major Gate	メジャーゲート	Major Gate|メジャー ゲート	proper_noun	repo 固有の固有名詞として統一。
 Cylordir Redblade	シロディール・レッドブレード	Cylordir Redblade|シロディール レッドブレード	proper_noun	人名を統一。
 Defineth Sharpsight	ディファインス・シャープサイト	Defineth Sharpsight|ディファインス シャープサイト|ディフェンス・シャープサイト	proper_noun	人名を統一。
 Defineth Sharpeye	ディファインス・シャープアイ	Defineth Sharpeye|ディファインス シャープアイ	proper_noun	人名を統一。

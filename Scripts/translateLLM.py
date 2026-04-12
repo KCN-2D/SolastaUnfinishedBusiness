@@ -224,12 +224,53 @@ Japanese terminology guidance:
 - Translate Zephyr Strike as 微風の打撃 in system text.
 - Translate Telekinesis as 念動力 in system text.
 - Translate Elemental Weapon as 元素武器 in system text.
+- Translate Counterspell as 呪文妨害 in system text.
+- Translate Dispel Magic as 魔法解呪 in system text.
+- Translate Power Word Stun as 力の言葉:朦朧 in system text.
+- Translate Chain Lightning as 連鎖電撃 in system text.
+- Translate Elemental Bane as 元素禍 in system text.
+- Translate Countercharm as 心を守る歌 in system text.
+- Translate Flight as 飛行 in system text.
+- Translate Flame Arrows as 火矢 in system text.
+- Translate Lightning Arrow as 電撃の矢 in system text.
+- Translate Mind Blank as 空白の心 in system text.
+- Translate Shapechange as 変幻自在 in system text.
+- Translate Weird as 不吉な運命 in system text.
+- Translate Chill Touch as 負力の接触 in system text.
+- Translate Mass Heal as 集団大治癒 in system text.
+- Translate Teleport as 瞬間移動, Teleporter as 瞬間移動装置, and Teleportation Circle as 瞬間移動の魔法円 in system text.
+- Translate Banishing Smite as 放逐の一撃, Reverse Gravity as 重力反転, Dragon's Breath as 竜の吐息, and Cloud of Daggers as 短剣の群れ in system text.
+- Translate Savage Attack as 凶暴な一撃, Savage Attacker as 凶暴な戦士, and Savage Attacks as 猛打 in system text.
+- Translate Spell Scroll as 呪文の巻物 and Scroll as 巻物 in item contexts, but keep UI scroll operations as スクロール.
+- Translate Finesse weapon-property labels as 妙技.
+- Translate Heavy weapon-property labels as 重武器, but do not rewrite weapon nouns such as Heavy Crossbow.
+- Translate Piercing damage/type labels as 刺突, but do not rewrite ordinary verbs such as 突き刺す.
+- Translate Illusion as 幻術 when it is a magic school/system tag and as 幻 in general rules text.
+- Translate Charmed as 魅了状態 for condition/status titles and 魅了 for effect prose.
+- Translate Opportunity Attack / Attack of Opportunity as 機会攻撃 in system text.
+- Translate Major Gate as メジャーゲート in repo-specific player-facing text.
+- Translate Thunder Step as 雷鳴の一跳び in system text.
+- Translate Blinding Smite as 目潰す一撃 in system text.
+- Translate Foresight as 予知 in system text.
+- Translate Power Word Heal as 力の言葉：癒し in system text.
+- Translate Power Word Kill as 力の言葉：死 in system text.
+- Translate Psychic Scream as 心砕く叫び in system text.
+- Translate Far Step as 遠くへの一跳び in system text.
+- Translate Aura of Vitality as 活力のオーラ in system text.
+- Translate Branding Smite as 烙印の一撃 in system text.
+- Translate Thunderous Smite as 雷鳴の一撃 in system text.
+- Translate Time Stop as 時間停止 in system text.
+- Translate Divine Smite as 神聖なる一撃 and Improved Divine Smite as 神聖なる攻撃 in system text.
+- Translate Radiant damage/type labels as 光輝 in system text.
+- Translate immunity / immune as 完全耐性 in player-facing text.
 - Translate Daylight as 陽光 in system text.
 - Translate Weapon Mastery as 武器マスタリー in system text.
 - Translate Eldritch Invocation as 妖術.
 - Translate initiative as イニシアチブ.
 - Translate short rest as 小休憩 and long rest as 大休憩.
 - Translate saving throw as セーヴィング・スロー.
+- In prose, do not leave ability abbreviations such as CON/WIS/INT/STR/DEX/CHA; expand them into Japanese ability names such as 耐久力 and 判断力.
+- Translate Sentinel as 守護戦士 when it is the feat name, and use 見張り only for non-feat/general contexts.
 - Skill names must use 〈〉, for example 〈魔法学〉 and 〈ペテン〉.
 - In system explanations, spell references should use 〈…〉 and feat references should use 特技《…》.
 - Feat and feature titles that vary by ability score must use the base title plus a full-width suffix such as ［魅力］, ［知力］, ［判断力］, ［筋力］, ［敏捷力］, or ［耐久力］.
@@ -240,7 +281,8 @@ Japanese terminology guidance:
 - Preserve numbers, placeholders, tags, and source ordering whenever the line describes a rule.
 - Normalize color tags as <color=#RRGGBB>…</color>; never emit shorthand tags like <#F5B486>.
 - Do not split a Japanese lexical unit with color tags; wrap the whole word or remove the decoration.
-  - Avoid half-width spaces inside Japanese compounds such as ヒット・ダイス, 魔力点, アクション・ステータス, パーティーエディター.
+- For player-facing grid/range wording in this repo, prefer マス over セル or フィート. Examples: 1マス, 2マス, 6マス.
+- Avoid half-width spaces inside Japanese compounds such as ヒット・ダイス, 魔力点, アクション・ステータス, パーティーエディター, フリーアクション.
 - For flavorful text, keep natural Japanese and avoid unnecessary symbolic markup; for system text, keep references explicit and consistent.
   - Use these terminology preferences:
   - Sorcery Points -> 魔力点.
@@ -249,6 +291,9 @@ Japanese terminology guidance:
   - metamagic option -> 呪文修正能力.
   - Fireball -> 火球.
   - Delayed Blast Fireball -> 遅発火球.
+  - Mind Blank -> 空白の心.
+  - Thunder Step -> 雷鳴の一跳び.
+  - Blinding Smite -> 目潰す一撃.
   - Wild Magic -> 荒ぶる魔法.
   - Wild Magic Surge -> 魔法暴走.
   - Tides of Chaos -> 混沌潮流.
@@ -256,7 +301,7 @@ Japanese terminology guidance:
   - Controlled Chaos -> 混沌制御.
   - Spell Bombardment -> 呪文猛撃.
   - Snow Alliance -> 雪同盟.
-  - Reject these older/community spellings in system text: 火の玉, ソーサリー・ポイント, チャネルディヴィニティ, メタマジック, イニシアティブ, 短い休息, 長い休息, セービングスロー, 呪文セーヴ 難易度.
+  - Reject these older/community spellings in system text: 火の玉, 先見の明, 形状変化, 変身, 奇妙な, 奇怪, マスヒール, タイムストップ, パワーワードヒール, パワーワードキル, パワーワードスタン, サイキックスクリーム, ファーステップ, 生命のオーラ, ソーサリー・ポイント, チャネルディヴィニティ, メタマジック, イニシアティブ, 短い休息, 長い休息, セービングスロー, 呪文セーヴ 難易度, 免疫, フレイムアロー, ライトニングアロー, チェイン光ニング, チェインライトニング, カウンタースペル, ディスペルマジック, エレメンタルベイン, カウンターチャーム, フライト, スクロール, フィネス, ヘビー, チャーム, イリュージョン, オポチュニティ アタック, ブランディング・スマイト, サンダース・スマイト, ディバイン・スマイト, 改良型ディヴァイン・スマイト, ラディアント, ラジアント, レディアント, サベージアタック, サベージアタッカー, テレポート, バニシング・スマイト, リバースグラビティ, ドラゴンブレス, ダガーの雲, 枯れて咲く.
 {chr(10).join(glossary_lines)}
 """
 

@@ -1,4 +1,4 @@
-LootPack/&1D2Scrolls=1D2 スクロール
+LootPack/&1D2Scrolls=1D2巻物
 LootPack/&1D3Food1D3MundaneItems=1d3 食料 + 1d3 ありふれたアイテム
 LootPack/&1LegendaryItem=レジェンドアイテム1個
 LootPack/&1MagicArmorPlus1=1 マジックアーマー +1

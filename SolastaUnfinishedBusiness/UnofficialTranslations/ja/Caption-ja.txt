@@ -59,8 +59,8 @@ Caption/&ShoveTargetImmuneCaption=ターゲットは押し込みの影響を受�
 Caption/&ShoveTargetOutOfReachCaption=ターゲットは手の届かないところにあります。
 Caption/&ShoveTargetProneCaption=伏せているターゲットを突き飛ばすことはできません。
 Caption/&ShoveTargetTooBigCaption=このクリーチャーが押し込むにはターゲットが大きすぎます
-Caption/&TargetArcSubtargetMultipleCaption=<color=#B0B0B0>効果は、{1} 個のセル内の {0} 個の追加のサブターゲットに広がります。</color>
-Caption/&TargetArcSubtargetSingleCaption=<color=#B0B0B0>効果は、{1} 個のセル内の {0} 個の追加のサブターゲットに弧を描きます。</color>
+Caption/&TargetArcSubtargetMultipleCaption=<color=#B0B0B0>効果は、{1} 個のマス内の {0} 個の追加のサブターゲットに広がります。</color>
+Caption/&TargetArcSubtargetSingleCaption=<color=#B0B0B0>効果は、{1} 個のマス内の {0} 個の追加のサブターゲットに弧を描きます。</color>
 Caption/&TargetAwakenDescription=この眠っているキャラクターを目覚めさせます。
 Caption/&TargetFilteringAllyCreature=味方クリーチャー
 Caption/&TargetFilteringCreature=生き物
@@ -69,7 +69,7 @@ Caption/&TargetFilteringEnemyCreature=敵のクリーチャー
 Caption/&TargetFilteringGadget=物体
 Caption/&TargetMultipleCaption={1} 個のターゲット ({0}) を選択します。\n\n<color=#B0B0B0>各ターゲットは複数回選択できます。</color>
 Caption/&TargetMultipleUniqueCaption={1} 個のターゲット ({0}) を選択します。\n<color=#B0B0B0>各ターゲットは 1 回だけ選択できます。</color>
-Caption/&TargetProximityMultipleCaption=<color=#B0B0B0>ターゲットは互いに {0} セル以内になければなりません。</color>
+Caption/&TargetProximityMultipleCaption=<color=#B0B0B0>ターゲット同士は {0}マス以内にいなければなりません。</color>
 Caption/&TargetProximitySingleCaption=<color=#B0B0B0>ターゲットは隣り合っていなければなりません。</color>
 Caption/&TargetRequiredConditionCaption=<color=#B0B0B0>ターゲットは「{0}」である必要があります。</color>
 Caption/&TargetRequiredCreatureTypeCaption=<color=#B0B0B0>ターゲットは {0} である必要があります。</color>
@@ -78,6 +78,6 @@ Caption/&TargetRequiredSizeCaption=ターゲット サイズは次のように�
 Caption/&TargetRequiredUnarmoredCaption=<color=#B0B0B0>ターゲットは非武装でなければなりません。</color>
 Caption/&TargetShareUniqueCaption=効果 ({1}) を共有するには、任意の数のターゲット ({0}) を選択します。\n\n<color=#B0B0B0>各ターゲットは 1 回だけ選択できます。</color>
 Caption/&TargetSingleCaption=ターゲット ({0}) を選択します。
-Caption/&TargetStabilizeDescription=【判断力】〈医術〉能力値判定を行い、この瀕死のキャラクターを安定化させようとします。
+Caption/&TargetStabilizeDescription=判断力〈医術〉能力値判定を行い、この瀕死のキャラクターを安定化させようとします。
 Caption/&TargetsMustPerceiveCasterCaption=ターゲットは効果の原因を認識する必要があります。
 Caption/&TelekinesisSelectDirection=このクリーチャーを移動する方向を選択します。
