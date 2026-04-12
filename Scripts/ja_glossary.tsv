@@ -158,8 +158,8 @@ Spare the Dying	救命措置	スペア・ザ・ダイイング|Spare the Dying	s
 Eldritch Invocation	妖術	呼び出し|異界の呼び出し	feature	ウォーロックの Invocation 系は妖術に統一。
 Eldritch Aegis	エルドリッチ・イージス	異界のイージス|Eldritch Aegis	class_feature	repo 内用語を自然な日本語へ統一。
 Eldritch Ward	エルドリッチ・ウォード	異界の護り|Eldritch Ward	class_feature	repo 内用語を自然な日本語へ統一。
-Eldritch Pool	エルドリッチ・プール	異界プール|Eldritch Pool	ui	repo 内用語を自然な日本語へ統一。
-Eldritch Point	エルドリッチ・ポイント	異界ポイント|Eldritch Point	ui	repo 内用語を自然な日本語へ統一。
+Eldritch Pool	妖術プール	エルドリッチ・プール|異界プール|Eldritch Pool	ui	repo 内用語を自然な日本語へ統一。
+Eldritch Point	妖術点	エルドリッチ・ポイント|異界ポイント|Eldritch Point	ui	repo 内用語を自然な日本語へ統一。
 Eldritch Blast	怪光線	エルドリッチ・ブラスト|Eldritch Blast	spell	system 文では和訳を優先。
 Channel Divinity	神性伝導	Channel Divinity	class_feature	公式ルール語を優先。
 Metamagic	呪文修正	メタマジック|Metamagic	class_feature	公式クラス特徴名を優先。
@@ -449,7 +449,20 @@ Divine Word	神言	ディヴァイン・ワード|Divine Word	spell	システム
 Dominate Monster	怪物支配	ドミネイト・モンスター|Dominate Monster	spell	システム文では漢字和訳を優先。
 Dominate Person	人物支配	ドミネイト・パースン|Dominate Person	spell	システム文では漢字和訳を優先。
 Earthquake	地震	アースクウェイク|Earthquake	spell	システム文では漢字和訳を優先。
-Eldritch Versatility	エルドリッチ・バーサティリティ	異界の汎用性|Eldritch Versatility	class_feature	repo 内用語を自然な日本語へ統一。
+Eldritch Versatility	妖術術式	エルドリッチ・バーサティリティ|異界の汎用性|Eldritch Versatility	class_feature	repo 内用語を自然な日本語へ統一。
+Versatility	術式	バーサティリティ|汎用性|Versatility	class_feature	repo 内用語を自然な日本語へ統一。
+Versatility Switch	術式切替	バーサティリティ切替|汎用性切替|Versatility Switch	class_feature	repo 内用語を自然な日本語へ統一。
+Feat Eldritch Versatility Adept	妖術術式の達人	エルドリッチ・バーサティリティの達人|Feat Eldritch Versatility Adept	feat	repo 内特技名を自然な日本語へ統一。
+Dash	早足	ダッシュ|Dash	action	アクション名は公式和訳を優先。
+Break Free	脱出	ブレイク・フリー|Break Free	action	アクション名は公式和訳を優先。
+Beacon of Hope	希望のともしび	ビーコン・オブ・ホープ|希望の灯台|Beacon of Hope	spell	呪文名と関連状態名を統一。
+Deflect Missiles	矢止め	ミサイルをそらす|ミサイル攻撃|Deflect Missiles	feature	モンク特徴名は公式和訳を優先。
+Return Missile	矢返し	リターンミサイル|Return Missile	feature	repo 内特徴名を自然な日本語へ統一。
+Pass	見送る	パス|Pass	reaction	reaction の保留ボタンは見送るに統一。
+Pass (Screen)	スキップ	Pass|Skip	screen	screen の汎用 pass / skip はスキップに統一。
+At Road's End	旅路の果て	アット・ロードズ・エンド|At Road's End	feature	repo 内特徴名を自然な日本語へ統一。
+Redscar Orc	レッドスカー族のオーク	レッドスカー オーク|Redscar Orc	creature	repo 内勢力付きクリーチャー名を自然な日本語へ統一。
+Badlands Spider	バッドランズ・スパイダー	バッドランズ スパイダー|Badlands Spider	creature	repo 内クリーチャー名を自然な日本語へ統一。
 Versatility	バーサティリティ	汎用性|Versatility	ui	repo 内用語を自然な日本語へ統一。
 Hold Person	対人金縛り	ホールド・パースン|Hold Person	spell	システム文では漢字和訳を優先。
 Illuminated	照らされた	イルミネーション付き|Illuminated	condition	repo 内状態名を自然な日本語へ統一。

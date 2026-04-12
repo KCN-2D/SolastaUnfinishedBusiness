@@ -92,7 +92,7 @@ ModUi/&DocsRaces=種族
 ModUi/&DocsSpells=呪文
 ModUi/&DocsSubclasses=サブクラス
 ModUi/&DocsSubraces=亜種族
-ModUi/&DocsVersatilities=エルドリッチ・バーサティリティ
+ModUi/&DocsVersatilities=妖術術式
 ModUi/&DontEndTurnAfterReady=<color=#D89555>準備完了</color>アクションの後にターンを終了しない <i><color=#F0DAA0>[ボーナスアクションまたは他のソースからのその他のアクションを許可]</color></i>
 ModUi/&DontFollowCharacterInBattle=キャラクターがすでに画面上にいる場合、戦闘カメラは追従しません
 ModUi/&DontFollowMargin=<i><color=white>+ ヒーローが画面外にいるか、画面端の % 以内にいる場合を除く</color></i>

@@ -5,9 +5,9 @@ TutorialStep/&CautiousModeDescription=慎重モードをアクティブにする
 TutorialStep/&CautiousModeTitle=慎重モード
 TutorialStep/&ConfigWeapons2Description=インベントリ内のショートカットを変更できます。\n武器、盾、その他のアイテムを手のスロットにドラッグ アンド ドロップして、ショートカットを変更します。
 TutorialStep/&ConfigWeapons2Title=武器のショートカットを変更する
-TutorialStep/&ConfigWeaponsDescription=ショートカットを使って装備を切り替えられます。\n既定では3つの武器設定ショートカットがあります。\n最後のショートカットはライト用ショートカットで、たいまつや他の光源を含む3番目の構成を使います。\n呪文リストに初級呪文〈ライト〉がある場合は、ライトボタンを押すだけですぐ発動できます。
+TutorialStep/&ConfigWeaponsDescription=ショートカットを使って装備を切り替えられます。\n既定では3つの武器設定ショートカットがあります。\n最後のショートカットは光源用ショートカットで、たいまつや他の光源を含む3番目の構成を使います。\n呪文リストに初級呪文〈光〉がある場合は、〈光〉ボタンを押すだけですぐ発動できます。
 TutorialStep/&ConfigWeaponsTitle=装備のショートカット
-TutorialStep/&ConfigWeaponsXBoxDescription=ショートカットを使って装備を切り替えられます。\nこれらのショートカットにアクセスするには、<sprite index={12}>を押してください。既定では3つの武器設定ショートカットがあります。\n最後のショートカットはライト用ショートカットで、たいまつや他の光源を含む3番目の構成を使います。\n呪文リストに初級呪文〈ライト〉がある場合は、4番目のショートカットからすぐに発動できます。
+TutorialStep/&ConfigWeaponsXBoxDescription=ショートカットを使って装備を切り替えられます。\nこれらのショートカットにアクセスするには、<sprite index={12}>を押してください。既定では3つの武器設定ショートカットがあります。\n最後のショートカットは光源用ショートカットで、たいまつや他の光源を含む3番目の構成を使います。\n呪文リストに初級呪文〈光〉がある場合は、4番目のショートカットからすぐ発動できます。
 TutorialStep/&Crafting01Description=ソラスタでは様々なアイテムをクラフトすることができます。そのためには、適切な機器、材料、スキル、時間が必要です。魔法のアイテムの場合、場合によっては呪文を知る必要があります。\n\nパーティーがキャンプを設営してもまだ寝ていないとき、旅行中に作成が実行されます。\n\nキャラクターは自由時間の一部を費やすことができます。現在の製作タスクに取り組むことになります。
 TutorialStep/&Crafting01Title=クラフト
 TutorialStep/&Crafting02Description=作成に必要なツールは次のとおりです:\n\n- ポーション: 薬草学キット\n- 巻物: 巻物キット\n- 毒: 毒殺者のキット\n- 魔法の武器と防具: マナカロン ロザリオ\n\n これらのツールを使用するには、これらのツールに習熟する必要があります。
@@ -90,7 +90,7 @@ TutorialStep/&Tuto01_Camera_Title=カメラコントロール
 TutorialStep/&Tuto01_Climbing_and_jumping2_Description=上: 筋力が 15 未満で、運動能力に習熟していないキャラクターは、胸に届くほど遠くまでジャンプすることができません。\n\n\n\n以下: 筋力 15 ～ 20 の戦闘機は 3 つのマスを飛び越えることができます。筋力 11 ～ 14 に加えて陸上競技の熟練度を持つキャラクターも同様です。
 TutorialStep/&Tuto01_Climbing_and_jumping2_Title=ジャンプ距離
 TutorialStep/&Tuto01_Climbing_and_jumping3_Description=一般に、優れた身体能力を持たないキャラクターにはクリティカル パスが常に開かれています。ただし、オプションの戦利品にはアクセスするのが難しい場合があります。\n\nただし、諦めないでください。この宝箱に到達する別の方法が見つかるかもしれません。
-TutorialStep/&Tuto01_Climbing_and_jumping3_Title=代替パス
+TutorialStep/&Tuto01_Climbing_and_jumping3_Title=別経路
 TutorialStep/&Tuto01_Climbing_and_jumpingXbox_Description=ジャンプしたり登ったりするには、移動したい場所にカーソルを置き、<sprite index={0}> を押します。\n\nキャラクターの筋力と陸上競技の習熟度に応じて、2 ～ 5マスの間でジャンプしたり登ったりできます。 .\n\nいつでも 2 つのマスを飛び越えたり、3 つのマスを落としたり、1 つのマスを登ったり、はしごやロープなどの簡単な表面を問題なく登ることができます。
 TutorialStep/&Tuto01_Climbing_and_jumping_Description=ジャンプしたり登ったりするには、目的地をクリックするだけです。\n\nキャラクターの筋力と陸上競技の習熟度に応じて、2 ～ 5マスの間でジャンプしたり登ったりできます。\n\nいつでも 2マスを飛び越えることができます。マスを移動し、3 つのマスを落として 1 つのマスを登ったり、はしごやロープなどの簡単な面を問題なく登ったりできます。
 TutorialStep/&Tuto01_Climbing_and_jumping_Title=木登りとジャンプ
@@ -149,9 +149,9 @@ TutorialStep/&Tuto04_Attack_Shove2_Title=突き飛ばす
 TutorialStep/&Tuto04_Attack_ShoveXbox_Description=デフォルトの武器を使用して敵を攻撃するには、敵にカーソルを置き、<sprite index={0}> を押します。\n\n武器構成を切り替えて、別の武器（たとえば遠距離武器）を使用できます。 <sprite index={12}> を押します。\n\nキャラクターによっては、呪文などの特殊な能力も使用できます。
 TutorialStep/&Tuto04_Attack_Shove_Description=デフォルトの武器を使用して敵を攻撃するには、敵の上にマウスを置いて左クリックします。\n\nまた、攻撃呪文を唱えたり、武器構成を切り替えて別の武器、たとえば遠距離武器を使用したりすることもできます。\n\n キャラクターによっては、特殊な能力も利用できます。
 TutorialStep/&Tuto04_Attack_Shove_Title=攻撃
-TutorialStep/&Tuto04_Dashing_Description=黄色のエリア内のポイントに移動すると、アクションはダッシュに使用されます。\nダッシュは、そのターンの最大移動量が 2 倍になります。\n\nただし、アクションを使用して攻撃したり、呪文を唱えたりすることはできません。\n\n通常どおりに移動してから、さらにダッシュするか、アクションを他のことに使用するかを決定できることを覚えておいてください。
-TutorialStep/&Tuto04_Dashing_Title=ダッシュ
-TutorialStep/&Tuto04_Disengaging_Description=機会攻撃を回避するには、「離脱」アクションを使用できます。ターンの残りの間、機会攻撃を受けるリスクなく、自由に敵に近づくことができます。\n\nただし、離脱にはアクションが使用されるため、このターン中は攻撃したりダッシュしたりすることはできません。。
+TutorialStep/&Tuto04_Dashing_Description=黄色のエリア内のポイントに移動すると、アクションは早足に使用されます。\n早足を行うと、そのターンの最大移動量が 2 倍になります。\n\nただし、アクションを使用して攻撃したり、呪文を唱えたりすることはできません。\n\n通常どおりに移動してから、さらに早足するか、アクションを他のことに使うかを決定できることを覚えておいてください。
+TutorialStep/&Tuto04_Dashing_Title=早足
+TutorialStep/&Tuto04_Disengaging_Description=機会攻撃を回避するには、「離脱」アクションを使用できます。ターンの残りの間、機会攻撃を受けることなく自由に移動できます。\n\nただし、離脱にはアクションが使われるため、このターン中は攻撃したり早足したりすることはできません。
 TutorialStep/&Tuto04_Disengaging_Title=離脱中
 TutorialStep/&Tuto04_DodgingXbox_Description=<sprite index={2}> を押すと、回避などの他のアクションを選択することもできます。\n\n回避を選択すると、アクションが使用され、次のような利点があります:\n\n次のターン、目に見えるすべての攻撃者は攻撃ロールで不利になりますが、あなたは敏捷力のセーヴィング・スローで有利になります。
 TutorialStep/&Tuto04_Dodging_Description=回避をクリックすると、アクションが使用され、次の利点が得られます:\n\n次のターンの開始まで、目に見えるすべての攻撃者は攻撃ロールで不利になり、あなたは敏捷力セーヴィング・スローで有利になります。
@@ -195,20 +195,20 @@ TutorialStep/&Tuto_LevelUpGeneric_Description=次のレベルの目標経験値�
 TutorialStep/&Tuto_LevelUpGeneric_Title=レベルアップ
 TutorialStep/&Tuto_LevelUp_Description=ヒーローたちはレベルアップする準備ができています!\n\nそのためには、大休憩を取る必要があります。\n\n墓守の樽に戻り、バーテンダーのカレルと話してください。宿泊できるように部屋をリクエストしてください。
 TutorialStep/&Tuto_LevelUp_Title=レベルアップ！
-TutorialStep/&Tuto_LocationMap2Xbox_Description=<sprite index={17}> を押して位置地図を開きます。\n\n出口を見つけてそこまでの明確な道が確保できたら、世界地図に直接ファストトラベルすることもできます。\n\n ファスト トラベル ポイントにカーソルを置き、<sprite index={0}> を使用して選択します。 <sprite index={28}>を押し続けると高速移動が開始され、<sprite index={1}>を押すとキャンセルされます。
-TutorialStep/&Tuto_LocationMap2_Description=地図ボタンを押して位置地図を開きます。\n\n出口を見つけてそこまでの明確な道が確保できたら、世界地図に直接ファストトラベルすることもできます。\n\nファストトラベルボタンを押して「はい」を選択します。
+TutorialStep/&Tuto_LocationMap2Xbox_Description=<sprite index={17}> を押して位置地図を開きます。\n\n出口を見つけてそこまでの明確な道が確保できたら、世界地図に直接高速移動することもできます。\n\n高速移動ポイントにカーソルを置き、<sprite index={0}> で選択します。<sprite index={28}> を押し続けると高速移動が始まり、<sprite index={1}> を押すとキャンセルされます。
+TutorialStep/&Tuto_LocationMap2_Description=地図ボタンを押して位置地図を開きます。\n\n出口を見つけてそこまでの明確な道が確保できたら、世界地図に直接高速移動することもできます。\n\n高速移動ボタンを押して「はい」を選択します。
 TutorialStep/&Tuto_LocationMap2_Title=高速出口の場所
 TutorialStep/&Tuto_LocationMapGeneric2_Description=マップには、鍵のかかったドア、開いていない宝箱、検出したが発動または解除されていない罠も表示されます。\n\n発見したが戦っていない敵も表示されるため、攻撃するか回避するかを決定できます。\n場所を探索すると、地図は自動的に更新されます。
 TutorialStep/&Tuto_LocationMapGeneric2_Title=地図アイコン
-TutorialStep/&Tuto_LocationMapGeneric3_Description=道が空いていて徒歩で到着できる限り、地図を使用して地図上のウェイポイントに即座に移動します。そうでない場合は、パスがブロックされていることが通知されます。
+TutorialStep/&Tuto_LocationMapGeneric3_Description=道が空いていて徒歩で到着できる限り、地図を使用してウェイポイントへ即座に移動できます。そうでない場合は、道が塞がれていることが通知されます。
 TutorialStep/&Tuto_LocationMapGeneric3_Title=急ぎ旅
-TutorialStep/&Tuto_LocationMapGeneric4_Description=また、このウェイポイントが場所の出口である場合、道が空いていて徒歩でそこに到達できる限り、それを使用してトラベル マップに直接移動できます。そうでない場合は、パスがブロックされていることが通知されます。
+TutorialStep/&Tuto_LocationMapGeneric4_Description=また、このウェイポイントがその場所の出口である場合、道が空いていて徒歩で到達できる限り、それを使用してワールドマップへ直接移動できます。そうでない場合は、道が塞がれていることが通知されます。
 TutorialStep/&Tuto_LocationMapGeneric4_Title=高速出口の場所
 TutorialStep/&Tuto_LocationMapGenericXbox_Description=<sprite index={17}> を押してロケーションマップを開きます。\n\n探索を進めるとウェイポイントが見つかります。ウェイポイントは各種構造物の役割、その地域の明るさ、その他のゲームプレイ修正に関する情報を示します。\n\nマップには商人などの重要な NPC の存在も示されます。肖像画が表示されていれば、その NPC とやり取りできます。\n\nまた、<sprite index={11}> を押したまま、<sprite index={4}> または <sprite index={5}> を使ってそこからマップを選択することもできます。
 TutorialStep/&Tuto_LocationMapGeneric_Description=「地図」ボタンをクリックすると、場所の地図が開きます。\n\n探索するとウェイポイントが見つかります。これらは、さまざまな構造物の役割、エリアの照明レベル、その他のゲームプレイ変更要素に関する情報を提供します。\n\nマップは、商人などの重要な NPC の存在を示します。ポートレートは通常、NPC と対話できることを意味します。
 TutorialStep/&Tuto_LocationMapGeneric_Title=ロケーションマップ
-TutorialStep/&Tuto_LocationMapXbox_Description=<sprite index={17}> を押して位置マップを開きます。\n\nウェイポイントが見つかったら、それを使用してその場所内の別の場所に高速移動できます。\n\n今のところ、ファストトラベルを使用して墓守の樽に戻ることができます。
-TutorialStep/&Tuto_LocationMap_Description=地図アイコンをクリックして場所の地図を開きます。\n\nウェイポイントが見つかったら、それを使用してその場所内の別の場所にファストトラベルできます。\n\n現時点では、次のことができます。ファストトラベルして墓守の樽に戻ります。
+TutorialStep/&Tuto_LocationMapXbox_Description=<sprite index={17}> を押して位置マップを開きます。\n\nウェイポイントが見つかったら、それを使用してその場所内の別の場所に高速移動できます。\n\n今のところ、高速移動を使って墓守の樽に戻ることができます。
+TutorialStep/&Tuto_LocationMap_Description=地図アイコンをクリックしてその場所の地図を開きます。\n\nウェイポイントが見つかったら、それを使用してその場所内の別の場所に高速移動できます。\n\n現時点では、高速移動して墓守の樽に戻れます。
 TutorialStep/&Tuto_LocationMap_Title=ロケーションマップ
 TutorialStep/&Tuto_ManaLamps_Description=マナカロン遺跡では、これらの魔法のランプに出会うかもしれません。\n\nこれらは魔法の力を使用し、松明よりも明るく信頼性の高い光を放ちます。\n\n魔法のダメージを与えると、初級呪文も含めて魔法のランプが起動します。。
 TutorialStep/&Tuto_ManaLamps_Title=マナランプ

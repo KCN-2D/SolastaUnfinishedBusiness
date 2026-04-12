@@ -236,7 +236,7 @@ Japanese terminology guidance:
 - Translate Moonbeam as 月光, Wind Wall as 風の壁, Circle of Death as 死の円環, Shield of Faith as 信仰の盾, Evard's Black Tentacles as エヴァードの黒い触手, Absorb Elements as 元素吸収, Synaptic Static as 脳神経抑圧, Giant Insect as 蟲類巨大化, Otiluke's Freezing Sphere as オティルークの冷凍球, Alarm as 警報, Chaos Bolt as 混沌の矢, Divine Favor as 神寵, and Tasha's Caustic Brew as ターシャのコースティック・ブリュー in system text.
 - Translate Armor of Agathys as アガシスの鎧, Tasha's Mind Whip as ターシャの精神の鞭, Pulse Wave as 脈波, Pulse Wave: Push/Pull as 脈波（押し出し）/脈波（引き寄せ）, Caustic Zap as 腐食電撃, Malediction as 悪呪, Demiplane as 擬似次元界, Greater Invisibility as 上級不可視化, Flame Strike as 天罰の火, Flaming Sphere as 炎の球体, Floating Disk as 浮遊盤, Fox's Cunning as 狐の知力, Owl's Wisdom as 梟の判断力, Cat's Grace as 猫の敏捷力, Eagle's Splendor as 鷲の魅力, Bear's Endurance as 熊の耐久力, Bull's Strength as 雄牛の筋力, Venom Spike as 毒針, Vampiric Touch as 吸血の手, Symbol as 印形, Circle of Power as 力の円環, and Parry as 受け流し in system text.
 - Translate Bardic Inspiration as バードの声援, Bardic Inspiration die as 声援ダイス, Rage as 激怒, and Cantrip as 初級呪文 in system text. When a reaction button literally means generic \"Cast Spell\", translate it as 呪文 rather than 初級呪文.
-- Translate Lay on Hands as 癒しの手, Repelling Blast as 拒絶の怪光線, Dodge as 回避, Uncanny Dodge as 直感回避, Shadowy Dodge as 朧影, Arcane Deflection as 跳ね返しの秘術, Attunement as 同調, Strike of Chaos as 混沌の一撃, Dazzle as 幻惑, Reaction Shot as 反応射撃, Recall Item as アイテム回収, Deflection as 偏向, and Unsettled as 動揺 in system text.
+- Translate Lay on Hands as 癒しの手, Repelling Blast as 拒絶の怪光線, Dodge as 回避, Uncanny Dodge as 直感回避, Shadowy Dodge as 朧影, Arcane Deflection as 跳ね返しの秘術, Attunement as 同調, Strike of Chaos as 混沌の一撃, Dazzle as 幻惑, Reaction Shot as 反応射撃, Recall Item as アイテム回収, Deflection as 偏向, Unsettled as 動揺, Deflect Missiles as 矢止め, Return Missile as 矢返し, Break Free as 脱出, Dash as 早足, Beacon of Hope as 希望のともしび, Acolyte as 侍祭, Archmage as 大魔道士, Invisible Stalker as インヴィジブル・ストーカー, Redscar Orc as レッドスカー族のオーク, and Badlands Spider as バッドランズ・スパイダー in system text.
 - Translate repo-specific spell names as Mind Twist => 精神ねじり, Shine => 発光, Sparkle => きらめき, Thunderstorm => 雷雨, Gravity Slam => 重力撃, Divine Blade => 神剣, Arcane Sword => 秘術の剣, Shadow Dagger => 影の短剣, Shadow Armor => 影の鎧, and Annoying Bee => 幻蜂 in system text.
 - Translate Power Word Stun as 力の言葉:朦朧 in system text.
 - Translate Chain Lightning as 連鎖電撃 in system text.
@@ -263,7 +263,8 @@ Japanese terminology guidance:
 - Translate Charmed as 魅了状態 for condition/status titles and 魅了 for effect prose.
 - Translate Opportunity Attack / Attack of Opportunity as 機会攻撃 in system text.
 - Translate Major Gate as メジャーゲート in repo-specific player-facing text.
-- Translate Eldritch Versatility as エルドリッチ・バーサティリティ and Versatility as バーサティリティ in repo-specific system text.
+- Translate Eldritch Versatility as 妖術術式, Versatility as 術式, Versatility Switch as 術式切替, Eldritch Pool as 妖術プール, Eldritch Point as 妖術点, and Feat Eldritch Versatility Adept as 妖術術式の達人 in repo-specific system text.
+- Translate reaction button Pass as 見送る, but use スキップ for generic screen pass/skip labels.
 - Translate Illuminated as 照らされた, Illuminating Strike as 照らしの一撃, and Illuminating Burst as 照らしの爆発 in repo-specific system text.
 - Use ヒューマン for race labels and settings such as Race/&HumanTitle and EnableAlternateHuman, but keep 人間 for generic prose.
 - Use 氏族 for clan labels, 姓 for family-name labels, and 異名 for nickname labels in UI text.
