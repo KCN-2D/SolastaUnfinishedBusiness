@@ -6,7 +6,7 @@ ModUI/&ModifyJumpRulesForArmorAndEncumberance=ジャンプ範囲に介入と鎧�
 ModUI/&ModifyThrowingRulesForStrength=筋力不足による投擲射程ペナルティを適用します
 ModUI/&RoleplaySettings=ロールプレイ
 ModUI/&RoleplaySettingsDescription=これらの設定は、複雑さと成功と失敗の可能性を高めることにより、ライフシミュレーションまたはロールプレイを支持してゲームのバランスを微調整します
-ModUI/&SwapShineCantrip=〈シャイン〉のセーヴ難易度 15 を有効にします
+ModUI/&SwapShineCantrip=〈発光〉のセーヴ難易度15を有効にします
 ModUi/&AccountForAllDiceOnFollowUpStrike=基本武器のすべての追加効果を<color=#D89555>追撃攻撃</color>特技に追加します
 ModUi/&AccountForAllDiceOnSavageAttack=基本武器ダメージからのすべてのダイスを、1 つのダイスのみではなく、基本武器ダメージを追加する機能に追加します <i><color=#F0DAA0>[サベージ アタック、2H 武器など]</color></i>
 ModUi/&AddAllToStore=以下をショップに追加します <i><color=#F0DAA0>[これらは他の武器カテゴリで再利用されたゲームレシピです]</color></i>
@@ -190,8 +190,8 @@ ModUi/&EnableMulticlass=<color=#D89555>マルチクラス</color>を有効にす
 ModUi/&EnableOneDndBarkskinSpell=<color=#D89555>樹皮の肌</color> の 5e 2024 版呪文を有効化する <i><color=#F0DAA0>[ボーナス・アクション、集中不要、AC を 17 に設定]</color></i>
 ModUi/&EnableOneDndBladeWardCantrip=<color=#D89555>防刃</color> の 5e 2024 版初級呪文を有効にします <i><color=#F0DAA0>[1 分間の集中、攻撃者は攻撃ロールから 1d4 を減算]</color></i>
 ModUi/&EnableOneDndChillTouchCantrip=<color=#D89555>負力の接触</color> 5e 2024 版初級呪文を有効にする <i><color=#F0DAA0>[ダメージ・ダイスが D8 ではなく D10 になり、射程 24マスの代わりに近接攻撃になります]</color></i>
-ModUi/&EnableOneDndDamagingSpellsUpgrade=<color=#D89555>アーケイン ソード</color>、<color=#D89555>サークル オブ デス</color>、<color=#D89555>フレイム ストライク</color>、<color=#D89555>アイス ストーム</color>、<color=#D89555>プリズマティック スプレー</color>、<color=#D89555>ヴィシャス モッカリー</color> 5e 2024 呪文バージョンを有効にします <i><color=#F0DAA0>[ダメージ向上]</color></i>
-ModUi/&EnableOneDndDivineFavorSpell=<color=#D89555>神の恩寵</color> 5e 2024 呪文バージョン <i><color=#F0DAA0>[集中なし]</color></i> を有効にする
+ModUi/&EnableOneDndDamagingSpellsUpgrade=<color=#D89555>秘術の剣</color>、<color=#D89555>死の円環</color>、<color=#D89555>火炎撃</color>、<color=#D89555>氷の嵐</color>、<color=#D89555>虹色の噴射</color>、<color=#D89555>悪意ある嘲り</color> 5e 2024 呪文バージョンを有効にします <i><color=#F0DAA0>[ダメージ向上]</color></i>
+ModUi/&EnableOneDndDivineFavorSpell=<color=#D89555>神寵</color> 5e 2024 呪文バージョン <i><color=#F0DAA0>[集中なし]</color></i> を有効にする
 ModUi/&EnableOneDndGuidanceSpell=<color=#D89555>導き</color> 5e 2024 呪文バージョンを有効にします <i><color=#F0DAA0>[発動時にスキルを 1 つ選択し、最大 1 分間ボーナスを獲得します。]</color></i>
 ModUi/&EnableOneDndHealingSpellsUpgrade=<color=#D89555>傷治療</color>、<color=#D89555>偽りの生命</color>、<color=#D89555>癒しの言葉</color>、<color=#D89555>Mass 傷治療</color>、<color=#D89555>Mass 癒しの言葉</color> 5e 2024 呪文バージョン <i><color=#F0DAA0>[better healing]</color></i> を有効にします
 ModUi/&EnableOneDndHideousLaughterSpell=<color=#D89555>抱腹絶倒</color> 5e 2024 呪文バージョンを有効にする <i><color=#F0DAA0>[+1 ターゲット/アップキャスト]</color></i>
@@ -333,7 +333,7 @@ ModUi/&MaxAllowedClasses=<color=white>最大許容クラス数</color>
 ModUi/&Merchants=<color=#F0DAA0>商人:</color>
 ModUi/&Metamagic=<color=#F0DAA0>呪文修正</color>
 ModUi/&ModQoL=<b><color=#D89555>QoL設定を有効にする</color></b>
-ModUi/&ModifyGravitySlam=<color=#D89555>重力スラム</color> 呪文を変更して、影響を受けたターゲットを引き下げ、球体ではなく円筒形になるようにします\n<i><color=#F0DAA0>[<color=#D89555>上下軸でプッシュおよびプル モーション エフェクトを有効にするには</color> を有効にする必要があります]</color></i>
+ModUi/&ModifyGravitySlam=<color=#D89555>重力撃</color>呪文を変更して、影響を受けたターゲットを下方へ引き寄せ、球体ではなく円柱になるようにします\n<i><color=#F0DAA0>[<color=#D89555>上下軸での押し出し/引き寄せモーション効果</color>を有効にする必要があります]</color></i>
 ModUi/&MovementGridWidthModifier=<color=white>移動グリッドの幅を</color> <color=#C04040E0>[%]</color> で乗算します
 ModUi/&MulticlassKeyHelp=<color=#1E81B0>SHIFT</color> キーを押しながら呪文をクリックすると、消費されるデフォルトのレパートリー スロットの種類が反転します\n<i><color=#F0DAA0>[<color=#D89555>ウォーロック</color> は白の呪文スロットを消費し、その他の呪文スロットはパクトの緑の呪文スロットを消費します]</color></i>
 ModUi/&Multiplayer=<color=#F0DAA0>マルチプレイヤー:</color>

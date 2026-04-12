@@ -297,6 +297,28 @@ Conjure Animals	動物召喚	カンジャー・アニマルズ|Conjure Animals	s
 Freedom of Movement	移動の自由	フリーダム・オヴ・ムーヴメント|Freedom of Movement	spell	システム文では漢字和訳を優先。
 See Invisibility	不可視視認	シー・インヴィジビリティ|See Invisibility	spell	システム文では漢字和訳を優先。
 Shield of Faith	信仰の盾	シールド・オヴ・フェイス|Shield of Faith	spell	システム文では漢字和訳を優先。
+Absorb Elements	元素吸収	要素を吸収する|エレメントを吸収|Absorb Elements	spell	システム文では漢字和訳を優先。
+Alarm	警報	アラーム|Alarm	spell	システム文では漢字和訳を優先。
+Annoying Bee	幻蜂	アノイング・ビー|Annoying Bee	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Arcane Sword	秘術の剣	アーケイン・ソード|アーケインソード|Arcane Sword	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Chaos Bolt	混沌の矢	ケイオス・ボルト|カオス・ボルト|カオスボルト|Chaos bolt|Chaos Bolt	spell	公式対訳の漢字側を優先。
+Circle of Death	死の円環	サークル・オブ・デス|死の輪|Circle of Death	spell	システム文では漢字和訳を優先。
+Divine Favor	神寵	ディバイン・フェイバー|神の恩寵|神の好意|Divine Favor	spell	システム文では漢字和訳を優先。
+Divine Blade	神剣	ディバイン・ブレード|ディヴァイン・ブレード|Divine Blade	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Evard's Black Tentacles	エヴァードの黒い触手	ブラック・テンタクル|黒い触手|Evard's Black Tentacles	spell	システム文では漢字和訳を優先。
+Giant Insect	蟲類巨大化	ジャイアント・インセクト|巨大昆虫|Giant Insect	spell	システム文では漢字和訳を優先。
+Gravity Slam	重力撃	グラビティ・スラム|重力スラム|Gravity Slam	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Mind Twist	精神ねじり	マインド・ツウィスト|マインドツイスト|Mind Twist	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Moonbeam	月光	ムーンビーム|ムーン・ビーム|Moonbeam	spell	システム文では漢字和訳を優先。
+Otiluke's Freezing Sphere	オティルークの冷凍球	フリージング・スフィア|フリージングスフィア|Otiluke's Freezing Sphere	spell	システム文では漢字和訳を優先。
+Shadow Armor	影の鎧	シャドウ・アーマー|Shadow Armor	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Shadow Dagger	影の短剣	シャドウ・ダガー|Shadow Dagger	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Shine	発光	シャイン|Shine	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Sparkle	きらめき	スパークル|Sparkle	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Synaptic Static	脳神経抑圧	シナプススタティック|シナプティック・スタティック|Synaptic Static	spell	システム文では漢字和訳を優先。
+Tasha's Caustic Brew	ターシャのコースティック・ブリュー	ターシャのコースティック ブリュー|Vile Brew|Tasha's Caustic Brew	spell	公式訳不在のため自然なカタカナへ統一。
+Thunderstorm	雷雨	サンダーストーム|Thunderstorm	spell	repo 内呪文名を自然な漢字和訳へ統一。
+Wind Wall	風の壁	ウィンド・ウォール|Wind Wall	spell	システム文では漢字和訳を優先。
 Invisibility	不可視化	インヴィジビリティ|Invisibility	spell	システム文では漢字和訳を優先。
 Hold Monster	怪物金縛り	ホールドモンスター|Hold Monster	spell	システム文では漢字和訳を優先。
 False Life	偽りの生命	フォールス・ライフ|False Life	spell	システム文では漢字和訳を優先。
