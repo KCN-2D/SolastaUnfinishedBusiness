@@ -325,8 +325,7 @@ internal static class RulesetActorExtensions
     internal static bool IsTouchingGround(this RulesetActor actor)
     {
         return !actor.HasConditionOfType(ConditionFlying) &&
-               !actor.HasConditionOfType(ConditionLevitate) &&
-               !(actor is RulesetCharacter character && character.MoveModes.ContainsKey((int)MoveMode.Fly));
+               !(actor is RulesetCharacter other && other.MoveModes.ContainsKey((int)MoveMode.Fly));
     }
 
     internal static bool IsTemporarilyFlying(this RulesetActor actor)
@@ -343,6 +342,11 @@ internal static class RulesetActorExtensions
                 && !actor.HasConditionOfType("ConditionFlightSuspended")
 
         );*/
+    }
+
+    internal static bool HasSuspendableFlightCondition(this RulesetActor actor)
+    {
+        return actor.IsTemporarilyFlying();
     }
 
     internal static bool HasAnyConditionOfType(this RulesetActor actor, params string[] conditions)

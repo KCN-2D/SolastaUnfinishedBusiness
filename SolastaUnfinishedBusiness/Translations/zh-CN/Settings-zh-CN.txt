@@ -106,6 +106,7 @@ ModUi/&EnableAdditionalBackstoryDisplay=在背景检查中启用额外的背景�
 ModUi/&EnableAdditionalIconsOnLevelMap=在关卡地图上启用营地、出口和传送器的附加图标
 ModUi/&EnableAdditionalItemsInDungeonMaker=将经过修改的物品添加到编辑器
 ModUi/&EnableAllyMovementAllowsFlight=若该生物处于飞行状态，允许使自身或盟友移动的特性将空中位置视为可用目标（例如<color=#D89555>机动打击</color>、<color=#D89555>本能猛扑</color>）
+ModUi/&EnableTeleportAllowsMidAirPositions=允许自由选点的传送法术和能力以可见且未被占据的空中空间为目标
 ModUi/&EnableAlternateHuman=启用<color=#D89555>变体人类</color> <i><color=#F0DAA0>[+1 专长 / +2 属性选择 / +1 技能]</color></i>
 ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
 ModUi/&EnableAlternateVotingSystem=启用替代投票系统<i><color=#F0DAA0>[选择权重 = 投票数 * 英雄魅力调整值]</color></i>

@@ -23,7 +23,8 @@ internal static class CursorLocationSelectPositionExtensions
 
         var positioningService = ServiceRepository.GetService<IGameLocationPositioningService>();
         var visibilityService = ServiceRepository.GetService<IGameLocationVisibilityService>();
-        var onlyFeedbackGroundCells = __instance.isTeleportingSpell;
+        var requireGroundCells = __instance.isTeleportingSpell &&
+                                 !Main.Settings.EnableTeleportAllowsMidAirPositions;
 
         foreach (var int3 in boxInt.EnumerateAllPositionsWithin())
         {
@@ -38,7 +39,7 @@ internal static class CursorLocationSelectPositionExtensions
             if (int3.Distance(__instance.centerPosition, int3) <= maxDistance &&
                 positioningService.CanPlaceCharacter(locationCharacter, int3, CellHelpers.PlacementMode.Station) &&
                 positioningService.CanCharacterStayAtPosition_Floor(
-                    locationCharacter, int3, onlyCheckCellsWithRealGround: onlyFeedbackGroundCells))
+                    locationCharacter, int3, onlyCheckCellsWithRealGround: requireGroundCells))
             {
                 if (visibilityService.MyIsCellPerceivedByCharacter(int3, locationCharacter,
                         additionalBlockedLightingState: additionalBlockedState,

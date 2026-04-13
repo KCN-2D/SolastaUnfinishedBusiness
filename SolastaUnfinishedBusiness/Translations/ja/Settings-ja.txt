@@ -106,6 +106,7 @@ ModUi/&EnableAdditionalBackstoryDisplay=背景調査で追加のバックスト�
 ModUi/&EnableAdditionalIconsOnLevelMap=レベルマップ上のキャンプ、出口、瞬間移動装置の追加アイコンを有効にする
 ModUi/&EnableAdditionalItemsInDungeonMaker=エディターに改造アイテムを追加する
 ModUi/&EnableAllyMovementAllowsFlight=クリーチャーが飛行している場合、自分または仲間を移動する機能に空中位置を含めることを許可する (例: <color=#D89555>機動攻撃</color>、<color=#D89555>本能的な飛びかかり</color>)
+ModUi/&EnableTeleportAllowsMidAirPositions=自由座標指定の瞬間移動呪文とパワーが、視認できる占有されていない空中空間を対象にできるようにする
 ModUi/&EnableAlternateHuman=代替の<color=#D89555>ヒューマン</color>を有効にする <i><color=#F0DAA0>[+1特技 / +2能力値選択 / +1技能]</color></i>
 ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>背景の能力値上昇が有効な間、ヒューマンは種族の能力値上昇を失う代わりに、代替ヒューマンの特技と技能パッケージを自動的に使用します。</color></i>
 ModUi/&EnableAlternateVotingSystem=代替投票システムを有効にする <i><color=#F0DAA0>[選択の重み = 投票数 * ヒーローの魅力補正値]</color></i>

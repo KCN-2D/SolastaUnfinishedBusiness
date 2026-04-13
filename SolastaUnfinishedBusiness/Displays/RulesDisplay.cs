@@ -516,6 +516,12 @@ internal static class RulesDisplay
             Main.Settings.EnableTeleportToRemoveRestrained = toggle;
         }
 
+        toggle = Main.Settings.EnableTeleportAllowsMidAirPositions;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableTeleportAllowsMidAirPositions"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableTeleportAllowsMidAirPositions = toggle;
+        }
+
         UI.Label();
 
         toggle = Main.Settings.EnableCharactersOnFireToEmitLight;

@@ -617,7 +617,7 @@ public static class CustomActionIdContext
             }
             case (Id)ExtraActionId.FlightSuspend:
             {
-                if (Main.Settings.AllowFlightSuspend && character.IsTemporarilyFlying())
+                if (Main.Settings.AllowFlightSuspend && character.HasSuspendableFlightCondition())
                 {
                     result = ActionStatus.Available;
                 }

@@ -106,6 +106,7 @@ ModUi/&EnableAdditionalBackstoryDisplay=Abilita la visualizzazione aggiuntiva de
 ModUi/&EnableAdditionalIconsOnLevelMap=Abilita icone aggiuntive per campi, uscite e teletrasporti sulla mappa del livello
 ModUi/&EnableAdditionalItemsInDungeonMaker=Aggiungi elementi modificati all'editor
 ModUi/&EnableAllyMovementAllowsFlight=Consenti alle caratteristiche che muovono se stessi o gli alleati di includere posizioni a mezz'aria se la creatura sta volando (ad esempio <color=#D89555>Colpo di manovra</color>, <color=#D89555>Balzo istintivo</color>)
+ModUi/&EnableTeleportAllowsMidAirPositions=Consenti a incantesimi e poteri di teletrasporto con destinazione libera di bersagliare spazi aerei visibili e non occupati
 ModUi/&EnableAlternateHuman=Abilita l'alternativa <color=#D89555>Umano</color> <i><color=#F0DAA0>[+1 talento / +2 scelte attributo / +1 abilità]</color></i>
 ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
 ModUi/&EnableAlternateVotingSystem=Abilita il sistema di voto alternativo <i><color=#F0DAA0>[peso della scelta = voti * modificatore Carisma dell'eroe]</color></i>

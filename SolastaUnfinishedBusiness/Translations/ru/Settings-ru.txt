@@ -106,6 +106,7 @@ ModUi/&EnableAdditionalBackstoryDisplay=Включить отображение 
 ModUi/&EnableAdditionalIconsOnLevelMap=Включить дополнительные значки для лагерей, выходов и телепортов на карте уровня
 ModUi/&EnableAdditionalItemsInDungeonMaker=Добавить предметы мода в редактор
 ModUi/&EnableAllyMovementAllowsFlight=Позволить умениям, перемещающим персонажа или союзника, учитывать положение в воздухе, если существо летает (например <color=#D89555>Атака с манёвром</color> или <color=#D89555>Инстинктивный бросок</color>)
+ModUi/&EnableTeleportAllowsMidAirPositions=Разрешить заклинаниям и умениям телепортации со свободным выбором точки назначать видимые незанятые клетки в воздухе
 ModUi/&EnableAlternateHuman=Включить альтернативное происхождение <color=#D89555>Человека</color> <i><color=#F0DAA0>[+1 черта / +2 очка характеристик / +1 навык]</color></i>
 ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
 ModUi/&EnableAlternateVotingSystem=Включить альтернативную систему голосования <i><color=#F0DAA0>[весомость выбора = голоса * модификатор Харизмы героя]</color></i>

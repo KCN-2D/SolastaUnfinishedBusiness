@@ -114,6 +114,12 @@ internal static class RulesContext
                 .Build())
         .AddToDB();
 
+    private static readonly FeatureDefinitionMoveMode MoveModeFly0LevitateTeleport = FeatureDefinitionMoveModeBuilder
+        .Create("MoveModeFly0LevitateTeleport")
+        .SetGuiPresentationNoContent(true)
+        .SetMode(MoveMode.Fly, 0)
+        .AddToDB();
+
     private static readonly List<MonsterDefinition> MonstersThatEmitLight =
     [
         CubeOfLight,
@@ -127,6 +133,7 @@ internal static class RulesContext
     {
         LoadAdditionalNames();
         LoadEpicArray();
+        LoadLevitateAirPlacement();
         LoadSenseNormalVisionRangeMultiplier();
         LoadVisuals();
         LoadSorcererQuickened();
@@ -141,6 +148,14 @@ internal static class RulesContext
             "Sorcerer", SorcerousDraconicBloodline,
             FeatureSetSorcererDraconicChoice, InvocationPoolSorcererDraconicChoice,
             InvocationPoolTypeCustom.Pools.SorcererDraconicChoice);
+    }
+
+    private static void LoadLevitateAirPlacement()
+    {
+        if (!ConditionDefinitions.ConditionLevitate.Features.Contains(MoveModeFly0LevitateTeleport))
+        {
+            ConditionDefinitions.ConditionLevitate.Features.Add(MoveModeFly0LevitateTeleport);
+        }
     }
 
     private static void LoadSenseNormalVisionRangeMultiplier()

@@ -106,6 +106,7 @@ ModUi/&EnableAdditionalBackstoryDisplay=Aktivieren Sie die Anzeige zusätzlicher
 ModUi/&EnableAdditionalIconsOnLevelMap=Zusätzliche Symbole für Lager, Ausgänge und Teleporter auf der Levelkarte aktivieren
 ModUi/&EnableAdditionalItemsInDungeonMaker=Modifizierte Elemente zum Editor hinzufügen
 ModUi/&EnableAllyMovementAllowsFlight=Erlauben Sie Funktionen, die sich selbst oder Verbündete bewegen, um Positionen in der Luft einzuschließen, wenn diese Kreatur fliegt (z. B. <color=#D89555>Manövrierender Schlag</color>, <color=#D89555>Instinktiver Sprung</color>).
+ModUi/&EnableTeleportAllowsMidAirPositions=Erlauben Sie frei platzierbaren Teleportationszaubern und -kräften, sichtbare unbesetzte Positionen in der Luft als Ziel zu wählen
 ModUi/&EnableAlternateHuman=Aktiviere den alternativen <color=#D89555>Menschen</color> <i><color=#F0DAA0>[+1 Talent / +2 Attributauswahl / +1 Fertigkeit]</color></i>
 ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
 ModUi/&EnableAlternateVotingSystem=Alternatives Abstimmungssystem aktivieren <i><color=#F0DAA0>[Auswahlgewicht = Stimmen * Charisma-Modifikator des Helden]</color></i>
