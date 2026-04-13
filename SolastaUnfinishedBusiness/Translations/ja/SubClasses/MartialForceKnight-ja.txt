@@ -6,7 +6,7 @@ Condition/&ConditionMartialForceKnightTelekineticGraspDescription=ボーナス�
 Condition/&ConditionMartialForceKnightTelekineticGraspTitle=念動力
 Feature/&FeatureMartialForceKnightForceOfWillDescription=あなたのサイオニックエネルギーは、並外れた回復力を与えます。各ターンの開始時に、ヒット・ポイントが 1 以上ある場合、知力修正値 (最小 +1) に等しい一時ヒット・ポイントを獲得します。さらに、知力修正値がより高い場合は、セーヴィング・スローに知力修正値の代わりに知力修正値を使用できます。
 Feature/&FeatureMartialForceKnightForceOfWillTitle=意志の力
-Feature/&FeatureSetMartialForceKnightPsionicAdeptDescription=Force-Powered Strike で攻撃されたクリーチャーに Strength セーヴィング・スローを課すことができるようになりました (難易度 = 8 + 習熟ボーナス + 知力修正値)。クリーチャーがそれに失敗した場合、クリーチャーを 3マス後方にノックバックするか、伏せてノックすることができます。
+Feature/&FeatureSetMartialForceKnightPsionicAdeptDescription=Force-Powered Strike で攻撃されたクリーチャーに筋力セーヴィング・スローを課すことができるようになりました（難易度 = 8 + 習熟ボーナス + 知力修正値）。クリーチャーがこれに失敗した場合、そのクリーチャーを3マス後方へ押し戻すか、伏せ状態にできます。
 Feature/&FeatureSetMartialForceKnightPsionicAdeptTitle=サイオニックの達人
 Feature/&FeatureSetMartialForceKnightPsionicInitiateDescription=力場ポイントをいくつか獲得し、それを使ってさまざまな念動力能力を活性化できます。最初は 3 力場ポイントを持ち、その後 3 レベルごとに 1 ポイントずつ追加で獲得します。力場ポイントは、小休憩または大休憩で再充電されます。\n• 力場 パワー ストライク。自分のターンごとに 1 回、武器攻撃でクリーチャーに命中したとき、力場ポイントを 1 ポイント消費して、1d8 + 知力修正値に等しい追加の力場ダメージを与えることができます。ダメージは 10 レベルで 1d10、18 レベルで 1d12 に増加します。\n• キネティック バリア。自分または自分の周囲 6マス以内にいる味方クリーチャーが攻撃を受けそうになったとき、力場ポイントを 1 ポイント消費して反応し、純粋な力の保護シールドをその周囲に形成できます。これにより、攻撃クリーチャーのターン終了時まで、その攻撃とその後のすべての攻撃に対して、知力修正値 (最小 +1) に等しい追加の AC が付与されます。\n• 力場 ドライブ。力場ポイントを 1 ポイント消費して、サイコキネシス パワーを使用して武器を発射することができます。ターンの終了時まで、装備した近接武器の射程距離が 6マス延長されます。この特徴は、力場ポイントを消費することなく、小休憩ごとに 1 回使用できます。
 Feature/&FeatureSetMartialForceKnightPsionicInitiateTitle=サイオニック・イニシエイト

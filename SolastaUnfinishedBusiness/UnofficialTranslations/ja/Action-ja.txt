@@ -164,7 +164,7 @@ Action/&SpellExecuteGamepadDescription=<sprite index={0}> を押して、呪文�
 Action/&SpiritRageDescription=同族のスピリットの AC ロールとダメージ ロールに力を与え、1 分間のボーナス攻撃を与えます。
 Action/&SpiritRageTitle=精霊の激怒
 Action/&SpiritRallyDescription=戦闘中でない場合は、同族の魂を呼び出すことができます。障害物を無視して本来の次元界を移動し、あなたの隣へ瞬間移動します。
-Action/&SpiritRallyTitle=スピリットラリー
+Action/&SpiritRallyTitle=精魂招集
 Action/&StandUpDescription=立ち上がるには、速度の半分に等しい移動量がかかります。十分な動きが残っていない場合、または速度が0の場合、立ち上がることはできません。
 Action/&StandUpTitle=立ち上がる
 Action/&SunbeamDescription=毎ターン、アクションを使用して陽光を放ち、対象のクリーチャーに6d8の光輝ダメージを与えられます。アンデッドと粘体はセーヴィング・スローに不利を受けます。

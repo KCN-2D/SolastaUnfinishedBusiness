@@ -1,8 +1,8 @@
 Feature/&PerceptionAffinityHelmOfAwarenessDescription=驚くことはできません。
 Feature/&PowerHandwrapsOfPullingDescription=ボーナスアクションとして、3マス以内の生き物を自分に近づけることができます。
 Feature/&PowerHandwrapsOfPullingTitle=リールイン
-Feedback/&ExtraDamageDescription=ライトニングスピアによる追加ダメージ。
-Feedback/&ExtraDamageTitle=ライトニングスピアの追加ダメージ
+Feedback/&ExtraDamageDescription=電撃の槍による追加ダメージ。
+Feedback/&ExtraDamageTitle=電撃の槍の追加ダメージ
 Item/&Armor_Noble_ClothesTitle_Cherry=チェリー貴族の服
 Item/&Armor_Noble_ClothesTitle_Green=緑の貴族の服
 Item/&Armor_Noble_ClothesTitle_Orange=オレンジの貴族の服

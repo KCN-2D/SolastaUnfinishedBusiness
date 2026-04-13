@@ -474,3 +474,32 @@ Stoneskin	石の皮膚	ストーンスキン|Stoneskin	spell	システム文で�
 Warding Bond	守りの紐帯	ウォーディング・ボンド|Warding Bond	spell	システム文では漢字和訳を優先。
 Bardic Inspiration	バードの声援	バード インスピレーション|バーディック インスピレーション|Bardic Inspiration	class_feature	system/UI ではバードの声援に統一。
 Bardic Inspiration die	声援ダイス	バード インスピレーション ダイス|バーディック インスピレーション ダイス|Bardic Inspiration die	ui	system/UI では声援ダイスに統一。
+Aspect of the Moon	観月	Aspect of the Moon|月のアスペクト	feature	妖術名を公式寄りに統一。
+Eldritch Mind	妖術の心	Eldritch Mind|エルドリッチ・マインド	feature	妖術名を自然な日本語へ統一。
+Spirit Rally	精魂招集	Spirit Rally|スピリットラリー	action	repo 内アクション名を自然な日本語へ統一。
+Dragon Duo	双竜	Dragon Duo|ドラゴンデュオ	encounter	repo 内エンカウンター名を自然な日本語へ統一。
+Pact of the Blade	剣の契約	Pact of the Blade|パクト・オブ・ブレイド	feature	公式和訳を優先。
+Pact Weapon	契約武器	Pact Weapon|パクトウェポン	feature	公式和訳の複合語として統一。
+Improved Pact Weapon	契約武器強化	Improved Pact Weapon|契約武器の強化	feature	公式寄りの特徴名へ統一。
+Spiritual Pact Weapon	霊的契約武器	Spiritual Pact Weapon|霊的契約の武器	feature	repo 内特徴名を自然な日本語へ統一。
+Electrifying Touch	帯電打撃	Electrifying Touch|電撃タッチ|感電タッチ|しびれるようなタッチ	feat	repo 内特技名を自然な日本語へ統一。
+Armor Master	防具の達人	Armor Master|アーマーマスター	feat	Heavy Armor Master と重複しないよう区別する。
+Burning Touch	火炎の手	Burning Touch|バーニングタッチ	feat	repo 内特技名を自然な日本語へ統一。
+Icy Touch	氷の手	Icy Touch|アイシータッチ|氷の接触	feat	repo 内特技名を自然な日本語へ統一。
+Melting Touch	溶解の手	Melting Touch|とろけるタッチ	feat	repo 内特技名を自然な日本語へ統一。
+Toxic Touch	毒の手	Toxic Touch|トキシックタッチ	feat	repo 内特技名を自然な日本語へ統一。
+Mighty Blow	豪打	Mighty Blow|マイティブロー	feat	repo 内特技名を自然な日本語へ統一。
+Master Alchemist	錬金術の達人	Master Alchemist|マスターアルケミスト	feat	repo 内特技名を自然な日本語へ統一。
+Forest Runner	森渡り	Forest Runner|フォレストランナー	feat	repo 内特技名を自然な日本語へ統一。
+Ready or Not	待ち構え	Ready or Not|レディ・オア・ノット	feat	repo 内特技名を自然な日本語へ統一。
+Raise Shield	盾を構える	Raise Shield|レイズシールド	action	repo 内アクション名を自然な日本語へ統一。
+Raised Shield	盾を構えた	Raised Shield|上げられた盾	condition	repo 内状態名を自然な日本語へ統一。
+Rush to Battle	戦場への突進	Rush to Battle|戦闘へ急ぐ|戦いへ急ぐ	feat	repo 内特技名を自然な日本語へ統一。
+Rushing to Battle	戦場への突進	Rushing to Battle|戦闘へ急ぐ|戦いへ急ぐ	condition	repo 内状態名を自然な日本語へ統一。
+Twin Blade	双刃	Twin Blade|ツインブレード	feat	repo 内特技名を自然な日本語へ統一。
+Twin Blade Block	双刃防御	Twin Blade Block|ツインブレードブロック	condition	repo 内状態名を自然な日本語へ統一。
+Lock Breaker	錠破り	Lock Breaker|Lockbreaker|ロックブレイカー	feat	repo 内特技名を自然な日本語へ統一。
+Daunting Push	威圧の押し出し	Daunting Push|恐るべきプッシュ	feat	repo 内特技名を自然な日本語へ統一。
+Lightning Launcher	稲妻投射器	Lightning Launcher|ライトニングランチャー	item	repo 内武器名を自然な日本語へ統一。
+Lightning Bombs	電撃爆弾	Lightning Bombs|ライトニングボム	feature	repo 内特徴名を自然な日本語へ統一。
+Lightning Spear	電撃の槍	Lightning Spear|ライトニングスピア	proper_noun	repo 内効果名を自然な日本語へ統一。

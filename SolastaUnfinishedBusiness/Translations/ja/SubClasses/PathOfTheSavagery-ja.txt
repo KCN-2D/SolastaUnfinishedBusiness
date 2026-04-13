@@ -10,5 +10,5 @@ Feature/&FeaturePathOfTheSavageryWrathAndFuryDescription=レベル 10 から、�
 Feature/&FeaturePathOfTheSavageryWrathAndFuryTitle=怒りと怒り
 Feature/&FeatureSetPathOfTheSavageryPrimalInstinctDescription=Rage はボーナス・アクションの代わりにフリーアクションとして使用できます。
 Feature/&FeatureSetPathOfTheSavageryPrimalInstinctTitle=原初の本能
-Subclass/&PathOfTheSavageryDescription=未開の道を歩む野蛮人は自然の力であり、人間というより野獣のように戦います。彼らは爆発的なスピードとパワーで攻撃し、爪と牙で戦う野生動物に似たツインブレードを活用します。
+Subclass/&PathOfTheSavageryDescription=未開の道を歩む野蛮人は自然の力であり、人間というより野獣のように戦います。彼らは爆発的なスピードとパワーで攻撃し、爪と牙で戦う野生動物に似た双刃を振るいます。
 Subclass/&PathOfTheSavageryTitle=野蛮の道
