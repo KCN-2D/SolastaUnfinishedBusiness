@@ -1,9 +1,9 @@
-Feature/&AttributeModifierBattlebornBonusACTitle=難解な回復力
-Feature/&FeatureSetBattlebornAbilityScoreIncreaseDescription=耐久力+2、他のスコア1点を1点増加。
+Feature/&AttributeModifierBattlebornBonusACTitle=秘術の堅牢性
+Feature/&FeatureSetBattlebornAbilityScoreIncreaseDescription=耐久力+2、他の能力値1つを1増加。
 Feature/&FeatureSetBattlebornAbilityScoreIncreaseTitle=能力値増加
-Feature/&FeatureSetBattlebornArcaneResilienceDescription=あなたは、次の利点に表される驚くべき不屈の精神を持って創造されています:\n・AC に +1 のボーナスを得ます。\n・毒に対するセーヴィング・スローに有利を得て、毒ダメージに対する抵抗を持ちます。\n・病気に対する完全耐性を持ちます。\n・眠る必要がなく、魔法によっても眠らされません。
-Feature/&FeatureSetBattlebornArcaneResilienceTitle=難解な回復力
-Feature/&FeatureSetBattlebornSpecializedInfusionDescription=あなたは、選択したスキル熟練度とツール熟練度を 1 つずつ獲得します。
-Feature/&FeatureSetBattlebornSpecializedInfusionTitle=特殊な輸液
-Race/&RaceBattlebornDescription=バトルボーンは、肉体、錬金術、魔法をブレンドして完璧な戦場の兵士を作り出す、難解な実験の結果です。兵器として作られた彼らは、戦争を超えた目的を見つけなければなりません。バトルボーンは忠実な同盟者になることも、冷酷な殺人マシーンになることも、目的と意味を求めて魂を探求するさまよう者になることもできます。
+Feature/&FeatureSetBattlebornArcaneResilienceDescription=あなたは驚くべき頑健さを備えるよう作られており、次の利益を得ます:\n・ACに+1のボーナスを得ます。\n・毒状態になることに対するセーヴィング・スローに有利を得て、毒ダメージに対する耐性を得ます。\n・病気に対する完全耐性を持ちます。\n・眠る必要がなく、魔法で眠らされることもありません。
+Feature/&FeatureSetBattlebornArcaneResilienceTitle=秘術の堅牢性
+Feature/&FeatureSetBattlebornSpecializedInfusionDescription=任意の技能1つと道具1つに習熟します。
+Feature/&FeatureSetBattlebornSpecializedInfusionTitle=特化注入
+Race/&RaceBattlebornDescription=ウォーフォージドは、肉体、錬金術、魔法を融合させて完璧な戦場の兵士を作り出す秘術実験の産物です。兵器として生み出された彼らは、いまや戦争を超えた目的を見つけなければなりません。ウォーフォージドは忠実な同盟者にも、冷酷な殺戮機械にも、目的と意味を求めてさまよう魂にもなりえます。
 Race/&RaceBattlebornTitle=ウォーフォージド

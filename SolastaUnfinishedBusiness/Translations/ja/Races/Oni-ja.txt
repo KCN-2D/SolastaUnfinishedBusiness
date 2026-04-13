@@ -1,10 +1,10 @@
-Feature/&CastSpellOniOgreMagicDescription=3レベルになると、大休憩ごとに 1 回 <b>雷鳴の一撃</b> を発動できます。この呪文の呪文発動能力値は <b>判断力</b> です。
-Feature/&CastSpellOniOgreMagicTitle=オーガマジック
-Feature/&FeatureSetOniAbilityScoreIncreaseDescription=力+2、判断力+1
-Feature/&FeatureSetOniAbilityScoreIncreaseTitle=属性増加
+Feature/&CastSpellOniOgreMagicDescription=3レベルになると、大休憩ごとに1回、<b>雷鳴の一撃</b>を発動できます。この呪文の呪文発動能力値は<b>判断力</b>です。
+Feature/&CastSpellOniOgreMagicTitle=オーガの魔法
+Feature/&FeatureSetOniAbilityScoreIncreaseDescription=筋力+2、判断力+1
+Feature/&FeatureSetOniAbilityScoreIncreaseTitle=能力値増加
 Feature/&ProficiencyOniOgreMightDescription=あなたは<b>軍用武器</b>に習熟しています。
-Feature/&ProficiencyOniOgreMightTitle=オーガマイト
-Feature/&ProficiencyOniThirdEyeDescription=あなたは<b>知覚</b> スキルに習熟しています。
+Feature/&ProficiencyOniOgreMightTitle=オーガの剛力
+Feature/&ProficiencyOniThirdEyeDescription=あなたは<b>〈知覚〉</b>技能に習熟しています。
 Feature/&ProficiencyOniThirdEyeTitle=第三の目
-Race/&RaceOniDescription=オニは、極東の島国ヒモトに住む悪魔のような生き物です。彼らは作動した主要なゲートを通ってソラスタにやって来ました。
+Race/&RaceOniDescription=オニは極東の島国ヒモトに由来する、デーモンめいた生き物です。彼らは起動した大門を通ってソラスタへやって来ました。
 Race/&RaceOniTitle=オニ
