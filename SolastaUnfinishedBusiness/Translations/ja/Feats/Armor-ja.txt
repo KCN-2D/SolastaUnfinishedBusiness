@@ -1,10 +1,10 @@
-Feat/&FeatHeavyArmorMasterDescription=鎧を使って、本来なら致命的な打撃を受け流せます。筋力を 1 増加させ、最大 20 まで高めます。重装鎧を着用している間、攻撃によって受ける殴打、刺突、斬撃ダメージは 3 減少します。
+Feat/&FeatHeavyArmorMasterDescription=鎧を使って、本来なら致命的な打撃を受け流せます。筋力を1増加させ、最大20まで高めます。重装鎧を着用している間、攻撃によって受ける殴打、刺突、斬撃ダメージは3減少します。
 Feat/&FeatHeavyArmorMasterTitle=重装鎧の達人
-Feat/&FeatMediumArmorDexDescription=敏捷力を 1 増加させ、最大 20 まで高めます。\n中装鎧と盾に習熟します。
+Feat/&FeatMediumArmorDexDescription=敏捷力を1増加させ、最大20まで高めます。\n中装鎧と盾に習熟します。
 Feat/&FeatMediumArmorDexTitle=中装防具習熟［敏捷力］
 Feat/&FeatMediumArmorMasterDescription=中装鎧で動く訓練を積んでおり、次の利益を得ます:\n• 中装鎧を着用しても、敏捷力〈隠密〉判定に不利を受けません。\n• 中装鎧を着用しており、敏捷力が16以上なら、ACには2ではなく3を加えます。
 Feat/&FeatMediumArmorMasterTitle=中装鎧の達人
-Feat/&FeatMediumArmorStrDescription=筋力を 1 増加させ、最大 20 まで高めます。\n中装鎧と盾に習熟します。
+Feat/&FeatMediumArmorStrDescription=筋力を1増加させ、最大20まで高めます。\n中装鎧と盾に習熟します。
 Feat/&FeatMediumArmorStrTitle=中装防具習熟［筋力］
 Feat/&FeatShieldTechniquesDescription=盾は防御だけでなく攻撃にも使います。盾を装備している間、次の利益を得ます。\n• 自分のターンに攻撃アクションを行ったなら、ボーナス・アクションを使って、自分から1マス以内のクリーチャー1体を盾で突き飛ばせます。\n• 無力状態でないなら、自分が行うすべての敏捷力セーヴィング・スローに+2のボーナスを得ます。\n• ダメージを与える呪文によって敏捷力セーヴィング・スローを行うたび、リアクションを使って受けるダメージを半減できます。
 Feat/&FeatShieldTechniquesTitle=盾の使い手

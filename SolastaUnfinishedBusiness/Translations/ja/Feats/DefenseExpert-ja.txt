@@ -1,6 +1,6 @@
-Feat/&FeatArcaneDefenseDescription=知力を 1 増加させ、最大 20 まで高めます。\n鎧も盾も装備していない間、ACは10 + 敏捷力修正値 + 知力修正値に等しくなります。
+Feat/&FeatArcaneDefenseDescription=知力を1増加させ、最大20まで高めます。\n鎧も盾も装備していない間、ACは10+敏捷力修正値+知力修正値に等しくなります。
 Feat/&FeatArcaneDefenseTitle=秘術の防御
-Feat/&FeatCharismaticDefenseDescription=魅力を 1 増加させ、最大 20 まで高めます。\n鎧も盾も装備していない間、ACは10 + 敏捷力修正値 + 魅力修正値に等しくなります。
+Feat/&FeatCharismaticDefenseDescription=魅力を1増加させ、最大20まで高めます。\n鎧も盾も装備していない間、ACは10+敏捷力修正値+魅力修正値に等しくなります。
 Feat/&FeatCharismaticDefenseTitle=魅力の防御
-Feat/&FeatWiseDefenseDescription=判断力を 1 増加させ、最大 20 まで高めます。\n鎧も盾も装備していない間、ACは10 + 敏捷力修正値 + 判断力修正値に等しくなります。
+Feat/&FeatWiseDefenseDescription=判断力を1増加させ、最大20まで高めます。\n鎧も盾も装備していない間、ACは10+敏捷力修正値+判断力修正値に等しくなります。
 Feat/&FeatWiseDefenseTitle=判断力の防御

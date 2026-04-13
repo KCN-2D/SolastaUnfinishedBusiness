@@ -1,4 +1,4 @@
-Feature/&FeatureSetRoyalKnightRoyalEnvoyDescription=3レベルから、既に習熟ボーナスを加えていない【魅力】判定に、習熟ボーナスの半分を加えます。さらに、【魅力】セーヴィング・スローに習熟します。
+Feature/&FeatureSetRoyalKnightRoyalEnvoyDescription=3レベルから、既に習熟ボーナスを加えていない魅力判定に、習熟ボーナスの半分を加えます。さらに、魅力セーヴィング・スローに習熟します。
 Feature/&FeatureSetRoyalKnightRoyalEnvoyTitle=王家の使者
 Feature/&PowerRoyalKnightInspiringProtectionDescription=15レベルから、あなたの行動は仲間に戦い続ける勇気を与えます。自分から12マス以内に見える味方1体がセーヴィング・スローに失敗したとき、リアクションを使ってその味方にセーヴを再ロールさせることができます。この特徴は大休憩ごとに3回使用できます。
 Feature/&PowerRoyalKnightInspiringProtectionTitle=鼓舞の護り

@@ -30,7 +30,7 @@ Feature/&PowerAncientForestRootedDescription=木の蔓が足元から伸びて�
 Feature/&PowerAncientForestRootedTitle=根付き
 Feature/&PowerPoolAncientForestHerbalBrewDescription=次の大休憩まで持続するハーブ醸造を作成できます。作成できる総数は習熟ボーナスに等しく、各醸造ごとに次のいずれかを選びます:\n<color=#ADD8E6>防護の醸造</color>: 1時間、特定のダメージ種別への抵抗を与えます。\n<color=#ADD8E6>活力の醸造</color>: 2d4ヒット・ポイントを回復します。\n<color=#ADD8E6>毒化の醸造</color>: 1分間持続する毒として武器に塗布できます。命中した対象は、攻撃が当たるたびに1d4の毒ダメージを受けます。
 Feature/&PowerPoolAncientForestHerbalBrewTitle=ハーブ醸造
-Feature/&PowerPoolAncientForestWallOfThornsDescription=【判断力】修正値に等しい回数、《イバラの壁》を発動できます。使用回数は大休憩で回復します。
+Feature/&PowerPoolAncientForestWallOfThornsDescription=判断力修正値に等しい回数、《イバラの壁》を発動できます。使用回数は大休憩で回復します。
 Feature/&PowerPoolAncientForestWallOfThornsTitle=イバラの壁
 Feedback/&AncientForestHerbalBrewDamageAffinityAcidResistancePowerUsedWhileTravellingFormat={0}は{1}を作成します
 Feedback/&AncientForestHerbalBrewDamageAffinityLightningResistancePowerUsedWhileTravellingFormat={0}は{1}を作成します

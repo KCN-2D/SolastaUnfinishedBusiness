@@ -1,10 +1,10 @@
-FightingStyle/&ArcheryDescription=遠隔武器による攻撃ロールに +2 のボーナスを得る。
+FightingStyle/&ArcheryDescription=遠隔武器による攻撃ロールに+2のボーナスを得る。
 FightingStyle/&ArcheryTitle=弓術
-FightingStyle/&DefenseDescription=鎧を着用している間、AC に +1 のボーナスを得る。
+FightingStyle/&DefenseDescription=鎧を着用している間、ACに+1のボーナスを得る。
 FightingStyle/&DefenseTitle=防衛
-FightingStyle/&DuelingDescription=片手で近接武器を1本だけ使い、他の武器を使用していないとき、その武器のダメージ・ロールに +2 のボーナスを得る。
+FightingStyle/&DuelingDescription=片手で近接武器を1本だけ使い、他の武器を使用していないとき、その武器のダメージ・ロールに+2のボーナスを得る。
 FightingStyle/&DuelingTitle=片手武器戦闘
-FightingStyle/&GreatWeaponDescription=両手で使用する近接武器で攻撃し、ダメージ・ダイスで 1 または 2 を出したとき、そのダイスを振り直せる。新しい出目が 1 または 2 でも、その結果を採用しなければならない。この利益を得るには、その武器が両手用または多用途の特性を持っていなければならない。
+FightingStyle/&GreatWeaponDescription=両手で使用する近接武器で攻撃し、ダメージ・ダイスで1または2を出したとき、そのダイスを振り直せる。新しい出目が1または2でも、その結果を採用しなければならない。この利益を得るには、その武器が両手用または多用途の特性を持っていなければならない。
 FightingStyle/&GreatWeaponTitle=両手武器戦闘
 FightingStyle/&ProtectionDescription=あなたが見ることのできるクリーチャーが、あなたから1マス以内にいる自分以外の目標を攻撃するとき、リアクションを使用してその攻撃ロールを不利にできる。これを行うには、盾を装備していなければならない。
 FightingStyle/&ProtectionTitle=護衛

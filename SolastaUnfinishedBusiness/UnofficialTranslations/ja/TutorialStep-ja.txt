@@ -25,7 +25,7 @@ TutorialStep/&FoodDescription=インベントリに食料がないなら、物�
 TutorialStep/&FoodTitle=食べ物
 TutorialStep/&GatheringDescription=冒険を進めるには、特定の場所へパーティー全員を集めなければならないことがあります。\n\nクエストの次の段階を進めるには、全員をその区域まで連れて行く方法を見つけてください。
 TutorialStep/&GatheringTitle=パーティーを集める
-TutorialStep/&InventorySpaceDescription=キャラクターは、重荷になるまで【筋力】の5倍の重量を運べます。\n\n各アイテムには重量があります。矢のように1つのインベントリ枠へまとめられるものもありますが、その重量は合計されます。\n\n装備を回収するときは、重荷ゲージを確認してください。キャラクターの動きが遅いなら、持ちすぎていないか見直しましょう。
+TutorialStep/&InventorySpaceDescription=キャラクターは、重荷になるまで筋力の5倍の重量を運べます。\n\n各アイテムには重量があります。矢のように1つのインベントリ枠へまとめられるものもありますが、その重量は合計されます。\n\n装備を回収するときは、重荷ゲージを確認してください。キャラクターの動きが遅いなら、持ちすぎていないか見直しましょう。
 TutorialStep/&InventorySpaceTitle=在庫管理
 TutorialStep/&LightingDescription=ソラスタでは、自然光のない暗く深い場所を探索します。とくに暗視を持たないキャラクターにとっては、探索も戦闘も難しくなります。\n\nたいまつを装備したり光の呪文を唱えたりして、パーティー全体のために周囲を照らしましょう。
 TutorialStep/&LightingTitle=照明と光源
@@ -36,11 +36,11 @@ TutorialStep/&MechanismsTitle=インタラクティブなオブジェクト
 TutorialStep/&MovingCharactersDescription=地面上の目的地を左クリックすると、選択したキャラクターがその場所に移動します。\n\nカメラは自動的にそれらを追跡します。\n\nカーソルは、無効な場所をターゲットにしているかどうかを示します。
 TutorialStep/&MovingCharactersDescriptionXBox=<sprite index={4}>を使用してカーソルを移動し、<sprite index={0}>を押して、選択したキャラクターをその位置に移動します。\n\nカーソルは、無効な位置をターゲットにしているかどうかを示します。
 TutorialStep/&MovingCharactersTitle=キャラクターの移動
-TutorialStep/&OutgameCharacterCreationAbilityScores2Description=能力値は、ランダムに決める方法やポイント購入制など、いくつかの方法で決定できます。\n\n各クラスには優先される能力値があります。たとえばウィザードなら【知力】です。キャラクターの最も高い能力値が、そのクラスの主要能力になっているか確認しましょう。
+TutorialStep/&OutgameCharacterCreationAbilityScores2Description=能力値は、ランダムに決める方法やポイント購入制など、いくつかの方法で決定できます。\n\n各クラスには優先される能力値があります。たとえばウィザードなら知力です。キャラクターの最も高い能力値が、そのクラスの主要能力になっているか確認しましょう。
 TutorialStep/&OutgameCharacterCreationAbilityScores2Title=能力値の決定
 TutorialStep/&OutgameCharacterCreationAbilityScores3Description=すべての祖先は、一部の能力値へボーナスを与えます。これにより、祖先とクラスの面白い相乗効果が生まれます。\n\n能力値はレベル4、8などで増加できます。ファイターはさらに高い頻度で増加します。
 TutorialStep/&OutgameCharacterCreationAbilityScores3Title=能力値の向上
-TutorialStep/&OutgameCharacterCreationAbilityScoresDescription=能力値は、キャラクターの得意分野を決める6つの中核能力です: 【筋力】、【敏捷力】、【耐久力】、【知力】、【判断力】、【魅力】。値は3から20までです。\n\n各能力値の下にあるボーナスは、関連する判定に適用されます。たとえば【筋力】ボーナスは、筋力に基づく攻撃ロールへ加えられます。
+TutorialStep/&OutgameCharacterCreationAbilityScoresDescription=能力値は、キャラクターの得意分野を決める6つの中核能力です: 筋力、敏捷力、耐久力、知力、判断力、魅力。値は3から20までです。\n\n各能力値の下にあるボーナスは、関連する判定に適用されます。たとえば筋力ボーナスは、筋力に基づく攻撃ロールへ加えられます。
 TutorialStep/&OutgameCharacterCreationAbilityScoresTitle=能力値
 TutorialStep/&OutgameCharacterCreationAncestryDescription=キャラクター作成の最初の段階では祖先を選びます。これによって外見と、右側に表示されるゲームプレイ上の能力が決まります。\n\n一部の祖先には、キャラクターの能力をさらに絞り込める血統サブオプションがあります。
 TutorialStep/&OutgameCharacterCreationAncestryTitle=祖先の選択
@@ -91,7 +91,7 @@ TutorialStep/&Tuto01_Climbing_and_jumping2_Description=上: 筋力が 15 未満�
 TutorialStep/&Tuto01_Climbing_and_jumping2_Title=ジャンプ距離
 TutorialStep/&Tuto01_Climbing_and_jumping3_Description=一般に、優れた身体能力を持たないキャラクターにはクリティカル パスが常に開かれています。ただし、オプションの戦利品にはアクセスするのが難しい場合があります。\n\nただし、諦めないでください。この宝箱に到達する別の方法が見つかるかもしれません。
 TutorialStep/&Tuto01_Climbing_and_jumping3_Title=別経路
-TutorialStep/&Tuto01_Climbing_and_jumpingXbox_Description=ジャンプや登攀を行うには、移動先へカーソルを合わせて<sprite index={0}>を押します。\n\nキャラクターの【筋力】と〈運動〉技能への習熟に応じて、2〜5マスを跳んだり登ったりできます。\n\nさらに、常に2マスぶん跳び越え、3マスぶん飛び降り、1マスぶんよじ登れます。はしごやロープのような登りやすい場所なら問題なく登れます。
+TutorialStep/&Tuto01_Climbing_and_jumpingXbox_Description=ジャンプや登攀を行うには、移動先へカーソルを合わせて<sprite index={0}>を押します。\n\nキャラクターの筋力と〈運動〉技能への習熟に応じて、2〜5マスを跳んだり登ったりできます。\n\nさらに、常に2マスぶん跳び越え、3マスぶん飛び降り、1マスぶんよじ登れます。はしごやロープのような登りやすい場所なら問題なく登れます。
 TutorialStep/&Tuto01_Climbing_and_jumping_Description=ジャンプしたり登ったりするには、目的地をクリックするだけです。\n\nキャラクターの筋力と陸上競技の習熟度に応じて、2 ～ 5マスの間でジャンプしたり登ったりできます。\n\nいつでも 2マスを飛び越えることができます。マスを移動し、3 つのマスを落として 1 つのマスを登ったり、はしごやロープなどの簡単な面を問題なく登ったりできます。
 TutorialStep/&Tuto01_Climbing_and_jumping_Title=木登りとジャンプ
 TutorialStep/&Tuto01_CrawlingXbox_Description=穴をくぐり抜けるには、穴の近くへカーソルを合わせて<sprite index={0}>を押します。\n\nカメラを回転すると、向こう側が見やすくなります。<sprite index={23}>を使うか、<sprite index={4}>でカメラを動かしてください。\n\nキャラクターは目的地へ向かう途中で、必要に応じて自動的にしゃがみ、這い進み、立ち上がります。
@@ -135,7 +135,7 @@ TutorialStep/&Tuto03_Cautious_Description=慎重モードを使えば、隠密�
 TutorialStep/&Tuto03_Cautious_Title=ステルス
 TutorialStep/&Tuto03_Disarm2_Description=一部のトラップは、トリガーすることによってのみ解除できます。\n\nトラップの解除に失敗した場合は、トリガーするかロックするか、もう一度試す必要があります。
 TutorialStep/&Tuto03_Disarm2_Title=罠の解除
-TutorialStep/&Tuto03_DisarmXbox_Description=罠を解除するには、まず罠を発見しなければなりません。未発見の罠が仕掛けられた宝箱を開けたり解錠しようとしたりすると、作動させた瞬間に初めて罠の存在に気づきます。\n\n罠の解除を試みるには、その罠へカーソルを合わせて<sprite index={0}>を押します。成功には【敏捷力】判定が必要です。盗賊道具に習熟していれば役立ちます。
+TutorialStep/&Tuto03_DisarmXbox_Description=罠を解除するには、まず罠を発見しなければなりません。未発見の罠が仕掛けられた宝箱を開けたり解錠しようとしたりすると、作動させた瞬間に初めて罠の存在に気づきます。\n\n罠の解除を試みるには、その罠へカーソルを合わせて<sprite index={0}>を押します。成功には敏捷力判定が必要です。盗賊道具に習熟していれば役立ちます。
 TutorialStep/&Tuto03_Disarm_Description=トラップを解除するには、まずトラップを検出する必要があります。検出されていない罠が仕掛けられたチェストを開けたり、ロックピックしたりしようとすると、罠を起動したときに初めてその罠について知ることができます!\n\n罠の解除を試みるには、罠の上にマウスを置いてください。そして左クリックします。敏捷力チェックに成功する必要があります。泥棒の道具は、使いこなせば役に立ちます。
 TutorialStep/&Tuto03_Disarm_Title=罠の解除
 TutorialStep/&Tuto03_LockpickXbox_Description=解錠を試みるには、<sprite index={4}>でカーソルを動かして鍵のかかった扉へ合わせ、<sprite index={0}>を押します。\n\nパーティー全体を選択している場合、その作業には最も熟練したキャラクターが自動的に選ばれます。\n\n解錠を試みるには、インベントリに盗賊道具が必要です。盗賊道具に習熟していれば役立ちます。
@@ -153,7 +153,7 @@ TutorialStep/&Tuto04_Dashing_Description=黄色のエリア内のポイントに
 TutorialStep/&Tuto04_Dashing_Title=早足
 TutorialStep/&Tuto04_Disengaging_Description=機会攻撃を回避するには、「離脱」アクションを使用できます。ターンの残りの間、機会攻撃を受けることなく自由に移動できます。\n\nただし、離脱にはアクションが使われるため、このターン中は攻撃したり早足したりすることはできません。
 TutorialStep/&Tuto04_Disengaging_Title=離脱中
-TutorialStep/&Tuto04_DodgingXbox_Description=<sprite index={2}>を押すと、回避など別のアクションも選べます。\n\n回避を選ぶとメイン・アクションを使用し、次の利点を得ます。\n\n次のターンの開始まで、あなたが見ることのできる攻撃者は全員、あなたへの攻撃ロールに不利を受けます。また、あなたは【敏捷力】セーヴに有利を得ます。
+TutorialStep/&Tuto04_DodgingXbox_Description=<sprite index={2}>を押すと、回避など別のアクションも選べます。\n\n回避を選ぶとメイン・アクションを使用し、次の利点を得ます。\n\n次のターンの開始まで、あなたが見ることのできる攻撃者は全員、あなたへの攻撃ロールに不利を受けます。また、あなたは敏捷力セーヴに有利を得ます。
 TutorialStep/&Tuto04_Dodging_Description=回避をクリックすると、アクションが使用され、次の利点が得られます:\n\n次のターンの開始まで、目に見えるすべての攻撃者は攻撃ロールで不利になり、あなたは敏捷力セーヴィング・スローで有利になります。
 TutorialStep/&Tuto04_Dodging_Title=回避
 TutorialStep/&Tuto04_Opportunity_Description=クリーチャーがそれを見ることができる敵の手の届かないところに移動すると、その敵はその反応を利用して近接攻撃を行うことができます。\n\nもちろん、機会攻撃を使用することもできます。\n\n敵の近接攻撃範囲内にいるときは常に注意してください。ただ立ち去ることはできません。

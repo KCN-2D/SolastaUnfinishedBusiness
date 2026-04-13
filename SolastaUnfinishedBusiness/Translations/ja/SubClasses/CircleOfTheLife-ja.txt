@@ -1,10 +1,10 @@
-Condition/&ConditionCircleOfTheLifeRevitalizingBoonDescription=【耐久力】セーヴィング・スローに有利を得て、死霊ダメージへの抵抗を得ます。
+Condition/&ConditionCircleOfTheLifeRevitalizingBoonDescription=耐久力セーヴィング・スローに有利を得て、死霊ダメージへの抵抗を得ます。
 Condition/&ConditionCircleOfTheLifeRevitalizingBoonTitle=活力の恩恵
 Condition/&ConditionCircleOfTheLifeSeedOfLifeDescription=1分間、自分の各ターン開始時に、術者の習熟ボーナスに等しいヒット・ポイントを回復します。終了時に、術者レベルの2倍に等しいヒット・ポイントを回復します。
 Condition/&ConditionCircleOfTheLifeSeedOfLifeTitle=生命の種
 Condition/&ConditionCircleOfTheLifeVerdancyDescription=3ラウンドの間、自分の各ターン開始時に、発動した呪文のレベルに等しいヒット・ポイントを回復します。
 Condition/&ConditionCircleOfTheLifeVerdancyTitle=繁茂
-Feature/&FeatureCircleOfTheLifeRevitalizingBoonDescription=10レベル以降、《繁茂》または《生命の種》の効果を受けているクリーチャーは、【耐久力】セーヴィング・スローに有利を得て、死霊ダメージへの抵抗を得ます。
+Feature/&FeatureCircleOfTheLifeRevitalizingBoonDescription=10レベル以降、《繁茂》または《生命の種》の効果を受けているクリーチャーは、耐久力セーヴィング・スローに有利を得て、死霊ダメージへの抵抗を得ます。
 Feature/&FeatureCircleOfTheLifeRevitalizingBoonTitle=活力の恩恵
 Feature/&FeatureCircleOfTheLifeVerdancyDescription=2レベル以降、1レベル以上の治癒呪文でクリーチャーを回復するたび、または《初級回復術》や《上級回復術》の効果を与えるたび、そのクリーチャーは3ラウンドの間、自分の各ターン開始時に、発動した呪文のレベルに等しいヒット・ポイントも回復します。クリーチャーが気絶状態になると、この回復効果は終了します。この効果は重複します。
 Feature/&FeatureCircleOfTheLifeVerdancyTitle=繁茂

@@ -1,11 +1,11 @@
 Background/&PointPoolBackgroundSkillSelect1Description=技能習熟を1つ選択します。
-Background/&PointPoolBackgroundSkillSelect1Title=スキル
+Background/&PointPoolBackgroundSkillSelect1Title=技能
 Background/&PointPoolBackgroundSkillSelect2Description=技能習熟を2つ選択します。
-Background/&PointPoolBackgroundSkillSelect2Title=スキル
+Background/&PointPoolBackgroundSkillSelect2Title=技能
 Background/&PointPoolBackgroundSkillSelect3Description=技能習熟を3つ選択します。
-Background/&PointPoolBackgroundSkillSelect3Title=スキル
+Background/&PointPoolBackgroundSkillSelect3Title=技能
 Background/&PointPoolBackgroundToolSelect2Description=道具習熟を2つ選択します。
-Background/&PointPoolBackgroundToolSelect2Title=ツール
+Background/&PointPoolBackgroundToolSelect2Title=道具
 Background/&PointPoolBackgroundToolSelectDescription=道具習熟を1つ選択します。
 Background/&PointPoolBackgroundToolSelectTitle=道具
 Background/&SuggestedSkillsTitle=推奨技能

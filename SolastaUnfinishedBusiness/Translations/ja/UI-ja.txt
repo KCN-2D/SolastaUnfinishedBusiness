@@ -1,12 +1,12 @@
 Failure/&FailureFlagTargetOutOfRangeStrength=対象が射程外です（筋力）
 Feature/&ListSeparatorTitle=, 
-Tutorial/&TutorialActionSwitchingDescription=利用可能なメイン・アクションまたはボーナス・アクションが複数ある場合、アクション・ステータス・シンボルをクリックして現在有効なアクションを切り替えられます。これにより、加速やホードブレイカーで攻撃した後、通常のアクションで呪文を発動するなど、必要な組み合わせを選べます。\nアクション・ステータス・シンボルにカーソルを合わせると、そのアクションを与えている特徴や状態の名前がツールチップに表示されます。
+Tutorial/&TutorialActionSwitchingDescription=利用可能なアクションまたはボーナス・アクションが複数ある場合、アクション・ステータス・シンボルをクリックして現在有効なアクションを切り替えられます。これにより、加速やホードブレイカーで攻撃した後、通常のアクションで呪文を発動するなど、必要な組み合わせを選べます。\nアクション・ステータス・シンボルにカーソルを合わせると、そのアクションを付与した特徴や状態の名前がツールチップに表示されます。
 Tutorial/&TutorialActionSwitchingTitle=複数のアクション
 UI/&Add=追加
-UI/&AdditionalActionSource=付与者: {0}
+UI/&AdditionalActionSource=付与元: {0}
 UI/&Current Party=現在のパーティー
 UI/&DistanceFormat=距離: {0}
-UI/&Experimental Preview:=実験的プレビュー<i><color=Yellow>[使用前にバックアップを保存]</color></i>:
+UI/&Experimental Preview:=実験的プレビュー <i><color=Yellow>[使用前にバックアップを保存]</color></i>:
 UI/&Expert=専門家
 UI/&From=から
 UI/&LootAllGoldTitle=金

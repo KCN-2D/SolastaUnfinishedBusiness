@@ -270,12 +270,12 @@ Feedback/&InitiativeCaption=主導権
 Feedback/&InitiativeConsoleLine={0} がイニシアチブをロールします: {1} = {2}
 Feedback/&InitiativeConsoleLineAdvantage={0} はイニシアチブをロールします{1}: {2} = {3}
 Feedback/&InitiativeFormat=イニシアチブ {0}
-Feedback/&InsightAutomaticFailureLine={0} は〈看破〉（【判断力】）判定に自動的に失敗します。ダイアログの成功確率は非表示になります。
-Feedback/&InsightAutomaticSuccessLine={0} は〈看破〉（【判断力】）判定に自動的に成功します。ダイアログの成功確率が表示されます。
-Feedback/&InsightCriticalFailureLine={0} は〈看破〉（【判断力】）判定でクリティカル失敗しました。ダイアログの成功確率は非表示になります。
-Feedback/&InsightCriticalSuccessLine={0} は〈看破〉（【判断力】）判定でクリティカル成功しました。ダイアログの成功確率が表示されます。
-Feedback/&InsightFailureLine={0} は〈看破〉（【判断力】）判定に失敗しました。ダイアログの成功確率は非表示になります。
-Feedback/&InsightSuccessLine={0} は〈看破〉（【判断力】）判定に成功しました。ダイアログの成功確率が表示されます。
+Feedback/&InsightAutomaticFailureLine={0} は〈看破〉（判断力）判定に自動的に失敗します。ダイアログの成功確率は非表示になります。
+Feedback/&InsightAutomaticSuccessLine={0} は〈看破〉（判断力）判定に自動的に成功します。ダイアログの成功確率が表示されます。
+Feedback/&InsightCriticalFailureLine={0} は〈看破〉（判断力）判定でクリティカル失敗しました。ダイアログの成功確率は非表示になります。
+Feedback/&InsightCriticalSuccessLine={0} は〈看破〉（判断力）判定でクリティカル成功しました。ダイアログの成功確率が表示されます。
+Feedback/&InsightFailureLine={0} は〈看破〉（判断力）判定に失敗しました。ダイアログの成功確率は非表示になります。
+Feedback/&InsightSuccessLine={0} は〈看破〉（判断力）判定に成功しました。ダイアログの成功確率が表示されます。
 Feedback/&InstantDeathPreventedLine={1} 効果のおかげで、{0} は即死されなくなります。
 Feedback/&InvalidSaveFileDescription=無効な保存されたゲームファイル
 Feedback/&InvestigationClueFoundLine={0}に関する新しい手がかりが発見されました。
