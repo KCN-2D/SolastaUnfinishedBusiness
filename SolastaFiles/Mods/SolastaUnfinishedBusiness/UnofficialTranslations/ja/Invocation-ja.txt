@@ -1,8 +1,8 @@
 Invocation/&AgonizingBlastDescription=〈怪光線〉 を発動すると、ヒット時に与えるダメージに 魅力 修正値が追加されます。
 Invocation/&AgonizingBlastTitle=アゴナイジングブラスト
-Invocation/&ArmorOfShadowsDescription=スペルスロットやマテリアルコンポーネントを消費せずに、自分自身に〈魔道士の鎧〉を自由に唱えることができます。
+Invocation/&ArmorOfShadowsDescription=呪文スロットや物質要素を消費せずに、自分自身に〈魔道士の鎧〉を自由に唱えることができます。
 Invocation/&ArmorOfShadowsTitle=影の鎧
-Invocation/&AscendantStepDescription=スペルスロットやマテリアルコンポーネントを消費することなく、自由に自分自身に 〈空中浮揚〉 を唱えることができます。
+Invocation/&AscendantStepDescription=呪文スロットや物質要素を消費することなく、自由に自分自身に〈空中浮揚〉を唱えることができます。
 Invocation/&AscendantStepTitle=アセンダントステップ
 Invocation/&BeguilingInfluenceDescription=あなたは欺瞞と説得のスキルに習熟します。すでに熟練している場合は、代わりに専門知識を取得してください。
 Invocation/&BeguilingInfluenceTitle=魅惑的な影響力
