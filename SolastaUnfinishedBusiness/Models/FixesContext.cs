@@ -87,6 +87,7 @@ internal static class FixesContext
         FixMeleeRetaliationWithReach();
         FixMountaineerBonusShoveRestrictions();
         FixMummyDreadfulGlareSavingAttribute();
+        FixRoguishHoodlumDirtyFightingDifficultyAbility();
         FixPowerDragonbornBreathWeaponDiceProgression();
         FixRecklessAttackForReachWeaponsAndPathOfTheYeoman();
         FixRestPowerVisibility();
@@ -429,6 +430,11 @@ internal static class FixesContext
     {
         Power_Mummy_DreadfulGlare.EffectDescription.savingThrowAbility = Wisdom;
         Power_MummyLord_DreadfulGlare.EffectDescription.savingThrowAbility = Wisdom;
+    }
+
+    private static void FixRoguishHoodlumDirtyFightingDifficultyAbility()
+    {
+        PowerRoguishHoodlumDirtyFighting.EffectDescription.savingThrowDifficultyAbility = Strength;
     }
 
     private static void FixAdditionalDamageRestrictions()
