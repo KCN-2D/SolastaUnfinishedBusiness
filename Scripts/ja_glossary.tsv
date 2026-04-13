@@ -455,6 +455,10 @@ Versatility Switch	術式切替	バーサティリティ切替|汎用性切替|V
 Feat Eldritch Versatility Adept	妖術術式の達人	エルドリッチ・バーサティリティの達人|Feat Eldritch Versatility Adept	feat	repo 内特技名を自然な日本語へ統一。
 Dash	早足	ダッシュ|Dash	action	アクション名は公式和訳を優先。
 Break Free	脱出	ブレイク・フリー|Break Free	action	アクション名は公式和訳を優先。
+grapple	組みつき	グラップル|Grapple	action	アクション名は組みつきに統一。
+Disable Grapple	組みつきを解除	グラップルを無効にする|Disable Grapple	action	アクション名は組みつきを解除に統一。
+grappling	組みつき中	グラップリング|Grappling	condition	状態名は組みつき中に統一。
+grappled	つかまれた状態	Grappled	condition	状態名はつかまれた状態を優先。
 Beacon of Hope	希望のともしび	ビーコン・オブ・ホープ|希望の灯台|Beacon of Hope	spell	呪文名と関連状態名を統一。
 Deflect Missiles	矢止め	ミサイルをそらす|ミサイル攻撃|Deflect Missiles	feature	モンク特徴名は公式和訳を優先。
 Return Missile	矢返し	リターンミサイル|Return Missile	feature	repo 内特徴名を自然な日本語へ統一。
@@ -463,7 +467,11 @@ Pass (Screen)	スキップ	Pass|Skip	screen	screen の汎用 pass / skip はス�
 At Road's End	旅路の果て	アット・ロードズ・エンド|At Road's End	feature	repo 内特徴名を自然な日本語へ統一。
 Redscar Orc	レッドスカー族のオーク	レッドスカー オーク|Redscar Orc	creature	repo 内勢力付きクリーチャー名を自然な日本語へ統一。
 Badlands Spider	バッドランズ・スパイダー	バッドランズ スパイダー|Badlands Spider	creature	repo 内クリーチャー名を自然な日本語へ統一。
-Versatility	バーサティリティ	汎用性|Versatility	ui	repo 内用語を自然な日本語へ統一。
+Plane Magic	次元魔法	プレーンマジック|Plane Magic	ui	repo 内特技グループ名を自然な日本語へ統一。
+Channel Plane Magic	次元魔法を行使	チャンネルプレーンマジック|Channel Plane Magic	action	repo 内アクション名を自然な日本語へ統一。
+Seeking Spell	追尾呪文	シーキング・スペル|Seeking Spell	class_feature	ソーサラーの呪文修正能力名を統一。
+Magical Cunning	魔法の狡猾さ	Magical Cunning	class_feature	2024 ウォーロック特徴名を統一。
+Eldritch Master	呪文復活	エルドリッチマスター|異界のマスター|Eldritch Master	class_feature	ウォーロック特徴名は公式和訳を優先。
 Hold Person	対人金縛り	ホールド・パースン|Hold Person	spell	システム文では漢字和訳を優先。
 Illuminated	照らされた	イルミネーション付き|Illuminated	condition	repo 内状態名を自然な日本語へ統一。
 Illuminating Burst	照らしの爆発	イルミネイティングバースト|Illuminating Burst	feature	repo 内特徴名を自然な日本語へ統一。
