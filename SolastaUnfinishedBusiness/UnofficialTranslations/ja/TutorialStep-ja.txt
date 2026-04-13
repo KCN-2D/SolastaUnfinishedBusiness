@@ -246,7 +246,7 @@ TutorialStep/&Tuto_TDLC1_T2_OutpostControl_Description=前哨基地を管理す�
 TutorialStep/&Tuto_TDLC1_T2_OutpostControl_Title=前哨基地のコントロール
 TutorialStep/&Tuto_TeamBalance_Description=バランスのとれたパーティは、どんな状況でも生き残る可能性が高くなります。たとえば、ダメージ ディーラー (ファイター) 1 人、ヒーラー (クレリック) 1 人、マジック ユーザー (ウィザード) 1 人、ステルス キャラクター (ローグ) 1 人で、古典的なバランスの取れたパーティーを構成します。\nパラディンはダメージ ディーラー、ヒーラー、マジック ユーザーを組み合わせたもので、3 つの分野すべてで何らかの能力を備えています。同様に、レンジャーはダメージ ディーラーであり、ステルス キャラクターであり、魔法のユーザーでもあります。\n選択肢が大幅に制限されるため、同じクラスのキャラクターを 2 つまたは 3 つ持つことは避けるのが最善です。同じクラスが 4 人いるとさらに最悪です。でも、ここはあなたのパーティーです。
 TutorialStep/&Tuto_TeamBalance_Title=パーティーバランス
-TutorialStep/&Tuto_Telema_CameraElevationXbpx_Description=フリー カメラは通常、地面の標高に従います。\n\nナビゲーション ゾーンが重なっている場合は、<sprite index={7}> を 1 回押してから <sprite index={22}> を移動すると、カメラを上下に移動できます。。このモードを終了するには、もう一度 <sprite index={7}> を押します。
+TutorialStep/&Tuto_Telema_CameraElevationXbpx_Description=フリー カメラは通常、地面の標高に従います。\n\nナビゲーション ゾーンが重なっている場合は、<sprite index={7}> を1回押してから <sprite index={22}> を移動すると、カメラを上下に移動できます。。このモードを終了するには、もう一度 <sprite index={7}> を押します。
 TutorialStep/&Tuto_Telema_CameraElevation_Description=通常、フリー カメラは地面の標高に従います。\n\nナビゲーション ゾーンが重なっている場合は、マウス ホイールまたはコンパスの矢印ボタンを使用してカメラを上下に移動できます。\n\nコンパスの矢印が表示されます。このような状況では、身長差が大きい場合には画面上にアイコンが表示されます。
 TutorialStep/&Tuto_Telema_CameraElevation_Title=カメラの仰角
 TutorialStep/&Tuto_Telema_Crafting2_Description=キャラクターのインベントリで作成画面を開き、〈魔法の矢〉の巻物を選択します。ヴァイオレットは必要な材料を使って魔法のインクを作り、その後で巻物を書き上げます。\n\nこれには何時間もかかるため、旅の途中の休憩時間を利用する必要があります。テレマの遺跡を探索している間は巻物を書き上げられません。
@@ -265,7 +265,7 @@ TutorialStep/&Tuto_WarlockInvocations01_Description=発動は、ウォーロッ�
 TutorialStep/&Tuto_WarlockInvocations01_Title=ウォーロックの妖術
 TutorialStep/&Tuto_WarlockSpells01_Description=ウォーロックは、固有の呪文スロットのプールを使用して呪文を唱える特定の方法を持っています。\nこのプールは小さいですが、ウォーロックの呪文スロットは小休憩で再充電され、新しい呪文レベルを得るにつれて呪文スロットのレベルも増加します。\nたとえば、レベル 3 の呪文を習得したウォーロックは、すべての呪文を第 3 レベルのスロットで唱え、利用可能な場合はより低いレベルの呪文をアップキャストします。
 TutorialStep/&Tuto_WarlockSpells01_Title=ウォーロックの呪文
-TutorialStep/&Tuto_WarlockSpells02_Description=ウォーロックが 9 レベルに達すると、呪文スロットは 5 レベルのままになります。\n11 レベルで、ウォーロックはミスティック アルカナムを獲得し、1 日に 1 回唱えることができる 6 レベルの呪文を選択できるようになります。\n13 レベルでは、7 レベルのミスティック アルカナムがロック解除されます。
+TutorialStep/&Tuto_WarlockSpells02_Description=ウォーロックが 9 レベルに達すると、呪文スロットは 5 レベルのままになります。\n11 レベルで、ウォーロックはミスティック アルカナムを獲得し、1 日に1回唱えることができる 6 レベルの呪文を選択できるようになります。\n13 レベルでは、7 レベルのミスティック アルカナムがロック解除されます。
 TutorialStep/&Tuto_WarlockSpells02_Title=ミスティックアルカナム
 TutorialStep/&UsingCameraDescription=右クリックしてドラッグすると、カメラ ビューを回転して視点を変更できます。\n\n画面右下のコンパスのボタンを使用するか、Q または E を押して回転することもできます。\n\n WASD または矢印キーを使用してカメラを動かし、キャラクターに焦点を合わせた状態で W キーを押し続けると、キャラクターが拡大されます。
 TutorialStep/&UsingCameraTitle=カメラの使用

@@ -1,4 +1,4 @@
-Feature/&FeatureCircleOfTheWildfireEnhancedBondDescription=野火の精霊との絆は、破壊呪文と回復呪文を強化します。野火の精霊が召喚されている間に、火ダメージを与える呪文やヒット・ポイントを回復する呪文を唱えるたびに、d8 をロールし、そのロールの数字に等しいボーナスを呪文のダメージ ロールまたは回復ロール 1 回に獲得します。
+Feature/&FeatureCircleOfTheWildfireEnhancedBondDescription=野火の精霊との絆は、破壊呪文と回復呪文を強化します。野火の精霊が召喚されている間に、火ダメージを与える呪文やヒット・ポイントを回復する呪文を唱えるたびに、d8 をロールし、そのロールの数字に等しいボーナスを呪文のダメージ ロールまたは回復ロール1回に獲得します。
 Feature/&FeatureCircleOfTheWildfireEnhancedBondTitle=強化された絆
 Feature/&PowerCircleOfTheWildfireBlazingRevivalDescription=ヒット・ポイントが 0 になって意識を失った場合、ヒット・ポイントの半分を回復し、すぐに立ち上がることができます。この機能を一度使用すると、大休憩を終了するまで再度使用することはできません。
 Feature/&PowerCircleOfTheWildfireBlazingRevivalTitle=燃える復活
@@ -12,7 +12,7 @@ Feature/&PowerCircleOfTheWildfireSummonCauterizingFlamesDescription=君は死を
 Feature/&PowerCircleOfTheWildfireSummonCauterizingFlamesTitle=焼灼炎
 Feature/&PowerCircleOfTheWildfireSummonSpiritDamageDescription=霊が現れたとき、霊の 2マス以内にいる各クリーチャー (あなた以外) は、あなたの呪文セーヴ難易度に対する敏捷力セーヴィング・スローに成功しなければならず、失敗すると 2d6 の火ダメージを受けます。
 Feature/&PowerCircleOfTheWildfireSummonSpiritDamageTitle=ワイルドファイア召喚ダメージ
-Feature/&PowerSharedPoolCircleOfTheWildfireSummonSpiritDescription=あなたは、魂に縛られた原始の精霊を召喚することができます。アクションとして、野獣の姿をとる代わりに、自然の化身を 1 回消費して野火の精霊を召喚することができます。精霊は、あなたの 6マス以内であなたが見ることができる、あなたが選んだ空いている場所に現れます。精霊が現れたとき、精霊の 2マス以内の各クリーチャー (あなた以外) は、あなたの呪文セーヴ難易度に対する敏捷セーヴィング・スローに成功しなければ、2d6 の火炎ダメージを受けます。
+Feature/&PowerSharedPoolCircleOfTheWildfireSummonSpiritDescription=あなたは、魂に縛られた原始の精霊を召喚することができます。アクションとして、野獣の姿をとる代わりに、自然の化身を1回消費して野火の精霊を召喚することができます。精霊は、あなたの 6マス以内であなたが見ることができる、あなたが選んだ空いている場所に現れます。精霊が現れたとき、精霊の 2マス以内の各クリーチャー (あなた以外) は、あなたの呪文セーヴ難易度に対する敏捷セーヴィング・スローに成功しなければ、2d6 の火炎ダメージを受けます。
 Feature/&PowerSharedPoolCircleOfTheWildfireSummonSpiritTitle=野火の精霊を召喚する
 Feedback/&SpiritBonusTitle=野火ボーナス
 Monster/&AttackWildfireSpiritDescription=遠隔武器攻撃、ワイルドファイアの呪文攻撃修正値による命中、射程 12マス、視界内のターゲット 1 つ。命中: 1d6 + PB 火炎ダメージ。

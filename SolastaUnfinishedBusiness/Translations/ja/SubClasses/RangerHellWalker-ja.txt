@@ -1,7 +1,7 @@
 Condition/&ConditionRangerHellWalkerMarkOfTheDammedDescription=各ターンの終わりに 1d6 の死霊ダメージを受け、恐怖状態になります。また、この印から受ける火ダメージ攻撃はあなたの抵抗を無視します。
 Condition/&ConditionRangerHellWalkerMarkOfTheDammedTitle=ダムドのマーク
 Failure/&MustHaveDammingStrikeCondition=ダムニング・ストライクでマークされていません
-Feature/&AdditionalDamageRangerHellWalkerDammingStrikeDescription=自分のターンに初めてクリーチャーへ攻撃を命中させたとき、呪文セーヴ難易度に対する耐久力セーヴィング・スローを行わせ、失敗した場合はそのクリーチャーをマークできます。マークされたクリーチャーは 1 分間、各ターンの開始時に 1d6 の火ダメージを受けます。各ターンの終わりにこのセーヴィング・スローを繰り返し、成功すると効果は終了します。
+Feature/&AdditionalDamageRangerHellWalkerDammingStrikeDescription=自分のターンに初めてクリーチャーへ攻撃を命中させたとき、呪文セーヴ難易度に対する耐久力セーヴィング・スローを行わせ、失敗した場合はそのクリーチャーをマークできます。マークされたクリーチャーは1分間、各ターンの開始時に 1d6 の火ダメージを受けます。各ターンの終わりにこのセーヴィング・スローを繰り返し、成功すると効果は終了します。
 Feature/&AdditionalDamageRangerHellWalkerDammingStrikeTitle=ダムニング・ストライク
 Feature/&AutoPreparedSpellsRangerHellWalkerDescription=アクションとして <b>サッピング・スティング</b> を発動できます。また、以下の呪文をボーナス呪文として獲得します。これらはレンジャー呪文とみなされ、修得呪文数には数えません:\n{0}
 Feature/&AutoPreparedSpellsRangerHellWalkerTitle=ヘルウォーカーの魔法
@@ -9,7 +9,7 @@ Feature/&FeatureSetRangerHellWalkerBurningConstitutionDescription=あなたの�
 Feature/&FeatureSetRangerHellWalkerBurningConstitutionTitle=燃える耐久力
 Feature/&PowerRangerHellWalkerFiendishSpawnDescription=あなたの地獄めいた魔法により、下層界のフィーンドを限定的に支配できるようになりました。1 分間持続するフィーンドを召喚できます。大休憩を終えるまで再び使用できません。
 Feature/&PowerRangerHellWalkerFiendishSpawnTitle=フィエンディッシュスポーン
-Feature/&PowerRangerHellWalkerMarkOfTheDammedDescription=ボーナス・アクションとして、ダムニング・ストライクによってマークされたクリーチャー 1 体を選べます。選ばれたクリーチャーは、ダムニング・ストライクが有効な間、次の効果を受けます:\n・追加で 1d6 の死霊ダメージを受けます。\n・あなたに対して恐怖状態になります。\n・あなたの火ダメージ攻撃に対する抵抗を失います。\nこの効果を同時に受けられるクリーチャーは 1 体だけです。
+Feature/&PowerRangerHellWalkerMarkOfTheDammedDescription=ボーナス・アクションとして、ダムニング・ストライクによってマークされたクリーチャー1体を選べます。選ばれたクリーチャーは、ダムニング・ストライクが有効な間、次の効果を受けます:\n・追加で 1d6 の死霊ダメージを受けます。\n・あなたに対して恐怖状態になります。\n・あなたの火ダメージ攻撃に対する抵抗を失います。\nこの効果を同時に受けられるクリーチャーは1体だけです。
 Feature/&PowerRangerHellWalkerMarkOfTheDammedTitle=ダムドのマーク
 Feature/&ProficiencyRangerHellWalkerCursedTongueDescription=悪魔的な親和性により、下層界の言語を理解します。深淵語と地獄語を話し、読み書きできます。
 Feature/&ProficiencyRangerHellWalkerCursedTongueTitle=呪われた舌

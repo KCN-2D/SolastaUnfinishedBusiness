@@ -68,7 +68,7 @@ Caption/&TargetFilteringEffectProxy=魔法の効果
 Caption/&TargetFilteringEnemyCreature=敵のクリーチャー
 Caption/&TargetFilteringGadget=物体
 Caption/&TargetMultipleCaption={1} 個のターゲット ({0}) を選択します。\n\n<color=#B0B0B0>各ターゲットは複数回選択できます。</color>
-Caption/&TargetMultipleUniqueCaption={1} 個のターゲット ({0}) を選択します。\n<color=#B0B0B0>各ターゲットは 1 回だけ選択できます。</color>
+Caption/&TargetMultipleUniqueCaption={1} 個のターゲット ({0}) を選択します。\n<color=#B0B0B0>各ターゲットは1回だけ選択できます。</color>
 Caption/&TargetProximityMultipleCaption=<color=#B0B0B0>ターゲット同士は {0}マス以内にいなければなりません。</color>
 Caption/&TargetProximitySingleCaption=<color=#B0B0B0>ターゲットは隣り合っていなければなりません。</color>
 Caption/&TargetRequiredConditionCaption=<color=#B0B0B0>ターゲットは「{0}」である必要があります。</color>
@@ -76,7 +76,7 @@ Caption/&TargetRequiredCreatureTypeCaption=<color=#B0B0B0>ターゲットは {0}
 Caption/&TargetRequiredMetalArmorCaption=ターゲットは金属製の鎧を着用する必要があります
 Caption/&TargetRequiredSizeCaption=ターゲット サイズは次のようにする必要があります: {0}
 Caption/&TargetRequiredUnarmoredCaption=<color=#B0B0B0>ターゲットは非武装でなければなりません。</color>
-Caption/&TargetShareUniqueCaption=効果 ({1}) を共有するには、任意の数のターゲット ({0}) を選択します。\n\n<color=#B0B0B0>各ターゲットは 1 回だけ選択できます。</color>
+Caption/&TargetShareUniqueCaption=効果 ({1}) を共有するには、任意の数のターゲット ({0}) を選択します。\n\n<color=#B0B0B0>各ターゲットは1回だけ選択できます。</color>
 Caption/&TargetSingleCaption=ターゲット ({0}) を選択します。
 Caption/&TargetStabilizeDescription=判断力〈医術〉能力値判定を行い、この瀕死のキャラクターを安定化させようとします。
 Caption/&TargetsMustPerceiveCasterCaption=ターゲットは効果の原因を認識する必要があります。

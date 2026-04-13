@@ -1,4 +1,4 @@
-Failure/&FailureFlagTargetOutOfRangeStrength=範囲外（強度）をターゲット
+Failure/&FailureFlagTargetOutOfRangeStrength=対象が射程外です（筋力）
 Feature/&ListSeparatorTitle=, 
 Tutorial/&TutorialActionSwitchingDescription=利用可能なメイン・アクションまたはボーナス・アクションが複数ある場合、アクション・ステータス・シンボルをクリックして現在有効なアクションを切り替えられます。これにより、加速やホードブレイカーで攻撃した後、通常のアクションで呪文を発動するなど、必要な組み合わせを選べます。\nアクション・ステータス・シンボルにカーソルを合わせると、そのアクションを与えている特徴や状態の名前がツールチップに表示されます。
 Tutorial/&TutorialActionSwitchingTitle=複数のアクション
@@ -6,18 +6,18 @@ UI/&Add=追加
 UI/&AdditionalActionSource=付与者: {0}
 UI/&Current Party=現在のパーティー
 UI/&DistanceFormat=距離: {0}
-UI/&Experimental Preview:=実験的プレビュー <i><color=Yellow>[使用前にバックアップ保存]</color></i>:
+UI/&Experimental Preview:=実験的プレビュー<i><color=Yellow>[使用前にバックアップを保存]</color></i>:
 UI/&Expert=専門家
 UI/&From=から
 UI/&LootAllGoldTitle=金
-UI/&LootAllGoldTooltip=このコンテナからすべてのゴールドを略奪します。
+UI/&LootAllGoldTooltip=このコンテナ内のすべてのゴールドを回収します。
 UI/&LootAllIngredientsTitle=材料
-UI/&LootAllIngredientsTooltip=このコンテナから無重力の材料をすべて略奪します。
+UI/&LootAllIngredientsTooltip=このコンテナ内のすべての重量のない材料を回収します。
 UI/&LootAllScrollsTitle=巻物
-UI/&LootAllScrollsTooltip=このコンテナからすべての呪文の巻物を略奪します。
+UI/&LootAllScrollsTooltip=このコンテナ内のすべての呪文の巻物を回収します。
 UI/&PartyEditor=パーティーエディター
-UI/&PartyEditorMessage=このシンプルなパーティーエディターを使うと、読み込んだゲームセッションのキャラクターを編集できます。問題を報告するには、次をクリックしてください。
-UI/&PartyEditorUnavailable=****** パーティーエディターは使用できません: セーブゲームをロードしてください ******
-UI/&Quickies=クイックキー
+UI/&PartyEditorMessage=このシンプルなパーティーエディターでは、読み込んだゲームセッションのキャラクターを編集できます。問題を報告するには、次をクリックしてください。
+UI/&PartyEditorUnavailable=****** パーティーエディターは使用できません。セーブデータを読み込んでください ******
+UI/&Quickies=クイック機能
 UI/&Remove=削除
 UI/&Skilled=習熟

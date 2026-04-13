@@ -1,4 +1,4 @@
-Feature/&AdditionalDamageSorcerousSorrAkkathSpellSneakAttackDescription=攻撃ロールに有利がある場合、ターンごとに 1 回、呪文攻撃を当てたクリーチャー 1 体に追加の 1d6 ダメージを与えることができます。ターゲットの別の敵がターゲットから 1マス以内にいて、その敵が無力化されておらず、攻撃ロールで不利にならない場合、攻撃ロールで有利になる必要はありません。ダメージは 5 レベルで 2d6、11 レベルで 3d6、17 レベルで 4d6 に増加します。
+Feature/&AdditionalDamageSorcerousSorrAkkathSpellSneakAttackDescription=攻撃ロールに有利がある場合、ターンごとに1回、呪文攻撃を当てたクリーチャー1体に追加の 1d6 ダメージを与えることができます。ターゲットの別の敵がターゲットから 1マス以内にいて、その敵が無力化されておらず、攻撃ロールで不利にならない場合、攻撃ロールで有利になる必要はありません。ダメージは 5 レベルで 2d6、11 レベルで 3d6、17 レベルで 4d6 に増加します。
 Feature/&AdditionalDamageSorcerousSorrAkkathSpellSneakAttackTitle=スペルスニークアタック
 Feature/&FeatureSetSorcerousSorrAkkathBloodOfSorrAkkathDescription=6 レベルから、毒ダメージと毒状態への耐性を得ます。さらに、呪文の急所攻撃でクリーチャーに命中させると、そのクリーチャーは耐久力セーヴィング・スローを行わなければなりません。失敗すると、次のターンの終了時まで毒状態になります。
 Feature/&FeatureSetSorcerousSorrAkkathBloodOfSorrAkkathTitle=ソール・アッカスの血
