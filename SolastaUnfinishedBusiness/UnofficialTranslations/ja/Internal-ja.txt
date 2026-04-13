@@ -1,1 +1,1 @@
-Internal/&ChineseCaracters=使用されていない
+Internal/&ChineseCaracters=未使用

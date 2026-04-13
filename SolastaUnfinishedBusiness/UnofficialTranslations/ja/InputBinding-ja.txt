@@ -1,8 +1,8 @@
-InputBinding/&LeftAlt=LeftAlt+
+InputBinding/&LeftAlt=左Alt +
 InputBinding/&LeftControl=左Ctrl +
-InputBinding/&LeftShift=左シフト +
+InputBinding/&LeftShift=左Shift +
 InputBinding/&MainFormat=ショートカット: {0}
-InputBinding/&OrFormat=Or
-InputBinding/&RightAlt=右Alt+
+InputBinding/&OrFormat=または
+InputBinding/&RightAlt=右Alt +
 InputBinding/&RightControl=右Ctrl +
-InputBinding/&RightShift=右シフト +
+InputBinding/&RightShift=右Shift +

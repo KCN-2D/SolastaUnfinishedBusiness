@@ -1,4 +1,4 @@
-Race/&DragonbornDescription=ドラゴンボーンは、人型の血統を持つ多様なドラゴンの勇敢さの果実として誕生しました。マナカロン帝国ではよく受け入れられていましたが、大変動の後は秘密主義で隠遁するようになり、自立しながらも自分自身を守り続けました。
+Race/&DragonbornDescription=ドラゴンボーンは、姿を変えたドラゴンが人型種族の血統と交わった結果として生まれました。マナカロン帝国では広く受け入れられていましたが、大変動の後は用心深く孤立するようになり、自給自足しつつも距離を置いて暮らしています。
 Race/&DragonbornFemaleName10Title=マイラ
 Race/&DragonbornFemaleName11Title=ポリムニア
 Race/&DragonbornFemaleName12Title=ローダンセ
@@ -45,7 +45,7 @@ Race/&DragonbornSurName8Title=スケプトゴン
 Race/&DragonbornSurName9Title=ダイナトゴン
 Race/&DragonbornSurNameTitle=氏族
 Race/&DragonbornTitle=ドラゴンボーン
-Race/&DwarfDescription=ソラスタの古代の住人の 1 人であるドワーフは、生まれながらに熟練した鉱山労働者および職人です。塊状で頑丈な彼らは、勇敢な戦士であり、祖先の文化と伝統を守り続けています。
+Race/&DwarfDescription=ソラスタの古き住人の1つであるドワーフは、生まれながらに鉱夫や職人としての才に恵まれています。ずんぐりとして頑丈な彼らは、勇猛な戦士であり、祖先伝来の文化と伝統の守り手でもあります。
 Race/&DwarfFemaleName1Title=アンドリア
 Race/&DwarfFemaleName2Title=エリン
 Race/&DwarfFemaleName3Title=エウヒルト
@@ -76,7 +76,7 @@ Race/&DwarfSurName6Title=ベアリーブリュー
 Race/&DwarfSurName7Title=スタウトシールド
 Race/&DwarfSurNameTitle=氏族
 Race/&DwarfTitle=ドワーフ
-Race/&ElfDescription=エルフはソラスタの最も古い住人の一部であり、大変動の前には強力な帝国を統治していました。彼らは生まれながらに魔法、敏捷性、素早い才能に恵まれています。彼らは生来の抵抗力と鋭い感覚を持っています。
+Race/&ElfDescription=エルフはソラスタでも最古の住人の一部であり、大変動以前には強大な帝国を治めていました。生まれながらに魔法の素養を備え、しなやかで素早く、鋭敏な感覚と生来の抵抗力を持っています。
 Race/&ElfFemaleName10Title=キービス
 Race/&ElfFemaleName11Title=リアノール
 Race/&ElfFemaleName12Title=ベリエル
@@ -176,7 +176,7 @@ Race/&GnomeShadowDescription=ロックノームは地下に定住することを
 Race/&GnomeShadowTitle=シャドウノーム
 Race/&GnomeSurNameTitle=氏族
 Race/&GnomeTitle=ノーム
-Race/&HalfElfDescription=ティルマールからの人間の難民とソラスタンのエルフの間に生まれた<color=#B5D3DE>ハーフエルフ</color>は、両親の強さを持っています。多才でカリスマ性があり、暗視とフェイの祖先に恵まれた彼らは、常に 2 つの文化の間で引き裂かれています。
+Race/&HalfElfDescription=ティルマールからの人間の難民とソラスタのエルフの間に生まれた<color=#B5D3DE>ハーフエルフ</color>は、両親双方の長所を受け継いでいます。多才で魅力にあふれ、暗視とフェイの祖先に恵まれた彼らは、常に2つの文化の狭間で揺れ動いています。
 Race/&HalfElfFemaleName1Title=マイウェン
 Race/&HalfElfFemaleName2Title=シレンラ
 Race/&HalfElfFemaleName3Title=リラ

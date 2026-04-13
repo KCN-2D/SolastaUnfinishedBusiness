@@ -1,4 +1,4 @@
-Document/&Lightfiller_01_Content=家族以外とコミュニケーションをとらない
-Document/&Lightfiller_01_Title=Wildspring Safe キーコード
-Document/&Lightfiller_02_Content=監視員の判断でコミュニケーションを取る
-Document/&Lightfiller_02_Title=ゲストセルキー
+Document/&Lightfiller_01_Content=家族以外とは連絡を取るな
+Document/&Lightfiller_01_Title=ワイルドスプリング金庫の暗証番号
+Document/&Lightfiller_02_Content=連絡は看守の判断に任せる
+Document/&Lightfiller_02_Title=客用独房の鍵

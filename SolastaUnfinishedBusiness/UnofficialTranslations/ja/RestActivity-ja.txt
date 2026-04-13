@@ -1,12 +1,12 @@
 RestActivity/&ArcaneRecoveryDescription=1日に1回、小休憩を終えると、消費した呪文スロットのうち合計レベルがウィザード・レベルの半分（切り上げ）以下になるよう回復できます（最大5レベル）。
-RestActivity/&ArcaneRecoveryExecutedDescription=<b>秘術回復</b> を有効化すると、{0} は次の呪文スロットを取り戻すことができました。
+RestActivity/&ArcaneRecoveryExecutedDescription=<b>秘術回復</b>を使用すると、{0}は次の呪文スロットを回復できます。
 RestActivity/&ArcaneRecoveryTitle=秘術回復
-RestActivity/&AttuneItemDescription=アイテムを同調すると、その高度なプロパティと機能にアクセスできます。
+RestActivity/&AttuneItemDescription=アイテムに同調すると、その高度な特性と機能を利用できます。
 RestActivity/&AttuneItemTitle=同調
 RestActivity/&FiendishResilienceDescription=新たなダメージ種別の抵抗を選択してください。これは以前に選択した〈魔物の抵抗力〉を置き換えます。
 RestActivity/&LevelUpDescription=このキャラクターのレベルアップシーケンスを開始します。
 RestActivity/&LevelUpTitle=レベルアップ
 RestActivity/&NaturalRecoveryDescription=1日に1回、小休憩を終えると、消費した呪文スロットのうち合計レベルがドルイド・レベルの半分（切り上げ）以下になるよう回復できます（最大5レベル）。
-RestActivity/&NaturalRecoveryTitle=自然回復
+RestActivity/&NaturalRecoveryTitle=自然魔法回復
 RestActivity/&PrepareSpellsDescription=大休憩が終わったら、準備した呪文のリストを変更できます。
 RestActivity/&PrepareSpellsTitle=呪文の準備

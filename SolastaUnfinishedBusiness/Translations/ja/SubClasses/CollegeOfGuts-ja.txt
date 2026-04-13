@@ -1,4 +1,4 @@
-Feature/&PowerCollegeOfGutsArcaneDeflectionDescription=神秘的な力を使って、反応として自分自身を守ることができます。これにより、次のターンまでACが +3 されます。
-Feature/&PowerCollegeOfGutsArcaneDeflectionTitle=秘術偏向
-Subclass/&CollegeOfGutsDescription=勇気の大学の吟遊詩人たちは、ミードホールや大きな焚き火の周りに集まり、過去と現在の強者の偉業を歌います。彼らは、偉大な出来事を直接目撃し、それらの出来事の記憶が世界から消え去らないようにするために土地を旅します。彼らは歌で、昔の英雄と同じ高みに到達するよう他の人たちを鼓舞します。
-Subclass/&CollegeOfGutsTitle=勇気の大学
+Feature/&PowerCollegeOfGutsArcaneDeflectionDescription=リアクションとして秘術の力で身を守り、次の自分のターンまでACに+3のボーナスを得ます。
+Feature/&PowerCollegeOfGutsArcaneDeflectionTitle=胆力の偏向
+Subclass/&CollegeOfGutsDescription=勇の楽派の吟遊詩人は、酒宴の広間や大きな篝火の周りに集い、過去と現在の英雄たちの偉業を歌い上げます。彼らは偉大な出来事を自ら見届け、その記憶が世界から失われぬよう各地を旅します。その歌によって、古の英雄と同じ高みに至るよう人々を鼓舞するのです。
+Subclass/&CollegeOfGutsTitle=勇の楽派
