@@ -21,4 +21,4 @@ Reaction/&ReactionSpendPowerBundleWrathOfTheStormReactDescription=嵐の怒り�
 Reaction/&ReactionSpendPowerBundleWrathOfTheStormReactTitle=報復
 Reaction/&ReactionSpendPowerBundleWrathOfTheStormTitle=嵐の怒り
 Subclass/&DomainTempestDescription=嵐の領域の神々は、嵐、海、空を司ります。そこには電撃と雷鳴の神、地震の神、一部の火の神、そして暴力、肉体的な強さ、勇気を司る神々が含まれます。一部のパンテオンでは、この領域の神が他の神々を支配し、雷霆がもたらす迅速な正義で知られています。航海の民のパンテオンでは、この領域の神は海の神であり、船乗りの守護神です。嵐の神々は聖職者を遣わし、一般の人々に畏れを抱かせて正しき道へと導くか、あるいは神の怒りを避けるための供物を捧げさせます。
-Subclass/&DomainTempestTitle=嵐
+Subclass/&DomainTempestTitle=嵐の領域

@@ -1,4 +1,3 @@
-Condition/&ConditionWizardAbjurationArcaneWardDescription=あなたの秘術の防壁は有効です。
 Condition/&ConditionWizardAbjurationArcaneWardTitle=秘術の防壁
 Feature/&MagicAffinityWizardAbjurationSavant2024Description=防御術系統のウィザード呪文を2つ選び、無料で呪文書に追加します。さらに、このクラスで新しいレベルの呪文スロットを得るたび、防御術系統のウィザード呪文1つを無料で呪文書に追加できます。
 Feature/&MagicAffinityWizardAbjurationSavant2024Title=防御術の専門家

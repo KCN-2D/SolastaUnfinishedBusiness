@@ -1,8 +1,8 @@
 Feature/&AutoPreparedSpellsDeadMasterDescription={0}。
 Feature/&AutoPreparedSpellsDeadMasterTitle=デッドマスターの呪文
 Feature/&BypassSpellConcentrationDeadMasterDescription=あなたは死霊術の技法を学びました。高位発動した場合、死者を蘇らせるために集中を維持する必要はありません。
-Feature/&BypassSpellConcentrationDeadMasterTitle=高位発動：集中不要
-Feature/&FeatureSetDeadMasterNecromancyBonusDCDescription=死霊術呪文を唱えるとき、セーヴ難易度に+1ボーナスを得ます。
+Feature/&BypassSpellConcentrationDeadMasterTitle=高位発動: 集中不要
+Feature/&FeatureSetDeadMasterNecromancyBonusDCDescription=死霊術呪文を唱えるとき、呪文セーヴ難易度に+1ボーナスを得ます。
 Feature/&FeatureSetDeadMasterNecromancyBonusDCTitle=死霊術の専門家
 Feature/&SummoningAffinityDeadMasterUndeadChainsDescription=あなたが作り出したアンデッドは、ヒット・ポイント最大値がウィザード・レベルごとに2増加し、攻撃ロールに習熟ボーナスを加えます。
 Feature/&SummoningAffinityDeadMasterUndeadChainsTitle=アンデッドの鎖

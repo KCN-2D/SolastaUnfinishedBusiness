@@ -1,5 +1,5 @@
 Condition/&ConditionBlindedBySearingVengeanceTitle=逆襲の輝きで盲目
-Feature/&BonusCantripCelestialDescription=初級呪文〈光〉と〈聖なる炎〉を習得します。これらはあなたにとってウォーロックの初級呪文として扱われますが、習得できる初級呪文の数には含まれません。
+Feature/&BonusCantripCelestialDescription=初級呪文<b>〈光〉</b>と<b>〈聖なる炎〉</b>を習得します。これらはあなたにとってウォーロックの初級呪文として扱われますが、習得できる初級呪文の数には含まれません。
 Feature/&BonusCantripCelestialTitle=ボーナス初級呪文
 Feature/&FeatureSetCelestialRadiantSoulDescription=セレスチャルとのつながりにより、あなたは光輝エネルギーの導管となります。光輝ダメージへの抵抗を得ます。さらに、光輝ダメージまたは火炎ダメージを与える呪文を唱えるとき、その呪文の光輝ダメージまたは火炎ダメージのロール1つに魅力修正値を加えます。
 Feature/&FeatureSetCelestialRadiantSoulTitle=光輝の魂

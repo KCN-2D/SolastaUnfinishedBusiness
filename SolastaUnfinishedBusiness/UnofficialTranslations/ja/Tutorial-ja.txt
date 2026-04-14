@@ -1,6 +1,6 @@
 Tutorials/&Tuto_Attack_Neutral_Description=中立のキャラクターを攻撃するには、パーティーを慎重モードにし、対象へ近づいて攻撃オプションか呪文を選びます。対象のキャラクターを狙って決定してください。相手が友好的だった場合は関係が悪化し、そのキャラクターが報復してくるほど敵対するかもしれません。
 Tutorials/&Tuto_Attack_Neutral_Title=中立キャラクターを攻撃する
-Tutorials/&Tuto_DLCFaction_Forge_Description=《魔術師の王冠》のスカベンジャーのように、フォージは戦利品を回収してくれるため、持ち運びを気にする必要がありません。さらに、谷中から集めた魔法の品や高価な財宝、素晴らしいアイテムを作る珍しいレシピなど、独自の秘蔵品も扱っています。
+Tutorials/&Tuto_DLCFaction_Forge_Description=〈魔術師の王冠〉のスカベンジャーのように、フォージは戦利品を回収してくれるため、持ち運びを気にする必要がありません。さらに、谷中から集めた魔法の品や高価な財宝、素晴らしいアイテムを作る珍しいレシピなど、独自の秘蔵品も扱っています。
 Tutorials/&Tuto_DLCFaction_Forge_Title=派閥: フォージ
 Tutorials/&Tuto_DLCFaction_Mask_Description=マスクは非常に秘密主義の組織です。目標ははっきりしませんが、権力を求める指導者を中心に動いているようです。彼らはあなたに谷へ不和と混乱をまくよう求め、その見返りを約束しますが……何を与えるつもりなのか、それもまた不明です。
 Tutorials/&Tuto_DLCFaction_Mask_Title=派閥: マスク
@@ -11,7 +11,7 @@ Tutorials/&Tuto_DLCFaction_People_Title=派閥: 民衆
 Tutorials/&Tuto_DLCFaction_Rebellion_Description=反乱軍は、オレネティスとドミニオンの打倒を目指す組織です。彼らは当局へ公然と立ち向かい、その大義のために命を懸けるよう求めてきます。うまくいけば、マリン・ヴィングに関する情報を返礼として与え、谷から脱出する手助けもしてくれるでしょう。さらに、分け与えられる古代の魔法の秘宝も持っています。
 Tutorials/&Tuto_DLCFaction_Rebellion_Title=派閥: 反乱軍
 Tutorials/&Tuto_DLC_Companions=仲間
-Tutorials/&Tuto_DLC_Companions_Description=《失われた谷》では、すべてのNPCが死亡する可能性があります。中には一時的にパーティーへ加わる者もいますが、彼らが死んでも通常どおりゲームを続けられます。\n\n解放済みの人数が多くても、ヘリア・フェアブレードの仲間は1人しか雇えません。
+Tutorials/&Tuto_DLC_Companions_Description=〈失われた谷〉では、すべてのNPCが死亡する可能性があります。中には一時的にパーティーへ加わる者もいますが、彼らが死んでも通常どおりゲームを続けられます。\n\n解放済みの人数が多くても、ヘリア・フェアブレードの仲間は1人しか雇えません。
 Tutorials/&Tutorial_DLC_HiddenMinorGate_Description=小門はこの茂みの中に隠れています。葉を壊せばゲートへ近づいて使用できます。
 Tutorials/&Tutorial_DLC_HiddenMinorGate_Title=隠された小門
 Tutorials/&Tutorial_DLC_PushTree_Description=冒険中は、動かせるオブジェクトを押して英雄たちの通り道を作る必要がよくあります。ジャングルの木が典型例ですが、岩や柱なども押せます。\n\n〈運動〉技能や、〈跳躍〉、〈飛行〉、瞬間移動のような呪文を持っていないと、一部の道は通れないことがあります。

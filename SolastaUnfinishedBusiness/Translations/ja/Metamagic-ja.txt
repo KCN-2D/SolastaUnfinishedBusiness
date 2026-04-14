@@ -1,11 +1,11 @@
 Failure/&FailureFlagSpellMustBeOfTargetArea=呪文には円錐、立方体、円柱、または球の効果範囲が必要です
 Failure/&FailureFlagSpellMustHaveDamageForm=呪文には少なくとも1つのダメージ効果が必要です
-Failure/&FailureFlagSpellMustRequireConcentration=呪文は精神集中を必要とします
+Failure/&FailureFlagSpellMustRequireConcentration=呪文は集中を必要とします
 Failure/&FailureFlagSpellRangeMustBeSelf=呪文の射程は自身でなければなりません
 Failure/&FailureSeekingSpell=呪文追尾は呪文攻撃が外れた後にのみ使用できます
 Failure/&FailureTransmutedSpell=この呪文は、酸、冷気、火、電撃、毒、雷鳴のいずれかのダメージ種別を与える必要があります。
 Feature/&MetamagicAltruisticSpellAllyDescription=自分ではなく6マス以内の味方を対象にする呪文を作成します。
-Feature/&MetamagicAltruisticSpellAllyTitle=共有魔法、味方のみ
+Feature/&MetamagicAltruisticSpellAllyTitle=共有呪文、味方のみ
 Feature/&MetamagicAltruisticSpellDescription=自分自身を対象とした呪文を唱えるとき、代わりに1魔力点を消費して6マス以内の味方に影響を与えることができます。または、3魔力点を消費して自分自身と6マス以内の味方の両方に影響を与えることもできます。
 Feature/&MetamagicAltruisticSpellSelfDescription=自分自身に加えて、6マス以内の味方を対象にする呪文を作成します。
 Feature/&MetamagicAltruisticSpellSelfTitle=共有呪文、味方+自分

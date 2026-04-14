@@ -1,7 +1,7 @@
 Feature/&AdditionalDamageInfusionMajorElementalDescription=この武器による攻撃は追加で1d4の{0}ダメージを与えます。
-Feature/&AdditionalDamageInfusionMajorElementalTitle=上級属性[{0}]
+Feature/&AdditionalDamageInfusionMajorElementalTitle=上級属性［{0}］
 Feature/&AdditionalDamageInfusionMinorElementalDescription=ターンに1回、この武器でクリーチャーに命中したとき、追加で1d6の{0}ダメージを与えます。
-Feature/&AdditionalDamageInfusionMinorElementalTitle=下級属性[{0}]
+Feature/&AdditionalDamageInfusionMinorElementalTitle=下級属性［{0}］
 Feature/&InfusionBloodyDescription=ターンに1回、この武器で急所攻撃と同じ条件を満たす攻撃を命中させたとき、追加で2d6ダメージを与えます。\n武器1つにつき、追加ダメージ系の魔具化式は1つしか有効にできません。
 Feature/&InfusionBloodyTitle=血染め
 Feature/&InfusionEnhanceArcaneFocusDescription=スタッフまたは呪文発動焦点具に魔具化式を施すと、呪文攻撃ロールに+1のボーナスを得て、敵の遮蔽を無視できます。\nアーティフィサー・クラスのレベル10に達すると、ボーナスは+2に増加します。
