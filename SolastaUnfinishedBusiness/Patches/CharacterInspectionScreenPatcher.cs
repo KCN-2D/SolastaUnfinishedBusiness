@@ -23,6 +23,7 @@ public static class CharacterInspectionScreenPatcher
 
             //PATCH: sets the inspection context for MC heroes
             Global.InspectedHero = heroCharacter;
+            CharacterInspectionScreenEnhancement.ResetInspectionState();
 
             //PATCH: gets more real state for the toggles on top (MULTICLASS)
             var transform = __instance.toggleGroup.transform;
@@ -38,19 +39,17 @@ public static class CharacterInspectionScreenPatcher
             SpellPointsContext.DisplayMaxSpellPointsOnInspectionScreen(__instance, heroCharacter);
 
             //PATCH: hide repertoires that have hidden spell casting feature
-            for (var index = 3; index < __instance.toggleGroup.transform.childCount; ++index)
+            for (var index = __instance.staticTogglesNumber; index < __instance.toggleGroup.transform.childCount; ++index)
             {
                 var child = __instance.toggleGroup.transform.GetChild(index);
+                var repertoireIndex = index - __instance.staticTogglesNumber;
 
-                if (index <= 3)
+                if (repertoireIndex < 0 || repertoireIndex >= heroCharacter.SpellRepertoires.Count)
                 {
-                    if (Gui.Game)
-                    {
-                        continue;
-                    }
+                    continue;
                 }
 
-                var repertoire = heroCharacter.SpellRepertoires[index - __instance.staticTogglesNumber];
+                var repertoire = heroCharacter.SpellRepertoires[repertoireIndex];
 
                 if (repertoire.SpellCastingFeature.GuiPresentation.Hidden)
                 {
@@ -73,6 +72,7 @@ public static class CharacterInspectionScreenPatcher
 
             //PATCH: resets the inspection context for MC heroes
             Global.InspectedHero = null;
+            CharacterInspectionScreenEnhancement.ResetInspectionState();
         }
     }
 
@@ -86,6 +86,7 @@ public static class CharacterInspectionScreenPatcher
         public static void Prefix()
         {
             Global.InspectedHero = null;
+            CharacterInspectionScreenEnhancement.ResetInspectionState();
         }
     }
 

@@ -16,8 +16,29 @@ internal static class CharacterInspectionScreenEnhancement
     private static int SelectedClassIndex { get; set; }
 
     [CanBeNull]
-    internal static CharacterClassDefinition SelectedClass =>
-        Global.InspectedHero?.ClassesAndLevels.Keys.ElementAtOrDefault(SelectedClassIndex);
+    internal static CharacterClassDefinition SelectedClass
+    {
+        get
+        {
+            var hero = Global.InspectedHero;
+            var classesAndLevels = hero?.ClassesAndLevels;
+            var classesCount = classesAndLevels?.Count ?? 0;
+
+            if (classesCount == 0)
+            {
+                return null;
+            }
+
+            SelectedClassIndex = Mathf.Clamp(SelectedClassIndex, 0, classesCount - 1);
+
+            return classesAndLevels.Keys.ElementAtOrDefault(SelectedClassIndex);
+        }
+    }
+
+    internal static void ResetInspectionState()
+    {
+        SelectedClassIndex = 0;
+    }
 
     [NotNull]
     internal static string GetSelectedClassSearchTerm(string original)
@@ -35,14 +56,31 @@ internal static class CharacterInspectionScreenEnhancement
         var badgeDefinitions = __instance.badgeDefinitions;
         var classBadgesTable = __instance.classBadgesTable;
         var classBadgePrefab = __instance.classBadgePrefab;
+        var hero = Global.InspectedHero;
+        var selectedClass = SelectedClass;
 
-        badgeDefinitions.SetRange(Global.InspectedHero!.ClassesAndSubclasses
-            .Where(x => x.Key == SelectedClass)
+        if (hero == null || !selectedClass)
+        {
+            badgeDefinitions.Clear();
+
+            for (var childIndex = 0; childIndex < classBadgesTable.childCount; ++childIndex)
+            {
+                var child = classBadgesTable.GetChild(childIndex);
+
+                child.GetComponent<CharacterInformationBadge>().Unbind();
+                child.gameObject.SetActive(false);
+            }
+
+            return;
+        }
+
+        badgeDefinitions.SetRange(hero.ClassesAndSubclasses
+            .Where(x => x.Key == selectedClass)
             .Select(classesAndSubclass => classesAndSubclass.Value));
 
-        if (Global.InspectedHero.DeityDefinition && (SelectedClass == Paladin || SelectedClass == Cleric))
+        if (hero.DeityDefinition && (selectedClass == Paladin || selectedClass == Cleric))
         {
-            badgeDefinitions.Add(Global.InspectedHero.DeityDefinition);
+            badgeDefinitions.Add(hero.DeityDefinition);
         }
 
         badgeDefinitions.AddRange(GetTrainedFightingStyles());
@@ -76,18 +114,27 @@ internal static class CharacterInspectionScreenEnhancement
     // ReSharper disable once ReturnTypeCanBeEnumerable.Local
     private static HashSet<FightingStyleDefinition> GetTrainedFightingStyles()
     {
-        var fightingStyleIdx = 0;
+        var hero = Global.InspectedHero;
+        var selectedClass = SelectedClass;
         var classBadges = new HashSet<FightingStyleDefinition>();
-        var classLevelFightingStyle = Global.InspectedHero!.ActiveFeatures
+
+        if (hero == null || !selectedClass)
+        {
+            return classBadges;
+        }
+
+        var classLevelFightingStyles = hero.ActiveFeatures
             .Where(x => x.Key.Contains(AttributeDefinitions.TagClass))
             .SelectMany(x => x.Value
-                .OfType<FeatureDefinitionFightingStyleChoice>(), (x, _) => x)
-            .ToDictionary(x => x.Key, _ => Global.InspectedHero.TrainedFightingStyles[fightingStyleIdx++]);
+                .OfType<FeatureDefinitionFightingStyleChoice>(), (x, _) => x.Key)
+            .ToList();
 
-        foreach (var kvp in classLevelFightingStyle
-                     .Where(x => SelectedClass && x.Key.Contains(SelectedClass.Name)))
+        for (var i = 0; i < classLevelFightingStyles.Count && i < hero.TrainedFightingStyles.Count; ++i)
         {
-            classBadges.Add(kvp.Value);
+            if (classLevelFightingStyles[i].Contains(selectedClass.Name))
+            {
+                classBadges.Add(hero.TrainedFightingStyles[i]);
+            }
         }
 
         return classBadges;
@@ -335,7 +382,7 @@ internal static class CharacterInspectionScreenEnhancement
         // setup class buttons for MC scenarios
         //
 
-        SelectedClassIndex = 0;
+        ResetInspectionState();
 
         var hero = Global.InspectedHero;
 

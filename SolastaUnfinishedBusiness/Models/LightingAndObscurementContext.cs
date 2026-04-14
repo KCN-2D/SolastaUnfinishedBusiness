@@ -556,7 +556,10 @@ internal static class LightingAndObscurementContext
             }
 
             //consider this a successful perception roll as the sensor has skills to perceive
-            if (Main.Settings.EnableChanceToPerceiveCloseRange && sensor != null && target != null)
+            if (Main.Settings.EnableChanceToPerceiveCloseRange &&
+                !Global.IsMultiplayer &&
+                sensor != null &&
+                target != null)
             {
                 if (!Global.RolledPerceptionThisTurn.ContainsKey(sensor))
                     Global.RolledPerceptionThisTurn.Add(sensor, []);
@@ -571,6 +574,7 @@ internal static class LightingAndObscurementContext
         }
 
         if (Main.Settings.EnableChanceToPerceiveCloseRange
+            && !Global.IsMultiplayer
             && distance < 11
             && sensor != null
             && target != null
