@@ -42,18 +42,18 @@ Action/&ActionTypeReactionTitle=リアクション
 Action/&ActionTypeReactionUnavailableMultipleDescription=このリアクションは使用済みです。
 Action/&ActionTypeReactionUnavailableSingleDescription=リアクションは使用済みです。
 Action/&ActionUnlockDescription=[廃止]クリックすると、このオブジェクトのロックが解除されます。
-Action/&AssignTargetDescription={0}の新しいターゲットを選択できます。
+Action/&AssignTargetDescription={0}の新しい対象を選択できます。
 Action/&AssignTargetTitle=対象
-Action/&AttackCoverFullDescription=ターゲットは障害物の背後に完全にカバーされています。
-Action/&AttackCoverHalfDescription=ターゲットは半遮蔽を得ています（AC{0}）。
-Action/&AttackCoverThreeQuartersDescription=ターゲットは4分の3遮蔽を得ています（AC{0}）。
+Action/&AttackCoverFullDescription=対象は障害物の背後にあり、完全遮蔽を得ています。
+Action/&AttackCoverHalfDescription=対象は半遮蔽を得ています（AC{0}）。
+Action/&AttackCoverThreeQuartersDescription=対象は4分の3遮蔽を得ています（AC{0}）。
 Action/&AttackDescription=この武器で敵を攻撃します: {0}（{1}で命中）\n{2}
-Action/&AttackExecuteAdvantageDescription=有利でターゲットを攻撃します！
-Action/&AttackExecuteAdvantageGamepadDescription=<sprite index={0}>を押して、有利でターゲットを攻撃してください！
-Action/&AttackExecuteDescription=ターゲットを攻撃します！
-Action/&AttackExecuteDisadvantageDescription=不利でターゲットを攻撃します。
-Action/&AttackExecuteDisadvantageGamepadDescription=<sprite index={0}>を押して、不利でターゲットを攻撃してください。
-Action/&AttackExecuteGamepadDescription=<sprite index={0}>を押して、ターゲットを攻撃してください！
+Action/&AttackExecuteAdvantageDescription=有利で対象を攻撃します！
+Action/&AttackExecuteAdvantageGamepadDescription=<sprite index={0}>を押して、有利で対象を攻撃してください！
+Action/&AttackExecuteDescription=対象を攻撃します！
+Action/&AttackExecuteDisadvantageDescription=不利で対象を攻撃します。
+Action/&AttackExecuteDisadvantageGamepadDescription=<sprite index={0}>を押して、不利で対象を攻撃してください。
+Action/&AttackExecuteGamepadDescription=<sprite index={0}>を押して、対象を攻撃してください。
 Action/&AttackIterativeDescription=自分のターン中に{0}回攻撃でき、移動の合間に攻撃を分散させることができます。
 Action/&AttackTitle=攻撃
 Action/&AttackToss_Title=投擲
@@ -131,8 +131,8 @@ Action/&MoveDescription=指定された目的地に向かって自分の速度�
 Action/&MoveTitle=移動
 Action/&NeutralCreatureTitle=中立のクリーチャー
 Action/&NeutralTargetHeaderTitle={0}（中立）
-Action/&OpenHandTechniqueDescription=次の連打攻撃でターゲットにどの効果を与えるかを選択します。
-Action/&OpenHandTechniqueTitle=オープンハンドテクニック
+Action/&OpenHandTechniqueDescription=次の〈連打〉で対象に与える効果を選択します。
+Action/&OpenHandTechniqueTitle=開手の技
 Action/&PersistentRageStartDescription=筋力のセーヴィング・スローと能力値判定に有利を得て、近接攻撃のダメージにボーナスを得、斬撃、殴打、刺突ダメージに対する抵抗を得ます。あなたの激怒は非常に激しいため、意識を失うか、自ら終了するか、1分が経過した場合にのみ終了します。これらの利益は、重装鎧を着用していない場合にのみ得られます。
 Action/&PersistentRageStartTitle=終わらぬ激怒
 Action/&PickUpDescription=キャラクターの位置でアイテムを拾います。
@@ -143,8 +143,8 @@ Action/&RageStartDescription=1分間、筋力のセーヴィング・スロー�
 Action/&RageStartTitle=激怒
 Action/&RageStopDescription=直ちに激怒を終了しますが、激怒の使用回数は消費します。
 Action/&RageStopTitle=激怒を止める
-Action/&ReadyDescription=ターンの後半まで攻撃を遅らせます。
-Action/&ReadyTitle=準備
+Action/&ReadyDescription=このターンの後半まで攻撃を待機します。
+Action/&ReadyTitle=待機
 Action/&ReapplyEffectDescription={0}の効果を再適用します。
 Action/&ReapplyEffectTitle=効果の再適用
 Action/&RecallItemDescription={0}の効果で作成されたアイテムを回収します。
@@ -153,14 +153,14 @@ Action/&RecklessAttackDescription=自分のターンで最初の攻撃を行う�
 Action/&RecklessAttackTitle=無謀な攻撃
 Action/&RevertShapeDescription=本来の姿に戻ります。
 Action/&RevertShapeTitle=元の姿に戻る
-Action/&ShoveDescription=筋力を使ってクリーチャーを1マス押しやるか、伏せ状態にします。ターゲットは自分より1サイズまで大きい相手に限られ、間合い内にいなければなりません。
+Action/&ShoveDescription=筋力を使ってクリーチャーを1マス押しやるか、うつ伏せ状態にします。対象は自分より1サイズまで大きい相手に限られ、間合い内にいなければなりません。
 Action/&ShoveTitle=突き飛ばす
 Action/&SongOfHopeDescription=希望の歌を歌い、6マス以内の味方を鼓舞します。味方はすべてのダメージに対する抵抗を得て、次の自分のターン開始時まで、あらゆるセーヴィング・スローに有利を得ます。
 Action/&SongOfHopeTitle=希望の歌
-Action/&SpellCoverHalfDescription=ターゲットは半遮蔽を得ています（セーヴィング・スロー{0}）。
-Action/&SpellCoverThreeQuartersDescription=ターゲットは4分の3遮蔽を得ています（セーヴィング・スロー{0}）。
+Action/&SpellCoverHalfDescription=対象は半遮蔽を得ています（{0}セーヴィング・スロー）。
+Action/&SpellCoverThreeQuartersDescription=対象は4分の3遮蔽を得ています（{0}セーヴィング・スロー）。
 Action/&SpellExecuteDescription=この呪文の対象を選択してください。
-Action/&SpellExecuteGamepadDescription=<sprite index={0}>を押して、呪文の対象を選択します。
+Action/&SpellExecuteGamepadDescription=<sprite index={0}>を押して、呪文の対象を選択してください。
 Action/&SpiritRageDescription=絆ある精霊のACとダメージ・ロールを強化し、1分間ボーナス攻撃を与えます。
 Action/&SpiritRageTitle=精霊の激怒
 Action/&SpiritRallyDescription=戦闘中でなければ、絆ある精霊を呼び寄せられます。精霊は本来の次元界を通って障害物を無視し、あなたの隣へ瞬間移動してきます。
@@ -175,5 +175,5 @@ Action/&UseFunctionAdditionalChargePlural={0}個の追加アイテムチャー�
 Action/&UseFunctionAdditionalChargeSingle=追加のアイテムチャージを使用して呪文を唱えます。
 Action/&UseItemDescription=装置や魔法のアイテムの特別な機能を使用します。
 Action/&UseItemTitle=アイテム
-Action/&VampiricTouchDescription=ターゲットに近接呪文攻撃を行い、3d6の死霊ダメージを与え、与えたダメージの半分に等しいヒット・ポイントを回復します。
+Action/&VampiricTouchDescription=対象に近接呪文攻撃を行い、3d6の死霊ダメージを与え、与えたダメージの半分に等しいヒット・ポイントを回復します。
 Action/&VampiricTouchTitle=吸血の接触
