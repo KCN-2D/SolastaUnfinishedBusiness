@@ -31,7 +31,7 @@ ModUi/&AllowClubsToBeThrown=Permitir que <color=#D89555>Clubs</color> sejam lan�
 ModUi/&AllowDisplayingNonSuggestedSpells=Permitir mod feitiços não sugeridos em cada lista
 ModUi/&AllowDisplayingOfficialSpells=Permitir magias oficiais do jogo em cada lista
 ModUi/&AllowDungeonsMaxLevel20=Permitir masmorras com nível máximo 20
-ModUi/&AllowFlightSuspend=Permitir a suspensão temporária do voo de itens e magias <i><color=#F0DAA0>[não afeta raças selvagens ou voadoras]</color></i>
+ModUi/&AllowFlightSuspend=Permitir a suspensão temporária do voo de itens e magias <i><color=#F0DAA0>[não afeta Forma Selvagem nem raças voadoras; a IA de combate avançada também pode pousar quando ficar sem opções úteis]</color></i>
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=Habilitar clique <color=#1E81B0>CTRL</color> para ignorar qualquer verificação ao colocar gadgets ou adereços
 ModUi/&AllowHasteCasting=Permitir conjurar magias com ação extra por ser Acelerado <i><color=#F0DAA0>[você ainda está limitado a 1 magia de ação principal por rodada]</color></i>
 ModUi/&AllowHornsOnAllRaces=Permitir chifres em todas as raças <i><color=#F0DAA0>[os resultados podem parecer terríveis dependendo da raça, cabeça e chifre]</color></i>
@@ -282,6 +282,13 @@ ModUi/&EnablesAsiAndFeat=Habilitar aumento de pontuação de atributos e seleç�
 ModUi/&EncounterPercentageChance=<color=white>Defina chances percentuais de encontros aleatórios</color>
 ModUi/&Encounters=Encontros
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ Os inimigos sempre rolam a iniciativa em vez de um valor forçado <color=#F0DAA0>[por exemplo: Sorak Assassin]</color></i>
+ModUi/&EnableEnemiesControlledByPlayer=Permitir inimigos controlados pelos jogadores
+ModUi/&EnableHeroesControlledByComputer=Permitir heróis controlados pelo computador
+ModUi/&EnableAdvancedCombatAI=Ativar IA de combate avançada <i><color=#F0DAA0>[melhorias táticas opcionais para inimigos e heróis controlados pela IA]</color></i>
+ModUi/&EnableAdvancedCombatAIFlight=<i>+ Melhorar decisões de voo e altitude</i>
+ModUi/&EnableAdvancedCombatAIPositioning=<i>+ Melhorar posicionamento, linha de tiro e exposição a ameaças</i>
+ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Melhorar economia de ações e fallback de Esquiva</i>
+ModUi/&EnableAdvancedCombatAIProfiles=<i>+ Ativar comportamentos por família, estilo de combate e temperamento</i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=Conjuradores inimigos deixam cair livros de feitiços escritos <i><color=#F0DAA0>[contém seus feitiços conhecidos da lista de magos]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Faça com que <b>Evoker</b> <color=#D89555>Esculpir Feitiços</color> não exija a percepção de aliados
 ModUi/&ExpandAll=Expandir tudo

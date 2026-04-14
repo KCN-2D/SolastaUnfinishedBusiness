@@ -25,7 +25,7 @@ ModUi/&AllowClubsToBeThrown=Allow <color=#D89555>Clubs</color> to be thrown like
 ModUi/&AllowDisplayingNonSuggestedSpells=Allow mod non suggested spells on each list
 ModUi/&AllowDisplayingOfficialSpells=Allow game official spells on each list
 ModUi/&AllowDungeonsMaxLevel20=Allow dungeons with max level 20
-ModUi/&AllowFlightSuspend=Allow temporarily suspending flight from items and spells <i><color=#F0DAA0>[does not affect Wild Shape or flying races]</color></i>
+ModUi/&AllowFlightSuspend=Allow temporarily suspending flight from items and spells <i><color=#F0DAA0>[does not affect Wild Shape or flying races; advanced combat AI may also suspend flight when stuck]</color></i>
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=Enable <color=#1E81B0>CTRL</color> click to bypass any check when placing gadgets or props
 ModUi/&AllowHasteCasting=Allow casting spells with extra action from being Hasted <i><color=#F0DAA0>[you are still limited to 1 main action spell per round]</color></i>
 ModUi/&AllowHornsOnAllRaces=Allow horns on all races <i><color=#F0DAA0>[results might look terrible depending on race, head and horn]</color></i>
@@ -275,6 +275,13 @@ ModUi/&EnableWizardToLearnSchoolAtLevel3=Enable <color=#D89555>School of Magic</
 ModUi/&EnablesAsiAndFeat=Enable both attribute scores increase and <color=#D89555>feats</color> selection <i><color=#F0DAA0>[instead of an exclusive choice]</color></i>
 ModUi/&EncounterPercentageChance=<color=white>Set random encounters percentage chances</color>
 ModUi/&Encounters=Encounters
+ModUi/&EnableEnemiesControlledByPlayer=Enable enemies controlled by players
+ModUi/&EnableHeroesControlledByComputer=Enable heroes controlled by computer
+ModUi/&EnableAdvancedCombatAI=Enable advanced combat AI <i><color=#F0DAA0>[opt-in tactical improvements for enemies and AI-controlled heroes]</color></i>
+ModUi/&EnableAdvancedCombatAIFlight=<i>+ Improve flying and altitude decisions</i>
+ModUi/&EnableAdvancedCombatAIPositioning=<i>+ Improve positioning, line of fire and threat exposure</i>
+ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Improve action economy and Dodge fallback</i>
+ModUi/&EnableAdvancedCombatAIProfiles=<i>+ Add family, combat style and temperament-based behavior</i>
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ Enemies always roll initiative instead of a forced value <color=#F0DAA0>[i.e: Sorak Assassin]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Make <b>Evoker</b> <color=#D89555>Sculpt Spells</color> not require perceiving allies
 ModUi/&ExpandAll=Expand All

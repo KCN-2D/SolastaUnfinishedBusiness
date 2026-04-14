@@ -31,7 +31,7 @@ ModUi/&AllowClubsToBeThrown=Consentire che i <color=#D89555>mazze</color> vengan
 ModUi/&AllowDisplayingNonSuggestedSpells=Consenti mod incantesimi non suggeriti in ogni elenco
 ModUi/&AllowDisplayingOfficialSpells=Consenti incantesimi ufficiali di gioco su ogni elenco
 ModUi/&AllowDungeonsMaxLevel20=Consenti dungeon con livello massimo 20
-ModUi/&AllowFlightSuspend=Consenti la sospensione temporanea del volo da oggetti e incantesimi <i><color=#F0DAA0>[non influisce sulle razze di forma selvaggia o volanti]</color></i>
+ModUi/&AllowFlightSuspend=Consenti la sospensione temporanea del volo da oggetti e incantesimi <i><color=#F0DAA0>[non influisce sulle razze in forma selvatica o volanti; la IA di combattimento avanzata può anche interrompere il volo quando resta senza opzioni utili]</color></i>
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=Abilita il clic <color=#1E81B0>CTRL</color> per ignorare qualsiasi controllo quando si posizionano gadget o oggetti di scena
 ModUi/&AllowHasteCasting=Consenti di lanciare incantesimi con azione extra dall'essere Frettato <i><color=#F0DAA0>[sei ancora limitato a 1 incantesimo di azione principale per round]</color></i>
 ModUi/&AllowHornsOnAllRaces=Consenti le corna su tutte le razze <i><color=#F0DAA0>[i risultati potrebbero sembrare terribili a seconda della razza, della testa e del corno]</color></i>
@@ -282,6 +282,13 @@ ModUi/&EnablesAsiAndFeat=Abilita sia l'aumento dei punteggi degli attributi che 
 ModUi/&EncounterPercentageChance=<color=white>Imposta le percentuali di probabilità di incontri casuali</color>
 ModUi/&Encounters=Incontri
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ I nemici tirano sempre l'iniziativa invece di un valore forzato <color=#F0DAA0>[ad esempio: Sorak Assassin]</color></i>
+ModUi/&EnableEnemiesControlledByPlayer=Abilita nemici controllati dai giocatori
+ModUi/&EnableHeroesControlledByComputer=Abilita eroi controllati dal computer
+ModUi/&EnableAdvancedCombatAI=Abilita IA di combattimento avanzata <i><color=#F0DAA0>[miglioramenti tattici opzionali per nemici ed eroi controllati dalla IA]</color></i>
+ModUi/&EnableAdvancedCombatAIFlight=<i>+ Migliora le decisioni su volo e altitudine</i>
+ModUi/&EnableAdvancedCombatAIPositioning=<i>+ Migliora posizionamento, linee di tiro ed esposizione alle minacce</i>
+ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Migliora economia delle azioni e ripiego su Schivare</i>
+ModUi/&EnableAdvancedCombatAIProfiles=<i>+ Abilita comportamenti basati su famiglia, stile di combattimento e temperamento</i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=Gli incantatori nemici rilasciano libri degli incantesimi scritti <i><color=#F0DAA0>[contiene i loro incantesimi conosciuti dall'elenco dei maghi]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Fai in modo che <b>Evocatore</b> <color=#D89555>Scolpisci incantesimi</color> non richieda la percezione degli alleati
 ModUi/&ExpandAll=Espandi tutto

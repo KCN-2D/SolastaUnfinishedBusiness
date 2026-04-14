@@ -31,7 +31,7 @@ ModUi/&AllowClubsToBeThrown=Autoriser les <color=#D89555>matraques</color> à ê
 ModUi/&AllowDisplayingNonSuggestedSpells=Autoriser les sorts non suggérés par le mod sur chaque liste
 ModUi/&AllowDisplayingOfficialSpells=Autoriser les sorts officiels du jeu sur chaque liste
 ModUi/&AllowDungeonsMaxLevel20=Autoriser les donjons avec un niveau maximum de 20
-ModUi/&AllowFlightSuspend=Autoriser la suspension temporaire du vol des objets et des sorts <i><color=#F0DAA0>[n'affecte pas les races de forme sauvage ou volantes]</color></i>
+ModUi/&AllowFlightSuspend=Autoriser la suspension temporaire du vol des objets et des sorts <i><color=#F0DAA0>[n'affecte pas les races de forme sauvage ou volantes ; l'IA de combat avancée peut aussi interrompre son vol si elle n'a aucune option utile]</color></i>
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=Activez le clic <color=#1E81B0>CTRL</color> pour contourner toute vérification lors du placement de gadgets ou d'accessoires
 ModUi/&AllowHasteCasting=Autoriser le lancement de sorts avec une action supplémentaire en étant accéléré <i><color=#F0DAA0>[vous êtes toujours limité à 1 sort d'action principale par tour]</color></i>
 ModUi/&AllowHornsOnAllRaces=Autoriser les cornes sur toutes les races <i><color=#F0DAA0>[les résultats peuvent être terribles selon la race, la tête et la corne]</color></i>
@@ -282,6 +282,13 @@ ModUi/&EnablesAsiAndFeat=Activer à la fois l'augmentation des scores d'attribut
 ModUi/&EncounterPercentageChance=<color=white>Définir des pourcentages de chances de rencontres aléatoires</color>
 ModUi/&Encounters=Rencontres
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ Les ennemis lancent toujours l'initiative au lieu d'une valeur forcée <color=#F0DAA0>[par exemple : Sorak Assassin]</color></i>
+ModUi/&EnableEnemiesControlledByPlayer=Activer les ennemis contrôlés par les joueurs
+ModUi/&EnableHeroesControlledByComputer=Activer les héros contrôlés par l'ordinateur
+ModUi/&EnableAdvancedCombatAI=Activer l'IA de combat avancée <i><color=#F0DAA0>[améliorations tactiques optionnelles pour les ennemis et les héros contrôlés par l'IA]</color></i>
+ModUi/&EnableAdvancedCombatAIFlight=<i>+ Améliorer les décisions de vol et d'altitude</i>
+ModUi/&EnableAdvancedCombatAIPositioning=<i>+ Améliorer le positionnement, les lignes de tir et l'exposition aux menaces</i>
+ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Améliorer l'économie d'actions et le repli sur Esquive</i>
+ModUi/&EnableAdvancedCombatAIProfiles=<i>+ Activer des comportements selon la famille, le style de combat et le tempérament</i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=Les lanceurs de sorts ennemis lâchent des grimoires écrits <i><color=#F0DAA0>[contient leurs sorts connus de la liste des sorciers]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Faire en sorte que <b>Evoker</b> <color=#D89555>Sorts de sculpture</color> ne nécessitent pas la perception d'alliés
 ModUi/&ExpandAll=Développer tout

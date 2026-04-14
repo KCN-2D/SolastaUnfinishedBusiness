@@ -93,7 +93,7 @@ internal static class PlayerControllerContext
 
             playerCharacter.ControllerId = controllerId;
 
-            if (controllerId != PlayerControllerID)
+            if (controllerId == PlayerControllerID)
             {
                 continue;
             }

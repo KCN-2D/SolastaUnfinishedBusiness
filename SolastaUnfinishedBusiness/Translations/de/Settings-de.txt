@@ -31,7 +31,7 @@ ModUi/&AllowClubsToBeThrown=Ermöglicht das Werfen von <color=#D89555>Keulen</co
 ModUi/&AllowDisplayingNonSuggestedSpells=Erlaube Mods, die nicht vorgeschlagene Zaubersprüche auf jeder Liste
 ModUi/&AllowDisplayingOfficialSpells=Offizielle Spielzauber auf jeder Liste zulassen
 ModUi/&AllowDungeonsMaxLevel20=Erlaube Dungeons mit max. Level 20
-ModUi/&AllowFlightSuspend=Erlaubt die vorübergehende Aussetzung des Flugs durch Gegenstände und Zauber <i><color=#F0DAA0>[betrifft keine Wildform- oder Flugrassen]</color></i>
+ModUi/&AllowFlightSuspend=Erlaubt die vorübergehende Aussetzung des Flugs durch Gegenstände und Zauber <i><color=#F0DAA0>[betrifft keine Wildform- oder Flugrassen; die erweiterte Kampf-KI kann den Flug bei Bedarf ebenfalls aussetzen]</color></i>
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=Aktivieren Sie <color=#1E81B0>STRG</color>-Klick, um alle Überprüfungen beim Platzieren von Gadgets oder Requisiten zu umgehen
 ModUi/&AllowHasteCasting=Erlaubt das Wirken von Zaubersprüchen mit zusätzlicher Aktion durch Beschleunigung <i><color=#F0DAA0>[Sie sind weiterhin auf 1 Hauptaktionszauber pro Runde beschränkt]</color></i>
 ModUi/&AllowHornsOnAllRaces=Hörner bei allen Rassen zulassen <i><color=#F0DAA0>[die Ergebnisse können je nach Rasse, Kopf und Horn schrecklich aussehen]</color></i>
@@ -282,6 +282,13 @@ ModUi/&EnablesAsiAndFeat=Aktivieren Sie sowohl die Erhöhung der Attributwerte a
 ModUi/&EncounterPercentageChance=<color=white>Prozentuale Wahrscheinlichkeit für Zufallsbegegnungen festlegen</color>
 ModUi/&Encounters=Begegnungen
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ Feinde würfeln immer die Initiative statt eines erzwungenen Wertes <color=#F0DAA0>[z. B.: Sorak-Assassine]</color></i>
+ModUi/&EnableEnemiesControlledByPlayer=Spielergesteuerte Feinde aktivieren
+ModUi/&EnableHeroesControlledByComputer=Computergesteuerte Helden aktivieren
+ModUi/&EnableAdvancedCombatAI=Erweiterte Kampf-KI aktivieren <i><color=#F0DAA0>[optionale taktische Verbesserungen für Feinde und KI-gesteuerte Helden]</color></i>
+ModUi/&EnableAdvancedCombatAIFlight=<i>+ Flug- und Höhenentscheidungen verbessern</i>
+ModUi/&EnableAdvancedCombatAIPositioning=<i>+ Positionierung, Schusslinien und Bedrohungsvermeidung verbessern</i>
+ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Aktionsökonomie und Dodge-Fallback verbessern</i>
+ModUi/&EnableAdvancedCombatAIProfiles=<i>+ Verhaltensunterschiede nach Kreaturenfamilie, Kampfstil und Temperament aktivieren</i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=Feindliche Zauberer lassen niedergeschriebene Zauberbücher fallen <i><color=#F0DAA0>[enthält ihre bekannten Zaubersprüche aus der Zaubererliste]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Sorgen Sie dafür, dass <b>Beschwörer</b> <color=#D89555>Skulpturzauber</color> keine wahrnehmenden Verbündeten erfordern
 ModUi/&ExpandAll=Alles erweitern

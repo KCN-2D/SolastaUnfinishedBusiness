@@ -225,6 +225,9 @@ public static class GameLocationCharacterPatcher
         {
             //PATCH: acts as a callback for the character's combat turn started event
             CharacterBattleListenersPatch.OnCharacterTurnStarted(__instance);
+
+            CombatAiContext.PrimeTurnCache(__instance);
+            CombatAiContext.TryAutoSuspendFlight(__instance);
         }
     }
 
@@ -307,6 +310,9 @@ public static class GameLocationCharacterPatcher
         {
             //PATCH: acts as a callback for the character's combat turn ended event
             CharacterBattleListenersPatch.OnCharacterTurnEnded(__instance);
+
+            CombatAiContext.TryAutoDodgeFlyingStalemate(__instance);
+            CombatAiContext.ClearTurnCache(__instance);
         }
     }
 

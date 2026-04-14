@@ -250,14 +250,54 @@ internal static class EncountersDisplay
         {
             var toggle = Main.Settings.EnableEnemiesControlledByPlayer;
 
-            if (UI.Toggle("Enable enemies controlled by players", ref toggle))
+            if (UI.Toggle(Gui.Localize("ModUi/&EnableEnemiesControlledByPlayer"), ref toggle))
             {
                 Main.Settings.EnableEnemiesControlledByPlayer = toggle;
             }
         }
 
+        DisplayAdvancedCombatAiToggles();
         DisplayHeroesControllerTable();
         DisplayEncountersTable();
+    }
+
+    private static void DisplayAdvancedCombatAiToggles()
+    {
+        var toggle = Main.Settings.EnableAdvancedCombatAI;
+
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableAdvancedCombatAI"), ref toggle))
+        {
+            Main.Settings.EnableAdvancedCombatAI = toggle;
+        }
+
+        if (!Main.Settings.EnableAdvancedCombatAI)
+        {
+            return;
+        }
+
+        toggle = Main.Settings.EnableAdvancedCombatAIFlight;
+        if (UI.Toggle(" + " + Gui.Localize("ModUi/&EnableAdvancedCombatAIFlight"), ref toggle))
+        {
+            Main.Settings.EnableAdvancedCombatAIFlight = toggle;
+        }
+
+        toggle = Main.Settings.EnableAdvancedCombatAIPositioning;
+        if (UI.Toggle(" + " + Gui.Localize("ModUi/&EnableAdvancedCombatAIPositioning"), ref toggle))
+        {
+            Main.Settings.EnableAdvancedCombatAIPositioning = toggle;
+        }
+
+        toggle = Main.Settings.EnableAdvancedCombatAIActionEconomy;
+        if (UI.Toggle(" + " + Gui.Localize("ModUi/&EnableAdvancedCombatAIActionEconomy"), ref toggle))
+        {
+            Main.Settings.EnableAdvancedCombatAIActionEconomy = toggle;
+        }
+
+        toggle = Main.Settings.EnableAdvancedCombatAIProfiles;
+        if (UI.Toggle(" + " + Gui.Localize("ModUi/&EnableAdvancedCombatAIProfiles"), ref toggle))
+        {
+            Main.Settings.EnableAdvancedCombatAIProfiles = toggle;
+        }
     }
 
     private static void DisplayHeroesControllerTable()
@@ -269,7 +309,7 @@ internal static class EncountersDisplay
 
         var toggle = Main.Settings.EnableHeroesControlledByComputer;
 
-        if (UI.Toggle("Enable heroes controlled by computer", ref toggle))
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableHeroesControlledByComputer"), ref toggle))
         {
             Main.Settings.EnableHeroesControlledByComputer = toggle;
 

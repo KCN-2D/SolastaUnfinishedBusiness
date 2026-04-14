@@ -1,5 +1,6 @@
 ﻿using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Models;
 using TA.AI;
 using TA.AI.Considerations;
 
@@ -44,15 +45,22 @@ public static class HasEnemiesInMeleeRangePatcher
                     continue;
                 }
 
-                //PATCH: Add handling of enemies with reach range > 1
-                var attackMode = relevantEnemy.FindActionAttackMode(ActionDefinitions.Id.AttackMain);
-                var reachRange = attackMode?.reachRange ?? 1;
-                if (parameters.situationalInformation.BattleService.IsWithinXCells(relevantEnemy,
-                        relevantEnemy.LocationPosition, parameters.character.GameLocationCharacter, defenderPosition,
-                        reachRange))
-                {
-                    var isEnemyWithinMeleeReachRange = true;
+                var isEnemyWithinMeleeReachRange = CombatAiContext.IsAdvancedCombatAiFlightEnabled
+                    ? CombatAiContext.CanAttackInMeleeFromPosition(
+                        relevantEnemy,
+                        relevantEnemy.LocationPosition,
+                        parameters.character.GameLocationCharacter,
+                        defenderPosition,
+                        parameters.situationalInformation.BattleService)
+                    : parameters.situationalInformation.BattleService.IsWithinXCells(
+                        relevantEnemy,
+                        relevantEnemy.LocationPosition,
+                        parameters.character.GameLocationCharacter,
+                        defenderPosition,
+                        relevantEnemy.FindActionAttackMode(ActionDefinitions.Id.AttackMain)?.reachRange ?? 1);
 
+                if (isEnemyWithinMeleeReachRange)
+                {
                     if (boolSecParameter)
                     {
                         isEnemyWithinMeleeReachRange = !boolParameter

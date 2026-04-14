@@ -567,6 +567,11 @@ public class Settings : UnityModManager.ModSettings
 
     public bool EnableEnemiesControlledByPlayer { get; set; }
     public bool EnableHeroesControlledByComputer { get; set; }
+    public bool EnableAdvancedCombatAI { get; set; }
+    public bool EnableAdvancedCombatAIFlight { get; set; } = true;
+    public bool EnableAdvancedCombatAIPositioning { get; set; } = true;
+    public bool EnableAdvancedCombatAIActionEconomy { get; set; } = true;
+    public bool EnableAdvancedCombatAIProfiles { get; set; } = true;
 
     //
     // Debug

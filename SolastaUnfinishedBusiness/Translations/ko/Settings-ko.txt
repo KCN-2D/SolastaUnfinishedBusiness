@@ -31,7 +31,7 @@ ModUi/&AllowClubsToBeThrown=<color=#D89555>곤봉</color>을 <color=#D89555>단�
 ModUi/&AllowDisplayingNonSuggestedSpells=각 목록에 제안되지 않은 주문 허용
 ModUi/&AllowDisplayingOfficialSpells=각 목록에 게임 공식 주문 허용
 ModUi/&AllowDungeonsMaxLevel20=최대 레벨 20인 던전 허용
-ModUi/&AllowFlightSuspend=아이템과 주문의 비행을 일시적으로 중단할 수 있습니다. <i><color=#F0DAA0>[야생형이나 비행 종족에는 영향을 미치지 않습니다.]</color></i>
+ModUi/&AllowFlightSuspend=아이템과 주문의 비행을 일시적으로 중단할 수 있습니다. <i><color=#F0DAA0>[야생형이나 비행 종족에는 영향을 미치지 않으며, 고급 전투 AI도 유효한 수단이 없으면 필요할 때 착지할 수 있습니다.]</color></i>
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=가젯이나 소품을 배치할 때 모든 검사를 우회하려면 <color=#1E81B0>CTRL</color> 클릭을 활성화하세요.
 ModUi/&AllowHasteCasting=서두름으로 인해 추가 액션이 있는 주문 시전이 허용됩니다. <i><color=#F0DAA0>[라운드당 주요 액션 주문은 여전히 1개로 제한됩니다.]</color></i>
 ModUi/&AllowHornsOnAllRaces=모든 종족에 뿔 허용 <i><color=#F0DAA0>[종족, 머리, 뿔에 따라 결과가 끔찍해 보일 수 있음]</color></i>
@@ -282,6 +282,13 @@ ModUi/&EnablesAsiAndFeat=속성 점수 증가와 <color=#D89555>특기</color> �
 ModUi/&EncounterPercentageChance=<color=white>무작위 만남 확률 설정</color>
 ModUi/&Encounters=만남
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ 적은 항상 강제된 값 대신 주도권을 굴립니다. <color=#F0DAA0>[예: 소락 암살자]</color></i>
+ModUi/&EnableEnemiesControlledByPlayer=플레이어가 조작하는 적 활성화
+ModUi/&EnableHeroesControlledByComputer=컴퓨터가 조작하는 영웅 활성화
+ModUi/&EnableAdvancedCombatAI=고급 전투 AI 활성화 <i><color=#F0DAA0>[적과 AI가 조작하는 영웅을 위한 선택형 전술 개선]</color></i>
+ModUi/&EnableAdvancedCombatAIFlight=<i>+ 비행과 고도 판단 개선</i>
+ModUi/&EnableAdvancedCombatAIPositioning=<i>+ 위치 선정, 사선, 위협 노출 판단 개선</i>
+ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ 행동 경제와 회피 대체 행동 개선</i>
+ModUi/&EnableAdvancedCombatAIProfiles=<i>+ 생물 분류, 전투 방식, 기질에 따른 행동 차이 활성화</i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=적 주문 시전자는 새겨진 주문서를 떨어뜨립니다. <i><color=#F0DAA0>[마법사 목록에 알려진 주문이 포함되어 있음]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=<b>Evoker</b> <color=#D89555>조각 주문</color>에 아군 인식이 필요하지 않도록 설정
 ModUi/&ExpandAll=모두 확장
