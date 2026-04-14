@@ -20,7 +20,7 @@ ModUi/&AddNewScrollsToTreasure=適切な宝物パックに新しい呪文の巻�
 ModUi/&AddNewWeaponsAndRecipesToShops=新しい武器とレシピをショップに追加します <i><color=#F0DAA0>[ハンドラップ、ハルバード、パイク、ロングメイス、ハンドクロスボウ]</color></i> <b><i><color=#C04040E0>[再起動が必要です]</color></i></b>
 ModUi/&AddPaladinSmiteToggle=<color=#D89555>パラディン</color>がクリティカルヒット時にのみスマイトを有効にするようにするトグルを追加します <i><color=#F0DAA0>[リアクション確認を最小限に抑えるのに役立ちます]</color></i>
 ModUi/&AddPickPocketableLoot=スリ可能な戦利品を追加 <i><color=#F0DAA0>[<color=#D89555>スリ</color> 能力が有効になっている場合に推奨]</color></i>
-ModUi/&AddToStore={0} を追加
+ModUi/&AddToStore={0}を追加
 ModUi/&Advanced=<color=#F0DAA0>詳細:</color> <b><i><color=#C04040E0>[再起動が必要]</color></i></b>
 ModUi/&AdvancedHelp=• <b><color=#C04040E0>注意:</color></b> これらの設定を行うには、プレイヤーがこのMODをインストールしている必要があります。
 ModUi/&AllowAllPlayersOnNarrativeSequences=<i>+ 物語シーンですべてのプレイヤーを許可する</i>
@@ -97,7 +97,7 @@ ModUi/&DontEndTurnAfterReady=<color=#D89555>待機</color>アクションの後�
 ModUi/&DontFollowCharacterInBattle=キャラクターがすでに画面上にいる場合、戦闘カメラは追従しません
 ModUi/&DontFollowMargin=<i><color=white>+ ヒーローが画面外にいるか、画面端の % 以内にいる場合を除く</color></i>
 ModUi/&DownloadVoice=提案された音声をダウンロード
-ModUi/&DownloadVoiceOngoing={0} でダウンロード中
+ModUi/&DownloadVoiceOngoing={0}でダウンロード中
 ModUi/&DungeonMaker=ダンジョンメーカー
 ModUi/&DungeonMakerBasicHelp=• これらの設定では、プレイヤーがこのMODをインストールする必要はありません
 ModUi/&Effects=効果
@@ -449,7 +449,7 @@ ModUi/&TargetLanguage=対象言語
 ModUi/&TotalCraftingTimeModifier=<color=white>クラフト時間を短縮</color>
 ModUi/&TotalFeatsGrantedFirstLevel=<color=white>第 1 レベルで付与される <color=#D89555>特技</color> の合計</color>
 ModUi/&Translate=翻訳する
-ModUi/&TranslateCancel={1} で {0} をキャンセル
+ModUi/&TranslateCancel={1}で{0}をキャンセル
 ModUi/&TranslatingConcurrent=翻訳中
 ModUi/&TranslationCancelled=キャンセル
 ModUi/&TranslationCompleted=完了
@@ -461,7 +461,7 @@ ModUi/&TranslationGoogleSettings=Google API設定
 ModUi/&TranslationPaused=一時停止中
 ModUi/&TranslationProgress=進捗
 ModUi/&TranslationService=翻訳サービス
-ModUi/&TranslationServiceNotConfigured={0} が設定されていません!
+ModUi/&TranslationServiceNotConfigured={0}が設定されていません!
 ModUi/&Translations=<color=#F0DAA0>翻訳:</color>
 ModUi/&UnityExplorer=<b><color=#D89555>Unity エクスプローラー UI</color></b>
 ModUi/&UnleashEnemyAsNpc=NPCガジェットでモンスターを選択できるようにする

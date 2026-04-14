@@ -31,7 +31,7 @@ Feature/&InvocationPoolWeaponMasteryLearnDescription=武器種別を選び、そ
 Feature/&InvocationPoolWeaponMasteryLearnTitle=武器マスタリー
 Feature/&PowerWeaponMasteryRelearnDescription=武器種別を選び、その武器に対応する武器マスタリー特性を再習得します。
 Feature/&PowerWeaponMasteryRelearnTitle=武器マスタリー：再習得
-Feedback/&WeaponMasteryDeadlyTriggered={0}が{1}を発動し、{2}を{3}に強化して、{4}ダメージにします: {5} + {4} = {6}
+Feedback/&WeaponMasteryDeadlyTriggered={0}が{1}を発動し、{2}を{3}に強化して、{4}ダメージにします: {5}+{4}={6}
 Reaction/&ReactionSpendPowerBundleFeatureSetFighterTacticalMasterDescription=この攻撃では、{0}を別の武器マスタリーに置き換えることができます。
 Reaction/&ReactionSpendPowerBundleFeatureSetFighterTacticalMasterReactDescription=新しいマスタリーを選択してください。
 Reaction/&ReactionSpendPowerBundleFeatureSetFighterTacticalMasterReactTitle=戦術マスター

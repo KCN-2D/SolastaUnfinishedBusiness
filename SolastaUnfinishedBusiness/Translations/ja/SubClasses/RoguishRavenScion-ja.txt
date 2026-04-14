@@ -12,7 +12,7 @@ Feature/&PowerRavenScionHeartSeekingShotDescription=フリー・アクション�
 Feature/&PowerRavenScionHeartSeekingShotTitle=ハートシーキングショット
 Feedback/&AdditionalDamageSniperAimFormat=スナイパーの狙い
 Feedback/&AdditionalDamageSniperAimLine=スナイパーの狙いは追加で+{2}ダメージを与えます！
-Feedback/&TriggerRavenScionRerollLine={0}は{1} = {2}をロールしました。〈デッドリー・フォーカス〉によりクリティカル・ヒットになります。
+Feedback/&TriggerRavenScionRerollLine={0}は{1}={2}をロールしました。〈デッドリー・フォーカス〉によりクリティカル・ヒットになります。
 Reaction/&SpendPowerRavenScionDeadlyFocusDescription=〈デッドリー・フォーカス〉を使って攻撃をやり直しますか？
 Reaction/&SpendPowerRavenScionDeadlyFocusReactDescription=〈デッドリー・フォーカス〉を使って攻撃をやり直す。
 Reaction/&SpendPowerRavenScionDeadlyFocusReactTitle=攻撃をやり直す

@@ -11,6 +11,6 @@ Feature/&FeatureSetRoguishDuelistMasterDuelistTitle=決闘術奥義
 Feature/&FeatureSetRoguishDuelistSureFootedDescription=近接武器でクリーチャーに急所攻撃を行うたび、次のターンの開始時まで、ACに重複しない1d6のボーナスを得ます。
 Feature/&FeatureSetRoguishDuelistSureFootedTitle=虚勢
 Feedback/&RoguishDuelistBravado={0}は{2}個のサイコロを振り、ACに{3}を加えます。
-Feedback/&RoguishDuelistBravadoReroll={0} は {2} のダイスで {3} をロールしますが、AC への以前のボーナス {4} は保持されます。
+Feedback/&RoguishDuelistBravadoReroll={0}は{2}のダイスで{3}をロールしますが、AC への以前のボーナス{4}は保持されます。
 Subclass/&RoguishDuelistDescription=デュエリストは尊大な虚勢をまとっています。機転が利き、自立しており、孤立した敵にとっては危険な存在です。
 Subclass/&RoguishDuelistTitle=デュエリスト

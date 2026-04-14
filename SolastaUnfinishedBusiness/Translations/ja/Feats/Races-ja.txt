@@ -64,7 +64,7 @@ Feature/&PowerFeatOrcishAggressionTitle=オークの攻撃性
 Feedback/&AdditionalDamageOrcishFuryFormat=オークの怒り
 Feedback/&AdditionalDamageOrcishFuryLine=オークの怒りは追加で+{2}ダメージを与える！
 Feedback/&BountifulLuckAttackToHitRoll={0}は{1}を使用し、攻撃ロールの{3}を置き換えるために{2}をロールしました。
-Feedback/&BountifulLuckCheckToHitRoll={0}は{1}を使用し、判定ロールの{3}を置き換えるために{2}をロールしました:{4}
+Feedback/&BountifulLuckCheckToHitRoll={0}は{1}を使用し、判定ロールの{3}を置き換えるために{2}をロールしました: {4}
 Feedback/&BountifulLuckSavingToHitRoll={0}は{1}を使用し、セーヴィング・スローの{3}を置き換えるために{2}をロールしました。
 Feedback/&DwarvenFortitudeHitDieRolled={0}は{2}を出して、{3}={4}を回復しました。
 Feedback/&FlamesOfPhlegethosReroll={0}はプレゲトスの炎を使い、{1}魔法ダメージ・ダイスを{2}から{3}に再ロールします。
