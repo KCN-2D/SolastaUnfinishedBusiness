@@ -21,6 +21,6 @@ Feature/&PowerWizardGraviturgistGravityWellTitle=重力井戸
 Feature/&PowerWizardGraviturgistViolentAttractionDescription=ボーナス・アクションを使用して、12マス以内で見えている味方1体の打撃力を1分間高められます。そのクリーチャーは、自分のターン中に1回、武器攻撃または素手攻撃で追加の1d10ダメージを与えます。この特徴は大休憩ごとに、知力修正値に等しい回数だけ使用できます。
 Feature/&PowerWizardGraviturgistViolentAttractionTitle=猛引力
 Feedback/&AdditionalDamageViolentAttractionFormat=猛引力！
-Feedback/&AdditionalDamageViolentAttractionLine={0}は{1}に猛引力の追加ダメージを与える(+{2})
+Feedback/&AdditionalDamageViolentAttractionLine={0}は{1}に猛引力の追加ダメージを与えます（+{2}）
 Subclass/&WizardGraviturgistDescription=物体同士を引き寄せ、あるいは引き離す力を理解し、それを極めることで、重力学の秘術伝統を学ぶ者たちは重力の荒々しいエネルギーをさらに歪め、操る術を身につけます。それは味方には利益を、敵には恐るべき損害をもたらします。
 Subclass/&WizardGraviturgistTitle=重力学者

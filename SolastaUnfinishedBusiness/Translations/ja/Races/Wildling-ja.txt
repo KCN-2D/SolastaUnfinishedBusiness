@@ -1,11 +1,11 @@
 Action/&WildlingFeralAgilityDescription=1ターンの間、移動速度が2倍になります。この特性を一度使用すると、いずれかのターンで0マス移動するまで再び使用できません。
-Action/&WildlingFeralAgilityTitle=フェラル・アジリティ
+Action/&WildlingFeralAgilityTitle=野生の俊敏
 Condition/&ConditionWildlingAgileDescription=ターン終了まで移動速度が2倍になります。
 Condition/&ConditionWildlingAgileTitle=俊敏
-Condition/&ConditionWildlingTiredDescription=いずれかのターンで0マス移動するまで、フェラル・アジリティを使用できません。
+Condition/&ConditionWildlingTiredDescription=いずれかのターンで0マス移動するまで、野生の俊敏を使用できません。
 Condition/&ConditionWildlingTiredTitle=疲れた
 Feature/&ActionAffinityWildlingFeralAgilityDescription=あなたの反射神経と敏捷力により、爆発的な速さで動けます。戦闘中、自分のターンに移動するとき、ターン終了まで移動速度を2倍にできます。この特性を一度使用すると、いずれかのターンで0マス移動するまで再使用できません。
-Feature/&ActionAffinityWildlingFeralAgilityTitle=フェラル・アジリティ
+Feature/&ActionAffinityWildlingFeralAgilityTitle=野生の俊敏
 Feature/&FeatureSetWildlingAbilityScoreIncreaseDescription=敏捷力+2、魅力+1
 Feature/&FeatureSetWildlingAbilityScoreIncreaseTitle=能力値増加
 Feature/&FeatureWildlingClawsDescription=爪を使って素手で攻撃することができます。これらを使って攻撃すると、素手攻撃の通常の殴打ダメージの代わりに、1d6 + 筋力修正値の斬撃ダメージを与えます。

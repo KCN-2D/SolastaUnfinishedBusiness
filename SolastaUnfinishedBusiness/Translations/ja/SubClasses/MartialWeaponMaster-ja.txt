@@ -1,6 +1,6 @@
 Condition/&ConditionMartialWeaponMasterFocusedStrikesDescription=あなたはターン終了時まで、専門化した武器で行うすべての攻撃ロールに有利を得ます。
 Condition/&ConditionMartialWeaponMasterFocusedStrikesTitle=集中攻撃
-Feature/&AttributeModifierMartialWeaponMasterSpecializationDescription=あなたは専門化した武器種で行う攻撃ロールとダメージ・ロールに+1のボーナスを得ます。ウェポン・マスターは、ほかの武器種での攻撃ロールには不利を受けますが、このボーナスは9レベルで+2、17レベルで+3に増加します。
+Feature/&AttributeModifierMartialWeaponMasterSpecializationDescription=あなたは専門化した武器種で行う攻撃ロールとダメージ・ロールに+1のボーナスを得ます。武器の使い手は、ほかの武器種での攻撃ロールには不利を受けますが、このボーナスは9レベルで+2、17レベルで+3に増加します。
 Feature/&AttributeModifierMartialWeaponMasterSpecializationTitle=武器専門化
 Feature/&FeatureMartialWeaponMasterBattleStanceDescription=イニシアチブをロールするたび、このクラスのレベル + 耐久力修正値に等しい一時ヒット・ポイントを得て、専門化した武器を装備しているなら〈集中攻撃〉の使用回数を1回回復します。
 Feature/&FeatureMartialWeaponMasterBattleStanceTitle=戦闘態勢
@@ -17,6 +17,6 @@ Feature/&PowerMartialWeaponMasterFocusedStrikesTitle=集中攻撃
 Feedback/&ActivateRepaysLine={0}は{1}の使用回数を回復します
 Feedback/&AdditionalDamageDeadlyAccuracyFormat=精密攻撃！
 Feedback/&AdditionalDamageDeadlyAccuracyLine={0}は{1}に〈致命の精度〉による攻撃を行う (+{2})
-Subclass/&MartialWeaponMasterDescription=ウェポン・マスターは、ひとつの武器種を極めるためにすべての時間と力を注ぎ込んだ一流の戦士です。弱点を突くことに卓越しており、致命的な効率で敵陣を切り裂きます。
-Subclass/&MartialWeaponMasterTitle=ウェポン・マスター
+Subclass/&MartialWeaponMasterDescription=武器の使い手は、ひとつの武器種を極めるためにすべての時間と力を注ぎ込んだ一流の戦士です。弱点を突くことに卓越しており、致命的な効率で敵陣を切り裂きます。
+Subclass/&MartialWeaponMasterTitle=武器の使い手
 UI/&CustomFeatureSelectionTooltipTypeMartialWeaponMaster=武器専門化

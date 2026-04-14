@@ -9,6 +9,6 @@ Feature/&FeaturePathOfTheSavageryUnbridledFerocityTitle=制御なき獰猛性
 Feature/&FeaturePathOfTheSavageryWrathAndFuryDescription=10レベル以降、近接武器で二刀流している間、装備中の各武器のダメージ・ダイスを1段階引き上げます（d4はd6、d6はd8、というように）。さらに、〈捨て身の攻撃〉を使用するたび、バーバリアン・レベルの半分（端数切り上げ）に等しい一時ヒット・ポイントを得ます。
 Feature/&FeaturePathOfTheSavageryWrathAndFuryTitle=怒りと激昂
 Feature/&FeatureSetPathOfTheSavageryPrimalInstinctDescription=〈激怒〉をボーナス・アクションではなくフリー・アクションとして使用できます。
-Feature/&FeatureSetPathOfTheSavageryPrimalInstinctTitle=原初の本能
+Feature/&FeatureSetPathOfTheSavageryPrimalInstinctTitle=原始の本能
 Subclass/&PathOfTheSavageryDescription=獰猛の道を歩むバーバリアンは、自然そのものの猛威です。彼らは人というより野獣のように戦い、爆発的な速度と膂力で襲いかかり、まるで爪と牙のように双刃を振るいます。
 Subclass/&PathOfTheSavageryTitle=獰猛の道

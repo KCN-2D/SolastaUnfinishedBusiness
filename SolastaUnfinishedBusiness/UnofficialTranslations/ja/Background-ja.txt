@@ -1,6 +1,6 @@
 Background/&AcademicDescription=あなたは幼いころから、歴史と魔法という2つの情熱を抱いていました。教師たちはその関心を理解し、あなたの才能が確実に伸びるよう導いてくれました。あなたの人生の使命は、魔法と世俗の両方にまたがる過去の秘密を解き明かすことです。そこで背嚢を背負い、自らソラスタの驚異を探しに旅立ったのです。
 Background/&AcademicTitle=学者
-Background/&AcolyteDescription=あなたは特定の神、あるいは神々の神殿に仕えることへ人生を捧げてきました。聖なる領域と人の世の仲介者として、神聖な儀式を執り行い、供物を捧げ、信徒を神の御前へ導きます。
+Background/&AcolyteDescription=あなたは特定の神、あるいは神々の神殿に仕えることへ人生を捧げてきました。神聖なるものと人の世の仲介者として、神聖な儀式を執り行い、供物を捧げ、信徒を神の御前へ導きます。
 Background/&AcolyteTitle=侍祭
 Background/&Aescetic_Description=あなたはこの世と物質的な関心事を遠ざけ、精神と知性の完成に身を捧げています。贅沢はもちろん、快適ささえもあなたにとっては忌むべきものです。それらは魂を軟弱にし、心を本当に重要なものから逸らしてしまうからです。
 Background/&Aescetic_Title=禁欲者
@@ -20,7 +20,7 @@ Background/&LawkeeperDescription=元執行官として、あなたは問題の�
 Background/&LawkeeperTitle=法の番人
 Background/&LowLifeTitle=貧民街育ち
 Background/&LowlifeDescription=あなたは路上で生まれ、大半の人々から見捨てられながら、ほとんど何も持たずに生き延びる術を身につけました。その経験は、あなたを打たれ強く機転の利く人物にしました。礼儀作法や教育は得意ではありませんが、それを他の資質で補う方法は心得ています。
-Background/&Occultist_Description=あなたは隠され、禁じられた知識の探究に人生を捧げてきました。他の者が踏み固められた学問の道を進む一方で、あなたは知の未知なる領域へ足を踏み入れます。その世界は、文字どおりの荒野に劣らず驚異に満ち、そして危険でもあります。
+Background/&Occultist_Description=あなたは隠され、禁じられた知識の探究に人生を捧げてきました。他の者が踏み固められた学問の道を進む一方で、あなたは知の未踏領域へ足を踏み入れます。その世界は、文字どおりの荒野に劣らず驚異に満ち、そして危険でもあります。
 Background/&Occultist_Title=神秘学者
 Background/&PhilosopherDescription=あなたは人生のほとんどを読書に費やし、ソラスタや他の世界について学んできました。知識への情熱にあふれ、物事を理解することにかけては並外れた才を持っています。いま、あなたは新たな道を選び、自らの足で世界を探検し、発見しようと決意しました。
 Background/&PhilosopherTitle=哲学者
