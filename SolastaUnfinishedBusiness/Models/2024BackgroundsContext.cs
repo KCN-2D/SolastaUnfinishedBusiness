@@ -4,6 +4,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
+using static RuleDefinitions;
 using static FeatureDefinitionAttributeModifier;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionPointPools;
@@ -17,6 +18,11 @@ public static partial class Tabletop2024Context
     private const string BackgroundMilitiaName = "BackgroundMilitia";
     private const string BackgroundTroublemakerName = "BackgroundTroublemaker";
     private const string FeatSkilledName = "FeatSkilled";
+    private const string HumanOriginFeatFeatureSetName = "FeatureSetHumanOriginFeat2024";
+    private const string HumanOriginFeatChoiceFeatureSetPrefix = "FeatureSetHumanOriginFeat2024_";
+    private const string HumanOriginFeatPointPoolName = "PointPoolHumanOriginFeat2024";
+    private const string HumanOriginFeatSkilledPointPoolName = "PointPoolHumanOriginFeatSkilled";
+    private const string HumanOriginFeatTag = "02RaceHumanOriginFeat2024";
 
     private static readonly Dictionary<string, (string A, string B, string C)> BackgroundAbilitySets = new()
     {
@@ -70,23 +76,47 @@ public static partial class Tabletop2024Context
         "FeatTough"
     ];
 
+    private static readonly string[] HumanOriginFeatNames =
+    [
+        "FeatAlert",
+        "FeatHealer",
+        "FeatLucky",
+        "FeatMagicInitiateBard",
+        "FeatMagicInitiateCleric",
+        "FeatMagicInitiateWizard",
+        "FeatSavageAttack",
+        "FeatTough",
+        FeatSkilledName
+    ];
+    
+    private static readonly HashSet<string> HumanOriginFeatChoiceNames = [..HumanOriginFeatNames];
+
     private static readonly Dictionary<string, FeatureDefinitionFeatureSet> BackgroundAsiFeatures = new();
     private static readonly Dictionary<string, FeatureDefinition> BackgroundBonusGrantFeatures = new();
     private static readonly Dictionary<string, FeatureDefinition> BackgroundBonusDisplayFeatures = new();
+    private static readonly Dictionary<string, FeatureDefinitionFeatureSet> HumanOriginFeatChoiceFeatures = new();
+    private static readonly Dictionary<string, string> HumanOriginFeatSelections = new();
+    private static FeatureDefinitionFeatureSet HumanOriginFeatFeatureSet;
+    private static FeatureDefinitionPointPool HumanOriginFeatPointPool;
     private static bool _backgroundOptionsLoaded;
 
     internal static bool IsAlternateHumanEffectivelyEnabled()
     {
-        return Main.Settings.EnableBackgroundASI || Main.Settings.EnableAlternateHuman;
+        return Main.Settings.EnableAlternateHuman && !Main.Settings.EnableBackgroundASI;
     }
 
-    internal static bool IsAlternateHumanForcedByBackgroundASI()
+    internal static bool IsBackgroundBonusFeatsEnabled()
     {
-        return Main.Settings.EnableBackgroundASI;
+        return Main.Settings.EnableBackgroundASI && Main.Settings.EnableBackgroundBonusFeats;
     }
 
     internal static void ApplyBackgroundOptions()
     {
+        if (NormalizeBackgroundOptionSettings())
+        {
+            FlexibleBackgroundsContext.SwitchFlexibleBackgrounds();
+        }
+
         FeatsContext.SwitchFirstLevelTotalFeats();
 
         if (!_backgroundOptionsLoaded)
@@ -127,6 +157,9 @@ public static partial class Tabletop2024Context
                 BackgroundBonusDisplayFeatures[featName] = BuildOriginFeatDisplayFeature(featName);
             }
         }
+
+        HumanOriginFeatPointPool = BuildHumanOriginFeatPointPool();
+        HumanOriginFeatFeatureSet = BuildHumanOriginFeatFeatureSet();
     }
 
     internal static HashSet<string> GetActiveOriginRestrictedFeatNames(RulesetCharacterHero hero)
@@ -150,6 +183,11 @@ public static partial class Tabletop2024Context
             var pointPool = service.GetPointPoolOfTypeAndTag(heroBuildingData, HeroDefinitions.PointsPoolType.Feat, tag);
 
             if (pointPool?.RestrictedChoices == null || pointPool.RestrictedChoices.Count == 0)
+            {
+                continue;
+            }
+
+            if (IsHumanOriginFeatTag(tag))
             {
                 continue;
             }
@@ -203,6 +241,8 @@ public static partial class Tabletop2024Context
         }
 
         var enableBackgroundAsi = Main.Settings.EnableBackgroundASI;
+
+        DisableAlternateHumanWhenBackgroundAsiEnabled();
 
         foreach (var backgroundAsiFeature in BackgroundAsiFeatures)
         {
@@ -267,20 +307,288 @@ public static partial class Tabletop2024Context
 
         RemoveMatchingFeature(human.FeatureUnlocks, FeatureDefinitionAttributeModifiers.AttributeModifierHumanAbilityScoreIncrease);
         RemoveMatchingFeature(human.FeatureUnlocks, FeatureDefinitionPointPools.PointPoolAbilityScoreImprovement);
+        RemoveMatchingFeature(human.FeatureUnlocks, HumanOriginFeatFeatureSet);
+        RemoveMatchingFeature(human.FeatureUnlocks, HumanOriginFeatPointPool);
+        RemoveLegacyHumanOriginFeatFeatures(human.FeatureUnlocks);
 
-        if (!enableBackgroundAsi)
+        if (enableBackgroundAsi)
         {
+            RemoveAlternateHumanBonusFeatPool(human.FeatureUnlocks);
+            AddFeatureUnlock(human.FeatureUnlocks, PointPoolHumanSkillPool);
+            AddFeatureUnlock(human.FeatureUnlocks, HumanOriginFeatFeatureSet);
+            AddFeatureUnlock(human.FeatureUnlocks, HumanOriginFeatPointPool);
+        }
+        else
+        {
+            HumanOriginFeatSelections.Clear();
+
+            if (!Main.Settings.EnableAlternateHuman)
+            {
+                RemoveMatchingFeature(human.FeatureUnlocks, PointPoolHumanSkillPool);
+            }
+
             FeatureDefinition humanAsiFeature = IsAlternateHumanEffectivelyEnabled()
                 ? FeatureDefinitionPointPools.PointPoolAbilityScoreImprovement
                 : FeatureDefinitionAttributeModifiers.AttributeModifierHumanAbilityScoreIncrease;
 
-            if (!human.FeatureUnlocks.Exists(unlock => unlock.FeatureDefinition == humanAsiFeature))
-            {
-                human.FeatureUnlocks.Add(new FeatureUnlockByLevel(humanAsiFeature, 1));
-            }
+            AddFeatureUnlock(human.FeatureUnlocks, humanAsiFeature);
         }
 
         human.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+    }
+
+    internal static bool HasDuplicateHumanOriginFeat(RulesetCharacterHero hero, out string featName)
+    {
+        featName = null;
+
+        if (!_backgroundOptionsLoaded ||
+            !IsBackgroundBonusFeatsEnabled() ||
+            hero?.RaceDefinition?.Name != "Human" ||
+            hero.BackgroundDefinition == null ||
+            !BackgroundFeatSets.TryGetValue(hero.BackgroundDefinition.Name, out var backgroundFeatName))
+        {
+            return false;
+        }
+
+        if (!TryGetHumanOriginSelectionName(hero, out var humanFeatName) &&
+            !TryGetHumanOriginTrainedFeatName(hero, out humanFeatName))
+        {
+            return false;
+        }
+
+        if (humanFeatName != backgroundFeatName)
+        {
+            return false;
+        }
+
+        featName = backgroundFeatName;
+
+        return true;
+    }
+
+    internal static bool IsDuplicateHumanOriginFeatChoice(
+        RulesetCharacterHero hero,
+        string tag,
+        string featName)
+    {
+        return _backgroundOptionsLoaded &&
+               IsBackgroundBonusFeatsEnabled() &&
+               IsHumanOriginFeatTag(tag) &&
+               hero?.RaceDefinition?.Name == "Human" &&
+               hero.BackgroundDefinition != null &&
+               BackgroundFeatSets.TryGetValue(hero.BackgroundDefinition.Name, out var backgroundFeatName) &&
+               featName == backgroundFeatName;
+    }
+
+    internal static bool IsHumanOriginFeatSelectionFeature(FeatureDefinition feature)
+    {
+        return _backgroundOptionsLoaded && Main.Settings.EnableBackgroundASI && feature == HumanOriginFeatFeatureSet;
+    }
+
+    internal static bool TryGetHumanOriginFeatLearnStepTitle(
+        HeroDefinitions.PointsPoolType poolType,
+        string tag,
+        out string title)
+    {
+        title = null;
+
+        if (!_backgroundOptionsLoaded ||
+            !Main.Settings.EnableBackgroundASI ||
+            poolType != HeroDefinitions.PointsPoolType.Feat ||
+            !IsHumanOriginFeatTag(tag))
+        {
+            return false;
+        }
+
+        title = Gui.Localize("Feature/&PointPoolHumanOriginFeatTitle");
+
+        return true;
+    }
+
+    internal static bool TrySaveHumanOriginFeatSelection(
+        RulesetCharacterHero hero,
+        FeatureDefinition choiceFeature,
+        bool clearTraining)
+    {
+        if (!IsValidHumanOriginFeatSelectionHero(hero) ||
+            !TryGetHumanOriginFeatName(choiceFeature, out var featName))
+        {
+            return false;
+        }
+
+        var key = GetHumanOriginSelectionKey(hero);
+        var changed = !HumanOriginFeatSelections.TryGetValue(key, out var currentFeatName) ||
+                      currentFeatName != featName;
+
+        HumanOriginFeatSelections[key] = featName;
+
+        if (clearTraining && changed)
+        {
+            ClearHumanOriginFeatTraining(hero.GetHeroBuildingData());
+        }
+
+        return true;
+    }
+
+    internal static bool TryGetHumanOriginSelectionFeature(RulesetCharacterHero hero, out FeatureDefinition feature)
+    {
+        feature = null;
+
+        if (!TryGetHumanOriginSelectionName(hero, out var featName) ||
+            !HumanOriginFeatChoiceFeatures.TryGetValue(featName, out var choiceFeature))
+        {
+            return false;
+        }
+
+        feature = choiceFeature;
+
+        return true;
+    }
+
+    internal static bool TryGetHumanOriginFeatToTrain(
+        RulesetCharacterHero hero,
+        string tag,
+        out FeatDefinition featDefinition)
+    {
+        featDefinition = null;
+
+        if (!IsValidHumanOriginFeatSelectionHero(hero) ||
+            !IsHumanOriginFeatTag(tag) ||
+            !TryGetHumanOriginSelectionName(hero, out var featName) ||
+            !TryGetDefinition<FeatDefinition>(featName, out featDefinition))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    internal static bool TryApplyHumanOriginFeatPointPool(
+        CharacterHeroBuildingData heroBuildingData,
+        FeatureDefinition feature)
+    {
+        if (!_backgroundOptionsLoaded ||
+            feature != HumanOriginFeatPointPool ||
+            heroBuildingData == null ||
+            !heroBuildingData.PointPoolStacks.TryGetValue(HeroDefinitions.PointsPoolType.Feat, out var pointPoolStack))
+        {
+            return false;
+        }
+
+        if (pointPoolStack.ActivePools.ContainsKey(HumanOriginFeatTag))
+        {
+            return true;
+        }
+
+        var pool = new PointPool(
+            HumanOriginFeatPointPool.poolAmount,
+            HumanOriginFeatPointPool.RestrictedChoices,
+            HumanOriginFeatPointPool.UniqueChoices)
+        {
+            Description = HumanOriginFeatPointPool.GuiPresentation.Description
+        };
+
+        pointPoolStack.ActivePools.Add(HumanOriginFeatTag, pool);
+
+        return true;
+    }
+
+    internal static void RemoveHumanOriginFeatPointPool(CharacterHeroBuildingData heroBuildingData)
+    {
+        if (heroBuildingData == null)
+        {
+            return;
+        }
+
+        if (heroBuildingData.PointPoolStacks.TryGetValue(HeroDefinitions.PointsPoolType.Feat, out var pointPoolStack))
+        {
+            pointPoolStack.ActivePools.Remove(HumanOriginFeatTag);
+        }
+
+        heroBuildingData.LevelupTrainedFeats.Remove(HumanOriginFeatTag);
+    }
+
+    internal static void ClearHumanOriginFeatTraining(CharacterHeroBuildingData heroBuildingData)
+    {
+        if (heroBuildingData == null)
+        {
+            return;
+        }
+
+        ServiceRepository.GetService<ICharacterBuildingService>().UntrainFeats(heroBuildingData, HumanOriginFeatTag);
+        heroBuildingData.LevelupTrainedFeats.Remove(HumanOriginFeatTag);
+    }
+
+    private static bool TryGetHumanOriginTrainedFeatName(RulesetCharacterHero hero, out string featName)
+    {
+        featName = null;
+
+        if (hero?.GetHeroBuildingData() is not { } heroBuildingData ||
+            !heroBuildingData.PointPoolStacks.TryGetValue(HeroDefinitions.PointsPoolType.Feat, out var pointPoolStack) ||
+            !pointPoolStack.ActivePools.ContainsKey(HumanOriginFeatTag) ||
+            !heroBuildingData.LevelupTrainedFeats.TryGetValue(HumanOriginFeatTag, out var trainedFeats))
+        {
+            return false;
+        }
+
+        var trainedFeat = trainedFeats.FirstOrDefault(feat => HumanOriginFeatChoiceNames.Contains(feat.Name));
+
+        if (!trainedFeat)
+        {
+            return false;
+        }
+
+        featName = trainedFeat.Name;
+
+        return true;
+    }
+
+    private static bool IsHumanOriginFeatTag(string tag)
+    {
+        return tag == HumanOriginFeatTag;
+    }
+
+    private static bool TryGetHumanOriginSelectionName(RulesetCharacterHero hero, out string featName)
+    {
+        featName = null;
+
+        return IsValidHumanOriginFeatSelectionHero(hero) &&
+               HumanOriginFeatSelections.TryGetValue(GetHumanOriginSelectionKey(hero), out featName) &&
+               HumanOriginFeatChoiceNames.Contains(featName);
+    }
+
+    private static bool TryGetHumanOriginFeatName(FeatureDefinition choiceFeature, out string featName)
+    {
+        featName = null;
+
+        if (!choiceFeature)
+        {
+            return false;
+        }
+
+        foreach (var humanOriginFeatChoiceFeature in HumanOriginFeatChoiceFeatures)
+        {
+            if (humanOriginFeatChoiceFeature.Value == choiceFeature)
+            {
+                featName = humanOriginFeatChoiceFeature.Key;
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsValidHumanOriginFeatSelectionHero(RulesetCharacterHero hero)
+    {
+        return _backgroundOptionsLoaded &&
+               Main.Settings.EnableBackgroundASI &&
+               hero?.RaceDefinition?.Name == "Human";
+    }
+
+    private static string GetHumanOriginSelectionKey(RulesetCharacterHero hero)
+    {
+        return hero.Guid.ToString();
     }
 
     internal static void SwitchBackgroundBonusFeats()
@@ -290,7 +598,7 @@ public static partial class Tabletop2024Context
             return;
         }
 
-        var enableBackgroundBonusFeats = Main.Settings.EnableBackgroundBonusFeats;
+        var enableBackgroundBonusFeats = IsBackgroundBonusFeatsEnabled();
 
         foreach (var backgroundFeatSet in BackgroundFeatSets)
         {
@@ -346,7 +654,7 @@ public static partial class Tabletop2024Context
                 characterClass.featAutolearnPreference.RemoveAll(name => name == featName);
             }
 
-            if (!Main.Settings.EnableBackgroundBonusFeats)
+            if (!IsBackgroundBonusFeatsEnabled())
             {
                 continue;
             }
@@ -445,6 +753,104 @@ public static partial class Tabletop2024Context
             .AddToDB();
     }
 
+    private static FeatureDefinitionPointPool BuildHumanOriginFeatPointPool()
+    {
+        var choices = HumanOriginFeatNames
+            .Select(BuildHumanOriginFeatChoice)
+            .Where(feat => feat)
+            .Select(feat => feat.Name)
+            .ToArray();
+
+        return choices.Length == 0
+            ? null
+            : FeatureDefinitionPointPoolBuilder
+                .Create(HumanOriginFeatPointPoolName)
+                .SetGuiPresentation(
+                    "Feature/&PointPoolHumanOriginFeatTitle",
+                    "Feature/&PointPoolHumanOriginFeatDescription")
+                .SetPool(HeroDefinitions.PointsPoolType.Feat, 1)
+                .RestrictChoices(choices)
+                .AddToDB();
+    }
+
+    private static FeatureDefinitionFeatureSet BuildHumanOriginFeatFeatureSet()
+    {
+        var choices = HumanOriginFeatNames
+            .Select(BuildHumanOriginFeatChoiceFeatureSet)
+            .Where(feature => feature)
+            .ToArray();
+
+        return choices.Length == 0
+            ? null
+            : FeatureDefinitionFeatureSetBuilder
+                .Create(HumanOriginFeatFeatureSetName)
+                .SetGuiPresentation(
+                    "Feature/&PointPoolHumanOriginFeatTitle",
+                    "Feature/&PointPoolHumanOriginFeatDescription")
+                .SetMode(FeatureDefinitionFeatureSet.FeatureSetMode.Exclusion)
+                .AddFeatureSet(choices)
+                .AddToDB();
+    }
+
+    private static FeatureDefinitionFeatureSet BuildHumanOriginFeatChoiceFeatureSet(string featName)
+    {
+        var featDefinition = BuildHumanOriginFeatChoice(featName);
+
+        if (!featDefinition)
+        {
+            return null;
+        }
+
+        var choiceFeature = FeatureDefinitionFeatureSetBuilder
+            .Create($"{HumanOriginFeatChoiceFeatureSetPrefix}{featName}")
+            .SetGuiPresentation(
+                featDefinition.GuiPresentation.Title,
+                featDefinition.GuiPresentation.Description,
+                featDefinition)
+            .SetMode(FeatureDefinitionFeatureSet.FeatureSetMode.Union)
+            .AddToDB();
+
+        HumanOriginFeatChoiceFeatures[featName] = choiceFeature;
+
+        return choiceFeature;
+    }
+
+    private static FeatDefinition BuildHumanOriginFeatChoice(string featName)
+    {
+        if (featName == FeatSkilledName)
+        {
+            return BuildHumanOriginFeatSkilledFeat();
+        }
+
+        return TryGetDefinition<FeatDefinition>(featName, out var featDefinition)
+            ? featDefinition
+            : null;
+    }
+
+    private static FeatDefinition BuildHumanOriginFeatSkilledFeat()
+    {
+        if (TryGetDefinition<FeatDefinition>(FeatSkilledName, out var featDefinition))
+        {
+            return featDefinition;
+        }
+
+        var skillPool = FeatureDefinitionPointPoolBuilder
+            .Create(HumanOriginFeatSkilledPointPoolName)
+            .SetGuiPresentationNoContent(true)
+            .SetPool(HeroDefinitions.PointsPoolType.Skill, 3)
+            .AddToDB();
+
+        featDefinition = FeatDefinitionBuilder
+            .Create(FeatSkilledName)
+            .SetGuiPresentation("Feature/&PointPoolSkilledTitle", "Feature/&PointPoolSkilledDescription")
+            .SetFeatures(skillPool)
+            .AddToDB();
+
+        featDefinition.GuiPresentation.hidden = true;
+
+        return featDefinition;
+    }
+
     private static FeatureDefinition BuildOriginFeatDisplayFeature(string featName)
     {
         var featDefinition = GetDefinition<FeatDefinition>(featName);
@@ -483,7 +889,74 @@ public static partial class Tabletop2024Context
 
     private static void RemoveMatchingFeature([NotNull] List<FeatureUnlockByLevel> unlocks, BaseDefinition toRemove)
     {
+        if (!toRemove)
+        {
+            return;
+        }
+
         unlocks.RemoveAll(unlock => unlock.FeatureDefinition == toRemove);
+    }
+
+    private static void RemoveAlternateHumanBonusFeatPool([NotNull] List<FeatureUnlockByLevel> unlocks)
+    {
+        if (Main.Settings.TotalFeatsGrantedFirstLevel == 0)
+        {
+            RemoveMatchingFeature(unlocks, PointPoolBonusFeat);
+
+            return;
+        }
+
+        var name = $"PointPool{Main.Settings.TotalFeatsGrantedFirstLevel + 1}BonusFeats";
+
+        if (TryGetDefinition<FeatureDefinitionPointPool>(name, out var pointPool))
+        {
+            RemoveMatchingFeature(unlocks, pointPool);
+        }
+    }
+
+    private static void RemoveLegacyHumanOriginFeatFeatures([NotNull] List<FeatureUnlockByLevel> unlocks)
+    {
+        if (TryGetDefinition<FeatureDefinitionFeatureSet>(HumanOriginFeatFeatureSetName, out var featureSet))
+        {
+            RemoveMatchingFeature(unlocks, featureSet);
+        }
+    }
+
+    private static void AddFeatureUnlock([NotNull] List<FeatureUnlockByLevel> unlocks, FeatureDefinition feature)
+    {
+        if (!feature || unlocks.Exists(unlock => unlock.FeatureDefinition == feature))
+        {
+            return;
+        }
+
+        unlocks.Add(new FeatureUnlockByLevel(feature, 1));
+    }
+
+    private static void DisableAlternateHumanWhenBackgroundAsiEnabled()
+    {
+        if (Main.Settings.EnableBackgroundASI)
+        {
+            Main.Settings.EnableAlternateHuman = false;
+        }
+    }
+
+    private static bool NormalizeBackgroundOptionSettings()
+    {
+        var flexibleBackgroundsChanged = false;
+
+        if (!Main.Settings.EnableBackgroundASI)
+        {
+            Main.Settings.EnableBackgroundBonusFeats = false;
+        }
+        else if (Main.Settings.EnableBackgroundBonusFeats)
+        {
+            flexibleBackgroundsChanged = Main.Settings.EnableFlexibleBackgrounds;
+            Main.Settings.EnableFlexibleBackgrounds = false;
+        }
+
+        DisableAlternateHumanWhenBackgroundAsiEnabled();
+
+        return flexibleBackgroundsChanged;
     }
 
     private static string GetAbilityAbbreviation(string attribute)

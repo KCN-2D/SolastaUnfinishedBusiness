@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -52,6 +53,24 @@ public static class CharacterStageBackgroundSelectionPanelPatcher
         public static bool Prefix(CharacterStageBackgroundSelectionPanel __instance)
         {
             return NewBackgroundSelected(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterStageBackgroundSelectionPanel),
+        nameof(CharacterStageBackgroundSelectionPanel.CanProceedToNextStage))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CanProceedToNextStage_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(CharacterStageBackgroundSelectionPanel __instance, ref bool __result)
+        {
+            if (!__result)
+            {
+                return;
+            }
+
+            __result = !Tabletop2024Context.HasDuplicateHumanOriginFeat(__instance.currentHero, out _);
         }
     }
 }

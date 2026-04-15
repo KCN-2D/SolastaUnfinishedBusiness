@@ -25,7 +25,6 @@ Feedback/&RoguishSwashbucklerPanacheCannotMakeOA=Cannot make opportunity attacks
 Feedback/&RoguishSwashbucklerPanacheTooFarApart=Panache effect ended - too far apart
 Feedback/&RoguishSwashbucklerPanacheBrokenByAlly=Panache effect broken by ally
 Feedback/&RoguishSwashbucklerMasterDuelistReroll=Rolled {0} and {1} with advantage. Used {2}
-Feature/&PowerRoguishSwashbucklerMasterDuelistTitle=Master Duelist
 Reaction/&UseRoguishSwashbucklerMasterDuelistDescription=Reroll missed attack with advantage?
 Reaction/&CustomReactionMasterDuelistTitle=Master Duelist
 Reaction/&CustomReactionMasterDuelistReactTitle=Attack

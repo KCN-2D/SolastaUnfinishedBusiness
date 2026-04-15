@@ -34,3 +34,5 @@ Feature/&FeatureSetBackgroundASI111Title=+1 {0}, +1 {1}, +1 {2}
 Feature/&FeatureSetBackgroundASI111Description=Increase {0}, {1}, and {2} by 1.
 Feature/&PointPoolSkilledTitle=Skilled
 Feature/&PointPoolSkilledDescription=You gain proficiency in any combination of three skills of your choice.
+Feature/&PointPoolHumanOriginFeatTitle=Human Origin Feat
+Feature/&PointPoolHumanOriginFeatDescription=Choose one origin feat granted by your human ancestry.

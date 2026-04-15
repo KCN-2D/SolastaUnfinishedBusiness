@@ -548,10 +548,27 @@ public static class CharacterBuildingManagerPatcher
                 return;
             }
 
+            if (tag == AttributeDefinitions.TagRace)
+            {
+                Tabletop2024Context.RemoveHumanOriginFeatPointPool(hero?.GetHeroBuildingData());
+            }
+
             if (hero.ActiveFeatures.TryGetValue(tag, out var features))
             {
                 FeatureDefinitionGrantInvocations.RemoveInvocations(hero, tag, features);
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.ApplyFeatureDefinitionPointPool))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ApplyFeatureDefinitionPointPool_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterHeroBuildingData heroBuildingData, FeatureDefinition feature)
+        {
+            return !Tabletop2024Context.TryApplyHumanOriginFeatPointPool(heroBuildingData, feature);
         }
     }
 
@@ -1045,11 +1062,17 @@ public static class CharacterBuildingManagerPatcher
     public static class TrainFeat_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(
+        public static bool Prefix(
             CharacterBuildingManager __instance,
             CharacterHeroBuildingData heroBuildingData,
-            FeatDefinition feat)
+            FeatDefinition feat,
+            string tag)
         {
+            if (Tabletop2024Context.IsDuplicateHumanOriginFeatChoice(heroBuildingData?.HeroCharacter, tag, feat.Name))
+            {
+                return false;
+            }
+
             foreach (var featureDefinitionPointPool in feat.Features.OfType<FeatureDefinitionPointPool>())
             {
                 if (!heroBuildingData.PointPoolStacks.TryGetValue(featureDefinitionPointPool.PoolType,
@@ -1058,7 +1081,6 @@ public static class CharacterBuildingManagerPatcher
                     continue;
                 }
 
-                
                 var hero = heroBuildingData.HeroCharacter;
 
                 __instance.GetLastAssignedClassAndLevel(hero, out var classDefinition, out var level);
@@ -1078,6 +1100,8 @@ public static class CharacterBuildingManagerPatcher
             }
 
             LevelUpHelper.RebuildCharacterStageProficiencyPanel(heroBuildingData.LevelingUp);
+
+            return true;
         }
     }
 

@@ -18,6 +18,7 @@ public static class CharacterStageProficiencySelectionPanelPatcher
     private static readonly MethodInfo OnLearnAutoImplMethod =
         AccessTools.Method(typeof(CharacterStageProficiencySelectionPanel), nameof(CharacterStageProficiencySelectionPanel.OnLearnAutoImpl));
     private static bool _autoLearningOriginFeat;
+    private static bool _autoTrainingHumanOriginFeat;
 
     private static LearnStepItem CurrentStepItem(CharacterStageProficiencySelectionPanel __instance)
     {
@@ -52,11 +53,54 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         return !_autoLearningOriginFeat &&
                item &&
                item.PoolType == Feat &&
-               Main.Settings.EnableBackgroundBonusFeats &&
+               Tabletop2024Context.IsBackgroundBonusFeatsEnabled() &&
                Tabletop2024Context.TryGetSingleOriginRestrictedFeat(
                    __instance.currentHero?.GetHeroBuildingData(),
                    item.Tag,
                    out _);
+    }
+
+    private static bool TryAutoTrainHumanOriginFeat(
+        CharacterStageProficiencySelectionPanel __instance,
+        LearnStepItem item)
+    {
+        if (_autoTrainingHumanOriginFeat ||
+            !item ||
+            item.PoolType != Feat ||
+            !Tabletop2024Context.TryGetHumanOriginFeatToTrain(__instance.currentHero, item.Tag, out var feat) ||
+            Tabletop2024Context.IsDuplicateHumanOriginFeatChoice(__instance.currentHero, item.Tag, feat.Name))
+        {
+            return false;
+        }
+
+        var hero = __instance.currentHero;
+        var buildingData = hero.GetHeroBuildingData();
+        var heroBuildingCommandService = ServiceRepository.GetService<IHeroBuildingCommandService>();
+
+        heroBuildingCommandService.AcknowledgePreviousCharacterBuildingCommandLocally(() =>
+        {
+            try
+            {
+                _autoTrainingHumanOriginFeat = true;
+
+                if (!__instance.CharacterBuildingService.IsFeatSelectedForTraining(buildingData, feat, item.Tag))
+                {
+                    Tabletop2024Context.ClearHumanOriginFeatTraining(buildingData);
+                    __instance.CharacterBuildingService.TrainFeat(buildingData, feat, item.Tag, true);
+                }
+
+                __instance.OnPreRefresh();
+                __instance.RefreshNow();
+                __instance.MoveToNextLearnStep();
+                __instance.ResetWasClickedFlag();
+            }
+            finally
+            {
+                _autoTrainingHumanOriginFeat = false;
+            }
+        });
+
+        return true;
     }
 
     [HarmonyPatch(typeof(CharacterStageProficiencySelectionPanel),
@@ -122,6 +166,11 @@ public static class CharacterStageProficiencySelectionPanelPatcher
                 return;
             }
 
+            if (TryAutoTrainHumanOriginFeat(__instance, item))
+            {
+                return;
+            }
+
             if (!ShouldAutoLearnOriginFeat(__instance, item))
             {
                 return;
@@ -148,6 +197,27 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             {
                 _autoLearningOriginFeat = false;
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(LearnStepItem), nameof(LearnStepItem.Bind))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class LearnStepItemBind_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix([NotNull] LearnStepItem __instance)
+        {
+            if (!Tabletop2024Context.TryGetHumanOriginFeatLearnStepTitle(
+                    __instance.PoolType,
+                    __instance.Tag,
+                    out var title))
+            {
+                return;
+            }
+
+            __instance.headerLabelActive.Text = title;
+            __instance.headerLabelInactive.Text = title;
         }
     }
 

@@ -4,6 +4,7 @@ using System.Linq;
 using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
+using UnityEngine;
 #if DEBUG
 using UnityExplorer;
 #endif
@@ -1581,12 +1582,20 @@ internal static class ToolsDisplay
 
         UI.Label();
 
+        if (Main.Settings.EnableBackgroundASI)
+        {
+            Main.Settings.EnableAlternateHuman = false;
+        }
+
         toggle = Main.Settings.EnableAlternateHuman;
+        var guiEnabled = GUI.enabled;
+        GUI.enabled = guiEnabled && !Main.Settings.EnableBackgroundASI;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableAlternateHuman"), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.EnableAlternateHuman = toggle;
             FeatsContext.SwitchFirstLevelTotalFeats();
         }
+        GUI.enabled = guiEnabled;
 
         toggle = Main.Settings.UseOfficialSmallRacesDisWithHeavyWeapons;
         if (UI.Toggle(Gui.Localize("ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons"), ref toggle, UI.AutoWidth()))
