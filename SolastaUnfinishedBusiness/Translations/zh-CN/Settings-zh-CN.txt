@@ -485,6 +485,7 @@ ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ 还启用远程攻击<color=#F
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ 还启用延伸攻击 <color=#F0DAA0>[禁用精确数学]</color></i>
 ModUi/&UseOfficialFlankingRulesButAddAttackModifier=<i>+ 授予攻击掷骰 +1，而非优势</i>
 ModUi/&UseOfficialFoodRationsWeight=启用重量为 2 磅的<color=#D89555>食物配给</color>
+ModUi/&ExcludeEquippedItemsFromCarriedWeight=从负重中排除已装备物品
 ModUi/&UseOfficialObscurementRules=启用<color=#D89555>照明、遮蔽和视觉</color>战斗规则
 ModUi/&UseOfficialObscurementRulesHelp=<i><color=#F0DAA0>[能感知到防御者但无法感知到攻击者的防御者会获得 ADV，无法感知到攻击者但可以感知到防御者会获得 DIS\n 被严重遮挡的区域会造成致盲状态，对生物的攻击掷骰获得 ADV，而生物的攻击掷骰获得 DIS\n 如果攻击者没有视力，则无法施放针对个人的所有远距离法术，除了那些明确未说明需要视力的法术]</color></i>
 ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=使<color=#D89555>小型种族</color>在使用重型武器时处于劣势

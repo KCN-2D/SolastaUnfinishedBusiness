@@ -485,6 +485,7 @@ ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ Auch für Fernangriffe aktivie
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ Auch für Reichweitenangriffe aktivieren <color=#F0DAA0>[präzise Mathematik deaktivieren]</color></i>
 ModUi/&UseOfficialFlankingRulesButAddAttackModifier=<i>+ Statt Vorteil gewähren wir +1 auf den Angriffswurf</i>
 ModUi/&UseOfficialFoodRationsWeight=Aktivieren Sie eine <color=#D89555>Lebensmittelration</color> mit einem Gewicht von 2 Pfund
+ModUi/&ExcludeEquippedItemsFromCarriedWeight=Ausgerüstete Gegenstände vom getragenen Gewicht ausschließen
 ModUi/&UseOfficialObscurementRules=Aktiviere die Kampfregeln <color=#D89555>Beleuchtung, Verdunkelung und Sicht</color>
 ModUi/&UseOfficialObscurementRulesHelp=<i><color=#F0DAA0>[Angreifer, der wahrnimmt, Verteidiger, der es nicht wahrnehmen kann, erhält ADV, und Angreifer, der es nicht wahrnimmt, Verteidiger, der es wahrnehmen kann, erhält DIS\n stark verdeckte Bereiche verursachen den Zustand der Erblindung, wobei Angriffswürfe gegen die Kreatur ADV haben und die Angriffswürfe der Kreatur DIS haben\n alle Distanzzauber, die auf Einzelpersonen zielen, können nicht gewirkt werden, wenn der Angreifer keine Sicht hat, außer denen, bei denen nicht klar angegeben ist, dass Sicht erforderlich ist]</color></i>
 ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=Aktivieren <color=#D89555>Kleine Rassen</color> haben einen Nachteil beim Tragen schwerer Waffen

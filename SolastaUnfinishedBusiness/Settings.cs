@@ -274,6 +274,7 @@ public class Settings : UnityModManager.ModSettings
     public bool AllowAnyClassToWearSylvanArmor { get; set; }
     public bool AllowClubsToBeThrown { get; set; }
     [Tag(Type = TagType.T2014)] public bool UseOfficialFoodRationsWeight { get; set; }
+    [Tag(Type = TagType.QoL)] public bool ExcludeEquippedItemsFromCarriedWeight { get; set; }
     public bool MakeAllMagicStaveArcaneFoci { get; set; }
     [Tag(Type = TagType.T2014)] public bool FixRingOfRegenerationHealRate { get; set; }
     public bool IgnoreHandXbowFreeHandRequirements { get; set; }

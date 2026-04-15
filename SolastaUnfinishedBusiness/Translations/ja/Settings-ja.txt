@@ -478,6 +478,7 @@ ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ リーチ攻撃も有効にす�
 ModUi/&UseOfficialFlankingRulesButAddAttackModifier=<i>+ 有利の代わりに攻撃ロールに +1 を付与</i>
 ModUi/&UseOldOfficialFlankingRules=<i>+ 旧来の挟撃ルールは攻撃ロールに +2 するだけでした。上記の挟撃 + 修正値ルールが優先されます</i>
 ModUi/&UseOfficialFoodRationsWeight=<color=#D89555>食料配給</color>の重量を2ポンドにする
+ModUi/&ExcludeEquippedItemsFromCarriedWeight=装備中のアイテムを所持重量から除外する
 ModUi/&UseOfficialObscurementRules=<color=#D89555>照明、遮蔽、視界</color>戦闘ルールを有効にする
 ModUi/&UseOfficialObscurementRulesHelp=<i><color=#F0DAA0>[防御側を知覚できる攻撃側は有利を得て、攻撃側を知覚できる防御側に対しては知覚できない攻撃側が不利を受けます\n重度の遮蔽領域は盲目状態を与え、そのクリーチャーに対する攻撃ロールは有利、そのクリーチャーの攻撃ロールは不利になります\n攻撃側に視覚がない場合、視認不要と明記されたものを除き、個体を対象とする遠距離呪文は発動できません]</color></i>
 ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=<color=#D89555>小型種族</color>が重火器を使用する際に不利になるようにする

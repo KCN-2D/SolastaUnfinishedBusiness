@@ -485,6 +485,7 @@ ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ Включить эти пра
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ Также включить для атак досягаемости <color=#F0DAA0>[отключить точную математику]</color></i>
 ModUi/&UseOfficialFlankingRulesButAddAttackModifier=<i>+ Вместо преимущества давать +1 к броскам атаки</i>
 ModUi/&UseOfficialFoodRationsWeight=Принять вес <color=#D89555>Рационов</color> равным 2 фунтам
+ModUi/&ExcludeEquippedItemsFromCarriedWeight=Исключить экипированные предметы из переносимого веса
 ModUi/&UseOfficialObscurementRules=Включить правила <color=#D89555>освещения, затемнения и видимости</color> в бою
 ModUi/&UseOfficialObscurementRulesHelp=<i><color=#F0DAA0>[преимущество для атакующего, который видит цель, которая не видит его, и помеха для атакующего, который не видит цель, которая видит его\n сильно заслонённая местность накладывает состояние слепоты, при которой броски атаки по существу совершаются с преимуществом, а броски атаки существа совершаются с помехой\n дистанционные заклинания, целями которых являются существа, не могут быть наложены, если атакующий не видит цель, кроме тех, для которых не указано специально, что необходима видимость]</color></i>
 ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=Включить помеху <color=#D89555>расам маленького размера</color> при использовании тяжёлого оружия

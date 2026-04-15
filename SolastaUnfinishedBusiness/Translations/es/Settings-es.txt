@@ -485,6 +485,7 @@ ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ También habilitar ataques a d
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ También habilitar ataques de alcance <color=#F0DAA0>[deshabilitar matemática precisa]</color></i>
 ModUi/&UseOfficialFlankingRulesButAddAttackModifier=<i>+ En lugar de ventaja otorga +1 a la tirada de ataque</i>
 ModUi/&UseOfficialFoodRationsWeight=Habilitar <color=#D89555>ración de alimentos</color> con un peso de 2 libras
+ModUi/&ExcludeEquippedItemsFromCarriedWeight=Excluir los objetos equipados del peso transportado
 ModUi/&UseOfficialObscurementRules=Habilitar las reglas de combate de <color=#D89555>iluminación, oscurecimiento y visión</color>
 ModUi/&UseOfficialObscurementRulesHelp=<i><color=#F0DAA0>[el atacante que percibe al defensor que no puede percibirlo obtiene ADV, y el atacante que no percibe al defensor que puede percibirlo obtiene DIS\n las áreas muy oscurecidas infligen condición de ceguera, donde las tiradas de ataque contra la criatura tienen ADV, y las tiradas de ataque de la criatura tienen DIS\n todos los hechizos de distancia dirigidos a individuos no se pueden lanzar si el atacante no tiene vista, excepto los que claramente no indican que se requiere vista]</color></i>
 ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=Permitir que las <color=#D89555>razas pequeñas</color> tengan desventaja al manejar armas pesadas

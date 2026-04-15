@@ -150,6 +150,12 @@ internal static class CraftingAndItems
             Tabletop2014Context.SwitchOfficialFoodRationsWeight();
         }
 
+        toggle = Main.Settings.ExcludeEquippedItemsFromCarriedWeight;
+        if (UI.Toggle(Gui.Localize("ModUi/&ExcludeEquippedItemsFromCarriedWeight"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.ExcludeEquippedItemsFromCarriedWeight = toggle;
+        }
+
         toggle = Main.Settings.MakeAllMagicStaveArcaneFoci;
         if (UI.Toggle(Gui.Localize("ModUi/&MakeAllMagicStaveArcaneFoci"), ref toggle, UI.AutoWidth()))
         {
