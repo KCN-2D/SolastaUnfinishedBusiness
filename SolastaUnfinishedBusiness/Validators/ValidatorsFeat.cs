@@ -190,7 +190,9 @@ internal static class ValidatorsFeat
     {
         return (_, hero) =>
         {
-            var guiFormat = Gui.Format("Tooltip/&PreReqIsWithLevel", description, minLevels.ToString());
+            var guiFormat = string.IsNullOrWhiteSpace(description)
+                ? Gui.Format("Tooltip/&PreReqLevelFormat", minLevels.ToString())
+                : Gui.Format("Tooltip/&PreReqIsWithLevel", description, minLevels.ToString());
 
             if (characterClassDefinitions.Length > 0 && !hero.ClassesHistory.Intersect(characterClassDefinitions).Any())
             {
