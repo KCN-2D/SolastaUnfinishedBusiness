@@ -8,6 +8,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -20,6 +21,14 @@ public static class CharacterStageClassSelectionPanelPatcher
     [UsedImplicitly]
     public static class OnBeginShow_Patch
     {
+        private static void ApplyStrictCompatibleClassesFilter([NotNull] CharacterStageClassSelectionPanel __instance)
+        {
+            StrictTabletopSelectionContext.FilterAndPreserveSelection(
+                __instance.compatibleClasses,
+                ref __instance.selectedClass,
+                StrictTabletopSelectionContext.IsClassAllowedForCurrentMode);
+        }
+
         [UsedImplicitly]
         public static void Prefix([NotNull] CharacterStageClassSelectionPanel __instance)
         {
@@ -29,6 +38,7 @@ public static class CharacterStageClassSelectionPanelPatcher
                 .OrderBy(x => x.FormatTitle());
 
             __instance.compatibleClasses.SetRange(visibleClasses);
+            ApplyStrictCompatibleClassesFilter(__instance);
 
             if (!LevelUpHelper.IsLevelingUp(__instance.currentHero))
             {
@@ -43,6 +53,7 @@ public static class CharacterStageClassSelectionPanelPatcher
                 __instance.currentHero,
                 __instance.compatibleClasses,
                 out __instance.selectedClass);
+            ApplyStrictCompatibleClassesFilter(__instance);
 
             //PATCH: refresh the panel (MULTICLASS)
             var commonData = __instance.CommonData;

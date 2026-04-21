@@ -1,6 +1,7 @@
 ﻿using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.Models;
+using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Displays;
 
@@ -62,6 +63,18 @@ internal static class ProficienciesDisplay
             FeatsContext.SwitchAsiAndFeat();
         }
 
+        toggle = Main.Settings.EnableTabletopFeatRules2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableTabletopFeatRules2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableTabletopFeatRules2024 = toggle;
+            Tabletop2024Context.SwitchTabletopFeatRules2024();
+        }
+
+        if (Main.Settings.EnableTabletopFeatRules2024)
+        {
+            UI.Label(Gui.Localize("ModUi/&TabletopFeatRules2024Help"));
+        }
+
         toggle = Main.Settings.EnableFeatsAtEveryFourLevels;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableFeatsAtEvenLevels"), ref toggle, UI.AutoWidth()))
         {
@@ -111,19 +124,35 @@ internal static class ProficienciesDisplay
                 UI.Label(Gui.Localize("ModUi/&FeatGroupsHelp"));
                 UI.Label();
             },
-            displaySelectTabletop: false);
+            displaySelectTabletop: false,
+            toggleEnabled: Tabletop2024Context.IsFeatToggleAvailableInCurrentMode,
+            toggleValueOverride: Tabletop2024Context.GetFeatToggleValueOverrideInCurrentMode);
         Main.Settings.DisplayFeatGroupsToggle = displayToggle;
         Main.Settings.FeatGroupSliderPosition = sliderPos;
 
         displayToggle = Main.Settings.DisplayFeatsToggle;
         sliderPos = Main.Settings.FeatSliderPosition;
+        System.Action featHeaderRendering = null;
+
+        if (Main.Settings.EnableTabletopFeatRules2024)
+        {
+            featHeaderRendering = () =>
+            {
+                UI.Label(Gui.Localize("ModUi/&TabletopFeatRules2024ListHelp"));
+                UI.Label();
+            };
+        }
+
         var isFeatTabletop = ModUi.DisplayDefinitions(
             Gui.Localize("ModUi/&Feats"),
             FeatsContext.SwitchFeat,
             FeatsContext.Feats,
             Main.Settings.FeatEnabled,
             ref displayToggle,
-            ref sliderPos);
+            ref sliderPos,
+            headerRendering: featHeaderRendering,
+            toggleEnabled: Tabletop2024Context.IsFeatToggleAvailableInCurrentMode,
+            toggleValueOverride: Tabletop2024Context.GetFeatToggleValueOverrideInCurrentMode);
         Main.Settings.DisplayFeatsToggle = displayToggle;
         Main.Settings.FeatSliderPosition = sliderPos;
 
@@ -229,11 +258,21 @@ internal static class ProficienciesDisplay
             {
                 foreach (var feat in FeatsContext.Feats)
                 {
+                    if (!Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(feat))
+                    {
+                        continue;
+                    }
+
                     FeatsContext.SwitchFeat(feat, toggle);
                 }
 
                 foreach (var featGroup in FeatsContext.FeatGroups)
                 {
+                    if (!Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(featGroup))
+                    {
+                        continue;
+                    }
+
                     FeatsContext.SwitchFeatGroup(featGroup, toggle);
                 }
 
@@ -259,12 +298,18 @@ internal static class ProficienciesDisplay
                 foreach (var feat in FeatsContext.Feats)
                 {
                     FeatsContext.SwitchFeat(feat,
-                        toggle && ModUi.TabletopDefinitions.Contains(feat));
+                        toggle &&
+                        ModUi.IsTabletopDefinition(feat) &&
+                        Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(feat));
                 }
 
                 foreach (var featGroup in FeatsContext.FeatGroups)
                 {
-                    FeatsContext.SwitchFeatGroup(featGroup, toggle);
+                    FeatsContext.SwitchFeatGroup(
+                        featGroup,
+                        toggle &&
+                        ModUi.IsTabletopDefinition(featGroup) &&
+                        Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(featGroup));
                 }
 
                 foreach (var fightingStyles in FightingStyleContext.FightingStyles)

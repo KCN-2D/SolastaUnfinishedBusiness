@@ -1,6 +1,6 @@
 Feature/&PointPoolAbilityScore3Description=能力値強化を3回、任意に割り振ります。
-Feature/&PointPoolAbilityScore3Title=能力値増加
+Feature/&PointPoolAbilityScore3Title=能力値上昇
 Feature/&PointPoolAbilityScore4Description=能力値強化を4回、任意に割り振ります。
-Feature/&PointPoolAbilityScore4Title=能力値増加
+Feature/&PointPoolAbilityScore4Title=能力値上昇
 Feature/&PointPoolSelectBonusFeatsDescription=キャラクターに追加特技を{0}個選択してください。
 Feature/&PointPoolSelectBonusFeatsTitle={0}個のボーナス特技

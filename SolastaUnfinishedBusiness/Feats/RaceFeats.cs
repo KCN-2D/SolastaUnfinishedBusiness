@@ -518,6 +518,7 @@ internal static class RaceFeats
             .SetGuiPresentation(Category.Feat)
             .SetValidators(ValidatorsFeat.IsDwarf)
             .SetFeatures(AttributeModifierCreed_Of_Einar, invocationPool)
+            .SetFeatFamily(Name)
             .AddToDB();
 
         var featGrudgeBearerCon = FeatDefinitionWithPrerequisitesBuilder
@@ -525,6 +526,7 @@ internal static class RaceFeats
             .SetGuiPresentation(Category.Feat)
             .SetValidators(ValidatorsFeat.IsDwarf)
             .SetFeatures(AttributeModifierCreed_Of_Arun, invocationPool)
+            .SetFeatFamily(Name)
             .AddToDB();
 
         var featGrudgeBearerWis = FeatDefinitionWithPrerequisitesBuilder
@@ -532,6 +534,7 @@ internal static class RaceFeats
             .SetGuiPresentation(Category.Feat)
             .SetValidators(ValidatorsFeat.IsDwarf)
             .SetFeatures(AttributeModifierCreed_Of_Maraike, invocationPool)
+            .SetFeatFamily(Name)
             .AddToDB();
 
         feats.AddRange(featGrudgeBearerStr, featGrudgeBearerCon, featGrudgeBearerWis);

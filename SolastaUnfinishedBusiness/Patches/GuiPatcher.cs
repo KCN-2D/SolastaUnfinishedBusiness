@@ -5,6 +5,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Models;
 using static RuleDefinitions;
 using static FeatureDefinitionAttributeModifier;
 using static MotionForm;
@@ -121,6 +122,25 @@ public static class GuiPatcher
             }
 
             __result = output;
+
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(Gui), nameof(Gui.LocalizeFeatTagTitle))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class LocalizeFeatTagTitle_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(string tag, ref string __result)
+        {
+            if (!Tabletop2024Context.TryGetHumanOriginFeatTagTitle(tag, out var title))
+            {
+                return true;
+            }
+
+            __result = title;
 
             return false;
         }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection.Emit;
@@ -22,6 +23,585 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterBuildingManagerPatcher
 {
+    internal static bool TryResolveFeatGrantedPointPoolTags(
+        CharacterBuildingManager manager,
+        RulesetCharacterHero hero,
+        string extraSpellsTag,
+        out string classTag,
+        out string applyTag,
+        out string activePoolTag)
+    {
+        classTag = null;
+        applyTag = null;
+        activePoolTag = null;
+
+        if (manager == null ||
+            hero == null ||
+            string.IsNullOrEmpty(extraSpellsTag))
+        {
+            return false;
+        }
+
+        manager.GetLastAssignedClassAndLevel(hero, out var classDefinition, out var level);
+
+        if (!classDefinition)
+        {
+            classDefinition = LevelUpHelper.GetSelectedClass(hero);
+
+            if (classDefinition)
+            {
+                level = hero.ClassesHistory.Count(x => x == classDefinition);
+
+                if (level <= 0)
+                {
+                    level = 1;
+                }
+            }
+        }
+
+        if (!classDefinition && hero.ClassesHistory is { Count: > 0 })
+        {
+            classDefinition = hero.ClassesHistory.Last();
+            level = hero.ClassesHistory.Count(x => x == classDefinition);
+        }
+
+        if (!classDefinition)
+        {
+            return false;
+        }
+
+        level = System.Math.Max(level, 1);
+        classTag = AttributeDefinitions.GetClassTag(classDefinition, level);
+        applyTag = classTag + extraSpellsTag;
+        activePoolTag = applyTag + extraSpellsTag;
+
+        return !string.IsNullOrEmpty(classTag) &&
+               !string.IsNullOrEmpty(applyTag) &&
+               !string.IsNullOrEmpty(activePoolTag);
+    }
+
+    private static bool TryResolveFeatGrantedPointPoolTags(
+        CharacterBuildingManager manager,
+        CharacterHeroBuildingData heroBuildingData,
+        FeatureDefinitionPointPool pointPool,
+        out string classTag,
+        out string applyTag,
+        out string activePoolTag)
+    {
+        classTag = null;
+        applyTag = null;
+        activePoolTag = null;
+
+        if (manager == null ||
+            heroBuildingData?.HeroCharacter == null ||
+            pointPool == null)
+        {
+            return false;
+        }
+
+        return TryResolveFeatGrantedPointPoolTags(
+            manager,
+            heroBuildingData.HeroCharacter,
+            pointPool.ExtraSpellsTag,
+            out classTag,
+            out applyTag,
+            out activePoolTag);
+    }
+
+    private static void RefreshProficiencyPanelAfterFeatGrantedPointPools(CharacterHeroBuildingData heroBuildingData)
+    {
+        if (heroBuildingData == null)
+        {
+            return;
+        }
+
+        LevelUpHelper.RebuildCharacterStageProficiencyPanel(heroBuildingData.LevelingUp);
+
+        CharacterStagePanel currentStagePanel = null;
+
+        if (heroBuildingData.LevelingUp)
+        {
+            var levelUpScreen = Gui.GuiService.GetScreen<CharacterLevelUpScreen>();
+
+            if (levelUpScreen && levelUpScreen.Visible)
+            {
+                currentStagePanel = levelUpScreen.CurrentStagePanel;
+            }
+        }
+        else
+        {
+            var creationScreen = Gui.GuiService.GetScreen<CharacterCreationScreen>();
+
+            if (creationScreen && creationScreen.Visible)
+            {
+                currentStagePanel = creationScreen.CurrentStagePanel;
+            }
+        }
+
+        if (currentStagePanel is not CharacterStageProficiencySelectionPanel proficiencySelectionPanel)
+        {
+            return;
+        }
+
+        proficiencySelectionPanel.OnPreRefresh();
+        proficiencySelectionPanel.RefreshNow();
+    }
+
+    private static bool EnsureFeatGrantedPointPoolActiveTag(
+        CharacterHeroBuildingData heroBuildingData,
+        HeroDefinitions.PointsPoolType poolType,
+        string expectedActivePoolTag,
+        HashSet<string> keysBefore)
+    {
+        if (heroBuildingData == null ||
+            string.IsNullOrEmpty(expectedActivePoolTag) ||
+            !heroBuildingData.PointPoolStacks.TryGetValue(poolType, out var pointPoolStack))
+        {
+            return false;
+        }
+
+        if (pointPoolStack.ActivePools.ContainsKey(expectedActivePoolTag))
+        {
+            return true;
+        }
+
+        var addedKeys = pointPoolStack.ActivePools.Keys
+            .Where(key => !keysBefore.Contains(key))
+            .ToArray();
+
+        if (addedKeys.Length != 1 ||
+            !pointPoolStack.ActivePools.TryGetValue(addedKeys[0], out var pointPool))
+        {
+#if DEBUG
+            Main.Log(
+                $"EnsureFeatGrantedPointPoolActiveTag: expected={expectedActivePoolTag}, added=[{string.Join(", ", addedKeys)}]");
+#endif
+            return false;
+        }
+
+        pointPoolStack.ActivePools.Remove(addedKeys[0]);
+        pointPoolStack.ActivePools[expectedActivePoolTag] = pointPool;
+
+        return true;
+    }
+
+    private static bool IsFeatGrantedSpellOrCantripPointPool(FeatureDefinitionPointPool pointPool)
+    {
+        return pointPool is
+        {
+            PoolType: HeroDefinitions.PointsPoolType.Cantrip or HeroDefinitions.PointsPoolType.Spell
+        } &&
+               !string.IsNullOrEmpty(pointPool.ExtraSpellsTag);
+    }
+
+    private static string FindFeatGrantedPointPoolKeyFallback(
+        CharacterHeroBuildingData heroBuildingData,
+        HeroDefinitions.PointsPoolType poolType,
+        string expectedActivePoolTag,
+        string extraSpellsTag)
+    {
+        if (heroBuildingData == null ||
+            string.IsNullOrEmpty(expectedActivePoolTag) ||
+            !heroBuildingData.PointPoolStacks.TryGetValue(poolType, out var pointPoolStack))
+        {
+            return null;
+        }
+
+        if (pointPoolStack.ActivePools.ContainsKey(expectedActivePoolTag))
+        {
+            return expectedActivePoolTag;
+        }
+
+        if (string.IsNullOrEmpty(extraSpellsTag))
+        {
+            return null;
+        }
+
+        var suffix = extraSpellsTag + extraSpellsTag;
+        var matchingKeys = pointPoolStack.ActivePools.Keys
+            .Where(key => !string.IsNullOrEmpty(key) &&
+                          key.EndsWith(suffix, StringComparison.Ordinal))
+            .Distinct()
+            .ToArray();
+
+        return matchingKeys.Length == 1 ? matchingKeys[0] : null;
+    }
+
+    private static bool TryEnsureExpectedFeatGrantedPointPoolKey(
+        CharacterHeroBuildingData heroBuildingData,
+        HeroDefinitions.PointsPoolType poolType,
+        string expectedActivePoolTag,
+        string extraSpellsTag,
+        out bool changed)
+    {
+        changed = false;
+
+        if (heroBuildingData == null ||
+            string.IsNullOrEmpty(expectedActivePoolTag) ||
+            !heroBuildingData.PointPoolStacks.TryGetValue(poolType, out var pointPoolStack))
+        {
+            return false;
+        }
+
+        if (pointPoolStack.ActivePools.ContainsKey(expectedActivePoolTag))
+        {
+            return true;
+        }
+
+        var existingKey = FindFeatGrantedPointPoolKeyFallback(
+            heroBuildingData,
+            poolType,
+            expectedActivePoolTag,
+            extraSpellsTag);
+
+        if (string.IsNullOrEmpty(existingKey) ||
+            existingKey == expectedActivePoolTag ||
+            !pointPoolStack.ActivePools.TryGetValue(existingKey, out var pointPool))
+        {
+            return false;
+        }
+
+        pointPoolStack.ActivePools.Remove(existingKey);
+        pointPoolStack.ActivePools[expectedActivePoolTag] = pointPool;
+        changed = true;
+
+        return true;
+    }
+
+    private static bool TryGetFeatGrantedPointPoolForUpdate(
+        CharacterHeroBuildingData heroBuildingData,
+        HeroDefinitions.PointsPoolType poolType,
+        string expectedActivePoolTag,
+        string extraSpellsTag,
+        out string activePoolKey,
+        out PointPool pointPool)
+    {
+        activePoolKey = null;
+        pointPool = null;
+
+        if (heroBuildingData == null ||
+            !heroBuildingData.PointPoolStacks.TryGetValue(poolType, out var pointPoolStack))
+        {
+            return false;
+        }
+
+        activePoolKey = FindFeatGrantedPointPoolKeyFallback(
+            heroBuildingData,
+            poolType,
+            expectedActivePoolTag,
+            extraSpellsTag);
+
+        return !string.IsNullOrEmpty(activePoolKey) &&
+               pointPoolStack.ActivePools.TryGetValue(activePoolKey, out pointPool);
+    }
+
+    internal static bool SyncFeatGrantedPointPoolsForTrainedFeats(
+        ICharacterBuildingService characterBuildingService,
+        CharacterHeroBuildingData heroBuildingData)
+    {
+        return EnsureFeatGrantedPointPoolsForTrainedFeats(characterBuildingService, heroBuildingData);
+    }
+
+    internal static bool EnsureFeatGrantedPointPoolsForTrainedFeats(
+        ICharacterBuildingService characterBuildingService,
+        CharacterHeroBuildingData heroBuildingData)
+    {
+        if (characterBuildingService is not CharacterBuildingManager manager ||
+            heroBuildingData?.LevelupTrainedFeats == null)
+        {
+            return false;
+        }
+
+        var rebuilt = false;
+
+        foreach (var feat in heroBuildingData.LevelupTrainedFeats
+                     .SelectMany(entry => entry.Value ?? [])
+                     .Where(feat => feat != null)
+                     .Distinct())
+        {
+            foreach (var pointPoolFeature in feat.Features
+                         .OfType<FeatureDefinitionPointPool>()
+                         .Where(IsFeatGrantedSpellOrCantripPointPool))
+            {
+                if (!TryResolveFeatGrantedPointPoolTags(
+                        manager,
+                        heroBuildingData,
+                        pointPoolFeature,
+                        out _,
+                        out var applyTag,
+                        out var activePoolTag))
+                {
+                    continue;
+                }
+
+                if (TryEnsureExpectedFeatGrantedPointPoolKey(
+                        heroBuildingData,
+                        pointPoolFeature.PoolType,
+                        activePoolTag,
+                        pointPoolFeature.ExtraSpellsTag,
+                        out var normalized))
+                {
+                    rebuilt |= normalized;
+
+                    if (heroBuildingData.PointPoolStacks.TryGetValue(pointPoolFeature.PoolType, out var pointPoolStack) &&
+                        pointPoolStack.ActivePools.TryGetValue(activePoolTag, out var pool) &&
+                        pool.maxPoints < pointPoolFeature.poolAmount)
+                    {
+                        pool.maxPoints = pointPoolFeature.poolAmount;
+                        rebuilt = true;
+                    }
+
+                    continue;
+                }
+
+                var existingKeys = heroBuildingData.PointPoolStacks.TryGetValue(pointPoolFeature.PoolType, out var stack)
+                    ? stack.ActivePools.Keys.ToHashSet()
+                    : [];
+
+                manager.ApplyFeatureDefinitionPointPool(heroBuildingData, pointPoolFeature, applyTag);
+
+                if (EnsureFeatGrantedPointPoolActiveTag(
+                        heroBuildingData,
+                        pointPoolFeature.PoolType,
+                        activePoolTag,
+                        existingKeys))
+                {
+                    rebuilt = true;
+                }
+            }
+        }
+
+        return rebuilt;
+    }
+
+    private static void SanitizeManagedTabletopTrainedFeatsForTag(
+        CharacterHeroBuildingData heroBuildingData,
+        string tag,
+        PointPool pointPool,
+        FeatDefinition selectedFeat = null,
+        ICharacterBuildingService service = null)
+    {
+        if (!Main.Settings.EnableTabletopFeatRules2024 ||
+            heroBuildingData == null ||
+            string.IsNullOrEmpty(tag) ||
+            service == null ||
+            !heroBuildingData.LevelupTrainedFeats.TryGetValue(tag, out var trainedFeats) ||
+            trainedFeats == null ||
+            trainedFeats.Count == 0)
+        {
+            return;
+        }
+
+        var currentFeats = trainedFeats
+            .Where(feat => feat != null)
+            .ToList();
+
+        if (currentFeats.Count == 0)
+        {
+            heroBuildingData.LevelupTrainedFeats.Remove(tag);
+
+            return;
+        }
+
+        FeatDefinition resolvedSelectedFeat = null;
+
+        if (selectedFeat != null)
+        {
+            Tabletop2024Context.TryResolveTrainableModeAwareFeat(selectedFeat, out resolvedSelectedFeat);
+        }
+
+        var needsSanitize = pointPool == null || currentFeats.Count != trainedFeats.Count;
+        var distinctResolvedFeats = new List<FeatDefinition>();
+
+        foreach (var currentFeat in currentFeats)
+        {
+            if (!Tabletop2024Context.TryResolveTrainableModeAwareFeat(currentFeat, out var resolvedFeat) ||
+                !Tabletop2024Context.IsDisplayableManagedTabletopLeaf(resolvedFeat) ||
+                pointPool != null &&
+                !Tabletop2024Context.TryPrepareIndependentFeatTraining(
+                    heroBuildingData,
+                    tag,
+                    resolvedFeat,
+                    service))
+            {
+                needsSanitize = true;
+                continue;
+            }
+
+            if (distinctResolvedFeats.Any(existingFeat =>
+                    Tabletop2024Context.AreEquivalentTabletopFeatNames(existingFeat.Name, resolvedFeat.Name)))
+            {
+                needsSanitize = true;
+                continue;
+            }
+
+            distinctResolvedFeats.Add(resolvedFeat);
+        }
+
+        if (resolvedSelectedFeat != null &&
+            currentFeats.Any(currentFeat =>
+                !Tabletop2024Context.AreEquivalentTabletopFeatNames(currentFeat.Name, resolvedSelectedFeat.Name)))
+        {
+            needsSanitize = true;
+        }
+
+        if (pointPool != null &&
+            pointPool.maxPoints <= 1 &&
+            distinctResolvedFeats.Count > 1)
+        {
+            needsSanitize = true;
+        }
+
+        if (!needsSanitize)
+        {
+            return;
+        }
+
+        service.UntrainFeats(heroBuildingData, tag);
+        heroBuildingData.LevelupTrainedFeats.Remove(tag);
+        Tabletop2024Context.ClearPendingFeatSelection(heroBuildingData.HeroCharacter, tag);
+    }
+
+    private static List<FeatDefinition> SnapshotDisplayFeatsForFinalize(RulesetCharacterHero hero)
+    {
+        if (hero?.GetHeroBuildingData() is not { } heroBuildingData)
+        {
+            return [];
+        }
+
+        var snapshot = new List<FeatDefinition>();
+
+        AddDisplayableFinalizeFeats(
+            snapshot,
+            heroBuildingData.LevelupTrainedFeats?.Values
+                .Where(feats => feats != null)
+                .SelectMany(feats => feats));
+
+        FeatDefinition backgroundFeat = null;
+
+        if (Tabletop2024Context.TryGetBackgroundBonusFeatForDisplay(hero, heroBuildingData, out backgroundFeat))
+        {
+            AddDisplayableFinalizeFeats(snapshot, [backgroundFeat]);
+        }
+
+        FeatDefinition humanOriginFeat = null;
+
+        if (Tabletop2024Context.TryGetHumanOriginFeatForFinalizeSnapshot(hero, heroBuildingData, out humanOriginFeat))
+        {
+            AddDisplayableFinalizeFeats(snapshot, [humanOriginFeat]);
+        }
+
+        LogFinalizeDisplaySnapshot(hero, snapshot, backgroundFeat, humanOriginFeat);
+
+        return snapshot;
+    }
+
+    private static void AddDisplayableFinalizeFeats(
+        List<FeatDefinition> snapshot,
+        IEnumerable<FeatDefinition> feats)
+    {
+        if (snapshot == null || feats == null)
+        {
+            return;
+        }
+
+        foreach (var feat in feats.Where(IsDisplayableFinalizeFeat))
+        {
+            if (snapshot.Any(existingFeat =>
+                    existingFeat != null &&
+                    existingFeat.Name == feat.Name))
+            {
+                continue;
+            }
+
+            snapshot.Add(feat);
+        }
+    }
+
+    private static bool IsDisplayableFinalizeFeat(FeatDefinition feat)
+    {
+        if (feat == null)
+        {
+            return false;
+        }
+
+        if (Tabletop2024Context.IsManagedTabletopFeat(feat))
+        {
+            return Tabletop2024Context.IsDisplayableManagedTabletopLeaf(feat);
+        }
+
+        return feat.GetFirstSubFeatureOfType<IGroupedFeat>() == null &&
+               !Tabletop2024Context.IsTabletopContainerGroup(feat) &&
+               !Tabletop2024Context.IsNonSelectableTabletopGroup(feat) &&
+               Tabletop2024Context.GetCanonicalTabletopFeatName(feat.Name) != "FeatSkilled";
+    }
+
+    private static void EnsureDisplayFeatsPresentInHeroTrainedFeats(
+        RulesetCharacterHero hero,
+        IEnumerable<FeatDefinition> trainedFeats)
+    {
+        if (hero == null)
+        {
+            return;
+        }
+
+        hero.trainedFeats ??= [];
+
+        var addedFeatNames = new List<string>();
+
+        foreach (var feat in trainedFeats?.Where(IsDisplayableFinalizeFeat) ?? [])
+        {
+            feat.GuiPresentation.hidden = false;
+
+            if (hero.trainedFeats.Any(existingFeat =>
+                    existingFeat != null &&
+                    existingFeat.Name == feat.Name))
+            {
+                continue;
+            }
+
+            hero.trainedFeats.Add(feat);
+            addedFeatNames.Add(feat.Name);
+        }
+
+        foreach (var feat in hero.trainedFeats.Where(IsDisplayableFinalizeFeat))
+        {
+            feat.GuiPresentation.hidden = false;
+        }
+
+        LogFinalizeDisplaySync(hero, addedFeatNames);
+    }
+
+    [Conditional("DEBUG")]
+    private static void LogFinalizeDisplaySnapshot(
+        RulesetCharacterHero hero,
+        IEnumerable<FeatDefinition> snapshot,
+        FeatDefinition backgroundFeat,
+        FeatDefinition humanOriginFeat)
+    {
+        var snapshotNames = snapshot?.Where(feat => feat != null).Select(feat => feat.Name) ?? [];
+
+        Main.Log(
+            $"Finalize display snapshot: hero={hero?.Name ?? "null"} guid={(hero != null ? hero.Guid.ToString() : "null")} " +
+            $"use2024={Main.Settings.EnableTabletopFeatRules2024} " +
+            $"background={backgroundFeat?.Name ?? "null"} humanOrigin={humanOriginFeat?.Name ?? "null"} " +
+            $"snapshot=[{string.Join(", ", snapshotNames)}]");
+    }
+
+    [Conditional("DEBUG")]
+    private static void LogFinalizeDisplaySync(
+        RulesetCharacterHero hero,
+        IEnumerable<string> addedFeatNames)
+    {
+        var trainedFeatNames = hero?.trainedFeats?.Where(feat => feat != null).Select(feat => feat.Name) ?? [];
+        var addedNames = addedFeatNames?.Where(name => !string.IsNullOrEmpty(name)) ?? [];
+
+        Main.Log(
+            $"Finalize display sync: hero={hero?.Name ?? "null"} guid={(hero != null ? hero.Guid.ToString() : "null")} " +
+            $"trained=[{string.Join(", ", trainedFeatNames)}] " +
+            $"added=[{string.Join(", ", addedNames)}]");
+    }
+
     [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.CreateNewCharacter))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -31,6 +611,8 @@ public static class CharacterBuildingManagerPatcher
         public static void Postfix([NotNull] CharacterBuildingManager __instance)
         {
             //PATCH: registers the hero getting created
+            Tabletop2024Context.ClearPendingFeatSelections(__instance.CurrentLocalHeroCharacter);
+            FeatsContext.ClearFeatSubPanel2024UiState();
             LevelUpHelper.RegisterHero(__instance.CurrentLocalHeroCharacter, false);
         }
     }
@@ -275,8 +857,12 @@ public static class CharacterBuildingManagerPatcher
         }
 
         [UsedImplicitly]
-        public static void Prefix([NotNull] CharacterBuildingManager __instance, [NotNull] RulesetCharacterHero hero)
+        public static void Prefix(
+            [NotNull] CharacterBuildingManager __instance,
+            [NotNull] RulesetCharacterHero hero,
+            out List<FeatDefinition> __state)
         {
+            __state = SnapshotDisplayFeatsForFinalize(hero);
             var buildingData = hero.GetHeroBuildingData();
 
             //PATCH: grants race features
@@ -320,7 +906,10 @@ public static class CharacterBuildingManagerPatcher
         }
 
         [UsedImplicitly]
-        public static void Postfix(CharacterBuildingManager __instance, [NotNull] RulesetCharacterHero hero)
+        public static void Postfix(
+            CharacterBuildingManager __instance,
+            [NotNull] RulesetCharacterHero hero,
+            List<FeatDefinition> __state)
         {
             //PATCH: grants cantrip that for whatever reason vanilla has a hard time granting ;-)
             GrantCantripFromCustomAcquiredPool(hero, "Thaumaturge");
@@ -342,6 +931,12 @@ public static class CharacterBuildingManagerPatcher
 
             //PATCH: keeps spell repertoires sorted by class title but ancestry one is always kept first
             LevelUpHelper.SortHeroRepertoires(hero);
+
+            //PATCH: keeps displayable leaf feats visible in UI lists after finalize without re-granting features
+            EnsureDisplayFeatsPresentInHeroTrainedFeats(hero, __state);
+            Tabletop2024Context.ClearPendingFeatSelections(hero);
+            FeatsContext.ClearFeatSubPanel2024UiState();
+            GuiWrapperContext.RecacheFeats();
 
             //PATCH: adds whole list caster spells to KnownSpells collection to improve the MC spell selection UI
             // LevelUpContext.UpdateKnownSpellsForWholeCasters(hero);
@@ -569,6 +1164,32 @@ public static class CharacterBuildingManagerPatcher
         public static bool Prefix(CharacterHeroBuildingData heroBuildingData, FeatureDefinition feature)
         {
             return !Tabletop2024Context.TryApplyHumanOriginFeatPointPool(heroBuildingData, feature);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            CharacterHeroBuildingData heroBuildingData,
+            FeatureDefinition feature,
+            string __2)
+        {
+            if (!Main.Settings.EnableTabletopFeatRules2024 ||
+                heroBuildingData == null ||
+                feature is not FeatureDefinitionPointPool pointPoolFeature ||
+                pointPoolFeature.PoolType != HeroDefinitions.PointsPoolType.Feat ||
+                !heroBuildingData.PointPoolStacks.TryGetValue(HeroDefinitions.PointsPoolType.Feat, out var pointPoolStack))
+            {
+                return;
+            }
+
+            var poolTag = __2 + pointPoolFeature.ExtraSpellsTag;
+
+            if (!pointPoolStack.ActivePools.TryGetValue(poolTag, out var pointPool) &&
+                !pointPoolStack.ActivePools.TryGetValue(__2, out pointPool))
+            {
+                return;
+            }
+
+            Tabletop2024Context.NormalizeModeAwareFeatPointPool(pointPool);
         }
     }
 
@@ -939,12 +1560,24 @@ public static class CharacterBuildingManagerPatcher
     public static class IsFeatMatchingPrerequisites_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(
+            FeatDefinition feat,
+            out (bool active, bool disableLevel, bool disableRace, bool disableCastSpell) __state)
+        {
+            __state = Tabletop2024Context.PushModFeatPrerequisiteOverride(
+                Tabletop2024Context.ShouldForceManagedFeatPrerequisites(feat));
+        }
+
+        [UsedImplicitly]
         public static void Postfix(
             ref bool __result,
             CharacterHeroBuildingData heroBuildingData,
             FeatDefinition feat,
-            ref bool isSameFamilyPrerequisite)
+            ref bool isSameFamilyPrerequisite,
+            (bool active, bool disableLevel, bool disableRace, bool disableCastSpell) __state)
         {
+            Tabletop2024Context.RestoreModFeatPrerequisiteOverride(__state);
+
             //PATCH: fixes being able to select feats from same family when more than 1 feat selection is possible aat same time
             //vanilla code doesn't check if we already have selected feats from same family
             if (!__result || !feat.HasFamilyTag || string.IsNullOrEmpty(feat.FamilyTag))
@@ -1061,47 +1694,199 @@ public static class CharacterBuildingManagerPatcher
     [UsedImplicitly]
     public static class TrainFeat_Patch
     {
+        private static int GetEquivalentTrainedFeatCount(
+            CharacterHeroBuildingData heroBuildingData,
+            string tag,
+            FeatDefinition feat)
+        {
+            return heroBuildingData != null &&
+                   feat != null &&
+                   !string.IsNullOrEmpty(tag) &&
+                   heroBuildingData.LevelupTrainedFeats.TryGetValue(tag, out var feats)
+                ? feats.Count(x => x &&
+                                   Tabletop2024Context.AreEquivalentTabletopFeatNames(x.Name, feat.Name))
+                : 0;
+        }
+
+        private static void ApplyFeatGrantedPointPools(
+            CharacterBuildingManager manager,
+            CharacterHeroBuildingData heroBuildingData,
+            FeatDefinition feat)
+        {
+            if (manager == null ||
+                heroBuildingData == null ||
+                feat == null ||
+                !feat.Features.OfType<FeatureDefinitionPointPool>().Any(IsFeatGrantedSpellOrCantripPointPool))
+            {
+                return;
+            }
+
+            _ = SyncFeatGrantedPointPoolsForTrainedFeats(manager, heroBuildingData);
+            RefreshProficiencyPanelAfterFeatGrantedPointPools(heroBuildingData);
+        }
+
         [UsedImplicitly]
         public static bool Prefix(
             CharacterBuildingManager __instance,
             CharacterHeroBuildingData heroBuildingData,
-            FeatDefinition feat,
-            string tag)
+            ref FeatDefinition feat,
+            string tag,
+            out (
+                CharacterHeroBuildingData heroBuildingData,
+                FeatDefinition feat,
+                string tag,
+                int trainedCountBefore,
+                bool validatedManagedLeaf)
+                __state)
         {
-            if (Tabletop2024Context.IsDuplicateHumanOriginFeatChoice(heroBuildingData?.HeroCharacter, tag, feat.Name))
+            __state = default;
+            var buildingService = ServiceRepository.GetService<ICharacterBuildingService>();
+            FeatDefinition resolvedFeat = null;
+            var hero = heroBuildingData?.HeroCharacter;
+            var validatedManagedLeaf = false;
+
+            if (Tabletop2024Context.TryGetPendingFeatSelection(hero, tag, out var pendingFeat))
             {
+                feat = pendingFeat;
+            }
+            else if (Tabletop2024Context.TryGetHumanOriginFeatToTrain(hero, tag, out var humanOriginFeat))
+            {
+                feat = humanOriginFeat;
+            }
+            else if (Tabletop2024Context.TryGetSingleOriginRestrictedFeatDefinition(
+                         heroBuildingData,
+                         tag,
+                         out var backgroundOriginFeat))
+            {
+                feat = backgroundOriginFeat;
+            }
+
+            if (feat != null &&
+                !Tabletop2024Context.TryResolveTrainableModeAwareFeat(feat, out resolvedFeat))
+            {
+                Tabletop2024Context.ClearPendingFeatSelection(hero, tag);
                 return false;
             }
 
-            foreach (var featureDefinitionPointPool in feat.Features.OfType<FeatureDefinitionPointPool>())
+            if (resolvedFeat != null)
             {
-                if (!heroBuildingData.PointPoolStacks.TryGetValue(featureDefinitionPointPool.PoolType,
-                        out var pointPoolStack))
+                feat = resolvedFeat;
+            }
+
+            if (feat?.GetFirstSubFeatureOfType<IGroupedFeat>() != null)
+            {
+                Tabletop2024Context.ClearPendingFeatSelection(hero, tag);
+                return false;
+            }
+
+            if (Main.Settings.EnableTabletopFeatRules2024 &&
+                feat != null &&
+                Tabletop2024Context.IsManagedTabletopFeat(feat))
+            {
+                SanitizeManagedTabletopTrainedFeatsForTag(
+                    heroBuildingData,
+                    tag,
+                    buildingService?.GetPointPoolOfTypeAndTag(heroBuildingData, HeroDefinitions.PointsPoolType.Feat, tag),
+                    feat,
+                    buildingService);
+
+                if (!Tabletop2024Context.TryPrepareIndependentFeatTraining(
+                        heroBuildingData,
+                        tag,
+                        feat,
+                        buildingService))
                 {
-                    continue;
+                    Tabletop2024Context.ClearPendingFeatSelection(hero, tag);
+                    return false;
                 }
 
-                var hero = heroBuildingData.HeroCharacter;
+                validatedManagedLeaf = Tabletop2024Context.IsSelectableManagedTabletopFeatLeaf(feat);
+            }
 
-                __instance.GetLastAssignedClassAndLevel(hero, out var classDefinition, out var level);
+            if (feat == null)
+            {
+                Tabletop2024Context.ClearPendingFeatSelection(hero, tag);
+                return false;
+            }
 
-                var finaTag = AttributeDefinitions.GetClassTag(classDefinition, level) +
-                              featureDefinitionPointPool.ExtraSpellsTag;
+            if (Tabletop2024Context.IsDuplicateHumanOriginFeatChoice(heroBuildingData?.HeroCharacter, tag, feat.Name))
+            {
+                Tabletop2024Context.ClearPendingFeatSelection(hero, tag);
+                return false;
+            }
 
-                if (pointPoolStack.ActivePools
-                    .TryGetValue(finaTag + featureDefinitionPointPool.ExtraSpellsTag, out var pool))
+            if (!Tabletop2024Context.IsFeatMatchingPrerequisites(
+                    buildingService,
+                    heroBuildingData,
+                    feat,
+                    out _))
+            {
+                Tabletop2024Context.ClearPendingFeatSelection(hero, tag);
+                return false;
+            }
+
+            __state = (
+                heroBuildingData,
+                feat,
+                tag,
+                GetEquivalentTrainedFeatCount(heroBuildingData, tag, feat),
+                validatedManagedLeaf);
+
+            return true;
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            CharacterBuildingManager __instance,
+            (
+                CharacterHeroBuildingData heroBuildingData,
+                FeatDefinition feat,
+                string tag,
+                int trainedCountBefore,
+                bool validatedManagedLeaf)
+                __state)
+        {
+            Tabletop2024Context.ClearPendingFeatSelection(__state.heroBuildingData?.HeroCharacter, __state.tag);
+
+            if (__state.heroBuildingData == null ||
+                __state.feat == null)
+            {
+                return;
+            }
+
+            var trainedCountAfter = GetEquivalentTrainedFeatCount(__state.heroBuildingData, __state.tag, __state.feat);
+
+            if (trainedCountAfter <= __state.trainedCountBefore &&
+                __state.validatedManagedLeaf &&
+                !string.IsNullOrEmpty(__state.tag) &&
+                Tabletop2024Context.IsSelectableManagedTabletopFeatLeaf(__state.feat))
+            {
+                if (!__state.heroBuildingData.LevelupTrainedFeats.TryGetValue(__state.tag, out var feats))
                 {
-                    pool.maxPoints += featureDefinitionPointPool.poolAmount;
+                    feats = [];
+                    __state.heroBuildingData.LevelupTrainedFeats[__state.tag] = feats;
                 }
-                else
+
+                if (!feats.Any(existingFeat => existingFeat &&
+                                              Tabletop2024Context.AreEquivalentTabletopFeatNames(
+                                                  existingFeat.Name,
+                                                  __state.feat.Name)))
                 {
-                    __instance.ApplyFeatureDefinitionPointPool(heroBuildingData, featureDefinitionPointPool, finaTag);
+                    feats.Add(__state.feat);
+                    trainedCountAfter = GetEquivalentTrainedFeatCount(__state.heroBuildingData, __state.tag, __state.feat);
+#if DEBUG
+                    Main.Log(
+                        $"TrainFeat_Patch fallback added managed 2024 feat {__state.feat.Name} to tag {__state.tag}.");
+#endif
                 }
             }
 
-            LevelUpHelper.RebuildCharacterStageProficiencyPanel(heroBuildingData.LevelingUp);
+            if (trainedCountAfter <= __state.trainedCountBefore)
+            {
+                return;
+            }
 
-            return true;
+            ApplyFeatGrantedPointPools(__instance, __state.heroBuildingData, __state.feat);
         }
     }
 
@@ -1119,33 +1904,39 @@ public static class CharacterBuildingManagerPatcher
         {
             foreach (var featureDefinitionPointPool in feat.Features.OfType<FeatureDefinitionPointPool>())
             {
-                if (!heroBuildingData.PointPoolStacks.TryGetValue(featureDefinitionPointPool.PoolType,
-                        out var pointPoolStack))
-                {
-                    continue;
-                }
-
-                var hero = heroBuildingData.HeroCharacter;
-
-                __instance.GetLastAssignedClassAndLevel(hero, out var classDefinition, out var level);
-
-                var finaTag = AttributeDefinitions.GetClassTag(classDefinition, level) +
-                              featureDefinitionPointPool.ExtraSpellsTag + featureDefinitionPointPool.ExtraSpellsTag;
-
-                if (!pointPoolStack.ActivePools.TryGetValue(finaTag, out var pool))
+                if (!TryResolveFeatGrantedPointPoolTags(
+                    __instance,
+                    heroBuildingData,
+                    featureDefinitionPointPool,
+                    out _,
+                    out _,
+                    out var activePoolTag) ||
+                    !TryGetFeatGrantedPointPoolForUpdate(
+                        heroBuildingData,
+                        featureDefinitionPointPool.PoolType,
+                        activePoolTag,
+                        featureDefinitionPointPool.ExtraSpellsTag,
+                        out var activePoolKey,
+                        out var pool))
                 {
                     continue;
                 }
 
                 pool.maxPoints -= featureDefinitionPointPool.poolAmount;
 
-                if (pool.maxPoints == 0)
+                if (pool.maxPoints == 0 &&
+                    heroBuildingData.PointPoolStacks.TryGetValue(featureDefinitionPointPool.PoolType,
+                        out var pointPoolStack))
                 {
-                    pointPoolStack.ActivePools.Remove(finaTag);
+                    pointPoolStack.ActivePools.Remove(activePoolKey);
                 }
             }
+        }
 
-            LevelUpHelper.RebuildCharacterStageProficiencyPanel(heroBuildingData.LevelingUp);
+        [UsedImplicitly]
+        public static void Postfix(CharacterHeroBuildingData heroBuildingData)
+        {
+            Tabletop2024Context.ClearPendingFeatSelections(heroBuildingData?.HeroCharacter);
         }
     }
 
@@ -1160,38 +1951,46 @@ public static class CharacterBuildingManagerPatcher
             CharacterBuildingManager __instance,
             CharacterHeroBuildingData heroBuildingData)
         {
-            foreach (var featureDefinitionPointPool in heroBuildingData.LevelupTrainedFeats
-                         .SelectMany(x => x.Value
-                             .SelectMany(y => y.Features))
-                         .OfType<FeatureDefinitionPointPool>())
+            foreach (var feat in heroBuildingData.LevelupTrainedFeats
+                         .SelectMany(entry => entry.Value)
+                         .Where(feat => feat))
             {
-                if (!heroBuildingData.PointPoolStacks.TryGetValue(featureDefinitionPointPool.PoolType,
-                        out var pointPoolStack))
+                foreach (var featureDefinitionPointPool in feat.Features.OfType<FeatureDefinitionPointPool>())
                 {
-                    continue;
-                }
+                    if (!TryResolveFeatGrantedPointPoolTags(
+                        __instance,
+                        heroBuildingData,
+                        featureDefinitionPointPool,
+                        out _,
+                        out _,
+                        out var activePoolTag) ||
+                        !TryGetFeatGrantedPointPoolForUpdate(
+                            heroBuildingData,
+                            featureDefinitionPointPool.PoolType,
+                            activePoolTag,
+                            featureDefinitionPointPool.ExtraSpellsTag,
+                            out var activePoolKey,
+                            out var pool))
+                    {
+                        continue;
+                    }
 
-                var hero = heroBuildingData.HeroCharacter;
+                    pool.maxPoints -= featureDefinitionPointPool.poolAmount;
 
-                __instance.GetLastAssignedClassAndLevel(hero, out var classDefinition, out var level);
-
-                var finaTag = AttributeDefinitions.GetClassTag(classDefinition, level) +
-                              featureDefinitionPointPool.ExtraSpellsTag + featureDefinitionPointPool.ExtraSpellsTag;
-
-                if (!pointPoolStack.ActivePools.TryGetValue(finaTag, out var pool))
-                {
-                    continue;
-                }
-
-                pool.maxPoints -= featureDefinitionPointPool.poolAmount;
-
-                if (pool.maxPoints == 0)
-                {
-                    pointPoolStack.ActivePools.Remove(finaTag);
+                    if (pool.maxPoints == 0 &&
+                        heroBuildingData.PointPoolStacks.TryGetValue(featureDefinitionPointPool.PoolType,
+                            out var pointPoolStack))
+                    {
+                        pointPoolStack.ActivePools.Remove(activePoolKey);
+                    }
                 }
             }
+        }
 
-            LevelUpHelper.RebuildCharacterStageProficiencyPanel(heroBuildingData.LevelingUp);
+        [UsedImplicitly]
+        public static void Postfix(CharacterHeroBuildingData heroBuildingData)
+        {
+            Tabletop2024Context.ClearPendingFeatSelections(heroBuildingData?.HeroCharacter);
         }
     }
 }

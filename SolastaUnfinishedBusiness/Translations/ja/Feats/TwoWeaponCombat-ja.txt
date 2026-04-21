@@ -1,4 +1,4 @@
 Feat/&FeatDualFlurryDescription=近接武器で二刀流している間、ボーナス・アクションを使って利き手でない方の武器でクリーチャーを攻撃するとき、その武器で1回ではなく2回攻撃します。
 Feat/&FeatDualFlurryTitle=双刃乱舞
-Feat/&FeatDualWeaponDefenseDescription=あなたは二刀流戦闘を極め、次の利益を得ます:\n• 近接武器で二刀流している間、ACに+1のボーナスを得ます。\n• 装備している片手用近接武器が軽武器でなくても、二刀流戦闘を行えます。
+Feat/&FeatDualWeaponDefenseDescription=あなたは二刀流戦闘を極め、次の利益を得ます：\n• 近接武器で二刀流している間、ACに+1のボーナスを得ます。\n• 装備している片手用近接武器が軽武器でなくても、二刀流戦闘を行えます。
 Feat/&FeatDualWeaponDefenseTitle=二刀の使い手

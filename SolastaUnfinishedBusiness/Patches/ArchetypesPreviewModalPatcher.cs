@@ -6,6 +6,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -76,6 +77,8 @@ public static class ArchetypesPreviewModalPatcher
                     subclasses = [characterSubclassDefinition.Name];
                 }
             }
+
+            subclasses = StrictTabletopSelectionContext.FilterSubclassNamesForCurrentMode(subclasses);
 
             //PATCH: sort subclasses
             subclasses.Sort((left, right) =>

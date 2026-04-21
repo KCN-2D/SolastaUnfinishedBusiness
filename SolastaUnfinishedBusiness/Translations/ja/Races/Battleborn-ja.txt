@@ -1,7 +1,7 @@
 Feature/&AttributeModifierBattlebornBonusACTitle=秘術の堅牢性
 Feature/&FeatureSetBattlebornAbilityScoreIncreaseDescription=耐久力+2、他の能力値1つを1増加。
-Feature/&FeatureSetBattlebornAbilityScoreIncreaseTitle=能力値増加
-Feature/&FeatureSetBattlebornArcaneResilienceDescription=あなたは驚くべき頑健さを備えるよう作られており、次の利益を得ます:\n・ACに+1のボーナスを得ます。\n・毒状態になることに対するセーヴィング・スローに有利を得て、毒ダメージに対する耐性を得ます。\n・病気に対する完全耐性を持ちます。\n・眠る必要がなく、魔法で眠らされることもありません。
+Feature/&FeatureSetBattlebornAbilityScoreIncreaseTitle=能力値上昇
+Feature/&FeatureSetBattlebornArcaneResilienceDescription=あなたは驚くべき頑健さを備えるよう作られており、次の利益を得ます：\n・ACに+1のボーナスを得ます。\n・毒状態に対するセーヴィング・スローに有利を得て、毒ダメージへの抵抗を得ます。\n・病気への完全耐性を持ちます。\n・眠る必要がなく、魔法によって眠らされることもありません。
 Feature/&FeatureSetBattlebornArcaneResilienceTitle=秘術の堅牢性
 Feature/&FeatureSetBattlebornSpecializedInfusionDescription=任意の技能1つと道具1つに習熟します。
 Feature/&FeatureSetBattlebornSpecializedInfusionTitle=特化魔具化式

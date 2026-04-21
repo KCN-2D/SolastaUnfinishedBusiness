@@ -33,6 +33,12 @@ internal static class MulticlassGameUi
         .GetComponent<SlotStatus>().Available
         .GetComponent<Image>().sprite;
 
+    private static void SetSlotState([NotNull] SlotStatus component, bool? used)
+    {
+        component.Used.gameObject.SetActive(used == true);
+        component.Available.gameObject.SetActive(used == false);
+    }
+
     internal static float GetFontSize(int classesCount)
     {
         return FontSizes[classesCount % (MulticlassContext.MaxClasses + 1)];
@@ -177,21 +183,18 @@ internal static class MulticlassGameUi
                 {
                     var used = index >= pactSlotsCount + spellSlotsRemainingCount;
 
-                    component.Used.gameObject.SetActive(used);
-                    component.Available.gameObject.SetActive(!used);
+                    SetSlotState(component, used);
                 }
                 // these are pact slots that should only display at their highest level
                 else if (!ignorePactSlots && slotLevel == warlockSpellLevel)
                 {
                     var used = index >= totalSlotsRemainingCount - spellSlotsRemainingCount;
 
-                    component.Used.gameObject.SetActive(used);
-                    component.Available.gameObject.SetActive(!used);
+                    SetSlotState(component, used);
                 }
                 else
                 {
-                    component.Used.gameObject.SetActive(false);
-                    component.Available.gameObject.SetActive(false);
+                    SetSlotState(component, null);
                 }
             }
 
@@ -276,20 +279,17 @@ internal static class MulticlassGameUi
                 {
                     var used = index >= totalSlotsRemainingCount - pactSlotsRemainingCount;
 
-                    component.Used.gameObject.SetActive(used);
-                    component.Available.gameObject.SetActive(!used);
+                    SetSlotState(component, used);
                 }
                 else if (slotLevel == warlockSpellLevel)
                 {
                     var used = index >= spellSlotsCount + pactSlotsRemainingCount;
 
-                    component.Used.gameObject.SetActive(used);
-                    component.Available.gameObject.SetActive(!used);
+                    SetSlotState(component, used);
                 }
                 else
                 {
-                    component.Used.gameObject.SetActive(false);
-                    component.Available.gameObject.SetActive(false);
+                    SetSlotState(component, null);
                 }
             }
 
@@ -302,8 +302,7 @@ internal static class MulticlassGameUi
                 //PATCH: support alternate spell system to avoid displaying spell slots on selection (SPELL_POINTS)
                 if (hero.IsSpellPointsEnabled())
                 {
-                    component.Used.gameObject.SetActive(false);
-                    component.Available.gameObject.SetActive(false);
+                    SetSlotState(component, null);
                 }
                 else
                 {

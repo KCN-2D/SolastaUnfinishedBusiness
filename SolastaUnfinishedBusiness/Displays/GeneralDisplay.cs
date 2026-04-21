@@ -70,42 +70,48 @@ internal static class ToolsDisplay
     {
         foreach (var background in BackgroundsContext.Backgrounds)
         {
-            BackgroundsContext.Switch(background, ModUi.TabletopDefinitions.Contains(background));
+            BackgroundsContext.Switch(background, ModUi.IsTabletopDefinition(background));
         }
 
         foreach (var race in RacesContext.Races)
         {
-            RacesContext.Switch(race, ModUi.TabletopDefinitions.Contains(race));
+            RacesContext.Switch(race, ModUi.IsTabletopDefinition(race));
         }
 
         foreach (var subrace in RacesContext.Subraces)
         {
-            RacesContext.SwitchSubrace(subrace, ModUi.TabletopDefinitions.Contains(subrace));
+            RacesContext.SwitchSubrace(subrace, ModUi.IsTabletopDefinition(subrace));
         }
 
         foreach (var feat in FeatsContext.Feats)
         {
-            FeatsContext.SwitchFeat(feat, ModUi.TabletopDefinitions.Contains(feat));
+            FeatsContext.SwitchFeat(
+                feat,
+                ModUi.IsTabletopDefinition(feat) &&
+                Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(feat));
         }
 
         foreach (var featGroup in FeatsContext.FeatGroups)
         {
-            FeatsContext.SwitchFeatGroup(featGroup, true);
+            FeatsContext.SwitchFeatGroup(
+                featGroup,
+                ModUi.IsTabletopDefinition(featGroup) &&
+                Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(featGroup));
         }
 
         foreach (var fightingStyles in FightingStyleContext.FightingStyles)
         {
-            FightingStyleContext.Switch(fightingStyles, ModUi.TabletopDefinitions.Contains(fightingStyles));
+            FightingStyleContext.Switch(fightingStyles, ModUi.IsTabletopDefinition(fightingStyles));
         }
 
         foreach (var invocation in InvocationsContext.Invocations)
         {
-            InvocationsContext.SwitchInvocation(invocation, ModUi.TabletopDefinitions.Contains(invocation));
+            InvocationsContext.SwitchInvocation(invocation, ModUi.IsTabletopDefinition(invocation));
         }
 
         foreach (var metamagic in MetamagicContext.Metamagic)
         {
-            MetamagicContext.SwitchMetamagic(metamagic, ModUi.TabletopDefinitions.Contains(metamagic));
+            MetamagicContext.SwitchMetamagic(metamagic, ModUi.IsTabletopDefinition(metamagic));
         }
 
         SpellsContext.SelectTabletopSet(true);
@@ -540,15 +546,6 @@ internal static class ToolsDisplay
             Main.Settings.EnableClericChannelDivinity2024 = toggle;
             Tabletop2024Context.SwitchClericChannelDivinity();
         }
-
-#if false
-        toggle = Main.Settings.EnableClericDivineIntervention2024;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableClericDivineIntervention2024"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableClericDivineIntervention2024 = toggle;
-            Tabletop2024Context.SwitchClericDivineIntervention();
-        }
-#endif
 
         UI.Label();
         UI.Label("<color=#F0DAA0>" + Gui.Localize("Class/&DruidTitle") + ":</color>");
@@ -1377,7 +1374,7 @@ internal static class ToolsDisplay
         }
 
         toggle = Main.Settings.EnableUnarmedMainAttackAction;
-        if (UI.Toggle(Gui.Localize(Gui.Localize("ModUi/&EnableUnarmedMainAttackAction")), ref toggle,
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableUnarmedMainAttackAction"), ref toggle,
                 UI.AutoWidth()))
         {
             Main.Settings.EnableUnarmedMainAttackAction = toggle;

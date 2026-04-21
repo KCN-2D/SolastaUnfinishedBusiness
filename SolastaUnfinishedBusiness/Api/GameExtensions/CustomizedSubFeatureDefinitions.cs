@@ -28,6 +28,19 @@ internal static class CustomizedSubFeatureDefinitions
         return !CustomSubFeatures.TryGetValue(definition, out var value) ? null : value;
     }
 
+    [NotNull]
+    internal static List<object> GetCustomSubFeatures([CanBeNull] this BaseDefinition definition)
+    {
+        if (!definition)
+        {
+            return [];
+        }
+
+        return GetForKey(definition) is { Count: > 0 } subFeatures
+            ? [..subFeatures]
+            : [];
+    }
+
     internal static void AddCustomSubFeatures<T>(
         [NotNull] this T definition,
         [NotNull] params object[] subFeatures)

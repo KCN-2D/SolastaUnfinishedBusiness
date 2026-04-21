@@ -191,3 +191,7 @@ Reaction/&WarcasterAttackTitle=공격
 Tag/&InitiateCantripSpecialTagTitle=캔트립 시작
 Tag/&InitiateSpellSpecialTagTitle=주문 시작
 Tag/&SniperCantripSpecialTagTitle=스나이퍼 캔트립
+Feat/&FeatSpeedyDexTitle=Speedy [Dex]
+Feat/&FeatSpeedyDexDescription=Increase your Dexterity by 1, to a maximum of 20.\nYour Speed increases by 10 feet.\nWhen you Dash, difficult terrain doesn't cost you extra movement for the rest of the turn.\nOpportunity attacks against you are made with disadvantage.
+Feat/&FeatSpeedyConTitle=Speedy [Con]
+Feat/&FeatSpeedyConDescription=Increase your Constitution by 1, to a maximum of 20.\nYour Speed increases by 10 feet.\nWhen you Dash, difficult terrain doesn't cost you extra movement for the rest of the turn.\nOpportunity attacks against you are made with disadvantage.

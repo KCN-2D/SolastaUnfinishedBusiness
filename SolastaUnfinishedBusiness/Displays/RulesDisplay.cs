@@ -140,7 +140,7 @@ internal static class RulesDisplay
         }
 
         toggle = Main.Settings.EnableUnarmedMainAttackAction;
-        if (UI.Toggle(Gui.Localize(Gui.Localize("ModUi/&EnableUnarmedMainAttackAction")), ref toggle,
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableUnarmedMainAttackAction"), ref toggle,
                 UI.AutoWidth()))
         {
             Main.Settings.EnableUnarmedMainAttackAction = toggle;

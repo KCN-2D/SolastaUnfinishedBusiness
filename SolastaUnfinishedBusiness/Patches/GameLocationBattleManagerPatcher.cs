@@ -412,6 +412,21 @@ public static class GameLocationBattleManagerPatcher
                     continue;
                 }
 
+                if (feature.HasSubFeatureOfType<Tabletop2024Context.AttackOnlyReduceDamageMarker>())
+                {
+                    if (!Main.Settings.EnableTabletopFeatRules2024)
+                    {
+                        continue;
+                    }
+
+                    if (attackMode == null &&
+                        (rulesetEffect?.EffectDescription is not { RangeType: RangeType.MeleeHit or RangeType.RangeHit } ||
+                         rolledSavingThrow))
+                    {
+                        continue;
+                    }
+                }
+
                 var canReact = defender.CanReact();
 
                 //TODO: add ability to specify whether this feature can reduce magic damage

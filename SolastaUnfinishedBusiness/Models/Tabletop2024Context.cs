@@ -148,6 +148,7 @@ public static partial class Tabletop2024Context
         SwitchOneDndSpellSpiderClimb();
         SwitchOneDndSpellStoneSkin();
         SwitchOneDndSpellWitchBolt();
+        RefreshFeatSpellSelectionLists2024();
         SwitchPaladinAbjureFoes();
         SwitchPaladinChannelDivinity();
         SwitchPaladinLayOnHand();
@@ -181,6 +182,7 @@ public static partial class Tabletop2024Context
         SwitchSorcererOriginLearningLevel();
         SwitchSorcererSorcerousRestorationAtLevel5();
         SwitchSorcererDraconicBloodlineAC();
+        SwitchTabletopFeatRules2024();
         SwitchSurprisedEnforceDisadvantage();
         SwitchWarlockInvocationsProgression();
         SwitchWarlockMagicalCunningAndImprovedEldritchMaster();

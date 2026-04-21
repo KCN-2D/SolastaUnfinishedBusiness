@@ -216,17 +216,17 @@ internal static class BackgroundsAndRacesDisplay
             {
                 foreach (var background in BackgroundsContext.Backgrounds)
                 {
-                    BackgroundsContext.Switch(background, toggle && ModUi.TabletopDefinitions.Contains(background));
+                    BackgroundsContext.Switch(background, toggle && ModUi.IsTabletopDefinition(background));
                 }
 
                 foreach (var race in RacesContext.Races)
                 {
-                    RacesContext.Switch(race, toggle && ModUi.TabletopDefinitions.Contains(race));
+                    RacesContext.Switch(race, toggle && ModUi.IsTabletopDefinition(race));
                 }
 
                 foreach (var subrace in RacesContext.Subraces)
                 {
-                    RacesContext.SwitchSubrace(subrace, toggle && ModUi.TabletopDefinitions.Contains(subrace));
+                    RacesContext.SwitchSubrace(subrace, toggle && ModUi.IsTabletopDefinition(subrace));
                 }
             }
         }
@@ -270,20 +270,6 @@ internal static class BackgroundsAndRacesDisplay
         Main.Settings.SubraceSliderPosition = sliderPos;
 
         _displayTabletop = isBackgroundTabletop && isRaceTabletop && isSubraceTabletop;
-
-#if false
-        displayToggle = Main.Settings.DisplayDeitiesToggle;
-        sliderPos = Main.Settings.DeitySliderPosition;
-        ModUi.DisplayDefinitions(
-            Gui.Localize("ModUi/&Deities"),
-            DeitiesContext.Switch,
-            DeitiesContext.Deities,
-            Main.Settings.DeityEnabled,
-            ref displayToggle,
-            ref sliderPos);
-        Main.Settings.DisplayDeitiesToggle = displayToggle;
-        Main.Settings.DeitySliderPosition = sliderPos;
-#endif
 
         UI.Label();
     }

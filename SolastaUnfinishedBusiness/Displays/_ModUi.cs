@@ -2,9 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Api.ModKit;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
+using UnityEngine;
 using UnityModManagerNet;
 using static SolastaUnfinishedBusiness.Displays.BackgroundsAndRacesDisplay;
 using static SolastaUnfinishedBusiness.Displays.BlueprintDisplay;
@@ -47,6 +50,7 @@ internal static class ModUi
         "BoomingStep",
         "BorrowedKnowledge",
         "BurstOfRadiance",
+        "CircleLand",
         "ChromaticOrb",
         "CircleOfMagicalNegation",
         "CircleOfTheCosmos",
@@ -57,6 +61,7 @@ internal static class ModUi
         "CollegeOfAudacity",
         "CollegeOfGuts",
         "CollegeOfLife",
+        "CollegeOfLore",
         "CollegeOfValiance",
         "CommandSpell",
         "CreateBonfire",
@@ -65,6 +70,7 @@ internal static class ModUi
         "Dawn",
         "DissonantWhispers",
         "DivineWrath",
+        "DomainLife",
         "DomainNature",
         "DomainOrder",
         "DomainTempest",
@@ -89,9 +95,13 @@ internal static class ModUi
         "FeatBountifulLuck",
         "FeatCharger",
         "FeatCleavingAttack",
+        "FeatGreatWeaponMaster2024",
+        "FeatCrossbowExpert2024",
         "FeatDarkElfMagic",
         "FeatDeadeye",
+        "FeatSharpshooter2024",
         "FeatDefensiveDuelist",
+        "FeatDefensiveDuelist2024",
         "FeatDragonWings",
         "FeatDualWeaponDefense",
         "FeatDungeonDelver",
@@ -99,6 +109,7 @@ internal static class ModUi
         "FeatEldritchAdept",
         "FeatFellHanded",
         "FeatGiftOfTheChromaticDragon",
+        "FeatGroupGrappler2024",
         "FeatGroupGiftOfTheGemDragon",
         "FeatGroupAthlete",
         "FeatGroupBalefulScion",
@@ -106,22 +117,48 @@ internal static class ModUi
         "FeatGroupCrusher",
         "FeatGroupDragonFear",
         "FeatGroupDragonHide",
+        "FeatGroupElementalAdept2024",
         "FeatGroupElementalAdept",
         "FeatGroupElvenAccuracy",
         "FeatGroupFadeAway",
         "FeatGroupFightingStyle",
+        "FeatGroupCharger2024",
+        "FeatGroupDualWielder2024",
         "FeatGroupFlamesOfPhlegethos",
+        "FeatGroupFeyTouched2024",
+        "FeatFeyTouched2024Intelligence",
+        "FeatFeyTouched2024Wisdom",
+        "FeatFeyTouched2024Charisma",
+        "FeatGroupFeyTeleport2024",
+        "FeatFeyTeleportation2024Int",
+        "FeatFeyTeleportation2024Cha",
         "FeatGroupGrudgeBearer",
+        "FeatGroupHeavyArmorMaster2024",
+        "FeatHeavyArmorMaster2024",
+        "FeatHeavyArmorMaster2024Con",
+        "FeatGroupInspiringLeader2024",
+        "FeatGroupLightlyArmored2024",
         "FeatGroupMagicInitiate",
+        "FeatGroupMageSlayer2024",
         "FeatGroupMediumArmor",
+        "FeatGroupMediumArmorMaster2024",
+        "FeatGroupModeratelyArmored2024",
         "FeatGroupOrcishAggression",
         "FeatGroupOrcishFury",
         "FeatGroupPiercer",
+        "FeatGroupPoisoner2024",
+        "FeatGroupPolearmMaster2024",
+        "FeatGroupResilient2024",
         "FeatGroupRevenantGreatSword",
         "FeatGroupSecondChance",
-        "FeatGroupSkillExpert",
+        "FeatGroupShadowTouched",
+        "FeatGroupShadowTouched2024",
+        "FeatGroupSentinel2024",
         "FeatGroupSlasher",
+        "FeatGroupSpeedy",
         "FeatGroupSpellSniper",
+        "FeatGroupSpellSniper2024",
+        "FeatGroupWarCaster2024",
         "FeatGroupSquatNimbleness",
         "FeatGroupTelekinetic",
         "FeatGroupFeyTeleport",
@@ -129,6 +166,7 @@ internal static class ModUi
         "FeatGroupWeaponMastery",
         "FeatHealer",
         "FeatHeavyArmorMaster",
+        "FeatGroupHeavilyArmored2024",
         "FeatInfernalConstitution",
         "FeatInspiringLeader",
         "FeatLucky",
@@ -143,6 +181,7 @@ internal static class ModUi
         "FeatRemarkableTechnique",
         "FeatSavageAttack",
         "FeatSentinel",
+        "FeatShieldMaster2024",
         "FeatShieldTechniques",
         "FeatSkilled",
         "FeatSpearMastery",
@@ -201,6 +240,7 @@ internal static class ModUi
         "MaddeningDarkness",
         "MagicStone",
         "MagnifyGravity",
+        "MartialChampion",
         "MartialArcaneArcher",
         "MartialForceKnight",
         "MartialRoyalKnight",
@@ -215,6 +255,8 @@ internal static class ModUi
         "MirrorImage",
         "MysticalCloak",
         "OathOfAncients",
+        "OathOfDevotion",
+        "PathBerserker",
         "PathOfTheBattlerager",
         "PathOfTheBeast",
         "PathOfTheRavager",
@@ -222,6 +264,7 @@ internal static class ModUi
         "PathOfTheWildMagic",
         "PatronArchfey",
         "PatronCelestial",
+        "PatronFiend",
         "PatronSoulBlade",
         "PowerWordHeal",
         "PowerWordKill",
@@ -250,12 +293,14 @@ internal static class ModUi
         "RaceTieflingZariel",
         "RangerFeyWanderer",
         "RangerGloomStalker",
+        "RangerHunter",
         "RangerWildMaster",
         "RayOfSickness",
         "RemarkableTechnique",
         "ResonatingStrike",
         "ReverseGravity",
         "RoguishSlayer",
+        "RoguishThief",
         "Sanctuary",
         "Scatter",
         "SearingSmite",
@@ -269,6 +314,7 @@ internal static class ModUi
         "SnillocSnowballStorm",
         "SpellWeb",
         "SpikeBarrage",
+        "SorcerousDraconicBloodline",
         "SpiritShroud",
         "StaggeringSmite",
         "StarryWisp",
@@ -283,6 +329,7 @@ internal static class ModUi
         "ThunderStrike",
         "TimeStop",
         "TollTheDead",
+        "TraditionOpenHand",
         "VileBrew",
         "VitalityTransfer",
         "VitriolicSphere",
@@ -306,6 +353,8 @@ internal static class ModUi
 
     internal static void LoadTabletopDefinitions()
     {
+        TabletopDefinitions.Clear();
+
         var raceDb = DatabaseRepository.GetDatabase<CharacterRaceDefinition>();
         var subclassDb = DatabaseRepository.GetDatabase<CharacterSubclassDefinition>();
         var featDb = DatabaseRepository.GetDatabase<FeatDefinition>();
@@ -347,6 +396,61 @@ internal static class ModUi
         }
     }
 
+    private static bool IsTabletopFeatDefinition([CanBeNull] FeatDefinition featDefinition)
+    {
+        return featDefinition != null && HasTabletopFeatDescendants(featDefinition, []);
+    }
+
+    private static bool HasTabletopFeatDescendants(
+        [CanBeNull] FeatDefinition featDefinition,
+        [NotNull] HashSet<string> processedDefinitions)
+    {
+        if (featDefinition == null || !processedDefinitions.Add(featDefinition.Name))
+        {
+            return false;
+        }
+
+        if (Tabletop2024Context.IsNonSelectableTabletopGroup(featDefinition))
+        {
+            return false;
+        }
+
+        if (TabletopDefinitions.Contains(featDefinition) || Tabletop2024Context.IsManagedTabletopFeat(featDefinition))
+        {
+            return true;
+        }
+
+        if (!Tabletop2024Context.IsTabletopContainerGroup(featDefinition) ||
+            featDefinition.GetFirstSubFeatureOfType<IGroupedFeat>() is not { } group)
+        {
+            return false;
+        }
+
+        return group.GetSubFeats(true).Any(subFeat => HasTabletopFeatDescendants(subFeat, processedDefinitions));
+    }
+
+    internal static bool IsTabletopDefinition(BaseDefinition definition)
+    {
+        return definition switch
+        {
+            FeatDefinition featDefinition => IsTabletopFeatDefinition(featDefinition),
+            not null => TabletopDefinitions.Contains(definition),
+            _ => false
+        };
+    }
+
+    private static string FormatDefinitionOptionTitle(BaseDefinition definition)
+    {
+        var title = definition.FormatTitle();
+
+        if (Tabletop2024Context.Is2024TabletopFeat(definition))
+        {
+            title = $"{title} [2024]";
+        }
+
+        return title;
+    }
+
     internal static void DisplaySubMenu(ref int selectedPane, string title = null, params NamedAction[] actions)
     {
         if (!Main.Enabled)
@@ -374,17 +478,27 @@ internal static class ModUi
         bool useAlternateDescription = false,
         [CanBeNull] Action headerRendering = null,
         [CanBeNull] Action additionalRendering = null,
-        bool displaySelectTabletop = true) where T : BaseDefinition
+        bool displaySelectTabletop = true,
+        [CanBeNull] Func<T, bool> toggleEnabled = null,
+        [CanBeNull] Func<T, bool?> toggleValueOverride = null) where T : BaseDefinition
     {
         if (registeredDefinitions.Count == 0)
         {
             return false;
         }
 
-        var selectAll = selectedDefinitions.Count == registeredDefinitions.Count;
+        var enabledDefinitions = registeredDefinitions
+            .Where(definition => toggleEnabled?.Invoke(definition) ?? true)
+            .ToArray();
+        var enabledTabletopDefinitions = enabledDefinitions
+            .Where(IsTabletopDefinition)
+            .ToArray();
+        var selectAll =
+            enabledDefinitions.Length > 0 &&
+            enabledDefinitions.All(definition => selectedDefinitions.Contains(definition.Name));
         var selectTabletop =
-            selectedDefinitions.Count == TabletopDefinitions.Intersect(registeredDefinitions).Count() &&
-            selectedDefinitions.All(TabletopDefinitionNames.Contains);
+            enabledTabletopDefinitions.Length > 0 &&
+            enabledTabletopDefinitions.All(definition => selectedDefinitions.Contains(definition.Name));
 
         UI.Label();
 
@@ -419,9 +533,12 @@ internal static class ModUi
             }
             else
             {
+                var guiEnabled = GUI.enabled;
+                GUI.enabled = guiEnabled && enabledDefinitions.Length > 0;
+
                 if (UI.Toggle(Gui.Localize("ModUi/&SelectAll"), ref selectAll, UI.Width(PixelsPerColumn)))
                 {
-                    foreach (var registeredDefinition in registeredDefinitions)
+                    foreach (var registeredDefinition in enabledDefinitions)
                     {
                         switchAction.Invoke(registeredDefinition, selectAll);
                     }
@@ -432,14 +549,16 @@ internal static class ModUi
                     if (UI.Toggle(Gui.Localize("ModUi/&SelectTabletop"), ref selectTabletop,
                             UI.Width(PixelsPerColumn)))
                     {
-                        foreach (var registeredDefinition in registeredDefinitions)
+                        foreach (var registeredDefinition in enabledDefinitions)
                         {
                             switchAction.Invoke(
                                 registeredDefinition,
-                                selectTabletop && TabletopDefinitions.Contains(registeredDefinition));
+                                selectTabletop && IsTabletopDefinition(registeredDefinition));
                         }
                     }
                 }
+
+                GUI.enabled = guiEnabled;
             }
         }
 
@@ -449,7 +568,8 @@ internal static class ModUi
 
         var flip = false;
         var current = 0;
-        var count = registeredDefinitions.Count;
+        var definitions = registeredDefinitions.ToArray();
+        var count = definitions.Length;
 
         using (UI.VerticalScope())
         {
@@ -461,9 +581,9 @@ internal static class ModUi
                 {
                     while (current < count && columns-- > 0)
                     {
-                        var definition = registeredDefinitions.ElementAt(current);
-                        var title = definition.FormatTitle();
-                        var isTabletop = TabletopDefinitions.Contains(definition);
+                        var definition = definitions[current];
+                        var title = FormatDefinitionOptionTitle(definition);
+                        var isTabletop = IsTabletopDefinition(definition);
                         var isVanilla = definition.ContentPack != CeContentPackContext.CeContentPack;
 
                         if (flip)
@@ -483,12 +603,18 @@ internal static class ModUi
                             title = title.Orange() + " \u263c".Grey(); // sun symbol
                         }
 
-                        toggle = selectedDefinitions.Contains(definition.Name);
+                        var isEnabled = toggleEnabled?.Invoke(definition) ?? true;
+                        toggle = toggleValueOverride?.Invoke(definition) ?? selectedDefinitions.Contains(definition.Name);
+
+                        var guiEnabled = GUI.enabled;
+                        GUI.enabled = guiEnabled && isEnabled;
 
                         if (UI.Toggle(title, ref toggle, UI.Width(PixelsPerColumn)))
                         {
                             switchAction.Invoke(definition, toggle);
                         }
+
+                        GUI.enabled = guiEnabled;
 
                         if (sliderPosition == 1)
                         {

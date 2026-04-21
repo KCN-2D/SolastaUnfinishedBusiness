@@ -240,25 +240,6 @@ internal static class RulesetActorExtensions
         return list;
     }
 
-#if false
-    internal static List<T> GetFeaturesByTypeAndTag<T>(this RulesetCharacterHero hero, string tag) where T : class
-    {
-        return hero.ActiveFeatures
-            .Where(e => e.Key.Contains(tag))
-            .SelectMany(e => e.Value)
-            .SelectMany(Unfold)
-            .OfType<T>()
-            .ToList();
-    }
-
-    private static IEnumerable<FeatureDefinition> Unfold(FeatureDefinition feature)
-    {
-        return feature is FeatureDefinitionFeatureSet {Mode: FeatureSetMode.Union} set
-            ? set.FeatureSet.SelectMany(Unfold)
-            : new[] {feature};
-    }
-#endif
-
     internal static bool HasAnyFeature(this RulesetActor actor, params FeatureDefinition[] features)
     {
         return FeaturesByType<FeatureDefinition>(actor).Any(features.Contains);
@@ -268,14 +249,6 @@ internal static class RulesetActorExtensions
     {
         return FeaturesByType<FeatureDefinition>(actor).Any(f => featureNames.Contains(f.Name));
     }
-
-#if false
-    internal static bool HasAllFeatures(this RulesetActor actor, [NotNull] params FeatureDefinition[] features)
-    {
-        var all = FeaturesByType<FeatureDefinition>(actor);
-        return FlattenFeatureList(features).All(f => all.Contains(f));
-    }
-#endif
 
     [NotNull]
     public static IEnumerable<FeatureDefinition> FlattenFeatureList([NotNull] IEnumerable<FeatureDefinition> features)
@@ -287,39 +260,40 @@ internal static class RulesetActorExtensions
     }
 
     [NotNull]
+    private static IEnumerable<T> EnumerateSubFeaturesByType<T>([CanBeNull] RulesetActor actor, params Type[] typesToSkip)
+        where T : class
+    {
+        foreach (var subFeature in AllActiveDefinitions(actor)
+                     .Where(feature => !typesToSkip.Contains(feature.GetType()))
+                     .SelectMany(feature => feature.GetAllSubFeaturesOfType<T>()))
+        {
+            yield return subFeature;
+        }
+
+        if (actor == null)
+        {
+            yield break;
+        }
+
+        foreach (var subFeature in actor.ConditionsByCategory
+                     .SelectMany(x => x.Value)
+                     .SelectMany(x => x.ConditionDefinition.GetAllSubFeaturesOfType<T>()))
+        {
+            yield return subFeature;
+        }
+    }
+
+    [NotNull]
     internal static List<T> GetSubFeaturesByType<T>([CanBeNull] this RulesetActor actor, params Type[] typesToSkip)
         where T : class
     {
-        var list = AllActiveDefinitions(actor)
-            .Where(f => !typesToSkip.Contains(f.GetType()))
-            .SelectMany(f => f.GetAllSubFeaturesOfType<T>())
-            .ToList();
-
-        if (actor != null)
-        {
-            list.AddRange(actor.ConditionsByCategory
-                .SelectMany(x => x.Value)
-                .SelectMany(x => x.ConditionDefinition.GetAllSubFeaturesOfType<T>()));
-        }
-
-        return list;
+        return EnumerateSubFeaturesByType<T>(actor, typesToSkip).ToList();
     }
 
     internal static bool HasSubFeatureOfType<T>([CanBeNull] this RulesetActor actor, params Type[] typesToSkip)
         where T : class
     {
-        if (AllActiveDefinitions(actor)
-                .Where(f => !typesToSkip.Contains(f.GetType()))
-                .SelectMany(f => f.GetAllSubFeaturesOfType<T>())
-                .FirstOrDefault() != null)
-        {
-            return true;
-        }
-
-        return actor?.ConditionsByCategory
-            .SelectMany(x => x.Value)
-            .SelectMany(x => x.ConditionDefinition.GetAllSubFeaturesOfType<T>())
-            .FirstOrDefault() != null;
+        return EnumerateSubFeaturesByType<T>(actor, typesToSkip).Any();
     }
 
     internal static bool IsTouchingGround(this RulesetActor actor)

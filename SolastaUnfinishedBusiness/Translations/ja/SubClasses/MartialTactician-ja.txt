@@ -1,7 +1,7 @@
 Feature/&FeatureAdaptiveStrategyDescription=あなたの攻撃のいずれかでクリティカルミスまたはクリティカルヒットを出すたび、戦技ダイスを1つ得ます。この利益はターンごとに1回しか発生せず、戦技ダイスの最大数を超えることはありません。
-Feature/&FeatureAdaptiveStrategyTitle=戦略: 適応
+Feature/&FeatureAdaptiveStrategyTitle=戦略：適応
 Feature/&FeatureOvercomingStrategyDescription=あなたの攻撃のいずれかでクリーチャーを倒したとき、またはあなたのダメージを与える戦技の効果でダメージを受けたクリーチャーが次のあなたのターン開始前に死亡したとき、戦技ダイスを1つ回復します。この利益はラウンドごとに1回しか発生せず、戦技ダイスの最大数を超えることはありません。
-Feature/&FeatureOvercomingStrategyTitle=戦略: 克服
+Feature/&FeatureOvercomingStrategyTitle=戦略：克服
 Feature/&FeatureSetTacticianSharpMindDescription=任意の技能1つに習熟します。
 Feature/&FeatureSetTacticianSharpMindTitle=明晰な頭脳
 Feature/&FeatureSetTacticianTacticalAwarenessDescription=戦闘中、自分の各ターン開始時に戦技ダイス1つを回復します。

@@ -98,3 +98,5 @@ Reaction/&UseDefensiveDuelistReactTitle=지키다
 Reaction/&UseDefensiveDuelistTitle=방어형 결투사
 Tooltip/&CleavingAttackConcentration=그레이트 웨폰 마스터를 비활성화합니다.
 Tooltip/&PowerAttackConcentration=파워 어택을 비활성화합니다.
+Feat/&FeatGreatWeaponMaster2024Title=대형 무기 숙련가
+Feat/&FeatGreatWeaponMaster2024Description=무거운 무기를 가차 없이 다루는 법을 익혔습니다:\n• 근력을 1 증가시킵니다(최대 20).\n• 자신의 턴에 공격 행동의 일부로 중량 특성을 가진 무기로 크리처에게 명중하면, 숙련 보너스와 같은 추가 피해를 줄 수 있습니다.\n• 근접 무기로 치명타를 기록하거나 그 무기로 크리처의 체력을 0으로 만든 직후, 보너스 행동으로 같은 무기로 1회 공격할 수 있습니다.

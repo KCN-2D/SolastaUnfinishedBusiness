@@ -31,6 +31,30 @@ public static class GameLocationCharacterExtensions
         return actionModifiers;
     }
 
+    private static bool TryGetReactionManagers(
+        out GameLocationActionManager actionManager,
+        out GameLocationBattleManager battleManager,
+        GameLocationBattleManager fallbackBattleManager = null)
+    {
+        actionManager = ServiceRepository.GetService<IGameLocationActionService>() as GameLocationActionManager;
+        battleManager = fallbackBattleManager ?? ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
+
+        return actionManager && battleManager;
+    }
+
+    private static bool TryGetReactionServices(
+        out IGameLocationActionService actionService,
+        out IRulesetImplementationService implementationService,
+        out GameLocationBattleManager battleManager,
+        GameLocationBattleManager fallbackBattleManager = null)
+    {
+        actionService = ServiceRepository.GetService<IGameLocationActionService>();
+        implementationService = ServiceRepository.GetService<IRulesetImplementationService>();
+        battleManager = fallbackBattleManager ?? ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
+
+        return battleManager;
+    }
+
     #region Actions
 
     internal static void MyExecuteActionAttack(
@@ -165,11 +189,7 @@ public static class GameLocationCharacterExtensions
         GameLocationBattleManager battleManager = null,
         ReactionResourcePowerPool resource = null)
     {
-        var actionManager = ServiceRepository.GetService<IGameLocationActionService>() as GameLocationActionManager;
-
-        battleManager ??= ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
-
-        if (!actionManager || !battleManager)
+        if (!TryGetReactionManagers(out var actionManager, out battleManager, battleManager))
         {
             yield break;
         }
@@ -202,9 +222,8 @@ public static class GameLocationCharacterExtensions
         Action<CharacterActionParams> reactionValidated = null,
         GameLocationBattleManager battleManager = null)
     {
-        battleManager ??= ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
-
-        if (!battleManager)
+        if (!TryGetReactionServices(out var actionService, out var implementationService, out battleManager,
+                battleManager))
         {
             yield break;
         }
@@ -217,14 +236,12 @@ public static class GameLocationCharacterExtensions
             yield break;
         }
 
-        var actionService = ServiceRepository.GetService<IGameLocationActionService>();
         var reactionParams = new CharacterActionParams(caster, Id.CastReaction)
         {
             ActionModifiers = { new ActionModifier() },
             IntParameter = slotLevel,
             StringParameter = spell.Name,
-            RulesetEffect = ServiceRepository.GetService<IRulesetImplementationService>()
-                .InstantiateEffectSpell(ruleCaster, repertoire, spell, slotLevel, false),
+            RulesetEffect = implementationService.InstantiateEffectSpell(ruleCaster, repertoire, spell, slotLevel, false),
             SpellRepertoire = repertoire,
             TargetCharacters = { target },
             IsReactionEffect = true
@@ -252,11 +269,7 @@ public static class GameLocationCharacterExtensions
         GameLocationBattleManager battleManager = null,
         ICustomReactionResource resource = null)
     {
-        var actionManager = ServiceRepository.GetService<IGameLocationActionService>() as GameLocationActionManager;
-
-        battleManager ??= ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
-
-        if (!actionManager || !battleManager)
+        if (!TryGetReactionManagers(out var actionManager, out battleManager, battleManager))
         {
             yield break;
         }
@@ -291,15 +304,12 @@ public static class GameLocationCharacterExtensions
         Action reactionValidated = null,
         GameLocationBattleManager battleManager = null)
     {
-        battleManager ??= ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
-
-        if (!battleManager)
+        if (!TryGetReactionServices(out var actionService, out var implementationService, out battleManager,
+                battleManager))
         {
             yield break;
         }
 
-        var actionService = ServiceRepository.GetService<IGameLocationActionService>();
-        var implementationService = ServiceRepository.GetService<IRulesetImplementationService>();
         var reactionParams = new CharacterActionParams(character, Id.SpendPower)
         {
             StringParameter = stringParameter,
@@ -331,11 +341,7 @@ public static class GameLocationCharacterExtensions
         Action<ReactionRequestSpendBundlePower> reactionNotValidated = null,
         GameLocationBattleManager battleManager = null)
     {
-        var actionManager = ServiceRepository.GetService<IGameLocationActionService>() as GameLocationActionManager;
-
-        battleManager ??= ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
-
-        if (!actionManager || !battleManager)
+        if (!TryGetReactionManagers(out var actionManager, out battleManager, battleManager))
         {
             yield break;
         }
@@ -372,15 +378,12 @@ public static class GameLocationCharacterExtensions
         Action reactionNotValidated = null,
         GameLocationBattleManager battleManager = null)
     {
-        battleManager ??= ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
-
-        if (!battleManager)
+        if (!TryGetReactionServices(out var actionService, out var implementationService, out battleManager,
+                battleManager))
         {
             yield break;
         }
 
-        var actionService = ServiceRepository.GetService<IGameLocationActionService>();
-        var implementationService = ServiceRepository.GetService<IRulesetImplementationService>();
         var actionParams = new CharacterActionParams(character, actionId)
         {
             StringParameter = stringParameter,
@@ -743,27 +746,6 @@ public static class GameLocationCharacterExtensions
         return !instance.UsedSpecialFeatures.ContainsKey(key);
     }
 
-#if false
-    internal static int GetActionTypeRank(this GameLocationCharacter instance, ActionType type)
-    {
-        var ranks = instance.currentActionRankByType;
-        return ranks.TryGetValue(type, out var value) ? value : 0;
-    }
-
-    internal static FeatureDefinition GetCurrentAdditionalActionFeature(
-        this GameLocationCharacter instance,
-        ActionType type)
-    {
-        if (!instance.currentActionRankByType.TryGetValue(type, out var rank))
-        {
-            return null;
-        }
-
-        var filters = instance.ActionPerformancesByType[type];
-        return rank >= filters.Count ? null : PerformanceFilterExtraData.GetData(filters[rank])?.Feature;
-    }
-#endif
-
     internal static bool CanCastAnyInvocationOfActionId(
         this GameLocationCharacter instance,
         Id actionId,
@@ -917,7 +899,7 @@ public static class GameLocationCharacterExtensions
         var maxAttacks = rulesetCharacter.AttackModes
             .FirstOrDefault(attackMode => attackMode.ActionType == ActionType.Bonus)?.AttacksNumber ?? 0;
 
-        if (instance.UsedMainAttacks < maxAttacks)
+        if (instance.UsedBonusAttacks < maxAttacks)
         {
             return;
         }

@@ -7,6 +7,7 @@ using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Validators;
 using static ActionDefinitions;
 using static RuleDefinitions;
@@ -39,7 +40,10 @@ internal static class ArmorFeats
         RulesetCharacterHero rulesetCharacterHero)
     {
         return armorDescription.ArmorTypeDefinition.ArmorCategory == MediumArmorCategory &&
-               rulesetCharacterHero.TrainedFeats.Contains(FeatMediumArmorMaster);
+               rulesetCharacterHero?.TrainedFeats?.Exists(feat =>
+                   feat == FeatMediumArmorMaster ||
+                   (Main.Settings.EnableTabletopFeatRules2024 &&
+                    Tabletop2024Context.AreEquivalentTabletopFeatNames(feat.Name, FeatMediumArmorMaster.Name))) == true;
     }
 
     internal static void CreateFeats([NotNull] List<FeatDefinition> feats)

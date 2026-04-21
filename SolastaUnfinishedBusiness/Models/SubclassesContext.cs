@@ -47,20 +47,20 @@ internal static class SubclassesContext
         }
 
         // settings paring
-        var subclasses = Main.Settings.KlassListSubclassEnabled
-            .SelectMany(x => x.Value)
-            .Where(name => KlassListContextTab
-                .SelectMany(x => x.Value.AllSubClasses)
-                .All(y => y.Name != name))
-            .ToArray();
+        var registeredSubclassNames = KlassListContextTab
+            .SelectMany(x => x.Value.AllSubClasses)
+            .Select(subclass => subclass.Name)
+            .ToHashSet();
 
         foreach (var kvp in Main.Settings.KlassListSubclassEnabled)
         {
-            kvp.Value.RemoveAll(x => subclasses.Contains(x));
+            kvp.Value.RemoveAll(name => !registeredSubclassNames.Contains(name));
         }
 
         DatabaseRepository.GetDatabase<CharacterSubclassDefinition>()
             .Do(x => x.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock));
+
+        RefreshSubclassVisibility();
 
         // bootstrap
         SwitchSchoolRestrictionsFromShadowCaster();
@@ -118,6 +118,14 @@ internal static class SubclassesContext
     internal static bool IsTabletopSetSelected()
     {
         return KlassListContextTab.Values.All(subclassListContext => subclassListContext.IsTabletopSetSelected);
+    }
+
+    internal static void RefreshSubclassVisibility()
+    {
+        foreach (var subclassListContext in KlassListContextTab.Values)
+        {
+            subclassListContext.RefreshSubclassVisibilityInternal();
+        }
     }
 
     internal static void SelectAllSet(bool toggle)
@@ -181,14 +189,21 @@ internal static class SubclassesContext
         private List<string> SelectedSubclasses => Main.Settings.KlassListSubclassEnabled[Klass.Name];
         private CharacterClassDefinition Klass { get; }
         internal HashSet<CharacterSubclassDefinition> AllSubClasses { get; }
+        private IEnumerable<CharacterSubclassDefinition> TabletopSubclasses =>
+            AllSubClasses.Where(StrictTabletopSelectionContext.IsTabletopSubclassAllowed);
+        private IEnumerable<CharacterSubclassDefinition> NonTabletopSubclasses =>
+            AllSubClasses.Where(subclass => !StrictTabletopSelectionContext.IsTabletopSubclassAllowed(subclass));
+        private IEnumerable<CharacterSubclassDefinition> AvailableSubclasses =>
+            AllSubClasses.Where(IsSubclassAvailable);
 
         // ReSharper disable once MemberHidesStaticFromOuterClass
-        internal bool IsAllSetSelected => AllSubClasses.Count == SelectedSubclasses.Count;
+        internal bool IsAllSetSelected =>
+            AvailableSubclasses.All(IsSubclassEffectivelyEnabled);
 
         // ReSharper disable once MemberHidesStaticFromOuterClass
         internal bool IsTabletopSetSelected =>
-            ModUi.TabletopDefinitions.Intersect(AllSubClasses).Count() == SelectedSubclasses.Count &&
-            SelectedSubclasses.All(ModUi.TabletopDefinitionNames.Contains);
+            TabletopSubclasses.All(IsSubclassEffectivelyEnabled) &&
+            NonTabletopSubclasses.All(subclass => !IsSubclassEffectivelyEnabled(subclass));
 
         internal void SelectAllSetInternal(bool toggle)
         {
@@ -202,7 +217,7 @@ internal static class SubclassesContext
         {
             foreach (var subclass in AllSubClasses)
             {
-                Switch(subclass, toggle && ModUi.TabletopDefinitions.Contains(subclass));
+                Switch(subclass, toggle && StrictTabletopSelectionContext.IsTabletopSubclassAllowed(subclass));
             }
         }
 
@@ -210,12 +225,22 @@ internal static class SubclassesContext
         {
             AllSubClasses.Add(characterSubclassDefinition);
             UpdateSubclassVisibility(characterSubclassDefinition);
+            UpdateClassVisibility();
         }
 
         internal void Switch(CharacterSubclassDefinition characterSubclassDefinition, bool active)
         {
             var klass = Klass.Name;
             var subclass = characterSubclassDefinition.Name;
+            var subclassAllowed = IsSubclassAvailable(characterSubclassDefinition);
+
+            if (!subclassAllowed)
+            {
+                UpdateSubclassVisibility(characterSubclassDefinition);
+                UpdateClassVisibility();
+
+                return;
+            }
 
             if (active)
             {
@@ -227,16 +252,27 @@ internal static class SubclassesContext
             }
 
             UpdateSubclassVisibility(characterSubclassDefinition);
+            UpdateClassVisibility();
+        }
+
+        internal void RefreshSubclassVisibilityInternal()
+        {
+            foreach (var subclass in AllSubClasses)
+            {
+                UpdateSubclassVisibility(subclass);
+            }
+
+            UpdateClassVisibility();
         }
 
         private void UpdateSubclassVisibility([NotNull] CharacterSubclassDefinition characterSubclassDefinition)
         {
-            var klass = Klass.Name;
             var subclass = characterSubclassDefinition.Name;
+            var isActive = IsSubclassEffectivelyEnabled(characterSubclassDefinition);
 
             if (SubclassesChoiceList.TryGetValue(characterSubclassDefinition, out var choiceList))
             {
-                if (Main.Settings.KlassListSubclassEnabled[klass].Contains(subclass))
+                if (isActive)
                 {
                     choiceList.Subclasses.TryAdd(subclass);
                 }
@@ -247,7 +283,7 @@ internal static class SubclassesContext
             }
             else if (DeityChoiceList.TryGetValue(characterSubclassDefinition, out var deityDefinition))
             {
-                if (Main.Settings.KlassListSubclassEnabled[klass].Contains(subclass))
+                if (isActive)
                 {
                     deityDefinition.Subclasses.TryAdd(subclass);
                 }
@@ -256,11 +292,24 @@ internal static class SubclassesContext
                     deityDefinition.Subclasses.Remove(subclass);
                 }
             }
+        }
 
-            // enable / disable Inventor class based on subclasses selection
+        private bool IsSubclassAvailable(CharacterSubclassDefinition characterSubclassDefinition)
+        {
+            return StrictTabletopSelectionContext.IsSubclassAllowedForCurrentMode(characterSubclassDefinition);
+        }
+
+        private bool IsSubclassEffectivelyEnabled(CharacterSubclassDefinition characterSubclassDefinition)
+        {
+            return SelectedSubclasses.Contains(characterSubclassDefinition.Name) &&
+                   IsSubclassAvailable(characterSubclassDefinition);
+        }
+
+        private void UpdateClassVisibility()
+        {
             if (Klass == InventorClass.Class)
             {
-                InventorClass.Class.GuiPresentation.hidden = Main.Settings.KlassListSubclassEnabled[klass].Count == 0;
+                InventorClass.Class.GuiPresentation.hidden = !AllSubClasses.Any(IsSubclassEffectivelyEnabled);
             }
         }
     }

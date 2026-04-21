@@ -3,6 +3,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -23,15 +24,28 @@ public static class FeatItemPatcher
             ProficiencyBaseItem.OnItemHoverChangedHandler onItemHoverChanged,
             bool flexibleWidth)
         {
-            var group = featDefinition.GetFirstSubFeatureOfType<IGroupedFeat>();
-
-            if (group == null)
+            if (featDefinition == null)
             {
                 return true;
             }
 
-            __instance.GuiFeatDefinition = ServiceRepository.GetService<IGuiWrapperService>()
-                .GetGuiFeatDefinition(featDefinition.Name);
+            var group = featDefinition.GetFirstSubFeatureOfType<IGroupedFeat>();
+
+            if (group == null ||
+                onItemClicked == null)
+            {
+                return true;
+            }
+
+            var guiWrapperService = ServiceRepository.GetService<IGuiWrapperService>();
+            var guiFeatDefinition = guiWrapperService?.GetGuiFeatDefinition(featDefinition.Name);
+
+            if (guiFeatDefinition == null)
+            {
+                return true;
+            }
+
+            __instance.GuiFeatDefinition = guiFeatDefinition;
             __instance.Bind(
                 inspectedCharacter,
                 featDefinition,
@@ -45,11 +59,55 @@ public static class FeatItemPatcher
                     selector.Show();
                 },
                 flexibleWidth);
-            __instance.GuiFeatDefinition.SetupTooltip(__instance.Tooltip, inspectedCharacter);
+
+            __instance.GuiFeatDefinition?.SetupTooltip(__instance.Tooltip, inspectedCharacter);
             __instance.OnItemHoverChanged = onItemHoverChanged;
+
             SubFeatSelectionModal.SetColor(__instance, SubFeatSelectionModal.HeaderColor);
 
             return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(FeatItem), "IsStrikethroughStyle")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class IsStrikethroughStyle_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(FeatItem __instance, ProficiencyBaseItem hoveredItem, ref bool __result)
+        {
+            if (__instance?.GuiFeatDefinition?.FeatDefinition == null ||
+                hoveredItem is not FeatItem hoveredFeatItem ||
+                hoveredFeatItem.GuiFeatDefinition?.FeatDefinition == null ||
+                string.IsNullOrEmpty(__instance.StageTag) ||
+                string.IsNullOrEmpty(hoveredFeatItem.StageTag) ||
+                __instance.CurrentPoolType != HeroDefinitions.PointsPoolType.Feat ||
+                hoveredFeatItem.CurrentPoolType != HeroDefinitions.PointsPoolType.Feat)
+            {
+                __result = false;
+
+                return false;
+            }
+
+            return true;
+        }
+
+        [UsedImplicitly]
+        public static global::System.Exception Finalizer(global::System.Exception __exception, ref bool __result)
+        {
+            if (__exception == null)
+            {
+                return null;
+            }
+
+            __result = false;
+
+#if DEBUG
+            Main.Log($"Suppressed FeatItem.IsStrikethroughStyle exception: {__exception}");
+#endif
+
+            return null;
         }
     }
 

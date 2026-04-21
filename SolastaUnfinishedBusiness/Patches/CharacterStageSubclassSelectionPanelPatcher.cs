@@ -3,6 +3,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Builders;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -20,6 +21,9 @@ public static class CharacterStageSubclassSelectionPanelPatcher
         [UsedImplicitly]
         public static void Prefix([NotNull] CharacterStageSubclassSelectionPanel __instance)
         {
+            __instance.compatibleSubclasses.RemoveAll(
+                subclass => !StrictTabletopSelectionContext.IsSubclassAllowedForCurrentMode(subclass));
+
             //PATCH: changes the subclasses layout to allow more offering
             var table = __instance.subclassesTable;
             var tableParent = table.parent;

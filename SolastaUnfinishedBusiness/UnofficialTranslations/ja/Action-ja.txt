@@ -47,7 +47,7 @@ Action/&AssignTargetTitle=対象
 Action/&AttackCoverFullDescription=対象は障害物の背後にあり、完全遮蔽を得ています。
 Action/&AttackCoverHalfDescription=対象は半遮蔽を得ています（AC{0}）。
 Action/&AttackCoverThreeQuartersDescription=対象は4分の3遮蔽を得ています（AC{0}）。
-Action/&AttackDescription=この武器で敵を攻撃します: {0}（{1}で命中）\n{2}
+Action/&AttackDescription=この武器で敵を攻撃します：{0}（{1}で命中）\n{2}
 Action/&AttackExecuteAdvantageDescription=有利で対象を攻撃します！
 Action/&AttackExecuteAdvantageGamepadDescription=<sprite index={0}>を押して、有利で対象を攻撃してください！
 Action/&AttackExecuteDescription=対象を攻撃します！

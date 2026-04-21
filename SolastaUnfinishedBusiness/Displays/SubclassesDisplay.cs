@@ -23,6 +23,19 @@ internal static class SubclassesDisplay
 
         UI.Label();
 
+        toggle = Main.Settings.EnableStrictTabletopClassSelection;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableStrictTabletopClassSelection"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableStrictTabletopClassSelection = toggle;
+            SubclassesContext.RefreshSubclassVisibility();
+        }
+
+        if (Main.Settings.EnableStrictTabletopClassSelection)
+        {
+            UI.Label(Gui.Localize("ModUi/&EnableStrictTabletopClassSelectionHelp"));
+            UI.Label();
+        }
+
         toggle = Main.Settings.AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness;
         if (UI.Toggle(Gui.Localize("ModUi/&AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness"), ref toggle,
                 UI.AutoWidth()))
@@ -178,7 +191,12 @@ internal static class SubclassesDisplay
                 subclassListContext.AllSubClasses,
                 subclassEnabled,
                 ref displayToggle,
-                ref sliderPos);
+                ref sliderPos,
+                toggleEnabled: StrictTabletopSelectionContext.IsSubclassAllowedForCurrentMode,
+                toggleValueOverride: subclass =>
+                    !StrictTabletopSelectionContext.IsSubclassAllowedForCurrentMode(subclass)
+                        ? false
+                        : null);
 
             Main.Settings.DisplayKlassToggle[klassName] = displayToggle;
             Main.Settings.KlassListSliderPosition[klassName] = sliderPos;

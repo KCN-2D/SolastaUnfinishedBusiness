@@ -11,6 +11,24 @@ namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
 public static class RulesetSpellRepertoireExtensions
 {
+    private static bool TryGetMulticasterWarlockSpellLevel(
+        [CanBeNull] RulesetCharacterHero hero,
+        out int warlockSpellLevel)
+    {
+        warlockSpellLevel = 0;
+
+        if (hero == null ||
+            !SharedSpellsContext.IsMulticaster(hero) ||
+            SharedSpellsContext.GetWarlockSpellRepertoire(hero) == null)
+        {
+            return false;
+        }
+
+        warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
+
+        return true;
+    }
+
     public static RulesetCharacter GetCaster(this RulesetSpellRepertoire repertoire)
     {
         return EffectHelpers.GetCharacterByGuid(repertoire?.CharacterInventory?.BearerGuid ?? 0)
@@ -59,14 +77,10 @@ public static class RulesetSpellRepertoireExtensions
         pactRemaining = 0;
         pactMax = 0;
 
-        if (hero == null ||
-            !SharedSpellsContext.IsMulticaster(hero) ||
-            SharedSpellsContext.GetWarlockSpellRepertoire(hero) == null)
+        if (!TryGetMulticasterWarlockSpellLevel(hero, out var warlockSpellLevel))
         {
             return;
         }
-
-        var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
 
         if (slotLevel > warlockSpellLevel)
         {
@@ -102,14 +116,10 @@ public static class RulesetSpellRepertoireExtensions
         remaining = sharedRemaining;
         max = sharedMax;
 
-        if (hero == null ||
-            !SharedSpellsContext.IsMulticaster(hero) ||
-            SharedSpellsContext.GetWarlockSpellRepertoire(hero) == null)
+        if (!TryGetMulticasterWarlockSpellLevel(hero, out var warlockSpellLevel))
         {
             return;
         }
-
-        var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
 
         if (slotLevel < warlockSpellLevel)
         {

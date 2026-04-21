@@ -1232,7 +1232,7 @@ internal static class MeleeCombatFeats
         {
             var rulesetAttacker = attacker.RulesetCharacter;
 
-            if (!ValidatorsWeapon.IsMeleeOrUnarmed(attackMode) ||
+            if (attackMode == null ||
                 attackMode.EffectDescription.FindFirstDamageForm()?.DamageType != DamageTypeBludgeoning)
             {
                 yield break;
@@ -1731,6 +1731,8 @@ internal static class MeleeCombatFeats
         ConditionDefinition criticalConditionDefinition,
         string damageType) : IPhysicalAttackFinishedByMe
     {
+        private const string SlasherSpeedReductionSpecialFeatureName = "FeatureFeatSlasherSpeedReduction";
+
         public IEnumerator OnPhysicalAttackFinishedByMe(
             GameLocationBattleManager battleManager,
             CharacterAction action,
@@ -1758,19 +1760,24 @@ internal static class MeleeCombatFeats
 
             if (rollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
             {
-                rulesetDefender.InflictCondition(
-                    conditionDefinition.Name,
-                    DurationType.Round,
-                    0,
-                    TurnOccurenceType.EndOfTurn,
-                    AttributeDefinitions.TagEffect,
-                    rulesetAttacker.guid,
-                    rulesetAttacker.CurrentFaction.Name,
-                    1,
-                    conditionDefinition.Name,
-                    0,
-                    0,
-                    0);
+                if (attacker.OnceInMyTurnIsValid(SlasherSpeedReductionSpecialFeatureName))
+                {
+                    attacker.UsedSpecialFeatures.TryAdd(SlasherSpeedReductionSpecialFeatureName, 1);
+
+                    rulesetDefender.InflictCondition(
+                        conditionDefinition.Name,
+                        DurationType.Round,
+                        0,
+                        TurnOccurenceType.EndOfTurn,
+                        AttributeDefinitions.TagEffect,
+                        rulesetAttacker.guid,
+                        rulesetAttacker.CurrentFaction.Name,
+                        1,
+                        conditionDefinition.Name,
+                        0,
+                        0,
+                        0);
+                }
             }
 
             if (rollOutcome is not RollOutcome.CriticalSuccess)

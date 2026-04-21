@@ -13,3 +13,5 @@ Feat/&FeatRangedExpertTitle=Armbrust-Experte
 Feature/&PowerFeatSteadyAimDescription=Als Bonusaktion verschaffen Sie sich einen Vorteil bei Ihrem nächsten Angriffswurf in der aktuellen Runde. Sie können diese Bonusaktion nur verwenden, wenn Sie sich in dieser Runde nicht bewegt haben. Nachdem Sie die Bonusaktion verwendet haben, beträgt Ihre Geschwindigkeit bis zum Ende der aktuellen Runde 0.
 Feature/&PowerFeatSteadyAimTitle=Zielsicher
 Tooltip/&DeadeyeConcentration=Scharfschütze deaktivieren
+Feat/&FeatSharpshooter2024Title=Scharfschütze
+Feat/&FeatSharpshooter2024Description=Erhöhe deine Geschicklichkeit um 1, bis zu einem Maximum von 20.\nDeine Fernkampfangriffe mit Waffen ignorieren halbe und Dreivierteldeckung.\nWenn sich ein Gegner innerhalb von 1,5 Metern befindet, erhalten deine Angriffswürfe mit Fernkampfwaffen keinen Nachteil.\nAngriffe mit Fernkampfwaffen auf große Reichweite erhalten keinen Nachteil.

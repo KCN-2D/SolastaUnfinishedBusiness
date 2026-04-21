@@ -10,6 +10,7 @@ using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
+using SolastaUnfinishedBusiness.Patches;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.ItemDefinitions;
@@ -58,10 +59,6 @@ internal static class LevelUpHelper
         characterLevelAttribute.Refresh();
 
         var experienceAttribute = rulesetCharacterHero.GetAttribute(AttributeDefinitions.Experience);
-
-        // experienceAttribute.MaxValue = Main.Settings.EnableLevel20
-        //     ? Level20Context.ModMaxExperience
-        //     : Level20Context.GameMaxExperience;
 
         experienceAttribute.MaxValue = Level20Context.ModMaxExperience;
         experienceAttribute.Refresh();
@@ -113,23 +110,30 @@ internal static class LevelUpHelper
 
         DatabaseHelper.TryGetDefinition<CharacterClassDefinition>(InventorClass.ClassName, out var inventorClass);
 
-        // Holy Symbol
-        var required = (
-                           levelUpData.SelectedClass == Cleric ||
-                           levelUpData.SelectedClass == Paladin
-                       ) &&
-                       !(
-                           classesAndLevels.ContainsKey(Cleric) ||
-                           classesAndLevels.ContainsKey(Paladin)
-                       );
-
-        if (required)
+        void AddGrantedItemsIfRequired(bool required, params ItemDefinition[] items)
         {
-            levelUpData.GrantedItems.Add(HolySymbolAmulet);
+            if (!required)
+            {
+                return;
+            }
+
+            levelUpData.GrantedItems.AddRange(items);
         }
 
+        // Holy Symbol
+        AddGrantedItemsIfRequired(
+            (
+                levelUpData.SelectedClass == Cleric ||
+                levelUpData.SelectedClass == Paladin
+            ) &&
+            !(
+                classesAndLevels.ContainsKey(Cleric) ||
+                classesAndLevels.ContainsKey(Paladin)
+            ),
+            HolySymbolAmulet);
+
         // Component Pouch
-        required =
+        AddGrantedItemsIfRequired(
             (
                 levelUpData.SelectedClass == Ranger ||
                 levelUpData.SelectedClass == Sorcerer ||
@@ -143,41 +147,24 @@ internal static class LevelUpHelper
                 classesAndLevels.ContainsKey(Warlock) ||
                 classesAndLevels.ContainsKey(Wizard) ||
                 (inventorClass && classesAndLevels.ContainsKey(inventorClass))
-            );
-
-        if (required)
-        {
-            levelUpData.GrantedItems.Add(ComponentPouch);
-        }
+            ),
+            ComponentPouch);
 
         // Bardic Flute
-        required =
-            levelUpData.SelectedClass == Bard && !classesAndLevels.ContainsKey(Bard);
-
-        if (required)
-        {
-            levelUpData.GrantedItems.Add(Flute);
-        }
+        AddGrantedItemsIfRequired(
+            levelUpData.SelectedClass == Bard && !classesAndLevels.ContainsKey(Bard),
+            Flute);
 
         // Druidic Focus
-        required =
-            levelUpData.SelectedClass == Druid && !classesAndLevels.ContainsKey(Druid);
-
-        if (required)
-        {
-            levelUpData.GrantedItems.Add(DruidicFocus);
-        }
+        AddGrantedItemsIfRequired(
+            levelUpData.SelectedClass == Druid && !classesAndLevels.ContainsKey(Druid),
+            DruidicFocus);
 
         // Spellbook and Clothes Wizard
-        required =
-            !classesAndLevels.ContainsKey(Wizard) && levelUpData.SelectedClass == Wizard;
-
-        // ReSharper disable once InvertIf
-        if (required)
-        {
-            levelUpData.GrantedItems.Add(Spellbook);
-            levelUpData.GrantedItems.Add(ClothesWizard);
-        }
+        AddGrantedItemsIfRequired(
+            !classesAndLevels.ContainsKey(Wizard) && levelUpData.SelectedClass == Wizard,
+            Spellbook,
+            ClothesWizard);
     }
 
     [CanBeNull]
@@ -435,7 +422,7 @@ internal static class LevelUpHelper
             return;
         }
 
-        foreach (var feature in hero.FeaturesByType<FeatureDefinitionAutoPreparedSpells>())
+        void AddAutoPreparedSpells(FeatureDefinitionAutoPreparedSpells feature)
         {
             var maxLevel = GetMaxAutoPrepSpellsLevel(hero, feature);
 
@@ -445,6 +432,11 @@ internal static class LevelUpHelper
             {
                 extraSpells.TryAdd(spell, feature.AutoPreparedTag);
             }
+        }
+
+        foreach (var feature in hero.FeaturesByType<FeatureDefinitionAutoPreparedSpells>())
+        {
+            AddAutoPreparedSpells(feature);
         }
 
         if (!hero.TryGetHeroBuildingData(out var data))
@@ -459,14 +451,7 @@ internal static class LevelUpHelper
 
         foreach (var feature in features)
         {
-            var maxLevel = GetMaxAutoPrepSpellsLevel(hero, feature);
-
-            foreach (var spell in feature.AutoPreparedSpellsGroups
-                         .SelectMany(x => x.SpellsList)
-                         .Where(x => x.SpellLevel <= maxLevel))
-            {
-                extraSpells.TryAdd(spell, feature.AutoPreparedTag);
-            }
+            AddAutoPreparedSpells(feature);
         }
     }
 
@@ -544,11 +529,16 @@ internal static class LevelUpHelper
                 continue;
             }
 
-            characterBuildingManager.GetLastAssignedClassAndLevel(hero, out var classDefinition, out var level);
-
-            var classTag = AttributeDefinitions.GetClassTag(classDefinition, level);
-            var tag = spellTag.Name;
-            var finalTag = classTag + tag + tag;
+            if (!CharacterBuildingManagerPatcher.TryResolveFeatGrantedPointPoolTags(
+                    characterBuildingManager,
+                    hero,
+                    spellTag.Name,
+                    out _,
+                    out _,
+                    out var finalTag))
+            {
+                continue;
+            }
 
             // grant cantrips from selection or fixed list
             if (heroBuildingData.AcquiredCantrips.TryGetValue(finalTag, out var cantrips))
@@ -588,34 +578,6 @@ internal static class LevelUpHelper
         }
     }
 
-#if false
-    internal static void GrantSpellsOrCantripsFromTag(
-        CharacterBuildingManager characterBuildingManager,
-        [NotNull] RulesetCharacterHero hero,
-        string tag)
-    {
-        characterBuildingManager.GetLastAssignedClassAndLevel(hero, out var classDefinition, out var level);
-
-        var spellcastingFeature = classDefinition.FeatureUnlocks
-            .Select(z => z.FeatureDefinition)
-            .OfType<FeatureDefinitionCastSpell>()
-            .FirstOrDefault();
-
-        if (spellcastingFeature == null &&
-            hero.ClassesAndSubclasses.TryGetValue(classDefinition, out var subclassDefinition))
-        {
-            spellcastingFeature = subclassDefinition.FeatureUnlocks
-                .Select(z => z.FeatureDefinition)
-                .OfType<FeatureDefinitionCastSpell>()
-                .FirstOrDefault();
-        }
-
-        var heroBuildingData = hero.GetHeroBuildingData();
-        var classTag = AttributeDefinitions.GetClassTag(classDefinition, level);
-
-        characterBuildingManager.GrantCantripsAndSpellsByTag(heroBuildingData, classTag + tag, spellcastingFeature);
-    }
-#endif
 
     internal static void SortHeroRepertoires(RulesetCharacterHero hero)
     {
@@ -624,14 +586,22 @@ internal static class LevelUpHelper
             return;
         }
 
+        static bool IsFeatSpellRepertoire(RulesetSpellRepertoire repertoire)
+        {
+            var castSpell = repertoire?.SpellCastingFeature;
+
+            return castSpell != null &&
+                   (castSpell.Name.Contains(OtherFeats.FeatMagicInitiateTag) ||
+                    castSpell.Name.Contains(OtherFeats.FeatSpellSniperTag));
+        }
+
         hero.SpellRepertoires.Sort((a, b) =>
         {
             if (a.SpellCastingFeature.SpellCastingOrigin is FeatureDefinitionCastSpell.CastingOrigin.Race
                 or FeatureDefinitionCastSpell.CastingOrigin.Monster)
             {
                 // we want repertoires from feats to always come after others
-                if (a.SpellCastingFeature.Name.Contains(OtherFeats.FeatMagicInitiateTag) ||
-                    a.SpellCastingFeature.Name.Contains(OtherFeats.FeatSpellSniperTag))
+                if (IsFeatSpellRepertoire(a))
                 {
                     return 1;
                 }
@@ -643,8 +613,7 @@ internal static class LevelUpHelper
                 or FeatureDefinitionCastSpell.CastingOrigin.Monster)
             {
                 // we want repertoires from feats to always come after others
-                if (b.SpellCastingFeature.Name.Contains(OtherFeats.FeatMagicInitiateTag) ||
-                    b.SpellCastingFeature.Name.Contains(OtherFeats.FeatSpellSniperTag))
+                if (IsFeatSpellRepertoire(b))
                 {
                     return -1;
                 }
@@ -670,39 +639,6 @@ internal static class LevelUpHelper
         });
     }
 
-#if false
-    internal static void UpdateKnownSpellsForWholeCasters(RulesetCharacterHero hero)
-    {
-        var spellRepertoire = GetSelectedClassOrSubclassRepertoire(hero);
-
-        // only whole list casters
-        if (spellRepertoire == null
-            || spellRepertoire.SpellCastingFeature.SpellKnowledge !=
-            SpellKnowledge.WholeList)
-        {
-            return;
-        }
-
-        // only repertoires with a casting class
-        var spellCastingClass = spellRepertoire.SpellCastingClass;
-
-        if (!spellCastingClass)
-        {
-            return;
-        }
-
-        // add all known spells up to that level
-        var castingLevel = SharedSpellsContext.MaxSpellLevelOfSpellCastingLevel(spellRepertoire);
-        var knownSpells = GetAllowedSpells(hero);
-
-        // don't use a AddRange here to avoid duplicates
-        foreach (var spell in knownSpells
-                     .Where(x => x.SpellLevel == castingLevel))
-        {
-            spellRepertoire.KnownSpells.TryAdd(spell);
-        }
-    }
-#endif
 
     internal static void RecursiveGrantCustomFeatures(
         RulesetCharacterHero hero,

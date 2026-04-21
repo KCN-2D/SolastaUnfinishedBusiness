@@ -13,3 +13,5 @@ Feat/&FeatRangedExpertTitle=Experto en ballestas
 Feature/&PowerFeatSteadyAimDescription=Como acción adicional, te das ventaja en tu próxima tirada de ataque en el turno actual. Puedes usar esta acción adicional solo si no te has movido durante este turno, y después de usar la acción adicional, tu velocidad es 0 hasta el final del turno actual.
 Feature/&PowerFeatSteadyAimTitle=Buena puntería
 Tooltip/&DeadeyeConcentration=Deshabilitar Sharpshooter
+Feat/&FeatSharpshooter2024Title=Tirador certero
+Feat/&FeatSharpshooter2024Description=Aumenta tu Destreza en 1, hasta un máximo de 20.\nTus ataques a distancia con armas ignoran cobertura media y cobertura de tres cuartos.\nEstar a 5 pies de un enemigo no impone desventaja a tus tiradas de ataque con armas a distancia.\nAtacar a larga distancia no impone desventaja a tus tiradas de ataque con armas a distancia.

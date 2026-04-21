@@ -61,6 +61,7 @@ internal class SubFeatSelectionModal : GuiGameScreen
     internal static readonly Color DefaultColor = new(0.407f, 0.431f, 0.443f, 0.752f);
     private static readonly Color NormalColor = new(0.407f, 0.431f, 0.443f, 1f);
     internal static readonly Color HeaderColor = new(0.35f, 0.42f, 0.45f, 1f);
+    internal static readonly Color SelectedHeaderColor = new(0.46f, 0.52f, 0.32f, 1f);
     private static readonly Color DisabledColor = new(0.557f, 0.431f, 0.443f, 1f);
 
     private static SubFeatSelectionModal _instance;
@@ -116,7 +117,27 @@ internal class SubFeatSelectionModal : GuiGameScreen
         Visible = true;
         _itemClickHandler = onItemClicked;
 
-        var subFeats = group.GetSubFeats();
+        List<FeatDefinition> subFeats;
+
+        if (Main.Settings.EnableTabletopFeatRules2024)
+        {
+            subFeats = Tabletop2024Context.GetAllowedGameFeatChildren(feat)
+                .ToList();
+
+            if (subFeats.Count == 0 &&
+                !Tabletop2024Context.IsTabletopContainerGroup(feat))
+            {
+                subFeats = group.GetSubFeats(true)
+                    .Where(Tabletop2024Context.IsVisibleInGameFeatSelection)
+                    .ToList();
+            }
+        }
+        else
+        {
+            subFeats = group.GetSubFeats(true, false)
+                .Where(child => FeatsContext.IsVisibleLegacyGroupedFeatChild(child, feat))
+                .ToList();
+        }
 
         var corners = new Vector3[4];
 
@@ -130,21 +151,29 @@ internal class SubFeatSelectionModal : GuiGameScreen
         var featPrefab = Resources.Load<GameObject>("Gui/Prefabs/CharacterInspection/Proficiencies/FeatItem");
         var header = Gui.GetPrefabFromPool(featPrefab, _featTable).GetComponent<FeatItem>();
 
-        InitFeatItem(feat, header);
+        InitFeatItem(feat, header, feat);
 
         var headerRect = header.GetComponent<RectTransform>();
         var num = subFeats.Count;
-        var columns = (int)Math.Ceiling(num / 6f);
+        var columns = Math.Max(1, (int)Math.Ceiling(num / 6f));
         var d = (1 - columns) / 2f;
-        var headerMaxWidth = (columns + 0.2f) * FeatsContext.Width + (columns - 1) * FeatsContext.Spacing * 2;
+        var headerMaxWidth = Math.Max(
+            FeatsContext.Width,
+            (columns + 0.2f) * FeatsContext.Width + (columns - 1) * FeatsContext.Spacing * 2);
 
         var sz = headerRect.sizeDelta;
+        var hasSelectedDescendant = Main.Settings.EnableTabletopFeatRules2024 &&
+                                    Tabletop2024Context.HasTrainedOrSelectedDescendant(
+                                        _character?.GetHeroBuildingData(),
+                                        _character,
+                                        _baseItem?.StageTag,
+                                        feat);
 
         sz.x = FeatsContext.Width;
         headerRect.sizeDelta = sz;
         headerRect.localPosition = position;
         header.Refresh(ProficiencyBaseItem.InteractiveMode.Static, HeroDefinitions.PointsPoolType.Feat);
-        SetColor(header, HeaderColor);
+        SetColor(header, hasSelectedDescendant ? SelectedHeaderColor : HeaderColor);
 
         position += new Vector3(0, V_STEP);
 
@@ -154,7 +183,7 @@ internal class SubFeatSelectionModal : GuiGameScreen
         {
             var item = Gui.GetPrefabFromPool(featPrefab, _featTable);
 
-            InitFeatItem(subFeat, item.GetComponent<FeatItem>());
+            InitFeatItem(subFeat, item.GetComponent<FeatItem>(), feat);
 
             var column = i % columns;
             var row = i / columns;
@@ -270,7 +299,7 @@ internal class SubFeatSelectionModal : GuiGameScreen
         _localInitialized = true;
     }
 
-    private void InitFeatItem(BaseDefinition featDefinition, FeatItem component)
+    private void InitFeatItem(BaseDefinition featDefinition, FeatItem component, FeatDefinition parentGroupedFeat)
     {
         component.GuiFeatDefinition = ServiceRepository.GetService<IGuiWrapperService>()
             .GetGuiFeatDefinition(featDefinition.Name);
@@ -284,7 +313,7 @@ internal class SubFeatSelectionModal : GuiGameScreen
         component.CurrentPoolType = _baseItem.CurrentPoolType;
         component.gameObject.SetActive(true);
 
-        UpdateFeatState(component, _character);
+        UpdateFeatState(component, _character, parentGroupedFeat);
 
         component.Tooltip.Anchor = _baseItem.Tooltip.Anchor;
         component.Tooltip.AnchorMode = _baseItem.Tooltip.AnchorMode;
@@ -292,28 +321,45 @@ internal class SubFeatSelectionModal : GuiGameScreen
         component.RectTransform.sizeDelta = new Vector2(FeatsContext.Width, FeatsContext.Height);
     }
 
-    private static void UpdateFeatState(FeatItem item, RulesetCharacterHero hero)
+    private static void UpdateFeatState(
+        FeatItem item,
+        RulesetCharacterHero hero,
+        FeatDefinition parentGroupedFeat)
     {
         var feat = item.GuiFeatDefinition.FeatDefinition;
         var currentPoolType = item.CurrentPoolType;
         var service = ServiceRepository.GetService<ICharacterBuildingService>();
         var buildingData = hero.GetHeroBuildingData();
         var pool = service.GetPointPoolOfTypeAndTag(buildingData, item.CurrentPoolType, item.StageTag);
-        var restrictedChoices = pool.RestrictedChoices;
-        var color = item.GuiFeatDefinition.FeatDefinition.HasSubFeatureOfType<IGroupedFeat>()
-            ? HeaderColor
+        var isGroupedFeat = item.GuiFeatDefinition.FeatDefinition.HasSubFeatureOfType<IGroupedFeat>();
+        var hasSelectedDescendant = Main.Settings.EnableTabletopFeatRules2024 &&
+                                    Tabletop2024Context.HasTrainedOrSelectedDescendant(
+                                        buildingData,
+                                        hero,
+                                        item.StageTag,
+                                        feat);
+        var color = isGroupedFeat
+            ? hasSelectedDescendant ? SelectedHeaderColor : HeaderColor
             : NormalColor;
 
         ProficiencyBaseItem.InteractiveMode interactiveMode;
 
         var isSameFamily = false;
 
-        if (service.IsFeatKnownOrTrained(buildingData, feat) || hero.TrainedFeats.Contains(feat))
+        if ((!isGroupedFeat && hasSelectedDescendant) ||
+            service.IsFeatKnownOrTrained(buildingData, feat) ||
+            hero.TrainedFeats.Contains(feat))
         {
             interactiveMode = ProficiencyBaseItem.InteractiveMode.Static;
         }
+        else if (pool == null)
+        {
+            color = DisabledColor;
+            interactiveMode = ProficiencyBaseItem.InteractiveMode.Disabled;
+        }
         else
         {
+            var restrictedChoices = Tabletop2024Context.GetModeAwareRestrictedChoiceNames(pool);
             var isRestricted = restrictedChoices.Count != 0;
 
             if (isRestricted)
@@ -321,10 +367,16 @@ internal class SubFeatSelectionModal : GuiGameScreen
                 var hasRestrictedFeats = restrictedChoices
                     .Any(restrictedChoice => DatabaseHelper.TryGetDefinition<FeatDefinition>(restrictedChoice, out _));
 
-                isRestricted = hasRestrictedFeats && !restrictedChoices.Contains(feat.Name);
+                isRestricted = hasRestrictedFeats &&
+                               !Tabletop2024Context.MatchesRestrictedChoice(feat, parentGroupedFeat,
+                                   restrictedChoices.ToHashSet());
             }
 
-            var matchingPrerequisites = service.IsFeatMatchingPrerequisites(buildingData, feat, out isSameFamily);
+            var matchingPrerequisites = Tabletop2024Context.IsFeatMatchingPrerequisites(
+                service,
+                buildingData,
+                feat,
+                out isSameFamily);
 
             if (!isRestricted && matchingPrerequisites)
             {
@@ -387,6 +439,7 @@ internal class SubFeatSelectionModal : GuiGameScreen
         else
         {
             handler?.Invoke(item);
+
             Hide();
         }
     }
@@ -443,22 +496,6 @@ internal class SubFeatSelectionModal : GuiGameScreen
 
     public override void SelectDefaultControl()
     {
-        //TODO: implement default control selection
-        // if (!Gui.GamepadActive || !((UnityEngine.Object) Gui.InputService.CurrentSelectedGameObject == (UnityEngine.Object) null))
-        //   return;
-        // for (int index = 0; index < this.subpowersTable.childCount; ++index)
-        // {
-        //   Transform child = this.subpowersTable.GetChild(index);
-        //   if (child.gameObject.activeSelf)
-        //   {
-        //     SubpowerItem component = child.GetComponent<SubpowerItem>();
-        //     if (component.Button.IsInteractable())
-        //     {
-        //       Gui.InputService.SelectCurrentSelectable((Selectable) component.Button);
-        //       break;
-        //     }
-        //   }
-        // }
     }
 
     public override void RegisterCommands()

@@ -98,3 +98,5 @@ Reaction/&UseDefensiveDuelistReactTitle=保卫
 Reaction/&UseDefensiveDuelistTitle=防御姿态
 Tooltip/&CleavingAttackConcentration=禁用巨武器大师。
 Tooltip/&PowerAttackConcentration=禁用猛力攻击。
+Feat/&FeatGreatWeaponMaster2024Title=重武器大师
+Feat/&FeatGreatWeaponMaster2024Description=你学会了以冷酷高效的方式挥舞重型武器：\n• 力量值提高 1，最高不超过 20。\n• 在你的回合中，若你在攻击动作的一部分中用具有重型属性的武器命中一个生物，你可以造成等同于熟练加值的额外伤害。\n• 当你用近战武器打出重击，或用该武器将一个生物的生命值降至 0 后，你可以立即用同一把武器进行一次附赠动作攻击。

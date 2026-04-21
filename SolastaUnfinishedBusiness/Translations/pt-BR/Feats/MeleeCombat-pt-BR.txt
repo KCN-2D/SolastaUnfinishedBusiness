@@ -98,3 +98,5 @@ Reaction/&UseDefensiveDuelistReactTitle=Defender
 Reaction/&UseDefensiveDuelistTitle=Duelista Defensivo
 Tooltip/&CleavingAttackConcentration=Desabilite o Grande Mestre de Armas.
 Tooltip/&PowerAttackConcentration=Desabilitar Ataque Poderoso.
+Feat/&FeatGreatWeaponMaster2024Title=Mestre de Armas Pesadas
+Feat/&FeatGreatWeaponMaster2024Description=Você aprendeu a manejar armas pesadas com eficiência implacável:\n• Aumente sua Força em 1, até o máximo de 20.\n• Quando você atinge uma criatura com uma arma que tenha a propriedade Pesada como parte da ação de Ataque no seu turno, pode causar dano extra igual ao seu bônus de proficiência.\n• Imediatamente após conseguir um acerto crítico com uma arma corpo a corpo ou reduzir uma criatura a 0 pontos de vida com ela, você pode fazer um ataque com a mesma arma como ação bônus.

@@ -25,7 +25,7 @@ public static class FeatureDescriptionItemPatcher
         .GetService<ICharacterBuildingService>()
         ?.CurrentLocalHeroCharacter;
 
-    private static bool TryGetSelectedHumanOriginFeatChoice(
+    internal static bool TryGetSelectedHumanOriginFeatChoice(
         FeatureDescriptionItem item,
         out FeatureDefinition choiceFeature)
     {
@@ -94,8 +94,7 @@ public static class FeatureDescriptionItemPatcher
 
         if (!Tabletop2024Context.TryGetHumanOriginSelectionFeature(hero, out var selectionFeature))
         {
-            SaveHumanOriginFeatSelection(item, false);
-            Tabletop2024Context.TryGetHumanOriginSelectionFeature(hero, out selectionFeature);
+            return;
         }
 
         var index = availableFeatures.IndexOf(selectionFeature);
@@ -197,30 +196,6 @@ public static class FeatureDescriptionItemPatcher
         }
     }
 
-    [HarmonyPatch(typeof(FeatureDescriptionItem), "OnDropdownCb")]
-    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
-    [UsedImplicitly]
-    public static class OnDropdownCb_Patch
-    {
-        [UsedImplicitly]
-        public static void Prefix([NotNull] FeatureDescriptionItem __instance)
-        {
-            SaveHumanOriginFeatSelection(__instance, true);
-        }
-    }
-
-    [HarmonyPatch(typeof(FeatureDescriptionItem), "GamepadSelectionChanged")]
-    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
-    [UsedImplicitly]
-    public static class GamepadSelectionChanged_Patch
-    {
-        [UsedImplicitly]
-        public static void Prefix([NotNull] FeatureDescriptionItem __instance)
-        {
-            SaveHumanOriginFeatSelection(__instance, true);
-        }
-    }
-
     //PATCH: Disables choices dropdown for features already taken on previous levels (MULTICLASS)
     [HarmonyPatch(typeof(FeatureDescriptionItem), nameof(FeatureDescriptionItem.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -238,6 +213,7 @@ public static class FeatureDescriptionItemPatcher
             }
 
             RestoreHumanOriginFeatSelection(__instance);
+            SaveHumanOriginFeatSelection(__instance, false);
 
             if (!TryGetBackgroundFeatDisplayPanel(__instance, out var backgroundPanel))
             {

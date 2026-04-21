@@ -98,3 +98,5 @@ Reaction/&UseDefensiveDuelistReactTitle=Verteidigen
 Reaction/&UseDefensiveDuelistTitle=Defensiver Duellant
 Tooltip/&CleavingAttackConcentration=Deaktiviere den Großen Waffenmeister.
 Tooltip/&PowerAttackConcentration=Deaktivieren Sie Power Attack.
+Feat/&FeatGreatWeaponMaster2024Title=Großwaffenmeister
+Feat/&FeatGreatWeaponMaster2024Description=Du hast gelernt, schwere Waffen mit gnadenloser Effizienz zu führen:\n• Erhöhe deine Stärke um 1, bis zu einem Maximum von 20.\n• Wenn du in deinem Zug im Rahmen der Angriffsaktion mit einer Waffe triffst, die die Eigenschaft Schwer hat, kannst du zusätzlichen Schaden in Höhe deines Übungsbonus verursachen.\n• Unmittelbar nachdem du mit einer Nahkampfwaffe einen kritischen Treffer erzielst oder eine Kreatur mit ihr auf 0 Trefferpunkte reduzierst, kannst du mit derselben Waffe einen Angriff als Bonusaktion ausführen.

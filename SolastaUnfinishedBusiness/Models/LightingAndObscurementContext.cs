@@ -166,31 +166,6 @@ internal static class LightingAndObscurementContext
 
         HandleTrueSightSpecialCase();
 
-#if false
-        if (Main.Settings.OfficialObscurementRulesCancelAdvDisPairs)
-        {
-            if (attackAdvantageTrends.Any(BlindedAdvantage) &&
-                attackAdvantageTrends.Any(BlindedDisadvantage))
-            {
-                attackAdvantageTrends.RemoveAll(BlindedAdvantage);
-                attackAdvantageTrends.RemoveAll(BlindedDisadvantage);
-
-                abilityCheckAdvantageTrends.RemoveAll(BlindedAdvantage);
-                abilityCheckAdvantageTrends.RemoveAll(BlindedDisadvantage);
-            }
-
-            if (attackAdvantageTrends.Any(InvisibleAdvantage) &&
-                attackAdvantageTrends.Any(InvisibleDisadvantage))
-            {
-                attackAdvantageTrends.RemoveAll(InvisibleAdvantage);
-                attackAdvantageTrends.RemoveAll(InvisibleDisadvantage);
-
-                abilityCheckAdvantageTrends.RemoveAll(InvisibleAdvantage);
-                abilityCheckAdvantageTrends.RemoveAll(InvisibleDisadvantage);
-            }
-        }
-#endif
-
         // handle some exceptional scenarios with invisibility
         if (attackAdvantageTrends.Any(InvisibleDisadvantage) &&
             defenderActor.ShouldIgnoreInvisibility())
@@ -282,13 +257,6 @@ internal static class LightingAndObscurementContext
         {
             return trendInfo is { sourceName: RuleDefinitions.ConditionInvisible, value: -1 };
         }
-
-#if false
-        static bool InvisibleDisadvantage(RuleDefinitions.TrendInfo trendInfo)
-        {
-            return trendInfo is { sourceName: RuleDefinitions.ConditionInvisible, value: -1 };
-        }
-#endif
 
         // conditions with parent inherit their features which makes true sight quite hard to manage
         // the combat affinity won't have true sight as nullified sense, so we check it here and revert

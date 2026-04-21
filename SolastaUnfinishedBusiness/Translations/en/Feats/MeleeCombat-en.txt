@@ -98,3 +98,5 @@ Reaction/&UseDefensiveDuelistReactTitle=Defend
 Reaction/&UseDefensiveDuelistTitle=Defensive Duelist
 Tooltip/&CleavingAttackConcentration=Disable Great Weapon Master.
 Tooltip/&PowerAttackConcentration=Disable Power Attack.
+Feat/&FeatGreatWeaponMaster2024Title=Great Weapon Master
+Feat/&FeatGreatWeaponMaster2024Description=You've learned to wield heavy weapons with ruthless efficiency:\n• Increase your Strength by 1, to a maximum of 20.\n• When you hit a creature with a weapon that has the Heavy property as part of the Attack action on your turn, you can deal extra damage equal to your proficiency bonus.\n• Immediately after you score a critical hit with a melee weapon or reduce a creature to 0 hit points with one, you can make one attack with the same weapon as a bonus action.

@@ -481,14 +481,23 @@ public class Settings : UnityModManager.ModSettings
     public bool DisableCastSpellPreRequisitesOnModFeats { get; set; }
     public int TotalFeatsGrantedFirstLevel { get; set; }
     public bool EnablesAsiAndFeat { get; set; }
+    [XmlElement("EnableGeneralFeats2024")]
+    [Tag(Type = TagType.T2024)] public bool EnableTabletopFeatRules2024 { get; set; }
+    [Obsolete("No longer used. Retained for backward compatibility only.")]
+    public bool HideCompletelyOriginalSolastaFeats { get; set; }
     public bool EnableFeatsAtEveryFourLevels { get; set; }
     public bool EnableFeatsAtEveryFourLevelsMiddle { get; set; }
     [Tag(Type = TagType.T2014)] public bool AccountForAllDiceOnFollowUpStrike { get; set; }
     public bool AllowCantripsTriggeringOnWarMagic { get; set; }
     public int FeatSliderPosition { get; set; } = ModUi.DontDisplayDescription;
     public List<string> FeatEnabled { get; } = [];
+    [XmlArray("GeneralFeats2024Initialized")]
+    public List<string> TabletopFeats2024Initialized { get; } = [];
     public int FeatGroupSliderPosition { get; set; } = ModUi.DontDisplayDescription;
     public List<string> FeatGroupEnabled { get; } = [];
+    [Obsolete("No longer used. Retained for backward compatibility only.")]
+    public bool RepairedLegacyFeatGroupEnabledAfter2024ContainerBug { get; set; }
+    public bool RepairedLegacyFeatGroupEnabledAfter2024ContainerBugV2 { get; set; }
     public int FightingStyleSliderPosition { get; set; } = ModUi.DontDisplayDescription;
     public List<string> FightingStyleEnabled { get; } = [];
     public int InvocationSliderPosition { get; set; } = ModUi.DontDisplayDescription;
@@ -547,6 +556,7 @@ public class Settings : UnityModManager.ModSettings
     // Characters - Subclasses
     //
 
+    public bool EnableStrictTabletopClassSelection { get; set; }
     public bool AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness { get; set; }
     [Tag(Type = TagType.T2014)] public bool EnableBardHealingBalladOnLongRest { get; set; }
     public bool EnableBg3AbjurationArcaneWard { get; set; }

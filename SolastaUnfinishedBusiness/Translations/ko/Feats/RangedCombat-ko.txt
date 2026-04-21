@@ -13,3 +13,5 @@ Feat/&FeatRangedExpertTitle=석궁 전문가
 Feature/&PowerFeatSteadyAimDescription=보너스 행동으로, 당신은 현재 턴의 다음 공격 굴림에서 이점을 얻습니다. 이 보너스 행동은 이번 턴 동안 움직이지 않은 경우에만 사용할 수 있으며, 보너스 행동을 사용한 후에는 현재 턴이 끝날 때까지 속도가 0입니다.
 Feature/&PowerFeatSteadyAimTitle=꾸준한 목표
 Tooltip/&DeadeyeConcentration=명사수 비활성화
+Feat/&FeatSharpshooter2024Title=명사수
+Feat/&FeatSharpshooter2024Description=민첩을 1 증가시킵니다(최대 20).\n무기를 이용한 원거리 공격은 반엄폐와 4분의 3 엄폐를 무시합니다.\n적의 5피트 이내에 있어도 원거리 무기로 하는 공격 굴림에 불리점을 받지 않습니다.\n원거리 무기로 장거리 사격을 해도 공격 굴림에 불리점을 받지 않습니다.

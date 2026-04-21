@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Builders;
@@ -20,6 +22,23 @@ namespace SolastaUnfinishedBusiness.Models;
 
 internal static class FeatsContext
 {
+    private struct FeatSubPanelUiState
+    {
+        internal readonly bool Active;
+        internal readonly HeroDefinitions.PointsPoolType CurrentPoolType;
+        internal readonly bool HasActiveFeatPointPool;
+
+        internal FeatSubPanelUiState(
+            bool active,
+            HeroDefinitions.PointsPoolType currentPoolType,
+            bool hasActiveFeatPointPool)
+        {
+            Active = active;
+            CurrentPoolType = currentPoolType;
+            HasActiveFeatPointPool = hasActiveFeatPointPool;
+        }
+    }
+
     private const int Columns = 3;
     internal const int Width = 300;
     internal const int Height = 44;
@@ -29,6 +48,23 @@ internal static class FeatsContext
 
     internal static HashSet<FeatDefinition> Feats { get; private set; } = [];
     internal static HashSet<FeatDefinition> FeatGroups { get; private set; } = [];
+    private static readonly Dictionary<int, FeatSubPanelUiState> PanelUiStates = [];
+    private static readonly HashSet<string> LegacyStructuralRootGroupNames =
+    [
+        "FeatGroupRaceBound",
+        "FeatGroupSkills",
+        "FeatGroupGeneralAdept",
+        "FeatGroupPlaneMagic",
+        "FeatGroupSpellCombat",
+        "FeatGroupMeleeCombat",
+        "FeatGroupRangedCombat",
+        "FeatGroupSupportCombat",
+        "FeatGroupDefenseCombat",
+        "FeatGroupAgilityCombat",
+        "FeatGroupTwoHandedCombat",
+        "FeatGroupTwoWeaponCombat",
+        "FeatGroupUnarmoredCombat"
+    ];
     private static int PreviousTotalFeatsGrantedFirstLevel { get; set; } = -1;
     private static bool PreviousAlternateHuman { get; set; }
 
@@ -54,13 +90,20 @@ internal static class FeatsContext
         RaceFeats.CreateFeats(feats);
         RangedCombatFeats.CreateFeats(feats);
         TwoWeaponCombatFeats.CreateFeats(feats);
+        Tabletop2024Context.Load2024TabletopFeats();
 
         // load them in mod UI
         feats.ForEach(LoadFeat);
+        foreach (var feat in Tabletop2024Context.GetManagedStandaloneTabletopFeats())
+        {
+            LoadFeat(feat);
+        }
+
         GroupFeats.Load(LoadFeatGroup);
+        var groupedLeafVariants = BuildGroupedLeafVariantSet();
 
         // tweak the groups to make display simpler on mod UI
-        Feats.RemoveWhere(x => x.FormatTitle().Contains("["));
+        Feats.RemoveWhere(groupedLeafVariants.Contains);
         Feats.RemoveWhere(x => x.HasSubFeatureOfType<HideFromFeats>());
 
         foreach (var child in AttributeDefinitions.AbilityScoreNames
@@ -112,6 +155,11 @@ internal static class FeatsContext
             Main.Settings.FeatGroupEnabled.Remove(name);
         }
 
+        if (!Main.Settings.EnableTabletopFeatRules2024)
+        {
+            RepairFeatGroupEnabledAfter2024ContainerBugV2();
+        }
+
         // handle Half Attributes subgroups special case
         SwitchHalfAttributes(Main.Settings.FeatGroupEnabled.Contains("FeatGroupHalfAttributes"));
 
@@ -142,14 +190,30 @@ internal static class FeatsContext
 
         var groupedFeat = featDefinition.GetFirstSubFeatureOfType<GroupedFeat>();
 
+        if (groupedFeat == null)
+        {
+            return;
+        }
+
         if (!hidden && featDefinition == GroupFeats.FeatGroupFightingStyle)
         {
             groupedFeat?.GetSubFeats(true, true)
-                .ForEach(x => UpdateFeatsVisibility(x, FightingStyleContext.HideFightingStyle(x)));
+                .ForEach(x => UpdateFeatsVisibility(
+                    x,
+                    !Main.Settings.EnableTabletopFeatRules2024 && Tabletop2024Context.Is2024TabletopFeat(x)
+                        ? true
+                        : FightingStyleContext.HideFightingStyle(x)));
         }
         else
         {
-            groupedFeat?.GetSubFeats(true, true).ForEach(x => UpdateFeatsVisibility(x, hidden));
+            groupedFeat.GetSubFeats(true, true)
+                .ForEach(x => UpdateFeatsVisibility(
+                    x,
+                    !hidden &&
+                    !Main.Settings.EnableTabletopFeatRules2024 &&
+                    Tabletop2024Context.Is2024TabletopFeat(x)
+                        ? true
+                        : hidden));
         }
     }
 
@@ -177,7 +241,7 @@ internal static class FeatsContext
         }
 
         UpdateFeatsVisibility(featDefinition, !Main.Settings.FeatEnabled.Contains(featDefinition.Name));
-        GuiWrapperContext.RecacheFeats();
+        Tabletop2024Context.SwitchTabletopFeatRules2024();
     }
 
     private static void SwitchHalfAttributes(bool active)
@@ -214,11 +278,63 @@ internal static class FeatsContext
         }
 
         UpdateFeatGroupsVisibility(featDefinition);
-        GuiWrapperContext.RecacheFeats();
+        Tabletop2024Context.SwitchTabletopFeatRules2024();
+    }
+
+    internal static void RefreshFeatGroupVisibilityFromSettings()
+    {
+        RefreshFeatVisibilityFromSettings();
+    }
+
+    internal static void RefreshFeatVisibilityFromSettings()
+    {
+        var use2024 = Main.Settings.EnableTabletopFeatRules2024;
+
+        foreach (var feat in Feats)
+        {
+            if (!use2024 && Tabletop2024Context.Is2024TabletopFeat(feat))
+            {
+                UpdateFeatsVisibility(feat, true);
+
+                continue;
+            }
+
+            UpdateFeatsVisibility(feat, !Main.Settings.FeatEnabled.Contains(feat.Name));
+        }
+
+        foreach (var featGroup in FeatGroups)
+        {
+            if (!use2024 && Tabletop2024Context.Is2024TabletopFeat(featGroup))
+            {
+                featGroup.GuiPresentation.hidden = true;
+
+                continue;
+            }
+
+            UpdateFeatGroupsVisibility(featGroup);
+        }
+
+        SwitchHalfAttributes(Main.Settings.FeatGroupEnabled.Contains("FeatGroupHalfAttributes"));
+    }
+
+    internal static void ClearFeatSubPanel2024UiState()
+    {
+        PanelUiStates.Clear();
+    }
+
+    internal static void RepairFeatGroupEnabledAfter2024ContainerBugV2()
+    {
+        Tabletop2024Context.RepairLegacyFeatGroupSettingsAfter2024BugV2();
     }
 
     internal static void UpdatePanelChildren(FeatSubPanel panel)
     {
+        if (panel?.table == null ||
+            panel.relevantFeats == null)
+        {
+            return;
+        }
+
         // get missing children from pool
         while (panel.table.childCount < panel.relevantFeats.Count)
         {
@@ -232,104 +348,359 @@ internal static class FeatsContext
         }
     }
 
-    // called before sorting feats to hide sub-feats during level up
-    private static void ProcessFeatGroups(FeatSubPanel panel, bool active, Transform table)
+    internal static void SortFeats(FeatSubPanel panel)
     {
-        //this is not feat learning - skip manipulations
-        if (!active)
+        if (panel?.relevantFeats == null)
         {
             return;
         }
 
-        var toRemove = new List<FeatDefinition>();
-
-        foreach (var group in panel.relevantFeats
-                     .Select(feat => feat.GetFirstSubFeatureOfType<IGroupedFeat>())
-                     .Where(group => group is { HideSubFeats: true }))
-        {
-            toRemove.AddRange(group.GetSubFeats());
-        }
-
-        for (var i = 0; i < table.childCount; i++)
-        {
-            var child = table.GetChild(i);
-            var featItem = child.GetComponent<FeatItem>();
-
-            if (toRemove.Contains(featItem.GuiFeatDefinition.FeatDefinition))
-            {
-                child.gameObject.SetActive(false);
-            }
-        }
-    }
-
-    internal static void SortFeats(FeatSubPanel panel)
-    {
         panel.relevantFeats.Sort(CompareFeats);
     }
 
     internal static int CompareFeats(FeatDefinition a, FeatDefinition b)
     {
+        if (ReferenceEquals(a, b))
+        {
+            return 0;
+        }
+
+        if (a == null)
+        {
+            return 1;
+        }
+
+        if (b == null)
+        {
+            return -1;
+        }
+
         return string.Compare(a.FormatTitle(), b.FormatTitle(),
             StringComparison.CurrentCultureIgnoreCase);
     }
 
     internal static void UpdateRelevantFeatList(FeatSubPanel panel)
     {
-        var dbFeatDefinition = DatabaseRepository.GetDatabase<FeatDefinition>();
-        var visibleFeats = dbFeatDefinition
-            .Where(x => !x.GuiPresentation.Hidden)
+        if (Main.Settings.EnableTabletopFeatRules2024)
+        {
+            UpdateRelevantFeatListFor2024Selection(panel);
+        }
+        else
+        {
+            UpdateRelevantFeatListForLegacySelection(panel);
+        }
+    }
+
+    internal static bool IsFeatSelectionCandidateContext(
+        FeatSubPanel panel,
+        bool active,
+        string stageTag,
+        HeroDefinitions.PointsPoolType currentPoolType)
+    {
+        if (panel == null ||
+            !active ||
+            currentPoolType != HeroDefinitions.PointsPoolType.Feat ||
+            string.IsNullOrEmpty(stageTag) ||
+            !IsCharacterBuildingProficiencyPanel(panel))
+        {
+            RememberPanelUiState(panel, active, currentPoolType, false);
+
+            return false;
+        }
+
+        var hasActiveFeatPointPool = TryGetActiveFeatPointPoolContext(
+            panel,
+            stageTag,
+            currentPoolType,
+            out _,
+            out _,
+            out _);
+
+        RememberPanelUiState(panel, active, currentPoolType, hasActiveFeatPointPool);
+
+        return hasActiveFeatPointPool;
+    }
+
+    internal static bool IsCharacterBuildingFeatSummaryContext(
+        FeatSubPanel panel,
+        bool active,
+        string stageTag,
+        HeroDefinitions.PointsPoolType currentPoolType)
+    {
+        _ = stageTag;
+        _ = currentPoolType;
+
+        return panel?.InspectedCharacter != null &&
+               !active &&
+               IsCharacterBuildingProficiencyPanel(panel);
+    }
+
+    internal static bool IsPassiveFeatDisplayContext(
+        FeatSubPanel panel,
+        bool active,
+        string stageTag,
+        HeroDefinitions.PointsPoolType currentPoolType)
+    {
+        _ = active;
+        _ = stageTag;
+        _ = currentPoolType;
+
+        var hero = panel?.InspectedCharacter;
+
+        return hero != null &&
+               panel.GetComponentInParent<CharacterStageProficiencySelectionPanel>() == null &&
+               !LevelUpHelper.IsLevelingUp(hero);
+    }
+
+    internal static void PrepareRelevantFeatsFor2024Selection(
+        FeatSubPanel panel,
+        string stageTag,
+        string previousStageTag,
+        HeroDefinitions.PointsPoolType currentPoolType,
+        ref List<string> restrictedChoices)
+    {
+        if (!Main.Settings.EnableTabletopFeatRules2024 ||
+            panel?.relevantFeats == null ||
+            !TryGetActiveFeatPointPoolContext(
+                panel,
+                stageTag,
+                currentPoolType,
+                out var buildingData,
+                out var service,
+                out var pointPool))
+        {
+            return;
+        }
+
+        var modeAwareRestrictedChoices = Tabletop2024Context.GetModeAwareRestrictedChoiceNames(pointPool)
+            .Where(choice => !string.IsNullOrEmpty(choice))
+            .Distinct()
             .ToHashSet();
 
-        var restrictedOriginFeatNames = Tabletop2024Context.GetActiveOriginRestrictedFeatNames(panel.InspectedCharacter);
+        var relevantFeats = Tabletop2024Context.GetGameFeatSelectionCatalogRoots()
+            .Where(feat => feat != null &&
+                           Tabletop2024Context.IsVisibleInGameFeatSelection(feat) &&
+                           HasAllowedSelectionDescendant(
+                               feat,
+                               null,
+                               service,
+                               buildingData,
+                               stageTag))
+            .ToList();
 
-        if (restrictedOriginFeatNames.Count > 0)
+        panel.relevantFeats.SetRange(relevantFeats);
+        restrictedChoices = [.. modeAwareRestrictedChoices];
+
+        SortFeats(panel);
+        UpdatePanelChildren(panel);
+        RebindPanelChildren(panel, stageTag, previousStageTag, currentPoolType, true);
+    }
+
+    internal static void UpdateRelevantFeatListFor2024Selection(FeatSubPanel panel)
+    {
+        if (!Main.Settings.EnableTabletopFeatRules2024 ||
+            panel?.relevantFeats == null)
         {
-            foreach (var featName in restrictedOriginFeatNames)
-            {
-                if (dbFeatDefinition.TryGetElement(featName, out var featDefinition))
-                {
-                    visibleFeats.Add(featDefinition);
-                }
-            }
+            return;
         }
+
+        var visibleFeats = Tabletop2024Context.GetGameFeatSelectionCatalogRoots()
+            .Where(feat => feat != null && Tabletop2024Context.IsVisibleInGameFeatSelection(feat))
+            .ToHashSet();
 
         panel.relevantFeats.SetRange(visibleFeats
             .Where(f =>
             {
-                if (f.GetFirstSubFeatureOfType<IGroupedFeat>() is not { } group)
+                if (f.GetFirstSubFeatureOfType<IGroupedFeat>() == null)
                 {
                     return true;
                 }
 
-                if (restrictedOriginFeatNames.Count > 0 &&
-                    group.GetSubFeats(true).Any(subFeat => restrictedOriginFeatNames.Contains(subFeat.Name)))
+                if (Tabletop2024Context.IsNonSelectableTabletopGroup(f))
                 {
                     return false;
                 }
 
-                return group.GetSubFeats().Count(visibleFeats.Contains) > 1;
+                var allowedChildren = Tabletop2024Context.GetAllowedGameFeatChildren(f).ToArray();
+
+                if (Tabletop2024Context.IsTabletopContainerGroup(f))
+                {
+                    return allowedChildren.Length > 0;
+                }
+
+                return allowedChildren.Length > 0;
             })
         );
     }
 
+    internal static void UpdateRelevantFeatListForLegacySelection(FeatSubPanel panel)
+    {
+        if (Main.Settings.EnableTabletopFeatRules2024 ||
+            panel?.relevantFeats == null)
+        {
+            return;
+        }
+
+        var allGroupedDescendants = BuildLegacyNestedGroupedDescendantSet();
+        var visibleGroups = FeatGroups
+            .Where(group => !allGroupedDescendants.Contains(group))
+            .Where(IsVisibleLegacySelectionRoot)
+            .Where(HasVisibleLegacyGroupedFeatDescendant)
+            .ToList();
+        var visibleStandaloneFeats = Feats
+            .Where(feat => !allGroupedDescendants.Contains(feat))
+            .Where(IsVisibleLegacySelectionRoot)
+            .ToList();
+
+        panel.relevantFeats.SetRange(visibleStandaloneFeats
+            .Concat(visibleGroups)
+            .Distinct());
+    }
+
+    internal static void MergeRelevantFeatsForPassiveDisplay(
+        FeatSubPanel panel,
+        bool active,
+        string stageTag,
+        string previousStageTag,
+        HeroDefinitions.PointsPoolType currentPoolType)
+    {
+        _ = active;
+        _ = stageTag;
+        _ = previousStageTag;
+        _ = currentPoolType;
+
+        RefreshPassiveFeatDisplayPanel(panel);
+    }
+
+    internal static void MergeRelevantFeatsForCharacterBuildingSummary(
+        FeatSubPanel panel,
+        string stageTag,
+        string previousStageTag,
+        HeroDefinitions.PointsPoolType currentPoolType)
+    {
+        if (panel?.InspectedCharacter == null ||
+            panel.relevantFeats == null ||
+            !IsCharacterBuildingProficiencyPanel(panel))
+        {
+            return;
+        }
+
+        var displayFeats = BuildActualDisplayFeats(panel.InspectedCharacter, true);
+
+        panel.relevantFeats.SetRange(displayFeats);
+        SortFeats(panel);
+        UpdatePanelChildren(panel);
+        RebindPanelChildren(panel, stageTag, previousStageTag, currentPoolType, false);
+    }
+
+    internal static void RefreshPassiveFeatDisplayPanel(FeatSubPanel panel)
+    {
+        if (panel?.InspectedCharacter == null ||
+            panel.relevantFeats == null ||
+            !IsPassiveFeatDisplayContext(
+                panel,
+                false,
+                null,
+                HeroDefinitions.PointsPoolType.Irrelevant))
+        {
+            return;
+        }
+
+        var displayFeats = BuildActualDisplayFeats(panel.InspectedCharacter, false);
+
+        panel.relevantFeats.SetRange(displayFeats);
+        SortFeats(panel);
+        UpdatePanelChildren(panel);
+        RebindPanelChildren(
+            panel,
+            string.Empty,
+            string.Empty,
+              HeroDefinitions.PointsPoolType.Feat,
+              false);
+    }
+
+    internal static bool TryBuildFeatGroupContentsDescription(FeatDefinition feat, out string description)
+    {
+        description = null;
+
+        if (feat == null ||
+            feat.GetFirstSubFeatureOfType<IGroupedFeat>() == null &&
+            !Tabletop2024Context.IsTabletopContainerGroup(feat))
+        {
+            return false;
+        }
+
+        const int maxDisplayedChildren = 8;
+
+        var childTitles = EnumerateTooltipFeatGroupChildren(feat)
+            .Select(child => child?.FormatTitle())
+            .Where(title => !string.IsNullOrWhiteSpace(title))
+            .Distinct()
+            .ToList();
+
+        if (childTitles.Count == 0)
+        {
+            description = Gui.Localize("Tooltip/&FeatGroupEmptyDescription");
+
+            return true;
+        }
+
+        var displayedTitles = childTitles
+            .Take(maxDisplayedChildren)
+            .ToList();
+        var remainingCount = childTitles.Count - displayedTitles.Count;
+
+        if (remainingCount > 0)
+        {
+            displayedTitles.Add(Gui.Format("Tooltip/&FeatGroupMoreItemsFormat", remainingCount.ToString()));
+        }
+
+        description = Gui.Format("Tooltip/&FeatGroupContainsFormat", string.Join(", ", displayedTitles));
+
+        return true;
+    }
+
+    internal static bool IsCharacterBuildingProficiencyPanel(FeatSubPanel panel)
+    {
+        var hero = panel?.InspectedCharacter;
+
+        return panel &&
+               (panel.GetComponentInParent<CharacterStageProficiencySelectionPanel>() != null ||
+                hero != null &&
+                LevelUpHelper.IsLevelingUp(hero));
+    }
+
     internal static void ForceSameWidth(RectTransform table, bool active, FeatSubPanel panel)
     {
-        ProcessFeatGroups(panel, active, table);
+        if (table == null)
+        {
+            return;
+        }
 
-        if (active && Main.Settings.EnableSameWidthFeatSelection)
+        if (panel?.table == null ||
+            table != panel.table)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(table);
+
+            return;
+        }
+
+        if (!IsSelectionLayoutContext(panel, active))
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(table);
+
+            return;
+        }
+
+        if (Main.Settings.EnableSameWidthFeatSelection)
         {
             var hero = panel.InspectedCharacter;
             var buildingData = hero?.GetHeroBuildingData();
-
-            if (buildingData == null)
-            {
-                return;
-            }
-
-            var trainedFeats = buildingData.LevelupTrainedFeats
-                .SelectMany(x => x.Value)
-                .Union(hero.TrainedFeats)
-                .ToArray();
+            var trainedFeats = buildingData?.LevelupTrainedFeats?
+                .SelectMany(x => x.Value ?? [])
+                .Concat(hero?.TrainedFeats ?? [])
+                .Where(feat => feat != null)
+                .ToArray() ?? [];
 
             var j = 0;
             RectTransform rect;
@@ -337,9 +708,11 @@ internal static class FeatsContext
             for (var i = 0; i < table.childCount; i++)
             {
                 var child = table.GetChild(i);
-                var featItem = child.GetComponent<FeatItem>();
 
-                if (!child.gameObject.activeSelf || trainedFeats.Contains(featItem.GuiFeatDefinition.FeatDefinition))
+                if (!child.gameObject.activeSelf ||
+                    !TryGetBoundFeatDefinition(child, out _, out var featDefinition) ||
+                    trainedFeats.Any(trainedFeat =>
+                        Tabletop2024Context.AreEquivalentTabletopFeatNames(trainedFeat.Name, featDefinition.Name)))
                 {
                     continue;
                 }
@@ -350,6 +723,11 @@ internal static class FeatsContext
                 var posY = -y * (Height + Spacing);
 
                 rect = child.GetComponent<RectTransform>();
+                if (rect == null)
+                {
+                    continue;
+                }
+
                 rect.anchoredPosition = new Vector2(posX, posY);
                 rect.sizeDelta = new Vector2(Width, Height);
 
@@ -357,11 +735,739 @@ internal static class FeatsContext
             }
 
             rect = table.GetComponent<RectTransform>();
-            // ReSharper disable once PossibleLossOfFraction
-            rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, ((j / Columns) + 1) * (Height + Spacing));
+
+            if (rect != null)
+            {
+                // ReSharper disable once PossibleLossOfFraction
+                rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, ((j / Columns) + 1) * (Height + Spacing));
+            }
         }
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(table);
+    }
+
+    private static bool TryGetBoundFeatDefinition(
+        Component child,
+        out FeatItem featItem,
+        out FeatDefinition featDefinition)
+    {
+        featItem = null;
+        featDefinition = null;
+
+        if (child == null)
+        {
+            return false;
+        }
+
+        featItem = child.GetComponent<FeatItem>();
+        featDefinition = featItem?.GuiFeatDefinition?.FeatDefinition;
+
+        return featDefinition != null;
+    }
+
+    private static bool IsNonDisplayableManagedFeatName(string featName)
+    {
+        return !string.IsNullOrEmpty(featName) &&
+               Tabletop2024Context.TryResolveModeAwareFeatDefinition(featName, out var featDefinition) &&
+               Tabletop2024Context.IsManagedTabletopFeat(featDefinition) &&
+               !Tabletop2024Context.IsDisplayableManagedTabletopLeaf(featDefinition);
+    }
+
+    private static void RememberPanelUiState(
+        FeatSubPanel panel,
+        bool active,
+        HeroDefinitions.PointsPoolType currentPoolType,
+        bool hasActiveFeatPointPool)
+    {
+        if (!panel)
+        {
+            return;
+        }
+
+        PanelUiStates[panel.GetInstanceID()] =
+            new FeatSubPanelUiState(active, currentPoolType, hasActiveFeatPointPool);
+    }
+
+    private static bool IsKnownSelectionLayoutContext(FeatSubPanel panel)
+    {
+        return panel &&
+               PanelUiStates.TryGetValue(panel.GetInstanceID(), out var uiState) &&
+               uiState.Active &&
+               uiState.CurrentPoolType == HeroDefinitions.PointsPoolType.Feat &&
+               uiState.HasActiveFeatPointPool;
+    }
+
+    private static bool IsSelectionLayoutContext(FeatSubPanel panel, bool active)
+    {
+        return active &&
+               IsKnownSelectionLayoutContext(panel);
+    }
+
+    internal static bool IsSafeFeatSelectionHoverContext(FeatSubPanel panel, ProficiencyBaseItem item)
+    {
+        return panel?.InspectedCharacter != null &&
+               panel.table != null &&
+               item is FeatItem featItem &&
+               featItem.GuiFeatDefinition?.FeatDefinition != null &&
+               !string.IsNullOrEmpty(featItem.StageTag) &&
+               featItem.CurrentPoolType == HeroDefinitions.PointsPoolType.Feat &&
+               IsKnownSelectionLayoutContext(panel);
+    }
+
+    private static bool TryGetActiveFeatPointPoolContext(
+        FeatSubPanel panel,
+        string stageTag,
+        HeroDefinitions.PointsPoolType currentPoolType,
+        out CharacterHeroBuildingData buildingData,
+        out ICharacterBuildingService service,
+        out PointPool pointPool)
+    {
+        buildingData = null;
+        service = null;
+        pointPool = null;
+
+        if (panel?.InspectedCharacter?.GetHeroBuildingData() is not { } localBuildingData ||
+            currentPoolType != HeroDefinitions.PointsPoolType.Feat ||
+            string.IsNullOrEmpty(stageTag))
+        {
+            return false;
+        }
+
+        service = ServiceRepository.GetService<ICharacterBuildingService>();
+        pointPool = service?.GetPointPoolOfTypeAndTag(localBuildingData, currentPoolType, stageTag);
+
+        if (pointPool == null)
+        {
+            return false;
+        }
+
+        buildingData = localBuildingData;
+
+        return true;
+    }
+
+    private static bool HasAllowedSelectionDescendant(
+        FeatDefinition feat,
+        FeatDefinition parentGroupedFeat,
+        ICharacterBuildingService service,
+        CharacterHeroBuildingData buildingData,
+        string tag)
+    {
+        if (feat == null ||
+            !Tabletop2024Context.IsAllowedInGameFeatSelectionByConfiguration(feat) ||
+            !Tabletop2024Context.IsVisibleInGameFeatSelection(feat) ||
+            Tabletop2024Context.IsNonSelectableTabletopGroup(feat))
+        {
+            return false;
+        }
+
+        var groupedFeat = feat.GetFirstSubFeatureOfType<IGroupedFeat>();
+
+        if (groupedFeat == null)
+        {
+            return Tabletop2024Context.CanSelectFeatForCurrentPointPool(
+                buildingData?.HeroCharacter,
+                tag,
+                feat,
+                service);
+        }
+
+        var nextParentGroupedFeat = Tabletop2024Context.IsTabletopContainerGroup(feat)
+            ? parentGroupedFeat
+            : feat;
+
+        var childFeats = Tabletop2024Context.GetAllowedGameFeatChildren(feat)
+            .Where(child => child != null)
+            .ToArray();
+
+        if (childFeats.Length == 0 && !Tabletop2024Context.IsTabletopContainerGroup(feat))
+        {
+            childFeats = groupedFeat.GetSubFeats(true)
+                ?.Where(child => child != null && Tabletop2024Context.IsVisibleInGameFeatSelection(child))
+                .ToArray() ?? [];
+        }
+
+        return childFeats.Any(childFeat =>
+            HasAllowedSelectionDescendant(
+                childFeat,
+                nextParentGroupedFeat,
+                service,
+                buildingData,
+                tag));
+    }
+
+    internal static List<FeatDefinition> BuildActualDisplayFeats(
+        RulesetCharacterHero hero,
+        bool includeBuildingData)
+    {
+        var displayFeats = new List<FeatDefinition>();
+        CharacterHeroBuildingData buildingData = null;
+
+        if (includeBuildingData)
+        {
+            buildingData = hero?.GetHeroBuildingData();
+
+            foreach (var feat in buildingData?.LevelupTrainedFeats?.Values
+                         .Where(feats => feats != null)
+                         .SelectMany(feats => feats) ?? [])
+            {
+                TryAddDisplayRelevantFeat(displayFeats, feat, true);
+            }
+        }
+
+        foreach (var feat in hero?.TrainedFeats ?? [])
+        {
+            TryAddDisplayRelevantFeat(displayFeats, feat, true);
+        }
+
+        foreach (var featName in hero?.FeatProficiencies ?? [])
+        {
+            if (!TryResolveDisplayFeatDefinition(featName, out var featDefinition))
+            {
+                continue;
+            }
+
+            TryAddDisplayRelevantFeat(displayFeats, featDefinition, true);
+        }
+
+        if (includeBuildingData)
+        {
+            if (Tabletop2024Context.TryGetBackgroundBonusFeatForDisplay(hero, buildingData, out var backgroundFeat))
+            {
+                TryAddDisplayRelevantFeat(displayFeats, backgroundFeat, true);
+            }
+
+            if (Tabletop2024Context.TryGetHumanOriginFeatForCharacterBuildingDisplay(
+                    hero,
+                    buildingData,
+                    out var humanOriginFeat))
+            {
+                TryAddDisplayRelevantFeat(displayFeats, humanOriginFeat, true);
+            }
+        }
+        else
+        {
+            AddDisplayOnlyFallbackFeatsForExistingHero(hero, displayFeats);
+        }
+
+#if DEBUG
+        LogActualDisplayFeats(hero, includeBuildingData, displayFeats);
+#endif
+
+        return displayFeats;
+    }
+
+    internal static bool TryResolveDisplayFeatDefinition(string featName, out FeatDefinition featDefinition)
+    {
+        featDefinition = null;
+
+        if (string.IsNullOrEmpty(featName))
+        {
+            return false;
+        }
+
+        if (TryGetDefinition(featName, out featDefinition))
+        {
+            return true;
+        }
+
+        var canonicalName = Tabletop2024Context.GetCanonicalTabletopFeatName(featName);
+
+        if (canonicalName != featName &&
+            TryGetDefinition(canonicalName, out featDefinition))
+        {
+            return true;
+        }
+
+        return Tabletop2024Context.TryResolveModeAwareFeatDefinition(featName, out featDefinition);
+    }
+
+    private static void TryAddDisplayRelevantFeat(
+        List<FeatDefinition> displayFeats,
+        FeatDefinition feat,
+        bool allowHideFromFeatsLeaf = false)
+    {
+        if (displayFeats == null ||
+            feat == null ||
+            !IsDisplayRelevantFeat(feat, allowHideFromFeatsLeaf))
+        {
+            return;
+        }
+
+        feat.GuiPresentation.hidden = false;
+
+        if (displayFeats.Any(existingFeat =>
+                existingFeat != null &&
+                existingFeat.Name == feat.Name))
+        {
+            return;
+        }
+
+        var equivalentIndex = displayFeats.FindIndex(existingFeat =>
+            existingFeat != null &&
+            Tabletop2024Context.AreEquivalentTabletopFeatNames(existingFeat.Name, feat.Name));
+
+        if (equivalentIndex >= 0)
+        {
+            var existingFeat = displayFeats[equivalentIndex];
+
+            if (ShouldPreferDisplayFeat(feat, existingFeat))
+            {
+                displayFeats[equivalentIndex] = feat;
+            }
+
+            return;
+        }
+
+        displayFeats.Add(feat);
+    }
+
+    private static void AddDisplayOnlyFallbackFeatsForExistingHero(
+        RulesetCharacterHero hero,
+        List<FeatDefinition> displayFeats)
+    {
+        if (hero == null || displayFeats == null)
+        {
+            return;
+        }
+
+        if (Tabletop2024Context.TryGetBackgroundBonusFeatForDisplay(hero, out var backgroundFeat))
+        {
+            TryAddDisplayRelevantFeat(displayFeats, backgroundFeat, true);
+        }
+
+        if (Tabletop2024Context.TryGetHumanOriginFeatForExistingHeroMarker(hero, out var humanOriginFeat))
+        {
+            TryAddDisplayRelevantFeat(displayFeats, humanOriginFeat, true);
+        }
+    }
+
+    private static bool ShouldPreferDisplayFeat(FeatDefinition candidateFeat, FeatDefinition existingFeat)
+    {
+        if (candidateFeat == null)
+        {
+            return false;
+        }
+
+        if (existingFeat == null)
+        {
+            return true;
+        }
+
+        return Tabletop2024Context.IsManagedTabletopFeat(candidateFeat) &&
+               !Tabletop2024Context.IsManagedTabletopFeat(existingFeat);
+    }
+
+    private static bool IsDisplayRelevantFeat(FeatDefinition feat, bool allowHideFromFeatsLeaf)
+    {
+        if (feat == null)
+        {
+            return false;
+        }
+
+        if (Tabletop2024Context.IsManagedTabletopFeat(feat))
+        {
+            return Tabletop2024Context.IsDisplayableManagedTabletopLeaf(feat);
+        }
+
+        return feat.GetFirstSubFeatureOfType<IGroupedFeat>() == null &&
+               !Tabletop2024Context.IsTabletopContainerGroup(feat) &&
+               !Tabletop2024Context.IsNonSelectableTabletopGroup(feat) &&
+               (allowHideFromFeatsLeaf || !feat.HasSubFeatureOfType<HideFromFeats>()) &&
+               Tabletop2024Context.GetCanonicalTabletopFeatName(feat.Name) != "FeatSkilled";
+    }
+
+    [Conditional("DEBUG")]
+    private static void LogActualDisplayFeats(
+        RulesetCharacterHero hero,
+        bool includeBuildingData,
+        List<FeatDefinition> displayFeats)
+    {
+        var trainedNames = hero?.TrainedFeats?.Where(feat => feat != null).Select(feat => feat.Name) ?? [];
+        var proficiencyNames = hero?.FeatProficiencies?.Where(name => !string.IsNullOrEmpty(name)) ?? [];
+        var buildingDataNames = includeBuildingData
+            ? hero?.GetHeroBuildingData()?.LevelupTrainedFeats?.Values
+                .Where(feats => feats != null)
+                .SelectMany(feats => feats)
+                .Where(feat => feat != null)
+                .Select(feat => feat.Name) ?? []
+            : [];
+        var finalNames = displayFeats?.Where(feat => feat != null).Select(feat => feat.Name) ?? [];
+
+        if (finalNames.Any() ||
+            (!trainedNames.Any() &&
+             !proficiencyNames.Any() &&
+             !buildingDataNames.Any()))
+        {
+            return;
+        }
+
+        Main.Log(
+            $"Actual display feats: hero={hero?.Name ?? "null"} guid={(hero != null ? hero.Guid.ToString() : "null")} " +
+            $"use2024={Main.Settings.EnableTabletopFeatRules2024} includeBuildingData={includeBuildingData} " +
+            $"trained=[{string.Join(", ", trainedNames)}] " +
+            $"proficiencies=[{string.Join(", ", proficiencyNames)}] " +
+            $"levelup=[{string.Join(", ", buildingDataNames)}] " +
+            $"display=[{string.Join(", ", finalNames)}]");
+    }
+
+    private static IEnumerable<FeatDefinition> EnumerateTooltipFeatGroupChildren(FeatDefinition feat)
+    {
+        if (feat == null)
+        {
+            return [];
+        }
+
+        if (Main.Settings.EnableTabletopFeatRules2024)
+        {
+            return Tabletop2024Context.GetAllowedGameFeatChildren(feat)
+                .Where(child => child != null)
+                .Distinct();
+        }
+
+        if (feat.GetFirstSubFeatureOfType<IGroupedFeat>() is not { } groupedFeat)
+        {
+            return [];
+        }
+
+        return groupedFeat
+            .GetSubFeats(true, false)
+            .Where(child => child != null && IsVisibleLegacyGroupedFeatChild(child, feat))
+            .Distinct();
+    }
+
+    internal static bool IsVisibleLegacySelectionRoot(FeatDefinition feat)
+    {
+        if (feat == null ||
+            Tabletop2024Context.IsManagedTabletopFeat(feat) ||
+            Tabletop2024Context.IsTabletopContainerGroup(feat) ||
+            Tabletop2024Context.IsNonSelectableTabletopGroup(feat) ||
+            Tabletop2024Context.GetCanonicalTabletopFeatName(feat.Name) == "FeatSkilled" ||
+            FightingStyleContext.HideFightingStyle(feat) ||
+            feat.HasSubFeatureOfType<HideFromFeats>())
+        {
+            return false;
+        }
+
+        if (FeatGroups.Contains(feat))
+        {
+            return Main.Settings.FeatGroupEnabled.Contains(feat.Name) ||
+                   ShouldForceShowLegacyStructuralRootGroup(feat);
+        }
+
+        return Feats.Contains(feat) &&
+               Main.Settings.FeatEnabled.Contains(feat.Name);
+    }
+
+    private static HashSet<FeatDefinition> BuildGroupedLeafVariantSet()
+    {
+        var groupedLeafVariants = new HashSet<FeatDefinition>();
+        var visitedGroups = new HashSet<string>();
+
+        foreach (var group in GroupFeats.Groups.Where(group => group != null))
+        {
+            CollectGroupedLeafVariants(group, groupedLeafVariants, visitedGroups);
+        }
+
+        return groupedLeafVariants;
+    }
+
+    private static void CollectGroupedLeafVariants(
+        FeatDefinition group,
+        HashSet<FeatDefinition> groupedLeafVariants,
+        HashSet<string> visitedGroups)
+    {
+        if (group?.GetFirstSubFeatureOfType<IGroupedFeat>() is not { } groupedFeat ||
+            !visitedGroups.Add(group.Name))
+        {
+            return;
+        }
+
+        foreach (var child in groupedFeat.GetSubFeats(true, false) ?? [])
+        {
+            if (child == null)
+            {
+                continue;
+            }
+
+            if (child.GetFirstSubFeatureOfType<IGroupedFeat>() != null)
+            {
+                CollectGroupedLeafVariants(child, groupedLeafVariants, visitedGroups);
+
+                continue;
+            }
+
+            if (IsGroupedLeafVariantOf(group, child))
+            {
+                groupedLeafVariants.Add(child);
+            }
+        }
+    }
+
+    internal static bool IsVisibleLegacyGroupedFeatChild(FeatDefinition feat, FeatDefinition parentGroup)
+    {
+        if (feat == null)
+        {
+            return false;
+        }
+
+        if (Tabletop2024Context.IsManagedTabletopFeat(feat) ||
+            Tabletop2024Context.IsTabletopContainerGroup(feat) ||
+            Tabletop2024Context.IsNonSelectableTabletopGroup(feat) ||
+            Tabletop2024Context.GetCanonicalTabletopFeatName(feat.Name) == "FeatSkilled" ||
+            FightingStyleContext.HideFightingStyle(feat))
+        {
+            LogLegacyGroupedChildRejected(parentGroup, feat, "common-filter");
+
+            return false;
+        }
+
+        var hasRegisteredRootState = TryGetLegacyRegisteredRootEnabledState(feat, out var isEnabledRegisteredRoot);
+
+        if (feat.GetFirstSubFeatureOfType<IGroupedFeat>() != null)
+        {
+            if (hasRegisteredRootState && !isEnabledRegisteredRoot)
+            {
+                LogLegacyGroupedChildRejected(parentGroup, feat, "registered-root-disabled");
+
+                return false;
+            }
+
+            var hasVisibleDescendant = HasVisibleLegacyGroupedFeatDescendant(feat);
+
+            if (!hasVisibleDescendant)
+            {
+                LogLegacyGroupedChildRejected(parentGroup, feat, "no-visible-descendant");
+            }
+
+            return hasVisibleDescendant;
+        }
+
+        if (IsGroupedLeafVariantOf(parentGroup, feat))
+        {
+            return true;
+        }
+
+        if (hasRegisteredRootState)
+        {
+            if (!isEnabledRegisteredRoot)
+            {
+                LogLegacyGroupedChildRejected(parentGroup, feat, "registered-leaf-disabled");
+            }
+
+            return isEnabledRegisteredRoot;
+        }
+
+        var visible = !feat.GuiPresentation.hidden;
+
+        if (!visible)
+        {
+            LogLegacyGroupedChildRejected(parentGroup, feat, "hidden-unregistered-child");
+        }
+
+        return visible;
+    }
+
+    internal static bool HasVisibleLegacyGroupedFeatDescendant(FeatDefinition feat)
+    {
+        if (feat?.GetFirstSubFeatureOfType<IGroupedFeat>() is not { } groupedFeat)
+        {
+            return false;
+        }
+
+        var subFeats = groupedFeat.GetSubFeats(true, false);
+
+        if (subFeats == null)
+        {
+            return false;
+        }
+
+        return subFeats
+            .Where(subFeat => subFeat != null)
+            .Any(subFeat => IsVisibleLegacyGroupedFeatChild(subFeat, feat));
+    }
+
+    private static bool ShouldForceShowLegacyStructuralRootGroup(FeatDefinition group)
+    {
+        return !Main.Settings.EnableTabletopFeatRules2024 &&
+               group != null &&
+               FeatGroups.Contains(group) &&
+               LegacyStructuralRootGroupNames.Contains(group.Name) &&
+               HasVisibleLegacyGroupedFeatDescendant(group);
+    }
+
+    private static HashSet<FeatDefinition> BuildLegacyNestedGroupedDescendantSet()
+    {
+        var descendants = new HashSet<FeatDefinition>();
+        var visitedGroups = new HashSet<FeatDefinition>();
+        var allGroups = GroupFeats.Groups
+            .Concat(FeatGroups)
+            .Concat(Feats)
+            .Where(group =>
+                group?.GetFirstSubFeatureOfType<IGroupedFeat>() != null &&
+                !Tabletop2024Context.IsManagedTabletopFeat(group))
+            .Distinct()
+            .ToArray();
+        var childGroups = new HashSet<FeatDefinition>();
+
+        foreach (var group in allGroups)
+        {
+            var groupedFeat = group.GetFirstSubFeatureOfType<IGroupedFeat>();
+            var subFeats = groupedFeat?.GetSubFeats(true, false);
+
+            if (subFeats == null)
+            {
+                continue;
+            }
+
+            foreach (var childGroup in subFeats
+                         .Where(child =>
+                             child?.GetFirstSubFeatureOfType<IGroupedFeat>() != null &&
+                             !Tabletop2024Context.IsManagedTabletopFeat(child)))
+            {
+                childGroups.Add(childGroup);
+            }
+        }
+
+        foreach (var group in allGroups.Where(group => !childGroups.Contains(group)))
+        {
+            CollectAllLegacyGroupedDescendants(group, descendants, visitedGroups);
+        }
+
+        return descendants;
+    }
+
+    private static void CollectAllLegacyGroupedDescendants(
+        FeatDefinition group,
+        HashSet<FeatDefinition> descendants,
+        HashSet<FeatDefinition> visitedGroups)
+    {
+        if (group?.GetFirstSubFeatureOfType<IGroupedFeat>() is not { } groupedFeat ||
+            !visitedGroups.Add(group))
+        {
+            return;
+        }
+
+        var subFeats = groupedFeat.GetSubFeats(true, false);
+
+        if (subFeats == null)
+        {
+            return;
+        }
+
+        foreach (var subFeat in subFeats.Where(subFeat =>
+                     subFeat != null &&
+                     !Tabletop2024Context.IsManagedTabletopFeat(subFeat)))
+        {
+            descendants.Add(subFeat);
+
+            if (subFeat.GetFirstSubFeatureOfType<IGroupedFeat>() != null)
+            {
+                CollectAllLegacyGroupedDescendants(subFeat, descendants, visitedGroups);
+            }
+        }
+    }
+
+    internal static bool IsEnabledLegacyRegisteredRoot(FeatDefinition feat)
+    {
+        return TryGetLegacyRegisteredRootEnabledState(feat, out var enabled) && enabled;
+    }
+
+    private static bool IsGroupedLeafVariantOf(FeatDefinition parentGroup, FeatDefinition child)
+    {
+        return parentGroup != null &&
+               child != null &&
+               child.GetFirstSubFeatureOfType<IGroupedFeat>() == null &&
+               !string.IsNullOrEmpty(parentGroup.FamilyTag) &&
+               parentGroup.FamilyTag == child.FamilyTag;
+    }
+
+    private static bool TryGetLegacyRegisteredRootEnabledState(FeatDefinition feat, out bool enabled)
+    {
+        enabled = false;
+
+        if (feat == null)
+        {
+            return false;
+        }
+
+        if (Feats.Contains(feat))
+        {
+            enabled = Main.Settings.FeatEnabled.Contains(feat.Name);
+
+            return true;
+        }
+
+        if (FeatGroups.Contains(feat))
+        {
+            enabled = Main.Settings.FeatGroupEnabled.Contains(feat.Name);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static void LogLegacyGroupedChildRejected(FeatDefinition parentGroup, FeatDefinition child, string reason)
+    {
+#if DEBUG
+        Main.Log(
+            $"Legacy grouped child rejected: parent={parentGroup?.Name ?? "null"}, child={child?.Name ?? "null"}, reason={reason}");
+#endif
+    }
+
+    internal static void RebindPanelChildren(
+        FeatSubPanel panel,
+        string stageTag,
+        string previousStageTag,
+        HeroDefinitions.PointsPoolType currentPoolType,
+        bool selectionMode)
+    {
+        if (panel?.table == null ||
+            panel.relevantFeats == null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < panel.relevantFeats.Count && i < panel.table.childCount; i++)
+        {
+            var child = panel.table.GetChild(i);
+            var featItem = child.GetComponent<FeatItem>();
+            var featDefinition = panel.relevantFeats[i];
+
+            if (!featItem || featDefinition == null)
+            {
+                continue;
+            }
+
+            featItem.StageTag = selectionMode ? stageTag : string.Empty;
+            featItem.PreviousStageTag = selectionMode ? previousStageTag : string.Empty;
+            featItem.CurrentPoolType = selectionMode ? currentPoolType : HeroDefinitions.PointsPoolType.Feat;
+            featItem.Bind(
+                panel.InspectedCharacter,
+                featDefinition,
+                selectionMode ? panel.OnItemClicked : null,
+                selectionMode ? panel.OnItemHoverChanged : null,
+                true);
+
+            if (!selectionMode)
+            {
+                featItem.Refresh(ProficiencyBaseItem.InteractiveMode.Static, HeroDefinitions.PointsPoolType.Feat);
+                featItem.OnItemClicked = null;
+                featItem.OnItemHoverChanged = null;
+                featItem.StageTag = string.Empty;
+                featItem.PreviousStageTag = string.Empty;
+                featItem.CurrentPoolType = HeroDefinitions.PointsPoolType.Feat;
+            }
+
+            if (featItem.Tooltip != null)
+            {
+                featItem.Tooltip.Anchor = panel.table;
+                featItem.Tooltip.AnchorMode = TooltipDefinitions.AnchorMode.LEFT_CENTER;
+            }
+        }
+
+        panel.DispatchItems();
     }
 
     private static void LoadFeatsPointPools()

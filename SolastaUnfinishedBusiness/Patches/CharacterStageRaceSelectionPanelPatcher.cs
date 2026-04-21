@@ -3,13 +3,32 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class CharacterStageRaceSelectionPanelPatcher
 {
+    private static bool TrySaveHumanOriginFeatSelection(
+        CharacterStageRaceSelectionPanel panel,
+        FeatureDescriptionItem featureDescriptionItem)
+    {
+        if (panel?.currentHero == null ||
+            featureDescriptionItem == null ||
+            !FeatureDescriptionItemPatcher.TryGetSelectedHumanOriginFeatChoice(featureDescriptionItem, out var choiceFeature))
+        {
+            return false;
+        }
+
+        return Tabletop2024Context.TrySaveHumanOriginFeatSelection(
+            panel.currentHero,
+            choiceFeature,
+            true);
+    }
+
     [HarmonyPatch(typeof(CharacterStageRaceSelectionPanel), nameof(CharacterStageRaceSelectionPanel.OnBeginShow))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -82,4 +101,20 @@ public static class CharacterStageRaceSelectionPanelPatcher
             }
         }
     }
+
+    [HarmonyPatch(typeof(CharacterStageRaceSelectionPanel),
+        nameof(CharacterStageRaceSelectionPanel.OnFeatureChoiceChangedCb))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnFeatureChoiceChangedCb_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(
+            [NotNull] CharacterStageRaceSelectionPanel __instance,
+            [CanBeNull] FeatureDescriptionItem __0)
+        {
+            TrySaveHumanOriginFeatSelection(__instance, __0);
+        }
+    }
+
 }

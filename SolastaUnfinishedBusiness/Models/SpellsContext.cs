@@ -1008,6 +1008,11 @@ internal static class SpellsContext
 
                 Main.Settings.SpellListSpellEnabled[spellListName].Remove(spellName);
             }
+
+            if (spellDefinition.SpellLevel <= 1)
+            {
+                Tabletop2024Context.RefreshFeatSpellSelectionLists2024();
+            }
         }
     }
 

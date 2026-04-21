@@ -28,6 +28,9 @@ internal abstract class AddExtraAttackBase(
     ActionDefinitions.ActionType actionType,
     params IsCharacterValidHandler[] validators) : IAddExtraAttack
 {
+    private const string ConditionFeatCleavingAttackFinish = "ConditionFeatCleavingAttackFinish";
+    private const string ConditionFeatGreatWeaponMaster2024Finish = "ConditionFeatGreatWeaponMaster2024Finish";
+
     // private readonly List<string> additionalTags = new();
     protected readonly ActionDefinitions.ActionType ActionType = actionType;
 
@@ -92,6 +95,14 @@ internal abstract class AddExtraAttackBase(
     protected virtual AttackModeOrder GetOrder(RulesetCharacter character)
     {
         return AttackModeOrder.End;
+    }
+
+    protected static bool HasGreatWeaponMasterFollowUpCondition(RulesetCharacterHero hero)
+    {
+        return hero != null &&
+               (hero.HasConditionOfCategoryAndType(AttributeDefinitions.TagEffect, ConditionFeatCleavingAttackFinish) ||
+                hero.HasConditionOfCategoryAndType(
+                    AttributeDefinitions.TagEffect, ConditionFeatGreatWeaponMaster2024Finish));
     }
 
     //Copied from RulesetAttackMode.IsComparableForNetwork, but not checking for attack number
@@ -319,8 +330,7 @@ internal sealed class AddPolearmFollowUpAttack : AddExtraAttackBase
 
         if (effectDamageForm == null ||
             // ensures PAM interacts well with GWM
-            hero.HasConditionOfCategoryAndType(
-                AttributeDefinitions.TagEffect, "ConditionFeatCleavingAttackFinish"))
+            HasGreatWeaponMasterFollowUpCondition(hero))
         {
             return [attackMode];
         }
@@ -381,8 +391,7 @@ internal sealed class AddWhirlWindFollowUpAttack : AddExtraAttackBase
 
         if (effectDamageForm == null ||
             // ensures WhirlWind interacts well with GWM
-            hero.HasConditionOfCategoryAndType(
-                AttributeDefinitions.TagEffect, "ConditionFeatCleavingAttackFinish"))
+            HasGreatWeaponMasterFollowUpCondition(hero))
         {
             return [attackMode];
         }

@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
@@ -14,6 +15,42 @@ internal static class CharacterInspectionScreenEnhancement
     private static Transform ClassSelector { get; set; }
 
     private static int SelectedClassIndex { get; set; }
+
+    private static void HideClassBadge([NotNull] Transform child)
+    {
+        child.GetComponent<CharacterInformationBadge>().Unbind();
+        child.gameObject.SetActive(false);
+    }
+
+    [CanBeNull]
+    private static RulesetCharacterHero GetInspectedHero(CharacterInformationPanel panel)
+    {
+        return Global.InspectedHero ?? panel?.InspectedCharacter?.RulesetCharacter as RulesetCharacterHero;
+    }
+
+    private static bool TryFindChoiceFeatureFromExclusionSet(
+        IEnumerable<FeatureDefinition> features,
+        System.Func<FeatureDefinition, bool> isMatchingChoice,
+        out FeatureDefinition choiceFeature)
+    {
+        foreach (var featureDefinition in features)
+        {
+            if (featureDefinition is not FeatureDefinitionFeatureSet
+                {
+                    Mode: FeatureDefinitionFeatureSet.FeatureSetMode.Exclusion
+                } definitionFeatureSet || !definitionFeatureSet.FeatureSet.Any(isMatchingChoice))
+            {
+                continue;
+            }
+
+            choiceFeature = featureDefinition;
+
+            return true;
+        }
+
+        choiceFeature = null;
+        return false;
+    }
 
     [CanBeNull]
     internal static CharacterClassDefinition SelectedClass
@@ -65,10 +102,7 @@ internal static class CharacterInspectionScreenEnhancement
 
             for (var childIndex = 0; childIndex < classBadgesTable.childCount; ++childIndex)
             {
-                var child = classBadgesTable.GetChild(childIndex);
-
-                child.GetComponent<CharacterInformationBadge>().Unbind();
-                child.gameObject.SetActive(false);
+                HideClassBadge(classBadgesTable.GetChild(childIndex));
             }
 
             return;
@@ -103,10 +137,7 @@ internal static class CharacterInspectionScreenEnhancement
 
         for (; index < classBadgesTable.childCount; ++index)
         {
-            var child = classBadgesTable.GetChild(index);
-
-            child.GetComponent<CharacterInformationBadge>().Unbind();
-            child.gameObject.SetActive(false);
+            HideClassBadge(classBadgesTable.GetChild(index));
         }
     }
 
@@ -167,23 +198,7 @@ internal static class CharacterInspectionScreenEnhancement
     internal static bool TryFindChoiceFeature(FeatureDefinition subFeature, IEnumerable<FeatureDefinition> features,
         out FeatureDefinition choiceFeature)
     {
-        foreach (var featureDefinition in features)
-        {
-            if (featureDefinition is not FeatureDefinitionFeatureSet
-                {
-                    Mode: FeatureDefinitionFeatureSet.FeatureSetMode.Exclusion
-                } definitionFeatureSet || !definitionFeatureSet.FeatureSet.Contains(subFeature))
-            {
-                continue;
-            }
-
-            choiceFeature = featureDefinition;
-
-            return true;
-        }
-
-        choiceFeature = null;
-        return false;
+        return TryFindChoiceFeatureFromExclusionSet(features, choice => choice == subFeature, out choiceFeature);
     }
 
     internal static bool TryFindChoiceFeature(
@@ -218,23 +233,7 @@ internal static class CharacterInspectionScreenEnhancement
     internal static bool TryFindChoiceFeature(string subFeature, IEnumerable<FeatureDefinition> features,
         out FeatureDefinition choiceFeature)
     {
-        foreach (var featureDefinition in features)
-        {
-            if (featureDefinition is not FeatureDefinitionFeatureSet
-                {
-                    Mode: FeatureDefinitionFeatureSet.FeatureSetMode.Exclusion
-                } definitionFeatureSet || definitionFeatureSet.FeatureSet.All(x => x.Name != subFeature))
-            {
-                continue;
-            }
-
-            choiceFeature = featureDefinition;
-
-            return true;
-        }
-
-        choiceFeature = null;
-        return false;
+        return TryFindChoiceFeatureFromExclusionSet(features, choice => choice.Name == subFeature, out choiceFeature);
     }
 
     internal static bool EnhanceFeatureList(
@@ -244,6 +243,9 @@ internal static class CharacterInspectionScreenEnhancement
         string insufficientLevelFormat,
         TooltipDefinitions.AnchorMode tooltipAnchorMode)
     {
+        var inspectedHero = GetInspectedHero(panel);
+        var buildingData = inspectedHero?.GetHeroBuildingData();
+
         while (table.childCount < features.Count)
         {
             Gui.GetPrefabFromPool(panel.featurePrefab, table);
@@ -268,7 +270,27 @@ internal static class CharacterInspectionScreenEnhancement
             var tooltip = child.GetComponent<GuiTooltip>();
             var provider = new CustomTooltipProvider(feature.FeatureDefinition, null);
 
-            if (feature.FeatureDefinition is FeatureDefinitionPower)
+            if (Tabletop2024Context.TryGetHumanOriginInspectionDisplayFeature(
+                    inspectedHero,
+                    buildingData,
+                    feature.FeatureDefinition,
+                    out var displayFeature,
+                    out var fallbackTitle))
+            {
+                if (displayFeature)
+                {
+                    label.Text = displayFeature.FormatTitle() + (!noLevel ? $" ({feature.Level})" : string.Empty);
+                    provider.BaseDefinition = displayFeature;
+                    provider.SetSubtitle(Gui.Localize("Feature/&PointPoolHumanOriginFeatTitle"));
+                    tooltip.Content = displayFeature.FormatDescription();
+                }
+                else
+                {
+                    label.Text = fallbackTitle + (!noLevel ? $" ({feature.Level})" : string.Empty);
+                    tooltip.Content = feature.FeatureDefinition.FormatDescription();
+                }
+            }
+            else if (feature.FeatureDefinition is FeatureDefinitionPower)
             {
                 var guiPowerDefinition = ServiceRepository.GetService<IGuiWrapperService>()
                     .GetGuiPowerDefinition(feature.FeatureDefinition.Name);

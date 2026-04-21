@@ -474,68 +474,6 @@ public static partial class Tabletop2024Context
         Cleric.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
     }
 
-#if false
-    internal static void SwitchClericDivineIntervention()
-    {
-        var divineInterventions = new[]
-        {
-            ("DomainBattle", "PowerClericDivineInterventionPaladin"), //
-            ("DomainDefiler", "PowerClericDivineInterventionPaladin"), // UB
-            ("DomainElementalCold", "PowerClericDivineInterventionWizard"), //
-            ("DomainElementalFire", "PowerClericDivineInterventionWizard"), //
-            ("DomainElementalLighting", "PowerClericDivineInterventionWizard"), //
-            ("DomainInsight", "PowerClericDivineInterventionCleric"), //
-            ("DomainLaw", "PowerClericDivineInterventionPaladin"), //
-            ("DomainLife", "PowerClericDivineInterventionCleric"), //
-            ("DomainMischief", "PowerClericDivineInterventionWizard"), //
-            ("DomainNature", "PowerClericDivineInterventionWizard"), // UB
-            ("DomainOblivion", "PowerClericDivineInterventionCleric"), //
-            ("DomainSmith", "PowerClericDivineInterventionPaladin"), // UB
-            ("DomainSun", "PowerClericDivineInterventionWizard"), //
-            ("DomainTempest", "PowerClericDivineInterventionPaladin") // UB
-        };
-
-        foreach (var (subclassName, powerName) in divineInterventions)
-        {
-            var subClass = GetDefinition<CharacterSubclassDefinition>(subclassName);
-            var power = GetDefinition<FeatureDefinitionPower>(powerName);
-
-            Cleric.FeatureUnlocks.RemoveAll(x => x.FeatureDefinition == FeatureSetClericDivineIntervention);
-            subClass.FeatureUnlocks.RemoveAll(x => x.FeatureDefinition == power);
-
-            if (Main.Settings.EnableClericDivineIntervention2024)
-            {
-                Cleric.FeatureUnlocks.Add(new FeatureUnlockByLevel(FeatureSetClericDivineIntervention, 10));
-            }
-            else
-            {
-                subClass.FeatureUnlocks.Add(new FeatureUnlockByLevel(power, 10));
-            }
-        }
-
-        foreach (var (subclassName, powerName) in divineInterventions)
-        {
-            var subClass = GetDefinition<CharacterSubclassDefinition>(subclassName);
-            var improvementPowerName = powerName.Replace("Intervention", "InterventionImprovement");
-            var improvementPower = GetDefinition<FeatureDefinitionPower>(improvementPowerName);
-
-            Cleric.FeatureUnlocks.RemoveAll(x => x.FeatureDefinition == FeatureSetClericDivineInterventionImproved);
-            subClass.FeatureUnlocks.RemoveAll(x => x.FeatureDefinition == improvementPower);
-
-            if (Main.Settings.EnableClericDivineIntervention2024)
-            {
-                Cleric.FeatureUnlocks.Add(new FeatureUnlockByLevel(FeatureSetClericDivineInterventionImproved, 20));
-            }
-            else
-            {
-                subClass.FeatureUnlocks.Add(new FeatureUnlockByLevel(improvementPower, 20));
-            }
-        }
-
-        Cleric.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
-    }
-#endif
-
     internal static void SwitchClericDivineOrder()
     {
         Cleric.FeatureUnlocks

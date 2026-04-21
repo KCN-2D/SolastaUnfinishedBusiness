@@ -1,12 +1,35 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.ModKit.Utility;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class GuiWrapperManagerPatcher
 {
+    [HarmonyPatch(typeof(GuiWrapperManager), nameof(GuiWrapperManager.RuntimeLoaded))]
+    [UsedImplicitly]
+    public static class RuntimeLoaded_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GuiWrapperManager __instance)
+        {
+            GuiWrapperContext.OnGuiWrapperRuntimeLoaded(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiWrapperManager), nameof(GuiWrapperManager.LoadFeatDefinitions))]
+    [UsedImplicitly]
+    public static class LoadFeatDefinitions_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GuiWrapperManager __instance)
+        {
+            __instance?.featDefinitionsMap?.Clear();
+        }
+    }
+
     [HarmonyPatch(typeof(GuiWrapperManager), nameof(GuiWrapperManager.GetGuiPowerDefinition))]
     [UsedImplicitly]
     public static class GetGuiPowerDefinition_Patch

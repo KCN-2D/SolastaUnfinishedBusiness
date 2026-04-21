@@ -13,3 +13,5 @@ Feat/&FeatRangedExpertTitle=Expert en arbalète
 Feature/&PowerFeatSteadyAimDescription=En tant qu'action bonus, vous vous accordez un avantage sur votre prochain jet d'attaque du tour en cours. Vous ne pouvez utiliser cette action bonus que si vous n'avez pas bougé pendant ce tour, et après avoir utilisé l'action bonus, votre vitesse est de 0 jusqu'à la fin du tour en cours.
 Feature/&PowerFeatSteadyAimTitle=Visez fermement
 Tooltip/&DeadeyeConcentration=Désactiver Sharpshooter
+Feat/&FeatSharpshooter2024Title=Tireur d'élite
+Feat/&FeatSharpshooter2024Description=Augmentez votre Dextérité de 1, jusqu'à un maximum de 20.\nVos attaques à distance avec des armes ignorent le demi-couvert et le couvert aux trois quarts.\nÊtre à 1,50 mètre d'un ennemi n'impose pas de désavantage à vos jets d'attaque avec des armes à distance.\nAttaquer à longue portée n'impose pas de désavantage à vos jets d'attaque avec des armes à distance.

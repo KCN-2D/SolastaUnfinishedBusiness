@@ -13,3 +13,5 @@ Feat/&FeatRangedExpertTitle=远程专家
 Feature/&PowerFeatSteadyAimDescription=作为附赠动作，你可以在当前回合的下一次攻击检定中为自己带来优势。只有当你在本回合中没有移动时，你才能使用此附赠动作，并且在使用附赠动作后，你的速度为 0，直到当前回合结束。
 Feature/&PowerFeatSteadyAimTitle=稳定瞄准
 Tooltip/&DeadeyeConcentration=禁用神射手。
+Feat/&FeatSharpshooter2024Title=神射手
+Feat/&FeatSharpshooter2024Description=敏捷值提高 1，最高不超过 20。\n你用武器进行的远程攻击无视半身掩护和四分之三掩护。\n当敌人在你 5 尺内时，你用远程武器进行的攻击检定不会因此承受劣势。\n使用远程武器在远距射程内攻击时，你的攻击检定不会因此承受劣势。

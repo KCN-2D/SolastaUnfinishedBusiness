@@ -1,8 +1,8 @@
 Feature/&AdditionalDamageSorcerousSorrAkkathSpellSneakAttackDescription=ターンごとに1回、攻撃ロールに有利があるなら、呪文攻撃を命中させたクリーチャー1体に追加で1d6ダメージを与えられます。対象から1マス以内に対象の別の敵がいて、その敵が無力状態でなく、かつあなたが攻撃ロールで不利を受けていないなら、有利は不要です。ダメージは5レベルで2d6、11レベルで3d6、17レベルで4d6に増加します。
 Feature/&AdditionalDamageSorcerousSorrAkkathSpellSneakAttackTitle=呪文急所攻撃
-Feature/&FeatureSetSorcerousSorrAkkathBloodOfSorrAkkathDescription=6レベルから、毒ダメージに対する耐性を得て、毒状態に対する完全耐性を得ます。さらに、呪文急所攻撃でクリーチャーに命中させると、そのクリーチャーは耐久力セーヴィング・スローを行わなければなりません。失敗すると、次のあなたのターン終了時まで毒状態になります。
+Feature/&FeatureSetSorcerousSorrAkkathBloodOfSorrAkkathDescription=6レベルから、毒ダメージへの抵抗を得て、毒状態に対する完全耐性を得ます。さらに、呪文急所攻撃でクリーチャーに命中させると、そのクリーチャーは耐久力セーヴィング・スローを行わなければなりません。失敗すると、次のあなたのターン終了時まで毒状態になります。
 Feature/&FeatureSetSorcerousSorrAkkathBloodOfSorrAkkathTitle=ソル・アッカスの血
-Feature/&FeatureSetSorcerousSorrAkkathDarknessAffinityDescription=14レベルから、薄明かりまたは暗闇の中にいる間、次の利益を得ます:\n• ACに+2のボーナスを得ます。\n• 攻撃ロールに+2のボーナスを得ます。\n• セーヴィング・スローに+2のボーナスを得ます。\n• 自分のターン終了時にヒット・ポイントが2回復します。
+Feature/&FeatureSetSorcerousSorrAkkathDarknessAffinityDescription=14レベルから、薄明かりまたは暗闇の中にいる間、次の利益を得ます：\n• ACに+2のボーナスを得ます。\n• 攻撃ロールに+2のボーナスを得ます。\n• セーヴィング・スローに+2のボーナスを得ます。\n• 自分のターン終了時にヒット・ポイントが2回復します。
 Feature/&FeatureSetSorcerousSorrAkkathDarknessAffinityTitle=闇親和
 Feature/&FeatureSetSorcerousSorrAkkathDeceptiveHeritageDescription=〈隠密〉と〈ペテン〉に習熟し、初級呪文〈毒棘〉を習得し、12マスの暗視を得ます。
 Feature/&FeatureSetSorcerousSorrAkkathDeceptiveHeritageTitle=欺きの血統

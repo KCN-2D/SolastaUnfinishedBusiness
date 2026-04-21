@@ -13,3 +13,5 @@ Feat/&FeatRangedExpertTitle=Especialista em Besta
 Feature/&PowerFeatSteadyAimDescription=Como uma ação bônus, você se dá vantagem na sua próxima jogada de ataque no turno atual. Você pode usar essa ação bônus somente se não tiver se movido durante esse turno, e depois de usar a ação bônus, sua velocidade é 0 até o fim do turno atual.
 Feature/&PowerFeatSteadyAimTitle=Mira firme
 Tooltip/&DeadeyeConcentration=Desativar atirador de elite
+Feat/&FeatSharpshooter2024Title=Atirador de Elite
+Feat/&FeatSharpshooter2024Description=Aumente sua Destreza em 1, até o máximo de 20.\nSeus ataques à distância com armas ignoram meia cobertura e cobertura de três quartos.\nEstar a 1,5 metro de um inimigo não impõe desvantagem às suas jogadas de ataque com armas à distância.\nAtacar a longa distância não impõe desvantagem às suas jogadas de ataque com armas à distância.

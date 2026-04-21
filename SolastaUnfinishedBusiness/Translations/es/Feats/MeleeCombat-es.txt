@@ -98,3 +98,5 @@ Reaction/&UseDefensiveDuelistReactTitle=Defender
 Reaction/&UseDefensiveDuelistTitle=Duelista defensivo
 Tooltip/&CleavingAttackConcentration=Desactivar Gran Maestro de Armas.
 Tooltip/&PowerAttackConcentration=Deshabilitar ataque de poder.
+Feat/&FeatGreatWeaponMaster2024Title=Maestro de armas pesadas
+Feat/&FeatGreatWeaponMaster2024Description=Has aprendido a blandir armas pesadas con una eficacia implacable:\n• Aumenta tu Fuerza en 1, hasta un máximo de 20.\n• Cuando golpeas a una criatura con un arma que tiene la propiedad Pesada como parte de la acción de Ataque en tu turno, puedes infligir daño adicional igual a tu bonificador por competencia.\n• Inmediatamente después de conseguir un golpe crítico con un arma cuerpo a cuerpo o de reducir a una criatura a 0 puntos de golpe con ella, puedes hacer un ataque con la misma arma como acción adicional.

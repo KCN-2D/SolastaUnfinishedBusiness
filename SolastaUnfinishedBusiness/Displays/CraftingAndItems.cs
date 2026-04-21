@@ -231,19 +231,19 @@ internal static class CraftingAndItems
         UI.Label();
 
         toggle = Main.Settings.AddNewScrollsToShops;
-        if (UI.Toggle(Gui.Localize(Gui.Localize("ModUi/&AddNewScrollsToShops")), ref toggle, UI.AutoWidth()))
+        if (UI.Toggle(Gui.Localize("ModUi/&AddNewScrollsToShops"), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.AddNewScrollsToShops = toggle;
         }
 
         toggle = Main.Settings.AddNewScrollsToTreasure;
-        if (UI.Toggle(Gui.Localize(Gui.Localize("ModUi/&AddNewScrollsToTreasure")), ref toggle, UI.AutoWidth()))
+        if (UI.Toggle(Gui.Localize("ModUi/&AddNewScrollsToTreasure"), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.AddNewScrollsToTreasure = toggle;
         }
 
         toggle = Main.Settings.AddCustomIconsToOfficialItems;
-        if (UI.Toggle(Gui.Localize(Gui.Localize("ModUi/&AddCustomIconsToOfficialItems")), ref toggle, UI.AutoWidth()))
+        if (UI.Toggle(Gui.Localize("ModUi/&AddCustomIconsToOfficialItems"), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.AddCustomIconsToOfficialItems = toggle;
         }
@@ -348,7 +348,7 @@ internal static class CraftingAndItems
         UI.Label();
 
         toggle = Main.Settings.AddNewWeaponsAndRecipesToShops;
-        if (UI.Toggle(Gui.Localize(Gui.Localize("ModUi/&AddNewWeaponsAndRecipesToShops")), ref toggle, UI.AutoWidth()))
+        if (UI.Toggle(Gui.Localize("ModUi/&AddNewWeaponsAndRecipesToShops"), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.AddNewWeaponsAndRecipesToShops = toggle;
         }
@@ -381,9 +381,9 @@ internal static class CraftingAndItems
 
         UI.Label();
 
-        var keys = CraftingContext.RecipeBooks.Keys;
+        var keys = CraftingContext.RecipeBooks.Keys.ToArray();
         var current = 0;
-        var count = keys.Count;
+        var count = keys.Length;
 
         const int MAX_COLS = 4;
         const float WIDTH = 220f;
@@ -396,7 +396,7 @@ internal static class CraftingAndItems
             {
                 while (current < count && cols < MAX_COLS)
                 {
-                    var key = keys.ElementAt(current);
+                    var key = keys[current];
                     var category = CraftingContext.RecipeTitles[key];
 
                     toggle = Main.Settings.CraftingInStore.Contains(key);

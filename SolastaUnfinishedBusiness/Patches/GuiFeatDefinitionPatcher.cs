@@ -7,6 +7,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -19,23 +20,39 @@ public static class GuiFeatDefinitionPatcher
     public static class IsFeatMatchingPrerequisites_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(
+            FeatDefinition feat,
+            out (bool active, bool disableLevel, bool disableRace, bool disableCastSpell) __state)
+        {
+            __state = Tabletop2024Context.PushModFeatPrerequisiteOverride(
+                Tabletop2024Context.ShouldForceManagedFeatPrerequisites(feat));
+        }
+
+        [UsedImplicitly]
         public static void Postfix(
             ref bool __result,
             FeatDefinition feat,
             RulesetCharacterHero hero,
-            ref string prerequisiteOutput)
+            ref string prerequisiteOutput,
+            (bool active, bool disableLevel, bool disableRace, bool disableCastSpell) __state)
         {
             //PATCH: Enforces Feats With PreRequisites
             if (feat is not FeatDefinitionWithPrerequisites featDefinitionWithPrerequisites
                 || featDefinitionWithPrerequisites.Validators.Count == 0)
             {
+                Tabletop2024Context.RestoreModFeatPrerequisiteOverride(__state);
                 return;
             }
 
             var (result, output) = featDefinitionWithPrerequisites.Validate(featDefinitionWithPrerequisites, hero);
 
             __result = __result && result;
-            if (string.IsNullOrEmpty(output)) { return; }
+            if (string.IsNullOrEmpty(output))
+            {
+                Tabletop2024Context.RestoreModFeatPrerequisiteOverride(__state);
+
+                return;
+            }
 
             if (!string.IsNullOrEmpty(prerequisiteOutput))
             {
@@ -43,6 +60,7 @@ public static class GuiFeatDefinitionPatcher
             }
 
             prerequisiteOutput += output;
+            Tabletop2024Context.RestoreModFeatPrerequisiteOverride(__state);
         }
 
         [NotNull]
@@ -77,7 +95,9 @@ public static class GuiFeatDefinitionPatcher
         public static bool Prefix(GuiFeatDefinition __instance, ref string __result)
         {
             //PATCH: use 'Feat Group' as subtitle for feats that are feat groups
-            if (!__instance.FeatDefinition.HasSubFeatureOfType<GroupedFeat>())
+            if (__instance?.FeatDefinition == null ||
+                __instance.FeatDefinition.GetFirstSubFeatureOfType<IGroupedFeat>() == null &&
+                !Tabletop2024Context.IsTabletopContainerGroup(__instance.FeatDefinition))
             {
                 return true;
             }
@@ -85,6 +105,26 @@ public static class GuiFeatDefinitionPatcher
             __result = "Tooltip/&FeatGroupTitle";
 
             return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiFeatDefinition), nameof(GuiFeatDefinition.Description), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Description_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GuiFeatDefinition __instance, ref string __result)
+        {
+            if (__instance?.FeatDefinition == null)
+            {
+                return;
+            }
+
+            if (FeatsContext.TryBuildFeatGroupContentsDescription(__instance.FeatDefinition, out var description))
+            {
+                __result = description;
+            }
         }
     }
 }

@@ -504,6 +504,13 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=将把所有武器精通属�
 ModUi/&WeaponMasterySystemCustomizeToggle=自定义武器精通属性
 ModUi/&WideScreenBattleUI=启用宽屏战斗 UI<i><color=#F0DAA0>（适用于宽高比大于 16:9 的分辨率）</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white>设置<color=#D89555>术士狂野魔法</color>几率骰子阈值：</color>\n<i><color=#F0DAA0>[如果掷出的骰子小于或等于阈值，则触发狂野魔法浪涌]</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race <i><color=#F0DAA0>[Flexible Races is incompatible and will be toggled off]</color></i>
-ModUi/&EnableBackgroundBonusFeats=Enable background bonus feats <i><color=#F0DAA0>[Flexible Backgrounds is incompatible and will be toggled off]</color></i>
+ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race; Human is adjusted because the default all +1 is removed <i><color=#F0DAA0>[Flexible Races is incompatible and will be toggled off]</color></i>
+ModUi/&EnableBackgroundBonusFeats=Change background grants to 2024-style origin feat, two skills, and one tool <i><color=#F0DAA0>[Requires Background ASI; Flexible Backgrounds is incompatible and will be toggled off]</color></i>
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
+ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
+ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
+ModUi/&EnableTabletopFeatRules2024=Use the independent 2024 tabletop feat catalog
+ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses only the independent 2024 feat catalog. Background feats and Human origin feats resolve to the same catalog]</color></i>
+ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[While enabled, only the independent 2024 feats below can be toggled. Legacy feat toggles are locked]</color></i>
+ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
+ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled.

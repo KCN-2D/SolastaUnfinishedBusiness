@@ -207,6 +207,13 @@ public static class RulesetActorPatcher
             RulesetImplementationDefinitions.ApplyFormsParams formsParams,
             RollInfo rollInfo)
         {
+            if (formsParams.targetCharacter != null &&
+                formsParams.targetCharacter.HasConditionOfCategoryAndType(
+                    AttributeDefinitions.TagEffect, "ConditionFeatShieldMaster2024InterposeNoDamage"))
+            {
+                rolledDamage = 0;
+            }
+
             // supports Shield Techniques feat
             if (formsParams.targetCharacter is { Side: Side.Ally } &&
                 formsParams.targetCharacter.HasConditionOfCategoryAndType(

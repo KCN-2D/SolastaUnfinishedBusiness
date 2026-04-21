@@ -368,10 +368,7 @@ internal static class OtherFeats
 
             magicInitiateFeats.Add(featMagicInitiate);
 
-            if (className is "Bard" or "Cleric" or "Wizard")
-            {
-                GroupFeats.FeatGroupOrigin.AddFeats(featMagicInitiate);
-            }
+            GroupFeats.FeatGroupOrigin.AddFeats(featMagicInitiate);
         }
 
         return GroupFeats.MakeGroup("FeatGroupMagicInitiate", NAME, magicInitiateFeats);
@@ -645,134 +642,68 @@ internal static class OtherFeats
     {
         const string Name = "FeatGiftOfTheGemDragon";
 
-        var powerInt = FeatureDefinitionPowerBuilder
-            .Create($"Power{Name}")
-            .SetGuiPresentation($"{Name}Int", Category.Feat, hidden: true)
-            .SetUsesProficiencyBonus(ActivationTime.NoCost)
-            .SetEffectDescription(
-                EffectDescriptionBuilder
-                    .Create()
-                    .SetTargetingData(Side.Enemy, RangeType.Distance, 2, TargetType.IndividualsUnique)
-                    .SetSavingThrowData(false,
-                        AttributeDefinitions.Strength, true,
-                        EffectDifficultyClassComputation.AbilityScoreAndProficiency,
-                        AttributeDefinitions.Intelligence, 8)
-                    .SetEffectForms(
-                        EffectFormBuilder
-                            .Create()
-                            .HasSavingThrow(EffectSavingThrowType.HalfDamage)
-                            .SetDamageForm(DamageTypeForce, 2, DieType.D8)
-                            .Build(),
-                        EffectFormBuilder
-                            .Create()
-                            .HasSavingThrow(EffectSavingThrowType.Negates)
-                            .SetMotionForm(MotionForm.MotionType.PushFromOrigin, 2)
-                            .Build(),
-                        EffectFormBuilder
-                            .Create()
-                            .HasSavingThrow(EffectSavingThrowType.Negates)
-                            .SetMotionForm(MotionForm.MotionType.FallProne)
-                            .Build())
-                    .SetParticleEffectParameters(PowerSpellBladeSpellTyrant)
-                    .Build())
-            .AddToDB();
+        FeatDefinition BuildGiftOfTheGemDragonVariant(
+            string suffix,
+            string abilityScoreName,
+            FeatureDefinition attributeModifier)
+        {
+            var definitionSuffix = suffix == "Int" ? string.Empty : suffix;
+            var power = FeatureDefinitionPowerBuilder
+                .Create($"Power{Name}{definitionSuffix}")
+                .SetGuiPresentation($"{Name}{suffix}", Category.Feat, hidden: true)
+                .SetUsesProficiencyBonus(ActivationTime.NoCost)
+                .SetEffectDescription(
+                    EffectDescriptionBuilder
+                        .Create()
+                        .SetTargetingData(Side.Enemy, RangeType.Distance, 2, TargetType.IndividualsUnique)
+                        .SetSavingThrowData(false,
+                            AttributeDefinitions.Strength, true,
+                            EffectDifficultyClassComputation.AbilityScoreAndProficiency,
+                            abilityScoreName, 8)
+                        .SetEffectForms(
+                            EffectFormBuilder
+                                .Create()
+                                .HasSavingThrow(EffectSavingThrowType.HalfDamage)
+                                .SetDamageForm(DamageTypeForce, 2, DieType.D8)
+                                .Build(),
+                            EffectFormBuilder
+                                .Create()
+                                .HasSavingThrow(EffectSavingThrowType.Negates)
+                                .SetMotionForm(MotionForm.MotionType.PushFromOrigin, 2)
+                                .Build(),
+                            EffectFormBuilder
+                                .Create()
+                                .HasSavingThrow(EffectSavingThrowType.Negates)
+                                .SetMotionForm(MotionForm.MotionType.FallProne)
+                                .Build())
+                        .SetParticleEffectParameters(PowerSpellBladeSpellTyrant)
+                        .Build())
+                .AddToDB();
 
-        powerInt.AddCustomSubFeatures(new CustomBehaviorGiftOfTheGemDragon(powerInt));
-        powerInt.EffectDescription.EffectParticleParameters.casterQuickSpellParticleReference =
-            Counterspell.EffectDescription.EffectParticleParameters.casterQuickSpellParticleReference;
+            power.AddCustomSubFeatures(new CustomBehaviorGiftOfTheGemDragon(power));
+            power.EffectDescription.EffectParticleParameters.casterQuickSpellParticleReference =
+                Counterspell.EffectDescription.EffectParticleParameters.casterQuickSpellParticleReference;
 
-        var featInt = FeatDefinitionBuilder
-            .Create($"{Name}Int")
-            .SetGuiPresentation(Category.Feat)
-            .SetFeatures(AttributeModifierCreed_Of_Pakri, powerInt)
-            .SetFeatFamily(Name)
-            .AddToDB();
+            return FeatDefinitionBuilder
+                .Create($"{Name}{definitionSuffix}")
+                .SetGuiPresentation(Category.Feat)
+                .SetFeatures(attributeModifier, power)
+                .SetFeatFamily(Name)
+                .AddToDB();
+        }
 
-        var powerWis = FeatureDefinitionPowerBuilder
-            .Create($"Power{Name}Wis")
-            .SetGuiPresentation($"{Name}Wis", Category.Feat, hidden: true)
-            .SetUsesProficiencyBonus(ActivationTime.NoCost)
-            .SetEffectDescription(
-                EffectDescriptionBuilder
-                    .Create()
-                    .SetTargetingData(Side.Enemy, RangeType.Distance, 2, TargetType.IndividualsUnique)
-                    .SetSavingThrowData(false,
-                        AttributeDefinitions.Strength, true,
-                        EffectDifficultyClassComputation.AbilityScoreAndProficiency,
-                        AttributeDefinitions.Wisdom, 8)
-                    .SetEffectForms(
-                        EffectFormBuilder
-                            .Create()
-                            .HasSavingThrow(EffectSavingThrowType.HalfDamage)
-                            .SetDamageForm(DamageTypeForce, 2, DieType.D8)
-                            .Build(),
-                        EffectFormBuilder
-                            .Create()
-                            .HasSavingThrow(EffectSavingThrowType.Negates)
-                            .SetMotionForm(MotionForm.MotionType.PushFromOrigin, 2)
-                            .Build(),
-                        EffectFormBuilder
-                            .Create()
-                            .HasSavingThrow(EffectSavingThrowType.Negates)
-                            .SetMotionForm(MotionForm.MotionType.FallProne)
-                            .Build())
-                    .SetParticleEffectParameters(PowerSpellBladeSpellTyrant)
-                    .Build())
-            .AddToDB();
-
-        powerWis.AddCustomSubFeatures(new CustomBehaviorGiftOfTheGemDragon(powerWis));
-        powerWis.EffectDescription.EffectParticleParameters.casterQuickSpellParticleReference =
-            Counterspell.EffectDescription.EffectParticleParameters.casterQuickSpellParticleReference;
-
-        var featWis = FeatDefinitionBuilder
-            .Create($"{Name}Wis")
-            .SetGuiPresentation(Category.Feat)
-            .SetFeatures(AttributeModifierCreed_Of_Maraike, powerWis)
-            .SetFeatFamily(Name)
-            .AddToDB();
-
-        var powerCha = FeatureDefinitionPowerBuilder
-            .Create($"Power{Name}Cha")
-            .SetGuiPresentation($"{Name}Cha", Category.Feat, hidden: true)
-            .SetUsesProficiencyBonus(ActivationTime.NoCost)
-            .SetEffectDescription(
-                EffectDescriptionBuilder
-                    .Create()
-                    .SetTargetingData(Side.Enemy, RangeType.Distance, 2, TargetType.IndividualsUnique)
-                    .SetSavingThrowData(false,
-                        AttributeDefinitions.Strength, true,
-                        EffectDifficultyClassComputation.AbilityScoreAndProficiency,
-                        AttributeDefinitions.Charisma, 8)
-                    .SetEffectForms(
-                        EffectFormBuilder
-                            .Create()
-                            .HasSavingThrow(EffectSavingThrowType.HalfDamage)
-                            .SetDamageForm(DamageTypeForce, 2, DieType.D8)
-                            .Build(),
-                        EffectFormBuilder
-                            .Create()
-                            .HasSavingThrow(EffectSavingThrowType.Negates)
-                            .SetMotionForm(MotionForm.MotionType.PushFromOrigin, 2)
-                            .Build(),
-                        EffectFormBuilder
-                            .Create()
-                            .HasSavingThrow(EffectSavingThrowType.Negates)
-                            .SetMotionForm(MotionForm.MotionType.FallProne)
-                            .Build())
-                    .SetParticleEffectParameters(PowerSpellBladeSpellTyrant)
-                    .Build())
-            .AddToDB();
-
-        powerCha.AddCustomSubFeatures(new CustomBehaviorGiftOfTheGemDragon(powerCha));
-        powerCha.EffectDescription.EffectParticleParameters.casterQuickSpellParticleReference =
-            Counterspell.EffectDescription.EffectParticleParameters.casterQuickSpellParticleReference;
-
-        var featCha = FeatDefinitionBuilder
-            .Create($"{Name}Cha")
-            .SetGuiPresentation(Category.Feat)
-            .SetFeatures(AttributeModifierCreed_Of_Solasta, powerCha)
-            .SetFeatFamily(Name)
-            .AddToDB();
+        var featInt = BuildGiftOfTheGemDragonVariant(
+            "Int",
+            AttributeDefinitions.Intelligence,
+            AttributeModifierCreed_Of_Pakri);
+        var featWis = BuildGiftOfTheGemDragonVariant(
+            "Wis",
+            AttributeDefinitions.Wisdom,
+            AttributeModifierCreed_Of_Maraike);
+        var featCha = BuildGiftOfTheGemDragonVariant(
+            "Cha",
+            AttributeDefinitions.Charisma,
+            AttributeModifierCreed_Of_Solasta);
 
         feats.AddRange(featInt, featWis, featCha);
 
@@ -1045,13 +976,22 @@ internal static class OtherFeats
     {
         var hero = attacker.GetOriginalHero();
 
-        if (hero?.TrainedFeats.Contains(FeatGrappler) == true)
+        if (HasGrapplerFeat(hero))
         {
             sourceConditionName =
                 attacker.SizeDefinition.WieldingSize < defender.SizeDefinition.WieldingSize
                     ? GrappleContext.ConditionGrappleSourceWithGrapplerLargerName
                     : GrappleContext.ConditionGrappleSourceWithGrapplerName;
         }
+    }
+
+    private static bool HasGrapplerFeat(RulesetCharacterHero hero)
+    {
+        return hero?.TrainedFeats?.Any(feat =>
+                   feat == FeatGrappler ||
+                   Tabletop2024Context.AreEquivalentTabletopFeatNames(feat.Name, FeatGrappler.Name)) == true ||
+               hero?.FeatProficiencies?.Any(featName =>
+                   Tabletop2024Context.AreEquivalentTabletopFeatNames(featName, FeatGrappler.Name)) == true;
     }
 
     private sealed class PhysicalAttackFinishedByMeGrappler : IPhysicalAttackFinishedByMe
@@ -2716,6 +2656,7 @@ internal static class OtherFeats
                 .Create($"Feature{FeatMageSlayerName}")
                 .SetGuiPresentationNoContent(true)
                 .AddCustomSubFeatures(new CustomBehaviorMageSlayer(
+                    PowerMageSlayerSaving,
                     ConditionDefinitionBuilder
                         .Create($"Condition{FeatMageSlayerName}")
                         .SetGuiPresentation(FeatMageSlayerName, Category.Feat, Gui.EmptyContent)
@@ -2732,6 +2673,7 @@ internal static class OtherFeats
         .AddToDB();
 
     internal sealed class CustomBehaviorMageSlayer(
+        FeatureDefinitionPower powerSaving,
         // ReSharper disable once SuggestBaseTypeForParameterInConstructor
         ConditionDefinition conditionConcentrationDisadvantage)
         : IMagicEffectBeforeHitConfirmedOnEnemy, IPhysicalAttackBeforeHitConfirmedOnEnemy, ITryAlterOutcomeSavingThrow
@@ -2805,7 +2747,7 @@ internal static class OtherFeats
             bool hasHitVisual)
         {
             var rulesetHelper = helper.RulesetCharacter;
-            var usablePower = PowerProvider.Get(PowerMageSlayerSaving, rulesetHelper);
+            var usablePower = PowerProvider.Get(powerSaving, rulesetHelper);
 
             if (savingThrowData.SaveOutcome != RollOutcome.Failure ||
                 helper != defender ||

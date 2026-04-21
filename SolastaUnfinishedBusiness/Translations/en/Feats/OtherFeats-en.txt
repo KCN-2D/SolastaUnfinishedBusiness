@@ -191,3 +191,7 @@ Reaction/&WarcasterAttackTitle=Attack
 Tag/&InitiateCantripSpecialTagTitle=Initiate Cantrips
 Tag/&InitiateSpellSpecialTagTitle=Initiate Spells
 Tag/&SniperCantripSpecialTagTitle=Sniper Cantrips
+Feat/&FeatSpeedyDexTitle=Speedy [Dex]
+Feat/&FeatSpeedyDexDescription=Increase your Dexterity by 1, to a maximum of 20.\nYour Speed increases by 10 feet.\nWhen you Dash, difficult terrain doesn't cost you extra movement for the rest of the turn.\nOpportunity attacks against you are made with disadvantage.
+Feat/&FeatSpeedyConTitle=Speedy [Con]
+Feat/&FeatSpeedyConDescription=Increase your Constitution by 1, to a maximum of 20.\nYour Speed increases by 10 feet.\nWhen you Dash, difficult terrain doesn't cost you extra movement for the rest of the turn.\nOpportunity attacks against you are made with disadvantage.

@@ -98,3 +98,5 @@ Reaction/&UseDefensiveDuelistReactTitle=Défendre
 Reaction/&UseDefensiveDuelistTitle=Duelliste défensif
 Tooltip/&CleavingAttackConcentration=Désactivez le Grand Maître d'Armes.
 Tooltip/&PowerAttackConcentration=Désactivez l'attaque puissante.
+Feat/&FeatGreatWeaponMaster2024Title=Maître des armes lourdes
+Feat/&FeatGreatWeaponMaster2024Description=Vous avez appris à manier les armes lourdes avec une efficacité impitoyable :\n• Augmentez votre Force de 1, jusqu'à un maximum de 20.\n• Lorsque vous touchez une créature avec une arme ayant la propriété Lourde dans le cadre de l'action Attaquer pendant votre tour, vous pouvez infliger des dégâts supplémentaires égaux à votre bonus de maîtrise.\n• Immédiatement après avoir obtenu un coup critique avec une arme de mêlée ou réduit une créature à 0 point de vie avec elle, vous pouvez effectuer une attaque avec cette même arme en action bonus.
