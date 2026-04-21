@@ -773,8 +773,17 @@ public static partial class Tabletop2024Context
         }
 
         var family = sourceFeat.HasFamilyTag ? sourceFeat.FamilyTag : canonicalName;
-        var groupTitle = Get2024HalfFeatGroupTitle(null, sourceFeat, sourceFeat.FormatTitle());
-        var baseDescription = Get2024HalfFeatBaseDescription(null, sourceFeat, sourceFeat.FormatDescription());
+        var localizationRootName = abilityOptions.Count == 1
+            ? BuildIndependentTabletopName(canonicalName)
+            : BuildStandaloneHalfFeatGroupName(canonicalName);
+        var groupTitle = Get2024HalfFeatGroupTitle(
+            $"Feat/&{localizationRootName}Title",
+            sourceFeat,
+            sourceFeat.FormatTitle());
+        var baseDescription = Get2024HalfFeatBaseDescription(
+            Get2024HalfFeatBaseDescriptionKey(localizationRootName),
+            sourceFeat,
+            sourceFeat.FormatDescription());
 
         if (abilityOptions.Count == 1)
         {
@@ -4628,6 +4637,7 @@ public static partial class Tabletop2024Context
             var canonicalName = GetCanonicalTabletopFeatName(featName);
 
             if (string.IsNullOrEmpty(canonicalName) || canonicalName == featName ||
+                DedicatedStandaloneHalfFeat2024ByCanonicalName.ContainsKey(canonicalName) ||
                 !ManagedTabletopParentNameByDefinitionName.TryGetValue(featName, out var parentName) ||
                 !TryGetDefinition<FeatDefinition>(parentName, out var parentDefinition))
             {
@@ -4680,39 +4690,6 @@ public static partial class Tabletop2024Context
         featDefinition.GuiPresentation.title =
             Gui.Format("Feat/&GeneralFeat2024VariantTitle", groupTitle, GetAttributeTitle(attribute));
         featDefinition.GuiPresentation.description = BuildHalfFeatDescription(attribute, baseDescription);
-        featDefinition.GuiPresentation.hidden = false;
-
-        if (clearAbilityPrerequisite)
-        {
-            ClearMinimalAbilityPrerequisite(featDefinition);
-        }
-        else if (prerequisiteValue.HasValue)
-        {
-            OverrideMinimalAbilityPrerequisite(featDefinition, attribute, prerequisiteValue.Value);
-        }
-    }
-
-    private static void NormalizeManagedStandaloneHalfFeat(
-        string featName,
-        string attribute,
-        string titleKey,
-        string descriptionKey,
-        string fallbackCanonicalSourceName = null,
-        int? prerequisiteValue = 13,
-        bool clearAbilityPrerequisite = false)
-    {
-        if (!TryGetDefinition<FeatDefinition>(featName, out var featDefinition))
-        {
-            return;
-        }
-
-        TryGetDefinition<FeatDefinition>(fallbackCanonicalSourceName, out var fallbackSourceFeat);
-
-        featDefinition.GuiPresentation.title =
-            Get2024HalfFeatGroupTitle(titleKey, fallbackSourceFeat, featDefinition.GuiPresentation?.Title);
-        featDefinition.GuiPresentation.description = BuildHalfFeatDescription(
-            attribute,
-            Get2024HalfFeatBaseDescription(descriptionKey, fallbackSourceFeat, featDefinition.GuiPresentation?.Description));
         featDefinition.GuiPresentation.hidden = false;
 
         if (clearAbilityPrerequisite)
