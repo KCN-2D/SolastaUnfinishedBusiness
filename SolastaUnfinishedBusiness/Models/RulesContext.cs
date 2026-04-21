@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using I2.Loc;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -32,6 +33,25 @@ namespace SolastaUnfinishedBusiness.Models;
 
 internal static class RulesContext
 {
+    private sealed class AdditionalNameEntry
+    {
+        internal AdditionalNameEntry(string raceName, string gender, string name, string term)
+        {
+            RaceName = raceName;
+            Gender = gender;
+            Name = name;
+            Term = term;
+        }
+
+        internal string RaceName { get; }
+
+        internal string Gender { get; }
+
+        internal string Name { get; }
+
+        internal string Term { get; }
+    }
+
     internal const int GameMaxAttribute = 15;
     internal const int GameBuyPoints = 27;
     internal const int ModMaxAttribute = 17;
@@ -183,37 +203,17 @@ internal static class RulesContext
             .AddToDB();
     }
 
-    private static void AddNameToRace(CharacterRaceDefinition raceDefinition, string gender, string name)
-    {
-        var racePresentation = raceDefinition.RacePresentation;
-
-        switch (gender)
-        {
-            case "Male":
-                racePresentation.MaleNameOptions.Add(name);
-                break;
-
-            case "Female":
-                racePresentation.FemaleNameOptions.Add(name);
-                break;
-
-            case "Sur":
-                racePresentation.SurNameOptions.Add(name);
-                break;
-        }
-    }
-
     private static void AddAdditionalNameToRace(
         CharacterRaceDefinition raceDefinition,
-        string raceName,
         string gender,
-        string name,
-        IDictionary<string, int> additionalNameCounts)
+        string term)
     {
-        var term = BuildAdditionalNameTerm(raceName, gender, name, additionalNameCounts);
+        var options = GetAdditionalNameOptions(raceDefinition, gender);
 
-        EnsureAdditionalNameEnglishFallback(term, name);
-        AddNameToRace(raceDefinition, gender, term);
+        if (!options.Contains(term))
+        {
+            options.Add(term);
+        }
     }
 
     private static string BuildAdditionalNameTerm(
@@ -238,6 +238,19 @@ internal static class RulesContext
         return occurrence == 1 ? $"{baseTerm}Title" : $"{baseTerm}{occurrence}Title";
     }
 
+    private static List<string> GetAdditionalNameOptions(CharacterRaceDefinition raceDefinition, string gender)
+    {
+        var racePresentation = raceDefinition.RacePresentation;
+
+        return gender switch
+        {
+            "Male" => racePresentation.MaleNameOptions,
+            "Female" => racePresentation.FemaleNameOptions,
+            "Sur" => racePresentation.SurNameOptions,
+            _ => throw new ArgumentOutOfRangeException(nameof(gender), gender, null)
+        };
+    }
+
     private static void EnsureAdditionalNameEnglishFallback(string term, string englishText)
     {
         var languageSourceData = LocalizationManager.Sources[0];
@@ -250,26 +263,28 @@ internal static class RulesContext
             return;
         }
 
-        var termData = languageSourceData.AddTerm(term);
-        termData.Languages[englishIndex] = englishText;
+        var termData = languageSourceData.GetTermData(term) ?? languageSourceData.AddTerm(term);
+
+        if (string.IsNullOrWhiteSpace(termData.Languages[englishIndex]))
+        {
+            termData.Languages[englishIndex] = englishText;
+        }
     }
 
-    private static void LoadAdditionalNames()
+    private static List<AdditionalNameEntry> ParseAdditionalNameEntries(string payload)
     {
-        char[] separator = ['\t'];
         var additionalNameCounts = new Dictionary<string, int>();
+        var entries = new List<AdditionalNameEntry>();
+        using var reader = new StringReader(payload);
 
-        if (!SettingsContext.GuiModManagerInstance.UnlockAdditionalLoreFriendlyNames)
+        while (reader.ReadLine() is { } line)
         {
-            return;
-        }
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
 
-        var payload = Resources.Names;
-        var lines = new List<string>(payload.Split([Environment.NewLine], StringSplitOptions.None));
-
-        foreach (var line in lines)
-        {
-            var columns = line.Split(separator, 3);
+            var columns = line.Split(['\t'], 3);
 
             if (columns.Length != 3)
             {
@@ -278,27 +293,57 @@ internal static class RulesContext
                 continue;
             }
 
-            var raceName = columns[0];
-            var gender = columns[1];
-            var name = columns[2];
+            var raceName = columns[0].Trim().TrimStart('\uFEFF');
+            var gender = columns[1].Trim();
+            var name = columns[2].Trim();
 
-            if (DatabaseRepository.GetDatabase<CharacterRaceDefinition>().TryGetElement(raceName, out var race))
+            if (gender is not ("Male" or "Female" or "Sur"))
+            {
+                Main.Error($"additional names cannot load: {line}.");
+
+                continue;
+            }
+
+            var term = BuildAdditionalNameTerm(raceName, gender, name, additionalNameCounts);
+
+            entries.Add(new AdditionalNameEntry(raceName, gender, name, term));
+        }
+
+        return entries;
+    }
+
+    private static void LoadAdditionalNames()
+    {
+        if (!SettingsContext.GuiModManagerInstance.UnlockAdditionalLoreFriendlyNames)
+        {
+            return;
+        }
+
+        var entries = ParseAdditionalNameEntries(Resources.Names);
+        var races = DatabaseRepository.GetDatabase<CharacterRaceDefinition>();
+
+        foreach (var entry in entries)
+        {
+            if (races.TryGetElement(entry.RaceName, out var race))
             {
                 if (race.subRaces.Count == 0)
                 {
-                    AddAdditionalNameToRace(race, raceName, gender, name, additionalNameCounts);
+                    AddAdditionalNameToRace(race, entry.Gender, entry.Term);
                 }
                 else
                 {
                     foreach (var subRace in race.SubRaces)
                     {
-                        AddAdditionalNameToRace(subRace, raceName, gender, name, additionalNameCounts);
+                        AddAdditionalNameToRace(subRace, entry.Gender, entry.Term);
                     }
                 }
+
+                EnsureAdditionalNameEnglishFallback(entry.Term, entry.Name);
             }
             else
             {
-                Main.Error($"additional names cannot load: {line}.");
+                Main.Error(
+                    $"additional names cannot load: {entry.RaceName}\t{entry.Gender}\t{entry.Name}.");
             }
         }
     }
