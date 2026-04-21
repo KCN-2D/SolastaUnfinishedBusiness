@@ -18,4 +18,4 @@ BlueprintCategory/&PartitionsTitle=仕切り
 BlueprintCategory/&RestingTitle=休憩
 BlueprintCategory/&RoadsTitle=道路
 BlueprintCategory/&StructureTitle=構造物
-BlueprintCategory/&TrapsTitle=トラップ
+BlueprintCategory/&TrapsTitle=罠

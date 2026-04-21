@@ -1,4 +1,4 @@
-Power/&DemonicInfluence_Description=敵があなたの悪魔的影響を振り払うまで、その敵を魅了し、あなたのために戦わせます。
+Power/&DemonicInfluence_Description=敵があなたのデーモン的な影響を振り払うまで、その敵を魅了し、あなたのために戦わせます。
 Power/&PowerStoneGolemSlow_Description=ストーンゴーレムは近くの敵を減速させることができます。
 Power/&PowerStoneGolemSlow_Title=減速
 Power/&Vrock_Screech_Description=ヴロックは周囲の敵を朦朧状態にしかねない強烈な叫び声を放ちます。

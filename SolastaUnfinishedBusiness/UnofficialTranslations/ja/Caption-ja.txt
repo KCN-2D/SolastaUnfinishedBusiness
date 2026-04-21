@@ -1,7 +1,7 @@
 Caption/&CampaignMapEndSegmentCaption=このセグメントの終点ノードを選択します。開始ノードとは別でなければなりません。
 Caption/&CampaignMapNewNodePlacementCaption=この新しいキャンペーンマップ・ノードの位置を選択します。
 Caption/&CampaignMapStartSegmentCaption=この新しいセグメントの始点ノードを選択します。
-Caption/&CannotBePlacedOnCharacterCaption=この呪文をキャラクターに直接唱えることはできません。
+Caption/&CannotBePlacedOnCharacterCaption=この呪文はキャラクターに直接発動できません。
 Caption/&EditableGraphNewStatePlacementDialogCaption=この新しいダイアログ状態の位置を選択してください。
 Caption/&EditableGraphNewStatePlacementQuestCaption=この新しいクエスト・ステップの位置を選択してください。
 Caption/&EditorExistingGadgetPlacementCaption=このガジェットの新しい位置を選択してください。
