@@ -1,7 +1,7 @@
-Voice/&Female1Title=
-Voice/&Female2Title=
-Voice/&Male1Title=
-Voice/&Male2Title=
+Voice/&Female1Title=女性1
+Voice/&Female2Title=女性2
+Voice/&Male1Title=男性1
+Voice/&Male2Title=男性2
 Voice/&Voice1Title=ボイス1
 Voice/&Voice2Title=ボイス2
 Voice/&Voice3Title=ボイス3

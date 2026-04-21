@@ -2,4 +2,4 @@ BodyHairStyle/&Hairstyle_A=ピクシーカット
 BodyHairStyle/&Hairstyle_B=ミディアム
 BodyHairStyle/&Hairstyle_C=ショート
 BodyHairStyle/&Hairstyle_D=お団子
-BodyHairStyle/&Hairstyle_E=クラウンブレイド
+BodyHairStyle/&Hairstyle_E=クラウン・ブレイド
