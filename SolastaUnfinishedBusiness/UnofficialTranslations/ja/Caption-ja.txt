@@ -63,7 +63,7 @@ Caption/&TargetArcSubtargetMultipleCaption=<color=#B0B0B0>効果は{1}マス以�
 Caption/&TargetArcSubtargetSingleCaption=<color=#B0B0B0>効果は{1}マス以内の追加サブターゲット{0}体へ跳びます。</color>
 Caption/&TargetAwakenDescription=この眠っているキャラクターを目覚めさせます。
 Caption/&TargetFilteringAllyCreature=味方クリーチャー
-Caption/&TargetFilteringCreature=生き物
+Caption/&TargetFilteringCreature=クリーチャー
 Caption/&TargetFilteringEffectProxy=魔法の効果
 Caption/&TargetFilteringEnemyCreature=敵のクリーチャー
 Caption/&TargetFilteringGadget=物体

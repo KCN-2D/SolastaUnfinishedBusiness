@@ -16,7 +16,7 @@ Validator/&ParameterMonsterQuantityTitle=数量
 Validator/&ParameterMonsterTitle=モンスター
 Validator/&ParameterMonsterorNPCTitle=モンスターまたはNPC
 Validator/&ParameterRestTypeDescription=期待される休憩の種類です
-Validator/&ParameterRestTypeTitle=小休憩=0 大休憩=1
+Validator/&ParameterRestTypeTitle=小休憩=0大休憩=1
 Validator/&ParameterSpellNameDescription=指定する呪文の正確な内部名です（英語・大文字固定）
 Validator/&ParameterSpellNameTitle=呪文名
 Validator/&ParameterVariableDescription=テストする変数
