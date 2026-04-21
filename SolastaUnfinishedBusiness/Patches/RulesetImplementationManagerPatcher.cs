@@ -214,7 +214,7 @@ public static class RulesetImplementationManagerPatcher
                 ((2 * totalDamage) + damageForm.BonusDamage - damageRollReduction + additionalDamage));
         }
 
-        private static int RollDamage(
+        private static int RollDamageValue(
             RulesetActor rulesetActor,
             DamageForm damageForm,
             int addDice,
@@ -284,6 +284,98 @@ public static class RulesetImplementationManagerPatcher
                         damageForm, addDice, true, additionalDamage, damageRollReduction, damageMultiplier,
                         maximumDamage, useVersatileDamage, attackModeDamage, rolledValues, canRerollDice)
                 };
+            }
+
+            return damage;
+        }
+
+        private static int RollDamage(
+            RulesetActor rulesetActor,
+            DamageForm damageForm,
+            int addDice,
+            bool criticalSuccess,
+            int additionalDamage,
+            int damageRollReduction,
+            float damageMultiplier,
+            bool maximumDamage,
+            bool useVersatileDamage,
+            bool attackModeDamage,
+            List<int> rolledValues,
+            bool canRerollDice,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams)
+        {
+            var rulesetCharacter = rulesetActor as RulesetCharacter;
+            int damage;
+
+            if (rulesetCharacter != null &&
+                Tabletop2024Context.CanApplySavageAttacker2024(rulesetCharacter, attackModeDamage))
+            {
+                var originalBonusDamage = damageForm.bonusDamage;
+                var firstRolledValues = new List<int>();
+                var secondRolledValues = new List<int>();
+                var firstDamage = RollDamageValue(
+                    rulesetActor,
+                    damageForm,
+                    addDice,
+                    criticalSuccess,
+                    additionalDamage,
+                    damageRollReduction,
+                    damageMultiplier,
+                    maximumDamage,
+                    useVersatileDamage,
+                    attackModeDamage,
+                    firstRolledValues,
+                    canRerollDice,
+                    formsParams);
+
+                damageForm.bonusDamage = originalBonusDamage;
+
+                var secondDamage = RollDamageValue(
+                    rulesetActor,
+                    damageForm,
+                    addDice,
+                    criticalSuccess,
+                    additionalDamage,
+                    damageRollReduction,
+                    damageMultiplier,
+                    maximumDamage,
+                    useVersatileDamage,
+                    attackModeDamage,
+                    secondRolledValues,
+                    canRerollDice,
+                    formsParams);
+
+                damageForm.bonusDamage = originalBonusDamage;
+                Tabletop2024Context.MarkSavageAttacker2024Used(rulesetCharacter);
+                rolledValues.Clear();
+
+                if (secondDamage > firstDamage)
+                {
+                    damage = secondDamage;
+                    rolledValues.AddRange(secondRolledValues);
+                }
+                else
+                {
+                    damage = firstDamage;
+                    rolledValues.AddRange(firstRolledValues);
+                }
+            }
+            else
+            {
+                damage = RollDamageValue(
+                    rulesetActor,
+                    damageForm,
+                    addDice,
+                    criticalSuccess,
+                    additionalDamage,
+                    damageRollReduction,
+                    damageMultiplier,
+                    maximumDamage,
+                    useVersatileDamage,
+                    attackModeDamage,
+                    rolledValues,
+                    canRerollDice,
+                    formsParams);
             }
 
             //BUGFIX: don't allow damage roll reduction to spam across many damage forms

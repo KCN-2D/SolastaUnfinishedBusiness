@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
@@ -37,6 +39,12 @@ public static partial class Tabletop2024Context
     private const string Charger2024Family = "Charger2024";
     private const string DualWielder2024Family = "DualWielder2024";
     private const string ElementalAdept2024Family = "ElementalAdept2024";
+    private const string Alert2024FeatName = "FeatAlert2024";
+    private const string Healer2024FeatName = "FeatHealer2024";
+    private const string Lucky2024FeatName = "FeatLucky2024";
+    private const string Lucky2024PoolPowerName = "PowerFeatLucky2024Pool";
+    private const string SavageAttacker2024FeatName = "FeatSavageAttack2024";
+    internal const string SavageAttacker2024SpecialFeatureName = "SavageAttacker2024";
     private const string FeyTeleport2024Family = "FeyTeleport";
     private const string FeyTouched2024Family = "FeyTouched2024";
     private const string FeyTouched2024ChoiceTag = "FeyTouched2024Choice";
@@ -83,6 +91,7 @@ public static partial class Tabletop2024Context
     private static readonly List<TabletopFeat2024Profile> TabletopFeat2024Profiles = [];
     private static readonly Dictionary<string, bool> OriginalFeatHiddenStateByName = [];
     private static readonly Dictionary<string, FeatDefinition> IndependentTabletopFeatByCanonicalName = [];
+    private static readonly Dictionary<string, FeatDefinition> DedicatedStandaloneHalfFeat2024ByCanonicalName = [];
     private static readonly Dictionary<string, string> CanonicalTabletopFeatNameByDefinitionName = [];
     private static readonly Dictionary<string, TabletopFeatCatalogKind> ManagedTabletopFeatKinds = [];
     private static readonly Dictionary<string, string> ManagedTabletopParentNameByDefinitionName = [];
@@ -110,6 +119,89 @@ public static partial class Tabletop2024Context
                 Level = level
             })
             .ToList();
+    private static readonly HashSet<string> Dedicated2024StandaloneOverrideCanonicalNames =
+    [
+        "FeatAlert",
+        "FeatHealer",
+        "FeatLucky",
+        "FeatSavageAttack",
+        "FeatEldritchAdept",
+        "FeatMetamagicAdept",
+        "FeatTacticianAdept",
+        "FeatSpearMastery",
+        "FeatGiftOfTheChromaticDragon",
+        "FeatWoodElfMagic",
+        "FeatDarkElfMagic",
+        "FeatBountifulLuck",
+        "FeatBladeMastery",
+        "FeatDragonWings",
+        "FeatDungeonDelver",
+        "FeatFellHanded"
+    ];
+    private static readonly Dictionary<string, (string Attribute, string Suffix)[]>
+        Standalone2024HalfFeatAbilityOptionsByCanonicalName =
+            new()
+            {
+                ["FeatEldritchAdept"] =
+                [
+                    (AttributeDefinitions.Intelligence, "Int"),
+                    (AttributeDefinitions.Wisdom, "Wis"),
+                    (AttributeDefinitions.Charisma, "Cha")
+                ],
+                ["FeatMetamagicAdept"] =
+                [
+                    (AttributeDefinitions.Intelligence, "Int"),
+                    (AttributeDefinitions.Wisdom, "Wis"),
+                    (AttributeDefinitions.Charisma, "Cha")
+                ],
+                ["FeatTacticianAdept"] =
+                [
+                    (AttributeDefinitions.Strength, "Str"),
+                    (AttributeDefinitions.Dexterity, "Dex")
+                ],
+                ["FeatSpearMastery"] =
+                [
+                    (AttributeDefinitions.Strength, "Str"),
+                    (AttributeDefinitions.Dexterity, "Dex")
+                ],
+                ["FeatGiftOfTheChromaticDragon"] =
+                [
+                    (AttributeDefinitions.Strength, "Str"),
+                    (AttributeDefinitions.Constitution, "Con"),
+                    (AttributeDefinitions.Charisma, "Cha")
+                ],
+                ["FeatWoodElfMagic"] =
+                [
+                    (AttributeDefinitions.Wisdom, "Wis")
+                ],
+                ["FeatDarkElfMagic"] =
+                [
+                    (AttributeDefinitions.Charisma, "Cha")
+                ],
+                ["FeatBountifulLuck"] =
+                [
+                    (AttributeDefinitions.Charisma, "Cha")
+                ],
+                ["FeatBladeMastery"] =
+                [
+                    (AttributeDefinitions.Strength, "Str"),
+                    (AttributeDefinitions.Dexterity, "Dex")
+                ],
+                ["FeatDragonWings"] =
+                [
+                    (AttributeDefinitions.Constitution, "Con"),
+                    (AttributeDefinitions.Charisma, "Cha")
+                ],
+                ["FeatDungeonDelver"] =
+                [
+                    (AttributeDefinitions.Dexterity, "Dex"),
+                    (AttributeDefinitions.Wisdom, "Wis")
+                ],
+                ["FeatFellHanded"] =
+                [
+                    (AttributeDefinitions.Strength, "Str")
+                ]
+            };
     private static HashSet<string> LegacyFeatGroupEnabledSnapshot = [];
     private static bool HasLegacyFeatGroupEnabledSnapshot;
     private static bool LastAppliedTabletopFeatRules2024State;
@@ -142,6 +234,7 @@ public static partial class Tabletop2024Context
     private static readonly HashSet<string> ExplicitManagedLegacyRootNames =
     [
         "Ambidextrous",
+        "FeatAlert",
         "FeatCharger",
         "FeatCleavingAttack",
         "FeatDeadeye",
@@ -157,13 +250,16 @@ public static partial class Tabletop2024Context
         "FeatGroupTouchedMagic",
         "FeatHeavyArmorMaster",
         "FeatGrapplerStr",
+        "FeatHealer",
         "FeatInspiringLeader",
+        "FeatLucky",
         "FeatMageSlayer",
         "FeatMediumArmorMaster",
         "FeatMobile",
         "FeatPoisoner",
         "FeatPolearmExpert",
         "FeatRangedExpert",
+        "FeatSavageAttack",
         "FeatSentinel",
         "FeatShieldTechniques",
         OtherFeats.FeatWarCaster,
@@ -248,15 +344,18 @@ public static partial class Tabletop2024Context
         "FeatEldritchVersatilityAdept",
         "FeatInfusionsAdept",
         "FeatMonkInitiate",
-        "FeatSkilled",
-        "FeatTacticianAdept"
+        "FeatSkilled"
     ];
 
     private static bool _tabletopFeats2024Loaded;
+    private static FeatDefinition _featAlert2024;
     private static FeatDefinition _featGreatWeaponMaster2024;
     private static FeatDefinition _featCrossbowExpert2024;
     private static FeatDefinition _featSharpshooter2024;
     private static FeatDefinition _featDefensiveDuelist2024;
+    private static FeatDefinition _featHealer2024;
+    private static FeatDefinition _featLucky2024;
+    private static FeatDefinition _featSavageAttack2024;
     private static FeatDefinition _featGrappler2024Dex;
     private static FeatDefinition _featGrappler2024Str;
     private static FeatDefinition _featGroupCharger2024;
@@ -296,6 +395,7 @@ public static partial class Tabletop2024Context
 
         try
         {
+            BuildOriginFeats2024();
             BuildSpeedy();
             BuildGreatWeaponMaster2024();
             BuildSharpshooter2024();
@@ -323,6 +423,7 @@ public static partial class Tabletop2024Context
             BuildFeyTouched2024();
             BuildShadowTouched2024();
             BuildSpellSniper2024();
+            BuildStandaloneHalfAsi2024Feats();
             MigrateRenamedManagedTabletopFeatSettingNames();
             LoadIndependentTabletopFeatCatalog();
             LoadTabletopFeat2024Profiles();
@@ -478,6 +579,254 @@ public static partial class Tabletop2024Context
         Main.Settings.DisableLevelPrerequisitesOnModFeats = state.disableLevel;
         Main.Settings.DisableRacePrerequisitesOnModFeats = state.disableRace;
         Main.Settings.DisableCastSpellPreRequisitesOnModFeats = state.disableCastSpell;
+    }
+
+    private static void BuildOriginFeats2024()
+    {
+        _featAlert2024 = BuildAlert2024();
+        _featHealer2024 = BuildHealer2024();
+        _featLucky2024 = BuildLucky2024();
+        _featSavageAttack2024 = BuildSavageAttack2024();
+
+        foreach (var feat in new[] { _featAlert2024, _featHealer2024, _featLucky2024, _featSavageAttack2024 }
+                     .Where(feat => feat != null))
+        {
+            SetFeatVisibility(feat, false);
+            RegisterManagedTabletopFeats(true, feat);
+        }
+    }
+
+    private static FeatDefinition BuildAlert2024()
+    {
+        var initiativeModifier = FeatureDefinitionAttributeModifierBuilder
+            .Create("AttributeModifierFeatAlert2024Initiative")
+            .SetGuiPresentationNoContent(true)
+            .SetModifier(
+                FeatureDefinitionAttributeModifier.AttributeModifierOperation.AddProficiencyBonus,
+                AttributeDefinitions.Initiative)
+            .AddToDB();
+        var surpriseAffinity = FeatureDefinitionConditionAffinityBuilder
+            .Create("ConditionAffinityFeatAlert2024Surprised")
+            .SetGuiPresentationNoContent(true)
+            .SetConditionAffinityType(ConditionAffinityType.Immunity)
+            .SetConditionType(ConditionDefinitions.ConditionSurprised)
+            .AddCustomSubFeatures(new OnCharacterBattleStartedAlert2024())
+            .AddToDB();
+
+        return FeatDefinitionBuilder
+            .Create(Alert2024FeatName)
+            .SetGuiPresentation("Feat/&FeatAlertTitle", "Feat/&FeatAlert2024Description", hidden: false)
+            .SetFeatures(initiativeModifier, surpriseAffinity)
+            .AddToDB();
+    }
+
+    private static FeatDefinition BuildHealer2024()
+    {
+        var conditionBattleMedic = ConditionDefinitionBuilder
+            .Create("ConditionFeatHealer2024BattleMedic")
+            .SetGuiPresentationNoContent(true)
+            .SetSilent(Silent.WhenAddedOrRemoved)
+            .AddCustomSubFeatures(new ModifyDiceRollHitDiceHealer2024BattleMedic())
+            .AddToDB();
+        var powerBattleMedic = FeatureDefinitionPowerBuilder
+            .Create("PowerFeatHealer2024BattleMedic")
+            .SetGuiPresentation(
+                "Feature/&PowerFeatHealer2024BattleMedicTitle",
+                "Feature/&PowerFeatHealer2024BattleMedicDescription",
+                hidden: false)
+            .SetUsesFixed(ActivationTime.Action)
+            .SetShowCasting(false)
+            .SetEffectDescription(
+                EffectDescriptionBuilder
+                    .Create()
+                    .SetTargetingData(Side.Ally, RangeType.Touch, 0, TargetType.IndividualsUnique)
+                    .SetParticleEffectParameters(CureWounds)
+                    .Build())
+            .AddToDB();
+        powerBattleMedic.AddCustomSubFeatures(
+            new FilterTargetingCharacterHealer2024BattleMedic(),
+            new PowerOrSpellFinishedByMeHealer2024BattleMedic(conditionBattleMedic, powerBattleMedic));
+
+        var healingRerolls = FeatureDefinitionDieRollModifierBuilder
+            .Create("DieRollModifierFeatHealer2024HealingRerolls")
+            .SetGuiPresentationNoContent(true)
+            .SetModifiers(RollContext.HealValueRoll, 1, 0, 2, "Feedback/&DivineHeartEmpoweredHealingReroll")
+            .AddToDB();
+
+        return FeatDefinitionBuilder
+            .Create(Healer2024FeatName)
+            .SetGuiPresentation("Feat/&FeatHealerTitle", "Feat/&FeatHealer2024Description", hidden: false)
+            .SetFeatures(powerBattleMedic, healingRerolls)
+            .AddToDB();
+    }
+
+    private static FeatDefinition BuildLucky2024()
+    {
+        var powerPool = FeatureDefinitionPowerBuilder
+            .Create(Lucky2024PoolPowerName)
+            .SetGuiPresentationNoContent(true)
+            .SetUsesProficiencyBonus(ActivationTime.NoCost, RechargeRate.LongRest)
+            .SetShowCasting(false)
+            .AddToDB();
+        powerPool.AddCustomSubFeatures(ModifyPowerVisibility.Hidden);
+
+        var conditionAdvantage = ConditionDefinitionBuilder
+            .Create("ConditionFeatLucky2024Advantage")
+            .SetGuiPresentationNoContent(true)
+            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetSpecialInterruptions(ConditionInterruption.AnyBattleTurnEnd)
+            .AddCustomSubFeatures(new ModifyDiceRollLucky2024Advantage())
+            .AddToDB();
+        var powerAdvantage = FeatureDefinitionPowerSharedPoolBuilder
+            .Create("PowerFeatLucky2024Advantage")
+            .SetGuiPresentation(
+                "Feature/&PowerFeatLucky2024AdvantageTitle",
+                "Feature/&PowerFeatLucky2024AdvantageDescription",
+                hidden: false)
+            .SetShowCasting(false)
+            .SetEffectDescription(
+                EffectDescriptionBuilder
+                    .Create()
+                    .SetDurationData(DurationType.Round, 1, TurnOccurenceType.EndOfTurn)
+                    .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
+                    .SetEffectForms(EffectFormBuilder.ConditionForm(conditionAdvantage, ConditionForm.ConditionOperation.Add))
+                    .Build())
+            .SetSharedPool(ActivationTime.NoCost, powerPool)
+            .AddToDB();
+        var feature = FeatureDefinitionBuilder
+            .Create("FeatureFeatLucky2024")
+            .SetGuiPresentationNoContent(true)
+            .AddCustomSubFeatures(new CustomBehaviorLucky2024(powerPool))
+            .AddToDB();
+
+        return FeatDefinitionBuilder
+            .Create(Lucky2024FeatName)
+            .SetGuiPresentation("Feat/&FeatLuckyTitle", "Feat/&FeatLucky2024Description", hidden: false)
+            .SetFeatures(powerPool, powerAdvantage, feature)
+            .AddToDB();
+    }
+
+    private static FeatDefinition BuildSavageAttack2024()
+    {
+        var feature = FeatureDefinitionBuilder
+            .Create("FeatureFeatSavageAttack2024")
+            .SetGuiPresentationNoContent(true)
+            .AddCustomSubFeatures(new SavageAttacker2024Marker())
+            .AddToDB();
+
+        return FeatDefinitionBuilder
+            .Create(SavageAttacker2024FeatName)
+            .SetGuiPresentation("Feat/&FeatSavageAttackTitle", "Feat/&FeatSavageAttack2024Description", hidden: false)
+            .SetFeatures(feature)
+            .AddToDB();
+    }
+
+    internal static bool CanApplySavageAttacker2024(RulesetCharacter rulesetCharacter, bool attackModeDamage)
+    {
+        return Main.Settings.EnableTabletopFeatRules2024 &&
+               rulesetCharacter != null &&
+               attackModeDamage &&
+               rulesetCharacter.GetSubFeaturesByType<SavageAttacker2024Marker>().Count > 0 &&
+               GameLocationCharacter.GetFromActor(rulesetCharacter)?.OnceInMyTurnIsValid(
+                   SavageAttacker2024SpecialFeatureName) == true;
+    }
+
+    internal static void MarkSavageAttacker2024Used(RulesetCharacter rulesetCharacter)
+    {
+        GameLocationCharacter.GetFromActor(rulesetCharacter)?.UsedSpecialFeatures.TryAdd(
+            SavageAttacker2024SpecialFeatureName,
+            1);
+    }
+
+    private static void BuildStandaloneHalfAsi2024Feats()
+    {
+        DedicatedStandaloneHalfFeat2024ByCanonicalName.Clear();
+
+        foreach (var overrideEntry in Standalone2024HalfFeatAbilityOptionsByCanonicalName)
+        {
+            if (!TryGetDefinition<FeatDefinition>(overrideEntry.Key, out var sourceFeat))
+            {
+                continue;
+            }
+
+            var replacement = BuildStandaloneHalfAsi2024Override(sourceFeat, overrideEntry.Key, overrideEntry.Value);
+
+            if (replacement == null)
+            {
+                continue;
+            }
+
+            DedicatedStandaloneHalfFeat2024ByCanonicalName[overrideEntry.Key] = replacement;
+            SetFeatVisibility(replacement, false);
+            RegisterManagedTabletopFeats(true, replacement);
+        }
+    }
+
+    private static FeatDefinition BuildStandaloneHalfAsi2024Override(
+        FeatDefinition sourceFeat,
+        string canonicalName,
+        IReadOnlyList<(string Attribute, string Suffix)> abilityOptions)
+    {
+        if (sourceFeat == null || abilityOptions == null || abilityOptions.Count == 0)
+        {
+            return null;
+        }
+
+        var family = sourceFeat.HasFamilyTag ? sourceFeat.FamilyTag : canonicalName;
+        var groupTitle = Get2024HalfFeatGroupTitle(null, sourceFeat, sourceFeat.FormatTitle());
+        var baseDescription = Get2024HalfFeatBaseDescription(null, sourceFeat, sourceFeat.FormatDescription());
+
+        if (abilityOptions.Count == 1)
+        {
+            var abilityOption = abilityOptions[0];
+
+            return Build2024SingleHalfFeat(
+                sourceFeat,
+                BuildIndependentTabletopName(canonicalName),
+                GetHalfFeatAttributeModifier(abilityOption.Attribute),
+                family,
+                abilityOption.Attribute,
+                groupTitle,
+                baseDescription,
+                prerequisiteValue: null);
+        }
+
+        var feats = abilityOptions
+            .Select(abilityOption => Build2024SingleHalfFeat(
+                sourceFeat,
+                BuildStandaloneHalfFeatVariantName(canonicalName, abilityOption.Suffix),
+                GetHalfFeatAttributeModifier(abilityOption.Attribute),
+                family,
+                abilityOption.Attribute,
+                Gui.Format("Feat/&GeneralFeat2024VariantTitle", groupTitle, GetAttributeTitle(abilityOption.Attribute)),
+                baseDescription,
+                hideFromFeats: true,
+                prerequisiteValue: null))
+            .Where(feat => feat != null)
+            .ToArray();
+
+        return feats.Length == 0
+            ? null
+            : BuildManagedGroup(
+                BuildStandaloneHalfFeatGroupName(canonicalName),
+                family,
+                groupTitle,
+                baseDescription,
+                feats);
+    }
+
+    private static string BuildStandaloneHalfFeatGroupName(string canonicalName)
+    {
+        return canonicalName.StartsWith("Feat", StringComparison.Ordinal)
+            ? $"FeatGroup{canonicalName.Substring(4)}2024"
+            : $"FeatGroup{canonicalName}2024";
+    }
+
+    private static string BuildStandaloneHalfFeatVariantName(string canonicalName, string suffix)
+    {
+        return canonicalName.EndsWith("2024", StringComparison.Ordinal)
+            ? $"{canonicalName}{suffix}"
+            : $"{canonicalName}2024{suffix}";
     }
 
     private static void BuildSpeedy()
@@ -2118,6 +2467,10 @@ public static partial class Tabletop2024Context
 
     private static void RegisterExplicitManagedCatalogEntries()
     {
+        RegisterManagedCatalogEntry("FeatAlert", _featAlert2024, true, true);
+        RegisterManagedCatalogEntry("FeatHealer", _featHealer2024, true, true);
+        RegisterManagedCatalogEntry("FeatLucky", _featLucky2024, true, true);
+        RegisterManagedCatalogEntry("FeatSavageAttack", _featSavageAttack2024, true, true);
         RegisterManagedCatalogEntry("FeatMobile", _featGroupSpeedy, true);
         RegisterManagedCatalogEntry(OtherFeats.FeatWarCaster, _featGroupWarCaster2024, true);
         RegisterManagedCatalogEntry("FeatRangedExpert", _featCrossbowExpert2024, true, true);
@@ -2159,12 +2512,36 @@ public static partial class Tabletop2024Context
         RegisterManagedCatalogEntry("FeatGroupSpellSniper", _featGroupSpellSniper2024, true);
         RegisterManagedCatalogEntry(LegacyGreatWeaponMasterFeatName, _featGreatWeaponMaster2024, true, true);
         RegisterManagedCatalogEntry(LegacySharpshooterFeatName, _featSharpshooter2024, true, true);
+
+        foreach (var dedicatedHalfFeat in DedicatedStandaloneHalfFeat2024ByCanonicalName)
+        {
+            RegisterManagedCatalogEntry(
+                dedicatedHalfFeat.Key,
+                dedicatedHalfFeat.Value,
+                selectableRoot: true,
+                standalone: dedicatedHalfFeat.Value.GetFirstSubFeatureOfType<IGroupedFeat>() == null);
+
+            if (dedicatedHalfFeat.Value.GetFirstSubFeatureOfType<IGroupedFeat>() is not { } groupedFeat)
+            {
+                continue;
+            }
+
+            foreach (var childFeat in groupedFeat.GetSubFeats(true))
+            {
+                RegisterManagedCanonicalAlias(dedicatedHalfFeat.Key, childFeat);
+            }
+        }
     }
 
     private static void RegisterExplicitIndependentLegacyRoots()
     {
         foreach (var featName in ExplicitIndependentLegacyStandaloneRootNames)
         {
+            if (Dedicated2024StandaloneOverrideCanonicalNames.Contains(featName))
+            {
+                continue;
+            }
+
             BuildIndependentLegacyRoot(featName, standalone: true);
         }
 
@@ -2458,6 +2835,22 @@ public static partial class Tabletop2024Context
         TabletopFeat2024Profiles.Clear();
         TabletopFeat2024Profiles.AddRange(
         [
+            new TabletopFeat2024Profile(
+                _featAlert2024,
+                [GetDefinition<FeatDefinition>("FeatAlert")],
+                [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupAgilityCombat]),
+            new TabletopFeat2024Profile(
+                _featHealer2024,
+                [GetDefinition<FeatDefinition>("FeatHealer")],
+                [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupSupportCombat]),
+            new TabletopFeat2024Profile(
+                _featLucky2024,
+                [GetDefinition<FeatDefinition>("FeatLucky")],
+                [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupBodyResilience, GroupFeats.FeatGroupSupportCombat]),
+            new TabletopFeat2024Profile(
+                _featSavageAttack2024,
+                [GetDefinition<FeatDefinition>("FeatSavageAttack")],
+                [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupMeleeCombat]),
             new TabletopFeat2024Profile(
                 _featGroupSpeedy,
                 [ForestRunner, featMobile],
@@ -4341,29 +4734,24 @@ public static partial class Tabletop2024Context
             return false;
         }
 
-        if (featDefinition.Features.Contains(AttributeModifierCreed_Of_Einar))
+        foreach (var candidate in new[]
+                 {
+                     AttributeDefinitions.Strength,
+                     AttributeDefinitions.Dexterity,
+                     AttributeDefinitions.Constitution,
+                     AttributeDefinitions.Intelligence,
+                     AttributeDefinitions.Wisdom,
+                     AttributeDefinitions.Charisma
+                 })
         {
-            attribute = AttributeDefinitions.Strength;
-        }
-        else if (featDefinition.Features.Contains(AttributeModifierCreed_Of_Misaye))
-        {
-            attribute = AttributeDefinitions.Dexterity;
-        }
-        else if (featDefinition.Features.Contains(AttributeModifierCreed_Of_Arun))
-        {
-            attribute = AttributeDefinitions.Constitution;
-        }
-        else if (featDefinition.Features.Contains(AttributeModifierCreed_Of_Pakri))
-        {
-            attribute = AttributeDefinitions.Intelligence;
-        }
-        else if (featDefinition.Features.Contains(AttributeModifierCreed_Of_Maraike))
-        {
-            attribute = AttributeDefinitions.Wisdom;
-        }
-        else if (featDefinition.Features.Contains(AttributeModifierCreed_Of_Solasta))
-        {
-            attribute = AttributeDefinitions.Charisma;
+            if (!featDefinition.Features.Contains(GetHalfFeatAttributeModifier(candidate)))
+            {
+                continue;
+            }
+
+            attribute = candidate;
+
+            break;
         }
 
         return attribute != null;
@@ -4428,6 +4816,20 @@ public static partial class Tabletop2024Context
         return string.IsNullOrEmpty(title) || title.Contains("/&")
             ? Gui.Localize($"Attribute/&{attribute}Title")
             : title;
+    }
+
+    private static FeatureDefinitionAttributeModifier GetHalfFeatAttributeModifier(string attribute)
+    {
+        return attribute switch
+        {
+            AttributeDefinitions.Strength => AttributeModifierCreed_Of_Einar,
+            AttributeDefinitions.Dexterity => AttributeModifierCreed_Of_Misaye,
+            AttributeDefinitions.Constitution => AttributeModifierCreed_Of_Arun,
+            AttributeDefinitions.Intelligence => AttributeModifierCreed_Of_Pakri,
+            AttributeDefinitions.Wisdom => AttributeModifierCreed_Of_Maraike,
+            AttributeDefinitions.Charisma => AttributeModifierCreed_Of_Solasta,
+            _ => null
+        };
     }
 
     private static FeatDefinition BuildDedicatedAbilityPrerequisiteHalfFeat(
@@ -5468,6 +5870,272 @@ public static partial class Tabletop2024Context
         {
             return IsMeleeWeaponAttackMode(attackMode);
         }
+    }
+
+    private sealed class OnCharacterBattleStartedAlert2024 : ICharacterBattleStartedListener
+    {
+        public void OnCharacterBattleStarted(GameLocationCharacter locationCharacter, bool surprise)
+        {
+            var rulesetCharacter = locationCharacter?.RulesetCharacter;
+
+            if (!surprise ||
+                rulesetCharacter == null ||
+                !rulesetCharacter.TryGetConditionOfCategoryAndType(
+                    AttributeDefinitions.TagCombat,
+                    ConditionSurprised,
+                    out var activeCondition))
+            {
+                return;
+            }
+
+            rulesetCharacter.RemoveCondition(activeCondition);
+        }
+    }
+
+    private sealed class ModifyDiceRollHitDiceHealer2024BattleMedic : IModifyDiceRollHitDice
+    {
+        private const string ConditionName = "ConditionFeatHealer2024BattleMedic";
+
+        public void BeforeRoll(
+            RulesetCharacterHero __instance,
+            ref DieType die,
+            ref int modifier,
+            ref AdvantageType advantageType,
+            ref bool healKindred,
+            ref bool isBonus)
+        {
+            if (__instance.TryGetConditionOfCategoryAndType(
+                    AttributeDefinitions.TagEffect,
+                    ConditionName,
+                    out var activeCondition))
+            {
+                modifier = activeCondition.amount;
+            }
+        }
+    }
+
+    private sealed class FilterTargetingCharacterHealer2024BattleMedic : IFilterTargetingCharacter
+    {
+        public bool EnforceFullSelection => false;
+
+        public bool IsValid(CursorLocationSelectTarget __instance, GameLocationCharacter target)
+        {
+            return target?.RulesetCharacter?.GetOriginalHero()?.RemainingHitDiceCount() > 0;
+        }
+    }
+
+    private sealed class PowerOrSpellFinishedByMeHealer2024BattleMedic(
+        ConditionDefinition conditionBattleMedic,
+        FeatureDefinitionPower powerBattleMedic) : IPowerOrSpellFinishedByMe
+    {
+        public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
+        {
+            if (action.Countered ||
+                action.ExecutionFailed ||
+                action.ActionParams.TargetCharacters.Count == 0)
+            {
+                yield break;
+            }
+
+            var healer = action.ActingCharacter;
+            var target = action.ActionParams.TargetCharacters[0];
+            var rulesetHealer = healer?.RulesetCharacter;
+            var rulesetTarget = target?.RulesetCharacter?.GetOriginalHero();
+
+            if (rulesetHealer == null ||
+                rulesetTarget == null ||
+                rulesetTarget.RemainingHitDiceCount() == 0)
+            {
+                yield break;
+            }
+
+            var proficiencyBonus = rulesetHealer.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+
+            rulesetTarget.InflictCondition(
+                conditionBattleMedic.Name,
+                DurationType.Round,
+                0,
+                TurnOccurenceType.EndOfTurn,
+                AttributeDefinitions.TagEffect,
+                rulesetHealer.guid,
+                rulesetHealer.CurrentFaction.Name,
+                1,
+                conditionBattleMedic.Name,
+                proficiencyBonus,
+                0,
+                0);
+
+            EffectHelpers.StartVisualEffect(healer, target, CureWounds, EffectHelpers.EffectType.Effect);
+
+            try
+            {
+                rulesetTarget.HitDieRolled += HitDieRolled;
+                rulesetTarget.RollHitDie();
+            }
+            finally
+            {
+                rulesetTarget.HitDieRolled -= HitDieRolled;
+
+                if (rulesetTarget.TryGetConditionOfCategoryAndType(
+                        AttributeDefinitions.TagEffect,
+                        conditionBattleMedic.Name,
+                        out var activeCondition))
+                {
+                    rulesetTarget.RemoveCondition(activeCondition);
+                }
+            }
+
+            yield break;
+
+            void HitDieRolled(
+                RulesetCharacter character,
+                DieType dieType,
+                int value,
+                AdvantageType advantageType,
+                int roll1,
+                int roll2,
+                int modifier,
+                bool isBonus)
+            {
+                const string baseLine = "Feedback/&FeatHealer2024BattleMedicHitDieRolled";
+
+                character.ShowDieRoll(
+                    dieType,
+                    roll1,
+                    roll2,
+                    advantage: advantageType,
+                    title: powerBattleMedic.GuiPresentation.Title);
+
+                character.LogCharacterActivatesAbility(
+                    Gui.NoLocalization,
+                    baseLine,
+                    true,
+                    extra:
+                    [
+                        (ConsoleStyleDuplet.ParameterType.AbilityInfo, Gui.FormatDieTitle(dieType)),
+                        (ConsoleStyleDuplet.ParameterType.Positive, $"{value - modifier}+{modifier}"),
+                        (ConsoleStyleDuplet.ParameterType.Positive, $"{value}")
+                    ]);
+            }
+        }
+    }
+
+    private sealed class ModifyDiceRollLucky2024Advantage : IModifyDiceRoll
+    {
+        private const string ConditionName = "ConditionFeatLucky2024Advantage";
+
+        public void BeforeRoll(
+            RollContext rollContext,
+            RulesetCharacter rulesetCharacter,
+            ref DieType dieType,
+            ref AdvantageType advantageType)
+        {
+            if (!IsValid(rollContext, rulesetCharacter))
+            {
+                return;
+            }
+
+            advantageType = advantageType == AdvantageType.Disadvantage
+                ? AdvantageType.None
+                : AdvantageType.Advantage;
+        }
+
+        public void AfterRoll(
+            DieType dieType,
+            AdvantageType advantageType,
+            RollContext rollContext,
+            RulesetCharacter rulesetCharacter,
+            ref int firstRoll,
+            ref int secondRoll,
+            ref int result)
+        {
+            if (!IsValid(rollContext, rulesetCharacter) ||
+                !rulesetCharacter.TryGetConditionOfCategoryAndType(
+                    AttributeDefinitions.TagEffect,
+                    ConditionName,
+                    out var activeCondition))
+            {
+                return;
+            }
+
+            rulesetCharacter.RemoveCondition(activeCondition);
+        }
+
+        private static bool IsValid(RollContext rollContext, RulesetCharacter rulesetCharacter)
+        {
+            return rollContext is RollContext.AttackRoll or RollContext.AbilityCheck or RollContext.SavingThrow &&
+                   rulesetCharacter != null &&
+                   rulesetCharacter.HasConditionOfCategoryAndType(AttributeDefinitions.TagEffect, ConditionName);
+        }
+    }
+
+    private sealed class CustomBehaviorLucky2024(FeatureDefinitionPower powerPool)
+        : IPhysicalAttackInitiatedOnMe, IMagicEffectAttackInitiatedOnMe
+    {
+        public IEnumerator OnPhysicalAttackInitiatedOnMe(
+            GameLocationBattleManager battleManager,
+            CharacterAction action,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            ActionModifier attackModifier,
+            RulesetAttackMode attackMode)
+        {
+            yield return TryUseLucky2024OnIncomingAttack(attacker, defender, attackModifier, battleManager);
+        }
+
+        public IEnumerator OnMagicEffectAttackInitiatedOnMe(
+            CharacterActionMagicEffect action,
+            RulesetEffect activeEffect,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            ActionModifier attackModifier,
+            bool firstTarget,
+            bool checkMagicalAttackDamage)
+        {
+            yield return TryUseLucky2024OnIncomingAttack(attacker, defender, attackModifier, null);
+        }
+
+        private IEnumerator TryUseLucky2024OnIncomingAttack(
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            ActionModifier attackModifier,
+            GameLocationBattleManager battleManager)
+        {
+            var rulesetDefender = defender?.RulesetCharacter;
+            var usablePower = rulesetDefender == null ? null : PowerProvider.Get(powerPool, rulesetDefender);
+
+            if (attacker == null ||
+                defender == null ||
+                attackModifier == null ||
+                rulesetDefender is not { IsDeadOrDyingOrUnconscious: false } ||
+                !defender.CanReact() ||
+                usablePower == null ||
+                rulesetDefender.GetRemainingUsesOfPower(usablePower) == 0)
+            {
+                yield break;
+            }
+
+            yield return defender.MyReactToSpendPower(
+                usablePower,
+                attacker,
+                "Lucky2024Disadvantage",
+                "UseLucky2024DisadvantageDescription".Formatted(Category.Reaction, attacker.Name),
+                ReactionValidated,
+                battleManager);
+
+            yield break;
+
+            void ReactionValidated()
+            {
+                usablePower.Consume();
+                attackModifier.AttackAdvantageTrends.Add(
+                    new TrendInfo(-1, FeatureSourceType.Power, powerPool.Name, powerPool));
+            }
+        }
+    }
+
+    internal sealed class SavageAttacker2024Marker
+    {
     }
 
     private sealed class CustomBehaviorShieldMaster2024(

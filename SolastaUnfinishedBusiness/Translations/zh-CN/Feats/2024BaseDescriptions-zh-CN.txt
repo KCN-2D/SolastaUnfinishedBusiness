@@ -53,3 +53,13 @@ Feat/&FeatGroupPolearmMaster2024BaseDescription=当你使用长柄武器攻击�
 Feat/&FeatGroupSentinel2024BaseDescription=借机攻击命中时会将目标速度降为0；生物即使采取脱离也会触发你的借机攻击；并且你可以使用反应攻击1格内攻击其他人的生物。
 Feat/&FeatGroupSpellSniper2024BaseDescription=你学会一个需要进行攻击检定的戏法。该戏法从吟游诗人、牧师、德鲁伊、术士、邪术士或法师的法术列表中选择。当你施放一个射程至少10英尺且需要进行攻击检定的法术时，你可以将该法术的射程增加60英尺。你的远程法术攻击无视半身掩护和四分之三掩护。
 Feat/&FeatGroupSlasher2024BaseDescription=每回合一次，当你以造成挥砍伤害的攻击命中一个生物时，你可以将其速度降低10英尺，直到你的下个回合开始。\n当你造成重击时，目标在你的下个回合开始前，所有攻击检定都具有劣势。
+Feat/&FeatAlert2024Description=你获得以下益处：\n• 当你掷先攻时，可以将熟练加值加入其中。\n• 只要你保持清醒，你就不会被突袭。
+Feat/&FeatHealer2024Description=你获得以下益处：\n• 战地医护：作为一个动作，你可以照料一名位于你5英尺内且自愿的生物。若目标能够消耗一个生命骰，它便掷出该生命骰，并恢复等同于掷骰结果加你熟练加值的生命值。\n• 治疗重掷：当你掷骰决定一个法术恢复的生命值时，你可以重掷任何掷出1的骰子，但必须使用新的结果。
+Feature/&PowerFeatHealer2024BattleMedicTitle=战地医护
+Feature/&PowerFeatHealer2024BattleMedicDescription=作为一个动作，你可以照料一名位于你5英尺内且自愿的生物。若目标能够消耗一个生命骰，它便掷出该生命骰，并恢复等同于掷骰结果加你熟练加值的生命值。
+Feedback/&FeatHealer2024BattleMedicHitDieRolled={0}掷出{2}并恢复了{3} = {4}。
+Feat/&FeatLucky2024Description=你拥有等同于熟练加值的幸运点数，并在完成一次长休后恢复所有已消耗的幸运点数。\n你可以消耗1点幸运点，使你在自己回合结束前进行的下一次攻击检定、属性检定或豁免检定获得优势。\n当一个生物对你进行攻击检定时，你可以使用反应并消耗1点幸运点，使该次攻击检定具有劣势。
+Feature/&PowerFeatLucky2024AdvantageTitle=幸运
+Feature/&PowerFeatLucky2024AdvantageDescription=消耗1点幸运点，使你在自己回合结束前进行的下一次攻击检定、属性检定或豁免检定获得优势。
+Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b>正在攻击你。你可以使用反应并消耗1点幸运点，使该次攻击检定具有劣势。
+Feat/&FeatSavageAttack2024Description=每回合一次，当你用武器命中目标时，你可以将该武器的伤害骰掷两次，并使用较高的结果。

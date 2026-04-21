@@ -987,10 +987,15 @@ internal static class OtherFeats
 
     private static bool HasGrapplerFeat(RulesetCharacterHero hero)
     {
+        var allowEquivalent2024 = Main.Settings.EnableTabletopFeatRules2024;
+
         return hero?.TrainedFeats?.Any(feat =>
                    feat == FeatGrappler ||
+                   allowEquivalent2024 &&
                    Tabletop2024Context.AreEquivalentTabletopFeatNames(feat.Name, FeatGrappler.Name)) == true ||
                hero?.FeatProficiencies?.Any(featName =>
+                   featName == FeatGrappler.Name ||
+                   allowEquivalent2024 &&
                    Tabletop2024Context.AreEquivalentTabletopFeatNames(featName, FeatGrappler.Name)) == true;
     }
 
@@ -2323,8 +2328,7 @@ internal static class OtherFeats
                 proficiencyFeatHealerMedicine,
                 powerFeatHealerMedKit,
                 powerFeatHealerResuscitate,
-                powerFeatHealerStabilize,
-                proficiencyFeatHealerMedicine)
+                powerFeatHealerStabilize)
             .AddToDB();
     }
 
