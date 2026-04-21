@@ -148,8 +148,8 @@ Feat/&FeatGroupWeaponMasterTitle=武器の使い手
 Feat/&FeatGroupWeaponMasteryDescription=さまざまな武器で広範な訓練を積み、次の利益を得ます：\n• 筋力または敏捷力を1増加させ、最大20まで高めます。\n• 武器訓練により、選択した1種類の単純武器または軍用武器のマスタリー特性を使用できます。
 Feat/&FeatGroupWeaponMasteryTitle=武器マスタリー
 Feature/&MartialChampionSuperiorCriticalDescription=武器攻撃は、18、19、または20のロールでクリティカル・ヒットとなります。
-Feat/&FeatGroupOriginTitle=背景特技
-Feat/&FeatGroupOriginDescription=2024背景オプションで使われる背景特技です。
+Feat/&FeatGroupOriginTitle=起源特技
+Feat/&FeatGroupOriginDescription=2024背景オプションで使われる起源特技です。
 
 Feat/&FeatGroupSpeedyTitle=俊足
 Feat/&FeatGroupSpeedyDescription=敏捷力または耐久力を1増加させ、最大20まで高めます。\n移動速度が2マス増加します。\n自分のターンに早足アクションを行ったとき、そのターンの残りの間、移動困難な地形は追加の移動を要求しません。\nあなたに対する機会攻撃は不利になります。
