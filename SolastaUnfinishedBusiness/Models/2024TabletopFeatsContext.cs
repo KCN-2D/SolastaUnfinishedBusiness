@@ -337,6 +337,20 @@ public static partial class Tabletop2024Context
         "FeatGroupWeaponMaster",
         "FeatGroupWeaponMastery"
     ];
+    private static readonly HashSet<string> ArchivedUaDefaultOffCanonicalNames =
+    [
+        "FeatAcrobat",
+        "FeatArcanist",
+        "FeatBladeMastery",
+        "FeatDragonWings",
+        "FeatFellHanded",
+        "FeatGroupGrudgeBearer",
+        "FeatGroupOrcishAggression",
+        "FeatMenacing",
+        "FeatSpearMastery",
+        "FeatStealthy",
+        "FeatTheologian"
+    ];
     private static readonly HashSet<string> ExcludedManagedTabletopCanonicalNames =
     [
         "FeatGroupGeneralAdept",
@@ -531,6 +545,7 @@ public static partial class Tabletop2024Context
             }
 
             if (TryGetDefinition<FeatDefinition>(managedRoot.Key, out var legacyDefinition) &&
+                !ShouldSuppressLegacyAutoEnable(managedRoot.Key) &&
                 IsDefinitionEnabledBySettings(legacyDefinition))
             {
                 EnableDefinitionBySettings(feat);
@@ -3880,6 +3895,12 @@ public static partial class Tabletop2024Context
                ExcludedManagedTabletopCanonicalNames.Contains(canonicalName);
     }
 
+    private static bool ShouldSuppressLegacyAutoEnable(string canonicalName)
+    {
+        return !string.IsNullOrEmpty(canonicalName) &&
+               ArchivedUaDefaultOffCanonicalNames.Contains(canonicalName);
+    }
+
     private static bool IsMagicInitiateLeafCanonicalName(string canonicalName)
     {
         return !string.IsNullOrEmpty(canonicalName) &&
@@ -5595,7 +5616,9 @@ public static partial class Tabletop2024Context
                 return;
             }
 
-            if (legacyFeats.Any(IsDefinitionEnabledBySettings))
+            if (!Tabletop2024Context.ShouldSuppressLegacyAutoEnable(
+                    Tabletop2024Context.GetCanonicalTabletopFeatName(replacement.Name)) &&
+                legacyFeats.Any(IsDefinitionEnabledBySettings))
             {
                 EnableDefinitionBySettings(replacement);
             }

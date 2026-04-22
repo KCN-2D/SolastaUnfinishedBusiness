@@ -4,6 +4,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Feats;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -20,13 +21,52 @@ public static class CharacterActionChargePatcher
         public static bool Prefix(ref IEnumerator __result, CharacterActionCharge __instance)
         {
             if (__instance.ActingCharacter.RulesetCharacter.GetOriginalHero() is not { } hero ||
-                (!hero.TrainedFeats.Contains(RaceFeats.FeatOrcishAggressionStr) &&
-                 !hero.TrainedFeats.Contains(RaceFeats.FeatOrcishAggressionCon)))
+                !HasOrcishAggressionFeat(hero))
             {
                 return true;
             }
 
             __result = RaceFeats.CustomBehaviorOrcishAggression.ExecuteImpl(__instance);
+
+            return false;
+        }
+
+        private static bool HasOrcishAggressionFeat(RulesetCharacterHero hero)
+        {
+            if (hero?.TrainedFeats == null)
+            {
+                return false;
+            }
+
+            foreach (var feat in hero.TrainedFeats)
+            {
+                if (feat == null)
+                {
+                    continue;
+                }
+
+                if (feat == RaceFeats.FeatOrcishAggressionStr ||
+                    feat == RaceFeats.FeatOrcishAggressionCon)
+                {
+                    return true;
+                }
+
+                if (RaceFeats.FeatOrcishAggressionStr != null &&
+                    Tabletop2024Context.AreEquivalentTabletopFeatNames(
+                        feat.Name,
+                        RaceFeats.FeatOrcishAggressionStr.Name))
+                {
+                    return true;
+                }
+
+                if (RaceFeats.FeatOrcishAggressionCon != null &&
+                    Tabletop2024Context.AreEquivalentTabletopFeatNames(
+                        feat.Name,
+                        RaceFeats.FeatOrcishAggressionCon.Name))
+                {
+                    return true;
+                }
+            }
 
             return false;
         }
