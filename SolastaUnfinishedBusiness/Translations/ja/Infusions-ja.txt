@@ -1,4 +1,4 @@
-﻿Feature/&AdditionalDamageInfusionMajorElementalDescription=この武器による攻撃は追加で1d4の{0}ダメージを与えます。
+Feature/&AdditionalDamageInfusionMajorElementalDescription=この武器による攻撃は追加で1d4の{0}ダメージを与えます。
 Feature/&AdditionalDamageInfusionMajorElementalTitle=上級元素［{0}］
 Feature/&AdditionalDamageInfusionMinorElementalDescription=ターンに1回、この武器でクリーチャーに命中したとき、追加で1d6の{0}ダメージを与えます。
 Feature/&AdditionalDamageInfusionMinorElementalTitle=下級元素［{0}］
@@ -19,7 +19,7 @@ Feature/&InfusionMinorElementalTitle=下級元素
 Feature/&InfusionRepeatingShotDescription=装填特性を持つ武器に魔具化式を施すと、その特性を無視し、弾薬も消費しなくなります。その武器が魔法でないなら魔法の武器となり、それによる攻撃ロールとダメージ・ロールに+1のボーナスを得ます。この魔具化式は、その武器に施されている〈武器強化〉の魔具化式を置き換えます。
 Feature/&InfusionRepeatingShotTitle=連射武器
 Feature/&InfusionResistantArmorDescription=鎧に魔具化式を施し、元素ダメージ種別1つへの抵抗を与えます。
-Feature/&InfusionResistantArmorTitle=抵抗防具
+Feature/&InfusionResistantArmorTitle=抵抗の鎧
 Feature/&InfusionReturningWeaponDescription=投擲武器に魔具化式を施すと、遠隔攻撃を行った直後にその武器が使用者の手へ戻ります。武器が魔法でなかった場合、それは魔法の武器となり、それによる攻撃ロールとダメージ・ロールに+1のボーナスを得ます。その武器に施されている〈武器強化〉の魔具化式を置き換えます。
 Feature/&InfusionReturningWeaponTitle=戻ってくる武器
 Feature/&InvocationPoolInfusionLearn2Description=新しく習得する魔具化式を2つ選択します。

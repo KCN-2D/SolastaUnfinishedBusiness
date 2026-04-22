@@ -1,4 +1,4 @@
-﻿ModUi/&AccountForAllDiceOnFollowUpStrike=基本武器のすべての追加効果を<color=#D89555>追撃攻撃</color>特技に追加します
+ModUi/&AccountForAllDiceOnFollowUpStrike=基本武器のすべての追加効果を<color=#D89555>追撃攻撃</color>特技に追加します
 ModUi/&AccountForAllDiceOnSavageAttack=基本武器ダメージを追加する特徴に、基本武器ダメージのすべてのダイスを加えます。1個のダイスだけではありません<i><color=#F0DAA0>[猛打、両手武器など]</color></i>
 ModUi/&AddAllToStore=以下をショップに追加します<i><color=#F0DAA0>[これらは他の武器カテゴリで再利用されたゲームレシピです]</color></i>
 ModUi/&AddBleedingToLesserRestoration=<color=#D89555>上級回復術</color>と<color=#D89555>初級回復術</color>で解除される状態に、<color=#D89555>出血</color>を追加します。
@@ -27,7 +27,7 @@ ModUi/&AllowDisplayingOfficialSpells=各リストでゲーム公式呪文を許�
 ModUi/&AllowDungeonsMaxLevel20=最大レベル20のダンジョンを許可する
 ModUi/&AllowFlightSuspend=アイテムや呪文による飛行を一時的に停止できるようにします<i><color=#F0DAA0>[自然の化身や飛行種族には影響せず、高度で有効打がないAIも必要時に着地できます]</color></i>
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=ガジェットや小道具を配置する際のチェックを回避するために、<color=#1E81B0>Ctrl</color>クリックを有効にします
-ModUi/&AllowHasteCasting=速攻により追加アクションの呪文を唱えられるようになります<i><color=#F0DAA0>[1ラウンドあたりアクション呪文は1つに制限されます]</color></i>
+ModUi/&AllowHasteCasting=加速により追加アクションで呪文を発動できるようにします<i><color=#F0DAA0>[1ラウンドあたりアクション呪文は1つに制限されます]</color></i>
 ModUi/&AllowHornsOnAllRaces=すべての種族で角を許可します<i><color=#F0DAA0>[種族、頭部、角の組み合わせによっては見た目が崩れる場合があります]</color></i>
 ModUi/&AllowMoreRealStateOnRestPanel=休憩パネルでよりリアルな状態を許可<i><color=#F0DAA0>[休憩前のパネルでの休憩後のアクションと休憩後のパネルでの回復機能を非表示にする]</color></i>
 ModUi/&AllowStackedMaterialComponent=積み重ねられた材料コンポーネントを許可します<i><color=#F0DAA0>[例：2x500gpダイヤモンドは1000gpダイヤモンドに相当します]</color></i>
@@ -78,7 +78,7 @@ ModUi/&DocsBackgrounds=背景
 ModUi/&DocsClasses=クラス
 ModUi/&DocsFeats=特技
 ModUi/&DocsFightingStyles=戦闘スタイル
-ModUi/&DocsInfusions=注入
+ModUi/&DocsInfusions=魔具化式
 ModUi/&DocsInvocations=妖術
 ModUi/&DocsManeuvers=作戦
 ModUi/&DocsMetamagic=呪文修正
@@ -171,11 +171,11 @@ ModUi/&EnableMonkAbundantKi=2レベルで<color=#D89555>豊富な気</color>を�
 ModUi/&EnableMonkBodyAndMind2024=レベル20で<color=#D89555>肉体と精神</color>を<color=#D89555>即身成道</color>と置き換えます
 ModUi/&EnableMonkDeflectAttacks2024=3、13レベルで、<color=#D89555>矢止め</color>と<color=#D89555>日月語</color>の代わりに、<color=#D89555>攻撃反らし</color>と<color=#D89555>エネルギー反らし</color>を有効にします\n<i><color=#F0DAA0>[3レベルでは殴打、刺突、斬撃。13レベルでは全ダメージ種別]</color></i>
 ModUi/&EnableMonkFightingStyle=レベル2で<color=#D89555>戦闘スタイル</color>の選択を有効にする
-ModUi/&EnableMonkFocus2024=<color=#D89555>連打</color>、<color=#D89555>忍耐強い防御</color>、<color=#D89555>風の足取り</color>を5e 2024版の<i><color=#F0DAA0>[自由に使用、追加効果には気ポイント]</color></i>と入れ替えます
+ModUi/&EnableMonkFocus2024=<color=#D89555>連打</color>、<color=#D89555>護身</color>、<color=#D89555>疾風足</color>を5e 2024版の<i><color=#F0DAA0>[自由に使用、追加効果には気ポイント]</color></i>と入れ替えます
 ModUi/&EnableMonkHandwrapsOnGauntletSlot=<color=#D89555>ハンドラップ</color>と<color=#D89555>ガントレット</color>をガントレットスロットで機能させる
-ModUi/&EnableMonkHeightenedFocus2024=10、15レベルで、<color=#D89555>集中力強化</color>と<color=#D89555>完全集中</color>を、<color=#D89555>病気への完全耐性</color>と<color=#D89555>老い知らずの肉体</color>の代わりに有効にします\n<i><color=#F0DAA0>[<b>連打</b>、<b>護身</b>、<b>疾風足</b>を強化]</color></i>
+ModUi/&EnableMonkHeightenedFocus2024=10、15レベルで、<color=#D89555>集中力強化</color>と<color=#D89555>完全集中</color>を、<color=#D89555>無病身</color>と<color=#D89555>時知らずの肉体</color>の代わりに有効にします\n<i><color=#F0DAA0>[<b>連打</b>、<b>護身</b>、<b>疾風足</b>を強化]</color></i>
 ModUi/&EnableMonkImprovedUnarmoredMovement=<color=#D89555>非装甲移動の強化</color>を有効にすると、落下せずに垂直面に沿って移動できます。
-ModUi/&EnableMonkKatanaSpecialization=カタナに<color=#D89555>武器特化</color>を付与
+ModUi/&EnableMonkKatanaSpecialization=刀に<color=#D89555>武器特化</color>を付与
 ModUi/&EnableMonkMartialArts2024=<color=#D89555>武術</color>を5e 2024版\n<i><color=#F0DAA0>[素手ダイスの進行が改善され、素手打撃ボーナス・アクションの要件がなくなりました]</color></i>と入れ替えます
 ModUi/&EnableMonkSelfRestoration2024=10レベルで<color=#D89555>自己回復</color>を有効にし、7レベルの<color=#D89555>不動心</color>を置き換えます。
 ModUi/&EnableMonkStunningStrike2024=<color=#D89555>朦朧撃</color>を5e 2024版と入れ替えます<i><color=#F0DAA0>[対象がセーヴに成功した場合の追加効果]</color></i>
@@ -218,7 +218,7 @@ ModUi/&EnablePullPushOnVerticalDirection=プッシュとプルのモーション
 ModUi/&EnableRangerDeftExplorer2024=2レベルで<color=#D89555>巧みな探検家</color>を有効にする<i><color=#F0DAA0>[レンジャー技能の習熟強化を1つ取得し、言語を2つ習得します]</color></i>
 ModUi/&EnableRangerExpertise2024=9レベルで<color=#D89555>習熟強化</color>を有効にする<i><color=#F0DAA0>[レンジャー技能の習熟強化を2つ取得]</color></i>
 ModUi/&EnableRangerFavoredEnemy2024=<color=#D89555>得意な敵</color>と<color=#D89555>得意な地形</color>を<color=#D89555>得意な敵</color> 5e 2024版と入れ替えます
-ModUi/&EnableRangerFeralSenses2024=<color=#D89555>野生の感覚</color>を5e 2024版と入れ替えます<i><color=#F0DAA0>[6マスの盲視を得る]</color></i>
+ModUi/&EnableRangerFeralSenses2024=<color=#D89555>野生の感覚</color>を5e 2024版と入れ替えます<i><color=#F0DAA0>[6マスの擬似視覚を得る]</color></i>
 ModUi/&EnableRangerFoeSlayers2024=<color=#D89555>仇敵殺し</color>を5e 2024版<i><color=#F0DAA0>[狩人の印のダイスをd10に増加]</color></i>へ置き換える
 ModUi/&EnableRangerNatureShroud2024=14レベルで<color=#D89555>自然の覆い</color>を有効にし、<color=#D89555>消え身</color>を置き換えます<i><color=#F0DAA0>[ボーナス・アクションとして、次のターン開始時まで魔法的に不可視状態になる]</color></i>
 ModUi/&EnableRangerPreciseHunter2024=レベル17で<color=#D89555>精密な狩人</color>を有効にする<i><color=#F0DAA0>[狩人の印を受けたクリーチャーへの攻撃に有利]</color></i>
@@ -318,7 +318,7 @@ ModUi/&HighContrastTargetingAoeColor=AoEクリーチャーを変更する<b><col
 ModUi/&HighContrastTargetingSingleColor=単一のクリーチャーを変更する<b><color=$$$$$$>選択した色を強調表示</color></b>
 ModUi/&IdentifyAfterRest=小休憩または大休憩中に<color=#D89555>魔法のアイテムを識別する</color>パワーを追加します
 ModUi/&IgnoreHandXbowFreeHandRequirements=<color=#D89555>ハンドクロスボウ</color>を使用するのに自由な手は必要ありません
-ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=幻術呪文は範囲内で<color=#D89555>真実の目</color>を持つ対象に対して自動的に失敗する
+ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=幻術呪文は範囲内で<color=#D89555>超視覚</color>を持つ対象に対して自動的に失敗する
 ModUi/&IncreaseGameTimeBy=ゲーム時間を増やす
 ModUi/&IncreaseMaxAttunedItems=レベル10で最大<color=#D89555>同調アイテム</color>を4個、レベル18で5個に増加
 ModUi/&Invocations=<color=#F0DAA0>召喚</color>

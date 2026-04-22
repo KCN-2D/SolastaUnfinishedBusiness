@@ -1,4 +1,4 @@
-﻿Condition/&ConditionFightingStyleCripplingDescription=速度が2マス低下し、ACが1低下します。
+Condition/&ConditionFightingStyleCripplingDescription=速度が2マス低下し、ACが1低下します。
 Condition/&ConditionFightingStyleCripplingTitle=足止め
 Feature/&PowerFightingStyleTorchbearerDescription=近接対象に火を付けようとします。
 Feature/&PowerFightingStyleTorchbearerTitle=松明使い
@@ -36,8 +36,8 @@ FightingStyle/&RopeItUpDescription=投擲武器で遠距離攻撃を行う場合
 FightingStyle/&RopeItUpTitle=投擲武器マスター
 FightingStyle/&SentinelDescription=あなたは敵のわずかな隙も逃さず突く技を会得しています：\n• 機会攻撃をクリーチャーに命中させると、そのターンの残りの間、そのクリーチャーの移動速度は0になります。\n• クリーチャーは、あなたの間合いから離れる前に離脱アクションを行っていても、あなたに機会攻撃を誘発します。\n• あなたの1マス以内にいるクリーチャーがあなた以外の対象に攻撃を行ったとき、あなたはリアクションを使用して、そのクリーチャーに近接武器攻撃を1回行えます。
 FightingStyle/&SentinelTitle=守護戦士
-FightingStyle/&ShieldExpertDescription=ボーナス・アクションとして、装備している盾で1マス以内のクリーチャーに打撃を加えることができます。この盾は一時的に、あなたが習熟している特殊な即席武器として扱われます。筋力修正値を用いて近接武器攻撃を行い、命中したなら対象は1d4 + 筋力修正値の殴打ダメージを受けます。
-FightingStyle/&ShieldExpertTitle=盾殴り
+FightingStyle/&ShieldExpertDescription=ボーナス・アクションとして、装備している盾で1マス以内のクリーチャーに打撃を加えることができます。この盾は一時的に、あなたが習熟している特殊な即席武器として扱われます。筋力修正値を用いて近接武器攻撃を行い、命中したなら対象は1d4+筋力修正値の殴打ダメージを受けます。
+FightingStyle/&ShieldExpertTitle=盾攻撃
 FightingStyle/&TorchbearerDescription=ボーナス・アクションとして、装備している光源を使い、手の届く敵に火を付けようとできます。対象は敏捷力セーヴィング・スロー（難易度8 + 習熟ボーナス + 敏捷力修正値）に成功する必要があります。失敗すると、1分間、または火が消えるまで、各ターンに1d4の火ダメージを受けます。
 FightingStyle/&TorchbearerTitle=松明使い
 FightingStyle/&ZenArcherDescription=弓を使うときは、直感があなたの手を導きます。判断力が1増加し、最大20になります。これらの武器による攻撃ロールとダメージ・ロールには、敏捷力修正値の代わりに判断力修正値を使用できます。
