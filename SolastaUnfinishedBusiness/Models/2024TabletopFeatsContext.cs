@@ -2869,7 +2869,7 @@ public static partial class Tabletop2024Context
             .SetSpellKnowledge(SpellKnowledge.Selection)
             .SetSpellReadyness(SpellReadyness.AllKnown)
             .SetSlotsRecharge(RechargeRate.LongRest)
-            .SetSlotsPerLevel(Touched2024FixedCastingSlots)
+            .SetSlotsPerLevel(SharedSpellsContext.InitiateCastingSlots)
             .SetKnownSpells(RitualCaster2024SpellCount, FeatureDefinitionCastSpellBuilder.CasterProgression.Flat)
             .SetReplacedSpells(1, 0)
             .SetUniqueLevelSlots(false)
