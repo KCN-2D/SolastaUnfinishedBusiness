@@ -249,7 +249,7 @@ ModUi/&EnableSorcererArcaneApotheosis2024=Включить <color=#D89555>Апо
 ModUi/&EnableSorcererDraconicBloodlineAC2024=Включить версию <color=#D89555>Драконова устойчивость</color> из <color=#D89555>Драконова родословная</color> <i><color=#F0DAA0>[10+DEX+CHA вместо 13+DEX]</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=Включить <color=#D89555>Врождённое чародейство</color> и <color=#D89555>Воплощение чародейства</color> на уровнях 1 и 7 соответственно
 ModUi/&EnableSorcererMagicalGuidance=Включить <color=#D89555>Волшебное указание</color> на уровне 5
-ModUi/&EnableSorcererMetamagic2024=Включить <color=#D89555>Метамагию</color> на уровне 2 вместо 3
+ModUi/&EnableSorcererMetamagic2024=Включить <color=#D89555>Метамагию</color> на 2-м уровне вместо 3-го и давать по два дополнительных варианта на 10-м и 17-м уровнях
 ModUi/&EnableSorcererOrigin2024=Включить <color=#D89555>Происхождение чародея</color> на уровне 3 вместо 1
 ModUi/&EnableSorcererQuickenedAction=Включить действие <color=#D89555>Ускоренное заклинание</color>, позволяющее накладывать заклинание основного действия с применением метамагии Ускоренного заклинания.
 ModUi/&EnableSorcererSorcerousRestoration2024=Включить <color=#D89555>Чародейское восстановление</color> на уровне 5

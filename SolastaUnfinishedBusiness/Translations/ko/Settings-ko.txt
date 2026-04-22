@@ -249,7 +249,7 @@ ModUi/&EnableSorcererArcaneApotheosis2024=레벨 20에서 <color=#D89555>마법�
 ModUi/&EnableSorcererDraconicBloodlineAC2024=<color=#D89555>Draconic Bloodline</color> <i><color=#F0DAA0>[13+DEX 대신 10+DEX+CHA]</color></i>에서 <color=#D89555>Draconic Resilience</color> 2024 버전을 활성화하세요.
 ModUi/&EnableSorcererInnateSorcery2024=레벨 1과 7에서 <color=#D89555>선천적 마법</color>과 <color=#D89555>마법의 화신</color>을 활성화합니다.
 ModUi/&EnableSorcererMagicalGuidance=레벨 5에서 <color=#D89555>마법의 안내</color>를 활성화합니다.
-ModUi/&EnableSorcererMetamagic2024=<color=#D89555>메타매직</color>을 3레벨 대신 2레벨로 활성화합니다.
+ModUi/&EnableSorcererMetamagic2024=<color=#D89555>메타매직</color>을 3레벨 대신 2레벨에 활성화하고, 10레벨과 17레벨에 추가 옵션을 2개씩 부여합니다.
 ModUi/&EnableSorcererOrigin2024=레벨 1 대신 레벨 3에서 <color=#D89555>Origins</color> 활성화
 ModUi/&EnableSorcererQuickenedAction=<color=#D89555>빠른 주문</color> 동작을 활성화하여 빠른 메타매직이 적용된 주요 동작 주문을 시전할 수 있습니다.
 ModUi/&EnableSorcererSorcerousRestoration2024=레벨 5에서 <color=#D89555>마법 회복</color>을 활성화합니다.

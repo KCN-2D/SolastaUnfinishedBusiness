@@ -449,26 +449,7 @@ public static partial class Tabletop2024Context
             toLevel = 3;
         }
 
-        foreach (var featureUnlock in circles
-                     .SelectMany(school => school.FeatureUnlocks
-                         .Where(featureUnlock => featureUnlock.level == fromLevel)))
-        {
-            featureUnlock.level = toLevel;
-        }
-
-        // change spell casting level on Druid itself
-        Druid.FeatureUnlocks
-                .FirstOrDefault(x =>
-                    x.FeatureDefinition == SubclassChoiceDruidCircle)!
-                .level =
-            toLevel;
-
-        foreach (var circle in circles)
-        {
-            circle.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
-        }
-
-        Druid.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+        SwitchSubclassLearningLevel(circles, Druid, SubclassChoiceDruidCircle, fromLevel, toLevel);
     }
 
     private sealed class PowerOrSpellFinishedByMeDruidWildShape : IPowerOrSpellFinishedByMe

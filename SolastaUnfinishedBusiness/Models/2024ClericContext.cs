@@ -401,6 +401,9 @@ public static partial class Tabletop2024Context
             ("DomainTempest", "AdditionalDamageDomainTempestDivineStrike", DamageTypeThunder)
         };
 
+        var fromLevel = Main.Settings.EnableClericBlessedStrikes2024 ? 8 : 7;
+        var toLevel = Main.Settings.EnableClericBlessedStrikes2024 ? 7 : 8;
+
         foreach (var (subclassName, additionalDamageName, damageType) in domains)
         {
             var subclass = GetDefinition<CharacterSubclassDefinition>(subclassName);
@@ -408,8 +411,6 @@ public static partial class Tabletop2024Context
             var featureDamage = !string.IsNullOrEmpty(damageType)
                 ? GetDefinition<FeatureDefinition>($"FeatureClericAdditionalDamageGenericBlessed{damageType}")
                 : null;
-            int fromLevel;
-            int toLevel;
 
             subclass.FeatureUnlocks.RemoveAll(x =>
                 x.FeatureDefinition == additionalDamage ||
@@ -427,28 +428,22 @@ public static partial class Tabletop2024Context
                 {
                     subclass.FeatureUnlocks.AddRange(new FeatureUnlockByLevel(featureDamage, 7));
                 }
-
-                subclass.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
-
-                fromLevel = 8;
-                toLevel = 7;
             }
             else
             {
                 subclass.FeatureUnlocks.Add(new FeatureUnlockByLevel(additionalDamage, 8));
-                subclass.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
-
-                fromLevel = 7;
-                toLevel = 8;
             }
+        }
 
-            foreach (var otherSub in ClericDomains)
-            {
-                var localFromLevel = fromLevel;
-                var localToLevel = toLevel;
+        foreach (var featureUnlock in ClericDomains
+                     .SelectMany(domain => domain.FeatureUnlocks.Where(x => x.Level == fromLevel)))
+        {
+            featureUnlock.level = toLevel;
+        }
 
-                otherSub.FeatureUnlocks.Where(x => x.Level == localFromLevel).Do(x => x.level = localToLevel);
-            }
+        foreach (var domain in ClericDomains)
+        {
+            domain.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
         }
     }
 
@@ -510,13 +505,6 @@ public static partial class Tabletop2024Context
             toLevel = 3;
         }
 
-        foreach (var featureUnlock in ClericDomains
-                     .SelectMany(domain => domain.FeatureUnlocks
-                         .Where(featureUnlock => featureUnlock.level == fromLevel)))
-        {
-            featureUnlock.level = toLevel;
-        }
-
         var level = Main.Settings.EnableClericToLearnDomainAtLevel3 ? 3 : 2;
 
         foreach (var (subClass, feature) in ClericFeaturesGrantedAt2)
@@ -524,17 +512,7 @@ public static partial class Tabletop2024Context
             subClass.FeatureUnlocks.FirstOrDefault(x => x.FeatureDefinition == feature)!.level = level;
         }
 
-        // change spell casting level on Cleric itself
-        Cleric.FeatureUnlocks
-            .FirstOrDefault(x =>
-                x.FeatureDefinition == SubclassChoiceClericDivineDomains)!.level = toLevel;
-
-        foreach (var domain in ClericDomains)
-        {
-            domain.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
-        }
-
-        Cleric.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+        SwitchSubclassLearningLevel(ClericDomains, Cleric, SubclassChoiceClericDivineDomains, fromLevel, toLevel);
     }
 
     internal static void SwitchClericSearUndead()

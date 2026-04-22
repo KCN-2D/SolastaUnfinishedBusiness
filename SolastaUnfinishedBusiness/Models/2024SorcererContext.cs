@@ -102,11 +102,27 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchSorcererMetamagic()
     {
-        var level = Main.Settings.EnableSorcererMetamagic2024 ? 2 : 3;
+        Sorcerer.FeatureUnlocks.RemoveAll(x =>
+            x.FeatureDefinition == PointPoolSorcererMetamagic ||
+            x.FeatureDefinition == PointPoolSorcererAdditionalMetamagic ||
+            x.FeatureDefinition == ActionAffinitySorcererMetamagicToggle);
 
-        Sorcerer.FeatureUnlocks.FirstOrDefault(x => x.FeatureDefinition == PointPoolSorcererMetamagic)!.level = level;
-        Sorcerer.FeatureUnlocks.FirstOrDefault(x => x.FeatureDefinition == ActionAffinitySorcererMetamagicToggle)!
-            .level = level;
+        if (Main.Settings.EnableSorcererMetamagic2024)
+        {
+            Sorcerer.FeatureUnlocks.AddRange(
+                new FeatureUnlockByLevel(PointPoolSorcererMetamagic, 2),
+                new FeatureUnlockByLevel(ActionAffinitySorcererMetamagicToggle, 2),
+                new FeatureUnlockByLevel(PointPoolSorcererMetamagic, 10),
+                new FeatureUnlockByLevel(PointPoolSorcererMetamagic, 17));
+        }
+        else
+        {
+            Sorcerer.FeatureUnlocks.AddRange(
+                new FeatureUnlockByLevel(PointPoolSorcererMetamagic, 3),
+                new FeatureUnlockByLevel(ActionAffinitySorcererMetamagicToggle, 3),
+                new FeatureUnlockByLevel(PointPoolSorcererAdditionalMetamagic, 17));
+        }
+
         Sorcerer.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
     }
 
@@ -123,13 +139,6 @@ public static partial class Tabletop2024Context
         {
             fromLevel = 1;
             toLevel = 3;
-        }
-
-        foreach (var featureUnlock in origins
-                     .SelectMany(school => school.FeatureUnlocks
-                         .Where(featureUnlock => featureUnlock.level == fromLevel)))
-        {
-            featureUnlock.level = toLevel;
         }
 
         // handle level 2 grants
@@ -150,17 +159,7 @@ public static partial class Tabletop2024Context
             subClass.FeatureUnlocks.FirstOrDefault(x => x.FeatureDefinition == feature)!.level = level;
         }
 
-        // change spell casting level on Sorcerer itself
-        Sorcerer.FeatureUnlocks
-            .FirstOrDefault(x =>
-                x.FeatureDefinition == SubclassChoiceSorcerousOrigin)!.level = toLevel;
-
-        foreach (var origin in origins)
-        {
-            origin.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
-        }
-
-        Sorcerer.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+        SwitchSubclassLearningLevel(origins, Sorcerer, SubclassChoiceSorcerousOrigin, fromLevel, toLevel);
     }
 
     internal static bool IsArcaneApotheosisValid(RulesetCharacter rulesetCharacter, RulesetEffect rulesetEffect)

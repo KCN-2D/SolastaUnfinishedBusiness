@@ -189,19 +189,18 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchPaladinRechargeLv20Power()
     {
-        if (Main.Settings.EnablePaladinRechargeLv20Feature)
+        foreach (var (subclass, feature) in SubclassFeatureTuples)
         {
-            foreach (var (subclass, feature) in SubclassFeatureTuples)
+            subclass.FeatureUnlocks.RemoveAll(x =>
+                x.FeatureDefinition == feature.FeatureDefinition &&
+                x.Level == feature.Level);
+
+            if (Main.Settings.EnablePaladinRechargeLv20Feature)
             {
                 subclass.FeatureUnlocks.Add(feature);
             }
-        }
-        else
-        {
-            foreach (var (subclass, feature) in SubclassFeatureTuples)
-            {
-                subclass.FeatureUnlocks.Remove(feature);
-            }
+
+            subclass.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
         }
     }
 
@@ -333,6 +332,8 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchPaladinChannelDivinity()
     {
+        Paladin.FeatureUnlocks.RemoveAll(x => x.FeatureDefinition == AttributeModifierPaladinChannelDivinity11);
+
         if (Main.Settings.EnablePaladinChannelDivinity2024)
         {
             AttributeModifierPaladinChannelDivinity.modifierValue = 2;

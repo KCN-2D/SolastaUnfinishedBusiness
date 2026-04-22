@@ -1,4 +1,6 @@
 ﻿using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
@@ -60,6 +62,33 @@ public static partial class Tabletop2024Context
         .SetGuiPresentation(Category.Feature)
         .AddCustomSubFeatures(new CustomBehaviorHeroicWarrior())
         .AddToDB();
+
+    private static void SwitchSubclassLearningLevel(
+        IEnumerable<CharacterSubclassDefinition> subclasses,
+        CharacterClassDefinition characterClass,
+        FeatureDefinition subclassChoice,
+        int fromLevel,
+        int toLevel)
+    {
+        var subclassList = subclasses.ToList();
+
+        foreach (var featureUnlock in subclassList
+                     .SelectMany(subclass =>
+                         subclass.FeatureUnlocks.Where(featureUnlock => featureUnlock.level == fromLevel)))
+        {
+            featureUnlock.level = toLevel;
+        }
+
+        characterClass.FeatureUnlocks
+            .FirstOrDefault(x => x.FeatureDefinition == subclassChoice)!.level = toLevel;
+
+        foreach (var subclass in subclassList)
+        {
+            subclass.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+        }
+
+        characterClass.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+    }
 
     internal static void LateLoad()
     {

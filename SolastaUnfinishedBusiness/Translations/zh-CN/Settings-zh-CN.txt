@@ -249,7 +249,7 @@ ModUi/&EnableSorcererArcaneApotheosis2024=在 20 级时启用<color=#D89555>奥�
 ModUi/&EnableSorcererDraconicBloodlineAC2024=从<color=#D89555>龙族血统</color>启用2024年版本的<color=#D89555>龙族韧性</color><i><color=#F0DAA0>[10+DEX+CHA而不是13+DEX]</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=在 1 级和 7 级时启用<color=#D89555>天生巫术</color>和<color=#D89555>巫术化身</color>
 ModUi/&EnableSorcererMagicalGuidance=在 5 级时启用<color=#D89555>魔法指引</color>
-ModUi/&EnableSorcererMetamagic2024=在 2 级（而非 3 级）启用 <color=#D89555>超魔法</color>
+ModUi/&EnableSorcererMetamagic2024=在 2 级而非 3 级启用 <color=#D89555>超魔法</color>，并在 10 级和 17 级各额外授予两个选项
 ModUi/&EnableSorcererOrigin2024=在 3 级（而非 1 级）启用 <color=#D89555>术士起源</color>
 ModUi/&EnableSorcererQuickenedAction=启用<color=#D89555>加速法术</color>动作以允许施放应用了加速超魔法的主要动作法术
 ModUi/&EnableSorcererSorcerousRestoration2024=在第 5 级启用<color=#D89555>魔法恢复</color>

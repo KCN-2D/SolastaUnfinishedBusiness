@@ -249,7 +249,7 @@ ModUi/&EnableSorcererArcaneApotheosis2024=Activez <color=#D89555>Apothéose arca
 ModUi/&EnableSorcererDraconicBloodlineAC2024=Activer la version 2024 de la <color=#D89555>Résilience draconique</color> à partir de la <color=#D89555>Lignée draconique</color> <i><color=#F0DAA0>[10+DEX+CHA au lieu de 13+DEX]</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=Activez la <color=#D89555>Sorcellerie innée</color> et la <color=#D89555>Sorcellerie incarnée</color> aux niveaux 1 et 7
 ModUi/&EnableSorcererMagicalGuidance=Activer la <color=#D89555>guidance magique</color> au niveau 5
-ModUi/&EnableSorcererMetamagic2024=Activer <color=#D89555>Metamagic</color> au niveau 2 au lieu de 3
+ModUi/&EnableSorcererMetamagic2024=Activer la <color=#D89555>Métamagie</color> au niveau 2 au lieu de 3 et accorder deux options supplémentaires aux niveaux 10 et 17
 ModUi/&EnableSorcererOrigin2024=Activer <color=#D89555>Origines</color> au niveau 3 au lieu de 1
 ModUi/&EnableSorcererQuickenedAction=Activez l'action <color=#D89555>Sort accéléré</color> pour permettre de lancer le sort d'action principal avec la métamagie accélérée appliquée
 ModUi/&EnableSorcererSorcerousRestoration2024=Activer la <color=#D89555>Restauration magique</color> au niveau 5

@@ -509,7 +509,7 @@ public static partial class Tabletop2024Context
             x.FeatureDefinition == FeatureSetMonkStillnessOfMind);
 
         Monk.FeatureUnlocks.Add(
-            Main.Settings.EnableMonkHeightenedFocus2024
+            Main.Settings.EnableMonkSelfRestoration2024
                 ? new FeatureUnlockByLevel(FeatureMonkSelfRestoration, 10)
                 : new FeatureUnlockByLevel(FeatureSetMonkStillnessOfMind, 7));
 

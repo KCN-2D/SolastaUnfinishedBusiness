@@ -142,13 +142,6 @@ public static partial class Tabletop2024Context
             toLevel = 3;
         }
 
-        foreach (var featureUnlock in patrons
-                     .SelectMany(patron => patron.FeatureUnlocks
-                         .Where(featureUnlock => featureUnlock.level == fromLevel)))
-        {
-            featureUnlock.level = toLevel;
-        }
-
         // put things back if it should not be changed
         if (!Main.Settings.EnableWarlockToLearnPatronAtLevel3)
         {
@@ -157,18 +150,12 @@ public static partial class Tabletop2024Context
                 new FeatureUnlockByLevel(EldritchVersatilityBuilders.UnLearn1Versatility, 3));
         }
 
-        // change spell casting level on Warlock itself
-        Warlock.FeatureUnlocks
-            .FirstOrDefault(x =>
-                x.FeatureDefinition == FeatureDefinitionSubclassChoices.SubclassChoiceWarlockOtherworldlyPatrons)!
-            .level = toLevel;
-
-        foreach (var patron in patrons)
-        {
-            patron.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
-        }
-
-        Warlock.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+        SwitchSubclassLearningLevel(
+            patrons,
+            Warlock,
+            FeatureDefinitionSubclassChoices.SubclassChoiceWarlockOtherworldlyPatrons,
+            fromLevel,
+            toLevel);
     }
 
     internal static void SwitchWarlockInvocationsProgression()
