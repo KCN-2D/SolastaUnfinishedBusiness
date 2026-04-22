@@ -432,3 +432,4 @@ Feedback/&Unlock_Door_With_Key=正しい鍵でドアのロックを解除しま�
 Feedback/&UsedKeyToOpenDoor=鍵で開けた状態
 Feedback/&VulnerableToDamageFormat=脆弱な{0}
 Feedback/&VulnerableToDamageLine={0}は{1}のダメージに対して脆弱で、2倍のダメージを受けます
+Feedback/&FeatDurable2024SpeedyRecoveryHitDieRolled={0}は{2}をロールし、{4}ヒット・ポイントを回復した。

@@ -1436,3 +1436,5 @@ Feature/&WizardSpellcastingTitle=Наложение заклинаний вол�
 Feature/&WizardToolsDescription=Вы обучены писать магические свитки и использовать оборудование для наложения заклятий.
 Feature/&WizardToolsTitle=Магическое изготовление
 Feature/&WizardWeaponProficiencyTitle=Мастерство владения оружием волшебника
+Feature/&PowerFeatDurable2024SpeedyRecoveryTitle=Быстрое восстановление
+Feature/&PowerFeatDurable2024SpeedyRecoveryDescription=Бонусным действием потратьте одну Кость Хитов и восстановите хиты, равные результату броска.

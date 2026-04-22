@@ -434,3 +434,4 @@ Feedback/&Unlock_Door_With_Key=Abriste la puerta con la llave correcta.
 Feedback/&UsedKeyToOpenDoor=Abierto con llave
 Feedback/&VulnerableToDamageFormat=Vulnerables {0}
 Feedback/&VulnerableToDamageLine={0} es vulnerable a {1} daño y recibe el doble de daño
+Feedback/&FeatDurable2024SpeedyRecoveryHitDieRolled={0} sacó {2} y recuperó {4} puntos de golpe.

@@ -321,3 +321,4 @@ Tooltip/&WeaponNotLightWarningDescription=Это тяжёлое оружие н�
 Tooltip/&WeaponNotMonkOrShieldWarningDescription=Это оружие не является оружием монаха или не даёт персонажу использовать бонус от боевых искусств.
 Tooltip/&WeightCapacityMultiplierTitle=Множитель переносимого веса
 Tooltip/&WeightTitle=Вес
+Tooltip/&PreReqAnyAbilityScoreList={0} {1}+

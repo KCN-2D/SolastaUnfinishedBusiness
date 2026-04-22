@@ -434,3 +434,4 @@ Feedback/&Unlock_Door_With_Key=你使用正确的钥匙打开了门。
 Feedback/&UsedKeyToOpenDoor=已用钥匙开启
 Feedback/&VulnerableToDamageFormat=易伤{0}
 Feedback/&VulnerableToDamageLine={0}易受{1}伤害，且承受双倍伤害
+Feedback/&FeatDurable2024SpeedyRecoveryHitDieRolled={0}掷出{2}并恢复了{4}生命值。

@@ -218,3 +218,7 @@ Feat/&FeatHeavilyArmored2024Description=筋力を1増加させ、最大20まで�
 Feat/&FeatGroupResilient2024Title=セーヴ習熟
 Feat/&FeatGroupResilient2024Description=能力値1つを1増加させ、最大20まで高めます。\n選んだ能力値のセーヴィング・スローに習熟します。
 Feat/&FeatGroupResilient2024VariantDescription={0}セーヴィング・スローに習熟します。
+Feat/&FeatGroupObservant2024Title=観察眼
+Feat/&FeatGroupKeenMind2024Title=鋭敏な頭脳
+Feat/&FeatDurable2024Title=耐久力
+Feat/&FeatGroupRitualCaster2024Title=儀式発動者

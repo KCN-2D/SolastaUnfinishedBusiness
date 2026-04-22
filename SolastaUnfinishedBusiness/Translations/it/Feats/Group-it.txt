@@ -233,4 +233,8 @@ Feat/&FeatGroupSpellSniper2024Title=Cecchino di incantesimi
 Feat/&FeatGroupSpellSniper2024Description=Aumenta la tua Intelligenza, Saggezza o Carisma di 1, fino a un massimo di 20.\nImpari un trucchetto che richiede un tiro per colpire. Scegli il trucchetto dalla lista degli incantesimi di bardo, chierico, druido, stregone, warlock o mago. Quando lanci un incantesimo con gittata di almeno 10 piedi e che richiede un tiro per colpire, puoi aumentarne la gittata di 60 piedi. I tuoi attacchi magici a distanza ignorano mezza copertura e copertura per tre quarti.
 Feat/&FeatGroupHeavilyArmored2024Title=Pesantemente corazzato
 Feat/&FeatGroupHeavilyArmored2024Description=Aumenta la tua Forza o Costituzione di 1, fino a un massimo di 20.\nPrerequisito: competenza nelle armature medie.\nOttieni competenza nelle armature pesanti.
+Feat/&FeatGroupObservant2024Title=Osservatore
+Feat/&FeatGroupKeenMind2024Title=Mente acuta
+Feat/&FeatDurable2024Title=Robusto
+Feat/&FeatGroupRitualCaster2024Title=Incantatore rituale
 

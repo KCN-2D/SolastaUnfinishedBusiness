@@ -434,3 +434,4 @@ Feedback/&Unlock_Door_With_Key=Вы открыли дверь подходящи
 Feedback/&UsedKeyToOpenDoor=Открыто ключом
 Feedback/&VulnerableToDamageFormat=Уязвимость: {0}
 Feedback/&VulnerableToDamageLine={0} обладает уязвимостью к урону типа «{1}» и получает удвоенный урон
+Feedback/&FeatDurable2024SpeedyRecoveryHitDieRolled={0} бросил {2} и восстановил {4} хитов.

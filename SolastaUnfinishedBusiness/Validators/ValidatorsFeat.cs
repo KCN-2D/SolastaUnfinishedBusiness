@@ -182,14 +182,16 @@ internal static class ValidatorsFeat
                 return (true, string.Empty);
             }
 
-            var firstAbilityTitle = LocalizeAbilityScoreTitle(filteredAbilityScoreNames[0]);
-            var secondAbilityTitle = LocalizeAbilityScoreTitle(
-                filteredAbilityScoreNames.Length > 1 ? filteredAbilityScoreNames[1] : filteredAbilityScoreNames[0]);
-            var guiFormat = Gui.Format(
-                "Tooltip/&PreReqAnyAbilityScore",
-                firstAbilityTitle,
-                secondAbilityTitle,
-                minValue.ToString());
+            var guiFormat = filteredAbilityScoreNames.Length == 2
+                ? Gui.Format(
+                    "Tooltip/&PreReqAnyAbilityScore",
+                    LocalizeAbilityScoreTitle(filteredAbilityScoreNames[0]),
+                    LocalizeAbilityScoreTitle(filteredAbilityScoreNames[1]),
+                    minValue.ToString())
+                : Gui.Format(
+                    "Tooltip/&PreReqAnyAbilityScoreList",
+                    string.Join(" / ", filteredAbilityScoreNames.Select(LocalizeAbilityScoreTitle)),
+                    minValue.ToString());
             var hasRequiredAbilityScore = filteredAbilityScoreNames.Any(
                 abilityScoreName => hero.TryGetAttributeValue(abilityScoreName) >= minValue);
 

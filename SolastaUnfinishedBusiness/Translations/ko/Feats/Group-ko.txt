@@ -233,4 +233,8 @@ Feat/&FeatGroupSpellSniper2024Title=주문 저격수
 Feat/&FeatGroupSpellSniper2024Description=지능, 지혜 또는 매력을 1 증가시킵니다(최대 20).\n공격 굴림이 필요한 캔트립 하나를 배웁니다. 해당 캔트립은 바드, 성직자, 드루이드, 소서러, 워락 또는 위저드 주문 목록에서 선택합니다. 사거리가 최소 10피트이고 공격 굴림을 요구하는 주문을 시전할 때, 그 주문의 사거리를 60피트 늘릴 수 있습니다. 당신의 원거리 주문 공격은 절반 엄폐와 3/4 엄폐를 무시합니다.
 Feat/&FeatGroupHeavilyArmored2024Title=중무장 숙련
 Feat/&FeatGroupHeavilyArmored2024Description=근력 또는 건강을 1 증가시킵니다(최대 20).\n전제조건: 중형 갑옷 숙련.\n중갑 숙련을 얻습니다.
+Feat/&FeatGroupObservant2024Title=관찰력
+Feat/&FeatGroupKeenMind2024Title=예리한 정신
+Feat/&FeatDurable2024Title=강인함
+Feat/&FeatGroupRitualCaster2024Title=의식 시전자
 

@@ -217,4 +217,8 @@ Feat/&FeatHeavilyArmored2024Description=Increase your Strength by 1, to a maximu
 Feat/&FeatGroupResilient2024Title=Resilient
 Feat/&FeatGroupResilient2024Description=Increase one ability score by 1, to a maximum of 20.\nYou gain proficiency in saving throws using the chosen ability.
 Feat/&FeatGroupResilient2024VariantDescription=You gain proficiency in {0} saving throws.
+Feat/&FeatGroupObservant2024Title=Observant
+Feat/&FeatGroupKeenMind2024Title=Keen Mind
+Feat/&FeatDurable2024Title=Durable
+Feat/&FeatGroupRitualCaster2024Title=Ritual Caster
 

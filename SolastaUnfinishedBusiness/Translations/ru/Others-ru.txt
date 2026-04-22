@@ -660,3 +660,4 @@ UI/&RecipeFilterAmmunition=Боеприпасы
 UI/&RecipeFilterArmor=Броня
 UI/&RecipeFilterUsableDevices=Используемые
 UI/&RecipeFilterWeapons=Оружие
+Tooltip/&PreReqAnyAbilityScoreList={0} {1}+

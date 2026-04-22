@@ -320,3 +320,4 @@ Tooltip/&WeaponNotLightWarningDescription=该武器不是轻型武器，会阻�
 Tooltip/&WeaponNotMonkOrShieldWarningDescription=该武器不是武僧武器或盾牌，会使该角色无法使用武艺加值。
 Tooltip/&WeightCapacityMultiplierTitle=载重能力调整量
 Tooltip/&WeightTitle=重量
+Tooltip/&PreReqAnyAbilityScoreList={0}达到{1}或更高

@@ -233,4 +233,8 @@ Feat/&FeatGroupSpellSniper2024Title=Tireur de sorts
 Feat/&FeatGroupSpellSniper2024Description=Augmentez votre Intelligence, votre Sagesse ou votre Charisme de 1, jusqu'à un maximum de 20.\nVous apprenez un sort mineur qui nécessite un jet d'attaque. Choisissez-le dans la liste de sorts du barde, du clerc, du druide, de l'ensorceleur, du sorcier ou du magicien. Quand vous lancez un sort ayant une portée d'au moins 10 pieds et nécessitant un jet d'attaque, vous pouvez augmenter sa portée de 60 pieds. Vos attaques de sort à distance ignorent le couvert partiel et le couvert aux trois quarts.
 Feat/&FeatGroupHeavilyArmored2024Title=Lourdement armuré
 Feat/&FeatGroupHeavilyArmored2024Description=Augmentez votre Force ou votre Constitution de 1, jusqu'à un maximum de 20.\nPrérequis : maîtrise des armures intermédiaires.\nVous maîtrisez les armures lourdes.
+Feat/&FeatGroupObservant2024Title=Observateur
+Feat/&FeatGroupKeenMind2024Title=Esprit vif
+Feat/&FeatDurable2024Title=Robuste
+Feat/&FeatGroupRitualCaster2024Title=Lanceur rituel
 

@@ -5,3 +5,4 @@ Tag/&MysticArcanumSpellSpecialTagTitle=Arcano Mistico
 Tag/&PactTomeCantripSpecialTagTitle=Trucchetti del patto
 Tag/&PactTomeRitualSpellSpecialTagTitle=Rituali del patto
 Tag/&PactTomeSpellSpecialTagTitle=Incantesimi di patto
+Tag/&RitualCaster2024SpellSpecialTagTitle=Incantesimo dell'Incantatore rituale
