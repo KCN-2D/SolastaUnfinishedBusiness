@@ -190,7 +190,7 @@ Feat/&GeneralFeat2024VariantTitle2={0}［{1}・{2}］
 Feat/&FeatGroupElementalAdept2024Title=元素の達人
 Feat/&FeatGroupElementalAdept2024Description=知力、判断力、または魅力を1増加させ、最大20まで高めます。\n酸、冷気、火、電撃、毒、または雷鳴のいずれかを選びます。あなたが発動する呪文は、選んだダメージ種別への抵抗を無視します。さらに、その種別のダメージを与える呪文のダメージをロールするとき、1を出したダメージ・ダイス1個を再ロールできます。
 Feat/&FeatGroupInspiringLeader2024Title=激励する指揮官
-Feat/&FeatGroupInspiringLeader2024Description=判断力または魅力を1増加させ、最大20まで高めます。\n10分間かけて、自分を含む6マス以内の味方を鼓舞できます。各クリーチャーは、あなたのレベル+魅力修正値に等しい一時的ヒット・ポイントを得ます。
+Feat/&FeatGroupInspiringLeader2024Description=判断力または魅力を1増加させ、最大20まで高めます。\n10分間かけて、自分を含む6マス以内の味方を鼓舞できます。各クリーチャーは、あなたのレベル+この特技で上昇した能力値の修正値に等しい一時的ヒット・ポイントを得ます。
 Feat/&FeatGroupMageSlayer2024Title=魔道士退治
 Feat/&FeatGroupMageSlayer2024Description=筋力または敏捷力を1増加させ、最大20まで高めます。\n呪文に精神集中しているクリーチャーにダメージを与えた場合、そのクリーチャーはそのダメージによる精神集中を維持するためのセーヴィング・スローに不利を受けます。\nあなたが知力、判断力、魅力のセーヴィング・スローに失敗した場合、その失敗を成功に変えることができます。この利益は小休憩または大休憩を終えるまで再使用できません。
 Feat/&FeatGroupMediumArmorMaster2024Title=中装鎧の達人
@@ -218,4 +218,3 @@ Feat/&FeatHeavilyArmored2024Description=筋力を1増加させ、最大20まで�
 Feat/&FeatGroupResilient2024Title=セーヴ習熟
 Feat/&FeatGroupResilient2024Description=能力値1つを1増加させ、最大20まで高めます。\n選んだ能力値のセーヴィング・スローに習熟します。
 Feat/&FeatGroupResilient2024VariantDescription={0}セーヴィング・スローに習熟します。
-

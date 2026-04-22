@@ -1419,7 +1419,9 @@ public static partial class Tabletop2024Context
     {
         var feat = GetDefinition<FeatDefinition>("FeatInspiringLeader");
         var groupTitle = Get2024HalfFeatGroupTitle("Feat/&FeatGroupInspiringLeader2024Title", feat);
-        var baseDescription = Get2024HalfFeatBaseDescription(null, feat);
+        var baseDescription = Get2024HalfFeatBaseDescription(
+            Get2024HalfFeatBaseDescriptionKey("FeatGroupInspiringLeader2024"),
+            fallbackDescription: feat.FormatDescription());
         var legacyPower = GetDefinition<FeatureDefinitionPower>("PowerFeatInspiringLeader");
         var powerWis = FeatureDefinitionPowerBuilder
             .Create(legacyPower, "PowerFeatInspiringLeader2024Wis")
