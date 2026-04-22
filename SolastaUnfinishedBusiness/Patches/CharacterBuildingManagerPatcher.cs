@@ -295,6 +295,63 @@ public static class CharacterBuildingManagerPatcher
                pointPoolStack.ActivePools.TryGetValue(activePoolKey, out pointPool);
     }
 
+    internal static PointPool ResolveFeatGrantedSpellSelectionPointPool(
+        ICharacterBuildingService characterBuildingService,
+        CharacterHeroBuildingData heroBuildingData,
+        HeroDefinitions.PointsPoolType poolType,
+        string tag,
+        FeatureDefinitionCastSpell spellFeature)
+    {
+        var currentPool = characterBuildingService?.GetPointPoolOfTypeAndTag(heroBuildingData, poolType, tag);
+
+        if (!Main.Settings.EnableTabletopFeatRules2024 ||
+            characterBuildingService is not CharacterBuildingManager manager ||
+            heroBuildingData?.HeroCharacter == null ||
+            spellFeature == null ||
+            poolType is not HeroDefinitions.PointsPoolType.Spell and not HeroDefinitions.PointsPoolType.Cantrip)
+        {
+            return currentPool;
+        }
+
+        var spellTag = spellFeature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>();
+
+        if (spellTag == null ||
+            string.IsNullOrEmpty(spellTag.Name) ||
+            !TryResolveFeatGrantedPointPoolTags(
+                manager,
+                heroBuildingData.HeroCharacter,
+                spellTag.Name,
+                out _,
+                out _,
+                out var activePoolTag))
+        {
+            return currentPool;
+        }
+
+        if (TryGetFeatGrantedPointPoolForUpdate(
+                heroBuildingData,
+                poolType,
+                activePoolTag,
+                spellTag.Name,
+                out _,
+                out var featPointPool))
+        {
+            return featPointPool;
+        }
+
+        _ = EnsureFeatGrantedPointPoolsForTrainedFeats(characterBuildingService, heroBuildingData);
+
+        return TryGetFeatGrantedPointPoolForUpdate(
+            heroBuildingData,
+            poolType,
+            activePoolTag,
+            spellTag.Name,
+            out _,
+            out featPointPool)
+            ? featPointPool
+            : currentPool;
+    }
+
     internal static bool SyncFeatGrantedPointPoolsForTrainedFeats(
         ICharacterBuildingService characterBuildingService,
         CharacterHeroBuildingData heroBuildingData)

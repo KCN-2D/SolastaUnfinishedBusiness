@@ -1178,11 +1178,12 @@ public static partial class Tabletop2024Context
 
         return feats.Length == 0
             ? null
-            : BuildManagedGroup(
+            : BuildManagedGroupFromPrerequisiteSource(
                 BuildStandaloneHalfFeatGroupName(canonicalName),
                 family,
                 groupTitle,
                 baseDescription,
+                sourceFeat,
                 feats);
     }
 
@@ -1735,12 +1736,15 @@ public static partial class Tabletop2024Context
         };
         var groupTitle = Gui.Localize("Feat/&FeatGroupElementalAdept2024Title");
         var groupFeats = new List<FeatDefinition>();
+        FeatDefinition prerequisiteSource = null;
 
         foreach (var damageType in damageTypes)
         {
             var feat = GetDefinition<FeatDefinition>($"FeatElementalAdept{damageType}");
             var damageTitle = Gui.Localize($"Rules/&{damageType}Title");
             var baseDescription = Gui.Format("Feat/&FeatElementalAdeptDescription", damageTitle);
+
+            prerequisiteSource ??= feat;
 
             foreach (var (attribute, modifier) in attributes)
             {
@@ -1759,9 +1763,12 @@ public static partial class Tabletop2024Context
             }
         }
 
-        _featGroupElementalAdept2024 = GroupFeats.MakeGroup(
+        _featGroupElementalAdept2024 = BuildManagedGroupFromPrerequisiteSource(
             "FeatGroupElementalAdept2024",
             ElementalAdept2024Family,
+            groupTitle,
+            Gui.Localize("Feat/&FeatGroupElementalAdept2024Description"),
+            prerequisiteSource,
             groupFeats);
         SetFeatVisibility(_featGroupElementalAdept2024, false);
         RegisterManagedTabletopFeats(true, _featGroupElementalAdept2024);
@@ -1948,11 +1955,13 @@ public static partial class Tabletop2024Context
             LightArmorCategory,
             clearAbilityPrerequisite: true);
 
-        _featGroupModeratelyArmored2024 = GroupFeats.MakeGroup(
+        _featGroupModeratelyArmored2024 = BuildManagedGroupFromPrerequisiteSource(
             "FeatGroupModeratelyArmored2024",
             ModeratelyArmored2024Family,
+            groupTitle,
+            baseDescription,
             featModeratelyArmored2024Str,
-            featModeratelyArmored2024Dex);
+            [featModeratelyArmored2024Str, featModeratelyArmored2024Dex]);
         SetFeatVisibility(_featGroupModeratelyArmored2024, false);
         RegisterManagedTabletopFeats(true, _featGroupModeratelyArmored2024);
     }
@@ -1963,33 +1972,39 @@ public static partial class Tabletop2024Context
         var groupTitle = Get2024HalfFeatGroupTitle("Feat/&FeatGroupMediumArmorMaster2024Title", feat);
         var baseDescription = Get2024HalfFeatBaseDescription(null, feat);
 
-        _featGroupMediumArmorMaster2024 = GroupFeats.MakeGroup(
+        var featMediumArmorMaster2024Str = Build2024HalfFeatVariant(
+            feat,
+            "FeatMediumArmorMaster2024Str",
+            AttributeModifierCreed_Of_Einar,
+            MediumArmorMaster2024Family,
+            AttributeDefinitions.Strength,
+            groupTitle,
+            baseDescription,
+            clearAbilityPrerequisite: true);
+        var featMediumArmorMaster2024Dex = Build2024HalfFeatVariant(
+            feat,
+            "FeatMediumArmorMaster2024Dex",
+            AttributeModifierCreed_Of_Misaye,
+            MediumArmorMaster2024Family,
+            AttributeDefinitions.Dexterity,
+            groupTitle,
+            baseDescription,
+            clearAbilityPrerequisite: true);
+
+        _featGroupMediumArmorMaster2024 = BuildManagedGroupFromPrerequisiteSource(
             "FeatGroupMediumArmorMaster2024",
             MediumArmorMaster2024Family,
-            Build2024HalfFeatVariant(
-                feat,
-                "FeatMediumArmorMaster2024Str",
-                AttributeModifierCreed_Of_Einar,
-                MediumArmorMaster2024Family,
-                AttributeDefinitions.Strength,
-                groupTitle,
-                baseDescription,
-                clearAbilityPrerequisite: true),
-            Build2024HalfFeatVariant(
-                feat,
-                "FeatMediumArmorMaster2024Dex",
-                AttributeModifierCreed_Of_Misaye,
-                MediumArmorMaster2024Family,
-                AttributeDefinitions.Dexterity,
-                groupTitle,
-                baseDescription,
-                clearAbilityPrerequisite: true));
+            groupTitle,
+            baseDescription,
+            feat,
+            [featMediumArmorMaster2024Str, featMediumArmorMaster2024Dex]);
         SetFeatVisibility(_featGroupMediumArmorMaster2024, false);
         RegisterManagedTabletopFeats(true, _featGroupMediumArmorMaster2024);
     }
 
     private static void BuildHeavyArmorMaster2024()
     {
+        var feat = GetDefinition<FeatDefinition>("FeatHeavyArmorMaster");
         var groupTitle = Get2024HalfFeatGroupTitle("Feat/&FeatHeavyArmorMasterTitle");
         var groupDescription = Gui.Localize($"Feat/&{HeavyArmorMaster2024GroupFeatName}Description");
         var baseDescription = Get2024HalfFeatBaseDescription(
@@ -2030,11 +2045,12 @@ public static partial class Tabletop2024Context
             HeavyArmorCategory,
             clearAbilityPrerequisite: true);
 
-        _featGroupHeavyArmorMaster2024 = BuildManagedGroup(
+        _featGroupHeavyArmorMaster2024 = BuildManagedGroupFromPrerequisiteSource(
             HeavyArmorMaster2024GroupFeatName,
             HeavyArmorMaster2024Family,
             groupTitle,
             groupDescription,
+            feat,
             [featHeavyArmorMaster2024Str, featHeavyArmorMaster2024Con]);
 
         SetFeatVisibility(_featGroupHeavyArmorMaster2024, false);
@@ -2217,11 +2233,13 @@ public static partial class Tabletop2024Context
             clearAbilityPrerequisite: true,
             hideFromFeats: true);
 
-        _featGroupHeavilyArmored2024 = GroupFeats.MakeGroup(
+        _featGroupHeavilyArmored2024 = BuildManagedGroupFromPrerequisiteSource(
             HeavilyArmored2024GroupFeatName,
             HeavilyArmored2024Family,
+            groupTitle,
+            baseDescription,
             featHeavilyArmored2024Str,
-            featHeavilyArmored2024Con);
+            [featHeavilyArmored2024Str, featHeavilyArmored2024Con]);
         SetFeatVisibility(_featGroupHeavilyArmored2024, false);
         RegisterManagedTabletopFeats(true, _featGroupHeavilyArmored2024);
     }
@@ -2605,7 +2623,6 @@ public static partial class Tabletop2024Context
         string spellTag)
     {
         if (!Main.Settings.EnableTabletopFeatRules2024 ||
-            spellFeature == null ||
             spellListDefinition == null ||
             string.IsNullOrEmpty(spellTag))
         {
@@ -2635,7 +2652,8 @@ public static partial class Tabletop2024Context
                    SpellListFeatRitualCaster2024Name,
                    RitualCaster2024SpellTag,
                    "CastSpellFeatRitualCaster2024",
-                   requireChoiceSuffix: false);
+                   requireChoiceSuffix: false,
+                   allowMissingSpellFeature: true);
     }
 
     private static bool IsDedicatedFeatSpellSelectionList2024(
@@ -2645,13 +2663,16 @@ public static partial class Tabletop2024Context
         string spellListName,
         string choiceTag,
         string castSpellPrefix,
-        bool requireChoiceSuffix)
+        bool requireChoiceSuffix,
+        bool allowMissingSpellFeature = false)
     {
         return spellListDefinition.Name == spellListName &&
                spellTag.EndsWith(choiceTag, StringComparison.Ordinal) &&
-               spellFeature.Name.StartsWith(castSpellPrefix, StringComparison.Ordinal) &&
-               (!requireChoiceSuffix ||
-                spellFeature.Name.EndsWith("Choice", StringComparison.Ordinal));
+               ((spellFeature != null &&
+                 spellFeature.Name.StartsWith(castSpellPrefix, StringComparison.Ordinal) &&
+                 (!requireChoiceSuffix ||
+                  spellFeature.Name.EndsWith("Choice", StringComparison.Ordinal))) ||
+                (allowMissingSpellFeature && spellFeature == null));
     }
 
     internal static void AddTabletop2024FeatAutoPreparedSpells(

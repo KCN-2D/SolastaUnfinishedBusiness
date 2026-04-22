@@ -7,6 +7,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Models;
+using SolastaUnfinishedBusiness.Patches;
 using UnityEngine;
 using UnityEngine.UI;
 using static RuleDefinitions;
@@ -490,11 +491,13 @@ internal static class MulticlassGameUi
     {
         var localHeroCharacter = panel.currentHero;
         var heroBuildingData = localHeroCharacter.GetHeroBuildingData();
-        var pointPool = GetCurrentPool(panel, heroBuildingData);
+        var pointPool = GetCurrentPool(panel, characterBuildingService, heroBuildingData, spellFeature);
+        var effectiveSpellListDefinition = pointPool?.spellListOverride ?? spellListDefinition;
+        var effectiveRitualOnly = ritualOnly || pointPool?.ritualOnly == true;
         var useDedicatedTouchedSpellList =
             Tabletop2024Context.UsesDedicatedTouchedSpellSelectionList2024(
                 spellFeature,
-                spellListDefinition,
+                effectiveSpellListDefinition,
                 spellTag);
 
         group.extraSpellsMap.Clear();
@@ -512,10 +515,11 @@ internal static class MulticlassGameUi
             }
         }
 
-        var allSpells = spellListDefinition.SpellsByLevel[spellListDefinition.HasCantrips ? spellLevel : spellLevel - 1]
+        var allSpells = effectiveSpellListDefinition
+            .SpellsByLevel[effectiveSpellListDefinition.HasCantrips ? spellLevel : spellLevel - 1]
             .Spells
             .Where(spell => restrictedSchools.Count == 0 || restrictedSchools.Contains(spell.SchoolOfMagic))
-            .Where(spell => !ritualOnly || spell.Ritual)
+            .Where(spell => !effectiveRitualOnly || spell.Ritual)
             .ToList();
 
         if (!useDedicatedTouchedSpellList)
@@ -523,7 +527,7 @@ internal static class MulticlassGameUi
             allSpells.AddRange(characterBuildingService
                 .EnumerateKnownAndAcquiredSpells(heroBuildingData, string.Empty)
                 .Where(s => s.SpellLevel == spellLevel && !allSpells.Contains(s))
-                .Where(spell => !ritualOnly || spell.Ritual)
+                .Where(spell => !effectiveRitualOnly || spell.Ritual)
             );
 
             if (!spellTag.Contains(AttributeDefinitions.TagRace)) // this is a patch over original TA code
@@ -533,8 +537,9 @@ internal static class MulticlassGameUi
                 foreach (var spell in from FeatureDefinitionMagicAffinity feature in @group.features
                          where feature.ExtendedSpellList
                          from spell in feature.ExtendedSpellList
-                             .SpellsByLevel[spellListDefinition.HasCantrips ? spellLevel : spellLevel - 1].Spells
-                         where !allSpells.Contains(spell) && (!ritualOnly || spell.Ritual) &&
+                             .SpellsByLevel[effectiveSpellListDefinition.HasCantrips ? spellLevel : spellLevel - 1]
+                             .Spells
+                         where !allSpells.Contains(spell) && (!effectiveRitualOnly || spell.Ritual) &&
                                (restrictedSchools.Count == 0 || restrictedSchools.Contains(spell.SchoolOfMagic))
                          select spell)
                 {
@@ -569,7 +574,7 @@ internal static class MulticlassGameUi
 
                 foreach (var autoPreparedSpell in group.autoPreparedSpells
                              .Where(spell => !allSpells.Contains(spell))
-                             .Where(spell => !ritualOnly || spell.Ritual))
+                             .Where(spell => !effectiveRitualOnly || spell.Ritual))
                 {
                     allSpells.Add(autoPreparedSpell);
                 }
@@ -625,8 +630,11 @@ internal static class MulticlassGameUi
         group.slotStatusTable.Bind(null, spellLevel, false, null, false);
     }
 
-    private static PointPool GetCurrentPool(CharacterStageSpellSelectionPanel panel,
-        CharacterHeroBuildingData heroBuildingData)
+    private static PointPool GetCurrentPool(
+        CharacterStageSpellSelectionPanel panel,
+        ICharacterBuildingService characterBuildingService,
+        CharacterHeroBuildingData heroBuildingData,
+        FeatureDefinitionCastSpell spellFeature)
     {
         var tag = string.Empty;
 
@@ -664,8 +672,12 @@ internal static class MulticlassGameUi
             poolType = panel.GetPoolTypeOfIndex(panel.currentLearnStep);
         }
 
-        return ServiceRepository.GetService<ICharacterBuildingService>()
-            .GetPointPoolOfTypeAndTag(heroBuildingData, poolType, tag);
+        return CharacterBuildingManagerPatcher.ResolveFeatGrantedSpellSelectionPointPool(
+            characterBuildingService,
+            heroBuildingData,
+            poolType,
+            tag,
+            spellFeature);
     }
 
     private static void FilterMulticlassBleeding(
@@ -676,7 +688,7 @@ internal static class MulticlassGameUi
         PointPool pointPool,
         IDictionary<SpellDefinition, string> extraSpellsMap)
     {
-        var spellsOverriden = pointPool.spellListOverride;
+        var spellsOverriden = pointPool?.spellListOverride;
         var spellLevel = __instance.SpellLevel;
 
         // avoids auto prepared spells from other classes to bleed in
