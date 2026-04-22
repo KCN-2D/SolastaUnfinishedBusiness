@@ -244,7 +244,7 @@ ModUi/&EnableSorcererDraconicBloodlineAC2024=<color=#D89555>竜の血脈</color>
 ModUi/&EnableSorcererInnateSorcery2024=レベル1と7で<color=#D89555>生来の魔術</color>と<color=#D89555>魔術の化身</color>を有効にします
 ModUi/&EnableSorcererMagicalGuidance=レベル5で<color=#D89555>魔法の導き</color>を有効にする
 ModUi/&EnableSorcererMetamagic2024=<color=#D89555>呪文修正</color>をレベル3ではなくレベル2で有効にし、レベル10と17で2つずつ追加取得できるようにする
-ModUi/&EnableSorcererOrigin2024=<color=#D89555>オリジン</color>をレベル1ではなくレベル3で有効にする
+ModUi/&EnableSorcererOrigin2024=<color=#D89555>起源</color>をレベル1ではなくレベル3で有効にする
 ModUi/&EnableSorcererQuickenedAction=<color=#D89555>クイック呪文</color>アクションを有効にすると、クイック呪文の呪文修正能力を適用したアクション呪文を発動できるようになります。
 ModUi/&EnableSorcererSorcerousRestoration2024=レベル5で<color=#D89555>魔法による回復</color>を有効にする
 ModUi/&EnableSortingDungeonMakerAssets=ダンジョンメーカーエディタでアセットの並べ替えを有効にする

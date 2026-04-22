@@ -491,6 +491,11 @@ internal static class MulticlassGameUi
         var localHeroCharacter = panel.currentHero;
         var heroBuildingData = localHeroCharacter.GetHeroBuildingData();
         var pointPool = GetCurrentPool(panel, heroBuildingData);
+        var useDedicatedTouchedSpellList =
+            Tabletop2024Context.UsesDedicatedTouchedSpellSelectionList2024(
+                spellFeature,
+                spellListDefinition,
+                spellTag);
 
         group.extraSpellsMap.Clear();
         group.spellsTable.gameObject.SetActive(true);
@@ -513,25 +518,28 @@ internal static class MulticlassGameUi
             .Where(spell => !ritualOnly || spell.Ritual)
             .ToList();
 
-        allSpells.AddRange(characterBuildingService
-            .EnumerateKnownAndAcquiredSpells(heroBuildingData, string.Empty)
-            .Where(s => s.SpellLevel == spellLevel && !allSpells.Contains(s))
-            .Where(spell => !ritualOnly || spell.Ritual)
-        );
-
-        if (!spellTag.Contains(AttributeDefinitions.TagRace)) // this is a patch over original TA code
+        if (!useDedicatedTouchedSpellList)
         {
-            localHeroCharacter.EnumerateFeaturesToBrowse<FeatureDefinitionMagicAffinity>(group.features);
+            allSpells.AddRange(characterBuildingService
+                .EnumerateKnownAndAcquiredSpells(heroBuildingData, string.Empty)
+                .Where(s => s.SpellLevel == spellLevel && !allSpells.Contains(s))
+                .Where(spell => !ritualOnly || spell.Ritual)
+            );
 
-            foreach (var spell in from FeatureDefinitionMagicAffinity feature in @group.features
-                     where feature.ExtendedSpellList
-                     from spell in feature.ExtendedSpellList
-                         .SpellsByLevel[spellListDefinition.HasCantrips ? spellLevel : spellLevel - 1].Spells
-                     where !allSpells.Contains(spell) && (!ritualOnly || spell.Ritual) &&
-                           (restrictedSchools.Count == 0 || restrictedSchools.Contains(spell.SchoolOfMagic))
-                     select spell)
+            if (!spellTag.Contains(AttributeDefinitions.TagRace)) // this is a patch over original TA code
             {
-                allSpells.Add(spell);
+                localHeroCharacter.EnumerateFeaturesToBrowse<FeatureDefinitionMagicAffinity>(group.features);
+
+                foreach (var spell in from FeatureDefinitionMagicAffinity feature in @group.features
+                         where feature.ExtendedSpellList
+                         from spell in feature.ExtendedSpellList
+                             .SpellsByLevel[spellListDefinition.HasCantrips ? spellLevel : spellLevel - 1].Spells
+                         where !allSpells.Contains(spell) && (!ritualOnly || spell.Ritual) &&
+                               (restrictedSchools.Count == 0 || restrictedSchools.Contains(spell.SchoolOfMagic))
+                         select spell)
+                {
+                    allSpells.Add(spell);
+                }
             }
         }
 
@@ -539,7 +547,7 @@ internal static class MulticlassGameUi
 
         group.autoPreparedSpells.Clear();
 
-        if (group.SpellLevel > 0)
+        if (!useDedicatedTouchedSpellList && group.SpellLevel > 0)
         {
             localHeroCharacter
                 .EnumerateFeaturesToBrowse<FeatureDefinitionAutoPreparedSpells>(group.features);
@@ -578,7 +586,8 @@ internal static class MulticlassGameUi
             }
         }
 
-        if (!spellTag.Contains(AttributeDefinitions.TagRace)) // this is a patch over original TA code
+        if (!useDedicatedTouchedSpellList &&
+            !spellTag.Contains(AttributeDefinitions.TagRace)) // this is a patch over original TA code
         {
             CollectAllAutoPreparedSpells(group, localHeroCharacter, allSpells, group.autoPreparedSpells);
 
@@ -586,13 +595,16 @@ internal static class MulticlassGameUi
                 group.extraSpellsMap);
         }
 
-        //Properly tag and not allow to pick spells that are auto-prepared from various features
-        LevelUpHelper.EnumerateExtraSpells(group.extraSpellsMap, localHeroCharacter);
+        if (!useDedicatedTouchedSpellList)
+        {
+            //Properly tag and not allow to pick spells that are auto-prepared from various features
+            LevelUpHelper.EnumerateExtraSpells(group.extraSpellsMap, localHeroCharacter);
 
-        // this is required to support when other caster is whole list
-        var keys = group.extraSpellsMap.Keys.Where(x => !allSpells.Contains(x));
+            // this is required to support when other caster is whole list
+            var keys = group.extraSpellsMap.Keys.Where(x => !allSpells.Contains(x));
 
-        group.autoPreparedSpells.AddRange(keys);
+            group.autoPreparedSpells.AddRange(keys);
+        }
 
         group.CommonBind(null, unlearn ? SpellBox.BindMode.Unlearn : SpellBox.BindMode.Learning, spellBoxChanged,
             allSpells, null, null, group.autoPreparedSpells, unlearnedSpells, tagBySpell,

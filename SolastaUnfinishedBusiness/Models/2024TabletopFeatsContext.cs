@@ -2114,19 +2114,14 @@ public static partial class Tabletop2024Context
     {
         if (TryGetDefinition<SpellListDefinition>(choiceSpellListName, out var choiceSpellList))
         {
-            var spells = SpellsContext.SpellLists.Values
-                .Where(x => x != null)
-                .SelectMany(x => x.SpellsByLevel)
-                .SelectMany(x => x.Spells)
-                .Where(predicate)
-                .Distinct()
-                .OrderBy(x => x.FormatTitle())
-                .ThenBy(x => x.Name, StringComparer.Ordinal)
-                .ToArray();
-
             // CharacterStageSpellSelectionPanel indexes spell lists by HasCantrips.
             // Keep this list cantrip-aware so level 1 spells stored at SpellsByLevel[1] stay visible.
-            UpdateSpellListSpells(choiceSpellList, 1, spells, hasCantrips: true, maxSpellLevel: 1);
+            UpdateSpellListSpells(
+                choiceSpellList,
+                1,
+                CollectTouched2024SelectableSpells(predicate),
+                hasCantrips: true,
+                maxSpellLevel: 1);
         }
 
         if (TryGetDefinition<SpellListDefinition>(fixedSpellListName, out var fixedSpellList))
@@ -2219,6 +2214,49 @@ public static partial class Tabletop2024Context
     {
         return spell is { Implemented: true, GuiPresentation.hidden: false } &&
                !SpellsContext.SpellsChildMaster.ContainsKey(spell);
+    }
+
+    internal static bool UsesDedicatedTouchedSpellSelectionList2024(
+        FeatureDefinitionCastSpell spellFeature,
+        SpellListDefinition spellListDefinition,
+        string spellTag)
+    {
+        if (!Main.Settings.EnableTabletopFeatRules2024 ||
+            spellFeature == null ||
+            spellListDefinition == null ||
+            string.IsNullOrEmpty(spellTag))
+        {
+            return false;
+        }
+
+        return IsDedicatedTouchedSpellSelectionList2024(
+                   spellFeature,
+                   spellListDefinition,
+                   spellTag,
+                   SpellListFeatShadowTouched2024ChoiceName,
+                   ShadowTouched2024ChoiceTag,
+                   "CastSpellFeatShadowTouched2024") ||
+               IsDedicatedTouchedSpellSelectionList2024(
+                   spellFeature,
+                   spellListDefinition,
+                   spellTag,
+                   SpellListFeatFeyTouched2024ChoiceName,
+                   FeyTouched2024ChoiceTag,
+                   "CastSpellFeatFeyTouched2024");
+    }
+
+    private static bool IsDedicatedTouchedSpellSelectionList2024(
+        FeatureDefinitionCastSpell spellFeature,
+        SpellListDefinition spellListDefinition,
+        string spellTag,
+        string spellListName,
+        string choiceTag,
+        string castSpellPrefix)
+    {
+        return spellListDefinition.Name == spellListName &&
+               spellTag.EndsWith(choiceTag, StringComparison.Ordinal) &&
+               spellFeature.Name.StartsWith(castSpellPrefix, StringComparison.Ordinal) &&
+               spellFeature.Name.EndsWith("Choice", StringComparison.Ordinal);
     }
 
     internal static void AddTabletop2024FeatAutoPreparedSpells(
@@ -2555,6 +2593,19 @@ public static partial class Tabletop2024Context
                 RegisterManagedCanonicalAlias(dedicatedHalfFeat.Key, childFeat);
             }
         }
+    }
+
+    private static SpellDefinition[] CollectTouched2024SelectableSpells(Func<SpellDefinition, bool> predicate)
+    {
+        return SpellsContext.SpellLists.Values
+            .Where(x => x != null)
+            .SelectMany(x => x.SpellsByLevel)
+            .SelectMany(x => x.Spells)
+            .Where(predicate)
+            .Distinct()
+            .OrderBy(x => x.FormatTitle())
+            .ThenBy(x => x.Name, StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static void RegisterExplicitIndependentLegacyRoots()
