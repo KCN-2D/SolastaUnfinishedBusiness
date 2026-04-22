@@ -233,8 +233,4 @@ Feat/&FeatGroupSpellSniper2024Title=Atirador de Magias
 Feat/&FeatGroupSpellSniper2024Description=Aumente sua Inteligência, Sabedoria ou Carisma em 1, até um máximo de 20.\nVocê aprende um truque que requer uma jogada de ataque. Escolha o truque da lista de magias de bardo, clérigo, druida, feiticeiro, bruxo ou mago. Quando lançar uma magia com alcance de pelo menos 10 pés e que exija uma jogada de ataque, você pode aumentar o alcance da magia em 60 pés. Seus ataques mágicos à distância ignoram meia cobertura e cobertura de três quartos.
 Feat/&FeatGroupHeavilyArmored2024Title=Pesadamente Armadurado
 Feat/&FeatGroupHeavilyArmored2024Description=Aumente sua Força ou Constituição em 1, até um máximo de 20.\nPré-requisito: proficiência com armaduras médias.\nVocê ganha proficiência com armaduras pesadas.
-Feat/&FeatGroupObservant2024Title=Observador
-Feat/&FeatGroupKeenMind2024Title=Mente aguçada
-Feat/&FeatDurable2024Title=Resistente
-Feat/&FeatGroupRitualCaster2024Title=Conjurador ritual
 

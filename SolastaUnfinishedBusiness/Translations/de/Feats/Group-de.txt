@@ -233,8 +233,4 @@ Feat/&FeatGroupSpellSniper2024Title=Zauberscharfschütze
 Feat/&FeatGroupSpellSniper2024Description=Erhöhen Sie Ihre Intelligenz, Weisheit oder Ihr Charisma um 1, bis zu einem Maximum von 20.\nSie erlernen einen Zaubertrick, der einen Angriffswurf erfordert. Wählen Sie den Zaubertrick aus der Zauberliste des Barden, Klerikers, Druiden, Zauberers, Hexenmeisters oder Magiers. Wenn Sie einen Zauber wirken, der eine Reichweite von mindestens 10 Fuß hat und bei dem Sie einen Angriffswurf machen müssen, können Sie die Reichweite des Zaubers um 60 Fuß erhöhen. Ihre Fernkampf-Zauberangriffe ignorieren halbe Deckung und Dreivierteldeckung.
 Feat/&FeatGroupHeavilyArmored2024Title=Schwer gerüstet
 Feat/&FeatGroupHeavilyArmored2024Description=Erhöhen Sie Ihre Stärke oder Konstitution um 1, bis zu einem Maximum von 20.\nVoraussetzung: Umgang mit mittlerer Rüstung.\nSie erhalten Kenntnis im Umgang mit schwerer Rüstung.
-Feat/&FeatGroupObservant2024Title=Beobachter
-Feat/&FeatGroupKeenMind2024Title=Scharfer Verstand
-Feat/&FeatDurable2024Title=Zäh
-Feat/&FeatGroupRitualCaster2024Title=Ritualwirker
 

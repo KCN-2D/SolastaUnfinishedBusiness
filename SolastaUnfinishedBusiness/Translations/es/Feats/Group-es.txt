@@ -233,8 +233,4 @@ Feat/&FeatGroupSpellSniper2024Title=Francotirador de conjuros
 Feat/&FeatGroupSpellSniper2024Description=Aumenta tu Inteligencia, Sabiduría o Carisma en 1, hasta un máximo de 20.\nAprendes un truco que requiere una tirada de ataque. Elige el truco de la lista de conjuros de bardo, clérigo, druida, hechicero, brujo o mago. Cuando lanzas un conjuro con un alcance de al menos 10 pies y que requiere hacer una tirada de ataque, puedes aumentar el alcance del conjuro en 60 pies. Tus ataques de conjuro a distancia ignoran la cobertura media y la cobertura de tres cuartos.
 Feat/&FeatGroupHeavilyArmored2024Title=Fuertemente blindado
 Feat/&FeatGroupHeavilyArmored2024Description=Aumenta tu Fuerza o Constitución en 1, hasta un máximo de 20.\nRequisito previo: competencia con armaduras medias.\nObtienes competencia con armaduras pesadas.
-Feat/&FeatGroupObservant2024Title=Observador
-Feat/&FeatGroupKeenMind2024Title=Mente aguda
-Feat/&FeatDurable2024Title=Resistente
-Feat/&FeatGroupRitualCaster2024Title=Lanzador ritual
 
