@@ -417,8 +417,7 @@ internal static class EldritchVersatilityBuilders
 
             if (ownerHero.HasSubFeatureOfType<ModifyEffectDescriptionEldritchBlast>())
             {
-                BeamNumber =
-                    1 + ModifyEffectDescriptionEldritchBlast.ComputeAdditionalBeamCount(characterLevel, MaxPoints);
+                BeamNumber = PatronEldritchSurge.ComputeBeamCount(characterLevel, MaxPoints);
             }
             else
             {

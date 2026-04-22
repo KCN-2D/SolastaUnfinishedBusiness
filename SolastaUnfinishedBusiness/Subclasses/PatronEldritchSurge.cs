@@ -25,6 +25,7 @@ namespace SolastaUnfinishedBusiness.Subclasses;
 public class PatronEldritchSurge : AbstractSubclass
 {
     public const string Name = "PatronEldritchSurge";
+    private static readonly int[] BeamIncreaseDeterminationThresholds = [3, 8, 13, 18];
 
     // LEVEL 01 Blast Exclusive
     private static readonly FeatureDefinitionBonusCantrips BonusCantripBlastExclusive =
@@ -162,6 +163,18 @@ public class PatronEldritchSurge : AbstractSubclass
                && rulesetEffectSpell.SpellDefinition == EldritchBlast;
     }
 
+    internal static int ComputeDetermination(int characterLevel, int warlockLevel)
+    {
+        return warlockLevel - (2 * (characterLevel - warlockLevel));
+    }
+
+    internal static int ComputeBeamCount(int characterLevel, int warlockLevel)
+    {
+        var determination = ComputeDetermination(characterLevel, warlockLevel);
+
+        return 1 + BeamIncreaseDeterminationThresholds.Count(level => determination >= level);
+    }
+
     private class VersatilitySwitchCustom(string replacedAbilityScore) : IPowerOrSpellFinishedByMe
     {
         private string ReplacedAbilityScore { get; } = replacedAbilityScore;
@@ -210,22 +223,13 @@ public class PatronEldritchSurge : AbstractSubclass
                 return effectDescription;
             }
 
-            var totalLevel = rulesetHero.classesHistory.Count;
-            var warlockClassLevel = rulesetHero.GetClassLevel(CharacterClassDefinitions.Warlock);
-            var additionalBeamCount = ComputeAdditionalBeamCount(totalLevel, warlockClassLevel);
+            var characterLevel = rulesetHero.classesHistory.Count;
+            var warlockLevel = rulesetHero.GetClassLevel(CharacterClassDefinitions.Warlock);
 
             effectDescription.effectAdvancement.Clear();
-            effectDescription.targetParameter = 1 + additionalBeamCount;
+            effectDescription.targetParameter = ComputeBeamCount(characterLevel, warlockLevel);
 
             return effectDescription;
-        }
-
-        public static int ComputeAdditionalBeamCount(int totalLevel, int warlockClassLevel)
-        {
-            var determinantLevel = warlockClassLevel - (2 * (totalLevel - warlockClassLevel));
-            var increaseLevels = new[] { 3, 8, 13, 18 };
-
-            return increaseLevels.Count(level => determinantLevel >= level);
         }
     }
 

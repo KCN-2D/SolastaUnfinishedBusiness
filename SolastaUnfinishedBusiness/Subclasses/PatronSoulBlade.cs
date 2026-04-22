@@ -1,5 +1,6 @@
 ﻿using System.Linq;
 using JetBrains.Annotations;
+using System.Collections.Generic;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -78,15 +79,21 @@ public sealed class PatronSoulBlade : AbstractSubclass
             .SetGuiPresentationNoContent(true)
             .SetNotificationTag("Hex")
             .SetDamageValueDetermination(AdditionalDamageValueDetermination.ProficiencyBonus)
-            .SetTargetCondition(conditionHexDefender, AdditionalDamageTriggerCondition.TargetHasCondition)
-            .AddCustomSubFeatures(new ModifyCriticalThresholdHex(conditionHexDefender))
+            .AddToDB();
+
+        var featureHexAttacker = FeatureDefinitionBuilder
+            .Create($"Feature{Name}HexAttacker")
+            .SetGuiPresentationNoContent(true)
+            .AddCustomSubFeatures(
+                new CustomAdditionalDamageSoulHex(additionalDamageHex),
+                new ModifyCriticalThresholdHex())
             .AddToDB();
 
         var conditionHexAttacker = ConditionDefinitionBuilder
             .Create($"Condition{Name}HexAttacker")
             .SetGuiPresentationNoContent(true)
             .SetSilent(Silent.WhenAddedOrRemoved)
-            .SetFeatures(additionalDamageHex)
+            .SetFeatures(featureHexAttacker)
             .AddToDB();
 
         var spriteSoulHex = Sprites.GetSprite("PowerSoulHex", Resources.PowerSoulHex, 256, 128);
@@ -248,9 +255,44 @@ public sealed class PatronSoulBlade : AbstractSubclass
         return canWeaponBeEmpowered;
     }
 
-    private sealed class ModifyCriticalThresholdHex(
-        // ReSharper disable once SuggestBaseTypeForParameterInConstructor
-        ConditionDefinition conditionHex) : IModifyAttackCriticalThreshold
+    private static bool IsSoulHexTarget(RulesetCharacter rulesetTarget)
+    {
+        return rulesetTarget != null &&
+               rulesetTarget.HasConditionOfType(ConditionHex);
+    }
+
+    private static bool HasDamageEffectForm(IEnumerable<EffectForm> effectForms)
+    {
+        return effectForms?.Any(effectForm => effectForm.FormType == EffectForm.EffectFormType.Damage) == true;
+    }
+
+    private sealed class CustomAdditionalDamageSoulHex(IAdditionalDamageProvider provider)
+        : CustomAdditionalDamage(provider)
+    {
+        internal override bool IsValid(
+            GameLocationBattleManager battleManager,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            ActionModifier attackModifier,
+            RulesetAttackMode attackMode,
+            bool rangedAttack,
+            AdvantageType advantageType,
+            List<EffectForm> actualEffectForms,
+            RulesetEffect rulesetEffect,
+            bool criticalHit,
+            bool firstTarget,
+            out CharacterActionParams reactionParams)
+        {
+            reactionParams = null;
+
+            return defender?.RulesetCharacter != null &&
+                   IsSoulHexTarget(defender.RulesetCharacter) &&
+                   HasDamageEffectForm(actualEffectForms) &&
+                   (attackMode != null || rulesetEffect is RulesetEffectSpell or RulesetEffectPower);
+        }
+    }
+
+    private sealed class ModifyCriticalThresholdHex : IModifyAttackCriticalThreshold
     {
         public int GetCriticalThreshold(
             int current, RulesetCharacter me, RulesetCharacter target, BaseDefinition attackMethod)
@@ -260,7 +302,7 @@ public sealed class PatronSoulBlade : AbstractSubclass
                 return current;
             }
 
-            if (target.HasConditionOfType(conditionHex.Name))
+            if (IsSoulHexTarget(target))
             {
                 return current - 1;
             }
