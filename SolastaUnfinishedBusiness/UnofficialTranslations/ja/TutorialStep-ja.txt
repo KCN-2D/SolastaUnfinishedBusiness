@@ -1,7 +1,7 @@
 TutorialStep/&BattleCameraDescription=戦闘中は、WASDを使うか、マウスポインターを画面端へ寄せるか、中ボタンを押しながらマウスを動かすことでカメラを移動できます。\n\nカメラの回転方法は探索時と同じです。
 TutorialStep/&BattleCameraDescriptionXBox=戦闘中は、<sprite index={4}>でカメラを移動できます。\n\n<sprite index={5}>でカメラを回転します。
 TutorialStep/&BattleCameraTitle=戦闘中のカメラ制御
-TutorialStep/&CautiousModeDescription=慎重モードをアクティブにすると、移動が遅くなりますが、隠されたオブジェクトや罠に特別な注意を払うことと、ステルスで移動することの2つの利点が得られます。\n敵があなたの存在に気づき始めると、敵の頭上にゲージが溜まり、反応して隠れる時間が与えられます。
+TutorialStep/&CautiousModeDescription=慎重モードを有効にすると移動は遅くなりますが、隠された物体や罠に特に注意を払い、隠密に移動できます。\n敵があなたの存在に気づき始めると、敵の頭上にゲージが溜まり、気づかれる前に隠れる時間が与えられます。
 TutorialStep/&CautiousModeTitle=慎重モード
 TutorialStep/&ConfigWeapons2Description=インベントリ内のショートカットを変更できます。\n武器、盾、その他のアイテムを手のスロットにドラッグアンドドロップして、ショートカットを変更します。
 TutorialStep/&ConfigWeapons2Title=武器のショートカットを変更する
@@ -13,7 +13,7 @@ TutorialStep/&Crafting01Title=クラフト
 TutorialStep/&Crafting02Description=クラフトに必要な道具は次のとおりです：\n\n- ポーション：薬草師道具\n- 巻物：巻物キット\n- 毒：調毒道具\n- 魔法の武器と防具：マナカロンの数珠\n\nこれらの道具を使うには、その道具への習熟が必要です。
 TutorialStep/&Crafting02Title=クラフト道具
 TutorialStep/&Crafting03Description=特定の道具に習熟していても、レシピの難易度に対して判定を重ねるには対応する技能が必要です。\nポーション作成では〈医術〉だけで足りることもありますが、〈魔法学〉があると非常に有利です。\n毒の作成では〈医術〉か〈自然〉が役に立ちます。\n巻物や魔法のアイテムを作るには〈魔法学〉が必須です。
-TutorialStep/&Crafting03Title=クラフトスキル
+TutorialStep/&Crafting03Title=製作技能
 TutorialStep/&Crafting04Description=クラフトには材料が必要です。材料は冒険中に見つかり、花や茂み、岩場から、時には死んだクリーチャーからも採集できます。\nもちろん、極めて希少なものでない限り、店で買うこともできます。\n付呪には、失われたマナカロンの名工たちが魔法的に準備した「下地付き」のアイテムが必要です。こうした下地付きアイテムは、その力を引き出すために、たいてい非常に希少な追加素材を必要とします。
 TutorialStep/&Crafting04Title=クラフト材料
 TutorialStep/&Crafting05Description=最後に、アイテムを作るには、どの材料をどう組み合わせるかを知っていなければなりません。こうした「レシピ」は、手引書を読んだり、師匠から教わったりして学べます。\nソラスタの諸派閥は普通、レシピの写しを保管しており、友好的な相手には手ごろな価格で売ってくれます。中にはバッドランズで見つかるものもあります。\n\n一度レシピを覚えれば、パーティ全員がそれを利用できます。
@@ -116,7 +116,7 @@ TutorialStep/&Tuto01_Refocus_Title=キャラクターを中心に
 TutorialStep/&Tuto01_SelectionXbox_Description=3Dビューでキャラクターへカーソルを合わせて選択するか、<sprite index={13}>または<sprite index={15}>で各キャラクターを順に切り替えます。\nパーティ全体を選ぶには、まず<sprite index={10}>を押したまま<sprite index={3}>を押します。\n\n移動するには、<sprite index={4}>でカーソルを動かし、<sprite index={0}>を押してその位置へパーティを移動させます。有効な移動先では丸いマーカーが、無効な移動先では「進入禁止」マークが表示されます。
 TutorialStep/&Tuto01_Selection_Description=3Dビューでキャラクター本体かポートレートをクリックして選択します。パーティ全体を選ぶには、ポートレート表示の下部にある[すべて選択]ボタンを使います。1人または複数人を囲むように四角形をドラッグして選択することもできます。\n\n移動するには、目的地を左クリックします。有効な移動先にマウスを合わせると丸いマーカーが表示され、無効な移動先には「進入禁止」マークが表示されます。
 TutorialStep/&Tuto01_Selection_Title=キャラクター選択と基本動作
-TutorialStep/&Tuto02_Cautious_Stealth_Description=慎重モードを有効にすると動作が遅くなりますが、隠されたオブジェクトや罠が見つけやすくなり、敵に発見されにくくなるという2つの利点があります。\n敵があなたの存在に気づき始めると、敵の頭上にゲージが表示され、反応して隠れるまでの時間が与えられます。\nこのモードでは敵の3マス上に留まれば、検出されることはありません。
+TutorialStep/&Tuto02_Cautious_Stealth_Description=慎重モードを有効にすると動きは遅くなりますが、隠された物体や罠を見つけやすくなり、敵に発見されにくくなります。\n敵があなたの存在に気づき始めると、敵の頭上にゲージが表示され、気づかれる前に隠れる時間が与えられます。\nこのモードでは、敵から3マス以上離れていれば発見されません。
 TutorialStep/&Tuto02_Cautious_Stealth_Title=慎重モード
 TutorialStep/&Tuto02_HealingXbox_Description=キャラクターが回復呪文を発動できる場合（たとえばクレリックなど）、<sprite index={2}>を押して呪文メニューにアクセスし、失われたヒット・ポイントを回復するための呪文を選択します。\n\n近くの戦利品で見つかったポーションを使うこともできます。<sprite index={3}>を押してインベントリを開き、ポーションを選択して<sprite index={7}>を押し、使用します。
 TutorialStep/&Tuto02_Healing_Description=キャラクターが回復呪文を発動することができる場合（聖職者など）、失われたヒット・ポイントを回復するには、「呪文を発動する」ボタンを押して呪文を選択します。\n\n近くの戦利品で見つかったポーションを使用することもできます。インベントリを開き、ポーションを右クリックして使用します。
@@ -138,8 +138,8 @@ TutorialStep/&Tuto03_Disarm2_Title=罠の解除
 TutorialStep/&Tuto03_DisarmXbox_Description=罠を解除するには、まず罠を発見しなければなりません。未発見の罠が仕掛けられた宝箱を開けたり解錠しようとしたりすると、作動させた瞬間に初めて罠の存在に気づきます。\n\n罠の解除を試みるには、その罠へカーソルを合わせて<sprite index={0}>を押します。成功には敏捷力判定が必要です。盗賊道具に習熟していれば役立ちます。
 TutorialStep/&Tuto03_Disarm_Description=罠を解除するには、まず罠を検出する必要があります。検出されていない罠が仕掛けられたチェストを開けたり、ロックピックしたりしようとすると、罠を起動したときに初めてその罠について知ることができます!\n\n罠の解除を試みるには、罠の上にマウスを置いてください。そして左クリックします。敏捷力判定に成功する必要があります。泥棒の道具は、使いこなせば役に立ちます。
 TutorialStep/&Tuto03_Disarm_Title=罠の解除
-TutorialStep/&Tuto03_LockpickXbox_Description=解錠を試みるには、<sprite index={4}>でカーソルを動かして鍵のかかった扉へ合わせ、<sprite index={0}>を押します。\n\nパーティ全体を選択している場合、その作業には最も熟練したキャラクターが自動的に選ばれます。\n\n解錠を試みるには、インベントリに盗賊道具が必要です。盗賊道具に習熟していれば役立ちます。
-TutorialStep/&Tuto03_Lockpick_Description=鍵を開けてみるには、鍵のかかったドアまたはチェストの上にマウスを置いて左クリックします。パーティ全体を選択すると、タスクに対して最も熟練したキャラクターが自動的に選択されます。\n\n錠前を開けるには、インベントリに盗賊の道具が入っている必要があります。盗賊の道具に習熟していると役に立ちます。
+TutorialStep/&Tuto03_LockpickXbox_Description=鍵開けを試みるには、<sprite index={4}>でカーソルを動かして鍵のかかった扉へ合わせ、<sprite index={0}>を押します。\n\nパーティ全体を選択している場合、その作業に最も習熟しているキャラクターが自動的に選ばれます。\n\n錠前を開けるには、インベントリに盗賊道具が必要です。盗賊道具に習熟していれば役立ちます。
+TutorialStep/&Tuto03_Lockpick_Description=鍵開けを試みるには、鍵のかかった扉または宝箱にマウスカーソルを合わせ、左クリックします。パーティ全体を選択している場合、その作業に最も習熟しているキャラクターが自動的に選ばれます。\n\n錠前を開けるには、インベントリに盗賊道具が必要です。盗賊道具に習熟していれば役立ちます。
 TutorialStep/&Tuto03_Lockpick_Title=ピッキング
 TutorialStep/&Tuto03_Sneak_Attack_Description=見つかっていない状態で敵を攻撃すると、奇襲の利点を得ます。\n\nつまり、命中ロールに有利を得て、相手は次のターンまでリアクションを行えません。\n\nあなたがローグなら、その攻撃は《急所攻撃》となり、追加ダメージを与えます。
 TutorialStep/&Tuto03_Sneak_Attack_Title=奇襲
@@ -156,7 +156,7 @@ TutorialStep/&Tuto04_Disengaging_Title=離脱中
 TutorialStep/&Tuto04_DodgingXbox_Description=<sprite index={2}>を押すと、回避など別のアクションも選べます。\n\n回避を選ぶとメイン・アクションを使用し、次の利点を得ます。\n\n次のターンの開始まで、あなたが見ることのできる攻撃者は全員、あなたへの攻撃ロールに不利を受けます。また、あなたは敏捷力セーヴに有利を得ます。
 TutorialStep/&Tuto04_Dodging_Description=回避をクリックすると、アクションが使用され、次の利点が得られます：\n\n次のターンの開始まで、目に見えるすべての攻撃者は攻撃ロールで不利になり、あなたは敏捷力セーヴィング・スローで有利になります。
 TutorialStep/&Tuto04_Dodging_Title=回避
-TutorialStep/&Tuto04_Opportunity_Description=クリーチャーがそれを見ることができる敵の手の届かないところに移動すると、その敵はその反応を利用して近接攻撃を行うことができます。\n\nもちろん、機会攻撃を使用することもできます。\n\n敵の近接攻撃範囲内にいるときは常に注意してください。ただ立ち去ることはできません。
+TutorialStep/&Tuto04_Opportunity_Description=クリーチャーが、そのクリーチャーを見ることのできる敵の間合いの外へ移動すると、その敵は自分のリアクションを使用して近接攻撃を行えます。\n\nもちろん、あなたも機会攻撃を使用できます。\n\n敵の近接攻撃範囲内にいるときは注意してください。何の備えもなく離れることはできません。
 TutorialStep/&Tuto04_Opportunity_Title=機会攻撃
 TutorialStep/&Tuto04_Sleight_Description=〈手先の早業〉に習熟していれば、敵やNPCからスリを試みられます。\nまた、特定の防具は〈隠密〉判定を不利にします。\nこれは常に危険を伴うので、試す前によく考えてください。成功させるには、見つからないほど隠密である必要があります！
 TutorialStep/&Tuto04_Sleight_Title=〈手先の早業〉
@@ -251,7 +251,7 @@ TutorialStep/&Tuto_Telema_CameraElevation_Description=通常、フリーカメ�
 TutorialStep/&Tuto_Telema_CameraElevation_Title=カメラの高度
 TutorialStep/&Tuto_Telema_Crafting2_Description=キャラクターのインベントリで作成画面を開き、〈魔法の矢〉の巻物を選択します。ヴァイオレットは必要な材料を使って魔法のインクを作り、その後で巻物を書き上げます。\n\nこれには何時間もかかるため、旅の途中の休憩時間を利用する必要があります。テレマの遺跡を探索している間は巻物を書き上げられません。
 TutorialStep/&Tuto_Telema_Crafting2_Title=クラフト
-TutorialStep/&Tuto_Telema_Crafting_Description=関連する製作キット、知識、材料、レシピを使用して、さまざまなアイテムを製作できます。\n\nバイオレットは薬草キットと薬のスキルに習熟しています。彼女がレシピを学習し、必要な材料を持っていれば、治癒のポーションを作ることができます!\n\nレシピの知識はパーティ全体で共有されることに注意してください。
+TutorialStep/&Tuto_Telema_Crafting_Description=関連する製作キット、知識、材料、レシピを使用して、さまざまなアイテムを製作できます。\n\nバイオレットは薬草道具と薬草術に習熟しています。彼女がレシピを学習し、必要な材料を持っていれば、治癒のポーションを作ることができます！\n\nレシピの知識はパーティ全体で共有されることに注意してください。
 TutorialStep/&Tuto_Telema_Crafting_Title=クラフト
 TutorialStep/&Tuto_Telema_Identify1_Description=時には、魔法が宿っていると思われる見事なアイテムに出会います。まず呪文〈魔法の感知〉を発動して魔法の有無を確かめ、その後〈識別〉を発動して性質を調べ、恩恵を受ける必要があります。\n\nこれらの呪文はほとんどの店で有料で発動できますが、呪文を知っているキャラクターなら探索中にも発動できます。
 TutorialStep/&Tuto_Telema_Identify1_Title=魔法のアイテムの識別

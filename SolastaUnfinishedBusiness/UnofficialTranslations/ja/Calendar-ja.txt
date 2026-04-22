@@ -1,4 +1,4 @@
-Calendar/&LongTimeFormat=[TEMP]ゲーム内時刻は大変動後{3}年{1}{2}日{0}です。
+Calendar/&LongTimeFormat=ゲーム内時刻：大変動後{3}年{1}{2}日 {0}
 Calendar/&SolastanCalendarDescription=ソラスタで共通して使われる暦。
 Calendar/&SolastanCalendarTitle=ソラスタ暦
 Calendar/&SolastanMonth10Title=アエアルン

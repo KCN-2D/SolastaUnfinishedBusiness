@@ -1,4 +1,4 @@
-SlotType/&AmmunitionSlotDescription=ここには遠距離武器の弾薬を保管できます。
+SlotType/&AmmunitionSlotDescription=ここには遠隔武器の弾薬を保管できます。
 SlotType/&AmmunitionSlotTitle=弾薬
 SlotType/&BackSlotDescription=ここにはバックパック、シールド、または大型の武器を背負えます。
 SlotType/&BackSlotTitle=背中
