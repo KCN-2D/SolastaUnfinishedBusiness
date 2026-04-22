@@ -446,15 +446,7 @@ internal static class SpellPointsContext
             var casterType = SharedSpellsContext.GetCasterTypeForClassOrSubclass(
                 spellRepertoire.SpellCastingClass?.Name, spellRepertoire.SpellCastingSubclass?.Name);
 
-            return casterType switch
-            {
-                CasterProgression.Full => characterLevel,
-                CasterProgression.Half when characterLevel <= 1 => 0,
-                CasterProgression.Half => (characterLevel + 1) / 2,
-                CasterProgression.HalfRoundUp => (characterLevel + 1) / 2,
-                CasterProgression.OneThird => (characterLevel + 2) / 3,
-                _ => 0
-            };
+            return SharedSpellsContext.GetSingleCasterLevelContribution(casterType, characterLevel);
         }
     }
 }

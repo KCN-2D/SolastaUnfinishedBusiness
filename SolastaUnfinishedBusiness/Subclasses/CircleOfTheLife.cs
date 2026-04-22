@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using System.Collections.Generic;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -23,6 +24,7 @@ namespace SolastaUnfinishedBusiness.Subclasses;
 public sealed class CircleOfTheLife : AbstractSubclass
 {
     private const string Name = "CircleOfTheLife";
+    private const int VerdancySafetyCapRounds = 10;
     private const string ConditionRevitalizingBoon = $"Condition{Name}RevitalizingBoon";
     private const string ConditionSeedOfLife = $"Condition{Name}SeedOfLife";
     private const string ConditionVerdancy = $"Condition{Name}Verdancy";
@@ -55,17 +57,20 @@ public sealed class CircleOfTheLife : AbstractSubclass
         var conditionVerdancy = ConditionDefinitionBuilder
             .Create(ConditionVerdancy)
             .SetGuiPresentation(Category.Condition, ConditionChildOfDarkness_DimLight)
-            .SetSpecialDuration(DurationType.Round, 3, TurnOccurenceType.EndOfTurn)
+            .SetSpecialDuration(DurationType.Round, VerdancySafetyCapRounds, TurnOccurenceType.EndOfTurn)
             .SetPossessive()
             .CopyParticleReferences(ConditionAided)
             .AllowMultipleInstances()
+            .AddCancellingConditions(
+                DatabaseRepository.GetDatabase<ConditionDefinition>().GetElement("ConditionDead"),
+                DatabaseRepository.GetDatabase<ConditionDefinition>().GetElement("ConditionDying"),
+                DatabaseRepository.GetDatabase<ConditionDefinition>().GetElement("ConditionUnconscious"))
             .AddCustomSubFeatures(OnConditionAddedOrRemovedVerdancy.Marker, CharacterTurnStartListenerVerdancy.Marker)
             .AddToDB();
 
         var conditionVerdancy14 = ConditionDefinitionBuilder
             .Create(conditionVerdancy, ConditionVerdancy14)
-            .SetSpecialDuration(DurationType.Round, 5, TurnOccurenceType.EndOfTurn)
-            .AddCustomSubFeatures(OnConditionAddedOrRemovedVerdancy.Marker, CharacterTurnStartListenerVerdancy.Marker)
+            .SetSpecialDuration(DurationType.Round, VerdancySafetyCapRounds, TurnOccurenceType.EndOfTurn)
             .AddToDB();
 
         var featureVerdancy = FeatureDefinitionBuilder
@@ -172,6 +177,28 @@ public sealed class CircleOfTheLife : AbstractSubclass
         return caster?.GetClassLevel(Druid) ?? 0;
     }
 
+    private static IEnumerable<RulesetCondition> EnumerateVerdancyConditions(RulesetCharacter rulesetCharacter)
+    {
+        return rulesetCharacter.ConditionsByCategory
+            .SelectMany(x => x.Value)
+            .Where(IsVerdancyCondition);
+    }
+
+    private static int GetVerdancyHealAmount(RulesetCondition rulesetCondition)
+    {
+        return rulesetCondition.EffectLevel + (rulesetCondition.ConditionDefinition.Name == ConditionVerdancy14 ? 1 : 0);
+    }
+
+    private static int GetVerdancyTickCount(ConditionDefinition conditionDefinition)
+    {
+        return conditionDefinition.Name == ConditionVerdancy14 ? 5 : 3;
+    }
+
+    private static bool IsVerdancyCondition(RulesetCondition rulesetCondition)
+    {
+        return rulesetCondition.ConditionDefinition.Name is ConditionVerdancy or ConditionVerdancy14;
+    }
+
     private static bool IsAuthorizedSpell(EffectDescription effectDescription, BaseDefinition baseDefinition)
     {
         if (baseDefinition is not SpellDefinition spellDefinition)
@@ -219,23 +246,23 @@ public sealed class CircleOfTheLife : AbstractSubclass
 
             locationCharacter.UsedSpecialFeatures.Add(VerdancyHealedTag, 1);
 
-            foreach (var rulesetCondition in rulesetCharacter.ConditionsByCategory
-                         .SelectMany(x => x.Value)
-                         .Where(x => x.ConditionDefinition.Name is ConditionVerdancy or ConditionVerdancy14)
+            foreach (var rulesetCondition in EnumerateVerdancyConditions(rulesetCharacter)
                          .ToArray())
             {
-                var caster = EffectHelpers.GetCharacterByGuid(rulesetCondition.SourceGuid);
-
-                if (caster is not { IsDeadOrDyingOrUnconscious: false })
+                if (rulesetCondition.Amount <= 0)
                 {
+                    rulesetCharacter.RemoveCondition(rulesetCondition);
                     continue;
                 }
 
-                var effectLevel = rulesetCondition.EffectLevel;
-                var levels = caster.GetClassLevel(Druid);
-                var harmoniousBloomBonus = levels >= 14 ? 1 : 0;
+                rulesetCharacter.ReceiveHealing(GetVerdancyHealAmount(rulesetCondition), true, rulesetCondition.SourceGuid);
 
-                rulesetCharacter.ReceiveHealing(effectLevel + harmoniousBloomBonus, true, caster.Guid);
+                rulesetCondition.amount--;
+
+                if (rulesetCondition.Amount <= 0)
+                {
+                    rulesetCharacter.RemoveCondition(rulesetCondition);
+                }
             }
         }
     }
@@ -246,7 +273,7 @@ public sealed class CircleOfTheLife : AbstractSubclass
 
         public void OnConditionAdded(RulesetCharacter target, RulesetCondition rulesetCondition)
         {
-            // empty
+            rulesetCondition.amount = GetVerdancyTickCount(rulesetCondition.ConditionDefinition);
         }
 
         public void OnConditionRemoved(RulesetCharacter target, RulesetCondition rulesetCondition)

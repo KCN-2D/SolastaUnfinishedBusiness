@@ -72,6 +72,19 @@ internal static class SharedSpellsContext
         return CasterProgression.None;
     }
 
+    internal static int GetSingleCasterLevelContribution(CasterProgression casterType, int characterLevel)
+    {
+        return casterType switch
+        {
+            CasterProgression.Full => characterLevel,
+            CasterProgression.Half when characterLevel <= 1 => 0,
+            CasterProgression.Half => (characterLevel + 1) / 2,
+            CasterProgression.HalfRoundUp => (characterLevel + 1) / 2,
+            CasterProgression.OneThird => (characterLevel + 2) / 3,
+            _ => 0
+        };
+    }
+
     // need the null check for companions who don't have repertoires
     internal static bool IsMulticaster([CanBeNull] RulesetCharacterHero rulesetCharacterHero)
     {
@@ -273,6 +286,18 @@ internal static class SharedSpellsContext
             new CodeInstruction(OpCodes.Call, myMaxSpellLevelOfSpellCastLevelMethod));
     }
 
+    private static int GetSharedCasterLevelContribution(CasterProgression casterType, int characterLevel)
+    {
+        return casterType switch
+        {
+            CasterProgression.Full => characterLevel,
+            CasterProgression.Half => characterLevel / 2,
+            CasterProgression.HalfRoundUp => (characterLevel + 1) / 2,
+            CasterProgression.OneThird => characterLevel / 3,
+            _ => 0
+        };
+    }
+
     #region Caster Level Context
 
     private sealed class CasterLevelContext
@@ -298,50 +323,7 @@ internal static class SharedSpellsContext
 
         internal int GetCasterLevel()
         {
-            var totalKeysGreaterThanZero = 0;
-            var fullLevels = 0f;
-            var halfLevels = 0f;
-            var oneThirdLevels = 0f;
-
-            foreach (var level in _levels)
-            {
-                var casterType = level.Key;
-                var levels = level.Value;
-
-                // ReSharper disable once SwitchStatementMissingSomeEnumCasesNoDefault
-                switch (casterType)
-                {
-                    case CasterProgression.Full when levels > 0:
-                        totalKeysGreaterThanZero++;
-                        fullLevels += levels;
-                        break;
-                    case CasterProgression.Half or CasterProgression.HalfRoundUp when levels > 0:
-                        totalKeysGreaterThanZero++;
-                        halfLevels += levels / 2f;
-                        break;
-                    case CasterProgression.OneThird when levels > 0:
-                        totalKeysGreaterThanZero++;
-                        oneThirdLevels += levels / 3f;
-                        break;
-                }
-            }
-
-            // ReSharper disable once InvertIf
-            if (totalKeysGreaterThanZero == 1)
-            {
-                if (halfLevels > 1 / 2f ||
-                    _levels[CasterProgression.HalfRoundUp] > 0)
-                {
-                    halfLevels += 1 / 2f;
-                }
-
-                if (oneThirdLevels > 0.7f)
-                {
-                    oneThirdLevels += 2 / 3f;
-                }
-            }
-
-            return (int)Math.Floor(fullLevels) + (int)Math.Floor(halfLevels) + (int)Math.Floor(oneThirdLevels);
+            return _levels.Sum(level => GetSharedCasterLevelContribution(level.Key, level.Value));
         }
     }
 
