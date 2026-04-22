@@ -892,7 +892,8 @@ public static partial class Tabletop2024Context
             .SetGuiPresentation(
                 "Feature/&PowerFeatDurable2024SpeedyRecoveryTitle",
                 "Feature/&PowerFeatDurable2024SpeedyRecoveryDescription",
-                hidden: false)
+                CureWounds,
+                false)
             .SetUsesFixed(ActivationTime.BonusAction)
             .SetShowCasting(false)
             .SetEffectDescription(
@@ -984,6 +985,7 @@ public static partial class Tabletop2024Context
 
     private static FeatDefinition BuildHealer2024()
     {
+        var powerFeatHealerMedKit = GetDefinition<FeatureDefinitionPower>("PowerFeatHealerMedKit");
         var conditionBattleMedic = ConditionDefinitionBuilder
             .Create("ConditionFeatHealer2024BattleMedic")
             .SetGuiPresentationNoContent(true)
@@ -995,7 +997,8 @@ public static partial class Tabletop2024Context
             .SetGuiPresentation(
                 "Feature/&PowerFeatHealer2024BattleMedicTitle",
                 "Feature/&PowerFeatHealer2024BattleMedicDescription",
-                hidden: false)
+                powerFeatHealerMedKit,
+                false)
             .SetUsesFixed(ActivationTime.Action)
             .SetShowCasting(false)
             .SetEffectDescription(
@@ -1024,6 +1027,7 @@ public static partial class Tabletop2024Context
 
     private static FeatDefinition BuildLucky2024()
     {
+        var featLucky = GetDefinition<FeatDefinition>("FeatLucky");
         var powerPool = FeatureDefinitionPowerBuilder
             .Create(Lucky2024PoolPowerName)
             .SetGuiPresentationNoContent(true)
@@ -1044,7 +1048,8 @@ public static partial class Tabletop2024Context
             .SetGuiPresentation(
                 "Feature/&PowerFeatLucky2024AdvantageTitle",
                 "Feature/&PowerFeatLucky2024AdvantageDescription",
-                hidden: false)
+                featLucky,
+                false)
             .SetShowCasting(false)
             .SetEffectDescription(
                 EffectDescriptionBuilder
