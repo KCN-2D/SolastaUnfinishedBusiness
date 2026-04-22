@@ -1,4 +1,4 @@
-Feature/&FeatureAdaptiveStrategyDescription=あなたの攻撃のいずれかでクリティカルミスまたはクリティカルヒットを出すたび、戦技ダイスを1つ得ます。この利益はターンごとに1回しか発生せず、戦技ダイスの最大数を超えることはありません。
+Feature/&FeatureAdaptiveStrategyDescription=あなたの攻撃のいずれかでクリティカル・ミスまたはクリティカル・ヒットを出すたび、戦技ダイスを1つ得ます。この利益はターンごとに1回しか発生せず、戦技ダイスの最大数を超えることはありません。
 Feature/&FeatureAdaptiveStrategyTitle=戦略：適応
 Feature/&FeatureOvercomingStrategyDescription=あなたの攻撃のいずれかでクリーチャーを倒したとき、またはあなたのダメージを与える戦技の効果でダメージを受けたクリーチャーが次のあなたのターン開始前に死亡したとき、戦技ダイスを1つ回復します。この利益はラウンドごとに1回しか発生せず、戦技ダイスの最大数を超えることはありません。
 Feature/&FeatureOvercomingStrategyTitle=戦略：克服
@@ -27,7 +27,7 @@ Feature/&PowerUseModifierTacticianGambitPool2Title=追加の戦技ダイス
 Feature/&PowerUseModifierTacticianGambitPoolDescription=戦技ダイスを1個追加で得ます。
 Feature/&PowerUseModifierTacticianGambitPoolTitle=追加の戦技ダイス
 Feedback/&AdditionalDamageGambitDieFormat=戦技！
-Feedback/&AdditionalDamageGambitDieLine={0}は戦技ダイスを振り、追加で +{2}ダメージを与えます！
+Feedback/&AdditionalDamageGambitDieLine={0}は戦技ダイスを振り、追加で+{2}ダメージを与えます！
 Feedback/&AdditionalDamageTacticalAwarenessFormat=戦術眼！
 Feedback/&AdditionalDamageTacticalAwarenessLine={0}は{1}に戦術的一撃を放つ (+{2})
 Screen/&GambitDieDescription=あなたの戦技ダイスは{0}で、残り使用回数は{1}回です。

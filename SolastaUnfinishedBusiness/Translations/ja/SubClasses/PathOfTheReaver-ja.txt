@@ -12,5 +12,5 @@ Reaction/&SpendPowerBloodbathDescription=このクリーチャーのはらわた
 Reaction/&SpendPowerBloodbathReactDescription=このクリーチャーのはらわたをえぐり出す。
 Reaction/&SpendPowerBloodbathReactTitle=えぐる
 Reaction/&SpendPowerBloodbathTitle=血浴
-Subclass/&PathOfTheReaverDescription=すべてのリーヴァーは、穢れた竜の血を飲み、徐々に進む腐敗と引き換えに、竜の力と貪欲の欠片を永遠にその身へ刻み込む儀式を受けます。これらの恐るべき戦士は死を歓び、敵の苦痛から力を取り戻します。
-Subclass/&PathOfTheReaverTitle=リーヴァーの道
+Subclass/&PathOfTheReaverDescription=すべての奪命者は、穢れた竜の血を飲み、徐々に進む腐敗と引き換えに、竜の力と貪欲の欠片を永遠にその身へ刻み込む儀式を受けます。これらの恐るべき戦士は死を歓び、敵の苦痛から力を取り戻します。
+Subclass/&PathOfTheReaverTitle=奪命者の道

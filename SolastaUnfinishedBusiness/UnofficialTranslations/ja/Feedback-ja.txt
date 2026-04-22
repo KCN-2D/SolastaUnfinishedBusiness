@@ -353,7 +353,7 @@ Feedback/&RegenerationSuccessLine={0}はヒット・ポイントを回復しま�
 Feedback/&ReplacedAbilityScoreForSaveFormat={0}!
 Feedback/&ReplacedAbilityScoreForSaveLine={0}は、{2}ではなく{1}を使用して{3}で保存します
 Feedback/&ResistantToDamageFormat={0}に抵抗します
-Feedback/&ResistantToDamageLine={0}は{1}のダメージに耐性があり、半分のダメージしか受けません。
+Feedback/&ResistantToDamageLine={0}は{1}ダメージに抵抗があり、半分のダメージしか受けません。
 Feedback/&ReturnProjectileAttackConsoleLine={0}は{1}に投射物を跳ね返します：{3} = {4}
 Feedback/&ReturnProjectileAttackConsoleLineAnyAdvantage={0}は{1}に投射物を跳ね返します：{3}{4} = {5}
 Feedback/&ReturnProjectileAttackConsoleLineAnyAdvantageNoModifier={0}は{1}に投射物を跳ね返します：{3}{4}

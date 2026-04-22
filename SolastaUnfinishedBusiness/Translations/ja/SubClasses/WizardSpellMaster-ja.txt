@@ -12,5 +12,5 @@ Feature/&PointPoolSpellMasterBonusCantripsDescription=追加の初級呪文を2�
 Feature/&PointPoolSpellMasterBonusCantripsTitle=追加初級呪文
 Feature/&SavingThrowAffinitySpellMasterSpellResistanceDescription=魔法の鍛錬により、呪文に対するセーヴィング・スローに有利を得ます。
 Feature/&SavingThrowAffinitySpellMasterSpellResistanceTitle=呪文抵抗
-Subclass/&WizardSpellMasterDescription=スペルマスターは魔法に没頭し、手に入るあらゆる呪文を学ぼうとします。呪文知識において、彼らに並ぶ者はいません。
-Subclass/&WizardSpellMasterTitle=スペルマスター
+Subclass/&WizardSpellMasterDescription=呪文の達人は魔法に没頭し、手に入るあらゆる呪文を学ぼうとします。呪文知識において、彼らに並ぶ者はいません。
+Subclass/&WizardSpellMasterTitle=呪文の達人

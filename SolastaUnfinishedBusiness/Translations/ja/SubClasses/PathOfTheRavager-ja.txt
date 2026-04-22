@@ -1,12 +1,12 @@
 Feature/&AdditionalDamagePathOfTheRavagerFrenzyDescription=自分のターンに1回、激怒中に〈捨て身の攻撃〉を使用したなら、敵に命中した最初の筋力基準の武器攻撃は、武器と同じ種別の追加2d6ダメージを与えます。このダメージは9レベルで3d6、16レベルで4d6に増加します。
 Feature/&AdditionalDamagePathOfTheRavagerFrenzyTitle=狂乱
-Feature/&FeatureSetPathOfTheRavagerIntimidatingPresenceDescription=激怒を開始したとき、またはその後のターンに激怒中であればボーナス・アクションとして、恐怖の存在で敵に恐怖を植え付けられます。あなたから6マス以内の各敵クリーチャーは、判断力セーヴィング・スロー（難易度8 + 習熟ボーナス + 筋力修正値）を行わなければなりません。失敗した場合、そのクリーチャーは1分間、恐怖状態になります。恐怖状態のクリーチャーは自身の各ターン終了時に再びセーヴィング・スローを行い、成功すると自身への効果を終了します。この特徴を1回使用すると、大休憩を終えるまで再び使用できません。この特徴の使用回数が尽きている場合は、激怒の使用回数を1回消費してもう一度使用できます。
+Feature/&FeatureSetPathOfTheRavagerIntimidatingPresenceDescription=激怒を開始したとき、またはその後のターンに激怒中であればボーナス・アクションとして、恐怖の存在で敵に恐怖を植え付けられます。あなたから6マス以内の各敵クリーチャーは、判断力セーヴィング・スロー（セーヴ難易度 = 8 + 習熟ボーナス + 筋力修正値）を行わなければなりません。失敗した場合、そのクリーチャーは1分間、恐怖状態になります。恐怖状態のクリーチャーは自身の各ターン終了時に再びセーヴィング・スローを行い、成功すると自身への効果を終了します。この特徴を1回使用すると、大休憩を終えるまで再び使用できません。この特徴の使用回数が尽きている場合は、激怒の使用回数を1回消費してもう一度使用できます。
 Feature/&FeatureSetPathOfTheRavagerIntimidatingPresenceTitle=恐怖の存在
 Feedback/&AdditionalDamageFrenzyFormat=狂乱
-Feedback/&AdditionalDamageFrenzyLine=狂乱により +{2}の追加ダメージを与えます！
+Feedback/&AdditionalDamageFrenzyLine=狂乱により+{2}の追加ダメージを与えます！
 Reaction/&UseIntimidatingPresenceDescription=この〈恐怖の存在〉のパワーをフリー・アクションとして使用できます。
 Reaction/&UseIntimidatingPresenceReactDescription=〈恐怖の存在〉をフリー・アクションとして使用します。
 Reaction/&UseIntimidatingPresenceReactTitle=恐怖の存在
 Reaction/&UseIntimidatingPresenceTitle=恐怖の存在
-Subclass/&PathOfTheRavagerDescription=ラヴェジャーの道は、血でぬめる制御なき激怒の道です。ラヴェジャーの怒りに身を委ねると、自らの安全も顧みず、戦いの混沌に歓喜するようになります。
-Subclass/&PathOfTheRavagerTitle=ラヴェジャーの道
+Subclass/&PathOfTheRavagerDescription=蹂躙者の道は、血でぬめる制御なき激怒の道です。蹂躙者の怒りに身を委ねると、自らの安全も顧みず、戦いの混沌に歓喜するようになります。
+Subclass/&PathOfTheRavagerTitle=蹂躙者の道

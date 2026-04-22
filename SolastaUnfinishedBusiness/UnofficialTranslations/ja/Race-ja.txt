@@ -93,8 +93,8 @@ Race/&ElfFemaleName6Title=リディア
 Race/&ElfFemaleName7Title=ニール
 Race/&ElfFemaleName8Title=サオルラ
 Race/&ElfFemaleName9Title=ティガン
-Race/&ElfHighDescription=<color=#B5D3DE>ハイエルフ</color>は、何世紀にもわたってソラスタを統べていた民の末裔です。幼い頃から魔法の鍛錬を受け、語学の才にも恵まれています。また、民族の伝統に従い、剣と弓の武術も修めます。
-Race/&ElfHighTitle=ハイエルフ
+Race/&ElfHighDescription=<color=#B5D3DE>ハイ・エルフ</color>は、何世紀にもわたってソラスタを統べていた民の末裔です。幼い頃から魔法の鍛錬を受け、語学の才にも恵まれています。また、民族の伝統に従い、剣と弓の武術も修めます。
+Race/&ElfHighTitle=ハイ・エルフ
 Race/&ElfMaleName10Title=ラボプラックス
 Race/&ElfMaleName11Title=ケロス
 Race/&ElfMaleName12Title=エロアン
@@ -126,8 +126,8 @@ Race/&ElfSurName7Title=インナーファイア
 Race/&ElfSurName8Title=ゴールデンファイア
 Race/&ElfSurName9Title=シルバーアイズ
 Race/&ElfSurNameTitle=姓
-Race/&ElfSylvanDescription=ソラスタ東方の森で育った<color=#B5D3DE>シルヴァンエルフ</color>は、荒野で生き抜く術、とりわけ〈生存〉に優れています。ハイエルフの同胞と同じく、幼い頃から剣と弓の訓練を受けています。
-Race/&ElfSylvanTitle=シルヴァンエルフ
+Race/&ElfSylvanDescription=ソラスタ東方の森で育った<color=#B5D3DE>シルヴァン・エルフ</color>は、荒野で生き抜く術、とりわけ〈生存〉に優れています。ハイ・エルフの同胞と同じく、幼い頃から剣と弓の訓練を受けています。
+Race/&ElfSylvanTitle=シルヴァン・エルフ
 Race/&ElfTitle=エルフ
 Race/&GnomeDescription=内海に面した山地を故郷とするノームは、\n地下で暮らすことを好みます。陰気さと実直さを身につけたドワーフとは対照的に、\n地下生活はノームにユーモアと、名誉や道徳に対する柔軟な考え方として表れる生きる活力を与えました。\n彼らがドワーフと共有する数少ない特徴は、\n細工いじりへの強い興味です。
 Race/&GnomeFemaleName10Title=リエル

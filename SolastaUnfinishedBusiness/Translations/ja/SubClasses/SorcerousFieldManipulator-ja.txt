@@ -6,5 +6,5 @@ Feature/&PowerSorcerousFieldManipulatorForcefulStepDescription=18レベルから
 Feature/&PowerSorcerousFieldManipulatorForcefulStepTitle=力強いステップ
 Feature/&ProficiencySorcerousFieldManipulatorMentalResistanceDescription=14レベルから、知力と判断力のセーヴィング・スローに習熟します。
 Feature/&ProficiencySorcerousFieldManipulatorMentalResistanceTitle=精神抵抗
-Subclass/&SorcerousFieldManipulatorDescription=フィールド・マニピュレーターは、戦場を制御し、敵の攻撃をいなすことに長けています。
-Subclass/&SorcerousFieldManipulatorTitle=フィールド・マニピュレーター
+Subclass/&SorcerousFieldManipulatorDescription=戦場操術師は、戦場を制御し、敵の攻撃をいなすことに長けています。
+Subclass/&SorcerousFieldManipulatorTitle=戦場操術師
