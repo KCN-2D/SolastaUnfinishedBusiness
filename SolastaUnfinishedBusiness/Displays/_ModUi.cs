@@ -439,6 +439,17 @@ internal static class ModUi
         };
     }
 
+    internal static bool IsBulkSelectableTabletopDefinition(BaseDefinition definition)
+    {
+        return definition switch
+        {
+            FeatDefinition featDefinition => IsTabletopDefinition(featDefinition) &&
+                                            !Tabletop2024Context.IsOptInOnlyManagedTabletopFeat(featDefinition),
+            not null => IsTabletopDefinition(definition),
+            _ => false
+        };
+    }
+
     private static string FormatDefinitionOptionTitle(BaseDefinition definition)
     {
         var title = definition.FormatTitle();
@@ -491,7 +502,7 @@ internal static class ModUi
             .Where(definition => toggleEnabled?.Invoke(definition) ?? true)
             .ToArray();
         var enabledTabletopDefinitions = enabledDefinitions
-            .Where(IsTabletopDefinition)
+            .Where(IsBulkSelectableTabletopDefinition)
             .ToArray();
         var selectAll =
             enabledDefinitions.Length > 0 &&
@@ -549,11 +560,9 @@ internal static class ModUi
                     if (UI.Toggle(Gui.Localize("ModUi/&SelectTabletop"), ref selectTabletop,
                             UI.Width(PixelsPerColumn)))
                     {
-                        foreach (var registeredDefinition in enabledDefinitions)
+                        foreach (var registeredDefinition in enabledTabletopDefinitions)
                         {
-                            switchAction.Invoke(
-                                registeredDefinition,
-                                selectTabletop && IsTabletopDefinition(registeredDefinition));
+                            switchAction.Invoke(registeredDefinition, selectTabletop);
                         }
                     }
                 }

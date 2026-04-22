@@ -33,42 +33,8 @@ public static class CharacterActionChargePatcher
 
         private static bool HasOrcishAggressionFeat(RulesetCharacterHero hero)
         {
-            if (hero?.TrainedFeats == null)
-            {
-                return false;
-            }
-
-            foreach (var feat in hero.TrainedFeats)
-            {
-                if (feat == null)
-                {
-                    continue;
-                }
-
-                if (feat == RaceFeats.FeatOrcishAggressionStr ||
-                    feat == RaceFeats.FeatOrcishAggressionCon)
-                {
-                    return true;
-                }
-
-                if (RaceFeats.FeatOrcishAggressionStr != null &&
-                    Tabletop2024Context.AreEquivalentTabletopFeatNames(
-                        feat.Name,
-                        RaceFeats.FeatOrcishAggressionStr.Name))
-                {
-                    return true;
-                }
-
-                if (RaceFeats.FeatOrcishAggressionCon != null &&
-                    Tabletop2024Context.AreEquivalentTabletopFeatNames(
-                        feat.Name,
-                        RaceFeats.FeatOrcishAggressionCon.Name))
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return Tabletop2024Context.HasEquivalentTrainedFeat(hero, RaceFeats.FeatOrcishAggressionStr) ||
+                   Tabletop2024Context.HasEquivalentTrainedFeat(hero, RaceFeats.FeatOrcishAggressionCon);
         }
     }
 }

@@ -478,7 +478,7 @@ public static class CharacterActionPatcher
                     if (__instance.RulesetCharacter != null)
                     {
                         var hero = __instance.RulesetCharacter.GetOriginalHero();
-                        if (hero != null && hero.TrainedFeats != null && hero.trainedFeats.Contains(OtherFeats.FeatStealthy))
+                        if (Tabletop2024Context.HasEquivalentTrainedFeat(hero, OtherFeats.FeatStealthy))
                         {
                             actorAdvantage = AdvantageType.Advantage;
                         }

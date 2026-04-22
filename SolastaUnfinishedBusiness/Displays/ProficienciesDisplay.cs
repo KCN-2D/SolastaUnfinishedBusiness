@@ -297,19 +297,20 @@ internal static class ProficienciesDisplay
             {
                 foreach (var feat in FeatsContext.Feats)
                 {
-                    FeatsContext.SwitchFeat(feat,
-                        toggle &&
-                        ModUi.IsTabletopDefinition(feat) &&
-                        Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(feat));
+                    if (ModUi.IsBulkSelectableTabletopDefinition(feat) &&
+                        Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(feat))
+                    {
+                        FeatsContext.SwitchFeat(feat, toggle);
+                    }
                 }
 
                 foreach (var featGroup in FeatsContext.FeatGroups)
                 {
-                    FeatsContext.SwitchFeatGroup(
-                        featGroup,
-                        toggle &&
-                        ModUi.IsTabletopDefinition(featGroup) &&
-                        Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(featGroup));
+                    if (ModUi.IsBulkSelectableTabletopDefinition(featGroup) &&
+                        Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(featGroup))
+                    {
+                        FeatsContext.SwitchFeatGroup(featGroup, toggle);
+                    }
                 }
 
                 foreach (var fightingStyles in FightingStyleContext.FightingStyles)

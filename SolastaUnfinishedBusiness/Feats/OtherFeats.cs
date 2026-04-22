@@ -1073,7 +1073,7 @@ internal static class OtherFeats
         var rulesetHero = rulesetCharacter.GetOriginalHero();
 
         if (rulesetHero == null ||
-            !rulesetHero.TrainedFeats.Contains(FeatStealthy))
+            !Tabletop2024Context.HasEquivalentTrainedFeat(rulesetHero, FeatStealthy))
         {
             return;
         }

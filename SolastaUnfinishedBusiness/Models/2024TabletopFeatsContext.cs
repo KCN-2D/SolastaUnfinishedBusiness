@@ -337,7 +337,7 @@ public static partial class Tabletop2024Context
         "FeatGroupWeaponMaster",
         "FeatGroupWeaponMastery"
     ];
-    private static readonly HashSet<string> ArchivedUaDefaultOffCanonicalNames =
+    private static readonly HashSet<string> OptInOnlyManagedTabletopCanonicalNames =
     [
         "FeatAcrobat",
         "FeatArcanist",
@@ -3100,16 +3100,26 @@ public static partial class Tabletop2024Context
             ManagedSelectableRootNamesByContainerName[groupName] = [];
         }
 
+        var profileTargetGroupsByReplacementName = TabletopFeat2024Profiles
+            .Where(profile => profile.Replacement != null)
+            .ToLookup(profile => profile.ReplacementName, profile => profile.TargetGroups);
+
         foreach (var managedRoot in IndependentTabletopFeatByCanonicalName
                      .Where(entry => entry.Value != null && IsSelectableManagedTabletopRoot(entry.Value)))
         {
             var replacement = managedRoot.Value;
             var canonicalName = managedRoot.Key;
+            var explicitTargetGroups = profileTargetGroupsByReplacementName[replacement.Name]
+                .SelectMany(groups => groups)
+                .Where(groupDefinition =>
+                    groupDefinition != null && ManagedTabletopContainerGroupNames.Contains(groupDefinition.Name))
+                .Distinct()
+                .ToArray();
 
-            var targetGroups = ResolveManagedContainerGroups(canonicalName)
-                .Concat(TabletopFeat2024Profiles
-                    .Where(profile => profile.Replacement == replacement)
-                    .SelectMany(profile => profile.TargetGroups))
+            var targetGroups = (ExplicitManagedLegacyRootNames.Contains(canonicalName) &&
+                                explicitTargetGroups.Length > 0
+                    ? explicitTargetGroups
+                    : ResolveManagedContainerGroups(canonicalName).Concat(explicitTargetGroups))
                 .Where(groupDefinition =>
                     groupDefinition != null && ManagedTabletopContainerGroupNames.Contains(groupDefinition.Name))
                 .Distinct()
@@ -3895,10 +3905,15 @@ public static partial class Tabletop2024Context
                ExcludedManagedTabletopCanonicalNames.Contains(canonicalName);
     }
 
-    private static bool ShouldSuppressLegacyAutoEnable(string canonicalName)
+    private static bool IsOptInOnlyManagedTabletopCanonicalName(string canonicalName)
     {
         return !string.IsNullOrEmpty(canonicalName) &&
-               ArchivedUaDefaultOffCanonicalNames.Contains(canonicalName);
+               OptInOnlyManagedTabletopCanonicalNames.Contains(canonicalName);
+    }
+
+    private static bool ShouldSuppressLegacyAutoEnable(string canonicalName)
+    {
+        return IsOptInOnlyManagedTabletopCanonicalName(canonicalName);
     }
 
     private static bool IsMagicInitiateLeafCanonicalName(string canonicalName)
@@ -5331,6 +5346,42 @@ public static partial class Tabletop2024Context
     {
         return definition is FeatDefinition featDefinition &&
                ManagedTabletopFeatNames.Contains(featDefinition.Name);
+    }
+
+    internal static bool IsOptInOnlyManagedTabletopFeat(FeatDefinition feat)
+    {
+        return feat != null &&
+               IsManagedTabletopFeat(feat) &&
+               IsOptInOnlyManagedTabletopCanonicalName(GetCanonicalTabletopFeatName(feat.Name));
+    }
+
+    internal static bool HasEquivalentTrainedFeat(RulesetCharacterHero hero, FeatDefinition feat)
+    {
+        if (hero?.TrainedFeats == null || feat == null)
+        {
+            return false;
+        }
+
+        foreach (var trainedFeat in hero.TrainedFeats)
+        {
+            if (trainedFeat == null)
+            {
+                continue;
+            }
+
+            if (trainedFeat == feat || trainedFeat.Name == feat.Name)
+            {
+                return true;
+            }
+
+            if (Main.Settings.EnableTabletopFeatRules2024 &&
+                AreEquivalentTabletopFeatNames(trainedFeat.Name, feat.Name))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     internal static bool IsSelectableTabletopFeatLeaf(FeatDefinition feat)
