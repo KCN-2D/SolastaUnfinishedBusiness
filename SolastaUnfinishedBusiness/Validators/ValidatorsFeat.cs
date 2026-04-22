@@ -167,6 +167,40 @@ internal static class ValidatorsFeat
 
     [NotNull]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static Func<FeatDefinitionWithPrerequisites, RulesetCharacterHero, (bool result, string output)>
+        ValidateAnyAbilityScore(int minValue, params string[] abilityScoreNames)
+    {
+        return (_, hero) =>
+        {
+            var filteredAbilityScoreNames = abilityScoreNames?
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct()
+                .ToArray() ?? [];
+
+            if (filteredAbilityScoreNames.Length == 0)
+            {
+                return (true, string.Empty);
+            }
+
+            var firstAbilityTitle = LocalizeAbilityScoreTitle(filteredAbilityScoreNames[0]);
+            var secondAbilityTitle = LocalizeAbilityScoreTitle(
+                filteredAbilityScoreNames.Length > 1 ? filteredAbilityScoreNames[1] : filteredAbilityScoreNames[0]);
+            var guiFormat = Gui.Format(
+                "Tooltip/&PreReqAnyAbilityScore",
+                firstAbilityTitle,
+                secondAbilityTitle,
+                minValue.ToString());
+            var hasRequiredAbilityScore = filteredAbilityScoreNames.Any(
+                abilityScoreName => hero.TryGetAttributeValue(abilityScoreName) >= minValue);
+
+            return hasRequiredAbilityScore
+                ? (true, guiFormat)
+                : (false, Gui.Colorize(guiFormat, Gui.ColorFailure));
+        };
+    }
+
+    [NotNull]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static Func<FeatDefinition, RulesetCharacterHero, (bool result, string output)> ValidateNotClass(
         [NotNull] CharacterClassDefinition characterClassDefinition)
     {
@@ -239,5 +273,22 @@ internal static class ValidatorsFeat
                 ? (true, guiFormat)
                 : (false, Gui.Colorize(guiFormat, Gui.ColorFailure));
         };
+    }
+
+    private static string LocalizeAbilityScoreTitle(string abilityScoreName)
+    {
+        var longTitle = Gui.Localize($"Attribute/&{abilityScoreName}TitleLong");
+
+        if (!string.IsNullOrEmpty(longTitle) &&
+            !longTitle.Contains("/&"))
+        {
+            return longTitle;
+        }
+
+        var title = Gui.Localize($"Attribute/&{abilityScoreName}Title");
+
+        return string.IsNullOrEmpty(title) || title.Contains("/&")
+            ? abilityScoreName
+            : title;
     }
 }

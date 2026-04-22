@@ -617,6 +617,7 @@ Tooltip/&PreReqIs={0}です
 Tooltip/&PreReqIsNot={0}ではありません
 Tooltip/&PreReqIsWithLevel={0}のレベルが{1}以上
 Tooltip/&PreReqLevelFormat=キャラクターレベル{0}以上
+Tooltip/&PreReqAnyAbilityScore={0}または{1}が{2}以上
 Tooltip/&PreReqMustHaveExtraAttacks=追加攻撃が必要
 Tooltip/&PreReqMustKnow={0}を知っておく必要があります
 Tooltip/&Tag9000Title=カスタムエフェクト

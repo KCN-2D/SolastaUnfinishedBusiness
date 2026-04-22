@@ -624,6 +624,7 @@ Tooltip/&PreReqIs=Est-ce que {0}
 Tooltip/&PreReqIsNot=N'est-ce pas {0}
 Tooltip/&PreReqIsWithLevel=Est-ce que {0} est de niveau {1}
 Tooltip/&PreReqLevelFormat=Niveau de caractère minimum {0}
+Tooltip/&PreReqAnyAbilityScore={0} ou {1} {2}+
 Tooltip/&PreReqMustHaveExtraAttacks=Doit avoir des attaques supplémentaires
 Tooltip/&PreReqMustKnow=A savoir {0}
 Tooltip/&Tag9000Title=Effet personnalisé

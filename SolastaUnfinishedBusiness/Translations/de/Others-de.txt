@@ -624,6 +624,7 @@ Tooltip/&PreReqIs=Ist {0}
 Tooltip/&PreReqIsNot=Ist nicht {0}
 Tooltip/&PreReqIsWithLevel=Ist {0} Stufe {1}
 Tooltip/&PreReqLevelFormat=Mindestcharakterstufe {0}
+Tooltip/&PreReqAnyAbilityScore={0} oder {1} {2}+
 Tooltip/&PreReqMustHaveExtraAttacks=Muss zusätzliche Angriffe haben
 Tooltip/&PreReqMustKnow=Muss man wissen {0}
 Tooltip/&Tag9000Title=Benutzerdefinierter Effekt

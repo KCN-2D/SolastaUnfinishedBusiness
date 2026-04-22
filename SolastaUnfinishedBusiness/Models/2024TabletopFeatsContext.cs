@@ -98,6 +98,18 @@ public static partial class Tabletop2024Context
     private static readonly Dictionary<string, HashSet<string>> ManagedTabletopChildNamesByParentName = [];
     private static readonly Dictionary<string, HashSet<string>> ManagedTabletopContainerNamesByCanonicalName = [];
     private static readonly Dictionary<string, HashSet<string>> ManagedSelectableRootNamesByContainerName = [];
+    private static readonly Dictionary<string, (int MinimumValue, string[] AbilityScoreNames)>
+        AlternativeAbilityPrerequisiteProfilesByProfileKey = new(StringComparer.Ordinal)
+        {
+            ["FeatGroupAthlete"] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
+            ["FeatGroupCharger2024"] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
+            ["FeatGroupDualWielder2024"] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
+            ["FeatGroupGrappler2024"] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
+            ["FeatGroupInspiringLeader2024"] = (13, [AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma]),
+            ["FeatGroupPolearmMaster2024"] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
+            ["FeatGroupSentinel2024"] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
+            ["FeatGroupSpeedy"] = (13, [AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution])
+        };
     private static readonly Dictionary<string, string> PendingSelectedFeatNameByHeroAndTag = [];
     private static readonly HashSet<string> ManagedTabletopFeatNames = [];
     private static readonly HashSet<string> SelectableManagedTabletopRootNames = [];
@@ -241,6 +253,7 @@ public static partial class Tabletop2024Context
         "FeatDefensiveDuelist",
         "FeatDualWeaponDefense",
         "FeatGroupArmor",
+        "FeatGroupAthlete",
         "FeatGroupCreed",
         "FeatGroupElementalAdept",
         "FeatGroupFeyTeleport",
@@ -296,7 +309,6 @@ public static partial class Tabletop2024Context
 
     private static readonly string[] ExplicitIndependentLegacyGroupedRootNames =
     [
-        "FeatGroupAthlete",
         "FeatGroupBalefulScion",
         "FeatGroupChef",
         "FeatGroupCrusher",
@@ -320,9 +332,7 @@ public static partial class Tabletop2024Context
         "FeatGroupWeaponMastery"
     ];
     private static readonly HashSet<string> ManagedIndependentHalfFeatAbilityPrerequisiteCanonicalRoots =
-    [
-        "FeatGroupAthlete"
-    ];
+    [];
     private static readonly HashSet<string> ManagedIndependentHalfFeatWithoutAbilityPrerequisiteCanonicalRoots =
     [
         "FeatGroupBalefulScion",
@@ -372,6 +382,7 @@ public static partial class Tabletop2024Context
     private static FeatDefinition _featSavageAttack2024;
     private static FeatDefinition _featGrappler2024Dex;
     private static FeatDefinition _featGrappler2024Str;
+    private static FeatDefinition _featGroupAthlete2024;
     private static FeatDefinition _featGroupCharger2024;
     private static FeatDefinition _featGroupDualWielder2024;
     private static FeatDefinition _featGroupElementalAdept2024;
@@ -410,6 +421,7 @@ public static partial class Tabletop2024Context
         try
         {
             BuildOriginFeats2024();
+            BuildAthlete2024();
             BuildSpeedy();
             BuildGreatWeaponMaster2024();
             BuildSharpshooter2024();
@@ -609,6 +621,46 @@ public static partial class Tabletop2024Context
             SetFeatVisibility(feat, false);
             RegisterManagedTabletopFeats(true, feat);
         }
+    }
+
+    private static void BuildAthlete2024()
+    {
+        var featGroupAthlete = GetDefinition<FeatDefinition>("FeatGroupAthlete");
+        var athleteFamily = OtherFeats.FeatAthleteStr.FamilyTag;
+        var groupTitle = Get2024HalfFeatGroupTitle("Feat/&FeatGroupAthleteTitle", featGroupAthlete);
+        var baseDescription = Get2024HalfFeatBaseDescription(
+            "Feat/&FeatGroupAthlete2024BaseDescription",
+            featGroupAthlete,
+            Gui.Localize("Feat/&FeatGroupAthleteDescription"));
+        var featAthlete2024Str = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
+            OtherFeats.FeatAthleteStr,
+            "FeatAthlete2024Str",
+            AttributeModifierCreed_Of_Einar,
+            athleteFamily,
+            AttributeDefinitions.Strength,
+            groupTitle,
+            baseDescription,
+            "FeatGroupAthlete");
+        var featAthlete2024Dex = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
+            OtherFeats.FeatAthleteDex,
+            "FeatAthlete2024Dex",
+            AttributeModifierCreed_Of_Misaye,
+            athleteFamily,
+            AttributeDefinitions.Dexterity,
+            groupTitle,
+            baseDescription,
+            "FeatGroupAthlete");
+
+        _featGroupAthlete2024 = BuildAlternativeAbilityPrerequisiteGroup(
+            "FeatGroupAthlete2024",
+            athleteFamily,
+            "FeatGroupAthlete",
+            featAthlete2024Str,
+            featAthlete2024Dex);
+        _featGroupAthlete2024.GuiPresentation.title = "Feat/&FeatGroupAthleteTitle";
+        _featGroupAthlete2024.GuiPresentation.description = "Feat/&FeatGroupAthleteDescription";
+        SetFeatVisibility(_featGroupAthlete2024, false);
+        RegisterManagedTabletopFeats(true, _featGroupAthlete2024);
     }
 
     private static FeatDefinition BuildAlert2024()
@@ -891,43 +943,37 @@ public static partial class Tabletop2024Context
         var baseDescription = Get2024HalfFeatBaseDescription(
             Get2024HalfFeatBaseDescriptionKey("FeatGroupSpeedy"),
             fallbackDescription: Gui.Localize("Feat/&FeatGroupSpeedyDescription"));
-        var featSpeedyDex = BuildSpeedyVariant(
+        var featSpeedyDex = BuildAlternativeAbilityPrerequisiteStandaloneHalfFeatVariant(
             $"{name}Dex",
+            AttributeModifierCreed_Of_Misaye,
+            SpeedyFamily,
             AttributeDefinitions.Dexterity,
-            AttributeModifierCreed_Of_Misaye);
-        var featSpeedyCon = BuildSpeedyVariant(
+            groupTitle,
+            baseDescription,
+            "FeatGroupSpeedy",
+            movementAffinity,
+            combatAffinity,
+            featureDash);
+        var featSpeedyCon = BuildAlternativeAbilityPrerequisiteStandaloneHalfFeatVariant(
             $"{name}Con",
+            AttributeModifierCreed_Of_Arun,
+            SpeedyFamily,
             AttributeDefinitions.Constitution,
-            AttributeModifierCreed_Of_Arun);
+            groupTitle,
+            baseDescription,
+            "FeatGroupSpeedy",
+            movementAffinity,
+            combatAffinity,
+            featureDash);
 
-        _featGroupSpeedy = GroupFeats.MakeGroup(
+        _featGroupSpeedy = BuildAlternativeAbilityPrerequisiteGroup(
             "FeatGroupSpeedy",
             SpeedyFamily,
+            "FeatGroupSpeedy",
             featSpeedyDex,
             featSpeedyCon);
         SetFeatVisibility(_featGroupSpeedy, false);
         RegisterManagedTabletopFeats(true, _featGroupSpeedy);
-
-        FeatDefinition BuildSpeedyVariant(
-            string featName,
-            string attribute,
-            FeatureDefinitionAttributeModifier attributeModifier)
-        {
-            var feat = FeatDefinitionBuilder
-                .Create(featName)
-                .SetGuiPresentation(
-                    Gui.Format("Feat/&GeneralFeat2024VariantTitle", groupTitle, GetAttributeTitle(attribute)),
-                    BuildHalfFeatDescription(attribute, baseDescription),
-                    hidden: false)
-                .SetFeatures(attributeModifier, movementAffinity, combatAffinity, featureDash)
-                .SetFeatFamily(SpeedyFamily)
-                .AddCustomSubFeatures(FeatsContext.HideFromFeats.Marker)
-                .AddToDB();
-
-            OverrideMinimalAbilityPrerequisite(feat, attribute, 13);
-
-            return feat;
-        }
     }
 
     private static void BuildGreatWeaponMaster2024()
@@ -1178,26 +1224,29 @@ public static partial class Tabletop2024Context
             featDualWeaponDefense,
             Gui.Localize("Feat/&FeatGroupDualWielder2024Description"));
 
-        var featDualWielder2024Str = BuildAbilityPrerequisiteHalfFeatVariant(
+        var featDualWielder2024Str = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             featDualWeaponDefense,
             "FeatDualWielder2024Str",
             AttributeModifierCreed_Of_Einar,
             DualWielder2024Family,
             AttributeDefinitions.Strength,
             groupTitle,
-            baseDescription);
-        var featDualWielder2024Dex = BuildAbilityPrerequisiteHalfFeatVariant(
+            baseDescription,
+            "FeatGroupDualWielder2024");
+        var featDualWielder2024Dex = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             featDualWeaponDefense,
             "FeatDualWielder2024Dex",
             AttributeModifierCreed_Of_Misaye,
             DualWielder2024Family,
             AttributeDefinitions.Dexterity,
             groupTitle,
-            baseDescription);
+            baseDescription,
+            "FeatGroupDualWielder2024");
 
-        _featGroupDualWielder2024 = GroupFeats.MakeGroup(
+        _featGroupDualWielder2024 = BuildAlternativeAbilityPrerequisiteGroup(
             "FeatGroupDualWielder2024",
             DualWielder2024Family,
+            "FeatGroupDualWielder2024",
             featDualWielder2024Str,
             featDualWielder2024Dex);
         SetFeatVisibility(_featGroupDualWielder2024, false);
@@ -1289,7 +1338,7 @@ public static partial class Tabletop2024Context
             .AddCustomSubFeatures(new CustomBehaviorCharger2024(powerPool, powerShove))
             .AddToDB();
 
-        var featCharger2024Str = BuildDedicated2024HalfFeatVariant(
+        var featCharger2024Str = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             featCharger,
             $"{name}Str",
             AttributeModifierCreed_Of_Einar,
@@ -1297,8 +1346,9 @@ public static partial class Tabletop2024Context
             AttributeDefinitions.Strength,
             groupTitle,
             baseDescription,
+            "FeatGroupCharger2024",
             extraFeatures: [featureAfterDash, powerPool, powerAddDamage, powerShove, feature]);
-        var featCharger2024Dex = BuildDedicated2024HalfFeatVariant(
+        var featCharger2024Dex = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             featCharger,
             $"{name}Dex",
             AttributeModifierCreed_Of_Misaye,
@@ -1306,11 +1356,13 @@ public static partial class Tabletop2024Context
             AttributeDefinitions.Dexterity,
             groupTitle,
             baseDescription,
+            "FeatGroupCharger2024",
             extraFeatures: [featureAfterDash, powerPool, powerAddDamage, powerShove, feature]);
 
-        _featGroupCharger2024 = GroupFeats.MakeGroup(
+        _featGroupCharger2024 = BuildAlternativeAbilityPrerequisiteGroup(
             "FeatGroupCharger2024",
             Charger2024Family,
+            "FeatGroupCharger2024",
             featCharger2024Str,
             featCharger2024Dex);
         SetFeatVisibility(_featGroupCharger2024, false);
@@ -1342,27 +1394,30 @@ public static partial class Tabletop2024Context
         var groupTitle = Get2024HalfFeatGroupTitle("Feat/&FeatGroupGrappler2024Title", featGrappler);
         var baseDescription = Get2024HalfFeatBaseDescription("Feat/&FeatGroupGrappler2024Description", featGrappler);
 
-        _featGrappler2024Str = Build2024HalfFeatVariant(
+        _featGrappler2024Str = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             featGrappler,
             "FeatGrappler2024Str",
             AttributeModifierCreed_Of_Einar,
             Grappler2024Family,
             AttributeDefinitions.Strength,
             groupTitle,
-            baseDescription);
+            baseDescription,
+            "FeatGroupGrappler2024");
 
-        _featGrappler2024Dex = Build2024HalfFeatVariant(
+        _featGrappler2024Dex = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             featGrappler,
             "FeatGrappler2024Dex",
             AttributeModifierCreed_Of_Misaye,
             Grappler2024Family,
             AttributeDefinitions.Dexterity,
             groupTitle,
-            baseDescription);
+            baseDescription,
+            "FeatGroupGrappler2024");
 
-        _featGroupGrappler2024 = GroupFeats.MakeGroup(
+        _featGroupGrappler2024 = BuildAlternativeAbilityPrerequisiteGroup(
             "FeatGroupGrappler2024",
             Grappler2024Family,
+            "FeatGroupGrappler2024",
             _featGrappler2024Str,
             _featGrappler2024Dex);
         SetFeatVisibility(_featGroupGrappler2024, false);
@@ -1431,7 +1486,7 @@ public static partial class Tabletop2024Context
             .Create(legacyPower, "PowerFeatInspiringLeader2024Cha")
             .SetExplicitAbilityScore(AttributeDefinitions.Charisma)
             .AddToDB();
-        var featInspiringLeader2024Wis = BuildDedicated2024HalfFeatVariant(
+        var featInspiringLeader2024Wis = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             feat,
             "FeatInspiringLeader2024Wis",
             AttributeModifierCreed_Of_Maraike,
@@ -1439,8 +1494,9 @@ public static partial class Tabletop2024Context
             AttributeDefinitions.Wisdom,
             groupTitle,
             baseDescription,
+            "FeatGroupInspiringLeader2024",
             extraFeatures: [powerWis]);
-        var featInspiringLeader2024Cha = BuildDedicated2024HalfFeatVariant(
+        var featInspiringLeader2024Cha = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             feat,
             "FeatInspiringLeader2024Cha",
             AttributeModifierCreed_Of_Solasta,
@@ -1448,11 +1504,13 @@ public static partial class Tabletop2024Context
             AttributeDefinitions.Charisma,
             groupTitle,
             baseDescription,
+            "FeatGroupInspiringLeader2024",
             extraFeatures: [powerCha]);
 
-        _featGroupInspiringLeader2024 = GroupFeats.MakeGroup(
+        _featGroupInspiringLeader2024 = BuildAlternativeAbilityPrerequisiteGroup(
             "FeatGroupInspiringLeader2024",
             InspiringLeader2024Family,
+            "FeatGroupInspiringLeader2024",
             featInspiringLeader2024Wis,
             featInspiringLeader2024Cha);
         SetFeatVisibility(_featGroupInspiringLeader2024, false);
@@ -1542,6 +1600,8 @@ public static partial class Tabletop2024Context
                 AttributeDefinitions.Strength,
                 groupTitle,
                 baseDescription,
+                prerequisiteValue: null,
+                clearAbilityPrerequisite: true,
                 extraFeatures: [powerSaving, feature]),
             BuildDedicated2024HalfFeatVariant(
                 feat,
@@ -1551,6 +1611,8 @@ public static partial class Tabletop2024Context
                 AttributeDefinitions.Dexterity,
                 groupTitle,
                 baseDescription,
+                prerequisiteValue: null,
+                clearAbilityPrerequisite: true,
                 extraFeatures: [powerSaving, feature]));
         SetFeatVisibility(_featGroupMageSlayer2024, false);
         RegisterManagedTabletopFeats(true, _featGroupMageSlayer2024);
@@ -1726,26 +1788,29 @@ public static partial class Tabletop2024Context
             Get2024HalfFeatBaseDescriptionKey("FeatGroupPolearmMaster2024"),
             feat,
             Gui.Localize("Feat/&FeatGroupPolearmMaster2024Description"));
-        var featPolearmMaster2024Str = BuildAbilityPrerequisiteHalfFeatVariant(
+        var featPolearmMaster2024Str = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             feat,
             "FeatPolearmMaster2024Str",
             AttributeModifierCreed_Of_Einar,
             PolearmMaster2024Family,
             AttributeDefinitions.Strength,
             groupTitle,
-            baseDescription);
-        var featPolearmMaster2024Dex = BuildAbilityPrerequisiteHalfFeatVariant(
+            baseDescription,
+            "FeatGroupPolearmMaster2024");
+        var featPolearmMaster2024Dex = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             feat,
             "FeatPolearmMaster2024Dex",
             AttributeModifierCreed_Of_Misaye,
             PolearmMaster2024Family,
             AttributeDefinitions.Dexterity,
             groupTitle,
-            baseDescription);
+            baseDescription,
+            "FeatGroupPolearmMaster2024");
 
-        _featGroupPolearmMaster2024 = GroupFeats.MakeGroup(
+        _featGroupPolearmMaster2024 = BuildAlternativeAbilityPrerequisiteGroup(
             "FeatGroupPolearmMaster2024",
             PolearmMaster2024Family,
+            "FeatGroupPolearmMaster2024",
             featPolearmMaster2024Str,
             featPolearmMaster2024Dex);
         SetFeatVisibility(_featGroupPolearmMaster2024, false);
@@ -1760,26 +1825,29 @@ public static partial class Tabletop2024Context
             Get2024HalfFeatBaseDescriptionKey("FeatGroupSentinel2024"),
             feat,
             Gui.Localize("Feat/&FeatGroupSentinel2024Description"));
-        var featSentinel2024Str = BuildAbilityPrerequisiteHalfFeatVariant(
+        var featSentinel2024Str = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             feat,
             "FeatSentinel2024Str",
             AttributeModifierCreed_Of_Einar,
             Sentinel2024Family,
             AttributeDefinitions.Strength,
             groupTitle,
-            baseDescription);
-        var featSentinel2024Dex = BuildAbilityPrerequisiteHalfFeatVariant(
+            baseDescription,
+            "FeatGroupSentinel2024");
+        var featSentinel2024Dex = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             feat,
             "FeatSentinel2024Dex",
             AttributeModifierCreed_Of_Misaye,
             Sentinel2024Family,
             AttributeDefinitions.Dexterity,
             groupTitle,
-            baseDescription);
+            baseDescription,
+            "FeatGroupSentinel2024");
 
-        _featGroupSentinel2024 = GroupFeats.MakeGroup(
+        _featGroupSentinel2024 = BuildAlternativeAbilityPrerequisiteGroup(
             "FeatGroupSentinel2024",
             Sentinel2024Family,
+            "FeatGroupSentinel2024",
             featSentinel2024Str,
             featSentinel2024Dex);
         SetFeatVisibility(_featGroupSentinel2024, false);
@@ -2536,6 +2604,7 @@ public static partial class Tabletop2024Context
         RegisterManagedCatalogEntry("FeatLucky", _featLucky2024, true, true);
         RegisterManagedCatalogEntry("FeatSavageAttack", _featSavageAttack2024, true, true);
         RegisterManagedCatalogEntry("FeatMobile", _featGroupSpeedy, true);
+        RegisterManagedCatalogEntry("FeatGroupAthlete", _featGroupAthlete2024, true);
         RegisterManagedCatalogEntry(OtherFeats.FeatWarCaster, _featGroupWarCaster2024, true);
         RegisterManagedCatalogEntry("FeatRangedExpert", _featCrossbowExpert2024, true, true);
         RegisterManagedCatalogEntry("FeatShieldTechniques", _featShieldMaster2024, true, true);
@@ -2883,6 +2952,7 @@ public static partial class Tabletop2024Context
     private static void LoadTabletopFeat2024Profiles()
     {
         var featGroupArmor = GetDefinition<FeatDefinition>("FeatGroupArmor");
+        var featGroupAthlete = GetDefinition<FeatDefinition>("FeatGroupAthlete");
         var featGroupCreed = GetDefinition<FeatDefinition>("FeatGroupCreed");
         var featGroupMediumArmor = GetDefinition<FeatDefinition>("FeatGroupMediumArmor");
         var featGroupPlaneMagic = GetDefinition<FeatDefinition>("FeatGroupPlaneMagic");
@@ -2932,6 +3002,10 @@ public static partial class Tabletop2024Context
                 _featGroupSpeedy,
                 [ForestRunner, featMobile],
                 [GroupFeats.FeatGroupAgilityCombat]),
+            new TabletopFeat2024Profile(
+                _featGroupAthlete2024,
+                [featGroupAthlete],
+                [GroupFeats.FeatGroupBodyResilience, GroupFeats.FeatGroupSkills]),
             new TabletopFeat2024Profile(
                 _featGroupWarCaster2024,
                 [featWarCaster],
@@ -4245,15 +4319,7 @@ public static partial class Tabletop2024Context
         }
 
         var feat = builder.AddToDB();
-
-        if (clearAbilityPrerequisite)
-        {
-            ClearMinimalAbilityPrerequisite(feat);
-        }
-        else if (abilityPrerequisiteValue.HasValue)
-        {
-            OverrideMinimalAbilityPrerequisite(feat, attribute, abilityPrerequisiteValue.Value);
-        }
+        ApplyHalfFeatAbilityPrerequisite(feat, attribute, abilityPrerequisiteValue, clearAbilityPrerequisite);
 
         return feat;
     }
@@ -4300,7 +4366,7 @@ public static partial class Tabletop2024Context
             extraFeatures: [attributeModifier]);
     }
 
-    private static FeatDefinition BuildAbilityPrerequisiteHalfFeatVariant(
+    private static FeatDefinition BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
         FeatDefinition sourceDefinition,
         string name,
         FeatureDefinitionAttributeModifier attributeModifier,
@@ -4308,9 +4374,27 @@ public static partial class Tabletop2024Context
         string attribute,
         string groupTitle,
         string baseDescription,
-        int prerequisiteValue = 13)
+        string prerequisiteProfileKey,
+        string explicitTitle = null,
+        params FeatureDefinition[] extraFeatures)
     {
-        return Build2024HalfFeatVariant(
+        if (!TryGetAlternativeAbilityPrerequisiteValidator(prerequisiteProfileKey, out var validator))
+        {
+            Main.Error($"Missing alternative ability prerequisite profile for {prerequisiteProfileKey}.");
+
+            return BuildDedicated2024HalfFeatVariant(
+                sourceDefinition,
+                name,
+                attributeModifier,
+                family,
+                attribute,
+                groupTitle,
+                baseDescription,
+                explicitTitle: explicitTitle,
+                extraFeatures: extraFeatures);
+        }
+
+        return BuildDedicated2024HalfFeatVariant(
             sourceDefinition,
             name,
             attributeModifier,
@@ -4318,7 +4402,50 @@ public static partial class Tabletop2024Context
             attribute,
             groupTitle,
             baseDescription,
-            prerequisiteValue);
+            prerequisiteValue: null,
+            clearAbilityPrerequisite: true,
+            explicitTitle: explicitTitle,
+            extraValidators: [validator],
+            extraFeatures: extraFeatures);
+    }
+
+    private static FeatDefinition BuildAlternativeAbilityPrerequisiteStandaloneHalfFeatVariant(
+        string name,
+        FeatureDefinitionAttributeModifier attributeModifier,
+        string family,
+        string attribute,
+        string groupTitle,
+        string baseDescription,
+        string prerequisiteProfileKey,
+        params FeatureDefinition[] extraFeatures)
+    {
+        if (!TryGetAlternativeAbilityPrerequisiteValidator(prerequisiteProfileKey, out var validator))
+        {
+            Main.Error($"Missing alternative ability prerequisite profile for {prerequisiteProfileKey}.");
+
+            return BuildStandalone2024HalfFeatVariant(
+                name,
+                attributeModifier,
+                family,
+                attribute,
+                groupTitle,
+                baseDescription,
+                prerequisiteValue: null,
+                clearAbilityPrerequisite: true,
+                extraFeatures: extraFeatures);
+        }
+
+        return BuildStandalone2024HalfFeatVariant(
+            name,
+            attributeModifier,
+            family,
+            attribute,
+            groupTitle,
+            baseDescription,
+            prerequisiteValue: null,
+            clearAbilityPrerequisite: true,
+            extraValidators: [validator],
+            extraFeatures: extraFeatures);
     }
 
     private static FeatDefinition BuildDedicated2024HalfFeatVariant(
@@ -4332,6 +4459,7 @@ public static partial class Tabletop2024Context
         int? prerequisiteValue = 13,
         bool clearAbilityPrerequisite = false,
         string explicitTitle = null,
+        Func<FeatDefinitionWithPrerequisites, RulesetCharacterHero, (bool result, string output)>[] extraValidators = null,
         params FeatureDefinition[] extraFeatures)
     {
         return BuildDedicated2024SingleHalfFeat(
@@ -4345,7 +4473,69 @@ public static partial class Tabletop2024Context
             hideFromFeats: true,
             prerequisiteValue: prerequisiteValue,
             clearAbilityPrerequisite: clearAbilityPrerequisite,
+            extraValidators: extraValidators,
             extraFeatures: extraFeatures);
+    }
+
+    private static FeatDefinition BuildStandalone2024HalfFeatVariant(
+        string name,
+        FeatureDefinitionAttributeModifier attributeModifier,
+        string family,
+        string attribute,
+        string groupTitle,
+        string baseDescription,
+        int? prerequisiteValue = 13,
+        bool clearAbilityPrerequisite = false,
+        string explicitTitle = null,
+        Func<FeatDefinitionWithPrerequisites, RulesetCharacterHero, (bool result, string output)>[] extraValidators = null,
+        params FeatureDefinition[] extraFeatures)
+    {
+        var features = new List<FeatureDefinition> { attributeModifier };
+
+        if (extraFeatures != null)
+        {
+            features.AddRange(extraFeatures.Where(feature => feature != null));
+        }
+
+        var featureArray = features.Distinct().ToArray();
+        var validatorArray = (extraValidators ?? []).Where(validator => validator != null).Distinct().ToArray();
+        var title = explicitTitle ?? Gui.Format("Feat/&GeneralFeat2024VariantTitle", groupTitle, GetAttributeTitle(attribute));
+        var description = BuildHalfFeatDescription(attribute, baseDescription);
+        FeatDefinition featDefinition;
+
+        if (validatorArray.Length > 0)
+        {
+            featDefinition = FeatDefinitionWithPrerequisitesBuilder
+                .Create(name)
+                .SetGuiPresentation(title, description, hidden: false)
+                .SetFeatures(featureArray)
+                .SetValidators(validatorArray)
+                .AddToDB();
+        }
+        else
+        {
+            featDefinition = FeatDefinitionBuilder
+                .Create(name)
+                .SetGuiPresentation(title, description, hidden: false)
+                .SetFeatures(featureArray)
+                .AddToDB();
+        }
+
+        ApplyHalfFeatAbilityPrerequisite(featDefinition, attribute, prerequisiteValue, clearAbilityPrerequisite);
+        featDefinition.AddCustomSubFeatures(FeatsContext.HideFromFeats.Marker);
+
+        if (string.IsNullOrEmpty(family))
+        {
+            featDefinition.hasFamilyTag = false;
+            featDefinition.familyTag = string.Empty;
+        }
+        else
+        {
+            featDefinition.hasFamilyTag = true;
+            featDefinition.familyTag = family;
+        }
+
+        return featDefinition;
     }
 
     private static FeatDefinition BuildSingleAbilityPrerequisiteHalfFeat(
@@ -4480,14 +4670,7 @@ public static partial class Tabletop2024Context
             }
         }
 
-        if (clearAbilityPrerequisite)
-        {
-            ClearMinimalAbilityPrerequisite(feat);
-        }
-        else if (prerequisiteValue.HasValue)
-        {
-            OverrideMinimalAbilityPrerequisite(feat, attribute, prerequisiteValue.Value);
-        }
+        ApplyHalfFeatAbilityPrerequisite(feat, attribute, prerequisiteValue, clearAbilityPrerequisite);
 
         return feat;
     }
@@ -4522,14 +4705,7 @@ public static partial class Tabletop2024Context
             hidden: false,
             extraFeatures: [.. features.Distinct()]);
 
-        if (clearAbilityPrerequisite)
-        {
-            ClearMinimalAbilityPrerequisite(feat);
-        }
-        else if (prerequisiteValue.HasValue)
-        {
-            OverrideMinimalAbilityPrerequisite(feat, attribute, prerequisiteValue.Value);
-        }
+        ApplyHalfFeatAbilityPrerequisite(feat, attribute, prerequisiteValue, clearAbilityPrerequisite);
 
         return feat;
     }
@@ -4609,6 +4785,7 @@ public static partial class Tabletop2024Context
         bool hideFromFeats = false,
         int? prerequisiteValue = 13,
         bool clearAbilityPrerequisite = false,
+        Func<FeatDefinitionWithPrerequisites, RulesetCharacterHero, (bool result, string output)>[] extraValidators = null,
         params FeatureDefinition[] extraFeatures)
     {
         if (!sourceDefinition)
@@ -4624,15 +4801,21 @@ public static partial class Tabletop2024Context
         }
 
         var featureArray = features.Distinct().ToArray();
+        var validatorArray = (sourceDefinition as FeatDefinitionWithPrerequisites)?.Validators
+                .Where(validator => validator != null)
+                .Concat(extraValidators ?? [])
+                .Distinct()
+                .ToArray()
+            ?? (extraValidators ?? []).Where(validator => validator != null).Distinct().ToArray();
         FeatDefinition featDefinition;
 
-        if (sourceDefinition is FeatDefinitionWithPrerequisites featDefinitionWithPrerequisites)
+        if (validatorArray.Length > 0)
         {
             featDefinition = FeatDefinitionWithPrerequisitesBuilder
                 .Create(name)
                 .SetGuiPresentation(title, BuildHalfFeatDescription(attribute, baseDescription), sourceDefinition, false)
                 .SetFeatures(featureArray)
-                .SetValidators(featDefinitionWithPrerequisites.Validators.Distinct().ToArray())
+                .SetValidators(validatorArray)
                 .AddToDB();
         }
         else
@@ -4645,15 +4828,7 @@ public static partial class Tabletop2024Context
         }
 
         MergeFeatPrerequisites(sourceDefinition, featDefinition, false);
-
-        if (clearAbilityPrerequisite)
-        {
-            ClearMinimalAbilityPrerequisite(featDefinition);
-        }
-        else if (prerequisiteValue.HasValue)
-        {
-            OverrideMinimalAbilityPrerequisite(featDefinition, attribute, prerequisiteValue.Value);
-        }
+        ApplyHalfFeatAbilityPrerequisite(featDefinition, attribute, prerequisiteValue, clearAbilityPrerequisite);
 
         if (hideFromFeats)
         {
@@ -4780,15 +4955,7 @@ public static partial class Tabletop2024Context
             Gui.Format("Feat/&GeneralFeat2024VariantTitle", groupTitle, GetAttributeTitle(attribute));
         featDefinition.GuiPresentation.description = BuildHalfFeatDescription(attribute, baseDescription);
         featDefinition.GuiPresentation.hidden = false;
-
-        if (clearAbilityPrerequisite)
-        {
-            ClearMinimalAbilityPrerequisite(featDefinition);
-        }
-        else if (prerequisiteValue.HasValue)
-        {
-            OverrideMinimalAbilityPrerequisite(featDefinition, attribute, prerequisiteValue.Value);
-        }
+        ApplyHalfFeatAbilityPrerequisite(featDefinition, attribute, prerequisiteValue, clearAbilityPrerequisite);
     }
 
     private static bool TryGetHalfFeatAttribute(FeatDefinition featDefinition, out string attribute)
@@ -4884,6 +5051,55 @@ public static partial class Tabletop2024Context
             : title;
     }
 
+    private static bool TryGetAlternativeAbilityPrerequisiteValidator(
+        string prerequisiteProfileKey,
+        out Func<FeatDefinitionWithPrerequisites, RulesetCharacterHero, (bool result, string output)> validator)
+    {
+        validator = null;
+
+        if (string.IsNullOrEmpty(prerequisiteProfileKey) ||
+            !AlternativeAbilityPrerequisiteProfilesByProfileKey.TryGetValue(prerequisiteProfileKey, out var profile))
+        {
+            return false;
+        }
+
+        validator = ValidatorsFeat.ValidateAnyAbilityScore(profile.MinimumValue, profile.AbilityScoreNames);
+
+        return true;
+    }
+
+    private static FeatDefinition BuildAlternativeAbilityPrerequisiteGroup(
+        string name,
+        string family,
+        string prerequisiteProfileKey,
+        params FeatDefinition[] feats)
+    {
+        if (!TryGetAlternativeAbilityPrerequisiteValidator(prerequisiteProfileKey, out var validator))
+        {
+            Main.Error($"Missing alternative ability prerequisite profile for {prerequisiteProfileKey}.");
+
+            return GroupFeats.MakeGroup(name, family, feats);
+        }
+
+        return GroupFeats.MakeGroupWithPreRequisite(name, family, validator, feats);
+    }
+
+    private static void ApplyHalfFeatAbilityPrerequisite(
+        FeatDefinition featDefinition,
+        string attribute,
+        int? prerequisiteValue = 13,
+        bool clearAbilityPrerequisite = false)
+    {
+        if (clearAbilityPrerequisite)
+        {
+            ClearMinimalAbilityPrerequisite(featDefinition);
+        }
+        else if (prerequisiteValue.HasValue)
+        {
+            OverrideMinimalAbilityPrerequisite(featDefinition, attribute, prerequisiteValue.Value);
+        }
+    }
+
     private static FeatureDefinitionAttributeModifier GetHalfFeatAttributeModifier(string attribute)
     {
         return attribute switch
@@ -4943,7 +5159,7 @@ public static partial class Tabletop2024Context
         }
 
         MergeFeatPrerequisites(sourceDefinition, featDefinition, false);
-        OverrideMinimalAbilityPrerequisite(featDefinition, attribute, prerequisiteValue);
+        ApplyHalfFeatAbilityPrerequisite(featDefinition, attribute, prerequisiteValue);
 
         if (string.IsNullOrEmpty(family))
         {
