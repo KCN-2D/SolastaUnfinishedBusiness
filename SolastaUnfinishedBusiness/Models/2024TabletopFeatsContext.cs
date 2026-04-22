@@ -359,6 +359,12 @@ public static partial class Tabletop2024Context
         "FeatGroupWeaponMaster",
         "FeatGroupWeaponMastery"
     ];
+    private static readonly HashSet<string> ManagedHalfFeatCustomVariantTitleCanonicalRoots =
+    [
+        "FeatGroupElementalAdept",
+        "FeatGroupKeenMind2024",
+        "FeatGroupObservant2024"
+    ];
     private static readonly HashSet<string> OptInOnlyManagedTabletopCanonicalNames =
     [
         "FeatAcrobat",
@@ -705,7 +711,7 @@ public static partial class Tabletop2024Context
             GetAttributeTitle(attribute),
             skillTitle);
 
-        return BuildAlternativeAbilityPrerequisiteStandaloneHalfFeatVariant(
+        var feat = BuildAlternativeAbilityPrerequisiteStandaloneHalfFeatVariant(
             name,
             attributeModifier,
             family,
@@ -716,6 +722,10 @@ public static partial class Tabletop2024Context
             title,
             proficiency,
             checkDie);
+
+        feat.GuiPresentation.title = title;
+
+        return feat;
     }
 
     private static void BuildObservant2024()
@@ -865,6 +875,7 @@ public static partial class Tabletop2024Context
 
     private static void BuildDurable2024()
     {
+        var baseDescription = Gui.Localize("Feat/&FeatDurable2024BaseDescription");
         var deathSaveAdvantageFeature = FeatureDefinitionBuilder
             .Create("FeatureFeatDurable2024DeathSavingThrows")
             .SetGuiPresentationNoContent(true)
@@ -897,7 +908,10 @@ public static partial class Tabletop2024Context
 
         _featDurable2024 = FeatDefinitionBuilder
             .Create(Durable2024FeatName)
-            .SetGuiPresentation("Feat/&FeatDurable2024Title", "Feat/&FeatDurable2024Description", hidden: false)
+            .SetGuiPresentation(
+                "Feat/&FeatDurable2024Title",
+                BuildHalfFeatDescription(AttributeDefinitions.Constitution, baseDescription),
+                hidden: false)
             .SetFeatures(AttributeModifierCreed_Of_Arun, deathSaveAdvantageFeature, speedyRecoveryPower)
             .AddToDB();
         SetFeatVisibility(_featDurable2024, false);
@@ -1334,10 +1348,11 @@ public static partial class Tabletop2024Context
     {
         var featWarCaster = GetDefinition<FeatDefinition>(OtherFeats.FeatWarCaster);
         var groupTitle = Get2024HalfFeatGroupTitle("Feat/&FeatGroupWarCaster2024Title", featWarCaster);
+        var groupDescription = Gui.Localize("Feat/&FeatGroupWarCaster2024Description");
         var baseDescription = Get2024HalfFeatBaseDescription(
             Get2024HalfFeatBaseDescriptionKey("FeatGroupWarCaster2024"),
             featWarCaster,
-            Gui.Localize("Feat/&FeatGroupWarCaster2024Description"));
+            groupDescription);
 
         var featWarCaster2024Int = Build2024HalfFeatVariant(
             featWarCaster,
@@ -1367,12 +1382,13 @@ public static partial class Tabletop2024Context
             baseDescription,
             prerequisiteValue: null);
 
-        _featGroupWarCaster2024 = GroupFeats.MakeGroup(
+        _featGroupWarCaster2024 = BuildManagedGroupFromPrerequisiteSource(
             "FeatGroupWarCaster2024",
             WarCaster2024Family,
-            featWarCaster2024Int,
-            featWarCaster2024Wis,
-            featWarCaster2024Cha);
+            groupTitle,
+            groupDescription,
+            featWarCaster,
+            [featWarCaster2024Int, featWarCaster2024Wis, featWarCaster2024Cha]);
         SetFeatVisibility(_featGroupWarCaster2024, false);
         RegisterManagedTabletopFeats(true, _featGroupWarCaster2024);
     }
@@ -2447,17 +2463,12 @@ public static partial class Tabletop2024Context
             return;
         }
 
-        var rituals = SpellsContext.SpellLists.Values
-            .Where(x => x != null)
-            .SelectMany(x => x.SpellsByLevel)
-            .SelectMany(x => x.Spells)
-            .Where(spell => spell is { Ritual: true, SpellLevel: 1 } && IsSelectableFeatSpell2024(spell))
-            .Distinct()
-            .OrderBy(spell => spell.FormatTitle())
-            .ThenBy(spell => spell.Name, StringComparer.Ordinal)
-            .ToArray();
-
-        UpdateSpellListSpells(spellList, 1, rituals, hasCantrips: true, maxSpellLevel: 1);
+        UpdateSpellListSpells(
+            spellList,
+            1,
+            CollectRitualCaster2024SelectableSpells(),
+            hasCantrips: true,
+            maxSpellLevel: 1);
     }
 
     private static void RefreshShadowTouched2024SpellLists()
@@ -2601,34 +2612,46 @@ public static partial class Tabletop2024Context
             return false;
         }
 
-        return IsDedicatedTouchedSpellSelectionList2024(
+        return IsDedicatedFeatSpellSelectionList2024(
                    spellFeature,
                    spellListDefinition,
                    spellTag,
                    SpellListFeatShadowTouched2024ChoiceName,
                    ShadowTouched2024ChoiceTag,
-                   "CastSpellFeatShadowTouched2024") ||
-               IsDedicatedTouchedSpellSelectionList2024(
+                   "CastSpellFeatShadowTouched2024",
+                   requireChoiceSuffix: true) ||
+               IsDedicatedFeatSpellSelectionList2024(
                    spellFeature,
                    spellListDefinition,
                    spellTag,
                    SpellListFeatFeyTouched2024ChoiceName,
                    FeyTouched2024ChoiceTag,
-                   "CastSpellFeatFeyTouched2024");
+                   "CastSpellFeatFeyTouched2024",
+                   requireChoiceSuffix: true) ||
+               IsDedicatedFeatSpellSelectionList2024(
+                   spellFeature,
+                   spellListDefinition,
+                   spellTag,
+                   SpellListFeatRitualCaster2024Name,
+                   RitualCaster2024SpellTag,
+                   "CastSpellFeatRitualCaster2024",
+                   requireChoiceSuffix: false);
     }
 
-    private static bool IsDedicatedTouchedSpellSelectionList2024(
+    private static bool IsDedicatedFeatSpellSelectionList2024(
         FeatureDefinitionCastSpell spellFeature,
         SpellListDefinition spellListDefinition,
         string spellTag,
         string spellListName,
         string choiceTag,
-        string castSpellPrefix)
+        string castSpellPrefix,
+        bool requireChoiceSuffix)
     {
         return spellListDefinition.Name == spellListName &&
                spellTag.EndsWith(choiceTag, StringComparison.Ordinal) &&
                spellFeature.Name.StartsWith(castSpellPrefix, StringComparison.Ordinal) &&
-               spellFeature.Name.EndsWith("Choice", StringComparison.Ordinal);
+               (!requireChoiceSuffix ||
+                spellFeature.Name.EndsWith("Choice", StringComparison.Ordinal));
     }
 
     internal static void AddTabletop2024FeatAutoPreparedSpells(
@@ -2870,6 +2893,7 @@ public static partial class Tabletop2024Context
             .ClearSpells()
             .FinalizeSpells(true, 1)
             .AddToDB();
+        RefreshRitualCaster2024SpellList();
         var groupTitle = Gui.Localize("Feat/&FeatGroupRitualCaster2024Title");
         var baseDescription = Gui.Localize("Feat/&FeatGroupRitualCaster2024BaseDescription");
         var featRitualCaster2024Intelligence = BuildRitualCaster2024Variant(
@@ -3083,14 +3107,36 @@ public static partial class Tabletop2024Context
 
     private static SpellDefinition[] CollectTouched2024SelectableSpells(Func<SpellDefinition, bool> predicate)
     {
-        return SpellsContext.SpellLists.Values
-            .Where(x => x != null)
-            .SelectMany(x => x.SpellsByLevel)
-            .SelectMany(x => x.Spells)
+        return CollectSelectableFeatSpells2024(
+            SpellsContext.SpellLists.Values
+                .Where(x => x != null)
+                .SelectMany(x => x.SpellsByLevel)
+                .SelectMany(x => x.Spells),
+            predicate);
+    }
+
+    private static SpellDefinition[] CollectRitualCaster2024SelectableSpells()
+    {
+        return CollectSelectableFeatSpells2024(
+            DatabaseRepository.GetDatabase<SpellDefinition>()
+                .Concat(SpellsContext.SpellLists.Values
+                    .Where(x => x != null)
+                    .SelectMany(x => x.SpellsByLevel)
+                    .SelectMany(x => x.Spells)),
+            spell => spell is { Ritual: true, SpellLevel: 1 } &&
+                     IsSelectableFeatSpell2024(spell));
+    }
+
+    private static SpellDefinition[] CollectSelectableFeatSpells2024(
+        IEnumerable<SpellDefinition> spells,
+        Func<SpellDefinition, bool> predicate)
+    {
+        return spells
+            .Where(spell => spell != null)
             .Where(predicate)
             .Distinct()
-            .OrderBy(x => x.FormatTitle())
-            .ThenBy(x => x.Name, StringComparer.Ordinal)
+            .OrderBy(spell => spell.FormatTitle())
+            .ThenBy(spell => spell.Name, StringComparer.Ordinal)
             .ToArray();
     }
 
@@ -3157,13 +3203,14 @@ public static partial class Tabletop2024Context
         }
 
         var rootName = BuildIndependentTabletopName(legacyDefinition.Name);
-        var created = !TryGetDefinition<FeatDefinition>(rootName, out var independentRoot);
+        TryGetDefinition<FeatDefinition>(rootName, out var independentRoot);
 
-        independentRoot ??= BuildManagedGroup(
+        independentRoot ??= BuildManagedGroupFromPrerequisiteSource(
             rootName,
             legacyDefinition.HasFamilyTag ? legacyDefinition.FamilyTag : null,
             legacyDefinition.GuiPresentation?.Title,
             legacyDefinition.GuiPresentation?.Description,
+            legacyDefinition,
             []);
 
         var childDefinitions = groupedFeat.GetSubFeats(true)
@@ -3172,12 +3219,6 @@ public static partial class Tabletop2024Context
             .ToArray();
 
         independentRoot.SetSubFeatureOfType<GroupedFeat>(new GroupedFeat(childDefinitions));
-
-        if (created)
-        {
-            CopyFeatCustomSubFeatures(legacyDefinition, independentRoot, false);
-            MergeFeatPrerequisites(legacyDefinition, independentRoot, false);
-        }
 
         RegisterManagedCatalogPair(
             canonicalName,
@@ -5391,6 +5432,13 @@ public static partial class Tabletop2024Context
             }
 
             var canonicalParentName = GetCanonicalTabletopFeatName(parentDefinition.Name);
+
+            if (ManagedHalfFeatCustomVariantTitleCanonicalRoots.Contains(canonicalName) ||
+                ManagedHalfFeatCustomVariantTitleCanonicalRoots.Contains(canonicalParentName))
+            {
+                continue;
+            }
+
             var requiresAbilityPrerequisite =
                 ManagedIndependentHalfFeatAbilityPrerequisiteCanonicalRoots.Contains(canonicalParentName);
             var clearsAbilityPrerequisite =
@@ -5970,6 +6018,52 @@ public static partial class Tabletop2024Context
             .SetFeatures()
             .AddToDB();
 
+        GroupFeats.Groups.Add(group);
+
+        return group;
+    }
+
+    private static FeatDefinition BuildManagedGroupFromPrerequisiteSource(
+        string name,
+        string family,
+        string title,
+        string description,
+        FeatDefinition prerequisiteSource,
+        IEnumerable<FeatDefinition> feats)
+    {
+        var childFeats = feats?.Where(feat => feat != null).ToArray() ?? [];
+
+        if (!prerequisiteSource)
+        {
+            return BuildManagedGroup(name, family, title, description, childFeats);
+        }
+
+        FeatDefinition group;
+
+        if (prerequisiteSource is FeatDefinitionWithPrerequisites { Validators.Count: > 0 } featWithPrerequisites)
+        {
+            group = FeatDefinitionWithPrerequisitesBuilder
+                .Create(name)
+                .SetGuiPresentation(title, description, hidden: true)
+                .AddCustomSubFeatures(new GroupedFeat(childFeats))
+                .SetFeatFamily(family)
+                .SetFeatures()
+                .SetValidators(featWithPrerequisites.Validators.Distinct().ToArray())
+                .AddToDB();
+        }
+        else
+        {
+            group = FeatDefinitionBuilder
+                .Create(name)
+                .SetGuiPresentation(title, description, hidden: true)
+                .AddCustomSubFeatures(new GroupedFeat(childFeats))
+                .SetFeatFamily(family)
+                .SetFeatures()
+                .AddToDB();
+        }
+
+        CopyFeatCustomSubFeatures(prerequisiteSource, group, false);
+        MergeFeatPrerequisites(prerequisiteSource, group, false);
         GroupFeats.Groups.Add(group);
 
         return group;
