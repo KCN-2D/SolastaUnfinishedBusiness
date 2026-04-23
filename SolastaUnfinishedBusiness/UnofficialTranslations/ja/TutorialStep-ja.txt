@@ -78,7 +78,7 @@ TutorialStep/&OutgameMainMenuXBoxDescription=Solastaのゲームパッド版へ�
 TutorialStep/&OutgameMainMenuXBoxTitle=ゲーム内ヘルプ（Xboxテスト用）
 TutorialStep/&OutgameNewAdventureDescription=この画面では、ソラスタの世界で「キャンペーン」と呼ばれる新しい冒険を始められます。\n\nゲームのリリース後も、さらに多くのキャンペーンが予定されています。\n\nソラスタのキャンペーンを始めるには、レベル1のキャラクター4人を選ぶ必要があります。
 TutorialStep/&OutgameNewAdventureTitle=新しい冒険
-TutorialStep/&PickupQuests_Description=これらのボードでは、オプションのクエストに挑戦する機会が提供されます。それは非常に簡単です：クライアントからクエストを受け入れ、必要なアクションを実行し、ボードに戻って報酬を受け取ります!\n\n注意してください：これらのクエストの中には、見た目より危険なものもあります。
+TutorialStep/&PickupQuests_Description=これらのボードでは、オプションのクエストに挑戦する機会が提供されます。それは非常に簡単です：クライアントからクエストを受け入れ、必要なアクションを実行し、ボードに戻って報酬を受け取ります！\n\n注意してください：これらのクエストの中には、見た目より危険なものもあります。
 TutorialStep/&PickupQuests_Title=クエストをピックアップ
 TutorialStep/&RestingDescription=パーティのヒット・ポイントや呪文が少なくなったときは、安全な場所にいて、キャラクター1人につき食糧配給を1つ持っている限り、大休憩を取ることができます。\n\n大休憩を取ると、すべてのヒット・ポイントが回復し、ほとんどのパワーが再使用可能になり、最大ヒット・ダイスの半分が戻ります。
 TutorialStep/&RestingTitle=休憩中
@@ -136,7 +136,7 @@ TutorialStep/&Tuto03_Cautious_Title=隠密
 TutorialStep/&Tuto03_Disarm2_Description=一部の罠は、トリガーすることによってのみ解除できます。\n\n罠の解除に失敗した場合は、トリガーするかロックするか、もう一度試す必要があります。
 TutorialStep/&Tuto03_Disarm2_Title=罠の解除
 TutorialStep/&Tuto03_DisarmXbox_Description=罠を解除するには、まず罠を発見しなければなりません。未発見の罠が仕掛けられた宝箱を開けたり解錠しようとしたりすると、作動させた瞬間に初めて罠の存在に気づきます。\n\n罠の解除を試みるには、その罠へカーソルを合わせて<sprite index={0}>を押します。成功には敏捷力判定が必要です。盗賊道具に習熟していれば役立ちます。
-TutorialStep/&Tuto03_Disarm_Description=罠を解除するには、まず罠を検出する必要があります。検出されていない罠が仕掛けられたチェストを開けたり、ロックピックしたりしようとすると、罠を起動したときに初めてその罠について知ることができます!\n\n罠の解除を試みるには、罠の上にマウスを置いてください。そして左クリックします。敏捷力判定に成功する必要があります。泥棒の道具は、使いこなせば役に立ちます。
+TutorialStep/&Tuto03_Disarm_Description=罠を解除するには、まず罠を検出する必要があります。検出されていない罠が仕掛けられたチェストを開けたり、ロックピックしたりしようとすると、罠を起動したときに初めてその罠について知ることができます！\n\n罠の解除を試みるには、罠の上にマウスを置いてください。そして左クリックします。敏捷力判定に成功する必要があります。泥棒の道具は、使いこなせば役に立ちます。
 TutorialStep/&Tuto03_Disarm_Title=罠の解除
 TutorialStep/&Tuto03_LockpickXbox_Description=鍵開けを試みるには、<sprite index={4}>でカーソルを動かして鍵のかかった扉へ合わせ、<sprite index={0}>を押します。\n\nパーティ全体を選択している場合、その作業に最も習熟しているキャラクターが自動的に選ばれます。\n\n錠前を開けるには、インベントリに盗賊道具が必要です。盗賊道具に習熟していれば役立ちます。
 TutorialStep/&Tuto03_Lockpick_Description=鍵開けを試みるには、鍵のかかった扉または宝箱にマウスカーソルを合わせ、左クリックします。パーティ全体を選択している場合、その作業に最も習熟しているキャラクターが自動的に選ばれます。\n\n錠前を開けるには、インベントリに盗賊道具が必要です。盗賊道具に習熟していれば役立ちます。
@@ -193,7 +193,7 @@ TutorialStep/&Tuto_LevelUp2_Description=夜が終わり、ヒーローたちは�
 TutorialStep/&Tuto_LevelUp2_Title=レベルアップ！
 TutorialStep/&Tuto_LevelUpGeneric_Description=次のレベルの目標経験値に達したら、大休憩をとってレベルアップウィンドウを開きます。\n\nそこでは、クラスに応じて追加のヒット・ポイントと機能を獲得できます。\n\nレベルを上げるために、宿屋、移動中、または探索場所内で大休憩を取ることができることを忘れないでください。
 TutorialStep/&Tuto_LevelUpGeneric_Title=レベルアップ
-TutorialStep/&Tuto_LevelUp_Description=ヒーローたちはレベルアップする準備ができています!\n\nそのためには、大休憩を取る必要があります。\n\n墓守の樽に戻り、バーテンダーのカレルと話してください。宿泊できるように部屋をリクエストしてください。
+TutorialStep/&Tuto_LevelUp_Description=ヒーローたちはレベルアップする準備ができています！\n\nそのためには、大休憩を取る必要があります。\n\n墓守の樽に戻り、バーテンダーのカレルと話してください。宿泊できるように部屋をリクエストしてください。
 TutorialStep/&Tuto_LevelUp_Title=レベルアップ！
 TutorialStep/&Tuto_LocationMap2Xbox_Description=<sprite index={17}>を押してロケーションマップを開きます。\n\n出口を見つけ、そこまでの道が通っていれば、ワールドマップへ直接高速移動することもできます。\n\n高速移動地点へカーソルを合わせ、<sprite index={0}>で選択してください。<sprite index={28}>を押し続けると高速移動が始まり、<sprite index={1}>でキャンセルできます。
 TutorialStep/&Tuto_LocationMap2_Description=地図ボタンを押してロケーションマップを開きます。\n\n出口を見つけ、そこまでの道が通っていれば、ワールドマップへ直接高速移動することもできます。\n\n高速移動ボタンを押して「はい」を選んでください。
