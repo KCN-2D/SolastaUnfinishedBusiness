@@ -229,6 +229,34 @@ internal static class InventoryManagementContext
         UnidentifiedText.gameObject.SetActive(Enabled);
     }
 
+    private static bool HasValidEquippedItem([CanBeNull] RulesetInventorySlot slot)
+    {
+        return slot?.EquipedItem?.ItemDefinition != null;
+    }
+
+    private static string GetItemTitle([CanBeNull] RulesetItem item)
+    {
+        var title = item?.ItemDefinition?.GuiPresentation?.Title;
+
+        return string.IsNullOrEmpty(title) ? string.Empty : Gui.Localize(title);
+    }
+
+    private static string GetItemCategoryTitle([NotNull] RulesetItem item)
+    {
+        var category = item.ItemDefinition?.MerchantCategory;
+
+        if (string.IsNullOrEmpty(category))
+        {
+            return null;
+        }
+
+        var categoryDefinition = DatabaseRepository
+            .GetDatabase<MerchantCategoryDefinition>()
+            .GetElement(category);
+
+        return categoryDefinition ? categoryDefinition.FormatTitle() : null;
+    }
+
     private static int ItemSort(RulesetInventorySlot slotA, RulesetInventorySlot slotB)
     {
         var itemA = slotA.EquipedItem;
@@ -258,8 +286,8 @@ internal static class InventoryManagementContext
 
     private static int SortByName([NotNull] RulesetItem a, [NotNull] RulesetItem b)
     {
-        var at = Gui.Localize(a.ItemDefinition.GuiPresentation.Title);
-        var bt = Gui.Localize(b.ItemDefinition.GuiPresentation.Title);
+        var at = GetItemTitle(a);
+        var bt = GetItemTitle(b);
 
         return at == bt
             ? a.StackCount.CompareTo(b.StackCount)
@@ -268,14 +296,17 @@ internal static class InventoryManagementContext
 
     private static int SortByCategory([NotNull] RulesetItem itemA, [NotNull] RulesetItem itemB)
     {
-        var categoryDefinitions = DatabaseRepository.GetDatabase<MerchantCategoryDefinition>();
+        var categoryA = GetItemCategoryTitle(itemA);
+        var categoryB = GetItemCategoryTitle(itemB);
 
-        var categoryA = categoryDefinitions.GetElement(itemA.ItemDefinition.MerchantCategory).FormatTitle();
-        var categoryB = categoryDefinitions.GetElement(itemB.ItemDefinition.MerchantCategory).FormatTitle();
+        if (string.IsNullOrEmpty(categoryA) || string.IsNullOrEmpty(categoryB))
+        {
+            return SortByName(itemA, itemB);
+        }
 
         return categoryA == categoryB
             ? SortByName(itemA, itemB)
-            : string.Compare(categoryB, categoryB, StringComparison.CurrentCultureIgnoreCase);
+            : string.Compare(categoryA, categoryB, StringComparison.CurrentCultureIgnoreCase);
     }
 
     private static int SortByCost([NotNull] RulesetItem itemA, [NotNull] RulesetItem itemB)
@@ -313,7 +344,10 @@ internal static class InventoryManagementContext
 
     private static bool FilterItem(RulesetItem item, [CanBeNull] ISerializable container)
     {
-        if (item == null) { return true; }
+        if (item?.ItemDefinition == null)
+        {
+            return false;
+        }
 
         if (UnidentifiedToggle.isOn && item.KnowledgeLevel != EquipmentDefinitions.ItemKnowledge.MagicDetected)
         {
@@ -322,7 +356,8 @@ internal static class InventoryManagementContext
 
         var filterIndex = FilterGuiDropdown.value;
 
-        if (filterIndex != 0 && item.ItemDefinition.MerchantCategory != ItemCategories[filterIndex].Name)
+        if (filterIndex != 0 &&
+            (filterIndex >= ItemCategories.Count || item.ItemDefinition.MerchantCategory != ItemCategories[filterIndex].Name))
         {
             return false;
         }
@@ -338,7 +373,7 @@ internal static class InventoryManagementContext
 
         item.FillTags(tagsMap, container);
 
-        return tagsMap.Keys.ToArray().Contains(TaggedGuiDropdown.options[taggedIndex].text);
+        return tagsMap.ContainsKey(TaggedGuiDropdown.options[taggedIndex].text);
     }
 
     //`container` parameter is required for the transpile patch
@@ -405,7 +440,9 @@ internal static class InventoryManagementContext
         }
 
         Filtered.Clear();
-        Filtered.AddRange(container.InventorySlots.Where(slot => FilterItem(slot.EquipedItem, container)));
+        Filtered.AddRange(container.InventorySlots
+            .Where(HasValidEquippedItem)
+            .Where(slot => FilterItem(slot.EquipedItem, container)));
 
         if (SortGuiDropdown.value > 0)
         {

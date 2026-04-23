@@ -10,6 +10,26 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class LocalCommandManagerPatcher
 {
+    [HarmonyPatch(typeof(LocalCommandManager), nameof(LocalCommandManager.GrantItem))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class GrantItem_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(RulesetCharacterHero hero, RulesetItem item)
+        {
+            if (hero != null && item?.ItemDefinition != null)
+            {
+                return true;
+            }
+
+            Main.Info(
+                $"[InventoryTransfer] Skipping invalid LocalCommandManager.GrantItem call. hero={(hero != null ? hero.Name : "null")}, item={(item != null ? item.Name : "null")}, itemDefinition={(item?.ItemDefinition != null ? item.ItemDefinition.Name : "null")}");
+
+            return false;
+        }
+    }
+
 #if false
     [HarmonyPatch(typeof(LocalCommandManager), nameof(LocalCommandManager.SwitchWeaponConfiguration))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
