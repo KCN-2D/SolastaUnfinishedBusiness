@@ -80,7 +80,7 @@ TutorialStep/&OutgameNewAdventureDescription=この画面では、ソラスタ�
 TutorialStep/&OutgameNewAdventureTitle=新しい冒険
 TutorialStep/&PickupQuests_Description=これらのボードでは、オプションのクエストに挑戦する機会が提供されます。それは非常に簡単です：クライアントからクエストを受け入れ、必要なアクションを実行し、ボードに戻って報酬を受け取ります!\n\n注意してください：これらのクエストの中には、見た目より危険なものもあります。
 TutorialStep/&PickupQuests_Title=クエストをピックアップ
-TutorialStep/&RestingDescription=パーティの体力と呪文が少なくなったときは、安全な場所にいて、キャラクターごとに1つの食糧配給がある限り、大休憩をとることができます。\n\n大休憩により、すべてのヒット・ポイントが回復し、リチャージされます。あなたのパワーのほとんどを回復し、最大ヒット・ダイスの半分を返します。
+TutorialStep/&RestingDescription=パーティのヒット・ポイントや呪文が少なくなったときは、安全な場所にいて、キャラクター1人につき食糧配給を1つ持っている限り、大休憩を取ることができます。\n\n大休憩を取ると、すべてのヒット・ポイントが回復し、ほとんどのパワーが再使用可能になり、最大ヒット・ダイスの半分が戻ります。
 TutorialStep/&RestingTitle=休憩中
 TutorialStep/&SelectionDescription=3Dビューでキャラクターをクリックして選択するか、範囲選択で複数を選びます。\nポートレートをダブルクリックすると、その1人に視点を固定できます。\nポートレートを直接クリックするか、一覧の下にある「すべて選択」ボタンを使うこともできます。
 TutorialStep/&SelectionTitle=キャラクター選択
@@ -91,7 +91,7 @@ TutorialStep/&Tuto01_Climbing_and_jumping2_Description=上：筋力が15未満�
 TutorialStep/&Tuto01_Climbing_and_jumping2_Title=ジャンプ距離
 TutorialStep/&Tuto01_Climbing_and_jumping3_Description=一般に、優れた身体能力を持たないキャラクターにはクリティカルパスが常に開かれています。ただし、オプションの戦利品にはアクセスするのが難しい場合があります。\n\nただし、諦めないでください。この宝箱に到達する別の方法が見つかるかもしれません。
 TutorialStep/&Tuto01_Climbing_and_jumping3_Title=別経路
-TutorialStep/&Tuto01_Climbing_and_jumpingXbox_Description=ジャンプや登攀を行うには、移動先へカーソルを合わせて<sprite index={0}>を押します。\n\nキャラクターの筋力と〈運動〉技能への習熟に応じて、2〜5マスを跳んだり登ったりできます。\n\nさらに、常に2マスぶん跳び越え、3マスぶん飛び降り、1マスぶんよじ登れます。はしごやロープのような登りやすい場所なら問題なく登れます。
+TutorialStep/&Tuto01_Climbing_and_jumpingXbox_Description=ジャンプや登攀を行うには、移動先へカーソルを合わせて<sprite index={0}>を押します。\n\nキャラクターの筋力と〈運動〉技能への習熟に応じて、2～5マスを跳んだり登ったりできます。\n\nさらに、常に2マスぶん跳び越え、3マスぶん飛び降り、1マスぶんよじ登れます。はしごやロープのような登りやすい場所なら問題なく登れます。
 TutorialStep/&Tuto01_Climbing_and_jumping_Description=ジャンプや登攀を行うには、目的地をクリックするだけです。\n\nキャラクターの筋力と〈運動〉への習熟に応じて、2～5マスを跳んだり登ったりできます。\n\nさらに、常に2マスぶん跳び越え、3マスぶん飛び降り、1マスぶんよじ登れます。はしごやロープのような登りやすい場所なら問題なく登れます。
 TutorialStep/&Tuto01_Climbing_and_jumping_Title=木登りとジャンプ
 TutorialStep/&Tuto01_CrawlingXbox_Description=穴をくぐり抜けるには、穴の近くへカーソルを合わせて<sprite index={0}>を押します。\n\nカメラを回転すると、向こう側が見やすくなります。<sprite index={23}>を使うか、<sprite index={4}>でカメラを動かしてください。\n\nキャラクターは目的地へ向かう途中で、必要に応じて自動的にしゃがみ、這い進み、立ち上がります。
@@ -129,10 +129,10 @@ TutorialStep/&Tuto02_Search_AroundXbox_Description=エリアを探索して、�
 TutorialStep/&Tuto02_Search_Around_Description=エリアを探索して、ドアを開けるための仕組みを見つけてください。\n\nインタラクティブなアイテムの上にマウスを置くとハイライト表示され、カーソルが説明アイコンに変わります。
 TutorialStep/&Tuto02_Search_Around_Title=メカニズム
 TutorialStep/&Tuto03_Cautious2_Description=このミッションの期間中は、慎重モードを維持してください。\n\n敵の聞こえる範囲内でオブジェクトとの相互作用（ドアや宝箱を開けたり、スリをしたりするなど）を試みる場合は、〈隠密〉判定を行う必要があります。成功した場合にのみ発見されずに済みます。慎重モードでは、足跡を見つけて追跡することもできます。
-TutorialStep/&Tuto03_Cautious2_Title=ステルス
+TutorialStep/&Tuto03_Cautious2_Title=隠密
 TutorialStep/&Tuto03_CautiousXBox_Description=隠密に移動するには、<sprite index={2}>を押して慎重モードを選びます。敵はあなたの騒音円に入ると気づき、慎重モードを解除した瞬間に発見します。\n\n騒音円の大きさは、防具の種類と〈隠密〉技能によって変わります。また、光源を持ったまま敵の視界へ入るのは避けるのが賢明です。
 TutorialStep/&Tuto03_Cautious_Description=慎重モードを使えば、隠密に移動できます。敵はあなたの騒音円に入ると気づき、慎重モードを解除した瞬間に発見します。\n\n騒音円の大きさは、防具の種類と〈隠密〉技能によって変わります。また、光源を持ったまま敵の視界へ入るのは避けるのが賢明です。
-TutorialStep/&Tuto03_Cautious_Title=ステルス
+TutorialStep/&Tuto03_Cautious_Title=隠密
 TutorialStep/&Tuto03_Disarm2_Description=一部の罠は、トリガーすることによってのみ解除できます。\n\n罠の解除に失敗した場合は、トリガーするかロックするか、もう一度試す必要があります。
 TutorialStep/&Tuto03_Disarm2_Title=罠の解除
 TutorialStep/&Tuto03_DisarmXbox_Description=罠を解除するには、まず罠を発見しなければなりません。未発見の罠が仕掛けられた宝箱を開けたり解錠しようとしたりすると、作動させた瞬間に初めて罠の存在に気づきます。\n\n罠の解除を試みるには、その罠へカーソルを合わせて<sprite index={0}>を押します。成功には敏捷力判定が必要です。盗賊道具に習熟していれば役立ちます。
