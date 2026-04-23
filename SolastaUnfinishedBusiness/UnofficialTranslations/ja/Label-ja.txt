@@ -1,7 +1,7 @@
-Label/&CampfireLocationRestDescription=
-Label/&CampfireLocationRestTitle=
-Label/&CampfireResumeTravelRestDescription=
-Label/&CampfireResumeTravelRestTitle=
+Label/&CampfireLocationRestDescription=調べて大休憩を開始する。
+Label/&CampfireLocationRestTitle=大休憩
+Label/&CampfireResumeTravelRestDescription=ワールドマップに戻って休憩を続ける。
+Label/&CampfireResumeTravelRestTitle=休憩を続ける
 Label/&EnterLocationDescription=パーティをこの場所に入らせます。
 Label/&EnterLocationTitle=入る
 Label/&TravelToLocationDescription=この場所へ向かう準備をします。
