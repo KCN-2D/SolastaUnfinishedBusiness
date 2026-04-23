@@ -53,10 +53,10 @@ Feat/&FeatHealer2024Description=你获得以下益处：\n• 战地医护：作
 Feature/&PowerFeatHealer2024BattleMedicTitle=战地医护
 Feature/&PowerFeatHealer2024BattleMedicDescription=作为一个动作，你可以照料一名位于你5英尺内且自愿的生物。若目标能够消耗一个生命骰，它便掷出该生命骰，并恢复等同于掷骰结果加你熟练加值的生命值。
 Feedback/&FeatHealer2024BattleMedicHitDieRolled={0}掷出{2}并恢复了{3} = {4}。
-Feat/&FeatLucky2024Description=你拥有等同于熟练加值的幸运点数，并在完成一次长休后恢复所有已消耗的幸运点数。\n你可以消耗1点幸运点，使你在自己回合结束前进行的下一次攻击检定、属性检定或豁免检定获得优势。\n当一个生物对你进行攻击检定时，你可以使用反应并消耗1点幸运点，使该次攻击检定具有劣势。
+Feat/&FeatLucky2024Description=你拥有等同于熟练加值的幸运点数，并在完成一次长休后恢复所有已消耗的幸运点数。\n你可以消耗1点幸运点，使你在自己回合结束前进行的下一次攻击检定、属性检定或豁免检定获得优势。\n当一个生物对你进行攻击检定时，你可以消耗1点幸运点，使该次攻击检定具有劣势。
 Feature/&PowerFeatLucky2024AdvantageTitle=幸运
 Feature/&PowerFeatLucky2024AdvantageDescription=消耗1点幸运点，使你在自己回合结束前进行的下一次攻击检定、属性检定或豁免检定获得优势。
-Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b>正在攻击你。你可以使用反应并消耗1点幸运点，使该次攻击检定具有劣势。
+Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b>正在攻击你。你可以消耗1点幸运点，使该次攻击检定具有劣势。
 Feat/&FeatSavageAttack2024Description=每回合一次，当你用武器命中目标时，你可以将该武器的伤害骰掷两次，并使用较高的结果。
 Feat/&FeatGroupEldritchAdept2024Title=祈唤专家
 Feat/&FeatGroupEldritchAdept2024BaseDescription=你可以从邪术士职业中选择一种祈唤。如果祈唤有先决条件，则只有当你是邪术士并且满足先决条件时才能选择该祈唤。每当你获得一个等级时，你就可以用另一个来自邪术士职业的祈唤来替换该祈唤。

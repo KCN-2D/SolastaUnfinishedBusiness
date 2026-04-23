@@ -53,10 +53,10 @@ Feat/&FeatHealer2024Description=You gain the following benefits:\n• Battle Med
 Feature/&PowerFeatHealer2024BattleMedicTitle=Battle Medic
 Feature/&PowerFeatHealer2024BattleMedicDescription=As an action, you can tend one willing creature within 5 feet of yourself. If the target can spend a Hit Die, it rolls that die and regains a number of Hit Points equal to the roll plus your proficiency bonus.
 Feedback/&FeatHealer2024BattleMedicHitDieRolled={0} rolled a {2} and healed {3} = {4}.
-Feat/&FeatLucky2024Description=You have a number of Luck Points equal to your proficiency bonus, and you regain all expended Luck Points when you finish a long rest.\nYou can spend 1 Luck Point to give yourself Advantage on your next attack roll, ability check, or saving throw before the end of your turn.\nWhen a creature makes an attack roll against you, you can use your reaction and spend 1 Luck Point to impose Disadvantage on that roll.
+Feat/&FeatLucky2024Description=You have a number of Luck Points equal to your proficiency bonus, and you regain all expended Luck Points when you finish a long rest.\nYou can spend 1 Luck Point to give yourself Advantage on your next attack roll, ability check, or saving throw before the end of your turn.\nWhen a creature makes an attack roll against you, you can spend 1 Luck Point to impose Disadvantage on that roll.
 Feature/&PowerFeatLucky2024AdvantageTitle=Lucky
 Feature/&PowerFeatLucky2024AdvantageDescription=Spend 1 Luck Point to give yourself Advantage on your next attack roll, ability check, or saving throw before the end of your turn.
-Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b> is attacking you. You can use your reaction and spend 1 Luck Point to impose Disadvantage on that attack roll.
+Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b> is attacking you. You can spend 1 Luck Point to impose Disadvantage on that attack roll.
 Feat/&FeatSavageAttack2024Description=Once per turn, when you hit a target with a weapon, you can roll the weapon's damage dice twice and use the higher roll.
 Feat/&FeatGroupEldritchAdept2024Title=Eldritch Adept
 Feat/&FeatGroupEldritchAdept2024BaseDescription=You learn one Eldritch Invocation option of your choice from the warlock class. If the invocation has a prerequisite, you can choose that invocation only if you're a warlock and only if you meet the prerequisite. Whenever you gain a level, you can replace the invocation with another one from the warlock class.

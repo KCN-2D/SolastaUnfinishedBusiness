@@ -46,6 +46,10 @@ public static partial class Tabletop2024Context
     private const string Healer2024FeatName = "FeatHealer2024";
     private const string Lucky2024FeatName = "FeatLucky2024";
     private const string Lucky2024PoolPowerName = "PowerFeatLucky2024Pool";
+    private const string Lucky2024AdvantageConditionName = "ConditionFeatLucky2024Advantage";
+    private const string Lucky2024AdvantagePowerName = "PowerFeatLucky2024Advantage";
+    private const string Lucky2024FeatureName = "FeatureFeatLucky2024";
+    private const string Lucky2024DisadvantagePromptName = "Lucky2024Disadvantage";
     private const string SavageAttacker2024FeatName = "FeatSavageAttack2024";
     internal const string SavageAttacker2024SpecialFeatureName = "SavageAttacker2024";
     private const string FeyTeleport2024Family = "FeyTeleport";
@@ -1036,15 +1040,17 @@ public static partial class Tabletop2024Context
             .AddToDB();
         powerPool.AddCustomSubFeatures(ModifyPowerVisibility.Hidden);
 
+        // Solasta cannot prompt at arbitrary D20 test timing, so this approximates 2024 Lucky
+        // as a proactive self-buff that applies to the next qualifying roll before end of turn.
         var conditionAdvantage = ConditionDefinitionBuilder
-            .Create("ConditionFeatLucky2024Advantage")
+            .Create(Lucky2024AdvantageConditionName)
             .SetGuiPresentationNoContent(true)
             .SetSilent(Silent.WhenAddedOrRemoved)
             .SetSpecialInterruptions(ConditionInterruption.AnyBattleTurnEnd)
             .AddCustomSubFeatures(new ModifyDiceRollLucky2024Advantage())
             .AddToDB();
         var powerAdvantage = FeatureDefinitionPowerSharedPoolBuilder
-            .Create("PowerFeatLucky2024Advantage")
+            .Create(Lucky2024AdvantagePowerName)
             .SetGuiPresentation(
                 "Feature/&PowerFeatLucky2024AdvantageTitle",
                 "Feature/&PowerFeatLucky2024AdvantageDescription",
@@ -1061,7 +1067,7 @@ public static partial class Tabletop2024Context
             .SetSharedPool(ActivationTime.NoCost, powerPool)
             .AddToDB();
         var feature = FeatureDefinitionBuilder
-            .Create("FeatureFeatLucky2024")
+            .Create(Lucky2024FeatureName)
             .SetGuiPresentationNoContent(true)
             .AddCustomSubFeatures(new CustomBehaviorLucky2024(powerPool))
             .AddToDB();
@@ -1071,6 +1077,53 @@ public static partial class Tabletop2024Context
             .SetGuiPresentation("Feat/&FeatLuckyTitle", "Feat/&FeatLucky2024Description", hidden: false)
             .SetFeatures(powerPool, powerAdvantage, feature)
             .AddToDB();
+    }
+
+    private static bool IsLucky2024RollContext(RollContext rollContext)
+    {
+        return rollContext is RollContext.AttackRoll or RollContext.AbilityCheck or RollContext.SavingThrow;
+    }
+
+    private static bool TryGetLucky2024AdvantageCondition(
+        RulesetCharacter rulesetCharacter,
+        out RulesetCondition activeCondition)
+    {
+        activeCondition = null;
+
+        return rulesetCharacter != null &&
+               rulesetCharacter.TryGetConditionOfCategoryAndType(
+                   AttributeDefinitions.TagEffect,
+                   Lucky2024AdvantageConditionName,
+                   out activeCondition);
+    }
+
+    private static bool CanUseLucky2024OnIncomingAttack(
+        GameLocationCharacter attacker,
+        GameLocationCharacter defender,
+        ActionModifier attackModifier,
+        FeatureDefinitionPower powerPool,
+        out RulesetCharacter rulesetDefender,
+        out RulesetUsablePower usablePower)
+    {
+        rulesetDefender = defender?.RulesetCharacter;
+        usablePower = rulesetDefender == null ? null : PowerProvider.Get(powerPool, rulesetDefender);
+
+        return attacker != null &&
+               defender != null &&
+               attackModifier != null &&
+               rulesetDefender is { IsDeadOrDyingOrUnconscious: false } &&
+               usablePower != null &&
+               rulesetDefender.GetRemainingUsesOfPower(usablePower) > 0;
+    }
+
+    private static void ApplyLucky2024Disadvantage(
+        ActionModifier attackModifier,
+        RulesetUsablePower usablePower,
+        FeatureDefinitionPower powerPool)
+    {
+        usablePower.Consume();
+        attackModifier.AttackAdvantageTrends.Add(
+            new TrendInfo(-1, FeatureSourceType.Power, powerPool.Name, powerPool));
     }
 
     private static FeatDefinition BuildSavageAttack2024()
@@ -7091,8 +7144,6 @@ public static partial class Tabletop2024Context
 
     private sealed class ModifyDiceRollLucky2024Advantage : IModifyDiceRoll
     {
-        private const string ConditionName = "ConditionFeatLucky2024Advantage";
-
         public void BeforeRoll(
             RollContext rollContext,
             RulesetCharacter rulesetCharacter,
@@ -7119,10 +7170,7 @@ public static partial class Tabletop2024Context
             ref int result)
         {
             if (!IsValid(rollContext, rulesetCharacter) ||
-                !rulesetCharacter.TryGetConditionOfCategoryAndType(
-                    AttributeDefinitions.TagEffect,
-                    ConditionName,
-                    out var activeCondition))
+                !TryGetLucky2024AdvantageCondition(rulesetCharacter, out var activeCondition))
             {
                 return;
             }
@@ -7132,9 +7180,8 @@ public static partial class Tabletop2024Context
 
         private static bool IsValid(RollContext rollContext, RulesetCharacter rulesetCharacter)
         {
-            return rollContext is RollContext.AttackRoll or RollContext.AbilityCheck or RollContext.SavingThrow &&
-                   rulesetCharacter != null &&
-                   rulesetCharacter.HasConditionOfCategoryAndType(AttributeDefinitions.TagEffect, ConditionName);
+            return IsLucky2024RollContext(rollContext) &&
+                   TryGetLucky2024AdvantageCondition(rulesetCharacter, out _);
         }
     }
 
@@ -7170,35 +7217,30 @@ public static partial class Tabletop2024Context
             ActionModifier attackModifier,
             GameLocationBattleManager battleManager)
         {
-            var rulesetDefender = defender?.RulesetCharacter;
-            var usablePower = rulesetDefender == null ? null : PowerProvider.Get(powerPool, rulesetDefender);
-
-            if (attacker == null ||
-                defender == null ||
-                attackModifier == null ||
-                rulesetDefender is not { IsDeadOrDyingOrUnconscious: false } ||
-                !defender.CanReact() ||
-                usablePower == null ||
-                rulesetDefender.GetRemainingUsesOfPower(usablePower) == 0)
+            if (!CanUseLucky2024OnIncomingAttack(
+                    attacker,
+                    defender,
+                    attackModifier,
+                    powerPool,
+                    out _,
+                    out var usablePower))
             {
                 yield break;
             }
 
-            yield return defender.MyReactToSpendPower(
-                usablePower,
+            yield return defender.MyReactToDoNothing(
+                ExtraActionId.DoNothingFree,
                 attacker,
-                "Lucky2024Disadvantage",
+                Lucky2024DisadvantagePromptName,
                 "UseLucky2024DisadvantageDescription".Formatted(Category.Reaction, attacker.Name),
                 ReactionValidated,
-                battleManager);
+                battleManager: battleManager);
 
             yield break;
 
             void ReactionValidated()
             {
-                usablePower.Consume();
-                attackModifier.AttackAdvantageTrends.Add(
-                    new TrendInfo(-1, FeatureSourceType.Power, powerPool.Name, powerPool));
+                ApplyLucky2024Disadvantage(attackModifier, usablePower, powerPool);
             }
         }
     }
