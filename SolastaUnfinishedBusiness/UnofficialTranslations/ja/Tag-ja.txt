@@ -5,4 +5,3 @@ Tag/&MysticArcanumSpellSpecialTagTitle=秘奥義
 Tag/&PactTomeCantripSpecialTagTitle=書の契約の初級呪文
 Tag/&PactTomeRitualSpellSpecialTagTitle=書の契約の儀式呪文
 Tag/&PactTomeSpellSpecialTagTitle=書の契約の呪文
-Tag/&RitualCaster2024SpellSpecialTagTitle=儀式発動者の呪文

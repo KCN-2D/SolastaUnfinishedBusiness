@@ -5,4 +5,3 @@ Tag/&MysticArcanumSpellSpecialTagTitle=Загадочная тайна
 Tag/&PactTomeCantripSpecialTagTitle=Заговоры договора
 Tag/&PactTomeRitualSpellSpecialTagTitle=Ритуалы договора
 Tag/&PactTomeSpellSpecialTagTitle=Заклинания договора
-Tag/&RitualCaster2024SpellSpecialTagTitle=Заклинание Ритуального заклинателя

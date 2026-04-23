@@ -1435,5 +1435,3 @@ Feature/&WizardToolsDescription=Sei stato addestrato a scrivere pergamene magich
 Feature/&WizardToolsTitle=Creazione magica
 Feature/&WizardWeaponProficiencyTitle=Competenza nelle armi da mago
 Feature/&tHunterEscapeTheHordeTitle=Fuggi dall'Orda
-Feature/&PowerFeatDurable2024SpeedyRecoveryTitle=Recupero rapido
-Feature/&PowerFeatDurable2024SpeedyRecoveryDescription=Come azione bonus, spendi un dado vita e recuperi punti ferita pari al tiro.

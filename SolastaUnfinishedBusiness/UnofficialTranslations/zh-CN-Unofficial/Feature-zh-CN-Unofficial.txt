@@ -1435,5 +1435,3 @@ Feature/&WizardToolsDescription=你受过训练，可以抄写魔法卷轴，使
 Feature/&WizardToolsTitle=魔法制作
 Feature/&WizardWeaponProficiencyTitle=法师武器熟练项
 Feature/&tHunterEscapeTheHordeTitle=冲出重围
-Feature/&PowerFeatDurable2024SpeedyRecoveryTitle=迅速恢复
-Feature/&PowerFeatDurable2024SpeedyRecoveryDescription=以附赠动作消耗1个生命骰，并恢复等于掷骰结果的生命值。

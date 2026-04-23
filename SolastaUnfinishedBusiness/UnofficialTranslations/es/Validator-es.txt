@@ -10,7 +10,6 @@ Validator/&ParameterLocationDescription=El título de la ubicación a rastrear
 Validator/&ParameterLocationTitle=Ubicación
 Validator/&ParameterMonsterDescription=Seleccione un monstruo para este validador
 Validator/&ParameterMonsterOrNpcDescription=Selecciona un monstruo o NPC para este validador.
-Validator/&ParameterMonsterOrNpcTitle=Monstruo o NPC
 Validator/&ParameterMonsterQuantityDescription=Determina la cantidad del elemento especificado.
 Validator/&ParameterMonsterQuantityTitle=¿Cuántos?
 Validator/&ParameterMonsterTitle=Monstruo

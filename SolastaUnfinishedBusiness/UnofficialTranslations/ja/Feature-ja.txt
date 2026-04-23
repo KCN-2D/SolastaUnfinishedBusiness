@@ -1435,5 +1435,3 @@ Feature/&WizardToolsDescription=あなたは魔法の巻物を書き、魔法の
 Feature/&WizardToolsTitle=魔法のクラフト
 Feature/&WizardWeaponProficiencyTitle=ウィザードの武器習熟
 Feature/&tHunterEscapeTheHordeTitle=大群からの脱出
-Feature/&PowerFeatDurable2024SpeedyRecoveryTitle=素早い回復
-Feature/&PowerFeatDurable2024SpeedyRecoveryDescription=ボーナス・アクションとしてヒット・ダイスを1個消費し、その出目に等しいヒット・ポイントを回復する。

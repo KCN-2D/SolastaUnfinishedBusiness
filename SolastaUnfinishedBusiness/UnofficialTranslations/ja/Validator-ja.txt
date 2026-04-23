@@ -10,7 +10,6 @@ Validator/&ParameterLocationDescription=追跡する場所のタイトルです
 Validator/&ParameterLocationTitle=場所
 Validator/&ParameterMonsterDescription=このバリデータに使用するモンスターを選択します
 Validator/&ParameterMonsterOrNpcDescription=このバリデータに使用するモンスターまたはNPCを選択します。
-Validator/&ParameterMonsterOrNpcTitle=モンスターまたはNPC
 Validator/&ParameterMonsterQuantityDescription=指定した要素の数量を決定します
 Validator/&ParameterMonsterQuantityTitle=数量
 Validator/&ParameterMonsterTitle=モンスター

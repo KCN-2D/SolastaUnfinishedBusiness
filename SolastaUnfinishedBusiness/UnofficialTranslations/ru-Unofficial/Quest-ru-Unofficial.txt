@@ -931,7 +931,6 @@ Quest/&DLC1_Secondary_Quest_City_Rebellion_01_03_ReturnTitle=Вернуться 
 Quest/&DLC1_Secondary_Quest_City_Rebellion_01_TITLE=Простая работа
 Quest/&DLC1_Secondary_Quest_City_Rebellion_03_STEP_01Description=Поищите Чармера в лагере Кузни.
 Quest/&DLC1_Secondary_Quest_City_Rebellion_03_STEP_01Title=Найти Чармера на болотах
-Quest/&DLC1_Secondary_Quest_City_Rebellion_03_TITLE=Вид на убийство
 Quest/&DLC1_Secondary_Quest_City_Rebellion_03_Title=Неглубокая могила
 Quest/&DLC1_Secondary_Quest_City_ThePeople02_01_StartQuestLog_Outcome1Description=Вы поговорили с мясником Хенриком Рэдхендом. Он попросил вас поохотиться на медведей Пустошей на просеке неподалёку и добыть их ценное мясо в обмен на щедрую награду.
 Quest/&DLC1_Secondary_Quest_City_ThePeople02_01_StartQuestLog_Outcome2Description=Вы не поговорили с мясником.

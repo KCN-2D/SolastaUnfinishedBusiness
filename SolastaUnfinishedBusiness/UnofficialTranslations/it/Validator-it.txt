@@ -10,7 +10,6 @@ Validator/&ParameterLocationDescription=Il titolo della posizione da monitorare
 Validator/&ParameterLocationTitle=Posizione
 Validator/&ParameterMonsterDescription=Seleziona un mostro per questo validatore
 Validator/&ParameterMonsterOrNpcDescription=Seleziona un mostro o un NPC per questo validatore.
-Validator/&ParameterMonsterOrNpcTitle=Mostro o NPC
 Validator/&ParameterMonsterQuantityDescription=Determina la quantità dell'elemento specificato
 Validator/&ParameterMonsterQuantityTitle=Quanti?
 Validator/&ParameterMonsterTitle=Mostro

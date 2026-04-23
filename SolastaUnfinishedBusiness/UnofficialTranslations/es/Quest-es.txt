@@ -931,7 +931,6 @@ Quest/&DLC1_Secondary_Quest_City_Rebellion_01_03_Return_Outcome1Description=Le d
 Quest/&DLC1_Secondary_Quest_City_Rebellion_01_TITLE=Un trabajo sencillo
 Quest/&DLC1_Secondary_Quest_City_Rebellion_03_STEP_01Description=Busque a Charmer dentro del campamento Forge donde debería estar.
 Quest/&DLC1_Secondary_Quest_City_Rebellion_03_STEP_01Title=Encuentra a Charmer en los pantanos
-Quest/&DLC1_Secondary_Quest_City_Rebellion_03_TITLE=Una vista para matar
 Quest/&DLC1_Secondary_Quest_City_Rebellion_03_Title=Tumba poco profunda
 Quest/&DLC1_Secondary_Quest_City_ThePeople02_01_StartQuestLogDescription=Hay una carnicería cerca de la entrada de la ciudad. Echa un vistazo al propietario y pregúntale si conoce a Marin Ving.
 Quest/&DLC1_Secondary_Quest_City_ThePeople02_01_StartQuestLogTitle=Pregúntale al carnicero sobre Marin Ving

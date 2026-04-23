@@ -1435,5 +1435,3 @@ Feature/&WizardToolsDescription=Has sido entrenado para escribir pergaminos mág
 Feature/&WizardToolsTitle=Elaboración mágica
 Feature/&WizardWeaponProficiencyTitle=Competencias con armas de mago
 Feature/&tHunterEscapeTheHordeTitle=Escapar de la horda
-Feature/&PowerFeatDurable2024SpeedyRecoveryTitle=Recuperación rápida
-Feature/&PowerFeatDurable2024SpeedyRecoveryDescription=Como acción adicional, gasta un dado de golpe y recupera puntos de golpe iguales a la tirada.

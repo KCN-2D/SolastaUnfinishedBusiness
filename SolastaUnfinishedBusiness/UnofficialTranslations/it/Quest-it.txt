@@ -931,7 +931,6 @@ Quest/&DLC1_Secondary_Quest_City_Rebellion_01_03_Return_Outcome1Description=Hai 
 Quest/&DLC1_Secondary_Quest_City_Rebellion_01_TITLE=Un lavoro semplice
 Quest/&DLC1_Secondary_Quest_City_Rebellion_03_STEP_01Description=Cerca Charmer all'interno del campo Forge dove dovrebbe essere.
 Quest/&DLC1_Secondary_Quest_City_Rebellion_03_STEP_01Title=Trova l'incantatore nelle paludi
-Quest/&DLC1_Secondary_Quest_City_Rebellion_03_TITLE=Una visione per uccidere
 Quest/&DLC1_Secondary_Quest_City_Rebellion_03_Title=Tomba poco profonda
 Quest/&DLC1_Secondary_Quest_City_ThePeople02_01_StartQuestLogDescription=C'è una macelleria vicino all'ingresso della città. Dai un'occhiata al proprietario e chiedi se conosce Marin Ving.
 Quest/&DLC1_Secondary_Quest_City_ThePeople02_01_StartQuestLogTitle=Chiedi al Macellaio di Marin Ving
