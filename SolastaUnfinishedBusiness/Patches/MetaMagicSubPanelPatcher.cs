@@ -26,7 +26,7 @@ public static class MetaMagicSubPanelPatcher
                 return;
             }
 
-            CampaignsContext.SyncAndBindMetamagicOffering(__instance, __4);
+            CampaignsContext.RefreshMetamagicOffering(__instance, __4);
         }
     }
 }

@@ -224,9 +224,9 @@ internal static class CampaignsContext
         }
     }
 
-    internal static void SyncAndBindMetamagicOffering(
+    internal static void RefreshMetamagicOffering(
         MetaMagicSubPanel __instance,
-        IReadOnlyCollection<string> restrictedChoices)
+        IReadOnlyCollection<string> restrictedChoices = null)
     {
         if (__instance == null ||
             __instance.relevantMetamagicOptions == null)
@@ -247,6 +247,7 @@ internal static class CampaignsContext
 
         __instance.relevantMetamagicOptions.Clear();
         __instance.relevantMetamagicOptions.AddRange(metamagicOptions);
+        __instance.relevantMetamagicOptions.Sort(MetamagicContext.CompareMetamagic);
 
         if (!__instance.Table ||
             !__instance.ItemPrefab)
@@ -254,68 +255,12 @@ internal static class CampaignsContext
             return;
         }
 
-        var onItemClicked = ResolveMetamagicOfferingClickHandler(__instance);
-
-        for (var i = __instance.Table.childCount - 1; i >= 0; i--)
-        {
-            var child = __instance.Table.GetChild(i);
-
-            if (!child.GetComponent<MetamagicProficiencyItem>())
-            {
-                Gui.ReleaseInstanceToPool(child.gameObject);
-            }
-        }
+        Gui.ReleaseChildrenToPool(__instance.Table);
 
         while (__instance.Table.childCount < __instance.relevantMetamagicOptions.Count)
         {
             Gui.GetPrefabFromPool(__instance.ItemPrefab, __instance.Table);
         }
-
-        while (__instance.Table.childCount > __instance.relevantMetamagicOptions.Count)
-        {
-            Gui.ReleaseInstanceToPool(__instance.Table.GetChild(__instance.Table.childCount - 1).gameObject);
-        }
-
-        for (var i = 0; i < __instance.relevantMetamagicOptions.Count && i < __instance.Table.childCount; i++)
-        {
-            var item = __instance.Table.GetChild(i).GetComponent<MetamagicProficiencyItem>();
-
-            if (!item)
-            {
-                continue;
-            }
-
-            var itemClickHandler = onItemClicked ?? item.OnItemClicked;
-
-            if (itemClickHandler == null)
-            {
-                continue;
-            }
-
-            item.Bind(
-                __instance.InspectedCharacter,
-                __instance.relevantMetamagicOptions[i],
-                itemClickHandler,
-                true);
-
-            if (item.Tooltip != null)
-            {
-                item.Tooltip.Anchor = __instance.Table;
-                item.Tooltip.AnchorMode = TooltipDefinitions.AnchorMode.LEFT_CENTER;
-            }
-        }
-
-        __instance.DispatchItems();
-    }
-
-    private static ProficiencyBaseItem.OnItemClickedHandler ResolveMetamagicOfferingClickHandler(
-        MetaMagicSubPanel panel)
-    {
-        var proficiencySelectionPanel = panel.GetComponentInParent<CharacterStageProficiencySelectionPanel>();
-
-        return proficiencySelectionPanel != null
-            ? new ProficiencyBaseItem.OnItemClickedHandler(proficiencySelectionPanel.OnProficiencyItemClicked)
-            : panel.OnItemClicked;
     }
 
     internal static void SpellSelectionPanelMultilineUnbind()
