@@ -53,10 +53,13 @@ Feat/&FeatHealer2024Description=Obtienes los siguientes beneficios:\n• Médico
 Feature/&PowerFeatHealer2024BattleMedicTitle=Médico de batalla
 Feature/&PowerFeatHealer2024BattleMedicDescription=Como acción, puedes atender a una criatura voluntaria a 5 pies de ti. Si el objetivo puede gastar un dado de golpe, lo tira y recupera una cantidad de puntos de golpe igual al resultado más tu bonificador por competencia.
 Feedback/&FeatHealer2024BattleMedicHitDieRolled={0} sacó un {2} y curó a {3} = {4}.
-Feat/&FeatLucky2024Description=Tienes una cantidad de puntos de Suerte igual a tu bonificador por competencia y recuperas todos los puntos de Suerte gastados cuando terminas un descanso largo.\nPuedes gastar 1 punto de Suerte para obtener ventaja en tu próxima tirada de ataque, prueba de característica o tirada de salvación antes del final de tu turno.\nCuando una criatura haga una tirada de ataque contra ti, puedes gastar 1 punto de Suerte para imponer desventaja a esa tirada.
+Feat/&FeatLucky2024Description=Tienes una cantidad de puntos de Suerte igual a tu bonificador por competencia y recuperas todos los puntos de Suerte gastados cuando terminas un descanso largo.\nPuedes gastar 1 punto de Suerte para obtener ventaja en tu próxima tirada de ataque, prueba de característica, tirada de salvación o tirada de salvación contra la muerte.\nCuando una criatura haga una tirada de ataque contra ti, puedes gastar 1 punto de Suerte para imponer desventaja a esa tirada.
 Feature/&PowerFeatLucky2024AdvantageTitle=Afortunado
-Feature/&PowerFeatLucky2024AdvantageDescription=Gasta 1 punto de Suerte para obtener ventaja en tu próxima tirada de ataque, prueba de característica o tirada de salvación antes del final de tu turno.
+Feature/&PowerFeatLucky2024AdvantageDescription=Gasta 1 punto de Suerte para obtener ventaja en tu próxima tirada de ataque, prueba de característica, tirada de salvación o tirada de salvación contra la muerte.
 Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b> te está atacando. Puedes gastar 1 punto de Suerte para imponer desventaja a esa tirada de ataque.
+Reaction/&CustomReactionLucky2024DisadvantageTitle=Afortunado
+Reaction/&CustomReactionLucky2024DisadvantageReactTitle=Gastar
+Reaction/&CustomReactionLucky2024DisadvantageReactDescription=Gasta 1 punto de Suerte para imponer desventaja a la tirada de ataque.
 Feat/&FeatSavageAttack2024Description=Una vez por turno, cuando impactas a un objetivo con un arma, puedes tirar dos veces los dados de daño del arma y usar el resultado más alto.
 Feat/&FeatGroupEldritchAdept2024Title=Adepto sobrenatural
 Feat/&FeatGroupEldritchAdept2024BaseDescription=Aprendes una opción de invocación sobrenatural de tu elección de la clase de brujo. Si la invocación tiene un requisito previo, puedes elegirla solo si eres un brujo y solo si cumples con el requisito previo. Siempre que subas de nivel, puedes reemplazar la invocación con otra de la clase de brujo.

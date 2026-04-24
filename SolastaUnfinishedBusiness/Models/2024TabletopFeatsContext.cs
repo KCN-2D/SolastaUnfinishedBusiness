@@ -19,6 +19,7 @@ using static ActionDefinitions;
 using static EquipmentDefinitions;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper.ActionDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionAttributeModifiers;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.SpellDefinitions;
@@ -46,10 +47,11 @@ public static partial class Tabletop2024Context
     private const string Healer2024FeatName = "FeatHealer2024";
     private const string Lucky2024FeatName = "FeatLucky2024";
     private const string Lucky2024PoolPowerName = "PowerFeatLucky2024Pool";
-    private const string Lucky2024AdvantageConditionName = "ConditionFeatLucky2024Advantage";
     private const string Lucky2024AdvantagePowerName = "PowerFeatLucky2024Advantage";
+    private const string Lucky2024AdvantageActionName = "Lucky2024AdvantageToggle";
     private const string Lucky2024FeatureName = "FeatureFeatLucky2024";
     private const string Lucky2024DisadvantagePromptName = "Lucky2024Disadvantage";
+    private static readonly Id Lucky2024AdvantageToggleActionId = (Id)ExtraActionId.Lucky2024AdvantageToggle;
     private const string SavageAttacker2024FeatName = "FeatSavageAttack2024";
     internal const string SavageAttacker2024SpecialFeatureName = "SavageAttacker2024";
     private const string FeyTeleport2024Family = "FeyTeleport";
@@ -1040,15 +1042,6 @@ public static partial class Tabletop2024Context
             .AddToDB();
         powerPool.AddCustomSubFeatures(ModifyPowerVisibility.Hidden);
 
-        // Solasta cannot prompt at arbitrary D20 test timing, so this approximates 2024 Lucky
-        // as a proactive self-buff that applies to the next qualifying roll before end of turn.
-        var conditionAdvantage = ConditionDefinitionBuilder
-            .Create(Lucky2024AdvantageConditionName)
-            .SetGuiPresentationNoContent(true)
-            .SetSilent(Silent.WhenAddedOrRemoved)
-            .SetSpecialInterruptions(ConditionInterruption.AnyBattleTurnEnd)
-            .AddCustomSubFeatures(new ModifyDiceRollLucky2024Advantage())
-            .AddToDB();
         var powerAdvantage = FeatureDefinitionPowerSharedPoolBuilder
             .Create(Lucky2024AdvantagePowerName)
             .SetGuiPresentation(
@@ -1057,44 +1050,84 @@ public static partial class Tabletop2024Context
                 featLucky,
                 false)
             .SetShowCasting(false)
-            .SetEffectDescription(
-                EffectDescriptionBuilder
-                    .Create()
-                    .SetDurationData(DurationType.Round, 1, TurnOccurenceType.EndOfTurn)
-                    .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
-                    .SetEffectForms(EffectFormBuilder.ConditionForm(conditionAdvantage, ConditionForm.ConditionOperation.Add))
-                    .Build())
             .SetSharedPool(ActivationTime.NoCost, powerPool)
+            .DelegatedToAction()
+            .AddToDB();
+
+        _ = ActionDefinitionBuilder
+            .Create(MetamagicToggle, Lucky2024AdvantageActionName)
+            .SetOrUpdateGuiPresentation(powerAdvantage.Name, Category.Feature)
+            .RequiresAuthorization()
+            .SetActionId(ExtraActionId.Lucky2024AdvantageToggle)
+            .SetActivatedPower(powerAdvantage)
+            .SetActionScope(ActionScope.All)
+            .SetActionType(ActionType.NoCost)
+            .OverrideClassName("Toggle")
+            .AddToDB();
+
+        var actionAffinityAdvantage = FeatureDefinitionActionAffinityBuilder
+            .Create(FeatureDefinitionActionAffinitys.ActionAffinitySorcererMetamagicToggle,
+                "ActionAffinityLucky2024AdvantageToggle")
+            .SetGuiPresentationNoContent(true)
+            .SetAuthorizedActions(Lucky2024AdvantageToggleActionId)
+            .AddCustomSubFeatures(
+                new ValidateDefinitionApplication(ValidatorsCharacter.HasAvailablePowerUsage(powerAdvantage)))
             .AddToDB();
         var feature = FeatureDefinitionBuilder
             .Create(Lucky2024FeatureName)
             .SetGuiPresentationNoContent(true)
-            .AddCustomSubFeatures(new CustomBehaviorLucky2024(powerPool))
+            .AddCustomSubFeatures(
+                new ModifyDiceRollLucky2024Advantage(powerAdvantage, Lucky2024AdvantageToggleActionId),
+                new CustomBehaviorLucky2024(powerPool))
             .AddToDB();
 
         return FeatDefinitionBuilder
             .Create(Lucky2024FeatName)
             .SetGuiPresentation("Feat/&FeatLuckyTitle", "Feat/&FeatLucky2024Description", hidden: false)
-            .SetFeatures(powerPool, powerAdvantage, feature)
+            .SetFeatures(powerPool, powerAdvantage, actionAffinityAdvantage, feature)
             .AddToDB();
     }
 
     private static bool IsLucky2024RollContext(RollContext rollContext)
     {
-        return rollContext is RollContext.AttackRoll or RollContext.AbilityCheck or RollContext.SavingThrow;
+        return rollContext is RollContext.AttackRoll or RollContext.AbilityCheck or RollContext.SavingThrow
+            or RollContext.DeathSavingThrow;
     }
 
-    private static bool TryGetLucky2024AdvantageCondition(
+    private static bool TryGetLucky2024UsablePower(
         RulesetCharacter rulesetCharacter,
-        out RulesetCondition activeCondition)
+        FeatureDefinitionPower power,
+        out RulesetUsablePower usablePower)
     {
-        activeCondition = null;
+        usablePower = rulesetCharacter == null || power == null ? null : PowerProvider.Get(power, rulesetCharacter);
 
         return rulesetCharacter != null &&
-               rulesetCharacter.TryGetConditionOfCategoryAndType(
-                   AttributeDefinitions.TagEffect,
-                   Lucky2024AdvantageConditionName,
-                   out activeCondition);
+               usablePower != null &&
+               rulesetCharacter.GetRemainingUsesOfPower(usablePower) > 0;
+    }
+
+    private static bool CanUseLucky2024Advantage(
+        RulesetCharacter rulesetCharacter,
+        FeatureDefinitionPower powerAdvantage,
+        Id toggleActionId,
+        out RulesetUsablePower usablePower)
+    {
+        usablePower = null;
+
+        if (rulesetCharacter == null ||
+            !rulesetCharacter.IsToggleEnabled(toggleActionId))
+        {
+            return false;
+        }
+
+        var canUse = TryGetLucky2024UsablePower(rulesetCharacter, powerAdvantage, out usablePower);
+
+        if (!canUse)
+        {
+            rulesetCharacter.DisableToggle(toggleActionId);
+        }
+
+        return canUse;
     }
 
     private static bool CanUseLucky2024OnIncomingAttack(
@@ -1102,18 +1135,30 @@ public static partial class Tabletop2024Context
         GameLocationCharacter defender,
         ActionModifier attackModifier,
         FeatureDefinitionPower powerPool,
-        out RulesetCharacter rulesetDefender,
         out RulesetUsablePower usablePower)
     {
-        rulesetDefender = defender?.RulesetCharacter;
-        usablePower = rulesetDefender == null ? null : PowerProvider.Get(powerPool, rulesetDefender);
+        usablePower = null;
+        var rulesetDefender = defender?.RulesetCharacter;
 
         return attacker != null &&
                defender != null &&
+               attacker != defender &&
+               attacker.RulesetCharacter is not RulesetCharacterEffectProxy &&
                attackModifier != null &&
                rulesetDefender is { IsDeadOrDyingOrUnconscious: false } &&
-               usablePower != null &&
-               rulesetDefender.GetRemainingUsesOfPower(usablePower) > 0;
+               TryGetLucky2024UsablePower(rulesetDefender, powerPool, out usablePower);
+    }
+
+    private static bool IsLucky2024MagicAttack(
+        RulesetEffect activeEffect,
+        GameLocationCharacter attacker,
+        GameLocationCharacter defender)
+    {
+        return activeEffect?.EffectDescription.NeedsToRollDie() == true &&
+               attacker != null &&
+               defender != null &&
+               attacker != defender &&
+               attacker.RulesetCharacter is not RulesetCharacterEffectProxy;
     }
 
     private static void ApplyLucky2024Disadvantage(
@@ -7142,7 +7187,9 @@ public static partial class Tabletop2024Context
         }
     }
 
-    private sealed class ModifyDiceRollLucky2024Advantage : IModifyDiceRoll
+    private sealed class ModifyDiceRollLucky2024Advantage(
+        FeatureDefinitionPower powerAdvantage,
+        Id toggleActionId) : IModifyDiceRoll
     {
         public void BeforeRoll(
             RollContext rollContext,
@@ -7150,7 +7197,7 @@ public static partial class Tabletop2024Context
             ref DieType dieType,
             ref AdvantageType advantageType)
         {
-            if (!IsValid(rollContext, rulesetCharacter))
+            if (!CanApply(rollContext, rulesetCharacter, out _))
             {
                 return;
             }
@@ -7169,19 +7216,25 @@ public static partial class Tabletop2024Context
             ref int secondRoll,
             ref int result)
         {
-            if (!IsValid(rollContext, rulesetCharacter) ||
-                !TryGetLucky2024AdvantageCondition(rulesetCharacter, out var activeCondition))
+            if (!CanApply(rollContext, rulesetCharacter, out var usablePower))
             {
                 return;
             }
 
-            rulesetCharacter.RemoveCondition(activeCondition);
+            rulesetCharacter.DisableToggle(toggleActionId);
+            usablePower.Consume();
+            rulesetCharacter.LogCharacterUsedPower(powerAdvantage);
         }
 
-        private static bool IsValid(RollContext rollContext, RulesetCharacter rulesetCharacter)
+        private bool CanApply(
+            RollContext rollContext,
+            RulesetCharacter rulesetCharacter,
+            out RulesetUsablePower usablePower)
         {
+            usablePower = null;
+
             return IsLucky2024RollContext(rollContext) &&
-                   TryGetLucky2024AdvantageCondition(rulesetCharacter, out _);
+                   CanUseLucky2024Advantage(rulesetCharacter, powerAdvantage, toggleActionId, out usablePower);
         }
     }
 
@@ -7208,6 +7261,11 @@ public static partial class Tabletop2024Context
             bool firstTarget,
             bool checkMagicalAttackDamage)
         {
+            if (!IsLucky2024MagicAttack(activeEffect, attacker, defender))
+            {
+                yield break;
+            }
+
             yield return TryUseLucky2024OnIncomingAttack(attacker, defender, attackModifier, null);
         }
 
@@ -7222,7 +7280,6 @@ public static partial class Tabletop2024Context
                     defender,
                     attackModifier,
                     powerPool,
-                    out _,
                     out var usablePower))
             {
                 yield break;

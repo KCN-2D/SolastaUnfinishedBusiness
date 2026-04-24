@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Models;
@@ -141,6 +142,25 @@ public static class GuiPatcher
             }
 
             __result = title;
+
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(Gui), nameof(Gui.LocalizeMetamagicTagTitle))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class LocalizeMetamagicTagTitle_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(string tag, ref string __result)
+        {
+            if (!string.Equals(tag, "PointPoolFeatMetamagicAdept", System.StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            __result = DatabaseHelper.FeatureDefinitionPointPools.PointPoolSorcererMetamagic.FormatTitle();
 
             return false;
         }

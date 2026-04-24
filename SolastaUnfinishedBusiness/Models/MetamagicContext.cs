@@ -2,12 +2,15 @@
 using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
+using TA;
 using static SolastaUnfinishedBusiness.Subclasses.Builders.MetamagicBuilders;
 
 namespace SolastaUnfinishedBusiness.Models;
 
 internal static class MetamagicContext
 {
+    internal const string FeatMetamagicAdeptPointPoolTag = "PointPoolFeatMetamagicAdept";
+
     internal static HashSet<MetamagicOptionDefinition> Metamagic { get; private set; } = [];
 
     internal static void LateLoad()
@@ -71,5 +74,21 @@ internal static class MetamagicContext
         return compare == 0
             ? string.Compare(a.FormatTitle(), b.FormatTitle(), StringComparison.CurrentCultureIgnoreCase)
             : compare;
+    }
+
+    internal static List<MetamagicOptionDefinition> GetVisibleMetamagicOptions()
+    {
+        var metamagicDatabase = DatabaseRepository.GetDatabase<MetamagicOptionDefinition>();
+
+        if (metamagicDatabase == null)
+        {
+            return [];
+        }
+
+        return metamagicDatabase
+            .GetAllElements()
+            .Where(x => !x.GuiPresentation.Hidden)
+            .OrderBy(x => x, Comparer<MetamagicOptionDefinition>.Create(CompareMetamagic))
+            .ToList();
     }
 }

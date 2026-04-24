@@ -86,6 +86,7 @@ internal enum ExtraActionId
     GravityWellToggle,
     GrappleNoCost,
     ProxyDarkness,
+    Lucky2024AdvantageToggle,
     ElementalFuryToggle,
     BlessedStrikesToggle,
     NatureStrikesToggle,
