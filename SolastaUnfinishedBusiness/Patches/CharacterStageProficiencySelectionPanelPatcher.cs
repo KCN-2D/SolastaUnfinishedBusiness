@@ -81,11 +81,10 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         return $"{__instance.currentHero?.Guid}:{__instance.currentLearnStep}:{item.PoolType}:{item.Tag}";
     }
 
-    private static bool IsFeatMetamagicAdeptLearnStep(LearnStepItem item)
+    private static bool IsMetamagicLearnStep(LearnStepItem item)
     {
         return item &&
-               item.PoolType == Metamagic &&
-               IsFeatMetamagicAdeptTag(item.Tag);
+               item.PoolType == Metamagic;
     }
 
     private static bool IsFeatMetamagicAdeptTag(string tag)
@@ -109,6 +108,23 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             .ToList();
     }
 
+    private static IEnumerable<string> EnumerateMetamagicTagCandidates(
+        LearnStepItem learnStepItem,
+        string preferredTag)
+    {
+        if (!string.IsNullOrEmpty(preferredTag))
+        {
+            yield return preferredTag;
+        }
+
+        if (!string.IsNullOrEmpty(learnStepItem?.Tag))
+        {
+            yield return learnStepItem.Tag;
+        }
+
+        yield return MetamagicContext.FeatMetamagicAdeptPointPoolTag;
+    }
+
     private static bool TryGetFeatGrantedMetamagicState(
         CharacterStageProficiencySelectionPanel __instance,
         LearnStepItem preferredLearnStepItem,
@@ -117,7 +133,8 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         out ICharacterBuildingService service,
         out IHeroBuildingCommandService commandService,
         out PointPool pointPool,
-        out string tag)
+        out string tag,
+        string preferredTag = null)
     {
         learnStepItem = preferredLearnStepItem ?? CurrentStepItem(__instance);
         buildingData = __instance?.currentHero?.GetHeroBuildingData();
@@ -126,7 +143,7 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         pointPool = null;
         tag = null;
 
-        if (!IsFeatMetamagicAdeptLearnStep(learnStepItem))
+        if (!IsMetamagicLearnStep(learnStepItem))
         {
             return false;
         }
@@ -136,21 +153,62 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             _ = CharacterBuildingManagerPatcher.SyncFeatGrantedPointPoolsForTrainedFeats(service, buildingData);
         }
 
-        tag = learnStepItem.Tag;
-
-        if (service != null && buildingData != null)
+        if (service == null || buildingData == null)
         {
-            pointPool = service.GetPointPoolOfTypeAndTag(buildingData, Metamagic, tag);
+            return false;
         }
 
-        return buildingData != null &&
-               service != null &&
-               commandService != null &&
-               pointPool != null;
+        foreach (var candidateTag in EnumerateMetamagicTagCandidates(learnStepItem, preferredTag).Distinct())
+        {
+            if (string.IsNullOrEmpty(candidateTag))
+            {
+                continue;
+            }
+
+            var candidatePool = service.GetPointPoolOfTypeAndTag(buildingData, Metamagic, candidateTag);
+
+            if (candidatePool == null)
+            {
+                continue;
+            }
+
+            if (!IsFeatMetamagicAdeptTag(candidateTag))
+            {
+                return false;
+            }
+
+            tag = candidateTag;
+            pointPool = candidatePool;
+
+            return commandService != null;
+        }
+
+        return false;
     }
 
-    private static bool IsMetamagicOptionSelectedOrTrained(
+    private static bool ContainsMetamagicOption(
+        IEnumerable<MetamagicOptionDefinition> options,
+        MetamagicOptionDefinition option)
+    {
+        return option != null &&
+               options != null &&
+               options.Any(x => ReferenceEquals(x, option));
+    }
+
+    private static bool IsMetamagicOptionSelectedForTag(
         CharacterHeroBuildingData buildingData,
+        string tag,
+        MetamagicOptionDefinition option)
+    {
+        return buildingData?.LevelupTrainedMetamagicOptions != null &&
+               !string.IsNullOrEmpty(tag) &&
+               buildingData.LevelupTrainedMetamagicOptions.TryGetValue(tag, out var trainedOptions) &&
+               ContainsMetamagicOption(trainedOptions, option);
+    }
+
+    private static bool IsMetamagicOptionTrainedOutsideTag(
+        CharacterHeroBuildingData buildingData,
+        string tag,
         MetamagicOptionDefinition option)
     {
         if (buildingData?.HeroCharacter == null ||
@@ -159,23 +217,28 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             return false;
         }
 
-        if (buildingData.HeroCharacter.TrainedMetamagicOptions.Contains(option))
+        if (ContainsMetamagicOption(buildingData.HeroCharacter.TrainedMetamagicOptions, option))
         {
             return true;
         }
 
         return buildingData.LevelupTrainedMetamagicOptions != null &&
                buildingData.LevelupTrainedMetamagicOptions
+                   .Where(entry => !string.Equals(entry.Key, tag, StringComparison.Ordinal))
                    .SelectMany(entry => entry.Value ?? [])
-                   .Contains(option);
+                   .Any(x => ReferenceEquals(x, option));
     }
 
     private static List<MetamagicOptionDefinition> GetAutoTrainableFeatGrantedMetamagicOptions(
         CharacterHeroBuildingData buildingData,
+        string tag,
         IEnumerable<MetamagicOptionDefinition> allowedOptions)
     {
         return allowedOptions?
-            .Where(option => option != null && !IsMetamagicOptionSelectedOrTrained(buildingData, option))
+            .Where(option =>
+                option != null &&
+                !IsMetamagicOptionSelectedForTag(buildingData, tag, option) &&
+                !IsMetamagicOptionTrainedOutsideTag(buildingData, tag, option))
             .ToList() ?? [];
     }
 
@@ -201,6 +264,7 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         return remainingPoints > 0 &&
                GetAutoTrainableFeatGrantedMetamagicOptions(
                        buildingData,
+                       tag,
                        GetAllowedFeatGrantedMetamagicOptions(pointPool))
                    .Count > 0;
     }
@@ -408,10 +472,22 @@ public static class CharacterStageProficiencySelectionPanelPatcher
                 continue;
             }
 
-            if (service.GetPointPoolOfTypeAndTag(buildingData, item.PoolType, item.Tag) == null)
+            if (service.GetPointPoolOfTypeAndTag(buildingData, item.PoolType, item.Tag) != null)
             {
-                return true;
+                continue;
             }
+
+            if (item.PoolType == Metamagic &&
+                IsFeatMetamagicAdeptTag(item.Tag) &&
+                service.GetPointPoolOfTypeAndTag(
+                    buildingData,
+                    Metamagic,
+                    MetamagicContext.FeatMetamagicAdeptPointPoolTag) != null)
+            {
+                continue;
+            }
+
+            return true;
         }
 
         return false;
@@ -859,6 +935,7 @@ public static class CharacterStageProficiencySelectionPanelPatcher
                 {
                     var candidates = GetAutoTrainableFeatGrantedMetamagicOptions(
                         buildingData,
+                        tag,
                         GetAllowedFeatGrantedMetamagicOptions(pointPool));
 
                     if (candidates.Count == 0)
@@ -905,6 +982,63 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         });
 
         return true;
+    }
+
+    [HarmonyPatch(typeof(CharacterStageProficiencySelectionPanel), "OnMetamagicOptionSelected")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnMetamagicOptionSelected_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(
+            CharacterStageProficiencySelectionPanel __instance,
+            ProficiencySingleItem item)
+        {
+            if (item?.BaseDefinition is not MetamagicOptionDefinition metamagicOption ||
+                !TryGetFeatGrantedMetamagicState(
+                    __instance,
+                    CurrentStepItem(__instance),
+                    out _,
+                    out var buildingData,
+                    out var service,
+                    out var commandService,
+                    out var pointPool,
+                    out var tag,
+                    item.StageTag))
+            {
+                return true;
+            }
+
+            var allowedOptions = GetAllowedFeatGrantedMetamagicOptions(pointPool);
+
+            if (!ContainsMetamagicOption(allowedOptions, metamagicOption) ||
+                IsMetamagicOptionTrainedOutsideTag(buildingData, tag, metamagicOption))
+            {
+                __instance.ResetWasClickedFlag();
+
+                return false;
+            }
+
+            if (IsMetamagicOptionSelectedForTag(buildingData, tag, metamagicOption))
+            {
+                commandService.UntrainCharacterFeature(__instance.currentHero, tag, metamagicOption.Name, Metamagic);
+
+                return false;
+            }
+
+            service.GetPoolPointsOfTypeAndTag(buildingData, Metamagic, tag, out var remainingPoints, out _);
+
+            if (remainingPoints <= 0)
+            {
+                __instance.ResetWasClickedFlag();
+
+                return false;
+            }
+
+            commandService.TrainCharacterFeature(__instance.currentHero, tag, metamagicOption.Name, Metamagic);
+
+            return false;
+        }
     }
 
     [HarmonyPatch(typeof(CharacterStageProficiencySelectionPanel),
@@ -957,11 +1091,6 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         [UsedImplicitly]
         public static void Postfix(LearnStepItem __instance)
         {
-            if (!IsFeatMetamagicAdeptLearnStep(__instance))
-            {
-                return;
-            }
-
             var panel = __instance.GetComponentInParent<CharacterStageProficiencySelectionPanel>();
 
             if (HasAvailableFeatGrantedMetamagicAutoChoice(panel, __instance))
