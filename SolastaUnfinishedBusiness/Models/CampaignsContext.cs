@@ -236,7 +236,6 @@ internal static class CampaignsContext
 
         __instance.relevantMetamagicOptions.Clear();
         __instance.relevantMetamagicOptions.AddRange(metamagicOptions);
-        __instance.relevantMetamagicOptions.Sort(MetamagicContext.CompareMetamagic);
 
         if (!__instance.Table ||
             !__instance.ItemPrefab)

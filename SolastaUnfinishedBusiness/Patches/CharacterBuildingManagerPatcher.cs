@@ -23,6 +23,39 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterBuildingManagerPatcher
 {
+    private static IEnumerable<FeatDefinition> EnumerateLevelupTrainedFeatsForTag(
+        CharacterHeroBuildingData heroBuildingData,
+        string tag)
+    {
+        if (heroBuildingData?.LevelupTrainedFeats == null)
+        {
+            yield break;
+        }
+
+        if (!string.IsNullOrEmpty(tag))
+        {
+            if (!heroBuildingData.LevelupTrainedFeats.TryGetValue(tag, out var feats))
+            {
+                yield break;
+            }
+
+            foreach (var feat in feats.Where(feat => feat))
+            {
+                yield return feat;
+            }
+
+            yield break;
+        }
+
+        foreach (var feat in heroBuildingData.LevelupTrainedFeats
+                     .SelectMany(entry => entry.Value ?? [])
+                     .Where(feat => feat)
+                     .Distinct())
+        {
+            yield return feat;
+        }
+    }
+
     internal static bool TryResolveFeatGrantedPointPoolTags(
         CharacterBuildingManager manager,
         RulesetCharacterHero hero,
@@ -2343,11 +2376,12 @@ public static class CharacterBuildingManagerPatcher
         [UsedImplicitly]
         public static void Prefix(
             CharacterBuildingManager __instance,
-            CharacterHeroBuildingData heroBuildingData)
+            CharacterHeroBuildingData heroBuildingData,
+            string tag)
         {
-            foreach (var feat in heroBuildingData.LevelupTrainedFeats
-                         .SelectMany(entry => entry.Value)
-                         .Where(feat => feat))
+            var targetFeats = EnumerateLevelupTrainedFeatsForTag(heroBuildingData, tag).ToArray();
+
+            foreach (var feat in targetFeats)
             {
                 foreach (var featureDefinitionPointPool in feat.Features.OfType<FeatureDefinitionPointPool>())
                 {
