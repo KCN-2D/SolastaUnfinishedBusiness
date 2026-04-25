@@ -14,8 +14,8 @@ Feature/&PowerRoguishOpportunistExposedWeaknessDescription=17レベル以降、�
 Feature/&PowerRoguishOpportunistExposedWeaknessTitle=弱点露呈
 Feature/&PowerRoguishOpportunistImprovedDebilitatingStrikeDescription=13レベル以降、クリーチャーに急所攻撃を命中させるたび、そのクリーチャーは耐久力セーヴィング・スロー（セーヴ難易度 = 8 + 習熟ボーナス + 敏捷力修正値）に成功しなければ、次のターンの終了時まで、移動速度が2マス減少し、すべてのセーヴィング・スローに-1d6のペナルティを受けます。
 Feature/&PowerRoguishOpportunistImprovedDebilitatingStrikeTitle=改良型衰弱の一撃
-Reaction/&ReactionAttackSeizeTheChanceDescription=敵がセーヴィング・スローに失敗した。あなたの反応を利用して機会攻撃を行うことができます。
-Reaction/&ReactionAttackSeizeTheChanceReactDescription=敵がセーヴィング・スローに失敗した。あなたの反応を利用して機会攻撃を行うことができます。
+Reaction/&ReactionAttackSeizeTheChanceDescription=敵がセーヴィング・スローに失敗しました。リアクションを使用して機会攻撃を行えます。
+Reaction/&ReactionAttackSeizeTheChanceReactDescription=敵がセーヴィング・スローに失敗しました。リアクションを使用して機会攻撃を行えます。
 Reaction/&ReactionAttackSeizeTheChanceReactTitle=好機をつかむ
 Reaction/&ReactionAttackSeizeTheChanceTitle=好機をつかむ
 Reaction/&SubitemSelectSeizeTheChanceTitle=好機をつかむ

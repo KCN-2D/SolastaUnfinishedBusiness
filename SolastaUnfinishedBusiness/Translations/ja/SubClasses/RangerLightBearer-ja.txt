@@ -23,5 +23,5 @@ Reaction/&UseBlessedGlowDescription=自分から4マス以内にいるすべて�
 Reaction/&UseBlessedGlowReactDescription=自分から4マス以内にいるすべてのクリーチャーを盲目状態にしようとします。
 Reaction/&UseBlessedGlowReactTitle=祝福の輝き
 Reaction/&UseBlessedGlowTitle=祝福の輝き
-Subclass/&RangerLightBearerDescription=光宿す者は、上位次元界の住人から祝福を受けたレンジャーです。自然への善行と、あらゆる種族に対する敬虔な振る舞いで知られる彼らは、そうした領域に住む神々の目に留まったのでしょう。
+Subclass/&RangerLightBearerDescription=光宿す者は、上方次元界の住人から祝福を受けたレンジャーです。自然への善行と、あらゆる種族に対する敬虔な振る舞いで知られる彼らは、そうした領域に住む神々の目に留まったのでしょう。
 Subclass/&RangerLightBearerTitle=光宿す者

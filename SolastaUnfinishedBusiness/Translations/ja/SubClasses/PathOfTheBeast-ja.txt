@@ -5,7 +5,7 @@ Condition/&ConditionPathOfTheBeastInfectiousFuryTitle=伝染する怒り
 Condition/&ConditionPathOfTheBeastTailSwipeDescription=この敵のターン終了時まで、ACに1d8のボーナスを得ます。
 Condition/&ConditionPathOfTheBeastTailSwipeTitle=尾の大振り
 Failure/&TargetMustHaveInfectiousFury=対象は〈伝染する怒り〉の効果を受けていなければなりません。
-Feature/&PowerPathOfTheBeastBestialSoulDescription=〈獣の姿〉で生み出した生来の武器は、非魔法攻撃や非魔法ダメージへの抵抗と完全耐性を克服する目的で魔法の武器として扱われます。\n\n休憩ごとに1回、フリー・アクションとして次の利益のうち1つを選べます。この効果は次の小休憩または大休憩まで持続します。\n\n- 跳躍距離が3マス増加します。\n- 垂直面を登れるようになります。\n- 敵の間をすり抜け、移動困難な地形を無視できます。
+Feature/&PowerPathOfTheBeastBestialSoulDescription=〈獣の姿〉で生み出した肉体武器は、非魔法的攻撃や非魔法的ダメージへの抵抗と完全耐性を克服する目的で魔法の武器として扱われます。\n\n休憩ごとに1回、フリー・アクションとして次の利益のうち1つを選べます。この効果は次の小休憩または大休憩まで持続します。\n\n- 跳躍距離が3マス増加します。\n- 垂直面を登れるようになります。\n- 敵の間をすり抜け、移動困難な地形を無視できます。
 Feature/&PowerPathOfTheBeastBestialSoulHareDescription=跳躍距離が3マス増加します。
 Feature/&PowerPathOfTheBeastBestialSoulHareTitle=獣の魂：野ウサギ
 Feature/&PowerPathOfTheBeastBestialSoulSnakeDescription=敵の間をすり抜け、移動困難な地形を無視できます。
@@ -19,13 +19,13 @@ Feature/&PowerPathOfTheBeastFormOfTheBeastBiteDescription=あなたの口は獣�
 Feature/&PowerPathOfTheBeastFormOfTheBeastBiteTitle=形態：噛みつき
 Feature/&PowerPathOfTheBeastFormOfTheBeastClawsDescription=それぞれの手が爪へと変化し、手が空いていれば武器として使えます。命中すると1d6の斬撃ダメージを与えます。攻撃アクションの一部として爪で攻撃したなら、各ターンに1回、同じ目標へ追加の爪攻撃を1回行えます。
 Feature/&PowerPathOfTheBeastFormOfTheBeastClawsTitle=形態：爪
-Feature/&PowerPathOfTheBeastFormOfTheBeastDescription=激怒すると変身し、内に秘めた獣の力が姿を現します。激怒が終了するまで、生来の武器1つを顕現させます。これはあなたにとって単純近接武器として扱われ、通常どおり攻撃ロールとダメージ・ロールに筋力修正値を加えます。
+Feature/&PowerPathOfTheBeastFormOfTheBeastDescription=激怒すると変身し、内に秘めた獣の力が姿を現します。激怒が終了するまで、肉体武器1つを顕現させます。これはあなたにとって単純近接武器として扱われ、通常どおり攻撃ロールとダメージ・ロールに筋力修正値を加えます。
 Feature/&PowerPathOfTheBeastFormOfTheBeastTailDescription=しなる棘だらけの尾が生え、命中すると1d8の刺突ダメージを与え、間合い延長特性を持ちます。あなたから2マス以内にいて見えているクリーチャーが攻撃ロールであなたに命中したとき、リアクションとして尾を振ってd8を振れます。その出目に等しいボーナスをACに加え、その攻撃を外れにできることがあります。
 Feature/&PowerPathOfTheBeastFormOfTheBeastTailTitle=形態：尾
 Feature/&PowerPathOfTheBeastFormOfTheBeastTitle=獣の姿
 Feature/&PowerPathOfTheBeastInfectiousFuryCompelledStrikeDescription=対象は、自身の間合い内にいる、あなたが選んだ別のクリーチャー1体に攻撃を行います。
 Feature/&PowerPathOfTheBeastInfectiousFuryCompelledStrikeTitle=伝染する怒り：強制攻撃
-Feature/&PowerPathOfTheBeastInfectiousFuryDescription=激怒中、自分のターンに生来の武器でクリーチャーに命中したとき、内なる獣はその目標を狂乱の怒りで呪えます。目標は判断力セーヴィング・スロー（セーヴ難易度 = 8 + 耐久力修正値 + 習熟ボーナス）に成功しなければ、そのターンの終了時まで印を付けられます。印を付けられたクリーチャーに対しては、印を消費して次のフリー・アクションのいずれかを使用できます。\n- 強制攻撃：対象は、自身の間合い内にいる、あなたが選んだ別のクリーチャー1体に攻撃を行います。\n- 精神鞭打：対象は2d12の精神ダメージを受けます。\n\nこの特徴は習熟ボーナスに等しい回数だけ使用でき、大休憩を終えると使用回数をすべて回復します。
+Feature/&PowerPathOfTheBeastInfectiousFuryDescription=激怒中、自分のターンに肉体武器でクリーチャーに命中したとき、内なる獣はその目標を狂乱の怒りで呪えます。目標は判断力セーヴィング・スロー（セーヴ難易度 = 8 + 耐久力修正値 + 習熟ボーナス）に成功しなければ、そのターンの終了時まで印を付けられます。印を付けられたクリーチャーに対しては、印を消費して次のフリー・アクションのいずれかを使用できます。\n- 強制攻撃：対象は、自身の間合い内にいる、あなたが選んだ別のクリーチャー1体に攻撃を行います。\n- 精神鞭打：対象は2d12の精神ダメージを受けます。\n\nこの特徴は習熟ボーナスに等しい回数だけ使用でき、大休憩を終えると使用回数をすべて回復します。
 Feature/&PowerPathOfTheBeastInfectiousFuryMindlashDescription=対象は2d12の精神ダメージを受けます。
 Feature/&PowerPathOfTheBeastInfectiousFuryMindlashTitle=伝染する怒り：精神鞭打
 Feature/&PowerPathOfTheBeastInfectiousFuryTitle=伝染する怒り

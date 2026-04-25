@@ -15,5 +15,5 @@ Reaction/&UseSearingVengeanceDescription=最大ヒット・ポイントの半分
 Reaction/&UseSearingVengeanceReactDescription=光輝エネルギーの爆発とともに立ち上がる。
 Reaction/&UseSearingVengeanceReactTitle=逆襲の輝き
 Reaction/&UseSearingVengeanceTitle=逆襲の輝き
-Subclass/&PatronCelestialDescription=あなたのパトロンは高次元界の強力な存在です。あなたは、永遠の至福が満ちる諸次元に住まう古代のエンピュリアン、ソーラー、麒麟、ユニコーン、あるいはその他の存在と契約を結んでいます。その存在との契約により、多元宇宙を照らす聖なる光の、ほんのわずかな触れ合いを体験できます。
+Subclass/&PatronCelestialDescription=あなたのパトロンは上方次元界の強力な存在です。あなたは、永遠の至福が満ちる諸次元に住まう古代のエンピュリアン、ソーラー、麒麟、ユニコーン、あるいはその他の存在と契約を結んでいます。その存在との契約により、多元宇宙を照らす聖なる光の、ほんのわずかな触れ合いを体験できます。
 Subclass/&PatronCelestialTitle=セレスチャル
