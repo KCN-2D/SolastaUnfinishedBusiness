@@ -1,5 +1,5 @@
-Status/&ConcentrationFormat={0}は呪文「{1}」を維持することに集中しています。
-Status/&ConcentrationStopDescription=集中するのをやめてください。
+Status/&ConcentrationFormat={0}は呪文「{1}」への精神集中を維持しています。
+Status/&ConcentrationStopDescription=精神集中をやめます。
 Status/&HealthStatusFormat=健康状態：{0}
 Status/&ReadiedCantripAttackFormat={0}は機会があれば初級呪文攻撃を行う準備ができています。
 Status/&ReadiedMeleeAttackFormat={0}は機会があれば近接攻撃を行う準備ができています。
