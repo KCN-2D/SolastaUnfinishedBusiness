@@ -367,6 +367,10 @@ internal static partial class SpellBuilders
                     .Build())
             .AddToDB();
 
+        var customBehavior = new CustomBehaviorCrownOfStars(spell, powerCrownOfStars, conditionCrownOfStars);
+
+        spell.AddCustomSubFeatures(customBehavior);
+
         powerCrownOfStars.AddCustomSubFeatures(
             new ModifyPowerPoolAmount
             {
@@ -374,16 +378,21 @@ internal static partial class SpellBuilders
                 Type = PowerPoolBonusCalculationType.ConditionAmount,
                 Attribute = conditionCrownOfStars.Name
             },
-            new CustomBehaviorPowerCrownOfStars(spell, powerCrownOfStars, conditionCrownOfStars));
+            customBehavior);
 
         return spell;
+    }
+
+    private static int CrownOfStarsAdditionalMotes(int effectLevel)
+    {
+        return effectLevel > 7 ? (effectLevel - 7) * 2 : 0;
     }
 
     private sealed class ConditionAddedOrRemovedCrownOfStars : IOnConditionAddedOrRemoved
     {
         public void OnConditionAdded(RulesetCharacter target, RulesetCondition rulesetCondition)
         {
-            rulesetCondition.Amount = (rulesetCondition.EffectLevel - 7) * 2;
+            rulesetCondition.Amount = CrownOfStarsAdditionalMotes(rulesetCondition.EffectLevel);
         }
 
         public void OnConditionRemoved(RulesetCharacter target, RulesetCondition rulesetCondition)
@@ -392,7 +401,7 @@ internal static partial class SpellBuilders
         }
     }
 
-    private sealed class CustomBehaviorPowerCrownOfStars(
+    private sealed class CustomBehaviorCrownOfStars(
         SpellDefinition spellCrownOfStars,
         FeatureDefinitionPower powerMotes,
         ConditionDefinition conditionCrownOfStars) : IPowerOrSpellFinishedByMe
@@ -400,6 +409,19 @@ internal static partial class SpellBuilders
         public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
         {
             var rulesetCharacter = action.ActingCharacter.RulesetCharacter;
+
+            if (baseDefinition == spellCrownOfStars)
+            {
+                SyncMotePoolAfterSpellCast(action, rulesetCharacter);
+
+                yield break;
+            }
+
+            if (baseDefinition != powerMotes)
+            {
+                yield break;
+            }
+
             // must use GetRemainingPowerUses for convenience
             var remainingUses = rulesetCharacter.GetRemainingPowerUses(powerMotes);
 
@@ -424,6 +446,30 @@ internal static partial class SpellBuilders
             }
 
             yield break;
+        }
+
+        private void SyncMotePoolAfterSpellCast(CharacterActionMagicEffect action, RulesetCharacter rulesetCharacter)
+        {
+            if (action.Countered ||
+                action.ExecutionFailed ||
+                !rulesetCharacter.TryGetConditionOfCategoryAndType(
+                    AttributeDefinitions.TagEffect, conditionCrownOfStars.Name, out var activeCondition))
+            {
+                return;
+            }
+
+            activeCondition.Amount = CrownOfStarsAdditionalMotes(action.ActionParams.RulesetEffect.EffectLevel);
+
+            var usablePower = rulesetCharacter.UsablePowers
+                .FirstOrDefault(x => x.PowerDefinition == powerMotes);
+
+            if (usablePower == null)
+            {
+                usablePower = PowerProvider.Get(powerMotes, rulesetCharacter);
+                rulesetCharacter.UsablePowers.Add(usablePower);
+            }
+
+            usablePower.remainingUses = rulesetCharacter.GetMaxUsesOfPower(usablePower);
         }
     }
 
