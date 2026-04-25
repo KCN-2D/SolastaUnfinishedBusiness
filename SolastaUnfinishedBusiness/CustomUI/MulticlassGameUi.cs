@@ -611,6 +611,9 @@ internal static class MulticlassGameUi
             group.autoPreparedSpells.AddRange(keys);
         }
 
+        NormalizeSpellSourceTags(tagBySpell);
+        NormalizeSpellSourceTags(group.extraSpellsMap);
+
         group.CommonBind(null, unlearn ? SpellBox.BindMode.Unlearn : SpellBox.BindMode.Learning, spellBoxChanged,
             allSpells, null, null, group.autoPreparedSpells, unlearnedSpells, tagBySpell,
             group.extraSpellsMap, tooltipAnchor, anchorMode);
@@ -678,6 +681,19 @@ internal static class MulticlassGameUi
             poolType,
             tag,
             spellFeature);
+    }
+
+    private static void NormalizeSpellSourceTags(IDictionary<SpellDefinition, string> tagsBySpell)
+    {
+        foreach (var pair in tagsBySpell.ToArray())
+        {
+            var normalizedTag = SpellBoxPatcher.NormalizeSpellSourceTag(pair.Value);
+
+            if (normalizedTag != pair.Value)
+            {
+                tagsBySpell[pair.Key] = normalizedTag;
+            }
+        }
     }
 
     private static void FilterMulticlassBleeding(

@@ -10,6 +10,11 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class SpellBoxPatcher
 {
+    internal static string NormalizeSpellSourceTag(string tag)
+    {
+        return tag == "DOMAIN" ? "Domain" : tag;
+    }
+
     [HarmonyPatch(typeof(SpellBox), nameof(SpellBox.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -27,6 +32,8 @@ public static class SpellBoxPatcher
             {
                 return;
             }
+
+            tag = NormalizeSpellSourceTag(tag);
 
             //PATCH: show actual class/subclass name in the multiclass tag during spell selection on level up
             if (tag.StartsWith(LevelUpHelper.ExtraClassTag)

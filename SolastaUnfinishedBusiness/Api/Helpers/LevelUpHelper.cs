@@ -439,6 +439,11 @@ internal static class LevelUpHelper
             AddAutoPreparedSpells(feature);
         }
 
+        foreach (var (spell, displayTag) in Tabletop2024Context.EnumerateSlotCastableTabletop2024FeatSpellsWithTags(hero))
+        {
+            extraSpells.TryAdd(spell, displayTag);
+        }
+
         if (!hero.TryGetHeroBuildingData(out var data))
         {
             return;

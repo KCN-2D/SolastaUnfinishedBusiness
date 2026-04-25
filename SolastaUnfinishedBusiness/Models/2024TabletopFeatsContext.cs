@@ -2833,7 +2833,8 @@ public static partial class Tabletop2024Context
             return;
         }
 
-        foreach (var spell in EnumerateSlotCastableTabletop2024FeatSpells(hero)
+        foreach (var spell in EnumerateSlotCastableTabletop2024FeatSpellsWithTags(hero)
+                     .Select(x => x.Spell)
                      .Where(spell => spell is { Implemented: true, GuiPresentation.hidden: false })
                      .Where(spell => !SpellsContext.SpellsChildMaster.ContainsKey(spell))
                      .Where(spell => spell.SpellLevel > 0 && spell.SpellLevel <= maxSpellLevel)
@@ -2846,8 +2847,14 @@ public static partial class Tabletop2024Context
         }
     }
 
-    private static IEnumerable<SpellDefinition> EnumerateSlotCastableTabletop2024FeatSpells(RulesetCharacterHero hero)
+    internal static IEnumerable<(SpellDefinition Spell, string DisplayTag)> EnumerateSlotCastableTabletop2024FeatSpellsWithTags(
+        RulesetCharacterHero hero)
     {
+        if (!Main.Settings.EnableTabletopFeatRules2024 || hero == null)
+        {
+            yield break;
+        }
+
         foreach (var repertoire in hero.SpellRepertoires)
         {
             var spellCastingFeature = repertoire.SpellCastingFeature;
@@ -2864,9 +2871,11 @@ public static partial class Tabletop2024Context
                 continue;
             }
 
+            var displayTag = GetTabletop2024FeatSpellDisplayTag(spellTag.Name);
+
             foreach (var spell in repertoire.KnownSpells)
             {
-                yield return spell;
+                yield return (spell, displayTag);
             }
 
             if (!(spellTag.ForceFixedList || spellCastingFeature.SpellKnowledge == SpellKnowledge.FixedList) ||
@@ -2879,9 +2888,19 @@ public static partial class Tabletop2024Context
                          .Where(x => x.Level > 0)
                          .SelectMany(x => x.Spells))
             {
-                yield return spell;
+                yield return (spell, displayTag);
             }
         }
+    }
+
+    private static string GetTabletop2024FeatSpellDisplayTag(string spellTagName)
+    {
+        return spellTagName switch
+        {
+            FeyTouched2024FixedTag => FeyTouched2024ChoiceTag,
+            ShadowTouched2024FixedTag => ShadowTouched2024ChoiceTag,
+            _ => spellTagName
+        };
     }
 
     private static bool IsSlotCastableTabletop2024FeatSpellTag(
