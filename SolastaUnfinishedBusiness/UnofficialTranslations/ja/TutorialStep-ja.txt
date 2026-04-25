@@ -3,7 +3,7 @@ TutorialStep/&BattleCameraDescriptionXBox=戦闘中は、<sprite index={4}>で�
 TutorialStep/&BattleCameraTitle=戦闘中のカメラ制御
 TutorialStep/&CautiousModeDescription=慎重モードを有効にすると移動は遅くなりますが、隠された物体や罠に特に注意を払い、隠密に移動できます。\n敵があなたの存在に気づき始めると、敵の頭上にゲージが溜まり、気づかれる前に隠れる時間が与えられます。
 TutorialStep/&CautiousModeTitle=慎重モード
-TutorialStep/&ConfigWeapons2Description=インベントリ内のショートカットを変更できます。\n武器、盾、その他のアイテムを手のスロットにドラッグアンドドロップして、ショートカットを変更します。
+TutorialStep/&ConfigWeapons2Description=所持品内のショートカットを変更できます。\n武器、盾、その他のアイテムを手のスロットにドラッグアンドドロップして、ショートカットを変更します。
 TutorialStep/&ConfigWeapons2Title=武器のショートカットを変更する
 TutorialStep/&ConfigWeaponsDescription=ショートカットを使って装備を切り替えられます。\n既定では3つの武器設定ショートカットがあります。\n最後のショートカットは光源用ショートカットで、たいまつや他の光源を含む3番目の構成を使います。\n呪文リストに初級呪文〈光〉がある場合は、〈光〉ボタンを押すだけですぐ発動できます。
 TutorialStep/&ConfigWeaponsTitle=装備のショートカット
@@ -21,11 +21,11 @@ TutorialStep/&Crafting05Title=クラフトレシピ
 TutorialStep/&Crafting06Description=クラフトを始めるには、キャラクター画面を開いて「クラフト」タブをクリックし、開始可能なレシピを選びます。\n旅の途中で進行バーが伸び、作業が終わると通知が表示されるため、必要なら次のレシピを始められます。\nクラフトを途中で中止すると、材料は失われるので注意してください。
 TutorialStep/&Crafting06Title=クラフト画面
 TutorialStep/&Crafting06XBoxDescription=クラフトを開始するには、<sprite index={11}>を使用してキャラクターの画面を開き、<sprite index={8}>または<sprite index={9}>を使用して[クラフト]タブを選択します。開始するには、利用可能なレシピを選択するだけです。\n移動中に進行状況バーが表示され、作成操作が完了すると通知が表示されるので、必要に応じて別のレシピを開始できます。\n製作操作をキャンセルすると、材料は失われます。
-TutorialStep/&FoodDescription=インベントリに食料がないなら、物色できるコンテナや倒れた敵の所持品から食料を探しましょう。
+TutorialStep/&FoodDescription=所持品に食料がないなら、物色できるコンテナや倒れた敵の所持品から食料を探しましょう。
 TutorialStep/&FoodTitle=食べ物
 TutorialStep/&GatheringDescription=冒険を進めるには、特定の場所へパーティ全員を集めなければならないことがあります。\n\nクエストの次の段階を進めるには、全員をその区域まで連れて行く方法を見つけてください。
 TutorialStep/&GatheringTitle=パーティを集める
-TutorialStep/&InventorySpaceDescription=キャラクターは、重荷になるまで筋力の5倍の重量を運べます。\n\n各アイテムには重量があります。矢のように1つのインベントリ枠へまとめられるものもありますが、その重量は合計されます。\n\n装備を回収するときは、重荷ゲージを確認してください。キャラクターの動きが遅いなら、持ちすぎていないか見直しましょう。
+TutorialStep/&InventorySpaceDescription=キャラクターは、重荷になるまで筋力の5倍の重量を運べます。\n\n各アイテムには重量があります。矢のように1つの所持品枠へまとめられるものもありますが、その重量は合計されます。\n\n装備を回収するときは、重荷ゲージを確認してください。キャラクターの動きが遅いなら、持ちすぎていないか見直しましょう。
 TutorialStep/&InventorySpaceTitle=在庫管理
 TutorialStep/&LightingDescription=ソラスタでは、自然光のない暗く深い場所を探索します。とくに暗視を持たないキャラクターにとっては、探索も戦闘も難しくなります。\n\nたいまつを装備したり、光の呪文を発動したりして、パーティ全体のために周囲を照らしましょう。
 TutorialStep/&LightingTitle=照明と光源
@@ -97,14 +97,14 @@ TutorialStep/&Tuto01_Climbing_and_jumping_Title=木登りとジャンプ
 TutorialStep/&Tuto01_CrawlingXbox_Description=穴をくぐり抜けるには、穴の近くへカーソルを合わせて<sprite index={0}>を押します。\n\nカメラを回転すると、向こう側が見やすくなります。<sprite index={23}>を使うか、<sprite index={4}>でカメラを動かしてください。\n\nキャラクターは目的地へ向かう途中で、必要に応じて自動的にしゃがみ、這い進み、立ち上がります。
 TutorialStep/&Tuto01_Crawling_Description=穴をくぐり抜けるには、向こう側をクリックします。\n\nカメラを回転すると、向こう側が見やすくなります。Q/Eを使うか、左ボタンを押したままマウスを動かしてください。\n\nキャラクターは目的地へ向かう途中で、必要に応じて自動的にしゃがみ、這い進み、立ち上がります。
 TutorialStep/&Tuto01_Crawling_Title=這う
-TutorialStep/&Tuto01_Interacting_Description=ハイライト表示された要素はインタラクティブです。\n\nカーソルは、開く、押す、起動する、鍵を開けるなど、実行できるアクションを示します。\n\nアクションにサイコロの目が必要な場合、難易度クラスは次のようになります。表示されます。
+TutorialStep/&Tuto01_Interacting_Description=ハイライト表示された要素は操作可能です。\n\nカーソルは、開く、押す、起動する、鍵を開けるなど、実行できるアクションを示します。\n\nアクションにダイスロールが必要な場合、難易度が表示されます。
 TutorialStep/&Tuto01_Interacting_Title=インタラクティブな要素
-TutorialStep/&Tuto01_Looting2Xbox_Description=一部のアイテムはインベントリ内の同じマスへ積み重ねられます。1つの山に重ねられる最大数は、アイテムによって異なります。\n\nアイテムの山を分割するには、<sprite index={7}>でメニューを開いて対応するオプションを使うか、<sprite index={0}>を2回押して半分を一度に取ります。
-TutorialStep/&Tuto01_Looting2_Description=一部のアイテムはインベントリの同じマスへ積み重ねられます。1つの山に重ねられる最大数は、アイテムによって異なります。\n\nアイテムの山を分割するには、CTRLキーを押しながらその山を空きマスへドラッグ・アンド・ドロップします。これで山から1個取り出せます。
+TutorialStep/&Tuto01_Looting2Xbox_Description=一部のアイテムは所持品内の同じマスへ積み重ねられます。1つの山に重ねられる最大数は、アイテムによって異なります。\n\nアイテムの山を分割するには、<sprite index={7}>でメニューを開いて対応するオプションを使うか、<sprite index={0}>を2回押して半分を一度に取ります。
+TutorialStep/&Tuto01_Looting2_Description=一部のアイテムは所持品の同じマスへ積み重ねられます。1つの山に重ねられる最大数は、アイテムによって異なります。\n\nアイテムの山を分割するには、CTRLキーを押しながらその山を空きマスへドラッグ・アンド・ドロップします。これで山から1個取り出せます。
 TutorialStep/&Tuto01_Looting2_Title=積み重ね可能なアイテム
 TutorialStep/&Tuto01_LootingXbox_Description=宝箱やそのほかのコンテナを漁るには、そこへカーソルを合わせて<sprite index={0}>を押します。\n\n持ち運ぶ物はすべて重量ゲージに影響するため、重量制限へ近づきすぎないよう注意してください。超過すると大きく移動速度が落ちます。\n\n装備品と光源は、使う前に対応するスロットへ配置しなければなりません。
 TutorialStep/&Tuto01_Looting_Description=宝箱やそのほかのコンテナをクリックして中身を漁ります。\n\n持ち運ぶ物はすべて重量ゲージに影響するため、重量制限に達しないよう注意してください。超過すると大きく移動速度が落ちます。\n\n装備品と光源は、使う前に対応するスロットへ配置しなければなりません。
-TutorialStep/&Tuto01_Looting_Title=戦利品回収とインベントリ管理
+TutorialStep/&Tuto01_Looting_Title=戦利品回収と所持品管理
 TutorialStep/&Tuto01_Questlog2_Description=ログには現在の目標がリストされており、クエストを進めるためにはこれを完了する必要があります。その他のオプションの目標がある場合もあります。\n\nログには、クエストの微妙な点を理解するのに役立つヒントやコンテキストも表示されます。\n\n成功と失敗はすべてここに記録されます。
 TutorialStep/&Tuto01_Questlog2_Title=クエストログ
 TutorialStep/&Tuto01_QuestlogXbox_Description=パーティ・ジャーナルを開くには、<sprite index={11}>を押したまま<sprite index={5}>でジャーナルを選びます。\n\n現在の目標の詳細や、役立つ背景情報を確認できます。\n\nジャーナルにはクエストログよりはるかに多くの情報が載っています。
@@ -118,8 +118,8 @@ TutorialStep/&Tuto01_Selection_Description=3Dビューでキャラクター本�
 TutorialStep/&Tuto01_Selection_Title=キャラクター選択と基本動作
 TutorialStep/&Tuto02_Cautious_Stealth_Description=慎重モードを有効にすると動きは遅くなりますが、隠された物体や罠を見つけやすくなり、敵に発見されにくくなります。\n敵があなたの存在に気づき始めると、敵の頭上にゲージが表示され、気づかれる前に隠れる時間が与えられます。\nこのモードでは、敵から3マス以上離れていれば発見されません。
 TutorialStep/&Tuto02_Cautious_Stealth_Title=慎重モード
-TutorialStep/&Tuto02_HealingXbox_Description=キャラクターが回復呪文を発動できる場合（たとえばクレリックなど）、<sprite index={2}>を押して呪文メニューにアクセスし、失われたヒット・ポイントを回復するための呪文を選択します。\n\n近くの戦利品で見つかったポーションを使うこともできます。<sprite index={3}>を押してインベントリを開き、ポーションを選択して<sprite index={7}>を押し、使用します。
-TutorialStep/&Tuto02_Healing_Description=キャラクターが回復呪文を発動することができる場合（聖職者など）、失われたヒット・ポイントを回復するには、「呪文を発動する」ボタンを押して呪文を選択します。\n\n近くの戦利品で見つかったポーションを使用することもできます。インベントリを開き、ポーションを右クリックして使用します。
+TutorialStep/&Tuto02_HealingXbox_Description=キャラクターが回復呪文を発動できる場合（たとえばクレリックなど）、<sprite index={2}>を押して呪文メニューにアクセスし、失われたヒット・ポイントを回復するための呪文を選択します。\n\n近くの戦利品で見つかったポーションを使うこともできます。<sprite index={3}>を押して所持品を開き、ポーションを選択して<sprite index={7}>を押し、使用します。
+TutorialStep/&Tuto02_Healing_Description=キャラクターが回復呪文を発動することができる場合（聖職者など）、失われたヒット・ポイントを回復するには、「呪文を発動する」ボタンを押して呪文を選択します。\n\n近くの戦利品で見つかったポーションを使用することもできます。所持品を開き、ポーションを右クリックして使用します。
 TutorialStep/&Tuto02_Healing_Title=ヒーリング
 TutorialStep/&Tuto02_Light_Up_Description=壁のたいまつのような可燃物は、たいまつを持った状態でインタラクトするか、<i>炎の矢</i>のような火炎系呪文を当てることで点火できます。
 TutorialStep/&Tuto02_Light_Up_Title=照明アイテム
@@ -138,8 +138,8 @@ TutorialStep/&Tuto03_Disarm2_Title=罠の解除
 TutorialStep/&Tuto03_DisarmXbox_Description=罠を解除するには、まず罠を発見しなければなりません。未発見の罠が仕掛けられた宝箱を開けたり解錠しようとしたりすると、作動させた瞬間に初めて罠の存在に気づきます。\n\n罠の解除を試みるには、その罠へカーソルを合わせて<sprite index={0}>を押します。成功には敏捷力判定が必要です。盗賊道具に習熟していれば役立ちます。
 TutorialStep/&Tuto03_Disarm_Description=罠を解除するには、まず罠を検出する必要があります。検出されていない罠が仕掛けられたチェストを開けたり、ロックピックしたりしようとすると、罠を起動したときに初めてその罠について知ることができます！\n\n罠の解除を試みるには、罠の上にマウスを置いてください。そして左クリックします。敏捷力判定に成功する必要があります。泥棒の道具は、使いこなせば役に立ちます。
 TutorialStep/&Tuto03_Disarm_Title=罠の解除
-TutorialStep/&Tuto03_LockpickXbox_Description=鍵開けを試みるには、<sprite index={4}>でカーソルを動かして鍵のかかった扉へ合わせ、<sprite index={0}>を押します。\n\nパーティ全体を選択している場合、その作業に最も習熟しているキャラクターが自動的に選ばれます。\n\n錠前を開けるには、インベントリに盗賊道具が必要です。盗賊道具に習熟していれば役立ちます。
-TutorialStep/&Tuto03_Lockpick_Description=鍵開けを試みるには、鍵のかかった扉または宝箱にマウスカーソルを合わせ、左クリックします。パーティ全体を選択している場合、その作業に最も習熟しているキャラクターが自動的に選ばれます。\n\n錠前を開けるには、インベントリに盗賊道具が必要です。盗賊道具に習熟していれば役立ちます。
+TutorialStep/&Tuto03_LockpickXbox_Description=鍵開けを試みるには、<sprite index={4}>でカーソルを動かして鍵のかかった扉へ合わせ、<sprite index={0}>を押します。\n\nパーティ全体を選択している場合、その作業に最も習熟しているキャラクターが自動的に選ばれます。\n\n錠前を開けるには、所持品に盗賊道具が必要です。盗賊道具に習熟していれば役立ちます。
+TutorialStep/&Tuto03_Lockpick_Description=鍵開けを試みるには、鍵のかかった扉または宝箱にマウスカーソルを合わせ、左クリックします。パーティ全体を選択している場合、その作業に最も習熟しているキャラクターが自動的に選ばれます。\n\n錠前を開けるには、所持品に盗賊道具が必要です。盗賊道具に習熟していれば役立ちます。
 TutorialStep/&Tuto03_Lockpick_Title=ピッキング
 TutorialStep/&Tuto03_Sneak_Attack_Description=見つかっていない状態で敵を攻撃すると、奇襲による有利を得ます。\n\nつまり、攻撃ロールに有利を得て、相手は次のターンまでリアクションを行えません。\n\nあなたがローグなら、その攻撃は〈急所攻撃〉となり、追加ダメージを与えます。
 TutorialStep/&Tuto03_Sneak_Attack_Title=奇襲
@@ -170,8 +170,8 @@ TutorialStep/&Tuto_CampaignMap4_Description=英雄たちは通常、常に万全
 TutorialStep/&Tuto_CampaignMap4_Title=旅程の基本
 TutorialStep/&Tuto_CampaignMap5_Description=ときには普段の行程が崩れ、本来は休むべき時間まで移動しなければならないことがあります。そうすると疲労がたまり、やがて疲労困憊に至るかもしれません。\n\n冒険者は、一時的に無理をしたあと通常の行程へ戻し、野営時の活動を減らして休息を増やすことで、疲労を和らげる方法を知っています。
 TutorialStep/&Tuto_CampaignMap5_Title=旅の疲労
-TutorialStep/&Tuto_CampaignMap6XBox_Description=<sprite index={2}>を押せば、いつでも手動で旅を中断できます。\n\nその後、<sprite index={3}>を押してキャラクターのインベントリを開き、新しいクラフト作業を始めたり、装備を変更したり、必要なものを確認したりできます。\n\n<sprite index={0}>を押せば旅を再開します。
-TutorialStep/&Tuto_CampaignMap6_Description=「中断」ボタンを押せば、いつでも手動で旅を止められます。\n\nその後はキャラクターのポートレートをクリックしてインベントリを開き、新しい製作作業を始めたり、装備を変更したり、好きな確認を行えます。\n\n再び旅を続けるには、「再開」ボタンを押してください。
+TutorialStep/&Tuto_CampaignMap6XBox_Description=<sprite index={2}>を押せば、いつでも手動で旅を中断できます。\n\nその後、<sprite index={3}>を押してキャラクターの所持品を開き、新しいクラフト作業を始めたり、装備を変更したり、必要なものを確認したりできます。\n\n<sprite index={0}>を押せば旅を再開します。
+TutorialStep/&Tuto_CampaignMap6_Description=「中断」ボタンを押せば、いつでも手動で旅を止められます。\n\nその後はキャラクターのポートレートをクリックして所持品を開き、新しい製作作業を始めたり、装備を変更したり、好きな確認を行えます。\n\n再び旅を続けるには、「再開」ボタンを押してください。
 TutorialStep/&Tuto_CampaignMap6_Title=旅を中断する
 TutorialStep/&Tuto_CampaignMap7XBox_Description=夜襲を受けたあとでも、安全に再び眠って大休憩を完了できます。\nそのためには、カーソルを焚き火へ合わせて<sprite index={0}>を押します。\nすべてのキャラクターは通常どおり大休憩の恩恵を受けます。\n\n〈安らかな休息〉を持つ〈忘却の領域〉のクレリックがいれば、今後は不意を突かれません。今回はそのルールを説明するための例外です。
 TutorialStep/&Tuto_CampaignMap7_Description=夜襲を受けたあとでも、再び眠って大休憩を完了できます。\nそれには焚き火をクリックするだけです。\nすべてのキャラクターは通常どおり大休憩の恩恵を受けます。\n〈安らかな休息〉を持つ〈忘却の領域〉のクレリックがいれば、今後は不意を突かれません。今回はそのルールを説明するための例外です。
@@ -191,7 +191,7 @@ TutorialStep/&Tuto_Legendary_02_Description=クエストを完了せずにその
 TutorialStep/&Tuto_Legendary_02_Title=クエストを放棄する
 TutorialStep/&Tuto_LevelUp2_Description=夜が終わり、ヒーローたちは過去数日間でどれだけ学んだかを実感します。\n\n各キャラクターのレベルアップボタンをクリックして、関連するインターフェースを起動します。\n\nレベルアップすると、次のことが可能になります。ヒット・ポイントが増加し、クラスに応じて追加機能が追加されます。
 TutorialStep/&Tuto_LevelUp2_Title=レベルアップ！
-TutorialStep/&Tuto_LevelUpGeneric_Description=次のレベルの目標経験値に達したら、大休憩をとってレベルアップウィンドウを開きます。\n\nそこでは、クラスに応じて追加のヒット・ポイントと機能を獲得できます。\n\nレベルを上げるために、宿屋、移動中、または探索場所内で大休憩を取ることができることを忘れないでください。
+TutorialStep/&Tuto_LevelUpGeneric_Description=次のレベルに必要な経験点に達したら、大休憩をとってレベルアップウィンドウを開きます。\n\nそこでは、クラスに応じて追加のヒット・ポイントと特徴を獲得できます。\n\nレベルを上げるには、宿屋、移動中、または探索場所内で大休憩を取れることを忘れないでください。
 TutorialStep/&Tuto_LevelUpGeneric_Title=レベルアップ
 TutorialStep/&Tuto_LevelUp_Description=ヒーローたちはレベルアップする準備ができています！\n\nそのためには、大休憩を取る必要があります。\n\n墓守の樽に戻り、バーテンダーのカレルと話してください。宿泊できるように部屋をリクエストしてください。
 TutorialStep/&Tuto_LevelUp_Title=レベルアップ！
@@ -212,13 +212,13 @@ TutorialStep/&Tuto_LocationMap_Description=地図アイコンをクリックし�
 TutorialStep/&Tuto_LocationMap_Title=ロケーションマップ
 TutorialStep/&Tuto_ManaLamps_Description=マナカロンの遺跡では、こうした魔法のランプに出会うことがあります。\n\nこれらは魔力で灯り、たいまつよりも明るく安定した光を放ちます。\n\n初級呪文を含む、あらゆる魔法ダメージで起動します。
 TutorialStep/&Tuto_ManaLamps_Title=マナランプ
-TutorialStep/&Tuto_Merchants_Description=商人は品物を売買するだけでなく、インベントリ内の魔法のアイテムを感知して識別することもできます。\n\n中には特定の派閥に属する者もおり、その派閥との評判が高いほど大きな恩恵を受けられます。
+TutorialStep/&Tuto_Merchants_Description=商人は品物を売買するだけでなく、所持品内の魔法のアイテムを感知して識別することもできます。\n\n中には特定の派閥に属する者もおり、その派閥との評判が高いほど大きな恩恵を受けられます。
 TutorialStep/&Tuto_Merchants_Title=商人
 TutorialStep/&Tuto_PreparingSpells_Description=多くの術者は、一度に思い出しておける以上の呪文を知っています。準備された呪文とは、呪文スロットを消費して実際に使える呪文のことです。\n\n英雄たちの習得済み呪文一覧を確認し、準備する呪文を選びましょう。\n\n準備していない呪文は発動できません。多くのキャラクターは、準備できる数より多くの呪文を知っているため、状況に応じて慎重に選ぶ必要があります。
 TutorialStep/&Tuto_PreparingSpells_Title=呪文の準備
 TutorialStep/&Tuto_ReadyAnAction_Description=これにより、特定の条件が満たされるまで待ち、ほかのクリーチャーのターンに割り込んで、準備していた行動を実行できます。\n\n〈魔術師の王冠〉では、状況に応じて攻撃を待機させられます。\n\n移動やボーナス・アクションは行えますが、待機を選ぶと自分のターンはそこで終了します。
 TutorialStep/&Tuto_ReadyAnAction_Title=待機
-TutorialStep/&Tuto_RunePuzzle_Description=地面にわずかに光っている隠されたルーンを見つけて、それを踏んでアクティブにします。
+TutorialStep/&Tuto_RunePuzzle_Description=地面にわずかに光っている隠しルーンを見つけ、それを踏んで起動します。
 TutorialStep/&Tuto_RunePuzzle_Title=魔法のルーンパズル
 TutorialStep/&Tuto_ShortRest2_Description=小休憩のあと、キャラクターはヒット・ダイスを消費してヒット・ポイントを回復できます。英雄は各レベルにつき1つのヒット・ダイスを持ち、消費したヒット・ダイスを取り戻すには大休憩が必要です。小休憩のあとに、ヒット・ダイスの一部または全部を使えます。\n\nクラスとレベルによっては、小休憩でほかの能力も回復します。
 TutorialStep/&Tuto_ShortRest2_Title=小休憩の利点
@@ -249,7 +249,7 @@ TutorialStep/&Tuto_TeamBalance_Title=パーティのバランス
 TutorialStep/&Tuto_Telema_CameraElevationXbpx_Description=フリーカメラは通常、地面の高低に追従します。\n\n移動可能区域が重なっている場合は、<sprite index={7}>を1回押したあとで<sprite index={22}>を動かすと、カメラを上下に移動できます。このモードを終了するには、もう一度<sprite index={7}>を押します。
 TutorialStep/&Tuto_Telema_CameraElevation_Description=通常、フリーカメラは地面の高低に合わせて動きます。\n\nナビゲーション区域が上下に重なっている場合は、マウスホイールまたはコンパスの矢印ボタンでカメラを上下に動かせます。\n\nこうした状況ではコンパスの矢印が表示され、高低差が大きいときは画面上にもアイコンが出ます。
 TutorialStep/&Tuto_Telema_CameraElevation_Title=カメラの高度
-TutorialStep/&Tuto_Telema_Crafting2_Description=キャラクターのインベントリで作成画面を開き、〈魔法の矢〉の巻物を選択します。ヴァイオレットは必要な材料を使って魔法のインクを作り、その後で巻物を書き上げます。\n\nこれには何時間もかかるため、旅の途中の休憩時間を利用する必要があります。テレマの遺跡を探索している間は巻物を書き上げられません。
+TutorialStep/&Tuto_Telema_Crafting2_Description=キャラクターの所持品で作成画面を開き、〈魔法の矢〉の巻物を選択します。ヴァイオレットは必要な材料を使って魔法のインクを作り、その後で巻物を書き上げます。\n\nこれには何時間もかかるため、旅の途中の休憩時間を利用する必要があります。テレマの遺跡を探索している間は巻物を書き上げられません。
 TutorialStep/&Tuto_Telema_Crafting2_Title=クラフト
 TutorialStep/&Tuto_Telema_Crafting_Description=関連する製作キット、知識、材料、レシピを使用して、さまざまなアイテムを製作できます。\n\nバイオレットは薬草道具と薬草術に習熟しています。彼女がレシピを学習し、必要な材料を持っていれば、治癒のポーションを作ることができます！\n\nレシピの知識はパーティ全体で共有されることに注意してください。
 TutorialStep/&Tuto_Telema_Crafting_Title=クラフト
@@ -259,8 +259,8 @@ TutorialStep/&Tuto_Telema_Identify2_Description=〈魔法の感知〉や〈識�
 TutorialStep/&Tuto_Telema_Identify2_Title=儀式発動
 TutorialStep/&Tuto_UseCovers_Description=戦闘では、壁やバリケードなどの地形要素に盾のアイコンが表示されることがあります。\n\n半遮蔽の向こうにいる敵への遠隔攻撃には-2のペナルティが付きます。3/4遮蔽なら-5です。完全遮蔽の相手は目標にできません。\nこれは近接攻撃や、呪文の効果範囲には影響しません。
 TutorialStep/&Tuto_UseCovers_Title=遮蔽を使う
-TutorialStep/&Tuto_Utility_Description=戦闘中、インベントリは1ターンに1回しか使用できません。これには武器の切り替えも含まれます。\n\nただし、インベントリ・アクションを消費せずにアイテムへアクセスして使用できるユーティリティ・スロットもあります。\n\nここにポーションや巻物を置けば、すぐに使用できます。ただし、その使用自体は通常どおりアクションとして数えられます。
-TutorialStep/&Tuto_Utility_Title=インベントリとユーティリティスロット
+TutorialStep/&Tuto_Utility_Description=戦闘中、所持品は1ターンに1回しか使用できません。これには武器の切り替えも含まれます。\n\nただし、所持品・アクションを消費せずにアイテムへアクセスして使用できるユーティリティ・スロットもあります。\n\nここにポーションや巻物を置けば、すぐに使用できます。ただし、その使用自体は通常どおりアクションとして数えられます。
+TutorialStep/&Tuto_Utility_Title=所持品とユーティリティスロット
 TutorialStep/&Tuto_WarlockInvocations01_Description=妖術は、ウォーロックが新しいレベルに到達するときに習得する特別な能力です。\n一部の妖術では永続的なボーナスが得られますが、他の妖術では呪文を発動できます。\nこれらの呪文の中には、自由に発動できるものもありますが、呪文スロットを消費し、通常は再使用するために大休憩を必要とするものもあります。
 TutorialStep/&Tuto_WarlockInvocations01_Title=ウォーロックの妖術
 TutorialStep/&Tuto_WarlockSpells01_Description=ウォーロックは、固有の呪文スロットのプールを使用して呪文を発動します。\nこのプールは小さいですが、ウォーロックの呪文スロットは小休憩で回復し、新しい呪文レベルを得るにつれて呪文スロットのレベルも上昇します。\nたとえば、3レベル呪文を習得したウォーロックは、すべての呪文を3レベル・スロットで発動し、より低いレベルの呪文は可能なら高レベル版として発動します。
