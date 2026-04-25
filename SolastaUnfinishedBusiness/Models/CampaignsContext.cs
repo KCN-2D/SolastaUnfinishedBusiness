@@ -224,9 +224,7 @@ internal static class CampaignsContext
         }
     }
 
-    internal static void RefreshMetamagicOffering(
-        MetaMagicSubPanel __instance,
-        IReadOnlyCollection<string> restrictedChoices = null)
+    internal static void RefreshMetamagicOffering(MetaMagicSubPanel __instance)
     {
         if (__instance == null ||
             __instance.relevantMetamagicOptions == null)
@@ -234,7 +232,7 @@ internal static class CampaignsContext
             return;
         }
 
-        var metamagicOptions = MetamagicContext.GetRestrictedVisibleMetamagicOptions(restrictedChoices);
+        var metamagicOptions = MetamagicContext.GetVisibleMetamagicOptions();
 
         __instance.relevantMetamagicOptions.Clear();
         __instance.relevantMetamagicOptions.AddRange(metamagicOptions);
