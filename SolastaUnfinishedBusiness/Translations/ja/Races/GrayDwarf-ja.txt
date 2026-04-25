@@ -1,4 +1,4 @@
-Condition/&ConditionGrayDwarfStoneStrengthDescription=筋力チェックと筋力セーヴィング・スローに有利を得ます。さらに、筋力を用いる近接武器攻撃のダメージに+1d4します。
+Condition/&ConditionGrayDwarfStoneStrengthDescription=筋力判定と筋力セーヴィング・スローに有利を得ます。さらに、筋力を用いる近接武器攻撃のダメージに+1d4を加えます。
 Condition/&ConditionGrayDwarfStoneStrengthTitle=石の怪力
 Feature/&AttributeModifierGrayDwarfStrengthAbilityScoreIncreaseDescription=筋力+1
 Feature/&AttributeModifierGrayDwarfStrengthAbilityScoreIncreaseTitle=能力値上昇
@@ -6,7 +6,7 @@ Feature/&FeatureSetGrayDwarfAncestryDescription=魅了状態、麻痺状態、�
 Feature/&FeatureSetGrayDwarfAncestryTitle=グレイ・ドワーフの祖先
 Feature/&PowerGrayDwarfInvisibilityDescription=最大1分間、不可視状態になれます。攻撃的な行動を取るとこの効果は終了します。この能力を一度使用すると、小休憩または大休憩を終えるまで再使用できません。
 Feature/&PowerGrayDwarfInvisibilityTitle=不可視化
-Feature/&PowerGrayDwarfStoneStrengthDescription=ボーナス・アクションとして1分間、石の怪力を得ます。あなたは筋力チェックと筋力セーヴィング・スローに有利を得ます。さらに、筋力を用いる近接武器攻撃で追加の1d4ダメージを与えます。この能力を一度使用すると、小休憩または大休憩を終えるまで再使用できません。
+Feature/&PowerGrayDwarfStoneStrengthDescription=ボーナス・アクションとして1分間、石の怪力を得ます。あなたは筋力判定と筋力セーヴィング・スローに有利を得ます。さらに、筋力を用いる近接武器攻撃で追加の1d4ダメージを与えます。この能力を一度使用すると、小休憩または大休憩を終えるまで再使用できません。
 Feature/&PowerGrayDwarfStoneStrengthTitle=石の怪力
 Race/&RaceGrayDwarfDescription=グレイ・ドワーフは、バッドランズの神秘的な魔法に数世代さらされた結果、変質したドワーフです。主に夜行性で、埋もれた遺跡に住んでいます。肌の色は灰色から炭のような黒までさまざまです。多くのドワーフと異なり、ひげを生やしません。
 Race/&RaceGrayDwarfTitle=グレイ・ドワーフ

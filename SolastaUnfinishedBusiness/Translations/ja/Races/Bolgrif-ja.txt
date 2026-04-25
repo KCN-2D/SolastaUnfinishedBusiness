@@ -10,5 +10,5 @@ Feature/&PowerBolgrifInvisibilityDescription=ボーナス・アクションと�
 Feature/&PowerBolgrifInvisibilityTitle=雲隠れ
 Feature/&ProficiencyBolgrifLanguagesDescription=共通語、エルフ語、巨人語。
 Feature/&ProficiencyBolgrifLanguagesTitle=言語
-Race/&RaceBolgrifDescription=フィルボルグはソラスタの凍った高地に住む半巨人です。彼らは狡猾で、用心深く、隠遁的で、エルフを除くほとんどの人型生物を信用せず、文明から遠く離れた結束の強い氏族の中で暮らすことを好みます。戦闘に追い込まれると、フィルボルグは武器と自然魔法を使った恐るべきスキルを発揮します。
+Race/&RaceBolgrifDescription=フィルボルグはソラスタの凍った高地に住む半巨人です。彼らは狡猾で、用心深く、隠遁的で、エルフを除くほとんどの人型生物を信用せず、文明から遠く離れた結束の強い氏族の中で暮らすことを好みます。戦闘に追い込まれると、フィルボルグは武器と自然魔法を使った恐るべき技量を発揮します。
 Race/&RaceBolgrifTitle=フィルボルグ

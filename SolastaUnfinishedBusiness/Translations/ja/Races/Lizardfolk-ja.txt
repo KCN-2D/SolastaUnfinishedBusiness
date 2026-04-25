@@ -1,6 +1,6 @@
-Feature/&AttributeModifierLizardfolkNaturalArmorDescription=鎧を着ていない間、基本ACは13 + 敏捷力修正値です。外皮の利益を受けている間も、盾の利益は通常どおり適用されます。
+Feature/&AttributeModifierLizardfolkNaturalArmorDescription=鎧を着ていない間、基本ACは13+敏捷力修正値です。外皮の利益を受けている間も、盾の利益は通常どおり適用されます。
 Feature/&AttributeModifierLizardfolkNaturalArmorTitle=外皮
-Feature/&FeatureLizardfolkClawsDescription=爪を使って素手で攻撃することができます。これらを使って攻撃すると、素手攻撃の通常の殴打ダメージの代わりに、1d6+ 筋力修正値の斬撃ダメージを与えます。
+Feature/&FeatureLizardfolkClawsDescription=爪を使って素手攻撃を行えます。これらを使って攻撃すると、素手攻撃の通常の殴打ダメージの代わりに、1d6+筋力修正値の斬撃ダメージを与えます。
 Feature/&FeatureLizardfolkClawsTitle=爪
 Feature/&PointPoolLizardfolkNaturesIntuitionDescription=あなたは〈動物使い〉、〈医術〉、〈自然〉、〈知覚〉、〈隠密〉、〈生存〉のいずれか1つの技能に習熟しています。
 Feature/&PointPoolLizardfolkNaturesIntuitionTitle=自然の直感

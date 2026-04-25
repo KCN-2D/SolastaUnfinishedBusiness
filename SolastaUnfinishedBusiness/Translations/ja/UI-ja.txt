@@ -4,7 +4,7 @@ UI/&Add=追加
 UI/&AdditionalActionSource=付与元：{0}
 UI/&Current Party=現在のパーティ
 UI/&DistanceFormat=距離：{0}
-UI/&Experimental Preview：=実験的プレビュー <i><color=Yellow>[使用前にバックアップを保存]</color></i>：
+UI/&Experimental Preview:=実験的プレビュー<i><color=Yellow>[使用前にセーブデータをバックアップ]</color></i>：
 UI/&Expert=専門家
 UI/&From=から
 UI/&PartyEditor=パーティエディター
@@ -18,6 +18,6 @@ UI/&LootAllGoldTooltip=この容器内のすべての金貨を回収します。
 UI/&LootAllIngredientsTitle=材料
 UI/&LootAllIngredientsTooltip=この容器内の重量のない材料をすべて回収します。
 UI/&LootAllScrollsTitle=巻物
-UI/&LootAllScrollsTooltip=このコンテナ内のすべての呪文の巻物を回収します。
+UI/&LootAllScrollsTooltip=この容器内のすべての呪文の巻物を回収します。
 Failure/&FailureFlagTargetOutOfRangeStrength=対象が射程外です（筋力）
 Feature/&ListSeparatorTitle=, 

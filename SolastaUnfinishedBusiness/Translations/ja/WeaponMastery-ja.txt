@@ -1,4 +1,4 @@
-﻿Action/&TacticalMasterToggleDescription=戦術マスターを有効化/無効化
+Action/&TacticalMasterToggleDescription=戦術マスターを有効化/無効化
 Action/&TacticalMasterToggleTitle=戦術マスター
 Action/&WeaponMasteryCleaveDescription=自分のターン中に1回、攻撃アクションによる攻撃1回を置き換えて、代わりに2体のクリーチャーを攻撃できます。2体目のクリーチャーは、1体目から1マス以内にいて、かつ武器の間合い内にいなければなりません。2体目に命中した場合、そのダメージには能力値修正値を加えません。ただし、その修正値がマイナスなら加えます。
 Action/&WeaponMasteryCleaveTitle=薙ぎ払い
@@ -22,7 +22,7 @@ Feature/&FeatureWeaponMasterySapDescription=この武器でクリーチャーに
 Feature/&FeatureWeaponMasterySapTitle=かく乱
 Feature/&FeatureWeaponMasterySlowDescription=この武器でクリーチャーに攻撃してダメージを与えた場合、次のターンの開始時までそのクリーチャーの速度を2マス減少させることができます。この特性を持つ武器でクリーチャーが複数回攻撃された場合、速度減少は2マスを超えません。
 Feature/&FeatureWeaponMasterySlowTitle=足止め
-Feature/&FeatureWeaponMasteryToppleDescription=この武器でクリーチャーに命中した場合、そのクリーチャーに耐久力セーヴィング・スロー（難易度は8 + 攻撃に用いた能力修正値 + 習熟ボーナス）を行わせることができます。失敗すると、そのクリーチャーは伏せ状態になります。
+Feature/&FeatureWeaponMasteryToppleDescription=この武器でクリーチャーに命中した場合、そのクリーチャーに耐久力セーヴィング・スロー（難易度は8+攻撃に用いた能力修正値+習熟ボーナス）を行わせることができます。失敗すると、そのクリーチャーは伏せ状態になります。
 Feature/&FeatureWeaponMasteryToppleTitle=足払い
 Feature/&FeatureWeaponMasteryVexDescription=この武器でクリーチャーに命中してダメージを与えた場合、あなたは次のターン終了前に、そのクリーチャーに対して行う次の攻撃ロールが有利になります。
 Feature/&FeatureWeaponMasteryVexTitle=崩し
