@@ -28,5 +28,5 @@ Language/&SpyCodeDescription=さまざまな符丁と暗号が記されたこの
 Language/&SpyCodeTitle=スパイの暗号書
 Language/&TerranDescription=地の元素界のクリーチャー、または何らかの形で大地に結びついた存在が話す、始原語の方言。
 Language/&TerranTitle=地界語
-Language/&TirmarianDescription=人類の失われた世界ティルマールに由来する古代語。大変動以来、守られ受け継がれてきた。
+Language/&TirmarianDescription=失われたヒューマンの世界ティルマールに由来する古代語。大変動以来、守られ受け継がれてきた。
 Language/&TirmarianTitle=古ティルマール語

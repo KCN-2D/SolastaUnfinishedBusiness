@@ -176,7 +176,7 @@ Race/&GnomeShadowDescription=ロックノームが地下に定住することを
 Race/&GnomeShadowTitle=シャドウノーム
 Race/&GnomeSurNameTitle=氏族
 Race/&GnomeTitle=ノーム
-Race/&HalfElfDescription=ティルマールからの人間の難民とソラスタのエルフの間に生まれた<color=#B5D3DE>ハーフエルフ</color>は、両親双方の長所を受け継いでいます。多才で魅力にあふれ、暗視とフェイの祖先に恵まれた彼らは、常に2つの文化の狭間で揺れ動いています。
+Race/&HalfElfDescription=ティルマールからのヒューマン難民とソラスタのエルフの間に生まれた<color=#B5D3DE>ハーフエルフ</color>は、両親双方の長所を受け継いでいます。多才で魅力にあふれ、暗視とフェイの祖先に恵まれた彼らは、常に2つの文化の狭間で揺れ動いています。
 Race/&HalfElfFemaleName1Title=マイウェン
 Race/&HalfElfFemaleName2Title=シレンラ
 Race/&HalfElfFemaleName3Title=リラ
@@ -207,7 +207,7 @@ Race/&HalfElfSurName8Title=マルマンシュ
 Race/&HalfElfSurName9Title=オルフボーン
 Race/&HalfElfSurNameTitle=姓
 Race/&HalfElfTitle=ハーフエルフ
-Race/&HalfOrcDescription=人間とオークの間に生まれたハーフオークには、ロマンスよりも暴力の歴史があることがよくあります。両親の家族からも拒絶され、彼らは人生を生きていくために力に頼る傾向があります。
+Race/&HalfOrcDescription=ヒューマンとオークの間に生まれたハーフオークには、ロマンスよりも暴力の歴史があることがよくあります。両親の家族からも拒絶され、彼らは人生を切り開くために力に頼る傾向があります。
 Race/&HalfOrcFemaleName10Title=ダラ
 Race/&HalfOrcFemaleName1Title=カリア
 Race/&HalfOrcFemaleName20Title=プレカ
@@ -259,7 +259,7 @@ Race/&HalflingSurName7Title=ウーリー
 Race/&HalflingSurName8Title=ルス
 Race/&HalflingSurNameTitle=姓
 Race/&HalflingTitle=ハーフリング
-Race/&HumanDescription=もともとティルマールで生まれ、大変動の前にソラスタへ連れてこられた<color=#B5D3DE>人間</color>は、その独自の才覚によって新しい世界に適応してきました。どこにでも住み、どんな仕事にも就くことができ、何よりも多才です。
+Race/&HumanDescription=もともとティルマールで生まれ、大変動の前にソラスタへ連れてこられた<color=#B5D3DE>ヒューマン</color>は、その独自の才覚によって新しい世界に適応してきました。どこにでも住み、どんな仕事にも就くことができ、何よりも多才です。
 Race/&HumanFemaleName1Title=ジョディ
 Race/&HumanFemaleName2Title=セリア
 Race/&HumanFemaleName3Title=エリサ

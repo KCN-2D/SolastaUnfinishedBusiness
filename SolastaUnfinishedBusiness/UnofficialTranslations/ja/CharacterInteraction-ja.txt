@@ -1,4 +1,4 @@
-CharacterInteraction/&BanditTrackDescription=人間の足跡だ。おそらく山賊のものだろう。かなり新しい。
+CharacterInteraction/&BanditTrackDescription=ヒューマンの足跡だ。おそらく山賊のものだろう。かなり新しい。
 CharacterInteraction/&DLC1_VIPTracksDescription=古びた長靴の足跡だ。
 CharacterInteraction/&DLC3_Tracks_Gallivan=人間サイズの長靴の跡…ギャリバン兵か？
 CharacterInteraction/&DLC3_Tracks_Survivors=ドワーフとほかの人型生物の足跡が入り混じっている。
