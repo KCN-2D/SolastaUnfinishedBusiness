@@ -155,7 +155,7 @@ public static class GuiPatcher
         [UsedImplicitly]
         public static bool Prefix(string tag, ref string __result)
         {
-            if (!string.Equals(tag, "PointPoolFeatMetamagicAdept", System.StringComparison.Ordinal))
+            if (!string.Equals(tag, MetamagicContext.FeatMetamagicAdeptPointPoolTag, System.StringComparison.Ordinal))
             {
                 return true;
             }

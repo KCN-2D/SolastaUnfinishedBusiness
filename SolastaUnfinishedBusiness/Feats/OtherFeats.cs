@@ -393,7 +393,7 @@ internal static class OtherFeats
                         AttributeDefinitions.SorceryPoints)
                     .AddToDB(),
                 FeatureDefinitionPointPoolBuilder
-                    .Create("PointPoolFeatMetamagicAdept")
+                    .Create(MetamagicContext.FeatMetamagicAdeptPointPoolTag)
                     .SetGuiPresentationNoContent(true)
                     .SetPool(HeroDefinitions.PointsPoolType.Metamagic, 2)
                     .AddToDB())

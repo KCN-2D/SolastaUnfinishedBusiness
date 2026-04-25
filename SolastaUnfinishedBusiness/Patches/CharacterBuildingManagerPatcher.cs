@@ -164,55 +164,6 @@ public static class CharacterBuildingManagerPatcher
                    StringComparison.Ordinal);
     }
 
-    private static bool TryResolveLastAssignedClassTag(
-        CharacterBuildingManager manager,
-        CharacterHeroBuildingData heroBuildingData,
-        out string classTag)
-    {
-        classTag = null;
-
-        if (manager == null ||
-            heroBuildingData?.HeroCharacter == null)
-        {
-            return false;
-        }
-
-        var hero = heroBuildingData.HeroCharacter;
-
-        manager.GetLastAssignedClassAndLevel(hero, out var classDefinition, out var level);
-
-        if (!classDefinition)
-        {
-            classDefinition = LevelUpHelper.GetSelectedClass(hero);
-
-            if (classDefinition)
-            {
-                level = hero.ClassesHistory.Count(x => x == classDefinition);
-
-                if (level <= 0)
-                {
-                    level = 1;
-                }
-            }
-        }
-
-        if (!classDefinition && hero.ClassesHistory is { Count: > 0 })
-        {
-            classDefinition = hero.ClassesHistory.Last();
-            level = hero.ClassesHistory.Count(x => x == classDefinition);
-        }
-
-        if (!classDefinition)
-        {
-            return false;
-        }
-
-        level = Math.Max(level, 1);
-        classTag = AttributeDefinitions.GetClassTag(classDefinition, level);
-
-        return !string.IsNullOrEmpty(classTag);
-    }
-
     private sealed class PointPoolSnapshot(PointPool pointPool)
     {
         private readonly string Description = pointPool?.Description;
@@ -240,6 +191,7 @@ public static class CharacterBuildingManagerPatcher
         private readonly Dictionary<string, PointPoolSnapshot> ActivePools = [];
         private readonly bool HadPointPoolStack;
         private readonly string[] Tags;
+        private readonly Dictionary<string, List<MetamagicOptionDefinition>> TrainedMetamagicOptions = [];
 
         private FeatGrantedMetamagicPoolRollback(
             CharacterHeroBuildingData heroBuildingData,
@@ -260,25 +212,39 @@ public static class CharacterBuildingManagerPatcher
                     }
                 }
             }
+
+            if (heroBuildingData.LevelupTrainedMetamagicOptions == null)
+            {
+                return;
+            }
+
+            foreach (var tag in Tags)
+            {
+                if (heroBuildingData.LevelupTrainedMetamagicOptions.TryGetValue(tag, out var trainedOptions))
+                {
+                    TrainedMetamagicOptions[tag] = trainedOptions?.ToList();
+                }
+            }
         }
 
         internal static FeatGrantedMetamagicPoolRollback Capture(
-            CharacterBuildingManager manager,
             CharacterHeroBuildingData heroBuildingData,
             FeatDefinition feat)
         {
-            if (manager == null ||
-                heroBuildingData == null ||
-                feat == null ||
-                !TryResolveLastAssignedClassTag(manager, heroBuildingData, out var classTag))
+            if (heroBuildingData == null ||
+                feat == null)
             {
                 return null;
             }
 
             var tags = feat.Features
                 .OfType<FeatureDefinitionPointPool>()
-                .Where(IsFeatGrantedMetamagicAdeptPointPool)
-                .Select(pointPool => classTag + pointPool.ExtraSpellsTag + pointPool.ExtraSpellsTag)
+                .Select(pointPool => TryResolveFeatGrantedMetamagicAdeptPointPoolTags(
+                    pointPool,
+                    out _,
+                    out var activePoolTag)
+                    ? activePoolTag
+                    : null)
                 .Where(tag => !string.IsNullOrEmpty(tag))
                 .ToHashSet(StringComparer.Ordinal);
 
@@ -326,12 +292,25 @@ public static class CharacterBuildingManagerPatcher
                     pointPoolStack.ActivePools[entry.Key] = entry.Value.Restore();
                 }
             }
+
+            if (heroBuildingData.LevelupTrainedMetamagicOptions == null)
+            {
+                return;
+            }
+
+            foreach (var tag in Tags)
+            {
+                heroBuildingData.LevelupTrainedMetamagicOptions.Remove(tag);
+            }
+
+            foreach (var entry in TrainedMetamagicOptions)
+            {
+                heroBuildingData.LevelupTrainedMetamagicOptions[entry.Key] = entry.Value?.ToList();
+            }
         }
     }
 
     private static bool TryResolveFeatGrantedMetamagicAdeptPointPoolTags(
-        CharacterBuildingManager manager,
-        CharacterHeroBuildingData heroBuildingData,
         FeatureDefinitionPointPool pointPoolFeature,
         out string applyTag,
         out string activePoolTag)
@@ -339,15 +318,13 @@ public static class CharacterBuildingManagerPatcher
         applyTag = null;
         activePoolTag = null;
 
-        if (heroBuildingData == null ||
-            !IsFeatGrantedMetamagicAdeptPointPool(pointPoolFeature) ||
-            !TryResolveLastAssignedClassTag(manager, heroBuildingData, out var classTag))
+        if (!IsFeatGrantedMetamagicAdeptPointPool(pointPoolFeature))
         {
             return false;
         }
 
-        applyTag = classTag + pointPoolFeature.ExtraSpellsTag;
-        activePoolTag = applyTag + pointPoolFeature.ExtraSpellsTag;
+        applyTag = pointPoolFeature.Name;
+        activePoolTag = applyTag;
 
         return !string.IsNullOrEmpty(applyTag) &&
                !string.IsNullOrEmpty(activePoolTag);
@@ -375,12 +352,11 @@ public static class CharacterBuildingManagerPatcher
     private static bool ApplyFeatGrantedMetamagicAdeptPointPool(
         CharacterBuildingManager manager,
         CharacterHeroBuildingData heroBuildingData,
-        FeatureDefinitionPointPool pointPoolFeature,
-        bool incrementExistingPool)
+        FeatureDefinitionPointPool pointPoolFeature)
     {
-        if (!TryResolveFeatGrantedMetamagicAdeptPointPoolTags(
-                manager,
-                heroBuildingData,
+        if (manager == null ||
+            heroBuildingData == null ||
+            !TryResolveFeatGrantedMetamagicAdeptPointPoolTags(
                 pointPoolFeature,
                 out var applyTag,
                 out var activePoolTag))
@@ -394,17 +370,22 @@ public static class CharacterBuildingManagerPatcher
 
         if (pointPoolStack?.ActivePools.TryGetValue(activePoolTag, out var pool) == true)
         {
-            if (incrementExistingPool)
-            {
-                pool.maxPoints += pointPoolFeature.poolAmount;
-                pool.remainingPoints = Math.Min(
-                    pool.maxPoints,
-                    Math.Max(0, pool.remainingPoints) + pointPoolFeature.poolAmount);
+            var poolChanged = false;
 
-                return true;
+            if (pool.maxPoints != pointPoolFeature.poolAmount)
+            {
+                pool.maxPoints = pointPoolFeature.poolAmount;
+                poolChanged = true;
             }
 
-            return false;
+            if (pool.remainingPoints <= 0 &&
+                GetFeatGrantedMetamagicSelectedCount(heroBuildingData, activePoolTag) == 0)
+            {
+                pool.remainingPoints = pointPoolFeature.poolAmount;
+                poolChanged = true;
+            }
+
+            return poolChanged;
         }
 
         manager.ApplyFeatureDefinitionPointPool(heroBuildingData, pointPoolFeature, applyTag);
@@ -421,7 +402,7 @@ public static class CharacterBuildingManagerPatcher
             return changed;
         }
 
-        if (pool.maxPoints < pointPoolFeature.poolAmount)
+        if (pool.maxPoints != pointPoolFeature.poolAmount)
         {
             pool.maxPoints = pointPoolFeature.poolAmount;
             changed = true;
@@ -438,13 +419,11 @@ public static class CharacterBuildingManagerPatcher
     }
 
     private static bool RemoveFeatGrantedMetamagicAdeptPointPool(
-        CharacterBuildingManager manager,
         CharacterHeroBuildingData heroBuildingData,
         FeatureDefinitionPointPool pointPoolFeature)
     {
-        if (!TryResolveFeatGrantedMetamagicAdeptPointPoolTags(
-                manager,
-                heroBuildingData,
+        if (heroBuildingData == null ||
+            !TryResolveFeatGrantedMetamagicAdeptPointPoolTags(
                 pointPoolFeature,
                 out _,
                 out var activePoolTag))
@@ -710,8 +689,7 @@ public static class CharacterBuildingManagerPatcher
                 rebuilt |= ApplyFeatGrantedMetamagicAdeptPointPool(
                     manager,
                     heroBuildingData,
-                    pointPoolFeature,
-                    false);
+                    pointPoolFeature);
             }
         }
 
@@ -2086,8 +2064,7 @@ public static class CharacterBuildingManagerPatcher
                 changed |= ApplyFeatGrantedMetamagicAdeptPointPool(
                     manager,
                     heroBuildingData,
-                    pointPoolFeature,
-                    true);
+                    pointPoolFeature);
             }
 
             return changed;
@@ -2204,17 +2181,12 @@ public static class CharacterBuildingManagerPatcher
             }
 
             var trainedCountBefore = GetEquivalentTrainedFeatCount(heroBuildingData, tag, feat);
-            var metamagicRollback = FeatGrantedMetamagicPoolRollback.Capture(__instance, heroBuildingData, feat);
+            var metamagicRollback = FeatGrantedMetamagicPoolRollback.Capture(heroBuildingData, feat);
             var appliedFeatGrantedMetamagicPool = ApplyFeatGrantedMetamagicPointPools(
                 __instance,
                 heroBuildingData,
                 feat,
                 trainedCountBefore > 0);
-
-            if (appliedFeatGrantedMetamagicPool)
-            {
-                LevelUpHelper.RebuildCharacterStageProficiencyPanel(heroBuildingData.LevelingUp);
-            }
 
             __state = new State
             {
@@ -2321,7 +2293,7 @@ public static class CharacterBuildingManagerPatcher
             {
                 if (IsFeatGrantedMetamagicAdeptPointPool(featureDefinitionPointPool))
                 {
-                    _ = RemoveFeatGrantedMetamagicAdeptPointPool(__instance, heroBuildingData, featureDefinitionPointPool);
+                    _ = RemoveFeatGrantedMetamagicAdeptPointPool(heroBuildingData, featureDefinitionPointPool);
 
                     continue;
                 }
@@ -2382,7 +2354,6 @@ public static class CharacterBuildingManagerPatcher
                     if (IsFeatGrantedMetamagicAdeptPointPool(featureDefinitionPointPool))
                     {
                         _ = RemoveFeatGrantedMetamagicAdeptPointPool(
-                            __instance,
                             heroBuildingData,
                             featureDefinitionPointPool);
 
