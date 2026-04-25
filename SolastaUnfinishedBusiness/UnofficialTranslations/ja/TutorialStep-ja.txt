@@ -68,7 +68,7 @@ TutorialStep/&OutgameCharacterCreationSpells3Description=各クラスには、�
 TutorialStep/&OutgameCharacterCreationSpells3Title=主要呪文
 TutorialStep/&OutgameCharacterCreationSpellsDescription=すぐに魔法の呪文にアクセスできるクラスもあれば、より高いレベルに到達するか、サブクラスを選択する必要があるクラスもあります。\n\nこの画面では、キャラクターがどの呪文を発動することができるかを選択できます。
 TutorialStep/&OutgameCharacterCreationSpellsTitle=呪文と魔法
-TutorialStep/&OutgameCharacterCreationSubclassDescription=クラスは、一定レベルに達するとクラス類型という形で専門化できます。\n\n類型の名称はクラスごとに異なります。ウィザードなら《秘術の学派》、ファイターなら《武術の類型》です。クレリックはレベル1で《信仰の領域》を選びます。\n\n各類型は、キャラクターに独自の個性を与え、プレイスタイルを大きく変える特徴や能力の組み合わせをもたらします。
+TutorialStep/&OutgameCharacterCreationSubclassDescription=クラスは、一定レベルに達するとクラス類型という形で専門化できます。\n\n類型の名称はクラスごとに異なります。ウィザードなら〈秘術の学派〉、ファイターなら〈武術の類型〉です。クレリックはレベル1で〈信仰の領域〉を選びます。\n\n各類型は、キャラクターに独自の個性を与え、プレイスタイルを大きく変える特徴や能力の組み合わせをもたらします。
 TutorialStep/&OutgameCharacterCreationSubclassTitle=クラス類型
 TutorialStep/&OutgameCharacterSelectionDescription=このプールには、冒険に選択できる利用可能なキャラクターがリストされています。\n\n冒険をすぐに始めたい場合は、一部のキャラクターが私たちによって生成されています。ただし、冒険者4人からなる独自のパーティを作成することをお勧めします。
 TutorialStep/&OutgameCharacterSelectionTitle=パーティのセットアップ
@@ -141,7 +141,7 @@ TutorialStep/&Tuto03_Disarm_Title=罠の解除
 TutorialStep/&Tuto03_LockpickXbox_Description=鍵開けを試みるには、<sprite index={4}>でカーソルを動かして鍵のかかった扉へ合わせ、<sprite index={0}>を押します。\n\nパーティ全体を選択している場合、その作業に最も習熟しているキャラクターが自動的に選ばれます。\n\n錠前を開けるには、インベントリに盗賊道具が必要です。盗賊道具に習熟していれば役立ちます。
 TutorialStep/&Tuto03_Lockpick_Description=鍵開けを試みるには、鍵のかかった扉または宝箱にマウスカーソルを合わせ、左クリックします。パーティ全体を選択している場合、その作業に最も習熟しているキャラクターが自動的に選ばれます。\n\n錠前を開けるには、インベントリに盗賊道具が必要です。盗賊道具に習熟していれば役立ちます。
 TutorialStep/&Tuto03_Lockpick_Title=ピッキング
-TutorialStep/&Tuto03_Sneak_Attack_Description=見つかっていない状態で敵を攻撃すると、奇襲の利点を得ます。\n\nつまり、命中ロールに有利を得て、相手は次のターンまでリアクションを行えません。\n\nあなたがローグなら、その攻撃は《急所攻撃》となり、追加ダメージを与えます。
+TutorialStep/&Tuto03_Sneak_Attack_Description=見つかっていない状態で敵を攻撃すると、奇襲による有利を得ます。\n\nつまり、攻撃ロールに有利を得て、相手は次のターンまでリアクションを行えません。\n\nあなたがローグなら、その攻撃は〈急所攻撃〉となり、追加ダメージを与えます。
 TutorialStep/&Tuto03_Sneak_Attack_Title=奇襲
 TutorialStep/&Tuto04_Attack_Shove2Xbox_Description=敵を押し倒したり、押し倒したりすることができます。\n\n<sprite index={2}>を押した後、<sprite index={16}>を使用して突き飛ばすを選択し、利用可能なオプションを選択します。\n\n敵を後ろ向きに穴に押し込むと、彼らは倒れるだろう。敵を押し倒すと、敵は伏せになり、移動ポイントを消費して立ち上がるまで脆弱なままになります。
 TutorialStep/&Tuto04_Attack_Shove2_Description=敵を押し倒そうとします。「突き飛ばす」を選択し、利用可能なオプションから選択します。\n\n敵を後ろ向きに穴に押し込むと、敵は落ちます。敵を押し倒すと、敵は伏せになり、移動ポイントを消費して立ち上がるまで脆弱なままになります。
@@ -173,8 +173,8 @@ TutorialStep/&Tuto_CampaignMap5_Title=旅の疲労
 TutorialStep/&Tuto_CampaignMap6XBox_Description=<sprite index={2}>を押せば、いつでも手動で旅を中断できます。\n\nその後、<sprite index={3}>を押してキャラクターのインベントリを開き、新しいクラフト作業を始めたり、装備を変更したり、必要なものを確認したりできます。\n\n<sprite index={0}>を押せば旅を再開します。
 TutorialStep/&Tuto_CampaignMap6_Description=「中断」ボタンを押せば、いつでも手動で旅を止められます。\n\nその後はキャラクターのポートレートをクリックしてインベントリを開き、新しい製作作業を始めたり、装備を変更したり、好きな確認を行えます。\n\n再び旅を続けるには、「再開」ボタンを押してください。
 TutorialStep/&Tuto_CampaignMap6_Title=旅を中断する
-TutorialStep/&Tuto_CampaignMap7XBox_Description=夜襲を受けたあとでも、安全に再び眠って大休憩を完了できます。\nそのためには、カーソルを焚き火へ合わせて<sprite index={0}>を押します。\nすべてのキャラクターは通常どおり大休憩の恩恵を受けます。\n\n《安らかな休息》を持つ《忘却の領域》のクレリックがいれば、今後は不意を突かれません。今回はそのルールを説明するための例外です。
-TutorialStep/&Tuto_CampaignMap7_Description=夜襲を受けたあとでも、再び眠って大休憩を完了できます。\nそれには焚き火をクリックするだけです。\nすべてのキャラクターは通常どおり大休憩の恩恵を受けます。\n《安らかな休息》を持つ《忘却の領域》のクレリックがいれば、今後は不意を突かれません。今回はそのルールを説明するための例外です。
+TutorialStep/&Tuto_CampaignMap7XBox_Description=夜襲を受けたあとでも、安全に再び眠って大休憩を完了できます。\nそのためには、カーソルを焚き火へ合わせて<sprite index={0}>を押します。\nすべてのキャラクターは通常どおり大休憩の恩恵を受けます。\n\n〈安らかな休息〉を持つ〈忘却の領域〉のクレリックがいれば、今後は不意を突かれません。今回はそのルールを説明するための例外です。
+TutorialStep/&Tuto_CampaignMap7_Description=夜襲を受けたあとでも、再び眠って大休憩を完了できます。\nそれには焚き火をクリックするだけです。\nすべてのキャラクターは通常どおり大休憩の恩恵を受けます。\n〈安らかな休息〉を持つ〈忘却の領域〉のクレリックがいれば、今後は不意を突かれません。今回はそのルールを説明するための例外です。
 TutorialStep/&Tuto_CampaignMap7_Title=大休憩を終える
 TutorialStep/&Tuto_CampaignMapXBox_Description=<sprite index={4}>で地図を見回します。\n\n目的地にマーカーを置いたら、<sprite index={3}>を押して旅程を計画します。パーティは到着までしばらく移動を続けます。<sprite index={2}>を押して、その場所へ入ることもできます。\n\n道中では、採集や狩りで食料を集められます。クラフト素材を見つけたり、旅人や興味深い場所、さらにはモンスターに遭遇したりすることもあります。
 TutorialStep/&Tuto_CampaignMap_Description=矢印キーで地図を見回します。\n\n目的地をクリックすると旅程を計画でき、パーティは到着までしばらく移動を続けます。\n\n道中では、採集や狩りで食料を集めたり、クラフト材料を見つけたり、旅人や興味深い場所、さらにはモンスターに遭遇したりします。
@@ -207,8 +207,8 @@ TutorialStep/&Tuto_LocationMapGeneric4_Title=高速出口地点
 TutorialStep/&Tuto_LocationMapGenericXbox_Description=<sprite index={17}>を押してロケーションマップを開きます。\n\n探索を進めるとウェイポイントが見つかります。そこには各種構造物の役割、その区域の明るさ、その他のゲームプレイ修正についての情報が示されます。\n\nマップには商人など重要なNPCの存在も示されます。ポートレートが表示されていれば、そのNPCとやり取りできます。\n\nまた、<sprite index={11}>を押したまま、<sprite index={4}>または<sprite index={5}>を使ってそこからマップを選択することもできます。
 TutorialStep/&Tuto_LocationMapGeneric_Description=「地図」ボタンをクリックすると、ロケーションマップが開きます。\n\n探索を進めるとウェイポイントが見つかります。そこには各種構造物の役割、その区域の明るさ、その他のゲームプレイ修正についての情報が示されます。\n\nマップには商人など重要なNPCの存在も示されます。ポートレートが表示されていれば、そのNPCとやり取りできます。
 TutorialStep/&Tuto_LocationMapGeneric_Title=ロケーションマップ
-TutorialStep/&Tuto_LocationMapXbox_Description=<sprite index={17}>を押してロケーションマップを開きます。\n\nウェイポイントを見つけたら、それを使ってその場所の別の地点へ高速移動できます。\n\n今のところは、それを使って《墓守の樽》亭へ戻れます。
-TutorialStep/&Tuto_LocationMap_Description=地図アイコンをクリックしてロケーションマップを開きます。\n\nウェイポイントを見つけたら、それを使ってその場所の別の地点へ高速移動できます。\n\n今のところは、それを使って《墓守の樽》亭へ戻れます。
+TutorialStep/&Tuto_LocationMapXbox_Description=<sprite index={17}>を押してロケーションマップを開きます。\n\nウェイポイントを見つけたら、それを使ってその場所の別の地点へ高速移動できます。\n\n今のところは、それを使って〈墓守の樽〉亭へ戻れます。
+TutorialStep/&Tuto_LocationMap_Description=地図アイコンをクリックしてロケーションマップを開きます。\n\nウェイポイントを見つけたら、それを使ってその場所の別の地点へ高速移動できます。\n\n今のところは、それを使って〈墓守の樽〉亭へ戻れます。
 TutorialStep/&Tuto_LocationMap_Title=ロケーションマップ
 TutorialStep/&Tuto_ManaLamps_Description=マナカロンの遺跡では、こうした魔法のランプに出会うことがあります。\n\nこれらは魔力で灯り、たいまつよりも明るく安定した光を放ちます。\n\n初級呪文を含む、あらゆる魔法ダメージで起動します。
 TutorialStep/&Tuto_ManaLamps_Title=マナランプ
@@ -216,7 +216,7 @@ TutorialStep/&Tuto_Merchants_Description=商人は品物を売買するだけで
 TutorialStep/&Tuto_Merchants_Title=商人
 TutorialStep/&Tuto_PreparingSpells_Description=多くの術者は、一度に思い出しておける以上の呪文を知っています。準備された呪文とは、呪文スロットを消費して実際に使える呪文のことです。\n\n英雄たちの習得済み呪文一覧を確認し、準備する呪文を選びましょう。\n\n準備していない呪文は発動できません。多くのキャラクターは、準備できる数より多くの呪文を知っているため、状況に応じて慎重に選ぶ必要があります。
 TutorialStep/&Tuto_PreparingSpells_Title=呪文の準備
-TutorialStep/&Tuto_ReadyAnAction_Description=これにより、特定の条件が満たされるまで待ち、ほかのクリーチャーのターンに割り込んで、準備していた行動を実行できます。\n\n《魔術師の王冠》では、状況に応じて攻撃を待機させられます。\n\n移動やボーナス・アクションは行えますが、待機を選ぶと自分のターンはそこで終了します。
+TutorialStep/&Tuto_ReadyAnAction_Description=これにより、特定の条件が満たされるまで待ち、ほかのクリーチャーのターンに割り込んで、準備していた行動を実行できます。\n\n〈魔術師の王冠〉では、状況に応じて攻撃を待機させられます。\n\n移動やボーナス・アクションは行えますが、待機を選ぶと自分のターンはそこで終了します。
 TutorialStep/&Tuto_ReadyAnAction_Title=待機
 TutorialStep/&Tuto_RunePuzzle_Description=地面にわずかに光っている隠されたルーンを見つけて、それを踏んでアクティブにします。
 TutorialStep/&Tuto_RunePuzzle_Title=魔法のルーンパズル
