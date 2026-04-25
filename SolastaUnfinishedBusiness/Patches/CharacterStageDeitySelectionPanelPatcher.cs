@@ -12,33 +12,33 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterStageDeitySelectionPanelPatcher
 {
-    private static bool ShouldFilterStrictDeitySelection([NotNull] CharacterStageDeitySelectionPanel __instance)
+    private static bool ShouldFilterStrictClericSubclasses([NotNull] CharacterStageDeitySelectionPanel __instance)
     {
         return StrictTabletopSelectionContext.IsEnabled &&
                LevelUpHelper.GetSelectedClass(__instance.currentHero) == Cleric;
     }
 
-    private static bool HasAllowedSubclass([NotNull] DeityDefinition deity)
+    private static bool IsDelayedClericDomainDeityStage([NotNull] CharacterStageDeitySelectionPanel __instance)
     {
-        return deity.subclasses.Any(StrictTabletopSelectionContext.IsSubclassNameAllowedForCurrentMode);
+        return Main.Settings.EnableClericToLearnDomainAtLevel3 &&
+               __instance.currentHero != null &&
+               LevelUpHelper.GetSelectedClass(__instance.currentHero) == Cleric;
     }
 
-    private static void FilterCompatibleDeities([NotNull] CharacterStageDeitySelectionPanel __instance)
+    private static void ClearDelayedDomainSubclassSelection([NotNull] CharacterStageDeitySelectionPanel __instance)
     {
-        if (!ShouldFilterStrictDeitySelection(__instance))
-        {
-            return;
-        }
+        __instance.compatibleSubclasses.Clear();
+        __instance.selectedSubclass = -1;
 
-        StrictTabletopSelectionContext.FilterAndPreserveSelection(
-            __instance.compatibleDeities,
-            ref __instance.selectedDeity,
-            HasAllowedSubclass);
+        if (__instance.currentHero != null)
+        {
+            LevelUpHelper.SetSelectedSubclass(__instance.currentHero, null);
+        }
     }
 
     private static void FilterCompatibleSubclasses([NotNull] CharacterStageDeitySelectionPanel __instance)
     {
-        if (!ShouldFilterStrictDeitySelection(__instance))
+        if (!ShouldFilterStrictClericSubclasses(__instance))
         {
             return;
         }
@@ -47,6 +47,25 @@ public static class CharacterStageDeitySelectionPanelPatcher
             __instance.compatibleSubclasses,
             ref __instance.selectedSubclass,
             StrictTabletopSelectionContext.IsSubclassAllowedForCurrentMode);
+    }
+
+    [HarmonyPatch(typeof(CharacterStageDeitySelectionPanel), "EnumerateCompatibleSubclasses")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class EnumerateCompatibleSubclasses_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix([NotNull] CharacterStageDeitySelectionPanel __instance)
+        {
+            if (!IsDelayedClericDomainDeityStage(__instance))
+            {
+                return true;
+            }
+
+            ClearDelayedDomainSubclassSelection(__instance);
+
+            return false;
+        }
     }
 
     [HarmonyPatch(typeof(CharacterStageDeitySelectionPanel), nameof(CharacterStageDeitySelectionPanel.UpdateRelevance))]
@@ -73,7 +92,6 @@ public static class CharacterStageDeitySelectionPanelPatcher
         [UsedImplicitly]
         public static void Prefix([NotNull] CharacterStageDeitySelectionPanel __instance)
         {
-            FilterCompatibleDeities(__instance);
             FilterCompatibleSubclasses(__instance);
         }
 
@@ -82,6 +100,7 @@ public static class CharacterStageDeitySelectionPanelPatcher
         {
             if (!Main.Settings.EnableClericToLearnDomainAtLevel3 ||
                 __instance.selectedDeity < 0 ||
+                __instance.selectedDeity >= __instance.compatibleDeities.Count ||
                 LevelUpHelper.GetSelectedClass(__instance.currentHero) != Cleric)
             {
                 return;

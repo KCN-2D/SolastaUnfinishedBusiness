@@ -513,4 +513,4 @@ ModUi/&EnableTabletopFeatRules2024=独立した2024テーブルトップ特技�
 ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[有効中は独立した2024特技カタログだけを使います。起源特技とヒューマンの起源特技も同じカタログを参照します]</color></i>
 ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[有効中に個別切替できるのは下の独立2024特技だけです。旧特技トグルはロックされます]</color></i>
 ModUi/&EnableStrictTabletopClassSelection=厳密なテーブルトップクラス/サブクラス選択を使う
-ModUi/&EnableStrictTabletopClassSelectionHelp=有効にすると、テーブルトップ由来クラスとテーブルトップタグ付きサブクラスだけを選択できます。対象外サブクラスのUBトグルは強制的に無効化されます。
+ModUi/&EnableStrictTabletopClassSelectionHelp=有効にすると、テーブルトップ由来クラスとテーブルトップタグ付きサブクラスだけを選択できます。対象外サブクラスのUBトグルは強制的に無効化されます。有効時、クレリックの領域は神格で制限されません。

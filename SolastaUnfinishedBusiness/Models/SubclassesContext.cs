@@ -10,6 +10,7 @@ using SolastaUnfinishedBusiness.Displays;
 using SolastaUnfinishedBusiness.Subclasses;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionSubclassChoices;
 
 namespace SolastaUnfinishedBusiness.Models;
 
@@ -28,6 +29,8 @@ internal static class SubclassesContext
     {
         get;
     } = [];
+
+    private static readonly HashSet<string> StrictClericDomainChoiceSubclasses = [];
 
     internal static void Load()
     {
@@ -126,6 +129,8 @@ internal static class SubclassesContext
         {
             subclassListContext.RefreshSubclassVisibilityInternal();
         }
+
+        RefreshStrictClericDomainChoice();
     }
 
     internal static void SelectAllSet(bool toggle)
@@ -144,6 +149,43 @@ internal static class SubclassesContext
         }
     }
 
+    private static bool IsClericDomainName(string subclassName)
+    {
+        return !string.IsNullOrEmpty(subclassName) && subclassName.StartsWith("Domain", StringComparison.Ordinal);
+    }
+
+    private static void RefreshStrictClericDomainChoice()
+    {
+        SubclassChoiceClericDivineDomains.filterByDeity = !StrictTabletopSelectionContext.IsEnabled;
+
+        foreach (var subclassName in StrictClericDomainChoiceSubclasses)
+        {
+            SubclassChoiceClericDivineDomains.Subclasses.Remove(subclassName);
+        }
+
+        StrictClericDomainChoiceSubclasses.Clear();
+
+        if (!StrictTabletopSelectionContext.IsEnabled)
+        {
+            return;
+        }
+
+        foreach (var subclassName in DatabaseRepository
+                     .GetDatabase<DeityDefinition>()
+                     .SelectMany(deity => deity.Subclasses)
+                     .Where(IsClericDomainName)
+                     .Where(StrictTabletopSelectionContext.IsSubclassNameAllowedForCurrentMode)
+                     .Distinct())
+        {
+            if (SubclassChoiceClericDivineDomains.Subclasses.Contains(subclassName))
+            {
+                continue;
+            }
+
+            SubclassChoiceClericDivineDomains.Subclasses.Add(subclassName);
+            StrictClericDomainChoiceSubclasses.Add(subclassName);
+        }
+    }
 
     internal static void SwitchSchoolRestrictionsFromShadowCaster()
     {
