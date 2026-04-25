@@ -44,6 +44,7 @@ public static partial class Tabletop2024Context
     private const string KeenMind2024Family = "KeenMind2024";
     private const string Durable2024FeatName = "FeatDurable2024";
     private const string Alert2024FeatName = "FeatAlert2024";
+    private const string Alert2024ReadyStepConditionName = "ConditionFeatAlert2024ReadyStep";
     private const string Healer2024FeatName = "FeatHealer2024";
     private const string Lucky2024FeatName = "FeatLucky2024";
     private const string Lucky2024PoolPowerName = "PowerFeatLucky2024Pool";
@@ -974,19 +975,55 @@ public static partial class Tabletop2024Context
                 FeatureDefinitionAttributeModifier.AttributeModifierOperation.AddProficiencyBonus,
                 AttributeDefinitions.Initiative)
             .AddToDB();
-        var surpriseAffinity = FeatureDefinitionConditionAffinityBuilder
-            .Create("ConditionAffinityFeatAlert2024Surprised")
+        var readyStepMovement = FeatureDefinitionMovementAffinityBuilder
+            .Create("MovementAffinityFeatAlert2024ReadyStep")
             .SetGuiPresentationNoContent(true)
-            .SetConditionAffinityType(ConditionAffinityType.Immunity)
-            .SetConditionType(ConditionDefinitions.ConditionSurprised)
-            .AddCustomSubFeatures(new OnCharacterBattleStartedAlert2024())
+            .SetBaseSpeedAdditiveModifier(1)
+            .AddToDB();
+        var readyStepCondition = ConditionDefinitionBuilder
+            .Create(Alert2024ReadyStepConditionName)
+            .SetGuiPresentationNoContent(true)
+            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetFeatures(readyStepMovement)
+            .AddToDB();
+        var readyStepFeature = FeatureDefinitionBuilder
+            .Create("FeatureFeatAlert2024ReadyStep")
+            .SetGuiPresentationNoContent(true)
+            .AddCustomSubFeatures(new InitiativeEndListenerAlert2024ReadyStep(readyStepCondition))
             .AddToDB();
 
         return FeatDefinitionBuilder
             .Create(Alert2024FeatName)
             .SetGuiPresentation("Feat/&FeatAlertTitle", "Feat/&FeatAlert2024Description", hidden: false)
-            .SetFeatures(initiativeModifier, surpriseAffinity)
+            .SetFeatures(initiativeModifier, readyStepFeature)
             .AddToDB();
+    }
+
+    private sealed class InitiativeEndListenerAlert2024ReadyStep(ConditionDefinition condition) : IInitiativeEndListener
+    {
+        public IEnumerator OnInitiativeEnded(GameLocationCharacter character)
+        {
+            if (character.RulesetCharacter is not { IsDeadOrDyingOrUnconscious: false } rulesetCharacter ||
+                rulesetCharacter.IsIncapacitated ||
+                rulesetCharacter.HasConditionOfType(condition.Name))
+            {
+                yield break;
+            }
+
+            rulesetCharacter.InflictCondition(
+                condition.Name,
+                DurationType.Round,
+                0,
+                TurnOccurenceType.EndOfTurn,
+                AttributeDefinitions.TagEffect,
+                rulesetCharacter.Guid,
+                rulesetCharacter.CurrentFaction.Name,
+                1,
+                condition.Name,
+                0,
+                0,
+                0);
+        }
     }
 
     private static FeatDefinition BuildHealer2024()
@@ -6889,26 +6926,6 @@ public static partial class Tabletop2024Context
         private static bool ValidateBonusAttack(RulesetAttackMode attackMode)
         {
             return IsMeleeWeaponAttackMode(attackMode);
-        }
-    }
-
-    private sealed class OnCharacterBattleStartedAlert2024 : ICharacterBattleStartedListener
-    {
-        public void OnCharacterBattleStarted(GameLocationCharacter locationCharacter, bool surprise)
-        {
-            var rulesetCharacter = locationCharacter?.RulesetCharacter;
-
-            if (!surprise ||
-                rulesetCharacter == null ||
-                !rulesetCharacter.TryGetConditionOfCategoryAndType(
-                    AttributeDefinitions.TagCombat,
-                    ConditionSurprised,
-                    out var activeCondition))
-            {
-                return;
-            }
-
-            rulesetCharacter.RemoveCondition(activeCondition);
         }
     }
 
