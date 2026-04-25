@@ -91,4 +91,21 @@ internal static class MetamagicContext
             .OrderBy(x => x, Comparer<MetamagicOptionDefinition>.Create(CompareMetamagic))
             .ToList();
     }
+
+    internal static List<MetamagicOptionDefinition> GetRestrictedVisibleMetamagicOptions(
+        IReadOnlyCollection<string> restrictedChoices)
+    {
+        var metamagicOptions = GetVisibleMetamagicOptions();
+
+        if (restrictedChoices is not { Count: > 0 })
+        {
+            return metamagicOptions;
+        }
+
+        var restrictedChoiceNames = restrictedChoices.ToHashSet(StringComparer.Ordinal);
+
+        return metamagicOptions
+            .Where(option => option != null && restrictedChoiceNames.Contains(option.Name))
+            .ToList();
+    }
 }

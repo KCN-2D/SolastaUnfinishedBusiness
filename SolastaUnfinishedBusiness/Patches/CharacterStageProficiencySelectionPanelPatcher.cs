@@ -89,18 +89,7 @@ public static class CharacterStageProficiencySelectionPanelPatcher
 
     private static List<MetamagicOptionDefinition> GetAllowedFeatGrantedMetamagicOptions(PointPool pointPool)
     {
-        var metamagicOptions = MetamagicContext.GetVisibleMetamagicOptions();
-
-        if (pointPool?.RestrictedChoices is not { Count: > 0 } restrictedChoices)
-        {
-            return metamagicOptions;
-        }
-
-        var restrictedChoiceNames = restrictedChoices.ToHashSet(StringComparer.Ordinal);
-
-        return metamagicOptions
-            .Where(option => option != null && restrictedChoiceNames.Contains(option.Name))
-            .ToList();
+        return MetamagicContext.GetRestrictedVisibleMetamagicOptions(pointPool?.RestrictedChoices);
     }
 
     private static bool TryGetFeatGrantedMetamagicState(
@@ -111,8 +100,7 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         out ICharacterBuildingService service,
         out IHeroBuildingCommandService commandService,
         out PointPool pointPool,
-        out string tag,
-        string preferredTag = null)
+        out string tag)
     {
         learnStepItem = preferredLearnStepItem ?? CurrentStepItem(__instance);
         buildingData = __instance?.currentHero?.GetHeroBuildingData();
@@ -127,7 +115,6 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             !CharacterBuildingManagerPatcher.TryGetFeatGrantedMetamagicPointPool(
                 service,
                 buildingData,
-                preferredTag,
                 learnStepItem.Tag,
                 out tag,
                 out pointPool))
@@ -234,31 +221,6 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         __instance.RefreshNow();
 
         return remainingPoints;
-    }
-
-    private static void NormalizeFeatGrantedMetamagicLearnStepTag(
-        CharacterStageProficiencySelectionPanel __instance,
-        ProficiencyBaseItem item)
-    {
-        if (item is not ProficiencySingleItem { BaseDefinition: MetamagicOptionDefinition } metamagicItem ||
-            __instance?.allTags == null ||
-            __instance.currentLearnStep < 0 ||
-            __instance.currentLearnStep >= __instance.allTags.Count ||
-            !TryGetFeatGrantedMetamagicState(
-                __instance,
-                CurrentStepItem(__instance),
-                out _,
-                out _,
-                out _,
-                out _,
-                out _,
-                out var tag,
-                metamagicItem.StageTag))
-        {
-            return;
-        }
-
-        __instance.allTags[__instance.currentLearnStep] = tag;
     }
 
     private static IEnumerable<LearnStepItem> EnumerateLearnStepItems(CharacterStageProficiencySelectionPanel __instance)
@@ -960,8 +922,6 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             CharacterStageProficiencySelectionPanel __instance,
             ProficiencyBaseItem item)
         {
-            NormalizeFeatGrantedMetamagicLearnStepTag(__instance, item);
-
             if (item is not FeatItem featItem ||
                 featItem.CurrentPoolType != Feat ||
                 featItem.GuiFeatDefinition?.FeatDefinition is not { } featDefinition)

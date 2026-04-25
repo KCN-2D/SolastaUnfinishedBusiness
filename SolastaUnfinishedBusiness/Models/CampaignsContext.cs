@@ -234,16 +234,7 @@ internal static class CampaignsContext
             return;
         }
 
-        var metamagicOptions = MetamagicContext.GetVisibleMetamagicOptions();
-
-        if (restrictedChoices is { Count: > 0 })
-        {
-            var restrictedChoiceNames = restrictedChoices.ToHashSet(StringComparer.Ordinal);
-
-            metamagicOptions = metamagicOptions
-                .Where(x => restrictedChoiceNames.Contains(x.Name))
-                .ToList();
-        }
+        var metamagicOptions = MetamagicContext.GetRestrictedVisibleMetamagicOptions(restrictedChoices);
 
         __instance.relevantMetamagicOptions.Clear();
         __instance.relevantMetamagicOptions.AddRange(metamagicOptions);

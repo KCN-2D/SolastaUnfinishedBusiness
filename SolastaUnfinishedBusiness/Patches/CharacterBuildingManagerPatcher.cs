@@ -184,15 +184,18 @@ public static class CharacterBuildingManagerPatcher
             return false;
         }
 
-        var visibleOptions = MetamagicContext.GetVisibleMetamagicOptions().ToHashSet();
+        var visibleOptions = MetamagicContext.GetVisibleMetamagicOptions()
+            .Where(option => option != null)
+            .ToDictionary(option => option.Name, StringComparer.Ordinal);
         var normalizedOptions = new List<MetamagicOptionDefinition>();
-        var seen = new HashSet<MetamagicOptionDefinition>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var metamagicOption in trainedMetamagicOptions)
         {
             if (metamagicOption == null ||
-                !visibleOptions.Contains(metamagicOption) ||
-                !seen.Add(metamagicOption))
+                string.IsNullOrEmpty(metamagicOption.Name) ||
+                !visibleOptions.TryGetValue(metamagicOption.Name, out var visibleOption) ||
+                !seen.Add(visibleOption.Name))
             {
                 continue;
             }
@@ -202,7 +205,7 @@ public static class CharacterBuildingManagerPatcher
                 break;
             }
 
-            normalizedOptions.Add(metamagicOption);
+            normalizedOptions.Add(visibleOption);
         }
 
         selectedCount = normalizedOptions.Count;
@@ -283,10 +286,151 @@ public static class CharacterBuildingManagerPatcher
                    .Any(IsFeatGrantedMetamagicPointPool);
     }
 
-    private static bool IsFeatGrantedMetamagicActiveOrFallbackTag(string tag, string activePoolTag)
+    private sealed class PointPoolSnapshot(PointPool pointPool)
     {
-        return string.Equals(tag, activePoolTag, StringComparison.Ordinal) ||
-               string.Equals(tag, MetamagicContext.FeatMetamagicAdeptPointPoolTag, StringComparison.Ordinal);
+        private readonly string Description = pointPool?.Description;
+        private readonly int MaxPoints = pointPool?.maxPoints ?? 0;
+        private readonly int RemainingPoints = pointPool?.remainingPoints ?? 0;
+        private readonly List<string> RestrictedChoices = pointPool?.RestrictedChoices?.ToList() ?? [];
+        private readonly bool UniqueChoices = pointPool?.UniqueChoices ?? false;
+
+        internal PointPool Restore()
+        {
+            var pointPool = new PointPool(MaxPoints, RestrictedChoices, UniqueChoices)
+            {
+                Description = Description
+            };
+
+            pointPool.maxPoints = MaxPoints;
+            pointPool.remainingPoints = RemainingPoints;
+
+            return pointPool;
+        }
+    }
+
+    private sealed class FeatGrantedMetamagicPoolRollback
+    {
+        private readonly Dictionary<string, PointPoolSnapshot> ActivePools = [];
+        private readonly bool HadPointPoolStack;
+        private readonly string[] Tags;
+        private readonly Dictionary<string, List<MetamagicOptionDefinition>> TrainedOptions = [];
+
+        private FeatGrantedMetamagicPoolRollback(
+            CharacterHeroBuildingData heroBuildingData,
+            string[] tags)
+        {
+            Tags = tags;
+            HadPointPoolStack = heroBuildingData.PointPoolStacks.TryGetValue(
+                HeroDefinitions.PointsPoolType.Metamagic,
+                out var pointPoolStack);
+
+            if (HadPointPoolStack)
+            {
+                foreach (var tag in Tags)
+                {
+                    if (pointPoolStack.ActivePools.TryGetValue(tag, out var pointPool))
+                    {
+                        ActivePools[tag] = new PointPoolSnapshot(pointPool);
+                    }
+                }
+            }
+
+            if (heroBuildingData.LevelupTrainedMetamagicOptions == null)
+            {
+                return;
+            }
+
+            foreach (var tag in Tags)
+            {
+                if (heroBuildingData.LevelupTrainedMetamagicOptions.TryGetValue(tag, out var trainedOptions))
+                {
+                    TrainedOptions[tag] = trainedOptions?.ToList() ?? [];
+                }
+            }
+        }
+
+        internal static FeatGrantedMetamagicPoolRollback Capture(
+            CharacterBuildingManager manager,
+            CharacterHeroBuildingData heroBuildingData,
+            FeatDefinition feat)
+        {
+            if (manager == null ||
+                heroBuildingData == null ||
+                feat == null ||
+                !TryResolveLastAssignedClassTag(manager, heroBuildingData, out var classTag))
+            {
+                return null;
+            }
+
+            var tags = feat.Features
+                .OfType<FeatureDefinitionPointPool>()
+                .Where(IsFeatGrantedMetamagicPointPool)
+                .Select(pointPool => pointPool.Name)
+                .Where(tag => !string.IsNullOrEmpty(tag))
+                .ToHashSet(StringComparer.Ordinal);
+
+            if (tags.Count == 0)
+            {
+                return null;
+            }
+
+            tags.Add(classTag);
+
+            return new FeatGrantedMetamagicPoolRollback(heroBuildingData, [.. tags]);
+        }
+
+        internal void Restore(CharacterHeroBuildingData heroBuildingData)
+        {
+            if (heroBuildingData == null)
+            {
+                return;
+            }
+
+            if (heroBuildingData.PointPoolStacks.TryGetValue(
+                    HeroDefinitions.PointsPoolType.Metamagic,
+                    out var pointPoolStack))
+            {
+                foreach (var tag in Tags)
+                {
+                    pointPoolStack.ActivePools.Remove(tag);
+                }
+
+                foreach (var entry in ActivePools)
+                {
+                    pointPoolStack.ActivePools[entry.Key] = entry.Value.Restore();
+                }
+
+                if (!HadPointPoolStack && pointPoolStack.ActivePools.Count == 0)
+                {
+                    heroBuildingData.PointPoolStacks.Remove(HeroDefinitions.PointsPoolType.Metamagic);
+                }
+            }
+            else if (ActivePools.Count > 0)
+            {
+                pointPoolStack = new PointPoolStack(HeroDefinitions.PointsPoolType.Metamagic);
+                heroBuildingData.PointPoolStacks[HeroDefinitions.PointsPoolType.Metamagic] = pointPoolStack;
+
+                foreach (var entry in ActivePools)
+                {
+                    pointPoolStack.ActivePools[entry.Key] = entry.Value.Restore();
+                }
+            }
+
+            if (heroBuildingData.LevelupTrainedMetamagicOptions == null)
+            {
+                return;
+            }
+
+            foreach (var tag in Tags)
+            {
+                heroBuildingData.LevelupTrainedMetamagicOptions.Remove(tag);
+            }
+
+            foreach (var entry in TrainedOptions)
+            {
+                heroBuildingData.LevelupTrainedMetamagicOptions[entry.Key] = entry.Value.ToList();
+            }
+        }
     }
 
     private static bool MoveFeatGrantedMetamagicSelections(
@@ -312,20 +456,23 @@ public static class CharacterBuildingManagerPatcher
             heroBuildingData.LevelupTrainedMetamagicOptions[targetTag] = targetOptions;
         }
 
-        var visibleOptions = MetamagicContext.GetVisibleMetamagicOptions().ToHashSet();
+        var visibleOptions = MetamagicContext.GetVisibleMetamagicOptions()
+            .Where(option => option != null)
+            .ToDictionary(option => option.Name, StringComparer.Ordinal);
         var changed = false;
 
         foreach (var option in sourceOptions)
         {
             if (option == null ||
-                !visibleOptions.Contains(option) ||
+                string.IsNullOrEmpty(option.Name) ||
+                !visibleOptions.TryGetValue(option.Name, out var visibleOption) ||
                 targetOptions.Any(x => x && string.Equals(x.Name, option.Name, StringComparison.Ordinal)) ||
                 targetOptions.Count >= maxPoints)
             {
                 continue;
             }
 
-            targetOptions.Add(option);
+            targetOptions.Add(visibleOption);
             changed = true;
         }
 
@@ -365,7 +512,6 @@ public static class CharacterBuildingManagerPatcher
         var hadFixedTagPool = pointPoolStack.ActivePools.TryGetValue(definitionTag, out var fixedTagPool);
         var hadFixedTagTraining =
             heroBuildingData.LevelupTrainedMetamagicOptions?.ContainsKey(definitionTag) == true;
-
         updated |= MoveFeatGrantedMetamagicSelections(
             heroBuildingData,
             definitionTag,
@@ -395,9 +541,11 @@ public static class CharacterBuildingManagerPatcher
         }
         else if (!featAlreadyTrained && !hadFixedTagPool && !hadFixedTagTraining)
         {
-            existingPool.maxPoints += pointPoolFeature.poolAmount;
-            existingPool.remainingPoints += pointPoolFeature.poolAmount;
-            updated = true;
+            if (!string.Equals(existingPool.Description, definitionTag, StringComparison.Ordinal))
+            {
+                existingPool.maxPoints += pointPoolFeature.poolAmount;
+                updated = true;
+            }
         }
 
         updated |= NormalizeFeatGrantedMetamagicSelections(
@@ -406,15 +554,12 @@ public static class CharacterBuildingManagerPatcher
             existingPool.maxPoints,
             out var selectedCount);
 
-        if (selectedCount > 0)
-        {
-            var remainingPoints = Math.Max(0, existingPool.maxPoints - selectedCount);
+        var remainingPoints = Math.Max(0, existingPool.maxPoints - selectedCount);
 
-            if (existingPool.remainingPoints != remainingPoints)
-            {
-                existingPool.remainingPoints = remainingPoints;
-                updated = true;
-            }
+        if (existingPool.remainingPoints != remainingPoints)
+        {
+            existingPool.remainingPoints = remainingPoints;
+            updated = true;
         }
 
         return updated;
@@ -442,13 +587,20 @@ public static class CharacterBuildingManagerPatcher
 
         if (pool.maxPoints <= poolAmount)
         {
-            pointPoolStack.ActivePools.Remove(tag);
+            if (string.Equals(tag, MetamagicContext.FeatMetamagicAdeptPointPoolTag, StringComparison.Ordinal) ||
+                string.Equals(pool.Description, MetamagicContext.FeatMetamagicAdeptPointPoolTag, StringComparison.Ordinal))
+            {
+                pointPoolStack.ActivePools.Remove(tag);
 
-            return true;
+                return true;
+            }
+
+            return changed;
         }
 
         pool.maxPoints -= poolAmount;
-        pool.remainingPoints = Math.Min(pool.remainingPoints, pool.maxPoints);
+        _ = NormalizeFeatGrantedMetamagicSelections(heroBuildingData, tag, pool.maxPoints, out var selectedCount);
+        pool.remainingPoints = Math.Max(0, pool.maxPoints - selectedCount);
 
         return true;
     }
@@ -486,8 +638,6 @@ public static class CharacterBuildingManagerPatcher
     internal static bool TryGetFeatGrantedMetamagicPointPool(
         ICharacterBuildingService characterBuildingService,
         CharacterHeroBuildingData heroBuildingData,
-        string preferredTag,
-        string learnStepTag,
         out string activePoolTag,
         out PointPool pointPool)
     {
@@ -502,12 +652,6 @@ public static class CharacterBuildingManagerPatcher
             return false;
         }
 
-        if (!IsFeatGrantedMetamagicActiveOrFallbackTag(preferredTag, classTag) &&
-            !IsFeatGrantedMetamagicActiveOrFallbackTag(learnStepTag, classTag))
-        {
-            return false;
-        }
-
         pointPool = characterBuildingService.GetPointPoolOfTypeAndTag(
             heroBuildingData,
             HeroDefinitions.PointsPoolType.Metamagic,
@@ -516,6 +660,25 @@ public static class CharacterBuildingManagerPatcher
         activePoolTag = classTag;
 
         return pointPool != null;
+    }
+
+    internal static bool TryGetFeatGrantedMetamagicPointPool(
+        ICharacterBuildingService characterBuildingService,
+        CharacterHeroBuildingData heroBuildingData,
+        string learnStepTag,
+        out string activePoolTag,
+        out PointPool pointPool)
+    {
+        activePoolTag = null;
+        pointPool = null;
+
+        return !string.IsNullOrEmpty(learnStepTag) &&
+               TryGetFeatGrantedMetamagicPointPool(
+                   characterBuildingService,
+                   heroBuildingData,
+                   out activePoolTag,
+                   out pointPool) &&
+               string.Equals(learnStepTag, activePoolTag, StringComparison.Ordinal);
     }
 
     private static string FindFeatGrantedPointPoolKeyFallback(
@@ -2075,6 +2238,17 @@ public static class CharacterBuildingManagerPatcher
     [UsedImplicitly]
     public static class TrainFeat_Patch
     {
+        private sealed class State
+        {
+            internal CharacterHeroBuildingData HeroBuildingData;
+            internal FeatDefinition Feat;
+            internal string Tag;
+            internal int TrainedCountBefore;
+            internal bool ValidatedManagedLeaf;
+            internal FeatGrantedMetamagicPoolRollback MetamagicRollback;
+            internal bool AppliedFeatGrantedMetamagicPool;
+        }
+
         private static int GetEquivalentTrainedFeatCount(
             CharacterHeroBuildingData heroBuildingData,
             string tag,
@@ -2135,19 +2309,12 @@ public static class CharacterBuildingManagerPatcher
         }
 
         [UsedImplicitly]
-        public static bool Prefix(
+        private static bool Prefix(
             CharacterBuildingManager __instance,
             CharacterHeroBuildingData heroBuildingData,
             ref FeatDefinition feat,
             string tag,
-            out (
-                CharacterHeroBuildingData heroBuildingData,
-                FeatDefinition feat,
-                string tag,
-                int trainedCountBefore,
-                bool validatedManagedLeaf,
-                bool appliedFeatGrantedMetamagicPool)
-                __state)
+            out object __state)
         {
             __state = default;
             var buildingService = ServiceRepository.GetService<ICharacterBuildingService>();
@@ -2236,90 +2403,103 @@ public static class CharacterBuildingManagerPatcher
             }
 
             var trainedCountBefore = GetEquivalentTrainedFeatCount(heroBuildingData, tag, feat);
+            var metamagicRollback = FeatGrantedMetamagicPoolRollback.Capture(__instance, heroBuildingData, feat);
             var appliedFeatGrantedMetamagicPool = ApplyFeatGrantedMetamagicPointPools(
                 __instance,
                 heroBuildingData,
                 feat,
                 trainedCountBefore > 0);
 
-            __state = (
-                heroBuildingData,
-                feat,
-                tag,
-                trainedCountBefore,
-                validatedManagedLeaf,
-                appliedFeatGrantedMetamagicPool);
+            if (appliedFeatGrantedMetamagicPool)
+            {
+                LevelUpHelper.RebuildCharacterStageProficiencyPanel(heroBuildingData.LevelingUp);
+            }
+
+            __state = new State
+            {
+                HeroBuildingData = heroBuildingData,
+                Feat = feat,
+                Tag = tag,
+                TrainedCountBefore = trainedCountBefore,
+                ValidatedManagedLeaf = validatedManagedLeaf,
+                MetamagicRollback = metamagicRollback,
+                AppliedFeatGrantedMetamagicPool = appliedFeatGrantedMetamagicPool
+            };
 
             return true;
         }
 
         [UsedImplicitly]
-        public static void Postfix(
+        private static void Postfix(
             CharacterBuildingManager __instance,
-            (
-                CharacterHeroBuildingData heroBuildingData,
-                FeatDefinition feat,
-                string tag,
-                int trainedCountBefore,
-                bool validatedManagedLeaf,
-                bool appliedFeatGrantedMetamagicPool)
-                __state)
+            object __state)
         {
-            Tabletop2024Context.ClearPendingFeatSelection(__state.heroBuildingData?.HeroCharacter, __state.tag);
-
-            if (__state.heroBuildingData == null ||
-                __state.feat == null)
+            if (__state is not State state)
             {
                 return;
             }
 
-            var trainedCountAfter = GetEquivalentTrainedFeatCount(__state.heroBuildingData, __state.tag, __state.feat);
+            Tabletop2024Context.ClearPendingFeatSelection(state.HeroBuildingData?.HeroCharacter, state.Tag);
 
-            if (trainedCountAfter <= __state.trainedCountBefore &&
-                __state.validatedManagedLeaf &&
-                !string.IsNullOrEmpty(__state.tag) &&
-                Tabletop2024Context.IsSelectableManagedTabletopFeatLeaf(__state.feat))
+            if (state.HeroBuildingData == null ||
+                state.Feat == null)
             {
-                if (!__state.heroBuildingData.LevelupTrainedFeats.TryGetValue(__state.tag, out var feats))
+                return;
+            }
+
+            var trainedCountAfter = GetEquivalentTrainedFeatCount(state.HeroBuildingData, state.Tag, state.Feat);
+
+            if (trainedCountAfter <= state.TrainedCountBefore &&
+                state.ValidatedManagedLeaf &&
+                !string.IsNullOrEmpty(state.Tag) &&
+                Tabletop2024Context.IsSelectableManagedTabletopFeatLeaf(state.Feat))
+            {
+                if (!state.HeroBuildingData.LevelupTrainedFeats.TryGetValue(state.Tag, out var feats))
                 {
                     feats = [];
-                    __state.heroBuildingData.LevelupTrainedFeats[__state.tag] = feats;
+                    state.HeroBuildingData.LevelupTrainedFeats[state.Tag] = feats;
                 }
 
                 if (!feats.Any(existingFeat => existingFeat &&
                                               Tabletop2024Context.AreEquivalentTabletopFeatNames(
                                                   existingFeat.Name,
-                                                  __state.feat.Name)))
+                                                  state.Feat.Name)))
                 {
-                    feats.Add(__state.feat);
-                    trainedCountAfter = GetEquivalentTrainedFeatCount(__state.heroBuildingData, __state.tag, __state.feat);
+                    feats.Add(state.Feat);
+                    trainedCountAfter = GetEquivalentTrainedFeatCount(state.HeroBuildingData, state.Tag, state.Feat);
 #if DEBUG
                     Main.Log(
-                        $"TrainFeat_Patch fallback added managed 2024 feat {__state.feat.Name} to tag {__state.tag}.");
+                        $"TrainFeat_Patch fallback added managed 2024 feat {state.Feat.Name} to tag {state.Tag}.");
 #endif
                 }
             }
 
             var featSelectedForTraining =
-                !string.IsNullOrEmpty(__state.tag) &&
-                __instance.IsFeatSelectedForTraining(__state.heroBuildingData, __state.feat, __state.tag);
+                !string.IsNullOrEmpty(state.Tag) &&
+                __instance.IsFeatSelectedForTraining(state.HeroBuildingData, state.Feat, state.Tag);
 
-            if (trainedCountAfter <= __state.trainedCountBefore &&
+            if (trainedCountAfter <= state.TrainedCountBefore &&
                 !featSelectedForTraining)
             {
+                if (state.AppliedFeatGrantedMetamagicPool)
+                {
+                    state.MetamagicRollback?.Restore(state.HeroBuildingData);
+                    LevelUpHelper.RebuildCharacterStageProficiencyPanel(state.HeroBuildingData.LevelingUp);
+                }
+
                 return;
             }
 
-            var rebuilt = __state.appliedFeatGrantedMetamagicPool;
+            var rebuilt = state.AppliedFeatGrantedMetamagicPool;
 
-            if (ApplyFeatGrantedPointPools(__instance, __state.heroBuildingData, __state.feat))
+            if (ApplyFeatGrantedPointPools(__instance, state.HeroBuildingData, state.Feat))
             {
                 rebuilt = true;
             }
 
             if (rebuilt)
             {
-                LevelUpHelper.RebuildCharacterStageProficiencyPanel(__state.heroBuildingData.LevelingUp);
+                LevelUpHelper.RebuildCharacterStageProficiencyPanel(state.HeroBuildingData.LevelingUp);
             }
         }
     }
