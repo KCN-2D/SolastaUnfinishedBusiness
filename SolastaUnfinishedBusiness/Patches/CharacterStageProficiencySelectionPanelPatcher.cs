@@ -22,6 +22,7 @@ public static class CharacterStageProficiencySelectionPanelPatcher
     private static readonly Random AutoFeatRandom = new();
     private static bool _autoTrainingOriginFeat;
     private static bool _autoTrainingHumanOriginFeat;
+    private static bool _autoTrainingFeatGrantedMetamagic;
     private static bool _syncingFeatGrantedPointPools;
     private static bool _syncingHumanOriginPools;
 
@@ -80,9 +81,184 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         return $"{__instance.currentHero?.Guid}:{__instance.currentLearnStep}:{item.PoolType}:{item.Tag}";
     }
 
-    private static bool IsFeatMetamagicAdeptTag(string tag)
+    private static bool IsMetamagicLearnStep(LearnStepItem item)
     {
-        return string.Equals(tag, MetamagicContext.FeatMetamagicAdeptPointPoolTag, StringComparison.Ordinal);
+        return item &&
+               item.PoolType == Metamagic;
+    }
+
+    private static List<MetamagicOptionDefinition> GetAllowedFeatGrantedMetamagicOptions(PointPool pointPool)
+    {
+        var metamagicOptions = MetamagicContext.GetVisibleMetamagicOptions();
+
+        if (pointPool?.RestrictedChoices is not { Count: > 0 } restrictedChoices)
+        {
+            return metamagicOptions;
+        }
+
+        var restrictedChoiceNames = restrictedChoices.ToHashSet(StringComparer.Ordinal);
+
+        return metamagicOptions
+            .Where(option => option != null && restrictedChoiceNames.Contains(option.Name))
+            .ToList();
+    }
+
+    private static bool TryGetFeatGrantedMetamagicState(
+        CharacterStageProficiencySelectionPanel __instance,
+        LearnStepItem preferredLearnStepItem,
+        out LearnStepItem learnStepItem,
+        out CharacterHeroBuildingData buildingData,
+        out ICharacterBuildingService service,
+        out IHeroBuildingCommandService commandService,
+        out PointPool pointPool,
+        out string tag,
+        string preferredTag = null)
+    {
+        learnStepItem = preferredLearnStepItem ?? CurrentStepItem(__instance);
+        buildingData = __instance?.currentHero?.GetHeroBuildingData();
+        service = __instance?.CharacterBuildingService;
+        commandService = ServiceRepository.GetService<IHeroBuildingCommandService>();
+        pointPool = null;
+        tag = null;
+
+        if (!IsMetamagicLearnStep(learnStepItem) ||
+            service == null ||
+            buildingData == null ||
+            !CharacterBuildingManagerPatcher.TryGetFeatGrantedMetamagicPointPool(
+                service,
+                buildingData,
+                preferredTag,
+                learnStepItem.Tag,
+                out tag,
+                out pointPool))
+        {
+            return false;
+        }
+
+        return commandService != null;
+    }
+
+    private static bool ContainsMetamagicOption(
+        IEnumerable<MetamagicOptionDefinition> options,
+        MetamagicOptionDefinition option)
+    {
+        return option != null &&
+               options != null &&
+               options.Any(x => x && string.Equals(x.Name, option.Name, StringComparison.Ordinal));
+    }
+
+    private static bool IsMetamagicOptionSelectedForTag(
+        CharacterHeroBuildingData buildingData,
+        string tag,
+        MetamagicOptionDefinition option)
+    {
+        return buildingData?.LevelupTrainedMetamagicOptions != null &&
+               !string.IsNullOrEmpty(tag) &&
+               buildingData.LevelupTrainedMetamagicOptions.TryGetValue(tag, out var trainedOptions) &&
+               ContainsMetamagicOption(trainedOptions, option);
+    }
+
+    private static bool IsMetamagicOptionTrainedOutsideTag(
+        CharacterHeroBuildingData buildingData,
+        string tag,
+        MetamagicOptionDefinition option)
+    {
+        if (buildingData?.HeroCharacter == null ||
+            option == null)
+        {
+            return false;
+        }
+
+        if (ContainsMetamagicOption(buildingData.HeroCharacter.TrainedMetamagicOptions, option))
+        {
+            return true;
+        }
+
+        return buildingData.LevelupTrainedMetamagicOptions != null &&
+               buildingData.LevelupTrainedMetamagicOptions
+                   .Where(entry => !string.Equals(entry.Key, tag, StringComparison.Ordinal))
+                   .SelectMany(entry => entry.Value ?? [])
+                   .Any(x => x && string.Equals(x.Name, option.Name, StringComparison.Ordinal));
+    }
+
+    private static List<MetamagicOptionDefinition> GetAutoTrainableFeatGrantedMetamagicOptions(
+        CharacterHeroBuildingData buildingData,
+        string tag,
+        IEnumerable<MetamagicOptionDefinition> allowedOptions)
+    {
+        return allowedOptions?
+            .Where(option =>
+                option != null &&
+                !IsMetamagicOptionSelectedForTag(buildingData, tag, option) &&
+                !IsMetamagicOptionTrainedOutsideTag(buildingData, tag, option))
+            .OrderBy(option => option.FormatTitle())
+            .ToList() ?? [];
+    }
+
+    private static bool HasAvailableFeatGrantedMetamagicAutoChoice(
+        CharacterStageProficiencySelectionPanel __instance,
+        LearnStepItem item)
+    {
+        if (!TryGetFeatGrantedMetamagicState(
+                __instance,
+                item,
+                out _,
+                out var buildingData,
+                out var service,
+                out _,
+                out var pointPool,
+                out var tag))
+        {
+            return false;
+        }
+
+        service.GetPoolPointsOfTypeAndTag(buildingData, Metamagic, tag, out var remainingPoints, out _);
+
+        return remainingPoints > 0 &&
+               GetAutoTrainableFeatGrantedMetamagicOptions(
+                       buildingData,
+                       tag,
+                       GetAllowedFeatGrantedMetamagicOptions(pointPool))
+                   .Count > 0;
+    }
+
+    private static int SyncFeatGrantedMetamagicAfterSelection(
+        CharacterStageProficiencySelectionPanel __instance,
+        CharacterHeroBuildingData buildingData,
+        ICharacterBuildingService service,
+        string tag)
+    {
+        service.GetPoolPointsOfTypeAndTag(buildingData, Metamagic, tag, out var remainingPoints, out _);
+
+        __instance.OnPreRefresh();
+        __instance.RefreshNow();
+
+        return remainingPoints;
+    }
+
+    private static void NormalizeFeatGrantedMetamagicLearnStepTag(
+        CharacterStageProficiencySelectionPanel __instance,
+        ProficiencyBaseItem item)
+    {
+        if (item is not ProficiencySingleItem { BaseDefinition: MetamagicOptionDefinition } metamagicItem ||
+            __instance?.allTags == null ||
+            __instance.currentLearnStep < 0 ||
+            __instance.currentLearnStep >= __instance.allTags.Count ||
+            !TryGetFeatGrantedMetamagicState(
+                __instance,
+                CurrentStepItem(__instance),
+                out _,
+                out _,
+                out _,
+                out _,
+                out _,
+                out var tag,
+                metamagicItem.StageTag))
+        {
+            return;
+        }
+
+        __instance.allTags[__instance.currentLearnStep] = tag;
     }
 
     private static IEnumerable<LearnStepItem> EnumerateLearnStepItems(CharacterStageProficiencySelectionPanel __instance)
@@ -273,16 +449,6 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             }
 
             if (service.GetPointPoolOfTypeAndTag(buildingData, item.PoolType, item.Tag) != null)
-            {
-                continue;
-            }
-
-            if (item.PoolType == Metamagic &&
-                IsFeatMetamagicAdeptTag(item.Tag) &&
-                service.GetPointPoolOfTypeAndTag(
-                    buildingData,
-                    Metamagic,
-                    MetamagicContext.FeatMetamagicAdeptPointPoolTag) != null)
             {
                 continue;
             }
@@ -702,6 +868,87 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         return true;
     }
 
+    private static bool TryAutoTrainFeatGrantedMetamagic(
+        CharacterStageProficiencySelectionPanel __instance,
+        LearnStepItem item,
+        Random rng)
+    {
+        if (_autoTrainingFeatGrantedMetamagic ||
+            !TryGetFeatGrantedMetamagicState(
+                __instance,
+                item,
+                out _,
+                out var buildingData,
+                out var service,
+                out var commandService,
+                out var pointPool,
+                out var tag))
+        {
+            return false;
+        }
+
+        commandService.AcknowledgePreviousCharacterBuildingCommandLocally(() =>
+        {
+            try
+            {
+                _autoTrainingFeatGrantedMetamagic = true;
+                var random = rng ?? AutoFeatRandom;
+                var changed = false;
+
+                service.GetPoolPointsOfTypeAndTag(buildingData, Metamagic, tag, out var remainingPoints, out _);
+
+                while (remainingPoints > 0)
+                {
+                    var candidates = GetAutoTrainableFeatGrantedMetamagicOptions(
+                        buildingData,
+                        tag,
+                        GetAllowedFeatGrantedMetamagicOptions(pointPool));
+
+                    if (candidates.Count == 0)
+                    {
+                        break;
+                    }
+
+                    var metamagicOption = candidates[random.Next(candidates.Count)];
+
+                    service.TrainMetamagicOption(buildingData, metamagicOption, tag, true);
+                    changed = true;
+                    pointPool = service.GetPointPoolOfTypeAndTag(buildingData, Metamagic, tag);
+
+                    if (pointPool == null)
+                    {
+                        break;
+                    }
+
+                    service.GetPoolPointsOfTypeAndTag(buildingData, Metamagic, tag, out remainingPoints, out _);
+                }
+
+                if (!changed)
+                {
+                    return;
+                }
+
+                remainingPoints = SyncFeatGrantedMetamagicAfterSelection(
+                    __instance,
+                    buildingData,
+                    service,
+                    tag);
+
+                if (remainingPoints <= 0)
+                {
+                    __instance.MoveToNextLearnStep();
+                }
+            }
+            finally
+            {
+                _autoTrainingFeatGrantedMetamagic = false;
+                __instance.ResetWasClickedFlag();
+            }
+        });
+
+        return true;
+    }
+
     [HarmonyPatch(typeof(CharacterStageProficiencySelectionPanel),
         nameof(CharacterStageProficiencySelectionPanel.OnProficiencyItemClicked))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -713,6 +960,8 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             CharacterStageProficiencySelectionPanel __instance,
             ProficiencyBaseItem item)
         {
+            NormalizeFeatGrantedMetamagicLearnStepTag(__instance, item);
+
             if (item is not FeatItem featItem ||
                 featItem.CurrentPoolType != Feat ||
                 featItem.GuiFeatDefinition?.FeatDefinition is not { } featDefinition)
@@ -741,6 +990,23 @@ public static class CharacterStageProficiencySelectionPanelPatcher
                 featDefinition);
 
             return true;
+        }
+    }
+
+    [HarmonyPatch(typeof(LearnStepItem), nameof(LearnStepItem.Bind))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class LearnStepItemBind_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(LearnStepItem __instance)
+        {
+            var panel = __instance.GetComponentInParent<CharacterStageProficiencySelectionPanel>();
+
+            if (HasAvailableFeatGrantedMetamagicAutoChoice(panel, __instance))
+            {
+                __instance.autoLearnAvailable = true;
+            }
         }
     }
 
@@ -830,6 +1096,14 @@ public static class CharacterStageProficiencySelectionPanelPatcher
                 return;
             }
 
+            if (HasAvailableFeatGrantedMetamagicAutoChoice(__instance, item))
+            {
+                item.autoLearnAvailable = true;
+                item.Refresh(LearnStepItem.Status.InProgress);
+
+                return;
+            }
+
             if (TryAutoTrainHumanOriginFeat(__instance, item))
             {
                 return;
@@ -858,6 +1132,11 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         {
             //PATCH: support for skipping skill and tool proficiency picking if you picked all available, but still have points remaining
             var item = CurrentStepItem(__instance);
+
+            if (TryAutoTrainFeatGrantedMetamagic(__instance, item, rng))
+            {
+                return false;
+            }
 
             if (!item)
             {
