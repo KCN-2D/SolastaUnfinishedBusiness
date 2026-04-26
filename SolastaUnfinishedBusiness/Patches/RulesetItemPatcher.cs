@@ -12,6 +12,59 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetItemPatcher
 {
+    private static void EnsureCustomStackCountAttribute(RulesetItem item)
+    {
+        ItemCraftingMerchantContext.EnsureCustomStackCountAttribute(item);
+    }
+
+    [HarmonyPatch(typeof(RulesetItem), nameof(RulesetItem.RegisterAttributes))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RegisterAttributes_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(RulesetItem __instance)
+        {
+            EnsureCustomStackCountAttribute(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetItem), nameof(RulesetItem.StackCount), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class StackCount_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(RulesetItem __instance)
+        {
+            EnsureCustomStackCountAttribute(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetItem), nameof(RulesetItem.IncreaseStack))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class IncreaseStack_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(RulesetItem __instance)
+        {
+            EnsureCustomStackCountAttribute(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetItem), nameof(RulesetItem.SpendStack))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class SpendStack_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(RulesetItem __instance)
+        {
+            EnsureCustomStackCountAttribute(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetItem), nameof(RulesetItem.FillTags))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

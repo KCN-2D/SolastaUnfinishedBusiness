@@ -285,7 +285,7 @@ internal static class ItemCraftingMerchantContext
     internal static void SwitchStackableArtItems()
     {
         foreach (var art in DatabaseRepository.GetDatabase<ItemDefinition>()
-                     .Where(x => x.Name.Contains("Art_Item")))
+                     .Where(IsStackableArtItemDefinition))
         {
             art.canBeStacked = Main.Settings.EnableStackableArtItems;
         }
@@ -294,15 +294,60 @@ internal static class ItemCraftingMerchantContext
     internal static void SwitchStackableAxesAndDaggers()
     {
         foreach (var weapon in DatabaseRepository.GetDatabase<ItemDefinition>()
-                     .Where(x =>
-                         x.IsWeapon &&
-                         (x.WeaponDescription.WeaponTypeDefinition == DaggerType ||
-                          x.WeaponDescription.WeaponTypeDefinition == HandaxeType)))
+                     .Where(IsStackableAxesAndDaggersDefinition))
         {
             weapon.canBeStacked = Main.Settings.EnableStackableAxesAndDaggers;
+
+            if (!Main.Settings.EnableStackableAxesAndDaggers)
+            {
+                continue;
+            }
+
             weapon.stackSize = 5;
-            weapon.defaultStackCount = -1;
+            weapon.defaultStackCount = 1;
         }
+    }
+
+    internal static void EnsureCustomStackCountAttribute(RulesetItem item)
+    {
+        var definition = item?.ItemDefinition;
+
+        if (!ShouldEnsureCustomStackCountAttribute(definition))
+        {
+            return;
+        }
+
+        var stackSize = definition.stackSize > 0 ? definition.stackSize : 1;
+
+        if (!item.TryGetAttribute(AttributeDefinitions.ItemStackCount, out var stackCount))
+        {
+            stackCount = item.RegisterAttribute(AttributeDefinitions.ItemStackCount);
+            stackCount.MinValue = 0;
+            stackCount.BaseValue = 1;
+        }
+
+        stackCount.MaxValue = stackSize;
+        stackCount.Refresh(false);
+    }
+
+    private static bool ShouldEnsureCustomStackCountAttribute(ItemDefinition definition)
+    {
+        return definition is { CanBeStacked: true } &&
+               ((Main.Settings.EnableStackableArtItems && IsStackableArtItemDefinition(definition)) ||
+                (Main.Settings.EnableStackableAxesAndDaggers && IsStackableAxesAndDaggersDefinition(definition)));
+    }
+
+    private static bool IsStackableArtItemDefinition(ItemDefinition item)
+    {
+        return item && item.Name.Contains("Art_Item");
+    }
+
+    private static bool IsStackableAxesAndDaggersDefinition(ItemDefinition item)
+    {
+        return item &&
+               item.IsWeapon &&
+               (item.WeaponDescription.WeaponTypeDefinition == DaggerType ||
+                item.WeaponDescription.WeaponTypeDefinition == HandaxeType);
     }
 
     internal static void SwitchVersatileInventorySlots()
