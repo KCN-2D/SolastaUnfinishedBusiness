@@ -24,6 +24,35 @@ internal static class InventoryManagementContext
     ];
 
     private static readonly List<MerchantCategoryDefinition> ItemCategories = [];
+    private static readonly Dictionary<string, string> ItemCategoryTitles = new(StringComparer.Ordinal);
+
+    private static readonly List<string> TagFilterIds =
+    [
+        TagsDefinitions.Document,
+        TagsDefinitions.SpellFocus,
+        TagsDefinitions.Food,
+        TagsDefinitions.CarryingCapacity,
+        TagsDefinitions.ItemTagMetal,
+        TagsDefinitions.ItemTagSilver,
+        TagsDefinitions.ItemTagGold,
+        TagsDefinitions.ItemTagWood,
+        TagsDefinitions.ItemTagLeather,
+        TagsDefinitions.ItemTagGlass,
+        TagsDefinitions.ItemTagPaper,
+        TagsDefinitions.ItemTagFlamable,
+        TagsDefinitions.ItemTagQuest,
+        TagsDefinitions.ItemTagIngredient,
+        TagsDefinitions.ItemTagGem,
+        TagsDefinitions.ArcaneFocus,
+        TagsDefinitions.DruidicFocus,
+        TagsDefinitions.ItemTagMonk,
+        TagsDefinitions.MusicalInstrument,
+        TagsDefinitions.LightSource,
+        TagsDefinitions.WeaponTagAmmunition,
+        CeContentPackContext.CeTag
+    ];
+
+    private static readonly List<string> SortedTagFilterIds = [];
 
     private static readonly List<RulesetInventorySlot> Filtered = [];
     private static bool _dirty = true;
@@ -113,6 +142,7 @@ internal static class InventoryManagementContext
         ItemCategories.Clear();
         ItemCategories.Add(MerchantCategoryDefinitions.All);
         ItemCategories.AddRange(filteredCategoryDefinitions);
+        RefreshItemCategoryTitles();
 
         // adds the filter dropdown
 
@@ -166,33 +196,14 @@ internal static class InventoryManagementContext
 
         // adds the tagged dropdown
 
-        var taggedOptions = new List<TMP_Dropdown.OptionData>();
-
         tagged.name = "TaggedDropdown";
         tagged.transform.localPosition = new Vector3(-422f, 330f, 0f);
         taggedRect.sizeDelta = new Vector2(150f, 28f);
 
         TaggedGuiDropdown.ClearOptions();
-        taggedOptions.AddRange(new OptionDataAdvanced[]
-        {
-            new() { text = TagsDefinitions.Document }, new() { text = TagsDefinitions.SpellFocus },
-            new() { text = TagsDefinitions.Food }, new() { text = TagsDefinitions.CarryingCapacity },
-            new() { text = TagsDefinitions.ItemTagMetal }, new() { text = TagsDefinitions.ItemTagSilver },
-            new() { text = TagsDefinitions.ItemTagGold }, new() { text = TagsDefinitions.ItemTagWood },
-            new() { text = TagsDefinitions.ItemTagLeather }, new() { text = TagsDefinitions.ItemTagGlass },
-            new() { text = TagsDefinitions.ItemTagPaper }, new() { text = TagsDefinitions.ItemTagFlamable },
-            new() { text = TagsDefinitions.ItemTagQuest }, new() { text = TagsDefinitions.ItemTagIngredient },
-            new() { text = TagsDefinitions.ItemTagGem }, new() { text = TagsDefinitions.ArcaneFocus },
-            new() { text = TagsDefinitions.DruidicFocus }, new() { text = TagsDefinitions.ItemTagMonk },
-            new() { text = TagsDefinitions.MusicalInstrument }, new() { text = TagsDefinitions.LightSource },
-            new() { text = TagsDefinitions.WeaponTagAmmunition }, new() { text = CeContentPackContext.CeTag }
-        });
-
-        taggedOptions.Sort((x, y) => string.Compare(x.text, y.text, StringComparison.Ordinal));
-        taggedOptions.Insert(0, new OptionDataAdvanced { text = Gui.Localize("UI/&InventoryFilterAnyTags") });
 
         TaggedGuiDropdown.onValueChanged.AddListener(delegate { Refresh(containerPanel); });
-        TaggedGuiDropdown.AddOptions(taggedOptions);
+        TaggedGuiDropdown.AddOptions(BuildTagFilterOptions());
         TaggedGuiDropdown.template.sizeDelta = new Vector2(1f, 208f);
 
         UnidentifiedToggle.transform.localPosition = new Vector3(-162f, 330f, 0f);
@@ -263,6 +274,16 @@ internal static class InventoryManagementContext
         return slot is { EquipedItem: null, ConfigSlot: false, Disabled: false };
     }
 
+    private static void RefreshItemCategoryTitles()
+    {
+        ItemCategoryTitles.Clear();
+
+        foreach (var category in ItemCategories.Where(category => !string.IsNullOrEmpty(category?.Name)))
+        {
+            ItemCategoryTitles[category.Name] = category.FormatTitle();
+        }
+    }
+
     private static string GetItemTitle([CanBeNull] RulesetItem item)
     {
         var title = item?.ItemDefinition?.GuiPresentation?.Title;
@@ -270,6 +291,7 @@ internal static class InventoryManagementContext
         return string.IsNullOrEmpty(title) ? string.Empty : Gui.Localize(title);
     }
 
+    [CanBeNull]
     private static string GetItemCategoryTitle([NotNull] RulesetItem item)
     {
         var category = item.ItemDefinition?.MerchantCategory;
@@ -279,11 +301,72 @@ internal static class InventoryManagementContext
             return null;
         }
 
+        if (ItemCategoryTitles.TryGetValue(category, out var title))
+        {
+            return title;
+        }
+
         var categoryDefinition = DatabaseRepository
             .GetDatabase<MerchantCategoryDefinition>()
             .GetElement(category);
 
-        return categoryDefinition ? categoryDefinition.FormatTitle() : null;
+        if (!categoryDefinition)
+        {
+            return null;
+        }
+
+        title = categoryDefinition.FormatTitle();
+        ItemCategoryTitles[category] = title;
+
+        return title;
+    }
+
+    private static List<TMP_Dropdown.OptionData> BuildTagFilterOptions()
+    {
+        var tagOptions = TagFilterIds
+            .Select(tag => (tag, title: GetTagFilterTitle(tag)))
+            .OrderBy(option => option.title, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(option => option.tag, StringComparer.Ordinal)
+            .ToArray();
+
+        SortedTagFilterIds.Clear();
+        SortedTagFilterIds.AddRange(tagOptions.Select(option => option.tag));
+
+        var options = tagOptions
+            .Select(option => BuildOption(option.title))
+            .ToList();
+
+        options.Insert(0, BuildOption(Gui.Localize("UI/&InventoryFilterAnyTags")));
+
+        return options;
+    }
+
+    private static TMP_Dropdown.OptionData BuildOption(string title)
+    {
+        return new OptionDataAdvanced { text = title };
+    }
+
+    private static string GetTagFilterTitle(string tag)
+    {
+        var key = $"Tooltip/&Tag{tag}Title";
+        var title = Gui.Localize(key);
+
+        return string.IsNullOrEmpty(title) || title == key ? tag : title;
+    }
+
+    [CanBeNull]
+    private static string GetSelectedTagFilterId()
+    {
+        var taggedIndex = TaggedGuiDropdown.value;
+
+        if (taggedIndex <= 0)
+        {
+            return null;
+        }
+
+        var tagIndex = taggedIndex - 1;
+
+        return tagIndex < SortedTagFilterIds.Count ? SortedTagFilterIds[tagIndex] : null;
     }
 
     private static int ItemSort(RulesetInventorySlot slotA, RulesetInventorySlot slotB)
@@ -391,9 +474,9 @@ internal static class InventoryManagementContext
             return false;
         }
 
-        var taggedIndex = TaggedGuiDropdown.value;
+        var selectedTag = GetSelectedTagFilterId();
 
-        if (taggedIndex == 0)
+        if (selectedTag == null)
         {
             return true;
         }
@@ -402,7 +485,7 @@ internal static class InventoryManagementContext
 
         item.FillTags(tagsMap, container);
 
-        return tagsMap.ContainsKey(TaggedGuiDropdown.options[taggedIndex].text);
+        return tagsMap.ContainsKey(selectedTag);
     }
 
     //`container` parameter is required for the transpile patch
