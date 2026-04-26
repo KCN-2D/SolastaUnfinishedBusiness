@@ -38,6 +38,7 @@ public static partial class Tabletop2024Context
     }
 
     private const string Charger2024Family = "Charger2024";
+    private const string Charger2024FeatName = "FeatCharger2024";
     private const string DualWielder2024Family = "DualWielder2024";
     private const string ElementalAdept2024Family = "ElementalAdept2024";
     private const string Observant2024Family = "Observant2024";
@@ -65,6 +66,7 @@ public static partial class Tabletop2024Context
     private const string HeavyArmorMaster2024Family = "HeavyArmorMaster2024";
     private const string HeavyArmorMaster2024GroupFeatName = "FeatGroupHeavyArmorMaster2024";
     private const string LegacyHeavyArmorMaster2024SettingName = "FeatHeavyArmorMaster2024";
+    private const string HeavyArmorMaster2024NotificationTag = "HeavyArmorMaster2024";
     private const string LightlyArmored2024Family = "LightlyArmored2024";
     private const string LegacyGreatWeaponMasterFeatName = "FeatCleavingAttack";
     private const string GreatWeaponMaster2024FeatName = "FeatGreatWeaponMaster2024";
@@ -1784,8 +1786,6 @@ public static partial class Tabletop2024Context
 
     private static void BuildCharger2024()
     {
-        const string name = "FeatCharger2024";
-
         var featCharger = GetDefinition<FeatDefinition>("FeatCharger");
         var groupTitle = Get2024HalfFeatGroupTitle("Feat/&FeatGroupCharger2024Title", featCharger);
         var baseDescription = Get2024HalfFeatBaseDescription(
@@ -1793,46 +1793,46 @@ public static partial class Tabletop2024Context
             featCharger,
             Gui.Localize("Feat/&FeatGroupCharger2024Description"));
         var movementAffinityAfterDash = FeatureDefinitionMovementAffinityBuilder
-            .Create($"MovementAffinity{name}AfterDash")
+            .Create($"MovementAffinity{Charger2024FeatName}AfterDash")
             .SetGuiPresentationNoContent(true)
             .SetBaseSpeedAdditiveModifier(2)
             .AddToDB();
         var conditionAfterDash = ConditionDefinitionBuilder
-            .Create($"Condition{name}AfterDash")
+            .Create($"Condition{Charger2024FeatName}AfterDash")
             .SetGuiPresentationNoContent(true)
             .SetSilent(Silent.WhenAddedOrRemoved)
             .SetFeatures(movementAffinityAfterDash)
             .AddToDB();
         var featureAfterDash = FeatureDefinitionBuilder
-            .Create($"Feature{name}AfterDash")
+            .Create($"Feature{Charger2024FeatName}AfterDash")
             .SetGuiPresentationNoContent(true)
             .AddCustomSubFeatures(new ActionFinishedByMeAfterDash(conditionAfterDash))
             .AddToDB();
         var powerPool = FeatureDefinitionPowerBuilder
-            .Create($"Power{name}")
+            .Create($"Power{Charger2024FeatName}")
             .SetGuiPresentationNoContent(true)
             .SetUsesFixed(ActivationTime.NoCost)
             .SetShowCasting(false)
             .AddCustomSubFeatures(ModifyPowerVisibility.Hidden)
             .AddToDB();
         var additionalDamage = FeatureDefinitionAdditionalDamageBuilder
-            .Create($"AdditionalDamage{name}")
+            .Create($"AdditionalDamage{Charger2024FeatName}")
             .SetGuiPresentationNoContent(true)
-            .SetNotificationTag(name)
+            .SetNotificationTag(Charger2024FeatName)
             .SetDamageDice(DieType.D8, 1)
             .SetRequiredProperty(RestrictedContextRequiredProperty.Weapon)
             .SetAttackModeOnly()
             .SetImpactParticleReference(FeatureDefinitionPowers.PowerRoguishHoodlumDirtyFighting)
             .AddToDB();
         var conditionAdditionalDamage = ConditionDefinitionBuilder
-            .Create($"Condition{name}AddDamage")
+            .Create($"Condition{Charger2024FeatName}AddDamage")
             .SetGuiPresentationNoContent(true)
             .SetSilent(Silent.WhenAddedOrRemoved)
             .SetFeatures(additionalDamage)
             .SetSpecialInterruptions(ConditionInterruption.Attacks)
             .AddToDB();
         var powerAddDamage = FeatureDefinitionPowerSharedPoolBuilder
-            .Create($"Power{name}AddDamage")
+            .Create($"Power{Charger2024FeatName}AddDamage")
             .SetGuiPresentation(
                 Gui.Localize("Feature/&PowerFeatChargerAddDamageTitle"),
                 Gui.Localize("Feature/&PowerFeatChargerAddDamageDescription"),
@@ -1849,7 +1849,7 @@ public static partial class Tabletop2024Context
             .AddCustomSubFeatures(ModifyPowerVisibility.Hidden)
             .AddToDB();
         var powerShove = FeatureDefinitionPowerSharedPoolBuilder
-            .Create($"Power{name}Shove")
+            .Create($"Power{Charger2024FeatName}Shove")
             .SetGuiPresentation(
                 Gui.Localize("Feature/&PowerFeatChargerShoveTitle"),
                 Gui.Localize("Feature/&PowerFeatChargerShoveDescription"),
@@ -1862,14 +1862,14 @@ public static partial class Tabletop2024Context
         PowerBundle.RegisterPowerBundle(powerPool, true, powerAddDamage, powerShove);
 
         var feature = FeatureDefinitionBuilder
-            .Create($"Feature{name}")
+            .Create($"Feature{Charger2024FeatName}")
             .SetGuiPresentationNoContent(true)
             .AddCustomSubFeatures(new CustomBehaviorCharger2024(powerPool, powerShove))
             .AddToDB();
 
         var featCharger2024Str = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             featCharger,
-            $"{name}Str",
+            $"{Charger2024FeatName}Str",
             AttributeModifierCreed_Of_Einar,
             Charger2024Family,
             AttributeDefinitions.Strength,
@@ -1879,7 +1879,7 @@ public static partial class Tabletop2024Context
             extraFeatures: [featureAfterDash, powerPool, powerAddDamage, powerShove, feature]);
         var featCharger2024Dex = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             featCharger,
-            $"{name}Dex",
+            $"{Charger2024FeatName}Dex",
             AttributeModifierCreed_Of_Misaye,
             Charger2024Family,
             AttributeDefinitions.Dexterity,
@@ -2244,7 +2244,7 @@ public static partial class Tabletop2024Context
         var reduceDamage = FeatureDefinitionReduceDamageBuilder
             .Create("ReduceDamageFeatHeavyArmorMaster2024")
             .SetGuiPresentationNoContent(true)
-            .SetNotificationTag("HeavyArmorMaster2024")
+            .SetNotificationTag(HeavyArmorMaster2024NotificationTag)
             .SetAlwaysActiveReducedDamage((_, defender) =>
                 defender?.RulesetCharacter?.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus) ?? 0,
                 DamageTypeBludgeoning,
