@@ -1,4 +1,4 @@
-﻿Class/&InventorDescription=アーティフィサーは、いじくり職人や錬金術師など、さまざまな顔を持ちます。彼らは魔法と技術のあいだを橋渡しします。
+﻿Class/&InventorDescription=アーティフィサーは、からくり職人や錬金術師など、さまざまな顔を持ちます。彼らは魔法と技術のあいだを橋渡しします。
 Class/&InventorTitle=アーティフィサー
 Feature/&BonusCantripsInventorMagicalTinkeringDescription=あなたはありふれた物体に魔法の火花を注ぐ方法を知っています。次の初級呪文を習得します：{0}
 Feature/&BonusCantripsInventorMagicalTinkeringTitle=魔法の小発明
@@ -8,7 +8,7 @@ Feature/&CraftingAffinityInventorMagicItemAdeptDescription=あなたは魔法の
 Feature/&CraftingAffinityInventorMagicItemAdeptTitle=魔法のアイテムの名匠
 Feature/&FeatureInventorInfusionPoolDescription=ありふれたアイテムに特定の魔具化式を施し、それらを魔法のアイテムへ変える力を得ます。任意の魔具化式を4つ習得します。このクラスでレベルを得るたび、習得済みのアーティフィサーの魔具化式1つを新しい魔具化式1つに置き換えられます。\n大休憩を終えるたびに、2つのアイテムへ魔具化式を施せます。魔具化済みアイテムの上限を超えようとすると、最も古い魔具化式が終了してから新しい魔具化式が適用されます。魔具化式の知識を置き換えた場合、その魔具化式も消滅します。
 Feature/&FeatureInventorInfusionPoolTitle=魔具化式
-Feature/&MagicAffinityInventorMagicItemSavantDescription=魔法のアイテムに関する技量がさらに深まります：\n• 同調の上限が1増加します。\n• 魔法のアイテムへの同調に関するクラス要件を無視します。
+Feature/&MagicAffinityInventorMagicItemSavantDescription=魔法のアイテムを扱う技量がさらに磨かれます：\n• 同調の上限が1増加します。\n• 魔法のアイテムへの同調に関するクラス要件を無視します。
 Feature/&MagicAffinityInventorMagicItemSavantTitle=魔法のアイテムの碩学
 Feature/&PointPoolInventorRightToolForTheJobTitle=仕事に適した道具
 Feature/&PointPoolInventorSkillsTitle=アーティフィサーの技能習熟
