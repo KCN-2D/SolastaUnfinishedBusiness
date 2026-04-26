@@ -426,26 +426,63 @@ internal static partial class SpellBuilders
             var remainingUses = rulesetCharacter.GetRemainingPowerUses(powerMotes);
 
             // ReSharper disable once ConvertIfStatementToSwitchStatement
-            if (remainingUses == 0 &&
-                rulesetCharacter.TryGetConditionOfCategoryAndType(
+            if (remainingUses == 0)
+            {
+                TerminateCrownOfStars(rulesetCharacter);
+            }
+            else if (remainingUses < 4)
+            {
+                DimCrownOfStarsLight(rulesetCharacter);
+            }
+
+            yield break;
+        }
+
+        private RulesetEffectSpell FindActiveCrownOfStarsEffect(RulesetCharacter rulesetCharacter)
+        {
+            return rulesetCharacter.SpellsCastByMe
+                .FirstOrDefault(x => x.SpellDefinition == spellCrownOfStars);
+        }
+
+        private void TerminateCrownOfStars(RulesetCharacter rulesetCharacter)
+        {
+            var activeSpell = FindActiveCrownOfStarsEffect(rulesetCharacter);
+
+            if (activeSpell != null)
+            {
+                rulesetCharacter.TerminateSpell(activeSpell);
+
+                return;
+            }
+
+            if (rulesetCharacter.TryGetConditionOfCategoryAndType(
                     AttributeDefinitions.TagEffect, conditionCrownOfStars.Name, out var activeCondition))
             {
                 rulesetCharacter.RemoveCondition(activeCondition);
             }
-            else if (remainingUses < 4)
-            {
-                var usablePower =
-                    rulesetCharacter.SpellsCastByMe.FirstOrDefault(x => x.SpellDefinition == spellCrownOfStars);
+        }
 
-                if (usablePower != null &&
-                    usablePower.TrackedLightSourceGuids.Count > 0 &&
-                    usablePower.TrackedLightSourceGuids[0] == rulesetCharacter.PersonalLightSource.Guid)
-                {
-                    rulesetCharacter.PersonalLightSource.brightRange = 0;
-                }
+        private void DimCrownOfStarsLight(RulesetCharacter rulesetCharacter)
+        {
+            var activeSpell = FindActiveCrownOfStarsEffect(rulesetCharacter);
+
+            if (!HasTrackedPersonalLightSource(rulesetCharacter, activeSpell))
+            {
+                return;
             }
 
-            yield break;
+            rulesetCharacter.PersonalLightSource.brightRange = 0;
+        }
+
+        private static bool HasTrackedPersonalLightSource(
+            RulesetCharacter rulesetCharacter,
+            RulesetEffect activeEffect)
+        {
+            var personalLightSource = rulesetCharacter.PersonalLightSource;
+
+            return personalLightSource != null &&
+                   activeEffect is { TrackedLightSourceGuids.Count: > 0 } &&
+                   activeEffect.TrackedLightSourceGuids.Contains(personalLightSource.Guid);
         }
 
         private void SyncMotePoolAfterSpellCast(CharacterActionMagicEffect action, RulesetCharacter rulesetCharacter)
@@ -460,16 +497,25 @@ internal static partial class SpellBuilders
 
             activeCondition.Amount = CrownOfStarsAdditionalMotes(action.ActionParams.RulesetEffect.EffectLevel);
 
+            var usablePower = GetOrCreateMotePowerPool(rulesetCharacter);
+
+            usablePower.remainingUses = rulesetCharacter.GetMaxUsesOfPower(usablePower);
+        }
+
+        private RulesetUsablePower GetOrCreateMotePowerPool(RulesetCharacter rulesetCharacter)
+        {
             var usablePower = rulesetCharacter.UsablePowers
                 .FirstOrDefault(x => x.PowerDefinition == powerMotes);
 
-            if (usablePower == null)
+            if (usablePower != null)
             {
-                usablePower = PowerProvider.Get(powerMotes, rulesetCharacter);
-                rulesetCharacter.UsablePowers.Add(usablePower);
+                return usablePower;
             }
 
-            usablePower.remainingUses = rulesetCharacter.GetMaxUsesOfPower(usablePower);
+            usablePower = PowerProvider.Get(powerMotes, rulesetCharacter);
+            rulesetCharacter.UsablePowers.Add(usablePower);
+
+            return usablePower;
         }
     }
 
