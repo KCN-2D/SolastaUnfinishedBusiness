@@ -126,37 +126,40 @@ public static class TextBreakerPatcher
 
             foreach (var s in texts)
             {
-                if (TranslatorContext.HasCJKChar(s))
-                {
-                    foreach (var c in s)
-                    {
-                        if (TranslatorContext.IsCJKChar(c))
-                        {
-                            fragments.Add(sb.ToString());
-                            sb.Clear();
-                            sb.Append(c);
-                        }
-                        else
-                        {
-                            sb.Append(c);
-                        }
-                    }
-
-                    if (sb.Length <= 0)
-                    {
-                        continue;
-                    }
-
-                    fragments.Add(sb.ToString());
-                    sb.Clear();
-                }
-                else
+                if (!TranslatorContext.HasCJKChar(s))
                 {
                     fragments.Add(s);
+                    continue;
                 }
+
+                foreach (var c in s)
+                {
+                    if (TranslatorContext.IsCJKChar(c))
+                    {
+                        AddPendingFragment();
+                        fragments.Add(c.ToString());
+                    }
+                    else
+                    {
+                        sb.Append(c);
+                    }
+                }
+
+                AddPendingFragment();
             }
 
             return fragments;
+
+            void AddPendingFragment()
+            {
+                if (sb.Length == 0)
+                {
+                    return;
+                }
+
+                fragments.Add(sb.ToString());
+                sb.Clear();
+            }
         }
     }
 

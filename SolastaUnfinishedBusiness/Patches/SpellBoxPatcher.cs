@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
@@ -20,14 +21,15 @@ public static class SpellBoxPatcher
     [UsedImplicitly]
     public static class Bind_Patch
     {
-        private static string _extraTag;
-
         [UsedImplicitly]
         public static void Prefix(
             ref bool autoPrepared,
             ref bool extraSpell,
-            ref string tag)
+            ref string tag,
+            out string __state)
         {
+            __state = null;
+
             if (string.IsNullOrEmpty(tag))
             {
                 return;
@@ -36,11 +38,11 @@ public static class SpellBoxPatcher
             tag = NormalizeSpellSourceTag(tag);
 
             //PATCH: show actual class/subclass name in the multiclass tag during spell selection on level up
-            if (tag.StartsWith(LevelUpHelper.ExtraClassTag)
-                || tag.StartsWith(LevelUpHelper.ExtraSubclassTag))
+            if (tag.StartsWith(LevelUpHelper.ExtraClassTag, StringComparison.Ordinal)
+                || tag.StartsWith(LevelUpHelper.ExtraSubclassTag, StringComparison.Ordinal))
             {
                 //store original extra tag and reset both - actual texts would be handled on Postfix for this case
-                _extraTag = tag;
+                __state = tag;
                 autoPrepared = false;
                 extraSpell = false;
                 return;
@@ -58,17 +60,21 @@ public static class SpellBoxPatcher
         }
 
         [UsedImplicitly]
-        public static void Postfix(SpellBox __instance)
+        public static void Postfix(SpellBox __instance, string __state)
         {
             //PATCH: show actual class/subclass name in the multiclass tag during spell selection on level up
-            if (string.IsNullOrEmpty(_extraTag))
+            ApplyMulticlassExtraSpellTooltip(__instance, __state);
+            UiTextHelpers.KeepSpellBoxTextInside(__instance);
+        }
+
+        private static void ApplyMulticlassExtraSpellTooltip(SpellBox spellBox, string extraTag)
+        {
+            if (!spellBox || string.IsNullOrEmpty(extraTag))
             {
                 return;
             }
 
-            var parts = _extraTag.Split('|');
-
-            _extraTag = null;
+            var parts = extraTag.Split('|');
 
             if (parts.Length != 2)
             {
@@ -88,15 +94,27 @@ public static class SpellBoxPatcher
                 case LevelUpHelper.ExtraClassTag when
                     DatabaseHelper.TryGetDefinition<CharacterClassDefinition>(name, out var classDef):
                     name = classDef.FormatTitle();
-                    __instance.autoPreparedTooltip.Content = Gui.Format(CLASS_FORMAT, name);
+                    spellBox.autoPreparedTooltip.Content = Gui.Format(CLASS_FORMAT, name);
                     break;
 
                 case LevelUpHelper.ExtraSubclassTag when
                     DatabaseHelper.TryGetDefinition<CharacterSubclassDefinition>(name, out var subDef):
                     name = subDef.FormatTitle();
-                    __instance.autoPreparedTooltip.Content = Gui.Format(SUBCLASS_FORMAT, name);
+                    spellBox.autoPreparedTooltip.Content = Gui.Format(SUBCLASS_FORMAT, name);
                     break;
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(SpellBox), nameof(SpellBox.Refresh))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Refresh_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(SpellBox __instance)
+        {
+            UiTextHelpers.KeepSpellBoxTextInside(__instance);
         }
     }
 }

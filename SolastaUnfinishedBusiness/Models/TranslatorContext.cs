@@ -4,7 +4,6 @@ using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Text.RegularExpressions;
 using I2.Loc;
 using JetBrains.Annotations;
 using Newtonsoft.Json;
@@ -35,8 +34,6 @@ internal static class TranslatorContext
 
     internal static readonly List<LanguageEntry> Languages = [];
 
-    private static readonly Regex RegexHasCJK = new(@"\p{IsCJKUnifiedIdeographs}", RegexOptions.Compiled);
-
     /// <summary>
     ///     Maps unofficial language codes to official language codes.
     /// </summary>
@@ -44,17 +41,45 @@ internal static class TranslatorContext
 
     public static bool IsCJKChar(char c)
     {
-        return c >= 0x4E00 && c <= 0x9FA5;
+        return IsInRange(c, 0x1100, 0x11FF) || // Hangul Jamo
+               IsInRange(c, 0x3000, 0x303F) || // CJK Symbols and Punctuation
+               IsInRange(c, 0x3040, 0x309F) || // Hiragana
+               IsInRange(c, 0x30A0, 0x30FF) || // Katakana
+               IsInRange(c, 0x31F0, 0x31FF) || // Katakana Phonetic Extensions
+               IsInRange(c, 0x3130, 0x318F) || // Hangul Compatibility Jamo
+               IsInRange(c, 0x3400, 0x4DBF) || // CJK Unified Ideographs Extension A
+               IsInRange(c, 0x4E00, 0x9FFF) || // CJK Unified Ideographs
+               IsInRange(c, 0xAC00, 0xD7AF) || // Hangul Syllables
+               IsInRange(c, 0xF900, 0xFAFF) || // CJK Compatibility Ideographs
+               IsInRange(c, 0xFF00, 0xFFEF); // Halfwidth and Fullwidth Forms
     }
 
     public static bool HasCJKChar(string s)
     {
-        return s.Length > 0 && RegexHasCJK.IsMatch(s);
+        if (string.IsNullOrEmpty(s))
+        {
+            return false;
+        }
+
+        foreach (var c in s)
+        {
+            if (IsCJKChar(c))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static bool HasCJKCharQuick(string s)
     {
-        return s.Length > 0 && IsCJKChar(s[0]);
+        return !string.IsNullOrEmpty(s) && IsCJKChar(s[0]);
+    }
+
+    private static bool IsInRange(char c, int start, int end)
+    {
+        return c >= start && c <= end;
     }
 
     internal static void EarlyLoad()

@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -16,9 +17,14 @@ public static class CharacterStatsPanelPatcher
         [UsedImplicitly]
         public static void Postfix(CharacterStatsPanel __instance)
         {
+            UiTextHelpers.KeepCharacterStatsPanelTextInside(__instance);
+
             //PATCH: Format hit dice box to support MC scenarios (MULTICLASS)
+            var hero = __instance.guiCharacter?.RulesetCharacterHero;
+
             if (!__instance.hitDiceBox.Activated ||
-                __instance.guiCharacter.RulesetCharacterHero.ClassesAndLevels.Count <= 1)
+                hero == null ||
+                hero.ClassesAndLevels.Count <= 1)
             {
                 return;
             }
@@ -26,6 +32,7 @@ public static class CharacterStatsPanelPatcher
             __instance.hitDiceBox.ValueLabel.Text =
                 MulticlassGameUi.GetAllClassesHitDiceLabel(__instance.guiCharacter, out var dieTypeCount);
             __instance.hitDiceBox.ValueLabel.TMP_Text.fontSize = MulticlassGameUi.GetFontSize(dieTypeCount);
+            UiTextHelpers.FitCharacterStatBox(__instance.hitDiceBox);
         }
     }
 }

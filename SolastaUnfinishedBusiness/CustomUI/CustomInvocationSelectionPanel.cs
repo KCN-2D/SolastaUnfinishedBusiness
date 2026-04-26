@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using UnityEngine;
@@ -1362,6 +1363,7 @@ internal static class SpellBoxExtensions
         }
 
         title.Text = gui.Title;
+        UiTextHelpers.KeepSpellBoxTextInside(instance);
 
         image.SetupSprite(gui.spriteReference);
     }
