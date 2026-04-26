@@ -669,4 +669,4 @@ UI/&RecipeFilterAmmunition=弹药
 UI/&RecipeFilterArmor=护甲
 UI/&RecipeFilterUsableDevices=可用设备
 UI/&RecipeFilterWeapons=武器
-Tooltip/&PreReqAnyAbilityScoreList={0}达到{1}或更高
+Tooltip/&PreReqAnyAbilityScoreList={0}中任一项达到{1}或更高

@@ -669,4 +669,4 @@ UI/&RecipeFilterAmmunition=Munición
 UI/&RecipeFilterArmor=Armadura
 UI/&RecipeFilterUsableDevices=Dispositivos utilizables
 UI/&RecipeFilterWeapons=Armas
-Tooltip/&PreReqAnyAbilityScoreList={0} {1}+
+Tooltip/&PreReqAnyAbilityScoreList=Cualquiera de {0} debe ser {1}+

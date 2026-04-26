@@ -32602,4 +32602,4 @@ Voice/&Male2Title=
 Voice/&Voice1Title=목소리 1
 Voice/&Voice2Title=목소리 2
 Voice/&Voice3Title=목소리 3
-Tooltip/&PreReqAnyAbilityScoreList={0} {1} 이상
+Tooltip/&PreReqAnyAbilityScoreList={0} 중 하나가 {1} 이상

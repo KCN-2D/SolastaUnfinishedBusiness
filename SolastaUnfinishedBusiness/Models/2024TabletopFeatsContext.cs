@@ -42,6 +42,8 @@ public static partial class Tabletop2024Context
     private const string ElementalAdept2024Family = "ElementalAdept2024";
     private const string Observant2024Family = "Observant2024";
     private const string KeenMind2024Family = "KeenMind2024";
+    private const int GeneralFeat2024RequiredLevel = 4;
+    private const string Actor2024FeatName = "FeatActor2024";
     private const string Durable2024FeatName = "FeatDurable2024";
     private const string Alert2024FeatName = "FeatAlert2024";
     private const string Alert2024ReadyStepConditionName = "ConditionFeatAlert2024ReadyStep";
@@ -402,6 +404,7 @@ public static partial class Tabletop2024Context
     private static FeatDefinition _featCrossbowExpert2024;
     private static FeatDefinition _featSharpshooter2024;
     private static FeatDefinition _featDefensiveDuelist2024;
+    private static FeatDefinition _featActor2024;
     private static FeatDefinition _featDurable2024;
     private static FeatDefinition _featHealer2024;
     private static FeatDefinition _featLucky2024;
@@ -454,6 +457,7 @@ public static partial class Tabletop2024Context
             BuildSpeedy();
             BuildObservant2024();
             BuildKeenMind2024();
+            BuildActor2024();
             BuildDurable2024();
             BuildGreatWeaponMaster2024();
             BuildSharpshooter2024();
@@ -605,6 +609,30 @@ public static partial class Tabletop2024Context
         return feat != null &&
                Main.Settings.EnableTabletopFeatRules2024 &&
                IsManagedTabletopFeat(feat);
+    }
+
+    internal static bool TryValidateManagedTabletopFeatLevel4Prerequisite(
+        FeatDefinition feat,
+        RulesetCharacterHero hero,
+        out string output)
+    {
+        output = null;
+
+        if (!RequiresManagedTabletopFeatLevel4Prerequisite(feat))
+        {
+            return true;
+        }
+
+        output = Gui.Format("Tooltip/&PreReqLevelFormat", GeneralFeat2024RequiredLevel.ToString());
+        var level = hero?.ClassesHistory?.Count ?? 0;
+        var valid = Main.Settings.DisableLevelPrerequisitesOnModFeats || level >= GeneralFeat2024RequiredLevel;
+
+        if (!valid)
+        {
+            output = Gui.Colorize(output, Gui.ColorFailure);
+        }
+
+        return valid;
     }
 
     internal static (bool active, bool disableLevel, bool disableRace, bool disableCastSpell)
@@ -964,6 +992,35 @@ public static partial class Tabletop2024Context
         _featGroupAthlete2024.GuiPresentation.description = "Feat/&FeatGroupAthleteDescription";
         SetFeatVisibility(_featGroupAthlete2024, false);
         RegisterManagedTabletopFeats(true, _featGroupAthlete2024);
+    }
+
+    private static void BuildActor2024()
+    {
+        var baseDescription = Gui.Localize("Feat/&FeatActor2024BaseDescription");
+        var deceptionPerformanceAffinity = FeatureDefinitionAbilityCheckAffinityBuilder
+            .Create("AbilityCheckAffinityFeatActor2024Impersonation")
+            .SetGuiPresentationNoContent(true)
+            .BuildAndSetAffinityGroups(
+                CharacterAbilityCheckAffinity.Advantage,
+                DieType.D1,
+                0,
+                AbilityCheckGroupOperation.AddDie,
+                (AttributeDefinitions.Charisma, SkillDefinitions.Deception),
+                (AttributeDefinitions.Charisma, SkillDefinitions.Performance))
+            .AddToDB();
+
+        _featActor2024 = FeatDefinitionBuilder
+            .Create(Actor2024FeatName)
+            .SetGuiPresentation(
+                "Feat/&FeatActor2024Title",
+                BuildHalfFeatDescription(AttributeDefinitions.Charisma, baseDescription),
+                hidden: false)
+            .SetFeatures(AttributeModifierCreed_Of_Solasta, deceptionPerformanceAffinity)
+            .AddToDB();
+
+        ApplyHalfFeatAbilityPrerequisite(_featActor2024, AttributeDefinitions.Charisma);
+        SetFeatVisibility(_featActor2024, false);
+        RegisterManagedTabletopFeats(true, _featActor2024);
     }
 
     private static FeatDefinition BuildAlert2024()
@@ -3200,6 +3257,7 @@ public static partial class Tabletop2024Context
 
     private static void RegisterExplicitManagedCatalogEntries()
     {
+        RegisterManagedCatalogEntry(Actor2024FeatName, _featActor2024, true, true);
         RegisterManagedCatalogEntry("FeatAlert", _featAlert2024, true, true);
         RegisterManagedCatalogEntry("FeatHealer", _featHealer2024, true, true);
         RegisterManagedCatalogEntry("FeatLucky", _featLucky2024, true, true);
@@ -3627,6 +3685,10 @@ public static partial class Tabletop2024Context
         TabletopFeat2024Profiles.Clear();
         TabletopFeat2024Profiles.AddRange(
         [
+            new TabletopFeat2024Profile(
+                _featActor2024,
+                [],
+                [GroupFeats.FeatGroupSkills]),
             new TabletopFeat2024Profile(
                 _featAlert2024,
                 [GetDefinition<FeatDefinition>("FeatAlert")],
@@ -4237,18 +4299,22 @@ public static partial class Tabletop2024Context
         {
             var matchesPrerequisites = service.IsFeatMatchingPrerequisites(heroBuildingData, definition, out var localSameFamily);
             sameFamily |= localSameFamily;
+            var matchesManagedTabletopLevel = TryValidateManagedTabletopFeatLevel4Prerequisite(
+                definition,
+                heroBuildingData.HeroCharacter,
+                out _);
 
             if (definition is not FeatDefinitionWithPrerequisites featDefinitionWithPrerequisites ||
                 featDefinitionWithPrerequisites.Validators.Count == 0)
             {
-                return matchesPrerequisites;
+                return matchesPrerequisites && matchesManagedTabletopLevel;
             }
 
             var (result, _) = featDefinitionWithPrerequisites.Validate(
                 featDefinitionWithPrerequisites,
                 heroBuildingData.HeroCharacter);
 
-            return matchesPrerequisites && result;
+            return matchesPrerequisites && matchesManagedTabletopLevel && result;
         }
 
         bool MatchesGroupedRootPrerequisites(FeatDefinition definition, ref bool sameFamily)
@@ -5504,12 +5570,12 @@ public static partial class Tabletop2024Context
         }
 
         var featureArray = features.Distinct().ToArray();
-        var validatorArray = (sourceDefinition as FeatDefinitionWithPrerequisites)?.Validators
-                .Where(validator => validator != null)
-                .Concat(extraValidators ?? [])
-                .Distinct()
-                .ToArray()
-            ?? (extraValidators ?? []).Where(validator => validator != null).Distinct().ToArray();
+        var validatorArray = FilterManagedTabletopCopiedValidators(
+                (sourceDefinition as FeatDefinitionWithPrerequisites)?.Validators)
+            .Concat(extraValidators ?? [])
+            .Where(validator => validator != null)
+            .Distinct()
+            .ToArray();
         FeatDefinition featDefinition;
 
         if (validatorArray.Length > 0)
@@ -5566,9 +5632,12 @@ public static partial class Tabletop2024Context
             return null;
         }
 
-        var validators = sourceDefinition is FeatDefinitionWithPrerequisites featDefinitionWithPrerequisites
-            ? featDefinitionWithPrerequisites.Validators.Concat([validator]).Distinct().ToArray()
-            : [validator];
+        var validators = FilterManagedTabletopCopiedValidators(
+                (sourceDefinition as FeatDefinitionWithPrerequisites)?.Validators)
+            .Concat([validator])
+            .Where(candidate => candidate != null)
+            .Distinct()
+            .ToArray();
         var featDefinition = FeatDefinitionWithPrerequisitesBuilder
             .Create(name)
             .SetGuiPresentation(
@@ -5850,13 +5919,16 @@ public static partial class Tabletop2024Context
         var featureArray = features.Distinct().ToArray();
         FeatDefinition featDefinition;
 
-        if (sourceDefinition is FeatDefinitionWithPrerequisites featDefinitionWithPrerequisites)
+        var validatorArray = FilterManagedTabletopCopiedValidators(
+            (sourceDefinition as FeatDefinitionWithPrerequisites)?.Validators);
+
+        if (validatorArray.Length > 0)
         {
             featDefinition = FeatDefinitionWithPrerequisitesBuilder
                 .Create(name)
                 .SetGuiPresentation(title, BuildHalfFeatDescription(attribute, baseDescription), sourceDefinition, false)
                 .SetFeatures(featureArray)
-                .SetValidators(featDefinitionWithPrerequisites.Validators.Distinct().ToArray())
+                .SetValidators(validatorArray)
                 .AddToDB();
         }
         else
@@ -5947,9 +6019,9 @@ public static partial class Tabletop2024Context
         {
             var validators = prerequisiteSources
                 .OfType<FeatDefinitionWithPrerequisites>()
-                .SelectMany(definition => definition.Validators)
-                .Where(validator => !clearMustCastSpellsPrerequisite ||
-                                    !IsSpellcastingPrerequisiteValidator(validator))
+                .SelectMany(definition => FilterManagedTabletopCopiedValidators(
+                    definition.Validators,
+                    clearMustCastSpellsPrerequisite))
                 .Distinct()
                 .ToArray();
 
@@ -6121,6 +6193,37 @@ public static partial class Tabletop2024Context
                ContainsSpellcastingPrerequisiteToken(validator.Target?.GetType().Name);
     }
 
+    private static Func<FeatDefinitionWithPrerequisites, RulesetCharacterHero, (bool result, string output)>[]
+        FilterManagedTabletopCopiedValidators(
+            IEnumerable<Func<FeatDefinitionWithPrerequisites, RulesetCharacterHero, (bool result, string output)>>
+                validators,
+            bool clearMustCastSpellsPrerequisite = false)
+    {
+        return validators?
+            .Where(validator => validator != null &&
+                                !IsSupersededManagedTabletopLevelValidator(validator) &&
+                                (!clearMustCastSpellsPrerequisite ||
+                                 !IsSpellcastingPrerequisiteValidator(validator)))
+            .Distinct()
+            .ToArray() ?? [];
+    }
+
+    private static bool IsSupersededManagedTabletopLevelValidator(
+        Func<FeatDefinitionWithPrerequisites, RulesetCharacterHero, (bool result, string output)> validator)
+    {
+        return IsSameValidator(validator, ValidatorsFeat.IsLevel2) ||
+               IsSameValidator(validator, ValidatorsFeat.IsLevel4) ||
+               IsSameValidator(validator, ValidatorsFeat.IsLevel16);
+    }
+
+    private static bool IsSameValidator(Delegate validator, Delegate candidate)
+    {
+        return validator != null &&
+               candidate != null &&
+               validator.Method == candidate.Method &&
+               Equals(validator.Target, candidate.Target);
+    }
+
     private static bool ContainsSpellcastingPrerequisiteToken(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -6220,7 +6323,10 @@ public static partial class Tabletop2024Context
 
         FeatDefinition group;
 
-        if (prerequisiteSource is FeatDefinitionWithPrerequisites { Validators.Count: > 0 } featWithPrerequisites)
+        var validatorArray = FilterManagedTabletopCopiedValidators(
+            (prerequisiteSource as FeatDefinitionWithPrerequisites)?.Validators);
+
+        if (validatorArray.Length > 0)
         {
             group = FeatDefinitionWithPrerequisitesBuilder
                 .Create(name)
@@ -6228,7 +6334,7 @@ public static partial class Tabletop2024Context
                 .AddCustomSubFeatures(new GroupedFeat(childFeats))
                 .SetFeatFamily(family)
                 .SetFeatures()
-                .SetValidators(featWithPrerequisites.Validators.Distinct().ToArray())
+                .SetValidators(validatorArray)
                 .AddToDB();
         }
         else
@@ -6427,6 +6533,68 @@ public static partial class Tabletop2024Context
     {
         return IsSelectableManagedTabletopFeatLeaf(feat) &&
                GetCanonicalTabletopFeatName(feat.Name) != "FeatSkilled";
+    }
+
+    private static bool RequiresManagedTabletopFeatLevel4Prerequisite(FeatDefinition feat)
+    {
+        return Main.Settings.EnableTabletopFeatRules2024 &&
+               IsManagedTabletopFeat(feat) &&
+               !IsNonSelectableTabletopGroup(feat) &&
+               !IsTabletopContainerGroup(feat) &&
+               !IsManagedTabletopFeatLevel4PrerequisiteExempt(feat);
+    }
+
+    private static bool IsManagedTabletopFeatLevel4PrerequisiteExempt(FeatDefinition feat)
+    {
+        if (feat == null)
+        {
+            return true;
+        }
+
+        var names = EnumerateManagedTabletopSelfAndParentNames(feat.Name)
+            .Select(GetCanonicalTabletopFeatName)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .Distinct()
+            .ToArray();
+
+        if (names.Contains("FeatGroupOrigin") ||
+            names.Contains("FeatGroupFightingStyle") ||
+            names.Contains("FeatGroupMagicInitiate"))
+        {
+            return true;
+        }
+
+        return names.Any(IsManagedTabletopCanonicalNameInOriginContainer);
+    }
+
+    private static IEnumerable<string> EnumerateManagedTabletopSelfAndParentNames(string featName)
+    {
+        var currentName = featName;
+        var processedNames = new HashSet<string>();
+
+        while (!string.IsNullOrEmpty(currentName) && processedNames.Add(currentName))
+        {
+            yield return currentName;
+
+            if (!ManagedTabletopParentNameByDefinitionName.TryGetValue(currentName, out currentName))
+            {
+                yield break;
+            }
+        }
+    }
+
+    private static bool IsManagedTabletopCanonicalNameInOriginContainer(string canonicalName)
+    {
+        if (ManagedTabletopContainerNamesByCanonicalName.TryGetValue(canonicalName, out var containerNames) &&
+            containerNames.Contains("FeatGroupOrigin"))
+        {
+            return true;
+        }
+
+        return TabletopFeat2024Profiles.Any(profile =>
+            profile.Replacement != null &&
+            GetCanonicalTabletopFeatName(profile.Replacement.Name) == canonicalName &&
+            profile.TargetGroups.Any(group => group?.Name == "FeatGroupOrigin"));
     }
 
     private static bool TryAddDisplayableManagedTabletopFeat(

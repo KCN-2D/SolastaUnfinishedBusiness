@@ -662,4 +662,4 @@ UI/&RecipeFilterAmmunition=Боеприпасы
 UI/&RecipeFilterArmor=Броня
 UI/&RecipeFilterUsableDevices=Используемые
 UI/&RecipeFilterWeapons=Оружие
-Tooltip/&PreReqAnyAbilityScoreList={0} {1}+
+Tooltip/&PreReqAnyAbilityScoreList=Одна из характеристик {0} должна быть {1}+

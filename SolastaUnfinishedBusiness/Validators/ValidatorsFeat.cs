@@ -296,14 +296,6 @@ internal static class ValidatorsFeat
 
     internal static string LocalizePrerequisiteAbilityScoreTitle(string abilityScoreName)
     {
-        var longTitle = Gui.Localize($"Attribute/&{abilityScoreName}TitleLong");
-
-        if (!string.IsNullOrEmpty(longTitle) &&
-            !longTitle.Contains("/&"))
-        {
-            return longTitle;
-        }
-
         var title = Gui.Localize($"Attribute/&{abilityScoreName}Title");
 
         return string.IsNullOrEmpty(title) || title.Contains("/&")

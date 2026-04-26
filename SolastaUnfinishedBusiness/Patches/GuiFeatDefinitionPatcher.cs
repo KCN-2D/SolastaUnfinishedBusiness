@@ -8,7 +8,6 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
-using SolastaUnfinishedBusiness.Validators;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -37,7 +36,13 @@ public static class GuiFeatDefinitionPatcher
             ref string prerequisiteOutput,
             (bool active, bool disableLevel, bool disableRace, bool disableCastSpell) __state)
         {
-            ReplaceVanillaAbilityScorePrerequisiteTitle(feat, ref prerequisiteOutput);
+            var matchesManagedTabletopLevel = Tabletop2024Context.TryValidateManagedTabletopFeatLevel4Prerequisite(
+                feat,
+                hero,
+                out var managedTabletopLevelOutput);
+
+            __result = __result && matchesManagedTabletopLevel;
+            AppendPrerequisiteOutput(ref prerequisiteOutput, managedTabletopLevelOutput);
 
             //PATCH: Enforces Feats With PreRequisites
             if (feat is not FeatDefinitionWithPrerequisites featDefinitionWithPrerequisites
@@ -57,12 +62,7 @@ public static class GuiFeatDefinitionPatcher
                 return;
             }
 
-            if (!string.IsNullOrEmpty(prerequisiteOutput))
-            {
-                output = '\n' + output;
-            }
-
-            prerequisiteOutput += output;
+            AppendPrerequisiteOutput(ref prerequisiteOutput, output);
             Tabletop2024Context.RestoreModFeatPrerequisiteOverride(__state);
         }
 
@@ -88,40 +88,19 @@ public static class GuiFeatDefinitionPatcher
             return hero.FeaturesByType<FeatureDefinitionCastSpell>().Count;
         }
 
-        private static void ReplaceVanillaAbilityScorePrerequisiteTitle(
-            FeatDefinition feat,
-            ref string prerequisiteOutput)
+        private static void AppendPrerequisiteOutput(ref string prerequisiteOutput, string output)
         {
-            if (feat == null ||
-                !feat.minimalAbilityScorePrerequisite ||
-                string.IsNullOrEmpty(feat.minimalAbilityScoreName) ||
-                string.IsNullOrEmpty(prerequisiteOutput))
+            if (string.IsNullOrEmpty(output))
             {
                 return;
             }
 
-            var shortTitle = LocalizeShortAbilityScoreTitle(feat.minimalAbilityScoreName);
-            var longTitle = ValidatorsFeat.LocalizePrerequisiteAbilityScoreTitle(feat.minimalAbilityScoreName);
-
-            if (shortTitle == longTitle)
+            if (!string.IsNullOrEmpty(prerequisiteOutput))
             {
-                return;
+                output = '\n' + output;
             }
 
-            var value = feat.minimalAbilityScoreValue.ToString();
-            var shortPrerequisite = Gui.Format("Tooltip/&FeatPrerequisiteAbilityScoreFormat", shortTitle, value);
-            var longPrerequisite = Gui.Format("Tooltip/&FeatPrerequisiteAbilityScoreFormat", longTitle, value);
-
-            prerequisiteOutput = prerequisiteOutput.Replace(shortPrerequisite, longPrerequisite);
-        }
-
-        private static string LocalizeShortAbilityScoreTitle(string abilityScoreName)
-        {
-            var title = Gui.Localize($"Attribute/&{abilityScoreName}Title");
-
-            return string.IsNullOrEmpty(title) || title.Contains("/&")
-                ? abilityScoreName
-                : title;
+            prerequisiteOutput += output;
         }
     }
 

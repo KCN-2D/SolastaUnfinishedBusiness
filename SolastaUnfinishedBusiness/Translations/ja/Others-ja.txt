@@ -662,4 +662,4 @@ UI/&RecipeFilterAmmunition=弾薬
 UI/&RecipeFilterArmor=鎧
 UI/&RecipeFilterUsableDevices=使用可能な装置
 UI/&RecipeFilterWeapons=武器
-Tooltip/&PreReqAnyAbilityScoreList=能力値：{0}が{1}以上
+Tooltip/&PreReqAnyAbilityScoreList=能力値：{0}のいずれかが{1}以上

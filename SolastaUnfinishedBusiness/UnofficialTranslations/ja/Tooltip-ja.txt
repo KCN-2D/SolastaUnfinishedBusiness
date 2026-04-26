@@ -320,4 +320,4 @@ Tooltip/&WeaponNotLightWarningDescription=この武器は軽武器ではない�
 Tooltip/&WeaponNotMonkOrShieldWarningDescription=この武器はモンク武器ではないか、あるいは盾であるため、武術のボーナスを使えません。
 Tooltip/&WeightCapacityMultiplierTitle=運搬能力倍率
 Tooltip/&WeightTitle=重さ
-Tooltip/&PreReqAnyAbilityScoreList=能力値：{0}が{1}以上
+Tooltip/&PreReqAnyAbilityScoreList=能力値：{0}のいずれかが{1}以上

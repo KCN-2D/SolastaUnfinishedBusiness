@@ -320,4 +320,4 @@ Tooltip/&WeaponNotLightWarningDescription=Esta arma no es ligera, lo que impide 
 Tooltip/&WeaponNotMonkOrShieldWarningDescription=Esta arma no es un arma de Monje o es un escudo, lo que impide que el personaje use la bonificación de Artes Marciales.
 Tooltip/&WeightCapacityMultiplierTitle=Multiplicador de capacidad de carga
 Tooltip/&WeightTitle=Peso
-Tooltip/&PreReqAnyAbilityScoreList={0} {1}+
+Tooltip/&PreReqAnyAbilityScoreList=Cualquiera de {0} debe ser {1}+
