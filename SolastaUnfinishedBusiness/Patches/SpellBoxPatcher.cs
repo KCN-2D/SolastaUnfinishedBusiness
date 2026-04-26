@@ -13,6 +13,13 @@ public static class SpellBoxPatcher
 {
     internal static string NormalizeSpellSourceTag(string tag)
     {
+        if (string.IsNullOrEmpty(tag))
+        {
+            return tag;
+        }
+
+        tag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(tag);
+
         return tag == "DOMAIN" ? "Domain" : tag;
     }
 

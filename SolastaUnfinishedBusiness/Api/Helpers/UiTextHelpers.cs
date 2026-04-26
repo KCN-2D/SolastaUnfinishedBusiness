@@ -10,7 +10,6 @@ internal static class UiTextHelpers
     private const float TitleAbsoluteMinFontSize = 8f;
     private const float TagMinFontScale = 0.65f;
     private const float TagAbsoluteMinFontSize = 7f;
-    private const float SpellBoxTagHorizontalPadding = 8f;
     private const float StatTitleMinFontScale = 0.62f;
     private const float StatTitleAbsoluteMinFontSize = 7f;
     private const float StatValueMinFontScale = 0.72f;
@@ -60,39 +59,18 @@ internal static class UiTextHelpers
             return;
         }
 
+        if (IsCanvasRebuildInProgress())
+        {
+            return;
+        }
+
         FitSingleLine(spellBox.titleLabel);
         FitSingleLine(spellBox.autoPreparedTitle, TagMinFontScale, TagAbsoluteMinFontSize);
-        ConstrainSpellBoxTagWidth(spellBox);
     }
 
-    private static void ConstrainSpellBoxTagWidth(SpellBox spellBox)
+    private static bool IsCanvasRebuildInProgress()
     {
-        var label = spellBox.autoPreparedTitle;
-
-        if (!label)
-        {
-            return;
-        }
-
-        var text = label.TMP_Text;
-        var tagRect = label.RectTransform;
-        var boxWidth = spellBox.RectTransform.rect.width;
-
-        if (!text || !tagRect || boxWidth <= SpellBoxTagHorizontalPadding)
-        {
-            return;
-        }
-
-        var maxWidth = boxWidth - SpellBoxTagHorizontalPadding;
-        var preferredWidth = Mathf.Max(1f, text.preferredWidth);
-        var width = Mathf.Clamp(preferredWidth, 1f, maxWidth);
-        var layoutElement = label.GetComponent<LayoutElement>() ?? label.gameObject.AddComponent<LayoutElement>();
-
-        layoutElement.minWidth = 0f;
-        layoutElement.preferredWidth = width;
-        layoutElement.flexibleWidth = 0f;
-        tagRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
-        LayoutRebuilder.MarkLayoutForRebuild(tagRect);
+        return CanvasUpdateRegistry.IsRebuildingLayout() || CanvasUpdateRegistry.IsRebuildingGraphics();
     }
 
     internal static void FitCharacterStatBox(CharacterStatBox box)

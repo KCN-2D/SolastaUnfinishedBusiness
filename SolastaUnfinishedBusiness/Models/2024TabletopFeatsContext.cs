@@ -75,6 +75,18 @@ public static partial class Tabletop2024Context
     private const string GreatWeaponMaster2024NotificationTag = "GreatWeaponMaster2024";
     private const string MagicInitiate2024Family = "FeatMagicInitiate";
     private const string MagicInitiate2024SpellTag = "MagicInitiate2024";
+    private static readonly MagicInitiate2024ClassProfile[] MagicInitiate2024ClassProfiles =
+    [
+        new("Bard", "CastSpellBard", () => ClassHolder.Bard),
+        new("Cleric", "CastSpellCleric", () => ClassHolder.Cleric),
+        new("Druid", "CastSpellDruid", () => ClassHolder.Druid),
+        new("Sorcerer", "CastSpellSorcerer", () => ClassHolder.Sorcerer),
+        new("Warlock", "CastSpellWarlock", () => ClassHolder.Warlock),
+        new("Wizard", "CastSpellWizard", () => ClassHolder.Wizard)
+    ];
+    private static readonly HashSet<string> MagicInitiate2024ClassNames = MagicInitiate2024ClassProfiles
+        .Select(x => x.ClassName)
+        .ToHashSet(StringComparer.Ordinal);
     private const string ModeratelyArmored2024Family = "ModeratelyArmored2024";
     private const string HeavilyArmored2024Family = "HeavilyArmored2024";
     private const string HeavilyArmored2024GroupFeatName = "FeatGroupHeavilyArmored2024";
@@ -2962,11 +2974,11 @@ public static partial class Tabletop2024Context
                 continue;
             }
 
-            var displayTag = GetTabletop2024FeatSpellDisplayTag(spellTag.Name);
+            var sourceTag = GetTabletop2024FeatSpellSourceTag(spellTag.Name);
 
             foreach (var spell in repertoire.KnownSpells)
             {
-                yield return (spell, displayTag);
+                yield return (spell, sourceTag);
             }
 
             if (!(spellTag.ForceFixedList || spellCastingFeature.SpellKnowledge == SpellKnowledge.FixedList) ||
@@ -2979,12 +2991,31 @@ public static partial class Tabletop2024Context
                          .Where(x => x.Level > 0)
                          .SelectMany(x => x.Spells))
             {
-                yield return (spell, displayTag);
+                yield return (spell, sourceTag);
             }
         }
     }
 
-    private static string GetTabletop2024FeatSpellDisplayTag(string spellTagName)
+    internal static string GetTabletop2024FeatSpellSelectionTag(string spellTagName)
+    {
+        if (TryGetMagicInitiate2024SpellSelectionTag(spellTagName, out var selectionTag))
+        {
+            return selectionTag;
+        }
+
+        return GetNormalizedTabletop2024FeatSpellTag(spellTagName);
+    }
+
+    internal static string GetTabletop2024FeatSpellSourceTag(string spellTagName)
+    {
+        var selectionTag = GetTabletop2024FeatSpellSelectionTag(spellTagName);
+
+        return IsMagicInitiate2024SpellTagName(selectionTag)
+            ? MagicInitiate2024SpellTag
+            : selectionTag;
+    }
+
+    private static string GetNormalizedTabletop2024FeatSpellTag(string spellTagName)
     {
         return spellTagName switch
         {
@@ -2992,6 +3023,68 @@ public static partial class Tabletop2024Context
             ShadowTouched2024FixedTag => ShadowTouched2024ChoiceTag,
             _ => spellTagName
         };
+    }
+
+    internal static bool TryGetTabletop2024FeatSpellLearnStepTitle(
+        HeroDefinitions.PointsPoolType poolType,
+        string spellTagName,
+        out string title)
+    {
+        title = null;
+
+        var selectionTag = GetTabletop2024FeatSpellSelectionTag(spellTagName);
+        var poolTag = poolType switch
+        {
+            HeroDefinitions.PointsPoolType.Cantrip => "Cantrip",
+            HeroDefinitions.PointsPoolType.Spell => "Spell",
+            HeroDefinitions.PointsPoolType.CantripOrSpell => "CantripOrSpell",
+            _ => null
+        };
+
+        if (string.IsNullOrEmpty(selectionTag) || string.IsNullOrEmpty(poolTag))
+        {
+            return false;
+        }
+
+        var titleKey = $"Tag/&{selectionTag}{poolTag}SpecialTagTitle";
+
+        return TryLocalizeTabletop2024Title(titleKey, out title);
+    }
+
+    internal static bool TryGetTabletop2024SpellRepertoireTitle(
+        RulesetSpellRepertoire spellRepertoire,
+        out string title)
+    {
+        title = null;
+
+        var spellTag = spellRepertoire?.SpellCastingFeature?
+            .GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.Name;
+        var selectionTag = GetTabletop2024FeatSpellSelectionTag(spellTag);
+
+        if (!IsMagicInitiate2024SpellTagName(selectionTag))
+        {
+            return false;
+        }
+
+        return TryLocalizeTabletop2024Title($"Screen/&{selectionTag}ExtraSpellTitle", out title);
+    }
+
+    private static bool TryLocalizeTabletop2024Title(string titleKey, out string title)
+    {
+        title = null;
+
+        var localizedTitle = Gui.Localize(titleKey);
+
+        if (string.IsNullOrEmpty(localizedTitle) ||
+            localizedTitle == titleKey ||
+            localizedTitle.Contains("/&"))
+        {
+            return false;
+        }
+
+        title = localizedTitle;
+
+        return true;
     }
 
     private static bool IsSlotCastableTabletop2024FeatSpellTag(
@@ -3003,7 +3096,8 @@ public static partial class Tabletop2024Context
             return false;
         }
 
-        if (SlotCastableTabletop2024FeatSpellTags.Contains(spellTag.Name))
+        if (SlotCastableTabletop2024FeatSpellTags.Contains(spellTag.Name) ||
+            IsMagicInitiate2024SpellTagName(spellTag.Name))
         {
             return true;
         }
@@ -3015,31 +3109,99 @@ public static partial class Tabletop2024Context
                spellCastingFeature.Name.StartsWith("CastSpellFeatMagicInitiate", StringComparison.Ordinal);
     }
 
+    private static string GetMagicInitiate2024LegacyFeatName(string className)
+    {
+        return $"FeatMagicInitiate{className}";
+    }
+
+    private static string GetMagicInitiate2024FeatName(string className)
+    {
+        return $"{GetMagicInitiate2024LegacyFeatName(className)}2024";
+    }
+
+    private static string GetMagicInitiate2024FamilyTag(string className)
+    {
+        return GetMagicInitiate2024LegacyFeatName(className);
+    }
+
+    private static string GetMagicInitiate2024SpellTag(string className)
+    {
+        return $"{MagicInitiate2024SpellTag}{className}";
+    }
+
+    private static bool TryGetMagicInitiate2024SpellSelectionTag(string tag, out string selectionTag)
+    {
+        selectionTag = null;
+
+        if (string.IsNullOrEmpty(tag))
+        {
+            return false;
+        }
+
+        foreach (var profile in MagicInitiate2024ClassProfiles)
+        {
+            var classSpellTag = GetMagicInitiate2024SpellTag(profile.ClassName);
+
+            if (tag == classSpellTag ||
+                tag.EndsWith(classSpellTag, StringComparison.Ordinal))
+            {
+                selectionTag = classSpellTag;
+
+                return true;
+            }
+        }
+
+        if (tag == MagicInitiate2024SpellTag ||
+            tag.EndsWith(MagicInitiate2024SpellTag, StringComparison.Ordinal))
+        {
+            selectionTag = MagicInitiate2024SpellTag;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsMagicInitiate2024SpellTagName(string tag)
+    {
+        if (string.IsNullOrEmpty(tag))
+        {
+            return false;
+        }
+
+        if (tag == MagicInitiate2024SpellTag)
+        {
+            return true;
+        }
+
+        if (!tag.StartsWith(MagicInitiate2024SpellTag, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var className = tag.Substring(MagicInitiate2024SpellTag.Length);
+
+        return MagicInitiate2024ClassNames.Contains(className);
+    }
+
     private static void BuildMagicInitiate2024()
     {
         MagicInitiate2024ByLegacyName.Clear();
 
         var magicInitiateFeats = new List<FeatDefinition>();
-        var castSpells = new List<(FeatureDefinitionCastSpell Feature, ClassHolder ClassHolder)>
-        {
-            (GetDefinition<FeatureDefinitionCastSpell>("CastSpellBard"), ClassHolder.Bard),
-            (GetDefinition<FeatureDefinitionCastSpell>("CastSpellCleric"), ClassHolder.Cleric),
-            (GetDefinition<FeatureDefinitionCastSpell>("CastSpellDruid"), ClassHolder.Druid),
-            (GetDefinition<FeatureDefinitionCastSpell>("CastSpellSorcerer"), ClassHolder.Sorcerer),
-            (GetDefinition<FeatureDefinitionCastSpell>("CastSpellWarlock"), ClassHolder.Warlock),
-            (GetDefinition<FeatureDefinitionCastSpell>("CastSpellWizard"), ClassHolder.Wizard)
-        };
         var groupTitle = Gui.Localize("Feat/&FeatGroupMagicInitiateTitle");
         var groupDescription = Gui.Localize("Feat/&FeatGroupMagicInitiate2024Description");
 
-        foreach (var (castSpell, classHolder) in castSpells)
+        foreach (var profile in MagicInitiate2024ClassProfiles)
         {
+            var castSpell = GetDefinition<FeatureDefinitionCastSpell>(profile.CastSpellName);
+            var classHolder = profile.ClassHolder;
             var spellList = castSpell.SpellListDefinition;
-            var className = spellList.Name.Replace("SpellList", "");
-            var classDefinition = GetDefinition<CharacterClassDefinition>(className);
-            var classTitle = classDefinition.FormatTitle();
-            var legacyFeatName = $"FeatMagicInitiate{className}";
-            var featName = $"{legacyFeatName}2024";
+            var className = profile.ClassName;
+            var classTitle = classHolder.Class.FormatTitle();
+            var legacyFeatName = GetMagicInitiate2024LegacyFeatName(className);
+            var featName = GetMagicInitiate2024FeatName(className);
+            var spellTag = GetMagicInitiate2024SpellTag(className);
             var description = Gui.Format("Feat/&FeatMagicInitiate2024Description", classTitle);
             var featureDefinitionCastSpell = FeatureDefinitionCastSpellBuilder
                 .Create(castSpell, $"CastSpell{featName}")
@@ -3056,7 +3218,7 @@ public static partial class Tabletop2024Context
                 .SetReplacedSpells(1, 0)
                 .SetUniqueLevelSlots(false)
                 .SetSpellList(spellList)
-                .AddCustomSubFeatures(new FeatHelpers.SpellTag(MagicInitiate2024SpellTag), classHolder)
+                .AddCustomSubFeatures(new FeatHelpers.SpellTag(spellTag), classHolder)
                 .AddToDB();
             var cantripPool = FeatureDefinitionPointPoolBuilder
                 .Create($"PointPool{featName}Cantrip")
@@ -3065,7 +3227,7 @@ public static partial class Tabletop2024Context
                     HeroDefinitions.PointsPoolType.Cantrip,
                     2,
                     spellList,
-                    MagicInitiate2024SpellTag)
+                    spellTag)
                 .AddToDB();
             var spellPool = FeatureDefinitionPointPoolBuilder
                 .Create($"PointPool{featName}Spell")
@@ -3074,7 +3236,7 @@ public static partial class Tabletop2024Context
                     HeroDefinitions.PointsPoolType.Spell,
                     1,
                     spellList,
-                    MagicInitiate2024SpellTag,
+                    spellTag,
                     1,
                     1)
                 .AddToDB();
@@ -3085,7 +3247,7 @@ public static partial class Tabletop2024Context
                     description,
                     hidden: false)
                 .SetFeatures(featureDefinitionCastSpell, cantripPool, spellPool)
-                .SetFeatFamily(MagicInitiate2024Family)
+                .SetFeatFamily(GetMagicInitiate2024FamilyTag(className))
                 .AddCustomSubFeatures(FeatsContext.HideFromFeats.Marker)
                 .AddToDB();
 
@@ -6955,6 +7117,16 @@ public static partial class Tabletop2024Context
 
             yield break;
         }
+    }
+
+    private sealed class MagicInitiate2024ClassProfile(
+        string className,
+        string castSpellName,
+        Func<ClassHolder> getClassHolder)
+    {
+        internal string ClassName => className;
+        internal string CastSpellName => castSpellName;
+        internal ClassHolder ClassHolder => getClassHolder();
     }
 
     private sealed class TabletopFeat2024Profile(

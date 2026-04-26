@@ -6,6 +6,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -14,6 +15,51 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterStageSpellSelectionPanelPatcher
 {
+    private static void RefreshLearnStepTitles(CharacterStageSpellSelectionPanel panel)
+    {
+        if (panel?.learnStepsTable == null)
+        {
+            return;
+        }
+
+        for (var index = 0; index < panel.learnStepsTable.childCount; ++index)
+        {
+            var item = panel.learnStepsTable.GetChild(index).GetComponent<LearnStepItem>();
+
+            if (!item ||
+                !Tabletop2024Context.TryGetTabletop2024FeatSpellLearnStepTitle(
+                    item.PoolType,
+                    item.Tag,
+                    out var title))
+            {
+                continue;
+            }
+
+            SetLearnStepTitle(item, title);
+        }
+    }
+
+    private static void SetLearnStepTitle(LearnStepItem item, string title)
+    {
+        if (!item || string.IsNullOrEmpty(title))
+        {
+            return;
+        }
+
+        SetLearnStepLabel(item.headerLabelActive, title);
+        SetLearnStepLabel(item.headerLabelInactive, title);
+    }
+
+    private static void SetLearnStepLabel(GuiLabel label, string title)
+    {
+        if (!label || label.Text == title)
+        {
+            return;
+        }
+
+        label.Text = title;
+    }
+
     [HarmonyPatch(typeof(CharacterStageSpellSelectionPanel), nameof(CharacterStageSpellSelectionPanel.Refresh))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -52,6 +98,8 @@ public static class CharacterStageSpellSelectionPanelPatcher
         [UsedImplicitly]
         private static void Postfix(CharacterStageSpellSelectionPanel __instance)
         {
+            RefreshLearnStepTitles(__instance);
+
             var levelTable = __instance.spellsByLevelTable;
             var viewWidth = __instance.spellsScrollRect.GetComponent<RectTransform>().rect.width;
             var spacing = levelTable.GetComponent<HorizontalLayoutGroup>().spacing;

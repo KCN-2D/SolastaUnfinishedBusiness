@@ -17,6 +17,13 @@ public static class RulesetSpellRepertoirePatcher
 {
     private static bool FormatTitle(RulesetSpellRepertoire __instance, ref string __result)
     {
+        if (Tabletop2024Context.TryGetTabletop2024SpellRepertoireTitle(__instance, out var title))
+        {
+            __result = title;
+
+            return false;
+        }
+
         if (__instance.SpellCastingClass
             || __instance.SpellCastingSubclass
             || __instance.SpellCastingRace)
