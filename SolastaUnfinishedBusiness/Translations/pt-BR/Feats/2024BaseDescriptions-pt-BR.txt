@@ -73,7 +73,7 @@ Feature/&PowerFeatHealer2024BattleMedicDescription=Como uma ação, você pode t
 Feedback/&FeatHealer2024BattleMedicHitDieRolled={0} rolou um {2} e curou {3} = {4}.
 Feat/&FeatLucky2024Description=Você possui uma quantidade de Pontos de Sorte igual ao seu bônus de proficiência e recupera todos os Pontos de Sorte gastos ao concluir um descanso longo.\nVocê pode gastar 1 Ponto de Sorte para obter Vantagem em sua próxima jogada de ataque, teste de atributo, teste de resistência ou teste de resistência contra a morte.\nQuando uma criatura fizer uma jogada de ataque contra você, você pode gastar 1 Ponto de Sorte para impor Desvantagem nessa jogada.
 Feature/&PowerFeatLucky2024AdvantageTitle=Sortudo
-Feature/&PowerFeatLucky2024AdvantageDescription=Gaste 1 Ponto de Sorte para obter Vantagem em sua próxima jogada de ataque, teste de atributo, teste de resistência ou teste de resistência contra a morte.
+Feature/&PowerFeatLucky2024AdvantageDescription=Ativa/desativa Sortudo. Enquanto estiver ativo, sua próxima jogada válida gasta 1 Ponto de Sorte para obter Vantagem.
 Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b> está atacando você. Você pode gastar 1 Ponto de Sorte para impor Desvantagem nessa jogada de ataque.
 Reaction/&CustomReactionLucky2024DisadvantageTitle=Sortudo
 Reaction/&CustomReactionLucky2024DisadvantageReactTitle=Gastar

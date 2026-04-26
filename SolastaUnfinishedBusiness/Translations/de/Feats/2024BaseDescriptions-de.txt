@@ -73,7 +73,7 @@ Feature/&PowerFeatHealer2024BattleMedicDescription=Als Aktion kannst du eine wil
 Feedback/&FeatHealer2024BattleMedicHitDieRolled={0} hat eine {2} gewürfelt und {3} = {4} geheilt.
 Feat/&FeatLucky2024Description=Du hast eine Anzahl an Glückspunkten in Höhe deines Übungsbonus und erhältst alle verbrauchten Glückspunkte zurück, wenn du eine lange Rast beendest.\nDu kannst 1 Glückspunkt ausgeben, um Vorteil auf deinen nächsten Angriffswurf, Fähigkeitswurf, Rettungswurf oder Todesrettungswurf zu erhalten.\nWenn eine Kreatur einen Angriffswurf gegen dich macht, kannst du 1 Glückspunkt ausgeben, um diesem Angriffswurf Nachteil zu verleihen.
 Feature/&PowerFeatLucky2024AdvantageTitle=Glück
-Feature/&PowerFeatLucky2024AdvantageDescription=Gib 1 Glückspunkt aus, um Vorteil auf deinen nächsten Angriffswurf, Fähigkeitswurf, Rettungswurf oder Todesrettungswurf zu erhalten.
+Feature/&PowerFeatLucky2024AdvantageDescription=Glück aktivieren/deaktivieren. Solange aktiv, verbraucht dein nächster geeigneter Wurf 1 Glückspunkt, um Vorteil zu erhalten.
 Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b> greift dich an. Du kannst 1 Glückspunkt ausgeben, um diesem Angriffswurf Nachteil zu verleihen.
 Reaction/&CustomReactionLucky2024DisadvantageTitle=Glück
 Reaction/&CustomReactionLucky2024DisadvantageReactTitle=Ausgeben

@@ -73,7 +73,7 @@ Feature/&PowerFeatHealer2024BattleMedicDescription=Como acción, puedes atender 
 Feedback/&FeatHealer2024BattleMedicHitDieRolled={0} sacó un {2} y curó a {3} = {4}.
 Feat/&FeatLucky2024Description=Tienes una cantidad de puntos de Suerte igual a tu bonificador por competencia y recuperas todos los puntos de Suerte gastados cuando terminas un descanso largo.\nPuedes gastar 1 punto de Suerte para obtener ventaja en tu próxima tirada de ataque, prueba de característica, tirada de salvación o tirada de salvación contra la muerte.\nCuando una criatura haga una tirada de ataque contra ti, puedes gastar 1 punto de Suerte para imponer desventaja a esa tirada.
 Feature/&PowerFeatLucky2024AdvantageTitle=Afortunado
-Feature/&PowerFeatLucky2024AdvantageDescription=Gasta 1 punto de Suerte para obtener ventaja en tu próxima tirada de ataque, prueba de característica, tirada de salvación o tirada de salvación contra la muerte.
+Feature/&PowerFeatLucky2024AdvantageDescription=Activa o desactiva Afortunado. Mientras esté activo, tu próxima tirada válida gasta 1 punto de Suerte para obtener ventaja.
 Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b> te está atacando. Puedes gastar 1 punto de Suerte para imponer desventaja a esa tirada de ataque.
 Reaction/&CustomReactionLucky2024DisadvantageTitle=Afortunado
 Reaction/&CustomReactionLucky2024DisadvantageReactTitle=Gastar

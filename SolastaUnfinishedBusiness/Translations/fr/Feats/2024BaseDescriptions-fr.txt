@@ -73,7 +73,7 @@ Feature/&PowerFeatHealer2024BattleMedicDescription=En action, vous pouvez soigne
 Feedback/&FeatHealer2024BattleMedicHitDieRolled={0} a lancé un {2} et a soigné {3} = {4}.
 Feat/&FeatLucky2024Description=Vous disposez d'un nombre de points de chance égal à votre bonus de maîtrise, et vous récupérez tous les points dépensés à la fin d'un repos long.\nVous pouvez dépenser 1 point de chance pour obtenir l'avantage à votre prochain jet d'attaque, test de caractéristique, jet de sauvegarde ou jet de sauvegarde contre la mort.\nQuand une créature effectue un jet d'attaque contre vous, vous pouvez dépenser 1 point de chance pour lui imposer le désavantage sur ce jet.
 Feature/&PowerFeatLucky2024AdvantageTitle=Chanceux
-Feature/&PowerFeatLucky2024AdvantageDescription=Dépensez 1 point de chance pour obtenir l'avantage à votre prochain jet d'attaque, test de caractéristique, jet de sauvegarde ou jet de sauvegarde contre la mort.
+Feature/&PowerFeatLucky2024AdvantageDescription=Activer/désactiver Chanceux. Tant que c'est actif, votre prochain jet éligible dépense 1 point de chance pour obtenir l'avantage.
 Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b> vous attaque. Vous pouvez dépenser 1 point de chance pour imposer le désavantage à ce jet d'attaque.
 Reaction/&CustomReactionLucky2024DisadvantageTitle=Chanceux
 Reaction/&CustomReactionLucky2024DisadvantageReactTitle=Dépenser

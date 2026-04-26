@@ -73,7 +73,7 @@ Feature/&PowerFeatHealer2024BattleMedicDescription=作为一个动作，你可�
 Feedback/&FeatHealer2024BattleMedicHitDieRolled={0}掷出{2}并恢复了{3} = {4}。
 Feat/&FeatLucky2024Description=你拥有等同于熟练加值的幸运点数，并在完成一次长休后恢复所有已消耗的幸运点数。\n你可以消耗1点幸运点，在自己下一次攻击检定、属性检定、豁免检定或死亡豁免检定时获得优势。\n当一个生物对你进行攻击检定时，你可以消耗1点幸运点，使该次攻击检定具有劣势。
 Feature/&PowerFeatLucky2024AdvantageTitle=幸运
-Feature/&PowerFeatLucky2024AdvantageDescription=消耗1点幸运点，在自己下一次攻击检定、属性检定、豁免检定或死亡豁免检定时获得优势。
+Feature/&PowerFeatLucky2024AdvantageDescription=激活/停用幸运。激活期间，你的下一次符合条件的掷骰会消耗1点幸运点以获得优势。
 Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b>正在攻击你。你可以消耗1点幸运点，使该次攻击检定具有劣势。
 Reaction/&CustomReactionLucky2024DisadvantageTitle=幸运
 Reaction/&CustomReactionLucky2024DisadvantageReactTitle=消耗

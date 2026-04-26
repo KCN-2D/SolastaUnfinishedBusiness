@@ -73,7 +73,7 @@ Feature/&PowerFeatHealer2024BattleMedicDescription=Come azione, puoi prestare so
 Feedback/&FeatHealer2024BattleMedicHitDieRolled={0} ha tirato un {2} e ha curato {3} = {4}.
 Feat/&FeatLucky2024Description=Hai un numero di Punti Fortuna pari al tuo bonus di competenza e recuperi tutti i Punti Fortuna spesi quando completi un riposo lungo.\nPuoi spendere 1 Punto Fortuna per ottenere vantaggio al tuo prossimo tiro per colpire, prova di caratteristica, tiro salvezza o tiro salvezza contro la morte.\nQuando una creatura effettua un tiro per colpire contro di te, puoi spendere 1 Punto Fortuna per imporre svantaggio a quel tiro.
 Feature/&PowerFeatLucky2024AdvantageTitle=Fortunato
-Feature/&PowerFeatLucky2024AdvantageDescription=Spendi 1 Punto Fortuna per ottenere vantaggio al tuo prossimo tiro per colpire, prova di caratteristica, tiro salvezza o tiro salvezza contro la morte.
+Feature/&PowerFeatLucky2024AdvantageDescription=Attiva/disattiva Fortunato. Quando è attivo, il tuo prossimo tiro valido spende 1 Punto Fortuna per ottenere vantaggio.
 Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b> ti sta attaccando. Puoi spendere 1 Punto Fortuna per imporre svantaggio a quel tiro per colpire.
 Reaction/&CustomReactionLucky2024DisadvantageTitle=Fortunato
 Reaction/&CustomReactionLucky2024DisadvantageReactTitle=Spendi

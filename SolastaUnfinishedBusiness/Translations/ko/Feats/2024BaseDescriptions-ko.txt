@@ -73,7 +73,7 @@ Feature/&PowerFeatHealer2024BattleMedicDescription=행동으로, 자신에게서
 Feedback/&FeatHealer2024BattleMedicHitDieRolled={0}이(가) {2}를 굴리고 {3} = {4}만큼 회복했습니다.
 Feat/&FeatLucky2024Description=당신은 자신의 숙련 보너스와 같은 수의 행운 점수를 가지며, 긴 휴식을 마치면 사용한 행운 점수를 모두 회복합니다.\n행운 점수 1점을 소비해 다음 공격 굴림, 능력 판정, 내성 굴림 또는 죽음 내성 굴림 중 하나에 이점을 얻습니다.\n또한 크리처가 당신을 상대로 공격 굴림을 할 때, 행운 점수 1점을 사용해 그 공격 굴림에 불리점을 줄 수 있습니다.
 Feature/&PowerFeatLucky2024AdvantageTitle=행운
-Feature/&PowerFeatLucky2024AdvantageDescription=행운 점수 1점을 소비해 다음 공격 굴림, 능력 판정, 내성 굴림 또는 죽음 내성 굴림 중 하나에 이점을 얻습니다.
+Feature/&PowerFeatLucky2024AdvantageDescription=행운을 활성화/비활성화합니다. 활성화된 동안 다음 해당 굴림에서 행운 점수 1점을 소비해 이점을 얻습니다.
 Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b>이(가) 당신을 공격하고 있습니다. 행운 점수 1점을 사용해 그 공격 굴림에 불리점을 줄 수 있습니다.
 Reaction/&CustomReactionLucky2024DisadvantageTitle=행운
 Reaction/&CustomReactionLucky2024DisadvantageReactTitle=사용

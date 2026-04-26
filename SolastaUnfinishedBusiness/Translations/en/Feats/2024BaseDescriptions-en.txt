@@ -73,7 +73,7 @@ Feature/&PowerFeatHealer2024BattleMedicDescription=As an action, you can tend on
 Feedback/&FeatHealer2024BattleMedicHitDieRolled={0} rolled a {2} and healed {3} = {4}.
 Feat/&FeatLucky2024Description=You have a number of Luck Points equal to your proficiency bonus, and you regain all expended Luck Points when you finish a long rest.\nYou can spend 1 Luck Point to gain Advantage on the next attack roll, ability check, saving throw, or death saving throw you make.\nWhen a creature makes an attack roll against you, you can spend 1 Luck Point to impose Disadvantage on that roll.
 Feature/&PowerFeatLucky2024AdvantageTitle=Lucky
-Feature/&PowerFeatLucky2024AdvantageDescription=Spend 1 Luck Point to gain Advantage on the next attack roll, ability check, saving throw, or death saving throw you make.
+Feature/&PowerFeatLucky2024AdvantageDescription=Activate/deactivate Lucky. While active, your next eligible roll spends 1 Luck Point to gain Advantage.
 Reaction/&UseLucky2024DisadvantageDescription=<b>{0}</b> is attacking you. You can spend 1 Luck Point to impose Disadvantage on that attack roll.
 Reaction/&CustomReactionLucky2024DisadvantageTitle=Lucky
 Reaction/&CustomReactionLucky2024DisadvantageReactTitle=Spend
