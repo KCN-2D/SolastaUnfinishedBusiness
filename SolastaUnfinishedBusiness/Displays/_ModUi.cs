@@ -60,7 +60,6 @@ internal static class ModUi
         "CloudOfDaggers",
         "CollegeOfAudacity",
         "CollegeOfGuts",
-        "CollegeOfLife",
         "CollegeOfLore",
         "CollegeOfValiance",
         "CommandSpell",
