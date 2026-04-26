@@ -42,13 +42,25 @@ internal static class SaveByLocationContext
 
     private static SavePlace[] GetAllSavePlaces()
     {
-        // Find the most recently touched save file and select the correct location/campaign for that save
+        return EnumerateAllSavePlaces()
+            .Where(d => d.Available)
+            .ToArray();
+    }
+
+    private static IEnumerable<SavePlace> EnumerateAllSavePlaces()
+    {
         return EnumerateDirectories(LocationSaveGameDirectory, LocationType.UserLocation)
             .Concat(EnumerateDirectories(CampaignSaveGameDirectory, LocationType.CustomCampaign))
             .Concat(EnumerateDirectories(OfficialSaveGameDirectory, LocationType.StandardCampaign))
-            .Append(MostRecentFile(DefaultSaveGameDirectory, LocationType.Default))
-            .Where(d => d.Available)
-            .ToArray();
+            .Append(CreateSavePlace(DefaultSaveGameDirectory, LocationType.Default));
+    }
+
+    internal static bool HasAnySaveGames()
+    {
+        return HasAnySaveGames(DefaultSaveGameDirectory) ||
+               EnumerateSaveDirectories(LocationSaveGameDirectory).Any(HasAnySaveGames) ||
+               EnumerateSaveDirectories(CampaignSaveGameDirectory).Any(HasAnySaveGames) ||
+               EnumerateSaveDirectories(OfficialSaveGameDirectory).Any(HasAnySaveGames);
     }
 
     internal static SavePlace GetMostRecentPlace()
@@ -62,21 +74,61 @@ internal static class SaveByLocationContext
 
     private static IEnumerable<SavePlace> EnumerateDirectories(string where, LocationType type)
     {
-        return Directory.EnumerateDirectories(where)
-            .Select(dir => MostRecentFile(dir, type));
+        return EnumerateSaveDirectories(where)
+            .Select(dir => CreateSavePlace(dir, type));
     }
 
-    private static SavePlace MostRecentFile(string dir, LocationType type)
+    private static IEnumerable<string> EnumerateSaveDirectories(string where)
     {
-        var files = Directory.EnumerateFiles(dir, "*.sav").ToArray();
+        return Directory.Exists(where)
+            ? Directory.EnumerateDirectories(where)
+            : [];
+    }
+
+    private static bool HasAnySaveGames(string dir)
+    {
+        if (!Directory.Exists(dir))
+        {
+            return false;
+        }
+
+        foreach (var _ in Directory.EnumerateFiles(dir, "*.sav"))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static SavePlace CreateSavePlace(string dir, LocationType type)
+    {
+        var count = 0;
+        DateTime? date = null;
+
+        if (Directory.Exists(dir))
+        {
+            foreach (var file in Directory.EnumerateFiles(dir, "*.sav"))
+            {
+                count++;
+
+                var fileDate = File.GetLastWriteTimeUtc(file);
+
+                if (!date.HasValue || fileDate > date.Value)
+                {
+                    date = fileDate;
+                }
+            }
+        }
+
         var place = new SavePlace
         {
             Name = type == LocationType.Default ? DefaultName : Path.GetFileName(dir),
             Path = dir,
-            Count = files.Length,
-            Date = files.Max(f => (DateTime?)File.GetLastWriteTimeUtc(f)),
+            Count = count,
+            Date = date,
             Type = type
         };
+
         return place;
     }
 
@@ -102,14 +154,14 @@ internal static class SaveByLocationContext
         // 3) select the currently loaded campaign/location in the dropdown, or select 'Main Campaign' if none
 
         var guiDropdown = CreateOrActivateDropdown();
+        var savePlaces = GetAllSavePlaces()
+            .OrderBy(p => p)
+            .ToArray();
 
         // populate the dropdown
         guiDropdown.ClearOptions();
         guiDropdown.AddOptions(
-            GetAllSavePlaces()
-                .Where(p => p.Available)
-                .OrderBy(p => p)
-                .Select(LocationOptionData.Create)
+            savePlaces.Select(LocationOptionData.Create)
                 .Cast<TMP_Dropdown.OptionData>()
                 .ToArray());
 
@@ -119,22 +171,21 @@ internal static class SaveByLocationContext
         // ReSharper disable once InvocationIsSkipped
         Main.Log($"LoadPanel: selected={selectedCampaign.CampaignOrLocationName}, {selectedCampaign.LocationType}");
 
-        var option = guiDropdown.Options
-            .Cast<LocationOptionData>()
-            .Select((o, i) => new { CampaignOrLocation = o.Title, o.LocationType, Index = i })
-            .Where(opt => opt.LocationType == selectedCampaign.LocationType)
-            .FirstOrDefault(o => o.CampaignOrLocation == selectedCampaign.CampaignOrLocationName);
+        var option = savePlaces
+            .Select((place, index) => new { Place = place, Index = index })
+            .Where(opt => opt.Place.Type == selectedCampaign.LocationType)
+            .FirstOrDefault(o => o.Place.Name == selectedCampaign.CampaignOrLocationName);
 
-        var newValue = option?.Index ?? 0;
+        var newValue = option?.Index ?? GetFallbackSavePlaceIndex(savePlaces);
 
         if (guiDropdown.Selected == newValue)
         {
-            if (newValue == 0)
+            if ((option == null || newValue == 0) && guiDropdown.Options.Count > newValue)
             {
                 // I think we only want to do this on first open
                 // or we refresh the list when we don't need to.
                 // May need to change slightly.
-                ValueChanged(guiDropdown.Options[0]);
+                ValueChanged(guiDropdown.Options[newValue]);
             }
         }
         else
@@ -163,6 +214,21 @@ internal static class SaveByLocationContext
 
             // reload the save file list
             panel.StartCoroutine(panel.EnumerateSaveLines());
+        }
+
+        int GetFallbackSavePlaceIndex(SavePlace[] places)
+        {
+            var fallback = places
+                .Where(p => p.Date.HasValue)
+                .OrderByDescending(p => p.Date.Value)
+                .FirstOrDefault()
+                ?? places.FirstOrDefault(p => p.Type == LocationType.Default)
+                ?? SavePlace.Default();
+
+            var index = Array.FindIndex(places,
+                p => p.Type == fallback.Type && p.Name == fallback.Name);
+
+            return index >= 0 ? index : 0;
         }
 
         CustomDropDown CreateOrActivateDropdown()
@@ -328,7 +394,7 @@ internal static class SaveByLocationContext
         {
             return new SavePlace
             {
-                Path = DefaultSaveGameDirectory, Count = 0, Date = null, Type = LocationType.Default
+                Name = DefaultName, Path = DefaultSaveGameDirectory, Count = 0, Date = null, Type = LocationType.Default
             };
         }
     }
