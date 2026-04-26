@@ -29,13 +29,15 @@ namespace SolastaUnfinishedBusiness.Models;
 public static partial class Tabletop2024Context
 {
     internal const string BlessedStrikes = "BlessedStrikes";
+    internal const string ClericThaumaturgeExtraSpellsTag = "Thaumaturge";
 
     private static readonly FeatureDefinitionPointPool PointPoolClericThaumaturgeCantrip =
         FeatureDefinitionPointPoolBuilder
             .Create("PointPoolClericThaumaturgeCantrip")
             .SetGuiPresentation(Category.Feature)
             .SetSpellOrCantripPool
-                (HeroDefinitions.PointsPoolType.Cantrip, 1, SpellListDefinitions.SpellListCleric, "Thaumaturge")
+                (HeroDefinitions.PointsPoolType.Cantrip, 1, SpellListDefinitions.SpellListCleric,
+                    ClericThaumaturgeExtraSpellsTag)
             .AddCustomSubFeatures(new ModifyAbilityCheckThaumaturge())
             .AddToDB();
 

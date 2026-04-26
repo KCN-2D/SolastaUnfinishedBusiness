@@ -1267,7 +1267,7 @@ public static class CharacterBuildingManagerPatcher
             List<FeatDefinition> __state)
         {
             //PATCH: grants cantrip that for whatever reason vanilla has a hard time granting ;-)
-            GrantCantripFromCustomAcquiredPool(hero, "Thaumaturge");
+            GrantCantripFromCustomAcquiredPool(hero, Tabletop2024Context.ClericThaumaturgeExtraSpellsTag);
             GrantCantripFromCustomAcquiredPool(hero, "DomainNature");
             GrantCantripFromCustomAcquiredPool(hero, "PactTome");
             GrantCantripFromCustomAcquiredPool(hero, "PrimalOrder");
