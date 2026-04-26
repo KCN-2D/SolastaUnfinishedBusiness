@@ -14,9 +14,12 @@ namespace SolastaUnfinishedBusiness.Models;
 
 public static partial class Tabletop2024Context
 {
+    private const string BackgroundAcademicName = "Academic";
     private const string BackgroundDevotedName = "BackgroundDevoted";
     private const string BackgroundFarmerName = "BackgroundFarmer";
     private const string BackgroundMilitiaName = "BackgroundMilitia";
+    private const string BackgroundOccultistName = "Occultist_Background";
+    private const string BackgroundPhilosopherName = "Philosopher";
     private const string BackgroundSpyName = "Spy";
     private const string BackgroundTroublemakerName = "BackgroundTroublemaker";
     private const string FeatSkilledName = "FeatSkilled";
@@ -26,18 +29,19 @@ public static partial class Tabletop2024Context
     private const string HumanOriginFeatSkilledPointPoolName = "PointPoolHumanOriginFeatSkilled";
     private const string HumanOriginFeatTag = "02RaceHumanOriginFeat2024";
     private const string HumanOriginFeatSkilledSkillTag = "02RaceHumanOriginFeat2024_SkilledSkills";
+    private const string ToolMusicalInstrumentLyreTypeName = "MusicalInstrumentLyreType";
 
     private static readonly Dictionary<string, (string A, string B, string C)> BackgroundAbilitySets = new()
     {
-        { "Academic", (AttributeDefinitions.Dexterity, AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom) },
+        { BackgroundAcademicName, (AttributeDefinitions.Dexterity, AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom) },
         { "Acolyte", (AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma) },
         { "Aescetic_Background", (AttributeDefinitions.Constitution, AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma) },
         { "Aristocrat", (AttributeDefinitions.Strength, AttributeDefinitions.Intelligence, AttributeDefinitions.Charisma) },
         { "Artist_Background", (AttributeDefinitions.Strength, AttributeDefinitions.Dexterity, AttributeDefinitions.Charisma) },
         { "Lawkeeper", (AttributeDefinitions.Strength, AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom) },
         { "Lowlife", (AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence) },
-        { "Occultist_Background", (AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence, AttributeDefinitions.Charisma) },
-        { "Philosopher", (AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom) },
+        { BackgroundOccultistName, (AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence, AttributeDefinitions.Charisma) },
+        { BackgroundPhilosopherName, (AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom) },
         { "SellSword", (AttributeDefinitions.Strength, AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution) },
         { BackgroundSpyName, (AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution, AttributeDefinitions.Charisma) },
         { "Wanderer", (AttributeDefinitions.Dexterity, AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma) },
@@ -49,15 +53,15 @@ public static partial class Tabletop2024Context
 
     private static readonly Dictionary<string, string> BackgroundFeatSets = new()
     {
-        { "Academic", FeatSkilledName },
+        { BackgroundAcademicName, FeatSkilledName },
         { "Acolyte", "FeatMagicInitiateCleric" },
         { "Aescetic_Background", "FeatHealer" },
         { "Aristocrat", FeatSkilledName },
         { "Artist_Background", "FeatMagicInitiateBard" },
         { "Lawkeeper", "FeatSavageAttack" },
         { "Lowlife", "FeatLucky" },
-        { "Occultist_Background", "FeatMagicInitiateWarlock" },
-        { "Philosopher", "FeatMagicInitiateWizard" },
+        { BackgroundOccultistName, "FeatMagicInitiateWarlock" },
+        { BackgroundPhilosopherName, "FeatMagicInitiateWizard" },
         { "SellSword", "FeatSavageAttack" },
         { BackgroundSpyName, "FeatAlert" },
         { "Wanderer", "FeatMagicInitiateDruid" },
@@ -70,15 +74,15 @@ public static partial class Tabletop2024Context
     private static readonly Dictionary<string, (string SkillA, string SkillB, string ToolA, string ToolB)> BackgroundProficiencySets =
         new()
     {
-        { "Academic", (SkillDefinitions.Investigation, SkillDefinitions.Perception, ToolTypeDefinitions.ScrollKitType.Name, ToolTypeDefinitions.EnchantingToolType.Name) },
+        { BackgroundAcademicName, (SkillDefinitions.Investigation, SkillDefinitions.Perception, ToolTypeDefinitions.ScrollKitType.Name, ToolTypeDefinitions.EnchantingToolType.Name) },
         { "Acolyte", (SkillDefinitions.Insight, SkillDefinitions.Religion, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.ScrollKitType.Name) },
         { "Aescetic_Background", (SkillDefinitions.Medecine, SkillDefinitions.Religion, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.ScrollKitType.Name) },
         { "Aristocrat", (SkillDefinitions.History, SkillDefinitions.Persuasion, "GamingSetDiceType", "MusicalInstrumentLyreType") },
         { "Artist_Background", (SkillDefinitions.Acrobatics, SkillDefinitions.Performance, "MusicalInstrumentLyreType", ToolTypeDefinitions.DisguiseKitType.Name) },
         { "Lawkeeper", (SkillDefinitions.Investigation, SkillDefinitions.Intimidation, ToolTypeDefinitions.ScrollKitType.Name, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
         { "Lowlife", (SkillDefinitions.Insight, SkillDefinitions.Stealth, ToolTypeDefinitions.ThievesToolsType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
-        { "Occultist_Background", (SkillDefinitions.Arcana, SkillDefinitions.Religion, ToolTypeDefinitions.EnchantingToolType.Name, ToolTypeDefinitions.ScrollKitType.Name) },
-        { "Philosopher", (SkillDefinitions.Arcana, SkillDefinitions.History, ToolTypeDefinitions.ScrollKitType.Name, ToolTypeDefinitions.EnchantingToolType.Name) },
+        { BackgroundOccultistName, (SkillDefinitions.Arcana, SkillDefinitions.Religion, ToolTypeDefinitions.EnchantingToolType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
+        { BackgroundPhilosopherName, (SkillDefinitions.Arcana, SkillDefinitions.History, ToolTypeDefinitions.ScrollKitType.Name, ToolMusicalInstrumentLyreTypeName) },
         { "SellSword", (SkillDefinitions.Athletics, SkillDefinitions.Intimidation, "GamingSetDiceType", ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
         { BackgroundSpyName, (SkillDefinitions.Stealth, SkillDefinitions.Deception, ToolTypeDefinitions.DisguiseKitType.Name, ToolTypeDefinitions.ThievesToolsType.Name) },
         { "Wanderer", (SkillDefinitions.Stealth, SkillDefinitions.Survival, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
@@ -215,7 +219,10 @@ public static partial class Tabletop2024Context
                 ? BuildSkilledPointPool()
                 : BuildOriginFeatPointPool(featName);
 
-            BackgroundBonusDisplayFeatures[featName] = BuildOriginFeatDisplayFeature(featName);
+            if (featName != FeatSkilledName)
+            {
+                BackgroundBonusDisplayFeatures[featName] = BuildOriginFeatDisplayFeature(featName);
+            }
         }
 
         foreach (var backgroundProficiencySet in BackgroundProficiencySets)
@@ -1290,31 +1297,25 @@ public static partial class Tabletop2024Context
             background.Features.RemoveAll(IsSuppressedBackground2024Feature);
 
             var insertIndex = GetBackgroundFeatureInsertIndex(backgroundName, background);
+            var featuresToInsert = new List<FeatureDefinition> { grantedFeature };
 
-            background.Features.Insert(insertIndex, grantedFeature);
+            AddBackgroundFeatureIfValid(featuresToInsert, displayFeature);
+            AddBackgroundFeatureIfValid(featuresToInsert, proficiencyFeatures.Skills);
+            AddBackgroundFeatureIfValid(featuresToInsert, proficiencyFeatures.Tool);
+            AddBackgroundFeatureIfValid(featuresToInsert, storyCompatibilityFeature);
 
-            if (displayFeature)
-            {
-                background.Features.Insert(insertIndex + 1, displayFeature);
-            }
-
-            if (proficiencyFeatures.Skills)
-            {
-                background.Features.Insert(insertIndex + (displayFeature ? 2 : 1), proficiencyFeatures.Skills);
-            }
-
-            if (proficiencyFeatures.Tool)
-            {
-                background.Features.Insert(insertIndex + (displayFeature ? 3 : 2), proficiencyFeatures.Tool);
-            }
-
-            if (storyCompatibilityFeature)
-            {
-                background.Features.Insert(insertIndex + (displayFeature ? 4 : 3), storyCompatibilityFeature);
-            }
+            background.Features.InsertRange(insertIndex, featuresToInsert);
         }
 
         SwitchAddOriginFeatsToAutoLearn();
+    }
+
+    private static void AddBackgroundFeatureIfValid(List<FeatureDefinition> features, FeatureDefinition feature)
+    {
+        if (feature)
+        {
+            features.Add(feature);
+        }
     }
 
     internal static void SwitchAddOriginFeatsToAutoLearn()
@@ -1521,19 +1522,6 @@ public static partial class Tabletop2024Context
 
     private static FeatureDefinition BuildOriginFeatDisplayFeature(string featName)
     {
-        if (featName == FeatSkilledName)
-        {
-            var skilledDisplayFeature = EnsureSkilledDisplayFeature();
-
-            return FeatureDefinitionBuilder
-                .Create($"FeatureBackgroundFeatDisplay_{featName}")
-                .SetGuiPresentation(
-                    skilledDisplayFeature.GuiPresentation.Title,
-                    "Feature/&BackgroundBonusFeatShortDescription",
-                    skilledDisplayFeature)
-                .AddToDB();
-        }
-
         var featDefinition = TryResolveModeAwareFeatDefinition(featName, out var resolvedFeat)
             ? resolvedFeat
             : GetDefinition<FeatDefinition>(featName);
