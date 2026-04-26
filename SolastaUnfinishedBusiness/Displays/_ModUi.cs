@@ -300,6 +300,7 @@ internal static class ModUi
         "ResonatingStrike",
         "ReverseGravity",
         "RoguishSlayer",
+        "RoguishSwashbuckler",
         "RoguishThief",
         "Sanctuary",
         "Scatter",
