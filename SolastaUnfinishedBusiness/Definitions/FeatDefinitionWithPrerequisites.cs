@@ -14,7 +14,11 @@ internal sealed class FeatDefinitionWithPrerequisites : FeatDefinition
         var valueTuples = results as (bool result, string output)[] ?? results.ToArray();
 
         return valueTuples.Length != 0
-            ? (valueTuples.All(r => r.result), string.Join("\n", valueTuples.Select(r => r.output)))
+            ? (valueTuples.All(r => r.result), string.Join(
+                "\n",
+                valueTuples
+                    .Select(r => r.output)
+                    .Where(output => !string.IsNullOrWhiteSpace(output))))
             : (true, string.Empty);
     }
 }

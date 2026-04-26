@@ -70,7 +70,7 @@ internal static class ValidatorsFeat
 
     internal static readonly Func<FeatDefinition, RulesetCharacterHero, (bool result, string output)>
         IsClericOrPaladinLevel4 =
-            ValidateIsClass($"{Cleric.FormatTitle()} | {Paladin.FormatTitle()}", 4, Cleric, Paladin);
+            ValidateIsClass(JoinDefinitionTitles(Cleric, Paladin), 4, Cleric, Paladin);
 
     //
     // Races
@@ -79,7 +79,7 @@ internal static class ValidatorsFeat
     internal static readonly Func<FeatDefinition, RulesetCharacterHero, (bool result, string output)>
         IsDarkElfOrHalfElfDark =
             ValidateIsRaceOrSubrace(
-                $"{SubraceDarkelfBuilder.SubraceDarkelf.FormatTitle()}, {RaceHalfElfBuilder.RaceHalfElfDarkVariant.FormatTitle()}",
+                JoinDefinitionTitles(SubraceDarkelfBuilder.SubraceDarkelf, RaceHalfElfBuilder.RaceHalfElfDarkVariant),
                 SubraceDarkelfBuilder.SubraceDarkelf, RaceHalfElfBuilder.RaceHalfElfDarkVariant);
 
     internal static readonly Func<FeatDefinition, RulesetCharacterHero, (bool result, string output)> IsDragonborn =
@@ -93,7 +93,7 @@ internal static class ValidatorsFeat
 
     internal static readonly Func<FeatDefinition, RulesetCharacterHero, (bool result, string output)> IsElfOfHalfElf =
         ValidateIsRaceOrSubrace(
-            $"{Elf.FormatTitle()}, {HalfElf.FormatTitle()}",
+            JoinDefinitionTitles(Elf, HalfElf),
             Elf, HalfElf, RaceHalfElfBuilder.RaceHalfElfVariant);
 
     internal static readonly Func<FeatDefinition, RulesetCharacterHero, (bool result, string output)> IsGnome =
@@ -107,12 +107,18 @@ internal static class ValidatorsFeat
 
     internal static readonly Func<FeatDefinition, RulesetCharacterHero, (bool result, string output)> IsSylvanElf =
         ValidateIsRaceOrSubrace(
-            $"{ElfSylvan.FormatTitle()}, {RaceHalfElfBuilder.RaceHalfElfSylvanVariant.FormatTitle()}",
+            JoinDefinitionTitles(ElfSylvan, RaceHalfElfBuilder.RaceHalfElfSylvanVariant),
             ElfSylvan, RaceHalfElfBuilder.RaceHalfElfSylvanVariant);
 
     internal static readonly Func<FeatDefinition, RulesetCharacterHero, (bool result, string output)> IsSmallRace =
         ValidateIsRaceOrSubrace(
-            $"{Dwarf.FormatTitle()}, {Gnome.FormatTitle()}, {Halfling.FormatTitle()}, {RaceFairyBuilder.RaceFairy.FormatTitle()}, {RaceImpBuilder.RaceImp.FormatTitle()}, {RaceKoboldBuilder.RaceKobold.FormatTitle()}",
+            JoinDefinitionTitles(
+                Dwarf,
+                Gnome,
+                Halfling,
+                RaceFairyBuilder.RaceFairy,
+                RaceImpBuilder.RaceImp,
+                RaceKoboldBuilder.RaceKobold),
             Dwarf, Gnome, Halfling,
             RaceFairyBuilder.RaceFairy,
             RaceImpBuilder.RaceImp,
@@ -158,10 +164,10 @@ internal static class ValidatorsFeat
     {
         return (_, hero) =>
         {
-            var hasFeature = !hero.HasAnyFeature(featureDefinition);
+            var missingFeature = !hero.HasAnyFeature(featureDefinition);
             var guiFormat = Gui.Format("Tooltip/&PreReqMustKnow", featureDefinition.FormatTitle());
 
-            return hasFeature ? (false, Gui.Colorize(guiFormat, Gui.ColorFailure)) : (true, guiFormat);
+            return missingFeature ? (false, Gui.Colorize(guiFormat, Gui.ColorFailure)) : (true, guiFormat);
         };
     }
 
@@ -170,13 +176,13 @@ internal static class ValidatorsFeat
     internal static Func<FeatDefinitionWithPrerequisites, RulesetCharacterHero, (bool result, string output)>
         ValidateAnyAbilityScore(int minValue, params string[] abilityScoreNames)
     {
+        var filteredAbilityScoreNames = abilityScoreNames?
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct()
+            .ToArray() ?? [];
+
         return (_, hero) =>
         {
-            var filteredAbilityScoreNames = abilityScoreNames?
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct()
-                .ToArray() ?? [];
-
             if (filteredAbilityScoreNames.Length == 0)
             {
                 return (true, string.Empty);
@@ -185,12 +191,14 @@ internal static class ValidatorsFeat
             var guiFormat = filteredAbilityScoreNames.Length == 2
                 ? Gui.Format(
                     "Tooltip/&PreReqAnyAbilityScore",
-                    LocalizeAbilityScoreTitle(filteredAbilityScoreNames[0]),
-                    LocalizeAbilityScoreTitle(filteredAbilityScoreNames[1]),
+                    LocalizePrerequisiteAbilityScoreTitle(filteredAbilityScoreNames[0]),
+                    LocalizePrerequisiteAbilityScoreTitle(filteredAbilityScoreNames[1]),
                     minValue.ToString())
                 : Gui.Format(
                     "Tooltip/&PreReqAnyAbilityScoreList",
-                    string.Join(" / ", filteredAbilityScoreNames.Select(LocalizeAbilityScoreTitle)),
+                    string.Join(
+                        Gui.ListSeparator(),
+                        filteredAbilityScoreNames.Select(LocalizePrerequisiteAbilityScoreTitle)),
                     minValue.ToString());
             var hasRequiredAbilityScore = filteredAbilityScoreNames.Any(
                 abilityScoreName => hero.TryGetAttributeValue(abilityScoreName) >= minValue);
@@ -258,7 +266,7 @@ internal static class ValidatorsFeat
     [NotNull]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static Func<FeatDefinition, RulesetCharacterHero, (bool result, string output)> ValidateIsRaceOrSubrace(
-        string description, params CharacterRaceDefinition[] characterRaceDefinition)
+        string description, params CharacterRaceDefinition[] characterRaceDefinitions)
     {
         return (_, hero) =>
         {
@@ -267,8 +275,8 @@ internal static class ValidatorsFeat
                 return (true, string.Empty);
             }
 
-            var isRaceOrSubrace = characterRaceDefinition.Contains(hero.RaceDefinition) ||
-                                  characterRaceDefinition.Contains(hero.SubRaceDefinition);
+            var isRaceOrSubrace = characterRaceDefinitions.Contains(hero.RaceDefinition) ||
+                                  characterRaceDefinitions.Contains(hero.SubRaceDefinition);
             var guiFormat = Gui.Format("Tooltip/&PreReqIs", description);
 
             return isRaceOrSubrace
@@ -277,7 +285,16 @@ internal static class ValidatorsFeat
         };
     }
 
-    private static string LocalizeAbilityScoreTitle(string abilityScoreName)
+    private static string JoinDefinitionTitles(params BaseDefinition[] definitions)
+    {
+        return string.Join(
+            Gui.ListSeparator(),
+            definitions
+                .Where(definition => definition != null)
+                .Select(definition => definition.FormatTitle()));
+    }
+
+    internal static string LocalizePrerequisiteAbilityScoreTitle(string abilityScoreName)
     {
         var longTitle = Gui.Localize($"Attribute/&{abilityScoreName}TitleLong");
 

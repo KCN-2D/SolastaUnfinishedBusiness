@@ -8,6 +8,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
+using SolastaUnfinishedBusiness.Validators;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -36,6 +37,8 @@ public static class GuiFeatDefinitionPatcher
             ref string prerequisiteOutput,
             (bool active, bool disableLevel, bool disableRace, bool disableCastSpell) __state)
         {
+            ReplaceVanillaAbilityScorePrerequisiteTitle(feat, ref prerequisiteOutput);
+
             //PATCH: Enforces Feats With PreRequisites
             if (feat is not FeatDefinitionWithPrerequisites featDefinitionWithPrerequisites
                 || featDefinitionWithPrerequisites.Validators.Count == 0)
@@ -83,6 +86,42 @@ public static class GuiFeatDefinitionPatcher
         private static int CanCastSpells([NotNull] RulesetCharacterHero hero)
         {
             return hero.FeaturesByType<FeatureDefinitionCastSpell>().Count;
+        }
+
+        private static void ReplaceVanillaAbilityScorePrerequisiteTitle(
+            FeatDefinition feat,
+            ref string prerequisiteOutput)
+        {
+            if (feat == null ||
+                !feat.minimalAbilityScorePrerequisite ||
+                string.IsNullOrEmpty(feat.minimalAbilityScoreName) ||
+                string.IsNullOrEmpty(prerequisiteOutput))
+            {
+                return;
+            }
+
+            var shortTitle = LocalizeShortAbilityScoreTitle(feat.minimalAbilityScoreName);
+            var longTitle = ValidatorsFeat.LocalizePrerequisiteAbilityScoreTitle(feat.minimalAbilityScoreName);
+
+            if (shortTitle == longTitle)
+            {
+                return;
+            }
+
+            var value = feat.minimalAbilityScoreValue.ToString();
+            var shortPrerequisite = Gui.Format("Tooltip/&FeatPrerequisiteAbilityScoreFormat", shortTitle, value);
+            var longPrerequisite = Gui.Format("Tooltip/&FeatPrerequisiteAbilityScoreFormat", longTitle, value);
+
+            prerequisiteOutput = prerequisiteOutput.Replace(shortPrerequisite, longPrerequisite);
+        }
+
+        private static string LocalizeShortAbilityScoreTitle(string abilityScoreName)
+        {
+            var title = Gui.Localize($"Attribute/&{abilityScoreName}Title");
+
+            return string.IsNullOrEmpty(title) || title.Contains("/&")
+                ? abilityScoreName
+                : title;
         }
     }
 

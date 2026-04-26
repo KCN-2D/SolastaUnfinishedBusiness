@@ -655,7 +655,7 @@ internal static class FeatsContext
             displayedTitles.Add(Gui.Format("Tooltip/&FeatGroupMoreItemsFormat", remainingCount.ToString()));
         }
 
-        description = Gui.Format("Tooltip/&FeatGroupContainsFormat", string.Join(", ", displayedTitles));
+        description = Gui.Format("Tooltip/&FeatGroupContainsFormat", string.Join(Gui.ListSeparator(), displayedTitles));
 
         return true;
     }
