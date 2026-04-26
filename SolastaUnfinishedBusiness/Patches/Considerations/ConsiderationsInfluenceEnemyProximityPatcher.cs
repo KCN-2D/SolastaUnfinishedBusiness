@@ -24,6 +24,11 @@ public static class InfluenceEnemyProximityPatcher
             DecisionParameters parameters,
             ScoringResult scoringResult)
         {
+            if (!CombatAiContext.ShouldOverrideEnemyProximityScore(consideration, parameters))
+            {
+                return true;
+            }
+
             Score(context, consideration, parameters, scoringResult);
 
             return false;

@@ -13,6 +13,7 @@ internal static class PlayerControllerContext
 
     private static readonly Dictionary<GameLocationCharacter, int> ControllersChoices = [];
 
+    // Index 0 is "Human"; it is never read because human control keeps the player controller id.
     private static readonly DecisionPackageDefinition[] AiDecisionPackages =
     [
         DefaultMeleeWithBackupRangeDecisions,

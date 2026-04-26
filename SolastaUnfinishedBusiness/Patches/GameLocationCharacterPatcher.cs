@@ -311,7 +311,7 @@ public static class GameLocationCharacterPatcher
             //PATCH: acts as a callback for the character's combat turn ended event
             CharacterBattleListenersPatch.OnCharacterTurnEnded(__instance);
 
-            CombatAiContext.TryAutoDodgeFlyingStalemate(__instance);
+            CombatAiContext.TrySpendLeftoverActionEconomy(__instance);
             CombatAiContext.ClearTurnCache(__instance);
         }
     }
@@ -341,6 +341,7 @@ public static class GameLocationCharacterPatcher
             //PATCH: acts as a callback for the character's combat ended event
             //while there already is callback for this event it doesn't have character argument
             CharacterBattleListenersPatch.OnCharacterBattleEnded(__instance);
+            CombatAiContext.ClearBattleMemory(__instance);
         }
     }
 

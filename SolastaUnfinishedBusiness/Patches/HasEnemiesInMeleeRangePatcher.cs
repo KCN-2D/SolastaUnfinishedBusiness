@@ -28,18 +28,31 @@ public static class HasEnemiesInMeleeRangePatcher
             DecisionParameters parameters, ScoringResult scoringResult)
         {
             var stringParameter = consideration.StringParameter;
-            var num = consideration.IntParameter;
-            var boolParameter = consideration.BoolParameter;
-            var boolSecParameter = consideration.BoolSecParameter;
-            var boolTerParameter = consideration.BoolTerParameter;
-            var defenderPosition = boolParameter
+            var remainingRequiredEnemies = consideration.IntParameter;
+            var useContextPosition = consideration.BoolParameter;
+            var requiresVisibility = consideration.BoolSecParameter;
+            var requiresOpportunityAttack = consideration.BoolTerParameter;
+            var defender = parameters.character.GameLocationCharacter;
+            var battleService = parameters.situationalInformation.BattleService;
+
+            if (defender?.RulesetCharacter == null || battleService == null)
+            {
+                scoringResult.Score = 0f;
+                return;
+            }
+
+            var defenderPosition = useContextPosition
                 ? context.position
-                : parameters.character.GameLocationCharacter.LocationPosition;
+                : defender.LocationPosition;
+
             foreach (var relevantEnemy in parameters.situationalInformation.RelevantEnemies)
             {
-                if (!AiLocationDefinitions.IsRelevantTargetForCharacter(parameters.character.GameLocationCharacter,
-                        relevantEnemy, parameters.situationalInformation.HasRelevantPerceivedTarget) ||
-                    (!string.IsNullOrEmpty(stringParameter) && relevantEnemy.RulesetCharacter != null &&
+                if (relevantEnemy?.RulesetCharacter == null ||
+                    !AiLocationDefinitions.IsRelevantTargetForCharacter(
+                        defender,
+                        relevantEnemy,
+                        parameters.situationalInformation.HasRelevantPerceivedTarget) ||
+                    (!string.IsNullOrEmpty(stringParameter) &&
                      !relevantEnemy.RulesetCharacter.HasConditionOfTypeOrSubType(stringParameter)))
                 {
                     continue;
@@ -49,47 +62,46 @@ public static class HasEnemiesInMeleeRangePatcher
                     ? CombatAiContext.CanAttackInMeleeFromPosition(
                         relevantEnemy,
                         relevantEnemy.LocationPosition,
-                        parameters.character.GameLocationCharacter,
+                        defender,
                         defenderPosition,
-                        parameters.situationalInformation.BattleService)
-                    : parameters.situationalInformation.BattleService.IsWithinXCells(
+                        battleService)
+                    : battleService.IsWithinXCells(
                         relevantEnemy,
                         relevantEnemy.LocationPosition,
-                        parameters.character.GameLocationCharacter,
+                        defender,
                         defenderPosition,
                         relevantEnemy.FindActionAttackMode(ActionDefinitions.Id.AttackMain)?.reachRange ?? 1);
 
                 if (isEnemyWithinMeleeReachRange)
                 {
-                    if (boolSecParameter)
+                    if (requiresVisibility)
                     {
-                        isEnemyWithinMeleeReachRange = !boolParameter
-                            ? relevantEnemy.PerceivedFoes.Contains(parameters.character.GameLocationCharacter)
-                            : parameters.situationalInformation.BattleService.CanAttackerSeeCharacterFromPosition(
+                        isEnemyWithinMeleeReachRange = !useContextPosition
+                            ? relevantEnemy.PerceivedFoes.Contains(defender)
+                            : battleService.CanAttackerSeeCharacterFromPosition(
                                 defenderPosition, relevantEnemy.LocationPosition,
-                                parameters.character.GameLocationCharacter, relevantEnemy);
+                                defender, relevantEnemy);
                     }
 
-                    if (boolTerParameter)
+                    if (requiresOpportunityAttack)
                     {
-                        isEnemyWithinMeleeReachRange &= parameters.situationalInformation.BattleService
-                            .IsValidAttackerForOpportunityAttackOnCharacter(relevantEnemy,
-                                parameters.character.GameLocationCharacter);
+                        isEnemyWithinMeleeReachRange &=
+                            battleService.IsValidAttackerForOpportunityAttackOnCharacter(relevantEnemy, defender);
                     }
 
                     if (isEnemyWithinMeleeReachRange)
                     {
-                        num--;
+                        remainingRequiredEnemies--;
                     }
                 }
 
-                if (num <= 0)
+                if (remainingRequiredEnemies <= 0)
                 {
                     break;
                 }
             }
 
-            scoringResult.Score = num <= 0 ? 1f : 0f;
+            scoringResult.Score = remainingRequiredEnemies <= 0 ? 1f : 0f;
         }
     }
 }
