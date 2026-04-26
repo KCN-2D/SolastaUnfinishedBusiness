@@ -16,4 +16,4 @@ LootPack/&CR2_Loot_PackTitle=CR2戦利品
 LootPack/&CR3_Loot_PackTitle=CR3戦利品
 LootPack/&CR4_Loot_PackTitle=CR4戦利品
 LootPack/&CR5_Loot_PackTitle=CR5戦利品
-LootPack/&RandomAmmo=ランダムな弾薬
+LootPack/&RandomAmmo=ランダムな矢弾

@@ -396,7 +396,7 @@ Screen/&DragSelectDialogFormat=マウスの左ボタンを押したままドラ�
 Screen/&DragSelectFormat=マウスの左ボタンを押したままドラッグしてクエストステップを選択します
 Screen/&DropItemDescription=アイテムを地面に落とします。
 Screen/&DropItemTitle=落とす
-Screen/&DungeonMasterTitle=[削除するには]ダンジョンマスター
+Screen/&DungeonMasterTitle=ダンジョンマスター（削除予定）
 Screen/&EditFlagsGamepadTitle=編集
 Screen/&EditorCampaignSaveDescription=このユーザーキャンペーンをディスク({0})に保存します
 Screen/&EditorCaptionCancelButtonDescription=現在の要素の選択をキャンセルします
@@ -733,7 +733,7 @@ Screen/&JournalTutorialSRDDescription=Solastaが使用するルールシステ�
 Screen/&JournalTutorialSRDTitle=システム参考資料
 Screen/&JournalTutorialTitle=<color=#F5B486>チュートリアル</color>
 Screen/&JournalTutorialWikiAddress=https://forums.solasta-game.com/
-Screen/&JournalTutorialWikiDescription=Solasta Universeとユニークなコンテンツについて詳しくは、オンラインWiki\n[近日公開]をご覧ください。
+Screen/&JournalTutorialWikiDescription=Solasta Universeとユニークなコンテンツについて詳しくは、オンラインWiki\n（近日公開）をご覧ください。
 Screen/&JournalTutorialWikiTitle=Wikiにアクセスする
 Screen/&KiPointsRecoveredDescription=消費した気ポイントがすべて回復します。
 Screen/&KickButtonDescription=プレイヤーをセッションから除外する
