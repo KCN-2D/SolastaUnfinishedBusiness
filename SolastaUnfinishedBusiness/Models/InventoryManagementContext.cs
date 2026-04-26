@@ -110,6 +110,7 @@ internal static class InventoryManagementContext
         var filteredCategoryDefinitions = merchantCategoryDefinitions
             .Where(x => x != MerchantCategoryDefinitions.All).OrderBy(x => x.FormatTitle());
 
+        ItemCategories.Clear();
         ItemCategories.Add(MerchantCategoryDefinitions.All);
         ItemCategories.AddRange(filteredCategoryDefinitions);
 
@@ -206,7 +207,7 @@ internal static class InventoryManagementContext
 
     private static void ResetControls()
     {
-        if (!BySortGroup)
+        if (!ControlsReady())
         {
             return;
         }
@@ -221,6 +222,11 @@ internal static class InventoryManagementContext
 
     internal static void RefreshControlsVisibility()
     {
+        if (!ControlsReady())
+        {
+            return;
+        }
+
         FilterGuiDropdown.gameObject.SetActive(Enabled);
         BySortGroup.gameObject.SetActive(Enabled);
         SortGuiDropdown.gameObject.SetActive(Enabled);
@@ -229,9 +235,32 @@ internal static class InventoryManagementContext
         UnidentifiedText.gameObject.SetActive(Enabled);
     }
 
-    private static bool HasValidEquippedItem([CanBeNull] RulesetInventorySlot slot)
+    private static bool ControlsReady()
+    {
+        return FilterGuiDropdown &&
+               BySortGroup &&
+               SortGuiDropdown &&
+               TaggedGuiDropdown &&
+               UnidentifiedToggle &&
+               UnidentifiedText;
+    }
+
+    private static bool HasActiveFilterOrSort()
+    {
+        return FilterGuiDropdown.value != 0 ||
+               SortGuiDropdown.value != 0 ||
+               TaggedGuiDropdown.value != 0 ||
+               UnidentifiedToggle.isOn;
+    }
+
+    private static bool HasValidItem([CanBeNull] RulesetInventorySlot slot)
     {
         return slot?.EquipedItem?.ItemDefinition != null;
+    }
+
+    private static bool IsEmptyInventoryDropTarget([CanBeNull] RulesetInventorySlot slot)
+    {
+        return slot is { EquipedItem: null, ConfigSlot: false, Disabled: false };
     }
 
     private static string GetItemTitle([CanBeNull] RulesetItem item)
@@ -378,9 +407,11 @@ internal static class InventoryManagementContext
 
     //`container` parameter is required for the transpile patch
     // ReSharper disable once UnusedParameter.Global
-    public static List<RulesetInventorySlot> GetFilteredSlots(RulesetContainer container, ContainerPanel panel)
+    public static List<RulesetInventorySlot> GetFilteredSlots(
+        [CanBeNull] RulesetContainer container,
+        [CanBeNull] ContainerPanel panel)
     {
-        return GetFilteredAndSorted(panel);
+        return GetFilteredAndSorted(panel, container);
     }
 
     public static void BindInventory(ContainerPanel panel)
@@ -425,11 +456,30 @@ internal static class InventoryManagementContext
         Filtered.Clear();
     }
 
-    private static List<RulesetInventorySlot> GetFilteredAndSorted(ContainerPanel panel)
+    private static List<RulesetInventorySlot> GetFilteredAndSorted(
+        [CanBeNull] ContainerPanel panel,
+        [CanBeNull] RulesetContainer container)
     {
-        return panel.TryGetComponent<InventoryContainerPanelMarker>(out _)
-            ? FilterAndSort(panel.Container)
-            : panel.Container.InventorySlots;
+        if (container == null && panel)
+        {
+            container = panel.Container;
+        }
+
+        if (container == null)
+        {
+            return [];
+        }
+
+        if (!Enabled ||
+            !ControlsReady() ||
+            !panel ||
+            !panel.TryGetComponent<InventoryContainerPanelMarker>(out _) ||
+            !HasActiveFilterOrSort())
+        {
+            return container.InventorySlots;
+        }
+
+        return FilterAndSort(container);
     }
 
     private static List<RulesetInventorySlot> FilterAndSort(RulesetContainer container)
@@ -440,14 +490,18 @@ internal static class InventoryManagementContext
         }
 
         Filtered.Clear();
-        Filtered.AddRange(container.InventorySlots
-            .Where(HasValidEquippedItem)
+        var slots = container.InventorySlots;
+
+        Filtered.AddRange(slots
+            .Where(HasValidItem)
             .Where(slot => FilterItem(slot.EquipedItem, container)));
 
         if (SortGuiDropdown.value > 0)
         {
             Filtered.Sort(ItemSort);
         }
+
+        Filtered.AddRange(slots.Where(IsEmptyInventoryDropTarget));
 
         _dirty = false;
 
