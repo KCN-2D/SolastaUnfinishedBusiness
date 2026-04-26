@@ -4,6 +4,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Feats;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Races;
 using UnityEngine;
 
@@ -92,8 +93,12 @@ public static class GameLocationVisibilityManagerPatcher
 
                 if (magnitude > senseRange ||
                     (hasImpairedSight && SenseMode.CanBeImpaired(senseType) && magnitude > 1.7999999523162842) ||
-                    __instance.gameLocationPositioningService.RaycastGridSightBlocker(
-                        origin, position, __instance.GameLocationService))
+                    !VisibilityPerceptionContext.HasPerceptionLineOfSight(
+                        __instance,
+                        origin,
+                        position,
+                        fromWorldPosition1,
+                        fromWorldPosition2))
                 {
                     continue;
                 }

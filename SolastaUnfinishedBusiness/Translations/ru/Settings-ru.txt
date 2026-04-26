@@ -206,6 +206,8 @@ ModUi/&EnableOneDndStoneSkinSpell=Включить версию заклинан
 ModUi/&EnableOneDndTrueStrikeCantrip=Включить версию заговора <color=#D89555>Меткий удар</color> из 5e 2024 <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>\n<i><color=#F0DAA0>[для бросков атаки и урона используется ваша заклинательная характеристика, а также дополнительный урон излучением с 5-го уровня]</color></i>
 ModUi/&EnableOneDndWitchBoltSpell=Включить <color=#D89555>Witch Bolt</color> версию заклинания 5e 2024 <i><color=#F0DAA0>[Бонусное действие для повторного нанесения урона]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=Включить линии обзора в сторону видимых врагов при прицеливании вне боя.
+ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
 ModUi/&EnablePaladinAbjureFoes2024=Включить <color=#D89555>Отречение врагов</color> на уровне 9
 ModUi/&EnablePaladinAnyFightingStyle2024=Разрешить <color=#D89555>Паладину</color> выбирать любой боевой стиль <i><color=#F0DAA0>[добавляет Стрельба из лука и Бой двумя оружиями]</color></i>
 ModUi/&EnablePaladinChannelDivinity2024=Заменить <color=#D89555>Божественный канал</color> на версию из 5e 2024 <i><color=#F0DAA0>[различные варианты использования]</color></i>

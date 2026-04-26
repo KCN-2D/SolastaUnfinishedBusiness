@@ -206,6 +206,8 @@ ModUi/&EnableOneDndStoneSkinSpell=Habilitar <color=#D89555>Stone Skin</color> ve
 ModUi/&EnableOneDndTrueStrikeCantrip=Habilitar <color=#D89555>True Strike</color> versão 5e 2024 do truque <b><i><color=#C04040E0>[Requer reinicialização]</color></i></b>\n<i><color=#F0DAA0>[o ataque usa sua habilidade de conjuração para a jogada de ataque e bônus de dano, além de dano radiante adicional do nível 5]</color></i>
 ModUi/&EnableOneDndWitchBoltSpell=Ativar <color=#D89555>Witch Bolt</color> versão do feitiço 5e 2024 <i><color=#F0DAA0>[Ação bônus para reaplicar dano]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=Habilite linhas de visão em direção a inimigos visíveis ao mirar fora de combate
+ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
 ModUi/&EnablePaladinAbjureFoes2024=Habilitar <color=#D89555>Abjure Foes</color> no nível 9
 ModUi/&EnablePaladinAnyFightingStyle2024=Permitir que <color=#D89555>Paladino</color> escolha qualquer estilo de luta <i><color=#F0DAA0>[adiciona Arquearia e Luta com Duas Armas]</color></i>
 ModUi/&EnablePaladinChannelDivinity2024=Troque <color=#D89555>Channel Divinity</color> pela versão 5e 2024 <i><color=#F0DAA0>[usos diferentes]</color></i>

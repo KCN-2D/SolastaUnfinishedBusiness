@@ -206,6 +206,8 @@ ModUi/&EnableOneDndStoneSkinSpell=启用 5e 2024 版本<color=#D89555>石肤术<
 ModUi/&EnableOneDndTrueStrikeCantrip=启用 5e 2024 版本<color=#D89555>克敌先击</color>法术<b><i><color=#C04040E0>[需要重启]</color></i></b><i><color=#F0DAA0>[攻击时使用你的施法属性调整值进行攻击掷骰和伤害加值，并从 5 级开始造成额外的光耀伤害]</color></i>
 ModUi/&EnableOneDndWitchBoltSpell=启用<color=#D89555>女巫箭</color> 5e 2024法术版本<i><color=#F0DAA0>[重新施加伤害的奖励动作]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=在非战斗状态下瞄准可见敌人时启用视线
+ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
 ModUi/&EnablePaladinAbjureFoes2024=在第 9 级时启用<color=#D89555>弃绝众敌</color>
 ModUi/&EnablePaladinAnyFightingStyle2024=允许<color=#D89555>圣武士</color>选择任意战斗风格<i><color=#F0DAA0>[增加箭术和双武器战斗]</color></i>
 ModUi/&EnablePaladinChannelDivinity2024=启用 5e 2024 版本<color=#D89555>引导神力</color><i><color=#F0DAA0>[不同用法]</color></i>

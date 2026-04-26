@@ -206,6 +206,8 @@ ModUi/&EnableOneDndStoneSkinSpell=<color=#D89555>스톤 스킨</color> 5e 2024 �
 ModUi/&EnableOneDndTrueStrikeCantrip=<color=#D89555>True Strike</color> 5e 2024 캔트립 버전 사용 <b><i><color=#C04040E0>[재시작 필요]</color></i></b>\n<i><color=#F0DAA0>[공격 시 공격 굴림과 피해 보너스에 주문 시전 능력을 사용하고, 레벨 5부터 추가 방사형 피해]</color></i>
 ModUi/&EnableOneDndWitchBoltSpell=<color=#D89555>Witch Bolt</color> 5e 2024 주문 버전 활성화 <i><color=#F0DAA0>[피해를 다시 적용하는 보너스 액션]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=비전투 대상을 지정할 때 눈에 보이는 적에 대한 시선 활성화
+ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
 ModUi/&EnablePaladinAbjureFoes2024=레벨 9에서 <color=#D89555>적을 배척</color>할 수 있습니다.
 ModUi/&EnablePaladinAnyFightingStyle2024=<color=#D89555>팔라딘</color>이 모든 전투 스타일을 선택할 수 있도록 허용 <i><color=#F0DAA0>[궁술 및 쌍수 무기 전투 추가]</color></i>
 ModUi/&EnablePaladinChannelDivinity2024=<color=#D89555>채널 디비니티</color>를 5e 2024 버전 <i><color=#F0DAA0>[다른 용도]</color></i>으로 바꾸세요

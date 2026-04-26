@@ -1411,6 +1411,14 @@ internal static class ToolsDisplay
             LightingAndObscurementContext.SwitchOfficialObscurementRules();
         }
 
+        toggle = Main.Settings.EnableCeilingAwareTargetPerception;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableCeilingAwareTargetPerception"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableCeilingAwareTargetPerception = toggle;
+        }
+
+        UI.Label(Gui.Localize("ModUi/&EnableCeilingAwareTargetPerceptionHelp"));
+
         if (Main.Settings.UseOfficialLightingObscurementAndVisionRules)
         {
             UI.Label(Gui.Localize("ModUi/&UseOfficialObscurementRulesHelp"));

@@ -206,6 +206,8 @@ ModUi/&EnableOneDndStoneSkinSpell=Abilita <color=#D89555>Pelle di pietra</color>
 ModUi/&EnableOneDndTrueStrikeCantrip=Abilita <color=#D89555>True Strike</color> versione trucchetto 5e 2024 <b><i><color=#C04040E0>[Richiede riavvio]</color></i></b>\n<i><color=#F0DAA0>[l'attacco usa la tua capacità di lanciare incantesimi per il tiro di attacco e il bonus al danno, e danni radianti aggiuntivi dal livello 5]</color></i>
 ModUi/&EnableOneDndWitchBoltSpell=Abilita <color=#D89555>Dardo della Strega</color> versione incantesimo 5e 2024 <i><color=#F0DAA0>[Azione bonus per riapplicare il danno]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=Abilita le linee di vista verso i nemici visibili quando si prende di mira fuori dal combattimento
+ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
 ModUi/&EnablePaladinAbjureFoes2024=Abilita <color=#D89555>Abjura i nemici</color> al livello 9
 ModUi/&EnablePaladinAnyFightingStyle2024=Consenti al <color=#D89555>Paladino</color> di scegliere qualsiasi stile di combattimento <i><color=#F0DAA0>[aggiunge Tiro con l'arco e Combattimento a due armi]</color></i>
 ModUi/&EnablePaladinChannelDivinity2024=Sostituisci <color=#D89555>Canale Divinità</color> con la versione 5e 2024 <i><color=#F0DAA0>[usi diversi]</color></i>

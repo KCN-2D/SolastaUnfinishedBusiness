@@ -206,6 +206,8 @@ ModUi/&EnableOneDndStoneSkinSpell=Aktiviere <color=#D89555>Steinhaut</color> 5e 
 ModUi/&EnableOneDndTrueStrikeCantrip=Aktiviere <color=#D89555>True Strike</color> 5e 2024 Cantrip-Version <b><i><color=#C04040E0>[Neustart erforderlich]</color></i></b>\n<i><color=#F0DAA0>[Angriff nutzt deine Zauberfähigkeit für den Angriffswurf und Schadensbonus sowie zusätzlichen Strahlungsschaden ab Level 5]</color></i>
 ModUi/&EnableOneDndWitchBoltSpell=Aktiviere <color=#D89555>Hexenblitz</color> 5e 2024 Zauberversion <i><color=#F0DAA0>[Bonusaktion zum erneuten Anwenden von Schaden]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=Aktivieren Sie Sichtlinien zu sichtbaren Feinden, wenn Sie außerhalb des Kampfes zielen
+ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
 ModUi/&EnablePaladinAbjureFoes2024=Aktiviere <color=#D89555>Feinde abschwören</color> auf Level 9.
 ModUi/&EnablePaladinAnyFightingStyle2024=Erlaube <color=#D89555>Paladin</color> jeden Kampfstil zu wählen <i><color=#F0DAA0>[fügt Bogenschießen und Kampf mit zwei Waffen hinzu]</color></i>
 ModUi/&EnablePaladinChannelDivinity2024=Tauschen Sie <color=#D89555>Channel Divinity</color> gegen die 5e 2024-Version aus <i><color=#F0DAA0>[verschiedene Verwendungen]</color></i>

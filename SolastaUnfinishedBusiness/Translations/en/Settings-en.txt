@@ -312,6 +312,8 @@ ModUi/&GeneralMenu=General
 ModUi/&GridSelectedColor=Change the movement <b><color=$$$$$$>grid color</color></b>
 ModUi/&HideExitAndTeleporterGizmosIfNotDiscovered=Hide exits and teleporters visual effects if not discovered yet
 ModUi/&EnableOutOfCombatTargetingSightLines=Enable sight lines towards visible enemies when targeting out-of-combat
+ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
 ModUi/&HideMonsterHitPoints=Display Monsters' health in steps of 25% / 50% / 75% / 100% instead of exact hit points
 ModUi/&HideQuickenedActionWhenMetamagicOff=<i>+ Hide this action when metamagic toggle is off</i>
 ModUi/&HighContrastTargetingAoeColor=Change AoE creatures <b><color=$$$$$$>highlight select color</color></b>

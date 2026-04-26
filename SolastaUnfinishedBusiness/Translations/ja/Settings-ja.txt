@@ -312,6 +312,8 @@ ModUi/&GeneralMenu=一般的な
 ModUi/&GridSelectedColor=動きの<b><color=$$$$$$>グリッドの色</color></b>を変更します
 ModUi/&HideExitAndTeleporterGizmosIfNotDiscovered=まだ発見されていない場合は出口と瞬間移動装置の視覚効果を非表示にします
 ModUi/&EnableOutOfCombatTargetingSightLines=非戦闘時の対象指定で、視認できる敵への視線を有効にする
+ModUi/&EnableCeilingAwareTargetPerception=天井付近でのターゲット視認判定を改善する
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>最高高度・天井付近から下方の対象を見るとき、視線rayが天井境界を誤って遮断物として拾う場合だけ、わずかに低い始点から再判定します。壁、遮蔽、暗闇、不可視、射程は無視しません。</i>
 ModUi/&HideMonsterHitPoints=モンスターの体力を正確なヒット・ポイントではなく、25% / 50% / 75% / 100% の単位で表示します。
 ModUi/&HideQuickenedActionWhenMetamagicOff=<i>+ 呪文修正トグルがオフのときはこのアクションを非表示にする</i>
 ModUi/&HighContrastTargetingAoeColor=AoEクリーチャーを変更する<b><color=$$$$$$>選択した色を強調表示</color></b>
