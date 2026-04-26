@@ -1,6 +1,6 @@
 CharacterInteraction/&BanditTrackDescription=ヒューマンの足跡だ。おそらく山賊のものだろう。かなり新しい。
 CharacterInteraction/&DLC1_VIPTracksDescription=古びたブーツの足跡だ。
-CharacterInteraction/&DLC3_Tracks_Gallivan=ヒューマンサイズのブーツ跡…ギャリバン兵か？
+CharacterInteraction/&DLC3_Tracks_Gallivan=人間大のブーツ跡…ギャリバン兵か？
 CharacterInteraction/&DLC3_Tracks_Survivors=ドワーフとほかの人型生物の足跡が入り混じっている。
 CharacterInteraction/&DisarmTrapDescription=この罠の解除を試みます。
 CharacterInteraction/&GiantTrackDescription=異様に大きな足跡だ。巨人だろうか？

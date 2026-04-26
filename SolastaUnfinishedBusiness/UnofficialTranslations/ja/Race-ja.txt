@@ -1,4 +1,4 @@
-Race/&DragonbornDescription=ドラゴンボーンは、姿を変えたドラゴンが人型種族の血統と交わった結果として生まれました。マナカロン帝国では広く受け入れられていましたが、大変動の後は用心深く孤立するようになり、自給自足しつつも距離を置いて暮らしています。
+Race/&DragonbornDescription=ドラゴンボーンは、姿を変えたドラゴンが人型生物の血統と交わった結果として生まれました。マナカロン帝国では広く受け入れられていましたが、大変動の後は用心深く孤立するようになり、自給自足しつつも距離を置いて暮らしています。
 Race/&DragonbornFemaleName10Title=マイラ
 Race/&DragonbornFemaleName11Title=ポリムニア
 Race/&DragonbornFemaleName12Title=ローダンセ

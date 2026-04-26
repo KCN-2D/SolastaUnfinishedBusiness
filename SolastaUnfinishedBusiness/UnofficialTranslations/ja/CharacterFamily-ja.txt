@@ -1,6 +1,6 @@
 CharacterFamily/&AberrationDescription=異形は完全に異質な存在です。その多くは、世界の神秘的な力ではなく、その異質な精神から引き出される生得の魔法能力を持っています。
 CharacterFamily/&AberrationTitle=異形
-CharacterFamily/&BeastDescription=野獣は、ファンタジー世界の生態系を構成する自然な非人型クリーチャーです。中には魔法の力を持つものもいますが、ほとんどは知性に乏しく、社会や言語を持ちません。
+CharacterFamily/&BeastDescription=野獣は、ファンタジー世界の生態系を構成する自然なクリーチャーであり、人型生物ではありません。中には魔法の力を持つものもいますが、ほとんどは知性に乏しく、社会や言語を持ちません。
 CharacterFamily/&BeastTitle=野獣
 CharacterFamily/&CelestialDescription=セレスチャルは上方次元界に本来属するクリーチャーです。その多くは神々のしもべであり、定命の世界や諸次元で伝令や使者として働きます。セレスチャルは本質的に善良であるため、善の属性から外れる例外的なセレスチャルは恐るべきほど珍しい存在です。
 CharacterFamily/&CelestialTitle=セレスチャル

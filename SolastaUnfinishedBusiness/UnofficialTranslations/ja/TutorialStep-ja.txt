@@ -153,8 +153,8 @@ TutorialStep/&Tuto04_Dashing_Description=黄色のエリア内のポイントに
 TutorialStep/&Tuto04_Dashing_Title=早足
 TutorialStep/&Tuto04_Disengaging_Description=機会攻撃を回避するには、「離脱」アクションを使用できます。ターンの残りの間、機会攻撃を受けることなく自由に移動できます。\n\nただし、離脱にはアクションが使われるため、このターン中は攻撃したり早足したりすることはできません。
 TutorialStep/&Tuto04_Disengaging_Title=離脱中
-TutorialStep/&Tuto04_DodgingXbox_Description=<sprite index={2}>を押すと、回避など別のアクションも選べます。\n\n回避を選ぶとメイン・アクションを使用し、次の効果を得ます。\n\n次のターンの開始まで、あなたが見ることのできる攻撃者は全員、あなたへの攻撃ロールに不利を受けます。また、あなたは敏捷力セーヴに有利を得ます。
-TutorialStep/&Tuto04_Dodging_Description=回避をクリックすると、アクションを使用し、次の効果を得ます：\n\n次のターンの開始まで、あなたが見ることのできる攻撃者は全員、あなたへの攻撃ロールに不利を受けます。また、あなたは敏捷力セーヴに有利を得ます。
+TutorialStep/&Tuto04_DodgingXbox_Description=<sprite index={2}>を押すと、回避など別のアクションも選べます。\n\n回避を選ぶとメイン・アクションを使用し、次の効果を得ます。\n\n次のターンの開始まで、あなたが見ることのできる攻撃者は全員、あなたへの攻撃ロールに不利を受けます。また、あなたは敏捷力セーヴィング・スローに有利を得ます。
+TutorialStep/&Tuto04_Dodging_Description=回避をクリックすると、アクションを使用し、次の効果を得ます：\n\n次のターンの開始まで、あなたが見ることのできる攻撃者は全員、あなたへの攻撃ロールに不利を受けます。また、あなたは敏捷力セーヴィング・スローに有利を得ます。
 TutorialStep/&Tuto04_Dodging_Title=回避
 TutorialStep/&Tuto04_Opportunity_Description=クリーチャーが、そのクリーチャーを見ることのできる敵の間合いの外へ移動すると、その敵は自分のリアクションを使用して近接攻撃を行えます。\n\nもちろん、あなたも機会攻撃を使用できます。\n\n敵の近接攻撃範囲内にいるときは注意してください。何の備えもなく離れることはできません。
 TutorialStep/&Tuto04_Opportunity_Title=機会攻撃
@@ -216,7 +216,7 @@ TutorialStep/&Tuto_Merchants_Description=商人は品物を売買するだけで
 TutorialStep/&Tuto_Merchants_Title=商人
 TutorialStep/&Tuto_PreparingSpells_Description=多くの術者は、一度に思い出しておける以上の呪文を知っています。準備された呪文とは、呪文スロットを消費して実際に使える呪文のことです。\n\n英雄たちの習得済み呪文一覧を確認し、準備する呪文を選びましょう。\n\n準備していない呪文は発動できません。多くのキャラクターは、準備できる数より多くの呪文を知っているため、状況に応じて慎重に選ぶ必要があります。
 TutorialStep/&Tuto_PreparingSpells_Title=呪文の準備
-TutorialStep/&Tuto_ReadyAnAction_Description=これにより、特定の条件が満たされるまで待ち、ほかのクリーチャーのターンに割り込んで、準備していた行動を実行できます。\n\n〈魔術師の王冠〉では、状況に応じて攻撃を待機させられます。\n\n移動やボーナス・アクションは行えますが、待機を選ぶと自分のターンはそこで終了します。
+TutorialStep/&Tuto_ReadyAnAction_Description=これにより、特定の条件が満たされるまで待ち、ほかのクリーチャーのターンに割り込んで、準備していた行動を実行できます。\n\n〈マジスターの王冠〉では、状況に応じて攻撃を待機させられます。\n\n移動やボーナス・アクションは行えますが、待機を選ぶと自分のターンはそこで終了します。
 TutorialStep/&Tuto_ReadyAnAction_Title=待機
 TutorialStep/&Tuto_RunePuzzle_Description=地面にわずかに光っている隠しルーンを見つけ、それを踏んで起動します。
 TutorialStep/&Tuto_RunePuzzle_Title=魔法のルーンパズル
