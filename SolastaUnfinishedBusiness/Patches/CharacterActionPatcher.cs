@@ -6,7 +6,6 @@ using System.Linq;
 using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
-using NAudio.MediaFoundation;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -141,6 +140,8 @@ public static class CharacterActionPatcher
             {
                 actingCharacter.UsedSpecialFeatures.Remove(CharacterActionExtensions.ShouldKeepConcentration);
             }
+
+            Tabletop2024Context.TryStartSkulker2024FogOfWar(__instance);
 
             switch (__instance)
             {
@@ -281,14 +282,16 @@ public static class CharacterActionPatcher
         {
             ShouldBanter = true;
 
+            if (ShouldSkulker2024SuppressRevealOnMiss(character, action))
+            {
+                return false;
+            }
+
             switch (action)
             {
                 case CharacterActionAttack:
                 {
-                    if ((action.AttackRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess
-                         && Main.Settings.StealthBreaksWhenAttackHits)
-                        || (action.AttackRollOutcome is RollOutcome.Failure or RollOutcome.CriticalFailure
-                            && Main.Settings.StealthBreaksWhenAttackMisses))
+                    if (ShouldBreakStealthFromAttackRoll(action))
                     {
                         ShouldBanter = false;
                         roll = Main.Settings.StealthRollForBreak;
@@ -301,15 +304,9 @@ public static class CharacterActionPatcher
                     var activeSpell = actionCastSpell.ActiveSpell;
                     var spell = activeSpell.SpellDefinition;
 
-                    if (spell.EffectDescription.RangeType
-                        is RangeType.Touch
-                        or RangeType.MeleeHit
-                        or RangeType.RangeHit)
+                    if (IsAttackRollSpell(actionCastSpell))
                     {
-                        if ((action.AttackRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess
-                             && Main.Settings.StealthBreaksWhenAttackHits)
-                            || (action.AttackRollOutcome is RollOutcome.Failure or RollOutcome.CriticalFailure
-                                && Main.Settings.StealthBreaksWhenAttackMisses))
+                        if (ShouldBreakStealthFromAttackRoll(action))
                         {
                             ShouldBanter = false;
                             roll = Main.Settings.StealthRollForBreak;
@@ -342,15 +339,9 @@ public static class CharacterActionPatcher
                 case CharacterActionSpendPower:
                 case CharacterActionUsePower:
                 {
-                    if (action.ActionParams.RulesetEffect.EffectDescription.RangeType
-                        is RangeType.Touch
-                        or RangeType.MeleeHit
-                        or RangeType.RangeHit)
+                    if (IsAttackRollPower(action))
                     {
-                        if ((action.AttackRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess
-                             && Main.Settings.StealthBreaksWhenAttackHits)
-                            || (action.AttackRollOutcome is RollOutcome.Failure or RollOutcome.CriticalFailure
-                                && Main.Settings.StealthBreaksWhenAttackMisses))
+                        if (ShouldBreakStealthFromAttackRoll(action))
                         {
                             ShouldBanter = false;
                             roll = Main.Settings.StealthRollForBreak;
@@ -362,6 +353,57 @@ public static class CharacterActionPatcher
             }
 
             return character.ComputeStealthBreak(roll, actionModifier, detectorsWithAdvantage);
+        }
+
+        private static bool IsAttackRollAction(CharacterAction action)
+        {
+            return action switch
+            {
+                CharacterActionAttack => true,
+                CharacterActionCastSpell actionCastSpell => IsAttackRollSpell(actionCastSpell),
+                CharacterActionSpendPower or CharacterActionUsePower => IsAttackRollPower(action),
+                _ => false
+            };
+        }
+
+        private static bool IsAttackRollSpell(CharacterActionCastSpell actionCastSpell)
+        {
+            return actionCastSpell?.ActiveSpell?.SpellDefinition?.EffectDescription.RangeType
+                is RangeType.Touch
+                or RangeType.MeleeHit
+                or RangeType.RangeHit;
+        }
+
+        private static bool IsAttackRollPower(CharacterAction action)
+        {
+            return action?.ActionParams?.RulesetEffect?.EffectDescription.RangeType
+                is RangeType.Touch
+                or RangeType.MeleeHit
+                or RangeType.RangeHit;
+        }
+
+        private static bool IsAttackRollHit(CharacterAction action)
+        {
+            return action?.AttackRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess;
+        }
+
+        private static bool IsAttackRollMiss(CharacterAction action)
+        {
+            return action?.AttackRollOutcome is RollOutcome.Failure or RollOutcome.CriticalFailure;
+        }
+
+        private static bool ShouldSkulker2024SuppressRevealOnMiss(GameLocationCharacter character, CharacterAction action)
+        {
+            return character?.Stealthy == true &&
+                   IsAttackRollAction(action) &&
+                   IsAttackRollMiss(action) &&
+                   Tabletop2024Context.HasSkulker2024(character);
+        }
+
+        private static bool ShouldBreakStealthFromAttackRoll(CharacterAction action)
+        {
+            return IsAttackRollHit(action) && Main.Settings.StealthBreaksWhenAttackHits ||
+                   IsAttackRollMiss(action) && Main.Settings.StealthBreaksWhenAttackMisses;
         }
     }
     /// <summary>

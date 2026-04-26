@@ -94,6 +94,8 @@ public static partial class Tabletop2024Context
     private const string LegacySharpshooterFeatName = "FeatDeadeye";
     private const string Sharpshooter2024FeatName = "FeatSharpshooter2024";
     private const string LegacySharpshooter2024SettingName = "FeatDeadeye2024";
+    private const string Skulker2024FeatName = "FeatSkulker2024";
+    private const string Skulker2024FogOfWarSpecialFeatureName = "Skulker2024FogOfWar";
     private const string SpeedyFamily = "Speedy";
     private const string SpellSniper2024Family = "SpellSniper2024";
     private const string SpellListFeatFeyTouched2024ChoiceName = "SpellListFeatFeyTouched2024Choice";
@@ -403,6 +405,7 @@ public static partial class Tabletop2024Context
     private static FeatDefinition _featGreatWeaponMaster2024;
     private static FeatDefinition _featCrossbowExpert2024;
     private static FeatDefinition _featSharpshooter2024;
+    private static FeatDefinition _featSkulker2024;
     private static FeatDefinition _featDefensiveDuelist2024;
     private static FeatDefinition _featActor2024;
     private static FeatDefinition _featDurable2024;
@@ -461,6 +464,7 @@ public static partial class Tabletop2024Context
             BuildDurable2024();
             BuildGreatWeaponMaster2024();
             BuildSharpshooter2024();
+            BuildSkulker2024();
             BuildWarCaster2024();
             BuildCrossbowExpert2024();
             BuildShieldMaster2024();
@@ -1540,6 +1544,36 @@ public static partial class Tabletop2024Context
             prerequisiteValue: 13,
             extraFeatures: [combatAffinity]);
         RegisterManagedTabletopFeats(true, _featSharpshooter2024);
+    }
+
+    private static void BuildSkulker2024()
+    {
+        var baseDescription = Gui.Localize("Feat/&FeatSkulker2024BaseDescription");
+        var senseBlindsight = FeatureDefinitionSenseBuilder
+            .Create("SenseFeatSkulker2024Blindsight")
+            .SetGuiPresentationNoContent(true)
+            .SetSense(SenseMode.Type.Blindsight, 2)
+            .AddToDB();
+        var fogOfWarFeature = FeatureDefinitionBuilder
+            .Create("FeatureFeatSkulker2024FogOfWar")
+            .SetGuiPresentationNoContent(true)
+            .AddCustomSubFeatures(
+                new ModifyAbilityCheckSkulker2024FogOfWar(),
+                new ActionFinishedByMeSkulker2024FogOfWar())
+            .AddToDB();
+
+        _featSkulker2024 = FeatDefinitionBuilder
+            .Create(Skulker2024FeatName)
+            .SetGuiPresentation(
+                "Feat/&FeatSkulker2024Title",
+                BuildHalfFeatDescription(AttributeDefinitions.Dexterity, baseDescription),
+                hidden: false)
+            .SetFeatures(AttributeModifierCreed_Of_Misaye, senseBlindsight, fogOfWarFeature)
+            .AddToDB();
+
+        ApplyHalfFeatAbilityPrerequisite(_featSkulker2024, AttributeDefinitions.Dexterity, 13);
+        SetFeatVisibility(_featSkulker2024, false);
+        RegisterManagedTabletopFeats(true, _featSkulker2024);
     }
 
     private static void BuildWarCaster2024()
@@ -3322,6 +3356,7 @@ public static partial class Tabletop2024Context
         RegisterManagedCatalogEntry("FeatGroupSpellSniper", _featGroupSpellSniper2024, true);
         RegisterManagedCatalogEntry(LegacyGreatWeaponMasterFeatName, _featGreatWeaponMaster2024, true, true);
         RegisterManagedCatalogEntry(LegacySharpshooterFeatName, _featSharpshooter2024, true, true);
+        RegisterManagedCatalogEntry(Skulker2024FeatName, _featSkulker2024, true, true);
 
         foreach (var dedicatedHalfFeat in DedicatedStandaloneHalfFeat2024ByCanonicalName)
         {
@@ -3688,7 +3723,7 @@ public static partial class Tabletop2024Context
             new TabletopFeat2024Profile(
                 _featActor2024,
                 [],
-                [GroupFeats.FeatGroupSkills]),
+                [GroupFeats.FeatGroupSkills, GroupFeats.FeatGroupTools]),
             new TabletopFeat2024Profile(
                 _featAlert2024,
                 [GetDefinition<FeatDefinition>("FeatAlert")],
@@ -3826,6 +3861,10 @@ public static partial class Tabletop2024Context
                 [featDeadeye],
                 [GroupFeats.FeatGroupRangedCombat]),
             new TabletopFeat2024Profile(
+                _featSkulker2024,
+                [],
+                [GroupFeats.FeatGroupAgilityCombat, GroupFeats.FeatGroupRangedCombat]),
+            new TabletopFeat2024Profile(
                 _featGroupGrappler2024,
                 [featGrappler],
                 [GroupFeats.FeatGroupUnarmoredCombat])
@@ -3842,10 +3881,11 @@ public static partial class Tabletop2024Context
                 continue;
             }
 
-            var targetGroups = GroupFeats.Groups
-                .Where(group => group.GetFirstSubFeatureOfType<GroupedFeat>() is { } groupedFeat &&
-                                groupedFeat.Feats.Contains(legacyFeat))
-                .ToArray();
+            var targetGroups = AddAdditionalManagedTabletopProfileTargetGroups(
+                independentFeat.Key,
+                GroupFeats.Groups
+                    .Where(group => group.GetFirstSubFeatureOfType<GroupedFeat>() is { } groupedFeat &&
+                                    groupedFeat.Feats.Contains(legacyFeat)));
 
             TabletopFeat2024Profiles.Add(new TabletopFeat2024Profile(
                 independentFeat.Value,
@@ -3861,6 +3901,20 @@ public static partial class Tabletop2024Context
         }
 
         CaptureOriginalFeatHiddenStates();
+    }
+
+    private static FeatDefinition[] AddAdditionalManagedTabletopProfileTargetGroups(
+        string canonicalName,
+        IEnumerable<FeatDefinition> targetGroups)
+    {
+        var groups = targetGroups?.Where(group => group != null) ?? Enumerable.Empty<FeatDefinition>();
+
+        if (canonicalName == "FeatGroupChef")
+        {
+            groups = groups.Concat([GroupFeats.FeatGroupTools]);
+        }
+
+        return groups.Distinct().ToArray();
     }
 
     private static void CaptureOriginalFeatHiddenStates()
@@ -6515,6 +6569,42 @@ public static partial class Tabletop2024Context
         return false;
     }
 
+    internal static bool HasSkulker2024(GameLocationCharacter character)
+    {
+        return HasSkulker2024(character?.RulesetCharacter);
+    }
+
+    internal static bool HasSkulker2024(RulesetCharacter rulesetCharacter)
+    {
+        return HasEquivalentTrainedFeat(rulesetCharacter?.GetOriginalHero(), _featSkulker2024);
+    }
+
+    internal static void TryStartSkulker2024FogOfWar(CharacterAction action)
+    {
+        var actingCharacter = action?.ActingCharacter;
+
+        if (actingCharacter == null)
+        {
+            return;
+        }
+
+        actingCharacter.UsedSpecialFeatures.Remove(Skulker2024FogOfWarSpecialFeatureName);
+
+        if (Gui.Battle == null ||
+            !IsSkulker2024HideAction(action) ||
+            !HasSkulker2024(actingCharacter))
+        {
+            return;
+        }
+
+        actingCharacter.UsedSpecialFeatures[Skulker2024FogOfWarSpecialFeatureName] = 1;
+    }
+
+    private static bool IsSkulker2024HideAction(CharacterAction action)
+    {
+        return action?.ActionId is Id.HideMain or Id.HideBonus;
+    }
+
     internal static bool IsSelectableTabletopFeatLeaf(FeatDefinition feat)
     {
         return feat != null &&
@@ -6823,6 +6913,48 @@ public static partial class Tabletop2024Context
     internal sealed class AttackOnlyReduceDamageMarker
     {
         internal static readonly AttackOnlyReduceDamageMarker Marker = new();
+    }
+
+    private sealed class ModifyAbilityCheckSkulker2024FogOfWar : IModifyAbilityCheck
+    {
+        public void MinRoll(
+            RulesetCharacter character,
+            int baseBonus,
+            string abilityScoreName,
+            string proficiencyName,
+            List<TrendInfo> advantageTrends,
+            List<TrendInfo> modifierTrends,
+            ref int rollModifier,
+            ref int minRoll)
+        {
+            if (Gui.Battle == null ||
+                abilityScoreName != AttributeDefinitions.Dexterity ||
+                proficiencyName != SkillDefinitions.Stealth ||
+                GameLocationCharacter.GetFromActor(character)?.UsedSpecialFeatures.ContainsKey(
+                    Skulker2024FogOfWarSpecialFeatureName) != true)
+            {
+                return;
+            }
+
+            advantageTrends.Add(new TrendInfo(
+                1,
+                FeatureSourceType.CharacterFeature,
+                Skulker2024FeatName,
+                null));
+        }
+    }
+
+    private sealed class ActionFinishedByMeSkulker2024FogOfWar : IActionFinishedByMe
+    {
+        public IEnumerator OnActionFinishedByMe(CharacterAction action)
+        {
+            if (IsSkulker2024HideAction(action))
+            {
+                action.ActingCharacter?.UsedSpecialFeatures.Remove(Skulker2024FogOfWarSpecialFeatureName);
+            }
+
+            yield break;
+        }
     }
 
     private sealed class TabletopFeat2024Profile(
