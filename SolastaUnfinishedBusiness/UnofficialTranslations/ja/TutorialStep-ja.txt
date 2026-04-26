@@ -20,13 +20,13 @@ TutorialStep/&Crafting05Description=最後に、アイテムを作るには、�
 TutorialStep/&Crafting05Title=クラフトレシピ
 TutorialStep/&Crafting06Description=クラフトを始めるには、キャラクター画面を開いて「クラフト」タブをクリックし、開始可能なレシピを選びます。\n旅の途中で進行バーが伸び、作業が終わると通知が表示されるため、必要なら次のレシピを始められます。\nクラフトを途中で中止すると、材料は失われるので注意してください。
 TutorialStep/&Crafting06Title=クラフト画面
-TutorialStep/&Crafting06XBoxDescription=クラフトを開始するには、<sprite index={11}>を使用してキャラクターの画面を開き、<sprite index={8}>または<sprite index={9}>を使用して「クラフト」タブを選択します。開始するには、利用可能なレシピを選択するだけです。\n移動中に進行状況バーが表示され、作成操作が完了すると通知が表示されるので、必要に応じて別のレシピを開始できます。\n製作操作をキャンセルすると、材料は失われます。
+TutorialStep/&Crafting06XBoxDescription=クラフトを開始するには、<sprite index={11}>を使用してキャラクターの画面を開き、<sprite index={8}>または<sprite index={9}>を使用して「クラフト」タブを選択します。開始するには、利用可能なレシピを選択するだけです。\n移動中に進行状況バーが表示され、製作作業が完了すると通知が表示されるので、必要に応じて別のレシピを開始できます。\n製作作業をキャンセルすると、材料は失われます。
 TutorialStep/&FoodDescription=所持品に食料がないなら、物色できるコンテナや倒れた敵の所持品から食料を探しましょう。
 TutorialStep/&FoodTitle=食べ物
 TutorialStep/&GatheringDescription=冒険を進めるには、特定の場所へパーティ全員を集めなければならないことがあります。\n\nクエストの次の段階を進めるには、全員をその区域まで連れて行く方法を見つけてください。
 TutorialStep/&GatheringTitle=パーティを集める
 TutorialStep/&InventorySpaceDescription=キャラクターは、重荷になるまで筋力の5倍の重量を運べます。\n\n各アイテムには重量があります。矢のように1つの所持品枠へまとめられるものもありますが、その重量は合計されます。\n\n装備を回収するときは、重荷ゲージを確認してください。キャラクターの動きが遅いなら、持ちすぎていないか見直しましょう。
-TutorialStep/&InventorySpaceTitle=在庫管理
+TutorialStep/&InventorySpaceTitle=所持品管理
 TutorialStep/&LightingDescription=ソラスタでは、自然光のない暗く深い場所を探索します。とくに暗視を持たないキャラクターにとっては、探索も戦闘も難しくなります。\n\nたいまつを装備したり、光の呪文を発動したりして、パーティ全体のために周囲を照らしましょう。
 TutorialStep/&LightingTitle=照明と光源
 TutorialStep/&MajorGateBoneKeep_Description=このマイナーゲートを使うと、城の外へ瞬間移動できます。\n\n後ろのメジャーゲートを使えば、ケール・サイフレンへ瞬間移動することもできます。
@@ -44,7 +44,7 @@ TutorialStep/&OutgameCharacterCreationAbilityScoresDescription=能力値は、�
 TutorialStep/&OutgameCharacterCreationAbilityScoresTitle=能力値
 TutorialStep/&OutgameCharacterCreationAncestryDescription=キャラクター作成の最初の段階では祖先を選びます。これによって外見と、右側に表示されるゲームプレイ上の能力が決まります。\n\n一部の祖先には、キャラクターの能力をさらに絞り込める血統サブオプションがあります。
 TutorialStep/&OutgameCharacterCreationAncestryTitle=祖先の選択
-TutorialStep/&OutgameCharacterCreationBackground2Description=背景で与えられる性格フラグに加え、秩序/混沌と善/悪の倫理軸に沿った性格フラグを2つ選ぶ必要があります。\n\nソラスタでは、属性は性格付けのもう1つの形です。
+TutorialStep/&OutgameCharacterCreationBackground2Description=背景で与えられる性格フラグに加え、秩序／混沌と善／悪の倫理軸に沿った性格フラグを2つ選ぶ必要があります。\n\nソラスタでは、属性は性格付けのもう1つの形です。
 TutorialStep/&OutgameCharacterCreationBackground2Title=属性
 TutorialStep/&OutgameCharacterCreationBackground3Description=同じフラグを2回選ぶことで、その性格傾向を強められます。フラグはゲームプレイや選択肢、ダイアログの内容には影響しませんが、キャラクターの話し方や口調、所作を変えます。\n\n最終的な性格は画面左下にまとめて表示され、最も濃い色が最も強い性格傾向を表します。
 TutorialStep/&OutgameCharacterCreationBackground3Title=結果として生じる性格

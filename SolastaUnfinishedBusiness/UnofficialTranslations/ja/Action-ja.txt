@@ -15,13 +15,13 @@ Action/&ActionStatusUnavailableDescription=このターンではアクション�
 Action/&ActionTeleportDescription=瞬間移動
 Action/&ActionTypeBonusAvailableMultipleDescription=このボーナス・アクションが利用可能です！
 Action/&ActionTypeBonusAvailableSingleDescription=ボーナス・アクションが利用可能になりました！
-Action/&ActionTypeBonusDescription=ボーナス・アクションは、特別な能力や呪文によって、あるいは利き手でない手に武器を装備したときに得られます。
+Action/&ActionTypeBonusDescription=ボーナス・アクションは、特別な能力や呪文によって、あるいは非利き手に武器を装備したときに得られます。
 Action/&ActionTypeBonusTitle=ボーナス・アクション
 Action/&ActionTypeBonusUnavailableMultipleDescription=このボーナス・アクションを使用しました。
 Action/&ActionTypeBonusUnavailableSingleDescription=ボーナス・アクションを使用しました。
 Action/&ActionTypeFreeOnceAvailableMultipleDescription=このフリー・アクションを行えます。
 Action/&ActionTypeFreeOnceAvailableSingleDescription=フリー・アクションが可能です！
-Action/&ActionTypeFreeOnceDescription=自分のターン中に、武器を納刀したり、アイテムを落としたりするなど、特定のフリー・アクションを実行できます。
+Action/&ActionTypeFreeOnceDescription=自分のターン中に、武器をしまったり、アイテムを落としたりするなど、特定のフリー・アクションを実行できます。
 Action/&ActionTypeFreeOnceTitle=フリー・アクション
 Action/&ActionTypeFreeOnceUnavailableMultipleDescription=このフリー・アクションは使用済みです。
 Action/&ActionTypeFreeOnceUnavailableSingleDescription=このフリー・アクションはすでに使用しました。
@@ -54,7 +54,7 @@ Action/&AttackExecuteDescription=対象を攻撃します！
 Action/&AttackExecuteDisadvantageDescription=不利で対象を攻撃します。
 Action/&AttackExecuteDisadvantageGamepadDescription=<sprite index={0}>を押して、不利で対象を攻撃してください。
 Action/&AttackExecuteGamepadDescription=<sprite index={0}>を押して、対象を攻撃してください。
-Action/&AttackIterativeDescription=自分のターン中に{0}回攻撃でき、移動の合間に攻撃を分散させることができます。
+Action/&AttackIterativeDescription=自分のターン中に{0}回攻撃でき、移動の合間に攻撃を挟むことができます。
 Action/&AttackTitle=攻撃
 Action/&AttackToss_Title=投擲
 Action/&BlockAttackDescription=近くの味方を攻撃している敵に不利を与えます。

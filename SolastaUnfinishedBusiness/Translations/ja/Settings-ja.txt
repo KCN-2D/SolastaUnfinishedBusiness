@@ -8,11 +8,11 @@ ModUi/&AddDexModifierToEnemiesInitiativeRoll=敵の<color=#D89555>イニシア�
 ModUi/&AddHumanoidFavoredEnemyToRanger=<color=#D89555>人型生物</color>優先敵を有効にする<b><i><color=#C04040E0>[再起動が必要]</color></i></b>
 ModUi/&AddNewScrollsToShops=適切なショップに新しい呪文の巻物を追加します<b><i><color=#C04040E0>[再起動が必要]</color></i></b>
 ModUi/&AddNewScrollsToTreasure=適切な宝物パックに新しい呪文の巻物を追加します<b><i><color=#C04040E0>[再起動が必要]</color></i></b>
-ModUi/&AddNewWeaponsAndRecipesToShops=新しい武器とレシピをショップに追加します<i><color=#F0DAA0>[ハンドラップ、ハルバード、パイク、ロングメイス、ハンドクロスボウ]</color></i><b><i><color=#C04040E0>[再起動が必要です]</color></i></b>
+ModUi/&AddNewWeaponsAndRecipesToShops=新しい武器とレシピをショップに追加します<i><color=#F0DAA0>[ハンドラップ、ハルバード、パイク、ロングメイス、ハンド・クロスボウ]</color></i><b><i><color=#C04040E0>[再起動が必要です]</color></i></b>
 ModUi/&NewWeaponsAndRecipesBaseInsteadOfPrimed=<i>+ プライム版ではなく基本武器・防具を素材として使用する</i><b><i><color=#C04040E0>[再起動が必要]</color></i></b>
 ModUi/&NewWeaponsAndRecipesSimplified=<i>+ シンプルなオールインワンレシピを使用する<color=#F0DAA0>[基本素材のみ、キャンペーンのカスタムアイテムには影響しません]</color></i><b><i><color=#C04040E0>[再起動が必要]</color></i></b>
-ModUi/&AddPaladinSmiteToggle=<color=#D89555>パラディン</color>に一撃切替ボタンを追加します<i><color=#F0DAA0>[自動一撃の挙動を変更]</color></i>
-ModUi/&AddPickPocketableLoot=スリ可能な戦利品を追加<i><color=#F0DAA0>[<color=#D89555>スリ</color>能力が有効になっている場合に推奨]</color></i>
+ModUi/&AddPaladinSmiteToggle=<color=#D89555>神聖なる一撃</color>をクリティカル・ヒット時のみ発動させる切替を追加します<i><color=#F0DAA0>[リアクション確認を減らします。2024年版の一撃系呪文が有効な場合はそれらにも適用されます]</color></i>
+ModUi/&AddPickPocketableLoot=スリ可能な戦利品を追加します<i><color=#F0DAA0>[<color=#D89555>スリ</color>特技が有効な場合に推奨]</color></i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=敵の呪文発動者は、書き写された呪文書<i><color=#F0DAA0>[ウィザード呪文リストの既知呪文を含む]</color></i>をドロップします。
 ModUi/&AddToStore={0}を追加
 ModUi/&Advanced=<color=#F0DAA0>詳細：</color><b><i><color=#C04040E0>[再起動が必要]</color></i></b>
@@ -21,7 +21,7 @@ ModUi/&AllowAllPlayersOnNarrativeSequences=<i>+ 物語シーンですべての�
 ModUi/&AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness=自然の暗闇の中で、味方が<b>暗がりの追跡者</b>を知覚できるようにします
 ModUi/&AllowAnyClassToWearSylvanArmor=どのクラスでも<color=#D89555>シルヴァン・アーマー</color>または<color=#D89555>ライトブリンガーの服</color>を着用できるようにします
 ModUi/&AllowBladeCantripsToUseReach=<color=#D89555>ブレード初級呪文</color>が1マスではなく武器の間合いを使用できるようにします
-ModUi/&AllowClubsToBeThrown=<color=#D89555>クラブ</color>を<color=#D89555>ダガー</color>や<color=#D89555>ハンドアックス</color>のように投げられるようになります
+ModUi/&AllowClubsToBeThrown=<color=#D89555>クラブ</color>を<color=#D89555>ダガー</color>や<color=#D89555>ハンドアックス</color>のように投げられるようにします
 ModUi/&AllowDisplayingNonSuggestedSpells=各リストでMODの非推奨呪文を許可する
 ModUi/&AllowDisplayingOfficialSpells=各リストでゲーム公式呪文を許可する
 ModUi/&AllowDungeonsMaxLevel20=最大レベル20のダンジョンを許可する
@@ -33,7 +33,7 @@ ModUi/&AllowMoreRealStateOnRestPanel=休憩パネルの表示領域を広げま�
 ModUi/&AllowStackedMaterialComponent=積み重ねられた物質構成要素を許可します<i><color=#F0DAA0>[例：2x500gpダイヤモンドは1000gpダイヤモンドに相当します]</color></i>
 ModUi/&AllowTargetingSelectionWhenCastingChainLightningSpell=<color=#D89555>連鎖電撃</color>呪文を唱える際に対象選択を許可します
 ModUi/&AltOnlyHighlightItemsInPartyFieldOfView=<color=#1E81B0>ALT</color>キーは、パーティの視界内にあるガジェットだけを強調表示します<i><color=#F0DAA0>[カスタムダンジョンのみ]</color></i>
-ModUi/&AlwaysSpendPactSlotsFirst=ウォーロックの契約魔法スロットを先に消費します
+ModUi/&AlwaysSpendPactSlotsFirst=<i>+ 可能なら常に<color=#D89555>ウォーロック</color>の契約魔法スロットを先に消費する</i>
 ModUi/&ArcaneShieldstaffOptions=<color=#D89555>アーケイン・シールドスタッフ</color>をどのクラスでも同調できるようにする
 ModUi/&Backgrounds=<color=#F0DAA0>背景</color>
 ModUi/&BackgroundsAndRaces=背景と種族
@@ -112,7 +112,7 @@ ModUi/&EnableBarbarianInstinctivePounce2024=7レベルで<color=#D89555>本能�
 ModUi/&EnableBarbarianPersistentRage2024=<color=#D89555>終らぬ激怒</color>を5e 2024版と入れ替える
 ModUi/&EnableBarbarianPrimalKnowledge2024=レベル3で<color=#D89555>原始の知識</color>を有効にする
 ModUi/&EnableBarbarianRage2024=<color=#D89555>激怒</color>を5e 2024版<i><color=#F0DAA0>[小休憩で1回の使用回数を回復]</color></i>と入れ替えます
-ModUi/&EnableBarbarianReckless2024=<color=#D89555>無謀な攻撃</color>を5e 2024版<i><color=#F0DAA0>[次のターンの開始時にバフとデバフが終了]</color></i>と入れ替えます
+ModUi/&EnableBarbarianReckless2024=<color=#D89555>捨て身の攻撃</color>を5e 2024版<i><color=#F0DAA0>[次のターンの開始時にバフとデバフが終了]</color></i>と入れ替えます
 ModUi/&EnableBarbarianRelentlessRage2024=<color=#D89555>倒れずの激怒</color>を5e 2024版と入れ替えます<i><color=#F0DAA0>[ヒット・ポイントは1ではなくクラスレベルの2倍になる]</color></i>
 ModUi/&EnableBardCounterCharm2024=<color=#D89555>心を守る歌</color>を、6レベルのアクションではなく7レベルのリアクションとして有効にします
 ModUi/&EnableBardExpertiseOneLevelBefore2024=<color=#D89555>習熟強化</color>を、3レベルと10レベルではなく2レベルと9レベルで有効にする
@@ -187,19 +187,19 @@ ModUi/&EnableOneDndBarkskinSpell=<color=#D89555>樹皮の肌</color>の5e 2024�
 ModUi/&EnableOneDndBladeWardCantrip=<color=#D89555>防刃</color>の5e 2024版を有効にします<i><color=#F0DAA0>[リアクション、精神集中、攻撃ロールを1d4低下]</color></i>
 ModUi/&EnableOneDndChillTouchCantrip=<color=#D89555>負力の接触</color>の5e 2024版を有効にします<i><color=#F0DAA0>[近接呪文攻撃、ダメージ1d10、アンデッドを恐怖状態にする可能性]</color></i>
 ModUi/&EnableOneDndDamagingSpellsUpgrade=<color=#D89555>秘術の剣</color>、<color=#D89555>死の円環</color>、<color=#D89555>天罰の火</color>、<color=#D89555>氷の嵐</color>、<color=#D89555>虹色の噴射</color>、<color=#D89555>悪意ある嘲り</color>の5e 2024版を有効にします
-ModUi/&EnableOneDndDivineFavorSpell=<color=#D89555>神寵</color> 5e 2024呪文バージョン<i><color=#F0DAA0>[集中なし]</color></i>を有効にする
+ModUi/&EnableOneDndDivineFavorSpell=<color=#D89555>神寵</color>の5e 2024版を有効にします<i><color=#F0DAA0>[精神集中不要]</color></i>
 ModUi/&EnableOneDndGuidanceSpell=<color=#D89555>導き</color>の5e 2024版を有効にします<i><color=#F0DAA0>[発動時に技能を1つ選択し、最大1分間ボーナスを得る]</color></i>
 ModUi/&EnableOneDndHealingSpellsUpgrade=<color=#D89555>傷治療</color>、<color=#D89555>偽りの生命</color>、<color=#D89555>癒しの言葉</color>、<color=#D89555>集団傷治療</color>、<color=#D89555>集団癒しの言葉</color>の5e 2024版呪文<i><color=#F0DAA0>[回復量向上]</color></i>を有効にします
-ModUi/&EnableOneDndHideousLaughterSpell=<color=#D89555>抱腹絶倒</color> 5e 2024呪文バージョンを有効にする<i><color=#F0DAA0>[アップキャストごとに対象+1]</color></i>
+ModUi/&EnableOneDndHideousLaughterSpell=<color=#D89555>抱腹絶倒</color>の5e 2024版を有効にします<i><color=#F0DAA0>[アップキャストごとに対象+1]</color></i>
 ModUi/&EnableOneDndHuntersMarkSpell=<color=#D89555>狩人の印</color>の5e 2024版呪文<i><color=#F0DAA0>[力場ダメージ]</color></i>を有効にする
 ModUi/&EnableOneDndLesserRestorationSpell=<color=#D89555>初級回復術</color>の5e 2024版呪文を有効にします<i><color=#F0DAA0>[ボーナス・アクション]</color></i>
 ModUi/&EnableOneDndMagicWeaponSpell=<color=#D89555>魔法の武器</color>の5e 2024版を有効にします<i><color=#F0DAA0>[ボーナス・アクション、精神集中不要、3および6レベルで強化]</color></i>
-ModUi/&EnableOneDndPowerWordStunSpell=<color=#D89555>力の言葉：朦朧</color>の5e 2024版呪文を有効にする<i><color=#F0DAA0>[対象のヒット・ポイントが150を超えている場合、1ターン朦朧状態にします]</color></i>
-ModUi/&EnableOneDndSpareTheDyingSpell=<color=#D89555>救命措置</color>の5e 2024呪文版を有効にする<i><color=#F0DAA0>[レベル5、11、17で射程が2倍になります]</color></i>
-ModUi/&EnableOneDndSpiderClimbSpell=<color=#D89555>蜘蛛歩き</color> 5e 2024呪文バージョンを有効にする<i><color=#F0DAA0>[アップキャストごとに対象+1]</color></i>
+ModUi/&EnableOneDndPowerWordStunSpell=<color=#D89555>力の言葉：朦朧</color>の5e 2024版を有効にします<i><color=#F0DAA0>[対象のヒット・ポイントが150を超える場合、1ターンの間移動を止める]</color></i>
+ModUi/&EnableOneDndSpareTheDyingSpell=<color=#D89555>救命措置</color>の5e 2024版を有効にします<i><color=#F0DAA0>[レベル5、11、17で射程が2倍になります]</color></i>
+ModUi/&EnableOneDndSpiderClimbSpell=<color=#D89555>蜘蛛歩き</color>の5e 2024版を有効にします<i><color=#F0DAA0>[アップキャストごとに対象+1]</color></i>
 ModUi/&EnableOneDndStoneSkinSpell=<color=#D89555>石の皮膚</color>の5e 2024版を有効にします<i><color=#F0DAA0>[魔法による殴打、刺突、斬撃ダメージへの抵抗も付与]</color></i>
 ModUi/&EnableOneDndTrueStrikeCantrip=<color=#D89555>百発百中</color>の5e 2024版初級呪文を有効にします<b><i><color=#C04040E0>[再起動が必要]</color></i></b>\n<i><color=#F0DAA0>[攻撃ロールとダメージ・ボーナスに呪文発動能力を使用し、5レベル以降は追加の光輝ダメージを与えます]</color></i>
-ModUi/&EnableOneDndWitchBoltSpell=<color=#D89555>魔女の矢</color> 5e 2024呪文バージョン<i><color=#F0DAA0>[ダメージを再適用するボーナス・アクション]</color></i>を有効にする
+ModUi/&EnableOneDndWitchBoltSpell=<color=#D89555>魔女の矢</color>の5e 2024版を有効にします<i><color=#F0DAA0>[ボーナス・アクションでダメージを再適用]</color></i>
 ModUi/&EnablePaladinAbjureFoes2024=9レベルで<color=#D89555>敵排斥</color>を有効にします
 ModUi/&EnablePaladinChannelDivinity2024=<color=#D89555>神性伝導</color>を5e 2024版<i><color=#F0DAA0>[用途が異なります]</color></i>と入れ替えます
 ModUi/&EnablePaladinLayOnHands2024=<color=#D89555>癒しの手</color>を5e 2024版の<i><color=#F0DAA0>[ボーナス・アクション]</color></i>と入れ替えます
@@ -231,12 +231,12 @@ ModUi/&EnableRangerAnyFightingStyle2024=<color=#D89555>レンジャー</color>�
 ModUi/&EnableRelearnSpells=他のソースからすでに学習した初級呪文や呪文を選択できるようにする
 ModUi/&EnableRespecAction=休憩アクション後に<color=#D89555>RESPEC</color>を有効にします<i><color=#F0DAA0>[マルチプレイヤーセッション中はRESPECを使用しないでください]</color></i>
 ModUi/&EnableRitualOnAllCasters2024=すべての呪文発動者が準備済みの儀式呪文を儀式として発動できるようにする
-ModUi/&EnableRogueCunningStrike2024=レベル5、11、14で<color=#D89555>カニング・ストライク</color>、<color=#D89555>改良されたカニング・ストライク</color>、<color=#D89555>悪巧みの一撃</color>を有効にします<i><color=#F0DAA0>[追加の命中時効果を得るために、急所攻撃ダイスを1つ放棄します]</color></i>
+ModUi/&EnableRogueCunningStrike2024=レベル5、11、14で<color=#D89555>巧妙な一撃</color>、<color=#D89555>改良された巧妙な一撃</color>、<color=#D89555>悪巧みの一撃</color>を有効にします<i><color=#F0DAA0>[追加の命中時効果を得るために、急所攻撃ダイスを1つ放棄します]</color></i>
 ModUi/&EnableRogueFightingStyle=レベル2で<color=#D89555>戦闘スタイル</color>の選択を有効にする
 ModUi/&EnableRogueReliableTalent2024=<color=#D89555>信頼できる才能</color>をレベル11ではなくレベル7で有効にします
 ModUi/&EnableRogueSlipperyMind2024=<color=#D89555>囚われぬ心</color>を5e 2024版と入れ替えます<i><color=#F0DAA0>[判断力に加えて、魅力セーヴィング・スローへの習熟も得られます]</color></i>
 ModUi/&EnableRogueSteadyAim2024=3レベルで<color=#D89555>不動の狙い</color>を有効にします<i><color=#F0DAA0>[ボーナス・アクションにより、そのターンにまだ移動していない場合、現在のターンの次の攻撃ロールに有利を得る]</color></i>
-ModUi/&EnableRogueStrSaving=<color=#D89555>カニング・ストライク/悪巧みの一撃</color>に<b>フッドラム</b>の敏捷力または筋力修正値を適用できるようにする
+ModUi/&EnableRogueStrSaving=<color=#D89555>巧妙な一撃／悪巧みの一撃</color>に<b>フッドラム</b>の敏捷力または筋力修正値を適用できるようにする
 ModUi/&EnableScimitarSpecialization=シミターに<color=#D89555>武器特化</color>を付与する
 ModUi/&EnableSignatureSpellsRelearn=<color=#D89555>愛用呪文</color>を、大休憩ごとに選び直せるようにします<i><color=#F0DAA0>[レベル20で1回ではなく]</color></i>
 ModUi/&EnableSorcererArcaneApotheosis2024=レベル20で<color=#D89555>魔法による回復</color>の代わりに<color=#D89555>秘術による神格化</color>を有効にする
@@ -252,7 +252,7 @@ ModUi/&EnableSpeech=カスタムキャンペーンで音声読み上げを有効
 ModUi/&EnableSpeechActorHelp=• 話者を選択
 ModUi/&EnableSpeechOnNpcs=<i>+ NPCの音声読み上げを有効にする<color=#F0DAA0>[キャンペーンマッピングまたは自動割り当てを使用]</color></i>
 ModUi/&EnableSpeechVoiceHelp=• 音声とナレーションの速度を選択します
-ModUi/&EnableStackableArtItems=スタッキングを有効にする<color=#D89555>アートアイテム</color><i><color=#F0DAA0>[この設定が無効になっていると分割できません]</color></i>
+ModUi/&EnableStackableArtItems=<color=#D89555>芸術品</color>のスタックを有効にする<i><color=#F0DAA0>[この設定が無効になっている間は分割できません]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=<color=#D89555>ダガー</color>と<color=#D89555>ハンドアックス</color>のスタックを有効にする<i><color=#F0DAA0>[この設定が無効になっている間は分割できません]</color></i>
 ModUi/&EnableStatsOnHeroTooltip=ヒーローのツールチップに統計情報を表示します<i><color=#F0DAA0>[例：クリティカルヒット、クリティカル失敗など]</color></i>
 ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ また、各ヒーローはランダム性を高めるためにd20ロールを重みに追加します<color=#F0DAA0>[選択重み = 投票数 * ヒーローの魅力修正値 + d20ロール]</color></i>
@@ -271,7 +271,7 @@ ModUi/&EnableWarlockMagicalCunningAtLevel2=レベル2で<color=#D89555>魔法の
 ModUi/&EnableWarlockToLearnPatronAtLevel3=<color=#D89555>パトロン</color>をレベル1ではなくレベル3で有効にする
 ModUi/&EnableWizardMemorizeSpell2024=レベル5で<color=#D89555>呪文記憶</color>を有効にする
 ModUi/&EnableWizardToLearnScholarAtLevel2=レベル2で<color=#D89555>学者</color>を有効にする
-ModUi/&EnableWizardToLearnSchoolAtLevel3=<color=#D89555>魔法学校</color>をレベル2ではなくレベル3で有効にする
+ModUi/&EnableWizardToLearnSchoolAtLevel3=レベル2ではなくレベル3で<color=#D89555>魔法の学派</color>を選択できるようにする
 ModUi/&EnablesAsiAndFeat=能力値上昇と<color=#D89555>特技</color>の選択の両方を有効にします<i><color=#F0DAA0>[排他的選択の代わりに]</color></i>
 ModUi/&EncounterPercentageChance=<color=white>ランダム遭遇の確率を設定する</color>
 ModUi/&Encounters=遭遇
@@ -283,7 +283,7 @@ ModUi/&EnableAdvancedCombatAIPositioning=<i>+ 位置取り、射線、脅威回�
 ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ アクション・エコノミーと回避へのフォールバックを改善する</i>
 ModUi/&EnableAdvancedCombatAIProfiles=<i>+ 種別、戦闘手段、気質による挙動差を有効にする</i>
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ 敵は常に強制値ではなくイニシアチブをロールします<color=#F0DAA0>[例：Sorak Assassin]</color></i>
-ModUi/&EvocationSculptSpellNoPerception=<color=#D89555>呪文効果範囲操作</color>は味方への〈知覚〉判定を不要にします
+ModUi/&EvocationSculptSpellNoPerception=<b>力術士</b>の<color=#D89555>呪文効果範囲操作</color>で味方を視認している必要をなくします
 ModUi/&ExpandAll=すべて展開
 ModUi/&FactionHelp=<color=#C04040E0>派閥関係を変更するには、公式キャンペーンのゲームをロードします...</color>
 ModUi/&FactionRelations=<color=#F0DAA0>派閥：</color>
@@ -296,7 +296,7 @@ ModUi/&FixAsianLanguagesTextWrap=アジア言語のゲームUIテキストの折
 ModUi/&FixEldritchBlastRange=<color=#D89555>怪光線</color>で24マスの範囲を使用します<i><color=#F0DAA0>[12の代わりに]</color></i>
 ModUi/&FixRingOfRegenerationHealRate=<color=#D89555>再生の指輪</color>の回復速度を3分ごとに1ヒット・ポイントに設定
 ModUi/&FlightSuspendWingedBoots=<i>+ ウィングドブーツの公式ルールを使用<color=#F0DAA0>[飛行が中断されると残り時間はカウントされません]</color></i>
-ModUi/&ForceModSpeechOnNpcs=<i>+キャンペーンマッピングの代わりに、すべてのNPCに音声の自動割り当てを強制する</i>
+ModUi/&ForceModSpeechOnNpcs=<i>+ キャンペーンマッピングの代わりに、すべてのNPCに音声の自動割り当てを強制する</i>
 ModUi/&Formation=<color=#F0DAA0>フォーメーション：</color>
 ModUi/&FormationError=<color=#C04040E0>マルチプレイヤーゲーム中はフォーメーションを変更できません...</color>
 ModUi/&FormationHelp1=• 数字ボタンを使用して、特定のセットを編集します<i><color=#F0DAA0>[入力時にホットキーを有効にすることを検討してください]</color></i>
@@ -319,7 +319,7 @@ ModUi/&HideQuickenedActionWhenMetamagicOff=<i>+ 呪文修正トグルがオフ�
 ModUi/&HighContrastTargetingAoeColor=効果範囲内クリーチャーの<b><color=$$$$$$>選択ハイライト色</color></b>を変更します
 ModUi/&HighContrastTargetingSingleColor=単体クリーチャーの<b><color=$$$$$$>選択ハイライト色</color></b>を変更します
 ModUi/&IdentifyAfterRest=小休憩または大休憩中に<color=#D89555>魔法のアイテムを識別する</color>パワーを追加します
-ModUi/&IgnoreHandXbowFreeHandRequirements=<color=#D89555>ハンドクロスボウ</color>を使用するのに自由な手は必要ありません
+ModUi/&IgnoreHandXbowFreeHandRequirements=<color=#D89555>ハンド・クロスボウ</color>の使用時に空いている手を必要としない
 ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=幻術呪文は範囲内で<color=#D89555>超視覚</color>を持つ対象に対して自動的に失敗する
 ModUi/&IncreaseGameTimeBy=ゲーム時間を増やす
 ModUi/&IncreaseMaxAttunedItems=レベル10で最大<color=#D89555>同調アイテム</color>を4個、レベル18で5個に増加
@@ -358,7 +358,7 @@ ModUi/&Patches=<color=#F0DAA0>パッチ：</color>
 ModUi/&PortraitsOpenFolder=ポートレートフォルダを開く
 ModUi/&PrimedItems=プライムアイテム
 ModUi/&QuickCastLightCantripOnWornItemsFirst=クイックキャスト<color=#D89555>光初級呪文</color>を有効にすると、頭、首、または胴体に装備したアイテムが優先されます。
-ModUi/&RaceLightSensitivityApplyOutdoorsOnly=<color=#D89555>ダークエルフ</color>、<color=#D89555>ダークコボルド</color>、<color=#D89555>グレイドワーフ</color>の<color=#D89555>光感受性</color>を有効にすると、屋外でのみ発動します\n<i><color=#F0DAA0>[ロード画面なしでアクセスできる屋外ロケーションの屋内エリアも、ゲームエンジン上は屋外として扱われます]</color></i>
+ModUi/&RaceLightSensitivityApplyOutdoorsOnly=<color=#D89555>ダーク・エルフ</color>、<color=#D89555>ダーク・コボルド</color>、<color=#D89555>グレイ・ドワーフ</color>の<color=#D89555>光感受性</color>を有効にすると、屋外でのみ発動します\n<i><color=#F0DAA0>[ロード画面なしでアクセスできる屋外ロケーションの屋内エリアも、ゲームエンジン上は屋外として扱われます]</color></i>
 ModUi/&Races=<color=#F0DAA0>種族</color>
 ModUi/&RecipeCost=<color=white>レシピのコスト</color>
 ModUi/&RefreshVoice=ボイスリストを更新
@@ -373,10 +373,10 @@ ModUi/&RemoveRogueBlindSense2024=レベル14で<color=#D89555>ブラインドセ
 ModUi/&RemoveSchoolRestrictionsFromShadowCaster=<b>Shadowcaster</b>から魔法系統の制限を削除します
 ModUi/&RemoveSchoolRestrictionsFromSpellBlade=<b>Spellblade</b>から魔法系統の制限を削除します
 ModUi/&RestockAntiquarians=古物商に在庫を補充します<i><color=#F0DAA0>[ハルマン・サマー]</color></i>
-ModUi/&RestockArcaneum=アルケイナムに補充する<i><color=#F0DAA0>[ヘドロン・シュアスペル]</color></i>
-ModUi/&RestockCircleOfDanantar=ダナンターの円環<i><color=#F0DAA0>[ジョリエル・フォックスアイ]</color></i>を補充
+ModUi/&RestockArcaneum=アルケイナムの在庫を補充します<i><color=#F0DAA0>[ヘドロン・シュアスペル]</color></i>
+ModUi/&RestockCircleOfDanantar=ダナンターの円環の在庫を補充します<i><color=#F0DAA0>[ジョリエル・フォックスアイ]</color></i>
 ModUi/&RestockHelp=• デフォルトを上書きして、すべての商人の在庫を時間の経過とともに強制的に補充します<i><color=#F0DAA0>[マニュアルとトームを除く]</color></i>\n• 一部のアイテムは補充に最大7ゲーム日かかる場合があることに注意してください
-ModUi/&RestockTowerOfKnowledge=知識の塔を補充<i><color=#F0DAA0>[マディ・グリーンアイル]</color></i>
+ModUi/&RestockTowerOfKnowledge=知識の塔の在庫を補充します<i><color=#F0DAA0>[マディ・グリーンアイル]</color></i>
 ModUi/&Rollback=<b><color=#D89555>ロールバック</color></b>
 ModUi/&Rules=ルール
 ModUi/&ScaleMerchantPricesCorrectly=商人の価格を正確に調整します<i><color=#F0DAA0>[コイン値を変換する際の丸め誤差がなくなります]</color></i>
@@ -497,7 +497,7 @@ ModUi/&UseWeaponMasterySystemAlternateProperties=<i>+ 少し調べた実際の�
 ModUi/&WildSurgeDieRollThreshold=<color=white><color=#D89555>ソーサラーの荒ぶる魔法</color>の確率ダイスしきい値を設定します：</color>\n<i><color=#F0DAA0>[ロールがしきい値以下であればワイルドサージが発動します]</color></i>
 ModUI/&ModifyJumpRulesForArmorAndEncumberance=荷重と鎧によるペナルティを跳躍距離に適用します
 ModUI/&ModifyThrowingRulesForStrength=筋力不足による投擲射程ペナルティを適用します
-ModUI/&ModVersionControl=- Unfinished Business Modのバージョン設定 -
+ModUI/&ModVersionControl=-Unfinished Business MODバージョン設定-
 ModUI/&RoleplaySettings=ロールプレイ
 ModUI/&RoleplaySettingsDescription=これらの設定は、複雑さを加え、成功・失敗の振れ幅を広げることで、生活シミュレーションやロールプレイ寄りにゲームバランスを調整します
 ModUI/&EnableDamageOnFailedJumpCheck=跳躍判定に失敗したとき1d4ダメージを適用します
@@ -506,7 +506,7 @@ ModUi/&LegendaryTweaksDetails=ここでは、伝説級武器の武器種別を�
 ModUi/&WeaponMasterySystemCustomizeToggle=武器マスタリー特性をカスタマイズします
 ModUi/&WeaponMasterySystemCustomizeResetAll=すべてをリセットします
 ModUi/&WeaponMasterySystemCustomizeResetAllWarning=すべての武器マスタリー特性を既定値にリセットします
-ModUi/&WideScreenBattleUI=ワイドスクリーン用戦闘UIを有効にする<i><color=#F0DAA0>(アスペクト比が16：9を超える解像度の場合)</color></i>
+ModUi/&WideScreenBattleUI=ワイドスクリーン用戦闘UIを有効にする<i><color=#F0DAA0>（アスペクト比が16：9を超える解像度の場合）</color></i>
 ModUi/&EnableBackgroundAbilityScoreIncreases=能力値上昇を種族ではなく背景から得る。ヒューマンの全能力値+1が消えるため、ヒューマンも調整する<i><color=#F0DAA0>[柔軟な種族とは両立せず、自動で無効化されます]</color></i>
 ModUi/&EnableBackgroundBonusFeats=背景から得る内容を2024式の起源特技、技能2つ、道具1つへ変更する<i><color=#F0DAA0>[背景ASIが必要です。柔軟な背景とは両立せず、自動で無効化されます]</color></i>
 ModUi/&AddOriginFeatsToAutoLearn= + 起源特技を自動習得候補に追加
