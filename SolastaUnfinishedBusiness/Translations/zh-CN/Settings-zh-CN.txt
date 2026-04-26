@@ -482,6 +482,7 @@ ModUi/&UseElfFaceModelsOnTieflings=在 <color=#D89555>Tieflings</color> 上使�
 ModUi/&UseHeightOneCylinderEffect=施放<color=#D89555>黑色触手、缠绕、油脂</color> <i><color=#F0DAA0>[square]</color></i>或<color=#D89555>尖刺生长</color> <i><color=#F0DAA0>[round]</color></i>时使用高度为 1 的圆柱体效果
 ModUi/&UseMathFlankingRules=<i>+ 使用精确的数学运算来确定侧翼进攻<color=#F0DAA0>[可能会对速度较慢的机器产生性能影响]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=启用<color=#D89555>优势/劣势</color>规则<i><color=#F0DAA0>[如果情况导致掷骰结果同时存在两种情况，则视为你同时不存在这两种情况]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
 ModUi/&UseOfficialFlankingRules=启用<color=#D89555>侧翼进攻</color>规则<i><color=#F0DAA0>[如果盟友位于目标的另一侧，则攻击者具有优势]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ 还启用远程攻击<color=#F0DAA0>[禁用精确数学]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ 还启用延伸攻击 <color=#F0DAA0>[禁用精确数学]</color></i>

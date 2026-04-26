@@ -181,6 +181,9 @@ public class FunctorEnvironmentEffectPatcher
                             savingThrowData,
                             hasBorrowedLuck,
                             activeEnvironmentEffect.EffectDescription);
+
+                        saveOutcome = savingThrowData.SaveOutcome;
+                        saveOutcomeDelta = savingThrowData.SaveOutcomeDelta;
                     }
 
                     var formsParams = new RulesetImplementationDefinitions.ApplyFormsParams();

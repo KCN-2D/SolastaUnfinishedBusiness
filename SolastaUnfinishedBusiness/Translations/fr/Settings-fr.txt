@@ -482,6 +482,7 @@ ModUi/&UseElfFaceModelsOnTieflings=Utilisez les modèles de visage <color=#D8955
 ModUi/&UseHeightOneCylinderEffect=Utilisez un effet de cylindre de hauteur 1 lorsque vous lancez <color=#D89555>Tentacules noirs, Enchevêtrement, Graisse</color> <i><color=#F0DAA0>[carré]</color></i> ou <color=#D89555>Croissance en pointes</color> <i><color=#F0DAA0>[rond]</color></i>
 ModUi/&UseMathFlankingRules=<i>+ Utilisez des mathématiques précises pour déterminer le flanquement <color=#F0DAA0>[peut avoir un impact sur les performances sur les machines lentes]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=Activer les règles <color=#D89555>avantage / désavantage</color> <i><color=#F0DAA0>[si les circonstances font qu'un jet a les deux, vous êtes considéré comme n'ayant aucun des deux]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
 ModUi/&UseOfficialFlankingRules=Activer les règles de <color=#D89555>flanquement</color> <i><color=#F0DAA0>[un attaquant a l'avantage si un allié est du côté opposé à la cible]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ Activer également pour les attaques à distance <color=#F0DAA0>[désactiver les calculs précis]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ Activer également les attaques de portée <color=#F0DAA0>[désactiver les calculs précis]</color></i>

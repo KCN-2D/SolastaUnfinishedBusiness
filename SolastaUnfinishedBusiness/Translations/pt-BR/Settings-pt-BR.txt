@@ -482,6 +482,7 @@ ModUi/&UseElfFaceModelsOnTieflings=Use modelos de rosto de <color=#D89555>elfos<
 ModUi/&UseHeightOneCylinderEffect=Use um efeito de cilindro de altura 1 ao conjurar <color=#D89555>Tentáculos Negros, Emaranhado, Graxa</color> <i><color=#F0DAA0>[quadrado]</color></i> ou <color=#D89555>Crescimento de Espinhos</color> <i><color=#F0DAA0>[redondo]</color></i>
 ModUi/&UseMathFlankingRules=<i>+ Use matemática precisa para determinar o flanqueamento <color=#F0DAA0>[pode ter um impacto no desempenho em máquinas lentas]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=Habilitar regras de <color=#D89555>vantagem/desvantagem</color> <i><color=#F0DAA0>[se as circunstâncias fizerem com que um teste tenha ambas, você é considerado como não tendo nenhuma delas]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
 ModUi/&UseOfficialFlankingRules=Habilitar regras de <color=#D89555>flanqueamento</color> <i><color=#F0DAA0>[um atacante tem vantagem se um aliado estiver no lado oposto do alvo]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ Também habilitar para ataques à distância <color=#F0DAA0>[desabilitar matemática precisa]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ Também habilitar para ataques de alcance <color=#F0DAA0>[desabilitar matemática precisa]</color></i>

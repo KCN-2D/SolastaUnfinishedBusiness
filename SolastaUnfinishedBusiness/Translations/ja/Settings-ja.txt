@@ -474,6 +474,7 @@ ModUi/&UseElfFaceModelsOnTieflings=<color=#D89555>エルフ</color>の顔モデ�
 ModUi/&UseHeightOneCylinderEffect=<color=#D89555>エヴァードの黒い触手、からみつき、脂</color> <i><color=#F0DAA0>[四角形]</color></i>または<color=#D89555>トゲ密生</color> <i><color=#F0DAA0>[円形]</color></i>を発動するとき、高さ1のシリンダー効果を使用します。
 ModUi/&UseMathFlankingRules=<i>+ 側面攻撃を決定するために正確な計算を使用する<color=#F0DAA0>[低速マシンではパフォーマンスに影響する可能性があります]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=<color=#D89555>有利/不利</color>ルールを有効にする<i><color=#F0DAA0>[状況によりロールに両方が含まれる場合、どちらも含まれていないとみなされます]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=<color=#D89555>伝説的抵抗力</color>の使用後にセーヴ結果変更リアクションを挟めないようにする <i><color=#F0DAA0>[そのセーヴは成功で確定します]</color></i>
 ModUi/&UseOfficialFlankingRules=<color=#D89555>側面攻撃</color>ルールを有効にする<i><color=#F0DAA0>[味方が対象の反対側にいる場合、攻撃側は有利になる]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ 遠距離攻撃にも有効にする<color=#F0DAA0>[正確な計算を無効にする]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ リーチ攻撃も有効にする<color=#F0DAA0>[正確な計算を無効にする]</color></i>

@@ -482,6 +482,7 @@ ModUi/&UseElfFaceModelsOnTieflings=<color=#D89555>티플링</color>에 <color=#D
 ModUi/&UseHeightOneCylinderEffect=<color=#D89555>검은 촉수, 얽힘, 기름</color> <i><color=#F0DAA0>[사각형]</color></i> 또는 <color=#D89555>스파이크 성장</color> <i><color=#F0DAA0>[둥근 모양]</color></i>을 시전할 때 높이 1의 원통 효과를 사용하세요.
 ModUi/&UseMathFlankingRules=<i>+ 정확한 수학을 사용하여 플랭킹을 결정합니다. <color=#F0DAA0>[느린 컴퓨터의 경우 성능에 영향을 미칠 수 있음]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=<color=#D89555>이점/단점</color> 규칙을 활성화합니다. <i><color=#F0DAA0>[두 가지가 모두 나타나는 상황이 발생하면 두 가지 모두 없는 것으로 간주됩니다]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
 ModUi/&UseOfficialFlankingRules=<color=#D89555>측면 공격</color> 규칙 활성화 <i><color=#F0DAA0>[아군이 타겟의 반대편에 있는 경우 공격자가 유리함]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ 원거리 공격에도 활성화 <color=#F0DAA0>[정밀한 수학 비활성화]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ 도달 공격도 활성화 <color=#F0DAA0>[정밀한 수학 비활성화]</color></i>

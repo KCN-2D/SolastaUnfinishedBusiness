@@ -109,6 +109,7 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2014)] public bool EnableUnarmedMainAttackAction { get; set; }
     public bool EnableUnlimitedInventoryActions { get; set; }
     [Tag(Type = TagType.T2014)] public bool UseOfficialAdvantageDisadvantageRules { get; set; }
+    [Tag(Type = TagType.T2014)] public bool PreventSavingThrowReactionsAfterLegendaryResistance { get; set; }
     public bool UseAlternateSpellPointsSystem { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSmiteSpells2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool UseWeaponMasterySystem { get; set; }

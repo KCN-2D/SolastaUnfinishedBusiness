@@ -155,6 +155,15 @@ internal static class RulesDisplay
             Main.Settings.UseOfficialFlankingRulesAlsoForRanged = false;
         }
 
+        toggle = Main.Settings.PreventSavingThrowReactionsAfterLegendaryResistance;
+        if (UI.Toggle(
+                Gui.Localize("ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance"),
+                ref toggle,
+                UI.AutoWidth()))
+        {
+            Main.Settings.PreventSavingThrowReactionsAfterLegendaryResistance = toggle;
+        }
+
         toggle = Main.Settings.EnableSmiteSpells2024;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableSmiteSpells2024"), ref toggle, UI.AutoWidth()))
         {

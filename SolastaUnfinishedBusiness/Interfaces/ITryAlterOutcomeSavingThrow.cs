@@ -31,7 +31,24 @@ public sealed class SavingThrowData
     public BaseDefinition SourceDefinition { get; set; }
     public EffectDescription EffectDescription { get; set; }
     public string Title { get; set; }
+    public bool LegendaryResistanceUsed { get; set; }
     [CanBeNull] public CharacterAction Action { get; set; }
+
+    internal void UpdateActionSaveOutcome()
+    {
+        if (Action == null)
+        {
+            return;
+        }
+
+        Action.SaveOutcome = SaveOutcome;
+        Action.SaveOutcomeDelta = SaveOutcomeDelta;
+    }
+
+    internal bool IsFailedSavingThrowOutcome()
+    {
+        return SaveOutcome is RollOutcome.Failure or RollOutcome.CriticalFailure;
+    }
 }
 
 internal static class TryAlterOutcomeSavingThrow
@@ -45,31 +62,28 @@ internal static class TryAlterOutcomeSavingThrow
         EffectDescription effectDescription)
     {
         // Legendary Resistance or Indomitable?
-        if (savingThrowData.SaveOutcome == RollOutcome.Failure)
+        if (savingThrowData.IsFailedSavingThrowOutcome())
         {
             yield return HandleFailedSavingThrow(
                 battleManager, attacker, defender, savingThrowData, false, hasBorrowedLuck);
 
-            if (savingThrowData.Action != null)
-            {
-                savingThrowData.Action.SaveOutcome = savingThrowData.SaveOutcome;
-                savingThrowData.Action.SaveOutcomeDelta = savingThrowData.SaveOutcomeDelta;
-            }
+            savingThrowData.UpdateActionSaveOutcome();
         }
 
+        var skipCustomSavingThrowAlteration =
+            Main.Settings.PreventSavingThrowReactionsAfterLegendaryResistance &&
+            savingThrowData.LegendaryResistanceUsed;
+
         //PATCH: support for `ITryAlterOutcomeSavingThrow`
-        foreach (var tryAlterOutcomeSavingThrow in TryAlterOutcomeSavingThrowHandler(
-                     battleManager, attacker, defender, savingThrowData, false))
+        if (!skipCustomSavingThrowAlteration)
         {
-            yield return tryAlterOutcomeSavingThrow;
-
-            if (savingThrowData.Action == null)
+            foreach (var tryAlterOutcomeSavingThrow in TryAlterOutcomeSavingThrowHandler(
+                         battleManager, attacker, defender, savingThrowData, false))
             {
-                continue;
-            }
+                yield return tryAlterOutcomeSavingThrow;
 
-            savingThrowData.Action.SaveOutcome = savingThrowData.SaveOutcome;
-            savingThrowData.Action.SaveOutcomeDelta = savingThrowData.SaveOutcomeDelta;
+                savingThrowData.UpdateActionSaveOutcome();
+            }
         }
 
         defender.RulesetActor.GrantConditionOnSavingThrowOutcome(effectDescription, savingThrowData.SaveOutcome, true);
@@ -197,10 +211,11 @@ internal static class TryAlterOutcomeSavingThrow
             {
                 savingThrowData.SaveOutcomeDelta = 0;
                 savingThrowData.SaveOutcome = RollOutcome.Success;
+                savingThrowData.LegendaryResistanceUsed = true;
             }
         }
 
-        if (savingThrowData.SaveOutcome == RollOutcome.Failure &&
+        if (savingThrowData.IsFailedSavingThrowOutcome() &&
             defender.HasIndomitableResistances)
         {
             reactionParams = new CharacterActionParams(defender, ActionDefinitions.Id.UseIndomitableResistance);
@@ -215,7 +230,7 @@ internal static class TryAlterOutcomeSavingThrow
             }
         }
 
-        if (savingThrowData.SaveOutcome == RollOutcome.Failure &&
+        if (savingThrowData.IsFailedSavingThrowOutcome() &&
             defender.CanBorrowLuck() &&
             !hasBorrowedLuck &&
             ComputeAdvantage(savingThrowData.SaveActionModifier.SavingThrowAdvantageTrends) !=
@@ -247,7 +262,7 @@ internal static class TryAlterOutcomeSavingThrow
             }
         }
 
-        if (savingThrowData.SaveOutcome == RollOutcome.Failure &&
+        if (savingThrowData.IsFailedSavingThrowOutcome() &&
             defender.CanUseDiamondSoul())
         {
             reactionParams = new CharacterActionParams(defender, ActionDefinitions.Id.DiamondSoul);
@@ -262,7 +277,7 @@ internal static class TryAlterOutcomeSavingThrow
             }
         }
 
-        if (savingThrowData.SaveOutcome != RollOutcome.Failure)
+        if (!savingThrowData.IsFailedSavingThrowOutcome())
         {
             yield break;
         }

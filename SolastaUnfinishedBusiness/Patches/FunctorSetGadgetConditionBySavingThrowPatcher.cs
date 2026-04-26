@@ -117,6 +117,9 @@ public static class FunctorSetGadgetConditionBySavingThrowPatcher
                     savingThrowData,
                     hasBorrowedLuck,
                     EmptyEffectDescription);
+
+                saveOutcome = savingThrowData.SaveOutcome;
+                saveOutcomeDelta = savingThrowData.SaveOutcomeDelta;
             }
 
             if (saveOutcome == RuleDefinitions.RollOutcome.Success)

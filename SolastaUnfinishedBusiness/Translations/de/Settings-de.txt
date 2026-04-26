@@ -482,6 +482,7 @@ ModUi/&UseElfFaceModelsOnTieflings=Verwenden Sie <color=#D89555>Elfen</color>-Ge
 ModUi/&UseHeightOneCylinderEffect=Verwenden Sie einen Zylindereffekt der Höhe 1, wenn Sie <color=#D89555>Schwarze Tentakeln, Verstricken, Fett</color> <i><color=#F0DAA0>[Quadrat]</color></i> oder <color=#D89555>Spitzenwachstum</color> <i><color=#F0DAA0>[rund]</color></i> wirken.
 ModUi/&UseMathFlankingRules=<i>+ Verwenden Sie präzise Mathematik, um die Flankierung zu bestimmen <color=#F0DAA0>[kann die Leistung auf langsamen Maschinen beeinträchtigen]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=Aktivieren Sie die <color=#D89555>Vorteil-/Nachteilsregeln</color> <i><color=#F0DAA0>[wenn die Umstände dazu führen, dass ein Wurf beides hat, wird davon ausgegangen, dass Sie keinen von beiden haben]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
 ModUi/&UseOfficialFlankingRules=Aktivieren Sie die <color=#D89555>Flankierungsregeln</color> <i><color=#F0DAA0>[ein Angreifer hat einen Vorteil, wenn sich ein Verbündeter auf der gegenüberliegenden Seite des Ziels befindet]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ Auch für Fernangriffe aktivieren <color=#F0DAA0>[präzise Mathematik deaktivieren]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ Auch für Reichweitenangriffe aktivieren <color=#F0DAA0>[präzise Mathematik deaktivieren]</color></i>

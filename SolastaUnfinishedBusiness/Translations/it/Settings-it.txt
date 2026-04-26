@@ -482,6 +482,7 @@ ModUi/&UseElfFaceModelsOnTieflings=Usa modelli di volti <color=#D89555>Elfo</col
 ModUi/&UseHeightOneCylinderEffect=Usa un effetto cilindro di altezza 1 quando lanci <color=#D89555>Tentacoli neri, Intrappolamento, Grasso</color> <i><color=#F0DAA0>[quadrato]</color></i> o <color=#D89555>Crescita di punte</color> <i><color=#F0DAA0>[rotondo]</color></i>
 ModUi/&UseMathFlankingRules=<i>+ Usa la matematica precisa per determinare il fiancheggiamento <color=#F0DAA0>[potrebbe avere un impatto sulle prestazioni su macchine lente]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=Abilita le regole <color=#D89555>vantaggio/svantaggio</color> <i><color=#F0DAA0>[se le circostanze fanno sì che un tiro abbia entrambi, si considera che non hai nessuno dei due]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
 ModUi/&UseOfficialFlankingRules=Abilita le regole di <color=#D89555>fiancheggiamento</color> <i><color=#F0DAA0>[un attaccante ha vantaggio se un alleato si trova sul lato opposto del bersaglio]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ Abilita anche per gli attacchi a distanza <color=#F0DAA0>[disabilita matematica precisa]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ Abilita anche per gli attacchi di portata <color=#F0DAA0>[disabilita matematica precisa]</color></i>

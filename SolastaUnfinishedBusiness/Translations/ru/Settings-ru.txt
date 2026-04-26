@@ -482,6 +482,7 @@ ModUi/&UseElfFaceModelsOnTieflings=Использовать <color=#D89555>Эл�
 ModUi/&UseHeightOneCylinderEffect=Ограничить высоту эффекта одним уровнем при накладывании <color=#D89555>Чёрных щупалец, Опутывания, Смазки</color> <i><color=#F0DAA0>[квадрат]</color></i> или <color=#D89555>Шипов</color> <i><color=#F0DAA0>[круг]</color></i>
 ModUi/&UseMathFlankingRules=<i>+ Использовать точную математику для определения окружения <color=#F0DAA0>[может повлиять на производительность на медленных компьютерах]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=Включить официальные правила для <color=#D89555>преимущества/помехи</color> <i><color=#F0DAA0>[если условия вызывают бросок одновременно с преимуществом и помехой, вы не получаете ни того, ни другого]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
 ModUi/&UseOfficialFlankingRules=Включить правила <color=#D89555>положения</color> <i><color=#F0DAA0>[атакующий получает преимущество, если союзник находится на противоположной стороне от цели]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ Включить эти правила для дальнобойных атак <color=#F0DAA0>[отключить точную математику]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ Также включить для атак досягаемости <color=#F0DAA0>[отключить точную математику]</color></i>
