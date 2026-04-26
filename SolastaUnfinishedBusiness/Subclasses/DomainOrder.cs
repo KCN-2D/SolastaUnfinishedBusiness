@@ -49,7 +49,7 @@ public sealed class DomainOrder : AbstractSubclass
 
     private static readonly MetamagicOptionDefinition EmbodimentMetamagic = MetamagicOptionDefinitionBuilder
         .Create(MetamagicOptionDefinitions.MetamagicQuickenedSpell, "MetamagicEmbodimentOfTheLaw")
-        .SetGuiPresentation(Category.Feature)
+        .SetGuiPresentation(Category.Feature, hidden: true)
         .SetType(MetamagicType.QuickenedSpell)
         .SetCost(MetamagicCostMethod.FixedValue, 0)
         .AddCustomSubFeatures(
@@ -454,7 +454,9 @@ public sealed class DomainOrder : AbstractSubclass
     {
         public void ApplyFeature(RulesetCharacterHero hero, [UsedImplicitly] string tag)
         {
-            if (hero.trainedMetamagicOptions.Contains(metamagic))
+            if (hero == null ||
+                metamagic == null ||
+                hero.trainedMetamagicOptions.Contains(metamagic))
             {
                 return;
             }

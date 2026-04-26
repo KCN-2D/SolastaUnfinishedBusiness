@@ -76,6 +76,11 @@ internal static class MetamagicContext
             : compare;
     }
 
+    internal static bool IsVisibleMetamagicOption(MetamagicOptionDefinition option)
+    {
+        return option is { GuiPresentation.Hidden: false };
+    }
+
     internal static List<MetamagicOptionDefinition> GetVisibleMetamagicOptions()
     {
         var metamagicDatabase = DatabaseRepository.GetDatabase<MetamagicOptionDefinition>();
@@ -87,7 +92,7 @@ internal static class MetamagicContext
 
         return metamagicDatabase
             .GetAllElements()
-            .Where(x => !x.GuiPresentation.Hidden)
+            .Where(IsVisibleMetamagicOption)
             .OrderBy(x => x, Comparer<MetamagicOptionDefinition>.Create(CompareMetamagic))
             .ToList();
     }
@@ -105,7 +110,7 @@ internal static class MetamagicContext
         var restrictedChoiceNames = restrictedChoices.ToHashSet(StringComparer.Ordinal);
 
         return metamagicOptions
-            .Where(option => option != null && restrictedChoiceNames.Contains(option.Name))
+            .Where(option => IsVisibleMetamagicOption(option) && restrictedChoiceNames.Contains(option.Name))
             .ToList();
     }
 }
