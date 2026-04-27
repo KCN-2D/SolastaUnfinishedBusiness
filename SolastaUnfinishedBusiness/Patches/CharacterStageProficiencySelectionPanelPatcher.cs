@@ -8,6 +8,7 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Models;
 using static HeroDefinitions.PointsPoolType;
 
@@ -30,6 +31,13 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         return item &&
                item.PoolType == Metamagic &&
                string.Equals(item.Tag, MetamagicContext.FeatMetamagicAdeptPointPoolTag, StringComparison.Ordinal);
+    }
+
+    private static bool IsEldritchAdeptInvocationLearnStep(LearnStepItem item)
+    {
+        return item &&
+               item.PoolType == Invocation &&
+               string.Equals(item.Tag, OtherFeats.FeatEldritchAdeptPointPool, StringComparison.Ordinal);
     }
 
     private static bool ContainsMetamagicOptionByName(
@@ -199,6 +207,37 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         }
     }
 
+    private static bool TryLocalizeResolved(string key, out string title)
+    {
+        title = Gui.Localize(key);
+
+        return !string.IsNullOrEmpty(title) &&
+               title != key &&
+               !title.Contains("/&");
+    }
+
+    private static bool TryGetEldritchAdeptInvocationLearnStepTitle(
+        LearnStepItem item,
+        out string title)
+    {
+        title = null;
+
+        if (!IsEldritchAdeptInvocationLearnStep(item))
+        {
+            return false;
+        }
+
+        if (!TryLocalizeResolved("Tooltip/&InvocationTitle", out var invocationTitle) &&
+            !TryLocalizeResolved("Action/&CastInvocationTitle", out invocationTitle))
+        {
+            invocationTitle = "Invocation";
+        }
+
+        title = invocationTitle;
+
+        return true;
+    }
+
     private static bool TryGetLearnStepTitleOverride(
         CharacterStageProficiencySelectionPanel __instance,
         LearnStepItem item,
@@ -235,6 +274,11 @@ public static class CharacterStageProficiencySelectionPanelPatcher
                 title = $"{humanOriginTitle}: {feature.FormatTitle()}";
             }
 
+            return true;
+        }
+
+        if (TryGetEldritchAdeptInvocationLearnStepTitle(item, out title))
+        {
             return true;
         }
 

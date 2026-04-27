@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Feats;
@@ -13,6 +14,23 @@ namespace SolastaUnfinishedBusiness.CustomUI;
 public class CustomInvocationSubPanel : MonoBehaviour
 {
     private InvocationPoolTypeCustom Type { get; set; }
+
+    private static bool HasEldritchAdeptFeat(RulesetCharacterHero hero)
+    {
+        if (hero == null)
+        {
+            return false;
+        }
+
+        if (hero.TrainedFeats.Any(OtherFeats.IsEldritchAdeptFeat))
+        {
+            return true;
+        }
+
+        return hero.GetHeroBuildingData()?.LevelupTrainedFeats?
+            .SelectMany(entry => entry.Value ?? [])
+            .Any(OtherFeats.IsEldritchAdeptFeat) == true;
+    }
 
     private void Setup(InvocationPoolTypeCustom type)
     {
@@ -54,10 +72,15 @@ public class CustomInvocationSubPanel : MonoBehaviour
 
     internal static List<string> OnlyStandardInvocationProficiencies(RulesetCharacterHero hero)
     {
+        if (hero == null)
+        {
+            return [];
+        }
+
         var selectedClass = LevelUpHelper.GetSelectedClass(hero);
 
         if (selectedClass != DatabaseHelper.CharacterClassDefinitions.Warlock
-            && !hero.TrainedFeats.Exists(x => x.Name == OtherFeats.FeatEldritchAdept))
+            && !HasEldritchAdeptFeat(hero))
         {
             return [];
         }

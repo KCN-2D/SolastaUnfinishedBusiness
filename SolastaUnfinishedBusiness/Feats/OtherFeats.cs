@@ -41,9 +41,17 @@ internal static class OtherFeats
 {
     private const string MagicAffinityFeatWarCaster = "MagicAffinityFeatWarCaster";
     internal const string FeatEldritchAdept = "FeatEldritchAdept";
+    internal const string FeatEldritchAdeptPointPool = "PointPoolFeatEldritchAdept";
     internal const string FeatWarCaster = "FeatWarCaster";
     internal const string FeatMagicInitiateTag = "Initiate";
     internal const string FeatSpellSniperTag = "Sniper";
+
+    internal static bool IsEldritchAdeptFeat(FeatDefinition feat)
+    {
+        return feat &&
+               (feat.Name == FeatEldritchAdept ||
+                Tabletop2024Context.AreEquivalentTabletopFeatNames(feat.Name, FeatEldritchAdept));
+    }
 
     internal static void CreateFeats([NotNull] List<FeatDefinition> feats)
     {
@@ -228,7 +236,7 @@ internal static class OtherFeats
             .SetGuiPresentation(Category.Feat)
             .SetFeatures(
                 FeatureDefinitionPointPoolBuilder
-                    .Create($"PointPool{FeatEldritchAdept}")
+                    .Create(FeatEldritchAdeptPointPool)
                     .SetGuiPresentationNoContent(true)
                     .SetPool(HeroDefinitions.PointsPoolType.Invocation, 1)
                     .AddToDB())

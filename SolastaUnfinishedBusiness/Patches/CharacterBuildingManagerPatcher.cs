@@ -244,6 +244,15 @@ public static class CharacterBuildingManagerPatcher
                    StringComparison.Ordinal);
     }
 
+    private static bool IsFeatGrantedEldritchAdeptInvocationPointPool(FeatureDefinitionPointPool pointPool)
+    {
+        return pointPool is { PoolType: HeroDefinitions.PointsPoolType.Invocation } &&
+               string.Equals(
+                   pointPool.Name,
+                   OtherFeats.FeatEldritchAdeptPointPool,
+                   StringComparison.Ordinal);
+    }
+
     private sealed class PointPoolSnapshot(PointPool pointPool)
     {
         private readonly string Description = pointPool?.Description;
@@ -529,6 +538,136 @@ public static class CharacterBuildingManagerPatcher
         return true;
     }
 
+    private static bool TryResolveFeatGrantedEldritchAdeptInvocationPointPoolTags(
+        FeatureDefinitionPointPool pointPoolFeature,
+        out string applyTag,
+        out string activePoolTag)
+    {
+        applyTag = null;
+        activePoolTag = null;
+
+        if (!IsFeatGrantedEldritchAdeptInvocationPointPool(pointPoolFeature))
+        {
+            return false;
+        }
+
+        applyTag = OtherFeats.FeatEldritchAdeptPointPool;
+        activePoolTag = applyTag;
+
+        return true;
+    }
+
+    private static int GetFeatGrantedInvocationSelectedCount(
+        CharacterHeroBuildingData heroBuildingData,
+        string activePoolTag)
+    {
+        if (heroBuildingData?.LevelupTrainedInvocations == null ||
+            string.IsNullOrEmpty(activePoolTag) ||
+            !heroBuildingData.LevelupTrainedInvocations.TryGetValue(activePoolTag, out var selectedInvocations) ||
+            selectedInvocations == null)
+        {
+            return 0;
+        }
+
+        return selectedInvocations
+            .Where(invocation => invocation != null && !string.IsNullOrEmpty(invocation.Name))
+            .Select(invocation => invocation.Name)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+    }
+
+    private static bool ApplyFeatGrantedEldritchAdeptInvocationPointPool(
+        CharacterBuildingManager manager,
+        CharacterHeroBuildingData heroBuildingData,
+        FeatureDefinitionPointPool pointPoolFeature)
+    {
+        if (manager == null ||
+            heroBuildingData == null ||
+            !TryResolveFeatGrantedEldritchAdeptInvocationPointPoolTags(
+                pointPoolFeature,
+                out var applyTag,
+                out var activePoolTag))
+        {
+            return false;
+        }
+
+        var existingKeys = heroBuildingData.PointPoolStacks.TryGetValue(pointPoolFeature.PoolType, out var pointPoolStack)
+            ? pointPoolStack.ActivePools.Keys.ToHashSet()
+            : [];
+
+        if (pointPoolStack?.ActivePools.TryGetValue(activePoolTag, out var pool) == true)
+        {
+            var poolChanged = false;
+
+            if (pool.maxPoints < pointPoolFeature.poolAmount)
+            {
+                pool.maxPoints = pointPoolFeature.poolAmount;
+                poolChanged = true;
+            }
+
+            if (pool.remainingPoints <= 0 &&
+                GetFeatGrantedInvocationSelectedCount(heroBuildingData, activePoolTag) == 0)
+            {
+                pool.remainingPoints = pointPoolFeature.poolAmount;
+                poolChanged = true;
+            }
+
+            return poolChanged;
+        }
+
+        manager.ApplyFeatureDefinitionPointPool(heroBuildingData, pointPoolFeature, applyTag);
+
+        var changed = EnsureFeatGrantedPointPoolActiveTag(
+            heroBuildingData,
+            pointPoolFeature.PoolType,
+            activePoolTag,
+            existingKeys);
+
+        if (!heroBuildingData.PointPoolStacks.TryGetValue(pointPoolFeature.PoolType, out pointPoolStack) ||
+            !pointPoolStack.ActivePools.TryGetValue(activePoolTag, out pool))
+        {
+            return changed;
+        }
+
+        if (pool.maxPoints < pointPoolFeature.poolAmount)
+        {
+            pool.maxPoints = pointPoolFeature.poolAmount;
+            changed = true;
+        }
+
+        if (pool.remainingPoints <= 0 &&
+            GetFeatGrantedInvocationSelectedCount(heroBuildingData, activePoolTag) == 0)
+        {
+            pool.remainingPoints = pointPoolFeature.poolAmount;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool RemoveFeatGrantedEldritchAdeptInvocationPointPool(
+        CharacterHeroBuildingData heroBuildingData,
+        FeatureDefinitionPointPool pointPoolFeature)
+    {
+        if (heroBuildingData == null ||
+            !TryResolveFeatGrantedEldritchAdeptInvocationPointPoolTags(
+                pointPoolFeature,
+                out _,
+                out var activePoolTag))
+        {
+            return false;
+        }
+
+        var changed = heroBuildingData.LevelupTrainedInvocations?.Remove(activePoolTag) == true;
+
+        if (!heroBuildingData.PointPoolStacks.TryGetValue(pointPoolFeature.PoolType, out var pointPoolStack))
+        {
+            return changed;
+        }
+
+        return pointPoolStack.ActivePools.Remove(activePoolTag) || changed;
+    }
+
     private static string FindFeatGrantedPointPoolKeyFallback(
         CharacterHeroBuildingData heroBuildingData,
         HeroDefinitions.PointsPoolType poolType,
@@ -767,6 +906,16 @@ public static class CharacterBuildingManagerPatcher
                          .Where(IsFeatGrantedMetamagicAdeptPointPool))
             {
                 rebuilt |= ApplyFeatGrantedMetamagicAdeptPointPool(
+                    manager,
+                    heroBuildingData,
+                    pointPoolFeature);
+            }
+
+            foreach (var pointPoolFeature in feat.Features
+                         .OfType<FeatureDefinitionPointPool>()
+                         .Where(IsFeatGrantedEldritchAdeptInvocationPointPool))
+            {
+                rebuilt |= ApplyFeatGrantedEldritchAdeptInvocationPointPool(
                     manager,
                     heroBuildingData,
                     pointPoolFeature);
@@ -1478,7 +1627,10 @@ public static class CharacterBuildingManagerPatcher
                 var goodTag =
                     AttributeDefinitions.GetClassTag(DatabaseHelper.CharacterClassDefinitions.Warlock, levels);
 
-                foreach (var badKey in pointPoolStack.ActivePools.Keys.Where(x => x != goodTag).ToArray())
+                foreach (var badKey in pointPoolStack.ActivePools.Keys
+                             .Where(x => x != goodTag &&
+                                         x != OtherFeats.FeatEldritchAdeptPointPool)
+                             .ToArray())
                 {
                     pointPoolStack.ActivePools.Remove(badKey);
                 }
@@ -2162,10 +2314,14 @@ public static class CharacterBuildingManagerPatcher
             CharacterHeroBuildingData heroBuildingData,
             FeatDefinition feat)
         {
+            var pointPoolFeatures = feat?.Features?.OfType<FeatureDefinitionPointPool>().ToArray();
+
             if (manager == null ||
                 heroBuildingData == null ||
-                feat == null ||
-                !feat.Features.OfType<FeatureDefinitionPointPool>().Any(IsFeatGrantedSpellOrCantripPointPool))
+                pointPoolFeatures is not { Length: > 0 } ||
+                !pointPoolFeatures.Any(pointPoolFeature =>
+                    IsFeatGrantedSpellOrCantripPointPool(pointPoolFeature) ||
+                    IsFeatGrantedEldritchAdeptInvocationPointPool(pointPoolFeature)))
             {
                 return false;
             }
@@ -2364,6 +2520,57 @@ public static class CharacterBuildingManagerPatcher
         }
     }
 
+    private static void RemoveFeatGrantedPointPool(
+        CharacterBuildingManager manager,
+        CharacterHeroBuildingData heroBuildingData,
+        FeatureDefinitionPointPool pointPoolFeature)
+    {
+        if (pointPoolFeature == null)
+        {
+            return;
+        }
+
+        if (IsFeatGrantedMetamagicAdeptPointPool(pointPoolFeature))
+        {
+            _ = RemoveFeatGrantedMetamagicAdeptPointPool(heroBuildingData, pointPoolFeature);
+
+            return;
+        }
+
+        if (IsFeatGrantedEldritchAdeptInvocationPointPool(pointPoolFeature))
+        {
+            _ = RemoveFeatGrantedEldritchAdeptInvocationPointPool(heroBuildingData, pointPoolFeature);
+
+            return;
+        }
+
+        if (!TryResolveFeatGrantedPointPoolTags(
+            manager,
+            heroBuildingData,
+            pointPoolFeature,
+            out _,
+            out _,
+            out var activePoolTag) ||
+            !TryGetFeatGrantedPointPoolForUpdate(
+                heroBuildingData,
+                pointPoolFeature.PoolType,
+                activePoolTag,
+                pointPoolFeature.ExtraSpellsTag,
+                out var activePoolKey,
+                out var pool))
+        {
+            return;
+        }
+
+        pool.maxPoints -= pointPoolFeature.poolAmount;
+
+        if (pool.maxPoints == 0 &&
+            heroBuildingData.PointPoolStacks.TryGetValue(pointPoolFeature.PoolType, out var pointPoolStack))
+        {
+            pointPoolStack.ActivePools.Remove(activePoolKey);
+        }
+    }
+
     //PATCH: remove point pools assigned from feats
     [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.UntrainFeat))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -2378,39 +2585,7 @@ public static class CharacterBuildingManagerPatcher
         {
             foreach (var featureDefinitionPointPool in feat.Features.OfType<FeatureDefinitionPointPool>())
             {
-                if (IsFeatGrantedMetamagicAdeptPointPool(featureDefinitionPointPool))
-                {
-                    _ = RemoveFeatGrantedMetamagicAdeptPointPool(heroBuildingData, featureDefinitionPointPool);
-
-                    continue;
-                }
-
-                if (!TryResolveFeatGrantedPointPoolTags(
-                    __instance,
-                    heroBuildingData,
-                    featureDefinitionPointPool,
-                    out _,
-                    out _,
-                    out var activePoolTag) ||
-                    !TryGetFeatGrantedPointPoolForUpdate(
-                        heroBuildingData,
-                        featureDefinitionPointPool.PoolType,
-                        activePoolTag,
-                        featureDefinitionPointPool.ExtraSpellsTag,
-                        out var activePoolKey,
-                        out var pool))
-                {
-                    continue;
-                }
-
-                pool.maxPoints -= featureDefinitionPointPool.poolAmount;
-
-                if (pool.maxPoints == 0 &&
-                    heroBuildingData.PointPoolStacks.TryGetValue(featureDefinitionPointPool.PoolType,
-                        out var pointPoolStack))
-                {
-                    pointPoolStack.ActivePools.Remove(activePoolKey);
-                }
+                RemoveFeatGrantedPointPool(__instance, heroBuildingData, featureDefinitionPointPool);
             }
         }
 
@@ -2439,41 +2614,7 @@ public static class CharacterBuildingManagerPatcher
             {
                 foreach (var featureDefinitionPointPool in feat.Features.OfType<FeatureDefinitionPointPool>())
                 {
-                    if (IsFeatGrantedMetamagicAdeptPointPool(featureDefinitionPointPool))
-                    {
-                        _ = RemoveFeatGrantedMetamagicAdeptPointPool(
-                            heroBuildingData,
-                            featureDefinitionPointPool);
-
-                        continue;
-                    }
-
-                    if (!TryResolveFeatGrantedPointPoolTags(
-                        __instance,
-                        heroBuildingData,
-                        featureDefinitionPointPool,
-                        out _,
-                        out _,
-                        out var activePoolTag) ||
-                        !TryGetFeatGrantedPointPoolForUpdate(
-                            heroBuildingData,
-                            featureDefinitionPointPool.PoolType,
-                            activePoolTag,
-                            featureDefinitionPointPool.ExtraSpellsTag,
-                            out var activePoolKey,
-                            out var pool))
-                    {
-                        continue;
-                    }
-
-                    pool.maxPoints -= featureDefinitionPointPool.poolAmount;
-
-                    if (pool.maxPoints == 0 &&
-                        heroBuildingData.PointPoolStacks.TryGetValue(featureDefinitionPointPool.PoolType,
-                            out var pointPoolStack))
-                    {
-                        pointPoolStack.ActivePools.Remove(activePoolKey);
-                    }
+                    RemoveFeatGrantedPointPool(__instance, heroBuildingData, featureDefinitionPointPool);
                 }
             }
         }
