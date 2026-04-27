@@ -21,6 +21,12 @@ internal static class RulesDisplay
             Main.Settings.EnableEpicPointsAndArray = toggle;
         }
 
+        toggle = Main.Settings.ForcePointBuyAbilityScores;
+        if (UI.Toggle(Gui.Localize("ModUi/&ForcePointBuyAbilityScores"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.ForcePointBuyAbilityScores = toggle;
+        }
+
         toggle = Main.Settings.EnableLevel20;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableLevel20"), ref toggle, UI.AutoWidth()))
         {

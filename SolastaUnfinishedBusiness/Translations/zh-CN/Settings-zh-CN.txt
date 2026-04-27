@@ -149,6 +149,7 @@ ModUi/&EnableDruidWildshape2024=启用 5e 2024 版本<color=#D89555>荒野形态
 ModUi/&EnableDungeonMakerModdedContent=启用 地城编辑器 Pro\n<i><color=#F0DAA0>[包括平面房间、150x150 和 200x200 地牢大小，以及来自所有环境的简洁混合资产]</color></i>
 ModUi/&EnableElevationCameraToStayAtPosition=<i>+ 战斗中启用仰角相机，禁用后可保持在原位，且范围增加三倍</i>
 ModUi/&EnableEpicPointsAndArray=启用史诗 35 点购点与属性序列 <i><color=#F0DAA0>[17,15,13,12,10,8]</color></i> <b><i><color=#C04040E0>[需要重启]</color></i></b>
+ModUi/&ForcePointBuyAbilityScores=在角色创建和 RESPEC 时强制使用购点法决定属性值
 ModUi/&EnableExtendedProficienciesPanelDisplay=启用扩展熟练面板显示<i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[角色检查时性能受到影响。使用风险自负]</color></i></b>
 ModUi/&EnableFeatsAtEvenLevels=在 2、10 和 18 级启用<color=#D89555>专长</color>选择
 ModUi/&EnableFeatsAtEvenLevelsMiddle=在 6 级和 14 级时启用<color=#D89555>专长</color>选择

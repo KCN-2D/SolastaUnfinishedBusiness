@@ -149,6 +149,7 @@ ModUi/&EnableDruidWildshape2024=Заменить <color=#D89555>Дикий об�
 ModUi/&EnableDungeonMakerModdedContent=Включить Создатель Подземелий ПРО\n<i><color=#F0DAA0>[включает простые комнаты, размеры подземелий 150x150 и 200x200, а также смешивание ассетов из разных наборов окружений без танцев с бубном]</color></i>
 ModUi/&EnableElevationCameraToStayAtPosition=<i>+ Включить сохранение позиции уровня камеры во время боя после отключения, и утроить её масштаб</i>
 ModUi/&EnableEpicPointsAndArray=Включить эпические варианты поинт-бай системы (35 очков) и массива характеристик <i><color=#F0DAA0>[17,15,13,12,10,8]</color></i> <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>
+ModUi/&ForcePointBuyAbilityScores=Принудительно использовать покупку за очки для характеристик при создании персонажа и RESPEC
 ModUi/&EnableExtendedProficienciesPanelDisplay=Включить отображение панели расширенных владений <i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[снижает производительность при просмотре персонажа, используйте на свой страх и риск]</color></i></b>
 ModUi/&EnableFeatsAtEvenLevels=Включить возможность выбора <color=#D89555>черты</color> на уровнях 2, 10 и 18
 ModUi/&EnableFeatsAtEvenLevelsMiddle=Включить возможность выбора <color=#D89555>черты</color> на уровнях 6 и 14

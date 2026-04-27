@@ -12,9 +12,6 @@ public static class AttributeDefinitionsPatcher
     [UsedImplicitly]
     public static class ComputeCostToRaiseAbility_Patch
     {
-        private static readonly int[] Array = [15, 16];
-        private static readonly int[] Array0 = [17, 18];
-
         [UsedImplicitly]
         public static void Postfix(int previousValue, ref int __result)
         {
@@ -24,14 +21,12 @@ public static class AttributeDefinitionsPatcher
                 return;
             }
 
-            if (System.Array.IndexOf(Array, previousValue) != -1)
+            __result = previousValue switch
             {
-                __result = 3;
-            }
-            else if (System.Array.IndexOf(Array0, previousValue) != -1)
-            {
-                __result = 4;
-            }
+                15 or 16 => 3,
+                17 or 18 => 4,
+                _ => __result
+            };
         }
     }
 }

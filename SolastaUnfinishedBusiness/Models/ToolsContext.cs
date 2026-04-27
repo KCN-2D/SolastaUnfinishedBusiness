@@ -172,17 +172,13 @@ internal static class ToolsContext
             OldHero = functorParameters.RestingHero;
             var newHero = characterBuildingService.CreateNewCharacter().HeroCharacter;
 
-            // Register generating new guid, then copy basic stats for the character info panel
+            // Register generating new guid, then copy basic data for the character info panel
             newHero.Register(true);
-            newHero.sex = OldHero.sex;
-            newHero.SurName = OldHero.surName;
-            newHero.Name = OldHero.name;
-            newHero.raceDefinition = OldHero.raceDefinition;
-            newHero.subRaceDefinition = OldHero.subRaceDefinition;
-            foreach ( var ability in AttributeDefinitions.AbilityScoreNames ) { 
-                if ( ! OldHero.TryGetAttribute( ability, out var oldScore ) || ! newHero.TryGetAttribute( ability, out var newScore ) ) continue;
-                newScore.baseValue = oldScore.baseValue;
-                newScore.Refresh();
+            CopyRespecIdentityData(OldHero, newHero);
+
+            if (!Main.Settings.ForcePointBuyAbilityScores)
+            {
+                CopyRespecAbilityScoresForDiceRollMode(OldHero, newHero);
             }
 
             OldHeroName = OldHero.Name;
@@ -199,6 +195,32 @@ internal static class ToolsContext
 
             guiConsoleScreen.Show();
             gameLocationScreenExploration.Show();
+        }
+
+        private static void CopyRespecIdentityData(RulesetCharacterHero oldHero, RulesetCharacterHero newHero)
+        {
+            newHero.sex = oldHero.sex;
+            newHero.SurName = oldHero.surName;
+            newHero.Name = oldHero.name;
+            newHero.raceDefinition = oldHero.raceDefinition;
+            newHero.subRaceDefinition = oldHero.subRaceDefinition;
+        }
+
+        private static void CopyRespecAbilityScoresForDiceRollMode(
+            RulesetCharacterHero oldHero,
+            RulesetCharacterHero newHero)
+        {
+            foreach (var ability in AttributeDefinitions.AbilityScoreNames)
+            {
+                if (!oldHero.TryGetAttribute(ability, out var oldScore) ||
+                    !newHero.TryGetAttribute(ability, out var newScore))
+                {
+                    continue;
+                }
+
+                newScore.baseValue = oldScore.baseValue;
+                newScore.Refresh();
+            }
         }
 
         private static IEnumerator StartRespec(RulesetCharacterHero hero)
@@ -224,9 +246,7 @@ internal static class ToolsContext
                 RespecBackgroundStageEntered( characterCreationScreen, backgroundPanel );
             }
             if ( characterCreationScreen.StagePanelsByName[ "AbilityScores" ] is CharacterStageAbilityScoresPanel abilityPanel ) {
-                abilityPanel.currentMethod = CharacterStageAbilityScoresPanel.AbilityScoreMethod.DiceRolls;
-                abilityPanel.abilityScoresRolled = false; // Reset to detect panel activation.
-                RespecAbilityStageEntered( characterCreationScreen, abilityPanel );
+                PrepareRespecAbilityStage( characterCreationScreen, abilityPanel );
             }
             if ( characterCreationScreen.StagePanelsByName[ "IdentityDefinition" ] is CharacterStageIdentityDefinitionPanel idPanel ) {
                 idPanel.refreshingNames = true; // Set to detect panel activation.
@@ -294,7 +314,27 @@ internal static class ToolsContext
             } );
         }
 
-        private static void RespecAbilityStageEntered ( MonoBehaviour parent, CharacterStageAbilityScoresPanel panel ) {
+        private static void PrepareRespecAbilityStage(MonoBehaviour parent, CharacterStageAbilityScoresPanel panel)
+        {
+            if (Main.Settings.ForcePointBuyAbilityScores)
+            {
+                RespecPointBuyAbilityStageEntered(panel);
+            }
+            else
+            {
+                RespecDiceRollAbilityStageEntered(parent, panel);
+            }
+        }
+
+        private static void RespecPointBuyAbilityStageEntered(CharacterStageAbilityScoresPanel panel)
+        {
+            panel.currentMethod = CharacterStageAbilityScoresPanel.AbilityScoreMethod.PointSystem;
+        }
+
+        private static void RespecDiceRollAbilityStageEntered ( MonoBehaviour parent, CharacterStageAbilityScoresPanel panel ) {
+            panel.currentMethod = CharacterStageAbilityScoresPanel.AbilityScoreMethod.DiceRolls;
+            panel.abilityScoresRolled = false; // Reset to detect panel activation.
+
             parent.StartIntervalCoroutine( () => {
                 if ( !IsRespecing ) return STOP_ROUTINE;
                 if ( ! panel.abilityScoresRolled ) return RETRY_ROUTINE;

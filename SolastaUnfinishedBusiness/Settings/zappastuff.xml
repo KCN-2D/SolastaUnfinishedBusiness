@@ -227,6 +227,7 @@
     <DisableMultilineSpellOffering>false</DisableMultilineSpellOffering>
     <DisableUnofficialTranslations>true</DisableUnofficialTranslations>
     <EnableEpicPointsAndArray>true</EnableEpicPointsAndArray>
+    <ForcePointBuyAbilityScores>false</ForcePointBuyAbilityScores>
     <EnableLevel20>true</EnableLevel20>
     <EnableMulticlass>true</EnableMulticlass>
     <MaxAllowedClasses>3</MaxAllowedClasses>
