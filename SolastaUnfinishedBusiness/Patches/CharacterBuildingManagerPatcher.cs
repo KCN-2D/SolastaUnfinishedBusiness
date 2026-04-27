@@ -56,6 +56,53 @@ public static class CharacterBuildingManagerPatcher
         }
     }
 
+    internal static string BuildClassExtraSpellPoolName(
+        CharacterClassDefinition classDefinition,
+        int level,
+        string extraSpellsTag)
+    {
+        if (!classDefinition || string.IsNullOrEmpty(extraSpellsTag))
+        {
+            return null;
+        }
+
+        var classTag = AttributeDefinitions.GetClassTag(classDefinition, Math.Max(level, 1));
+
+        return string.IsNullOrEmpty(classTag)
+            ? null
+            : $"{classTag}{extraSpellsTag}";
+    }
+
+    internal static void RemoveCantripPointPool(
+        RulesetCharacterHero hero,
+        string poolName,
+        bool removeAcquiredCantrips = false)
+    {
+        if (hero == null ||
+            string.IsNullOrEmpty(poolName))
+        {
+            return;
+        }
+
+        var heroBuildingData = hero.GetHeroBuildingData();
+
+        if (heroBuildingData == null)
+        {
+            return;
+        }
+
+        if (heroBuildingData.PointPoolStacks != null &&
+            heroBuildingData.PointPoolStacks.TryGetValue(HeroDefinitions.PointsPoolType.Cantrip, out var pointPool))
+        {
+            pointPool.ActivePools.Remove(poolName);
+        }
+
+        if (removeAcquiredCantrips)
+        {
+            heroBuildingData.AcquiredCantrips?.Remove(poolName);
+        }
+    }
+
     internal static bool TryResolveFeatGrantedPointPoolTags(
         CharacterBuildingManager manager,
         RulesetCharacterHero hero,
@@ -1302,6 +1349,13 @@ public static class CharacterBuildingManagerPatcher
 
         private static void GrantCantripFromCustomAcquiredPool(RulesetCharacterHero hero, string name)
         {
+            var selectedClass = LevelUpHelper.GetSelectedClass(hero);
+
+            if (!selectedClass)
+            {
+                return;
+            }
+
             var repertoire = hero.SpellRepertoires
                 .FirstOrDefault(x => LevelUpHelper.IsRepertoireFromSelectedClassSubclass(hero, x));
 
@@ -1312,30 +1366,26 @@ public static class CharacterBuildingManagerPatcher
 
             var heroBuildingData = hero.GetHeroBuildingData();
             var selectedClassLevel = LevelUpHelper.GetSelectedClassLevel(hero);
-
-            var selectedClass = LevelUpHelper.GetSelectedClass(hero);
             var classTag = AttributeDefinitions.GetClassTag(selectedClass, selectedClassLevel);
-            var classPoolName = $"{classTag}{name}";
+
+            void GrantCantripsFromPool(string poolName)
+            {
+                if (!heroBuildingData.AcquiredCantrips.TryGetValue(poolName, out var cantrips))
+                {
+                    return;
+                }
+
+                foreach (var cantrip in cantrips)
+                {
+                    hero.GrantCantrip(cantrip, repertoire.SpellCastingFeature, name);
+                }
+            }
 
             // consider cantrips from classes
-            if (heroBuildingData.AcquiredCantrips.TryGetValue(classPoolName, out var cantrips1))
-            {
-                foreach (var cantrip in cantrips1)
-                {
-                    hero.GrantCantrip(cantrip, repertoire.SpellCastingFeature, name);
-                }
-            }
+            GrantCantripsFromPool($"{classTag}{name}");
 
             // consider cantrips from feats / invocations / etc.
-            classPoolName = $"{classTag}{name}{name}";
-
-            if (heroBuildingData.AcquiredCantrips.TryGetValue(classPoolName, out var cantrips2))
-            {
-                foreach (var cantrip in cantrips2)
-                {
-                    hero.GrantCantrip(cantrip, repertoire.SpellCastingFeature, name);
-                }
-            }
+            GrantCantripsFromPool($"{classTag}{name}{name}");
 
             var selectedSubclass = LevelUpHelper.GetSelectedSubclass(hero);
 
@@ -1346,17 +1396,8 @@ public static class CharacterBuildingManagerPatcher
 
             // consider cantrips from subclasses
             var subclassTag = AttributeDefinitions.GetSubclassTag(selectedClass, selectedClassLevel, selectedSubclass);
-            var subclassPoolName = $"{subclassTag}{name}";
 
-            if (!heroBuildingData.AcquiredCantrips.TryGetValue(subclassPoolName, out var cantrips3))
-            {
-                return;
-            }
-
-            foreach (var cantrip in cantrips3)
-            {
-                hero.GrantCantrip(cantrip, repertoire.SpellCastingFeature, name);
-            }
+            GrantCantripsFromPool($"{subclassTag}{name}");
         }
     }
 
@@ -1556,6 +1597,29 @@ public static class CharacterBuildingManagerPatcher
         [UsedImplicitly]
         public static bool Prefix([NotNull] RulesetCharacterHero hero)
         {
+            var lastClass = hero.ClassesHistory?.LastOrDefault();
+
+            if (lastClass)
+            {
+                if (lastClass == DatabaseHelper.CharacterClassDefinitions.Cleric)
+                {
+                    RemoveCantripPointPool(
+                        hero,
+                        BuildClassExtraSpellPoolName(
+                            lastClass,
+                            1,
+                            Tabletop2024Context.ClericThaumaturgeExtraSpellsTag),
+                        true);
+                }
+                else if (lastClass == DatabaseHelper.CharacterClassDefinitions.Druid)
+                {
+                    RemoveCantripPointPool(
+                        hero,
+                        BuildClassExtraSpellPoolName(lastClass, 1, "PrimalOrder"),
+                        true);
+                }
+            }
+
             //PATCH: un-captures the desired class
             LevelUpHelper.SetSelectedClass(hero, null);
 
@@ -1579,21 +1643,11 @@ public static class CharacterBuildingManagerPatcher
     [UsedImplicitly]
     public static class UnassignLastSubclass_Patch
     {
-        private static void ResetCantripsPool(RulesetCharacterHero hero, string poolName)
-        {
-            var buildingData = hero.GetHeroBuildingData();
-
-            if (buildingData.PointPoolStacks.TryGetValue(HeroDefinitions.PointsPoolType.Cantrip, out var pointPool))
-            {
-                pointPool.ActivePools.Remove(poolName);
-            }
-        }
-
         [UsedImplicitly]
         public static bool Prefix([NotNull] RulesetCharacterHero hero)
         {
             //PATCH: avoid Domain Nature to break level up with the cantrip pool it gets
-            ResetCantripsPool(hero,
+            RemoveCantripPointPool(hero,
                 $"{AttributeDefinitions.TagSubclass}Cleric" +
                 (Main.Settings.EnableClericToLearnDomainAtLevel3 ? 3 : 1) +
                 "DomainNatureDomainNature");

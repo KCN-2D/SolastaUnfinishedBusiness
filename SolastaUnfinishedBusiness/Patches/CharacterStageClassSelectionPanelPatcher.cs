@@ -10,6 +10,7 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -78,23 +79,23 @@ public static class CharacterStageClassSelectionPanelPatcher
     [UsedImplicitly]
     public static class RefreshCharacter_Patch
     {
-        private static void ResetCantripsPool(RulesetCharacterHero hero, string poolName)
-        {
-            var buildingData = hero.GetHeroBuildingData();
-
-            if (buildingData.PointPoolStacks.TryGetValue(HeroDefinitions.PointsPoolType.Cantrip, out var pointPool))
-            {
-                pointPool.ActivePools.Remove(poolName);
-            }
-        }
-
         [UsedImplicitly]
         public static void Prefix(CharacterStageClassSelectionPanel __instance)
         {
             var hero = __instance.currentHero;
 
             //PATCH: avoid Druid Primal Order to break level up with the cantrip pool it gets
-            ResetCantripsPool(hero, $"{AttributeDefinitions.TagClass}Druid1PrimalOrder");
+            CharacterBuildingManagerPatcher.RemoveCantripPointPool(
+                hero,
+                CharacterBuildingManagerPatcher.BuildClassExtraSpellPoolName(Druid, 1, "PrimalOrder"));
+
+            //PATCH: avoid Cleric Thaumaturge to bleed into another class spell selection after going back
+            CharacterBuildingManagerPatcher.RemoveCantripPointPool(
+                hero,
+                CharacterBuildingManagerPatcher.BuildClassExtraSpellPoolName(
+                    Cleric,
+                    1,
+                    Tabletop2024Context.ClericThaumaturgeExtraSpellsTag));
         }
     }
 
