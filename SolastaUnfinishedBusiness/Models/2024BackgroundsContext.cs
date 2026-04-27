@@ -15,13 +15,21 @@ namespace SolastaUnfinishedBusiness.Models;
 public static partial class Tabletop2024Context
 {
     private const string BackgroundAcademicName = "Academic";
+    private const string BackgroundAcolyteName = "Acolyte";
+    private const string BackgroundAesceticName = "Aescetic_Background";
+    private const string BackgroundAristocratName = "Aristocrat";
+    private const string BackgroundArtistName = "Artist_Background";
     private const string BackgroundDevotedName = "BackgroundDevoted";
     private const string BackgroundFarmerName = "BackgroundFarmer";
+    private const string BackgroundLawkeeperName = "Lawkeeper";
+    private const string BackgroundLowlifeName = "Lowlife";
     private const string BackgroundMilitiaName = "BackgroundMilitia";
     private const string BackgroundOccultistName = "Occultist_Background";
     private const string BackgroundPhilosopherName = "Philosopher";
+    private const string BackgroundSellSwordName = "SellSword";
     private const string BackgroundSpyName = "Spy";
     private const string BackgroundTroublemakerName = "BackgroundTroublemaker";
+    private const string BackgroundWandererName = "Wanderer";
     private const string FeatSkilledName = "FeatSkilled";
     private const string HumanOriginFeatFeatureSetName = "FeatureSetHumanOriginFeat2024";
     private const string HumanOriginFeatChoiceFeatureSetPrefix = "FeatureSetHumanOriginFeat2024_";
@@ -29,22 +37,23 @@ public static partial class Tabletop2024Context
     private const string HumanOriginFeatSkilledPointPoolName = "PointPoolHumanOriginFeatSkilled";
     private const string HumanOriginFeatTag = "02RaceHumanOriginFeat2024";
     private const string HumanOriginFeatSkilledSkillTag = "02RaceHumanOriginFeat2024_SkilledSkills";
+    private const string ToolGamingSetDiceTypeName = "GamingSetDiceType";
     private const string ToolMusicalInstrumentLyreTypeName = "MusicalInstrumentLyreType";
 
     private static readonly Dictionary<string, (string A, string B, string C)> BackgroundAbilitySets = new()
     {
         { BackgroundAcademicName, (AttributeDefinitions.Dexterity, AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom) },
-        { "Acolyte", (AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma) },
-        { "Aescetic_Background", (AttributeDefinitions.Constitution, AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma) },
-        { "Aristocrat", (AttributeDefinitions.Strength, AttributeDefinitions.Intelligence, AttributeDefinitions.Charisma) },
-        { "Artist_Background", (AttributeDefinitions.Strength, AttributeDefinitions.Dexterity, AttributeDefinitions.Charisma) },
-        { "Lawkeeper", (AttributeDefinitions.Strength, AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom) },
-        { "Lowlife", (AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence) },
+        { BackgroundAcolyteName, (AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma) },
+        { BackgroundAesceticName, (AttributeDefinitions.Constitution, AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma) },
+        { BackgroundAristocratName, (AttributeDefinitions.Strength, AttributeDefinitions.Intelligence, AttributeDefinitions.Charisma) },
+        { BackgroundArtistName, (AttributeDefinitions.Strength, AttributeDefinitions.Dexterity, AttributeDefinitions.Charisma) },
+        { BackgroundLawkeeperName, (AttributeDefinitions.Strength, AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom) },
+        { BackgroundLowlifeName, (AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence) },
         { BackgroundOccultistName, (AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence, AttributeDefinitions.Charisma) },
         { BackgroundPhilosopherName, (AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom) },
-        { "SellSword", (AttributeDefinitions.Strength, AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution) },
+        { BackgroundSellSwordName, (AttributeDefinitions.Strength, AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution) },
         { BackgroundSpyName, (AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution, AttributeDefinitions.Charisma) },
-        { "Wanderer", (AttributeDefinitions.Dexterity, AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma) },
+        { BackgroundWandererName, (AttributeDefinitions.Dexterity, AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma) },
         { BackgroundDevotedName, (AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom) },
         { BackgroundFarmerName, (AttributeDefinitions.Strength, AttributeDefinitions.Constitution, AttributeDefinitions.Wisdom) },
         { BackgroundMilitiaName, (AttributeDefinitions.Strength, AttributeDefinitions.Dexterity, AttributeDefinitions.Wisdom) },
@@ -54,17 +63,17 @@ public static partial class Tabletop2024Context
     private static readonly Dictionary<string, string> BackgroundFeatSets = new()
     {
         { BackgroundAcademicName, FeatSkilledName },
-        { "Acolyte", "FeatMagicInitiateCleric" },
-        { "Aescetic_Background", "FeatHealer" },
-        { "Aristocrat", FeatSkilledName },
-        { "Artist_Background", "FeatMagicInitiateBard" },
-        { "Lawkeeper", "FeatSavageAttack" },
-        { "Lowlife", "FeatLucky" },
+        { BackgroundAcolyteName, "FeatMagicInitiateCleric" },
+        { BackgroundAesceticName, "FeatHealer" },
+        { BackgroundAristocratName, FeatSkilledName },
+        { BackgroundArtistName, "FeatMagicInitiateBard" },
+        { BackgroundLawkeeperName, "FeatSavageAttack" },
+        { BackgroundLowlifeName, "FeatLucky" },
         { BackgroundOccultistName, "FeatMagicInitiateWarlock" },
         { BackgroundPhilosopherName, "FeatMagicInitiateWizard" },
-        { "SellSword", "FeatSavageAttack" },
+        { BackgroundSellSwordName, "FeatSavageAttack" },
         { BackgroundSpyName, "FeatAlert" },
-        { "Wanderer", "FeatMagicInitiateDruid" },
+        { BackgroundWandererName, "FeatMagicInitiateDruid" },
         { BackgroundDevotedName, "FeatMagicInitiateCleric" },
         { BackgroundFarmerName, "FeatTough" },
         { BackgroundMilitiaName, "FeatAlert" },
@@ -75,21 +84,21 @@ public static partial class Tabletop2024Context
         new()
     {
         { BackgroundAcademicName, (SkillDefinitions.Investigation, SkillDefinitions.Perception, ToolTypeDefinitions.ScrollKitType.Name, ToolTypeDefinitions.EnchantingToolType.Name) },
-        { "Acolyte", (SkillDefinitions.Insight, SkillDefinitions.Religion, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.ScrollKitType.Name) },
-        { "Aescetic_Background", (SkillDefinitions.Medecine, SkillDefinitions.Religion, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.ScrollKitType.Name) },
-        { "Aristocrat", (SkillDefinitions.History, SkillDefinitions.Persuasion, "GamingSetDiceType", "MusicalInstrumentLyreType") },
-        { "Artist_Background", (SkillDefinitions.Acrobatics, SkillDefinitions.Performance, "MusicalInstrumentLyreType", ToolTypeDefinitions.DisguiseKitType.Name) },
-        { "Lawkeeper", (SkillDefinitions.Investigation, SkillDefinitions.Intimidation, ToolTypeDefinitions.ScrollKitType.Name, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
-        { "Lowlife", (SkillDefinitions.Insight, SkillDefinitions.Stealth, ToolTypeDefinitions.ThievesToolsType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
+        { BackgroundAcolyteName, (SkillDefinitions.Insight, SkillDefinitions.Religion, ToolTypeDefinitions.ScrollKitType.Name, ToolMusicalInstrumentLyreTypeName) },
+        { BackgroundAesceticName, (SkillDefinitions.Medecine, SkillDefinitions.Religion, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.ScrollKitType.Name) },
+        { BackgroundAristocratName, (SkillDefinitions.History, SkillDefinitions.Persuasion, ToolGamingSetDiceTypeName, ToolMusicalInstrumentLyreTypeName) },
+        { BackgroundArtistName, (SkillDefinitions.Acrobatics, SkillDefinitions.Performance, ToolMusicalInstrumentLyreTypeName, ToolTypeDefinitions.DisguiseKitType.Name) },
+        { BackgroundLawkeeperName, (SkillDefinitions.Investigation, SkillDefinitions.Intimidation, ToolTypeDefinitions.ScrollKitType.Name, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
+        { BackgroundLowlifeName, (SkillDefinitions.Insight, SkillDefinitions.Stealth, ToolTypeDefinitions.ThievesToolsType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
         { BackgroundOccultistName, (SkillDefinitions.Arcana, SkillDefinitions.Religion, ToolTypeDefinitions.EnchantingToolType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
         { BackgroundPhilosopherName, (SkillDefinitions.Arcana, SkillDefinitions.History, ToolTypeDefinitions.ScrollKitType.Name, ToolMusicalInstrumentLyreTypeName) },
-        { "SellSword", (SkillDefinitions.Athletics, SkillDefinitions.Intimidation, "GamingSetDiceType", ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
+        { BackgroundSellSwordName, (SkillDefinitions.Athletics, SkillDefinitions.Intimidation, ToolGamingSetDiceTypeName, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
         { BackgroundSpyName, (SkillDefinitions.Stealth, SkillDefinitions.Deception, ToolTypeDefinitions.DisguiseKitType.Name, ToolTypeDefinitions.ThievesToolsType.Name) },
-        { "Wanderer", (SkillDefinitions.Stealth, SkillDefinitions.Survival, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
-        { BackgroundDevotedName, (SkillDefinitions.Investigation, SkillDefinitions.Persuasion, ToolTypeDefinitions.ScrollKitType.Name, ToolTypeDefinitions.HerbalismKitType.Name) },
+        { BackgroundWandererName, (SkillDefinitions.Stealth, SkillDefinitions.Survival, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
+        { BackgroundDevotedName, (SkillDefinitions.Investigation, SkillDefinitions.Persuasion, ToolTypeDefinitions.ScrollKitType.Name, ToolGamingSetDiceTypeName) },
         { BackgroundFarmerName, (SkillDefinitions.AnimalHandling, SkillDefinitions.Nature, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
-        { BackgroundMilitiaName, (SkillDefinitions.Athletics, SkillDefinitions.Perception, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name, "GamingSetDiceType") },
-        { BackgroundTroublemakerName, (SkillDefinitions.Deception, SkillDefinitions.SleightOfHand, "GamingSetDiceType", ToolTypeDefinitions.ThievesToolsType.Name) }
+        { BackgroundMilitiaName, (SkillDefinitions.Athletics, SkillDefinitions.Perception, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name, ToolGamingSetDiceTypeName) },
+        { BackgroundTroublemakerName, (SkillDefinitions.Deception, SkillDefinitions.SleightOfHand, ToolGamingSetDiceTypeName, ToolTypeDefinitions.ThievesToolsType.Name) }
     };
 
     private static readonly HashSet<string> OriginRestrictedFeatNames =
