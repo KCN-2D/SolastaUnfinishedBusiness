@@ -213,6 +213,25 @@ internal static class ToolsDisplay
             Main.Settings.DisableUnofficialTranslations = toggle;
         }
 
+        if (!Main.Settings.DisableUnofficialTranslations)
+        {
+            toggle = Main.Settings.FilterUnofficialTranslationsByLanguage;
+            if (UI.Toggle(
+                    Gui.Localize("ModUi/&FilterUnofficialTranslationsByLanguage"),
+                    ref toggle,
+                    UI.AutoWidth()))
+            {
+                Main.Settings.FilterUnofficialTranslationsByLanguage = toggle;
+            }
+
+            UI.Label(Gui.Localize("ModUi/&FilterUnofficialTranslationsByLanguageHelp"));
+
+            if (Main.Settings.FilterUnofficialTranslationsByLanguage)
+            {
+                DisplayUnofficialTranslationLanguages();
+            }
+        }
+
         toggle = Main.Settings.WideScreenBattleUI;
         if (UI.Toggle(Gui.Localize("ModUi/&WideScreenBattleUI"), ref toggle, UI.AutoWidth()))
         {
@@ -242,6 +261,52 @@ internal static class ToolsDisplay
             UI.ActionButton("6 hours", () => gameCampaign.UpdateTime(60 * 60 * 6), UI.Width(100f));
             UI.ActionButton("12 hours", () => gameCampaign.UpdateTime(60 * 60 * 12), UI.Width(100f));
             UI.ActionButton("24 hours", () => gameCampaign.UpdateTime(60 * 60 * 24), UI.Width(100f));
+        }
+    }
+
+    private static void DisplayUnofficialTranslationLanguages()
+    {
+        var languages = TranslatorContext.GetAvailableUnofficialLanguages();
+
+        if (languages.Count == 0)
+        {
+            UI.Label(Gui.Localize("ModUi/&NoUnofficialTranslationsFound"));
+
+            return;
+        }
+
+        foreach (var language in languages)
+        {
+            var toggle = IsUnofficialTranslationLanguageEnabled(language.Code);
+
+            if (UI.Toggle($"{language.Text} ({language.Code})", ref toggle, UI.AutoWidth()))
+            {
+                SetUnofficialTranslationLanguageEnabled(language.Code, toggle);
+            }
+        }
+    }
+
+    private static bool IsUnofficialTranslationLanguageEnabled(string code)
+    {
+        return Main.Settings.EnabledUnofficialTranslationLanguages
+            .Any(x => string.Equals(x, code, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void SetUnofficialTranslationLanguageEnabled(string code, bool enabled)
+    {
+        var existing = Main.Settings.EnabledUnofficialTranslationLanguages
+            .FirstOrDefault(x => string.Equals(x, code, StringComparison.OrdinalIgnoreCase));
+
+        if (enabled)
+        {
+            if (existing == null)
+            {
+                Main.Settings.EnabledUnofficialTranslationLanguages.Add(code);
+            }
+        }
+        else if (existing != null)
+        {
+            Main.Settings.EnabledUnofficialTranslationLanguages.Remove(existing);
         }
     }
 

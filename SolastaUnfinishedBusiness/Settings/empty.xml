@@ -223,6 +223,8 @@
     <EnableCustomPortraits>true</EnableCustomPortraits>
     <DisableMultilineSpellOffering>false</DisableMultilineSpellOffering>
     <DisableUnofficialTranslations>true</DisableUnofficialTranslations>
+    <FilterUnofficialTranslationsByLanguage>false</FilterUnofficialTranslationsByLanguage>
+    <EnabledUnofficialTranslationLanguages/>
     <EnableEpicPointsAndArray>false</EnableEpicPointsAndArray>
     <ForcePointBuyAbilityScores>false</ForcePointBuyAbilityScores>
     <EnableLevel20>false</EnableLevel20>

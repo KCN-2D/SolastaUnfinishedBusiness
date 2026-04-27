@@ -76,7 +76,10 @@ ModUi/&DisableMultilineSpellOffering=Desactivar la oferta de hechizos multilíne
 ModUi/&DisableRacePrerequisitesOnModFeats=Deshabilitar los requisitos previos de raza en <color=#D89555>dotes</color>
 ModUi/&DisableSenseDarkVisionFromAllRaces=Desactivar <color=#D89555>Sentir visión en la oscuridad</color> en todas las razas jugables <b><i><color=#C04040E0>[Requiere reinicio]</color></i></b>
 ModUi/&DisableSenseSuperiorDarkVisionFromAllRaces=Desactivar <color=#D89555>Sentido superior Visión en la oscuridad</color> en todas las razas jugables <b><i><color=#C04040E0>[Requiere reinicio]</color></i></b>
-ModUi/&DisableUnofficialTranslations=Desactivar el soporte de traducciones no oficiales para acelerar el mod <i><color=#F0DAA0>[a menos que hable chino, italiano, japonés, coreano o español]</color></i>
+ModUi/&DisableUnofficialTranslations=Desactivar el soporte de traducciones no oficiales para acelerar el inicio del mod <i><color=#F0DAA0>[Requiere reinicio]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguage=Cargar solo los idiomas de traducción no oficial seleccionados <i><color=#F0DAA0>[Requiere reinicio]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguageHelp=Selecciona qué carpetas de traducción no oficial se cargan cuando las traducciones no oficiales están activadas.
+ModUi/&NoUnofficialTranslationsFound=No se encontraron carpetas de traducción no oficial.
 ModUi/&DisplayAllKnownSpellsDuringLevelUp=<i>+ Mostrar todos los hechizos conocidos de otras clases al subir de nivel</i>
 ModUi/&DisplayPactSlotsOnSpellSelectionPanel=<i>+ Mostrar las ranuras del pacto del <color=#D89555>Brujo</color> en la selección de hechizos en lugar del panel de personajes</i>
 ModUi/&DocsArcaneShots=Disparos arcanos

@@ -76,7 +76,10 @@ ModUi/&DisableMultilineSpellOffering=Отключить многострочно
 ModUi/&DisableRacePrerequisitesOnModFeats=Отключить требования по расе для <color=#D89555>черт</color>
 ModUi/&DisableSenseDarkVisionFromAllRaces=Отключить <color=#D89555>Тёмное зрение</color> для всех игровых рас <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>
 ModUi/&DisableSenseSuperiorDarkVisionFromAllRaces=Отключить <color=#D89555>Улучшенное тёмное зрение</color> для всех игровых рас <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>
-ModUi/&DisableUnofficialTranslations=Отключить поддержку неофициальных переводов для ускорения загрузки мода <i><color=#F0DAA0>[если вы не знаете китайского, итальянского, японского, корейского или испанского языков]</color></i>
+ModUi/&DisableUnofficialTranslations=Отключить поддержку неофициальных переводов для ускорения запуска мода <i><color=#F0DAA0>[Необходим перезапуск]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguage=Загружать только выбранные языки неофициальных переводов <i><color=#F0DAA0>[Необходим перезапуск]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguageHelp=Выберите, какие папки неофициальных переводов загружать, когда неофициальные переводы включены.
+ModUi/&NoUnofficialTranslationsFound=Папки неофициальных переводов не найдены.
 ModUi/&DisplayAllKnownSpellsDuringLevelUp=<i>+ Отображать все известные заклинания от других классов во время повышения уровня</i>
 ModUi/&DisplayPactSlotsOnSpellSelectionPanel=<i>+ Отображать ячейки заклинаний <color=#D89555>Колдуна</color> на панели выбора заклинаний вместо панели персонажа</i>
 ModUi/&DocsArcaneShots=Магические выстрелы

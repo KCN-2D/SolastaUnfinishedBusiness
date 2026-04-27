@@ -76,7 +76,10 @@ ModUi/&DisableMultilineSpellOffering=Disabilita l'offerta di incantesimi multi-l
 ModUi/&DisableRacePrerequisitesOnModFeats=Disattiva i prerequisiti di razza per le <color=#D89555>imprese</color>
 ModUi/&DisableSenseDarkVisionFromAllRaces=Disattiva <color=#D89555>Visione oscura</color> da tutte le razze giocabili <b><i><color=#C04040E0>[Richiede riavvio]</color></i></b>
 ModUi/&DisableSenseSuperiorDarkVisionFromAllRaces=Disattiva <color=#D89555>Visione oscura superiore</color> da tutte le razze giocabili <b><i><color=#C04040E0>[Richiede riavvio]</color></i></b>
-ModUi/&DisableUnofficialTranslations=Disabilita il supporto alle traduzioni non ufficiali per velocizzare la mod <i><color=#F0DAA0>[a meno che non parli cinese, italiano, giapponese, coreano o spagnolo]</color></i>
+ModUi/&DisableUnofficialTranslations=Disabilita il supporto alle traduzioni non ufficiali per velocizzare l'avvio della mod <i><color=#F0DAA0>[Richiede riavvio]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguage=Carica solo le lingue di traduzione non ufficiale selezionate <i><color=#F0DAA0>[Richiede riavvio]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguageHelp=Seleziona quali cartelle di traduzione non ufficiale vengono caricate quando le traduzioni non ufficiali sono abilitate.
+ModUi/&NoUnofficialTranslationsFound=Nessuna cartella di traduzione non ufficiale trovata.
 ModUi/&DisplayAllKnownSpellsDuringLevelUp=<i>+ Mostra tutti gli incantesimi conosciuti delle altre classi durante l'aumento di livello</i>
 ModUi/&DisplayPactSlotsOnSpellSelectionPanel=<i>+ Visualizza gli slot del patto <color=#D89555>Warlock</color> nella selezione degli incantesimi invece che nel pannello del personaggio</i>
 ModUi/&DocsArcaneShots=Colpi Arcani

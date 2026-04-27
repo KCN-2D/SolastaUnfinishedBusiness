@@ -76,7 +76,10 @@ ModUi/&DisableMultilineSpellOffering=Desabilitar oferta de magia multi-linha na 
 ModUi/&DisableRacePrerequisitesOnModFeats=Desabilitar pré-requisitos de corrida em <color=#D89555>talentos</color>
 ModUi/&DisableSenseDarkVisionFromAllRaces=Desabilitar <color=#D89555>Sense Dark Vision</color> de todas as raças jogáveis <b><i><color=#C04040E0>[Requer reinicialização]</color></i></b>
 ModUi/&DisableSenseSuperiorDarkVisionFromAllRaces=Desabilitar <color=#D89555>Sentido Superior de Visão no Escuro</color> de todas as raças jogáveis <b><i><color=#C04040E0>[Requer reinicialização]</color></i></b>
-ModUi/&DisableUnofficialTranslations=Desabilite o suporte a traduções não oficiais para acelerar o mod <i><color=#F0DAA0>[a menos que eu fale chinês, italiano, japonês, coreano ou espanhol]</color></i>
+ModUi/&DisableUnofficialTranslations=Desabilitar suporte a traduções não oficiais para acelerar a inicialização do mod <i><color=#F0DAA0>[Requer reinicialização]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguage=Carregar apenas os idiomas de tradução não oficial selecionados <i><color=#F0DAA0>[Requer reinicialização]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguageHelp=Selecione quais pastas de tradução não oficial são carregadas quando traduções não oficiais estão habilitadas.
+ModUi/&NoUnofficialTranslationsFound=Nenhuma pasta de tradução não oficial encontrada.
 ModUi/&DisplayAllKnownSpellsDuringLevelUp=<i>+ Exibe todas as magias conhecidas de outras classes durante o aumento de nível</i>
 ModUi/&DisplayPactSlotsOnSpellSelectionPanel=<i>+ Exibir espaços de pacto <color=#D89555>Warlock</color> na seleção de magia em vez do painel de personagem</i>
 ModUi/&DocsArcaneShots=Tiros Arcanos

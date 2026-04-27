@@ -76,7 +76,10 @@ ModUi/&DisableMultilineSpellOffering=Désactiver l'offre de sorts multilignes su
 ModUi/&DisableRacePrerequisitesOnModFeats=Désactiver les prérequis de course sur les <color=#D89555>exploits</color>
 ModUi/&DisableSenseDarkVisionFromAllRaces=Désactiver <color=#D89555>Sens de la vision dans le noir</color> de toutes les races jouables <b><i><color=#C04040E0>[Nécessite un redémarrage]</color></i></b>
 ModUi/&DisableSenseSuperiorDarkVisionFromAllRaces=Désactiver <color=#D89555>Sens supérieur de la vision sombre</color> de toutes les races jouables <b><i><color=#C04040E0>[Nécessite un redémarrage]</color></i></b>
-ModUi/&DisableUnofficialTranslations=Désactiver la prise en charge des traductions non officielles pour accélérer le mod <i><color=#F0DAA0>[sauf si je parle chinois, italien, japonais, coréen ou espagnol]</color></i>
+ModUi/&DisableUnofficialTranslations=Désactiver la prise en charge des traductions non officielles pour accélérer le démarrage du mod <i><color=#F0DAA0>[Nécessite un redémarrage]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguage=Charger uniquement les langues de traduction non officielle sélectionnées <i><color=#F0DAA0>[Nécessite un redémarrage]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguageHelp=Sélectionnez les dossiers de traduction non officielle chargés lorsque les traductions non officielles sont activées.
+ModUi/&NoUnofficialTranslationsFound=Aucun dossier de traduction non officielle trouvé.
 ModUi/&DisplayAllKnownSpellsDuringLevelUp=<i>+ Afficher tous les sorts connus des autres classes pendant la montée de niveau</i>
 ModUi/&DisplayPactSlotsOnSpellSelectionPanel=<i>+ Afficher les emplacements de pacte du <color=#D89555>Démoniste</color> lors de la sélection des sorts au lieu du panneau de personnage</i>
 ModUi/&DocsArcaneShots=Tirs des arcanes

@@ -76,7 +76,10 @@ ModUi/&DisableMultilineSpellOffering=Deaktivieren Sie das Anbieten von mehrzeili
 ModUi/&DisableRacePrerequisitesOnModFeats=Deaktivieren Sie Rassenvoraussetzungen für <color=#D89555>Talente</color>
 ModUi/&DisableSenseDarkVisionFromAllRaces=Deaktivieren Sie <color=#D89555>Dunkelsicht spüren</color> bei allen spielbaren Rassen <b><i><color=#C04040E0>[Neustart erforderlich]</color></i></b>
 ModUi/&DisableSenseSuperiorDarkVisionFromAllRaces=Deaktivieren Sie <color=#D89555>Überlegener Sinn für Dunkelsicht</color> bei allen spielbaren Rassen <b><i><color=#C04040E0>[Neustart erforderlich]</color></i></b>
-ModUi/&DisableUnofficialTranslations=Deaktivieren Sie die Unterstützung für inoffizielle Übersetzungen, um den Mod zu beschleunigen <i><color=#F0DAA0>[es sei denn, ich spreche Chinesisch, Italienisch, Japanisch, Koreanisch oder Spanisch]</color></i>
+ModUi/&DisableUnofficialTranslations=Unterstützung für inoffizielle Übersetzungen deaktivieren, um den Mod-Start zu beschleunigen <i><color=#F0DAA0>[Neustart erforderlich]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguage=Nur ausgewählte inoffizielle Übersetzungssprachen laden <i><color=#F0DAA0>[Neustart erforderlich]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguageHelp=Wähle aus, welche inoffiziellen Übersetzungsordner geladen werden, wenn inoffizielle Übersetzungen aktiviert sind.
+ModUi/&NoUnofficialTranslationsFound=Keine inoffiziellen Übersetzungsordner gefunden.
 ModUi/&DisplayAllKnownSpellsDuringLevelUp=<i>+ Alle bekannten Zaubersprüche anderer Klassen beim Levelaufstieg anzeigen</i>
 ModUi/&DisplayPactSlotsOnSpellSelectionPanel=<i>+ <color=#D89555>Warlock</color>-Paktplätze in der Zauberauswahl statt im Charakterfenster anzeigen</i>
 ModUi/&DocsArcaneShots=Arkane Schüsse

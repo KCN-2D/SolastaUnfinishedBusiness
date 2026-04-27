@@ -76,7 +76,10 @@ ModUi/&DisableMultilineSpellOffering=禁用动作栏上的多行法术提供<i><
 ModUi/&DisableRacePrerequisitesOnModFeats=禁用<color=#D89555>专长</color>的种族先决条件
 ModUi/&DisableSenseDarkVisionFromAllRaces=禁用所有可玩种族的<color=#D89555>黑暗视觉</color><b><i><color=#C04040E0>[需要重启]</color></i></b>
 ModUi/&DisableSenseSuperiorDarkVisionFromAllRaces=禁用所有可玩种族的<color=#D89555>进阶黑暗视觉</color><b><i><color=#C04040E0>[需要重启]</color></i></b>
-ModUi/&DisableUnofficialTranslations=禁用非官方翻译支持以加快 mod <i><color=#F0DAA0>[除非使用中文、意大利语、日语、韩语或西班牙语(关闭后无法使用非官方中文翻译)]</color></i>
+ModUi/&DisableUnofficialTranslations=禁用非官方翻译支持以加快 mod 启动 <i><color=#F0DAA0>[需要重启]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguage=仅加载选定的非官方翻译语言 <i><color=#F0DAA0>[需要重启]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguageHelp=选择启用非官方翻译时要加载的非官方翻译文件夹。
+ModUi/&NoUnofficialTranslationsFound=未找到非官方翻译文件夹。
 ModUi/&DisplayAllKnownSpellsDuringLevelUp=<i>+ 升级时显示其他职业的所有已知法术</i>
 ModUi/&DisplayPactSlotsOnSpellSelectionPanel=<i>+ 在法术选择上显示<color=#D89555>邪术士</color>契约法术位，而不是在角色面板上显示</i>
 ModUi/&DocsArcaneShots=秘法射击

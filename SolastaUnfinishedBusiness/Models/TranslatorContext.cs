@@ -39,6 +39,8 @@ internal static class TranslatorContext
     /// </summary>
     private static Dictionary<string, string> SourceCodeCache { get; } = new();
 
+    private static LanguageEntry[] AvailableUnofficialLanguagesCache { get; set; }
+
     public static bool IsCJKChar(char c)
     {
         return IsInRange(c, 0x1100, 0x11FF) || // Hangul Jamo
@@ -84,6 +86,9 @@ internal static class TranslatorContext
 
     internal static void EarlyLoad()
     {
+        Languages.Clear();
+        SourceCodeCache.Clear();
+
         if (Main.Settings.DisableUnofficialTranslations)
         {
             Main.Info("Unofficial translations support disabled.");
@@ -98,55 +103,49 @@ internal static class TranslatorContext
             return;
         }
 
-        LoadCustomLanguages();
+        LoadCustomLanguages(GetEnabledUnofficialLanguages());
+
+        if (Languages.Count == 0)
+        {
+            return;
+        }
+
         LoadCustomTerms();
-
-        // LOAD CUSTOM FONTS
-
-        var allFonts = Resources.FindObjectsOfTypeAll<TMP_FontAsset>();
-
-        // JAPANESE
-
-        var fullFilename = Path.Combine(Main.ModFolder, $"{UnofficialLanguagesFolderPrefix}JapaneseHanSans.unity3d");
-
-        if (!File.Exists(fullFilename))
-        {
-            Main.Error($"Loading the font bundle {fullFilename}.");
-        }
-        else
-        {
-            var fontBundle = AssetBundle.LoadFromFile(fullFilename);
-
-            AddFont("NotoSansJP-Light SDF", fontBundle, allFonts, "Noto-Light SDF", "Noto-Thin SDF");
-            AddFont("NotoSansJP-Regular SDF", fontBundle, allFonts, "Noto-Regular SDF", "LiberationSans SDF");
-            AddFont("NotoSansJP-Bold SDF", fontBundle, allFonts, "Noto-Bold SDF");
-        }
-
-        // KOREAN
-
-        fullFilename = Path.Combine(Main.ModFolder, $"{UnofficialLanguagesFolderPrefix}KoreanHanSans.unity3d");
-
-        if (!File.Exists(fullFilename))
-        {
-            Main.Error($"Loading the font bundle {fullFilename}.");
-        }
-        else
-        {
-            var fontBundle = AssetBundle.LoadFromFile(fullFilename);
-
-            AddFont("SourceHanSansK-Light SDF", fontBundle, allFonts, "Noto-Light SDF", "Noto-Thin SDF");
-            AddFont("SourceHanSansK-Regular SDF", fontBundle, allFonts, "Noto-Regular SDF", "LiberationSans SDF");
-            AddFont("SourceHanSansK-Bold SDF", fontBundle, allFonts, "Noto-Bold SDF");
-        }
+        LoadCustomFonts();
     }
 
-    private static void LoadCustomLanguages()
+    internal static IReadOnlyList<LanguageEntry> GetAvailableUnofficialLanguages()
     {
-        var cultureInfos = CultureInfo.GetCultures(CultureTypes.AllCultures);
-        var directoryInfo = new DirectoryInfo($@"{Main.ModFolder}/{UnofficialLanguagesFolderPrefix}");
-        var directories = directoryInfo.GetDirectories();
+        return AvailableUnofficialLanguagesCache ??= DetectAvailableUnofficialLanguages(false).ToArray();
+    }
 
-        foreach (var directory in directories)
+    private static IEnumerable<LanguageEntry> GetEnabledUnofficialLanguages()
+    {
+        var languages = GetAvailableUnofficialLanguages();
+
+        if (!Main.Settings.FilterUnofficialTranslationsByLanguage)
+        {
+            return languages;
+        }
+
+        return languages.Where(language => Main.Settings.EnabledUnofficialTranslationLanguages
+            .Any(code => string.Equals(code, language.Code, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static IEnumerable<LanguageEntry> DetectAvailableUnofficialLanguages(bool log)
+    {
+        var path = Path.Combine(Main.ModFolder, UnofficialLanguagesFolderPrefix);
+
+        if (!Directory.Exists(path))
+        {
+            return [];
+        }
+
+        var cultureInfos = CultureInfo.GetCultures(CultureTypes.AllCultures);
+        var directoryInfo = new DirectoryInfo(path);
+        var languages = new List<LanguageEntry>();
+
+        foreach (var directory in directoryInfo.GetDirectories().OrderBy(x => x.Name, StringComparer.Ordinal))
         {
             var code = directory.Name;
             var cultureInfo = cultureInfos.FirstOrDefault(o => o.Name == code);
@@ -154,46 +153,148 @@ internal static class TranslatorContext
             if (File.Exists($"{directory.FullName}/info.json"))
             {
                 var info = JsonConvert.DeserializeObject<JObject>(File.ReadAllText($"{directory.FullName}/info.json"));
-                var sourceCode = info["SourceCode"]?.ToString() ?? string.Empty;
 
-                if (!string.IsNullOrEmpty(sourceCode))
-                {
-                    SourceCodeCache.Add(code, sourceCode);
-                }
-
-                Languages.Add(new LanguageEntry
+                languages.Add(new LanguageEntry
                 {
                     Code = code,
-                    Text = info["NativeName"]!.ToString(),
+                    Text = info["NativeName"]?.ToString() ?? code,
                     Directory = directory.FullName,
-                    SourceCode = sourceCode
+                    SourceCode = info["SourceCode"]?.ToString() ?? string.Empty
                 });
 
-                Main.Info($"Language {code} detected.");
+                if (log)
+                {
+                    Main.Info($"Language {code} detected.");
+                }
             }
             else if (cultureInfo != null)
             {
                 if (LocalizationManager.HasLanguage(cultureInfo.DisplayName))
                 {
-                    Main.Error($"Language {code} from {directory.Name} already in game.");
+                    if (log)
+                    {
+                        Main.Error($"Language {code} from {directory.Name} already in game.");
+                    }
                 }
                 else
                 {
-                    Languages.Add(new LanguageEntry
+                    languages.Add(new LanguageEntry
                     {
                         Code = code,
                         Text = cultureInfo.TextInfo.ToTitleCase(cultureInfo.NativeName),
                         Directory = directory.FullName
                     });
 
-                    Main.Info($"Language {code} detected.");
+                    if (log)
+                    {
+                        Main.Info($"Language {code} detected.");
+                    }
                 }
             }
-            else
+            else if (log)
             {
                 Main.Error($"Language {code} illegal!");
             }
         }
+
+        return languages;
+    }
+
+    private static void LoadCustomLanguages(IEnumerable<LanguageEntry> languages)
+    {
+        foreach (var language in languages)
+        {
+            Languages.Add(language);
+
+            if (!string.IsNullOrEmpty(language.SourceCode))
+            {
+                SourceCodeCache[language.Code] = language.SourceCode;
+            }
+
+            Main.Info($"Language {language.Code} detected.");
+        }
+    }
+
+    private static void LoadCustomFonts()
+    {
+        var loadJapaneseFont = Languages.Any(UsesJapaneseFont);
+        var loadKoreanFont = Languages.Any(UsesKoreanFont);
+
+        if (!loadJapaneseFont && !loadKoreanFont)
+        {
+            return;
+        }
+
+        var allFonts = Resources.FindObjectsOfTypeAll<TMP_FontAsset>();
+
+        if (loadJapaneseFont)
+        {
+            LoadJapaneseFont(allFonts);
+        }
+
+        if (loadKoreanFont)
+        {
+            LoadKoreanFont(allFonts);
+        }
+    }
+
+    private static void LoadJapaneseFont(IEnumerable<TMP_FontAsset> allFonts)
+    {
+        var fullFilename = Path.Combine(Main.ModFolder, $"{UnofficialLanguagesFolderPrefix}JapaneseHanSans.unity3d");
+
+        if (!File.Exists(fullFilename))
+        {
+            Main.Error($"Loading the font bundle {fullFilename}.");
+
+            return;
+        }
+
+        var fontBundle = AssetBundle.LoadFromFile(fullFilename);
+
+        AddFont("NotoSansJP-Light SDF", fontBundle, allFonts, "Noto-Light SDF", "Noto-Thin SDF");
+        AddFont("NotoSansJP-Regular SDF", fontBundle, allFonts, "Noto-Regular SDF", "LiberationSans SDF");
+        AddFont("NotoSansJP-Bold SDF", fontBundle, allFonts, "Noto-Bold SDF");
+    }
+
+    private static void LoadKoreanFont(IEnumerable<TMP_FontAsset> allFonts)
+    {
+        var fullFilename = Path.Combine(Main.ModFolder, $"{UnofficialLanguagesFolderPrefix}KoreanHanSans.unity3d");
+
+        if (!File.Exists(fullFilename))
+        {
+            Main.Error($"Loading the font bundle {fullFilename}.");
+
+            return;
+        }
+
+        var fontBundle = AssetBundle.LoadFromFile(fullFilename);
+
+        AddFont("SourceHanSansK-Light SDF", fontBundle, allFonts, "Noto-Light SDF", "Noto-Thin SDF");
+        AddFont("SourceHanSansK-Regular SDF", fontBundle, allFonts, "Noto-Regular SDF", "LiberationSans SDF");
+        AddFont("SourceHanSansK-Bold SDF", fontBundle, allFonts, "Noto-Bold SDF");
+    }
+
+    private static bool UsesJapaneseFont(LanguageEntry language)
+    {
+        return IsLanguageCode(language.Code, "ja") ||
+               IsLanguageCode(language.SourceCode, "ja") ||
+               IsChineseLanguage(language.Code) ||
+               IsChineseLanguage(language.SourceCode);
+    }
+
+    private static bool UsesKoreanFont(LanguageEntry language)
+    {
+        return IsLanguageCode(language.Code, "ko") || IsLanguageCode(language.SourceCode, "ko");
+    }
+
+    private static bool IsLanguageCode(string code, string languageCode)
+    {
+        return string.Equals(code, languageCode, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsChineseLanguage(string code)
+    {
+        return !string.IsNullOrEmpty(code) && code.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void LoadCustomTerms()
@@ -210,7 +311,7 @@ internal static class TranslatorContext
 
             // add terms
             var directoryInfo = new DirectoryInfo(language.Directory);
-            var files = directoryInfo.GetFiles("*.txt");
+            var files = directoryInfo.GetFiles("*.txt").OrderBy(x => x.Name, StringComparer.Ordinal);
             var separator = new[] { '=' };
 
             foreach (var file in files)
@@ -224,18 +325,19 @@ internal static class TranslatorContext
                         continue;
                     }
 
-                    try
-                    {
-                        var split = line.Split(separator, 2);
-                        var term = split[0];
-                        var text = split[1];
+                    var split = line.Split(separator, 2);
 
-                        languageSourceData.AddTerm(term).Languages[languageIndex] = text;
-                    }
-                    catch
+                    if (split.Length != 2)
                     {
                         Main.Error($"Skipping line [{line}] in file [{file.FullName}]");
+
+                        continue;
                     }
+
+                    var term = split[0];
+                    var text = split[1];
+
+                    languageSourceData.AddTerm(term).Languages[languageIndex] = text;
                 }
             }
         }
@@ -256,7 +358,9 @@ internal static class TranslatorContext
             return;
         }
 
-        foreach (var tmpFontAsset in allFonts.Where(x => fontsToAppend.Contains(x.name)))
+        var fontNamesToAppend = new HashSet<string>(fontsToAppend, StringComparer.Ordinal);
+
+        foreach (var tmpFontAsset in allFonts.Where(x => fontNamesToAppend.Contains(x.name)))
         {
             tmpFontAsset.fallbackFontAssetTable.Add(modFontAsset);
 

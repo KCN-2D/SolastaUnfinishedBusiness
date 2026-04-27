@@ -70,7 +70,10 @@ ModUi/&DisableMultilineSpellOffering=アクションバーでの複数行の呪�
 ModUi/&DisableRacePrerequisitesOnModFeats=<color=#D89555>特技</color>の種族の前提条件を無効にする
 ModUi/&DisableSenseDarkVisionFromAllRaces=プレイ可能なすべての種族の<color=#D89555>暗視感知</color>を無効にします<b><i><color=#C04040E0>[再起動が必要]</color></i></b>
 ModUi/&DisableSenseSuperiorDarkVisionFromAllRaces=すべてのプレイ可能な種族の<color=#D89555>優れた暗視感覚</color>を無効にします<b><i><color=#C04040E0>[再起動が必要]</color></i></b>
-ModUi/&DisableUnofficialTranslations=非公式翻訳サポートを無効にして、MODの速度を上げます<i><color=#F0DAA0>[中国語、イタリア語、日本語、韓国語、スペイン語を話さない限り]</color></i>
+ModUi/&DisableUnofficialTranslations=非公式翻訳サポートを無効にして、MODの起動を速くします<i><color=#F0DAA0>[再起動が必要]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguage=選択した言語の非公式翻訳だけを読み込みます<i><color=#F0DAA0>[再起動が必要]</color></i>
+ModUi/&FilterUnofficialTranslationsByLanguageHelp=非公式翻訳が有効なときに読み込む翻訳フォルダーを選択します。
+ModUi/&NoUnofficialTranslationsFound=非公式翻訳フォルダーが見つかりません。
 ModUi/&DisplayAllKnownSpellsDuringLevelUp=<i>+ レベルアップ中に他のクラスの既知の呪文をすべて表示</i>
 ModUi/&DisplayPactSlotsOnSpellSelectionPanel=<i>+ キャラクターパネルの代わりに呪文選択時に<color=#D89555>ウォーロック</color>契約スロットを表示する</i>
 ModUi/&DocsArcaneShots=秘術射撃
