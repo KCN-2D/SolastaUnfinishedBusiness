@@ -3006,6 +3006,11 @@ public static partial class Tabletop2024Context
             return selectionTag;
         }
 
+        if (TryGetSpellSelectionTagBySuffix(spellTagName, SlotCastableTabletop2024FeatSpellTags, out selectionTag))
+        {
+            return GetNormalizedTabletop2024FeatSpellTag(selectionTag);
+        }
+
         return GetNormalizedTabletop2024FeatSpellTag(spellTagName);
     }
 
@@ -3200,6 +3205,12 @@ public static partial class Tabletop2024Context
     {
         title = null;
 
+        if (string.IsNullOrEmpty(titleKey) ||
+            !TranslatorContext.HasTranslation(titleKey))
+        {
+            return false;
+        }
+
         var localizedTitle = Gui.Localize(titleKey);
 
         if (string.IsNullOrEmpty(localizedTitle) ||
@@ -3258,22 +3269,38 @@ public static partial class Tabletop2024Context
 
     private static bool TryGetMagicInitiate2024SpellSelectionTag(string tag, out string selectionTag)
     {
+        return TryGetSpellSelectionTagBySuffix(tag, MagicInitiate2024SpellSelectionTags, out selectionTag);
+    }
+
+    private static bool TryGetSpellSelectionTagBySuffix(
+        string tag,
+        IEnumerable<string> candidates,
+        out string selectionTag)
+    {
         selectionTag = null;
 
-        if (string.IsNullOrEmpty(tag))
+        if (string.IsNullOrEmpty(tag) ||
+            candidates == null)
         {
             return false;
         }
 
-        foreach (var candidate in MagicInitiate2024SpellSelectionTags)
+        foreach (var candidate in candidates)
         {
-            if (tag == candidate ||
-                tag.EndsWith(candidate, StringComparison.Ordinal))
+            if (string.IsNullOrEmpty(candidate))
             {
-                selectionTag = candidate;
-
-                return true;
+                continue;
             }
+
+            if (!string.Equals(tag, candidate, StringComparison.Ordinal) &&
+                !tag.EndsWith(candidate, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            selectionTag = candidate;
+
+            return true;
         }
 
         return false;
