@@ -1610,6 +1610,7 @@
     <SwapAbjurationSavant>true</SwapAbjurationSavant>
     <SwapEvocationSavant>true</SwapEvocationSavant>
     <SwapEvocationPotentCantripAndSculptSpell>true</SwapEvocationPotentCantripAndSculptSpell>
+    <EnableEvocationPotentCantrip2024>true</EnableEvocationPotentCantrip2024>
     <EnableMartialChampion2024>true</EnableMartialChampion2024>
     <KlassListSliderPosition>
         <item>

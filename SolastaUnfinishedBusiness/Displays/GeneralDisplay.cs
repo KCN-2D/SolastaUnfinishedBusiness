@@ -1244,6 +1244,13 @@ internal static class ToolsDisplay
             WizardEvocation.SwapEvocationPotentCantripAndSculptSpell();
         }
 
+        toggle = Main.Settings.EnableEvocationPotentCantrip2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableEvocationPotentCantrip2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableEvocationPotentCantrip2024 = toggle;
+            WizardEvocation.SwitchPotentCantrip2024();
+        }
+
         toggle = Main.Settings.EvocationSculptSpellNoPerception;
         if (UI.Toggle(Gui.Localize("ModUi/&EvocationSculptSpellNoPerception"), ref toggle, UI.AutoWidth()))
         {

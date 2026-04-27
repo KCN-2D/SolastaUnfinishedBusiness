@@ -420,6 +420,7 @@ ModUi/&SwapAbjurationSavant=<b>防御術師</b><color=#D89555>防御術の専門
 ModUi/&SwapCraftedItemAndRecipeIcons=<i>+ ショップでレシピとクラフトアイテムのアイコンを交換</i>
 ModUi/&LearnAllScrollRecipes=基本ゲーム内の呪文の巻物作成レシピをすべて習得します<i><color=#F0DAA0>[作成には巻物作成道具の習熟と呪文の知識が必要です]</color></i>
 ModUi/&SwapEvocationPotentCantripAndSculptSpell=進行時に<b>力術士</b>の<color=#D89555>呪文効果範囲操作</color>と<color=#D89555>初級呪文強化</color>を入れ替えます
+ModUi/&EnableEvocationPotentCantrip2024=<b>力術士</b>の<color=#D89555>初級呪文強化</color>を5e 2024版にします<i><color=#F0DAA0>[攻撃ロール型の初級呪文は命中時の習熟ボーナスを得ず、外した場合に半分のダメージを与える]</color></i>
 ModUi/&SwapEvocationSavant=<b>力術士</b>の<color=#D89555>力術の専門家</color>を5e 2024版と入れ替えます<i><color=#F0DAA0>[取得時に力術呪文を2つ習得し、スロット・レベルが上がるたびにさらに1つ習得する]</color></i>
 ModUi/&SwapMartialChampion=<b>Martial Champion</b>を5e 2024版と入れ替える
 ModUi/&TableTop2014=<b><color=#D89555>2014ルールを有効にする</color></b>

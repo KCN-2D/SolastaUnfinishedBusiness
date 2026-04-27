@@ -446,6 +446,7 @@ ModUi/&Subraces=<color=#F0DAA0>아종</color>
 ModUi/&SwapAbjurationSavant=<b>Abjurer</b> <color=#D89555>Abjuration Savant</color>를 5e 2024 버전과 교환하세요 <i><color=#F0DAA0>[획득 시 학교 주문 2개 배우기, 슬롯 레벨이 올라갈 때마다 1개 더 배우기]</color></i>
 ModUi/&SwapCraftedItemAndRecipeIcons=<i>+ 상점에서 레시피와 제작 아이템 아이콘 교환</i>
 ModUi/&SwapEvocationPotentCantripAndSculptSpell=진행 중 <b>소환사</b> <color=#D89555>조각 주문</color>과 <color=#D89555>강력한 주문</color>을 교체하세요.
+ModUi/&EnableEvocationPotentCantrip2024=<b>방출학파</b> <color=#D89555>강력한 주문</color>을 5e 2024 버전으로 사용합니다 <i><color=#F0DAA0>[명중 굴림 캔트립은 명중 시 숙련도 보너스를 더하지 않으며, 빗나가면 절반 피해를 줍니다]</color></i>
 ModUi/&SwapEvocationSavant=<b>Evoker</b> <color=#D89555>Evocation Savant</color>를 5e 2024 버전으로 교체하세요 <i><color=#F0DAA0>[획득 시 학교 주문 2개 배우기, 슬롯 레벨이 올라갈 때마다 1개 더 배우기]</color></i>
 ModUi/&SwapMartialChampion=<b>Martial Champion</b>를 5e 2024 버전으로 교체
 ModUi/&TableTop2014=<b><color=#D89555>2014 규칙 사용</color></b>

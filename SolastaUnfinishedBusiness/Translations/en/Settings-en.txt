@@ -420,6 +420,7 @@ ModUi/&SwapAbjurationSavant=Swap <b>Abjurer</b> <color=#D89555>Abjuration Savant
 ModUi/&SwapCraftedItemAndRecipeIcons=<i>+ Swap recipe and crafted item icons in shop</i>
 ModUi/&LearnAllScrollRecipes=Learn all base game scroll crafting recipes <i><color=#F0DAA0>[scroll kit proficiency and knowing the spell are still required to craft]</color></i>
 ModUi/&SwapEvocationPotentCantripAndSculptSpell=Swap <b>Evoker</b> <color=#D89555>Sculpt Spells</color> and <color=#D89555>Potent Cantrip</color> on progression
+ModUi/&EnableEvocationPotentCantrip2024=Use the 5e 2024 version of <b>Evoker</b> <color=#D89555>Potent Cantrip</color> <i><color=#F0DAA0>[attack-roll cantrips no longer add proficiency bonus on hit; a miss deals half damage]</color></i>
 ModUi/&SwapEvocationSavant=Swap <b>Evoker</b> <color=#D89555>Evocation Savant</color> with 5e 2024 version <i><color=#F0DAA0>[learn 2 school spells when acquired, learn 1 more every time you gain a slot level]</color></i>
 ModUi/&SwapMartialChampion=Swap <b>Martial Champion</b> with 5e 2024 version
 ModUi/&TableTop2014=<b><color=#D89555>Enable 2014 rules</color></b>

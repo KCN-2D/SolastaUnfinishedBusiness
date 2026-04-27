@@ -446,6 +446,7 @@ ModUi/&Subraces=<color=#F0DAA0>Sub-raças</color>
 ModUi/&SwapAbjurationSavant=Troque <b>Abjurador</b> <color=#D89555>Sábio da Abjuração</color> pela versão 5e 2024 <i><color=#F0DAA0>[aprenda 2 magias da escola quando adquiridas, aprenda mais 1 sempre que ganhar um nível de slot]</color></i>
 ModUi/&SwapCraftedItemAndRecipeIcons=<i>+ Troque ícones de receitas e itens criados na loja</i>
 ModUi/&SwapEvocationPotentCantripAndSculptSpell=Troque <b>Evocador</b> <color=#D89555>Magias de Esculpir</color> e <color=#D89555>Truque Potente</color> na progressão
+ModUi/&EnableEvocationPotentCantrip2024=Usar a versão 5e 2024 de <b>Evocador</b> <color=#D89555>Truque Potente</color> <i><color=#F0DAA0>[truques com jogada de ataque não adicionam mais o bônus de proficiência ao acertar; um erro causa metade do dano]</color></i>
 ModUi/&SwapEvocationSavant=Troque <b>Evocador</b> <color=#D89555>Sábio da Evocação</color> pela versão 5e 2024 <i><color=#F0DAA0>[aprenda 2 magias da escola quando adquiridas, aprenda mais 1 sempre que ganhar um nível de slot]</color></i>
 ModUi/&SwapMartialChampion=Troque <b>Campeão Marcial</b> pela versão 5e 2024
 ModUi/&TableTop2014=<b><color=#D89555>Habilitar regras de 2014</color></b>

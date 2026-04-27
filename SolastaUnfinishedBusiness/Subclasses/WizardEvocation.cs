@@ -6,6 +6,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
@@ -28,29 +29,36 @@ public sealed class WizardEvocation : AbstractSubclass
     // these lists contain all evocation spells that do damage in a non-vanilla way so they also get bonus
     //
 
-    private static readonly string[] CantripsAdditionalDamages =
-    [
+    private static readonly HashSet<string> CantripsAdditionalDamages = new(StringComparer.Ordinal)
+    {
         "AdditionalDamageBoomingBlade",
         "AdditionalDamageResonatingStrike", // Green-Flame Blade
         "AdditionalDamageSunlightBlade"
-    ];
+    };
 
-    private static readonly string[] SpellsAdditionalDamages =
-    [
+    private static readonly Dictionary<string, string> BladeCantripAdditionalDamageBySpell = new(StringComparer.Ordinal)
+    {
+        { "BoomingBlade", "AdditionalDamageBoomingBlade" },
+        { "ResonatingStrike", "AdditionalDamageResonatingStrike" },
+        { "SunlightBlade", "AdditionalDamageSunlightBlade" }
+    };
+
+    private static readonly HashSet<string> SpellsAdditionalDamages = new(StringComparer.Ordinal)
+    {
         "AdditionalDamageBanishingSmite",
         "AdditionalDamageBlindingSmite",
         "AdditionalDamageHolyWeapon",
         "AdditionalDamageSearingSmite",
         "AdditionalDamageStaggeringSmite",
         "AdditionalDamageWrathfulSmite"
-    ];
+    };
 
-    private static readonly string[] SpellsPowerDamages =
-    [
+    private static readonly HashSet<string> SpellsPowerDamages = new(StringComparer.Ordinal)
+    {
         "PowerCrownOfStars",
         "PowerHolyWeapon",
         "PowerThunderousSmite"
-    ];
+    };
 
     private static readonly FeatureDefinition FeatureSculptSpells = FeatureDefinitionBuilder
         .Create($"Feature{Name}SculptSpells")
@@ -62,7 +70,8 @@ public sealed class WizardEvocation : AbstractSubclass
         FeatureDefinitionMagicAffinityBuilder
             .Create($"MagicAffinity{Name}PotentCantrip")
             .SetGuiPresentation(Category.Feature)
-            .AddCustomSubFeatures(new MagicEffectBeforeHitConfirmedOnEnemyPotentCantrips())
+            .SetCastingModifiers(halfDamageCantrips: true)
+            .AddCustomSubFeatures(new CustomBehaviorPotentCantrips())
             .AddToDB();
 
     private static readonly FeatureDefinitionMagicAffinity MagicAffinitySavant = FeatureDefinitionMagicAffinityBuilder
@@ -106,8 +115,6 @@ public sealed class WizardEvocation : AbstractSubclass
         // LEVEL 06
 
         // Potent Cantrip
-
-        MagicAffinityPotentCantrip.forceHalfDamageOnCantrips = true;
 
         // LEVEL 10
 
@@ -181,6 +188,7 @@ public sealed class WizardEvocation : AbstractSubclass
     internal static void LateLoad()
     {
         SwapSavantAndSavant2024();
+        SwitchPotentCantrip2024();
 
         SpellListEvoker.SpellsByLevel.SetRange(
             SpellListDefinitions.SpellListWizard.SpellsByLevel
@@ -211,6 +219,14 @@ public sealed class WizardEvocation : AbstractSubclass
         }
 
         _subclass.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+    }
+
+    internal static void SwitchPotentCantrip2024()
+    {
+        MagicAffinityPotentCantrip.GuiPresentation.Description =
+            Main.Settings.EnableEvocationPotentCantrip2024
+                ? "Feature/&MagicAffinityWizardEvocationPotentCantrip2024Description"
+                : "Feature/&MagicAffinityWizardEvocationPotentCantripDescription";
     }
 
     internal static void SwapSavantAndSavant2024()
@@ -294,9 +310,17 @@ public sealed class WizardEvocation : AbstractSubclass
     // Potent Cantrips
     //
 
-    private sealed class MagicEffectBeforeHitConfirmedOnEnemyPotentCantrips
-        : IMagicEffectBeforeHitConfirmedOnEnemy, IModifyAdditionalDamage
+    private sealed class CustomBehaviorPotentCantrips
+        : IMagicEffectBeforeHitConfirmedOnEnemy, IModifyAdditionalDamage, ITryAlterOutcomeAttack,
+            IMagicEffectFinishedByMe, IPhysicalAttackFinishedByMe
     {
+        private readonly Dictionary<RulesetEffect, bool> _halfDamageOnMissByEffect = [];
+
+        private readonly Dictionary<(ulong Attacker, ulong Defender), BladeCantripMissDamage>
+            _pendingBladeCantripMissDamages = [];
+
+        public int HandlerPriority => -1;
+
         public IEnumerator OnMagicEffectBeforeHitConfirmedOnEnemy(
             GameLocationBattleManager battleManager,
             GameLocationCharacter attacker,
@@ -307,6 +331,11 @@ public sealed class WizardEvocation : AbstractSubclass
             bool firstTarget,
             bool criticalHit)
         {
+            if (Main.Settings.EnableEvocationPotentCantrip2024)
+            {
+                yield break;
+            }
+
             var isCantrip = rulesetEffect.SourceDefinition is SpellDefinition { SpellLevel: 0 };
 
             if (!isCantrip ||
@@ -339,7 +368,8 @@ public sealed class WizardEvocation : AbstractSubclass
             List<EffectForm> actualEffectForms,
             ref DamageForm damageForm)
         {
-            if (!CantripsAdditionalDamages.Contains(featureDefinitionAdditionalDamage.Name))
+            if (Main.Settings.EnableEvocationPotentCantrip2024 ||
+                !CantripsAdditionalDamages.Contains(featureDefinitionAdditionalDamage.Name))
             {
                 return;
             }
@@ -347,6 +377,203 @@ public sealed class WizardEvocation : AbstractSubclass
             var pb = attacker.RulesetCharacter.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
 
             damageForm.BonusDamage += pb;
+        }
+
+        public IEnumerator OnTryAlterOutcomeAttack(
+            GameLocationBattleManager battleManager,
+            CharacterAction action,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            GameLocationCharacter helper,
+            ActionModifier actionModifier,
+            RulesetAttackMode attackMode,
+            RulesetEffect rulesetEffect)
+        {
+            if (!Main.Settings.EnableEvocationPotentCantrip2024 ||
+                helper != attacker ||
+                action.AttackRollOutcome is not (RollOutcome.Failure or RollOutcome.CriticalFailure) ||
+                rulesetEffect?.SourceDefinition is not SpellDefinition { SpellLevel: 0 } ||
+                !rulesetEffect.EffectDescription.NeedsToRollDie() ||
+                !rulesetEffect.EffectDescription.HasFormOfType(EffectForm.EffectFormType.Damage))
+            {
+                yield break;
+            }
+
+            if (!_halfDamageOnMissByEffect.ContainsKey(rulesetEffect))
+            {
+                _halfDamageOnMissByEffect.Add(rulesetEffect, rulesetEffect.EffectDescription.halfDamageOnAMiss);
+            }
+
+            rulesetEffect.EffectDescription.halfDamageOnAMiss = true;
+        }
+
+        public IEnumerator OnMagicEffectFinishedByMe(
+            CharacterAction action,
+            GameLocationCharacter attacker,
+            List<GameLocationCharacter> targets)
+        {
+            var rulesetEffect = action.ActionParams.RulesetEffect;
+
+            RestoreHalfDamageOnMiss(rulesetEffect);
+
+            if (!Main.Settings.EnableEvocationPotentCantrip2024 ||
+                rulesetEffect?.SourceDefinition is not SpellDefinition { SpellLevel: 0 } spellDefinition ||
+                !spellDefinition.HasSubFeatureOfType<AttackAfterMagicEffect>() ||
+                !BladeCantripAdditionalDamageBySpell.TryGetValue(spellDefinition.Name, out var additionalDamageName) ||
+                !TryBuildBladeCantripMissDamage(attacker, additionalDamageName, out var bladeMissDamage))
+            {
+                yield break;
+            }
+
+            foreach (var target in targets.Where(x => x.RulesetCharacter != null))
+            {
+                _pendingBladeCantripMissDamages[GetBladeCantripMissDamageKey(attacker, target)] = bladeMissDamage;
+            }
+        }
+
+        public IEnumerator OnPhysicalAttackFinishedByMe(
+            GameLocationBattleManager battleManager,
+            CharacterAction action,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            RulesetAttackMode attackMode,
+            RollOutcome rollOutcome,
+            int damageAmount)
+        {
+            if (!Main.Settings.EnableEvocationPotentCantrip2024 ||
+                attackMode == null ||
+                !attackMode.AttackTags.Contains(AttackAfterMagicEffect.AttackAfterMagicEffectTag) ||
+                defender.RulesetCharacter == null)
+            {
+                yield break;
+            }
+
+            var key = GetBladeCantripMissDamageKey(attacker, defender);
+
+            if (!_pendingBladeCantripMissDamages.TryGetValue(key, out var bladeMissDamage))
+            {
+                yield break;
+            }
+
+            _pendingBladeCantripMissDamages.Remove(key);
+
+            if (rollOutcome is not (RollOutcome.Failure or RollOutcome.CriticalFailure) ||
+                bladeMissDamage.DiceNumber <= 0)
+            {
+                yield break;
+            }
+
+            ApplyBladeCantripMissDamage(attacker, defender, bladeMissDamage);
+        }
+
+        private void RestoreHalfDamageOnMiss(RulesetEffect rulesetEffect)
+        {
+            if (rulesetEffect == null ||
+                !_halfDamageOnMissByEffect.TryGetValue(rulesetEffect, out var halfDamageOnMiss))
+            {
+                return;
+            }
+
+            rulesetEffect.EffectDescription.halfDamageOnAMiss = halfDamageOnMiss;
+            _halfDamageOnMissByEffect.Remove(rulesetEffect);
+        }
+
+        private static (ulong Attacker, ulong Defender) GetBladeCantripMissDamageKey(
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender)
+        {
+            return (attacker.RulesetCharacter.Guid, defender.RulesetCharacter.Guid);
+        }
+
+        private static bool TryBuildBladeCantripMissDamage(
+            GameLocationCharacter attacker,
+            string additionalDamageName,
+            out BladeCantripMissDamage bladeMissDamage)
+        {
+            bladeMissDamage = default;
+
+            if (!DatabaseRepository.GetDatabase<FeatureDefinitionAdditionalDamage>()
+                    .TryGetElement(additionalDamageName, out var additionalDamage))
+            {
+                return false;
+            }
+
+            var diceNumber = additionalDamage.DamageDiceNumber;
+
+            if ((ExtraAdditionalDamageAdvancement)additionalDamage.DamageAdvancement ==
+                ExtraAdditionalDamageAdvancement.CharacterLevel)
+            {
+                diceNumber = additionalDamage.GetDiceOfRank(
+                    attacker.RulesetCharacter.TryGetAttributeValue(AttributeDefinitions.CharacterLevel));
+            }
+
+            bladeMissDamage = new BladeCantripMissDamage(
+                additionalDamage.SpecificDamageType,
+                additionalDamage.DamageDieType,
+                diceNumber);
+
+            return true;
+        }
+
+        private static void ApplyBladeCantripMissDamage(
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            BladeCantripMissDamage bladeMissDamage)
+        {
+            var rulesetAttacker = attacker.RulesetCharacter;
+            var rulesetDefender = defender.RulesetCharacter;
+            var effectForm = EffectFormBuilder.DamageForm(
+                bladeMissDamage.DamageType, bladeMissDamage.DiceNumber, bladeMissDamage.DieType);
+            var damageForm = effectForm.DamageForm;
+            var rolledValues = new List<int>();
+            var damage = rulesetAttacker.RollDamage(
+                damageForm,
+                0,
+                false,
+                0,
+                0,
+                0.5f,
+                false,
+                false,
+                false,
+                rolledValues,
+                true);
+
+            if (damage <= 0)
+            {
+                return;
+            }
+
+            var applyFormsParams = new RulesetImplementationDefinitions.ApplyFormsParams
+            {
+                sourceCharacter = rulesetAttacker,
+                targetCharacter = rulesetDefender,
+                position = defender.LocationPosition
+            };
+
+            RulesetActor.InflictDamage(
+                damage,
+                damageForm,
+                damageForm.DamageType,
+                applyFormsParams,
+                rulesetDefender,
+                false,
+                attacker.Guid,
+                false,
+                [],
+                new RollInfo(damageForm.DieType, rolledValues, 0),
+                false,
+                out _);
+        }
+
+        private readonly struct BladeCantripMissDamage(
+            string damageType,
+            DieType dieType,
+            int diceNumber)
+        {
+            internal string DamageType { get; } = damageType;
+            internal DieType DieType { get; } = dieType;
+            internal int DiceNumber { get; } = diceNumber;
         }
     }
 

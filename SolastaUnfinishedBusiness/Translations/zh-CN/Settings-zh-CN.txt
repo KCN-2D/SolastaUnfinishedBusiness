@@ -446,6 +446,7 @@ ModUi/&Subraces=<color=#F0DAA0>亚种</color>
 ModUi/&SwapAbjurationSavant=将<b>Abjurer</b> <color=#D89555>Abjuration Savant</color> 与 5e 2024 版本交换<i><color=#F0DAA0>[获得时学习 2 个学校法术，每次获得一个插槽等级时再学习 1 个]</color></i>
 ModUi/&SwapCraftedItemAndRecipeIcons=<i>+ 在商店中交换配方和制作物品图标</i>
 ModUi/&SwapEvocationPotentCantripAndSculptSpell=在进度中交换<b>召唤师</b> <color=#D89555>塑形法术</color>和<color=#D89555>强效戏法</color>
+ModUi/&EnableEvocationPotentCantrip2024=使用 5e 2024 版<b>唤魔者</b><color=#D89555>强效戏法</color><i><color=#F0DAA0>[需要攻击掷骰的戏法命中时不再添加熟练加值；未命中时造成一半伤害]</color></i>
 ModUi/&SwapEvocationSavant=将<b>Evoker</b> <color=#D89555>Evocation Savant</color> 与 5e 2024 版本交换<i><color=#F0DAA0>[获得时学习 2 个学校法术，每次获得一个插槽等级时再学习 1 个]</color></i>
 ModUi/&SwapMartialChampion=将<b>武术冠军</b>与5e 2024版本交换
 ModUi/&TableTop2014=<b><color=#D89555>启用 2014 规则</color></b>

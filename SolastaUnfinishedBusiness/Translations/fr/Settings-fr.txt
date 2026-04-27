@@ -446,6 +446,7 @@ ModUi/&Subraces=<color=#F0DAA0>Sous-races</color>
 ModUi/&SwapAbjurationSavant=Échangez <b>Abjurer</b> <color=#D89555>Abjuration Savant</color> avec la version 5e 2024 <i><color=#F0DAA0>[apprenez 2 sorts d'école une fois acquis, apprenez-en 1 de plus à chaque fois que vous gagnez un niveau d'emplacement]</color></i>
 ModUi/&SwapCraftedItemAndRecipeIcons=<i>+ Échangez les icônes de recettes et d'objets fabriqués dans la boutique</i>
 ModUi/&SwapEvocationPotentCantripAndSculptSpell=Échangez les sorts de sculpture de l'évocateur et le sort de cantrip puissant au fil de la progression
+ModUi/&EnableEvocationPotentCantrip2024=Utiliser la version 5e 2024 de <b>l'évocateur</b> <color=#D89555>Sort mineur puissant</color> <i><color=#F0DAA0>[les sorts mineurs avec jet d'attaque n'ajoutent plus le bonus de maîtrise en cas de touche ; un échec inflige la moitié des dégâts]</color></i>
 ModUi/&SwapEvocationSavant=Échangez <b>Evoker</b> <color=#D89555>Evocation Savant</color> avec la version 5e 2024 <i><color=#F0DAA0>[apprenez 2 sorts d'école une fois acquis, apprenez-en 1 de plus à chaque fois que vous gagnez un niveau d'emplacement]</color></i>
 ModUi/&SwapMartialChampion=Échangez <b>Martial Champion</b> avec la version 5e 2024
 ModUi/&TableTop2014=<b><color=#D89555>Activer les règles 2014</color></b>

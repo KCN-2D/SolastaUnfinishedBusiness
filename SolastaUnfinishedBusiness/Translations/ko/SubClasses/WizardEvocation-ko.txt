@@ -7,6 +7,7 @@ Feature/&FeatureWizardEvocationEmpoweredEvocationTitle=강화된 방출
 Feature/&FeatureWizardEvocationSculptSpellsDescription=다른 생물에게 영향을 줄 수 있는 방출 주문을 시전할 때마다 상대적으로 안전한 지역을 만들어낼 수 있으며, 이로 인해 눈에 띄는 아군 생물은 주문의 영향을 받지 않게 됩니다.
 Feature/&FeatureWizardEvocationSculptSpellsTitle=조각 주문
 Feature/&MagicAffinityWizardEvocationPotentCantripDescription=당신의 피해를 주는 캔트립은 그 효과의 대부분을 피하는 생명체에게도 영향을 미칩니다. 생명체가 당신의 캔트립에 대한 내성 굴림에 성공하면, 그 생명체는 캔트립 피해의 절반(있는 경우)을 받지만 캔트립의 추가 효과는 받지 않습니다. 명중 굴림이 필요한 캔트립으로 생명체를 맞히면, 그 캔트립의 피해 굴림 하나에 숙련도 보너스를 더합니다.
+Feature/&MagicAffinityWizardEvocationPotentCantrip2024Description=피해를 주는 당신의 캔트립은 효과의 대부분을 피한 생명체에게도 영향을 줍니다. 당신이 생명체에게 캔트립을 시전하고 명중 굴림이 빗나가거나, 대상이 그 캔트립에 대한 내성 굴림에 성공하면, 대상은 캔트립 피해의 절반(있는 경우)을 받지만 그 캔트립의 추가 효과는 받지 않습니다.
 Feature/&MagicAffinityWizardEvocationPotentCantripTitle=강력한 주문
 Feature/&MagicAffinityWizardEvocationSavant2024Description=방출학파에서 위자드 주문 두 개를 선택하여 주문서에 무료로 추가하세요. 또한, 이 클래스에서 새로운 레벨의 주문 슬롯에 접근할 때마다 방출학파에서 마법사 주문 하나를 주문서에 무료로 추가할 수 있습니다.
 Feature/&MagicAffinityWizardEvocationSavant2024Title=이보케이션 사반트

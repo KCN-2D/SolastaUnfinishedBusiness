@@ -988,6 +988,7 @@
     <SwapAbjurationSavant>false</SwapAbjurationSavant>
     <SwapEvocationSavant>false</SwapEvocationSavant>
     <SwapEvocationPotentCantripAndSculptSpell>false</SwapEvocationPotentCantripAndSculptSpell>
+    <EnableEvocationPotentCantrip2024>false</EnableEvocationPotentCantrip2024>
     <EnableMartialChampion2024>false</EnableMartialChampion2024>
     <KlassListSliderPosition>
         <item>
