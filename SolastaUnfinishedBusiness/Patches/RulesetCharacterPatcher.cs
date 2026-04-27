@@ -2189,6 +2189,11 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static bool Prefix(RulesetCharacter __instance, RulesetSpellRepertoire spellRepertoire, ref int __result)
         {
+            if (Tabletop2024Context.TryGetMagicInitiate2024MainClassSaveDC(spellRepertoire, out __result))
+            {
+                return false;
+            }
+
             //PATCH: fixes crash when using some custom spell scrolls
             if (spellRepertoire != null) { return true; }
 

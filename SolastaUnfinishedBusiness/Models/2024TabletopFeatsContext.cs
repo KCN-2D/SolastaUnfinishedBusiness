@@ -84,8 +84,11 @@ public static partial class Tabletop2024Context
         new("Warlock", "CastSpellWarlock", () => ClassHolder.Warlock),
         new("Wizard", "CastSpellWizard", () => ClassHolder.Wizard)
     ];
-    private static readonly HashSet<string> MagicInitiate2024ClassNames = MagicInitiate2024ClassProfiles
-        .Select(x => x.ClassName)
+    private static readonly string[] MagicInitiate2024SpellSelectionTags = MagicInitiate2024ClassProfiles
+        .Select(profile => GetMagicInitiate2024SpellTag(profile.ClassName))
+        .Append(MagicInitiate2024SpellTag)
+        .ToArray();
+    private static readonly HashSet<string> MagicInitiate2024SpellSelectionTagNames = MagicInitiate2024SpellSelectionTags
         .ToHashSet(StringComparer.Ordinal);
     private const string ModeratelyArmored2024Family = "ModeratelyArmored2024";
     private const string HeavilyArmored2024Family = "HeavilyArmored2024";
@@ -3069,6 +3072,130 @@ public static partial class Tabletop2024Context
         return TryLocalizeTabletop2024Title($"Screen/&{selectionTag}ExtraSpellTitle", out title);
     }
 
+    internal static bool TryGetMagicInitiate2024MainClassSpellcastingAbility(
+        RulesetSpellRepertoire repertoire,
+        out string ability)
+    {
+        return TryGetMagicInitiate2024MainClassSpellcastingContext(repertoire, out _, out ability);
+    }
+
+    internal static bool TryGetMagicInitiate2024MainClassSpellcastingAbilityLabel(
+        RulesetSpellRepertoire repertoire,
+        out string label)
+    {
+        label = null;
+
+        if (!TryGetMagicInitiate2024MainClassSpellcastingAbility(repertoire, out var ability))
+        {
+            return false;
+        }
+
+        label = GetAbilityAbbreviation(ability);
+
+        return true;
+    }
+
+    internal static bool TryGetMagicInitiate2024MainClassSaveDC(
+        RulesetSpellRepertoire repertoire,
+        out int saveDC)
+    {
+        saveDC = 0;
+
+        if (!TryGetMagicInitiate2024MainClassSpellcastingContext(repertoire, out var hero, out var ability))
+        {
+            return false;
+        }
+
+        saveDC = 8 +
+                 ComputeMainClassSpellcastingBaseBonus(hero, ability) +
+                 ComputeFlatSaveDCModifier(hero);
+
+        return true;
+    }
+
+    internal static bool TryGetMagicInitiate2024MainClassSpellAttackBonus(
+        RulesetSpellRepertoire repertoire,
+        out int spellAttackBonus)
+    {
+        spellAttackBonus = 0;
+
+        if (!TryGetMagicInitiate2024MainClassSpellcastingContext(repertoire, out var hero, out var ability))
+        {
+            return false;
+        }
+
+        spellAttackBonus = ComputeMainClassSpellcastingBaseBonus(hero, ability) +
+                           ComputeFlatSpellAttackModifier(hero);
+
+        return true;
+    }
+
+    private static int ComputeMainClassSpellcastingBaseBonus(RulesetCharacterHero hero, string ability)
+    {
+        var abilityScore = hero.TryGetAttributeValue(ability);
+        var abilityModifier = AttributeDefinitions.ComputeAbilityScoreModifier(abilityScore);
+        var proficiencyBonus = hero.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+
+        return proficiencyBonus + abilityModifier;
+    }
+
+    private static int ComputeFlatSaveDCModifier(RulesetCharacterHero hero)
+    {
+        return hero.FeaturesByType<ISpellCastingAffinityProvider>()
+            .Where(x => x.SaveDCModifierType == SpellParamsModifierType.FlatValue)
+            .Sum(x => x.SaveDCModifier);
+    }
+
+    private static int ComputeFlatSpellAttackModifier(RulesetCharacterHero hero)
+    {
+        return hero.FeaturesByType<ISpellCastingAffinityProvider>()
+            .Where(x => x.SpellAttackModifierType == SpellParamsModifierType.FlatValue)
+            .Sum(x => x.SpellAttackModifier);
+    }
+
+    private static bool TryGetMagicInitiate2024MainClassSpellcastingContext(
+        RulesetSpellRepertoire repertoire,
+        out RulesetCharacterHero hero,
+        out string ability)
+    {
+        hero = null;
+        ability = null;
+
+        var spellTag = repertoire?.SpellCastingFeature?
+            .GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.Name;
+
+        if (!Main.Settings.EnableTabletopFeatRules2024 ||
+            !IsMagicInitiate2024SpellTagName(spellTag) ||
+            repertoire.GetCaster() is not RulesetCharacterHero caster ||
+            caster.ClassesHistory is not { Count: > 0 })
+        {
+            return false;
+        }
+
+        var mainClass = caster.ClassesHistory[0];
+
+        if (!mainClass ||
+            !TryGetMagicInitiate2024MainClassSpellcastingAbility(caster, mainClass, out ability))
+        {
+            return false;
+        }
+
+        hero = caster;
+
+        return true;
+    }
+
+    private static bool TryGetMagicInitiate2024MainClassSpellcastingAbility(
+        RulesetCharacterHero hero,
+        CharacterClassDefinition mainClass,
+        out string ability)
+    {
+        return TryGetSpellcastingAbility(hero.GetClassSpellRepertoire(mainClass)?.SpellCastingFeature, out ability) ||
+               TryGetSpellcastingAbility(mainClass.FeatureUnlocks?.Select(x => x.FeatureDefinition), out ability) ||
+               hero.ClassesAndSubclasses.TryGetValue(mainClass, out var subclass) &&
+               TryGetSpellcastingAbility(subclass?.FeatureUnlocks?.Select(x => x.FeatureDefinition), out ability);
+    }
+
     private static bool TryLocalizeTabletop2024Title(string titleKey, out string title)
     {
         title = null;
@@ -3138,25 +3265,15 @@ public static partial class Tabletop2024Context
             return false;
         }
 
-        foreach (var profile in MagicInitiate2024ClassProfiles)
+        foreach (var candidate in MagicInitiate2024SpellSelectionTags)
         {
-            var classSpellTag = GetMagicInitiate2024SpellTag(profile.ClassName);
-
-            if (tag == classSpellTag ||
-                tag.EndsWith(classSpellTag, StringComparison.Ordinal))
+            if (tag == candidate ||
+                tag.EndsWith(candidate, StringComparison.Ordinal))
             {
-                selectionTag = classSpellTag;
+                selectionTag = candidate;
 
                 return true;
             }
-        }
-
-        if (tag == MagicInitiate2024SpellTag ||
-            tag.EndsWith(MagicInitiate2024SpellTag, StringComparison.Ordinal))
-        {
-            selectionTag = MagicInitiate2024SpellTag;
-
-            return true;
         }
 
         return false;
@@ -3164,24 +3281,39 @@ public static partial class Tabletop2024Context
 
     private static bool IsMagicInitiate2024SpellTagName(string tag)
     {
-        if (string.IsNullOrEmpty(tag))
+        return !string.IsNullOrEmpty(tag) &&
+               MagicInitiate2024SpellSelectionTagNames.Contains(tag);
+    }
+
+    private static bool TryGetSpellcastingAbility(
+        FeatureDefinitionCastSpell castSpell,
+        out string ability)
+    {
+        ability = castSpell?.SpellcastingAbility;
+
+        return !string.IsNullOrEmpty(ability);
+    }
+
+    private static bool TryGetSpellcastingAbility(
+        IEnumerable<FeatureDefinition> features,
+        out string ability)
+    {
+        ability = null;
+
+        if (features == null)
         {
             return false;
         }
 
-        if (tag == MagicInitiate2024SpellTag)
+        foreach (var castSpell in features.OfType<FeatureDefinitionCastSpell>())
         {
-            return true;
+            if (TryGetSpellcastingAbility(castSpell, out ability))
+            {
+                return true;
+            }
         }
 
-        if (!tag.StartsWith(MagicInitiate2024SpellTag, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var className = tag.Substring(MagicInitiate2024SpellTag.Length);
-
-        return MagicInitiate2024ClassNames.Contains(className);
+        return false;
     }
 
     private static void BuildMagicInitiate2024()

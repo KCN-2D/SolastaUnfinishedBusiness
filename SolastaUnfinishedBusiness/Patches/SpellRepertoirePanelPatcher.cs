@@ -28,6 +28,8 @@ public static class SpellRepertoirePanelPatcher
             //PATCH: filters how spells and slots are displayed on inspection (MULTICLASS)
             MulticlassGameUi.RebuildSlotsTable(__instance);
 
+            RefreshMagicInitiate2024MainClassSpellcastingLabels(__instance);
+
             //PATCH: displays sorcery point box for sorcerers only
             if (!Main.Settings.EnableDisplaySorceryPointBoxSorcererOnly)
             {
@@ -39,6 +41,40 @@ public static class SpellRepertoirePanelPatcher
                 __instance.sorceryPointsBox.gameObject.SetActive(false);
             }
         }
+    }
+
+    private static void RefreshMagicInitiate2024MainClassSpellcastingLabels(SpellRepertoirePanel panel)
+    {
+        var repertoire = panel.SpellRepertoire;
+
+        if (Tabletop2024Context.TryGetMagicInitiate2024MainClassSpellcastingAbilityLabel(
+                repertoire,
+                out var abilityLabel))
+        {
+            SetLabelText(panel.abilityLabel, abilityLabel);
+        }
+
+        if (Tabletop2024Context.TryGetMagicInitiate2024MainClassSaveDC(repertoire, out var saveDC))
+        {
+            SetLabelText(panel.saveDCLabel, saveDC.ToString());
+        }
+
+        if (Tabletop2024Context.TryGetMagicInitiate2024MainClassSpellAttackBonus(
+                repertoire,
+                out var spellAttackBonus))
+        {
+            SetLabelText(panel.spellAttackBonusLabel, spellAttackBonus.ToString("+0;-#"));
+        }
+    }
+
+    private static void SetLabelText(GuiLabel label, string text)
+    {
+        if (!label || label.Text == text)
+        {
+            return;
+        }
+
+        label.Text = text;
     }
 
     //PATCH: Supports Wizard Mastery and Signature spell features

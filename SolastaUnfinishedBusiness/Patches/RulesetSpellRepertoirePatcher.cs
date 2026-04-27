@@ -36,6 +36,53 @@ public static class RulesetSpellRepertoirePatcher
         return false;
     }
 
+    [HarmonyPatch(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.SpellCastingAbility), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class SpellCastingAbility_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(RulesetSpellRepertoire __instance, ref string __result)
+        {
+            if (Tabletop2024Context.TryGetMagicInitiate2024MainClassSpellcastingAbility(__instance, out var ability))
+            {
+                __result = ability;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.SaveDC), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class SaveDC_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(RulesetSpellRepertoire __instance, ref int __result)
+        {
+            if (Tabletop2024Context.TryGetMagicInitiate2024MainClassSaveDC(__instance, out var saveDC))
+            {
+                __result = saveDC;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.SpellAttackBonus), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class SpellAttackBonus_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(RulesetSpellRepertoire __instance, ref int __result)
+        {
+            if (Tabletop2024Context.TryGetMagicInitiate2024MainClassSpellAttackBonus(
+                    __instance,
+                    out var spellAttackBonus))
+            {
+                __result = spellAttackBonus;
+            }
+        }
+    }
+
     //PATCH: Supports Wizard Mastery and Signature spell features
     [HarmonyPatch(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.MaxPreparedSpell), MethodType.Getter)]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
