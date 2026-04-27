@@ -65,7 +65,7 @@ public static partial class Tabletop2024Context
         { "SellSword", "FeatSavageAttack" },
         { BackgroundSpyName, "FeatAlert" },
         { "Wanderer", "FeatMagicInitiateDruid" },
-        { BackgroundDevotedName, "FeatLucky" },
+        { BackgroundDevotedName, "FeatMagicInitiateCleric" },
         { BackgroundFarmerName, "FeatTough" },
         { BackgroundMilitiaName, "FeatAlert" },
         { BackgroundTroublemakerName, "FeatMagicInitiateSorcerer" }
