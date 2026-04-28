@@ -67,11 +67,14 @@ public static class NewAdventurePanelPatcher
             }
 
             // adds new character plates if required
-            for (var i = ToolsContext.GamePartySize; i < Main.Settings.OverridePartySize; i++)
+            if (__instance.characterSessionPlatesTable.childCount < Main.Settings.OverridePartySize)
             {
                 var firstChild = __instance.characterSessionPlatesTable.GetChild(0);
 
-                Object.Instantiate(firstChild, firstChild.parent);
+                while (__instance.characterSessionPlatesTable.childCount < Main.Settings.OverridePartySize)
+                {
+                    Object.Instantiate(firstChild, firstChild.parent);
+                }
             }
 
             // scales down the plates table if required

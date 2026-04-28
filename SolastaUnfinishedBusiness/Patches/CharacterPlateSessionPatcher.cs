@@ -39,18 +39,19 @@ public static class CharacterPlateSessionPatcher
             }
 
             var service = ServiceRepository.GetService<INetworkingService>();
-            var flag1 = service.LocalPlayerNumber != __instance.PlayerSlot.PlayerId;
+            var isRemotePlayerSlot = service.LocalPlayerNumber != __instance.PlayerSlot.PlayerId;
 
-            __instance.selectCharacterButton.gameObject.SetActive(!flag1 && __instance.GuiCharacter == null);
+            __instance.selectCharacterButton.gameObject.SetActive(!isRemotePlayerSlot && __instance.GuiCharacter == null);
 
             if (!__instance.loadingMultiplayerSaveMode)
             {
-                __instance.dismissCharacterButton.gameObject.SetActive(!flag1 && __instance.GuiCharacter != null);
+                __instance.dismissCharacterButton.gameObject.SetActive(
+                    !isRemotePlayerSlot && __instance.GuiCharacter != null);
                 __instance.playerRequestsGroup.gameObject.SetActive(false);
             }
             else
             {
-                __instance.dismissCharacterButton.gameObject.SetActive(service.IsMasterClient || !flag1);
+                __instance.dismissCharacterButton.gameObject.SetActive(service.IsMasterClient || !isRemotePlayerSlot);
                 __instance.playerRequestsGroup.gameObject.SetActive(true);
             }
 
@@ -59,7 +60,7 @@ public static class CharacterPlateSessionPatcher
                 ? "MainMenu/&ChangeCharacterSlotDescription"
                 : Gui.FormatFailure("MainMenu/&ChangeCharacterSlotDescription", "Failure/&FailureFlagLockedCharacter");
             __instance.requestCharacterButton.gameObject.SetActive(
-                __instance.loadingMultiplayerSaveMode & flag1 && !service.IsMasterClient);
+                __instance.loadingMultiplayerSaveMode && isRemotePlayerSlot && !service.IsMasterClient);
 
             if (!service.InOnlineRoom)
             {
@@ -101,9 +102,9 @@ public static class CharacterPlateSessionPatcher
                 }
 
                 __instance.remoteCharacterStatusLabel.gameObject.SetActive(
-                    !__instance.loadingMultiplayerSaveMode & flag1);
+                    !__instance.loadingMultiplayerSaveMode && isRemotePlayerSlot);
 
-                if (flag1)
+                if (isRemotePlayerSlot)
                 {
                     if (!__instance.loadingMultiplayerSaveMode)
                     {
@@ -120,17 +121,7 @@ public static class CharacterPlateSessionPatcher
                     else
                     {
                         __instance.playerInfoStatusGroup.gameObject.SetActive(false);
-
-                        if (!__instance.loadingMultiplayerSaveMode)
-                        {
-                            __instance.playerInfoGroup.Unbind();
-                            __instance.playerInfoGroup.Bind(
-                                __instance.PlayerSlot, false, false, false, false, true, false, false);
-                        }
-                        else
-                        {
-                            __instance.RefreshPlayerDropdownOpts();
-                        }
+                        __instance.RefreshPlayerDropdownOpts();
                     }
                 }
                 else
@@ -139,12 +130,12 @@ public static class CharacterPlateSessionPatcher
                     {
                         // BEGIN PATCH
                         var max = (Main.Settings.OverridePartySize - 1) / 2;
-                        // var flag2 = __instance.index > 1;
-                        var flag2 = __instance.index > max;
+                        // var isReservedPlayerSlot = __instance.index > 1;
+                        var isReservedPlayerSlot = __instance.index > max;
                         //END PATCH
 
-                        __instance.reservedCharacterStatusGroup.gameObject.SetActive(flag2);
-                        if (flag2 && __instance.selectCharacterButton.gameObject.activeSelf)
+                        __instance.reservedCharacterStatusGroup.gameObject.SetActive(isReservedPlayerSlot);
+                        if (isReservedPlayerSlot && __instance.selectCharacterButton.gameObject.activeSelf)
                         {
                             __instance.selectCharacterButton.gameObject.SetActive(false);
                         }

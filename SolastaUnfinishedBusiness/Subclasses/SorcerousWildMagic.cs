@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
-using SolastaUnfinishedBusiness.Api.Infrastructure;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
@@ -18,6 +17,7 @@ using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Spells;
 using SolastaUnfinishedBusiness.Validators;
+using TA;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.ActionDefinitions;
@@ -1410,9 +1410,15 @@ public sealed class SorcerousWildMagic : AbstractSubclass
 
         EnumerateTargetsWithinRange(caster, range, targets, false);
 
-        var random = new PcgRandom((ulong)DateTime.Now.Ticks);
-        var index = random.Next(targets.Count);
-        var target = targets.ElementAt(index);
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        targets.Sort((a, b) => a.RulesetCharacter.Guid.CompareTo(b.RulesetCharacter.Guid));
+
+        var index = DeterministicRandom.Range(0, targets.Count);
+        var target = targets[index];
         var rulesetTarget = target.RulesetCharacter;
 
         EffectHelpers.StartVisualEffect(caster, target, magicEffect, EffectHelpers.EffectType.Effect);

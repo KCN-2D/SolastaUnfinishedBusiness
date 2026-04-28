@@ -123,16 +123,21 @@ public static class CharacterActionUsePowerPatcher
             CharacterActionUsePower __instance, RulesetEffectPowerWithAdvancement power)
         {
             var usableDevice = power.OriginItem;
-            var usableFunction = usableDevice.UsableFunctions
-                .Select(usableFunction => new
+            RulesetDeviceFunction usableFunction = null;
+
+            foreach (var candidate in usableDevice.UsableFunctions)
+            {
+                var functionDescription = candidate.DeviceFunctionDescription;
+
+                if (functionDescription.Type != DeviceFunctionDescription.FunctionType.Power ||
+                    functionDescription.FeatureDefinitionPower != power.PowerDefinition)
                 {
-                    usableFunction, functionDescription = usableFunction.DeviceFunctionDescription
-                })
-                .Where(t =>
-                    t.functionDescription.Type == DeviceFunctionDescription.FunctionType.Power &&
-                    t.functionDescription.FeatureDefinitionPower == power.PowerDefinition)
-                .Select(t => t.usableFunction)
-                .FirstOrDefault();
+                    continue;
+                }
+
+                usableFunction = candidate;
+                break;
+            }
 
             if (usableFunction != null)
             {

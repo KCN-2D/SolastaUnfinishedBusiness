@@ -47,7 +47,7 @@ public static class NarrativeStateAnswerChoicePatcher
                 var dieRoll = RuleDefinitions.RollDie(
                     RuleDefinitions.DieType.D20, RuleDefinitions.AdvantageType.None, out _, out _);
 
-                DiceRolls.Add(gameLocationCharacter.Guid, dieRoll);
+                DiceRolls[gameLocationCharacter.Guid] = dieRoll;
 
                 entry = new GameConsoleEntry("Feedback/&NarrativeChoiceRoll",
                     console.consoleTableDefinition) { Indent = true };
@@ -114,7 +114,10 @@ public static class NarrativeStateAnswerChoicePatcher
                 {
                     var hero = characterService.PartyCharacters[heroIndex];
 
-                    votes[heroIndex] += DiceRolls[hero.Guid];
+                    if (DiceRolls.TryGetValue(hero.Guid, out var dieRoll))
+                    {
+                        votes[heroIndex] += dieRoll;
+                    }
                 }
             }
 

@@ -116,6 +116,8 @@ internal static class EncountersContext
                 "Message/&MessageOkTitle", string.Empty,
                 null,
                 null);
+
+            return;
         }
 
         if (!Gui.GameLocation)

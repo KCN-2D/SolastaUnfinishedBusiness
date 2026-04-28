@@ -607,7 +607,24 @@ public static class CharacterActionMagicEffectPatcher
 
             //PATCH: support for `IFilterRulesetEffectTargets` (Evocation wizard)
             var filters = actingCharacter.RulesetActor.GetSubFeaturesByType<IFilterRulesetEffectTargets>();
-            targets.RemoveAll(c => !filters.All(f => f.CanAffectTarget(rulesetEffect, actingCharacter, c)));
+
+            if (filters.Count > 0)
+            {
+                for (var i = targets.Count - 1; i >= 0; i--)
+                {
+                    if (filters.All(f => f.CanAffectTarget(rulesetEffect, actingCharacter, targets[i])))
+                    {
+                        continue;
+                    }
+
+                    targets.RemoveAt(i);
+
+                    if (i < actionModifiers.Count)
+                    {
+                        actionModifiers.RemoveAt(i);
+                    }
+                }
+            }
 
             //PATCH: supports `IPowerOrSpellInitiatedByMe`
             var powerOrSpellInitiatedByMe = baseDefinition.GetFirstSubFeatureOfType<IPowerOrSpellInitiatedByMe>();

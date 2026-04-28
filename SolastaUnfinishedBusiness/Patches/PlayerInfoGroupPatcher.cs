@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using UnityEngine.AddressableAssets;
@@ -18,10 +17,15 @@ public static class PlayerInfoGroupPatcher
         [UsedImplicitly]
         public static void Prefix(List<AssetReferenceSprite> defaultPlayerSpriteReferences)
         {
+            if (defaultPlayerSpriteReferences.Count == 0)
+            {
+                return;
+            }
+
             //PATCH: allows up to 6 players to join the game if there are enough heroes available (PARTYSIZE)
             while (defaultPlayerSpriteReferences.Count < Main.Settings.OverridePartySize)
             {
-                defaultPlayerSpriteReferences.Add(defaultPlayerSpriteReferences.ElementAt(0));
+                defaultPlayerSpriteReferences.Add(defaultPlayerSpriteReferences[0]);
             }
         }
     }

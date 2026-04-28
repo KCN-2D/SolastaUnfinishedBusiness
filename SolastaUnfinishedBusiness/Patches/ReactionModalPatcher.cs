@@ -50,6 +50,11 @@ public static class ReactionModalPatcher
             //PATCH: register on acting character if SHIFT is pressed on reaction confirmations
             caster.RegisterShiftState();
 
+            if (Global.IsMultiplayer)
+            {
+                return;
+            }
+
             //PATCH: ensure whoever reacts first will get the reaction handled first by game
             var timestamp = (int)DateTime.Now.ToFileTimeUtc();
 

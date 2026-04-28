@@ -7,7 +7,6 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using Object = UnityEngine.Object;
-using Random = System.Random;
 
 namespace SolastaUnfinishedBusiness.CustomUI;
 
@@ -30,6 +29,43 @@ internal static class DungeonMakerCustomRooms
     {
         return IsFlatRoom(userRoom) &&
                int.TryParse(userRoom.RoomBlueprint.name.Substring(FlatRoomTag.Length, 2), out _);
+    }
+
+    private static int GetFlatRoomOrientationIndex([NotNull] UserRoom userRoom, int x, int z)
+    {
+        unchecked
+        {
+            var hash = 2166136261U;
+
+            AddStableHash(ref hash, userRoom.RoomBlueprint.name);
+            AddStableHash(ref hash, userRoom.Position.x);
+            AddStableHash(ref hash, userRoom.Position.y);
+            AddStableHash(ref hash, x);
+            AddStableHash(ref hash, z);
+
+            return (int)(hash % 3);
+        }
+    }
+
+    private static void AddStableHash(ref uint hash, string value)
+    {
+        unchecked
+        {
+            foreach (var character in value ?? string.Empty)
+            {
+                hash ^= (uint)character;
+                hash *= 16777619U;
+            }
+        }
+    }
+
+    private static void AddStableHash(ref uint hash, int value)
+    {
+        unchecked
+        {
+            hash ^= (uint)value;
+            hash *= 16777619U;
+        }
     }
 
     internal static void GetTemplateVegetationMaskArea([NotNull] WorldLocation worldLocation)
@@ -149,7 +185,6 @@ internal static class DungeonMakerCustomRooms
             return;
         }
 
-        var rnd = new Random();
         var position = roomTransform.position;
         var moveBy = (multiplier - 1) * FlatRoomSize / 2;
         var newPosition = new Vector3(position.x - moveBy, 0, position.z - moveBy);
@@ -167,7 +202,7 @@ internal static class DungeonMakerCustomRooms
 
                 // placing textures using a random angle to remove the repetition feeling a bit
                 var angle = LocationDefinitions.OrientationToAngle(
-                    (LocationDefinitions.Orientation)rnd.Next(0, 3));
+                    (LocationDefinitions.Orientation)GetFlatRoomOrientationIndex(userRoom, x, z));
                 var newRoom = Object.Instantiate(roomTransform.gameObject,
                     new Vector3(newPosition.x + (FlatRoomSize * x), 0,
                         newPosition.z + (FlatRoomSize * z)), Quaternion.identity,
