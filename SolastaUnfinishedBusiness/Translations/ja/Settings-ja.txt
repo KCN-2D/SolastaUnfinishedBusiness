@@ -95,10 +95,9 @@ ModUi/&DontFollowCharacterInBattle=キャラクターがすでに画面上にい
 ModUi/&DontFollowMargin=<i><color=white>+ ヒーローが画面外にいるか、画面端の % 以内にいる場合を除く</color></i>
 ModUi/&DownloadVoice=提案された音声をダウンロード
 ModUi/&DownloadVoiceOngoing={0}でダウンロード中
-ModUi/&DownloadSpeechVoiceProfile={0}をダウンロード
-ModUi/&DownloadSpeechVoiceProfileOngoing={0}をダウンロード中（{1}）
-ModUi/&SpeechVoiceTsukuyomi=日本語音声: つくよみちゃん
-ModUi/&SpeechVoiceCss10=日本語音声: CSS10
+ModUi/&DownloadSpeechLanguageVoices={0}をダウンロード
+ModUi/&DownloadSpeechLanguageVoicesOngoing={0}をダウンロード中（{1}）
+ModUi/&SpeechLanguageJapanese=日本語音声
 ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>対応する言語音声をダウンロードすると、その言語のテキストは対応音声で読み上げます。それ以外のテキストには従来の英語Piper音声を使用します。</color></i>
 ModUi/&DungeonMaker=ダンジョンメーカー
 ModUi/&DungeonMakerBasicHelp=• これらの設定では、プレイヤーがこのMODをインストールする必要はありません

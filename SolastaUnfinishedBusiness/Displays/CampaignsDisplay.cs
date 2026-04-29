@@ -157,11 +157,8 @@ internal static class CampaignsDisplay
                 UI.ActionButton(
                     SpeechContext.VoicesDownloader.Shared.GetButtonLabel(),
                     SpeechContext.VoicesDownloader.Shared.DownloadVoices, UI.Width(227f));
-            }
 
-            using (UI.HorizontalScope())
-            {
-                foreach (var profile in SpeechContext.DownloadableVoiceProfiles)
+                foreach (var profile in SpeechContext.DownloadableLanguageProfiles)
                 {
                     UI.ActionButton(
                         SpeechContext.PiperPlusVoiceDownloader.Shared.GetButtonLabel(profile),

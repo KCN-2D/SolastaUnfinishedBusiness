@@ -95,11 +95,13 @@ internal static class SpeechContext
 
     internal sealed class SpeechLanguageProfile(
         string languageCode,
+        string displayNameKey,
         string cliLanguageArgument,
         string sampleText,
         Func<string, bool> matchesText)
     {
         internal string LanguageCode { get; } = languageCode;
+        internal string DisplayNameKey { get; } = displayNameKey;
         internal string CliLanguageArgument { get; } = cliLanguageArgument;
         internal string SampleText { get; } = sampleText;
 
@@ -111,7 +113,6 @@ internal static class SpeechContext
 
     internal sealed class SpeechVoiceProfile(
         string voiceName,
-        string displayNameKey,
         SpeechEngine engine,
         string modelArgument,
         string modelSearchPattern,
@@ -121,7 +122,6 @@ internal static class SpeechContext
         SpeechLanguageProfile languageProfile)
     {
         internal string VoiceName { get; } = voiceName;
-        internal string DisplayNameKey { get; } = displayNameKey;
         internal SpeechEngine Engine { get; } = engine;
         internal string ModelArgument { get; } = modelArgument;
         internal string ModelSearchPattern { get; } = modelSearchPattern;
@@ -173,6 +173,7 @@ internal static class SpeechContext
 
     private static readonly SpeechLanguageProfile JapaneseLanguageProfile = new(
         "ja",
+        "ModUi/&SpeechLanguageJapanese",
         "ja-en-zh-es-fr-pt",
         "こんにちは。今日は良い天気ですね。",
         MatchesJapaneseText);
@@ -186,7 +187,6 @@ internal static class SpeechContext
     [
         new(
             "ja_JP-tsukuyomi-chan-medium",
-            "ModUi/&SpeechVoiceTsukuyomi",
             SpeechEngine.PiperPlus,
             "tsukuyomi",
             "*tsukuyomi*.onnx",
@@ -196,7 +196,6 @@ internal static class SpeechContext
             JapaneseLanguageProfile),
         new(
             "ja_JP-css10-medium",
-            "ModUi/&SpeechVoiceCss10",
             SpeechEngine.PiperPlus,
             "css10",
             "*css10*.onnx",
@@ -206,7 +205,7 @@ internal static class SpeechContext
             JapaneseLanguageProfile)
     ];
 
-    internal static IReadOnlyList<SpeechVoiceProfile> DownloadableVoiceProfiles => PiperPlusVoiceProfiles;
+    internal static IReadOnlyList<SpeechLanguageProfile> DownloadableLanguageProfiles => LanguageProfiles;
 
     private static readonly (string, Gender)[] SuggestedVoicesUrls =
     [
@@ -1626,11 +1625,36 @@ internal static class SpeechContext
         }
     }
 
+    private static bool DownloadLanguageVoiceModels(SpeechLanguageProfile languageProfile)
+    {
+        var success = true;
+        var foundProfile = false;
+
+        foreach (var profile in PiperPlusVoiceProfiles)
+        {
+            if (profile.LanguageProfile != languageProfile)
+            {
+                continue;
+            }
+
+            foundProfile = true;
+
+            if (IsVoiceProfileModelAvailable(profile))
+            {
+                continue;
+            }
+
+            success &= DownloadProfileModel(profile);
+        }
+
+        return foundProfile && success;
+    }
+
     internal sealed class PiperPlusVoiceDownloader : MonoBehaviour
     {
         private static PiperPlusVoiceDownloader _shared;
         private IEnumerator _coroutine;
-        private SpeechVoiceProfile _profile;
+        private SpeechLanguageProfile _languageProfile;
         private float _progress;
 
         [NotNull]
@@ -1652,41 +1676,41 @@ internal static class SpeechContext
             }
         }
 
-        internal string GetButtonLabel(SpeechVoiceProfile profile)
+        internal string GetButtonLabel(SpeechLanguageProfile languageProfile)
         {
-            var displayName = Gui.Localize(profile.DisplayNameKey);
+            var displayName = Gui.Localize(languageProfile.DisplayNameKey);
 
             return _coroutine != null
-                ? Gui.Format("ModUi/&DownloadSpeechVoiceProfileOngoing",
-                        Gui.Localize(_profile?.DisplayNameKey ?? profile.DisplayNameKey),
+                ? Gui.Format("ModUi/&DownloadSpeechLanguageVoicesOngoing",
+                        Gui.Localize(_languageProfile?.DisplayNameKey ?? languageProfile.DisplayNameKey),
                         $"{_progress:00.0%}")
                     .Bold()
                     .Khaki()
-                : Gui.Format("ModUi/&DownloadSpeechVoiceProfile", displayName);
+                : Gui.Format("ModUi/&DownloadSpeechLanguageVoices", displayName);
         }
 
-        internal void DownloadVoice(SpeechVoiceProfile profile)
+        internal void DownloadVoice(SpeechLanguageProfile languageProfile)
         {
             if (_coroutine != null)
             {
                 return;
             }
 
-            _profile = profile;
+            _languageProfile = languageProfile;
             _progress = 0f;
-            _coroutine = DownloadVoiceImpl(profile);
+            _coroutine = DownloadVoiceImpl(languageProfile);
             StartCoroutine(_coroutine);
         }
 
-        private IEnumerator DownloadVoiceImpl(SpeechVoiceProfile profile)
+        private IEnumerator DownloadVoiceImpl(SpeechLanguageProfile languageProfile)
         {
             Directory.CreateDirectory(PiperPlusModelsFolder);
-            Main.Info($"Downloading piper-plus voice {profile.VoiceName}.");
+            Main.Info($"Downloading piper-plus voices for {languageProfile.LanguageCode}.");
 
             _progress = 0.1f;
             yield return null;
 
-            var task = Task.Run(() => InitPiperPlus(false) && DownloadProfileModel(profile));
+            var task = Task.Run(() => InitPiperPlus(false) && DownloadLanguageVoiceModels(languageProfile));
 
             while (!task.IsCompleted)
             {
@@ -1696,18 +1720,18 @@ internal static class SpeechContext
 
             if (task.Status == TaskStatus.RanToCompletion && task.Result)
             {
-                Main.Info($"piper-plus voice {profile.VoiceName} successfully downloaded.");
+                Main.Info($"piper-plus voices for {languageProfile.LanguageCode} successfully downloaded.");
                 RefreshAvailableVoices();
                 UpdateAvailableVoices();
             }
             else
             {
-                Main.Info($"Cannot download piper-plus voice {profile.VoiceName}.");
+                Main.Info($"Cannot download piper-plus voices for {languageProfile.LanguageCode}.");
             }
 
             StopCoroutine(_coroutine);
             _coroutine = null;
-            _profile = null;
+            _languageProfile = null;
             _progress = 0f;
         }
     }

@@ -95,10 +95,9 @@ ModUi/&DontFollowCharacterInBattle=Battle camera doesn't follow when character i
 ModUi/&DontFollowMargin=<i><color=white>+ Unless hero is off or within % of screen edge</color></i>
 ModUi/&DownloadVoice=Download Suggested Voices
 ModUi/&DownloadVoiceOngoing=Downloading at {0}
-ModUi/&DownloadSpeechVoiceProfile=Download {0}
-ModUi/&DownloadSpeechVoiceProfileOngoing=Downloading {0} at {1}
-ModUi/&SpeechVoiceTsukuyomi=Japanese voice: Tsukuyomi-chan
-ModUi/&SpeechVoiceCss10=Japanese voice: CSS10
+ModUi/&DownloadSpeechLanguageVoices=Download {0}
+ModUi/&DownloadSpeechLanguageVoicesOngoing=Downloading {0} at {1}
+ModUi/&SpeechLanguageJapanese=Japanese voices
 ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>After a matching language voice is downloaded, text in that language is read with it. Other text continues to use the existing English Piper voices.</color></i>
 ModUi/&DungeonMaker=Dungeon Maker
 ModUi/&DungeonMakerBasicHelp=• These settings won't require the player to have this mod installed
