@@ -323,7 +323,6 @@ public static partial class Tabletop2024Context
         "FeatDefensiveDuelist",
         "FeatDualWeaponDefense",
         "FeatGroupArmor",
-        AthleteGroupFeatName,
         "FeatGroupCreed",
         "FeatGroupElementalAdept",
         "FeatGroupFeyTeleport",
@@ -379,6 +378,7 @@ public static partial class Tabletop2024Context
 
     private static readonly string[] ExplicitIndependentLegacyGroupedRootNames =
     [
+        AthleteGroupFeatName,
         "FeatGroupBalefulScion",
         "FeatGroupChef",
         "FeatGroupCrusher",
@@ -461,7 +461,6 @@ public static partial class Tabletop2024Context
     private static FeatDefinition _featSavageAttack2024;
     private static FeatDefinition _featGrappler2024Dex;
     private static FeatDefinition _featGrappler2024Str;
-    private static FeatDefinition _featGroupAthlete2024;
     private static FeatDefinition _featGroupCharger2024;
     private static FeatDefinition _featGroupDualWielder2024;
     private static FeatDefinition _featGroupElementalAdept2024;
@@ -503,7 +502,6 @@ public static partial class Tabletop2024Context
         try
         {
             BuildOriginFeats2024();
-            BuildAthlete2024();
             BuildSpeedy();
             BuildObservant2024();
             BuildKeenMind2024();
@@ -1003,46 +1001,6 @@ public static partial class Tabletop2024Context
             .AddToDB();
         SetFeatVisibility(_featDurable2024, false);
         RegisterManagedTabletopFeats(true, _featDurable2024);
-    }
-
-    private static void BuildAthlete2024()
-    {
-        var featGroupAthlete = GetDefinition<FeatDefinition>(AthleteGroupFeatName);
-        var athleteFamily = OtherFeats.FeatAthleteStr.FamilyTag;
-        var groupTitle = Get2024HalfFeatGroupTitle("Feat/&FeatGroupAthleteTitle", featGroupAthlete);
-        var baseDescription = Get2024HalfFeatBaseDescription(
-            "Feat/&FeatGroupAthlete2024BaseDescription",
-            featGroupAthlete,
-            Gui.Localize("Feat/&FeatGroupAthleteDescription"));
-        var featAthlete2024Str = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
-            OtherFeats.FeatAthleteStr,
-            "FeatAthlete2024Str",
-            AttributeModifierCreed_Of_Einar,
-            athleteFamily,
-            AttributeDefinitions.Strength,
-            groupTitle,
-            baseDescription,
-            AthleteGroupFeatName);
-        var featAthlete2024Dex = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
-            OtherFeats.FeatAthleteDex,
-            "FeatAthlete2024Dex",
-            AttributeModifierCreed_Of_Misaye,
-            athleteFamily,
-            AttributeDefinitions.Dexterity,
-            groupTitle,
-            baseDescription,
-            AthleteGroupFeatName);
-
-        _featGroupAthlete2024 = BuildAlternativeAbilityPrerequisiteGroup(
-            "FeatGroupAthlete2024",
-            athleteFamily,
-            AthleteGroupFeatName,
-            featAthlete2024Str,
-            featAthlete2024Dex);
-        _featGroupAthlete2024.GuiPresentation.title = "Feat/&FeatGroupAthleteTitle";
-        _featGroupAthlete2024.GuiPresentation.description = "Feat/&FeatGroupAthleteDescription";
-        SetFeatVisibility(_featGroupAthlete2024, false);
-        RegisterManagedTabletopFeats(true, _featGroupAthlete2024);
     }
 
     private static void BuildActor2024()
@@ -3648,7 +3606,6 @@ public static partial class Tabletop2024Context
         RegisterManagedCatalogEntry(LegacyLuckyFeatName, _featLucky2024, true, true);
         RegisterManagedCatalogEntry(LegacySavageAttackerFeatName, _featSavageAttack2024, true, true);
         RegisterManagedCatalogEntry("FeatMobile", _featGroupSpeedy, true);
-        RegisterManagedCatalogEntry(AthleteGroupFeatName, _featGroupAthlete2024, true);
         RegisterManagedCatalogEntry(LegacyWarCasterFeatName, _featGroupWarCaster2024, true);
         RegisterManagedCatalogEntry("FeatRangedExpert", _featCrossbowExpert2024, true, true);
         RegisterManagedCatalogEntry("FeatShieldTechniques", _featShieldMaster2024, true, true);
@@ -3835,7 +3792,8 @@ public static partial class Tabletop2024Context
             legacyDefinition.GuiPresentation?.Title,
             legacyDefinition.GuiPresentation?.Description,
             legacyDefinition,
-            []);
+            [],
+            canonicalName);
 
         var childDefinitions = groupedFeat.GetSubFeats(true)
             .Select(subFeat => BuildIndependentLegacyGroupedChildDefinition(subFeat, legacyDefinition, independentRoot))
@@ -4041,7 +3999,6 @@ public static partial class Tabletop2024Context
     private static void LoadTabletopFeat2024Profiles()
     {
         var featGroupArmor = GetDefinition<FeatDefinition>("FeatGroupArmor");
-        var featGroupAthlete = GetDefinition<FeatDefinition>(AthleteGroupFeatName);
         var featGroupCreed = GetDefinition<FeatDefinition>("FeatGroupCreed");
         var featGroupMediumArmor = GetDefinition<FeatDefinition>("FeatGroupMediumArmor");
         var featGroupPlaneMagic = GetDefinition<FeatDefinition>("FeatGroupPlaneMagic");
@@ -4095,10 +4052,6 @@ public static partial class Tabletop2024Context
                 _featGroupSpeedy,
                 [ForestRunner, featMobile],
                 [GroupFeats.FeatGroupAgilityCombat]),
-            new TabletopFeat2024Profile(
-                _featGroupAthlete2024,
-                [featGroupAthlete],
-                [GroupFeats.FeatGroupBodyResilience, GroupFeats.FeatGroupSkills]),
             new TabletopFeat2024Profile(
                 _featGroupObservant2024,
                 [],
@@ -6717,11 +6670,13 @@ public static partial class Tabletop2024Context
         string title,
         string description,
         FeatDefinition prerequisiteSource,
-        IEnumerable<FeatDefinition> feats)
+        IEnumerable<FeatDefinition> feats,
+        string alternativePrerequisiteProfileKey = null)
     {
         var childFeats = feats?.Where(feat => feat != null).ToArray() ?? [];
 
-        if (!prerequisiteSource)
+        if (!prerequisiteSource &&
+            !TryGetAlternativeAbilityPrerequisiteValidator(alternativePrerequisiteProfileKey, out _))
         {
             return BuildManagedGroup(name, family, title, description, childFeats);
         }
@@ -6730,6 +6685,16 @@ public static partial class Tabletop2024Context
 
         var validatorArray = FilterManagedTabletopCopiedValidators(
             (prerequisiteSource as FeatDefinitionWithPrerequisites)?.Validators);
+
+        if (TryGetAlternativeAbilityPrerequisiteValidator(
+                alternativePrerequisiteProfileKey,
+                out var alternativePrerequisiteValidator))
+        {
+            validatorArray = validatorArray
+                .Append(alternativePrerequisiteValidator)
+                .Distinct()
+                .ToArray();
+        }
 
         if (validatorArray.Length > 0)
         {
@@ -6753,8 +6718,12 @@ public static partial class Tabletop2024Context
                 .AddToDB();
         }
 
-        CopyFeatCustomSubFeatures(prerequisiteSource, group, false);
-        MergeFeatPrerequisites(prerequisiteSource, group, false);
+        if (prerequisiteSource)
+        {
+            CopyFeatCustomSubFeatures(prerequisiteSource, group, false);
+            MergeFeatPrerequisites(prerequisiteSource, group, false);
+        }
+
         GroupFeats.Groups.Add(group);
 
         return group;
