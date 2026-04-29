@@ -2335,7 +2335,7 @@ public static partial class Tabletop2024Context
             Get2024HalfFeatBaseDescriptionKey("FeatGroupPolearmMaster2024"),
             feat,
             Gui.Localize("Feat/&FeatGroupPolearmMaster2024Description"));
-        var featPolearmMaster2024Str = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
+        var featPolearmMaster2024Str = Build2024HalfFeatVariant(
             feat,
             "FeatPolearmMaster2024Str",
             AttributeModifierCreed_Of_Einar,
@@ -2343,8 +2343,9 @@ public static partial class Tabletop2024Context
             AttributeDefinitions.Strength,
             groupTitle,
             baseDescription,
-            "FeatGroupPolearmMaster2024");
-        var featPolearmMaster2024Dex = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
+            prerequisiteValue: null,
+            clearAbilityPrerequisite: true);
+        var featPolearmMaster2024Dex = Build2024HalfFeatVariant(
             feat,
             "FeatPolearmMaster2024Dex",
             AttributeModifierCreed_Of_Misaye,
@@ -2352,7 +2353,8 @@ public static partial class Tabletop2024Context
             AttributeDefinitions.Dexterity,
             groupTitle,
             baseDescription,
-            "FeatGroupPolearmMaster2024");
+            prerequisiteValue: null,
+            clearAbilityPrerequisite: true);
 
         _featGroupPolearmMaster2024 = BuildAlternativeAbilityPrerequisiteGroup(
             "FeatGroupPolearmMaster2024",
@@ -7989,7 +7991,12 @@ public static partial class Tabletop2024Context
             RollOutcome rollOutcome,
             int damageAmount)
         {
+            var rulesetAttacker = attacker?.RulesetCharacter;
+            var rulesetDefender = defender?.RulesetCharacter;
+
             if (attacker?.IsMyTurn() != true ||
+                rulesetAttacker == null ||
+                rulesetDefender is not { IsDeadOrDyingOrUnconscious: false } ||
                 attackMode?.ActionType != ActionType.Main ||
                 rollOutcome is RollOutcome.Failure or RollOutcome.CriticalFailure ||
                 !IsMeleeWeaponAttackMode(attackMode) ||
@@ -7998,8 +8005,6 @@ public static partial class Tabletop2024Context
             {
                 yield break;
             }
-
-            var rulesetAttacker = attacker.RulesetCharacter;
 
             if (!rulesetAttacker.IsWearingShield())
             {
