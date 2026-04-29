@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
@@ -10,7 +11,10 @@ internal static class FloatingPanelBounds
     private const float DefaultColumnSpacing = 8f;
     private const float DefaultMargin = 12f;
     private const int DefaultReapplyFrames = 4;
+    private const float TooltipCursorPadding = 32f;
+    private const float TooltipScrollPixelsPerWheel = 72f;
 
+    private static TooltipPanelBoundsController ActiveTooltipWheelCapture;
     private static readonly Vector3[] WorldCorners = new Vector3[4];
 
     private enum AttachmentSide
@@ -31,14 +35,12 @@ internal static class FloatingPanelBounds
             LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
         }
 
-        var camera = GetCanvasCamera(rectTransform);
-
-        if (!TryGetScreenBounds(rectTransform, camera, out var bounds))
+        if (!TryGetCanvasLocalBounds(rectTransform, out var bounds, out var canvasRect))
         {
             return;
         }
 
-        ApplyScreenDelta(rectTransform, camera, GetScreenDelta(bounds, margin));
+        ApplyCanvasLocalDelta(rectTransform, canvasRect, GetCanvasLocalDelta(bounds, canvasRect, margin));
     }
 
     internal static void ClampToScreenForNextFrames(
@@ -84,54 +86,41 @@ internal static class FloatingPanelBounds
         }
     }
 
-    internal static void FitTooltipAndClamp(TooltipPanel tooltipPanel, float margin = DefaultMargin)
-    {
-        if (!tooltipPanel || !CanUseScreen(tooltipPanel.RectTransform))
-        {
-            return;
-        }
-
-        var rectTransform = tooltipPanel.RectTransform;
-        var featuresTable = tooltipPanel.featuresTable;
-
-        LayoutRebuilder.ForceRebuildLayoutImmediate(featuresTable);
-        LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
-
-        var camera = GetCanvasCamera(rectTransform);
-        var maxHeight = Mathf.Max(1f, Screen.height - margin * 2f);
-
-        if (!TryGetScreenBounds(rectTransform, camera, out var bounds))
-        {
-            return;
-        }
-
-        if (bounds.height <= maxHeight)
-        {
-            ClampToScreen(rectTransform, false, margin);
-            return;
-        }
-
-        ApplyTooltipScroll(tooltipPanel, maxHeight);
-        LayoutRebuilder.ForceRebuildLayoutImmediate(featuresTable);
-        LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
-        ClampToScreen(rectTransform, false, margin);
-    }
-
-    internal static void RestoreTooltipScroll(TooltipPanel tooltipPanel)
+    internal static void ConfigureTooltipBounds(TooltipPanel tooltipPanel, float margin = DefaultMargin)
     {
         if (!tooltipPanel)
         {
             return;
         }
 
-        var state = tooltipPanel.GetComponent<FloatingPanelTooltipScrollState>();
+        var controller = tooltipPanel.GetComponent<TooltipPanelBoundsController>() ??
+                         tooltipPanel.gameObject.AddComponent<TooltipPanelBoundsController>();
 
-        if (!state)
+        controller.Configure(tooltipPanel, margin);
+    }
+
+    internal static void RestoreTooltipBounds(TooltipPanel tooltipPanel)
+    {
+        if (!tooltipPanel)
         {
             return;
         }
 
-        state.Restore();
+        var controller = tooltipPanel.GetComponent<TooltipPanelBoundsController>();
+
+        if (!controller)
+        {
+            return;
+        }
+
+        controller.RestoreAndDestroy();
+    }
+
+    internal static bool ShouldSuppressBackgroundWheel(Component source)
+    {
+        var controller = ActiveTooltipWheelCapture;
+
+        return controller && controller.CanCaptureWheel(source);
     }
 
     private static IEnumerator ApplyNearAttachmentListForNextFramesCoroutine(
@@ -174,28 +163,38 @@ internal static class FloatingPanelBounds
             return;
         }
 
-        var camera = GetCanvasCamera(panel);
-
         RestoreListLayout(table);
-        LayoutRebuilder.ForceRebuildLayoutImmediate(table);
+
+        if (table)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(table);
+        }
+
         LayoutRebuilder.ForceRebuildLayoutImmediate(panel);
 
+        if (!TryGetCanvasLocalBounds(panel, out _, out var canvasRect))
+        {
+            return;
+        }
+
+        var canvasBounds = GetInsetCanvasRect(canvasRect, margin);
+
         if (!attachment || !attachment.gameObject.activeInHierarchy ||
-            !TryGetScreenBounds(attachment, camera, out var attachmentBounds))
+            !TryGetCanvasLocalBounds(attachment, canvasRect, out var attachmentBounds))
         {
             panel.localPosition = fallbackLocalPosition;
-            FitListToAvailableHeight(table, panel, Screen.height - margin * 2f);
+            FitListToAvailableHeight(table, panel, canvasBounds.height);
             ClampToScreen(panel, true, margin);
             return;
         }
 
-        var topSpace = Mathf.Max(1f, Screen.height - margin - attachmentBounds.yMax - verticalOffset);
-        var bottomSpace = Mathf.Max(1f, attachmentBounds.yMin - margin - verticalOffset);
+        var topSpace = Mathf.Max(1f, canvasBounds.yMax - attachmentBounds.yMax - verticalOffset);
+        var bottomSpace = Mathf.Max(1f, attachmentBounds.yMin - canvasBounds.yMin - verticalOffset);
         var selectedSide = bottomSpace >= topSpace ? AttachmentSide.Below : AttachmentSide.Above;
         var availableHeight = selectedSide == AttachmentSide.Below ? bottomSpace : topSpace;
 
         FitListToAvailableHeight(table, panel, availableHeight);
-        AlignToAttachment(panel, attachmentBounds, selectedSide, verticalOffset, camera);
+        AlignToAttachment(panel, attachmentBounds, selectedSide, verticalOffset, canvasRect);
         ClampToScreen(panel, false, margin);
     }
 
@@ -204,9 +203,9 @@ internal static class FloatingPanelBounds
         Rect attachmentBounds,
         AttachmentSide side,
         float verticalOffset,
-        Camera camera)
+        RectTransform canvasRect)
     {
-        if (!TryGetScreenBounds(panel, camera, out var panelBounds))
+        if (!TryGetCanvasLocalBounds(panel, canvasRect, out var panelBounds))
         {
             return;
         }
@@ -217,7 +216,7 @@ internal static class FloatingPanelBounds
             ? attachmentBounds.yMin - verticalOffset - panelBounds.yMax
             : attachmentBounds.yMax + verticalOffset - panelBounds.yMin;
 
-        ApplyScreenDelta(panel, camera, new Vector2(deltaX, deltaY));
+        ApplyCanvasLocalDelta(panel, canvasRect, new Vector2(deltaX, deltaY));
     }
 
     private static void FitListToAvailableHeight(
@@ -269,78 +268,6 @@ internal static class FloatingPanelBounds
         ApplyGridLayout(table, activeCount, maxRows, itemWidth, itemHeight, spacing);
         LayoutRebuilder.ForceRebuildLayoutImmediate(table);
         LayoutRebuilder.ForceRebuildLayoutImmediate(panel);
-    }
-
-    private static void ApplyTooltipScroll(TooltipPanel tooltipPanel, float maxHeight)
-    {
-        var panel = tooltipPanel.RectTransform;
-        var content = tooltipPanel.featuresTable;
-
-        if (!panel || !content)
-        {
-            return;
-        }
-
-        var state = tooltipPanel.GetComponent<FloatingPanelTooltipScrollState>() ??
-                    tooltipPanel.gameObject.AddComponent<FloatingPanelTooltipScrollState>();
-
-        state.Capture(tooltipPanel);
-        state.DisablePanelSizeFitter();
-
-        var scrollRect = state.ScrollRect;
-
-        if (!scrollRect)
-        {
-            scrollRect = tooltipPanel.GetComponent<ScrollRect>();
-
-            if (!scrollRect)
-            {
-                scrollRect = tooltipPanel.gameObject.AddComponent<ScrollRect>();
-                state.AddedScrollRect = true;
-            }
-
-            state.ScrollRect = scrollRect;
-        }
-
-        var mask = state.RectMask;
-
-        if (!mask)
-        {
-            mask = tooltipPanel.GetComponent<RectMask2D>();
-
-            if (!mask)
-            {
-                mask = tooltipPanel.gameObject.AddComponent<RectMask2D>();
-                state.AddedRectMask = true;
-            }
-
-            state.RectMask = mask;
-        }
-
-        panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, maxHeight);
-        SetChildHeight(tooltipPanel.transform, "BackgroundBlur", maxHeight);
-        SetChildHeight(tooltipPanel.transform, "Frame", maxHeight);
-
-        scrollRect.content = content;
-        scrollRect.viewport = panel;
-        scrollRect.horizontal = false;
-        scrollRect.vertical = true;
-        scrollRect.movementType = ScrollRect.MovementType.Clamped;
-        scrollRect.scrollSensitivity = 25f;
-        scrollRect.inertia = true;
-        scrollRect.normalizedPosition = Vector2.up;
-    }
-
-    private static void SetChildHeight(Transform parent, string path, float height)
-    {
-        var rectTransform = parent.Find(path)?.GetComponent<RectTransform>();
-
-        if (!rectTransform)
-        {
-            return;
-        }
-
-        rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
     }
 
     private static void ApplyGridLayout(
@@ -415,32 +342,83 @@ internal static class FloatingPanelBounds
                Screen.height > 0;
     }
 
-    private static Camera GetCanvasCamera(Component component)
+    private static bool TryGetRootCanvasRect(Component component, out RectTransform canvasRect)
     {
+        canvasRect = null;
+
+        if (!component)
+        {
+            return false;
+        }
+
         var canvas = component.GetComponentInParent<Canvas>();
+
+        if (!canvas)
+        {
+            return false;
+        }
+
+        canvasRect = (canvas.rootCanvas ? canvas.rootCanvas : canvas).transform as RectTransform;
+
+        return canvasRect && canvasRect.gameObject.activeInHierarchy;
+    }
+
+    private static Camera GetCanvasCamera(RectTransform canvasRect)
+    {
+        var canvas = canvasRect ? canvasRect.GetComponent<Canvas>() : null;
 
         return canvas && canvas.renderMode != RenderMode.ScreenSpaceOverlay
             ? canvas.worldCamera
             : null;
     }
 
-    private static bool TryGetScreenBounds(RectTransform rectTransform, Camera camera, out Rect bounds)
+    private static bool TryGetMouseCanvasPosition(RectTransform canvasRect, out Vector2 position)
+    {
+        position = default;
+
+        return canvasRect &&
+               RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                   canvasRect,
+                   Input.mousePosition,
+                   GetCanvasCamera(canvasRect),
+                   out position);
+    }
+
+    private static bool TryGetCanvasLocalBounds(
+        RectTransform rectTransform,
+        out Rect bounds,
+        out RectTransform canvasRect)
+    {
+        bounds = default;
+        canvasRect = null;
+
+        if (!CanUseScreen(rectTransform) || !TryGetRootCanvasRect(rectTransform, out canvasRect))
+        {
+            return false;
+        }
+
+        return TryGetCanvasLocalBounds(rectTransform, canvasRect, out bounds);
+    }
+
+    private static bool TryGetCanvasLocalBounds(
+        RectTransform rectTransform,
+        RectTransform canvasRect,
+        out Rect bounds)
     {
         bounds = default;
 
-        if (!CanUseScreen(rectTransform))
+        if (!CanUseScreen(rectTransform) || !canvasRect)
         {
             return false;
         }
 
         rectTransform.GetWorldCorners(WorldCorners);
-
-        var min = RectTransformUtility.WorldToScreenPoint(camera, WorldCorners[0]);
+        var min = (Vector2)canvasRect.InverseTransformPoint(WorldCorners[0]);
         var max = min;
 
         for (var i = 1; i < WorldCorners.Length; i++)
         {
-            var point = RectTransformUtility.WorldToScreenPoint(camera, WorldCorners[i]);
+            var point = (Vector2)canvasRect.InverseTransformPoint(WorldCorners[i]);
 
             min = Vector2.Min(min, point);
             max = Vector2.Max(max, point);
@@ -451,52 +429,95 @@ internal static class FloatingPanelBounds
         return true;
     }
 
-    private static Vector2 GetScreenDelta(Rect bounds, float margin)
+    private static Rect GetInsetCanvasRect(RectTransform canvasRect, float margin)
+    {
+        var rect = canvasRect.rect;
+        var horizontalMargin = Mathf.Min(margin, rect.width * 0.5f);
+        var verticalMargin = Mathf.Min(margin, rect.height * 0.5f);
+
+        return Rect.MinMaxRect(
+            rect.xMin + horizontalMargin,
+            rect.yMin + verticalMargin,
+            rect.xMax - horizontalMargin,
+            rect.yMax - verticalMargin);
+    }
+
+    private static Rect ClampRectToRect(Rect rect, Rect bounds)
+    {
+        var xMin = rect.xMin;
+        var yMin = rect.yMin;
+
+        if (rect.width > bounds.width)
+        {
+            xMin = bounds.xMin;
+        }
+        else if (rect.xMin < bounds.xMin)
+        {
+            xMin += bounds.xMin - rect.xMin;
+        }
+        else if (rect.xMax > bounds.xMax)
+        {
+            xMin += bounds.xMax - rect.xMax;
+        }
+
+        if (rect.height > bounds.height)
+        {
+            yMin = bounds.yMin;
+        }
+        else if (rect.yMin < bounds.yMin)
+        {
+            yMin += bounds.yMin - rect.yMin;
+        }
+        else if (rect.yMax > bounds.yMax)
+        {
+            yMin += bounds.yMax - rect.yMax;
+        }
+
+        return new Rect(xMin, yMin, rect.width, rect.height);
+    }
+
+    private static float GetOverlapArea(Rect a, Rect b)
+    {
+        var width = Mathf.Max(0f, Mathf.Min(a.xMax, b.xMax) - Mathf.Max(a.xMin, b.xMin));
+        var height = Mathf.Max(0f, Mathf.Min(a.yMax, b.yMax) - Mathf.Max(a.yMin, b.yMin));
+
+        return width * height;
+    }
+
+    private static Vector2 GetCanvasLocalDelta(Rect bounds, RectTransform canvasRect, float margin)
     {
         var delta = Vector2.zero;
-        var maxX = Screen.width - margin;
-        var maxY = Screen.height - margin;
+        var canvasBounds = GetInsetCanvasRect(canvasRect, margin);
 
-        if (bounds.xMin < margin)
+        if (bounds.xMin < canvasBounds.xMin)
         {
-            delta.x = margin - bounds.xMin;
+            delta.x = canvasBounds.xMin - bounds.xMin;
         }
-        else if (bounds.xMax > maxX)
+        else if (bounds.xMax > canvasBounds.xMax)
         {
-            delta.x = maxX - bounds.xMax;
+            delta.x = canvasBounds.xMax - bounds.xMax;
         }
 
-        if (bounds.yMin < margin)
+        if (bounds.yMin < canvasBounds.yMin)
         {
-            delta.y = margin - bounds.yMin;
+            delta.y = canvasBounds.yMin - bounds.yMin;
         }
-        else if (bounds.yMax > maxY)
+        else if (bounds.yMax > canvasBounds.yMax)
         {
-            delta.y = maxY - bounds.yMax;
+            delta.y = canvasBounds.yMax - bounds.yMax;
         }
 
         return delta;
     }
 
-    private static void ApplyScreenDelta(RectTransform rectTransform, Camera camera, Vector2 delta)
+    private static void ApplyCanvasLocalDelta(RectTransform rectTransform, RectTransform canvasRect, Vector2 delta)
     {
-        if (delta == Vector2.zero || rectTransform.parent is not RectTransform parent)
+        if (delta == Vector2.zero || !canvasRect)
         {
             return;
         }
 
-        var currentScreenPosition = RectTransformUtility.WorldToScreenPoint(camera, rectTransform.position);
-        var targetScreenPosition = currentScreenPosition + delta;
-
-        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                parent, currentScreenPosition, camera, out var currentLocalPosition) ||
-            !RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                parent, targetScreenPosition, camera, out var targetLocalPosition))
-        {
-            return;
-        }
-
-        rectTransform.localPosition += (Vector3)(targetLocalPosition - currentLocalPosition);
+        rectTransform.position += canvasRect.TransformVector(new Vector3(delta.x, delta.y, 0f));
     }
 
     private static int CountActiveChildren(RectTransform table, out RectTransform firstActiveChild)
@@ -669,80 +690,353 @@ internal static class FloatingPanelBounds
         }
     }
 
-    private sealed class FloatingPanelTooltipScrollState : MonoBehaviour
+    private sealed class TooltipPanelBoundsController : MonoBehaviour
     {
-        internal bool AddedRectMask;
-        internal bool AddedScrollRect;
-        internal Vector2 BackgroundBlurSizeDelta;
-        internal Vector2 ContentAnchoredPosition;
-        internal Vector2 ContentAnchorMax;
-        internal Vector2 ContentAnchorMin;
-        internal Vector2 ContentPivot;
-        internal Vector2 ContentSizeDelta;
-        internal Vector2 FrameSizeDelta;
-        internal ContentSizeFitter PanelContentSizeFitter;
-        internal RectMask2D RectMask;
-        internal ScrollRect ScrollRect;
-        internal bool WasPanelContentSizeFitterEnabled;
         private RectTransform _backgroundBlur;
+        private Vector2 _backgroundBlurSizeDelta;
         private RectTransform _content;
+        private Vector2 _contentAnchorMax;
+        private Vector2 _contentAnchorMin;
+        private Vector2 _contentAnchoredPosition;
+        private Vector3 _contentLocalScale;
+        private Transform _contentParent;
+        private Vector2 _contentPivot;
+        private Vector2 _contentSizeDelta;
         private RectTransform _frame;
+        private Vector2 _frameSizeDelta;
+        private bool _hasOriginalState;
+        private bool _hasLockedBounds;
+        private bool _hasTooltipAnchor;
+        private Vector2 _lockedCanvasSize;
+        private float _lockedContentHeight;
+        private Rect _lockedPanelBounds;
+        private Vector2 _lockedPanelSize;
+        private float _margin = DefaultMargin;
+        private RectMask2D _mask;
         private RectTransform _panel;
+        private ContentSizeFitter _panelContentSizeFitter;
         private Vector2 _panelSizeDelta;
+        private int _siblingIndex;
+        private float _scrollOffset;
+        private float _scrollRange;
+        private TooltipPanel _tooltipPanel;
+        private Vector2 _tooltipAnchorCanvasPosition;
+        private bool _addedMask;
+        private bool _wasMaskEnabled;
+        private bool _wasPanelContentSizeFitterEnabled;
 
-        internal void Capture(TooltipPanel tooltipPanel)
+        internal void Configure(TooltipPanel tooltipPanel, float margin)
         {
-            if (_panel)
+            RestoreScrollState();
+
+            _tooltipPanel = tooltipPanel;
+            _panel = tooltipPanel.RectTransform;
+            _content = tooltipPanel.featuresTable;
+            _margin = margin;
+            _hasLockedBounds = false;
+            _hasTooltipAnchor = TryGetRootCanvasRect(_panel, out var canvasRect) &&
+                                TryGetMouseCanvasPosition(canvasRect, out _tooltipAnchorCanvasPosition);
+            _scrollOffset = 0f;
+            _scrollRange = 0f;
+
+            CaptureOriginalState();
+            Apply();
+            enabled = true;
+        }
+
+        private void LateUpdate()
+        {
+            Apply();
+        }
+
+        private void OnDisable()
+        {
+            ReleaseWheelCapture();
+        }
+
+        private void OnDestroy()
+        {
+            ReleaseWheelCapture();
+        }
+
+        internal void RestoreAndDestroy()
+        {
+            RestoreScrollState();
+            Object.DestroyImmediate(this);
+        }
+
+        private void CaptureOriginalState()
+        {
+            if (!_panel || !_content)
             {
                 return;
             }
 
-            _panel = tooltipPanel.RectTransform;
-            _content = tooltipPanel.featuresTable;
-            _backgroundBlur = tooltipPanel.transform.Find("BackgroundBlur")?.GetComponent<RectTransform>();
-            _frame = tooltipPanel.transform.Find("Frame")?.GetComponent<RectTransform>();
-            PanelContentSizeFitter = _panel.GetComponent<ContentSizeFitter>();
-            _panelSizeDelta = _panel.sizeDelta;
-            WasPanelContentSizeFitterEnabled = PanelContentSizeFitter && PanelContentSizeFitter.enabled;
+            _contentParent = _content.parent;
+            _siblingIndex = _content.GetSiblingIndex();
+            _contentAnchorMin = _content.anchorMin;
+            _contentAnchorMax = _content.anchorMax;
+            _contentPivot = _content.pivot;
+            _contentAnchoredPosition = _content.anchoredPosition;
+            _contentSizeDelta = _content.sizeDelta;
+            _contentLocalScale = _content.localScale;
 
-            if (_content)
-            {
-                ContentAnchorMin = _content.anchorMin;
-                ContentAnchorMax = _content.anchorMax;
-                ContentPivot = _content.pivot;
-                ContentAnchoredPosition = _content.anchoredPosition;
-                ContentSizeDelta = _content.sizeDelta;
-            }
+            _panelSizeDelta = _panel.sizeDelta;
+            _panelContentSizeFitter = _panel.GetComponent<ContentSizeFitter>();
+            _wasPanelContentSizeFitterEnabled = _panelContentSizeFitter && _panelContentSizeFitter.enabled;
+            _mask = _panel.GetComponent<RectMask2D>();
+            _wasMaskEnabled = _mask && _mask.enabled;
+            _addedMask = false;
+
+            _backgroundBlur = _tooltipPanel.transform.Find("BackgroundBlur")?.GetComponent<RectTransform>();
+            _frame = _tooltipPanel.transform.Find("Frame")?.GetComponent<RectTransform>();
 
             if (_backgroundBlur)
             {
-                BackgroundBlurSizeDelta = _backgroundBlur.sizeDelta;
+                _backgroundBlurSizeDelta = _backgroundBlur.sizeDelta;
             }
 
             if (_frame)
             {
-                FrameSizeDelta = _frame.sizeDelta;
+                _frameSizeDelta = _frame.sizeDelta;
+            }
+
+            _hasOriginalState = true;
+        }
+
+        private void Apply()
+        {
+            if (!_tooltipPanel || !_panel || !_content || !CanUseScreen(_panel))
+            {
+                return;
+            }
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_panel);
+
+            var contentHeight = Mathf.Max(GetPreferredHeight(_content), _content.rect.height, _content.sizeDelta.y);
+
+            if (!TryGetCanvasLocalBounds(_panel, out var panelBounds, out var canvasRect))
+            {
+                return;
+            }
+
+            var maxHeight = Mathf.Max(1f, GetInsetCanvasRect(canvasRect, _margin).height);
+            var naturalHeight = Mathf.Max(
+                panelBounds.height,
+                contentHeight,
+                GetPreferredHeight(_panel),
+                _panel.rect.height,
+                _panel.sizeDelta.y);
+            var isLong = naturalHeight > maxHeight;
+
+            if (!isLong)
+            {
+                ReleaseWheelCapture();
+
+                if (_mask && (_addedMask || _mask.enabled != _wasMaskEnabled))
+                {
+                    RestoreScrollState();
+                    _scrollOffset = 0f;
+                    _scrollRange = 0f;
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(_panel);
+                    TryGetCanvasLocalBounds(_panel, canvasRect, out panelBounds);
+                }
+
+                LockOrApplyPanelBounds(panelBounds, canvasRect, naturalHeight);
+                return;
+            }
+
+            ApplyScrollState(maxHeight, naturalHeight);
+
+            if (!TryGetCanvasLocalBounds(_panel, canvasRect, out panelBounds))
+            {
+                return;
+            }
+
+            LockOrApplyPanelBounds(panelBounds, canvasRect, naturalHeight);
+            HandleScrollInput();
+            ApplyScrollOffset();
+        }
+
+        private void ApplyScrollState(float maxHeight, float naturalHeight)
+        {
+            if (_panelContentSizeFitter)
+            {
+                _panelContentSizeFitter.enabled = false;
+            }
+
+            EnsureRootMask();
+
+            _content.anchorMin = new Vector2(0f, 1f);
+            _content.anchorMax = new Vector2(1f, 1f);
+            _content.pivot = new Vector2(0.5f, 1f);
+            _content.localScale = Vector3.one;
+            _content.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _panel.rect.width);
+            _content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, naturalHeight);
+
+            SetHeight(_panel, maxHeight);
+            SetHeight(_backgroundBlur, maxHeight);
+            SetHeight(_frame, maxHeight);
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_panel);
+
+            _scrollRange = Mathf.Max(0f, naturalHeight - maxHeight);
+            _scrollOffset = Mathf.Clamp(_scrollOffset, 0f, _scrollRange);
+
+            if (_scrollRange > 0f)
+            {
+                ActiveTooltipWheelCapture = this;
+            }
+            else
+            {
+                ReleaseWheelCapture();
             }
         }
 
-        internal void DisablePanelSizeFitter()
+        private void LockOrApplyPanelBounds(Rect panelBounds, RectTransform canvasRect, float contentHeight)
         {
-            if (PanelContentSizeFitter)
+            var panelSize = panelBounds.size;
+            var canvasSize = canvasRect.rect.size;
+            var shouldRelock = !_hasLockedBounds ||
+                               (_lockedPanelSize - panelSize).sqrMagnitude > 1f ||
+                               (_lockedCanvasSize - canvasSize).sqrMagnitude > 1f ||
+                               Mathf.Abs(_lockedContentHeight - contentHeight) > 1f;
+
+            if (shouldRelock)
             {
-                PanelContentSizeFitter.enabled = false;
+                _lockedPanelBounds = GetPreferredTooltipBounds(panelBounds, canvasRect);
+                _lockedPanelSize = panelSize;
+                _lockedCanvasSize = canvasSize;
+                _lockedContentHeight = contentHeight;
+                _hasLockedBounds = true;
             }
+
+            ApplyCanvasLocalDelta(_panel, canvasRect, _lockedPanelBounds.min - panelBounds.min);
         }
 
-        internal void Restore()
+        private Rect GetPreferredTooltipBounds(Rect panelBounds, RectTransform canvasRect)
         {
-            if (AddedScrollRect && ScrollRect)
+            var canvasBounds = GetInsetCanvasRect(canvasRect, _margin);
+
+            if (!TryGetMouseCanvasPosition(canvasRect, out var mousePosition))
             {
-                Object.DestroyImmediate(ScrollRect);
+                if (!_hasTooltipAnchor)
+                {
+                    return ClampRectToRect(panelBounds, canvasBounds);
+                }
+
+                mousePosition = _tooltipAnchorCanvasPosition;
+            }
+            else if (_hasTooltipAnchor)
+            {
+                mousePosition = _tooltipAnchorCanvasPosition;
             }
 
-            if (AddedRectMask && RectMask)
+            var width = panelBounds.width;
+            var height = panelBounds.height;
+            var cursorBounds = Rect.MinMaxRect(
+                mousePosition.x - TooltipCursorPadding,
+                mousePosition.y - TooltipCursorPadding,
+                mousePosition.x + TooltipCursorPadding,
+                mousePosition.y + TooltipCursorPadding);
+            var candidates = new[]
             {
-                Object.DestroyImmediate(RectMask);
+                new Rect(mousePosition.x + TooltipCursorPadding, mousePosition.y - height * 0.5f, width, height),
+                new Rect(mousePosition.x - TooltipCursorPadding - width, mousePosition.y - height * 0.5f, width, height),
+                new Rect(mousePosition.x - width * 0.5f, mousePosition.y - TooltipCursorPadding - height, width, height),
+                new Rect(mousePosition.x - width * 0.5f, mousePosition.y + TooltipCursorPadding, width, height)
+            };
+            var bestScore = float.NegativeInfinity;
+            var bestBounds = ClampRectToRect(panelBounds, canvasBounds);
+
+            foreach (var candidate in candidates)
+            {
+                var clamped = ClampRectToRect(candidate, canvasBounds);
+                var visibleArea = GetOverlapArea(candidate, canvasBounds);
+                var cursorOverlap = GetOverlapArea(clamped, cursorBounds);
+                var movePenalty = (clamped.center - candidate.center).sqrMagnitude * 0.001f;
+                var score = visibleArea - cursorOverlap * 8f - movePenalty;
+
+                if (score <= bestScore)
+                {
+                    continue;
+                }
+
+                bestScore = score;
+                bestBounds = clamped;
+            }
+
+            return bestBounds;
+        }
+
+        private void HandleScrollInput()
+        {
+            if (!_content || _scrollRange <= 0f)
+            {
+                return;
+            }
+
+            var wheel = Input.mouseScrollDelta.y;
+
+            if (Mathf.Abs(wheel) <= 0.01f)
+            {
+                return;
+            }
+
+            _scrollOffset = Mathf.Clamp(
+                _scrollOffset - wheel * TooltipScrollPixelsPerWheel,
+                0f,
+                _scrollRange);
+        }
+
+        private void ApplyScrollOffset()
+        {
+            if (!_content || _scrollRange <= 0f)
+            {
+                return;
+            }
+
+            _content.anchoredPosition = new Vector2(_contentAnchoredPosition.x, _scrollOffset);
+        }
+
+        private void EnsureRootMask()
+        {
+            if (!_mask)
+            {
+                _mask = _panel.gameObject.AddComponent<RectMask2D>();
+                _addedMask = true;
+            }
+
+            _mask.enabled = true;
+        }
+
+        private void RestoreScrollState()
+        {
+            ReleaseWheelCapture();
+
+            if (!_hasOriginalState)
+            {
+                RestoreMask();
+                return;
+            }
+
+            if (_content && _contentParent)
+            {
+                if (_content.parent != _contentParent)
+                {
+                    _content.SetParent(_contentParent, false);
+                }
+
+                _content.SetSiblingIndex(_siblingIndex);
+                _content.anchorMin = _contentAnchorMin;
+                _content.anchorMax = _contentAnchorMax;
+                _content.pivot = _contentPivot;
+                _content.anchoredPosition = _contentAnchoredPosition;
+                _content.sizeDelta = _contentSizeDelta;
+                _content.localScale = _contentLocalScale;
             }
 
             if (_panel)
@@ -750,31 +1044,75 @@ internal static class FloatingPanelBounds
                 _panel.sizeDelta = _panelSizeDelta;
             }
 
-            if (PanelContentSizeFitter)
+            if (_panelContentSizeFitter)
             {
-                PanelContentSizeFitter.enabled = WasPanelContentSizeFitterEnabled;
-            }
-
-            if (_content)
-            {
-                _content.anchorMin = ContentAnchorMin;
-                _content.anchorMax = ContentAnchorMax;
-                _content.pivot = ContentPivot;
-                _content.anchoredPosition = ContentAnchoredPosition;
-                _content.sizeDelta = ContentSizeDelta;
+                _panelContentSizeFitter.enabled = _wasPanelContentSizeFitterEnabled;
             }
 
             if (_backgroundBlur)
             {
-                _backgroundBlur.sizeDelta = BackgroundBlurSizeDelta;
+                _backgroundBlur.sizeDelta = _backgroundBlurSizeDelta;
             }
 
             if (_frame)
             {
-                _frame.sizeDelta = FrameSizeDelta;
+                _frame.sizeDelta = _frameSizeDelta;
             }
 
-            Object.DestroyImmediate(this);
+            RestoreMask();
+        }
+
+        private void RestoreMask()
+        {
+            if (!_mask)
+            {
+                return;
+            }
+
+            if (_addedMask)
+            {
+                Object.DestroyImmediate(_mask);
+                _mask = null;
+            }
+            else
+            {
+                _mask.enabled = _wasMaskEnabled;
+            }
+
+            _addedMask = false;
+        }
+
+        internal bool CanCaptureWheel(Component source)
+        {
+            if (!enabled || !_panel || !_panel.gameObject.activeInHierarchy || _scrollRange <= 0f)
+            {
+                return false;
+            }
+
+            if (!source || !source.transform)
+            {
+                return true;
+            }
+
+            return source.transform != _panel && !source.transform.IsChildOf(_panel);
+        }
+
+        private void ReleaseWheelCapture()
+        {
+            if (ActiveTooltipWheelCapture == this)
+            {
+                ActiveTooltipWheelCapture = null;
+            }
+        }
+
+        private static void SetHeight(RectTransform rectTransform, float height)
+        {
+            if (!rectTransform)
+            {
+                return;
+            }
+
+            rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
         }
     }
 }

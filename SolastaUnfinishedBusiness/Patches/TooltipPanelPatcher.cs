@@ -3,6 +3,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
+using UnityEngine.UI;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -17,7 +18,7 @@ public static class TooltipPanelPatcher
         [UsedImplicitly]
         public static void Prefix(TooltipPanel __instance, ref TooltipDefinitions.Scope scope)
         {
-            FloatingPanelBounds.RestoreTooltipScroll(__instance);
+            FloatingPanelBounds.RestoreTooltipBounds(__instance);
 
             //PATCH: swaps holding ALT behavior for tooltips
             if (!SettingsContext.GuiModManagerInstance.InvertTooltipBehavior)
@@ -37,8 +38,55 @@ public static class TooltipPanelPatcher
         public static void Postfix(TooltipPanel __instance)
         {
             Tooltips.ModifyWidth<TooltipPanelWidthModifier, TooltipPanel>(__instance);
-            FloatingPanelBounds.FitTooltipAndClamp(__instance);
-            FloatingPanelBounds.ClampToScreenForNextFrames(__instance, __instance.RectTransform);
+            FloatingPanelBounds.ConfigureTooltipBounds(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(TooltipPanel), nameof(TooltipPanel.OnEndHide))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnEndHide_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(TooltipPanel __instance)
+        {
+            FloatingPanelBounds.RestoreTooltipBounds(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(ScrollRect), nameof(ScrollRect.OnScroll))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ScrollRect_OnScroll_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(ScrollRect __instance)
+        {
+            return !FloatingPanelBounds.ShouldSuppressBackgroundWheel(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiManualScroll), nameof(GuiManualScroll.ScrollPerformed))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class GuiManualScroll_ScrollPerformed_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(GuiManualScroll __instance)
+        {
+            return !FloatingPanelBounds.ShouldSuppressBackgroundWheel(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(ScrollRectAutoScroll), "InputScroll")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ScrollRectAutoScroll_InputScroll_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(ScrollRectAutoScroll __instance)
+        {
+            return !FloatingPanelBounds.ShouldSuppressBackgroundWheel(__instance);
         }
     }
 
