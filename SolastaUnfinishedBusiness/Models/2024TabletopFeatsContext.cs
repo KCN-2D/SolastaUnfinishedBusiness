@@ -44,6 +44,29 @@ public static partial class Tabletop2024Context
     private const string Observant2024Family = "Observant2024";
     private const string KeenMind2024Family = "KeenMind2024";
     private const int GeneralFeat2024RequiredLevel = 4;
+    private const string AthleteGroupFeatName = "FeatGroupAthlete";
+    private const string Charger2024GroupFeatName = "FeatGroupCharger2024";
+    private const string DualWielder2024GroupFeatName = "FeatGroupDualWielder2024";
+    private const string Grappler2024GroupFeatName = "FeatGroupGrappler2024";
+    private const string InspiringLeader2024GroupFeatName = "FeatGroupInspiringLeader2024";
+    private const string KeenMind2024GroupFeatName = "FeatGroupKeenMind2024";
+    private const string LegacyAlertFeatName = "FeatAlert";
+    private const string LegacyBladeMasteryFeatName = "FeatBladeMastery";
+    private const string LegacyBountifulLuckFeatName = "FeatBountifulLuck";
+    private const string LegacyDarkElfMagicFeatName = "FeatDarkElfMagic";
+    private const string LegacyDragonWingsFeatName = "FeatDragonWings";
+    private const string LegacyDungeonDelverFeatName = "FeatDungeonDelver";
+    private const string LegacyEldritchAdeptFeatName = "FeatEldritchAdept";
+    private const string LegacyFellHandedFeatName = "FeatFellHanded";
+    private const string LegacyHealerFeatName = "FeatHealer";
+    private const string LegacyLuckyFeatName = "FeatLucky";
+    private const string LegacyMetamagicAdeptFeatName = "FeatMetamagicAdept";
+    private const string LegacySavageAttackerFeatName = "FeatSavageAttack";
+    private const string LegacySpearMasteryFeatName = "FeatSpearMastery";
+    private const string LegacyTacticianAdeptFeatName = "FeatTacticianAdept";
+    private const string LegacyWarCasterFeatName = "FeatWarCaster";
+    private const string LegacyWoodElfMagicFeatName = "FeatWoodElfMagic";
+    private const string Observant2024GroupFeatName = "FeatGroupObservant2024";
     private const string Actor2024FeatName = "FeatActor2024";
     private const string Durable2024FeatName = "FeatDurable2024";
     private const string Alert2024FeatName = "FeatAlert2024";
@@ -62,6 +85,7 @@ public static partial class Tabletop2024Context
     private const string FeyTouched2024Family = "FeyTouched2024";
     private const string FeyTouched2024ChoiceTag = "FeyTouched2024Choice";
     private const string FeyTouched2024FixedTag = "FeyTouched2024Fixed";
+    private const string ForestRunnerFeatName = "ForestRunner";
     private const string Grappler2024Family = "Grappler2024";
     private const string HeavyArmorMaster2024Family = "HeavyArmorMaster2024";
     private const string HeavyArmorMaster2024GroupFeatName = "FeatGroupHeavyArmorMaster2024";
@@ -101,11 +125,14 @@ public static partial class Tabletop2024Context
     private const string MediumArmorMaster2024Family = "MediumArmorMaster2024";
     private const string Poisoner2024Family = "Poisoner2024";
     private const string PolearmMaster2024Family = "PolearmMaster2024";
+    private const string PolearmMaster2024GroupFeatName = "FeatGroupPolearmMaster2024";
     private const string RitualCaster2024Family = "RitualCaster2024";
+    private const string RitualCaster2024GroupFeatName = "FeatGroupRitualCaster2024";
     private const string RitualCaster2024SpellTag = "RitualCaster2024";
     private const string SpellListFeatRitualCaster2024Name = "SpellListFeatRitualCaster2024";
     private const int RitualCaster2024SpellCount = 3;
     private const string Sentinel2024Family = "Sentinel2024";
+    private const string Sentinel2024GroupFeatName = "FeatGroupSentinel2024";
     private const string ShadowTouched2024Family = "ShadowTouched2024";
     private const string ShadowTouched2024ChoiceTag = "ShadowTouched2024Choice";
     private const string ShadowTouched2024FixedTag = "ShadowTouched2024Fixed";
@@ -115,6 +142,7 @@ public static partial class Tabletop2024Context
     private const string Skulker2024FeatName = "FeatSkulker2024";
     private const string Skulker2024FogOfWarSpecialFeatureName = "Skulker2024FogOfWar";
     private const string SpeedyFamily = "Speedy";
+    private const string SpeedyGroupFeatName = "FeatGroupSpeedy";
     private const string SpellSniper2024Family = "SpellSniper2024";
     private const string SpellListFeatFeyTouched2024ChoiceName = "SpellListFeatFeyTouched2024Choice";
     private const string SpellListFeatFeyTouched2024MistyStepName = "SpellListFeatFeyTouched2024MistyStep";
@@ -123,6 +151,7 @@ public static partial class Tabletop2024Context
     private const string SpellListFeatSpellSniper2024Name = "SpellListFeatSpellSniper2024";
     private const int SpellSniper2024RangeIncreaseCells = 12;
     private const string WarCaster2024Family = "WarCaster2024";
+    private const string WarCaster2024GroupFeatName = "FeatGroupWarCaster2024";
 
     private static readonly List<TabletopFeat2024Profile> TabletopFeat2024Profiles = [];
     private static readonly Dictionary<string, bool> OriginalFeatHiddenStateByName = [];
@@ -137,18 +166,18 @@ public static partial class Tabletop2024Context
     private static readonly Dictionary<string, (int MinimumValue, string[] AbilityScoreNames)>
         AlternativeAbilityPrerequisiteProfilesByProfileKey = new(StringComparer.Ordinal)
         {
-            ["FeatGroupAthlete"] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
-            ["FeatGroupCharger2024"] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
-            ["FeatGroupDualWielder2024"] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
-            ["FeatGroupGrappler2024"] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
-            ["FeatGroupInspiringLeader2024"] = (13, [AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma]),
-            ["FeatGroupObservant2024"] = (13, [AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom]),
-            ["FeatGroupKeenMind2024"] = (13, [AttributeDefinitions.Intelligence]),
-            ["FeatGroupPolearmMaster2024"] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
-            ["FeatGroupRitualCaster2024"] =
+            [AthleteGroupFeatName] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
+            [Charger2024GroupFeatName] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
+            [DualWielder2024GroupFeatName] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
+            [Grappler2024GroupFeatName] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
+            [InspiringLeader2024GroupFeatName] = (13, [AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma]),
+            [Observant2024GroupFeatName] = (13, [AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom]),
+            [KeenMind2024GroupFeatName] = (13, [AttributeDefinitions.Intelligence]),
+            [PolearmMaster2024GroupFeatName] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
+            [RitualCaster2024GroupFeatName] =
                 (13, [AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma]),
-            ["FeatGroupSentinel2024"] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
-            ["FeatGroupSpeedy"] = (13, [AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution])
+            [Sentinel2024GroupFeatName] = (13, [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity]),
+            [SpeedyGroupFeatName] = (13, [AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution])
         };
     private static readonly Dictionary<string, string> PendingSelectedFeatNameByHeroAndTag = [];
     private static readonly HashSet<string> ManagedTabletopFeatNames = [];
@@ -174,45 +203,45 @@ public static partial class Tabletop2024Context
             .ToList();
     private static readonly HashSet<string> Dedicated2024StandaloneOverrideCanonicalNames =
     [
-        "FeatAlert",
-        "FeatHealer",
-        "FeatLucky",
-        "FeatSavageAttack",
-        "FeatEldritchAdept",
-        "FeatMetamagicAdept",
-        "FeatTacticianAdept",
-        "FeatSpearMastery",
+        LegacyAlertFeatName,
+        LegacyHealerFeatName,
+        LegacyLuckyFeatName,
+        LegacySavageAttackerFeatName,
+        LegacyEldritchAdeptFeatName,
+        LegacyMetamagicAdeptFeatName,
+        LegacyTacticianAdeptFeatName,
+        LegacySpearMasteryFeatName,
         GiftOfTheChromaticDragonFeatName,
-        "FeatWoodElfMagic",
-        "FeatDarkElfMagic",
-        "FeatBountifulLuck",
-        "FeatBladeMastery",
-        "FeatDragonWings",
-        "FeatDungeonDelver",
-        "FeatFellHanded"
+        LegacyWoodElfMagicFeatName,
+        LegacyDarkElfMagicFeatName,
+        LegacyBountifulLuckFeatName,
+        LegacyBladeMasteryFeatName,
+        LegacyDragonWingsFeatName,
+        LegacyDungeonDelverFeatName,
+        LegacyFellHandedFeatName
     ];
     private static readonly Dictionary<string, (string Attribute, string Suffix)[]>
         Standalone2024HalfFeatAbilityOptionsByCanonicalName =
             new()
             {
-                ["FeatEldritchAdept"] =
+                [LegacyEldritchAdeptFeatName] =
                 [
                     (AttributeDefinitions.Intelligence, "Int"),
                     (AttributeDefinitions.Wisdom, "Wis"),
                     (AttributeDefinitions.Charisma, "Cha")
                 ],
-                ["FeatMetamagicAdept"] =
+                [LegacyMetamagicAdeptFeatName] =
                 [
                     (AttributeDefinitions.Intelligence, "Int"),
                     (AttributeDefinitions.Wisdom, "Wis"),
                     (AttributeDefinitions.Charisma, "Cha")
                 ],
-                ["FeatTacticianAdept"] =
+                [LegacyTacticianAdeptFeatName] =
                 [
                     (AttributeDefinitions.Strength, "Str"),
                     (AttributeDefinitions.Dexterity, "Dex")
                 ],
-                ["FeatSpearMastery"] =
+                [LegacySpearMasteryFeatName] =
                 [
                     (AttributeDefinitions.Strength, "Str"),
                     (AttributeDefinitions.Dexterity, "Dex")
@@ -223,34 +252,34 @@ public static partial class Tabletop2024Context
                     (AttributeDefinitions.Constitution, "Con"),
                     (AttributeDefinitions.Dexterity, "Dex")
                 ],
-                ["FeatWoodElfMagic"] =
+                [LegacyWoodElfMagicFeatName] =
                 [
                     (AttributeDefinitions.Wisdom, "Wis")
                 ],
-                ["FeatDarkElfMagic"] =
+                [LegacyDarkElfMagicFeatName] =
                 [
                     (AttributeDefinitions.Charisma, "Cha")
                 ],
-                ["FeatBountifulLuck"] =
+                [LegacyBountifulLuckFeatName] =
                 [
                     (AttributeDefinitions.Charisma, "Cha")
                 ],
-                ["FeatBladeMastery"] =
+                [LegacyBladeMasteryFeatName] =
                 [
                     (AttributeDefinitions.Strength, "Str"),
                     (AttributeDefinitions.Dexterity, "Dex")
                 ],
-                ["FeatDragonWings"] =
+                [LegacyDragonWingsFeatName] =
                 [
                     (AttributeDefinitions.Constitution, "Con"),
                     (AttributeDefinitions.Charisma, "Cha")
                 ],
-                ["FeatDungeonDelver"] =
+                [LegacyDungeonDelverFeatName] =
                 [
                     (AttributeDefinitions.Dexterity, "Dex"),
                     (AttributeDefinitions.Wisdom, "Wis")
                 ],
-                ["FeatFellHanded"] =
+                [LegacyFellHandedFeatName] =
                 [
                     (AttributeDefinitions.Strength, "Str")
                 ]
@@ -287,14 +316,14 @@ public static partial class Tabletop2024Context
     private static readonly HashSet<string> ExplicitManagedLegacyRootNames =
     [
         "Ambidextrous",
-        "FeatAlert",
+        LegacyAlertFeatName,
         "FeatCharger",
         "FeatCleavingAttack",
         "FeatDeadeye",
         "FeatDefensiveDuelist",
         "FeatDualWeaponDefense",
         "FeatGroupArmor",
-        "FeatGroupAthlete",
+        AthleteGroupFeatName,
         "FeatGroupCreed",
         "FeatGroupElementalAdept",
         "FeatGroupFeyTeleport",
@@ -304,48 +333,48 @@ public static partial class Tabletop2024Context
         "FeatGroupTouchedMagic",
         "FeatHeavyArmorMaster",
         "FeatGrapplerStr",
-        "FeatHealer",
+        LegacyHealerFeatName,
         "FeatInspiringLeader",
-        "FeatLucky",
+        LegacyLuckyFeatName,
         "FeatMageSlayer",
         "FeatMediumArmorMaster",
         "FeatMobile",
         "FeatPoisoner",
         "FeatPolearmExpert",
         "FeatRangedExpert",
-        "FeatSavageAttack",
+        LegacySavageAttackerFeatName,
         "FeatSentinel",
         "FeatShieldTechniques",
-        OtherFeats.FeatWarCaster,
-        nameof(ForestRunner)
+        LegacyWarCasterFeatName,
+        ForestRunnerFeatName
     ];
 
     private static readonly string[] ExplicitIndependentLegacyStandaloneRootNames =
     [
         "FeatAcrobat",
-        "FeatAlert",
+        LegacyAlertFeatName,
         "FeatArcanist",
-        "FeatBladeMastery",
-        "FeatBountifulLuck",
-        "FeatDarkElfMagic",
-        "FeatDragonWings",
-        "FeatDungeonDelver",
+        LegacyBladeMasteryFeatName,
+        LegacyBountifulLuckFeatName,
+        LegacyDarkElfMagicFeatName,
+        LegacyDragonWingsFeatName,
+        LegacyDungeonDelverFeatName,
         "FeatDwarvenFortitude",
-        "FeatEldritchAdept",
-        "FeatFellHanded",
+        LegacyEldritchAdeptFeatName,
+        LegacyFellHandedFeatName,
         GiftOfTheChromaticDragonFeatName,
-        "FeatHealer",
+        LegacyHealerFeatName,
         "FeatInfernalConstitution",
-        "FeatLucky",
+        LegacyLuckyFeatName,
         "FeatMenacing",
-        "FeatMetamagicAdept",
-        "FeatSavageAttack",
-        "FeatSpearMastery",
+        LegacyMetamagicAdeptFeatName,
+        LegacySavageAttackerFeatName,
+        LegacySpearMasteryFeatName,
         "FeatStealthy",
-        "FeatTacticianAdept",
+        LegacyTacticianAdeptFeatName,
         "FeatTheologian",
         "FeatTough",
-        "FeatWoodElfMagic"
+        LegacyWoodElfMagicFeatName
     ];
 
     private static readonly string[] ExplicitIndependentLegacyGroupedRootNames =
@@ -391,8 +420,8 @@ public static partial class Tabletop2024Context
     private static readonly HashSet<string> ManagedHalfFeatCustomVariantTitleCanonicalRoots =
     [
         "FeatGroupElementalAdept",
-        "FeatGroupKeenMind2024",
-        "FeatGroupObservant2024"
+        KeenMind2024GroupFeatName,
+        Observant2024GroupFeatName
     ];
     private static readonly HashSet<string> OptInOnlyManagedTabletopCanonicalNames =
     [
@@ -791,7 +820,7 @@ public static partial class Tabletop2024Context
         var featObservant2024IntelligenceInsight = BuildSkillHalfFeat2024Variant(
             "FeatObservant2024IntelligenceInsight",
             Observant2024Family,
-            "FeatGroupObservant2024",
+            Observant2024GroupFeatName,
             groupTitle,
             Gui.Format("Feat/&FeatObservant2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Insight)),
             AttributeDefinitions.Intelligence,
@@ -801,7 +830,7 @@ public static partial class Tabletop2024Context
         var featObservant2024IntelligenceInvestigation = BuildSkillHalfFeat2024Variant(
             "FeatObservant2024IntelligenceInvestigation",
             Observant2024Family,
-            "FeatGroupObservant2024",
+            Observant2024GroupFeatName,
             groupTitle,
             Gui.Format("Feat/&FeatObservant2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Investigation)),
             AttributeDefinitions.Intelligence,
@@ -811,7 +840,7 @@ public static partial class Tabletop2024Context
         var featObservant2024IntelligencePerception = BuildSkillHalfFeat2024Variant(
             "FeatObservant2024IntelligencePerception",
             Observant2024Family,
-            "FeatGroupObservant2024",
+            Observant2024GroupFeatName,
             groupTitle,
             Gui.Format("Feat/&FeatObservant2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Perception)),
             AttributeDefinitions.Intelligence,
@@ -821,7 +850,7 @@ public static partial class Tabletop2024Context
         var featObservant2024WisdomInsight = BuildSkillHalfFeat2024Variant(
             "FeatObservant2024WisdomInsight",
             Observant2024Family,
-            "FeatGroupObservant2024",
+            Observant2024GroupFeatName,
             groupTitle,
             Gui.Format("Feat/&FeatObservant2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Insight)),
             AttributeDefinitions.Wisdom,
@@ -831,7 +860,7 @@ public static partial class Tabletop2024Context
         var featObservant2024WisdomInvestigation = BuildSkillHalfFeat2024Variant(
             "FeatObservant2024WisdomInvestigation",
             Observant2024Family,
-            "FeatGroupObservant2024",
+            Observant2024GroupFeatName,
             groupTitle,
             Gui.Format("Feat/&FeatObservant2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Investigation)),
             AttributeDefinitions.Wisdom,
@@ -841,7 +870,7 @@ public static partial class Tabletop2024Context
         var featObservant2024WisdomPerception = BuildSkillHalfFeat2024Variant(
             "FeatObservant2024WisdomPerception",
             Observant2024Family,
-            "FeatGroupObservant2024",
+            Observant2024GroupFeatName,
             groupTitle,
             Gui.Format("Feat/&FeatObservant2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Perception)),
             AttributeDefinitions.Wisdom,
@@ -850,9 +879,9 @@ public static partial class Tabletop2024Context
             AttributeDefinitions.Wisdom);
 
         _featGroupObservant2024 = BuildAlternativeAbilityPrerequisiteGroup(
-            "FeatGroupObservant2024",
+            Observant2024GroupFeatName,
             Observant2024Family,
-            "FeatGroupObservant2024",
+            Observant2024GroupFeatName,
             featObservant2024IntelligenceInsight,
             featObservant2024IntelligenceInvestigation,
             featObservant2024IntelligencePerception,
@@ -869,7 +898,7 @@ public static partial class Tabletop2024Context
         var featKeenMind2024Arcana = BuildSkillHalfFeat2024Variant(
             "FeatKeenMind2024Arcana",
             KeenMind2024Family,
-            "FeatGroupKeenMind2024",
+            KeenMind2024GroupFeatName,
             groupTitle,
             Gui.Format("Feat/&FeatKeenMind2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Arcana)),
             AttributeDefinitions.Intelligence,
@@ -879,7 +908,7 @@ public static partial class Tabletop2024Context
         var featKeenMind2024History = BuildSkillHalfFeat2024Variant(
             "FeatKeenMind2024History",
             KeenMind2024Family,
-            "FeatGroupKeenMind2024",
+            KeenMind2024GroupFeatName,
             groupTitle,
             Gui.Format("Feat/&FeatKeenMind2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.History)),
             AttributeDefinitions.Intelligence,
@@ -889,7 +918,7 @@ public static partial class Tabletop2024Context
         var featKeenMind2024Investigation = BuildSkillHalfFeat2024Variant(
             "FeatKeenMind2024Investigation",
             KeenMind2024Family,
-            "FeatGroupKeenMind2024",
+            KeenMind2024GroupFeatName,
             groupTitle,
             Gui.Format("Feat/&FeatKeenMind2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Investigation)),
             AttributeDefinitions.Intelligence,
@@ -899,7 +928,7 @@ public static partial class Tabletop2024Context
         var featKeenMind2024Nature = BuildSkillHalfFeat2024Variant(
             "FeatKeenMind2024Nature",
             KeenMind2024Family,
-            "FeatGroupKeenMind2024",
+            KeenMind2024GroupFeatName,
             groupTitle,
             Gui.Format("Feat/&FeatKeenMind2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Nature)),
             AttributeDefinitions.Intelligence,
@@ -909,7 +938,7 @@ public static partial class Tabletop2024Context
         var featKeenMind2024Religion = BuildSkillHalfFeat2024Variant(
             "FeatKeenMind2024Religion",
             KeenMind2024Family,
-            "FeatGroupKeenMind2024",
+            KeenMind2024GroupFeatName,
             groupTitle,
             Gui.Format("Feat/&FeatKeenMind2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Religion)),
             AttributeDefinitions.Intelligence,
@@ -918,9 +947,9 @@ public static partial class Tabletop2024Context
             AttributeDefinitions.Intelligence);
 
         _featGroupKeenMind2024 = BuildAlternativeAbilityPrerequisiteGroup(
-            "FeatGroupKeenMind2024",
+            KeenMind2024GroupFeatName,
             KeenMind2024Family,
-            "FeatGroupKeenMind2024",
+            KeenMind2024GroupFeatName,
             featKeenMind2024Arcana,
             featKeenMind2024History,
             featKeenMind2024Investigation,
@@ -978,7 +1007,7 @@ public static partial class Tabletop2024Context
 
     private static void BuildAthlete2024()
     {
-        var featGroupAthlete = GetDefinition<FeatDefinition>("FeatGroupAthlete");
+        var featGroupAthlete = GetDefinition<FeatDefinition>(AthleteGroupFeatName);
         var athleteFamily = OtherFeats.FeatAthleteStr.FamilyTag;
         var groupTitle = Get2024HalfFeatGroupTitle("Feat/&FeatGroupAthleteTitle", featGroupAthlete);
         var baseDescription = Get2024HalfFeatBaseDescription(
@@ -993,7 +1022,7 @@ public static partial class Tabletop2024Context
             AttributeDefinitions.Strength,
             groupTitle,
             baseDescription,
-            "FeatGroupAthlete");
+            AthleteGroupFeatName);
         var featAthlete2024Dex = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
             OtherFeats.FeatAthleteDex,
             "FeatAthlete2024Dex",
@@ -1002,12 +1031,12 @@ public static partial class Tabletop2024Context
             AttributeDefinitions.Dexterity,
             groupTitle,
             baseDescription,
-            "FeatGroupAthlete");
+            AthleteGroupFeatName);
 
         _featGroupAthlete2024 = BuildAlternativeAbilityPrerequisiteGroup(
             "FeatGroupAthlete2024",
             athleteFamily,
-            "FeatGroupAthlete",
+            AthleteGroupFeatName,
             featAthlete2024Str,
             featAthlete2024Dex);
         _featGroupAthlete2024.GuiPresentation.title = "Feat/&FeatGroupAthleteTitle";
@@ -1149,7 +1178,7 @@ public static partial class Tabletop2024Context
 
     private static FeatDefinition BuildLucky2024()
     {
-        var featLucky = GetDefinition<FeatDefinition>("FeatLucky");
+        var featLucky = GetDefinition<FeatDefinition>(LegacyLuckyFeatName);
         var powerPool = FeatureDefinitionPowerBuilder
             .Create(Lucky2024PoolPowerName)
             .SetGuiPresentationNoContent(true)
@@ -1596,11 +1625,11 @@ public static partial class Tabletop2024Context
 
     private static void BuildWarCaster2024()
     {
-        var featWarCaster = GetDefinition<FeatDefinition>(OtherFeats.FeatWarCaster);
+        var featWarCaster = GetDefinition<FeatDefinition>(LegacyWarCasterFeatName);
         var groupTitle = Get2024HalfFeatGroupTitle("Feat/&FeatGroupWarCaster2024Title", featWarCaster);
         var groupDescription = Gui.Localize("Feat/&FeatGroupWarCaster2024Description");
         var baseDescription = Get2024HalfFeatBaseDescription(
-            Get2024HalfFeatBaseDescriptionKey("FeatGroupWarCaster2024"),
+            Get2024HalfFeatBaseDescriptionKey(WarCaster2024GroupFeatName),
             featWarCaster,
             groupDescription);
 
@@ -1633,7 +1662,7 @@ public static partial class Tabletop2024Context
             prerequisiteValue: null);
 
         _featGroupWarCaster2024 = BuildManagedGroupFromPrerequisiteSource(
-            "FeatGroupWarCaster2024",
+            WarCaster2024GroupFeatName,
             WarCaster2024Family,
             groupTitle,
             groupDescription,
@@ -3468,7 +3497,7 @@ public static partial class Tabletop2024Context
             attribute,
             groupTitle,
             baseDescription,
-            "FeatGroupRitualCaster2024",
+            RitualCaster2024GroupFeatName,
             castSpell,
             pointPool);
 
@@ -3512,9 +3541,9 @@ public static partial class Tabletop2024Context
             ritualSpellList);
 
         _featGroupRitualCaster2024 = BuildAlternativeAbilityPrerequisiteGroup(
-            "FeatGroupRitualCaster2024",
+            RitualCaster2024GroupFeatName,
             RitualCaster2024Family,
-            "FeatGroupRitualCaster2024",
+            RitualCaster2024GroupFeatName,
             featRitualCaster2024Intelligence,
             featRitualCaster2024Wisdom,
             featRitualCaster2024Charisma);
@@ -3614,13 +3643,13 @@ public static partial class Tabletop2024Context
     private static void RegisterExplicitManagedCatalogEntries()
     {
         RegisterManagedCatalogEntry(Actor2024FeatName, _featActor2024, true, true);
-        RegisterManagedCatalogEntry("FeatAlert", _featAlert2024, true, true);
-        RegisterManagedCatalogEntry("FeatHealer", _featHealer2024, true, true);
-        RegisterManagedCatalogEntry("FeatLucky", _featLucky2024, true, true);
-        RegisterManagedCatalogEntry("FeatSavageAttack", _featSavageAttack2024, true, true);
+        RegisterManagedCatalogEntry(LegacyAlertFeatName, _featAlert2024, true, true);
+        RegisterManagedCatalogEntry(LegacyHealerFeatName, _featHealer2024, true, true);
+        RegisterManagedCatalogEntry(LegacyLuckyFeatName, _featLucky2024, true, true);
+        RegisterManagedCatalogEntry(LegacySavageAttackerFeatName, _featSavageAttack2024, true, true);
         RegisterManagedCatalogEntry("FeatMobile", _featGroupSpeedy, true);
-        RegisterManagedCatalogEntry("FeatGroupAthlete", _featGroupAthlete2024, true);
-        RegisterManagedCatalogEntry(OtherFeats.FeatWarCaster, _featGroupWarCaster2024, true);
+        RegisterManagedCatalogEntry(AthleteGroupFeatName, _featGroupAthlete2024, true);
+        RegisterManagedCatalogEntry(LegacyWarCasterFeatName, _featGroupWarCaster2024, true);
         RegisterManagedCatalogEntry("FeatRangedExpert", _featCrossbowExpert2024, true, true);
         RegisterManagedCatalogEntry("FeatShieldTechniques", _featShieldMaster2024, true, true);
         RegisterManagedCatalogEntry("FeatDualWeaponDefense", _featGroupDualWielder2024, true);
@@ -3636,31 +3665,31 @@ public static partial class Tabletop2024Context
         RegisterManagedCatalogEntry("FeatModeratelyArmored", _featGroupModeratelyArmored2024, true);
         RegisterManagedCatalogEntry("FeatMediumArmorMaster", _featGroupMediumArmorMaster2024, true);
         RegisterManagedCatalogEntry("FeatHeavyArmorMaster", _featGroupHeavyArmorMaster2024, true);
-        RegisterManagedCatalogEntry("FeatGroupObservant2024", _featGroupObservant2024, true);
-        RegisterManagedCanonicalAlias("FeatGroupObservant2024", "FeatObservant2024IntelligenceInsight");
-        RegisterManagedCanonicalAlias("FeatGroupObservant2024", "FeatObservant2024IntelligenceInvestigation");
-        RegisterManagedCanonicalAlias("FeatGroupObservant2024", "FeatObservant2024IntelligencePerception");
-        RegisterManagedCanonicalAlias("FeatGroupObservant2024", "FeatObservant2024WisdomInsight");
-        RegisterManagedCanonicalAlias("FeatGroupObservant2024", "FeatObservant2024WisdomInvestigation");
-        RegisterManagedCanonicalAlias("FeatGroupObservant2024", "FeatObservant2024WisdomPerception");
+        RegisterManagedCatalogEntry(Observant2024GroupFeatName, _featGroupObservant2024, true);
+        RegisterManagedCanonicalAlias(Observant2024GroupFeatName, "FeatObservant2024IntelligenceInsight");
+        RegisterManagedCanonicalAlias(Observant2024GroupFeatName, "FeatObservant2024IntelligenceInvestigation");
+        RegisterManagedCanonicalAlias(Observant2024GroupFeatName, "FeatObservant2024IntelligencePerception");
+        RegisterManagedCanonicalAlias(Observant2024GroupFeatName, "FeatObservant2024WisdomInsight");
+        RegisterManagedCanonicalAlias(Observant2024GroupFeatName, "FeatObservant2024WisdomInvestigation");
+        RegisterManagedCanonicalAlias(Observant2024GroupFeatName, "FeatObservant2024WisdomPerception");
         RegisterManagedCatalogEntry("FeatPoisoner", _featGroupPoisoner2024, true);
         RegisterManagedCatalogEntry("FeatPolearmExpert", _featGroupPolearmMaster2024, true);
         RegisterManagedCatalogEntry("FeatResilient", _featGroupResilient2024, true);
-        RegisterManagedCatalogEntry("FeatGroupKeenMind2024", _featGroupKeenMind2024, true);
-        RegisterManagedCanonicalAlias("FeatGroupKeenMind2024", "FeatKeenMind2024Arcana");
-        RegisterManagedCanonicalAlias("FeatGroupKeenMind2024", "FeatKeenMind2024History");
-        RegisterManagedCanonicalAlias("FeatGroupKeenMind2024", "FeatKeenMind2024Investigation");
-        RegisterManagedCanonicalAlias("FeatGroupKeenMind2024", "FeatKeenMind2024Nature");
-        RegisterManagedCanonicalAlias("FeatGroupKeenMind2024", "FeatKeenMind2024Religion");
+        RegisterManagedCatalogEntry(KeenMind2024GroupFeatName, _featGroupKeenMind2024, true);
+        RegisterManagedCanonicalAlias(KeenMind2024GroupFeatName, "FeatKeenMind2024Arcana");
+        RegisterManagedCanonicalAlias(KeenMind2024GroupFeatName, "FeatKeenMind2024History");
+        RegisterManagedCanonicalAlias(KeenMind2024GroupFeatName, "FeatKeenMind2024Investigation");
+        RegisterManagedCanonicalAlias(KeenMind2024GroupFeatName, "FeatKeenMind2024Nature");
+        RegisterManagedCanonicalAlias(KeenMind2024GroupFeatName, "FeatKeenMind2024Religion");
         RegisterManagedCatalogEntry(Durable2024FeatName, _featDurable2024, true, true);
         RegisterManagedCatalogEntry("FeatSentinel", _featGroupSentinel2024, true);
         RegisterManagedCatalogEntry("FeatHeavilyArmored", _featGroupHeavilyArmored2024, true);
         RegisterManagedCatalogEntry("FeatGroupFeyTeleport", _featGroupFeyTeleport2024, true);
         RegisterManagedCatalogEntry("FeatGroupFeyTouched2024", _featGroupFeyTouched2024, true);
-        RegisterManagedCatalogEntry("FeatGroupRitualCaster2024", _featGroupRitualCaster2024, true);
-        RegisterManagedCanonicalAlias("FeatGroupRitualCaster2024", "FeatRitualCaster2024Intelligence");
-        RegisterManagedCanonicalAlias("FeatGroupRitualCaster2024", "FeatRitualCaster2024Wisdom");
-        RegisterManagedCanonicalAlias("FeatGroupRitualCaster2024", "FeatRitualCaster2024Charisma");
+        RegisterManagedCatalogEntry(RitualCaster2024GroupFeatName, _featGroupRitualCaster2024, true);
+        RegisterManagedCanonicalAlias(RitualCaster2024GroupFeatName, "FeatRitualCaster2024Intelligence");
+        RegisterManagedCanonicalAlias(RitualCaster2024GroupFeatName, "FeatRitualCaster2024Wisdom");
+        RegisterManagedCanonicalAlias(RitualCaster2024GroupFeatName, "FeatRitualCaster2024Charisma");
         RegisterManagedCatalogPair(
             "FeatGroupMagicInitiate",
             _featGroupMagicInitiate2024,
@@ -4012,7 +4041,7 @@ public static partial class Tabletop2024Context
     private static void LoadTabletopFeat2024Profiles()
     {
         var featGroupArmor = GetDefinition<FeatDefinition>("FeatGroupArmor");
-        var featGroupAthlete = GetDefinition<FeatDefinition>("FeatGroupAthlete");
+        var featGroupAthlete = GetDefinition<FeatDefinition>(AthleteGroupFeatName);
         var featGroupCreed = GetDefinition<FeatDefinition>("FeatGroupCreed");
         var featGroupMediumArmor = GetDefinition<FeatDefinition>("FeatGroupMediumArmor");
         var featGroupPlaneMagic = GetDefinition<FeatDefinition>("FeatGroupPlaneMagic");
@@ -4037,7 +4066,7 @@ public static partial class Tabletop2024Context
         var featShieldTechniques = GetDefinition<FeatDefinition>("FeatShieldTechniques");
         var featGroupFeyTeleport = GetDefinition<FeatDefinition>("FeatGroupFeyTeleport");
         var featGroupSpellSniper = GetDefinition<FeatDefinition>("FeatGroupSpellSniper");
-        var featWarCaster = GetDefinition<FeatDefinition>(OtherFeats.FeatWarCaster);
+        var featWarCaster = GetDefinition<FeatDefinition>(LegacyWarCasterFeatName);
 
         TabletopFeat2024Profiles.Clear();
         TabletopFeat2024Profiles.AddRange(
@@ -4048,19 +4077,19 @@ public static partial class Tabletop2024Context
                 [GroupFeats.FeatGroupSkills, GroupFeats.FeatGroupTools]),
             new TabletopFeat2024Profile(
                 _featAlert2024,
-                [GetDefinition<FeatDefinition>("FeatAlert")],
+                [GetDefinition<FeatDefinition>(LegacyAlertFeatName)],
                 [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupAgilityCombat]),
             new TabletopFeat2024Profile(
                 _featHealer2024,
-                [GetDefinition<FeatDefinition>("FeatHealer")],
+                [GetDefinition<FeatDefinition>(LegacyHealerFeatName)],
                 [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupSupportCombat]),
             new TabletopFeat2024Profile(
                 _featLucky2024,
-                [GetDefinition<FeatDefinition>("FeatLucky")],
+                [GetDefinition<FeatDefinition>(LegacyLuckyFeatName)],
                 [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupBodyResilience, GroupFeats.FeatGroupSupportCombat]),
             new TabletopFeat2024Profile(
                 _featSavageAttack2024,
-                [GetDefinition<FeatDefinition>("FeatSavageAttack")],
+                [GetDefinition<FeatDefinition>(LegacySavageAttackerFeatName)],
                 [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupMeleeCombat]),
             new TabletopFeat2024Profile(
                 _featGroupSpeedy,
@@ -4310,12 +4339,13 @@ public static partial class Tabletop2024Context
             .ToList();
 
         if (ShouldShowOriginFeatContainer() &&
-            TryGetDefinition<FeatDefinition>("FeatGroupOrigin", out var featGroupOrigin))
+            TryGetDefinition<FeatDefinition>("FeatGroupOrigin", out var featGroupOrigin) &&
+            !groupDefinitions.Contains(featGroupOrigin))
         {
             groupDefinitions.Add(featGroupOrigin);
         }
 
-        foreach (var groupDefinition in groupDefinitions.Distinct())
+        foreach (var groupDefinition in groupDefinitions)
         {
             ManagedTabletopContainerGroupNames.Add(groupDefinition.Name);
             ManagedTabletopFeatKinds[groupDefinition.Name] = TabletopFeatCatalogKind.Container;
@@ -4391,14 +4421,13 @@ public static partial class Tabletop2024Context
 
         if (canonicalName == "FeatGroupMagicInitiate" &&
             ShouldShowOriginFeatContainer() &&
-            TryGetDefinition<FeatDefinition>("FeatGroupOrigin", out var featGroupOrigin))
+            TryGetDefinition<FeatDefinition>("FeatGroupOrigin", out var featGroupOrigin) &&
+            !groups.Contains(featGroupOrigin))
         {
             groups.Add(featGroupOrigin);
         }
 
-        return groups
-            .Distinct()
-            .ToArray();
+        return groups.ToArray();
     }
 
     internal static bool IsVisibleInGameFeatSelection(FeatDefinition feat)
