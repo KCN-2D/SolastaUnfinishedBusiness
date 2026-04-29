@@ -594,14 +594,21 @@ public static class CharacterActionMagicEffectPatcher
                 {
                     targets.AddRange(__instance.subTargets);
 
-                    actionModifiers.AddRange(__instance.subTargets.Select(_ => new ActionModifier()));
+                    foreach (var _ in __instance.subTargets)
+                    {
+                        actionModifiers.Add(new ActionModifier());
+                    }
                 }
             }
 
             // Safety: merge lists of target, in case the client did not fill them.
-            actionModifiers.AddRange(affectedCharacters
-                .Where(affectedCharacter => targets.TryAdd(affectedCharacter))
-                .Select(_ => new ActionModifier()));
+            foreach (var affectedCharacter in affectedCharacters)
+            {
+                if (targets.TryAdd(affectedCharacter))
+                {
+                    actionModifiers.Add(new ActionModifier());
+                }
+            }
 
             // BEGIN PATCH
 
@@ -612,7 +619,20 @@ public static class CharacterActionMagicEffectPatcher
             {
                 for (var i = targets.Count - 1; i >= 0; i--)
                 {
-                    if (filters.All(f => f.CanAffectTarget(rulesetEffect, actingCharacter, targets[i])))
+                    var canAffectTarget = true;
+
+                    foreach (var filter in filters)
+                    {
+                        if (filter.CanAffectTarget(rulesetEffect, actingCharacter, targets[i]))
+                        {
+                            continue;
+                        }
+
+                        canAffectTarget = false;
+                        break;
+                    }
+
+                    if (canAffectTarget)
                     {
                         continue;
                     }
@@ -650,15 +670,17 @@ public static class CharacterActionMagicEffectPatcher
 
             if (hero != null)
             {
-                foreach (var magicEffectInitiatedByMe in hero.TrainedMetamagicOptions
-                             .SelectMany(metamagic =>
-                                 metamagic.GetAllSubFeaturesOfType<IMagicEffectInitiatedByMe>()))
+                foreach (var metamagic in hero.TrainedMetamagicOptions)
                 {
-                    yield return magicEffectInitiatedByMe.OnMagicEffectInitiatedByMe(
-                        __instance,
-                        rulesetEffect,
-                        actingCharacter,
-                        targets);
+                    foreach (var magicEffectInitiatedByMe in
+                             metamagic.GetAllSubFeaturesOfType<IMagicEffectInitiatedByMe>())
+                    {
+                        yield return magicEffectInitiatedByMe.OnMagicEffectInitiatedByMe(
+                            __instance,
+                            rulesetEffect,
+                            actingCharacter,
+                            targets);
+                    }
                 }
             }
 
@@ -763,12 +785,16 @@ public static class CharacterActionMagicEffectPatcher
                 __instance.ActionId != ActionDefinitions.Id.PowerReaction)
             {
                 // Wait for targets to take damage
-                foreach (var target in targets.Where(target =>
-                             !__instance.immuneTargets.Contains(target) &&
-                             __instance.hitTargets.Contains(target) &&
-                             target.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } &&
-                             !target.Prone))
+                foreach (var target in targets)
                 {
+                    if (__instance.immuneTargets.Contains(target) ||
+                        !__instance.hitTargets.Contains(target) ||
+                        target.RulesetCharacter is not { IsDeadOrDyingOrUnconscious: false } ||
+                        target.Prone)
+                    {
+                        continue;
+                    }
+
                     if (!__instance.isResultingActionSpendPowerWithMotionForm &&
                         !target.RulesetCharacter.IsDeadOrDying)
                     {
@@ -875,16 +901,20 @@ public static class CharacterActionMagicEffectPatcher
             var rangeAttack = effectDescription.RangeType != RangeType.MeleeHit &&
                               effectDescription.RangeType != RangeType.Touch;
 
-            foreach (var target in targets.Where(target =>
-                         target != actingCharacter &&
-                         !rangeAttack &&
-                         !target.Prone &&
-                         target.RulesetCharacter is null or { IsDeadOrDyingOrUnconscious: false } &&
-                         !target.MoveStepInProgress &&
-                         !target.IsCharging &&
-                         (target.PerceivedAllies.Contains(actingCharacter) ||
-                          target.PerceivedFoes.Contains(actingCharacter))))
+            foreach (var target in targets)
             {
+                if (target == actingCharacter ||
+                    rangeAttack ||
+                    target.Prone ||
+                    target.RulesetCharacter is { IsDeadOrDyingOrUnconscious: true } ||
+                    target.MoveStepInProgress ||
+                    target.IsCharging ||
+                    !target.PerceivedAllies.Contains(actingCharacter) &&
+                    !target.PerceivedFoes.Contains(actingCharacter))
+                {
+                    continue;
+                }
+
                 target.TurnTowards(actingCharacter);
 
                 yield return target.EventSystem.UpdateMotionsAndWaitForEvent(
@@ -944,24 +974,41 @@ public static class CharacterActionMagicEffectPatcher
             //PATCH: supports `IMagicEffectFinishedByMe` on metamagic
             if (hero != null)
             {
-                foreach (var magicEffectFinishedByMe in hero.TrainedMetamagicOptions
-                             .SelectMany(metamagic =>
-                                 metamagic.GetAllSubFeaturesOfType<IMagicEffectFinishedByMe>()))
+                foreach (var metamagic in hero.TrainedMetamagicOptions)
                 {
-                    yield return
-                        magicEffectFinishedByMe.OnMagicEffectFinishedByMe(__instance, actingCharacter, targets);
+                    foreach (var magicEffectFinishedByMe in
+                             metamagic.GetAllSubFeaturesOfType<IMagicEffectFinishedByMe>())
+                    {
+                        yield return
+                            magicEffectFinishedByMe.OnMagicEffectFinishedByMe(__instance, actingCharacter, targets);
+                    }
                 }
             }
 
             //PATCH: support for `IMagicEffectFinishedByMeOrAlly`
             var locationCharacterService = ServiceRepository.GetService<IGameLocationCharacterService>();
-            var contenders =
-                locationCharacterService.PartyCharacters.Union(locationCharacterService.GuestCharacters);
+            var allies = new List<GameLocationCharacter>();
 
-            foreach (var ally in contenders
-                         .Where(x => x.Side == actingCharacter.Side
-                                     && x.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false })
-                         .ToArray())
+            foreach (var partyCharacter in locationCharacterService.PartyCharacters)
+            {
+                if (partyCharacter.Side == actingCharacter.Side &&
+                    partyCharacter.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false })
+                {
+                    allies.Add(partyCharacter);
+                }
+            }
+
+            foreach (var guestCharacter in locationCharacterService.GuestCharacters)
+            {
+                if (guestCharacter.Side == actingCharacter.Side &&
+                    guestCharacter.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } &&
+                    !allies.Contains(guestCharacter))
+                {
+                    allies.Add(guestCharacter);
+                }
+            }
+
+            foreach (var ally in allies)
             {
                 foreach (var magicEffectFinishedByMeOrAlly in ally.RulesetCharacter
                              .GetSubFeaturesByType<IMagicEffectFinishedByMeOrAlly>())

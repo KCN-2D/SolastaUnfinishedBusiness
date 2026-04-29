@@ -108,40 +108,22 @@ internal abstract class AddExtraAttackBase(
     //Copied from RulesetAttackMode.IsComparableForNetwork, but not checking for attack number
     private static bool ModesEqual([NotNull] RulesetAttackMode a, RulesetAttackMode b)
     {
-        //added all these locals for debug log
-        var actionType = a.actionType == b.actionType;
-        var sourceDefinition = a.sourceDefinition == b.sourceDefinition;
-        var sourceObject = a.sourceObject == b.sourceObject;
-        var slotName = a.slotName == b.slotName;
-        var ranged = a.ranged == b.ranged;
-        var thrown = a.thrown == b.thrown;
-        var reach = a.reach == b.reach;
-        var reachRange = a.reachRange == b.reachRange;
-        var closeRange = a.closeRange == b.closeRange;
-        var maxRange = a.maxRange == b.maxRange;
-        var toHitBonus = a.toHitBonus == b.toHitBonus;
-        //var attacksNumber = a.attacksNumber == b.attacksNumber;
-        var useVersatileDamage = a.useVersatileDamage == b.useVersatileDamage;
-        var freeOffHand = a.freeOffHand == b.freeOffHand;
-        var automaticHit = a.automaticHit == b.automaticHit;
-        var afterChargeOnly = a.afterChargeOnly == b.afterChargeOnly;
-
-        return actionType
-               && sourceDefinition
-               && sourceObject
-               && slotName
-               && ranged
-               && thrown
-               && reach
-               && reachRange
-               && closeRange
-               && maxRange
-               && toHitBonus
+        return a.actionType == b.actionType
+               && a.sourceDefinition == b.sourceDefinition
+               && a.sourceObject == b.sourceObject
+               && a.slotName == b.slotName
+               && a.ranged == b.ranged
+               && a.thrown == b.thrown
+               && a.reach == b.reach
+               && a.reachRange == b.reachRange
+               && a.closeRange == b.closeRange
+               && a.maxRange == b.maxRange
+               && a.toHitBonus == b.toHitBonus
                // && attacksNumber
-               && useVersatileDamage
-               && freeOffHand
-               && automaticHit
-               && afterChargeOnly;
+               && a.useVersatileDamage == b.useVersatileDamage
+               && a.freeOffHand == b.freeOffHand
+               && a.automaticHit == b.automaticHit
+               && a.afterChargeOnly == b.afterChargeOnly;
     }
 }
 

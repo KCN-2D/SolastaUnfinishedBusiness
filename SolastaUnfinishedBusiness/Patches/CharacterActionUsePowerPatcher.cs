@@ -94,18 +94,7 @@ public static class CharacterActionUsePowerPatcher
         [UsedImplicitly]
         public static bool Prefix([NotNull] CharacterActionUsePower __instance)
         {
-            //PATCH: we get an empty originItem under MP (GRENADIER) (MULTIPLAYER)
-            if (Global.IsMultiplayer &&
-                __instance.activePower.OriginItem == null &&
-                __instance.ActingCharacter.RulesetCharacter is RulesetCharacterHero)
-            {
-                var provider = __instance.activePower.PowerDefinition.GetFirstSubFeatureOfType<PowerPoolDevice>();
-
-                if (provider != null)
-                {
-                    __instance.activePower.originItem = provider.GetDevice(__instance.ActingCharacter.RulesetCharacter);
-                }
-            }
+            TryRestoreMissingOriginItemFromPowerPoolDevice(__instance);
 
             //PATCH: Calculate extra charge usage for `RulesetEffectPowerWithAdvancement`
             if (__instance.actionParams.RulesetEffect.OriginItem == null ||
@@ -117,6 +106,43 @@ public static class CharacterActionUsePowerPatcher
             CalculateExtraChargeUsage(__instance, power);
 
             return false;
+        }
+
+        private static void TryRestoreMissingOriginItemFromPowerPoolDevice(CharacterActionUsePower instance)
+        {
+            if (!Global.IsMultiplayer ||
+                instance.ActingCharacter.RulesetCharacter is not RulesetCharacterHero hero)
+            {
+                return;
+            }
+
+            var activePower = instance.activePower;
+            var actionPower = instance.actionParams.RulesetEffect as RulesetEffectPower;
+
+            if (activePower == null ||
+                activePower.OriginItem != null && actionPower is not { OriginItem: null })
+            {
+                return;
+            }
+
+            var provider = activePower.PowerDefinition.GetFirstSubFeatureOfType<PowerPoolDevice>();
+
+            if (provider == null)
+            {
+                return;
+            }
+
+            var device = provider.GetDevice(hero);
+
+            if (activePower.OriginItem == null)
+            {
+                activePower.originItem = device;
+            }
+
+            if (actionPower is { OriginItem: null })
+            {
+                actionPower.originItem = device;
+            }
         }
 
         private static void CalculateExtraChargeUsage(

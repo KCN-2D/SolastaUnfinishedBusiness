@@ -1,7 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
@@ -122,10 +121,9 @@ public static class GameLocationBattlePatcher
                 yield return values.Current;
             }
 
-            foreach (var (character, features) in __instance.InitiativeSortedContenders
-                         .Select(character =>
-                             (character, character.RulesetCharacter.GetSubFeaturesByType<IInitiativeEndListener>()))
-                         .ToArray())
+            var contenders = new List<GameLocationCharacter>(__instance.InitiativeSortedContenders);
+
+            foreach (var character in contenders)
             {
                 //PATCH: supports `SenseNormalVisionRangeMultiplier`
                 if (Main.Settings.SenseNormalVisionRangeMultiplier > 0)
@@ -150,6 +148,8 @@ public static class GameLocationBattlePatcher
                 }
 
                 //PATCH: mainly supports Thief level 17th through ICharacterInitiativeEndListener interface
+                var features = character.RulesetCharacter.GetSubFeaturesByType<IInitiativeEndListener>();
+
                 foreach (var feature in features)
                 {
                     yield return feature.OnInitiativeEnded(character);
@@ -168,6 +168,7 @@ public static class GameLocationBattlePatcher
         {
             Global.RolledPerceptionThisTurn.Clear();
             if (!Main.Settings.EnableInitiativeRollOnEveryRoundStart ||
+                Global.IsMultiplayer ||
                 Gui.Battle == null ||
                 Gui.Battle.CurrentRound < 2)
             {

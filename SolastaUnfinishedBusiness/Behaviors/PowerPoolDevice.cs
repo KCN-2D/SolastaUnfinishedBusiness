@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 
@@ -21,13 +20,14 @@ internal class PowerPoolDevice
     {
         _baseItem = baseItem;
 
-        var powers = baseItem.UsableDeviceDescription.deviceFunctions
-            .Select(d => d.FeatureDefinitionPower)
-            .Where(p => p);
-
-        foreach (var power in powers)
+        foreach (var deviceFunction in baseItem.UsableDeviceDescription.deviceFunctions)
         {
-            power.AddCustomSubFeatures(this);
+            var power = deviceFunction.FeatureDefinitionPower;
+
+            if (power)
+            {
+                power.AddCustomSubFeatures(this);
+            }
         }
 
         Pool = pool;
@@ -42,8 +42,15 @@ internal class PowerPoolDevice
 
     internal static PowerPoolDevice GetFromRulesetItem(RulesetCharacter hero, RulesetItemDevice device)
     {
-        return hero.GetSubFeaturesByType<PowerPoolDevice>()
-            .FirstOrDefault(p => p._baseItem.Name == device.ItemDefinition.Name);
+        foreach (var powerPoolDevice in hero.GetSubFeaturesByType<PowerPoolDevice>())
+        {
+            if (powerPoolDevice._baseItem.Name == device.ItemDefinition.Name)
+            {
+                return powerPoolDevice;
+            }
+        }
+
+        return null;
     }
 
     internal RulesetItemDevice GetDevice(RulesetCharacter hero)

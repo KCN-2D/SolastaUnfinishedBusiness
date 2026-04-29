@@ -1,6 +1,5 @@
 ﻿using System.Collections;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -201,11 +200,24 @@ public static class GameLocationActionManagerPatcher
         {
             reactionRequest.AssignGuid(__instance.currentReactionGuid++);
 
-            if (__instance.pendingReactionRequestGroups.Count > 0 &&
-                __instance.pendingReactionRequestGroups.Peek().ReactionDefinitionName == reactionRequest.DefinitionName)
+            var pendingReactionRequestGroups = __instance.pendingReactionRequestGroups;
+
+            if (pendingReactionRequestGroups.Count > 0 &&
+                pendingReactionRequestGroups.Peek().ReactionDefinitionName == reactionRequest.DefinitionName)
             {
-                var isSameCharacter = __instance.pendingReactionRequestGroups.Peek().Requests
-                    .Any(request => request.Character == reactionRequest.Character);
+                var pendingReactionRequestGroup = pendingReactionRequestGroups.Peek();
+                var isSameCharacter = false;
+
+                foreach (var request in pendingReactionRequestGroup.Requests)
+                {
+                    if (request.Character != reactionRequest.Character)
+                    {
+                        continue;
+                    }
+
+                    isSameCharacter = true;
+                    break;
+                }
 
                 if (!isSameCharacter)
                 {
@@ -218,18 +230,20 @@ public static class GameLocationActionManagerPatcher
                         ActionDefinitions.Id.CastReaction or
                         ActionDefinitions.Id.CastReadied))
                     {
-                        __instance.pendingReactionRequestGroups.Push(
-                            new ReactionRequestGroup(reactionRequest.DefinitionName));
+                        pendingReactionRequestGroup = new ReactionRequestGroup(reactionRequest.DefinitionName);
+                        pendingReactionRequestGroups.Push(pendingReactionRequestGroup);
                     }
                     //END PATCH
 
-                    __instance.pendingReactionRequestGroups.Peek().Requests.Add(reactionRequest);
+                    pendingReactionRequestGroup.Requests.Add(reactionRequest);
                 }
             }
             else
             {
-                __instance.pendingReactionRequestGroups.Push(new ReactionRequestGroup(reactionRequest.DefinitionName));
-                __instance.pendingReactionRequestGroups.Peek().Requests.Add(reactionRequest);
+                var pendingReactionRequestGroup = new ReactionRequestGroup(reactionRequest.DefinitionName);
+
+                pendingReactionRequestGroups.Push(pendingReactionRequestGroup);
+                pendingReactionRequestGroup.Requests.Add(reactionRequest);
             }
 
             if (!reactionRequest.Automated)

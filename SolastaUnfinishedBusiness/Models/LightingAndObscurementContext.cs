@@ -603,11 +603,14 @@ internal static class LightingAndObscurementContext
 
         instance.LocationPosition = targetPosition;
 
-        var illumination = ComputeIllumination(instance, targetPosition);
-
-        instance.LocationPosition = savePosition;
-
-        return illumination;
+        try
+        {
+            return ComputeIllumination(instance, targetPosition);
+        }
+        finally
+        {
+            instance.LocationPosition = savePosition;
+        }
 
         //
         // extended lighting state determination routine that differentiates darkness effect from other obscured ones
@@ -617,7 +620,12 @@ internal static class LightingAndObscurementContext
             var visibilityManager =
                 ServiceRepository.GetService<IGameLocationVisibilityService>() as GameLocationVisibilityManager;
 
-            visibilityManager!.positionCache.Clear();
+            if (visibilityManager == null)
+            {
+                return LightingState.Unlit;
+            }
+
+            visibilityManager.positionCache.Clear();
             illuminable.GetAllPositionsToCheck(visibilityManager.positionCache);
 
             if (visibilityManager.positionCache == null || visibilityManager.positionCache.Count == 0)

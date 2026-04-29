@@ -28,18 +28,37 @@ internal static class GLBM
             case RuleDefinitions.EffectDifficultyClassComputation.SpellCastingFeature:
             {
                 //BUGFIX: original game code considers first repertoire
-                return character.SpellRepertoires
-                    .Select(x => x.SaveDC)
-                    .Max();
+                var saveDc = 10;
+
+                foreach (var spellRepertoire in character.SpellRepertoires)
+                {
+                    if (spellRepertoire.SaveDC > saveDc)
+                    {
+                        saveDc = spellRepertoire.SaveDC;
+                    }
+                }
+
+                return saveDc;
             }
             case RuleDefinitions.EffectDifficultyClassComputation.AbilityScoreAndProficiency:
             {
                 //BUGFIX: original game code considers first repertoire
-                return character.SpellRepertoires
-                    .Select(x => RuleDefinitions.ComputeAbilityScoreBasedDC(
-                        character.TryGetAttributeValue(x.SpellCastingFeature.SpellcastingAbility),
-                        character.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus)))
-                    .Max();
+                var saveDc = 10;
+                var proficiencyBonus = character.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+
+                foreach (var spellRepertoire in character.SpellRepertoires)
+                {
+                    var candidate = RuleDefinitions.ComputeAbilityScoreBasedDC(
+                        character.TryGetAttributeValue(spellRepertoire.SpellCastingFeature.SpellcastingAbility),
+                        proficiencyBonus);
+
+                    if (candidate > saveDc)
+                    {
+                        saveDc = candidate;
+                    }
+                }
+
+                return saveDc;
             }
             case RuleDefinitions.EffectDifficultyClassComputation.Ki:
                 return RuleDefinitions.ComputeAbilityScoreBasedDC(
@@ -603,11 +622,14 @@ internal static class GLBM
                 && provider.DamageValueDetermination ==
                 RuleDefinitions.AdditionalDamageValueDetermination.SpellcastingBonus)
             {
-                foreach (var effectForm in actualEffectForms
-                             .Where(effectForm =>
-                                 effectForm.FormType == EffectForm.EffectFormType.Damage &&
-                                 effectForm.DamageForm.DamageType == additionalDamageForm.DamageType))
+                foreach (var effectForm in actualEffectForms)
                 {
+                    if (effectForm.FormType != EffectForm.EffectFormType.Damage ||
+                        effectForm.DamageForm.DamageType != additionalDamageForm.DamageType)
+                    {
+                        continue;
+                    }
+
                     effectForm.DamageForm.BonusDamage += additionalDamageForm.BonusDamage;
                 }
             }
@@ -822,6 +844,7 @@ internal static class GLBM
 
         // store ruleset service for further use
         var rulesetImplementation = ServiceRepository.GetService<IRulesetImplementationService>();
+        var additionalDamageDatabase = DatabaseRepository.GetDatabase<FeatureDefinitionAdditionalDamage>();
 
         /*
          * Support for extra types of Smite (like eldritch smite)
@@ -873,8 +896,7 @@ internal static class GLBM
                             foreach (var kvp in attacker.UsedSpecialFeatures)
                             {
                                 // ReSharper disable once InvertIf
-                                if (DatabaseRepository.GetDatabase<FeatureDefinitionAdditionalDamage>()
-                                    .TryGetElement(kvp.Key, out var previousFeature))
+                                if (additionalDamageDatabase.TryGetElement(kvp.Key, out var previousFeature))
                                 {
                                     if (previousFeature.NotificationTag == provider.NotificationTag)
                                     {
@@ -897,8 +919,7 @@ internal static class GLBM
                 foreach (var kvp in attacker.UsedSpecialFeatures)
                 {
                     // ReSharper disable once InvertIf
-                    if (DatabaseRepository.GetDatabase<FeatureDefinitionAdditionalDamage>()
-                        .TryGetElement(kvp.Key, out var previousFeature))
+                    if (additionalDamageDatabase.TryGetElement(kvp.Key, out var previousFeature))
                     {
                         if (additionalDamage.OtherSimilarAdditionalDamages.Contains(previousFeature))
                         {
@@ -1440,8 +1461,7 @@ internal static class GLBM
                             foreach (var kvp in attacker.UsedSpecialFeatures)
                             {
                                 // ReSharper disable once InvertIf
-                                if (DatabaseRepository.GetDatabase<FeatureDefinitionAdditionalDamage>()
-                                    .TryGetElement(kvp.Key, out var previousFeature))
+                                if (additionalDamageDatabase.TryGetElement(kvp.Key, out var previousFeature))
                                 {
                                     if (previousFeature.NotificationTag == provider.NotificationTag)
                                     {

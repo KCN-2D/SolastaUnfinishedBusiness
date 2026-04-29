@@ -205,9 +205,9 @@ public static class CharacterActionPatcher
                     {
                         var cursorService = ServiceRepository.GetService<ICursorService>();
                         var cursorLocationBattleFriendlyTurn =
-                            cursorService.AllCursors.OfType<CursorLocationBattleFriendlyTurn>().First();
+                            cursorService.AllCursors.OfType<CursorLocationBattleFriendlyTurn>().FirstOrDefault();
 
-                        if (!cursorLocationBattleFriendlyTurn.Active)
+                        if (cursorLocationBattleFriendlyTurn == null || !cursorLocationBattleFriendlyTurn.Active)
                         {
                             yield break;
                         }

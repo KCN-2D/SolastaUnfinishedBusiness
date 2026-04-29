@@ -48,39 +48,53 @@ internal static class GameLocationBattleExtensions
         bool hasToPerceiveTarget = false,
         int withinRange = 0)
     {
-        var aliveContenders = battle.AllContenders
-            .Where(x =>
-                x.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } &&
-                !x.IsCharging &&
-                !x.MoveStepInProgress &
-                (!excludeSelf || x != character));
+        var contenders = new List<GameLocationCharacter>();
 
-        if (character == null)
+        foreach (var contender in battle.AllContenders)
         {
-            return aliveContenders.ToList();
+            if (contender.RulesetCharacter is not { IsDeadOrDyingOrUnconscious: false } ||
+                contender.IsCharging ||
+                contender.MoveStepInProgress ||
+                excludeSelf && contender == character)
+            {
+                continue;
+            }
+
+            if (character != null)
+            {
+                if (isOppositeSide)
+                {
+                    if (!contender.IsOppositeSide(character.Side))
+                    {
+                        continue;
+                    }
+                }
+                else if (contender.Side != character.Side)
+                {
+                    continue;
+                }
+
+                if (withinRange > 0 && !character.IsWithinRange(contender, withinRange))
+                {
+                    continue;
+                }
+
+                var finalPerceiver = perceiver ?? character;
+
+                if (hasToPerceiveTarget && !finalPerceiver.CanPerceiveTarget(contender))
+                {
+                    continue;
+                }
+
+                if (hasToPerceivePerceiver && !contender.CanPerceiveTarget(finalPerceiver))
+                {
+                    continue;
+                }
+            }
+
+            contenders.Add(contender);
         }
 
-        aliveContenders = isOppositeSide
-            ? aliveContenders.Where(x => x.IsOppositeSide(character.Side))
-            : aliveContenders.Where(x => x.Side == character.Side);
-
-        if (withinRange > 0)
-        {
-            aliveContenders = aliveContenders.Where(x => character.IsWithinRange(x, withinRange));
-        }
-
-        var finalPerceiver = perceiver ?? character;
-
-        if (hasToPerceiveTarget)
-        {
-            aliveContenders = aliveContenders.Where(x => finalPerceiver.CanPerceiveTarget(x));
-        }
-
-        if (hasToPerceivePerceiver)
-        {
-            aliveContenders = aliveContenders.Where(x => x.CanPerceiveTarget(finalPerceiver));
-        }
-
-        return aliveContenders.ToList();
+        return contenders;
     }
 }

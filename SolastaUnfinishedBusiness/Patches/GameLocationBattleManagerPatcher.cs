@@ -536,6 +536,12 @@ public static class GameLocationBattleManagerPatcher
     [UsedImplicitly]
     public static class CanAttack_Patch
     {
+        private const string MagicAffinityInfusionEnhanceArcaneFocus =
+            "MagicAffinityInfusionEnhanceArcaneFocus";
+
+        private const string MagicAffinityInfusionEnhanceArcaneFocusUpgraded =
+            "MagicAffinityInfusionEnhanceArcaneFocusUpgraded";
+
         [UsedImplicitly]
         public static bool Prefix(AttackEvaluationParams attackParams)
         {
@@ -570,9 +576,7 @@ public static class GameLocationBattleManagerPatcher
             //PATCH: check if weapon has MagicAffinityInfusionEnhanceArcaneFocus Infusion
             //TODO: create an interface if ever required by other use cases
             if (attackParams.attacker.RulesetActor is RulesetCharacter rulesetCharacter &&
-                rulesetCharacter.Items
-                    .Any(x => x.DynamicItemProperties
-                        .Any(y => y.FeatureDefinition.Name == "MagicAffinityInfusionEnhanceArcaneFocus")))
+                HasEnhancedArcaneFocus(rulesetCharacter))
             {
                 attackParams.attackModifier.coverType = CoverType.None;
             }
@@ -589,6 +593,30 @@ public static class GameLocationBattleManagerPatcher
             //PATCH: add modifier or advantage/disadvantage for physical and spell attack
             ApplyCustomModifiers(attackParams);
             
+        }
+
+        private static bool HasEnhancedArcaneFocus(RulesetCharacter rulesetCharacter)
+        {
+            foreach (var item in rulesetCharacter.Items)
+            {
+                foreach (var dynamicItemProperty in item.DynamicItemProperties)
+                {
+                    var featureDefinition = dynamicItemProperty.FeatureDefinition;
+
+                    if (featureDefinition == null)
+                    {
+                        continue;
+                    }
+
+                    if (featureDefinition.Name is MagicAffinityInfusionEnhanceArcaneFocus
+                        or MagicAffinityInfusionEnhanceArcaneFocusUpgraded)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         [NotNull]

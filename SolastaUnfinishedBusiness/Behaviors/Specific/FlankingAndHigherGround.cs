@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using TA;
 
@@ -73,12 +72,20 @@ internal static class FlankingAndHigherGround
     {
         var locationCharacterService = ServiceRepository.GetService<IGameLocationCharacterService>();
 
-        allies = locationCharacterService.AllValidEntities
-            .Where(x =>
-                x.Side == attacker.Side &&
-                x.IsWithinRange(defender, 1) &&
-                x.CanAct())
-            .ToList();
+        allies = [];
+
+        foreach (var entity in locationCharacterService.AllValidEntities)
+        {
+            if (entity == attacker ||
+                entity.Side != attacker.Side ||
+                !entity.IsWithinRange(defender, 1) ||
+                !entity.CanAct())
+            {
+                continue;
+            }
+
+            allies.Add(entity);
+        }
 
         return allies.Count > 0;
     }
@@ -100,26 +107,57 @@ internal static class FlankingAndHigherGround
         // collect all possible flanking sides from all attacker cells against all enemy cells
 
         var attackerFlankingSides = new HashSet<CellFlags.Side>();
+        var defenderPositions = new List<int3>();
+
+        foreach (var defenderPosition in GetPositions(defender))
+        {
+            defenderPositions.Add(defenderPosition);
+        }
 
         foreach (var attackerPosition in GetPositions(attacker))
         {
-            foreach (var defenderPosition in GetPositions(defender))
+            foreach (var defenderPosition in defenderPositions)
             {
                 var attackerDirection = defenderPosition - attackerPosition;
                 var attackerSide = CellFlags.DirectionToAllSurfaceSides(attackerDirection);
-                var flankingSide = GetEachSide(attackerSide)
-                    .Aggregate(CellFlags.Side.None, (current, side) => current | CellFlags.InvertSide(side));
+                var flankingSide = CellFlags.Side.None;
+
+                foreach (var side in GetEachSide(attackerSide))
+                {
+                    flankingSide |= CellFlags.InvertSide(side);
+                }
 
                 attackerFlankingSides.Add(flankingSide);
             }
         }
 
-        result = alliesInRange
-            .Any(ally => GetPositions(ally)
-                .Any(allyPosition => GetPositions(defender)
-                    .Any(defenderPosition =>
-                        attackerFlankingSides.Contains(
-                            CellFlags.DirectionToAllSurfaceSides(defenderPosition - allyPosition)))));
+        foreach (var ally in alliesInRange)
+        {
+            foreach (var allyPosition in GetPositions(ally))
+            {
+                foreach (var defenderPosition in defenderPositions)
+                {
+                    if (!attackerFlankingSides.Contains(
+                            CellFlags.DirectionToAllSurfaceSides(defenderPosition - allyPosition)))
+                    {
+                        continue;
+                    }
+
+                    result = true;
+                    break;
+                }
+
+                if (result)
+                {
+                    break;
+                }
+            }
+
+            if (result)
+            {
+                break;
+            }
+        }
 
         FlankingDeterminationCache[(attacker.Guid, defender.Guid)] = result;
 
@@ -148,9 +186,10 @@ internal static class FlankingAndHigherGround
             new FlankingMathExtensions.Point3D(defender.LocationBattleBoundingBox.Min),
             new FlankingMathExtensions.Point3D(defender.LocationBattleBoundingBox.Max + 1));
 
-        foreach (var allyCenter in alliesInRange
-                     .Select(ally => new FlankingMathExtensions.Point3D(ally.LocationBattleBoundingBox.Center)))
+        foreach (var ally in alliesInRange)
         {
+            var allyCenter = new FlankingMathExtensions.Point3D(ally.LocationBattleBoundingBox.Center);
+
             result = FlankingMathExtensions.LineIntersectsCubeOppositeSides(attackerCenter, allyCenter, defenderCube);
 
             if (result)
