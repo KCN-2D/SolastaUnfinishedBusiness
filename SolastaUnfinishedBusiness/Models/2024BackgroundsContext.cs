@@ -222,7 +222,7 @@ public static partial class Tabletop2024Context
                 BuildBackgroundAsiFeatureSet(backgroundName, attributes.A, attributes.B, attributes.C);
         }
 
-        foreach (var featName in BackgroundFeatSets.Values.Distinct())
+        foreach (var featName in EnumerateUniqueBackgroundFeatNames())
         {
             BackgroundBonusGrantFeatures[featName] = featName == FeatSkilledName
                 ? BuildSkilledPointPool()
@@ -262,7 +262,7 @@ public static partial class Tabletop2024Context
             return;
         }
 
-        foreach (var featName in BackgroundFeatSets.Values.Distinct())
+        foreach (var featName in EnumerateUniqueBackgroundFeatNames())
         {
             if (featName != FeatSkilledName &&
                 BackgroundBonusGrantFeatures.TryGetValue(featName, out var grantedFeature) &&
@@ -324,6 +324,11 @@ public static partial class Tabletop2024Context
             choiceFeature.GuiPresentation.description = featDefinition.GuiPresentation.description;
             choiceFeature.GuiPresentation.spriteReference = featDefinition.GuiPresentation.spriteReference;
         }
+    }
+
+    private static IEnumerable<string> EnumerateUniqueBackgroundFeatNames()
+    {
+        return BackgroundFeatSets.Values.Distinct();
     }
 
     internal static HashSet<string> GetActiveOriginRestrictedFeatNames(RulesetCharacterHero hero)
@@ -756,6 +761,14 @@ public static partial class Tabletop2024Context
     internal static bool IsHumanOriginFeatSelectionFeature(FeatureDefinition feature)
     {
         return _backgroundOptionsLoaded && Main.Settings.EnableBackgroundASI && feature == HumanOriginFeatFeatureSet;
+    }
+
+    internal static bool IsBackgroundAsiSelectionFeature(FeatureDefinition feature)
+    {
+        return _backgroundOptionsLoaded &&
+               Main.Settings.EnableBackgroundASI &&
+               feature &&
+               BackgroundAsiFeatures.Values.Contains(feature);
     }
 
     internal static bool TryGetHumanOriginFeatLearnStepTitle(
@@ -1308,10 +1321,12 @@ public static partial class Tabletop2024Context
             var insertIndex = GetBackgroundFeatureInsertIndex(backgroundName, background);
             var featuresToInsert = new List<FeatureDefinition> { grantedFeature };
 
-            AddBackgroundFeatureIfValid(featuresToInsert, displayFeature);
-            AddBackgroundFeatureIfValid(featuresToInsert, proficiencyFeatures.Skills);
-            AddBackgroundFeatureIfValid(featuresToInsert, proficiencyFeatures.Tool);
-            AddBackgroundFeatureIfValid(featuresToInsert, storyCompatibilityFeature);
+            AddBackgroundFeaturesIfValid(
+                featuresToInsert,
+                displayFeature,
+                proficiencyFeatures.Skills,
+                proficiencyFeatures.Tool,
+                storyCompatibilityFeature);
 
             background.Features.InsertRange(insertIndex, featuresToInsert);
         }
@@ -1319,11 +1334,16 @@ public static partial class Tabletop2024Context
         SwitchAddOriginFeatsToAutoLearn();
     }
 
-    private static void AddBackgroundFeatureIfValid(List<FeatureDefinition> features, FeatureDefinition feature)
+    private static void AddBackgroundFeaturesIfValid(
+        List<FeatureDefinition> features,
+        params FeatureDefinition[] featuresToAdd)
     {
-        if (feature)
+        foreach (var feature in featuresToAdd)
         {
-            features.Add(feature);
+            if (feature)
+            {
+                features.Add(feature);
+            }
         }
     }
 

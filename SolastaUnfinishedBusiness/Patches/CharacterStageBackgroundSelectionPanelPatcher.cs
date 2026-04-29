@@ -41,18 +41,15 @@ public static class CharacterStageBackgroundSelectionPanelPatcher
     }
 
     [HarmonyPatch(typeof(CharacterStageBackgroundSelectionPanel),
-        nameof(CharacterStageBackgroundSelectionPanel.FillBackgroundFeatures))]
+        nameof(CharacterStageBackgroundSelectionPanel.OnFeatureChoiceChangedCb))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
-    public static class FillBackgroundFeatures_Patch
+    public static class OnFeatureChoiceChangedCb_Patch
     {
-        private static readonly AccessTools.FieldRef<CharacterStageBackgroundSelectionPanel, bool> NewBackgroundSelected =
-            AccessTools.FieldRefAccess<CharacterStageBackgroundSelectionPanel, bool>("newBackgroundSelected");
-
         [UsedImplicitly]
-        public static bool Prefix(CharacterStageBackgroundSelectionPanel __instance)
+        public static void Prefix([CanBeNull] FeatureDescriptionItem __0)
         {
-            return NewBackgroundSelected(__instance);
+            FeatureDescriptionItemPatcher.TryPersistBackgroundAsiDefaultSelection(__0);
         }
     }
 

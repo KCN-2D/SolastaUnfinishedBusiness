@@ -21,17 +21,20 @@ public static class FeatureDescriptionItemPatcher
     private static readonly AccessTools.FieldRef<FeatureDescriptionItem, List<FeatureDefinition>> AvailableFeaturesRef =
         AccessTools.FieldRefAccess<FeatureDescriptionItem, List<FeatureDefinition>>("availableFeatures");
 
+    private static readonly AccessTools.FieldRef<FeatureDefinitionFeatureSet, int> DefaultSelectionRef =
+        AccessTools.FieldRefAccess<FeatureDefinitionFeatureSet, int>("defaultSelection");
+
     private static RulesetCharacterHero CurrentHero => ServiceRepository
         .GetService<ICharacterBuildingService>()
         ?.CurrentLocalHeroCharacter;
 
-    internal static bool TryGetSelectedHumanOriginFeatChoice(
+    private static bool TryGetSelectedFeatureChoice(
         FeatureDescriptionItem item,
         out FeatureDefinition choiceFeature)
     {
         choiceFeature = null;
 
-        if (!Tabletop2024Context.IsHumanOriginFeatSelectionFeature(FeatureRef(item)))
+        if (item == null)
         {
             return false;
         }
@@ -65,6 +68,39 @@ public static class FeatureDescriptionItemPatcher
         }
 
         choiceFeature = availableFeatures[index];
+
+        return true;
+    }
+
+    internal static bool TryGetSelectedHumanOriginFeatChoice(
+        FeatureDescriptionItem item,
+        out FeatureDefinition choiceFeature)
+    {
+        choiceFeature = null;
+
+        return item != null &&
+               Tabletop2024Context.IsHumanOriginFeatSelectionFeature(FeatureRef(item)) &&
+               TryGetSelectedFeatureChoice(item, out choiceFeature);
+    }
+
+    internal static bool TryPersistBackgroundAsiDefaultSelection(FeatureDescriptionItem item)
+    {
+        if (item == null ||
+            FeatureRef(item) is not FeatureDefinitionFeatureSet featureSet ||
+            !Tabletop2024Context.IsBackgroundAsiSelectionFeature(featureSet) ||
+            !TryGetSelectedFeatureChoice(item, out var choiceFeature))
+        {
+            return false;
+        }
+
+        var index = featureSet.FeatureSet.IndexOf(choiceFeature);
+
+        if (index < 0)
+        {
+            return false;
+        }
+
+        DefaultSelectionRef(featureSet) = index;
 
         return true;
     }
