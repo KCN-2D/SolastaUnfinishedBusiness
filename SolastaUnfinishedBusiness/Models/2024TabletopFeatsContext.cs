@@ -69,6 +69,7 @@ public static partial class Tabletop2024Context
     private const string HeavyArmorMaster2024NotificationTag = "HeavyArmorMaster2024";
     private const string LightlyArmored2024Family = "LightlyArmored2024";
     private const string LegacyGreatWeaponMasterFeatName = "FeatCleavingAttack";
+    private const string GiftOfTheChromaticDragonFeatName = "FeatGiftOfTheChromaticDragon";
     private const string GreatWeaponMaster2024FeatName = "FeatGreatWeaponMaster2024";
     private const string LegacyGreatWeaponMaster2024SettingName = "FeatCleavingAttack2024";
     private const string GreatWeaponMaster2024FinishConditionName = "ConditionFeatGreatWeaponMaster2024Finish";
@@ -181,7 +182,7 @@ public static partial class Tabletop2024Context
         "FeatMetamagicAdept",
         "FeatTacticianAdept",
         "FeatSpearMastery",
-        "FeatGiftOfTheChromaticDragon",
+        GiftOfTheChromaticDragonFeatName,
         "FeatWoodElfMagic",
         "FeatDarkElfMagic",
         "FeatBountifulLuck",
@@ -216,11 +217,11 @@ public static partial class Tabletop2024Context
                     (AttributeDefinitions.Strength, "Str"),
                     (AttributeDefinitions.Dexterity, "Dex")
                 ],
-                ["FeatGiftOfTheChromaticDragon"] =
+                [GiftOfTheChromaticDragonFeatName] =
                 [
                     (AttributeDefinitions.Strength, "Str"),
                     (AttributeDefinitions.Constitution, "Con"),
-                    (AttributeDefinitions.Charisma, "Cha")
+                    (AttributeDefinitions.Dexterity, "Dex")
                 ],
                 ["FeatWoodElfMagic"] =
                 [
@@ -332,7 +333,7 @@ public static partial class Tabletop2024Context
         "FeatDwarvenFortitude",
         "FeatEldritchAdept",
         "FeatFellHanded",
-        "FeatGiftOfTheChromaticDragon",
+        GiftOfTheChromaticDragonFeatName,
         "FeatHealer",
         "FeatInfernalConstitution",
         "FeatLucky",
