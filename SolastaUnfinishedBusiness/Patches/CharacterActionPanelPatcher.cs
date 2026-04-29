@@ -516,6 +516,35 @@ public static class CharacterActionPanelPatcher
                     service2.ExecuteAction(panel.actionParams.Clone(), panel.ActionExecuted, false);
                     break;
             }
+
+            ClampVisibleFloatingPanels(panel);
+        }
+
+        private static void ClampVisibleFloatingPanels(CharacterActionPanel panel)
+        {
+            ClampVisiblePanel(panel.SpellSelectionPanel);
+            ClampVisiblePanel(panel.RitualSelectionPanel);
+            ClampVisiblePanel(panel.PowerSelectionPanel);
+            ClampVisiblePanel(panel.DeviceSelectionPanel);
+            ClampVisiblePanel(panel.ReadyActionSelectionPanel);
+            ClampVisiblePanel(panel.ShoveModeSelectionPanel);
+            ClampVisiblePanel(panel.BreakFreeModeSelectionPanel);
+            ClampVisiblePanel(panel.DashModeSelectionPanel);
+            ClampVisiblePanel(panel.MetamagicSelectionPanel);
+            ClampVisiblePanel(panel.ShapeSelectionPanel);
+            ClampVisiblePanel(panel.FlurryOfBlowsModeSelectionPanel);
+            ClampVisiblePanel(panel.InvocationSelectionPanel);
+        }
+
+        private static void ClampVisiblePanel(GuiPanel panel)
+        {
+            if (!panel || !panel.Visible)
+            {
+                return;
+            }
+
+            FloatingPanelBounds.ClampToScreen(panel.RectTransform, true);
+            FloatingPanelBounds.ClampToScreenForNextFrames(panel, panel.RectTransform, true);
         }
     }
 

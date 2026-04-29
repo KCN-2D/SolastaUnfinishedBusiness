@@ -15,8 +15,10 @@ public static class TooltipPanelPatcher
     public static class SetupFeatures_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(ref TooltipDefinitions.Scope scope)
+        public static void Prefix(TooltipPanel __instance, ref TooltipDefinitions.Scope scope)
         {
+            FloatingPanelBounds.RestoreTooltipScroll(__instance);
+
             //PATCH: swaps holding ALT behavior for tooltips
             if (!SettingsContext.GuiModManagerInstance.InvertTooltipBehavior)
             {
@@ -35,6 +37,8 @@ public static class TooltipPanelPatcher
         public static void Postfix(TooltipPanel __instance)
         {
             Tooltips.ModifyWidth<TooltipPanelWidthModifier, TooltipPanel>(__instance);
+            FloatingPanelBounds.FitTooltipAndClamp(__instance);
+            FloatingPanelBounds.ClampToScreenForNextFrames(__instance, __instance.RectTransform);
         }
     }
 

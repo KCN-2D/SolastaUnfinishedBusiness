@@ -6,6 +6,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.CustomUI;
 using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -48,6 +49,17 @@ public static class SubspellSelectionModalPatcher
             return instructions.ReplaceCalls(subspellsListMethod, "SubspellSelectionModal.Bind",
                 new CodeInstruction(OpCodes.Ldarg, 5),
                 new CodeInstruction(OpCodes.Call, getSpellList));
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(SubspellSelectionModal __instance, RectTransform masterSpellBox)
+        {
+            FloatingPanelBounds.ConfigureNearAttachmentList(
+                __instance,
+                __instance.mainPanel.RectTransform,
+                masterSpellBox,
+                __instance.subspellsTable,
+                new Vector3(70, -400, 0));
         }
     }
 }

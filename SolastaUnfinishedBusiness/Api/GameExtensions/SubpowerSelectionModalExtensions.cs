@@ -1,14 +1,12 @@
 ﻿using System.Collections.Generic;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.CustomUI;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
 internal static class SubpowerSelectionModalExtensions
 {
-    private static bool _firstTime = true;
-
     //Re-implements native method, but uses lust of powers instead of feature set
     internal static void Bind(
         this SubpowerSelectionModal instance,
@@ -68,22 +66,12 @@ internal static class SubpowerSelectionModalExtensions
             }
         }
 
-        if (_firstTime)
-        {
-            mainPanel.RectTransform.localPosition = new Vector3(70, -400, 0);
-
-            _firstTime = false;
-        }
-        else
-        {
-            var fourCornersArray = new Vector3[4];
-
-            attachment.GetWorldCorners(fourCornersArray);
-            mainPanel.RectTransform.position =
-                (0.5f * (fourCornersArray[1] + fourCornersArray[2])) + new Vector3(0.0f, 4f, 0.0f);
-        }
-
-        LayoutRebuilder.ForceRebuildLayoutImmediate(mainPanel.RectTransform);
+        FloatingPanelBounds.ConfigureNearAttachmentList(
+            instance,
+            mainPanel.RectTransform,
+            attachment,
+            instance.subpowersTable,
+            new Vector3(70, -400, 0));
 
         instance.gameObject.SetActive(wasActive);
         mainPanel.gameObject.SetActive(wasActive);
