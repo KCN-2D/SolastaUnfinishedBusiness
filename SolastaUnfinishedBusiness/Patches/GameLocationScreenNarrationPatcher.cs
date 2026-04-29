@@ -17,7 +17,7 @@ public static class GameLocationScreenNarrationPatcher
         [UsedImplicitly]
         public static void Prefix()
         {
-            SpeechContext.ShutUp();
+            SpeechContext.NotifyVanillaSpeechConcluded();
         }
     }
 }

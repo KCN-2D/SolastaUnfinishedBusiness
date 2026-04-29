@@ -101,8 +101,10 @@ ModUi/&DontFollowCharacterInBattle=La cámara de batalla no sigue cuando el pers
 ModUi/&DontFollowMargin=<i><color=white>+ A menos que el héroe esté fuera o dentro del % del borde de la pantalla</color></i>
 ModUi/&DownloadVoice=Descargar voces sugeridas
 ModUi/&DownloadVoiceOngoing=Descargando en {0}
-ModUi/&DownloadJapaneseVoice=Descargar voz japonesa
-ModUi/&DownloadJapaneseVoiceOngoing=Descargando voz japonesa en {0}
+ModUi/&DownloadSpeechVoiceProfile=Descargar {0}
+ModUi/&DownloadSpeechVoiceProfileOngoing=Descargando {0} ({1})
+ModUi/&SpeechVoiceTsukuyomi=Voz japonesa: Tsukuyomi-chan
+ModUi/&SpeechVoiceCss10=Voz japonesa: CSS10
 ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>Después de descargar una voz compatible con el idioma, el texto de ese idioma se leerá con esa voz. Los demás textos seguirán usando las voces inglesas de Piper existentes.</color></i>
 ModUi/&DungeonMaker=Creador de mazmorras
 ModUi/&DungeonMakerBasicHelp=• Estas configuraciones no requerirán que el jugador tenga este mod instalado

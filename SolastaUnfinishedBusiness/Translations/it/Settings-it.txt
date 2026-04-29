@@ -101,8 +101,10 @@ ModUi/&DontFollowCharacterInBattle=La telecamera di battaglia non segue quando i
 ModUi/&DontFollowMargin=<i><color=white>+ A meno che l'eroe non sia spento o entro % dal bordo dello schermo</color></i>
 ModUi/&DownloadVoice=Scarica le voci suggerite
 ModUi/&DownloadVoiceOngoing=Scaricamento a {0}
-ModUi/&DownloadJapaneseVoice=Scarica voce giapponese
-ModUi/&DownloadJapaneseVoiceOngoing=Download voce giapponese a {0}
+ModUi/&DownloadSpeechVoiceProfile=Scarica {0}
+ModUi/&DownloadSpeechVoiceProfileOngoing=Download di {0} ({1})
+ModUi/&SpeechVoiceTsukuyomi=Voce giapponese: Tsukuyomi-chan
+ModUi/&SpeechVoiceCss10=Voce giapponese: CSS10
 ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>Dopo aver scaricato una voce compatibile con la lingua, i testi in quella lingua verranno letti con quella voce. Gli altri testi continueranno a usare le voci inglesi Piper esistenti.</color></i>
 ModUi/&DungeonMaker=Creatore di Dungeon
 ModUi/&DungeonMakerBasicHelp=• Queste impostazioni non richiederanno che il giocatore abbia installato questa mod

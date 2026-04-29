@@ -10,7 +10,6 @@ using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -75,7 +74,12 @@ internal static class SpeechContext
 
     private static MemoryStream CurrentAudioStream;
     private static WaveStream CurrentWaveStream;
-    private static int SpeechRequestId;
+    private static SpeechRequest CurrentSpeechRequest;
+    private static bool SpeechEventHooked;
+    private static bool SpeechPlaybackActive;
+    private static int SpeechGeneration;
+
+    private static readonly Queue<SpeechRequest> SpeechQueue = [];
 
     internal enum SpeechEngine
     {
@@ -83,7 +87,7 @@ internal static class SpeechContext
         PiperPlus
     }
 
-    private enum Gender
+    internal enum Gender
     {
         Male,
         Female
@@ -91,30 +95,40 @@ internal static class SpeechContext
 
     internal sealed class SpeechLanguageProfile(
         string languageCode,
-        string voiceName,
-        SpeechEngine engine,
-        string modelArgument,
-        string modelSearchPattern,
         string cliLanguageArgument,
         string sampleText,
-        string downloadLabelKey,
-        string downloadOngoingLabelKey,
         Func<string, bool> matchesText)
     {
         internal string LanguageCode { get; } = languageCode;
-        internal string VoiceName { get; } = voiceName;
-        internal SpeechEngine Engine { get; } = engine;
-        internal string ModelArgument { get; } = modelArgument;
-        internal string ModelSearchPattern { get; } = modelSearchPattern;
         internal string CliLanguageArgument { get; } = cliLanguageArgument;
         internal string SampleText { get; } = sampleText;
-        internal string DownloadLabelKey { get; } = downloadLabelKey;
-        internal string DownloadOngoingLabelKey { get; } = downloadOngoingLabelKey;
 
         internal bool MatchesText(string text)
         {
             return matchesText(text);
         }
+    }
+
+    internal sealed class SpeechVoiceProfile(
+        string voiceName,
+        string displayNameKey,
+        SpeechEngine engine,
+        string modelArgument,
+        string modelSearchPattern,
+        Gender? gender,
+        int sampleRate,
+        float noiseScale,
+        SpeechLanguageProfile languageProfile)
+    {
+        internal string VoiceName { get; } = voiceName;
+        internal string DisplayNameKey { get; } = displayNameKey;
+        internal SpeechEngine Engine { get; } = engine;
+        internal string ModelArgument { get; } = modelArgument;
+        internal string ModelSearchPattern { get; } = modelSearchPattern;
+        internal Gender? Gender { get; } = gender;
+        internal int SampleRate { get; } = sampleRate;
+        internal float NoiseScale { get; } = noiseScale;
+        internal SpeechLanguageProfile LanguageProfile { get; } = languageProfile;
     }
 
     private sealed class SpeechVoiceInfo(
@@ -124,6 +138,7 @@ internal static class SpeechContext
         string modelArgument,
         Gender? gender,
         int sampleRate,
+        float noiseScale,
         SpeechLanguageProfile languageProfile = null)
     {
         internal string Name { get; } = name;
@@ -132,6 +147,7 @@ internal static class SpeechContext
         internal string ModelArgument { get; } = modelArgument;
         internal Gender? Gender { get; } = gender;
         internal int SampleRate { get; } = sampleRate;
+        internal float NoiseScale { get; } = noiseScale;
         internal SpeechLanguageProfile LanguageProfile { get; } = languageProfile;
     }
 
@@ -147,22 +163,50 @@ internal static class SpeechContext
         }
     }
 
+    private sealed class SpeechRequest(SpeechVoiceInfo voiceInfo, float scale, string cleanedText, int generation)
+    {
+        internal SpeechVoiceInfo VoiceInfo { get; } = voiceInfo;
+        internal float Scale { get; } = scale;
+        internal string CleanedText { get; } = cleanedText;
+        internal int Generation { get; } = generation;
+    }
+
+    private static readonly SpeechLanguageProfile JapaneseLanguageProfile = new(
+        "ja",
+        "ja-en-zh-es-fr-pt",
+        "こんにちは。今日は良い天気ですね。",
+        MatchesJapaneseText);
+
     private static readonly SpeechLanguageProfile[] LanguageProfiles =
     [
+        JapaneseLanguageProfile
+    ];
+
+    private static readonly SpeechVoiceProfile[] PiperPlusVoiceProfiles =
+    [
         new(
-            "ja",
             "ja_JP-tsukuyomi-chan-medium",
+            "ModUi/&SpeechVoiceTsukuyomi",
             SpeechEngine.PiperPlus,
             "tsukuyomi",
             "*tsukuyomi*.onnx",
-            "ja",
-            "こんにちは。今日は良い天気ですね。",
-            "ModUi/&DownloadJapaneseVoice",
-            "ModUi/&DownloadJapaneseVoiceOngoing",
-            MatchesJapaneseText)
+            Gender.Female,
+            22050,
+            0.5f,
+            JapaneseLanguageProfile),
+        new(
+            "ja_JP-css10-medium",
+            "ModUi/&SpeechVoiceCss10",
+            SpeechEngine.PiperPlus,
+            "css10",
+            "*css10*.onnx",
+            null,
+            22050,
+            0.667f,
+            JapaneseLanguageProfile)
     ];
 
-    internal static IReadOnlyList<SpeechLanguageProfile> DownloadableVoiceProfiles => LanguageProfiles;
+    internal static IReadOnlyList<SpeechVoiceProfile> DownloadableVoiceProfiles => PiperPlusVoiceProfiles;
 
     private static readonly (string, Gender)[] SuggestedVoicesUrls =
     [
@@ -414,6 +458,7 @@ internal static class SpeechContext
 
     internal static void Load()
     {
+        EnsureSpeechEventHooked();
         InitPiper();
         RefreshAvailableVoices();
         InitVoiceAssignments();
@@ -516,12 +561,13 @@ internal static class SpeechContext
                 "en",
                 file.FullName,
                 TryGetSuggestedVoiceGender(voiceName, out var gender) ? gender : null,
-                22050);
+                22050,
+                0.667f);
         }
 
-        foreach (var profile in LanguageProfiles)
+        foreach (var profile in PiperPlusVoiceProfiles)
         {
-            if (!IsProfileVoiceAvailable(profile))
+            if (!IsVoiceProfileAvailable(profile))
             {
                 continue;
             }
@@ -530,11 +576,12 @@ internal static class SpeechContext
             VoiceInfos[profile.VoiceName] = new SpeechVoiceInfo(
                 profile.VoiceName,
                 profile.Engine,
-                profile.LanguageCode,
+                profile.LanguageProfile.LanguageCode,
                 profile.ModelArgument,
-                null,
-                22050,
-                profile);
+                profile.Gender,
+                profile.SampleRate,
+                profile.NoiseScale,
+                profile.LanguageProfile);
         }
 
         VoiceNames = voiceNames.Distinct(StringComparer.Ordinal).ToArray();
@@ -605,15 +652,57 @@ internal static class SpeechContext
         return false;
     }
 
-    private static bool TryGetProfileVoiceInfo(SpeechLanguageProfile profile, out SpeechVoiceInfo voiceInfo)
+    private static bool TryGetLanguageVoiceInfo(
+        SpeechLanguageProfile profile,
+        Gender? preferredGender,
+        out SpeechVoiceInfo voiceInfo)
     {
+        voiceInfo = null;
+
         if (profile == null)
         {
-            voiceInfo = null;
             return false;
         }
 
-        return VoiceInfos.TryGetValue(profile.VoiceName, out voiceInfo);
+        if (preferredGender != null &&
+            TryGetLanguageVoiceInfo(profile, preferredGender, true, out voiceInfo))
+        {
+            return true;
+        }
+
+        if (TryGetLanguageVoiceInfo(profile, null, true, out voiceInfo))
+        {
+            return true;
+        }
+
+        return TryGetLanguageVoiceInfo(profile, null, false, out voiceInfo);
+    }
+
+    private static bool TryGetLanguageVoiceInfo(
+        SpeechLanguageProfile profile,
+        Gender? gender,
+        bool requireGenderMatch,
+        out SpeechVoiceInfo voiceInfo)
+    {
+        foreach (var voiceName in VoiceNames)
+        {
+            if (!VoiceInfos.TryGetValue(voiceName, out var candidate) ||
+                candidate.LanguageProfile != profile)
+            {
+                continue;
+            }
+
+            if (requireGenderMatch && candidate.Gender != gender)
+            {
+                continue;
+            }
+
+            voiceInfo = candidate;
+            return true;
+        }
+
+        voiceInfo = null;
+        return false;
     }
 
     private static bool TryGetVoiceLanguageProfile(string voiceName, out SpeechLanguageProfile profile)
@@ -625,14 +714,14 @@ internal static class SpeechContext
             return true;
         }
 
-        foreach (var languageProfile in LanguageProfiles)
+        foreach (var voiceProfile in PiperPlusVoiceProfiles)
         {
-            if (languageProfile.VoiceName != voiceName)
+            if (voiceProfile.VoiceName != voiceName)
             {
                 continue;
             }
 
-            profile = languageProfile;
+            profile = voiceProfile.LanguageProfile;
             return true;
         }
 
@@ -640,16 +729,16 @@ internal static class SpeechContext
         return false;
     }
 
-    private static bool IsProfileVoiceAvailable(SpeechLanguageProfile profile)
+    private static bool IsVoiceProfileAvailable(SpeechVoiceProfile profile)
     {
         return profile.Engine switch
         {
-            SpeechEngine.PiperPlus => TryGetPiperPlusExecutablePath(out _) && IsProfileModelAvailable(profile),
+            SpeechEngine.PiperPlus => TryGetPiperPlusExecutablePath(out _) && IsVoiceProfileModelAvailable(profile),
             _ => false
         };
     }
 
-    private static bool IsProfileModelAvailable(SpeechLanguageProfile profile)
+    private static bool IsVoiceProfileModelAvailable(SpeechVoiceProfile profile)
     {
         if (!Directory.Exists(PiperPlusModelsFolder))
         {
@@ -687,7 +776,7 @@ internal static class SpeechContext
 
         if (voiceData == null)
         {
-            Main.Info("No voice data found.");
+            Main.Info("No campaign voice mapping data found.");
 
             return;
         }
@@ -753,8 +842,19 @@ internal static class SpeechContext
 
     internal static void ShutUp()
     {
-        Interlocked.Increment(ref SpeechRequestId);
-        StopSpeechPlayback();
+        lock (SpeechLock)
+        {
+            SpeechGeneration++;
+            SpeechQueue.Clear();
+            CurrentSpeechRequest = null;
+            SpeechPlaybackActive = false;
+            StopSpeechPlaybackNoLock();
+        }
+    }
+
+    internal static void NotifyVanillaSpeechConcluded()
+    {
+        // Vanilla narration completion should not stop the independent UB TTS queue.
     }
 
     private static string StripXmlTagsAndNarration(string str)
@@ -762,26 +862,105 @@ internal static class SpeechContext
         return RemoveNpcSpeechTags.Replace(str, string.Empty);
     }
 
-    private static int BeginSpeechRequest()
+    private static void EnsureSpeechEventHooked()
     {
-        var requestId = Interlocked.Increment(ref SpeechRequestId);
+        if (SpeechEventHooked)
+        {
+            return;
+        }
 
-        StopSpeechPlayback();
-
-        return requestId;
+        SpeechEvent.PlaybackStopped += OnSpeechPlaybackStopped;
+        SpeechEventHooked = true;
     }
 
-    private static void StopSpeechPlayback()
+    private static void QueueSpeech(SpeechVoiceInfo voiceInfo, float scale, string cleanedText)
+    {
+        if (voiceInfo == null ||
+            string.IsNullOrWhiteSpace(cleanedText))
+        {
+            return;
+        }
+
+        lock (SpeechLock)
+        {
+            SpeechQueue.Enqueue(new SpeechRequest(voiceInfo, scale, cleanedText, SpeechGeneration));
+            StartNextSpeechNoLock();
+        }
+    }
+
+    private static void StartNextSpeechNoLock()
+    {
+        if (SpeechPlaybackActive ||
+            SpeechQueue.Count == 0)
+        {
+            return;
+        }
+
+        CurrentSpeechRequest = SpeechQueue.Dequeue();
+        SpeechPlaybackActive = true;
+        _ = SynthesizeAndPlaySpeechAsync(CurrentSpeechRequest);
+    }
+
+    private static async Task SynthesizeAndPlaySpeechAsync(SpeechRequest request)
+    {
+        SpeechAudio speechAudio = null;
+
+        try
+        {
+            speechAudio = await SynthesizeSpeechAsync(request.VoiceInfo, request.Scale, request.CleanedText);
+        }
+        catch (Exception e)
+        {
+            Main.Error(e);
+        }
+
+        lock (SpeechLock)
+        {
+            if (CurrentSpeechRequest != request)
+            {
+                speechAudio?.Dispose();
+                return;
+            }
+
+            if (request.Generation != SpeechGeneration ||
+                speechAudio == null)
+            {
+                speechAudio?.Dispose();
+                CurrentSpeechRequest = null;
+                SpeechPlaybackActive = false;
+                StartNextSpeechNoLock();
+                return;
+            }
+
+            PlaySpeechNoLock(speechAudio);
+        }
+    }
+
+    private static void OnSpeechPlaybackStopped(object sender, StoppedEventArgs e)
     {
         lock (SpeechLock)
         {
-            StopSpeechPlaybackNoLock();
+            DisposeSpeechStreamsNoLock();
+
+            if (!SpeechPlaybackActive)
+            {
+                return;
+            }
+
+            CurrentSpeechRequest = null;
+            SpeechPlaybackActive = false;
+            StartNextSpeechNoLock();
         }
     }
 
     private static void StopSpeechPlaybackNoLock()
     {
         SpeechEvent.Stop();
+        DisposeSpeechStreamsNoLock();
+    }
+
+    private static void DisposeSpeechStreamsNoLock()
+    {
         CurrentWaveStream?.Dispose();
         CurrentWaveStream = null;
         CurrentAudioStream?.Dispose();
@@ -969,7 +1148,8 @@ internal static class SpeechContext
     private static SpeechVoiceInfo ResolveVoiceForText(
         string preferredVoice,
         string cleanedText,
-        bool allowLanguageFallback)
+        bool allowLanguageFallback,
+        Gender? preferredGender)
     {
         var languageProfile = DetectTextLanguageProfile(cleanedText);
 
@@ -983,7 +1163,7 @@ internal static class SpeechContext
             }
 
             return (preferredVoice != DefaultVoice || allowLanguageFallback) &&
-                   TryGetProfileVoiceInfo(languageProfile, out var profileVoiceInfo)
+                   TryGetLanguageVoiceInfo(languageProfile, preferredGender, out var profileVoiceInfo)
                 ? profileVoiceInfo
                 : null;
         }
@@ -1031,16 +1211,14 @@ internal static class SpeechContext
     }
 
     // heroId zero is the Narrator and 1-6 map to heroes in party
-    internal static async void Speak(string inputText, int heroId, bool forceUseCampaign = true)
+    internal static void Speak(string inputText, int heroId, bool forceUseCampaign = true)
     {
         try
         {
-            var requestId = BeginSpeechRequest();
-
             // only if audio enabled
             var audioSettingsService = ServiceRepository.GetService<IAudioSettingsService>();
 
-            if (!audioSettingsService.MasterEnabled)
+            if (audioSettingsService?.MasterEnabled != true)
             {
                 return;
             }
@@ -1077,16 +1255,14 @@ internal static class SpeechContext
             }
 
             var cleanedText = StripXmlTagsAndNarration(inputText);
-            var voiceInfo = ResolveVoiceForText(voice, cleanedText, heroId == 0);
+            var voiceInfo = ResolveVoiceForText(voice, cleanedText, heroId == 0, null);
 
             if (voiceInfo == null)
             {
                 return;
             }
 
-            var speechAudio = await Task.Run(async () => await SynthesizeSpeechAsync(voiceInfo, scale, cleanedText));
-
-            PlaySpeech(speechAudio, requestId);
+            QueueSpeech(voiceInfo, scale, cleanedText);
         }
         catch (Exception e)
         {
@@ -1094,16 +1270,14 @@ internal static class SpeechContext
         }
     }
 
-    internal static async void SpeakNpc(string inputText, GameLocationCharacter character)
+    internal static void SpeakNpc(string inputText, GameLocationCharacter character)
     {
         try
         {
-            var requestId = BeginSpeechRequest();
-
             // only if audio enabled
             var audioSettingsService = ServiceRepository.GetService<IAudioSettingsService>();
 
-            if (!audioSettingsService.MasterEnabled)
+            if (audioSettingsService?.MasterEnabled != true)
             {
                 return;
             }
@@ -1131,6 +1305,7 @@ internal static class SpeechContext
             var cleanedText = StripXmlTagsAndNarration(inputText);
             var languageProfile = DetectTextLanguageProfile(cleanedText);
             var internalName = rulesetCharacterMonster.MonsterDefinition.Name;
+            var preferredGender = FemaleNpcs.Contains(internalName) ? Gender.Female : Gender.Male;
             var scale = 1f;
             var voice = DefaultVoice;
 
@@ -1141,25 +1316,16 @@ internal static class SpeechContext
             }
 
             if (voice == DefaultVoice &&
-                TryGetProfileVoiceInfo(languageProfile, out _))
+                TryGetLanguageVoiceInfo(languageProfile, preferredGender, out var languageVoiceInfo))
             {
-                voice = languageProfile.VoiceName;
+                voice = languageVoiceInfo.Name;
                 scale = Main.Settings.SpeechVoices[0].Item2;
             }
             else if (Main.Settings.ForceModSpeechOnNpcs ||
                 CampaignVoices.Count == 0)
             {
                 // assign dub data on a round-robin basis for campaigns without it
-                var userNpc = Gui.Session.UserCampaign.UserNpcs.FirstOrDefault(x => x.InternalName == internalName);
-
-                if (userNpc == null)
-                {
-                    return;
-                }
-
-                var npcId = Gui.Session.UserCampaign.UserNpcs.IndexOf(userNpc);
-
-                if (npcId < 0)
+                if (!TryGetUserNpcIndex(internalName, out var npcId))
                 {
                     return;
                 }
@@ -1183,16 +1349,14 @@ internal static class SpeechContext
                 scale = Main.Settings.SpeechVoices[0].Item2;
             }
 
-            var voiceInfo = ResolveVoiceForText(voice, cleanedText, true);
+            var voiceInfo = ResolveVoiceForText(voice, cleanedText, true, preferredGender);
 
             if (voiceInfo == null)
             {
                 return;
             }
 
-            var speechAudio = await Task.Run(async () => await SynthesizeSpeechAsync(voiceInfo, scale, cleanedText));
-
-            PlaySpeech(speechAudio, requestId);
+            QueueSpeech(voiceInfo, scale, cleanedText);
         }
         catch (Exception e)
         {
@@ -1200,41 +1364,40 @@ internal static class SpeechContext
         }
     }
 
-    private static void PlaySpeech(SpeechAudio speechAudio, int requestId)
+    private static bool TryGetUserNpcIndex(string internalName, out int npcId)
     {
-        if (speechAudio == null)
-        {
-            return;
-        }
+        var userNpcs = Gui.Session.UserCampaign.UserNpcs;
 
-        if (requestId != SpeechRequestId)
+        for (var i = 0; i < userNpcs.Count; i++)
         {
-            speechAudio.Dispose();
-            return;
-        }
-
-        lock (SpeechLock)
-        {
-            if (requestId != SpeechRequestId)
+            if (userNpcs[i].InternalName != internalName)
             {
-                speechAudio.Dispose();
-                return;
+                continue;
             }
 
-            StopSpeechPlaybackNoLock();
-
-            CurrentAudioStream = speechAudio.AudioStream;
-            CurrentAudioStream.Position = 0;
-            CurrentWaveStream = speechAudio.IsWaveFile
-                ? new WaveFileReader(CurrentAudioStream)
-                : new RawSourceWaveStream(CurrentAudioStream, new WaveFormat(speechAudio.SampleRate, 1));
-
-            SpeechEvent.Init(new SampleChannel(CurrentWaveStream)
-            {
-                Volume = Main.Settings.SpeechVolume
-            });
-            SpeechEvent.Play();
+            npcId = i;
+            return true;
         }
+
+        npcId = -1;
+        return false;
+    }
+
+    private static void PlaySpeechNoLock(SpeechAudio speechAudio)
+    {
+        DisposeSpeechStreamsNoLock();
+
+        CurrentAudioStream = speechAudio.AudioStream;
+        CurrentAudioStream.Position = 0;
+        CurrentWaveStream = speechAudio.IsWaveFile
+            ? new WaveFileReader(CurrentAudioStream)
+            : new RawSourceWaveStream(CurrentAudioStream, new WaveFormat(speechAudio.SampleRate, 1));
+
+        SpeechEvent.Init(new SampleChannel(CurrentWaveStream)
+        {
+            Volume = Main.Settings.SpeechVolume
+        });
+        SpeechEvent.Play();
     }
 
     private static Task<SpeechAudio> SynthesizeSpeechAsync(
@@ -1318,7 +1481,8 @@ internal static class SpeechContext
             using var piper = CreateProcess(
                 executablePath,
                 $"--json-input --model {voiceInfo.ModelArgument} --model-dir {QuoteArgument(PiperPlusModelsFolder)} " +
-                $"--language {cliLanguage} --length-scale {FormatScale(scale)} --noise-scale 0.5 --quiet",
+                $"--language {cliLanguage} --length-scale {FormatScale(scale)} " +
+                $"--noise-scale {FormatScale(voiceInfo.NoiseScale)} --quiet",
                 true);
 
             piper.StartInfo.EnvironmentVariables["PIPER_MODEL_DIR"] = PiperPlusModelsFolder;
@@ -1425,7 +1589,7 @@ internal static class SpeechContext
         }
     }
 
-    private static bool DownloadProfileModel(SpeechLanguageProfile profile)
+    private static bool DownloadProfileModel(SpeechVoiceProfile profile)
     {
         if (!TryGetPiperPlusExecutablePath(out var executablePath))
         {
@@ -1454,7 +1618,7 @@ internal static class SpeechContext
             piper.WaitForExit();
             Task.WaitAll(outputTask, errorTask);
 
-            return piper.ExitCode == 0 && IsProfileModelAvailable(profile);
+            return piper.ExitCode == 0 && IsVoiceProfileModelAvailable(profile);
         }
         catch
         {
@@ -1466,7 +1630,7 @@ internal static class SpeechContext
     {
         private static PiperPlusVoiceDownloader _shared;
         private IEnumerator _coroutine;
-        private SpeechLanguageProfile _profile;
+        private SpeechVoiceProfile _profile;
         private float _progress;
 
         [NotNull]
@@ -1488,16 +1652,20 @@ internal static class SpeechContext
             }
         }
 
-        internal string GetButtonLabel(SpeechLanguageProfile profile)
+        internal string GetButtonLabel(SpeechVoiceProfile profile)
         {
+            var displayName = Gui.Localize(profile.DisplayNameKey);
+
             return _coroutine != null
-                ? Gui.Format(_profile?.DownloadOngoingLabelKey ?? profile.DownloadOngoingLabelKey, $"{_progress:00.0%}")
+                ? Gui.Format("ModUi/&DownloadSpeechVoiceProfileOngoing",
+                        Gui.Localize(_profile?.DisplayNameKey ?? profile.DisplayNameKey),
+                        $"{_progress:00.0%}")
                     .Bold()
                     .Khaki()
-                : Gui.Localize(profile.DownloadLabelKey);
+                : Gui.Format("ModUi/&DownloadSpeechVoiceProfile", displayName);
         }
 
-        internal void DownloadVoice(SpeechLanguageProfile profile)
+        internal void DownloadVoice(SpeechVoiceProfile profile)
         {
             if (_coroutine != null)
             {
@@ -1510,7 +1678,7 @@ internal static class SpeechContext
             StartCoroutine(_coroutine);
         }
 
-        private IEnumerator DownloadVoiceImpl(SpeechLanguageProfile profile)
+        private IEnumerator DownloadVoiceImpl(SpeechVoiceProfile profile)
         {
             Directory.CreateDirectory(PiperPlusModelsFolder);
             Main.Info($"Downloading piper-plus voice {profile.VoiceName}.");

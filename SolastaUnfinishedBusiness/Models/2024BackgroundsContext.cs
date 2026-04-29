@@ -331,13 +331,22 @@ public static partial class Tabletop2024Context
         return BackgroundFeatSets.Values.Distinct();
     }
 
+    private static bool TryGetReservedHeroBuildingData(
+        RulesetCharacterHero hero,
+        out CharacterHeroBuildingData heroBuildingData)
+    {
+        heroBuildingData = null;
+
+        return hero != null && hero.TryGetHeroBuildingData(out heroBuildingData);
+    }
+
     internal static HashSet<string> GetActiveOriginRestrictedFeatNames(RulesetCharacterHero hero)
     {
         HashSet<string> result = [];
 
         if (!_backgroundOptionsLoaded ||
             !IsBackgroundBonusFeatsEnabled() ||
-            hero?.GetHeroBuildingData() is not { } heroBuildingData)
+            !TryGetReservedHeroBuildingData(hero, out var heroBuildingData))
         {
             return result;
         }
@@ -822,8 +831,11 @@ public static partial class Tabletop2024Context
 
         if (clearTraining && changed)
         {
-            ClearHumanOriginFeatTraining(hero.GetHeroBuildingData());
-            SyncHumanOriginFeatPools(hero.GetHeroBuildingData());
+            if (TryGetReservedHeroBuildingData(hero, out var heroBuildingData))
+            {
+                ClearHumanOriginFeatTraining(heroBuildingData);
+                SyncHumanOriginFeatPools(heroBuildingData);
+            }
         }
 
         return true;
@@ -928,7 +940,7 @@ public static partial class Tabletop2024Context
     {
         featName = null;
 
-        if (hero?.GetHeroBuildingData() is not { } heroBuildingData ||
+        if (!TryGetReservedHeroBuildingData(hero, out var heroBuildingData) ||
             !heroBuildingData.PointPoolStacks.TryGetValue(HeroDefinitions.PointsPoolType.Feat, out var pointPoolStack) ||
             !pointPoolStack.ActivePools.ContainsKey(HumanOriginFeatTag) ||
             !heroBuildingData.LevelupTrainedFeats.TryGetValue(HumanOriginFeatTag, out var trainedFeats))

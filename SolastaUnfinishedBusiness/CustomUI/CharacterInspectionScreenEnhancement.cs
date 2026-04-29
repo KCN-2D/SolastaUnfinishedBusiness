@@ -244,7 +244,12 @@ internal static class CharacterInspectionScreenEnhancement
         TooltipDefinitions.AnchorMode tooltipAnchorMode)
     {
         var inspectedHero = GetInspectedHero(panel);
-        var buildingData = inspectedHero?.GetHeroBuildingData();
+        CharacterHeroBuildingData buildingData = null;
+
+        if (inspectedHero != null)
+        {
+            inspectedHero.TryGetHeroBuildingData(out buildingData);
+        }
 
         while (table.childCount < features.Count)
         {

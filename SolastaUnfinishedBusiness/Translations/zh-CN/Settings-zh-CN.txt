@@ -101,8 +101,10 @@ ModUi/&DontFollowCharacterInBattle=当角色已出现在屏幕上时，战斗摄
 ModUi/&DontFollowMargin=<i><color=white>+ 除非英雄不在屏幕边缘或在屏幕边缘的 % 范围内</color></i>
 ModUi/&DownloadVoice=下载推荐的声音
 ModUi/&DownloadVoiceOngoing=正在下载（{0}）
-ModUi/&DownloadJapaneseVoice=下载日语语音
-ModUi/&DownloadJapaneseVoiceOngoing=正在下载日语语音（{0}）
+ModUi/&DownloadSpeechVoiceProfile=下载{0}
+ModUi/&DownloadSpeechVoiceProfileOngoing=正在下载{0}（{1}）
+ModUi/&SpeechVoiceTsukuyomi=日语语音：月读酱
+ModUi/&SpeechVoiceCss10=日语语音：CSS10
 ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>下载对应语言的语音后，该语言文本会使用该语音朗读。其他文本仍使用现有的英语 Piper 语音。</color></i>
 ModUi/&DungeonMaker=地下城制造者
 ModUi/&DungeonMakerBasicHelp=• 这些设置不需要玩家安装此模组
