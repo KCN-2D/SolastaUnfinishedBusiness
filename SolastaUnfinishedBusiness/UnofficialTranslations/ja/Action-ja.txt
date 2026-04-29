@@ -161,7 +161,7 @@ Action/&SpellCoverHalfDescription=対象は1/2遮蔽を得ています（{0}セ�
 Action/&SpellCoverThreeQuartersDescription=対象は3/4遮蔽を得ています（{0}セーヴィング・スロー）。
 Action/&SpellExecuteDescription=この呪文の対象を選択してください。
 Action/&SpellExecuteGamepadDescription=<sprite index={0}>を押して、呪文の対象を選択してください。
-Action/&SpiritRageDescription=同族の精霊のACとダメージ・ロールを強化し、1分間、追加攻撃を1回行えるようにします。
+Action/&SpiritRageDescription=同類の精霊のACとダメージ・ロールを強化し、1分間、追加攻撃を1回行えるようにします。
 Action/&SpiritRageTitle=精霊の激怒
 Action/&SpiritRallyDescription=戦闘中でなければ、絆ある精霊を呼び寄せられます。精霊は本来の次元界を通って障害物を無視し、あなたの隣へ瞬間移動してきます。
 Action/&SpiritRallyTitle=精霊招集

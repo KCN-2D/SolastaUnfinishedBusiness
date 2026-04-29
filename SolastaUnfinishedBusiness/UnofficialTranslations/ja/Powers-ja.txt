@@ -1,5 +1,5 @@
 Powers/&ActioneStopTitle=激昂を止める
-Powers/&AncientRemorhaz_SonicBlast_Description=エンシェント・レモルハズは、内なる燃焼を解き放ち、耳をつんざくような爆発を引き起こし、最強の敵さえも震え上がらせることができます。
+Powers/&AncientRemorhaz_SonicBlast_Description=古代ルモアハズは、内なる燃焼を解き放ち、耳をつんざくような爆発を引き起こし、最強の敵さえも震え上がらせることができます。
 Powers/&AncientRemorhaz_SonicBlast_Title=音波爆発
 Powers/&Item_PenitentBelt_Description=1回のチャージで1d8+2ヒット・ポイントを回復します。
 Powers/&Item_PenitentBelt_Title=治癒
