@@ -101,6 +101,9 @@ ModUi/&DontFollowCharacterInBattle=La caméra de combat ne suit pas lorsque le p
 ModUi/&DontFollowMargin=<i><color=white>+ Sauf si le héros est éteint ou à % du bord de l'écran</color></i>
 ModUi/&DownloadVoice=Télécharger les voix suggérées
 ModUi/&DownloadVoiceOngoing=Téléchargement à {0}
+ModUi/&DownloadJapaneseVoice=Télécharger la voix japonaise
+ModUi/&DownloadJapaneseVoiceOngoing=Téléchargement de la voix japonaise à {0}
+ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>Après le téléchargement d'une voix correspondant à la langue, les textes dans cette langue seront lus avec cette voix. Les autres textes continuent d'utiliser les voix anglaises Piper existantes.</color></i>
 ModUi/&DungeonMaker=Créateur de donjons
 ModUi/&DungeonMakerBasicHelp=• Ces paramètres ne nécessiteront pas que le joueur ait installé ce mod
 ModUi/&Effects=Effets

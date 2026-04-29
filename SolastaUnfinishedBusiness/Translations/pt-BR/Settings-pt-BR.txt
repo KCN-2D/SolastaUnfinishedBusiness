@@ -101,6 +101,9 @@ ModUi/&DontFollowCharacterInBattle=A câmera de batalha não segue quando o pers
 ModUi/&DontFollowMargin=<i><color=white>+ A menos que o herói esteja desligado ou dentro de % da borda da tela</color></i>
 ModUi/&DownloadVoice=Baixar Vozes Sugeridas
 ModUi/&DownloadVoiceOngoing=Baixando em {0}
+ModUi/&DownloadJapaneseVoice=Baixar voz japonesa
+ModUi/&DownloadJapaneseVoiceOngoing=Baixando voz japonesa em {0}
+ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>Depois que uma voz compatível com o idioma for baixada, textos nesse idioma serão lidos com ela. Outros textos continuarão usando as vozes inglesas existentes do Piper.</color></i>
 ModUi/&DungeonMaker=Criador de Masmorras
 ModUi/&DungeonMakerBasicHelp=• Essas configurações não exigirão que o jogador tenha esse mod instalado
 ModUi/&Effects=Efeitos

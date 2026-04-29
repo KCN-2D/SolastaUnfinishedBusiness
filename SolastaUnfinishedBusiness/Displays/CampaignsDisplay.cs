@@ -157,8 +157,16 @@ internal static class CampaignsDisplay
                 UI.ActionButton(
                     SpeechContext.VoicesDownloader.Shared.GetButtonLabel(),
                     SpeechContext.VoicesDownloader.Shared.DownloadVoices, UI.Width(227f));
+
+                foreach (var profile in SpeechContext.DownloadableVoiceProfiles)
+                {
+                    UI.ActionButton(
+                        SpeechContext.PiperPlusVoiceDownloader.Shared.GetButtonLabel(profile),
+                        () => SpeechContext.PiperPlusVoiceDownloader.Shared.DownloadVoice(profile), UI.Width(227f));
+                }
             }
 
+            UI.Label(Gui.Localize("ModUi/&EnableSpeechLanguageVoiceHelp"));
             UI.Label();
 
             toggle = Main.Settings.EnableSpeechOnNpcs;
@@ -192,6 +200,12 @@ internal static class CampaignsDisplay
             var (voice, speed) = Main.Settings.SpeechVoices[Main.Settings.SpeechChoice];
 
             intValue = Array.IndexOf(SpeechContext.VoiceNames, voice);
+
+            if (intValue < 0)
+            {
+                intValue = 0;
+                voice = SpeechContext.VoiceNames[intValue];
+            }
 
             if (UI.Slider(Gui.Localize("ModUi/&SpeechScale"), ref speed,
                     0.5f, 2f, 0.8f, 1, string.Empty, UI.AutoWidth()))

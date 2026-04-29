@@ -101,6 +101,9 @@ ModUi/&DontFollowCharacterInBattle=Боевая камера не следует
 ModUi/&DontFollowMargin=<i><color=white>+ Только если герой вне или в рамках % от границы экрана</color></i>
 ModUi/&DownloadVoice=Скачать предлагаемые голоса
 ModUi/&DownloadVoiceOngoing=Скачивание на {0}
+ModUi/&DownloadJapaneseVoice=Скачать японский голос
+ModUi/&DownloadJapaneseVoiceOngoing=Загрузка японского голоса: {0}
+ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>После загрузки голоса для соответствующего языка текст на этом языке будет озвучиваться им. Остальной текст продолжит использовать существующие английские голоса Piper.</color></i>
 ModUi/&DungeonMaker=Создатель Подземелий
 ModUi/&DungeonMakerBasicHelp=• Эти настройки не потребуют от игрока установленного мода
 ModUi/&Effects=Эффекты
