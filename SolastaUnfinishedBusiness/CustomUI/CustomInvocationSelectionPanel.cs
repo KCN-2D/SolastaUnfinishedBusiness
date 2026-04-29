@@ -1333,7 +1333,6 @@ internal static class SpellBoxExtensions
         instance.interactive = canLearn && !autoPrepared;
         instance.canLearn = canLearn && !autoPrepared;
         instance.selectedToLearn = selected;
-        instance.selectedToLearn = selected;
         instance.known = known; //TODO: try to experiment with auto prepared tags to signify known features
         instance.Refresh();
     }

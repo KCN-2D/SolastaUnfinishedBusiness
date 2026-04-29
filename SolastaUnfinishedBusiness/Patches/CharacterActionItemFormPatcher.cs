@@ -2,11 +2,11 @@
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
 using TA.AddressableAssets;
-using TMPro;
 using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -22,22 +22,16 @@ public static class CharacterActionItemFormPatcher
         [UsedImplicitly]
         public static void Postfix(CharacterActionItemForm __instance)
         {
-            //PATCH: make caption on small form wrap, instead of truncating
+            //PATCH: keep the small form caption readable without wrapping into the icon area
             //TODO: do we need a setting to control this?
-            TMP_Text tmpText;
-            if (__instance.highSlotNumber == null && (tmpText = __instance.captionLabel.tmpText) != null)
-            {
-                tmpText.enableWordWrapping = true;
-                tmpText.alignment = TextAlignmentOptions.Bottom;
-                tmpText.overflowMode = TextOverflowModes.Overflow;
-            }
+            UiTextHelpers.FitActionItemCaption(__instance);
 
             //PATCH: disable word wrapping for attack number
             //useful when you have Spell Points enabled and have 100+ of them, not noticeable otherwise
             var attacks = __instance.attacksNumberValue;
-            if (attacks != null && (tmpText = attacks.tmpText) != null)
+            if (attacks?.tmpText != null)
             {
-                tmpText.enableWordWrapping = false;
+                attacks.tmpText.enableWordWrapping = false;
             }
 
             //PATCH: Get dynamic properties from forced attack
@@ -60,6 +54,8 @@ public static class CharacterActionItemFormPatcher
         [UsedImplicitly]
         public static void Postfix(CharacterActionItemForm __instance)
         {
+            UiTextHelpers.FitActionItemCaption(__instance);
+
             //PATCH: supports hide One with the Blade attack numbers as in practice it's only one
             if (__instance.currentAttackMode.AttackTags.Contains(WayOfBlade.OneWithTheBlade))
             {

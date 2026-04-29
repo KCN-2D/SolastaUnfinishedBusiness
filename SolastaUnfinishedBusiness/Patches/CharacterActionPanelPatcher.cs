@@ -68,6 +68,7 @@ public static class CharacterActionPanelPatcher
 
             component.currentItemForm.captionLabel.Text = GetName(guiCharacterAction.ForcedAttackMode?.AttackTags)
                                                           ?? component.currentItemForm.captionLabel.Text;
+            UiTextHelpers.FitActionItemCaption(component.currentItemForm);
         }
 
         private static string GetName([CanBeNull] List<string> tags)

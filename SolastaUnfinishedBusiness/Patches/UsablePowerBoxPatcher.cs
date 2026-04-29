@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using UnityEngine.UI;
 using static RuleDefinitions;
@@ -49,10 +50,12 @@ public static class UsablePowerBoxPatcher
                 __instance.canvasGroup.interactable = true;
             }
 
+            UiTextHelpers.FitCardTitle(__instance.titleActiveLabel);
+            UiTextHelpers.FitCardTitle(__instance.titleInactiveLabel);
 
             //PATCH: make power icons fit into box, instead of stretching
             var img = __instance.image;
-            var aspect = img.GetComponent<AspectRatioFitter>();
+            var aspect = img ? img.GetComponent<AspectRatioFitter>() : null;
 
             if (!aspect || !img || !img.sprite)
             {
