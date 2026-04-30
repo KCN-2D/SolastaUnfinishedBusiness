@@ -184,14 +184,14 @@ public static class CharacterActionUsePowerPatcher
     {
         [UsedImplicitly]
         public static bool Prefix(
-            ref IEnumerator __result, CharacterActionUsePower __instance, CharacterAction counterAction)
+            ref IEnumerator __result, CharacterActionUsePower __instance)
         {
-            __result = Process(__instance, counterAction);
+            __result = Process(__instance);
 
             return false;
         }
 
-        private static IEnumerator Process(CharacterActionUsePower actionUsePower, CharacterAction counterAction)
+        private static IEnumerator Process(CharacterActionUsePower actionUsePower)
         {
             if (actionUsePower.ActionParams.TargetAction == null)
             {
@@ -213,8 +213,12 @@ public static class CharacterActionUsePowerPatcher
                 }
 
                 var counterForm = effectForm.CounterForm;
-                var counteredSpell = targetActionParams.RulesetEffect as RulesetEffectSpell;
-                var counteredSpellDefinition = counteredSpell!.SpellDefinition;
+                if (targetActionParams.RulesetEffect is not RulesetEffectSpell counteredSpell)
+                {
+                    continue;
+                }
+
+                var counteredSpellDefinition = counteredSpell.SpellDefinition;
                 var slotLevel = counteredSpell.SlotLevel;
 
                 if (counterForm.AutomaticSpellLevel >= slotLevel)
@@ -306,7 +310,7 @@ public static class CharacterActionUsePowerPatcher
                     actionUsePower.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckRollOutcome;
                     actionUsePower.AbilityCheckSuccessDelta = abilityCheckData.AbilityCheckSuccessDelta;
 
-                    if (counterAction.AbilityCheckRollOutcome == RollOutcome.Success)
+                    if (actionUsePower.AbilityCheckRollOutcome == RollOutcome.Success)
                     {
                         targetAction.Countered = true;
                     }

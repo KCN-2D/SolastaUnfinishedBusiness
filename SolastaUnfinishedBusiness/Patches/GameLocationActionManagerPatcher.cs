@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -162,12 +163,23 @@ public static class GameLocationActionManagerPatcher
             //PATCH: ensure whoever reacts first will get the reaction handled first by game
             if (!Global.IsMultiplayer)
             {
+                var originalOrder = new Dictionary<ReactionRequest, int>(reactionRequestGroup.Requests.Count);
+
+                for (var i = 0; i < reactionRequestGroup.Requests.Count; i++)
+                {
+                    originalOrder[reactionRequestGroup.Requests[i]] = i;
+                }
+
                 reactionRequestGroup.Requests.Sort((a, b) =>
                 {
                     a.Character.UsedSpecialFeatures.TryGetValue(ReactionTimestamp, out var aTimestamp);
                     b.Character.UsedSpecialFeatures.TryGetValue(ReactionTimestamp, out var bTimestamp);
 
-                    return aTimestamp <= bTimestamp ? -1 : 1;
+                    var timestampComparison = aTimestamp.CompareTo(bTimestamp);
+
+                    return timestampComparison != 0
+                        ? timestampComparison
+                        : originalOrder[a].CompareTo(originalOrder[b]);
                 });
             }
 

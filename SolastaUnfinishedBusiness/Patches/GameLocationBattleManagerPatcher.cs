@@ -573,17 +573,17 @@ public static class GameLocationBattleManagerPatcher
             //PATCH: support for features removing ranged attack disadvantage
             RemoveRangedAttackInMeleeDisadvantage.CheckToRemoveRangedDisadvantage(attackParams);
 
+            if (!__result)
+            {
+                return;
+            }
+
             //PATCH: check if weapon has MagicAffinityInfusionEnhanceArcaneFocus Infusion
             //TODO: create an interface if ever required by other use cases
             if (attackParams.attacker.RulesetActor is RulesetCharacter rulesetCharacter &&
                 HasEnhancedArcaneFocus(rulesetCharacter))
             {
                 attackParams.attackModifier.coverType = CoverType.None;
-            }
-
-            if (!__result)
-            {
-                return;
             }
 
             //PATCH: supports `UseOfficialLightingObscurementAndVisionRules`
@@ -597,6 +597,11 @@ public static class GameLocationBattleManagerPatcher
 
         private static bool HasEnhancedArcaneFocus(RulesetCharacter rulesetCharacter)
         {
+            if (rulesetCharacter == null)
+            {
+                return false;
+            }
+
             foreach (var item in rulesetCharacter.Items)
             {
                 foreach (var dynamicItemProperty in item.DynamicItemProperties)

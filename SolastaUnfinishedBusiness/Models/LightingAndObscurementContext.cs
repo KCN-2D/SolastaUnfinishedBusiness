@@ -32,6 +32,23 @@ namespace SolastaUnfinishedBusiness.Models;
 
 internal static class LightingAndObscurementContext
 {
+    private static Dictionary<GameLocationCharacter, RuleDefinitions.RollOutcome> GetOrCreatePerceptionRollCache(
+        GameLocationCharacter sensor)
+    {
+        if (!Global.RolledPerceptionThisTurn.TryGetValue(sensor, out var targets))
+        {
+            targets = [];
+            Global.RolledPerceptionThisTurn[sensor] = targets;
+        }
+
+        return targets;
+    }
+
+    private static void CacheSuccessfulPerceptionRoll(GameLocationCharacter sensor, GameLocationCharacter target)
+    {
+        GetOrCreatePerceptionRollCache(sensor).TryAdd(target, RuleDefinitions.RollOutcome.Success);
+    }
+
     private static string[] MonstersThatShouldHaveDarkvision { get; } =
     [
         "Adam_The_Twelth",
@@ -529,11 +546,7 @@ internal static class LightingAndObscurementContext
                 sensor != null &&
                 target != null)
             {
-                if (!Global.RolledPerceptionThisTurn.ContainsKey(sensor))
-                    Global.RolledPerceptionThisTurn.Add(sensor, []);
-
-                if (!Global.RolledPerceptionThisTurn[sensor].ContainsKey(target))
-                    Global.RolledPerceptionThisTurn[sensor].Add(target, RuleDefinitions.RollOutcome.Success);
+                CacheSuccessfulPerceptionRoll(sensor, target);
             }
 
             // Silhouette Step is the only one using additionalBlockedLightingState as it requires to block BRIGHT
@@ -549,34 +562,21 @@ internal static class LightingAndObscurementContext
             && !targetIsInvisible
             && !sourceIsBlindFromDarkness)
         {
-            var sensorAllowedToRoll = false;
             var advantage = RuleDefinitions.AdvantageType.None;
             if (targetLightingState is LightingState.Darkness
                 || targetLightingState is (LightingState)MyLightingState.HeavilyObscured
                 || sourceIsBlindNotFromDarkness) advantage = RuleDefinitions.AdvantageType.Disadvantage;
 
-            if (!Global.RolledPerceptionThisTurn.TryGetValue(sensor, out var targets))
-            {
-                targets = [];
-                Global.RolledPerceptionThisTurn[sensor] = targets;
-                sensorAllowedToRoll = true;
-            } else if (!targets.ContainsKey(target))
-            {
-                sensorAllowedToRoll = true;
-            }
+            var targets = GetOrCreatePerceptionRollCache(sensor);
 
             RuleDefinitions.RollOutcome sensorOutcome;
-            if (sensorAllowedToRoll)
+            if (!targets.TryGetValue(target, out sensorOutcome))
             {
                 sensor.RollAbilityCheck(AttributeDefinitions.Wisdom, SkillDefinitions.Perception, (int)distance + 10,
                     advantage, new ActionModifier(), false, 0, out _, out _, out _, out _, out sensorOutcome, out _,
                     true);
 
                  targets[target] = sensorOutcome;
-            }
-            else if (!targets.TryGetValue(target, out sensorOutcome))
-            {
-                sensorOutcome = RuleDefinitions.RollOutcome.Failure;
             }
 
             if (sensorOutcome == RuleDefinitions.RollOutcome.Success)

@@ -9,7 +9,8 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class NarrativeStateAnswerChoicePatcher
 {
-    private static readonly Dictionary<ulong, int> DiceRolls = new();
+    private const uint FnvOffsetBasis = 2166136261;
+    private const uint FnvPrime = 16777619;
 
     [HarmonyPatch(typeof(NarrativeStateAnswerChoice), nameof(NarrativeStateAnswerChoice.Begin))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -28,8 +29,6 @@ public static class NarrativeStateAnswerChoicePatcher
 
             var characterService = ServiceRepository.GetService<IGameLocationCharacterService>();
 
-            DiceRolls.Clear();
-
             var actorLine = string.Empty;
 
             if (__instance.narrativeSequence.AdventureLogInfos.Count > 0)
@@ -42,12 +41,10 @@ public static class NarrativeStateAnswerChoicePatcher
 
             console.AddEntry(entry);
 
-            foreach (var gameLocationCharacter in characterService.PartyCharacters)
+            for (var voterHeroIndex = 0; voterHeroIndex < characterService.PartyCharacters.Count; voterHeroIndex++)
             {
-                var dieRoll = RuleDefinitions.RollDie(
-                    RuleDefinitions.DieType.D20, RuleDefinitions.AdvantageType.None, out _, out _);
-
-                DiceRolls[gameLocationCharacter.Guid] = dieRoll;
+                var gameLocationCharacter = characterService.PartyCharacters[voterHeroIndex];
+                var dieRoll = ComputeStableVotingD20(__instance, gameLocationCharacter, voterHeroIndex);
 
                 entry = new GameConsoleEntry("Feedback/&NarrativeChoiceRoll",
                     console.consoleTableDefinition) { Indent = true };
@@ -82,67 +79,112 @@ public static class NarrativeStateAnswerChoicePatcher
             var characterService = ServiceRepository.GetService<IGameLocationCharacterService>();
             var playersInRoom = networkingService.GetPlayersInRoom();
             var votes = new Dictionary<int, int>();
+            var partyCharacters = characterService.PartyCharacters;
 
-            foreach (var current in __instance.playerVotesPerChoice)
+            foreach (var current in __instance.playerVotesPerChoice.OrderBy(x => x.Key))
             {
-                var heroIndex = current.Key;
-                var intList = current.Value;
+                var choiceIndex = current.Key;
+                var voterHeroIndexes = current.Value;
 
-                if (intList == null)
+                if (choiceIndex < 0 ||
+                    voterHeroIndexes == null)
                 {
                     continue;
                 }
 
-                var hero = characterService.PartyCharacters[heroIndex];
-                var charismaModifier = AttributeDefinitions.ComputeAbilityScoreModifier(
-                    hero.RulesetCharacter.TryGetAttributeValue(AttributeDefinitions.Charisma));
+                votes.TryAdd(choiceIndex, 0);
 
-                votes.TryAdd(heroIndex, 0);
-
-                foreach (var _ in intList)
+                foreach (var voterHeroIndex in voterHeroIndexes)
                 {
+                    if (voterHeroIndex < 0 ||
+                        voterHeroIndex >= partyCharacters.Count)
+                    {
+                        continue;
+                    }
+
+                    var hero = partyCharacters[voterHeroIndex];
+                    var charismaModifier = AttributeDefinitions.ComputeAbilityScoreModifier(
+                        hero.RulesetCharacter.TryGetAttributeValue(AttributeDefinitions.Charisma));
+
                     ++computedVotes;
 
-                    votes[heroIndex] += charismaModifier;
-                }
-            }
+                    votes[choiceIndex] += charismaModifier;
 
-            // add D20 rolls
-            if (Main.Settings.EnableSumD20OnAlternateVotingSystem)
-            {
-                foreach (var heroIndex in votes.Keys.ToArray())
-                {
-                    var hero = characterService.PartyCharacters[heroIndex];
-
-                    if (DiceRolls.TryGetValue(hero.Guid, out var dieRoll))
+                    if (Main.Settings.EnableSumD20OnAlternateVotingSystem)
                     {
-                        votes[heroIndex] += dieRoll;
+                        votes[choiceIndex] += ComputeStableVotingD20(__instance, hero, voterHeroIndex);
                     }
                 }
             }
 
             // determine highest selection
-            var maxWeight = 0;
+            var maxWeight = int.MinValue;
 
             selectedIndex = 0;
 
-            foreach (var vote in votes)
+            foreach (var vote in votes.OrderBy(x => x.Key))
             {
-                var heroIndex = vote.Key;
+                var choiceIndex = vote.Key;
                 var weight = vote.Value;
 
-                if (weight < maxWeight)
+                if (weight <= maxWeight)
                 {
                     continue;
                 }
 
                 maxWeight = weight;
-                selectedIndex = heroIndex;
+                selectedIndex = choiceIndex;
             }
 
             everyoneVoted = playersInRoom.Count <= computedVotes;
 
             return false;
+        }
+    }
+
+    private static int ComputeStableVotingD20(
+        NarrativeStateAnswerChoice instance,
+        GameLocationCharacter gameLocationCharacter,
+        int voterHeroIndex)
+    {
+        var networkingService = ServiceRepository.GetService<INetworkingService>();
+        var hash = FnvOffsetBasis;
+
+        AddHash(ref hash, networkingService?.RoomRandomSeed ?? 0);
+        AddHash(ref hash, gameLocationCharacter.Guid);
+        AddHash(ref hash, voterHeroIndex);
+        AddHash(ref hash, instance.narrativeSequence.AdventureLogInfos.Count);
+
+        return (int)(hash % 20) + 1;
+    }
+
+    private static void AddHash(ref uint hash, int value)
+    {
+        AddHash(ref hash, unchecked((uint)value));
+    }
+
+    private static void AddHash(ref uint hash, ulong value)
+    {
+        for (var i = 0; i < sizeof(ulong); i++)
+        {
+            AddHashByte(ref hash, (byte)(value >> (i * 8)));
+        }
+    }
+
+    private static void AddHash(ref uint hash, uint value)
+    {
+        for (var i = 0; i < sizeof(uint); i++)
+        {
+            AddHashByte(ref hash, (byte)(value >> (i * 8)));
+        }
+    }
+
+    private static void AddHashByte(ref uint hash, byte value)
+    {
+        unchecked
+        {
+            hash ^= value;
+            hash *= FnvPrime;
         }
     }
 }

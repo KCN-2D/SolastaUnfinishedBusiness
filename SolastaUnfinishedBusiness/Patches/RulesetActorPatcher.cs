@@ -321,10 +321,10 @@ public static class RulesetActorPatcher
         public static void Postfix(RulesetActor __instance, TurnOccurenceType occurenceType)
         {
             //PATCH: support for `ExtraTurnOccurenceType.StartOfSourceTurn`
-            RemoveStartOfSourceTurnOccuranceIfNeeded(__instance, occurenceType);
+            RemoveStartOfSourceTurnOccurrenceIfNeeded(__instance, occurenceType);
         }
 
-        private static void RemoveStartOfSourceTurnOccuranceIfNeeded(
+        private static void RemoveStartOfSourceTurnOccurrenceIfNeeded(
             // ReSharper disable once SuggestBaseTypeForParameter
             RulesetActor __instance,
             TurnOccurenceType occurenceType)
@@ -339,20 +339,36 @@ public static class RulesetActorPatcher
                 return;
             }
 
-            foreach (var contender in Gui.Battle.AllContenders
-                         .Where(x => x is { destroying: false, destroyedBody: false, RulesetActor: not null })
-                         .ToArray())
+            foreach (var contender in Gui.Battle.AllContenders)
             {
-                var conditionsToRemove = new List<RulesetCondition>();
+                if (contender is not { destroying: false, destroyedBody: false, RulesetActor: not null })
+                {
+                    continue;
+                }
 
-                conditionsToRemove.AddRange(
-                    contender.RulesetActor.ConditionsByCategory
-                        .SelectMany(x => x.Value)
-                        .Where(x =>
-                            x.SourceGuid == __instance.Guid &&
+                List<RulesetCondition> conditionsToRemove = null;
+
+                foreach (var conditions in contender.RulesetActor.ConditionsByCategory.Values)
+                {
+                    foreach (var condition in conditions)
+                    {
+                        if (condition.SourceGuid != __instance.Guid ||
                             //TODO: check this later with proper QA
-                            // x.RemainingRounds == 0 &&
-                            x.EndOccurence == (TurnOccurenceType)ExtraTurnOccurenceType.StartOfSourceTurn));
+                            // condition.RemainingRounds != 0 ||
+                            condition.EndOccurence != (TurnOccurenceType)ExtraTurnOccurenceType.StartOfSourceTurn)
+                        {
+                            continue;
+                        }
+
+                        conditionsToRemove ??= [];
+                        conditionsToRemove.Add(condition);
+                    }
+                }
+
+                if (conditionsToRemove == null)
+                {
+                    continue;
+                }
 
                 foreach (var conditionToRemove in conditionsToRemove)
                 {

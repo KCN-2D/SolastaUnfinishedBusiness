@@ -13,6 +13,122 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationBattlePatcher
 {
+    private static bool SetInvisibleBaseFeatures(params FeatureDefinition[] features)
+    {
+        var currentFeatures = DatabaseHelper.ConditionDefinitions.ConditionInvisibleBase.Features;
+
+        if (currentFeatures.Count == features.Length)
+        {
+            var same = true;
+
+            for (var i = 0; i < features.Length; i++)
+            {
+                if (currentFeatures[i] == features[i])
+                {
+                    continue;
+                }
+
+                same = false;
+                break;
+            }
+
+            if (same)
+            {
+                return false;
+            }
+        }
+
+        currentFeatures.SetRange(features);
+
+        return true;
+    }
+
+    private static void UpdatePerceptionIfInvisibleBaseChanged(params FeatureDefinition[] features)
+    {
+        if (!SetInvisibleBaseFeatures(features))
+        {
+            return;
+        }
+
+        var service =
+            ServiceRepository.GetService<IGameLocationVisibilityService>() as GameLocationVisibilityManager;
+
+        service?.UpdatePerception();
+    }
+
+    private static bool TryGetSenseNormalVisionConditionName(out string conditionName)
+    {
+        var multiplier = Main.Settings.SenseNormalVisionRangeMultiplier;
+
+        if (multiplier <= 0)
+        {
+            conditionName = null;
+            return false;
+        }
+
+        conditionName = $"ConditionSenseNormalVision{(multiplier == 1 ? 24 : 48)}";
+
+        return true;
+    }
+
+    private static void InflictSenseNormalVisionCondition(GameLocationCharacter character)
+    {
+        if (!TryGetSenseNormalVisionConditionName(out var conditionName))
+        {
+            return;
+        }
+
+        var rulesetCharacter = character.RulesetCharacter;
+
+        if (rulesetCharacter.HasConditionOfType(conditionName))
+        {
+            return;
+        }
+
+        rulesetCharacter.InflictCondition(
+            conditionName,
+            RuleDefinitions.DurationType.Irrelevant,
+            1,
+            RuleDefinitions.TurnOccurenceType.StartOfTurn,
+            AttributeDefinitions.TagEffect,
+            rulesetCharacter.guid,
+            rulesetCharacter.CurrentFaction.Name,
+            1,
+            conditionName,
+            0,
+            0,
+            0);
+    }
+
+    private static void AddSenseNormalVisionConditionWithoutRefresh(GameLocationCharacter character)
+    {
+        if (!TryGetSenseNormalVisionConditionName(out var conditionName))
+        {
+            return;
+        }
+
+        var rulesetCharacter = character.RulesetCharacter;
+
+        if (rulesetCharacter.HasConditionOfType(conditionName))
+        {
+            return;
+        }
+
+        // don't use InflictCondition here to avoid a too soon character refresh
+        var condition = DatabaseRepository.GetDatabase<ConditionDefinition>().GetElement(conditionName);
+        var activeCondition = RulesetCondition.CreateActiveCondition(
+            character.Guid,
+            condition,
+            RuleDefinitions.DurationType.Irrelevant,
+            1,
+            RuleDefinitions.TurnOccurenceType.StartOfTurn,
+            character.Guid,
+            rulesetCharacter.CurrentFaction.Name,
+            effectDefinitionName: conditionName);
+
+        rulesetCharacter.AddConditionOfCategory(AttributeDefinitions.TagEffect, activeCondition, false);
+    }
+
     [HarmonyPatch(typeof(GameLocationBattle), nameof(GameLocationBattle.StartContenders))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -26,13 +142,8 @@ public static class GameLocationBattlePatcher
                 return;
             }
 
-            DatabaseHelper.ConditionDefinitions.ConditionInvisibleBase.Features.SetRange(
+            UpdatePerceptionIfInvisibleBaseChanged(
                 DatabaseHelper.FeatureDefinitionCombatAffinitys.CombatAffinityInvisible);
-
-            var service =
-                ServiceRepository.GetService<IGameLocationVisibilityService>() as GameLocationVisibilityManager;
-
-            service!.UpdatePerception();
         }
     }
 
@@ -49,14 +160,9 @@ public static class GameLocationBattlePatcher
                 return;
             }
 
-            DatabaseHelper.ConditionDefinitions.ConditionInvisibleBase.Features.SetRange(
+            UpdatePerceptionIfInvisibleBaseChanged(
                 DatabaseHelper.FeatureDefinitionCombatAffinitys.CombatAffinityInvisible,
                 DatabaseHelper.FeatureDefinitionPerceptionAffinitys.PerceptionAffinityConditionInvisible);
-
-            var service =
-                ServiceRepository.GetService<IGameLocationVisibilityService>() as GameLocationVisibilityManager;
-
-            service!.UpdatePerception();
         }
     }
 
@@ -69,7 +175,9 @@ public static class GameLocationBattlePatcher
         [UsedImplicitly]
         public static void Postfix(GameLocationBattle __instance, ref List<GameLocationCharacter> __result)
         {
-            if (!Main.Settings.EnableEnemiesControlledByPlayer || __instance == null)
+            if (!Main.Settings.EnableEnemiesControlledByPlayer ||
+                Global.IsMultiplayer ||
+                __instance == null)
             {
                 return;
             }
@@ -93,7 +201,9 @@ public static class GameLocationBattlePatcher
         [UsedImplicitly]
         public static void Postfix(GameLocationBattle __instance, ref List<GameLocationCharacter> __result)
         {
-            if (!Main.Settings.EnableEnemiesControlledByPlayer || __instance == null)
+            if (!Main.Settings.EnableEnemiesControlledByPlayer ||
+                Global.IsMultiplayer ||
+                __instance == null)
             {
                 return;
             }
@@ -126,26 +236,7 @@ public static class GameLocationBattlePatcher
             foreach (var character in contenders)
             {
                 //PATCH: supports `SenseNormalVisionRangeMultiplier`
-                if (Main.Settings.SenseNormalVisionRangeMultiplier > 0)
-                {
-                    var rulesetCharacter = character.RulesetCharacter;
-                    var conditionName =
-                        $"ConditionSenseNormalVision{(Main.Settings.SenseNormalVisionRangeMultiplier == 1 ? 24 : 48)}";
-
-                    rulesetCharacter.InflictCondition(
-                        conditionName,
-                        RuleDefinitions.DurationType.Irrelevant,
-                        1,
-                        RuleDefinitions.TurnOccurenceType.StartOfTurn,
-                        AttributeDefinitions.TagEffect,
-                        rulesetCharacter.guid,
-                        rulesetCharacter.CurrentFaction.Name,
-                        1,
-                        conditionName,
-                        0,
-                        0,
-                        0);
-                }
+                InflictSenseNormalVisionCondition(character);
 
                 //PATCH: mainly supports Thief level 17th through ICharacterInitiativeEndListener interface
                 var features = character.RulesetCharacter.GetSubFeaturesByType<IInitiativeEndListener>();
@@ -217,28 +308,7 @@ public static class GameLocationBattlePatcher
         [UsedImplicitly]
         public static void Postfix(GameLocationCharacter character)
         {
-            var multiplier = Main.Settings.SenseNormalVisionRangeMultiplier;
-
-            if (multiplier == 0)
-            {
-                return;
-            }
-
-            // don't use InflictCondition here to avoid a too soon character refresh
-            var rulesetCharacter = character.RulesetCharacter;
-            var conditionName = $"ConditionSenseNormalVision{(multiplier == 1 ? 24 : 48)}";
-            var condition = DatabaseRepository.GetDatabase<ConditionDefinition>().GetElement(conditionName);
-            var activeCondition = RulesetCondition.CreateActiveCondition(
-                character.Guid,
-                condition,
-                RuleDefinitions.DurationType.Irrelevant,
-                1,
-                RuleDefinitions.TurnOccurenceType.StartOfTurn,
-                character.Guid,
-                rulesetCharacter.CurrentFaction.Name,
-                effectDefinitionName: conditionName);
-
-            rulesetCharacter.AddConditionOfCategory(AttributeDefinitions.TagEffect, activeCondition, false);
+            AddSenseNormalVisionConditionWithoutRefresh(character);
         }
     }
 }

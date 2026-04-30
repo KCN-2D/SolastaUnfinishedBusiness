@@ -427,10 +427,6 @@ public static class GameLocationCharacterPatcher
             bool ignoreMovePoints)
         {
             var rulesetCharacter = __instance.RulesetCharacter;
-            var flurryOfBlowActions = new[]
-            {
-                Id.FlurryOfBlows, Id.FlurryOfBlowsSwiftSteps, Id.FlurryOfBlowsUnendingStrikes
-            };
 
             //PATCH: support for `IReplaceAttackWithCantrip` - allows `CastMain` action if character used attack
             ReplaceAttackWithCantrip.AllowCastDuringMainAttack(__instance, actionId, scope, ref __result);
@@ -448,30 +444,24 @@ public static class GameLocationCharacterPatcher
             if (Main.Settings.BlindedConditionDontAllowAttackOfOpportunity &&
                 actionId == Id.AttackOpportunity &&
                 rulesetCharacter.HasConditionOfTypeOrSubType(ConditionBlinded) &&
-                rulesetCharacter.SenseModes
-                    .Select(x => x.SenseType)
-                    .Intersect([SenseMode.Type.Blindsight, SenseMode.Type.Tremorsense, SenseMode.Type.Truesight])
-                    .ToList().Count == 0)
+                !rulesetCharacter.SenseModes.Any(x =>
+                    x.SenseType is SenseMode.Type.Blindsight or SenseMode.Type.Tremorsense or SenseMode.Type.Truesight))
             {
                 __result = ActionStatus.CannotPerform;
             }
 
             //PATCH: support bonus / main forbidden actions
-            foreach (var bonusOrMain in new[] { ActionType.Bonus, ActionType.Main })
+            if (__result == ActionStatus.Available &&
+                (IsActionForbidden(__instance, ActionType.Bonus, actionId) ||
+                 IsActionForbidden(__instance, ActionType.Main, actionId)))
             {
-                if (__result == ActionStatus.Available &&
-                    __instance.ActionPerformancesByType.TryGetValue(
-                        bonusOrMain, out var actionPerformanceFilters) &&
-                    actionPerformanceFilters.Any(x => x.ForbiddenActions.Any(y => y == actionId)))
-                {
-                    __result = ActionStatus.CannotPerform;
-                }
+                __result = ActionStatus.CannotPerform;
             }
 
             //PATCH: support `EnableMonkFocus2024`
             if (Main.Settings.EnableMonkFocus2024 &&
                 __result == ActionStatus.CannotPerform &&
-                flurryOfBlowActions.Contains(actionId) &&
+                IsFlurryOfBlowsAction(actionId) &&
                 (rulesetCharacter.RemainingKiPoints > 0 ||
                  rulesetCharacter.HasConditionOfType(WayOfShadow.ConditionCloakOfShadowsName)) &&
                 __instance.GetActionTypeStatus(ActionType.Bonus) == ActionStatus.Available)
@@ -482,7 +472,7 @@ public static class GameLocationCharacterPatcher
             //PATCH: support Swift Quiver spell interaction with Flurry of Blows
             //TODO: this sounds fishy. rethink how to do it
             if (__result == ActionStatus.Available &&
-                flurryOfBlowActions.Contains(actionId) &&
+                IsFlurryOfBlowsAction(actionId) &&
                 __instance.UsedSpecialFeatures.ContainsKey(SpellBuilders.SwiftQuiverAttackTag))
             {
                 __result = ActionStatus.CannotPerform;
@@ -526,6 +516,34 @@ public static class GameLocationCharacterPatcher
                     __result = ActionStatus.Unavailable;
                     break;
             }
+        }
+
+        private static bool IsActionForbidden(GameLocationCharacter character, ActionType actionType, Id actionId)
+        {
+            if (!character.ActionPerformancesByType.TryGetValue(actionType, out var actionPerformanceFilters))
+            {
+                return false;
+            }
+
+            foreach (var actionPerformanceFilter in actionPerformanceFilters)
+            {
+                foreach (var forbiddenAction in actionPerformanceFilter.ForbiddenActions)
+                {
+                    if (forbiddenAction == actionId)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsFlurryOfBlowsAction(Id actionId)
+        {
+            return actionId is Id.FlurryOfBlows
+                or Id.FlurryOfBlowsSwiftSteps
+                or Id.FlurryOfBlowsUnendingStrikes;
         }
     }
 
