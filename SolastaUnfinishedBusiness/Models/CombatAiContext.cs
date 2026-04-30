@@ -5,6 +5,7 @@ using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using TA;
 using TA.AI;
 using UnityEngine;
@@ -147,6 +148,7 @@ internal static class CombatAiContext
         CoverType rangedCoverType,
         bool enemyCanRangedAttackActorFromPosition,
         CoverType actorCoverFromEnemyRangedAttack,
+        bool knownRangedOrCasterThreat,
         bool isWounded,
         bool isConcentrating,
         bool isApproachSource)
@@ -160,6 +162,7 @@ internal static class CombatAiContext
         internal CoverType RangedCoverType { get; } = rangedCoverType;
         internal bool EnemyCanRangedAttackActorFromPosition { get; } = enemyCanRangedAttackActorFromPosition;
         internal CoverType ActorCoverFromEnemyRangedAttack { get; } = actorCoverFromEnemyRangedAttack;
+        internal bool KnownRangedOrCasterThreat { get; } = knownRangedOrCasterThreat;
         internal bool ActorHasUsefulCover =>
             EnemyCanRangedAttackActorFromPosition && ActorCoverFromEnemyRangedAttack >= CoverType.Half;
         internal bool IsWounded { get; } = isWounded;
@@ -487,6 +490,11 @@ internal static class CombatAiContext
 
         var profile = BuildProfile(character);
         var self = BuildSelfAssessment(character);
+
+        if (TryUseFallbackReady(character, profile))
+        {
+            return true;
+        }
 
         if (TryUseFallbackAtWillSelfBuff(character, profile, self))
         {
@@ -978,6 +986,10 @@ internal static class CombatAiContext
             }
 
             var rulesetEnemy = enemy.RulesetCharacter;
+            var knownRangedOrCasterThreat =
+                enemyCanRangedAttackActorFromPosition ||
+                rulesetEnemy.ConcentratedSpell != null ||
+                (needThreatFacts && HasSpellcasting(rulesetEnemy));
 
             evaluations[i] = new EnemyEvaluation(
                 enemy,
@@ -989,6 +1001,7 @@ internal static class CombatAiContext
                 rangedCoverType,
                 enemyCanRangedAttackActorFromPosition,
                 actorCoverFromEnemyRangedAttack,
+                knownRangedOrCasterThreat,
                 rulesetEnemy.MissingHitPoints > rulesetEnemy.CurrentHitPoints,
                 rulesetEnemy.ConcentratedSpell != null,
                 enemy.Guid == approachSourceGuid);
@@ -1148,6 +1161,7 @@ internal static class CombatAiContext
 
         var bias = 0.0f;
         var exposedThreats = 0;
+        var exposedKnownRangedOrCasterThreats = 0;
         var hasSafeRangedLine = false;
         var canAttackFromPosition = false;
         var coveredRangedThreats = 0;
@@ -1160,6 +1174,11 @@ internal static class CombatAiContext
             if (evaluation.ExposesActorToMeleeThreat)
             {
                 exposedThreats++;
+            }
+
+            if (evaluation.KnownRangedOrCasterThreat && !evaluation.ActorHasUsefulCover)
+            {
+                exposedKnownRangedOrCasterThreats++;
             }
 
             if (evaluation.RangedAttackAvailableFromPosition && evaluation.RangedCoverType <= CoverType.Half)
@@ -1241,6 +1260,21 @@ internal static class CombatAiContext
             bias += pursuitBias;
         }
 
+        if (ShouldAvoidExposedAdvance(profile, self, canAttackFromPosition) &&
+            exposedKnownRangedOrCasterThreats > 0)
+        {
+            var exposedAdvancePenalty = self.IsBloodied || self.HasSeriousCondition ? 0.18f : 0.12f;
+
+            if (profile.Temperament is CombatAiTemperament.Cautious
+                    or CombatAiTemperament.Cunning
+                    or CombatAiTemperament.CunningAggressive)
+            {
+                exposedAdvancePenalty += 0.04f;
+            }
+
+            bias -= Mathf.Min(0.28f, exposedKnownRangedOrCasterThreats * exposedAdvancePenalty);
+        }
+
         if (profile.PrefersAerialCombat && evaluations.Length > 1)
         {
             bias += 0.08f;
@@ -1259,6 +1293,37 @@ internal static class CombatAiContext
         bias += ComputeCoverBias(profile, self, canAttackFromPosition, exposedThreats, coveredRangedThreats);
 
         return Mathf.Clamp(bias, -0.25f, 0.35f);
+    }
+
+    private static bool ShouldAvoidExposedAdvance(
+        CombatAiProfile profile,
+        CombatAiSelfAssessment self,
+        bool canAttackFromPosition)
+    {
+        if (canAttackFromPosition ||
+            profile.PrefersDistance ||
+            profile.Role is not (CombatAiRole.Melee or CombatAiRole.Hybrid))
+        {
+            return false;
+        }
+
+        if (profile.Family is CombatAiFamily.Beast
+                or CombatAiFamily.Monstrosity
+                or CombatAiFamily.Ooze
+                or CombatAiFamily.Plant ||
+            profile.Temperament is CombatAiTemperament.Aggressive
+                or CombatAiTemperament.Relentless)
+        {
+            return self.IsCritical;
+        }
+
+        return self.IsBloodied ||
+               self.HasSeriousCondition ||
+               profile.Temperament is CombatAiTemperament.Cautious
+                   or CombatAiTemperament.Disciplined
+                   or CombatAiTemperament.Cunning
+                   or CombatAiTemperament.CunningAggressive
+                   or CombatAiTemperament.Opportunistic;
     }
 
     private static float ComputeCoverBias(
@@ -1359,6 +1424,100 @@ internal static class CombatAiContext
         return HasRelevantPerceivedEnemies(character) ||
                TryGetLastKnownEnemyPosition(character, out _) ||
                TryGetRegroupPosition(character, out _);
+    }
+
+    private static bool TryUseFallbackReady(GameLocationCharacter character, CombatAiProfile profile)
+    {
+        if (character?.RulesetCharacter == null ||
+            character.GetActionStatus(Id.Ready, ActionScope.Battle) != ActionStatus.Available ||
+            !HasRelevantPerceivedEnemies(character) ||
+            !TryGetFallbackReadyActionType(character, profile, out var readyActionType))
+        {
+            return false;
+        }
+
+        character.MyExecuteActionReady(readyActionType);
+        ClearTurnCache(character);
+        PrimeTurnCache(character);
+
+        return true;
+    }
+
+    private static bool TryGetFallbackReadyActionType(
+        GameLocationCharacter character,
+        CombatAiProfile profile,
+        out ReadyActionType readyActionType)
+    {
+        readyActionType = default;
+
+        if (profile.HasSpellcasting && HasEligibleFallbackReadyCantrip(character.RulesetCharacter))
+        {
+            readyActionType = ReadyActionType.Cantrip;
+
+            return true;
+        }
+
+        if (character.GetFirstRangedModeThatCanBeReadied() != null)
+        {
+            readyActionType = ReadyActionType.Ranged;
+
+            return true;
+        }
+
+        if (!profile.HasSpellcasting && HasReadiedMeleeAttackMode(character))
+        {
+            readyActionType = ReadyActionType.Melee;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasEligibleFallbackReadyCantrip(RulesetCharacter rulesetCharacter)
+    {
+        if (rulesetCharacter == null)
+        {
+            return false;
+        }
+
+        var cantrips = new List<SpellDefinition>();
+
+        rulesetCharacter.EnumerateReadyAttackCantrips(cantrips);
+
+        for (var i = 0; i < cantrips.Count; i++)
+        {
+            var cantrip = cantrips[i];
+
+            if (cantrip == null ||
+                cantrip.ActivationTime != ActivationTime.Action ||
+                !rulesetCharacter.IsValidReadyCantrip(cantrip))
+            {
+                continue;
+            }
+
+            var effectDescription = PowerBundle.ModifySpellEffect(cantrip, rulesetCharacter);
+
+            if (effectDescription != null &&
+                effectDescription.TargetType is TargetType.Individuals or TargetType.IndividualsUnique)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasReadiedMeleeAttackMode(GameLocationCharacter character)
+    {
+        var mode = character.FindActionAttackMode(
+            Id.AttackMain,
+            true,
+            true,
+            true,
+            ReadyActionType.Melee);
+
+        return mode is { Ranged: false, Thrown: false };
     }
 
     private static bool HasRelevantPerceivedEnemies(GameLocationCharacter actor)
