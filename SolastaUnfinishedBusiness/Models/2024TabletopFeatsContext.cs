@@ -2384,7 +2384,7 @@ public static partial class Tabletop2024Context
             Get2024HalfFeatBaseDescriptionKey("FeatGroupSentinel2024"),
             feat,
             Gui.Localize("Feat/&FeatGroupSentinel2024Description"));
-        var featSentinel2024Str = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
+        var featSentinel2024Str = Build2024HalfFeatVariant(
             feat,
             "FeatSentinel2024Str",
             AttributeModifierCreed_Of_Einar,
@@ -2392,8 +2392,9 @@ public static partial class Tabletop2024Context
             AttributeDefinitions.Strength,
             groupTitle,
             baseDescription,
-            "FeatGroupSentinel2024");
-        var featSentinel2024Dex = BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
+            prerequisiteValue: null,
+            clearAbilityPrerequisite: true);
+        var featSentinel2024Dex = Build2024HalfFeatVariant(
             feat,
             "FeatSentinel2024Dex",
             AttributeModifierCreed_Of_Misaye,
@@ -2401,7 +2402,8 @@ public static partial class Tabletop2024Context
             AttributeDefinitions.Dexterity,
             groupTitle,
             baseDescription,
-            "FeatGroupSentinel2024");
+            prerequisiteValue: null,
+            clearAbilityPrerequisite: true);
 
         _featGroupSentinel2024 = BuildAlternativeAbilityPrerequisiteGroup(
             "FeatGroupSentinel2024",
