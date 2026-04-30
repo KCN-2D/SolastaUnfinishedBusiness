@@ -219,7 +219,7 @@ Feat/&FeatGroupPolearmMaster2024Description=Aumente sua Força ou Destreza em 1,
 Feat/&FeatGroupSentinel2024Title=Sentinela
 Feat/&FeatGroupSentinel2024Description=Aumente sua Força ou Destreza em 1, até um máximo de 20.\nAcertos de oportunidade reduzem o deslocamento do alvo a 0, criaturas provocam seus ataques de oportunidade mesmo se usarem Desengajar, e você pode usar sua reação para atacar uma criatura a 1 célula que ataque outra pessoa.
 Feat/&FeatGroupSpellSniper2024Title=Atirador de Magias
-Feat/&FeatGroupSpellSniper2024Description=Aumente sua Inteligência, Sabedoria ou Carisma em 1, até um máximo de 20.\nVocê aprende um truque que requer uma jogada de ataque. Escolha o truque da lista de magias de bardo, clérigo, druida, feiticeiro, bruxo ou mago. Quando lançar uma magia com alcance de pelo menos 10 pés e que exija uma jogada de ataque, você pode aumentar o alcance da magia em 60 pés. Seus ataques mágicos à distância ignoram meia cobertura e cobertura de três quartos.
+Feat/&FeatGroupSpellSniper2024Description=Aumente sua Inteligência, Sabedoria ou Carisma em 1, até um máximo de 20.\nEstar a até 5 pés de um inimigo não impõe Desvantagem às suas jogadas de ataque com magias. Quando lançar uma magia com alcance de pelo menos 10 pés e que exija uma jogada de ataque, você pode aumentar o alcance da magia em 60 pés. Seus ataques mágicos à distância ignoram meia cobertura e cobertura de três quartos.
 Feat/&FeatGroupHeavilyArmored2024Title=Pesadamente Armadurado
 Feat/&FeatGroupHeavilyArmored2024Description=Aumente sua Força ou Constituição em 1, até um máximo de 20.\nPré-requisito: proficiência com armaduras médias.\nVocê ganha proficiência com armaduras pesadas.
 

@@ -154,7 +154,6 @@ public static partial class Tabletop2024Context
     private const string SpellListFeatFeyTouched2024MistyStepName = "SpellListFeatFeyTouched2024MistyStep";
     private const string SpellListFeatShadowTouched2024ChoiceName = "SpellListFeatShadowTouched2024Choice";
     private const string SpellListFeatShadowTouched2024InvisibilityName = "SpellListFeatShadowTouched2024Invisibility";
-    private const string SpellListFeatSpellSniper2024Name = "SpellListFeatSpellSniper2024";
     private const int SpellSniper2024RangeIncreaseCells = 12;
     private const string WarCaster2024Family = "WarCaster2024";
     private const string WarCaster2024GroupFeatName = "FeatGroupWarCaster2024";
@@ -2657,19 +2656,12 @@ public static partial class Tabletop2024Context
             (AttributeDefinitions.Wisdom, AttributeModifierCreed_Of_Maraike),
             (AttributeDefinitions.Charisma, AttributeModifierCreed_Of_Solasta)
         };
-        var spellList = SpellListDefinitionBuilder
-            .Create(SpellListFeatSpellSniper2024Name)
-            .SetGuiPresentationNoContent(true)
-            .ClearSpells()
-            .FinalizeSpells()
-            .AddToDB();
-        RefreshSpellSniper2024SpellList();
         var groupTitle = Get2024HalfFeatGroupTitle("Feat/&FeatGroupSpellSniper2024Title");
         var groupDescription = Gui.Localize("Feat/&FeatGroupSpellSniper2024Description");
         var baseDescription = Get2024HalfFeatBaseDescription(
             Get2024HalfFeatBaseDescriptionKey("FeatGroupSpellSniper2024"),
             fallbackDescription: groupDescription);
-        var feats = attributes.Select(x => BuildSpellSniper2024Variant(x.Item1, x.Item2, groupTitle, baseDescription, spellList))
+        var feats = attributes.Select(x => BuildSpellSniper2024Variant(x.Item1, x.Item2, groupTitle, baseDescription))
             .ToArray();
 
         _featGroupSpellSniper2024 = BuildManagedGroup(
@@ -2689,37 +2681,7 @@ public static partial class Tabletop2024Context
     {
         RefreshFeyTouched2024SpellLists();
         RefreshRitualCaster2024SpellList();
-        RefreshSpellSniper2024SpellList();
         RefreshShadowTouched2024SpellLists();
-    }
-
-    internal static void RefreshSpellSniper2024SpellList()
-    {
-        if (!TryGetDefinition<SpellListDefinition>(SpellListFeatSpellSniper2024Name, out var spellList))
-        {
-            return;
-        }
-
-        var castSpellDefinitions = new[]
-        {
-            GetDefinition<FeatureDefinitionCastSpell>("CastSpellBard"),
-            GetDefinition<FeatureDefinitionCastSpell>("CastSpellCleric"),
-            GetDefinition<FeatureDefinitionCastSpell>("CastSpellDruid"),
-            GetDefinition<FeatureDefinitionCastSpell>("CastSpellSorcerer"),
-            GetDefinition<FeatureDefinitionCastSpell>("CastSpellWarlock"),
-            GetDefinition<FeatureDefinitionCastSpell>("CastSpellWizard")
-        };
-        var cantrips = castSpellDefinitions
-            .Where(x => x?.SpellListDefinition != null)
-            .SelectMany(x => x.SpellListDefinition.SpellsByLevel)
-            .SelectMany(x => x.Spells)
-            .Where(IsSpellSniper2024SelectableCantrip)
-            .Distinct()
-            .OrderBy(x => x.FormatTitle())
-            .ThenBy(x => x.Name, StringComparer.Ordinal)
-            .ToArray();
-
-        UpdateSpellListSpells(spellList, 0, cantrips, hasCantrips: true, maxSpellLevel: 0);
     }
 
     private static void RefreshRitualCaster2024SpellList()
@@ -2849,14 +2811,6 @@ public static partial class Tabletop2024Context
                spell.SpellLevel == 1 &&
                (spell.SchoolOfMagic is SchoolDivination ||
                 spell.SchoolOfMagic == SchoolOfMagicDefinitions.SchoolEnchantment.Name);
-    }
-
-    private static bool IsSpellSniper2024SelectableCantrip(SpellDefinition spell)
-    {
-        return IsSelectableFeatSpell2024(spell) &&
-               spell.SpellLevel == 0 &&
-               (spell.EffectDescription?.RangeType is RangeType.MeleeHit or RangeType.RangeHit ||
-                spell.HasSubFeatureOfType<AttackAfterMagicEffect>());
     }
 
     private static bool IsSelectableFeatSpell2024(SpellDefinition spell)
@@ -6753,29 +6707,11 @@ public static partial class Tabletop2024Context
         string attribute,
         FeatureDefinitionAttributeModifier attributeModifier,
         string groupTitle,
-        string groupDescription,
-        SpellListDefinition spellList)
+        string groupDescription)
     {
         var name = $"FeatSpellSniper2024{attribute}";
         var title = Gui.Format("Feat/&GeneralFeat2024VariantTitle", groupTitle, GetAttributeTitle(attribute));
         var description = BuildHalfFeatDescription(attribute, groupDescription);
-        var castSpell = FeatureDefinitionCastSpellBuilder
-            .Create($"CastSpell{name}")
-            .SetGuiPresentationNoContent(true)
-            .SetFocusType(FocusType.None)
-            .SetSpellCastingOrigin(FeatureDefinitionCastSpell.CastingOrigin.Race)
-            .SetSpellKnowledge(SpellKnowledge.Selection)
-            .SetSpellReadyness(SpellReadyness.AllKnown)
-            .SetSlotsRecharge(RechargeRate.LongRest)
-            .SetSlotsPerLevel(SharedSpellsContext.RaceEmptyCastingSlots)
-            .SetKnownCantrips(1, 1, FeatureDefinitionCastSpellBuilder.CasterProgression.Flat)
-            .SetKnownSpells(0, FeatureDefinitionCastSpellBuilder.CasterProgression.Flat)
-            .SetReplacedSpells(1, 0)
-            .SetUniqueLevelSlots(false)
-            .SetSpellList(spellList)
-            .SetSpellCastingAbility(attribute)
-            .AddCustomSubFeatures(new FeatHelpers.SpellTag(OtherFeats.FeatSpellSniperTag))
-            .AddToDB();
         var combatAffinity = FeatureDefinitionCombatAffinityBuilder
             .Create($"CombatAffinity{name}")
             .SetGuiPresentationNoContent(true)
@@ -6785,19 +6721,17 @@ public static partial class Tabletop2024Context
                     mode.EffectDescription.RangeType == RangeType.RangeHit)))
             .SetIgnoreCover()
             .AddToDB();
-        var pointPool = FeatureDefinitionPointPoolBuilder
-            .Create($"PointPool{name}Cantrip")
-            .SetGuiPresentationNoContent(true)
-            .SetSpellOrCantripPool(HeroDefinitions.PointsPoolType.Cantrip, 1, spellList, OtherFeats.FeatSpellSniperTag)
-            .AddToDB();
 
         return FeatDefinitionBuilder
             .Create(name)
             .SetGuiPresentation(title, description, hidden: false)
-            .SetFeatures(attributeModifier, combatAffinity, castSpell, pointPool)
+            .SetFeatures(attributeModifier, combatAffinity)
             .SetFeatFamily(SpellSniper2024Family)
             .SetMustCastSpellsPrerequisite()
-            .AddCustomSubFeatures(new ModifyEffectDescriptionSpellSniper2024(), FeatsContext.HideFromFeats.Marker)
+            .AddCustomSubFeatures(
+                new ModifyAttackActionModifierSpellSniper2024(),
+                new ModifyEffectDescriptionSpellSniper2024(),
+                FeatsContext.HideFromFeats.Marker)
             .AddToDB();
     }
 
@@ -7328,6 +7262,33 @@ public static partial class Tabletop2024Context
             }
 
             Main.Settings.TabletopFeats2024Initialized.TryAdd(replacement.Name);
+        }
+    }
+
+    private sealed class ModifyAttackActionModifierSpellSniper2024 : IModifyAttackActionModifier
+    {
+        public void OnAttackComputeModifier(
+            RulesetCharacter myself,
+            RulesetCharacter defender,
+            BattleDefinitions.AttackProximity attackProximity,
+            RulesetAttackMode attackMode,
+            string effectName,
+            ref ActionModifier attackModifier)
+        {
+            if (attackProximity is not
+                    (BattleDefinitions.AttackProximity.MagicRange or BattleDefinitions.AttackProximity.MagicReach) ||
+                !TryGetDefinition<SpellDefinition>(effectName, out _))
+            {
+                return;
+            }
+
+            attackModifier.AttackAdvantageTrends.RemoveAll(t =>
+                t.value == -1 &&
+                t is
+                {
+                    sourceType: FeatureSourceType.Proximity,
+                    sourceName: ProximityRangeEnemyNearby
+                });
         }
     }
 

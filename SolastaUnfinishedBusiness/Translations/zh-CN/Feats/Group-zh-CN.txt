@@ -219,7 +219,7 @@ Feat/&FeatGroupPolearmMaster2024Description=你的力量或敏捷提高1点，�
 Feat/&FeatGroupSentinel2024Title=哨兵
 Feat/&FeatGroupSentinel2024Description=你的力量或敏捷提高1点，最多为20。\n借机攻击命中时会将目标速度降为0；生物即使采取脱离也会触发你的借机攻击；并且你可以使用反应攻击1格内攻击其他人的生物。
 Feat/&FeatGroupSpellSniper2024Title=法术狙击手
-Feat/&FeatGroupSpellSniper2024Description=你的智力、感知或魅力提高1点，最多为20。\n你学会一个需要进行攻击检定的戏法。该戏法从吟游诗人、牧师、德鲁伊、术士、邪术士或法师的法术列表中选择。当你施放一个射程至少10英尺且需要进行攻击检定的法术时，你可以将该法术的射程增加60英尺。你的远程法术攻击无视半身掩护和四分之三掩护。
+Feat/&FeatGroupSpellSniper2024Description=你的智力、感知或魅力提高1点，最多为20。\n敌人在你5英尺内时，不会使你的法术攻击检定具有劣势。当你施放一个射程至少10英尺且需要进行攻击检定的法术时，你可以将该法术的射程增加60英尺。你的远程法术攻击无视半身掩护和四分之三掩护。
 Feat/&FeatGroupHeavilyArmored2024Title=重甲训练
 Feat/&FeatGroupHeavilyArmored2024Description=你的力量或体质提高1点，最多为20。\n先决条件：中甲熟练项。\n你获得重甲熟练项。
 
