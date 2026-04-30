@@ -1665,8 +1665,21 @@ public static partial class Tabletop2024Context
             featShieldTechniques,
             Gui.Localize($"Feat/&{name}Description"));
 
-        EffectDescription BuildBashEffectDescription(EffectForm motionForm)
+        EffectDescription BuildBashEffectDescription(MotionForm.MotionType motionType, int distance = 0)
         {
+            var motionFormBuilder = EffectFormBuilder
+                .Create()
+                .HasSavingThrow(EffectSavingThrowType.Negates);
+
+            if (distance > 0)
+            {
+                motionFormBuilder.SetMotionForm(motionType, distance);
+            }
+            else
+            {
+                motionFormBuilder.SetMotionForm(motionType);
+            }
+
             return EffectDescriptionBuilder
                 .Create()
                 .SetTargetingData(Side.Enemy, RangeType.Distance, 1, TargetType.IndividualsUnique)
@@ -1677,7 +1690,7 @@ public static partial class Tabletop2024Context
                     EffectDifficultyClassComputation.AbilityScoreAndProficiency,
                     AttributeDefinitions.Strength,
                     8)
-                .SetEffectForms(motionForm)
+                .SetEffectForms(motionFormBuilder.Build())
                 .SetImpactEffectParameters(FeatureDefinitionPowers.PowerRoguishHoodlumDirtyFighting)
                 .Build();
         }
@@ -1694,10 +1707,7 @@ public static partial class Tabletop2024Context
             .SetSharedPool(ActivationTime.NoCost, powerPool)
             .SetShowCasting(false)
             .SetEffectDescription(
-                BuildBashEffectDescription(EffectFormBuilder
-                    .Create()
-                    .SetMotionForm(MotionForm.MotionType.PushFromOrigin, 1)
-                    .Build()))
+                BuildBashEffectDescription(MotionForm.MotionType.PushFromOrigin, 1))
             .AddCustomSubFeatures(ModifyPowerVisibility.Hidden)
             .AddToDB();
         var powerProne = FeatureDefinitionPowerSharedPoolBuilder
@@ -1706,10 +1716,7 @@ public static partial class Tabletop2024Context
             .SetSharedPool(ActivationTime.NoCost, powerPool)
             .SetShowCasting(false)
             .SetEffectDescription(
-                BuildBashEffectDescription(EffectFormBuilder
-                    .Create()
-                    .SetMotionForm(MotionForm.MotionType.FallProne)
-                    .Build()))
+                BuildBashEffectDescription(MotionForm.MotionType.FallProne))
             .AddCustomSubFeatures(ModifyPowerVisibility.Hidden)
             .AddToDB();
         var conditionNoDamage = ConditionDefinitionBuilder
