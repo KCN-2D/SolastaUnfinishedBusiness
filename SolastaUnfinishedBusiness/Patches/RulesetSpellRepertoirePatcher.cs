@@ -44,7 +44,7 @@ public static class RulesetSpellRepertoirePatcher
         [UsedImplicitly]
         public static void Postfix(RulesetSpellRepertoire __instance, ref string __result)
         {
-            if (Tabletop2024Context.TryGetMagicInitiate2024MainClassSpellcastingAbility(__instance, out var ability))
+            if (Tabletop2024Context.TryGetMagicInitiate2024SpellcastingAbility(__instance, out var ability))
             {
                 __result = ability;
             }
@@ -59,7 +59,7 @@ public static class RulesetSpellRepertoirePatcher
         [UsedImplicitly]
         public static void Postfix(RulesetSpellRepertoire __instance, ref int __result)
         {
-            if (Tabletop2024Context.TryGetMagicInitiate2024MainClassSaveDC(__instance, out var saveDC))
+            if (Tabletop2024Context.TryGetMagicInitiate2024SaveDC(__instance, out var saveDC))
             {
                 __result = saveDC;
             }
@@ -74,7 +74,7 @@ public static class RulesetSpellRepertoirePatcher
         [UsedImplicitly]
         public static void Postfix(RulesetSpellRepertoire __instance, ref int __result)
         {
-            if (Tabletop2024Context.TryGetMagicInitiate2024MainClassSpellAttackBonus(
+            if (Tabletop2024Context.TryGetMagicInitiate2024SpellAttackBonus(
                     __instance,
                     out var spellAttackBonus))
             {
