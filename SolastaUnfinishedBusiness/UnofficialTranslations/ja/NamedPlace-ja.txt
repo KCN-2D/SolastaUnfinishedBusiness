@@ -23,6 +23,6 @@ NamedPlace/&Kaupaapunki_Title=カウパープンキ
 NamedPlace/&MARCHES_Title=マーチ
 NamedPlace/&MASGARTH_Title=マスガルス公国
 NamedPlace/&NEWEMPIRE_Title=新帝国
-NamedPlace/&SNOWALLIANCE_Title=雪同盟
+NamedPlace/&SNOWALLIANCE_Title=スノー・アライアンス
 NamedPlace/&Sandreed_Title=サンドリード
 NamedPlace/&Swamp_Title=ゲッサ沼地
