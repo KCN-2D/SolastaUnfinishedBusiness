@@ -80,10 +80,7 @@ internal static class FloatingPanelBounds
 
         controller.Configure(panel, attachment, table, fallbackLocalPosition, verticalOffset, margin);
 
-        if (owner && owner.isActiveAndEnabled)
-        {
-            owner.StartCoroutine(ApplyNearAttachmentListForNextFramesCoroutine(controller));
-        }
+        controller.ScheduleReapply(owner);
     }
 
     internal static void ConfigureTooltipBounds(TooltipPanel tooltipPanel, float margin = DefaultMargin)
@@ -121,18 +118,6 @@ internal static class FloatingPanelBounds
         var controller = ActiveTooltipWheelCapture;
 
         return controller && controller.CanCaptureWheel(source);
-    }
-
-    private static IEnumerator ApplyNearAttachmentListForNextFramesCoroutine(
-        FloatingPanelAttachmentController controller)
-    {
-        controller.Apply();
-
-        for (var i = 0; i < DefaultReapplyFrames; i++)
-        {
-            yield return null;
-            controller.Apply();
-        }
     }
 
     private static IEnumerator ClampToScreenForNextFramesCoroutine(
@@ -265,12 +250,12 @@ internal static class FloatingPanelBounds
             return;
         }
 
-        ApplyGridLayout(table, activeCount, maxRows, itemWidth, itemHeight, spacing);
+        ApplyColumnLayout(table, activeCount, maxRows, itemWidth, itemHeight, spacing);
         LayoutRebuilder.ForceRebuildLayoutImmediate(table);
         LayoutRebuilder.ForceRebuildLayoutImmediate(panel);
     }
 
-    private static void ApplyGridLayout(
+    private static void ApplyColumnLayout(
         RectTransform table,
         int activeCount,
         int maxRows,
@@ -284,39 +269,35 @@ internal static class FloatingPanelBounds
         state.Capture(table);
         state.DisableOriginalLayouts();
 
-        var gridLayout = state.GridLayoutGroup;
-
-        if (!gridLayout)
-        {
-            gridLayout = table.GetComponent<GridLayoutGroup>();
-
-            if (!gridLayout)
-            {
-                gridLayout = table.gameObject.AddComponent<GridLayoutGroup>();
-                state.AddedGridLayout = true;
-            }
-
-            state.GridLayoutGroup = gridLayout;
-        }
-
         var rows = Mathf.Min(activeCount, maxRows);
         var columns = Mathf.CeilToInt(activeCount / (float)rows);
         var padding = state.VerticalLayoutGroup ? state.VerticalLayoutGroup.padding : new RectOffset();
+        var activeIndex = 0;
 
-        gridLayout.enabled = true;
-        gridLayout.childAlignment = state.VerticalLayoutGroup
-            ? state.VerticalLayoutGroup.childAlignment
-            : TextAnchor.UpperLeft;
-        gridLayout.constraint = GridLayoutGroup.Constraint.FixedRowCount;
-        gridLayout.constraintCount = rows;
-        gridLayout.startAxis = GridLayoutGroup.Axis.Vertical;
-        gridLayout.startCorner = GridLayoutGroup.Corner.UpperLeft;
-        gridLayout.padding = padding;
-        gridLayout.spacing = new Vector2(DefaultColumnSpacing, spacing);
-        gridLayout.cellSize = new Vector2(itemWidth, itemHeight);
+        for (var i = 0; i < table.childCount; i++)
+        {
+            if (table.GetChild(i) is not RectTransform child || !child.gameObject.activeSelf)
+            {
+                continue;
+            }
 
-        var width = padding.horizontal + columns * itemWidth + Mathf.Max(0, columns - 1) * gridLayout.spacing.x;
-        var height = padding.vertical + rows * itemHeight + Mathf.Max(0, rows - 1) * gridLayout.spacing.y;
+            var column = activeIndex / rows;
+            var row = activeIndex % rows;
+
+            child.anchorMin = new Vector2(0f, 1f);
+            child.anchorMax = new Vector2(0f, 1f);
+            child.pivot = new Vector2(0f, 1f);
+            child.anchoredPosition = new Vector2(
+                padding.left + column * (itemWidth + DefaultColumnSpacing),
+                -padding.top - row * (itemHeight + spacing));
+            child.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, itemWidth);
+            child.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, itemHeight);
+
+            activeIndex++;
+        }
+
+        var width = padding.horizontal + columns * itemWidth + Mathf.Max(0, columns - 1) * DefaultColumnSpacing;
+        var height = padding.vertical + rows * itemHeight + Mathf.Max(0, rows - 1) * spacing;
 
         table.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
         table.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
@@ -568,6 +549,8 @@ internal static class FloatingPanelBounds
     {
         private RectTransform _attachment;
         private Vector3 _fallbackLocalPosition;
+        private bool _configured;
+        private bool _isReapplying;
         private float _margin;
         private RectTransform _panel;
         private RectTransform _table;
@@ -587,12 +570,19 @@ internal static class FloatingPanelBounds
             _fallbackLocalPosition = fallbackLocalPosition;
             _verticalOffset = verticalOffset;
             _margin = margin;
+            _configured = true;
+            _isReapplying = false;
 
             Apply();
         }
 
         internal void Apply()
         {
+            if (!_configured)
+            {
+                return;
+            }
+
             PlaceNearAttachmentAndClamp(
                 _panel,
                 _attachment,
@@ -602,21 +592,43 @@ internal static class FloatingPanelBounds
                 _margin);
         }
 
+        internal void ScheduleReapply(MonoBehaviour owner)
+        {
+            if (!owner || !owner.isActiveAndEnabled || _isReapplying)
+            {
+                return;
+            }
+
+            owner.StartCoroutine(ReapplyForNextFramesCoroutine());
+        }
+
+        private IEnumerator ReapplyForNextFramesCoroutine()
+        {
+            _isReapplying = true;
+            Apply();
+
+            for (var i = 0; i < DefaultReapplyFrames; i++)
+            {
+                yield return null;
+                Apply();
+            }
+
+            _isReapplying = false;
+        }
+
         private void OnEnable()
         {
-            StartCoroutine(ApplyNearAttachmentListForNextFramesCoroutine(this));
+            ScheduleReapply(this);
         }
     }
 
     private sealed class FloatingPanelLayoutState : MonoBehaviour
     {
-        internal bool AddedGridLayout;
         internal ContentSizeFitter ContentSizeFitter;
-        internal GridLayoutGroup GridLayoutGroup;
+        internal readonly List<ChildLayoutState> ChildStates = [];
         internal bool HasOriginalLayout;
         internal Vector2 OriginalSizeDelta;
         internal bool WasContentSizeFitterEnabled;
-        internal bool WasGridLayoutEnabled;
         internal bool WasHorizontalLayoutEnabled;
         internal bool WasVerticalLayoutEnabled;
         internal HorizontalLayoutGroup HorizontalLayoutGroup;
@@ -632,12 +644,19 @@ internal static class FloatingPanelBounds
             VerticalLayoutGroup = table.GetComponent<VerticalLayoutGroup>();
             HorizontalLayoutGroup = table.GetComponent<HorizontalLayoutGroup>();
             ContentSizeFitter = table.GetComponent<ContentSizeFitter>();
-            GridLayoutGroup = table.GetComponent<GridLayoutGroup>();
             WasVerticalLayoutEnabled = VerticalLayoutGroup && VerticalLayoutGroup.enabled;
             WasHorizontalLayoutEnabled = HorizontalLayoutGroup && HorizontalLayoutGroup.enabled;
             WasContentSizeFitterEnabled = ContentSizeFitter && ContentSizeFitter.enabled;
-            WasGridLayoutEnabled = GridLayoutGroup && GridLayoutGroup.enabled;
             OriginalSizeDelta = table.sizeDelta;
+
+            for (var i = 0; i < table.childCount; i++)
+            {
+                if (table.GetChild(i) is RectTransform child && child.gameObject.activeSelf)
+                {
+                    ChildStates.Add(new ChildLayoutState(child));
+                }
+            }
+
             HasOriginalLayout = true;
         }
 
@@ -661,15 +680,6 @@ internal static class FloatingPanelBounds
 
         internal void Restore(RectTransform table)
         {
-            if (AddedGridLayout && GridLayoutGroup)
-            {
-                Object.DestroyImmediate(GridLayoutGroup);
-            }
-            else if (GridLayoutGroup)
-            {
-                GridLayoutGroup.enabled = WasGridLayoutEnabled;
-            }
-
             if (VerticalLayoutGroup)
             {
                 VerticalLayoutGroup.enabled = WasVerticalLayoutEnabled;
@@ -686,7 +696,47 @@ internal static class FloatingPanelBounds
             }
 
             table.sizeDelta = OriginalSizeDelta;
+
+            foreach (var childState in ChildStates)
+            {
+                childState.Restore();
+            }
+
             Object.DestroyImmediate(this);
+        }
+    }
+
+    private readonly struct ChildLayoutState
+    {
+        private readonly Vector2 _anchorMax;
+        private readonly Vector2 _anchorMin;
+        private readonly Vector2 _anchoredPosition;
+        private readonly Vector2 _pivot;
+        private readonly RectTransform _rectTransform;
+        private readonly Vector2 _sizeDelta;
+
+        internal ChildLayoutState(RectTransform rectTransform)
+        {
+            _rectTransform = rectTransform;
+            _anchorMin = rectTransform.anchorMin;
+            _anchorMax = rectTransform.anchorMax;
+            _pivot = rectTransform.pivot;
+            _anchoredPosition = rectTransform.anchoredPosition;
+            _sizeDelta = rectTransform.sizeDelta;
+        }
+
+        internal void Restore()
+        {
+            if (!_rectTransform)
+            {
+                return;
+            }
+
+            _rectTransform.anchorMin = _anchorMin;
+            _rectTransform.anchorMax = _anchorMax;
+            _rectTransform.pivot = _pivot;
+            _rectTransform.anchoredPosition = _anchoredPosition;
+            _rectTransform.sizeDelta = _sizeDelta;
         }
     }
 
