@@ -99,7 +99,7 @@ public static class RulesetSpellRepertoirePatcher
                 return true;
             }
 
-            if (Level20Context.WizardSpellMastery.IsPreparation(character, out var maxSpellMastery))
+            if (Level20Context.WizardSpellMastery.IsPreparation(character, __instance, out var maxSpellMastery))
             {
                 __result = maxSpellMastery;
 
@@ -107,7 +107,7 @@ public static class RulesetSpellRepertoirePatcher
             }
 
             // ReSharper disable once InvertIf
-            if (Level20Context.WizardSignatureSpells.IsPreparation(character, out var maxSignatureSpells))
+            if (Level20Context.WizardSignatureSpells.IsPreparation(character, __instance, out var maxSignatureSpells))
             {
                 __result = maxSignatureSpells;
 

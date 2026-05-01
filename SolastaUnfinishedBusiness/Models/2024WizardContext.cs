@@ -112,15 +112,19 @@ public static partial class Tabletop2024Context
             AttributeDefinitions.TagEffect, ConditionMemorizeSpell.Name, out condition);
     }
 
-    internal static bool IsMemorizeSpellPreparation(RulesetCharacter character)
+    internal static bool IsMemorizeSpellPreparation(
+        RulesetCharacter character,
+        RulesetSpellRepertoire spellRepertoire)
     {
-        return TryGetMemorizeSpellCondition(character, out _);
+        return Level20Context.IsWizardPreparedSpellRepertoire(spellRepertoire) &&
+               TryGetMemorizeSpellCondition(character, out _);
     }
 
     internal static bool IsInvalidMemorizeSelectedSpell(
         SpellRepertoirePanel spellRepertoirePanel, RulesetCharacter rulesetCharacter, SpellDefinition spell)
     {
-        if (!TryGetMemorizeSpellCondition(rulesetCharacter, out var activeCondition))
+        if (!Level20Context.IsWizardPreparedSpellRepertoire(spellRepertoirePanel.SpellRepertoire) ||
+            !TryGetMemorizeSpellCondition(rulesetCharacter, out var activeCondition))
         {
             return false;
         }
@@ -178,8 +182,7 @@ public static partial class Tabletop2024Context
 
             Gui.GuiService.GetScreen<RestModal>().KeepCurrentState = true;
 
-            var spellRepertoire = hero.SpellRepertoires.FirstOrDefault(x =>
-                x.SpellCastingFeature.SpellReadyness == SpellReadyness.Prepared);
+            var spellRepertoire = Level20Context.GetWizardPreparedSpellRepertoire(hero);
 
             if (spellRepertoire == null)
             {
