@@ -4,6 +4,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Models;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
@@ -262,87 +263,306 @@ internal static class CharacterInspectionScreenEnhancement
         {
             var child = table.GetChild(index);
 
-            child.gameObject.SetActive(true);
-
-            var label = child.GetComponent<GuiLabel>();
-            var noLevel = feature.Level == 0;
-            var title = feature.FeatureDefinition.FormatTitle();
-
-            label.Text = title + (!noLevel ? $" ({feature.Level})" : string.Empty);
-            Gui.HexaKeyToColor(noLevel ? Gui.ColorAlmostWhite : Gui.ColorNegative, out var color);
-            label.TMP_Text.color = color;
-
-            var tooltip = child.GetComponent<GuiTooltip>();
-            var provider = new CustomTooltipProvider(feature.FeatureDefinition, null);
-
-            if (Tabletop2024Context.TryGetHumanOriginInspectionDisplayFeature(
-                    inspectedHero,
-                    buildingData,
-                    feature.FeatureDefinition,
-                    out var displayFeature,
-                    out var fallbackTitle))
-            {
-                if (displayFeature)
-                {
-                    label.Text = displayFeature.FormatTitle() + (!noLevel ? $" ({feature.Level})" : string.Empty);
-                    provider.BaseDefinition = displayFeature;
-                    provider.SetSubtitle(Gui.Localize("Feature/&PointPoolHumanOriginFeatTitle"));
-                    tooltip.Content = displayFeature.FormatDescription();
-                }
-                else
-                {
-                    label.Text = fallbackTitle + (!noLevel ? $" ({feature.Level})" : string.Empty);
-                    tooltip.Content = feature.FeatureDefinition.FormatDescription();
-                }
-            }
-            else if (feature.FeatureDefinition is FeatureDefinitionPower)
-            {
-                var guiPowerDefinition = ServiceRepository.GetService<IGuiWrapperService>()
-                    .GetGuiPowerDefinition(feature.FeatureDefinition.Name);
-
-                tooltip.Content = guiPowerDefinition.Description;
-            }
-            else if (TryFindChoiceFeature(panel, feature.FeatureDefinition, out var choiceFeature))
-            {
-                label.Text = Gui.Format("{1} ({0})", feature.FeatureDefinition.FormatTitle(),
-                    choiceFeature.FormatTitle());
-
-                if (feature.FeatureDefinition.GuiPresentation.Description == Gui.NoLocalization)
-                {
-                    provider.BaseDefinition = choiceFeature;
-                    provider.SetSubtitle(feature.FeatureDefinition.GuiPresentation.Title);
-                }
-                else
-                {
-                    provider.SetSubtitle(choiceFeature.GuiPresentation.Title);
-                }
-            }
-            else
-            {
-                tooltip.Content = feature.FeatureDefinition.FormatDescription();
-            }
-
-            tooltip.TooltipClass = "FeatDefinition";
-            tooltip.DataProvider = provider;
-            tooltip.Context = panel.InspectedCharacter?.RulesetCharacter;
-            tooltip.AnchorMode = tooltipAnchorMode;
-
-            if (!noLevel)
-            {
-                var levelRequirement = Gui.Format(insufficientLevelFormat, feature.Level.ToString());
-
-                provider.SetPrerequisites(levelRequirement);
-            }
-
+            BindFeatureRow(panel, child, feature, insufficientLevelFormat, tooltipAnchorMode, inspectedHero, buildingData);
             ++index;
         }
 
         for (var count = features.Count; count < table.childCount; ++count)
         {
-            table.GetChild(count).gameObject.SetActive(false);
+            HideFeatureRow(panel, table.GetChild(count));
         }
 
         return false;
+    }
+
+    private static void BindFeatureRow(
+        CharacterInformationPanel panel,
+        Transform child,
+        FeatureUnlockByLevel feature,
+        string insufficientLevelFormat,
+        TooltipDefinitions.AnchorMode tooltipAnchorMode,
+        RulesetCharacterHero inspectedHero,
+        CharacterHeroBuildingData buildingData)
+    {
+        child.gameObject.SetActive(true);
+        RestoreFeatureRowPresentation(panel, child);
+
+        var label = child.GetComponent<GuiLabel>();
+        var noLevel = feature.Level == 0;
+        var title = feature.FeatureDefinition.FormatTitle();
+
+        label.Text = title + (!noLevel ? $" ({feature.Level})" : string.Empty);
+        Gui.HexaKeyToColor(noLevel ? Gui.ColorAlmostWhite : Gui.ColorNegative, out var color);
+        label.TMP_Text.color = color;
+
+        var tooltip = child.GetComponent<GuiTooltip>();
+        var provider = new CustomTooltipProvider(feature.FeatureDefinition, null);
+
+        if (Tabletop2024Context.TryGetHumanOriginInspectionDisplayFeature(
+                inspectedHero,
+                buildingData,
+                feature.FeatureDefinition,
+                out var displayFeature,
+                out var fallbackTitle))
+        {
+            if (displayFeature)
+            {
+                label.Text = displayFeature.FormatTitle() + (!noLevel ? $" ({feature.Level})" : string.Empty);
+                provider.BaseDefinition = displayFeature;
+                provider.SetSubtitle(Gui.Localize("Feature/&PointPoolHumanOriginFeatTitle"));
+                tooltip.Content = displayFeature.FormatDescription();
+            }
+            else
+            {
+                label.Text = fallbackTitle + (!noLevel ? $" ({feature.Level})" : string.Empty);
+                tooltip.Content = feature.FeatureDefinition.FormatDescription();
+            }
+        }
+        else if (feature.FeatureDefinition is FeatureDefinitionPower)
+        {
+            var guiPowerDefinition = ServiceRepository.GetService<IGuiWrapperService>()
+                .GetGuiPowerDefinition(feature.FeatureDefinition.Name);
+
+            tooltip.Content = guiPowerDefinition.Description;
+        }
+        else if (TryFindChoiceFeature(panel, feature.FeatureDefinition, out var choiceFeature))
+        {
+            label.Text = Gui.Format("{1} ({0})", feature.FeatureDefinition.FormatTitle(),
+                choiceFeature.FormatTitle());
+
+            if (feature.FeatureDefinition.GuiPresentation.Description == Gui.NoLocalization)
+            {
+                provider.BaseDefinition = choiceFeature;
+                provider.SetSubtitle(feature.FeatureDefinition.GuiPresentation.Title);
+            }
+            else
+            {
+                provider.SetSubtitle(choiceFeature.GuiPresentation.Title);
+            }
+        }
+        else
+        {
+            tooltip.Content = feature.FeatureDefinition.FormatDescription();
+        }
+
+        tooltip.TooltipClass = "FeatDefinition";
+        tooltip.DataProvider = provider;
+        tooltip.Context = panel.InspectedCharacter?.RulesetCharacter;
+        tooltip.AnchorMode = tooltipAnchorMode;
+
+        if (!noLevel)
+        {
+            var levelRequirement = Gui.Format(insufficientLevelFormat, feature.Level.ToString());
+
+            provider.SetPrerequisites(levelRequirement);
+        }
+    }
+
+    private static void HideFeatureRow(CharacterInformationPanel panel, Transform child)
+    {
+        RestoreFeatureRowPresentation(panel, child);
+        child.gameObject.SetActive(false);
+    }
+
+    private static void RestoreFeatureRowPresentation(CharacterInformationPanel panel, Transform child)
+    {
+        var state = child.GetComponent<FeatureRowPresentationState>() ??
+                    child.gameObject.AddComponent<FeatureRowPresentationState>();
+
+        state.Capture(panel.featurePrefab);
+        state.Restore(child);
+    }
+
+    private sealed class FeatureRowPresentationState : MonoBehaviour
+    {
+        private bool Captured { get; set; }
+
+        private bool HasCanvasGroup { get; set; }
+
+        private bool HasLayoutElement { get; set; }
+
+        private bool HasText { get; set; }
+
+        private Color[] ImageColors { get; set; }
+
+        private float CanvasGroupAlpha { get; set; }
+
+        private bool CanvasGroupBlocksRaycasts { get; set; }
+
+        private bool CanvasGroupIgnoreParentGroups { get; set; }
+
+        private bool CanvasGroupInteractable { get; set; }
+
+        private bool LayoutElementIgnoreLayout { get; set; }
+
+        private float LayoutElementMinWidth { get; set; }
+
+        private float LayoutElementMinHeight { get; set; }
+
+        private float LayoutElementPreferredWidth { get; set; }
+
+        private float LayoutElementPreferredHeight { get; set; }
+
+        private float LayoutElementFlexibleWidth { get; set; }
+
+        private float LayoutElementFlexibleHeight { get; set; }
+
+        private int LayoutElementPriority { get; set; }
+
+        private Vector4 TextMargin { get; set; }
+
+        private TextAlignmentOptions TextAlignment { get; set; }
+
+        private bool TextAutoSizeTextContainer { get; set; }
+
+        private bool TextEnableAutoSizing { get; set; }
+
+        private bool TextEnableWordWrapping { get; set; }
+
+        private int TextMaxVisibleLines { get; set; }
+
+        private TextOverflowModes TextOverflowMode { get; set; }
+
+        private float TextFontSize { get; set; }
+
+        private float TextFontSizeMin { get; set; }
+
+        private float TextFontSizeMax { get; set; }
+
+        private float TextLineSpacing { get; set; }
+
+        internal void Capture(GameObject source)
+        {
+            if (Captured)
+            {
+                return;
+            }
+
+            source = source ? source : gameObject;
+
+            var images = source.GetComponentsInChildren<Image>(true);
+
+            if (images.Length > 0)
+            {
+                ImageColors = new Color[images.Length];
+
+                for (var i = 0; i < images.Length; i++)
+                {
+                    ImageColors[i] = images[i].color;
+                }
+            }
+
+            if (source.TryGetComponent<CanvasGroup>(out var canvasGroup))
+            {
+                HasCanvasGroup = true;
+                CanvasGroupAlpha = canvasGroup.alpha;
+                CanvasGroupBlocksRaycasts = canvasGroup.blocksRaycasts;
+                CanvasGroupIgnoreParentGroups = canvasGroup.ignoreParentGroups;
+                CanvasGroupInteractable = canvasGroup.interactable;
+            }
+
+            if (source.TryGetComponent<LayoutElement>(out var layoutElement))
+            {
+                HasLayoutElement = true;
+                LayoutElementIgnoreLayout = layoutElement.ignoreLayout;
+                LayoutElementMinWidth = layoutElement.minWidth;
+                LayoutElementMinHeight = layoutElement.minHeight;
+                LayoutElementPreferredWidth = layoutElement.preferredWidth;
+                LayoutElementPreferredHeight = layoutElement.preferredHeight;
+                LayoutElementFlexibleWidth = layoutElement.flexibleWidth;
+                LayoutElementFlexibleHeight = layoutElement.flexibleHeight;
+                LayoutElementPriority = layoutElement.layoutPriority;
+            }
+
+            var text = GetText(source);
+
+            if (text)
+            {
+                HasText = true;
+                TextMargin = text.margin;
+                TextAlignment = text.alignment;
+                TextAutoSizeTextContainer = text.autoSizeTextContainer;
+                TextEnableAutoSizing = text.enableAutoSizing;
+                TextEnableWordWrapping = text.enableWordWrapping;
+                TextMaxVisibleLines = text.maxVisibleLines;
+                TextOverflowMode = text.overflowMode;
+                TextFontSize = text.fontSize;
+                TextFontSizeMin = text.fontSizeMin;
+                TextFontSizeMax = text.fontSizeMax;
+                TextLineSpacing = text.lineSpacing;
+            }
+
+            Captured = true;
+        }
+
+        internal void Restore(Transform child)
+        {
+            var target = child.gameObject;
+
+            if (ImageColors is { Length: > 0 })
+            {
+                var images = target.GetComponentsInChildren<Image>(true);
+                var count = Mathf.Min(ImageColors.Length, images.Length);
+
+                for (var i = 0; i < count; i++)
+                {
+                    images[i].color = ImageColors[i];
+                }
+            }
+
+            if (HasCanvasGroup && target.TryGetComponent<CanvasGroup>(out var canvasGroup))
+            {
+                canvasGroup.alpha = CanvasGroupAlpha;
+                canvasGroup.blocksRaycasts = CanvasGroupBlocksRaycasts;
+                canvasGroup.ignoreParentGroups = CanvasGroupIgnoreParentGroups;
+                canvasGroup.interactable = CanvasGroupInteractable;
+            }
+
+            if (HasLayoutElement && target.TryGetComponent<LayoutElement>(out var layoutElement))
+            {
+                layoutElement.ignoreLayout = LayoutElementIgnoreLayout;
+                layoutElement.minWidth = LayoutElementMinWidth;
+                layoutElement.minHeight = LayoutElementMinHeight;
+                layoutElement.preferredWidth = LayoutElementPreferredWidth;
+                layoutElement.preferredHeight = LayoutElementPreferredHeight;
+                layoutElement.flexibleWidth = LayoutElementFlexibleWidth;
+                layoutElement.flexibleHeight = LayoutElementFlexibleHeight;
+                layoutElement.layoutPriority = LayoutElementPriority;
+            }
+
+            var text = GetText(target);
+
+            if (!HasText || !text)
+            {
+                return;
+            }
+
+            text.margin = TextMargin;
+            text.alignment = TextAlignment;
+            text.autoSizeTextContainer = TextAutoSizeTextContainer;
+            text.enableAutoSizing = TextEnableAutoSizing;
+            text.enableWordWrapping = TextEnableWordWrapping;
+            text.maxVisibleLines = TextMaxVisibleLines;
+            text.overflowMode = TextOverflowMode;
+            text.fontSize = TextFontSize;
+            text.fontSizeMin = TextFontSizeMin;
+            text.fontSizeMax = TextFontSizeMax;
+            text.lineSpacing = TextLineSpacing;
+            text.SetLayoutDirty();
+            text.SetVerticesDirty();
+        }
+
+        private static TMP_Text GetText(GameObject target)
+        {
+            if (!target)
+            {
+                return null;
+            }
+
+            var label = target.GetComponent<GuiLabel>();
+
+            return label ? label.TMP_Text : target.GetComponent<TMP_Text>();
+        }
     }
 
     internal static void SwapClassAndBackground(CharacterInformationPanel panel)
