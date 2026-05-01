@@ -10,6 +10,8 @@ namespace SolastaUnfinishedBusiness.CustomUI;
 
 public static class Sprites
 {
+    private const string CustomSpriteNamePrefix = "_CE_";
+
     #region Spells
 
     internal static AssetReferenceSprite FarStep =>
@@ -144,9 +146,14 @@ public static class Sprites
     /// <returns></returns>
     private static (string id, string guid) GetSpriteId(string name, int x, int y)
     {
-        var id = $"_CE_{name}[{x},{y}]";
+        var id = $"{CustomSpriteNamePrefix}{name}[{x},{y}]";
 
         return (id, GetSpriteGuid(id));
+    }
+
+    internal static bool IsCustomSprite([CanBeNull] Sprite sprite)
+    {
+        return sprite && sprite.name.StartsWith(CustomSpriteNamePrefix, System.StringComparison.Ordinal);
     }
 
     [NotNull]

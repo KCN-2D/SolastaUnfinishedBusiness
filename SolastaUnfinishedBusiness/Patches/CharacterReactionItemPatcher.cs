@@ -113,7 +113,7 @@ public static class CharacterReactionItemPatcher
                 return;
             }
 
-            __instance.resourceCostSprite = Gui.LoadAssetSync<Sprite>(spriteByResourceCost);
+            __instance.resourceCostSprite = __instance.LoadAddressableSprite(spriteByResourceCost);
             __instance.resourceCostImage.sprite = __instance.resourceCostSprite;
             __instance.remainingResourceImage.sprite = __instance.resourceCostSprite;
             //END BUGFIX
@@ -134,8 +134,8 @@ public static class CharacterReactionItemPatcher
                 return;
             }
 
-            Gui.ReleaseAddressableAsset(item.resourceCostSprite);
-            item.resourceCostSprite = Gui.LoadAssetSync<Sprite>(resource.Icon);
+            item.ReleaseAddressableSprite(item.resourceCostSprite);
+            item.resourceCostSprite = item.LoadAddressableSprite(resource.Icon);
             item.remainingResourceGroup.gameObject.SetActive(true);
             item.remainingResourceImage.sprite = item.resourceCostSprite;
             item.remainingResourceValue.Text = resource.GetUses(item.guiCharacter.rulesetCharacter);
@@ -222,7 +222,8 @@ public static class CharacterReactionItemPatcher
 
         var slot = item.ReactionRequest.SubOptionsAvailability.Keys.ElementAtOrDefault(item.GetSelectedSubItem());
 
-        Gui.ReleaseAddressableAsset(item.resourceCostSprite);
+        item.ReleaseAddressableSprite(item.resourceCostSprite);
+        item.resourceCostSprite = null;
 
         item.remainingResourceGroup.gameObject.SetActive(true);
         item.remainingResourceImage.canvasRenderer.SetAlpha(0); //hide resource sprite 

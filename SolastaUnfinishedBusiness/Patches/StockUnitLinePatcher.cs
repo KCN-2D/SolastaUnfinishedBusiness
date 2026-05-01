@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.ItemCrafting;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
@@ -44,15 +45,15 @@ public static class StockUnitLinePatcher
         if (item)
         {
             img.color = Color.white;
-            img.sprite = Gui.LoadAssetSync<Sprite>(item.GuiPresentation.SpriteReference);
+            img.ClearAddressableSprite();
+            img.sprite = img.LoadAddressableSprite(item.GuiPresentation.SpriteReference);
             ServiceRepository.GetService<IGuiWrapperService>()
                 .GetGuiItemDefinition(item.Name)
                 .SetupTooltip(tooltip);
         }
         else if (img.sprite)
         {
-            Gui.ReleaseAddressableAsset(img.sprite);
-            img.sprite = null;
+            img.ClearAddressableSprite();
             tooltip.Clear();
         }
 
@@ -81,7 +82,10 @@ public static class StockUnitLinePatcher
 
                 if (Main.Settings.SwapCraftedItemAndRecipeIcons)
                 {
+                    var craftedSprite = img.sprite;
+
                     (img.sprite, __instance.itemImage.sprite) = (__instance.itemImage.sprite, img.sprite);
+                    img.TransferAddressableSprite(__instance.itemImage, craftedSprite);
                 }
             }
             else

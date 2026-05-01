@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
@@ -203,15 +204,15 @@ internal static class ScrollsData
         if (spell)
         {
             img.color = Color.white;
-            img.sprite = Gui.LoadAssetSync<Sprite>(spell.GuiPresentation.SpriteReference);
+            img.ClearAddressableSprite();
+            img.sprite = img.LoadAddressableSprite(spell.GuiPresentation.SpriteReference);
             ServiceRepository.GetService<IGuiWrapperService>()
                 .GetGuiSpellDefinition(spell.Name)
                 .SetupTooltip(tooltip);
         }
         else if (img.sprite)
         {
-            Gui.ReleaseAddressableAsset(img.sprite);
-            img.sprite = null;
+            img.ClearAddressableSprite();
             tooltip.Clear();
         }
     }
@@ -261,14 +262,13 @@ internal static class ScrollsData
                     {
                         if (img.sprite)
                         {
-                            Gui.ReleaseAddressableAsset(img.sprite);
-                            img.sprite = null;
+                            img.ClearAddressableSprite();
                         }
 
                         var spriteReference = spell.GuiPresentation.SpriteReference;
                         if (spriteReference != null && spriteReference.RuntimeKeyIsValid())
                         {
-                            img.sprite = Gui.LoadAssetSync<Sprite>(spriteReference);
+                            img.sprite = img.LoadAddressableSprite(spriteReference);
                             if (obj)
                             {
                                 obj.gameObject.SetActive(true);

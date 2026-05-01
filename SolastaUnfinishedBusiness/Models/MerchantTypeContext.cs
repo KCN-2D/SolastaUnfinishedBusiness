@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Builders;
 using UnityEngine;
 using UnityEngine.UI;
@@ -320,14 +321,13 @@ internal static class RecipeHelper
                 {
                     if (img.sprite)
                     {
-                        Gui.ReleaseAddressableAsset(img.sprite);
-                        img.sprite = null;
+                        img.ClearAddressableSprite();
                     }
 
                     var spriteReference = item.GuiPresentation.SpriteReference;
                     if (spriteReference != null && spriteReference.RuntimeKeyIsValid())
                     {
-                        img.sprite = Gui.LoadAssetSync<Sprite>(spriteReference);
+                        img.sprite = img.LoadAddressableSprite(spriteReference);
                         if (obj)
                         {
                             obj.gameObject.SetActive(true);

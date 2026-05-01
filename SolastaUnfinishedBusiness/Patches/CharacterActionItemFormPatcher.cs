@@ -97,17 +97,13 @@ public static class CharacterActionItemFormPatcher
 
             box.gameObject.SetActive(true);
 
-            if (dieImage.sprite)
-            {
-                Gui.ReleaseAddressableAsset(dieImage.sprite);
-                dieImage.sprite = null;
-            }
+            dieImage.ClearAddressableSprite();
 
             var dieSizeAssetPath = $"Gui/Bitmaps/Dice/{size}Icon";
 
             if (SyncAddressables.AddressableResourceExists<Sprite>(dieSizeAssetPath))
             {
-                dieImage.sprite = Gui.LoadAssetSync<Sprite>(dieSizeAssetPath);
+                dieImage.sprite = dieImage.LoadAddressableSprite(dieSizeAssetPath);
             }
 
             dieLabel.Text = $"{number}x";

@@ -760,7 +760,7 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
     {
         base.OnBeginShow(instant);
 
-        _backdrop.sprite = Gui.LoadAssetSync<Sprite>(_backdropReference);
+        _backdrop.SetAddressableSprite(_backdropReference);
 
         CommonData.CharacterStatsPanel.Show(CharacterStatsPanel.ArmorClassFlag |
                                             CharacterStatsPanel.InitiativeFlag | CharacterStatsPanel.MoveFlag |
@@ -807,8 +807,7 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
             return;
         }
 
-        Gui.ReleaseAddressableAsset(_backdrop.sprite);
-        _backdrop.sprite = null;
+        _backdrop.ClearAddressableSprite();
     }
 
     public override bool CanProceedToNextStage(out string failureString)
