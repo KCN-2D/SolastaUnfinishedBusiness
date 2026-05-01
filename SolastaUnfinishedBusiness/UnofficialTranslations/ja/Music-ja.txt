@@ -19,4 +19,4 @@ Music/&TavernTitle=酒場
 Music/&TheLightBringersTitle=ライトブリンガーズ
 Music/&TheNecromancerTitle=ネクロマンサー
 Music/&ValleyTitle=谷
-Music/&WizardsTowerTitle=魔法使いの塔
+Music/&WizardsTowerTitle=ウィザードの塔
