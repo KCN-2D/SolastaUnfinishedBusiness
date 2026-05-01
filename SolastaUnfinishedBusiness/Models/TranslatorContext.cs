@@ -359,11 +359,16 @@ internal static class TranslatorContext
         }
 
         var fontNamesToAppend = new HashSet<string>(fontsToAppend, StringComparer.Ordinal);
+        var loaded = false;
 
         foreach (var tmpFontAsset in allFonts.Where(x => fontNamesToAppend.Contains(x.name)))
         {
             tmpFontAsset.fallbackFontAssetTable.Add(modFontAsset);
+            loaded = true;
+        }
 
+        if (loaded)
+        {
             Main.Info($"Font asset {fontName} loaded.");
         }
     }

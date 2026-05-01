@@ -194,28 +194,10 @@ internal static class Level20Context
 
     internal static void LateLoad()
     {
-        const BindingFlags PrivateBinding = BindingFlags.Instance | BindingFlags.NonPublic;
-
         var harmony = new Harmony("SolastaUnfinishedBusiness");
         var transpiler = new Func<IEnumerable<CodeInstruction>, IEnumerable<CodeInstruction>>(Level20Transpiler).Method;
 
-        // these are currently the hard-coded levels on below methods
-        var methods = new[]
-        {
-            typeof(ArchetypesPreviewModal).GetMethod("Refresh", PrivateBinding),
-            typeof(CharactersPanel).GetMethod("Refresh", PrivateBinding),
-            typeof(FeatureDefinitionCastSpell).GetMethod("EnsureConsistency"),
-            typeof(HigherLevelFeaturesModal).GetMethod("Bind"), typeof(InvocationSubPanel).GetMethod("SetState"),
-            typeof(RulesetCharacterHero).GetMethod("RegisterAttributes"),
-            typeof(RulesetCharacterHero).GetMethod("SerializeElements"),
-            typeof(RulesetEntity).GetMethod("SerializeElements"),
-            typeof(UserCampaignEditorScreen).GetMethod("OnMaxLevelEndEdit"),
-            typeof(UserCampaignEditorScreen).GetMethod("OnMinLevelEndEdit"),
-            typeof(UserLocationSettingsModal).GetMethod("OnMaxLevelEndEdit"),
-            typeof(UserLocationSettingsModal).GetMethod("OnMinLevelEndEdit")
-        };
-
-        foreach (var method in methods)
+        foreach (var method in EnumerateLevel20TranspilerTargets())
         {
             try
             {
@@ -226,6 +208,28 @@ internal static class Level20Context
                 Main.Error($"Failed to apply Level20Transpiler patch to {method.DeclaringType}.{method.Name}");
             }
         }
+    }
+
+    private static IEnumerable<MethodInfo> EnumerateLevel20TranspilerTargets()
+    {
+        const BindingFlags PrivateBinding = BindingFlags.Instance | BindingFlags.NonPublic;
+
+        // Serializer methods are intentionally excluded; patching them can desync binary reader state under UMM 0.32.4.
+        var methods = new[]
+        {
+            typeof(ArchetypesPreviewModal).GetMethod("Refresh", PrivateBinding),
+            typeof(CharactersPanel).GetMethod("Refresh", PrivateBinding),
+            typeof(FeatureDefinitionCastSpell).GetMethod("EnsureConsistency"),
+            typeof(HigherLevelFeaturesModal).GetMethod("Bind"),
+            typeof(InvocationSubPanel).GetMethod("SetState"),
+            typeof(RulesetCharacterHero).GetMethod("RegisterAttributes"),
+            typeof(UserCampaignEditorScreen).GetMethod("OnMaxLevelEndEdit"),
+            typeof(UserCampaignEditorScreen).GetMethod("OnMinLevelEndEdit"),
+            typeof(UserLocationSettingsModal).GetMethod("OnMaxLevelEndEdit"),
+            typeof(UserLocationSettingsModal).GetMethod("OnMinLevelEndEdit")
+        };
+
+        return methods.Where(method => method != null);
     }
 
     [NotNull]

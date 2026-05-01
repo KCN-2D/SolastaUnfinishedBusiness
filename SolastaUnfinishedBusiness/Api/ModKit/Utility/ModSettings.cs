@@ -15,9 +15,9 @@ internal static class ModSettings
 {
     public static void SaveSettings<T>(this ModEntry modEntry, string fileName, T settings)
     {
-        var userConfigFolder = modEntry.Path + "UserSettings";
+        var userConfigFolder = GetUserConfigFolder(modEntry);
         Main.EnsureFolderExists(userConfigFolder);
-        var userPath = $"{userConfigFolder}{Path.DirectorySeparatorChar}{fileName}";
+        var userPath = Path.Combine(userConfigFolder, fileName);
         File.WriteAllText(userPath, JsonConvert.SerializeObject(settings, Formatting.Indented));
     }
 
@@ -25,15 +25,15 @@ internal static class ModSettings
         where T : IUpdatableSettings, new()
     {
         var assembly = Assembly.GetExecutingAssembly();
-        var userConfigFolder = modEntry.Path + "UserSettings";
+        var userConfigFolder = GetUserConfigFolder(modEntry);
         Main.EnsureFolderExists(userConfigFolder);
-        var userPath = $"{userConfigFolder}{Path.DirectorySeparatorChar}{fileName}";
+        var userPath = Path.Combine(userConfigFolder, fileName);
         try
         {
             foreach (var res in assembly.GetManifestResourceNames())
             {
                 //Logger.Log("found resource: " + res);
-                if (!res.Contains(fileName))
+                if (!res.EndsWith(fileName, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -71,11 +71,16 @@ internal static class ModSettings
             catch
             {
                 Main.Error("Failed to load user settings. Settings will be rebuilt.");
-                try { File.Copy(userPath, userConfigFolder + $"{Path.DirectorySeparatorChar}BROKEN_{fileName}", true); }
+                try { File.Copy(userPath, Path.Combine(userConfigFolder, $"BROKEN_{fileName}"), true); }
                 catch { Main.Error("Failed to archive broken settings."); }
             }
         }
 
         File.WriteAllText(userPath, JsonConvert.SerializeObject(settings, Formatting.Indented));
+    }
+
+    private static string GetUserConfigFolder(ModEntry modEntry)
+    {
+        return Path.Combine(modEntry.Path, "UserSettings");
     }
 }

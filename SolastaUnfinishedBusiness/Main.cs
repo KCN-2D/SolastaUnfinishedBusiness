@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -77,20 +76,11 @@ internal static class Main
         var now = DateTime.Now;
         var assembly = Assembly.GetExecutingAssembly();
 
-        var runtimeVersion = typeof(UnityModManager)
-            .GetTypeInfo()
-            .Assembly
-            .GetCustomAttribute<AssemblyFileVersionAttribute>();
+        var compatibility = UmmCompatibility.CheckRuntime();
+        Info(compatibility.LogMessage);
 
-        var unityModManagerVersion = runtimeVersion.Version.Split('.');
-
-        if (unityModManagerVersion.Length > 2 &&
-            int.TryParse(unityModManagerVersion[1], NumberStyles.Integer, CultureInfo.CurrentCulture, out var minor) &&
-            int.TryParse(unityModManagerVersion[2], NumberStyles.Integer, CultureInfo.CurrentCulture, out var rev) &&
-            ((minor == 27 && rev > 10) || minor > 27))
+        if (!compatibility.IsSupported)
         {
-            Info($"Unity mod manager version {runtimeVersion.Version} is not compatible with UB. aborting.");
-
             return false;
         }
 
@@ -135,54 +125,95 @@ internal static class Main
 
     internal static void LoadSettingFilenames()
     {
-        SettingsFiles = Directory.GetFiles(SettingsFolder)
-            .Where(x => x.EndsWith(".xml"))
+        EnsureFolderExists(SettingsFolder);
+
+        SettingsFiles = Directory.EnumerateFiles(SettingsFolder, "*.xml", SearchOption.TopDirectoryOnly)
             .Select(Path.GetFileNameWithoutExtension)
+            .Where(x => !string.IsNullOrEmpty(x))
             .ToArray();
     }
 
-    private static bool ValidateFilename(ref string filename)
+    private static bool TryNormalizeSettingsFilename(string filename, out string normalizedFilename)
     {
-        if (string.IsNullOrEmpty(filename))
+        normalizedFilename = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(filename))
         {
             return false;
         }
 
-        filename = string.Concat(filename.Split(Path.GetInvalidFileNameChars()));
-        filename = Path.GetFileName(filename) + ".xml";
+        var fileName = Path.GetFileName(filename.Trim());
+
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return false;
+        }
+
+        fileName = string.Concat(fileName.Split(Path.GetInvalidFileNameChars()));
+
+        if (string.IsNullOrWhiteSpace(Path.GetFileNameWithoutExtension(fileName)))
+        {
+            return false;
+        }
+
+        normalizedFilename = fileName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
+            ? fileName
+            : $"{fileName}.xml";
 
         return true;
     }
 
     internal static void SaveSettings(string filename)
     {
-        if (!ValidateFilename(ref filename))
+        if (!TryNormalizeSettingsFilename(filename, out var normalizedFilename))
         {
             return;
         }
 
-        SettingsFilename = Path.Combine(SettingsFolder, filename);
-        UnityModManager.ModSettings.Save(Settings, ModEntry);
-        SettingsFilename = string.Empty;
+        EnsureFolderExists(SettingsFolder);
+        SettingsFilename = Path.Combine(SettingsFolder, normalizedFilename);
+
+        try
+        {
+            UnityModManager.ModSettings.Save(Settings, ModEntry);
+        }
+        finally
+        {
+            SettingsFilename = string.Empty;
+        }
 
         LoadSettingFilenames();
     }
 
     internal static void LoadSettings(string filename)
     {
-        SettingsFilename = Path.Combine(SettingsFolder, $"{filename}.xml");
-        Mod.Settings = UnityModManager.ModSettings.Load<Settings>(ModEntry);
-        SettingsFilename = string.Empty;
-    }
-
-    internal static void RemoveSettings(string filename)
-    {
-        if (!ValidateFilename(ref filename))
+        if (!TryNormalizeSettingsFilename(filename, out var normalizedFilename))
         {
             return;
         }
 
-        filename = Path.Combine(SettingsFolder, filename);
+        EnsureFolderExists(SettingsFolder);
+        SettingsFilename = Path.Combine(SettingsFolder, normalizedFilename);
+
+        try
+        {
+            Mod.Settings = UnityModManager.ModSettings.Load<Settings>(ModEntry);
+        }
+        finally
+        {
+            SettingsFilename = string.Empty;
+        }
+    }
+
+    internal static void RemoveSettings(string filename)
+    {
+        if (!TryNormalizeSettingsFilename(filename, out var normalizedFilename))
+        {
+            return;
+        }
+
+        EnsureFolderExists(SettingsFolder);
+        filename = Path.Combine(SettingsFolder, normalizedFilename);
 
         if (File.Exists(filename))
         {

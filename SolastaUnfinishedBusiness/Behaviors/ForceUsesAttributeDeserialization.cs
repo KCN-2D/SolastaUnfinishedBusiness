@@ -10,18 +10,37 @@ public class ForceUsesAttributeDeserialization
 
     public static ForceUsesAttributeDeserialization Mark { get; } = new();
 
-    internal static void Process(RulesetCharacter character, IElementsSerializer serializer)
+    internal static void Process(RulesetCharacter character)
     {
-        if (serializer.Mode != Serializer.SerializationMode.Read) { return; }
+        if (character == null)
+        {
+            return;
+        }
 
-        var usablePowers = character.usablePowers;
+        var usablePowers = character.UsablePowers;
+
+        if (usablePowers == null)
+        {
+            return;
+        }
 
         foreach (var usablePower in usablePowers)
         {
-            var powerDefinition = usablePower.PowerDefinition;
-            if (!powerDefinition.HasSubFeatureOfType<ForceUsesAttributeDeserialization>()) { continue; }
-
-            usablePower.UsesAttribute = character.GetAttribute(powerDefinition.UsesAbilityScoreName);
+            RestoreUsesAttribute(character, usablePower);
         }
+    }
+
+    private static void RestoreUsesAttribute(RulesetCharacter character, RulesetUsablePower usablePower)
+    {
+        var powerDefinition = usablePower?.PowerDefinition;
+
+        if (powerDefinition == null ||
+            string.IsNullOrEmpty(powerDefinition.UsesAbilityScoreName) ||
+            !powerDefinition.HasSubFeatureOfType<ForceUsesAttributeDeserialization>())
+        {
+            return;
+        }
+
+        usablePower.UsesAttribute = character.GetAttribute(powerDefinition.UsesAbilityScoreName);
     }
 }
