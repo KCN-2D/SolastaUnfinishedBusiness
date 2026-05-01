@@ -11,6 +11,11 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class SpellBoxPatcher
 {
+    private const string ClassExtraSpellDescriptionFormat = "Screen/&ClassExtraSpellDescriptionFormat";
+    private const string SubclassExtraSpellDescriptionFormat = "Screen/&SubclassClassExtraSpellDescriptionFormat";
+    private const string MulticlassExtraSpellTitle = "Screen/&MulticlassExtraSpellTitle";
+    private const string MulticlassExtraSpellDescription = "Screen/&MulticlassExtraSpellDescription";
+
     internal static string NormalizeSpellSourceTag(string tag)
     {
         if (string.IsNullOrEmpty(tag))
@@ -45,8 +50,7 @@ public static class SpellBoxPatcher
             tag = NormalizeSpellSourceTag(tag);
 
             //PATCH: show actual class/subclass name in the multiclass tag during spell selection on level up
-            if (tag.StartsWith(LevelUpHelper.ExtraClassTag, StringComparison.Ordinal)
-                || tag.StartsWith(LevelUpHelper.ExtraSubclassTag, StringComparison.Ordinal))
+            if (IsMulticlassSpellSourceTag(tag))
             {
                 //store original extra tag and reset both - actual texts would be handled on Postfix for this case
                 __state = tag;
@@ -91,26 +95,103 @@ public static class SpellBoxPatcher
             var type = parts[0];
             var name = parts[1];
 
-            const string CLASS_FORMAT = "Screen/&ClassExtraSpellDescriptionFormat";
-            const string SUBCLASS_FORMAT = "Screen/&SubclassClassExtraSpellDescriptionFormat";
-
-            //__instance.autoPreparedTitle.Text = "Screen/&MulticlassExtraSpellTitle";
-
-            switch (type)
+            if (!TryResolveMulticlassSpellSourceTag(type, name, out var title, out var tooltipContent))
             {
-                case LevelUpHelper.ExtraClassTag when
-                    DatabaseHelper.TryGetDefinition<CharacterClassDefinition>(name, out var classDef):
-                    name = classDef.FormatTitle();
-                    spellBox.autoPreparedTooltip.Content = Gui.Format(CLASS_FORMAT, name);
-                    break;
-
-                case LevelUpHelper.ExtraSubclassTag when
-                    DatabaseHelper.TryGetDefinition<CharacterSubclassDefinition>(name, out var subDef):
-                    name = subDef.FormatTitle();
-                    spellBox.autoPreparedTooltip.Content = Gui.Format(SUBCLASS_FORMAT, name);
-                    break;
+                return;
             }
+
+            spellBox.autoPreparedTitle.Text = title;
+            spellBox.autoPreparedTitle.gameObject.SetActive(true);
+            spellBox.autoPreparedTooltip.Content = tooltipContent;
         }
+    }
+
+    private static bool IsMulticlassSpellSourceTag(string tag)
+    {
+        return tag.StartsWith(LevelUpHelper.ExtraClassTag, StringComparison.OrdinalIgnoreCase)
+               || tag.StartsWith(LevelUpHelper.ExtraSubclassTag, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryResolveMulticlassSpellSourceTag(
+        string type,
+        string name,
+        out string title,
+        out string tooltipContent)
+    {
+        title = Gui.Localize(MulticlassExtraSpellTitle);
+        tooltipContent = Gui.Localize(MulticlassExtraSpellDescription);
+
+        if (type.Equals(LevelUpHelper.ExtraClassTag, StringComparison.OrdinalIgnoreCase))
+        {
+            if (TryGetClassDefinition(name, out var classDef))
+            {
+                title = classDef.FormatTitle();
+                tooltipContent = Gui.Format(ClassExtraSpellDescriptionFormat, title);
+            }
+
+            return true;
+        }
+
+        if (!type.Equals(LevelUpHelper.ExtraSubclassTag, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (TryGetSubclassDefinition(name, out var subDef))
+        {
+            title = subDef.FormatTitle();
+            tooltipContent = Gui.Format(SubclassExtraSpellDescriptionFormat, title);
+        }
+
+        return true;
+    }
+
+    private static bool TryGetClassDefinition(string name, out CharacterClassDefinition definition)
+    {
+        if (DatabaseHelper.TryGetDefinition(name, out definition))
+        {
+            return true;
+        }
+
+        foreach (var candidate in DatabaseRepository.GetDatabase<CharacterClassDefinition>())
+        {
+            if (!candidate.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            definition = candidate;
+
+            return true;
+        }
+
+        definition = null;
+
+        return false;
+    }
+
+    private static bool TryGetSubclassDefinition(string name, out CharacterSubclassDefinition definition)
+    {
+        if (DatabaseHelper.TryGetDefinition(name, out definition))
+        {
+            return true;
+        }
+
+        foreach (var candidate in DatabaseRepository.GetDatabase<CharacterSubclassDefinition>())
+        {
+            if (!candidate.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            definition = candidate;
+
+            return true;
+        }
+
+        definition = null;
+
+        return false;
     }
 
     [HarmonyPatch(typeof(SpellBox), nameof(SpellBox.Refresh))]
