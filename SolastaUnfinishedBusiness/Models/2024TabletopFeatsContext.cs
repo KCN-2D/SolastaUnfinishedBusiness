@@ -1022,6 +1022,11 @@ public static partial class Tabletop2024Context
                 (AttributeDefinitions.Charisma, SkillDefinitions.Deception),
                 (AttributeDefinitions.Charisma, SkillDefinitions.Performance))
             .AddToDB();
+        var disguiseKitProficiency = FeatureDefinitionProficiencyBuilder
+            .Create("ProficiencyFeatActor2024DisguiseKit")
+            .SetGuiPresentationNoContent(true)
+            .SetProficiencies(ProficiencyType.ToolOrExpertise, ToolTypeDefinitions.DisguiseKitType.Name)
+            .AddToDB();
 
         _featActor2024 = FeatDefinitionBuilder
             .Create(Actor2024FeatName)
@@ -1029,7 +1034,7 @@ public static partial class Tabletop2024Context
                 "Feat/&FeatActor2024Title",
                 BuildHalfFeatDescription(AttributeDefinitions.Charisma, baseDescription),
                 hidden: false)
-            .SetFeatures(AttributeModifierCreed_Of_Solasta, deceptionPerformanceAffinity)
+            .SetFeatures(AttributeModifierCreed_Of_Solasta, deceptionPerformanceAffinity, disguiseKitProficiency)
             .AddToDB();
 
         ApplyHalfFeatAbilityPrerequisite(_featActor2024, AttributeDefinitions.Charisma);
