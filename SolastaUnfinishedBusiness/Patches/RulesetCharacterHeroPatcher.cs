@@ -48,7 +48,7 @@ public static class RulesetCharacterHeroPatcher
             ArmorDescription armorDescription,
             RulesetCharacterHero rulesetCharacterHero)
         {
-            return ArmorFeats.IsFeatMediumArmorMasterContextValid(armorDescription, rulesetCharacterHero)
+            return ArmorFeats.IsMediumArmorMasterMaxDexContextValid(armorDescription, rulesetCharacterHero)
                 ? 3
                 : armorDescription.MaxDexterityBonus;
         }
@@ -1731,7 +1731,7 @@ public static class RulesetCharacterHeroPatcher
         }
     }
 
-    //PATCH: supports Medium Armor Master feat by removing disadvantage on medium armors stealth checks
+    //PATCH: supports legacy Medium Armor Master feat by removing disadvantage on medium armors stealth checks
     //TODO: make this an interface if we ever need similar behavior on other places
     [HarmonyPatch(typeof(RulesetCharacterHero), nameof(RulesetCharacterHero.RefreshActiveItemFeatures))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -1742,7 +1742,7 @@ public static class RulesetCharacterHeroPatcher
             ItemDefinition itemDefinition,
             RulesetCharacterHero rulesetCharacterHero)
         {
-            return ArmorFeats.IsFeatMediumArmorMasterContextValid(itemDefinition, rulesetCharacterHero)
+            return ArmorFeats.IsMediumArmorMasterStealthContextValid(itemDefinition, rulesetCharacterHero)
                 ? itemDefinition.StaticProperties
                     .Where(x => x.FeatureDefinition != AbilityCheckAffinityStealthDisadvantage)
                     .ToList()

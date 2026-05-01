@@ -9,6 +9,7 @@ Feedback/&AdditionalDamageFeatCharger2024Line={0} charges {1} and deals extra {2
 Feat/&FeatDefensiveDuelist2024BaseDescription=When you are wielding a melee weapon with which you are proficient and another creature hits you with a melee attack, you can use your reaction to add your proficiency bonus to your AC for that attack, potentially causing the attack to miss you.
 Feat/&FeatGroupLightlyArmored2024BaseDescription=You gain proficiency with light armor and shields.
 Feat/&FeatGroupModeratelyArmored2024BaseDescription=Prerequisite: proficiency with light armor.\nYou gain proficiency with medium armor.
+Feat/&FeatGroupMediumArmorMaster2024BaseDescription=While wearing medium armor, you can add up to +3 AC instead of +2 if your Dexterity is 16 or higher.
 Feat/&FeatGroupPoisoner2024BaseDescription=You have a profound understanding on how to manipulate poisons:\n• You gain proficiency with the poisoner's kit, or expertise if already proficient.\n• You gain the ability to apply a poison to your weapon as a bonus action.\n• When you make a damage roll, you ignore resistance to poison damage.
 Feat/&FeatHeavilyArmored2024BaseDescription=Prerequisite: proficiency with medium armor.\nYou gain proficiency with heavy armor.
 Feat/&FeatGroupHeavilyArmored2024BaseDescription=Prerequisite: proficiency with medium armor.\nYou gain proficiency with heavy armor.

@@ -9,6 +9,7 @@ Feedback/&AdditionalDamageFeatCharger2024Line={0}は{1}に突撃し、追加で{
 Feat/&FeatDefensiveDuelist2024BaseDescription=あなたが習熟している近接武器を装備している状態で、他のクリーチャーから近接攻撃を受けたとき、リアクションを使ってその攻撃に対するACに習熟ボーナスを加え、その攻撃を外れにすることができます。
 Feat/&FeatGroupLightlyArmored2024BaseDescription=軽装鎧と盾に習熟します。
 Feat/&FeatGroupModeratelyArmored2024BaseDescription=前提条件：軽装鎧に習熟していること。\n中装鎧に習熟します。
+Feat/&FeatGroupMediumArmorMaster2024BaseDescription=中装鎧を着用している間、敏捷力が16以上なら、ACへの加算上限は+2ではなく+3になります。
 Feat/&FeatGroupPoisoner2024BaseDescription=毒の扱いに精通し、次の利益を得ます。\n• 調毒道具に習熟し、すでに習熟しているなら習熟強化を得ます。\n• ボーナス・アクションで武器に毒を塗布できます。\n• ダメージ・ロールを行うとき、毒ダメージへの抵抗を無視します。
 Feat/&FeatHeavilyArmored2024BaseDescription=前提条件：中装鎧に習熟していること。\n重装鎧に習熟します。
 Feat/&FeatGroupHeavilyArmored2024BaseDescription=前提条件：中装鎧に習熟していること。\n重装鎧に習熟します。

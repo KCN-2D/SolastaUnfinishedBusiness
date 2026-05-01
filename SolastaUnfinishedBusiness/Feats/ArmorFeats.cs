@@ -20,30 +20,44 @@ namespace SolastaUnfinishedBusiness.Feats;
 internal static class ArmorFeats
 {
     // this is entirely implemented on rulesetCharacterHero transpiler using context validations below
-    // they change max dexterity to 3 and remove any instance of Stealth Disadvantage checks
+    // they change max dexterity to 3 and, for legacy Medium Armor Master only, remove Stealth Disadvantage checks
     private static readonly FeatDefinition FeatMediumArmorMaster = FeatDefinitionBuilder
         .Create("FeatMediumArmorMaster")
         .SetGuiPresentation(Category.Feat)
         .SetArmorProficiencyPrerequisite(MediumArmorCategory)
         .AddToDB();
 
-    internal static bool IsFeatMediumArmorMasterContextValid(
+    internal static bool IsMediumArmorMasterMaxDexContextValid(
+        ArmorDescription armorDescription,
+        RulesetCharacterHero rulesetCharacterHero)
+    {
+        return IsMediumArmor(armorDescription) &&
+               HasMediumArmorMaster(rulesetCharacterHero, includeTabletop2024Equivalent: true);
+    }
+
+    internal static bool IsMediumArmorMasterStealthContextValid(
         ItemDefinition itemDefinition,
         RulesetCharacterHero rulesetCharacterHero)
     {
         return itemDefinition.IsArmor &&
-               IsFeatMediumArmorMasterContextValid(itemDefinition.ArmorDescription, rulesetCharacterHero);
+               IsMediumArmor(itemDefinition.ArmorDescription) &&
+               HasMediumArmorMaster(rulesetCharacterHero, includeTabletop2024Equivalent: false);
     }
 
-    internal static bool IsFeatMediumArmorMasterContextValid(
-        ArmorDescription armorDescription,
-        RulesetCharacterHero rulesetCharacterHero)
+    private static bool IsMediumArmor(ArmorDescription armorDescription)
     {
-        return armorDescription.ArmorTypeDefinition.ArmorCategory == MediumArmorCategory &&
-               rulesetCharacterHero?.TrainedFeats?.Exists(feat =>
-                   feat == FeatMediumArmorMaster ||
-                   (Main.Settings.EnableTabletopFeatRules2024 &&
-                    Tabletop2024Context.AreEquivalentTabletopFeatNames(feat.Name, FeatMediumArmorMaster.Name))) == true;
+        return armorDescription.ArmorTypeDefinition.ArmorCategory == MediumArmorCategory;
+    }
+
+    private static bool HasMediumArmorMaster(
+        RulesetCharacterHero rulesetCharacterHero,
+        bool includeTabletop2024Equivalent)
+    {
+        return rulesetCharacterHero?.TrainedFeats?.Exists(feat =>
+            feat == FeatMediumArmorMaster ||
+            (includeTabletop2024Equivalent &&
+             Main.Settings.EnableTabletopFeatRules2024 &&
+             Tabletop2024Context.AreEquivalentTabletopFeatNames(feat.Name, FeatMediumArmorMaster.Name))) == true;
     }
 
     internal static void CreateFeats([NotNull] List<FeatDefinition> feats)

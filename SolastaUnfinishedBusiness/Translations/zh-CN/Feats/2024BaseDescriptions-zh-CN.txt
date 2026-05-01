@@ -4,6 +4,7 @@ Feat/&FeatGroupDualWielder2024BaseDescription=你精通双武器战斗，并获�
 Feat/&FeatDefensiveDuelist2024BaseDescription=当你挥舞着你擅长的近战武器时，另一个生物用近战攻击击中你，你可以使用你的反应将你的熟练加值添加到你对该次攻击的护甲等级上，这可能会导致攻击未命中你。
 Feat/&FeatGroupLightlyArmored2024BaseDescription=你获得轻甲和盾牌熟练项。
 Feat/&FeatGroupModeratelyArmored2024BaseDescription=先决条件：轻甲熟练项。\n你获得中甲熟练项。
+Feat/&FeatGroupMediumArmorMaster2024BaseDescription=穿着中甲时，如果你的敏捷为16或更高，你可以将AC加值上限从+2提高到+3。
 Feat/&FeatGroupPoisoner2024BaseDescription=你对如何操纵毒药有深刻的了解：\n• 你获得毒药工具熟练项，如果已有熟练项，则获得专精。\n• 作为附赠动作，你将能够在武器上使用毒药。\n• 当你进行伤害检定时，你会忽略对毒素伤害的抗性。
 Feat/&FeatHeavilyArmored2024BaseDescription=先决条件：中甲熟练项。\n你获得重甲熟练项。
 Feat/&FeatGroupShadowTouched2024BaseDescription=你始终准备着 <b>隐形术</b> 和一个你选择的 1 环幻术或死灵系法术。每次长休后，你可以各施放这些法术一次而不消耗法术位。你也可以用法术位施放它们，而它们的施法属性为此专长提升的属性。

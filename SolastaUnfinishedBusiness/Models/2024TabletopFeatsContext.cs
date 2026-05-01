@@ -2218,7 +2218,10 @@ public static partial class Tabletop2024Context
     {
         var feat = GetDefinition<FeatDefinition>("FeatMediumArmorMaster");
         var groupTitle = Get2024HalfFeatGroupTitle("Feat/&FeatGroupMediumArmorMaster2024Title", feat);
-        var baseDescription = Get2024HalfFeatBaseDescription(null, feat);
+        var groupDescription = Gui.Localize("Feat/&FeatGroupMediumArmorMaster2024Description");
+        var baseDescription = Get2024HalfFeatBaseDescription(
+            Get2024HalfFeatBaseDescriptionKey("FeatGroupMediumArmorMaster2024"),
+            fallbackDescription: groupDescription);
 
         var featMediumArmorMaster2024Str = Build2024HalfFeatVariant(
             feat,
@@ -2243,7 +2246,7 @@ public static partial class Tabletop2024Context
             "FeatGroupMediumArmorMaster2024",
             MediumArmorMaster2024Family,
             groupTitle,
-            baseDescription,
+            groupDescription,
             feat,
             [featMediumArmorMaster2024Str, featMediumArmorMaster2024Dex]);
         SetFeatVisibility(_featGroupMediumArmorMaster2024, false);
