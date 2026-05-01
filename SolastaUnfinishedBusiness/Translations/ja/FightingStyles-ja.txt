@@ -1,6 +1,6 @@
-Condition/&ConditionFightingStyleCripplingDescription=速度が2マス低下し、ACが1低下します。
+Condition/&ConditionFightingStyleCripplingDescription=移動速度が2マス低下し、ACが1低下します。
 Condition/&ConditionFightingStyleCripplingTitle=足止め
-Feature/&PowerFightingStyleTorchbearerDescription=近接範囲の対象に火をつけようとします。
+Feature/&PowerFightingStyleTorchbearerDescription=手の届く対象に火をつけようとします。
 Feature/&PowerFightingStyleTorchbearerTitle=松明使い
 Feedback/&AdditionalDamageCripplingFormat=足止めダメージ！
 Feedback/&AdditionalDamageCripplingLine={1}は足止めダメージを受けます。
@@ -12,7 +12,7 @@ FightingStyle/&BlessedWarriorDescription=クレリック呪文リストから選
 FightingStyle/&BlessedWarriorTitle=祝福された戦士
 FightingStyle/&BlindFightingDescription=2マスの範囲で擬似視覚を得ます。その範囲内では、たとえ盲目状態であっても、暗闇の中にいても、完全遮蔽の背後にないものを実質的に見ることができます。さらに、そのクリーチャーがあなたから隠れることに成功していない限り、その範囲内の不可視状態のクリーチャーも見えます。
 FightingStyle/&BlindFightingTitle=無視界戦闘
-FightingStyle/&CripplingDescription=近接攻撃が命中すると、次のターンの終了時まで敵の速度が2マス減少します。
+FightingStyle/&CripplingDescription=近接攻撃が命中すると、次のターンの終了時まで敵の移動速度が2マス低下します。
 FightingStyle/&CripplingTitle=足止め
 FightingStyle/&DruidicWarriorDescription=ドルイド呪文リストから選択した2つの初級呪文を習得します。それらはあなたにとってレンジャー呪文となり、呪文発動能力値は判断力です。
 FightingStyle/&DruidicWarriorTitle=ドルイドの戦士

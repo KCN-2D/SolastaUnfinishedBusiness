@@ -39,4 +39,4 @@ Feature/&FeatureSetBackgroundASI111Description={0}、{1}、{2}をそれぞれ+1�
 Feature/&PointPoolSkilledTitle=技術習熟
 Feature/&PointPoolSkilledDescription=任意の組み合わせで3つの技能に習熟します。
 Feature/&PointPoolHumanOriginFeatTitle=ヒューマンの起源特技
-Feature/&PointPoolHumanOriginFeatDescription=ヒューマンの種族特徴として、起源特技を1つ選択する。
+Feature/&PointPoolHumanOriginFeatDescription=ヒューマンの種族特徴として、起源特技を1つ選択します。
