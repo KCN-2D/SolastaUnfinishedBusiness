@@ -1,63 +1,93 @@
-# Solasta Unfinished Business
+# Solasta Unfinished Business KCN-2D カスタム版
 
-This is a [collection of work](https://github.com/EnderWiggin/SolastaUnfinishedBusiness/wiki) from the Solasta modding community. It includes multiclass, feats, classes, subclasses, items, crafting recipes, gameplay options, UI improvements, and more. The general philosophy is everything is optional to enable, so you can install the mod and then enable the pieces you want. There are some minor bug fixes that are enabled by default.
+`KCN-2D/SolastaUnfinishedBusiness` は、[Solasta Unfinished Business](https://github.com/EnderWiggin/SolastaUnfinishedBusiness) をもとにしたカスタム版です。
 
-# How to install
+作成者がフレンドと Solasta のマルチプレイをしやすくするために調整しています。
 
-Download the first ZIP file from [releases](https://github.com/EnderWiggin/SolastaUnfinishedBusiness/releases) and follow the [installation guide](https://github.com/EnderWiggin/SolastaUnfinishedBusiness/wiki/Install).
+このカスタム版を使うことは自由です。ただし、問題が出ても、元の公開版や公式コミュニティへ報告しないでください。
 
-# How to report issues
+## まず知っておくこと
 
-*  The versions of Solasta and this mod.
-*  A list of other mods you have installed [you shouldn't have any].
-*  A short description of the bug.
-*  A step-by-step procedure to reproduce it.
-*  The save, character and log files.
+- Unity Mod Manager は `0.32.4a` を標準にしています。
+- 古い Unity Mod Manager は優先しません。安定しない場合は `0.32.4a` を使ってください。
+- 既存のセーブデータ、キャラクター、設定は先にバックアップしてください。
 
-**HINT:** Check the folder *C:\Users\**YOUR_USER_NAME**\AppData\LocalLow\Tactical Adventures\Solasta* for the info we need.
+## 用意するもの
 
-# How to contribute
+- Solasta: Crown of the Magister
+- [Unity Mod Manager](https://www.nexusmods.com/site/mods/21)
+- GitHub Releases にある `SolastaUnfinishedBusiness.zip`
 
-Do you have a mod you want to see included here? We are happy to take new contributions! The best way to get involved is to:
+Unity Mod Manager は、Solasta にカスタム版を読み込ませるために必要です。省略はできません。
 
-1. Make a branch off of the `Dev` branch, name it something related to the changes you are making.
-2. Commit your edits to your branch.
-3. Make sure to test your changes. This is a good opportunity to take screen shots so you can show off the changes.
-4. Make a pull request to merge your branch into `Dev`. You can help this process by sharing screen shots to show off the change as well as including an english description of what the change does.
-5. Wait for a review. We try to stay on top of this, but it's a hobby.
-6. Once the review is done, the changes will get merged in to the `Dev` branch. The `Dev` branch will periodically be tested and merged in to `master` to build releases.
+## Unity Mod Manager を入れる
 
-# How to compile
+1. [Unity Mod Manager](https://www.nexusmods.com/site/mods/21) を開きます。
+2. Nexus Mods にログインします。
+3. `Files` を開きます。
+4. `Manual Download` を押します。
+5. ダウンロードしたファイルを好きな場所に展開します。
+6. 展開したフォルダの `UnityModManager.exe` を起動します。
+7. 一覧から `Solasta` を選びます。
+8. Solasta が入っているフォルダを選びます。
+9. `Install` を押します。
+10. エラーが出なければ、Solasta を起動します。
+11. ゲーム起動時に Unity Mod Manager の画面が出るか確認します。
 
-0. Install all required development pre-requisites:
-    - [Visual Studio 2022 Community Edition](https://visualstudio.microsoft.com/downloads/)
-    - [.NET x64 6.00.300 SDK](https://dotnet.microsoft.com/download/visual-studio-sdks)
-1. Download and install [Unity Mod Manager (UMM)](https://www.nexusmods.com/site/mods/21)
-2. Execute UMM, Select Solasta, and Install
-3. Create the environment variable *SolastaInstallDir* and point it to your Solasta game home folder
-    - tip: search for "edit the system environment variables" on windows search bar
-4. Open the project and clean the solution. This is key to allow the publicize assembly to be created
-5. Build project on "Release Workflow" to create translation data
-6. Use "Release Install" or "Debug Install" to have the Mod installed directly to your Game Mods folder
+Solasta のフォルダが分からない場合は、Steam から確認できます。
 
-NOTE Unity Mod Manager and this mod template make use of [Harmony](https://go.microsoft.com/fwlink/?linkid=874338)
+1. Steam のライブラリで Solasta を右クリックします。
+2. `管理` を選びます。
+3. `ローカルファイルを閲覧` を選びます。
+4. 開いたフォルダを Unity Mod Manager で選びます。
 
-# How to debug
+## カスタム版を入れる
 
-1. Open Solasta game folder
-	* Rename UnityPlayer.dll to UnityPlayer.dll.original
-	* Add below entries to *Solasta_Data\boot.config*:
-		```
-		wait-for-managed-debugger=1
-		player-connection-debug=1
-		```
-2. Download and install [7zip](https://www.7-zip.org/a/7z1900-x64.exe)
-3. Download [Unity Editor 2019.4.37](https://download.unity3d.com/download_unity/019e31cfdb15/Windows64EditorInstaller/UnitySetup64-2019.4.37f1.exe)
-4. Open Downloads folder
-	* Right-click UnitySetup64-2019.4.32f1.exe, 7Zip -> Extract Here
-	* Navigate to Editor\Data\PlaybackEngines\windowsstandalonesupport\Variations\win64_development_mono
-		* Copy *UnityPlayer.dll* and *WinPixEventRuntime.dll* to clipboard
-	* Navigate to the Solasta game folder
-		* Rename *UnityPlayer.dll* to *UnityPlayer.dll.original*
-		* Paste *UnityPlayer.dll* and *WinPixEventRuntime.dll* from clipboard
-5. You can now attach the Unity Debugger from Visual Studio 2019, Debug -> Attach Unity Debug
+1. GitHub Releases から `SolastaUnfinishedBusiness.zip` をダウンロードします。
+2. Unity Mod Manager を起動します。
+3. `Mods` の画面を開きます。
+4. `SolastaUnfinishedBusiness.zip` を Unity Mod Manager の画面へドラッグします。
+5. 一覧に `SolastaUnfinishedBusiness` が出たら成功です。
+6. Solasta を起動します。
+7. Unity Mod Manager の画面で、このカスタム版が有効になっているか確認します。
+
+すでに古い版を入れている場合は、Unity Mod Manager の画面から入れ直してください。
+
+## うまくいかないとき
+
+まず、次を確認してください。
+
+- Unity Mod Manager `0.32.4a` を使っている。
+- Solasta のフォルダを正しく選んでいる。
+- `SolastaUnfinishedBusiness.zip` を展開せず、そのまま Unity Mod Manager に入れている。
+- Solasta を起動したとき、Unity Mod Manager の画面が出ている。
+- Unity Mod Manager の画面で、このカスタム版が有効になっている。
+
+それでも直らない場合は、このカスタム版を共有した相手に確認してください。
+
+元の公開版や公式コミュニティへは報告しないでください。
+
+確認を頼むときは、分かる範囲で次の情報を添えてください。
+
+- Solasta のバージョン
+- Unity Mod Manager のバージョン
+- どの画面、セーブ、キャラクターで起きたか
+- 何をしたら起きたか
+- `Player.log`
+- 関係するセーブデータ、キャラクターファイル、`Settings.xml`
+
+`Player.log` は、通常このフォルダにあります。
+
+```text
+C:\Users\<ユーザー名>\AppData\LocalLow\Tactical Adventures\Solasta
+```
+
+## 参考リンク
+
+- 元の公開版: <https://github.com/EnderWiggin/SolastaUnfinishedBusiness>
+- KCN-2D 版: <https://github.com/KCN-2D/SolastaUnfinishedBusiness>
+- Unity Mod Manager: <https://www.nexusmods.com/site/mods/21>
+
+## ライセンス
+
+ライセンスは、このリポジトリの `LICENSE` を参照してください。

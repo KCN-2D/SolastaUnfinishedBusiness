@@ -342,8 +342,7 @@ ASALocalRun/
 # MFractors (Xamarin productivity tool) working folder 
 .mfractor/
 
-/SolastaUnfinishedBusiness.7z
-/SolastaUnfinishedBusiness.zip
 /SolastaUnfinishedBusiness/Assembly-CSharp.dll
 /.vscode/
 /SolastaUnfinishedBusiness.code-workspace
+/CustomBuildLocal/

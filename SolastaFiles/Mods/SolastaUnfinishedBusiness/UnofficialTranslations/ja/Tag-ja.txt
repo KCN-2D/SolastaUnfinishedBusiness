@@ -1,7 +1,0 @@
-Tag/&ArcaneProfessorCantripSpecialTagTitle=秘術教授
-Tag/&BonusCantripsCantripSpecialTagTitle=ボーナス初級呪文
-Tag/&MagicalSecretsCantripOrSpellSpecialTagTitle=魔法の秘密の初級呪文または呪文
-Tag/&MysticArcanumSpellSpecialTagTitle=ミスティックアルカナム
-Tag/&PactTomeCantripSpecialTagTitle=契約の書の初級呪文
-Tag/&PactTomeRitualSpellSpecialTagTitle=協定の儀式
-Tag/&PactTomeSpellSpecialTagTitle=協定の呪文

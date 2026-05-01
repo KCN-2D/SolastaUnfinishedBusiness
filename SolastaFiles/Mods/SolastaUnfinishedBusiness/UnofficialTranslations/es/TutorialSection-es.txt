@@ -1,5 +1,0 @@
-TutorialSection/&BasicsTitle=Lo esencial
-TutorialSection/&CombatTitle=Combate
-TutorialSection/&ExplorationTitle=Exploración
-TutorialSection/&InventoryTitle=Inventario
-TutorialSection/&TravelTitle=Viajar

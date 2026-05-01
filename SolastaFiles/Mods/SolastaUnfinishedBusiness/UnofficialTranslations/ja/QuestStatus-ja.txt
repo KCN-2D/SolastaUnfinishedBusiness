@@ -1,3 +1,0 @@
-QuestStatus/&HeaderQuestCompletedTitle=クエスト完了
-QuestStatus/&HeaderQuestFailedTitle=クエストは失敗しました!
-QuestStatus/&HeaderQuestNewTitle=新しいクエストが始まりました

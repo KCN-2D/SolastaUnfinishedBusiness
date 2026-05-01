@@ -1,8 +1,0 @@
-Label/&CampfireLocationRestDescription=
-Label/&CampfireLocationRestTitle=
-Label/&CampfireResumeTravelRestDescription=
-Label/&CampfireResumeTravelRestTitle=
-Label/&EnterLocationDescription=パーティーにこの場所に入ってもらいます。
-Label/&EnterLocationTitle=入力
-Label/&TravelToLocationDescription=この場所への旅行の準備をしてください。
-Label/&TravelToLocationTitle=旅行

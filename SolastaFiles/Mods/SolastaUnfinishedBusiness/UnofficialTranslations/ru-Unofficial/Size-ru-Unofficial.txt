@@ -1,6 +1,0 @@
-Size/&GargantuanTitle=Громадный
-Size/&HugeTitle=Огромный
-Size/&LargeTitle=Большой
-Size/&MediumTitle=Средняя
-Size/&SmallTitle=Маленький
-Size/&TinyTitle=Крошечный
