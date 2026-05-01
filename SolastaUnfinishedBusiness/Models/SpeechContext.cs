@@ -449,6 +449,7 @@ internal static class SpeechContext
     private static readonly List<string> AvailableMaleVoices = [];
 
     private static readonly Dictionary<string, (string, float)> CampaignVoices = [];
+    private static bool CampaignVoiceDataMissingReported;
 
     internal static readonly string[] Choices = new List<string> { "Narrator" }
         .Union(Enumerable.Range(1, MaxHeroes).Select(n => $"Hero {n}")).ToArray();
@@ -775,7 +776,11 @@ internal static class SpeechContext
 
         if (voiceData == null)
         {
-            Main.Info("No campaign voice mapping data found.");
+            if (!CampaignVoiceDataMissingReported)
+            {
+                Main.Info("No campaign voice mapping data found.");
+                CampaignVoiceDataMissingReported = true;
+            }
 
             return;
         }

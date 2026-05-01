@@ -39,7 +39,7 @@ public static class UnityModManagerUIPatcher
                 await Task.Delay(100);
 
                 // but use actual state of UI in case someone quickly opens it again
-                IsOpen = UnityModManager.UI.Instance.Opened;
+                IsOpen = UnityModManager.UI.Instance?.Opened == true;
             }
         }
     }

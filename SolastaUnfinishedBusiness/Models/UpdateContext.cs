@@ -262,7 +262,7 @@ internal static class UpdateContext
         onCancelled ??= () => { };
         Gui.GuiService.ShowMessage(severity, title, content, validateCaption, cancelCaption, onValidated, onCancelled);
 
-        UnityModManager.UI.Instance.ToggleWindow(false);
+        UnityModManager.UI.Instance?.ToggleWindow(false);
     }
 
     internal static void OpenChangeLog()

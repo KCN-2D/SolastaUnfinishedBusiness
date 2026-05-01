@@ -41,60 +41,17 @@ internal sealed class ModManager<TCore, TSettings>
 
         try
         {
-            if (!LoadedOnce)
-            {
-                modEntry.OnSaveGUI += HandleSaveGUI;
-                Settings = UnityModManager.ModSettings.Load<TSettings>(modEntry);
-                Core = new TCore();
-            }
-
             var types = assembly.GetTypes();
 
-            if (!Patched)
-            {
-                _harmonyInstance ??= new Harmony(modEntry.Info.Id);
-
-                foreach (var type in types)
-                {
-                    var harmonyMethods = HarmonyMethodExtensions.GetFromType(type);
-                    if (harmonyMethods == null || harmonyMethods.Count == 0)
-                    {
-                        continue;
-                    }
-
-                    try
-                    {
-                        var patchProcessor = _harmonyInstance.CreateClassProcessor(type);
-                        patchProcessor.Patch();
-                    }
-                    catch (Exception e)
-                    {
-                        Main.Error(e);
-                    }
-                }
-
-                Patched = true;
-            }
+            LoadSettingsAndCore(modEntry);
+            ApplyHarmonyPatches(modEntry, types);
 
             Enabled = true;
 
             if (!LoadedOnce)
             {
-                _eventHandlers = types.Where(type => type != typeof(TCore) &&
-                                                     !type.IsInterface && !type.IsAbstract &&
-                                                     typeof(IModEventHandler).IsAssignableFrom(type))
-                    .Select(type => Activator.CreateInstance(type, true) as IModEventHandler).ToList();
-                if (Core is IModEventHandler core)
-                {
-                    _eventHandlers.Add(core);
-                }
-
-                _eventHandlers.Sort((x, y) => x.Priority - y.Priority);
-
-                foreach (var t in _eventHandlers)
-                {
-                    t.HandleModEnable();
-                }
+                CreateEventHandlers(types);
+                NotifyEventHandlers();
             }
 
             LoadedOnce = true;
@@ -103,6 +60,86 @@ internal sealed class ModManager<TCore, TSettings>
         {
             Main.Error(e);
             throw;
+        }
+    }
+
+    private void LoadSettingsAndCore(UnityModManager.ModEntry modEntry)
+    {
+        if (LoadedOnce)
+        {
+            return;
+        }
+
+        modEntry.OnSaveGUI += HandleSaveGUI;
+        Settings = UnityModManager.ModSettings.Load<TSettings>(modEntry);
+        Core = new TCore();
+    }
+
+    private void ApplyHarmonyPatches(UnityModManager.ModEntry modEntry, Type[] types)
+    {
+        if (Patched)
+        {
+            return;
+        }
+
+        _harmonyInstance ??= new Harmony(modEntry.Info.Id);
+
+        var failures = new List<PatchFailure>();
+
+        foreach (var type in types)
+        {
+            var harmonyMethods = HarmonyMethodExtensions.GetFromType(type);
+            if (harmonyMethods == null || harmonyMethods.Count == 0)
+            {
+                continue;
+            }
+
+            try
+            {
+                var patchProcessor = _harmonyInstance.CreateClassProcessor(type);
+                patchProcessor.Patch();
+            }
+            catch (Exception e)
+            {
+                failures.Add(new PatchFailure(type.FullName ?? type.Name, e));
+            }
+        }
+
+        if (failures.Count > 0)
+        {
+            var failureSummary = string.Join(
+                Environment.NewLine,
+                failures.Select(x => $"- {x.TypeName}: {x.Exception.GetType().Name}: {x.Exception.Message}"));
+
+            throw new InvalidOperationException(
+                $"Failed to apply Harmony patches for {failures.Count} type(s):{Environment.NewLine}{failureSummary}");
+        }
+
+        Patched = true;
+    }
+
+    private void CreateEventHandlers(Type[] types)
+    {
+        _eventHandlers = types.Where(type => type != typeof(TCore) &&
+                                             !type.IsInterface && !type.IsAbstract &&
+                                             typeof(IModEventHandler).IsAssignableFrom(type))
+            .Select(type => Activator.CreateInstance(type, true) as IModEventHandler)
+            .Where(x => x != null)
+            .ToList();
+
+        if (Core is IModEventHandler core)
+        {
+            _eventHandlers.Add(core);
+        }
+
+        _eventHandlers.Sort((x, y) => x.Priority - y.Priority);
+    }
+
+    private void NotifyEventHandlers()
+    {
+        foreach (var t in _eventHandlers)
+        {
+            t.HandleModEnable();
         }
     }
 
@@ -120,6 +157,18 @@ internal sealed class ModManager<TCore, TSettings>
 
     private bool Patched { get; set; }
     private bool LoadedOnce { get; set; }
+
+    private sealed class PatchFailure
+    {
+        internal PatchFailure(string typeName, Exception exception)
+        {
+            TypeName = typeName;
+            Exception = exception;
+        }
+
+        internal string TypeName { get; }
+        internal Exception Exception { get; }
+    }
 
     #endregion
 }

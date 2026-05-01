@@ -29,6 +29,13 @@ public class Tag : Attribute
 [XmlRoot(ElementName = "Settings")]
 public class Settings : UnityModManager.ModSettings
 {
+    public override string GetPath(UnityModManager.ModEntry modEntry)
+    {
+        return string.IsNullOrEmpty(Main.SettingsFilename)
+            ? base.GetPath(modEntry)
+            : Main.SettingsFilename;
+    }
+
     //
     // UI Saved State
     //
