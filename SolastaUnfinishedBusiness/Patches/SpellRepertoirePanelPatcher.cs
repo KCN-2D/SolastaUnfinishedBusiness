@@ -29,6 +29,7 @@ public static class SpellRepertoirePanelPatcher
             MulticlassGameUi.RebuildSlotsTable(__instance);
 
             RefreshMagicInitiate2024SpellcastingLabels(__instance);
+            RefreshPreparedSpellsLabel(__instance);
 
             //PATCH: displays sorcery point box for sorcerers only
             if (!Main.Settings.EnableDisplaySorceryPointBoxSorcererOnly)
@@ -77,6 +78,107 @@ public static class SpellRepertoirePanelPatcher
         label.Text = text;
     }
 
+    private static void RefreshPreparedSpellsLabel(SpellRepertoirePanel panel)
+    {
+        var repertoire = panel.SpellRepertoire;
+
+        if (repertoire == null ||
+            repertoire.SpellCastingFeature.SpellReadyness != RuleDefinitions.SpellReadyness.Prepared ||
+            !panel.preparedSpellsBox.gameObject.activeSelf)
+        {
+            return;
+        }
+
+        panel.preparedSpellsLabel.Text = Gui.FormatCurrentOverMax(
+            CountManualPreparedSpells(repertoire, repertoire.PreparedSpells),
+            repertoire.MaxPreparedSpell,
+            0,
+            null);
+    }
+
+    private static int CountManualPreparedSpells(
+        RulesetSpellRepertoire repertoire,
+        List<SpellDefinition> preparedSpells)
+    {
+        if (preparedSpells == null || preparedSpells.Count == 0)
+        {
+            return 0;
+        }
+
+        var autoPreparedSpells = repertoire?.AutoPreparedSpells;
+
+        if (autoPreparedSpells == null || autoPreparedSpells.Count == 0)
+        {
+            return preparedSpells.Count;
+        }
+
+        var count = 0;
+
+        foreach (var spell in preparedSpells)
+        {
+            if (spell != null && !autoPreparedSpells.Contains(spell))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static IEnumerable<CodeInstruction> ReplacePreparedSpellCount(
+        IEnumerable<CodeInstruction> instructions,
+        string patchContext)
+    {
+        var code = new List<CodeInstruction>(instructions);
+        var preparedSpellsField = AccessTools.Field(
+            typeof(SpellRepertoirePanel),
+            nameof(SpellRepertoirePanel.preparedSpells));
+        var countMethod = typeof(List<SpellDefinition>).GetProperty(nameof(List<SpellDefinition>.Count))!
+            .GetGetMethod();
+        var getSpellRepertoireMethod =
+            AccessTools.PropertyGetter(typeof(SpellRepertoirePanel), nameof(SpellRepertoirePanel.SpellRepertoire));
+        var getAutoPreparedSpellsMethod =
+            AccessTools.PropertyGetter(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.AutoPreparedSpells));
+        var countManualPreparedSpellsMethod =
+            new Func<RulesetSpellRepertoire, List<SpellDefinition>, int>(CountManualPreparedSpells).Method;
+
+        for (var index = 0; index <= code.Count - 8; index++)
+        {
+            if (code[index].opcode != OpCodes.Ldarg_0 ||
+                !code[index + 1].LoadsField(preparedSpellsField) ||
+                !code[index + 2].Calls(countMethod) ||
+                code[index + 3].opcode != OpCodes.Ldarg_0 ||
+                !code[index + 4].Calls(getSpellRepertoireMethod) ||
+                !code[index + 5].Calls(getAutoPreparedSpellsMethod) ||
+                !code[index + 6].Calls(countMethod) ||
+                code[index + 7].opcode != OpCodes.Sub)
+            {
+                continue;
+            }
+
+            var replacement = new List<CodeInstruction>
+            {
+                new(OpCodes.Ldarg_0),
+                new(OpCodes.Call, getSpellRepertoireMethod),
+                new(OpCodes.Ldarg_0),
+                new(OpCodes.Ldfld, preparedSpellsField),
+                new(OpCodes.Call, countManualPreparedSpellsMethod)
+            };
+
+            replacement[0].labels.AddRange(code[index].labels);
+            replacement[0].blocks.AddRange(code[index].blocks);
+
+            code.RemoveRange(index, 8);
+            code.InsertRange(index, replacement);
+
+            return code;
+        }
+
+        Main.Error($"Failed to apply transpiler patch [{patchContext}]!");
+
+        return code;
+    }
+
     //PATCH: Supports Wizard Mastery and Signature spell features
     //UI allows other spells to be selected so easier to prevent it here
     [HarmonyPatch(typeof(SpellRepertoirePanel), nameof(SpellRepertoirePanel.OnSpellSelectedForPreparation))]
@@ -111,10 +213,14 @@ public static class SpellRepertoirePanelPatcher
                 new Action<SpellsByLevelGroup, bool, bool, List<SpellDefinition>, SpellRepertoirePanel>(
                     RefreshInteractivePreparation).Method;
 
-            return instructions.ReplaceCalls(refreshInteractivePreparationMethod,
-                "SpellRepertoirePanel.RefreshPreparation",
-                new CodeInstruction(OpCodes.Ldarg_0),
-                new CodeInstruction(OpCodes.Call, myRefreshInteractivePreparationMethod));
+            return ReplacePreparedSpellCount(
+                    instructions,
+                    "SpellRepertoirePanel.RefreshPreparation.PreparedSpellCount")
+                .ReplaceCalls(
+                    refreshInteractivePreparationMethod,
+                    "SpellRepertoirePanel.RefreshPreparation",
+                    new CodeInstruction(OpCodes.Ldarg_0),
+                    new CodeInstruction(OpCodes.Call, myRefreshInteractivePreparationMethod));
         }
 
         private static void RepaintPanel(
@@ -189,6 +295,20 @@ public static class SpellRepertoirePanelPatcher
             }
 
             spellsByLevelGroup.RefreshInteractivePreparation(canSelectSpells, maxReached, preparedSpells);
+        }
+    }
+
+    [HarmonyPatch(typeof(SpellRepertoirePanel), nameof(SpellRepertoirePanel.OnValidatePreparationCb))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnValidatePreparationCb_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
+        {
+            return ReplacePreparedSpellCount(
+                instructions,
+                "SpellRepertoirePanel.OnValidatePreparationCb.PreparedSpellCount");
         }
     }
 }
