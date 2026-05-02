@@ -121,7 +121,11 @@ public static class AttackEvaluationParamsPatcher
         {
             //PATCH: use better distance calculation algorithm
             __instance.distance = DistanceCalculation
-                .GetDistanceFromCharacters(__instance.attacker, __instance.defender);
+                .GetDistanceFromCharactersAtPositions(
+                    __instance.attacker,
+                    __instance.attackPosition,
+                    __instance.defender,
+                    __instance.defensePosition);
 
             return false;
         }

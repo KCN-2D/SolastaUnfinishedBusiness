@@ -17,18 +17,21 @@ internal static class DistanceCalculation
             return GetDistanceFromPositions(character1.LocationPosition, character2.LocationPosition);
         }
 #endif
-        //If pos2 is present - assume character2 is at it
-        var before = character2.LocationPosition;
-        character2.LocationPosition = pos2 ?? before;
+        return GetDistanceFromCharactersAtPositions(character1, null, character2, pos2);
+    }
 
-        //Get the closest cube of character1 to the center of character2, applying shift if necessary
-        var character1ClosestCube = GetCharacterClosestCubeToPosition(character1, GetPositionCenter(character2));
+    internal static float GetDistanceFromCharactersAtPositions(
+        GameLocationCharacter character1,
+        int3? pos1,
+        GameLocationCharacter character2,
+        int3? pos2)
+    {
+        // Get the closest cube of character1 to the center of character2, applying shift if necessary.
+        var character1ClosestCube = GetCharacterClosestCubeToPosition(
+            character1, GetPositionCenter(character2, pos2), pos1);
 
-        //Get the closest cube of character2 to the closest cube of character1, applying shift if necessary
-        var character2ClosestCube = GetCharacterClosestCubeToPosition(character2, character1ClosestCube);
-
-        //Restore character2 position
-        character2.LocationPosition = before;
+        // Get the closest cube of character2 to the closest cube of character1, applying shift if necessary.
+        var character2ClosestCube = GetCharacterClosestCubeToPosition(character2, character1ClosestCube, pos2);
 
         return character1ClosestCube.ChessboardDistance(character2ClosestCube);
     }
@@ -40,9 +43,13 @@ internal static class DistanceCalculation
         return characterClosestCube.ChessboardDistance(target);
     }
 
-    private static int3 GetCharacterClosestCubeToPosition(GameLocationCharacter character1, int3 position)
+    private static int3 GetCharacterClosestCubeToPosition(
+        GameLocationCharacter character1,
+        int3 position,
+        int3? characterPosition = null)
     {
-        var closestCharacter1Position = character1.LocationPosition;
+        var positionOffset = GetPositionOffset(character1, characterPosition);
+        var closestCharacter1Position = character1.LocationPosition + positionOffset;
         var closestDistance = (closestCharacter1Position - position).magnitude;
 
         var character1NumberOfCubes = character1.LocationBattleBoundingBox.Size.x *
@@ -51,7 +58,8 @@ internal static class DistanceCalculation
 
         return character1NumberOfCubes is 1
             ? closestCharacter1Position
-            : GetBigCharacterClosestCubePosition(character1, position, closestDistance, closestCharacter1Position);
+            : GetBigCharacterClosestCubePosition(
+                character1, position, closestDistance, closestCharacter1Position, positionOffset);
     }
 
 #if false
@@ -77,11 +85,12 @@ internal static class DistanceCalculation
         GameLocationCharacter character1,
         int3 position,
         float closestDistance,
-        int3 closestCharacter1Position)
+        int3 closestCharacter1Position,
+        int3 positionOffset)
     {
-        var minX = character1.LocationBattleBoundingBox.Min.x;
-        var minY = character1.LocationBattleBoundingBox.Min.y;
-        var minZ = character1.LocationBattleBoundingBox.Min.z;
+        var minX = character1.LocationBattleBoundingBox.Min.x + positionOffset.x;
+        var minY = character1.LocationBattleBoundingBox.Min.y + positionOffset.y;
+        var minZ = character1.LocationBattleBoundingBox.Min.z + positionOffset.z;
 
         for (var x = minX; x < minX + character1.LocationBattleBoundingBox.Size.x; x++)
         {
@@ -110,5 +119,17 @@ internal static class DistanceCalculation
         return new int3((int)gameLocationCharacter.LocationBattleBoundingBox.Center.x,
             (int)gameLocationCharacter.LocationBattleBoundingBox.Center.y,
             (int)gameLocationCharacter.LocationBattleBoundingBox.Center.z);
+    }
+
+    private static int3 GetPositionCenter(GameLocationCharacter gameLocationCharacter, int3? position)
+    {
+        return GetPositionCenter(gameLocationCharacter) + GetPositionOffset(gameLocationCharacter, position);
+    }
+
+    private static int3 GetPositionOffset(GameLocationCharacter gameLocationCharacter, int3? position)
+    {
+        return position.HasValue
+            ? position.Value - gameLocationCharacter.LocationPosition
+            : int3.zero;
     }
 }

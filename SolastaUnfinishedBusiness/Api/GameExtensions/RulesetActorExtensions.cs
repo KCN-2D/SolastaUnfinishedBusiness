@@ -351,7 +351,18 @@ internal static class RulesetActorExtensions
 
     internal static int TryGetProficiencyBonus(this RulesetActor actor)
     {
-        return actor.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+        if (actor == null ||
+            !actor.TryGetAttribute(AttributeDefinitions.ProficiencyBonus, out var proficiencyBonusAttribute))
+        {
+            return 0;
+        }
+
+        if (!proficiencyBonusAttribute.upToDate)
+        {
+            proficiencyBonusAttribute.Refresh();
+        }
+
+        return proficiencyBonusAttribute.CurrentValue;
     }
 
     internal static int TryGetAbilityModifier(this RulesetActor actor, string ability)

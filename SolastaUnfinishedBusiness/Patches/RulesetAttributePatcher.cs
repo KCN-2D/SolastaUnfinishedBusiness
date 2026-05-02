@@ -7,6 +7,21 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetAttributePatcher
 {
+    [HarmonyPatch(typeof(RulesetAttribute), "get_CurrentValue")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CurrentValue_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(RulesetAttribute __instance)
+        {
+            if (__instance is { Name: AttributeDefinitions.ProficiencyBonus, UpToDate: false })
+            {
+                __instance.Refresh();
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetAttribute), nameof(RulesetAttribute.AddModifier))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
