@@ -721,12 +721,9 @@ public static class GameLocationCharacterExtensions
             }
 
             var reachRange = mode.Ranged ? mode.MaxRange : mode.ReachRange;
-            var distanceBefore = DistanceCalculation.GetDistanceFromCharactersAtPositions(
-                instance, null, target, positionBefore);
-            var distanceAfter = DistanceCalculation.GetDistanceFromCharactersAtPositions(
-                instance, null, target, positionAfter);
 
-            if (distanceBefore <= reachRange || distanceAfter > reachRange)
+            if (DistanceCalculation.GetDistanceFromCharacters(instance, target, positionBefore) <= reachRange ||
+                DistanceCalculation.GetDistanceFromCharacters(instance, target, positionAfter) > reachRange)
             {
                 continue;
             }

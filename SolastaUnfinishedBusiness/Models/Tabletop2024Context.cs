@@ -360,9 +360,9 @@ public static partial class Tabletop2024Context
                 yield break;
             }
 
-            // any reaction within an attack flow must use the attacker as waiter
+            // use a free confirmation request; Heroic Warrior does not spend Reaction
             yield return helper.MyReactToDoNothing(
-                ExtraActionId.DoNothingReaction,
+                ExtraActionId.DoNothingFree,
                 attacker,
                 "HeroicWarriorAttack",
                 "CustomReactionHeroicWarriorAttackDescription".Formatted(Category.Reaction, attacker.Name,
@@ -431,9 +431,9 @@ public static partial class Tabletop2024Context
                 yield break;
             }
 
-            // any reaction within an attribute check flow must use the yielder as waiter
+            // use a free confirmation request; Heroic Warrior does not spend Reaction
             yield return helper.MyReactToDoNothing(
-                ExtraActionId.DoNothingReaction,
+                ExtraActionId.DoNothingFree,
                 helper,
                 "HeroicWarriorCheck",
                 "CustomReactionHeroicWarriorCheckDescription".Formatted(Category.Reaction, defender.Name, helper.Name),
@@ -510,9 +510,9 @@ public static partial class Tabletop2024Context
             var rollModifier = savingThrowData.SaveBonusAndRollModifier;
             var savingRoll = savingThrowData.SaveOutcomeDelta - rollModifier + saveDC;
 
-            // any reaction within a saving flow must use the yielder as waiter
+            // use a free confirmation request; Heroic Warrior does not spend Reaction
             yield return helper.MyReactToDoNothing(
-                ExtraActionId.DoNothingReaction,
+                ExtraActionId.DoNothingFree,
                 helper,
                 "HeroicWarriorSaving",
                 "CustomReactionHeroicWarriorSavingDescription".Formatted(

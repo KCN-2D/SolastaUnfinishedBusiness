@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
@@ -66,7 +66,7 @@ internal static class AttacksOfOpportunity
             .Where(u => u.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false })
             .ToArray(); // avoid changing enumerator
 
-        if (!MovementTracker.TryGetMovementPath(mover.Guid, out var movementPath))
+        if (!MovementTracker.TryGetMovement(mover.Guid, out var movement))
         {
             yield break;
         }
@@ -84,7 +84,7 @@ internal static class AttacksOfOpportunity
                          .Where(feature => feature.IsValid(unit, mover)))
             {
                 yield return canMakeAoOOnReachEntered.Process(
-                    unit, mover, movementPath, battleManager, actionManager, canMakeAoOOnReachEntered.AllowRange);
+                    unit, mover, movement, battleManager, actionManager, canMakeAoOOnReachEntered.AllowRange);
             }
         }
     }
@@ -150,27 +150,6 @@ internal class CanMakeAoOOnReachEntered : CustomReactionAttack
 
     public bool AllowRange { get; set; }
 
-    public IEnumerator Process(
-        [NotNull] GameLocationCharacter attacker,
-        [NotNull] GameLocationCharacter mover,
-        IReadOnlyList<int3> movementPath,
-        GameLocationBattleManager battleManager,
-        GameLocationActionManager actionManager,
-        bool allowRange)
-    {
-        if (!TryFindReachEntryMovement(attacker, mover, movementPath, battleManager, allowRange, out var movement))
-        {
-            yield break;
-        }
-
-        var reaction = Process(attacker, mover, movement, battleManager, actionManager, allowRange);
-
-        while (reaction.MoveNext())
-        {
-            yield return reaction.Current;
-        }
-    }
-
     protected override bool CanPerformReactionAttack(
         GameLocationCharacter attacker,
         GameLocationCharacter mover,
@@ -197,30 +176,6 @@ internal class CanMakeAoOOnReachEntered : CustomReactionAttack
             battleManager,
             WeaponValidator,
             allowRange);
-    }
-
-    private bool TryFindReachEntryMovement(
-        GameLocationCharacter attacker,
-        GameLocationCharacter mover,
-        IReadOnlyList<int3> movementPath,
-        GameLocationBattleManager battleManager,
-        bool allowRange,
-        out (int3 from, int3 to) movement)
-    {
-        for (var i = 1; i < movementPath.Count; i++)
-        {
-            movement = (movementPath[i - 1], movementPath[i]);
-
-            if (CanPerformReactionAttack(
-                    attacker, mover, movement, battleManager, allowRange, out _, out _))
-            {
-                return true;
-            }
-        }
-
-        movement = (int3.invalid, int3.invalid);
-
-        return false;
     }
 }
 

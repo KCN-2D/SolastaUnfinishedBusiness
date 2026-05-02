@@ -120,12 +120,7 @@ public static class AttackEvaluationParamsPatcher
         public static bool Prefix(ref BattleDefinitions.AttackEvaluationParams __instance)
         {
             //PATCH: use better distance calculation algorithm
-            __instance.distance = DistanceCalculation
-                .GetDistanceFromCharactersAtPositions(
-                    __instance.attacker,
-                    __instance.attackPosition,
-                    __instance.defender,
-                    __instance.defensePosition);
+            __instance.distance = DistanceCalculation.GetDistanceFromCharacters(__instance.attacker, __instance.defender);
 
             return false;
         }
