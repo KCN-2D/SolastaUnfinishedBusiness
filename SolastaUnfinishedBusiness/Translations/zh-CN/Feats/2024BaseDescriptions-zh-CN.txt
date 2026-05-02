@@ -1,7 +1,8 @@
 Feat/&FeatGroupWarCaster2024BaseDescription=你在保持专注的检定中获得优势。\n即使你的一只手或双手拿着武器或盾牌，你也可以执行法术的躯体成分。\n当敌对生物的移动引起你的借机攻击时，你可以使用你的反应对该生物施展戏法，而不是进行借机攻击。该戏法的施法时间必须为 1 个动作或附赠动作，并且必须仅以该生物为目标。
 Feat/&FeatCrossbowExpert2024BaseDescription=在近战距离进行远程攻击时不会承受劣势。\n如果你在自己的回合采取了攻击动作，你可以用单手远程武器进行一次附赠动作攻击，并将你的属性调整值加入伤害。
 Feat/&FeatGroupDualWielder2024BaseDescription=你精通双武器战斗，并获得以下好处：\n• 当你每只手都使用不同的近战武器时，护甲等级获得 +1 加值。\n• 你可以双持非轻型近战武器。
-Feat/&FeatDefensiveDuelist2024BaseDescription=当你挥舞着你擅长的近战武器时，另一个生物用近战攻击击中你，你可以使用你的反应将你的熟练加值添加到你对该次攻击的护甲等级上，这可能会导致攻击未命中你。
+Feat/&FeatDefensiveDuelist2024BaseDescription=当你持有灵巧武器，且另一个生物以近战攻击命中你时，你可以使用反应将你的熟练加值加到你的护甲等级上，可能使该攻击未命中。直到你的下回合开始前，你对近战攻击获得此护甲等级加值。
+Reaction/&UseDefensiveDuelist2024ReactDescription=使用反应，直到你的下回合开始前，将你的熟练加值加到对近战攻击的护甲等级上。
 Feat/&FeatGroupLightlyArmored2024BaseDescription=你获得轻甲和盾牌熟练项。
 Feat/&FeatGroupModeratelyArmored2024BaseDescription=先决条件：轻甲熟练项。\n你获得中甲熟练项。
 Feat/&FeatGroupMediumArmorMaster2024BaseDescription=穿着中甲时，如果你的敏捷为16或更高，你可以将AC加值上限从+2提高到+3。

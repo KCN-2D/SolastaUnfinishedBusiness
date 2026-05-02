@@ -39,6 +39,9 @@ public static partial class Tabletop2024Context
 
     private const string Charger2024Family = "Charger2024";
     private const string Charger2024FeatName = "FeatCharger2024";
+    private const string DefensiveDuelist2024FeatName = "FeatDefensiveDuelist2024";
+    private const string DefensiveDuelist2024PowerName = "PowerFeatDefensiveDuelist2024";
+    private const string DefensiveDuelist2024ParryConditionName = "ConditionFeatDefensiveDuelist2024Parry";
     private const string DualWielder2024Family = "DualWielder2024";
     private const string ElementalAdept2024Family = "ElementalAdept2024";
     private const string Observant2024Family = "Observant2024";
@@ -1919,18 +1922,42 @@ public static partial class Tabletop2024Context
     {
         var featDefensiveDuelist = GetDefinition<FeatDefinition>("FeatDefensiveDuelist");
         var baseDescription = Get2024HalfFeatBaseDescription(
-            Get2024HalfFeatBaseDescriptionKey("FeatDefensiveDuelist2024"),
+            Get2024HalfFeatBaseDescriptionKey(DefensiveDuelist2024FeatName),
             featDefensiveDuelist,
             Gui.Localize("Feat/&FeatDefensiveDuelist2024Description"));
+        var conditionParry = ConditionDefinitionBuilder
+            .Create(DefensiveDuelist2024ParryConditionName)
+            .SetGuiPresentationNoContent(true)
+            .SetSilent(Silent.WhenAddedOrRemoved)
+            .AddToDB();
+        var powerParry = FeatureDefinitionPowerBuilder
+            .Create(DefensiveDuelist2024PowerName)
+            .SetGuiPresentation(DefensiveDuelist2024FeatName, Category.Feat)
+            .SetUsesFixed(ActivationTime.NoCost)
+            .SetEffectDescription(
+                EffectDescriptionBuilder
+                    .Create()
+                    .SetDurationData(DurationType.Round, 0, TurnOccurenceType.StartOfTurn)
+                    .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
+                    .SetEffectForms(EffectFormBuilder.ConditionForm(conditionParry))
+                    .SetCasterEffectParameters(Shield)
+                    .Build())
+            .AddToDB();
+
+        powerParry.AddCustomSubFeatures(
+            ModifyPowerVisibility.Hidden,
+            new TryAlterOutcomeAttackDefensiveDuelist2024(powerParry, conditionParry));
 
         _featDefensiveDuelist2024 = BuildSingleAbilityPrerequisiteHalfFeat(
             featDefensiveDuelist,
-            "FeatDefensiveDuelist2024",
+            DefensiveDuelist2024FeatName,
             AttributeModifierCreed_Of_Misaye,
             featDefensiveDuelist.FamilyTag,
             AttributeDefinitions.Dexterity,
             Gui.Localize("Feat/&FeatDefensiveDuelist2024Title"),
-            baseDescription);
+            baseDescription,
+            extraFeatures: [powerParry]);
+        _featDefensiveDuelist2024.Features.RemoveAll(feature => feature.Name == "PowerFeatDefensiveDuelist");
         RegisterManagedTabletopFeats(true, _featDefensiveDuelist2024);
     }
 
@@ -7816,6 +7843,121 @@ public static partial class Tabletop2024Context
                         (ConsoleStyleDuplet.ParameterType.Positive, $"{value - modifier}+{modifier}"),
                         (ConsoleStyleDuplet.ParameterType.Positive, $"{value}")
                     ]);
+            }
+        }
+    }
+
+    private sealed class TryAlterOutcomeAttackDefensiveDuelist2024(
+        FeatureDefinitionPower powerParry,
+        ConditionDefinition conditionParry) : ITryAlterOutcomeAttack
+    {
+        public int HandlerPriority => -10;
+
+        public IEnumerator OnTryAlterOutcomeAttack(
+            GameLocationBattleManager battleManager,
+            CharacterAction action,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            GameLocationCharacter helper,
+            ActionModifier actionModifier,
+            RulesetAttackMode attackMode,
+            RulesetEffect rulesetEffect)
+        {
+            var rulesetHelper = helper?.RulesetCharacter;
+
+            if (actionModifier == null ||
+                attacker == null ||
+                attacker == defender ||
+                defender == null ||
+                helper != defender ||
+                rulesetHelper == null ||
+                !IsIncomingMeleeAttack(attackMode, rulesetEffect))
+            {
+                yield break;
+            }
+
+            var parryBonus = rulesetHelper.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+
+            if (HasParryCondition(rulesetHelper))
+            {
+                if (CanParryAttack(action, parryBonus, false))
+                {
+                    ApplyParryBonus(action, actionModifier, parryBonus);
+                }
+
+                yield break;
+            }
+
+            if (!helper.CanReact() ||
+                !IsHoldingFinesseWeapon(rulesetHelper) ||
+                !CanParryAttack(action, parryBonus, true))
+            {
+                yield break;
+            }
+
+            var usablePower = PowerProvider.Get(powerParry, rulesetHelper);
+
+            yield return helper.MyReactToUsePower(
+                Id.PowerReaction,
+                usablePower,
+                [helper],
+                attacker,
+                "DefensiveDuelist2024",
+                reactionValidated: () => ApplyParryBonus(action, actionModifier, parryBonus),
+                battleManager: battleManager);
+        }
+
+        private bool HasParryCondition(RulesetCharacter rulesetCharacter)
+        {
+            return rulesetCharacter.TryGetConditionOfCategoryAndType(
+                AttributeDefinitions.TagEffect,
+                conditionParry.Name,
+                out _);
+        }
+
+        private static bool IsIncomingMeleeAttack(RulesetAttackMode attackMode, RulesetEffect rulesetEffect)
+        {
+            if (rulesetEffect != null)
+            {
+                return rulesetEffect.EffectDescription.RangeType == RangeType.MeleeHit;
+            }
+
+            return attackMode != null && ValidatorsWeapon.IsMeleeOrUnarmed(attackMode);
+        }
+
+        private static bool IsHoldingFinesseWeapon(RulesetCharacter rulesetCharacter)
+        {
+            return HasFinesseWeaponTag(rulesetCharacter.GetMainWeapon()) ||
+                   HasFinesseWeaponTag(rulesetCharacter.GetOffhandWeapon()) ||
+                   rulesetCharacter.AttackModes.Any(mode =>
+                       mode is { SourceObject: RulesetItem, Ranged: false } &&
+                       mode.AttackTags.Contains(TagsDefinitions.WeaponTagFinesse));
+        }
+
+        private static bool HasFinesseWeaponTag(RulesetItem rulesetItem)
+        {
+            return ValidatorsWeapon.HasAnyWeaponTag(
+                rulesetItem?.ItemDefinition,
+                TagsDefinitions.WeaponTagFinesse);
+        }
+
+        private static bool CanParryAttack(CharacterAction action, int parryBonus, bool requireMiss)
+        {
+            return action.AttackRollOutcome == RollOutcome.Success &&
+                   parryBonus > 0 &&
+                   (!requireMiss || action.AttackSuccessDelta - parryBonus < 0);
+        }
+
+        private void ApplyParryBonus(CharacterAction action, ActionModifier actionModifier, int parryBonus)
+        {
+            actionModifier.AttackRollModifier -= parryBonus;
+            actionModifier.AttacktoHitTrends.Add(
+                new TrendInfo(-parryBonus, FeatureSourceType.Power, powerParry.Name, powerParry));
+            action.AttackSuccessDelta -= parryBonus;
+
+            if (action.AttackSuccessDelta < 0)
+            {
+                action.AttackRollOutcome = RollOutcome.Failure;
             }
         }
     }
