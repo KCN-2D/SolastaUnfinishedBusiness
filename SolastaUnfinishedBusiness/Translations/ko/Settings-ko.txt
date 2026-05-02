@@ -433,6 +433,9 @@ ModUi/&ShowCraftedItemOnRecipeIcon=상점과 인벤토리의 레시피 아이템
 ModUi/&ShowCraftingRecipeInDetailedTooltips=자세한 툴팁으로 제작 레시피 표시
 ModUi/&ShowDescriptions=설명 보기
 ModUi/&ShowMotionFormPreview=<b>밀기</b> 및 <b>당기기</b> 효과의 미리보기 표시
+ModUi/&EnableSmootherBattleAnimations=더 부드럽고 약간 빠른 전투 애니메이션 사용
+ModUi/&BattleActionAnimationSpeedMultiplier=전투 애니메이션 속도
+ModUi/&BattleActionAnimationSpeedMultiplierHelp=시전, 투사체, 충돌 또는 적중 단계를 건너뛰지 않고 전투 중 캐릭터 액션 애니메이션을 약간 빠르게 합니다.
 ModUi/&ShowTranslationPreview=최근 번역 보기
 ModUi/&SpeechScale=<color=white>내레이션 속도 수정자</color> <i><color=#F0DAA0>[낮을수록 빠름]</color></i>
 ModUi/&SpeechVolume=<color=white>내레이션 볼륨</color>

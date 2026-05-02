@@ -378,6 +378,30 @@ internal static class CampaignsDisplay
             Main.Settings.ShowMotionFormPreview = toggle;
         }
 
+        toggle = Main.Settings.EnableSmootherBattleAnimations;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableSmootherBattleAnimations"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableSmootherBattleAnimations = toggle;
+        }
+
+        if (Main.Settings.EnableSmootherBattleAnimations)
+        {
+            floatValue = CombatAnimationContext.ClampSpeedMultiplier(
+                Main.Settings.BattleActionAnimationSpeedMultiplier);
+            Main.Settings.BattleActionAnimationSpeedMultiplier = floatValue;
+
+            if (UI.Slider(Gui.Localize("ModUi/&BattleActionAnimationSpeedMultiplier"), ref floatValue,
+                    CombatAnimationContext.MinSpeedMultiplier,
+                    CombatAnimationContext.MaxSpeedMultiplier,
+                    CombatAnimationContext.DefaultSpeedMultiplier, 2, "x", UI.AutoWidth()))
+            {
+                Main.Settings.BattleActionAnimationSpeedMultiplier =
+                    CombatAnimationContext.ClampSpeedMultiplier(floatValue);
+            }
+
+            UI.Label(Gui.Localize("ModUi/&BattleActionAnimationSpeedMultiplierHelp"));
+        }
+
         UI.Label();
 
         var color = CampaignsContext.HighContrastColorStrings[Main.Settings.HighContrastTargetingAoeSelectedColor];

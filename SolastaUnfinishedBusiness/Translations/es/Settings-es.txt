@@ -433,6 +433,9 @@ ModUi/&ShowCraftedItemOnRecipeIcon=Mostrar el icono del objeto elaborado cerca d
 ModUi/&ShowCraftingRecipeInDetailedTooltips=Mostrar la receta de elaboración en descripciones emergentes detalladas
 ModUi/&ShowDescriptions=Mostrar descripciones
 ModUi/&ShowMotionFormPreview=Mostrar vista previa de los efectos <b>Push</b> y <b>Pull</b>
+ModUi/&EnableSmootherBattleAnimations=Activar animaciones de combate más fluidas y ligeramente más rápidas
+ModUi/&BattleActionAnimationSpeedMultiplier=Velocidad de animación de combate
+ModUi/&BattleActionAnimationSpeedMultiplierHelp=Acelera ligeramente las animaciones de acciones de personajes en combate sin omitir las fases de lanzamiento, proyectiles, impacto o golpe.
 ModUi/&ShowTranslationPreview=Mostrar Traducciones Recientes
 ModUi/&SpeechScale=<color=white>Modificador de velocidad de narración</color> <i><color=#F0DAA0>[cuanto más bajo, más rápido]</color></i>
 ModUi/&SpeechVolume=<color=white>Volumen de narración</color>

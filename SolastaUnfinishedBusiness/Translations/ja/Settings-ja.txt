@@ -407,6 +407,9 @@ ModUi/&ShowCraftedItemOnRecipeIcon=ショップとインベントリのレシピ
 ModUi/&ShowCraftingRecipeInDetailedTooltips=詳細なツールチップにクラフトレシピを表示する
 ModUi/&ShowDescriptions=説明を表示
 ModUi/&ShowMotionFormPreview=<b>プッシュ</b>と<b>プル</b>効果のプレビューを表示
+ModUi/&EnableSmootherBattleAnimations=戦闘アニメーションを少し滑らかに高速化
+ModUi/&BattleActionAnimationSpeedMultiplier=戦闘アニメーション速度
+ModUi/&BattleActionAnimationSpeedMultiplierHelp=詠唱、投射物、着弾、命中演出をスキップせず、戦闘中のキャラクターアクションアニメーションを少しだけ高速化します。
 ModUi/&SpeechScale=<color=white>ナレーション速度倍率</color><i><color=#F0DAA0>[低いほど速くなります]</color></i>
 ModUi/&SpeechVolume=<color=white>ナレーションの音量</color>
 ModUi/&SpellLevelFilter=<b><i><color=white>呪文レベル・フィルター</color><color=#F0DAA0>[-1はすべて表示]</color></i></b>

@@ -433,6 +433,9 @@ ModUi/&ShowCraftedItemOnRecipeIcon=Показывать иконку созда�
 ModUi/&ShowCraftingRecipeInDetailedTooltips=Показывать рецепт создания в подробных подсказках
 ModUi/&ShowDescriptions=Показывать описания
 ModUi/&ShowMotionFormPreview=Показывать предпросмотр эффектов <b>Толкания</b> и <b>Притяжения</b>
+ModUi/&EnableSmootherBattleAnimations=Включить более плавные и немного ускоренные боевые анимации
+ModUi/&BattleActionAnimationSpeedMultiplier=Скорость боевых анимаций
+ModUi/&BattleActionAnimationSpeedMultiplierHelp=Немного ускоряет анимации действий персонажей в бою, не пропуская фазы сотворения, снарядов, попадания или удара.
 ModUi/&ShowTranslationPreview=Показать последние переводы
 ModUi/&SpeechScale=<color=white>Модификатор скорости повествования</color> <i><color=#F0DAA0>[чем ниже, тем быстрее]</color></i>
 ModUi/&SpeechVolume=<color=white>Громкость повествования</color>

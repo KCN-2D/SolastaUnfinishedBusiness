@@ -433,6 +433,9 @@ ModUi/&ShowCraftedItemOnRecipeIcon=Symbol für hergestellte Gegenstände neben R
 ModUi/&ShowCraftingRecipeInDetailedTooltips=Herstellungsrezept in ausführlichen Tooltips anzeigen
 ModUi/&ShowDescriptions=Beschreibungen anzeigen
 ModUi/&ShowMotionFormPreview=Vorschau der <b>Push</b>- und <b>Pull</b>-Effekte anzeigen
+ModUi/&EnableSmootherBattleAnimations=Flüssigere, leicht schnellere Kampfanimationen aktivieren
+ModUi/&BattleActionAnimationSpeedMultiplier=Geschwindigkeit der Kampfanimationen
+ModUi/&BattleActionAnimationSpeedMultiplierHelp=Beschleunigt Charakteraktionsanimationen im Kampf leicht, ohne Zauberwirken, Projektile, Einschläge oder Trefferphasen zu überspringen.
 ModUi/&ShowTranslationPreview=Letzte Übersetzungen anzeigen
 ModUi/&SpeechScale=<color=white>Erzählgeschwindigkeitsmodifikator</color> <i><color=#F0DAA0>[niedriger ist schneller]</color></i>
 ModUi/&SpeechVolume=<color=white>Erzählvolumen</color>

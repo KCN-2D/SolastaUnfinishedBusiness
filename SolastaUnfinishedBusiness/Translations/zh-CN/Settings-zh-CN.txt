@@ -433,6 +433,9 @@ ModUi/&ShowCraftedItemOnRecipeIcon=在商店和库存中的配方物品附近显
 ModUi/&ShowCraftingRecipeInDetailedTooltips=在详细的工具提示中显示制作配方
 ModUi/&ShowDescriptions=显示描述
 ModUi/&ShowMotionFormPreview=显示<b>推</b>和<b>拉</b>效果的预览
+ModUi/&EnableSmootherBattleAnimations=启用更流畅、略微更快的战斗动画
+ModUi/&BattleActionAnimationSpeedMultiplier=战斗动画速度
+ModUi/&BattleActionAnimationSpeedMultiplierHelp=略微加快战斗中角色动作动画，不跳过施法、投射物、冲击或命中阶段。
 ModUi/&ShowTranslationPreview=显示最近翻译
 ModUi/&SpeechScale=<color=white>叙述速度调节器</color> <i><color=#F0DAA0>[速度越低越快]</color></i>
 ModUi/&SpeechVolume=<color=white>旁白音量</color>

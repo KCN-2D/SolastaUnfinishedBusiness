@@ -175,9 +175,12 @@ public static class CharacterActionPatcher
         [UsedImplicitly]
         public static IEnumerator Postfix(IEnumerator values, CharacterAction __instance)
         {
-            while (values.MoveNext())
+            using (CombatAnimationContext.BeginActionScope(__instance))
             {
-                yield return values.Current;
+                while (values.MoveNext())
+                {
+                    yield return values.Current;
+                }
             }
 
             //PATCH: support for `IActionFinishedByMe`

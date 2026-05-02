@@ -234,6 +234,9 @@ public class Settings : UnityModManager.ModSettings
     public int OutlineGridWidthSpeed { get; set; } = 100;
     [Tag(Type = TagType.QoL)] public bool EnableDistanceOnTooltip { get; set; }
     [Tag(Type = TagType.QoL)] public bool ShowMotionFormPreview { get; set; }
+    [Tag(Type = TagType.QoL)] public bool EnableSmootherBattleAnimations { get; set; }
+    public float BattleActionAnimationSpeedMultiplier { get; set; } =
+        CombatAnimationContext.DefaultSpeedMultiplier;
     public int HighContrastTargetingAoeSelectedColor { get; set; }
     public int HighContrastTargetingSingleSelectedColor { get; set; }
 
