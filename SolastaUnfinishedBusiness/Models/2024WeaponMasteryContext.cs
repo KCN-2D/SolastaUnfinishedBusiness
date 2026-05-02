@@ -33,6 +33,7 @@ public static partial class Tabletop2024Context
     private const string IndexLearn = "WeaponMasteryLearn";
     private const int StageNotLearned = -1;
     private const int StageLearned = 1;
+    private const string PowerWeaponMasteryRelearnNamePrefix = "PowerWeaponMasteryRelearn";
 
     private const string WeaponMasteryCleave = "WeaponMasteryCleave";
     internal const string WeaponMasteryNick = "WeaponMasteryNick";
@@ -279,6 +280,42 @@ public static partial class Tabletop2024Context
         { WeaponTypeDefinitions.SpearType, MasteryProperty.Sap },
         { WeaponTypeDefinitions.WarhammerType, MasteryProperty.Push }
     };
+
+    private static readonly WeaponTypeDefinition[] WeaponMasteryWeapons = WeaponMasteryTable.Keys.ToArray();
+
+    private static bool TryGetWeaponMasteryWeaponName(int index, out string weaponTypeName)
+    {
+        if (index < 0 || index >= WeaponMasteryWeapons.Length)
+        {
+            weaponTypeName = null;
+            return false;
+        }
+
+        weaponTypeName = WeaponMasteryWeapons[index].Name;
+        return true;
+    }
+
+    private static void SetSelectedWeaponMasteryIndex(
+        GameLocationCharacter character,
+        string key,
+        ReactionRequestSpendBundlePower reactionRequest)
+    {
+        var sourceDefinitionName = reactionRequest.ReactionParams.RulesetEffect?.SourceDefinition?.Name;
+
+        if (sourceDefinitionName == null ||
+            !sourceDefinitionName.StartsWith(PowerWeaponMasteryRelearnNamePrefix, StringComparison.Ordinal))
+        {
+            character.SetSpecialFeatureUses(key, -1);
+            return;
+        }
+
+        var selectedWeaponTypeName = sourceDefinitionName.Substring(PowerWeaponMasteryRelearnNamePrefix.Length);
+        var selectedIndex = Array.FindIndex(
+            WeaponMasteryWeapons,
+            weapon => string.Equals(weapon.Name, selectedWeaponTypeName, StringComparison.Ordinal));
+
+        character.SetSpecialFeatureUses(key, selectedIndex);
+    }
 
     private static void LoadWeaponMastery()
     {
@@ -1295,12 +1332,12 @@ public static partial class Tabletop2024Context
 
             void ReactionValidatedUnlearn(ReactionRequestSpendBundlePower reactionRequest)
             {
-                character.SetSpecialFeatureUses(IndexUnlearn, reactionRequest.SelectedSubOption);
+                SetSelectedWeaponMasteryIndex(character, IndexUnlearn, reactionRequest);
             }
 
             void ReactionValidatedLearn(ReactionRequestSpendBundlePower reactionRequest)
             {
-                character.SetSpecialFeatureUses(IndexLearn, reactionRequest.SelectedSubOption);
+                SetSelectedWeaponMasteryIndex(character, IndexLearn, reactionRequest);
             }
 
             void ReactionNotValidated(ReactionRequestSpendBundlePower reactionRequest)
@@ -1316,7 +1353,10 @@ public static partial class Tabletop2024Context
         public IEnumerator OnMagicEffectFinishedByMe(
             CharacterAction action, GameLocationCharacter attacker, List<GameLocationCharacter> targets)
         {
-            if (!action.ActionParams.RulesetEffect.SourceDefinition.Name.StartsWith("PowerWeaponMasteryRelearn"))
+            var sourceDefinitionName = action.ActionParams.RulesetEffect?.SourceDefinition?.Name;
+
+            if (sourceDefinitionName == null ||
+                !sourceDefinitionName.StartsWith(PowerWeaponMasteryRelearnNamePrefix, StringComparison.Ordinal))
             {
                 yield break;
             }
@@ -1327,12 +1367,20 @@ public static partial class Tabletop2024Context
             }
 
             var indexUnlearn = attacker.GetSpecialFeatureUses(IndexUnlearn);
-            var weaponTypeUnlearnName = WeaponMasteryTable.Keys.ToArray()[indexUnlearn].Name;
+            if (!TryGetWeaponMasteryWeaponName(indexUnlearn, out var weaponTypeUnlearnName))
+            {
+                yield break;
+            }
+
             var invocationToUnlearn =
                 GetDefinition<InvocationDefinition>($"CustomInvocationWeaponMastery{weaponTypeUnlearnName}");
 
             var indexLearn = attacker.GetSpecialFeatureUses(IndexLearn);
-            var weaponTypeLearnName = WeaponMasteryTable.Keys.ToArray()[indexLearn].Name;
+            if (!TryGetWeaponMasteryWeaponName(indexLearn, out var weaponTypeLearnName))
+            {
+                yield break;
+            }
+
             var invocationToLearn =
                 GetDefinition<InvocationDefinition>($"CustomInvocationWeaponMastery{weaponTypeLearnName}");
 

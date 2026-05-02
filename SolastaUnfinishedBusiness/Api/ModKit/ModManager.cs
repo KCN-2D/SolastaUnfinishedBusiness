@@ -72,15 +72,26 @@ internal sealed class ModManager<TCore, TSettings>
 
     private void LoadSettingsAndCore(UnityModManager.ModEntry modEntry)
     {
+        RegisterSaveGUI(modEntry);
+
         if (LoadedOnce)
+        {
+            return;
+        }
+
+        Settings = UnityModManager.ModSettings.Load<TSettings>(modEntry);
+        Core = new TCore();
+    }
+
+    private void RegisterSaveGUI(UnityModManager.ModEntry modEntry)
+    {
+        if (SaveGuiRegistered)
         {
             return;
         }
 
         modEntry.OnSaveGUI += HandleSaveGUI;
         SaveGuiRegistered = true;
-        Settings = UnityModManager.ModSettings.Load<TSettings>(modEntry);
-        Core = new TCore();
     }
 
     private void ApplyHarmonyPatches(UnityModManager.ModEntry modEntry, Type[] types)
