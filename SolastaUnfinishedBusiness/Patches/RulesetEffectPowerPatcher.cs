@@ -17,6 +17,9 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetEffectPowerPatcher
 {
+    private static readonly AccessTools.FieldRef<RulesetEffectPower, FeatureDefinitionPower> SourceDefinitionRef =
+        AccessTools.FieldRefAccess<RulesetEffectPower, FeatureDefinitionPower>("sourceDefinition");
+
     [HarmonyPatch(typeof(RulesetEffectPower), ".ctor", MethodType.Constructor)]
     [HarmonyPatch([
         typeof(RulesetCharacter), // user
@@ -220,6 +223,19 @@ public static class RulesetEffectPowerPatcher
     [UsedImplicitly]
     public static class SerializeElements_Patch
     {
+        [UsedImplicitly]
+        public static void Prefix(RulesetEffectPower __instance, IElementsSerializer serializer)
+        {
+            if (serializer.Mode != Serializer.SerializationMode.Write)
+            {
+                return;
+            }
+
+            ref var sourceDefinition = ref SourceDefinitionRef(__instance);
+
+            sourceDefinition ??= __instance.UsablePower?.PowerDefinition;
+        }
+
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
         {

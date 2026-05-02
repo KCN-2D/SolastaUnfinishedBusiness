@@ -2423,6 +2423,8 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance)
         {
+            RemoveUnboundActivePowers(__instance);
+
             if (__instance is not RulesetCharacterHero hero)
             {
                 return;
@@ -2473,6 +2475,16 @@ public static class RulesetCharacterPatcher
             ForceUsesAttributeDeserialization.Process(hero);
 
             hero.RefreshAll();
+        }
+
+        private static void RemoveUnboundActivePowers(RulesetCharacter character)
+        {
+            character.PowersUsedByMe.RemoveAll(IsUnboundActivePower);
+        }
+
+        private static bool IsUnboundActivePower(RulesetEffectPower power)
+        {
+            return power?.UsablePower?.PowerDefinition == null;
         }
     }
 
