@@ -2263,7 +2263,7 @@ public static partial class Tabletop2024Context
             fallbackDescription: groupDescription);
         var reduceDamage = FeatureDefinitionReduceDamageBuilder
             .Create("ReduceDamageFeatHeavyArmorMaster2024")
-            .SetGuiPresentationNoContent(true)
+            .SetGuiPresentation("FeatHeavyArmorMaster", Category.Feat)
             .SetNotificationTag(HeavyArmorMaster2024NotificationTag)
             .SetAlwaysActiveReducedDamage((_, defender) =>
                 defender?.RulesetCharacter?.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus) ?? 0,
