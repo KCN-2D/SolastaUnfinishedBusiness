@@ -102,6 +102,18 @@ public static class CustomModels
             StartCoroutine(ConstructModel(filename, prefab, meshFilter, meshRenderer));
         }
 
+        internal static void Unload()
+        {
+            if (!_shared)
+            {
+                return;
+            }
+
+            _shared.StopAllCoroutines();
+            Destroy(_shared.gameObject);
+            _shared = null;
+        }
+
         private IEnumerator ConstructModel(
             string filename, GameObject prefab, MeshFilter meshFilter, MeshRenderer meshRenderer)
         {
@@ -194,6 +206,8 @@ public static class CustomModels
                     Main.Error($"Failed to load texture from {filename}");
                 }
 
+                LoadedTextures.Add(texture);
+
                 return texture;
             }
             catch
@@ -271,6 +285,40 @@ public static class CustomModels
 
     private static readonly Dictionary<string, GameObject> PrefabsByGuid = [];
     private static readonly Dictionary<string, Material> MaterialsByGuid = [];
+    private static readonly List<Texture2D> LoadedTextures = [];
+
+    internal static void Unload()
+    {
+        BlenderModelLoader.Unload();
+
+        foreach (var prefab in PrefabsByGuid.Values.Where(x => x).Distinct())
+        {
+            var meshFilter = prefab.GetComponent<MeshFilter>();
+
+            if (meshFilter && meshFilter.sharedMesh)
+            {
+                UnityEngine.Object.Destroy(meshFilter.sharedMesh);
+            }
+
+            UnityEngine.Object.Destroy(prefab);
+        }
+
+        PrefabsByGuid.Clear();
+
+        foreach (var material in MaterialsByGuid.Values.Where(x => x).Distinct())
+        {
+            UnityEngine.Object.Destroy(material);
+        }
+
+        MaterialsByGuid.Clear();
+
+        foreach (var texture in LoadedTextures.Where(x => x).Distinct())
+        {
+            UnityEngine.Object.Destroy(texture);
+        }
+
+        LoadedTextures.Clear();
+    }
 
     internal static void SwitchRenderer(bool enabled)
     {

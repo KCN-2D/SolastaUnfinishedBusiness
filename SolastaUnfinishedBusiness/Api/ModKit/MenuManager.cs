@@ -93,6 +93,16 @@ internal sealed class MenuManager : INotifyPropertyChanged
         }
     }
 
+    internal void Unload(UnityModManager.ModEntry modEntry)
+    {
+        modEntry.OnGUI -= OnGUI;
+        _topPages.Clear();
+        _selectablePages.Clear();
+        _bottomPages.Clear();
+        PropertyChanged = null;
+        _caughtException = null;
+    }
+
     private void OnGUI(UnityModManager.ModEntry modEntry)
     {
         var hasPriorPage = false;

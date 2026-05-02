@@ -468,7 +468,10 @@ internal class FeatureDefinitionCastSpellBuilder
     internal FeatureDefinitionCastSpellBuilder SetSlotsPerLevel(
         IEnumerable<FeatureDefinitionCastSpell.SlotsByLevelDuplet> slotsByLevelDuplets)
     {
-        Definition.SlotsPerLevels.SetRange(slotsByLevelDuplets);
+        Definition.SlotsPerLevels.SetRange(
+            slotsByLevelDuplets?.Where(x => x is { Level: >= 1 and <= 20 }) ??
+            Enumerable.Empty<FeatureDefinitionCastSpell.SlotsByLevelDuplet>());
+
         return this;
     }
 

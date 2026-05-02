@@ -8,6 +8,16 @@ internal static class GUIHelper
     private static Texture2D _fillTexture;
     private static readonly Color FillColor = new(1f, 1f, 1f, 0.65f);
 
+    internal static void Unload()
+    {
+        if (_fillTexture)
+        {
+            UnityEngine.Object.Destroy(_fillTexture);
+        }
+
+        _fillTexture = null;
+    }
+
     internal static bool AdjusterButton(ref int value, string text, int min = int.MinValue, int max = int.MaxValue)
     {
         var oldValue = value;

@@ -15,6 +15,13 @@ internal interface IModEventHandler
     void HandleModEnable();
 }
 
+internal interface IModUnloadHandler
+{
+    int Priority { get; }
+
+    void HandleModUnload();
+}
+
 internal sealed class ModManager<TCore, TSettings>
     where TCore : class, new()
     where TSettings : UnityModManager.ModSettings, new()
@@ -71,6 +78,7 @@ internal sealed class ModManager<TCore, TSettings>
         }
 
         modEntry.OnSaveGUI += HandleSaveGUI;
+        SaveGuiRegistered = true;
         Settings = UnityModManager.ModSettings.Load<TSettings>(modEntry);
         Core = new TCore();
     }
@@ -120,11 +128,21 @@ internal sealed class ModManager<TCore, TSettings>
 
     private void CreateEventHandlers(Type[] types)
     {
-        _eventHandlers = types.Where(type => type != typeof(TCore) &&
-                                             !type.IsInterface && !type.IsAbstract &&
-                                             typeof(IModEventHandler).IsAssignableFrom(type))
-            .Select(type => Activator.CreateInstance(type, true) as IModEventHandler)
+        var instances = types
+            .Where(type => type != typeof(TCore) &&
+                           !type.IsInterface && !type.IsAbstract &&
+                           (typeof(IModEventHandler).IsAssignableFrom(type) ||
+                            typeof(IModUnloadHandler).IsAssignableFrom(type)))
+            .Select(type => Activator.CreateInstance(type, true))
             .Where(x => x != null)
+            .ToList();
+
+        _eventHandlers = instances
+            .OfType<IModEventHandler>()
+            .ToList();
+
+        _unloadHandlers = instances
+            .OfType<IModUnloadHandler>()
             .ToList();
 
         if (Core is IModEventHandler core)
@@ -132,7 +150,13 @@ internal sealed class ModManager<TCore, TSettings>
             _eventHandlers.Add(core);
         }
 
+        if (Core is IModUnloadHandler unloadCore)
+        {
+            _unloadHandlers.Add(unloadCore);
+        }
+
         _eventHandlers.Sort((x, y) => x.Priority - y.Priority);
+        _unloadHandlers.Sort((x, y) => y.Priority - x.Priority);
     }
 
     private void NotifyEventHandlers()
@@ -143,11 +167,58 @@ internal sealed class ModManager<TCore, TSettings>
         }
     }
 
+    internal bool Unload(UnityModManager.ModEntry modEntry)
+    {
+        foreach (var unloadHandler in _unloadHandlers)
+        {
+            TryCleanup(unloadHandler.HandleModUnload);
+        }
+
+        TryCleanup(() =>
+        {
+            if (!SaveGuiRegistered)
+            {
+                return;
+            }
+
+            modEntry.OnSaveGUI -= HandleSaveGUI;
+            SaveGuiRegistered = false;
+        });
+
+        TryCleanup(() =>
+        {
+            if (!Patched)
+            {
+                return;
+            }
+
+            _harmonyInstance?.UnpatchAll(modEntry.Info.Id);
+            Patched = false;
+        });
+
+        Enabled = false;
+
+        return true;
+    }
+
+    private static void TryCleanup(Action cleanup)
+    {
+        try
+        {
+            cleanup();
+        }
+        catch (Exception ex)
+        {
+            Main.Error(ex);
+        }
+    }
+
     #endregion
 
     #region Fields & Properties
 
-    private List<IModEventHandler> _eventHandlers;
+    private List<IModEventHandler> _eventHandlers = [];
+    private List<IModUnloadHandler> _unloadHandlers = [];
 
     private TCore Core { get; set; }
 
@@ -157,6 +228,7 @@ internal sealed class ModManager<TCore, TSettings>
 
     private bool Patched { get; set; }
     private bool LoadedOnce { get; set; }
+    private bool SaveGuiRegistered { get; set; }
 
     private sealed class PatchFailure
     {

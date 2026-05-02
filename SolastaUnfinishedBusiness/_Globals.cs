@@ -52,4 +52,12 @@ internal static class Global
     {
         SelectedLocationCharacter?.RulesetCharacter?.RefreshAll();
     }
+
+    internal static void ResetTransientStateForUnload()
+    {
+        RolledPerceptionThisTurn.Clear();
+        InspectedHero = null;
+        LastLevelUpHeroName = null;
+        IsSettingUpMultiplayer = false;
+    }
 }

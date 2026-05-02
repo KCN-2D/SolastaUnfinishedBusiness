@@ -15,6 +15,13 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetSpellRepertoirePatcher
 {
+    private static IEnumerable<RulesetSpellRepertoire> EnumerateSharedSlotRepertoires(RulesetCharacter character)
+    {
+        return character?.SpellRepertoires
+            .Where(x => x.SpellCastingFeature.SpellCastingOrigin != FeatureDefinitionCastSpell.CastingOrigin.Race)
+            ?? Enumerable.Empty<RulesetSpellRepertoire>();
+    }
+
     private static bool FormatTitle(RulesetSpellRepertoire __instance, ref string __result)
     {
         if (Tabletop2024Context.TryGetTabletop2024SpellRepertoireTitle(__instance, out var title))
@@ -80,6 +87,29 @@ public static class RulesetSpellRepertoirePatcher
             {
                 __result = spellAttackBonus;
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.ComputeSpellSlots))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ComputeSpellSlots_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(RulesetSpellRepertoire __instance)
+        {
+            var spellCastingLevel = __instance?.SpellCastingLevel ?? 0;
+            var slotsPerLevels = __instance?.SpellCastingFeature?.SlotsPerLevels;
+
+            if (__instance == null ||
+                spellCastingLevel > 0 && slotsPerLevels != null && spellCastingLevel <= slotsPerLevels.Count)
+            {
+                return true;
+            }
+
+            __instance.spellsSlotCapacities?.Clear();
+
+            return false;
         }
     }
 
@@ -191,9 +221,7 @@ public static class RulesetSpellRepertoirePatcher
             {
                 var consume = true;
 
-                foreach (var spellRepertoire in character.SpellRepertoires
-                             .Where(x => x.SpellCastingFeature.SpellCastingOrigin !=
-                                         FeatureDefinitionCastSpell.CastingOrigin.Race))
+                foreach (var spellRepertoire in EnumerateSharedSlotRepertoires(character))
                 {
                     if (Main.Settings.UseAlternateSpellPointsSystem)
                     {
@@ -271,9 +299,7 @@ public static class RulesetSpellRepertoirePatcher
             // uses short rest slots across all non race repertoires
             if (consumePactSlot)
             {
-                foreach (var spellRepertoire in hero.SpellRepertoires
-                             .Where(x => x.SpellCastingFeature.SpellCastingOrigin !=
-                                         FeatureDefinitionCastSpell.CastingOrigin.Race))
+                foreach (var spellRepertoire in EnumerateSharedSlotRepertoires(hero))
                 {
                     SpendWarlockSlots(spellRepertoire, hero);
                 }
@@ -284,9 +310,7 @@ public static class RulesetSpellRepertoirePatcher
             {
                 var consume = true;
 
-                foreach (var spellRepertoire in hero.SpellRepertoires
-                             .Where(x => x.SpellCastingFeature.SpellCastingOrigin !=
-                                         FeatureDefinitionCastSpell.CastingOrigin.Race))
+                foreach (var spellRepertoire in EnumerateSharedSlotRepertoires(hero))
                 {
                     if (Main.Settings.UseAlternateSpellPointsSystem)
                     {
@@ -312,35 +336,57 @@ public static class RulesetSpellRepertoirePatcher
     public static class MaxSpellLevelOfSpellCastingLevel_Getter_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(RulesetSpellRepertoire __instance, ref int __result)
+        public static bool Prefix(RulesetSpellRepertoire __instance, ref int __result)
         {
-            if (!__instance.SpellCastingFeature)
+            var spellCastingFeature = __instance?.SpellCastingFeature;
+
+            if (!spellCastingFeature)
             {
-                return;
+                return true;
             }
 
-            if (__instance.SpellCastingFeature.SpellCastingOrigin is FeatureDefinitionCastSpell.CastingOrigin.Race
+            var spellCastingLevel = __instance.SpellCastingLevel;
+            var slotsPerLevels = spellCastingFeature.SlotsPerLevels;
+
+            if (spellCastingLevel <= 0 ||
+                slotsPerLevels == null ||
+                spellCastingLevel > slotsPerLevels.Count ||
+                IsInvalidSlotEntry(slotsPerLevels[spellCastingLevel - 1]))
+            {
+                __result = 0;
+
+                return false;
+            }
+
+            if (spellCastingFeature.SpellCastingOrigin is FeatureDefinitionCastSpell.CastingOrigin.Race
                 or FeatureDefinitionCastSpell.CastingOrigin.Monster)
             {
-                return;
+                return true;
             }
 
             if (SharedSpellsContext.UseMaxSpellLevelOfSpellCastingLevelDefaultBehavior)
             {
-                return;
+                return true;
             }
 
             var heroWithSpellRepertoire = __instance.GetCaster() as RulesetCharacterHero;
 
             if (!SharedSpellsContext.IsMulticaster(heroWithSpellRepertoire))
             {
-                return;
+                return true;
             }
 
             var sharedSpellLevel = SharedSpellsContext.GetSharedSpellLevel(heroWithSpellRepertoire);
             var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(heroWithSpellRepertoire);
 
             __result = Math.Max(sharedSpellLevel, warlockSpellLevel);
+
+            return false;
+        }
+
+        private static bool IsInvalidSlotEntry(FeatureDefinitionCastSpell.SlotsByLevelDuplet slotEntry)
+        {
+            return slotEntry?.Slots == null || slotEntry.Slots.Count == 0;
         }
     }
 
@@ -383,7 +429,7 @@ public static class RulesetSpellRepertoirePatcher
                     }
                 }
 
-                spellRepertoire.RepertoireRefreshed?.Invoke(__instance);
+                spellRepertoire.RepertoireRefreshed?.Invoke(spellRepertoire);
             }
 
             return false;

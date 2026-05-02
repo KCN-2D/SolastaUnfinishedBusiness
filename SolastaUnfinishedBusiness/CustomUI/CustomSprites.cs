@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Builders;
@@ -135,6 +136,28 @@ public static class Sprites
     internal static Sprite GetSpriteByGuid([NotNull] string guid)
     {
         return SpritesByGuid.TryGetValue(guid, out var sprite) ? sprite : null;
+    }
+
+    internal static void Unload()
+    {
+        var textures = new HashSet<Texture>();
+
+        foreach (var sprite in SpritesByGuid.Values.Where(x => x))
+        {
+            if (sprite.texture)
+            {
+                textures.Add(sprite.texture);
+            }
+
+            Object.Destroy(sprite);
+        }
+
+        SpritesByGuid.Clear();
+
+        foreach (var texture in textures.Where(x => x))
+        {
+            Object.Destroy(texture);
+        }
     }
 
     /// <summary>

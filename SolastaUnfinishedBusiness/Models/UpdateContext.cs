@@ -31,6 +31,9 @@ internal static class UpdateContext
     internal static bool InProgress { get; private set; }
     internal static int Progress { get; private set; }
 
+    private static WebClient UpdateWebClient { get; set; }
+    private static bool Unloading { get; set; }
+
     private static bool ShouldUpdate;
 
     internal static void Load()
@@ -71,6 +74,31 @@ internal static class UpdateContext
 
         // ReSharper disable once AssignNullToNotNullAttribute
         return string.Join(".", a1);
+    }
+
+    internal static void Unload()
+    {
+        Unloading = true;
+        InProgress = false;
+        Progress = 0;
+
+        var webClient = UpdateWebClient;
+
+        UpdateWebClient = null;
+
+        if (webClient == null)
+        {
+            return;
+        }
+
+        try
+        {
+            webClient.CancelAsync();
+        }
+        finally
+        {
+            webClient.Dispose();
+        }
     }
 
     private static string GetLatestVersion(out bool shouldUpdate)
@@ -127,20 +155,23 @@ internal static class UpdateContext
         var fullZipFolder = Path.Combine(Main.ModFolder, TempFolder);
         var baseUrlByVersion = BaseURL.Replace("download", $"download/{version}");
         var url = new Uri($"{baseUrlByVersion}/{zipFile}");
+        WebClient wc = null;
 
         try
         {
-            using var wc = new WebClient();
+            wc = new WebClient();
 
             wc.Encoding = Encoding.UTF8;
             wc.DownloadProgressChanged += (_, e) => Progress = e.ProgressPercentage;
 
             wc.DownloadFileCompleted += OnDownloadFileCompleted;
 
+            UpdateWebClient = wc;
             wc.DownloadFileAsync(url, fullZipFile);
         }
         catch (Exception ex)
         {
+            DisposeUpdateWebClient(wc);
             InProgress = false;
             Main.Error($"Failed to update mod: {ex.Message}: {ex.StackTrace}");
 
@@ -153,8 +184,17 @@ internal static class UpdateContext
 
         void OnDownloadFileCompleted(object _, AsyncCompletedEventArgs e)
         {
+            if (Unloading)
+            {
+                DisposeUpdateWebClient(wc);
+                InProgress = false;
+                Progress = 0;
+                return;
+            }
+
             if (e.Error != null)
             {
+                DisposeUpdateWebClient(wc);
                 InProgress = false;
                 ShowMessage($"Cannot fetch update payload. Try again or download from:\r\n{url}.",
                     "Open Download Url", () => OpenUrl(url.ToString()),
@@ -164,6 +204,7 @@ internal static class UpdateContext
 
             if (e.Cancelled)
             {
+                DisposeUpdateWebClient(wc);
                 InProgress = false;
                 ShowMessage("Update was cancelled",
                     "Open Download Url", () => OpenUrl(url.ToString()),
@@ -212,6 +253,7 @@ internal static class UpdateContext
             }
             finally
             {
+                DisposeUpdateWebClient(wc);
                 InProgress = false;
 
                 try
@@ -225,6 +267,21 @@ internal static class UpdateContext
                 }
             }
         }
+    }
+
+    private static void DisposeUpdateWebClient(WebClient webClient)
+    {
+        if (webClient == null)
+        {
+            return;
+        }
+
+        if (UpdateWebClient == webClient)
+        {
+            UpdateWebClient = null;
+        }
+
+        webClient.Dispose();
     }
 
     internal static void DisplayRollbackMessage()

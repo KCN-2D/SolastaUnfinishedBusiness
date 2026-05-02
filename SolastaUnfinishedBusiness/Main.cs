@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.ModKit;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using UnityModManagerNet;
 
@@ -13,6 +14,7 @@ namespace SolastaUnfinishedBusiness;
 internal static class Main
 {
     internal static readonly string ModFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+    private static MenuManager Menu { get; set; }
     private static ModManager<Core, Settings> Mod { get; set; }
     private static UnityModManager.ModEntry ModEntry { get; set; }
 
@@ -93,6 +95,7 @@ internal static class Main
             Mod = new ModManager<Core, Settings>();
             Mod.Enable(modEntry, assembly);
 
+            modEntry.OnUnload = OnUnload;
             modEntry.OnShowGUI = _ =>
             {
                 if (Settings.EnableHeroesControlledByComputer)
@@ -105,7 +108,8 @@ internal static class Main
             {
                 var finished = DateTime.Now;
 
-                new MenuManager().Enable(modEntry, assembly);
+                Menu = new MenuManager();
+                Menu.Enable(modEntry, assembly);
                 LoadSettingFilenames();
                 ModEntry.Logger.Log($"enabled in {finished - now:T}.");
 
@@ -121,6 +125,41 @@ internal static class Main
         }
 
         return true;
+    }
+
+    private static bool OnUnload(UnityModManager.ModEntry modEntry)
+    {
+        TryCleanup(() =>
+        {
+            Menu?.Unload(modEntry);
+            Menu = null;
+        });
+        TryCleanup(() => modEntry.OnShowGUI = null);
+        TryCleanup(SpeechContext.Unload);
+        TryCleanup(UpdateContext.Unload);
+        TryCleanup(TranslatorContext.Unload);
+        TryCleanup(CustomModels.Unload);
+        TryCleanup(Sprites.Unload);
+        TryCleanup(UI.Unload);
+        TryCleanup(GUIHelper.Unload);
+        TryCleanup(Global.ResetTransientStateForUnload);
+        TryCleanup(() => { Mod?.Unload(modEntry); });
+
+        Enabled = false;
+
+        return true;
+    }
+
+    private static void TryCleanup(Action cleanup)
+    {
+        try
+        {
+            cleanup();
+        }
+        catch (Exception ex)
+        {
+            Error(ex);
+        }
     }
 
     internal static void LoadSettingFilenames()

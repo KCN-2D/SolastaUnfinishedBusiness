@@ -26,6 +26,33 @@ internal static partial class UI
     private static GUIStyle _submenuButtonStyle;
     private static Color FillColor { get; } = new(1f, 1f, 1f, 0.65f);
 
+    internal static void Unload()
+    {
+        DestroyTexture(ref _fillTexture);
+        DestroyTexture(ref _rarityTexture);
+        DestroyTexture(ref _submenuTexture);
+
+        _fillStyle = null;
+        _buttonStyle = null;
+        _largeStyle = null;
+        _textBoxStyle = null;
+        _toggleStyle = null;
+        _divStyle = null;
+        _rarityStyle = null;
+        _rarityButtonStyle = null;
+        _submenuButtonStyle = null;
+    }
+
+    private static void DestroyTexture(ref Texture2D texture)
+    {
+        if (texture)
+        {
+            UnityEngine.Object.Destroy(texture);
+        }
+
+        texture = null;
+    }
+
     [UsedImplicitly]
     public static GUIStyle ButtonStyle =>
         _buttonStyle ??= new GUIStyle(GUI.skin.button) { alignment = TextAnchor.MiddleLeft };

@@ -132,9 +132,7 @@ internal static class SharedSpellsContext
     {
         var warlockLevel = GetWarlockCasterLevel(rulesetCharacterHero);
 
-        return warlockLevel > 0
-            ? WarlockCastingSlots[warlockLevel - 1].Slots.IndexOf(0)
-            : 0;
+        return GetMaxSpellLevelFromSlots(WarlockCastingSlots, warlockLevel);
     }
 
     internal static int GetWarlockMaxSlots(RulesetCharacterHero rulesetCharacterHero)
@@ -146,7 +144,9 @@ internal static class SharedSpellsContext
                 .MagicAffinityChitinousBoonAdditionalSpellSlot)
             .SelectMany(x => x.AdditionalSlots)
             .Sum(x => x.SlotsNumber);
-        var slots = warlockLevel > 0 ? WarlockCastingSlots[warlockLevel - 1].Slots[0] : 0;
+        var slots = warlockLevel > 0 && warlockLevel <= WarlockCastingSlots.Count
+            ? WarlockCastingSlots[warlockLevel - 1].Slots[0]
+            : 0;
 
         return slots + warlockAdditionalSlots;
     }
@@ -214,12 +214,31 @@ internal static class SharedSpellsContext
 
         if (rulesetCharacterHero.IsSpellPointsEnabled())
         {
-            return sharedCasterLevel > 0
-                ? SpellPointsContext.SpellPointsFullCastingSlots[sharedCasterLevel - 1].Slots.IndexOf(0)
-                : 0;
+            return GetMaxSpellLevelFromSlots(SpellPointsContext.SpellPointsFullCastingSlots, sharedCasterLevel);
         }
 
-        return sharedCasterLevel > 0 ? FullCastingSlots[sharedCasterLevel - 1].Slots.IndexOf(0) : 0;
+        return GetMaxSpellLevelFromSlots(FullCastingSlots, sharedCasterLevel);
+    }
+
+    private static int GetMaxSpellLevelFromSlots(IReadOnlyList<SlotsByLevelDuplet> table, int casterLevel)
+    {
+        if (table == null ||
+            casterLevel <= 0 ||
+            casterLevel > table.Count)
+        {
+            return 0;
+        }
+
+        var slots = table[casterLevel - 1]?.Slots;
+
+        if (slots == null || slots.Count == 0)
+        {
+            return 0;
+        }
+
+        var firstZero = slots.IndexOf(0);
+
+        return firstZero < 0 ? slots.Count : firstZero;
     }
 
     internal static void LateLoad()
@@ -265,11 +284,14 @@ internal static class SharedSpellsContext
     {
         UseMaxSpellLevelOfSpellCastingLevelDefaultBehavior = true;
 
-        var result = rulesetSpellRepertoire.MaxSpellLevelOfSpellCastingLevel;
-
-        UseMaxSpellLevelOfSpellCastingLevelDefaultBehavior = false;
-
-        return result;
+        try
+        {
+            return rulesetSpellRepertoire.MaxSpellLevelOfSpellCastingLevel;
+        }
+        finally
+        {
+            UseMaxSpellLevelOfSpellCastingLevelDefaultBehavior = false;
+        }
     }
 
     [NotNull]

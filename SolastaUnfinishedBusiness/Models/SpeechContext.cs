@@ -66,17 +66,21 @@ internal static class SpeechContext
 
     private static readonly string PiperPlusModelsFolder = Path.Combine(VoicesFolder, "PiperPlus");
 
-    [NotNull] private static readonly WaveOutEvent SpeechEvent = new();
+    [NotNull] private static WaveOutEvent SpeechEvent => _speechEvent ??= new WaveOutEvent();
 
     private static readonly object SpeechLock = new();
+    private static readonly object SpeechProcessLock = new();
 
     private static readonly Dictionary<string, SpeechVoiceInfo> VoiceInfos = new(StringComparer.Ordinal);
+    private static readonly List<Process> SpeechProcesses = [];
 
+    private static WaveOutEvent _speechEvent;
     private static MemoryStream CurrentAudioStream;
     private static WaveStream CurrentWaveStream;
     private static SpeechRequest CurrentSpeechRequest;
     private static bool SpeechEventHooked;
     private static bool SpeechPlaybackActive;
+    private static bool Unloading;
     private static int SpeechGeneration;
 
     private static readonly Queue<SpeechRequest> SpeechQueue = [];
@@ -458,6 +462,7 @@ internal static class SpeechContext
 
     internal static void Load()
     {
+        Unloading = false;
         EnsureSpeechEventHooked();
         InitPiper();
         RefreshAvailableVoices();
@@ -856,6 +861,32 @@ internal static class SpeechContext
         }
     }
 
+    internal static void Unload()
+    {
+        lock (SpeechLock)
+        {
+            Unloading = true;
+            SpeechGeneration++;
+            SpeechQueue.Clear();
+            CurrentSpeechRequest = null;
+            SpeechPlaybackActive = false;
+            StopSpeechPlaybackNoLock();
+
+            if (SpeechEventHooked && _speechEvent != null)
+            {
+                _speechEvent.PlaybackStopped -= OnSpeechPlaybackStopped;
+            }
+
+            SpeechEventHooked = false;
+            _speechEvent?.Dispose();
+            _speechEvent = null;
+        }
+
+        StopSpeechProcesses();
+        PiperPlusVoiceDownloader.Unload();
+        VoicesDownloader.Unload();
+    }
+
     internal static void NotifyVanillaSpeechConcluded()
     {
         // Vanilla narration completion should not stop the independent UB TTS queue.
@@ -880,7 +911,8 @@ internal static class SpeechContext
     private static void QueueSpeech(SpeechVoiceInfo voiceInfo, float scale, string cleanedText)
     {
         if (voiceInfo == null ||
-            string.IsNullOrWhiteSpace(cleanedText))
+            string.IsNullOrWhiteSpace(cleanedText) ||
+            Unloading)
         {
             return;
         }
@@ -894,7 +926,8 @@ internal static class SpeechContext
 
     private static void StartNextSpeechNoLock()
     {
-        if (SpeechPlaybackActive ||
+        if (Unloading ||
+            SpeechPlaybackActive ||
             SpeechQueue.Count == 0)
         {
             return;
@@ -920,7 +953,8 @@ internal static class SpeechContext
 
         lock (SpeechLock)
         {
-            if (CurrentSpeechRequest != request)
+            if (Unloading ||
+                CurrentSpeechRequest != request)
             {
                 speechAudio?.Dispose();
                 return;
@@ -959,7 +993,7 @@ internal static class SpeechContext
 
     private static void StopSpeechPlaybackNoLock()
     {
-        SpeechEvent.Stop();
+        _speechEvent?.Stop();
         DisposeSpeechStreamsNoLock();
     }
 
@@ -1443,24 +1477,33 @@ internal static class SpeechContext
             return null;
         }
 
-        var outputTask = CopyToMemoryStreamAsync(piper.StandardOutput.BaseStream);
-        var errorTask = piper.StandardError.ReadToEndAsync();
+        RegisterSpeechProcess(piper);
 
-        await WriteUtf8ToStandardInputAsync(piper, cleanedText);
-        await Task.Run(() => piper.WaitForExit());
-        await errorTask;
-
-        var audioStream = await outputTask;
-
-        if (piper.ExitCode != 0 || audioStream.Length == 0)
+        try
         {
-            audioStream.Dispose();
-            return null;
+            var outputTask = CopyToMemoryStreamAsync(piper.StandardOutput.BaseStream);
+            var errorTask = piper.StandardError.ReadToEndAsync();
+
+            await WriteUtf8ToStandardInputAsync(piper, cleanedText);
+            await Task.Run(() => piper.WaitForExit());
+            await errorTask;
+
+            var audioStream = await outputTask;
+
+            if (piper.ExitCode != 0 || audioStream.Length == 0)
+            {
+                audioStream.Dispose();
+                return null;
+            }
+
+            audioStream.Position = 0;
+
+            return new SpeechAudio(audioStream, false, voiceInfo.SampleRate);
         }
-
-        audioStream.Position = 0;
-
-        return new SpeechAudio(audioStream, false, voiceInfo.SampleRate);
+        finally
+        {
+            UnregisterSpeechProcess(piper);
+        }
     }
 
     private static async Task<SpeechAudio> SynthesizePiperPlusSpeechAsync(
@@ -1496,33 +1539,42 @@ internal static class SpeechContext
                 return null;
             }
 
-            var outputTask = piper.StandardOutput.ReadToEndAsync();
-            var errorTask = piper.StandardError.ReadToEndAsync();
-            var payload = JsonConvert.SerializeObject(new
-            {
-                text = cleanedText,
-                speaker_id = 0,
-                output_file = tempWav
-            });
+            RegisterSpeechProcess(piper);
 
-            await WriteUtf8ToStandardInputAsync(piper, payload + Environment.NewLine);
-            await Task.Run(() => piper.WaitForExit());
-            await outputTask;
-            await errorTask;
-
-            if (piper.ExitCode != 0 || !File.Exists(tempWav))
+            try
             {
-                return null;
+                var outputTask = piper.StandardOutput.ReadToEndAsync();
+                var errorTask = piper.StandardError.ReadToEndAsync();
+                var payload = JsonConvert.SerializeObject(new
+                {
+                    text = cleanedText,
+                    speaker_id = 0,
+                    output_file = tempWav
+                });
+
+                await WriteUtf8ToStandardInputAsync(piper, payload + Environment.NewLine);
+                await Task.Run(() => piper.WaitForExit());
+                await outputTask;
+                await errorTask;
+
+                if (piper.ExitCode != 0 || !File.Exists(tempWav))
+                {
+                    return null;
+                }
+
+                var wavBytes = File.ReadAllBytes(tempWav);
+
+                if (wavBytes.Length == 0)
+                {
+                    return null;
+                }
+
+                return new SpeechAudio(new MemoryStream(wavBytes), true, voiceInfo.SampleRate);
             }
-
-            var wavBytes = File.ReadAllBytes(tempWav);
-
-            if (wavBytes.Length == 0)
+            finally
             {
-                return null;
+                UnregisterSpeechProcess(piper);
             }
-
-            return new SpeechAudio(new MemoryStream(wavBytes), true, voiceInfo.SampleRate);
         }
         finally
         {
@@ -1544,6 +1596,57 @@ internal static class SpeechContext
         process.StartInfo.RedirectStandardError = true;
 
         return process;
+    }
+
+    private static void RegisterSpeechProcess(Process process)
+    {
+        lock (SpeechProcessLock)
+        {
+            SpeechProcesses.Add(process);
+        }
+    }
+
+    private static void UnregisterSpeechProcess(Process process)
+    {
+        lock (SpeechProcessLock)
+        {
+            SpeechProcesses.Remove(process);
+        }
+    }
+
+    private static void StopSpeechProcesses()
+    {
+        Process[] processes;
+
+        lock (SpeechProcessLock)
+        {
+            processes = SpeechProcesses.ToArray();
+            SpeechProcesses.Clear();
+        }
+
+        foreach (var process in processes)
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill();
+                }
+            }
+            catch
+            {
+                // best effort cleanup
+            }
+
+            try
+            {
+                process.Dispose();
+            }
+            catch
+            {
+                // best effort cleanup
+            }
+        }
     }
 
     private static async Task WriteUtf8ToStandardInputAsync(Process process, string inputText)
@@ -1616,13 +1719,22 @@ internal static class SpeechContext
                 return false;
             }
 
-            var outputTask = piper.StandardOutput.ReadToEndAsync();
-            var errorTask = piper.StandardError.ReadToEndAsync();
+            RegisterSpeechProcess(piper);
 
-            piper.WaitForExit();
-            Task.WaitAll(outputTask, errorTask);
+            try
+            {
+                var outputTask = piper.StandardOutput.ReadToEndAsync();
+                var errorTask = piper.StandardError.ReadToEndAsync();
 
-            return piper.ExitCode == 0 && IsVoiceProfileModelAvailable(profile);
+                piper.WaitForExit();
+                Task.WaitAll(outputTask, errorTask);
+
+                return piper.ExitCode == 0 && IsVoiceProfileModelAvailable(profile);
+            }
+            finally
+            {
+                UnregisterSpeechProcess(piper);
+            }
         }
         catch
         {
@@ -1707,6 +1819,25 @@ internal static class SpeechContext
             StartCoroutine(_coroutine);
         }
 
+        internal static void Unload()
+        {
+            if (!_shared)
+            {
+                return;
+            }
+
+            if (_shared._coroutine != null)
+            {
+                _shared.StopCoroutine(_shared._coroutine);
+                _shared._coroutine = null;
+            }
+
+            _shared._languageProfile = null;
+            _shared._progress = 0f;
+            Destroy(_shared.gameObject);
+            _shared = null;
+        }
+
         private IEnumerator DownloadVoiceImpl(SpeechLanguageProfile languageProfile)
         {
             Directory.CreateDirectory(PiperPlusModelsFolder);
@@ -1772,6 +1903,24 @@ internal static class SpeechContext
             return _coroutine != null
                 ? Gui.Format("ModUi/&DownloadVoiceOngoing", $"{_progress:00.0%}").Bold().Khaki()
                 : Gui.Localize("ModUi/&DownloadVoice");
+        }
+
+        internal static void Unload()
+        {
+            if (!_shared)
+            {
+                return;
+            }
+
+            if (_shared._coroutine != null)
+            {
+                _shared.StopCoroutine(_shared._coroutine);
+                _shared._coroutine = null;
+            }
+
+            _shared._progress = 0f;
+            Destroy(_shared.gameObject);
+            _shared = null;
         }
 
         private void UpdateProgress(ref int loaded, int total)

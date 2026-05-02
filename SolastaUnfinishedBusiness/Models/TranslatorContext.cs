@@ -38,6 +38,7 @@ internal static class TranslatorContext
     ///     Maps unofficial language codes to official language codes.
     /// </summary>
     private static Dictionary<string, string> SourceCodeCache { get; } = new();
+    private static List<AssetBundle> FontBundles { get; } = [];
 
     private static LanguageEntry[] AvailableUnofficialLanguagesCache { get; set; }
 
@@ -242,14 +243,10 @@ internal static class TranslatorContext
     {
         var fullFilename = Path.Combine(Main.ModFolder, $"{UnofficialLanguagesFolderPrefix}JapaneseHanSans.unity3d");
 
-        if (!File.Exists(fullFilename))
+        if (!TryLoadFontBundle(fullFilename, out var fontBundle))
         {
-            Main.Error($"Loading the font bundle {fullFilename}.");
-
             return;
         }
-
-        var fontBundle = AssetBundle.LoadFromFile(fullFilename);
 
         AddFont("NotoSansJP-Light SDF", fontBundle, allFonts, "Noto-Light SDF", "Noto-Thin SDF");
         AddFont("NotoSansJP-Regular SDF", fontBundle, allFonts, "Noto-Regular SDF", "LiberationSans SDF");
@@ -260,18 +257,49 @@ internal static class TranslatorContext
     {
         var fullFilename = Path.Combine(Main.ModFolder, $"{UnofficialLanguagesFolderPrefix}KoreanHanSans.unity3d");
 
-        if (!File.Exists(fullFilename))
+        if (!TryLoadFontBundle(fullFilename, out var fontBundle))
         {
-            Main.Error($"Loading the font bundle {fullFilename}.");
-
             return;
         }
-
-        var fontBundle = AssetBundle.LoadFromFile(fullFilename);
 
         AddFont("SourceHanSansK-Light SDF", fontBundle, allFonts, "Noto-Light SDF", "Noto-Thin SDF");
         AddFont("SourceHanSansK-Regular SDF", fontBundle, allFonts, "Noto-Regular SDF", "LiberationSans SDF");
         AddFont("SourceHanSansK-Bold SDF", fontBundle, allFonts, "Noto-Bold SDF");
+    }
+
+    internal static void Unload()
+    {
+        foreach (var fontBundle in FontBundles.Where(x => x).Distinct())
+        {
+            fontBundle.Unload(false);
+        }
+
+        FontBundles.Clear();
+    }
+
+    private static bool TryLoadFontBundle(string fullFilename, out AssetBundle fontBundle)
+    {
+        fontBundle = null;
+
+        if (!File.Exists(fullFilename))
+        {
+            Main.Error($"Loading the font bundle {fullFilename}.");
+
+            return false;
+        }
+
+        fontBundle = AssetBundle.LoadFromFile(fullFilename);
+
+        if (!fontBundle)
+        {
+            Main.Error($"Loading the font bundle {fullFilename}.");
+
+            return false;
+        }
+
+        FontBundles.Add(fontBundle);
+
+        return true;
     }
 
     private static bool UsesJapaneseFont(LanguageEntry language)
