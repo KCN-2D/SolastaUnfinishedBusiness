@@ -29,6 +29,11 @@ internal static class TranslationServiceFactory
     {
         return Services.TryGetValue(serviceType, out var service) ? service : Services[TranslationServiceType.Google];
     }
+
+    internal static void Unload()
+    {
+        GoogleTranslationService.Unload();
+    }
 }
 
 public enum TranslationServiceType

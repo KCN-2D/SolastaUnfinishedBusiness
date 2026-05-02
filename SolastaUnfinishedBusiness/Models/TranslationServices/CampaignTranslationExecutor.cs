@@ -44,6 +44,33 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
 
     internal static IReadOnlyDictionary<string, CampaignTranslationTask> Tasks => ActiveTasks;
 
+    internal static void Unload(bool destroyUnityObject)
+    {
+        foreach (var task in ActiveTasks.Values)
+        {
+            task.Cancel();
+        }
+
+        ActiveTasks.Clear();
+
+        if (!_instance)
+        {
+            return;
+        }
+
+        while (_instance._mainThreadActions.TryDequeue(out _))
+        {
+            // discard queued work owned by this executor
+        }
+
+        if (destroyUnityObject)
+        {
+            _instance.StopAllCoroutines();
+            Destroy(_instance.gameObject);
+            _instance = null;
+        }
+    }
+
     private void Update()
     {
         // Process main thread actions

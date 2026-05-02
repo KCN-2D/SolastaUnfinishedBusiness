@@ -198,7 +198,7 @@ internal sealed class ModManager<TCore, TSettings>
 
         TryCleanup(() =>
         {
-            if (!Patched)
+            if (!Patched || Main.IsApplicationQuitting)
             {
                 return;
             }

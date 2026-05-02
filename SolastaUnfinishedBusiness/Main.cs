@@ -7,6 +7,8 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
+using SolastaUnfinishedBusiness.Models.TranslationServices;
+using UnityEngine;
 using UnityModManagerNet;
 
 namespace SolastaUnfinishedBusiness;
@@ -19,6 +21,7 @@ internal static class Main
     private static UnityModManager.ModEntry ModEntry { get; set; }
 
     internal static bool Enabled { get; private set; }
+    internal static bool IsApplicationQuitting { get; private set; }
 
     internal static Action Enable { get; private set; }
 
@@ -74,6 +77,11 @@ internal static class Main
     internal static bool Load([NotNull] UnityModManager.ModEntry modEntry)
     {
         ModEntry = modEntry;
+        IsApplicationQuitting = false;
+        Application.wantsToQuit -= OnApplicationWantsToQuit;
+        Application.wantsToQuit += OnApplicationWantsToQuit;
+        Application.quitting -= OnApplicationQuitting;
+        Application.quitting += OnApplicationQuitting;
 
         var now = DateTime.Now;
         var assembly = Assembly.GetExecutingAssembly();
@@ -127,21 +135,44 @@ internal static class Main
         return true;
     }
 
+    private static bool OnApplicationWantsToQuit()
+    {
+        IsApplicationQuitting = true;
+
+        return true;
+    }
+
+    private static void OnApplicationQuitting()
+    {
+        IsApplicationQuitting = true;
+    }
+
     private static bool OnUnload(UnityModManager.ModEntry modEntry)
     {
+        var applicationQuitting = IsApplicationQuitting;
+
         TryCleanup(() =>
         {
             Menu?.Unload(modEntry);
             Menu = null;
         });
         TryCleanup(() => modEntry.OnShowGUI = null);
-        TryCleanup(SpeechContext.Unload);
+        TryCleanup(() => Application.wantsToQuit -= OnApplicationWantsToQuit);
+        TryCleanup(() => Application.quitting -= OnApplicationQuitting);
+        TryCleanup(() => SpeechContext.Unload(!applicationQuitting));
         TryCleanup(UpdateContext.Unload);
-        TryCleanup(TranslatorContext.Unload);
-        TryCleanup(CustomModels.Unload);
-        TryCleanup(Sprites.Unload);
-        TryCleanup(UI.Unload);
-        TryCleanup(GUIHelper.Unload);
+        TryCleanup(() => CampaignTranslationExecutor.Unload(!applicationQuitting));
+        TryCleanup(TranslationServiceFactory.Unload);
+
+        if (!applicationQuitting)
+        {
+            TryCleanup(TranslatorContext.Unload);
+            TryCleanup(CustomModels.Unload);
+            TryCleanup(Sprites.Unload);
+            TryCleanup(UI.Unload);
+            TryCleanup(GUIHelper.Unload);
+        }
+
         TryCleanup(Global.ResetTransientStateForUnload);
         TryCleanup(() => { Mod?.Unload(modEntry); });
 

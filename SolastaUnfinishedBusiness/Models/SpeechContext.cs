@@ -863,6 +863,11 @@ internal static class SpeechContext
 
     internal static void Unload()
     {
+        Unload(true);
+    }
+
+    internal static void Unload(bool destroyUnityObjects)
+    {
         lock (SpeechLock)
         {
             Unloading = true;
@@ -883,8 +888,8 @@ internal static class SpeechContext
         }
 
         StopSpeechProcesses();
-        PiperPlusVoiceDownloader.Unload();
-        VoicesDownloader.Unload();
+        PiperPlusVoiceDownloader.Unload(destroyUnityObjects);
+        VoicesDownloader.Unload(destroyUnityObjects);
     }
 
     internal static void NotifyVanillaSpeechConcluded()
@@ -1819,14 +1824,14 @@ internal static class SpeechContext
             StartCoroutine(_coroutine);
         }
 
-        internal static void Unload()
+        internal static void Unload(bool destroyUnityObject)
         {
             if (!_shared)
             {
                 return;
             }
 
-            if (_shared._coroutine != null)
+            if (destroyUnityObject && _shared._coroutine != null)
             {
                 _shared.StopCoroutine(_shared._coroutine);
                 _shared._coroutine = null;
@@ -1834,8 +1839,12 @@ internal static class SpeechContext
 
             _shared._languageProfile = null;
             _shared._progress = 0f;
-            Destroy(_shared.gameObject);
-            _shared = null;
+
+            if (destroyUnityObject)
+            {
+                Destroy(_shared.gameObject);
+                _shared = null;
+            }
         }
 
         private IEnumerator DownloadVoiceImpl(SpeechLanguageProfile languageProfile)
@@ -1905,22 +1914,26 @@ internal static class SpeechContext
                 : Gui.Localize("ModUi/&DownloadVoice");
         }
 
-        internal static void Unload()
+        internal static void Unload(bool destroyUnityObject)
         {
             if (!_shared)
             {
                 return;
             }
 
-            if (_shared._coroutine != null)
+            if (destroyUnityObject && _shared._coroutine != null)
             {
                 _shared.StopCoroutine(_shared._coroutine);
                 _shared._coroutine = null;
             }
 
             _shared._progress = 0f;
-            Destroy(_shared.gameObject);
-            _shared = null;
+
+            if (destroyUnityObject)
+            {
+                Destroy(_shared.gameObject);
+                _shared = null;
+            }
         }
 
         private void UpdateProgress(ref int loaded, int total)

@@ -22,6 +22,8 @@ internal sealed class GoogleTranslationService : ITranslationService
 
     private static readonly HttpClient HttpClient;
     private static readonly ConcurrentBag<WebClient> WebClients = [];
+    private static readonly ConcurrentDictionary<WebClient, byte> ActiveWebClients = new();
+    private static readonly ConcurrentDictionary<WebClient, byte> DisposedWebClients = new();
 
     static GoogleTranslationService()
     {
@@ -101,10 +103,18 @@ internal sealed class GoogleTranslationService : ITranslationService
     private static async Task<string> GetPayloadWebClient([NotNull] string url)
     {
         var client = GetWebClient();
-        var payload = await client.DownloadStringTaskAsync(new Uri(url));
-        ReturnWebClient(client);
 
-        return payload;
+        ActiveWebClients.TryAdd(client, 0);
+
+        try
+        {
+            return await client.DownloadStringTaskAsync(new Uri(url));
+        }
+        finally
+        {
+            ActiveWebClients.TryRemove(client, out _);
+            ReturnWebClient(client);
+        }
     }
 
     private static WebClient GetWebClient()
@@ -125,7 +135,48 @@ internal sealed class GoogleTranslationService : ITranslationService
 
     private static void ReturnWebClient(WebClient client)
     {
+        if (DisposedWebClients.TryRemove(client, out _))
+        {
+            return;
+        }
+
         WebClients.Add(client);
+    }
+
+    internal static void Unload()
+    {
+        while (WebClients.TryTake(out var client))
+        {
+            DisposeWebClient(client);
+        }
+
+        foreach (var client in ActiveWebClients.Keys)
+        {
+            DisposeWebClient(client);
+        }
+    }
+
+    private static void DisposeWebClient(WebClient client)
+    {
+        DisposedWebClients.TryAdd(client, 0);
+
+        try
+        {
+            client.CancelAsync();
+        }
+        catch
+        {
+            // best effort cleanup
+        }
+
+        try
+        {
+            client.Dispose();
+        }
+        catch
+        {
+            // best effort cleanup
+        }
     }
 
     private static async Task<string> GetPayloadHttpClient(string url, CancellationToken cancellationToken)
