@@ -244,6 +244,17 @@ internal static partial class SpellBuilders
     {
         const string NAME = "PsychicScream";
 
+        var damageForm = EffectFormBuilder
+            .Create()
+            .HasSavingThrow(EffectSavingThrowType.HalfDamage)
+            .SetDamageForm(DamageTypePsychic, 14, DieType.D6)
+            .Build();
+        var stunForm = EffectFormBuilder
+            .Create()
+            .HasSavingThrow(EffectSavingThrowType.Negates, TurnOccurenceType.EndOfTurn, true)
+            .SetConditionForm(ConditionDefinitions.ConditionStunned, ConditionForm.ConditionOperation.Add)
+            .Build();
+
         return SpellDefinitionBuilder
             .Create(NAME)
             .SetGuiPresentation(Category.Spell, Sprites.GetSprite(NAME, Resources.PsychicScream, 128))
@@ -261,18 +272,7 @@ internal static partial class SpellBuilders
                     .SetTargetingData(Side.All, RangeType.Distance, 18, TargetType.IndividualsUnique, 10)
                     .SetSavingThrowData(false, AttributeDefinitions.Intelligence, false,
                         EffectDifficultyClassComputation.SpellCastingFeature)
-                    .SetEffectForms(
-                        EffectFormBuilder
-                            .Create()
-                            .HasSavingThrow(EffectSavingThrowType.Negates, TurnOccurenceType.EndOfTurn, true)
-                            .SetConditionForm(ConditionDefinitions.ConditionStunned,
-                                ConditionForm.ConditionOperation.Add)
-                            .Build(),
-                        EffectFormBuilder
-                            .Create()
-                            .HasSavingThrow(EffectSavingThrowType.HalfDamage)
-                            .SetDamageForm(DamageTypePsychic, 14, DieType.D6)
-                            .Build())
+                    .SetEffectForms(damageForm, stunForm)
                     .SetParticleEffectParameters(PowerWordStun)
                     .Build())
             .AddToDB();

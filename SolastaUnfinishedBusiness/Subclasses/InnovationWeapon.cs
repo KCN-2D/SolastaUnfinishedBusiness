@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -25,6 +27,8 @@ public sealed class InnovationWeapon : AbstractSubclass
     private const string CommandSteelDefenderCondition = "ConditionInventorWeaponSteelDefenerCommand";
     private const string SummonSteelDefenderPower = "PowerInnovationWeaponSummonSteelDefender";
     private const string SummonAdvancedSteelDefenderPower = "PowerInnovationWeaponSummonAdvancedSteelDefender";
+    private const string ArcaneJoltPower = "PowerInnovationWeaponArcaneJolt";
+    private const string ArcaneJoltSprite = "InventorArcaneJolt";
 
     public InnovationWeapon()
     {
@@ -466,28 +470,37 @@ public sealed class InnovationWeapon : AbstractSubclass
     {
         //TODO: make Steel defender able to trigger this power
         //TODO: bonus points if we manage to add healing part of this ability
-        return FeatureDefinitionPowerBuilder
-            .Create("PowerInnovationWeaponArcaneJolt")
+        var power = FeatureDefinitionPowerBuilder
+            .Create(ArcaneJoltPower)
             .SetGuiPresentation(Category.Feature,
-                Sprites.GetSprite("InventorArcaneJolt", Resources.InventorArcaneJolt, 256, 128))
+                Sprites.GetSprite(ArcaneJoltSprite, Resources.InventorArcaneJolt, 256, 128))
             .SetUsesAbilityBonus(ActivationTime.OnAttackHit, RechargeRate.LongRest, AttributeDefinitions.Intelligence)
             .SetEffectDescription(
                 EffectDescriptionBuilder
                     .Create()
                     .SetTargetingData(Side.Enemy, RangeType.Distance, 1, TargetType.IndividualsUnique)
-                    .SetEffectForms(
-                        EffectFormBuilder
-                            .Create()
-                            .SetDamageForm(DamageTypeForce, 2, DieType.D6)
-                            .SetDiceAdvancement(LevelSourceType.CharacterLevel, 0, 2, 6, 9)
-                            .Build())
+                    .SetEffectForms(BuildArcaneJoltDamageForm())
                     .Build())
-            .AddCustomSubFeatures(
-                CountPowerUseInSpecialFeatures.Marker,
-                ValidatorsValidatePowerUse.UsedLessTimesThan(1),
-                ModifyPowerVisibility.Default)
             .SetShowCasting(false)
+            .DelegatedToAction()
             .AddToDB();
+
+        power.AddCustomSubFeatures(
+            CountPowerUseInSpecialFeatures.Marker,
+            ValidatorsValidatePowerUse.UsedLessTimesThan(1),
+            ModifyPowerVisibility.Default,
+            new PhysicalAttackBeforeHitConfirmedOnEnemyArcaneJolt(power));
+
+        return power;
+    }
+
+    private static EffectForm BuildArcaneJoltDamageForm()
+    {
+        return EffectFormBuilder
+            .Create()
+            .SetDamageForm(DamageTypeForce, 2, DieType.D6)
+            .SetDiceAdvancement(LevelSourceType.CharacterLevel, 0, 2, 6, 9)
+            .Build();
     }
 
     private static FeatureDefinitionFeatureSet BuildImprovedDefenderFeatureSet(
@@ -582,6 +595,42 @@ public sealed class InnovationWeapon : AbstractSubclass
         public bool CanUsePower(RulesetCharacter character, FeatureDefinitionPower featureDefinitionPower)
         {
             return Gui.Battle != null && GetBladeDefender(character) != null;
+        }
+    }
+
+    private sealed class PhysicalAttackBeforeHitConfirmedOnEnemyArcaneJolt(FeatureDefinitionPower powerArcaneJolt)
+        : IPhysicalAttackBeforeHitConfirmedOnEnemy
+    {
+        public IEnumerator OnPhysicalAttackBeforeHitConfirmedOnEnemy(
+            GameLocationBattleManager battleManager,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            ActionModifier actionModifier,
+            RulesetAttackMode attackMode,
+            bool rangedAttack,
+            AdvantageType advantageType,
+            List<EffectForm> actualEffectForms,
+            bool firstTarget,
+            bool criticalHit)
+        {
+            var rulesetAttacker = attacker.RulesetCharacter;
+
+            if (Gui.Battle == null ||
+                !attacker.IsOppositeSide(defender.Side) ||
+                defender.RulesetCharacter is not { IsDeadOrDyingOrUnconscious: false } ||
+                !rulesetAttacker.CanUsePower(powerArcaneJolt, true, true))
+            {
+                yield break;
+            }
+
+            var usablePower = PowerProvider.Get(powerArcaneJolt, rulesetAttacker);
+
+            yield return attacker.MyReactToSpendPower(
+                usablePower,
+                attacker,
+                ArcaneJoltPower,
+                reactionValidated: () => actualEffectForms.Add(BuildArcaneJoltDamageForm()),
+                battleManager: battleManager);
         }
     }
 
