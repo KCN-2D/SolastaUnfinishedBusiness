@@ -135,21 +135,24 @@ public static class CharacterActionPanelPatcher
         private static int FilterActions(List<Id> actions, CharacterActionPanel panel)
         {
             var character = panel.GuiCharacter.RulesetCharacter;
+            var locationCharacter = panel.GuiCharacter.GameLocationCharacter;
             var inBattle = Gui.Battle != null;
 
             //PATCH: reorder the actions panel in case we have custom toggles
             CustomActionIdContext.ReorderToggles(actions);
 
             //PATCH: hide power button on action panel if no valid powers to use or see
-            actions.RemoveAll(id => ActionIsInvalid(id, character, inBattle));
+            actions.RemoveAll(id => ActionIsInvalid(id, character, locationCharacter, inBattle));
 
             return actions.Count;
         }
 
-        private static bool ActionIsInvalid(Id id, RulesetCharacter character, bool battle)
+        private static bool ActionIsInvalid(Id id, RulesetCharacter character, GameLocationCharacter locationCharacter,
+            bool battle)
         {
             return id switch
             {
+                Id.ActionSurge => !Level20Context.CanUseActionSurgeThisTurn(locationCharacter),
                 Id.PowerMain => !character.CanSeeAndUseAtLeastOnePower(ActionType.Main, battle),
                 Id.PowerBonus => !character.CanSeeAndUseAtLeastOnePower(ActionType.Bonus, battle),
                 Id.PowerNoCost => !character.CanSeeAndUseAtLeastOnePower(ActionType.NoCost, battle),

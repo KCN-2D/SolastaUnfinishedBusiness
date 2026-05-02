@@ -1185,6 +1185,15 @@ public static class RulesetActorPatcher
                 return;
             }
 
+            var proficiencyBonusAttribute = hero.GetAttribute(AttributeDefinitions.ProficiencyBonus);
+
+            if (!proficiencyBonusAttribute.upToDate)
+            {
+                proficiencyBonusAttribute.Refresh();
+            }
+
+            var proficiencyBonus = proficiencyBonusAttribute.CurrentValue;
+
             foreach (var attribute in actor.Attributes)
             {
                 var rulesetAttribute = attribute.Value;
@@ -1213,16 +1222,12 @@ public static class RulesetActorPatcher
                             break;
                         case AttributeModifierOperation.AddHalfProficiencyBonus:
                         {
-                            var halfPb = hero.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus) / 2;
-
-                            attributeModifier.Value = halfPb;
+                            attributeModifier.Value = proficiencyBonus / 2;
                             break;
                         }
                         case AttributeModifierOperation.AddProficiencyBonus:
                         {
-                            var pb = hero.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
-
-                            attributeModifier.Value = pb;
+                            attributeModifier.Value = proficiencyBonus;
                             break;
                         }
                         case AttributeModifierOperation.Additive when

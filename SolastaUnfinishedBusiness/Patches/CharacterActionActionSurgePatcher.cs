@@ -2,6 +2,8 @@
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -14,25 +16,31 @@ public static class CharacterActionActionSurgePatcher
     [UsedImplicitly]
     public static class ExecuteImpl_Patch
     {
-        private static bool _usedBonusSpell;
-
         [UsedImplicitly]
         public static bool Prefix(ref IEnumerator __result, CharacterActionActionSurge __instance)
         {
-            _usedBonusSpell = __instance.ActingCharacter.UsedBonusSpell;
-            __result = Process(__instance);
+            var actingCharacter = __instance.ActingCharacter;
+
+            __result = Level20Context.CanUseActionSurgeThisTurn(actingCharacter)
+                ? Process(__instance, actingCharacter.UsedBonusSpell)
+                : DoNothing();
 
             return false;
         }
 
-        private static IEnumerator Process(CharacterAction action)
+        private static IEnumerator DoNothing()
+        {
+            yield break;
+        }
+
+        private static IEnumerator Process(CharacterAction action, bool usedBonusSpell)
         {
             var actionService = ServiceRepository.GetService<IGameLocationActionService>();
             var actionParams = action.ActionParams.Clone();
 
             action.ActingCharacter.UsedMainSpell = false;
-            action.ActingCharacter.UsedMainSpell = false;
-            action.ActingCharacter.UsedBonusSpell = _usedBonusSpell;
+            action.ActingCharacter.UsedBonusSpell = usedBonusSpell;
+            action.ActingCharacter.SetSpecialFeatureUses(Level20Context.ActionSurgeOncePerTurnName, 1);
             actionParams.ActionDefinition = actionService.AllActionDefinitions[ActionDefinitions.Id.PowerNoCost];
             //directly instantiate UsePower action instead of using CharacterAction.InstantiateAction - that one seems to fail here for some reason
             action.ResultingActions.Add(new CharacterActionUsePower(actionParams));

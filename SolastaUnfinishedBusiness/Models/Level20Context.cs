@@ -35,6 +35,7 @@ namespace SolastaUnfinishedBusiness.Models;
 
 internal static class Level20Context
 {
+    internal const string ActionSurgeOncePerTurnName = "PowerFighterActionSurge.OncePerTurn";
     internal const string PowerWarlockEldritchMasterName = "PowerWarlockEldritchMaster";
     internal const int ModMaxLevel = 20;
     internal const int ModMaxExperience = 355000;
@@ -390,6 +391,11 @@ internal static class Level20Context
             new FeatureUnlockByLevel(FeatureSetAbilityScoreChoice, 19),
             new FeatureUnlockByLevel(AttributeModifierFighterExtraAttack, 20)
         );
+    }
+
+    internal static bool CanUseActionSurgeThisTurn(GameLocationCharacter character)
+    {
+        return Gui.Battle == null || character != null && character.OnceInMyTurnIsValid(ActionSurgeOncePerTurnName);
     }
 
     private static void MonkLoad()
@@ -1349,4 +1355,5 @@ internal static class Level20Context
             character.LogCharacterUsedFeature(featureDefinition);
         }
     }
+
 }
