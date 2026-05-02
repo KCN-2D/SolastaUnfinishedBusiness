@@ -66,12 +66,16 @@ internal static class AttacksOfOpportunity
             .Where(u => u.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false })
             .ToArray(); // avoid changing enumerator
 
+        if (!MovementTracker.TryGetMovement(mover.Guid, out var movement))
+        {
+            yield break;
+        }
+
         //Process other participants of the battle
         foreach (var unit in units)
         {
             if (mover == unit ||
-                mover.Side == unit.Side ||
-                !MovementTracker.TryGetMovement(mover.Guid, out var movement))
+                mover.Side == unit.Side)
             {
                 continue;
             }
@@ -145,6 +149,34 @@ internal class CanMakeAoOOnReachEntered : CustomReactionAttack
     }
 
     public bool AllowRange { get; set; }
+
+    protected override bool CanPerformReactionAttack(
+        GameLocationCharacter attacker,
+        GameLocationCharacter mover,
+        (int3 from, int3 to)? movement,
+        GameLocationBattleManager battleManager,
+        bool allowRange,
+        out RulesetAttackMode mode,
+        out ActionModifier attackModifier)
+    {
+        if (!movement.HasValue)
+        {
+            mode = null;
+            attackModifier = null;
+            return false;
+        }
+
+        return attacker.CanPerformOpportunityAttackOnReachEntered(
+            mover,
+            movement.Value.from,
+            movement.Value.to,
+            out mode,
+            out attackModifier,
+            AccountAoOImmunity,
+            battleManager,
+            WeaponValidator,
+            allowRange);
+    }
 }
 
 internal class CustomReactionAttack
@@ -184,8 +216,8 @@ internal class CustomReactionAttack
         GameLocationActionManager actionManager,
         bool allowRange)
     {
-        if (!attacker.CanPerformOpportunityAttackOnCharacter(mover, movement?.to, movement?.from,
-                out var mode, out var attackModifier, AccountAoOImmunity, battleManager, WeaponValidator, allowRange))
+        if (!CanPerformReactionAttack(
+                attacker, mover, movement, battleManager, allowRange, out var mode, out var attackModifier))
         {
             yield break;
         }
@@ -213,6 +245,27 @@ internal class CustomReactionAttack
         }
 
         RulesetAttackMode.AttackModesPool.Return(attackMode);
+    }
+
+    protected virtual bool CanPerformReactionAttack(
+        GameLocationCharacter attacker,
+        GameLocationCharacter mover,
+        (int3 from, int3 to)? movement,
+        GameLocationBattleManager battleManager,
+        bool allowRange,
+        out RulesetAttackMode mode,
+        out ActionModifier attackModifier)
+    {
+        return attacker.CanPerformOpportunityAttackOnCharacter(
+            mover,
+            movement?.to,
+            movement?.from,
+            out mode,
+            out attackModifier,
+            AccountAoOImmunity,
+            battleManager,
+            WeaponValidator,
+            allowRange);
     }
 
     protected virtual ReactionRequest MakeReactionRequest(GameLocationCharacter attacker,

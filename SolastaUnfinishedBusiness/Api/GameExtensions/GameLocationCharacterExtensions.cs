@@ -674,6 +674,98 @@ public static class GameLocationCharacterExtensions
         return false;
     }
 
+    /**
+     * Finds first attack mode for a target that moved from outside reach to inside reach.
+     */
+    internal static bool CanPerformOpportunityAttackOnReachEntered(this GameLocationCharacter instance,
+        GameLocationCharacter target,
+        int3 positionBefore,
+        int3 positionAfter,
+        out RulesetAttackMode attackMode,
+        out ActionModifier attackModifier,
+        bool accountAoOImmunity,
+        IGameLocationBattleService service = null,
+        IsWeaponValidHandler weaponValidator = null,
+        bool allowRange = false)
+    {
+        service ??= ServiceRepository.GetService<IGameLocationBattleService>();
+        attackMode = null;
+        attackModifier = null;
+
+        if (service == null)
+        {
+            return false;
+        }
+
+        if (accountAoOImmunity && !service.IsValidAttackerForOpportunityAttackOnCharacter(instance, target))
+        {
+            return false;
+        }
+
+        if (Main.Settings.BlindedConditionDontAllowAttackOfOpportunity &&
+            !instance.CanPerceiveTarget(target, positionAfter))
+        {
+            return false;
+        }
+
+        foreach (var mode in instance.RulesetCharacter.AttackModes)
+        {
+            if (mode.Ranged && !allowRange)
+            {
+                continue;
+            }
+
+            if (weaponValidator?.Invoke(mode, null, instance.RulesetCharacter) == false)
+            {
+                continue;
+            }
+
+            var reachRange = mode.Ranged ? mode.MaxRange : mode.ReachRange;
+
+            if (DistanceCalculation.GetDistanceFromCharacters(instance, target, positionBefore) <= reachRange ||
+                DistanceCalculation.GetDistanceFromCharacters(instance, target, positionAfter) > reachRange)
+            {
+                continue;
+            }
+
+            var attackParams = new BattleDefinitions.AttackEvaluationParams();
+            var modifier = new ActionModifier();
+
+            if (mode.Ranged)
+            {
+                attackParams.FillForPhysicalRangeAttack(
+                    instance, instance.LocationPosition, mode, target, positionAfter, modifier);
+            }
+            else
+            {
+                attackParams.FillForPhysicalReachAttack(
+                    instance, instance.LocationPosition, mode, target, positionAfter, modifier);
+            }
+
+            if (service.CanAttack(attackParams))
+            {
+                attackMode = mode;
+                attackModifier = attackParams.attackModifier ?? modifier;
+
+                return true;
+            }
+
+            // Some one-cell melee modes fail the regular attack precheck when the target enters from side cells.
+            // Keep the fallback narrow so ranged and extended-reach attacks retain the normal evaluation.
+            if (mode.Ranged || reachRange > 1)
+            {
+                continue;
+            }
+
+            attackMode = mode;
+            attackModifier = attackParams.attackModifier ?? modifier;
+
+            return true;
+        }
+
+        return false;
+    }
+
     internal static bool CanAct(this GameLocationCharacter character)
     {
         var rulesetCharacter = character.RulesetCharacter;
