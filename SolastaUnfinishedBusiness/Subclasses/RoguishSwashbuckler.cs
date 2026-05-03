@@ -24,6 +24,14 @@ public sealed class RoguishSwashbuckler : AbstractSubclass
 
     public RoguishSwashbuckler()
     {
+        var panacheSprite =
+            Sprites.GetSprite("PowerRoguishSwashbucklerPanache", Resources.IrresistiblePerformance, 128);
+        var elegantManeuverSprite = Sprites.GetSprite(
+            "PowerRoguishSwashbucklerElegantManeuver",
+            Resources.PowerEleganceDash,
+            256,
+            128);
+
         // LEVEL 03 - Rakish Audacity: CHA to Initiative
         var attributeModifierRakishAudacityInitiative = FeatureDefinitionAttributeModifierBuilder
             .Create($"AttributeModifier{Name}RakishAudacityInitiative")
@@ -99,7 +107,9 @@ public sealed class RoguishSwashbuckler : AbstractSubclass
 
         var powerPanache = FeatureDefinitionPowerBuilder
             .Create($"Power{Name}Panache")
-            .SetGuiPresentation(Category.Feature)
+            .SetGuiPresentation(
+                Category.Feature,
+                panacheSprite)
             .SetUsesFixed(ActivationTime.Action, RechargeRate.AtWill)
             .SetEffectDescription(
                 EffectDescriptionBuilder
@@ -113,7 +123,7 @@ public sealed class RoguishSwashbuckler : AbstractSubclass
 
         var featureSetPanache = FeatureDefinitionFeatureSetBuilder
             .Create($"FeatureSet{Name}Panache")
-            .SetGuiPresentation(powerPanache.GuiPresentation.Title, powerPanache.GuiPresentation.Description)
+            .SetGuiPresentation(powerPanache.GuiPresentation.Title, powerPanache.GuiPresentation.Description, panacheSprite)
             .AddFeatureSet(powerPanache)
             .AddToDB();
 
@@ -143,7 +153,9 @@ public sealed class RoguishSwashbuckler : AbstractSubclass
 
         var powerElegantManeuver = FeatureDefinitionPowerBuilder
             .Create($"Power{Name}ElegantManeuver")
-            .SetGuiPresentation(Category.Feature)
+            .SetGuiPresentation(
+                Category.Feature,
+                elegantManeuverSprite)
             .SetUsesFixed(ActivationTime.BonusAction, RechargeRate.AtWill)
             .SetEffectDescription(
                 EffectDescriptionBuilder
