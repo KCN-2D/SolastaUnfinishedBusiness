@@ -302,13 +302,20 @@ internal static class RulesContext
             sanitizedName = "Value";
         }
 
-        var baseTerm = $"Race/&AdditionalLoreFriendly{raceName}{gender}{sanitizedName}";
+        var localizationRaceName = GetAdditionalNameLocalizationRaceName(raceName);
+        var baseTerm = $"Race/&AdditionalLoreFriendly{localizationRaceName}{gender}{sanitizedName}";
 
         additionalNameCounts.TryGetValue(baseTerm, out var occurrence);
         occurrence++;
         additionalNameCounts[baseTerm] = occurrence;
 
         return occurrence == 1 ? $"{baseTerm}Title" : $"{baseTerm}{occurrence}Title";
+    }
+
+    private static string GetAdditionalNameLocalizationRaceName(string raceName)
+    {
+        // These added high elf names reused the existing generic elf localization keys.
+        return raceName == ElfHigh.Name ? "Elf" : raceName;
     }
 
     private static List<string> GetAdditionalNameOptions(CharacterRaceDefinition raceDefinition, string gender)
@@ -342,6 +349,26 @@ internal static class RulesContext
         {
             termData.Languages[englishIndex] = englishText;
         }
+    }
+
+    private static bool HasAdditionalNameCurrentLanguageText(string term)
+    {
+        var languageSourceData = LocalizationManager.Sources[0];
+        var languageIndex = languageSourceData.GetLanguageIndex(LocalizationManager.CurrentLanguage);
+        var termData = languageSourceData.GetTermData(term);
+
+        return languageIndex >= 0 &&
+               termData != null &&
+               termData.Languages.Length > languageIndex &&
+               !string.IsNullOrWhiteSpace(termData.Languages[languageIndex]);
+    }
+
+    private static bool IsCurrentLanguageEnglish()
+    {
+        return string.Equals(
+            LocalizationManager.CurrentLanguageCode,
+            TranslatorContext.English,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private static List<AdditionalNameEntry> ParseAdditionalNameEntries(string payload)
@@ -394,24 +421,33 @@ internal static class RulesContext
 
         var entries = ParseAdditionalNameEntries(Resources.Names);
         var races = DatabaseRepository.GetDatabase<CharacterRaceDefinition>();
+        var isEnglish = IsCurrentLanguageEnglish();
 
         InitializeHalfElfVariantNames();
 
         foreach (var entry in entries)
         {
-            if (races.TryGetElement(entry.RaceName, out var race))
-            {
-                foreach (var targetRace in GetAdditionalNameTargetRaces(race))
-                {
-                    AddAdditionalNameToRace(targetRace, entry.Gender, entry.Term);
-                }
-
-                EnsureAdditionalNameEnglishFallback(entry.Term, entry.Name);
-            }
-            else
+            if (!races.TryGetElement(entry.RaceName, out var race))
             {
                 Main.Error(
                     $"additional names cannot load: {entry.RaceName}\t{entry.Gender}\t{entry.Name}.");
+
+                continue;
+            }
+
+            if (!isEnglish && !HasAdditionalNameCurrentLanguageText(entry.Term))
+            {
+                continue;
+            }
+
+            foreach (var targetRace in GetAdditionalNameTargetRaces(race))
+            {
+                AddAdditionalNameToRace(targetRace, entry.Gender, entry.Term);
+            }
+
+            if (isEnglish)
+            {
+                EnsureAdditionalNameEnglishFallback(entry.Term, entry.Name);
             }
         }
     }
