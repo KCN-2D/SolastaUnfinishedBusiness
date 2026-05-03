@@ -139,6 +139,7 @@ public static class TooltipPanelPatcher
         public static void Postfix(TooltipFeatureSpellParameters __instance)
         {
             Tooltips.ModifyWidth<TooltipFeatureSpellParamsWidthModifier, TooltipFeatureSpellParameters>(__instance);
+            Tooltips.RefreshAdaptiveSpellParameterTopRow(__instance);
         }
     }
 
@@ -178,6 +179,7 @@ public static class TooltipPanelPatcher
         [UsedImplicitly]
         public static void Postfix(TooltipFeatureSpellAdvancement __instance)
         {
+            Tooltips.NormalizeSpellAdvancement(__instance);
             Tooltips.ModifyWidth<TooltipFeatureSpellAdvancementWidthMod, TooltipFeatureSpellAdvancement>(__instance);
         }
     }
@@ -288,6 +290,7 @@ public static class TooltipFeaturePowerParameters_Bind_Patch
     public static void Postfix(TooltipFeaturePowerParameters __instance)
     {
         Tooltips.ModifyWidth<TooltipFeaturePowerParamsWidthMod, TooltipFeaturePowerParameters>(__instance);
+        Tooltips.RefreshAdaptivePowerParameterTopRow(__instance);
     }
 }
 

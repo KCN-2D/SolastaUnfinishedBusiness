@@ -1,4 +1,8 @@
+using System;
 using System.Collections;
+using System.Globalization;
+using System.Text;
+using I2.Loc;
 using SolastaUnfinishedBusiness.Models;
 using TMPro;
 using UnityEngine;
@@ -23,6 +27,60 @@ internal static class UiTextHelpers
     private const float StatTitleAbsoluteMinFontSize = 7f;
     private const float StatValueMinFontScale = 0.72f;
     private const float StatValueAbsoluteMinFontSize = 8f;
+    private const int MaxSpellLevel = 9;
+
+    private static readonly (string Roman, int Level)[] SpellLevelTokens =
+    [
+        ("VIII", 8),
+        ("VII", 7),
+        ("VI", 6),
+        ("IX", 9),
+        ("IV", 4),
+        ("III", 3),
+        ("II", 2),
+        ("V", 5),
+        ("I", 1)
+    ];
+
+    private static readonly string[] SpellLevelTitleLabels = new string[MaxSpellLevel + 1];
+    private static readonly string[] SpellLevelBodyLabels = new string[MaxSpellLevel + 1];
+
+    private static string SpellLevelBodyLanguageCode { get; set; }
+
+    internal static string NormalizeSpellLevelBodyText(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return text;
+        }
+
+        EnsureSpellLevelBodyCache();
+
+        foreach (var (roman, level) in SpellLevelTokens)
+        {
+            var bodyLabel = SpellLevelBodyLabels[level];
+
+            if (string.IsNullOrEmpty(bodyLabel))
+            {
+                continue;
+            }
+
+            var titleLabel = SpellLevelTitleLabels[level];
+
+            if (!string.IsNullOrEmpty(titleLabel) &&
+                !string.Equals(titleLabel, bodyLabel, StringComparison.Ordinal))
+            {
+                text = text.Replace(titleLabel, bodyLabel);
+            }
+
+            if (ContainsWholeAsciiToken(text, roman))
+            {
+                text = ReplaceWholeAsciiToken(text, roman, bodyLabel);
+            }
+        }
+
+        return text;
+    }
 
     internal static void FitSingleLine(GuiLabel label, float minFontScale = TitleMinFontScale,
         float absoluteMin = TitleAbsoluteMinFontSize)
@@ -388,6 +446,149 @@ internal static class UiTextHelpers
     private static bool ShouldUseCjkCompactLineSpacing(TMP_Text text)
     {
         return Main.Settings.FixAsianLanguagesTextWrap && TranslatorContext.HasCJKChar(text.text);
+    }
+
+    private static void EnsureSpellLevelBodyCache()
+    {
+        var languageCode = LocalizationManager.CurrentLanguageCode ?? string.Empty;
+
+        if (string.Equals(SpellLevelBodyLanguageCode, languageCode, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        SpellLevelBodyLanguageCode = languageCode;
+
+        for (var level = 1; level <= MaxSpellLevel; level++)
+        {
+            var titleTerm = $"Rules/&SpellLevel{level}FormatTitle";
+            var titleLabel = Gui.Localize(titleTerm);
+
+            SpellLevelTitleLabels[level] = IsMissingLocalization(titleLabel, titleTerm)
+                ? null
+                : titleLabel;
+
+            var bodyTerm = $"Tooltip/&SpellLevel{level}BodyText";
+            var bodyLabel = Gui.Localize(bodyTerm);
+
+            SpellLevelBodyLabels[level] = IsMissingLocalization(bodyLabel, bodyTerm)
+                ? BuildFallbackSpellLevelBodyLabel(level, SpellLevelTitleLabels[level])
+                : bodyLabel;
+        }
+    }
+
+    private static bool IsMissingLocalization(string value, string term)
+    {
+        return string.IsNullOrWhiteSpace(value) ||
+               string.Equals(value, term, StringComparison.Ordinal);
+    }
+
+    private static string BuildFallbackSpellLevelBodyLabel(int level, string titleLabel)
+    {
+        var numericLevel = level.ToString(CultureInfo.InvariantCulture);
+
+        if (string.IsNullOrEmpty(titleLabel))
+        {
+            return numericLevel;
+        }
+
+        foreach (var (roman, romanLevel) in SpellLevelTokens)
+        {
+            if (romanLevel != level || !ContainsWholeAsciiToken(titleLabel, roman))
+            {
+                continue;
+            }
+
+            var replaced = ReplaceWholeAsciiToken(titleLabel, roman, numericLevel);
+
+            if (!string.Equals(replaced, titleLabel, StringComparison.Ordinal))
+            {
+                return replaced;
+            }
+        }
+
+        return titleLabel.IndexOf(numericLevel, StringComparison.Ordinal) >= 0
+            ? titleLabel
+            : numericLevel;
+    }
+
+    private static bool ContainsWholeAsciiToken(string text, string token)
+    {
+        var index = 0;
+
+        while (index < text.Length)
+        {
+            var found = text.IndexOf(token, index, StringComparison.Ordinal);
+
+            if (found < 0)
+            {
+                return false;
+            }
+
+            if (IsWholeAsciiToken(text, found, token.Length))
+            {
+                return true;
+            }
+
+            index = found + token.Length;
+        }
+
+        return false;
+    }
+
+    private static string ReplaceWholeAsciiToken(string text, string token, string replacement)
+    {
+        var index = 0;
+        StringBuilder builder = null;
+
+        while (index < text.Length)
+        {
+            var found = text.IndexOf(token, index, StringComparison.Ordinal);
+
+            if (found < 0)
+            {
+                if (builder != null)
+                {
+                    builder.Append(text, index, text.Length - index);
+                }
+
+                break;
+            }
+
+            if (!IsWholeAsciiToken(text, found, token.Length))
+            {
+                if (builder != null)
+                {
+                    builder.Append(text, index, found + token.Length - index);
+                }
+
+                index = found + token.Length;
+                continue;
+            }
+
+            builder ??= new StringBuilder(text.Length + replacement.Length);
+            builder.Append(text, index, found - index);
+            builder.Append(replacement);
+            index = found + token.Length;
+        }
+
+        return builder?.ToString() ?? text;
+    }
+
+    private static bool IsWholeAsciiToken(string text, int index, int length)
+    {
+        var previous = index - 1;
+        var next = index + length;
+
+        return (previous < 0 || !IsAsciiLetterOrDigit(text[previous])) &&
+               (next >= text.Length || !IsAsciiLetterOrDigit(text[next]));
+    }
+
+    private static bool IsAsciiLetterOrDigit(char character)
+    {
+        return character >= 'A' && character <= 'Z' ||
+               character >= 'a' && character <= 'z' ||
+               character >= '0' && character <= '9';
     }
 
     internal static void KeepSpellBoxTextInside(SpellBox spellBox)

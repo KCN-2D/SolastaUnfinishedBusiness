@@ -2,6 +2,7 @@
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
@@ -34,6 +35,18 @@ public static class GuiSpellDefinitionPatcher
         {
             //PATCH: support for ICustomMagicEffectBasedOnCaster allowing to pick spell effect for GUI depending on caster properties
             __result = PowerBundle.ModifyMagicEffectGui(__result, __instance.SpellDefinition);
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiSpellDefinition), nameof(GuiSpellDefinition.AdvancementMethod), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class AdvancementMethod_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(ref string __result)
+        {
+            __result = UiTextHelpers.NormalizeSpellLevelBodyText(__result);
         }
     }
 

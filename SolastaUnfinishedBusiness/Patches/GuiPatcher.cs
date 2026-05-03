@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -85,6 +86,33 @@ public static class GuiPatcher
                     "Rules/&SpellSlotFormRecoverSorceryHalfLevelDownFormat"),
                 _ => __result
             };
+        }
+    }
+
+    [HarmonyPatch(typeof(Gui), nameof(Gui.FormatCounterForm))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class FormatCounterForm_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(ref string __result, CounterForm counterForm)
+        {
+            var format = counterForm.Type switch
+            {
+                CounterForm.CounterType.DissipateSpells => "Rules/&CounterFormDissipateSpellsFormat",
+                CounterForm.CounterType.InterruptSpellcasting => "Rules/&CounterFormInterruptSpellcastingFormat",
+                _ => null
+            };
+
+            if (format == null)
+            {
+                return;
+            }
+
+            __result = Gui.Format(
+                format,
+                counterForm.AutomaticSpellLevel.ToString(CultureInfo.InvariantCulture),
+                counterForm.CheckBaseDC.ToString(CultureInfo.InvariantCulture));
         }
     }
 

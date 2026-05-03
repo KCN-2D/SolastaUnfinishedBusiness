@@ -7,6 +7,7 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Models;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 using static RuleDefinitions.EffectDifficultyClassComputation;
 using Object = UnityEngine.Object;
 
@@ -285,6 +286,218 @@ internal static class Tooltips
         }
 
         component.Apply();
+    }
+
+    internal static void NormalizeSpellAdvancement(TooltipFeatureSpellAdvancement parent)
+    {
+        if (!parent || !parent.advancementLabel)
+        {
+            return;
+        }
+
+        parent.advancementLabel.Text = UiTextHelpers.NormalizeSpellLevelBodyText(parent.advancementLabel.Text);
+    }
+
+    internal static void RefreshAdaptiveSpellParameterTopRow(TooltipFeatureSpellParameters parent)
+    {
+        RefreshAdaptiveParameterTopRow(parent?.verticalLayout);
+    }
+
+    internal static void RefreshAdaptivePowerParameterTopRow(TooltipFeaturePowerParameters parent)
+    {
+        RefreshAdaptiveParameterTopRow(parent?.verticalLayout);
+    }
+
+    private static void RefreshAdaptiveParameterTopRow(Transform verticalLayout)
+    {
+        if (!verticalLayout)
+        {
+            return;
+        }
+
+        if (verticalLayout.Find("TopTable") is not RectTransform topTable ||
+            !topTable.gameObject.activeInHierarchy ||
+            !TryGetTwoActiveParameterGroups(topTable, out var leftGroup, out var rightGroup))
+        {
+            return;
+        }
+
+        var topState = TooltipParameterLayoutState.Get(topTable);
+
+        topState.Restore(topTable);
+
+        var requiredHeight = Mathf.Max(
+            topState.OriginalHeight,
+            RefreshAdaptiveParameterGroup(leftGroup),
+            RefreshAdaptiveParameterGroup(rightGroup));
+
+        requiredHeight = Mathf.Ceil(requiredHeight);
+        topTable.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, requiredHeight);
+
+        var layout = topState.EnsureLayoutElement(topTable);
+        layout.preferredHeight = requiredHeight;
+        layout.minHeight = Mathf.Max(layout.minHeight, requiredHeight);
+
+        LayoutRebuilder.ForceRebuildLayoutImmediate(topTable);
+
+        if (verticalLayout is RectTransform verticalRect)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(verticalRect);
+        }
+    }
+
+    private static bool TryGetTwoActiveParameterGroups(
+        RectTransform row,
+        out RectTransform leftGroup,
+        out RectTransform rightGroup)
+    {
+        leftGroup = null;
+        rightGroup = null;
+
+        for (var i = 0; i < row.childCount; i++)
+        {
+            if (row.GetChild(i) is not RectTransform child || !child.gameObject.activeInHierarchy)
+            {
+                continue;
+            }
+
+            if (leftGroup == null)
+            {
+                leftGroup = child;
+            }
+            else
+            {
+                rightGroup = child;
+                break;
+            }
+        }
+
+        return leftGroup && rightGroup;
+    }
+
+    private static float RefreshAdaptiveParameterGroup(RectTransform group)
+    {
+        if (!group)
+        {
+            return 0f;
+        }
+
+        var groupState = TooltipParameterLayoutState.Get(group);
+
+        groupState.Restore(group);
+
+        var width = group.rect.width;
+
+        if (width <= 1f)
+        {
+            return groupState.OriginalHeight;
+        }
+
+        var requiredHeight = groupState.OriginalHeight;
+
+        foreach (var text in group.GetComponentsInChildren<TMP_Text>(false))
+        {
+            if (!text || text.rectTransform == null || !text.gameObject.activeInHierarchy)
+            {
+                continue;
+            }
+
+            var rectTransform = text.rectTransform;
+            var textState = TooltipParameterLayoutState.Get(rectTransform);
+
+            textState.Restore(rectTransform);
+
+            rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+            text.enableWordWrapping = true;
+            text.overflowMode = TextOverflowModes.Overflow;
+            text.maxVisibleLines = 99999;
+
+            var preferred = text.GetPreferredValues(text.text, width, 0f);
+            var height = Mathf.Ceil(Mathf.Max(textState.OriginalHeight, preferred.y));
+
+            rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            requiredHeight = Mathf.Max(requiredHeight, -rectTransform.anchoredPosition.y + height + 2f);
+        }
+
+        requiredHeight = Mathf.Ceil(requiredHeight);
+        group.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, requiredHeight);
+
+        return requiredHeight;
+    }
+}
+
+internal sealed class TooltipParameterLayoutState : MonoBehaviour
+{
+    private bool _captured;
+    private bool _hadLayoutElement;
+    private float _originalMinHeight;
+    private float _originalPreferredHeight;
+    private float _originalFlexibleHeight;
+
+    internal float OriginalHeight { get; private set; }
+
+    internal static TooltipParameterLayoutState Get(RectTransform rectTransform)
+    {
+        var state = rectTransform.GetComponent<TooltipParameterLayoutState>() ??
+                    rectTransform.gameObject.AddComponent<TooltipParameterLayoutState>();
+
+        state.Capture(rectTransform);
+
+        return state;
+    }
+
+    internal LayoutElement EnsureLayoutElement(RectTransform rectTransform)
+    {
+        return rectTransform.GetComponent<LayoutElement>() ??
+               rectTransform.gameObject.AddComponent<LayoutElement>();
+    }
+
+    internal void Restore(RectTransform rectTransform)
+    {
+        if (!_captured || !rectTransform)
+        {
+            return;
+        }
+
+        rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, OriginalHeight);
+
+        if (!rectTransform.TryGetComponent<LayoutElement>(out var layout))
+        {
+            return;
+        }
+
+        if (_hadLayoutElement)
+        {
+            layout.minHeight = _originalMinHeight;
+            layout.preferredHeight = _originalPreferredHeight;
+            layout.flexibleHeight = _originalFlexibleHeight;
+        }
+        else
+        {
+            layout.minHeight = -1f;
+            layout.preferredHeight = -1f;
+            layout.flexibleHeight = -1f;
+        }
+    }
+
+    private void Capture(RectTransform rectTransform)
+    {
+        if (_captured || !rectTransform)
+        {
+            return;
+        }
+
+        OriginalHeight = rectTransform.rect.height;
+        _hadLayoutElement = rectTransform.TryGetComponent<LayoutElement>(out var layout);
+
+        if (_hadLayoutElement)
+        {
+            _originalMinHeight = layout.minHeight;
+            _originalPreferredHeight = layout.preferredHeight;
+            _originalFlexibleHeight = layout.flexibleHeight;
+        }
+
+        _captured = true;
     }
 }
 

@@ -10,6 +10,7 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
+using UnityEngine.UI;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -17,6 +18,28 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterStageClassSelectionPanelPatcher
 {
+    private static void RefreshClassContentLayout(CharacterStageClassSelectionPanel panel)
+    {
+        if (!panel)
+        {
+            return;
+        }
+
+        var changed = false;
+
+        foreach (var item in panel.GetComponentsInChildren<FeatureDescriptionItem>(false))
+        {
+            changed |= FeatureDescriptionItemPatcher.RefreshSelectionFeatureDisplayLayout(item);
+        }
+
+        if (!changed || panel.transform is not RectTransform rectTransform)
+        {
+            return;
+        }
+
+        LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
+    }
+
     [HarmonyPatch(typeof(CharacterStageClassSelectionPanel), nameof(CharacterStageClassSelectionPanel.OnBeginShow))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -180,6 +203,12 @@ public static class CharacterStageClassSelectionPanelPatcher
                 new CodeInstruction(OpCodes.Ldfld, currentHeroField),
                 new CodeInstruction(OpCodes.Call, mySetActiveMethod),
                 new CodeInstruction(OpCodes.Call, setActiveMethod)); // checked for Call vs CallVirtual
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(CharacterStageClassSelectionPanel __instance)
+        {
+            RefreshClassContentLayout(__instance);
         }
     }
 }
