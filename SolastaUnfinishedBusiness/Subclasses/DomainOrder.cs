@@ -264,8 +264,10 @@ public sealed class DomainOrder : AbstractSubclass
             new OrdersWrathAdditionalDamageHandler(conditionCursedByOrdersWrath, conditionApplyAdditionalDamage));
 
 
-        var description = Gui.Format($"Feature/&Power{Name}OrdersWrathDescription",
-            Main.Settings.EnableClericBlessedStrikes2024 ? "Blessed Strikes" : "Divine Strike");
+        var ordersWrathTrigger = Main.Settings.EnableClericBlessedStrikes2024
+            ? Gui.Localize("Feature/&FeatureSetClericBlessedStrikesTitle")
+            : DivineStrike.FormatTitle();
+        var description = Gui.Format($"Feature/&Power{Name}OrdersWrathDescription", ordersWrathTrigger);
         var powerOrdersWrath = FeatureDefinitionPowerBuilder
             .Create($"Power{Name}OrdersWrath")
             .SetGuiPresentation(Category.Feature, description)
