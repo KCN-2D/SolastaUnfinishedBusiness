@@ -294,7 +294,8 @@ public static class FeatureDescriptionItemPatcher
     {
         return item &&
                (item.GetComponentInParent<CharacterStageRaceSelectionPanel>() ||
-                item.GetComponentInParent<CharacterStageClassSelectionPanel>());
+                item.GetComponentInParent<CharacterStageClassSelectionPanel>() ||
+                item.GetComponentInParent<CharacterStageSubclassSelectionPanel>());
     }
 
     private static bool PlaceSelectionFeatureText(GuiLabel label, ref float cursor)
