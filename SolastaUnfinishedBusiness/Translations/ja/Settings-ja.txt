@@ -19,7 +19,7 @@ ModUi/&AddToStore={0}を追加
 ModUi/&Advanced=<color=#F0DAA0>詳細：</color><b><i><color=#C04040E0>[再起動が必要]</color></i></b>
 ModUi/&AdvancedHelp=• <b><color=#C04040E0>注意：</color></b>これらの設定を行うには、プレイヤーがこのMODをインストールしている必要があります。
 ModUi/&AllowAllPlayersOnNarrativeSequences=<i>+ 物語シーンですべてのプレイヤーを許可する</i>
-ModUi/&AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness=自然の暗闇の中で、味方が<b>暗がりの追跡者</b>を知覚できるようにします
+ModUi/&AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness=自然の暗闇の中で、味方が<b>暗中の追跡者</b>を知覚できるようにします
 ModUi/&AllowAnyClassToWearSylvanArmor=どのクラスでも<color=#D89555>シルヴァン・アーマー</color>または<color=#D89555>ライトブリンガーの服</color>を着用できるようにします
 ModUi/&AllowBladeCantripsToUseReach=<color=#D89555>ブレード初級呪文</color>が1マスではなく武器の間合いを使用できるようにします
 ModUi/&AllowClubsToBeThrown=<color=#D89555>クラブ</color>を<color=#D89555>ダガー</color>や<color=#D89555>ハンドアックス</color>のように投げられるようにします

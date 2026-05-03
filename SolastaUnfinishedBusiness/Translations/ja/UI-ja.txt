@@ -5,7 +5,7 @@ UI/&AdditionalActionSource=付与元：{0}
 UI/&Current Party=現在のパーティ
 UI/&DistanceFormat=距離：{0}
 UI/&Experimental Preview:=実験的プレビュー<i><color=Yellow>[使用前にセーブデータをバックアップ]</color></i>：
-UI/&Expert=専門家
+UI/&Expert=習熟強化
 UI/&From=から
 UI/&PartyEditor=パーティエディター
 UI/&PartyEditorMessage=このシンプルなパーティエディターでは、読み込んだゲームセッションのキャラクターを編集できます。問題を報告するには、次をクリックしてください。
