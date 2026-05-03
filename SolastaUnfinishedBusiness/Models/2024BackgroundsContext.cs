@@ -52,9 +52,9 @@ public static partial class Tabletop2024Context
         { BackgroundOccultistName, (AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence, AttributeDefinitions.Charisma) },
         { BackgroundPhilosopherName, (AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom) },
         { BackgroundSellSwordName, (AttributeDefinitions.Strength, AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution) },
-        { BackgroundSpyName, (AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution, AttributeDefinitions.Charisma) },
+        { BackgroundSpyName, (AttributeDefinitions.Dexterity, AttributeDefinitions.Intelligence, AttributeDefinitions.Charisma) },
         { BackgroundWandererName, (AttributeDefinitions.Dexterity, AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma) },
-        { BackgroundDevotedName, (AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom) },
+        { BackgroundDevotedName, (AttributeDefinitions.Strength, AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma) },
         { BackgroundFarmerName, (AttributeDefinitions.Strength, AttributeDefinitions.Constitution, AttributeDefinitions.Wisdom) },
         { BackgroundMilitiaName, (AttributeDefinitions.Strength, AttributeDefinitions.Dexterity, AttributeDefinitions.Wisdom) },
         { BackgroundTroublemakerName, (AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution, AttributeDefinitions.Charisma) }
@@ -91,13 +91,13 @@ public static partial class Tabletop2024Context
         { BackgroundLawkeeperName, (SkillDefinitions.Investigation, SkillDefinitions.Intimidation, ToolTypeDefinitions.ScrollKitType.Name, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
         { BackgroundLowlifeName, (SkillDefinitions.Insight, SkillDefinitions.Stealth, ToolTypeDefinitions.ThievesToolsType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
         { BackgroundOccultistName, (SkillDefinitions.Arcana, SkillDefinitions.Religion, ToolTypeDefinitions.EnchantingToolType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
-        { BackgroundPhilosopherName, (SkillDefinitions.Arcana, SkillDefinitions.History, ToolTypeDefinitions.ScrollKitType.Name, ToolMusicalInstrumentLyreTypeName) },
+        { BackgroundPhilosopherName, (SkillDefinitions.Arcana, SkillDefinitions.History, ToolTypeDefinitions.EnchantingToolType.Name, ToolMusicalInstrumentLyreTypeName) },
         { BackgroundSellSwordName, (SkillDefinitions.Athletics, SkillDefinitions.Intimidation, ToolGamingSetDiceTypeName, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
         { BackgroundSpyName, (SkillDefinitions.Stealth, SkillDefinitions.Deception, ToolTypeDefinitions.DisguiseKitType.Name, ToolTypeDefinitions.ThievesToolsType.Name) },
         { BackgroundWandererName, (SkillDefinitions.Stealth, SkillDefinitions.Survival, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
         { BackgroundDevotedName, (SkillDefinitions.Investigation, SkillDefinitions.Persuasion, ToolTypeDefinitions.ScrollKitType.Name, ToolGamingSetDiceTypeName) },
         { BackgroundFarmerName, (SkillDefinitions.AnimalHandling, SkillDefinitions.Nature, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
-        { BackgroundMilitiaName, (SkillDefinitions.Athletics, SkillDefinitions.Perception, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name, ToolGamingSetDiceTypeName) },
+        { BackgroundMilitiaName, (SkillDefinitions.Athletics, SkillDefinitions.Perception, ToolTypeDefinitions.HerbalismKitType.Name, ToolGamingSetDiceTypeName) },
         { BackgroundTroublemakerName, (SkillDefinitions.Deception, SkillDefinitions.SleightOfHand, ToolGamingSetDiceTypeName, ToolTypeDefinitions.ThievesToolsType.Name) }
     };
 
@@ -221,6 +221,8 @@ public static partial class Tabletop2024Context
             BackgroundAsiFeatures[backgroundName] =
                 BuildBackgroundAsiFeatureSet(backgroundName, attributes.A, attributes.B, attributes.C);
         }
+
+        BuildLegacyBackgroundAsiCompatibilityDefinitions();
 
         foreach (var featName in EnumerateUniqueBackgroundFeatNames())
         {
@@ -1437,10 +1439,58 @@ public static partial class Tabletop2024Context
             .AddToDB();
     }
 
+    private static void BuildLegacyBackgroundAsiCompatibilityDefinitions()
+    {
+        BuildLegacyBackgroundAsiChoiceSet(
+            BackgroundSpyName,
+            AttributeDefinitions.Constitution,
+            AttributeDefinitions.Dexterity,
+            AttributeDefinitions.Charisma);
+        BuildLegacyBackgroundAsiChoiceSet(
+            BackgroundDevotedName,
+            AttributeDefinitions.Constitution,
+            AttributeDefinitions.Intelligence,
+            AttributeDefinitions.Wisdom);
+        BuildLegacyBackgroundAsiChoiceSet(
+            BackgroundDevotedName,
+            AttributeDefinitions.Intelligence,
+            AttributeDefinitions.Constitution,
+            AttributeDefinitions.Wisdom);
+    }
+
+    private static void BuildLegacyBackgroundAsiChoiceSet(
+        string backgroundName,
+        string plusTwoAttribute,
+        string optionA,
+        string optionB)
+    {
+        BuildAttributeModifier(backgroundName, plusTwoAttribute, 1);
+
+        if (TryGetDefinition<FeatureDefinitionFeatureSet>(
+                $"FeatureSetBackgroundASI_{backgroundName}_{plusTwoAttribute}", out _))
+        {
+            return;
+        }
+
+        BuildBackgroundAsiChoiceSet(
+            backgroundName,
+            plusTwoAttribute,
+            optionA,
+            optionB,
+            BuildAttributeModifier(backgroundName, plusTwoAttribute, 2));
+    }
+
     private static FeatureDefinitionAttributeModifier BuildAttributeModifier(string backgroundName, string attribute, int amount)
     {
+        var name = $"AttributeModifierBackgroundASI_{backgroundName}_{attribute}_{amount}";
+
+        if (TryGetDefinition<FeatureDefinitionAttributeModifier>(name, out var attributeModifier))
+        {
+            return attributeModifier;
+        }
+
         return FeatureDefinitionAttributeModifierBuilder
-            .Create($"AttributeModifierBackgroundASI_{backgroundName}_{attribute}_{amount}")
+            .Create(name)
             .SetGuiPresentationNoContent(true)
             .SetModifier(AttributeModifierOperation.Additive, attribute, amount)
             .AddToDB();
