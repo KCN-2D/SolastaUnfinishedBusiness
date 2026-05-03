@@ -20,6 +20,7 @@ ModUi/&AddNewScrollsToTreasure=Ajoutez des parchemins pour de nouveaux sorts aux
 ModUi/&AddNewWeaponsAndRecipesToShops=Ajoutez de nouvelles armes et recettes aux magasins <i><color=#F0DAA0>[bandages de main, hallebardes, piques, longues masses, arbalètes à main]</color></i> <b><i><color=#C04040E0>[Nécessite un redémarrage]</color></i></b>
 ModUi/&AddPaladinSmiteToggle=Ajoutez une option pour permettre aux <color=#D89555>paladins</color> d'activer uniquement les coups critiques <i><color=#F0DAA0>[utile pour minimiser les invites de réaction]</color></i>
 ModUi/&AddPickPocketableLoot=Ajouter un butin pouvant être volé à la tire <i><color=#F0DAA0>[suggéré si l'exploit <color=#D89555>Pickpocket</color> est activé]</color></i>
+ModUi/&PickPocketNonHostiles=Ajoute aussi du butin à voler à de nombreux PNJ non hostiles <i><color=#F0DAA0>[un échec affectera la réputation]</color></i>
 ModUi/&AddToStore=Ajouter {0}
 ModUi/&Advanced=<color=#F0DAA0>Avancé :</color> <b><i><color=#C04040E0>[Nécessite un redémarrage]</color></i></b>
 ModUi/&AdvancedHelp=• <b><color=#C04040E0>ATTENTION :</color></b> Ces paramètres nécessiteront que le joueur ait installé ce mod
@@ -28,6 +29,7 @@ ModUi/&AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness=Permettre aux al
 ModUi/&AllowAnyClassToWearSylvanArmor=Autoriser n'importe quelle classe à porter une <color=#D89555>armure sylvestre</color> ou des <color=#D89555>vêtements de porteur de lumière</color>
 ModUi/&AllowBladeCantripsToUseReach=Autoriser les <color=#D89555>sorties de lame</color> à utiliser la portée au lieu de 1,50 m
 ModUi/&AllowClubsToBeThrown=Autoriser les <color=#D89555>matraques</color> à être lancées comme des <color=#D89555>dagues</color> ou des <color=#D89555>haches à main</color>
+ModUi/&AllMagicThrownReturn=Toutes les armes de jet magiques reviennent dans la main du lanceur <b><i><color=#C04040E0>[Redémarrage requis pour le retirer]</color></i></b>
 ModUi/&AllowDisplayingNonSuggestedSpells=Autoriser les sorts non suggérés par le mod sur chaque liste
 ModUi/&AllowDisplayingOfficialSpells=Autoriser les sorts officiels du jeu sur chaque liste
 ModUi/&AllowDungeonsMaxLevel20=Autoriser les donjons avec un niveau maximum de 20

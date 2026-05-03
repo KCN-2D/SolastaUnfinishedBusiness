@@ -13,6 +13,7 @@ ModUi/&NewWeaponsAndRecipesBaseInsteadOfPrimed=<i>+ Use base weapons and armor a
 ModUi/&NewWeaponsAndRecipesSimplified=<i>+ Use simple all-in-one recipes <color=#F0DAA0>[base ingredients only, does not affect custom items from campaigns]</color></i> <b><i><color=#C04040E0>[Requires Restart]</color></i></b>
 ModUi/&AddPaladinSmiteToggle=Add a toggle to allow <color=#D89555>Divine Smite</color> to only trigger on critical hits <i><color=#F0DAA0>[minimizes reaction prompts, applies to smite spells if 2024 smite spells are enabled]</color></i>
 ModUi/&AddPickPocketableLoot=Add pickpocketable loot <i><color=#F0DAA0>[suggested if <color=#D89555>Pickpocket</color> feat is enabled]</color></i>
+ModUi/&PickPocketNonHostiles=Also add pickpocketable loot to many non-hostile NPCs <i><color=#F0DAA0>[failure will affect reputation]</color></i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=Enemy spellcasters drop scribed spellbooks <i><color=#F0DAA0>[contains their known spells from the wizard list]</color></i>
 ModUi/&AddToStore=Add {0} 
 ModUi/&Advanced=<color=#F0DAA0>Advanced:</color> <b><i><color=#C04040E0>[Requires Restart]</color></i></b>
@@ -22,6 +23,7 @@ ModUi/&AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness=Allow allies to 
 ModUi/&AllowAnyClassToWearSylvanArmor=Allow any class to wear <color=#D89555>Sylvan Armor</color> or <color=#D89555>Lightbringer Clothes</color>
 ModUi/&AllowBladeCantripsToUseReach=Allow <color=#D89555>Blade Cantrips</color> to use reach instead of 5ft
 ModUi/&AllowClubsToBeThrown=Allow <color=#D89555>Clubs</color> to be thrown like <color=#D89555>Daggers</color> or <color=#D89555>Hand Axes</color>
+ModUi/&AllMagicThrownReturn=All magic thrown weapons return to the thrower <b><i><color=#C04040E0>[Requires Restart To Remove]</color></i></b>
 ModUi/&AllowDisplayingNonSuggestedSpells=Allow mod non suggested spells on each list
 ModUi/&AllowDisplayingOfficialSpells=Allow game official spells on each list
 ModUi/&AllowDungeonsMaxLevel20=Allow dungeons with max level 20

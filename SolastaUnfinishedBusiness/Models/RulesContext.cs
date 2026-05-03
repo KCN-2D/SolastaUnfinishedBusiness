@@ -216,6 +216,79 @@ internal static class RulesContext
         }
     }
 
+    private static IReadOnlyList<CharacterRaceDefinition> GetAdditionalNameTargetRaces(CharacterRaceDefinition race)
+    {
+        if (race == Human)
+        {
+            return
+            [
+                Human,
+                HalfElf,
+                RaceHalfElfBuilder.RaceHalfElfHighVariant,
+                RaceHalfElfBuilder.RaceHalfElfSylvanVariant,
+                RaceHalfElfBuilder.RaceHalfElfDarkVariant
+            ];
+        }
+
+        if (race == ElfSylvan)
+        {
+            return
+            [
+                ElfSylvan,
+                HalfElf,
+                RaceHalfElfBuilder.RaceHalfElfSylvanVariant
+            ];
+        }
+
+        if (race == ElfHigh)
+        {
+            return
+            [
+                ElfHigh,
+                SubraceDarkelfBuilder.SubraceDarkelf,
+                SubraceShadarKaiBuilder.SubraceShadarKai,
+                HalfElf,
+                RaceHalfElfBuilder.RaceHalfElfHighVariant,
+                RaceHalfElfBuilder.RaceHalfElfDarkVariant
+            ];
+        }
+
+        if (race == Tiefling)
+        {
+            return
+            [
+                Tiefling,
+                RaceTieflingBuilder.RaceTiefling
+            ];
+        }
+
+        return race.subRaces.Count == 0 ? [race] : race.SubRaces;
+    }
+
+    private static void InitializeHalfElfVariantNames()
+    {
+        var halfElfPresentation = HalfElf.RacePresentation;
+        var defaultMaleNames = halfElfPresentation.MaleNameOptions.ToArray();
+        var defaultFemaleNames = halfElfPresentation.FemaleNameOptions.ToArray();
+        var defaultSurNames = halfElfPresentation.SurNameOptions.ToArray();
+
+        RaceHalfElfBuilder.RaceHalfElfVariant.RacePresentation.MaleNameOptions.Clear();
+        RaceHalfElfBuilder.RaceHalfElfVariant.RacePresentation.FemaleNameOptions.Clear();
+        RaceHalfElfBuilder.RaceHalfElfVariant.RacePresentation.SurNameOptions.Clear();
+
+        foreach (var variant in new[]
+                 {
+                     RaceHalfElfBuilder.RaceHalfElfHighVariant,
+                     RaceHalfElfBuilder.RaceHalfElfSylvanVariant,
+                     RaceHalfElfBuilder.RaceHalfElfDarkVariant
+                 })
+        {
+            variant.RacePresentation.MaleNameOptions.AddRange(defaultMaleNames);
+            variant.RacePresentation.FemaleNameOptions.AddRange(defaultFemaleNames);
+            variant.RacePresentation.SurNameOptions.AddRange(defaultSurNames);
+        }
+    }
+
     private static string BuildAdditionalNameTerm(
         string raceName,
         string gender,
@@ -322,20 +395,15 @@ internal static class RulesContext
         var entries = ParseAdditionalNameEntries(Resources.Names);
         var races = DatabaseRepository.GetDatabase<CharacterRaceDefinition>();
 
+        InitializeHalfElfVariantNames();
+
         foreach (var entry in entries)
         {
             if (races.TryGetElement(entry.RaceName, out var race))
             {
-                if (race.subRaces.Count == 0)
+                foreach (var targetRace in GetAdditionalNameTargetRaces(race))
                 {
-                    AddAdditionalNameToRace(race, entry.Gender, entry.Term);
-                }
-                else
-                {
-                    foreach (var subRace in race.SubRaces)
-                    {
-                        AddAdditionalNameToRace(subRace, entry.Gender, entry.Term);
-                    }
+                    AddAdditionalNameToRace(targetRace, entry.Gender, entry.Term);
                 }
 
                 EnsureAdditionalNameEnglishFallback(entry.Term, entry.Name);

@@ -20,6 +20,7 @@ ModUi/&AddNewScrollsToTreasure=添加新法术的卷轴到适当的宝藏包<b> 
 ModUi/&AddNewWeaponsAndRecipesToShops=在商店中添加新武器和配方<i><color=#F0DAA0>[手套、戟、长矛、长锤、手弩]</color></i> <b><i><color=#C04040E0>[需要重启]</color></i></b>
 ModUi/&AddPaladinSmiteToggle=添加一个开关以允许<color=#D89555>圣骑士</color>仅在暴击时启用至圣斩<i><color=#F0DAA0>[有助于最大限度地减少反应提示]</color></i>
 ModUi/&AddPickPocketableLoot=添加可扒窃的战利品<i><color=#F0DAA0>[建议在启用<color=#D89555>扒窃</color>功能时添加]</color></i>
+ModUi/&PickPocketNonHostiles=也为许多非敌对 NPC 添加可扒窃战利品 <i><color=#F0DAA0>[失败会影响声望]</color></i>
 ModUi/&AddToStore=添加 {0}
 ModUi/&Advanced=<color=#F0DAA0>高级：</color> <b><i><color=#C04040E0>[需要重启]</color></i></b>
 ModUi/&AdvancedHelp=• <b><color=#C04040E0>注意：</color></b>这些设置需要玩家安装此模组
@@ -28,6 +29,7 @@ ModUi/&AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness=允许盟友在�
 ModUi/&AllowAnyClassToWearSylvanArmor=允许任何职业穿戴<color=#D89555>木精灵护甲</color>或<color=#D89555>光明使者服饰</color>
 ModUi/&AllowBladeCantripsToUseReach=允许<color=#D89555>剑类戏法</color>使用触及范围，而不是 5 尺
 ModUi/&AllowClubsToBeThrown=允许像投掷<color=#D89555>匕首</color>或<color=#D89555>手斧</color>那样投掷<color=#D89555>棍棒</color>
+ModUi/&AllMagicThrownReturn=所有魔法投掷武器都会回到投掷者手中 <b><i><color=#C04040E0>[需要重启才能移除]</color></i></b>
 ModUi/&AllowDisplayingNonSuggestedSpells=允许每个列表中的 mod 非建议法术
 ModUi/&AllowDisplayingOfficialSpells=允许每个列表中的游戏官方法术
 ModUi/&AllowDungeonsMaxLevel20=允许最高等级为 20 的地下城

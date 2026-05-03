@@ -85,6 +85,12 @@ internal static class CampaignsDisplay
             }
         }
 
+        toggle = Main.Settings.PickPocketNonHostiles;
+        if (UI.Toggle(Gui.Localize("ModUi/&PickPocketNonHostiles"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.PickPocketNonHostiles = toggle;
+        }
+
         toggle = Main.Settings.EnemySpellcastersDropScribedSpellbooks;
         if (UI.Toggle(Gui.Localize("ModUi/&EnemySpellcastersDropScribedSpellbooks"), ref toggle, UI.AutoWidth()))
         {

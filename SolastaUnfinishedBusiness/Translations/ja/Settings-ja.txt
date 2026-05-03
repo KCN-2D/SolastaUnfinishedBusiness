@@ -13,6 +13,7 @@ ModUi/&NewWeaponsAndRecipesBaseInsteadOfPrimed=<i>+ プライム版ではなく�
 ModUi/&NewWeaponsAndRecipesSimplified=<i>+ シンプルなオールインワンレシピを使用する<color=#F0DAA0>[基本素材のみ、キャンペーンのカスタムアイテムには影響しません]</color></i><b><i><color=#C04040E0>[再起動が必要]</color></i></b>
 ModUi/&AddPaladinSmiteToggle=<color=#D89555>神聖なる一撃</color>をクリティカル・ヒット時のみ発動させる切替を追加します<i><color=#F0DAA0>[リアクション確認を減らします。2024年版の一撃系呪文が有効な場合はそれらにも適用されます]</color></i>
 ModUi/&AddPickPocketableLoot=スリ可能な戦利品を追加します<i><color=#F0DAA0>[<color=#D89555>スリ</color>特技が有効な場合に推奨]</color></i>
+ModUi/&PickPocketNonHostiles=多くの非敵対NPCにもスリ可能な戦利品を追加します<i><color=#F0DAA0>[失敗すると評判に影響します]</color></i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=敵の呪文発動者は、書き写された呪文書<i><color=#F0DAA0>[ウィザード呪文リストの既知呪文を含む]</color></i>をドロップします。
 ModUi/&AddToStore={0}を追加
 ModUi/&Advanced=<color=#F0DAA0>詳細：</color><b><i><color=#C04040E0>[再起動が必要]</color></i></b>
@@ -22,6 +23,7 @@ ModUi/&AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness=自然の暗闇�
 ModUi/&AllowAnyClassToWearSylvanArmor=どのクラスでも<color=#D89555>シルヴァン・アーマー</color>または<color=#D89555>ライトブリンガーの服</color>を着用できるようにします
 ModUi/&AllowBladeCantripsToUseReach=<color=#D89555>ブレード初級呪文</color>が1マスではなく武器の間合いを使用できるようにします
 ModUi/&AllowClubsToBeThrown=<color=#D89555>クラブ</color>を<color=#D89555>ダガー</color>や<color=#D89555>ハンドアックス</color>のように投げられるようにします
+ModUi/&AllMagicThrownReturn=すべての魔法の投擲武器が投げ手の手元に戻ります <b><i><color=#C04040E0>[無効化には再起動が必要]</color></i></b>
 ModUi/&AllowDisplayingNonSuggestedSpells=各リストでMODの非推奨呪文を許可する
 ModUi/&AllowDisplayingOfficialSpells=各リストでゲーム公式呪文を許可する
 ModUi/&AllowDungeonsMaxLevel20=最大レベル20のダンジョンを許可する

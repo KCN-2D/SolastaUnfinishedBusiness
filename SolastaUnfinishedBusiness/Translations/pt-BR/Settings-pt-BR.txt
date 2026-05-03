@@ -20,6 +20,7 @@ ModUi/&AddNewScrollsToTreasure=Adicione rolos para novos feitiços aos pacotes d
 ModUi/&AddNewWeaponsAndRecipesToShops=Adicionar novas armas e receitas às lojas <i><color=#F0DAA0>[bandagens de mão, alabardas, lanças, maças longas, bestas de mão]</color></i> <b><i><color=#C04040E0>[Requer reinicialização]</color></i></b>
 ModUi/&AddPaladinSmiteToggle=Adicione uma alternância para permitir que <color=#D89555>Paladinos</color> habilitem golpes somente em acertos críticos <i><color=#F0DAA0>[útil para minimizar prompts de reação]</color></i>
 ModUi/&AddPickPocketableLoot=Adicionar saque que pode ser roubado <i><color=#F0DAA0>[sugerido se o talento <color=#D89555>Batedor de carteira</color> estiver habilitado]</color></i>
+ModUi/&PickPocketNonHostiles=Também adiciona saque para furtar a muitos PNJs não hostis <i><color=#F0DAA0>[falhar afetará a reputação]</color></i>
 ModUi/&AddToStore=Adicionar {0}
 ModUi/&Advanced=<color=#F0DAA0>Avançado:</color> <b><i><color=#C04040E0>[Requer reinicialização]</color></i></b>
 ModUi/&AdvancedHelp=• <b><color=#C04040E0>ATENÇÃO:</color></b> Essas configurações exigirão que o jogador tenha este mod instalado
@@ -28,6 +29,7 @@ ModUi/&AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness=Permitir que ali
 ModUi/&AllowAnyClassToWearSylvanArmor=Permitir que qualquer classe use <color=#D89555>Armadura Silvestre</color> ou <color=#D89555>Roupas de Portador da Luz</color>
 ModUi/&AllowBladeCantripsToUseReach=Permitir que <color=#D89555>Blade Cantrips</color> usem alcance em vez de 5 pés
 ModUi/&AllowClubsToBeThrown=Permitir que <color=#D89555>Clubs</color> sejam lançados como <color=#D89555>Daggers</color> ou <color=#D89555>Hand Axes</color>
+ModUi/&AllMagicThrownReturn=Todas as armas mágicas arremessadas retornam à mão de quem as lançou <b><i><color=#C04040E0>[Requer reiniciar para remover]</color></i></b>
 ModUi/&AllowDisplayingNonSuggestedSpells=Permitir mod feitiços não sugeridos em cada lista
 ModUi/&AllowDisplayingOfficialSpells=Permitir magias oficiais do jogo em cada lista
 ModUi/&AllowDungeonsMaxLevel20=Permitir masmorras com nível máximo 20

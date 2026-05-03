@@ -195,6 +195,7 @@ public class Settings : UnityModManager.ModSettings
     public int OverridePartySize { get; set; } = ToolsContext.GamePartySize;
     public bool AllowAllPlayersOnNarrativeSequences { get; set; }
     public bool AddPickPocketableLoot { get; set; }
+    public bool PickPocketNonHostiles { get; set; }
     public bool EnemySpellcastersDropScribedSpellbooks { get; set; }
     public bool AltOnlyHighlightItemsInPartyFieldOfView { get; set; }
     [Tag(Type = TagType.QoL)] public bool EnableAdditionalIconsOnLevelMap { get; set; }
@@ -288,6 +289,7 @@ public class Settings : UnityModManager.ModSettings
     public bool RemoveAttunementRequirements { get; set; }
     public bool AllowAnyClassToWearSylvanArmor { get; set; }
     public bool AllowClubsToBeThrown { get; set; }
+    public bool AllMagicThrownReturn { get; set; }
     [Tag(Type = TagType.T2014)] public bool UseOfficialFoodRationsWeight { get; set; }
     [Tag(Type = TagType.QoL)] public bool ExcludeEquippedItemsFromCarriedWeight { get; set; }
     public bool MakeAllMagicStaveArcaneFoci { get; set; }
