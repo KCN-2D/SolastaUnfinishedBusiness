@@ -35,6 +35,7 @@ public static partial class Tabletop2024Context
     private const string HumanOriginFeatChoiceFeatureSetPrefix = "FeatureSetHumanOriginFeat2024_";
     private const string HumanOriginFeatPointPoolName = "PointPoolHumanOriginFeat2024";
     private const string HumanOriginFeatSkilledPointPoolName = "PointPoolHumanOriginFeatSkilled";
+    private const string BackgroundFeatSkilledPointPoolName = "PointPoolBackgroundFeatSkilled";
     private const string HumanOriginFeatTag = "02RaceHumanOriginFeat2024";
     private const string HumanOriginFeatSkilledSkillTag = "02RaceHumanOriginFeat2024_SkilledSkills";
     private const string ToolGamingSetDiceTypeName = "GamingSetDiceType";
@@ -230,10 +231,7 @@ public static partial class Tabletop2024Context
                 ? BuildSkilledPointPool()
                 : BuildOriginFeatPointPool(featName);
 
-            if (featName != FeatSkilledName)
-            {
-                BackgroundBonusDisplayFeatures[featName] = BuildOriginFeatDisplayFeature(featName);
-            }
+            BackgroundBonusDisplayFeatures[featName] = BuildOriginFeatDisplayFeature(featName);
         }
 
         foreach (var backgroundProficiencySet in BackgroundProficiencySets)
@@ -282,13 +280,12 @@ public static partial class Tabletop2024Context
                 }
             }
 
-            if (featName != FeatSkilledName &&
-                BackgroundBonusDisplayFeatures.TryGetValue(featName, out var displayFeature) &&
-                TryResolveModeAwareFeatDefinition(featName, out var displayFeatDefinition))
+            if (BackgroundBonusDisplayFeatures.TryGetValue(featName, out var displayFeature) &&
+                TryGetBackgroundBonusFeatGuiDefinition(featName, out var displayFeatDefinition))
             {
-                displayFeature.GuiPresentation.title = displayFeatDefinition.GuiPresentation.title;
-                displayFeature.GuiPresentation.description = "Feature/&BackgroundBonusFeatShortDescription";
-                displayFeature.GuiPresentation.spriteReference = displayFeatDefinition.GuiPresentation.spriteReference;
+                displayFeature.GuiPresentation.title = "Feature/&BackgroundBonusFeatTitle";
+                displayFeature.GuiPresentation.description = GetBackgroundBonusFeatDisplayDescription(featName, displayFeatDefinition);
+                displayFeature.GuiPresentation.spriteReference = displayFeatDefinition?.GuiPresentation?.spriteReference;
             }
         }
 
@@ -593,7 +590,7 @@ public static partial class Tabletop2024Context
             }
         }
 
-        fallbackTitle = $"{hero.RaceDefinition.FormatTitle()}: {Gui.Localize("Feature/&PointPoolHumanOriginFeatTitle")}";
+        fallbackTitle = Gui.Localize("Feature/&PointPoolHumanOriginFeatTitle");
 
         return true;
     }
@@ -1038,6 +1035,11 @@ public static partial class Tabletop2024Context
     internal static bool IsHumanOriginSkilledSkillTag(string tag)
     {
         return tag == HumanOriginFeatSkilledSkillTag;
+    }
+
+    internal static bool IsBackgroundSkilledSkillTag(string tag)
+    {
+        return tag == BackgroundFeatSkilledPointPoolName;
     }
 
     internal static bool ShouldUseHumanOriginFeat(CharacterHeroBuildingData heroBuildingData)
@@ -1580,6 +1582,34 @@ public static partial class Tabletop2024Context
             : BuildHumanOriginFeatChoice(featName);
     }
 
+    private static bool TryGetBackgroundBonusFeatGuiDefinition(string featName, out FeatDefinition featDefinition)
+    {
+        if (featName != FeatSkilledName &&
+            TryResolveModeAwareFeatDefinition(featName, out featDefinition))
+        {
+            return true;
+        }
+
+        return TryGetDefinition(featName, out featDefinition);
+    }
+
+    internal static string FormatOriginFeatGainDescription(BaseDefinition featDefinition)
+    {
+        return FormatOriginFeatGainDescription(featDefinition?.FormatTitle());
+    }
+
+    internal static string FormatOriginFeatGainDescription(string featTitle)
+    {
+        return Gui.Format("Feature/&OriginFeatGainDescription", featTitle);
+    }
+
+    private static string GetBackgroundBonusFeatDisplayDescription(string featName, FeatDefinition featDefinition)
+    {
+        return featName == FeatSkilledName
+            ? FormatOriginFeatGainDescription(Gui.Localize("Feature/&PointPoolSkilledTitle"))
+            : FormatOriginFeatGainDescription(featDefinition);
+    }
+
     internal static FeatureDefinition EnsureSkilledDisplayFeature()
     {
         if (SkilledDisplayFeature)
@@ -1613,15 +1643,13 @@ public static partial class Tabletop2024Context
 
     private static FeatureDefinition BuildOriginFeatDisplayFeature(string featName)
     {
-        var featDefinition = TryResolveModeAwareFeatDefinition(featName, out var resolvedFeat)
-            ? resolvedFeat
-            : GetDefinition<FeatDefinition>(featName);
+        TryGetBackgroundBonusFeatGuiDefinition(featName, out var featDefinition);
 
         return FeatureDefinitionBuilder
             .Create($"FeatureBackgroundFeatDisplay_{featName}")
             .SetGuiPresentation(
-                featDefinition.GuiPresentation.Title,
-                "Feature/&BackgroundBonusFeatShortDescription",
+                "Feature/&BackgroundBonusFeatTitle",
+                GetBackgroundBonusFeatDisplayDescription(featName, featDefinition),
                 featDefinition)
             .AddToDB();
     }
@@ -1629,8 +1657,8 @@ public static partial class Tabletop2024Context
     private static FeatureDefinition BuildSkilledPointPool()
     {
         return FeatureDefinitionPointPoolBuilder
-            .Create("PointPoolBackgroundFeatSkilled")
-            .SetGuiPresentation("Feature/&PointPoolSkilledTitle", "Feature/&PointPoolSkilledDescription")
+            .Create(BackgroundFeatSkilledPointPoolName)
+            .SetGuiPresentationNoContent(true)
             .SetPool(HeroDefinitions.PointsPoolType.Skill, 3)
             .AddToDB();
     }

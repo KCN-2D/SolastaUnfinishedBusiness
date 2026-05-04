@@ -305,12 +305,18 @@ internal static class CharacterInspectionScreenEnhancement
                 out var displayFeature,
                 out var fallbackTitle))
         {
+            var humanOriginTitle = Gui.Localize("Feature/&PointPoolHumanOriginFeatTitle");
+
+            provider.SetTitle(humanOriginTitle);
+
             if (displayFeature)
             {
-                label.Text = displayFeature.FormatTitle() + (!noLevel ? $" ({feature.Level})" : string.Empty);
-                provider.BaseDefinition = displayFeature;
-                provider.SetSubtitle(Gui.Localize("Feature/&PointPoolHumanOriginFeatTitle"));
-                tooltip.Content = displayFeature.FormatDescription();
+                var description = Tabletop2024Context.FormatOriginFeatGainDescription(displayFeature);
+
+                label.Text = humanOriginTitle + (!noLevel ? $" ({feature.Level})" : string.Empty);
+                provider.SetSubtitle(displayFeature.FormatTitle());
+                provider.SetDescription(description);
+                tooltip.Content = description;
             }
             else
             {

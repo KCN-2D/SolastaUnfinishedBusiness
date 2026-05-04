@@ -13,8 +13,10 @@ internal class CustomTooltipProvider : GuiBaseDefinitionWrapper, ISubTitleProvid
     internal const string RequireClassLevel = "Requirement/&FeatureSelectionRequireClassLevel";
 
     private readonly GuiPresentation _guiPresentation;
+    private string _description;
     private string _prerequisites = string.Empty;
     private string _subtitle;
+    private string _title;
 
     internal CustomTooltipProvider(BaseDefinition baseDefinition, GuiPresentation guiPresentation) : base(
         baseDefinition)
@@ -25,7 +27,11 @@ internal class CustomTooltipProvider : GuiBaseDefinitionWrapper, ISubTitleProvid
 
     public override string TooltipClass => "FeatDefinition";
 
-    public override string Description => BaseDefinition.FormatDescription();
+    public override string Title =>
+        string.IsNullOrEmpty(_title) ? BaseDefinition.FormatTitle() : _title;
+
+    public override string Description =>
+        string.IsNullOrEmpty(_description) ? BaseDefinition.FormatDescription() : _description;
 
     public string EnumeratePrerequisites(RulesetCharacterHero hero)
     {
@@ -84,6 +90,16 @@ internal class CustomTooltipProvider : GuiBaseDefinitionWrapper, ISubTitleProvid
         _subtitle = string.IsNullOrEmpty(subtitle)
             ? GetDefaultSubtitle()
             : subtitle;
+    }
+
+    internal void SetDescription(string description)
+    {
+        _description = description;
+    }
+
+    internal void SetTitle(string title)
+    {
+        _title = title;
     }
 }
 

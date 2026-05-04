@@ -258,6 +258,15 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             return true;
         }
 
+        if (item.PoolType == Skill &&
+            Tabletop2024Context.IsBackgroundSkilledSkillTag(item.Tag))
+        {
+            title =
+                $"{Gui.Localize("Feature/&BackgroundBonusFeatTitle")}: {Gui.Localize("Feature/&PointPoolSkilledTitle")}";
+
+            return true;
+        }
+
         if (Tabletop2024Context.TryGetHumanOriginFeatLearnStepTitle(item.PoolType, item.Tag, out var humanOriginTitle))
         {
             title = humanOriginTitle;

@@ -14,6 +14,8 @@ namespace SolastaUnfinishedBusiness.Patches;
 public static class FeatureDescriptionItemPatcher
 {
     private const string BackgroundFeatDisplayFeaturePrefix = "FeatureBackgroundFeatDisplay_";
+    private const float BackgroundFeatItemPadding = 4f;
+    private const float BackgroundFeatTextSpacing = 2f;
     private const float SelectionFeatureItemPadding = 4f;
     private const float SelectionFeatureControlSpacing = 4f;
 
@@ -167,61 +169,50 @@ public static class FeatureDescriptionItemPatcher
                featureName.StartsWith(BackgroundFeatDisplayFeaturePrefix, System.StringComparison.Ordinal);
     }
 
-    private static float GetRequiredHeight([NotNull] RectTransform rectTransform, float padding)
-    {
-        return rectTransform.rect.height - rectTransform.anchoredPosition.y + padding;
-    }
-
     private static void RefreshBackgroundFeatDisplayLayout(
         FeatureDescriptionItem item,
         CharacterStageBackgroundSelectionPanel backgroundPanel)
     {
         var titleLabel = item.baseFeatureLabel;
-        var titleText = titleLabel?.TMP_Text;
-        var descriptionLabel = item.featureDescription;
-        var descriptionText = descriptionLabel?.TMP_Text;
 
-        if (titleText == null)
+        if (titleLabel?.TMP_Text == null)
         {
             return;
         }
 
-        titleText.enableWordWrapping = true;
-        titleText.overflowMode = TextOverflowModes.Overflow;
-        titleText.autoSizeTextContainer = true;
+        var cursor = 0f;
+
+        PlaceBackgroundFeatText(titleLabel, ref cursor);
+
+        var descriptionLabel = item.featureDescription;
 
         if (descriptionLabel)
         {
             descriptionLabel.gameObject.SetActive(true);
-        }
-
-        if (descriptionText != null)
-        {
-            descriptionText.enableWordWrapping = true;
-            descriptionText.overflowMode = TextOverflowModes.Overflow;
-            descriptionText.autoSizeTextContainer = true;
-        }
-
-        LayoutRebuilder.ForceRebuildLayoutImmediate(titleLabel.RectTransform);
-        LayoutRebuilder.ForceRebuildLayoutImmediate(descriptionLabel?.RectTransform);
-
-        var requiredHeight = GetRequiredHeight(titleLabel.RectTransform, 12f);
-
-        if (descriptionLabel && descriptionLabel.gameObject.activeSelf)
-        {
-            requiredHeight = Mathf.Max(requiredHeight, GetRequiredHeight(descriptionLabel.RectTransform, 12f));
+            cursor += BackgroundFeatTextSpacing;
+            PlaceBackgroundFeatText(descriptionLabel, ref cursor);
         }
 
         if (item.levelGroup && item.levelGroup.gameObject.activeSelf)
         {
-            requiredHeight = Mathf.Max(requiredHeight, GetRequiredHeight(item.levelGroup, 8f));
+            cursor += BackgroundFeatTextSpacing;
+            var levelPosition = item.levelGroup.anchoredPosition;
+            item.levelGroup.anchoredPosition = new Vector2(levelPosition.x, -cursor);
+            cursor += item.levelGroup.rect.height;
         }
 
+        var requiredHeight = Mathf.Ceil(Mathf.Max(1f, cursor + BackgroundFeatItemPadding));
         var itemRect = item.GetComponent<RectTransform>();
 
         if (itemRect)
         {
             itemRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, requiredHeight);
+
+            var layout = item.GetComponent<LayoutElement>() ?? item.gameObject.AddComponent<LayoutElement>();
+
+            layout.minHeight = requiredHeight;
+            layout.preferredHeight = requiredHeight;
+
             LayoutRebuilder.ForceRebuildLayoutImmediate(itemRect);
         }
 
@@ -232,6 +223,41 @@ public static class FeatureDescriptionItemPatcher
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(backgroundPanel.backgroundFeaturesScrollview.content);
         }
+    }
+
+    private static void PlaceBackgroundFeatText(GuiLabel label, ref float cursor)
+    {
+        if (!label || !label.gameObject.activeInHierarchy || label.TMP_Text == null)
+        {
+            return;
+        }
+
+        var text = label.TMP_Text;
+        var rectTransform = label.RectTransform;
+
+        if (!rectTransform)
+        {
+            return;
+        }
+
+        var position = rectTransform.anchoredPosition;
+
+        rectTransform.anchoredPosition = new Vector2(position.x, -cursor);
+
+        text.enableWordWrapping = true;
+        text.overflowMode = TextOverflowModes.Overflow;
+        text.maxVisibleLines = 99999;
+        text.autoSizeTextContainer = false;
+
+        var width = rectTransform.rect.width;
+        var preferredHeight = width > 0f
+            ? text.GetPreferredValues(text.text, width, 0f).y
+            : rectTransform.rect.height;
+        var height = Mathf.Ceil(Mathf.Max(text.fontSize * 1.45f, preferredHeight));
+
+        rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+        LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
+        cursor += height;
     }
 
     internal static bool RefreshSelectionFeatureDisplayLayout(FeatureDescriptionItem item)
