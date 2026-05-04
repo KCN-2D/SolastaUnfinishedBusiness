@@ -818,6 +818,8 @@ internal static class FloatingPanelBounds
         {
             if (!_layoutDirty && !HasLayoutSignatureChanged())
             {
+                ApplyLockedBoundsWithoutRebuild();
+
                 if (HandleScrollInput())
                 {
                     ApplyScrollOffset();
@@ -996,6 +998,18 @@ internal static class FloatingPanelBounds
                 _lockedCanvasSize = canvasSize;
                 _lockedContentHeight = contentHeight;
                 _hasLockedBounds = true;
+            }
+
+            ApplyCanvasLocalDelta(_panel, canvasRect, _lockedPanelBounds.min - panelBounds.min);
+        }
+
+        private void ApplyLockedBoundsWithoutRebuild()
+        {
+            if (!_hasLockedBounds ||
+                !_panel ||
+                !TryGetCanvasLocalBounds(_panel, out var panelBounds, out var canvasRect))
+            {
+                return;
             }
 
             ApplyCanvasLocalDelta(_panel, canvasRect, _lockedPanelBounds.min - panelBounds.min);
