@@ -133,4 +133,6 @@ Spell/&WitchBoltDescription=Un raggio di energia blu crepitante si lancia verso 
 Spell/&WitchBoltTitle=Fulmine della strega
 Spell/&WrathfulSmiteDescription=Il bersaglio subisce 1d6 danni necrotici extra dall'attacco e deve superare un tiro salvezza su Saggezza o avere la condizione Spaventato finché l'incantesimo non termina. Alla fine di ogni suo turno, il bersaglio Spaventato ripete il tiro salvezza, terminando l'incantesimo su se stesso in caso di successo. Il danno aumenta di 1d6 per ogni livello di slot incantesimo superiore a 1.
 Spell/&WrathfulSmiteTitle=Colpo Iracondo
+Spell/&DivineSmiteSpellDescription=Dopo aver colpito un bersaglio con un attacco con arma, puoi spendere uno slot incantesimo per infliggere danni radiosi extra al bersaglio. I danni aumentano con slot incantesimo di livello superiore e contro non morti o immondi.
+Spell/&DivineSmiteSpellTitle=Punizione divina
 Tooltip/&TagDamagePureTitle=Danno caotico

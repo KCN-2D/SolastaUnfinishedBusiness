@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -14,22 +15,24 @@ internal static class MerchantTypeContext
 {
     internal static readonly List<(MerchantDefinition, MerchantType)> MerchantTypes = [];
 
-    private static readonly string[] RangedWeaponTypes =
-    [
+    private static readonly HashSet<string> RangedWeaponTypes = new(StringComparer.Ordinal)
+    {
         "LightCrossbowType", "HeavyCrossbowType", "ShortbowType", "LongbowType", "DartType"
-    ];
+    };
 
-    private static readonly string[] EquipmentSlots =
-    [
+    private static readonly HashSet<string> EquipmentSlots = new(StringComparer.Ordinal)
+    {
         EquipmentDefinitions.SlotTypeBelt, EquipmentDefinitions.SlotTypeBack, EquipmentDefinitions.SlotTypeFeet,
         EquipmentDefinitions.SlotTypeFinger, EquipmentDefinitions.SlotTypeGloves, EquipmentDefinitions.SlotTypeHead,
         EquipmentDefinitions.SlotTypeNeck, EquipmentDefinitions.SlotTypeShoulders,
         EquipmentDefinitions.SlotTypeWrists
-    ];
+    };
 
     internal static void Load()
     {
         var dbMerchantDefinition = DatabaseRepository.GetDatabase<MerchantDefinition>();
+
+        MerchantTypes.Clear();
 
         foreach (var merchant in dbMerchantDefinition)
         {
@@ -221,6 +224,11 @@ internal static class MerchantContext
     private static void StockItem([NotNull] MerchantDefinition merchant, ItemDefinition item,
         [NotNull] BaseDefinition status)
     {
+        if (merchant.StockUnitDescriptions.Any(stock => stock.ItemDefinition == item))
+        {
+            return;
+        }
+
         merchant.StockUnitDescriptions.Add(
             StockBuilder
                 .SetItem(item)

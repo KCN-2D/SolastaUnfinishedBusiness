@@ -152,9 +152,10 @@ internal static partial class SpellBuilders
     internal static SpellDefinition BuildDivineSmite()
     {
         const string NAME = "DivineSmiteSpell";
+        const string TITLE = "Spell/&DivineSmiteSpellTitle";
+        const string DESCRIPTION = "Spell/&DivineSmiteSpellDescription";
 
         var divineSmite = FeatureDefinitionAdditionalDamages.AdditionalDamagePaladinDivineSmite;
-        var smiteGui = divineSmite.GuiPresentation;
         var dices = DiceByRankBuilder.BuildDiceByRankTable(2);
 
         // Add dice number for rank 0 - used by free cast
@@ -162,7 +163,7 @@ internal static partial class SpellBuilders
 
         var additionalDamageDivineSmite = FeatureDefinitionAdditionalDamageBuilder
             .Create($"AdditionalDamage{NAME}")
-            .SetGuiPresentation(smiteGui)
+            .SetGuiPresentation(TITLE, DESCRIPTION, divineSmite.GuiPresentation.spriteReference)
             .SetTriggerCondition(AdditionalDamageTriggerCondition.AlwaysActive)
             .SetAttackModeOnly()
             .SetNotificationTag("DivineSmite")
@@ -175,8 +176,7 @@ internal static partial class SpellBuilders
             .AddToDB();
 
         var spell = SpellDefinitionBuilder.Create(BrandingSmite, NAME)
-            .SetGuiPresentation(smiteGui.Title, smiteGui.Description,
-                Sprites.GetSprite(NAME, Resources.DivineSmite, 128))
+            .SetGuiPresentation(TITLE, DESCRIPTION, Sprites.GetSprite(NAME, Resources.DivineSmite, 128))
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolEvocation)
             .SetSpellLevel(1)
             .SetCastingTime(ActivationTime.OnAttackHit)
@@ -190,7 +190,7 @@ internal static partial class SpellBuilders
                 .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
                 .SetEffectAdvancement(EffectIncrementMethod.PerAdditionalSlotLevel, additionalDicePerIncrement: 1)
                 .SetEffectForms(EffectFormBuilder.ConditionForm(ConditionDefinitionBuilder.Create($"Condition{NAME}")
-                    .SetGuiPresentation(divineSmite.GuiPresentation)
+                    .SetGuiPresentation(TITLE, DESCRIPTION, divineSmite.GuiPresentation.spriteReference)
                     .SetSilent(Silent.Always)
                     .SetSpecialDuration(DurationType.Minute, 1)
                     .AddSpecialInterruptions(ConditionInterruption.AttacksAndDamages)

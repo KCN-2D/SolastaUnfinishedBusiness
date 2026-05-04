@@ -511,7 +511,6 @@ internal static class SpeechContext
         var message = "Piper successfully downloaded.";
         var filename = Path.GetFileName(url);
         var fullZipFile = Path.Combine(Main.ModFolder, filename);
-        using var wc = new WebClient();
 
         try
         {
@@ -521,6 +520,8 @@ internal static class SpeechContext
             }
             else
             {
+                using var wc = new WebClient();
+
                 wc.DownloadFile(url, fullZipFile);
                 ZipFile.ExtractToDirectory(fullZipFile, Main.ModFolder);
                 File.Delete(fullZipFile);
@@ -597,6 +598,7 @@ internal static class SpeechContext
         // remove any invalid key
         Main.Settings.SpeechVoices.Keys
             .Where(x => x is < 0 or > MaxHeroes)
+            .ToArray()
             .Do(x => Main.Settings.SpeechVoices.Remove(x));
 
         for (var i = 0; i <= MaxHeroes; i++)

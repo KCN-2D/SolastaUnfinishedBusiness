@@ -98,27 +98,10 @@ internal static class ItemCraftingMerchantContext
             return;
         }
 
-        foreach (var item in DatabaseRepository.GetDatabase<ItemDefinition>().Where(
-                     x => x.ArmorDescription?.ArmorType == "ClothesType" && !x.Magical &&
-                          !x.SlotsWhereActive.Contains("TabardSlot") && x != ClothesCommon_Tattoo &&
-                          x != ClothesWizard_B))
-        {
-            var stockClothing = new StockUnitDescription
-            {
-                itemDefinition = item,
-                initialAmount = 2,
-                initialized = true,
-                factionStatus = Indifference.Name,
-                maxAmount = 4,
-                minAmount = 2,
-                stackCount = 1,
-                reassortAmount = 1,
-                reassortRateValue = 1,
-                reassortRateType = DurationType.Day
-            };
-
-            Store_Merchant_Gorim_Ironsoot_Cyflen_GeneralStore.StockUnitDescriptions.Add(stockClothing);
-        }
+        AddGorimStockItems(DatabaseRepository.GetDatabase<ItemDefinition>().Where(
+            x => x.ArmorDescription?.ArmorType == "ClothesType" && !x.Magical &&
+                 !x.SlotsWhereActive.Contains("TabardSlot") && x != ClothesCommon_Tattoo &&
+                 x != ClothesWizard_B));
 
         //rename valley noble's clothes by color to avoid confusion
         var silverNoble = ClothesNoble_Valley_Silver;
@@ -153,25 +136,40 @@ internal static class ItemCraftingMerchantContext
             return;
         }
 
-        foreach (var item in DatabaseRepository.GetDatabase<ItemDefinition>().Where(
-                     x => x.IsMusicalInstrument && !x.Magical))
-        {
-            var stockInstruments = new StockUnitDescription
-            {
-                itemDefinition = item,
-                initialAmount = 2,
-                initialized = true,
-                factionStatus = Indifference.Name,
-                maxAmount = 4,
-                minAmount = 2,
-                stackCount = 1,
-                reassortAmount = 1,
-                reassortRateValue = 1,
-                reassortRateType = DurationType.Day
-            };
+        AddGorimStockItems(DatabaseRepository.GetDatabase<ItemDefinition>().Where(
+            x => x.IsMusicalInstrument && !x.Magical));
+    }
 
-            Store_Merchant_Gorim_Ironsoot_Cyflen_GeneralStore.StockUnitDescriptions.Add(stockInstruments);
+    private static void AddGorimStockItems(IEnumerable<ItemDefinition> items)
+    {
+        var stockUnitDescriptions = Store_Merchant_Gorim_Ironsoot_Cyflen_GeneralStore.StockUnitDescriptions;
+
+        foreach (var item in items)
+        {
+            if (stockUnitDescriptions.Any(stock => stock.ItemDefinition == item))
+            {
+                continue;
+            }
+
+            stockUnitDescriptions.Add(BuildGorimStock(item));
         }
+    }
+
+    private static StockUnitDescription BuildGorimStock(ItemDefinition item)
+    {
+        return new StockUnitDescription
+        {
+            itemDefinition = item,
+            initialAmount = 2,
+            initialized = true,
+            factionStatus = Indifference.Name,
+            maxAmount = 4,
+            minAmount = 2,
+            stackCount = 1,
+            reassortAmount = 1,
+            reassortRateValue = 1,
+            reassortRateType = DurationType.Day
+        };
     }
 
     internal static void SwitchSetBeltOfDwarvenKindBeardChances()
@@ -187,7 +185,7 @@ internal static class ItemCraftingMerchantContext
     {
         if (Main.Settings.StockHugoStoreWithAdditionalFoci)
         {
-            Store_Merchant_Hugo_Requer_Cyflen_Potions.StockUnitDescriptions.AddRange(
+            Store_Merchant_Hugo_Requer_Cyflen_Potions.StockUnitDescriptions.TryAddRange(
                 FocusDefinitionBuilder
                     .StockFocus);
         }
@@ -352,47 +350,28 @@ internal static class ItemCraftingMerchantContext
 
     internal static void SwitchVersatileInventorySlots()
     {
+        var slotTypes = new List<string> { "UtilitySlot", "ContainerSlot" };
+        var slotsWhereActive = new List<string> { "UtilitySlot" };
+
+        if (Main.Settings.EnableVersatileAmmunitionSlots)
+        {
+            slotTypes.Add("AmmunitionSlot");
+            slotsWhereActive.Add("AmmunitionSlot");
+        }
+
+        if (Main.Settings.EnableVersatileOffHandSlot)
+        {
+            slotTypes.Add("OffHandSlot");
+            slotsWhereActive.Add("OffHandSlot");
+        }
+
         foreach (var item in DatabaseRepository.GetDatabase<ItemDefinition>()
                      .Where(a => a.UsableDeviceDescription is { UsableDeviceTags: not null } &&
                                  (a.UsableDeviceDescription.UsableDeviceTags.Contains("Potion") ||
                                   a.UsableDeviceDescription.UsableDeviceTags.Contains("Scroll"))))
         {
-            if (Main.Settings.EnableVersatileAmmunitionSlots && Main.Settings.EnableVersatileOffHandSlot)
-            {
-                item.SlotTypes.SetRange("UtilitySlot",
-                    "ContainerSlot",
-                    "AmmunitionSlot",
-                    "OffHandSlot");
-                item.SlotsWhereActive.SetRange("UtilitySlot",
-                    "AmmunitionSlot",
-                    "OffHandSlot");
-            }
-
-            if (Main.Settings.EnableVersatileAmmunitionSlots && !Main.Settings.EnableVersatileOffHandSlot)
-            {
-                item.SlotTypes.SetRange("UtilitySlot",
-                    "ContainerSlot",
-                    "AmmunitionSlot");
-                item.SlotsWhereActive.SetRange("UtilitySlot",
-                    "AmmunitionSlot");
-            }
-
-            if (!Main.Settings.EnableVersatileAmmunitionSlots && Main.Settings.EnableVersatileOffHandSlot)
-            {
-                item.SlotTypes.SetRange("UtilitySlot",
-                    "ContainerSlot",
-                    "OffHandSlot");
-                item.SlotsWhereActive.SetRange("UtilitySlot",
-                    "OffHandSlot");
-            }
-
-            // ReSharper disable once InvertIf
-            if (!Main.Settings.EnableVersatileAmmunitionSlots && !Main.Settings.EnableVersatileOffHandSlot)
-            {
-                item.SlotTypes.SetRange("UtilitySlot",
-                    "ContainerSlot");
-                item.SlotsWhereActive.SetRange("UtilitySlot");
-            }
+            item.SlotTypes.SetRange(slotTypes);
+            item.SlotsWhereActive.SetRange(slotsWhereActive);
         }
     }
 

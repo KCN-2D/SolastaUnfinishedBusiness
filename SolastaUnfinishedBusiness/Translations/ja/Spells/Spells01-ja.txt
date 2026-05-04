@@ -133,4 +133,6 @@ Spell/&WitchBoltDescription=パチパチと音を立てる青いエネルギー�
 Spell/&WitchBoltTitle=魔女の矢
 Spell/&WrathfulSmiteDescription=対象は攻撃により1d6の追加死霊ダメージを受け、呪文が終了するまで、判断力セーヴィング・スローに成功するか、恐怖状態になる必要があります。各ターンの終了時に、恐怖状態の対象はセーヴィング・スローを繰り返し、成功すると自分自身への呪文を終了します。ダメージは、呪文スロット・レベルが1を超えるごとに1d6ずつ増加します。
 Spell/&WrathfulSmiteTitle=憤怒の一撃
+Spell/&DivineSmiteSpellDescription=武器攻撃で対象に命中した後、呪文スロットを消費して対象に追加の光輝ダメージを与えます。高レベルの呪文スロットを使うとダメージが増え、アンデッドやフィーンドにはさらに増加します。
+Spell/&DivineSmiteSpellTitle=神聖なる一撃
 Tooltip/&TagDamagePureTitle=カオスダメージ

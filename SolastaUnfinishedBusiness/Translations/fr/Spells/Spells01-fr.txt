@@ -133,4 +133,6 @@ Spell/&WitchBoltDescription=Un rayon d'énergie bleue crépitante se dirige vers
 Spell/&WitchBoltTitle=Boulon de sorcière
 Spell/&WrathfulSmiteDescription=La cible subit 1d6 dégâts nécrotiques supplémentaires suite à l'attaque, et elle doit réussir un jet de sauvegarde de Sagesse ou avoir la condition Effrayée jusqu'à ce que le sort se termine. À la fin de chacun de ses tours, la cible Effrayée répète le jet de sauvegarde, mettant fin au sort sur elle-même en cas de réussite. Les dégâts augmentent de 1d6 pour chaque niveau d'emplacement de sort au-dessus de 1.
 Spell/&WrathfulSmiteTitle=Coup de colère
+Spell/&DivineSmiteSpellDescription=Après avoir touché une cible avec une attaque d'arme, vous pouvez dépenser un emplacement de sort pour infliger des dégâts radiants supplémentaires à la cible. Les dégâts augmentent avec les emplacements de sort de niveau supérieur et contre les morts-vivants ou les fiélons.
+Spell/&DivineSmiteSpellTitle=Châtiment divin
 Tooltip/&TagDamagePureTitle=Dégâts chaotiques

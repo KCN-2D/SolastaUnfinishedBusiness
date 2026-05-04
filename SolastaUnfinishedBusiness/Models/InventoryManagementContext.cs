@@ -55,6 +55,7 @@ internal static class InventoryManagementContext
     private static readonly List<string> SortedTagFilterIds = [];
 
     private static readonly List<RulesetInventorySlot> Filtered = [];
+    private static InventorySortCache _sortCache;
     private static bool _dirty = true;
 
     public static bool Enabled => Main.Settings.EnableInventoryFilteringAndSorting;
@@ -398,8 +399,8 @@ internal static class InventoryManagementContext
 
     private static int SortByName([NotNull] RulesetItem a, [NotNull] RulesetItem b)
     {
-        var at = GetItemTitle(a);
-        var bt = GetItemTitle(b);
+        var at = _sortCache?.GetTitle(a) ?? GetItemTitle(a);
+        var bt = _sortCache?.GetTitle(b) ?? GetItemTitle(b);
 
         return at == bt
             ? a.StackCount.CompareTo(b.StackCount)
@@ -408,8 +409,8 @@ internal static class InventoryManagementContext
 
     private static int SortByCategory([NotNull] RulesetItem itemA, [NotNull] RulesetItem itemB)
     {
-        var categoryA = GetItemCategoryTitle(itemA);
-        var categoryB = GetItemCategoryTitle(itemB);
+        var categoryA = _sortCache?.GetCategoryTitle(itemA) ?? GetItemCategoryTitle(itemA);
+        var categoryB = _sortCache?.GetCategoryTitle(itemB) ?? GetItemCategoryTitle(itemB);
 
         if (string.IsNullOrEmpty(categoryA) || string.IsNullOrEmpty(categoryB))
         {
@@ -433,8 +434,8 @@ internal static class InventoryManagementContext
 
     private static int SortByWeight([NotNull] RulesetItem itemA, [NotNull] RulesetItem itemB)
     {
-        var aw = itemA.ComputeWeight();
-        var bw = itemB.ComputeWeight();
+        var aw = _sortCache?.GetWeight(itemA) ?? itemA.ComputeWeight();
+        var bw = _sortCache?.GetWeight(itemB) ?? itemB.ComputeWeight();
 
         return Mathf.Abs(aw - bw) < .0E-5f
             ? SortByName(itemA, itemB)
@@ -444,17 +445,22 @@ internal static class InventoryManagementContext
     private static int SortByCostPerWeight([NotNull] RulesetItem itemA, [NotNull] RulesetItem itemB)
     {
         // ReSharper disable once IdentifierTypo
-        var acpw = EquipmentDefinitions.GetApproximateCostInGold(itemA.ItemDefinition.Costs) /
+        var acpw = _sortCache?.GetCostPerWeight(itemA) ??
+                   EquipmentDefinitions.GetApproximateCostInGold(itemA.ItemDefinition.Costs) /
                    Math.Max(itemA.ComputeWeight(), 0.01f);
         // ReSharper disable once IdentifierTypo
-        var bcpw = EquipmentDefinitions.GetApproximateCostInGold(itemB.ItemDefinition.Costs) /
+        var bcpw = _sortCache?.GetCostPerWeight(itemB) ??
+                   EquipmentDefinitions.GetApproximateCostInGold(itemB.ItemDefinition.Costs) /
                    Math.Max(itemB.ComputeWeight(), 0.01f);
 
         return Mathf.Abs(acpw - bcpw) < .0E-5f ? SortByName(itemA, itemB) : acpw.CompareTo(bcpw);
     }
 
-
-    private static bool FilterItem(RulesetItem item, [CanBeNull] ISerializable container)
+    private static bool FilterItem(
+        RulesetItem item,
+        [CanBeNull] ISerializable container,
+        [CanBeNull] string selectedTag,
+        [CanBeNull] Dictionary<string, TagsDefinitions.Criticity> tagsMap)
     {
         if (item?.ItemDefinition == null)
         {
@@ -474,15 +480,12 @@ internal static class InventoryManagementContext
             return false;
         }
 
-        var selectedTag = GetSelectedTagFilterId();
-
         if (selectedTag == null)
         {
             return true;
         }
 
-        Dictionary<string, TagsDefinitions.Criticity> tagsMap = new();
-
+        tagsMap.Clear();
         item.FillTags(tagsMap, container);
 
         return tagsMap.ContainsKey(selectedTag);
@@ -574,14 +577,31 @@ internal static class InventoryManagementContext
 
         Filtered.Clear();
         var slots = container.InventorySlots;
+        var selectedTag = GetSelectedTagFilterId();
+        var tagsMap = selectedTag == null ? null : new Dictionary<string, TagsDefinitions.Criticity>();
 
-        Filtered.AddRange(slots
-            .Where(HasValidItem)
-            .Where(slot => FilterItem(slot.EquipedItem, container)));
+        foreach (var slot in slots)
+        {
+            if (HasValidItem(slot) && FilterItem(slot.EquipedItem, container, selectedTag, tagsMap))
+            {
+                Filtered.Add(slot);
+            }
+        }
 
         if (SortGuiDropdown.value > 0)
         {
-            Filtered.Sort(ItemSort);
+            var previousSortCache = _sortCache;
+
+            _sortCache = new InventorySortCache();
+
+            try
+            {
+                Filtered.Sort(ItemSort);
+            }
+            finally
+            {
+                _sortCache = previousSortCache;
+            }
         }
 
         Filtered.AddRange(slots.Where(IsEmptyInventoryDropTarget));
@@ -589,6 +609,67 @@ internal static class InventoryManagementContext
         _dirty = false;
 
         return Filtered;
+    }
+
+    private sealed class InventorySortCache
+    {
+        private readonly Dictionary<RulesetItem, string> _categoryTitles = [];
+        private readonly Dictionary<RulesetItem, float> _costPerWeight = [];
+        private readonly Dictionary<RulesetItem, string> _titles = [];
+        private readonly Dictionary<RulesetItem, float> _weights = [];
+
+        internal string GetTitle(RulesetItem item)
+        {
+            if (_titles.TryGetValue(item, out var title))
+            {
+                return title;
+            }
+
+            title = GetItemTitle(item);
+            _titles[item] = title;
+
+            return title;
+        }
+
+        internal string GetCategoryTitle(RulesetItem item)
+        {
+            if (_categoryTitles.TryGetValue(item, out var title))
+            {
+                return title;
+            }
+
+            title = GetItemCategoryTitle(item);
+            _categoryTitles[item] = title;
+
+            return title;
+        }
+
+        internal float GetWeight(RulesetItem item)
+        {
+            if (_weights.TryGetValue(item, out var weight))
+            {
+                return weight;
+            }
+
+            weight = item.ComputeWeight();
+            _weights[item] = weight;
+
+            return weight;
+        }
+
+        internal float GetCostPerWeight(RulesetItem item)
+        {
+            if (_costPerWeight.TryGetValue(item, out var costPerWeight))
+            {
+                return costPerWeight;
+            }
+
+            costPerWeight = EquipmentDefinitions.GetApproximateCostInGold(item.ItemDefinition.Costs) /
+                            Math.Max(GetWeight(item), 0.01f);
+            _costPerWeight[item] = costPerWeight;
+
+            return costPerWeight;
+        }
     }
 }
 

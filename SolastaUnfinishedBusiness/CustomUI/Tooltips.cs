@@ -196,13 +196,16 @@ internal static class Tooltips
     {
         var anchorObject = new GameObject();
 
-        anchorObject.transform.SetParent(tmpUGui.transform);
+        anchorObject.transform.SetParent(tmpUGui.transform, false);
         anchorObject.transform.localPosition = Vector3.zero;
+        anchorObject.transform.localRotation = Quaternion.identity;
+        anchorObject.transform.localScale = Vector3.one;
         _distanceTextObject = Object.Instantiate(tmpUGui).gameObject;
         _distanceTextObject.name = "DistanceTextObject";
-        _distanceTextObject.transform.SetParent(anchorObject.transform);
-        _distanceTextObject.transform.position = Vector3.zero;
+        _distanceTextObject.transform.SetParent(anchorObject.transform, false);
         _distanceTextObject.transform.localPosition = new Vector3(0, -10, 0);
+        _distanceTextObject.transform.localRotation = Quaternion.identity;
+        _distanceTextObject.transform.localScale = Vector3.one;
 
         UpdateDistanceText(distance, characterToMeasureFrom);
     }

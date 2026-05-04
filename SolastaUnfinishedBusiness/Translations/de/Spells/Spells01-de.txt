@@ -133,4 +133,6 @@ Spell/&WitchBoltDescription=Ein Strahl knisternder, blauer Energie schießt auf 
 Spell/&WitchBoltTitle=Hexenbolzen
 Spell/&WrathfulSmiteDescription=Das Ziel erleidet durch den Angriff zusätzlich 1W6 nekrotischen Schaden und muss einen Weisheitsrettungswurf bestehen oder sich im Zustand „Verängstigt“ befinden, bis der Zauber endet. Am Ende jeder seiner Runden wiederholt das verängstigte Ziel den Rettungswurf und beendet den Zauber bei Erfolg auf sich selbst. Der Schaden erhöht sich um 1W6 für jede Zauberplatzstufe über 1.
 Spell/&WrathfulSmiteTitle=Zorniger Schlag
+Spell/&DivineSmiteSpellDescription=Nachdem Sie ein Ziel mit einem Waffenangriff getroffen haben, können Sie einen Zauberplatz aufwenden, um dem Ziel zusätzlichen gleißenden Schaden zuzufügen. Der Schaden steigt mit höherstufigen Zauberplätzen und gegen Untote oder Unholde.
+Spell/&DivineSmiteSpellTitle=Göttlicher Schlag
 Tooltip/&TagDamagePureTitle=Chaotischer Schaden

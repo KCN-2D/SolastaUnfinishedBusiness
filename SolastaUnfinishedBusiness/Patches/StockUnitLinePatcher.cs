@@ -102,6 +102,8 @@ public static class StockUnitLinePatcher
                 }
                 else
                 {
+                    SetupCraftedItem(item, null);
+                    ScrollsData.SetupScrollSpellImage(item, null);
                     item.gameObject.SetActive(false);
                     __instance.itemImage.transform.localPosition = new Vector3(33, 0, 0);
                 }
@@ -117,8 +119,10 @@ public static class StockUnitLinePatcher
         [UsedImplicitly]
         public static void Postfix(StockUnitLine __instance)
         {
-            SetupCraftedItem(GetRecipeItem(__instance.factionIncompatibleGroup, true), null);
-            ScrollsData.SetupScrollSpellImage(GetRecipeItem(__instance.factionIncompatibleGroup, true), null);
+            var item = GetRecipeItem(__instance.factionIncompatibleGroup, true);
+
+            SetupCraftedItem(item, null);
+            ScrollsData.SetupScrollSpellImage(item, null);
         }
     }
 }

@@ -133,4 +133,6 @@ Spell/&WitchBoltDescription=Un rayo de energía azul crepitante se lanza hacia u
 Spell/&WitchBoltTitle=Rayo de bruja
 Spell/&WrathfulSmiteDescription=El objetivo recibe 1d6 puntos de daño necrótico adicionales por el ataque y debe superar una tirada de salvación de Sabiduría o tener la condición de Asustado hasta que el conjuro termine. Al final de cada uno de sus turnos, el objetivo Asustado repite la tirada de salvación y, si tiene éxito, termina el conjuro sobre sí mismo. El daño aumenta en 1d6 por cada nivel de espacio de conjuro por encima de 1.
 Spell/&WrathfulSmiteTitle=Golpe iracundo
+Spell/&DivineSmiteSpellDescription=Después de impactar a un objetivo con un ataque con arma, puedes gastar un espacio de conjuro para infligir daño radiante adicional al objetivo. El daño aumenta con espacios de conjuro de mayor nivel y contra muertos vivientes o infernales.
+Spell/&DivineSmiteSpellTitle=Castigo divino
 Tooltip/&TagDamagePureTitle=Daño caótico

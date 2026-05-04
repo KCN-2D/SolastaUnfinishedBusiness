@@ -45,17 +45,16 @@ internal static class CombatAnimationContext
             return EmptyScope.Instance;
         }
 
-        var characters = new List<GameLocationCharacter> { action.ActingCharacter };
+        var characters = new HashSet<RulesetCharacter>();
+        TryAddRulesetCharacter(characters, action.ActingCharacter);
+
         var targetCharacters = action.ActionParams?.TargetCharacters;
 
         if (targetCharacters != null)
         {
             foreach (var targetCharacter in targetCharacters)
             {
-                if (targetCharacter != null && !characters.Contains(targetCharacter))
-                {
-                    characters.Add(targetCharacter);
-                }
+                TryAddRulesetCharacter(characters, targetCharacter);
             }
         }
 
@@ -79,57 +78,48 @@ internal static class CombatAnimationContext
         AnimatorStates.Clear();
     }
 
-    private static List<Animator> Apply(IEnumerable<GameLocationCharacter> characters, float speedMultiplier)
+    private static void TryAddRulesetCharacter(ISet<RulesetCharacter> characters, GameLocationCharacter character)
+    {
+        var rulesetCharacter = character?.RulesetCharacter;
+
+        if (rulesetCharacter != null)
+        {
+            characters.Add(rulesetCharacter);
+        }
+    }
+
+    private static List<Animator> Apply(ISet<RulesetCharacter> characters, float speedMultiplier)
     {
         var graphicsCharacters = ServiceRepository.GetService<IGraphicsCharacterFactoryService>()?.GraphicsCharacters;
         var animators = new List<Animator>();
+        var appliedAnimators = new HashSet<Animator>();
 
-        if (graphicsCharacters == null)
+        if (graphicsCharacters == null || characters.Count == 0)
         {
             return animators;
         }
 
-        foreach (var character in characters)
+        foreach (var graphicsCharacter in graphicsCharacters)
         {
-            var graphicsCharacter = FindGraphicsCharacter(graphicsCharacters, character);
-
-            if (!graphicsCharacter)
+            if (!graphicsCharacter || !characters.Contains(graphicsCharacter.RulesetCharacter))
             {
                 continue;
             }
 
-            TryApply(graphicsCharacter.Animator, speedMultiplier, animators);
-            TryApply(graphicsCharacter.WeaponAnimator, speedMultiplier, animators);
+            TryApply(graphicsCharacter.Animator, speedMultiplier, animators, appliedAnimators);
+            TryApply(graphicsCharacter.WeaponAnimator, speedMultiplier, animators, appliedAnimators);
         }
 
         return animators;
     }
 
-    private static GraphicsCharacter FindGraphicsCharacter(
-        IEnumerable<GraphicsCharacter> graphicsCharacters,
-        GameLocationCharacter character)
+    private static void TryApply(
+        Animator animator,
+        float speedMultiplier,
+        List<Animator> animators,
+        ISet<Animator> appliedAnimators)
     {
-        var rulesetCharacter = character?.RulesetCharacter;
-
-        if (rulesetCharacter == null)
-        {
-            return null;
-        }
-
-        foreach (var graphicsCharacter in graphicsCharacters)
-        {
-            if (graphicsCharacter && graphicsCharacter.RulesetCharacter == rulesetCharacter)
-            {
-                return graphicsCharacter;
-            }
-        }
-
-        return null;
-    }
-
-    private static void TryApply(Animator animator, float speedMultiplier, List<Animator> animators)
-    {
-        if (!animator || animators.Contains(animator))
+        if (!animator || !appliedAnimators.Add(animator))
         {
             return;
         }

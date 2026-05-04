@@ -133,4 +133,6 @@ Spell/&WitchBoltDescription=Um raio de energia azul crepitante é lançado em di
 Spell/&WitchBoltTitle=Parafuso de Bruxa
 Spell/&WrathfulSmiteDescription=O alvo sofre 1d6 de dano Necrótico extra do ataque e deve ser bem-sucedido em um teste de resistência de Sabedoria ou ter a condição Amedrontado até que a magia termine. No final de cada um de seus turnos, o alvo Amedrontado repete o teste, terminando a magia em si mesmo em um sucesso. O dano aumenta em 1d6 para cada nível de espaço de magia acima de 1.
 Spell/&WrathfulSmiteTitle=Golpe Irado
+Spell/&DivineSmiteSpellDescription=Depois de acertar um alvo com um ataque com arma, você pode gastar um espaço de magia para causar dano radiante adicional ao alvo. O dano aumenta com espaços de magia de nível maior e contra mortos-vivos ou ínferos.
+Spell/&DivineSmiteSpellTitle=Golpe Divino
 Tooltip/&TagDamagePureTitle=Dano Caótico
