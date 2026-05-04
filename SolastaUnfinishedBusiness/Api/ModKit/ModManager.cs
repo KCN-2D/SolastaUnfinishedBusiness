@@ -166,8 +166,8 @@ internal sealed class ModManager<TCore, TSettings>
             _unloadHandlers.Add(unloadCore);
         }
 
-        _eventHandlers.Sort((x, y) => x.Priority - y.Priority);
-        _unloadHandlers.Sort((x, y) => y.Priority - x.Priority);
+        _eventHandlers.Sort((x, y) => x.Priority.CompareTo(y.Priority));
+        _unloadHandlers.Sort((x, y) => y.Priority.CompareTo(x.Priority));
     }
 
     private void NotifyEventHandlers()

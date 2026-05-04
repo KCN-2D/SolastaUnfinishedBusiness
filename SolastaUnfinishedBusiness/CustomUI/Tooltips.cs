@@ -15,9 +15,28 @@ namespace SolastaUnfinishedBusiness.CustomUI;
 
 internal static class Tooltips
 {
+    private const string DistanceTextAnchorObjectName = "DistanceTextAnchorObject";
+
     private static GameObject _tooltipInfoCharacterDescription;
     private static GameObject _distanceTextObject;
     private static TextMeshProUGUI _tmpUGui;
+
+    internal static void Unload(bool destroyUnityObjects)
+    {
+        if (destroyUnityObjects && _distanceTextObject)
+        {
+            var parent = _distanceTextObject.transform.parent;
+            var owner = parent && parent.name == DistanceTextAnchorObjectName
+                ? parent.gameObject
+                : _distanceTextObject;
+
+            Object.Destroy(owner);
+        }
+
+        _tooltipInfoCharacterDescription = null;
+        _distanceTextObject = null;
+        _tmpUGui = null;
+    }
 
     internal static void AddContextToRecoveredFeature(RecoveredFeatureItem item, RulesetCharacterHero character)
     {
@@ -196,6 +215,7 @@ internal static class Tooltips
     {
         var anchorObject = new GameObject();
 
+        anchorObject.name = DistanceTextAnchorObjectName;
         anchorObject.transform.SetParent(tmpUGui.transform, false);
         anchorObject.transform.localPosition = Vector3.zero;
         anchorObject.transform.localRotation = Quaternion.identity;

@@ -235,6 +235,26 @@ internal static class CombatAiContext
         ObservedCombatMemoryCache.Remove(character.Guid);
     }
 
+    internal static void Unload()
+    {
+        ProfileCache.Clear();
+        PersonalityFlagsCache.Clear();
+        ObservedCombatMemoryCache.Clear();
+        ObservedCombatMemoryTurnStamp = 0;
+    }
+
+    private static bool CanExecuteAutomaticCombatAction(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null)
+        {
+            return false;
+        }
+
+        var networkingService = ServiceRepository.GetService<INetworkingService>();
+
+        return networkingService?.IsMultiplayerGame != true || networkingService.IsMasterClient;
+    }
+
     internal static bool IsAiControlledForCombat(GameLocationCharacter character)
     {
         if (!IsAdvancedCombatAiEnabled ||
@@ -432,6 +452,7 @@ internal static class CombatAiContext
     {
         if (!IsAdvancedCombatAiFlightEnabled ||
             !Main.Settings.AllowFlightSuspend ||
+            !CanExecuteAutomaticCombatAction(character) ||
             !IsAiControlledForCombat(character) ||
             character?.RulesetCharacter is not { } rulesetCharacter ||
             !rulesetCharacter.HasSuspendableFlightCondition())
@@ -468,6 +489,7 @@ internal static class CombatAiContext
     internal static bool TrySpendLeftoverActionEconomy(GameLocationCharacter character)
     {
         if (!IsAdvancedCombatAiActionEconomyEnabled ||
+            !CanExecuteAutomaticCombatAction(character) ||
             !IsAiControlledForCombat(character) ||
             character?.RulesetCharacter == null)
         {

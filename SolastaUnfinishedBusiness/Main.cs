@@ -161,7 +161,10 @@ internal static class Main
         TryCleanup(() => Application.quitting -= OnApplicationQuitting);
         TryCleanup(() => SpeechContext.Unload(!applicationQuitting));
         TryCleanup(UpdateContext.Unload);
+        TryCleanup(CombatAiContext.Unload);
         TryCleanup(CombatAnimationContext.Unload);
+        TryCleanup(GuiWrapperContext.Unload);
+        TryCleanup(() => Tooltips.Unload(!applicationQuitting));
         TryCleanup(() => CampaignTranslationExecutor.Unload(!applicationQuitting));
         TryCleanup(TranslationServiceFactory.Unload);
 

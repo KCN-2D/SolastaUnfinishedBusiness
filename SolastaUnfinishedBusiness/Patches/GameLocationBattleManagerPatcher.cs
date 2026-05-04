@@ -354,12 +354,17 @@ public static class GameLocationBattleManagerPatcher
             IEnumerator values)
         {
             //PATCH: support for `IReactionAttackModeRestriction`
-            while (values.MoveNext())
+            try
             {
-                yield return values.Current;
+                while (values.MoveNext())
+                {
+                    yield return values.Current;
+                }
             }
-
-            RestrictReactionAttackMode.ReactionContext = (null, null, null, null, null);
+            finally
+            {
+                RestrictReactionAttackMode.ReactionContext = (null, null, null, null, null);
+            }
         }
     }
 

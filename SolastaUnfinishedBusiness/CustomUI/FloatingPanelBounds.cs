@@ -599,26 +599,36 @@ internal static class FloatingPanelBounds
                 return;
             }
 
+            _isReapplying = true;
             owner.StartCoroutine(ReapplyForNextFramesCoroutine());
         }
 
         private IEnumerator ReapplyForNextFramesCoroutine()
         {
-            _isReapplying = true;
-            Apply();
-
-            for (var i = 0; i < DefaultReapplyFrames; i++)
+            try
             {
-                yield return null;
                 Apply();
-            }
 
-            _isReapplying = false;
+                for (var i = 0; i < DefaultReapplyFrames; i++)
+                {
+                    yield return null;
+                    Apply();
+                }
+            }
+            finally
+            {
+                _isReapplying = false;
+            }
         }
 
         private void OnEnable()
         {
             ScheduleReapply(this);
+        }
+
+        private void OnDisable()
+        {
+            _isReapplying = false;
         }
     }
 
@@ -754,13 +764,21 @@ internal static class FloatingPanelBounds
         private Vector2 _contentSizeDelta;
         private RectTransform _frame;
         private Vector2 _frameSizeDelta;
+        private bool _hasLayoutSignature;
         private bool _hasOriginalState;
         private bool _hasLockedBounds;
         private bool _hasTooltipAnchor;
+        private Vector2 _lastCanvasSize;
+        private Vector2 _lastContentRectSize;
+        private Vector2 _lastContentSizeDelta;
+        private bool _lastPanelActive;
+        private Vector2 _lastPanelRectSize;
+        private Vector2 _lastPanelSizeDelta;
         private Vector2 _lockedCanvasSize;
         private float _lockedContentHeight;
         private Rect _lockedPanelBounds;
         private Vector2 _lockedPanelSize;
+        private bool _layoutDirty;
         private float _margin = DefaultMargin;
         private RectMask2D _mask;
         private RectTransform _panel;
@@ -788,6 +806,8 @@ internal static class FloatingPanelBounds
                                 TryGetMouseCanvasPosition(canvasRect, out _tooltipAnchorCanvasPosition);
             _scrollOffset = 0f;
             _scrollRange = 0f;
+            _layoutDirty = true;
+            _hasLayoutSignature = false;
 
             CaptureOriginalState();
             Apply();
@@ -796,6 +816,16 @@ internal static class FloatingPanelBounds
 
         private void LateUpdate()
         {
+            if (!_layoutDirty && !HasLayoutSignatureChanged())
+            {
+                if (HandleScrollInput())
+                {
+                    ApplyScrollOffset();
+                }
+
+                return;
+            }
+
             Apply();
         }
 
@@ -895,6 +925,7 @@ internal static class FloatingPanelBounds
                 }
 
                 LockOrApplyPanelBounds(panelBounds, canvasRect, naturalHeight);
+                RememberLayoutSignature(canvasRect);
                 return;
             }
 
@@ -906,8 +937,11 @@ internal static class FloatingPanelBounds
             }
 
             LockOrApplyPanelBounds(panelBounds, canvasRect, naturalHeight);
+
             HandleScrollInput();
             ApplyScrollOffset();
+
+            RememberLayoutSignature(canvasRect);
         }
 
         private void ApplyScrollState(float maxHeight, float naturalHeight)
@@ -1022,24 +1056,61 @@ internal static class FloatingPanelBounds
             return bestBounds;
         }
 
-        private void HandleScrollInput()
+        private bool HasLayoutSignatureChanged()
+        {
+            if (!_panel || !_content || !TryGetRootCanvasRect(_panel, out var canvasRect))
+            {
+                return true;
+            }
+
+            var panelActive = _panel.gameObject.activeInHierarchy;
+
+            return !_hasLayoutSignature ||
+                   _lastPanelActive != panelActive ||
+                   (_lastCanvasSize - canvasRect.rect.size).sqrMagnitude > 1f ||
+                   (_lastPanelRectSize - _panel.rect.size).sqrMagnitude > 1f ||
+                   (_lastPanelSizeDelta - _panel.sizeDelta).sqrMagnitude > 1f ||
+                   (_lastContentRectSize - _content.rect.size).sqrMagnitude > 1f ||
+                   (_lastContentSizeDelta - _content.sizeDelta).sqrMagnitude > 1f;
+        }
+
+        private void RememberLayoutSignature(RectTransform canvasRect)
+        {
+            if (!_panel || !_content || !canvasRect)
+            {
+                return;
+            }
+
+            _lastPanelActive = _panel.gameObject.activeInHierarchy;
+            _lastCanvasSize = canvasRect.rect.size;
+            _lastPanelRectSize = _panel.rect.size;
+            _lastPanelSizeDelta = _panel.sizeDelta;
+            _lastContentRectSize = _content.rect.size;
+            _lastContentSizeDelta = _content.sizeDelta;
+            _hasLayoutSignature = true;
+            _layoutDirty = false;
+        }
+
+        private bool HandleScrollInput()
         {
             if (!_content || _scrollRange <= 0f)
             {
-                return;
+                return false;
             }
 
             var wheel = Input.mouseScrollDelta.y;
 
             if (Mathf.Abs(wheel) <= 0.01f)
             {
-                return;
+                return false;
             }
 
             _scrollOffset = Mathf.Clamp(
                 _scrollOffset - wheel * TooltipScrollPixelsPerWheel,
                 0f,
                 _scrollRange);
+
+            return true;
         }
 
         private void ApplyScrollOffset()

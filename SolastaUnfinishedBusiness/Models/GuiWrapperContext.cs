@@ -152,6 +152,14 @@ internal static class GuiWrapperContext
         }
     }
 
+    internal static void Unload()
+    {
+        GuiWrapperRuntimeLoaded = false;
+        PendingFullRecache = false;
+        PendingFeatRecache = false;
+        PendingInvocationRecache = false;
+    }
+
 #if DEBUG
     private static void LogRecacheState(string kind, GuiWrapperManager guiWrapperManager, bool deferred)
     {

@@ -65,6 +65,7 @@ public static class GameLocationCharacterPatcher
         {
             if (Main.Settings.ModifyJumpRulesForArmorAndEncumberance
                 && landingFailed
+                && !Global.IsMultiplayer
                 )
             {
                 var damageForm = new DamageForm
@@ -75,7 +76,6 @@ public static class GameLocationCharacterPatcher
                 };
                 var rolls = new List<int>();
                 var totalDamage = __instance.RulesetCharacter.RollDamage(damageForm, 0, false, 0, 0, 1, false, false, false, rolls);
-                var currentHitPoints = __instance.RulesetCharacter.CurrentHitPoints;
                 
                 __instance.RulesetCharacter.SustainDamage(totalDamage, damageForm.DamageType, false, __instance.Guid,
                     new RollInfo(damageForm.DieType, rolls, 0), out _);

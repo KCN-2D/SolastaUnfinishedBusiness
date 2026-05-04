@@ -143,15 +143,42 @@ internal static class UiTextHelpers
             return;
         }
 
+        var useCjkCompactSpacing = ShouldUseCjkCompactLineSpacing(text);
+
+        if (state.HasFitSignature(
+                nameof(FitCardTitle),
+                text,
+                availableSize,
+                minFontScale,
+                absoluteMin,
+                useCjkCompactSpacing))
+        {
+            return;
+        }
+
         var singleLineFontSize = GetSingleLineFontSize(text, availableSize, maxFontSize);
 
         if (singleLineFontSize >= minFontSize)
         {
             ApplyCardTextFit(text, 1, false, Mathf.Min(maxFontSize, singleLineFontSize), state);
+            state.RememberFitSignature(
+                nameof(FitCardTitle),
+                text,
+                availableSize,
+                minFontScale,
+                absoluteMin,
+                useCjkCompactSpacing);
             return;
         }
 
         ApplyCardTextFit(text, 2, true, GetTwoLineFontSize(text, availableSize, maxFontSize, minFontSize, state), state);
+        state.RememberFitSignature(
+            nameof(FitCardTitle),
+            text,
+            availableSize,
+            minFontScale,
+            absoluteMin,
+            useCjkCompactSpacing);
     }
 
     internal static void FitActionItemCaption(CharacterActionItemForm form)
@@ -216,16 +243,37 @@ internal static class UiTextHelpers
             return;
         }
 
-        ApplyActionCaptionBaseStyle(text, state);
-
         if (!TryGetTextContentSize(text, out var availableSize))
+        {
+            ApplyActionCaptionBaseStyle(text, state);
+            return;
+        }
+
+        var useCjkCompactSpacing = ShouldUseCjkCompactLineSpacing(text);
+
+        if (state.HasFitSignature(
+                nameof(FitActionCaption),
+                text,
+                availableSize,
+                ActionCaptionMinFontScale,
+                ActionCaptionAbsoluteMinFontSize,
+                useCjkCompactSpacing))
         {
             return;
         }
 
+        ApplyActionCaptionBaseStyle(text, state);
+
         var fontSize = Mathf.Clamp(GetSingleLineFontSize(text, availableSize, maxFontSize), minFontSize, maxFontSize);
 
         ApplyCardTextFit(text, 1, false, fontSize, state);
+        state.RememberFitSignature(
+            nameof(FitActionCaption),
+            text,
+            availableSize,
+            ActionCaptionMinFontScale,
+            ActionCaptionAbsoluteMinFontSize,
+            useCjkCompactSpacing);
     }
 
     private static void ApplyActionCaptionBaseStyle(TMP_Text text, TextFitState state)
@@ -671,6 +719,14 @@ internal static class UiTextHelpers
         internal float OriginalLineSpacing { get; private set; }
 
         private bool Captured { get; set; }
+        private Vector2 LastAvailableSize { get; set; }
+        private float LastAbsoluteMin { get; set; }
+        private bool LastCjkCompactSpacing { get; set; }
+        private TMP_FontAsset LastFont { get; set; }
+        private float LastMaxFontSize { get; set; }
+        private float LastMinFontScale { get; set; }
+        private string LastMode { get; set; }
+        private string LastText { get; set; }
 
         internal void Capture(TMP_Text text)
         {
@@ -684,6 +740,42 @@ internal static class UiTextHelpers
                 : text.fontSize;
             OriginalLineSpacing = text.lineSpacing;
             Captured = true;
+        }
+
+        internal bool HasFitSignature(
+            string mode,
+            TMP_Text text,
+            Vector2 availableSize,
+            float minFontScale,
+            float absoluteMin,
+            bool cjkCompactSpacing)
+        {
+            return string.Equals(LastMode, mode, StringComparison.Ordinal) &&
+                   string.Equals(LastText, text.text, StringComparison.Ordinal) &&
+                   LastFont == text.font &&
+                   Mathf.Abs(LastMaxFontSize - OriginalFontSizeMax) <= 0.01f &&
+                   Mathf.Abs(LastMinFontScale - minFontScale) <= 0.001f &&
+                   Mathf.Abs(LastAbsoluteMin - absoluteMin) <= 0.01f &&
+                   LastCjkCompactSpacing == cjkCompactSpacing &&
+                   (LastAvailableSize - availableSize).sqrMagnitude <= 1f;
+        }
+
+        internal void RememberFitSignature(
+            string mode,
+            TMP_Text text,
+            Vector2 availableSize,
+            float minFontScale,
+            float absoluteMin,
+            bool cjkCompactSpacing)
+        {
+            LastMode = mode;
+            LastText = text.text;
+            LastFont = text.font;
+            LastMaxFontSize = OriginalFontSizeMax;
+            LastMinFontScale = minFontScale;
+            LastAbsoluteMin = absoluteMin;
+            LastCjkCompactSpacing = cjkCompactSpacing;
+            LastAvailableSize = availableSize;
         }
     }
 

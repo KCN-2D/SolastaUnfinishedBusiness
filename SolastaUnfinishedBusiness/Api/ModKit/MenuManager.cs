@@ -32,6 +32,7 @@ internal sealed class MenuManager : INotifyPropertyChanged
     private readonly List<IMenuBottomPage> _bottomPages = [];
     private readonly List<IMenuSelectablePage> _selectablePages = [];
     private readonly List<IMenuTopPage> _topPages = [];
+    private NamedAction[] _selectablePageActions = [];
     private static int SelectedTab => Main.Settings.SelectedTab;
 
     private int TabIndex
@@ -63,25 +64,30 @@ internal sealed class MenuManager : INotifyPropertyChanged
         foreach (var type in assembly.GetTypes()
                      .Where(type => !type.IsInterface && !type.IsAbstract && typeof(IMenuPage).IsAssignableFrom(type)))
         {
-            if (typeof(IMenuTopPage).IsAssignableFrom(type))
+            var page = Activator.CreateInstance(type, true) as IMenuPage;
+
+            if (page is IMenuTopPage topPage)
             {
-                _topPages.Add(Activator.CreateInstance(type, true) as IMenuTopPage);
+                _topPages.Add(topPage);
             }
 
-            if (typeof(IMenuSelectablePage).IsAssignableFrom(type))
+            if (page is IMenuSelectablePage selectablePage)
             {
-                _selectablePages.Add(Activator.CreateInstance(type, true) as IMenuSelectablePage);
+                _selectablePages.Add(selectablePage);
             }
 
-            if (typeof(IMenuBottomPage).IsAssignableFrom(type))
+            if (page is IMenuBottomPage bottomPage)
             {
-                _bottomPages.Add(Activator.CreateInstance(type, true) as IMenuBottomPage);
+                _bottomPages.Add(bottomPage);
             }
         }
 
         _topPages.Sort(Comparison);
         _selectablePages.Sort(Comparison);
         _bottomPages.Sort(Comparison);
+        _selectablePageActions = _selectablePages
+            .Select(page => new NamedAction(page.Name, () => page.OnGUI(modEntry)))
+            .ToArray();
 
         modEntry.OnGUI += OnGUI;
 
@@ -89,7 +95,7 @@ internal sealed class MenuManager : INotifyPropertyChanged
 
         static int Comparison(IMenuPage x, IMenuPage y)
         {
-            return x.Priority - y.Priority;
+            return x.Priority.CompareTo(y.Priority);
         }
     }
 
@@ -99,6 +105,7 @@ internal sealed class MenuManager : INotifyPropertyChanged
         _topPages.Clear();
         _selectablePages.Clear();
         _bottomPages.Clear();
+        _selectablePageActions = [];
         PropertyChanged = null;
         _caughtException = null;
     }
@@ -150,9 +157,7 @@ internal sealed class MenuManager : INotifyPropertyChanged
                 }
 
                 var tabIndex = SelectedTab;
-                UI.TabBar(ref tabIndex, null,
-                    _selectablePages.Select(page => new NamedAction(page.Name, () => page.OnGUI(modEntry)))
-                        .ToArray());
+                UI.TabBar(ref tabIndex, null, _selectablePageActions);
                 TabIndex = tabIndex;
             }
 
