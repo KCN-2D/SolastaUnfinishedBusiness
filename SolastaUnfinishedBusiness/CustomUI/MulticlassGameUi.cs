@@ -606,7 +606,8 @@ internal static class MulticlassGameUi
             LevelUpHelper.EnumerateExtraSpells(group.extraSpellsMap, localHeroCharacter);
 
             // this is required to support when other caster is whole list
-            var keys = group.extraSpellsMap.Keys.Where(x => !allSpells.Contains(x));
+            var keys = group.extraSpellsMap.Keys
+                .Where(x => x.SpellLevel == group.SpellLevel && !allSpells.Contains(x));
 
             group.autoPreparedSpells.AddRange(keys);
         }

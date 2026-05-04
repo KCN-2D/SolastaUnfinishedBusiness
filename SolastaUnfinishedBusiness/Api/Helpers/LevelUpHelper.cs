@@ -11,6 +11,7 @@ using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Patches;
+using SolastaUnfinishedBusiness.Validators;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.ItemDefinitions;
@@ -21,6 +22,7 @@ internal static class LevelUpHelper
 {
     internal const string ExtraClassTag = "@Class";
     internal const string ExtraSubclassTag = "@Subclass";
+    private const int AnySpellLevel = -1;
 
     // keeps a tab on all heroes leveling up
     private static readonly Dictionary<RulesetCharacterHero, LevelUpData> LevelUpTab = new();
@@ -411,6 +413,216 @@ internal static class LevelUpHelper
             .Find(x => x.SpellCastingClass == spellCastingClass);
 
         return spellRepertoire != null ? SharedSpellsContext.MaxSpellLevelOfSpellCastingLevel(spellRepertoire) : 1;
+    }
+
+    private static bool IsClassOrSubclassSpellRepertoire(RulesetSpellRepertoire repertoire)
+    {
+        return repertoire is { SpellCastingFeature: not null } &&
+               (repertoire.SpellCastingClass || repertoire.SpellCastingSubclass);
+    }
+
+    private static bool IsSpellCastableWithRepertoireSlots(
+        SpellDefinition spell,
+        int maxSpellLevel,
+        int spellLevel)
+    {
+        return spell is { Implemented: true, GuiPresentation.hidden: false, SpellLevel: > 0 } &&
+               spell.SpellLevel <= maxSpellLevel &&
+               (spellLevel == AnySpellLevel || spell.SpellLevel == spellLevel) &&
+               !SpellsContext.SpellsChildMaster.ContainsKey(spell);
+    }
+
+    private static bool IsSlotCastableAutoPreparedFeatureValidForRepertoire(
+        FeatureDefinitionAutoPreparedSpells feature,
+        RulesetSpellRepertoire repertoire,
+        RulesetCharacterHero hero)
+    {
+        var matcher = feature.GetFirstSubFeatureOfType<RepertoireValidForAutoPreparedFeature>();
+
+        // UB feat-granted spells that can be cast with regular slots mark their valid target repertoire explicitly.
+        return matcher != null && matcher(repertoire, hero);
+    }
+
+    internal static IEnumerable<(SpellDefinition Spell, string DisplayTag)> EnumerateSlotCastableExtraSpellsForRepertoire(
+        RulesetCharacterHero hero,
+        RulesetSpellRepertoire repertoire,
+        int spellLevel = AnySpellLevel)
+    {
+        if (hero == null || !IsClassOrSubclassSpellRepertoire(repertoire))
+        {
+            yield break;
+        }
+
+        var maxSpellLevel = repertoire.MaxSpellLevelOfSpellCastingLevel;
+
+        if (maxSpellLevel <= 0)
+        {
+            yield break;
+        }
+
+        HashSet<SpellDefinition> yielded = [];
+        var classLevel = hero.GetSpellcastingLevel(repertoire);
+
+        foreach (var feature in hero.FeaturesByType<FeatureDefinitionAutoPreparedSpells>()
+                     .Where(feature => feature.AutoPreparedSpellsGroups != null)
+                     .Where(feature => IsSlotCastableAutoPreparedFeatureValidForRepertoire(feature, repertoire, hero)))
+        {
+            foreach (var spell in feature.AutoPreparedSpellsGroups
+                         .Where(group => group.ClassLevel <= classLevel)
+                         .SelectMany(group => group.SpellsList)
+                         .Where(spell => IsSpellCastableWithRepertoireSlots(spell, maxSpellLevel, spellLevel)))
+            {
+                if (yielded.Add(spell))
+                {
+                    yield return (spell, feature.AutoPreparedTag);
+                }
+            }
+        }
+
+        foreach (var (spell, displayTag) in Tabletop2024Context.EnumerateSlotCastableTabletop2024FeatSpellsWithTags(hero)
+                     .Where(entry => IsSpellCastableWithRepertoireSlots(entry.Spell, maxSpellLevel, spellLevel)))
+        {
+            if (yielded.Add(spell))
+            {
+                yield return (spell, displayTag);
+            }
+        }
+    }
+
+    internal static void AddSlotCastableExtraSpellsToAutoPreparedSpells(
+        RulesetCharacter character,
+        RulesetSpellRepertoire repertoire)
+    {
+        if (character is not RulesetCharacterHero hero)
+        {
+            return;
+        }
+
+        foreach (var (spell, _) in EnumerateSlotCastableExtraSpellsForRepertoire(hero, repertoire))
+        {
+            repertoire.AutoPreparedSpells.TryAdd(spell);
+        }
+    }
+
+    internal static void AddSlotCastableExtraSpellsToCommonBind(
+        SpellsByLevelGroup group,
+        RulesetCharacter caster,
+        List<SpellDefinition> allSpells,
+        List<SpellDefinition> autoPreparedSpells,
+        Dictionary<SpellDefinition, string> tagBySpell,
+        Dictionary<SpellDefinition, string> extraSpellsMap)
+    {
+        if (caster is not RulesetCharacterHero hero ||
+            group is not { SpellRepertoire: not null, SpellLevel: > 0 } ||
+            allSpells == null)
+        {
+            return;
+        }
+
+        foreach (var (spell, displayTag) in EnumerateSlotCastableExtraSpellsForRepertoire(
+                     hero,
+                     group.SpellRepertoire,
+                     group.SpellLevel))
+        {
+            allSpells.TryAdd(spell);
+            autoPreparedSpells?.TryAdd(spell);
+            tagBySpell?.TryAdd(spell, displayTag);
+            extraSpellsMap?.TryAdd(spell, displayTag);
+        }
+    }
+
+    internal static void AddSlotCastableExtraSpellsToExtraSpellsMap(
+        RulesetSpellRepertoire repertoire,
+        int spellLevel,
+        Dictionary<SpellDefinition, string> extraSpellsMap)
+    {
+        if (spellLevel <= 0 ||
+            extraSpellsMap == null ||
+            repertoire?.GetCaster() is not RulesetCharacterHero hero)
+        {
+            return;
+        }
+
+        foreach (var (spell, displayTag) in EnumerateSlotCastableExtraSpellsForRepertoire(
+                     hero,
+                     repertoire,
+                     spellLevel))
+        {
+            if (spell.ActivationTime is ActivationTime.Reaction or ActivationTime.OnAttackHit)
+            {
+                continue;
+            }
+
+            extraSpellsMap.TryAdd(spell, displayTag);
+        }
+    }
+
+    internal static bool IsSlotCastableExtraSpellForRepertoire(
+        RulesetCharacterHero hero,
+        RulesetSpellRepertoire repertoire,
+        SpellDefinition spell)
+    {
+        return spell != null &&
+               EnumerateSlotCastableExtraSpellsForRepertoire(hero, repertoire, spell.SpellLevel)
+                   .Any(entry => entry.Spell == spell);
+    }
+
+    internal static bool IsPreparedOrSlotCastableExtraSpellForRepertoire(
+        RulesetCharacterHero hero,
+        RulesetSpellRepertoire repertoire,
+        SpellDefinition spell)
+    {
+        if (spell == null)
+        {
+            return false;
+        }
+
+        var castingFeature = repertoire?.spellCastingFeature;
+        var isPreparedSpellForWholeListCaster =
+            castingFeature is
+            {
+                SpellKnowledge: SpellKnowledge.WholeList,
+                SpellReadyness: SpellReadyness.Prepared
+            } &&
+            repertoire.PreparedSpells.Contains(spell);
+
+        return isPreparedSpellForWholeListCaster ||
+               IsSlotCastableExtraSpellForRepertoire(hero, repertoire, spell);
+    }
+
+    internal static bool HasSlotCastableExtraSpellOfLevelAndActionType(
+        RulesetCharacterHero hero,
+        RulesetSpellRepertoire repertoire,
+        int spellLevel,
+        ActionDefinitions.ActionType actionType)
+    {
+        if (actionType == ActionDefinitions.ActionType.None)
+        {
+            return EnumerateSlotCastableExtraSpellsForRepertoire(hero, repertoire, spellLevel)
+                .Any(entry => entry.Spell.ActivationTime is not ActivationTime.Reaction and not ActivationTime.OnAttackHit);
+        }
+
+        var activationTime = GetSpellActivationTime(actionType);
+
+        if (activationTime is ActivationTime.Reaction or ActivationTime.OnAttackHit)
+        {
+            return false;
+        }
+
+        return EnumerateSlotCastableExtraSpellsForRepertoire(hero, repertoire, spellLevel)
+            .Any(entry => entry.Spell.ActivationTime == activationTime);
+    }
+
+    internal static ActivationTime GetSpellActivationTime(ActionDefinitions.ActionType actionType)
+    {
+        return actionType switch
+        {
+            ActionDefinitions.ActionType.Bonus => ActivationTime.BonusAction,
+            ActionDefinitions.ActionType.Main => ActivationTime.Action,
+            ActionDefinitions.ActionType.Reaction => ActivationTime.Reaction,
+            ActionDefinitions.ActionType.NoCost => ActivationTime.NoCost,
+            _ => ActivationTime.Action
+        };
     }
 
     internal static void EnumerateExtraSpells(

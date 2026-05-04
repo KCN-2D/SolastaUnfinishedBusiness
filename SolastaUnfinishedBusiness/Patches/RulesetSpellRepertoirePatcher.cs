@@ -6,6 +6,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using static RuleDefinitions;
@@ -541,6 +542,21 @@ public static class RulesetSpellRepertoirePatcher
         }
     }
 
+    [HarmonyPatch(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.EnumerateExtraSpellsOfLevel))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class EnumerateExtraSpellsOfLevel_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetSpellRepertoire __instance,
+            int spellLevel,
+            Dictionary<SpellDefinition, string> extraSpells)
+        {
+            LevelUpHelper.AddSlotCastableExtraSpellsToExtraSpellsMap(__instance, spellLevel, extraSpells);
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.HasKnowledgeOfSpell))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -555,14 +571,35 @@ public static class RulesetSpellRepertoirePatcher
                 return;
             }
 
-            var castingFeature = __instance.spellCastingFeature;
+            //PATCH: allow slot-castable spells granted by feats / extra features on regular class repertoires
+            __result = LevelUpHelper.IsPreparedOrSlotCastableExtraSpellForRepertoire(
+                __instance.GetCaster() as RulesetCharacterHero,
+                __instance,
+                consideredSpellDefinition);
+        }
+    }
 
-            //PATCH: fix case when whole list prepared casters learn spell that's not in their spell list because it was enabled for them through mod options, but then that option is disabled 
-            if (castingFeature.SpellKnowledge == SpellKnowledge.WholeList
-                && castingFeature.spellReadyness == SpellReadyness.Prepared)
+    [HarmonyPatch(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.IsSpellReady))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class IsSpellReady_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetSpellRepertoire __instance,
+            ref bool __result,
+            SpellDefinition consideredSpellDefinition)
+        {
+            if (__result)
             {
-                __result = __instance.PreparedSpells.Contains(consideredSpellDefinition);
+                return;
             }
+
+            //PATCH: allow slot-castable spells granted by feats / extra features on regular class repertoires
+            __result = LevelUpHelper.IsPreparedOrSlotCastableExtraSpellForRepertoire(
+                __instance.GetCaster() as RulesetCharacterHero,
+                __instance,
+                consideredSpellDefinition);
         }
     }
 

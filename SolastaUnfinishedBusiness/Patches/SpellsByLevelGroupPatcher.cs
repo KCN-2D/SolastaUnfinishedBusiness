@@ -15,11 +15,24 @@ public static class SpellsByLevelGroupPatcher
     public static class CommonBind_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(RulesetCharacter caster, Dictionary<SpellDefinition, string> extraSpellsMap)
+        public static void Prefix(
+            SpellsByLevelGroup __instance,
+            RulesetCharacter caster,
+            List<SpellDefinition> allSpells,
+            List<SpellDefinition> autoPreparedSpells,
+            Dictionary<SpellDefinition, string> tagBySpell,
+            Dictionary<SpellDefinition, string> extraSpellsMap)
         {
             //PATCH: add all auto prepared spells to extra spells map, so that different sources of auto spells won't bleed their tag
             //Don't use GetOriginalHero() here
             LevelUpHelper.EnumerateExtraSpells(extraSpellsMap, caster as RulesetCharacterHero);
+            LevelUpHelper.AddSlotCastableExtraSpellsToCommonBind(
+                __instance,
+                caster,
+                allSpells,
+                autoPreparedSpells,
+                tagBySpell,
+                extraSpellsMap);
         }
     }
 }

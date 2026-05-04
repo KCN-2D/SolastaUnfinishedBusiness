@@ -2912,38 +2912,6 @@ public static partial class Tabletop2024Context
                 (allowMissingSpellFeature && spellFeature == null));
     }
 
-    internal static void AddTabletop2024FeatAutoPreparedSpells(
-        RulesetCharacter character,
-        RulesetSpellRepertoire spellRepertoire)
-    {
-        if (!Main.Settings.EnableTabletopFeatRules2024 ||
-            character is not RulesetCharacterHero hero ||
-            !(spellRepertoire.SpellCastingClass || spellRepertoire.SpellCastingSubclass))
-        {
-            return;
-        }
-
-        var maxSpellLevel = spellRepertoire.MaxSpellLevelOfSpellCastingLevel;
-
-        if (maxSpellLevel <= 0)
-        {
-            return;
-        }
-
-        foreach (var spell in EnumerateSlotCastableTabletop2024FeatSpellsWithTags(hero)
-                     .Select(x => x.Spell)
-                     .Where(spell => spell is { Implemented: true, GuiPresentation.hidden: false })
-                     .Where(spell => !SpellsContext.SpellsChildMaster.ContainsKey(spell))
-                     .Where(spell => spell.SpellLevel > 0 && spell.SpellLevel <= maxSpellLevel)
-                     .Distinct())
-        {
-            if (!spellRepertoire.AutoPreparedSpells.Contains(spell))
-            {
-                spellRepertoire.AutoPreparedSpells.Add(spell);
-            }
-        }
-    }
-
     internal static IEnumerable<(SpellDefinition Spell, string DisplayTag)> EnumerateSlotCastableTabletop2024FeatSpellsWithTags(
         RulesetCharacterHero hero)
     {
@@ -2963,7 +2931,7 @@ public static partial class Tabletop2024Context
 
             var spellTag = spellCastingFeature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>();
 
-            if (!IsSlotCastableTabletop2024FeatSpellTag(spellTag, spellCastingFeature))
+            if (!IsSlotCastableTabletop2024FeatSpellTag(spellTag))
             {
                 continue;
             }
@@ -3231,26 +3199,15 @@ public static partial class Tabletop2024Context
         return true;
     }
 
-    private static bool IsSlotCastableTabletop2024FeatSpellTag(
-        FeatHelpers.SpellTag spellTag,
-        FeatureDefinitionCastSpell spellCastingFeature)
+    private static bool IsSlotCastableTabletop2024FeatSpellTag(FeatHelpers.SpellTag spellTag)
     {
         if (spellTag == null)
         {
             return false;
         }
 
-        if (SlotCastableTabletop2024FeatSpellTags.Contains(spellTag.Name) ||
-            IsMagicInitiate2024SpellTagName(spellTag.Name))
-        {
-            return true;
-        }
-
-        // Compatibility path:
-        // Earlier Magic Initiate 2024 definitions reused the old Initiate tag and cast spell feature names.
-        return Main.Settings.EnableTabletopFeatRules2024 &&
-               spellTag.Name == OtherFeats.FeatMagicInitiateTag &&
-               spellCastingFeature.Name.StartsWith("CastSpellFeatMagicInitiate", StringComparison.Ordinal);
+        return SlotCastableTabletop2024FeatSpellTags.Contains(spellTag.Name) ||
+               IsMagicInitiate2024SpellTagName(spellTag.Name);
     }
 
     private static string GetMagicInitiate2024LegacyFeatName(string className)

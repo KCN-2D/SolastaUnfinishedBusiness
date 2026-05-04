@@ -1983,7 +1983,7 @@ public static class RulesetCharacterPatcher
                 }
             }
 
-            Tabletop2024Context.AddTabletop2024FeatAutoPreparedSpells(__instance, spellRepertoire);
+            LevelUpHelper.AddSlotCastableExtraSpellsToAutoPreparedSpells(__instance, spellRepertoire);
 
             return false;
         }

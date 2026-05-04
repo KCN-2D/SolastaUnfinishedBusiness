@@ -5,6 +5,7 @@ using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
@@ -323,6 +324,10 @@ internal static class CampaignsContext
 
         foreach (var rulesetSpellRepertoire in spellRepertoires)
         {
+            LevelUpHelper.AddSlotCastableExtraSpellsToAutoPreparedSpells(
+                caster.RulesetCharacter,
+                rulesetSpellRepertoire);
+
             var startLevel = 0;
             var maxLevel = rulesetSpellRepertoire.MaxSpellLevelOfSpellCastingLevel;
 
@@ -499,12 +504,21 @@ internal static class CampaignsContext
                     bonusCantrips.Any(cantrip => cantrip.ActivationTime == spellActivationTime));
         }
 
+        if (LevelUpHelper.HasSlotCastableExtraSpellOfLevelAndActionType(
+                spellRepertoire.GetCaster() as RulesetCharacterHero,
+                spellRepertoire,
+                level,
+                actionType))
+        {
+            return true;
+        }
+
         switch (spellRepertoire.SpellCastingFeature.SpellReadyness)
         {
             case SpellReadyness.Prepared when spellRepertoire.PreparedSpells
-                .Any(spellDefinition =>
-                    spellDefinition.SpellLevel == level
-                    && spellDefinition.ActivationTime == spellActivationTime):
+                                                 .Any(spellDefinition =>
+                                                     spellDefinition.SpellLevel == level
+                                                     && spellDefinition.ActivationTime == spellActivationTime):
             case SpellReadyness.AllKnown
                 when spellRepertoire.KnownSpells.Any(spellDefinition => spellDefinition.SpellLevel == level)
                      || spellRepertoire.ExtraSpellsByTag.Any(x => x.Value.Any(s => s.SpellLevel == level)):
