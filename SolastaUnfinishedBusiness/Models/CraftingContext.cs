@@ -62,13 +62,13 @@ internal static class CraftingContext
         { "Warlock_Armor", Gui.Localize("Equipment/&Armor_Warlock_Title") }
     };
 
-    private static readonly List<string> ItemCategories =
+    private static readonly string[] RecipeFilterLocalizationKeys =
     [
-        "All",
-        "Ammunition",
-        "Armor",
-        "UsableDevices",
-        "Weapons"
+        "UI/&RecipeFilterAll",
+        "UI/&RecipeFilterAmmunition",
+        "UI/&RecipeFilterArmor",
+        "UI/&RecipeFilterUsableDevices",
+        "UI/&RecipeFilterWeapons"
     ];
 
     internal static Dictionary<string, List<ItemDefinition>> RecipeBooks { get; } = new();
@@ -142,8 +142,6 @@ internal static class CraftingContext
 
         // adds the filter dropdown
 
-        var filterOptions = new List<TMP_Dropdown.OptionData>();
-
         filter.name = "FilterDropdown";
         filter.transform.localPosition = new Vector3(95f, 415f, 0f);
 
@@ -152,10 +150,16 @@ internal static class CraftingContext
         FilterGuiDropdown.ClearOptions();
         FilterGuiDropdown.onValueChanged.AddListener(delegate { craftingPanel.Refresh(); });
 
-        ItemCategories.ForEach(x => filterOptions.Add(new GuiDropdown.OptionDataAdvanced { text = Gui.Localize(x) }));
-
-        FilterGuiDropdown.AddOptions(filterOptions);
+        FilterGuiDropdown.AddOptions(BuildRecipeFilterOptions());
         FilterGuiDropdown.template.sizeDelta = new Vector2(1f, 208f);
+    }
+
+    private static List<TMP_Dropdown.OptionData> BuildRecipeFilterOptions()
+    {
+        return RecipeFilterLocalizationKeys
+            .Select(key => new GuiDropdown.OptionDataAdvanced { text = Gui.Localize(key) })
+            .Cast<TMP_Dropdown.OptionData>()
+            .ToList();
     }
 
     internal static void FilterRecipes(ref List<RecipeDefinition> knownRecipes)

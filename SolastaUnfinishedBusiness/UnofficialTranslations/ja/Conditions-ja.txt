@@ -1,2 +1,2 @@
-Conditions/&ConditionPOI_Description=氷の宮殿とデーモンの領域にいる間、フィーンドでないクリーチャーは複数のペナルティを受けます。
+Conditions/&ConditionPOI_Description=氷の宮殿とデーモンの領域にいる間、フィーンドでないクリーチャーは複数の不利益を受けます。
 Conditions/&ConditionPOI_Title=氷の宮殿の住処効果

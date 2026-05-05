@@ -33,8 +33,8 @@ TutorialStep/&MajorGateBoneKeep_Description=このマイナーゲートを使う
 TutorialStep/&MajorGateBoneKeep_Title=メジャーゲート
 TutorialStep/&MechanismsDescription=ときには、通路を開いたり仕掛けを起動したりするために、インタラクト可能な装置を見つけなければなりません。\n探索し、慎重モードで発見しやすくし、操作可能な対象を示す歯車アイコンを探してください。\nあとはあなた次第です。起動するか、それとも見送るか。
 TutorialStep/&MechanismsTitle=インタラクティブなオブジェクト
-TutorialStep/&MovingCharactersDescription=地面上の目的地を左クリックすると、選択したキャラクターがその場所に移動します。\n\nカメラは自動的にそれらを追跡します。\n\nカーソルは、無効な場所をターゲットにしているかどうかを示します。
-TutorialStep/&MovingCharactersDescriptionXBox=<sprite index={4}>を使用してカーソルを移動し、<sprite index={0}>を押して、選択したキャラクターをその位置に移動します。\n\nカーソルは、無効な位置をターゲットにしているかどうかを示します。
+TutorialStep/&MovingCharactersDescription=地面上の目的地を左クリックすると、選択したキャラクターがその場所に移動します。\n\nカメラは自動的にそのキャラクターを追跡します。\n\nカーソルは、選択した場所が移動先として無効かどうかを示します。
+TutorialStep/&MovingCharactersDescriptionXBox=<sprite index={4}>を使用してカーソルを移動し、<sprite index={0}>を押して、選択したキャラクターをその位置に移動します。\n\nカーソルは、選択した場所が移動先として無効かどうかを示します。
 TutorialStep/&MovingCharactersTitle=キャラクターの移動
 TutorialStep/&OutgameCharacterCreationAbilityScores2Description=能力値は、ランダムに決める方法やポイント購入制など、いくつかの方法で決定できます。\n\n各クラスには優先される能力値があります。たとえばウィザードなら知力です。キャラクターの最も高い能力値が、そのクラスの主要能力になっているか確認しましょう。
 TutorialStep/&OutgameCharacterCreationAbilityScores2Title=能力値の決定
