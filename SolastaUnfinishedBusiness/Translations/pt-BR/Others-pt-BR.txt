@@ -402,6 +402,7 @@ Feedback/&PowerAfterRestIdentifyUsedWhileTravellingFormat=Você não pode usar o
 Feedback/&PrimalKnowledgeCheckToHitRoll={0} usou {1}, adiciona {2} ao teste, altera o resultado e consome Fúria
 Feedback/&ReturningWeaponActivates={1} retorna para {0}!
 Feedback/&SmallRace=Raça pequena
+Feedback/&HeavyWeaponAbilityRequirement2024=Requisito de atributo de arma Pesada
 Feedback/&TacticalMindCheckToHitRollFailure={0} usou {1}, adiciona {2} ao teste, mas não o suficiente para mudar o resultado
 Feedback/&TacticalMindCheckToHitRollSuccess={0} usou {1}, adiciona {2} ao teste, altera o resultado e consome Segundo Fôlego
 Feedback/&TriggerFeatureLine={0} gatilhos {1}

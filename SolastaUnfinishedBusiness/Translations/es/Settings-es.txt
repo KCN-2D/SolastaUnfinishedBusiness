@@ -506,6 +506,7 @@ ModUi/&ExcludeEquippedItemsFromCarriedWeight=Excluir los objetos equipados del p
 ModUi/&UseOfficialObscurementRules=Habilitar las reglas de combate de <color=#D89555>iluminación, oscurecimiento y visión</color>
 ModUi/&UseOfficialObscurementRulesHelp=<i><color=#F0DAA0>[el atacante que percibe al defensor que no puede percibirlo obtiene ADV, y el atacante que no percibe al defensor que puede percibirlo obtiene DIS\n las áreas muy oscurecidas infligen condición de ceguera, donde las tiradas de ataque contra la criatura tienen ADV, y las tiradas de ataque de la criatura tienen DIS\n todos los hechizos de distancia dirigidos a individuos no se pueden lanzar si el atacante no tiene vista, excepto los que claramente no indican que se requiere vista]</color></i>
 ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=Permitir que las <color=#D89555>razas pequeñas</color> tengan desventaja al manejar armas pesadas
+ModUi/&EnableHeavyWeaponAbilityRequirement2024=Activar el requisito de característica de Armas pesadas 2024 [Fue 13 en cuerpo a cuerpo, Des 13 a distancia; si no, desventaja]
 ModUi/&UseOldOfficialFlankingRules=<i> + La antigua regla de flanqueo fue solo +2 para atacar el rollo. Arriba de la regla modificador de flanqueo más tiene prioridad </i>
 ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Otorga 2 selecciones de dominio de armas a la subclase Way of Blade Monk</i>
 ModUi/&UseWeaponMasterySystem=Habilitar las reglas de <color=#D89555>Maestría en armas</color>

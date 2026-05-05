@@ -402,6 +402,7 @@ Feedback/&PowerAfterRestIdentifyUsedWhileTravellingFormat=Sie können nach der R
 Feedback/&PrimalKnowledgeCheckToHitRoll={0} hat {1} verwendet, fügt {2} zum Wurf hinzu, ändert das Ergebnis und verbraucht Wut
 Feedback/&ReturningWeaponActivates={1} kehrt zu {0} zurück!
 Feedback/&SmallRace=Kleines Rennen
+Feedback/&HeavyWeaponAbilityRequirement2024=Attributsanforderung für schwere Waffen
 Feedback/&TacticalMindCheckToHitRollFailure={0} hat {1} verwendet und fügt {2} zum Wurf hinzu, aber nicht genug, um das Ergebnis zu ändern.
 Feedback/&TacticalMindCheckToHitRollSuccess={0} hat {1} verwendet, fügt {2} zum Wurf hinzu, ändert das Ergebnis und verbraucht Zweiter Wind
 Feedback/&TriggerFeatureLine={0} löst {1} aus

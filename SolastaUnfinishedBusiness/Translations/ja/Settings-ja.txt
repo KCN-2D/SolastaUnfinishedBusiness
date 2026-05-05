@@ -499,6 +499,7 @@ ModUi/&ExcludeEquippedItemsFromCarriedWeight=装備中のアイテムを所持�
 ModUi/&UseOfficialObscurementRules=<color=#D89555>照明、隠蔽、視界</color>戦闘ルールを有効にする
 ModUi/&UseOfficialObscurementRulesHelp=<i><color=#F0DAA0>[防御側を知覚できる攻撃側は有利を得て、攻撃側を知覚できる防御側に対しては、知覚できない攻撃側が不利を受けます\n重度の隠蔽領域は盲目状態を与え、そのクリーチャーに対する攻撃ロールは有利、そのクリーチャーの攻撃ロールは不利になります\n攻撃側に視覚がない場合、視認不要と明記されたものを除き、個体を対象とする遠距離呪文は発動できません]</color></i>
 ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=<color=#D89555>小型種族</color>が重武器を使用するとき不利を受けるようにする
+ModUi/&EnableHeavyWeaponAbilityRequirement2024=2024年版の重武器能力値条件を有効化［近接は筋力13、遠隔は敏捷力13未満なら攻撃ロールに不利］
 ModUi/&UseWeaponMasterySystem=<color=#D89555>武器マスタリー</color>ルールを有効にする
 ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ 〈刃の道〉モンクのサブクラスに武器マスタリーの選択肢を2つ付与</i>
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ 薙ぎ払いマスタリーは2回目の攻撃ダメージに能力値修正値を追加します</i>

@@ -402,6 +402,7 @@ Feedback/&PowerAfterRestIdentifyUsedWhileTravellingFormat=Vous ne pouvez pas uti
 Feedback/&PrimalKnowledgeCheckToHitRoll={0} a utilisé {1}, ajoute {2} au jet de test, change le résultat et consomme de la Rage
 Feedback/&ReturningWeaponActivates={1} revient à {0} !
 Feedback/&SmallRace=Petite course
+Feedback/&HeavyWeaponAbilityRequirement2024=Prérequis de caractéristique d’arme lourde
 Feedback/&TacticalMindCheckToHitRollFailure={0} a utilisé {1}, ajoute {2} au jet de contrôle, mais pas suffisamment pour changer le résultat
 Feedback/&TacticalMindCheckToHitRollSuccess={0} a utilisé {1}, ajoute {2} au jet de test, change le résultat et consomme Second Wind
 Feedback/&TriggerFeatureLine={0} déclenche {1}

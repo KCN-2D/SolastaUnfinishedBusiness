@@ -399,6 +399,7 @@ Feedback/&PowerAfterRestIdentifyUsedWhileTravellingFormat=旅の途中では休�
 Feedback/&PrimalKnowledgeCheckToHitRoll={0}は{1}を使用し、判定ロールに{2}を加えて結果を変更し、激怒を消費します
 Feedback/&ReturningWeaponActivates={1}は{0}の手に戻ります！
 Feedback/&SmallRace=小型種族
+Feedback/&HeavyWeaponAbilityRequirement2024=重武器の能力値条件
 Feedback/&TacticalMindCheckToHitRollFailure={0}は{1}を使用し、判定ロールに{2}を加えましたが、結果を変えるには不十分でした。
 Feedback/&TacticalMindCheckToHitRollSuccess={0}は{1}を使用し、判定ロールに{2}を加えて結果を変更し、底力を消費します
 Feedback/&TriggerFeatureLine={0}が{1}を発動

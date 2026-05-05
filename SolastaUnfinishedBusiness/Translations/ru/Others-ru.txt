@@ -399,6 +399,7 @@ Feedback/&PowerAfterRestIdentifyUsedWhileTravellingFormat=Вы не можете
 Feedback/&PrimalKnowledgeCheckToHitRoll={0} использовал {1}, добавляет {2} к броску проверки и изменяет результат, потратив заряд Ярости
 Feedback/&ReturningWeaponActivates={1} возвращается к {0}!
 Feedback/&SmallRace=Раса маленького размера
+Feedback/&HeavyWeaponAbilityRequirement2024=Требование характеристик для тяжёлого оружия
 Feedback/&TacticalMindCheckToHitRollFailure={0} использовал {1}, добавляет {2} к броску проверки, но этого не достаточно, чтобы изменить результат
 Feedback/&TacticalMindCheckToHitRollSuccess={0} использовал {1}, добавляет {2} к броску проверки и изменяет результат, потратив Второе дыхание
 Feedback/&TriggerFeatureLine={0} вызывает срабатывание {1}

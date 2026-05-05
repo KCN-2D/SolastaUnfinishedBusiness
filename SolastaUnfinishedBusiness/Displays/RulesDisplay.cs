@@ -199,6 +199,12 @@ internal static class RulesDisplay
             UI.Label(Gui.Localize("ModUi/&UseAlternateSpellPointsSystemHelp"));
         }
 
+        toggle = Main.Settings.EnableHeavyWeaponAbilityRequirement2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableHeavyWeaponAbilityRequirement2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableHeavyWeaponAbilityRequirement2024 = toggle;
+        }
+
         toggle = Main.Settings.UseWeaponMasterySystem;
         if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystem"), ref toggle, UI.AutoWidth()))
         {

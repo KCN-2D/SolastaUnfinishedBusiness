@@ -402,6 +402,7 @@ Feedback/&PowerAfterRestIdentifyUsedWhileTravellingFormat=旅行途中休息后�
 Feedback/&PrimalKnowledgeCheckToHitRoll={0} 使用了 {1}，将 {2} 添加到检查点数，更改结果，并消耗怒气
 Feedback/&ReturningWeaponActivates={1} 返回 {0}！
 Feedback/&SmallRace=小体型种族
+Feedback/&HeavyWeaponAbilityRequirement2024=重型武器属性要求
 Feedback/&TacticalMindCheckToHitRollFailure={0} 使用了 {1}，将 {2} 添加到检查卷中，但不足以改变结果
 Feedback/&TacticalMindCheckToHitRollSuccess={0} 使用了 {1}，将 {2} 添加到检查点数中，更改结果，并消耗 Second Wind
 Feedback/&TriggerFeatureLine={0} 触发 {1}

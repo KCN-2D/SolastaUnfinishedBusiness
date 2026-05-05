@@ -11,6 +11,9 @@ namespace SolastaUnfinishedBusiness.Models;
 
 public static partial class Tabletop2024Context
 {
+    private const int HeavyWeaponAbilityRequirementScore2024 = 13;
+    private const string HeavyWeaponAbilityRequirementFeedback2024 = "Feedback/&HeavyWeaponAbilityRequirement2024";
+
     private static readonly FeatureDefinitionActionAffinity ActionAffinityPotionBonusAction =
         FeatureDefinitionActionAffinityBuilder
             .Create("ActionAffinityPotionBonusAction")
@@ -47,6 +50,53 @@ public static partial class Tabletop2024Context
     internal static void SwitchPoisonsBonusAction()
     {
         SwitchItemBonusActions(GameConstants.TagPoison, ItemPropertyPoisonBonusAction, Main.Settings.EnablePoisonsBonusAction2024);
+    }
+
+    internal static void HandleHeavyWeaponAbilityRequirement(BattleDefinitions.AttackEvaluationParams evaluationParams)
+    {
+        if (!Main.Settings.EnableHeavyWeaponAbilityRequirement2024)
+        {
+            return;
+        }
+
+        var rulesetAttacker = evaluationParams.attacker?.RulesetCharacter;
+        var attackMode = evaluationParams.attackMode;
+        var attackModifier = evaluationParams.attackModifier;
+
+        if (rulesetAttacker == null ||
+            attackModifier?.AttackAdvantageTrends == null ||
+            attackMode?.SourceDefinition is not ItemDefinition itemDefinition ||
+            !ValidatorsWeapon.IsHeavyWeapon(itemDefinition))
+        {
+            return;
+        }
+
+        var weaponTypeDefinition = itemDefinition.WeaponDescription?.WeaponTypeDefinition;
+        var requiredAttribute = weaponTypeDefinition?.WeaponProximity switch
+        {
+            AttackProximity.Melee => AttributeDefinitions.Strength,
+            AttackProximity.Range => AttributeDefinitions.Dexterity,
+            _ => null
+        };
+
+        if (requiredAttribute == null ||
+            rulesetAttacker.TryGetAttributeValue(requiredAttribute) >= HeavyWeaponAbilityRequirementScore2024)
+        {
+            return;
+        }
+
+        var advantageTrends = attackModifier.AttackAdvantageTrends;
+
+        foreach (var trend in advantageTrends)
+        {
+            if (trend.sourceName == HeavyWeaponAbilityRequirementFeedback2024)
+            {
+                return;
+            }
+        }
+
+        advantageTrends.Add(
+            new TrendInfo(-1, FeatureSourceType.Unknown, HeavyWeaponAbilityRequirementFeedback2024, null));
     }
 
     private static void SwitchItemBonusActions(string tag, ItemPropertyDescription property, bool enabled)

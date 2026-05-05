@@ -257,7 +257,7 @@ internal static class RacesContext
 
         if (hero?.RaceDefinition.SizeDefinition == DatabaseHelper.CharacterSizeDefinitions.Small &&
             evaluationParams.attackMode is { SourceDefinition: ItemDefinition { IsWeapon: true } itemDefinition } &&
-            itemDefinition.WeaponDescription.WeaponTags.Contains(TagsDefinitions.WeaponTagHeavy))
+            ValidatorsWeapon.IsHeavyWeapon(itemDefinition))
         {
             evaluationParams.attackModifier.AttackAdvantageTrends.Add(
                 new TrendInfo(-1, FeatureSourceType.Unknown, "Feedback/&SmallRace", null));

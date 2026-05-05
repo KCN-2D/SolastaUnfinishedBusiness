@@ -51,6 +51,15 @@ internal static class ValidatorsWeapon
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static bool IsHeavyWeapon([CanBeNull] ItemDefinition itemDefinition)
+    {
+        return itemDefinition &&
+               itemDefinition.IsWeapon &&
+               itemDefinition.WeaponDescription != null &&
+               itemDefinition.WeaponDescription.WeaponTags.Contains(TagsDefinitions.WeaponTagHeavy);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static bool IsMelee([CanBeNull] ItemDefinition itemDefinition)
     {
         if (!itemDefinition)

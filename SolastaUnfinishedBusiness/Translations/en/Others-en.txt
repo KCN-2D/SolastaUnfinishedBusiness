@@ -399,6 +399,7 @@ Feedback/&PowerAfterRestIdentifyUsedWhileTravellingFormat=You can't use after re
 Feedback/&PrimalKnowledgeCheckToHitRoll={0} used {1}, adds {2} to the check roll, changes the outcome, and consumes Rage
 Feedback/&ReturningWeaponActivates={1} returns to {0}!
 Feedback/&SmallRace=Small Race
+Feedback/&HeavyWeaponAbilityRequirement2024=Heavy weapon ability requirement
 Feedback/&TacticalMindCheckToHitRollFailure={0} used {1}, adds {2} to the check roll, but not enough to change the outcome
 Feedback/&TacticalMindCheckToHitRollSuccess={0} used {1}, adds {2} to the check roll, changes the outcome, and consumes Second Wind
 Feedback/&TriggerFeatureLine={0} triggers {1}
