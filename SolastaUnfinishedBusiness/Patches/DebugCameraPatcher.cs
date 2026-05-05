@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using TA;
 using UnityEngine;
@@ -19,6 +20,23 @@ public static class DebugCameraPatcher
         __instance.virtualCamera.transform.SetPositionAndRotation(position, quaternion);
     }
 
+    private static bool TrySuppressSpellSelectionWheel()
+    {
+        var current = Event.current;
+
+        if (current == null ||
+            current.type != EventType.ScrollWheel ||
+            (!FloatingPanelBounds.ShouldSuppressBackgroundWheel(null) &&
+             !CampaignsContext.ShouldSuppressSpellSelectionBackgroundWheel()))
+        {
+            return false;
+        }
+
+        current.Use();
+
+        return true;
+    }
+
     [HarmonyPatch(typeof(DebugCamera), nameof(DebugCamera.UpdateFreeCamera))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -27,6 +45,11 @@ public static class DebugCameraPatcher
         [UsedImplicitly]
         public static bool Prefix(DebugCamera __instance)
         {
+            if (TrySuppressSpellSelectionWheel())
+            {
+                return false;
+            }
+
             if (!CampaignsContext.IsVttCameraEnabled)
             {
                 return true;
@@ -129,6 +152,11 @@ public static class DebugCameraPatcher
         [UsedImplicitly]
         public static bool Prefix(DebugCamera __instance)
         {
+            if (TrySuppressSpellSelectionWheel())
+            {
+                return false;
+            }
+
             if (!CampaignsContext.IsVttCameraEnabled)
             {
                 return true;

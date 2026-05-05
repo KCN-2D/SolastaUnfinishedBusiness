@@ -10,10 +10,12 @@ using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Patches;
 using TA;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.Playables;
 using UnityEngine.UI;
@@ -109,8 +111,25 @@ internal static class CampaignsContext
 
     internal const int GridSize = 5;
 
+    private const float SpellSelectionBottomFallbackCanvasRatio = 0.22f;
+    private const float SpellSelectionDragThresholdRatio = 0.35f;
+    private const float SpellSelectionMargin = 12f;
+
     private static readonly List<RectTransform> SpellLineTables = [];
+    private static readonly string[] LegacySpellSelectionRuntimeContainerNames =
+    [
+        "SpellSelection" + "Viewport",
+        "SpellSelection" + "Scroll" + "Viewport",
+        "SpellSelection" + "Line" + "Content"
+    ];
+    private static readonly Vector3[] SpellSelectionWorldCorners = new Vector3[4];
+    private static SpellSelectionLinePager ActiveSpellSelectionLinePager { get; set; }
     private static ItemPresentation EmpressGarbOriginalItemPresentation { get; set; }
+
+    internal static bool ShouldSuppressSpellSelectionBackgroundWheel()
+    {
+        return ActiveSpellSelectionLinePager && ActiveSpellSelectionLinePager.ShouldSuppressBackgroundWheel();
+    }
 
     internal static void ToggleVttCamera()
     {
@@ -260,9 +279,9 @@ internal static class CampaignsContext
         }
 
         foreach (var spellTable in SpellLineTables
-                     .Where(spellTable =>
-                         spellTable && spellTable.gameObject.activeSelf && spellTable.childCount > 0))
+                     .Where(spellTable => spellTable && spellTable.childCount > 0))
         {
+            SetSpellSelectionLineTableVisible(spellTable, true);
             Gui.ReleaseChildrenToPool(spellTable);
             spellTable.SetParent(null);
             Object.Destroy(spellTable.gameObject);
@@ -298,20 +317,7 @@ internal static class CampaignsContext
         spellRepertoireSecondaryLine.Unbind();
         spellRepertoireSecondaryLine.gameObject.SetActive(false);
 
-        if (!spellRepertoireLinesTable.parent.GetComponent<VerticalLayoutGroup>())
-        {
-            GameObject spellLineHolder = new();
-
-            var vertGroup = spellLineHolder.AddComponent<VerticalLayoutGroup>();
-
-            vertGroup.spacing = 10;
-            spellLineHolder.AddComponent<ContentSizeFitter>();
-            spellLineHolder.transform.SetParent(spellRepertoireLinesTable.parent, true);
-            spellLineHolder.transform.SetAsFirstSibling();
-            spellLineHolder.transform.localScale = Vector3.one;
-            spellRepertoireLinesTable.SetParent(spellLineHolder.transform);
-        }
-
+        var spellLineHolder = EnsureSpellSelectionLineHolder(spellRepertoireLinesTable) ?? spellRepertoireLinesTable;
         var spellRepertoires = __instance.Caster.RulesetCharacter.SpellRepertoires
             .Where(r => r.SpellCastingFeature.SpellListDefinition != SpellsContext.EmptySpellList)
             .ToArray();
@@ -400,6 +406,747 @@ internal static class CampaignsContext
         __instance.RectTransform.SetSizeWithCurrentAnchors(
             RectTransform.Axis.Horizontal,
             spellRepertoireLinesTable.rect.width);
+
+        var pagerMetrics = ConfigureSpellSelectionLinePager(__instance, spellLineHolder);
+
+        __instance.RectTransform.SetSizeWithCurrentAnchors(
+            RectTransform.Axis.Horizontal,
+            Mathf.Max(pagerMetrics.VisibleWidth, spellRepertoireLinesTable.rect.width, spellLineHolder.rect.width));
+        __instance.RectTransform.SetSizeWithCurrentAnchors(
+            RectTransform.Axis.Vertical,
+            Mathf.Max(pagerMetrics.VisibleHeight, spellLineHolder.rect.height));
+        LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.RectTransform);
+
+        FloatingPanelBounds.ClampToScreen(__instance.RectTransform);
+        FloatingPanelBounds.ClampToScreenForNextFrames(__instance, __instance.RectTransform);
+    }
+
+    private static RectTransform EnsureSpellSelectionLineHolder(RectTransform spellRepertoireLinesTable)
+    {
+        RestoreSpellSelectionLineTableHierarchy(spellRepertoireLinesTable);
+
+        var holder = spellRepertoireLinesTable.parent as RectTransform;
+
+        if (holder && holder.GetComponent<VerticalLayoutGroup>())
+        {
+            RestoreSpellSelectionHolderLayout(holder);
+            return holder;
+        }
+
+        holder = new GameObject("SpellSelectionLineHolder", typeof(RectTransform)).GetComponent<RectTransform>();
+
+        var verticalLayoutGroup = holder.gameObject.AddComponent<VerticalLayoutGroup>();
+
+        verticalLayoutGroup.spacing = 10;
+        holder.gameObject.AddComponent<ContentSizeFitter>();
+        holder.SetParent(spellRepertoireLinesTable.parent, true);
+        holder.SetAsFirstSibling();
+        holder.localScale = Vector3.one;
+        spellRepertoireLinesTable.SetParent(holder, true);
+
+        return holder;
+    }
+
+    private static SpellSelectionPagerMetrics ConfigureSpellSelectionLinePager(
+        SpellSelectionPanel panel,
+        RectTransform holder)
+    {
+        Canvas.ForceUpdateCanvases();
+        SetAllSpellSelectionLineTablesVisible(holder, true);
+        LayoutRebuilder.ForceRebuildLayoutImmediate(holder);
+        LayoutRebuilder.ForceRebuildLayoutImmediate(panel.RectTransform);
+
+        var lineTables = GetSpellSelectionLineTables(holder);
+        var rowHeights = new float[lineTables.Length];
+        var spacing = holder.GetComponent<VerticalLayoutGroup>()?.spacing ?? 0f;
+        var contentHeight = 0f;
+        var contentWidth = 0f;
+        var availableHeight = 0f;
+        var safeCanvasBounds = Rect.zero;
+
+        for (var index = 0; index < lineTables.Length; index++)
+        {
+            var lineTable = lineTables[index];
+            var rowHeight = GetSpellSelectionLineTableHeight(lineTable);
+
+            rowHeights[index] = rowHeight;
+            contentHeight += rowHeight;
+            contentWidth = Mathf.Max(contentWidth, GetSpellSelectionLineTableWidth(lineTable));
+        }
+
+        if (lineTables.Length > 1)
+        {
+            contentHeight += spacing * (lineTables.Length - 1);
+        }
+
+        if (TryGetCanvasLocalBounds(panel.RectTransform, out _, out var canvasRect) ||
+            TryGetCanvasLocalBounds(holder, out _, out canvasRect))
+        {
+            safeCanvasBounds = GetSpellSelectionSafeCanvasBounds(panel, canvasRect);
+            availableHeight = Mathf.Max(0f, safeCanvasBounds.height);
+        }
+        else
+        {
+            availableHeight = contentHeight;
+        }
+
+        if (lineTables.Length == 0 || contentWidth <= 1f || contentHeight <= 1f)
+        {
+            DisableSpellSelectionLinePager(holder);
+
+            return new SpellSelectionPagerMetrics(
+                0f,
+                0f);
+        }
+
+        var visibleRows = CalculateVisibleSpellSelectionRows(rowHeights, spacing, availableHeight);
+        var pagerEnabled = visibleRows < lineTables.Length;
+        var visibleHeight = GetVisibleSpellSelectionRowsHeight(rowHeights, spacing, 0, visibleRows);
+        var pager = holder.GetComponent<SpellSelectionLinePager>() ?? holder.gameObject.AddComponent<SpellSelectionLinePager>();
+
+        if (pagerEnabled)
+        {
+            pager.Configure(panel, holder, lineTables, rowHeights, spacing, visibleRows, safeCanvasBounds, canvasRect);
+        }
+        else
+        {
+            pager.DisablePager();
+            SetAllSpellSelectionLineTablesVisible(holder, true);
+        }
+
+        RefreshSpellSelectionPanelSize(panel, holder, contentWidth, visibleHeight, safeCanvasBounds, canvasRect);
+
+        return new SpellSelectionPagerMetrics(
+            contentWidth,
+            visibleHeight);
+    }
+
+    private static void RestoreSpellSelectionLineTableHierarchy(RectTransform spellRepertoireLinesTable)
+    {
+        if (!spellRepertoireLinesTable)
+        {
+            return;
+        }
+
+        var holder = spellRepertoireLinesTable.parent as RectTransform;
+
+        if (holder &&
+            IsLegacySpellSelectionRuntimeContainer(holder.name) &&
+            holder.parent is RectTransform contentParent)
+        {
+            MoveChildren(holder, contentParent);
+            Object.Destroy(holder.gameObject);
+            holder = contentParent;
+        }
+
+        if (holder &&
+            holder.parent is RectTransform viewport &&
+            IsLegacySpellSelectionRuntimeContainer(viewport.name))
+        {
+            var viewportParent = viewport.parent as RectTransform;
+            var viewportSiblingIndex = viewport.GetSiblingIndex();
+
+            holder.SetParent(viewportParent, true);
+            holder.SetSiblingIndex(viewportSiblingIndex);
+            Object.Destroy(viewport.gameObject);
+        }
+
+        if (holder)
+        {
+            for (var childIndex = holder.childCount - 1; childIndex >= 0; childIndex--)
+            {
+                if (holder.GetChild(childIndex) is not RectTransform child ||
+                    !IsLegacySpellSelectionRuntimeContainer(child.name))
+                {
+                    continue;
+                }
+
+                MoveChildren(child, holder);
+                Object.Destroy(child.gameObject);
+            }
+
+            RestoreSpellSelectionHolderLayout(holder);
+            SetAllSpellSelectionLineTablesVisible(holder, true);
+        }
+    }
+
+    private static bool IsLegacySpellSelectionRuntimeContainer(string objectName)
+    {
+        return LegacySpellSelectionRuntimeContainerNames.Contains(objectName);
+    }
+
+    private static Rect GetSpellSelectionSafeCanvasBounds(SpellSelectionPanel panel, RectTransform canvasRect)
+    {
+        var canvasBounds = GetInsetCanvasRect(canvasRect, SpellSelectionMargin);
+        var safeBottom = canvasBounds.yMin + canvasBounds.height * SpellSelectionBottomFallbackCanvasRatio;
+        var actionPanel = panel.GetComponentInParent<CharacterActionPanel>();
+
+        if (actionPanel &&
+            TryGetCanvasLocalBounds(actionPanel.RectTransform, canvasRect, out var actionPanelBounds) &&
+            actionPanelBounds.height > 1f)
+        {
+            safeBottom = Mathf.Max(canvasBounds.yMin, actionPanelBounds.yMax + SpellSelectionMargin);
+        }
+
+        return Rect.MinMaxRect(canvasBounds.xMin, safeBottom, canvasBounds.xMax, canvasBounds.yMax);
+    }
+
+    private static void RestoreSpellSelectionHolderLayout(RectTransform holder)
+    {
+        var verticalLayoutGroup = holder.GetComponent<VerticalLayoutGroup>();
+
+        if (verticalLayoutGroup)
+        {
+            verticalLayoutGroup.enabled = true;
+        }
+
+        var contentSizeFitter = holder.GetComponent<ContentSizeFitter>();
+
+        if (contentSizeFitter)
+        {
+            contentSizeFitter.enabled = true;
+        }
+    }
+
+    private static void MoveChildren(RectTransform source, RectTransform destination)
+    {
+        var children = new List<Transform>();
+
+        for (var childIndex = 0; source && childIndex < source.childCount; childIndex++)
+        {
+            children.Add(source.GetChild(childIndex));
+        }
+
+        foreach (var child in children)
+        {
+            child.SetParent(destination, true);
+        }
+    }
+
+    private static void SetAllSpellSelectionLineTablesVisible(RectTransform holder, bool visible)
+    {
+        foreach (var lineTable in GetSpellSelectionLineTables(holder))
+        {
+            SetSpellSelectionLineTableVisible(lineTable, visible);
+        }
+    }
+
+    private static void SetSpellSelectionLineTableVisible(RectTransform lineTable, bool visible)
+    {
+        if (!lineTable)
+        {
+            return;
+        }
+
+        var canvasGroup = lineTable.GetComponent<CanvasGroup>() ?? lineTable.gameObject.AddComponent<CanvasGroup>();
+        var layoutElement = lineTable.GetComponent<LayoutElement>() ?? lineTable.gameObject.AddComponent<LayoutElement>();
+
+        canvasGroup.alpha = visible ? 1f : 0f;
+        canvasGroup.blocksRaycasts = visible;
+        canvasGroup.interactable = visible;
+        layoutElement.ignoreLayout = !visible;
+        lineTable.gameObject.SetActive(true);
+    }
+
+    private static void DisableSpellSelectionLinePager(RectTransform holder)
+    {
+        if (!holder)
+        {
+            return;
+        }
+
+        var pager = holder.GetComponent<SpellSelectionLinePager>();
+
+        if (pager)
+        {
+            pager.DisablePager();
+        }
+    }
+
+    private static RectTransform[] GetSpellSelectionLineTables(RectTransform holder)
+    {
+        var lineTables = new List<RectTransform>();
+
+        for (var childIndex = 0; holder && childIndex < holder.childCount; childIndex++)
+        {
+            if (holder.GetChild(childIndex) is RectTransform child &&
+                child.GetComponentsInChildren<SpellRepertoireLine>(true).Length > 0)
+            {
+                lineTables.Add(child);
+            }
+        }
+
+        return [.. lineTables];
+    }
+
+    private static int CalculateVisibleSpellSelectionRows(float[] rowHeights, float spacing, float availableHeight)
+    {
+        var visibleRows = 0;
+        var height = 0f;
+
+        for (var index = 0; index < rowHeights.Length; index++)
+        {
+            var nextHeight = height + (visibleRows > 0 ? spacing : 0f) + rowHeights[index];
+
+            if (visibleRows > 0 && nextHeight > availableHeight)
+            {
+                break;
+            }
+
+            height = nextHeight;
+            visibleRows++;
+        }
+
+        return Mathf.Clamp(visibleRows, 1, rowHeights.Length);
+    }
+
+    private static float GetVisibleSpellSelectionRowsHeight(
+        float[] rowHeights,
+        float spacing,
+        int firstRow,
+        int visibleRows)
+    {
+        var height = 0f;
+        var lastRow = Mathf.Min(rowHeights.Length, firstRow + visibleRows);
+
+        for (var index = firstRow; index < lastRow; index++)
+        {
+            height += rowHeights[index];
+
+            if (index > firstRow)
+            {
+                height += spacing;
+            }
+        }
+
+        return height;
+    }
+
+    private static float GetSpellSelectionLineTableHeight(RectTransform lineTable)
+    {
+        var bounds = GetChildrenLocalBounds(lineTable);
+
+        return Mathf.Max(GetPreferredHeight(lineTable), bounds.height, lineTable.rect.height);
+    }
+
+    private static float GetSpellSelectionLineTableWidth(RectTransform lineTable)
+    {
+        var bounds = GetChildrenLocalBounds(lineTable);
+
+        return Mathf.Max(GetPreferredWidth(lineTable), bounds.width, lineTable.rect.width);
+    }
+
+    private static void RefreshSpellSelectionPanelSize(
+        SpellSelectionPanel panel,
+        RectTransform holder,
+        float width,
+        float height,
+        Rect safeCanvasBounds,
+        RectTransform canvasRect)
+    {
+        if (!panel || !holder)
+        {
+            return;
+        }
+
+        var panelWidth = Mathf.Max(1f, width);
+        var panelHeight = Mathf.Max(1f, height);
+
+        Canvas.ForceUpdateCanvases();
+        LayoutRebuilder.ForceRebuildLayoutImmediate(holder);
+        panel.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, panelWidth);
+        panel.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, panelHeight);
+        LayoutRebuilder.ForceRebuildLayoutImmediate(panel.RectTransform);
+
+        if (canvasRect && safeCanvasBounds.width > 1f && safeCanvasBounds.height > 1f)
+        {
+            ClampSpellSelectionPanelToSafeBounds(panel.RectTransform, canvasRect, safeCanvasBounds);
+        }
+
+        FloatingPanelBounds.ClampToScreen(panel.RectTransform);
+    }
+
+    private static void ClampSpellSelectionPanelToSafeBounds(
+        RectTransform panel,
+        RectTransform canvasRect,
+        Rect safeCanvasBounds)
+    {
+        if (!TryGetCanvasLocalBounds(panel, canvasRect, out var panelBounds))
+        {
+            return;
+        }
+
+        var delta = Vector2.zero;
+
+        if (panelBounds.xMin < safeCanvasBounds.xMin)
+        {
+            delta.x = safeCanvasBounds.xMin - panelBounds.xMin;
+        }
+        else if (panelBounds.xMax > safeCanvasBounds.xMax)
+        {
+            delta.x = safeCanvasBounds.xMax - panelBounds.xMax;
+        }
+
+        if (panelBounds.yMin < safeCanvasBounds.yMin)
+        {
+            delta.y = safeCanvasBounds.yMin - panelBounds.yMin;
+        }
+        else if (panelBounds.yMax > safeCanvasBounds.yMax)
+        {
+            delta.y = safeCanvasBounds.yMax - panelBounds.yMax;
+        }
+
+        if (delta != Vector2.zero)
+        {
+            panel.position += canvasRect.TransformVector(new Vector3(delta.x, delta.y, 0f));
+        }
+    }
+
+    private static Rect GetChildrenLocalBounds(RectTransform parent)
+    {
+        var hasBounds = false;
+        var min = Vector2.zero;
+        var max = Vector2.zero;
+
+        for (var childIndex = 0; parent && childIndex < parent.childCount; childIndex++)
+        {
+            if (parent.GetChild(childIndex) is not RectTransform child || !child.gameObject.activeSelf)
+            {
+                continue;
+            }
+
+            child.GetWorldCorners(SpellSelectionWorldCorners);
+
+            for (var cornerIndex = 0; cornerIndex < SpellSelectionWorldCorners.Length; cornerIndex++)
+            {
+                var point = (Vector2)parent.InverseTransformPoint(SpellSelectionWorldCorners[cornerIndex]);
+
+                if (!hasBounds)
+                {
+                    min = point;
+                    max = point;
+                    hasBounds = true;
+                }
+                else
+                {
+                    min = Vector2.Min(min, point);
+                    max = Vector2.Max(max, point);
+                }
+            }
+        }
+
+        return hasBounds ? Rect.MinMaxRect(min.x, min.y, max.x, max.y) : Rect.zero;
+    }
+
+    private static bool TryGetCanvasLocalBounds(
+        RectTransform rectTransform,
+        out Rect bounds,
+        out RectTransform canvasRect)
+    {
+        bounds = default;
+        canvasRect = null;
+
+        if (!rectTransform || !rectTransform.gameObject.activeInHierarchy)
+        {
+            return false;
+        }
+
+        var canvas = rectTransform.GetComponentInParent<Canvas>();
+
+        if (!canvas)
+        {
+            return false;
+        }
+
+        canvasRect = (canvas.rootCanvas ? canvas.rootCanvas : canvas).transform as RectTransform;
+
+        return canvasRect && TryGetCanvasLocalBounds(rectTransform, canvasRect, out bounds);
+    }
+
+    private static bool TryGetCanvasLocalBounds(RectTransform rectTransform, RectTransform canvasRect, out Rect bounds)
+    {
+        bounds = default;
+
+        if (!rectTransform || !canvasRect || !rectTransform.gameObject.activeInHierarchy)
+        {
+            return false;
+        }
+
+        rectTransform.GetWorldCorners(SpellSelectionWorldCorners);
+        var min = (Vector2)canvasRect.InverseTransformPoint(SpellSelectionWorldCorners[0]);
+        var max = min;
+
+        for (var i = 1; i < SpellSelectionWorldCorners.Length; i++)
+        {
+            var point = (Vector2)canvasRect.InverseTransformPoint(SpellSelectionWorldCorners[i]);
+
+            min = Vector2.Min(min, point);
+            max = Vector2.Max(max, point);
+        }
+
+        bounds = Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+
+        return true;
+    }
+
+    private static Rect GetInsetCanvasRect(RectTransform canvasRect, float margin)
+    {
+        var rect = canvasRect.rect;
+        var horizontalMargin = Mathf.Min(margin, rect.width * 0.5f);
+        var verticalMargin = Mathf.Min(margin, rect.height * 0.5f);
+
+        return Rect.MinMaxRect(
+            rect.xMin + horizontalMargin,
+            rect.yMin + verticalMargin,
+            rect.xMax - horizontalMargin,
+            rect.yMax - verticalMargin);
+    }
+
+    private static float GetPreferredHeight(RectTransform rectTransform)
+    {
+        return rectTransform
+            ? Mathf.Max(rectTransform.rect.height, rectTransform.sizeDelta.y, LayoutUtility.GetPreferredHeight(rectTransform))
+            : 0f;
+    }
+
+    private static float GetPreferredWidth(RectTransform rectTransform)
+    {
+        return rectTransform
+            ? Mathf.Max(rectTransform.rect.width, rectTransform.sizeDelta.x, LayoutUtility.GetPreferredWidth(rectTransform))
+            : 0f;
+    }
+
+    private readonly struct SpellSelectionPagerMetrics(
+        float visibleWidth,
+        float visibleHeight)
+    {
+        internal readonly float VisibleWidth = visibleWidth;
+        internal readonly float VisibleHeight = visibleHeight;
+    }
+
+    private sealed class SpellSelectionLinePager : MonoBehaviour, IScrollHandler, IBeginDragHandler, IDragHandler
+    {
+        private RectTransform _holder;
+        private SpellSelectionPanel _panel;
+        private RectTransform[] _lineTables;
+        private float[] _rowHeights;
+        private Rect _safeCanvasBounds;
+        private RectTransform _canvasRect;
+        private float _dragAccumulator;
+        private float _rowDragThreshold;
+        private float _spacing;
+        private int _firstVisibleRow;
+        private int _lastWheelInputFrame = -1;
+        private int _visibleRows;
+
+        internal void Configure(
+            SpellSelectionPanel panel,
+            RectTransform holder,
+            RectTransform[] lineTables,
+            float[] rowHeights,
+            float spacing,
+            int visibleRows,
+            Rect safeCanvasBounds,
+            RectTransform canvasRect)
+        {
+            _panel = panel;
+            _holder = holder;
+            _lineTables = lineTables;
+            _rowHeights = rowHeights;
+            _spacing = spacing;
+            _visibleRows = Mathf.Clamp(visibleRows, 1, lineTables.Length);
+            _firstVisibleRow = Mathf.Clamp(_firstVisibleRow, 0, GetMaxFirstVisibleRow());
+            _safeCanvasBounds = safeCanvasBounds;
+            _canvasRect = canvasRect;
+            _rowDragThreshold = Mathf.Max(24f, GetAverageRowHeight() * SpellSelectionDragThresholdRatio);
+            enabled = true;
+            ActiveSpellSelectionLinePager = this;
+
+            ApplyVisibleRows();
+        }
+
+        internal void DisablePager()
+        {
+            if (_lineTables != null)
+            {
+                foreach (var lineTable in _lineTables)
+                {
+                    SetSpellSelectionLineTableVisible(lineTable, true);
+                }
+            }
+
+            _dragAccumulator = 0f;
+            _firstVisibleRow = 0;
+
+            if (ActiveSpellSelectionLinePager == this)
+            {
+                ActiveSpellSelectionLinePager = null;
+            }
+
+            enabled = false;
+        }
+
+        public void OnBeginDrag(PointerEventData eventData)
+        {
+            _dragAccumulator = 0f;
+        }
+
+        public void OnDrag(PointerEventData eventData)
+        {
+            if (!CanPage())
+            {
+                return;
+            }
+
+            _dragAccumulator += eventData.delta.y;
+
+            while (_dragAccumulator >= _rowDragThreshold)
+            {
+                MoveRows(1);
+                _dragAccumulator -= _rowDragThreshold;
+            }
+
+            while (_dragAccumulator <= -_rowDragThreshold)
+            {
+                MoveRows(-1);
+                _dragAccumulator += _rowDragThreshold;
+            }
+        }
+
+        public void OnScroll(PointerEventData eventData)
+        {
+            if (!CanPage())
+            {
+                return;
+            }
+
+            if (FloatingPanelBounds.ShouldSuppressBackgroundWheel(this))
+            {
+                return;
+            }
+
+            CaptureWheelInput();
+
+            var deltaRows = eventData.scrollDelta.y < 0f ? 1 : -1;
+
+            MoveRows(deltaRows);
+            eventData.Use();
+        }
+
+        private void OnDisable()
+        {
+            if (ActiveSpellSelectionLinePager == this)
+            {
+                ActiveSpellSelectionLinePager = null;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (ActiveSpellSelectionLinePager == this)
+            {
+                ActiveSpellSelectionLinePager = null;
+            }
+        }
+
+        internal bool ShouldSuppressBackgroundWheel()
+        {
+            return CanPage() && (IsPointerInsidePanel() || Time.frameCount == _lastWheelInputFrame);
+        }
+
+        private bool CanPage()
+        {
+            return isActiveAndEnabled &&
+                   _panel && _panel.isActiveAndEnabled &&
+                   _holder && _holder.gameObject.activeInHierarchy &&
+                   _lineTables is { Length: > 0 } &&
+                   _visibleRows > 0 &&
+                   _lineTables.Length > _visibleRows;
+        }
+
+        private void CaptureWheelInput()
+        {
+            ActiveSpellSelectionLinePager = this;
+            _lastWheelInputFrame = Time.frameCount;
+        }
+
+        private bool IsPointerInsidePanel()
+        {
+            var target = _panel ? _panel.RectTransform : _holder;
+
+            if (!target)
+            {
+                return false;
+            }
+
+            var canvas = target.GetComponentInParent<Canvas>();
+            var camera = canvas && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+
+            return RectTransformUtility.RectangleContainsScreenPoint(
+                target,
+                UnityEngine.Input.mousePosition,
+                camera);
+        }
+
+        private int GetMaxFirstVisibleRow()
+        {
+            return _lineTables == null ? 0 : Mathf.Max(0, _lineTables.Length - _visibleRows);
+        }
+
+        private float GetAverageRowHeight()
+        {
+            return _rowHeights is { Length: > 0 } ? Mathf.Max(1f, _rowHeights.Average()) : 1f;
+        }
+
+        private void MoveRows(int deltaRows)
+        {
+            var nextFirstVisibleRow = Mathf.Clamp(_firstVisibleRow + deltaRows, 0, GetMaxFirstVisibleRow());
+
+            if (nextFirstVisibleRow == _firstVisibleRow)
+            {
+                return;
+            }
+
+            _firstVisibleRow = nextFirstVisibleRow;
+            ApplyVisibleRows();
+        }
+
+        private void ApplyVisibleRows()
+        {
+            if (_lineTables == null)
+            {
+                return;
+            }
+
+            var lastVisibleRow = Mathf.Min(_lineTables.Length, _firstVisibleRow + _visibleRows);
+
+            for (var index = 0; index < _lineTables.Length; index++)
+            {
+                SetSpellSelectionLineTableVisible(
+                    _lineTables[index],
+                    index >= _firstVisibleRow && index < lastVisibleRow);
+            }
+
+            var visibleHeight = GetVisibleSpellSelectionRowsHeight(
+                _rowHeights,
+                _spacing,
+                _firstVisibleRow,
+                _visibleRows);
+            var visibleWidth = 0f;
+
+            for (var index = _firstVisibleRow; index < lastVisibleRow; index++)
+            {
+                visibleWidth = Mathf.Max(visibleWidth, GetSpellSelectionLineTableWidth(_lineTables[index]));
+            }
+
+            RefreshSpellSelectionPanelSize(
+                _panel,
+                _holder,
+                visibleWidth,
+                visibleHeight,
+                _safeCanvasBounds,
+                _canvasRect);
+        }
     }
 
     private static RectTransform AddActiveSpellsToLine(
@@ -518,7 +1265,7 @@ internal static class CampaignsContext
             case SpellReadyness.Prepared when spellRepertoire.PreparedSpells
                                                  .Any(spellDefinition =>
                                                      spellDefinition.SpellLevel == level
-                                                     && spellDefinition.ActivationTime == spellActivationTime):
+                                                     && IsSpellVisibleForActionType(spellDefinition, actionType)):
             case SpellReadyness.AllKnown
                 when spellRepertoire.KnownSpells.Any(spellDefinition => spellDefinition.SpellLevel == level)
                      || spellRepertoire.ExtraSpellsByTag.Any(x => x.Value.Any(s => s.SpellLevel == level)):
@@ -528,6 +1275,23 @@ internal static class CampaignsContext
             default:
                 return false;
         }
+    }
+
+    private static bool IsSpellVisibleForActionType(
+        SpellDefinition spellDefinition,
+        ActionDefinitions.ActionType actionType)
+    {
+        if (!spellDefinition)
+        {
+            return false;
+        }
+
+        if (actionType == ActionDefinitions.ActionType.None)
+        {
+            return spellDefinition.ActivationTime is not ActivationTime.Reaction and not ActivationTime.OnAttackHit;
+        }
+
+        return spellDefinition.ActivationTime == LevelUpHelper.GetSpellActivationTime(actionType);
     }
 
     internal static void SetTeleporterGadgetActiveAnimation(WorldGadget worldGadget, bool visibility = false)

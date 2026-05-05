@@ -655,9 +655,8 @@ internal static class OtherFeats
             string abilityScoreName,
             FeatureDefinition attributeModifier)
         {
-            var definitionSuffix = suffix == "Int" ? string.Empty : suffix;
             var power = FeatureDefinitionPowerBuilder
-                .Create($"Power{Name}{definitionSuffix}")
+                .Create($"Power{Name}{suffix}")
                 .SetGuiPresentation($"{Name}{suffix}", Category.Feat, hidden: true)
                 .SetUsesProficiencyBonus(ActivationTime.NoCost)
                 .SetEffectDescription(
@@ -693,7 +692,7 @@ internal static class OtherFeats
                 Counterspell.EffectDescription.EffectParticleParameters.casterQuickSpellParticleReference;
 
             return FeatDefinitionBuilder
-                .Create($"{Name}{definitionSuffix}")
+                .Create($"{Name}{suffix}")
                 .SetGuiPresentation(Category.Feat)
                 .SetFeatures(attributeModifier, power)
                 .SetFeatFamily(Name)
