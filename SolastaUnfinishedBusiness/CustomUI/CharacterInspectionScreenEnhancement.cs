@@ -13,6 +13,8 @@ namespace SolastaUnfinishedBusiness.CustomUI;
 
 internal static class CharacterInspectionScreenEnhancement
 {
+    private const string DragonbornDraconicChoiceFeatureSetName = "FeatureSetDragonbornDraconicChoice";
+
     private static Transform ClassSelector { get; set; }
 
     private static int SelectedClassIndex { get; set; }
@@ -237,6 +239,48 @@ internal static class CharacterInspectionScreenEnhancement
         return TryFindChoiceFeatureFromExclusionSet(features, choice => choice.Name == subFeature, out choiceFeature);
     }
 
+    private static bool TryGetDragonbornDraconicChoiceInspectionDisplayFeature(
+        FeatureDefinition sourceFeature,
+        out FeatureDefinitionFeatureSet parentFeature,
+        out FeatureDefinition selectedFeature)
+    {
+        parentFeature = null;
+        selectedFeature = null;
+
+        var featureSetDatabase = DatabaseRepository.GetDatabase<FeatureDefinitionFeatureSet>();
+        var dragonbornDraconicChoice = featureSetDatabase.GetElement(DragonbornDraconicChoiceFeatureSetName, true);
+
+        if (!dragonbornDraconicChoice ||
+            !dragonbornDraconicChoice.FeatureSet.Contains(sourceFeature))
+        {
+            return false;
+        }
+
+        parentFeature = dragonbornDraconicChoice;
+        selectedFeature = sourceFeature;
+
+        return true;
+    }
+
+    private static void BindParentChoiceFeatureDisplay(
+        GuiLabel label,
+        GuiTooltip tooltip,
+        CustomTooltipProvider provider,
+        FeatureUnlockByLevel feature,
+        FeatureDefinition parentFeature,
+        FeatureDefinition selectedFeature,
+        bool noLevel)
+    {
+        var title = parentFeature.FormatTitle();
+        var description = selectedFeature.FormatDescription();
+
+        label.Text = title + (!noLevel ? $" ({feature.Level})" : string.Empty);
+        provider.SetTitle(title);
+        provider.SetSubtitle(selectedFeature.FormatTitle());
+        provider.SetDescription(description);
+        tooltip.Content = description;
+    }
+
     internal static bool EnhanceFeatureList(
         CharacterInformationPanel panel,
         RectTransform table,
@@ -330,6 +374,34 @@ internal static class CharacterInspectionScreenEnhancement
                 .GetGuiPowerDefinition(feature.FeatureDefinition.Name);
 
             tooltip.Content = guiPowerDefinition.Description;
+        }
+        else if (Tabletop2024Context.TryGetHalfElfVersatileBloodlineInspectionDisplayFeature(
+                     feature.FeatureDefinition,
+                     out var halfElfParentFeature,
+                     out var halfElfSelectedFeature))
+        {
+            BindParentChoiceFeatureDisplay(
+                label,
+                tooltip,
+                provider,
+                feature,
+                halfElfParentFeature,
+                halfElfSelectedFeature,
+                noLevel);
+        }
+        else if (TryGetDragonbornDraconicChoiceInspectionDisplayFeature(
+                     feature.FeatureDefinition,
+                     out var dragonbornParentFeature,
+                     out var dragonbornSelectedFeature))
+        {
+            BindParentChoiceFeatureDisplay(
+                label,
+                tooltip,
+                provider,
+                feature,
+                dragonbornParentFeature,
+                dragonbornSelectedFeature,
+                noLevel);
         }
         else if (TryFindChoiceFeature(panel, feature.FeatureDefinition, out var choiceFeature))
         {

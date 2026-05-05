@@ -829,6 +829,28 @@ public static partial class Tabletop2024Context
                feature == HalfElfVersatileBloodlineFeatureSet;
     }
 
+    internal static bool TryGetHalfElfVersatileBloodlineInspectionDisplayFeature(
+        FeatureDefinition sourceFeature,
+        out FeatureDefinitionFeatureSet parentFeature,
+        out FeatureDefinition selectedFeature)
+    {
+        parentFeature = null;
+        selectedFeature = null;
+
+        if (!_backgroundOptionsLoaded ||
+            !Main.Settings.EnableBackgroundASI ||
+            !HalfElfVersatileBloodlineFeatureSet ||
+            !HalfElfVersatileBloodlineFeatureSet.FeatureSet.Contains(sourceFeature))
+        {
+            return false;
+        }
+
+        parentFeature = HalfElfVersatileBloodlineFeatureSet;
+        selectedFeature = sourceFeature;
+
+        return true;
+    }
+
     internal static bool IsPersistedCharacterCreationFeatureSetSelection(FeatureDefinition feature)
     {
         return IsBackgroundAsiSelectionFeature(feature) ||
