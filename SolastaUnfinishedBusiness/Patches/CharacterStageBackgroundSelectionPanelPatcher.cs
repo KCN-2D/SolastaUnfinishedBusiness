@@ -49,7 +49,7 @@ public static class CharacterStageBackgroundSelectionPanelPatcher
         [UsedImplicitly]
         public static void Prefix([CanBeNull] FeatureDescriptionItem __0)
         {
-            FeatureDescriptionItemPatcher.TryPersistBackgroundAsiDefaultSelection(__0);
+            FeatureDescriptionItemPatcher.TryPersistCharacterCreationFeatureSetDefaultSelection(__0);
         }
     }
 

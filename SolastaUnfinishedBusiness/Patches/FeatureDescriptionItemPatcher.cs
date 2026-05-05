@@ -87,11 +87,11 @@ public static class FeatureDescriptionItemPatcher
                TryGetSelectedFeatureChoice(item, out choiceFeature);
     }
 
-    internal static bool TryPersistBackgroundAsiDefaultSelection(FeatureDescriptionItem item)
+    internal static bool TryPersistCharacterCreationFeatureSetDefaultSelection(FeatureDescriptionItem item)
     {
         if (item == null ||
             FeatureRef(item) is not FeatureDefinitionFeatureSet featureSet ||
-            !Tabletop2024Context.IsBackgroundAsiSelectionFeature(featureSet) ||
+            !Tabletop2024Context.IsPersistedCharacterCreationFeatureSetSelection(featureSet) ||
             !TryGetSelectedFeatureChoice(item, out var choiceFeature))
         {
             return false;

@@ -428,6 +428,7 @@ public static class CharacterStageRaceSelectionPanelPatcher
             [NotNull] CharacterStageRaceSelectionPanel __instance,
             [CanBeNull] FeatureDescriptionItem __0)
         {
+            FeatureDescriptionItemPatcher.TryPersistCharacterCreationFeatureSetDefaultSelection(__0);
             TrySaveHumanOriginFeatSelection(__instance, __0);
         }
     }

@@ -822,6 +822,19 @@ public static partial class Tabletop2024Context
                BackgroundAsiFeatureLookup.Contains(featureSet);
     }
 
+    internal static bool IsHalfElfVersatileBloodlineSelectionFeature(FeatureDefinition feature)
+    {
+        return _backgroundOptionsLoaded &&
+               Main.Settings.EnableBackgroundASI &&
+               feature == HalfElfVersatileBloodlineFeatureSet;
+    }
+
+    internal static bool IsPersistedCharacterCreationFeatureSetSelection(FeatureDefinition feature)
+    {
+        return IsBackgroundAsiSelectionFeature(feature) ||
+               IsHalfElfVersatileBloodlineSelectionFeature(feature);
+    }
+
     internal static bool TryGetHumanOriginFeatLearnStepTitle(
         HeroDefinitions.PointsPoolType poolType,
         string tag,
