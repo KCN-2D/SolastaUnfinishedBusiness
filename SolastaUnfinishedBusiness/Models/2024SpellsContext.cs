@@ -24,6 +24,32 @@ namespace SolastaUnfinishedBusiness.Models;
 
 public static partial class Tabletop2024Context
 {
+    private const int KnownSpellsTableLength = 20;
+
+    private static readonly int[] BardPreparedSpells2024 =
+        [4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22];
+
+    private static readonly int[] BardKnownSpells2014 =
+        [4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 15, 16, 18, 19, 19, 20, 22, 22, 22];
+
+    private static readonly int[] RangerPreparedSpells2024WithLevel1Casting =
+        [2, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15];
+
+    private static readonly int[] RangerPreparedSpells2024Default =
+        [0, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15];
+
+    private static readonly int[] RangerKnownSpells2014WithLevel1Casting =
+        [2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11];
+
+    private static readonly int[] RangerKnownSpells2014Default =
+        [0, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11];
+
+    private static readonly int[] SorcererPreparedSpells2024 =
+        [2, 4, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22];
+
+    private static readonly int[] SorcererKnownSpells2014 =
+        [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 13, 13, 14, 14, 15, 15, 15, 15];
+
     private static void HomeBrewSomeSpells()
     {
         //    .SetSavingThrowData(true, AttributeDefinitions.Wisdom, true,
@@ -388,42 +414,54 @@ public static partial class Tabletop2024Context
     {
         if (Main.Settings.EnablePreparedSpellsTables2024)
         {
-            FeatureDefinitionCastSpells.CastSpellBard.knownSpells =
-                [4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22];
+            ApplyKnownSpellsTable(FeatureDefinitionCastSpells.CastSpellBard, BardPreparedSpells2024);
 
             if (Main.Settings.EnableRangerSpellCastingAtLevel1)
             {
-                FeatureDefinitionCastSpells.CastSpellRanger.knownSpells =
-                    [2, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15];
+                ApplyKnownSpellsTable(
+                    FeatureDefinitionCastSpells.CastSpellRanger,
+                    RangerPreparedSpells2024WithLevel1Casting);
             }
             else
             {
-                FeatureDefinitionCastSpells.CastSpellRanger.knownSpells =
-                    [0, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15];
+                ApplyKnownSpellsTable(
+                    FeatureDefinitionCastSpells.CastSpellRanger,
+                    RangerPreparedSpells2024Default);
             }
 
-            FeatureDefinitionCastSpells.CastSpellSorcerer.knownSpells =
-                [2, 4, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22];
+            ApplyKnownSpellsTable(FeatureDefinitionCastSpells.CastSpellSorcerer, SorcererPreparedSpells2024);
         }
         else
         {
-            FeatureDefinitionCastSpells.CastSpellBard.knownSpells =
-                [4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 15, 16, 18, 19, 19, 20, 22, 22, 22];
+            ApplyKnownSpellsTable(FeatureDefinitionCastSpells.CastSpellBard, BardKnownSpells2014);
 
             if (Main.Settings.EnableRangerSpellCastingAtLevel1)
             {
-                FeatureDefinitionCastSpells.CastSpellRanger.knownSpells =
-                    [2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11];
+                ApplyKnownSpellsTable(
+                    FeatureDefinitionCastSpells.CastSpellRanger,
+                    RangerKnownSpells2014WithLevel1Casting);
             }
             else
             {
-                FeatureDefinitionCastSpells.CastSpellRanger.knownSpells =
-                    [0, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11];
+                ApplyKnownSpellsTable(
+                    FeatureDefinitionCastSpells.CastSpellRanger,
+                    RangerKnownSpells2014Default);
             }
 
-            FeatureDefinitionCastSpells.CastSpellSorcerer.knownSpells =
-                [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 13, 13, 14, 14, 15, 15, 15, 15];
+            ApplyKnownSpellsTable(FeatureDefinitionCastSpells.CastSpellSorcerer, SorcererKnownSpells2014);
         }
+    }
+
+    private static void ApplyKnownSpellsTable(FeatureDefinitionCastSpell castSpell, IReadOnlyList<int> table)
+    {
+#if DEBUG
+        if (table.Count != KnownSpellsTableLength)
+        {
+            throw new InvalidOperationException($"{nameof(table)} must contain {KnownSpellsTableLength} entries.");
+        }
+#endif
+
+        castSpell.knownSpells = new List<int>(table);
     }
 
     private static void LoadOneDndSpellTrueStrike()

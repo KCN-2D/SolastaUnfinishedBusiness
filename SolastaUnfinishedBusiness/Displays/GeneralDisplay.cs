@@ -64,6 +64,17 @@ internal static class ToolsDisplay
         {
             property.SetValue(Main.Settings, true);
         }
+
+        if (tagType == TagType.T2024)
+        {
+            ApplySpellcastingTableSettings();
+        }
+    }
+
+    private static void ApplySpellcastingTableSettings()
+    {
+        Tabletop2024Context.SwitchRangerSpellCastingAtOne();
+        Tabletop2024Context.SwitchOneDndPreparedSpellsTables();
     }
 
     private static void SelectTabletopSet()
@@ -368,6 +379,7 @@ internal static class ToolsDisplay
         if (UI.SelectionGrid(ref intValue, Main.SettingsFiles, Main.SettingsFiles.Length, 4, UI.Width(440f)))
         {
             Main.LoadSettings(Main.SettingsFiles[intValue]);
+            ApplySpellcastingTableSettings();
         }
     }
 

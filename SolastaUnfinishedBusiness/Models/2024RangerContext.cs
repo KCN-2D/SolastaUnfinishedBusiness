@@ -151,6 +151,8 @@ public static partial class Tabletop2024Context
             SharedSpellsContext.ClassCasterType[RangerClass] =
                 FeatureDefinitionCastSpellBuilder.CasterProgression.Half;
         }
+
+        SwitchOneDndPreparedSpellsTables();
     }
 
     internal static void SwitchRangerDeftExplorer()
