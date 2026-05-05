@@ -50,6 +50,9 @@ public static partial class Tabletop2024Context
     private static readonly int[] SorcererKnownSpells2014 =
         [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 13, 13, 14, 14, 15, 15, 15, 15];
 
+    internal static readonly IReadOnlyList<int> ArtificerPreparedSpells2024 =
+        [2, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15];
+
     private static void HomeBrewSomeSpells()
     {
         //    .SetSavingThrowData(true, AttributeDefinitions.Wisdom, true,
@@ -412,47 +415,40 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchOneDndPreparedSpellsTables()
     {
-        if (Main.Settings.EnablePreparedSpellsTables2024)
-        {
-            ApplyKnownSpellsTable(FeatureDefinitionCastSpells.CastSpellBard, BardPreparedSpells2024);
+        var enable2024 = Main.Settings.EnablePreparedSpellsTables2024;
 
-            if (Main.Settings.EnableRangerSpellCastingAtLevel1)
-            {
-                ApplyKnownSpellsTable(
-                    FeatureDefinitionCastSpells.CastSpellRanger,
-                    RangerPreparedSpells2024WithLevel1Casting);
-            }
-            else
-            {
-                ApplyKnownSpellsTable(
-                    FeatureDefinitionCastSpells.CastSpellRanger,
-                    RangerPreparedSpells2024Default);
-            }
-
-            ApplyKnownSpellsTable(FeatureDefinitionCastSpells.CastSpellSorcerer, SorcererPreparedSpells2024);
-        }
-        else
-        {
-            ApplyKnownSpellsTable(FeatureDefinitionCastSpells.CastSpellBard, BardKnownSpells2014);
-
-            if (Main.Settings.EnableRangerSpellCastingAtLevel1)
-            {
-                ApplyKnownSpellsTable(
-                    FeatureDefinitionCastSpells.CastSpellRanger,
-                    RangerKnownSpells2014WithLevel1Casting);
-            }
-            else
-            {
-                ApplyKnownSpellsTable(
-                    FeatureDefinitionCastSpells.CastSpellRanger,
-                    RangerKnownSpells2014Default);
-            }
-
-            ApplyKnownSpellsTable(FeatureDefinitionCastSpells.CastSpellSorcerer, SorcererKnownSpells2014);
-        }
+        ApplyKnownSpellsTable(
+            FeatureDefinitionCastSpells.CastSpellBard,
+            enable2024 ? BardPreparedSpells2024 : BardKnownSpells2014);
+        ApplyKnownSpellsTable(FeatureDefinitionCastSpells.CastSpellRanger, GetRangerKnownSpellsTable(enable2024));
+        ApplyKnownSpellsTable(
+            FeatureDefinitionCastSpells.CastSpellSorcerer,
+            enable2024 ? SorcererPreparedSpells2024 : SorcererKnownSpells2014);
+        ValidateSpellsTable(ArtificerPreparedSpells2024);
     }
 
     private static void ApplyKnownSpellsTable(FeatureDefinitionCastSpell castSpell, IReadOnlyList<int> table)
+    {
+        ValidateSpellsTable(table);
+
+        castSpell.knownSpells = new List<int>(table);
+    }
+
+    private static IReadOnlyList<int> GetRangerKnownSpellsTable(bool enable2024)
+    {
+        if (enable2024)
+        {
+            return Main.Settings.EnableRangerSpellCastingAtLevel1
+                ? RangerPreparedSpells2024WithLevel1Casting
+                : RangerPreparedSpells2024Default;
+        }
+
+        return Main.Settings.EnableRangerSpellCastingAtLevel1
+            ? RangerKnownSpells2014WithLevel1Casting
+            : RangerKnownSpells2014Default;
+    }
+
+    private static void ValidateSpellsTable(IReadOnlyList<int> table)
     {
 #if DEBUG
         if (table.Count != KnownSpellsTableLength)
@@ -460,8 +456,6 @@ public static partial class Tabletop2024Context
             throw new InvalidOperationException($"{nameof(table)} must contain {KnownSpellsTableLength} entries.");
         }
 #endif
-
-        castSpell.knownSpells = new List<int>(table);
     }
 
     private static void LoadOneDndSpellTrueStrike()

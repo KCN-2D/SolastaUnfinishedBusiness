@@ -12,6 +12,7 @@ using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
+using SolastaUnfinishedBusiness.Classes;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
@@ -1593,13 +1594,31 @@ public static class RulesetCharacterHeroPatcher
         private static readonly List<int> WizardOneDndPreparedSpellsTable =
             [4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 18, 19, 21, 22, 23, 24, 25];
 
-        private static readonly Dictionary<CharacterClassDefinition, List<int>> PreparedSpells = new()
+        private static readonly Dictionary<CharacterClassDefinition, IReadOnlyList<int>> PreparedSpells = new()
         {
             { Cleric, ClericOrDruidOneDndPreparedSpellsTable },
             { Druid, ClericOrDruidOneDndPreparedSpellsTable },
             { Paladin, PaladinOneDndPreparedSpellsTable },
             { Wizard, WizardOneDndPreparedSpellsTable }
         };
+
+        private static bool TryGetPreparedSpellsTable(
+            CharacterClassDefinition spellCastingClass,
+            out IReadOnlyList<int> preparedSpells)
+        {
+            if (PreparedSpells.TryGetValue(spellCastingClass, out preparedSpells))
+            {
+                return true;
+            }
+
+            if (spellCastingClass == InventorClass.Class)
+            {
+                preparedSpells = Tabletop2024Context.ArtificerPreparedSpells2024;
+                return true;
+            }
+
+            return false;
+        }
 
         [UsedImplicitly]
         public static bool Prefix(
@@ -1611,7 +1630,7 @@ public static class RulesetCharacterHeroPatcher
             }
 
             if (!Main.Settings.EnablePreparedSpellsTables2024 ||
-                !PreparedSpells.TryGetValue(spellRepertoire.SpellCastingClass, out var preparedSpells))
+                !TryGetPreparedSpellsTable(spellRepertoire.SpellCastingClass, out var preparedSpells))
             {
                 return true;
             }
