@@ -354,18 +354,16 @@ public static class CharacterStageRaceSelectionPanelPatcher
         public static void Prefix([NotNull] CharacterStageRaceSelectionPanel __instance)
         {
             //PATCH: avoids a restart when enabling / disabling races on the Mod UI panel
-            var allRaces = new List<CharacterRaceDefinition>();
-            var subRaces = new List<CharacterRaceDefinition>();
-
-            allRaces.AddRange(DatabaseRepository.GetDatabase<CharacterRaceDefinition>()
-                .Where(x => !x.GuiPresentation.Hidden));
+            var visibleRaces = DatabaseRepository.GetDatabase<CharacterRaceDefinition>()
+                .Where(x => !x.GuiPresentation.Hidden)
+                .ToArray();
+            var subRaces = new HashSet<CharacterRaceDefinition>();
 
             __instance.eligibleRaces.Clear();
             __instance.sortedSubRaces.Clear();
             __instance.selectedSubRace.Clear();
 
-            foreach (var characterRaceDefinition in allRaces
-                         .Where(x => x.SubRaces is { Count: > 0 }))
+            foreach (var characterRaceDefinition in visibleRaces.Where(x => x.SubRaces is { Count: > 0 }))
             {
                 if (characterRaceDefinition.SubRaces.Count > __instance.maxSubRacesPerRace)
                 {
@@ -374,46 +372,35 @@ public static class CharacterStageRaceSelectionPanelPatcher
 
                 foreach (var subRace in characterRaceDefinition.SubRaces)
                 {
-                    subRaces.TryAdd(subRace);
+                    subRaces.Add(subRace);
                 }
             }
 
-            var num = 0;
+            var raceDefinitions = visibleRaces
+                .Where(x => !subRaces.Contains(x))
+                .OrderBy(x => x.FormatTitle())
+                .ToArray();
 
-            foreach (var key in allRaces
-                         .Where(x => !subRaces.Contains(x)))
+            __instance.eligibleRaces.SetRange(raceDefinitions);
+
+            for (var key = 0; key < raceDefinitions.Length; ++key)
             {
-                __instance.eligibleRaces.Add(key);
-                __instance.selectedSubRace.Add(num++, 0);
-                __instance.sortedSubRaces.Add(key, []);
+                var raceDefinition = raceDefinitions[key];
 
-                if (key.SubRaces.Count == 0)
+                __instance.selectedSubRace[key] = 0;
+                __instance.sortedSubRaces.Add(raceDefinition, []);
+
+                if (raceDefinition.SubRaces.Count == 0)
                 {
                     continue;
                 }
 
-                foreach (var subRace in key.SubRaces
-                             .Where(x => !x.GuiPresentation.Hidden))
+                foreach (var subRace in raceDefinition.SubRaces.Where(x => !x.GuiPresentation.Hidden))
                 {
-                    __instance.sortedSubRaces[key].Add(subRace);
+                    __instance.sortedSubRaces[raceDefinition].Add(subRace);
                 }
 
-                __instance.sortedSubRaces[key].Sort(__instance);
-            }
-
-            var visibleRaces = DatabaseRepository.GetDatabase<CharacterRaceDefinition>()
-                .Where(x => !x.GuiPresentation.Hidden);
-            var characterRaceDefinitions = visibleRaces as CharacterRaceDefinition[] ?? visibleRaces.ToArray();
-            var visibleSubRaces = characterRaceDefinitions.SelectMany(x => x.SubRaces);
-            var visibleMainRaces = characterRaceDefinitions.Where(x => !visibleSubRaces.Contains(x));
-            var raceDefinitions = visibleMainRaces as CharacterRaceDefinition[] ?? visibleMainRaces.ToArray();
-
-            __instance.eligibleRaces.SetRange(raceDefinitions.OrderBy(x => x.FormatTitle()));
-            __instance.selectedSubRace.Clear();
-
-            for (var key = 0; key < raceDefinitions.Length; ++key)
-            {
-                __instance.selectedSubRace[key] = 0;
+                __instance.sortedSubRaces[raceDefinition].Sort(__instance);
             }
         }
     }

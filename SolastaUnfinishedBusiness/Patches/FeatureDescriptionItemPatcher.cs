@@ -227,15 +227,7 @@ public static class FeatureDescriptionItemPatcher
 
     private static void PlaceBackgroundFeatText(GuiLabel label, ref float cursor)
     {
-        if (!label || !label.gameObject.activeInHierarchy || label.TMP_Text == null)
-        {
-            return;
-        }
-
-        var text = label.TMP_Text;
-        var rectTransform = label.RectTransform;
-
-        if (!rectTransform)
+        if (!TryPrepareWrappedFeatureText(label, true, out var rectTransform, out var height))
         {
             return;
         }
@@ -243,18 +235,6 @@ public static class FeatureDescriptionItemPatcher
         var position = rectTransform.anchoredPosition;
 
         rectTransform.anchoredPosition = new Vector2(position.x, -cursor);
-
-        text.enableWordWrapping = true;
-        text.overflowMode = TextOverflowModes.Overflow;
-        text.maxVisibleLines = 99999;
-        text.autoSizeTextContainer = false;
-
-        var width = rectTransform.rect.width;
-        var preferredHeight = width > 0f
-            ? text.GetPreferredValues(text.text, width, 0f).y
-            : rectTransform.rect.height;
-        var height = Mathf.Ceil(Mathf.Max(text.fontSize * 1.45f, preferredHeight));
-
         rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
         LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
         cursor += height;
@@ -326,15 +306,7 @@ public static class FeatureDescriptionItemPatcher
 
     private static bool PlaceSelectionFeatureText(GuiLabel label, ref float cursor)
     {
-        if (!label || !label.gameObject.activeInHierarchy || label.TMP_Text == null)
-        {
-            return false;
-        }
-
-        var text = label.TMP_Text;
-        var rectTransform = label.RectTransform;
-
-        if (!rectTransform)
+        if (!TryPrepareWrappedFeatureText(label, false, out var rectTransform, out var height))
         {
             return false;
         }
@@ -348,16 +320,6 @@ public static class FeatureDescriptionItemPatcher
             changed = true;
         }
 
-        text.enableWordWrapping = true;
-        text.overflowMode = TextOverflowModes.Overflow;
-        text.maxVisibleLines = 99999;
-
-        var width = rectTransform.rect.width;
-        var preferredHeight = width > 0f
-            ? text.GetPreferredValues(text.text, width, 0f).y
-            : rectTransform.rect.height;
-        var height = Mathf.Ceil(Mathf.Max(text.fontSize * 1.45f, preferredHeight));
-
         if (Mathf.Abs(height - rectTransform.rect.height) > 0.5f)
         {
             rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
@@ -367,6 +329,47 @@ public static class FeatureDescriptionItemPatcher
         cursor += height;
 
         return changed;
+    }
+
+    private static bool TryPrepareWrappedFeatureText(
+        GuiLabel label,
+        bool disableAutoSize,
+        out RectTransform rectTransform,
+        out float height)
+    {
+        rectTransform = null;
+        height = 0f;
+
+        if (!label || !label.gameObject.activeInHierarchy || label.TMP_Text == null)
+        {
+            return false;
+        }
+
+        var text = label.TMP_Text;
+        rectTransform = label.RectTransform;
+
+        if (!rectTransform)
+        {
+            return false;
+        }
+
+        text.enableWordWrapping = true;
+        text.overflowMode = TextOverflowModes.Overflow;
+        text.maxVisibleLines = 99999;
+
+        if (disableAutoSize)
+        {
+            text.autoSizeTextContainer = false;
+        }
+
+        var width = rectTransform.rect.width;
+        var preferredHeight = width > 0f
+            ? text.GetPreferredValues(text.text, width, 0f).y
+            : rectTransform.rect.height;
+
+        height = Mathf.Ceil(Mathf.Max(text.fontSize * 1.45f, preferredHeight));
+
+        return true;
     }
 
     private static bool PlaceSelectionFeatureControl(RectTransform rectTransform, ref float cursor)

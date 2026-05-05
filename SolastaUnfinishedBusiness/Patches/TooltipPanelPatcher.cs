@@ -1,8 +1,10 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Collections.Generic;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
+using UnityEngine;
 using UnityEngine.UI;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -10,6 +12,11 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class TooltipPanelPatcher
 {
+    private const int TooltipForegroundSortingOrder = 31000;
+
+    private static TooltipPanel ActiveTooltipPanel;
+    private static readonly Dictionary<TooltipPanel, TooltipForegroundState> TooltipForegroundStates = new();
+
     [HarmonyPatch(typeof(TooltipPanel), nameof(TooltipPanel.SetupFeatures))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -42,6 +49,19 @@ public static class TooltipPanelPatcher
         }
     }
 
+    [HarmonyPatch(typeof(TooltipPanel), nameof(TooltipPanel.ShowContent))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ShowContent_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(TooltipPanel __instance)
+        {
+            ActiveTooltipPanel = __instance;
+            ApplyTooltipForeground(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(TooltipPanel), nameof(TooltipPanel.OnEndHide))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -50,6 +70,12 @@ public static class TooltipPanelPatcher
         [UsedImplicitly]
         public static void Postfix(TooltipPanel __instance)
         {
+            if (ActiveTooltipPanel == __instance)
+            {
+                ActiveTooltipPanel = null;
+            }
+
+            RestoreTooltipForeground(__instance);
             FloatingPanelBounds.RestoreTooltipBounds(__instance);
         }
     }
@@ -63,6 +89,18 @@ public static class TooltipPanelPatcher
         public static bool Prefix(ScrollRect __instance)
         {
             return !FloatingPanelBounds.ShouldSuppressBackgroundWheel(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiDropdown), "CreateDropdownList")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class GuiDropdown_CreateDropdownList_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix()
+        {
+            ApplyTooltipForeground(ActiveTooltipPanel);
         }
     }
 
@@ -276,6 +314,95 @@ public static class TooltipPanelPatcher
         {
             Tooltips.ModifyWidth<TooltipFeatureLightSourceParamsWidthMod, TooltipFeatureLightSourceParameters>(
                 __instance);
+        }
+    }
+
+    private static void ApplyTooltipForeground(TooltipPanel tooltipPanel)
+    {
+        if (!tooltipPanel)
+        {
+            return;
+        }
+
+        if (TooltipForegroundStates.TryGetValue(tooltipPanel, out var state) && !state.Canvas)
+        {
+            TooltipForegroundStates.Remove(tooltipPanel);
+        }
+
+        if (!TooltipForegroundStates.TryGetValue(tooltipPanel, out state))
+        {
+            var canvas = tooltipPanel.GetComponent<Canvas>();
+            var addedCanvas = !canvas;
+
+            if (addedCanvas)
+            {
+                canvas = tooltipPanel.gameObject.AddComponent<Canvas>();
+            }
+
+            state = new TooltipForegroundState(canvas, addedCanvas);
+            TooltipForegroundStates[tooltipPanel] = state;
+        }
+
+        if (!state.Canvas)
+        {
+            return;
+        }
+
+        state.Canvas.overrideSorting = true;
+        state.Canvas.sortingOrder = Mathf.Max(state.Canvas.sortingOrder, TooltipForegroundSortingOrder);
+    }
+
+    private static void RestoreTooltipForeground(TooltipPanel tooltipPanel)
+    {
+        if (!tooltipPanel || !TooltipForegroundStates.TryGetValue(tooltipPanel, out var state))
+        {
+            return;
+        }
+
+        TooltipForegroundStates.Remove(tooltipPanel);
+        state.Restore();
+    }
+
+    private sealed class TooltipForegroundState
+    {
+        private readonly bool _addedCanvas;
+        private readonly bool _overrideSorting;
+        private readonly int _sortingLayerId;
+        private readonly int _sortingOrder;
+
+        internal TooltipForegroundState(Canvas canvas, bool addedCanvas)
+        {
+            Canvas = canvas;
+            _addedCanvas = addedCanvas;
+
+            if (!canvas)
+            {
+                return;
+            }
+
+            _overrideSorting = canvas.overrideSorting;
+            _sortingLayerId = canvas.sortingLayerID;
+            _sortingOrder = canvas.sortingOrder;
+        }
+
+        internal Canvas Canvas { get; }
+
+        internal void Restore()
+        {
+            if (!Canvas)
+            {
+                return;
+            }
+
+            if (_addedCanvas)
+            {
+                UnityEngine.Object.DestroyImmediate(Canvas);
+                return;
+            }
+
+            Canvas.overrideSorting = _overrideSorting;
+            Canvas.sortingLayerID = _sortingLayerId;
+            Canvas.sortingOrder = _sortingOrder;
         }
     }
 }

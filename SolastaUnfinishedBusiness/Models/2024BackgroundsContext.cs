@@ -40,6 +40,10 @@ public static partial class Tabletop2024Context
     private const string HumanOriginFeatSkilledSkillTag = "02RaceHumanOriginFeat2024_SkilledSkills";
     private const string ToolGamingSetDiceTypeName = "GamingSetDiceType";
     private const string ToolMusicalInstrumentLyreTypeName = "MusicalInstrumentLyreType";
+    private const string HalfElfVersatileBloodlineFeatureSetName =
+        "FeatureSetHalfElfVersatileBloodlineSavingThrowChoice2024";
+    private const string HalfElfVersatileBloodlineFeaturePrefix =
+        "SavingThrowAffinityHalfElfVersatileBloodline";
 
     private static readonly Dictionary<string, (string A, string B, string C)> BackgroundAbilitySets = new()
     {
@@ -102,7 +106,7 @@ public static partial class Tabletop2024Context
         { BackgroundTroublemakerName, (SkillDefinitions.Deception, SkillDefinitions.SleightOfHand, ToolGamingSetDiceTypeName, ToolTypeDefinitions.ThievesToolsType.Name) }
     };
 
-    private static readonly HashSet<string> OriginRestrictedFeatNames =
+    private static readonly string[] OriginFeatNames =
     [
         "FeatAlert",
         "FeatHealer",
@@ -116,41 +120,31 @@ public static partial class Tabletop2024Context
         "FeatSavageAttack",
         "FeatTough"
     ];
+
+    private static readonly HashSet<string> OriginRestrictedFeatNames = [.. OriginFeatNames];
 
     private static readonly string[] HumanOriginFeatSelectionNames =
     [
-        "FeatAlert",
-        "FeatHealer",
-        "FeatLucky",
-        "FeatMagicInitiateBard",
-        "FeatMagicInitiateCleric",
-        "FeatMagicInitiateDruid",
-        "FeatMagicInitiateSorcerer",
-        "FeatMagicInitiateWarlock",
-        "FeatMagicInitiateWizard",
-        "FeatSavageAttack",
-        "FeatTough",
+        .. OriginFeatNames,
         FeatSkilledName
     ];
 
-    private static readonly string[] HumanOriginTrainableFeatNames =
+    private static readonly string[] HumanOriginTrainableFeatNames = [.. OriginFeatNames];
+
+    private static readonly string[] HalfElfVersatileBloodlineRaceNames = ["HalfElf", "RaceHalfElfVariant"];
+
+    private static readonly string[] HalfElfVersatileBloodlineSavingThrowAttributes =
     [
-        "FeatAlert",
-        "FeatHealer",
-        "FeatLucky",
-        "FeatMagicInitiateBard",
-        "FeatMagicInitiateCleric",
-        "FeatMagicInitiateDruid",
-        "FeatMagicInitiateSorcerer",
-        "FeatMagicInitiateWarlock",
-        "FeatMagicInitiateWizard",
-        "FeatSavageAttack",
-        "FeatTough"
+        AttributeDefinitions.Dexterity,
+        AttributeDefinitions.Intelligence,
+        AttributeDefinitions.Wisdom,
+        AttributeDefinitions.Charisma
     ];
 
     private static readonly HashSet<string> HumanOriginFeatChoiceNames = [.. HumanOriginFeatSelectionNames];
 
     private static readonly Dictionary<string, FeatureDefinitionFeatureSet> BackgroundAsiFeatures = new();
+    private static readonly HashSet<FeatureDefinitionFeatureSet> BackgroundAsiFeatureLookup = [];
     private static readonly Dictionary<string, FeatureDefinition> BackgroundBonusGrantFeatures = new();
     private static readonly Dictionary<string, FeatureDefinition> BackgroundBonusDisplayFeatures = new();
     private static readonly Dictionary<string, (FeatureDefinition Skills, FeatureDefinition Tool)> BackgroundProficiencyFeatures = new();
@@ -162,6 +156,11 @@ public static partial class Tabletop2024Context
     private static FeatureDefinition SkilledDisplayFeature;
     private static FeatureDefinitionPointPool HumanOriginFeatPointPool;
     private static FeatureDefinitionPointPool HumanOriginFeatSkilledSkillPointPool;
+    private static FeatureDefinitionSavingThrowAffinity SavingThrowAffinityHalfElfVersatileBloodlineDexterity2024;
+    private static FeatureDefinitionSavingThrowAffinity SavingThrowAffinityHalfElfVersatileBloodlineIntelligence2024;
+    private static FeatureDefinitionSavingThrowAffinity SavingThrowAffinityHalfElfVersatileBloodlineWisdom2024;
+    private static FeatureDefinitionSavingThrowAffinity SavingThrowAffinityHalfElfVersatileBloodlineCharisma2024;
+    private static FeatureDefinitionFeatureSet HalfElfVersatileBloodlineFeatureSet;
     private static bool _backgroundOptionsLoaded;
 
     internal static bool IsAlternateHumanEffectivelyEnabled()
@@ -218,9 +217,10 @@ public static partial class Tabletop2024Context
         {
             var backgroundName = backgroundAbilitySet.Key;
             var attributes = backgroundAbilitySet.Value;
+            var featureSet = BuildBackgroundAsiFeatureSet(backgroundName, attributes.A, attributes.B, attributes.C);
 
-            BackgroundAsiFeatures[backgroundName] =
-                BuildBackgroundAsiFeatureSet(backgroundName, attributes.A, attributes.B, attributes.C);
+            BackgroundAsiFeatures[backgroundName] = featureSet;
+            BackgroundAsiFeatureLookup.Add(featureSet);
         }
 
         BuildLegacyBackgroundAsiCompatibilityDefinitions();
@@ -252,6 +252,7 @@ public static partial class Tabletop2024Context
         HumanOriginFeatPointPool = BuildHumanOriginFeatPointPool();
         HumanOriginFeatSkilledSkillPointPool = EnsureHumanOriginSkilledPointPool();
         HumanOriginFeatFeatureSet = BuildHumanOriginFeatFeatureSet();
+        HalfElfVersatileBloodlineFeatureSet = BuildHalfElfVersatileBloodlineFeatureSet();
         RefreshModeAwareOriginFeatDefinitions();
     }
 
@@ -629,7 +630,14 @@ public static partial class Tabletop2024Context
         var enableBackgroundAsi = Main.Settings.EnableBackgroundASI;
 
         DisableAlternateHumanWhenBackgroundAsiEnabled();
+        SwitchBackgroundAsiFeatures(enableBackgroundAsi);
+        SwitchRacialAsiFeaturesForBackgroundAsi(enableBackgroundAsi);
+        SwitchHumanBackgroundAsiFeatures(enableBackgroundAsi);
+        SwitchHalfElfVersatileBloodlineBonus(enableBackgroundAsi);
+    }
 
+    private static void SwitchBackgroundAsiFeatures(bool enableBackgroundAsi)
+    {
         foreach (var backgroundAsiFeature in BackgroundAsiFeatures)
         {
             var backgroundName = backgroundAsiFeature.Key;
@@ -647,7 +655,10 @@ public static partial class Tabletop2024Context
                 background.Features.Insert(0, featureSet);
             }
         }
+    }
 
+    private static void SwitchRacialAsiFeaturesForBackgroundAsi(bool enableBackgroundAsi)
+    {
         var raceDatabase = DatabaseRepository.GetDatabase<CharacterRaceDefinition>();
 
         foreach (var removedFeatureNames in FlexibleRacesContext.RemovedFeatureNames)
@@ -685,7 +696,10 @@ public static partial class Tabletop2024Context
 
             raceDefinition.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
         }
+    }
 
+    private static void SwitchHumanBackgroundAsiFeatures(bool enableBackgroundAsi)
+    {
         if (!TryGetDefinition<CharacterRaceDefinition>("Human", out var human))
         {
             return;
@@ -721,6 +735,35 @@ public static partial class Tabletop2024Context
         }
 
         human.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+    }
+
+    private static void SwitchHalfElfVersatileBloodlineBonus(bool enableBackgroundAsi)
+    {
+        if (!HalfElfVersatileBloodlineFeatureSet)
+        {
+            return;
+        }
+
+        var raceDatabase = DatabaseRepository.GetDatabase<CharacterRaceDefinition>();
+
+        foreach (var raceName in HalfElfVersatileBloodlineRaceNames)
+        {
+            var raceDefinition = raceDatabase.GetElement(raceName, true);
+
+            if (!raceDefinition)
+            {
+                continue;
+            }
+
+            RemoveMatchingFeature(raceDefinition.FeatureUnlocks, HalfElfVersatileBloodlineFeatureSet);
+
+            if (enableBackgroundAsi)
+            {
+                AddFeatureUnlock(raceDefinition.FeatureUnlocks, HalfElfVersatileBloodlineFeatureSet);
+            }
+
+            raceDefinition.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+        }
     }
 
     internal static bool HasDuplicateHumanOriginFeat(RulesetCharacterHero hero, out string featName)
@@ -775,8 +818,8 @@ public static partial class Tabletop2024Context
     {
         return _backgroundOptionsLoaded &&
                Main.Settings.EnableBackgroundASI &&
-               feature &&
-               BackgroundAsiFeatures.Values.Contains(feature);
+               feature is FeatureDefinitionFeatureSet featureSet &&
+               BackgroundAsiFeatureLookup.Contains(featureSet);
     }
 
     internal static bool TryGetHumanOriginFeatLearnStepTitle(
@@ -1495,6 +1538,39 @@ public static partial class Tabletop2024Context
             .Create(name)
             .SetGuiPresentationNoContent(true)
             .SetModifier(AttributeModifierOperation.Additive, attribute, amount)
+            .AddToDB();
+    }
+
+    private static FeatureDefinitionFeatureSet BuildHalfElfVersatileBloodlineFeatureSet()
+    {
+        var savingThrowAffinities = HalfElfVersatileBloodlineSavingThrowAttributes
+            .Select(BuildHalfElfVersatileBloodlineSavingThrowAffinity)
+            .ToArray();
+
+        SavingThrowAffinityHalfElfVersatileBloodlineDexterity2024 = savingThrowAffinities[0];
+        SavingThrowAffinityHalfElfVersatileBloodlineIntelligence2024 = savingThrowAffinities[1];
+        SavingThrowAffinityHalfElfVersatileBloodlineWisdom2024 = savingThrowAffinities[2];
+        SavingThrowAffinityHalfElfVersatileBloodlineCharisma2024 = savingThrowAffinities[3];
+
+        return FeatureDefinitionFeatureSetBuilder
+            .Create(HalfElfVersatileBloodlineFeatureSetName)
+            .SetGuiPresentation(Category.Feature)
+            .SetMode(FeatureDefinitionFeatureSet.FeatureSetMode.Exclusion)
+            .AddFeatureSet(
+                SavingThrowAffinityHalfElfVersatileBloodlineDexterity2024,
+                SavingThrowAffinityHalfElfVersatileBloodlineIntelligence2024,
+                SavingThrowAffinityHalfElfVersatileBloodlineWisdom2024,
+                SavingThrowAffinityHalfElfVersatileBloodlineCharisma2024)
+            .AddToDB();
+    }
+
+    private static FeatureDefinitionSavingThrowAffinity BuildHalfElfVersatileBloodlineSavingThrowAffinity(
+        string attribute)
+    {
+        return FeatureDefinitionSavingThrowAffinityBuilder
+            .Create($"{HalfElfVersatileBloodlineFeaturePrefix}{attribute}2024")
+            .SetGuiPresentation(Category.Feature)
+            .SetModifiers(FeatureDefinitionSavingThrowAffinity.ModifierType.AddDice, DieType.D1, 1, false, attribute)
             .AddToDB();
     }
 
