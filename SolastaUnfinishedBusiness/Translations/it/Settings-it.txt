@@ -506,7 +506,7 @@ ModUi/&ExcludeEquippedItemsFromCarriedWeight=Escludi gli oggetti equipaggiati da
 ModUi/&UseOfficialObscurementRules=Abilita le regole di combattimento <color=#D89555>illuminazione, oscuramento e visione</color>
 ModUi/&UseOfficialObscurementRulesHelp=<i><color=#F0DAA0>[l'attaccante che percepisce il difensore che non riesce a percepirlo ottiene ADV, e l'attaccante che non percepisce il difensore che riesce a percepirlo ottiene DIS\n le aree pesantemente oscurate infliggono la condizione di accecamento, dove i tiri per colpire contro la creatura hanno ADV, e i tiri per colpire della creatura hanno DIS\n tutti gli incantesimi a distanza che prendono di mira gli individui non possono essere lanciati se l'attaccante non ha vista, eccetto quelli che chiaramente non dichiarano che la vista è richiesta]</color></i>
 ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=Abilita le <color=#D89555>razze piccole</color> che hanno svantaggio quando impugnano armi pesanti
-ModUi/&EnableHeavyWeaponAbilityRequirement2024=Abilita il requisito di caratteristica 2024 per le armi pesanti [For 13 in mischia, Des 13 a distanza; altrimenti svantaggio]
+ModUi/&EnableHeavyWeaponAbilityRequirement2024=Abilita il requisito di caratteristica 2024 per le armi pesanti <i><color=#F0DAA0>[For 13 in mischia, Des 13 a distanza; altrimenti svantaggio]</color></i>
 ModUi/&UseOldOfficialFlankingRules=<i> + La vecchia regola del fianco era solo +2 per l'attacco. Sopra il fianco più la regola del modificatore ha la precedenza </i>
 ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Concede 2 scelte di maestria nelle armi alla sottoclasse del Monaco Via della Lama</i>
 ModUi/&UseWeaponMasterySystem=Abilita le regole <color=#D89555>Padronanza delle armi</color>
