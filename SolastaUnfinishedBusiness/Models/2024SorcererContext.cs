@@ -280,16 +280,15 @@ public static partial class Tabletop2024Context
 
             var rulesetCharacter = attacker.RulesetCharacter;
 
-            if (!rulesetCharacter.TryGetConditionOfCategoryAndType(
-                    AttributeDefinitions.TagEffect, ConditionArcaneApotheosis.Name, out var activeCondition))
+            if (!TryGetArcaneApotheosisSnapshot(rulesetCharacter, out var previousUsedSorceryPoints))
             {
                 yield break;
             }
 
-            var usedSorceryPoints = activeCondition.Amount;
-
-            rulesetCharacter.usedSorceryPoints = usedSorceryPoints;
-            rulesetCharacter.SorceryPointsAltered?.Invoke(rulesetCharacter, usedSorceryPoints);
+            RefundArcaneApotheosisMetamagicOnly(
+                rulesetCharacter,
+                previousUsedSorceryPoints,
+                GetArcaneApotheosisMetamagicRefund(action.ActionParams.RulesetEffect));
         }
 
         public IEnumerator OnMagicEffectInitiatedByMe(
@@ -318,6 +317,74 @@ public static partial class Tabletop2024Context
                 rulesetAttacker.UsedSorceryPoints,
                 0,
                 0);
+        }
+
+        private static bool TryGetArcaneApotheosisSnapshot(
+            RulesetCharacter rulesetCharacter,
+            out int usedSorceryPoints)
+        {
+            usedSorceryPoints = 0;
+
+            if (!rulesetCharacter.TryGetConditionOfCategoryAndType(
+                    AttributeDefinitions.TagEffect, ConditionArcaneApotheosis.Name, out var activeCondition))
+            {
+                return false;
+            }
+
+            usedSorceryPoints = activeCondition.Amount;
+
+            return true;
+        }
+
+        private static int GetArcaneApotheosisMetamagicRefund(RulesetEffect rulesetEffect)
+        {
+            if (rulesetEffect is not RulesetEffectSpell rulesetEffectSpell)
+            {
+                return 0;
+            }
+
+            var metamagicOption = rulesetEffectSpell.MetamagicOption;
+
+            if (!metamagicOption)
+            {
+                return 0;
+            }
+
+            return metamagicOption.CostMethod == MetamagicCostMethod.SpellLevel
+                ? System.Math.Max(1, rulesetEffectSpell.EffectLevel)
+                : System.Math.Max(0, metamagicOption.SorceryPointsCost);
+        }
+
+        private static void RefundArcaneApotheosisMetamagicOnly(
+            RulesetCharacter rulesetCharacter,
+            int previousUsedSorceryPoints,
+            int metamagicRefund)
+        {
+            if (metamagicRefund <= 0)
+            {
+                return;
+            }
+
+            var currentUsedSorceryPoints = rulesetCharacter.UsedSorceryPoints;
+            var spentSinceSnapshot = System.Math.Max(0, currentUsedSorceryPoints - previousUsedSorceryPoints);
+            var actualRefund = System.Math.Min(metamagicRefund, spentSinceSnapshot);
+
+            if (actualRefund <= 0)
+            {
+                return;
+            }
+
+            var adjustedUsedSorceryPoints = System.Math.Max(
+                previousUsedSorceryPoints,
+                currentUsedSorceryPoints - actualRefund);
+
+            if (adjustedUsedSorceryPoints == currentUsedSorceryPoints)
+            {
+                return;
+            }
+
+            rulesetCharacter.usedSorceryPoints = adjustedUsedSorceryPoints;
+            rulesetCharacter.SorceryPointsAltered?.Invoke(rulesetCharacter, adjustedUsedSorceryPoints);
         }
     }
 
