@@ -299,7 +299,7 @@ ModUi/&EnableHeroesControlledByComputer=Abilita eroi controllati dal computer
 ModUi/&EnableAdvancedCombatAI=Abilita IA di combattimento avanzata <i><color=#F0DAA0>[miglioramenti tattici opzionali per nemici ed eroi controllati dalla IA]</color></i>
 ModUi/&EnableAdvancedCombatAIFlight=<i>+ Migliora le decisioni su volo e altitudine</i>
 ModUi/&EnableAdvancedCombatAIPositioning=<i>+ Migliora posizionamento, linee di tiro ed esposizione alle minacce</i>
-ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Migliora economia delle azioni e ripiego su Schivare</i>
+ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Migliora l'uso delle azioni da parte dell'IA e le fa scegliere Schivare quando non ha opzioni migliori</i>
 ModUi/&EnableAdvancedCombatAIProfiles=<i>+ Abilita comportamenti basati su famiglia, stile di combattimento e temperamento</i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=Gli incantatori nemici rilasciano libri degli incantesimi scritti <i><color=#F0DAA0>[contiene i loro incantesimi conosciuti dall'elenco dei maghi]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Fai in modo che <b>Evocatore</b> <color=#D89555>Scolpisci incantesimi</color> non richieda la percezione degli alleati

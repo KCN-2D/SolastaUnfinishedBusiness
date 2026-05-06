@@ -299,7 +299,7 @@ ModUi/&EnableHeroesControlledByComputer=Permitir héroes controlados por el orde
 ModUi/&EnableAdvancedCombatAI=Activar IA de combate avanzada <i><color=#F0DAA0>[mejoras tácticas opcionales para enemigos y héroes controlados por la IA]</color></i>
 ModUi/&EnableAdvancedCombatAIFlight=<i>+ Mejorar decisiones de vuelo y altitud</i>
 ModUi/&EnableAdvancedCombatAIPositioning=<i>+ Mejorar posicionamiento, líneas de fuego y exposición a amenazas</i>
-ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Mejorar economía de acciones y recurso final de Esquivar</i>
+ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Mejora el uso de acciones de la IA y hace que elija Esquivar cuando no tenga una opción mejor</i>
 ModUi/&EnableAdvancedCombatAIProfiles=<i>+ Activar comportamientos según familia, estilo de combate y temperamento</i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=Los lanzadores de hechizos enemigos sueltan libros de hechizos escritos <i><color=#F0DAA0>[contiene sus hechizos conocidos de la lista de magos]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Hacer que <b>Evocador</b> <color=#D89555>Esculpir hechizos</color> no requiera percibir aliados.

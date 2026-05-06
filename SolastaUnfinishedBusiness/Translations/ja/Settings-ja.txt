@@ -290,7 +290,7 @@ ModUi/&EnableHeroesControlledByComputer=ヒーローをコンピューターが�
 ModUi/&EnableAdvancedCombatAI=高度な戦闘AIを有効にする<i><color=#F0DAA0>［敵とAI操作ヒーローの戦術判断を改善します］</color></i>
 ModUi/&EnableAdvancedCombatAIFlight=<i>+ 飛行と高度差への対応を改善する</i>
 ModUi/&EnableAdvancedCombatAIPositioning=<i>+ 位置取り、射線、脅威回避を改善する</i>
-ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ アクション・エコノミーと回避へのフォールバックを改善する</i>
+ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ 行動の使い方を改善し、有効な選択肢がないときは回避を選びやすくする</i>
 ModUi/&EnableAdvancedCombatAIProfiles=<i>+ 種別、戦闘手段、気質による挙動差を有効にする</i>
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ 敵は常に強制値ではなくイニシアチブをロールします<color=#F0DAA0>［例：Sorak Assassin］</color></i>
 ModUi/&EvocationSculptSpellNoPerception=<b>力術士</b>の<color=#D89555>呪文効果範囲操作</color>で味方を視認している必要をなくします

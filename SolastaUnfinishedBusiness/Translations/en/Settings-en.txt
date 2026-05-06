@@ -290,7 +290,7 @@ ModUi/&EnableHeroesControlledByComputer=Enable heroes controlled by computer
 ModUi/&EnableAdvancedCombatAI=Enable advanced combat AI <i><color=#F0DAA0>[opt-in tactical improvements for enemies and AI-controlled heroes]</color></i>
 ModUi/&EnableAdvancedCombatAIFlight=<i>+ Improve flying and altitude decisions</i>
 ModUi/&EnableAdvancedCombatAIPositioning=<i>+ Improve positioning, line of fire and threat exposure</i>
-ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Improve action economy and Dodge fallback</i>
+ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Improve how the AI uses actions and make it choose Dodge when no better option is available</i>
 ModUi/&EnableAdvancedCombatAIProfiles=<i>+ Add family, combat style and temperament-based behavior</i>
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ Enemies always roll initiative instead of a forced value <color=#F0DAA0>[i.e: Sorak Assassin]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Make <b>Evoker</b> <color=#D89555>Sculpt Spells</color> not require perceiving allies

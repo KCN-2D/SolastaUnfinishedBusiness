@@ -299,7 +299,7 @@ ModUi/&EnableHeroesControlledByComputer=Включить героев под у�
 ModUi/&EnableAdvancedCombatAI=Включить продвинутый боевой ИИ <i><color=#F0DAA0>[необязательные тактические улучшения для врагов и героев под управлением ИИ]</color></i>
 ModUi/&EnableAdvancedCombatAIFlight=<i>+ Улучшить решения о полёте и высоте</i>
 ModUi/&EnableAdvancedCombatAIPositioning=<i>+ Улучшить позиционирование, линии атаки и подставление под угрозы</i>
-ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Улучшить экономию действий и запасной переход в Уклонение</i>
+ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Улучшает использование действий ИИ и заставляет его выбирать Уклонение, когда нет лучшего варианта</i>
 ModUi/&EnableAdvancedCombatAIProfiles=<i>+ Включить различия поведения по семейству, стилю боя и темпераменту</i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=Вражеские заклинатели бросают записанные книги заклинаний <i><color=#F0DAA0>[содержит их известные заклинания из списка волшебников]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Сделать <b>Evoker</b> <color=#D89555>Sculpt Spells</color> не требующим восприятия союзников

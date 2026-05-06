@@ -299,7 +299,7 @@ ModUi/&EnableHeroesControlledByComputer=Computergesteuerte Helden aktivieren
 ModUi/&EnableAdvancedCombatAI=Erweiterte Kampf-KI aktivieren <i><color=#F0DAA0>[optionale taktische Verbesserungen für Feinde und KI-gesteuerte Helden]</color></i>
 ModUi/&EnableAdvancedCombatAIFlight=<i>+ Flug- und Höhenentscheidungen verbessern</i>
 ModUi/&EnableAdvancedCombatAIPositioning=<i>+ Positionierung, Schusslinien und Bedrohungsvermeidung verbessern</i>
-ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Aktionsökonomie und Dodge-Fallback verbessern</i>
+ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Verbessert, wie die KI ihre Aktionen nutzt, und lässt sie Ausweichen wählen, wenn keine bessere Option verfügbar ist</i>
 ModUi/&EnableAdvancedCombatAIProfiles=<i>+ Verhaltensunterschiede nach Kreaturenfamilie, Kampfstil und Temperament aktivieren</i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=Feindliche Zauberer lassen niedergeschriebene Zauberbücher fallen <i><color=#F0DAA0>[enthält ihre bekannten Zaubersprüche aus der Zaubererliste]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Sorgen Sie dafür, dass <b>Beschwörer</b> <color=#D89555>Skulpturzauber</color> keine wahrnehmenden Verbündeten erfordern

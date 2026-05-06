@@ -299,7 +299,7 @@ ModUi/&EnableHeroesControlledByComputer=启用由电脑控制的英雄
 ModUi/&EnableAdvancedCombatAI=启用高级战斗AI <i><color=#F0DAA0>[为敌人和AI控制的英雄提供可选的战术增强]</color></i>
 ModUi/&EnableAdvancedCombatAIFlight=<i>+ 改善飞行与高度判断</i>
 ModUi/&EnableAdvancedCombatAIPositioning=<i>+ 改善站位、射线与威胁暴露判断</i>
-ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ 改善行动经济与闪避兜底</i>
+ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ 改善AI对行动的使用，并在没有更好选择时选择闪避</i>
 ModUi/&EnableAdvancedCombatAIProfiles=<i>+ 启用基于生物类别、战斗风格与气质的行为差异</i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=敌人施法者掉落书写法术书<i><color=#F0DAA0>[包含巫师列表中他们已知的法术]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=使<b>唤魔者</b><color=#D89555>雕刻法术</color>不需要感知盟友
