@@ -808,7 +808,7 @@ internal static class SpeechContext
         const string UB_VOICE_DATA = "UB_VOICE_DATA";
 
         if (!Gui.GameCampaign ||
-            !Gui.Game.CampaignDefinition.IsUserCampaign)
+            Gui.Game?.CampaignDefinition?.IsUserCampaign != true)
         {
             return;
         }
@@ -824,9 +824,9 @@ internal static class SpeechContext
 
         EnsureVoiceDataInitialized();
 
-        var userCampaign = Gui.Session.UserCampaign;
+        var userCampaign = Gui.Session?.UserCampaign;
         var voiceData = userCampaign?.UserItems?.FirstOrDefault(x =>
-            x.ReferenceItemDefinition.IsDocument &&
+            x.ReferenceItemDefinition?.IsDocument == true &&
             x.DocumentFragments is { Count: > 0 } &&
             x.InternalName == UB_VOICE_DATA);
 
@@ -837,10 +837,16 @@ internal static class SpeechContext
         }
 
         CampaignVoiceDataInitialized = true;
+        var userNpcs = userCampaign.UserNpcs;
+
+        if (userNpcs == null)
+        {
+            return;
+        }
 
         var validVoices = new HashSet<string>(VoiceNames, StringComparer.Ordinal);
         var validNpcs = new HashSet<string>(
-            userCampaign.UserNpcs.Select(x => x.InternalName),
+            userNpcs.Select(x => x.InternalName),
             StringComparer.Ordinal);
 
         foreach (var fragment in voiceData.DocumentFragments)
@@ -1389,6 +1395,13 @@ internal static class SpeechContext
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(inputText) ||
+                character?.RulesetCharacter is not RulesetCharacterMonster rulesetCharacterMonster ||
+                rulesetCharacterMonster.MonsterDefinition == null)
+            {
+                return;
+            }
+
             // only if audio enabled
             var audioSettingsService = ServiceRepository.GetService<IAudioSettingsService>();
 
@@ -1406,15 +1419,10 @@ internal static class SpeechContext
             // unity life check...
             if (Gui.GameCampaign)
             {
-                if (!Gui.GameCampaign.campaignDefinition.IsUserCampaign)
+                if (Gui.GameCampaign.campaignDefinition?.IsUserCampaign != true)
                 {
                     return;
                 }
-            }
-
-            if (character.RulesetCharacter is not RulesetCharacterMonster rulesetCharacterMonster)
-            {
-                return;
             }
 
             EnsureVoiceDataInitialized();
@@ -1423,7 +1431,8 @@ internal static class SpeechContext
             var cleanedText = StripXmlTagsAndNarration(inputText);
             var languageProfile = DetectTextLanguageProfile(cleanedText);
             var internalName = rulesetCharacterMonster.MonsterDefinition.Name;
-            var preferredGender = FemaleNpcs.Contains(internalName) ? Gender.Female : Gender.Male;
+            var isFemaleNpc = FemaleNpcs.Contains(internalName);
+            var preferredGender = isFemaleNpc ? Gender.Female : Gender.Male;
             var scale = 1f;
             var voice = DefaultVoice;
 
@@ -1448,7 +1457,7 @@ internal static class SpeechContext
                     return;
                 }
 
-                switch (FemaleNpcs.Contains(internalName))
+                switch (isFemaleNpc)
                 {
                     case true when AvailableFemaleVoices.Count > 0:
                     {
@@ -1484,7 +1493,13 @@ internal static class SpeechContext
 
     private static bool TryGetUserNpcIndex(string internalName, out int npcId)
     {
-        var userNpcs = Gui.Session.UserCampaign.UserNpcs;
+        var userNpcs = Gui.Session?.UserCampaign?.UserNpcs;
+
+        if (userNpcs == null)
+        {
+            npcId = -1;
+            return false;
+        }
 
         for (var i = 0; i < userNpcs.Count; i++)
         {
