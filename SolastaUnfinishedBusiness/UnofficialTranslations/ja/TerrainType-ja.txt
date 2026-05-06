@@ -1,7 +1,7 @@
-TerrainType/&ArcticDescription=雪原や永久凍土の地域は極地地形と見なされます。この地形タイプは〈マジスターの王冠〉キャンペーンでは使用されません。
+TerrainType/&ArcticDescription=雪原や永久凍土の地域は極地地形と見なされます。この地形種別は〈マジスターの王冠〉キャンペーンでは使用されません。
 TerrainType/&ArcticTitle=極地
 TerrainType/&BadlandsDescription=かつてマナカロン帝国の内陸諸州だった一帯は、大変動後の魔法が混沌と噴き出し、さまざまな地形が入り交じる荒野となっており、バッドランズ地形と見なされます。
-TerrainType/&CoastDescription=海岸線を含む地域は海岸地形と見なされます。この地形タイプは〈マジスターの王冠〉キャンペーンでは使用されません。
+TerrainType/&CoastDescription=海岸線を含む地域は海岸地形と見なされます。この地形種別は〈マジスターの王冠〉キャンペーンでは使用されません。
 TerrainType/&CoastTitle=海岸
 TerrainType/&DablandsTitle=バッドランズ
 TerrainType/&DesertDescription=降雨がほとんどなく、植生も乏しい乾燥地帯は砂漠地形と見なされます。

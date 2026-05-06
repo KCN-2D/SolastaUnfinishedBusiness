@@ -14,7 +14,7 @@ Validator/&ParameterMonsterQuantityDescription=指定した要素の数量を決
 Validator/&ParameterMonsterQuantityTitle=数量
 Validator/&ParameterMonsterTitle=モンスター
 Validator/&ParameterMonsterorNPCTitle=モンスターまたはNPC
-Validator/&ParameterRestTypeDescription=期待される休憩の種類です
+Validator/&ParameterRestTypeDescription=想定される休憩種別です
 Validator/&ParameterRestTypeTitle=小休憩=0大休憩=1
 Validator/&ParameterSpellNameDescription=指定する呪文の正確な内部名です（英語・大文字固定）
 Validator/&ParameterSpellNameTitle=呪文名
@@ -32,7 +32,7 @@ Validator/&ParameterVariableTestTypeIsGreaterThanDescription=変数値が指定�
 Validator/&ParameterVariableTestTypeIsGreaterThanTitle=以上
 Validator/&ParameterVariableTestTypeIsInferiorStrictlyToDescription=変数値が指定値より小さい場合に有効です
 Validator/&ParameterVariableTestTypeIsInferiorStrictlyToTitle=より小さい
-Validator/&ParameterVariableTestTypeTitle=テストの種類
+Validator/&ParameterVariableTestTypeTitle=テスト種別
 Validator/&ParameterVariableTestValueBoolDescription=テストで比較する真偽値です
 Validator/&ParameterVariableTestValueBoolTitle=検査値
 Validator/&ParameterVariableTestValueIntDescription=テストで比較する整数値です
