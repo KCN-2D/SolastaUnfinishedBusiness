@@ -153,6 +153,8 @@ internal static class CampaignsDisplay
 
         if (Main.Settings.EnableSpeech)
         {
+            SpeechContext.EnsureVoiceDataInitialized();
+
             UI.Label();
 
             using (UI.HorizontalScope())

@@ -80,6 +80,9 @@ internal static class SpeechContext
     private static SpeechRequest CurrentSpeechRequest;
     private static bool SpeechEventHooked;
     private static bool SpeechPlaybackActive;
+    private static bool PiperInitializationAttempted;
+    private static bool VoiceDataInitialized;
+    private static bool CampaignVoiceDataInitialized;
     private static bool Unloading;
     private static int SpeechGeneration;
 
@@ -453,37 +456,56 @@ internal static class SpeechContext
     private static readonly List<string> AvailableMaleVoices = [];
 
     private static readonly Dictionary<string, (string, float)> CampaignVoices = [];
-    private static bool CampaignVoiceDataMissingReported;
 
     internal static readonly string[] Choices = new List<string> { "Narrator" }
         .Union(Enumerable.Range(1, MaxHeroes).Select(n => $"Hero {n}")).ToArray();
 
-    internal static string[] VoiceNames { get; private set; }
+    internal static string[] VoiceNames { get; private set; } = [DefaultVoice];
 
     internal static void Load()
     {
         Unloading = false;
-        EnsureSpeechEventHooked();
-        InitPiper();
-        RefreshAvailableVoices();
-        InitVoiceAssignments();
-        UpdateAvailableVoices();
+        EnsureSpeechVoiceSettings();
 
         //A fix for UB issue that was setting global game volume when any generated speech was played
         //A one-off change to not force confused users to go into windows sound mixer and change there
         if (!Main.Settings.FixGameVolume)
         {
             Main.Settings.FixGameVolume = true;
-            try
-            {
-                SpeechEvent.Volume = 1;
-            }
-            catch (Exception)
-            {
-                // calling this setter crashes on Linux
-            }
 
+            if (_speechEvent != null)
+            {
+                try
+                {
+                    _speechEvent.Volume = 1;
+                }
+                catch (Exception)
+                {
+                    // calling this setter crashes on Linux
+                }
+            }
         }
+    }
+
+    internal static void EnsureVoiceDataInitialized()
+    {
+        if (VoiceDataInitialized)
+        {
+            return;
+        }
+
+        RefreshAvailableVoices();
+    }
+
+    private static void EnsurePiperInitialized()
+    {
+        if (PiperInitializationAttempted)
+        {
+            return;
+        }
+
+        PiperInitializationAttempted = true;
+        InitPiper();
     }
 
     private static void InitPiper()
@@ -516,20 +538,18 @@ internal static class SpeechContext
         {
             if (Directory.Exists(PiperFolder))
             {
-                message = "Piper already exists.";
+                return;
             }
-            else
+
+            using var wc = new WebClient();
+
+            wc.DownloadFile(url, fullZipFile);
+            ZipFile.ExtractToDirectory(fullZipFile, Main.ModFolder);
+            File.Delete(fullZipFile);
+
+            if (!TryGetLegacyPiperExecutablePath(out _))
             {
-                using var wc = new WebClient();
-
-                wc.DownloadFile(url, fullZipFile);
-                ZipFile.ExtractToDirectory(fullZipFile, Main.ModFolder);
-                File.Delete(fullZipFile);
-
-                if (!TryGetLegacyPiperExecutablePath(out _))
-                {
-                    message = "Piper successfully downloaded but failed to extract executable.";
-                }
+                message = "Piper successfully downloaded but failed to extract executable.";
             }
         }
         catch
@@ -542,6 +562,9 @@ internal static class SpeechContext
 
     internal static void RefreshAvailableVoices()
     {
+        EnsureSpeechVoiceSettings();
+        EnsurePiperInitialized();
+
         if (!Directory.Exists(VoicesFolder))
         {
             Directory.CreateDirectory(VoicesFolder);
@@ -551,9 +574,9 @@ internal static class SpeechContext
 
         var voiceNames = new List<string> { DefaultVoice };
 
-        foreach (var file in new DirectoryInfo(VoicesFolder).GetFiles("*.onnx"))
+        foreach (var file in Directory.EnumerateFiles(VoicesFolder, "*.onnx", SearchOption.TopDirectoryOnly))
         {
-            var voiceName = Path.GetFileNameWithoutExtension(file.Name);
+            var voiceName = Path.GetFileNameWithoutExtension(file);
 
             if (string.IsNullOrEmpty(voiceName))
             {
@@ -565,7 +588,7 @@ internal static class SpeechContext
                 voiceName,
                 SpeechEngine.LegacyPiper,
                 "en",
-                file.FullName,
+                file,
                 TryGetSuggestedVoiceGender(voiceName, out var gender) ? gender : null,
                 22050,
                 0.667f);
@@ -591,10 +614,16 @@ internal static class SpeechContext
         }
 
         VoiceNames = voiceNames.Distinct(StringComparer.Ordinal).ToArray();
+        ValidateVoiceAssignments();
+        UpdateAvailableVoices();
+        VoiceDataInitialized = true;
     }
 
-    private static void InitVoiceAssignments()
+    private static void EnsureSpeechVoiceSettings()
     {
+        Main.Settings.SpeechVoices ??= [];
+        Main.Settings.SpeechChoice = Math.Min(Math.Max(Main.Settings.SpeechChoice, 0), MaxHeroes);
+
         // remove any invalid key
         Main.Settings.SpeechVoices.Keys
             .Where(x => x is < 0 or > MaxHeroes)
@@ -604,7 +633,15 @@ internal static class SpeechContext
         for (var i = 0; i <= MaxHeroes; i++)
         {
             Main.Settings.SpeechVoices.TryAdd(i, (DefaultVoice, DefaultScale));
+        }
+    }
 
+    private static void ValidateVoiceAssignments()
+    {
+        EnsureSpeechVoiceSettings();
+
+        for (var i = 0; i <= MaxHeroes; i++)
+        {
             if (!VoiceInfos.ContainsKey(Main.Settings.SpeechVoices[i].Item1) &&
                 Main.Settings.SpeechVoices[i].Item1 != DefaultVoice)
             {
@@ -615,6 +652,8 @@ internal static class SpeechContext
 
     internal static void UpdateAvailableVoices()
     {
+        EnsureSpeechVoiceSettings();
+
         var assignedVoices = new HashSet<string>(
             Main.Settings.SpeechVoices.Values.Select(x => x.Item1),
             StringComparer.Ordinal);
@@ -768,12 +807,22 @@ internal static class SpeechContext
     {
         const string UB_VOICE_DATA = "UB_VOICE_DATA";
 
-        if (!Gui.Game.CampaignDefinition.IsUserCampaign)
+        if (!Gui.GameCampaign ||
+            !Gui.Game.CampaignDefinition.IsUserCampaign)
         {
             return;
         }
 
         CampaignVoices.Clear();
+        CampaignVoiceDataInitialized = false;
+
+        if (!Main.Settings.EnableSpeech &&
+            !Main.Settings.EnableSpeechOnNpcs)
+        {
+            return;
+        }
+
+        EnsureVoiceDataInitialized();
 
         var userCampaign = Gui.Session.UserCampaign;
         var voiceData = userCampaign?.UserItems?.FirstOrDefault(x =>
@@ -783,14 +832,11 @@ internal static class SpeechContext
 
         if (voiceData == null)
         {
-            if (!CampaignVoiceDataMissingReported)
-            {
-                Main.Info("No campaign voice mapping data found.");
-                CampaignVoiceDataMissingReported = true;
-            }
-
+            CampaignVoiceDataInitialized = true;
             return;
         }
+
+        CampaignVoiceDataInitialized = true;
 
         var validVoices = new HashSet<string>(VoiceNames, StringComparer.Ordinal);
         var validNpcs = new HashSet<string>(
@@ -892,6 +938,9 @@ internal static class SpeechContext
         StopSpeechProcesses();
         PiperPlusVoiceDownloader.Unload(destroyUnityObjects);
         VoicesDownloader.Unload(destroyUnityObjects);
+        PiperInitializationAttempted = false;
+        VoiceDataInitialized = false;
+        CampaignVoiceDataInitialized = false;
     }
 
     internal static void NotifyVanillaSpeechConcluded()
@@ -915,6 +964,21 @@ internal static class SpeechContext
         SpeechEventHooked = true;
     }
 
+    private static void EnsureCampaignVoiceDataInitialized()
+    {
+        if (CampaignVoiceDataInitialized)
+        {
+            return;
+        }
+
+        if (!Gui.GameCampaign)
+        {
+            return;
+        }
+
+        CollectCustomCampaignVoiceData();
+    }
+
     private static void QueueSpeech(SpeechVoiceInfo voiceInfo, float scale, string cleanedText)
     {
         if (voiceInfo == null ||
@@ -926,6 +990,7 @@ internal static class SpeechContext
 
         lock (SpeechLock)
         {
+            EnsureSpeechEventHooked();
             SpeechQueue.Enqueue(new SpeechRequest(voiceInfo, scale, cleanedText, SpeechGeneration));
             StartNextSpeechNoLock();
         }
@@ -1221,6 +1286,8 @@ internal static class SpeechContext
 
     internal static void SpeakQuote()
     {
+        EnsureVoiceDataInitialized();
+
         var (selectedVoice, _) = Main.Settings.SpeechVoices[Main.Settings.SpeechChoice];
 
         if (TryGetVoiceLanguageProfile(selectedVoice, out var profile))
@@ -1286,6 +1353,9 @@ internal static class SpeechContext
                 }
             }
 
+            EnsureVoiceDataInitialized();
+            EnsureCampaignVoiceDataInitialized();
+
             string voice;
             float scale;
 
@@ -1346,6 +1416,9 @@ internal static class SpeechContext
             {
                 return;
             }
+
+            EnsureVoiceDataInitialized();
+            EnsureCampaignVoiceDataInitialized();
 
             var cleanedText = StripXmlTagsAndNarration(inputText);
             var languageProfile = DetectTextLanguageProfile(cleanedText);
