@@ -1,12 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using HarmonyLib;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 
 namespace SolastaUnfinishedBusiness.Api.Helpers;
 
 internal static class EffectHelpers
 {
+    private static readonly AccessTools.FieldRef<RulesetEffectPower, FeatureDefinitionPower> PowerSourceDefinitionRef =
+        AccessTools.FieldRefAccess<RulesetEffectPower, FeatureDefinitionPower>("sourceDefinition");
+
     /**DC and magic attack bonus will be calculated based on the stats of the user, not from device itself*/
     public const int BasedOnUser = -1;
 
@@ -180,6 +184,42 @@ internal static class EffectHelpers
         };
     }
 
+    internal static BaseDefinition GetSourceDefinitionSafe(this RulesetEffect effect)
+    {
+        return effect switch
+        {
+            RulesetEffectPower power => GetPowerSourceDefinitionSafe(power),
+            RulesetEffectSpell spell => spell.SpellDefinition,
+            _ => null
+        };
+    }
+
+    internal static FeatureDefinitionPower GetPowerSourceDefinitionSafe(RulesetEffectPower power)
+    {
+        if (power == null)
+        {
+            return null;
+        }
+
+        ref var sourceDefinition = ref PowerSourceDefinitionRef(power);
+
+        return sourceDefinition ?? power.UsablePower?.PowerDefinition;
+    }
+
+    internal static FeatureDefinitionPower EnsurePowerSourceDefinition(RulesetEffectPower power)
+    {
+        if (power == null)
+        {
+            return null;
+        }
+
+        ref var sourceDefinition = ref PowerSourceDefinitionRef(power);
+
+        sourceDefinition ??= power.UsablePower?.PowerDefinition;
+
+        return sourceDefinition;
+    }
+
     internal static List<RulesetEffect> GetAllEffectsBySourceGuid(ulong guid)
     {
         return ServiceRepository.GetService<IRulesetEntityService>().RulesetEntities.Values
@@ -230,8 +270,8 @@ internal static class EffectHelpers
 
         return effect switch
         {
-            RulesetEffectSpell spell => (spell.Caster, spell.SourceDefinition),
-            RulesetEffectPower power => (power.User, power.PowerDefinition),
+            RulesetEffectSpell spell => (spell.Caster, spell.SpellDefinition),
+            RulesetEffectPower power => (power.User, GetPowerSourceDefinitionSafe(power)),
             _ => (null, null)
         };
     }

@@ -17,9 +17,6 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetEffectPowerPatcher
 {
-    private static readonly AccessTools.FieldRef<RulesetEffectPower, FeatureDefinitionPower> SourceDefinitionRef =
-        AccessTools.FieldRefAccess<RulesetEffectPower, FeatureDefinitionPower>("sourceDefinition");
-
     [HarmonyPatch(typeof(RulesetEffectPower), ".ctor", MethodType.Constructor)]
     [HarmonyPatch([
         typeof(RulesetCharacter), // user
@@ -231,9 +228,7 @@ public static class RulesetEffectPowerPatcher
                 return;
             }
 
-            ref var sourceDefinition = ref SourceDefinitionRef(__instance);
-
-            sourceDefinition ??= __instance.UsablePower?.PowerDefinition;
+            EffectHelpers.EnsurePowerSourceDefinition(__instance);
         }
 
         [UsedImplicitly]

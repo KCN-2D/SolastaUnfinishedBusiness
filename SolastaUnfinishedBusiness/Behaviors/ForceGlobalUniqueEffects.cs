@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -31,8 +30,13 @@ internal static class ForceGlobalUniqueEffects
     {
         var result = new HashSet<BaseDefinition>();
 
-        foreach (var group in Groups.Where(e => e.Value.Contains(definition)))
+        foreach (var group in Groups)
         {
+            if (!group.Value.Contains(definition))
+            {
+                continue;
+            }
+
             foreach (var p in group.Value)
             {
                 result.Add(p);
@@ -52,7 +56,13 @@ internal static class ForceGlobalUniqueEffects
 
     internal static void EnforceLimitedInstancePower(CharacterActionUsePower action)
     {
-        var power = action.ActionParams.RulesetEffect.SourceDefinition;
+        var power = action.ActionParams.RulesetEffect.GetSourceDefinitionSafe();
+
+        if (!power)
+        {
+            return;
+        }
+
         var limiter = power.GetFirstSubFeatureOfType<ILimitEffectInstances>();
 
         if (limiter == null)
@@ -61,24 +71,36 @@ internal static class ForceGlobalUniqueEffects
         }
 
         var character = action.ActingCharacter.RulesetCharacter;
-        var effects = EffectHelpers.GetAllEffectsBySourceGuid(character.Guid)
-            .OfType<RulesetEffectPower>()
-            .Where(powerEffect =>
+        var effects = new List<RulesetEffectPower>();
+
+        foreach (var effect in EffectHelpers.GetAllEffectsBySourceGuid(character.Guid))
+        {
+            if (effect is not RulesetEffectPower powerEffect)
             {
-                var tmp = powerEffect.PowerDefinition.GetFirstSubFeatureOfType<ILimitEffectInstances>();
+                continue;
+            }
 
-                if (tmp == null)
-                {
-                    return false;
-                }
+            var sourceDefinition = powerEffect.GetSourceDefinitionSafe();
 
-                return tmp.Name == limiter.Name;
-            })
-            .OrderBy(x => x.Guid)
-            .ToArray();
+            if (!sourceDefinition)
+            {
+                continue;
+            }
+
+            var tmp = sourceDefinition.GetFirstSubFeatureOfType<ILimitEffectInstances>();
+
+            if (tmp == null || tmp.Name != limiter.Name)
+            {
+                continue;
+            }
+
+            effects.Add(powerEffect);
+        }
+
+        effects.Sort((x, y) => x.Guid.CompareTo(y.Guid));
 
         var limit = limiter.GetLimit(character);
-        var remove = effects.Length - limit;
+        var remove = effects.Count - limit;
 
         for (var i = 0; i < remove; i++)
         {
@@ -91,14 +113,21 @@ internal static class ForceGlobalUniqueEffects
      */
     internal static void TerminateMatchingUniqueEffect(RulesetCharacter character, RulesetEffect uniqueEffect)
     {
-        var group = GetSameGroupItems(uniqueEffect.SourceDefinition);
+        var sourceDefinition = uniqueEffect.GetSourceDefinitionSafe();
 
-        if (uniqueEffect is
-            RulesetEffectPower { PowerDefinition.UniqueInstance: true } or
-            RulesetEffectSpell { SpellDefinition.UniqueInstance: true })
+        if (!sourceDefinition)
+        {
+            return;
+        }
+
+        var group = GetSameGroupItems(sourceDefinition);
+
+        if (sourceDefinition is
+            FeatureDefinitionPower { UniqueInstance: true } or
+            SpellDefinition { UniqueInstance: true })
         {
             //ensure we try to properly terminate unique effects not in groups
-            group.Add(uniqueEffect.SourceDefinition);
+            group.Add(sourceDefinition);
         }
 
         var allSubDefinitions = new HashSet<BaseDefinition>();
@@ -113,11 +142,19 @@ internal static class ForceGlobalUniqueEffects
                 {
                     var bundles = PowerBundle.GetMasterPowersBySubPower(power);
 
-                    foreach (var subPower in bundles.Select(PowerBundle.GetBundle)
-                                 .Where(bundle => bundle.TerminateAll)
-                                 .SelectMany(bundle => bundle.SubPowers))
+                    foreach (var masterPower in bundles)
                     {
-                        allSubDefinitions.Add(subPower);
+                        var bundle = PowerBundle.GetBundle(masterPower);
+
+                        if (bundle is not { TerminateAll: true })
+                        {
+                            continue;
+                        }
+
+                        foreach (var subPower in bundle.SubPowers)
+                        {
+                            allSubDefinitions.Add(subPower);
+                        }
                     }
 
                     break;
@@ -142,9 +179,21 @@ internal static class ForceGlobalUniqueEffects
             }
         }
 
-        foreach (var effect in EffectHelpers.GetAllEffectsBySourceGuid(character.Guid)
-                     .Where(e => e != uniqueEffect && allSubDefinitions.Contains(e.SourceDefinition)))
+        foreach (var effect in EffectHelpers.GetAllEffectsBySourceGuid(character.Guid))
         {
+            if (effect == uniqueEffect)
+            {
+                continue;
+            }
+
+            var effectSourceDefinition = effect.GetSourceDefinitionSafe();
+
+            if (!effectSourceDefinition ||
+                !allSubDefinitions.Contains(effectSourceDefinition))
+            {
+                continue;
+            }
+
             effect.DoTerminate(character);
         }
     }

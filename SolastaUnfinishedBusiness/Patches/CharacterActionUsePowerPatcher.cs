@@ -4,6 +4,7 @@ using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Interfaces;
 using static RuleDefinitions;
@@ -22,8 +23,14 @@ public static class CharacterActionUsePowerPatcher
             return false;
         }
 
-        return !__instance.ActionParams.RulesetEffect.SourceDefinition
-            .HasSubFeatureOfType<IIgnoreInvisibilityInterruptionCheck>();
+        var power = __instance.ActionParams.RulesetEffect.GetSourceDefinitionSafe();
+
+        if (!power)
+        {
+            return true;
+        }
+
+        return !power.HasSubFeatureOfType<IIgnoreInvisibilityInterruptionCheck>();
     }
 
     [HarmonyPatch(typeof(CharacterActionUsePower), nameof(CharacterActionUsePower.CheckInterruptionBefore))]
