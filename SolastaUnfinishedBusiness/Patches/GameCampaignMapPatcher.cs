@@ -14,6 +14,12 @@ public static class GameCampaignMapPatcher
     public static class Initialize_Patch
     {
         [UsedImplicitly]
+        public static void Prefix()
+        {
+            CampaignTranslationRuntimeRepairContext.RepairUserCampaignReferences();
+        }
+
+        [UsedImplicitly]
         public static void Postfix(GameCampaignMap __instance)
         {
             CampaignTranslationRuntimeRepairContext.RepairCampaignMap(__instance);

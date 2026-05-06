@@ -18,6 +18,20 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationManagerPatcher
 {
+    //PATCH: CampaignTranslationRuntimeRepair
+    [HarmonyPatch(typeof(GameLocationManager), nameof(GameLocationManager.EnterLocation))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class EnterLocation_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(ref string userLocationName)
+        {
+            CampaignTranslationRuntimeRepairContext.RepairSessionLocation();
+            CampaignTranslationRuntimeRepairContext.RepairUserLocationName(ref userLocationName);
+        }
+    }
+
     //PATCH: EnableSaveByLocation
     [HarmonyPatch(typeof(GameLocationManager), nameof(GameLocationManager.LoadLocationAsync))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -27,9 +41,12 @@ public static class GameLocationManagerPatcher
         [UsedImplicitly]
         public static void Prefix(
             GameLocationManager __instance,
-            string userLocationName,
+            ref string userLocationName,
             string userCampaignName)
         {
+            CampaignTranslationRuntimeRepairContext.RepairSessionLocation();
+            CampaignTranslationRuntimeRepairContext.RepairUserLocationName(ref userLocationName);
+
             if (!SettingsContext.GuiModManagerInstance.EnableSaveByLocation)
             {
                 return;

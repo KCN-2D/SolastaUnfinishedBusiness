@@ -23,6 +23,7 @@ public static class WorldLocationPatcher
         [UsedImplicitly]
         public static void Prefix(WorldLocation __instance, UserLocation userLocation)
         {
+            CampaignTranslationRuntimeRepairContext.RepairUserLocationTransitions(userLocation);
             DungeonMakerCustomRooms.GetTemplateVegetationMaskArea(__instance);
             DungeonMakerCustomRooms.SetupLocationTerrain(__instance, userLocation);
         }
