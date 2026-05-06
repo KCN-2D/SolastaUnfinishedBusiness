@@ -176,7 +176,7 @@ Race/&GnomeShadowDescription=ロック・ノームが地下に定住すること
 Race/&GnomeShadowTitle=シャドウ・ノーム
 Race/&GnomeSurNameTitle=氏族
 Race/&GnomeTitle=ノーム
-Race/&HalfElfDescription=ティルマールからのヒューマン難民とソラスタのエルフの間に生まれた<color=#B5D3DE>ハーフエルフ</color>は、両親双方の長所を受け継いでいます。多才で魅力にあふれ、暗視とフェイの祖先に恵まれた彼らは、常に2つの文化の狭間で揺れ動いています。
+Race/&HalfElfDescription=ティルマールからのヒューマン難民とソラスタのエルフの間に生まれた<color=#B5D3DE>ハーフエルフ</color>は、両親双方の長所を受け継いでいます。多才で魅力にあふれ、暗視とフェイの血筋に恵まれた彼らは、常に2つの文化の狭間で揺れ動いています。
 Race/&HalfElfFemaleName1Title=マイウェン
 Race/&HalfElfFemaleName2Title=シレンラ
 Race/&HalfElfFemaleName3Title=リラ

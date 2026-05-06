@@ -155,10 +155,10 @@ Feedback/&CheckSuccessCaption=成功
 Feedback/&ChoiceConsequenceMessage=あなたが今行った選択は、後で結果をもたらします。
 Feedback/&Choice_Back=戻る
 Feedback/&Choice_Other=他の
-Feedback/&ConcentrationCheckRolledAnyAdvantageLine={0}は精神集中を維持するためのロールを行います{1}（難易度{2}）：{3} = {4}
-Feedback/&ConcentrationCheckRolledAnyAdvantageNoModifierLine={0}は精神集中を維持するためのロールを行います{1}（難易度{2}）：{3}
-Feedback/&ConcentrationCheckRolledLine={0}は精神集中を維持するためのロールを行います（難易度{1}）：{2} = {3}
-Feedback/&ConcentrationCheckRolledNoModifierLine={0}は精神集中を維持するためのロールを行います（難易度{1}）：{2}
+Feedback/&ConcentrationCheckRolledAnyAdvantageLine={0}は精神集中を維持するための耐久力セーヴィング・スローを行います{1}（難易度{2}）：{3} = {4}
+Feedback/&ConcentrationCheckRolledAnyAdvantageNoModifierLine={0}は精神集中を維持するための耐久力セーヴィング・スローを行います{1}（難易度{2}）：{3}
+Feedback/&ConcentrationCheckRolledLine={0}は精神集中を維持するための耐久力セーヴィング・スローを行います（難易度{1}）：{2} = {3}
+Feedback/&ConcentrationCheckRolledNoModifierLine={0}は精神集中を維持するための耐久力セーヴィング・スローを行います（難易度{1}）：{2}
 Feedback/&ConcentrationLostLine={0}は{1}への精神集中を失います
 Feedback/&ConditionAddedHasLine={0}には{1}が追加されました
 Feedback/&ConditionAddedLine={0}は現在{1}です
@@ -343,7 +343,7 @@ Feedback/&ReceivedHealingHalfFullLine={0}のヒット・ポイントはすでに
 Feedback/&ReceivedHealingLine={0}は{1}ヒット・ポイントを回復しました。
 Feedback/&ReceivedTemporaryHitPointsFailureLine={0}は一時ヒット・ポイントを受け取れません。
 Feedback/&ReceivedTemporaryHitPointsSuccessLine={0}の一時ヒット・ポイントは{1}になりました。
-Feedback/&RechargePowerLine={0}は{1}のパワーを充電します
+Feedback/&RechargePowerLine={0}は{1}のパワーを再チャージします
 Feedback/&ReductionToDamageLine={0}は{1}のダメージを{2}軽減します
 Feedback/&RegenerationFailureLine={0}は{1}のダメージを受けた後は回復できません。
 Feedback/&RegenerationSuccessCaption=再生する
