@@ -211,18 +211,23 @@ public static class GameLocationCharacterExtensions
             attackMode,
             defender,
             actionModifier) { StringParameter2 = stringParameter2 };
+        Action<ReactionRequestReactionAttack> reactionCallback = null;
+
+        if (reactionValidated != null)
+        {
+            reactionCallback = _ => reactionValidated();
+        }
+
         var reactionRequest =
-            new ReactionRequestReactionAttack(stringParameter2, reactionParams) { Resource = resource };
+            new ReactionRequestReactionAttack(stringParameter2, reactionParams, reactionCallback)
+            {
+                Resource = resource
+            };
         var count = actionManager.PendingReactionRequestGroups.Count;
 
         actionManager.AddInterruptRequest(reactionRequest);
 
         yield return battleManager.WaitForReactions(waiter, actionManager, count);
-
-        if (reactionParams.ReactionValidated)
-        {
-            reactionValidated?.Invoke();
-        }
     }
 
     internal static IEnumerator MyReactToCastSpell(

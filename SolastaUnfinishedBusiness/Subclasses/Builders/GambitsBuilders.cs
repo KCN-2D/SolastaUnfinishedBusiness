@@ -1558,7 +1558,6 @@ internal static class GambitsBuilders
             _condition = condition;
             ValidateAttacker = character => character.GetRemainingPowerCharges(pool) > 0;
             BeforeReaction = HandleBeforeReaction;
-            AfterReaction = HandleAfterReaction;
         }
 
         private IEnumerator HandleBeforeReaction(
@@ -1587,33 +1586,23 @@ internal static class GambitsBuilders
             yield break;
         }
 
-        private IEnumerator HandleAfterReaction(
-            GameLocationCharacter attacker,
-            GameLocationCharacter defender,
-            GameLocationBattleManager battleManager,
-            GameLocationActionManager actionManager,
-            ReactionRequest request)
-        {
-            var character = attacker.RulesetCharacter;
-            var reactionParams = request.reactionParams;
-
-            if (reactionParams.ReactionValidated)
-            {
-                character.UpdateUsageForPower(_pool, 1);
-            }
-
-            yield break;
-        }
-
         protected override ReactionRequest MakeReactionRequest(GameLocationCharacter attacker,
             GameLocationCharacter defender, RulesetAttackMode attackMode, ActionModifier attackModifier)
         {
+            void ReactionValidated(ReactionRequestReactionAttack _)
+            {
+                attacker.RulesetCharacter.UpdateUsageForPower(_pool, 1);
+            }
+
             return new ReactionRequestReactionAttack("GambitBrace", new CharacterActionParams(
                 attacker,
                 ActionDefinitions.Id.AttackOpportunity,
                 attackMode,
                 defender,
-                attackModifier)) { Resource = new ReactionResourcePowerPool(_pool, Sprites.GambitResourceIcon) };
+                attackModifier), ReactionValidated)
+            {
+                Resource = new ReactionResourcePowerPool(_pool, Sprites.GambitResourceIcon)
+            };
         }
     }
 
