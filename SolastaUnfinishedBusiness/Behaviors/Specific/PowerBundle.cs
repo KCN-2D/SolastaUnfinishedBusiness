@@ -604,7 +604,7 @@ internal static class PowerBundle
         var transform = subpowerSelectionModal.transform;
 
         _parent = transform.parent;
-        transform.parent = box.transform.parent.parent;
+        transform.SetParent(box.transform.parent.parent, true);
 
         subpowerSelectionModal.Bind(bundle.SubPowers, box.activator, (power, _) =>
         {
@@ -654,7 +654,7 @@ internal static class PowerBundle
         var transform = subpowerSelectionModal.transform;
 
         _parent = transform.parent;
-        transform.parent = box.transform.parent.parent;
+        transform.SetParent(box.transform.parent.parent, true);
 
         subpowerSelectionModal.Bind(bundle.SubPowers, box.activator, (_, i) =>
         {
@@ -688,7 +688,7 @@ internal static class PowerBundle
         // required to support the after rest action menu that doesn't keep state
         if (_parent)
         {
-            subpowerSelectionModal.transform.parent = _parent;
+            subpowerSelectionModal.transform.SetParent(_parent, true);
         }
 
         subpowerSelectionModal.Hide(instant);

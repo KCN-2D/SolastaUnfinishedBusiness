@@ -261,7 +261,7 @@ internal class SubFeatSelectionModal : GuiGameScreen
         var levelUpScreen = Gui.GuiService.GetScreen<CharacterLevelUpScreen>();
         var levelUp = levelUpScreen.GetComponent<RectTransform>();
 
-        transform.parent = levelUp.parent;
+        transform.SetParent(levelUp.parent, false);
         //set sort index to just above levelUp screen so it has input handling priority
         SortIndex = levelUpScreen.SortIndex + 1;
         //put it visually just above levelUp screen
@@ -289,7 +289,7 @@ internal class SubFeatSelectionModal : GuiGameScreen
         var tmp = new GameObject { name = "FeatsTable" };
 
         _featTable = tmp.AddComponent<RectTransform>();
-        _featTable.parent = transform;
+        _featTable.SetParent(transform, false);
         _featTable.anchorMin = new Vector2(0, 0);
         _featTable.anchorMax = new Vector2(1, 1);
         _featTable.pivot = new Vector2(0f, 0f);

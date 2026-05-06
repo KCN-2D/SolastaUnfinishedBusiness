@@ -110,8 +110,8 @@ public class CustomCharacterStatsPanel
 
         var parent = screen.CharacterControlPanel.ActiveCharacterPanel.transform;
 
-        _root.parent = parent;
-        _button.transform.parent = parent;
+        _root.SetParent(parent, true);
+        _button.transform.SetParent(parent, true);
         _button.gameObject.SetActive(true);
 
         #region Abilities

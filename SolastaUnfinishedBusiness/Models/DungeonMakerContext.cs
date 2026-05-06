@@ -17,7 +17,7 @@ namespace SolastaUnfinishedBusiness.Models;
 internal static class DungeonMakerContext
 {
     private const string BackupFolder = "../UserContentBackup";
-    internal static readonly List<string> OutdoorRooms = [];
+    internal static readonly HashSet<string> OutdoorRooms = new(StringComparer.Ordinal);
 
     internal static void Load()
     {
@@ -343,11 +343,7 @@ internal static class DungeonMakerContext
                 }
 
                 OutdoorRooms.Add(newRoomBlueprint.Name);
-
-                if (!OutdoorRooms.Contains(roomBlueprint.Name))
-                {
-                    OutdoorRooms.Add(roomBlueprint.Name);
-                }
+                OutdoorRooms.Add(roomBlueprint.Name);
             }
         }
 
