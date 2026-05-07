@@ -22,7 +22,7 @@ public static class SpellRepertoireLinePatcher
         {
             if (__instance.showHeader)
             {
-                UiTextHelpers.FitSingleLine(__instance.headerLabel);
+                UiTextHelpers.FitSideLabel(__instance.headerLabel);
             }
         }
     }

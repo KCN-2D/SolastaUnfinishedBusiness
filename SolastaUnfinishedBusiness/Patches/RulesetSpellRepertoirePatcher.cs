@@ -7,6 +7,8 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using static RuleDefinitions;
@@ -16,6 +18,19 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetSpellRepertoirePatcher
 {
+    private static readonly string[] SpellSourceTitleFormats =
+    [
+        "Screen/&{0}ExtraSpellTitle",
+        "Screen/&{0}SpellTitle",
+        "Tag/&{0}SpellSpecialTagTitle",
+        "Tag/&{0}CantripSpecialTagTitle",
+        "Tag/&{0}CantripOrSpellSpecialTagTitle",
+        "Feat/&Feat{0}Title",
+        "Feat/&{0}Title",
+        "FightingStyle/&{0}Title",
+        "Feature/&{0}Title"
+    ];
+
     private static IEnumerable<RulesetSpellRepertoire> EnumerateSharedSlotRepertoires(RulesetCharacter character)
     {
         return character?.SpellRepertoires
@@ -25,7 +40,7 @@ public static class RulesetSpellRepertoirePatcher
 
     private static bool FormatHeaderTitle(RulesetSpellRepertoire __instance, ref string __result)
     {
-        if (Tabletop2024Context.TryGetTabletop2024SpellRepertoireTitle(__instance, out var title))
+        if (TryFormatSpellTagSourceTitle(__instance, false, out var title, out _))
         {
             __result = title;
 
@@ -46,7 +61,7 @@ public static class RulesetSpellRepertoirePatcher
 
     private static bool FormatShortTitle(RulesetSpellRepertoire __instance, ref string __result)
     {
-        if (Tabletop2024Context.TryGetTabletop2024SpellRepertoireShortTitle(__instance, out var title))
+        if (TryFormatSpellTagSourceTitle(__instance, true, out var title, out _))
         {
             __result = title;
 
@@ -54,6 +69,155 @@ public static class RulesetSpellRepertoirePatcher
         }
 
         return FormatHeaderTitle(__instance, ref __result);
+    }
+
+    private static bool TryFormatSpellTagSourceTitle(
+        RulesetSpellRepertoire repertoire,
+        bool shortTitle,
+        out string title,
+        out string source)
+    {
+        title = null;
+        source = null;
+
+        var spellCastingFeature = repertoire?.SpellCastingFeature;
+        var spellTag = spellCastingFeature?
+            .GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.Name;
+        var selectionTag = string.IsNullOrEmpty(spellTag)
+            ? null
+            : Tabletop2024Context.GetTabletop2024FeatSpellSelectionTag(spellTag);
+        var sourceTag = string.IsNullOrEmpty(spellTag)
+            ? null
+            : Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(spellTag);
+
+        if (string.IsNullOrEmpty(spellTag))
+        {
+            return false;
+        }
+
+        if (shortTitle)
+        {
+            if (Tabletop2024Context.TryGetMagicInitiate2024SpellSourceShortTitle(spellTag, out title) ||
+                TryFormatClassHolderTitle(spellCastingFeature, out title))
+            {
+                source = "shortClass";
+
+                return true;
+            }
+        }
+
+        foreach (var candidateTag in EnumerateSpellSourceTitleTags(spellTag, selectionTag, sourceTag))
+        {
+            if (TryLocalizeSpellSourceTitle(candidateTag, out title, out source))
+            {
+                return true;
+            }
+        }
+
+        if (TryFormatClassHolderTitle(spellCastingFeature, out title))
+        {
+            source = "classHolder";
+
+            return true;
+        }
+
+        if (TryFormatSpellCastingFeatureTitle(spellCastingFeature, out title))
+        {
+            source = "featureTitle";
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<string> EnumerateSpellSourceTitleTags(
+        string spellTag,
+        string selectionTag,
+        string sourceTag)
+    {
+        return new[] { spellTag, selectionTag, sourceTag }
+            .Where(x => !string.IsNullOrEmpty(x))
+            .Distinct(StringComparer.Ordinal);
+    }
+
+    private static bool TryLocalizeSpellSourceTitle(string spellTag, out string title, out string source)
+    {
+        title = null;
+        source = null;
+
+        foreach (var format in SpellSourceTitleFormats)
+        {
+            var titleTerm = string.Format(format, spellTag);
+
+            if (TryLocalizeSpellSourceTitleTerm(titleTerm, out title))
+            {
+                source = titleTerm;
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryLocalizeSpellSourceTitleTerm(string titleTerm, out string title)
+    {
+        title = null;
+
+        if (string.IsNullOrEmpty(titleTerm) ||
+            !TranslatorContext.HasTranslation(titleTerm))
+        {
+            return false;
+        }
+
+        var localizedTitle = Gui.Localize(titleTerm);
+
+        if (!IsUsableSpellSourceTitle(localizedTitle, titleTerm))
+        {
+            return false;
+        }
+
+        title = localizedTitle;
+
+        return true;
+    }
+
+    private static bool TryFormatClassHolderTitle(FeatureDefinitionCastSpell spellCastingFeature, out string title)
+    {
+        title = spellCastingFeature?
+            .GetFirstSubFeatureOfType<ClassHolder>()?.Class?
+            .FormatTitle();
+
+        return IsUsableSpellSourceTitle(title);
+    }
+
+    private static bool TryFormatSpellCastingFeatureTitle(
+        FeatureDefinitionCastSpell spellCastingFeature,
+        out string title)
+    {
+        title = null;
+
+        var titleTerm = spellCastingFeature?.GuiPresentation?.Title;
+
+        if (string.IsNullOrEmpty(titleTerm) ||
+            titleTerm == Gui.NoLocalization ||
+            titleTerm == Gui.EmptyContent)
+        {
+            return false;
+        }
+
+        title = spellCastingFeature.FormatTitle();
+
+        return IsUsableSpellSourceTitle(title, titleTerm);
+    }
+
+    private static bool IsUsableSpellSourceTitle(string title, string titleTerm = null)
+    {
+        return !string.IsNullOrWhiteSpace(title) &&
+               title != titleTerm &&
+               !title.Contains("/&") &&
+               !title.Contains("{0}");
     }
 
     [HarmonyPatch(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.SpellCastingAbility), MethodType.Getter)]

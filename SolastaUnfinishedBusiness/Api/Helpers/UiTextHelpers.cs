@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using I2.Loc;
@@ -13,6 +14,7 @@ namespace SolastaUnfinishedBusiness.Api.Helpers;
 internal static class UiTextHelpers
 {
     private const int CardFitSearchIterations = 8;
+    private const string SideLabelProxyName = "UB_VerticalSideLabelProxy";
     private const float CjkTwoLineSpacing = -6f;
     private const int DeferredSpellBoxFitFrames = 2;
     private const int DeferredActionItemCaptionFitFrames = 2;
@@ -23,6 +25,9 @@ internal static class UiTextHelpers
     private const float ActionCaptionAbsoluteMinFontSize = 7f;
     private const float TagMinFontScale = 0.65f;
     private const float TagAbsoluteMinFontSize = 7f;
+    private const float SideLabelMinFontScale = 0.52f;
+    private const float SideLabelAbsoluteMinFontSize = 6f;
+    private const float CjkSideLabelLineSpacing = -10f;
     private const float StatTitleMinFontScale = 0.62f;
     private const float StatTitleAbsoluteMinFontSize = 7f;
     private const float StatValueMinFontScale = 0.72f;
@@ -44,6 +49,51 @@ internal static class UiTextHelpers
 
     private static readonly string[] SpellLevelTitleLabels = new string[MaxSpellLevel + 1];
     private static readonly string[] SpellLevelBodyLabels = new string[MaxSpellLevel + 1];
+    private static readonly string[] VerticalLineGlyphCandidates = ["\uFE31", "\uFE32", "\uFF5C"];
+    private static readonly string[] VerticalEnDashGlyphCandidates = ["\uFE32", "\uFE31", "\uFF5C"];
+    private static readonly Dictionary<int, Dictionary<string, string>> VerticalGlyphCache = [];
+    private static readonly Dictionary<string, VerticalGlyphRule> VerticalGlyphRules = new(StringComparer.Ordinal)
+    {
+        ["\u002D"] = new VerticalGlyphRule(VerticalLineGlyphCandidates, "|"),
+        ["\u2010"] = new VerticalGlyphRule(VerticalLineGlyphCandidates, "|"),
+        ["\u2011"] = new VerticalGlyphRule(VerticalLineGlyphCandidates, "|"),
+        ["\u2012"] = new VerticalGlyphRule(VerticalLineGlyphCandidates, "|"),
+        ["\u2013"] = new VerticalGlyphRule(VerticalEnDashGlyphCandidates, "|"),
+        ["\u2014"] = new VerticalGlyphRule(VerticalLineGlyphCandidates, "|"),
+        ["\u2015"] = new VerticalGlyphRule(VerticalLineGlyphCandidates, "|"),
+        ["\u2212"] = new VerticalGlyphRule(VerticalLineGlyphCandidates, "|"),
+        ["\u30FC"] = new VerticalGlyphRule(VerticalLineGlyphCandidates, "|"),
+        ["\uFF70"] = new VerticalGlyphRule(VerticalLineGlyphCandidates, "|"),
+        ["\u3001"] = new VerticalGlyphRule(new[] { "\uFE11" }),
+        ["\u3002"] = new VerticalGlyphRule(new[] { "\uFE12" }),
+        ["\uFF0C"] = new VerticalGlyphRule(new[] { "\uFE10" }),
+        ["\uFF1A"] = new VerticalGlyphRule(new[] { "\uFE13" }),
+        ["\uFF1B"] = new VerticalGlyphRule(new[] { "\uFE14" }),
+        ["\uFF01"] = new VerticalGlyphRule(new[] { "\uFE15" }),
+        ["\uFF1F"] = new VerticalGlyphRule(new[] { "\uFE16" }),
+        ["\u0028"] = new VerticalGlyphRule(new[] { "\uFE35" }),
+        ["\u0029"] = new VerticalGlyphRule(new[] { "\uFE36" }),
+        ["\uFF08"] = new VerticalGlyphRule(new[] { "\uFE35" }),
+        ["\uFF09"] = new VerticalGlyphRule(new[] { "\uFE36" }),
+        ["\uFF5B"] = new VerticalGlyphRule(new[] { "\uFE37" }),
+        ["\uFF5D"] = new VerticalGlyphRule(new[] { "\uFE38" }),
+        ["\u3014"] = new VerticalGlyphRule(new[] { "\uFE39" }),
+        ["\u3015"] = new VerticalGlyphRule(new[] { "\uFE3A" }),
+        ["\u3010"] = new VerticalGlyphRule(new[] { "\uFE3B" }),
+        ["\u3011"] = new VerticalGlyphRule(new[] { "\uFE3C" }),
+        ["\u300A"] = new VerticalGlyphRule(new[] { "\uFE3D" }),
+        ["\u300B"] = new VerticalGlyphRule(new[] { "\uFE3E" }),
+        ["\u3008"] = new VerticalGlyphRule(new[] { "\uFE3F" }),
+        ["\u3009"] = new VerticalGlyphRule(new[] { "\uFE40" }),
+        ["\u300C"] = new VerticalGlyphRule(new[] { "\uFE41" }),
+        ["\u300D"] = new VerticalGlyphRule(new[] { "\uFE42" }),
+        ["\u300E"] = new VerticalGlyphRule(new[] { "\uFE43" }),
+        ["\u300F"] = new VerticalGlyphRule(new[] { "\uFE44" }),
+        ["\u3016"] = new VerticalGlyphRule(new[] { "\uFE45" }),
+        ["\u3017"] = new VerticalGlyphRule(new[] { "\uFE46" }),
+        ["\uFF3B"] = new VerticalGlyphRule(new[] { "\uFE47" }),
+        ["\uFF3D"] = new VerticalGlyphRule(new[] { "\uFE48" })
+    };
 
     private static string SpellLevelBodyLanguageCode { get; set; }
 
@@ -93,6 +143,16 @@ internal static class UiTextHelpers
         FitSingleLine(label.TMP_Text, minFontScale, absoluteMin);
     }
 
+    internal static void FitSideLabel(GuiLabel label)
+    {
+        if (!label)
+        {
+            return;
+        }
+
+        FitSideLabel(label.TMP_Text);
+    }
+
     internal static void FitCardTitle(GuiLabel label, float minFontScale = TitleMinFontScale,
         float absoluteMin = TitleAbsoluteMinFontSize)
     {
@@ -118,6 +178,83 @@ internal static class UiTextHelpers
         }
 
         ApplyAutoTextFit(text, 1, false, maxFontSize, minFontSize);
+    }
+
+    private static void FitSideLabel(TMP_Text text)
+    {
+        if (!text)
+        {
+            return;
+        }
+
+        var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+
+        state.Capture(text);
+
+        var sourceText = state.GetSideLabelSourceText(text.text);
+        var useVerticalCjk = ShouldUseCjkSideLabel(sourceText);
+
+        if (!useVerticalCjk)
+        {
+            RestoreSideLabelText(text, state, sourceText);
+            FitSingleLine(text);
+            return;
+        }
+
+        var formattedText = BuildVerticalText(sourceText, text.font, out var textElementCount);
+
+        if (!TryGetFontSizeBounds(
+                text,
+                state,
+                SideLabelMinFontScale,
+                SideLabelAbsoluteMinFontSize,
+                out var maxFontSize,
+                out var minFontSize))
+        {
+            RestoreSideLabelText(text, state, sourceText);
+            FitSingleLine(text);
+            return;
+        }
+
+        if (!TryGetTextContentSize(text, out var sourceSize))
+        {
+            RestoreSideLabelText(text, state, sourceText);
+            FitSingleLine(text);
+            return;
+        }
+
+        var availableSize = GetEffectiveSideLabelSize(text, sourceSize);
+        var proxy = state.GetOrCreateSideLabelProxy(text);
+
+        if (!proxy)
+        {
+            RestoreSideLabelText(text, state, sourceText);
+            FitSingleLine(text);
+            return;
+        }
+
+        PrepareSideLabelProxy(
+            text,
+            proxy,
+            formattedText,
+            Math.Max(1, textElementCount),
+            maxFontSize,
+            minFontSize,
+            availableSize);
+
+        if (!DoesSideLabelFit(proxy, availableSize, minFontSize, textElementCount, out _))
+        {
+            RestoreSideLabelText(text, state, sourceText);
+            FitSingleLine(text);
+            return;
+        }
+
+        text.enabled = false;
+        proxy.enabled = true;
+        proxy.gameObject.SetActive(true);
+        proxy.SetLayoutDirty();
+        proxy.SetVerticesDirty();
+        state.RememberSideLabelText(sourceText, sourceText);
     }
 
     internal static void FitCardTitle(TMP_Text text, float minFontScale = TitleMinFontScale,
@@ -287,6 +424,218 @@ internal static class UiTextHelpers
         ApplyCjkLineSpacing(text, false, state);
         text.SetLayoutDirty();
         text.SetVerticesDirty();
+    }
+
+    private static void RestoreSideLabelText(TMP_Text text, TextFitState state, string sourceText)
+    {
+        state.HideSideLabelProxy();
+        text.enabled = state.OriginalEnabled;
+        text.text = sourceText;
+        text.rectTransform.localRotation = state.OriginalLocalRotation;
+        text.alignment = state.OriginalAlignment;
+        text.lineSpacing = state.OriginalLineSpacing;
+        state.RememberSideLabelText(sourceText, sourceText);
+    }
+
+    private static bool ShouldUseCjkSideLabel(string text)
+    {
+        return Main.Settings.FixAsianLanguagesTextWrap &&
+               TranslatorContext.HasCJKChar(text) &&
+               !ContainsRichText(text);
+    }
+
+    private static bool ContainsRichText(string text)
+    {
+        return !string.IsNullOrEmpty(text) &&
+               text.IndexOf('<') >= 0 &&
+               text.IndexOf('>') >= 0;
+    }
+
+    private static bool DoesSideLabelFit(
+        TMP_Text text,
+        Vector2 availableSize,
+        float fontSize,
+        int maxVisibleLines,
+        out Vector2 preferredSize)
+    {
+        preferredSize = GetPreferredSize(
+            text,
+            fontSize,
+            false,
+            Math.Max(1, maxVisibleLines),
+            CjkSideLabelLineSpacing,
+            availableSize.x);
+
+        return preferredSize.x <= availableSize.x + PreferredSizeTolerance &&
+               preferredSize.y <= availableSize.y + PreferredSizeTolerance;
+    }
+
+    private static Vector2 GetEffectiveSideLabelSize(TMP_Text text, Vector2 sourceSize)
+    {
+        if (!IsSideLabelRotated(text))
+        {
+            return sourceSize;
+        }
+
+        return new Vector2(sourceSize.y, sourceSize.x);
+    }
+
+    private static bool IsSideLabelRotated(TMP_Text text)
+    {
+        if (!text.rectTransform)
+        {
+            return false;
+        }
+
+        var z = Mathf.Repeat(text.rectTransform.localEulerAngles.z, 180f);
+
+        return Mathf.Abs(z - 90f) <= 1f;
+    }
+
+    private static void PrepareSideLabelProxy(
+        TMP_Text source,
+        TMP_Text proxy,
+        string formattedText,
+        int maxVisibleLines,
+        float maxFontSize,
+        float minFontSize,
+        Vector2 availableSize)
+    {
+        proxy.gameObject.SetActive(true);
+        proxy.enabled = false;
+
+        var proxyRect = proxy.rectTransform;
+
+        proxyRect.anchorMin = new Vector2(0.5f, 0.5f);
+        proxyRect.anchorMax = new Vector2(0.5f, 0.5f);
+        proxyRect.pivot = new Vector2(0.5f, 0.5f);
+        proxyRect.anchoredPosition = Vector2.zero;
+        proxyRect.sizeDelta = availableSize;
+        proxyRect.localScale = Vector3.one;
+        proxyRect.localRotation = source.rectTransform
+            ? Quaternion.Inverse(source.rectTransform.localRotation)
+            : Quaternion.identity;
+
+        CopySideLabelProxyStyle(source, proxy);
+
+        proxy.text = formattedText;
+        proxy.alignment = TextAlignmentOptions.Center;
+        proxy.enableAutoSizing = true;
+        proxy.enableWordWrapping = false;
+        proxy.maxVisibleLines = maxVisibleLines;
+        proxy.overflowMode = TextOverflowModes.Ellipsis;
+        proxy.autoSizeTextContainer = false;
+        proxy.fontSizeMax = maxFontSize;
+        proxy.fontSizeMin = minFontSize;
+        proxy.lineSpacing = CjkSideLabelLineSpacing;
+    }
+
+    private static void CopySideLabelProxyStyle(TMP_Text source, TMP_Text proxy)
+    {
+        proxy.font = source.font;
+        proxy.fontSharedMaterial = source.fontSharedMaterial;
+        proxy.spriteAsset = source.spriteAsset;
+        proxy.color = source.color;
+        proxy.fontSize = source.fontSize;
+        proxy.fontStyle = source.fontStyle;
+        proxy.characterSpacing = source.characterSpacing;
+        proxy.wordSpacing = source.wordSpacing;
+        proxy.paragraphSpacing = source.paragraphSpacing;
+        proxy.margin = Vector4.zero;
+        proxy.raycastTarget = false;
+        proxy.richText = false;
+    }
+
+    private static string BuildVerticalText(string text, TMP_FontAsset font, out int textElementCount)
+    {
+        textElementCount = 0;
+
+        if (string.IsNullOrEmpty(text))
+        {
+            return text;
+        }
+
+        var builder = new StringBuilder(text.Length * 2);
+        var enumerator = StringInfo.GetTextElementEnumerator(text);
+
+        while (enumerator.MoveNext())
+        {
+            var textElement = enumerator.GetTextElement();
+            var verticalTextElement = GetVerticalTextElement(font, textElement);
+
+            if (textElementCount > 0)
+            {
+                builder.Append('\n');
+            }
+
+            builder.Append(verticalTextElement);
+            textElementCount++;
+        }
+
+        return builder.ToString();
+    }
+
+    private static string GetVerticalTextElement(TMP_FontAsset font, string textElement)
+    {
+        var fontKey = font ? font.GetInstanceID() : 0;
+
+        if (!VerticalGlyphCache.TryGetValue(fontKey, out var fontCache))
+        {
+            fontCache = new Dictionary<string, string>(StringComparer.Ordinal);
+            VerticalGlyphCache.Add(fontKey, fontCache);
+        }
+
+        if (fontCache.TryGetValue(textElement, out var cachedTextElement))
+        {
+            return cachedTextElement;
+        }
+
+        var verticalTextElement = ResolveVerticalTextElement(font, textElement);
+
+        fontCache.Add(textElement, verticalTextElement);
+
+        return verticalTextElement;
+    }
+
+    private static string ResolveVerticalTextElement(TMP_FontAsset font, string textElement)
+    {
+        if (string.IsNullOrEmpty(textElement) ||
+            !VerticalGlyphRules.TryGetValue(textElement, out var rule))
+        {
+            return textElement;
+        }
+
+        foreach (var candidate in rule.PreferredCandidates)
+        {
+            if (HasTextElement(font, candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return rule.ForcedFallback ?? textElement;
+    }
+
+    private static bool HasTextElement(TMP_FontAsset font, string textElement)
+    {
+        if (!font ||
+            string.IsNullOrEmpty(textElement))
+        {
+            return true;
+        }
+
+        var enumerator = StringInfo.GetTextElementEnumerator(textElement);
+
+        if (!enumerator.MoveNext())
+        {
+            return false;
+        }
+
+        var firstElement = enumerator.GetTextElement();
+
+        return !enumerator.MoveNext() &&
+               firstElement.Length == 1 &&
+               font.HasCharacter(firstElement[0]);
     }
 
     private static bool TryGetFontSizeBounds(
@@ -713,10 +1062,26 @@ internal static class UiTextHelpers
         FitSingleLine(panel.maxHealthLabel, StatValueMinFontScale, StatValueAbsoluteMinFontSize);
     }
 
+    private sealed class VerticalGlyphRule
+    {
+        internal VerticalGlyphRule(string[] preferredCandidates, string forcedFallback = null)
+        {
+            PreferredCandidates = preferredCandidates;
+            ForcedFallback = forcedFallback;
+        }
+
+        internal string ForcedFallback { get; }
+
+        internal string[] PreferredCandidates { get; }
+    }
+
     private sealed class TextFitState : MonoBehaviour
     {
         internal float OriginalFontSizeMax { get; private set; }
         internal float OriginalLineSpacing { get; private set; }
+        internal Quaternion OriginalLocalRotation { get; private set; }
+        internal TextAlignmentOptions OriginalAlignment { get; private set; }
+        internal bool OriginalEnabled { get; private set; }
 
         private bool Captured { get; set; }
         private Vector2 LastAvailableSize { get; set; }
@@ -727,6 +1092,9 @@ internal static class UiTextHelpers
         private float LastMinFontScale { get; set; }
         private string LastMode { get; set; }
         private string LastText { get; set; }
+        private string LastSideLabelFormattedText { get; set; }
+        private string LastSideLabelSourceText { get; set; }
+        private TMP_Text SideLabelProxy { get; set; }
 
         internal void Capture(TMP_Text text)
         {
@@ -739,7 +1107,63 @@ internal static class UiTextHelpers
                 ? text.fontSizeMax
                 : text.fontSize;
             OriginalLineSpacing = text.lineSpacing;
+            OriginalLocalRotation = text.rectTransform
+                ? text.rectTransform.localRotation
+                : Quaternion.identity;
+            OriginalAlignment = text.alignment;
+            OriginalEnabled = text.enabled;
             Captured = true;
+        }
+
+        internal TMP_Text GetOrCreateSideLabelProxy(TMP_Text source)
+        {
+            if (SideLabelProxy)
+            {
+                return SideLabelProxy;
+            }
+
+            if (!source || !source.rectTransform)
+            {
+                return null;
+            }
+
+            var gameObject = new GameObject(SideLabelProxyName, typeof(RectTransform), typeof(TextMeshProUGUI))
+            {
+                layer = source.gameObject.layer
+            };
+
+            gameObject.transform.SetParent(source.rectTransform, false);
+
+            SideLabelProxy = gameObject.GetComponent<TextMeshProUGUI>();
+            SideLabelProxy.enabled = false;
+            SideLabelProxy.raycastTarget = false;
+            SideLabelProxy.gameObject.SetActive(false);
+
+            return SideLabelProxy;
+        }
+
+        internal void HideSideLabelProxy()
+        {
+            if (!SideLabelProxy)
+            {
+                return;
+            }
+
+            SideLabelProxy.enabled = false;
+            SideLabelProxy.gameObject.SetActive(false);
+        }
+
+        internal string GetSideLabelSourceText(string currentText)
+        {
+            return string.Equals(currentText, LastSideLabelFormattedText, StringComparison.Ordinal)
+                ? LastSideLabelSourceText
+                : currentText;
+        }
+
+        internal void RememberSideLabelText(string sourceText, string formattedText)
+        {
+            LastSideLabelSourceText = sourceText;
+            LastSideLabelFormattedText = formattedText;
         }
 
         internal bool HasFitSignature(
