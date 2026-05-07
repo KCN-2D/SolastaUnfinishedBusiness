@@ -23,7 +23,7 @@ public static class RulesetSpellRepertoirePatcher
             ?? Enumerable.Empty<RulesetSpellRepertoire>();
     }
 
-    private static bool FormatTitle(RulesetSpellRepertoire __instance, ref string __result)
+    private static bool FormatHeaderTitle(RulesetSpellRepertoire __instance, ref string __result)
     {
         if (Tabletop2024Context.TryGetTabletop2024SpellRepertoireTitle(__instance, out var title))
         {
@@ -42,6 +42,18 @@ public static class RulesetSpellRepertoirePatcher
         __result = __instance.SpellCastingFeature.FormatTitle();
 
         return false;
+    }
+
+    private static bool FormatShortTitle(RulesetSpellRepertoire __instance, ref string __result)
+    {
+        if (Tabletop2024Context.TryGetTabletop2024SpellRepertoireShortTitle(__instance, out var title))
+        {
+            __result = title;
+
+            return false;
+        }
+
+        return FormatHeaderTitle(__instance, ref __result);
     }
 
     [HarmonyPatch(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.SpellCastingAbility), MethodType.Getter)]
@@ -484,7 +496,7 @@ public static class RulesetSpellRepertoirePatcher
         public static bool Prefix(RulesetSpellRepertoire __instance, ref string __result)
         {
             //PATCH: prevent null pointer crashes if all origin sources are null
-            return FormatTitle(__instance, ref __result);
+            return FormatHeaderTitle(__instance, ref __result);
         }
     }
 
@@ -497,7 +509,7 @@ public static class RulesetSpellRepertoirePatcher
         public static bool Prefix(RulesetSpellRepertoire __instance, ref string __result)
         {
             //PATCH: prevent null pointer crashes if all origin sources are null
-            return FormatTitle(__instance, ref __result);
+            return FormatShortTitle(__instance, ref __result);
         }
     }
 

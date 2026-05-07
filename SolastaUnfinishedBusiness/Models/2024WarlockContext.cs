@@ -32,7 +32,10 @@ public static partial class Tabletop2024Context
 
     internal static readonly InvocationDefinition InvocationPactBlade = InvocationDefinitionBuilder
         .Create("InvocationPactBlade")
-        .SetGuiPresentation(FeatureSetPactBlade.GuiPresentation)
+        .SetGuiPresentation(
+            FeatureSetPactBlade.GuiPresentation.Title,
+            FeatureSetPactBlade.GuiPresentation.Description,
+            ThirstingBlade)
         .SetGrantedFeature(FeatureSetPactBlade)
         .AddCustomSubFeatures(
             new CanUseAttribute(
@@ -45,14 +48,20 @@ public static partial class Tabletop2024Context
 
     private static readonly InvocationDefinition InvocationPactChain = InvocationDefinitionBuilder
         .Create("InvocationPactChain")
-        .SetGuiPresentation(FeatureSetPactChain.GuiPresentation)
+        .SetGuiPresentation(
+            FeatureSetPactChain.GuiPresentation.Title,
+            FeatureSetPactChain.GuiPresentation.Description,
+            PowerPactChainImp)
         .SetGrantedFeature(FeatureSetPactChain)
         .AddToDB();
 
     private static readonly InvocationDefinition InvocationPactTome = InvocationDefinitionBuilder
         .Create("InvocationPactTome")
         // need to build a new gui presentation to be able to hide this and don't affect the set itself
-        .SetGuiPresentation(FeatureSetPactTome.GuiPresentation.Title, FeatureSetPactTome.GuiPresentation.Description)
+        .SetGuiPresentation(
+            FeatureSetPactTome.GuiPresentation.Title,
+            FeatureSetPactTome.GuiPresentation.Description,
+            Identify)
         .SetGrantedFeature(FeatureSetPactTome.FeatureSet[0]) // grant pool directly instead of feature set
         .AddToDB();
 

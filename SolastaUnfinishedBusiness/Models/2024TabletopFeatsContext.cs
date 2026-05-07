@@ -3024,9 +3024,7 @@ public static partial class Tabletop2024Context
     {
         title = null;
 
-        var spellTag = spellRepertoire?.SpellCastingFeature?
-            .GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.Name;
-        var selectionTag = GetTabletop2024FeatSpellSelectionTag(spellTag);
+        var selectionTag = GetTabletop2024SpellRepertoireSelectionTag(spellRepertoire);
 
         if (!IsMagicInitiate2024SpellTagName(selectionTag))
         {
@@ -3034,6 +3032,42 @@ public static partial class Tabletop2024Context
         }
 
         return TryLocalizeTabletop2024Title($"Screen/&{selectionTag}ExtraSpellTitle", out title);
+    }
+
+    internal static bool TryGetTabletop2024SpellRepertoireShortTitle(
+        RulesetSpellRepertoire spellRepertoire,
+        out string title)
+    {
+        title = null;
+
+        var selectionTag = GetTabletop2024SpellRepertoireSelectionTag(spellRepertoire);
+
+        if (!TryGetMagicInitiate2024ClassProfile(selectionTag, out var profile))
+        {
+            return false;
+        }
+
+        title = profile.ClassHolder.Class.FormatTitle();
+
+        return !string.IsNullOrEmpty(title);
+    }
+
+    private static string GetTabletop2024SpellRepertoireSelectionTag(RulesetSpellRepertoire spellRepertoire)
+    {
+        var spellTag = spellRepertoire?.SpellCastingFeature?
+            .GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.Name;
+
+        return GetTabletop2024FeatSpellSelectionTag(spellTag);
+    }
+
+    private static bool TryGetMagicInitiate2024ClassProfile(
+        string selectionTag,
+        out MagicInitiate2024ClassProfile profile)
+    {
+        profile = MagicInitiate2024ClassProfiles.FirstOrDefault(x =>
+            string.Equals(selectionTag, GetMagicInitiate2024SpellTag(x.ClassName), StringComparison.Ordinal));
+
+        return profile != null;
     }
 
     internal static bool TryGetMagicInitiate2024SpellcastingAbility(

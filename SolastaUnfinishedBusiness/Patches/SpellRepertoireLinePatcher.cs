@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Subclasses;
 using static RuleDefinitions;
 
@@ -11,6 +12,21 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class SpellRepertoireLinePatcher
 {
+    [HarmonyPatch(typeof(SpellRepertoireLine), nameof(SpellRepertoireLine.Bind))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Bind_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(SpellRepertoireLine __instance)
+        {
+            if (__instance.showHeader)
+            {
+                UiTextHelpers.FitSingleLine(__instance.headerLabel);
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(SpellRepertoireLine), nameof(SpellRepertoireLine.FindAndSortRelevantSpells))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
