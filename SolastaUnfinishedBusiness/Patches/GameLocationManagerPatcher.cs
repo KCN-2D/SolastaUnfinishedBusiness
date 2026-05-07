@@ -105,6 +105,10 @@ public static class GameLocationManagerPatcher
         [UsedImplicitly]
         public static void Postfix(GameLocationManager __instance)
         {
+            CampaignTranslationRuntimeRepairContext.RepairWorldLocationGadgets(
+                __instance.WorldLocation,
+                Gui.GameLocation?.UserLocation);
+
             //BUGFIX: enforce learn same recipes as official campaigns get on a Load
             var gameLoreService = ServiceRepository.GetService<IGameLoreService>();
 

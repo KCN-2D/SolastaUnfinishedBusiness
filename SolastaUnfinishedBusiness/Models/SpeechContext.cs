@@ -1921,7 +1921,7 @@ internal static class SpeechContext
                 return;
             }
 
-            if (destroyUnityObject && _shared._coroutine != null)
+            if (_shared._coroutine != null)
             {
                 _shared.StopCoroutine(_shared._coroutine);
                 _shared._coroutine = null;
@@ -2011,7 +2011,7 @@ internal static class SpeechContext
                 return;
             }
 
-            if (destroyUnityObject && _shared._coroutine != null)
+            if (_shared._coroutine != null)
             {
                 _shared.StopCoroutine(_shared._coroutine);
                 _shared._coroutine = null;

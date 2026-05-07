@@ -63,9 +63,10 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
             // discard queued work owned by this executor
         }
 
+        _instance.StopAllCoroutines();
+
         if (destroyUnityObject)
         {
-            _instance.StopAllCoroutines();
             Destroy(_instance.gameObject);
             _instance = null;
         }
@@ -214,6 +215,7 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
                         case "Banter":
                         case "BanterLines":
                         case "ExitLore":
+                        case "WaypointTitle":
                             if (!string.IsNullOrEmpty(pv.StringValue))
                             {
                                 task.AddItem(new TranslationItem(

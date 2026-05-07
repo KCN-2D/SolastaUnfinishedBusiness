@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using JetBrains.Annotations;
+using Newtonsoft.Json.Linq;
 
 namespace SolastaUnfinishedBusiness.Models;
 
@@ -9,6 +11,14 @@ internal static class CampaignTranslationRuntimeRepairContext
 {
     private static UserCampaign _cachedUserCampaign;
     private static RepairIndex _cachedRepairIndex;
+    private static RepairSource _cachedRepairSource;
+
+    internal static void Unload()
+    {
+        _cachedUserCampaign = null;
+        _cachedRepairIndex = null;
+        _cachedRepairSource = null;
+    }
 
     internal static void RepairCampaignMap([CanBeNull] GameCampaignMap campaignMap)
     {
@@ -25,7 +35,7 @@ internal static class CampaignTranslationRuntimeRepairContext
         }
 
         RepairSessionLocation(repairIndex);
-        RepairCampaignNodes(campaignMap, userCampaign, repairIndex);
+        RepairCampaignNodes(campaignMap, repairIndex);
         RepairUserLocationStatuses(repairIndex);
     }
 
@@ -100,6 +110,46 @@ internal static class CampaignTranslationRuntimeRepairContext
         RepairUserLocationGadgets(userLocation, repairIndex);
     }
 
+    internal static void RepairWorldLocationGadgets(
+        [CanBeNull] WorldLocation worldLocation,
+        [CanBeNull] UserLocation userLocation)
+    {
+        if (worldLocation == null || userLocation == null || !TryGetCurrentUserCampaign(out var userCampaign))
+        {
+            return;
+        }
+
+        var repairIndex = GetRepairIndex(userCampaign);
+
+        if (repairIndex.UserLocationNames.Count == 0)
+        {
+            return;
+        }
+
+        RepairUserLocationGadgets(userLocation, repairIndex);
+
+        if (!repairIndex.TryGetLocationIndex(userLocation.ContentItemTitle, out var sourceLocationIndex))
+        {
+            return;
+        }
+
+        foreach (var worldGadget in EnumerateWorldGadgets(worldLocation))
+        {
+            if (!TryGetWorldGadgetUniqueName(worldGadget, out var uniqueName) ||
+                !sourceLocationIndex.TryGetGadgetByUniqueName(uniqueName, out var sourceGadgetEntry))
+            {
+                continue;
+            }
+
+            RepairWorldGadgetWaypointDefinition(worldGadget, sourceGadgetEntry.Gadget);
+
+            if (worldGadget.GameGadget != null)
+            {
+                RepairGameGadgetText(worldGadget.GameGadget, sourceGadgetEntry.Gadget, repairIndex);
+            }
+        }
+    }
+
     private static void RepairSessionLocation([NotNull] RepairIndex repairIndex)
     {
         var session = ServiceRepository.GetService<ISessionService>()?.Session;
@@ -117,8 +167,19 @@ internal static class CampaignTranslationRuntimeRepairContext
         [NotNull] UserCampaign userCampaign,
         [NotNull] RepairIndex repairIndex)
     {
-        foreach (var sourceNode in userCampaign.CampaignMapNodes ?? Enumerable.Empty<UserCampaignMapNode>())
+        var campaignMapNodes = userCampaign.CampaignMapNodes?.ToArray();
+
+        if (campaignMapNodes == null)
         {
+            return;
+        }
+
+        for (var index = 0; index < campaignMapNodes.Length; index++)
+        {
+            var sourceNode = campaignMapNodes[index];
+
+            RepairCampaignMapNodeText(sourceNode, repairIndex.GetCampaignMapNode(index));
+
             if (sourceNode?.PartyStart == true ||
                 !TryRepairLocationName(sourceNode?.UserLocationName, repairIndex, out var repairedLocationName))
             {
@@ -131,11 +192,10 @@ internal static class CampaignTranslationRuntimeRepairContext
 
     private static void RepairCampaignNodes(
         [NotNull] GameCampaignMap campaignMap,
-        [NotNull] UserCampaign userCampaign,
         [NotNull] RepairIndex repairIndex)
     {
         var gameNodes = campaignMap.GameCampaignNodes?.ToArray();
-        var sourceNodes = userCampaign.CampaignMapNodes?.ToArray();
+        var sourceNodes = repairIndex.CampaignMapNodes;
 
         if (gameNodes == null || gameNodes.Length == 0 || sourceNodes == null || sourceNodes.Length == 0)
         {
@@ -152,7 +212,7 @@ internal static class CampaignTranslationRuntimeRepairContext
 
     private static void RepairCampaignNode(
         [CanBeNull] GameCampaignNode gameNode,
-        [CanBeNull] UserCampaignMapNode sourceNode,
+        [CanBeNull] SourceCampaignMapNode sourceNode,
         [NotNull] RepairIndex repairIndex)
     {
         if (gameNode == null || sourceNode?.PartyStart == true)
@@ -160,17 +220,7 @@ internal static class CampaignTranslationRuntimeRepairContext
             return;
         }
 
-        var userLocationName = !string.IsNullOrWhiteSpace(sourceNode?.UserLocationName)
-            ? sourceNode.UserLocationName
-            : gameNode.UserLocationName;
-
-        if (TryRepairLocationName(userLocationName, repairIndex, out var repairedLocationName))
-        {
-            if (sourceNode != null)
-            {
-                sourceNode.UserLocationName = repairedLocationName;
-            }
-        }
+        RepairGameCampaignNodeText(gameNode, sourceNode);
 
         var gameNodeLocationName = gameNode.UserLocationName;
 
@@ -227,30 +277,38 @@ internal static class CampaignTranslationRuntimeRepairContext
 
     private static void RepairUserLocationGadgets([NotNull] UserLocation userLocation, [NotNull] RepairIndex repairIndex)
     {
-        if (userLocation.GadgetsByName == null)
+        if (!repairIndex.TryGetLocationIndex(userLocation.ContentItemTitle, out var sourceLocationIndex))
         {
             return;
         }
 
-        foreach (var gadget in userLocation.GadgetsByName.Values)
+        foreach (var gadgetEntry in EnumerateUserGadgetEntries(userLocation))
         {
+            var gadget = gadgetEntry.Gadget;
+
             if (gadget?.ParameterValues == null)
             {
                 continue;
             }
 
+            sourceLocationIndex.TryGetGadget(gadgetEntry, out var sourceGadgetEntry);
+
             foreach (var parameterValue in gadget.ParameterValues)
             {
-                RepairUserGadgetParameterValue(parameterValue, repairIndex);
+                RepairUserGadgetParameterValue(
+                    parameterValue,
+                    GetSourceParameterValue(sourceGadgetEntry?.Gadget, parameterValue),
+                    repairIndex);
             }
         }
     }
 
     private static void RepairUserGadgetParameterValue(
         [CanBeNull] UserGadgetParameterValue parameterValue,
+        [CanBeNull] SourceParameterValue sourceParameterValue,
         [NotNull] RepairIndex repairIndex)
     {
-        switch (parameterValue?.GadgetParameterDescription?.Name)
+        switch (GetParameterName(parameterValue))
         {
             case "DestinationLocation":
                 if (TryRepairLocationName(parameterValue.StringValue, repairIndex, out var repairedLocationName))
@@ -261,13 +319,22 @@ internal static class CampaignTranslationRuntimeRepairContext
                 break;
 
             case "LocationsList":
-                RepairDestinationList(parameterValue, repairIndex);
+                RepairDestinationList(parameterValue, sourceParameterValue, repairIndex);
+                break;
+
+            case "WaypointTitle":
+                if (!string.IsNullOrWhiteSpace(sourceParameterValue?.StringValue))
+                {
+                    parameterValue.StringValue = sourceParameterValue.StringValue;
+                }
+
                 break;
         }
     }
 
     private static void RepairDestinationList(
         [NotNull] UserGadgetParameterValue parameterValue,
+        [CanBeNull] SourceParameterValue sourceParameterValue,
         [NotNull] RepairIndex repairIndex)
     {
         if (parameterValue.DestinationsList == null)
@@ -275,16 +342,246 @@ internal static class CampaignTranslationRuntimeRepairContext
             return;
         }
 
-        foreach (var destination in parameterValue.DestinationsList)
+        for (var index = 0; index < parameterValue.DestinationsList.Count; index++)
         {
+            var destination = parameterValue.DestinationsList[index];
+
             if (destination == null ||
-                !TryRepairLocationName(destination.UserLocationName, repairIndex, out var repairedLocationName))
+                string.IsNullOrWhiteSpace(destination.UserLocationName))
             {
                 continue;
             }
 
-            destination.UserLocationName = repairedLocationName;
+            if (TryRepairLocationName(destination.UserLocationName, repairIndex, out var repairedLocationName))
+            {
+                destination.UserLocationName = repairedLocationName;
+            }
+
+            var sourceDestination = GetSourceDestination(sourceParameterValue, index, destination.UserLocationName);
+
+            if (!string.IsNullOrWhiteSpace(sourceDestination?.DisplayedTitle))
+            {
+                destination.DisplayedTitle = sourceDestination.DisplayedTitle;
+            }
         }
+    }
+
+    [CanBeNull]
+    private static SourceParameterValue GetSourceParameterValue(
+        [CanBeNull] SourceGadget sourceGadget,
+        [CanBeNull] UserGadgetParameterValue parameterValue)
+    {
+        var parameterName = GetParameterName(parameterValue);
+
+        return string.IsNullOrWhiteSpace(parameterName)
+            ? null
+            : sourceGadget?.ParameterValues?.FirstOrDefault(x => x.ParameterName == parameterName);
+    }
+
+    [CanBeNull]
+    private static string GetParameterName([CanBeNull] UserGadgetParameterValue parameterValue)
+    {
+        return parameterValue?.GadgetParameterDescription?.Name ?? parameterValue?.GadgetParameterDescriptionName;
+    }
+
+    [CanBeNull]
+    private static string GetParameterStringValue([CanBeNull] SourceGadget sourceGadget, [NotNull] string parameterName)
+    {
+        return sourceGadget?.ParameterValues?
+            .FirstOrDefault(x => x.ParameterName == parameterName)
+            ?.StringValue;
+    }
+
+    [CanBeNull]
+    private static SourceParameterValue GetParameterValue(
+        [CanBeNull] SourceGadget sourceGadget,
+        [NotNull] string parameterName)
+    {
+        return sourceGadget?.ParameterValues?.FirstOrDefault(x => x.ParameterName == parameterName);
+    }
+
+    private static void RepairGameGadgetText(
+        [NotNull] GameGadget gameGadget,
+        [NotNull] SourceGadget sourceGadget,
+        [NotNull] RepairIndex repairIndex)
+    {
+        var sourceDestinations = GetParameterValue(sourceGadget, "LocationsList");
+
+        foreach (var functorParameters in EnumerateFunctorParameters(gameGadget))
+        {
+            RepairFunctorDestinations(functorParameters, sourceDestinations, repairIndex);
+        }
+    }
+
+    private static void RepairWorldGadgetWaypointDefinition(
+        [NotNull] WorldGadget worldGadget,
+        [NotNull] SourceGadget sourceGadget)
+    {
+        var waypointTitle = GetParameterStringValue(sourceGadget, "WaypointTitle");
+
+        if (string.IsNullOrWhiteSpace(waypointTitle))
+        {
+            return;
+        }
+
+        var worldNode = worldGadget.GetComponentInChildren<WorldNode>();
+        var guiPresentation = worldNode?.MapWaypointDefinition?.GuiPresentation;
+
+        if (guiPresentation == null || guiPresentation.Title == waypointTitle)
+        {
+            return;
+        }
+
+        guiPresentation.Title = waypointTitle;
+    }
+
+    private static void RepairFunctorDestinations(
+        [NotNull] FunctorParametersDescription functorParameters,
+        [CanBeNull] SourceParameterValue sourceParameterValue,
+        [NotNull] RepairIndex repairIndex)
+    {
+        var destinations = functorParameters.Destinations;
+
+        if (destinations == null)
+        {
+            return;
+        }
+
+        for (var index = 0; index < destinations.Count; index++)
+        {
+            var destination = destinations[index];
+
+            if (destination == null || string.IsNullOrWhiteSpace(destination.UserLocationName))
+            {
+                continue;
+            }
+
+            if (TryRepairLocationName(destination.UserLocationName, repairIndex, out var repairedLocationName))
+            {
+                destination.UserLocationName = repairedLocationName;
+            }
+
+            var sourceDestination = GetSourceDestination(sourceParameterValue, index, destination.UserLocationName);
+
+            if (!string.IsNullOrWhiteSpace(sourceDestination?.DisplayedTitle) &&
+                destination.DisplayedTitle != sourceDestination.DisplayedTitle)
+            {
+                destination.DisplayedTitle = sourceDestination.DisplayedTitle;
+            }
+        }
+    }
+
+    [NotNull]
+    private static IEnumerable<FunctorParametersDescription> EnumerateFunctorParameters([NotNull] GameGadget gameGadget)
+    {
+        if (gameGadget.ActiveListeners == null)
+        {
+            yield break;
+        }
+
+        foreach (var activeListener in gameGadget.ActiveListeners)
+        {
+            if (activeListener?.FunctorParams == null)
+            {
+                continue;
+            }
+
+            foreach (var functorParameters in activeListener.FunctorParams.OfType<FunctorParametersDescription>())
+            {
+                yield return functorParameters;
+            }
+        }
+    }
+
+    private static bool TryGetWorldGadgetUniqueName(
+        [CanBeNull] WorldGadget worldGadget,
+        [CanBeNull] out string uniqueName)
+    {
+        uniqueName = worldGadget?.UserGadget?.UniqueName ?? worldGadget?.GameGadget?.UniqueNameId;
+
+        return !string.IsNullOrWhiteSpace(uniqueName);
+    }
+
+    [NotNull]
+    private static IEnumerable<WorldGadget> EnumerateWorldGadgets([NotNull] WorldLocation worldLocation)
+    {
+        if (worldLocation.WorldSectors == null)
+        {
+            yield break;
+        }
+
+        foreach (var worldSector in worldLocation.WorldSectors)
+        {
+            if (worldSector?.WorldGadgets == null)
+            {
+                continue;
+            }
+
+            foreach (var worldGadget in worldSector.WorldGadgets)
+            {
+                if (worldGadget != null)
+                {
+                    yield return worldGadget;
+                }
+            }
+        }
+    }
+
+    [CanBeNull]
+    private static SourceDestination GetSourceDestination(
+        [CanBeNull] SourceParameterValue sourceParameterValue,
+        int index,
+        [CanBeNull] string userLocationName)
+    {
+        var sourceDestinations = sourceParameterValue?.DestinationsList;
+
+        if (sourceDestinations == null)
+        {
+            return null;
+        }
+
+        if (index >= 0 &&
+            index < sourceDestinations.Count &&
+            sourceDestinations[index]?.UserLocationName == userLocationName)
+        {
+            return sourceDestinations[index];
+        }
+
+        return sourceDestinations.FirstOrDefault(x => x?.UserLocationName == userLocationName);
+    }
+
+    private static void RepairCampaignMapNodeText(
+        [CanBeNull] UserCampaignMapNode targetNode,
+        [CanBeNull] SourceCampaignMapNode sourceNode)
+    {
+        if (targetNode == null || sourceNode == null)
+        {
+            return;
+        }
+
+        targetNode.overriddenTitle = sourceNode.OverriddenTitle;
+        targetNode.overriddenDescription = sourceNode.OverriddenDescription;
+        targetNode.unchartedTitle = sourceNode.UnchartedTitle;
+        targetNode.unchartedDescription = sourceNode.UnchartedDescription;
+    }
+
+    private static void RepairGameCampaignNodeText(
+        [CanBeNull] GameCampaignNode gameNode,
+        [CanBeNull] SourceCampaignMapNode sourceNode)
+    {
+        if (gameNode == null || sourceNode == null)
+        {
+            return;
+        }
+
+        var description = gameNode.campaignNodeDescription;
+
+        description.nodeTitle = sourceNode.OverriddenTitle;
+        description.nodeDescription = sourceNode.OverriddenDescription;
+        description.nodeUnchartedTitle = sourceNode.UnchartedTitle;
+        description.nodeUnchartedDescription = sourceNode.UnchartedDescription;
+
+        gameNode.campaignNodeDescription = description;
     }
 
     private static bool TryRepairLocationName(
@@ -330,7 +627,9 @@ internal static class CampaignTranslationRuntimeRepairContext
     [NotNull]
     private static RepairIndex BuildRepairIndex([NotNull] UserCampaign userCampaign)
     {
-        var repairIndex = new RepairIndex(GetUserLocationNames(userCampaign));
+        var repairSource = GetRepairSource(userCampaign);
+        var sourceCampaign = repairSource.Campaign;
+        var repairIndex = new RepairIndex(sourceCampaign, GetUserLocationNames(sourceCampaign));
 
         AddCampaignMapNodeAliases(userCampaign, repairIndex);
         AddUserLocationGadgetAliases(userCampaign, repairIndex);
@@ -339,11 +638,11 @@ internal static class CampaignTranslationRuntimeRepairContext
     }
 
     [NotNull]
-    private static HashSet<string> GetUserLocationNames([NotNull] UserCampaign userCampaign)
+    private static HashSet<string> GetUserLocationNames([NotNull] SourceCampaign userCampaign)
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var userLocation in userCampaign.UserLocations ?? Enumerable.Empty<UserLocation>())
+        foreach (var userLocation in userCampaign.UserLocations)
         {
             if (!string.IsNullOrWhiteSpace(userLocation?.ContentItemTitle))
             {
@@ -352,6 +651,298 @@ internal static class CampaignTranslationRuntimeRepairContext
         }
 
         return names;
+    }
+
+    [NotNull]
+    private static RepairSource GetRepairSource([NotNull] UserCampaign userCampaign)
+    {
+        if (TryGetCachedDiskRepairSource(userCampaign.Title, out var cachedRepairSource))
+        {
+            return cachedRepairSource;
+        }
+
+        if (TryLoadDiskRepairSource(userCampaign.Title, out var repairSource))
+        {
+            _cachedRepairSource = repairSource;
+
+            return repairSource;
+        }
+
+        return new RepairSource(CreateSourceCampaign(userCampaign), null, 0, default);
+    }
+
+    private static bool TryGetCachedDiskRepairSource(
+        [CanBeNull] string campaignTitle,
+        [CanBeNull] out RepairSource repairSource)
+    {
+        repairSource = null;
+
+        var cachedRepairSource = _cachedRepairSource;
+
+        if (cachedRepairSource?.Campaign?.Title != campaignTitle ||
+            string.IsNullOrWhiteSpace(cachedRepairSource.SourcePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var fileInfo = new FileInfo(cachedRepairSource.SourcePath);
+
+            if (!fileInfo.Exists ||
+                fileInfo.Length != cachedRepairSource.Length ||
+                fileInfo.LastWriteTimeUtc != cachedRepairSource.LastWriteTimeUtc)
+            {
+                return false;
+            }
+
+            repairSource = cachedRepairSource;
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryLoadDiskRepairSource(
+        [CanBeNull] string campaignTitle,
+        [CanBeNull] out RepairSource repairSource)
+    {
+        repairSource = null;
+
+        if (string.IsNullOrWhiteSpace(campaignTitle))
+        {
+            return false;
+        }
+
+        var directory = TacticalAdventuresApplication.UserCampaignsDirectory;
+
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+        {
+            return false;
+        }
+
+        try
+        {
+            foreach (var path in Directory.EnumerateFiles(directory, "*.json"))
+            {
+                if (TryLoadDiskRepairSource(path, campaignTitle, out repairSource))
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    private static bool TryLoadDiskRepairSource(
+        [NotNull] string path,
+        [NotNull] string campaignTitle,
+        [CanBeNull] out RepairSource repairSource)
+    {
+        repairSource = null;
+
+        try
+        {
+            var fileInfo = new FileInfo(path);
+            var payload = File.ReadAllText(path);
+            var json = JObject.Parse(payload);
+            var title = json["title"]?.Value<string>();
+
+            if (title != campaignTitle)
+            {
+                return false;
+            }
+
+            repairSource = new RepairSource(
+                CreateSourceCampaign(json),
+                path,
+                fileInfo.Length,
+                fileInfo.LastWriteTimeUtc);
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    [NotNull]
+    private static SourceCampaign CreateSourceCampaign([NotNull] JObject campaign)
+    {
+        return new SourceCampaign(
+            GetString(campaign, "title"),
+            EnumerateSourceCampaignMapNodes(campaign["campaignMapNodes"]).ToArray(),
+            EnumerateSourceLocations(campaign["userLocations"]).ToArray());
+    }
+
+    [NotNull]
+    private static SourceCampaign CreateSourceCampaign([NotNull] UserCampaign userCampaign)
+    {
+        return new SourceCampaign(
+            userCampaign.Title,
+            (userCampaign.CampaignMapNodes ?? Enumerable.Empty<UserCampaignMapNode>())
+            .Select(CreateSourceCampaignMapNode)
+            .ToArray(),
+            (userCampaign.UserLocations ?? Enumerable.Empty<UserLocation>())
+            .Where(x => x != null)
+            .Select(CreateSourceLocation)
+            .ToArray());
+    }
+
+    [NotNull]
+    private static SourceCampaignMapNode CreateSourceCampaignMapNode([CanBeNull] UserCampaignMapNode mapNode)
+    {
+        return new SourceCampaignMapNode(
+            mapNode?.PartyStart == true,
+            mapNode?.UserLocationName,
+            mapNode?.overriddenTitle,
+            mapNode?.overriddenDescription,
+            mapNode?.unchartedTitle,
+            mapNode?.unchartedDescription);
+    }
+
+    [NotNull]
+    private static SourceLocation CreateSourceLocation([NotNull] UserLocation userLocation)
+    {
+        return new SourceLocation(
+            userLocation.ContentItemTitle,
+            EnumerateUserGadgetEntries(userLocation)
+            .Select(CreateSourceGadgetEntry)
+            .ToArray());
+    }
+
+    [NotNull]
+    private static SourceGadgetEntry CreateSourceGadgetEntry([NotNull] UserGadgetEntry gadgetEntry)
+    {
+        return new SourceGadgetEntry(
+            CreateSourceGadget(gadgetEntry.Gadget),
+            gadgetEntry.Name,
+            gadgetEntry.RoomIndex,
+            gadgetEntry.GadgetIndex);
+    }
+
+    [NotNull]
+    private static SourceGadget CreateSourceGadget([NotNull] UserGadget gadget)
+    {
+        return new SourceGadget(
+            gadget.UniqueName,
+            (gadget.ParameterValues ?? Enumerable.Empty<UserGadgetParameterValue>())
+            .Where(x => x != null)
+            .Select(CreateSourceParameterValue)
+            .ToArray());
+    }
+
+    [NotNull]
+    private static SourceParameterValue CreateSourceParameterValue([NotNull] UserGadgetParameterValue parameterValue)
+    {
+        return new SourceParameterValue(
+            GetParameterName(parameterValue),
+            parameterValue.StringValue,
+            (parameterValue.DestinationsList ?? Enumerable.Empty<UserDestinationLocationDescription>())
+            .Where(x => x != null)
+            .Select(x => new SourceDestination(x.UserLocationName, x.DisplayedTitle))
+            .ToArray());
+    }
+
+    [NotNull]
+    private static IEnumerable<SourceCampaignMapNode> EnumerateSourceCampaignMapNodes([CanBeNull] JToken nodesToken)
+    {
+        foreach (var node in nodesToken?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
+        {
+            yield return new SourceCampaignMapNode(
+                GetBool(node, "partyStart"),
+                GetString(node, "userLocationName"),
+                GetString(node, "overriddenTitle"),
+                GetString(node, "overriddenDescription"),
+                GetString(node, "unchartedTitle"),
+                GetString(node, "unchartedDescription"));
+        }
+    }
+
+    [NotNull]
+    private static IEnumerable<SourceLocation> EnumerateSourceLocations([CanBeNull] JToken locationsToken)
+    {
+        foreach (var location in locationsToken?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
+        {
+            yield return new SourceLocation(
+                GetString(location, "title"),
+                EnumerateSourceGadgetEntries(location).ToArray());
+        }
+    }
+
+    [NotNull]
+    private static IEnumerable<SourceGadgetEntry> EnumerateSourceGadgetEntries([NotNull] JObject location)
+    {
+        var roomIndex = 0;
+
+        foreach (var room in location["userRooms"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
+        {
+            var gadgetIndex = 0;
+
+            foreach (var gadget in room["userGadgets"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
+            {
+                yield return new SourceGadgetEntry(
+                    CreateSourceGadget(gadget),
+                    GetString(gadget, "uniqueName"),
+                    roomIndex,
+                    gadgetIndex);
+
+                gadgetIndex++;
+            }
+
+            roomIndex++;
+        }
+    }
+
+    [NotNull]
+    private static SourceGadget CreateSourceGadget([NotNull] JObject gadget)
+    {
+        return new SourceGadget(
+            GetString(gadget, "uniqueName"),
+            EnumerateSourceParameterValues(gadget["parameterValues"]).ToArray());
+    }
+
+    [NotNull]
+    private static IEnumerable<SourceParameterValue> EnumerateSourceParameterValues([CanBeNull] JToken parameterValuesToken)
+    {
+        foreach (var parameterValue in parameterValuesToken?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
+        {
+            yield return new SourceParameterValue(
+                GetString(parameterValue, "gadgetParameterDescriptionName"),
+                GetString(parameterValue, "stringValue"),
+                EnumerateSourceDestinations(parameterValue["destinationsList"]).ToArray());
+        }
+    }
+
+    [NotNull]
+    private static IEnumerable<SourceDestination> EnumerateSourceDestinations([CanBeNull] JToken destinationsToken)
+    {
+        foreach (var destination in destinationsToken?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
+        {
+            yield return new SourceDestination(
+                GetString(destination, "userLocationName"),
+                GetString(destination, "displayedTitle"));
+        }
+    }
+
+    [CanBeNull]
+    private static string GetString([CanBeNull] JObject source, [NotNull] string propertyName)
+    {
+        return source?[propertyName]?.Value<string>();
+    }
+
+    private static bool GetBool([CanBeNull] JObject source, [NotNull] string propertyName)
+    {
+        return source?[propertyName]?.Value<bool>() == true;
     }
 
     private static void AddCampaignMapNodeAliases(
@@ -378,13 +969,15 @@ internal static class CampaignTranslationRuntimeRepairContext
         [CanBeNull] UserLocation userLocation,
         [NotNull] RepairIndex repairIndex)
     {
-        if (userLocation?.GadgetsByName == null)
+        if (userLocation == null)
         {
             return;
         }
 
-        foreach (var gadget in userLocation.GadgetsByName.Values)
+        foreach (var gadgetEntry in EnumerateUserGadgetEntries(userLocation))
         {
+            var gadget = gadgetEntry.Gadget;
+
             if (gadget?.ParameterValues == null)
             {
                 continue;
@@ -401,7 +994,7 @@ internal static class CampaignTranslationRuntimeRepairContext
         [CanBeNull] UserGadgetParameterValue parameterValue,
         [NotNull] RepairIndex repairIndex)
     {
-        if (parameterValue?.GadgetParameterDescription?.Name != "LocationsList" ||
+        if (GetParameterName(parameterValue) != "LocationsList" ||
             parameterValue.DestinationsList == null)
         {
             return;
@@ -413,22 +1006,377 @@ internal static class CampaignTranslationRuntimeRepairContext
         }
     }
 
+    [NotNull]
+    private static IEnumerable<UserGadgetEntry> EnumerateUserGadgetEntries([NotNull] UserLocation userLocation)
+    {
+        var yieldedUniqueNames = new HashSet<string>(StringComparer.Ordinal);
+
+        if (userLocation.UserRooms != null)
+        {
+            var roomIndex = 0;
+
+            foreach (var userRoom in userLocation.UserRooms)
+            {
+                if (userRoom?.UserGadgets != null)
+                {
+                    var gadgetIndex = 0;
+
+                    foreach (var userGadget in userRoom.UserGadgets)
+                    {
+                        if (userGadget != null)
+                        {
+                            AddYieldedUniqueName(yieldedUniqueNames, userGadget.UniqueName);
+                            yield return new UserGadgetEntry(userGadget, userGadget.UniqueName, roomIndex, gadgetIndex);
+                        }
+
+                        gadgetIndex++;
+                    }
+                }
+
+                roomIndex++;
+            }
+        }
+
+        if (userLocation.GadgetsByName == null)
+        {
+            yield break;
+        }
+
+        foreach (var gadgetKvp in userLocation.GadgetsByName)
+        {
+            var userGadget = gadgetKvp.Value;
+
+            if (userGadget == null ||
+                (!string.IsNullOrWhiteSpace(userGadget.UniqueName) &&
+                 yieldedUniqueNames.Contains(userGadget.UniqueName)))
+            {
+                continue;
+            }
+
+            yield return new UserGadgetEntry(userGadget, gadgetKvp.Key, -1, -1);
+        }
+    }
+
+    private static void AddYieldedUniqueName([NotNull] HashSet<string> yieldedUniqueNames, [CanBeNull] string uniqueName)
+    {
+        if (!string.IsNullOrWhiteSpace(uniqueName))
+        {
+            yieldedUniqueNames.Add(uniqueName);
+        }
+    }
+
+    private sealed class SourceCampaign
+    {
+        internal SourceCampaign(
+            [CanBeNull] string title,
+            [NotNull] SourceCampaignMapNode[] campaignMapNodes,
+            [NotNull] SourceLocation[] userLocations)
+        {
+            Title = title;
+            CampaignMapNodes = campaignMapNodes;
+            UserLocations = userLocations;
+        }
+
+        [CanBeNull]
+        internal string Title { get; }
+
+        [NotNull]
+        internal SourceCampaignMapNode[] CampaignMapNodes { get; }
+
+        [NotNull]
+        internal SourceLocation[] UserLocations { get; }
+    }
+
+    private sealed class SourceCampaignMapNode
+    {
+        internal SourceCampaignMapNode(
+            bool partyStart,
+            [CanBeNull] string userLocationName,
+            [CanBeNull] string overriddenTitle,
+            [CanBeNull] string overriddenDescription,
+            [CanBeNull] string unchartedTitle,
+            [CanBeNull] string unchartedDescription)
+        {
+            PartyStart = partyStart;
+            UserLocationName = userLocationName;
+            OverriddenTitle = overriddenTitle;
+            OverriddenDescription = overriddenDescription;
+            UnchartedTitle = unchartedTitle;
+            UnchartedDescription = unchartedDescription;
+        }
+
+        internal bool PartyStart { get; }
+
+        [CanBeNull]
+        internal string UserLocationName { get; }
+
+        [CanBeNull]
+        internal string OverriddenTitle { get; }
+
+        [CanBeNull]
+        internal string OverriddenDescription { get; }
+
+        [CanBeNull]
+        internal string UnchartedTitle { get; }
+
+        [CanBeNull]
+        internal string UnchartedDescription { get; }
+    }
+
+    private sealed class SourceLocation
+    {
+        internal SourceLocation(
+            [CanBeNull] string contentItemTitle,
+            [NotNull] SourceGadgetEntry[] gadgetEntries)
+        {
+            ContentItemTitle = contentItemTitle;
+            GadgetEntries = gadgetEntries;
+        }
+
+        [CanBeNull]
+        internal string ContentItemTitle { get; }
+
+        [NotNull]
+        internal SourceGadgetEntry[] GadgetEntries { get; }
+    }
+
+    private sealed class SourceGadget
+    {
+        internal SourceGadget(
+            [CanBeNull] string uniqueName,
+            [NotNull] SourceParameterValue[] parameterValues)
+        {
+            UniqueName = uniqueName;
+            ParameterValues = parameterValues;
+        }
+
+        [CanBeNull]
+        internal string UniqueName { get; }
+
+        [NotNull]
+        internal SourceParameterValue[] ParameterValues { get; }
+    }
+
+    private sealed class SourceParameterValue
+    {
+        internal SourceParameterValue(
+            [CanBeNull] string parameterName,
+            [CanBeNull] string stringValue,
+            [NotNull] IReadOnlyList<SourceDestination> destinationsList)
+        {
+            ParameterName = parameterName;
+            StringValue = stringValue;
+            DestinationsList = destinationsList;
+        }
+
+        [CanBeNull]
+        internal string ParameterName { get; }
+
+        [CanBeNull]
+        internal string StringValue { get; }
+
+        [NotNull]
+        internal IReadOnlyList<SourceDestination> DestinationsList { get; }
+    }
+
+    private sealed class SourceDestination
+    {
+        internal SourceDestination([CanBeNull] string userLocationName, [CanBeNull] string displayedTitle)
+        {
+            UserLocationName = userLocationName;
+            DisplayedTitle = displayedTitle;
+        }
+
+        [CanBeNull]
+        internal string UserLocationName { get; }
+
+        [CanBeNull]
+        internal string DisplayedTitle { get; }
+    }
+
+    private sealed class SourceGadgetEntry
+    {
+        internal SourceGadgetEntry(
+            [NotNull] SourceGadget gadget,
+            [CanBeNull] string name,
+            int roomIndex,
+            int gadgetIndex)
+        {
+            Gadget = gadget;
+            Name = name;
+            RoomIndex = roomIndex;
+            GadgetIndex = gadgetIndex;
+        }
+
+        [NotNull]
+        internal SourceGadget Gadget { get; }
+
+        [CanBeNull]
+        internal string Name { get; }
+
+        internal int RoomIndex { get; }
+
+        internal int GadgetIndex { get; }
+
+        [CanBeNull]
+        internal string UniqueName => Gadget.UniqueName;
+
+        [NotNull]
+        internal string RoomGadgetKey => $"{RoomIndex}:{GadgetIndex}";
+    }
+
+    private sealed class UserGadgetEntry
+    {
+        internal UserGadgetEntry(
+            [NotNull] UserGadget gadget,
+            [CanBeNull] string name,
+            int roomIndex,
+            int gadgetIndex)
+        {
+            Gadget = gadget;
+            Name = name;
+            RoomIndex = roomIndex;
+            GadgetIndex = gadgetIndex;
+        }
+
+        [NotNull]
+        internal UserGadget Gadget { get; }
+
+        [CanBeNull]
+        internal string Name { get; }
+
+        internal int RoomIndex { get; }
+
+        internal int GadgetIndex { get; }
+
+        [CanBeNull]
+        internal string UniqueName => Gadget.UniqueName;
+
+        [NotNull]
+        internal string RoomGadgetKey => $"{RoomIndex}:{GadgetIndex}";
+    }
+
+    private sealed class LocationRepairIndex
+    {
+        private readonly Dictionary<string, SourceGadgetEntry> _gadgetsByName = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, SourceGadgetEntry> _gadgetsByRoomGadgetKey = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, SourceGadgetEntry> _gadgetsByUniqueName = new(StringComparer.Ordinal);
+
+        internal LocationRepairIndex([NotNull] SourceLocation userLocation)
+        {
+            UserLocation = userLocation;
+            GadgetEntries = userLocation.GadgetEntries;
+
+            foreach (var gadgetEntry in GadgetEntries)
+            {
+                AddEntry(_gadgetsByUniqueName, gadgetEntry.UniqueName, gadgetEntry);
+                AddEntry(_gadgetsByName, gadgetEntry.Name, gadgetEntry);
+
+                if (gadgetEntry.RoomIndex >= 0 && gadgetEntry.GadgetIndex >= 0)
+                {
+                    AddEntry(_gadgetsByRoomGadgetKey, gadgetEntry.RoomGadgetKey, gadgetEntry);
+                }
+            }
+        }
+
+        [NotNull]
+        internal SourceLocation UserLocation { get; }
+
+        [NotNull]
+        internal SourceGadgetEntry[] GadgetEntries { get; }
+
+        internal bool TryGetGadget([NotNull] UserGadgetEntry targetGadgetEntry, [CanBeNull] out SourceGadgetEntry gadgetEntry)
+        {
+            gadgetEntry = null;
+
+            return TryGetGadgetByUniqueName(targetGadgetEntry.UniqueName, out gadgetEntry) ||
+                   TryGetEntry(_gadgetsByRoomGadgetKey, targetGadgetEntry.RoomGadgetKey, out gadgetEntry) ||
+                   TryGetEntry(_gadgetsByName, targetGadgetEntry.Name, out gadgetEntry);
+        }
+
+        internal bool TryGetGadgetByUniqueName([CanBeNull] string uniqueName, [CanBeNull] out SourceGadgetEntry gadgetEntry)
+        {
+            return TryGetEntry(_gadgetsByUniqueName, uniqueName, out gadgetEntry);
+        }
+
+        private static void AddEntry(
+            [NotNull] Dictionary<string, SourceGadgetEntry> entries,
+            [CanBeNull] string key,
+            [NotNull] SourceGadgetEntry gadgetEntry)
+        {
+            if (!string.IsNullOrWhiteSpace(key) && !entries.ContainsKey(key))
+            {
+                entries.Add(key, gadgetEntry);
+            }
+        }
+
+        private static bool TryGetEntry(
+            [NotNull] Dictionary<string, SourceGadgetEntry> entries,
+            [CanBeNull] string key,
+            [CanBeNull] out SourceGadgetEntry gadgetEntry)
+        {
+            gadgetEntry = null;
+
+            return !string.IsNullOrWhiteSpace(key) && entries.TryGetValue(key, out gadgetEntry);
+        }
+    }
+
+    private sealed class RepairSource
+    {
+        internal RepairSource(
+            [NotNull] SourceCampaign campaign,
+            [CanBeNull] string sourcePath,
+            long length,
+            DateTime lastWriteTimeUtc)
+        {
+            Campaign = campaign;
+            SourcePath = sourcePath;
+            Length = length;
+            LastWriteTimeUtc = lastWriteTimeUtc;
+        }
+
+        [NotNull]
+        internal SourceCampaign Campaign { get; }
+
+        [CanBeNull]
+        internal string SourcePath { get; }
+
+        internal long Length { get; }
+
+        internal DateTime LastWriteTimeUtc { get; }
+    }
+
     private sealed class RepairIndex
     {
         private readonly HashSet<string> _ambiguousAliases = new(StringComparer.Ordinal);
         private readonly HashSet<string> _ambiguousNumberPrefixes = new(StringComparer.Ordinal);
         private readonly Dictionary<string, string> _aliases = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, LocationRepairIndex> _locationIndexesByName = new(StringComparer.Ordinal);
         private readonly Dictionary<string, string> _locationsByNumberPrefix = new(StringComparer.Ordinal);
 
-        internal RepairIndex([NotNull] HashSet<string> userLocationNames)
+        internal RepairIndex(
+            [NotNull] SourceCampaign userCampaign,
+            [NotNull] HashSet<string> userLocationNames)
         {
+            CampaignMapNodes = userCampaign.CampaignMapNodes;
             UserLocationNames = userLocationNames;
 
-            foreach (var userLocationName in userLocationNames)
+            foreach (var userLocation in userCampaign.UserLocations)
             {
+                var userLocationName = userLocation?.ContentItemTitle;
+
+                if (string.IsNullOrWhiteSpace(userLocationName) || !UserLocationNames.Contains(userLocationName))
+                {
+                    continue;
+                }
+
+                _locationIndexesByName[userLocationName] = new LocationRepairIndex(userLocation);
                 AddLocationNumberPrefix(userLocationName);
             }
         }
+
+        [NotNull]
+        internal SourceCampaignMapNode[] CampaignMapNodes { get; }
 
         [NotNull]
         internal HashSet<string> UserLocationNames { get; }
@@ -454,6 +1402,22 @@ internal static class CampaignTranslationRuntimeRepairContext
 
             return !string.IsNullOrWhiteSpace(alias) &&
                    TryResolveAlias(alias, out userLocationName);
+        }
+
+        [CanBeNull]
+        internal SourceCampaignMapNode GetCampaignMapNode(int index)
+        {
+            return index >= 0 && index < CampaignMapNodes.Length ? CampaignMapNodes[index] : null;
+        }
+
+        internal bool TryGetLocationIndex(
+            [CanBeNull] string userLocationName,
+            [CanBeNull] out LocationRepairIndex locationRepairIndex)
+        {
+            locationRepairIndex = null;
+
+            return !string.IsNullOrWhiteSpace(userLocationName) &&
+                   _locationIndexesByName.TryGetValue(userLocationName, out locationRepairIndex);
         }
 
         private bool IsValidUserLocationName([CanBeNull] string name)

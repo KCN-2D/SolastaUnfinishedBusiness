@@ -166,6 +166,7 @@ internal static class Main
         TryCleanup(GuiWrapperContext.Unload);
         TryCleanup(() => Tooltips.Unload(!applicationQuitting));
         TryCleanup(() => CampaignTranslationExecutor.Unload(!applicationQuitting));
+        TryCleanup(CampaignTranslationRuntimeRepairContext.Unload);
         TryCleanup(TranslationServiceFactory.Unload);
 
         if (!applicationQuitting)
