@@ -525,7 +525,7 @@ ModUi/&WideScreenBattleUI=ワイドスクリーン用戦闘UIを有効にする<
 ModUi/&EnableBackgroundAbilityScoreIncreases=能力値上昇を種族ではなく背景から得る。ヒューマンの全能力値+1が消えるため、ヒューマンも調整する<i><color=#F0DAA0>（柔軟な種族とは両立せず、自動で無効化されます）</color></i>
 ModUi/&EnableBackgroundBonusFeats=背景から得る内容を2024式の起源特技、技能2つ、道具1つへ変更する<i><color=#F0DAA0>（背景ASIが必要です。柔軟な背景とは両立せず、自動で無効化されます）</color></i>
 ModUi/&AddOriginFeatsToAutoLearn= + 起源特技を自動習得候補に追加
-ModUi/&EnableGeneralFeats2024=一般特技を5.5e式に再編する<i><color=#F0DAA0>（2024特技は独立実装）</color></i>
+ModUi/&EnableGeneralFeats2024=特技を2024式に再編する<i><color=#F0DAA0>（2024特技は独立実装）</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>（2024特技は下の一覧で個別にON/OFFできます。有効中は完全な下位互換の旧特技を選択できません）</color></i>
 ModUi/&EnableTabletopFeatRules2024=独立した2024テーブルトップ特技カタログを使う
 ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>（有効中は独立した2024特技カタログだけを使います。起源特技とヒューマンの起源特技も同じカタログを参照します）</color></i>
