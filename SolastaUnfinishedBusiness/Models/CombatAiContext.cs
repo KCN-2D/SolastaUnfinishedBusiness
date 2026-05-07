@@ -165,6 +165,7 @@ internal static class CombatAiContext
         internal bool KnownRangedOrCasterThreat { get; } = knownRangedOrCasterThreat;
         internal bool ActorHasUsefulCover =>
             EnemyCanRangedAttackActorFromPosition && ActorCoverFromEnemyRangedAttack >= CoverType.Half;
+        internal bool CanAttackFromPosition => MeleeReachable || RangedAttackAvailableFromPosition;
         internal bool IsWounded { get; } = isWounded;
         internal bool IsConcentrating { get; } = isConcentrating;
         internal bool IsApproachSource { get; } = isApproachSource;
@@ -524,7 +525,7 @@ internal static class CombatAiContext
         }
 
         if (character.GetActionStatus(Id.Dodge, ActionScope.Battle) != ActionStatus.Available ||
-            !ShouldUseFallbackDodge(character, profile, self))
+            !ShouldUseFallbackDodge(character, self, battleService))
         {
             return false;
         }
@@ -600,6 +601,17 @@ internal static class CombatAiContext
         if (IsAdvancedCombatAiPositioningEnabled)
         {
             score += ComputePositionBias(profile, self, evaluations, floatParameter);
+
+            if (IsPositionBasedScoring(consideration))
+            {
+                score += ComputeFallbackApproachOrRegroupScore(
+                    character,
+                    profile,
+                    position,
+                    parameters,
+                    evaluations,
+                    floatParameter);
+            }
         }
 
         return Mathf.Clamp01(score);
@@ -825,6 +837,109 @@ internal static class CombatAiContext
         return TryGetRegroupPosition(actor, parameters, out var regroupPosition)
             ? ComputeApproachPositionScore(actor.LocationPosition, position, regroupPosition, floatParameter, 0.30f)
             : 0f;
+    }
+
+    private static float ComputeFallbackApproachOrRegroupScore(
+        GameLocationCharacter actor,
+        CombatAiProfile profile,
+        int3 position,
+        DecisionParameters parameters,
+        EnemyEvaluation[] evaluations,
+        float floatParameter)
+    {
+        if (actor?.RulesetCharacter == null || evaluations.Length == 0)
+        {
+            return 0f;
+        }
+
+        for (var i = 0; i < evaluations.Length; i++)
+        {
+            if (evaluations[i].CanAttackFromPosition)
+            {
+                return 0f;
+            }
+        }
+
+        if (TryGetVisibleApproachAnchor(actor, profile, position, evaluations, out var visibleEnemyPosition))
+        {
+            return ComputeApproachPositionScore(
+                actor.LocationPosition,
+                position,
+                visibleEnemyPosition,
+                floatParameter,
+                0.55f);
+        }
+
+        if (TryGetLastKnownEnemyPosition(actor, out var lastKnownEnemyPosition))
+        {
+            return ComputeApproachPositionScore(
+                actor.LocationPosition,
+                position,
+                lastKnownEnemyPosition,
+                floatParameter,
+                0.55f);
+        }
+
+        return TryGetRegroupPosition(actor, parameters, out var regroupPosition)
+            ? ComputeApproachPositionScore(actor.LocationPosition, position, regroupPosition, floatParameter, 0.30f)
+            : 0f;
+    }
+
+    private static bool TryGetVisibleApproachAnchor(
+        GameLocationCharacter actor,
+        CombatAiProfile profile,
+        int3 candidatePosition,
+        EnemyEvaluation[] evaluations,
+        out int3 position)
+    {
+        position = default;
+
+        if (actor?.RulesetCharacter == null)
+        {
+            return false;
+        }
+
+        var currentPosition = actor.LocationPosition;
+        var bestScore = 0f;
+        var hasAnchor = false;
+
+        for (var i = 0; i < evaluations.Length; i++)
+        {
+            var evaluation = evaluations[i];
+            var enemy = evaluation.Enemy;
+
+            if (enemy?.RulesetCharacter == null || !actor.PerceivedFoes.Contains(enemy))
+            {
+                continue;
+            }
+
+            var currentDistance = ComputeGridDistance(currentPosition, enemy.LocationPosition);
+            var candidateDistance = ComputeGridDistance(candidatePosition, enemy.LocationPosition);
+
+            if (candidateDistance >= currentDistance)
+            {
+                continue;
+            }
+
+            var improvement = 1f - Mathf.Clamp01(candidateDistance / Math.Max(currentDistance, 1f));
+            var score = ComputeEnemyPriorityWeight(profile, evaluation) + improvement;
+
+            if (evaluation.IsApproachSource)
+            {
+                score += 0.25f;
+            }
+
+            if (score <= bestScore)
+            {
+                continue;
+            }
+
+            bestScore = score;
+            position = enemy.LocationPosition;
+            hasAnchor = true;
+        }
+
+        return hasAnchor;
     }
 
     private static float ComputeApproachPositionScore(
@@ -1208,7 +1323,7 @@ internal static class CombatAiContext
                 hasSafeRangedLine = true;
             }
 
-            if (evaluation.MeleeReachable || evaluation.RangedAttackAvailableFromPosition)
+            if (evaluation.CanAttackFromPosition)
             {
                 canAttackFromPosition = true;
             }
@@ -1674,25 +1789,74 @@ internal static class CombatAiContext
 
     private static bool ShouldUseFallbackDodge(
         GameLocationCharacter character,
-        CombatAiProfile profile,
-        CombatAiSelfAssessment self)
+        CombatAiSelfAssessment self,
+        IGameLocationBattleService battleService)
     {
-        if (self.IsBloodied || self.IsCritical || self.HasSeriousCondition)
+        if (character?.RulesetCharacter == null || battleService == null)
+        {
+            return false;
+        }
+
+        if (character.UsedTacticalMoves > 0)
         {
             return true;
         }
 
-        if (profile.PrefersDistance)
+        if (self.IsBloodied ||
+            self.IsCritical ||
+            self.HasSeriousCondition ||
+            self.IsConcentrating ||
+            HasVisibleMeleeThreat(character, battleService))
         {
             return true;
         }
 
-        if (profile.PrefersAggressivePursuit)
+        return !HasUsefulMovementOrPositioningFallback(character);
+    }
+
+    private static bool HasUsefulMovementOrPositioningFallback(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null ||
+            character.MaxTacticalMoves <= 0 ||
+            character.UsedTacticalMoves >= character.MaxTacticalMoves ||
+            character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available)
         {
-            return HasVisibleFlightContext(character);
+            return false;
         }
 
-        return true;
+        return HasRelevantPerceivedEnemies(character) ||
+               TryGetLastKnownEnemyPosition(character, out _) ||
+               TryGetRegroupPosition(character, out _);
+    }
+
+    private static bool HasVisibleMeleeThreat(
+        GameLocationCharacter actor,
+        IGameLocationBattleService battleService)
+    {
+        if (actor?.RulesetCharacter == null || battleService == null)
+        {
+            return false;
+        }
+
+        foreach (var enemy in actor.PerceivedFoes)
+        {
+            if (enemy?.RulesetCharacter == null || enemy.Side == actor.Side)
+            {
+                continue;
+            }
+
+            if (CanAttackInMeleeFromPosition(
+                    enemy,
+                    enemy.LocationPosition,
+                    actor,
+                    actor.LocationPosition,
+                    battleService))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static CombatAiRole GetRole(
