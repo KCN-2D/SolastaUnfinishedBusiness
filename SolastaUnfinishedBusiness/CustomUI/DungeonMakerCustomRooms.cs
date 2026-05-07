@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using AwesomeTechnologies;
 using AwesomeTechnologies.VegetationSystem;
 using AwesomeTechnologies.VegetationSystem.Biomes;
@@ -22,13 +21,12 @@ internal static class DungeonMakerCustomRooms
 
     private static bool IsFlatRoom([NotNull] UserRoom userRoom)
     {
-        return userRoom.RoomBlueprint.name.StartsWith(FlatRoomTag);
+        return userRoom.RoomBlueprint.name?.StartsWith(FlatRoomTag, StringComparison.Ordinal) == true;
     }
 
     private static bool IsDynamicFlatRoom([NotNull] UserRoom userRoom)
     {
-        return IsFlatRoom(userRoom) &&
-               int.TryParse(userRoom.RoomBlueprint.name.Substring(FlatRoomTag.Length, 2), out _);
+        return TryGetFlatRoomMultiplier(userRoom, out _);
     }
 
     private static int GetFlatRoomOrientationIndex([NotNull] UserRoom userRoom, int x, int z)
@@ -70,6 +68,8 @@ internal static class DungeonMakerCustomRooms
 
     internal static void GetTemplateVegetationMaskArea([NotNull] WorldLocation worldLocation)
     {
+        TemplateVegetationMaskArea = null;
+
         var prefabByReference =
             worldLocation.prefabByReference;
 
@@ -95,7 +95,8 @@ internal static class DungeonMakerCustomRooms
 
         // calculates inverted heights in map coordinates
         var locationSize = UserLocationDefinitions.CellsBySize[userLocation.Size];
-        var mapHeights = new int[locationSize + (Margin * 2), locationSize + (Margin * 2)];
+        var mapExtent = locationSize + (Margin * 2);
+        var mapHeights = new int[mapExtent, mapExtent];
 
         foreach (var userRoom in userLocation.UserRooms)
         {
@@ -122,14 +123,22 @@ internal static class DungeonMakerCustomRooms
 
         // calculates heights in terrain data coordinates
         var resolution = masterTerrain.terrainData.heightmapResolution;
+        var sampleIndexes = new int[resolution];
+        var scale = (mapExtent - 1f) / (resolution - 1f);
         var heights = new float[resolution, resolution];
+
+        for (var index = 0; index < resolution; index++)
+        {
+            sampleIndexes[index] = (int)Math.Round(index * scale);
+        }
 
         for (var y = 0; y < resolution; y++)
         {
+            var sy = sampleIndexes[y];
+
             for (var x = 0; x < resolution; x++)
             {
-                var sx = (int)Math.Round(x * (locationSize + (Margin * 2f) - 1f) / (resolution - 1f));
-                var sy = (int)Math.Round(y * (locationSize + (Margin * 2f) - 1f) / (resolution - 1f));
+                var sx = sampleIndexes[x];
 
                 heights[y, x] = 1 - mapHeights[sx, sy];
             }
@@ -142,7 +151,7 @@ internal static class DungeonMakerCustomRooms
         var terrainData = masterTerrain.terrainData;
 
         terrainData.size =
-            new Vector3(locationSize + (Margin * 2f), 5f, locationSize + (Margin * 2f));
+            new Vector3(mapExtent, 5f, mapExtent);
         terrainData.SetHeights(0, 0, heights);
         masterTerrain.transform.position = new Vector3(transformPosition.x, -5.01f, transformPosition.z);
 
@@ -180,7 +189,7 @@ internal static class DungeonMakerCustomRooms
 
         DisableWalls(roomTransform);
 
-        if (!int.TryParse(userRoom.RoomBlueprint.name.Substring(FlatRoomTag.Length, 2), out var multiplier))
+        if (!TryGetFlatRoomMultiplier(userRoom, out var multiplier))
         {
             return;
         }
@@ -283,9 +292,15 @@ internal static class DungeonMakerCustomRooms
     {
         var reflectionProbes = worldLocation.GetComponentsInChildren<ReflectionProbe>();
 
-        foreach (var reflectionProbe in reflectionProbes.Where(x =>
-                     x.transform.parent.name.StartsWith(FlatRoomTag)))
+        foreach (var reflectionProbe in reflectionProbes)
         {
+            var parent = reflectionProbe.transform.parent;
+
+            if (!parent || !parent.name.StartsWith(FlatRoomTag, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             var size = reflectionProbe.size;
 
             reflectionProbe.transform.position = new Vector3(size.x / 2f, size.y, size.z / 2f);
@@ -299,7 +314,8 @@ internal static class DungeonMakerCustomRooms
         EnvironmentDefinition environmentDefinition,
         bool perspective)
     {
-        if (__instance is not PropBlueprint propBlueprint || !propBlueprint.Name.EndsWith("MOD"))
+        if (__instance is not PropBlueprint propBlueprint ||
+            !propBlueprint.Name.EndsWith("MOD", StringComparison.Ordinal))
         {
             return true;
         }
@@ -329,5 +345,17 @@ internal static class DungeonMakerCustomRooms
         __result = str1 + str2 + postfix;
 
         return false;
+    }
+
+    private static bool TryGetFlatRoomMultiplier([NotNull] UserRoom userRoom, out int multiplier)
+    {
+        multiplier = 0;
+
+        var roomBlueprintName = userRoom.RoomBlueprint.name;
+
+        return !string.IsNullOrEmpty(roomBlueprintName) &&
+               roomBlueprintName.Length >= FlatRoomTag.Length + 2 &&
+               roomBlueprintName.StartsWith(FlatRoomTag, StringComparison.Ordinal) &&
+               int.TryParse(roomBlueprintName.Substring(FlatRoomTag.Length, 2), out multiplier);
     }
 }

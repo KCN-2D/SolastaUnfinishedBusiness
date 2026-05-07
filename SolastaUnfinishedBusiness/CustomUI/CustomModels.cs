@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using JetBrains.Annotations;
@@ -35,8 +34,18 @@ public static class CustomModels
         var blenderModels = Path.Combine(Main.ModFolder, "BlenderModels");
 
         string[] expectedModels = ["Katana", "LightningLauncher", "LongMace", "Pike", "ThunderGauntlet"];
+        var missingModel = false;
 
-        if (expectedModels.Any(x => !Directory.Exists(Path.Combine(blenderModels, x))))
+        foreach (var expectedModel in expectedModels)
+        {
+            if (!Directory.Exists(Path.Combine(blenderModels, expectedModel)))
+            {
+                missingModel = true;
+                break;
+            }
+        }
+
+        if (missingModel)
         {
             Gui.GuiService.ShowMessage(
                 MessageModal.Severity.Attention2,
@@ -225,8 +234,19 @@ public static class CustomModels
             for (var i = 0; i < obj.usemtl.Count; i += 1)
             {
                 var materialName = obj.usemtl[i];
-                var newMtl = obj.Materials.FirstOrDefault(x => x.newmtl == materialName);
+                NewMtl newMtl = null;
                 var material = new Material(Shader.Find("Standard")) { name = materialName };
+
+                foreach (var materialDescription in obj.Materials)
+                {
+                    if (materialDescription.newmtl != materialName)
+                    {
+                        continue;
+                    }
+
+                    newMtl = materialDescription;
+                    break;
+                }
 
                 if (newMtl != null)
                 {
@@ -290,9 +310,15 @@ public static class CustomModels
     internal static void Unload()
     {
         BlenderModelLoader.Unload();
+        var destroyedPrefabs = new HashSet<GameObject>();
 
-        foreach (var prefab in PrefabsByGuid.Values.Where(x => x).Distinct())
+        foreach (var prefab in PrefabsByGuid.Values)
         {
+            if (!prefab || !destroyedPrefabs.Add(prefab))
+            {
+                continue;
+            }
+
             var meshFilter = prefab.GetComponent<MeshFilter>();
 
             if (meshFilter && meshFilter.sharedMesh)
@@ -304,16 +330,28 @@ public static class CustomModels
         }
 
         PrefabsByGuid.Clear();
+        var destroyedMaterials = new HashSet<Material>();
 
-        foreach (var material in MaterialsByGuid.Values.Where(x => x).Distinct())
+        foreach (var material in MaterialsByGuid.Values)
         {
+            if (!material || !destroyedMaterials.Add(material))
+            {
+                continue;
+            }
+
             UnityEngine.Object.Destroy(material);
         }
 
         MaterialsByGuid.Clear();
+        var destroyedTextures = new HashSet<Texture2D>();
 
-        foreach (var texture in LoadedTextures.Where(x => x).Distinct())
+        foreach (var texture in LoadedTextures)
         {
+            if (!texture || !destroyedTextures.Add(texture))
+            {
+                continue;
+            }
+
             UnityEngine.Object.Destroy(texture);
         }
 
@@ -322,9 +360,19 @@ public static class CustomModels
 
     internal static void SwitchRenderer(bool enabled)
     {
-        foreach (var meshRenderer in PrefabsByGuid.Values.Select(gameObject => gameObject.GetComponent<MeshRenderer>()))
+        foreach (var gameObject in PrefabsByGuid.Values)
         {
-            meshRenderer.enabled = enabled;
+            if (!gameObject)
+            {
+                continue;
+            }
+
+            var meshRenderer = gameObject.GetComponent<MeshRenderer>();
+
+            if (meshRenderer)
+            {
+                meshRenderer.enabled = enabled;
+            }
         }
     }
 

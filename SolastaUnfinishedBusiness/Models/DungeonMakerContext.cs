@@ -17,6 +17,8 @@ namespace SolastaUnfinishedBusiness.Models;
 internal static class DungeonMakerContext
 {
     private const string BackupFolder = "../UserContentBackup";
+    private const string FlatRoomsCategoryName = "FlatRooms";
+    private const string ModdedSuffix = "~MOD";
     internal static readonly HashSet<string> OutdoorRooms = new(StringComparer.Ordinal);
 
     internal static void Load()
@@ -90,7 +92,7 @@ internal static class DungeonMakerContext
 
         if (result == 0)
         {
-            result = left.GuiPresentation.SortOrder - right.GuiPresentation.SortOrder;
+            result = left.GuiPresentation.SortOrder.CompareTo(right.GuiPresentation.SortOrder);
         }
 
         return result;
@@ -108,7 +110,7 @@ internal static class DungeonMakerContext
 
         foreach (var kvp in customDungeonSizes)
         {
-            UserLocationDefinitions.CellsBySize.Add(kvp.Key, kvp.Value);
+            UserLocationDefinitions.CellsBySize[kvp.Key] = kvp.Value;
         }
     }
 
@@ -118,21 +120,36 @@ internal static class DungeonMakerContext
         var dbBlueprintCategory = DatabaseRepository.GetDatabase<BlueprintCategory>();
         var dbEnvironmentDefinition = DatabaseRepository.GetDatabase<EnvironmentDefinition>();
         var emptyRoomsCategory = dbBlueprintCategory.GetElement("EmptyRooms");
-        var flatRoomsCategory = Object.Instantiate(emptyRoomsCategory);
 
-        flatRoomsCategory.name = "FlatRooms";
-        flatRoomsCategory.guid = GuidHelper.Create(CeNamespaceGuid, flatRoomsCategory.name).ToString();
-        flatRoomsCategory.GuiPresentation.Title =
-            Gui.Localize($"BlueprintCategory/&{flatRoomsCategory.name}Title").Khaki();
-        dbBlueprintCategory.Add(flatRoomsCategory);
+        if (!dbBlueprintCategory.TryGetElement(FlatRoomsCategoryName, out _))
+        {
+            var flatRoomsCategory = Object.Instantiate(emptyRoomsCategory);
+
+            flatRoomsCategory.name = FlatRoomsCategoryName;
+            flatRoomsCategory.guid = GuidHelper.Create(CeNamespaceGuid, flatRoomsCategory.name).ToString();
+            flatRoomsCategory.GuiPresentation.Title =
+                Gui.Localize($"BlueprintCategory/&{flatRoomsCategory.name}Title").Khaki();
+            dbBlueprintCategory.Add(flatRoomsCategory);
+        }
 
         foreach (var blueprintCategory in dbBlueprintCategory)
         {
+            if (IsModdedName(blueprintCategory.Name))
+            {
+                continue;
+            }
+
             foreach (var environmentDefinition in dbEnvironmentDefinition)
             {
-                var newBlueprintCategory = Object.Instantiate(blueprintCategory);
                 var environmentName = environmentDefinition.Name;
-                var categoryName = blueprintCategory.Name + "~" + environmentName + "~MOD";
+                var categoryName = blueprintCategory.Name + "~" + environmentName + ModdedSuffix;
+
+                if (dbBlueprintCategory.TryGetElement(categoryName, out _))
+                {
+                    continue;
+                }
+
+                var newBlueprintCategory = Object.Instantiate(blueprintCategory);
 
                 newBlueprintCategory.name = categoryName;
                 newBlueprintCategory.guid = GuidHelper.Create(CeNamespaceGuid, newBlueprintCategory.name).ToString();
@@ -148,11 +165,6 @@ internal static class DungeonMakerContext
 
     private static void LoadFlatRooms()
     {
-        if (!Main.Settings.EnableDungeonMakerModdedContent)
-        {
-            return;
-        }
-
         CreateFlatRooms(12); // from 12x12 to 144x144
         CreateSpecialFlatRoom("Drain_Big_24C_A", 12 + 1);
         CreateSpecialFlatRoom("Drain_Big_24C_B", 12 + 2);
@@ -165,14 +177,21 @@ internal static class DungeonMakerContext
 
         for (var multiplier = 1; multiplier <= maxMultiplier; multiplier++)
         {
+            var flatRoomName = $"Flat{multiplier:D2}Room";
+
+            if (dbRoomBlueprint.TryGetElement(flatRoomName, out _))
+            {
+                continue;
+            }
+
             var flatRoom = Object.Instantiate(dbRoomBlueprint.GetElement(TEMPLATE));
 
-            flatRoom.name = $"Flat{multiplier:D2}Room";
+            flatRoom.name = flatRoomName;
             flatRoom.guid = GuidHelper.Create(CeNamespaceGuid, flatRoom.name).ToString();
             flatRoom.GuiPresentation.title = "Flat".Khaki() + " Room";
             flatRoom.GuiPresentation.sortOrder = multiplier;
             flatRoom.GuiPresentation.hidden = true;
-            flatRoom.category = "FlatRooms";
+            flatRoom.category = FlatRoomsCategoryName;
             flatRoom.dimensions = new Vector2Int(
                 flatRoom.Dimensions.x * multiplier, flatRoom.Dimensions.y * multiplier);
             flatRoom.cellInfos = new int[flatRoom.Dimensions.x * flatRoom.Dimensions.y];
@@ -191,14 +210,21 @@ internal static class DungeonMakerContext
     private static void CreateSpecialFlatRoom(string template, int sortOrder)
     {
         var dbRoomBlueprint = DatabaseRepository.GetDatabase<RoomBlueprint>();
+        var flatRoomName = "Flat" + template;
+
+        if (dbRoomBlueprint.TryGetElement(flatRoomName, out _))
+        {
+            return;
+        }
+
         var flatRoom = Object.Instantiate(dbRoomBlueprint.GetElement(template));
 
-        flatRoom.name = "Flat" + template;
+        flatRoom.name = flatRoomName;
         flatRoom.guid = GuidHelper.Create(CeNamespaceGuid, flatRoom.name).ToString();
         flatRoom.GuiPresentation.title = "Flat".Khaki() + " " + Gui.Localize(flatRoom.GuiPresentation.Title);
         flatRoom.GuiPresentation.sortOrder = sortOrder;
         flatRoom.GuiPresentation.hidden = true;
-        flatRoom.category = "FlatRooms";
+        flatRoom.category = FlatRoomsCategoryName;
 
         for (var i = 0; i < flatRoom.CellInfos.Length; i++)
         {
@@ -219,15 +245,31 @@ internal static class DungeonMakerContext
 
         foreach (var gadgetBlueprint in dbGadgetBlueprint)
         {
-            foreach (var prefabByEnvironment in gadgetBlueprint.PrefabsByEnvironment.Where(x =>
-                         x.Environment != string.Empty))
+            if (IsModdedName(gadgetBlueprint.Name))
             {
+                continue;
+            }
+
+            foreach (var prefabByEnvironment in gadgetBlueprint.PrefabsByEnvironment)
+            {
+                if (string.IsNullOrEmpty(prefabByEnvironment.Environment))
+                {
+                    continue;
+                }
+
                 var environmentName = prefabByEnvironment.Environment;
                 var prefabEnvironmentDefinition = dbEnvironmentDefinition.GetElement(environmentName);
-                var newGadgetBlueprint = Object.Instantiate(gadgetBlueprint);
-                var categoryName = gadgetBlueprint.Category + "~" + environmentName + "~MOD";
+                var newGadgetName = gadgetBlueprint.Name + "~" + environmentName + ModdedSuffix;
+                var categoryName = gadgetBlueprint.Category + "~" + environmentName + ModdedSuffix;
 
-                newGadgetBlueprint.name = gadgetBlueprint.Name + "~" + environmentName + "~MOD";
+                if (dbGadgetBlueprint.TryGetElement(newGadgetName, out _))
+                {
+                    continue;
+                }
+
+                var newGadgetBlueprint = Object.Instantiate(gadgetBlueprint);
+
+                newGadgetBlueprint.name = newGadgetName;
                 newGadgetBlueprint.guid = GuidHelper.Create(CeNamespaceGuid, newGadgetBlueprint.name).ToString();
                 newGadgetBlueprint.GuiPresentation.Title = Gui.Localize(gadgetBlueprint.GuiPresentation.Title) + " " +
                                                            Gui.Localize(prefabEnvironmentDefinition.GuiPresentation
@@ -262,15 +304,31 @@ internal static class DungeonMakerContext
 
         foreach (var propBlueprint in dbPropBlueprint)
         {
-            foreach (var prefabByEnvironment in propBlueprint.PrefabsByEnvironment.Where(x =>
-                         x.Environment != string.Empty))
+            if (IsModdedName(propBlueprint.Name))
             {
+                continue;
+            }
+
+            foreach (var prefabByEnvironment in propBlueprint.PrefabsByEnvironment)
+            {
+                if (string.IsNullOrEmpty(prefabByEnvironment.Environment))
+                {
+                    continue;
+                }
+
                 var environmentName = prefabByEnvironment.Environment;
                 var prefabEnvironmentDefinition = dbEnvironmentDefinition.GetElement(environmentName);
-                var newPropBlueprint = Object.Instantiate(propBlueprint);
-                var categoryName = propBlueprint.Category + "~" + environmentName + "~MOD";
+                var newPropName = propBlueprint.Name + "~" + environmentName + ModdedSuffix;
+                var categoryName = propBlueprint.Category + "~" + environmentName + ModdedSuffix;
 
-                newPropBlueprint.name = propBlueprint.Name + "~" + environmentName + "~MOD";
+                if (dbPropBlueprint.TryGetElement(newPropName, out _))
+                {
+                    continue;
+                }
+
+                var newPropBlueprint = Object.Instantiate(propBlueprint);
+
+                newPropBlueprint.name = newPropName;
                 newPropBlueprint.guid = GuidHelper.Create(CeNamespaceGuid, newPropBlueprint.name).ToString();
                 newPropBlueprint.GuiPresentation.Title = Gui.Localize(propBlueprint.GuiPresentation.Title) + " " +
                                                          Gui.Localize(prefabEnvironmentDefinition.GuiPresentation
@@ -303,18 +361,39 @@ internal static class DungeonMakerContext
         var dbEnvironmentDefinition = DatabaseRepository.GetDatabase<EnvironmentDefinition>();
         var newRooms = new List<RoomBlueprint>();
 
-        foreach (var roomBlueprint in dbRoomBlueprint
-                     .Where(x => x.Category is "EmptyRooms" or "FlatRooms"))
+        foreach (var roomBlueprint in dbRoomBlueprint)
         {
-            foreach (var prefabByEnvironment in roomBlueprint.PrefabsByEnvironment
-                         .Where(x => x.Environment != string.Empty))
+            if (roomBlueprint.Category != "EmptyRooms" && roomBlueprint.Category != FlatRoomsCategoryName)
             {
+                continue;
+            }
+
+            foreach (var prefabByEnvironment in roomBlueprint.PrefabsByEnvironment)
+            {
+                if (string.IsNullOrEmpty(prefabByEnvironment.Environment))
+                {
+                    continue;
+                }
+
                 var environmentName = prefabByEnvironment.Environment;
                 var prefabEnvironmentDefinition = dbEnvironmentDefinition.GetElement(environmentName);
-                var newRoomBlueprint = Object.Instantiate(roomBlueprint);
-                var categoryName = roomBlueprint.Category + "~" + environmentName + "~MOD";
+                var newRoomName = roomBlueprint.Name + "~" + environmentName + ModdedSuffix;
+                var categoryName = roomBlueprint.Category + "~" + environmentName + ModdedSuffix;
 
-                newRoomBlueprint.name = roomBlueprint.Name + "~" + environmentName + "~MOD";
+                if (prefabEnvironmentDefinition.Outdoor)
+                {
+                    OutdoorRooms.Add(newRoomName);
+                    OutdoorRooms.Add(roomBlueprint.Name);
+                }
+
+                if (dbRoomBlueprint.TryGetElement(newRoomName, out _))
+                {
+                    continue;
+                }
+
+                var newRoomBlueprint = Object.Instantiate(roomBlueprint);
+
+                newRoomBlueprint.name = newRoomName;
                 newRoomBlueprint.guid = GuidHelper.Create(CeNamespaceGuid, newRoomBlueprint.name).ToString();
                 newRoomBlueprint.GuiPresentation.Title = Gui.Localize(roomBlueprint.GuiPresentation.Title) + " " +
                                                          Gui.Localize(prefabEnvironmentDefinition.GuiPresentation
@@ -323,9 +402,13 @@ internal static class DungeonMakerContext
                 newRoomBlueprint.GuiPresentation.hidden = false;
                 newRoomBlueprint.PrefabsByEnvironment.Clear();
 
-                foreach (var environmentDefinition in dbEnvironmentDefinition
-                             .Where(x => !prefabEnvironmentDefinition.Outdoor || x.Outdoor))
+                foreach (var environmentDefinition in dbEnvironmentDefinition)
                 {
+                    if (prefabEnvironmentDefinition.Outdoor && !environmentDefinition.Outdoor)
+                    {
+                        continue;
+                    }
+
                     var myPrefabByEnvironment = new BaseBlueprint.PrefabByEnvironmentDescription
                     {
                         environment = environmentDefinition.name,
@@ -336,14 +419,6 @@ internal static class DungeonMakerContext
                 }
 
                 newRooms.Add(newRoomBlueprint);
-
-                if (!prefabEnvironmentDefinition.Outdoor)
-                {
-                    continue;
-                }
-
-                OutdoorRooms.Add(newRoomBlueprint.Name);
-                OutdoorRooms.Add(roomBlueprint.Name);
             }
         }
 
@@ -355,31 +430,45 @@ internal static class DungeonMakerContext
     {
         var dbGadgetBlueprint = DatabaseRepository.GetDatabase<GadgetBlueprint>();
 
-        dbGadgetBlueprint
-            .Where(x => x.Name.EndsWith("MOD")).ToArray()
-            .Do(y => y.GuiPresentation.hidden = !Main.Settings.EnableDungeonMakerModdedContent);
+        foreach (var gadgetBlueprint in dbGadgetBlueprint)
+        {
+            if (IsModdedName(gadgetBlueprint.Name))
+            {
+                gadgetBlueprint.GuiPresentation.hidden = !Main.Settings.EnableDungeonMakerModdedContent;
+            }
+        }
     }
 
     private static void SetModdedPropsHiddenStatus()
     {
         var dbPropBlueprint = DatabaseRepository.GetDatabase<PropBlueprint>();
 
-        dbPropBlueprint
-            .Where(x => x.Name.EndsWith("MOD")).ToArray()
-            .Do(y => y.GuiPresentation.hidden = !Main.Settings.EnableDungeonMakerModdedContent);
+        foreach (var propBlueprint in dbPropBlueprint)
+        {
+            if (IsModdedName(propBlueprint.Name))
+            {
+                propBlueprint.GuiPresentation.hidden = !Main.Settings.EnableDungeonMakerModdedContent;
+            }
+        }
     }
 
     private static void SetModdedRoomsHiddenStatus()
     {
         var dbRoomBlueprint = DatabaseRepository.GetDatabase<RoomBlueprint>();
 
-        dbRoomBlueprint
-            .Where(x => x.Name.EndsWith("MOD")).ToArray()
-            .Do(y => y.GuiPresentation.hidden = !Main.Settings.EnableDungeonMakerModdedContent);
+        foreach (var roomBlueprint in dbRoomBlueprint)
+        {
+            if (IsModdedName(roomBlueprint.Name) ||
+                roomBlueprint.Name.StartsWith("Flat", StringComparison.Ordinal))
+            {
+                roomBlueprint.GuiPresentation.hidden = !Main.Settings.EnableDungeonMakerModdedContent;
+            }
+        }
+    }
 
-        dbRoomBlueprint
-            .Where(x => x.Name.StartsWith("Flat")).ToArray()
-            .Do(y => y.GuiPresentation.hidden = !Main.Settings.EnableDungeonMakerModdedContent);
+    private static bool IsModdedName([CanBeNull] string name)
+    {
+        return name != null && name.EndsWith(ModdedSuffix, StringComparison.Ordinal);
     }
 
     private enum ExtendedDungeonSize
