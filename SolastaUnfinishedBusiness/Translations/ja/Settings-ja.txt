@@ -35,7 +35,7 @@ ModUi/&AllowMoreRealStateOnRestPanel=休憩パネルの表示領域を広げま�
 ModUi/&AllowStackedMaterialComponent=積み重ねられた物質構成要素を許可します<i><color=#F0DAA0>（例：2x500gpダイヤモンドは1000gpダイヤモンドに相当します）</color></i>
 ModUi/&AllowTargetingSelectionWhenCastingChainLightningSpell=<color=#D89555>連鎖電撃</color>呪文を唱える際に対象選択を許可します
 ModUi/&AltOnlyHighlightItemsInPartyFieldOfView=<color=#1E81B0>ALT</color>キーは、パーティの視界内にあるガジェットだけを強調表示します<i><color=#F0DAA0>（カスタムダンジョンのみ）</color></i>
-ModUi/&AlwaysSpendPactSlotsFirst=<i>+ 可能なら常に<color=#D89555>ウォーロック</color>の契約魔法スロットを先に消費する</i>
+ModUi/&AlwaysSpendPactSlotsFirst=<i>+ 可能なら常に<color=#D89555>ウォーロック</color>の契約スロットを先に消費する</i>
 ModUi/&ArcaneShieldstaffOptions=<color=#D89555>アーケイン・シールドスタッフ</color>をどのクラスでも同調できるようにする
 ModUi/&Backgrounds=<color=#F0DAA0>背景</color>
 ModUi/&BackgroundsAndRaces=背景と種族
@@ -66,7 +66,7 @@ ModUi/&CriticalOption2=<color=#D89555><b>2</b></color>：可能な限り最高�
 ModUi/&CriticalOption3=<color=#D89555><b>3</b></color>：追加のサイコロを振る代わりに、攻撃の合計ダメージを2倍にします。<i><color=#F0DAA0>（(XdY+Z)*2）</color></i>
 ModUI/&EnableCriticalHitsMissesAt10=ACと変更された攻撃ロール結果の違いが10以上の場合、クリティカルヒットとミスを有効にします
 ModUi/&DisableAutoEquip=インベントリ内のアイテムの自動装備を無効にする
-ModUi/&DisableCastSpellPreRequisitesOnModFeats=モッド<color=#D89555>特技</color>の呪文発動の前提条件を無効にします<b><i><color=#C04040E0>（再起動が必要）</color></i></b>
+ModUi/&DisableCastSpellPreRequisitesOnModFeats=MOD<color=#D89555>特技</color>の呪文発動の前提条件を無効にします<b><i><color=#C04040E0>（再起動が必要）</color></i></b>
 ModUi/&DisableClassPrerequisitesOnModFeats=<color=#D89555>特技</color>のレベル前提条件を無効にする
 ModUi/&DisableMultilineSpellOffering=アクションバーでの複数行の呪文の提供を無効にする<i><color=#F0DAA0>（主に非マルチキャスターヒーローを使用するコントローラーユーザー向け）</color></i>
 ModUi/&DisableRacePrerequisitesOnModFeats=<color=#D89555>特技</color>の種族の前提条件を無効にする
@@ -77,7 +77,7 @@ ModUi/&FilterUnofficialTranslationsByLanguage=選択した言語の非公式翻�
 ModUi/&FilterUnofficialTranslationsByLanguageHelp=非公式翻訳が有効なときに読み込む翻訳フォルダーを選択します。
 ModUi/&NoUnofficialTranslationsFound=非公式翻訳フォルダーが見つかりません。
 ModUi/&DisplayAllKnownSpellsDuringLevelUp=<i>+ レベルアップ中に他のクラスの既知の呪文をすべて表示</i>
-ModUi/&DisplayPactSlotsOnSpellSelectionPanel=<i>+ キャラクターパネルの代わりに呪文選択時に<color=#D89555>ウォーロック</color>契約スロットを表示する</i>
+ModUi/&DisplayPactSlotsOnSpellSelectionPanel=<i>+ キャラクターパネルの代わりに呪文選択時に<color=#D89555>ウォーロック</color>の契約スロットを表示する</i>
 ModUi/&DocsArcaneShots=秘術射撃
 ModUi/&DocsBackgrounds=背景
 ModUi/&DocsClasses=クラス
@@ -91,7 +91,7 @@ ModUi/&DocsRaces=種族
 ModUi/&DocsSpells=呪文
 ModUi/&DocsSubclasses=サブクラス
 ModUi/&DocsSubraces=亜種族
-ModUi/&DocsVersatilities=妖術術式
+ModUi/&DocsVersatilities=妖術応用
 ModUi/&DontEndTurnAfterReady=<color=#D89555>待機</color>アクションの後にターンを終了しない<i><color=#F0DAA0>（ボーナス・アクションや、他のソースによる追加のアクションを許可）</color></i>
 ModUi/&DontFollowCharacterInBattle=キャラクターがすでに画面上にいる場合、戦闘カメラは追従しません
 ModUi/&DontFollowMargin=<i><color=white>+ ヒーローが画面外にいるか、画面端の % 以内にいる場合を除く</color></i>
@@ -109,7 +109,7 @@ ModUi/&EnableAdditionalBackstoryDisplay=背景調査で追加のバックスト�
 ModUi/&EnableAdditionalIconsOnLevelMap=レベルマップ上のキャンプ、出口、瞬間移動装置の追加アイコンを有効にする
 ModUi/&EnableAdditionalItemsInDungeonMaker=Dungeon MakerでMOD追加アイテムを有効にする
 ModUi/&EnableAllyMovementAllowsFlight=クリーチャーが飛行している場合、自分や味方を移動させる特徴で空中位置を選べるようにします（例：<color=#D89555>機動攻撃</color>、<color=#D89555>本能的な飛びかかり</color>）
-ModUi/&EnableTeleportAllowsMidAirPositions=自由座標指定の瞬間移動呪文とパワーが、視認できる占有されていない空中空間を対象にできるようにする
+ModUi/&EnableTeleportAllowsMidAirPositions=自由座標指定の瞬間移動呪文と能力が、視認できる占有されていない空中空間を対象にできるようにする
 ModUi/&EnableAlternateHuman=代替の<color=#D89555>ヒューマン</color>を有効にする<i><color=#F0DAA0>（+1特技 / +2能力値選択 / +1技能）</color></i>
 ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>背景の能力値上昇が有効な間、ヒューマンは種族の能力値上昇を失う代わりに、代替ヒューマンの特技と技能パッケージを自動的に使用します。</color></i>
 ModUi/&EnableAlternateVotingSystem=代替投票システムを有効にする<i><color=#F0DAA0>（選択の重み = 投票数 * ヒーローの魅力修正値）</color></i>
@@ -138,7 +138,7 @@ ModUi/&EnableClericBlessedStrikes2024=7、14レベルで<color=#D89555>祝福さ
 ModUi/&EnableClericChannelDivinity2024=<color=#D89555>神性伝導</color>を5e 2024版<i><color=#F0DAA0>（用途が異なります）</color></i>と入れ替えます
 ModUi/&EnableClericDivineOrder2024=レベル1で<color=#D89555>神聖なる使命</color>を有効にする<i><color=#F0DAA0>（重装鎧/軍用武器習熟、または追加初級呪文と一部の知力判定のどちらかを選択）</color></i>
 ModUi/&EnableClericSearUndead2024=5レベルで<color=#D89555>アンデッド焼灼</color>を有効にし、<color=#D89555>アンデッド破壊</color>を置き換えます
-ModUi/&EnableClericToLearnDomainAtLevel3=<color=#D89555>ドメイン</color>をレベル1ではなくレベル3で有効にする
+ModUi/&EnableClericToLearnDomainAtLevel3=<color=#D89555>領域</color>をレベル1ではなくレベル3で有効にする
 ModUi/&EnableCustomPortraits=<color=#D89555>カスタムポートレート</color>を有効にする
 ModUi/&EnableCustomPortraitsHelp=• カスタムポートレートを、主人公のファーストネームにちなんで名付けたサブフォルダ<i><b><color=#F0DAA0>Personal</color></b></i>または<i><b><color=#F0DAA0>PreGen</color></b></i>に配置します<i><color=#F0DAA0>（例：Anton、Celia、Niallaなど）</color></i>\n• 透明レイヤー付きの256x384ピクセルのPNG画像を使用します<i><color=#F0DAA0>（最良の結果を得るにはGIMPを使用します）</color></i>
 ModUi/&EnableDruidArchDruid2024=<color=#D89555>大ドルイド</color>を5e 2024版と入れ替えます<i><color=#F0DAA0>（自然の化身の使用回数を回復）</color></i>
@@ -213,7 +213,7 @@ ModUi/&EnableOneDndWitchBoltSpell=<color=#D89555>魔女の矢</color>の5e 2024�
 ModUi/&EnablePaladinAbjureFoes2024=9レベルで<color=#D89555>敵排斥</color>を有効にします
 ModUi/&EnablePaladinChannelDivinity2024=<color=#D89555>神性伝導</color>を5e 2024版<i><color=#F0DAA0>（用途が異なります）</color></i>と入れ替えます
 ModUi/&EnablePaladinLayOnHands2024=<color=#D89555>癒しの手</color>を5e 2024版の<i><color=#F0DAA0>（ボーナス・アクション）</color></i>と入れ替えます
-ModUi/&EnablePaladinRestoreLevel20Feature=<color=#D89555>レベル20</color>サブクラスパワーをレベル5スロットで再充電できるようにする
+ModUi/&EnablePaladinRestoreLevel20Feature=<color=#D89555>レベル20</color>サブクラス能力をレベル5スロットで再充填できるようにする
 ModUi/&EnablePaladinRestoringTouch2024=レベル14で<color=#D89555>浄化のタッチ</color>の代わりに<color=#D89555>回復のタッチ</color>を有効にする
 ModUi/&EnablePaladinSmite2024=<color=#D89555>神聖なる一撃</color>を5e 2024版と入れ替えます<i><color=#F0DAA0>（命中時に発動するボーナス・アクション呪文）</color></i>
 ModUi/&EnableSmiteSpells2024=一撃系呪文を5e 2024版に置き換えます<i><color=#F0DAA0>（命中時に発動し、精神集中を必要としない）</color></i>
@@ -328,7 +328,7 @@ ModUi/&HideMonsterHitPoints=モンスターの体力を正確なヒット・ポ�
 ModUi/&HideQuickenedActionWhenMetamagicOff=<i>+ 呪文修正トグルがオフのときはこのアクションを非表示にする</i>
 ModUi/&HighContrastTargetingAoeColor=効果範囲内クリーチャーの<b><color=$$$$$$>選択ハイライト色</color></b>を変更します
 ModUi/&HighContrastTargetingSingleColor=単体クリーチャーの<b><color=$$$$$$>選択ハイライト色</color></b>を変更します
-ModUi/&IdentifyAfterRest=小休憩または大休憩中に<color=#D89555>魔法のアイテムを識別する</color>パワーを追加します
+ModUi/&IdentifyAfterRest=小休憩または大休憩中に<color=#D89555>魔法のアイテムを識別する</color>能力を追加します
 ModUi/&IgnoreHandXbowFreeHandRequirements=<color=#D89555>ハンド・クロスボウ</color>の使用時に空いている手を必要としない
 ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=幻術呪文は範囲内で<color=#D89555>超視覚</color>を持つ対象に対して自動的に失敗する
 ModUi/&IncreaseGameTimeBy=ゲーム時間を増やす
@@ -346,7 +346,7 @@ ModUi/&Metamagic=<color=#F0DAA0>呪文修正</color>
 ModUi/&ModQoL=<b><color=#D89555>QoL設定を有効にする</color></b>
 ModUi/&ModifyGravitySlam=<color=#D89555>重力撃</color>呪文を変更し、影響を受けた対象を下方へ引き寄せ、球体ではなく円柱になるようにします\n<i><color=#F0DAA0>（<color=#D89555>上下軸での押し出し/引き寄せモーション効果</color>を有効にする必要があります）</color></i>
 ModUi/&MovementGridWidthModifier=<color=white>移動グリッドの幅を</color><color=#C04040E0>（%）</color>で乗算します
-ModUi/&MulticlassKeyHelp=<color=#1E81B0>SHIFT</color>キーを押しながら呪文をクリックすると、消費されるデフォルトのレパートリー・スロットの種類が反転します\n<i><color=#F0DAA0>（<color=#D89555>ウォーロック</color>は白の呪文スロットを消費し、その他の呪文スロットはパクトの緑の呪文スロットを消費します）</color></i>
+ModUi/&MulticlassKeyHelp=<color=#1E81B0>SHIFT</color>キーを押しながら呪文をクリックすると、消費されるデフォルトのレパートリー・スロットの種類が反転します\n<i><color=#F0DAA0>（<color=#D89555>ウォーロック</color>は白の呪文スロットを消費し、その他の呪文スロットは緑色の契約スロットを消費します）</color></i>
 ModUi/&Multiplayer=<color=#F0DAA0>マルチプレイヤー：</color>
 ModUi/&MultiplyTheExperienceGainedBy=<color=white>獲得経験値を</color><color=#C04040E0>（%）</color>倍にします
 ModUi/&NeverMoveCameraOnEnemyTurn=<i>+ 敵のターン中はカメラが動かない</i>
@@ -529,6 +529,6 @@ ModUi/&EnableGeneralFeats2024=特技を2024式に再編する<i><color=#F0DAA0>�
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>（2024特技は下の一覧で個別にON/OFFできます。有効中は完全な下位互換の旧特技を選択できません）</color></i>
 ModUi/&EnableTabletopFeatRules2024=独立した2024テーブルトップ特技カタログを使う
 ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>（有効中は独立した2024特技カタログだけを使います。起源特技とヒューマンの起源特技も同じカタログを参照します）</color></i>
-ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>（有効中に個別切替できるのは下の独立2024特技だけです。旧特技トグルはロックされます）</color></i>
+ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>（有効中に個別に切り替えられるのは下の独立2024特技だけです。旧特技トグルはロックされます）</color></i>
 ModUi/&EnableStrictTabletopClassSelection=厳密なテーブルトップクラス/サブクラス選択を使う
 ModUi/&EnableStrictTabletopClassSelectionHelp=有効にすると、テーブルトップ由来クラスとテーブルトップタグ付きサブクラスだけを選択できます。対象外サブクラスのUBトグルは強制的に無効化されます。有効時、クレリックの領域は神格で制限されません。

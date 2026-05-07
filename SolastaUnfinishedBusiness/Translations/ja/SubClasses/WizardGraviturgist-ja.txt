@@ -1,4 +1,4 @@
-Action/&GravityWellToggleDescription=重力井戸を有効化/無効化
+Action/&GravityWellToggleDescription=〈重力井戸〉を有効化/無効化します
 Action/&GravityWellToggleTitle=重力井戸
 Condition/&ConditionWizardGraviturgistDensityDecreaseDescription=移動速度が2マス増加し、筋力判定とセーヴィング・スローに不利を受けます。
 Condition/&ConditionWizardGraviturgistDensityDecreaseTitle=密度低下

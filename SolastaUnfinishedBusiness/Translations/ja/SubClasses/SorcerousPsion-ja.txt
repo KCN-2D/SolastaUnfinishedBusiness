@@ -1,6 +1,6 @@
-Action/&MindSculptToggleDescription=起動すると、1魔力点を消費して次に与える呪文ダメージをすべて精神ダメージに変換します。
+Action/&MindSculptToggleDescription=有効にすると、1魔力点を消費して、次に与える呪文ダメージをすべて精神ダメージに変換します。
 Action/&MindSculptToggleTitle=マインド・スカルプト
-Action/&SupremeWillToggleDescription=起動すると、呪文レベルの2倍の魔力点を消費し、次に唱える呪文を精神集中不要にします。
+Action/&SupremeWillToggleDescription=有効にすると、呪文レベルの2倍の魔力点を消費して、次に唱える呪文を精神集中不要にします。
 Action/&SupremeWillToggleTitle=至高の意志
 Feature/&ActionAffinitySorcerousPsionMindSculptDescription=呪文で精神ダメージを与えるたび、その呪文のダメージ・ロール1つに追加の精神ダメージとして魅力修正値を加えます。さらに、1魔力点を支払うと、自分が与える呪文ダメージをすべて精神ダメージに変換できます。
 Feature/&ActionAffinitySorcerousPsionMindSculptTitle=マインド・スカルプト

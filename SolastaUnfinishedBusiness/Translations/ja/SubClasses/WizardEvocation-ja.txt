@@ -1,4 +1,4 @@
-Action/&OverChannelToggleDescription=限界突破を有効化/無効化
+Action/&OverChannelToggleDescription=〈限界突破〉を有効化/無効化します
 Action/&OverChannelToggleTitle=限界突破
 Feature/&FeatureSetWizardEvocationOverChannelDescription=単純な呪文の威力を高められます。ダメージを与える1レベルから5レベルのウィザード呪文を唱えるとき、その呪文で最大ダメージを与えられます。最初にこれを行うとき、悪影響はありません。大休憩を終える前にこの特徴を再度使用すると、呪文を唱えた直後に、その呪文レベルごとに2d12の死霊ダメージを受けます。大休憩を終える前にこの特徴をさらに使うたび、呪文レベルごとの死霊ダメージは1d12ずつ増加します。このダメージは抵抗と完全耐性を無視します。
 Feature/&FeatureSetWizardEvocationOverChannelTitle=限界突破

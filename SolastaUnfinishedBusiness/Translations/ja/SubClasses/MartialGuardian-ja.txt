@@ -1,4 +1,4 @@
-Action/&CompellingStrikeToggleDescription=〈挑発の一撃〉を有効化/無効化します。
+Action/&CompellingStrikeToggleDescription=〈挑発の一撃〉を有効化/無効化します
 Action/&CompellingStrikeToggleTitle=挑発の一撃
 Feature/&ActionAffinityMartialGuardianCompellingStrikeDescription=近接武器攻撃でクリーチャーに命中させるたび、そのクリーチャーを次のあなたのターン開始時まで挑発できます。あなたに挑発されたクリーチャーは、あなたを対象としない攻撃ロールに不利を受けます。この効果は、ほかの味方がそのクリーチャーを挑発した場合、またはあなたがそのクリーチャーから1マスより遠く離れた場合、早期に終了します。
 Feature/&ActionAffinityMartialGuardianCompellingStrikeTitle=挑発の一撃
