@@ -1,6 +1,6 @@
 Feedback/&AbilityCheckConsoleAnyAdvantageLine={0}は{1}能力値判定を行います（難易度{2}）：{3}{4}、{5}
 Feedback/&AbilityCheckConsoleAnyAdvantageNoModifierLine={0}は{1}能力値判定を行います（難易度{2}）：{3}{4}
-Feedback/&AbilityCheckConsoleLine={0}は{1}能力値判定を行います（難易度{2}）：{3} = {4}
+Feedback/&AbilityCheckConsoleLine={0}は{1}能力値判定を行います（難易度{2}）：{3}={4}
 Feedback/&AbilityCheckConsoleNoModifierLine={0}は{1}能力値判定を行います（難易度{2}）：{3}
 Feedback/&AbilityCheckFailedFormat=失敗
 Feedback/&AbilityCheckFailureNarrationLine={0}判定：失敗！
@@ -118,8 +118,8 @@ Feedback/&AdditionalSaveDieRolledLine={0}：{1}はセーヴィング・スロー
 Feedback/&AdvantageRollDescription=有利でロールする場合、d20を2個ロールして、より高い結果を採用します。
 Feedback/&AdvantageRollOutcome=有利で
 Feedback/&AlreadySuccessfulCaptionFormat=すでに成功しています
-Feedback/&AttackConsoleLine={0}は{2}で{1}を攻撃します：{3} = {4}
-Feedback/&AttackConsoleLineAnyAdvantage={0}は{2}で{1}を攻撃します：{3}{4} = {5}
+Feedback/&AttackConsoleLine={0}は{2}で{1}を攻撃します：{3}={4}
+Feedback/&AttackConsoleLineAnyAdvantage={0}は{2}で{1}を攻撃します：{3}{4}={5}
 Feedback/&AttackConsoleLineAnyAdvantageNoModifier={0}は{2}で{1}を攻撃します：{3}{4}
 Feedback/&AttackConsoleLineAutomaticCritical={0}は麻痺状態です：自動クリティカル
 Feedback/&AttackConsoleLineAutomaticHit={0}は{2}で{1}を攻撃し、自動的に命中します
@@ -155,9 +155,9 @@ Feedback/&CheckSuccessCaption=成功
 Feedback/&ChoiceConsequenceMessage=あなたが今行った選択は、後で結果をもたらします。
 Feedback/&Choice_Back=戻る
 Feedback/&Choice_Other=他の
-Feedback/&ConcentrationCheckRolledAnyAdvantageLine={0}は精神集中を維持するための耐久力セーヴィング・スローを行います{1}（難易度{2}）：{3} = {4}
+Feedback/&ConcentrationCheckRolledAnyAdvantageLine={0}は精神集中を維持するための耐久力セーヴィング・スローを行います{1}（難易度{2}）：{3}={4}
 Feedback/&ConcentrationCheckRolledAnyAdvantageNoModifierLine={0}は精神集中を維持するための耐久力セーヴィング・スローを行います{1}（難易度{2}）：{3}
-Feedback/&ConcentrationCheckRolledLine={0}は精神集中を維持するための耐久力セーヴィング・スローを行います（難易度{1}）：{2} = {3}
+Feedback/&ConcentrationCheckRolledLine={0}は精神集中を維持するための耐久力セーヴィング・スローを行います（難易度{1}）：{2}={3}
 Feedback/&ConcentrationCheckRolledNoModifierLine={0}は精神集中を維持するための耐久力セーヴィング・スローを行います（難易度{1}）：{2}
 Feedback/&ConcentrationLostLine={0}は{1}への精神集中を失います
 Feedback/&ConditionAddedHasLine={0}には{1}が追加されました
@@ -352,8 +352,8 @@ Feedback/&ReplacedAbilityScoreForSaveFormat={0}！
 Feedback/&ReplacedAbilityScoreForSaveLine={0}は{3}のセーヴィング・スローに、{2}ではなく{1}を使用します。
 Feedback/&ResistantToDamageFormat={0}に抵抗します
 Feedback/&ResistantToDamageLine={0}は{1}ダメージに抵抗があり、半分のダメージしか受けません。
-Feedback/&ReturnProjectileAttackConsoleLine={0}は{1}へ投射物を跳ね返します：{3} = {4}
-Feedback/&ReturnProjectileAttackConsoleLineAnyAdvantage={0}は{1}へ投射物を跳ね返します：{3}{4} = {5}
+Feedback/&ReturnProjectileAttackConsoleLine={0}は{1}へ投射物を跳ね返します：{3}={4}
+Feedback/&ReturnProjectileAttackConsoleLineAnyAdvantage={0}は{1}へ投射物を跳ね返します：{3}{4}={5}
 Feedback/&ReturnProjectileAttackConsoleLineAnyAdvantageNoModifier={0}は{1}に投射物を跳ね返します：{3}{4}
 Feedback/&ReturnProjectileAttackConsoleLineNoModifier={0}は{1}に投射物を跳ね返します：{3}
 Feedback/&RitualCastLine={0}は儀式として{1}の呪文を発動します
@@ -367,7 +367,7 @@ Feedback/&RollCheckCriticalSuccessTitle=クリティカル成功
 Feedback/&RollCheckFailureTitle=失敗
 Feedback/&RollCheckSuccessTitle=成功
 Feedback/&SaveCaptionFormat={0}セーヴィング・スロー
-Feedback/&SaveConsoleAnyAdvantageLine={0}は{2}に対する{1}セーヴィング・スローを行い（難易度{3}）、{4}をロールします{5}= {6}
+Feedback/&SaveConsoleAnyAdvantageLine={0}は{2}に対する{1}セーヴィング・スローを行い（難易度{3}）、{4}をロールします{5}={6}
 Feedback/&SaveConsoleAnyAdvantageNoModifierLine={0}は{2}に対する{1}セーヴィング・スローを行い（難易度{3}）、{4}をロールします{5}
 Feedback/&SaveConsoleLine={0}は{2}に対する{1}セーヴィング・スローを行い（難易度{3}）、{4}={5}をロールします
 Feedback/&SaveConsoleNoModifierLine={0}は{2}に対する{1}セーヴィング・スローを行い（難易度{3}）、{4}をロールします

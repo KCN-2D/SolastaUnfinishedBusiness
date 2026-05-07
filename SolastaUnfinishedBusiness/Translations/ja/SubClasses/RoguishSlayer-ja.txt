@@ -6,7 +6,7 @@ Feature/&FeatureRoguishSlayerChainOfExecutionDescription=9レベル以降、ク�
 Feature/&FeatureRoguishSlayerChainOfExecutionTitle=処刑の連鎖
 Feature/&FeatureRoguishSlayerEliminationDescription=3レベル以降、敵の不意を突いたとき、あなたは最も危険な存在になります。まだ戦闘でターンを行っていないクリーチャーに対する攻撃ロールに有利を得ます。さらに、驚いているクリーチャーに対して命中させた攻撃はクリティカル・ヒットになります。
 Feature/&FeatureRoguishSlayerEliminationTitle=排除
-Feature/&FeatureRoguishSlayerFatalStrikeDescription=17レベル以降、あなたは即死の達人となります。驚いているクリーチャーに攻撃を命中させたとき、そのクリーチャーは耐久力セーヴィング・スロー（セーヴ難易度 = 8 + 習熟ボーナス + 敏捷力修正値）を行わなければなりません。失敗した場合、そのクリーチャーに対するその攻撃のダメージは2倍になります。
+Feature/&FeatureRoguishSlayerFatalStrikeDescription=17レベル以降、あなたは即死の達人となります。驚いているクリーチャーに攻撃を命中させたとき、そのクリーチャーは耐久力セーヴィング・スロー（セーヴ難易度=8+習熟ボーナス+敏捷力修正値）を行わなければなりません。失敗した場合、そのクリーチャーに対するその攻撃のダメージは2倍になります。
 Feature/&FeatureRoguishSlayerFatalStrikeTitle=必殺の一撃
 Feature/&PowerRoguishSlayerCloakOfShadowsDescription=13レベル以降、ボーナス・アクションを使用して1分間、不可視状態になれます。この特徴は大休憩ごとに敏捷力修正値に等しい回数だけ使用できます。
 Feature/&PowerRoguishSlayerCloakOfShadowsTitle=影の衣

@@ -268,7 +268,7 @@ Gadget/&ParameterQuestOperationTypeStartQuestTitle=クエスト開始
 Gadget/&ParameterQuestOperationTypeTitle=操作の種類
 Gadget/&ParameterQuestStepNameDescription=変更対象のクエスト・ステップの内部名です（ユーザーには表示されません）。ステップが進行中でない場合は効果がありません。
 Gadget/&ParameterQuestStepNameTitle=ステップ名
-Gadget/&ParameterQuestStepOutcomeDescription=現在のクエスト・ステップでトリガーされる結果番号です。1 = 最初の結果、2 = 2番目の結果、という意味です。
+Gadget/&ParameterQuestStepOutcomeDescription=現在のクエスト・ステップでトリガーされる結果番号です。1=最初の結果、2=2番目の結果、という意味です。
 Gadget/&ParameterQuestStepOutcomeTitle=結果番号
 Gadget/&ParameterQuestUpdateTypeDescription=クエスト更新の種類です。
 Gadget/&ParameterQuestUpdateTypeQuestCompletedDescription=指定されたクエストは完了しました
