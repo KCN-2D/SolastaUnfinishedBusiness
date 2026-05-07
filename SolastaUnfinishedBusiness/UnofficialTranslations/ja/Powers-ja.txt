@@ -1,5 +1,5 @@
-Powers/&ActioneStopTitle=激昂を止める
-Powers/&AncientRemorhaz_SonicBlast_Description=古代ルモアハズは、内なる燃焼を解き放ち、耳をつんざくような爆発を引き起こし、最強の敵さえも震え上がらせることができます。
+Powers/&ActioneStopTitle=激怒を終了
+Powers/&AncientRemorhaz_SonicBlast_Description=古代ルモアハズは内なる燃焼を解き放ち、耳をつんざく爆発を引き起こして、強敵さえも震え上がらせます。
 Powers/&AncientRemorhaz_SonicBlast_Title=音波爆発
 Powers/&Item_PenitentBelt_Description=1回のチャージで1d8+2ヒット・ポイントを回復します。
 Powers/&Item_PenitentBelt_Title=治癒
@@ -13,7 +13,7 @@ Powers/&Mummy_Lord_WhirlwindOfSand_Description=ミイラ・ロードは砂の旋
 Powers/&Mummy_Lord_WhirlwindOfSand_Title=砂の旋風
 Powers/&Orenetis_DraconicRegen_Description=オレネティスは竜の血に由来する変異の力を持ち、それは最初のマナ・ストームによって変質しました。ターン開始時に10ヒット・ポイントを回復します。
 Powers/&Orenetis_DraconicRegen_Title=竜の再生
-Powers/&Power_Deady_Leap_Description=このモンスターは跳躍し、圧倒的な力で敵に飛びかかることができます。
+Powers/&Power_Deady_Leap_Description=このモンスターは跳躍し、圧倒的な力で敵に飛びかかれます。
 Powers/&Power_Deady_Leap_Title=死の跳躍
 Powers/&Power_Ghast_Stench_Description=ガストは隣接マスに耐え難い悪臭を放ち、毒状態を引き起こすことがあります。
 Powers/&Power_Ghast_Stench_Title=悪臭
