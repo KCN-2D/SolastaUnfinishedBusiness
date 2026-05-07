@@ -94,7 +94,7 @@ ModUi/&DocsSubraces=亜種族
 ModUi/&DocsVersatilities=妖術応用
 ModUi/&DontEndTurnAfterReady=<color=#D89555>待機</color>アクションの後にターンを終了しない<i><color=#F0DAA0>（ボーナス・アクションや、他のソースによる追加のアクションを許可）</color></i>
 ModUi/&DontFollowCharacterInBattle=キャラクターがすでに画面上にいる場合、戦闘カメラは追従しません
-ModUi/&DontFollowMargin=<i><color=white>+ヒーローが画面外にいるか、画面端の % 以内にいる場合を除く</color></i>
+ModUi/&DontFollowMargin=<i><color=white>+ヒーローが画面外にいるか、画面端の%以内にいる場合を除く</color></i>
 ModUi/&DownloadVoice=提案された音声をダウンロード
 ModUi/&DownloadVoiceOngoing={0}でダウンロード中
 ModUi/&DownloadSpeechLanguageVoices={0}をダウンロード
@@ -110,7 +110,7 @@ ModUi/&EnableAdditionalIconsOnLevelMap=レベルマップ上のキャンプ、�
 ModUi/&EnableAdditionalItemsInDungeonMaker=Dungeon MakerでMOD追加アイテムを有効にする
 ModUi/&EnableAllyMovementAllowsFlight=クリーチャーが飛行している場合、自分や味方を移動させる特徴で空中位置を選べるようにします（例：<color=#D89555>機動攻撃</color>、<color=#D89555>本能的な飛びかかり</color>）
 ModUi/&EnableTeleportAllowsMidAirPositions=自由座標指定の瞬間移動呪文と能力が、視認できる占有されていない空中空間を対象にできるようにする
-ModUi/&EnableAlternateHuman=代替の<color=#D89555>ヒューマン</color>を有効にする<i><color=#F0DAA0>（+1特技 /+2能力値選択 /+1技能）</color></i>
+ModUi/&EnableAlternateHuman=代替の<color=#D89555>ヒューマン</color>を有効にする<i><color=#F0DAA0>（+1特技/+2能力値選択/+1技能）</color></i>
 ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>背景の能力値上昇が有効な間、ヒューマンは種族の能力値上昇を失う代わりに、代替ヒューマンの特技と技能パッケージを自動的に使用します。</color></i>
 ModUi/&EnableAlternateVotingSystem=代替投票システムを有効にする<i><color=#F0DAA0>（選択の重み=投票数 * ヒーローの魅力修正値）</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=<b>防御術師</b>の<color=#D89555>秘術の防壁</color>実装を有効にし、BG3のように動作させます。
@@ -324,7 +324,7 @@ ModUi/&HideExitAndTeleporterGizmosIfNotDiscovered=まだ発見されていない
 ModUi/&EnableOutOfCombatTargetingSightLines=非戦闘時の対象指定で、視認できる敵への視線を有効にする
 ModUi/&EnableCeilingAwareTargetPerception=天井付近での対象視認判定を改善する
 ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>天井付近の位置から下方へ伸びる視線判定線が、天井境界によって遮られたように見える場合に限り、わずかに低い地点から視認判定を再試行します。壁、遮蔽、暗闇、不可視、射程は無視しません。</i>
-ModUi/&HideMonsterHitPoints=モンスターの体力を正確なヒット・ポイントではなく、25% / 50% / 75% / 100% の単位で表示します。
+ModUi/&HideMonsterHitPoints=モンスターの体力を正確なヒット・ポイントではなく、25%/50%/75%/100%の単位で表示します。
 ModUi/&HideQuickenedActionWhenMetamagicOff=<i>+呪文修正トグルがオフのときはこのアクションを非表示にする</i>
 ModUi/&HighContrastTargetingAoeColor=効果範囲内クリーチャーの<b><color=$$$$$$>選択ハイライト色</color></b>を変更します
 ModUi/&HighContrastTargetingSingleColor=単体クリーチャーの<b><color=$$$$$$>選択ハイライト色</color></b>を変更します
@@ -351,7 +351,7 @@ ModUi/&Multiplayer=<color=#F0DAA0>マルチプレイヤー：</color>
 ModUi/&MultiplyTheExperienceGainedBy=<color=white>獲得経験値を</color><color=#C04040E0>（%）</color>倍にします
 ModUi/&NeverMoveCameraOnEnemyTurn=<i>+敵のターン中はカメラが動かない</i>
 ModUi/&NoExperienceOnLevelUp=レベルアップに経験は必要ありません
-ModUi/&OfficialObscurementRulesCancelAdvDisPairs=<i>+盲目、不可視、〈知覚〉の組み合わせで発生する<color=#D89555>有利 / 不利</color>を相殺します<color=#F0DAA0>（公式の<color=#D89555>有利 / 不利</color>ルールと併用すると便利です）</color></i>
+ModUi/&OfficialObscurementRulesCancelAdvDisPairs=<i>+盲目、不可視、〈知覚〉の組み合わせで発生する<color=#D89555>有利/不利</color>を相殺します<color=#F0DAA0>（公式の<color=#D89555>有利/不利</color>ルールと併用すると便利です）</color></i>
 ModUi/&OfficialObscurementRulesHeavilyObscuredAsProjectileBlocker=<i>+<color=#D89555>重度の隠蔽</color>エリアを投射物を遮る地形として扱います<color=#F0DAA0>（<color=#D89555>殺戮の雲</color>、<color=#D89555>濃霧</color>、<color=#D89555>焼夷雲</color>、<color=#D89555>花びら嵐</color>、<color=#D89555>みぞれ嵐</color>、<color=#D89555>悪臭雲</color>）</color></i>
 ModUi/&OfficialObscurementRulesInvisibleCreaturesCanBeTarget=<i>+<color=#D89555>不可視</color>のクリーチャーも対象にできるようにします。そのクリーチャーに対する攻撃ロールは不利になり、そのクリーチャーの攻撃ロールは有利になります</i>
 ModUi/&OfficialObscurementRulesMagicalDarknessAsProjectileBlocker=<i>+<color=#D89555>魔法的な暗闇</color>領域を投射物を遮る地形として扱います<color=#F0DAA0>（<color=#D89555>暗闇</color>呪文効果で生じた領域すべて）</color></i>
