@@ -36,6 +36,7 @@ internal static class CampaignTranslationRuntimeRepairContext
 
         RepairSessionLocation(repairIndex);
         RepairCampaignNodes(campaignMap, repairIndex);
+        RepairCampaignSegments(campaignMap, repairIndex);
         RepairUserLocationStatuses(repairIndex);
     }
 
@@ -48,6 +49,8 @@ internal static class CampaignTranslationRuntimeRepairContext
 
         var repairIndex = GetRepairIndex(userCampaign);
 
+        RepairUserBiomes(userCampaign, repairIndex);
+
         if (repairIndex.UserLocationNames.Count == 0)
         {
             return;
@@ -56,6 +59,30 @@ internal static class CampaignTranslationRuntimeRepairContext
         RepairSessionLocation(repairIndex);
         RepairCampaignSourceNodes(userCampaign, repairIndex);
         RepairUserLocationGadgets(userCampaign, repairIndex);
+    }
+
+    internal static void RepairTravelJournalSource()
+    {
+        if (!TryGetCurrentUserCampaign(out var userCampaign))
+        {
+            return;
+        }
+
+        var repairIndex = GetRepairIndex(userCampaign);
+
+        RepairUserBiomes(userCampaign, repairIndex);
+        RepairCampaignSegments(Gui.GameCampaign?.GameCampaignMap, repairIndex);
+    }
+
+    internal static bool TryRepairTravelJournalLine(
+        [CanBeNull] string logLine,
+        [CanBeNull] out string repairedLogLine)
+    {
+        repairedLogLine = null;
+
+        return !string.IsNullOrWhiteSpace(logLine) &&
+               TryGetCurrentUserCampaign(out var userCampaign) &&
+               GetRepairIndex(userCampaign).TryRepairTravelJournalLine(logLine, out repairedLogLine);
     }
 
     internal static void RepairSessionLocation()
@@ -210,6 +237,43 @@ internal static class CampaignTranslationRuntimeRepairContext
         }
     }
 
+    private static void RepairCampaignSegments(
+        [CanBeNull] GameCampaignMap campaignMap,
+        [NotNull] RepairIndex repairIndex)
+    {
+        var gameSegments = campaignMap?.GameCampaignSegments;
+
+        if (gameSegments == null || gameSegments.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var gameSegment in gameSegments)
+        {
+            RepairBiomeDefinition(gameSegment?.BiomeDefinition, repairIndex);
+        }
+    }
+
+    private static void RepairBiomeDefinition(
+        [CanBeNull] BiomeDefinition biomeDefinition,
+        [NotNull] RepairIndex repairIndex)
+    {
+        var narrativeLines = biomeDefinition?.NarrativeEventBasicLines;
+
+        if (narrativeLines == null || narrativeLines.Count == 0)
+        {
+            return;
+        }
+
+        for (var lineIndex = 0; lineIndex < narrativeLines.Count; lineIndex++)
+        {
+            if (repairIndex.TryRepairTravelJournalLine(narrativeLines[lineIndex], out var repairedLine))
+            {
+                narrativeLines[lineIndex] = repairedLine;
+            }
+        }
+    }
+
     private static void RepairCampaignNode(
         [CanBeNull] GameCampaignNode gameNode,
         [CanBeNull] SourceCampaignMapNode sourceNode,
@@ -260,6 +324,45 @@ internal static class CampaignTranslationRuntimeRepairContext
             if (!repairIndex.UserLocationNames.Contains(userLocationName))
             {
                 statusByLocation[userLocationName] = LocationDefinitions.UserLocationStatus.Hidden;
+            }
+        }
+    }
+
+    private static void RepairUserBiomes([NotNull] UserCampaign userCampaign, [NotNull] RepairIndex repairIndex)
+    {
+        var targetBiomes = userCampaign.UserBiomes;
+        var sourceBiomes = repairIndex.UserBiomes;
+
+        if (targetBiomes == null || targetBiomes.Count == 0 || sourceBiomes.Length == 0)
+        {
+            return;
+        }
+
+        var count = Math.Min(targetBiomes.Count, sourceBiomes.Length);
+
+        for (var biomeIndex = 0; biomeIndex < count; biomeIndex++)
+        {
+            RepairUserBiome(targetBiomes[biomeIndex], sourceBiomes[biomeIndex]);
+        }
+    }
+
+    private static void RepairUserBiome([CanBeNull] UserBiome targetBiome, [CanBeNull] SourceBiome sourceBiome)
+    {
+        var targetLines = targetBiome?.NarrativeEventBasicLines;
+        var sourceLines = sourceBiome?.NarrativeEventBasicLines;
+
+        if (targetLines == null || targetLines.Count == 0 || sourceLines == null || sourceLines.Count == 0)
+        {
+            return;
+        }
+
+        var count = Math.Min(targetLines.Count, sourceLines.Count);
+
+        for (var lineIndex = 0; lineIndex < count; lineIndex++)
+        {
+            if (!string.IsNullOrWhiteSpace(sourceLines[lineIndex]))
+            {
+                targetLines[lineIndex] = sourceLines[lineIndex];
             }
         }
     }
@@ -633,6 +736,7 @@ internal static class CampaignTranslationRuntimeRepairContext
 
         AddCampaignMapNodeAliases(userCampaign, repairIndex);
         AddUserLocationGadgetAliases(userCampaign, repairIndex);
+        AddUserBiomeLineTranslations(userCampaign, repairIndex);
 
         return repairIndex;
     }
@@ -781,7 +885,8 @@ internal static class CampaignTranslationRuntimeRepairContext
         return new SourceCampaign(
             GetString(campaign, "title"),
             EnumerateSourceCampaignMapNodes(campaign["campaignMapNodes"]).ToArray(),
-            EnumerateSourceLocations(campaign["userLocations"]).ToArray());
+            EnumerateSourceLocations(campaign["userLocations"]).ToArray(),
+            EnumerateSourceBiomes(campaign["userBiomes"]).ToArray());
     }
 
     [NotNull]
@@ -795,6 +900,10 @@ internal static class CampaignTranslationRuntimeRepairContext
             (userCampaign.UserLocations ?? Enumerable.Empty<UserLocation>())
             .Where(x => x != null)
             .Select(CreateSourceLocation)
+            .ToArray(),
+            (userCampaign.UserBiomes ?? Enumerable.Empty<UserBiome>())
+            .Where(x => x != null)
+            .Select(CreateSourceBiome)
             .ToArray());
     }
 
@@ -818,6 +927,12 @@ internal static class CampaignTranslationRuntimeRepairContext
             EnumerateUserGadgetEntries(userLocation)
             .Select(CreateSourceGadgetEntry)
             .ToArray());
+    }
+
+    [NotNull]
+    private static SourceBiome CreateSourceBiome([NotNull] UserBiome userBiome)
+    {
+        return new SourceBiome((userBiome.NarrativeEventBasicLines ?? Enumerable.Empty<string>()).ToArray());
     }
 
     [NotNull]
@@ -880,6 +995,15 @@ internal static class CampaignTranslationRuntimeRepairContext
     }
 
     [NotNull]
+    private static IEnumerable<SourceBiome> EnumerateSourceBiomes([CanBeNull] JToken biomesToken)
+    {
+        foreach (var biome in biomesToken?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
+        {
+            yield return new SourceBiome(EnumerateSourceStringArray(biome["narrativeEventBasicLines"]).ToArray());
+        }
+    }
+
+    [NotNull]
     private static IEnumerable<SourceGadgetEntry> EnumerateSourceGadgetEntries([NotNull] JObject location)
     {
         var roomIndex = 0;
@@ -931,6 +1055,15 @@ internal static class CampaignTranslationRuntimeRepairContext
             yield return new SourceDestination(
                 GetString(destination, "userLocationName"),
                 GetString(destination, "displayedTitle"));
+        }
+    }
+
+    [NotNull]
+    private static IEnumerable<string> EnumerateSourceStringArray([CanBeNull] JToken stringsToken)
+    {
+        foreach (var value in stringsToken?.Values<string>() ?? Enumerable.Empty<string>())
+        {
+            yield return value;
         }
     }
 
@@ -1006,6 +1139,47 @@ internal static class CampaignTranslationRuntimeRepairContext
         }
     }
 
+    private static void AddUserBiomeLineTranslations(
+        [NotNull] UserCampaign userCampaign,
+        [NotNull] RepairIndex repairIndex)
+    {
+        var targetBiomes = userCampaign.UserBiomes;
+        var sourceBiomes = repairIndex.UserBiomes;
+
+        if (targetBiomes == null || targetBiomes.Count == 0 || sourceBiomes.Length == 0)
+        {
+            return;
+        }
+
+        var biomeCount = Math.Min(targetBiomes.Count, sourceBiomes.Length);
+
+        for (var biomeIndex = 0; biomeIndex < biomeCount; biomeIndex++)
+        {
+            AddUserBiomeLineTranslations(targetBiomes[biomeIndex], sourceBiomes[biomeIndex], repairIndex);
+        }
+    }
+
+    private static void AddUserBiomeLineTranslations(
+        [CanBeNull] UserBiome targetBiome,
+        [CanBeNull] SourceBiome sourceBiome,
+        [NotNull] RepairIndex repairIndex)
+    {
+        var targetLines = targetBiome?.NarrativeEventBasicLines;
+        var sourceLines = sourceBiome?.NarrativeEventBasicLines;
+
+        if (targetLines == null || targetLines.Count == 0 || sourceLines == null || sourceLines.Count == 0)
+        {
+            return;
+        }
+
+        var lineCount = Math.Min(targetLines.Count, sourceLines.Count);
+
+        for (var lineIndex = 0; lineIndex < lineCount; lineIndex++)
+        {
+            repairIndex.AddTravelJournalLineTranslation(targetLines[lineIndex], sourceLines[lineIndex]);
+        }
+    }
+
     [NotNull]
     private static IEnumerable<UserGadgetEntry> EnumerateUserGadgetEntries([NotNull] UserLocation userLocation)
     {
@@ -1070,11 +1244,13 @@ internal static class CampaignTranslationRuntimeRepairContext
         internal SourceCampaign(
             [CanBeNull] string title,
             [NotNull] SourceCampaignMapNode[] campaignMapNodes,
-            [NotNull] SourceLocation[] userLocations)
+            [NotNull] SourceLocation[] userLocations,
+            [NotNull] SourceBiome[] userBiomes)
         {
             Title = title;
             CampaignMapNodes = campaignMapNodes;
             UserLocations = userLocations;
+            UserBiomes = userBiomes;
         }
 
         [CanBeNull]
@@ -1085,6 +1261,9 @@ internal static class CampaignTranslationRuntimeRepairContext
 
         [NotNull]
         internal SourceLocation[] UserLocations { get; }
+
+        [NotNull]
+        internal SourceBiome[] UserBiomes { get; }
     }
 
     private sealed class SourceCampaignMapNode
@@ -1138,6 +1317,17 @@ internal static class CampaignTranslationRuntimeRepairContext
 
         [NotNull]
         internal SourceGadgetEntry[] GadgetEntries { get; }
+    }
+
+    private sealed class SourceBiome
+    {
+        internal SourceBiome([NotNull] IReadOnlyList<string> narrativeEventBasicLines)
+        {
+            NarrativeEventBasicLines = narrativeEventBasicLines;
+        }
+
+        [NotNull]
+        internal IReadOnlyList<string> NarrativeEventBasicLines { get; }
     }
 
     private sealed class SourceGadget
@@ -1350,15 +1540,18 @@ internal static class CampaignTranslationRuntimeRepairContext
     {
         private readonly HashSet<string> _ambiguousAliases = new(StringComparer.Ordinal);
         private readonly HashSet<string> _ambiguousNumberPrefixes = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _ambiguousTravelJournalLines = new(StringComparer.Ordinal);
         private readonly Dictionary<string, string> _aliases = new(StringComparer.Ordinal);
         private readonly Dictionary<string, LocationRepairIndex> _locationIndexesByName = new(StringComparer.Ordinal);
         private readonly Dictionary<string, string> _locationsByNumberPrefix = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _travelJournalLineTranslations = new(StringComparer.Ordinal);
 
         internal RepairIndex(
             [NotNull] SourceCampaign userCampaign,
             [NotNull] HashSet<string> userLocationNames)
         {
             CampaignMapNodes = userCampaign.CampaignMapNodes;
+            UserBiomes = userCampaign.UserBiomes;
             UserLocationNames = userLocationNames;
 
             foreach (var userLocation in userCampaign.UserLocations)
@@ -1377,6 +1570,9 @@ internal static class CampaignTranslationRuntimeRepairContext
 
         [NotNull]
         internal SourceCampaignMapNode[] CampaignMapNodes { get; }
+
+        [NotNull]
+        internal SourceBiome[] UserBiomes { get; }
 
         [NotNull]
         internal HashSet<string> UserLocationNames { get; }
@@ -1402,6 +1598,40 @@ internal static class CampaignTranslationRuntimeRepairContext
 
             return !string.IsNullOrWhiteSpace(alias) &&
                    TryResolveAlias(alias, out userLocationName);
+        }
+
+        internal void AddTravelJournalLineTranslation(
+            [CanBeNull] string sourceLine,
+            [CanBeNull] string translatedLine)
+        {
+            if (string.IsNullOrWhiteSpace(sourceLine) ||
+                string.IsNullOrWhiteSpace(translatedLine) ||
+                sourceLine == translatedLine)
+            {
+                return;
+            }
+
+            if (!_travelJournalLineTranslations.TryGetValue(sourceLine, out var existingTranslation))
+            {
+                _travelJournalLineTranslations.Add(sourceLine, translatedLine);
+                return;
+            }
+
+            if (existingTranslation != translatedLine)
+            {
+                _ambiguousTravelJournalLines.Add(sourceLine);
+            }
+        }
+
+        internal bool TryRepairTravelJournalLine(
+            [CanBeNull] string sourceLine,
+            [CanBeNull] out string translatedLine)
+        {
+            translatedLine = null;
+
+            return !string.IsNullOrWhiteSpace(sourceLine) &&
+                   !_ambiguousTravelJournalLines.Contains(sourceLine) &&
+                   _travelJournalLineTranslations.TryGetValue(sourceLine, out translatedLine);
         }
 
         [CanBeNull]
