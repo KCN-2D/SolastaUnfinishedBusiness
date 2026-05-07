@@ -218,40 +218,48 @@ internal static class BootContext
                 var payload = File.ReadAllText(userCampaign);
                 var infoJson = JsonConvert.DeserializeObject<JObject>(payload);
 
-                foreach (var userItem in infoJson["userItems"]!)
-                {
-                    var referenceDefinition = userItem["referenceDefinition"]!.Value<string>();
+                var campaignName = Path.GetFileName(userCampaign);
 
-                    if (DatabaseRepository.GetDatabase<ItemDefinition>()
-                            .TryGetElement(referenceDefinition, out var element) &&
-                        element.ContentPack != CeContentPackContext.CeContentPack)
-                    {
-                        continue;
-                    }
-
-                    Main.Error(
-                        $"User campaign {Path.GetFileName(userCampaign)} has an invalid item reference: {referenceDefinition}");
-                }
-
-                foreach (var userMonster in infoJson["userMonsters"]!)
-                {
-                    var referenceDefinition = userMonster["referenceDefinition"]!.Value<string>();
-
-                    if (DatabaseRepository.GetDatabase<MonsterDefinition>()
-                            .TryGetElement(referenceDefinition, out var element) &&
-                        element.ContentPack != CeContentPackContext.CeContentPack)
-                    {
-                        continue;
-                    }
-
-                    Main.Error(
-                        $"User campaign {Path.GetFileName(userCampaign)} has an invalid monster reference: {referenceDefinition}");
-                }
+                LogMissingReferencesInUserCampaign<ItemDefinition>(
+                    campaignName, infoJson, "userItems", "item");
+                LogMissingReferencesInUserCampaign<MonsterDefinition>(
+                    campaignName, infoJson, "userMonsters", "monster");
             }
             catch
             {
                 Main.Error($"User campaign {Path.GetFileName(userCampaign)} is really messed up.");
             }
+        }
+    }
+
+    private static void LogMissingReferencesInUserCampaign<TDefinition>(
+        string campaignName,
+        JObject infoJson,
+        string collectionName,
+        string referenceKind)
+        where TDefinition : BaseDefinition
+    {
+        if (infoJson[collectionName] is not JArray references)
+        {
+            return;
+        }
+
+        var database = DatabaseRepository.GetDatabase<TDefinition>();
+        var checkedReferences = new System.Collections.Generic.HashSet<string>();
+
+        foreach (var reference in references)
+        {
+            var referenceDefinition = reference["referenceDefinition"]?.Value<string>();
+
+            if (string.IsNullOrWhiteSpace(referenceDefinition) ||
+                !checkedReferences.Add(referenceDefinition) ||
+                database.TryGetElement(referenceDefinition, out _))
+            {
+                continue;
+            }
+
+            Main.Error(
+                $"User campaign {campaignName} has an invalid {referenceKind} reference: {referenceDefinition}");
         }
     }
 }
