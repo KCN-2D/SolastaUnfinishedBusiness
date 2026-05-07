@@ -49,5 +49,5 @@ Reaction/&CustomReactionEldritchWardTitle=妖術護法
 Screen/&BattlefieldShorthandExtraSpellDescription=戦場速記で一時的に習得した呪文です。
 Screen/&BattlefieldShorthandExtraSpellTitle=速記
 Screen/&InvocationPoolEldritchVersatilityPoolHeader=術式
-Tooltip/&EldritchVersatilityPortraitPoolFormat={0}/{1}術式点\n術式切替の状態：{2}\n術式点消費の優先順：{3}
+Tooltip/&EldritchVersatilityPortraitPoolFormat=術式点：{0}/{1}\n術式切替の状態：{2}\n術式点消費の優先順：{3}
 UI/&CustomFeatureSelectionTooltipTypeEldritchVersatilityPool=術式

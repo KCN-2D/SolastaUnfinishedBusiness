@@ -4,7 +4,7 @@ UI/&Add=追加
 UI/&AdditionalActionSource=付与元：{0}
 UI/&Current Party=現在のパーティ
 UI/&DistanceFormat=距離：{0}
-UI/&Experimental Preview:=実験的プレビュー<i><color=Yellow>[使用前にセーブデータをバックアップ]</color></i>：
+UI/&Experimental Preview:=実験的プレビュー<i><color=Yellow>（使用前にセーブデータをバックアップ）</color></i>：
 UI/&Expert=習熟強化
 UI/&From=から
 UI/&PartyEditor=パーティエディター
