@@ -119,6 +119,18 @@ internal static class CombatAiContext
     private const string OozeFamilyName = "Ooze";
     private const string PlantFamilyName = "Plant";
     private const string UndeadFamilyName = "Undead";
+    private const string FlightSuspendedConditionName = "ConditionFlightSuspended";
+    private const int FreeJumpDefaultMinimumSuccessChance = 70;
+    private const int FreeJumpImprovedPositionMinimumSuccessChance = 65;
+    private const int FreeJumpEmergencyMinimumSuccessChance = 50;
+    private const float FreeJumpMinimumBaselineScore = 0.20f;
+    private const float FreeJumpMinimumPositioningScore = 0.12f;
+    private const float FreeJumpMinimumActionEconomyScore = 0.05f;
+    private const float FreeJumpAttackAccessScore = 0.35f;
+    private const float FreeJumpThreatReductionScore = 0.20f;
+    private const float FreeJumpCoverImprovementScore = 0.12f;
+    private const float FreeJumpObstacleBypassScore = 0.16f;
+    private const float FreeJumpHighGroundScore = 0.08f;
 
     private static readonly string[] CautiousFlags = ["Self-Preservation", "Pragmatism", "Cynicism"];
     private static readonly string[] DisciplinedFlags = ["Authority", "Lawfulness", "Helpfulness", "Friendliness"];
@@ -169,6 +181,20 @@ internal static class CombatAiContext
         internal bool IsWounded { get; } = isWounded;
         internal bool IsConcentrating { get; } = isConcentrating;
         internal bool IsApproachSource { get; } = isApproachSource;
+    }
+
+    private readonly struct FreeJumpPositionFacts(
+        bool hasPerceivedEnemy,
+        float nearestEnemyDistance,
+        int meleeThreatCount,
+        int coveredRangedThreatCount,
+        bool canAttack)
+    {
+        internal bool HasPerceivedEnemy { get; } = hasPerceivedEnemy;
+        internal float NearestEnemyDistance { get; } = nearestEnemyDistance;
+        internal int MeleeThreatCount { get; } = meleeThreatCount;
+        internal int CoveredRangedThreatCount { get; } = coveredRangedThreatCount;
+        internal bool CanAttack { get; } = canAttack;
     }
 
     internal static bool IsAdvancedCombatAiEnabled =>
@@ -258,8 +284,12 @@ internal static class CombatAiContext
 
     internal static bool IsAiControlledForCombat(GameLocationCharacter character)
     {
-        if (!IsAdvancedCombatAiEnabled ||
-            character == null ||
+        return IsAdvancedCombatAiEnabled && IsAiControlledByGame(character);
+    }
+
+    private static bool IsAiControlledByGame(GameLocationCharacter character)
+    {
+        if (character == null ||
             character.RulesetCharacter == null ||
             character.ControllerId != PlayerControllerManager.DmControllerId)
         {
@@ -485,6 +515,272 @@ internal static class CombatAiContext
         PrimeTurnCache(character);
 
         return true;
+    }
+
+    internal static bool CanUseFreeJumpForAi(GameLocationCharacter character)
+    {
+        if (!Main.Settings.EnableBonusActionFreeJump ||
+            !CanExecuteAutomaticCombatAction(character) ||
+            !IsAiControlledByGame(character) ||
+            character?.RulesetCharacter == null ||
+            character.UsedTacticalMoves != 0 ||
+            !character.CanDecideToMoveByItself ||
+            character.GetActionTypeStatus(ActionType.Bonus) != ActionStatus.Available ||
+            character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available)
+        {
+            return false;
+        }
+
+        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
+        var profile = BuildProfile(character);
+
+        return !ShouldPreferFlightOverFreeJump(character, profile, battleService);
+    }
+
+    internal static bool TryEvaluateFreeJumpDestination(
+        GameLocationCharacter actor,
+        int3 start,
+        int3 destination,
+        FreeJumpContext.FreeJumpCheckPreview preview,
+        bool bypassesObstacle,
+        out float score)
+    {
+        score = 0f;
+
+        if (!CanUseFreeJumpForAi(actor) || preview.IsAutomaticFailure)
+        {
+            return false;
+        }
+
+        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
+        var positioningService = ServiceRepository.GetService<IGameLocationPositioningService>();
+
+        if (battleService == null || positioningService == null)
+        {
+            return false;
+        }
+
+        var profile = BuildProfile(actor);
+
+        if (ShouldPreferFlightOverFreeJump(actor, profile, battleService))
+        {
+            return false;
+        }
+
+        var self = BuildSelfAssessment(actor);
+        var currentFacts = CollectFreeJumpPositionFacts(actor, start, battleService, positioningService);
+        var destinationFacts = CollectFreeJumpPositionFacts(actor, destination, battleService, positioningService);
+        var hasEnemyFacts = currentFacts.HasPerceivedEnemy || destinationFacts.HasPerceivedEnemy;
+        var emergency = self.IsCritical || self.IsBloodied || self.HasSeriousCondition || self.IsConcentrating;
+        var canGainAttack = !currentFacts.CanAttack && destinationFacts.CanAttack;
+        var reducesMeleeThreat = destinationFacts.MeleeThreatCount < currentFacts.MeleeThreatCount;
+        var improvesCover = destinationFacts.CoveredRangedThreatCount > currentFacts.CoveredRangedThreatCount;
+        var movesCloser = hasEnemyFacts &&
+                          destinationFacts.NearestEnemyDistance + 0.5f < currentFacts.NearestEnemyDistance;
+        var movesAway = hasEnemyFacts &&
+                        destinationFacts.NearestEnemyDistance > currentFacts.NearestEnemyDistance + 1.0f;
+
+        if (hasEnemyFacts)
+        {
+            if (canGainAttack)
+            {
+                score += FreeJumpAttackAccessScore;
+            }
+
+            if (reducesMeleeThreat)
+            {
+                score += (currentFacts.MeleeThreatCount - destinationFacts.MeleeThreatCount) *
+                         FreeJumpThreatReductionScore;
+
+                if (emergency)
+                {
+                    score += 0.10f;
+                }
+            }
+
+            if (improvesCover)
+            {
+                score += FreeJumpCoverImprovementScore;
+            }
+
+            if (profile.PrefersAggressivePursuit && movesCloser)
+            {
+                var improvement = currentFacts.NearestEnemyDistance - destinationFacts.NearestEnemyDistance;
+
+                score += Mathf.Min(0.22f, improvement * 0.05f);
+            }
+
+            if ((profile.PrefersDistance || emergency) && movesAway)
+            {
+                var improvement = destinationFacts.NearestEnemyDistance - currentFacts.NearestEnemyDistance;
+
+                score += Mathf.Min(0.18f, improvement * 0.04f);
+            }
+
+            if (destination.y > start.y && (destinationFacts.CanAttack || profile.PrefersDistance))
+            {
+                score += FreeJumpHighGroundScore;
+            }
+
+            if (bypassesObstacle && (canGainAttack || reducesMeleeThreat || improvesCover || movesCloser || movesAway))
+            {
+                score += FreeJumpObstacleBypassScore;
+            }
+        }
+        else if (IsAdvancedCombatAiPositioningEnabled &&
+                 TryGetLastKnownEnemyPosition(actor, out var lastKnownEnemyPosition))
+        {
+            score += ComputeApproachPositionScore(
+                start,
+                destination,
+                lastKnownEnemyPosition,
+                Math.Max(ComputeGridDistance(start, lastKnownEnemyPosition), 1f),
+                0.20f);
+        }
+
+        if (!IsFreeJumpRiskAcceptable(preview, score, emergency, bypassesObstacle))
+        {
+            return false;
+        }
+
+        var minimumScore = IsAdvancedCombatAiPositioningEnabled || IsAdvancedCombatAiFlightEnabled
+            ? FreeJumpMinimumPositioningScore
+            : FreeJumpMinimumBaselineScore;
+
+        if (IsAdvancedCombatAiActionEconomyEnabled &&
+            !HasAnyUsefulHostileActionAgainstVisibleEnemies(actor, battleService))
+        {
+            minimumScore = Math.Min(minimumScore, FreeJumpMinimumActionEconomyScore);
+        }
+
+        return score >= minimumScore;
+    }
+
+    private static FreeJumpPositionFacts CollectFreeJumpPositionFacts(
+        GameLocationCharacter actor,
+        int3 position,
+        IGameLocationBattleService battleService,
+        IGameLocationPositioningService positioningService)
+    {
+        var hasPerceivedEnemy = false;
+        var nearestEnemyDistance = float.MaxValue;
+        var meleeThreatCount = 0;
+        var coveredRangedThreatCount = 0;
+        var canMeleeAttack = false;
+        var canRangedAttack = false;
+
+        foreach (var enemy in actor.PerceivedFoes)
+        {
+            if (enemy?.RulesetCharacter == null || enemy.Side == actor.Side)
+            {
+                continue;
+            }
+
+            hasPerceivedEnemy = true;
+
+            var distance = positioningService.ComputeDistanceBetweenCharactersApproximatingSize(
+                actor, position, enemy, enemy.LocationPosition);
+
+            if (distance < nearestEnemyDistance)
+            {
+                nearestEnemyDistance = distance;
+            }
+
+            if (CanAttackInMeleeFromPosition(enemy, enemy.LocationPosition, actor, position, battleService))
+            {
+                meleeThreatCount++;
+            }
+
+            if (CanAttackInMeleeFromPosition(actor, position, enemy, enemy.LocationPosition, battleService))
+            {
+                canMeleeAttack = true;
+            }
+
+            if (TryGetRangedAttackModifierFromPosition(
+                    actor,
+                    position,
+                    enemy,
+                    enemy.LocationPosition,
+                    battleService,
+                    out _))
+            {
+                canRangedAttack = true;
+            }
+
+            if (TryGetRangedAttackModifierFromPosition(
+                    enemy,
+                    enemy.LocationPosition,
+                    actor,
+                    position,
+                    battleService,
+                    out var enemyModifier) &&
+                enemyModifier?.coverType >= CoverType.Half)
+            {
+                coveredRangedThreatCount++;
+            }
+        }
+
+        return new FreeJumpPositionFacts(
+            hasPerceivedEnemy,
+            nearestEnemyDistance,
+            meleeThreatCount,
+            coveredRangedThreatCount,
+            canMeleeAttack || canRangedAttack);
+    }
+
+    private static bool IsFreeJumpRiskAcceptable(
+        FreeJumpContext.FreeJumpCheckPreview preview,
+        float score,
+        bool emergency,
+        bool bypassesObstacle)
+    {
+        if (preview.IsAutomaticFailure)
+        {
+            return false;
+        }
+
+        if (!preview.RequiresAthleticsCheck)
+        {
+            return true;
+        }
+
+        var minimumSuccessChance = FreeJumpDefaultMinimumSuccessChance;
+
+        if (emergency && score >= FreeJumpMinimumActionEconomyScore)
+        {
+            minimumSuccessChance = FreeJumpEmergencyMinimumSuccessChance;
+        }
+        else if (bypassesObstacle || score >= FreeJumpMinimumPositioningScore)
+        {
+            minimumSuccessChance = FreeJumpImprovedPositionMinimumSuccessChance;
+        }
+
+        return preview.SuccessChance >= minimumSuccessChance;
+    }
+
+    private static bool ShouldPreferFlightOverFreeJump(
+        GameLocationCharacter character,
+        CombatAiProfile profile,
+        IGameLocationBattleService battleService)
+    {
+        var rulesetCharacter = character?.RulesetCharacter;
+
+        if (!IsAdvancedCombatAiFlightEnabled ||
+            rulesetCharacter == null ||
+            rulesetCharacter.HasConditionOfType(FlightSuspendedConditionName) ||
+            !profile.HasFlight)
+        {
+            return false;
+        }
+
+        if (profile.PrefersAerialCombat)
+        {
+            return true;
+        }
+
+        return !rulesetCharacter.IsTouchingGround() &&
+               battleService != null &&
+               HasAnyUsableAttackAgainstVisibleEnemies(character, battleService);
     }
 
     internal static bool TrySpendLeftoverActionEconomy(GameLocationCharacter character)

@@ -87,6 +87,12 @@ internal static class FreeJumpContext
         internal string Reason { get; } = reason;
     }
 
+    internal readonly struct FreeJumpCandidateInfo(FreeJumpCheckPreview preview, bool bypassesObstacle)
+    {
+        internal FreeJumpCheckPreview Preview { get; } = preview;
+        internal bool BypassesObstacle { get; } = bypassesObstacle;
+    }
+
     private readonly struct FreeJumpProfile(
         int maxHorizontalCells,
         int maxVerticalCells,
@@ -570,6 +576,18 @@ internal static class FreeJumpContext
             return null;
         }
 
+        if (!TryGetAiCandidateInfo(character, character.LocationPosition, destination, out var candidateInfo) ||
+            !CombatAiContext.TryEvaluateFreeJumpDestination(
+                character,
+                character.LocationPosition,
+                destination,
+                candidateInfo.Preview,
+                candidateInfo.BypassesObstacle,
+                out _))
+        {
+            return null;
+        }
+
         return BeginScope(character, ScopeKind.AiMove, destination, true);
     }
 
@@ -829,7 +847,7 @@ internal static class FreeJumpContext
             return;
         }
 
-        if (!TryBuildFreeJumpNeighbour(currentNode, scope, destination, out var neighbour, out _))
+        if (!TryBuildFreeJumpNeighbour(currentNode, scope, destination, out var neighbour, out _, out _))
         {
             neighbours.Clear();
             return;
@@ -1140,7 +1158,13 @@ internal static class FreeJumpContext
                     destination,
                     scope.Profile,
                     scope.Kind == ScopeKind.AiTurn,
-                    out _))
+                    out _,
+                    out var bypassesObstacle))
+            {
+                return;
+            }
+
+            if (!CanUseAiCandidate(scope, destination, bypassesObstacle))
             {
                 return;
             }
@@ -1153,7 +1177,18 @@ internal static class FreeJumpContext
             return;
         }
 
-        if (!TryBuildFreeJumpNeighbour(currentNode, scope, destination, out var neighbour, out _))
+        if (!TryBuildFreeJumpNeighbour(
+                currentNode,
+                scope,
+                destination,
+                out var neighbour,
+                out _,
+                out var bypassesObstacleForNeighbour))
+        {
+            return;
+        }
+
+        if (!CanUseAiCandidate(scope, destination, bypassesObstacleForNeighbour))
         {
             return;
         }
@@ -1167,9 +1202,11 @@ internal static class FreeJumpContext
         ScopeData scope,
         int3 destination,
         out PathfindingNeighbour neighbour,
-        out RejectionReason reason)
+        out RejectionReason reason,
+        out bool bypassesObstacle)
     {
         neighbour = default;
+        bypassesObstacle = false;
 
         if (!TryValidateCandidate(
                 scope.Character,
@@ -1177,7 +1214,8 @@ internal static class FreeJumpContext
                 destination,
                 scope.Profile,
                 scope.Kind == ScopeKind.AiTurn,
-                out reason))
+                out reason,
+                out bypassesObstacle))
         {
             return false;
         }
@@ -1225,6 +1263,69 @@ internal static class FreeJumpContext
         return (existingNeighbour.flags & movementFlags) != 0;
     }
 
+    private static bool CanUseAiCandidate(ScopeData scope, int3 destination, bool bypassesObstacle)
+    {
+        if (scope.Kind != ScopeKind.AiTurn)
+        {
+            return true;
+        }
+
+        if (!TryComputeFreeJumpPreview(
+                scope.Character,
+                scope.StartPosition,
+                destination,
+                true,
+                scope.Profile,
+                out var preview))
+        {
+            return false;
+        }
+
+        return CombatAiContext.TryEvaluateFreeJumpDestination(
+            scope.Character,
+            scope.StartPosition,
+            destination,
+            preview,
+            bypassesObstacle,
+            out _);
+    }
+
+    private static bool TryGetAiCandidateInfo(
+        GameLocationCharacter character,
+        int3 start,
+        int3 destination,
+        out FreeJumpCandidateInfo candidateInfo)
+    {
+        candidateInfo = default;
+
+        if (!TryComputeProfile(character, out var profile))
+        {
+            return false;
+        }
+
+        return TryGetAiCandidateInfo(character, start, destination, profile, out candidateInfo);
+    }
+
+    private static bool TryGetAiCandidateInfo(
+        GameLocationCharacter character,
+        int3 start,
+        int3 destination,
+        FreeJumpProfile profile,
+        out FreeJumpCandidateInfo candidateInfo)
+    {
+        candidateInfo = default;
+
+        if (!TryValidateCandidate(character, start, destination, profile, true, out _, out var bypassesObstacle) ||
+            !TryComputeFreeJumpPreview(character, start, destination, true, profile, out var preview))
+        {
+            return false;
+        }
+
+        candidateInfo = new FreeJumpCandidateInfo(preview, bypassesObstacle);
+
+        return true;
+    }
+
     private static bool TryValidateCandidate(
         GameLocationCharacter character,
         int3 start,
@@ -1233,6 +1334,27 @@ internal static class FreeJumpContext
         bool avoidDangerousPosition,
         out RejectionReason reason)
     {
+        return TryValidateCandidate(
+            character,
+            start,
+            destination,
+            profile,
+            avoidDangerousPosition,
+            out reason,
+            out _);
+    }
+
+    private static bool TryValidateCandidate(
+        GameLocationCharacter character,
+        int3 start,
+        int3 destination,
+        FreeJumpProfile profile,
+        bool avoidDangerousPosition,
+        out RejectionReason reason,
+        out bool bypassesObstacle)
+    {
+        bypassesObstacle = false;
+
         var delta = destination - start;
         var horizontalCells = Math.Max(Math.Abs(delta.x), Math.Abs(delta.z));
 
@@ -1269,7 +1391,8 @@ internal static class FreeJumpContext
                 start,
                 destination,
                 profile,
-                out reason))
+                out reason,
+                out bypassesObstacle))
         {
             return false;
         }
@@ -1294,8 +1417,11 @@ internal static class FreeJumpContext
         int3 start,
         int3 destination,
         FreeJumpProfile profile,
-        out RejectionReason reason)
+        out RejectionReason reason,
+        out bool bypassesObstacle)
     {
+        bypassesObstacle = false;
+
         if (!positioningService.RaycastGrid(
                 start,
                 destination,
@@ -1340,6 +1466,7 @@ internal static class FreeJumpContext
             return false;
         }
 
+        bypassesObstacle = true;
         reason = default;
         return true;
     }
@@ -1442,6 +1569,17 @@ internal static class FreeJumpContext
             return false;
         }
 
+        return TryComputeFreeJumpPreview(character, start, destination, applyFreeJumpBonuses, profile, out preview);
+    }
+
+    private static bool TryComputeFreeJumpPreview(
+        GameLocationCharacter character,
+        int3 start,
+        int3 destination,
+        bool applyFreeJumpBonuses,
+        FreeJumpProfile profile,
+        out FreeJumpCheckPreview preview)
+    {
         var moveCost = ComputeFreeJumpMovementCost(destination - start);
         var requiresAthleticsCheck = TryComputeAthleticsCheck(
             character,
@@ -1943,7 +2081,8 @@ internal static class FreeJumpContext
 
     private static bool CanUseAiFreeJump(GameLocationCharacter character)
     {
-        return CanUseAction(character) &&
+        return CombatAiContext.CanUseFreeJumpForAi(character) &&
+               CanUseAction(character) &&
                character.UsedTacticalMoves == 0 &&
                character.CanDecideToMoveByItself;
     }
