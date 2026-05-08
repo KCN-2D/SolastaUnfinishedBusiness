@@ -3,6 +3,7 @@ ModUI/&EnableCriticalHitsMissesAt10=Abilita colpi e mancati critici quando la di
 ModUI/&EnableDamageOnFailedJumpCheck=Applica danni 1d4 ai controlli di salto non riusciti
 ModUI/&ModVersionControl=-Impostazioni della versione mod business non infinite-
 ModUI/&ModifyJumpRulesForArmorAndEncumberance=Applicare le penalità di encumberance e armature per saltare
+ModUI/&EnableBonusActionFreeJump=Abilita il salto come azione bonus
 ModUI/&ModifyThrowingRulesForStrength=Applicare sanzioni per il lancio per variare per mancanza di forza
 ModUI/&RoleplaySettings=Gioco di ruolo
 ModUI/&RoleplaySettingsDescription=Queste impostazioni modificano l'equilibrio del gioco a favore della simulazione della vita o del gioco di ruolo aggiungendo complessità e maggiori possibilità di successo e fallimento

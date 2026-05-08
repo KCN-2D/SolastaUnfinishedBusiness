@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
 using TA.AI;
 
@@ -30,9 +31,12 @@ public static class AiLocationManagerPatcher
         {
             yield return CircleOfTheWildfire.HandleCauterizingFlamesBehavior(__instance.battle.ActiveContender);
 
-            while (values.MoveNext())
+            using (FreeJumpContext.BeginAiTurn(__instance.battle.ActiveContender))
             {
-                yield return values.Current;
+                while (values.MoveNext())
+                {
+                    yield return values.Current;
+                }
             }
         }
     }

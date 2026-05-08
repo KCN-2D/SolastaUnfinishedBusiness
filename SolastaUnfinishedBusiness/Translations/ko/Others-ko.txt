@@ -11,6 +11,17 @@ Action/&BrutalStrikeToggleTitle=잔인한 일격
 Action/&CastPlaneMagicDescription=Plane Touched feats에서 얻은 주문 중 하나를 시전하세요.
 Action/&CastPlaneMagicTitle=채널 평면 매직
 Action/&CastQuickenedDescription=빠른 주문 메타매직을 적용하여 보너스 액션을 사용하여 주요 액션 주문을 시전합니다.
+Action/&BonusActionFreeJumpDescription=보너스 액션을 소비해 힘과 운동을 사용한 강력한 도약을 합니다.
+Action/&BonusActionFreeJumpTitle=도약
+Action/&ExplorationFreeJumpToggleDescription=도약 이동 모드를 켜거나 끕니다.
+Action/&ExplorationFreeJumpToggleTitle=도약 전환
+Action/&FreeJumpCheckFormat=이 도약은 이동 속도 {0}칸을 소비하며 운동 DC {1} 판정을 합니다.
+Action/&FreeJumpMoveCostFormat=이 도약은 이동 속도 {0}칸을 소비합니다.
+Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>이 도약은 이동 속도 {0}칸을 소비하며 착지에 실패합니다.</color>
+Action/&FreeJumpSuccessChance=성공률은 {0}%입니다.
+Action/&FreeJumpSuccessChanceWithAffinity={0}일 때 성공률은 {1}%입니다.
+Action/&FreeJumpAdvantage=이점
+Action/&FreeJumpDisadvantage=불리점
 Action/&CunningStrikeToggleDescription=커닝 스트라이크 활성화/비활성화
 Action/&CunningStrikeToggleTitle=교활한 일격
 Action/&DragonHideToggleDescription=드래곤 가죽 활성화/비활성화

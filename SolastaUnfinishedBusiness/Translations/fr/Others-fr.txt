@@ -11,6 +11,17 @@ Action/&BrutalStrikeToggleTitle=Grève brutale
 Action/&CastPlaneMagicDescription=Lancez l'un des sorts que vous avez obtenus grâce aux exploits Plane Touched
 Action/&CastPlaneMagicTitle=Magie du plan de canal
 Action/&CastQuickenedDescription=Lancez le sort d'action principale en utilisant l'action bonus en appliquant la métamagie Quickened Spell.
+Action/&BonusActionFreeJumpDescription=Dépense une action bonus pour effectuer un saut renforcé avec votre Force et votre Athlétisme.
+Action/&BonusActionFreeJumpTitle=Saut
+Action/&ExplorationFreeJumpToggleDescription=Active/désactive le mode de déplacement par saut.
+Action/&ExplorationFreeJumpToggleTitle=Activer le saut
+Action/&FreeJumpCheckFormat=Ce saut dépense {0} cases de vitesse de déplacement et demande un test d'Athlétisme DD {1}.
+Action/&FreeJumpMoveCostFormat=Ce saut dépense {0} cases de vitesse de déplacement.
+Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>Ce saut dépense {0} cases de vitesse de déplacement et l'atterrissage échouera.</color>
+Action/&FreeJumpSuccessChance=La chance de réussite est de {0}%.
+Action/&FreeJumpSuccessChanceWithAffinity=Avec {0}, la chance de réussite est de {1}%.
+Action/&FreeJumpAdvantage=avantage
+Action/&FreeJumpDisadvantage=désavantage
 Action/&CunningStrikeToggleDescription=Activer/désactiver Cunning Strike
 Action/&CunningStrikeToggleTitle=Frappe rusée
 Action/&DragonHideToggleDescription=Activer/désactiver Dragon Hide

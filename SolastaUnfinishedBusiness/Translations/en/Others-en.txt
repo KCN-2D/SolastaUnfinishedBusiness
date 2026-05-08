@@ -11,6 +11,17 @@ Action/&BrutalStrikeToggleTitle=Brutal Strike
 Action/&CastPlaneMagicDescription=Cast one of the spells you got from Plane Touched feats
 Action/&CastPlaneMagicTitle=Channel Plane Magic
 Action/&CastQuickenedDescription=Cast main action spell using bonus action by applying Quickened Spell metamagic. 
+Action/&BonusActionFreeJumpDescription=Spend a bonus action to make an empowered jump using your Strength and Athletics.
+Action/&BonusActionFreeJumpTitle=Jump
+Action/&ExplorationFreeJumpToggleDescription=Enable/disable jump movement mode.
+Action/&ExplorationFreeJumpToggleTitle=Toggle Jump
+Action/&FreeJumpCheckFormat=This jump spends {0} cells of movement speed and requires an Athletics DC {1} check.
+Action/&FreeJumpMoveCostFormat=This jump spends {0} cells of movement speed.
+Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>This jump spends {0} cells of movement speed, and the landing will fail.</color>
+Action/&FreeJumpSuccessChance=Success chance is {0}%.
+Action/&FreeJumpSuccessChanceWithAffinity=With {0}, success chance is {1}%.
+Action/&FreeJumpAdvantage=advantage
+Action/&FreeJumpDisadvantage=disadvantage
 Action/&CunningStrikeToggleDescription=Activate/deactivate Cunning Strike
 Action/&CunningStrikeToggleTitle=Cunning Strike
 Action/&DragonHideToggleDescription=Activate/deactivate Dragon Hide

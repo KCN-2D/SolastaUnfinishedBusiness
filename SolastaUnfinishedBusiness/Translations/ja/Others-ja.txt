@@ -11,6 +11,17 @@ Action/&BrutalStrikeToggleTitle=残忍な一撃
 Action/&CastPlaneMagicDescription=〈次元魔法〉の特技で得た呪文の1つを唱える
 Action/&CastPlaneMagicTitle=次元魔法を行使
 Action/&CastQuickenedDescription=呪文修正「呪文高速化」を適用し、通常はアクションで発動する呪文をボーナス・アクションで発動します。
+Action/&BonusActionFreeJumpDescription=ボーナス・アクションを消費し、筋力と〈運動〉を使って強力な跳躍を行います。
+Action/&BonusActionFreeJumpTitle=跳躍
+Action/&ExplorationFreeJumpToggleDescription=跳躍移動モードを有効化/無効化します。
+Action/&ExplorationFreeJumpToggleTitle=跳躍切替
+Action/&FreeJumpCheckFormat=この跳躍は移動速度を {0}マス消費し、〈運動〉難易度 {1}の判定を行います。
+Action/&FreeJumpMoveCostFormat=この跳躍は移動速度を {0}マス消費します。
+Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>この跳躍は移動速度を {0}マス消費し、着地に失敗します。</color>
+Action/&FreeJumpSuccessChance=成功率は{0}%です。
+Action/&FreeJumpSuccessChanceWithAffinity={0}で成功率は{1}%です。
+Action/&FreeJumpAdvantage=有利
+Action/&FreeJumpDisadvantage=不利
 Action/&CunningStrikeToggleDescription=巧妙な一撃を有効化/無効化します
 Action/&CunningStrikeToggleTitle=巧妙な一撃
 Action/&DragonHideToggleDescription=竜鱗竜爪を有効化/無効化します

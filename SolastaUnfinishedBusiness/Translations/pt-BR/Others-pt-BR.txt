@@ -11,6 +11,17 @@ Action/&BrutalStrikeToggleTitle=Ataque Brutal
 Action/&CastPlaneMagicDescription=Lance uma das magias que você obteve dos talentos de Plane Touched
 Action/&CastPlaneMagicTitle=Canal Plano Mágico
 Action/&CastQuickenedDescription=Lance uma magia de ação principal usando uma ação bônus aplicando a metamagia de Magia Acelerada.
+Action/&BonusActionFreeJumpDescription=Gaste uma ação bônus para executar um salto reforçado usando Força e Atletismo.
+Action/&BonusActionFreeJumpTitle=Salto
+Action/&ExplorationFreeJumpToggleDescription=Ativa/desativa o modo de movimento de salto.
+Action/&ExplorationFreeJumpToggleTitle=Alternar salto
+Action/&FreeJumpCheckFormat=Este salto consome {0} células de velocidade de movimento e exige um teste de Atletismo CD {1}.
+Action/&FreeJumpMoveCostFormat=Este salto consome {0} células de velocidade de movimento.
+Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>Este salto consome {0} células de velocidade de movimento, e a aterrissagem falhará.</color>
+Action/&FreeJumpSuccessChance=A chance de sucesso é {0}%.
+Action/&FreeJumpSuccessChanceWithAffinity=Com {0}, a chance de sucesso é {1}%.
+Action/&FreeJumpAdvantage=vantagem
+Action/&FreeJumpDisadvantage=desvantagem
 Action/&CunningStrikeToggleDescription=Ativar/desativar Golpe Astuto
 Action/&CunningStrikeToggleTitle=Ataque astuto
 Action/&DragonHideToggleDescription=Ativar/desativar Dragon Hide

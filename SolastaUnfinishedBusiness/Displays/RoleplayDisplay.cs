@@ -1,4 +1,4 @@
-﻿using SolastaUnfinishedBusiness.Api.ModKit;
+using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Displays;
@@ -22,6 +22,13 @@ internal static class RoleplayDisplay
                 UI.AutoWidth()))
         {
             Main.Settings.ModifyJumpRulesForArmorAndEncumberance = toggle;
+        }
+
+        toggle = Main.Settings.EnableBonusActionFreeJump;
+        if (UI.Toggle(Gui.Localize("ModUI/&EnableBonusActionFreeJump"), ref toggle,
+                UI.AutoWidth()))
+        {
+            Main.Settings.EnableBonusActionFreeJump = toggle;
         }
 
         toggle = Main.Settings.EnableDamageOnFailedJumpCheck;

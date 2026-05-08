@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -63,6 +64,8 @@ public static class GameLocationCharacterPatcher
             GameLocationCharacter __instance,
             int3 start, int3 finish, bool landingFailed)
         {
+            FreeJumpContext.TrySpendBonusActionAfterJump(__instance, start, finish, landingFailed);
+
             if (Main.Settings.ModifyJumpRulesForArmorAndEncumberance
                 && landingFailed
                 && !Global.IsMultiplayer
@@ -392,6 +395,38 @@ public static class GameLocationCharacterPatcher
         }
     }
 
+    [HarmonyPatch]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class GetActionTypeStatus_Patch
+    {
+        [UsedImplicitly]
+        private static MethodBase TargetMethod()
+        {
+            return AccessTools.Method(
+                typeof(GameLocationCharacter),
+                nameof(GameLocationCharacter.GetActionTypeStatus),
+                new[] { typeof(ActionType), typeof(ActionScope), typeof(bool) });
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            GameLocationCharacter __instance,
+            ref ActionStatus __result,
+            ActionType actionType,
+            ActionScope actionScope)
+        {
+            if (ActionPanelContext.ShouldSuppressBattleBonusActionType(
+                    __instance,
+                    actionType,
+                    actionScope,
+                    out _))
+            {
+                __result = ActionStatus.Unavailable;
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(GameLocationCharacter), nameof(GameLocationCharacter.GetActionStatus))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -427,6 +462,13 @@ public static class GameLocationCharacterPatcher
             bool ignoreMovePoints)
         {
             var rulesetCharacter = __instance.RulesetCharacter;
+
+            if (actionId == Id.NoAction &&
+                ActionPanelContext.ShouldSuppressNoAction(__instance, scope, out _))
+            {
+                __result = ActionStatus.Unavailable;
+                return;
+            }
 
             //PATCH: support for `IReplaceAttackWithCantrip` - allows `CastMain` action if character used attack
             ReplaceAttackWithCantrip.AllowCastDuringMainAttack(__instance, actionId, scope, ref __result);

@@ -3,6 +3,7 @@ ModUI/&EnableCriticalHitsMissesAt10=当护甲等级与修正后的攻击检定�
 ModUI/&EnableDamageOnFailedJumpCheck=在跳跃检定失败时造成 1d4 点伤害
 ModUI/&ModVersionControl=- 未竟之业[Unfinished Business] 模组版本设置 -
 ModUI/&ModifyJumpRulesForArmorAndEncumberance=将负重与护甲惩罚应用到跳跃距离上
+ModUI/&EnableBonusActionFreeJump=启用附赠动作跳跃
 ModUI/&ModifyThrowingRulesForStrength=根据力量值不足对投掷距离施加惩罚
 ModUI/&RoleplaySettings=角色扮演
 ModUI/&RoleplaySettingsDescription=这些设置通过增加复杂性与提升成功及失败的概率，调整游戏平衡以偏向生活模拟或角色扮演体验

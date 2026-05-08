@@ -3,6 +3,7 @@ ModUI/&EnableCriticalHitsMissesAt10=Включить критические уд
 ModUI/&EnableDamageOnFailedJumpCheck=Применяется 1d4 повреждения при неудавшихся проверках прыжков
 ModUI/&ModVersionControl=-Неоплачиваемые настройки версии Business Mod-
 ModUI/&ModifyJumpRulesForArmorAndEncumberance=Применить лепку и штрафы до брони, чтобы прыгать в диапазоне
+ModUI/&EnableBonusActionFreeJump=Включает прыжок бонусным действием
 ModUI/&ModifyThrowingRulesForStrength=Применить штрафные штрафы на диапазон за отсутствие силы
 ModUI/&RoleplaySettings=Ролевые игры
 ModUI/&RoleplaySettingsDescription=Эти настройки настраивают баланс игры в пользу симуляции жизни или ролевой игры, добавив сложности и повышенную вероятность успеха и неудачи

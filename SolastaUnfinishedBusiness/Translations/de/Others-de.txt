@@ -11,6 +11,17 @@ Action/&BrutalStrikeToggleTitle=Brutaler Schlag
 Action/&CastPlaneMagicDescription=Wirke einen der Zauber, die du durch Plane Touched-Fähigkeiten erhalten hast
 Action/&CastPlaneMagicTitle=Kanalebenenmagie
 Action/&CastQuickenedDescription=Wirke den Hauptaktionszauber mit Bonusaktion, indem du die Metamagie „Beschleunigter Zauber“ anwendest.
+Action/&BonusActionFreeJumpDescription=Gib eine Bonusaktion aus, um mit Stärke und Athletik einen kräftigen Sprung auszuführen.
+Action/&BonusActionFreeJumpTitle=Sprung
+Action/&ExplorationFreeJumpToggleDescription=Aktiviert/deaktiviert den Sprungbewegungsmodus.
+Action/&ExplorationFreeJumpToggleTitle=Sprung umschalten
+Action/&FreeJumpCheckFormat=Dieser Sprung verbraucht {0} Felder Bewegungsrate und erfordert Athletik-SG {1}.
+Action/&FreeJumpMoveCostFormat=Dieser Sprung verbraucht {0} Felder Bewegungsrate.
+Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>Dieser Sprung verbraucht {0} Felder Bewegungsrate, und die Landung schlägt fehl.</color>
+Action/&FreeJumpSuccessChance=Die Erfolgschance beträgt {0}%.
+Action/&FreeJumpSuccessChanceWithAffinity=Mit {0} beträgt die Erfolgschance {1}%.
+Action/&FreeJumpAdvantage=Vorteil
+Action/&FreeJumpDisadvantage=Nachteil
 Action/&CunningStrikeToggleDescription=Cunning Strike aktivieren/deaktivieren
 Action/&CunningStrikeToggleTitle=Listiger Schlag
 Action/&DragonHideToggleDescription=Dragon Hide aktivieren/deaktivieren

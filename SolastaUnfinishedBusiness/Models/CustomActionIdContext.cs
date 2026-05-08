@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
@@ -35,6 +35,7 @@ public static class CustomActionIdContext
         (Id)ExtraActionId.DragonHideToggle,
         (Id)ExtraActionId.DyingLightToggle,
         (Id)ExtraActionId.ElementalFuryToggle,
+        (Id)ExtraActionId.ExplorationFreeJumpToggle,
         (Id)ExtraActionId.FeatCrusherToggle,
         (Id)ExtraActionId.ForcePoweredStrikeToggle,
         (Id)ExtraActionId.GloomBladeToggle,
@@ -105,6 +106,7 @@ public static class CustomActionIdContext
         BuildCustomRageStartAction();
         BuildCustomToggleActions();
         BuildDoNothingActions();
+        BuildFreeJumpAction();
         BuildFarStepAction();
         BuildPrioritizeAction();
         BuildProxyActions();
@@ -302,6 +304,23 @@ public static class CustomActionIdContext
 
     private static void BuildCustomToggleActions()
     {
+        var jumpAction = GetDefinition<ActionDefinition>("Jump");
+
+        ActionDefinitionBuilder
+            .Create(jumpAction, "ActionExplorationFreeJumpToggle")
+            .SetGuiPresentation(
+                "ExplorationFreeJumpToggle",
+                Category.Action,
+                jumpAction.GuiPresentation.spriteReference)
+            .SetActionId(ExtraActionId.ExplorationFreeJumpToggle)
+            .SetActionScope(ActionScope.Exploration)
+            .SetActionType(ActionType.NoCost)
+            .SetParameter(ActionParameter.None)
+            .SetFormType(ActionFormType.Small)
+            .OverrideClassName("ExplorationFreeJumpToggle")
+            .RequiresAuthorization(false)
+            .AddToDB();
+
         ActionDefinitionBuilder
             .Create(MetamagicToggle, "BlessedStrikesToggle")
             .SetOrUpdateGuiPresentation(Category.Action)
@@ -538,6 +557,22 @@ public static class CustomActionIdContext
             .AddToDB();
     }
 
+    private static void BuildFreeJumpAction()
+    {
+        const string NAME = "BonusActionFreeJump";
+
+        ActionDefinitionBuilder
+            .Create(DashBonus, $"Action{NAME}")
+            .SetGuiPresentation(NAME, Category.Action, GetDefinition<ActionDefinition>("Jump").GuiPresentation.spriteReference)
+            .SetActionId(ExtraActionId.BonusActionFreeJump)
+            .OverrideClassName(NAME)
+            .SetActionScope(ActionScope.Battle)
+            .SetActionType(ActionType.NoCost)
+            .SetFormType(ActionFormType.Small)
+            .RequiresAuthorization(false)
+            .AddToDB();
+    }
+
     private static void BuildDoNothingActions()
     {
         ActionDefinitionBuilder
@@ -662,6 +697,16 @@ public static class CustomActionIdContext
             case (Id)ExtraActionId.CastQuickened:
             {
                 result = CanUseActionQuickened(locationCharacter, scope);
+                return;
+            }
+            case (Id)ExtraActionId.BonusActionFreeJump:
+            {
+                result = FreeJumpContext.GetActionStatus(locationCharacter, scope, actionTypeStatus, ignoreMovePoints);
+                return;
+            }
+            case (Id)ExtraActionId.ExplorationFreeJumpToggle:
+            {
+                result = FreeJumpContext.GetExplorationToggleActionStatus(locationCharacter, scope);
                 return;
             }
             case (Id)ExtraActionId.PaladinSmiteToggle:
@@ -811,7 +856,6 @@ public static class CustomActionIdContext
                    or ExtraActionId.CastPlaneMagicMain
                    or ExtraActionId.CastPlaneMagicBonus ||
                IsGambitActionId(id) ||
-               IsEldritchVersatilityId(id) ||
                IsEldritchVersatilityId(id);
     }
 

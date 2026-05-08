@@ -511,6 +511,7 @@ ModUi/&UseWeaponMasterySystemPushSave=<i>+押し出しマスタリーでは、�
 ModUi/&UseWeaponMasterySystemAlternateProperties=<i>+少し調べた実際の武器特性を反映した代替武器特性を使用します。ショートボウの「崩し」は不自然です<b><i><color=#C04040E0>（再起動が必要）</color></i></b></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white><color=#D89555>ソーサラーの荒ぶる魔法</color>の確率ダイスしきい値を設定します：</color>\n<i><color=#F0DAA0>（ロールがしきい値以下であればワイルドサージが発動します）</color></i>
 ModUI/&ModifyJumpRulesForArmorAndEncumberance=荷重と鎧によるペナルティを跳躍距離に適用します
+ModUI/&EnableBonusActionFreeJump=ボーナス・アクション跳躍を有効化します
 ModUI/&ModifyThrowingRulesForStrength=筋力不足による投擲射程ペナルティを適用します
 ModUI/&ModVersionControl=-Unfinished Business MODバージョン設定-
 ModUI/&RoleplaySettings=ロールプレイ

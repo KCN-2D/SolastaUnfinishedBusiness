@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -7,6 +8,8 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Models;
+using static ActionDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -62,6 +65,75 @@ public static class CursorLocationBattleFriendlyTurnPatcher
         {
             //PATCH: 
             CursorMotionHelper.Initialize(__instance.chainHelperPrefab);
+        }
+    }
+
+    [HarmonyPatch(typeof(CursorLocationBattleFriendlyTurn), nameof(CursorLocationBattleFriendlyTurn.ComputeValidDestinations))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ComputeValidDestinations_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CursorLocationBattleFriendlyTurn __instance, ref IDisposable __state)
+        {
+            __state = FreeJumpContext.BeginBonusActionPathfinding(
+                __instance.actingCharacter,
+                __instance.constrainedMovementMode);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(CursorLocationBattleFriendlyTurn __instance, IDisposable __state)
+        {
+            try
+            {
+                if (FreeJumpContext.ApplyBonusActionDestinations(
+                        __instance.actingCharacter,
+                        __instance.constrainedMovementMode,
+                        __instance.validDestinations))
+                {
+                    __instance.RefreshVisibleDestinationsGrid();
+                }
+            }
+            finally
+            {
+                __state?.Dispose();
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(CursorLocationBattleFriendlyTurn), "BuildActionChain")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class BuildActionChain_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CursorLocationBattleFriendlyTurn __instance, Id actionId)
+        {
+            return !FreeJumpContext.TryBuildBattleFreeJumpActionChain(__instance, actionId);
+        }
+    }
+
+    [HarmonyPatch(typeof(CursorLocationBattleFriendlyTurn), "ProcessAction")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ProcessAction_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CursorLocationBattleFriendlyTurn __instance, Id actionId)
+        {
+            return !FreeJumpContext.TryCancelInvalidBattleFreeJumpAction(__instance, actionId);
+        }
+    }
+
+    [HarmonyPatch(typeof(CursorLocationBattleFriendlyTurn), nameof(CursorLocationBattleFriendlyTurn.RefreshHover))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RefreshHover_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(CursorLocationBattleFriendlyTurn __instance)
+        {
+            FreeJumpContext.RefreshBattleSelectionCaption(__instance);
         }
     }
 }

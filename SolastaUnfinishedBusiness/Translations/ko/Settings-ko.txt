@@ -3,6 +3,7 @@ ModUI/&EnableCriticalHitsMissesAt10=AC와 수정 된 공격 롤 결과의 차이
 ModUI/&EnableDamageOnFailedJumpCheck=실패한 점프 점검에 1d4 피해를 적용합니다
 ModUI/&ModVersionControl=-비즈니스 모드 버전 설정-
 ModUI/&ModifyJumpRulesForArmorAndEncumberance=점프 범위에 enbumberance 및 갑옷 처벌을 적용하십시오
+ModUI/&EnableBonusActionFreeJump=보너스 액션 도약을 활성화합니다
 ModUI/&ModifyThrowingRulesForStrength=힘이 부족하여 범위에 처벌을 적용하십시오
 ModUI/&RoleplaySettings=롤 플레인
 ModUI/&RoleplaySettingsDescription=이러한 설정은 복잡성과 성공 및 실패 가능성을 높이면서 삶의 시뮬레이션 또는 역할극에 유리하게 게임의 균형을 조정합니다.

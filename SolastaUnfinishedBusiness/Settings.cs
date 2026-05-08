@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Xml.Serialization;
 using SolastaUnfinishedBusiness.Api.Infrastructure;
@@ -178,6 +178,7 @@ public class Settings : UnityModManager.ModSettings
     #region "Roleplay Settings"
 
     [Tag(Type = TagType.Roleplay)] public bool ModifyJumpRulesForArmorAndEncumberance { get; set; }
+    [Tag(Type = TagType.Roleplay)] public bool EnableBonusActionFreeJump { get; set; }
     [Tag(Type = TagType.Roleplay)] public bool ModifyThrowingRulesForStrength { get; set; }
 
     [Tag(Type = TagType.Roleplay)] public bool EnableDamageOnFailedJumpCheck { get; set; }

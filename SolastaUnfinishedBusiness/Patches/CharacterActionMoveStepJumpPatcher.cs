@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
@@ -6,6 +6,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using TA;
 using static RuleDefinitions;
 
@@ -35,8 +36,10 @@ public static class CharacterActionMoveStepJumpPatcher
             RuleDefinitions.AdvantageType BASE_AFFINITY = RuleDefinitions.AdvantageType.None;
 
             bool isWearingHeavy = actingCharacter.RulesetCharacter.IsWearingHeavyArmor() && Main.Settings.ModifyJumpRulesForArmorAndEncumberance;
-            bool isWearingMedium = actingCharacter.RulesetCharacter.IsWearingMediumArmor() && Main.Settings.ModifyJumpRulesForArmorAndEncumberance;
-            int distance = (int)int3.Distance(action.jumpPosition, action.landingPosition);
+            var isActiveFreeJump = FreeJumpContext.IsActiveFreeJumpMove(
+                actingCharacter,
+                action.jumpPosition,
+                action.landingPosition);
 
             //adjust for wearing heavy armor                
             if (isWearingHeavy)
@@ -46,76 +49,79 @@ public static class CharacterActionMoveStepJumpPatcher
             {
                 const int CHECK_DC = 10;
 
-                var abilityCheckRoll = actingCharacter.RollAbilityCheckEx(
+                yield return RollJumpAbilityCheck(
+                    action,
+                    actingCharacter,
+                    actionModifier,
                     AttributeDefinitions.Dexterity,
                     SkillDefinitions.Acrobatics,
                     CHECK_DC,
-                    BASE_AFFINITY,
-                    actionModifier,
-                    false,
-                    -1,
-                    out var outcome,
-                    out var successDelta,
-                    out var rawRoll,
-                    true);
-
-                var abilityCheckData = new AbilityCheckData
-                {
-                    AbilityCheckRoll = abilityCheckRoll,
-                    AbilityCheckRollOutcome = outcome,
-                    AbilityCheckSuccessDelta = successDelta,
-                    AbilityCheckActionModifier = actionModifier,
-                    Action = action
-                };
-
-                yield return TryAlterOutcomeAttributeCheck
-                    .HandleITryAlterOutcomeAttributeCheck(actingCharacter, abilityCheckData, rawRoll);
-
-                action.AbilityCheckRoll = abilityCheckData.AbilityCheckRoll;
-                action.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckRollOutcome;
-                action.AbilityCheckSuccessDelta = abilityCheckData.AbilityCheckSuccessDelta;
+                    BASE_AFFINITY);
             }
 
-            if (action.AbilityCheckRollOutcome != RuleDefinitions.RollOutcome.Failure 
-                && (CharacterActionMoveStepJump.NeedsAthleticsCheck(action.ActingCharacter, action.jumpPosition,
-                    action.landingPosition) || isWearingHeavy || isWearingMedium))
+            if (action.AbilityCheckRollOutcome != RuleDefinitions.RollOutcome.Failure &&
+                FreeJumpContext.TryComputeFreeJumpPreview(
+                    actingCharacter,
+                    action.jumpPosition,
+                    action.landingPosition,
+                    isActiveFreeJump,
+                    out var jumpPreview))
             {
-                int CHECK_DC = Main.Settings.ModifyJumpRulesForArmorAndEncumberance ? distance*5 : 15;
-
-                var abilityCheckRoll = action.ActingCharacter.RollAbilityCheckEx(
-                    AttributeDefinitions.Strength,
-                    SkillDefinitions.Athletics,
-                    CHECK_DC,
-                    BASE_AFFINITY,
-                    action.ActionParams.ActionModifiers[0],
-                    false,
-                    -1,
-                    out var outcome,
-                    out var successDelta,
-                    out var rawRoll,
-                    true);
-
-                var abilityCheckData = new AbilityCheckData
+                if (jumpPreview.RequiresAthleticsCheck)
                 {
-                    AbilityCheckRoll = abilityCheckRoll,
-                    AbilityCheckRollOutcome = outcome,
-                    AbilityCheckSuccessDelta = successDelta,
-                    AbilityCheckActionModifier = actionModifier,
-                    Action = action
-                };
-
-                yield return TryAlterOutcomeAttributeCheck
-                    .HandleITryAlterOutcomeAttributeCheck(actingCharacter, abilityCheckData, rawRoll);
-
-                action.AbilityCheckRoll = abilityCheckData.AbilityCheckRoll;
-                action.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckRollOutcome;
-                action.AbilityCheckSuccessDelta = abilityCheckData.AbilityCheckSuccessDelta;
+                    yield return RollJumpAbilityCheck(
+                        action,
+                        actingCharacter,
+                        actionModifier,
+                        AttributeDefinitions.Strength,
+                        SkillDefinitions.Athletics,
+                        jumpPreview.CheckDc,
+                        jumpPreview.Affinity);
+                }
+                else if (jumpPreview.IsAutomaticFailure)
+                {
+                    action.AbilityCheckRollOutcome = RuleDefinitions.RollOutcome.Failure;
+                }
             }
-            else if (CharacterActionMoveStepJump.AutomaticPenalty(
-                         action.ActingCharacter, action.jumpPosition, action.landingPosition))
+        }
+
+        private static IEnumerator RollJumpAbilityCheck(
+            CharacterActionMoveStepJump action,
+            GameLocationCharacter actingCharacter,
+            ActionModifier actionModifier,
+            string abilityScoreName,
+            string proficiencyName,
+            int checkDc,
+            RuleDefinitions.AdvantageType baseAffinity)
+        {
+            var abilityCheckRoll = actingCharacter.RollAbilityCheckEx(
+                abilityScoreName,
+                proficiencyName,
+                checkDc,
+                baseAffinity,
+                actionModifier,
+                false,
+                -1,
+                out var outcome,
+                out var successDelta,
+                out var rawRoll,
+                true);
+
+            var abilityCheckData = new AbilityCheckData
             {
-                action.AbilityCheckRollOutcome = RuleDefinitions.RollOutcome.Failure;
-            }
+                AbilityCheckRoll = abilityCheckRoll,
+                AbilityCheckRollOutcome = outcome,
+                AbilityCheckSuccessDelta = successDelta,
+                AbilityCheckActionModifier = actionModifier,
+                Action = action
+            };
+
+            yield return TryAlterOutcomeAttributeCheck
+                .HandleITryAlterOutcomeAttributeCheck(actingCharacter, abilityCheckData, rawRoll);
+
+            action.AbilityCheckRoll = abilityCheckData.AbilityCheckRoll;
+            action.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckRollOutcome;
+            action.AbilityCheckSuccessDelta = abilityCheckData.AbilityCheckSuccessDelta;
         }
     }
 }

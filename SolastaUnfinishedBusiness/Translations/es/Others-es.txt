@@ -11,6 +11,17 @@ Action/&BrutalStrikeToggleTitle=Golpe brutal
 Action/&CastPlaneMagicDescription=Lanza uno de los hechizos que obtuviste de las dotes Tocado por el plano
 Action/&CastPlaneMagicTitle=Magia del plano del canal
 Action/&CastQuickenedDescription=Lanza un hechizo de acción principal usando una acción adicional aplicando metamagia de Hechizo acelerado.
+Action/&BonusActionFreeJumpDescription=Gasta una acción adicional para realizar un salto potenciado con tu Fuerza y Atletismo.
+Action/&BonusActionFreeJumpTitle=Salto
+Action/&ExplorationFreeJumpToggleDescription=Activa/desactiva el modo de movimiento de salto.
+Action/&ExplorationFreeJumpToggleTitle=Alternar salto
+Action/&FreeJumpCheckFormat=Este salto consume {0} casillas de velocidad de movimiento y requiere una prueba de Atletismo CD {1}.
+Action/&FreeJumpMoveCostFormat=Este salto consume {0} casillas de velocidad de movimiento.
+Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>Este salto consume {0} casillas de velocidad de movimiento y el aterrizaje fallará.</color>
+Action/&FreeJumpSuccessChance=La probabilidad de éxito es {0}%.
+Action/&FreeJumpSuccessChanceWithAffinity=Con {0}, la probabilidad de éxito es {1}%.
+Action/&FreeJumpAdvantage=ventaja
+Action/&FreeJumpDisadvantage=desventaja
 Action/&CunningStrikeToggleDescription=Activar/desactivar Golpe Astuto
 Action/&CunningStrikeToggleTitle=Golpe astuto
 Action/&DragonHideToggleDescription=Activar/desactivar Piel de dragón

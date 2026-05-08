@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
@@ -98,6 +98,8 @@ internal enum ExtraActionId
     OathOfDemonHunterTrialMarkToggle,
     OathOfDemonHunterHunterStep,
     NickMasteryAttack,
+    BonusActionFreeJump,
+    ExplorationFreeJumpToggle,
     PrioritizeAction = 10000
 }
 

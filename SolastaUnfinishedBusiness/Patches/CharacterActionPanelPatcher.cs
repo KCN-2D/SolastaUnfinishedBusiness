@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -59,12 +59,12 @@ public static class CharacterActionPanelPatcher
         public static void Postfix(CharacterActionPanel __instance, GuiCharacterAction guiCharacterAction,
             int itemIndex)
         {
-            //PATCH: Customize name on the Attack button
             if (__instance.actionItems.Count <= itemIndex) { return; }
 
-            if (guiCharacterAction.actionId is not Id.AttackOff) { return; }
-
             var component = __instance.actionItems[itemIndex];
+
+            //PATCH: Customize name on the Attack button
+            if (guiCharacterAction.actionId is not Id.AttackOff) { return; }
 
             component.currentItemForm.captionLabel.Text = GetName(guiCharacterAction.ForcedAttackMode?.AttackTags)
                                                           ?? component.currentItemForm.captionLabel.Text;
@@ -102,7 +102,15 @@ public static class CharacterActionPanelPatcher
             //Allows multiple actions on panel for off-hand attacks and main attacks for non-guests
             __result = ExtraAttacksOnActionPanel.ComputeMultipleGuiCharacterActions(__instance, actionId, __result);
 
-            if(__instance.guiActionById.TryGetValue((Id)ExtraActionId.NickMasteryAttack, out var guiAction))
+            var nestedNoActions = ActionPanelContext.FilterSuppressedNoActionGuiActions(__instance, actionId);
+
+            if (nestedNoActions > 0 &&
+                __instance.guiActionsById.TryGetValue(actionId, out var guiActions))
+            {
+                __result = guiActions.Count;
+            }
+
+            if (__instance.guiActionById.TryGetValue((Id)ExtraActionId.NickMasteryAttack, out var guiAction))
             {
                 guiAction.ForcedAttackMode = __instance.GuiCharacter.RulesetCharacter.FindNickAttackMode();
             }
@@ -138,20 +146,48 @@ public static class CharacterActionPanelPatcher
             var locationCharacter = panel.GuiCharacter.GameLocationCharacter;
             var inBattle = Gui.Battle != null;
 
+            if (ActionPanelContext.ShouldSuppressBattleBonusPanel(
+                    locationCharacter,
+                    panel.ActionScope,
+                    panel.ActionType,
+                    out _))
+            {
+                actions.Clear();
+
+                return 0;
+            }
+
             //PATCH: reorder the actions panel in case we have custom toggles
             CustomActionIdContext.ReorderToggles(actions);
 
+            //PATCH: add BG3-style free jump bonus action when enabled and usable
+            FreeJumpContext.RefreshActionAvailability(
+                actions,
+                locationCharacter,
+                panel.ActionScope,
+                panel.ActionType,
+                inBattle);
+
             //PATCH: hide power button on action panel if no valid powers to use or see
-            actions.RemoveAll(id => ActionIsInvalid(id, character, locationCharacter, inBattle));
+            actions.RemoveAll(id =>
+                ActionIsInvalid(
+                    id,
+                    character,
+                    locationCharacter,
+                    inBattle,
+                    panel.ActionScope,
+                    panel.ActionType));
 
             return actions.Count;
         }
 
         private static bool ActionIsInvalid(Id id, RulesetCharacter character, GameLocationCharacter locationCharacter,
-            bool battle)
+            bool battle, ActionScope panelScope, ActionType panelType)
         {
             return id switch
             {
+                Id.NoAction => ActionPanelContext.ShouldSuppressNoActionInPanel(
+                    locationCharacter, panelScope, panelType, out _),
                 Id.ActionSurge => !Level20Context.CanUseActionSurgeThisTurn(locationCharacter),
                 Id.PowerMain => !character.CanSeeAndUseAtLeastOnePower(ActionType.Main, battle),
                 Id.PowerBonus => !character.CanSeeAndUseAtLeastOnePower(ActionType.Bonus, battle),
@@ -289,10 +325,18 @@ public static class CharacterActionPanelPatcher
                 panel.InvocationSelectionPanel.Hide(true);
             }
 
+            FreeJumpContext.CancelBattleSelectionIfActive(panel, actionId);
+
             if (panel.cursorCaptionScreen.Visible)
             {
                 CursorLocation.CaptionLineDismissed();
                 panel.SetDisengageModeInCursor(Id.NoAction);
+            }
+
+            if (FreeJumpContext.TryActivateBattleSelection(panel))
+            {
+                ClampVisibleFloatingPanels(panel);
+                return;
             }
 
             switch (actionDefinition.Parameter)

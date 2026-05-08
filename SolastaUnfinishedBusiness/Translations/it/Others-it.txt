@@ -11,6 +11,17 @@ Action/&BrutalStrikeToggleTitle=Colpo Brutale
 Action/&CastPlaneMagicDescription=Lancia uno degli incantesimi che hai ottenuto dai talenti Plane Touched
 Action/&CastPlaneMagicTitle=Magia del piano del canale
 Action/&CastQuickenedDescription=Lancia l'incantesimo dell'azione principale utilizzando l'azione bonus applicando la metamagia dell'incantesimo rapido.
+Action/&BonusActionFreeJumpDescription=Spendi un'azione bonus per eseguire un salto potenziato con Forza e Atletica.
+Action/&BonusActionFreeJumpTitle=Salto
+Action/&ExplorationFreeJumpToggleDescription=Attiva/disattiva la modalità di movimento con salto.
+Action/&ExplorationFreeJumpToggleTitle=Attiva salto
+Action/&FreeJumpCheckFormat=Questo salto consuma {0} caselle di velocità di movimento e richiede una prova di Atletica CD {1}.
+Action/&FreeJumpMoveCostFormat=Questo salto consuma {0} caselle di velocità di movimento.
+Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>Questo salto consuma {0} caselle di velocità di movimento e l'atterraggio fallirà.</color>
+Action/&FreeJumpSuccessChance=La probabilità di successo è {0}%.
+Action/&FreeJumpSuccessChanceWithAffinity=Con {0}, la probabilità di successo è {1}%.
+Action/&FreeJumpAdvantage=vantaggio
+Action/&FreeJumpDisadvantage=svantaggio
 Action/&CunningStrikeToggleDescription=Attiva/disattiva Colpo astuto
 Action/&CunningStrikeToggleTitle=Colpo astuto
 Action/&DragonHideToggleDescription=Attiva/disattiva Dragon Hide

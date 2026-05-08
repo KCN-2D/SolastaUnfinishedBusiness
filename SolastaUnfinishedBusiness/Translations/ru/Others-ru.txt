@@ -11,6 +11,17 @@ Action/&BrutalStrikeToggleTitle=Жестокий удар
 Action/&CastPlaneMagicDescription=Произнесите заклинание, полученное от одно из черт "Затронутый тем или иным Планом"
 Action/&CastPlaneMagicTitle=Направить планарную магию
 Action/&CastQuickenedDescription=Наложите заклинание основного действия бонусным действием, используя вариант метамагии Ускоренное заклинание.
+Action/&BonusActionFreeJumpDescription=Потратьте бонусное действие, чтобы выполнить усиленный прыжок, используя Силу и Атлетику.
+Action/&BonusActionFreeJumpTitle=Прыжок
+Action/&ExplorationFreeJumpToggleDescription=Включает/выключает режим перемещения прыжком.
+Action/&ExplorationFreeJumpToggleTitle=Переключить прыжок
+Action/&FreeJumpCheckFormat=Этот прыжок расходует {0} клеток скорости передвижения и требует проверку Атлетики со Сл {1}.
+Action/&FreeJumpMoveCostFormat=Этот прыжок расходует {0} клеток скорости передвижения.
+Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>Этот прыжок расходует {0} клеток скорости передвижения, и приземление провалится.</color>
+Action/&FreeJumpSuccessChance=Шанс успеха: {0}%.
+Action/&FreeJumpSuccessChanceWithAffinity=С {0} шанс успеха: {1}%.
+Action/&FreeJumpAdvantage=преимуществом
+Action/&FreeJumpDisadvantage=помехой
 Action/&CunningStrikeToggleDescription=Активировать/деактивировать Хитрый удар
 Action/&CunningStrikeToggleTitle=Хитрый удар
 Action/&DragonHideToggleDescription=Активировать/деактивировать Драконью шкуру

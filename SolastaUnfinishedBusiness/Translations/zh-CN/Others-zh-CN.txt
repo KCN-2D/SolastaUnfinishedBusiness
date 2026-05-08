@@ -11,6 +11,17 @@ Action/&BrutalStrikeToggleTitle=凶蛮打击
 Action/&CastPlaneMagicDescription=施展你从位面之触专长中获得的法术之一
 Action/&CastPlaneMagicTitle=施展位面魔法
 Action/&CastQuickenedDescription=通过应用快速法术超魔法，使用附赠动作施放主要行动法术。
+Action/&BonusActionFreeJumpDescription=消耗一个附赠动作，基于力量和运动进行强化跳跃。
+Action/&BonusActionFreeJumpTitle=跳跃
+Action/&ExplorationFreeJumpToggleDescription=启用/禁用跳跃移动模式。
+Action/&ExplorationFreeJumpToggleTitle=切换跳跃
+Action/&FreeJumpCheckFormat=这次跳跃会消耗 {0} 格移动速度，并进行运动 DC {1}检定。
+Action/&FreeJumpMoveCostFormat=这次跳跃会消耗 {0} 格移动速度。
+Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>这次跳跃会消耗 {0} 格移动速度，且着陆会失败。</color>
+Action/&FreeJumpSuccessChance=成功率为 {0}%。
+Action/&FreeJumpSuccessChanceWithAffinity={0}时成功率为 {1}%。
+Action/&FreeJumpAdvantage=优势
+Action/&FreeJumpDisadvantage=劣势
 Action/&CunningStrikeToggleDescription=激活/停用狡诈打击
 Action/&CunningStrikeToggleTitle=狡诈打击
 Action/&DragonHideToggleDescription=激活/停用龙皮
