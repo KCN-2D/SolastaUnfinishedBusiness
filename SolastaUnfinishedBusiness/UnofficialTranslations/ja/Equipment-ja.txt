@@ -1284,6 +1284,7 @@ Equipment/&DemonGrease_NightHunt_Title=ナイトハントのデーモン・グ�
 Equipment/&DemonGrease_PseudoLife_Title=疑似生命のデーモン・グリース
 Equipment/&DemonGrease_SpellTaint_Title=スペルテイントのデーモン・グリース
 Equipment/&DemonGrease_TrueStrike_Title=百発百中のデーモン・グリース
+Equipement/&AttunementCountFormat=同調アイテム：\n\n {0}/{1}
 Equipment/&DeviceAttunedToCharacterFormat={0}に同調しました
 Equipment/&DeviceChargesCurrentOverMaxPlural={0}/{1}の料金
 Equipment/&DeviceChargesCurrentOverMaxSingle={0}/{1}充電

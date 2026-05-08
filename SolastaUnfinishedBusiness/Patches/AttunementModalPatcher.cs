@@ -14,6 +14,20 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class AttunementModalPatcher
 {
+    private static int GetLimit(AttunementModal modal)
+    {
+        return modal.AttuningCharacter.RulesetCharacterHero.GetAttunementLimit();
+    }
+
+    private static void RefreshAttunementCountLabel(AttunementModal modal)
+    {
+        var text = Gui.Format(AttunementModal.AttunementCountFormat,
+            modal.attunedItems.Count.ToString(),
+            GetLimit(modal).ToString());
+
+        modal.attunementCountLabel.Text = text.Replace("\n", "");
+    }
+
     [HarmonyPatch(typeof(AttunementModal), nameof(AttunementModal.Refresh))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -34,16 +48,7 @@ public static class AttunementModalPatcher
         [UsedImplicitly]
         public static void Postfix(AttunementModal __instance)
         {
-            var text = Gui.Format(AttunementModal.AttunementCountFormat,
-                __instance.attunedItems.Count.ToString(),
-                __instance.AttuningCharacter.RulesetCharacterHero.GetAttunementLimit().ToString());
-
-            __instance.attunementCountLabel.Text = text.Replace("\n", "");
-        }
-
-        private static int GetLimit(AttunementModal modal)
-        {
-            return modal.AttuningCharacter.RulesetCharacterHero.GetAttunementLimit();
+            RefreshAttunementCountLabel(__instance);
         }
     }
 
