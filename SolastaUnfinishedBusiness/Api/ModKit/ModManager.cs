@@ -48,7 +48,7 @@ internal sealed class ModManager<TCore, TSettings>
 
         try
         {
-            var types = assembly.GetTypes();
+            var types = AssemblyTypeCache.GetTypes(assembly);
 
             LoadSettingsAndCore(modEntry);
             ApplyHarmonyPatches(modEntry, types);

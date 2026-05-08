@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using JetBrains.Annotations;
+using Newtonsoft.Json;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Classes;
 using SolastaUnfinishedBusiness.Displays;
@@ -14,10 +15,114 @@ namespace SolastaUnfinishedBusiness.Models;
 
 internal static class DocumentationContext
 {
+    private const string DocumentationFolder = "Documentation";
+    private const string MonstersFolder = "Monsters";
+    private const string VersionMarkerFile = ".ub-docs-version";
+
+    private static readonly string[] RequiredDocumentationFiles =
+    [
+        "Backgrounds.md",
+        "Classes.md",
+        "Feats.md",
+        "FightingStyles.md",
+        "Infusions.md",
+        "Invocations.md",
+        "Items.md",
+        "Metamagic.md",
+        "Races.md",
+        "Spells.md",
+        "Subclasses.md",
+        "Subraces.md",
+        Path.Combine(MonstersFolder, "SolastaMonstersHumanoid.md")
+    ];
+
     private static void EnsureFolderExists()
     {
-        Main.EnsureFolderExists($"{Main.ModFolder}/Documentation");
-        Main.EnsureFolderExists($"{Main.ModFolder}/Documentation/Monsters");
+        Main.EnsureFolderExists(Path.Combine(Main.ModFolder, DocumentationFolder));
+        Main.EnsureFolderExists(Path.Combine(Main.ModFolder, DocumentationFolder, MonstersFolder));
+    }
+
+    internal static void DumpDocumentationIfNeeded()
+    {
+        EnsureFolderExists();
+
+        if (!ShouldDumpDocumentation(out var version))
+        {
+            return;
+        }
+
+        DumpDocumentation();
+
+        if (!string.IsNullOrWhiteSpace(version))
+        {
+            try
+            {
+                File.WriteAllText(GetDocumentationPath(VersionMarkerFile), version);
+            }
+            catch
+            {
+                // Documentation remains valid even if the best-effort marker cannot be updated.
+            }
+        }
+    }
+
+    private static bool ShouldDumpDocumentation(out string version)
+    {
+        version = GetCurrentModVersion();
+
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            return true;
+        }
+
+        var markerPath = GetDocumentationPath(VersionMarkerFile);
+
+        if (!File.Exists(markerPath) || !VersionMarkerMatches(markerPath, version))
+        {
+            return true;
+        }
+
+        foreach (var requiredFile in RequiredDocumentationFiles)
+        {
+            if (!File.Exists(GetDocumentationPath(requiredFile)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool VersionMarkerMatches(string markerPath, string version)
+    {
+        try
+        {
+            return File.ReadAllText(markerPath).Trim() == version;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string GetCurrentModVersion()
+    {
+        try
+        {
+            var infoPayload = File.ReadAllText(Path.Combine(Main.ModFolder, "Info.json"));
+            var info = JsonConvert.DeserializeObject<InfoJson>(infoPayload);
+
+            return info?.Version ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string GetDocumentationPath(string filename)
+    {
+        return Path.Combine(Main.ModFolder, DocumentationFolder, filename);
     }
 
     internal static void DumpDocumentation()

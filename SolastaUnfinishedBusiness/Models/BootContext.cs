@@ -141,8 +141,8 @@ internal static class BootContext
             // Cache CE definitions for diagnostics and export
             DiagnosticsContext.CacheCeDefinitions();
 
-            // Dump documentations to mod folder
-            DocumentationContext.DumpDocumentation();
+            // Dump documentations to mod folder when version or files changed
+            DocumentationContext.DumpDocumentationIfNeeded();
             ModUi.LoadTabletopDefinitions();
 
             // Manages update or welcome messages

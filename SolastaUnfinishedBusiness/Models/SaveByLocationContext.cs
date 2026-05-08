@@ -18,6 +18,7 @@ internal static class SaveByLocationContext
     private const string CampaignSaveFolder = @"CE\Campaign";
     private const string OfficialSaveFolder = @"CE\Official";
     private const string DefaultName = "Default";
+    private static readonly TimeSpan SavePlacesCacheDuration = TimeSpan.FromSeconds(2);
 
     internal static readonly string DefaultSaveGameDirectory =
         Path.Combine(TacticalAdventuresApplication.GameDirectory, "Saves");
@@ -33,6 +34,9 @@ internal static class SaveByLocationContext
 
     internal static CustomDropDown Dropdown { get; private set; }
 
+    private static SavePlace[] SavePlacesCache { get; set; }
+    private static DateTime SavePlacesCacheUtc { get; set; }
+
     internal static void EnsureFoldersExist()
     {
         Main.EnsureFolderExists(OfficialSaveGameDirectory);
@@ -42,9 +46,32 @@ internal static class SaveByLocationContext
 
     private static SavePlace[] GetAllSavePlaces()
     {
-        return EnumerateAllSavePlaces()
+        var now = DateTime.UtcNow;
+
+        if (SavePlacesCache != null && now - SavePlacesCacheUtc <= SavePlacesCacheDuration)
+        {
+            return SavePlacesCache;
+        }
+
+        SavePlacesCache = EnumerateAllSavePlaces()
             .Where(d => d.Available)
             .ToArray();
+        SavePlacesCacheUtc = now;
+
+        return SavePlacesCache;
+    }
+
+    internal static void InvalidateSavePlacesCache()
+    {
+        SavePlacesCache = null;
+        SavePlacesCacheUtc = default;
+    }
+
+    internal static void Unload(bool destroyUnityObjects)
+    {
+        InvalidateSavePlacesCache();
+        Dropdown?.Dispose(destroyUnityObjects);
+        Dropdown = null;
     }
 
     private static IEnumerable<SavePlace> EnumerateAllSavePlaces()
@@ -57,10 +84,7 @@ internal static class SaveByLocationContext
 
     internal static bool HasAnySaveGames()
     {
-        return HasAnySaveGames(DefaultSaveGameDirectory) ||
-               EnumerateSaveDirectories(LocationSaveGameDirectory).Any(HasAnySaveGames) ||
-               EnumerateSaveDirectories(CampaignSaveGameDirectory).Any(HasAnySaveGames) ||
-               EnumerateSaveDirectories(OfficialSaveGameDirectory).Any(HasAnySaveGames);
+        return GetAllSavePlaces().Any(place => place.Count > 0);
     }
 
     internal static SavePlace GetMostRecentPlace()
@@ -83,21 +107,6 @@ internal static class SaveByLocationContext
         return Directory.Exists(where)
             ? Directory.EnumerateDirectories(where)
             : [];
-    }
-
-    private static bool HasAnySaveGames(string dir)
-    {
-        if (!Directory.Exists(dir))
-        {
-            return false;
-        }
-
-        foreach (var _ in Directory.EnumerateFiles(dir, "*.sav"))
-        {
-            return true;
-        }
-
-        return false;
     }
 
     private static SavePlace CreateSavePlace(string dir, LocationType type)

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -14,6 +15,7 @@ using Newtonsoft.Json.Linq;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Api.ModKit.Utility;
 using SolastaUnfinishedBusiness.CustomUI;
+using UnityEngine;
 using UnityModManagerNet;
 
 namespace SolastaUnfinishedBusiness.Models;
@@ -22,6 +24,7 @@ internal static class UpdateContext
 {
     private static readonly string TempFolder = $"TEMP_UPDATE{Path.DirectorySeparatorChar}";
     private static readonly string ModFolder = $"SolastaUnfinishedBusiness{Path.DirectorySeparatorChar}";
+    private static readonly ConcurrentQueue<Action> MainThreadActions = new();
     private static InfoJson Info { get; set; }
     private static string BaseURL { get; set; }
     private static string VersionURL { get; set; }
@@ -31,6 +34,8 @@ internal static class UpdateContext
     internal static bool InProgress { get; private set; }
     internal static int Progress { get; private set; }
 
+    private static UpdateDispatcher Dispatcher { get; set; }
+    private static WebClient VersionWebClient { get; set; }
     private static WebClient UpdateWebClient { get; set; }
     private static bool Unloading { get; set; }
 
@@ -38,6 +43,9 @@ internal static class UpdateContext
 
     internal static void Load()
     {
+        Unloading = false;
+        EnsureDispatcher();
+
         var infoPayload = File.ReadAllText(Path.Combine(Main.ModFolder, "Info.json"));
         Info = JsonConvert.DeserializeObject<InfoJson>(infoPayload);
 
@@ -46,23 +54,15 @@ internal static class UpdateContext
         InstalledVersion = Info.Version;
         PreviousVersion = GetPreviousVersion();
 
-        LatestVersion = GetLatestVersion(out ShouldUpdate);
-        if (ShouldUpdate)
-        {
-            DisplayUpdateMessage();
-        }
-        else
-        {
-            CustomModels.AlertIfModelsNotFound();
+        LatestVersion = InstalledVersion;
+        ShouldUpdate = false;
 
-            if (Main.Settings.DisplayModMessage == 0)
-            {
-                DisplayWelcomeMessage();
-            }
-        }
+        var displayWelcomeMessage = Main.Settings.DisplayModMessage == 0;
 
         // display mod message every 100 launches
         Main.Settings.DisplayModMessage = (Main.Settings.DisplayModMessage + 1) % 100;
+
+        StartVersionCheck(displayWelcomeMessage);
     }
 
     private static string GetPreviousVersion()
@@ -82,38 +82,81 @@ internal static class UpdateContext
         InProgress = false;
         Progress = 0;
 
-        var webClient = UpdateWebClient;
-
+        ClearMainThreadActions();
+        CancelAndDisposeWebClient(VersionWebClient);
+        CancelAndDisposeWebClient(UpdateWebClient);
+        VersionWebClient = null;
         UpdateWebClient = null;
 
-        if (webClient == null)
+        if (Dispatcher)
         {
-            return;
-        }
+            if (!Main.IsApplicationQuitting)
+            {
+                UnityEngine.Object.Destroy(Dispatcher.gameObject);
+            }
 
-        try
-        {
-            webClient.CancelAsync();
-        }
-        finally
-        {
-            webClient.Dispose();
+            Dispatcher = null;
         }
     }
 
-    private static string GetLatestVersion(out bool shouldUpdate)
+    private static void StartVersionCheck(bool displayWelcomeMessage)
     {
-        var version = "";
+        CancelAndDisposeWebClient(VersionWebClient);
 
-        shouldUpdate = false;
+        var webClient = new WebClient { Encoding = Encoding.UTF8 };
 
-        using var wc = new WebClient();
-
-        wc.Encoding = Encoding.UTF8;
+        VersionWebClient = webClient;
+        webClient.DownloadStringCompleted += OnDownloadStringCompleted;
 
         try
         {
-            var infoPayload = wc.DownloadString(VersionURL);
+            webClient.DownloadStringAsync(new Uri(VersionURL));
+        }
+        catch
+        {
+            if (VersionWebClient == webClient)
+            {
+                VersionWebClient = null;
+            }
+
+            webClient.Dispose();
+            QueueStartupMessages(displayWelcomeMessage);
+        }
+
+        return;
+
+        void OnDownloadStringCompleted(object _, DownloadStringCompletedEventArgs e)
+        {
+            if (VersionWebClient == webClient)
+            {
+                VersionWebClient = null;
+            }
+
+            webClient.DownloadStringCompleted -= OnDownloadStringCompleted;
+            webClient.Dispose();
+
+            if (Unloading || e.Cancelled)
+            {
+                return;
+            }
+
+            if (e.Error == null && TryParseLatestVersion(e.Result, out var version, out var shouldUpdate))
+            {
+                LatestVersion = version;
+                ShouldUpdate = shouldUpdate;
+            }
+
+            QueueStartupMessages(displayWelcomeMessage);
+        }
+    }
+
+    private static bool TryParseLatestVersion(string infoPayload, out string version, out bool shouldUpdate)
+    {
+        version = InstalledVersion;
+        shouldUpdate = false;
+
+        try
+        {
             var infoJson = JsonConvert.DeserializeObject<JObject>(infoPayload);
 
             // ReSharper disable once AssignNullToNotNullAttribute
@@ -125,13 +168,13 @@ internal static class UpdateContext
             var v2 = a2[0] + a2[1] + a2[2] + int.Parse(a2[3]).ToString("D3");
 
             shouldUpdate = string.Compare(v2, v1, StringComparison.Ordinal) > 0;
+
+            return true;
         }
         catch
         {
-            Main.Error("cannot fetch update data.");
+            return false;
         }
-
-        return version;
     }
 
     internal static void UpdateMod(bool toLatest = true)
@@ -282,6 +325,98 @@ internal static class UpdateContext
         }
 
         webClient.Dispose();
+    }
+
+    private static void CancelAndDisposeWebClient(WebClient webClient)
+    {
+        if (webClient == null)
+        {
+            return;
+        }
+
+        try
+        {
+            webClient.CancelAsync();
+        }
+        finally
+        {
+            webClient.Dispose();
+        }
+    }
+
+    private static void QueueStartupMessages(bool displayWelcomeMessage)
+    {
+        QueueMainThread(() =>
+        {
+            if (ShouldUpdate)
+            {
+                DisplayUpdateMessage();
+                return;
+            }
+
+            CustomModels.AlertIfModelsNotFound();
+
+            if (displayWelcomeMessage)
+            {
+                DisplayWelcomeMessage();
+            }
+        });
+    }
+
+    private static void EnsureDispatcher()
+    {
+        if (Dispatcher)
+        {
+            return;
+        }
+
+        var gameObject = new GameObject("SolastaUnfinishedBusinessUpdateContext");
+
+        UnityEngine.Object.DontDestroyOnLoad(gameObject);
+        Dispatcher = gameObject.AddComponent<UpdateDispatcher>();
+    }
+
+    private static void QueueMainThread(Action action)
+    {
+        if (!Unloading)
+        {
+            MainThreadActions.Enqueue(action);
+        }
+    }
+
+    private static void ProcessMainThreadActions()
+    {
+        while (MainThreadActions.TryDequeue(out var action))
+        {
+            if (Unloading)
+            {
+                continue;
+            }
+
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                Main.Error(ex);
+            }
+        }
+    }
+
+    private static void ClearMainThreadActions()
+    {
+        while (MainThreadActions.TryDequeue(out _))
+        {
+        }
+    }
+
+    private sealed class UpdateDispatcher : MonoBehaviour
+    {
+        private void Update()
+        {
+            ProcessMainThreadActions();
+        }
     }
 
     internal static void DisplayRollbackMessage()

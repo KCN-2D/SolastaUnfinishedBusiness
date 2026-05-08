@@ -97,7 +97,19 @@ internal static class DiagnosticsContext
 
             if (_taBaseDefinitionsMap.TryGetValue(db.Key, out var taDefinitions))
             {
-                arr = arr.Except(taDefinitions).ToArray();
+                var taDefinitionSet = new HashSet<BaseDefinition>(taDefinitions);
+                var seenDefinitions = new HashSet<BaseDefinition>();
+                var ceDefinitions = new List<BaseDefinition>(arr.Length);
+
+                foreach (var definition in arr)
+                {
+                    if (!taDefinitionSet.Contains(definition) && seenDefinitions.Add(definition))
+                    {
+                        ceDefinitions.Add(definition);
+                    }
+                }
+
+                arr = ceDefinitions.ToArray();
             }
 
             definitions.Add(db.Key, arr);

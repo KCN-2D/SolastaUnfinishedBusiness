@@ -80,6 +80,7 @@ public static class LoadPanelPatcher
         [UsedImplicitly]
         public static void Postfix()
         {
+            InvalidateSavePlacesCache();
             Dropdown?.SetActive(false);
         }
     }

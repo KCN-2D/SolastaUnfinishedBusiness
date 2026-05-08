@@ -604,11 +604,10 @@ public static class CustomModels
     {
         try
         {
-            var file = File.Create(path);
+            using var file = File.Create(path);
             var bf = GetBinaryFormatter();
 
             bf.Serialize(file, objFile);
-            file.Close();
         }
         catch (Exception e)
         {
@@ -620,11 +619,10 @@ public static class CustomModels
     {
         try
         {
-            var file = File.Open(path, FileMode.Open);
+            using var file = File.Open(path, FileMode.Open);
             var bf = GetBinaryFormatter();
 
             objFile = (ObjectFile)bf.Deserialize(file);
-            file.Close();
 
             return true;
         }

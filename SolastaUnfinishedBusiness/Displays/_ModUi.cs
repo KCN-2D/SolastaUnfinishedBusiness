@@ -504,12 +504,13 @@ internal static class ModUi
         var enabledTabletopDefinitions = enabledDefinitions
             .Where(IsBulkSelectableTabletopDefinition)
             .ToArray();
+        var selectedDefinitionNames = new HashSet<string>(selectedDefinitions);
         var selectAll =
             enabledDefinitions.Length > 0 &&
-            enabledDefinitions.All(definition => selectedDefinitions.Contains(definition.Name));
+            enabledDefinitions.All(definition => selectedDefinitionNames.Contains(definition.Name));
         var selectTabletop =
             enabledTabletopDefinitions.Length > 0 &&
-            enabledTabletopDefinitions.All(definition => selectedDefinitions.Contains(definition.Name));
+            enabledTabletopDefinitions.All(definition => selectedDefinitionNames.Contains(definition.Name));
 
         UI.Label();
 
@@ -553,6 +554,8 @@ internal static class ModUi
                     {
                         switchAction.Invoke(registeredDefinition, selectAll);
                     }
+
+                    selectedDefinitionNames = new HashSet<string>(selectedDefinitions);
                 }
 
                 if (displaySelectTabletop)
@@ -564,6 +567,8 @@ internal static class ModUi
                         {
                             switchAction.Invoke(registeredDefinition, selectTabletop);
                         }
+
+                        selectedDefinitionNames = new HashSet<string>(selectedDefinitions);
                     }
                 }
 
@@ -613,7 +618,7 @@ internal static class ModUi
                         }
 
                         var isEnabled = toggleEnabled?.Invoke(definition) ?? true;
-                        toggle = toggleValueOverride?.Invoke(definition) ?? selectedDefinitions.Contains(definition.Name);
+                        toggle = toggleValueOverride?.Invoke(definition) ?? selectedDefinitionNames.Contains(definition.Name);
 
                         var guiEnabled = GUI.enabled;
                         GUI.enabled = guiEnabled && isEnabled;
@@ -621,6 +626,7 @@ internal static class ModUi
                         if (UI.Toggle(title, ref toggle, UI.Width(PixelsPerColumn)))
                         {
                             switchAction.Invoke(definition, toggle);
+                            selectedDefinitionNames = new HashSet<string>(selectedDefinitions);
                         }
 
                         GUI.enabled = guiEnabled;

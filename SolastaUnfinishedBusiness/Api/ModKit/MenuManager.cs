@@ -61,7 +61,7 @@ internal sealed class MenuManager : INotifyPropertyChanged
 
     internal void Enable(UnityModManager.ModEntry modEntry, Assembly assembly)
     {
-        foreach (var type in assembly.GetTypes()
+        foreach (var type in AssemblyTypeCache.GetTypes(assembly)
                      .Where(type => !type.IsInterface && !type.IsAbstract && typeof(IMenuPage).IsAssignableFrom(type)))
         {
             var page = Activator.CreateInstance(type, true) as IMenuPage;
