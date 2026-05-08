@@ -531,14 +531,7 @@ internal static class FreeJumpContext
 
         var scope = BeginScope(character, ScopeKind.ExplorationMove, destination, true);
 
-        if (scope != null)
-        {
-            DisableExplorationFreeJump(character);
-        }
-        else
-        {
-            DisableExplorationFreeJump(character);
-        }
+        DisableExplorationFreeJump(character);
 
         return scope;
     }
@@ -609,6 +602,40 @@ internal static class FreeJumpContext
     internal static IDisposable BeginAiTurn(GameLocationCharacter character)
     {
         return CanUseAiFreeJump(character) ? BeginScope(character, ScopeKind.AiTurn) : null;
+    }
+
+    internal static bool HasUsefulAiFreeJumpDestination(GameLocationCharacter character)
+    {
+        if (!CanUseAiFreeJump(character) ||
+            !TryComputeProfile(character, out var profile))
+        {
+            return false;
+        }
+
+        var start = character.LocationPosition;
+        var hasAcceptedCandidate = false;
+
+        EnumerateCandidatePositions(start, profile, destination =>
+        {
+            if (!CanAffordFreeJumpMove(character, start, destination) ||
+                !TryGetAiCandidateInfo(character, start, destination, profile, out var candidateInfo) ||
+                !CombatAiContext.TryEvaluateFreeJumpDestination(
+                    character,
+                    start,
+                    destination,
+                    candidateInfo.Preview,
+                    candidateInfo.BypassesObstacle,
+                    out _))
+            {
+                return true;
+            }
+
+            hasAcceptedCandidate = true;
+
+            return false;
+        });
+
+        return hasAcceptedCandidate;
     }
 
     internal static IDisposable BeginMovePathfinding(CharacterActionMove action)
@@ -885,6 +912,18 @@ internal static class FreeJumpContext
             scope.FailedTargets.Add(scope.TargetPosition);
         }
 
+        if (scope.Kind == ScopeKind.AiMove)
+        {
+            if (!atTarget || scope.BonusActionSpent || scope.JumpLandingFailed)
+            {
+                return;
+            }
+
+            SpendBonusAction(character, scope, character.LocationPosition, "ai-move-ended");
+
+            return;
+        }
+
         if (scope.Kind != ScopeKind.BonusActionMove || scope.BonusActionSpent)
         {
             return;
@@ -936,7 +975,7 @@ internal static class FreeJumpContext
 
     private static bool IsBonusActionSpendingScope(ScopeData scope)
     {
-        return scope.Kind is ScopeKind.BonusActionMove or ScopeKind.AiMove;
+        return scope.Kind == ScopeKind.BonusActionMove;
     }
 
     private static bool IsFreeJumpMoveScope(ScopeData scope)

@@ -126,10 +126,10 @@ internal static class CombatAiContext
     private const float FreeJumpMinimumBaselineScore = 0.20f;
     private const float FreeJumpMinimumPositioningScore = 0.12f;
     private const float FreeJumpMinimumActionEconomyScore = 0.05f;
-    private const float FreeJumpAttackAccessScore = 0.35f;
+    private const float FreeJumpAttackAccessScore = 0.45f;
     private const float FreeJumpThreatReductionScore = 0.20f;
     private const float FreeJumpCoverImprovementScore = 0.12f;
-    private const float FreeJumpObstacleBypassScore = 0.16f;
+    private const float FreeJumpObstacleBypassScore = 0.20f;
     private const float FreeJumpHighGroundScore = 0.08f;
 
     private static readonly string[] CautiousFlags = ["Self-Preservation", "Pragmatism", "Cynicism"];
@@ -138,6 +138,7 @@ internal static class CombatAiContext
     private static readonly Dictionary<ulong, CombatAiProfile> ProfileCache = [];
     private static readonly Dictionary<ulong, string[]> PersonalityFlagsCache = [];
     private static readonly Dictionary<ulong, ObservedCombatMemory> ObservedCombatMemoryCache = [];
+    private static readonly Dictionary<AttackPositionKey, bool> MeleeAttackPositionCache = [];
     private static int ObservedCombatMemoryTurnStamp;
 
     private readonly struct ObservedCombatMemory(
@@ -197,6 +198,49 @@ internal static class CombatAiContext
         internal bool CanAttack { get; } = canAttack;
     }
 
+    private readonly struct AttackPositionKey(
+        ulong attackerGuid,
+        int3 attackerPosition,
+        ulong targetGuid,
+        int3 targetPosition) : IEquatable<AttackPositionKey>
+    {
+        private ulong AttackerGuid { get; } = attackerGuid;
+        private int3 AttackerPosition { get; } = attackerPosition;
+        private ulong TargetGuid { get; } = targetGuid;
+        private int3 TargetPosition { get; } = targetPosition;
+
+        public bool Equals(AttackPositionKey other)
+        {
+            return AttackerGuid == other.AttackerGuid &&
+                   AttackerPosition == other.AttackerPosition &&
+                   TargetGuid == other.TargetGuid &&
+                   TargetPosition == other.TargetPosition;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is AttackPositionKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = (int)AttackerGuid;
+
+                hash = (hash * 397) ^ AttackerPosition.x;
+                hash = (hash * 397) ^ AttackerPosition.y;
+                hash = (hash * 397) ^ AttackerPosition.z;
+                hash = (hash * 397) ^ (int)TargetGuid;
+                hash = (hash * 397) ^ TargetPosition.x;
+                hash = (hash * 397) ^ TargetPosition.y;
+                hash = (hash * 397) ^ TargetPosition.z;
+
+                return hash;
+            }
+        }
+    }
+
     internal static bool IsAdvancedCombatAiEnabled =>
         Main.Settings.EnableAdvancedCombatAI;
 
@@ -234,6 +278,7 @@ internal static class CombatAiContext
         }
 
         ObservedCombatMemoryTurnStamp++;
+        MeleeAttackPositionCache.Clear();
         _ = BuildProfile(character);
     }
 
@@ -245,6 +290,7 @@ internal static class CombatAiContext
         }
 
         ProfileCache.Remove(character.Guid);
+        MeleeAttackPositionCache.Clear();
 
         if (character.RulesetCharacter != null)
         {
@@ -267,6 +313,7 @@ internal static class CombatAiContext
         ProfileCache.Clear();
         PersonalityFlagsCache.Clear();
         ObservedCombatMemoryCache.Clear();
+        MeleeAttackPositionCache.Clear();
         ObservedCombatMemoryTurnStamp = 0;
     }
 
@@ -361,6 +408,16 @@ internal static class CombatAiContext
             return false;
         }
 
+        var canUseCache = IsAdvancedCombatAiEnabled;
+        var cacheKey = canUseCache
+            ? new AttackPositionKey(attacker.Guid, attackerPosition, target.Guid, targetPosition)
+            : default;
+
+        if (canUseCache && MeleeAttackPositionCache.TryGetValue(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
         foreach (var mode in attacker.RulesetCharacter.AttackModes)
         {
             if (mode == null || mode.Ranged || mode.Thrown)
@@ -381,8 +438,18 @@ internal static class CombatAiContext
 
             if (battleService.CanAttack(attackParams))
             {
+                if (canUseCache)
+                {
+                    MeleeAttackPositionCache[cacheKey] = true;
+                }
+
                 return true;
             }
+        }
+
+        if (canUseCache)
+        {
+            MeleeAttackPositionCache[cacheKey] = false;
         }
 
         return false;
@@ -647,6 +714,15 @@ internal static class CombatAiContext
             ? FreeJumpMinimumPositioningScore
             : FreeJumpMinimumBaselineScore;
 
+        if (canGainAttack)
+        {
+            minimumScore = Math.Min(minimumScore, FreeJumpMinimumActionEconomyScore);
+        }
+        else if (bypassesObstacle && (movesCloser || reducesMeleeThreat || improvesCover))
+        {
+            minimumScore = Math.Min(minimumScore, FreeJumpMinimumPositioningScore);
+        }
+
         if (IsAdvancedCombatAiActionEconomyEnabled &&
             !HasAnyUsefulHostileActionAgainstVisibleEnemies(actor, battleService))
         {
@@ -809,6 +885,13 @@ internal static class CombatAiContext
 
         var profile = BuildProfile(character);
         var self = BuildSelfAssessment(character);
+        var hasUsefulMovementOrPositioningFallback =
+            HasUsefulMovementOrPositioningFallback(character, battleService, profile, self);
+
+        if (hasUsefulMovementOrPositioningFallback)
+        {
+            return false;
+        }
 
         if (TryUseFallbackReady(character, profile))
         {
@@ -821,7 +904,7 @@ internal static class CombatAiContext
         }
 
         if (character.GetActionStatus(Id.Dodge, ActionScope.Battle) != ActionStatus.Available ||
-            !ShouldUseFallbackDodge(character, self, battleService))
+            !ShouldUseFallbackDodge(character, battleService))
         {
             return false;
         }
@@ -888,6 +971,11 @@ internal static class CombatAiContext
             var distanceScore = evaluation.IsApproachSource
                 ? Mathf.Lerp(0.0f, 1f, Mathf.Clamp(evaluation.Distance / Math.Max(floatParameter, 1f), 0.0f, 1f))
                 : ComputeDistancePreferenceScore(profile, evaluation.Distance, floatParameter);
+
+            if (!evaluation.IsApproachSource && evaluation.CanAttackFromPosition)
+            {
+                distanceScore = Math.Max(distanceScore, evaluation.RangedCoverType <= CoverType.Half ? 0.95f : 0.85f);
+            }
 
             numerator += distanceScore * ComputeEnemyPriorityWeight(profile, evaluation);
         }
@@ -2085,7 +2173,6 @@ internal static class CombatAiContext
 
     private static bool ShouldUseFallbackDodge(
         GameLocationCharacter character,
-        CombatAiSelfAssessment self,
         IGameLocationBattleService battleService)
     {
         if (character?.RulesetCharacter == null || battleService == null)
@@ -2093,24 +2180,14 @@ internal static class CombatAiContext
             return false;
         }
 
-        if (character.UsedTacticalMoves > 0)
-        {
-            return true;
-        }
-
-        if (self.IsBloodied ||
-            self.IsCritical ||
-            self.HasSeriousCondition ||
-            self.IsConcentrating ||
-            HasVisibleMeleeThreat(character, battleService))
-        {
-            return true;
-        }
-
-        return !HasUsefulMovementOrPositioningFallback(character);
+        return true;
     }
 
-    private static bool HasUsefulMovementOrPositioningFallback(GameLocationCharacter character)
+    private static bool HasUsefulMovementOrPositioningFallback(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService,
+        CombatAiProfile profile,
+        CombatAiSelfAssessment self)
     {
         if (character?.RulesetCharacter == null ||
             character.MaxTacticalMoves <= 0 ||
@@ -2120,8 +2197,52 @@ internal static class CombatAiContext
             return false;
         }
 
-        return HasRelevantPerceivedEnemies(character) ||
-               TryGetLastKnownEnemyPosition(character, out _) ||
+        if (FreeJumpContext.HasUsefulAiFreeJumpDestination(character))
+        {
+            return true;
+        }
+
+        var hasVisibleMeleeThreat = HasVisibleMeleeThreat(character, battleService);
+
+        foreach (var enemy in character.PerceivedFoes)
+        {
+            if (enemy?.RulesetCharacter == null || enemy.Side == character.Side)
+            {
+                continue;
+            }
+
+            if (CanAttackInMeleeFromPosition(
+                    character,
+                    character.LocationPosition,
+                    enemy,
+                    enemy.LocationPosition,
+                    battleService) ||
+                TryGetRangedAttackModifierFromPosition(
+                    character,
+                    character.LocationPosition,
+                    enemy,
+                    enemy.LocationPosition,
+                    battleService,
+                    out _))
+            {
+                continue;
+            }
+
+            var distance = ComputeGridDistance(character.LocationPosition, enemy.LocationPosition);
+
+            if ((profile.PrefersAggressivePursuit || !profile.PrefersDistance) && distance > 1.5f)
+            {
+                return true;
+            }
+
+            if (profile.PrefersDistance &&
+                (hasVisibleMeleeThreat || self.IsBloodied || self.HasSeriousCondition || self.IsConcentrating))
+            {
+                return true;
+            }
+        }
+
+        return TryGetLastKnownEnemyPosition(character, out _) ||
                TryGetRegroupPosition(character, out _);
     }
 

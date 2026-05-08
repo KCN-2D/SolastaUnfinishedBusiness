@@ -51,7 +51,14 @@ internal static class PlayerControllerContext
         {
             playerCharactersChoices = value;
 
-            for (var i = 0; i < value.Length; i++)
+            if (value == null)
+            {
+                return;
+            }
+
+            var count = System.Math.Min(value.Length, PlayerCharacters.Count);
+
+            for (var i = 0; i < count; i++)
             {
                 var playerCharacter = PlayerCharacters[i];
 
@@ -72,6 +79,11 @@ internal static class PlayerControllerContext
         var controllersChoicesCopy = ControllersChoices.ToDictionary(x => x.Key, x => x.Value);
         var characterService = ServiceRepository.GetService<IGameLocationCharacterService>();
 
+        if (characterService == null)
+        {
+            return;
+        }
+
         ControllersChoices.Clear();
         PlayerCharacters.Clear();
         PlayerCharacters.AddRange(characterService.PartyCharacters);
@@ -85,9 +97,23 @@ internal static class PlayerControllerContext
     {
         var activePlayerController = Gui.ActivePlayerController;
 
+        if (activePlayerController == null)
+        {
+            return;
+        }
+
         foreach (var playerCharacter in PlayerCharacters)
         {
-            var choice = ControllersChoices[playerCharacter];
+            if (!ControllersChoices.TryGetValue(playerCharacter, out var choice))
+            {
+                choice = 0;
+            }
+
+            if (choice < 0 || choice >= AiDecisionPackages.Length)
+            {
+                choice = 0;
+            }
+
             var controllerId = reset || choice == 0
                 ? PlayerControllerID
                 : PlayerControllerManager.DmControllerId;

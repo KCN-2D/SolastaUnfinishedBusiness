@@ -58,7 +58,7 @@ public static class HasEnemiesInMeleeRangePatcher
                     continue;
                 }
 
-                var isEnemyWithinMeleeReachRange = CombatAiContext.IsAdvancedCombatAiFlightEnabled
+                var isEnemyWithinMeleeReachRange = CombatAiContext.IsAdvancedCombatAiEnabled
                     ? CombatAiContext.CanAttackInMeleeFromPosition(
                         relevantEnemy,
                         relevantEnemy.LocationPosition,
