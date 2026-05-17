@@ -302,13 +302,7 @@ internal static class Tooltips
 
     internal static void ModifyWidth(TooltipFeature parent)
     {
-        if (!parent.TryGetComponent<TooltipFeatureWidthMod>(out var component))
-        {
-            component = parent.gameObject.AddComponent<TooltipFeatureWidthMod>();
-            component.Init(parent);
-        }
-
-        component.Apply();
+        ModifyWidth<TooltipFeatureWidthMod, TooltipFeature>(parent);
     }
 
     internal static void NormalizeSpellAdvancement(TooltipFeatureSpellAdvancement parent)

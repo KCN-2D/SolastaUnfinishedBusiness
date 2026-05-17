@@ -15,6 +15,7 @@ internal static class FloatingPanelBounds
     private const float TooltipScrollPixelsPerWheel = 72f;
 
     private static TooltipPanelBoundsController ActiveTooltipWheelCapture;
+    private static readonly List<TooltipPanelBoundsEntry> ActiveTooltipPanelBounds = new();
     private static readonly Vector3[] WorldCorners = new Vector3[4];
 
     private enum AttachmentSide
@@ -465,6 +466,77 @@ internal static class FloatingPanelBounds
         return width * height;
     }
 
+    private static void RegisterTooltipBounds(
+        TooltipPanelBoundsController controller,
+        RectTransform canvasRect,
+        Rect bounds)
+    {
+        if (!controller || !canvasRect)
+        {
+            return;
+        }
+
+        for (var i = ActiveTooltipPanelBounds.Count - 1; i >= 0; i--)
+        {
+            var entry = ActiveTooltipPanelBounds[i];
+
+            if (!entry.Controller || !entry.CanvasRect)
+            {
+                ActiveTooltipPanelBounds.RemoveAt(i);
+                continue;
+            }
+
+            if (entry.Controller == controller)
+            {
+                ActiveTooltipPanelBounds[i] = new TooltipPanelBoundsEntry(controller, canvasRect, bounds);
+                return;
+            }
+        }
+
+        ActiveTooltipPanelBounds.Add(new TooltipPanelBoundsEntry(controller, canvasRect, bounds));
+    }
+
+    private static void UnregisterTooltipBounds(TooltipPanelBoundsController controller)
+    {
+        for (var i = ActiveTooltipPanelBounds.Count - 1; i >= 0; i--)
+        {
+            var entry = ActiveTooltipPanelBounds[i];
+
+            if (!entry.Controller || !entry.CanvasRect || entry.Controller == controller)
+            {
+                ActiveTooltipPanelBounds.RemoveAt(i);
+            }
+        }
+    }
+
+    private static float GetOtherTooltipOverlapArea(
+        TooltipPanelBoundsController controller,
+        RectTransform canvasRect,
+        Rect bounds)
+    {
+        var overlapArea = 0f;
+
+        for (var i = ActiveTooltipPanelBounds.Count - 1; i >= 0; i--)
+        {
+            var entry = ActiveTooltipPanelBounds[i];
+
+            if (!entry.Controller || !entry.CanvasRect)
+            {
+                ActiveTooltipPanelBounds.RemoveAt(i);
+                continue;
+            }
+
+            if (entry.Controller == controller || entry.CanvasRect != canvasRect)
+            {
+                continue;
+            }
+
+            overlapArea += GetOverlapArea(bounds, entry.Bounds);
+        }
+
+        return overlapArea;
+    }
+
     private static Vector2 GetCanvasLocalDelta(Rect bounds, RectTransform canvasRect, float margin)
     {
         var delta = Vector2.zero;
@@ -750,6 +822,23 @@ internal static class FloatingPanelBounds
         }
     }
 
+    private readonly struct TooltipPanelBoundsEntry
+    {
+        internal readonly Rect Bounds;
+        internal readonly RectTransform CanvasRect;
+        internal readonly TooltipPanelBoundsController Controller;
+
+        internal TooltipPanelBoundsEntry(
+            TooltipPanelBoundsController controller,
+            RectTransform canvasRect,
+            Rect bounds)
+        {
+            Controller = controller;
+            CanvasRect = canvasRect;
+            Bounds = bounds;
+        }
+    }
+
     private sealed class TooltipPanelBoundsController : MonoBehaviour
     {
         private RectTransform _backgroundBlur;
@@ -796,6 +885,7 @@ internal static class FloatingPanelBounds
         internal void Configure(TooltipPanel tooltipPanel, float margin)
         {
             RestoreScrollState();
+            UnregisterTooltipBounds(this);
 
             _tooltipPanel = tooltipPanel;
             _panel = tooltipPanel.RectTransform;
@@ -834,16 +924,19 @@ internal static class FloatingPanelBounds
         private void OnDisable()
         {
             ReleaseWheelCapture();
+            UnregisterTooltipBounds(this);
         }
 
         private void OnDestroy()
         {
             ReleaseWheelCapture();
+            UnregisterTooltipBounds(this);
         }
 
         internal void RestoreAndDestroy()
         {
             RestoreScrollState();
+            UnregisterTooltipBounds(this);
             Object.DestroyImmediate(this);
         }
 
@@ -890,6 +983,7 @@ internal static class FloatingPanelBounds
         {
             if (!_tooltipPanel || !_panel || !_content || !CanUseScreen(_panel))
             {
+                UnregisterTooltipBounds(this);
                 return;
             }
 
@@ -900,6 +994,7 @@ internal static class FloatingPanelBounds
 
             if (!TryGetCanvasLocalBounds(_panel, out var panelBounds, out var canvasRect))
             {
+                UnregisterTooltipBounds(this);
                 return;
             }
 
@@ -935,6 +1030,7 @@ internal static class FloatingPanelBounds
 
             if (!TryGetCanvasLocalBounds(_panel, canvasRect, out panelBounds))
             {
+                UnregisterTooltipBounds(this);
                 return;
             }
 
@@ -1001,6 +1097,7 @@ internal static class FloatingPanelBounds
             }
 
             ApplyCanvasLocalDelta(_panel, canvasRect, _lockedPanelBounds.min - panelBounds.min);
+            RegisterTooltipBounds(this, canvasRect, _lockedPanelBounds);
         }
 
         private void ApplyLockedBoundsWithoutRebuild()
@@ -1009,10 +1106,12 @@ internal static class FloatingPanelBounds
                 !_panel ||
                 !TryGetCanvasLocalBounds(_panel, out var panelBounds, out var canvasRect))
             {
+                UnregisterTooltipBounds(this);
                 return;
             }
 
             ApplyCanvasLocalDelta(_panel, canvasRect, _lockedPanelBounds.min - panelBounds.min);
+            RegisterTooltipBounds(this, canvasRect, _lockedPanelBounds);
         }
 
         private Rect GetPreferredTooltipBounds(Rect panelBounds, RectTransform canvasRect)
@@ -1040,34 +1139,63 @@ internal static class FloatingPanelBounds
                 mousePosition.y - TooltipCursorPadding,
                 mousePosition.x + TooltipCursorPadding,
                 mousePosition.y + TooltipCursorPadding);
-            var candidates = new[]
-            {
-                new Rect(mousePosition.x + TooltipCursorPadding, mousePosition.y - height * 0.5f, width, height),
-                new Rect(mousePosition.x - TooltipCursorPadding - width, mousePosition.y - height * 0.5f, width, height),
-                new Rect(mousePosition.x - width * 0.5f, mousePosition.y - TooltipCursorPadding - height, width, height),
-                new Rect(mousePosition.x - width * 0.5f, mousePosition.y + TooltipCursorPadding, width, height)
-            };
             var bestScore = float.NegativeInfinity;
             var bestBounds = ClampRectToRect(panelBounds, canvasBounds);
 
-            foreach (var candidate in candidates)
-            {
-                var clamped = ClampRectToRect(candidate, canvasBounds);
-                var visibleArea = GetOverlapArea(candidate, canvasBounds);
-                var cursorOverlap = GetOverlapArea(clamped, cursorBounds);
-                var movePenalty = (clamped.center - candidate.center).sqrMagnitude * 0.001f;
-                var score = visibleArea - cursorOverlap * 8f - movePenalty;
-
-                if (score <= bestScore)
-                {
-                    continue;
-                }
-
-                bestScore = score;
-                bestBounds = clamped;
-            }
+            EvaluateTooltipCandidate(
+                new Rect(mousePosition.x + TooltipCursorPadding, mousePosition.y - height * 0.5f, width, height),
+                canvasBounds,
+                cursorBounds,
+                canvasRect,
+                ref bestScore,
+                ref bestBounds);
+            EvaluateTooltipCandidate(
+                new Rect(mousePosition.x - TooltipCursorPadding - width, mousePosition.y - height * 0.5f, width, height),
+                canvasBounds,
+                cursorBounds,
+                canvasRect,
+                ref bestScore,
+                ref bestBounds);
+            EvaluateTooltipCandidate(
+                new Rect(mousePosition.x - width * 0.5f, mousePosition.y - TooltipCursorPadding - height, width, height),
+                canvasBounds,
+                cursorBounds,
+                canvasRect,
+                ref bestScore,
+                ref bestBounds);
+            EvaluateTooltipCandidate(
+                new Rect(mousePosition.x - width * 0.5f, mousePosition.y + TooltipCursorPadding, width, height),
+                canvasBounds,
+                cursorBounds,
+                canvasRect,
+                ref bestScore,
+                ref bestBounds);
 
             return bestBounds;
+        }
+
+        private void EvaluateTooltipCandidate(
+            Rect candidate,
+            Rect canvasBounds,
+            Rect cursorBounds,
+            RectTransform canvasRect,
+            ref float bestScore,
+            ref Rect bestBounds)
+        {
+            var clamped = ClampRectToRect(candidate, canvasBounds);
+            var visibleArea = GetOverlapArea(candidate, canvasBounds);
+            var cursorOverlap = GetOverlapArea(clamped, cursorBounds);
+            var otherTooltipOverlap = GetOtherTooltipOverlapArea(this, canvasRect, clamped);
+            var movePenalty = (clamped.center - candidate.center).sqrMagnitude * 0.001f;
+            var score = visibleArea - cursorOverlap * 8f - otherTooltipOverlap * 12f - movePenalty;
+
+            if (score <= bestScore)
+            {
+                return;
+            }
+
+            bestScore = score;
+            bestBounds = clamped;
         }
 
         private bool HasLayoutSignatureChanged()

@@ -15,6 +15,7 @@ public static class TooltipPanelPatcher
     private const int TooltipForegroundSortingOrder = 31000;
 
     private static TooltipPanel ActiveTooltipPanel;
+    private static readonly List<TooltipPanel> TooltipForegroundPanels = new();
     private static readonly Dictionary<TooltipPanel, TooltipForegroundState> TooltipForegroundStates = new();
 
     [HarmonyPatch(typeof(TooltipPanel), nameof(TooltipPanel.SetupFeatures))]
@@ -324,6 +325,8 @@ public static class TooltipPanelPatcher
             return;
         }
 
+        RemoveInvalidTooltipForegroundPanels();
+
         if (TooltipForegroundStates.TryGetValue(tooltipPanel, out var state) && !state.Canvas)
         {
             TooltipForegroundStates.Remove(tooltipPanel);
@@ -348,8 +351,10 @@ public static class TooltipPanelPatcher
             return;
         }
 
-        state.Canvas.overrideSorting = true;
-        state.Canvas.sortingOrder = Mathf.Max(state.Canvas.sortingOrder, TooltipForegroundSortingOrder);
+        TooltipForegroundPanels.Remove(tooltipPanel);
+        TooltipForegroundPanels.Add(tooltipPanel);
+
+        ApplyTooltipForegroundOrders();
     }
 
     private static void RestoreTooltipForeground(TooltipPanel tooltipPanel)
@@ -359,8 +364,45 @@ public static class TooltipPanelPatcher
             return;
         }
 
+        TooltipForegroundPanels.Remove(tooltipPanel);
         TooltipForegroundStates.Remove(tooltipPanel);
         state.Restore();
+
+        ApplyTooltipForegroundOrders();
+    }
+
+    private static void RemoveInvalidTooltipForegroundPanels()
+    {
+        for (var i = TooltipForegroundPanels.Count - 1; i >= 0; i--)
+        {
+            var tooltipPanel = TooltipForegroundPanels[i];
+
+            if (!tooltipPanel ||
+                !tooltipPanel.gameObject.activeInHierarchy ||
+                !TooltipForegroundStates.TryGetValue(tooltipPanel, out var state) ||
+                !state.Canvas)
+            {
+                TooltipForegroundPanels.RemoveAt(i);
+            }
+        }
+    }
+
+    private static void ApplyTooltipForegroundOrders()
+    {
+        RemoveInvalidTooltipForegroundPanels();
+
+        for (var i = 0; i < TooltipForegroundPanels.Count; i++)
+        {
+            var tooltipPanel = TooltipForegroundPanels[i];
+
+            if (!TooltipForegroundStates.TryGetValue(tooltipPanel, out var state) || !state.Canvas)
+            {
+                continue;
+            }
+
+            state.Canvas.overrideSorting = true;
+            state.Canvas.sortingOrder = TooltipForegroundSortingOrder + i;
+        }
     }
 
     private sealed class TooltipForegroundState
