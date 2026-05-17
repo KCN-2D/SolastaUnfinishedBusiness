@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -8,6 +9,7 @@ using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using TA.AI;
 using static RuleDefinitions;
 
@@ -61,6 +63,10 @@ public static class GameLocationActionManagerPatcher
         [UsedImplicitly]
         public static void Prefix(GameLocationActionManager __instance, CharacterActionParams reactionParams)
         {
+            CombatAiContext.RecordFallbackReadyTriggered(
+                reactionParams?.ActingCharacter,
+                reactionParams?.TargetCharacters?.FirstOrDefault());
+
             //PATCH: mark this attack as not AoO, so Sentinel movement stop won't trigger
             reactionParams.AttackMode?.AddAttackTagAsNeeded(AttacksOfOpportunity.NotAoOTag);
             //PATCH: mark as a reaction, so Attack After Magic Effect won't check for attack validity, since it was already checked prior to triggering the reaction

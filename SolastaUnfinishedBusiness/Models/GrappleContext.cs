@@ -365,26 +365,31 @@ internal static class GrappleContext
 
     internal static bool HasGrappleSource(RulesetCharacter rulesetCharacter)
     {
-        return rulesetCharacter.HasAnyConditionOfType(
+        return rulesetCharacter?.HasAnyConditionOfType(
             ConditionGrappleSourceName,
             ConditionGrappleSourceFromHeightenedName,
             ConditionGrappleSourceWithGrapplerName,
-            ConditionGrappleSourceWithGrapplerLargerName);
+            ConditionGrappleSourceWithGrapplerLargerName) == true;
     }
 
     internal static bool HasGrappleImmunity(RulesetCharacter character)
     {
-        return character.HasAnyFeature(ImmuneToGrappleFeatureName);
+        return character?.HasAnyFeature(ImmuneToGrappleFeatureName) == true;
     }
 
     internal static bool TooBigToGrapple(RulesetCharacter grappler, RulesetCharacter target)
     {
+        if (grappler?.SizeDefinition == null || target?.SizeDefinition == null)
+        {
+            return true;
+        }
+
         return grappler.SizeDefinition.WieldingSize - target.SizeDefinition.WieldingSize < -1;
     }
 
     public static bool CantGrapple(RulesetCharacter grappler, RulesetCharacter target)
     {
-        return TooBigToGrapple(grappler, target) || HasGrappleImmunity(target);
+        return grappler == null || target == null || TooBigToGrapple(grappler, target) || HasGrappleImmunity(target);
     }
 
     internal static bool GetGrappledActor(

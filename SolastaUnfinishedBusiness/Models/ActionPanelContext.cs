@@ -7,48 +7,42 @@ internal static class ActionPanelContext
     internal static bool ShouldSuppressBattleBonusActionType(
         GameLocationCharacter character,
         ActionType actionType,
-        ActionScope scope,
-        out string reason)
+        ActionScope scope)
     {
         if (scope != ActionScope.Battle || actionType != ActionType.Bonus)
         {
-            reason = "wrong-action-type";
             return false;
         }
 
-        return TryGetUnableToUseBattleActionsReason(character, out reason);
+        return CannotUseBattleActions(character);
     }
 
     internal static bool ShouldSuppressBattleBonusPanel(
         GameLocationCharacter character,
         ActionScope panelScope,
-        ActionType panelType,
-        out string reason)
+        ActionType panelType)
     {
-        return ShouldSuppressBattleBonusActionType(character, panelType, panelScope, out reason);
+        return ShouldSuppressBattleBonusActionType(character, panelType, panelScope);
     }
 
     internal static bool ShouldSuppressNoAction(
         GameLocationCharacter character,
-        ActionScope scope,
-        out string reason)
+        ActionScope scope)
     {
         if (scope != ActionScope.Battle)
         {
-            reason = "wrong-scope";
             return false;
         }
 
-        return TryGetUnableToUseBattleActionsReason(character, out reason);
+        return CannotUseBattleActions(character);
     }
 
     internal static bool ShouldSuppressNoActionInPanel(
         GameLocationCharacter character,
         ActionScope panelScope,
-        ActionType panelType,
-        out string reason)
+        ActionType panelType)
     {
-        return ShouldSuppressBattleBonusPanel(character, panelScope, panelType, out reason);
+        return ShouldSuppressBattleBonusPanel(character, panelScope, panelType);
     }
 
     internal static int FilterSuppressedNoActionGuiActions(CharacterActionPanel panel, Id parentActionId)
@@ -57,8 +51,7 @@ internal static class ActionPanelContext
             !ShouldSuppressNoActionInPanel(
                 panel.GuiCharacter?.GameLocationCharacter,
                 panel.ActionScope,
-                panel.ActionType,
-                out _) ||
+                panel.ActionType) ||
             !panel.guiActionsById.TryGetValue(parentActionId, out var guiActions) ||
             guiActions.Count == 0)
         {
@@ -68,29 +61,25 @@ internal static class ActionPanelContext
         return guiActions.RemoveAll(guiAction => guiAction?.ActionId == Id.NoAction);
     }
 
-    private static bool TryGetUnableToUseBattleActionsReason(GameLocationCharacter character, out string reason)
+    private static bool CannotUseBattleActions(GameLocationCharacter character)
     {
         var rulesetCharacter = character?.RulesetCharacter;
 
         if (rulesetCharacter == null)
         {
-            reason = "no-character";
             return false;
         }
 
         if (rulesetCharacter.IsDeadOrDyingOrUnconscious)
         {
-            reason = "dead-or-unconscious";
             return true;
         }
 
         if (rulesetCharacter.IsIncapacitated)
         {
-            reason = "incapacitated";
             return true;
         }
 
-        reason = "available";
         return false;
     }
 

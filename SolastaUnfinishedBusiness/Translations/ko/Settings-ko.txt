@@ -298,10 +298,6 @@ ModUi/&EnemiesAlwaysRollInitiative=<i>+ 적은 항상 강제된 값 대신 주�
 ModUi/&EnableEnemiesControlledByPlayer=플레이어가 조작하는 적 활성화
 ModUi/&EnableHeroesControlledByComputer=컴퓨터가 조작하는 영웅 활성화
 ModUi/&EnableAdvancedCombatAI=고급 전투 AI 활성화 <i><color=#F0DAA0>[적과 AI가 조작하는 영웅을 위한 선택형 전술 개선]</color></i>
-ModUi/&EnableAdvancedCombatAIFlight=<i>+ 비행과 고도 판단 개선</i>
-ModUi/&EnableAdvancedCombatAIPositioning=<i>+ 위치 선정, 사선, 위협 노출 판단 개선</i>
-ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ AI가 행동을 더 잘 사용하고, 더 나은 선택지가 없을 때 회피를 선택하도록 개선합니다</i>
-ModUi/&EnableAdvancedCombatAIProfiles=<i>+ 생물 분류, 전투 방식, 기질에 따른 행동 차이 활성화</i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=적 주문 시전자는 새겨진 주문서를 떨어뜨립니다. <i><color=#F0DAA0>[마법사 목록에 알려진 주문이 포함되어 있음]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=<b>Evoker</b> <color=#D89555>조각 주문</color>에 아군 인식이 필요하지 않도록 설정
 ModUi/&ExpandAll=모두 확장

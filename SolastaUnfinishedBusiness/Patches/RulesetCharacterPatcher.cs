@@ -13,6 +13,7 @@ using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
+using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
@@ -2832,13 +2833,71 @@ public static class RulesetCharacterPatcher
                     }
                     //END PATCH
 
-                    activeSpell.SpellRepertoire.SpendSpellSlot(activeSpell.SlotLevel);
+                    var spellRepertoire =
+                        TryRedirectFeatGrantedReactionSpellSlot(__instance, activeSpell) ??
+                        activeSpell.SpellRepertoire;
+
+                    spellRepertoire.SpendSpellSlot(activeSpell.SlotLevel);
                 }
             }
 
             __instance.AccountUsedMagicAndPower(activeSpell.SlotLevel);
 
             return false;
+        }
+
+        private static RulesetSpellRepertoire TryRedirectFeatGrantedReactionSpellSlot(
+            RulesetCharacter caster,
+            RulesetEffectSpell activeSpell)
+        {
+            if (caster is not RulesetCharacterHero hero ||
+                activeSpell?.SpellDefinition == null ||
+                activeSpell.SlotLevel <= 0 ||
+                !IsFeatGrantedReactionRepertoire(activeSpell.SpellRepertoire))
+            {
+                return null;
+            }
+
+            var spell = activeSpell.SpellDefinition;
+            var currentRepertoire = activeSpell.SpellRepertoire;
+
+            if (currentRepertoire.TryGetAvailableSlotLevel(hero, activeSpell.SlotLevel, spell, out var isFreeUseAvailable) &&
+                isFreeUseAvailable)
+            {
+                return null;
+            }
+
+            var slotRepertoire = hero.SpellRepertoires
+                .Where(repertoire => !IsRaceOrMonsterRepertoire(repertoire))
+                .FirstOrDefault(repertoire =>
+                    LevelUpHelper.IsSlotCastableExtraSpellForRepertoire(hero, repertoire, spell) &&
+                    repertoire.TryGetAvailableSlotLevel(hero, activeSpell.SlotLevel, spell, out var isAvailable) &&
+                    isAvailable);
+
+            if (slotRepertoire == null)
+            {
+                return null;
+            }
+
+            activeSpell.spellRepertoire = slotRepertoire;
+
+            return slotRepertoire;
+        }
+
+        private static bool IsFeatGrantedReactionRepertoire(RulesetSpellRepertoire repertoire)
+        {
+            var castSpell = repertoire?.SpellCastingFeature;
+
+            return castSpell != null &&
+                   castSpell.SpellCastingOrigin is FeatureDefinitionCastSpell.CastingOrigin.Race
+                       or FeatureDefinitionCastSpell.CastingOrigin.Monster &&
+                   castSpell.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>() != null;
+        }
+
+        private static bool IsRaceOrMonsterRepertoire(RulesetSpellRepertoire repertoire)
+        {
+            return repertoire?.SpellCastingFeature?.SpellCastingOrigin is FeatureDefinitionCastSpell.CastingOrigin.Race
+                or FeatureDefinitionCastSpell.CastingOrigin.Monster;
         }
     }
 }

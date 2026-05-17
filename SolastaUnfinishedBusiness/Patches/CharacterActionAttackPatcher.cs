@@ -6,6 +6,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Spells;
 using SolastaUnfinishedBusiness.Subclasses;
 using SolastaUnfinishedBusiness.Validators;
@@ -754,6 +755,8 @@ public static class CharacterActionAttackPatcher
             yield return battleManager.HandleCharacterPhysicalAttackFinished(
                 __instance, actingCharacter,
                 target, attackParams.attackMode, __instance.AttackRollOutcome, damageReceived);
+
+            CombatAiContext.RecordRecentMeleeThreat(actingCharacter, target, attackParams.attackMode, __instance.ActionType);
 
             yield return battleManager.HandleCharacterAttackFinished(
                 __instance, actingCharacter, target,

@@ -2,6 +2,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using HarmonyLib;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.ModKit.Utility;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -19,6 +21,21 @@ namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
 public static class GameLocationCharacterExtensions
 {
+    private static readonly FieldInfo ChainEvaluatedField =
+        AccessTools.Field(typeof(CharacterActionChainParams), "<Evaluated>k__BackingField");
+    private static readonly FieldInfo ChainTotalCostField =
+        AccessTools.Field(typeof(CharacterActionChainParams), "<TotalCost>k__BackingField");
+    private static readonly FieldInfo ChainEvaluationInProgressField =
+        AccessTools.Field(typeof(CharacterActionChainParams), "evaluationInProgress");
+    private static readonly FieldInfo ChainCosmeticEvaluationField =
+        AccessTools.Field(typeof(CharacterActionChainParams), "cosmeticEvaluation");
+    private static readonly FieldInfo ChainIndexEvaluatedActionField =
+        AccessTools.Field(typeof(CharacterActionChainParams), "indexEvaluatedAction");
+    private static readonly FieldInfo ChainPathFirstMoveField =
+        AccessTools.Field(typeof(CharacterActionChainParams), "pathFirstMove");
+    private static readonly FieldInfo ChainPathFirstMoveFromPositionField =
+        AccessTools.Field(typeof(CharacterActionChainParams), "pathFirstMoveFromPosition");
+
     internal static List<ActionModifier> GetActionModifiers(int count)
     {
         var actionModifiers = new List<ActionModifier>();
@@ -100,7 +117,9 @@ public static class GameLocationCharacterExtensions
         actionService.ExecuteAction(new CharacterActionParams(character, Id.Dodge), null, true);
     }
 
-    internal static void MyExecuteActionReady(this GameLocationCharacter character, ReadyActionType readyActionType)
+    internal static void MyExecuteActionReady(
+        this GameLocationCharacter character,
+        ReadyActionType readyActionType)
     {
         var actionService = ServiceRepository.GetService<IGameLocationActionService>();
         var actionParams = new CharacterActionParams(character, Id.Ready)
@@ -158,11 +177,28 @@ public static class GameLocationCharacterExtensions
 
     internal static void MyExecuteActionTacticalMove(this GameLocationCharacter character, int3 position)
     {
+        character.MyExecuteActionTacticalMove(position, null);
+    }
+
+    internal static void MyExecuteActionTacticalMove(
+        this GameLocationCharacter character,
+        int3 position,
+        CharacterAction.ActionChainExecutedHandler actionChainExecuted)
+    {
+        character.MyExecuteActionTacticalMove(position, actionChainExecuted, null);
+    }
+
+    internal static bool MyExecuteActionTacticalMove(
+        this GameLocationCharacter character,
+        int3 position,
+        CharacterAction.ActionChainExecutedHandler actionChainExecuted,
+        IReadOnlyList<GameLocationCharacterDefinitions.PathStep> pathFirstMove)
+    {
         var actionManager = ServiceRepository.GetService<IGameLocationActionService>() as GameLocationActionManager;
 
         if (!actionManager)
         {
-            return;
+            return false;
         }
 
         var actionParams = new CharacterActionParams(
@@ -181,8 +217,100 @@ public static class GameLocationCharacterExtensions
             actionParams.BoolParameter2 = true;
         }
 
+        var chainParams = new CharacterActionChainParams(actionParams.ActingCharacter, actionParams);
+
+        if (pathFirstMove is { Count: > 0 } &&
+            !TrySeedTacticalMoveEvaluation(chainParams, character.LocationPosition, pathFirstMove, false))
+        {
+            return false;
+        }
+
         actionManager.ExecuteActionChain(
-            new CharacterActionChainParams(actionParams.ActingCharacter, actionParams), null, false);
+            chainParams, actionChainExecuted, false);
+        return true;
+    }
+
+    private static bool TrySeedTacticalMoveEvaluation(
+        CharacterActionChainParams chainParams,
+        int3 start,
+        IReadOnlyList<GameLocationCharacterDefinitions.PathStep> pathFirstMove,
+        bool cosmetic)
+    {
+        if (chainParams == null || pathFirstMove is not { Count: > 0 })
+        {
+            return false;
+        }
+
+        if (!CanAccessActionChainPathFields())
+        {
+            return false;
+        }
+
+        chainParams.StopEvaluation();
+        chainParams.EvaluationSteps.Clear();
+
+        var path = GetOrCreateFirstMovePath(chainParams);
+
+        path.Clear();
+
+        var totalCost = 0;
+
+        foreach (var pathStep in pathFirstMove)
+        {
+            if (pathStep.position == start || pathStep.moveCost <= 0)
+            {
+                path.Clear();
+                chainParams.EvaluationSteps.Clear();
+                return false;
+            }
+
+            path.Add(pathStep);
+            totalCost += pathStep.moveCost;
+            chainParams.EvaluationSteps.Add(
+                new CharacterActionChainParams.EvaluationStep(Id.TacticalMove)
+                {
+                    Position = pathStep.position,
+                    MoveFlags = pathStep.flags,
+                    Cost = pathStep.moveCost
+                });
+        }
+
+        ChainPathFirstMoveFromPositionField.SetValue(chainParams, start);
+        ChainTotalCostField.SetValue(chainParams, totalCost);
+        ChainEvaluatedField.SetValue(chainParams, true);
+        ChainEvaluationInProgressField.SetValue(chainParams, false);
+        ChainCosmeticEvaluationField.SetValue(chainParams, cosmetic);
+        ChainIndexEvaluatedActionField.SetValue(chainParams, -1);
+
+        return true;
+    }
+
+    private static List<GameLocationCharacterDefinitions.PathStep> GetOrCreateFirstMovePath(
+        CharacterActionChainParams chainParams)
+    {
+        var path = ChainPathFirstMoveField.GetValue(chainParams)
+            as List<GameLocationCharacterDefinitions.PathStep>;
+
+        if (path != null)
+        {
+            return path;
+        }
+
+        path = [];
+        ChainPathFirstMoveField.SetValue(chainParams, path);
+
+        return path;
+    }
+
+    private static bool CanAccessActionChainPathFields()
+    {
+        return ChainEvaluatedField != null &&
+               ChainTotalCostField != null &&
+               ChainEvaluationInProgressField != null &&
+               ChainCosmeticEvaluationField != null &&
+               ChainIndexEvaluatedActionField != null &&
+               ChainPathFirstMoveField != null &&
+               ChainPathFirstMoveFromPositionField != null;
     }
 
     #endregion

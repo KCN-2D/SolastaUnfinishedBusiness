@@ -4,6 +4,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -50,6 +51,8 @@ public static class CharacterActionMoveStepWalkPatcher
             }
 
             var mover = __instance.ActingCharacter;
+
+            CombatAiContext.NotifyAiMoveStepCompleted(mover);
 
             //PATCH: support for Circle of the Wildfire cauterizing flames
             yield return CircleOfTheWildfire.HandleCauterizingFlamesBehavior(mover);

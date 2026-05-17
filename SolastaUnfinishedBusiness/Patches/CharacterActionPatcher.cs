@@ -60,6 +60,8 @@ public static class CharacterActionPatcher
     [UsedImplicitly]
     public static class Execute_Patch
     {
+        private static readonly Dictionary<CharacterAction, CombatAiMainActionBlockKind> BlockedInvalidAiMainActions = [];
+
         private static bool ActionShouldKeepConcentration(CharacterAction action)
         {
             var isProtectedPower =
@@ -118,7 +120,7 @@ public static class CharacterActionPatcher
         }
 
         [UsedImplicitly]
-        public static void Prefix(CharacterAction __instance)
+        public static bool Prefix(CharacterAction __instance, ref IEnumerator __result)
         {
             var actingCharacter = __instance.ActingCharacter;
 
@@ -130,6 +132,23 @@ public static class CharacterActionPatcher
             {
                 FixAlwaysConsumeMainActionOnBattleSurprise(__instance);
             }
+
+            if (CombatAiContext.ShouldBlockDisconnectedAiMovementAction(__instance))
+            {
+                __result = AbortInvalidAiAction(__instance);
+                return false;
+            }
+
+            if (CombatAiContext.ShouldBlockInvalidAiMainAction(__instance, out var blockKind))
+            {
+                BlockedInvalidAiMainActions[__instance] = blockKind;
+                CombatAiContext.NotifyBlockedInvalidAiMainAction(__instance, blockKind);
+                __result = AbortInvalidAiAction(__instance);
+                return false;
+            }
+
+            CombatAiContext.NotifyPendingTerminalActionAccepted(__instance);
+            CombatAiContext.RecordCombatAiActionExecution(__instance);
 
             //PATCH: support `IPreventRemoveConcentrationOnPowerUse`
             if (ActionShouldKeepConcentration(__instance))
@@ -170,11 +189,33 @@ public static class CharacterActionPatcher
                     actingCharacter.BreakGrapple();
                     break;
             }
+
+            return true;
+        }
+
+        private static IEnumerator AbortInvalidAiAction(CharacterAction action)
+        {
+            action.Abort(CharacterAction.InterruptionType.Invalid);
+
+            yield break;
         }
 
         [UsedImplicitly]
         public static IEnumerator Postfix(IEnumerator values, CharacterAction __instance)
         {
+            if (BlockedInvalidAiMainActions.TryGetValue(__instance, out var blockKind))
+            {
+                BlockedInvalidAiMainActions.Remove(__instance);
+
+                while (values != null && values.MoveNext())
+                {
+                    yield return values.Current;
+                }
+
+                CombatAiContext.TryCloseTurnAfterBlockedInvalidAiMainAction(__instance, blockKind);
+                yield break;
+            }
+
             using (CombatAnimationContext.BeginActionScope(__instance))
             {
                 while (values.MoveNext())
@@ -182,6 +223,8 @@ public static class CharacterActionPatcher
                     yield return values.Current;
                 }
             }
+
+            CombatAiContext.TryCompletePendingActionLinkedMove(__instance);
 
             //PATCH: support for `IActionFinishedByMe`
             var actingCharacter = __instance.ActingCharacter;
@@ -250,6 +293,9 @@ public static class CharacterActionPatcher
                 rulesetCharacter.ProcessConditionsMatchingInterruption(
                     (ConditionInterruption)ExtraConditionInterruption.UsesBonusAction);
             }
+
+            CombatAiContext.NormalizeFallbackReadyAfterAction(__instance);
+            CombatAiContext.NormalizeFallbackDodgeAfterAction(__instance);
         }
     }
 

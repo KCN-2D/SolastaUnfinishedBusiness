@@ -29,13 +29,31 @@ public static class AiLocationManagerPatcher
         [UsedImplicitly]
         public static IEnumerator Postfix(IEnumerator values, AiLocationManager __instance)
         {
-            yield return CircleOfTheWildfire.HandleCauterizingFlamesBehavior(__instance.battle.ActiveContender);
+            var activeContender = __instance.battle.ActiveContender;
 
-            using (FreeJumpContext.BeginAiTurn(__instance.battle.ActiveContender))
+            yield return CircleOfTheWildfire.HandleCauterizingFlamesBehavior(activeContender);
+
+            using (FreeJumpContext.BeginAiTurn(activeContender))
             {
                 while (values.MoveNext())
                 {
                     yield return values.Current;
+
+                    if (CombatAiContext.TryConsumePendingRouteTerminalAtAiProcessBoundary(activeContender) ||
+                        CombatAiContext.TryConsumePendingUtilityTerminalAtAiProcessBoundary(activeContender))
+                    {
+                        yield return null;
+                    }
+                }
+
+                if (CombatAiContext.TryConsumePendingRouteTerminalAtAiProcessBoundary(
+                        activeContender,
+                        "ai-process-final") ||
+                    CombatAiContext.TryConsumePendingUtilityTerminalAtAiProcessBoundary(
+                        activeContender,
+                        "ai-process-final"))
+                {
+                    yield return null;
                 }
             }
         }

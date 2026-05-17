@@ -24,6 +24,9 @@ internal static class FreeJumpContext
     private const string FlightSuspendedConditionName = "ConditionFlightSuspended";
 
     private static readonly Dictionary<ulong, ScopeData> ActiveScopes = [];
+    private static readonly HashSet<ulong> SuppressedAiPathfindingGuids = [];
+    private static readonly Dictionary<ulong, int3> SuppressedAiMoveTargets = [];
+    private static readonly Dictionary<ulong, int3> ForcedAiFreeJumpTargets = [];
     private static readonly FieldInfo ChainEvaluatedField =
         AccessTools.Field(typeof(CharacterActionChainParams), "<Evaluated>k__BackingField");
     private static readonly FieldInfo ChainTotalCostField =
@@ -74,8 +77,7 @@ internal static class FreeJumpContext
         int moveCost,
         int checkDc,
         int successChance,
-        RuleDefinitions.AdvantageType affinity,
-        string reason)
+        RuleDefinitions.AdvantageType affinity)
     {
         internal FreeJumpPreviewOutcome Outcome { get; } = outcome;
         internal int MoveCost { get; } = moveCost;
@@ -84,7 +86,6 @@ internal static class FreeJumpContext
         internal int CheckDc { get; } = checkDc;
         internal int SuccessChance { get; } = successChance;
         internal RuleDefinitions.AdvantageType Affinity { get; } = affinity;
-        internal string Reason { get; } = reason;
     }
 
     internal readonly struct FreeJumpCandidateInfo(FreeJumpCheckPreview preview, bool bypassesObstacle)
@@ -153,6 +154,34 @@ internal static class FreeJumpContext
                 ActiveScopes[_guid] = _previous;
             }
 
+            if (_current.Kind is ScopeKind.AiMove or ScopeKind.AiTurn)
+            {
+                ForcedAiFreeJumpTargets.Remove(_guid);
+            }
+
+            _disposed = true;
+        }
+    }
+
+    private sealed class SuppressAiPathfindingScope : IDisposable
+    {
+        private readonly ulong _guid;
+        private bool _disposed;
+
+        internal SuppressAiPathfindingScope(ulong guid)
+        {
+            _guid = guid;
+            SuppressedAiPathfindingGuids.Add(_guid);
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            SuppressedAiPathfindingGuids.Remove(_guid);
             _disposed = true;
         }
     }
@@ -164,12 +193,12 @@ internal static class FreeJumpContext
 
     internal static bool CanUseAction(GameLocationCharacter character)
     {
-        return CanUseBattleFreeJump(character, true, out _);
+        return CanUseBattleFreeJump(character, true);
     }
 
     internal static bool CanExecuteBonusActionMove(GameLocationCharacter character)
     {
-        return CanUseBattleFreeJump(character, false, out _);
+        return CanUseBattleFreeJump(character, false);
     }
 
     internal static ActionStatus GetExplorationToggleActionStatus(GameLocationCharacter character, ActionScope scope)
@@ -179,7 +208,7 @@ internal static class FreeJumpContext
             return ActionStatus.Unavailable;
         }
 
-        return CanShowExplorationFreeJumpToggle(character, out _)
+        return CanShowExplorationFreeJumpToggle(character)
             ? ActionStatus.Available
             : ActionStatus.Unavailable;
     }
@@ -244,7 +273,7 @@ internal static class FreeJumpContext
             return;
         }
 
-        if (!CanUseBattleFreeJump(character, true, out _))
+        if (!CanUseBattleFreeJump(character, true))
         {
             return;
         }
@@ -263,7 +292,7 @@ internal static class FreeJumpContext
 
         var character = panel.GuiCharacter.GameLocationCharacter;
 
-        if (!CanUseBattleFreeJump(character, true, out _))
+        if (!CanUseBattleFreeJump(character, true))
         {
             return true;
         }
@@ -315,7 +344,7 @@ internal static class FreeJumpContext
 
         cursor.actionChainParams.Clear();
 
-        if (!CanPrepareBattleFreeJumpMove(cursor, out var character, out var destination, out var reason))
+        if (!CanPrepareBattleFreeJumpMove(cursor, out var character, out var destination))
         {
             CancelBattleSelection(cursor);
             return true;
@@ -359,7 +388,7 @@ internal static class FreeJumpContext
             return false;
         }
 
-        if (CanPrepareBattleFreeJumpMove(cursor, out _, out _, out _))
+        if (CanPrepareBattleFreeJumpMove(cursor, out _, out _))
         {
             return false;
         }
@@ -372,43 +401,37 @@ internal static class FreeJumpContext
     private static bool CanPrepareBattleFreeJumpMove(
         CursorLocationBattleFriendlyTurn cursor,
         out GameLocationCharacter character,
-        out int3 destination,
-        out string reason)
+        out int3 destination)
     {
         character = cursor?.actingCharacter;
         destination = cursor == null ? default : cursor.HoveredLocation;
 
         if (character == null)
         {
-            reason = "no-character";
             return false;
         }
 
-        if (!CanUseBattleFreeJump(character, true, out reason))
+        if (!CanUseBattleFreeJump(character, true))
         {
             return false;
         }
 
         if (!CanReach(character, character.LocationPosition, destination))
         {
-            reason = "cannot-reach";
             return false;
         }
 
         if (!CanAffordFreeJumpMove(character, character.LocationPosition, destination))
         {
-            reason = "cannot-afford";
             return false;
         }
 
         if (ServiceRepository.GetService<IGameLocationPositioningService>() == null ||
             ServiceRepository.GetService<IGameLocationCharacterService>() == null)
         {
-            reason = "no-service";
             return false;
         }
 
-        reason = "available";
         return true;
     }
 
@@ -454,8 +477,7 @@ internal static class FreeJumpContext
                 character,
                 start,
                 destination,
-                out var pathStep,
-                out _))
+                out var pathStep))
         {
             SeedFreeJumpEvaluationFailure(chainParams);
             return true;
@@ -540,14 +562,44 @@ internal static class FreeJumpContext
     {
         var character = action?.ActingCharacter;
 
-        if (character == null ||
-            !ActiveScopes.TryGetValue(character.Guid, out var aiScope) ||
-            aiScope.Kind != ScopeKind.AiTurn)
+        if (character == null)
         {
             return null;
         }
 
         var destination = action.DestinationPosition;
+        var forcedTarget =
+            ForcedAiFreeJumpTargets.TryGetValue(character.Guid, out var forcedDestination) &&
+            forcedDestination == destination;
+
+        if (!ActiveScopes.TryGetValue(character.Guid, out var aiScope) ||
+            aiScope.Kind != ScopeKind.AiTurn)
+        {
+            if (!forcedTarget)
+            {
+                return null;
+            }
+
+            if (!TryComputeProfile(character, out var profile))
+            {
+                ForcedAiFreeJumpTargets.Remove(character.Guid);
+                return null;
+            }
+
+            aiScope = new ScopeData(ScopeKind.AiTurn, character, character.LocationPosition, profile);
+        }
+
+        if (SuppressedAiMoveTargets.TryGetValue(character.Guid, out var suppressedDestination) &&
+            suppressedDestination == destination)
+        {
+            SuppressedAiMoveTargets.Remove(character.Guid);
+            return null;
+        }
+
+        if (forcedTarget)
+        {
+            aiScope.Candidates.Add(destination);
+        }
 
         if (!aiScope.Candidates.Contains(destination))
         {
@@ -555,6 +607,11 @@ internal static class FreeJumpContext
         }
 
         if (aiScope.FailedTargets.Contains(destination))
+        {
+            return null;
+        }
+
+        if (CombatAiContext.IsRejectedAiMoveTarget(character, aiScope.StartPosition, destination))
         {
             return null;
         }
@@ -576,9 +633,20 @@ internal static class FreeJumpContext
                 destination,
                 candidateInfo.Preview,
                 candidateInfo.BypassesObstacle,
+                CombatAiFreeJumpEvaluationSource.AiMovePathfinding,
                 out _))
         {
+            if (forcedTarget)
+            {
+                ForcedAiFreeJumpTargets.Remove(character.Guid);
+            }
+
             return null;
+        }
+
+        if (forcedTarget)
+        {
+            ForcedAiFreeJumpTargets.Remove(character.Guid);
         }
 
         return BeginScope(character, ScopeKind.AiMove, destination, true);
@@ -591,7 +659,7 @@ internal static class FreeJumpContext
             return null;
         }
 
-        if (!CanUseBattleFreeJump(character, true, out _))
+        if (!CanUseBattleFreeJump(character, true))
         {
             return null;
         }
@@ -604,8 +672,74 @@ internal static class FreeJumpContext
         return CanUseAiFreeJump(character) ? BeginScope(character, ScopeKind.AiTurn) : null;
     }
 
+    internal static IDisposable SuppressAiPathfindingFreeJump(GameLocationCharacter character)
+    {
+        return character?.RulesetCharacter == null
+            ? null
+            : new SuppressAiPathfindingScope(character.Guid);
+    }
+
+    internal static bool IsForcedAiFreeJumpTarget(GameLocationCharacter character, int3 destination)
+    {
+        return character?.RulesetCharacter != null &&
+               ForcedAiFreeJumpTargets.TryGetValue(character.Guid, out var forcedDestination) &&
+               forcedDestination == destination;
+    }
+
+    internal static bool TryPrepareAiFreeJumpMove(GameLocationCharacter character, int3 destination)
+    {
+        if (!CanUseAiFreeJump(character))
+        {
+            return false;
+        }
+
+        var hasAiTurnScope =
+            ActiveScopes.TryGetValue(character.Guid, out var scope) &&
+            scope.Kind == ScopeKind.AiTurn;
+
+        if (ActiveScopes.TryGetValue(character.Guid, out var activeScope) &&
+            activeScope.Kind != ScopeKind.AiTurn)
+        {
+            return false;
+        }
+
+        if (!CanAffordFreeJumpMove(character, character.LocationPosition, destination))
+        {
+            return false;
+        }
+
+        if (!TryGetAiCandidateInfo(character, character.LocationPosition, destination, out _))
+        {
+            return false;
+        }
+
+        if (hasAiTurnScope)
+        {
+            scope.Candidates.Add(destination);
+            scope.FailedTargets.Remove(destination);
+        }
+
+        ForcedAiFreeJumpTargets[character.Guid] = destination;
+        return true;
+    }
+
+    internal static void SuppressAiFreeJumpForNextMove(GameLocationCharacter character, int3 destination)
+    {
+        if (character?.RulesetCharacter == null)
+        {
+            return;
+        }
+
+        SuppressedAiMoveTargets[character.Guid] = destination;
+    }
+
     internal static bool HasUsefulAiFreeJumpDestination(GameLocationCharacter character)
     {
+        if (!Main.Settings.EnableBonusActionFreeJump)
+        {
+            return false;
+        }
+
         if (!CanUseAiFreeJump(character) ||
             !TryComputeProfile(character, out var profile))
         {
@@ -617,6 +751,16 @@ internal static class FreeJumpContext
 
         EnumerateCandidatePositions(start, profile, destination =>
         {
+            if (CombatAiContext.IsFailedAiMoveTarget(character, start, destination))
+            {
+                return true;
+            }
+
+            if (CombatAiContext.IsRejectedAiMoveTarget(character, start, destination))
+            {
+                return true;
+            }
+
             if (!CanAffordFreeJumpMove(character, start, destination) ||
                 !TryGetAiCandidateInfo(character, start, destination, profile, out var candidateInfo) ||
                 !CombatAiContext.TryEvaluateFreeJumpDestination(
@@ -625,6 +769,7 @@ internal static class FreeJumpContext
                     destination,
                     candidateInfo.Preview,
                     candidateInfo.BypassesObstacle,
+                    CombatAiFreeJumpEvaluationSource.JumpCandidateEnumeration,
                     out _))
             {
                 return true;
@@ -634,6 +779,218 @@ internal static class FreeJumpContext
 
             return false;
         });
+
+        return hasAcceptedCandidate;
+    }
+
+    internal static bool TryEnumerateUsefulAiFreeJumpDestinations(
+        GameLocationCharacter character,
+        Func<int3, float, bool> handle)
+    {
+        if (!Main.Settings.EnableBonusActionFreeJump)
+        {
+            return false;
+        }
+
+        if (handle == null ||
+            !CanUseAiFreeJump(character) ||
+            !TryComputeProfile(character, out var profile))
+        {
+            return false;
+        }
+
+        var start = character.LocationPosition;
+        var hasAcceptedCandidate = false;
+
+        EnumerateCandidatePositions(start, profile, destination =>
+        {
+            if (CombatAiContext.IsFailedAiMoveTarget(character, start, destination))
+            {
+                return true;
+            }
+
+            if (CombatAiContext.IsRejectedAiMoveTarget(character, start, destination))
+            {
+                return true;
+            }
+
+            if (!CanAffordFreeJumpMove(character, start, destination) ||
+                !TryGetAiCandidateInfo(character, start, destination, profile, out var candidateInfo) ||
+                !CombatAiContext.TryEvaluateFreeJumpDestination(
+                    character,
+                    start,
+                    destination,
+                    candidateInfo.Preview,
+                    candidateInfo.BypassesObstacle,
+                    CombatAiFreeJumpEvaluationSource.JumpCandidateEnumeration,
+                    out var score))
+            {
+                return true;
+            }
+
+            hasAcceptedCandidate = true;
+
+            return handle(destination, score);
+        });
+
+        return hasAcceptedCandidate;
+    }
+
+    internal static bool TryEnumerateImmediateAttackAiFreeJumpDestinations(
+        GameLocationCharacter character,
+        Func<int3, float, bool> handle)
+    {
+        if (!Main.Settings.EnableBonusActionFreeJump)
+        {
+            return false;
+        }
+
+        if (handle == null ||
+            !CanUseAiFreeJump(character) ||
+            !TryComputeProfile(character, out var profile))
+        {
+            return false;
+        }
+
+        var start = character.LocationPosition;
+        var hasAcceptedCandidate = false;
+
+        EnumerateCandidatePositions(start, profile, destination =>
+        {
+            if (CombatAiContext.IsFailedAiMoveTarget(character, start, destination))
+            {
+                return true;
+            }
+
+            if (CombatAiContext.IsRejectedAiMoveTarget(character, start, destination))
+            {
+                return true;
+            }
+
+            if (!CanAffordFreeJumpMove(character, start, destination) ||
+                !TryGetAiCandidateInfo(character, start, destination, profile, out var candidateInfo))
+            {
+                return true;
+            }
+
+            if (candidateInfo.Preview.IsAutomaticFailure)
+            {
+                return true;
+            }
+
+            hasAcceptedCandidate = true;
+
+            var score =
+                1.0f +
+                candidateInfo.Preview.SuccessChance / 1000f -
+                candidateInfo.Preview.MoveCost * 0.01f +
+                (candidateInfo.BypassesObstacle ? 0.05f : 0f);
+
+            return handle(destination, score);
+        });
+
+        return hasAcceptedCandidate;
+    }
+
+    internal static bool TryEnumerateTargetContactAiFreeJumpDestinations(
+        GameLocationCharacter character,
+        int3 targetPosition,
+        int contactBand,
+        int minimumSuccessChance,
+        Func<int3, FreeJumpCandidateInfo, float, bool> handle)
+    {
+        if (!Main.Settings.EnableBonusActionFreeJump)
+        {
+            return false;
+        }
+
+        if (handle == null ||
+            !CanUseAiFreeJump(character) ||
+            !TryComputeProfile(character, out var profile))
+        {
+            return false;
+        }
+
+        var start = character.LocationPosition;
+        var maxHorizontalTargetDistance = profile.MaxHorizontalCells + Math.Max(1, contactBand);
+        var targetHorizontalDistance = Math.Max(Math.Abs(start.x - targetPosition.x), Math.Abs(start.z - targetPosition.z));
+
+        if (targetHorizontalDistance > maxHorizontalTargetDistance)
+        {
+            return false;
+        }
+
+        var seen = new HashSet<int3>();
+        var verticalOffsets = BuildTargetContactVerticalOffsets(profile);
+        var hasAcceptedCandidate = false;
+        var contactRadius = Math.Max(1, contactBand);
+        var stopped = false;
+
+        for (var ring = 1; ring <= contactRadius && !stopped; ring++)
+        {
+            for (var x = -ring; x <= ring && !stopped; x++)
+            {
+                for (var z = -ring; z <= ring && !stopped; z++)
+                {
+                    if (Math.Max(Math.Abs(x), Math.Abs(z)) != ring)
+                    {
+                        continue;
+                    }
+
+                    foreach (var yOffset in verticalOffsets)
+                    {
+                        var destination = new int3(targetPosition.x + x, targetPosition.y + yOffset, targetPosition.z + z);
+
+                        if (!seen.Add(destination))
+                        {
+                            continue;
+                        }
+
+                        if (CombatAiContext.IsFailedAiMoveTarget(character, start, destination))
+                        {
+                            continue;
+                        }
+
+                        if (CombatAiContext.IsRejectedAiMoveTarget(character, start, destination))
+                        {
+                            continue;
+                        }
+
+                        if (!CanAffordFreeJumpMove(character, start, destination) ||
+                            !TryGetAiCandidateInfo(character, start, destination, profile, out var candidateInfo))
+                        {
+                            continue;
+                        }
+
+                        if (candidateInfo.Preview.IsAutomaticFailure)
+                        {
+                            continue;
+                        }
+
+                        if (candidateInfo.Preview.RequiresAthleticsCheck &&
+                            candidateInfo.Preview.SuccessChance < minimumSuccessChance)
+                        {
+                            continue;
+                        }
+
+                        hasAcceptedCandidate = true;
+
+                        var score =
+                            2.0f +
+                            candidateInfo.Preview.SuccessChance / 1000f -
+                            candidateInfo.Preview.MoveCost * 0.01f -
+                            ring * 0.02f +
+                            (candidateInfo.BypassesObstacle ? 0.05f : 0f);
+
+                        if (!handle(destination, candidateInfo, score))
+                        {
+                            stopped = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
 
         return hasAcceptedCandidate;
     }
@@ -650,7 +1007,7 @@ internal static class FreeJumpContext
 
         if (IsMarkedBonusActionMove(action))
         {
-            if (!CanUseBattleFreeJump(character, true, out _))
+            if (!CanUseBattleFreeJump(character, true))
             {
                 return null;
             }
@@ -783,7 +1140,7 @@ internal static class FreeJumpContext
     internal static bool CanReach(GameLocationCharacter character, int3 start, int3 destination)
     {
         return Main.Settings.EnableBonusActionFreeJump &&
-               !IsFreeJumpSuppressedByFlight(character, out _) &&
+               !IsFreeJumpSuppressedByFlight(character) &&
                TryComputeProfile(character, out var profile) &&
                TryValidateCandidate(character, start, destination, profile, false, out _) &&
                CanAffordFreeJumpMove(character, start, destination);
@@ -868,7 +1225,7 @@ internal static class FreeJumpContext
     {
         var destination = scope.TargetPosition;
 
-        if (IsFreeJumpSuppressedByFlight(scope.Character, out _))
+        if (IsFreeJumpSuppressedByFlight(scope.Character))
         {
             neighbours.Clear();
             return;
@@ -1028,36 +1385,31 @@ internal static class FreeJumpContext
         GameLocationCharacter character,
         int3 start,
         int3 destination,
-        out GameLocationCharacterDefinitions.PathStep pathStep,
-        out string reason)
+        out GameLocationCharacterDefinitions.PathStep pathStep)
     {
         pathStep = default;
 
-        if (!CanUseBattleFreeJump(character, true, out reason))
+        if (!CanUseBattleFreeJump(character, true))
         {
             return false;
         }
 
         if (!TryComputeProfile(character, out var profile))
         {
-            reason = "no-profile";
             return false;
         }
 
-        if (!TryValidateCandidate(character, start, destination, profile, false, out var rejectionReason))
+        if (!TryValidateCandidate(character, start, destination, profile, false, out _))
         {
-            reason = rejectionReason.ToString();
             return false;
         }
 
         if (!CanAffordFreeJumpMove(character, start, destination))
         {
-            reason = "cannot-afford";
             return false;
         }
 
         pathStep = BuildFreeJumpPathStep(start, destination);
-        reason = "available";
 
         return true;
     }
@@ -1171,6 +1523,11 @@ internal static class FreeJumpContext
 
         character.SpendActionType(ActionType.Bonus);
         scope.BonusActionSpent = true;
+
+        if (scope.Kind == ScopeKind.AiMove)
+        {
+            CombatAiContext.RecordAiBonusActionUse(character);
+        }
     }
 
     private static void TryAddPathfindingNeighbour(
@@ -1185,6 +1542,12 @@ internal static class FreeJumpContext
         }
 
         if (scope.Kind == ScopeKind.AiTurn && scope.FailedTargets.Contains(destination))
+        {
+            return;
+        }
+
+        if (scope.Kind == ScopeKind.AiTurn &&
+            CombatAiContext.IsFailedAiMoveTarget(scope.Character, scope.StartPosition, destination))
         {
             return;
         }
@@ -1309,6 +1672,11 @@ internal static class FreeJumpContext
             return true;
         }
 
+        if (CombatAiContext.IsRejectedAiMoveTarget(scope.Character, scope.StartPosition, destination))
+        {
+            return false;
+        }
+
         if (!TryComputeFreeJumpPreview(
                 scope.Character,
                 scope.StartPosition,
@@ -1326,6 +1694,7 @@ internal static class FreeJumpContext
             destination,
             preview,
             bypassesObstacle,
+            CombatAiFreeJumpEvaluationSource.AiMovePathfinding,
             out _);
     }
 
@@ -1436,7 +1805,12 @@ internal static class FreeJumpContext
             return false;
         }
 
-        if (!CanLandAtCandidate(positioningService, character, destination, out reason))
+        if (!CanLandAtCandidate(
+                positioningService,
+                character,
+                destination,
+                allowNonOccupyingCombatProxy: avoidDangerousPosition,
+                out reason))
         {
             return false;
         }
@@ -1514,9 +1888,12 @@ internal static class FreeJumpContext
         IGameLocationPositioningService positioningService,
         GameLocationCharacter character,
         int3 destination,
+        bool allowNonOccupyingCombatProxy,
         out RejectionReason reason)
     {
-        if (!positioningService.CanPlaceCharacter(character, destination, CellHelpers.PlacementMode.Station))
+        if (!positioningService.CanPlaceCharacter(character, destination, CellHelpers.PlacementMode.Station) &&
+            (!allowNonOccupyingCombatProxy ||
+             !CombatAiContext.IsAiPlacementBlockedOnlyByNonOccupyingCombatProxy(character, destination)))
         {
             reason = RejectionReason.CannotPlace;
             return false;
@@ -1573,7 +1950,7 @@ internal static class FreeJumpContext
             ScopeKind.AiMove => CanUseAiFreeJump(character),
             ScopeKind.AiTurn => CanUseAiFreeJump(character),
             ScopeKind.Exploration => CanUseExplorationFreeJump(character),
-            ScopeKind.ExplorationMove => CanShowExplorationFreeJumpToggle(character, out _),
+            ScopeKind.ExplorationMove => CanShowExplorationFreeJumpToggle(character),
             _ => false
         };
     }
@@ -1627,25 +2004,20 @@ internal static class FreeJumpContext
             profile,
             applyFreeJumpBonuses,
             out var checkDc,
-            out var affinity,
-            out var reason);
+            out var affinity);
 
         if (!requiresAthleticsCheck)
         {
             var outcome = CharacterActionMoveStepJump.AutomaticPenalty(character, start, destination)
                 ? FreeJumpPreviewOutcome.AutomaticFailure
                 : FreeJumpPreviewOutcome.NoCheck;
-            var outcomeReason = outcome == FreeJumpPreviewOutcome.AutomaticFailure
-                ? "automatic-penalty"
-                : reason;
 
             preview = new FreeJumpCheckPreview(
                 outcome,
                 moveCost,
                 0,
                 0,
-                RuleDefinitions.AdvantageType.None,
-                outcomeReason);
+                RuleDefinitions.AdvantageType.None);
 
             return true;
         }
@@ -1657,8 +2029,7 @@ internal static class FreeJumpContext
             moveCost,
             checkDc,
             successChance,
-            affinity,
-            reason);
+            affinity);
 
         return true;
     }
@@ -1670,12 +2041,10 @@ internal static class FreeJumpContext
         FreeJumpProfile profile,
         bool applyFreeJumpBonuses,
         out int checkDc,
-        out RuleDefinitions.AdvantageType affinity,
-        out string reason)
+        out RuleDefinitions.AdvantageType affinity)
     {
         checkDc = 0;
         affinity = RuleDefinitions.AdvantageType.None;
-        reason = "no-check-required";
 
         var rulesetCharacter = character?.RulesetCharacter;
         var usesArmorPenaltyRules = Main.Settings.ModifyJumpRulesForArmorAndEncumberance;
@@ -1694,11 +2063,6 @@ internal static class FreeJumpContext
         affinity = isWearingHeavy
             ? RuleDefinitions.AdvantageType.Disadvantage
             : RuleDefinitions.AdvantageType.None;
-        reason = needsAthleticsCheck
-            ? "jump-rule"
-            : isWearingHeavy
-                ? "heavy-armor"
-                : "medium-armor";
 
         if (applyFreeJumpBonuses && profile.HasJumpSpell)
         {
@@ -1788,7 +2152,7 @@ internal static class FreeJumpContext
         GameLocationCharacter character,
         Id explorationToggleId)
     {
-        if (!CanShowExplorationFreeJumpToggle(character, out _))
+        if (!CanShowExplorationFreeJumpToggle(character))
         {
             return;
         }
@@ -1800,36 +2164,32 @@ internal static class FreeJumpContext
 
     private static bool CanUseExplorationFreeJump(GameLocationCharacter character)
     {
-        return CanShowExplorationFreeJumpToggle(character, out _) &&
+        return CanShowExplorationFreeJumpToggle(character) &&
                IsExplorationFreeJumpEnabled(character);
     }
 
-    private static bool CanShowExplorationFreeJumpToggle(GameLocationCharacter character, out string reason)
+    private static bool CanShowExplorationFreeJumpToggle(GameLocationCharacter character)
     {
         if (!Main.Settings.EnableBonusActionFreeJump)
         {
-            reason = "setting-off";
             return false;
         }
 
         if (character?.RulesetCharacter == null)
         {
-            reason = "no-character";
             return false;
         }
 
-        if (!CanFreeJumpCharacterAct(character, out reason))
+        if (!CanFreeJumpCharacterAct(character))
         {
             return false;
         }
 
         if (IsBattleInProgress())
         {
-            reason = "battle";
             return false;
         }
 
-        reason = "available";
         return true;
     }
 
@@ -1868,6 +2228,22 @@ internal static class FreeJumpContext
             return false;
         }
 
+        var hasUnsuppressedScope = false;
+
+        foreach (var scope in ActiveScopes.Values)
+        {
+            if (!SuppressedAiPathfindingGuids.Contains(scope.Character.Guid))
+            {
+                hasUnsuppressedScope = true;
+                break;
+            }
+        }
+
+        if (!hasUnsuppressedScope)
+        {
+            return false;
+        }
+
         if (!moveModes.Contains((int)RuleDefinitions.MoveMode.Walk))
         {
             return false;
@@ -1879,6 +2255,27 @@ internal static class FreeJumpContext
         }
 
         return true;
+    }
+
+    private static List<int> BuildTargetContactVerticalOffsets(FreeJumpProfile profile)
+    {
+        var offsets = new List<int> { 0 };
+        var maxOffset = Math.Max(profile.MaxVerticalCells, MaxDownwardCells);
+
+        for (var offset = 1; offset <= maxOffset; offset++)
+        {
+            if (offset <= profile.MaxVerticalCells)
+            {
+                offsets.Add(offset);
+            }
+
+            if (offset <= MaxDownwardCells)
+            {
+                offsets.Add(-offset);
+            }
+        }
+
+        return offsets;
     }
 
     private static void EnumerateCandidatePositions(int3 start, FreeJumpProfile profile, Func<int3, bool> handle)
@@ -1932,35 +2329,30 @@ internal static class FreeJumpContext
 
     private static bool CanUseBattleFreeJump(
         GameLocationCharacter character,
-        bool requireBonusAction,
-        out string reason)
+        bool requireBonusAction)
     {
         if (!Main.Settings.EnableBonusActionFreeJump)
         {
-            reason = "setting-off";
             return false;
         }
 
         if (character?.RulesetCharacter == null)
         {
-            reason = "no-character";
             return false;
         }
 
-        if (!CanFreeJumpCharacterAct(character, out reason))
+        if (!CanFreeJumpCharacterAct(character))
         {
             return false;
         }
 
         if (!IsBattleInProgress())
         {
-            reason = "not-battle";
             return false;
         }
 
         if (character.RemainingTacticalMoves <= 0)
         {
-            reason = "no-move";
             return false;
         }
 
@@ -1968,7 +2360,6 @@ internal static class FreeJumpContext
 
         if (moveStatus != ActionStatus.Available)
         {
-            reason = $"move-{moveStatus}";
             return false;
         }
 
@@ -1978,81 +2369,70 @@ internal static class FreeJumpContext
 
             if (bonusStatus != ActionStatus.Available)
             {
-                reason = $"bonus-{bonusStatus}";
                 return false;
             }
         }
 
-        reason = "available";
         return true;
     }
 
-    private static bool CanFreeJumpCharacterAct(GameLocationCharacter character, out string reason)
+    private static bool CanFreeJumpCharacterAct(GameLocationCharacter character)
     {
-        if (TryGetUnableToActReason(character, out reason))
+        if (IsUnableToAct(character))
         {
             return false;
         }
 
-        if (IsFreeJumpSuppressedByFlight(character, out reason))
+        if (IsFreeJumpSuppressedByFlight(character))
         {
             return false;
         }
 
-        reason = "available";
         return true;
     }
 
-    private static bool IsFreeJumpSuppressedByFlight(GameLocationCharacter character, out string reason)
+    private static bool IsFreeJumpSuppressedByFlight(GameLocationCharacter character)
     {
         var rulesetCharacter = character?.RulesetCharacter;
 
         if (rulesetCharacter == null)
         {
-            reason = "no-character";
             return false;
         }
 
         if (rulesetCharacter.HasConditionOfType(FlightSuspendedConditionName))
         {
-            reason = "flight-suspended";
             return false;
         }
 
         if (!rulesetCharacter.IsTouchingGround() ||
             rulesetCharacter.MoveModes.ContainsKey((int)RuleDefinitions.MoveMode.Fly))
         {
-            reason = "flying";
             return true;
         }
 
-        reason = "grounded";
         return false;
     }
 
-    private static bool TryGetUnableToActReason(GameLocationCharacter character, out string reason)
+    private static bool IsUnableToAct(GameLocationCharacter character)
     {
         var rulesetCharacter = character?.RulesetCharacter;
 
         if (rulesetCharacter == null)
         {
-            reason = "no-character";
             return true;
         }
 
         if (rulesetCharacter.IsDeadOrDyingOrUnconscious)
         {
-            reason = "dead-or-unconscious";
             return true;
         }
 
         if (rulesetCharacter.IsIncapacitated)
         {
-            reason = "incapacitated";
             return true;
         }
 
-        reason = "available";
         return false;
     }
 
@@ -2062,7 +2442,7 @@ internal static class FreeJumpContext
         int3 targetPosition = default,
         bool hasTargetPosition = false)
     {
-        if (IsFreeJumpSuppressedByFlight(character, out _))
+        if (IsFreeJumpSuppressedByFlight(character))
         {
             return null;
         }
@@ -2122,7 +2502,6 @@ internal static class FreeJumpContext
     {
         return CombatAiContext.CanUseFreeJumpForAi(character) &&
                CanUseAction(character) &&
-               character.UsedTacticalMoves == 0 &&
                character.CanDecideToMoveByItself;
     }
 
@@ -2139,6 +2518,11 @@ internal static class FreeJumpContext
             Math.Max(1, Math.Max(Math.Abs(delta.y), Math.Max(Math.Abs(delta.x), Math.Abs(delta.z)))),
             1,
             byte.MaxValue);
+    }
+
+    internal static int ComputeAiFreeJumpMovementCost(int3 start, int3 destination)
+    {
+        return ComputeFreeJumpMovementCost(destination - start);
     }
 
     private static GameLocationCharacterDefinitions.PathStep BuildFreeJumpPathStep(ScopeData scope, int3 destination)

@@ -298,10 +298,6 @@ ModUi/&EnemiesAlwaysRollInitiative=<i>+ Os inimigos sempre rolam a iniciativa em
 ModUi/&EnableEnemiesControlledByPlayer=Permitir inimigos controlados pelos jogadores
 ModUi/&EnableHeroesControlledByComputer=Permitir heróis controlados pelo computador
 ModUi/&EnableAdvancedCombatAI=Ativar IA de combate avançada <i><color=#F0DAA0>[melhorias táticas opcionais para inimigos e heróis controlados pela IA]</color></i>
-ModUi/&EnableAdvancedCombatAIFlight=<i>+ Melhorar decisões de voo e altitude</i>
-ModUi/&EnableAdvancedCombatAIPositioning=<i>+ Melhorar posicionamento, linha de tiro e exposição a ameaças</i>
-ModUi/&EnableAdvancedCombatAIActionEconomy=<i>+ Melhora como a IA usa suas ações e faz com que escolha Esquiva quando não houver opção melhor</i>
-ModUi/&EnableAdvancedCombatAIProfiles=<i>+ Ativar comportamentos por família, estilo de combate e temperamento</i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=Conjuradores inimigos deixam cair livros de feitiços escritos <i><color=#F0DAA0>[contém seus feitiços conhecidos da lista de magos]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Faça com que <b>Evoker</b> <color=#D89555>Esculpir Feitiços</color> não exija a percepção de aliados
 ModUi/&ExpandAll=Expandir tudo

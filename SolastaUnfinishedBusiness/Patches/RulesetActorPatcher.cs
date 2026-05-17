@@ -339,7 +339,9 @@ public static class RulesetActorPatcher
                 return;
             }
 
-            foreach (var contender in Gui.Battle.AllContenders)
+            var contenders = Gui.Battle.AllContenders.ToArray();
+
+            foreach (var contender in contenders)
             {
                 if (contender is not { destroying: false, destroyedBody: false, RulesetActor: not null })
                 {

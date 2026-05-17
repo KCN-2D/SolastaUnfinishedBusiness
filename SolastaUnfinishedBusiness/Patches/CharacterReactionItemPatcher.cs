@@ -169,6 +169,13 @@ public static class CharacterReactionItemPatcher
                 case ReactionRequestSelectSmiteSlot:
                     instance.BindSmiteSlot(spellRepertoire, slotLevel, text, interactable, subitemSelected);
                     break;
+                case ReactionRequestCastSpell castSpellRequest
+                    when ReactionRequestCastSpellPatcher.TryGetFeatReactionDisplayRepertoire(
+                        castSpellRequest,
+                        slotLevel,
+                        out var displayRepertoire):
+                    instance.Bind(displayRepertoire ?? spellRepertoire, slotLevel, text, interactable, subitemSelected);
+                    break;
                 default:
                     instance.Bind(spellRepertoire, slotLevel, text, interactable, subitemSelected);
                     break;

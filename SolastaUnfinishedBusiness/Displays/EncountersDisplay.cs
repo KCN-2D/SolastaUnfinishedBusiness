@@ -4,6 +4,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.Models;
+using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Displays;
 
@@ -263,41 +264,18 @@ internal static class EncountersDisplay
 
     private static void DisplayAdvancedCombatAiToggles()
     {
-        var toggle = Main.Settings.EnableAdvancedCombatAI;
+        var manualNpcControl = Main.Settings.EnableEnemiesControlledByPlayer;
+        var toggle = !manualNpcControl && Main.Settings.EnableAdvancedCombatAI;
+        var guiEnabled = GUI.enabled;
+
+        GUI.enabled = guiEnabled && !manualNpcControl;
 
         if (UI.Toggle(Gui.Localize("ModUi/&EnableAdvancedCombatAI"), ref toggle))
         {
             Main.Settings.EnableAdvancedCombatAI = toggle;
         }
 
-        if (!Main.Settings.EnableAdvancedCombatAI)
-        {
-            return;
-        }
-
-        toggle = Main.Settings.EnableAdvancedCombatAIFlight;
-        if (UI.Toggle(" + " + Gui.Localize("ModUi/&EnableAdvancedCombatAIFlight"), ref toggle))
-        {
-            Main.Settings.EnableAdvancedCombatAIFlight = toggle;
-        }
-
-        toggle = Main.Settings.EnableAdvancedCombatAIPositioning;
-        if (UI.Toggle(" + " + Gui.Localize("ModUi/&EnableAdvancedCombatAIPositioning"), ref toggle))
-        {
-            Main.Settings.EnableAdvancedCombatAIPositioning = toggle;
-        }
-
-        toggle = Main.Settings.EnableAdvancedCombatAIActionEconomy;
-        if (UI.Toggle(" + " + Gui.Localize("ModUi/&EnableAdvancedCombatAIActionEconomy"), ref toggle))
-        {
-            Main.Settings.EnableAdvancedCombatAIActionEconomy = toggle;
-        }
-
-        toggle = Main.Settings.EnableAdvancedCombatAIProfiles;
-        if (UI.Toggle(" + " + Gui.Localize("ModUi/&EnableAdvancedCombatAIProfiles"), ref toggle))
-        {
-            Main.Settings.EnableAdvancedCombatAIProfiles = toggle;
-        }
+        GUI.enabled = guiEnabled;
     }
 
     private static void DisplayHeroesControllerTable()

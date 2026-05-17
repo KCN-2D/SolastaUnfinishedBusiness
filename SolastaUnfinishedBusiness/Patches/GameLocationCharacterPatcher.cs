@@ -229,8 +229,17 @@ public static class GameLocationCharacterPatcher
             //PATCH: acts as a callback for the character's combat turn started event
             CharacterBattleListenersPatch.OnCharacterTurnStarted(__instance);
 
+            CombatAiContext.ResetActionLedgerForTurn(__instance);
             CombatAiContext.PrimeTurnCache(__instance);
-            CombatAiContext.TryAutoSuspendFlight(__instance);
+            CombatAiContext.CleanupTrackedFallbackDodgeOnTurnStart(__instance);
+
+            if (!CombatAiContext.TryAutoResumeFlight(__instance))
+            {
+                CombatAiContext.TryAutoSuspendFlight(__instance);
+            }
+
+            CombatAiContext.TryUsePreMainRouteMove(__instance);
+            CombatAiContext.TryUseBaselineFreeJumpRouteMove(__instance);
         }
     }
 
@@ -309,13 +318,34 @@ public static class GameLocationCharacterPatcher
     public static class EndBattleTurn_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(GameLocationCharacter __instance)
+        public static bool Prefix(GameLocationCharacter __instance)
         {
+            var handledBeforeEndTurn =
+                CombatAiContext.TryHandleAdvancedCombatAiBeforeEndTurn(__instance, out var suppressEndTurn);
+
+            if (handledBeforeEndTurn && suppressEndTurn)
+            {
+                return false;
+            }
+
+            if (!handledBeforeEndTurn &&
+                CombatAiContext.TrySpendLeftoverActionEconomyAtEndTurn(__instance, out suppressEndTurn))
+            {
+                if (suppressEndTurn)
+                {
+                    return false;
+                }
+            }
+
             //PATCH: acts as a callback for the character's combat turn ended event
             CharacterBattleListenersPatch.OnCharacterTurnEnded(__instance);
 
-            CombatAiContext.TrySpendLeftoverActionEconomy(__instance);
-            CombatAiContext.ClearTurnCache(__instance);
+            if (!CombatAiContext.HasPendingActionLinkedMove(__instance))
+            {
+                CombatAiContext.ClearTurnCache(__instance);
+            }
+
+            return true;
         }
     }
 
@@ -329,6 +359,7 @@ public static class GameLocationCharacterPatcher
         {
             //PATCH: acts as a callback for the character's combat started event
             //while there already is callback for this event it doesn't have character or surprise flag arguments
+            CombatAiContext.NotifyBattleStarted(__instance);
             CharacterBattleListenersPatch.OnCharacterBattleStarted(__instance, surprise);
         }
     }
@@ -345,6 +376,7 @@ public static class GameLocationCharacterPatcher
             //while there already is callback for this event it doesn't have character argument
             CharacterBattleListenersPatch.OnCharacterBattleEnded(__instance);
             CombatAiContext.ClearBattleMemory(__instance);
+            CombatAiContext.ClearAiMoveFailures(__instance);
         }
     }
 
@@ -419,8 +451,7 @@ public static class GameLocationCharacterPatcher
             if (ActionPanelContext.ShouldSuppressBattleBonusActionType(
                     __instance,
                     actionType,
-                    actionScope,
-                    out _))
+                    actionScope))
             {
                 __result = ActionStatus.Unavailable;
             }
@@ -464,7 +495,7 @@ public static class GameLocationCharacterPatcher
             var rulesetCharacter = __instance.RulesetCharacter;
 
             if (actionId == Id.NoAction &&
-                ActionPanelContext.ShouldSuppressNoAction(__instance, scope, out _))
+                ActionPanelContext.ShouldSuppressNoAction(__instance, scope))
             {
                 __result = ActionStatus.Unavailable;
                 return;
@@ -688,6 +719,13 @@ public static class GameLocationCharacterPatcher
             {
                 __instance.RulesetCharacter.RefreshAttackModes();
             }
+
+            CombatAiContext.TryUsePostMainMovementAfterActionExecution(
+                __instance,
+                actionParams.ActionDefinition.Id,
+                scope,
+                _mainRank,
+                _mainAttacks);
         }
     }
 

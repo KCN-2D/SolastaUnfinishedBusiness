@@ -149,8 +149,7 @@ public static class CharacterActionPanelPatcher
             if (ActionPanelContext.ShouldSuppressBattleBonusPanel(
                     locationCharacter,
                     panel.ActionScope,
-                    panel.ActionType,
-                    out _))
+                    panel.ActionType))
             {
                 actions.Clear();
 
@@ -187,7 +186,7 @@ public static class CharacterActionPanelPatcher
             return id switch
             {
                 Id.NoAction => ActionPanelContext.ShouldSuppressNoActionInPanel(
-                    locationCharacter, panelScope, panelType, out _),
+                    locationCharacter, panelScope, panelType),
                 Id.ActionSurge => !Level20Context.CanUseActionSurgeThisTurn(locationCharacter),
                 Id.PowerMain => !character.CanSeeAndUseAtLeastOnePower(ActionType.Main, battle),
                 Id.PowerBonus => !character.CanSeeAndUseAtLeastOnePower(ActionType.Bonus, battle),
