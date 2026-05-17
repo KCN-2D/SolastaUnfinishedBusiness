@@ -101,7 +101,6 @@ ContentPack/&9999Description=The Unfinished Business Pack is a veritable Horn of
 ContentPack/&9999Title=Unfinished Business Pack
 Equipment/&BeltOfRegeneration_Function_Description=Regenerate 5 hit points per round for one minute.
 Equipment/&DLC3_DwarvenWeapon_Dagger+3_CriticalThreshold=Your attacks score a critical hit on an 18, 19 or 20 while you are wielding this weapon and are attuned to it.
-Feature/&Emptystring=
 Failure/&CannotAttackTarget=Can't perform attack on this target
 Failure/&FailureFlagCannotTargetUndead=Cannot target Undead creatures
 Failure/&FailureFlagInvalidSpellSchool=Not valid for {0} spells

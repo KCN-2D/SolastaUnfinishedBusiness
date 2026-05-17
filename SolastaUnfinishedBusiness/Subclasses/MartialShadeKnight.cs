@@ -228,7 +228,7 @@ public sealed class MartialShadeKnight : AbstractSubclass
             .AddFeatures(monsterAdditionalFeatures.ToArray())
             .AddToDB();
 
-        monster.guiPresentation.description = GuiPresentationBuilder.EmptyString;
+        monster.guiPresentation.description = Gui.NoLocalization;
 
         return monster;
     }
