@@ -17,4 +17,4 @@ Lore/&ObservableText_Wanderer_04=永遠の安息はない。
 Lore/&ObservableText_Wanderer_05=魂の安らがぬ者にのみ光をもたらせ。
 Lore/&ObservableText_Wanderer_06=それ以外は死の闇に残せ。
 Lore/&Wanderer_Tomb01=ラソリアス・ストロングハート\n第2軍団第1百人隊長\n帝国に誉れある死者
-Lore/&Wanderer_Tomb02=ケラシール・スウィフトスペル\n第2軍団第1衝撃秘術中隊長\n帝国に誉れある死者
+Lore/&Wanderer_Tomb02=ケラシール・スウィフトスペル\n第2軍団ショック・アルカニスト第1中隊長\n帝国に誉れある死者
