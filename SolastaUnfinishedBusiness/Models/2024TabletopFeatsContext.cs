@@ -3575,6 +3575,8 @@ public static partial class Tabletop2024Context
         RegisterManagedCatalogEntry("FeatMageSlayer", _featGroupMageSlayer2024, true);
         RegisterManagedCatalogEntry("FeatModeratelyArmored", _featGroupModeratelyArmored2024, true);
         RegisterManagedCatalogEntry("FeatMediumArmorMaster", _featGroupMediumArmorMaster2024, true);
+        RegisterManagedCanonicalAlias("FeatMediumArmorMaster", "FeatMediumArmorMaster2024Str");
+        RegisterManagedCanonicalAlias("FeatMediumArmorMaster", "FeatMediumArmorMaster2024Dex");
         RegisterManagedCatalogEntry("FeatHeavyArmorMaster", _featGroupHeavyArmorMaster2024, true);
         RegisterManagedCatalogEntry(Observant2024GroupFeatName, _featGroupObservant2024, true);
         RegisterManagedCanonicalAlias(Observant2024GroupFeatName, "FeatObservant2024IntelligenceInsight");
