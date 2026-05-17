@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace SolastaUnfinishedBusiness.Api.ModKit;
@@ -17,7 +18,15 @@ internal static class AssemblyTypeCache
                 return types;
             }
 
-            types = assembly.GetTypes();
+            try
+            {
+                types = assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                types = ex.Types.Where(type => type != null).ToArray();
+            }
+
             TypesByAssembly[assembly] = types;
 
             return types;

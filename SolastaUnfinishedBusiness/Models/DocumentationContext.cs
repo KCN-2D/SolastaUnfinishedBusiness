@@ -22,17 +22,20 @@ internal static class DocumentationContext
     private static readonly string[] RequiredDocumentationFiles =
     [
         "Backgrounds.md",
+        "ArcaneShots.md",
         "Classes.md",
         "Feats.md",
         "FightingStyles.md",
         "Infusions.md",
         "Invocations.md",
         "Items.md",
+        "Maneuvers.md",
         "Metamagic.md",
         "Races.md",
         "Spells.md",
         "Subclasses.md",
         "Subraces.md",
+        "Versatilities.md",
         Path.Combine(MonstersFolder, "SolastaMonstersHumanoid.md")
     ];
 

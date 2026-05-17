@@ -37,6 +37,10 @@ internal static class UpdateContext
     private static UpdateDispatcher Dispatcher { get; set; }
     private static WebClient VersionWebClient { get; set; }
     private static WebClient UpdateWebClient { get; set; }
+    private static DownloadStringCompletedEventHandler VersionDownloadCompletedHandler { get; set; }
+    private static DownloadProgressChangedEventHandler UpdateProgressChangedHandler { get; set; }
+    private static AsyncCompletedEventHandler UpdateDownloadCompletedHandler { get; set; }
+    private static int UpdateGeneration { get; set; }
     private static bool Unloading { get; set; }
 
     private static bool ShouldUpdate;
@@ -44,6 +48,8 @@ internal static class UpdateContext
     internal static void Load()
     {
         Unloading = false;
+        NextUpdateGeneration();
+
         EnsureDispatcher();
 
         var infoPayload = File.ReadAllText(Path.Combine(Main.ModFolder, "Info.json"));
@@ -79,14 +85,13 @@ internal static class UpdateContext
     internal static void Unload()
     {
         Unloading = true;
+        NextUpdateGeneration();
         InProgress = false;
         Progress = 0;
 
         ClearMainThreadActions();
-        CancelAndDisposeWebClient(VersionWebClient);
-        CancelAndDisposeWebClient(UpdateWebClient);
-        VersionWebClient = null;
-        UpdateWebClient = null;
+        CancelAndDisposeVersionWebClient();
+        CancelAndDisposeUpdateWebClient();
 
         if (Dispatcher)
         {
@@ -101,53 +106,56 @@ internal static class UpdateContext
 
     private static void StartVersionCheck(bool displayWelcomeMessage)
     {
-        CancelAndDisposeWebClient(VersionWebClient);
+        var generation = UpdateGeneration;
+
+        CancelAndDisposeVersionWebClient();
+
+        if (IsStale(generation) ||
+            string.IsNullOrWhiteSpace(VersionURL) ||
+            !Uri.TryCreate(VersionURL, UriKind.Absolute, out var versionUri))
+        {
+            QueueStartupMessages(displayWelcomeMessage, generation);
+            return;
+        }
 
         var webClient = new WebClient { Encoding = Encoding.UTF8 };
 
         VersionWebClient = webClient;
-        webClient.DownloadStringCompleted += OnDownloadStringCompleted;
+        VersionDownloadCompletedHandler = (_, e) =>
+            OnVersionDownloadCompleted(webClient, displayWelcomeMessage, generation, e);
+        webClient.DownloadStringCompleted += VersionDownloadCompletedHandler;
 
         try
         {
-            webClient.DownloadStringAsync(new Uri(VersionURL));
+            webClient.DownloadStringAsync(versionUri);
         }
         catch
         {
-            if (VersionWebClient == webClient)
-            {
-                VersionWebClient = null;
-            }
-
-            webClient.Dispose();
-            QueueStartupMessages(displayWelcomeMessage);
+            DisposeVersionWebClient(webClient);
+            QueueStartupMessages(displayWelcomeMessage, generation);
         }
+    }
 
-        return;
+    private static void OnVersionDownloadCompleted(
+        WebClient webClient,
+        bool displayWelcomeMessage,
+        int generation,
+        DownloadStringCompletedEventArgs e)
+    {
+        DisposeVersionWebClient(webClient);
 
-        void OnDownloadStringCompleted(object _, DownloadStringCompletedEventArgs e)
+        if (IsStale(generation) || e.Cancelled)
         {
-            if (VersionWebClient == webClient)
-            {
-                VersionWebClient = null;
-            }
-
-            webClient.DownloadStringCompleted -= OnDownloadStringCompleted;
-            webClient.Dispose();
-
-            if (Unloading || e.Cancelled)
-            {
-                return;
-            }
-
-            if (e.Error == null && TryParseLatestVersion(e.Result, out var version, out var shouldUpdate))
-            {
-                LatestVersion = version;
-                ShouldUpdate = shouldUpdate;
-            }
-
-            QueueStartupMessages(displayWelcomeMessage);
+            return;
         }
+
+        if (e.Error == null && TryParseLatestVersion(e.Result, out var version, out var shouldUpdate))
+        {
+            LatestVersion = version;
+            ShouldUpdate = shouldUpdate;
+        }
+
+        QueueStartupMessages(displayWelcomeMessage, generation);
     }
 
     private static bool TryParseLatestVersion(string infoPayload, out string version, out bool shouldUpdate)
@@ -192,6 +200,7 @@ internal static class UpdateContext
         InProgress = true;
         Progress = 0;
 
+        var generation = UpdateGeneration;
         var version = toLatest ? LatestVersion : PreviousVersion;
         var zipFile = "SolastaUnfinishedBusiness.zip";
         var fullZipFile = Path.Combine(Main.ModFolder, zipFile);
@@ -205,9 +214,18 @@ internal static class UpdateContext
             wc = new WebClient();
 
             wc.Encoding = Encoding.UTF8;
-            wc.DownloadProgressChanged += (_, e) => Progress = e.ProgressPercentage;
+            UpdateProgressChangedHandler = (_, e) =>
+            {
+                if (!IsStale(generation) && UpdateWebClient == wc)
+                {
+                    Progress = e.ProgressPercentage;
+                }
+            };
+            wc.DownloadProgressChanged += UpdateProgressChangedHandler;
 
-            wc.DownloadFileCompleted += OnDownloadFileCompleted;
+            UpdateDownloadCompletedHandler = (_, e) =>
+                OnUpdateDownloadCompleted(wc, generation, url, fullZipFile, fullZipFolder, e);
+            wc.DownloadFileCompleted += UpdateDownloadCompletedHandler;
 
             UpdateWebClient = wc;
             wc.DownloadFileAsync(url, fullZipFile);
@@ -223,93 +241,124 @@ internal static class UpdateContext
                 severity: MessageModal.Severity.Serious3);
         }
 
-        return;
+    }
 
-        void OnDownloadFileCompleted(object _, AsyncCompletedEventArgs e)
+    private static void OnUpdateDownloadCompleted(
+        WebClient webClient,
+        int generation,
+        Uri url,
+        string fullZipFile,
+        string fullZipFolder,
+        AsyncCompletedEventArgs e)
+    {
+        if (IsStale(generation) || UpdateWebClient != webClient)
         {
-            if (Unloading)
+            DisposeUpdateWebClient(webClient);
+            InProgress = false;
+            Progress = 0;
+            return;
+        }
+
+        if (e.Cancelled)
+        {
+            DisposeUpdateWebClient(webClient);
+            InProgress = false;
+            Progress = 0;
+            QueueMainThread(() => ShowMessage("Update was cancelled",
+                "Open Download Url", () => OpenUrl(url.ToString()),
+                severity: MessageModal.Severity.Serious3), generation);
+            return;
+        }
+
+        if (e.Error != null)
+        {
+            DisposeUpdateWebClient(webClient);
+            InProgress = false;
+            Progress = 0;
+            QueueMainThread(() => ShowMessage($"Cannot fetch update payload. Try again or download from:\r\n{url}.",
+                "Open Download Url", () => OpenUrl(url.ToString()),
+                severity: MessageModal.Severity.Serious3), generation);
+            return;
+        }
+
+        try
+        {
+            if (Directory.Exists(fullZipFolder))
             {
-                DisposeUpdateWebClient(wc);
-                InProgress = false;
-                Progress = 0;
-                return;
+                Directory.Delete(fullZipFolder, true);
             }
 
-            if (e.Error != null)
+            ZipFile.ExtractToDirectory(fullZipFile, fullZipFolder);
+
+            foreach (var sourceFile in Directory.GetFiles(fullZipFolder, "*", SearchOption.AllDirectories))
             {
-                DisposeUpdateWebClient(wc);
-                InProgress = false;
-                ShowMessage($"Cannot fetch update payload. Try again or download from:\r\n{url}.",
-                    "Open Download Url", () => OpenUrl(url.ToString()),
-                    severity: MessageModal.Severity.Serious3);
-                return;
+                var destFile = sourceFile.ReplaceFirst(TempFolder, string.Empty);
+
+                while (Regex.Matches(destFile, Regex.Escape(ModFolder)).Count > 1)
+                {
+                    destFile = destFile.ReplaceLastOccurrence(ModFolder, string.Empty);
+                }
+
+                var destFolder = Path.GetDirectoryName(destFile)!;
+
+                Directory.CreateDirectory(destFolder);
+
+                if (Checksum(destFile) != Checksum(sourceFile))
+                {
+                    File.Delete(destFile);
+                    File.Move(sourceFile, destFile);
+                }
             }
 
-            if (e.Cancelled)
-            {
-                DisposeUpdateWebClient(wc);
-                InProgress = false;
-                ShowMessage("Update was cancelled",
-                    "Open Download Url", () => OpenUrl(url.ToString()),
-                    severity: MessageModal.Severity.Serious3);
-                return;
-            }
+            QueueMainThread(() => ShowMessage("Mod update is successful. Please restart.", "ChangeLog", OpenChangeLog),
+                generation);
+        }
+        catch (Exception err)
+        {
+            Main.Error($"Failed to update mod: {err.Message}: {err.StackTrace}");
+
+            QueueMainThread(() => ShowMessage(
+                $"Failed to unpack update. Try again or download and update manually from:\r\n{url}.",
+                "Open Download Url", () => OpenUrl(url.ToString()),
+                severity: MessageModal.Severity.Serious3), generation);
+        }
+        finally
+        {
+            DisposeUpdateWebClient(webClient);
+            InProgress = false;
+            Progress = 0;
 
             try
             {
-                if (Directory.Exists(fullZipFolder))
-                {
-                    Directory.Delete(fullZipFolder, true);
-                }
-
-                ZipFile.ExtractToDirectory(fullZipFile, fullZipFolder);
-
-                foreach (var sourceFile in Directory.GetFiles(fullZipFolder, "*", SearchOption.AllDirectories))
-                {
-                    var destFile = sourceFile.ReplaceFirst(TempFolder, string.Empty);
-
-                    while (Regex.Matches(destFile, Regex.Escape(ModFolder)).Count > 1)
-                    {
-                        destFile = destFile.ReplaceLastOccurrence(ModFolder, string.Empty);
-                    }
-
-                    var destFolder = Path.GetDirectoryName(destFile)!;
-
-                    Directory.CreateDirectory(destFolder);
-
-                    if (Checksum(destFile) != Checksum(sourceFile))
-                    {
-                        File.Delete(destFile);
-                        File.Move(sourceFile, destFile);
-                    }
-                }
-
-                ShowMessage("Mod update is successful. Please restart.", "ChangeLog", OpenChangeLog);
+                File.Delete(fullZipFile);
+                Directory.Delete(fullZipFolder, true);
             }
-            catch (Exception err)
+            catch
             {
-                Main.Error($"Failed to update mod: {err.Message}: {err.StackTrace}");
-
-                ShowMessage($"Failed to unpack update. Try again or download and update manually from:\r\n{url}.",
-                    "Open Download Url", () => OpenUrl(url.ToString()),
-                    severity: MessageModal.Severity.Serious3);
-            }
-            finally
-            {
-                DisposeUpdateWebClient(wc);
-                InProgress = false;
-
-                try
-                {
-                    File.Delete(fullZipFile);
-                    Directory.Delete(fullZipFolder, true);
-                }
-                catch
-                {
-                    /* ignored */
-                }
+                /* ignored */
             }
         }
+    }
+
+    private static void DisposeVersionWebClient(WebClient webClient)
+    {
+        if (webClient == null)
+        {
+            return;
+        }
+
+        if (VersionDownloadCompletedHandler != null)
+        {
+            webClient.DownloadStringCompleted -= VersionDownloadCompletedHandler;
+            VersionDownloadCompletedHandler = null;
+        }
+
+        if (VersionWebClient == webClient)
+        {
+            VersionWebClient = null;
+        }
+
+        webClient.Dispose();
     }
 
     private static void DisposeUpdateWebClient(WebClient webClient)
@@ -324,14 +373,39 @@ internal static class UpdateContext
             UpdateWebClient = null;
         }
 
+        if (UpdateProgressChangedHandler != null)
+        {
+            webClient.DownloadProgressChanged -= UpdateProgressChangedHandler;
+            UpdateProgressChangedHandler = null;
+        }
+
+        if (UpdateDownloadCompletedHandler != null)
+        {
+            webClient.DownloadFileCompleted -= UpdateDownloadCompletedHandler;
+            UpdateDownloadCompletedHandler = null;
+        }
+
         webClient.Dispose();
     }
 
-    private static void CancelAndDisposeWebClient(WebClient webClient)
+    private static void CancelAndDisposeVersionWebClient()
     {
+        var webClient = VersionWebClient;
+
         if (webClient == null)
         {
             return;
+        }
+
+        if (VersionDownloadCompletedHandler != null)
+        {
+            webClient.DownloadStringCompleted -= VersionDownloadCompletedHandler;
+            VersionDownloadCompletedHandler = null;
+        }
+
+        if (VersionWebClient == webClient)
+        {
+            VersionWebClient = null;
         }
 
         try
@@ -344,7 +418,43 @@ internal static class UpdateContext
         }
     }
 
-    private static void QueueStartupMessages(bool displayWelcomeMessage)
+    private static void CancelAndDisposeUpdateWebClient()
+    {
+        var webClient = UpdateWebClient;
+
+        if (webClient == null)
+        {
+            return;
+        }
+
+        if (UpdateProgressChangedHandler != null)
+        {
+            webClient.DownloadProgressChanged -= UpdateProgressChangedHandler;
+            UpdateProgressChangedHandler = null;
+        }
+
+        if (UpdateDownloadCompletedHandler != null)
+        {
+            webClient.DownloadFileCompleted -= UpdateDownloadCompletedHandler;
+            UpdateDownloadCompletedHandler = null;
+        }
+
+        if (UpdateWebClient == webClient)
+        {
+            UpdateWebClient = null;
+        }
+
+        try
+        {
+            webClient.CancelAsync();
+        }
+        finally
+        {
+            webClient.Dispose();
+        }
+    }
+
+    private static void QueueStartupMessages(bool displayWelcomeMessage, int generation)
     {
         QueueMainThread(() =>
         {
@@ -360,7 +470,12 @@ internal static class UpdateContext
             {
                 DisplayWelcomeMessage();
             }
-        });
+        }, generation);
+    }
+
+    private static void QueueStartupMessages(bool displayWelcomeMessage)
+    {
+        QueueStartupMessages(displayWelcomeMessage, UpdateGeneration);
     }
 
     private static void EnsureDispatcher()
@@ -376,12 +491,20 @@ internal static class UpdateContext
         Dispatcher = gameObject.AddComponent<UpdateDispatcher>();
     }
 
-    private static void QueueMainThread(Action action)
+    private static void QueueMainThread(Action action, int generation)
     {
-        if (!Unloading)
+        if (IsStale(generation))
         {
-            MainThreadActions.Enqueue(action);
+            return;
         }
+
+        MainThreadActions.Enqueue(() =>
+        {
+            if (!IsStale(generation))
+            {
+                action();
+            }
+        });
     }
 
     private static void ProcessMainThreadActions()
@@ -409,6 +532,21 @@ internal static class UpdateContext
         while (MainThreadActions.TryDequeue(out _))
         {
         }
+    }
+
+    private static int NextUpdateGeneration()
+    {
+        unchecked
+        {
+            UpdateGeneration++;
+        }
+
+        return UpdateGeneration;
+    }
+
+    private static bool IsStale(int generation)
+    {
+        return Unloading || generation != UpdateGeneration;
     }
 
     private sealed class UpdateDispatcher : MonoBehaviour

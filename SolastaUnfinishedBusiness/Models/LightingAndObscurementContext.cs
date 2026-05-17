@@ -49,6 +49,28 @@ internal static class LightingAndObscurementContext
         GetOrCreatePerceptionRollCache(sensor).TryAdd(target, RuleDefinitions.RollOutcome.Success);
     }
 
+    private static void AddSenseModeIfMissing(
+        RulesetCharacter character,
+        SenseMode.Type senseType,
+        int senseRange,
+        int sensePrecision)
+    {
+        if (character == null)
+        {
+            return;
+        }
+
+        foreach (var senseMode in character.SenseModes)
+        {
+            if (senseMode.SenseType == senseType && senseMode.SenseRange >= senseRange)
+            {
+                return;
+            }
+        }
+
+        character.SenseModes.Add(new SenseMode(senseType, senseRange, sensePrecision));
+    }
+
     private static string[] MonstersThatShouldHaveDarkvision { get; } =
     [
         "Adam_The_Twelth",
@@ -446,16 +468,13 @@ internal static class LightingAndObscurementContext
         {
             if (MonstersThatShouldHaveBlindSight
                 .Any(m => Regex.IsMatch(sensorCharacter.Name, m, RegexOptions.IgnoreCase)))
-                sensorCharacter.SenseModes.Add(new SenseMode(SenseMode.Type.Blindsight, 10, 1));
+                AddSenseModeIfMissing(sensorCharacter, SenseMode.Type.Blindsight, 10, 1);
             if (MonstersThatShouldHaveDarkvision
                 .Any(m => Regex.IsMatch(sensorCharacter.Name, m, RegexOptions.IgnoreCase)))
-                sensorCharacter.SenseModes.Add(new SenseMode(SenseMode.Type.Darkvision, 60, 1));
+                AddSenseModeIfMissing(sensorCharacter, SenseMode.Type.Darkvision, 60, 1);
             if (MonstersThatShouldHaveTrueSight
                 .Any(m => Regex.IsMatch(sensorCharacter.Name, m, RegexOptions.IgnoreCase)))
-                sensorCharacter.SenseModes.Add(new SenseMode(SenseMode.Type.Truesight, 60, 1));
-            if (MonstersThatShouldNotHaveTremorSense
-                .Any(m => Regex.IsMatch(sensorCharacter.Name, m, RegexOptions.IgnoreCase)))
-                sensorCharacter.SenseModes.Add(new SenseMode(SenseMode.Type.Tremorsense, 60, 1));
+                AddSenseModeIfMissing(sensorCharacter, SenseMode.Type.Truesight, 60, 1);
         }
 
         if (target != null)
@@ -726,19 +745,26 @@ internal static class LightingAndObscurementContext
             foreach (var lightSources in visibilityManager.lightSourcesMap)
             {
                 var key = lightSources.Value;
-                var locationPosition = key.LocationPosition;
+                var rulesetLightSource = key?.RulesetLightSource;
 
-                if (key.RulesetLightSource.DayCycleType != RuleDefinitions.LightSourceDayCycleType.Always &&
-                    !key.RulesetLightSource.IsDayCycleActive)
+                if (rulesetLightSource == null)
                 {
                     continue;
                 }
 
-                var dimRange = key.RulesetLightSource.DimRange;
+                var locationPosition = key.LocationPosition;
+
+                if (rulesetLightSource.DayCycleType != RuleDefinitions.LightSourceDayCycleType.Always &&
+                    !rulesetLightSource.IsDayCycleActive)
+                {
+                    continue;
+                }
+
+                var dimRange = rulesetLightSource.DimRange;
                 var magnitude = (locationPosition - targetPosition).magnitude;
 
                 if (magnitude <= dimRange + illuminable.DetectionRange &&
-                    (!visibilityManager.charactersByLight.TryGetValue(key.RulesetLightSource, out var glc) ||
+                    (!visibilityManager.charactersByLight.TryGetValue(rulesetLightSource, out var glc) ||
                      glc is { IsValidForVisibility: true }))
                 {
                     visibilityManager.lightsByDistance.Add(
@@ -755,7 +781,14 @@ internal static class LightingAndObscurementContext
                 foreach (var keyValuePair in visibilityManager.lightsByDistance)
                 {
                     var key = keyValuePair.Key;
-                    var dimRange = key.RulesetLightSource.DimRange;
+                    var rulesetLightSource = key?.RulesetLightSource;
+
+                    if (rulesetLightSource == null)
+                    {
+                        continue;
+                    }
+
+                    var dimRange = rulesetLightSource.DimRange;
                     var locationPosition = key.LocationPosition;
                     var magnitudeSqr = (locationPosition - int3).magnitudeSqr;
 
@@ -774,13 +807,13 @@ internal static class LightingAndObscurementContext
                     visibilityManager.AdaptRayForVerticalityAndDiagonals(
                         locationPosition, int3, ref sourcePosition, true);
 
-                    if (key.RulesetLightSource.IsSpot)
+                    if (rulesetLightSource.IsSpot)
                     {
                         var to = destinationPosition - sourcePosition;
 
                         to.Normalize();
-                        hasLineOfSight = Vector3.Angle(key.RulesetLightSource.SpotDirection, to)
-                            .IsInferiorOrNearlyEqual(key.RulesetLightSource.SpotAngle * 0.5f);
+                        hasLineOfSight = Vector3.Angle(rulesetLightSource.SpotDirection, to)
+                            .IsInferiorOrNearlyEqual(rulesetLightSource.SpotAngle * 0.5f);
                     }
 
                     if (!hasLineOfSight ||
@@ -792,8 +825,8 @@ internal static class LightingAndObscurementContext
                     }
 
                     lightsLightingState =
-                        key.RulesetLightSource.BrightRange <= 0.0 || magnitudeSqr >
-                        key.RulesetLightSource.BrightRange * key.RulesetLightSource.BrightRange
+                        rulesetLightSource.BrightRange <= 0.0 || magnitudeSqr >
+                        rulesetLightSource.BrightRange * rulesetLightSource.BrightRange
                             ? LightingState.Dim
                             : LightingState.Bright;
 

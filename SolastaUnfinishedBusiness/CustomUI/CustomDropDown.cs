@@ -45,7 +45,7 @@ public class CustomDropDown : IDisposable
 
     public void UpdateControls()
     {
-        if (_disposed || !DropList || !Selector)
+        if (!CanUseControls())
         {
             return;
         }
@@ -74,6 +74,12 @@ public class CustomDropDown : IDisposable
 
         Selected = 0;
         Options.Clear();
+
+        if (!CanUseControls())
+        {
+            return;
+        }
+
         DropList.ClearOptions();
         Selector.Texts = [];
     }
@@ -86,6 +92,12 @@ public class CustomDropDown : IDisposable
         }
 
         Options.AddRange(values);
+
+        if (!CanUseControls())
+        {
+            return;
+        }
+
         DropList.AddOptions(Options);
         Selector.Texts.AddRange(Options.Select(o => o.text));
         Selector.RefreshCurrent();
@@ -93,7 +105,7 @@ public class CustomDropDown : IDisposable
 
     public void SetSelected(int newValue)
     {
-        if (_disposed)
+        if (!CanUseControls())
         {
             return;
         }
@@ -164,7 +176,7 @@ public class CustomDropDown : IDisposable
 
     private void OnDropdownValueChanged(int newValue)
     {
-        if (_disposed)
+        if (!CanUseControls())
         {
             return;
         }
@@ -176,7 +188,7 @@ public class CustomDropDown : IDisposable
 
     private void OnSelectorSelectionChanged()
     {
-        if (_disposed)
+        if (!CanUseControls())
         {
             return;
         }
@@ -184,6 +196,11 @@ public class CustomDropDown : IDisposable
         Selected = Selector.currentSelection;
         DropList.SetValueWithoutNotify(Selected);
         NotifyValueChange();
+    }
+
+    private bool CanUseControls()
+    {
+        return !_disposed && DropList && Selector;
     }
 
     internal static GuiDropdown MakeDropdown(string name, Transform transform)
