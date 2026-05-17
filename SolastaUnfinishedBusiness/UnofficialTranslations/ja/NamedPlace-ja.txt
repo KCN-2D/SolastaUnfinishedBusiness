@@ -1,7 +1,7 @@
 NamedPlace/&AerElai_Title=アエルエライ
 NamedPlace/&BADLANDS_Title=バッドランズ
 NamedPlace/&City_Title=ケア・ハイフリド
-NamedPlace/&CopperheadRoad_Title=カッパーヘッド\nロード
+NamedPlace/&CopperheadRoad_Title=カッパーヘッド\n街道
 NamedPlace/&DLC3_Ambush_Title=ステンヴェッグ橋
 NamedPlace/&DLC3_Castle_Title=グレンデール公国
 NamedPlace/&DLC3_Elven_Title=トリーマンランド
