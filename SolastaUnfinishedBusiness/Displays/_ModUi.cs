@@ -258,7 +258,6 @@ internal static class ModUi
         "PathBerserker",
         "PathOfTheBattlerager",
         "PathOfTheBeast",
-        "PathOfTheRavager",
         "PathOfTheSpirits",
         "PathOfTheWildMagic",
         "PatronArchfey",
