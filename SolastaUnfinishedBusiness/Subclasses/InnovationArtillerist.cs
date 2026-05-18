@@ -162,51 +162,24 @@ public sealed class InnovationArtillerist : AbstractSubclass
         // Action Affinities Medium Cannon
 
         var actionAffinityFlamethrower =
-            FeatureDefinitionActionAffinityBuilder
-                .Create($"ActionAffinity{Name}{Flamethrower}")
-                .SetGuiPresentationNoContent(true)
-                .SetAuthorizedActions((Id)ExtraActionId.CannonFlamethrower)
-                .AddToDB();
+            BuildCannonActionAffinity(Flamethrower, ExtraActionId.CannonFlamethrower);
 
         var actionAffinityForceBallista =
-            FeatureDefinitionActionAffinityBuilder
-                .Create($"ActionAffinity{Name}{ForceBallista}")
-                .SetGuiPresentationNoContent(true)
-                .SetAuthorizedActions((Id)ExtraActionId.CannonForceBallista)
-                .AddToDB();
+            BuildCannonActionAffinity(ForceBallista, ExtraActionId.CannonForceBallista);
 
         var actionAffinityProtector =
-            FeatureDefinitionActionAffinityBuilder
-                .Create($"ActionAffinity{Name}{Protector}")
-                .SetGuiPresentationNoContent(true)
-                .SetAuthorizedActions((Id)ExtraActionId.CannonProtector)
-                .AddToDB();
+            BuildCannonActionAffinity(Protector, ExtraActionId.CannonProtector);
 
         // Action Affinities Tiny Cannon
 
         var actionAffinityFlamethrowerTiny =
-            FeatureDefinitionActionAffinityBuilder
-                .Create($"ActionAffinity{Name}{Flamethrower}Tiny")
-                .SetGuiPresentationNoContent(true)
-                .SetAuthorizedActions((Id)ExtraActionId.CannonFlamethrowerBonus)
-                .AddCustomSubFeatures(new ValidateDefinitionApplication(ValidatorsCharacter.HasFreeHandConsiderGrapple))
-                .AddToDB();
+            BuildCannonActionAffinity($"{Flamethrower}Tiny", ExtraActionId.CannonFlamethrowerBonus, true);
 
         var actionAffinityForceBallistaTiny =
-            FeatureDefinitionActionAffinityBuilder
-                .Create($"ActionAffinity{Name}{ForceBallista}Tiny")
-                .SetGuiPresentationNoContent(true)
-                .SetAuthorizedActions((Id)ExtraActionId.CannonForceBallistaBonus)
-                .AddCustomSubFeatures(new ValidateDefinitionApplication(ValidatorsCharacter.HasFreeHandConsiderGrapple))
-                .AddToDB();
+            BuildCannonActionAffinity($"{ForceBallista}Tiny", ExtraActionId.CannonForceBallistaBonus, true);
 
         var actionAffinityProtectorTiny =
-            FeatureDefinitionActionAffinityBuilder
-                .Create($"ActionAffinity{Name}{Protector}Tiny")
-                .SetGuiPresentationNoContent(true)
-                .SetAuthorizedActions((Id)ExtraActionId.CannonProtectorBonus)
-                .AddCustomSubFeatures(new ValidateDefinitionApplication(ValidatorsCharacter.HasFreeHandConsiderGrapple))
-                .AddToDB();
+            BuildCannonActionAffinity($"{Protector}Tiny", ExtraActionId.CannonProtectorBonus, true);
 
         // Medium Cannon Conditions
 
@@ -253,79 +226,27 @@ public sealed class InnovationArtillerist : AbstractSubclass
 
         // Medium Cannon Actions
 
-        _ = ActionDefinitionBuilder
-            .Create($"Action{Name}{Flamethrower}")
-            .SetGuiPresentation($"Power{Name}{Flamethrower}", Category.Feature, powerFlamethrower)
-            .OverrideClassName("UsePower")
-            .SetStealthBreakerBehavior(StealthBreakerBehavior.RollIfTargets)
-            .RequiresAuthorization()
-            .SetActionId(ExtraActionId.CannonFlamethrower)
-            .SetActionType(ActionType.Main)
-            .SetActivatedPower(powerFlamethrower)
-            .SetFormType(ActionFormType.Large)
-            .AddToDB();
+        BuildCannonAction(
+            Flamethrower, Flamethrower, ExtraActionId.CannonFlamethrower, ActionType.Main, powerFlamethrower);
 
-        _ = ActionDefinitionBuilder
-            .Create($"Action{Name}{ForceBallista}")
-            .SetGuiPresentation($"Power{Name}{ForceBallista}", Category.Feature, powerForceBallista)
-            .OverrideClassName("UsePower")
-            .SetStealthBreakerBehavior(StealthBreakerBehavior.RollIfTargets)
-            .RequiresAuthorization()
-            .SetActionId(ExtraActionId.CannonForceBallista)
-            .SetActionType(ActionType.Main)
-            .SetActivatedPower(powerForceBallista)
-            .SetFormType(ActionFormType.Large)
-            .AddToDB();
+        BuildCannonAction(
+            ForceBallista, ForceBallista, ExtraActionId.CannonForceBallista, ActionType.Main, powerForceBallista);
 
-        _ = ActionDefinitionBuilder
-            .Create($"Action{Name}{Protector}")
-            .SetGuiPresentation($"Power{Name}{Protector}", Category.Feature, powerProtector)
-            .OverrideClassName("UsePower")
-            .SetStealthBreakerBehavior(StealthBreakerBehavior.RollIfTargets)
-            .RequiresAuthorization()
-            .SetActionId(ExtraActionId.CannonProtector)
-            .SetActionType(ActionType.Main)
-            .SetActivatedPower(powerProtector)
-            .SetFormType(ActionFormType.Large)
-            .AddToDB();
+        BuildCannonAction(
+            Protector, Protector, ExtraActionId.CannonProtector, ActionType.Main, powerProtector);
 
         // Tiny Cannon Actions
 
-        _ = ActionDefinitionBuilder
-            .Create($"Action{Name}{Flamethrower}Tiny")
-            .SetGuiPresentation($"Power{Name}{Flamethrower}", Category.Feature, powerFlamethrower)
-            .OverrideClassName("UsePower")
-            .SetStealthBreakerBehavior(StealthBreakerBehavior.RollIfTargets)
-            .RequiresAuthorization()
-            .SetActionId(ExtraActionId.CannonFlamethrowerBonus)
-            .SetActionType(ActionType.Bonus)
-            .SetActivatedPower(powerFlamethrower)
-            .SetFormType(ActionFormType.Large)
-            .AddToDB();
+        BuildCannonAction(
+            $"{Flamethrower}Tiny", Flamethrower, ExtraActionId.CannonFlamethrowerBonus, ActionType.Bonus,
+            powerFlamethrower);
 
-        _ = ActionDefinitionBuilder
-            .Create($"Action{Name}{ForceBallista}Tiny")
-            .SetGuiPresentation($"Power{Name}{ForceBallista}", Category.Feature, powerForceBallista)
-            .OverrideClassName("UsePower")
-            .SetStealthBreakerBehavior(StealthBreakerBehavior.RollIfTargets)
-            .RequiresAuthorization()
-            .SetActionId(ExtraActionId.CannonForceBallistaBonus)
-            .SetActionType(ActionType.Bonus)
-            .SetActivatedPower(powerForceBallista)
-            .SetFormType(ActionFormType.Large)
-            .AddToDB();
+        BuildCannonAction(
+            $"{ForceBallista}Tiny", ForceBallista, ExtraActionId.CannonForceBallistaBonus, ActionType.Bonus,
+            powerForceBallista);
 
-        _ = ActionDefinitionBuilder
-            .Create($"Action{Name}{Protector}Tiny")
-            .SetGuiPresentation($"Power{Name}{Protector}", Category.Feature, powerProtector)
-            .OverrideClassName("UsePower")
-            .SetStealthBreakerBehavior(StealthBreakerBehavior.RollIfTargets)
-            .RequiresAuthorization()
-            .SetActionId(ExtraActionId.CannonProtectorBonus)
-            .SetActionType(ActionType.Bonus)
-            .SetActivatedPower(powerProtector)
-            .SetFormType(ActionFormType.Large)
-            .AddToDB();
+        BuildCannonAction(
+            $"{Protector}Tiny", Protector, ExtraActionId.CannonProtectorBonus, ActionType.Bonus, powerProtector);
 
         #endregion
 
@@ -796,6 +717,44 @@ public sealed class InnovationArtillerist : AbstractSubclass
             $"Condition{Name}{Flamethrower}Tiny",
             $"Condition{Name}{ForceBallista}Tiny",
             $"Condition{Name}{Protector}Tiny")(character);
+    }
+
+    private static FeatureDefinitionActionAffinity BuildCannonActionAffinity(
+        string actionName,
+        ExtraActionId actionId,
+        bool requiresFreeHand = false)
+    {
+        var builder = FeatureDefinitionActionAffinityBuilder
+            .Create($"ActionAffinity{Name}{actionName}")
+            .SetGuiPresentationNoContent(true)
+            .SetAuthorizedActions((Id)actionId);
+
+        if (requiresFreeHand)
+        {
+            builder.AddCustomSubFeatures(new ValidateDefinitionApplication(ValidatorsCharacter.HasFreeHandConsiderGrapple));
+        }
+
+        return builder.AddToDB();
+    }
+
+    private static void BuildCannonAction(
+        string actionName,
+        string presentationName,
+        ExtraActionId actionId,
+        ActionType actionType,
+        FeatureDefinitionPower activatedPower)
+    {
+        _ = ActionDefinitionBuilder
+            .Create($"Action{Name}{actionName}")
+            .SetGuiPresentation($"Power{Name}{presentationName}", Category.Feature, activatedPower)
+            .OverrideClassName("UsePower")
+            .SetStealthBreakerBehavior(StealthBreakerBehavior.RollIfTargets)
+            .RequiresAuthorization()
+            .SetActionId(actionId)
+            .SetActionType(actionType)
+            .SetActivatedPower(activatedPower)
+            .SetFormType(ActionFormType.Large)
+            .AddToDB();
     }
 
     private static FeatureDefinitionPowerSharedPool BuildFlamethrowerPower(

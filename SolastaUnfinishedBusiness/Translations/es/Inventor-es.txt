@@ -49,6 +49,7 @@ Reaction/&SpendPowerSoulOfArtificeReactDescription=Recuperas una cantidad de pun
 Reaction/&SpendPowerSoulOfArtificeReactTitle=Alma de artificio
 Reaction/&SpendPowerSoulOfArtificeTitle=Alma de artificio
 Stage/&SubclassSelectionStageInventorInnovationDescription=Seleccione el campo de estudio en el que desea centrarse.
+Stage/&SubclassSelectionStageInventorInnovationNoneDescription=No se ha seleccionado ningún campo de estudio.
 Stage/&SubclassSelectionStageInventorInnovationFeatures=Detalles del campo de estudio:
 Stage/&SubclassSelectionStageInventorInnovationHeader=Seleccione el campo de estudio
 Stage/&SubclassSelectionStageInventorInnovationTitle=Campo de estudio

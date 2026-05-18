@@ -49,6 +49,7 @@ Reaction/&SpendPowerSoulOfArtificeReactDescription=你恢复等同于你奇械�
 Reaction/&SpendPowerSoulOfArtificeReactTitle=奇械之魂
 Reaction/&SpendPowerSoulOfArtificeTitle=奇械之魂
 Stage/&SubclassSelectionStageInventorInnovationDescription=选择你要专精的研究领域。
+Stage/&SubclassSelectionStageInventorInnovationNoneDescription=未选择研究领域。
 Stage/&SubclassSelectionStageInventorInnovationFeatures=研究领域详情：
 Stage/&SubclassSelectionStageInventorInnovationHeader=选择研究领域
 Stage/&SubclassSelectionStageInventorInnovationTitle=研究领域

@@ -49,6 +49,7 @@ Reaction/&SpendPowerSoulOfArtificeReactDescription=Recuperi un numero di punti f
 Reaction/&SpendPowerSoulOfArtificeReactTitle=Anima dell'artificio
 Reaction/&SpendPowerSoulOfArtificeTitle=Anima dell'artificio
 Stage/&SubclassSelectionStageInventorInnovationDescription=Seleziona il campo di studio su cui concentrarti.
+Stage/&SubclassSelectionStageInventorInnovationNoneDescription=Nessun campo di studio selezionato.
 Stage/&SubclassSelectionStageInventorInnovationFeatures=Dettagli del campo di studio:
 Stage/&SubclassSelectionStageInventorInnovationHeader=Seleziona campo di studio
 Stage/&SubclassSelectionStageInventorInnovationTitle=Campo di studi

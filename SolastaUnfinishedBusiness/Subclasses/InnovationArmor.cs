@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -328,9 +327,13 @@ public sealed class InnovationArmor : AbstractSubclass
 
     private static void AddArmorBonusesToBuiltinAttack(RulesetCharacter hero, RulesetAttackMode attackMode)
     {
+        if (attackMode == null)
+        {
+            return;
+        }
+
         var features = new List<FeatureDefinition>();
-        var inventorySlotsByName = hero.CharacterInventory.InventorySlotsByName;
-        var armor = inventorySlotsByName[EquipmentDefinitions.SlotTypeTorso].EquipedItem;
+        var armor = hero.GetItemInSlot(EquipmentDefinitions.SlotTypeTorso);
 
         if (armor == null)
         {
@@ -343,8 +346,13 @@ public sealed class InnovationArmor : AbstractSubclass
         var damageBonus = 0;
         var magical = armor.ItemDefinition.Magical;
 
-        foreach (var modifier in features.OfType<FeatureDefinitionAttackModifier>())
+        foreach (var feature in features)
         {
+            if (feature is not FeatureDefinitionAttackModifier modifier)
+            {
+                continue;
+            }
+
             if (modifier.magicalWeapon)
             {
                 magical = true;

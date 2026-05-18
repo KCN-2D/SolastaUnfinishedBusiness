@@ -49,6 +49,7 @@ Reaction/&SpendPowerSoulOfArtificeReactDescription=당신은 도적 레벨과 �
 Reaction/&SpendPowerSoulOfArtificeReactTitle=인공의 영혼
 Reaction/&SpendPowerSoulOfArtificeTitle=인공의 영혼
 Stage/&SubclassSelectionStageInventorInnovationDescription=집중할 연구 분야를 선택하세요.
+Stage/&SubclassSelectionStageInventorInnovationNoneDescription=선택된 연구 분야가 없습니다.
 Stage/&SubclassSelectionStageInventorInnovationFeatures=연구 분야 세부사항:
 Stage/&SubclassSelectionStageInventorInnovationHeader=연구 분야 선택
 Stage/&SubclassSelectionStageInventorInnovationTitle=연구 분야

@@ -149,6 +149,12 @@ public sealed class InnovationWeapon : AbstractSubclass
     {
         var bladeEffect = character.powersUsedByMe.Find(p =>
             p.sourceDefinition.Name is SummonSteelDefenderPower or SummonAdvancedSteelDefenderPower);
+
+        if (bladeEffect == null)
+        {
+            return null;
+        }
+
         var summons = EffectHelpers.GetSummonedCreatures(bladeEffect);
 
         return summons.Count == 0 ? null : summons[0];

@@ -35,9 +35,10 @@ public sealed class InnovationAlchemy : AbstractSubclass
             .SetGuiPresentation(Category.Subclass,
                 Sprites.GetSprite("InventorAlchemist", Resources.InventorAlchemist, 256))
             .AddFeaturesAtLevel(3, AlchemyPool, BuildBombs(), BuildFastHands(), BuildAutoPreparedSpells())
-            .AddFeaturesAtLevel(5, ElementalBombs, BuildOverchargeFeature(), BuildRefundPool(AlchemyPool))
-            .AddFeaturesAtLevel(9, AdvancedBombs, BuildExtraOverchargeFeature())
-            .AddFeaturesAtLevel(15, BuildMasterOverchargeFeature())
+            .AddFeaturesAtLevel(5, ElementalBombs, BuildOverchargeFeature("FeatureInnovationAlchemyOverchargeBombs"),
+                BuildRefundPool(AlchemyPool))
+            .AddFeaturesAtLevel(9, AdvancedBombs, BuildOverchargeFeature("FeatureInnovationAlchemyExtraOverchargeBombs"))
+            .AddFeaturesAtLevel(15, BuildOverchargeFeature("FeatureInnovationAlchemyMasterOverchargeBombs"))
             .AddToDB();
     }
 
@@ -663,11 +664,7 @@ public sealed class InnovationAlchemy : AbstractSubclass
                     .Build())
             .AddToDB();
 
-        power.AddCustomSubFeatures(
-            ModifyPowerVisibility.Visible,
-            new Overcharge(),
-            validator,
-            ClassHolder.Inventor);
+        AddBombPowerSubFeatures(power, validator);
 
         return power;
     }
@@ -709,11 +706,7 @@ public sealed class InnovationAlchemy : AbstractSubclass
                     .Build())
             .AddToDB();
 
-        power.AddCustomSubFeatures(
-            ModifyPowerVisibility.Visible,
-            new Overcharge(),
-            validator,
-            ClassHolder.Inventor);
+        AddBombPowerSubFeatures(power, validator);
 
         return power;
     }
@@ -756,13 +749,18 @@ public sealed class InnovationAlchemy : AbstractSubclass
                     .Build())
             .AddToDB();
 
+        AddBombPowerSubFeatures(power, validator);
+
+        return power;
+    }
+
+    private static void AddBombPowerSubFeatures(FeatureDefinitionPower power, IValidatePowerUse validator)
+    {
         power.AddCustomSubFeatures(
             ModifyPowerVisibility.Visible,
             new Overcharge(),
             validator,
             ClassHolder.Inventor);
-
-        return power;
     }
 
     private static FeatureDefinitionPower BuildAlchemyPool()
@@ -814,28 +812,10 @@ public sealed class InnovationAlchemy : AbstractSubclass
         return powerRefundPool;
     }
 
-    private static FeatureDefinition BuildOverchargeFeature()
+    private static FeatureDefinition BuildOverchargeFeature(string name)
     {
         return FeatureDefinitionBuilder
-            .Create("FeatureInnovationAlchemyOverchargeBombs")
-            .SetGuiPresentation(Category.Feature)
-            .AddCustomSubFeatures(OverchargeFeature.Marker)
-            .AddToDB();
-    }
-
-    private static FeatureDefinition BuildExtraOverchargeFeature()
-    {
-        return FeatureDefinitionBuilder
-            .Create("FeatureInnovationAlchemyExtraOverchargeBombs")
-            .SetGuiPresentation(Category.Feature)
-            .AddCustomSubFeatures(OverchargeFeature.Marker)
-            .AddToDB();
-    }
-
-    private static FeatureDefinition BuildMasterOverchargeFeature()
-    {
-        return FeatureDefinitionBuilder
-            .Create("FeatureInnovationAlchemyMasterOverchargeBombs")
+            .Create(name)
             .SetGuiPresentation(Category.Feature)
             .AddCustomSubFeatures(OverchargeFeature.Marker)
             .AddToDB();

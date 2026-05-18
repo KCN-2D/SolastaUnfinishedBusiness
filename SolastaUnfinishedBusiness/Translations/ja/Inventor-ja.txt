@@ -49,6 +49,7 @@ Reaction/&SpendPowerSoulOfArtificeReactDescription=あなたは自分のアー�
 Reaction/&SpendPowerSoulOfArtificeReactTitle=技術魔法の神髄
 Reaction/&SpendPowerSoulOfArtificeTitle=技術魔法の神髄
 Stage/&SubclassSelectionStageInventorInnovationDescription=重点を置く研究分野を選択します。
+Stage/&SubclassSelectionStageInventorInnovationNoneDescription=研究分野が選択されていません。
 Stage/&SubclassSelectionStageInventorInnovationFeatures=研究分野の詳細：
 Stage/&SubclassSelectionStageInventorInnovationHeader=研究分野を選択してください
 Stage/&SubclassSelectionStageInventorInnovationTitle=研究分野

@@ -49,6 +49,7 @@ Reaction/&SpendPowerSoulOfArtificeReactDescription=Vous récupérez un nombre de
 Reaction/&SpendPowerSoulOfArtificeReactTitle=L'âme de l'artifice
 Reaction/&SpendPowerSoulOfArtificeTitle=Âme d'artifice
 Stage/&SubclassSelectionStageInventorInnovationDescription=Sélectionnez le domaine d'études sur lequel vous concentrer.
+Stage/&SubclassSelectionStageInventorInnovationNoneDescription=Aucun domaine d'études sélectionné.
 Stage/&SubclassSelectionStageInventorInnovationFeatures=Détails du domaine d'études :
 Stage/&SubclassSelectionStageInventorInnovationHeader=Sélectionnez le domaine d'études
 Stage/&SubclassSelectionStageInventorInnovationTitle=Domaine d'études

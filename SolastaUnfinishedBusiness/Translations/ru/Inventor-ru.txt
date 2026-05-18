@@ -49,6 +49,7 @@ Reaction/&SpendPowerSoulOfArtificeReactDescription=Вы восстанавлив
 Reaction/&SpendPowerSoulOfArtificeReactTitle=Душа изобретения
 Reaction/&SpendPowerSoulOfArtificeTitle=Душа изобретения
 Stage/&SubclassSelectionStageInventorInnovationDescription=Выберите область исследования, на которой хотите сосредоточиться.
+Stage/&SubclassSelectionStageInventorInnovationNoneDescription=Область исследования не выбрана.
 Stage/&SubclassSelectionStageInventorInnovationFeatures=Детали области исследования:
 Stage/&SubclassSelectionStageInventorInnovationHeader=Выберите область исследования
 Stage/&SubclassSelectionStageInventorInnovationTitle=Область исследования

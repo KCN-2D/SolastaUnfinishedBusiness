@@ -49,6 +49,7 @@ Reaction/&SpendPowerSoulOfArtificeReactDescription=Você recupera uma quantidade
 Reaction/&SpendPowerSoulOfArtificeReactTitle=Alma do Artifício
 Reaction/&SpendPowerSoulOfArtificeTitle=Alma do Artifício
 Stage/&SubclassSelectionStageInventorInnovationDescription=Selecione o campo de estudo para se concentrar.
+Stage/&SubclassSelectionStageInventorInnovationNoneDescription=Nenhum campo de estudo selecionado.
 Stage/&SubclassSelectionStageInventorInnovationFeatures=Detalhes da área de estudo:
 Stage/&SubclassSelectionStageInventorInnovationHeader=Selecione o campo de estudo
 Stage/&SubclassSelectionStageInventorInnovationTitle=Área de estudo

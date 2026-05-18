@@ -49,6 +49,7 @@ Reaction/&SpendPowerSoulOfArtificeReactDescription=You regain a number of hit po
 Reaction/&SpendPowerSoulOfArtificeReactTitle=Soul of Artifice
 Reaction/&SpendPowerSoulOfArtificeTitle=Soul of Artifice
 Stage/&SubclassSelectionStageInventorInnovationDescription=Select Field Of Study to focus on.
+Stage/&SubclassSelectionStageInventorInnovationNoneDescription=No field of study selected.
 Stage/&SubclassSelectionStageInventorInnovationFeatures=Field Of Study details:
 Stage/&SubclassSelectionStageInventorInnovationHeader=Select Field Of Study
 Stage/&SubclassSelectionStageInventorInnovationTitle=Field Of Study

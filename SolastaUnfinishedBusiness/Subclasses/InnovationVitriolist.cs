@@ -387,15 +387,16 @@ public sealed class InnovationVitriolist : AbstractSubclass
             RulesetEffect rulesetEffect)
         {
             var levels = character.GetClassLevel(InventorClass.Class);
+            var isMixturePower = mixturePowers.Contains(definition);
 
             // Arsenal - add shocked at 9
-            if (levels >= 9 && mixturePowers.Contains(definition))
+            if (levels >= 9 && isMixturePower)
             {
                 effectDescription.EffectForms.TryAdd(_effectConditionArsenal);
             }
 
             // Paragon - add paralyzed at 15
-            if (levels >= 15 && mixturePowers.Contains(definition))
+            if (levels >= 15 && isMixturePower)
             {
                 effectDescription.EffectForms.TryAdd(_effectConditionParagon);
             }
@@ -425,7 +426,12 @@ public sealed class InnovationVitriolist : AbstractSubclass
             var atLeastOneSpellSlotAvailable = false;
             var spellRepertoire = rulesetCharacter.GetClassSpellRepertoire(InventorClass.Class);
 
-            for (var spellLevel = 1; spellLevel <= spellRepertoire!.MaxSpellLevelOfSpellCastingLevel; spellLevel++)
+            if (spellRepertoire == null)
+            {
+                yield break;
+            }
+
+            for (var spellLevel = 1; spellLevel <= spellRepertoire.MaxSpellLevelOfSpellCastingLevel; spellLevel++)
             {
                 spellRepertoire.GetSlotsNumber(spellLevel, out var remaining, out _);
 

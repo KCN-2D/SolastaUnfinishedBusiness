@@ -49,6 +49,7 @@ Reaction/&SpendPowerSoulOfArtificeReactDescription=Du erhältst eine Anzahl Tref
 Reaction/&SpendPowerSoulOfArtificeReactTitle=Seele der Kunstfertigkeit
 Reaction/&SpendPowerSoulOfArtificeTitle=Seele der Kunstfertigkeit
 Stage/&SubclassSelectionStageInventorInnovationDescription=Wählen Sie das Studienfach aus, auf das Sie sich konzentrieren möchten.
+Stage/&SubclassSelectionStageInventorInnovationNoneDescription=Kein Forschungsbereich ausgewählt.
 Stage/&SubclassSelectionStageInventorInnovationFeatures=Angaben zum Studienfach:
 Stage/&SubclassSelectionStageInventorInnovationHeader=Studienfach auswählen
 Stage/&SubclassSelectionStageInventorInnovationTitle=Forschungsbereich
