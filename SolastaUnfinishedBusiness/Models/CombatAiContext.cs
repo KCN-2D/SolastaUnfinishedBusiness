@@ -485,6 +485,7 @@ internal static partial class CombatAiContext
     private const int RepeatedRangedAttackThreshold = 2;
     private const int ForcedFiringPositionRepeatThreshold = 3;
     private const int RepeatedMeleeAlternativeThreshold = 3;
+    private static readonly bool EnableAdvancedCombatAiTurnHangDiagnostics = true;
 
     private static readonly string[] CautiousFlags = ["Self-Preservation", "Pragmatism", "Cynicism"];
     private static readonly string[] DisciplinedFlags = ["Authority", "Lawfulness", "Helpfulness", "Friendliness"];
@@ -2656,6 +2657,156 @@ internal static partial class CombatAiContext
         return character != null && ActionLinkedMoveCache.ContainsKey(character.Guid);
     }
 
+    internal static void HandleAiForcedMotionCompleted(CharacterAction action)
+    {
+        if (action?.ActingCharacter?.RulesetCharacter == null)
+        {
+            return;
+        }
+
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            action.ActingCharacter,
+            "forced-motion-completed",
+            $"action={action.ActionId}");
+
+        TryCloseForcedMotionGroundMeleeTerminal(action.ActingCharacter, action.ActionId);
+    }
+
+    private static bool TryCloseForcedMotionGroundMeleeTerminal(GameLocationCharacter character, Id actionId)
+    {
+        if (character?.RulesetCharacter == null ||
+            !IsAdvancedCombatAiEnabled ||
+            !IsAiControlledForCombat(character) ||
+            !IsActiveBattleContender(character) ||
+            !PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var terminal) ||
+            ActionLinkedMoveCache.ContainsKey(character.Guid) ||
+            GroundMeleeMoveSettlingCache.ContainsKey(character.Guid) ||
+            !IsGroundMeleePursuitTerminalRoute(terminal.PendingAction) ||
+            !HasClosedNoMoveGroundMeleeRoute(character) ||
+            !IsTacticalMovementUnavailable(character))
+        {
+            return false;
+        }
+
+        var target = terminal.PendingAction.Target;
+        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
+
+        if (target?.RulesetCharacter == null ||
+            battleService == null ||
+            CanUseActionKindAtPosition(
+                character,
+                character.LocationPosition,
+                target,
+                CombatAiActionKind.Melee,
+                battleService))
+        {
+            return false;
+        }
+
+        PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
+        PendingRouteMovementLockCache.Remove(character.Guid);
+        GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
+        GroundMeleePartialRouteCache.Remove(character.Guid);
+        RouteMoveDashBlockCache.Remove(character.Guid);
+        TurnMovementProgressCache.Remove(character.Guid);
+
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "forced-motion-terminal-closed",
+            $"action={actionId}");
+
+        return true;
+    }
+
+    private static bool IsTacticalMovementUnavailable(GameLocationCharacter character)
+    {
+        return character.RemainingTacticalMoves <= 0 ||
+               character.MaxTacticalMoves <= 0 ||
+               character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available;
+    }
+
+    internal static void LogAdvancedCombatAiDiagnosticsBuildLoaded()
+    {
+        if (!EnableAdvancedCombatAiTurnHangDiagnostics)
+        {
+            return;
+        }
+
+        Main.Info("[UB-CombatAI-DIAG] diagnostics-build-loaded");
+    }
+
+    private static void LogAdvancedCombatAiTurnHangDiagnostic(
+        GameLocationCharacter character,
+        string phase,
+        string details)
+    {
+        if (!EnableAdvancedCombatAiTurnHangDiagnostics ||
+            character?.RulesetCharacter == null ||
+            !IsAdvancedCombatAiEnabled)
+        {
+            return;
+        }
+
+        var hasActionLinked = ActionLinkedMoveCache.TryGetValue(character.Guid, out var pendingAction);
+        var hasSettling = GroundMeleeMoveSettlingCache.TryGetValue(character.Guid, out var settling);
+        var hasPendingTerminal = PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid);
+
+        if (!IsAiControlledForCombat(character) &&
+            !hasActionLinked &&
+            !hasSettling &&
+            !hasPendingTerminal)
+        {
+            return;
+        }
+
+        var route = hasActionLinked
+            ? FormatCombatAiRouteDiagnostic(character, pendingAction)
+            : hasSettling
+                ? FormatCombatAiRouteDiagnostic(character, settling.PendingAction)
+                : "route=none";
+        var closed = RouteMoveCompletionClosedCache.TryGetValue(character.Guid, out var completion)
+            ? $"closedGoal={completion.MovementGoal};closedFlags={completion.Flags}"
+            : "closed=none";
+
+        Main.Info(
+            $"[UB-CombatAI-DIAG] phase={phase};actor={character.RulesetCharacter.Name};guid={character.Guid};" +
+            $"pos={FormatCombatAiPosition(character.LocationPosition)};remainingMove={character.RemainingTacticalMoves};" +
+            $"maxMove={character.MaxTacticalMoves};tacticalStatus={character.GetActionStatus(Id.TacticalMove, ActionScope.Battle)};" +
+            $"active={IsActiveBattleContender(character)};actionLinked={hasActionLinked};settling={hasSettling};" +
+            $"terminal={hasPendingTerminal};moveLock={PendingRouteMovementLockCache.ContainsKey(character.Guid)};" +
+            $"noMoveSeal={GroundMeleeNoMoveTerminalSealCache.ContainsKey(character.Guid)};{closed};{route};{details}");
+    }
+
+    private static string FormatCombatAiRouteDiagnostic(
+        GameLocationCharacter character,
+        ActionLinkedMoveMemory pendingAction)
+    {
+        var target = pendingAction.Target;
+        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
+        var meleeNow =
+            target?.RulesetCharacter != null &&
+            battleService != null &&
+            CanUseActionKindAtPosition(
+                character,
+                character.LocationPosition,
+                target,
+                CombatAiActionKind.Melee,
+                battleService);
+
+        return
+            $"routeGoal={pendingAction.MovementGoal};routeContinuation={pendingAction.Continuation};" +
+            $"routeSource={pendingAction.RouteMoveSource};routeAction={pendingAction.ActionKind};" +
+            $"routeStart={FormatCombatAiPosition(pendingAction.StartPosition)};" +
+            $"routeExpected={FormatCombatAiPosition(pendingAction.ExpectedDestination)};" +
+            $"routeTarget={target?.RulesetCharacter?.Name ?? "none"};" +
+            $"routeTargetPos={FormatCombatAiPosition(target?.LocationPosition ?? default)};meleeNow={meleeNow}";
+    }
+
+    private static string FormatCombatAiPosition(int3 position)
+    {
+        return $"({position.x},{position.y},{position.z})";
+    }
+
     internal static void TryCompletePendingActionLinkedMove(CharacterAction action)
     {
         if (action?.ActionId is not Id.TacticalMove)
@@ -2675,6 +2826,11 @@ internal static partial class CombatAiContext
         {
             return;
         }
+
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "action-chain",
+            $"aborted={aborted};source={routeMoveSource}");
 
         if (routeMoveSource == CombatAiRouteMoveSourceKind.JumpImmediateAttack)
         {
@@ -2888,6 +3044,10 @@ internal static partial class CombatAiContext
         if (ActionLinkedMoveCache.ContainsKey(character.Guid) ||
             GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
         {
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "route-terminal-blocked:ai-process",
+                $"phase={phase}");
             return false;
         }
 
@@ -3533,6 +3693,10 @@ internal static partial class CombatAiContext
         if (ActionLinkedMoveCache.ContainsKey(character.Guid) ||
             GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
         {
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "route-terminal-blocked:end-turn",
+                "pending-route-state");
             PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
             return true;
         }
@@ -3892,6 +4056,13 @@ internal static partial class CombatAiContext
         var hadPendingActionLinkedMove =
             ActionLinkedMoveCache.TryGetValue(character.Guid, out var pendingAction);
 
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "move-result",
+            $"action={action.ActionId};start={FormatCombatAiPosition(start)};target={FormatCombatAiPosition(target)};" +
+            $"actual={FormatCombatAiPosition(character.LocationPosition)};pendingActionLinked={hadPendingActionLinkedMove};" +
+            $"forceCloseNoMoveAfterSettling={forceCloseNoMoveAfterSettling};settleFrames={settleFrames}");
+
         if (forceCloseNoMoveAfterSettling &&
             hadPendingActionLinkedMove &&
             IsGroundMeleePursuitTerminalRoute(pendingAction) &&
@@ -4022,7 +4193,7 @@ internal static partial class CombatAiContext
             pendingAction.MovementGoal,
             pendingAction.StartPosition,
             pendingAction.ExpectedDestination,
-            RouteMoveCompletionFlags.NoMove,
+            RouteMoveCompletionFlags.NoMove | RouteMoveCompletionFlags.GroundMeleeNoMove,
             round,
             turnStamp);
 
@@ -7272,12 +7443,20 @@ internal static partial class CombatAiContext
 
         EnsureCombatAiRuntimeCache(character);
 
+        LogAdvancedCombatAiTurnHangDiagnostic(character, "before-end-turn:start", "suppressEndTurn=false");
+
         ResolveGroundMeleeMoveSettling(
             character,
             allowConnectedRouteValidation: false,
             allowTerminalAction: false);
 
         TrySpendLeftoverActionEconomyAtEndTurn(character, out suppressEndTurn);
+
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "before-end-turn:finish",
+            $"suppressEndTurn={suppressEndTurn}");
+
         return true;
     }
 
