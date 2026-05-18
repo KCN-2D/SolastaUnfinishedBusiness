@@ -1156,7 +1156,7 @@ public static partial class Tabletop2024Context
             .SetUsesProficiencyBonus(ActivationTime.NoCost, RechargeRate.LongRest)
             .SetShowCasting(false)
             .AddToDB();
-        powerPool.AddCustomSubFeatures(ModifyPowerVisibility.Hidden);
+        powerPool.AddCustomSubFeatures(ModifyPowerVisibility.Hidden, ForcePowerUseInSpendPowerAction.Marker);
 
         var powerAdvantage = FeatureDefinitionPowerSharedPoolBuilder
             .Create(Lucky2024AdvantagePowerName)
@@ -1279,10 +1279,8 @@ public static partial class Tabletop2024Context
 
     private static void ApplyLucky2024Disadvantage(
         ActionModifier attackModifier,
-        RulesetUsablePower usablePower,
         FeatureDefinitionPower powerPool)
     {
-        usablePower.Consume();
         attackModifier.AttackAdvantageTrends.Add(
             new TrendInfo(-1, FeatureSourceType.Power, powerPool.Name, powerPool));
     }
@@ -8029,8 +8027,8 @@ public static partial class Tabletop2024Context
                 yield break;
             }
 
-            yield return defender.MyReactToDoNothing(
-                ExtraActionId.DoNothingFree,
+            yield return defender.MyReactToSpendPower(
+                usablePower,
                 attacker,
                 Lucky2024DisadvantagePromptName,
                 "UseLucky2024DisadvantageDescription".Formatted(Category.Reaction, attacker.Name),
@@ -8041,7 +8039,7 @@ public static partial class Tabletop2024Context
 
             void ReactionValidated()
             {
-                ApplyLucky2024Disadvantage(attackModifier, usablePower, powerPool);
+                ApplyLucky2024Disadvantage(attackModifier, powerPool);
             }
         }
     }
