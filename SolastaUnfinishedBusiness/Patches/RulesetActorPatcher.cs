@@ -11,6 +11,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Classes;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
@@ -27,6 +28,25 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetActorPatcher
 {
+    //PATCH: applies Soul of Artifice to direct RulesetActor.RollSavingThrow calls
+    [HarmonyPatch(typeof(RulesetActor), nameof(RulesetActor.RollSavingThrow))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RollSavingThrow_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(
+            RulesetActor __instance,
+            [HarmonyArgument(0)] ref int saveBonus,
+            [HarmonyArgument(3)] List<TrendInfo> modifierTrends)
+        {
+            if (modifierTrends != null && __instance is RulesetCharacter rulesetCharacter)
+            {
+                InventorClass.TryAddSoulOfArtificeSavingThrowBonus(rulesetCharacter, ref saveBonus, modifierTrends);
+            }
+        }
+    }
+
     //PATCH: supports DieRollModifierDamageTypeDependent
     private static void EnumerateIDieRollModificationProvider(
         RulesetCharacter __instance,

@@ -35,6 +35,7 @@ internal static class InventorClass
 
     private static SpellListDefinition _spellList;
     private static FeatureDefinitionCastSpell _spellCasting;
+    private static FeatureDefinitionPower _powerInventorSoulOfArtifice;
     private static int _infusionPoolIncreases;
     private static readonly List<FeatureDefinitionPowerSharedPool> SpellStoringItemPowers1 = [];
     private static readonly List<FeatureDefinitionPowerSharedPool> SpellStoringItemPowers2 = [];
@@ -114,7 +115,7 @@ internal static class InventorClass
 
         #endregion
 
-        var powerInventorSoulOfArtifice = FeatureDefinitionPowerBuilder
+        _powerInventorSoulOfArtifice = FeatureDefinitionPowerBuilder
             .Create("PowerInventorSoulOfArtifice")
             .SetGuiPresentation(Category.Feature)
             .SetUsesFixed(ActivationTime.NoCost, RechargeRate.LongRest)
@@ -122,8 +123,8 @@ internal static class InventorClass
             .AddCustomSubFeatures(ModifyPowerVisibility.Hidden)
             .AddToDB();
 
-        powerInventorSoulOfArtifice.AddCustomSubFeatures(
-            new CustomBehaviorInitiatedSoulOfArtifice(powerInventorSoulOfArtifice));
+        _powerInventorSoulOfArtifice.AddCustomSubFeatures(
+            new CustomBehaviorInitiatedSoulOfArtifice(_powerInventorSoulOfArtifice));
 
         #region Priorities
 
@@ -390,7 +391,7 @@ internal static class InventorClass
             #region Level 20
 
             .AddFeaturesAtLevel(20,
-                powerInventorSoulOfArtifice);
+                _powerInventorSoulOfArtifice);
 
         #endregion
 
@@ -936,8 +937,69 @@ internal static class InventorClass
             .AddToDB();
     }
 
+    internal static void TryAddSoulOfArtificeSavingThrowBonus(
+        RulesetCharacter character,
+        ref int bonus,
+        List<TrendInfo> trends)
+    {
+        if (_powerInventorSoulOfArtifice == null ||
+            Class == null ||
+            character.GetOriginalHero() is not { } hero ||
+            hero.GetClassLevel(Class) < 20)
+        {
+            return;
+        }
+
+        if (trends != null)
+        {
+            foreach (var trend in trends)
+            {
+                if (trend.sourceName == _powerInventorSoulOfArtifice.Name)
+                {
+                    return;
+                }
+            }
+        }
+
+        var attunedItems = CountSoulOfArtificeAttunedItems(hero);
+
+        if (attunedItems <= 0)
+        {
+            return;
+        }
+
+        bonus += attunedItems;
+
+        trends?.Add(
+            new TrendInfo(attunedItems, FeatureSourceType.CharacterFeature,
+                _powerInventorSoulOfArtifice.Name, _powerInventorSoulOfArtifice));
+    }
+
+    private static int CountSoulOfArtificeAttunedItems(RulesetCharacterHero hero)
+    {
+        if (hero.CharacterInventory == null)
+        {
+            return 0;
+        }
+
+        var items = new List<RulesetItem>();
+        var attunedItems = 0;
+
+        hero.CharacterInventory.EnumerateAllItems(items);
+
+        foreach (var item in items)
+        {
+            if (item.AttunedToCharacter == hero.Name)
+            {
+                attunedItems++;
+            }
+        }
+
+        return attunedItems;
+    }
+
     private sealed class CustomBehaviorInitiatedSoulOfArtifice(FeatureDefinitionPower powerSoulOfArtifice)
-        : IRollSavingThrowInitiated, IOnReducedToZeroHpByEnemy
+        : IOnReducedToZeroHpByEnemy
     {
         public IEnumerator HandleReducedToZeroHpByEnemy(
             GameLocationCharacter attacker,
@@ -967,36 +1029,6 @@ internal static class InventorClass
 
                 defender.MyExecuteActionStabilizeAndStandUp(hitPoints);
             }
-        }
-
-        public void OnSavingThrowInitiated(
-            RulesetActor rulesetActorCaster,
-            RulesetActor rulesetActorDefender,
-            ref int saveBonus,
-            ref string abilityScoreName,
-            BaseDefinition sourceDefinition,
-            List<TrendInfo> modifierTrends,
-            List<TrendInfo> advantageTrends,
-            ref int rollModifier,
-            ref int saveDC,
-            ref bool hasHitVisual,
-            RollOutcome outcome,
-            int outcomeDelta,
-            List<EffectForm> effectForms)
-        {
-            if (rulesetActorDefender is not RulesetCharacter rulesetCharacter)
-            {
-                return;
-            }
-
-            var attunedItems =
-                rulesetCharacter.CharacterInventory?.items?.Count(x => x.AttunedToCharacter == rulesetCharacter.Name) ??
-                0;
-
-            rollModifier += attunedItems;
-            modifierTrends.Add(
-                new TrendInfo(attunedItems, FeatureSourceType.CharacterFeature,
-                    powerSoulOfArtifice.Name, powerSoulOfArtifice));
         }
     }
 

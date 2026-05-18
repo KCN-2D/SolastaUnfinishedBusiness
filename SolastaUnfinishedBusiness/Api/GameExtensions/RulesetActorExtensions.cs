@@ -90,7 +90,6 @@ internal static class RulesetActorExtensions
 
         var rulesetCharacterTarget = rulesetActorTarget as RulesetCharacter;
 
-        //BEGIN PATCH
         if (rulesetCharacterTarget != null)
         {
             //PATCH: supports Path of The Savagery
@@ -116,7 +115,6 @@ internal static class RulesetActorExtensions
                     effectForms);
             }
         }
-        //END PATCH
 
         // keep a tab on last SaveDC / SaveBonusAndRollModifier / SavingThrowAbility
         SaveDC = saveDC;

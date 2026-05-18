@@ -1730,7 +1730,7 @@ public static class RulesetCharacterHeroPatcher
         ];
 
         [UsedImplicitly]
-        public static void Postfix(RulesetCharacterHero __instance, string abilityScoreName,
+        public static void Postfix(RulesetCharacterHero __instance, ref int __result, string abilityScoreName,
             List<TrendInfo> savingThrowModifierTrends)
         {
             //PATCH: Try finding base feature for saving throws
@@ -1747,6 +1747,9 @@ public static class RulesetCharacterHeroPatcher
                     savingThrowModifierTrends[i] = trend;
                 }
             }
+
+            InventorClass.TryAddSoulOfArtificeSavingThrowBonus(
+                __instance, ref __result, savingThrowModifierTrends);
         }
     }
 
