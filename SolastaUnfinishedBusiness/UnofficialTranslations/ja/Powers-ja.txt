@@ -1,7 +1,7 @@
 Powers/&ActioneStopTitle=激怒を終了
 Powers/&AncientRemorhaz_SonicBlast_Description=古代ルモアハズは内なる燃焼を解き放ち、耳をつんざく爆発を引き起こして、強敵さえも震え上がらせます。
 Powers/&AncientRemorhaz_SonicBlast_Title=音波爆発
-Powers/&Item_PenitentBelt_Description=1回のチャージで1d8+2ヒット・ポイントを回復します。
+Powers/&Item_PenitentBelt_Description=1チャージを消費して1d8+2ヒット・ポイントを回復します。
 Powers/&Item_PenitentBelt_Title=治癒
 Powers/&Mummy_Lord_BlasphemousWords_Description=ミイラ・ロードから2マス以内にいる各クリーチャーは、難易度16の耐久力セーヴィング・スローに成功しなければ、次のターンの終了時まで朦朧状態になります。
 Powers/&Mummy_Lord_BlasphemousWords_Title=冒涜的な言葉
