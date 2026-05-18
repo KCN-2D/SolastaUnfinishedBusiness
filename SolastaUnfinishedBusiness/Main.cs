@@ -120,7 +120,6 @@ internal static class Main
                 Menu.Enable(modEntry, assembly);
                 LoadSettingFilenames();
                 ModEntry.Logger.Log($"enabled in {finished - now:T}.");
-                CombatAiContext.LogAdvancedCombatAiDiagnosticsBuildLoaded();
 
                 Enabled = true;
             };

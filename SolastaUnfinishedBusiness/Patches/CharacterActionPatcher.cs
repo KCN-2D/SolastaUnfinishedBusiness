@@ -273,7 +273,7 @@ public static class CharacterActionPatcher
                     yield return CircleOfTheWildfire.HandleCauterizingFlamesBehavior(actingCharacter);
 
                     GrappleContext.ValidateGrappleAfterMotion(actingCharacter);
-                    CombatAiContext.HandleAiForcedMotionCompleted(__instance);
+                    CombatAiContext.TryCloseForcedMotionGroundMeleeTerminal(__instance);
 
                     break;
                 }
