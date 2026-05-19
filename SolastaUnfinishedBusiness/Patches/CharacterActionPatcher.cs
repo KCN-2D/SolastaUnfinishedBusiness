@@ -247,7 +247,7 @@ public static class CharacterActionPatcher
                 case CharacterActionMagicEffect { isPostSpecialMove: true }:
                 {
                     //PATCH: support for MovementTracker
-                    MovementTracker.CleanMovementCache();
+                    MovementTracker.ClearStepMovementCache();
 
                     //PATCH: set cursor to dirty and reprocess valid positions
                     //if ally was moved by Gambit or Warlord, or enemy moved by other means

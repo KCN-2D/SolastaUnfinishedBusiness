@@ -2,6 +2,7 @@ using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -50,6 +51,7 @@ public static class CharacterActionMovePatcher
                 if (!completed && trackMoveResult)
                 {
                     CombatAiContext.RecordAiMoveResult(action, start, target);
+                    MovementTracker.ClearMovement(character);
                 }
             }
 
@@ -88,6 +90,13 @@ public static class CharacterActionMovePatcher
                 target,
                 forceCloseNoMoveAfterSettling,
                 settleFrames);
+
+            var extraAoOEvents = AttacksOfOpportunity.ProcessOnCharacterMoveEnd(character);
+
+            while (extraAoOEvents.MoveNext())
+            {
+                yield return extraAoOEvents.Current;
+            }
         }
     }
 }

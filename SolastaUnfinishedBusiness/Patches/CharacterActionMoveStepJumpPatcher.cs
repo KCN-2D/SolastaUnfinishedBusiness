@@ -16,7 +16,7 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterActionMoveStepJumpPatcher
 {
-    //PATCH: support for reach-entered AoO after jump movement
+    //PATCH: record jump movement for reach-entered AoO after parent movement completes
     [HarmonyPatch(typeof(CharacterActionMoveStepJump), nameof(CharacterActionMoveStepJump.ExecuteImpl))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -39,12 +39,7 @@ public static class CharacterActionMoveStepJumpPatcher
                 yield break;
             }
 
-            var extraAoOEvents = AttacksOfOpportunity.ProcessOnCharacterMoveEnd(mover, movement);
-
-            while (extraAoOEvents.MoveNext())
-            {
-                yield return extraAoOEvents.Current;
-            }
+            MovementTracker.RecordMoveEndMovement(mover, movement.from, movement.to);
         }
 
         private static bool TryGetCompletedJumpMovement(

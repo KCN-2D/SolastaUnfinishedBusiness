@@ -68,7 +68,7 @@ internal static class AttacksOfOpportunity
         }
     }
 
-    internal static IEnumerator ProcessOnCharacterMoveEnd(
+    private static IEnumerator ProcessOnCharacterMoveEnd(
         GameLocationCharacter mover,
         (int3 from, int3 to) movement)
     {
