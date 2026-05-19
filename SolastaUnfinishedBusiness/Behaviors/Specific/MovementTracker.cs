@@ -8,7 +8,7 @@ internal static class MovementTracker
 {
     private static readonly Dictionary<ulong, (int3, int3)> MovementCache = [];
 
-    internal static bool TryGetMovement(ulong guid, out (int3, int3) movement)
+    internal static bool TryGetMovement(ulong guid, out (int3 from, int3 to) movement)
     {
         if (MovementCache.TryGetValue(guid, out movement))
         {
@@ -20,10 +20,26 @@ internal static class MovementTracker
         return false;
     }
 
+    internal static bool TryConsumeMovement(ulong guid, out (int3 from, int3 to) movement)
+    {
+        if (!TryGetMovement(guid, out movement))
+        {
+            return false;
+        }
+
+        MovementCache.Remove(guid);
+
+        return true;
+    }
+
     internal static void RecordMovement([NotNull] GameLocationCharacter mover, int3 destination)
     {
-        var movement = (mover.LocationPosition, destination);
+        RecordMovement(mover, mover.LocationPosition, destination);
+    }
 
+    internal static void RecordMovement([NotNull] GameLocationCharacter mover, int3 source, int3 destination)
+    {
+        var movement = (source, destination);
         MovementCache.AddOrReplace(mover.Guid, movement);
     }
 

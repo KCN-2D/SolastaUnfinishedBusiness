@@ -5,6 +5,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using TA;
@@ -15,6 +16,65 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterActionMoveStepJumpPatcher
 {
+    //PATCH: support for reach-entered AoO after jump movement
+    [HarmonyPatch(typeof(CharacterActionMoveStepJump), nameof(CharacterActionMoveStepJump.ExecuteImpl))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ExecuteImpl_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerator Postfix(IEnumerator values, CharacterActionMoveStepJump __instance)
+        {
+            var mover = __instance.ActingCharacter;
+            var source = __instance.jumpPosition;
+            var landing = __instance.landingPosition;
+
+            while (values.MoveNext())
+            {
+                yield return values.Current;
+            }
+
+            if (!TryGetCompletedJumpMovement(mover, source, landing, out var movement))
+            {
+                yield break;
+            }
+
+            var extraAoOEvents = AttacksOfOpportunity.ProcessOnCharacterMoveEnd(mover, movement);
+
+            while (extraAoOEvents.MoveNext())
+            {
+                yield return extraAoOEvents.Current;
+            }
+        }
+
+        private static bool TryGetCompletedJumpMovement(
+            GameLocationCharacter mover,
+            int3 source,
+            int3 landing,
+            out (int3 from, int3 to) movement)
+        {
+            if (mover == null)
+            {
+                movement = (int3.invalid, int3.invalid);
+
+                return false;
+            }
+
+            var destination = mover.LocationPosition;
+
+            if (destination == int3.invalid)
+            {
+                destination = landing;
+            }
+
+            movement = (source, destination);
+
+            return source != int3.invalid &&
+                   destination != int3.invalid &&
+                   source != destination;
+        }
+    }
+
     //PATCH: allow check reactions on jump checks regardless of success / failure
     [HarmonyPatch(typeof(CharacterActionMoveStepJump), nameof(CharacterActionMoveStepJump.RollChecksIfNecessary))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]

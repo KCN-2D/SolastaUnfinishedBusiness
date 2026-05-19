@@ -54,22 +54,50 @@ internal static class AttacksOfOpportunity
 
     internal static IEnumerator ProcessOnCharacterMoveEnd(GameLocationCharacter mover)
     {
+        if (mover == null ||
+            !MovementTracker.TryConsumeMovement(mover.Guid, out var movement))
+        {
+            yield break;
+        }
+
+        var reactionEvents = ProcessOnCharacterMoveEnd(mover, movement);
+
+        while (reactionEvents.MoveNext())
+        {
+            yield return reactionEvents.Current;
+        }
+    }
+
+    internal static IEnumerator ProcessOnCharacterMoveEnd(
+        GameLocationCharacter mover,
+        (int3 from, int3 to) movement)
+    {
         if (Gui.Battle == null ||
+            mover == null ||
             mover.RulesetCharacter is not { IsDeadOrDyingOrUnconscious: false })
+        {
+            yield break;
+        }
+
+        if (movement.from == int3.invalid ||
+            movement.to == int3.invalid ||
+            movement.from == movement.to)
         {
             yield break;
         }
 
         var actionManager = ServiceRepository.GetService<IGameLocationActionService>() as GameLocationActionManager;
         var battleManager = ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
-        var units = Gui.Battle.AllContenders
-            .Where(u => u.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false })
-            .ToArray(); // avoid changing enumerator
 
-        if (!MovementTracker.TryGetMovement(mover.Guid, out var movement))
+        if (actionManager == null ||
+            battleManager == null)
         {
             yield break;
         }
+
+        var units = Gui.Battle.AllContenders
+            .Where(u => u.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false })
+            .ToArray(); // avoid changing enumerator
 
         //Process other participants of the battle
         foreach (var unit in units)
