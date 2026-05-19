@@ -486,8 +486,6 @@ internal static partial class CombatAiContext
     private const int RepeatedRangedAttackThreshold = 2;
     private const int ForcedFiringPositionRepeatThreshold = 3;
     private const int RepeatedMeleeAlternativeThreshold = 3;
-    private static readonly bool EnableAdvancedCombatAiTurnHangDiagnostics = true;
-
     private static readonly string[] CautiousFlags = ["Self-Preservation", "Pragmatism", "Cynicism"];
     private static readonly string[] DisciplinedFlags = ["Authority", "Lawfulness", "Helpfulness", "Friendliness"];
     private static readonly string[] OpportunisticFlags = ["Greed", "Selfishness"];
@@ -2417,7 +2415,6 @@ internal static partial class CombatAiContext
 
         if (IsAdvancedCombatAiEnabled)
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "turn-start:before");
             ObservedCombatMemoryTurnStamp++;
             PostRecoveryEndTurnMainActionSealCache.Remove(character.Guid);
             PostRecoveryMainActionNormalizationCache.Remove(character.Guid);
@@ -2443,7 +2440,6 @@ internal static partial class CombatAiContext
                 PrimeTurnMovementProgress(character, BuildCombatAiTurnPlan(character, profile, battleService));
             }
 
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "turn-start:after");
         }
 
     }
@@ -2455,7 +2451,6 @@ internal static partial class CombatAiContext
             return;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(character, "turn-clear:before");
 
         ProfileCache.Remove(character.Guid);
         MeleeAttackPositionCache.Clear();
@@ -2698,154 +2693,6 @@ internal static partial class CombatAiContext
         return character != null && ActionLinkedMoveCache.ContainsKey(character.Guid);
     }
 
-    internal static void LogAdvancedCombatAiDiagnosticsBuildLoaded()
-    {
-        if (EnableAdvancedCombatAiTurnHangDiagnostics)
-        {
-            Main.Info("[UB-CombatAI-DIAG] diagnostics-build-loaded");
-        }
-    }
-
-    private static void LogAdvancedCombatAiTurnHangDiagnostic(
-        GameLocationCharacter character,
-        string phase,
-        string details = "")
-    {
-        if (!EnableAdvancedCombatAiTurnHangDiagnostics ||
-            character?.RulesetCharacter == null ||
-            !IsAdvancedCombatAiEnabled)
-        {
-            return;
-        }
-
-        var hasActionLinked = ActionLinkedMoveCache.TryGetValue(character.Guid, out var actionLinked);
-        var hasSettling = GroundMeleeMoveSettlingCache.TryGetValue(character.Guid, out var settling);
-        var hasRouteTerminal = PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var routeTerminal);
-        var hasClosedRoute = RouteMoveCompletionClosedCache.TryGetValue(character.Guid, out var closedRoute);
-        var hasProcessLaunch =
-            PendingAiProcessTerminalLaunchCache.TryGetValue(character.Guid, out var processLaunch);
-        var hasDodge = PendingTerminalDodgeEndTurnCache.TryGetValue(character.Guid, out var pendingDodge);
-        var hasReady = PendingTerminalReadyEndTurnCache.TryGetValue(character.Guid, out var pendingReady);
-        var hasUtility = PendingUtilityTerminalContinuationCache.TryGetValue(character.Guid, out var utilityTerminal);
-        var hasTurnRecovery =
-            PendingAiProcessTurnRecoveryCache.TryGetValue(character.Guid, out var turnRecovery);
-        var hasProgress = TurnMovementProgressCache.TryGetValue(character.Guid, out var movementProgress);
-        var hasLastAction = LastActionExecutionCache.TryGetValue(character.Guid, out var lastAction);
-        var hasLastMainAction = LastMainActionExecutionCache.TryGetValue(character.Guid, out var lastMainAction);
-
-        if (!IsAiControlledForCombat(character) &&
-            !hasActionLinked &&
-            !hasSettling &&
-            !hasRouteTerminal &&
-            !hasProcessLaunch &&
-            !hasDodge &&
-            !hasReady &&
-            !hasUtility)
-        {
-            return;
-        }
-
-        var route = hasActionLinked
-            ? FormatCombatAiRouteDiagnostic("actionLinked", actionLinked)
-            : hasSettling
-                ? FormatCombatAiRouteDiagnostic("settling", settling.PendingAction)
-                : hasRouteTerminal
-                    ? FormatCombatAiRouteDiagnostic("routeTerminal", routeTerminal.PendingAction)
-                    : GroundMeleePartialRouteCache.TryGetValue(character.Guid, out var partialRoute)
-                        ? FormatCombatAiRouteDiagnostic("partial", partialRoute.PendingAction)
-                        : "route=none";
-        var routeTerminalDetails = hasRouteTerminal
-            ? $"routeTerminalExpected=({FormatPosition(routeTerminal.ExpectedDestination)});" +
-              $"routeTerminalActual=({FormatPosition(routeTerminal.ActualDestination)});" +
-              $"routeTerminalConsumeAfterAbort={routeTerminal.ConsumeAfterAbort};" +
-              $"routeTerminalRound={routeTerminal.Round};routeTerminalTurn={routeTerminal.TurnStamp}"
-            : "routeTerminal=none";
-        var closedRouteDetails = hasClosedRoute
-            ? $"closedGoal={closedRoute.MovementGoal};closedFlags={closedRoute.Flags};" +
-              $"closedRound={closedRoute.Round};closedTurn={closedRoute.TurnStamp}"
-            : "closed=none";
-        var processLaunchDetails = hasProcessLaunch
-            ? $"processLaunchAction={processLaunch.ActionId};processLaunchKind={processLaunch.Kind};" +
-              $"processLaunchReady={processLaunch.ReadyActionType};" +
-              $"processLaunchRound={processLaunch.Round};processLaunchTurn={processLaunch.TurnStamp}"
-            : "processLaunch=none";
-        var terminalDetails =
-            $"pendingDodge={FormatPendingTurn(hasDodge, pendingDodge)};" +
-            $"pendingReady={FormatPendingTurn(hasReady, pendingReady)};" +
-            $"utilityTerminal={FormatUtilityTerminal(hasUtility, utilityTerminal)};" +
-            $"turnRecovery={FormatAiProcessTurnRecovery(hasTurnRecovery, turnRecovery)};" +
-            $"processAccepted={PendingAiProcessTerminalLaunchAcceptedCache.Contains(character.Guid)};" +
-            $"endSuppress={PendingTerminalActionEndTurnSuppressCache.Contains(character.Guid)}";
-        var movementDetails = hasProgress
-            ? $"turnProgressStart=({FormatPosition(movementProgress.StartPosition)});" +
-              $"turnProgressBest=({FormatPosition(movementProgress.BestMoveCandidatePosition)});" +
-              $"turnProgressTurns={movementProgress.BestMoveCandidateTurnsToAction};" +
-              $"turnProgressMeaningful={movementProgress.HadMeaningfulMovementCandidate};" +
-              $"turnProgressPreferred={movementProgress.HadPreferredActionMovementCandidate}"
-            : "turnProgress=none";
-        var actionDetails =
-            $"lastAction={FormatActionExecution(hasLastAction, lastAction)};" +
-            $"lastMain={FormatActionExecution(hasLastMainAction, lastMainAction)};" +
-            $"turnMainUses={GetDictionaryValueOrDefault(TurnMainActionUseCountCache, character.Guid)};" +
-            $"turnBonusUses={GetDictionaryValueOrDefault(TurnBonusActionUseCountCache, character.Guid)}";
-
-        Main.Info(
-            $"[UB-CombatAI-DIAG] phase={phase};actor={character.RulesetCharacter.Name};guid={character.Guid};" +
-            $"round={GetCurrentBattleRound()};turnStamp={Math.Max(1, ObservedCombatMemoryTurnStamp)};" +
-            $"pos=({FormatPosition(character.LocationPosition)});active={IsActiveBattleContender(character)};" +
-            $"ai={IsAiControlledForCombat(character)};main={character.GetActionTypeStatus(ActionType.Main)};" +
-            $"bonus={character.GetActionTypeStatus(ActionType.Bonus)};" +
-            $"reaction={character.GetActionTypeStatus(ActionType.Reaction)};" +
-            $"attackMain={character.GetActionStatus(Id.AttackMain, ActionScope.Battle)};" +
-            $"castMain={character.GetActionStatus(Id.CastMain, ActionScope.Battle)};" +
-            $"ready={character.GetActionStatus(Id.Ready, ActionScope.Battle)};" +
-            $"dodge={character.GetActionStatus(Id.Dodge, ActionScope.Battle)};" +
-            $"tactical={character.GetActionStatus(Id.TacticalMove, ActionScope.Battle)};" +
-            $"remainingMove={character.RemainingTacticalMoves};maxMove={character.MaxTacticalMoves};" +
-            $"actionLinked={hasActionLinked};settling={hasSettling};routeTerminal={hasRouteTerminal};" +
-            $"moveLock={PendingRouteMovementLockCache.ContainsKey(character.Guid)};" +
-            $"noMoveSeal={GroundMeleeNoMoveTerminalSealCache.ContainsKey(character.Guid)};" +
-            $"{closedRouteDetails};{route};{routeTerminalDetails};{processLaunchDetails};" +
-            $"{terminalDetails};{movementDetails};{actionDetails};{details}");
-    }
-
-    private static string FormatCombatAiRouteDiagnostic(string label, ActionLinkedMoveMemory pendingAction)
-    {
-        var target = pendingAction.Target;
-
-        return
-            $"route={label};routeGoal={pendingAction.MovementGoal};routeContinuation={pendingAction.Continuation};" +
-            $"routeSource={pendingAction.RouteMoveSource};routeAction={pendingAction.ActionKind};" +
-            $"routeStart=({FormatPosition(pendingAction.StartPosition)});" +
-            $"routeExpected=({FormatPosition(pendingAction.ExpectedDestination)});" +
-            $"routeRound={pendingAction.Round};routeTurn={pendingAction.TurnStamp};" +
-            $"routeTarget={target?.RulesetCharacter?.Name ?? "none"};" +
-            $"routeTargetGuid={target?.Guid.ToString() ?? "none"};" +
-            $"routeTargetPos=({FormatPosition(target?.LocationPosition ?? default)})";
-    }
-
-    private static string FormatPendingTurn(bool hasMemory, PendingTerminalDodgeEndTurnMemory memory)
-    {
-        return hasMemory ? $"{memory.Round}:{memory.TurnStamp}" : "none";
-    }
-
-    private static string FormatUtilityTerminal(bool hasMemory, PendingUtilityTerminalContinuation memory)
-    {
-        return hasMemory ? $"{memory.ActionId}:{memory.Round}:{memory.TurnStamp}" : "none";
-    }
-
-    private static string FormatAiProcessTurnRecovery(bool hasMemory, PendingAiProcessTurnRecoveryMemory memory)
-    {
-        return hasMemory ? $"{memory.Reason}/{memory.ActionId}:{memory.Round}:{memory.TurnStamp}" : "none";
-    }
-
-    private static string FormatActionExecution(bool hasMemory, CombatAiActionExecutionMemory memory)
-    {
-        return hasMemory
-            ? $"{memory.ActionId}/{memory.ActionType}/{memory.MainBefore}:{memory.Round}:{memory.TurnStamp}"
-            : "none";
-    }
-
     private static int GetDictionaryValueOrDefault(Dictionary<ulong, int> dictionary, ulong key)
     {
         return dictionary.TryGetValue(key, out var value) ? value : 0;
@@ -2858,10 +2705,6 @@ internal static partial class CombatAiContext
             yield break;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            action.ActingCharacter,
-            "forced-motion-completed",
-            $"action={action.ActionId}");
         TryCloseForcedMotionGroundMeleeTerminal(action.ActingCharacter);
         ScheduleAiProcessTurnRecovery(action.ActingCharacter, action.ActionId, "ForcedMotion");
 
@@ -2906,7 +2749,6 @@ internal static partial class CombatAiContext
         RouteMoveDashBlockCache.Remove(character.Guid);
         TurnMovementProgressCache.Remove(character.Guid);
 
-        LogAdvancedCombatAiTurnHangDiagnostic(character, "forced-motion-terminal-closed");
 
         return true;
     }
@@ -2931,10 +2773,6 @@ internal static partial class CombatAiContext
         PendingAiProcessTurnRecoveryCache[character.Guid] =
             new PendingAiProcessTurnRecoveryMemory(currentRound, currentTurnStamp, actionId, reason);
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "turn-recovery:scheduled",
-            $"action={actionId};reason={reason}");
     }
 
     private static bool TryGetCurrentPendingAiProcessTurnRecovery(
@@ -2963,9 +2801,7 @@ internal static partial class CombatAiContext
         return false;
     }
 
-    internal static bool TryConsumePendingAiProcessTurnRecoveryAtAiProcessBoundary(
-        GameLocationCharacter character,
-        string phase = "ai-process")
+    internal static bool TryConsumePendingAiProcessTurnRecoveryAtAiProcessBoundary(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null ||
             !PendingAiProcessTurnRecoveryCache.TryGetValue(character.Guid, out var memory))
@@ -2973,10 +2809,6 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "turn-recovery:ai-process-start",
-            $"phase={phase};action={memory.ActionId};reason={memory.Reason}");
 
         var currentRound = GetCurrentBattleRound();
         var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
@@ -2984,40 +2816,25 @@ internal static partial class CombatAiContext
         if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
         {
             PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:skip",
-                $"phase={phase};action={memory.ActionId};reason={memory.Reason};skip=stale;" +
-                $"memoryRound={memory.Round};memoryTurn={memory.TurnStamp}");
             return true;
         }
 
         if (!IsActiveBattleContender(character))
         {
             PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:skip",
-                $"phase={phase};action={memory.ActionId};reason={memory.Reason};skip=inactive");
             return true;
         }
 
         if (HasCurrentAiProcessTurnRecovery(character))
         {
             PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:skip",
-                $"phase={phase};action={memory.ActionId};reason={memory.Reason};skip=already-recovered");
             return true;
         }
 
-        return TryRecoverAiProcessTurnProgression(character, memory.ActionId, memory.Reason, phase);
+        return TryRecoverAiProcessTurnProgression(character, memory.Reason);
     }
 
-    internal static bool TryExitAiProcessAfterPostRecoveryEndTurn(
-        GameLocationCharacter character,
-        string phase = "ai-process")
+    internal static bool TryExitAiProcessAfterPostRecoveryEndTurn(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null ||
             !IsAdvancedCombatAiEnabled ||
@@ -3028,27 +2845,15 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        if (HasPendingReactionRequests(out var pendingReactionCount))
+        if (HasPendingReactionRequests())
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:post-end-process-exit-skip",
-                $"phase={phase};skip=pending-reaction;pendingReactions={pendingReactionCount}");
-
             return false;
         }
-
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "turn-recovery:post-end-process-exit",
-            $"phase={phase}");
 
         return true;
     }
 
-    internal static bool TryPrunePostRecoveryStartNextChainQueue(
-        GameLocationCharacter character,
-        string phase)
+    internal static bool TryPrunePostRecoveryStartNextChainQueue(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null ||
             !IsAdvancedCombatAiEnabled ||
@@ -3059,13 +2864,8 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        if (HasPendingReactionRequests(out var pendingReactionCount))
+        if (HasPendingReactionRequests())
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:post-end-start-next-chain-prune-skip",
-                $"phase={phase};skip=pending-reaction;pendingReactions={pendingReactionCount}");
-
             return false;
         }
 
@@ -3074,31 +2874,23 @@ internal static partial class CombatAiContext
             pendingChains == null ||
             pendingChains.Count <= 0)
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:post-end-start-next-chain-prune-skip",
-                $"phase={phase};skip=no-pending-chain");
-
             return false;
         }
 
         var initialCount = pendingChains.Count;
         var retainedChains = new Queue<GameLocationActionManager.ActionChainSlot>(initialCount);
         var removed = 0;
-        var removedActionIds = new List<string>(initialCount);
-        var keptActionIds = new List<string>(initialCount);
 
         while (pendingChains.Count > 0)
         {
             var actionChainSlot = pendingChains.Dequeue();
 
-            if (IsPostRecoveryStaleMainActionChain(character, actionChainSlot, removedActionIds))
+            if (IsPostRecoveryStaleMainActionChain(character, actionChainSlot))
             {
                 removed++;
                 continue;
             }
 
-            AddActionChainIds(actionChainSlot, keptActionIds);
             retainedChains.Enqueue(actionChainSlot);
         }
 
@@ -3109,27 +2901,13 @@ internal static partial class CombatAiContext
 
         if (removed <= 0)
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:post-end-start-next-chain-prune-skip",
-                $"phase={phase};initialCount={initialCount};kept={pendingChains.Count};" +
-                $"keptActionIds={FormatActionIds(keptActionIds)}");
-
             return false;
         }
-
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "turn-recovery:post-end-start-next-chain-prune",
-            $"phase={phase};removed={removed};initialCount={initialCount};kept={pendingChains.Count};" +
-            $"removedActionIds={FormatActionIds(removedActionIds)};keptActionIds={FormatActionIds(keptActionIds)}");
 
         return true;
     }
 
-    internal static bool TrySuppressPostRecoveryRunNextChains(
-        GameLocationCharacter character,
-        string phase)
+    internal static bool TrySuppressPostRecoveryRunNextChains(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null ||
             !IsAdvancedCombatAiEnabled ||
@@ -3140,32 +2918,20 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        if (HasPendingReactionRequests(out var pendingReactionCount))
+        if (HasPendingReactionRequests())
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:post-end-run-next-chains-suppressed-skip",
-                $"phase={phase};skip=pending-reaction;pendingReactions={pendingReactionCount}");
-
             return false;
         }
 
-        TryNormalizePostRecoveryCommittedMainAction(character, phase, "PostRecoverySeal");
-
-        var pruned = TryPrunePostRecoveryStartNextChainQueue(character, phase);
-
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "turn-recovery:post-end-run-next-chains-suppressed",
-            $"phase={phase};pruned={pruned}");
+        TryNormalizePostRecoveryCommittedMainAction(character);
+        TryPrunePostRecoveryStartNextChainQueue(character);
 
         return true;
     }
 
     private static bool IsPostRecoveryStaleMainActionChain(
         GameLocationCharacter character,
-        GameLocationActionManager.ActionChainSlot actionChainSlot,
-        List<string> actionIds)
+        GameLocationActionManager.ActionChainSlot actionChainSlot)
     {
         var actionParams = actionChainSlot?.actionChainParams?.GetActionsParams();
 
@@ -3179,8 +2945,6 @@ internal static partial class CombatAiContext
             var actionParam = actionParams[i];
             var actionId = actionParam?.ActionDefinition?.Id;
 
-            actionIds?.Add(actionId?.ToString() ?? "null");
-
             if (actionParam?.ActingCharacter != character ||
                 actionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain))
             {
@@ -3191,36 +2955,9 @@ internal static partial class CombatAiContext
         return true;
     }
 
-    private static void AddActionChainIds(
-        GameLocationActionManager.ActionChainSlot actionChainSlot,
-        List<string> actionIds)
-    {
-        var actionParams = actionChainSlot?.actionChainParams?.GetActionsParams();
-
-        if (actionParams == null || actionParams.Count <= 0)
-        {
-            actionIds?.Add("empty");
-            return;
-        }
-
-        for (var i = 0; i < actionParams.Count; i++)
-        {
-            actionIds?.Add(actionParams[i]?.ActionDefinition?.Id.ToString() ?? "null");
-        }
-    }
-
-    private static string FormatActionIds(List<string> actionIds)
-    {
-        return actionIds == null || actionIds.Count == 0
-            ? "none"
-            : string.Join(",", actionIds);
-    }
-
     private static bool TryRecoverAiProcessTurnProgression(
         GameLocationCharacter character,
-        Id actionId,
         string reason,
-        string phase,
         CharacterAction currentAction = null,
         bool ignoreSingleCurrentAction = false)
     {
@@ -3234,57 +2971,31 @@ internal static partial class CombatAiContext
 
         if (!IsActiveBattleContender(character))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:skip",
-                $"phase={phase};action={actionId};reason={reason};skip=inactive");
             PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
             return false;
         }
 
         if (HasCurrentAiProcessTurnRecovery(character))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:skip",
-                $"phase={phase};action={actionId};reason={reason};skip=already-recovered");
             PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
             return false;
         }
 
-        if (HasPendingReactionRequests(out var pendingReactionCount))
+        if (HasPendingReactionRequests())
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:skip",
-                $"phase={phase};action={actionId};reason={reason};skip=pending-reaction;" +
-                $"pendingReactions={pendingReactionCount}");
             return false;
         }
 
         if (HasBlockingPendingActionChain(
                 character,
                 currentAction,
-                out var pendingActionCount,
-                out var pendingActionIds,
-                out var ignoredCurrentAction,
                 ignoreSingleCurrentAction))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:skip",
-                $"phase={phase};action={actionId};reason={reason};skip=pending-actions;" +
-                $"pendingActions={pendingActionCount};" +
-                $"pendingActionIds={pendingActionIds};ignoredCurrentAction={ignoredCurrentAction}");
             return false;
         }
 
         if (HasPendingAiProcessTurnRecoveryCombatAiState(character))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:skip",
-                $"phase={phase};action={actionId};reason={reason};skip=pending-ai-state");
             return false;
         }
 
@@ -3292,15 +3003,11 @@ internal static partial class CombatAiContext
             !IsTacticalMovementUnavailable(character) &&
             !HasCommittedMainActionThisTurn(character))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:skip",
-                $"phase={phase};action={actionId};reason={reason};skip=still-actionable");
             PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
             return false;
         }
 
-        TryNormalizePostRecoveryCommittedMainAction(character, phase, reason);
+        TryNormalizePostRecoveryCommittedMainAction(character);
 
         PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
         AiProcessTurnRecoveryConsumedCache[character.Guid] =
@@ -3308,33 +3015,15 @@ internal static partial class CombatAiContext
 
         var allowActionLinkedMove = ShouldAllowRecoveryActionLinkedMove(character, reason);
 
-        if (allowActionLinkedMove)
-        {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:search-retry",
-                $"phase={phase};action={actionId};reason={reason}");
-
-            if (TrySpendRecoveryLeftoverActionEconomy(character, actionId, reason, phase, true))
-            {
-                return true;
-            }
-
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:search-fallback",
-                $"phase={phase};action={actionId};reason={reason}");
-        }
-
-        if (TrySpendRecoveryLeftoverActionEconomy(character, actionId, reason, phase, false))
+        if (allowActionLinkedMove && TrySpendRecoveryLeftoverActionEconomy(character, true))
         {
             return true;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "turn-recovery:end-turn",
-            $"phase={phase};action={actionId};reason={reason}");
+        if (TrySpendRecoveryLeftoverActionEconomy(character, false))
+        {
+            return true;
+        }
 
         SealPostRecoveryEndTurnMainActions(character);
         character.EndBattleTurn(GetCurrentBattleRound());
@@ -3344,9 +3033,6 @@ internal static partial class CombatAiContext
 
     private static bool TrySpendRecoveryLeftoverActionEconomy(
         GameLocationCharacter character,
-        Id actionId,
-        string reason,
-        string phase,
         bool allowActionLinkedMove)
     {
         if (!TrySpendLeftoverActionEconomy(character, allowActionLinkedMove, endTurnTerminal: true))
@@ -3361,11 +3047,6 @@ internal static partial class CombatAiContext
             TryConsumePendingAiProcessTerminalLaunch(character);
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "turn-recovery:leftover-action",
-            $"phase={phase};action={actionId};reason={reason};" +
-            $"allowActionLinkedMove={allowActionLinkedMove};pendingTerminalLaunch={hasPendingTerminalLaunch}");
 
         return true;
     }
@@ -3378,10 +3059,7 @@ internal static partial class CombatAiContext
                character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) == ActionStatus.Available;
     }
 
-    private static bool TryNormalizePostRecoveryCommittedMainAction(
-        GameLocationCharacter character,
-        string phase,
-        string reason)
+    private static bool TryNormalizePostRecoveryCommittedMainAction(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null ||
             !IsAdvancedCombatAiEnabled ||
@@ -3393,25 +3071,18 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        if (!TryGetCommittedNonTerminalMainActionThisTurn(character, out var committedMainAction, out var source) ||
+        if (!TryGetCommittedNonTerminalMainActionThisTurn(character, out var committedMainAction, out _) ||
             committedMainAction.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain) ||
             !IsVanillaMainActionStillAvailable(character))
         {
             return false;
         }
 
-        var before = FormatVanillaMainActionEconomy(character);
-
         PostRecoveryMainActionNormalizationCache[character.Guid] =
             new PendingTerminalDodgeEndTurnMemory(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp));
 
         character.SpendActionType(ActionType.Main);
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "turn-recovery:main-action-normalized",
-            $"phase={phase};reason={reason};committedAction={committedMainAction.ActionId};" +
-            $"source={source};before={before};after={FormatVanillaMainActionEconomy(character)}");
 
         return true;
     }
@@ -3450,23 +3121,6 @@ internal static partial class CombatAiContext
                character.GetActionStatus(Id.PowerMain, ActionScope.Battle) == ActionStatus.Available;
     }
 
-    private static string FormatVanillaMainActionEconomy(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return "none";
-        }
-
-        return
-            $"main={character.GetActionTypeStatus(ActionType.Main)}," +
-            $"attackMain={character.GetActionStatus(Id.AttackMain, ActionScope.Battle)}," +
-            $"castMain={character.GetActionStatus(Id.CastMain, ActionScope.Battle)}," +
-            $"powerMain={character.GetActionStatus(Id.PowerMain, ActionScope.Battle)}," +
-            $"usedMainAttacks={character.UsedMainAttacks}," +
-            $"usedMainSpell={character.UsedMainSpell}," +
-            $"usedMainCantrip={character.UsedMainCantrip}";
-    }
-
     private static void SealPostRecoveryEndTurnMainActions(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null)
@@ -3499,33 +3153,22 @@ internal static partial class CombatAiContext
         return false;
     }
 
-    private static bool HasPendingReactionRequests(out int count)
+    private static bool HasPendingReactionRequests()
     {
-        count = 0;
-
         if (ServiceRepository.GetService<IGameLocationActionService>() is not GameLocationActionManager actionManager ||
             actionManager.pendingReactionRequestGroups == null)
         {
             return false;
         }
 
-        count = actionManager.pendingReactionRequestGroups.Count;
-
-        return count > 0;
+        return actionManager.pendingReactionRequestGroups.Count > 0;
     }
 
     private static bool HasBlockingPendingActionChain(
         GameLocationCharacter character,
         CharacterAction currentAction,
-        out int count,
-        out string actionIds,
-        out bool ignoredCurrentAction,
         bool ignoreSingleCurrentAction = false)
     {
-        count = 0;
-        actionIds = "none";
-        ignoredCurrentAction = false;
-
         if (character?.RulesetCharacter == null ||
             ServiceRepository.GetService<IGameLocationActionService>() is not GameLocationActionManager actionManager ||
             !actionManager.actionChainByCharacter.TryGetValue(character, out var actionChainSlot) ||
@@ -3534,21 +3177,18 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        count = actionChainSlot.actionQueue.Count;
+        var count = actionChainSlot.actionQueue.Count;
 
         if (count <= 0)
         {
             return false;
         }
 
-        var pendingActionIds = new List<string>(count);
         var currentActionMatches = 0;
 
         for (var i = 0; i < actionChainSlot.actionQueue.Count; i++)
         {
             var pendingAction = actionChainSlot.actionQueue[i].action;
-
-            pendingActionIds.Add(pendingAction?.ActionId.ToString() ?? "null");
 
             if (pendingAction != null && ReferenceEquals(pendingAction, currentAction))
             {
@@ -3556,15 +3196,11 @@ internal static partial class CombatAiContext
             }
         }
 
-        actionIds = string.Join(",", pendingActionIds);
-
         if (count == 1 &&
             currentActionMatches == 1 &&
             (ignoreSingleCurrentAction ||
              currentAction is CharacterActionPushed or CharacterActionPushedCustom))
         {
-            ignoredCurrentAction = true;
-
             return false;
         }
 
@@ -3572,9 +3208,7 @@ internal static partial class CombatAiContext
     }
 
     private static bool TryPrunePostRecoveryEndTurnCurrentChain(
-        GameLocationCharacter character,
-        CharacterAction currentAction,
-        string phase)
+        GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null ||
             !IsAdvancedCombatAiEnabled ||
@@ -3590,23 +3224,15 @@ internal static partial class CombatAiContext
 
         var removed = 0;
         var initialCount = actionChainSlot.actionQueue.Count;
-        var actionIds = initialCount > 0 ? new List<string>(initialCount) : null;
 
         if (initialCount <= 0)
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:post-end-current-chain-prune-skip",
-                $"phase={phase};action={currentAction?.ActionId};initialCount={initialCount}");
-
             return false;
         }
 
         for (var i = initialCount - 1; i >= 0; i--)
         {
             var pendingAction = actionChainSlot.actionQueue[i].action;
-
-            actionIds?.Add(pendingAction?.ActionId.ToString() ?? "null");
 
             if (pendingAction?.ActingCharacter != character ||
                 pendingAction.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain))
@@ -3620,38 +3246,13 @@ internal static partial class CombatAiContext
 
         if (removed <= 0)
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:post-end-current-chain-prune-skip",
-                $"phase={phase};action={currentAction?.ActionId};initialCount={initialCount};" +
-                $"actionIds={FormatReverseActionIds(actionIds)}");
-
             return false;
         }
 
         actionChainSlot.aborted = true;
         actionChainSlot.abortReason = CharacterAction.InterruptionType.Invalid;
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "turn-recovery:post-end-current-chain-prune",
-            $"phase={phase};action={currentAction?.ActionId};removed={removed};" +
-            $"initialCount={initialCount};remainingCount={actionChainSlot.actionQueue.Count};" +
-            $"actionIds={FormatReverseActionIds(actionIds)}");
-
         return true;
-    }
-
-    private static string FormatReverseActionIds(List<string> actionIds)
-    {
-        if (actionIds == null || actionIds.Count == 0)
-        {
-            return "none";
-        }
-
-        actionIds.Reverse();
-
-        return string.Join(",", actionIds);
     }
 
     private static bool HasPendingAiProcessTurnRecoveryCombatAiState(GameLocationCharacter character)
@@ -3696,10 +3297,6 @@ internal static partial class CombatAiContext
             return;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "action-chain",
-            $"aborted={aborted};source={routeMoveSource}");
 
         if (routeMoveSource == CombatAiRouteMoveSourceKind.JumpImmediateAttack)
         {
@@ -3760,10 +3357,6 @@ internal static partial class CombatAiContext
         }
 
         PendingRouteActionOnlyTerminalCache[character.Guid] = memory;
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "route-terminal:scheduled",
-            $"phase={phase};result={result}");
     }
 
     private static bool TryConsumePendingRouteActionOnlyTerminal(
@@ -3777,10 +3370,6 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "route-terminal:action-chain:start",
-            $"phase={phase};aborted={aborted}");
 
         if (IsConnectedFiringLineRoute(memory.PendingAction) &&
             TryHandlePendingConnectedFiringLineMovement(
@@ -3822,18 +3411,10 @@ internal static partial class CombatAiContext
 
         if (aborted && !ShouldConsumeAbortedRouteActionOnlyTerminal(memory))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "route-terminal:action-chain:abort-drop",
-                $"phase={phase}");
             PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
 
             if (IsSearchKnownTargetRoute(memory.PendingAction))
             {
-                LogAdvancedCombatAiTurnHangDiagnostic(
-                    character,
-                    "turn-recovery:search-abort-scheduled",
-                    $"phase={phase}");
                 ScheduleAiProcessTurnRecovery(character, Id.TacticalMove, "SearchLostTargetAbort");
             }
 
@@ -3845,10 +3426,6 @@ internal static partial class CombatAiContext
 
         if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "route-terminal:action-chain:stale",
-                $"phase={phase};memoryRound={memory.Round};memoryTurn={memory.TurnStamp}");
             PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
             return true;
         }
@@ -3856,20 +3433,12 @@ internal static partial class CombatAiContext
         if (ActionLinkedMoveCache.ContainsKey(character.Guid) ||
             GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "route-terminal:action-chain:route-state",
-                $"phase={phase}");
             PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
             return true;
         }
 
         if (!IsActiveBattleContender(character))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "route-terminal:action-chain:inactive",
-                $"phase={phase}");
             PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
             return true;
         }
@@ -3884,17 +3453,13 @@ internal static partial class CombatAiContext
             return true;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "route-terminal:action-chain:finish",
-            $"phase={phase}");
 
         return true;
     }
 
     internal static bool TryConsumePendingRouteTerminalAtAiProcessBoundary(
         GameLocationCharacter character,
-        string phase = "ai-process")
+        bool allowFinalFailure = false)
     {
         if (character?.RulesetCharacter == null ||
             !PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var memory))
@@ -3902,20 +3467,13 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "route-terminal:ai-process:start",
-            $"phase={phase}");
+        const string phase = "ai-process";
 
         var currentRound = GetCurrentBattleRound();
         var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
 
         if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "route-terminal:ai-process:stale",
-                $"phase={phase};memoryRound={memory.Round};memoryTurn={memory.TurnStamp}");
             PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
             return true;
         }
@@ -3925,7 +3483,7 @@ internal static partial class CombatAiContext
                 character,
                 memory,
                 phase,
-                allowFinalFailure: phase == "ai-process-final",
+                allowFinalFailure,
                 out var connectedRouteClosed))
         {
             if (!connectedRouteClosed)
@@ -3944,7 +3502,7 @@ internal static partial class CombatAiContext
                 character,
                 memory,
                 phase,
-                allowFinalFailure: phase == "ai-process-final",
+                allowFinalFailure,
                 out var searchRouteClosed))
         {
             if (!searchRouteClosed)
@@ -3961,29 +3519,17 @@ internal static partial class CombatAiContext
         if (ActionLinkedMoveCache.ContainsKey(character.Guid) ||
             GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "route-terminal:ai-process:blocked-route-state",
-                $"phase={phase}");
             return false;
         }
 
         if (!IsActiveBattleContender(character))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "route-terminal:ai-process:inactive",
-                $"phase={phase}");
             PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
             return true;
         }
 
         if (HasCurrentPendingTerminalReadyOrDodge(character))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "route-terminal:ai-process:blocked-ready-dodge",
-                $"phase={phase}");
             PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
             return true;
         }
@@ -4004,18 +3550,10 @@ internal static partial class CombatAiContext
 
         if (hasPendingTerminalLaunch)
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "route-terminal:ai-process:consume-launch",
-                $"phase={phase};handled={handled}");
             TryConsumePendingAiProcessTerminalLaunch(character);
             return true;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "route-terminal:ai-process:finish",
-            $"phase={phase};handled={handled}");
 
         return handled;
     }
@@ -4514,18 +4052,10 @@ internal static partial class CombatAiContext
 
         if (hasPendingTerminalLaunch)
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "connected-route-terminal:consume-launch",
-                $"handled={handled}");
             TryConsumePendingAiProcessTerminalLaunch(character);
             return true;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "connected-route-terminal:finish",
-            $"handled={handled}");
 
         return handled;
     }
@@ -4558,8 +4088,7 @@ internal static partial class CombatAiContext
     }
 
     internal static bool TryConsumePendingUtilityTerminalAtAiProcessBoundary(
-        GameLocationCharacter character,
-        string phase = "ai-process")
+        GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null ||
             !PendingUtilityTerminalContinuationCache.TryGetValue(character.Guid, out var memory))
@@ -4593,18 +4122,10 @@ internal static partial class CombatAiContext
 
         if (hasPendingTerminalLaunch)
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "utility-terminal:consume-launch",
-                $"phase={phase};handled={handled}");
             TryConsumePendingAiProcessTerminalLaunch(character);
             return true;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "utility-terminal:finish",
-            $"phase={phase};handled={handled}");
 
         return true;
     }
@@ -4621,17 +4142,12 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(character, "route-terminal:end-turn:start");
 
         var currentRound = GetCurrentBattleRound();
         var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
 
         if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "route-terminal:end-turn:stale",
-                $"memoryRound={memory.Round};memoryTurn={memory.TurnStamp}");
             PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
             return true;
         }
@@ -4639,19 +4155,16 @@ internal static partial class CombatAiContext
         if (ActionLinkedMoveCache.ContainsKey(character.Guid) ||
             GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "route-terminal:end-turn:route-state");
             PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
             return true;
         }
 
         if (!IsActiveBattleContender(character))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "route-terminal:end-turn:inactive");
             PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
             return true;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(character, "route-terminal:end-turn:consume");
         PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
 
         return true;
@@ -4678,10 +4191,6 @@ internal static partial class CombatAiContext
         var memory = new PendingAiProcessTerminalLaunchMemory(actionId, readyActionType, kind, round, turnStamp);
 
         PendingAiProcessTerminalLaunchCache[character.Guid] = memory;
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "ai-process-launch:scheduled",
-            $"action={actionId};readyType={readyActionType};kind={kind}");
 
         return true;
     }
@@ -4704,7 +4213,6 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(character, "ai-process-launch:consume");
         TryBeginPendingAiProcessTerminalLaunch(character);
         return true;
     }
@@ -4722,17 +4230,12 @@ internal static partial class CombatAiContext
 
         if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "ai-process-launch:stale",
-                $"memoryRound={memory.Round};memoryTurn={memory.TurnStamp}");
             PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
             return;
         }
 
         if (!IsActiveBattleContender(character))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "ai-process-launch:inactive");
             PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
             return;
         }
@@ -4740,7 +4243,6 @@ internal static partial class CombatAiContext
         if (ActionLinkedMoveCache.ContainsKey(character.Guid) ||
             GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "ai-process-launch:blocked-route-state");
             PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
             return;
         }
@@ -4749,15 +4251,10 @@ internal static partial class CombatAiContext
 
         if (!CanSpendTerminalMainAction(character, actionEconomy))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "ai-process-launch:no-terminal-main");
             PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
             return;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "ai-process-launch:begin",
-            $"action={memory.ActionId};kind={memory.Kind};readyType={memory.ReadyActionType}");
 
         if (memory.ActionId == Id.Dodge)
         {
@@ -4778,10 +4275,6 @@ internal static partial class CombatAiContext
 
         if (!actionEconomy.DodgeAvailable || dodgeStatus != ActionStatus.Available)
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "ai-process-launch:dodge-rejected",
-                $"dodgeStatus={dodgeStatus}");
             PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
             return;
         }
@@ -4796,12 +4289,10 @@ internal static partial class CombatAiContext
 
         if (!PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "ai-process-launch:dodge-suppress-end-turn");
             PendingTerminalActionEndTurnSuppressCache.Add(character.Guid);
             return;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(character, "ai-process-launch:dodge-accepted");
         PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
 
     }
@@ -4815,10 +4306,6 @@ internal static partial class CombatAiContext
 
         if (!actionEconomy.ReadyAvailable || readyStatus != ActionStatus.Available)
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "ai-process-launch:ready-rejected",
-                $"readyStatus={readyStatus}");
             PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
             return;
         }
@@ -4831,12 +4318,10 @@ internal static partial class CombatAiContext
 
         if (!PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "ai-process-launch:ready-suppress-end-turn");
             PendingTerminalActionEndTurnSuppressCache.Add(character.Guid);
             return;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(character, "ai-process-launch:ready-accepted");
         PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
 
     }
@@ -5030,12 +4515,6 @@ internal static partial class CombatAiContext
         var hadPendingActionLinkedMove =
             ActionLinkedMoveCache.TryGetValue(character.Guid, out var pendingAction);
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "move-result",
-            $"action={action.ActionId};start=({FormatPosition(start)});target=({FormatPosition(target)});" +
-            $"actual=({FormatPosition(character.LocationPosition)});pendingActionLinked={hadPendingActionLinkedMove};" +
-            $"forceCloseNoMoveAfterSettling={forceCloseNoMoveAfterSettling};settleFrames={settleFrames}");
 
         if (forceCloseNoMoveAfterSettling &&
             hadPendingActionLinkedMove &&
@@ -5941,14 +5420,10 @@ internal static partial class CombatAiContext
 
         PendingResidualMainActionCache.Remove(character.Guid);
         PendingUtilityTerminalContinuationCache.Remove(character.Guid);
-        TryNormalizePostRecoveryCommittedMainAction(character, "block-post-end-main", "PostRecoverySeal");
-        TryPrunePostRecoveryEndTurnCurrentChain(character, action, "block-main");
+        TryNormalizePostRecoveryCommittedMainAction(character);
+        TryPrunePostRecoveryEndTurnCurrentChain(character);
         blockKind = CombatAiMainActionBlockKind.MainAlreadySpent;
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "turn-recovery:block-post-end-main",
-            $"action={action.ActionId}");
 
         return true;
     }
@@ -6003,11 +5478,6 @@ internal static partial class CombatAiContext
         PendingResidualMainActionCache.Remove(character.Guid);
         blockKind = CombatAiMainActionBlockKind.MainAlreadySpent;
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "turn-recovery:block-main",
-            $"action={action.ActionId};recoveryAction={recovery.ActionId};reason={recovery.Reason};" +
-            $"committed={committedSource};turnMainUses={mainUseCount}");
 
         return true;
     }
@@ -6535,44 +6005,19 @@ internal static partial class CombatAiContext
 
         if (blockKind != CombatAiMainActionBlockKind.MainAlreadySpent)
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:blocked-main-skip",
-                $"blockKind={blockKind};hasRecovery=False");
 
             return false;
         }
 
         if (!TryGetCurrentPendingAiProcessTurnRecovery(character, out var recovery))
         {
-            if (HasCurrentPostRecoveryEndTurnMainActionSeal(character))
-            {
-                LogAdvancedCombatAiTurnHangDiagnostic(
-                    character,
-                    "turn-recovery:blocked-post-end-pruned",
-                    $"action={action.ActionId}");
-
-                return false;
-            }
-
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:blocked-main-skip",
-                $"blockKind={blockKind};hasRecovery=False");
-
             return false;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "turn-recovery:blocked-main-consume",
-            $"action={action.ActionId};recoveryAction={recovery.ActionId};reason={recovery.Reason}");
 
         return TryRecoverAiProcessTurnProgression(
             character,
-            recovery.ActionId,
             recovery.Reason,
-            "blocked-main",
             action,
             ignoreSingleCurrentAction: true);
     }
@@ -8244,7 +7689,6 @@ internal static partial class CombatAiContext
         GameLocationCharacter character,
         out bool suppressEndTurn)
     {
-        LogAdvancedCombatAiTurnHangDiagnostic(character, "leftover-end-turn:start");
 
         if (ResolveGroundMeleeMoveSettling(
                 character,
@@ -8252,7 +7696,6 @@ internal static partial class CombatAiContext
                 allowTerminalAction: false))
         {
             suppressEndTurn = false;
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "leftover-end-turn:settling-resolved");
             return true;
         }
 
@@ -8260,10 +7703,6 @@ internal static partial class CombatAiContext
 
         if (TryConsumePendingRouteTerminalAtEndTurn(character, out suppressEndTurn))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "leftover-end-turn:route-terminal",
-                $"suppressEndTurn={suppressEndTurn}");
             return true;
         }
 
@@ -8271,17 +7710,12 @@ internal static partial class CombatAiContext
             PendingTerminalDodgeEndTurnCache.TryGetValue(character.Guid, out var pendingTerminalDodge) &&
             pendingTerminalDodge.Round == GetCurrentBattleRound())
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "leftover-end-turn:pending-dodge");
 
             if (TryNormalizePendingTerminalDodgeAtEndTurn(
                     character,
                     pendingTerminalDodge,
                     out suppressEndTurn))
             {
-                LogAdvancedCombatAiTurnHangDiagnostic(
-                    character,
-                    "leftover-end-turn:pending-dodge-normalized",
-                    $"suppressEndTurn={suppressEndTurn}");
                 return true;
             }
 
@@ -8291,16 +7725,11 @@ internal static partial class CombatAiContext
             {
                 PendingTerminalActionEndTurnSuppressCache.Add(character.Guid);
                 suppressEndTurn = true;
-                LogAdvancedCombatAiTurnHangDiagnostic(
-                    character,
-                    "leftover-end-turn:pending-dodge-suppress",
-                    $"suppressEndTurn={suppressEndTurn}");
                 return true;
             }
 
             FailPendingTerminalDodgeActionNotAccepted(character, pendingTerminalDodge);
             suppressEndTurn = false;
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "leftover-end-turn:pending-dodge-failed");
             return true;
         }
 
@@ -8308,17 +7737,12 @@ internal static partial class CombatAiContext
             PendingTerminalReadyEndTurnCache.TryGetValue(character.Guid, out var pendingTerminalReady) &&
             pendingTerminalReady.Round == GetCurrentBattleRound())
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "leftover-end-turn:pending-ready");
 
             if (TryNormalizePendingTerminalReadyAtEndTurn(
                     character,
                     pendingTerminalReady,
                     out suppressEndTurn))
             {
-                LogAdvancedCombatAiTurnHangDiagnostic(
-                    character,
-                    "leftover-end-turn:pending-ready-normalized",
-                    $"suppressEndTurn={suppressEndTurn}");
                 return true;
             }
 
@@ -8328,16 +7752,11 @@ internal static partial class CombatAiContext
             {
                 PendingTerminalActionEndTurnSuppressCache.Add(character.Guid);
                 suppressEndTurn = true;
-                LogAdvancedCombatAiTurnHangDiagnostic(
-                    character,
-                    "leftover-end-turn:pending-ready-suppress",
-                    $"suppressEndTurn={suppressEndTurn}");
                 return true;
             }
 
             FailPendingTerminalReadyActionNotAccepted(character, pendingTerminalReady);
             suppressEndTurn = false;
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "leftover-end-turn:pending-ready-failed");
             return true;
         }
 
@@ -8345,7 +7764,6 @@ internal static partial class CombatAiContext
 
         if (TryCloseMissedAiProcessTerminalLaunchAtEndTurn(character))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(character, "leftover-end-turn:closed-missed-launch");
             return true;
         }
 
@@ -8354,7 +7772,6 @@ internal static partial class CombatAiContext
             return true;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(character, "leftover-end-turn:none");
         return false;
     }
 
@@ -8372,42 +7789,16 @@ internal static partial class CombatAiContext
         }
 
         PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "turn-recovery:end-turn-terminal-fallback",
-            $"action={recovery.ActionId};reason={recovery.Reason}");
 
-        if (ShouldAllowRecoveryActionLinkedMove(character, recovery.Reason))
+        if (ShouldAllowRecoveryActionLinkedMove(character, recovery.Reason) &&
+            TrySpendRecoveryLeftoverActionEconomy(character, true))
         {
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:search-retry",
-                $"phase=end-turn;action={recovery.ActionId};reason={recovery.Reason}");
+            suppressEndTurn = true;
 
-            if (TrySpendRecoveryLeftoverActionEconomy(
-                    character,
-                    recovery.ActionId,
-                    recovery.Reason,
-                    "end-turn",
-                    true))
-            {
-                suppressEndTurn = true;
-
-                return true;
-            }
-
-            LogAdvancedCombatAiTurnHangDiagnostic(
-                character,
-                "turn-recovery:search-fallback",
-                $"phase=end-turn;action={recovery.ActionId};reason={recovery.Reason}");
+            return true;
         }
 
-        if (TrySpendRecoveryLeftoverActionEconomy(
-                character,
-                recovery.ActionId,
-                recovery.Reason,
-                "end-turn",
-                false))
+        if (TrySpendRecoveryLeftoverActionEconomy(character, false))
         {
             suppressEndTurn = true;
 
@@ -8425,10 +7816,6 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "missed-ai-process-launch:close",
-            $"action={memory.ActionId};kind={memory.Kind}");
 
         PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
         PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
@@ -8652,7 +8039,6 @@ internal static partial class CombatAiContext
 
         EnsureCombatAiRuntimeCache(character);
 
-        LogAdvancedCombatAiTurnHangDiagnostic(character, "before-end-turn:start");
 
         ResolveGroundMeleeMoveSettling(
             character,
@@ -8661,10 +8047,6 @@ internal static partial class CombatAiContext
 
         TrySpendLeftoverActionEconomyAtEndTurn(character, out suppressEndTurn);
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "before-end-turn:finish",
-            $"suppressEndTurn={suppressEndTurn}");
 
         return true;
     }
@@ -12083,11 +11465,6 @@ internal static partial class CombatAiContext
             round,
             turnStamp);
 
-        LogAdvancedCombatAiTurnHangDiagnostic(
-            character,
-            "jump-immediate:failed-route",
-            $"reason={reason};source={completionSource};actual=({FormatPosition(actualDestination)});" +
-            $"expected=({FormatPosition(pendingAction.ExpectedDestination)});noMove={noMove}");
 
         ScheduleAiProcessTurnRecovery(character, Id.TacticalMove, reason);
     }

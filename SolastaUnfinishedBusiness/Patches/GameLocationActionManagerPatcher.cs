@@ -27,7 +27,7 @@ public static class GameLocationActionManagerPatcher
         [UsedImplicitly]
         public static void Prefix(GameLocationCharacter character)
         {
-            CombatAiContext.TryPrunePostRecoveryStartNextChainQueue(character, "start-next-chain");
+            CombatAiContext.TryPrunePostRecoveryStartNextChainQueue(character);
         }
     }
 
@@ -53,7 +53,7 @@ public static class GameLocationActionManagerPatcher
                 return;
             }
 
-            if (CombatAiContext.TrySuppressPostRecoveryRunNextChains(character, "terminate-chain"))
+            if (CombatAiContext.TrySuppressPostRecoveryRunNextChains(character))
             {
                 runNextChains = false;
             }
