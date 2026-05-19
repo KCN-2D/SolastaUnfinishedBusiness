@@ -45,6 +45,12 @@ public static class AiLocationManagerPatcher
                     {
                         yield return null;
                     }
+
+                    if (CombatAiContext.TryExitAiProcessAfterPostRecoveryEndTurn(activeContender))
+                    {
+                        yield return null;
+                        yield break;
+                    }
                 }
 
                 if (CombatAiContext.TryConsumePendingRouteTerminalAtAiProcessBoundary(
@@ -58,6 +64,14 @@ public static class AiLocationManagerPatcher
                         "ai-process-final"))
                 {
                     yield return null;
+                }
+
+                if (CombatAiContext.TryExitAiProcessAfterPostRecoveryEndTurn(
+                        activeContender,
+                        "ai-process-final"))
+                {
+                    yield return null;
+                    yield break;
                 }
             }
         }

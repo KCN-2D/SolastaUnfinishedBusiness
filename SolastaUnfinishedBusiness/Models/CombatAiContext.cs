@@ -515,6 +515,10 @@ internal static partial class CombatAiContext
     private static readonly HashSet<ulong> PendingAiProcessTerminalLaunchAcceptedCache = [];
     private static readonly Dictionary<ulong, PendingAiProcessTurnRecoveryMemory> PendingAiProcessTurnRecoveryCache = [];
     private static readonly Dictionary<ulong, PendingTerminalDodgeEndTurnMemory> AiProcessTurnRecoveryConsumedCache = [];
+    private static readonly Dictionary<ulong, PendingTerminalDodgeEndTurnMemory>
+        PostRecoveryEndTurnMainActionSealCache = [];
+    private static readonly Dictionary<ulong, PendingTerminalDodgeEndTurnMemory>
+        PostRecoveryMainActionNormalizationCache = [];
     private static readonly HashSet<ulong> PendingTerminalActionEndTurnSuppressCache = [];
     private static readonly Dictionary<ulong, FallbackDodgeConditionMemory> FallbackDodgeConditionCache = [];
     private static readonly Dictionary<ulong, RepeatedEndStateMemory> RepeatTerminalActionCache = [];
@@ -2325,6 +2329,8 @@ internal static partial class CombatAiContext
         PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
         PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
         AiProcessTurnRecoveryConsumedCache.Remove(character.Guid);
+        PostRecoveryEndTurnMainActionSealCache.Remove(character.Guid);
+        PostRecoveryMainActionNormalizationCache.Remove(character.Guid);
         PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
     }
 
@@ -2413,6 +2419,8 @@ internal static partial class CombatAiContext
         {
             LogAdvancedCombatAiTurnHangDiagnostic(character, "turn-start:before");
             ObservedCombatMemoryTurnStamp++;
+            PostRecoveryEndTurnMainActionSealCache.Remove(character.Guid);
+            PostRecoveryMainActionNormalizationCache.Remove(character.Guid);
             FailStalePendingTerminalActions(character, "turn-start");
             FailStalePendingRouteActionOnlyTerminal(character, "turn-start");
             TurnStartActionEconomyCache[character.Guid] = BuildActionEconomySnapshot(character);
@@ -2504,6 +2512,8 @@ internal static partial class CombatAiContext
         PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
         PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
         AiProcessTurnRecoveryConsumedCache.Remove(character.Guid);
+        PostRecoveryEndTurnMainActionSealCache.Remove(character.Guid);
+        PostRecoveryMainActionNormalizationCache.Remove(character.Guid);
         PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
         FallbackDodgeConditionCache.Remove(character.Guid);
         RepeatTerminalActionCache.Remove(character.Guid);
@@ -2644,6 +2654,8 @@ internal static partial class CombatAiContext
         PendingAiProcessTerminalLaunchAcceptedCache.Clear();
         PendingAiProcessTurnRecoveryCache.Clear();
         AiProcessTurnRecoveryConsumedCache.Clear();
+        PostRecoveryEndTurnMainActionSealCache.Clear();
+        PostRecoveryMainActionNormalizationCache.Clear();
         PendingTerminalActionEndTurnSuppressCache.Clear();
         FallbackDodgeConditionCache.Clear();
         RepeatTerminalActionCache.Clear();
@@ -2925,6 +2937,32 @@ internal static partial class CombatAiContext
             $"action={actionId};reason={reason}");
     }
 
+    private static bool TryGetCurrentPendingAiProcessTurnRecovery(
+        GameLocationCharacter character,
+        out PendingAiProcessTurnRecoveryMemory memory)
+    {
+        memory = default;
+
+        if (character?.RulesetCharacter == null ||
+            !PendingAiProcessTurnRecoveryCache.TryGetValue(character.Guid, out memory))
+        {
+            return false;
+        }
+
+        var currentRound = GetCurrentBattleRound();
+        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
+
+        if (memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
+        {
+            return true;
+        }
+
+        PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
+        memory = default;
+
+        return false;
+    }
+
     internal static bool TryConsumePendingAiProcessTurnRecoveryAtAiProcessBoundary(
         GameLocationCharacter character,
         string phase = "ai-process")
@@ -2977,11 +3015,214 @@ internal static partial class CombatAiContext
         return TryRecoverAiProcessTurnProgression(character, memory.ActionId, memory.Reason, phase);
     }
 
+    internal static bool TryExitAiProcessAfterPostRecoveryEndTurn(
+        GameLocationCharacter character,
+        string phase = "ai-process")
+    {
+        if (character?.RulesetCharacter == null ||
+            !IsAdvancedCombatAiEnabled ||
+            !IsAiControlledForCombat(character) ||
+            !IsActiveBattleContender(character) ||
+            !HasCurrentPostRecoveryEndTurnMainActionSeal(character))
+        {
+            return false;
+        }
+
+        if (HasPendingReactionRequests(out var pendingReactionCount))
+        {
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "turn-recovery:post-end-process-exit-skip",
+                $"phase={phase};skip=pending-reaction;pendingReactions={pendingReactionCount}");
+
+            return false;
+        }
+
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "turn-recovery:post-end-process-exit",
+            $"phase={phase}");
+
+        return true;
+    }
+
+    internal static bool TryPrunePostRecoveryStartNextChainQueue(
+        GameLocationCharacter character,
+        string phase)
+    {
+        if (character?.RulesetCharacter == null ||
+            !IsAdvancedCombatAiEnabled ||
+            !IsAiControlledForCombat(character) ||
+            !IsActiveBattleContender(character) ||
+            !HasCurrentPostRecoveryEndTurnMainActionSeal(character))
+        {
+            return false;
+        }
+
+        if (HasPendingReactionRequests(out var pendingReactionCount))
+        {
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "turn-recovery:post-end-start-next-chain-prune-skip",
+                $"phase={phase};skip=pending-reaction;pendingReactions={pendingReactionCount}");
+
+            return false;
+        }
+
+        if (ServiceRepository.GetService<IGameLocationActionService>() is not GameLocationActionManager actionManager ||
+            !actionManager.actionChainQueueByCharacter.TryGetValue(character, out var pendingChains) ||
+            pendingChains == null ||
+            pendingChains.Count <= 0)
+        {
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "turn-recovery:post-end-start-next-chain-prune-skip",
+                $"phase={phase};skip=no-pending-chain");
+
+            return false;
+        }
+
+        var initialCount = pendingChains.Count;
+        var retainedChains = new Queue<GameLocationActionManager.ActionChainSlot>(initialCount);
+        var removed = 0;
+        var removedActionIds = new List<string>(initialCount);
+        var keptActionIds = new List<string>(initialCount);
+
+        while (pendingChains.Count > 0)
+        {
+            var actionChainSlot = pendingChains.Dequeue();
+
+            if (IsPostRecoveryStaleMainActionChain(character, actionChainSlot, removedActionIds))
+            {
+                removed++;
+                continue;
+            }
+
+            AddActionChainIds(actionChainSlot, keptActionIds);
+            retainedChains.Enqueue(actionChainSlot);
+        }
+
+        while (retainedChains.Count > 0)
+        {
+            pendingChains.Enqueue(retainedChains.Dequeue());
+        }
+
+        if (removed <= 0)
+        {
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "turn-recovery:post-end-start-next-chain-prune-skip",
+                $"phase={phase};initialCount={initialCount};kept={pendingChains.Count};" +
+                $"keptActionIds={FormatActionIds(keptActionIds)}");
+
+            return false;
+        }
+
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "turn-recovery:post-end-start-next-chain-prune",
+            $"phase={phase};removed={removed};initialCount={initialCount};kept={pendingChains.Count};" +
+            $"removedActionIds={FormatActionIds(removedActionIds)};keptActionIds={FormatActionIds(keptActionIds)}");
+
+        return true;
+    }
+
+    internal static bool TrySuppressPostRecoveryRunNextChains(
+        GameLocationCharacter character,
+        string phase)
+    {
+        if (character?.RulesetCharacter == null ||
+            !IsAdvancedCombatAiEnabled ||
+            !IsAiControlledForCombat(character) ||
+            !IsActiveBattleContender(character) ||
+            !HasCurrentPostRecoveryEndTurnMainActionSeal(character))
+        {
+            return false;
+        }
+
+        if (HasPendingReactionRequests(out var pendingReactionCount))
+        {
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "turn-recovery:post-end-run-next-chains-suppressed-skip",
+                $"phase={phase};skip=pending-reaction;pendingReactions={pendingReactionCount}");
+
+            return false;
+        }
+
+        TryNormalizePostRecoveryCommittedMainAction(character, phase, "PostRecoverySeal");
+
+        var pruned = TryPrunePostRecoveryStartNextChainQueue(character, phase);
+
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "turn-recovery:post-end-run-next-chains-suppressed",
+            $"phase={phase};pruned={pruned}");
+
+        return true;
+    }
+
+    private static bool IsPostRecoveryStaleMainActionChain(
+        GameLocationCharacter character,
+        GameLocationActionManager.ActionChainSlot actionChainSlot,
+        List<string> actionIds)
+    {
+        var actionParams = actionChainSlot?.actionChainParams?.GetActionsParams();
+
+        if (character?.RulesetCharacter == null || actionParams == null || actionParams.Count <= 0)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < actionParams.Count; i++)
+        {
+            var actionParam = actionParams[i];
+            var actionId = actionParam?.ActionDefinition?.Id;
+
+            actionIds?.Add(actionId?.ToString() ?? "null");
+
+            if (actionParam?.ActingCharacter != character ||
+                actionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static void AddActionChainIds(
+        GameLocationActionManager.ActionChainSlot actionChainSlot,
+        List<string> actionIds)
+    {
+        var actionParams = actionChainSlot?.actionChainParams?.GetActionsParams();
+
+        if (actionParams == null || actionParams.Count <= 0)
+        {
+            actionIds?.Add("empty");
+            return;
+        }
+
+        for (var i = 0; i < actionParams.Count; i++)
+        {
+            actionIds?.Add(actionParams[i]?.ActionDefinition?.Id.ToString() ?? "null");
+        }
+    }
+
+    private static string FormatActionIds(List<string> actionIds)
+    {
+        return actionIds == null || actionIds.Count == 0
+            ? "none"
+            : string.Join(",", actionIds);
+    }
+
     private static bool TryRecoverAiProcessTurnProgression(
         GameLocationCharacter character,
         Id actionId,
         string reason,
-        string phase)
+        string phase,
+        CharacterAction currentAction = null,
+        bool ignoreSingleCurrentAction = false)
     {
         if (character?.RulesetCharacter == null ||
             !IsAdvancedCombatAiEnabled ||
@@ -3023,17 +3264,18 @@ internal static partial class CombatAiContext
 
         if (HasBlockingPendingActionChain(
                 character,
-                null,
+                currentAction,
                 out var pendingActionCount,
                 out var pendingActionIds,
-                out var ignoredCurrentPushedAction))
+                out var ignoredCurrentAction,
+                ignoreSingleCurrentAction))
         {
             LogAdvancedCombatAiTurnHangDiagnostic(
                 character,
                 "turn-recovery:skip",
                 $"phase={phase};action={actionId};reason={reason};skip=pending-actions;" +
                 $"pendingActions={pendingActionCount};" +
-                $"pendingActionIds={pendingActionIds};ignoredCurrentPushedAction={ignoredCurrentPushedAction}");
+                $"pendingActionIds={pendingActionIds};ignoredCurrentAction={ignoredCurrentAction}");
             return false;
         }
 
@@ -3058,24 +3300,34 @@ internal static partial class CombatAiContext
             return false;
         }
 
+        TryNormalizePostRecoveryCommittedMainAction(character, phase, reason);
+
         PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
         AiProcessTurnRecoveryConsumedCache[character.Guid] =
             new PendingTerminalDodgeEndTurnMemory(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp));
 
-        if (TrySpendLeftoverActionEconomy(character, allowActionLinkedMove: false, endTurnTerminal: true))
-        {
-            var hasPendingTerminalLaunch = HasPendingAiProcessTerminalLaunch(character);
+        var allowActionLinkedMove = ShouldAllowRecoveryActionLinkedMove(character, reason);
 
-            if (hasPendingTerminalLaunch)
+        if (allowActionLinkedMove)
+        {
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "turn-recovery:search-retry",
+                $"phase={phase};action={actionId};reason={reason}");
+
+            if (TrySpendRecoveryLeftoverActionEconomy(character, actionId, reason, phase, true))
             {
-                TryConsumePendingAiProcessTerminalLaunch(character);
+                return true;
             }
 
             LogAdvancedCombatAiTurnHangDiagnostic(
                 character,
-                "turn-recovery:leftover-action",
-                $"phase={phase};action={actionId};reason={reason};pendingTerminalLaunch={hasPendingTerminalLaunch}");
+                "turn-recovery:search-fallback",
+                $"phase={phase};action={actionId};reason={reason}");
+        }
 
+        if (TrySpendRecoveryLeftoverActionEconomy(character, actionId, reason, phase, false))
+        {
             return true;
         }
 
@@ -3084,9 +3336,146 @@ internal static partial class CombatAiContext
             "turn-recovery:end-turn",
             $"phase={phase};action={actionId};reason={reason}");
 
+        SealPostRecoveryEndTurnMainActions(character);
         character.EndBattleTurn(GetCurrentBattleRound());
 
         return true;
+    }
+
+    private static bool TrySpendRecoveryLeftoverActionEconomy(
+        GameLocationCharacter character,
+        Id actionId,
+        string reason,
+        string phase,
+        bool allowActionLinkedMove)
+    {
+        if (!TrySpendLeftoverActionEconomy(character, allowActionLinkedMove, endTurnTerminal: true))
+        {
+            return false;
+        }
+
+        var hasPendingTerminalLaunch = HasPendingAiProcessTerminalLaunch(character);
+
+        if (hasPendingTerminalLaunch)
+        {
+            TryConsumePendingAiProcessTerminalLaunch(character);
+        }
+
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "turn-recovery:leftover-action",
+            $"phase={phase};action={actionId};reason={reason};" +
+            $"allowActionLinkedMove={allowActionLinkedMove};pendingTerminalLaunch={hasPendingTerminalLaunch}");
+
+        return true;
+    }
+
+    private static bool ShouldAllowRecoveryActionLinkedMove(GameLocationCharacter character, string reason)
+    {
+        return reason == "SearchLostTargetAbort" &&
+               character?.RulesetCharacter != null &&
+               character.RemainingTacticalMoves > 0 &&
+               character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) == ActionStatus.Available;
+    }
+
+    private static bool TryNormalizePostRecoveryCommittedMainAction(
+        GameLocationCharacter character,
+        string phase,
+        string reason)
+    {
+        if (character?.RulesetCharacter == null ||
+            !IsAdvancedCombatAiEnabled ||
+            !IsAiControlledForCombat(character) ||
+            !IsActiveBattleContender(character) ||
+            !CanExecuteAutomaticCombatAction(character) ||
+            HasCurrentPostRecoveryMainActionNormalization(character))
+        {
+            return false;
+        }
+
+        if (!TryGetCommittedNonTerminalMainActionThisTurn(character, out var committedMainAction, out var source) ||
+            committedMainAction.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain) ||
+            !IsVanillaMainActionStillAvailable(character))
+        {
+            return false;
+        }
+
+        var before = FormatVanillaMainActionEconomy(character);
+
+        PostRecoveryMainActionNormalizationCache[character.Guid] =
+            new PendingTerminalDodgeEndTurnMemory(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp));
+
+        character.SpendActionType(ActionType.Main);
+
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "turn-recovery:main-action-normalized",
+            $"phase={phase};reason={reason};committedAction={committedMainAction.ActionId};" +
+            $"source={source};before={before};after={FormatVanillaMainActionEconomy(character)}");
+
+        return true;
+    }
+
+    private static bool HasCurrentPostRecoveryMainActionNormalization(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null ||
+            !PostRecoveryMainActionNormalizationCache.TryGetValue(character.Guid, out var memory))
+        {
+            return false;
+        }
+
+        var currentRound = GetCurrentBattleRound();
+        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
+
+        if (memory.Round == currentRound && memory.TurnStamp == currentTurnStamp)
+        {
+            return true;
+        }
+
+        PostRecoveryMainActionNormalizationCache.Remove(character.Guid);
+
+        return false;
+    }
+
+    private static bool IsVanillaMainActionStillAvailable(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null)
+        {
+            return false;
+        }
+
+        return character.GetActionTypeStatus(ActionType.Main) == ActionStatus.Available ||
+               character.GetActionStatus(Id.AttackMain, ActionScope.Battle) == ActionStatus.Available ||
+               character.GetActionStatus(Id.CastMain, ActionScope.Battle) == ActionStatus.Available ||
+               character.GetActionStatus(Id.PowerMain, ActionScope.Battle) == ActionStatus.Available;
+    }
+
+    private static string FormatVanillaMainActionEconomy(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null)
+        {
+            return "none";
+        }
+
+        return
+            $"main={character.GetActionTypeStatus(ActionType.Main)}," +
+            $"attackMain={character.GetActionStatus(Id.AttackMain, ActionScope.Battle)}," +
+            $"castMain={character.GetActionStatus(Id.CastMain, ActionScope.Battle)}," +
+            $"powerMain={character.GetActionStatus(Id.PowerMain, ActionScope.Battle)}," +
+            $"usedMainAttacks={character.UsedMainAttacks}," +
+            $"usedMainSpell={character.UsedMainSpell}," +
+            $"usedMainCantrip={character.UsedMainCantrip}";
+    }
+
+    private static void SealPostRecoveryEndTurnMainActions(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null)
+        {
+            return;
+        }
+
+        PostRecoveryEndTurnMainActionSealCache[character.Guid] =
+            new PendingTerminalDodgeEndTurnMemory(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp));
     }
 
     private static bool HasCurrentAiProcessTurnRecovery(GameLocationCharacter character)
@@ -3130,11 +3519,12 @@ internal static partial class CombatAiContext
         CharacterAction currentAction,
         out int count,
         out string actionIds,
-        out bool ignoredCurrentPushedAction)
+        out bool ignoredCurrentAction,
+        bool ignoreSingleCurrentAction = false)
     {
         count = 0;
         actionIds = "none";
-        ignoredCurrentPushedAction = false;
+        ignoredCurrentAction = false;
 
         if (character?.RulesetCharacter == null ||
             ServiceRepository.GetService<IGameLocationActionService>() is not GameLocationActionManager actionManager ||
@@ -3170,14 +3560,98 @@ internal static partial class CombatAiContext
 
         if (count == 1 &&
             currentActionMatches == 1 &&
-            currentAction is CharacterActionPushed or CharacterActionPushedCustom)
+            (ignoreSingleCurrentAction ||
+             currentAction is CharacterActionPushed or CharacterActionPushedCustom))
         {
-            ignoredCurrentPushedAction = true;
+            ignoredCurrentAction = true;
 
             return false;
         }
 
         return true;
+    }
+
+    private static bool TryPrunePostRecoveryEndTurnCurrentChain(
+        GameLocationCharacter character,
+        CharacterAction currentAction,
+        string phase)
+    {
+        if (character?.RulesetCharacter == null ||
+            !IsAdvancedCombatAiEnabled ||
+            !IsAiControlledForCombat(character) ||
+            !IsActiveBattleContender(character) ||
+            !HasCurrentPostRecoveryEndTurnMainActionSeal(character) ||
+            ServiceRepository.GetService<IGameLocationActionService>() is not GameLocationActionManager actionManager ||
+            !actionManager.actionChainByCharacter.TryGetValue(character, out var actionChainSlot) ||
+            actionChainSlot?.actionQueue == null)
+        {
+            return false;
+        }
+
+        var removed = 0;
+        var initialCount = actionChainSlot.actionQueue.Count;
+        var actionIds = initialCount > 0 ? new List<string>(initialCount) : null;
+
+        if (initialCount <= 0)
+        {
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "turn-recovery:post-end-current-chain-prune-skip",
+                $"phase={phase};action={currentAction?.ActionId};initialCount={initialCount}");
+
+            return false;
+        }
+
+        for (var i = initialCount - 1; i >= 0; i--)
+        {
+            var pendingAction = actionChainSlot.actionQueue[i].action;
+
+            actionIds?.Add(pendingAction?.ActionId.ToString() ?? "null");
+
+            if (pendingAction?.ActingCharacter != character ||
+                pendingAction.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain))
+            {
+                continue;
+            }
+
+            actionChainSlot.actionQueue.RemoveAt(i);
+            removed++;
+        }
+
+        if (removed <= 0)
+        {
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "turn-recovery:post-end-current-chain-prune-skip",
+                $"phase={phase};action={currentAction?.ActionId};initialCount={initialCount};" +
+                $"actionIds={FormatReverseActionIds(actionIds)}");
+
+            return false;
+        }
+
+        actionChainSlot.aborted = true;
+        actionChainSlot.abortReason = CharacterAction.InterruptionType.Invalid;
+
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "turn-recovery:post-end-current-chain-prune",
+            $"phase={phase};action={currentAction?.ActionId};removed={removed};" +
+            $"initialCount={initialCount};remainingCount={actionChainSlot.actionQueue.Count};" +
+            $"actionIds={FormatReverseActionIds(actionIds)}");
+
+        return true;
+    }
+
+    private static string FormatReverseActionIds(List<string> actionIds)
+    {
+        if (actionIds == null || actionIds.Count == 0)
+        {
+            return "none";
+        }
+
+        actionIds.Reverse();
+
+        return string.Join(",", actionIds);
     }
 
     private static bool HasPendingAiProcessTurnRecoveryCombatAiState(GameLocationCharacter character)
@@ -3353,6 +3827,16 @@ internal static partial class CombatAiContext
                 "route-terminal:action-chain:abort-drop",
                 $"phase={phase}");
             PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
+
+            if (IsSearchKnownTargetRoute(memory.PendingAction))
+            {
+                LogAdvancedCombatAiTurnHangDiagnostic(
+                    character,
+                    "turn-recovery:search-abort-scheduled",
+                    $"phase={phase}");
+                ScheduleAiProcessTurnRecovery(character, Id.TacticalMove, "SearchLostTargetAbort");
+            }
+
             return true;
         }
 
@@ -5360,9 +5844,6 @@ internal static partial class CombatAiContext
             GetCurrentBattleRound(),
             Math.Max(1, ObservedCombatMemoryTurnStamp));
 
-        if (IsAiControlledForCombat(defender))
-        {
-        }
     }
 
     internal static bool ShouldBlockInvalidAiMainAction(
@@ -5390,6 +5871,16 @@ internal static partial class CombatAiContext
                 return true;
             }
 
+            return true;
+        }
+
+        if (ShouldBlockPostRecoveryEndTurnMainAction(action, out blockKind))
+        {
+            return true;
+        }
+
+        if (ShouldBlockMainActionDuringPendingTurnRecovery(action, out blockKind))
+        {
             return true;
         }
 
@@ -5429,6 +5920,94 @@ internal static partial class CombatAiContext
             MarkPendingUtilityTerminalContinuation(character, action.ActionId);
         }
 
+
+        return true;
+    }
+
+    private static bool ShouldBlockPostRecoveryEndTurnMainAction(
+        CharacterAction action,
+        out CombatAiMainActionBlockKind blockKind)
+    {
+        blockKind = CombatAiMainActionBlockKind.None;
+
+        var character = action?.ActingCharacter;
+
+        if (character?.RulesetCharacter == null ||
+            action.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain) ||
+            !HasCurrentPostRecoveryEndTurnMainActionSeal(character))
+        {
+            return false;
+        }
+
+        PendingResidualMainActionCache.Remove(character.Guid);
+        PendingUtilityTerminalContinuationCache.Remove(character.Guid);
+        TryNormalizePostRecoveryCommittedMainAction(character, "block-post-end-main", "PostRecoverySeal");
+        TryPrunePostRecoveryEndTurnCurrentChain(character, action, "block-main");
+        blockKind = CombatAiMainActionBlockKind.MainAlreadySpent;
+
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "turn-recovery:block-post-end-main",
+            $"action={action.ActionId}");
+
+        return true;
+    }
+
+    private static bool HasCurrentPostRecoveryEndTurnMainActionSeal(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null ||
+            !PostRecoveryEndTurnMainActionSealCache.TryGetValue(character.Guid, out var memory))
+        {
+            return false;
+        }
+
+        var currentRound = GetCurrentBattleRound();
+        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
+
+        if (memory.Round == currentRound && memory.TurnStamp == currentTurnStamp)
+        {
+            return true;
+        }
+
+        PostRecoveryEndTurnMainActionSealCache.Remove(character.Guid);
+
+        return false;
+    }
+
+    private static bool ShouldBlockMainActionDuringPendingTurnRecovery(
+        CharacterAction action,
+        out CombatAiMainActionBlockKind blockKind)
+    {
+        blockKind = CombatAiMainActionBlockKind.None;
+
+        var character = action?.ActingCharacter;
+
+        if (character?.RulesetCharacter == null ||
+            action.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain) ||
+            !TryGetCurrentPendingAiProcessTurnRecovery(character, out var recovery))
+        {
+            return false;
+        }
+
+        var hasCommittedMainAction = TryGetCommittedNonTerminalMainActionThisTurn(
+            character,
+            out _,
+            out var committedSource);
+        var mainUseCount = GetActionUseCount(TurnMainActionUseCountCache, character);
+
+        if (!hasCommittedMainAction && mainUseCount <= 0)
+        {
+            return false;
+        }
+
+        PendingResidualMainActionCache.Remove(character.Guid);
+        blockKind = CombatAiMainActionBlockKind.MainAlreadySpent;
+
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "turn-recovery:block-main",
+            $"action={action.ActionId};recoveryAction={recovery.ActionId};reason={recovery.Reason};" +
+            $"committed={committedSource};turnMainUses={mainUseCount}");
 
         return true;
     }
@@ -5954,8 +6533,48 @@ internal static partial class CombatAiContext
         PendingResidualMainActionCache.Remove(character.Guid);
         PendingUtilityTerminalContinuationCache.Remove(character.Guid);
 
+        if (blockKind != CombatAiMainActionBlockKind.MainAlreadySpent)
+        {
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "turn-recovery:blocked-main-skip",
+                $"blockKind={blockKind};hasRecovery=False");
 
-        return false;
+            return false;
+        }
+
+        if (!TryGetCurrentPendingAiProcessTurnRecovery(character, out var recovery))
+        {
+            if (HasCurrentPostRecoveryEndTurnMainActionSeal(character))
+            {
+                LogAdvancedCombatAiTurnHangDiagnostic(
+                    character,
+                    "turn-recovery:blocked-post-end-pruned",
+                    $"action={action.ActionId}");
+
+                return false;
+            }
+
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "turn-recovery:blocked-main-skip",
+                $"blockKind={blockKind};hasRecovery=False");
+
+            return false;
+        }
+
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "turn-recovery:blocked-main-consume",
+            $"action={action.ActionId};recoveryAction={recovery.ActionId};reason={recovery.Reason}");
+
+        return TryRecoverAiProcessTurnProgression(
+            character,
+            recovery.ActionId,
+            recovery.Reason,
+            "blocked-main",
+            action,
+            ignoreSingleCurrentAction: true);
     }
 
     private static bool ShouldClearBlockedInvalidMainCaches(CombatAiMainActionBlockKind blockKind)
@@ -7730,7 +8349,71 @@ internal static partial class CombatAiContext
             return true;
         }
 
+        if (TryConsumeSearchLostTargetRecoveryAtEndTurn(character, out suppressEndTurn))
+        {
+            return true;
+        }
+
         LogAdvancedCombatAiTurnHangDiagnostic(character, "leftover-end-turn:none");
+        return false;
+    }
+
+    private static bool TryConsumeSearchLostTargetRecoveryAtEndTurn(
+        GameLocationCharacter character,
+        out bool suppressEndTurn)
+    {
+        suppressEndTurn = false;
+
+        if (character?.RulesetCharacter == null ||
+            !TryGetCurrentPendingAiProcessTurnRecovery(character, out var recovery) ||
+            recovery.Reason != "SearchLostTargetAbort")
+        {
+            return false;
+        }
+
+        PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
+        LogAdvancedCombatAiTurnHangDiagnostic(
+            character,
+            "turn-recovery:end-turn-terminal-fallback",
+            $"action={recovery.ActionId};reason={recovery.Reason}");
+
+        if (ShouldAllowRecoveryActionLinkedMove(character, recovery.Reason))
+        {
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "turn-recovery:search-retry",
+                $"phase=end-turn;action={recovery.ActionId};reason={recovery.Reason}");
+
+            if (TrySpendRecoveryLeftoverActionEconomy(
+                    character,
+                    recovery.ActionId,
+                    recovery.Reason,
+                    "end-turn",
+                    true))
+            {
+                suppressEndTurn = true;
+
+                return true;
+            }
+
+            LogAdvancedCombatAiTurnHangDiagnostic(
+                character,
+                "turn-recovery:search-fallback",
+                $"phase=end-turn;action={recovery.ActionId};reason={recovery.Reason}");
+        }
+
+        if (TrySpendRecoveryLeftoverActionEconomy(
+                character,
+                recovery.ActionId,
+                recovery.Reason,
+                "end-turn",
+                false))
+        {
+            suppressEndTurn = true;
+
+            return true;
+        }
+
         return false;
     }
 
@@ -13411,7 +14094,10 @@ internal static partial class CombatAiContext
             hasTerminalPolicyHeld,
             out _);
         var hasPendingSearchMovement = HasPendingSearchKnownTargetMovement(character);
-        var hasSearchMovementAvailable = movementAvailability.IsAvailable && IsSearchKnownTargetPlan(turnPlan);
+        var hasSearchMovementAvailable =
+            allowActionLinkedMove &&
+            movementAvailability.IsAvailable &&
+            IsSearchKnownTargetPlan(turnPlan);
         var hasDisconnectedMovementLeak = TryGetDisconnectedPositioningMovementLeak(
             character,
             out _);

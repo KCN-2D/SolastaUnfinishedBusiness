@@ -212,7 +212,11 @@ public static class CharacterActionPatcher
                     yield return values.Current;
                 }
 
-                CombatAiContext.TryCloseTurnAfterBlockedInvalidAiMainAction(__instance, blockKind);
+                if (CombatAiContext.TryCloseTurnAfterBlockedInvalidAiMainAction(__instance, blockKind))
+                {
+                    yield return null;
+                }
+
                 yield break;
             }
 

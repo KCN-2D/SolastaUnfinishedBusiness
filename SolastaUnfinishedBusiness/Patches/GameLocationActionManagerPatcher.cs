@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Reflection;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -18,6 +19,47 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationActionManagerPatcher
 {
+    [HarmonyPatch(typeof(GameLocationActionManager), "StartNextChain")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class StartNextChain_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GameLocationCharacter character)
+        {
+            CombatAiContext.TryPrunePostRecoveryStartNextChainQueue(character, "start-next-chain");
+        }
+    }
+
+    [HarmonyPatch]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class TerminateChain_Patch
+    {
+        [UsedImplicitly]
+        private static MethodBase TargetMethod()
+        {
+            return AccessTools.Method(
+                typeof(GameLocationActionManager),
+                "TerminateChain",
+                new[] { typeof(GameLocationCharacter), typeof(bool), typeof(bool), typeof(bool).MakeByRefType() });
+        }
+
+        [UsedImplicitly]
+        public static void Prefix(GameLocationCharacter character, ref bool runNextChains)
+        {
+            if (!runNextChains)
+            {
+                return;
+            }
+
+            if (CombatAiContext.TrySuppressPostRecoveryRunNextChains(character, "terminate-chain"))
+            {
+                runNextChains = false;
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(GameLocationActionManager), nameof(GameLocationActionManager.ReactToSpendSpellSlot))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
