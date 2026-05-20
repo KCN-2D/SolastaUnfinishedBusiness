@@ -693,6 +693,19 @@ public static partial class Tabletop2024Context
 
             if (rollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
             {
+                if (mastery == MasteryProperty.Push &&
+                    defender.RulesetCharacter.WieldingSize <= CreatureSize.Large)
+                {
+                    AttacksOfOpportunity.LogSentinelPushDiagnostic(
+                        $"weapon-mastery-push-selected attacker={AttacksOfOpportunity.FormatDiagnosticCharacter(attacker)} " +
+                        $"defender={AttacksOfOpportunity.FormatDiagnosticCharacter(defender)} " +
+                        $"{AttacksOfOpportunity.FormatDiagnosticRound()} " +
+                        $"action={action.ActionId}/{action.ActionType} " +
+                        $"{AttacksOfOpportunity.FormatDiagnosticAttackMode(attackMode)} " +
+                        $"outcome={rollOutcome} damage={damageAmount} " +
+                        $"defenderPos={AttacksOfOpportunity.FormatDiagnosticPosition(defender.LocationPosition)}");
+                }
+
                 // ReSharper disable once SwitchStatementMissingSomeEnumCasesNoDefault
                 switch (mastery)
                 {
@@ -882,6 +895,12 @@ public static partial class Tabletop2024Context
         {
             var rulesetAttacker = attacker.RulesetCharacter;
             var usablePower = PowerProvider.Get(PowerWeaponMasteryPush, rulesetAttacker);
+
+            AttacksOfOpportunity.LogSentinelPushDiagnostic(
+                $"push-start attacker={AttacksOfOpportunity.FormatDiagnosticCharacter(attacker)} " +
+                $"defender={AttacksOfOpportunity.FormatDiagnosticCharacter(defender)} " +
+                $"{AttacksOfOpportunity.FormatDiagnosticRound()} " +
+                $"defenderPos={AttacksOfOpportunity.FormatDiagnosticPosition(defender.LocationPosition)}");
 
             rulesetAttacker.LogCharacterUsedFeature(GetDefinition<FeatureDefinition>("FeatureWeaponMasteryPush"));
             attacker.MyExecuteActionSpendPower(usablePower, defender);

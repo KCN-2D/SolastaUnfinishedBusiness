@@ -1589,6 +1589,9 @@ internal static class GambitsBuilders
         protected override ReactionRequest MakeReactionRequest(GameLocationCharacter attacker,
             GameLocationCharacter defender, RulesetAttackMode attackMode, ActionModifier attackModifier)
         {
+            attackMode.AddAttackTagAsNeeded(AttacksOfOpportunity.NotAoOTag);
+            attackMode.AddAttackTagAsNeeded(MartialTactician.TacticalAwareness);
+
             void ReactionValidated(ReactionRequestReactionAttack _)
             {
                 attacker.RulesetCharacter.UpdateUsageForPower(_pool, 1);

@@ -111,6 +111,7 @@ internal static class DefensiveStrikeAttack
             var attackMode = RulesetAttackMode.AttackModesPool.Get();
 
             attackMode.Copy(opportunityAttackMode);
+            attackMode.AddAttackTagAsNeeded(AttacksOfOpportunity.NotAoOTag);
 
             //Apply bonus to hit and damage of the attack mode
             attackMode.EffectDescription.FindFirstDamageForm().BonusDamage += bonus;

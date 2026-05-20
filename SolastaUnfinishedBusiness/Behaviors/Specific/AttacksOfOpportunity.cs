@@ -15,8 +15,41 @@ namespace SolastaUnfinishedBusiness.Behaviors.Specific;
 internal static class AttacksOfOpportunity
 {
     internal const string NotAoOTag = "NotAoO"; //Used to distinguish reaction attacks from AoO
+    private const string SentinelPushDiagnosticPrefix = "[UB-SentinelPush-DIAG]";
     internal static readonly IIgnoreAoOImmunity IgnoreDisengage = new IgnoreDisengage();
     internal static readonly object SentinelFeatMarker = new SentinelFeatMarker();
+
+    internal static void LogSentinelPushDiagnostic(string message)
+    {
+        Main.Info($"{SentinelPushDiagnosticPrefix} {message}");
+    }
+
+    internal static string FormatDiagnosticCharacter(GameLocationCharacter character)
+    {
+        return character == null
+            ? "<null>"
+            : $"{character.Name}/guid={character.Guid}";
+    }
+
+    internal static string FormatDiagnosticAttackMode(RulesetAttackMode attackMode)
+    {
+        return attackMode == null
+            ? "mode=<null>"
+            : $"modeAction={attackMode.ActionType} tags=[{string.Join(",", attackMode.AttackTags)}] " +
+              $"notAoO={attackMode.AttackTags.Contains(NotAoOTag)}";
+    }
+
+    internal static string FormatDiagnosticPosition(int3 position)
+    {
+        return position == int3.invalid
+            ? "invalid"
+            : $"{position.x},{position.y},{position.z}";
+    }
+
+    internal static string FormatDiagnosticRound()
+    {
+        return $"round={Gui.Battle?.CurrentRound ?? 0}";
+    }
 
     internal static IEnumerator ProcessOnCharacterAttackFinished(
         GameLocationBattleManager battleManager,
@@ -244,9 +277,21 @@ internal class CustomReactionAttack
         GameLocationActionManager actionManager,
         bool allowRange)
     {
+        var logDiagnostics = ShouldLogReactionDiagnostics(attacker);
+
         if (!CanPerformReactionAttack(
                 attacker, mover, movement, battleManager, allowRange, out var mode, out var attackModifier))
         {
+            if (logDiagnostics)
+            {
+                AttacksOfOpportunity.LogSentinelPushDiagnostic(
+                    $"reaction-can-perform-failed name={Name} " +
+                    $"attacker={AttacksOfOpportunity.FormatDiagnosticCharacter(attacker)} " +
+                    $"mover={AttacksOfOpportunity.FormatDiagnosticCharacter(mover)} " +
+                    $"{AttacksOfOpportunity.FormatDiagnosticRound()} movement={FormatMovement(movement)} " +
+                    $"allowRange={allowRange}");
+            }
+
             yield break;
         }
 
@@ -255,6 +300,18 @@ internal class CustomReactionAttack
         attackMode.actionType = ActionType.Reaction;
 
         var reactionRequest = MakeReactionRequest(attacker, mover, attackMode, attackModifier);
+
+        if (logDiagnostics)
+        {
+            AttacksOfOpportunity.LogSentinelPushDiagnostic(
+                $"reaction-request name={Name} " +
+                $"attacker={AttacksOfOpportunity.FormatDiagnosticCharacter(attacker)} " +
+                $"mover={AttacksOfOpportunity.FormatDiagnosticCharacter(mover)} " +
+                $"{AttacksOfOpportunity.FormatDiagnosticRound()} " +
+                $"action={reactionRequest.ReactionParams.ActionDefinition.Id} " +
+                $"{AttacksOfOpportunity.FormatDiagnosticAttackMode(attackMode)} " +
+                $"movement={FormatMovement(movement)} allowRange={allowRange}");
+        }
 
         if (BeforeReaction != null)
         {
@@ -272,7 +329,33 @@ internal class CustomReactionAttack
             yield return AfterReaction(attacker, mover, battleManager, actionManager, reactionRequest);
         }
 
+        if (logDiagnostics)
+        {
+            AttacksOfOpportunity.LogSentinelPushDiagnostic(
+                $"reaction-after-wait name={Name} " +
+                $"attacker={AttacksOfOpportunity.FormatDiagnosticCharacter(attacker)} " +
+                $"mover={AttacksOfOpportunity.FormatDiagnosticCharacter(mover)} " +
+                $"{AttacksOfOpportunity.FormatDiagnosticRound()} " +
+                $"validated={reactionRequest.ReactionParams.ReactionValidated} " +
+                $"action={reactionRequest.ReactionParams.ActionDefinition.Id} " +
+                $"{AttacksOfOpportunity.FormatDiagnosticAttackMode(attackMode)} returnMode=True");
+        }
+
         RulesetAttackMode.AttackModesPool.Return(attackMode);
+    }
+
+    private bool ShouldLogReactionDiagnostics(GameLocationCharacter attacker)
+    {
+        return Name is "ReactionAttackSentinel" or "ReactionAttackAoOEnter" ||
+               attacker?.RulesetCharacter?.HasSubFeatureOfType<SentinelFeatMarker>() == true;
+    }
+
+    private static string FormatMovement((int3 from, int3 to)? movement)
+    {
+        return movement.HasValue
+            ? $"{AttacksOfOpportunity.FormatDiagnosticPosition(movement.Value.from)}->" +
+              $"{AttacksOfOpportunity.FormatDiagnosticPosition(movement.Value.to)}"
+            : "<none>";
     }
 
     protected virtual bool CanPerformReactionAttack(

@@ -2693,6 +2693,45 @@ internal static partial class CombatAiContext
         return character != null && ActionLinkedMoveCache.ContainsKey(character.Guid);
     }
 
+    internal static void LogForcedMotionDiagnostic(CharacterAction action, string phase)
+    {
+        if (action?.ActingCharacter == null)
+        {
+            return;
+        }
+
+        LogCombatAiDiagnostic(
+            action.ActingCharacter,
+            phase,
+            $"action={action.ActionId}/{action.ActionType}");
+    }
+
+    internal static void LogPostRecoveryChainDiagnostic(GameLocationCharacter character, string phase)
+    {
+        if (!ShouldLogCombatAiDiagnostic(character))
+        {
+            return;
+        }
+
+        LogCombatAiDiagnostic(character, phase);
+    }
+
+    private static void LogCombatAiDiagnostic(
+        GameLocationCharacter character,
+        string phase,
+        string details = null)
+    {
+        var activeContender = Gui.Battle?.ActiveContender;
+
+        AttacksOfOpportunity.LogSentinelPushDiagnostic(
+            $"{phase} character={AttacksOfOpportunity.FormatDiagnosticCharacter(character)} " +
+            $"active={AttacksOfOpportunity.FormatDiagnosticCharacter(activeContender)} " +
+            $"{AttacksOfOpportunity.FormatDiagnosticRound()} " +
+            $"pos={AttacksOfOpportunity.FormatDiagnosticPosition(character.LocationPosition)} " +
+            $"{FormatCombatAiDiagnosticState(character)}" +
+            (string.IsNullOrEmpty(details) ? string.Empty : $" {details}"));
+    }
+
     private static int GetDictionaryValueOrDefault(Dictionary<ulong, int> dictionary, ulong key)
     {
         return dictionary.TryGetValue(key, out var value) ? value : 0;
@@ -2705,10 +2744,59 @@ internal static partial class CombatAiContext
             yield break;
         }
 
-        TryCloseForcedMotionGroundMeleeTerminal(action.ActingCharacter);
+        LogForcedMotionDiagnostic(action, "forced-motion-completed-start");
+
+        if (TryCloseForcedMotionGroundMeleeTerminal(action.ActingCharacter))
+        {
+            LogForcedMotionDiagnostic(action, "forced-motion-terminal-closed");
+        }
+
+        if (ClearForcedMotionPositionDependentAiState(action.ActingCharacter))
+        {
+            LogForcedMotionDiagnostic(action, "forced-motion-position-state-cleared");
+        }
+
         ScheduleAiProcessTurnRecovery(action.ActingCharacter, action.ActionId, "ForcedMotion");
+        LogForcedMotionDiagnostic(action, "forced-motion-recovery-scheduled");
 
         yield break;
+    }
+
+    private static bool ShouldLogCombatAiDiagnostic(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null ||
+            !IsAdvancedCombatAiEnabled ||
+            !IsAiControlledForCombat(character))
+        {
+            return false;
+        }
+
+        return IsActiveBattleContender(character) ||
+               ActionLinkedMoveCache.ContainsKey(character.Guid) ||
+               PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid) ||
+               PendingResidualMainActionCache.ContainsKey(character.Guid) ||
+               PendingUtilityTerminalContinuationCache.ContainsKey(character.Guid) ||
+               PendingAiProcessTurnRecoveryCache.ContainsKey(character.Guid) ||
+               PostRecoveryEndTurnMainActionSealCache.ContainsKey(character.Guid);
+    }
+
+    private static string FormatCombatAiDiagnosticState(GameLocationCharacter character)
+    {
+        if (character == null)
+        {
+            return "state=<null>";
+        }
+
+        var guid = character.Guid;
+
+        return $"active={IsActiveBattleContender(character)} " +
+               $"actionLinked={ActionLinkedMoveCache.ContainsKey(guid)} " +
+               $"routeTerminal={PendingRouteActionOnlyTerminalCache.ContainsKey(guid)} " +
+               $"residualMain={PendingResidualMainActionCache.ContainsKey(guid)} " +
+               $"utilityTerminal={PendingUtilityTerminalContinuationCache.ContainsKey(guid)} " +
+               $"turnRecovery={PendingAiProcessTurnRecoveryCache.ContainsKey(guid)} " +
+               $"postEndSeal={PostRecoveryEndTurnMainActionSealCache.ContainsKey(guid)} " +
+               $"freeJumpState={FreeJumpContext.HasAiMoveState(character)}";
     }
 
     private static bool TryCloseForcedMotionGroundMeleeTerminal(GameLocationCharacter character)
@@ -2809,6 +2897,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
+        LogCombatAiDiagnostic(character, "turn-recovery-found", $"reason={memory.Reason}");
 
         var currentRound = GetCurrentBattleRound();
         var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
@@ -2816,22 +2905,29 @@ internal static partial class CombatAiContext
         if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
         {
             PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
+            LogCombatAiDiagnostic(character, "turn-recovery-drop", $"reason={memory.Reason} drop=stale");
             return true;
         }
 
         if (!IsActiveBattleContender(character))
         {
             PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
+            LogCombatAiDiagnostic(character, "turn-recovery-drop", $"reason={memory.Reason} drop=inactive");
             return true;
         }
 
         if (HasCurrentAiProcessTurnRecovery(character))
         {
             PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
+            LogCombatAiDiagnostic(character, "turn-recovery-drop", $"reason={memory.Reason} drop=already-current");
             return true;
         }
 
-        return TryRecoverAiProcessTurnProgression(character, memory.Reason);
+        var recovered = TryRecoverAiProcessTurnProgression(character, memory.Reason);
+
+        LogCombatAiDiagnostic(character, "turn-recovery-consume", $"reason={memory.Reason} result={recovered}");
+
+        return recovered;
     }
 
     internal static bool TryExitAiProcessAfterPostRecoveryEndTurn(GameLocationCharacter character)
@@ -2847,10 +2943,62 @@ internal static partial class CombatAiContext
 
         if (HasPendingReactionRequests())
         {
+            LogCombatAiDiagnostic(character, "post-recovery-exit-skip", "reason=pending-reactions");
             return false;
         }
 
+        LogCombatAiDiagnostic(character, "post-recovery-exit");
+
         return true;
+    }
+
+    private static bool ClearForcedMotionPositionDependentAiState(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null ||
+            !IsAdvancedCombatAiEnabled ||
+            !IsAiControlledForCombat(character) ||
+            !IsActiveBattleContender(character))
+        {
+            return false;
+        }
+
+        var guid = character.Guid;
+        var groundMeleeRouteKey = GetGroundMeleeRouteMemoryKey(character);
+        var removed = false;
+
+        removed |= PendingAiMoveAttemptCache.Remove(guid);
+        removed |= ActionLinkedMoveCache.Remove(guid);
+        removed |= PendingRouteActionOnlyTerminalCache.Remove(guid);
+        removed |= PendingRouteMovementLockCache.Remove(guid);
+        removed |= RouteMoveCompletionClosedCache.Remove(guid);
+        removed |= RouteMoveDashBlockCache.Remove(guid);
+        removed |= TurnMovementProgressCache.Remove(guid);
+        removed |= ThreatRouteRecoveryCache.Remove(guid);
+        removed |= ProxyThreatRouteAttemptCache.Remove(guid);
+        removed |= PreMainRouteMoveAttemptCache.Remove(guid);
+        removed |= DisconnectedPositioningMovementLockCache.Remove(guid);
+        removed |= JumpImmediateAttackReachableCache.Remove(guid);
+        removed |= GroundMeleeJumpRouteAvailableCache.Remove(guid);
+        removed |= CurrentStateRouteBlockCache.Remove(guid);
+        removed |= TargetContactRouteQueryCache.Remove(guid);
+        removed |= GroundMeleeMoveSettlingCache.Remove(guid);
+        removed |= GroundMeleePartialRouteCache.Remove(guid);
+        removed |= GroundMeleeNoMoveTerminalSealCache.Remove(guid);
+        removed |= GroundMeleeRouteIntentCache.Remove(groundMeleeRouteKey);
+        removed |= GroundMeleeRouteFailureCache.Remove(groundMeleeRouteKey);
+        removed |= GroundMeleeDetourCandidateCache.Remove(groundMeleeRouteKey);
+        removed |= FreeJumpContext.ClearAiMoveTargetState(character);
+
+        ClearReachableRouteDestinationCache(character);
+
+        if (removed)
+        {
+            MeleeAttackPositionCache.Clear();
+            SpellAttackPositionCache.Clear();
+            ActionKindPositionCache.Clear();
+        }
+
+        return removed;
     }
 
     internal static bool TryPrunePostRecoveryStartNextChainQueue(GameLocationCharacter character)
@@ -2909,11 +3057,14 @@ internal static partial class CombatAiContext
 
     internal static bool TrySuppressPostRecoveryRunNextChains(GameLocationCharacter character)
     {
+        var hasPostRecoverySeal = HasCurrentPostRecoveryEndTurnMainActionSeal(character);
+        var hasForcedMotionRecovery = HasCurrentPendingForcedMotionTurnRecovery(character);
+
         if (character?.RulesetCharacter == null ||
             !IsAdvancedCombatAiEnabled ||
             !IsAiControlledForCombat(character) ||
             !IsActiveBattleContender(character) ||
-            !HasCurrentPostRecoveryEndTurnMainActionSeal(character))
+            (!hasPostRecoverySeal && !hasForcedMotionRecovery))
         {
             return false;
         }
@@ -2923,10 +3074,26 @@ internal static partial class CombatAiContext
             return false;
         }
 
+        if (hasForcedMotionRecovery)
+        {
+            if (ClearForcedMotionPositionDependentAiState(character))
+            {
+                LogPostRecoveryChainDiagnostic(character, "chain-terminate-forced-motion-state-cleared");
+            }
+
+            return true;
+        }
+
         TryNormalizePostRecoveryCommittedMainAction(character);
         TryPrunePostRecoveryStartNextChainQueue(character);
 
         return true;
+    }
+
+    private static bool HasCurrentPendingForcedMotionTurnRecovery(GameLocationCharacter character)
+    {
+        return TryGetCurrentPendingAiProcessTurnRecovery(character, out var memory) &&
+               memory.Reason == "ForcedMotion";
     }
 
     private static bool IsPostRecoveryStaleMainActionChain(

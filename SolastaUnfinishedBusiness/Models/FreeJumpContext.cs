@@ -213,6 +213,24 @@ internal static class FreeJumpContext
             : ActionStatus.Unavailable;
     }
 
+    internal static bool HasAiMoveState(GameLocationCharacter character)
+    {
+        return character != null &&
+               (SuppressedAiMoveTargets.ContainsKey(character.Guid) ||
+                ForcedAiFreeJumpTargets.ContainsKey(character.Guid));
+    }
+
+    internal static bool ClearAiMoveTargetState(GameLocationCharacter character)
+    {
+        if (character == null)
+        {
+            return false;
+        }
+
+        return SuppressedAiMoveTargets.Remove(character.Guid) |
+               ForcedAiFreeJumpTargets.Remove(character.Guid);
+    }
+
     internal static ActionStatus GetActionStatus(GameLocationCharacter character, ActionScope scope,
         ActionStatus actionTypeStatus, bool ignoreMovePoints)
     {

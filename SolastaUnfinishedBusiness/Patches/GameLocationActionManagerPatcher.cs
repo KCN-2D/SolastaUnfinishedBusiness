@@ -27,7 +27,12 @@ public static class GameLocationActionManagerPatcher
         [UsedImplicitly]
         public static void Prefix(GameLocationCharacter character)
         {
-            CombatAiContext.TryPrunePostRecoveryStartNextChainQueue(character);
+            CombatAiContext.LogPostRecoveryChainDiagnostic(character, "chain-start-next-before");
+
+            if (CombatAiContext.TryPrunePostRecoveryStartNextChainQueue(character))
+            {
+                CombatAiContext.LogPostRecoveryChainDiagnostic(character, "chain-start-next-pruned");
+            }
         }
     }
 
@@ -50,11 +55,15 @@ public static class GameLocationActionManagerPatcher
         {
             if (!runNextChains)
             {
+                CombatAiContext.LogPostRecoveryChainDiagnostic(character, "chain-terminate-skip-run-next-false");
                 return;
             }
 
+            CombatAiContext.LogPostRecoveryChainDiagnostic(character, "chain-terminate-before");
+
             if (CombatAiContext.TrySuppressPostRecoveryRunNextChains(character))
             {
+                CombatAiContext.LogPostRecoveryChainDiagnostic(character, "chain-terminate-suppressed");
                 runNextChains = false;
             }
         }
@@ -89,6 +98,17 @@ public static class GameLocationActionManagerPatcher
             if (reactionParams.ActingCharacter.Side != Side.Ally)
             {
                 return true;
+            }
+
+            if (reactionParams.ActingCharacter.RulesetCharacter?.HasSubFeatureOfType<SentinelFeatMarker>() == true)
+            {
+                AttacksOfOpportunity.LogSentinelPushDiagnostic(
+                    $"react-for-opportunity-attack attacker=" +
+                    $"{AttacksOfOpportunity.FormatDiagnosticCharacter(reactionParams.ActingCharacter)} " +
+                    $"target={AttacksOfOpportunity.FormatDiagnosticCharacter(reactionParams.TargetCharacters.FirstOrDefault())} " +
+                    $"{AttacksOfOpportunity.FormatDiagnosticRound()} " +
+                    $"action={reactionParams.ActionDefinition.Id} " +
+                    $"{AttacksOfOpportunity.FormatDiagnosticAttackMode(reactionParams.AttackMode)}");
             }
 
             __instance.AddInterruptRequest(new ReactionRequestWarcaster(reactionParams));
