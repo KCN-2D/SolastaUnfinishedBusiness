@@ -513,6 +513,7 @@ internal static partial class CombatAiContext
     private static readonly HashSet<ulong> PendingAiProcessTerminalLaunchAcceptedCache = [];
     private static readonly Dictionary<ulong, PendingAiProcessTurnRecoveryMemory> PendingAiProcessTurnRecoveryCache = [];
     private static readonly Dictionary<ulong, PendingTerminalDodgeEndTurnMemory> AiProcessTurnRecoveryConsumedCache = [];
+    private static readonly Dictionary<ulong, ForcedMotionAttackBudgetMemory> ForcedMotionAttackBudgetCache = [];
     private static readonly Dictionary<ulong, PendingTerminalDodgeEndTurnMemory>
         PostRecoveryEndTurnMainActionSealCache = [];
     private static readonly Dictionary<ulong, PendingTerminalDodgeEndTurnMemory>
@@ -1584,6 +1585,44 @@ internal static partial class CombatAiContext
         }
     }
 
+    private readonly struct ForcedMotionAttackBudgetMemory(
+        int round,
+        int turnStamp,
+        int actionRank,
+        int usedMainAttacks,
+        int allowedMainAttacks,
+        int iterations,
+        int mainUseCount,
+        int remainingAttacks)
+    {
+        internal int Round { get; } = round;
+        internal int TurnStamp { get; } = turnStamp;
+        internal int ActionRank { get; } = actionRank;
+        internal int UsedMainAttacks { get; } = usedMainAttacks;
+        internal int AllowedMainAttacks { get; } = allowedMainAttacks;
+        internal int Iterations { get; } = iterations;
+        internal int MainUseCount { get; } = mainUseCount;
+        internal int RemainingAttacks { get; } = remainingAttacks;
+
+        internal bool MatchesCurrentTurn(int currentRound, int currentTurnStamp)
+        {
+            return Round == currentRound && TurnStamp == currentTurnStamp;
+        }
+
+        internal ForcedMotionAttackBudgetMemory Consume()
+        {
+            return new ForcedMotionAttackBudgetMemory(
+                Round,
+                TurnStamp,
+                ActionRank,
+                UsedMainAttacks,
+                AllowedMainAttacks,
+                Iterations,
+                MainUseCount,
+                Math.Max(0, RemainingAttacks - 1));
+        }
+    }
+
     private readonly struct AiMoveFailureKey(int3 start, int3 target) : IEquatable<AiMoveFailureKey>
     {
         private int3 Start { get; } = start;
@@ -2327,6 +2366,7 @@ internal static partial class CombatAiContext
         PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
         PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
         AiProcessTurnRecoveryConsumedCache.Remove(character.Guid);
+        ForcedMotionAttackBudgetCache.Remove(character.Guid);
         PostRecoveryEndTurnMainActionSealCache.Remove(character.Guid);
         PostRecoveryMainActionNormalizationCache.Remove(character.Guid);
         PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
@@ -2416,6 +2456,7 @@ internal static partial class CombatAiContext
         if (IsAdvancedCombatAiEnabled)
         {
             ObservedCombatMemoryTurnStamp++;
+            ForcedMotionAttackBudgetCache.Remove(character.Guid);
             PostRecoveryEndTurnMainActionSealCache.Remove(character.Guid);
             PostRecoveryMainActionNormalizationCache.Remove(character.Guid);
             FailStalePendingTerminalActions(character, "turn-start");
@@ -2471,6 +2512,7 @@ internal static partial class CombatAiContext
         UbResidualMainAttackCommitCache.Remove(character.Guid);
         PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
         AiProcessTurnRecoveryConsumedCache.Remove(character.Guid);
+        ForcedMotionAttackBudgetCache.Remove(character.Guid);
 
         if (character.RulesetCharacter != null)
         {
@@ -2507,6 +2549,7 @@ internal static partial class CombatAiContext
         PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
         PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
         AiProcessTurnRecoveryConsumedCache.Remove(character.Guid);
+        ForcedMotionAttackBudgetCache.Remove(character.Guid);
         PostRecoveryEndTurnMainActionSealCache.Remove(character.Guid);
         PostRecoveryMainActionNormalizationCache.Remove(character.Guid);
         PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
@@ -2649,6 +2692,7 @@ internal static partial class CombatAiContext
         PendingAiProcessTerminalLaunchAcceptedCache.Clear();
         PendingAiProcessTurnRecoveryCache.Clear();
         AiProcessTurnRecoveryConsumedCache.Clear();
+        ForcedMotionAttackBudgetCache.Clear();
         PostRecoveryEndTurnMainActionSealCache.Clear();
         PostRecoveryMainActionNormalizationCache.Clear();
         PendingTerminalActionEndTurnSuppressCache.Clear();
@@ -2924,7 +2968,7 @@ internal static partial class CombatAiContext
         }
 
         if (memory.Reason == "ForcedMotion" &&
-            !ShouldDeferForcedMotionToAiProcessRecovery(character))
+            HasCurrentForcedMotionAttackBudgetRemaining(character))
         {
             PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
             LogCombatAiDiagnostic(character, "forced-motion-recovery-skip", "reason=extra-attack-available");
@@ -3019,7 +3063,18 @@ internal static partial class CombatAiContext
 
     private static bool ShouldDeferForcedMotionToAiProcessRecovery(GameLocationCharacter character)
     {
-        return !HasAvailableAttackMainContinuation(character);
+        if (!HasAvailableAttackMainContinuation(character))
+        {
+            return true;
+        }
+
+        if (!TryGetCommittedNonTerminalMainActionThisTurn(character, out var memory, out _) ||
+            memory.ActionId != Id.AttackMain)
+        {
+            return false;
+        }
+
+        return !TryCreateForcedMotionAttackBudget(character);
     }
 
     private static bool HasAvailableAttackMainContinuation(GameLocationCharacter character)
@@ -3028,6 +3083,169 @@ internal static partial class CombatAiContext
                IsActiveBattleContender(character) &&
                character.GetActionStatus(Id.AttackMain, ActionScope.Battle) == ActionStatus.Available &&
                character.GetActionAvailableIterations(Id.AttackMain) > 0;
+    }
+
+    private static bool TryCreateForcedMotionAttackBudget(GameLocationCharacter character)
+    {
+        if (TryGetCurrentForcedMotionAttackBudget(character, out var existing))
+        {
+            return existing.RemainingAttacks > 0;
+        }
+
+        if (!TryGetMainAttackBudgetSnapshot(
+                character,
+                out var rank,
+                out var usedMainAttacks,
+                out var allowedMainAttacks,
+                out var iterations))
+        {
+            LogForcedMotionAttackBudgetSkip(character, "snapshot-unavailable");
+            return false;
+        }
+
+        var mainUseCount = GetActionUseCount(TurnMainActionUseCountCache, character);
+        var remainingAttacks = Math.Max(0, iterations - mainUseCount);
+
+        if (iterations <= 0)
+        {
+            LogForcedMotionAttackBudgetSkip(
+                character,
+                "no-iterations",
+                rank,
+                usedMainAttacks,
+                allowedMainAttacks,
+                iterations,
+                mainUseCount,
+                remainingAttacks);
+
+            return false;
+        }
+
+        if (mainUseCount <= 0)
+        {
+            LogForcedMotionAttackBudgetSkip(
+                character,
+                "no-committed-main-use",
+                rank,
+                usedMainAttacks,
+                allowedMainAttacks,
+                iterations,
+                mainUseCount,
+                remainingAttacks);
+
+            return false;
+        }
+
+        if (remainingAttacks <= 0)
+        {
+            LogForcedMotionAttackBudgetSkip(
+                character,
+                "spent",
+                rank,
+                usedMainAttacks,
+                allowedMainAttacks,
+                iterations,
+                mainUseCount,
+                remainingAttacks);
+
+            return false;
+        }
+
+        var budget = new ForcedMotionAttackBudgetMemory(
+            GetCurrentBattleRound(),
+            Math.Max(1, ObservedCombatMemoryTurnStamp),
+            rank,
+            usedMainAttacks,
+            allowedMainAttacks,
+            iterations,
+            mainUseCount,
+            remainingAttacks);
+
+        ForcedMotionAttackBudgetCache[character.Guid] = budget;
+        LogCombatAiDiagnostic(character, "forced-motion-attack-budget-created", FormatForcedMotionAttackBudget(budget));
+
+        return true;
+    }
+
+    private static bool TryGetMainAttackBudgetSnapshot(
+        GameLocationCharacter character,
+        out int rank,
+        out int usedMainAttacks,
+        out int allowedMainAttacks,
+        out int iterations)
+    {
+        rank = -1;
+        usedMainAttacks = -1;
+        allowedMainAttacks = -1;
+        iterations = -1;
+
+        if (character?.RulesetCharacter == null)
+        {
+            return false;
+        }
+
+        rank = character.CurrentActionRankByType[ActionType.Main];
+        usedMainAttacks = character.UsedMainAttacks;
+        allowedMainAttacks = character.GetAllowedMainAttacksForRank(rank);
+        iterations = character.GetActionAvailableIterations(Id.AttackMain);
+
+        return allowedMainAttacks > 0 || iterations > 0;
+    }
+
+    private static bool TryGetCurrentForcedMotionAttackBudget(
+        GameLocationCharacter character,
+        out ForcedMotionAttackBudgetMemory budget)
+    {
+        budget = default;
+
+        if (character?.RulesetCharacter == null ||
+            !ForcedMotionAttackBudgetCache.TryGetValue(character.Guid, out budget))
+        {
+            return false;
+        }
+
+        var currentRound = GetCurrentBattleRound();
+        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
+
+        if (budget.MatchesCurrentTurn(currentRound, currentTurnStamp))
+        {
+            return true;
+        }
+
+        ForcedMotionAttackBudgetCache.Remove(character.Guid);
+        budget = default;
+
+        return false;
+    }
+
+    private static bool HasCurrentForcedMotionAttackBudgetRemaining(GameLocationCharacter character)
+    {
+        return TryGetCurrentForcedMotionAttackBudget(character, out var budget) &&
+               budget.RemainingAttacks > 0;
+    }
+
+    private static string FormatForcedMotionAttackBudget(ForcedMotionAttackBudgetMemory budget)
+    {
+        return $"rank={budget.ActionRank} used={budget.UsedMainAttacks} allowed={budget.AllowedMainAttacks} " +
+               $"iterations={budget.Iterations} mainUseCount={budget.MainUseCount} " +
+               $"remaining={budget.RemainingAttacks}";
+    }
+
+    private static void LogForcedMotionAttackBudgetSkip(
+        GameLocationCharacter character,
+        string reason,
+        int rank = -1,
+        int usedMainAttacks = -1,
+        int allowedMainAttacks = -1,
+        int iterations = -1,
+        int mainUseCount = -1,
+        int remainingAttacks = -1)
+    {
+        LogCombatAiDiagnostic(
+            character,
+            "forced-motion-attack-budget-skip",
+            $"reason={reason} rank={rank} used={usedMainAttacks} allowed={allowedMainAttacks} " +
+            $"iterations={iterations} mainUseCount={mainUseCount} remaining={remainingAttacks}");
     }
 
     internal static bool TryPrunePostRecoveryStartNextChainQueue(GameLocationCharacter character)
@@ -3105,7 +3323,7 @@ internal static partial class CombatAiContext
 
         if (hasForcedMotionRecovery)
         {
-            if (!ShouldDeferForcedMotionToAiProcessRecovery(character))
+            if (HasCurrentForcedMotionAttackBudgetRemaining(character))
             {
                 LogPostRecoveryChainDiagnostic(character, "chain-terminate-forced-motion-allow-extra-attack");
 
@@ -5561,6 +5779,11 @@ internal static partial class CombatAiContext
             return true;
         }
 
+        if (ShouldBlockForcedMotionAttackBudgetAction(action, out blockKind))
+        {
+            return true;
+        }
+
         if (ShouldBlockMainActionDuringPendingTurnRecovery(action, out blockKind))
         {
             return true;
@@ -5583,6 +5806,8 @@ internal static partial class CombatAiContext
                 return true;
             }
 
+            TryConsumeForcedMotionAttackBudgetForAllowedAction(action);
+
             return false;
         }
 
@@ -5590,6 +5815,8 @@ internal static partial class CombatAiContext
 
         if (validation.IsValid)
         {
+            TryConsumeForcedMotionAttackBudgetForAllowedAction(action);
+
             return false;
         }
 
@@ -5669,7 +5896,7 @@ internal static partial class CombatAiContext
 
         if (recovery.Reason == "ForcedMotion" &&
             action.ActionId == Id.AttackMain &&
-            HasAvailableAttackMainContinuation(character))
+            HasCurrentForcedMotionAttackBudgetRemaining(character))
         {
             PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
             LogCombatAiDiagnostic(character, "forced-motion-recovery-skip", "reason=extra-attack-available");
@@ -5693,6 +5920,92 @@ internal static partial class CombatAiContext
 
 
         return true;
+    }
+
+    private static bool ShouldBlockForcedMotionAttackBudgetAction(
+        CharacterAction action,
+        out CombatAiMainActionBlockKind blockKind)
+    {
+        blockKind = CombatAiMainActionBlockKind.None;
+
+        var character = action?.ActingCharacter;
+
+        if (character?.RulesetCharacter == null ||
+            action.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain) ||
+            !TryGetCurrentForcedMotionAttackBudget(character, out var budget))
+        {
+            return false;
+        }
+
+        if (action.ActionId == Id.AttackMain &&
+            budget.RemainingAttacks > 0 &&
+            budget.ActionRank == character.CurrentActionRankByType[ActionType.Main] &&
+            HasAvailableAttackMainContinuation(character))
+        {
+            return false;
+        }
+
+        ForcedMotionAttackBudgetCache.Remove(character.Guid);
+        PendingResidualMainActionCache.Remove(character.Guid);
+        PendingUtilityTerminalContinuationCache.Remove(character.Guid);
+        blockKind = CombatAiMainActionBlockKind.MainAlreadySpent;
+        LogCombatAiDiagnostic(
+            character,
+            "forced-motion-attack-budget-block",
+            FormatForcedMotionAttackBudget(budget));
+
+        return true;
+    }
+
+    private static void TryConsumeForcedMotionAttackBudgetForAllowedAction(CharacterAction action)
+    {
+        var character = action?.ActingCharacter;
+
+        if (character?.RulesetCharacter == null ||
+            action.ActionId != Id.AttackMain ||
+            !TryGetCurrentForcedMotionAttackBudget(character, out var budget) ||
+            budget.RemainingAttacks <= 0)
+        {
+            return;
+        }
+
+        NormalizeForcedMotionAttackBudgetIterations(character, budget);
+
+        var consumedBudget = budget.Consume();
+
+        ForcedMotionAttackBudgetCache[character.Guid] = consumedBudget;
+        PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
+        LogCombatAiDiagnostic(
+            character,
+            "forced-motion-attack-budget-consumed",
+            FormatForcedMotionAttackBudget(consumedBudget));
+    }
+
+    private static void NormalizeForcedMotionAttackBudgetIterations(
+        GameLocationCharacter character,
+        ForcedMotionAttackBudgetMemory budget)
+    {
+        if (character?.RulesetCharacter == null ||
+            budget.AllowedMainAttacks <= 0 ||
+            budget.RemainingAttacks <= 0 ||
+            budget.ActionRank != character.CurrentActionRankByType[ActionType.Main])
+        {
+            return;
+        }
+
+        var usedBefore = character.UsedMainAttacks;
+        var desiredUsedMainAttacks = Math.Max(0, budget.AllowedMainAttacks - budget.RemainingAttacks);
+
+        if (usedBefore < desiredUsedMainAttacks)
+        {
+            character.UsedMainAttacks = desiredUsedMainAttacks;
+        }
+
+        LogCombatAiDiagnostic(
+            character,
+            "forced-motion-attack-budget-normalized",
+            $"rank={budget.ActionRank} usedBefore={usedBefore} usedAfter={character.UsedMainAttacks} " +
+            $"allowed={budget.AllowedMainAttacks} remaining={budget.RemainingAttacks}");
     }
 
     internal static bool ShouldBlockDisconnectedAiMovementAction(CharacterAction action)
