@@ -2756,6 +2756,13 @@ internal static partial class CombatAiContext
             LogForcedMotionDiagnostic(action, "forced-motion-position-state-cleared");
         }
 
+        if (!ShouldDeferForcedMotionToAiProcessRecovery(action.ActingCharacter))
+        {
+            LogForcedMotionDiagnostic(action, "forced-motion-recovery-skip reason=extra-attack-available");
+
+            yield break;
+        }
+
         ScheduleAiProcessTurnRecovery(action.ActingCharacter, action.ActionId, "ForcedMotion");
         LogForcedMotionDiagnostic(action, "forced-motion-recovery-scheduled");
 
@@ -2916,6 +2923,15 @@ internal static partial class CombatAiContext
             return true;
         }
 
+        if (memory.Reason == "ForcedMotion" &&
+            !ShouldDeferForcedMotionToAiProcessRecovery(character))
+        {
+            PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
+            LogCombatAiDiagnostic(character, "forced-motion-recovery-skip", "reason=extra-attack-available");
+
+            return false;
+        }
+
         if (HasCurrentAiProcessTurnRecovery(character))
         {
             PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
@@ -3001,6 +3017,19 @@ internal static partial class CombatAiContext
         return removed;
     }
 
+    private static bool ShouldDeferForcedMotionToAiProcessRecovery(GameLocationCharacter character)
+    {
+        return !HasAvailableAttackMainContinuation(character);
+    }
+
+    private static bool HasAvailableAttackMainContinuation(GameLocationCharacter character)
+    {
+        return character?.RulesetCharacter != null &&
+               IsActiveBattleContender(character) &&
+               character.GetActionStatus(Id.AttackMain, ActionScope.Battle) == ActionStatus.Available &&
+               character.GetActionAvailableIterations(Id.AttackMain) > 0;
+    }
+
     internal static bool TryPrunePostRecoveryStartNextChainQueue(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null ||
@@ -3076,6 +3105,13 @@ internal static partial class CombatAiContext
 
         if (hasForcedMotionRecovery)
         {
+            if (!ShouldDeferForcedMotionToAiProcessRecovery(character))
+            {
+                LogPostRecoveryChainDiagnostic(character, "chain-terminate-forced-motion-allow-extra-attack");
+
+                return false;
+            }
+
             if (ClearForcedMotionPositionDependentAiState(character))
             {
                 LogPostRecoveryChainDiagnostic(character, "chain-terminate-forced-motion-state-cleared");
@@ -5628,6 +5664,16 @@ internal static partial class CombatAiContext
             action.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain) ||
             !TryGetCurrentPendingAiProcessTurnRecovery(character, out var recovery))
         {
+            return false;
+        }
+
+        if (recovery.Reason == "ForcedMotion" &&
+            action.ActionId == Id.AttackMain &&
+            HasAvailableAttackMainContinuation(character))
+        {
+            PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
+            LogCombatAiDiagnostic(character, "forced-motion-recovery-skip", "reason=extra-attack-available");
+
             return false;
         }
 
