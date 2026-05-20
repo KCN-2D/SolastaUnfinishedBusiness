@@ -54,6 +54,15 @@ public static class CharacterActionMoveStepWalkPatcher
 
             CombatAiContext.NotifyAiMoveStepCompleted(mover);
 
+            if (mover != null && MovementTracker.TryGetMovement(mover.Guid, out var movement))
+            {
+                FreeJumpContext.TrySpendAiBonusActionAfterCompletedMove(
+                    mover,
+                    movement.from,
+                    movement.to,
+                    "walk-step-ended");
+            }
+
             //PATCH: support for Circle of the Wildfire cauterizing flames
             yield return CircleOfTheWildfire.HandleCauterizingFlamesBehavior(mover);
 

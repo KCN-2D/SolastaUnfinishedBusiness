@@ -2729,6 +2729,7 @@ internal static partial class CombatAiContext
         GroundMeleeNoMoveTerminalSealCache.Clear();
         ReachableRouteDestinationCache.Clear();
         ReachableRoutePathfindingCountCache.Clear();
+        FreeJumpContext.ClearPendingAiFreeJumpCompletions();
         ObservedCombatMemoryTurnStamp = 0;
     }
 

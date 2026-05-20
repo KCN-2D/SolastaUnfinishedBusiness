@@ -6,6 +6,7 @@ using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Validators;
 using TA;
 using static ActionDefinitions;
@@ -118,6 +119,12 @@ internal static class AttacksOfOpportunity
         {
             yield break;
         }
+
+        FreeJumpContext.TrySpendAiBonusActionAfterCompletedMove(
+            mover,
+            movement.from,
+            movement.to,
+            "move-end-aoo");
 
         var actionManager = ServiceRepository.GetService<IGameLocationActionService>() as GameLocationActionManager;
         var battleManager = ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
