@@ -65,6 +65,19 @@ internal static class SubclassesDisplay
             Tabletop2014Context.SwitchBardHealingBalladOnLongRest();
         }
 
+        toggle = Main.Settings.EnableDivineHeartTabletopFeatures;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableDivineHeartTabletopFeatures"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableDivineHeartTabletopFeatures = toggle;
+            SorcerousDivineHeart.SwitchDivineHeartTabletopFeatures();
+        }
+
+        if (Main.Settings.EnableDivineHeartTabletopFeatures)
+        {
+            UI.Label(Gui.Localize("ModUi/&EnableDivineHeartTabletopFeaturesHelp"));
+            UI.Label();
+        }
+
         toggle = Main.Settings.EnableRogueStrSaving;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableRogueStrSaving"), ref toggle, UI.AutoWidth()))
         {

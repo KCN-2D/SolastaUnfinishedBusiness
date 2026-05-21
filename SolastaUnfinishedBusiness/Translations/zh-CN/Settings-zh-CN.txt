@@ -133,6 +133,8 @@ ModUi/&EnableBarbarianRelentlessRage2024=启用 5e 2024 版本<color=#D89555>坚
 ModUi/&EnableBardCounterCharm2024=在第 7 级启用 <color=#D89555>反迷惑</color>反应，以替代 6 级动作启动能力
 ModUi/&EnableBardExpertiseOneLevelBefore2024=在第 2 级和 9 级（而非 3 级和 10 级）启用<color=#D89555>专精</color>
 ModUi/&EnableBardHealingBalladOnLongRest=长休时启用<b>希望学院</b> <color=#D89555>治愈之歌</color>
+ModUi/&EnableDivineHeartTabletopFeatures=启用 <b>Divine Soul</b> 桌面规则特性
+ModUi/&EnableDivineHeartTabletopFeaturesHelp=将 Divine Heart 的初始特性替换为 Favored by the Gods，14 级特性替换为 Otherworldly Wings。
 ModUi/&EnableBardMagicalSecrets2024=启用 5e 2024 版本<color=#D89555>魔法奥秘</color>
 ModUi/&EnableBardSuperiorInspiration2024=在第 18 级（而非 20 级）启用<color=#D89555>先发激励</color>，并且重获 2 次次数（而非 1 次）
 ModUi/&EnableBardWordsOfCreation2024=在 20 级时启用<color=#D89555>创生圣言</color>

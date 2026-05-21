@@ -578,6 +578,7 @@ public class Settings : UnityModManager.ModSettings
     public bool EnableStrictTabletopClassSelection { get; set; }
     public bool AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness { get; set; }
     [Tag(Type = TagType.T2014)] public bool EnableBardHealingBalladOnLongRest { get; set; }
+    [Tag(Type = TagType.T2014)] public bool EnableDivineHeartTabletopFeatures { get; set; }
     public bool EnableBg3AbjurationArcaneWard { get; set; }
     public bool EnableRogueStrSaving { get; set; }
     public bool RemoveSchoolRestrictionsFromShadowCaster { get; set; }

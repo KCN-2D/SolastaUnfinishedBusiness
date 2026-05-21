@@ -126,6 +126,8 @@ ModUi/&EnableBarbarianRelentlessRage2024=<color=#D89555>倒れずの激怒</colo
 ModUi/&EnableBardCounterCharm2024=<color=#D89555>心を守る歌</color>を、6レベルのアクションではなく7レベルのリアクションとして有効にします
 ModUi/&EnableBardExpertiseOneLevelBefore2024=<color=#D89555>習熟強化</color>を、3レベルと10レベルではなく2レベルと9レベルで有効にする
 ModUi/&EnableBardHealingBalladOnLongRest=大休憩時に<b>希望の楽派</b><color=#D89555>癒しのバラード</color>を有効にする
+ModUi/&EnableDivineHeartTabletopFeatures=<b>神の魂</b>のテーブルトップ版特徴を有効にする
+ModUi/&EnableDivineHeartTabletopFeaturesHelp=有効にすると、<b>神の魂</b>の最初の特徴を<color=#D89555>神々の恩寵</color>に、14レベル特徴を<color=#D89555>異界の翼</color>に置き換えます。
 ModUi/&EnableBardMagicalSecrets2024=<color=#D89555>魔法の秘密</color>を5e 2024版と入れ替える
 ModUi/&EnableBardSuperiorInspiration2024=<color=#D89555>尽きせぬ声援</color>をレベル20ではなくレベル18で有効化し、回復回数を1回ではなく2回にします
 ModUi/&EnableBardWordsOfCreation2024=レベル20で<color=#D89555>創造の言葉</color>を有効にする

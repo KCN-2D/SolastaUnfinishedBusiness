@@ -133,6 +133,8 @@ ModUi/&EnableBarbarianRelentlessRage2024=Заменить <color=#D89555>Неп�
 ModUi/&EnableBardCounterCharm2024=Включить <color=#D89555>Контрчары</color> на уровне 7 реакцией вместо действия на уровне 6
 ModUi/&EnableBardExpertiseOneLevelBefore2024=Включить <color=#D89555>Компетентность</color> на уровнях 2 и 9 вместо 3 и 10
 ModUi/&EnableBardHealingBalladOnLongRest=Включить <b>Бардам коллегии надежды</b> работу умения <color=#D89555>Целительная баллада</color> при длительном отдыхе
+ModUi/&EnableDivineHeartTabletopFeatures=Включить настольные умения <b>Divine Soul</b>
+ModUi/&EnableDivineHeartTabletopFeaturesHelp=Заменяет начальное умение Divine Heart на Favored by the Gods, а умение 14-го уровня на Otherworldly Wings.
 ModUi/&EnableBardMagicalSecrets2024=Заменить <color=#D89555>Тайны магии</color> на версию из 5e 2024
 ModUi/&EnableBardSuperiorInspiration2024=Включить <color=#D89555>Превосходное вдохновение</color> на уровне 18 вместо 20, а также давать 2 использования вместо 1
 ModUi/&EnableBardWordsOfCreation2024=Включить <color=#D89555>Слова творения</color> на уровне 20
