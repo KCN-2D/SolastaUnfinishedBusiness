@@ -59,8 +59,7 @@ public static class CharacterActionMoveStepWalkPatcher
                 FreeJumpContext.TrySpendAiBonusActionAfterCompletedMove(
                     mover,
                     movement.from,
-                    movement.to,
-                    "walk-step-ended");
+                    movement.to);
             }
 
             //PATCH: support for Circle of the Wildfire cauterizing flames

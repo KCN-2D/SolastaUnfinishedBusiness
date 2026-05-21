@@ -681,7 +681,7 @@ internal static class FreeJumpContext
             ForcedAiFreeJumpTargets.Remove(character.Guid);
         }
 
-        RegisterPendingAiFreeJumpCompletion(character, character.LocationPosition, destination, "ai-pathfinding");
+        RegisterPendingAiFreeJumpCompletion(character, character.LocationPosition, destination);
 
         return BeginScope(character, ScopeKind.AiMove, destination, true);
     }
@@ -753,7 +753,7 @@ internal static class FreeJumpContext
             scope.FailedTargets.Remove(destination);
         }
 
-        RegisterPendingAiFreeJumpCompletion(character, character.LocationPosition, destination, "ai-prepare");
+        RegisterPendingAiFreeJumpCompletion(character, character.LocationPosition, destination);
         ForcedAiFreeJumpTargets[character.Guid] = destination;
         return true;
     }
@@ -1212,7 +1212,7 @@ internal static class FreeJumpContext
 
         if (scope.Kind == ScopeKind.AiMove)
         {
-            TrySpendAiBonusActionAfterCompletedMove(character, start, finish, "ai-jump-finished");
+            TrySpendAiBonusActionAfterCompletedMove(character, start, finish);
             return;
         }
 
@@ -1231,14 +1231,13 @@ internal static class FreeJumpContext
             return;
         }
 
-        SpendBonusAction(character, scope, finish, "jump-finished");
+        SpendBonusAction(character, scope);
     }
 
     internal static void TrySpendAiBonusActionAfterCompletedMove(
         GameLocationCharacter character,
         int3 start,
-        int3 finish,
-        string source)
+        int3 finish)
     {
         if (!Main.Settings.EnableBonusActionFreeJump || character == null)
         {
@@ -1257,7 +1256,6 @@ internal static class FreeJumpContext
         }
 
         var expectedStart = hasPending ? pending.StartPosition : scope.StartPosition;
-        var expectedTarget = hasPending ? pending.TargetPosition : scope.TargetPosition;
         var bonusStatus = character.GetActionTypeStatus(ActionType.Bonus);
         var skipReason = GetAiFreeJumpBonusSpendSkipReason(
             character,
@@ -1275,17 +1273,11 @@ internal static class FreeJumpContext
                 PendingAiFreeJumpCompletions.Remove(guid);
             }
 
-            if (hasPending)
-            {
-                LogAiFreeJumpBonusSkip(character, source, skipReason, start, finish, expectedStart, expectedTarget,
-                    bonusStatus);
-            }
-
             return;
         }
 
         var spent = hasAiMoveScope
-            ? SpendBonusAction(character, scope, finish, source)
+            ? SpendBonusAction(character, scope)
             : SpendAiBonusActionWithoutScope(character);
 
         if (!spent)
@@ -1293,15 +1285,12 @@ internal static class FreeJumpContext
             if (hasPending)
             {
                 PendingAiFreeJumpCompletions.Remove(guid);
-                LogAiFreeJumpBonusSkip(character, source, "spend-failed", start, finish, expectedStart, expectedTarget,
-                    bonusStatus);
             }
 
             return;
         }
 
         PendingAiFreeJumpCompletions.Remove(guid);
-        LogAiFreeJumpBonusSpent(character, source, start, finish);
     }
 
     private static void AddPathfindingNeighbours(
@@ -1355,7 +1344,7 @@ internal static class FreeJumpContext
 
         if (IsBonusActionSpendingScope(scope))
         {
-            SpendBonusAction(scope.Character, scope, destination, "target-edge");
+            SpendBonusAction(scope.Character, scope);
         }
     }
 
@@ -1390,8 +1379,7 @@ internal static class FreeJumpContext
             TrySpendAiBonusActionAfterCompletedMove(
                 character,
                 scope.StartPosition,
-                character.LocationPosition,
-                "ai-move-ended");
+                character.LocationPosition);
 
             return;
         }
@@ -1413,11 +1401,11 @@ internal static class FreeJumpContext
 
         if (!scope.JumpSignalReceived)
         {
-            SpendBonusAction(character, scope, character.LocationPosition, "move-ended-no-jump-signal");
+            SpendBonusAction(character, scope);
             return;
         }
 
-        SpendBonusAction(character, scope, character.LocationPosition, "move-ended");
+        SpendBonusAction(character, scope);
     }
 
     private static bool ShouldDisableExplorationFreeJumpAfterMove(CharacterActionMove action)
@@ -1623,8 +1611,7 @@ internal static class FreeJumpContext
     private static void RegisterPendingAiFreeJumpCompletion(
         GameLocationCharacter character,
         int3 startPosition,
-        int3 targetPosition,
-        string source)
+        int3 targetPosition)
     {
         if (character?.RulesetCharacter == null ||
             startPosition == int3.invalid ||
@@ -1636,12 +1623,6 @@ internal static class FreeJumpContext
 
         PendingAiFreeJumpCompletions[character.Guid] =
             new PendingAiFreeJumpCompletion(startPosition, targetPosition);
-
-        AttacksOfOpportunity.LogSentinelPushDiagnostic(
-            $"ai-free-jump-pending-created character={AttacksOfOpportunity.FormatDiagnosticCharacter(character)} " +
-            $"{AttacksOfOpportunity.FormatDiagnosticRound()} source={source} " +
-            $"start={AttacksOfOpportunity.FormatDiagnosticPosition(startPosition)} " +
-            $"target={AttacksOfOpportunity.FormatDiagnosticPosition(targetPosition)}");
     }
 
     private static string GetAiFreeJumpBonusSpendSkipReason(
@@ -1688,9 +1669,7 @@ internal static class FreeJumpContext
 
     private static bool SpendBonusAction(
         GameLocationCharacter character,
-        ScopeData scope,
-        int3 destination,
-        string source)
+        ScopeData scope)
     {
         if (scope.BonusActionSpent)
         {
@@ -1724,40 +1703,6 @@ internal static class FreeJumpContext
         CombatAiContext.RecordAiBonusActionUse(character);
 
         return true;
-    }
-
-    private static void LogAiFreeJumpBonusSpent(
-        GameLocationCharacter character,
-        string source,
-        int3 start,
-        int3 finish)
-    {
-        AttacksOfOpportunity.LogSentinelPushDiagnostic(
-            $"ai-free-jump-bonus-spent character={AttacksOfOpportunity.FormatDiagnosticCharacter(character)} " +
-            $"{AttacksOfOpportunity.FormatDiagnosticRound()} source={source} " +
-            $"from={AttacksOfOpportunity.FormatDiagnosticPosition(start)} " +
-            $"to={AttacksOfOpportunity.FormatDiagnosticPosition(finish)}");
-    }
-
-    private static void LogAiFreeJumpBonusSkip(
-        GameLocationCharacter character,
-        string source,
-        string reason,
-        int3 start,
-        int3 finish,
-        int3 expectedStart,
-        int3 expectedTarget,
-        ActionStatus bonusStatus)
-    {
-        AttacksOfOpportunity.LogSentinelPushDiagnostic(
-            $"ai-free-jump-bonus-skip reason={reason} " +
-            $"character={AttacksOfOpportunity.FormatDiagnosticCharacter(character)} " +
-            $"{AttacksOfOpportunity.FormatDiagnosticRound()} source={source} " +
-            $"from={AttacksOfOpportunity.FormatDiagnosticPosition(start)} " +
-            $"to={AttacksOfOpportunity.FormatDiagnosticPosition(finish)} " +
-            $"start={AttacksOfOpportunity.FormatDiagnosticPosition(expectedStart)} " +
-            $"target={AttacksOfOpportunity.FormatDiagnosticPosition(expectedTarget)} " +
-            $"bonusStatus={bonusStatus}");
     }
 
     private static void TryAddPathfindingNeighbour(

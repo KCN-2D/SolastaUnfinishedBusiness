@@ -129,7 +129,8 @@ public static class CharacterActionAttackPatcher
             attackParams.attackMode.ActionType = __instance.ActionType;
             //attackParams.opportunityAttack = __instance.ActionId == ActionDefinitions.Id.AttackOpportunity;
             attackParams.opportunityAttack = __instance.ActionType == ActionDefinitions.ActionType.Reaction &&
-                                             __instance.ActionDefinition.classNameOverride == "Attack";
+                                             __instance.ActionDefinition.classNameOverride == "Attack" &&
+                                             !attackMode.AttackTags.Contains(AttacksOfOpportunity.NotAoOTag);
             //END PATCH
             attackParams.readiedAttack = __instance.ActionId == ActionDefinitions.Id.AttackReadied;
 

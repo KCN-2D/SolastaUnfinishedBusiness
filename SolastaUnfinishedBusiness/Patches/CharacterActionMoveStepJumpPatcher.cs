@@ -43,8 +43,7 @@ public static class CharacterActionMoveStepJumpPatcher
             FreeJumpContext.TrySpendAiBonusActionAfterCompletedMove(
                 mover,
                 movement.from,
-                movement.to,
-                "jump-step-ended");
+                movement.to);
         }
 
         private static bool TryGetCompletedJumpMovement(

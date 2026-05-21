@@ -3378,23 +3378,9 @@ internal static class OtherFeats
             bool firstTarget,
             bool criticalHit)
         {
-            AttacksOfOpportunity.LogSentinelPushDiagnostic(
-                $"sentinel-before-hit attacker={AttacksOfOpportunity.FormatDiagnosticCharacter(attacker)} " +
-                $"defender={AttacksOfOpportunity.FormatDiagnosticCharacter(defender)} " +
-                $"{AttacksOfOpportunity.FormatDiagnosticRound()} " +
-                $"{AttacksOfOpportunity.FormatDiagnosticAttackMode(attackMode)} " +
-                $"ranged={rangedAttack} firstTarget={firstTarget} critical={criticalHit}");
-
             if (attackMode.ActionType != ActionType.Reaction ||
                 attackMode.AttackTags.Contains(AttacksOfOpportunity.NotAoOTag))
             {
-                AttacksOfOpportunity.LogSentinelPushDiagnostic(
-                    $"sentinel-skip attacker={AttacksOfOpportunity.FormatDiagnosticCharacter(attacker)} " +
-                    $"defender={AttacksOfOpportunity.FormatDiagnosticCharacter(defender)} " +
-                    $"{AttacksOfOpportunity.FormatDiagnosticRound()} " +
-                    $"{AttacksOfOpportunity.FormatDiagnosticAttackMode(attackMode)} " +
-                    $"reason={(attackMode.ActionType != ActionType.Reaction ? "not-reaction" : "not-aoo-tag")}");
-
                 yield break;
             }
 
@@ -3416,11 +3402,6 @@ internal static class OtherFeats
                 0,
                 0,
                 0);
-
-            AttacksOfOpportunity.LogSentinelPushDiagnostic(
-                $"sentinel-stop-applied attacker={AttacksOfOpportunity.FormatDiagnosticCharacter(attacker)} " +
-                $"defender={AttacksOfOpportunity.FormatDiagnosticCharacter(defender)} " +
-                $"{AttacksOfOpportunity.FormatDiagnosticRound()} condition={conditionSentinelStopMovement.Name}");
         }
     }
 
