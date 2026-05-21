@@ -25,14 +25,23 @@ public static class GameLocationActionManagerPatcher
     public static class StartNextChain_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(GameLocationCharacter character)
+        public static bool Prefix(GameLocationCharacter character, ref bool __result)
         {
             CombatAiContext.LogPostRecoveryChainDiagnostic(character, "chain-start-next-before");
+
+            if (CombatAiContext.TryHandlePendingTurnRecoveryStartNextChain(character, out var suppressStartNextChain) &&
+                suppressStartNextChain)
+            {
+                __result = false;
+                return false;
+            }
 
             if (CombatAiContext.TryPrunePostRecoveryStartNextChainQueue(character))
             {
                 CombatAiContext.LogPostRecoveryChainDiagnostic(character, "chain-start-next-pruned");
             }
+
+            return true;
         }
     }
 
