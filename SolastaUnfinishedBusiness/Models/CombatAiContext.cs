@@ -486,6 +486,10 @@ internal static partial class CombatAiContext
     private const int RepeatedRangedAttackThreshold = 2;
     private const int ForcedFiringPositionRepeatThreshold = 3;
     private const int RepeatedMeleeAlternativeThreshold = 3;
+    private const string ForcedMotionRecoveryReason = "ForcedMotion";
+    private const string JumpImmediateAttackAbortedRecoveryReason = "JumpImmediateAttackAborted";
+    private const string JumpImmediateAttackNoMoveRecoveryReason = "JumpImmediateAttackNoMove";
+    private const string SearchLostTargetAbortRecoveryReason = "SearchLostTargetAbort";
     private static readonly string[] CautiousFlags = ["Self-Preservation", "Pragmatism", "Cynicism"];
     private static readonly string[] DisciplinedFlags = ["Authority", "Lawfulness", "Helpfulness", "Friendliness"];
     private static readonly string[] OpportunisticFlags = ["Greed", "Selfishness"];
@@ -2761,7 +2765,7 @@ internal static partial class CombatAiContext
             yield break;
         }
 
-        ScheduleAiProcessTurnRecovery(action.ActingCharacter, action.ActionId, "ForcedMotion");
+        ScheduleAiProcessTurnRecovery(action.ActingCharacter, action.ActionId, ForcedMotionRecoveryReason);
 
         yield break;
     }
@@ -2975,7 +2979,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        return !TryCreateRecoveryAttackBudget(character, "ForcedMotion");
+        return !TryCreateRecoveryAttackBudget(character, ForcedMotionRecoveryReason);
     }
 
     private static bool HasAvailableAttackMainContinuation(GameLocationCharacter character)
@@ -3119,12 +3123,13 @@ internal static partial class CombatAiContext
 
     private static bool IsRecoveryAttackBudgetReason(string reason)
     {
-        return reason == "ForcedMotion" || IsJumpImmediateAttackRecoveryReason(reason);
+        return reason == ForcedMotionRecoveryReason || IsJumpImmediateAttackRecoveryReason(reason);
     }
 
     private static bool IsJumpImmediateAttackRecoveryReason(string reason)
     {
-        return reason is "JumpImmediateAttackAborted" or "JumpImmediateAttackNoMove";
+        return reason == JumpImmediateAttackAbortedRecoveryReason ||
+               reason == JumpImmediateAttackNoMoveRecoveryReason;
     }
 
     private static bool TryAllowRecoveryAttackContinuation(GameLocationCharacter character, string reason)
@@ -3313,7 +3318,7 @@ internal static partial class CombatAiContext
         var hasPostRecoverySeal = HasCurrentPostRecoveryEndTurnMainActionSeal(character);
         var hasForcedMotionRecovery =
             TryGetCurrentPendingAiProcessTurnRecovery(character, out var recovery) &&
-            recovery.Reason == "ForcedMotion";
+            recovery.Reason == ForcedMotionRecoveryReason;
 
         if (character?.RulesetCharacter == null ||
             !IsAdvancedCombatAiEnabled ||
@@ -3342,7 +3347,7 @@ internal static partial class CombatAiContext
                 return false;
             }
 
-            if (recovery.Reason == "ForcedMotion")
+            if (recovery.Reason == ForcedMotionRecoveryReason)
             {
                 ClearForcedMotionPositionDependentAiState(character);
             }
@@ -3473,7 +3478,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        if (reason == "ForcedMotion" &&
+        if (reason == ForcedMotionRecoveryReason &&
             !IsTacticalMovementUnavailable(character) &&
             !HasCommittedMainActionThisTurn(character))
         {
@@ -3527,7 +3532,7 @@ internal static partial class CombatAiContext
 
     private static bool ShouldAllowRecoveryActionLinkedMove(GameLocationCharacter character, string reason)
     {
-        return reason == "SearchLostTargetAbort" &&
+        return reason == SearchLostTargetAbortRecoveryReason &&
                character?.RulesetCharacter != null &&
                character.RemainingTacticalMoves > 0 &&
                character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) == ActionStatus.Available;
@@ -3882,7 +3887,7 @@ internal static partial class CombatAiContext
 
             if (IsSearchKnownTargetRoute(memory.PendingAction))
             {
-                ScheduleAiProcessTurnRecovery(character, Id.TacticalMove, "SearchLostTargetAbort");
+                ScheduleAiProcessTurnRecovery(character, Id.TacticalMove, SearchLostTargetAbortRecoveryReason);
             }
 
             return true;
@@ -4956,6 +4961,12 @@ internal static partial class CombatAiContext
         }
 
         PendingAiMoveAttemptCache.Remove(character.Guid);
+
+        if (TryResolveJumpImmediateMoveSettlingAfterMoveResult(character))
+        {
+            return;
+        }
+
         var hadPendingActionLinkedMove =
             ActionLinkedMoveCache.TryGetValue(character.Guid, out var pendingAction);
 
@@ -5053,6 +5064,23 @@ internal static partial class CombatAiContext
         }
 
         RecordAiMoveFailure(character, start, target);
+    }
+
+    private static bool TryResolveJumpImmediateMoveSettlingAfterMoveResult(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null ||
+            !GroundMeleeMoveSettlingCache.TryGetValue(character.Guid, out var memory) ||
+            !IsGroundMeleeJumpImmediateAttackRoute(memory.PendingAction))
+        {
+            return false;
+        }
+
+        ResolveGroundMeleeMoveSettling(
+            character,
+            allowConnectedRouteValidation: true,
+            allowTerminalAction: true);
+
+        return true;
     }
 
     private static void ForceCloseNoMoveAfterMoveResult(
@@ -8282,7 +8310,7 @@ internal static partial class CombatAiContext
 
         if (character?.RulesetCharacter == null ||
             !TryGetCurrentPendingAiProcessTurnRecovery(character, out var recovery) ||
-            recovery.Reason != "SearchLostTargetAbort")
+            recovery.Reason != SearchLostTargetAbortRecoveryReason)
         {
             return false;
         }
@@ -11866,13 +11894,9 @@ internal static partial class CombatAiContext
             return true;
         }
 
-        if (aborted && actualDestination == pendingAction.StartPosition)
+        if (actualDestination == pendingAction.StartPosition)
         {
-            CloseFailedJumpImmediateAttackRoute(
-                character,
-                pendingAction,
-                actualDestination,
-                "JumpImmediateAttackNoMove");
+            DeferJumpImmediateAttackMoveResult(character, pendingAction);
             return true;
         }
 
@@ -11882,17 +11906,7 @@ internal static partial class CombatAiContext
                 character,
                 pendingAction,
                 actualDestination,
-                "JumpImmediateAttackAborted");
-            return true;
-        }
-
-        if (actualDestination == pendingAction.StartPosition)
-        {
-            CloseFailedJumpImmediateAttackRoute(
-                character,
-                pendingAction,
-                actualDestination,
-                "JumpImmediateAttackNoMove");
+                JumpImmediateAttackAbortedRecoveryReason);
             return true;
         }
 
@@ -11902,7 +11916,7 @@ internal static partial class CombatAiContext
                 character,
                 pendingAction,
                 actualDestination,
-                "JumpImmediateAttackAborted");
+                JumpImmediateAttackAbortedRecoveryReason);
             return true;
         }
 
@@ -11914,6 +11928,22 @@ internal static partial class CombatAiContext
                    out var handled,
                    out _) &&
                handled;
+    }
+
+    private static void DeferJumpImmediateAttackMoveResult(
+        GameLocationCharacter character,
+        ActionLinkedMoveMemory pendingAction)
+    {
+        if (TryDeferGroundMeleeMoveSettling(character, pendingAction))
+        {
+            return;
+        }
+
+        CloseFailedJumpImmediateAttackRoute(
+            character,
+            pendingAction,
+            character.LocationPosition,
+            JumpImmediateAttackNoMoveRecoveryReason);
     }
 
     private static void CloseFailedJumpImmediateAttackRoute(
@@ -12141,6 +12171,16 @@ internal static partial class CombatAiContext
 
 
             return false;
+        }
+
+        if (IsGroundMeleeJumpImmediateAttackRoute(pendingAction) && allowTerminalAction)
+        {
+            CloseFailedJumpImmediateAttackRoute(
+                character,
+                pendingAction,
+                actualDestination,
+                JumpImmediateAttackNoMoveRecoveryReason);
+            return true;
         }
 
         RecordAiMoveFailure(character, pendingAction.StartPosition, pendingAction.ExpectedDestination);
