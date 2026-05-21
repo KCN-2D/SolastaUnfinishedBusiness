@@ -1085,14 +1085,21 @@ internal static class OtherFeats
             return;
         }
 
-        FeatStealthPositionsCache.TryAdd(actingCharacter, []);
-        FeatStealthPositionsCache[actingCharacter] = [];
+        if (!FeatStealthPositionsCache.TryGetValue(actingCharacter, out var positions))
+        {
+            positions = [];
+            FeatStealthPositionsCache[actingCharacter] = positions;
+        }
+        else
+        {
+            positions.Clear();
+        }
 
         for (var i = 0; i < action.MovePath.Count - 1; i++)
         {
             var position = action.MovePath[i].position;
 
-            FeatStealthPositionsCache[actingCharacter].Add(position);
+            positions.Add(position);
         }
     }
 

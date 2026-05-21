@@ -24,14 +24,18 @@ internal static class DefensiveStrikeAttack
             yield break;
         }
 
-        var units = Gui.Battle.AllContenders
-            .Where(u => u.RulesetCharacter is { IsDeadOrUnconscious: false })
-            .ToArray(); // avoid changing enumerator
+        var units = Gui.Battle.AllContenders.ToArray(); // avoid changing enumerator
 
         //Process other participants of the battle
-        foreach (var unit in units
-                     .Where(unit => attacker != unit && defender != unit))
+        foreach (var unit in units)
         {
+            if (unit.RulesetCharacter is not { IsDeadOrUnconscious: false } ||
+                attacker == unit ||
+                defender == unit)
+            {
+                continue;
+            }
+
             yield return ActiveDefensiveStrike(unit, attacker, defender, battleManager);
         }
     }

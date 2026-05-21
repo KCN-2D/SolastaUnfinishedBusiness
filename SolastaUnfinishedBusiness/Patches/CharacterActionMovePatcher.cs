@@ -88,8 +88,7 @@ public static class CharacterActionMovePatcher
                 action,
                 start,
                 target,
-                forceCloseNoMoveAfterSettling,
-                settleFrames);
+                forceCloseNoMoveAfterSettling);
 
             var extraAoOEvents = AttacksOfOpportunity.ProcessOnCharacterMoveEnd(character);
 

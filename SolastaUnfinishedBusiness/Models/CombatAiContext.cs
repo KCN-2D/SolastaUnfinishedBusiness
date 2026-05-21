@@ -2375,7 +2375,7 @@ internal static partial class CombatAiContext
         PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
     }
 
-    private static void FailStalePendingTerminalActions(GameLocationCharacter character, string phase)
+    private static void FailStalePendingTerminalActions(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null)
         {
@@ -2428,7 +2428,7 @@ internal static partial class CombatAiContext
         }
     }
 
-    private static void FailStalePendingRouteActionOnlyTerminal(GameLocationCharacter character, string phase)
+    private static void FailStalePendingRouteActionOnlyTerminal(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null ||
             !PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var pendingTerminal))
@@ -2462,8 +2462,8 @@ internal static partial class CombatAiContext
             ForcedMotionAttackBudgetCache.Remove(character.Guid);
             PostRecoveryEndTurnMainActionSealCache.Remove(character.Guid);
             PostRecoveryMainActionNormalizationCache.Remove(character.Guid);
-            FailStalePendingTerminalActions(character, "turn-start");
-            FailStalePendingRouteActionOnlyTerminal(character, "turn-start");
+            FailStalePendingTerminalActions(character);
+            FailStalePendingRouteActionOnlyTerminal(character);
             TurnStartActionEconomyCache[character.Guid] = BuildActionEconomySnapshot(character);
             UpdateTacticalSituationMemory(character);
             MeleeAttackPositionCache.Clear();
@@ -3775,19 +3775,18 @@ internal static partial class CombatAiContext
         {
             TryCompletePendingJumpImmediateAttackActionChainSettled(
                 character,
-                aborted,
-                "action-chain-settled");
+                aborted);
             return;
         }
 
         if (TryResolveGroundMeleeMoveSettlingAfterActionChain(character, aborted))
         {
-            TryConsumePendingRouteActionOnlyTerminal(character, "action-chain", aborted);
+            TryConsumePendingRouteActionOnlyTerminal(character, aborted);
             return;
         }
 
         TryUseGroundMeleePartialRouteContinuationAfterActionChain(character, aborted);
-        TryConsumePendingRouteActionOnlyTerminal(character, "action-chain", aborted);
+        TryConsumePendingRouteActionOnlyTerminal(character, aborted);
     }
 
     internal static void NotifyAiMoveStepCompleted(GameLocationCharacter character)
@@ -3798,8 +3797,8 @@ internal static partial class CombatAiContext
             return;
         }
 
-        TryCompleteConnectedFiringLineMovementStep(character, "move-step");
-        TryCompleteSearchKnownTargetMovementStep(character, "move-step");
+        TryCompleteConnectedFiringLineMovementStep(character);
+        TryCompleteSearchKnownTargetMovementStep(character);
     }
 
     private static void SchedulePendingRouteActionOnlyTerminal(
@@ -3807,8 +3806,6 @@ internal static partial class CombatAiContext
         ActionLinkedMoveMemory pendingAction,
         int3 expectedDestination,
         int3 actualDestination,
-        string phase,
-        string result,
         bool consumeAfterAbort = false)
     {
         if (character?.RulesetCharacter == null)
@@ -3834,7 +3831,6 @@ internal static partial class CombatAiContext
 
     private static bool TryConsumePendingRouteActionOnlyTerminal(
         GameLocationCharacter character,
-        string phase,
         bool aborted)
     {
         if (character?.RulesetCharacter == null ||
@@ -3848,7 +3844,6 @@ internal static partial class CombatAiContext
             TryHandlePendingConnectedFiringLineMovement(
                 character,
                 memory,
-                phase,
                 allowFinalFailure: false,
                 out var connectedRouteClosed))
         {
@@ -3867,7 +3862,6 @@ internal static partial class CombatAiContext
             TryHandlePendingSearchKnownTargetMovement(
                 character,
                 memory,
-                phase,
                 allowFinalFailure: false,
                 out var searchRouteClosed))
         {
@@ -3920,7 +3914,6 @@ internal static partial class CombatAiContext
             TryConsumePendingConnectedFiringLineRouteTerminal(
                 character,
                 memory,
-                phase,
                 allowTerminalFallback: false))
         {
             return true;
@@ -3940,8 +3933,6 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        const string phase = "ai-process";
-
         var currentRound = GetCurrentBattleRound();
         var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
 
@@ -3955,7 +3946,6 @@ internal static partial class CombatAiContext
             TryHandlePendingConnectedFiringLineMovement(
                 character,
                 memory,
-                phase,
                 allowFinalFailure,
                 out var connectedRouteClosed))
         {
@@ -3974,7 +3964,6 @@ internal static partial class CombatAiContext
             TryHandlePendingSearchKnownTargetMovement(
                 character,
                 memory,
-                phase,
                 allowFinalFailure,
                 out var searchRouteClosed))
         {
@@ -4012,7 +4001,6 @@ internal static partial class CombatAiContext
             return TryConsumePendingConnectedFiringLineRouteTerminal(
                 character,
                 memory,
-                phase,
                 allowTerminalFallback: true);
         }
 
@@ -4034,7 +4022,6 @@ internal static partial class CombatAiContext
     private static bool TryHandlePendingConnectedFiringLineMovement(
         GameLocationCharacter character,
         PendingRouteActionOnlyTerminalMemory memory,
-        string phase,
         bool allowFinalFailure,
         out bool routeClosed)
     {
@@ -4048,7 +4035,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        if (TryCompleteConnectedFiringLineMovementStep(character, phase).IsComplete)
+        if (TryCompleteConnectedFiringLineMovementStep(character).IsComplete)
         {
             routeClosed = true;
             return true;
@@ -4060,8 +4047,7 @@ internal static partial class CombatAiContext
             {
                 CloseFailedConnectedFiringLineAwaitingMovement(
                     character,
-                    pendingAction,
-                    phase);
+                    pendingAction);
             }
             else
             {
@@ -4069,9 +4055,7 @@ internal static partial class CombatAiContext
                     character,
                     pendingAction,
                     pendingAction.StartPosition,
-                    pendingAction.ExpectedDestination,
-                    phase,
-                    0);
+                    pendingAction.ExpectedDestination);
             }
 
             routeClosed = true;
@@ -4082,8 +4066,7 @@ internal static partial class CombatAiContext
     }
 
     private static ConnectedFiringLineCompletionResult TryCompleteConnectedFiringLineMovementStep(
-        GameLocationCharacter character,
-        string phase)
+        GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null ||
             !ActionLinkedMoveCache.TryGetValue(character.Guid, out var pendingAction) ||
@@ -4098,7 +4081,6 @@ internal static partial class CombatAiContext
 
         if (actualDestination == pendingAction.StartPosition)
         {
-            _ = phase;
             return new ConnectedFiringLineCompletionResult(
                 ConnectedFiringLineCompletionKind.Pending,
                 actualDestination);
@@ -4108,9 +4090,7 @@ internal static partial class CombatAiContext
             character,
             pendingAction,
             pendingAction.StartPosition,
-            pendingAction.ExpectedDestination,
-            phase,
-            0);
+            pendingAction.ExpectedDestination);
 
         return new ConnectedFiringLineCompletionResult(
             actualDestination == pendingAction.ExpectedDestination
@@ -4122,7 +4102,6 @@ internal static partial class CombatAiContext
     private static bool TryHandlePendingSearchKnownTargetMovement(
         GameLocationCharacter character,
         PendingRouteActionOnlyTerminalMemory memory,
-        string phase,
         bool allowFinalFailure,
         out bool routeClosed)
     {
@@ -4136,7 +4115,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        if (TryCompleteSearchKnownTargetMovementStep(character, phase).IsComplete)
+        if (TryCompleteSearchKnownTargetMovementStep(character).IsComplete)
         {
             routeClosed = true;
             return true;
@@ -4149,7 +4128,6 @@ internal static partial class CombatAiContext
                 pendingAction,
                 pendingAction.StartPosition,
                 pendingAction.ExpectedDestination,
-                phase,
                 SearchKnownTargetCompletionKind.FailedNoMeaningfulMovement);
 
             routeClosed = true;
@@ -4160,8 +4138,7 @@ internal static partial class CombatAiContext
     }
 
     private static SearchKnownTargetCompletionResult TryCompleteSearchKnownTargetMovementStep(
-        GameLocationCharacter character,
-        string phase)
+        GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null ||
             !ActionLinkedMoveCache.TryGetValue(character.Guid, out var pendingAction) ||
@@ -4177,7 +4154,6 @@ internal static partial class CombatAiContext
 
         if (actualDestination == pendingAction.StartPosition)
         {
-            _ = phase;
             return new SearchKnownTargetCompletionResult(
                 SearchKnownTargetCompletionKind.Pending,
                 progress);
@@ -4207,7 +4183,6 @@ internal static partial class CombatAiContext
             pendingAction,
             pendingAction.StartPosition,
             pendingAction.ExpectedDestination,
-            phase,
             result);
 
         return new SearchKnownTargetCompletionResult(result, progress);
@@ -4438,12 +4413,10 @@ internal static partial class CombatAiContext
 
     private static void CloseFailedConnectedFiringLineAwaitingMovement(
         GameLocationCharacter character,
-        ActionLinkedMoveMemory pendingAction,
-        string phase)
+        ActionLinkedMoveMemory pendingAction)
     {
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-        _ = phase;
 
         ActionLinkedMoveCache.Remove(character.Guid);
         PendingRouteMovementLockCache.Remove(character.Guid);
@@ -4460,7 +4433,6 @@ internal static partial class CombatAiContext
     private static bool TryConsumePendingConnectedFiringLineRouteTerminal(
         GameLocationCharacter character,
         PendingRouteActionOnlyTerminalMemory memory,
-        string phase,
         bool allowTerminalFallback)
     {
         if (character?.RulesetCharacter == null ||
@@ -4972,8 +4944,7 @@ internal static partial class CombatAiContext
         CharacterActionMove action,
         int3 start,
         int3 target,
-        bool forceCloseNoMoveAfterSettling = false,
-        int settleFrames = 0)
+        bool forceCloseNoMoveAfterSettling = false)
     {
         var character = action?.ActingCharacter;
 
@@ -4998,15 +4969,14 @@ internal static partial class CombatAiContext
                 character,
                 pendingAction,
                 start,
-                target,
-                Math.Max(0, settleFrames));
+                target);
             return;
         }
 
         if (hadPendingActionLinkedMove &&
             IsGroundMeleeMoveSettlingRoute(pendingAction))
         {
-            if (TryDeferGroundMeleeMoveSettling(character, pendingAction, "move-result"))
+            if (TryDeferGroundMeleeMoveSettling(character, pendingAction))
             {
                 return;
             }
@@ -5015,8 +4985,7 @@ internal static partial class CombatAiContext
                 character,
                 pendingAction,
                 start,
-                target,
-                "move-result"))
+                target))
             {
                 return;
             }
@@ -5029,7 +4998,7 @@ internal static partial class CombatAiContext
         {
             if (character.LocationPosition == start)
             {
-                DeferConnectedFiringLineMoveResult(character, pendingAction, start, target, "move-result");
+                DeferConnectedFiringLineMoveResult(character, pendingAction, start, target);
                 return;
             }
 
@@ -5037,21 +5006,19 @@ internal static partial class CombatAiContext
                 character,
                 pendingAction,
                 start,
-                target,
-                "move-result",
-                Math.Max(0, settleFrames));
+                target);
             return;
         }
 
         if (hadPendingActionLinkedMove &&
             IsSearchKnownTargetRoute(pendingAction))
         {
-            if (TryCompleteSearchKnownTargetMovementStep(character, "move-result").IsComplete)
+            if (TryCompleteSearchKnownTargetMovementStep(character).IsComplete)
             {
                 return;
             }
 
-            DeferSearchKnownTargetMoveResult(character, pendingAction, start, target, "move-result");
+            DeferSearchKnownTargetMoveResult(character, pendingAction, start, target);
             return;
         }
 
@@ -5067,12 +5034,12 @@ internal static partial class CombatAiContext
         }
 
         if (hadPendingActionLinkedMove &&
-            TryFinalizeRouteMoveAtActualDestination(character, pendingAction, start, target, "move-result"))
+            TryFinalizeRouteMoveAtActualDestination(character, pendingAction, start, target))
         {
             return;
         }
 
-        TryApplyPendingRouteMovementLock(character, "move-result");
+        TryApplyPendingRouteMovementLock(character);
         ActionLinkedMoveCache.Remove(character.Guid);
 
         if (hadPendingActionLinkedMove)
@@ -5081,8 +5048,7 @@ internal static partial class CombatAiContext
                 character,
                 pendingAction,
                 start,
-                target,
-                "move-result");
+                target);
             return;
         }
 
@@ -5093,8 +5059,7 @@ internal static partial class CombatAiContext
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
         int3 start,
-        int3 target,
-        int settleFrames)
+        int3 target)
     {
         PendingAiMoveAttemptCache.Remove(character.Guid);
         ActionLinkedMoveCache.Remove(character.Guid);
@@ -5134,8 +5099,6 @@ internal static partial class CombatAiContext
             pendingAction,
             target,
             actualDestination,
-            $"move-result-settled;settleFrames:{settleFrames}",
-            "no-move",
             consumeAfterAbort: true);
     }
 
@@ -5143,8 +5106,7 @@ internal static partial class CombatAiContext
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
         int3 start,
-        int3 expectedDestination,
-        string phase)
+        int3 expectedDestination)
     {
         var actualDestination = character.LocationPosition;
         var round = GetCurrentBattleRound();
@@ -5167,18 +5129,14 @@ internal static partial class CombatAiContext
             character,
             pendingAction,
             expectedDestination,
-            actualDestination,
-            $"connected-firing-line-awaiting:{phase}",
-            "deferred:connected firing line awaiting movement");
+            actualDestination);
     }
 
     private static void CloseConnectedFiringLineMoveResult(
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
         int3 start,
-        int3 expectedDestination,
-        string phase,
-        int settleFrames)
+        int3 expectedDestination)
     {
         var actualDestination = character.LocationPosition;
         var completionKind = actualDestination == start
@@ -5188,8 +5146,6 @@ internal static partial class CombatAiContext
             ConnectedFiringLineCompletionKind.FailedNoAction;
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-        _ = settleFrames;
-
         ActionLinkedMoveCache.Remove(character.Guid);
         PendingRouteMovementLockCache.Remove(character.Guid);
         RouteMoveCompletionClosedCache[character.Guid] = new RouteMoveCompletionClosedMemory(
@@ -5230,17 +5186,14 @@ internal static partial class CombatAiContext
             character,
             pendingAction,
             expectedDestination,
-            actualDestination,
-            $"connected-firing-line:{phase}",
-            null);
+            actualDestination);
     }
 
     private static void DeferSearchKnownTargetMoveResult(
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
         int3 start,
-        int3 expectedDestination,
-        string phase)
+        int3 expectedDestination)
     {
         var actualDestination = character.LocationPosition;
         var round = GetCurrentBattleRound();
@@ -5263,9 +5216,7 @@ internal static partial class CombatAiContext
             character,
             pendingAction,
             expectedDestination,
-            actualDestination,
-            $"search-awaiting:{phase}",
-            "deferred:search movement awaiting step");
+            actualDestination);
     }
 
     private static void CloseSearchKnownTargetMoveResult(
@@ -5273,20 +5224,12 @@ internal static partial class CombatAiContext
         ActionLinkedMoveMemory pendingAction,
         int3 start,
         int3 expectedDestination,
-        string phase,
         SearchKnownTargetCompletionKind resultKind)
     {
         var actualDestination = character.LocationPosition;
         var failed = resultKind == SearchKnownTargetCompletionKind.FailedNoMeaningfulMovement;
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-        var result = resultKind switch
-        {
-            SearchKnownTargetCompletionKind.SettledReached => "settled:search reached",
-            SearchKnownTargetCompletionKind.SettledPartial => "settled:search partial",
-            _ => "failed:no meaningful search movement"
-        };
-
         ActionLinkedMoveCache.Remove(character.Guid);
         PendingRouteMovementLockCache.Remove(character.Guid);
         RecordLostTargetSearchAttempt(character, pendingAction);
@@ -5328,21 +5271,17 @@ internal static partial class CombatAiContext
             character,
             pendingAction,
             expectedDestination,
-            actualDestination,
-            $"search:{phase}",
-            result);
+            actualDestination);
     }
 
     private static void CloseLateCompletionAndScheduleTerminal(
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
         int3 start,
-        int3 expectedDestination,
-        string phase)
+        int3 expectedDestination)
     {
         var actualDestination = character.LocationPosition;
         var noMove = actualDestination == start;
-        var result = noMove ? "settled:no-move" : "settled:partial";
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
 
@@ -5386,8 +5325,6 @@ internal static partial class CombatAiContext
                 pendingAction,
                 expectedDestination,
                 actualDestination,
-                $"late-completion:{phase}",
-                noMove ? "no-move" : "partial",
                 consumeAfterAbort: noMove);
             return;
         }
@@ -8261,7 +8198,7 @@ internal static partial class CombatAiContext
             return true;
         }
 
-        FailStalePendingTerminalActions(character, "end-turn");
+        FailStalePendingTerminalActions(character);
 
         if (TryConsumePendingRouteTerminalAtEndTurn(character, out suppressEndTurn))
         {
@@ -8638,7 +8575,7 @@ internal static partial class CombatAiContext
             return;
         }
 
-        TryApplyPendingRouteMovementLock(character, "post-main");
+        TryApplyPendingRouteMovementLock(character);
 
         var actionEconomy = BuildActionEconomySnapshot(character);
         var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
@@ -8739,7 +8676,7 @@ internal static partial class CombatAiContext
             return;
         }
 
-        if (TryCloseGroundMeleeNoMoveTerminalSeal(character, "pre-main route"))
+        if (TryCloseGroundMeleeNoMoveTerminalSeal(character))
         {
             return;
         }
@@ -11877,8 +11814,7 @@ internal static partial class CombatAiContext
 
     private static bool TryDeferGroundMeleeMoveSettling(
         GameLocationCharacter character,
-        ActionLinkedMoveMemory pendingAction,
-        string phase)
+        ActionLinkedMoveMemory pendingAction)
     {
         if (character?.RulesetCharacter == null ||
             !IsGroundMeleeMoveSettlingRoute(pendingAction))
@@ -11907,8 +11843,7 @@ internal static partial class CombatAiContext
 
     private static bool TryCompletePendingJumpImmediateAttackActionChainSettled(
         GameLocationCharacter character,
-        bool aborted,
-        string completionSource)
+        bool aborted)
     {
         if (character?.RulesetCharacter == null ||
             !TryConsumePendingJumpImmediateAttackMove(character, out var pendingAction))
@@ -11937,8 +11872,7 @@ internal static partial class CombatAiContext
                 character,
                 pendingAction,
                 actualDestination,
-                "JumpImmediateAttackNoMove",
-                completionSource);
+                "JumpImmediateAttackNoMove");
             return true;
         }
 
@@ -11948,8 +11882,7 @@ internal static partial class CombatAiContext
                 character,
                 pendingAction,
                 actualDestination,
-                "JumpImmediateAttackAborted",
-                completionSource);
+                "JumpImmediateAttackAborted");
             return true;
         }
 
@@ -11959,8 +11892,7 @@ internal static partial class CombatAiContext
                 character,
                 pendingAction,
                 actualDestination,
-                "JumpImmediateAttackNoMove",
-                completionSource);
+                "JumpImmediateAttackNoMove");
             return true;
         }
 
@@ -11970,8 +11902,7 @@ internal static partial class CombatAiContext
                 character,
                 pendingAction,
                 actualDestination,
-                "JumpImmediateAttackAborted",
-                completionSource);
+                "JumpImmediateAttackAborted");
             return true;
         }
 
@@ -11981,8 +11912,7 @@ internal static partial class CombatAiContext
                    actualDestination,
                    allowTerminalAction: true,
                    out var handled,
-                   out _,
-                   completionSource) &&
+                   out _) &&
                handled;
     }
 
@@ -11990,8 +11920,7 @@ internal static partial class CombatAiContext
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
         int3 actualDestination,
-        string reason,
-        string completionSource)
+        string reason)
     {
         if (character?.RulesetCharacter == null)
         {
@@ -12189,8 +12118,6 @@ internal static partial class CombatAiContext
                     pendingAction,
                     pendingAction.ExpectedDestination,
                     actualDestination,
-                    string.Empty,
-                    "route-regression",
                     consumeAfterAbort: true);
                 return false;
             }
@@ -12237,8 +12164,6 @@ internal static partial class CombatAiContext
             pendingAction,
             pendingAction.ExpectedDestination,
             actualDestination,
-            string.Empty,
-            "no-move",
             consumeAfterAbort: true);
         return false;
     }
@@ -12249,8 +12174,7 @@ internal static partial class CombatAiContext
         int3 actualDestination,
         bool allowTerminalAction,
         out bool handled,
-        out bool actionStarted,
-        string completionSource = "terminal")
+        out bool actionStarted)
     {
         handled = false;
         actionStarted = false;
@@ -12293,7 +12217,6 @@ internal static partial class CombatAiContext
                     target,
                     pendingAction,
                     actualDestination,
-                    completionSource,
                     out handled,
                     out actionStarted);
             }
@@ -12309,7 +12232,6 @@ internal static partial class CombatAiContext
         GameLocationCharacter target,
         ActionLinkedMoveMemory pendingAction,
         int3 actualDestination,
-        string completionSource,
         out bool handled,
         out bool actionStarted)
     {
@@ -13864,14 +13786,11 @@ internal static partial class CombatAiContext
             character,
             pendingAction,
             character.LocationPosition,
-            character.LocationPosition,
-            "ground-melee-unresolved",
-            null);
+            character.LocationPosition);
     }
 
     private static bool TryCloseGroundMeleeNoMoveTerminalSeal(
         GameLocationCharacter character,
-        string phase,
         bool blockTerminal = true)
     {
         if (character?.RulesetCharacter == null ||
@@ -13890,7 +13809,6 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        _ = phase;
         _ = blockTerminal;
 
         return true;
@@ -13920,7 +13838,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        TryCloseGroundMeleeNoMoveTerminalSeal(character, "residual action", blockTerminal: false);
+        TryCloseGroundMeleeNoMoveTerminalSeal(character, blockTerminal: false);
 
         if (!actionEconomy.MainAvailable &&
             !actionEconomy.ReadyAvailable &&
@@ -16057,9 +15975,7 @@ internal static partial class CombatAiContext
             character,
             pendingAction,
             destination,
-            character.LocationPosition,
-            "connected-firing-line",
-            string.Empty);
+            character.LocationPosition);
     }
 
     private static void CloseFailedConnectedFiringLineRoute(
@@ -21180,8 +21096,7 @@ internal static partial class CombatAiContext
         GameLocationCharacter actor,
         ActionLinkedMoveMemory pendingAction,
         int3 start,
-        int3 actualDestination,
-        string phase)
+        int3 actualDestination)
     {
         if (actor?.RulesetCharacter == null ||
             !pendingAction.LockRemainingMovementAfterArrival)
@@ -22172,14 +22087,13 @@ internal static partial class CombatAiContext
 
         if (IsConnectedFiringLineRoute(pendingAction))
         {
-            if (!TryCompleteConnectedFiringLineMovementStep(character, "action-chain").IsComplete)
+            if (!TryCompleteConnectedFiringLineMovementStep(character).IsComplete)
             {
                 DeferConnectedFiringLineMoveResult(
                     character,
                     pendingAction,
                     pendingAction.StartPosition,
-                    pendingAction.ExpectedDestination,
-                    "action-chain");
+                    pendingAction.ExpectedDestination);
             }
 
             return;
@@ -22187,14 +22101,13 @@ internal static partial class CombatAiContext
 
         if (IsSearchKnownTargetRoute(pendingAction))
         {
-            if (!TryCompleteSearchKnownTargetMovementStep(character, "action-chain").IsComplete)
+            if (!TryCompleteSearchKnownTargetMovementStep(character).IsComplete)
             {
                 DeferSearchKnownTargetMoveResult(
                     character,
                     pendingAction,
                     pendingAction.StartPosition,
-                    pendingAction.ExpectedDestination,
-                    "action-chain");
+                    pendingAction.ExpectedDestination);
             }
 
             return;
@@ -22210,7 +22123,7 @@ internal static partial class CombatAiContext
 
         if (IsGroundMeleeJumpImmediateAttackRoute(pendingAction))
         {
-            if (TryDeferGroundMeleeMoveSettling(character, pendingAction, "late-completion"))
+            if (TryDeferGroundMeleeMoveSettling(character, pendingAction))
             {
                 return;
             }
@@ -22222,7 +22135,7 @@ internal static partial class CombatAiContext
         {
             if (IsGroundMeleePursuitTerminalRoute(pendingAction))
             {
-                if (TryDeferGroundMeleeMoveSettling(character, pendingAction, "late-completion"))
+                if (TryDeferGroundMeleeMoveSettling(character, pendingAction))
                 {
                     return;
                 }
@@ -22231,8 +22144,7 @@ internal static partial class CombatAiContext
                         character,
                         pendingAction,
                         pendingAction.StartPosition,
-                        pendingAction.ExpectedDestination,
-                        "late-completion"))
+                        pendingAction.ExpectedDestination))
                 {
                     return;
                 }
@@ -22244,8 +22156,7 @@ internal static partial class CombatAiContext
                     character,
                     pendingAction,
                     pendingAction.StartPosition,
-                    pendingAction.ExpectedDestination,
-                    "late-completion"))
+                    pendingAction.ExpectedDestination))
             {
                 return;
             }
@@ -22254,8 +22165,7 @@ internal static partial class CombatAiContext
                 character,
                 pendingAction,
                 pendingAction.StartPosition,
-                pendingAction.ExpectedDestination,
-                "action-chain");
+                pendingAction.ExpectedDestination);
             return;
         }
 
@@ -22351,8 +22261,7 @@ internal static partial class CombatAiContext
             character,
             pendingAction,
             pendingAction.StartPosition,
-            actualDestination,
-            "arrival");
+            actualDestination);
         PendingRouteMovementLockCache.Remove(character.Guid);
         ProxyThreatRouteAttemptCache.Remove(character.Guid);
         partialThreatMove =
@@ -22368,14 +22277,7 @@ internal static partial class CombatAiContext
             return;
         }
 
-        ApplyRouteMovementLock(
-            character,
-            pendingAction.MovementGoal,
-            pendingAction.Continuation,
-            actualDestination,
-            "arrival",
-            safePositionUpdated,
-            partialThreatMove && !safePositionUpdated);
+        ApplyRouteMovementLock(character);
         MarkRecentMeleeThreatHandledThisTurn(
             character,
             pendingAction,
@@ -22534,8 +22436,7 @@ internal static partial class CombatAiContext
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
         int3 start,
-        int3 expectedDestination,
-        string phase)
+        int3 expectedDestination)
     {
         if (character?.RulesetCharacter == null ||
             !pendingAction.LockRemainingMovementAfterArrival)
@@ -22551,8 +22452,7 @@ internal static partial class CombatAiContext
                 character,
                 pendingAction,
                 start,
-                expectedDestination,
-                phase);
+                expectedDestination);
         }
 
         var expectedMismatch = ComputeGridDistance(actualDestination, expectedDestination) > 2f;
@@ -22584,8 +22484,7 @@ internal static partial class CombatAiContext
             character,
             pendingAction,
             start,
-            actualDestination,
-            phase);
+            actualDestination);
         partialThreatMove =
             partialThreatMove ||
             (!safePositionUpdated &&
@@ -22599,14 +22498,7 @@ internal static partial class CombatAiContext
 
         PendingRouteMovementLockCache.Remove(character.Guid);
         ProxyThreatRouteAttemptCache.Remove(character.Guid);
-        ApplyRouteMovementLock(
-            character,
-            pendingAction.MovementGoal,
-            pendingAction.Continuation,
-            actualDestination,
-            phase,
-            safePositionUpdated,
-            partialThreatMove && !safePositionUpdated);
+        ApplyRouteMovementLock(character);
         MarkRecentMeleeThreatHandledThisTurn(
             character,
             pendingAction,
@@ -22622,8 +22514,7 @@ internal static partial class CombatAiContext
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
         int3 startPosition,
-        int3 expectedDestination,
-        string phase)
+        int3 expectedDestination)
     {
         if (character?.RulesetCharacter == null ||
             !IsGroundMeleePursuitTerminalRoute(pendingAction))
@@ -22663,16 +22554,13 @@ internal static partial class CombatAiContext
                 startPosition,
                 expectedDestination,
                 actualDestination,
-                phase,
-                "no-move");
+                RouteMoveCompletionFlags.NoMove | RouteMoveCompletionFlags.GroundMeleeNoMove);
 
             SchedulePendingRouteActionOnlyTerminal(
                 character,
                 pendingAction,
                 expectedDestination,
                 actualDestination,
-                phase,
-                "no-move",
                 consumeAfterAbort: true);
             return true;
         }
@@ -22694,16 +22582,13 @@ internal static partial class CombatAiContext
                 startPosition,
                 expectedDestination,
                 actualDestination,
-                phase,
-                "route-regression");
+                RouteMoveCompletionFlags.None);
 
             SchedulePendingRouteActionOnlyTerminal(
                 character,
                 pendingAction,
                 expectedDestination,
                 actualDestination,
-                phase,
-                "route-regression",
                 consumeAfterAbort: true);
             return true;
         }
@@ -22721,8 +22606,7 @@ internal static partial class CombatAiContext
             startPosition,
             expectedDestination,
             actualDestination,
-            phase,
-            "partial");
+            RouteMoveCompletionFlags.GroundMeleePartial);
         RecordGroundMeleePartialRouteProgress(
             character,
             pendingAction,
@@ -22788,15 +22672,8 @@ internal static partial class CombatAiContext
         int3 startPosition,
         int3 expectedDestination,
         int3 actualDestination,
-        string phase,
-        string result)
+        RouteMoveCompletionFlags flags)
     {
-        var flags = result == "no-move"
-            ? RouteMoveCompletionFlags.NoMove | RouteMoveCompletionFlags.GroundMeleeNoMove
-            : result == "partial"
-                ? RouteMoveCompletionFlags.GroundMeleePartial
-                : RouteMoveCompletionFlags.None;
-
         RouteMoveCompletionClosedCache[character.Guid] = new RouteMoveCompletionClosedMemory(
             pendingAction.MovementGoal,
             startPosition,
@@ -22807,7 +22684,7 @@ internal static partial class CombatAiContext
 
     }
 
-    private static bool TryApplyPendingRouteMovementLock(GameLocationCharacter character, string phase)
+    private static bool TryApplyPendingRouteMovementLock(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null ||
             !PendingRouteMovementLockCache.TryGetValue(character.Guid, out var pendingLock))
@@ -22896,14 +22773,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        return ApplyRouteMovementLock(
-            character,
-            pendingLock.MovementGoal,
-            CombatAiActionLinkedMoveContinuation.ReturnToVanillaDecision,
-            actualDestination,
-            phase,
-            validSafePosition,
-            isThreatRoute && !validSafePosition);
+        return ApplyRouteMovementLock(character);
     }
 
     private static bool IsThreatRouteMovementLockGoal(CombatAiMovementGoalKind movementGoal)
@@ -22916,8 +22786,7 @@ internal static partial class CombatAiContext
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
         int3 startPosition,
-        int3 failedDestination,
-        string phase)
+        int3 failedDestination)
     {
         if (character?.RulesetCharacter == null ||
             !IsThreatRouteMovementLockGoal(pendingAction.MovementGoal))
@@ -23256,14 +23125,7 @@ internal static partial class CombatAiContext
         return IsThreatRouteMovementLockGoal(movementGoal) && actualDestination != startPosition;
     }
 
-    private static bool ApplyRouteMovementLock(
-        GameLocationCharacter character,
-        CombatAiMovementGoalKind movementGoal,
-        CombatAiActionLinkedMoveContinuation continuation,
-        int3 expectedDestination,
-        string phase,
-        bool safePosition = true,
-        bool partial = false)
+    private static bool ApplyRouteMovementLock(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null)
         {

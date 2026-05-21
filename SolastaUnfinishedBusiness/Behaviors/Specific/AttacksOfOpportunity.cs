@@ -32,22 +32,29 @@ internal static class AttacksOfOpportunity
         //Process features on attacker or defender
         var actionManager = ServiceRepository.GetService<IGameLocationActionService>() as GameLocationActionManager;
 
-        var units = Gui.Battle.AllContenders
-            .Where(u => u.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false })
-            .ToArray(); // avoid changing enumerator
+        var units = Gui.Battle.AllContenders.ToArray(); // avoid changing enumerator
 
         //Process other participants of the battle
-        foreach (var unit in units
-                     .Where(unit => attacker != defender &&
-                                    unit != attacker &&
-                                    unit != defender &&
-                                    defender.Side == unit.Side &&
-                                    attacker.IsOppositeSide(unit.Side) &&
-                                    unit.IsWithinRange(attacker, 1)))
+        foreach (var unit in units)
         {
-            foreach (var reaction in unit.RulesetCharacter.GetSubFeaturesByType<SentinelFeatMarker>()
-                         .Where(feature => feature.IsValid(unit, attacker)))
+            if (unit.RulesetCharacter is not { IsDeadOrDyingOrUnconscious: false } ||
+                attacker == defender ||
+                unit == attacker ||
+                unit == defender ||
+                defender.Side != unit.Side ||
+                !attacker.IsOppositeSide(unit.Side) ||
+                !unit.IsWithinRange(attacker, 1))
             {
+                continue;
+            }
+
+            foreach (var reaction in unit.RulesetCharacter.GetSubFeaturesByType<SentinelFeatMarker>())
+            {
+                if (!reaction.IsValid(unit, attacker))
+                {
+                    continue;
+                }
+
                 yield return reaction.Process(unit, attacker, null, battleManager, actionManager, false);
             }
         }
@@ -101,22 +108,25 @@ internal static class AttacksOfOpportunity
             yield break;
         }
 
-        var units = Gui.Battle.AllContenders
-            .Where(u => u.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false })
-            .ToArray(); // avoid changing enumerator
+        var units = Gui.Battle.AllContenders.ToArray(); // avoid changing enumerator
 
         //Process other participants of the battle
         foreach (var unit in units)
         {
-            if (mover == unit ||
+            if (unit.RulesetCharacter is not { IsDeadOrDyingOrUnconscious: false } ||
+                mover == unit ||
                 mover.Side == unit.Side)
             {
                 continue;
             }
 
-            foreach (var canMakeAoOOnReachEntered in unit.RulesetActor.GetSubFeaturesByType<CanMakeAoOOnReachEntered>()
-                         .Where(feature => feature.IsValid(unit, mover)))
+            foreach (var canMakeAoOOnReachEntered in unit.RulesetActor.GetSubFeaturesByType<CanMakeAoOOnReachEntered>())
             {
+                if (!canMakeAoOOnReachEntered.IsValid(unit, mover))
+                {
+                    continue;
+                }
+
                 yield return canMakeAoOOnReachEntered.Process(
                     unit, mover, movement, battleManager, actionManager, canMakeAoOOnReachEntered.AllowRange);
             }
