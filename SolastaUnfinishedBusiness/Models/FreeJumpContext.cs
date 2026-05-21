@@ -74,6 +74,18 @@ internal static class FreeJumpContext
         NoGridNode
     }
 
+    private enum AiFreeJumpBonusSpendSkipReason
+    {
+        None,
+        AlreadySpent,
+        LandingFailed,
+        InvalidPosition,
+        NoMove,
+        StartMismatch,
+        NotAtFinish,
+        BonusUnavailable
+    }
+
     internal readonly struct FreeJumpCheckPreview(
         FreeJumpPreviewOutcome outcome,
         int moveCost,
@@ -1266,9 +1278,9 @@ internal static class FreeJumpContext
             expectedStart,
             bonusStatus);
 
-        if (skipReason != null)
+        if (skipReason != AiFreeJumpBonusSpendSkipReason.None)
         {
-            if (hasPending && skipReason != "not-at-finish")
+            if (hasPending && skipReason != AiFreeJumpBonusSpendSkipReason.NotAtFinish)
             {
                 PendingAiFreeJumpCompletions.Remove(guid);
             }
@@ -1625,7 +1637,7 @@ internal static class FreeJumpContext
             new PendingAiFreeJumpCompletion(startPosition, targetPosition);
     }
 
-    private static string GetAiFreeJumpBonusSpendSkipReason(
+    private static AiFreeJumpBonusSpendSkipReason GetAiFreeJumpBonusSpendSkipReason(
         GameLocationCharacter character,
         ScopeData scope,
         bool hasAiMoveScope,
@@ -1636,35 +1648,37 @@ internal static class FreeJumpContext
     {
         if (hasAiMoveScope && scope.BonusActionSpent)
         {
-            return "already-spent";
+            return AiFreeJumpBonusSpendSkipReason.AlreadySpent;
         }
 
         if (hasAiMoveScope && scope.JumpLandingFailed)
         {
-            return "landing-failed";
+            return AiFreeJumpBonusSpendSkipReason.LandingFailed;
         }
 
         if (start == int3.invalid || finish == int3.invalid)
         {
-            return "invalid-position";
+            return AiFreeJumpBonusSpendSkipReason.InvalidPosition;
         }
 
         if (start == finish)
         {
-            return "no-move";
+            return AiFreeJumpBonusSpendSkipReason.NoMove;
         }
 
         if (start != expectedStart)
         {
-            return "start-mismatch";
+            return AiFreeJumpBonusSpendSkipReason.StartMismatch;
         }
 
         if (character.LocationPosition != finish)
         {
-            return "not-at-finish";
+            return AiFreeJumpBonusSpendSkipReason.NotAtFinish;
         }
 
-        return bonusStatus == ActionStatus.Available ? null : $"bonus-{bonusStatus}";
+        return bonusStatus == ActionStatus.Available
+            ? AiFreeJumpBonusSpendSkipReason.None
+            : AiFreeJumpBonusSpendSkipReason.BonusUnavailable;
     }
 
     private static bool SpendBonusAction(
