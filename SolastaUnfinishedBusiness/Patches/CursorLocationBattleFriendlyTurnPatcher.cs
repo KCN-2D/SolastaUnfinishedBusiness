@@ -74,16 +74,21 @@ public static class CursorLocationBattleFriendlyTurnPatcher
     public static class ComputeValidDestinations_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(CursorLocationBattleFriendlyTurn __instance, ref IDisposable __state)
+        public static bool Prefix(CursorLocationBattleFriendlyTurn __instance, ref IDisposable __state)
         {
-            __state = FreeJumpContext.BeginBonusActionPathfinding(
-                __instance.actingCharacter,
-                __instance.constrainedMovementMode);
+            __state = FreeJumpContext.BeginCursorDestinationComputation(__instance);
+
+            return __state != null;
         }
 
         [UsedImplicitly]
         public static void Postfix(CursorLocationBattleFriendlyTurn __instance, IDisposable __state)
         {
+            if (__state == null)
+            {
+                return;
+            }
+
             try
             {
                 if (FreeJumpContext.ApplyBonusActionDestinations(
@@ -96,7 +101,7 @@ public static class CursorLocationBattleFriendlyTurnPatcher
             }
             finally
             {
-                __state?.Dispose();
+                __state.Dispose();
             }
         }
     }

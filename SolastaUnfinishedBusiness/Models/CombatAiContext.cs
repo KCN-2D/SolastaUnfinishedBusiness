@@ -4012,6 +4012,11 @@ internal static partial class CombatAiContext
         var handled = TrySpendLeftoverActionEconomy(character, false, endTurnTerminal: true);
         var hasPendingTerminalLaunch = handled && HasPendingAiProcessTerminalLaunch(character);
 
+        if (!handled && HasAvailableMainActionForPendingTerminal(character))
+        {
+            return false;
+        }
+
         PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
 
         if (hasPendingTerminalLaunch)
@@ -4570,12 +4575,24 @@ internal static partial class CombatAiContext
         var handled = TrySpendLeftoverActionEconomy(character, false, endTurnTerminal: true);
         var hasPendingTerminalLaunch = handled && HasPendingAiProcessTerminalLaunch(character);
 
+        if (!handled)
+        {
+            if (HasAvailableMainActionForPendingTerminal(character))
+            {
+                return false;
+            }
+
+            PendingUtilityTerminalContinuationCache.Remove(character.Guid);
+            return true;
+        }
+
         if (hasPendingTerminalLaunch)
         {
             TryConsumePendingAiProcessTerminalLaunch(character);
             return true;
         }
 
+        PendingUtilityTerminalContinuationCache.Remove(character.Guid);
 
         return true;
     }
@@ -4831,6 +4848,14 @@ internal static partial class CombatAiContext
         return IsFailedAiMoveTarget(character, start, target) || IsBacktrackingMove(character, start, target);
     }
 
+    private static bool IsPendingAiMoveAttempt(GameLocationCharacter character, int3 start, int3 target)
+    {
+        return character != null &&
+               PendingAiMoveAttemptCache.TryGetValue(character.Guid, out var pending) &&
+               pending.Start == start &&
+               pending.Target == target;
+    }
+
     internal static bool ShouldCancelAiTacticalMove(
         CharacterActionMove action,
         int3 start,
@@ -4877,6 +4902,12 @@ internal static partial class CombatAiContext
 
         if (IsFailedAiMoveTarget(character, start, target))
         {
+            return true;
+        }
+
+        if (IsPendingAiMoveAttempt(character, start, target))
+        {
+            RecordAiMoveFailure(character, start, target);
             return true;
         }
 
@@ -4961,6 +4992,11 @@ internal static partial class CombatAiContext
         }
 
         PendingAiMoveAttemptCache.Remove(character.Guid);
+
+        if (character.LocationPosition == start && start != target)
+        {
+            RecordAiMoveFailure(character, start, target);
+        }
 
         if (TryResolveJumpImmediateMoveSettlingAfterMoveResult(character))
         {
@@ -5573,18 +5609,50 @@ internal static partial class CombatAiContext
             LastMainActionExecutionCache[character.Guid] = memory;
             IncrementActionUseCount(TurnMainActionUseCountCache, character);
             RecordRepeatedAttackActionExecution(action, memory);
+        }
 
-            if (IsConnectedHostileActionExecution(action))
-            {
-                DisconnectedPositioningSealCache.Remove(character.Guid);
-                DisconnectedPositioningMovementLockCache.Remove(character.Guid);
-            }
+        if (IsConnectedHostileActionExecution(action))
+        {
+            DisconnectedPositioningSealCache.Remove(character.Guid);
+            DisconnectedPositioningMovementLockCache.Remove(character.Guid);
         }
 
         if (memory.ActionType == ActionType.Bonus)
         {
             IncrementActionUseCount(TurnBonusActionUseCountCache, character);
         }
+
+        if (IsCombatAiTempLoggedCastOrPowerAction(action.ActionId))
+        {
+            LogCombatAiTemp(
+                character,
+                "action-execution",
+                $"action={action.ActionId} type={action.ActionType} " +
+                $"{FormatCombatAiActionEffect(action)} " +
+                $"main={character.GetActionTypeStatus(ActionType.Main)} " +
+                $"bonus={character.GetActionTypeStatus(ActionType.Bonus)} " +
+                $"mainUse={GetActionUseCount(TurnMainActionUseCountCache, character)} " +
+                $"bonusUse={GetActionUseCount(TurnBonusActionUseCountCache, character)}");
+        }
+    }
+
+    private static bool IsCombatAiTempLoggedCastOrPowerAction(Id actionId)
+    {
+        return actionId is Id.CastMain or Id.PowerMain or Id.CastBonus or Id.PowerBonus or Id.CastNoCost or Id.PowerNoCost;
+    }
+
+    private static string FormatCombatAiActionEffect(CharacterAction action)
+    {
+        var effect = action?.ActionParams?.RulesetEffect ?? action?.ActionParams?.activeEffect;
+
+        return effect switch
+        {
+            RulesetEffectSpell spell =>
+                $"effect={spell.SpellDefinition?.Name} activation={spell.SpellDefinition?.ActivationTime}",
+            RulesetEffectPower power =>
+                $"effect={power.PowerDefinition?.Name} activation={power.PowerDefinition?.ActivationTime}",
+            _ => "effect=null activation=null"
+        };
     }
 
     private static bool IsConnectedHostileActionExecution(CharacterAction action)
@@ -7334,6 +7402,45 @@ internal static partial class CombatAiContext
             isAiControlled);
     }
 
+    private static void LogCombatAiTemp(
+        GameLocationCharacter character,
+        string eventName,
+        string details = null)
+    {
+        if (character?.RulesetCharacter == null || !IsAiControlledForCombat(character))
+        {
+            return;
+        }
+
+        Main.Info(
+            $"[UB-CombatAI-TEMP] event={eventName} actor={character.RulesetCharacter.Name} " +
+            $"guid={character.Guid} round={GetCurrentBattleRound()} " +
+            $"turn={Math.Max(1, ObservedCombatMemoryTurnStamp)} pos={character.LocationPosition} " +
+            $"{details}");
+    }
+
+    private static string FormatCombatAiCharacter(GameLocationCharacter character)
+    {
+        return character?.RulesetCharacter == null
+            ? "null"
+            : $"{character.RulesetCharacter.Name}:{character.Guid}";
+    }
+
+    private static string FormatActionEconomySnapshot(
+        GameLocationCharacter character,
+        CombatAiActionEconomySnapshot actionEconomy)
+    {
+        return
+            $"main={actionEconomy.MainActionType} attack={actionEconomy.AttackMain} " +
+            $"cast={actionEconomy.CastMain} ready={actionEconomy.Ready} dodge={actionEconomy.Dodge} " +
+            $"bonus={actionEconomy.Bonus} noCost={actionEconomy.NoCostUtility} " +
+            $"mainUse={actionEconomy.MainUseCount} bonusUse={actionEconomy.BonusUseCount} " +
+            $"lastMain={actionEconomy.HasLastMainAction}:{actionEconomy.LastMainTerminalAction} " +
+            $"lastAction={actionEconomy.HasLastAction}:{actionEconomy.LastTerminalAction} " +
+            $"active={IsActiveBattleContender(character)} canAuto={actionEconomy.CanAutoAct} " +
+            $"ai={actionEconomy.IsAiControlled}";
+    }
+
     private static bool CanSpendTerminalMainAction(
         GameLocationCharacter character,
         CombatAiActionEconomySnapshot actionEconomy)
@@ -7377,6 +7484,16 @@ internal static partial class CombatAiContext
         }
 
         return true;
+    }
+
+    private static bool HasAvailableMainActionForPendingTerminal(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null || !HasLeftoverActionCombatContext(character))
+        {
+            return false;
+        }
+
+        return CanSpendTerminalMainAction(character, BuildActionEconomySnapshot(character));
     }
 
     internal static bool IsAiControlledForCombat(GameLocationCharacter character)
@@ -8216,6 +8333,12 @@ internal static partial class CombatAiContext
         GameLocationCharacter character,
         out bool suppressEndTurn)
     {
+        var actionEconomy = BuildActionEconomySnapshot(character);
+
+        LogCombatAiTemp(
+            character,
+            "end-turn-entry",
+            FormatActionEconomySnapshot(character, actionEconomy));
 
         if (ResolveGroundMeleeMoveSettling(
                 character,
@@ -8223,6 +8346,7 @@ internal static partial class CombatAiContext
                 allowTerminalAction: false))
         {
             suppressEndTurn = false;
+            LogCombatAiTemp(character, "end-turn-result", "source=move-settling suppress=False");
             return true;
         }
 
@@ -8230,6 +8354,10 @@ internal static partial class CombatAiContext
 
         if (TryConsumePendingRouteTerminalAtEndTurn(character, out suppressEndTurn))
         {
+            LogCombatAiTemp(
+                character,
+                "end-turn-result",
+                $"source=pending-route suppress={suppressEndTurn}");
             return true;
         }
 
@@ -8237,12 +8365,17 @@ internal static partial class CombatAiContext
             PendingTerminalDodgeEndTurnCache.TryGetValue(character.Guid, out var pendingTerminalDodge) &&
             pendingTerminalDodge.Round == GetCurrentBattleRound())
         {
+            LogCombatAiTemp(character, "end-turn-pending", "source=dodge");
 
             if (TryNormalizePendingTerminalDodgeAtEndTurn(
                     character,
                     pendingTerminalDodge,
                     out suppressEndTurn))
             {
+                LogCombatAiTemp(
+                    character,
+                    "end-turn-result",
+                    $"source=pending-dodge-normalized suppress={suppressEndTurn}");
                 return true;
             }
 
@@ -8252,11 +8385,13 @@ internal static partial class CombatAiContext
             {
                 PendingTerminalActionEndTurnSuppressCache.Add(character.Guid);
                 suppressEndTurn = true;
+                LogCombatAiTemp(character, "end-turn-result", "source=pending-dodge-suppress suppress=True");
                 return true;
             }
 
             FailPendingTerminalDodgeActionNotAccepted(character, pendingTerminalDodge);
             suppressEndTurn = false;
+            LogCombatAiTemp(character, "end-turn-result", "source=pending-dodge-failed suppress=False");
             return true;
         }
 
@@ -8264,12 +8399,17 @@ internal static partial class CombatAiContext
             PendingTerminalReadyEndTurnCache.TryGetValue(character.Guid, out var pendingTerminalReady) &&
             pendingTerminalReady.Round == GetCurrentBattleRound())
         {
+            LogCombatAiTemp(character, "end-turn-pending", "source=ready");
 
             if (TryNormalizePendingTerminalReadyAtEndTurn(
                     character,
                     pendingTerminalReady,
                     out suppressEndTurn))
             {
+                LogCombatAiTemp(
+                    character,
+                    "end-turn-result",
+                    $"source=pending-ready-normalized suppress={suppressEndTurn}");
                 return true;
             }
 
@@ -8279,11 +8419,13 @@ internal static partial class CombatAiContext
             {
                 PendingTerminalActionEndTurnSuppressCache.Add(character.Guid);
                 suppressEndTurn = true;
+                LogCombatAiTemp(character, "end-turn-result", "source=pending-ready-suppress suppress=True");
                 return true;
             }
 
             FailPendingTerminalReadyActionNotAccepted(character, pendingTerminalReady);
             suppressEndTurn = false;
+            LogCombatAiTemp(character, "end-turn-result", "source=pending-ready-failed suppress=False");
             return true;
         }
 
@@ -8291,15 +8433,31 @@ internal static partial class CombatAiContext
 
         if (TryCloseMissedAiProcessTerminalLaunchAtEndTurn(character))
         {
+            LogCombatAiTemp(character, "end-turn-result", "source=missed-terminal-launch suppress=False");
             return true;
         }
 
         if (TryConsumeSearchLostTargetRecoveryAtEndTurn(character, out suppressEndTurn))
         {
+            LogCombatAiTemp(
+                character,
+                "end-turn-result",
+                $"source=search-lost-target-recovery suppress={suppressEndTurn}");
             return true;
         }
 
-        return false;
+        LogCombatAiTemp(character, "end-turn-direct-leftover-retry", FormatActionEconomySnapshot(character, actionEconomy));
+
+        if (!TrySpendLeftoverActionEconomy(character, false, endTurnTerminal: true))
+        {
+            LogCombatAiTemp(character, "end-turn-final-false", FormatActionEconomySnapshot(character, actionEconomy));
+            return false;
+        }
+
+        suppressEndTurn = true;
+        LogCombatAiTemp(character, "end-turn-direct-leftover-handled", "suppress=True");
+
+        return true;
     }
 
     private static bool TryConsumeSearchLostTargetRecoveryAtEndTurn(
@@ -13863,34 +14021,77 @@ internal static partial class CombatAiContext
         var actionEconomy = BuildActionEconomySnapshot(character);
         TryConsumePendingUtilityTerminalContinuation(character);
 
+        LogCombatAiTemp(
+            character,
+            "leftover-entry",
+            $"allowMove={allowActionLinkedMove} endTurn={endTurnTerminal} " +
+            FormatActionEconomySnapshot(character, actionEconomy));
+
         if (!IsAdvancedCombatAiActionEconomyEnabled ||
             !actionEconomy.CanAutoAct ||
             !actionEconomy.IsAiControlled ||
             character?.RulesetCharacter == null)
         {
+            var reason = !IsAdvancedCombatAiActionEconomyEnabled
+                ? "disabled"
+                : !actionEconomy.CanAutoAct
+                    ? "not-auto"
+                    : !actionEconomy.IsAiControlled
+                        ? "not-ai"
+                        : "no-character";
+
+            LogCombatAiTemp(
+                character,
+                "leftover-skip",
+                $"reason={reason} {FormatActionEconomySnapshot(character, actionEconomy)}");
             return false;
         }
 
         if (!IsActiveBattleContender(character))
         {
             TryNormalizePendingTerminalActionForInactiveContender(character);
+            LogCombatAiTemp(
+                character,
+                "leftover-skip",
+                $"reason=not-active {FormatActionEconomySnapshot(character, actionEconomy)}");
 
             return false;
         }
 
         TryCloseGroundMeleeNoMoveTerminalSeal(character, blockTerminal: false);
 
+        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
+
         if (!actionEconomy.MainAvailable &&
             !actionEconomy.ReadyAvailable &&
             !actionEconomy.DodgeAvailable)
         {
+            if (TryUseDisengageThreatAvoidance(character, actionEconomy, battleService, canSpendMainDisengage: false) ||
+                TrySpendLeftoverBonusActionEconomy(character, actionEconomy, battleService) ||
+                TryUseThreatAvoidanceMove(character, battleService, allowOpportunityRisk: false, "no-action-status"))
+            {
+                return true;
+            }
+
+            LogCombatAiTemp(
+                character,
+                "leftover-skip",
+                $"reason=no-action-status {FormatActionEconomySnapshot(character, actionEconomy)}");
             return false;
         }
 
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-
-        if (battleService == null || !HasLeftoverActionCombatContext(character))
+        if (battleService == null)
         {
+            LogCombatAiTemp(character, "leftover-skip", "reason=no-battle");
+            return false;
+        }
+
+        if (!HasLeftoverActionCombatContext(character))
+        {
+            LogCombatAiTemp(
+                character,
+                "leftover-skip",
+                $"reason=no-context {FormatActionEconomySnapshot(character, actionEconomy)}");
             return false;
         }
 
@@ -13906,6 +14107,7 @@ internal static partial class CombatAiContext
 
         if (meleeAlternativeResult.Executed)
         {
+            LogCombatAiTemp(character, "leftover-executed", "source=melee-alternative");
             return true;
         }
 
@@ -13926,6 +14128,10 @@ internal static partial class CombatAiContext
 
                 if (attackResult.Executed)
                 {
+                    LogCombatAiTemp(
+                        character,
+                        "leftover-executed",
+                        $"source=probe action={attackResult.ActionKind} id={attackResult.ActionId}");
                     return true;
                 }
 
@@ -13955,6 +14161,7 @@ internal static partial class CombatAiContext
                 CombatAiRouteMoveSourceKind.SearchLostTarget,
                 out _))
         {
+            LogCombatAiTemp(character, "leftover-executed", "source=lost-target-route");
             return true;
         }
 
@@ -13968,6 +14175,10 @@ internal static partial class CombatAiContext
                 turnPlan.ActionProbe.BackupAction,
                 battleService).Executed)
         {
+            LogCombatAiTemp(
+                character,
+                "leftover-executed",
+                $"source=blocked-movement-backup action={turnPlan.ActionProbe.BackupAction}");
             return true;
         }
 
@@ -13975,9 +14186,24 @@ internal static partial class CombatAiContext
 
         if (terminalReprobeResult.Executed)
         {
+            LogCombatAiTemp(
+                character,
+                "leftover-executed",
+                $"source=terminal-reprobe action={terminalReprobeResult.ActionKind}");
             return true;
         }
 
+        if (TryUseAnyCurrentResidualHostileAction(character, turnPlan.ActionProbe, battleService).Executed)
+        {
+            LogCombatAiTemp(character, "leftover-executed", "source=current-residual");
+            return true;
+        }
+
+        if (TryUseDisengageThreatAvoidance(character, actionEconomy, battleService, canSpendMainDisengage: false) ||
+            TrySpendLeftoverBonusActionEconomy(character, actionEconomy, battleService))
+        {
+            return true;
+        }
 
         var currentTerminalScan = BuildCurrentTerminalActionScan(
             character,
@@ -14021,6 +14247,11 @@ internal static partial class CombatAiContext
             character,
             actionEconomy);
 
+        if (TryUseDisengageThreatAvoidance(character, actionEconomy, battleService, canSpendTerminalMain))
+        {
+            return true;
+        }
+
         if (!hasGroundMeleePartialProgress &&
             canSpendTerminalMain &&
             endTurnTerminal &&
@@ -14036,11 +14267,13 @@ internal static partial class CombatAiContext
                       endTurnTerminal))
         {
             RecordTerminalAction(character, turnPlan, CombatAiExecutedActionKind.Ready);
+            LogCombatAiTemp(character, "leftover-executed", "source=ready");
             return true;
         }
 
         if (TryUseFallbackAtWillSelfBuff(character, profile, self, turnPlan))
         {
+            LogCombatAiTemp(character, "leftover-executed", "source=self-buff");
             return true;
         }
 
@@ -14062,6 +14295,7 @@ internal static partial class CombatAiContext
             if (TryApplyFallbackDodge(character, endTurnTerminal).Executed)
             {
                 RecordTerminalAction(character, turnPlan, CombatAiExecutedActionKind.Dodge);
+                LogCombatAiTemp(character, "leftover-executed", "source=dodge");
 
                 return true;
             }
@@ -14069,10 +14303,766 @@ internal static partial class CombatAiContext
         }
         else if (hasDisconnectedMovementLeak)
         {
+            LogCombatAiTemp(character, "leftover-final-false", "reason=disconnected-movement-leak");
             return false;
         }
 
+        LogCombatAiTemp(
+            character,
+            "leftover-final-false",
+            $"policyHeld={hasTerminalPolicyHeld} fallbackBlock={hasTerminalFallbackBlock} " +
+            $"pendingSearch={hasPendingSearchMovement} searchAvailable={hasSearchMovementAvailable} " +
+            $"disconnectedLeak={hasDisconnectedMovementLeak} groundPartial={hasGroundMeleePartialProgress} " +
+            $"movementDeferred={movementDeferredForTerminal} canSpendTerminalMain={canSpendTerminalMain} " +
+            FormatActionEconomySnapshot(character, actionEconomy));
+
         return false;
+    }
+
+    private static bool TrySpendLeftoverBonusActionEconomy(
+        GameLocationCharacter character,
+        CombatAiActionEconomySnapshot actionEconomy,
+        IGameLocationBattleService battleService)
+    {
+        if (character?.RulesetCharacter == null ||
+            actionEconomy.Bonus != ActionStatus.Available ||
+            character.GetActionTypeStatus(ActionType.Bonus) != ActionStatus.Available ||
+            HasCommittedBonusActionThisTurn(character))
+        {
+            LogCombatAiTemp(
+                character,
+                "leftover-bonus-skip",
+                $"reason=status {FormatActionEconomySnapshot(character, actionEconomy)}");
+            return false;
+        }
+
+        if (battleService == null)
+        {
+            LogCombatAiTemp(character, "leftover-bonus-skip", "reason=no-battle");
+            return false;
+        }
+
+        if (TryUseLeftoverBonusHostileSpell(character, battleService, out var hostileSpellDetails) ||
+            TryUseLeftoverBonusHostilePower(character, battleService, out hostileSpellDetails) ||
+            TryUseLeftoverBonusUtilitySpell(character, battleService, out hostileSpellDetails) ||
+            TryUseLeftoverBonusUtilityPower(character, battleService, out hostileSpellDetails))
+        {
+            LogCombatAiTemp(character, "leftover-bonus-executed", hostileSpellDetails);
+            return true;
+        }
+
+        LogCombatAiTemp(character, "leftover-bonus-final-false", FormatCurrentHostileTargetSummary(character, battleService));
+        return false;
+    }
+
+    private static bool TryUseLeftoverBonusHostileSpell(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService,
+        out string details)
+    {
+        details = null;
+
+        if (character?.RulesetCharacter == null ||
+            battleService == null ||
+            character.GetActionStatus(Id.CastBonus, ActionScope.Battle) != ActionStatus.Available)
+        {
+            return false;
+        }
+
+        foreach (var target in GetCurrentHostileActionTargets(character, battleService))
+        {
+            if (target?.RulesetCharacter == null ||
+                target.Side == character.Side ||
+                !TryGetLeftoverBonusSpellFromPosition(
+                    character,
+                    target,
+                    battleService,
+                    hostile: true,
+                    out var spell,
+                    out var spellRepertoire,
+                    out var modifier))
+            {
+                continue;
+            }
+
+            if (!TryExecuteLeftoverBonusSpell(character, target, spell, spellRepertoire, modifier))
+            {
+                continue;
+            }
+
+            details = $"source=hostile-spell spell={spell.Name} target={FormatCombatAiCharacter(target)}";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryUseLeftoverBonusUtilitySpell(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService,
+        out string details)
+    {
+        details = null;
+
+        if (character?.RulesetCharacter == null ||
+            battleService == null ||
+            character.GetActionStatus(Id.CastBonus, ActionScope.Battle) != ActionStatus.Available)
+        {
+            return false;
+        }
+
+        foreach (var target in GetLeftoverUtilityTargets(character))
+        {
+            if (!TryGetLeftoverBonusSpellFromPosition(
+                    character,
+                    target,
+                    battleService,
+                    hostile: false,
+                    out var spell,
+                    out var spellRepertoire,
+                    out var modifier))
+            {
+                continue;
+            }
+
+            if (!TryExecuteLeftoverBonusSpell(character, target, spell, spellRepertoire, modifier))
+            {
+                continue;
+            }
+
+            details = $"source=utility-spell spell={spell.Name} target={FormatCombatAiCharacter(target)}";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetLeftoverBonusSpellFromPosition(
+        GameLocationCharacter character,
+        GameLocationCharacter target,
+        IGameLocationBattleService battleService,
+        bool hostile,
+        out SpellDefinition spell,
+        out RulesetSpellRepertoire spellRepertoire,
+        out ActionModifier modifier)
+    {
+        spell = null;
+        spellRepertoire = null;
+        modifier = null;
+
+        var rulesetCharacter = character?.RulesetCharacter;
+
+        if (rulesetCharacter == null || target?.RulesetCharacter == null || battleService == null)
+        {
+            return false;
+        }
+
+        var distance = ComputeGridDistance(character.LocationPosition, target.LocationPosition);
+        var seenSpells = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var repertoire in rulesetCharacter.SpellRepertoires)
+        {
+            if (repertoire == null)
+            {
+                continue;
+            }
+
+            if (TryGetLeftoverBonusSpellFromSpellList(
+                    character,
+                    target,
+                    battleService,
+                    repertoire,
+                    repertoire.PreparedSpells,
+                    distance,
+                    hostile,
+                    seenSpells,
+                    out spell,
+                    out modifier) ||
+                TryGetLeftoverBonusSpellFromSpellList(
+                    character,
+                    target,
+                    battleService,
+                    repertoire,
+                    repertoire.AutoPreparedSpells,
+                    distance,
+                    hostile,
+                    seenSpells,
+                    out spell,
+                    out modifier) ||
+                TryGetLeftoverBonusSpellFromSpellList(
+                    character,
+                    target,
+                    battleService,
+                    repertoire,
+                    repertoire.KnownSpells,
+                    distance,
+                    hostile,
+                    seenSpells,
+                    out spell,
+                    out modifier))
+            {
+                spellRepertoire = repertoire;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryGetLeftoverBonusSpellFromSpellList(
+        GameLocationCharacter character,
+        GameLocationCharacter target,
+        IGameLocationBattleService battleService,
+        RulesetSpellRepertoire spellRepertoire,
+        IEnumerable<SpellDefinition> spells,
+        float distance,
+        bool hostile,
+        ISet<string> seenSpells,
+        out SpellDefinition spell,
+        out ActionModifier modifier)
+    {
+        spell = null;
+        modifier = null;
+
+        if (spells == null)
+        {
+            return false;
+        }
+
+        foreach (var candidate in spells)
+        {
+            if (candidate == null ||
+                string.IsNullOrEmpty(candidate.Name) ||
+                seenSpells.Contains(candidate.Name) ||
+                !IsLeftoverBonusSpellCandidate(
+                    character,
+                    target,
+                    spellRepertoire,
+                    candidate,
+                    distance,
+                    hostile,
+                    out var effectDescription))
+            {
+                continue;
+            }
+
+            seenSpells.Add(candidate.Name);
+            var attackParams = new BattleDefinitions.AttackEvaluationParams();
+            var actionModifier = new ActionModifier();
+
+            attackParams.FillForMagic(
+                character,
+                character.LocationPosition,
+                effectDescription,
+                candidate.Name,
+                target,
+                target.LocationPosition,
+                actionModifier);
+
+            if (!battleService.CanAttack(attackParams))
+            {
+                continue;
+            }
+
+            spell = candidate;
+            modifier = actionModifier;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsLeftoverBonusSpellCandidate(
+        GameLocationCharacter character,
+        GameLocationCharacter target,
+        RulesetSpellRepertoire spellRepertoire,
+        SpellDefinition spell,
+        float distance,
+        bool hostile,
+        out EffectDescription effectDescription)
+    {
+        effectDescription = null;
+
+        if (character?.RulesetCharacter == null ||
+            target?.RulesetCharacter == null ||
+            spellRepertoire == null ||
+            spell == null ||
+            spell.ActivationTime != ActivationTime.BonusAction ||
+            !IsSpellReadyForLeftoverBonus(character.RulesetCharacter, spellRepertoire, spell))
+        {
+            return false;
+        }
+
+        effectDescription = PowerBundle.ModifySpellEffect(spell, character.RulesetCharacter);
+
+        if (!IsLeftoverBonusEffectCandidate(character, target, effectDescription, distance, hostile))
+        {
+            effectDescription = null;
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsSpellReadyForLeftoverBonus(
+        RulesetCharacter rulesetCharacter,
+        RulesetSpellRepertoire spellRepertoire,
+        SpellDefinition spell)
+    {
+        if (rulesetCharacter == null || spellRepertoire == null || spell == null)
+        {
+            return false;
+        }
+
+        if (spell.SpellLevel <= 0)
+        {
+            return rulesetCharacter.CanCastCantrip(spell, out _);
+        }
+
+        return IsResidualHostileSpellReady(spellRepertoire, spell) &&
+               spellRepertoire.CanCastSpell(spell, false) &&
+               spellRepertoire.CanCastSpellOfLevel(spell.SpellLevel);
+    }
+
+    private static bool TryExecuteLeftoverBonusSpell(
+        GameLocationCharacter character,
+        GameLocationCharacter target,
+        SpellDefinition spell,
+        RulesetSpellRepertoire spellRepertoire,
+        ActionModifier modifier)
+    {
+        var actionService = ServiceRepository.GetService<IGameLocationActionService>();
+        var implementationService = ServiceRepository.GetService<IRulesetImplementationService>();
+
+        if (character?.RulesetCharacter == null ||
+            target?.RulesetCharacter == null ||
+            spell == null ||
+            spellRepertoire == null ||
+            actionService == null ||
+            implementationService == null)
+        {
+            return false;
+        }
+
+        var actionParams = new CharacterActionParams(character, Id.CastBonus)
+        {
+            ActionModifiers = { modifier ?? new ActionModifier() },
+            IntParameter = spell.SpellLevel,
+            StringParameter = spell.Name,
+            RulesetEffect = implementationService.InstantiateEffectSpell(
+                character.RulesetCharacter,
+                spellRepertoire,
+                spell,
+                spell.SpellLevel,
+                false),
+            SpellRepertoire = spellRepertoire,
+            TargetCharacters = { target }
+        };
+
+        actionService.ExecuteAction(actionParams, null, true);
+        return true;
+    }
+
+    private static bool TryUseLeftoverBonusHostilePower(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService,
+        out string details)
+    {
+        details = null;
+
+        if (character?.RulesetCharacter == null ||
+            battleService == null ||
+            character.GetActionStatus(Id.PowerBonus, ActionScope.Battle) != ActionStatus.Available)
+        {
+            return false;
+        }
+
+        foreach (var target in GetCurrentHostileActionTargets(character, battleService))
+        {
+            if (target?.RulesetCharacter == null || target.Side == character.Side)
+            {
+                continue;
+            }
+
+            foreach (var usablePower in character.RulesetCharacter.UsablePowers)
+            {
+                var power = usablePower?.PowerDefinition;
+                var effectDescription = power?.EffectDescription;
+                var distance = ComputeGridDistance(character.LocationPosition, target.LocationPosition);
+
+                if (power == null ||
+                    power.ActivationTime != ActivationTime.BonusAction ||
+                    !character.RulesetCharacter.CanUsePower(power, true, true) ||
+                    !IsLeftoverBonusEffectCandidate(character, target, effectDescription, distance, hostile: true))
+                {
+                    continue;
+                }
+
+                if (!TryExecuteLeftoverBonusPower(character, target, usablePower))
+                {
+                    continue;
+                }
+
+                details = $"source=hostile-power power={power.Name} target={FormatCombatAiCharacter(target)}";
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryUseLeftoverBonusUtilityPower(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService,
+        out string details)
+    {
+        details = null;
+
+        if (character?.RulesetCharacter == null ||
+            battleService == null ||
+            character.GetActionStatus(Id.PowerBonus, ActionScope.Battle) != ActionStatus.Available)
+        {
+            return false;
+        }
+
+        foreach (var target in GetLeftoverUtilityTargets(character))
+        {
+            foreach (var usablePower in character.RulesetCharacter.UsablePowers)
+            {
+                var power = usablePower?.PowerDefinition;
+                var effectDescription = power?.EffectDescription;
+                var distance = ComputeGridDistance(character.LocationPosition, target.LocationPosition);
+
+                if (power == null ||
+                    power.ActivationTime != ActivationTime.BonusAction ||
+                    !character.RulesetCharacter.CanUsePower(power, true, true) ||
+                    !IsLeftoverBonusEffectCandidate(character, target, effectDescription, distance, hostile: false))
+                {
+                    continue;
+                }
+
+                if (!TryExecuteLeftoverBonusPower(character, target, usablePower))
+                {
+                    continue;
+                }
+
+                details = $"source=utility-power power={power.Name} target={FormatCombatAiCharacter(target)}";
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryExecuteLeftoverBonusPower(
+        GameLocationCharacter character,
+        GameLocationCharacter target,
+        RulesetUsablePower usablePower)
+    {
+        var actionService = ServiceRepository.GetService<IGameLocationActionService>();
+        var implementationService = ServiceRepository.GetService<IRulesetImplementationService>();
+
+        if (character?.RulesetCharacter == null ||
+            target?.RulesetCharacter == null ||
+            usablePower?.PowerDefinition == null ||
+            actionService == null ||
+            implementationService == null)
+        {
+            return false;
+        }
+
+        var actionParams = new CharacterActionParams(character, Id.PowerBonus)
+        {
+            ActionModifiers = { new ActionModifier() },
+            RulesetEffect = implementationService.InstantiateEffectPower(
+                character.RulesetCharacter,
+                usablePower,
+                false),
+            UsablePower = usablePower,
+            TargetCharacters = { target }
+        };
+
+        actionService.ExecuteAction(actionParams, null, true);
+        return true;
+    }
+
+    private static bool IsLeftoverBonusEffectCandidate(
+        GameLocationCharacter character,
+        GameLocationCharacter target,
+        EffectDescription effectDescription,
+        float distance,
+        bool hostile)
+    {
+        if (character?.RulesetCharacter == null ||
+            target?.RulesetCharacter == null ||
+            effectDescription == null)
+        {
+            return false;
+        }
+
+        if (effectDescription.RangeParameter > 0 &&
+            distance > effectDescription.RangeParameter + 0.5f)
+        {
+            return false;
+        }
+
+        if (hostile)
+        {
+            return target.Side != character.Side &&
+                   effectDescription.TargetSide == Side.Enemy &&
+                   effectDescription.TargetType is TargetType.Individuals or TargetType.IndividualsUnique;
+        }
+
+        if (target.Side != character.Side ||
+            !IsSupportedLeftoverUtilityTarget(character, target, effectDescription))
+        {
+            return false;
+        }
+
+        var targetAssessment = BuildSelfAssessment(target);
+
+        if (HasHealingForm(effectDescription))
+        {
+            return targetAssessment.IsBloodied ||
+                   targetAssessment.IsCritical ||
+                   targetAssessment.HasSeriousCondition;
+        }
+
+        return target == character &&
+               HasDefensiveSelfBuffForm(effectDescription) &&
+               !HasEquivalentActiveEffectOrCondition(target.RulesetCharacter, effectDescription) &&
+               !IsLowValueSelfUtility(effectDescription);
+    }
+
+    private static bool IsSupportedLeftoverUtilityTarget(
+        GameLocationCharacter character,
+        GameLocationCharacter target,
+        EffectDescription effectDescription)
+    {
+        return effectDescription.TargetType switch
+        {
+            TargetType.Self => target == character,
+            TargetType.Individuals or TargetType.IndividualsUnique =>
+                effectDescription.TargetSide == Side.Ally,
+            _ => false
+        };
+    }
+
+    private static bool HasHealingForm(EffectDescription effectDescription)
+    {
+        if (effectDescription?.EffectForms == null)
+        {
+            return false;
+        }
+
+        foreach (var effectForm in effectDescription.EffectForms)
+        {
+            if (effectForm.FormType == EffectForm.EffectFormType.Healing)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<GameLocationCharacter> GetLeftoverUtilityTargets(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null)
+        {
+            yield break;
+        }
+
+        yield return character;
+
+        if (Gui.Battle == null)
+        {
+            yield break;
+        }
+
+        foreach (var ally in OrderCharactersForCombatAi(Gui.Battle.AllContenders.ToArray(), character.LocationPosition))
+        {
+            if (ally?.RulesetCharacter == null ||
+                ally == character ||
+                ally.Side != character.Side ||
+                IsNonOccupyingCombatProxyTarget(ally))
+            {
+                continue;
+            }
+
+            yield return ally;
+        }
+    }
+
+    private static bool TryUseDisengageThreatAvoidance(
+        GameLocationCharacter character,
+        CombatAiActionEconomySnapshot actionEconomy,
+        IGameLocationBattleService battleService,
+        bool canSpendMainDisengage)
+    {
+        if (character?.RulesetCharacter == null ||
+            battleService == null ||
+            !TryGetCurrentOrRecentMeleeThreat(
+                character,
+                character.LocationPosition,
+                out _,
+                out _,
+                out _))
+        {
+            return false;
+        }
+
+        var actionId = Id.NoAction;
+
+        if (actionEconomy.Bonus == ActionStatus.Available &&
+            character.GetActionStatus(Id.DisengageBonus, ActionScope.Battle) == ActionStatus.Available &&
+            !HasCommittedBonusActionThisTurn(character))
+        {
+            actionId = Id.DisengageBonus;
+        }
+        else if (canSpendMainDisengage &&
+                 character.GetActionStatus(Id.DisengageMain, ActionScope.Battle) == ActionStatus.Available)
+        {
+            actionId = Id.DisengageMain;
+        }
+
+        if (actionId == Id.NoAction)
+        {
+            return false;
+        }
+
+        if (!TryGetThreatAvoidanceDestination(
+                character,
+                battleService,
+                allowOpportunityRisk: true,
+                out var destination))
+        {
+            LogCombatAiTemp(character, "threat-avoidance-skip", $"source=disengage action={actionId} reason=no-destination");
+            return false;
+        }
+
+        var actionService = ServiceRepository.GetService<IGameLocationActionService>();
+
+        if (actionService == null)
+        {
+            return false;
+        }
+
+        CharacterAction.ActionExecutedHandler actionExecuted = _ =>
+        {
+            TryExecuteThreatAvoidanceMove(character, destination, "disengage");
+        };
+
+        actionService.ExecuteAction(new CharacterActionParams(character, actionId), actionExecuted, true);
+        LogCombatAiTemp(character, "threat-avoidance-disengage", $"action={actionId} destination={destination}");
+
+        return true;
+    }
+
+    private static bool TryUseThreatAvoidanceMove(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService,
+        bool allowOpportunityRisk,
+        string source)
+    {
+        if (!TryGetThreatAvoidanceDestination(character, battleService, allowOpportunityRisk, out var destination))
+        {
+            return false;
+        }
+
+        return TryExecuteThreatAvoidanceMove(character, destination, source);
+    }
+
+    private static bool TryGetThreatAvoidanceDestination(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService,
+        bool allowOpportunityRisk,
+        out int3 destination)
+    {
+        destination = default;
+
+        if (character?.RulesetCharacter == null ||
+            battleService == null ||
+            character.RemainingTacticalMoves <= 0 ||
+            character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available ||
+            !character.CanDecideToMoveByItself ||
+            !TryGetCurrentOrRecentMeleeThreat(
+                character,
+                character.LocationPosition,
+                out _,
+                out var threatPosition,
+                out _))
+        {
+            return false;
+        }
+
+        var start = character.LocationPosition;
+        var remainingMove = Math.Max(0, character.RemainingTacticalMoves);
+
+        if (!TryGetReachableRouteDestinations(
+                character,
+                start,
+                remainingMove,
+                out var reachableDestinations,
+                allowPathfinding: true))
+        {
+            return false;
+        }
+
+        var currentThreatDistance = ComputeGridDistance(start, threatPosition);
+        var bestScore = float.MinValue;
+        var found = false;
+
+        foreach (var candidate in reachableDestinations.Positions)
+        {
+            if (!IsLegalAiRouteDestination(character, candidate, out _) ||
+                WouldBeInCurrentOrRecentMeleeThreat(character, candidate, battleService) ||
+                !allowOpportunityRisk && HasOpportunityAttackRisk(character, start, candidate, battleService))
+            {
+                continue;
+            }
+
+            var threatDistance = ComputeGridDistance(candidate, threatPosition);
+            var threatGain = threatDistance - currentThreatDistance;
+
+            if (threatGain < ThreatAvoidanceActualDistanceGain)
+            {
+                continue;
+            }
+
+            var score = threatGain - reachableDestinations.GetMoveCost(candidate) * 0.01f;
+
+            if (score <= bestScore)
+            {
+                continue;
+            }
+
+            bestScore = score;
+            destination = candidate;
+            found = true;
+        }
+
+        return found;
+    }
+
+    private static bool TryExecuteThreatAvoidanceMove(
+        GameLocationCharacter character,
+        int3 destination,
+        string source)
+    {
+        if (character?.RulesetCharacter == null ||
+            character.RemainingTacticalMoves <= 0 ||
+            character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available)
+        {
+            LogCombatAiTemp(character, "threat-avoidance-move-skip", $"source={source} reason=status destination={destination}");
+            return false;
+        }
+
+        FreeJumpContext.SuppressAiFreeJumpForNextMove(character, destination);
+        character.MyExecuteActionTacticalMove(destination);
+        LogCombatAiTemp(character, "threat-avoidance-move", $"source={source} destination={destination}");
+
+        return true;
     }
 
     internal static float ComputeEnemyProximityScore(
@@ -14358,6 +15348,69 @@ internal static partial class CombatAiContext
 
             targets.Add(target);
         }
+    }
+
+    private static GameLocationCharacter[] GetCurrentHostileActionTargets(
+        GameLocationCharacter actor,
+        IGameLocationBattleService battleService)
+    {
+        if (actor?.RulesetCharacter == null)
+        {
+            return Array.Empty<GameLocationCharacter>();
+        }
+
+        var targets = new List<GameLocationCharacter>();
+
+        AddKnownEnemyTargets(actor, GetKnownEnemyTargets(actor), targets);
+
+        if (Gui.Battle == null || battleService == null)
+        {
+            return targets.ToArray();
+        }
+
+        foreach (var candidate in OrderCharactersForCombatAi(Gui.Battle.AllContenders.ToArray(), actor.LocationPosition))
+        {
+            if (candidate?.RulesetCharacter == null ||
+                candidate == actor ||
+                candidate.Side == actor.Side ||
+                IsNonOccupyingCombatProxyTarget(candidate) ||
+                targets.Contains(candidate))
+            {
+                continue;
+            }
+
+            if (CanAttackInMeleeFromPosition(
+                    candidate,
+                    candidate.LocationPosition,
+                    actor,
+                    actor.LocationPosition,
+                    battleService) ||
+                ComputeGridDistance(actor.LocationPosition, candidate.LocationPosition) <= 1.5f)
+            {
+                targets.Add(candidate);
+            }
+        }
+
+        return targets.ToArray();
+    }
+
+    private static string FormatCurrentHostileTargetSummary(
+        GameLocationCharacter actor,
+        IGameLocationBattleService battleService)
+    {
+        if (actor?.RulesetCharacter == null)
+        {
+            return "targets=current:0 known:0 localAdded:0 localThreat=False";
+        }
+
+        var knownTargets = GetKnownEnemyTargets(actor);
+        var currentTargets = GetCurrentHostileActionTargets(actor, battleService);
+        var localAdded = currentTargets.Count(target => !knownTargets.Contains(target));
+        var hasLocalThreat = TryGetLocalMeleeThreat(actor, actor.LocationPosition, out _, out _);
+
+        return
+            $"targets=current:{currentTargets.Length} known:{knownTargets.Length} " +
+            $"localAdded:{localAdded} localThreat={hasLocalThreat}";
     }
 
     private static int ComputeTacticalTargetTieBreakPriority(
@@ -18780,6 +19833,14 @@ internal static partial class CombatAiContext
                     enemy,
                     enemy.LocationPosition,
                     battleService,
+                    out _) ||
+                TryGetResidualHostileSpellFromPosition(
+                    character,
+                    character.LocationPosition,
+                    enemy,
+                    battleService,
+                    out _,
+                    out _,
                     out _))
             {
                 return true;
@@ -18792,6 +19853,7 @@ internal static partial class CombatAiContext
     private static bool HasLeftoverActionCombatContext(GameLocationCharacter character)
     {
         return HasRelevantPerceivedEnemies(character) ||
+               TryGetLocalMeleeThreat(character, character?.LocationPosition ?? default, out _, out _) ||
                TryGetLastKnownEnemyPosition(character, out _) ||
                TryGetRegroupPosition(character, out _);
     }
@@ -18806,14 +19868,17 @@ internal static partial class CombatAiContext
             return new TerminalReprobeResult(TerminalReprobeStatus.Blocked);
         }
 
+        ClearTerminalReprobeActionCaches();
+
         var target = turnPlan.ActionProbe.Target ?? SelectPrimaryTarget(character);
 
         if (target?.RulesetCharacter == null)
         {
-            return new TerminalReprobeResult(TerminalReprobeStatus.Blocked);
+            return TryUseAnyCurrentResidualHostileAction(
+                character,
+                turnPlan.ActionProbe,
+                battleService);
         }
-
-        ClearTerminalReprobeActionCaches();
 
         var preferred = turnPlan.ActionProbe.PreferredAction;
         var backup = turnPlan.ActionProbe.BackupAction;
@@ -18865,7 +19930,7 @@ internal static partial class CombatAiContext
             }
         }
 
-        var currentResult = TryUseAnyCurrentHostileAction(
+        var currentResult = TryUseAnyCurrentResidualHostileAction(
                 character,
                 turnPlan.ActionProbe,
                 battleService);
@@ -18883,6 +19948,93 @@ internal static partial class CombatAiContext
         return new TerminalReprobeResult(TerminalReprobeStatus.Blocked);
     }
 
+    private static TerminalReprobeResult TryUseAnyCurrentResidualHostileAction(
+        GameLocationCharacter character,
+        CombatAiActionProbe actionProbe,
+        IGameLocationBattleService battleService)
+    {
+        LogCombatAiTemp(
+            character,
+            "current-hostile-summary",
+            FormatCurrentHostileTargetSummary(character, battleService));
+
+        if (TryUseAnyCurrentResidualHostileSpellAction(character, battleService))
+        {
+            LogCombatAiTemp(character, "current-hostile-result", "source=spell status=executed");
+            return new TerminalReprobeResult(TerminalReprobeStatus.Executed, CombatAiActionKind.Spell);
+        }
+
+        var fallbackResult = TryUseAnyCurrentHostileAction(character, actionProbe, battleService);
+
+        LogCombatAiTemp(
+            character,
+            "current-hostile-result",
+            $"source=weapon-fallback status={fallbackResult.Status} action={fallbackResult.ActionKind}");
+
+        return fallbackResult;
+    }
+
+    private static bool TryUseAnyCurrentResidualHostileSpellAction(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService)
+    {
+        if (character?.RulesetCharacter == null)
+        {
+            return false;
+        }
+
+        if (battleService == null)
+        {
+            LogCombatAiTemp(character, "residual-spell", "result=skip reason=no-battle");
+            return false;
+        }
+
+        var mainStatus = character.GetActionTypeStatus(ActionType.Main);
+
+        if (mainStatus != ActionStatus.Available)
+        {
+            LogCombatAiTemp(character, "residual-spell", $"result=skip reason=no-main main={mainStatus}");
+            return false;
+        }
+
+        if (TryGetCommittedNonTerminalMainActionThisTurn(character, out var committedMain, out var committedSource))
+        {
+            LogCombatAiTemp(
+                character,
+                "residual-spell",
+                $"result=skip reason=committed-main action={committedMain.ActionId} source={committedSource}");
+            return false;
+        }
+
+        var targets = GetCurrentHostileActionTargets(character, battleService);
+
+        if (targets.Length == 0)
+        {
+            LogCombatAiTemp(character, "residual-spell", "result=skip reason=no-target");
+            return false;
+        }
+
+        foreach (var target in targets)
+        {
+            if (target?.RulesetCharacter == null || target.Side == character.Side)
+            {
+                continue;
+            }
+
+            if (TryUseResidualHostileSpellAction(character, target, battleService).Executed)
+            {
+                return true;
+            }
+        }
+
+        LogCombatAiTemp(
+            character,
+            "residual-spell",
+            $"result=all-failed {FormatResidualSpellFailureSummary(character, targets, battleService)}");
+
+        return false;
+    }
+
     private static TerminalReprobeResult TryUseAnyCurrentHostileAction(
         GameLocationCharacter character,
         CombatAiActionProbe actionProbe,
@@ -18896,7 +20048,7 @@ internal static partial class CombatAiContext
         var actionKinds = GetTerminalReprobeActionKinds(actionProbe);
         var policyHeld = false;
 
-        foreach (var target in GetKnownEnemyTargets(character))
+        foreach (var target in GetCurrentHostileActionTargets(character, battleService))
         {
             if (target?.RulesetCharacter == null || target.Side == character.Side)
             {
@@ -18988,11 +20140,23 @@ internal static partial class CombatAiContext
 
         var actionKinds = GetTerminalReprobeActionKinds(actionProbe);
 
-        foreach (var target in GetKnownEnemyTargets(character))
+        foreach (var target in GetCurrentHostileActionTargets(character, battleService))
         {
             if (target?.RulesetCharacter == null || target.Side == character.Side)
             {
                 continue;
+            }
+
+            if (TryGetResidualHostileSpellFromPosition(
+                    character,
+                    character.LocationPosition,
+                    target,
+                    battleService,
+                    out _,
+                    out _,
+                    out _))
+            {
+                return true;
             }
 
             foreach (var actionKind in actionKinds)
@@ -19077,7 +20241,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        foreach (var target in GetKnownEnemyTargets(character))
+        foreach (var target in GetCurrentHostileActionTargets(character, battleService))
         {
             if (target?.RulesetCharacter == null || target.Side == character.Side)
             {
@@ -19091,6 +20255,12 @@ internal static partial class CombatAiContext
             }
 
             if (GetCurrentCantripMainActionAvailability(character, target, battleService) !=
+                CurrentTerminalActionAvailability.None)
+            {
+                return true;
+            }
+
+            if (GetCurrentResidualHostileSpellAvailability(character, target, battleService) !=
                 CurrentTerminalActionAvailability.None)
             {
                 return true;
@@ -19221,6 +20391,30 @@ internal static partial class CombatAiContext
         }
 
         return CurrentTerminalActionAvailability.Validated;
+    }
+
+    private static CurrentTerminalActionAvailability GetCurrentResidualHostileSpellAvailability(
+        GameLocationCharacter character,
+        GameLocationCharacter target,
+        IGameLocationBattleService battleService)
+    {
+        if (character?.RulesetCharacter == null ||
+            target?.RulesetCharacter == null ||
+            character.GetActionTypeStatus(ActionType.Main) != ActionStatus.Available)
+        {
+            return CurrentTerminalActionAvailability.None;
+        }
+
+        return TryGetResidualHostileSpellFromPosition(
+            character,
+            character.LocationPosition,
+            target,
+            battleService,
+            out _,
+            out _,
+            out _)
+            ? CurrentTerminalActionAvailability.Validated
+            : CurrentTerminalActionAvailability.None;
     }
 
     private static CurrentTerminalActionAvailability GetCurrentHostilePowerAvailability(
@@ -23215,6 +24409,11 @@ internal static partial class CombatAiContext
             return new PostRouteTerminalResult(PostRouteTerminalStatus.Executed, CombatAiExecutedActionKind.None);
         }
 
+        if (TryUseAnyCurrentResidualHostileAction(character, turnPlan.ActionProbe, battleService).Executed)
+        {
+            return new PostRouteTerminalResult(PostRouteTerminalStatus.Executed, CombatAiExecutedActionKind.None);
+        }
+
         var currentTerminalScan = BuildCurrentTerminalActionScan(
             character,
             turnPlan.ActionProbe,
@@ -23667,7 +24866,7 @@ internal static partial class CombatAiContext
         }
 
         return actionKind == CombatAiActionKind.Spell
-            ? TryUseResidualCantripAttack(character, target, battleService)
+            ? TryUseResidualHostileSpellAction(character, target, battleService)
             : TryUseResidualWeaponAttack(character, target, actionKind, battleService);
     }
 
@@ -23731,7 +24930,15 @@ internal static partial class CombatAiContext
             return new CombatAiMainActionValidation(false, CombatAiMainActionBlockKind.NoActionKind);
         }
 
-        if (!CanUseActionKindAtPosition(character, character.LocationPosition, target, actionKind, battleService))
+        var canUseAtPosition = actionKind == CombatAiActionKind.Spell
+            ? CanUseResidualHostileSpellAtPosition(
+                character,
+                character.LocationPosition,
+                target,
+                battleService)
+            : CanUseActionKindAtPosition(character, character.LocationPosition, target, actionKind, battleService);
+
+        if (!canUseAtPosition)
         {
             return new CombatAiMainActionValidation(
                 false,
@@ -23816,6 +25023,503 @@ internal static partial class CombatAiContext
             actionKind,
             Id.AttackMain,
             CombatAiMainActionBlockKind.ActionNotUsableAtPosition);
+    }
+
+    private static bool CanUseResidualHostileSpellAtPosition(
+        GameLocationCharacter character,
+        int3 characterPosition,
+        GameLocationCharacter target,
+        IGameLocationBattleService battleService)
+    {
+        return TryGetAtWillSpellAttackModifierFromPosition(
+                   character,
+                   characterPosition,
+                   target,
+                   target.LocationPosition,
+                   battleService,
+                   out _) ||
+               TryGetResidualHostileSpellFromPosition(
+                   character,
+                   characterPosition,
+                   target,
+                   battleService,
+                   out _,
+                   out _,
+                   out _);
+    }
+
+    private static CombatAiResidualHostileActionResult TryUseResidualHostileSpellAction(
+        GameLocationCharacter character,
+        GameLocationCharacter target,
+        IGameLocationBattleService battleService)
+    {
+        var cantripResult = TryUseResidualCantripAttack(character, target, battleService);
+
+        if (cantripResult.Executed)
+        {
+            LogCombatAiTemp(
+                character,
+                "residual-spell",
+                $"result=executed-cantrip target={FormatCombatAiCharacter(target)}");
+            return cantripResult;
+        }
+
+        var leveledResult = TryUseResidualLeveledHostileSpellAction(character, target, battleService, cantripResult);
+
+        if (leveledResult.Executed)
+        {
+            LogCombatAiTemp(
+                character,
+                "residual-spell",
+                $"result=executed-leveled target={FormatCombatAiCharacter(target)}");
+        }
+
+        return leveledResult;
+    }
+
+    private static CombatAiResidualHostileActionResult TryUseResidualLeveledHostileSpellAction(
+        GameLocationCharacter character,
+        GameLocationCharacter target,
+        IGameLocationBattleService battleService,
+        CombatAiResidualHostileActionResult fallbackResult)
+    {
+        if (character?.RulesetCharacter == null ||
+            target?.RulesetCharacter == null ||
+            character.GetActionTypeStatus(ActionType.Main) != ActionStatus.Available ||
+            !TryGetResidualHostileSpellFromPosition(
+                character,
+                character.LocationPosition,
+                target,
+                battleService,
+                out var spell,
+                out var spellRepertoire,
+                out var modifier))
+        {
+            return fallbackResult.IsBlocked
+                ? fallbackResult
+                : new CombatAiResidualHostileActionResult(CombatAiResidualHostileActionResultKind.Unavailable);
+        }
+
+        var actionService = ServiceRepository.GetService<IGameLocationActionService>();
+        var implementationService = ServiceRepository.GetService<IRulesetImplementationService>();
+
+        if (actionService == null || implementationService == null)
+        {
+            return new CombatAiResidualHostileActionResult(
+                CombatAiResidualHostileActionResultKind.Blocked,
+                CombatAiActionKind.Spell,
+                Id.CastMain,
+                CombatAiMainActionBlockKind.Other);
+        }
+
+        var actionParams = new CharacterActionParams(character, Id.CastMain)
+        {
+            ActionModifiers = { modifier },
+            IntParameter = spell.SpellLevel,
+            StringParameter = spell.Name,
+            RulesetEffect = implementationService.InstantiateEffectSpell(
+                character.RulesetCharacter,
+                spellRepertoire,
+                spell,
+                spell.SpellLevel,
+                false),
+            SpellRepertoire = spellRepertoire,
+            TargetCharacters = { target }
+        };
+
+        MarkPendingResidualMainAction(character, Id.CastMain, "residual:Spell");
+        actionService.ExecuteAction(actionParams, null, true);
+
+        return new CombatAiResidualHostileActionResult(
+            CombatAiResidualHostileActionResultKind.Executed,
+            CombatAiActionKind.Spell,
+            Id.CastMain);
+    }
+
+    private static string FormatResidualSpellFailureSummary(
+        GameLocationCharacter character,
+        IEnumerable<GameLocationCharacter> targets,
+        IGameLocationBattleService battleService)
+    {
+        var rulesetCharacter = character?.RulesetCharacter;
+
+        if (rulesetCharacter == null || targets == null || battleService == null)
+        {
+            return "spellFail=unavailable";
+        }
+
+        var targetCount = 0;
+        var checkedCount = 0;
+        var unavailableCount = 0;
+        var shapeCount = 0;
+        var rangeCount = 0;
+        var canAttackCount = 0;
+        var usableCount = 0;
+
+        foreach (var target in targets)
+        {
+            if (target?.RulesetCharacter == null || target.Side == character.Side)
+            {
+                continue;
+            }
+
+            targetCount++;
+            var seenSpells = new HashSet<string>(StringComparer.Ordinal);
+            var distance = ComputeGridDistance(character.LocationPosition, target.LocationPosition);
+
+            foreach (var repertoire in rulesetCharacter.SpellRepertoires)
+            {
+                if (repertoire == null)
+                {
+                    continue;
+                }
+
+                CountResidualSpellFailuresInSpellList(
+                    character,
+                    target,
+                    battleService,
+                    repertoire,
+                    repertoire.PreparedSpells,
+                    distance,
+                    seenSpells,
+                    ref checkedCount,
+                    ref unavailableCount,
+                    ref shapeCount,
+                    ref rangeCount,
+                    ref canAttackCount,
+                    ref usableCount);
+                CountResidualSpellFailuresInSpellList(
+                    character,
+                    target,
+                    battleService,
+                    repertoire,
+                    repertoire.AutoPreparedSpells,
+                    distance,
+                    seenSpells,
+                    ref checkedCount,
+                    ref unavailableCount,
+                    ref shapeCount,
+                    ref rangeCount,
+                    ref canAttackCount,
+                    ref usableCount);
+                CountResidualSpellFailuresInSpellList(
+                    character,
+                    target,
+                    battleService,
+                    repertoire,
+                    repertoire.KnownSpells,
+                    distance,
+                    seenSpells,
+                    ref checkedCount,
+                    ref unavailableCount,
+                    ref shapeCount,
+                    ref rangeCount,
+                    ref canAttackCount,
+                    ref usableCount);
+            }
+        }
+
+        return
+            $"spellFail=targets:{targetCount} checked:{checkedCount} unavailable:{unavailableCount} " +
+            $"shape:{shapeCount} range:{rangeCount} canAttack:{canAttackCount} usable:{usableCount}";
+    }
+
+    private static void CountResidualSpellFailuresInSpellList(
+        GameLocationCharacter character,
+        GameLocationCharacter target,
+        IGameLocationBattleService battleService,
+        RulesetSpellRepertoire spellRepertoire,
+        IEnumerable<SpellDefinition> spells,
+        float distance,
+        ISet<string> seenSpells,
+        ref int checkedCount,
+        ref int unavailableCount,
+        ref int shapeCount,
+        ref int rangeCount,
+        ref int canAttackCount,
+        ref int usableCount)
+    {
+        if (spells == null)
+        {
+            return;
+        }
+
+        foreach (var candidate in spells)
+        {
+            if (candidate == null ||
+                string.IsNullOrEmpty(candidate.Name) ||
+                seenSpells.Contains(candidate.Name))
+            {
+                continue;
+            }
+
+            seenSpells.Add(candidate.Name);
+            checkedCount++;
+
+            if (candidate.SpellLevel <= 0 || candidate.ActivationTime != ActivationTime.Action)
+            {
+                shapeCount++;
+                continue;
+            }
+
+            if (!IsResidualHostileSpellReady(spellRepertoire, candidate) ||
+                !spellRepertoire.CanCastSpell(candidate, false) ||
+                !spellRepertoire.CanCastSpellOfLevel(candidate.SpellLevel))
+            {
+                unavailableCount++;
+                continue;
+            }
+
+            var effectDescription = PowerBundle.ModifySpellEffect(candidate, character.RulesetCharacter);
+
+            if (effectDescription is not
+                {
+                    TargetSide: Side.Enemy,
+                    TargetType: TargetType.Individuals or TargetType.IndividualsUnique
+                })
+            {
+                shapeCount++;
+                continue;
+            }
+
+            if (effectDescription.RangeParameter > 0 &&
+                distance > effectDescription.RangeParameter + 0.5f)
+            {
+                rangeCount++;
+                continue;
+            }
+
+            var attackParams = new BattleDefinitions.AttackEvaluationParams();
+            var modifier = new ActionModifier();
+
+            attackParams.FillForMagic(
+                character,
+                character.LocationPosition,
+                effectDescription,
+                candidate.Name,
+                target,
+                target.LocationPosition,
+                modifier);
+
+            if (!battleService.CanAttack(attackParams))
+            {
+                canAttackCount++;
+                continue;
+            }
+
+            usableCount++;
+        }
+    }
+
+    private static bool TryGetResidualHostileSpellFromPosition(
+        GameLocationCharacter character,
+        int3 characterPosition,
+        GameLocationCharacter target,
+        IGameLocationBattleService battleService,
+        out SpellDefinition spell,
+        out RulesetSpellRepertoire spellRepertoire,
+        out ActionModifier bestModifier)
+    {
+        spell = null;
+        spellRepertoire = null;
+        bestModifier = null;
+
+        var rulesetCharacter = character?.RulesetCharacter;
+
+        if (rulesetCharacter == null || target?.RulesetCharacter == null || battleService == null)
+        {
+            return false;
+        }
+
+        var distance = ComputeGridDistance(characterPosition, target.LocationPosition);
+        var seenSpells = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var repertoire in rulesetCharacter.SpellRepertoires)
+        {
+            if (repertoire == null)
+            {
+                continue;
+            }
+
+            if (TryGetResidualHostileSpellFromRepertoire(
+                    character,
+                    characterPosition,
+                    target,
+                    battleService,
+                    repertoire,
+                    distance,
+                    seenSpells,
+                    out spell,
+                    out bestModifier))
+            {
+                spellRepertoire = repertoire;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryGetResidualHostileSpellFromRepertoire(
+        GameLocationCharacter character,
+        int3 characterPosition,
+        GameLocationCharacter target,
+        IGameLocationBattleService battleService,
+        RulesetSpellRepertoire spellRepertoire,
+        float distance,
+        ISet<string> seenSpells,
+        out SpellDefinition spell,
+        out ActionModifier bestModifier)
+    {
+        spell = null;
+        bestModifier = null;
+
+        return TryGetResidualHostileSpellFromSpellList(
+                   character,
+                   characterPosition,
+                   target,
+                   battleService,
+                   spellRepertoire,
+                   spellRepertoire.PreparedSpells,
+                   distance,
+                   seenSpells,
+                   out spell,
+                   out bestModifier) ||
+               TryGetResidualHostileSpellFromSpellList(
+                   character,
+                   characterPosition,
+                   target,
+                   battleService,
+                   spellRepertoire,
+                   spellRepertoire.AutoPreparedSpells,
+                   distance,
+                   seenSpells,
+                   out spell,
+                   out bestModifier) ||
+               TryGetResidualHostileSpellFromSpellList(
+                   character,
+                   characterPosition,
+                   target,
+                   battleService,
+                   spellRepertoire,
+                   spellRepertoire.KnownSpells,
+                   distance,
+                   seenSpells,
+                   out spell,
+                   out bestModifier);
+    }
+
+    private static bool TryGetResidualHostileSpellFromSpellList(
+        GameLocationCharacter character,
+        int3 characterPosition,
+        GameLocationCharacter target,
+        IGameLocationBattleService battleService,
+        RulesetSpellRepertoire spellRepertoire,
+        IEnumerable<SpellDefinition> spells,
+        float distance,
+        ISet<string> seenSpells,
+        out SpellDefinition spell,
+        out ActionModifier bestModifier)
+    {
+        spell = null;
+        bestModifier = null;
+
+        if (spells == null)
+        {
+            return false;
+        }
+
+        foreach (var candidate in spells)
+        {
+            if (candidate == null ||
+                string.IsNullOrEmpty(candidate.Name) ||
+                seenSpells.Contains(candidate.Name) ||
+                !IsResidualHostileSpellCandidate(character.RulesetCharacter, spellRepertoire, candidate, distance))
+            {
+                continue;
+            }
+
+            seenSpells.Add(candidate.Name);
+
+            var effectDescription = PowerBundle.ModifySpellEffect(candidate, character.RulesetCharacter);
+
+            if (effectDescription == null)
+            {
+                continue;
+            }
+
+            var attackParams = new BattleDefinitions.AttackEvaluationParams();
+            var modifier = new ActionModifier();
+
+            attackParams.FillForMagic(
+                character,
+                characterPosition,
+                effectDescription,
+                candidate.Name,
+                target,
+                target.LocationPosition,
+                modifier);
+
+            if (!battleService.CanAttack(attackParams))
+            {
+                continue;
+            }
+
+            spell = candidate;
+            bestModifier = modifier;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsResidualHostileSpellCandidate(
+        RulesetCharacter rulesetCharacter,
+        RulesetSpellRepertoire spellRepertoire,
+        SpellDefinition spell,
+        float distance)
+    {
+        if (rulesetCharacter == null ||
+            spellRepertoire == null ||
+            spell == null ||
+            spell.SpellLevel <= 0 ||
+            spell.ActivationTime != ActivationTime.Action ||
+            !IsResidualHostileSpellReady(spellRepertoire, spell) ||
+            !spellRepertoire.CanCastSpell(spell, false) ||
+            !spellRepertoire.CanCastSpellOfLevel(spell.SpellLevel))
+        {
+            return false;
+        }
+
+        var effectDescription = PowerBundle.ModifySpellEffect(spell, rulesetCharacter);
+
+        return effectDescription is
+               {
+                   TargetSide: Side.Enemy,
+                   TargetType: TargetType.Individuals or TargetType.IndividualsUnique
+               } &&
+               (effectDescription.RangeParameter <= 0 ||
+                distance <= effectDescription.RangeParameter + 0.5f);
+    }
+
+    private static bool IsResidualHostileSpellReady(
+        RulesetSpellRepertoire spellRepertoire,
+        SpellDefinition spell)
+    {
+        if (spellRepertoire == null || spell == null)
+        {
+            return false;
+        }
+
+        if (spellRepertoire.IsSpellReady(spell) ||
+            spellRepertoire.AutoPreparedSpells.Contains(spell))
+        {
+            return true;
+        }
+
+        return spellRepertoire.SpellCastingFeature?.SpellReadyness == SpellReadyness.Prepared
+            ? spellRepertoire.PreparedSpells.Contains(spell)
+            : spellRepertoire.KnownSpells.Contains(spell);
     }
 
     private static CombatAiResidualHostileActionResult TryUseResidualCantripAttack(

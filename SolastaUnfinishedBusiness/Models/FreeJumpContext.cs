@@ -29,6 +29,7 @@ internal static class FreeJumpContext
     private static readonly Dictionary<ulong, int3> SuppressedAiMoveTargets = [];
     private static readonly Dictionary<ulong, int3> ForcedAiFreeJumpTargets = [];
     private static readonly Dictionary<ulong, PendingAiFreeJumpCompletion> PendingAiFreeJumpCompletions = [];
+    private static readonly HashSet<CursorLocationBattleFriendlyTurn> CursorDestinationComputations = [];
     private static readonly FieldInfo ChainEvaluatedField =
         AccessTools.Field(typeof(CharacterActionChainParams), "<Evaluated>k__BackingField");
     private static readonly FieldInfo ChainTotalCostField =
@@ -206,6 +207,33 @@ internal static class FreeJumpContext
         }
     }
 
+    private sealed class CursorDestinationComputationScope : IDisposable
+    {
+        private readonly CursorLocationBattleFriendlyTurn _cursor;
+        private readonly IDisposable _pathfindingScope;
+        private bool _disposed;
+
+        internal CursorDestinationComputationScope(
+            CursorLocationBattleFriendlyTurn cursor,
+            IDisposable pathfindingScope)
+        {
+            _cursor = cursor;
+            _pathfindingScope = pathfindingScope;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _pathfindingScope?.Dispose();
+            CursorDestinationComputations.Remove(_cursor);
+            _disposed = true;
+        }
+    }
+
     internal static bool IsBonusActionFreeJump(Id actionId)
     {
         return actionId == (Id)ExtraActionId.BonusActionFreeJump;
@@ -353,8 +381,7 @@ internal static class FreeJumpContext
         cursorService.ActivateCursor<CursorLocationBattleFriendlyTurn>();
         cursor.constrainedMovementMode = (Id)ExtraActionId.BonusActionFreeJump;
         cursor.movementCap = -1;
-        cursor.ComputeValidDestinations();
-        cursor.RefreshVisibleDestinationsGrid();
+        TryComputeValidDestinations(cursor, refreshVisibleDestinationsGrid: true);
 
         RefreshBattleSelectionCaption(cursor);
 
@@ -711,6 +738,49 @@ internal static class FreeJumpContext
         }
 
         return BeginScope(character, ScopeKind.BonusActionCursor);
+    }
+
+    internal static IDisposable BeginCursorDestinationComputation(CursorLocationBattleFriendlyTurn cursor)
+    {
+        if (cursor == null)
+        {
+            return null;
+        }
+
+        if (!CursorDestinationComputations.Add(cursor))
+        {
+            cursor.dirty = true;
+            return null;
+        }
+
+        return new CursorDestinationComputationScope(
+            cursor,
+            BeginBonusActionPathfinding(cursor.actingCharacter, cursor.constrainedMovementMode));
+    }
+
+    internal static bool TryComputeValidDestinations(
+        CursorLocationBattleFriendlyTurn cursor,
+        bool refreshVisibleDestinationsGrid = false)
+    {
+        if (cursor == null)
+        {
+            return false;
+        }
+
+        if (CursorDestinationComputations.Contains(cursor))
+        {
+            cursor.dirty = true;
+            return false;
+        }
+
+        cursor.ComputeValidDestinations();
+
+        if (refreshVisibleDestinationsGrid)
+        {
+            cursor.RefreshVisibleDestinationsGrid();
+        }
+
+        return true;
     }
 
     internal static IDisposable BeginAiTurn(GameLocationCharacter character)

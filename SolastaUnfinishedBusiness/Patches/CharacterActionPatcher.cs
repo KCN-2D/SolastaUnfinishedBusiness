@@ -263,7 +263,7 @@ public static class CharacterActionPatcher
                         }
 
                         cursorLocationBattleFriendlyTurn.dirty = true;
-                        cursorLocationBattleFriendlyTurn.ComputeValidDestinations();
+                        FreeJumpContext.TryComputeValidDestinations(cursorLocationBattleFriendlyTurn);
                     }
 
                     break;
