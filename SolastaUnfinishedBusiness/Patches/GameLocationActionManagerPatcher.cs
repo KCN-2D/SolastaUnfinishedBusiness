@@ -34,8 +34,6 @@ public static class GameLocationActionManagerPatcher
                 return false;
             }
 
-            CombatAiContext.TryPrunePostRecoveryStartNextChainQueue(character);
-
             return true;
         }
     }

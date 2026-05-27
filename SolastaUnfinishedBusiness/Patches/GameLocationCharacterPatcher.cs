@@ -455,6 +455,18 @@ public static class GameLocationCharacterPatcher
             {
                 __result = ActionStatus.Unavailable;
             }
+
+            CombatAiContext.TryOverrideProgressOnlySearchActionTypeStatus(
+                __instance,
+                actionType,
+                actionScope,
+                ref __result);
+
+            CombatAiContext.TryOverrideInactiveAiActionTypeStatus(
+                __instance,
+                actionType,
+                actionScope,
+                ref __result);
         }
     }
 
@@ -530,6 +542,18 @@ public static class GameLocationCharacterPatcher
             {
                 __result = ActionStatus.CannotPerform;
             }
+
+            CombatAiContext.TryOverrideProgressOnlySearchActionStatus(
+                __instance,
+                actionId,
+                scope,
+                ref __result);
+
+            CombatAiContext.TryOverrideInactiveAiActionStatus(
+                __instance,
+                actionId,
+                scope,
+                ref __result);
 
             //PATCH: support `EnableMonkFocus2024`
             if (Main.Settings.EnableMonkFocus2024 &&

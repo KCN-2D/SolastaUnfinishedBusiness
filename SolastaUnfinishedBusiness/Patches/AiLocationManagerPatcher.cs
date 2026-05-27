@@ -39,7 +39,8 @@ public static class AiLocationManagerPatcher
                 {
                     yield return values.Current;
 
-                    if (CombatAiContext.TryConsumePendingRouteTerminalAtAiProcessBoundary(activeContender) ||
+                    if (CombatAiContext.TryResolvePendingActionLinkedMoveSettlingAtAiProcessBoundary(activeContender) ||
+                        CombatAiContext.TryConsumePendingRouteTerminalAtAiProcessBoundary(activeContender) ||
                         CombatAiContext.TryConsumePendingUtilityTerminalAtAiProcessBoundary(activeContender) ||
                         CombatAiContext.TryConsumePendingAiProcessTurnRecoveryAtAiProcessBoundary(activeContender))
                     {
@@ -53,7 +54,8 @@ public static class AiLocationManagerPatcher
                     }
                 }
 
-                if (CombatAiContext.TryConsumePendingRouteTerminalAtAiProcessBoundary(
+                if (CombatAiContext.TryResolvePendingActionLinkedMoveSettlingAtAiProcessBoundary(activeContender) ||
+                    CombatAiContext.TryConsumePendingRouteTerminalAtAiProcessBoundary(
                         activeContender,
                         allowFinalFailure: true) ||
                     CombatAiContext.TryConsumePendingUtilityTerminalAtAiProcessBoundary(activeContender) ||

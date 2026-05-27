@@ -133,6 +133,12 @@ public static class CharacterActionPatcher
                 FixAlwaysConsumeMainActionOnBattleSurprise(__instance);
             }
 
+            if (CombatAiContext.ShouldBlockInactiveAiBattleAction(__instance))
+            {
+                __result = AbortInvalidAiAction(__instance);
+                return false;
+            }
+
             if (CombatAiContext.ShouldBlockDisconnectedAiMovementAction(__instance))
             {
                 __result = AbortInvalidAiAction(__instance);
@@ -212,10 +218,7 @@ public static class CharacterActionPatcher
                     yield return values.Current;
                 }
 
-                if (CombatAiContext.TryCloseTurnAfterBlockedInvalidAiMainAction(__instance, blockKind))
-                {
-                    yield return null;
-                }
+                CombatAiContext.TryCloseTurnAfterBlockedInvalidAiMainAction(__instance, blockKind);
 
                 yield break;
             }
@@ -301,6 +304,11 @@ public static class CharacterActionPatcher
 
             CombatAiContext.NormalizeFallbackReadyAfterAction(__instance);
             CombatAiContext.NormalizeFallbackDodgeAfterAction(__instance);
+
+            if (CombatAiContext.TryConsumeSearchNoConnectedFallbackAfterActionCompletion(__instance))
+            {
+                yield return null;
+            }
         }
     }
 
