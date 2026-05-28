@@ -255,7 +255,7 @@ ModUi/&EnableSorcererArcaneApotheosis2024=レベル20で<color=#D89555>魔法に
 ModUi/&EnableSorcererDraconicBloodlineAC2024=<color=#D89555>竜の血脈</color>の<color=#D89555>竜の防御力</color>を2024年版にします<i><color=#F0DAA0>（13+敏捷力修正値ではなく、10+敏捷力修正値+魅力修正値）</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=レベル1と7で<color=#D89555>生来の魔術</color>と<color=#D89555>魔術の化身</color>を有効にします
 ModUi/&EnableSorcererMagicalGuidance=レベル5で<color=#D89555>魔法の導き</color>を有効にする
-ModUi/&EnableSorcererMetamagic2024=<color=#D89555>呪文修正</color>をレベル3ではなくレベル2で有効にし、レベル10と17で2つずつ追加取得できるようにする
+ModUi/&EnableSorcererMetamagic2024=2024版<color=#D89555>呪文修正</color>ルールを使用する。レベル2で呪文修正を得て、レベル10と17で追加選択肢を得るほか、各呪文修正の2024年版ルールを適用する
 ModUi/&EnableSorcererOrigin2024=<color=#D89555>起源</color>をレベル1ではなくレベル3で有効にする
 ModUi/&EnableSorcererQuickenedAction=<color=#D89555>呪文高速化</color>アクションを有効にし、呪文高速化を適用した通常アクション呪文を発動できるようにします
 ModUi/&EnableSorcererSorcerousRestoration2024=レベル5で<color=#D89555>魔法による回復</color>を有効にする

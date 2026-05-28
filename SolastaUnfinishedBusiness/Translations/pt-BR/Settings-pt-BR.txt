@@ -264,7 +264,7 @@ ModUi/&EnableSorcererArcaneApotheosis2024=Habilitar <color=#D89555>Apoteose Arca
 ModUi/&EnableSorcererDraconicBloodlineAC2024=Ative a versão 2024 da <color=#D89555>Resiliência Dracônica</color> de <color=#D89555>Linhagem Dracônica</color> <i><color=#F0DAA0>[10+DEX+CHA em vez de 13+DEX]</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=Habilitar <color=#D89555>Feitiçaria Inata</color> e <color=#D89555>Feitiçaria Encarnada</color> nos níveis 1 e 7
 ModUi/&EnableSorcererMagicalGuidance=Habilitar <color=#D89555>Orientação Mágica</color> no nível 5
-ModUi/&EnableSorcererMetamagic2024=Habilitar <color=#D89555>Metamagic</color> no nível 2 em vez do 3 e conceder duas opções adicionais nos níveis 10 e 17
+ModUi/&EnableSorcererMetamagic2024=Usar as regras de 2024 de <color=#D89555>Metamagia</color>: obter Metamagia no nível 2, opções adicionais nos níveis 10 e 17 e aplicar as regras atualizadas das opções
 ModUi/&EnableSorcererOrigin2024=Habilitar <color=#D89555>Origens</color> no nível 3 em vez de 1
 ModUi/&EnableSorcererQuickenedAction=Habilitar ação <color=#D89555>Feitiço Acelerado</color> para permitir conjurar feitiço de ação principal com metamagia acelerada aplicada
 ModUi/&EnableSorcererSorcerousRestoration2024=Habilitar <color=#D89555>Restauração Feiticeira</color> no nível 5

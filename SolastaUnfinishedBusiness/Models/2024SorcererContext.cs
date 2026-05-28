@@ -102,6 +102,8 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchSorcererMetamagic()
     {
+        MetamagicContext.SwitchSorcererMetamagicRules2024();
+
         Sorcerer.FeatureUnlocks.RemoveAll(x =>
             x.FeatureDefinition == PointPoolSorcererMetamagic ||
             x.FeatureDefinition == PointPoolSorcererAdditionalMetamagic ||

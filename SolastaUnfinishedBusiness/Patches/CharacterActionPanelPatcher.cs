@@ -638,10 +638,18 @@ public static class CharacterActionPanelPatcher
                 return true;
             }
 
+            var rulesetEffectSpell = (RulesetEffectSpell)__instance.actionParams.activeEffect;
+
+            if (!MetamagicContext.CanConfirmQuickenedSpell2024(
+                    __instance.GuiCharacter.GameLocationCharacter, rulesetEffectSpell))
+            {
+                return false;
+            }
+
             __instance.actionId = Id.CastBonus;
             __instance.MetamagicSelected(
                 __instance.GuiCharacter.GameLocationCharacter,
-                (RulesetEffectSpell)__instance.actionParams.activeEffect,
+                rulesetEffectSpell,
                 DatabaseHelper.MetamagicOptionDefinitions.MetamagicQuickenedSpell
             );
             return false;

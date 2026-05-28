@@ -10,6 +10,7 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Validators;
 using static MetricsDefinitions;
 using static RuleDefinitions;
@@ -286,6 +287,8 @@ internal static class MetamagicBuilders
     private static readonly List<string> TransmutedDamageTypes =
         [DamageTypeAcid, DamageTypeCold, DamageTypeFire, DamageTypeLightning, DamageTypePoison, DamageTypeThunder];
 
+    private static readonly HashSet<string> TransmutedDamageTypeSet = new(TransmutedDamageTypes);
+
     internal static MetamagicOptionDefinition BuildMetamagicTransmutedSpell()
     {
         var validator = new ValidateMetamagicApplication(IsMetamagicTransmutedSpellValid);
@@ -348,7 +351,7 @@ internal static class MetamagicBuilders
     {
         if (rulesetEffect.EffectDescription.EffectForms.Any(x =>
                 x.FormType == EffectForm.EffectFormType.Damage &&
-                TransmutedDamageTypes.Contains(x.DamageForm.DamageType)) ||
+                TransmutedDamageTypeSet.Contains(x.DamageForm.DamageType)) ||
             rulesetEffect.SpellDefinition.Name == "BoomingStep")
         {
             return;
@@ -453,7 +456,7 @@ internal static class MetamagicBuilders
             foreach (var effectForm in actualEffectForms
                          .Where(x =>
                              x.FormType == EffectForm.EffectFormType.Damage &&
-                             TransmutedDamageTypes.Contains(x.DamageForm.DamageType)))
+                             TransmutedDamageTypeSet.Contains(x.DamageForm.DamageType)))
             {
                 effectForm.DamageForm.damageType = newDamageType;
             }
@@ -532,7 +535,7 @@ internal static class MetamagicBuilders
                 action.AttackRollOutcome is not (RollOutcome.Failure or RollOutcome.CriticalFailure) ||
                 helper != attacker ||
                 !helper.IsActionOnGoing(ActionDefinitions.Id.MetamagicToggle) ||
-                rulesetHelper.RemainingSorceryPoints < 2)
+                rulesetHelper.RemainingSorceryPoints < MetamagicContext.GetSeekingSpellCost())
             {
                 yield break;
             }
@@ -541,14 +544,14 @@ internal static class MetamagicBuilders
                 ExtraActionId.DoNothingFree,
                 attacker,
                 "MetamagicSeekingSpell",
-                "CustomReactionMetamagicSeekingSpellDescription".Formatted(Category.Reaction, defender.Name),
+                MetamagicContext.GetSeekingSpellReactionDescription(defender.Name),
                 ReactionValidated);
 
             yield break;
 
             void ReactionValidated()
             {
-                rulesetHelper.SpendSorceryPoints(2);
+                rulesetHelper.SpendSorceryPoints(MetamagicContext.GetSeekingSpellCost());
 
                 var dieRoll = rulesetHelper.RollDie(DieType.D20, RollContext.None, false, AdvantageType.None, out _,
                     out _);

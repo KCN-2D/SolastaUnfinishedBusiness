@@ -264,7 +264,7 @@ ModUi/&EnableSorcererArcaneApotheosis2024=Aktiviere <color=#D89555>Arkane Apothe
 ModUi/&EnableSorcererDraconicBloodlineAC2024=Aktiviere die 2024-Version von <color=#D89555>Draconic Resilience</color> von <color=#D89555>Draconic Bloodline</color> <i><color=#F0DAA0>[10+DEX+CHA statt 13+DEX]</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=Aktiviere <color=#D89555>Innate Sorcery</color> und <color=#D89555>Sorcery Incarnate</color> auf Level 1 und 7.
 ModUi/&EnableSorcererMagicalGuidance=Aktiviere <color=#D89555>Magische Führung</color> auf Stufe 5.
-ModUi/&EnableSorcererMetamagic2024=Aktiviere <color=#D89555>Metamagic</color> auf Stufe 2 statt 3 und gewähre auf Stufe 10 und 17 jeweils zwei zusätzliche Optionen.
+ModUi/&EnableSorcererMetamagic2024=2024-Regeln für <color=#D89555>Metamagie</color> verwenden: Metamagie auf Stufe 2 erhalten, zusätzliche Optionen auf Stufe 10 und 17 erhalten und aktualisierte Optionsregeln anwenden.
 ModUi/&EnableSorcererOrigin2024=Aktiviere <color=#D89555>Origins</color> auf Level 3 statt auf Level 1.
 ModUi/&EnableSorcererQuickenedAction=Aktivieren Sie die Aktion <color=#D89555>Beschleunigter Zauber</color>, um das Wirken des Hauptaktionszaubers mit angewandter beschleunigter Metamagie zu ermöglichen.
 ModUi/&EnableSorcererSorcerousRestoration2024=Aktiviere <color=#D89555>Zauberhafte Wiederherstellung</color> auf Stufe 5.

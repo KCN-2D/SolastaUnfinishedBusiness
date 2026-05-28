@@ -37,6 +37,7 @@ public static class SpellSelectionPanelPatcher
             }
 
             ActionSwitching.CheckSpellcastingCantrips(caster.GameLocationCharacter, actionType, ref cantripOnly);
+            MetamagicContext.RestrictToCantripsAfterQuickenedSpell2024(gameLocationCaster, ref cantripOnly);
         }
 
         [UsedImplicitly]

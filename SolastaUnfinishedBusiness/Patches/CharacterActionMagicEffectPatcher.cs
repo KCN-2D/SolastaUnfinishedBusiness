@@ -687,6 +687,7 @@ public static class CharacterActionMagicEffectPatcher
             // END PATCH
 
             __instance.SpendMagicEffectUses();
+            MetamagicContext.MarkLeveledSpellCast2024(__instance);
 
             // This is used to remove invisibility (for example) when casting a spell
             __instance.CheckInterruptionBefore();
@@ -1408,8 +1409,8 @@ public static class CharacterActionMagicEffectPatcher
             // used for Grenadier's force grenades
             // sets position of the formsParams to the first position from ActionParams, when applicable
             var method =
-                typeof(ForcePushOrDragFromEffectPoint).GetMethod(
-                    nameof(ForcePushOrDragFromEffectPoint.SetPositionAndApplyForms),
+                typeof(ApplyForms_Patch).GetMethod(
+                    nameof(SetPositionAndApplyForms),
                     BindingFlags.Static | BindingFlags.NonPublic);
 
             return instructions.ReplaceCall(
@@ -1417,6 +1418,35 @@ public static class CharacterActionMagicEffectPatcher
                 -1, "CharacterActionMagicEffect.ApplyForms",
                 new CodeInstruction(OpCodes.Ldarg_0),
                 new CodeInstruction(OpCodes.Call, method));
+        }
+
+        private static int SetPositionAndApplyForms(
+            IRulesetImplementationService service,
+            List<EffectForm> effectForms,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            List<string> effectiveDamageTypes,
+            out bool damageAbsorbedByTemporaryHitPoints,
+            out bool terminateEffectOnTarget,
+            bool retargeting,
+            bool proxyOnly,
+            bool forceSelfConditionOnly,
+            EffectApplication effectApplication,
+            List<EffectFormFilter> filters,
+            CharacterActionMagicEffect action)
+        {
+            return ForcePushOrDragFromEffectPoint.SetPositionAndApplyForms(
+                service,
+                MetamagicContext.FilterCarefulSpell2024EffectForms(effectForms, formsParams),
+                formsParams,
+                effectiveDamageTypes,
+                out damageAbsorbedByTemporaryHitPoints,
+                out terminateEffectOnTarget,
+                retargeting,
+                proxyOnly,
+                forceSelfConditionOnly,
+                effectApplication,
+                filters,
+                action);
         }
     }
 
