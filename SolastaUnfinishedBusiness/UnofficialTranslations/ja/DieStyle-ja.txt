@@ -1,5 +1,5 @@
 DieStyle/&DieStyleBronzeSupporterTitle=ブロンズ
-DieStyle/&DieStyleDiamondSupporterTitle=ダイヤモンド
+DieStyle/&DieStyleDiamondSupporterTitle=ダイアモンド
 DieStyle/&DieStyleEbonyTitle=黒檀
 DieStyle/&DieStyleGoldSupporterTitle=金
 DieStyle/&DieStyleGreenTitle=緑
