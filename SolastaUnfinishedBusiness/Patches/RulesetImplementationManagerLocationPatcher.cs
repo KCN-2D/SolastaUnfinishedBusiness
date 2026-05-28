@@ -73,7 +73,20 @@ public static class RulesetImplementationManagerLocationPatcher
         {
             if (!__result)
             {
-                return;
+                if (!MetamagicContext.TryHandleTwinnedSpell2024Availability(
+                    rulesetEffectSpell,
+                    metamagicOption,
+                    RemainingSorceryPoints(caster, rulesetEffectSpell),
+                    ref __result,
+                    ref failure))
+                {
+                    return;
+                }
+
+                if (!__result)
+                {
+                    return;
+                }
             }
 
             //PATCH: support for custom metamagic

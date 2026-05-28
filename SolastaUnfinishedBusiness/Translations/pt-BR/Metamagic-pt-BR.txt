@@ -4,6 +4,7 @@ Failure/&FailureFlagSpellMustRequireConcentration=O feitiço deve exigir concent
 Failure/&FailureFlagSpellRangeMustBeSelf=O alcance do feitiço deve ser próprio
 Failure/&FailureSeekingSpell=A busca por magia só é ativada após um ataque mágico falhado
 Failure/&FailureTransmutedSpell=O feitiço deve causar um destes tipos de dano: ácido, frio, fogo, raio, veneno, trovão
+Failure/&FailureFlagTwinnedSpell2024InvalidTargetAdvancement=A magia deve poder ter uma criatura adicional como alvo quando conjurada com um espaço de nível superior.
 Rules/&MetamagicOptionCarefulSpell2024Description=Escolha criaturas afetadas pela magia até o seu modificador de Carisma, com mínimo de uma criatura. Elas obtêm sucesso automaticamente em suas salvaguardas e, se sofreriam metade do dano com uma salvaguarda bem-sucedida, não sofrem dano.
 Rules/&MetamagicOptionExtendedSpell2024Description=Dobra a duração de uma magia que dure 1 minuto ou mais, até 24 horas. Se a magia exigir concentração, você tem vantagem nas salvaguardas de Constituição para manter a concentração nela.
 Rules/&MetamagicOptionQuickenedSpell2024Description=Conjure uma magia com tempo de conjuração de 1 ação como ação bônus. Se você conjurar assim uma magia de nível 1 ou superior, não pode conjurar outra magia de nível 1 ou superior no mesmo turno, e não pode usar esta opção se já conjurou uma neste turno. Truques não são restringidos.

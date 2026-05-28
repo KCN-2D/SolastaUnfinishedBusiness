@@ -267,12 +267,6 @@ public static class RulesetEffectSpellPatcher
                 new CodeInstruction(OpCodes.Ldarg_0),
                 new CodeInstruction(OpCodes.Call, spellCastingLevel));
         }
-
-        [UsedImplicitly]
-        public static void Postfix(RulesetEffectSpell __instance, ref int __result)
-        {
-            __result += MetamagicContext.ComputeTwinnedSpell2024TargetParameterBonus(__instance);
-        }
     }
 
     //PATCH: fix duration determination if spell in any War List (vanilla BUGFIX)

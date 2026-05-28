@@ -790,6 +790,11 @@ internal static class FixesContext
                     ref bool result,
                     ref string failure) =>
                 {
+                    if (Main.Settings.EnableSorcererMetamagic2024)
+                    {
+                        return;
+                    }
+
                     var effectDescription = spell.SpellDefinition.effectDescription;
 
                     // handle Wither and Bloom special case
@@ -928,7 +933,9 @@ internal static class FixesContext
                 }
 
                 result = false;
-                failure = "Failure/&FailureFlagInvalidSingleTarget";
+                failure = Main.Settings.EnableSorcererMetamagic2024
+                    ? MetamagicContext.FailureFlagTwinnedSpell2024InvalidTargetAdvancement
+                    : "Failure/&FailureFlagInvalidSingleTarget";
             };
 
         public static NoTwinned Mark { get; } = new();

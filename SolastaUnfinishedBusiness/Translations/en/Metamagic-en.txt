@@ -4,6 +4,7 @@ Failure/&FailureFlagSpellMustRequireConcentration=The spell must require concent
 Failure/&FailureFlagSpellRangeMustBeSelf=The spell range must be self
 Failure/&FailureSeekingSpell=Seeking spell only triggers after a failed magic attack
 Failure/&FailureTransmutedSpell=The spell must deal one of these damage types: acid, cold, fire, lightning, poison, thunder
+Failure/&FailureFlagTwinnedSpell2024InvalidTargetAdvancement=The spell must be able to target one additional creature when cast with a higher-level spell slot.
 Rules/&MetamagicOptionCarefulSpell2024Description=Choose creatures affected by the spell up to your Charisma modifier, with a minimum of one creature. They automatically succeed on their saving throws, and if they would take half damage on a successful save, they take no damage instead.
 Rules/&MetamagicOptionExtendedSpell2024Description=Double the duration of a spell that lasts 1 minute or longer, up to 24 hours. If the spell requires concentration, you have advantage on Constitution saving throws to maintain concentration on it.
 Rules/&MetamagicOptionQuickenedSpell2024Description=Cast a spell that has a casting time of 1 action as a Bonus Action. If you cast a level 1 or higher spell this way, you can't cast another level 1 or higher spell on the same turn, and you can't use this option if you already cast a level 1 or higher spell this turn. Cantrips are not restricted.

@@ -31,6 +31,7 @@ internal static class MetamagicContext
     private const string MetamagicTwinnedSpell = "MetamagicTwinnedSpell";
     private const string MetamagicSeekingSpellDescription = "Feature/&MetamagicSeekingSpellDescription";
     private const string MetamagicSeekingSpell2024Description = "Feature/&MetamagicSeekingSpell2024Description";
+    private const string MetamagicOptionExtendedSpellTitle = "Rules/&MetamagicOptionExtendedSpellTitle";
     private const string MetamagicCarefulSpell2024Description =
         "Rules/&MetamagicOptionCarefulSpell2024Description";
     private const string MetamagicExtendedSpell2024Description =
@@ -43,6 +44,8 @@ internal static class MetamagicContext
     private const string QuickenedLeveledSpellCastThisTurn = "Metamagic2024QuickenedLeveledSpellCastThisTurn";
     private const string ConditionCarefulSpell2024 = "ConditionMetamagicCarefulSpell2024Protected";
     private const string ConditionExtendedSpell2024 = "ConditionMetamagicExtendedSpell2024Concentration";
+    internal const string FailureFlagTwinnedSpell2024InvalidTargetAdvancement =
+        "Failure/&FailureFlagTwinnedSpell2024InvalidTargetAdvancement";
 
     private static readonly Dictionary<string, MetamagicCostState> LegacyCostStates = [];
     private static readonly Dictionary<string, string> LegacyDescriptionKeys = [];
@@ -196,14 +199,24 @@ internal static class MetamagicContext
         return filteredForms.Count == effectForms.Count ? effectForms : filteredForms;
     }
 
-    internal static int ComputeTwinnedSpell2024TargetParameterBonus(RulesetEffectSpell rulesetEffectSpell)
+    internal static bool TryHandleTwinnedSpell2024Availability(
+        RulesetEffectSpell rulesetEffectSpell,
+        MetamagicOptionDefinition metamagicOption,
+        int remainingSorceryPoints,
+        ref bool result,
+        ref string failure)
     {
-        if (!CanApplyTwinnedSpell2024(rulesetEffectSpell, true))
+        if (!Main.Settings.EnableSorcererMetamagic2024 ||
+            metamagicOption.Name != MetamagicTwinnedSpell ||
+            remainingSorceryPoints < 1)
         {
-            return 0;
+            return false;
         }
 
-        return rulesetEffectSpell.EffectDescription.EffectAdvancement.ComputeAdditionalTargetsBySlotDelta(1);
+        result = CanApplyTwinnedSpell2024(rulesetEffectSpell, false);
+        failure = result ? string.Empty : FailureFlagTwinnedSpell2024InvalidTargetAdvancement;
+
+        return true;
     }
 
     private static bool CanApplyTwinnedSpell2024(RulesetEffectSpell rulesetEffectSpell, bool requireSelectedMetamagic)
@@ -215,14 +228,20 @@ internal static class MetamagicContext
             return false;
         }
 
+        return ComputeTwinnedSpell2024AdditionalTargets(rulesetEffectSpell) > 0;
+    }
+
+    private static int ComputeTwinnedSpell2024AdditionalTargets(RulesetEffectSpell rulesetEffectSpell)
+    {
         var effectDescription = rulesetEffectSpell.EffectDescription;
 
         return effectDescription is
                {
                    HasAdditionalSlotAdvancement: true,
                    TargetType: TargetType.Individuals or TargetType.IndividualsUnique
-               } &&
-               effectDescription.EffectAdvancement.ComputeAdditionalTargetsBySlotDelta(1) > 0;
+               }
+            ? effectDescription.EffectAdvancement.ComputeAdditionalTargetsBySlotDelta(1)
+            : 0;
     }
 
     private static void LoadMetamagic([NotNull] MetamagicOptionDefinition metamagicDefinition)
@@ -343,13 +362,19 @@ internal static class MetamagicContext
     {
         var magicAffinity = FeatureDefinitionMagicAffinityBuilder
             .Create("MagicAffinityMetamagicExtendedSpell2024Concentration")
-            .SetGuiPresentationNoContent(true)
+            .SetGuiPresentation(GuiPresentationBuilder.Build(
+                MetamagicOptionExtendedSpellTitle,
+                MetamagicExtendedSpell2024Description,
+                hidden: true))
             .SetConcentrationModifiers(ConcentrationAffinity.Advantage)
             .AddToDB();
 
         return ConditionDefinitionBuilder
             .Create(ConditionExtendedSpell2024)
-            .SetGuiPresentationNoContent(true)
+            .SetGuiPresentation(GuiPresentationBuilder.Build(
+                MetamagicOptionExtendedSpellTitle,
+                MetamagicExtendedSpell2024Description,
+                hidden: true))
             .SetPossessive()
             .SetSilent(Silent.WhenAddedOrRemoved)
             .AddFeatures(magicAffinity)
@@ -372,7 +397,7 @@ internal static class MetamagicContext
         }
 
         result = CanApplyTwinnedSpell2024(rulesetEffectSpell, false);
-        failure = result ? string.Empty : FailureFlagInvalidSingleTarget;
+        failure = result ? string.Empty : FailureFlagTwinnedSpell2024InvalidTargetAdvancement;
     }
 
     private static bool TryGetMetamagic(string name, out MetamagicOptionDefinition metamagicOption)

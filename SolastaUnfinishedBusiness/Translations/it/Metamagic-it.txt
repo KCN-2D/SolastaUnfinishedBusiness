@@ -4,6 +4,7 @@ Failure/&FailureFlagSpellMustRequireConcentration=L'incantesimo deve richiedere 
 Failure/&FailureFlagSpellRangeMustBeSelf=La portata dell'incantesimo deve essere autodeterminata
 Failure/&FailureSeekingSpell=L'incantesimo di ricerca si attiva solo dopo un attacco magico fallito
 Failure/&FailureTransmutedSpell=L'incantesimo deve infliggere uno di questi tipi di danno: acido, freddo, fuoco, fulmine, veleno, tuono
+Failure/&FailureFlagTwinnedSpell2024InvalidTargetAdvancement=L'incantesimo deve poter bersagliare una creatura aggiuntiva quando viene lanciato con uno slot di livello superiore.
 Rules/&MetamagicOptionCarefulSpell2024Description=Scegli creature influenzate dall'incantesimo fino al tuo modificatore di Carisma, con un minimo di una creatura. Superano automaticamente i tiri salvezza e, se con un successo subirebbero metà dei danni, non subiscono invece alcun danno.
 Rules/&MetamagicOptionExtendedSpell2024Description=Raddoppia la durata di un incantesimo che dura 1 minuto o più, fino a 24 ore. Se l'incantesimo richiede concentrazione, hai vantaggio ai tiri salvezza su Costituzione per mantenerla.
 Rules/&MetamagicOptionQuickenedSpell2024Description=Lancia un incantesimo con tempo di lancio di 1 azione come azione bonus. Se in questo modo lanci un incantesimo di livello 1 o superiore, non puoi lanciare un altro incantesimo di livello 1 o superiore nello stesso turno, e non puoi usare questa opzione se ne hai già lanciato uno in questo turno. I trucchetti non sono limitati.

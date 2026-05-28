@@ -4,6 +4,7 @@ Failure/&FailureFlagSpellMustRequireConcentration=El hechizo debe requerir conce
 Failure/&FailureFlagSpellRangeMustBeSelf=El alcance del hechizo debe ser propio.
 Failure/&FailureSeekingSpell=El hechizo de búsqueda solo se activa después de un ataque mágico fallido.
 Failure/&FailureTransmutedSpell=El hechizo debe causar uno de estos tipos de daño: ácido, frío, fuego, rayo, veneno, trueno.
+Failure/&FailureFlagTwinnedSpell2024InvalidTargetAdvancement=El conjuro debe poder tener una criatura adicional como objetivo cuando se lanza con un espacio de nivel superior.
 Rules/&MetamagicOptionCarefulSpell2024Description=Elige criaturas afectadas por el conjuro hasta tu modificador de Carisma, con un mínimo de una criatura. Tienen éxito automáticamente en sus tiradas de salvación, y si recibirían la mitad del daño con una salvación exitosa, no reciben daño en su lugar.
 Rules/&MetamagicOptionExtendedSpell2024Description=Duplica la duración de un conjuro que dura 1 minuto o más, hasta 24 horas. Si el conjuro requiere concentración, tienes ventaja en las tiradas de salvación de Constitución para mantener la concentración en él.
 Rules/&MetamagicOptionQuickenedSpell2024Description=Lanza un conjuro con tiempo de lanzamiento de 1 acción como acción adicional. Si lanzas así un conjuro de nivel 1 o superior, no puedes lanzar otro conjuro de nivel 1 o superior en el mismo turno, y no puedes usar esta opción si ya lanzaste uno este turno. Los trucos no están restringidos.
