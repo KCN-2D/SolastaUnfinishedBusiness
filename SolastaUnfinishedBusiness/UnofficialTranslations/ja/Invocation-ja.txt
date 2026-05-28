@@ -1,8 +1,8 @@
 Invocation/&AgonizingBlastDescription=〈怪光線〉を発動すると、命中時に与えるダメージに魅力修正値を加えます。
 Invocation/&AgonizingBlastTitle=苦悶の怪光線
-Invocation/&ArmorOfShadowsDescription=呪文スロットや物質構成要素を消費せずに、自分自身に〈魔道士の鎧〉を自由に発動できます。
+Invocation/&ArmorOfShadowsDescription=呪文スロットや物質構成要素を消費せず、回数無制限で自分に〈魔道士の鎧〉を発動できます。
 Invocation/&ArmorOfShadowsTitle=影の鎧
-Invocation/&AscendantStepDescription=呪文スロットや物質構成要素を消費することなく、自由に自分自身に〈空中浮揚〉を発動できます。
+Invocation/&AscendantStepDescription=呪文スロットや物質構成要素を消費せず、回数無制限で自分に〈空中浮揚〉を発動できます。
 Invocation/&AscendantStepTitle=登りゆく歩み
 Invocation/&BeguilingInfluenceDescription=〈ペテン〉と〈説得〉技能に習熟します。すでに習熟している場合は、代わりにその技能の習熟ボーナスが2倍になります。
 Invocation/&BeguilingInfluenceTitle=巧言令色
