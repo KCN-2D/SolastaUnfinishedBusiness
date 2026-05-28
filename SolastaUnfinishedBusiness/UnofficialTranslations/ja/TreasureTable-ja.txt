@@ -21,4 +21,4 @@ TreasureTable/&Travel_SnowNorth_Description=この地域では、ほぼあらゆ
 TreasureTable/&Travel_SnowNorth_Title=スノー・アライアンス北部
 TreasureTable/&Travel_SnowSouth_Description=この地域では、ほぼあらゆる種類の材料を見つけることができ、ドワーフ・プリムローズが見つかりやすいうえ、原初のドラゴンストーンや小さな氷の破片のような非常に希少な材料も見つかる可能性があります。
 TreasureTable/&Travel_SnowSouth_Title=スノー・アライアンス南部
-TreasureTable/&Wondrous_ItemsTitle=その他の魔法アイテム
+TreasureTable/&Wondrous_ItemsTitle=その他の魔法のアイテム

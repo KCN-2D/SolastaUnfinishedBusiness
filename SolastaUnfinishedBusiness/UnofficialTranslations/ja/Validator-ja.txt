@@ -1,6 +1,6 @@
 Validator/&ParameterCompletionDelayDescription=完了までの遅延秒数です。小数値も使用できます
 Validator/&ParameterCompletionDelayTitle=遅延（秒）
-Validator/&ParameterFromDeviceDescription=その呪文が、巻物や魔法アイテムなどの魔法の装置（1）から発動されたのか、通常の呪文発動能力（0）から発動されたのかを指定します
+Validator/&ParameterFromDeviceDescription=その呪文が、巻物や魔法のアイテムなどの魔法の装置（1）から発動されたのか、通常の呪文発動能力（0）から発動されたのかを指定します
 Validator/&ParameterFromDeviceTitle=装置から
 Validator/&ParameterItemDescription=このバリデータに使用するアイテムを選択します
 Validator/&ParameterItemQuantityDescription=指定した要素の数量を決定します
