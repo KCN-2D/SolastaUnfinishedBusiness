@@ -1605,7 +1605,7 @@ public static partial class Tabletop2024Context
         return FeatureDefinitionSavingThrowAffinityBuilder
             .Create($"{HalfElfVersatileBloodlineFeaturePrefix}{attribute}2024")
             .SetGuiPresentation(Category.Feature)
-            .SetModifiers(FeatureDefinitionSavingThrowAffinity.ModifierType.AddDice, DieType.D1, 1, false, attribute)
+            .SetModifiers(FeatureDefinitionSavingThrowAffinity.ModifierType.AddDice, DieType.D1, 2, false, attribute)
             .AddToDB();
     }
 
