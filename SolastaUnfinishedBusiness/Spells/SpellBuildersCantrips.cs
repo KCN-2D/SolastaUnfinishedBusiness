@@ -1284,7 +1284,7 @@ internal static partial class SpellBuilders
                     .SetEffectForms(
                         EffectFormBuilder
                             .Create()
-                            .SetDamageForm(DamageTypeNecrotic, 1, DieType.D6)
+                            .SetDamageForm(DamageTypeNecrotic, 1, DieType.D8)
                             .HasSavingThrow(EffectSavingThrowType.Negates)
                             .Build())
                     .Build())
