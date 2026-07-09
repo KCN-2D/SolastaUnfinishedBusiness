@@ -489,6 +489,7 @@ internal static partial class CombatAiContext
     private const string PlantFamilyName = "Plant";
     private const string UndeadFamilyName = "Undead";
     private const string FlightSuspendedConditionName = "ConditionFlightSuspended";
+    private const string CombatAiDiagnosticPrefix = "[CombatAI-DIAG]";
     private const int FreeJumpDefaultMinimumSuccessChance = 70;
     private const int FreeJumpImprovedPositionMinimumSuccessChance = 65;
     private const int FreeJumpEmergencyMinimumSuccessChance = 50;
@@ -4343,6 +4344,11 @@ internal static partial class CombatAiContext
             return true;
         }
 
+        if (TrySpendRecoveryTerminalFallbackAction(character, recoveryReason))
+        {
+            return true;
+        }
+
         SealPostRecoveryEndTurnMainActions(character);
         character.EndBattleTurn(GetCurrentBattleRound());
 
@@ -4370,6 +4376,68 @@ internal static partial class CombatAiContext
 
 
         return true;
+    }
+
+    private static bool TrySpendRecoveryTerminalFallbackAction(
+        GameLocationCharacter character,
+        CombatAiTurnRecoveryReason recoveryReason)
+    {
+        if (character?.RulesetCharacter == null ||
+            !IsJumpImmediateAttackRecoveryReason(recoveryReason))
+        {
+            return false;
+        }
+
+        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
+        var actionEconomy = BuildActionEconomySnapshot(character);
+
+        LogCombatAiDiagnostic(
+            character,
+            "RecoveryTerminal.enter",
+            $"reason={recoveryReason} {FormatActionEconomySnapshot(actionEconomy)} " +
+            FormatCombatAiPendingState(character));
+
+        if (battleService == null)
+        {
+            LogCombatAiDiagnostic(
+                character,
+                "RecoveryTerminal.exit",
+                $"reason=no-battle-service recovery={recoveryReason}");
+            return false;
+        }
+
+        if (!HasLeftoverActionCombatContext(character))
+        {
+            LogCombatAiDiagnostic(
+                character,
+                "RecoveryTerminal.exit",
+                $"reason=no-leftover-context recovery={recoveryReason}");
+            return false;
+        }
+
+        var terminalResult = TrySpendPostRouteTerminalAction(
+            character,
+            battleService,
+            usePendingTerminalLaunch: true,
+            preferSelfBuffBeforeReady: true,
+            forceReadyDodgeFallback: true);
+        var hadPendingTerminalLaunch = terminalResult.Scheduled && HasPendingAiProcessTerminalLaunch(character);
+        var launchStatus = hadPendingTerminalLaunch
+            ? TryConsumePendingAiProcessTerminalLaunch(character)
+            : PendingTerminalLaunchStatus.None;
+        var handled =
+            terminalResult.Executed ||
+            terminalResult.Scheduled && !hadPendingTerminalLaunch ||
+            launchStatus is PendingTerminalLaunchStatus.Accepted or PendingTerminalLaunchStatus.Waiting;
+
+        LogCombatAiDiagnostic(
+            character,
+            "RecoveryTerminal.exit",
+            $"recovery={recoveryReason} {FormatPostRouteTerminalResult(terminalResult)} " +
+            $"hadPendingLaunch={hadPendingTerminalLaunch} launchStatus={launchStatus} " +
+            $"handled={handled} {FormatCombatAiPendingState(character)}");
+
+        return handled;
     }
 
     private static bool ShouldAllowRecoveryActionLinkedMove(
@@ -4531,11 +4599,22 @@ internal static partial class CombatAiContext
             return;
         }
 
+        LogCombatAiDiagnostic(
+            character,
+            "ActionChain.move-complete.enter",
+            $"aborted={aborted} route={routeMoveSource} moveToken={moveToken} " +
+            FormatCombatAiPendingState(character));
+
         var pendingAction = default(ActionLinkedMoveMemory);
 
         if (moveToken != 0 &&
             !IsCurrentActionLinkedMoveToken(character, routeMoveSource, moveToken, out pendingAction))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "ActionChain.move-complete.exit",
+                $"reason=token-mismatch aborted={aborted} route={routeMoveSource} moveToken={moveToken} " +
+                FormatCombatAiPendingState(character));
             return;
         }
 
@@ -4544,6 +4623,14 @@ internal static partial class CombatAiContext
              pendingAction.Round != GetCurrentBattleRound() ||
              pendingAction.TurnStamp != Math.Max(1, ObservedCombatMemoryTurnStamp)))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "ActionChain.move-complete.exit",
+                $"reason=stale-or-inactive active={IsActiveBattleContender(character)} " +
+                $"pendingRound={pendingAction.Round} pendingTurn={pendingAction.TurnStamp} " +
+                $"currentRound={GetCurrentBattleRound()} currentTurn={Math.Max(1, ObservedCombatMemoryTurnStamp)} " +
+                $"aborted={aborted} route={routeMoveSource} moveToken={moveToken} " +
+                FormatCombatAiPendingState(character));
             return;
         }
 
@@ -4552,10 +4639,30 @@ internal static partial class CombatAiContext
 
         if (routeMoveSource == CombatAiRouteMoveSourceKind.JumpImmediateAttack)
         {
-            TryCompletePendingJumpImmediateAttackActionChainSettled(
+            var resolved = TryCompletePendingJumpImmediateAttackActionChainSettled(
                 character,
                 aborted,
                 callbackObserved: true);
+            var terminalHandled =
+                resolved &&
+                PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var terminalMemory) &&
+                IsGroundMeleeJumpImmediateAttackRoute(terminalMemory.PendingAction) &&
+                TrySpendRouteTerminalReadyDodgeFallbackBeforeClear(
+                    character,
+                    terminalMemory,
+                    "ActionChain.jump-immediate-terminal",
+                    out _);
+
+            LogCombatAiDiagnostic(
+                character,
+                "ActionChain.jump-immediate-terminal",
+                $"resolved={resolved} terminalHandled={terminalHandled} {FormatCombatAiPendingState(character)}");
+            LogCombatAiDiagnostic(
+                character,
+                "ActionChain.move-complete.exit",
+                $"reason=jump-immediate-attack resolved={resolved} terminalHandled={terminalHandled} " +
+                $"aborted={aborted} route={routeMoveSource} moveToken={moveToken} " +
+                FormatCombatAiPendingState(character));
             return;
         }
 
@@ -4564,19 +4671,42 @@ internal static partial class CombatAiContext
             allowSettlingCompletion: true,
             allowSettledNoMoveFinalization: true);
 
+        LogCombatAiDiagnostic(
+            character,
+            "ActionChain.move-complete.after-complete",
+            $"aborted={aborted} route={routeMoveSource} moveToken={moveToken} " +
+            FormatCombatAiPendingState(character));
+
         if (TryConsumeSearchNoConnectedFallbackAfterMoveChainCompletion(character, routeMoveSource))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "ActionChain.move-complete.exit",
+                $"reason=search-no-connected-fallback aborted={aborted} route={routeMoveSource} moveToken={moveToken} " +
+                FormatCombatAiPendingState(character));
             return;
         }
 
         if (TryResolveGroundMeleeMoveSettlingAfterActionChain(character, aborted))
         {
-            TryConsumePendingRouteActionOnlyTerminal(character, aborted);
+            var terminalConsumed = TryConsumePendingRouteActionOnlyTerminal(character, aborted);
+
+            LogCombatAiDiagnostic(
+                character,
+                "ActionChain.move-complete.exit",
+                $"reason=ground-melee-settling terminalConsumed={terminalConsumed} aborted={aborted} " +
+                $"route={routeMoveSource} moveToken={moveToken} {FormatCombatAiPendingState(character)}");
             return;
         }
 
         TryUseGroundMeleePartialRouteContinuationAfterActionChain(character, aborted);
-        TryConsumePendingRouteActionOnlyTerminal(character, aborted);
+        var consumed = TryConsumePendingRouteActionOnlyTerminal(character, aborted);
+
+        LogCombatAiDiagnostic(
+            character,
+            "ActionChain.move-complete.exit",
+            $"reason=complete terminalConsumed={consumed} aborted={aborted} route={routeMoveSource} " +
+            $"moveToken={moveToken} {FormatCombatAiPendingState(character)}");
     }
 
     internal static void NotifyAiMoveStepCompleted(GameLocationCharacter character)
@@ -4613,10 +4743,21 @@ internal static partial class CombatAiContext
 
         if (!IsActiveBattleContender(character))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "RouteTerminal.schedule.exit",
+                $"reason=inactive consumeAfterAbort={consumeAfterAbort} " +
+                $"actual={FormatCombatAiPosition(actualDestination)} expected={FormatCombatAiPosition(expectedDestination)}");
             return;
         }
 
         PendingRouteActionOnlyTerminalCache[character.Guid] = memory;
+
+        LogCombatAiDiagnostic(
+            character,
+            "RouteTerminal.schedule",
+            $"consumeAfterAbort={consumeAfterAbort} actual={FormatCombatAiPosition(actualDestination)} " +
+            $"{FormatRouteTerminalMemory(memory)} {FormatCombatAiPendingState(character)}");
     }
 
     private static bool TryConsumePendingRouteActionOnlyTerminal(
@@ -4629,6 +4770,11 @@ internal static partial class CombatAiContext
             return false;
         }
 
+        LogCombatAiDiagnostic(
+            character,
+            "RouteTerminal.callback.enter",
+            $"aborted={aborted} actual={FormatCombatAiPosition(character.LocationPosition)} " +
+            $"{FormatRouteTerminalMemory(memory)} {FormatCombatAiPendingState(character)}");
 
         if (IsConnectedFiringLineRoute(memory.PendingAction) &&
             TryHandlePendingConnectedFiringLineMovement(
@@ -4639,11 +4785,19 @@ internal static partial class CombatAiContext
         {
             if (!connectedRouteClosed)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "RouteTerminal.callback.wait",
+                    $"reason=connected-route-not-closed aborted={aborted} {FormatCombatAiPendingState(character)}");
                 return true;
             }
 
             if (!PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out memory))
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "RouteTerminal.callback.exit",
+                    $"reason=connected-route-cleared aborted={aborted} {FormatCombatAiPendingState(character)}");
                 return true;
             }
         }
@@ -4657,11 +4811,19 @@ internal static partial class CombatAiContext
         {
             if (!searchRouteClosed)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "RouteTerminal.callback.wait",
+                    $"reason=search-route-not-closed aborted={aborted} {FormatCombatAiPendingState(character)}");
                 return true;
             }
 
             if (!PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out memory))
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "RouteTerminal.callback.exit",
+                    $"reason=search-route-cleared aborted={aborted} {FormatCombatAiPendingState(character)}");
                 return true;
             }
         }
@@ -4679,6 +4841,11 @@ internal static partial class CombatAiContext
                         memory.PendingAction,
                         memory.PendingAction.StartPosition,
                         memory.PendingAction.ExpectedDestination);
+                    LogCombatAiDiagnostic(
+                        character,
+                        "RouteTerminal.callback.exit",
+                        $"reason=aborted-search-not-scheduled aborted={aborted} " +
+                        $"{FormatRouteTerminalMemory(memory)} {FormatCombatAiPendingState(character)}");
                     return true;
                 }
 
@@ -4688,7 +4855,24 @@ internal static partial class CombatAiContext
                     CombatAiTurnRecoveryReason.SearchLostTargetAbort);
             }
 
+            if (TrySpendRouteTerminalReadyDodgeFallbackBeforeClear(
+                    character,
+                    memory,
+                    "RouteTerminal.callback.aborted-clear",
+                    out _))
+            {
+                LogCombatAiDiagnostic(
+                    character,
+                    "RouteTerminal.callback.exit",
+                    $"reason=aborted-terminal-handled aborted={aborted} {FormatCombatAiPendingState(character)}");
+                return true;
+            }
+
             ClearRouteTerminalState(character);
+            LogCombatAiDiagnostic(
+                character,
+                "RouteTerminal.callback.exit",
+                $"reason=aborted-clear aborted={aborted} {FormatCombatAiPendingState(character)}");
             return true;
         }
 
@@ -4697,6 +4881,11 @@ internal static partial class CombatAiContext
 
         if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "RouteTerminal.callback.exit",
+                $"reason=stale memoryRound={memory.Round} memoryTurn={memory.TurnStamp} " +
+                $"currentRound={currentRound} currentTurn={currentTurnStamp}");
             ClearRouteTerminalState(character);
             return true;
         }
@@ -4705,21 +4894,124 @@ internal static partial class CombatAiContext
             ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
             GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "RouteTerminal.callback.wait",
+                $"reason=move-state-blocked aborted={aborted} {FormatCombatAiPendingState(character)}");
             return true;
         }
 
         if (!IsActiveBattleContender(character))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "RouteTerminal.callback.exit",
+                $"reason=inactive aborted={aborted} {FormatCombatAiPendingState(character)}");
             ClearRouteTerminalState(character);
             return true;
         }
 
         if (HasAvailableMainActionForPendingTerminal(character))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "RouteTerminal.callback.exit",
+                $"reason=available-main-retained aborted={aborted} " +
+                $"{FormatActionEconomySnapshot(BuildActionEconomySnapshot(character))} " +
+                FormatCombatAiPendingState(character));
             return true;
         }
 
         ClearRouteTerminalState(character);
+
+        LogCombatAiDiagnostic(
+            character,
+            "RouteTerminal.callback.exit",
+            $"reason=no-available-main-clear aborted={aborted} {FormatCombatAiPendingState(character)}");
+
+        return true;
+    }
+
+    private static bool TrySpendRouteTerminalReadyDodgeFallbackBeforeClear(
+        GameLocationCharacter character,
+        PendingRouteActionOnlyTerminalMemory memory,
+        string source,
+        out bool suppressEndTurn)
+    {
+        suppressEndTurn = false;
+
+        if (character?.RulesetCharacter == null)
+        {
+            return false;
+        }
+
+        if (!HasAvailableActionForPendingTerminal(character))
+        {
+            LogCombatAiDiagnostic(
+                character,
+                "RouteTerminal.pre-clear-fallback.exit",
+                $"source={source} reason=no-available-action " +
+                $"{FormatActionEconomySnapshot(BuildActionEconomySnapshot(character))} " +
+                FormatCombatAiPendingState(character));
+            return false;
+        }
+
+        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
+
+        if (battleService == null)
+        {
+            LogCombatAiDiagnostic(
+                character,
+                "RouteTerminal.pre-clear-fallback.exit",
+                $"source={source} reason=no-battle-service {FormatCombatAiPendingState(character)}");
+            return false;
+        }
+
+        LogCombatAiDiagnostic(
+            character,
+            "RouteTerminal.pre-clear-fallback.enter",
+            $"source={source} {FormatRouteTerminalMemory(memory)} " +
+            $"{FormatActionEconomySnapshot(BuildActionEconomySnapshot(character))} " +
+            FormatCombatAiPendingState(character));
+
+        var terminalResult = TrySpendPostRouteTerminalAction(
+            character,
+            battleService,
+            priorityTarget: memory.PendingAction.Target,
+            usePendingTerminalLaunch: true,
+            preferSelfBuffBeforeReady: true,
+            forceReadyDodgeFallback: true);
+        var hadPendingTerminalLaunch = terminalResult.Scheduled && HasPendingAiProcessTerminalLaunch(character);
+        var launchStatus = hadPendingTerminalLaunch
+            ? TryConsumePendingAiProcessTerminalLaunch(character)
+            : PendingTerminalLaunchStatus.None;
+        var handled =
+            terminalResult.Executed ||
+            terminalResult.Scheduled && !hadPendingTerminalLaunch ||
+            launchStatus is PendingTerminalLaunchStatus.Accepted or PendingTerminalLaunchStatus.Waiting;
+        var retainRouteTerminal =
+            launchStatus == PendingTerminalLaunchStatus.Waiting ||
+            ShouldRetainRouteTerminalAfterAuxiliaryAction(character, terminalResult);
+
+        suppressEndTurn = handled;
+
+        LogCombatAiDiagnostic(
+            character,
+            "RouteTerminal.pre-clear-fallback.exit",
+            $"source={source} {FormatPostRouteTerminalResult(terminalResult)} " +
+            $"hadPendingLaunch={hadPendingTerminalLaunch} launchStatus={launchStatus} " +
+            $"handled={handled} retainRoute={retainRouteTerminal} suppressEndTurn={suppressEndTurn} " +
+            FormatCombatAiPendingState(character));
+
+        if (!handled)
+        {
+            return false;
+        }
+
+        if (!retainRouteTerminal && PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid))
+        {
+            ClearRouteTerminalState(character);
+        }
 
         return true;
     }
@@ -4737,8 +5029,21 @@ internal static partial class CombatAiContext
         var currentRound = GetCurrentBattleRound();
         var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
 
+        LogCombatAiDiagnostic(
+            character,
+            "AiProcess.route-terminal.enter",
+            $"allowFinalFailure={allowFinalFailure} " +
+            $"actual={FormatCombatAiPosition(character.LocationPosition)} " +
+            $"{FormatRouteTerminalMemory(memory)} " +
+            FormatRouteTerminalBlockers(character));
+
         if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "AiProcess.route-terminal.exit",
+                $"reason=stale memoryRound={memory.Round} memoryTurn={memory.TurnStamp} " +
+                $"currentRound={currentRound} currentTurn={currentTurnStamp}");
             ClearRouteTerminalState(character);
             return true;
         }
@@ -4752,11 +5057,19 @@ internal static partial class CombatAiContext
         {
             if (!connectedRouteClosed)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "AiProcess.route-terminal.wait",
+                    $"reason=connected-route-not-closed {FormatRouteTerminalBlockers(character)}");
                 return true;
             }
 
             if (!PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out memory))
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "AiProcess.route-terminal.exit",
+                    "reason=connected-route-cleared-terminal");
                 return true;
             }
         }
@@ -4770,11 +5083,19 @@ internal static partial class CombatAiContext
         {
             if (!searchRouteClosed)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "AiProcess.route-terminal.wait",
+                    $"reason=search-route-not-closed {FormatRouteTerminalBlockers(character)}");
                 return true;
             }
 
             if (!PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out memory))
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "AiProcess.route-terminal.exit",
+                    "reason=search-route-cleared-terminal");
                 return true;
             }
         }
@@ -4783,27 +5104,46 @@ internal static partial class CombatAiContext
             ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
             GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "AiProcess.route-terminal.exit",
+                $"reason=action-linked-blocker {FormatRouteTerminalBlockers(character)}");
             return false;
         }
 
         if (!IsActiveBattleContender(character))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "AiProcess.route-terminal.exit",
+                "reason=inactive-contender");
             ClearRouteTerminalState(character);
             return true;
         }
 
         if (HasCurrentPendingTerminalReadyOrDodge(character))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "AiProcess.route-terminal.exit",
+                "reason=current-pending-ready-or-dodge");
             ClearRouteTerminalState(character);
             return true;
         }
 
         if (IsConnectedFiringLineRoute(memory.PendingAction))
         {
-            return TryConsumePendingConnectedFiringLineRouteTerminal(
+            var connectedTerminalHandled = TryConsumePendingConnectedFiringLineRouteTerminal(
                 character,
                 memory,
                 allowTerminalFallback: true);
+
+            LogCombatAiDiagnostic(
+                character,
+                "AiProcess.route-terminal.exit",
+                $"reason=connected-route-terminal handled={connectedTerminalHandled}");
+
+            return connectedTerminalHandled;
         }
 
         var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
@@ -4811,6 +5151,14 @@ internal static partial class CombatAiContext
             character,
             battleService,
             priorityTarget: memory.PendingAction.Target);
+        var hasAvailableMainActionForPendingTerminal = HasAvailableMainActionForPendingTerminal(character);
+
+        LogCombatAiDiagnostic(
+            character,
+            "AiProcess.route-terminal.post-route-result",
+            $"{FormatPostRouteTerminalResult(terminalResult)} " +
+            $"hasAvailableMainForPending={hasAvailableMainActionForPendingTerminal} " +
+            FormatRouteTerminalBlockers(character));
 
         if (ShouldRetainRouteTerminalAfterAuxiliaryAction(character, terminalResult))
         {
@@ -4818,10 +5166,14 @@ internal static partial class CombatAiContext
             return true;
         }
 
-        if (!terminalResult.Handled && HasAvailableMainActionForPendingTerminal(character))
+        if (!terminalResult.Handled && hasAvailableMainActionForPendingTerminal)
         {
             if (!allowFinalFailure)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "AiProcess.route-terminal.exit",
+                    "reason=await-final-failure-pass");
                 return false;
             }
 
@@ -4831,6 +5183,14 @@ internal static partial class CombatAiContext
                 priorityTarget: memory.PendingAction.Target,
                 preferSelfBuffBeforeReady: true,
                 forceReadyDodgeFallback: true);
+            hasAvailableMainActionForPendingTerminal = HasAvailableMainActionForPendingTerminal(character);
+
+            LogCombatAiDiagnostic(
+                character,
+                "AiProcess.route-terminal.force-result",
+                $"{FormatPostRouteTerminalResult(terminalResult)} " +
+                $"hasAvailableMainForPending={hasAvailableMainActionForPendingTerminal} " +
+                FormatRouteTerminalBlockers(character));
 
             if (ShouldRetainRouteTerminalAfterAuxiliaryAction(character, terminalResult))
             {
@@ -4841,11 +5201,20 @@ internal static partial class CombatAiContext
 
         if (terminalResult.Handled)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "AiProcess.route-terminal.exit",
+                $"reason=handled {FormatPostRouteTerminalResult(terminalResult)}");
             ClearRouteTerminalState(character);
 
             return true;
         }
 
+        LogCombatAiDiagnostic(
+            character,
+            "AiProcess.route-terminal.exit",
+            $"reason=unhandled allowFinalFailure={allowFinalFailure} " +
+            $"hasAvailableMainForPending={hasAvailableMainActionForPendingTerminal}");
         ClearRouteTerminalState(character);
 
         if (allowFinalFailure)
@@ -5533,8 +5902,18 @@ internal static partial class CombatAiContext
         var currentRound = GetCurrentBattleRound();
         var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
 
+        LogCombatAiDiagnostic(
+            character,
+            "EndTurn.route-terminal.enter",
+            $"{FormatRouteTerminalMemory(memory)} {FormatCombatAiPendingState(character)}");
+
         if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurn.route-terminal.exit",
+                $"reason=stale memoryRound={memory.Round} memoryTurn={memory.TurnStamp} " +
+                $"currentRound={currentRound} currentTurn={currentTurnStamp}");
             ClearRouteTerminalState(character);
             return true;
         }
@@ -5543,32 +5922,85 @@ internal static partial class CombatAiContext
             ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
             GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurn.route-terminal.wait",
+                $"reason=move-state-blocked {FormatCombatAiPendingState(character)}");
             return true;
         }
 
         if (HasCurrentPendingTerminalReadyOrDodge(character))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurn.route-terminal.exit",
+                $"reason=current-pending-ready-or-dodge {FormatCombatAiPendingState(character)}");
             return false;
         }
 
         if (!IsActiveBattleContender(character))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurn.route-terminal.exit",
+                $"reason=inactive {FormatCombatAiPendingState(character)}");
             ClearRouteTerminalState(character);
             return true;
         }
 
         if (HasPendingAiProcessTerminalLaunch(character))
         {
-            ClearPendingTerminalLaunchState(character);
+            var launchStatus = TryConsumePendingAiProcessTerminalLaunch(character);
+
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurn.route-terminal.pending-launch",
+                $"status={launchStatus} {FormatCombatAiPendingState(character)}");
+
+            if (launchStatus is PendingTerminalLaunchStatus.Accepted or PendingTerminalLaunchStatus.Waiting)
+            {
+                suppressEndTurn = true;
+                return true;
+            }
+
+            if (!PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid))
+            {
+                return false;
+            }
         }
 
         if (HasAvailableActionForPendingTerminal(character))
         {
+            if (TrySpendRouteTerminalReadyDodgeFallbackBeforeClear(
+                    character,
+                    memory,
+                    "EndTurn.route-terminal.available-action",
+                    out suppressEndTurn))
+            {
+                LogCombatAiDiagnostic(
+                    character,
+                    "EndTurn.route-terminal.exit",
+                    $"reason=available-action-terminal-handled suppressEndTurn={suppressEndTurn} " +
+                    FormatCombatAiPendingState(character));
+                return true;
+            }
+
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurn.route-terminal.exit",
+                $"reason=available-action-clear-return-false " +
+                $"{FormatActionEconomySnapshot(BuildActionEconomySnapshot(character))} " +
+                FormatCombatAiPendingState(character));
             ClearRouteTerminalState(character);
             return false;
         }
 
         ClearRouteTerminalState(character);
+
+        LogCombatAiDiagnostic(
+            character,
+            "EndTurn.route-terminal.exit",
+            $"reason=no-available-action-clear {FormatCombatAiPendingState(character)}");
 
         return true;
     }
@@ -5617,6 +6049,150 @@ internal static partial class CombatAiContext
         GameLocationCharacter character,
         string boundary)
     {
+        LogCombatAiDiagnostic(
+            character,
+            $"{boundary}.retain-terminal",
+            $"reason=auxiliary-action {FormatRouteTerminalBlockers(character)}");
+    }
+
+    private static void LogCombatAiDiagnostic(
+        GameLocationCharacter character,
+        string stage,
+        string details)
+    {
+        if (character?.RulesetCharacter == null ||
+            !IsAdvancedCombatAiEnabled ||
+            !IsAiControlledForCombat(character))
+        {
+            return;
+        }
+
+        Main.Info(
+            $"{CombatAiDiagnosticPrefix} {stage} " +
+            $"round={GetCurrentBattleRound()} " +
+            $"turn={Math.Max(1, ObservedCombatMemoryTurnStamp)} " +
+            $"actor={FormatCombatAiCharacter(character)} " +
+            $"guid={character.Guid} " +
+            $"pos={FormatCombatAiPosition(character.LocationPosition)} " +
+            details);
+    }
+
+    private static string FormatCombatAiCharacter(GameLocationCharacter character)
+    {
+        return character?.RulesetCharacter?.Name ??
+               character?.Name ??
+               "unknown";
+    }
+
+    private static string FormatCombatAiPosition(int3 position)
+    {
+        return $"{position.x},{position.y},{position.z}";
+    }
+
+    private static string FormatRouteTerminalMemory(PendingRouteActionOnlyTerminalMemory memory)
+    {
+        var pendingAction = memory.PendingAction;
+
+        return
+            $"goal={pendingAction.MovementGoal} " +
+            $"route={pendingAction.RouteMoveSource} " +
+            $"continuation={pendingAction.Continuation} " +
+            $"action={pendingAction.ActionKind} " +
+            $"target={FormatCombatAiCharacter(pendingAction.Target)} " +
+            $"start={FormatCombatAiPosition(pendingAction.StartPosition)} " +
+            $"expected={FormatCombatAiPosition(pendingAction.ExpectedDestination)} " +
+            $"recordedActual={FormatCombatAiPosition(memory.ActualDestination)} " +
+            $"moveToken={pendingAction.MoveToken} " +
+            $"searchConnected={pendingAction.SearchRouteActionConnected} " +
+            $"movementContinuationAllowed={memory.MovementContinuationAllowed}";
+    }
+
+    private static string FormatActionEconomySnapshot(CombatAiActionEconomySnapshot actionEconomy)
+    {
+        return
+            $"mainType={actionEconomy.MainActionType} " +
+            $"mainAvail={actionEconomy.MainAvailable} " +
+            $"attackMain={actionEconomy.AttackMain} " +
+            $"castMain={actionEconomy.CastMain} " +
+            $"ready={actionEconomy.Ready} " +
+            $"readyAvail={actionEconomy.ReadyAvailable} " +
+            $"dodge={actionEconomy.Dodge} " +
+            $"dodgeAvail={actionEconomy.DodgeAvailable} " +
+            $"tactical={actionEconomy.TacticalMove} " +
+            $"bonus={actionEconomy.Bonus} " +
+            $"bonusFreeJump={actionEconomy.BonusFreeJump} " +
+            $"noCost={actionEconomy.NoCostUtility} " +
+            $"mainUse={actionEconomy.MainUseCount} " +
+            $"bonusUse={actionEconomy.BonusUseCount} " +
+            $"hasLastMain={actionEconomy.HasLastMainAction} " +
+            $"lastMain={actionEconomy.LastMainTerminalAction} " +
+            $"lastTerminal={actionEconomy.LastTerminalAction}";
+    }
+
+    private static string FormatTerminalScan(CurrentTerminalActionScan terminalScan)
+    {
+        return
+            $"scanValidated={terminalScan.HasValidatedAction} " +
+            $"scanUtility={terminalScan.HasUsefulUtility} " +
+            $"scanBlocks={terminalScan.BlocksReadyOrDodge}";
+    }
+
+    private static string FormatPostRouteTerminalResult(PostRouteTerminalResult terminalResult)
+    {
+        return
+            $"status={terminalResult.Status} " +
+            $"actionKind={terminalResult.ActionKind} " +
+            $"handled={terminalResult.Handled} " +
+            $"consumesMain={terminalResult.ConsumesMainAction}";
+    }
+
+    private static string FormatRouteTerminalBlockers(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null)
+        {
+            return
+                "movementTracker=False pendingReaction=False actionLinked=False " +
+                "actionSettling=False groundSettling=False stableBlock=False";
+        }
+
+        return
+            $"movementTracker={MovementTracker.TryGetMovement(character.Guid, out _)} " +
+            $"pendingReaction={HasPendingReactionRequests()} " +
+            $"actionLinked={ActionLinkedMoveCache.ContainsKey(character.Guid)} " +
+            $"actionSettling={ActionLinkedMoveSettlingCache.ContainsKey(character.Guid)} " +
+            $"groundSettling={GroundMeleeMoveSettlingCache.ContainsKey(character.Guid)} " +
+            $"stableBlock={HasPendingRouteTerminalStableBoundaryBlock(character)}";
+    }
+
+    private static string FormatCombatAiPendingState(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null)
+        {
+            return
+                "pendingRoute=False routeStartNext=False pendingLaunch=False pendingLaunchCurrent=False " +
+                "pendingReadyDodge=False pendingDodge=False pendingReady=False pendingRecovery=False " +
+                "movementTracker=False reaction=False actionLinked=False actionSettling=False groundSettling=False " +
+                "routeDash=False utilityTerminal=False";
+        }
+
+        var guid = character.Guid;
+
+        return
+            $"pendingRoute={PendingRouteActionOnlyTerminalCache.ContainsKey(guid)} " +
+            $"routeStartNext={PendingRouteTerminalStartNextResolutionCache.Contains(guid)} " +
+            $"pendingLaunch={PendingAiProcessTerminalLaunchCache.ContainsKey(guid)} " +
+            $"pendingLaunchCurrent={HasPendingAiProcessTerminalLaunch(character)} " +
+            $"pendingReadyDodge={HasCurrentPendingTerminalReadyOrDodge(character)} " +
+            $"pendingDodge={PendingTerminalDodgeEndTurnCache.ContainsKey(guid)} " +
+            $"pendingReady={PendingTerminalReadyEndTurnCache.ContainsKey(guid)} " +
+            $"pendingRecovery={PendingAiProcessTurnRecoveryCache.ContainsKey(guid)} " +
+            $"movementTracker={MovementTracker.TryGetMovement(guid, out _)} " +
+            $"reaction={HasPendingReactionRequests()} " +
+            $"actionLinked={ActionLinkedMoveCache.ContainsKey(guid)} " +
+            $"actionSettling={ActionLinkedMoveSettlingCache.ContainsKey(guid)} " +
+            $"groundSettling={GroundMeleeMoveSettlingCache.ContainsKey(guid)} " +
+            $"routeDash={RouteMoveDashBlockCache.ContainsKey(guid)} " +
+            $"utilityTerminal={PendingUtilityTerminalContinuationCache.ContainsKey(guid)}";
     }
 
     private static bool SchedulePendingAiProcessTerminalLaunch(
@@ -5635,6 +6211,11 @@ internal static partial class CombatAiContext
         var memory = new PendingAiProcessTerminalLaunchMemory(actionId, readyActionType, kind, round, turnStamp);
 
         PendingAiProcessTerminalLaunchCache[character.Guid] = memory;
+
+        LogCombatAiDiagnostic(
+            character,
+            "PendingTerminal.schedule",
+            $"action={actionId} kind={kind} readyType={readyActionType} round={round} turn={turnStamp}");
 
         return true;
     }
@@ -5683,6 +6264,11 @@ internal static partial class CombatAiContext
 
         if (HasPendingRouteTerminalStableBoundaryBlock(character))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PendingTerminal.wait",
+                $"reason=stable-boundary-block action={memory.ActionId} kind={memory.Kind} " +
+                FormatRouteTerminalBlockers(character));
             PendingTerminalActionEndTurnSuppressCache.Add(character.Guid);
             return PendingTerminalLaunchStatus.Waiting;
         }
@@ -5696,6 +6282,10 @@ internal static partial class CombatAiContext
 
         if (TryReplacePendingTerminalLaunchWithHostileAction(character, memory))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PendingTerminal.accepted",
+                $"reason=replaced-with-hostile action={memory.ActionId} kind={memory.Kind}");
             return PendingTerminalLaunchStatus.Accepted;
         }
 
@@ -5709,7 +6299,15 @@ internal static partial class CombatAiContext
         PendingAiProcessTerminalLaunchMemory memory,
         PendingTerminalLaunchRejectionKind rejectionKind)
     {
-        if (ShouldRetainRouteTerminalAfterRejectedPendingLaunch(character, rejectionKind))
+        var retainRouteTerminal = ShouldRetainRouteTerminalAfterRejectedPendingLaunch(character, rejectionKind);
+
+        LogCombatAiDiagnostic(
+            character,
+            "PendingTerminal.reject",
+            $"action={memory.ActionId} kind={memory.Kind} rejection={rejectionKind} retainRoute={retainRouteTerminal} " +
+            FormatRouteTerminalBlockers(character));
+
+        if (retainRouteTerminal)
         {
             ClearPendingTerminalLaunchState(character, memory.ActionId);
         }
@@ -5844,6 +6442,10 @@ internal static partial class CombatAiContext
 
         if (!actionEconomy.DodgeAvailable || dodgeStatus != ActionStatus.Available)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PendingTerminal.dodge-reject",
+                $"reason=action-unavailable dodgeStatus={dodgeStatus} {FormatActionEconomySnapshot(actionEconomy)}");
             return RejectPendingTerminalLaunch(
                 character,
                 memory,
@@ -5856,14 +6458,27 @@ internal static partial class CombatAiContext
             new PendingTerminalDodgeEndTurnMemory(memory.Round, memory.TurnStamp);
 
         PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
+        LogCombatAiDiagnostic(
+            character,
+            "PendingTerminal.dodge-execute",
+            $"action={memory.ActionId} kind={memory.Kind} dodgeStatus={dodgeStatus}");
         character.MyExecuteActionDodge();
 
         if (!PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PendingTerminal.dodge-waiting",
+                $"action={memory.ActionId} kind={memory.Kind}");
             return PendingTerminalLaunchStatus.Waiting;
         }
 
         PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
+
+        LogCombatAiDiagnostic(
+            character,
+            "PendingTerminal.dodge-accepted",
+            $"action={memory.ActionId} kind={memory.Kind}");
 
         return PendingTerminalLaunchStatus.Accepted;
     }
@@ -5877,6 +6492,10 @@ internal static partial class CombatAiContext
 
         if (!actionEconomy.ReadyAvailable || readyStatus != ActionStatus.Available)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PendingTerminal.ready-reject",
+                $"reason=action-unavailable readyStatus={readyStatus} {FormatActionEconomySnapshot(actionEconomy)}");
             return RejectPendingTerminalLaunch(
                 character,
                 memory,
@@ -5887,14 +6506,27 @@ internal static partial class CombatAiContext
             new PendingTerminalDodgeEndTurnMemory(memory.Round, memory.TurnStamp);
 
         PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
+        LogCombatAiDiagnostic(
+            character,
+            "PendingTerminal.ready-execute",
+            $"action={memory.ActionId} kind={memory.Kind} readyStatus={readyStatus} readyType={memory.ReadyActionType}");
         character.MyExecuteActionReady(memory.ReadyActionType);
 
         if (!PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PendingTerminal.ready-waiting",
+                $"action={memory.ActionId} kind={memory.Kind}");
             return PendingTerminalLaunchStatus.Waiting;
         }
 
         PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
+
+        LogCombatAiDiagnostic(
+            character,
+            "PendingTerminal.ready-accepted",
+            $"action={memory.ActionId} kind={memory.Kind}");
 
         return PendingTerminalLaunchStatus.Accepted;
     }
@@ -5920,6 +6552,10 @@ internal static partial class CombatAiContext
         PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
         ClearRouteMoveDashBlock(character);
 
+        LogCombatAiDiagnostic(
+            character,
+            "PendingTerminal.notify-accepted",
+            $"action={action.ActionId} kind={memory.Kind}");
     }
 
     private static void NotifyEndTurnRecoveryActionAccepted(CharacterAction action)
@@ -5936,6 +6572,11 @@ internal static partial class CombatAiContext
         EndTurnRecoveryActionAcceptedCache.Add(character.Guid);
         PendingEndTurnRecoveryActionAcceptanceCache.Remove(character.Guid);
         PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
+
+        LogCombatAiDiagnostic(
+            character,
+            "EndTurnRecovery.notify-accepted",
+            $"action={action.ActionId} expected={memory.ActionLabel}");
     }
 
     private static void MarkEndTurnRecoveryActionSubmitted(GameLocationCharacter character)
@@ -10666,33 +11307,70 @@ validation = new CombatAiMainActionValidation(
         var hasUnobservedActionStart = false;
         var hasSubmittedUnobservedActionStart = false;
 
+        LogCombatAiDiagnostic(
+            character,
+            "EndTurnRecovery.enter",
+            $"allowActionFallbacks={allowActionFallbacks} allowTerminalFallbacks={allowTerminalFallbacks} " +
+            $"skipReady={skipReadyFallback} skipDodge={skipDodgeFallback} " +
+            $"{FormatActionEconomySnapshot(actionEconomy)} {FormatCombatAiPendingState(character)}");
+
         if (!IsAdvancedCombatAiActionEconomyEnabled ||
             !actionEconomy.CanAutoAct ||
             !actionEconomy.IsAiControlled ||
             character?.RulesetCharacter == null)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurnRecovery.exit",
+                $"reason=gate advancedEconomy={IsAdvancedCombatAiActionEconomyEnabled} " +
+                $"canAutoAct={actionEconomy.CanAutoAct} isAiControlled={actionEconomy.IsAiControlled} " +
+                $"actorNull={character?.RulesetCharacter == null}");
             return CombatAiActionRecoveryStartResult.NotStarted;
         }
 
         if (!IsActiveBattleContender(character))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurnRecovery.exit",
+                $"reason=inactive {FormatCombatAiPendingState(character)}");
             TryClearInactiveCombatAiTurnOwnership(character);
             return CombatAiActionRecoveryStartResult.NotStarted;
         }
 
         if (battleService == null)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurnRecovery.exit",
+                "reason=no-battle-service");
             return CombatAiActionRecoveryStartResult.NotStarted;
         }
 
-        if (HasPendingReactionRequests() ||
-            MovementTracker.TryGetMovement(character.Guid, out _) ||
-            ActionLinkedMoveCache.ContainsKey(character.Guid) ||
-            ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
-            GroundMeleeMoveSettlingCache.ContainsKey(character.Guid) ||
-            PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid) ||
-            HasPendingAiProcessTerminalLaunch(character))
+        var hasPendingReactionRequests = HasPendingReactionRequests();
+        var hasTrackedMovement = MovementTracker.TryGetMovement(character.Guid, out _);
+        var hasActionLinkedMove = ActionLinkedMoveCache.ContainsKey(character.Guid);
+        var hasActionLinkedMoveSettling = ActionLinkedMoveSettlingCache.ContainsKey(character.Guid);
+        var hasGroundMeleeMoveSettling = GroundMeleeMoveSettlingCache.ContainsKey(character.Guid);
+        var hasPendingRouteTerminal = PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid);
+        var hasPendingAiProcessTerminalLaunch = HasPendingAiProcessTerminalLaunch(character);
+
+        if (hasPendingReactionRequests ||
+            hasTrackedMovement ||
+            hasActionLinkedMove ||
+            hasActionLinkedMoveSettling ||
+            hasGroundMeleeMoveSettling ||
+            hasPendingRouteTerminal ||
+            hasPendingAiProcessTerminalLaunch)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurnRecovery.exit",
+                $"reason=pending-state-block reaction={hasPendingReactionRequests} " +
+                $"movementTracker={hasTrackedMovement} actionLinked={hasActionLinkedMove} " +
+                $"actionSettling={hasActionLinkedMoveSettling} groundSettling={hasGroundMeleeMoveSettling} " +
+                $"pendingRoute={hasPendingRouteTerminal} pendingLaunch={hasPendingAiProcessTerminalLaunch} " +
+                FormatCombatAiPendingState(character));
             return CombatAiActionRecoveryStartResult.NotStarted;
         }
 
@@ -10700,6 +11378,10 @@ validation = new CombatAiMainActionValidation(
 
         if (allowSearchNoConnectedFinalFallback)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurnRecovery.exit",
+                $"reason=search-no-connected-final-fallback {FormatCombatAiPendingState(character)}");
             ClearSearchNoConnectedTerminalState(character);
             return CombatAiActionRecoveryStartResult.NotStarted;
         }
@@ -10714,13 +11396,26 @@ validation = new CombatAiMainActionValidation(
                 Id.CastMain,
                 Id.PowerMain);
 
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurnRecovery.main-result",
+                $"result={mainResult} {FormatCombatAiPendingState(character)}");
+
             if (mainResult == CombatAiActionRecoveryStartResult.StartedObserved)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "EndTurnRecovery.exit",
+                    "reason=main-observed");
                 return mainResult;
             }
 
             if (mainResult == CombatAiActionRecoveryStartResult.StartedSubmittedUnobserved)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "EndTurnRecovery.exit",
+                    "reason=main-submitted-unobserved");
                 return mainResult;
             }
 
@@ -10735,13 +11430,26 @@ validation = new CombatAiMainActionValidation(
                 Id.CastBonus,
                 Id.PowerBonus);
 
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurnRecovery.bonus-result",
+                $"result={bonusResult} {FormatCombatAiPendingState(character)}");
+
             if (bonusResult == CombatAiActionRecoveryStartResult.StartedObserved)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "EndTurnRecovery.exit",
+                    "reason=bonus-observed");
                 return bonusResult;
             }
 
             if (bonusResult == CombatAiActionRecoveryStartResult.StartedSubmittedUnobserved)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "EndTurnRecovery.exit",
+                    "reason=bonus-submitted-unobserved");
                 return bonusResult;
             }
 
@@ -10764,13 +11472,26 @@ validation = new CombatAiMainActionValidation(
                     clearTurnCacheAfterAction: false),
                 Id.PowerNoCost);
 
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurnRecovery.self-buff-result",
+                $"result={selfBuffResult} {FormatCombatAiPendingState(character)}");
+
             if (selfBuffResult == CombatAiActionRecoveryStartResult.StartedObserved)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "EndTurnRecovery.exit",
+                    "reason=self-buff-observed");
                 return selfBuffResult;
             }
 
             if (selfBuffResult == CombatAiActionRecoveryStartResult.StartedSubmittedUnobserved)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "EndTurnRecovery.exit",
+                    "reason=self-buff-submitted-unobserved");
                 return selfBuffResult;
             }
 
@@ -10779,6 +11500,10 @@ validation = new CombatAiMainActionValidation(
 
         if (!allowTerminalFallbacks)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurnRecovery.exit",
+                $"reason=terminal-fallbacks-disabled hasUnobserved={hasUnobservedActionStart}");
             return hasUnobservedActionStart
                 ? CombatAiActionRecoveryStartResult.StartedUnobservedContinue
                 : CombatAiActionRecoveryStartResult.NotStarted;
@@ -10794,10 +11519,24 @@ validation = new CombatAiMainActionValidation(
             ? new CurrentTerminalActionScan(false, false)
             : currentTerminalScan;
         var hasUnsafeTerminalFallbackBoundary = HasPendingRouteTerminalStableBoundaryBlock(character);
+        var canSpendReadyMain = CanSpendTerminalMainAction(character, actionEconomy);
+        var hasReadyTerminalFallbackBlock = TryGetTerminalFallbackBlock(
+            finalFallbackScan,
+            false,
+            out var readyTerminalFallbackBlockKind);
+
+        LogCombatAiDiagnostic(
+            character,
+            "EndTurnRecovery.eval",
+            $"{FormatTerminalScan(finalFallbackScan)} " +
+            $"unsafeBoundary={hasUnsafeTerminalFallbackBoundary} canSpendReadyMain={canSpendReadyMain} " +
+            $"readyBlock={hasReadyTerminalFallbackBlock} readyBlockKind={readyTerminalFallbackBlockKind} " +
+            $"skipReady={skipReadyFallback} skipDodge={skipDodgeFallback} " +
+            FormatCombatAiPendingState(character));
 
         if (!skipReadyFallback &&
-            CanSpendTerminalMainAction(character, actionEconomy) &&
-            !TryGetTerminalFallbackBlock(finalFallbackScan, false, out _))
+            canSpendReadyMain &&
+            !hasReadyTerminalFallbackBlock)
         {
             var readyResult = TryStartEndTurnRecoveryAction(
                 character,
@@ -10813,8 +11552,17 @@ validation = new CombatAiMainActionValidation(
                 true,
                 Id.Ready);
 
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurnRecovery.ready-result",
+                $"result={readyResult} {FormatCombatAiPendingState(character)}");
+
             if (readyResult == CombatAiActionRecoveryStartResult.StartedObserved)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "EndTurnRecovery.exit",
+                    "reason=ready-observed");
                 return readyResult;
             }
 
@@ -10822,6 +11570,10 @@ validation = new CombatAiMainActionValidation(
             {
                 if (!allowSearchNoConnectedFinalFallback)
                 {
+                    LogCombatAiDiagnostic(
+                        character,
+                        "EndTurnRecovery.exit",
+                        $"reason=ready-result result={readyResult}");
                     return readyResult;
                 }
 
@@ -10836,11 +11588,22 @@ validation = new CombatAiMainActionValidation(
             }
         }
 
-        if (!hasSubmittedUnobservedActionStart &&
+        var canTryDodgeFallback =
+            !hasSubmittedUnobservedActionStart &&
             !skipDodgeFallback &&
             actionEconomy.DodgeAvailable &&
             !hasUnsafeTerminalFallbackBoundary &&
-            !finalFallbackScan.BlocksReadyOrDodge)
+            !finalFallbackScan.BlocksReadyOrDodge;
+
+        LogCombatAiDiagnostic(
+            character,
+            "EndTurnRecovery.eval-dodge",
+            $"canTry={canTryDodgeFallback} hasSubmitted={hasSubmittedUnobservedActionStart} " +
+            $"skipDodge={skipDodgeFallback} dodgeAvailable={actionEconomy.DodgeAvailable} " +
+            $"unsafeBoundary={hasUnsafeTerminalFallbackBoundary} scanBlocks={finalFallbackScan.BlocksReadyOrDodge} " +
+            FormatCombatAiPendingState(character));
+
+        if (canTryDodgeFallback)
         {
             var dodgeResult = TryStartEndTurnRecoveryAction(
                 character,
@@ -10849,8 +11612,17 @@ validation = new CombatAiMainActionValidation(
                 true,
                 Id.Dodge);
 
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurnRecovery.dodge-result",
+                $"result={dodgeResult} {FormatCombatAiPendingState(character)}");
+
             if (dodgeResult == CombatAiActionRecoveryStartResult.StartedObserved)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "EndTurnRecovery.exit",
+                    "reason=dodge-observed");
                 return dodgeResult;
             }
 
@@ -10858,6 +11630,10 @@ validation = new CombatAiMainActionValidation(
             {
                 if (!allowSearchNoConnectedFinalFallback)
                 {
+                    LogCombatAiDiagnostic(
+                        character,
+                        "EndTurnRecovery.exit",
+                        $"reason=dodge-result result={dodgeResult}");
                     return dodgeResult;
                 }
 
@@ -10874,6 +11650,10 @@ validation = new CombatAiMainActionValidation(
 
         if (hasSubmittedUnobservedActionStart)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "EndTurnRecovery.exit",
+                "reason=submitted-unobserved");
             return CombatAiActionRecoveryStartResult.StartedSubmittedUnobserved;
         }
 
@@ -10889,6 +11669,12 @@ validation = new CombatAiMainActionValidation(
             RouteMoveCompletionClosedCache.Remove(character.Guid);
             ClearRouteTerminalState(character);
         }
+
+        LogCombatAiDiagnostic(
+            character,
+            "EndTurnRecovery.exit",
+            $"reason=final hasUnobserved={hasUnobservedActionStart} " +
+            $"allowSearchNoConnectedFinalFallback={allowSearchNoConnectedFinalFallback}");
 
         return hasUnobservedActionStart && !allowSearchNoConnectedFinalFallback
             ? CombatAiActionRecoveryStartResult.StartedUnobservedContinue
@@ -11291,6 +12077,11 @@ validation = new CombatAiMainActionValidation(
             PendingTerminalDodgeEndTurnCache.Remove(character.Guid);
             PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
             NormalizeFallbackDodgeCondition(character, condition);
+            LogCombatAiDiagnostic(
+                character,
+                "DodgeFallback.normalize",
+                $"source=end-turn result=applied condition={condition.Guid} " +
+                $"existingDodgeConditions={existingConditions.Count}");
             return true;
         }
 
@@ -11307,6 +12098,10 @@ validation = new CombatAiMainActionValidation(
             PendingFallbackDodgeConditionCache.Remove(character.Guid);
             PendingTerminalDodgeEndTurnCache.Remove(character.Guid);
             PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
+            LogCombatAiDiagnostic(
+                character,
+                "DodgeFallback.normalize",
+                $"source=end-turn result=engine-rejected dodgeStatus={dodgeStatus}");
             TryCompleteTerminalDodgeEndTurn(
                 character,
                 true,
@@ -25084,29 +25879,54 @@ validation = new CombatAiMainActionValidation(
 
         if (!IsActiveBattleContender(character))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "DodgeFallback.exit",
+                $"reason=inactive usePendingLaunch={usePendingTerminalLaunch}");
             return new TerminalFallbackActionResult(TerminalFallbackActionStatus.Blocked);
         }
 
         var actionEconomy = BuildActionEconomySnapshot(character);
         var dodgeStatus = character.GetActionStatus(Id.Dodge, ActionScope.Battle);
 
+        LogCombatAiDiagnostic(
+            character,
+            "DodgeFallback.enter",
+            $"usePendingLaunch={usePendingTerminalLaunch} dodgeStatus={dodgeStatus} " +
+            FormatActionEconomySnapshot(actionEconomy));
+
         if (!CanSpendTerminalMainAction(character, actionEconomy))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "DodgeFallback.exit",
+                $"reason=no-terminal-main dodgeStatus={dodgeStatus} {FormatActionEconomySnapshot(actionEconomy)}");
             return new TerminalFallbackActionResult(TerminalFallbackActionStatus.Blocked);
         }
 
         if (!actionEconomy.DodgeAvailable || dodgeStatus != ActionStatus.Available)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "DodgeFallback.exit",
+                $"reason=dodge-unavailable dodgeStatus={dodgeStatus} {FormatActionEconomySnapshot(actionEconomy)}");
             return new TerminalFallbackActionResult(TerminalFallbackActionStatus.Blocked);
         }
 
         if (usePendingTerminalLaunch)
         {
-            return SchedulePendingAiProcessTerminalLaunch(
+            var scheduled = SchedulePendingAiProcessTerminalLaunch(
                 character,
                 Id.Dodge,
                 default,
-                PendingTerminalLaunchKind.Dodge)
+                PendingTerminalLaunchKind.Dodge);
+
+            LogCombatAiDiagnostic(
+                character,
+                "DodgeFallback.exit",
+                $"reason=pending-launch scheduled={scheduled}");
+
+            return scheduled
                 ? new TerminalFallbackActionResult(TerminalFallbackActionStatus.Scheduled)
                 : new TerminalFallbackActionResult(TerminalFallbackActionStatus.Blocked);
         }
@@ -25116,7 +25936,16 @@ validation = new CombatAiMainActionValidation(
 
         PendingFallbackDodgeConditionCache[character.Guid] = existingConditions;
         MarkEndTurnRecoveryActionSubmitted(character);
+        LogCombatAiDiagnostic(
+            character,
+            "DodgeFallback.execute",
+            $"usePendingLaunch={usePendingTerminalLaunch} existingDodgeConditions={existingConditions.Count}");
         character.MyExecuteActionDodge();
+
+        LogCombatAiDiagnostic(
+            character,
+            "DodgeFallback.exit",
+            "reason=executed");
 
         return new TerminalFallbackActionResult(TerminalFallbackActionStatus.Executed);
     }
@@ -25135,6 +25964,12 @@ validation = new CombatAiMainActionValidation(
 
         if (condition == null)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "DodgeFallback.observe",
+                $"result=no-condition clearPending={clearPendingWhenMissing} " +
+                $"existingDodgeConditions={existingConditions.Count}");
+
             if (clearPendingWhenMissing)
             {
                 PendingFallbackDodgeConditionCache.Remove(character.Guid);
@@ -25145,6 +25980,11 @@ validation = new CombatAiMainActionValidation(
 
         PendingFallbackDodgeConditionCache.Remove(character.Guid);
         NormalizeFallbackDodgeCondition(character, condition);
+
+        LogCombatAiDiagnostic(
+            character,
+            "DodgeFallback.observe",
+            $"result=applied condition={condition.Guid} existingDodgeConditions={existingConditions.Count}");
 
         return true;
     }
@@ -25183,6 +26023,10 @@ validation = new CombatAiMainActionValidation(
 
         if (!hasPendingCondition)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "DodgeFallback.normalize",
+                $"source=after-action result=no-pending-condition isTerminal={isTerminalEndTurnDodge}");
             TryCompleteTerminalDodgeEndTurn(
                 character,
                 isTerminalEndTurnDodge,
@@ -25195,6 +26039,11 @@ validation = new CombatAiMainActionValidation(
 
         if (condition == null)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "DodgeFallback.normalize",
+                $"source=after-action result=no-condition isTerminal={isTerminalEndTurnDodge} " +
+                $"existingDodgeConditions={existingConditions.Count}");
             TryCompleteTerminalDodgeEndTurn(
                 character,
                 isTerminalEndTurnDodge,
@@ -25204,6 +26053,11 @@ validation = new CombatAiMainActionValidation(
         }
 
         NormalizeFallbackDodgeCondition(character, condition);
+        LogCombatAiDiagnostic(
+            character,
+            "DodgeFallback.normalize",
+            $"source=after-action result=applied isTerminal={isTerminalEndTurnDodge} " +
+            $"condition={condition.Guid} existingDodgeConditions={existingConditions.Count}");
         TryCompleteTerminalDodgeEndTurn(
             character,
             isTerminalEndTurnDodge,
@@ -25224,6 +26078,12 @@ validation = new CombatAiMainActionValidation(
 
         PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
         PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
+
+        LogCombatAiDiagnostic(
+            character,
+            "DodgeFallback.terminal-complete",
+            $"result={result} pendingRound={pendingTerminalDodge.Round} " +
+            $"pendingTurn={pendingTerminalDodge.TurnStamp}");
     }
 
     private static void NormalizeFallbackDodgeCondition(GameLocationCharacter character, RulesetCondition condition)
@@ -28236,14 +29096,30 @@ validation = new CombatAiMainActionValidation(
     {
         if (character?.RulesetCharacter == null || battleService == null)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.exit",
+                $"reason=invalid actorNull={character == null} battleServiceNull={battleService == null}");
             return new PostRouteTerminalResult(PostRouteTerminalStatus.Blocked);
         }
 
         var actionEconomy = BuildActionEconomySnapshot(character);
         var isEndTurnBoundary = launchBoundary == CombatAiActionLaunchBoundary.EndTurn;
 
+        LogCombatAiDiagnostic(
+            character,
+            "PostRoute.enter",
+            $"launch={launchBoundary} allowReadyDodge={allowReadyDodge} " +
+            $"usePendingLaunch={usePendingTerminalLaunch} preferSelfBuff={preferSelfBuffBeforeReady} " +
+            $"forceReadyDodge={forceReadyDodgeFallback} priorityTarget={FormatCombatAiCharacter(priorityTarget)} " +
+            $"{FormatActionEconomySnapshot(actionEconomy)}");
+
         if (isEndTurnBoundary)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.exit",
+                "reason=end-turn-boundary-blocked");
             return new PostRouteTerminalResult(PostRouteTerminalStatus.Blocked);
         }
 
@@ -28251,6 +29127,11 @@ validation = new CombatAiMainActionValidation(
             !actionEconomy.ReadyAvailable &&
             !actionEconomy.DodgeAvailable)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.no-main-ready-dodge",
+                FormatActionEconomySnapshot(actionEconomy));
+
             if (isEndTurnBoundary)
             {
                 return actionEconomy.Bonus == ActionStatus.Available
@@ -28286,6 +29167,10 @@ validation = new CombatAiMainActionValidation(
 
             if (terminalReprobeResult.Executed)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "PostRoute.exit",
+                    $"reason=terminal-reprobe-executed action={terminalReprobeResult.ActionKind}");
                 return new PostRouteTerminalResult(
                     PostRouteTerminalStatus.Executed,
                     ToPostRouteTerminalActionKind(terminalReprobeResult.ActionKind));
@@ -28300,6 +29185,10 @@ validation = new CombatAiMainActionValidation(
 
             if (currentResidualResult.Executed)
             {
+                LogCombatAiDiagnostic(
+                    character,
+                    "PostRoute.exit",
+                    $"reason=current-residual-executed action={currentResidualResult.ActionKind}");
                 return new PostRouteTerminalResult(
                     PostRouteTerminalStatus.Executed,
                     ToPostRouteTerminalActionKind(currentResidualResult.ActionKind));
@@ -28317,28 +29206,56 @@ validation = new CombatAiMainActionValidation(
         var hasTerminalFallbackBlock = TryGetTerminalFallbackBlock(
             currentTerminalScan,
             hasTerminalPolicyHeld,
-            out _);
+            out var terminalFallbackBlockKind);
         var hasDisconnectedMovementLeak = TryGetDisconnectedPositioningMovementLeak(
             character,
             out _);
         var canSpendTerminalMain = CanSpendTerminalMainAction(
             character,
             actionEconomy);
+        var shouldDeferReadyDodge =
+            !forceReadyDodgeFallback &&
+            ShouldDeferRouteTerminalReadyDodgeFallback(character, actionEconomy);
+
+        LogCombatAiDiagnostic(
+            character,
+            "PostRoute.eval",
+            $"{FormatTerminalScan(currentTerminalScan)} " +
+            $"terminalPolicyHeld={hasTerminalPolicyHeld} " +
+            $"terminalReprobePolicyHeld={terminalReprobeResult.PolicyHeld} " +
+            $"terminalFallbackBlock={hasTerminalFallbackBlock} " +
+            $"terminalFallbackBlockKind={terminalFallbackBlockKind} " +
+            $"disconnectedMovementLeak={hasDisconnectedMovementLeak} " +
+            $"canSpendTerminalMain={canSpendTerminalMain} " +
+            $"shouldDeferReadyDodge={shouldDeferReadyDodge} " +
+            $"{FormatActionEconomySnapshot(actionEconomy)} " +
+            FormatRouteTerminalBlockers(character));
 
         if (!allowReadyDodge)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.exit",
+                "reason=ready-dodge-not-allowed");
             return new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
         }
 
-        if (!forceReadyDodgeFallback &&
-            ShouldDeferRouteTerminalReadyDodgeFallback(character, actionEconomy))
+        if (shouldDeferReadyDodge)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.exit",
+                "reason=defer-route-terminal-ready-dodge");
             return new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
         }
 
         if (preferSelfBuffBeforeReady &&
             TryUseFallbackAtWillSelfBuff(character, profile, self, turnPlan))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.exit",
+                "reason=pre-ready-self-buff");
             return new PostRouteTerminalResult(PostRouteTerminalStatus.Executed);
         }
 
@@ -28357,6 +29274,10 @@ validation = new CombatAiMainActionValidation(
                 RecordTerminalAction(character, turnPlan, CombatAiExecutedActionKind.Ready);
             }
 
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.exit",
+                $"reason=ready {(usePendingTerminalLaunch ? "scheduled" : "executed")}");
             return new PostRouteTerminalResult(
                 usePendingTerminalLaunch ? PostRouteTerminalStatus.Scheduled : PostRouteTerminalStatus.Executed,
                 CombatAiExecutedActionKind.Ready);
@@ -28364,6 +29285,10 @@ validation = new CombatAiMainActionValidation(
 
         if (TryRequestRouteTerminalBonusAction(character, actionEconomy, battleService))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.exit",
+                "reason=bonus-action");
             return new PostRouteTerminalResult(
                 usePendingTerminalLaunch || PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid)
                     ? PostRouteTerminalStatus.Scheduled
@@ -28374,33 +29299,61 @@ validation = new CombatAiMainActionValidation(
         if (!preferSelfBuffBeforeReady &&
             TryUseFallbackAtWillSelfBuff(character, profile, self, turnPlan))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.exit",
+                "reason=post-ready-self-buff");
             return new PostRouteTerminalResult(PostRouteTerminalStatus.Executed);
         }
 
         if (hasTerminalFallbackBlock)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.exit",
+                $"reason=terminal-fallback-block blockKind={terminalFallbackBlockKind}");
             return new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
         }
 
         if (!canSpendTerminalMain)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.exit",
+                "reason=no-terminal-main");
             return new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
         }
 
         if (hasDisconnectedMovementLeak)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.exit",
+                "reason=disconnected-movement-leak");
             return new PostRouteTerminalResult(PostRouteTerminalStatus.Blocked);
         }
 
         if (!actionEconomy.DodgeAvailable)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.exit",
+                "reason=dodge-unavailable");
             return new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
         }
 
+        LogCombatAiDiagnostic(
+            character,
+            "PostRoute.dodge-request",
+            $"usePendingLaunch={usePendingTerminalLaunch}");
         var dodgeResult = TryApplyFallbackDodge(character, usePendingTerminalLaunch);
 
         if (!dodgeResult.Executed)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "PostRoute.exit",
+                $"reason=dodge-request-not-executed status={dodgeResult.Status}");
             return new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
         }
 
@@ -28409,6 +29362,10 @@ validation = new CombatAiMainActionValidation(
             RecordTerminalAction(character, turnPlan, CombatAiExecutedActionKind.Dodge);
         }
 
+        LogCombatAiDiagnostic(
+            character,
+            "PostRoute.exit",
+            $"reason=dodge {(usePendingTerminalLaunch ? "scheduled" : "executed")} status={dodgeResult.Status}");
         return new PostRouteTerminalResult(
             usePendingTerminalLaunch ? PostRouteTerminalStatus.Scheduled : PostRouteTerminalStatus.Executed,
             CombatAiExecutedActionKind.Dodge);
@@ -28418,19 +29375,42 @@ validation = new CombatAiMainActionValidation(
         GameLocationCharacter character,
         CombatAiActionEconomySnapshot actionEconomy)
     {
-        if (character?.RulesetCharacter == null ||
-            !PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var memory))
+        if (character?.RulesetCharacter == null)
         {
+            return false;
+        }
+
+        if (!PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var memory))
+        {
+            LogCombatAiDiagnostic(
+                character,
+                "RouteTerminal.defer",
+                $"result=False reason=no-pending-route-terminal {FormatActionEconomySnapshot(actionEconomy)}");
             return false;
         }
 
         if (HasPendingRouteTerminalStableBoundaryBlock(character))
         {
+            LogCombatAiDiagnostic(
+                character,
+                "RouteTerminal.defer",
+                $"result=True reason=stable-boundary-block {FormatRouteTerminalMemory(memory)} " +
+                $"{FormatActionEconomySnapshot(actionEconomy)} {FormatRouteTerminalBlockers(character)}");
             return true;
         }
 
-        return !memory.MovementContinuationAllowed &&
-               ShouldAllowRouteTerminalMovementContinuation(character, memory, actionEconomy);
+        var allowMovementContinuation =
+            ShouldAllowRouteTerminalMovementContinuation(character, memory, actionEconomy);
+        var result = !memory.MovementContinuationAllowed && allowMovementContinuation;
+
+        LogCombatAiDiagnostic(
+            character,
+            "RouteTerminal.defer",
+            $"result={result} movementContinuationAllowed={memory.MovementContinuationAllowed} " +
+            $"allowMovementContinuation={allowMovementContinuation} {FormatRouteTerminalMemory(memory)} " +
+            $"{FormatActionEconomySnapshot(actionEconomy)} {FormatRouteTerminalBlockers(character)}");
+
+        return result;
     }
 
     private static bool TryAllowRouteTerminalMovementContinuationOnce(
@@ -28465,16 +29445,36 @@ validation = new CombatAiMainActionValidation(
         if (IsSearchKnownTargetRoute(pendingAction) &&
             !pendingAction.SearchRouteActionConnected)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "RouteTerminal.movement-continuation",
+                $"result=False reason=search-route-not-connected {FormatRouteTerminalMemory(memory)} " +
+                $"{FormatActionEconomySnapshot(actionEconomy)}");
             return false;
         }
 
         if (pendingAction.Continuation != CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove)
         {
+            LogCombatAiDiagnostic(
+                character,
+                "RouteTerminal.movement-continuation",
+                $"result=False reason=not-terminal-after-route continuation={pendingAction.Continuation} " +
+                $"{FormatRouteTerminalMemory(memory)} {FormatActionEconomySnapshot(actionEconomy)}");
             return false;
         }
 
-        return character.LocationPosition != pendingAction.ExpectedDestination &&
-               actionEconomy.TacticalMove == ActionStatus.Available;
+        var result =
+            character.LocationPosition != pendingAction.ExpectedDestination &&
+            actionEconomy.TacticalMove == ActionStatus.Available;
+
+        LogCombatAiDiagnostic(
+            character,
+            "RouteTerminal.movement-continuation",
+            $"result={result} actual={FormatCombatAiPosition(character.LocationPosition)} " +
+            $"expected={FormatCombatAiPosition(pendingAction.ExpectedDestination)} " +
+            $"tactical={actionEconomy.TacticalMove} {FormatRouteTerminalMemory(memory)}");
+
+        return result;
     }
 
     private static CombatAiExecutedActionKind ToPostRouteTerminalActionKind(CombatAiActionKind actionKind)
