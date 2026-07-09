@@ -474,6 +474,7 @@ internal static class SpellsContext
         SwitchAllowTargetingSelectionWhenCastingChainLightningSpell();
         SwitchRecurringEffectOnEntangle();
         SwitchUseHeightOneCylinderEffect();
+        SwitchDimensionDoorRange();
     }
 
     private static void RegisterSpell(
@@ -631,6 +632,11 @@ internal static class SpellsContext
             sleetStormEffect.targetParameter = 4;
             sleetStormEffect.targetParameter2 = 3;
         }
+    }
+
+    internal static void SwitchDimensionDoorRange()
+    {
+        DimensionDoor.EffectDescription.rangeParameter = Main.Settings.Use24CellsRangeWithDimensionDoor ? 24 : 12;
     }
 
     internal static void SwitchUseHeightOneCylinderEffect()

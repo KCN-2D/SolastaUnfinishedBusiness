@@ -312,6 +312,7 @@ ModUi/&Feats=<color=#F0DAA0>특기</color>
 ModUi/&FightingStyles=<color=#F0DAA0>격투 스타일</color>
 ModUi/&FixAsianLanguagesTextWrap=아시아 언어 게임 UI 텍스트 줄바꿈 수정 <b><i><color=#C04040E0>[재시작 필요]</color></i></b>
 ModUi/&FixEldritchBlastRange=<color=#D89555>Eldritch Blast</color>에 24개 셀 범위를 사용하세요. <i><color=#F0DAA0>[12개 대신]</color></i>
+ModUi/&Use24CellsRangeWithDimensionDoor=<color=#D89555>차원문</color>에 24칸 사거리를 사용합니다. <i><color=#F0DAA0>[12칸 대신]</color></i>
 ModUi/&FixRingOfRegenerationHealRate=<color=#D89555>재생의 반지</color> 회복 속도를 3분당 1HP로 설정합니다.
 ModUi/&FlightSuspendWingedBoots=<i>+ Winged Boots 공식 규칙 사용 <color=#F0DAA0>[비행 중단 시 남은 시간은 계산되지 않음]</color></i>
 ModUi/&ForceModSpeechOnNpcs=<i>+캠페인 매핑 대신 모든 NPC에 음성 자동 할당 강제 적용</i>

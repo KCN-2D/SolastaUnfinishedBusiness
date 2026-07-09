@@ -543,6 +543,7 @@ public class Settings : UnityModManager.ModSettings
     public bool ChangeSleetStormToCube { get; set; }
     public bool UseHeightOneCylinderEffect { get; set; }
     [Tag(Type = TagType.T2014)] public bool FixEldritchBlastRange { get; set; }
+    public bool Use24CellsRangeWithDimensionDoor { get; set; }
     public bool ModifyGravitySlam { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableOneDndBarkskinSpell { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableOneDndChillTouchCantrip { get; set; }

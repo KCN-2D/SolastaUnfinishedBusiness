@@ -312,6 +312,7 @@ ModUi/&Feats=<color=#F0DAA0>壮举</color>
 ModUi/&FightingStyles=<color=#F0DAA0>格斗风格</color>
 ModUi/&FixAsianLanguagesTextWrap=修复亚洲语言的游戏 UI 文本换行<b><i><color=#C04040E0>[需要重启]</color></i></b>
 ModUi/&FixEldritchBlastRange=使用 24 个单元格范围与 <color=#D89555>Eldritch Blast</color> <i><color=#F0DAA0>[而不是 12 个]</color></i>
+ModUi/&Use24CellsRangeWithDimensionDoor=让 <color=#D89555>任意门</color> 使用 24 格射程 <i><color=#F0DAA0>[而不是 12 格]</color></i>
 ModUi/&FixRingOfRegenerationHealRate=将<color=#D89555>再生之环</color>的治疗率设置为每 3 分钟 1 点生命值
 ModUi/&FlightSuspendWingedBoots=<i>+ 使用 Winged Boots 官方规则<color=#F0DAA0>[暂停飞行时不计算剩余时长]</color></i>
 ModUi/&ForceModSpeechOnNpcs=<i>+强制所有 NPC 自动分配语音，而不是进行战役映射</i>

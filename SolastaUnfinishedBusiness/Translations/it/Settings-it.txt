@@ -312,6 +312,7 @@ ModUi/&Feats=<color=#F0DAA0>Imprese</color>
 ModUi/&FightingStyles=<color=#F0DAA0>Stili di combattimento</color>
 ModUi/&FixAsianLanguagesTextWrap=Correggi l'interruzione di testo dell'interfaccia utente del gioco nelle lingue asiatiche <b><i><color=#C04040E0>[Richiede il riavvio]</color></i></b>
 ModUi/&FixEldritchBlastRange=Usa un raggio di 24 celle con <color=#D89555>Eldritch Blast</color> <i><color=#F0DAA0>[invece di 12]</color></i>
+ModUi/&Use24CellsRangeWithDimensionDoor=Usa un raggio di 24 celle con <color=#D89555>Dimension Door</color> <i><color=#F0DAA0>[invece di 12]</color></i>
 ModUi/&FixRingOfRegenerationHealRate=Imposta la velocità di cura dell'<color=#D89555>Anello di Rigenerazione</color> a 1 HP ogni 3 minuti
 ModUi/&FlightSuspendWingedBoots=<i>+ Usa le regole ufficiali degli Stivali Alati <color=#F0DAA0>[durata rimanente non conteggiata quando il volo è sospeso]</color></i>
 ModUi/&ForceModSpeechOnNpcs=<i>+Forza l'assegnazione automatica della voce a tutti i PNG invece della mappatura della campagna</i>

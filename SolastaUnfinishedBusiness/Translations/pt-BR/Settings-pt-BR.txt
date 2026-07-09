@@ -312,6 +312,7 @@ ModUi/&Feats=<color=#F0DAA0>Feitos</color>
 ModUi/&FightingStyles=<color=#F0DAA0>Estilos de luta</color>
 ModUi/&FixAsianLanguagesTextWrap=Corrigir quebra de texto da interface do usuário do jogo em idiomas asiáticos <b><i><color=#C04040E0>[Requer reinicialização]</color></i></b>
 ModUi/&FixEldritchBlastRange=Use o intervalo de 24 células com <color=#D89555>Explosão Eldritch</color> <i><color=#F0DAA0>[em vez de 12]</color></i>
+ModUi/&Use24CellsRangeWithDimensionDoor=Use o alcance de 24 células com <color=#D89555>Porta Dimensional</color> <i><color=#F0DAA0>[em vez de 12]</color></i>
 ModUi/&FixRingOfRegenerationHealRate=Defina a taxa de cura do <color=#D89555>Anel de Regeneração</color> para 1 HP a cada 3 minutos
 ModUi/&FlightSuspendWingedBoots=<i>+ Use as regras oficiais das Botas Aladas <color=#F0DAA0>[duração restante não contada quando o voo é suspenso]</color></i>
 ModUi/&ForceModSpeechOnNpcs=<i>+Forçar atribuição automática de voz em todos os NPCs em vez de mapeamento de campanha</i>

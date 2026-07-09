@@ -312,6 +312,7 @@ ModUi/&Feats=<color=#F0DAA0>Prouesses</color>
 ModUi/&FightingStyles=<color=#F0DAA0>Styles de combat</color>
 ModUi/&FixAsianLanguagesTextWrap=Correction du retour à la ligne du texte de l'interface utilisateur du jeu en langues asiatiques <b><i><color=#C04040E0>[Nécessite un redémarrage]</color></i></b>
 ModUi/&FixEldritchBlastRange=Utilisez une plage de 24 cellules avec <color=#D89555>Eldritch Blast</color> <i><color=#F0DAA0>[au lieu de 12]</color></i>
+ModUi/&Use24CellsRangeWithDimensionDoor=Utilisez une portée de 24 cellules avec <color=#D89555>Porte dimensionnelle</color> <i><color=#F0DAA0>[au lieu de 12]</color></i>
 ModUi/&FixRingOfRegenerationHealRate=Réglez la fréquence de soin de l'<color=#D89555>Anneau de régénération</color> à 1 HP toutes les 3 minutes
 ModUi/&FlightSuspendWingedBoots=<i>+ Règles officielles d'utilisation des bottes ailées <color=#F0DAA0>[la durée restante n'est pas comptabilisée lorsque le vol est suspendu]</color></i>
 ModUi/&ForceModSpeechOnNpcs=<i>+ Forcer l'attribution automatique de la voix sur tous les PNJ au lieu du mappage de campagne</i>

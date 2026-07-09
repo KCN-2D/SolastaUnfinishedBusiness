@@ -1754,6 +1754,13 @@ internal static class ToolsDisplay
             Tabletop2014Context.SwitchEldritchBlastRange();
         }
 
+        toggle = Main.Settings.Use24CellsRangeWithDimensionDoor;
+        if (UI.Toggle(Gui.Localize("ModUi/&Use24CellsRangeWithDimensionDoor"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.Use24CellsRangeWithDimensionDoor = toggle;
+            SpellsContext.SwitchDimensionDoorRange();
+        }
+
         UI.Label();
 
         toggle = Main.Settings.EnableBardHealingBalladOnLongRest;

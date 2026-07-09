@@ -312,6 +312,7 @@ ModUi/&Feats=<color=#F0DAA0>Черты</color>
 ModUi/&FightingStyles=<color=#F0DAA0>Боевые стили</color>
 ModUi/&FixAsianLanguagesTextWrap=Исправить перенос текста интерфейсом для азиатских языков <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>
 ModUi/&FixEldritchBlastRange=Использовать дальность в 24 клетки для <color=#D89555>Мистического заряда</color> <i><color=#F0DAA0>[вместо 12]</color></i>
+ModUi/&Use24CellsRangeWithDimensionDoor=Использовать дальность в 24 клетки для <color=#D89555>Переносящей двери</color> <i><color=#F0DAA0>[вместо 12]</color></i>
 ModUi/&FixRingOfRegenerationHealRate=Установить скорость лечения от <color=#D89555>Кольца регенерации</color> на 1 ОЗ в 3 минуты
 ModUi/&FlightSuspendWingedBoots=<i>+ Использовать официальные правила Крылатых сапог <color=#F0DAA0>[оставшееся время использования не учитывается при приостановке полёта]</color></i>
 ModUi/&ForceModSpeechOnNpcs=<i>+ Принудительное автоматическое назначение голосов всем NPC вместо карт кампаний</i>

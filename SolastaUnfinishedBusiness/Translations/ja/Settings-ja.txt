@@ -302,6 +302,7 @@ ModUi/&Feats=<color=#F0DAA0>特技</color>
 ModUi/&FightingStyles=<color=#F0DAA0>戦闘スタイル</color>
 ModUi/&FixAsianLanguagesTextWrap=アジア言語のゲームUIテキストの折り返しを修正<b><i><color=#C04040E0>（再起動が必要）</color></i></b>
 ModUi/&FixEldritchBlastRange=<color=#D89555>怪光線</color>で24マスの範囲を使用します<i><color=#F0DAA0>（12の代わりに）</color></i>
+ModUi/&Use24CellsRangeWithDimensionDoor=<color=#D89555>次元扉</color>で24マスの射程を使用します<i><color=#F0DAA0>（12の代わりに）</color></i>
 ModUi/&FixRingOfRegenerationHealRate=<color=#D89555>再生の指輪</color>の回復速度を3分ごとに1ヒット・ポイントに設定
 ModUi/&FlightSuspendWingedBoots=<i>+ウィングドブーツの公式ルールを使用<color=#F0DAA0>（飛行が中断されると残り時間はカウントされません）</color></i>
 ModUi/&ForceModSpeechOnNpcs=<i>+キャンペーンマッピングの代わりに、すべてのNPCに音声の自動割り当てを強制する</i>
