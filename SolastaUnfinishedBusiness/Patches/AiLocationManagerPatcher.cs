@@ -31,44 +31,18 @@ public static class AiLocationManagerPatcher
         {
             var activeContender = __instance.battle.ActiveContender;
 
-            yield return CircleOfTheWildfire.HandleCauterizingFlamesBehavior(activeContender);
-
-            using (FreeJumpContext.BeginAiTurn(activeContender))
+            try
             {
-                while (values.MoveNext())
+                yield return CircleOfTheWildfire.HandleCauterizingFlamesBehavior(activeContender);
+
+                using (FreeJumpContext.BeginAiTurn(activeContender))
                 {
-                    yield return values.Current;
-
-                    if (CombatAiContext.TryResolvePendingActionLinkedMoveSettlingAtAiProcessBoundary(activeContender) ||
-                        CombatAiContext.TryConsumePendingRouteTerminalAtAiProcessBoundary(activeContender) ||
-                        CombatAiContext.TryConsumePendingUtilityTerminalAtAiProcessBoundary(activeContender) ||
-                        CombatAiContext.TryConsumePendingAiProcessTurnRecoveryAtAiProcessBoundary(activeContender))
-                    {
-                        yield return null;
-                    }
-
-                    if (CombatAiContext.TryExitAiProcessAfterPostRecoveryEndTurn(activeContender))
-                    {
-                        yield return null;
-                        yield break;
-                    }
+                    yield return CombatAiContext.RunAdvancedCombatAiTurn(activeContender, values);
                 }
-
-                if (CombatAiContext.TryResolvePendingActionLinkedMoveSettlingAtAiProcessBoundary(activeContender) ||
-                    CombatAiContext.TryConsumePendingRouteTerminalAtAiProcessBoundary(
-                        activeContender,
-                        allowFinalFailure: true) ||
-                    CombatAiContext.TryConsumePendingUtilityTerminalAtAiProcessBoundary(activeContender) ||
-                    CombatAiContext.TryConsumePendingAiProcessTurnRecoveryAtAiProcessBoundary(activeContender))
-                {
-                    yield return null;
-                }
-
-                if (CombatAiContext.TryExitAiProcessAfterPostRecoveryEndTurn(activeContender))
-                {
-                    yield return null;
-                    yield break;
-                }
+            }
+            finally
+            {
+                (values as IDisposable)?.Dispose();
             }
         }
     }

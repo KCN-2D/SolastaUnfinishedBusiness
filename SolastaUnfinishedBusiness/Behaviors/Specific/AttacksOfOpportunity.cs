@@ -260,8 +260,16 @@ internal class CustomReactionAttack
         GameLocationActionManager actionManager,
         bool allowRange)
     {
-        if (!CanPerformReactionAttack(
-                attacker, mover, movement, battleManager, allowRange, out var mode, out var attackModifier))
+        var canPerform = CanPerformReactionAttack(
+            attacker,
+            mover,
+            movement,
+            battleManager,
+            allowRange,
+            out var mode,
+            out var attackModifier);
+
+        if (!canPerform)
         {
             yield break;
         }

@@ -39,11 +39,23 @@ public static class CharacterActionMoveStepJumpPatcher
                 yield break;
             }
 
+            CombatAiContext.NotifyAiMoveStepCompleted(
+                mover,
+                movement.from,
+                movement.to);
+
             MovementTracker.RecordMoveEndMovement(mover, movement.from, movement.to);
             FreeJumpContext.TrySpendAiBonusActionAfterCompletedMove(
                 mover,
                 movement.from,
                 movement.to);
+
+            var extraAoOEvents = AttacksOfOpportunity.ProcessOnCharacterMoveEnd(mover);
+
+            while (extraAoOEvents.MoveNext())
+            {
+                yield return extraAoOEvents.Current;
+            }
         }
 
         private static bool TryGetCompletedJumpMovement(

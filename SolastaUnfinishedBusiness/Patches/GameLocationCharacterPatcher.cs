@@ -233,12 +233,6 @@ public static class GameLocationCharacterPatcher
             CombatAiContext.PrimeTurnCache(__instance);
             CombatAiContext.CleanupTrackedFallbackDodgeOnTurnStart(__instance);
 
-            if (!CombatAiContext.TryAutoResumeFlight(__instance))
-            {
-                CombatAiContext.TryAutoSuspendFlight(__instance);
-            }
-
-            CombatAiContext.TryUsePreMainRouteMove(__instance);
             CombatAiContext.TryUseBaselineFreeJumpRouteMove(__instance);
         }
     }
@@ -320,30 +314,10 @@ public static class GameLocationCharacterPatcher
         [UsedImplicitly]
         public static bool Prefix(GameLocationCharacter __instance)
         {
-            var handledBeforeEndTurn =
-                CombatAiContext.TryHandleAdvancedCombatAiBeforeEndTurn(__instance, out var suppressEndTurn);
-
-            if (handledBeforeEndTurn && suppressEndTurn)
-            {
-                return false;
-            }
-
-            if (!handledBeforeEndTurn &&
-                CombatAiContext.TrySpendLeftoverActionEconomyAtEndTurn(__instance, out suppressEndTurn))
-            {
-                if (suppressEndTurn)
-                {
-                    return false;
-                }
-            }
-
             //PATCH: acts as a callback for the character's combat turn ended event
             CharacterBattleListenersPatch.OnCharacterTurnEnded(__instance);
 
-            if (!CombatAiContext.HasPendingActionLinkedMove(__instance))
-            {
-                CombatAiContext.ClearTurnCache(__instance);
-            }
+            CombatAiContext.ClearTurnCache(__instance);
 
             return true;
         }
@@ -376,7 +350,6 @@ public static class GameLocationCharacterPatcher
             //while there already is callback for this event it doesn't have character argument
             CharacterBattleListenersPatch.OnCharacterBattleEnded(__instance);
             CombatAiContext.ClearBattleMemory(__instance);
-            CombatAiContext.ClearAiMoveFailures(__instance);
         }
     }
 
@@ -456,17 +429,6 @@ public static class GameLocationCharacterPatcher
                 __result = ActionStatus.Unavailable;
             }
 
-            CombatAiContext.TryOverrideProgressOnlySearchActionTypeStatus(
-                __instance,
-                actionType,
-                actionScope,
-                ref __result);
-
-            CombatAiContext.TryOverrideInactiveAiActionTypeStatus(
-                __instance,
-                actionType,
-                actionScope,
-                ref __result);
         }
     }
 
@@ -542,18 +504,6 @@ public static class GameLocationCharacterPatcher
             {
                 __result = ActionStatus.CannotPerform;
             }
-
-            CombatAiContext.TryOverrideProgressOnlySearchActionStatus(
-                __instance,
-                actionId,
-                scope,
-                ref __result);
-
-            CombatAiContext.TryOverrideInactiveAiActionStatus(
-                __instance,
-                actionId,
-                scope,
-                ref __result);
 
             //PATCH: support `EnableMonkFocus2024`
             if (Main.Settings.EnableMonkFocus2024 &&
@@ -709,29 +659,50 @@ public static class GameLocationCharacterPatcher
     [UsedImplicitly]
     public static class HandleActionExecution_Patch
     {
-        private static int _mainAttacks, _bonusAttacks, _mainRank, _bonusRank;
+        public readonly struct ActionExecutionState(
+            int mainAttacks,
+            int bonusAttacks,
+            int mainRank,
+            int bonusRank,
+            ActionStatus mainStatus)
+        {
+            internal int MainAttacks { get; } = mainAttacks;
+            internal int BonusAttacks { get; } = bonusAttacks;
+            internal int MainRank { get; } = mainRank;
+            internal int BonusRank { get; } = bonusRank;
+            internal ActionStatus MainStatus { get; } = mainStatus;
+        }
 
         [UsedImplicitly]
-        public static void Prefix(GameLocationCharacter __instance)
+        public static void Prefix(GameLocationCharacter __instance, out ActionExecutionState __state)
         {
-            _mainRank = __instance.currentActionRankByType[ActionType.Main];
-            _bonusRank = __instance.currentActionRankByType[ActionType.Bonus];
-            _mainAttacks = __instance.UsedMainAttacks;
-            _bonusAttacks = __instance.UsedBonusAttacks;
+            __state = new ActionExecutionState(
+                __instance.UsedMainAttacks,
+                __instance.UsedBonusAttacks,
+                __instance.currentActionRankByType[ActionType.Main],
+                __instance.currentActionRankByType[ActionType.Bonus],
+                __instance.GetActionTypeStatus(ActionType.Main));
         }
 
         [UsedImplicitly]
         public static void Postfix(
             GameLocationCharacter __instance,
             CharacterActionParams actionParams,
-            ActionScope scope)
+            ActionScope scope,
+            ActionExecutionState __state)
         {
             //PATCH: support for `IReplaceAttackWithCantrip`
             ReplaceAttackWithCantrip.AllowAttacksAfterCantrip(__instance, actionParams, scope);
 
             //PATCH: support for action switching
             ActionSwitching.CheckIfActionSwitched(
-                __instance, actionParams, scope, _mainRank, _mainAttacks, _bonusRank, _bonusAttacks);
+                __instance,
+                actionParams,
+                scope,
+                __state.MainRank,
+                __state.MainAttacks,
+                __state.BonusRank,
+                __state.BonusAttacks);
 
             //PATCH: only call refresh once after above methods are called
             //BUGFIX: vanilla doesn't refresh attack modes on free attacks
@@ -744,12 +715,12 @@ public static class GameLocationCharacterPatcher
                 __instance.RulesetCharacter.RefreshAttackModes();
             }
 
-            CombatAiContext.TryUsePostMainMovementAfterActionExecution(
+            CombatAiContext.RecordCombatAiActionExecution(
                 __instance,
-                actionParams.ActionDefinition.Id,
+                actionParams,
                 scope,
-                _mainRank,
-                _mainAttacks);
+                __state.MainRank,
+                __state.MainStatus);
         }
     }
 

@@ -65,26 +65,6 @@ internal enum CombatAiActionKind
     Spell
 }
 
-internal enum CombatAiMainActionBlockKind
-{
-    None,
-    Other,
-    NoActor,
-    NoHostileTarget,
-    NoBattleService,
-    NoActionKind,
-    MainAlreadySpent,
-    MainUnavailable,
-    AttackMainUnavailable,
-    ActionNotUsableAtPosition,
-    RangedWhileMeleeReachable,
-    RangedWhileMeleePursuitAvailable,
-    LowValueUtility,
-    UtilityBlocked,
-    RedundantUtility,
-    DashDisconnectedPositioning
-}
-
 internal enum CombatAiMovementGoalKind
 {
     None,
@@ -110,153 +90,6 @@ internal enum CombatAiMovementPolicyKind
     DefensivePolicy
 }
 
-internal enum CombatAiMovementAvailability
-{
-    None,
-    Available,
-    Blocked,
-    Spent
-}
-
-internal enum FreeJumpFallbackAvailability
-{
-    Unavailable,
-    Available,
-    Disabled
-}
-
-internal enum MissedMovementKind
-{
-    None,
-    UnresolvedGoal,
-    MissedMeaningfulMove
-}
-
-internal enum TerminalFallbackBlockKind
-{
-    None,
-    HostileOrUtility,
-    PolicyHeld
-}
-
-internal enum TerminalReprobeStatus
-{
-    Blocked,
-    Executed,
-    PolicyHeld
-}
-
-internal enum TerminalFallbackActionStatus
-{
-    Blocked,
-    Executed,
-    Scheduled
-}
-
-internal enum PostRouteTerminalStatus
-{
-    Blocked,
-    NoAction,
-    Executed,
-    Scheduled
-}
-
-internal enum SearchRouteDestinationValidationKind
-{
-    Accepted,
-    NotLegal,
-    OverBudget,
-    OpportunityRisk,
-    Traffic,
-    Occupied,
-    Backtracking,
-    FailedTarget,
-    StaleTarget,
-    NoTacticalMove,
-    CannotDecide
-}
-
-internal enum PendingTerminalLaunchKind
-{
-    Ready,
-    Dodge
-}
-
-internal enum PendingTerminalLaunchStatus
-{
-    None,
-    Accepted,
-    Waiting,
-    Rejected
-}
-
-internal enum PendingTerminalLaunchRejectionKind
-{
-    Stale,
-    Inactive,
-    NoMain,
-    ActionUnavailable
-}
-
-internal enum CombatAiActionLaunchBoundary
-{
-    AiProcess,
-    StartNext,
-    EndTurn
-}
-
-internal enum TerminalDodgeCompletionKind
-{
-    NoPendingCondition,
-    NoCondition,
-    EngineRejected,
-    Applied
-}
-
-internal enum TerminalReadyCompletionKind
-{
-    EngineRejected,
-    Applied
-}
-
-internal enum CombatAiTurnRecoveryReason
-{
-    None,
-    ForcedMotion,
-    JumpImmediateAttackAborted,
-    JumpImmediateAttackNoMove,
-    SearchLostTargetAbort
-}
-
-internal enum GroundMeleeRouteProjectionGoal
-{
-    None,
-    Contact,
-    Approach,
-    Capped,
-    BudgetCapped,
-    Incomplete
-}
-
-internal enum ProxyThreatRouteMoveStatus
-{
-    Unavailable,
-    Executed
-}
-
-internal enum ClearAllyCorridorCandidateBlockKind
-{
-    None,
-    NoMovement,
-    Placement,
-    Retry,
-    MoveCost,
-    Opportunity,
-    StillBlocks,
-    Pressure,
-    Traffic
-}
-
 internal enum CombatAiResidualHostileActionResultKind
 {
     Unavailable,
@@ -265,87 +98,12 @@ internal enum CombatAiResidualHostileActionResultKind
     PolicyHeld
 }
 
-internal enum RepeatedMeleeAlternativeResultKind
-{
-    None,
-    Blocked,
-    Executed
-}
-
-internal enum GroundMeleeJumpShortcutBlockKind
-{
-    None,
-    BasicGate,
-    FreeJumpUnavailable,
-    AlreadyAtGoal,
-    NoTargetContactQuery,
-    NoIndependentShortcut,
-    NoImprovingShortcut,
-    ExecuteFailed
-}
-
-internal enum BreakThreatConnectionBlockKind
-{
-    None,
-    NotBreakThreat,
-    MissingActorOrBattleService,
-    NearStart,
-    ThreatRange,
-    NoTarget,
-    NoPostMoveAttack
-}
-
-internal enum BreakThreatDefensiveFallbackBlockKind
-{
-    None,
-    NotBreakThreat,
-    Policy,
-    NearStart,
-    NoThreat,
-    ThreatRange,
-    InsufficientGain
-}
-
-internal enum RouteActualDestinationValidationKind
-{
-    Valid,
-    MissingActor,
-    NoMovement,
-    ThreatZone,
-    NoAvoidanceMemory,
-    InsufficientThreatDistanceGain,
-    MissingTargetOrBattleService,
-    SpacingMovedTooFar,
-    FlyingSpacingMovedTooFar,
-    NoMeleePressure,
-    OpportunityExposure,
-    Traffic,
-    NoAdjacentAllyBefore,
-    InsufficientHorizontalGap
-}
-
-internal enum AiRouteDestinationLegality
-{
-    Legal,
-    MissingActor,
-    NoProgress,
-    Occupied,
-    CannotPlace
-}
-
 internal enum MeleeThreatSourceKind
 {
     None,
     Local,
     Recent,
     RecentProxyInvalid
-}
-
-internal enum TrafficBlockKind
-{
-    None,
-    AllyFireLane,
-    LargeAllyCorridor
 }
 
 internal enum ConnectedFiringLineCompletionKind
@@ -367,32 +125,12 @@ internal enum SearchKnownTargetCompletionKind
     FailedNoMeaningfulMovement
 }
 
-internal enum CombatAiActionPathKind
-{
-    NoAction,
-    AttackNow,
-    AttackAfterMove,
-    PursueForNextRound,
-    BreakThreat,
-    Ready,
-    Dodge
-}
-
-internal enum CombatAiActionPathAvailability
-{
-    None,
-    Available,
-    Executed,
-    Blocked,
-    Spent
-}
-
 internal enum CombatAiActionLinkedMoveContinuation
 {
     ImmediateResidualAction,
     ReturnToVanillaDecision,
     ProgressOnlySearchMove,
-    TerminalAfterRouteMove
+    ReturnToCoordinatorAfterRouteMove
 }
 
 internal enum CombatAiFreeJumpEvaluationSource
@@ -406,13 +144,8 @@ internal enum CombatAiRouteMoveSourceKind
     Normal,
     BonusDash,
     FreeJump,
-    JumpImprovement,
-    JumpFallback,
-    GroundMeleeShortcut,
-    GroundMeleeUnresolved,
     JumpImmediateAttack,
     ConnectedFiringLine,
-    ConnectedFiringLineRecovery,
     SearchLostTarget
 }
 
@@ -489,7 +222,6 @@ internal static partial class CombatAiContext
     private const string PlantFamilyName = "Plant";
     private const string UndeadFamilyName = "Undead";
     private const string FlightSuspendedConditionName = "ConditionFlightSuspended";
-    private const string CombatAiDiagnosticPrefix = "[CombatAI-DIAG]";
     private const int FreeJumpDefaultMinimumSuccessChance = 70;
     private const int FreeJumpImprovedPositionMinimumSuccessChance = 65;
     private const int FreeJumpEmergencyMinimumSuccessChance = 50;
@@ -501,6 +233,7 @@ internal static partial class CombatAiContext
     private const float FreeJumpCoverImprovementScore = 0.12f;
     private const float FreeJumpObstacleBypassScore = 0.20f;
     private const float FreeJumpHighGroundScore = 0.08f;
+    private const int FreeJumpMinimumContactRouteSavings = 2;
     private const float MovementGoalProgressScore = 0.74f;
     private const float MovementGoalMeleeProgressScore = 0.82f;
     private const float MovementGoalRangedLineProgressScore = 1.00f;
@@ -526,15 +259,10 @@ internal static partial class CombatAiContext
     private const float ThreatAvoidanceReturnTolerance = 1.5f;
     private const float ThreatAvoidanceThreatZoneDistance = 2.0f;
     private const float ThreatAvoidanceClearDistance = 4.0f;
-    private const int ProxyThreatRecoveryCandidateLimit = 12;
-    private const int GroundMeleePursuitCandidateLimit = 8;
-    private const int GroundMeleeRouteProjectionScoreTurnCap = 8;
     private const int GroundMeleeTargetContactRouteBudgetMultiplier = 8;
     private const int GroundMeleeTargetContactRouteMaxBudget = 48;
     private const int GroundMeleeRoutePathfindingPerTurnLimit = 16;
     private const int SearchLostTargetNextActionProbeLimit = 8;
-    private const int GroundMeleeTargetContactRouteSeedLimit = 32;
-    private const int GroundMeleeTargetContactRouteProofLimit = 10;
     private const int GroundMeleeTargetContactReverseGoalLimit = 3;
     private const int MoveResultSettlingFrameLimit = 3;
     private const int JumpImmediateMoveResultSettlingFrameLimit = MoveResultSettlingFrameLimit;
@@ -556,11 +284,6 @@ internal static partial class CombatAiContext
     private static readonly string[] DisciplinedFlags = ["Authority", "Lawfulness", "Helpfulness", "Friendliness"];
     private static readonly string[] OpportunisticFlags = ["Greed", "Selfishness"];
 
-    private enum CombatAiStableBoundaryKind
-    {
-        StartNextChain,
-        EndTurn
-    }
     private static readonly Dictionary<ulong, CombatAiProfile> ProfileCache = [];
     private static readonly Dictionary<ulong, string[]> PersonalityFlagsCache = [];
     private static readonly Dictionary<ulong, ObservedCombatMemory> ObservedCombatMemoryCache = [];
@@ -571,13 +294,10 @@ internal static partial class CombatAiContext
     private static int ActionLinkedMoveTokenSeed;
     private static readonly Dictionary<ulong, ActionLinkedMoveMemory> ActionLinkedMoveCache = [];
     private static readonly Dictionary<ulong, ActionLinkedMoveSettlingMemory> ActionLinkedMoveSettlingCache = [];
+    private static readonly Dictionary<ulong, CompletedAiMoveStepMemory> CompletedAiMoveStepCache = [];
     private static readonly Dictionary<ulong, RouteMoveCompletionClosedMemory> RouteMoveCompletionClosedCache = [];
-    private static readonly Dictionary<ulong, PendingRouteActionOnlyTerminalMemory> PendingRouteActionOnlyTerminalCache = [];
-    private static readonly HashSet<ulong> PendingRouteTerminalStartNextResolutionCache = [];
-    private static readonly Dictionary<ulong, string> ConnectedFiringLineRecoveryAttemptCache = [];
-    private static readonly Dictionary<ulong, string> LostTargetSearchAttemptCache = [];
+    private static readonly Dictionary<ulong, LostTargetSearchAttemptMemory> LostTargetSearchAttemptCache = [];
     private static readonly Dictionary<ulong, PendingRouteMovementLockMemory> PendingRouteMovementLockCache = [];
-    private static readonly Dictionary<ulong, ThreatRouteRecoveryMemory> ThreatRouteRecoveryCache = [];
     private static readonly Dictionary<ulong, PreMainRouteMoveAttempt> PreMainRouteMoveAttemptCache = [];
     private static readonly Dictionary<ulong, DisconnectedPositioningSealMemory> DisconnectedPositioningSealCache = [];
     private static readonly Dictionary<ulong, DisconnectedPositioningMovementLockMemory>
@@ -585,57 +305,31 @@ internal static partial class CombatAiContext
     private static readonly Dictionary<ulong, TerminalSealMemory> DisconnectedSearchMoveCompletionSealCache = [];
     private static readonly Dictionary<ulong, TerminalSealMemory> DisconnectedSearchNoRouteMovementSealCache = [];
     private static readonly Dictionary<ulong, HashSet<ulong>> PendingFallbackDodgeConditionCache = [];
-    private static readonly Dictionary<ulong, PendingTerminalDodgeEndTurnMemory> PendingTerminalDodgeEndTurnCache = [];
-    private static readonly Dictionary<ulong, PendingTerminalDodgeEndTurnMemory> PendingTerminalReadyEndTurnCache = [];
-    private static readonly Dictionary<ulong, PendingAiProcessTerminalLaunchMemory> PendingAiProcessTerminalLaunchCache = [];
-    private static readonly HashSet<ulong> PendingAiProcessTerminalLaunchAcceptedCache = [];
-    private static readonly Dictionary<ulong, PendingAiProcessTurnRecoveryMemory> PendingAiProcessTurnRecoveryCache = [];
-    private static readonly Dictionary<ulong, PendingTerminalDodgeEndTurnMemory> AiProcessTurnRecoveryConsumedCache = [];
-    private static readonly Dictionary<ulong, ForcedMotionAttackBudgetMemory> ForcedMotionAttackBudgetCache = [];
-    private static readonly Dictionary<ulong, PendingTerminalDodgeEndTurnMemory>
-        PostRecoveryEndTurnMainActionSealCache = [];
-    private static readonly HashSet<ulong> PendingTerminalActionEndTurnSuppressCache = [];
     private static readonly Dictionary<ulong, FallbackDodgeConditionMemory> FallbackDodgeConditionCache = [];
-    private static readonly Dictionary<ulong, RepeatedEndStateMemory> RepeatTerminalActionCache = [];
     private static readonly Dictionary<ulong, RepeatedAttackActionMemory> RepeatAttackActionCache = [];
     private static readonly Dictionary<ulong, AiTurnMovementProgress> TurnMovementProgressCache = [];
     private static readonly Dictionary<ulong, CombatAiActionExecutionMemory> LastActionExecutionCache = [];
     private static readonly Dictionary<ulong, CombatAiActionExecutionMemory> LastMainActionExecutionCache = [];
     private static readonly Dictionary<ulong, int> TurnMainActionUseCountCache = [];
     private static readonly Dictionary<ulong, int> TurnBonusActionUseCountCache = [];
-    private static readonly Dictionary<ulong, EndTurnRecoveryActionAcceptanceMemory>
-        PendingEndTurnRecoveryActionAcceptanceCache = [];
-    private static readonly HashSet<ulong> EndTurnRecoveryActionAcceptedCache = [];
-    private static readonly HashSet<ulong> EndTurnRecoveryActionSubmittedCache = [];
-    private static readonly Dictionary<ulong, TerminalSealMemory> SearchNoConnectedBoundaryCache = [];
-    private static readonly Dictionary<ulong, TerminalSealMemory> SearchNoConnectedStartNextPassCache = [];
-    private static readonly Dictionary<ulong, TerminalSealMemory> SearchNoConnectedEndTurnFallbackCache = [];
-    private static readonly HashSet<ulong> PendingRouteTerminalBonusActionRequestCache = [];
-    private static readonly Dictionary<ulong, CombatAiActionEconomySnapshot> TurnStartActionEconomyCache = [];
     private static readonly Dictionary<ulong, RecentMeleeThreatMemory> RecentMeleeThreatMemoryCache = [];
     private static readonly Dictionary<ulong, ThreatAvoidanceMemory> ThreatAvoidanceMemoryCache = [];
-    private static readonly Dictionary<ulong, TacticalSituationMemory> TacticalSituationMemoryCache = [];
     private static readonly Dictionary<ulong, PendingResidualMainAction> PendingResidualMainActionCache = [];
-    private static readonly Dictionary<ulong, PendingUtilityTerminalContinuation> PendingUtilityTerminalContinuationCache = [];
-    private static readonly Dictionary<ulong, RouteMoveDashBlockMemory> RouteMoveDashBlockCache = [];
     private static readonly Dictionary<ulong, BaselineFreeJumpAttemptMemory> BaselineFreeJumpAttemptCache = [];
     private static readonly Dictionary<AttackPositionKey, bool> MeleeAttackPositionCache = [];
-    private static readonly Dictionary<AttackPositionKey, bool> SpellAttackPositionCache = [];
-    private static readonly Dictionary<string, bool> ActionKindPositionCache = [];
-    private static readonly Dictionary<string, CoverEvaluationMemory> CoverEvaluationCache = [];
+    private static readonly Dictionary<RouteCandidateCacheKey, bool> ActionKindPositionCache = [];
+    private static readonly Dictionary<RouteCandidateCacheKey, CoverEvaluationMemory> CoverEvaluationCache = [];
     private static readonly HashSet<ulong> JumpImmediateAttackReachableCache = [];
     private static readonly HashSet<ulong> GroundMeleeJumpRouteAvailableCache = [];
     private static readonly Dictionary<ulong, CurrentStateRouteBlockKind> CurrentStateRouteBlockCache = [];
     private static readonly Dictionary<ulong, GroundMeleeTargetContactRouteQuery> TargetContactRouteQueryCache = [];
-    private static readonly Dictionary<ulong, GroundMeleeRouteIntentMemory> GroundMeleeRouteIntentCache = [];
     private static readonly Dictionary<ulong, GroundMeleeRouteFailureMemory> GroundMeleeRouteFailureCache = [];
-    private static readonly Dictionary<ulong, GroundMeleeDetourCandidateMemory> GroundMeleeDetourCandidateCache = [];
     private static readonly Dictionary<ulong, GroundMeleeMoveSettlingMemory> GroundMeleeMoveSettlingCache = [];
     private static readonly Dictionary<ulong, GroundMeleePartialRouteMemory> GroundMeleePartialRouteCache = [];
-    private static readonly Dictionary<ulong, TerminalSealMemory> GroundMeleeNoMoveTerminalSealCache = [];
     private static readonly Dictionary<ulong, ProxyThreatRouteAttemptMemory> ProxyThreatRouteAttemptCache = [];
-    private static readonly Dictionary<string, ReachableRouteDestinationMemory> ReachableRouteDestinationCache = [];
-    private static readonly Dictionary<string, int> ReachableRoutePathfindingCountCache = [];
+    private static readonly Dictionary<ReachableRouteCacheKey, ReachableRouteDestinationMemory>
+        ReachableRouteDestinationCache = [];
+    private static readonly Dictionary<ActorTurnKey, int> ReachableRoutePathfindingCountCache = [];
     private static object CurrentBattleCacheKey;
     private static int CurrentBattleCacheRound = -1;
     private static bool? CurrentAdvancedCombatAiSetting;
@@ -669,24 +363,6 @@ internal static partial class CombatAiContext
         Clear,
         Inactive,
         Active
-    }
-
-    private enum AiMoveRejectionKind
-    {
-        None,
-        Accepted,
-        LongRoute,
-        Opportunity,
-        Traffic,
-        Regression,
-        NoProgress
-    }
-
-    private enum ImproveFiringCandidateState
-    {
-        None,
-        Accepted,
-        Blocked
     }
 
     private enum CombatAiExecutedActionKind
@@ -782,23 +458,6 @@ internal static partial class CombatAiContext
         internal int TurnStamp { get; } = turnStamp;
     }
 
-    private readonly struct TerminalReprobeResult(
-        TerminalReprobeStatus status,
-        CombatAiActionKind actionKind = CombatAiActionKind.None)
-    {
-        internal TerminalReprobeStatus Status { get; } = status;
-        internal CombatAiActionKind ActionKind { get; } = actionKind;
-        internal bool Executed => Status == TerminalReprobeStatus.Executed;
-        internal bool PolicyHeld => Status == TerminalReprobeStatus.PolicyHeld;
-    }
-
-    private readonly struct TerminalFallbackActionResult(
-        TerminalFallbackActionStatus status)
-    {
-        internal TerminalFallbackActionStatus Status { get; } = status;
-        internal bool Executed => Status is TerminalFallbackActionStatus.Executed or TerminalFallbackActionStatus.Scheduled;
-    }
-
     private enum SearchLostTargetRouteCandidateQuality
     {
         Rejected,
@@ -806,71 +465,6 @@ internal static partial class CombatAiContext
         TurnsImproved,
         SeverityImproved,
         Connected
-    }
-
-    private enum CombatAiActionRecoveryStartResult
-    {
-        NotStarted,
-        StartedObserved,
-        StartedSubmittedUnobserved,
-        StartedUnobservedContinue,
-        StartedUnobservedTerminal
-    }
-
-    private enum EndTurnRecoverySubmissionStatus
-    {
-        None,
-        Waiting,
-        Rejected
-    }
-
-    private readonly struct EndTurnRecoveryActionAcceptanceMemory(
-        int round,
-        int turnStamp,
-        Id[] actionIds)
-    {
-        private int Round { get; } = round;
-        private int TurnStamp { get; } = turnStamp;
-        private Id[] ActionIds { get; } = actionIds;
-
-        internal bool Matches(Id actionId, int currentRound, int currentTurnStamp)
-        {
-            return Round == currentRound &&
-                   TurnStamp == currentTurnStamp &&
-                   ActionIds != null &&
-                   ActionIds.Contains(actionId);
-        }
-
-        internal bool MatchesCurrentTurn(int currentRound, int currentTurnStamp)
-        {
-            return Round == currentRound && TurnStamp == currentTurnStamp;
-        }
-
-        internal Id FirstActionId => ActionIds is { Length: > 0 } ? ActionIds[0] : default;
-
-        internal string ActionLabel =>
-            ActionIds is { Length: > 0 }
-                ? string.Join("/", ActionIds.Select(actionId => actionId.ToString()))
-                : "unknown";
-    }
-
-    private readonly struct PostRouteTerminalResult(
-        PostRouteTerminalStatus status,
-        CombatAiExecutedActionKind actionKind = CombatAiExecutedActionKind.None)
-    {
-        internal PostRouteTerminalStatus Status { get; } = status;
-        internal CombatAiExecutedActionKind ActionKind { get; } = actionKind;
-        internal bool NoAction => Status == PostRouteTerminalStatus.NoAction;
-        internal bool Executed => Status == PostRouteTerminalStatus.Executed;
-        internal bool Scheduled => Status == PostRouteTerminalStatus.Scheduled;
-        internal bool Handled => Executed || Scheduled;
-        internal bool ConsumesMainAction => ActionKind is
-            CombatAiExecutedActionKind.AttackMain or
-            CombatAiExecutedActionKind.CastMain or
-            CombatAiExecutedActionKind.Shove or
-            CombatAiExecutedActionKind.Grapple or
-            CombatAiExecutedActionKind.Ready or
-            CombatAiExecutedActionKind.Dodge;
     }
 
     private readonly struct RouteActionConnection(
@@ -912,25 +506,12 @@ internal static partial class CombatAiContext
         internal int MoveCost { get; } = moveCost;
     }
 
-    private readonly struct ProxyThreatRouteMoveResult(
-        ProxyThreatRouteMoveStatus status,
-        int3 destination = default)
-    {
-        internal ProxyThreatRouteMoveStatus Status { get; } = status;
-        internal int3 Destination { get; } = destination;
-        internal bool Executed => Status == ProxyThreatRouteMoveStatus.Executed;
-    }
-
     private readonly struct ClearAllyCorridorCandidateResult(
         bool accepted,
-        float score = 0f,
-        bool hasTrafficSoftPenalty = false,
-        ClearAllyCorridorCandidateBlockKind blockKind = ClearAllyCorridorCandidateBlockKind.None)
+        float score = 0f)
     {
         internal bool Accepted { get; } = accepted;
         internal float Score { get; } = score;
-        internal bool HasTrafficSoftPenalty { get; } = hasTrafficSoftPenalty;
-        internal ClearAllyCorridorCandidateBlockKind BlockKind { get; } = blockKind;
     }
 
     private readonly struct PendingResidualMainAction(
@@ -946,28 +527,6 @@ internal static partial class CombatAiContext
         {
             return ActionId == candidateActionId && Round == round && TurnStamp == turnStamp;
         }
-    }
-
-    private readonly struct PendingUtilityTerminalContinuation(
-        Id actionId,
-        int round,
-        int turnStamp)
-    {
-        internal Id ActionId { get; } = actionId;
-        internal int Round { get; } = round;
-        internal int TurnStamp { get; } = turnStamp;
-    }
-
-    private readonly struct RouteMoveDashBlockMemory(
-        CombatAiMovementGoalKind movementGoal,
-        int3 destination,
-        int round,
-        int turnStamp)
-    {
-        internal CombatAiMovementGoalKind MovementGoal { get; } = movementGoal;
-        internal int3 Destination { get; } = destination;
-        internal int Round { get; } = round;
-        internal int TurnStamp { get; } = turnStamp;
     }
 
     private readonly struct RouteMoveCompletionClosedMemory(
@@ -1015,62 +574,73 @@ internal static partial class CombatAiContext
         }
     }
 
-    private readonly struct UtilityActionValidation(
-        bool isBlocked,
-        CombatAiMainActionBlockKind blockKind = CombatAiMainActionBlockKind.None)
-    {
-        internal bool IsBlocked { get; } = isBlocked;
-        internal CombatAiMainActionBlockKind BlockKind { get; } = blockKind;
-    }
-
     private sealed class AiTurnMovementProgress
     {
-        private readonly HashSet<string> visitedPositions;
+        private readonly HashSet<int3> visitedPositions;
         private readonly List<AiAcceptedMoveCandidate> acceptedMoveCandidates = [];
-        private readonly List<AiAcceptedMoveCandidate> longRoutePursuitCandidates = [];
 
-        internal AiTurnMovementProgress(int3 startPosition, float bestDistanceToGoal)
+        internal AiTurnMovementProgress(
+            int3 startPosition,
+            float bestDistanceToGoal,
+            CombatAiTurnPlan turnPlan)
         {
-            visitedPositions = [GetPositionKey(startPosition)];
+            visitedPositions = [startPosition];
             StartPosition = startPosition;
             BestDistanceToGoal = bestDistanceToGoal;
-            BestAcceptedPosition = startPosition;
-            BestPreferredActionPosition = startPosition;
+            TargetGuid = turnPlan.MovementPlan.Target?.Guid ?? 0;
+            TargetPosition = turnPlan.MovementPlan.TargetPosition;
+            Goal = turnPlan.MovementPlan.Goal;
+            Policy = turnPlan.MovementPlan.Policy;
+            BeginEvaluation(startPosition, bestDistanceToGoal);
         }
 
         internal int3 StartPosition { get; }
+        private ulong TargetGuid { get; }
+        internal ulong PlannedTargetGuid => TargetGuid;
+        private int3 TargetPosition { get; }
+        private CombatAiMovementGoalKind Goal { get; }
+        private CombatAiMovementPolicyKind Policy { get; }
         internal float BestDistanceToGoal { get; private set; }
         internal bool HadMeaningfulMovementCandidate { get; private set; }
         internal bool HadPreferredActionMovementCandidate { get; private set; }
         internal bool HadFreeJumpMovementCandidate { get; private set; }
-        private int AcceptedMoveGateCount { get; set; }
-        private int OpportunityRejectedCount { get; set; }
-        private int TrafficRejectedCount { get; set; }
-        private int RegressionRejectedCount { get; set; }
-        private int NoProgressRejectedCount { get; set; }
-        private int ImproveAttackCapableCandidates { get; set; }
-        private int ImproveSafeCandidates { get; set; }
-        private int ImproveStrictImprovementCandidates { get; set; }
-        private int ImproveDifferentSafeCellCandidates { get; set; }
-        private int ImproveFreeJumpCandidates { get; set; }
         private int3 BestAcceptedPosition { get; set; }
         private float BestAcceptedScore { get; set; }
         private float BestAcceptedProgress { get; set; }
         private int BestAcceptedTurnsToAction { get; set; } = -1;
-        private int3 BestPreferredActionPosition { get; set; }
         private float BestPreferredActionScore { get; set; }
-        private float BestPreferredActionProgress { get; set; }
         private int BestPreferredActionTurnsToAction { get; set; } = -1;
-        private ImproveFiringCandidateState ImproveFiringState { get; set; }
-        internal bool HasAcceptedMoveCandidate => AcceptedMoveGateCount > 0;
-        internal bool HasLongRoutePursuitCandidate => longRoutePursuitCandidates.Count > 0;
+        internal bool HasAcceptedMoveCandidate => acceptedMoveCandidates.Count > 0;
         internal bool HasImmediatePreferredActionMoveCandidate =>
             HadPreferredActionMovementCandidate && BestPreferredActionTurnsToAction == 0;
         internal int3 BestMoveCandidatePosition => BestAcceptedPosition;
-        internal int3 BestLongRoutePursuitCandidatePosition =>
-            HasLongRoutePursuitCandidate ? longRoutePursuitCandidates[0].Position : StartPosition;
         internal int BestMoveCandidateTurnsToAction => BestAcceptedTurnsToAction;
         internal int BestPreferredActionMoveTurnsToAction => BestPreferredActionTurnsToAction;
+
+        internal bool Matches(CombatAiTurnPlan turnPlan)
+        {
+            return TargetGuid == (turnPlan.MovementPlan.Target?.Guid ?? 0) &&
+                   TargetPosition == turnPlan.MovementPlan.TargetPosition &&
+                   Goal == turnPlan.MovementPlan.Goal &&
+                   Policy == turnPlan.MovementPlan.Policy;
+        }
+
+        internal void BeginEvaluation(int3 currentPosition, float distanceToGoal)
+        {
+            visitedPositions.Add(currentPosition);
+            BestDistanceToGoal = Math.Min(BestDistanceToGoal, distanceToGoal);
+            acceptedMoveCandidates.Clear();
+            HadMeaningfulMovementCandidate = false;
+            HadPreferredActionMovementCandidate = false;
+            HadFreeJumpMovementCandidate = false;
+            BestAcceptedPosition = currentPosition;
+            BestAcceptedScore = float.MinValue;
+            BestAcceptedProgress = 0f;
+            BestAcceptedTurnsToAction = -1;
+            BestPreferredActionScore = float.MinValue;
+            BestPreferredActionTurnsToAction = -1;
+        }
+
         internal bool TryGetBestAcceptedMoveCandidate(out AiAcceptedMoveCandidate candidate)
         {
             candidate = default;
@@ -1088,27 +658,14 @@ internal static partial class CombatAiContext
             return true;
         }
 
-        internal bool TryGetBestLongRoutePursuitCandidate(out AiAcceptedMoveCandidate candidate)
-        {
-            candidate = default;
-
-            if (!HasLongRoutePursuitCandidate)
-            {
-                return false;
-            }
-
-            candidate = longRoutePursuitCandidates[0];
-            return true;
-        }
-
         internal bool HasVisited(int3 position)
         {
-            return visitedPositions.Contains(GetPositionKey(position));
+            return visitedPositions.Contains(position);
         }
 
         internal void MarkVisited(int3 position, float distanceToGoal)
         {
-            visitedPositions.Add(GetPositionKey(position));
+            visitedPositions.Add(position);
             BestDistanceToGoal = Math.Min(BestDistanceToGoal, distanceToGoal);
         }
 
@@ -1136,14 +693,11 @@ internal static partial class CombatAiContext
             bool preferredActionCandidate = false,
             int turnsToAction = -1)
         {
-            AcceptedMoveGateCount++;
             acceptedMoveCandidates.Add(new AiAcceptedMoveCandidate(position, score, progress, turnsToAction));
 
             if (preferredActionCandidate && score > BestPreferredActionScore + 0.000001f)
             {
-                BestPreferredActionPosition = position;
                 BestPreferredActionScore = score;
-                BestPreferredActionProgress = progress;
                 BestPreferredActionTurnsToAction = turnsToAction;
             }
 
@@ -1160,7 +714,7 @@ internal static partial class CombatAiContext
 
         internal IEnumerable<int3> EnumerateAcceptedMoveCandidatePositions()
         {
-            var seenPositions = new HashSet<string>();
+            var seenPositions = new HashSet<int3>();
 
             foreach (var candidate in acceptedMoveCandidates
                          .OrderByDescending(candidate => candidate.Score)
@@ -1168,7 +722,7 @@ internal static partial class CombatAiContext
                          .ThenBy(candidate => candidate.Position.y)
                          .ThenBy(candidate => candidate.Position.z))
             {
-                if (!seenPositions.Add(GetPositionKey(candidate.Position)))
+                if (!seenPositions.Add(candidate.Position))
                 {
                     continue;
                 }
@@ -1179,7 +733,7 @@ internal static partial class CombatAiContext
 
         internal IEnumerable<AiAcceptedMoveCandidate> EnumerateAcceptedMoveCandidates()
         {
-            var seenPositions = new HashSet<string>();
+            var seenPositions = new HashSet<int3>();
 
             foreach (var candidate in acceptedMoveCandidates
                          .OrderByDescending(candidate => candidate.Score)
@@ -1188,7 +742,7 @@ internal static partial class CombatAiContext
                          .ThenBy(candidate => candidate.Position.y)
                          .ThenBy(candidate => candidate.Position.z))
             {
-                if (!seenPositions.Add(GetPositionKey(candidate.Position)))
+                if (!seenPositions.Add(candidate.Position))
                 {
                     continue;
                 }
@@ -1197,162 +751,27 @@ internal static partial class CombatAiContext
             }
         }
 
-        internal void RecordLongRoutePursuitCandidate(
-            int3 position,
-            float score,
-            float progress,
-            int turnsToAction)
-        {
-            if (longRoutePursuitCandidates.Any(candidate => candidate.Position == position))
-            {
-                return;
-            }
-
-            HadMeaningfulMovementCandidate = true;
-            longRoutePursuitCandidates.Add(new AiAcceptedMoveCandidate(position, score, progress, turnsToAction));
-            longRoutePursuitCandidates.Sort(CompareAcceptedMoveCandidates);
-
-            if (longRoutePursuitCandidates.Count > GroundMeleePursuitCandidateLimit)
-            {
-                longRoutePursuitCandidates.RemoveRange(
-                    GroundMeleePursuitCandidateLimit,
-                    longRoutePursuitCandidates.Count - GroundMeleePursuitCandidateLimit);
-            }
-        }
-
-        internal IEnumerable<int3> EnumerateLongRoutePursuitCandidatePositions()
-        {
-            foreach (var candidate in longRoutePursuitCandidates)
-            {
-                yield return candidate.Position;
-            }
-        }
-
-        internal IEnumerable<AiAcceptedMoveCandidate> EnumerateLongRoutePursuitCandidates()
-        {
-            foreach (var candidate in longRoutePursuitCandidates)
-            {
-                yield return candidate;
-            }
-        }
-
-        private static int CompareAcceptedMoveCandidates(AiAcceptedMoveCandidate left, AiAcceptedMoveCandidate right)
-        {
-            var comparison = right.Score.CompareTo(left.Score);
-
-            if (comparison != 0)
-            {
-                return comparison;
-            }
-
-            comparison = left.TurnsToAction.CompareTo(right.TurnsToAction);
-
-            if (comparison != 0)
-            {
-                return comparison;
-            }
-
-            comparison = left.Position.x.CompareTo(right.Position.x);
-
-            if (comparison != 0)
-            {
-                return comparison;
-            }
-
-            comparison = left.Position.y.CompareTo(right.Position.y);
-
-            return comparison != 0
-                ? comparison
-                : left.Position.z.CompareTo(right.Position.z);
-        }
-
-        internal void RecordRejected(AiMoveRejectionKind rejection)
-        {
-            switch (rejection)
-            {
-                case AiMoveRejectionKind.Opportunity:
-                    OpportunityRejectedCount++;
-                    break;
-                case AiMoveRejectionKind.Traffic:
-                    TrafficRejectedCount++;
-                    break;
-                case AiMoveRejectionKind.Regression:
-                    RegressionRejectedCount++;
-                    break;
-                default:
-                    NoProgressRejectedCount++;
-                    break;
-            }
-        }
-
-        internal void RecordImproveFiringCandidate(
-            bool attackCapable,
-            bool safe,
-            bool strictImprovement,
-            bool differentSafeCell,
-            ImproveFiringCandidateState candidateState)
-        {
-            if (attackCapable)
-            {
-                ImproveAttackCapableCandidates++;
-            }
-
-            if (safe)
-            {
-                ImproveSafeCandidates++;
-            }
-
-            if (strictImprovement)
-            {
-                ImproveStrictImprovementCandidates++;
-            }
-
-            if (differentSafeCell)
-            {
-                ImproveDifferentSafeCellCandidates++;
-            }
-
-            if (candidateState == ImproveFiringCandidateState.None)
-            {
-                return;
-            }
-
-            if (candidateState == ImproveFiringCandidateState.Accepted)
-            {
-                ImproveFiringState = candidateState;
-                return;
-            }
-
-            if (ImproveFiringState == ImproveFiringCandidateState.Accepted ||
-                (!attackCapable && ImproveAttackCapableCandidates > 0))
-            {
-                return;
-            }
-
-            if (ImproveFiringState == ImproveFiringCandidateState.None || attackCapable)
-            {
-                ImproveFiringState = candidateState;
-            }
-        }
-
-        internal void RecordImproveFiringFreeJumpCandidate()
-        {
-            ImproveFreeJumpCandidates++;
-        }
     }
 
     private readonly struct AiAcceptedMoveCandidate(
         int3 position,
         float score,
         float progress,
-        int turnsToAction,
-        bool actionConnected = false)
+        int turnsToAction)
     {
         internal int3 Position { get; } = position;
         internal float Score { get; } = score;
         internal float Progress { get; } = progress;
         internal int TurnsToAction { get; } = turnsToAction;
-        internal bool ActionConnected { get; } = actionConnected;
+    }
+
+    private readonly struct BonusDashMeleeCandidate(
+        GameLocationCharacter target,
+        int3 destination)
+    {
+        internal GameLocationCharacter Target { get; } = target;
+        internal int3 Destination { get; } = destination;
+        internal bool IsAvailable => Target != null;
     }
 
     private readonly struct ConnectedFiringLineCandidate(
@@ -1369,58 +788,45 @@ internal static partial class CombatAiContext
         internal int MoveCost { get; } = moveCost;
     }
 
-    private readonly struct GroundMeleeRouteProjection(
-        int routeTurns,
-        float startDistance,
-        float firstStepDistance,
-        float bestDistance,
-        GroundMeleeRouteProjectionGoal goal)
-    {
-        internal int RouteTurns { get; } = routeTurns;
-        internal float StartDistance { get; } = startDistance;
-        internal float FirstStepDistance { get; } = firstStepDistance;
-        internal float BestDistance { get; } = bestDistance;
-        internal GroundMeleeRouteProjectionGoal Goal { get; } = goal;
-        internal float Progress => StartDistance - BestDistance;
-    }
-
-    private readonly struct GroundMeleeConnectedRoute(
-        GroundMeleeRouteProjection projection,
-        int3 bestPosition,
-        int connectedNodes,
-        bool complete,
-        bool frontierCapped,
-        int firstStepMoveCost,
-        int contactMoveCost)
-    {
-        internal GroundMeleeRouteProjection Projection { get; } = projection;
-        internal int3 BestPosition { get; } = bestPosition;
-        internal int ConnectedNodes { get; } = connectedNodes;
-        internal bool Complete { get; } = complete;
-        internal bool FrontierCapped { get; } = frontierCapped;
-        internal int FirstStepMoveCost { get; } = Math.Max(0, firstStepMoveCost);
-        internal int ContactMoveCost { get; } = Math.Max(0, contactMoveCost);
-        internal int TotalPathCost => FirstStepMoveCost + ContactMoveCost;
-        internal bool IsCompleteApproach => Complete &&
-            Projection.Goal == GroundMeleeRouteProjectionGoal.Approach;
-    }
-
     private readonly struct GroundMeleeTargetContactRouteQuery(
         GroundMeleeTargetContactRouteMap map,
         bool complete,
         int3 bestGoal,
         int bestGoalMoveCost,
-        IReadOnlyDictionary<string, int> contactCostByPosition,
-        IReadOnlyDictionary<string, int3> contactGoalByPosition,
+        IReadOnlyDictionary<int3, int> contactCostByPosition,
+        IReadOnlyDictionary<int3, int3> contactGoalByPosition,
+        ulong targetGuid,
+        int3 targetPosition,
+        int round,
+        int turnStamp,
         bool isApproachRoute = false)
     {
         internal GroundMeleeTargetContactRouteMap Map { get; } = map;
         internal bool Complete { get; } = complete;
         internal int3 BestGoal { get; } = bestGoal;
         internal int BestGoalMoveCost { get; } = Math.Max(0, bestGoalMoveCost);
-        internal IReadOnlyDictionary<string, int> ContactCostByPosition { get; } = contactCostByPosition;
-        internal IReadOnlyDictionary<string, int3> ContactGoalByPosition { get; } = contactGoalByPosition;
+        internal IReadOnlyDictionary<int3, int> ContactCostByPosition { get; } = contactCostByPosition;
+        internal IReadOnlyDictionary<int3, int3> ContactGoalByPosition { get; } = contactGoalByPosition;
+        internal ulong TargetGuid { get; } = targetGuid;
+        internal int3 TargetPosition { get; } = targetPosition;
+        internal int Round { get; } = round;
+        internal int TurnStamp { get; } = turnStamp;
         internal bool IsCompleteApproach { get; } = complete && isApproachRoute;
+
+        internal bool Matches(
+            GameLocationCharacter target,
+            int3 expectedTargetPosition,
+            int3 startPosition,
+            int round,
+            int turnStamp)
+        {
+            return target?.RulesetCharacter != null &&
+                   TargetGuid == target.Guid &&
+                   TargetPosition == expectedTargetPosition &&
+                   Map.StartPosition == startPosition &&
+                   Round == round &&
+                   TurnStamp == turnStamp;
+        }
 
         internal int GetMoveCost(int3 position)
         {
@@ -1433,7 +839,7 @@ internal static partial class CombatAiContext
             contactGoal = default;
 
             if (ContactCostByPosition == null ||
-                !ContactCostByPosition.TryGetValue(GetPositionKey(position), out var cost))
+                !ContactCostByPosition.TryGetValue(position, out var cost))
             {
                 return false;
             }
@@ -1441,7 +847,7 @@ internal static partial class CombatAiContext
             contactMoveCost = Math.Max(0, cost);
 
             if (ContactGoalByPosition != null &&
-                ContactGoalByPosition.TryGetValue(GetPositionKey(position), out var goal))
+                ContactGoalByPosition.TryGetValue(position, out var goal))
             {
                 contactGoal = goal;
             }
@@ -1458,7 +864,7 @@ internal static partial class CombatAiContext
         int3 startPosition,
         IReadOnlyList<int3> positions,
         IReadOnlyList<int3> contactPositions,
-        IReadOnlyDictionary<string, int> moveCostByPosition,
+        IReadOnlyDictionary<int3, int> moveCostByPosition,
         int3 bestPosition,
         bool complete)
     {
@@ -1471,90 +877,15 @@ internal static partial class CombatAiContext
 
         internal bool Contains(int3 position)
         {
-            return Positions != null && Positions.Any(candidate => candidate == position);
+            return moveCostByPosition?.ContainsKey(position) == true;
         }
 
         internal int GetMoveCost(int3 position)
         {
             return moveCostByPosition != null &&
-                   moveCostByPosition.TryGetValue(GetPositionKey(position), out var moveCost)
+                    moveCostByPosition.TryGetValue(position, out var moveCost)
                 ? moveCost
                 : 0;
-        }
-    }
-
-    private readonly struct GroundMeleeTargetContactRouteCandidate(
-        int3 position,
-        int3 selectedDestination,
-        int selectedMoveCost,
-        int selectedContactMoveCost,
-        int3 selectedContactGoal,
-        IReadOnlyList<GameLocationCharacterDefinitions.PathStep> routePath,
-        int sourcePriority,
-        float sourceScore,
-        int sourceTurnsToAction,
-        GroundMeleeConnectedRoute route)
-    {
-        internal int3 Position { get; } = position;
-        internal int3 SelectedDestination { get; } = selectedDestination;
-        internal int SelectedMoveCost { get; } = Math.Max(0, selectedMoveCost);
-        internal int SelectedContactMoveCost { get; } = Math.Max(0, selectedContactMoveCost);
-        internal int3 SelectedContactGoal { get; } = selectedContactGoal;
-        internal IReadOnlyList<GameLocationCharacterDefinitions.PathStep> RoutePath { get; } = routePath ?? [];
-        internal int SourcePriority { get; } = sourcePriority;
-        internal float SourceScore { get; } = sourceScore;
-        internal int SourceTurnsToAction { get; } = sourceTurnsToAction;
-        internal GroundMeleeConnectedRoute Route { get; } = route;
-        internal bool Complete => Route.Complete;
-        internal bool Capped => !Route.Complete && Route.FrontierCapped;
-    }
-
-    private readonly struct GroundMeleeTargetContactRouteSeed(
-        AiAcceptedMoveCandidate candidate,
-        int sourcePriority,
-        int firstStepMoveCost)
-    {
-        internal AiAcceptedMoveCandidate Candidate { get; } = candidate;
-        internal int3 Position => Candidate.Position;
-        internal int SourcePriority { get; } = sourcePriority;
-        internal int FirstStepMoveCost { get; } = Math.Max(0, firstStepMoveCost);
-    }
-
-    private readonly struct GroundMeleeRouteWaypointNode(
-        int3 position,
-        int moveCost,
-        int contactMoveCost,
-        int3 contactGoal,
-        MoveMode moveMode,
-        PathfindingNode.InformationFlag moveFlags)
-    {
-        internal int3 Position { get; } = position;
-        internal int MoveCost { get; } = Math.Max(0, moveCost);
-        internal int ContactMoveCost { get; } = Math.Max(0, contactMoveCost);
-        internal int3 ContactGoal { get; } = contactGoal;
-        internal MoveMode MoveMode { get; } = moveMode;
-        internal PathfindingNode.InformationFlag MoveFlags { get; } = moveFlags;
-    }
-
-    private readonly struct GroundMeleeRouteIntentMemory(
-        ulong targetGuid,
-        int3 previousPosition,
-        int3 lastPosition,
-        float bestRouteDistance,
-        int round,
-        int turnStamp)
-    {
-        internal ulong TargetGuid { get; } = targetGuid;
-        internal int3 PreviousPosition { get; } = previousPosition;
-        internal int3 LastPosition { get; } = lastPosition;
-        internal float BestRouteDistance { get; } = bestRouteDistance;
-        internal int Round { get; } = round;
-        internal int TurnStamp { get; } = turnStamp;
-
-        internal bool Matches(GameLocationCharacter target)
-        {
-            return target?.RulesetCharacter != null &&
-                   target.Guid == TargetGuid;
         }
     }
 
@@ -1602,33 +933,14 @@ internal static partial class CombatAiContext
         }
     }
 
-    private readonly struct GroundMeleeDetourCandidateMemory(
-        ulong targetGuid,
-        int3 startPosition,
-        int3 destination,
-        float score,
-        float progress,
-        int turnsToAction,
-        int round,
-        int turnStamp)
+    private readonly struct ReachableRouteDestinationFacts(
+        int moveCost,
+        MoveMode moveMode,
+        PathfindingNode.InformationFlag moveFlags)
     {
-        internal ulong TargetGuid { get; } = targetGuid;
-        internal int3 StartPosition { get; } = startPosition;
-        internal int3 Destination { get; } = destination;
-        internal float Score { get; } = score;
-        internal float Progress { get; } = progress;
-        internal int TurnsToAction { get; } = turnsToAction;
-        internal int Round { get; } = round;
-        internal int TurnStamp { get; } = turnStamp;
-
-        internal bool Matches(GameLocationCharacter target, int3 start)
-        {
-            return target?.RulesetCharacter != null &&
-                   target.Guid == TargetGuid &&
-                   start == StartPosition &&
-                   Round == GetCurrentBattleRound() &&
-                   TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp);
-        }
+        internal int MoveCost { get; } = moveCost;
+        internal MoveMode MoveMode { get; } = moveMode;
+        internal PathfindingNode.InformationFlag MoveFlags { get; } = moveFlags;
     }
 
     private sealed class ReachableRouteDestinationMemory(
@@ -1637,28 +949,9 @@ internal static partial class CombatAiContext
         int round,
         int turnStamp,
         List<int3> positions,
-        List<int> moveCosts,
-        List<MoveMode> moveModes,
-        List<PathfindingNode.InformationFlag> moveFlags,
+        Dictionary<int3, ReachableRouteDestinationFacts> factsByPosition,
         bool walkOnly)
     {
-        private readonly HashSet<string> positionKeys = [..positions.Select(GetPositionKey)];
-        private readonly Dictionary<string, int> moveCostByPosition = positions
-            .Select((position, index) => new { position, index })
-            .ToDictionary(
-                item => GetPositionKey(item.position),
-                item => item.index < moveCosts.Count ? moveCosts[item.index] : 0);
-        private readonly Dictionary<string, MoveMode> moveModeByPosition = positions
-            .Select((position, index) => new { position, index })
-            .ToDictionary(
-                item => GetPositionKey(item.position),
-                item => item.index < moveModes.Count ? moveModes[item.index] : MoveMode.Walk);
-        private readonly Dictionary<string, PathfindingNode.InformationFlag> moveFlagsByPosition = positions
-            .Select((position, index) => new { position, index })
-            .ToDictionary(
-                item => GetPositionKey(item.position),
-                item => item.index < moveFlags.Count ? moveFlags[item.index] : default);
-
         internal int3 StartPosition { get; } = startPosition;
         internal int RemainingMove { get; } = remainingMove;
         internal int Round { get; } = round;
@@ -1677,41 +970,29 @@ internal static partial class CombatAiContext
 
         internal bool Contains(int3 position)
         {
-            return positionKeys.Contains(GetPositionKey(position));
+            return factsByPosition.ContainsKey(position);
         }
 
         internal int GetMoveCost(int3 position)
         {
-            return moveCostByPosition.TryGetValue(GetPositionKey(position), out var moveCost)
-                ? moveCost
+            return factsByPosition.TryGetValue(position, out var facts)
+                ? facts.MoveCost
                 : ComputeForcedMoveCost(StartPosition, position);
         }
 
         internal MoveMode GetMoveMode(int3 position)
         {
-            return moveModeByPosition.TryGetValue(GetPositionKey(position), out var moveMode)
-                ? moveMode
+            return factsByPosition.TryGetValue(position, out var facts)
+                ? facts.MoveMode
                 : MoveMode.Walk;
         }
 
         internal PathfindingNode.InformationFlag GetMoveFlags(int3 position)
         {
-            return moveFlagsByPosition.TryGetValue(GetPositionKey(position), out var flags)
-                ? flags
+            return factsByPosition.TryGetValue(position, out var facts)
+                ? facts.MoveFlags
                 : default;
         }
-    }
-
-    private readonly struct ProxyThreatRecoveryCandidate(
-        int3 position,
-        float score,
-        float threatGain,
-        bool attackConnected)
-    {
-        internal int3 Position { get; } = position;
-        internal float Score { get; } = score;
-        internal float ThreatGain { get; } = threatGain;
-        internal bool AttackConnected { get; } = attackConnected;
     }
 
     private readonly struct CoverEvaluationMemory(bool hasCover, CoverType coverType)
@@ -1725,70 +1006,6 @@ internal static partial class CombatAiContext
         internal ulong ConditionGuid { get; } = conditionGuid;
         internal int Round { get; } = round;
         internal int TurnStamp { get; } = turnStamp;
-    }
-
-    private readonly struct PendingTerminalDodgeEndTurnMemory(int round, int turnStamp)
-    {
-        internal int Round { get; } = round;
-        internal int TurnStamp { get; } = turnStamp;
-    }
-
-    private readonly struct PendingAiProcessTurnRecoveryMemory(
-        int round,
-        int turnStamp,
-        Id actionId,
-        CombatAiTurnRecoveryReason recoveryReason)
-    {
-        internal int Round { get; } = round;
-        internal int TurnStamp { get; } = turnStamp;
-        internal Id ActionId { get; } = actionId;
-        internal CombatAiTurnRecoveryReason RecoveryReason { get; } = recoveryReason;
-
-        internal bool MatchesCurrentTurn(int currentRound, int currentTurnStamp)
-        {
-            return Round == currentRound && TurnStamp == currentTurnStamp;
-        }
-    }
-
-    private readonly struct ForcedMotionAttackBudgetMemory(
-        int round,
-        int turnStamp,
-        int actionRank,
-        int usedMainAttacks,
-        int allowedMainAttacks,
-        int iterations,
-        int mainUseCount,
-        int remainingAttacks,
-        CombatAiTurnRecoveryReason recoveryReason)
-    {
-        internal int Round { get; } = round;
-        internal int TurnStamp { get; } = turnStamp;
-        internal int ActionRank { get; } = actionRank;
-        internal int UsedMainAttacks { get; } = usedMainAttacks;
-        internal int AllowedMainAttacks { get; } = allowedMainAttacks;
-        internal int Iterations { get; } = iterations;
-        internal int MainUseCount { get; } = mainUseCount;
-        internal int RemainingAttacks { get; } = remainingAttacks;
-        internal CombatAiTurnRecoveryReason RecoveryReason { get; } = recoveryReason;
-
-        internal bool MatchesCurrentTurn(int currentRound, int currentTurnStamp)
-        {
-            return Round == currentRound && TurnStamp == currentTurnStamp;
-        }
-
-        internal ForcedMotionAttackBudgetMemory Consume()
-        {
-            return new ForcedMotionAttackBudgetMemory(
-                Round,
-                TurnStamp,
-                ActionRank,
-                UsedMainAttacks,
-                AllowedMainAttacks,
-                Iterations,
-                MainUseCount,
-                Math.Max(0, RemainingAttacks - 1),
-                RecoveryReason);
-        }
     }
 
     private readonly struct DisconnectedPositioningMovementLockMemory(int round, int turnStamp)
@@ -1887,7 +1104,8 @@ internal static partial class CombatAiContext
         int round,
         int turnStamp,
         int moveToken = 0,
-        bool searchRouteActionConnected = false)
+        bool searchRouteActionConnected = false,
+        int routeContinuationCount = 0)
     {
         internal GameLocationCharacter Target { get; } = target;
         internal CombatAiActionKind ActionKind { get; } = actionKind;
@@ -1901,6 +1119,7 @@ internal static partial class CombatAiContext
         internal int TurnStamp { get; } = turnStamp;
         internal int MoveToken { get; } = moveToken;
         internal bool SearchRouteActionConnected { get; } = searchRouteActionConnected;
+        internal int RouteContinuationCount { get; } = routeContinuationCount;
     }
 
     private static int CreateActionLinkedMoveToken()
@@ -1978,57 +1197,27 @@ internal static partial class CombatAiContext
         return false;
     }
 
-    private readonly struct PendingRouteActionOnlyTerminalMemory(
-        ActionLinkedMoveMemory pendingAction,
-        int3 expectedDestination,
-        int3 actualDestination,
-        bool consumeAfterAbort,
-        int round,
-        int turnStamp,
-        bool movementContinuationAllowed = false)
-    {
-        internal ActionLinkedMoveMemory PendingAction { get; } = pendingAction;
-        internal int3 ExpectedDestination { get; } = expectedDestination;
-        internal int3 ActualDestination { get; } = actualDestination;
-        internal bool ConsumeAfterAbort { get; } = consumeAfterAbort;
-        internal int Round { get; } = round;
-        internal int TurnStamp { get; } = turnStamp;
-        internal bool MovementContinuationAllowed { get; } = movementContinuationAllowed;
-
-        internal bool MatchesCurrentTurn(int round, int turnStamp)
-        {
-            return Round == round && TurnStamp == turnStamp;
-        }
-
-        internal PendingRouteActionOnlyTerminalMemory WithMovementContinuationAllowed()
-        {
-            return new PendingRouteActionOnlyTerminalMemory(
-                PendingAction,
-                ExpectedDestination,
-                ActualDestination,
-                ConsumeAfterAbort,
-                Round,
-                TurnStamp,
-                true);
-        }
-    }
-
-    private readonly struct PendingAiProcessTerminalLaunchMemory(
-        Id actionId,
-        ReadyActionType readyActionType,
-        PendingTerminalLaunchKind kind,
+    private readonly struct CompletedAiMoveStepMemory(
+        int3 from,
+        int3 to,
+        CombatAiRouteMoveSourceKind routeMoveSource,
+        int moveToken,
         int round,
         int turnStamp)
     {
-        internal Id ActionId { get; } = actionId;
-        internal ReadyActionType ReadyActionType { get; } = readyActionType;
-        internal PendingTerminalLaunchKind Kind { get; } = kind;
+        internal int3 From { get; } = from;
+        internal int3 To { get; } = to;
+        internal CombatAiRouteMoveSourceKind RouteMoveSource { get; } = routeMoveSource;
+        internal int MoveToken { get; } = moveToken;
         internal int Round { get; } = round;
         internal int TurnStamp { get; } = turnStamp;
 
-        internal bool MatchesCurrentTurn(int round, int turnStamp)
+        internal bool Matches(ActionLinkedMoveMemory pendingAction, int round, int turnStamp)
         {
-            return Round == round && TurnStamp == turnStamp;
+            return RouteMoveSource == pendingAction.RouteMoveSource &&
+                   MoveToken == pendingAction.MoveToken &&
+                   Round == round &&
+                   TurnStamp == turnStamp;
         }
     }
 
@@ -2114,23 +1303,6 @@ internal static partial class CombatAiContext
         internal int TurnStamp { get; } = turnStamp;
     }
 
-    private readonly struct ThreatRouteRecoveryMemory(
-        CombatAiMovementGoalKind movementGoal,
-        int3 failedDestination,
-        int round,
-        int turnStamp)
-    {
-        internal CombatAiMovementGoalKind MovementGoal { get; } = movementGoal;
-        internal int3 FailedDestination { get; } = failedDestination;
-        internal int Round { get; } = round;
-        internal int TurnStamp { get; } = turnStamp;
-
-        internal bool Matches(CombatAiMovementGoalKind movementGoal, int round, int turnStamp)
-        {
-            return MovementGoal == movementGoal && Round == round && TurnStamp == turnStamp;
-        }
-    }
-
     private readonly struct ProxyThreatRouteAttemptMemory(
         GameLocationCharacter source,
         int3 sourcePosition,
@@ -2149,11 +1321,6 @@ internal static partial class CombatAiContext
         internal int Round { get; } = round;
         internal int TurnStamp { get; } = turnStamp;
         internal bool NoMove { get; } = noMove;
-
-        internal bool MatchesSourceAndStart(RecentMeleeThreatMemory memory, int3 startPosition)
-        {
-            return MatchesSource(memory) && StartPosition == startPosition;
-        }
 
         internal bool MatchesSource(RecentMeleeThreatMemory memory)
         {
@@ -2241,34 +1408,6 @@ internal static partial class CombatAiContext
         internal int TurnStamp { get; } = turnStamp;
     }
 
-    private readonly struct TacticalSituationMemory(
-        string signature,
-        int round,
-        int turnStamp)
-    {
-        internal string Signature { get; } = signature;
-        internal int Round { get; } = round;
-        internal int TurnStamp { get; } = turnStamp;
-    }
-
-    private readonly struct RepeatedEndStateMemory(
-        ulong targetGuid,
-        CombatAiExecutedActionKind action,
-        int3 actorPosition,
-        int3 targetPosition,
-        int round,
-        int turnStamp,
-        int repeatCount)
-    {
-        internal ulong TargetGuid { get; } = targetGuid;
-        internal CombatAiExecutedActionKind Action { get; } = action;
-        internal int3 ActorPosition { get; } = actorPosition;
-        internal int3 TargetPosition { get; } = targetPosition;
-        internal int Round { get; } = round;
-        internal int TurnStamp { get; } = turnStamp;
-        internal int RepeatCount { get; } = repeatCount;
-    }
-
     private readonly struct RepeatedAttackActionMemory(
         ulong targetGuid,
         string actionIdentity,
@@ -2301,6 +1440,26 @@ internal static partial class CombatAiContext
         internal int3 Destination { get; } = destination;
         internal int Round { get; } = round;
         internal int TurnStamp { get; } = turnStamp;
+    }
+
+    private readonly struct LostTargetSearchAttemptMemory(
+        int round,
+        int turnStamp,
+        int3 start,
+        int3 anchor)
+    {
+        internal int Round { get; } = round;
+        internal int TurnStamp { get; } = turnStamp;
+        internal int3 Start { get; } = start;
+        internal int3 Anchor { get; } = anchor;
+
+        internal bool Matches(int currentRound, int currentTurnStamp, int3 currentStart, int3 currentAnchor)
+        {
+            return Round == currentRound &&
+                   TurnStamp == currentTurnStamp &&
+                   Start == currentStart &&
+                   Anchor == currentAnchor;
+        }
     }
 
     private readonly struct EnemyEvaluation(
@@ -2425,19 +1584,12 @@ internal static partial class CombatAiContext
 
     private readonly struct CombatAiTurnPlan(
         CombatAiActionProbe actionProbe,
-        CombatAiMovementPlan movementPlan)
+        CombatAiMovementPlan movementPlan,
+        bool isAttackContinuation = false)
     {
         internal CombatAiActionProbe ActionProbe { get; } = actionProbe;
         internal CombatAiMovementPlan MovementPlan { get; } = movementPlan;
-    }
-
-    private readonly struct CombatAiMovementAvailabilityResult(
-        CombatAiMovementAvailability availability,
-        FreeJumpFallbackAvailability freeJumpAvailability = FreeJumpFallbackAvailability.Unavailable)
-    {
-        internal CombatAiMovementAvailability Availability { get; } = availability;
-        internal FreeJumpFallbackAvailability FreeJumpAvailability { get; } = freeJumpAvailability;
-        internal bool IsAvailable => Availability == CombatAiMovementAvailability.Available;
+        internal bool IsAttackContinuation { get; } = isAttackContinuation;
     }
 
     private readonly struct CombatAiActionEconomySnapshot(
@@ -2457,6 +1609,7 @@ internal static partial class CombatAiContext
         int mainUseCount,
         int bonusUseCount,
         bool mainAvailable,
+        bool terminalMainAvailable,
         bool canAutoAct,
         bool isAiControlled)
     {
@@ -2478,10 +1631,7 @@ internal static partial class CombatAiContext
         internal int MainUseCount { get; } = mainUseCount;
         internal int BonusUseCount { get; } = bonusUseCount;
         internal bool MainAvailable { get; } = mainAvailable;
-        internal bool TerminalMainAvailable =>
-            MainActionType == ActionStatus.Available &&
-            MainUseCount == 0 &&
-            !HasLastMainAction;
+        internal bool TerminalMainAvailable { get; } = terminalMainAvailable;
         internal bool ReadyAvailable => TerminalMainAvailable && Ready == ActionStatus.Available;
         internal bool DodgeAvailable => TerminalMainAvailable && Dodge == ActionStatus.Available;
         internal CombatAiExecutedActionKind RecordedTerminalAction =>
@@ -2490,105 +1640,55 @@ internal static partial class CombatAiContext
                 : LastTerminalAction;
     }
 
-    private readonly struct CombatAiMainActionValidation
-    {
-        internal CombatAiMainActionValidation(
-            bool isValid,
-            CombatAiMainActionBlockKind blockKind = CombatAiMainActionBlockKind.None,
-            ActionStatus actionStatus = default)
-        {
-            IsValid = isValid;
-            BlockKind = blockKind;
-            ActionStatus = actionStatus;
-        }
-
-        internal bool IsValid { get; }
-        internal CombatAiMainActionBlockKind BlockKind { get; }
-        internal ActionStatus ActionStatus { get; }
-    }
-
     private readonly struct CombatAiResidualHostileActionResult(
-        CombatAiResidualHostileActionResultKind kind,
-        CombatAiActionKind actionKind = CombatAiActionKind.None,
-        Id actionId = Id.NoAction,
-        CombatAiMainActionBlockKind blockKind = CombatAiMainActionBlockKind.None,
-        ActionStatus actionStatus = default)
+        CombatAiResidualHostileActionResultKind kind)
     {
-        internal CombatAiResidualHostileActionResultKind Kind { get; } = kind;
-        internal CombatAiActionKind ActionKind { get; } = actionKind;
-        internal Id ActionId { get; } = actionId;
-        internal CombatAiMainActionBlockKind BlockKind { get; } = blockKind;
-        internal ActionStatus ActionStatus { get; } = actionStatus;
+        private CombatAiResidualHostileActionResultKind Kind { get; } = kind;
         internal bool Executed => Kind == CombatAiResidualHostileActionResultKind.Executed;
         internal bool PolicyHeld => Kind == CombatAiResidualHostileActionResultKind.PolicyHeld;
         internal bool IsBlocked => Kind == CombatAiResidualHostileActionResultKind.Blocked;
-    }
-
-    private readonly struct RepeatedMeleeAlternativeResult(
-        RepeatedMeleeAlternativeResultKind kind,
-        CombatAiExecutedActionKind actionKind = CombatAiExecutedActionKind.None,
-        CombatAiMainActionBlockKind blockKind = CombatAiMainActionBlockKind.None,
-        int repeatCount = 0)
-    {
-        internal RepeatedMeleeAlternativeResultKind Kind { get; } = kind;
-        internal CombatAiExecutedActionKind ActionKind { get; } = actionKind;
-        internal CombatAiMainActionBlockKind BlockKind { get; } = blockKind;
-        internal int RepeatCount { get; } = repeatCount;
-        internal bool Executed => Kind == RepeatedMeleeAlternativeResultKind.Executed;
-    }
-
-    private readonly struct GroundMeleeJumpShortcutResult(
-        bool executed,
-        GroundMeleeJumpShortcutBlockKind blockKind,
-        int3 destination = default)
-    {
-        internal bool Executed { get; } = executed;
-        internal GroundMeleeJumpShortcutBlockKind BlockKind { get; } = blockKind;
-        internal int3 Destination { get; } = destination;
     }
 
     private readonly struct CombatAiActionExecutionMemory(
         Id actionId,
         ActionType actionType,
         ActionStatus mainBefore,
+        int actionRank,
         int round,
         int turnStamp)
     {
         internal Id ActionId { get; } = actionId;
         internal ActionType ActionType { get; } = actionType;
         internal ActionStatus MainBefore { get; } = mainBefore;
+        internal int ActionRank { get; } = actionRank;
         internal int Round { get; } = round;
         internal int TurnStamp { get; } = turnStamp;
         internal bool IsMainAction => ActionType == ActionType.Main;
-    }
-
-    private readonly struct CombatAiActionPathStatus(
-        CombatAiActionPathKind kind,
-        CombatAiActionPathAvailability availability,
-        int turnsToPreferredAction = -1)
-    {
-        internal CombatAiActionPathKind Kind { get; } = kind;
-        internal CombatAiActionPathAvailability Availability { get; } = availability;
-        internal int TurnsToPreferredAction { get; } = turnsToPreferredAction;
     }
 
     private readonly struct AttackPositionKey(
         ulong attackerGuid,
         int3 attackerPosition,
         ulong targetGuid,
-        int3 targetPosition) : IEquatable<AttackPositionKey>
+        int3 targetPosition,
+        int actionStateSignature,
+        int targetStateSignature) : IEquatable<AttackPositionKey>
     {
         private ulong AttackerGuid { get; } = attackerGuid;
         private int3 AttackerPosition { get; } = attackerPosition;
         private ulong TargetGuid { get; } = targetGuid;
         private int3 TargetPosition { get; } = targetPosition;
+        private int ActionStateSignature { get; } = actionStateSignature;
+        private int TargetStateSignature { get; } = targetStateSignature;
 
         public bool Equals(AttackPositionKey other)
         {
             return AttackerGuid == other.AttackerGuid &&
                    AttackerPosition == other.AttackerPosition &&
                    TargetGuid == other.TargetGuid &&
-                   TargetPosition == other.TargetPosition;
+                   TargetPosition == other.TargetPosition &&
+                   ActionStateSignature == other.ActionStateSignature &&
+                   TargetStateSignature == other.TargetStateSignature;
         }
 
         public override bool Equals(object obj)
@@ -2609,6 +1709,8 @@ internal static partial class CombatAiContext
                 hash = (hash * 397) ^ TargetPosition.x;
                 hash = (hash * 397) ^ TargetPosition.y;
                 hash = (hash * 397) ^ TargetPosition.z;
+                hash = (hash * 397) ^ ActionStateSignature;
+                hash = (hash * 397) ^ TargetStateSignature;
 
                 return hash;
             }
@@ -2634,7 +1736,7 @@ internal static partial class CombatAiContext
         ConsiderationDescription consideration,
         DecisionParameters parameters)
     {
-        EnsureCombatAiRuntimeCache(parameters?.character?.GameLocationCharacter);
+        EnsureCombatAiRuntimeCache();
 
         if (IsAdvancedCombatAiEnabled)
         {
@@ -2648,121 +1750,149 @@ internal static partial class CombatAiContext
 
     internal static void NotifyBattleStarted(GameLocationCharacter character)
     {
-        EnsureCombatAiRuntimeCache(character);
+        EnsureCombatAiRuntimeCache();
     }
 
     internal static void ResetActionLedgerForTurn(GameLocationCharacter character)
     {
-        if (character == null)
-        {
-            return;
-        }
-
-        LastActionExecutionCache.Remove(character.Guid);
-        LastMainActionExecutionCache.Remove(character.Guid);
-        TurnMainActionUseCountCache.Remove(character.Guid);
-        TurnBonusActionUseCountCache.Remove(character.Guid);
-        TurnStartActionEconomyCache.Remove(character.Guid);
-        PreMainRouteMoveAttemptCache.Remove(character.Guid);
-        DisconnectedPositioningSealCache.Remove(character.Guid);
-        DisconnectedPositioningMovementLockCache.Remove(character.Guid);
-        DisconnectedSearchMoveCompletionSealCache.Remove(character.Guid);
-        DisconnectedSearchNoRouteMovementSealCache.Remove(character.Guid);
-        PostMainClearAllyCorridorAttemptCache.Remove(character.Guid);
-        PendingUtilityTerminalContinuationCache.Remove(character.Guid);
-        RouteMoveDashBlockCache.Remove(character.Guid);
-        RouteMoveCompletionClosedCache.Remove(character.Guid);
-        PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-        PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-        ConnectedFiringLineRecoveryAttemptCache.Remove(character.Guid);
-        PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
-        PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
-        PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-        AiProcessTurnRecoveryConsumedCache.Remove(character.Guid);
-        ForcedMotionAttackBudgetCache.Remove(character.Guid);
-        PostRecoveryEndTurnMainActionSealCache.Remove(character.Guid);
-        PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-        PendingEndTurnRecoveryActionAcceptanceCache.Remove(character.Guid);
-        EndTurnRecoveryActionAcceptedCache.Remove(character.Guid);
-        EndTurnRecoveryActionSubmittedCache.Remove(character.Guid);
-        SearchNoConnectedBoundaryCache.Remove(character.Guid);
-        SearchNoConnectedStartNextPassCache.Remove(character.Guid);
-        SearchNoConnectedEndTurnFallbackCache.Remove(character.Guid);
-        PendingRouteTerminalBonusActionRequestCache.Remove(character.Guid);
+        ClearTurnState(character);
     }
 
-    private static void FailStalePendingTerminalActions(GameLocationCharacter character)
+    private readonly struct RouteCandidateCacheKey(
+        ulong actorGuid,
+        int3 actorPosition,
+        ulong targetGuid,
+        int3 targetPosition,
+        CombatAiActionKind actionKind,
+        int actionStateSignature,
+        int targetStateSignature) : IEquatable<RouteCandidateCacheKey>
     {
-        if (character?.RulesetCharacter == null)
+        private ulong ActorGuid { get; } = actorGuid;
+        private int3 ActorPosition { get; } = actorPosition;
+        private ulong TargetGuid { get; } = targetGuid;
+        private int3 TargetPosition { get; } = targetPosition;
+        private CombatAiActionKind ActionKind { get; } = actionKind;
+        private int ActionStateSignature { get; } = actionStateSignature;
+        private int TargetStateSignature { get; } = targetStateSignature;
+
+        public bool Equals(RouteCandidateCacheKey other)
         {
-            return;
+            return ActorGuid == other.ActorGuid &&
+                   ActorPosition == other.ActorPosition &&
+                   TargetGuid == other.TargetGuid &&
+                   TargetPosition == other.TargetPosition &&
+                   ActionKind == other.ActionKind &&
+                   ActionStateSignature == other.ActionStateSignature &&
+                   TargetStateSignature == other.TargetStateSignature;
         }
 
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (PendingTerminalDodgeEndTurnCache.TryGetValue(character.Guid, out var pendingTerminalDodge) &&
-            (pendingTerminalDodge.Round != currentRound || pendingTerminalDodge.TurnStamp != currentTurnStamp))
+        public override bool Equals(object obj)
         {
-            var hasPendingCondition =
-                PendingFallbackDodgeConditionCache.TryGetValue(character.Guid, out var existingConditions);
-            var condition = hasPendingCondition
-                ? FindNewDodgingCondition(character.RulesetCharacter, existingConditions)
-                : null;
-
-            PendingFallbackDodgeConditionCache.Remove(character.Guid);
-            PendingTerminalDodgeEndTurnCache.Remove(character.Guid);
-            PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-
-            if (condition != null)
-            {
-                NormalizeFallbackDodgeCondition(character, condition);
-                TryCompleteTerminalDodgeEndTurn(
-                    character,
-                    true,
-                    pendingTerminalDodge,
-                    TerminalDodgeCompletionKind.Applied);
-            }
-            else
-            {
-                var dodgeStatus = character.GetActionStatus(Id.Dodge, ActionScope.Battle);
-
-            }
+            return obj is RouteCandidateCacheKey other && Equals(other);
         }
 
-        if (PendingTerminalReadyEndTurnCache.TryGetValue(character.Guid, out var pendingTerminalReady) &&
-            (pendingTerminalReady.Round != currentRound || pendingTerminalReady.TurnStamp != currentTurnStamp))
+        public override int GetHashCode()
         {
-            var readyStatus = character.GetActionStatus(Id.Ready, ActionScope.Battle);
+            unchecked
+            {
+                var hash = (int)ActorGuid;
 
-            PendingTerminalReadyEndTurnCache.Remove(character.Guid);
-            PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-            TryCompleteTerminalReadyEndTurn(
-                character,
-                pendingTerminalReady,
-                TerminalReadyCompletionKind.EngineRejected);
+                hash = (hash * 397) ^ ActorPosition.x;
+                hash = (hash * 397) ^ ActorPosition.y;
+                hash = (hash * 397) ^ ActorPosition.z;
+                hash = (hash * 397) ^ (int)TargetGuid;
+                hash = (hash * 397) ^ TargetPosition.x;
+                hash = (hash * 397) ^ TargetPosition.y;
+                hash = (hash * 397) ^ TargetPosition.z;
+                hash = (hash * 397) ^ (int)ActionKind;
+                hash = (hash * 397) ^ ActionStateSignature;
+                hash = (hash * 397) ^ TargetStateSignature;
+
+                return hash;
+            }
         }
     }
 
-    private static void FailStalePendingRouteActionOnlyTerminal(GameLocationCharacter character)
+    private readonly struct ReachableRouteCacheKey(
+        ulong actorGuid,
+        int3 start,
+        int remainingMove,
+        int round,
+        int turnStamp,
+        bool walkOnly) : IEquatable<ReachableRouteCacheKey>
     {
-        if (character?.RulesetCharacter == null ||
-            !PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var pendingTerminal))
+        internal ulong ActorGuid { get; } = actorGuid;
+        private int3 Start { get; } = start;
+        private int RemainingMove { get; } = remainingMove;
+        private int Round { get; } = round;
+        private int TurnStamp { get; } = turnStamp;
+        private bool WalkOnly { get; } = walkOnly;
+
+        public bool Equals(ReachableRouteCacheKey other)
         {
-            return;
+            return ActorGuid == other.ActorGuid &&
+                   Start == other.Start &&
+                   RemainingMove == other.RemainingMove &&
+                   Round == other.Round &&
+                   TurnStamp == other.TurnStamp &&
+                   WalkOnly == other.WalkOnly;
         }
 
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (pendingTerminal.MatchesCurrentTurn(currentRound, currentTurnStamp))
+        public override bool Equals(object obj)
         {
-            return;
+            return obj is ReachableRouteCacheKey other && Equals(other);
         }
 
-        PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-        PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-        ClearRouteMoveDashBlock(character);
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = (int)ActorGuid;
+
+                hash = (hash * 397) ^ Start.x;
+                hash = (hash * 397) ^ Start.y;
+                hash = (hash * 397) ^ Start.z;
+                hash = (hash * 397) ^ RemainingMove;
+                hash = (hash * 397) ^ Round;
+                hash = (hash * 397) ^ TurnStamp;
+                hash = (hash * 397) ^ WalkOnly.GetHashCode();
+
+                return hash;
+            }
+        }
+    }
+
+    private readonly struct ActorTurnKey(
+        ulong actorGuid,
+        int round,
+        int turnStamp) : IEquatable<ActorTurnKey>
+    {
+        internal ulong ActorGuid { get; } = actorGuid;
+        private int Round { get; } = round;
+        private int TurnStamp { get; } = turnStamp;
+
+        public bool Equals(ActorTurnKey other)
+        {
+            return ActorGuid == other.ActorGuid && Round == other.Round && TurnStamp == other.TurnStamp;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is ActorTurnKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = (int)ActorGuid;
+
+                hash = (hash * 397) ^ Round;
+                hash = (hash * 397) ^ TurnStamp;
+
+                return hash;
+            }
+        }
     }
 
     internal static void PrimeTurnCache(GameLocationCharacter character)
@@ -2772,35 +1902,29 @@ internal static partial class CombatAiContext
             return;
         }
 
-        EnsureCombatAiRuntimeCache(character);
+        EnsureCombatAiRuntimeCache();
 
         if (IsAdvancedCombatAiEnabled)
         {
             ObservedCombatMemoryTurnStamp++;
-            ForcedMotionAttackBudgetCache.Remove(character.Guid);
-            PostRecoveryEndTurnMainActionSealCache.Remove(character.Guid);
-            FailStalePendingTerminalActions(character);
-            FailStalePendingRouteActionOnlyTerminal(character);
-            TurnStartActionEconomyCache[character.Guid] = BuildActionEconomySnapshot(character);
-            UpdateTacticalSituationMemory(character);
-            MeleeAttackPositionCache.Clear();
-            SpellAttackPositionCache.Clear();
-            ActionKindPositionCache.Clear();
-            CoverEvaluationCache.Clear();
-            CurrentStateRouteBlockCache.Remove(character.Guid);
-            GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
-            GroundMeleePartialRouteCache.Remove(character.Guid);
-            ClearReachableRouteDestinationCache(character);
-            TurnMovementProgressCache.Remove(character.Guid);
-            ResolveGroundMeleeMoveSettling(character, allowConnectedRouteValidation: true);
+            InvalidateTurnPlanningCache(character);
+
+            if (!IsAiControlledForCombat(character) ||
+                !CanExecuteAutomaticCombatAction(character))
+            {
+                return;
+            }
+
             var profile = BuildProfile(character);
             var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
 
-            if (battleService != null && IsAiControlledForCombat(character))
+            if (battleService != null)
             {
-                PrimeTurnMovementProgress(character, BuildCombatAiTurnPlan(character, profile, battleService));
-            }
+                var turnPlan = BuildCombatAiTurnPlan(character, profile, battleService);
 
+                PrimeTurnMovementProgress(character, turnPlan);
+                PrimeGroundMeleeTargetContactRouteQuery(character, turnPlan);
+            }
         }
 
     }
@@ -2812,36 +1936,32 @@ internal static partial class CombatAiContext
             return;
         }
 
+        ClearTurnState(character);
+        InvalidateTurnPlanningCache(character);
+
+        if (character.RulesetCharacter != null)
+        {
+            PersonalityFlagsCache.Remove(character.RulesetCharacter.Guid);
+        }
+    }
+
+    private static void InvalidateTurnPlanningCache(GameLocationCharacter character)
+    {
+        if (character == null)
+        {
+            return;
+        }
 
         ProfileCache.Remove(character.Guid);
         MeleeAttackPositionCache.Clear();
-        SpellAttackPositionCache.Clear();
         ActionKindPositionCache.Clear();
         CoverEvaluationCache.Clear();
         JumpImmediateAttackReachableCache.Remove(character.Guid);
         GroundMeleeJumpRouteAvailableCache.Remove(character.Guid);
         CurrentStateRouteBlockCache.Remove(character.Guid);
         TargetContactRouteQueryCache.Remove(character.Guid);
-        GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
+        TurnMovementProgressCache.Remove(character.Guid);
         ClearReachableRouteDestinationCache(character);
-        PendingAiMoveAttemptCache.Remove(character.Guid);
-        ThreatRouteRecoveryCache.Remove(character.Guid);
-        TurnStartActionEconomyCache.Remove(character.Guid);
-        PendingResidualMainActionCache.Remove(character.Guid);
-        PendingUtilityTerminalContinuationCache.Remove(character.Guid);
-        DisconnectedSearchMoveCompletionSealCache.Remove(character.Guid);
-        DisconnectedSearchNoRouteMovementSealCache.Remove(character.Guid);
-        SearchNoConnectedEndTurnFallbackCache.Remove(character.Guid);
-        PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-        AiProcessTurnRecoveryConsumedCache.Remove(character.Guid);
-        ForcedMotionAttackBudgetCache.Remove(character.Guid);
-        GroundMeleeMoveSettlingCache.Remove(character.Guid);
-        ClearRouteTerminalState(character);
-
-        if (character.RulesetCharacter != null)
-        {
-            PersonalityFlagsCache.Remove(character.RulesetCharacter.Guid);
-        }
     }
 
     internal static void ClearBattleMemory(GameLocationCharacter character)
@@ -2851,109 +1971,21 @@ internal static partial class CombatAiContext
             return;
         }
 
-
+        ClearTurnState(character);
+        InvalidateTurnPlanningCache(character);
         ObservedCombatMemoryCache.Remove(character.Guid);
-        AiMoveFailureCache.Remove(character.Guid);
-        PendingAiMoveAttemptCache.Remove(character.Guid);
-        PostMainClearAllyCorridorAttemptCache.Remove(character.Guid);
-        ActionLinkedMoveCache.Remove(character.Guid);
-        ActionLinkedMoveSettlingCache.Remove(character.Guid);
-        RouteMoveCompletionClosedCache.Remove(character.Guid);
-        PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-        PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-        ConnectedFiringLineRecoveryAttemptCache.Remove(character.Guid);
-        LostTargetSearchAttemptCache.Remove(character.Guid);
-        PendingRouteMovementLockCache.Remove(character.Guid);
-        ThreatRouteRecoveryCache.Remove(character.Guid);
-        ProxyThreatRouteAttemptCache.Remove(character.Guid);
-        PreMainRouteMoveAttemptCache.Remove(character.Guid);
-        DisconnectedPositioningSealCache.Remove(character.Guid);
-        DisconnectedPositioningMovementLockCache.Remove(character.Guid);
-        DisconnectedSearchMoveCompletionSealCache.Remove(character.Guid);
-        DisconnectedSearchNoRouteMovementSealCache.Remove(character.Guid);
         PendingFallbackDodgeConditionCache.Remove(character.Guid);
-        PendingTerminalDodgeEndTurnCache.Remove(character.Guid);
-        PendingTerminalReadyEndTurnCache.Remove(character.Guid);
-        PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
-        PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
-        PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-        AiProcessTurnRecoveryConsumedCache.Remove(character.Guid);
-        ForcedMotionAttackBudgetCache.Remove(character.Guid);
-        PostRecoveryEndTurnMainActionSealCache.Remove(character.Guid);
-        PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
         FallbackDodgeConditionCache.Remove(character.Guid);
-        RepeatTerminalActionCache.Remove(character.Guid);
-        RepeatAttackActionCache.Remove(character.Guid);
-        TurnMovementProgressCache.Remove(character.Guid);
-        LastActionExecutionCache.Remove(character.Guid);
-        LastMainActionExecutionCache.Remove(character.Guid);
-        TurnMainActionUseCountCache.Remove(character.Guid);
-        TurnBonusActionUseCountCache.Remove(character.Guid);
-        TurnStartActionEconomyCache.Remove(character.Guid);
-        PendingEndTurnRecoveryActionAcceptanceCache.Remove(character.Guid);
-        EndTurnRecoveryActionAcceptedCache.Remove(character.Guid);
-        EndTurnRecoveryActionSubmittedCache.Remove(character.Guid);
-        SearchNoConnectedBoundaryCache.Remove(character.Guid);
-        SearchNoConnectedStartNextPassCache.Remove(character.Guid);
-        SearchNoConnectedEndTurnFallbackCache.Remove(character.Guid);
-        PendingRouteTerminalBonusActionRequestCache.Remove(character.Guid);
         RecentMeleeThreatMemoryCache.Remove(character.Guid);
         ThreatAvoidanceMemoryCache.Remove(character.Guid);
-        TacticalSituationMemoryCache.Remove(character.Guid);
-        PendingResidualMainActionCache.Remove(character.Guid);
-        PendingUtilityTerminalContinuationCache.Remove(character.Guid);
-        RouteMoveDashBlockCache.Remove(character.Guid);
-        BaselineFreeJumpAttemptCache.Remove(character.Guid);
-        JumpImmediateAttackReachableCache.Remove(character.Guid);
-        GroundMeleeJumpRouteAvailableCache.Remove(character.Guid);
-        CurrentStateRouteBlockCache.Remove(character.Guid);
-        var groundMeleeRouteKey = GetGroundMeleeRouteMemoryKey(character);
 
-        GroundMeleeRouteIntentCache.Remove(groundMeleeRouteKey);
-        GroundMeleeRouteFailureCache.Remove(groundMeleeRouteKey);
-        GroundMeleeDetourCandidateCache.Remove(groundMeleeRouteKey);
-        GroundMeleeMoveSettlingCache.Remove(character.Guid);
-        GroundMeleePartialRouteCache.Remove(character.Guid);
-        GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
-        ClearReachableRouteDestinationCache(character);
-    }
-
-    internal static void ClearAiMoveFailures(GameLocationCharacter character)
-    {
-        if (character == null)
+        if (character.RulesetCharacter != null)
         {
-            return;
+            PersonalityFlagsCache.Remove(character.RulesetCharacter.Guid);
         }
-
-
-        AiMoveFailureCache.Remove(character.Guid);
-        PendingAiMoveAttemptCache.Remove(character.Guid);
-        PostMainClearAllyCorridorAttemptCache.Remove(character.Guid);
-        ActionLinkedMoveCache.Remove(character.Guid);
-        ActionLinkedMoveSettlingCache.Remove(character.Guid);
-        RouteMoveCompletionClosedCache.Remove(character.Guid);
-        PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-        PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-        ConnectedFiringLineRecoveryAttemptCache.Remove(character.Guid);
-        LostTargetSearchAttemptCache.Remove(character.Guid);
-        PendingRouteMovementLockCache.Remove(character.Guid);
-        ThreatRouteRecoveryCache.Remove(character.Guid);
-        ProxyThreatRouteAttemptCache.Remove(character.Guid);
-        PreMainRouteMoveAttemptCache.Remove(character.Guid);
-        DisconnectedPositioningSealCache.Remove(character.Guid);
-        DisconnectedPositioningMovementLockCache.Remove(character.Guid);
-        DisconnectedSearchMoveCompletionSealCache.Remove(character.Guid);
-        JumpImmediateAttackReachableCache.Remove(character.Guid);
-        GroundMeleeJumpRouteAvailableCache.Remove(character.Guid);
-        CurrentStateRouteBlockCache.Remove(character.Guid);
-        GroundMeleeMoveSettlingCache.Remove(character.Guid);
-        GroundMeleePartialRouteCache.Remove(character.Guid);
-        GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
-        ClearReachableRouteDestinationCache(character);
-        BaselineFreeJumpAttemptCache.Remove(character.Guid);
     }
 
-    private static void EnsureCombatAiRuntimeCache(GameLocationCharacter character)
+    private static void EnsureCombatAiRuntimeCache()
     {
         var battle = Gui.Battle;
         var round = GetCurrentBattleRound();
@@ -3001,7 +2033,6 @@ internal static partial class CombatAiContext
         CurrentBattleCacheRound = battle == null ? -1 : round;
         CurrentAdvancedCombatAiSetting = advancedCombatAiEnabled;
         CurrentBonusActionFreeJumpSetting = bonusActionFreeJumpEnabled;
-        _ = character;
     }
 
     private static void ClearRuntimeCaches()
@@ -3014,13 +2045,11 @@ internal static partial class CombatAiContext
         PostMainClearAllyCorridorAttemptCache.Clear();
         ActionLinkedMoveCache.Clear();
         ActionLinkedMoveSettlingCache.Clear();
+        CompletedAiMoveStepCache.Clear();
         RouteMoveCompletionClosedCache.Clear();
-        PendingRouteActionOnlyTerminalCache.Clear();
-        PendingRouteTerminalStartNextResolutionCache.Clear();
-        ConnectedFiringLineRecoveryAttemptCache.Clear();
+
         LostTargetSearchAttemptCache.Clear();
         PendingRouteMovementLockCache.Clear();
-        ThreatRouteRecoveryCache.Clear();
         ProxyThreatRouteAttemptCache.Clear();
         PreMainRouteMoveAttemptCache.Clear();
         DisconnectedPositioningSealCache.Clear();
@@ -3028,68 +2057,35 @@ internal static partial class CombatAiContext
         DisconnectedSearchMoveCompletionSealCache.Clear();
         DisconnectedSearchNoRouteMovementSealCache.Clear();
         PendingFallbackDodgeConditionCache.Clear();
-        PendingTerminalDodgeEndTurnCache.Clear();
-        PendingTerminalReadyEndTurnCache.Clear();
-        PendingAiProcessTerminalLaunchCache.Clear();
-        PendingAiProcessTerminalLaunchAcceptedCache.Clear();
-        PendingAiProcessTurnRecoveryCache.Clear();
-        AiProcessTurnRecoveryConsumedCache.Clear();
-        ForcedMotionAttackBudgetCache.Clear();
-        PostRecoveryEndTurnMainActionSealCache.Clear();
-        PendingTerminalActionEndTurnSuppressCache.Clear();
+
         FallbackDodgeConditionCache.Clear();
-        RepeatTerminalActionCache.Clear();
         RepeatAttackActionCache.Clear();
         TurnMovementProgressCache.Clear();
         LastActionExecutionCache.Clear();
         LastMainActionExecutionCache.Clear();
         TurnMainActionUseCountCache.Clear();
         TurnBonusActionUseCountCache.Clear();
-        TurnStartActionEconomyCache.Clear();
-        PendingEndTurnRecoveryActionAcceptanceCache.Clear();
-        EndTurnRecoveryActionAcceptedCache.Clear();
-        EndTurnRecoveryActionSubmittedCache.Clear();
-        SearchNoConnectedBoundaryCache.Clear();
-        SearchNoConnectedStartNextPassCache.Clear();
-        SearchNoConnectedEndTurnFallbackCache.Clear();
-        PendingRouteTerminalBonusActionRequestCache.Clear();
+
         RecentMeleeThreatMemoryCache.Clear();
         ThreatAvoidanceMemoryCache.Clear();
-        TacticalSituationMemoryCache.Clear();
         PendingResidualMainActionCache.Clear();
-        PendingUtilityTerminalContinuationCache.Clear();
-        RouteMoveDashBlockCache.Clear();
+
         BaselineFreeJumpAttemptCache.Clear();
         MeleeAttackPositionCache.Clear();
-        SpellAttackPositionCache.Clear();
         ActionKindPositionCache.Clear();
         CoverEvaluationCache.Clear();
         JumpImmediateAttackReachableCache.Clear();
         GroundMeleeJumpRouteAvailableCache.Clear();
         CurrentStateRouteBlockCache.Clear();
         TargetContactRouteQueryCache.Clear();
-        GroundMeleeRouteIntentCache.Clear();
         GroundMeleeRouteFailureCache.Clear();
-        GroundMeleeDetourCandidateCache.Clear();
         GroundMeleeMoveSettlingCache.Clear();
         GroundMeleePartialRouteCache.Clear();
-        GroundMeleeNoMoveTerminalSealCache.Clear();
+
         ReachableRouteDestinationCache.Clear();
         ReachableRoutePathfindingCountCache.Clear();
         FreeJumpContext.ClearPendingAiFreeJumpCompletions();
         ObservedCombatMemoryTurnStamp = 0;
-    }
-
-    internal static bool HasPendingActionLinkedMove(GameLocationCharacter character)
-    {
-        return character != null &&
-               (ActionLinkedMoveCache.ContainsKey(character.Guid) ||
-                ActionLinkedMoveSettlingCache.ContainsKey(character.Guid));
-    }
-
-    private static int GetDictionaryValueOrDefault(Dictionary<ulong, int> dictionary, ulong key)
-    {
-        return dictionary.TryGetValue(key, out var value) ? value : 0;
     }
 
     internal static IEnumerator HandleAiForcedMotionCompleted(CharacterAction action)
@@ -3099,169 +2095,9 @@ internal static partial class CombatAiContext
             yield break;
         }
 
-        TryCloseForcedMotionGroundMeleeTerminal(action.ActingCharacter);
         ClearForcedMotionPositionDependentAiState(action.ActingCharacter);
 
-        if (!ShouldDeferForcedMotionToAiProcessRecovery(action.ActingCharacter))
-        {
-            yield break;
-        }
-
-        ScheduleAiProcessTurnRecovery(
-            action.ActingCharacter,
-            action.ActionId,
-            CombatAiTurnRecoveryReason.ForcedMotion);
-
         yield break;
-    }
-
-    private static bool TryCloseForcedMotionGroundMeleeTerminal(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsAdvancedCombatAiEnabled ||
-            !IsAiControlledForCombat(character) ||
-            !IsActiveBattleContender(character) ||
-            !PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var terminal) ||
-            ActionLinkedMoveCache.ContainsKey(character.Guid) ||
-            ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
-            GroundMeleeMoveSettlingCache.ContainsKey(character.Guid) ||
-            !IsGroundMeleePursuitTerminalRoute(terminal.PendingAction) ||
-            !HasClosedNoMoveGroundMeleeRoute(character) ||
-            !IsTacticalMovementUnavailable(character))
-        {
-            return false;
-        }
-
-        var target = terminal.PendingAction.Target;
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-
-        if (target?.RulesetCharacter == null ||
-            battleService == null ||
-            CanUseActionKindAtPosition(
-                character,
-                character.LocationPosition,
-                target,
-                CombatAiActionKind.Melee,
-                battleService))
-        {
-            return false;
-        }
-
-        PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-        PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-        PendingRouteMovementLockCache.Remove(character.Guid);
-        GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
-        GroundMeleePartialRouteCache.Remove(character.Guid);
-        RouteMoveDashBlockCache.Remove(character.Guid);
-        TurnMovementProgressCache.Remove(character.Guid);
-
-
-        return true;
-    }
-
-    private static void ScheduleAiProcessTurnRecovery(
-        GameLocationCharacter character,
-        Id actionId,
-        CombatAiTurnRecoveryReason recoveryReason)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsAdvancedCombatAiEnabled ||
-            !IsAiControlledForCombat(character) ||
-            !CanExecuteAutomaticCombatAction(character) ||
-            !IsActiveBattleContender(character))
-        {
-            return;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        PendingAiProcessTurnRecoveryCache[character.Guid] =
-            new PendingAiProcessTurnRecoveryMemory(currentRound, currentTurnStamp, actionId, recoveryReason);
-    }
-
-    private static bool TryGetCurrentPendingAiProcessTurnRecovery(
-        GameLocationCharacter character,
-        out PendingAiProcessTurnRecoveryMemory memory)
-    {
-        memory = default;
-
-        if (character?.RulesetCharacter == null ||
-            !PendingAiProcessTurnRecoveryCache.TryGetValue(character.Guid, out memory))
-        {
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
-        {
-            return true;
-        }
-
-        PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-        memory = default;
-
-        return false;
-    }
-
-    internal static bool TryConsumePendingAiProcessTurnRecoveryAtAiProcessBoundary(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PendingAiProcessTurnRecoveryCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
-        {
-            PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-            return true;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-            return true;
-        }
-
-        if (TryAllowRecoveryAttackContinuation(character, memory.RecoveryReason))
-        {
-            PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-
-            return false;
-        }
-
-        if (HasCurrentAiProcessTurnRecovery(character))
-        {
-            PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-            return true;
-        }
-
-        return TryRecoverAiProcessTurnProgression(character, memory.RecoveryReason);
-    }
-
-    internal static bool TryExitAiProcessAfterPostRecoveryEndTurn(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsAdvancedCombatAiEnabled ||
-            !IsAiControlledForCombat(character) ||
-            !IsActiveBattleContender(character) ||
-            !HasCurrentPostRecoveryEndTurnMainActionSeal(character))
-        {
-            return false;
-        }
-
-        if (HasPendingReactionRequests())
-        {
-            return false;
-        }
-
-        return true;
     }
 
     private static bool ClearForcedMotionPositionDependentAiState(GameLocationCharacter character)
@@ -3281,13 +2117,10 @@ internal static partial class CombatAiContext
         removed |= PendingAiMoveAttemptCache.Remove(guid);
         removed |= ActionLinkedMoveCache.Remove(guid);
         removed |= ActionLinkedMoveSettlingCache.Remove(guid);
-        removed |= PendingRouteActionOnlyTerminalCache.Remove(guid);
-        removed |= PendingRouteTerminalStartNextResolutionCache.Remove(guid);
+
         removed |= PendingRouteMovementLockCache.Remove(guid);
         removed |= RouteMoveCompletionClosedCache.Remove(guid);
-        removed |= RouteMoveDashBlockCache.Remove(guid);
         removed |= TurnMovementProgressCache.Remove(guid);
-        removed |= ThreatRouteRecoveryCache.Remove(guid);
         removed |= ProxyThreatRouteAttemptCache.Remove(guid);
         removed |= PreMainRouteMoveAttemptCache.Remove(guid);
         removed |= DisconnectedPositioningMovementLockCache.Remove(guid);
@@ -3298,10 +2131,8 @@ internal static partial class CombatAiContext
         removed |= TargetContactRouteQueryCache.Remove(guid);
         removed |= GroundMeleeMoveSettlingCache.Remove(guid);
         removed |= GroundMeleePartialRouteCache.Remove(guid);
-        removed |= GroundMeleeNoMoveTerminalSealCache.Remove(guid);
-        removed |= GroundMeleeRouteIntentCache.Remove(groundMeleeRouteKey);
+
         removed |= GroundMeleeRouteFailureCache.Remove(groundMeleeRouteKey);
-        removed |= GroundMeleeDetourCandidateCache.Remove(groundMeleeRouteKey);
         removed |= FreeJumpContext.ClearAiMoveTargetState(character);
 
         ClearReachableRouteDestinationCache(character);
@@ -3309,27 +2140,10 @@ internal static partial class CombatAiContext
         if (removed)
         {
             MeleeAttackPositionCache.Clear();
-            SpellAttackPositionCache.Clear();
             ActionKindPositionCache.Clear();
         }
 
         return removed;
-    }
-
-    private static bool ShouldDeferForcedMotionToAiProcessRecovery(GameLocationCharacter character)
-    {
-        if (!HasAvailableAttackMainContinuation(character))
-        {
-            return true;
-        }
-
-        if (!TryGetCommittedNonTerminalMainActionThisTurn(character, out var memory) ||
-            memory.ActionId != Id.AttackMain)
-        {
-            return false;
-        }
-
-        return !TryCreateRecoveryAttackBudget(character, CombatAiTurnRecoveryReason.ForcedMotion);
     }
 
     private static bool HasAvailableAttackMainContinuation(GameLocationCharacter character)
@@ -3344,91 +2158,39 @@ internal static partial class CombatAiContext
 
         if (!TryGetMainAttackBudgetSnapshot(
                 character,
-                out _,
+                out var rank,
                 out var usedMainAttacks,
                 out var allowedMainAttacks,
                 out _))
         {
-            return true;
+            return HasAvailableAttackModeForMainAction(character);
         }
 
-        return allowedMainAttacks <= 0 || usedMainAttacks < allowedMainAttacks;
+        if (TryGetCurrentTurnActionMemory(character, LastMainActionExecutionCache, out var lastMainAction) &&
+            lastMainAction.ActionId == Id.AttackMain &&
+            lastMainAction.ActionRank == rank)
+        {
+            usedMainAttacks = Math.Max(
+                usedMainAttacks,
+                GetActionUseCount(TurnMainActionUseCountCache, character));
+        }
+
+        return (allowedMainAttacks <= 0 || usedMainAttacks < allowedMainAttacks) &&
+               HasAvailableAttackModeForMainAction(character);
     }
 
-    private static bool TryCreateRecoveryAttackBudget(
-        GameLocationCharacter character,
-        CombatAiTurnRecoveryReason recoveryReason)
+    private static bool HasRemainingAttackMainContinuation(GameLocationCharacter character)
     {
-        if (TryGetCurrentForcedMotionAttackBudget(character, out var existing))
-        {
-            return existing.RemainingAttacks > 0;
-        }
-
-        if (!TryGetMainAttackBudgetSnapshot(
-                character,
-                out var rank,
-                out var usedMainAttacks,
-                out var allowedMainAttacks,
-                out var iterations))
-        {
-            return false;
-        }
-
-        var mainUseCount = GetActionUseCount(TurnMainActionUseCountCache, character);
-        var remainingAttacks = ComputeRecoveryAttackBudgetRemaining(
-            usedMainAttacks,
-            allowedMainAttacks,
-            iterations,
-            mainUseCount);
-
-        if (iterations <= 0)
-        {
-            return false;
-        }
-
-        if (remainingAttacks <= 0)
-        {
-            return false;
-        }
-
-        var budget = new ForcedMotionAttackBudgetMemory(
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp),
-            rank,
-            usedMainAttacks,
-            allowedMainAttacks,
-            iterations,
-            mainUseCount,
-            remainingAttacks,
-            recoveryReason);
-
-        ForcedMotionAttackBudgetCache[character.Guid] = budget;
-
-        return true;
+        return HasPendingAttackMainIteration(character) &&
+               HasAvailableAttackMainContinuation(character);
     }
 
-    private static int ComputeRecoveryAttackBudgetRemaining(
-        int usedMainAttacks,
-        int allowedMainAttacks,
-        int iterations,
-        int mainUseCount)
+    private static bool HasPendingAttackMainIteration(GameLocationCharacter character)
     {
-        if (iterations <= 0)
-        {
-            return 0;
-        }
-
-        if (usedMainAttacks > 0 && allowedMainAttacks > 0)
-        {
-            return Math.Max(0, Math.Min(iterations, allowedMainAttacks - usedMainAttacks));
-        }
-
-        if (mainUseCount > 0 && allowedMainAttacks > 0)
-        {
-            return Math.Max(0, Math.Min(iterations, allowedMainAttacks - mainUseCount));
-        }
-
-        return Math.Max(0, iterations);
+        return TryGetCurrentTurnActionMemory(character, LastMainActionExecutionCache, out var lastMainAction) &&
+               lastMainAction.ActionId == Id.AttackMain &&
+               character.GetActionStatus(Id.AttackMain, ActionScope.Battle) == ActionStatus.Available &&
+               character.GetActionAvailableIterations(Id.AttackMain) > 0;
     }
 
     private static bool TryGetMainAttackBudgetSnapshot(
@@ -3456,226 +2218,6 @@ internal static partial class CombatAiContext
         return allowedMainAttacks > 0 || iterations > 0;
     }
 
-    private static bool TryGetCurrentForcedMotionAttackBudget(
-        GameLocationCharacter character,
-        out ForcedMotionAttackBudgetMemory budget)
-    {
-        budget = default;
-
-        if (character?.RulesetCharacter == null ||
-            !ForcedMotionAttackBudgetCache.TryGetValue(character.Guid, out budget))
-        {
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (budget.MatchesCurrentTurn(currentRound, currentTurnStamp))
-        {
-            return true;
-        }
-
-        ForcedMotionAttackBudgetCache.Remove(character.Guid);
-        budget = default;
-
-        return false;
-    }
-
-    private static bool HasCurrentForcedMotionAttackBudgetRemaining(GameLocationCharacter character)
-    {
-        return TryGetCurrentForcedMotionAttackBudget(character, out var budget) &&
-               budget.RemainingAttacks > 0;
-    }
-
-    private static bool IsRecoveryAttackBudgetReason(CombatAiTurnRecoveryReason recoveryReason)
-    {
-        return recoveryReason == CombatAiTurnRecoveryReason.ForcedMotion ||
-               IsJumpImmediateAttackRecoveryReason(recoveryReason);
-    }
-
-    private static bool IsJumpImmediateAttackRecoveryReason(CombatAiTurnRecoveryReason recoveryReason)
-    {
-        return recoveryReason is CombatAiTurnRecoveryReason.JumpImmediateAttackAborted or
-            CombatAiTurnRecoveryReason.JumpImmediateAttackNoMove;
-    }
-
-    private static bool TryAllowRecoveryAttackContinuation(
-        GameLocationCharacter character,
-        CombatAiTurnRecoveryReason recoveryReason)
-    {
-        if (!IsRecoveryAttackBudgetReason(recoveryReason) ||
-            !HasAvailableAttackMainContinuation(character) ||
-            !TryGetCommittedNonTerminalMainActionThisTurn(character, out var memory) ||
-            memory.ActionId != Id.AttackMain ||
-            !TryCreateRecoveryAttackBudget(character, recoveryReason))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    internal static bool TryHandlePendingTurnRecoveryStartNextChain(
-        GameLocationCharacter character,
-        out bool suppressStartNextChain)
-    {
-        suppressStartNextChain = false;
-
-        if (character?.RulesetCharacter == null ||
-            !IsAdvancedCombatAiEnabled ||
-            !IsAiControlledForCombat(character))
-        {
-            return false;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            TryClearInactiveCombatAiTurnOwnership(character);
-            return false;
-        }
-
-        ObserveRouteTerminalStartNextChain(character);
-
-        if (TryObserveSearchNoConnectedStartNextBoundary(character, out suppressStartNextChain))
-        {
-            return true;
-        }
-
-        if (!TryGetCurrentJumpImmediateAttackTurnRecovery(character, out var recoveryReason))
-        {
-            return false;
-        }
-
-        if (MovementTracker.TryGetMovement(character.Guid, out _))
-        {
-            return true;
-        }
-
-        if (HasPendingReactionRequests())
-        {
-            return true;
-        }
-
-        if (HasPendingTurnRecoveryCurrentChain(character))
-        {
-            return true;
-        }
-
-        if (TryAllowRecoveryAttackContinuation(character, recoveryReason))
-        {
-            PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-
-            return true;
-        }
-
-        if (HasCurrentForcedMotionAttackBudgetRemaining(character))
-        {
-            return true;
-        }
-
-        if (TryRecoverAiProcessTurnProgression(character, recoveryReason))
-        {
-            suppressStartNextChain = true;
-            return true;
-        }
-
-        return true;
-    }
-
-    private static bool TryObserveSearchNoConnectedStartNextBoundary(
-        GameLocationCharacter character,
-        out bool suppressStartNextChain)
-    {
-        suppressStartNextChain = false;
-
-        if (character?.RulesetCharacter == null ||
-            !HasUnsafeSearchNoConnectedStartNextContext(character))
-        {
-            return false;
-        }
-
-        if (HasPendingReactionRequests() ||
-            MovementTracker.TryGetMovement(character.Guid, out _) ||
-            ActionLinkedMoveCache.ContainsKey(character.Guid) ||
-            ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
-            GroundMeleeMoveSettlingCache.ContainsKey(character.Guid) ||
-            PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid) ||
-            HasPendingAiProcessTerminalLaunch(character))
-        {
-            return true;
-        }
-
-        if (!HasCurrentSearchNoConnectedStartNextPass(character))
-        {
-            MarkSearchNoConnectedStartNextPass(character);
-        }
-
-        return false;
-    }
-
-    private static void MarkSearchNoConnectedStartNextPass(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        SearchNoConnectedStartNextPassCache[character.Guid] =
-            new TerminalSealMemory(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp));
-    }
-
-    private static bool HasCurrentSearchNoConnectedStartNextPass(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !SearchNoConnectedStartNextPassCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        if (memory.Matches(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp)))
-        {
-            return true;
-        }
-
-        SearchNoConnectedStartNextPassCache.Remove(character.Guid);
-
-        return false;
-    }
-
-    private static bool HasUnsafeSearchNoConnectedStartNextContext(GameLocationCharacter character)
-    {
-        return character?.RulesetCharacter != null &&
-               IsActiveBattleContender(character) &&
-               (HasActiveDisconnectedSearchMoveCompletionSeal(character) ||
-                HasActiveDisconnectedSearchNoRouteMovementSeal(character));
-    }
-
-    private static void ObserveRouteTerminalStartNextChain(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var memory))
-        {
-            return;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
-        {
-            ClearRouteTerminalState(character);
-            return;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            ClearRouteTerminalState(character);
-            return;
-        }
-
-    }
-
     private static bool TryClearInactiveCombatAiTurnOwnership(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null || IsActiveBattleContender(character))
@@ -3694,30 +2236,55 @@ internal static partial class CombatAiContext
             return false;
         }
 
-
-        ActionLinkedMoveCache.Remove(character.Guid);
-        ActionLinkedMoveSettlingCache.Remove(character.Guid);
-        GroundMeleeMoveSettlingCache.Remove(character.Guid);
-        GroundMeleePartialRouteCache.Remove(character.Guid);
-        GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
-        RouteMoveCompletionClosedCache.Remove(character.Guid);
-        PendingAiMoveAttemptCache.Remove(character.Guid);
-        PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-        AiProcessTurnRecoveryConsumedCache.Remove(character.Guid);
-        SearchNoConnectedBoundaryCache.Remove(character.Guid);
-        SearchNoConnectedStartNextPassCache.Remove(character.Guid);
-        SearchNoConnectedEndTurnFallbackCache.Remove(character.Guid);
-        PendingRouteTerminalBonusActionRequestCache.Remove(character.Guid);
-        PendingResidualMainActionCache.Remove(character.Guid);
-        PendingUtilityTerminalContinuationCache.Remove(character.Guid);
-        DisconnectedSearchMoveCompletionSealCache.Remove(character.Guid);
-        DisconnectedSearchNoRouteMovementSealCache.Remove(character.Guid);
-        DisconnectedPositioningSealCache.Remove(character.Guid);
-        DisconnectedPositioningMovementLockCache.Remove(character.Guid);
-        ClearRouteTerminalOwnership(character);
-        ClearRouteMoveDashBlock(character);
+        ClearTurnState(character);
+        InvalidateTurnPlanningCache(character);
 
         return true;
+    }
+
+    private static void ClearTurnState(GameLocationCharacter character)
+    {
+        if (character == null)
+        {
+            return;
+        }
+
+        var guid = character.Guid;
+
+        AiMoveFailureCache.Remove(guid);
+        PendingAiMoveAttemptCache.Remove(guid);
+        PostMainClearAllyCorridorAttemptCache.Remove(guid);
+        ActionLinkedMoveCache.Remove(guid);
+        ActionLinkedMoveSettlingCache.Remove(guid);
+        CompletedAiMoveStepCache.Remove(guid);
+        RouteMoveCompletionClosedCache.Remove(guid);
+        LostTargetSearchAttemptCache.Remove(guid);
+        PendingRouteMovementLockCache.Remove(guid);
+        ProxyThreatRouteAttemptCache.Remove(guid);
+        PreMainRouteMoveAttemptCache.Remove(guid);
+        DisconnectedPositioningSealCache.Remove(guid);
+        DisconnectedPositioningMovementLockCache.Remove(guid);
+        DisconnectedSearchMoveCompletionSealCache.Remove(guid);
+        DisconnectedSearchNoRouteMovementSealCache.Remove(guid);
+        PendingFallbackDodgeConditionCache.Remove(guid);
+        RepeatAttackActionCache.Remove(guid);
+        TurnMovementProgressCache.Remove(guid);
+        LastActionExecutionCache.Remove(guid);
+        LastMainActionExecutionCache.Remove(guid);
+        TurnMainActionUseCountCache.Remove(guid);
+        TurnBonusActionUseCountCache.Remove(guid);
+        PendingResidualMainActionCache.Remove(guid);
+        BaselineFreeJumpAttemptCache.Remove(guid);
+        JumpImmediateAttackReachableCache.Remove(guid);
+        GroundMeleeJumpRouteAvailableCache.Remove(guid);
+        CurrentStateRouteBlockCache.Remove(guid);
+        TargetContactRouteQueryCache.Remove(guid);
+        GroundMeleeRouteFailureCache.Remove(GetGroundMeleeRouteMemoryKey(character));
+        GroundMeleeMoveSettlingCache.Remove(guid);
+        GroundMeleePartialRouteCache.Remove(guid);
+        ClearReachableRouteDestinationCache(character);
+        FreeJumpContext.ClearAiMoveTargetState(character);
+        MovementTracker.ClearMovement(character);
     }
 
     private static bool HasPendingCombatAiTurnOwnershipState(GameLocationCharacter character)
@@ -3733,766 +2300,10 @@ internal static partial class CombatAiContext
                ActionLinkedMoveCache.ContainsKey(guid) ||
                ActionLinkedMoveSettlingCache.ContainsKey(guid) ||
                GroundMeleeMoveSettlingCache.ContainsKey(guid) ||
-               PendingAiProcessTurnRecoveryCache.ContainsKey(guid) ||
-               PendingRouteActionOnlyTerminalCache.ContainsKey(guid) ||
-               PendingAiProcessTerminalLaunchCache.ContainsKey(guid) ||
-               PendingAiProcessTerminalLaunchAcceptedCache.Contains(guid) ||
-               PendingTerminalDodgeEndTurnCache.ContainsKey(guid) ||
-               PendingTerminalReadyEndTurnCache.ContainsKey(guid) ||
-               PendingTerminalActionEndTurnSuppressCache.Contains(guid) ||
-               PendingEndTurnRecoveryActionAcceptanceCache.ContainsKey(guid) ||
-               EndTurnRecoveryActionAcceptedCache.Contains(guid) ||
-               EndTurnRecoveryActionSubmittedCache.Contains(guid) ||
-               PendingUtilityTerminalContinuationCache.ContainsKey(guid) ||
                DisconnectedSearchMoveCompletionSealCache.ContainsKey(guid) ||
                DisconnectedSearchNoRouteMovementSealCache.ContainsKey(guid) ||
-               SearchNoConnectedBoundaryCache.ContainsKey(guid) ||
-               SearchNoConnectedStartNextPassCache.ContainsKey(guid) ||
-               SearchNoConnectedEndTurnFallbackCache.ContainsKey(guid) ||
-               PendingRouteTerminalBonusActionRequestCache.Contains(guid) ||
-               RouteMoveDashBlockCache.ContainsKey(guid) ||
                PendingRouteMovementLockCache.ContainsKey(guid) ||
                RouteMoveCompletionClosedCache.ContainsKey(guid);
-    }
-
-    private static bool HasPendingTurnRecoveryCurrentChain(GameLocationCharacter character)
-    {
-        return HasCurrentActionChain(character);
-    }
-
-    private static bool TryResolvePendingJumpImmediateMoveSettlingAtStableBoundary(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !GroundMeleeMoveSettlingCache.TryGetValue(character.Guid, out var memory) ||
-            !IsGroundMeleeJumpImmediateAttackRoute(memory.PendingAction))
-        {
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
-        {
-            GroundMeleeMoveSettlingCache.Remove(character.Guid);
-            return false;
-        }
-
-        if (MovementTracker.TryGetMovement(character.Guid, out _))
-        {
-            return false;
-        }
-
-        if (HasPendingReactionRequests())
-        {
-            return false;
-        }
-
-        var resolved = ResolveGroundMeleeMoveSettling(
-            character,
-            allowConnectedRouteValidation: true,
-            allowTerminalAction: true);
-
-
-        return resolved;
-    }
-
-    private static bool TryResolvePendingSearchKnownTargetMoveAtStableBoundary(
-        GameLocationCharacter character,
-        CombatAiStableBoundaryKind boundaryKind,
-        out bool suppressEndTurn)
-    {
-        suppressEndTurn = false;
-
-        if (character?.RulesetCharacter == null ||
-            !TryGetPendingActionLinkedMoveForCompletion(character, out var pendingAction, out _) ||
-            !IsSearchKnownTargetRoute(pendingAction))
-        {
-            return false;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            ClearPendingMoveOwnership(character);
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (pendingAction.Round != currentRound || pendingAction.TurnStamp != currentTurnStamp)
-        {
-            ClearPendingMoveOwnership(character);
-            return false;
-        }
-
-        if (MovementTracker.TryGetMovement(character.Guid, out _))
-        {
-            suppressEndTurn = true;
-            return true;
-        }
-
-        if (HasPendingReactionRequests())
-        {
-            suppressEndTurn = true;
-            return true;
-        }
-
-        if (ShouldWaitForActionLinkedMoveCallback(character, pendingAction))
-        {
-            suppressEndTurn = boundaryKind == CombatAiStableBoundaryKind.EndTurn;
-            return true;
-        }
-
-        if (character.LocationPosition == pendingAction.StartPosition)
-        {
-            CloseSearchKnownTargetMoveResult(
-                character,
-                pendingAction,
-                pendingAction.StartPosition,
-                pendingAction.ExpectedDestination,
-                SearchKnownTargetCompletionKind.FailedNoMeaningfulMovement);
-            return false;
-        }
-
-        var result = TryCompleteSearchKnownTargetMovementStep(
-            character,
-            includeSettling: true,
-            allowProgressOnlyPartialContinuation: boundaryKind != CombatAiStableBoundaryKind.EndTurn);
-        var shouldSuppressAfterSettlement = boundaryKind == CombatAiStableBoundaryKind.EndTurn &&
-                                            ShouldScheduleSearchRouteTerminal(
-                                                character,
-                                                pendingAction,
-                                                character.LocationPosition);
-
-        if (!result.IsComplete)
-        {
-            if (boundaryKind != CombatAiStableBoundaryKind.EndTurn &&
-                TryDeferProgressOnlySearchPartialMove(
-                    character,
-                    pendingAction,
-                    pendingAction.StartPosition,
-                    pendingAction.ExpectedDestination,
-                    character.LocationPosition))
-            {
-                suppressEndTurn = false;
-                return false;
-            }
-
-            CloseSearchKnownTargetMoveResult(
-                character,
-                pendingAction,
-                pendingAction.StartPosition,
-                pendingAction.ExpectedDestination,
-                SearchKnownTargetCompletionKind.SettledPartial);
-            result = new SearchKnownTargetCompletionResult(
-                SearchKnownTargetCompletionKind.SettledPartial,
-                result.Progress);
-        }
-
-
-        suppressEndTurn = shouldSuppressAfterSettlement;
-        return true;
-    }
-
-    private static bool TryResolvePendingActionLinkedMoveSettlingAtStableBoundary(
-        GameLocationCharacter character,
-        CombatAiStableBoundaryKind boundaryKind,
-        out bool suppressEndTurn)
-    {
-        suppressEndTurn = false;
-
-        if (character?.RulesetCharacter == null ||
-            !ActionLinkedMoveSettlingCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        var pendingAction = memory.PendingAction;
-
-        if (IsSearchKnownTargetRoute(pendingAction))
-        {
-            return TryResolvePendingSearchKnownTargetMoveAtStableBoundary(character, boundaryKind, out suppressEndTurn);
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            ClearPendingMoveOwnership(character);
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
-        {
-            ClearPendingMoveOwnership(character);
-            return false;
-        }
-
-        if (MovementTracker.TryGetMovement(character.Guid, out _))
-        {
-            suppressEndTurn = boundaryKind == CombatAiStableBoundaryKind.EndTurn;
-            return suppressEndTurn;
-        }
-
-        if (HasPendingReactionRequests())
-        {
-            suppressEndTurn = boundaryKind == CombatAiStableBoundaryKind.EndTurn;
-            return suppressEndTurn;
-        }
-
-        if (!memory.CallbackObserved && memory.ResultStart != memory.ResultTarget)
-        {
-            suppressEndTurn = boundaryKind == CombatAiStableBoundaryKind.EndTurn;
-            return suppressEndTurn;
-        }
-
-
-        if (IsGroundMeleeJumpImmediateAttackRoute(pendingAction))
-        {
-            var mainAlreadyResolved =
-                HasCommittedMainActionThisTurn(character) ||
-                !CanSpendTerminalMainAction(character, BuildActionEconomySnapshot(character));
-
-            TryCompletePendingJumpImmediateAttackActionChainSettled(character, aborted: false);
-            suppressEndTurn = boundaryKind == CombatAiStableBoundaryKind.StartNextChain || !mainAlreadyResolved;
-            return true;
-        }
-
-        TryCompleteActionLinkedMove(
-            character,
-            allowSettlingCompletion: true,
-            allowSettledNoMoveFinalization: true);
-        suppressEndTurn = boundaryKind == CombatAiStableBoundaryKind.StartNextChain;
-        return true;
-    }
-
-    internal static bool TryResolvePendingActionLinkedMoveSettlingAtAiProcessBoundary(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsAdvancedCombatAiEnabled ||
-            !IsAiControlledForCombat(character))
-        {
-            return false;
-        }
-
-        var handled = false;
-
-        if (ActionLinkedMoveSettlingCache.TryGetValue(character.Guid, out var memory) &&
-            IsSearchKnownTargetRoute(memory.PendingAction))
-        {
-            var pendingAction = memory.PendingAction;
-            var currentRound = GetCurrentBattleRound();
-            var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-            if (!IsActiveBattleContender(character))
-            {
-                ClearPendingMoveOwnership(character);
-                return true;
-            }
-
-            if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
-            {
-                ClearPendingMoveOwnership(character);
-                return true;
-            }
-
-            if (MovementTracker.TryGetMovement(character.Guid, out _))
-            {
-                return false;
-            }
-
-            if (HasPendingReactionRequests())
-            {
-                return false;
-            }
-
-            if (!memory.CallbackObserved && memory.ResultStart != memory.ResultTarget)
-            {
-                return false;
-            }
-
-            if (TryResolvePendingSearchKnownTargetMoveAtStableBoundary(
-                    character,
-                    CombatAiStableBoundaryKind.EndTurn,
-                    out _))
-            {
-                handled = true;
-            }
-        }
-
-        return TryConsumeSearchNoConnectedFallbackAtAiProcessBoundary(character) || handled;
-    }
-
-    private static bool TryConsumeSearchNoConnectedFallbackAtAiProcessBoundary(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !HasSearchNoConnectedEndTurnFallbackContext(character))
-        {
-            return false;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            ClearSearchNoConnectedTerminalState(character);
-            return true;
-        }
-
-        if (HasPendingActionLinkedContinuationBlocker(character))
-        {
-            return false;
-        }
-
-        var handled = TrySpendSearchNoConnectedFallbackAction(character);
-
-        if (handled)
-        {
-            if (HasPendingAiProcessTerminalLaunch(character))
-            {
-                TryConsumePendingAiProcessTerminalLaunch(character);
-            }
-
-            return true;
-        }
-
-        ClearSearchNoConnectedTerminalState(character);
-        return true;
-    }
-
-    private static bool TrySpendSearchNoConnectedFallbackAction(GameLocationCharacter character)
-    {
-        EnsureCombatAiRuntimeCache(character);
-        var actionEconomy = BuildActionEconomySnapshot(character);
-
-        if (!IsAdvancedCombatAiActionEconomyEnabled ||
-            !actionEconomy.CanAutoAct ||
-            !actionEconomy.IsAiControlled ||
-            character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-
-        if (battleService == null)
-        {
-            return false;
-        }
-
-        var profile = BuildProfile(character);
-        var self = BuildSelfAssessment(character);
-        var turnPlan = BuildCombatAiActionOnlyTurnPlan(character, profile, battleService);
-        var terminalReprobeResult = TryUseTerminalReprobeHostileAction(
-            character,
-            turnPlan,
-            battleService,
-            launchBoundary: CombatAiActionLaunchBoundary.AiProcess);
-
-        if (terminalReprobeResult.Executed)
-        {
-            return true;
-        }
-
-        if (TryUseAnyCurrentResidualHostileAction(
-                character,
-                turnPlan.ActionProbe,
-                battleService,
-                launchBoundary: CombatAiActionLaunchBoundary.AiProcess).Executed)
-        {
-            return true;
-        }
-
-        if (TrySpendLeftoverBonusActionEconomy(
-                character,
-                actionEconomy,
-                battleService,
-                allowDuringRouteTerminal: true))
-        {
-            return true;
-        }
-
-        if (TryUseFallbackAtWillSelfBuff(
-                character,
-                profile,
-                self,
-                turnPlan,
-                clearTurnCacheAfterAction: false))
-        {
-            return true;
-        }
-
-        var currentTerminalScan = BuildCurrentTerminalActionScan(
-            character,
-            turnPlan.ActionProbe,
-            battleService,
-            profile,
-            self);
-
-        if (CanSpendTerminalMainAction(character, actionEconomy) &&
-            !TryGetTerminalFallbackBlock(currentTerminalScan, false, out _) &&
-            TryUseFallbackReady(
-                character,
-                profile,
-                turnPlan,
-                battleService,
-                currentTerminalScan,
-                clearTurnCacheAfterAction: false,
-                ignoreStaleSearchMovementBlocks: true))
-        {
-            return true;
-        }
-
-        return actionEconomy.DodgeAvailable &&
-               !currentTerminalScan.BlocksReadyOrDodge &&
-               TryApplyFallbackDodge(character).Executed;
-    }
-
-    private static bool HasPendingActionLinkedContinuationBlocker(GameLocationCharacter character)
-    {
-        return character?.RulesetCharacter == null ||
-               MovementTracker.TryGetMovement(character.Guid, out _) ||
-               HasPendingReactionRequests() ||
-               ActionLinkedMoveCache.ContainsKey(character.Guid) ||
-               ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
-               GroundMeleeMoveSettlingCache.ContainsKey(character.Guid);
-    }
-
-    internal static bool TrySuppressPostRecoveryRunNextChains(GameLocationCharacter character)
-    {
-        var hasPostRecoverySeal = HasCurrentPostRecoveryEndTurnMainActionSeal(character);
-        var hasForcedMotionRecovery =
-            TryGetCurrentPendingAiProcessTurnRecovery(character, out var recovery) &&
-            recovery.RecoveryReason == CombatAiTurnRecoveryReason.ForcedMotion;
-
-        if (character?.RulesetCharacter == null ||
-            !IsAdvancedCombatAiEnabled ||
-            !IsAiControlledForCombat(character) ||
-            !IsActiveBattleContender(character) ||
-            (!hasPostRecoverySeal && !hasForcedMotionRecovery))
-        {
-            return false;
-        }
-
-        if (HasPendingReactionRequests())
-        {
-            return false;
-        }
-
-        if (HasCurrentForcedMotionAttackBudgetRemaining(character))
-        {
-            return false;
-        }
-
-        if (hasForcedMotionRecovery)
-        {
-            if (TryAllowRecoveryAttackContinuation(character, recovery.RecoveryReason))
-            {
-                PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-                return false;
-            }
-
-            if (recovery.RecoveryReason == CombatAiTurnRecoveryReason.ForcedMotion)
-            {
-                ClearForcedMotionPositionDependentAiState(character);
-            }
-
-            return true;
-        }
-
-        return true;
-    }
-
-    private static bool TryGetCurrentJumpImmediateAttackTurnRecovery(
-        GameLocationCharacter character,
-        out CombatAiTurnRecoveryReason recoveryReason)
-    {
-        recoveryReason = CombatAiTurnRecoveryReason.None;
-
-        if (!TryGetCurrentPendingAiProcessTurnRecovery(character, out var recovery) ||
-            !IsJumpImmediateAttackRecoveryReason(recovery.RecoveryReason))
-        {
-            return false;
-        }
-
-        recoveryReason = recovery.RecoveryReason;
-        return true;
-    }
-
-    private static bool IsPostRecoveryStaleMainActionChain(
-        GameLocationCharacter character,
-        GameLocationActionManager.ActionChainSlot actionChainSlot)
-    {
-        var actionParams = actionChainSlot?.actionChainParams?.GetActionsParams();
-
-        if (character?.RulesetCharacter == null || actionParams == null || actionParams.Count <= 0)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < actionParams.Count; i++)
-        {
-            var actionParam = actionParams[i];
-            var actionId = actionParam?.ActionDefinition?.Id;
-
-            if (actionParam?.ActingCharacter != character ||
-                actionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static bool IsPendingTurnRecoveryStaleTacticalMoveChain(
-        GameLocationCharacter character,
-        GameLocationActionManager.ActionChainSlot actionChainSlot)
-    {
-        var actionParams = actionChainSlot?.actionChainParams?.GetActionsParams();
-
-        if (character?.RulesetCharacter == null || actionParams == null || actionParams.Count <= 0)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < actionParams.Count; i++)
-        {
-            var actionParam = actionParams[i];
-
-            if (actionParam?.ActingCharacter != character ||
-                actionParam.ActionDefinition?.Id != Id.TacticalMove)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static bool TryRecoverAiProcessTurnProgression(
-        GameLocationCharacter character,
-        CombatAiTurnRecoveryReason recoveryReason,
-        CharacterAction currentAction = null,
-        bool ignoreSingleCurrentAction = false)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsAdvancedCombatAiEnabled ||
-            !IsAiControlledForCombat(character) ||
-            !CanExecuteAutomaticCombatAction(character))
-        {
-            return false;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-            return false;
-        }
-
-        if (HasCurrentAiProcessTurnRecovery(character))
-        {
-            PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-            return false;
-        }
-
-        if (HasPendingReactionRequests())
-        {
-            return false;
-        }
-
-        if (HasBlockingPendingActionChain(
-                character,
-                currentAction,
-                ignoreSingleCurrentAction))
-        {
-            return false;
-        }
-
-        if (TryAllowRecoveryAttackContinuation(character, recoveryReason))
-        {
-            PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-            return false;
-        }
-
-        if (HasPendingAiProcessTurnRecoveryCombatAiState(character))
-        {
-            return false;
-        }
-
-        if (recoveryReason == CombatAiTurnRecoveryReason.ForcedMotion &&
-            !IsTacticalMovementUnavailable(character) &&
-            !HasCommittedMainActionThisTurn(character))
-        {
-            PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-            return false;
-        }
-
-        PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-        AiProcessTurnRecoveryConsumedCache[character.Guid] =
-            new PendingTerminalDodgeEndTurnMemory(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp));
-
-        var allowActionLinkedMove = ShouldAllowRecoveryActionLinkedMove(character, recoveryReason);
-
-        if (allowActionLinkedMove && TrySpendRecoveryLeftoverActionEconomy(character, true))
-        {
-            return true;
-        }
-
-        if (TrySpendRecoveryLeftoverActionEconomy(character, false))
-        {
-            return true;
-        }
-
-        if (TrySpendRecoveryTerminalFallbackAction(character, recoveryReason))
-        {
-            return true;
-        }
-
-        SealPostRecoveryEndTurnMainActions(character);
-        character.EndBattleTurn(GetCurrentBattleRound());
-
-        return true;
-    }
-
-    private static bool TrySpendRecoveryLeftoverActionEconomy(
-        GameLocationCharacter character,
-        bool allowActionLinkedMove)
-    {
-        if (!TrySpendLeftoverActionEconomy(
-                character,
-                allowActionLinkedMove,
-                CombatAiActionLaunchBoundary.AiProcess))
-        {
-            return false;
-        }
-
-        var hasPendingTerminalLaunch = HasPendingAiProcessTerminalLaunch(character);
-
-        if (hasPendingTerminalLaunch)
-        {
-            TryConsumePendingAiProcessTerminalLaunch(character);
-        }
-
-
-        return true;
-    }
-
-    private static bool TrySpendRecoveryTerminalFallbackAction(
-        GameLocationCharacter character,
-        CombatAiTurnRecoveryReason recoveryReason)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsJumpImmediateAttackRecoveryReason(recoveryReason))
-        {
-            return false;
-        }
-
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-        var actionEconomy = BuildActionEconomySnapshot(character);
-
-        LogCombatAiDiagnostic(
-            character,
-            "RecoveryTerminal.enter",
-            $"reason={recoveryReason} {FormatActionEconomySnapshot(actionEconomy)} " +
-            FormatCombatAiPendingState(character));
-
-        if (battleService == null)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "RecoveryTerminal.exit",
-                $"reason=no-battle-service recovery={recoveryReason}");
-            return false;
-        }
-
-        if (!HasLeftoverActionCombatContext(character))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "RecoveryTerminal.exit",
-                $"reason=no-leftover-context recovery={recoveryReason}");
-            return false;
-        }
-
-        var terminalResult = TrySpendPostRouteTerminalAction(
-            character,
-            battleService,
-            usePendingTerminalLaunch: true,
-            preferSelfBuffBeforeReady: true,
-            forceReadyDodgeFallback: true);
-        var hadPendingTerminalLaunch = terminalResult.Scheduled && HasPendingAiProcessTerminalLaunch(character);
-        var launchStatus = hadPendingTerminalLaunch
-            ? TryConsumePendingAiProcessTerminalLaunch(character)
-            : PendingTerminalLaunchStatus.None;
-        var handled =
-            terminalResult.Executed ||
-            terminalResult.Scheduled && !hadPendingTerminalLaunch ||
-            launchStatus is PendingTerminalLaunchStatus.Accepted or PendingTerminalLaunchStatus.Waiting;
-
-        LogCombatAiDiagnostic(
-            character,
-            "RecoveryTerminal.exit",
-            $"recovery={recoveryReason} {FormatPostRouteTerminalResult(terminalResult)} " +
-            $"hadPendingLaunch={hadPendingTerminalLaunch} launchStatus={launchStatus} " +
-            $"handled={handled} {FormatCombatAiPendingState(character)}");
-
-        return handled;
-    }
-
-    private static bool ShouldAllowRecoveryActionLinkedMove(
-        GameLocationCharacter character,
-        CombatAiTurnRecoveryReason recoveryReason)
-    {
-        return recoveryReason == CombatAiTurnRecoveryReason.SearchLostTargetAbort &&
-               character?.RulesetCharacter != null &&
-               character.RemainingTacticalMoves > 0 &&
-               character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) == ActionStatus.Available;
-    }
-
-    private static bool IsVanillaMainActionStillAvailable(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        return character.GetActionTypeStatus(ActionType.Main) == ActionStatus.Available ||
-               character.GetActionStatus(Id.AttackMain, ActionScope.Battle) == ActionStatus.Available ||
-               character.GetActionStatus(Id.CastMain, ActionScope.Battle) == ActionStatus.Available ||
-               character.GetActionStatus(Id.PowerMain, ActionScope.Battle) == ActionStatus.Available;
-    }
-
-    private static void SealPostRecoveryEndTurnMainActions(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        PostRecoveryEndTurnMainActionSealCache[character.Guid] =
-            new PendingTerminalDodgeEndTurnMemory(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp));
-    }
-
-    private static bool HasCurrentAiProcessTurnRecovery(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !AiProcessTurnRecoveryConsumedCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (memory.Round == currentRound && memory.TurnStamp == currentTurnStamp)
-        {
-            return true;
-        }
-
-        AiProcessTurnRecoveryConsumedCache.Remove(character.Guid);
-
-        return false;
     }
 
     private static bool HasPendingReactionRequests()
@@ -4504,72 +2315,6 @@ internal static partial class CombatAiContext
         }
 
         return actionManager.pendingReactionRequestGroups.Count > 0;
-    }
-
-    private static bool HasBlockingPendingActionChain(
-        GameLocationCharacter character,
-        CharacterAction currentAction,
-        bool ignoreSingleCurrentAction = false)
-    {
-        if (character?.RulesetCharacter == null ||
-            ServiceRepository.GetService<IGameLocationActionService>() is not GameLocationActionManager actionManager ||
-            !actionManager.actionChainByCharacter.TryGetValue(character, out var actionChainSlot) ||
-            actionChainSlot?.actionQueue == null)
-        {
-            return false;
-        }
-
-        var count = actionChainSlot.actionQueue.Count;
-
-        if (count <= 0)
-        {
-            return false;
-        }
-
-        var currentActionMatches = 0;
-
-        for (var i = 0; i < actionChainSlot.actionQueue.Count; i++)
-        {
-            var pendingAction = actionChainSlot.actionQueue[i].action;
-
-            if (pendingAction != null && ReferenceEquals(pendingAction, currentAction))
-            {
-                currentActionMatches++;
-            }
-        }
-
-        if (count == 1 &&
-            currentActionMatches == 1 &&
-            (ignoreSingleCurrentAction ||
-             currentAction is CharacterActionPushed or CharacterActionPushedCustom))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static bool HasPendingAiProcessTurnRecoveryCombatAiState(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        return ActionLinkedMoveCache.ContainsKey(character.Guid) ||
-               ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
-               GroundMeleeMoveSettlingCache.ContainsKey(character.Guid) ||
-               PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid) ||
-               PendingTerminalDodgeEndTurnCache.ContainsKey(character.Guid) ||
-               PendingTerminalReadyEndTurnCache.ContainsKey(character.Guid) ||
-               PendingAiProcessTerminalLaunchCache.ContainsKey(character.Guid);
-    }
-
-    private static bool IsTacticalMovementUnavailable(GameLocationCharacter character)
-    {
-        return character.RemainingTacticalMoves <= 0 ||
-               character.MaxTacticalMoves <= 0 ||
-               character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available;
     }
 
     internal static void TryCompletePendingActionLinkedMove(CharacterAction action)
@@ -4599,22 +2344,11 @@ internal static partial class CombatAiContext
             return;
         }
 
-        LogCombatAiDiagnostic(
-            character,
-            "ActionChain.move-complete.enter",
-            $"aborted={aborted} route={routeMoveSource} moveToken={moveToken} " +
-            FormatCombatAiPendingState(character));
-
         var pendingAction = default(ActionLinkedMoveMemory);
 
         if (moveToken != 0 &&
             !IsCurrentActionLinkedMoveToken(character, routeMoveSource, moveToken, out pendingAction))
         {
-            LogCombatAiDiagnostic(
-                character,
-                "ActionChain.move-complete.exit",
-                $"reason=token-mismatch aborted={aborted} route={routeMoveSource} moveToken={moveToken} " +
-                FormatCombatAiPendingState(character));
             return;
         }
 
@@ -4623,46 +2357,18 @@ internal static partial class CombatAiContext
              pendingAction.Round != GetCurrentBattleRound() ||
              pendingAction.TurnStamp != Math.Max(1, ObservedCombatMemoryTurnStamp)))
         {
-            LogCombatAiDiagnostic(
-                character,
-                "ActionChain.move-complete.exit",
-                $"reason=stale-or-inactive active={IsActiveBattleContender(character)} " +
-                $"pendingRound={pendingAction.Round} pendingTurn={pendingAction.TurnStamp} " +
-                $"currentRound={GetCurrentBattleRound()} currentTurn={Math.Max(1, ObservedCombatMemoryTurnStamp)} " +
-                $"aborted={aborted} route={routeMoveSource} moveToken={moveToken} " +
-                FormatCombatAiPendingState(character));
             return;
         }
-
 
         TryMarkActionLinkedMoveCallbackObserved(character, routeMoveSource, moveToken);
 
         if (routeMoveSource == CombatAiRouteMoveSourceKind.JumpImmediateAttack)
         {
-            var resolved = TryCompletePendingJumpImmediateAttackActionChainSettled(
+            TryCompletePendingJumpImmediateAttackActionChainSettled(
                 character,
                 aborted,
                 callbackObserved: true);
-            var terminalHandled =
-                resolved &&
-                PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var terminalMemory) &&
-                IsGroundMeleeJumpImmediateAttackRoute(terminalMemory.PendingAction) &&
-                TrySpendRouteTerminalReadyDodgeFallbackBeforeClear(
-                    character,
-                    terminalMemory,
-                    "ActionChain.jump-immediate-terminal",
-                    out _);
 
-            LogCombatAiDiagnostic(
-                character,
-                "ActionChain.jump-immediate-terminal",
-                $"resolved={resolved} terminalHandled={terminalHandled} {FormatCombatAiPendingState(character)}");
-            LogCombatAiDiagnostic(
-                character,
-                "ActionChain.move-complete.exit",
-                $"reason=jump-immediate-attack resolved={resolved} terminalHandled={terminalHandled} " +
-                $"aborted={aborted} route={routeMoveSource} moveToken={moveToken} " +
-                FormatCombatAiPendingState(character));
             return;
         }
 
@@ -4671,604 +2377,50 @@ internal static partial class CombatAiContext
             allowSettlingCompletion: true,
             allowSettledNoMoveFinalization: true);
 
-        LogCombatAiDiagnostic(
-            character,
-            "ActionChain.move-complete.after-complete",
-            $"aborted={aborted} route={routeMoveSource} moveToken={moveToken} " +
-            FormatCombatAiPendingState(character));
-
-        if (TryConsumeSearchNoConnectedFallbackAfterMoveChainCompletion(character, routeMoveSource))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "ActionChain.move-complete.exit",
-                $"reason=search-no-connected-fallback aborted={aborted} route={routeMoveSource} moveToken={moveToken} " +
-                FormatCombatAiPendingState(character));
-            return;
-        }
-
         if (TryResolveGroundMeleeMoveSettlingAfterActionChain(character, aborted))
         {
-            var terminalConsumed = TryConsumePendingRouteActionOnlyTerminal(character, aborted);
-
-            LogCombatAiDiagnostic(
-                character,
-                "ActionChain.move-complete.exit",
-                $"reason=ground-melee-settling terminalConsumed={terminalConsumed} aborted={aborted} " +
-                $"route={routeMoveSource} moveToken={moveToken} {FormatCombatAiPendingState(character)}");
             return;
         }
 
-        TryUseGroundMeleePartialRouteContinuationAfterActionChain(character, aborted);
-        var consumed = TryConsumePendingRouteActionOnlyTerminal(character, aborted);
-
-        LogCombatAiDiagnostic(
-            character,
-            "ActionChain.move-complete.exit",
-            $"reason=complete terminalConsumed={consumed} aborted={aborted} route={routeMoveSource} " +
-            $"moveToken={moveToken} {FormatCombatAiPendingState(character)}");
     }
 
-    internal static void NotifyAiMoveStepCompleted(GameLocationCharacter character)
+    internal static void NotifyAiMoveStepCompleted(
+        GameLocationCharacter character,
+        int3 from,
+        int3 to)
     {
         if (character?.RulesetCharacter == null ||
-            !IsAiControlledForCombat(character))
+            !IsAiControlledForCombat(character) ||
+            from == int3.invalid ||
+            to == int3.invalid ||
+            from == to)
         {
             return;
         }
+
+        if (!TryGetPendingActionLinkedMoveForCompletion(character, out var pendingAction, out _))
+        {
+            return;
+        }
+
+        CompletedAiMoveStepCache[character.Guid] = new CompletedAiMoveStepMemory(
+            from,
+            to,
+            pendingAction.RouteMoveSource,
+            pendingAction.MoveToken,
+            GetCurrentBattleRound(),
+            Math.Max(1, ObservedCombatMemoryTurnStamp));
 
         TryCompleteConnectedFiringLineMovementStep(character);
         TryCompleteSearchKnownTargetMovementStep(character);
     }
 
-    private static void SchedulePendingRouteActionOnlyTerminal(
-        GameLocationCharacter character,
-        ActionLinkedMoveMemory pendingAction,
-        int3 expectedDestination,
-        int3 actualDestination,
-        bool consumeAfterAbort = false)
+    private static bool CanIssueAdditionalTacticalMove(GameLocationCharacter character)
     {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        var memory = new PendingRouteActionOnlyTerminalMemory(
-            pendingAction,
-            expectedDestination,
-            actualDestination,
-            consumeAfterAbort,
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp));
-
-        if (!IsActiveBattleContender(character))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "RouteTerminal.schedule.exit",
-                $"reason=inactive consumeAfterAbort={consumeAfterAbort} " +
-                $"actual={FormatCombatAiPosition(actualDestination)} expected={FormatCombatAiPosition(expectedDestination)}");
-            return;
-        }
-
-        PendingRouteActionOnlyTerminalCache[character.Guid] = memory;
-
-        LogCombatAiDiagnostic(
-            character,
-            "RouteTerminal.schedule",
-            $"consumeAfterAbort={consumeAfterAbort} actual={FormatCombatAiPosition(actualDestination)} " +
-            $"{FormatRouteTerminalMemory(memory)} {FormatCombatAiPendingState(character)}");
-    }
-
-    private static bool TryConsumePendingRouteActionOnlyTerminal(
-        GameLocationCharacter character,
-        bool aborted)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        LogCombatAiDiagnostic(
-            character,
-            "RouteTerminal.callback.enter",
-            $"aborted={aborted} actual={FormatCombatAiPosition(character.LocationPosition)} " +
-            $"{FormatRouteTerminalMemory(memory)} {FormatCombatAiPendingState(character)}");
-
-        if (IsConnectedFiringLineRoute(memory.PendingAction) &&
-            TryHandlePendingConnectedFiringLineMovement(
-                character,
-                memory,
-                allowFinalFailure: false,
-                out var connectedRouteClosed))
-        {
-            if (!connectedRouteClosed)
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "RouteTerminal.callback.wait",
-                    $"reason=connected-route-not-closed aborted={aborted} {FormatCombatAiPendingState(character)}");
-                return true;
-            }
-
-            if (!PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out memory))
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "RouteTerminal.callback.exit",
-                    $"reason=connected-route-cleared aborted={aborted} {FormatCombatAiPendingState(character)}");
-                return true;
-            }
-        }
-
-        if (IsSearchKnownTargetRoute(memory.PendingAction) &&
-            TryHandlePendingSearchKnownTargetMovement(
-                character,
-                memory,
-                allowFinalFailure: false,
-                out var searchRouteClosed))
-        {
-            if (!searchRouteClosed)
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "RouteTerminal.callback.wait",
-                    $"reason=search-route-not-closed aborted={aborted} {FormatCombatAiPendingState(character)}");
-                return true;
-            }
-
-            if (!PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out memory))
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "RouteTerminal.callback.exit",
-                    $"reason=search-route-cleared aborted={aborted} {FormatCombatAiPendingState(character)}");
-                return true;
-            }
-        }
-
-        if (aborted && !ShouldConsumeAbortedRouteActionOnlyTerminal(character, memory))
-        {
-            if (IsSearchKnownTargetRoute(memory.PendingAction))
-            {
-                var actualDestination = character.LocationPosition;
-
-                if (!ShouldScheduleSearchRouteTerminal(character, memory.PendingAction, actualDestination))
-                {
-                    CloseProgressOnlySearchRouteWithoutTerminalOwnership(
-                        character,
-                        memory.PendingAction,
-                        memory.PendingAction.StartPosition,
-                        memory.PendingAction.ExpectedDestination);
-                    LogCombatAiDiagnostic(
-                        character,
-                        "RouteTerminal.callback.exit",
-                        $"reason=aborted-search-not-scheduled aborted={aborted} " +
-                        $"{FormatRouteTerminalMemory(memory)} {FormatCombatAiPendingState(character)}");
-                    return true;
-                }
-
-                ScheduleAiProcessTurnRecovery(
-                    character,
-                    Id.TacticalMove,
-                    CombatAiTurnRecoveryReason.SearchLostTargetAbort);
-            }
-
-            if (TrySpendRouteTerminalReadyDodgeFallbackBeforeClear(
-                    character,
-                    memory,
-                    "RouteTerminal.callback.aborted-clear",
-                    out _))
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "RouteTerminal.callback.exit",
-                    $"reason=aborted-terminal-handled aborted={aborted} {FormatCombatAiPendingState(character)}");
-                return true;
-            }
-
-            ClearRouteTerminalState(character);
-            LogCombatAiDiagnostic(
-                character,
-                "RouteTerminal.callback.exit",
-                $"reason=aborted-clear aborted={aborted} {FormatCombatAiPendingState(character)}");
-            return true;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "RouteTerminal.callback.exit",
-                $"reason=stale memoryRound={memory.Round} memoryTurn={memory.TurnStamp} " +
-                $"currentRound={currentRound} currentTurn={currentTurnStamp}");
-            ClearRouteTerminalState(character);
-            return true;
-        }
-
-        if (ActionLinkedMoveCache.ContainsKey(character.Guid) ||
-            ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
-            GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "RouteTerminal.callback.wait",
-                $"reason=move-state-blocked aborted={aborted} {FormatCombatAiPendingState(character)}");
-            return true;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "RouteTerminal.callback.exit",
-                $"reason=inactive aborted={aborted} {FormatCombatAiPendingState(character)}");
-            ClearRouteTerminalState(character);
-            return true;
-        }
-
-        if (HasAvailableMainActionForPendingTerminal(character))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "RouteTerminal.callback.exit",
-                $"reason=available-main-retained aborted={aborted} " +
-                $"{FormatActionEconomySnapshot(BuildActionEconomySnapshot(character))} " +
-                FormatCombatAiPendingState(character));
-            return true;
-        }
-
-        ClearRouteTerminalState(character);
-
-        LogCombatAiDiagnostic(
-            character,
-            "RouteTerminal.callback.exit",
-            $"reason=no-available-main-clear aborted={aborted} {FormatCombatAiPendingState(character)}");
-
-        return true;
-    }
-
-    private static bool TrySpendRouteTerminalReadyDodgeFallbackBeforeClear(
-        GameLocationCharacter character,
-        PendingRouteActionOnlyTerminalMemory memory,
-        string source,
-        out bool suppressEndTurn)
-    {
-        suppressEndTurn = false;
-
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        if (!HasAvailableActionForPendingTerminal(character))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "RouteTerminal.pre-clear-fallback.exit",
-                $"source={source} reason=no-available-action " +
-                $"{FormatActionEconomySnapshot(BuildActionEconomySnapshot(character))} " +
-                FormatCombatAiPendingState(character));
-            return false;
-        }
-
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-
-        if (battleService == null)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "RouteTerminal.pre-clear-fallback.exit",
-                $"source={source} reason=no-battle-service {FormatCombatAiPendingState(character)}");
-            return false;
-        }
-
-        LogCombatAiDiagnostic(
-            character,
-            "RouteTerminal.pre-clear-fallback.enter",
-            $"source={source} {FormatRouteTerminalMemory(memory)} " +
-            $"{FormatActionEconomySnapshot(BuildActionEconomySnapshot(character))} " +
-            FormatCombatAiPendingState(character));
-
-        var terminalResult = TrySpendPostRouteTerminalAction(
-            character,
-            battleService,
-            priorityTarget: memory.PendingAction.Target,
-            usePendingTerminalLaunch: true,
-            preferSelfBuffBeforeReady: true,
-            forceReadyDodgeFallback: true);
-        var hadPendingTerminalLaunch = terminalResult.Scheduled && HasPendingAiProcessTerminalLaunch(character);
-        var launchStatus = hadPendingTerminalLaunch
-            ? TryConsumePendingAiProcessTerminalLaunch(character)
-            : PendingTerminalLaunchStatus.None;
-        var handled =
-            terminalResult.Executed ||
-            terminalResult.Scheduled && !hadPendingTerminalLaunch ||
-            launchStatus is PendingTerminalLaunchStatus.Accepted or PendingTerminalLaunchStatus.Waiting;
-        var retainRouteTerminal =
-            launchStatus == PendingTerminalLaunchStatus.Waiting ||
-            ShouldRetainRouteTerminalAfterAuxiliaryAction(character, terminalResult);
-
-        suppressEndTurn = handled;
-
-        LogCombatAiDiagnostic(
-            character,
-            "RouteTerminal.pre-clear-fallback.exit",
-            $"source={source} {FormatPostRouteTerminalResult(terminalResult)} " +
-            $"hadPendingLaunch={hadPendingTerminalLaunch} launchStatus={launchStatus} " +
-            $"handled={handled} retainRoute={retainRouteTerminal} suppressEndTurn={suppressEndTurn} " +
-            FormatCombatAiPendingState(character));
-
-        if (!handled)
-        {
-            return false;
-        }
-
-        if (!retainRouteTerminal && PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid))
-        {
-            ClearRouteTerminalState(character);
-        }
-
-        return true;
-    }
-
-    internal static bool TryConsumePendingRouteTerminalAtAiProcessBoundary(
-        GameLocationCharacter character,
-        bool allowFinalFailure = false)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        LogCombatAiDiagnostic(
-            character,
-            "AiProcess.route-terminal.enter",
-            $"allowFinalFailure={allowFinalFailure} " +
-            $"actual={FormatCombatAiPosition(character.LocationPosition)} " +
-            $"{FormatRouteTerminalMemory(memory)} " +
-            FormatRouteTerminalBlockers(character));
-
-        if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "AiProcess.route-terminal.exit",
-                $"reason=stale memoryRound={memory.Round} memoryTurn={memory.TurnStamp} " +
-                $"currentRound={currentRound} currentTurn={currentTurnStamp}");
-            ClearRouteTerminalState(character);
-            return true;
-        }
-
-        if (IsConnectedFiringLineRoute(memory.PendingAction) &&
-            TryHandlePendingConnectedFiringLineMovement(
-                character,
-                memory,
-                allowFinalFailure,
-                out var connectedRouteClosed))
-        {
-            if (!connectedRouteClosed)
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "AiProcess.route-terminal.wait",
-                    $"reason=connected-route-not-closed {FormatRouteTerminalBlockers(character)}");
-                return true;
-            }
-
-            if (!PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out memory))
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "AiProcess.route-terminal.exit",
-                    "reason=connected-route-cleared-terminal");
-                return true;
-            }
-        }
-
-        if (IsSearchKnownTargetRoute(memory.PendingAction) &&
-            TryHandlePendingSearchKnownTargetMovement(
-                character,
-                memory,
-                allowFinalFailure,
-                out var searchRouteClosed))
-        {
-            if (!searchRouteClosed)
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "AiProcess.route-terminal.wait",
-                    $"reason=search-route-not-closed {FormatRouteTerminalBlockers(character)}");
-                return true;
-            }
-
-            if (!PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out memory))
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "AiProcess.route-terminal.exit",
-                    "reason=search-route-cleared-terminal");
-                return true;
-            }
-        }
-
-        if (ActionLinkedMoveCache.ContainsKey(character.Guid) ||
-            ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
-            GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "AiProcess.route-terminal.exit",
-                $"reason=action-linked-blocker {FormatRouteTerminalBlockers(character)}");
-            return false;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "AiProcess.route-terminal.exit",
-                "reason=inactive-contender");
-            ClearRouteTerminalState(character);
-            return true;
-        }
-
-        if (HasCurrentPendingTerminalReadyOrDodge(character))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "AiProcess.route-terminal.exit",
-                "reason=current-pending-ready-or-dodge");
-            ClearRouteTerminalState(character);
-            return true;
-        }
-
-        if (IsConnectedFiringLineRoute(memory.PendingAction))
-        {
-            var connectedTerminalHandled = TryConsumePendingConnectedFiringLineRouteTerminal(
-                character,
-                memory,
-                allowTerminalFallback: true);
-
-            LogCombatAiDiagnostic(
-                character,
-                "AiProcess.route-terminal.exit",
-                $"reason=connected-route-terminal handled={connectedTerminalHandled}");
-
-            return connectedTerminalHandled;
-        }
-
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-        var terminalResult = TrySpendPostRouteTerminalAction(
-            character,
-            battleService,
-            priorityTarget: memory.PendingAction.Target);
-        var hasAvailableMainActionForPendingTerminal = HasAvailableMainActionForPendingTerminal(character);
-
-        LogCombatAiDiagnostic(
-            character,
-            "AiProcess.route-terminal.post-route-result",
-            $"{FormatPostRouteTerminalResult(terminalResult)} " +
-            $"hasAvailableMainForPending={hasAvailableMainActionForPendingTerminal} " +
-            FormatRouteTerminalBlockers(character));
-
-        if (ShouldRetainRouteTerminalAfterAuxiliaryAction(character, terminalResult))
-        {
-            LogRetainedRouteTerminalAfterAuxiliaryAction(character, "AiProcess");
-            return true;
-        }
-
-        if (!terminalResult.Handled && hasAvailableMainActionForPendingTerminal)
-        {
-            if (!allowFinalFailure)
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "AiProcess.route-terminal.exit",
-                    "reason=await-final-failure-pass");
-                return false;
-            }
-
-            terminalResult = TrySpendPostRouteTerminalAction(
-                character,
-                battleService,
-                priorityTarget: memory.PendingAction.Target,
-                preferSelfBuffBeforeReady: true,
-                forceReadyDodgeFallback: true);
-            hasAvailableMainActionForPendingTerminal = HasAvailableMainActionForPendingTerminal(character);
-
-            LogCombatAiDiagnostic(
-                character,
-                "AiProcess.route-terminal.force-result",
-                $"{FormatPostRouteTerminalResult(terminalResult)} " +
-                $"hasAvailableMainForPending={hasAvailableMainActionForPendingTerminal} " +
-                FormatRouteTerminalBlockers(character));
-
-            if (ShouldRetainRouteTerminalAfterAuxiliaryAction(character, terminalResult))
-            {
-                LogRetainedRouteTerminalAfterAuxiliaryAction(character, "AiProcess");
-                return true;
-            }
-        }
-
-        if (terminalResult.Handled)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "AiProcess.route-terminal.exit",
-                $"reason=handled {FormatPostRouteTerminalResult(terminalResult)}");
-            ClearRouteTerminalState(character);
-
-            return true;
-        }
-
-        LogCombatAiDiagnostic(
-            character,
-            "AiProcess.route-terminal.exit",
-            $"reason=unhandled allowFinalFailure={allowFinalFailure} " +
-            $"hasAvailableMainForPending={hasAvailableMainActionForPendingTerminal}");
-        ClearRouteTerminalState(character);
-
-        if (allowFinalFailure)
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryHandlePendingConnectedFiringLineMovement(
-        GameLocationCharacter character,
-        PendingRouteActionOnlyTerminalMemory memory,
-        bool allowFinalFailure,
-        out bool routeClosed)
-    {
-        routeClosed = false;
-
-        if (character?.RulesetCharacter == null ||
-            !IsConnectedFiringLineRoute(memory.PendingAction) ||
-            !TryGetPendingActionLinkedMoveForCompletion(character, out var pendingAction, out _) ||
-            !IsConnectedFiringLineRoute(pendingAction))
-        {
-            return false;
-        }
-
-        if (TryCompleteConnectedFiringLineMovementStep(character).IsComplete)
-        {
-            routeClosed = true;
-            return true;
-        }
-
-        if (allowFinalFailure)
-        {
-            if (character.LocationPosition == pendingAction.StartPosition)
-            {
-                CloseFailedConnectedFiringLineAwaitingMovement(
-                    character,
-                    pendingAction);
-            }
-            else
-            {
-                CloseConnectedFiringLineMoveResult(
-                    character,
-                    pendingAction,
-                    pendingAction.StartPosition,
-                    pendingAction.ExpectedDestination);
-            }
-
-            routeClosed = true;
-            return true;
-        }
-
-        return true;
+        return character?.RulesetCharacter != null &&
+               character.RemainingTacticalMoves > 0 &&
+               character.CanDecideToMoveByItself &&
+               character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) == ActionStatus.Available;
     }
 
     private static ConnectedFiringLineCompletionResult TryCompleteConnectedFiringLineMovementStep(
@@ -5314,80 +2466,6 @@ internal static partial class CombatAiContext
                 ? ConnectedFiringLineCompletionKind.SettledReached
                 : ConnectedFiringLineCompletionKind.SettledPartial,
             actualDestination);
-    }
-
-    private static bool TryHandlePendingSearchKnownTargetMovement(
-        GameLocationCharacter character,
-        PendingRouteActionOnlyTerminalMemory memory,
-        bool allowFinalFailure,
-        out bool routeClosed)
-    {
-        routeClosed = false;
-
-        if (character?.RulesetCharacter == null ||
-            !IsSearchKnownTargetRoute(memory.PendingAction) ||
-            !TryGetPendingActionLinkedMoveForCompletion(character, out var pendingAction, out _) ||
-            !IsSearchKnownTargetRoute(pendingAction))
-        {
-            return false;
-        }
-
-        if (MovementTracker.TryGetMovement(character.Guid, out _) ||
-            HasPendingReactionRequests())
-        {
-            return true;
-        }
-
-        if (ShouldWaitForActionLinkedMoveCallback(character, pendingAction))
-        {
-            return true;
-        }
-
-        var result = TryCompleteSearchKnownTargetMovementStep(character, includeSettling: true);
-
-        if (result.IsComplete)
-        {
-            routeClosed = true;
-            return true;
-        }
-
-        if (character.LocationPosition != pendingAction.StartPosition)
-        {
-            CloseSearchKnownTargetMoveResult(
-                character,
-                pendingAction,
-                pendingAction.StartPosition,
-                pendingAction.ExpectedDestination,
-                SearchKnownTargetCompletionKind.SettledPartial);
-            routeClosed = true;
-            return true;
-        }
-
-        if (allowFinalFailure)
-        {
-            if (character.LocationPosition == pendingAction.StartPosition)
-            {
-                CloseSearchKnownTargetMoveResult(
-                    character,
-                    pendingAction,
-                    pendingAction.StartPosition,
-                    pendingAction.ExpectedDestination,
-                    SearchKnownTargetCompletionKind.FailedNoMeaningfulMovement);
-            }
-            else
-            {
-                DeferSearchKnownTargetMoveResult(
-                    character,
-                    pendingAction,
-                    pendingAction.StartPosition,
-                    pendingAction.ExpectedDestination);
-            }
-
-            routeClosed = true;
-            return true;
-        }
-
-        return true;
     }
 
     private static SearchKnownTargetCompletionResult TryCompleteSearchKnownTargetMovementStep(
@@ -5484,16 +2562,6 @@ internal static partial class CombatAiContext
                 IsSearchKnownTargetRoute(pendingAction));
     }
 
-    private static bool HasMeaningfulSearchKnownTargetProgress(
-        GameLocationCharacter character,
-        ActionLinkedMoveMemory pendingAction,
-        int3 actualDestination)
-    {
-        return character?.RulesetCharacter != null &&
-               ComputeSearchKnownTargetProgress(character, pendingAction, actualDestination)
-                   .HasMeaningfulProgress;
-    }
-
     private static SearchKnownTargetProgress ComputeSearchKnownTargetProgress(
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
@@ -5527,15 +2595,6 @@ internal static partial class CombatAiContext
         return Math.Min(2f, Math.Max(0.75f, startDistance - 1f));
     }
 
-    private static string BuildLostTargetSearchAttemptKey(
-        int round,
-        int turnStamp,
-        int3 start,
-        int3 anchor)
-    {
-        return $"{round}:{turnStamp}:{FormatPosition(start)}:{FormatPosition(anchor)}";
-    }
-
     private static void RecordLostTargetSearchAttempt(
         GameLocationCharacter character,
         int round,
@@ -5548,8 +2607,11 @@ internal static partial class CombatAiContext
             return;
         }
 
-        LostTargetSearchAttemptCache[character.Guid] =
-            BuildLostTargetSearchAttemptKey(round, turnStamp, start, anchor);
+        LostTargetSearchAttemptCache[character.Guid] = new LostTargetSearchAttemptMemory(
+            round,
+            turnStamp,
+            start,
+            anchor);
     }
 
     private static void RecordLostTargetSearchAttempt(
@@ -5596,7 +2658,6 @@ internal static partial class CombatAiContext
             character,
             turnPlan.ActionProbe,
             battleService,
-            profile,
             BuildSelfAssessment(character));
 
         return currentActionScan.HasValidatedAction;
@@ -5700,698 +2761,13 @@ internal static partial class CombatAiContext
             : ConnectedFiringLineCompletionKind.SettledPartial;
     }
 
-    private static void CloseFailedConnectedFiringLineAwaitingMovement(
-        GameLocationCharacter character,
-        ActionLinkedMoveMemory pendingAction)
-    {
-        var round = GetCurrentBattleRound();
-        var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        ActionLinkedMoveCache.Remove(character.Guid);
-        ActionLinkedMoveSettlingCache.Remove(character.Guid);
-        PendingRouteMovementLockCache.Remove(character.Guid);
-        RecordAiMoveFailure(character, pendingAction.StartPosition, pendingAction.ExpectedDestination);
-        RouteMoveCompletionClosedCache[character.Guid] = new RouteMoveCompletionClosedMemory(
-            pendingAction.MovementGoal,
-            pendingAction.StartPosition,
-            pendingAction.ExpectedDestination,
-            RouteMoveCompletionFlags.None,
-            round,
-            turnStamp);
-    }
-
-    private static bool TryConsumePendingConnectedFiringLineRouteTerminal(
-        GameLocationCharacter character,
-        PendingRouteActionOnlyTerminalMemory memory,
-        bool allowTerminalFallback)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsConnectedFiringLineRoute(memory.PendingAction))
-        {
-            return false;
-        }
-
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-
-        if (battleService == null)
-        {
-            PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-            PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-            return true;
-        }
-
-        var profile = BuildProfile(character);
-        var turnPlan = BuildCombatAiTurnPlan(character, profile, battleService);
-
-        if (TryUseTerminalReprobeHostileAction(character, turnPlan, battleService).Executed)
-        {
-            PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-            PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-            return true;
-        }
-
-        if (TryUseConnectedFiringLineRecovery(
-                character,
-                turnPlan,
-                battleService,
-                profile))
-        {
-            PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-            PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-            return true;
-        }
-
-        if (TryUseLostTargetSearchRouteMove(
-                character,
-                turnPlan,
-                battleService,
-                profile,
-                CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove,
-                CombatAiRouteMoveSourceKind.SearchLostTarget,
-                out _))
-        {
-            return true;
-        }
-
-        HandleConnectedFiringLineCompletionFailure(
-            character,
-            turnPlan,
-            memory);
-
-        if (!allowTerminalFallback)
-        {
-            return true;
-        }
-
-        PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-        PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-        var handled = TrySpendLeftoverActionEconomy(
-            character,
-            false,
-            CombatAiActionLaunchBoundary.AiProcess);
-        var hasPendingTerminalLaunch = handled && HasPendingAiProcessTerminalLaunch(character);
-
-        if (hasPendingTerminalLaunch)
-        {
-            TryConsumePendingAiProcessTerminalLaunch(character);
-            return true;
-        }
-
-
-        return handled;
-    }
-
-    private static void HandleConnectedFiringLineCompletionFailure(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        PendingRouteActionOnlyTerminalMemory memory)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        if (IsConnectedFiringLinePlan(turnPlan))
-        {
-            RecordDisconnectedPositioningSeal(
-                character,
-                turnPlan);
-
-            if (TryGetActiveDisconnectedPositioningSeal(character, out var seal))
-            {
-                ApplyDisconnectedPositioningMovementLock(
-                    character,
-                    seal);
-            }
-        }
-
-    }
-
-    internal static bool TryConsumePendingUtilityTerminalAtAiProcessBoundary(
-        GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PendingUtilityTerminalContinuationCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (memory.Round != currentRound || memory.TurnStamp != currentTurnStamp)
-        {
-            PendingUtilityTerminalContinuationCache.Remove(character.Guid);
-            return true;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            PendingUtilityTerminalContinuationCache.Remove(character.Guid);
-            return true;
-        }
-
-        if (ActionLinkedMoveCache.ContainsKey(character.Guid) ||
-            ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
-            GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
-        {
-            return false;
-        }
-
-        var handled = TrySpendLeftoverActionEconomy(
-            character,
-            false,
-            CombatAiActionLaunchBoundary.AiProcess);
-        var hasPendingTerminalLaunch = handled && HasPendingAiProcessTerminalLaunch(character);
-
-        if (!handled)
-        {
-            if (HasAvailableMainActionForPendingTerminal(character))
-            {
-                return false;
-            }
-
-            PendingUtilityTerminalContinuationCache.Remove(character.Guid);
-            return true;
-        }
-
-        if (hasPendingTerminalLaunch)
-        {
-            TryConsumePendingAiProcessTerminalLaunch(character);
-            return true;
-        }
-
-        PendingUtilityTerminalContinuationCache.Remove(character.Guid);
-
-        return true;
-    }
-
-    private static bool TryConsumePendingRouteTerminalAtEndTurn(
-        GameLocationCharacter character,
-        out bool suppressEndTurn)
-    {
-        suppressEndTurn = false;
-
-        if (character?.RulesetCharacter == null ||
-            !PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        LogCombatAiDiagnostic(
-            character,
-            "EndTurn.route-terminal.enter",
-            $"{FormatRouteTerminalMemory(memory)} {FormatCombatAiPendingState(character)}");
-
-        if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurn.route-terminal.exit",
-                $"reason=stale memoryRound={memory.Round} memoryTurn={memory.TurnStamp} " +
-                $"currentRound={currentRound} currentTurn={currentTurnStamp}");
-            ClearRouteTerminalState(character);
-            return true;
-        }
-
-        if (ActionLinkedMoveCache.ContainsKey(character.Guid) ||
-            ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
-            GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurn.route-terminal.wait",
-                $"reason=move-state-blocked {FormatCombatAiPendingState(character)}");
-            return true;
-        }
-
-        if (HasCurrentPendingTerminalReadyOrDodge(character))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurn.route-terminal.exit",
-                $"reason=current-pending-ready-or-dodge {FormatCombatAiPendingState(character)}");
-            return false;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurn.route-terminal.exit",
-                $"reason=inactive {FormatCombatAiPendingState(character)}");
-            ClearRouteTerminalState(character);
-            return true;
-        }
-
-        if (HasPendingAiProcessTerminalLaunch(character))
-        {
-            var launchStatus = TryConsumePendingAiProcessTerminalLaunch(character);
-
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurn.route-terminal.pending-launch",
-                $"status={launchStatus} {FormatCombatAiPendingState(character)}");
-
-            if (launchStatus is PendingTerminalLaunchStatus.Accepted or PendingTerminalLaunchStatus.Waiting)
-            {
-                suppressEndTurn = true;
-                return true;
-            }
-
-            if (!PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid))
-            {
-                return false;
-            }
-        }
-
-        if (HasAvailableActionForPendingTerminal(character))
-        {
-            if (TrySpendRouteTerminalReadyDodgeFallbackBeforeClear(
-                    character,
-                    memory,
-                    "EndTurn.route-terminal.available-action",
-                    out suppressEndTurn))
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "EndTurn.route-terminal.exit",
-                    $"reason=available-action-terminal-handled suppressEndTurn={suppressEndTurn} " +
-                    FormatCombatAiPendingState(character));
-                return true;
-            }
-
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurn.route-terminal.exit",
-                $"reason=available-action-clear-return-false " +
-                $"{FormatActionEconomySnapshot(BuildActionEconomySnapshot(character))} " +
-                FormatCombatAiPendingState(character));
-            ClearRouteTerminalState(character);
-            return false;
-        }
-
-        ClearRouteTerminalState(character);
-
-        LogCombatAiDiagnostic(
-            character,
-            "EndTurn.route-terminal.exit",
-            $"reason=no-available-action-clear {FormatCombatAiPendingState(character)}");
-
-        return true;
-    }
-
-    private static bool ShouldConsumeAbortedRouteActionOnlyTerminal(
-        GameLocationCharacter character,
-        PendingRouteActionOnlyTerminalMemory memory)
-    {
-        if (memory.ConsumeAfterAbort)
-        {
-            return true;
-        }
-
-        if (!IsSearchKnownTargetRoute(memory.PendingAction) ||
-            character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        var actualDestination = character.LocationPosition;
-
-        var hasValidatedAction =
-            memory.PendingAction.SearchRouteActionConnected ||
-            HasSearchKnownTargetValidatedActionAtDestination(character, memory.PendingAction, actualDestination) ||
-            HasSearchKnownTargetValidatedAction(character);
-
-        return actualDestination != memory.PendingAction.StartPosition || hasValidatedAction;
-    }
-
-    private static bool ShouldRetainRouteTerminalAfterAuxiliaryAction(
-        GameLocationCharacter character,
-        PostRouteTerminalResult terminalResult)
-    {
-        if (terminalResult.Scheduled &&
-            terminalResult.ActionKind == CombatAiExecutedActionKind.BonusAction)
-        {
-            return true;
-        }
-
-        return terminalResult.Handled &&
-               !terminalResult.ConsumesMainAction &&
-               HasAvailableMainActionForPendingTerminal(character);
-    }
-
-    private static void LogRetainedRouteTerminalAfterAuxiliaryAction(
-        GameLocationCharacter character,
-        string boundary)
-    {
-        LogCombatAiDiagnostic(
-            character,
-            $"{boundary}.retain-terminal",
-            $"reason=auxiliary-action {FormatRouteTerminalBlockers(character)}");
-    }
-
-    private static void LogCombatAiDiagnostic(
-        GameLocationCharacter character,
-        string stage,
-        string details)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsAdvancedCombatAiEnabled ||
-            !IsAiControlledForCombat(character))
-        {
-            return;
-        }
-
-        Main.Info(
-            $"{CombatAiDiagnosticPrefix} {stage} " +
-            $"round={GetCurrentBattleRound()} " +
-            $"turn={Math.Max(1, ObservedCombatMemoryTurnStamp)} " +
-            $"actor={FormatCombatAiCharacter(character)} " +
-            $"guid={character.Guid} " +
-            $"pos={FormatCombatAiPosition(character.LocationPosition)} " +
-            details);
-    }
-
-    private static string FormatCombatAiCharacter(GameLocationCharacter character)
-    {
-        return character?.RulesetCharacter?.Name ??
-               character?.Name ??
-               "unknown";
-    }
-
-    private static string FormatCombatAiPosition(int3 position)
-    {
-        return $"{position.x},{position.y},{position.z}";
-    }
-
-    private static string FormatRouteTerminalMemory(PendingRouteActionOnlyTerminalMemory memory)
-    {
-        var pendingAction = memory.PendingAction;
-
-        return
-            $"goal={pendingAction.MovementGoal} " +
-            $"route={pendingAction.RouteMoveSource} " +
-            $"continuation={pendingAction.Continuation} " +
-            $"action={pendingAction.ActionKind} " +
-            $"target={FormatCombatAiCharacter(pendingAction.Target)} " +
-            $"start={FormatCombatAiPosition(pendingAction.StartPosition)} " +
-            $"expected={FormatCombatAiPosition(pendingAction.ExpectedDestination)} " +
-            $"recordedActual={FormatCombatAiPosition(memory.ActualDestination)} " +
-            $"moveToken={pendingAction.MoveToken} " +
-            $"searchConnected={pendingAction.SearchRouteActionConnected} " +
-            $"movementContinuationAllowed={memory.MovementContinuationAllowed}";
-    }
-
-    private static string FormatActionEconomySnapshot(CombatAiActionEconomySnapshot actionEconomy)
-    {
-        return
-            $"mainType={actionEconomy.MainActionType} " +
-            $"mainAvail={actionEconomy.MainAvailable} " +
-            $"attackMain={actionEconomy.AttackMain} " +
-            $"castMain={actionEconomy.CastMain} " +
-            $"ready={actionEconomy.Ready} " +
-            $"readyAvail={actionEconomy.ReadyAvailable} " +
-            $"dodge={actionEconomy.Dodge} " +
-            $"dodgeAvail={actionEconomy.DodgeAvailable} " +
-            $"tactical={actionEconomy.TacticalMove} " +
-            $"bonus={actionEconomy.Bonus} " +
-            $"bonusFreeJump={actionEconomy.BonusFreeJump} " +
-            $"noCost={actionEconomy.NoCostUtility} " +
-            $"mainUse={actionEconomy.MainUseCount} " +
-            $"bonusUse={actionEconomy.BonusUseCount} " +
-            $"hasLastMain={actionEconomy.HasLastMainAction} " +
-            $"lastMain={actionEconomy.LastMainTerminalAction} " +
-            $"lastTerminal={actionEconomy.LastTerminalAction}";
-    }
-
-    private static string FormatTerminalScan(CurrentTerminalActionScan terminalScan)
-    {
-        return
-            $"scanValidated={terminalScan.HasValidatedAction} " +
-            $"scanUtility={terminalScan.HasUsefulUtility} " +
-            $"scanBlocks={terminalScan.BlocksReadyOrDodge}";
-    }
-
-    private static string FormatPostRouteTerminalResult(PostRouteTerminalResult terminalResult)
-    {
-        return
-            $"status={terminalResult.Status} " +
-            $"actionKind={terminalResult.ActionKind} " +
-            $"handled={terminalResult.Handled} " +
-            $"consumesMain={terminalResult.ConsumesMainAction}";
-    }
-
-    private static string FormatRouteTerminalBlockers(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return
-                "movementTracker=False pendingReaction=False actionLinked=False " +
-                "actionSettling=False groundSettling=False stableBlock=False";
-        }
-
-        return
-            $"movementTracker={MovementTracker.TryGetMovement(character.Guid, out _)} " +
-            $"pendingReaction={HasPendingReactionRequests()} " +
-            $"actionLinked={ActionLinkedMoveCache.ContainsKey(character.Guid)} " +
-            $"actionSettling={ActionLinkedMoveSettlingCache.ContainsKey(character.Guid)} " +
-            $"groundSettling={GroundMeleeMoveSettlingCache.ContainsKey(character.Guid)} " +
-            $"stableBlock={HasPendingRouteTerminalStableBoundaryBlock(character)}";
-    }
-
-    private static string FormatCombatAiPendingState(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return
-                "pendingRoute=False routeStartNext=False pendingLaunch=False pendingLaunchCurrent=False " +
-                "pendingReadyDodge=False pendingDodge=False pendingReady=False pendingRecovery=False " +
-                "movementTracker=False reaction=False actionLinked=False actionSettling=False groundSettling=False " +
-                "routeDash=False utilityTerminal=False";
-        }
-
-        var guid = character.Guid;
-
-        return
-            $"pendingRoute={PendingRouteActionOnlyTerminalCache.ContainsKey(guid)} " +
-            $"routeStartNext={PendingRouteTerminalStartNextResolutionCache.Contains(guid)} " +
-            $"pendingLaunch={PendingAiProcessTerminalLaunchCache.ContainsKey(guid)} " +
-            $"pendingLaunchCurrent={HasPendingAiProcessTerminalLaunch(character)} " +
-            $"pendingReadyDodge={HasCurrentPendingTerminalReadyOrDodge(character)} " +
-            $"pendingDodge={PendingTerminalDodgeEndTurnCache.ContainsKey(guid)} " +
-            $"pendingReady={PendingTerminalReadyEndTurnCache.ContainsKey(guid)} " +
-            $"pendingRecovery={PendingAiProcessTurnRecoveryCache.ContainsKey(guid)} " +
-            $"movementTracker={MovementTracker.TryGetMovement(guid, out _)} " +
-            $"reaction={HasPendingReactionRequests()} " +
-            $"actionLinked={ActionLinkedMoveCache.ContainsKey(guid)} " +
-            $"actionSettling={ActionLinkedMoveSettlingCache.ContainsKey(guid)} " +
-            $"groundSettling={GroundMeleeMoveSettlingCache.ContainsKey(guid)} " +
-            $"routeDash={RouteMoveDashBlockCache.ContainsKey(guid)} " +
-            $"utilityTerminal={PendingUtilityTerminalContinuationCache.ContainsKey(guid)}";
-    }
-
-    private static bool SchedulePendingAiProcessTerminalLaunch(
-        GameLocationCharacter character,
-        Id actionId,
-        ReadyActionType readyActionType,
-        PendingTerminalLaunchKind kind)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        var round = GetCurrentBattleRound();
-        var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-        var memory = new PendingAiProcessTerminalLaunchMemory(actionId, readyActionType, kind, round, turnStamp);
-
-        PendingAiProcessTerminalLaunchCache[character.Guid] = memory;
-
-        LogCombatAiDiagnostic(
-            character,
-            "PendingTerminal.schedule",
-            $"action={actionId} kind={kind} readyType={readyActionType} round={round} turn={turnStamp}");
-
-        return true;
-    }
-
-    private static bool HasPendingAiProcessTerminalLaunch(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PendingAiProcessTerminalLaunchCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        return memory.MatchesCurrentTurn(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp));
-    }
-
-    private static PendingTerminalLaunchStatus TryConsumePendingAiProcessTerminalLaunch(GameLocationCharacter character)
-    {
-        if (!HasPendingAiProcessTerminalLaunch(character))
-        {
-            return PendingTerminalLaunchStatus.None;
-        }
-
-        return TryBeginPendingAiProcessTerminalLaunch(character);
-    }
-
-    private static PendingTerminalLaunchStatus TryBeginPendingAiProcessTerminalLaunch(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PendingAiProcessTerminalLaunchCache.TryGetValue(character.Guid, out var memory))
-        {
-            return PendingTerminalLaunchStatus.None;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
-        {
-            return RejectPendingTerminalLaunch(character, memory, PendingTerminalLaunchRejectionKind.Stale);
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            return RejectPendingTerminalLaunch(character, memory, PendingTerminalLaunchRejectionKind.Inactive);
-        }
-
-        if (HasPendingRouteTerminalStableBoundaryBlock(character))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PendingTerminal.wait",
-                $"reason=stable-boundary-block action={memory.ActionId} kind={memory.Kind} " +
-                FormatRouteTerminalBlockers(character));
-            PendingTerminalActionEndTurnSuppressCache.Add(character.Guid);
-            return PendingTerminalLaunchStatus.Waiting;
-        }
-
-        var actionEconomy = BuildActionEconomySnapshot(character);
-
-        if (!CanSpendTerminalMainAction(character, actionEconomy))
-        {
-            return RejectPendingTerminalLaunch(character, memory, PendingTerminalLaunchRejectionKind.NoMain);
-        }
-
-        if (TryReplacePendingTerminalLaunchWithHostileAction(character, memory))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PendingTerminal.accepted",
-                $"reason=replaced-with-hostile action={memory.ActionId} kind={memory.Kind}");
-            return PendingTerminalLaunchStatus.Accepted;
-        }
-
-        return memory.ActionId == Id.Dodge
-            ? TryBeginPendingDodgeLaunch(character, memory, actionEconomy)
-            : TryBeginPendingReadyLaunch(character, memory, actionEconomy);
-    }
-
-    private static PendingTerminalLaunchStatus RejectPendingTerminalLaunch(
-        GameLocationCharacter character,
-        PendingAiProcessTerminalLaunchMemory memory,
-        PendingTerminalLaunchRejectionKind rejectionKind)
-    {
-        var retainRouteTerminal = ShouldRetainRouteTerminalAfterRejectedPendingLaunch(character, rejectionKind);
-
-        LogCombatAiDiagnostic(
-            character,
-            "PendingTerminal.reject",
-            $"action={memory.ActionId} kind={memory.Kind} rejection={rejectionKind} retainRoute={retainRouteTerminal} " +
-            FormatRouteTerminalBlockers(character));
-
-        if (retainRouteTerminal)
-        {
-            ClearPendingTerminalLaunchState(character, memory.ActionId);
-        }
-        else
-        {
-            ClearRouteTerminalState(character);
-        }
-
-
-        return PendingTerminalLaunchStatus.Rejected;
-    }
-
-    private static bool ShouldRetainRouteTerminalAfterRejectedPendingLaunch(
-        GameLocationCharacter character,
-        PendingTerminalLaunchRejectionKind rejectionKind)
-    {
-        if (rejectionKind != PendingTerminalLaunchRejectionKind.NoMain ||
-            character?.RulesetCharacter == null ||
-            !IsActiveBattleContender(character) ||
-            !PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var pendingTerminal) ||
-            !pendingTerminal.MatchesCurrentTurn(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp)) ||
-            !HasLeftoverActionCombatContext(character))
-        {
-            return false;
-        }
-
-        return character.GetActionTypeStatus(ActionType.Main) == ActionStatus.Available ||
-               HasAvailableAttackMainContinuation(character);
-    }
-
-    private static void ClearPendingTerminalLaunchState(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
-        PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
-        PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-        PendingFallbackDodgeConditionCache.Remove(character.Guid);
-        PendingTerminalDodgeEndTurnCache.Remove(character.Guid);
-        PendingTerminalReadyEndTurnCache.Remove(character.Guid);
-    }
-
-    private static void ClearPendingTerminalLaunchState(GameLocationCharacter character, Id actionId)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
-        PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
-        PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-
-        if (actionId == Id.Dodge)
-        {
-            PendingFallbackDodgeConditionCache.Remove(character.Guid);
-            PendingTerminalDodgeEndTurnCache.Remove(character.Guid);
-        }
-        else if (actionId == Id.Ready)
-        {
-            PendingTerminalReadyEndTurnCache.Remove(character.Guid);
-        }
-    }
-
-    private static bool HasPendingRouteTerminalStableBoundaryBlock(GameLocationCharacter character)
-    {
-        return character?.RulesetCharacter != null &&
-               (MovementTracker.TryGetMovement(character.Guid, out _) ||
-                HasPendingReactionRequests() ||
-                ActionLinkedMoveCache.ContainsKey(character.Guid) ||
-                ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
-                GroundMeleeMoveSettlingCache.ContainsKey(character.Guid));
-    }
-
     private static bool ShouldWaitForActionLinkedMoveCallback(
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction)
     {
         if (character?.RulesetCharacter == null ||
             pendingAction.Continuation is not (
-                CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove or
+                CombatAiActionLinkedMoveContinuation.ReturnToCoordinatorAfterRouteMove or
                 CombatAiActionLinkedMoveContinuation.ProgressOnlySearchMove) ||
             !ActionLinkedMoveSettlingCache.TryGetValue(character.Guid, out var settling) ||
             settling.PendingAction.MoveToken != pendingAction.MoveToken ||
@@ -6402,277 +2778,6 @@ internal static partial class CombatAiContext
         }
 
         return !settling.CallbackObserved && settling.ResultStart != settling.ResultTarget;
-    }
-
-    private static bool TryReplacePendingTerminalLaunchWithHostileAction(
-        GameLocationCharacter character,
-        PendingAiProcessTerminalLaunchMemory memory)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-        var priorityTarget = PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var terminalMemory)
-            ? terminalMemory.PendingAction.Target
-            : null;
-        var terminalResult = TrySpendPostRouteTerminalAction(
-            character,
-            battleService,
-            allowReadyDodge: false,
-            priorityTarget: priorityTarget);
-
-        if (!terminalResult.ConsumesMainAction)
-        {
-            return false;
-        }
-
-        ClearRouteTerminalState(character);
-
-        return true;
-    }
-
-    private static PendingTerminalLaunchStatus TryBeginPendingDodgeLaunch(
-        GameLocationCharacter character,
-        PendingAiProcessTerminalLaunchMemory memory,
-        CombatAiActionEconomySnapshot actionEconomy)
-    {
-        var dodgeStatus = character.GetActionStatus(Id.Dodge, ActionScope.Battle);
-
-        if (!actionEconomy.DodgeAvailable || dodgeStatus != ActionStatus.Available)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PendingTerminal.dodge-reject",
-                $"reason=action-unavailable dodgeStatus={dodgeStatus} {FormatActionEconomySnapshot(actionEconomy)}");
-            return RejectPendingTerminalLaunch(
-                character,
-                memory,
-                PendingTerminalLaunchRejectionKind.ActionUnavailable);
-        }
-
-        PendingFallbackDodgeConditionCache[character.Guid] =
-            CollectDodgingConditionGuids(character.RulesetCharacter);
-        PendingTerminalDodgeEndTurnCache[character.Guid] =
-            new PendingTerminalDodgeEndTurnMemory(memory.Round, memory.TurnStamp);
-
-        PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
-        LogCombatAiDiagnostic(
-            character,
-            "PendingTerminal.dodge-execute",
-            $"action={memory.ActionId} kind={memory.Kind} dodgeStatus={dodgeStatus}");
-        character.MyExecuteActionDodge();
-
-        if (!PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PendingTerminal.dodge-waiting",
-                $"action={memory.ActionId} kind={memory.Kind}");
-            return PendingTerminalLaunchStatus.Waiting;
-        }
-
-        PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
-
-        LogCombatAiDiagnostic(
-            character,
-            "PendingTerminal.dodge-accepted",
-            $"action={memory.ActionId} kind={memory.Kind}");
-
-        return PendingTerminalLaunchStatus.Accepted;
-    }
-
-    private static PendingTerminalLaunchStatus TryBeginPendingReadyLaunch(
-        GameLocationCharacter character,
-        PendingAiProcessTerminalLaunchMemory memory,
-        CombatAiActionEconomySnapshot actionEconomy)
-    {
-        var readyStatus = character.GetActionStatus(Id.Ready, ActionScope.Battle);
-
-        if (!actionEconomy.ReadyAvailable || readyStatus != ActionStatus.Available)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PendingTerminal.ready-reject",
-                $"reason=action-unavailable readyStatus={readyStatus} {FormatActionEconomySnapshot(actionEconomy)}");
-            return RejectPendingTerminalLaunch(
-                character,
-                memory,
-                PendingTerminalLaunchRejectionKind.ActionUnavailable);
-        }
-
-        PendingTerminalReadyEndTurnCache[character.Guid] =
-            new PendingTerminalDodgeEndTurnMemory(memory.Round, memory.TurnStamp);
-
-        PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
-        LogCombatAiDiagnostic(
-            character,
-            "PendingTerminal.ready-execute",
-            $"action={memory.ActionId} kind={memory.Kind} readyStatus={readyStatus} readyType={memory.ReadyActionType}");
-        character.MyExecuteActionReady(memory.ReadyActionType);
-
-        if (!PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PendingTerminal.ready-waiting",
-                $"action={memory.ActionId} kind={memory.Kind}");
-            return PendingTerminalLaunchStatus.Waiting;
-        }
-
-        PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
-
-        LogCombatAiDiagnostic(
-            character,
-            "PendingTerminal.ready-accepted",
-            $"action={memory.ActionId} kind={memory.Kind}");
-
-        return PendingTerminalLaunchStatus.Accepted;
-    }
-
-    internal static void NotifyPendingTerminalActionAccepted(CharacterAction action)
-    {
-        var character = action?.ActingCharacter;
-
-        NotifyEndTurnRecoveryActionAccepted(action);
-
-        if (character?.RulesetCharacter == null ||
-            action.ActionId is not (Id.Dodge or Id.Ready) ||
-            !PendingAiProcessTerminalLaunchCache.TryGetValue(character.Guid, out var memory) ||
-            memory.ActionId != action.ActionId ||
-            !memory.MatchesCurrentTurn(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp)))
-        {
-            return;
-        }
-
-        PendingAiProcessTerminalLaunchAcceptedCache.Add(character.Guid);
-        PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
-        PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-        PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-        ClearRouteMoveDashBlock(character);
-
-        LogCombatAiDiagnostic(
-            character,
-            "PendingTerminal.notify-accepted",
-            $"action={action.ActionId} kind={memory.Kind}");
-    }
-
-    private static void NotifyEndTurnRecoveryActionAccepted(CharacterAction action)
-    {
-        var character = action?.ActingCharacter;
-
-        if (character?.RulesetCharacter == null ||
-            !PendingEndTurnRecoveryActionAcceptanceCache.TryGetValue(character.Guid, out var memory) ||
-            !memory.Matches(action.ActionId, GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp)))
-        {
-            return;
-        }
-
-        EndTurnRecoveryActionAcceptedCache.Add(character.Guid);
-        PendingEndTurnRecoveryActionAcceptanceCache.Remove(character.Guid);
-        PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-
-        LogCombatAiDiagnostic(
-            character,
-            "EndTurnRecovery.notify-accepted",
-            $"action={action.ActionId} expected={memory.ActionLabel}");
-    }
-
-    private static void MarkEndTurnRecoveryActionSubmitted(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PendingEndTurnRecoveryActionAcceptanceCache.ContainsKey(character.Guid))
-        {
-            return;
-        }
-
-        EndTurnRecoveryActionSubmittedCache.Add(character.Guid);
-    }
-
-    private static EndTurnRecoverySubmissionStatus TryHandlePendingEndTurnRecoverySubmissionAtEndTurn(
-        GameLocationCharacter character,
-        out bool suppressEndTurn,
-        out Id rejectedActionId)
-    {
-        suppressEndTurn = false;
-        rejectedActionId = default;
-
-        if (character?.RulesetCharacter == null ||
-            !PendingEndTurnRecoveryActionAcceptanceCache.TryGetValue(character.Guid, out var memory))
-        {
-            return EndTurnRecoverySubmissionStatus.None;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp) ||
-            !IsActiveBattleContender(character))
-        {
-            ClearPendingEndTurnRecoverySubmission(character);
-
-            return EndTurnRecoverySubmissionStatus.Rejected;
-        }
-
-        if (HasSearchNoConnectedEndTurnFallbackContext(character))
-        {
-            rejectedActionId = memory.FirstActionId;
-            ClearSearchNoConnectedTerminalState(character);
-
-            return EndTurnRecoverySubmissionStatus.Rejected;
-        }
-
-        if (PendingTerminalActionEndTurnSuppressCache.Add(character.Guid))
-        {
-            suppressEndTurn = true;
-
-            return EndTurnRecoverySubmissionStatus.Waiting;
-        }
-
-        rejectedActionId = memory.FirstActionId;
-        ClearPendingEndTurnRecoverySubmission(character);
-
-        return EndTurnRecoverySubmissionStatus.Rejected;
-    }
-
-    private static void ClearPendingEndTurnRecoverySubmission(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        PendingEndTurnRecoveryActionAcceptanceCache.Remove(character.Guid);
-        EndTurnRecoveryActionAcceptedCache.Remove(character.Guid);
-        EndTurnRecoveryActionSubmittedCache.Remove(character.Guid);
-        PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-    }
-
-    private static bool TryGetActiveGroundMeleePartialRouteProgress(
-        GameLocationCharacter character,
-        out GroundMeleePartialRouteMemory memory)
-    {
-        memory = default;
-
-        if (character?.RulesetCharacter == null ||
-            !GroundMeleePartialRouteCache.TryGetValue(character.Guid, out memory))
-        {
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
-        {
-            return true;
-        }
-
-        GroundMeleePartialRouteCache.Remove(character.Guid);
-        memory = default;
-
-        return false;
     }
 
     internal static bool IsFailedAiMoveTarget(GameLocationCharacter character, int3 start, int3 target)
@@ -6702,14 +2807,21 @@ internal static partial class CombatAiContext
     {
         var character = action?.ActingCharacter;
 
-        EnsureCombatAiRuntimeCache(character);
+        EnsureCombatAiRuntimeCache();
 
         if (!IsAiControlledForCombat(character))
         {
             return false;
         }
 
-        if (ShouldCancelDisconnectedSearchMovementSealMove(action, character, start, target))
+        // The vanilla AI owns ordinary movement. Combat AI may validate or reject only a
+        // movement action it explicitly submitted and still owns in the live move cache.
+        if (!ActionLinkedMoveCache.ContainsKey(character.Guid))
+        {
+            return false;
+        }
+
+        if (ShouldCancelDisconnectedSearchMovementSealMove(action, character))
         {
             return true;
         }
@@ -6733,10 +2845,8 @@ internal static partial class CombatAiContext
             if (target.x == 0 && target.y == 0 && target.z == 0)
             {
                 blocked = ShouldBlockDisconnectedPositioningUnresolvedDestination(
-                    action,
                     character,
-                    seal,
-                    start);
+                    seal);
             }
             else
             {
@@ -6775,13 +2885,13 @@ internal static partial class CombatAiContext
 
             if (shouldSealMovement)
             {
-                ApplyPostThreatReturnSeal(character, start, target);
+                ApplyPostThreatReturnSeal(character);
             }
 
             return true;
         }
 
-        if (battleService != null && ShouldRejectTrafficBlockingMove(character, target, battleService, out _))
+        if (battleService != null && ShouldRejectTrafficBlockingMove(character, target, battleService))
         {
             return true;
         }
@@ -6798,13 +2908,8 @@ internal static partial class CombatAiContext
 
     private static bool ShouldCancelDisconnectedSearchMovementSealMove(
         CharacterActionMove action,
-        GameLocationCharacter character,
-        int3 start,
-        int3 target)
+        GameLocationCharacter character)
     {
-        _ = start;
-        _ = target;
-
         return action?.ActionId == Id.TacticalMove &&
                character?.RulesetCharacter != null &&
                HasActiveDisconnectedSearchMoveCompletionSeal(character) &&
@@ -6853,7 +2958,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        if (!IsLegalAiRouteDestination(character, destination, out _))
+        if (!IsLegalAiRouteDestination(character, destination))
         {
             return false;
         }
@@ -7042,7 +3147,6 @@ internal static partial class CombatAiContext
             turnStamp);
         ActionLinkedMoveCache.Remove(character.Guid);
 
-
         return true;
     }
 
@@ -7076,7 +3180,7 @@ internal static partial class CombatAiContext
     {
         var character = action?.ActingCharacter;
 
-        EnsureCombatAiRuntimeCache(character);
+        EnsureCombatAiRuntimeCache();
 
         if (!IsAiControlledForCombat(character))
         {
@@ -7174,7 +3278,7 @@ internal static partial class CombatAiContext
 
         if (hadPendingActionLinkedMove &&
             pendingAction.MoveToken != 0 &&
-            pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove &&
+            pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.ReturnToCoordinatorAfterRouteMove &&
             TryDeferActionLinkedMoveResult(character, pendingAction, start, target))
         {
             return;
@@ -7217,7 +3321,7 @@ internal static partial class CombatAiContext
         if (character.LocationPosition == target)
         {
             UpdateTurnMovementProgress(character);
-TryCompleteActionLinkedMove(character);
+            TryCompleteActionLinkedMove(character);
             return;
         }
 
@@ -7227,12 +3331,12 @@ TryCompleteActionLinkedMove(character);
             return;
         }
 
-        TryApplyPendingRouteMovementLock(character);
+        ApplyPendingRouteMovementState(character);
         ActionLinkedMoveCache.Remove(character.Guid);
 
         if (hadPendingActionLinkedMove)
         {
-            CloseLateCompletionAndScheduleTerminal(
+            CloseLateActionLinkedMoveCompletion(
                 character,
                 pendingAction,
                 start,
@@ -7259,8 +3363,7 @@ TryCompleteActionLinkedMove(character);
 
         ResolveGroundMeleeMoveSettling(
             character,
-            allowConnectedRouteValidation: true,
-            allowTerminalAction: true);
+            allowConnectedRouteValidation: true);
 
         return true;
     }
@@ -7276,7 +3379,6 @@ TryCompleteActionLinkedMove(character);
         ActionLinkedMoveSettlingCache.Remove(character.Guid);
         PendingRouteMovementLockCache.Remove(character.Guid);
         GroundMeleeMoveSettlingCache.Remove(character.Guid);
-        GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
 
         RecordAiMoveFailure(character, start, target);
         RecordGroundMeleeRouteFailure(
@@ -7284,10 +3386,8 @@ TryCompleteActionLinkedMove(character);
             pendingAction.Target,
             pendingAction.StartPosition,
             pendingAction.ExpectedDestination);
-        RouteMoveDashBlockCache.Remove(character.Guid);
         TurnMovementProgressCache.Remove(character.Guid);
 
-        var actualDestination = character.LocationPosition;
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
 
@@ -7299,18 +3399,6 @@ TryCompleteActionLinkedMove(character);
             round,
             turnStamp);
 
-
-        if (!IsActiveBattleContender(character))
-        {
-            return;
-        }
-
-        SchedulePendingRouteActionOnlyTerminal(
-            character,
-            pendingAction,
-            target,
-            actualDestination,
-            consumeAfterAbort: true);
     }
 
     private static void DeferConnectedFiringLineMoveResult(
@@ -7319,7 +3407,6 @@ TryCompleteActionLinkedMove(character);
         int3 start,
         int3 expectedDestination)
     {
-        var actualDestination = character.LocationPosition;
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
 
@@ -7331,16 +3418,6 @@ TryCompleteActionLinkedMove(character);
             round,
             turnStamp);
 
-        if (pendingAction.Continuation != CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove)
-        {
-            return;
-        }
-
-        SchedulePendingRouteActionOnlyTerminal(
-            character,
-            pendingAction,
-            expectedDestination,
-            actualDestination);
     }
 
     private static void CloseConnectedFiringLineMoveResult(
@@ -7377,22 +3454,6 @@ TryCompleteActionLinkedMove(character);
             UpdateTurnMovementProgress(character);
         }
 
-
-        if (!IsActiveBattleContender(character))
-        {
-            return;
-        }
-
-        if (pendingAction.Continuation != CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove)
-        {
-            return;
-        }
-
-        SchedulePendingRouteActionOnlyTerminal(
-            character,
-            pendingAction,
-            expectedDestination,
-            actualDestination);
     }
 
     private static void DeferSearchKnownTargetMoveResult(
@@ -7404,7 +3465,6 @@ TryCompleteActionLinkedMove(character);
         var actualDestination = character.LocationPosition;
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-        var isTerminalRoute = pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove;
 
         if (TryDeferProgressOnlySearchPartialMove(
                 character,
@@ -7434,16 +3494,6 @@ TryCompleteActionLinkedMove(character);
             round,
             turnStamp);
 
-        if (!isTerminalRoute)
-        {
-            return;
-        }
-
-        SchedulePendingRouteActionOnlyTerminal(
-            character,
-            pendingAction,
-            expectedDestination,
-            actualDestination);
     }
 
     private static void CloseSearchKnownTargetMoveResult(
@@ -7457,7 +3507,6 @@ TryCompleteActionLinkedMove(character);
         var failed = resultKind == SearchKnownTargetCompletionKind.FailedNoMeaningfulMovement;
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-        var isTerminalRoute = pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove;
 
         if (ShouldCloseProgressOnlySearchRouteWithoutTerminalOwnership(character, pendingAction, actualDestination))
         {
@@ -7472,7 +3521,6 @@ TryCompleteActionLinkedMove(character);
         ActionLinkedMoveCache.Remove(character.Guid);
         ActionLinkedMoveSettlingCache.Remove(character.Guid);
         PendingRouteMovementLockCache.Remove(character.Guid);
-        ClearRouteTerminalOwnership(character);
 
         if (failed && actualDestination == start)
         {
@@ -7502,41 +3550,6 @@ TryCompleteActionLinkedMove(character);
             UpdateTurnMovementProgress(character);
         }
 
-
-        if (!IsActiveBattleContender(character))
-        {
-            ClearRouteMoveDashBlock(character);
-            return;
-        }
-
-        if (!isTerminalRoute)
-        {
-            ClearRouteMoveDashBlock(character);
-            return;
-        }
-
-        SchedulePendingRouteActionOnlyTerminal(
-            character,
-            pendingAction,
-            expectedDestination,
-            actualDestination);
-    }
-
-    private static bool ShouldScheduleSearchRouteTerminal(
-        GameLocationCharacter character,
-        ActionLinkedMoveMemory pendingAction,
-        int3 actualDestination)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsSearchKnownTargetRoute(pendingAction) ||
-            pendingAction.Continuation != CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove)
-        {
-            return false;
-        }
-
-        return pendingAction.SearchRouteActionConnected ||
-               HasSearchKnownTargetValidatedActionAtDestination(character, pendingAction, actualDestination) ||
-               HasSearchKnownTargetValidatedAction(character);
     }
 
     private static bool ShouldCloseProgressOnlySearchRouteWithoutTerminalOwnership(
@@ -7595,7 +3608,6 @@ TryCompleteActionLinkedMove(character);
         PendingAiMoveAttemptCache.Remove(character.Guid);
         RouteMoveCompletionClosedCache.Remove(character.Guid);
 
-
         return true;
     }
 
@@ -7614,7 +3626,7 @@ TryCompleteActionLinkedMove(character);
             character.RemainingTacticalMoves <= 0 ||
             !character.CanDecideToMoveByItself ||
             character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available ||
-            !IsLegalAiRouteDestination(character, expectedDestination, out _))
+            !IsLegalAiRouteDestination(character, expectedDestination))
         {
             return false;
         }
@@ -7641,7 +3653,6 @@ TryCompleteActionLinkedMove(character);
         ActionLinkedMoveSettlingCache.Remove(character.Guid);
         PendingAiMoveAttemptCache.Remove(character.Guid);
         PendingRouteMovementLockCache.Remove(character.Guid);
-        PendingUtilityTerminalContinuationCache.Remove(character.Guid);
 
         if (markCompletionSeal)
         {
@@ -7653,7 +3664,6 @@ TryCompleteActionLinkedMove(character);
         }
 
         DisconnectedSearchNoRouteMovementSealCache.Remove(character.Guid);
-        ClearRouteTerminalState(character);
     }
 
     private static void CloseSearchNoRouteWithoutTerminalOwnership(
@@ -7661,7 +3671,6 @@ TryCompleteActionLinkedMove(character);
         bool markNoRouteMovementSeal = false)
     {
         ClearSearchRouteWithoutTerminalOwnership(character, markCompletionSeal: false);
-        MarkSearchNoConnectedBoundary(character);
 
         if (markNoRouteMovementSeal)
         {
@@ -7703,30 +3712,6 @@ TryCompleteActionLinkedMove(character);
             Math.Max(1, ObservedCombatMemoryTurnStamp));
 
         ClearSearchRouteWithoutTerminalOwnership(character, markCompletionSeal: true);
-        MarkSearchNoConnectedBoundary(character);
-    }
-
-    private static void MarkSearchNoConnectedBoundary(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        SearchNoConnectedBoundaryCache[character.Guid] =
-            new TerminalSealMemory(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp));
-        MarkSearchNoConnectedEndTurnFallbackContext(character);
-    }
-
-    private static void MarkSearchNoConnectedEndTurnFallbackContext(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        SearchNoConnectedEndTurnFallbackCache[character.Guid] =
-            new TerminalSealMemory(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp));
     }
 
     private static void MarkDisconnectedSearchMoveCompletionSeal(GameLocationCharacter character)
@@ -7769,70 +3754,6 @@ TryCompleteActionLinkedMove(character);
         return false;
     }
 
-    private static bool HasActiveDisconnectedSearchNoRouteMovementSeal(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !DisconnectedSearchNoRouteMovementSealCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        if (memory.Matches(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp)))
-        {
-            return true;
-        }
-
-        DisconnectedSearchNoRouteMovementSealCache.Remove(character.Guid);
-
-        return false;
-    }
-
-    private static bool HasActiveDisconnectedSearchMovementSeal(GameLocationCharacter character)
-    {
-        return HasActiveDisconnectedSearchMoveCompletionSeal(character) ||
-               HasActiveDisconnectedSearchNoRouteMovementSeal(character);
-    }
-
-    internal static void TryOverrideProgressOnlySearchActionStatus(
-        GameLocationCharacter character,
-        Id actionId,
-        ActionScope scope,
-        ref ActionStatus status)
-    {
-        if (!IsAdvancedCombatAiEnabled ||
-            status != ActionStatus.Available ||
-            scope != ActionScope.Battle ||
-            actionId is not (Id.DashBonus or Id.DashMain or Id.TacticalMove) ||
-            character?.RulesetCharacter == null ||
-            !IsAiControlledForCombat(character) ||
-            !IsActiveBattleContender(character))
-        {
-            return;
-        }
-
-        var hasInFlightSearchMove = HasActiveProgressOnlySearchOwnedMove(character);
-        var hasCompletedSearchSeal = HasActiveDisconnectedSearchMoveCompletionSeal(character);
-        var hasNoRouteDashSeal = HasActiveDisconnectedSearchNoRouteMovementSeal(character);
-
-        if (!hasInFlightSearchMove && !hasCompletedSearchSeal && !hasNoRouteDashSeal)
-        {
-            return;
-        }
-
-        if (actionId == Id.TacticalMove && !hasCompletedSearchSeal)
-        {
-            return;
-        }
-
-        status = ActionStatus.Unavailable;
-    }
-
-    private static bool HasActiveProgressOnlySearchBonusBlock(GameLocationCharacter character)
-    {
-        return HasActiveProgressOnlySearchOwnedMove(character) ||
-               HasActiveDisconnectedSearchMovementSeal(character);
-    }
-
     private static bool HasActiveProgressOnlySearchOwnedMove(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null)
@@ -7860,73 +3781,7 @@ TryCompleteActionLinkedMove(character);
                pendingAction.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp);
     }
 
-    internal static void TryOverrideProgressOnlySearchActionTypeStatus(
-        GameLocationCharacter character,
-        ActionType actionType,
-        ActionScope scope,
-        ref ActionStatus status)
-    {
-        if (!IsAdvancedCombatAiEnabled ||
-            status != ActionStatus.Available ||
-            scope != ActionScope.Battle ||
-            actionType != ActionType.Bonus ||
-            character?.RulesetCharacter == null ||
-            !IsAiControlledForCombat(character) ||
-            !IsActiveBattleContender(character) ||
-            !HasActiveProgressOnlySearchBonusBlock(character) ||
-            HasUsableProgressOnlySearchBonusAction(character))
-        {
-            return;
-        }
-
-        status = ActionStatus.Unavailable;
-    }
-
-    internal static void TryOverrideInactiveAiActionStatus(
-        GameLocationCharacter character,
-        Id actionId,
-        ActionScope scope,
-        ref ActionStatus status)
-    {
-        if (!IsAdvancedCombatAiEnabled ||
-            status != ActionStatus.Available ||
-            scope != ActionScope.Battle ||
-            actionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain or
-                Id.CastBonus or Id.PowerBonus or Id.DashBonus or Id.TacticalMove or
-                Id.Ready or Id.Dodge) ||
-            character?.RulesetCharacter == null ||
-            !IsAiControlledForCombat(character) ||
-            IsActiveBattleContender(character))
-        {
-            return;
-        }
-
-        TryClearInactiveCombatAiTurnOwnership(character);
-        status = ActionStatus.Unavailable;
-    }
-
-    internal static void TryOverrideInactiveAiActionTypeStatus(
-        GameLocationCharacter character,
-        ActionType actionType,
-        ActionScope scope,
-        ref ActionStatus status)
-    {
-        if (!IsAdvancedCombatAiEnabled ||
-            status != ActionStatus.Available ||
-            scope != ActionScope.Battle ||
-            actionType is not (ActionType.Main or ActionType.Bonus) ||
-            character?.RulesetCharacter == null ||
-            !IsAiControlledForCombat(character) ||
-            IsActiveBattleContender(character))
-        {
-            return;
-        }
-
-        TryClearInactiveCombatAiTurnOwnership(character);
-        status = ActionStatus.Unavailable;
-    }
-
-    private static void CloseLateCompletionAndScheduleTerminal(
+    private static void CloseLateActionLinkedMoveCompletion(
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
         int3 start,
@@ -7963,24 +3818,6 @@ TryCompleteActionLinkedMove(character);
             (noMove ? RouteMoveCompletionFlags.NoMove : RouteMoveCompletionFlags.None),
             round,
             turnStamp);
-
-
-        if (!IsActiveBattleContender(character))
-        {
-            return;
-        }
-
-        if (pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove)
-        {
-            SchedulePendingRouteActionOnlyTerminal(
-                character,
-                pendingAction,
-                expectedDestination,
-                actualDestination,
-                consumeAfterAbort: noMove);
-            return;
-        }
-
     }
 
     private static void RecordAiMoveFailure(GameLocationCharacter character, int3 start, int3 target)
@@ -8099,13 +3936,6 @@ TryCompleteActionLinkedMove(character);
 
     }
 
-    internal static void RecordFallbackReadyTriggered(
-        GameLocationCharacter actor,
-        GameLocationCharacter target)
-    {
-        // Kept as a stable patch hook; the compact turn plan does not need per-ready trigger state.
-    }
-
     internal static void CleanupTrackedFallbackDodgeOnTurnStart(GameLocationCharacter character)
     {
         var rulesetCharacter = character?.RulesetCharacter;
@@ -8128,7 +3958,6 @@ TryCompleteActionLinkedMove(character);
                 }
 
                 rulesetCharacter.RemoveCondition(condition);
-
 
                 return;
             }
@@ -8161,32 +3990,41 @@ TryCompleteActionLinkedMove(character);
         return networkingService?.IsMultiplayerGame != true || networkingService.IsMasterClient;
     }
 
-    internal static void RecordCombatAiActionExecution(CharacterAction action)
+    internal static void RecordCombatAiActionExecution(
+        GameLocationCharacter character,
+        CharacterActionParams actionParams,
+        ActionScope scope,
+        int actionRank,
+        ActionStatus mainBefore)
     {
-        var character = action?.ActingCharacter;
+        var actionDefinition = actionParams?.ActionDefinition;
 
-        if (character?.RulesetCharacter == null || !IsAiControlledForCombat(character))
+        if (scope != ActionScope.Battle ||
+            character?.RulesetCharacter == null ||
+            actionDefinition == null ||
+            !IsAiControlledForCombat(character))
         {
             return;
         }
 
-        EnsureCombatAiRuntimeCache(character);
+        EnsureCombatAiRuntimeCache();
+
+        var actionId = actionDefinition.Id;
+        var actionType = actionDefinition.ActionType;
+        TryClearAcceptedPendingResidualMainAction(character, actionId);
 
         var memory = new CombatAiActionExecutionMemory(
-            action.ActionId,
-            action.ActionType,
-            character.GetActionTypeStatus(ActionType.Main),
+            actionId,
+            actionType,
+            mainBefore,
+            actionRank,
             GetCurrentBattleRound(),
             Math.Max(1, ObservedCombatMemoryTurnStamp));
 
-        var isPendingTerminalAction =
-            IsPendingTerminalDodgeAction(action) ||
-            IsPendingTerminalReadyAction(action);
         var isLedgerMainAction = IsMainActionId(memory.ActionId);
 
         if (isLedgerMainAction &&
-            !IsActiveBattleContender(character) &&
-            !isPendingTerminalAction)
+            !IsActiveBattleContender(character))
         {
             return;
         }
@@ -8198,10 +4036,10 @@ TryCompleteActionLinkedMove(character);
             LastMainActionExecutionCache[character.Guid] = memory;
             IncrementActionUseCount(TurnMainActionUseCountCache, character);
 
-            RecordRepeatedAttackActionExecution(action, memory);
+            RecordRepeatedAttackActionExecution(character, actionParams, memory);
         }
 
-        if (IsConnectedHostileActionExecution(action))
+        if (IsConnectedHostileActionExecution(character, actionParams))
         {
             DisconnectedPositioningSealCache.Remove(character.Guid);
             DisconnectedPositioningMovementLockCache.Remove(character.Guid);
@@ -8209,146 +4047,51 @@ TryCompleteActionLinkedMove(character);
             DisconnectedSearchNoRouteMovementSealCache.Remove(character.Guid);
         }
 
-        var acceptedRouteTerminalBonusAction = false;
-
         if (memory.ActionType == ActionType.Bonus)
         {
             IncrementActionUseCount(TurnBonusActionUseCountCache, character);
-
-            acceptedRouteTerminalBonusAction =
-                action.ActionId is Id.CastBonus or Id.PowerBonus &&
-                IsActiveBattleContender(character) &&
-                PendingRouteTerminalBonusActionRequestCache.Remove(character.Guid);
         }
-
-        ClearSearchNoConnectedTerminalAfterAcceptedAction(action);
-        ClearRouteTerminalAfterAcceptedAction(action, acceptedRouteTerminalBonusAction);
     }
 
-    private static void ClearSearchNoConnectedTerminalAfterAcceptedAction(CharacterAction action)
-    {
-        var character = action?.ActingCharacter;
-
-        if (character?.RulesetCharacter == null ||
-            !HasSearchNoConnectedEndTurnFallbackContext(character) ||
-            !IsActiveBattleContender(character) ||
-            action.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain or Id.Ready or Id.Dodge))
-        {
-            return;
-        }
-
-        ClearSearchNoConnectedTerminalState(character);
-    }
-
-    internal static bool TryConsumeSearchNoConnectedFallbackAfterActionCompletion(CharacterAction action)
-    {
-        var character = action?.ActingCharacter;
-
-        if (character?.RulesetCharacter == null ||
-            action.ActionId is not (Id.CastBonus or Id.PowerBonus or Id.PowerNoCost) ||
-            !HasSearchNoConnectedEndTurnFallbackContext(character) ||
-            !IsActiveBattleContender(character) ||
-            HasPendingActionLinkedContinuationBlocker(character))
-        {
-            return false;
-        }
-
-        return TryConsumeSearchNoConnectedFallbackAtAiProcessBoundary(character);
-    }
-
-    private static bool TryConsumeSearchNoConnectedFallbackAfterMoveChainCompletion(
+    private static bool IsConnectedHostileActionExecution(
         GameLocationCharacter character,
-        CombatAiRouteMoveSourceKind routeMoveSource)
+        CharacterActionParams actionParams)
     {
-        if (routeMoveSource != CombatAiRouteMoveSourceKind.SearchLostTarget ||
-            character?.RulesetCharacter == null ||
-            !HasSearchNoConnectedEndTurnFallbackContext(character) ||
-            (!HasActiveDisconnectedSearchMoveCompletionSeal(character) &&
-             !HasCurrentClosedNoConnectedSearchRoute(character)))
-        {
-            return false;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            ClearSearchNoConnectedTerminalState(character);
-            return true;
-        }
-
-        if (HasPendingActionLinkedContinuationBlocker(character))
-        {
-            return false;
-        }
-
-
-        return TryConsumeSearchNoConnectedFallbackAtAiProcessBoundary(character);
-    }
-
-    private static void ClearRouteTerminalAfterAcceptedAction(
-        CharacterAction action,
-        bool acceptedRouteTerminalBonusAction)
-    {
-        var character = action?.ActingCharacter;
+        var actionId = actionParams?.ActionDefinition?.Id;
 
         if (character?.RulesetCharacter == null ||
-            !PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var memory))
-        {
-            return;
-        }
-
-        if (!memory.MatchesCurrentTurn(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp)))
-        {
-            ClearRouteTerminalState(character);
-            return;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            ClearRouteTerminalState(character);
-            return;
-        }
-
-        if (action.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain or Id.Ready or Id.Dodge) &&
-            !acceptedRouteTerminalBonusAction)
-        {
-            return;
-        }
-
-        ClearRouteTerminalState(character);
-    }
-
-    private static bool IsConnectedHostileActionExecution(CharacterAction action)
-    {
-        var character = action?.ActingCharacter;
-
-        if (character?.RulesetCharacter == null ||
-            action.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain or Id.CastBonus or Id.PowerBonus))
+            actionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain or Id.CastBonus or Id.PowerBonus))
         {
             return false;
         }
 
-        var target = action.ActionParams?.TargetCharacters.FirstOrDefault();
+        var target = actionParams.TargetCharacters.FirstOrDefault();
 
         if (target?.RulesetCharacter != null && target.Side != character.Side)
         {
             return true;
         }
 
-        return action.ActionId is Id.CastMain or Id.PowerMain or Id.CastBonus or Id.PowerBonus &&
-               TryGetActionEffectDescription(action, out var effectDescription) &&
+        return actionId is Id.CastMain or Id.PowerMain or Id.CastBonus or Id.PowerBonus &&
+               TryGetActionEffectDescription(actionParams, out var effectDescription) &&
                effectDescription.TargetSide == Side.Enemy;
     }
 
     private static void RecordRepeatedAttackActionExecution(
-        CharacterAction action,
+        GameLocationCharacter character,
+        CharacterActionParams actionParams,
         CombatAiActionExecutionMemory memory)
     {
-        if (!TryGetRepeatableAttackAction(action, out var target, out var actionKind, out var actionIdentity))
+        if (!TryGetRepeatableAttackAction(
+                character,
+                actionParams,
+                out var target,
+                out var actionKind,
+                out var actionIdentity))
         {
             return;
         }
 
-        var character = action.ActingCharacter;
         var repeat = 1;
 
         if (RepeatAttackActionCache.TryGetValue(character.Guid, out var previous) &&
@@ -8378,7 +4121,8 @@ TryCompleteActionLinkedMove(character);
 }
 
     private static bool TryGetRepeatableAttackAction(
-        CharacterAction action,
+        GameLocationCharacter character,
+        CharacterActionParams actionParams,
         out GameLocationCharacter target,
         out CombatAiActionKind actionKind,
         out string actionIdentity)
@@ -8387,8 +4131,7 @@ TryCompleteActionLinkedMove(character);
         actionKind = CombatAiActionKind.None;
         actionIdentity = null;
 
-        var character = action?.ActingCharacter;
-        var actionParams = action?.ActionParams;
+        var actionId = actionParams?.ActionDefinition?.Id;
 
         if (character?.RulesetCharacter == null || actionParams == null)
         {
@@ -8402,7 +4145,7 @@ TryCompleteActionLinkedMove(character);
             return false;
         }
 
-        if (action.ActionId == Id.AttackMain)
+        if (actionId == Id.AttackMain)
         {
             var mode = actionParams.AttackMode;
 
@@ -8419,7 +4162,7 @@ TryCompleteActionLinkedMove(character);
             return true;
         }
 
-        if (action.ActionId != Id.CastMain)
+        if (actionId != Id.CastMain)
         {
             return false;
         }
@@ -8446,6 +4189,7 @@ TryCompleteActionLinkedMove(character);
             Id.TacticalMove,
             ActionType.Bonus,
             character.GetActionTypeStatus(ActionType.Main),
+            character.CurrentActionRankByType[ActionType.Main],
             GetCurrentBattleRound(),
             Math.Max(1, ObservedCombatMemoryTurnStamp));
 
@@ -8490,336 +4234,6 @@ TryCompleteActionLinkedMove(character);
 
     }
 
-    internal static bool ShouldBlockInvalidAiMainAction(
-        CharacterAction action,
-        out CombatAiMainActionBlockKind blockKind)
-    {
-        blockKind = CombatAiMainActionBlockKind.None;
-
-        var character = action?.ActingCharacter;
-
-        if (!IsAdvancedCombatAiEnabled ||
-            character?.RulesetCharacter == null ||
-            !IsAiControlledForCombat(character) ||
-            !IsMainActionId(action.ActionId))
-        {
-            return false;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            blockKind = CombatAiMainActionBlockKind.Other;
-
-            if (TryNormalizePendingTerminalActionForInactiveContender(character))
-            {
-                return true;
-            }
-
-            return true;
-        }
-
-        if (ShouldBlockPostRecoveryEndTurnMainAction(action, out blockKind))
-        {
-            return true;
-        }
-
-        if (ShouldBlockForcedMotionAttackBudgetAction(action, out blockKind))
-        {
-            return true;
-        }
-
-        if (ShouldBlockMainActionDuringPendingTurnRecovery(action, out blockKind))
-        {
-            return true;
-        }
-
-        if (!TryConsumePendingResidualMainAction(action))
-        {
-            if (TryGetBlockedVanillaMainActionValidation(action, out var vanillaValidation))
-            {
-                blockKind = vanillaValidation.BlockKind == CombatAiMainActionBlockKind.None
-                    ? CombatAiMainActionBlockKind.Other
-                    : vanillaValidation.BlockKind;
-
-                if (ShouldContinueTerminalAfterBlockedMainAction(action, vanillaValidation))
-                {
-                    MarkPendingUtilityTerminalContinuation(character, action.ActionId);
-                }
-
-
-                return true;
-            }
-
-            TryConsumeForcedMotionAttackBudgetForAllowedAction(action);
-
-            return false;
-        }
-
-        var validation = ValidateMainActionBeforeExecution(action);
-
-        if (validation.IsValid)
-        {
-            TryConsumeForcedMotionAttackBudgetForAllowedAction(action);
-
-            return false;
-        }
-
-        blockKind = validation.BlockKind == CombatAiMainActionBlockKind.None
-            ? CombatAiMainActionBlockKind.Other
-            : validation.BlockKind;
-
-        if (ShouldContinueTerminalAfterBlockedMainAction(action, validation))
-        {
-            MarkPendingUtilityTerminalContinuation(character, action.ActionId);
-        }
-
-
-        return true;
-    }
-
-    private static bool ShouldBlockPostRecoveryEndTurnMainAction(
-        CharacterAction action,
-        out CombatAiMainActionBlockKind blockKind)
-    {
-        blockKind = CombatAiMainActionBlockKind.None;
-
-        var character = action?.ActingCharacter;
-
-        if (character?.RulesetCharacter == null ||
-            action.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain) ||
-            !HasCurrentPostRecoveryEndTurnMainActionSeal(character))
-        {
-            return false;
-        }
-
-        PendingResidualMainActionCache.Remove(character.Guid);
-        PendingUtilityTerminalContinuationCache.Remove(character.Guid);
-        blockKind = CombatAiMainActionBlockKind.MainAlreadySpent;
-
-
-        return true;
-    }
-
-    private static bool HasCurrentPostRecoveryEndTurnMainActionSeal(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PostRecoveryEndTurnMainActionSealCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (memory.Round == currentRound && memory.TurnStamp == currentTurnStamp)
-        {
-            return true;
-        }
-
-        PostRecoveryEndTurnMainActionSealCache.Remove(character.Guid);
-
-        return false;
-    }
-
-    private static bool ShouldBlockMainActionDuringPendingTurnRecovery(
-        CharacterAction action,
-        out CombatAiMainActionBlockKind blockKind)
-    {
-        blockKind = CombatAiMainActionBlockKind.None;
-
-        var character = action?.ActingCharacter;
-
-        if (character?.RulesetCharacter == null ||
-            action.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain) ||
-            !TryGetCurrentPendingAiProcessTurnRecovery(character, out var recovery))
-        {
-            return false;
-        }
-
-        if (action.ActionId == Id.AttackMain &&
-            TryAllowRecoveryAttackContinuation(character, recovery.RecoveryReason))
-        {
-            PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-
-            return false;
-        }
-
-        var hasCommittedMainAction = TryGetCommittedNonTerminalMainActionThisTurn(character, out _);
-        var mainUseCount = GetActionUseCount(TurnMainActionUseCountCache, character);
-
-        if (!hasCommittedMainAction && mainUseCount <= 0)
-        {
-            return false;
-        }
-
-        PendingResidualMainActionCache.Remove(character.Guid);
-        blockKind = CombatAiMainActionBlockKind.MainAlreadySpent;
-
-
-        return true;
-    }
-
-    private static bool ShouldBlockForcedMotionAttackBudgetAction(
-        CharacterAction action,
-        out CombatAiMainActionBlockKind blockKind)
-    {
-        blockKind = CombatAiMainActionBlockKind.None;
-
-        var character = action?.ActingCharacter;
-
-        if (character?.RulesetCharacter == null ||
-            action.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain) ||
-            !TryGetCurrentForcedMotionAttackBudget(character, out var budget))
-        {
-            return false;
-        }
-
-        if (action.ActionId == Id.AttackMain &&
-            budget.RemainingAttacks > 0 &&
-            budget.ActionRank == character.CurrentActionRankByType[ActionType.Main] &&
-            HasAvailableAttackMainContinuation(character))
-        {
-            return false;
-        }
-
-        ForcedMotionAttackBudgetCache.Remove(character.Guid);
-        PendingResidualMainActionCache.Remove(character.Guid);
-        PendingUtilityTerminalContinuationCache.Remove(character.Guid);
-        blockKind = CombatAiMainActionBlockKind.MainAlreadySpent;
-
-        return true;
-    }
-
-    private static void TryConsumeForcedMotionAttackBudgetForAllowedAction(CharacterAction action)
-    {
-        var character = action?.ActingCharacter;
-
-        if (character?.RulesetCharacter == null ||
-            action.ActionId != Id.AttackMain ||
-            !TryGetCurrentForcedMotionAttackBudget(character, out var budget) ||
-            budget.RemainingAttacks <= 0)
-        {
-            return;
-        }
-
-        NormalizeForcedMotionAttackBudgetIterations(character, budget);
-
-        var consumedBudget = budget.Consume();
-
-        ForcedMotionAttackBudgetCache[character.Guid] = consumedBudget;
-        PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-    }
-
-    private static void NormalizeForcedMotionAttackBudgetIterations(
-        GameLocationCharacter character,
-        ForcedMotionAttackBudgetMemory budget)
-    {
-        if (character?.RulesetCharacter == null ||
-            budget.AllowedMainAttacks <= 0 ||
-            budget.RemainingAttacks <= 0 ||
-            budget.ActionRank != character.CurrentActionRankByType[ActionType.Main])
-        {
-            return;
-        }
-
-        var usedBefore = character.UsedMainAttacks;
-        var desiredUsedMainAttacks = Math.Max(0, budget.AllowedMainAttacks - budget.RemainingAttacks);
-
-        if (usedBefore < desiredUsedMainAttacks)
-        {
-            character.UsedMainAttacks = desiredUsedMainAttacks;
-        }
-    }
-
-    internal static bool ShouldBlockDisconnectedAiMovementAction(CharacterAction action)
-    {
-        if (!IsAdvancedCombatAiEnabled)
-        {
-            return false;
-        }
-
-        var character = action?.ActingCharacter;
-
-        if (character?.RulesetCharacter == null ||
-            !IsAiControlledForCombat(character) ||
-            !IsActiveBattleContender(character))
-        {
-            return false;
-        }
-
-        if (action is CharacterActionMoveStepWalk)
-        {
-            return false;
-        }
-
-        if (ShouldBlockRouteTerminalInterleavedSearchMovement(action, character))
-        {
-            return true;
-        }
-
-        if (!TryGetActiveDisconnectedPositioningSeal(character, out var seal))
-        {
-            return false;
-        }
-
-        if (action is CharacterActionMove move)
-        {
-            if (TryGetSearchKnownTargetOwnedMoveGate(
-                    character,
-                    character.LocationPosition,
-                    move.DestinationPosition,
-                    out var searchMoveAllowed))
-            {
-                if (searchMoveAllowed)
-                {
-                    return false;
-                }
-
-                RecordAiMoveFailure(character, character.LocationPosition, move.DestinationPosition);
-                return true;
-            }
-
-            return ShouldBlockDisconnectedPositioningDestination(
-                action,
-                character,
-                seal,
-                move.DestinationPosition);
-        }
-
-        if (action is CharacterActionMoveStepBase)
-        {
-            var destination = character.DestinationPosition;
-
-            if (destination.x == 0 && destination.y == 0 && destination.z == 0)
-            {
-                return false;
-            }
-
-            if (TryGetSearchKnownTargetOwnedMoveGate(
-                    character,
-                    character.LocationPosition,
-                    destination,
-                    out var searchMoveAllowed))
-            {
-                if (searchMoveAllowed)
-                {
-                    return false;
-                }
-
-                RecordAiMoveFailure(character, character.LocationPosition, destination);
-                return true;
-            }
-
-            return ShouldBlockDisconnectedPositioningDestination(
-                action,
-                character,
-                seal,
-                destination);
-        }
-
-        return false;
-    }
-
     internal static bool ShouldBlockInactiveAiBattleAction(CharacterAction action)
     {
         if (!IsAdvancedCombatAiEnabled)
@@ -8831,6 +4245,7 @@ TryCompleteActionLinkedMove(character);
 
         if (character?.RulesetCharacter == null ||
             !IsAiControlledForCombat(character) ||
+            !CanExecuteAutomaticCombatAction(character) ||
             IsActiveBattleContender(character) ||
             action is CharacterActionMoveStepBase ||
             action.ActionType == ActionType.Reaction)
@@ -8848,74 +4263,6 @@ TryCompleteActionLinkedMove(character);
         TryClearInactiveCombatAiTurnOwnership(character);
 
         return true;
-    }
-
-    private static bool ShouldBlockRouteTerminalInterleavedSearchMovement(
-        CharacterAction action,
-        GameLocationCharacter character)
-    {
-        if (action == null ||
-            character?.RulesetCharacter == null ||
-            !HasActiveRouteTerminalSearchMoveBlock(character))
-        {
-            return false;
-        }
-
-        if (action.ActionId == Id.DashBonus)
-        {
-            return true;
-        }
-
-        if (action is CharacterActionMove move)
-        {
-            return !TryGetSearchKnownTargetOwnedMoveGate(
-                       character,
-                       character.LocationPosition,
-                       move.DestinationPosition,
-                       out var searchMoveAllowed) ||
-                   !searchMoveAllowed;
-        }
-
-        if (action is CharacterActionMoveStepBase)
-        {
-            var destination = character.DestinationPosition;
-
-            if (destination.x == 0 && destination.y == 0 && destination.z == 0)
-            {
-                return false;
-            }
-
-            return !TryGetSearchKnownTargetOwnedMoveGate(
-                       character,
-                       character.LocationPosition,
-                       destination,
-                       out var searchMoveAllowed) ||
-                   !searchMoveAllowed;
-        }
-
-        return false;
-    }
-
-    private static bool HasActiveRouteTerminalSearchMoveBlock(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        return PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var memory) &&
-               memory.MatchesCurrentTurn(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp)) &&
-               IsSearchKnownTargetRoute(memory.PendingAction) &&
-               !memory.PendingAction.SearchRouteActionConnected;
-    }
-
-    private static bool IsRouteOwnedSearchKnownTargetMove(GameLocationCharacter character, int3 destination)
-    {
-        return character?.RulesetCharacter != null &&
-               TryGetPendingActionLinkedMoveForCompletion(character, out var pendingAction, out _) &&
-               pendingAction.MovementGoal == CombatAiMovementGoalKind.SearchKnownTarget &&
-               pendingAction.RouteMoveSource == CombatAiRouteMoveSourceKind.SearchLostTarget &&
-               pendingAction.ExpectedDestination == destination;
     }
 
     private static bool TryGetSearchKnownTargetOwnedMoveGate(
@@ -9027,13 +4374,9 @@ TryCompleteActionLinkedMove(character);
     }
 
     private static bool ShouldBlockDisconnectedPositioningUnresolvedDestination(
-        CharacterAction action,
         GameLocationCharacter character,
-        DisconnectedPositioningSealMemory seal,
-        int3 start)
+        DisconnectedPositioningSealMemory seal)
     {
-        _ = action;
-        _ = start;
         ApplyDisconnectedPositioningMovementLock(character, seal);
 
         return true;
@@ -9055,12 +4398,9 @@ TryCompleteActionLinkedMove(character);
             return false;
         }
 
-        var remainingTacticalMoves = character.RemainingTacticalMoves;
-
-        character.UsedTacticalMoves += remainingTacticalMoves;
-        character.UsedTacticalMovesChanged?.Invoke(character);
         DisconnectedPositioningMovementLockCache[character.Guid] =
             new DisconnectedPositioningMovementLockMemory(seal.Round, seal.TurnStamp);
+        ClearPendingMoveOwnership(character);
 
         return true;
     }
@@ -9122,187 +4462,6 @@ TryCompleteActionLinkedMove(character);
         return true;
     }
 
-    private static bool IsPendingTerminalDodgeAction(CharacterAction action)
-    {
-        return action?.ActionId == Id.Dodge &&
-               TryGetPendingTerminalDodgeEndTurn(action.ActingCharacter, out _);
-    }
-
-    private static bool IsPendingTerminalReadyAction(CharacterAction action)
-    {
-        return action?.ActionId == Id.Ready &&
-               TryGetPendingTerminalReadyEndTurn(action.ActingCharacter, out _);
-    }
-
-    private static bool TryGetPendingTerminalDodgeEndTurn(
-        GameLocationCharacter character,
-        out PendingTerminalDodgeEndTurnMemory memory)
-    {
-        memory = default;
-
-        if (character?.RulesetCharacter == null ||
-            !PendingTerminalDodgeEndTurnCache.TryGetValue(character.Guid, out memory))
-        {
-            return false;
-        }
-
-        return memory.Round == GetCurrentBattleRound() &&
-               memory.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp);
-    }
-
-    private static bool TryGetPendingTerminalReadyEndTurn(
-        GameLocationCharacter character,
-        out PendingTerminalDodgeEndTurnMemory memory)
-    {
-        memory = default;
-
-        if (character?.RulesetCharacter == null ||
-            !PendingTerminalReadyEndTurnCache.TryGetValue(character.Guid, out memory))
-        {
-            return false;
-        }
-
-        return memory.Round == GetCurrentBattleRound() &&
-               memory.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp);
-    }
-
-    private static bool TryGetBlockedVanillaMainActionValidation(
-        CharacterAction action,
-        out CombatAiMainActionValidation validation)
-    {
-        validation = default;
-
-        var character = action?.ActingCharacter;
-
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        if (action.ActionId == Id.DashMain &&
-            TryGetActiveRouteMoveDashBlock(character, out var dashBlock))
-        {
-            if (TryGetSearchKnownTargetDashContinuationValidation(
-                    character,
-                    dashBlock,
-                    out var searchDashValidation))
-            {
-
-                if (searchDashValidation.IsValid)
-                {
-                    return false;
-                }
-
-                validation = searchDashValidation;
-                return true;
-            }
-
-            validation = new CombatAiMainActionValidation(
-                false);
-            return true;
-        }
-
-        if (action.ActionId == Id.DashMain &&
-            TryGetActiveDisconnectedPositioningSeal(character, out var disconnectedSeal))
-        {
-validation = new CombatAiMainActionValidation(
-                false,
-                CombatAiMainActionBlockKind.DashDisconnectedPositioning);
-            return true;
-        }
-
-        if (action.ActionId is Id.Ready or Id.Dodge &&
-            PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid) &&
-            !IsCurrentPendingTerminalLaunchAction(action))
-        {
-            validation = new CombatAiMainActionValidation(
-                false,
-                CombatAiMainActionBlockKind.ActionNotUsableAtPosition);
-            return true;
-        }
-
-        if (action.ActionId == Id.AttackMain)
-        {
-            validation = ValidateMainActionBeforeExecution(action);
-
-            if (validation.IsValid)
-            {
-                return false;
-            }
-
-            if (validation.BlockKind == CombatAiMainActionBlockKind.MainAlreadySpent)
-            {
-                return false;
-            }
-
-            if (!IsAttackMainUnavailableValidation(validation) &&
-                !IsRangedWhileMeleeReachableValidation(validation))
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        if (action.ActionId is not (Id.CastMain or Id.PowerMain))
-        {
-            return false;
-        }
-
-        validation = ValidateMainActionBeforeExecution(action);
-
-        if (validation.IsValid ||
-            !IsUtilityActionBlockedByValidation(validation))
-        {
-            return false;
-        }
-
-
-        return true;
-    }
-
-    private static bool IsCurrentPendingTerminalLaunchAction(CharacterAction action)
-    {
-        var character = action?.ActingCharacter;
-
-        return character?.RulesetCharacter != null &&
-               PendingAiProcessTerminalLaunchCache.TryGetValue(character.Guid, out var memory) &&
-               memory.ActionId == action.ActionId &&
-               memory.MatchesCurrentTurn(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp));
-    }
-
-    private static bool ShouldContinueTerminalAfterBlockedMainAction(
-        CharacterAction action,
-        CombatAiMainActionValidation validation)
-    {
-        if (action?.ActionId == Id.DashMain)
-        {
-            return validation.BlockKind != CombatAiMainActionBlockKind.DashDisconnectedPositioning;
-        }
-
-        return IsUtilityActionBlockedByValidation(validation);
-    }
-
-    private static bool IsUtilityActionBlockedByValidation(CombatAiMainActionValidation validation)
-    {
-        return validation.BlockKind is
-            CombatAiMainActionBlockKind.LowValueUtility or
-            CombatAiMainActionBlockKind.UtilityBlocked or
-            CombatAiMainActionBlockKind.RedundantUtility;
-    }
-
-    private static bool IsRangedWhileMeleeReachableValidation(CombatAiMainActionValidation validation)
-    {
-        return validation.BlockKind is
-            CombatAiMainActionBlockKind.RangedWhileMeleeReachable or
-            CombatAiMainActionBlockKind.RangedWhileMeleePursuitAvailable;
-    }
-
-    private static bool IsAttackMainUnavailableValidation(CombatAiMainActionValidation validation)
-    {
-        return validation.BlockKind == CombatAiMainActionBlockKind.AttackMainUnavailable;
-    }
-
     private static void MarkPendingResidualMainAction(
         GameLocationCharacter character,
         Id actionId)
@@ -9318,115 +4477,21 @@ validation = new CombatAiMainActionValidation(
             Math.Max(1, ObservedCombatMemoryTurnStamp));
     }
 
-    private static void MarkPendingUtilityTerminalContinuation(
+    private static bool TryClearAcceptedPendingResidualMainAction(
         GameLocationCharacter character,
         Id actionId)
     {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        PendingUtilityTerminalContinuationCache[character.Guid] = new PendingUtilityTerminalContinuation(
-            actionId,
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp));
-
-    }
-
-    internal static void NotifyBlockedInvalidAiMainAction(
-        CharacterAction action,
-        CombatAiMainActionBlockKind blockKind)
-    {
-        TryClearBlockedInvalidMainCaches(action, blockKind, out _);
-    }
-
-    internal static void TryCloseTurnAfterBlockedInvalidAiMainAction(
-        CharacterAction action,
-        CombatAiMainActionBlockKind blockKind)
-    {
-        if (!TryClearBlockedInvalidMainCaches(action, blockKind, out var character))
-        {
-            return;
-        }
-
-    }
-
-    private static bool TryClearBlockedInvalidMainCaches(
-        CharacterAction action,
-        CombatAiMainActionBlockKind blockKind,
-        out GameLocationCharacter character)
-    {
-        character = action?.ActingCharacter;
-
         if (character?.RulesetCharacter == null ||
-            !ShouldClearBlockedInvalidMainCaches(blockKind))
+            !PendingResidualMainActionCache.TryGetValue(character.Guid, out var pending) ||
+            !pending.Matches(
+                actionId,
+                GetCurrentBattleRound(),
+                Math.Max(1, ObservedCombatMemoryTurnStamp)))
         {
             return false;
         }
 
         PendingResidualMainActionCache.Remove(character.Guid);
-        PendingUtilityTerminalContinuationCache.Remove(character.Guid);
-
-        return true;
-    }
-
-    private static bool ShouldClearBlockedInvalidMainCaches(CombatAiMainActionBlockKind blockKind)
-    {
-        return blockKind is
-            CombatAiMainActionBlockKind.MainAlreadySpent or
-            CombatAiMainActionBlockKind.AttackMainUnavailable or
-            CombatAiMainActionBlockKind.RangedWhileMeleeReachable or
-            CombatAiMainActionBlockKind.RangedWhileMeleePursuitAvailable;
-    }
-
-    private static bool HasPendingUtilityTerminalContinuation(GameLocationCharacter character)
-    {
-        return character?.RulesetCharacter != null &&
-               PendingUtilityTerminalContinuationCache.TryGetValue(character.Guid, out var pending) &&
-               pending.Round == GetCurrentBattleRound() &&
-               pending.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp);
-    }
-
-    private static bool TryConsumePendingUtilityTerminalContinuation(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PendingUtilityTerminalContinuationCache.TryGetValue(character.Guid, out var pending))
-        {
-            return false;
-        }
-
-        PendingUtilityTerminalContinuationCache.Remove(character.Guid);
-
-        if (pending.Round != GetCurrentBattleRound() ||
-            pending.TurnStamp != Math.Max(1, ObservedCombatMemoryTurnStamp))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static bool TryConsumePendingResidualMainAction(CharacterAction action)
-    {
-        var character = action?.ActingCharacter;
-
-        if (character?.RulesetCharacter == null ||
-            !PendingResidualMainActionCache.TryGetValue(character.Guid, out var pending))
-        {
-            return false;
-        }
-
-        PendingResidualMainActionCache.Remove(character.Guid);
-
-        var round = GetCurrentBattleRound();
-        var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (!pending.Matches(action.ActionId, round, turnStamp))
-        {
-            return false;
-        }
-
         return true;
     }
 
@@ -9442,144 +4507,13 @@ validation = new CombatAiMainActionValidation(
                actionId == (Id)ExtraActionId.Grapple;
     }
 
-    private static CombatAiMainActionValidation ValidateMainActionBeforeExecution(CharacterAction action)
-    {
-        var character = action?.ActingCharacter;
-        var target = action?.ActionParams?.TargetCharacters.FirstOrDefault();
-
-        if (character?.RulesetCharacter == null)
-        {
-            return new CombatAiMainActionValidation(true);
-        }
-
-        if (action.ActionId is Id.Ready or Id.Dodge)
-        {
-            return new CombatAiMainActionValidation(true);
-        }
-
-        if (action.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain))
-        {
-            return new CombatAiMainActionValidation(true);
-        }
-
-        if (action.ActionId != Id.AttackMain &&
-            HasCommittedMainActionThisTurn(character))
-        {
-            return new CombatAiMainActionValidation(
-                false,
-                CombatAiMainActionBlockKind.MainAlreadySpent);
-        }
-
-        if (action.ActionId != Id.AttackMain &&
-            character.GetActionTypeStatus(ActionType.Main) != ActionStatus.Available)
-        {
-            return new CombatAiMainActionValidation(true);
-        }
-
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-
-        if (battleService == null)
-        {
-            return new CombatAiMainActionValidation(true);
-        }
-
-        if (target?.RulesetCharacter == null || target.Side == character.Side)
-        {
-            return ValidateNonHostileMainActionBeforeExecution(character, target, action, battleService);
-        }
-
-        return action.ActionId switch
-        {
-            Id.AttackMain => ValidateAttackMainBeforeExecution(character, target, action.ActionParams, battleService),
-            Id.CastMain => ValidateCastMainBeforeExecution(character, target, action.ActionParams, battleService),
-            Id.PowerMain => ValidatePowerMainBeforeExecution(character, target, action.ActionParams),
-            _ => new CombatAiMainActionValidation(true)
-        };
-    }
-
-    private static CombatAiMainActionValidation ValidateNonHostileMainActionBeforeExecution(
-        GameLocationCharacter character,
-        GameLocationCharacter target,
-        CharacterAction action,
-        IGameLocationBattleService battleService)
-    {
-        if (action.ActionId is not (Id.CastMain or Id.PowerMain))
-        {
-            return new CombatAiMainActionValidation(true);
-        }
-
-        if (TryGetActionEffectDescription(action, out var actionEffectDescription) &&
-            actionEffectDescription.TargetSide == Side.Enemy)
-        {
-            return new CombatAiMainActionValidation(true);
-        }
-
-        var utilityTarget = target ?? character;
-        var utilityValidation = ValidateUtilityAction(character, utilityTarget, action);
-
-        if (utilityValidation.IsBlocked)
-        {
-            return new CombatAiMainActionValidation(
-                false,
-                utilityValidation.BlockKind);
-        }
-
-        var targetAssessment = BuildSelfAssessment(utilityTarget);
-
-        if (targetAssessment.IsBloodied ||
-            targetAssessment.IsCritical ||
-            targetAssessment.HasSeriousCondition)
-        {
-            return new CombatAiMainActionValidation(true);
-        }
-
-        return new CombatAiMainActionValidation(true);
-    }
-
-    private static UtilityActionValidation ValidateUtilityAction(
-        GameLocationCharacter actor,
-        GameLocationCharacter target,
-        CharacterAction action)
-    {
-        if (actor?.RulesetCharacter == null ||
-            target?.RulesetCharacter == null ||
-            action?.ActionParams == null ||
-            action.ActionId is not (Id.CastMain or Id.PowerMain) ||
-            !TryGetActionEffectDescription(action, out var effectDescription))
-        {
-            return new UtilityActionValidation(false);
-        }
-
-        if (HasEquivalentActiveEffectOrCondition(target.RulesetCharacter, effectDescription))
-        {
-            return new UtilityActionValidation(
-                true,
-                CombatAiMainActionBlockKind.RedundantUtility);
-        }
-
-        if (HasEquivalentSenseUtility(target.RulesetCharacter, effectDescription))
-        {
-            return new UtilityActionValidation(
-                true,
-                CombatAiMainActionBlockKind.RedundantUtility);
-        }
-
-        if (IsLowValueSelfUtility(effectDescription) &&
-            HasLeftoverActionCombatContext(actor))
-        {
-            return new UtilityActionValidation(
-                true,
-                CombatAiMainActionBlockKind.LowValueUtility);
-        }
-
-        return new UtilityActionValidation(false);
-    }
-
-    private static bool TryGetActionEffectDescription(CharacterAction action, out EffectDescription effectDescription)
+    private static bool TryGetActionEffectDescription(
+        CharacterActionParams actionParams,
+        out EffectDescription effectDescription)
     {
         effectDescription = null;
 
-        var effect = action?.ActionParams?.RulesetEffect ?? action?.ActionParams?.activeEffect;
+        var effect = actionParams?.RulesetEffect ?? actionParams?.activeEffect;
 
         switch (effect)
         {
@@ -9595,150 +4529,88 @@ validation = new CombatAiMainActionValidation(
         return effectDescription != null;
     }
 
-    private static CombatAiMainActionValidation ValidateAttackMainBeforeExecution(
+    private static bool IsAttackModeAvailableForMainAction(
         GameLocationCharacter character,
-        GameLocationCharacter target,
-        CharacterActionParams actionParams,
-        IGameLocationBattleService battleService)
+        RulesetAttackMode mode,
+        out ActionStatus actionStatus)
     {
-        var mode = actionParams?.AttackMode;
+        actionStatus = ActionStatus.Unavailable;
 
-        if (mode == null)
-        {
-            return new CombatAiMainActionValidation(false);
-        }
-
-        var attackEvaluationParams = new BattleDefinitions.AttackEvaluationParams();
-        var modifier = new ActionModifier();
-        var attackMainStatus = character.GetActionStatus(Id.AttackMain, ActionScope.Battle);
-
-        if (attackMainStatus != ActionStatus.Available)
-        {
-            return new CombatAiMainActionValidation(
-                false,
-                CombatAiMainActionBlockKind.AttackMainUnavailable);
-        }
-
-        if (TryGetCommittedNonTerminalMainActionThisTurn(
-                character,
-                out var committedMainAction) &&
-            committedMainAction.ActionId == Id.AttackMain &&
-            !HasAvailableAttackMainContinuation(character))
-        {
-            return new CombatAiMainActionValidation(
-                false,
-                CombatAiMainActionBlockKind.MainAlreadySpent);
-        }
-
-        if (!ValidatorsWeapon.IsMelee(mode) &&
-            ShouldBlockRangedAttackBecauseMeleeReachable(character, target, battleService, out var blockKind))
-        {
-            return new CombatAiMainActionValidation(
-                false,
-                blockKind);
-        }
-
-        if (ValidatorsWeapon.IsMelee(mode))
-        {
-            attackEvaluationParams.FillForPhysicalReachAttack(
-                character,
-                character.LocationPosition,
-                mode,
-                target,
-                target.LocationPosition,
-                modifier);
-        }
-        else
-        {
-            attackEvaluationParams.FillForPhysicalRangeAttack(
-                character,
-                character.LocationPosition,
-                mode,
-                target,
-                target.LocationPosition,
-                modifier);
-        }
-
-        return battleService.CanAttack(attackEvaluationParams)
-            ? new CombatAiMainActionValidation(true)
-            : new CombatAiMainActionValidation(false);
-    }
-
-    private static bool ShouldBlockRangedAttackBecauseMeleeReachable(
-        GameLocationCharacter character,
-        GameLocationCharacter target,
-        IGameLocationBattleService battleService,
-        out CombatAiMainActionBlockKind blockKind)
-    {
-        blockKind = CombatAiMainActionBlockKind.None;
-
-        if (character?.RulesetCharacter == null ||
-            target?.RulesetCharacter == null ||
-            battleService == null)
+        if (character?.RulesetCharacter == null || mode == null)
         {
             return false;
         }
 
-        var capabilityCatalog = BuildCapabilityCatalog(character);
-        var profile = BuildProfile(character);
+        actionStatus = character.GetActionStatus(Id.AttackMain, ActionScope.Battle);
 
-        if (!ShouldPreferMeleeAction(profile, capabilityCatalog))
+        if (actionStatus != ActionStatus.Available)
         {
             return false;
         }
 
-        var attackMainStatus = character.GetActionStatus(Id.AttackMain, ActionScope.Battle);
-
-        if (attackMainStatus != ActionStatus.Available)
-        {
-            return false;
-        }
-
-        if (CanUseActionKindAtPosition(
+        if (!TryGetCommittedNonTerminalMainActionThisTurn(character, out var committedMainAction) ||
+            committedMainAction.ActionId != Id.AttackMain ||
+            HasUnspentMainActionRank(
                 character,
-                character.LocationPosition,
-                target,
-                CombatAiActionKind.Melee,
-                battleService))
+                committedMainAction,
+                character.GetActionTypeStatus(ActionType.Main)))
         {
-            blockKind = CombatAiMainActionBlockKind.RangedWhileMeleeReachable;
             return true;
         }
 
-        if (!TurnMovementProgressCache.TryGetValue(character.Guid, out var movementProgress))
+        actionStatus = character.GetActionStatus(
+            Id.AttackMain,
+            ActionScope.Battle,
+            optionalAttackMode: mode);
+
+        return actionStatus == ActionStatus.Available;
+    }
+
+    private static bool HasAvailableAttackModeForMainAction(
+        GameLocationCharacter character,
+        CombatAiActionKind actionKind = CombatAiActionKind.None)
+    {
+        if (character?.RulesetCharacter == null ||
+            actionKind is not (CombatAiActionKind.None or CombatAiActionKind.Melee or CombatAiActionKind.Ranged))
         {
             return false;
         }
 
-        foreach (var candidate in movementProgress.EnumerateAcceptedMoveCandidates())
+        foreach (var mode in character.RulesetCharacter.AttackModes)
         {
-            if (candidate.TurnsToAction != 0 ||
-                !CanUseActionKindAtPosition(
-                    character,
-                    candidate.Position,
-                    target,
-                    CombatAiActionKind.Melee,
-                    battleService))
+            if (mode == null ||
+                actionKind == CombatAiActionKind.Melee && !IsMeleeAttackModeForAi(mode) ||
+                actionKind == CombatAiActionKind.Ranged && !IsRangedAttackMode(mode) ||
+                !IsAttackModeAvailableForMainAction(character, mode, out _))
             {
                 continue;
             }
 
-            blockKind = CombatAiMainActionBlockKind.RangedWhileMeleeReachable;
-            return true;
-        }
-
-        if (HasImprovingMeleePursuit(character))
-        {
-            blockKind = CombatAiMainActionBlockKind.RangedWhileMeleePursuitAvailable;
             return true;
         }
 
         return false;
     }
 
+    private static bool CanUseMainSpellActionForAi(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null ||
+            character.GetActionTypeStatus(ActionType.Main) != ActionStatus.Available ||
+            character.GetActionStatus(Id.CastMain, ActionScope.Battle) != ActionStatus.Available)
+        {
+            return false;
+        }
+
+        return !TryGetCommittedNonTerminalMainActionThisTurn(character, out var committedMainAction) ||
+               HasUnspentMainActionRank(
+                   character,
+                   committedMainAction,
+                   character.GetActionTypeStatus(ActionType.Main));
+    }
+
     private static bool HasImprovingMeleePursuit(GameLocationCharacter character)
     {
-        if (character?.RulesetCharacter == null)
+        if (!CanIssueAdditionalTacticalMove(character))
         {
             return false;
         }
@@ -9751,17 +4623,6 @@ validation = new CombatAiMainActionValidation(
         var start = character.LocationPosition;
 
         foreach (var candidate in movementProgress.EnumerateAcceptedMoveCandidates())
-        {
-            if (candidate.Position == start ||
-                IsFailedAiMoveTarget(character, start, candidate.Position))
-            {
-                continue;
-            }
-
-            return true;
-        }
-
-        foreach (var candidate in movementProgress.EnumerateLongRoutePursuitCandidates())
         {
             if (candidate.Position == start ||
                 IsFailedAiMoveTarget(character, start, candidate.Position))
@@ -9786,7 +4647,7 @@ validation = new CombatAiMainActionValidation(
 
         if (character?.RulesetCharacter == null ||
             battleService == null ||
-            character.RemainingTacticalMoves <= 0)
+            !CanIssueAdditionalTacticalMove(character))
         {
             return false;
         }
@@ -9838,10 +4699,8 @@ validation = new CombatAiMainActionValidation(
         return mode?.SourceDefinition?.Name ?? mode?.SourceObject?.GetType().Name;
     }
 
-    private static ActionStatus GetAttackMainActionStatusForAi(GameLocationCharacter character, ActionStatus mainStatus)
+    private static ActionStatus GetAttackMainActionStatusForAi(GameLocationCharacter character)
     {
-        _ = mainStatus;
-
         if (character?.RulesetCharacter == null)
         {
             return ActionStatus.Unavailable;
@@ -9864,104 +4723,6 @@ validation = new CombatAiMainActionValidation(
         }
 
         return status;
-    }
-
-    private static CombatAiMainActionValidation ValidateCastMainBeforeExecution(
-        GameLocationCharacter character,
-        GameLocationCharacter target,
-        CharacterActionParams actionParams,
-        IGameLocationBattleService battleService)
-    {
-        var effect = actionParams?.RulesetEffect ?? actionParams?.activeEffect;
-
-        if (effect is not RulesetEffectSpell spellEffect)
-        {
-            return new CombatAiMainActionValidation(true);
-        }
-
-        var spell = spellEffect.SpellDefinition;
-
-        if (!IsAtWillAttackCantripForAi(character.RulesetCharacter, spell))
-        {
-            return new CombatAiMainActionValidation(true);
-        }
-
-        var attackParams = new BattleDefinitions.AttackEvaluationParams();
-        var modifier = new ActionModifier();
-        var effectDescription = PowerBundle.ModifySpellEffect(spell, character.RulesetCharacter);
-
-        if (effectDescription == null)
-        {
-            return new CombatAiMainActionValidation(false);
-        }
-
-        attackParams.FillForMagic(
-            character,
-            character.LocationPosition,
-            effectDescription,
-            spell.Name,
-            target,
-            target.LocationPosition,
-            modifier);
-
-        if (!battleService.CanAttack(attackParams))
-        {
-            return new CombatAiMainActionValidation(false);
-        }
-
-        return new CombatAiMainActionValidation(true);
-    }
-
-    private static CombatAiMainActionValidation ValidatePowerMainBeforeExecution(
-        GameLocationCharacter character,
-        GameLocationCharacter target,
-        CharacterActionParams actionParams)
-    {
-        var effect = actionParams?.RulesetEffect ?? actionParams?.activeEffect;
-
-        if (effect is not RulesetEffectPower powerEffect)
-        {
-            return new CombatAiMainActionValidation(true);
-        }
-
-        var power = powerEffect.PowerDefinition;
-        var effectDescription = power?.EffectDescription;
-
-        if (power == null ||
-            power.RechargeRate != RechargeRate.AtWill ||
-            effectDescription?.TargetSide != Side.Enemy)
-        {
-            return new CombatAiMainActionValidation(true);
-        }
-
-        return target?.RulesetCharacter != null && target.Side != character.Side
-            ? new CombatAiMainActionValidation(true)
-            : new CombatAiMainActionValidation(false);
-    }
-
-    private static bool IsAtWillAttackCantripForAi(RulesetCharacter rulesetCharacter, SpellDefinition spell)
-    {
-        if (rulesetCharacter == null || spell == null)
-        {
-            return false;
-        }
-
-        var cantrips = new List<SpellDefinition>();
-
-        rulesetCharacter.EnumerateReadyAttackCantrips(cantrips);
-
-        foreach (var cantrip in OrderAtWillAttackCantrips(rulesetCharacter, cantrips))
-        {
-            if (!string.Equals(cantrip?.Name, spell.Name, StringComparison.Ordinal) ||
-                !rulesetCharacter.CanCastCantrip(cantrip, out _))
-            {
-                continue;
-            }
-
-            return true;
-        }
-
-        return false;
     }
 
     private static CombatAiExecutedActionKind GetTerminalActionKind(CombatAiActionExecutionMemory memory)
@@ -9988,40 +4749,36 @@ validation = new CombatAiMainActionValidation(
         return character != null && cache.TryGetValue(character.Guid, out var count) ? count : 0;
     }
 
-    private static bool HasObservedActionExecutionSince(
-        GameLocationCharacter character,
-        int mainUseCountBefore,
-        int bonusUseCountBefore,
-        bool hadLastActionBefore,
-        CombatAiActionExecutionMemory lastActionBefore)
-    {
-        if (GetActionUseCount(TurnMainActionUseCountCache, character) > mainUseCountBefore ||
-            GetActionUseCount(TurnBonusActionUseCountCache, character) > bonusUseCountBefore)
-        {
-            return true;
-        }
-
-        if (!TryGetCurrentTurnActionMemory(character, LastActionExecutionCache, out var currentAction))
-        {
-            return false;
-        }
-
-        return !hadLastActionBefore ||
-               currentAction.ActionId != lastActionBefore.ActionId ||
-               currentAction.ActionType != lastActionBefore.ActionType ||
-               currentAction.MainBefore != lastActionBefore.MainBefore;
-    }
-
     private static bool IsActiveBattleContender(GameLocationCharacter character)
     {
         return character != null && Gui.Battle?.ActiveContender == character;
     }
 
-    private static bool HasCurrentActionChain(GameLocationCharacter character)
+    private static bool HasQueuedActionChain(GameLocationCharacter character)
     {
         return character?.RulesetCharacter != null &&
                ServiceRepository.GetService<IGameLocationActionService>() is GameLocationActionManager actionManager &&
-               actionManager.actionChainByCharacter.ContainsKey(character);
+               actionManager.actionChainByCharacter.TryGetValue(character, out var actionChainSlot) &&
+               actionChainSlot?.actionQueue?.Count > 0;
+    }
+
+    private static bool HasAnyQueuedActionChain()
+    {
+        if (ServiceRepository.GetService<IGameLocationActionService>() is not
+            GameLocationActionManager actionManager)
+        {
+            return false;
+        }
+
+        foreach (var slot in actionManager.actionChainByCharacter.Values)
+        {
+            if (slot?.actionQueue?.Count > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool HasCommittedMainActionThisTurn(GameLocationCharacter character)
@@ -10145,14 +4902,16 @@ validation = new CombatAiMainActionValidation(
                 mainUseCount,
                 bonusUseCount,
                 false,
+                false,
                 canAutoAct,
                 isAiControlled);
         }
 
         var mainStatus = character.GetActionTypeStatus(ActionType.Main);
         var bonusStatus = character.GetActionTypeStatus(ActionType.Bonus);
-        var attackMainStatus = GetAttackMainActionStatusForAi(character, mainStatus);
+        var attackMainStatus = GetAttackMainActionStatusForAi(character);
         var mainAvailable = IsMainActionAvailableForAi(character, mainStatus, attackMainStatus);
+        var terminalMainAvailable = IsTerminalMainActionAvailableForAi(character, mainStatus);
         var bonusFreeJumpStatus =
             bonusStatus == ActionStatus.Available &&
             CanUseFreeJumpForAi(character)
@@ -10176,6 +4935,7 @@ validation = new CombatAiMainActionValidation(
             mainUseCount,
             bonusUseCount,
             mainAvailable,
+            terminalMainAvailable,
             canAutoAct,
             isAiControlled);
     }
@@ -10197,9 +4957,46 @@ validation = new CombatAiMainActionValidation(
             return true;
         }
 
-        return committedMainAction.ActionId == Id.AttackMain &&
-               attackMainStatus == ActionStatus.Available &&
+        if (HasUnspentMainActionRank(character, committedMainAction, mainStatus))
+        {
+            return true;
+        }
+
+        if (attackMainStatus != ActionStatus.Available)
+        {
+            return false;
+        }
+
+        return committedMainAction.ActionId != Id.AttackMain ||
                HasAvailableAttackMainContinuation(character);
+    }
+
+    private static bool IsTerminalMainActionAvailableForAi(
+        GameLocationCharacter character,
+        ActionStatus mainStatus)
+    {
+        if (character?.RulesetCharacter == null || mainStatus != ActionStatus.Available)
+        {
+            return false;
+        }
+
+        if (TryGetCompletedTerminalMainActionThisTurn(character, out _))
+        {
+            return false;
+        }
+
+        return !TryGetCommittedNonTerminalMainActionThisTurn(character, out var committedMainAction) ||
+               HasUnspentMainActionRank(character, committedMainAction, mainStatus);
+    }
+
+    private static bool HasUnspentMainActionRank(
+        GameLocationCharacter character,
+        CombatAiActionExecutionMemory committedMainAction,
+        ActionStatus mainStatus)
+    {
+        return character?.RulesetCharacter != null &&
+               mainStatus == ActionStatus.Available &&
+               character.CurrentActionRankByType[ActionType.Main] > committedMainAction.ActionRank;
     }
 
     private static bool CanSpendTerminalMainAction(
@@ -10216,58 +5013,7 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        var hasCurrentPendingReady = TryGetPendingTerminalReadyEndTurn(character, out _);
-        var hasCurrentPendingDodge = TryGetPendingTerminalDodgeEndTurn(character, out _);
-
-        if (hasCurrentPendingReady || hasCurrentPendingDodge)
-        {
-            return false;
-        }
-
-        if (TryGetCommittedNonTerminalMainActionThisTurn(character, out var committedMainAction))
-        {
-            return false;
-        }
-
-        if (TryGetCompletedTerminalMainActionThisTurn(character, out var completedTerminalAction))
-        {
-            return false;
-        }
-
-        if (actionEconomy.MainActionType != ActionStatus.Available)
-        {
-            return false;
-        }
-
-        if (actionEconomy.MainUseCount > 0)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static bool HasAvailableMainActionForPendingTerminal(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null || !HasLeftoverActionCombatContext(character))
-        {
-            return false;
-        }
-
-        return CanSpendTerminalMainAction(character, BuildActionEconomySnapshot(character));
-    }
-
-    private static bool HasAvailableActionForPendingTerminal(GameLocationCharacter character)
-    {
-        if (HasAvailableMainActionForPendingTerminal(character))
-        {
-            return true;
-        }
-
-        return character?.RulesetCharacter != null &&
-               HasLeftoverActionCombatContext(character) &&
-               (character.GetActionStatus(Id.Ready, ActionScope.Battle) == ActionStatus.Available ||
-                character.GetActionStatus(Id.Dodge, ActionScope.Battle) == ActionStatus.Available);
+        return actionEconomy.TerminalMainAvailable;
     }
 
     internal static bool IsAiControlledForCombat(GameLocationCharacter character)
@@ -10365,7 +5111,13 @@ validation = new CombatAiMainActionValidation(
 
         var canUseCache = IsAdvancedCombatAiEnabled;
         var cacheKey = canUseCache
-            ? new AttackPositionKey(attacker.Guid, attackerPosition, target.Guid, targetPosition)
+            ? new AttackPositionKey(
+                attacker.Guid,
+                attackerPosition,
+                target.Guid,
+                targetPosition,
+                ComputeCombatAiActionStateSignature(attacker),
+                ComputeCombatAiTargetStateSignature(target))
             : default;
 
         if (canUseCache && MeleeAttackPositionCache.TryGetValue(cacheKey, out var cached))
@@ -10375,7 +5127,9 @@ validation = new CombatAiMainActionValidation(
 
         foreach (var mode in attacker.RulesetCharacter.AttackModes)
         {
-            if (mode == null || !ValidatorsWeapon.IsMelee(mode))
+            if (mode == null ||
+                !ValidatorsWeapon.IsMelee(mode) ||
+                !IsAttackModeAvailableForMainAction(attacker, mode, out _))
             {
                 continue;
             }
@@ -10480,69 +5234,6 @@ validation = new CombatAiMainActionValidation(
         return false;
     }
 
-    internal static bool IsUnreachableFlyingTargetForMelee(
-        GameLocationCharacter actor,
-        GameLocationCharacter enemy,
-        int3 actorPosition,
-        IGameLocationBattleService battleService)
-    {
-        if (actor?.RulesetCharacter == null ||
-            enemy?.RulesetCharacter == null ||
-            battleService == null)
-        {
-            return false;
-        }
-
-        if (!HasFlightContext(actor, enemy, actorPosition))
-        {
-            return false;
-        }
-
-        return !CanAttackInMeleeFromPosition(actor, actorPosition, enemy, enemy.LocationPosition, battleService);
-    }
-
-    internal static bool TryAutoSuspendFlight(GameLocationCharacter character)
-    {
-        if (!IsAdvancedCombatAiFlightEnabled ||
-            !Main.Settings.AllowFlightSuspend ||
-            !CanExecuteAutomaticCombatAction(character) ||
-            !IsAiControlledForCombat(character) ||
-            character?.RulesetCharacter is not { } rulesetCharacter ||
-            !rulesetCharacter.HasSuspendableFlightCondition())
-        {
-            return false;
-        }
-
-        var profile = BuildProfile(character);
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-
-        if (battleService == null ||
-            profile.PrefersAerialCombat ||
-            !HasVisibleFlightContext(character) ||
-            HasAnyUsableAttackAgainstVisibleEnemies(character, battleService))
-        {
-            return false;
-        }
-
-        var powerFlightSuspend = DatabaseHelper.GetDefinition<FeatureDefinitionPower>("PowerFlightSuspend");
-        var usablePower = PowerProvider.Get(powerFlightSuspend, rulesetCharacter);
-
-        if (usablePower == null)
-        {
-            return false;
-        }
-
-        character.MyExecuteActionPowerNoCost(usablePower, character);
-        ClearTurnCache(character);
-
-        return true;
-    }
-
-    internal static bool TryAutoResumeFlight(GameLocationCharacter character)
-    {
-        return false;
-    }
-
     internal static bool CanUseFreeJumpForAi(GameLocationCharacter character)
     {
         if (!Main.Settings.EnableBonusActionFreeJump ||
@@ -10569,7 +5260,8 @@ validation = new CombatAiMainActionValidation(
     private static bool TryExecuteAiFreeJumpTacticalMove(
         GameLocationCharacter character,
         int3 destination,
-        CombatAiRouteMoveSourceKind source)
+        CombatAiRouteMoveSourceKind source,
+        bool observeActionLinkedCompletion = true)
     {
         if (!IsActiveBattleContender(character))
         {
@@ -10592,15 +5284,17 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        _ = TryGetPendingActionLinkedMoveToken(character, source, destination, out var moveToken);
-
-
-        character.MyExecuteActionTacticalMove(
-            destination,
-            aborted =>
-            {
-                OnAiTacticalMoveActionChainExecuted(character, aborted, source, moveToken);
-            });
+        if (observeActionLinkedCompletion)
+        {
+            _ = TryGetPendingActionLinkedMoveToken(character, source, destination, out var moveToken);
+            character.MyExecuteActionTacticalMove(
+                destination,
+                aborted => OnAiTacticalMoveActionChainExecuted(character, aborted, source, moveToken));
+        }
+        else
+        {
+            character.MyExecuteActionTacticalMove(destination);
+        }
 
         return true;
     }
@@ -10699,66 +5393,74 @@ validation = new CombatAiMainActionValidation(
                 out score);
         }
 
-        var turnPlan = BuildCombatAiTurnPlan(actor, profile, battleService);
-        var isGroundMeleePursuit = IsGroundMeleePursuitPlan(turnPlan);
-
-        if (IsAdvancedCombatAiEnabled &&
-            evaluationSource == CombatAiFreeJumpEvaluationSource.AiMovePathfinding &&
-            !FreeJumpContext.IsForcedAiFreeJumpTarget(actor, destination) &&
-            !isGroundMeleePursuit)
+        // Advanced AI selects tactical free jumps explicitly. Letting every validated
+        // jump enter vanilla pathfinding turns ordinary walking routes into bonus-action
+        // jumps, including flat adjacent steps.
+        if (evaluationSource == CombatAiFreeJumpEvaluationSource.AiMovePathfinding &&
+            !FreeJumpContext.IsForcedAiFreeJumpTarget(actor, destination))
         {
             return false;
         }
 
-        if (isGroundMeleePursuit)
+        // Free-jump candidates are evaluated while vanilla pathfinding is enumerating neighbours.
+        // Keep this branch local and cache-only; starting another destination search here corrupts
+        // the shared pathfinding result.
+        var turnPlan = BuildCombatAiTurnPlan(actor, profile, battleService);
+
+        if (IsGroundMeleePursuitPlan(turnPlan))
         {
             var target = turnPlan.ActionProbe.Target;
-            var preferredAvailable =
-                target?.RulesetCharacter != null &&
-                CanUseActionKindAtPosition(
-                    actor,
-                    destination,
-                    target,
-                    turnPlan.ActionProbe.PreferredAction,
-                    battleService);
-            var backupAvailable =
-                target?.RulesetCharacter != null &&
-                !preferredAvailable &&
-                CanUseActionKindAtPosition(
-                    actor,
-                    destination,
-                    target,
-                    turnPlan.ActionProbe.BackupAction,
-                    battleService);
+            var attackConnected = target?.RulesetCharacter != null &&
+                                  (CanUseActionKindAtPosition(
+                                       actor,
+                                       destination,
+                                       target,
+                                       turnPlan.ActionProbe.PreferredAction,
+                                       battleService) ||
+                                   CanUseActionKindAtPosition(
+                                       actor,
+                                       destination,
+                                       target,
+                                       turnPlan.ActionProbe.BackupAction,
+                                       battleService));
 
-            if (!TryValidateGroundMeleeJumpRouteCandidate(
-                    actor,
-                    turnPlan,
+            if (!attackConnected)
+            {
+                var startDistance = ComputeGroundMeleeRouteGoalDistance(
                     start,
+                    turnPlan.MovementPlan.TargetPosition);
+                var destinationDistance = ComputeGroundMeleeRouteGoalDistance(
                     destination,
-                    preferredAvailable || backupAvailable,
-                    out var isGroundMeleeRouteImprovement))
-            {
-                return false;
-            }
+                    turnPlan.MovementPlan.TargetPosition);
+                var advancesTowardContact = destinationDistance + 0.01f < startDistance;
+                var bypassesWithoutRegression = bypassesObstacle &&
+                                                destinationDistance <=
+                                                startDistance + MovementGoalRegressionTolerance;
 
-            if (isGroundMeleeRouteImprovement)
-            {
+                if (!advancesTowardContact && !bypassesWithoutRegression)
+                {
+                    return false;
+                }
+
                 GroundMeleeJumpRouteAvailableCache.Add(actor.Guid);
             }
         }
 
-        if (TryComputeTurnPlanMovementScore(actor, profile, destination, battleService, turnPlan, out var movementGoalScore))
+        if (TryComputeTurnPlanMovementScore(
+                actor,
+                profile,
+                destination,
+                battleService,
+                turnPlan,
+                out var movementGoalScore))
         {
             if (movementGoalScore <= 0f && turnPlan.MovementPlan.HasGoal)
             {
                 var currentGoalDistance = ComputeGridDistance(start, turnPlan.MovementPlan.TargetPosition);
                 var destinationGoalDistance = ComputeGridDistance(destination, turnPlan.MovementPlan.TargetPosition);
-                var bypassesTowardGoal = bypassesObstacle &&
-                                         destinationGoalDistance <=
-                                         currentGoalDistance + MovementGoalRegressionTolerance;
 
-                if (!bypassesTowardGoal)
+                if (!bypassesObstacle ||
+                    destinationGoalDistance > currentGoalDistance + MovementGoalRegressionTolerance)
                 {
                     return false;
                 }
@@ -10809,16 +5511,16 @@ validation = new CombatAiMainActionValidation(
 
             if (profile.PrefersAggressivePursuit && movesCloser)
             {
-                var improvement = currentFacts.NearestEnemyDistance - destinationFacts.NearestEnemyDistance;
-
-                score += Mathf.Min(0.22f, improvement * 0.05f);
+                score += Mathf.Min(
+                    0.22f,
+                    (currentFacts.NearestEnemyDistance - destinationFacts.NearestEnemyDistance) * 0.05f);
             }
 
             if ((profile.PrefersDistance || emergency) && movesAway)
             {
-                var improvement = destinationFacts.NearestEnemyDistance - currentFacts.NearestEnemyDistance;
-
-                score += Mathf.Min(0.18f, improvement * 0.04f);
+                score += Mathf.Min(
+                    0.18f,
+                    (destinationFacts.NearestEnemyDistance - currentFacts.NearestEnemyDistance) * 0.04f);
             }
 
             if (destination.y > start.y && (destinationFacts.CanAttack || profile.PrefersDistance))
@@ -10827,13 +5529,13 @@ validation = new CombatAiMainActionValidation(
             }
 
             if (bypassesObstacle &&
-                (canGainAttack || reducesMeleeThreat || reducesRecentMeleeThreat || improvesCover || movesCloser || movesAway))
+                (canGainAttack || reducesMeleeThreat || reducesRecentMeleeThreat || improvesCover ||
+                 movesCloser || movesAway))
             {
                 score += FreeJumpObstacleBypassScore;
             }
         }
-        else if (IsAdvancedCombatAiPositioningEnabled &&
-                 TryGetLastKnownEnemyPosition(actor, out var lastKnownEnemyPosition))
+        else if (TryGetLastKnownEnemyPosition(actor, out var lastKnownEnemyPosition))
         {
             score += ComputeApproachPositionScore(
                 start,
@@ -10848,21 +5550,9 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        var minimumScore = IsAdvancedCombatAiPositioningEnabled || IsAdvancedCombatAiFlightEnabled
-            ? FreeJumpMinimumPositioningScore
-            : FreeJumpMinimumBaselineScore;
+        var minimumScore = FreeJumpMinimumPositioningScore;
 
-        if (canGainAttack)
-        {
-            minimumScore = Math.Min(minimumScore, FreeJumpMinimumActionEconomyScore);
-        }
-        else if (bypassesObstacle && (movesCloser || reducesMeleeThreat || reducesRecentMeleeThreat || improvesCover))
-        {
-            minimumScore = Math.Min(minimumScore, FreeJumpMinimumPositioningScore);
-        }
-
-        if (IsAdvancedCombatAiActionEconomyEnabled &&
-            !HasAnyUsefulHostileActionAgainstVisibleEnemies(actor, battleService))
+        if (canGainAttack || !HasAnyUsefulHostileActionAgainstVisibleEnemies(actor, battleService))
         {
             minimumScore = Math.Min(minimumScore, FreeJumpMinimumActionEconomyScore);
         }
@@ -11096,750 +5786,968 @@ validation = new CombatAiMainActionValidation(
                HasAnyUsableAttackAgainstVisibleEnemies(character, battleService);
     }
 
-    internal static bool TrySpendLeftoverActionEconomy(GameLocationCharacter character)
-    {
-        return TrySpendLeftoverActionEconomy(character, true);
-    }
-
-    internal static bool TrySpendLeftoverActionEconomyAtEndTurn(GameLocationCharacter character)
-    {
-        return TrySpendLeftoverActionEconomyAtEndTurn(character, out _);
-    }
-
-    internal static bool TrySpendLeftoverActionEconomyAtEndTurn(
+    internal static IEnumerator RunAdvancedCombatAiTurn(
         GameLocationCharacter character,
-        out bool suppressEndTurn)
+        IEnumerator vanillaTurn)
     {
-        if (character?.RulesetCharacter != null && !IsActiveBattleContender(character))
-        {
-            TryClearInactiveCombatAiTurnOwnership(character);
-            suppressEndTurn = false;
-            return false;
-        }
-
-        if (TryResolvePendingJumpImmediateMoveSettlingAtStableBoundary(character))
-        {
-            suppressEndTurn = true;
-            return true;
-        }
-
-        if (TryResolvePendingSearchKnownTargetMoveAtStableBoundary(
-                character,
-                CombatAiStableBoundaryKind.EndTurn,
-                out suppressEndTurn))
-        {
-
-            if (suppressEndTurn)
-            {
-                return true;
-            }
-        }
-
-        if (TryResolvePendingActionLinkedMoveSettlingAtStableBoundary(
-                character,
-                CombatAiStableBoundaryKind.EndTurn,
-                out suppressEndTurn))
-        {
-            return true;
-        }
-
-        if (ResolveGroundMeleeMoveSettling(
-                character,
-                allowConnectedRouteValidation: false,
-                allowTerminalAction: false))
-        {
-            suppressEndTurn = false;
-            return true;
-        }
-
-        FailStalePendingTerminalActions(character);
-
-        if (TryConsumePendingRouteTerminalAtEndTurn(character, out suppressEndTurn))
-        {
-            return true;
-        }
-
-        if (HasPendingAiProcessTerminalLaunch(character))
-        {
-            if (PendingTerminalActionEndTurnSuppressCache.Add(character.Guid))
-            {
-                suppressEndTurn = true;
-                return true;
-            }
-
-            PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
-            PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-            PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-            ClearRouteMoveDashBlock(character);
-            suppressEndTurn = false;
-            return true;
-        }
-
-        if (character != null &&
-            PendingTerminalDodgeEndTurnCache.TryGetValue(character.Guid, out var pendingTerminalDodge) &&
-            pendingTerminalDodge.Round == GetCurrentBattleRound())
-        {
-            if (TryNormalizePendingTerminalDodgeAtEndTurn(
-                    character,
-                    pendingTerminalDodge,
-                    out suppressEndTurn))
-            {
-                return true;
-            }
-
-            if (pendingTerminalDodge.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp) &&
-                IsActiveBattleContender(character) &&
-                !PendingTerminalActionEndTurnSuppressCache.Contains(character.Guid))
-            {
-                PendingTerminalActionEndTurnSuppressCache.Add(character.Guid);
-                suppressEndTurn = true;
-                return true;
-            }
-
-            FailPendingTerminalDodgeActionNotAccepted(character, pendingTerminalDodge);
-            suppressEndTurn = false;
-            return true;
-        }
-
-        if (character != null &&
-            PendingTerminalReadyEndTurnCache.TryGetValue(character.Guid, out var pendingTerminalReady) &&
-            pendingTerminalReady.Round == GetCurrentBattleRound())
-        {
-            if (TryNormalizePendingTerminalReadyAtEndTurn(
-                    character,
-                    pendingTerminalReady,
-                    out suppressEndTurn))
-            {
-                return true;
-            }
-
-            if (pendingTerminalReady.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp) &&
-                IsActiveBattleContender(character) &&
-                !PendingTerminalActionEndTurnSuppressCache.Contains(character.Guid))
-            {
-                PendingTerminalActionEndTurnSuppressCache.Add(character.Guid);
-                suppressEndTurn = true;
-                return true;
-            }
-
-            FailPendingTerminalReadyActionNotAccepted(character, pendingTerminalReady);
-            suppressEndTurn =
-                HasPendingAiProcessTerminalLaunch(character) ||
-                PendingTerminalActionEndTurnSuppressCache.Contains(character.Guid);
-            return true;
-        }
-
-        suppressEndTurn = false;
-
-        if (TryCloseMissedAiProcessTerminalLaunchAtEndTurn(character))
-        {
-            return true;
-        }
-
-        var skipReadyFallback = false;
-        var skipDodgeFallback = false;
-
-        var submittedRecoveryStatus = TryHandlePendingEndTurnRecoverySubmissionAtEndTurn(
-            character,
-            out suppressEndTurn,
-            out var rejectedRecoveryActionId);
-
-        if (submittedRecoveryStatus == EndTurnRecoverySubmissionStatus.Waiting)
-        {
-            return true;
-        }
-
-        if (submittedRecoveryStatus == EndTurnRecoverySubmissionStatus.Rejected)
-        {
-            skipReadyFallback = rejectedRecoveryActionId == Id.Ready || rejectedRecoveryActionId == Id.Dodge;
-            skipDodgeFallback = rejectedRecoveryActionId == Id.Dodge;
-        }
-
-        if (TryConsumeSearchLostTargetRecoveryAtEndTurn(character, out suppressEndTurn))
-        {
-            return true;
-        }
-
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-        var recoveryResult = TrySpendEndTurnActionOnlyRecovery(
-            character,
-            battleService,
-            skipReadyFallback: skipReadyFallback,
-            skipDodgeFallback: skipDodgeFallback);
-
-        if (recoveryResult == CombatAiActionRecoveryStartResult.NotStarted)
-        {
-            return false;
-        }
-
-        if (recoveryResult == CombatAiActionRecoveryStartResult.StartedSubmittedUnobserved &&
-            TryHandlePendingEndTurnRecoverySubmissionAtEndTurn(
-                character,
-                out suppressEndTurn,
-                out _) == EndTurnRecoverySubmissionStatus.Waiting)
-        {
-            return true;
-        }
-
-        if (recoveryResult is
-            CombatAiActionRecoveryStartResult.StartedSubmittedUnobserved or
-            CombatAiActionRecoveryStartResult.StartedUnobservedContinue or
-            CombatAiActionRecoveryStartResult.StartedUnobservedTerminal)
-        {
-            return false;
-        }
-
-        suppressEndTurn = true;
-
-        return true;
-    }
-
-    private static CombatAiActionRecoveryStartResult TrySpendEndTurnActionOnlyRecovery(
-        GameLocationCharacter character,
-        IGameLocationBattleService battleService,
-        bool allowActionFallbacks = true,
-        bool allowTerminalFallbacks = true,
-        bool skipReadyFallback = false,
-        bool skipDodgeFallback = false)
-    {
-        EnsureCombatAiRuntimeCache(character);
-        var actionEconomy = BuildActionEconomySnapshot(character);
-        var hasUnobservedActionStart = false;
-        var hasSubmittedUnobservedActionStart = false;
-
-        LogCombatAiDiagnostic(
-            character,
-            "EndTurnRecovery.enter",
-            $"allowActionFallbacks={allowActionFallbacks} allowTerminalFallbacks={allowTerminalFallbacks} " +
-            $"skipReady={skipReadyFallback} skipDodge={skipDodgeFallback} " +
-            $"{FormatActionEconomySnapshot(actionEconomy)} {FormatCombatAiPendingState(character)}");
-
-        if (!IsAdvancedCombatAiActionEconomyEnabled ||
-            !actionEconomy.CanAutoAct ||
-            !actionEconomy.IsAiControlled ||
-            character?.RulesetCharacter == null)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurnRecovery.exit",
-                $"reason=gate advancedEconomy={IsAdvancedCombatAiActionEconomyEnabled} " +
-                $"canAutoAct={actionEconomy.CanAutoAct} isAiControlled={actionEconomy.IsAiControlled} " +
-                $"actorNull={character?.RulesetCharacter == null}");
-            return CombatAiActionRecoveryStartResult.NotStarted;
-        }
+        yield return PrepareAdvancedCombatAiTurnBeforeVanilla(character);
 
         if (!IsActiveBattleContender(character))
         {
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurnRecovery.exit",
-                $"reason=inactive {FormatCombatAiPendingState(character)}");
-            TryClearInactiveCombatAiTurnOwnership(character);
-            return CombatAiActionRecoveryStartResult.NotStarted;
+            yield break;
         }
+
+        while (vanillaTurn.MoveNext())
+        {
+            yield return vanillaTurn.Current;
+
+            if (!IsActiveBattleContender(character))
+            {
+                yield break;
+            }
+        }
+
+        yield return CompleteAdvancedCombatAiTurnAtProcessBoundary(character);
+    }
+
+    private static IEnumerator PrepareAdvancedCombatAiTurnBeforeVanilla(
+        GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null ||
+            !IsAdvancedCombatAiEnabled ||
+            !IsAiControlledForCombat(character) ||
+            !CanExecuteAutomaticCombatAction(character) ||
+            !IsActiveBattleContender(character))
+        {
+            yield break;
+        }
+
+        EnsureCombatAiRuntimeCache();
+
+        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
 
         if (battleService == null)
         {
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurnRecovery.exit",
-                "reason=no-battle-service");
-            return CombatAiActionRecoveryStartResult.NotStarted;
+            yield break;
         }
 
-        var hasPendingReactionRequests = HasPendingReactionRequests();
-        var hasTrackedMovement = MovementTracker.TryGetMovement(character.Guid, out _);
-        var hasActionLinkedMove = ActionLinkedMoveCache.ContainsKey(character.Guid);
-        var hasActionLinkedMoveSettling = ActionLinkedMoveSettlingCache.ContainsKey(character.Guid);
-        var hasGroundMeleeMoveSettling = GroundMeleeMoveSettlingCache.ContainsKey(character.Guid);
-        var hasPendingRouteTerminal = PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid);
-        var hasPendingAiProcessTerminalLaunch = HasPendingAiProcessTerminalLaunch(character);
+        var profile = BuildProfile(character);
+        var turnPlan = BuildCombatAiTurnPlan(character, profile, battleService);
 
-        if (hasPendingReactionRequests ||
-            hasTrackedMovement ||
-            hasActionLinkedMove ||
-            hasActionLinkedMoveSettling ||
-            hasGroundMeleeMoveSettling ||
-            hasPendingRouteTerminal ||
-            hasPendingAiProcessTerminalLaunch)
+        var dashCandidate = EvaluateBonusDashMeleeEngagement(
+            character,
+            profile,
+            turnPlan,
+            battleService);
+
+        if (dashCandidate.IsAvailable)
         {
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurnRecovery.exit",
-                $"reason=pending-state-block reaction={hasPendingReactionRequests} " +
-                $"movementTracker={hasTrackedMovement} actionLinked={hasActionLinkedMove} " +
-                $"actionSettling={hasActionLinkedMoveSettling} groundSettling={hasGroundMeleeMoveSettling} " +
-                $"pendingRoute={hasPendingRouteTerminal} pendingLaunch={hasPendingAiProcessTerminalLaunch} " +
-                FormatCombatAiPendingState(character));
-            return CombatAiActionRecoveryStartResult.NotStarted;
+            var bonusUseCountBefore = GetActionUseCount(TurnBonusActionUseCountCache, character);
+            var remainingMovesBefore = character.RemainingTacticalMoves;
+
+            if (TryExecuteBonusDash(character))
+            {
+                yield return WaitForCombatAiProcessAction(character);
+
+                if (!IsActiveBattleContender(character))
+                {
+                    yield break;
+                }
+
+                var dashAccepted =
+                    GetActionUseCount(TurnBonusActionUseCountCache, character) > bonusUseCountBefore ||
+                    character.RemainingTacticalMoves > remainingMovesBefore;
+
+                if (dashAccepted &&
+                    TryExecuteBonusDashMeleeMove(
+                        character,
+                        dashCandidate,
+                        battleService))
+                {
+                    yield return WaitForCombatAiProcessAction(character);
+
+                    if (!IsActiveBattleContender(character))
+                    {
+                        yield break;
+                    }
+
+                }
+
+                InvalidateTurnPlanningCache(character);
+                profile = BuildProfile(character);
+                turnPlan = BuildCombatAiTurnPlan(character, profile, battleService);
+            }
         }
 
-        var allowSearchNoConnectedFinalFallback = HasSearchNoConnectedEndTurnFallbackContext(character);
+        const int maximumPreMainMoveAttempts = 2;
 
-        if (allowSearchNoConnectedFinalFallback)
+        for (var attempt = 1; attempt <= maximumPreMainMoveAttempts; attempt++)
         {
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurnRecovery.exit",
-                $"reason=search-no-connected-final-fallback {FormatCombatAiPendingState(character)}");
-            ClearSearchNoConnectedTerminalState(character);
-            return CombatAiActionRecoveryStartResult.NotStarted;
+            if (!ShouldUsePreMainRouteMove(character, turnPlan) ||
+                turnPlan.ActionProbe.CanUsePreferredAction)
+            {
+                yield break;
+            }
+
+            var remainingMovesBefore = character.RemainingTacticalMoves;
+
+            if (!TryStartResidualEngagementMove(
+                    character,
+                    battleService,
+                    profile,
+                    turnPlan,
+                    out var start))
+            {
+                yield break;
+            }
+            yield return WaitForCombatAiProcessAction(character);
+
+            if (!IsActiveBattleContender(character))
+            {
+                yield break;
+            }
+
+            UpdateTurnMovementProgress(character);
+
+            var remainingMovesAfter = character.RemainingTacticalMoves;
+            var returnedToStart = character.LocationPosition == start;
+
+            if (!returnedToStart)
+            {
+                yield break;
+            }
+
+            var canReplan =
+                attempt < maximumPreMainMoveAttempts &&
+                remainingMovesAfter > 0 &&
+                remainingMovesAfter < remainingMovesBefore &&
+                BuildActionEconomySnapshot(character).MainAvailable;
+
+            if (!canReplan)
+            {
+                yield break;
+            }
+
+            InvalidateTurnPlanningCache(character);
+            profile = BuildProfile(character);
+            turnPlan = BuildCombatAiTurnPlan(character, profile, battleService);
+
+            if (!ShouldUsePreMainRouteMove(character, turnPlan) ||
+                turnPlan.ActionProbe.CanUsePreferredAction)
+            {
+                yield break;
+            }
+        }
+    }
+
+    private static BonusDashMeleeCandidate EvaluateBonusDashMeleeEngagement(
+        GameLocationCharacter character,
+        CombatAiProfile profile,
+        CombatAiTurnPlan turnPlan,
+        IGameLocationBattleService battleService)
+    {
+        if (character?.RulesetCharacter == null ||
+            battleService == null ||
+            turnPlan.ActionProbe.PreferredAction != CombatAiActionKind.Melee ||
+            !ShouldPreferMeleeAction(profile, turnPlan.ActionProbe.CapabilityCatalog))
+        {
+            return default;
         }
 
-        if (allowActionFallbacks &&
-            actionEconomy.MainAvailable)
+        if (turnPlan.ActionProbe.CanUsePreferredAction)
         {
-            var mainResult = TryStartEndTurnRecoveryAction(
-                character,
-                () => TryUseCurrentPositionHostileMainActionAtEndTurn(character, battleService),
-                Id.AttackMain,
-                Id.CastMain,
-                Id.PowerMain);
-
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurnRecovery.main-result",
-                $"result={mainResult} {FormatCombatAiPendingState(character)}");
-
-            if (mainResult == CombatAiActionRecoveryStartResult.StartedObserved)
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "EndTurnRecovery.exit",
-                    "reason=main-observed");
-                return mainResult;
-            }
-
-            if (mainResult == CombatAiActionRecoveryStartResult.StartedSubmittedUnobserved)
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "EndTurnRecovery.exit",
-                    "reason=main-submitted-unobserved");
-                return mainResult;
-            }
-
-            hasUnobservedActionStart |= mainResult == CombatAiActionRecoveryStartResult.StartedUnobservedContinue;
+            return default;
         }
 
-        if (allowActionFallbacks && !allowSearchNoConnectedFinalFallback)
+        if (!BuildActionEconomySnapshot(character).MainAvailable ||
+            character.GetActionTypeStatus(ActionType.Bonus) != ActionStatus.Available ||
+            character.GetActionStatus(Id.DashBonus, ActionScope.Battle) != ActionStatus.Available ||
+            HasCommittedBonusActionThisTurn(character))
         {
-            var bonusResult = TryStartEndTurnRecoveryAction(
-                character,
-                () => TrySpendEndTurnBonusActionEconomy(character, actionEconomy, battleService),
-                Id.CastBonus,
-                Id.PowerBonus);
+            return default;
+        }
 
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurnRecovery.bonus-result",
-                $"result={bonusResult} {FormatCombatAiPendingState(character)}");
+        var start = character.LocationPosition;
+        var remainingMove = Math.Max(0, character.RemainingTacticalMoves);
+        var dashMoveBudget = remainingMove + Math.Max(0, character.MaxTacticalMoves);
 
-            if (bonusResult == CombatAiActionRecoveryStartResult.StartedObserved)
+        if (TryFindJumpImmediateAttackCandidate(
+                character,
+                turnPlan,
+                battleService,
+                out _) ||
+            dashMoveBudget <= remainingMove)
+        {
+            return default;
+        }
+
+        if (!TryGetReachableRouteDestinations(
+                character,
+                start,
+                dashMoveBudget,
+                out var reachableDestinations,
+                allowPathfinding: true,
+                walkOnly: true))
+        {
+            return default;
+        }
+
+        var enemies = GetKnownEnemyTargets(character)
+            .Where(enemy => enemy?.RulesetCharacter != null && enemy.Side != character.Side)
+            .OrderByDescending(enemy => enemy == turnPlan.ActionProbe.Target)
+            .ThenBy(enemy => ComputeGridDistance(start, enemy.LocationPosition))
+            .ThenBy(enemy => enemy.Guid)
+            .ToArray();
+
+        foreach (var position in reachableDestinations.Positions
+                     .OrderBy(reachableDestinations.GetMoveCost)
+                     .ThenBy(position => position.x)
+                     .ThenBy(position => position.y)
+                     .ThenBy(position => position.z))
+        {
+            var candidateMoveCost = reachableDestinations.GetMoveCost(position);
+
+            if (candidateMoveCost > dashMoveBudget ||
+                position == start ||
+                !IsLegalAiRouteDestination(character, position) ||
+                IsRejectedAiMoveTarget(character, start, position) ||
+                HasForcedRouteOpportunityExposure(character, start, position, battleService))
             {
-                LogCombatAiDiagnostic(
-                    character,
-                    "EndTurnRecovery.exit",
-                    "reason=bonus-observed");
-                return bonusResult;
+                continue;
             }
 
-            if (bonusResult == CombatAiActionRecoveryStartResult.StartedSubmittedUnobserved)
+            if (candidateMoveCost <= remainingMove)
             {
-                LogCombatAiDiagnostic(
-                    character,
-                    "EndTurnRecovery.exit",
-                    "reason=bonus-submitted-unobserved");
-                return bonusResult;
+                if (enemies.Any(enemy => CanUseActionKindAtPosition(
+                        character,
+                        position,
+                        enemy,
+                        CombatAiActionKind.Melee,
+                        battleService)))
+                {
+                    return default;
+                }
+
+                continue;
             }
 
-            hasUnobservedActionStart |= bonusResult == CombatAiActionRecoveryStartResult.StartedUnobservedContinue;
+            foreach (var enemy in enemies)
+            {
+                if (!CanUseActionKindAtPosition(
+                        character,
+                        position,
+                        enemy,
+                        CombatAiActionKind.Melee,
+                        battleService))
+                {
+                    continue;
+                }
+
+                return new BonusDashMeleeCandidate(enemy, position);
+            }
+        }
+
+        return default;
+    }
+
+    private static bool TryExecuteBonusDash(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null ||
+            !CanExecuteAutomaticCombatAction(character) ||
+            !IsActiveBattleContender(character) ||
+            character.GetActionTypeStatus(ActionType.Bonus) != ActionStatus.Available ||
+            character.GetActionStatus(Id.DashBonus, ActionScope.Battle) != ActionStatus.Available ||
+            ServiceRepository.GetService<IGameLocationActionService>() is not { } actionService)
+        {
+            return false;
+        }
+
+        actionService.ExecuteAction(new CharacterActionParams(character, Id.DashBonus), null, true);
+        return true;
+    }
+
+    private static bool TryExecuteBonusDashMeleeMove(
+        GameLocationCharacter character,
+        BonusDashMeleeCandidate candidate,
+        IGameLocationBattleService battleService)
+    {
+        var target = candidate.Target;
+        var destination = candidate.Destination;
+
+        if (character?.RulesetCharacter == null ||
+            !candidate.IsAvailable ||
+            target?.RulesetCharacter == null ||
+            battleService == null ||
+            !CanExecuteAutomaticCombatAction(character) ||
+            !IsActiveBattleContender(character) ||
+            !TryValidateAiTacticalMoveIssue(character, destination, requireCanDecide: true) ||
+            !TryGetReachableRouteDestinations(
+                character,
+                character.LocationPosition,
+                Math.Max(0, character.RemainingTacticalMoves),
+                out var reachableDestinations,
+                allowPathfinding: true,
+                walkOnly: true) ||
+            !reachableDestinations.Contains(destination) ||
+            !CanUseActionKindAtPosition(
+                character,
+                destination,
+                target,
+                CombatAiActionKind.Melee,
+                battleService))
+        {
+            return false;
+        }
+
+        var moveToken = CreateActionLinkedMoveToken();
+        var pendingMove = new ActionLinkedMoveMemory(
+            target,
+            CombatAiActionKind.Melee,
+            CombatAiActionLinkedMoveContinuation.ImmediateResidualAction,
+            CombatAiMovementGoalKind.AdvanceToMelee,
+            character.LocationPosition,
+            destination,
+            CombatAiRouteMoveSourceKind.BonusDash,
+            false,
+            GetCurrentBattleRound(),
+            Math.Max(1, ObservedCombatMemoryTurnStamp),
+            moveToken);
+
+        ActionLinkedMoveCache[character.Guid] = pendingMove;
+
+        CharacterAction.ActionChainExecutedHandler actionChainExecuted = aborted =>
+            OnAiTacticalMoveActionChainExecuted(
+                character,
+                aborted,
+                CombatAiRouteMoveSourceKind.BonusDash,
+                moveToken);
+
+        if (character.MyExecuteActionTacticalMove(destination, actionChainExecuted, null))
+        {
+            return true;
+        }
+
+        ActionLinkedMoveCache.Remove(character.Guid);
+        return false;
+    }
+
+    private static IEnumerator CompleteAdvancedCombatAiTurnAtProcessBoundary(
+        GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null ||
+            !IsAdvancedCombatAiEnabled ||
+            !IsAiControlledForCombat(character) ||
+            !CanExecuteAutomaticCombatAction(character) ||
+            !IsActiveBattleContender(character))
+        {
+            yield break;
+        }
+
+        EnsureCombatAiRuntimeCache();
+
+        if (!HasQueuedActionChain(character) &&
+            !HasPendingReactionRequests() &&
+            !character.MoveStepInProgress)
+        {
+            MovementTracker.ClearMovement(character);
+        }
+
+        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
+
+        if (battleService == null)
+        {
+            yield break;
+        }
+
+        var hostileAttemptsRemaining = GetResidualHostileActionAttemptLimit(character);
+
+        while (hostileAttemptsRemaining > 0 && IsActiveBattleContender(character))
+        {
+            var actionEconomy = BuildActionEconomySnapshot(character);
+
+            if (!actionEconomy.MainAvailable)
+            {
+                break;
+            }
+
+            var mainUseCountBefore = GetActionUseCount(TurnMainActionUseCountCache, character);
+            var availableIterationsBefore = character.GetActionAvailableIterations(Id.AttackMain);
+            var usedMainAttacksBefore = character.UsedMainAttacks;
+            var mainStatusBefore = character.GetActionTypeStatus(ActionType.Main);
+
+            var hostileAction = TryUseCurrentPositionHostileMainAction(
+                character,
+                battleService);
+
+            if (!hostileAction.Executed)
+            {
+                break;
+            }
+
+            hostileAttemptsRemaining--;
+            yield return WaitForCombatAiProcessAction(character);
+
+            if (!IsActiveBattleContender(character))
+            {
+                yield break;
+            }
+
+            if (HasResidualHostileActionProgress(
+                    character,
+                    mainUseCountBefore,
+                    availableIterationsBefore,
+                    usedMainAttacksBefore,
+                    mainStatusBefore))
+            {
+                continue;
+            }
+
+            PendingResidualMainActionCache.Remove(character.Guid);
+            break;
+        }
+
+        if (TryStartResidualEngagementMove(
+                character,
+                battleService,
+                out _))
+        {
+            yield return WaitForCombatAiProcessAction(character);
+
+            if (!IsActiveBattleContender(character))
+            {
+                yield break;
+            }
+
+            UpdateTurnMovementProgress(character);
+        }
+
+        if (TryStartPostMainClearAllyCorridorMove(character, battleService, out _))
+        {
+            yield return WaitForCombatAiProcessAction(character);
+
+            if (!IsActiveBattleContender(character))
+            {
+                yield break;
+            }
+
+        }
+
+        var residualEconomy = BuildActionEconomySnapshot(character);
+        var remainingMovesBeforeBonus = character.RemainingTacticalMoves;
+
+        if (TrySpendLeftoverBonusActionEconomy(character, residualEconomy, battleService))
+        {
+            yield return WaitForCombatAiProcessAction(character);
+
+            if (!IsActiveBattleContender(character))
+            {
+                yield break;
+            }
+
+            if (character.RemainingTacticalMoves > remainingMovesBeforeBonus &&
+                TryStartResidualEngagementMove(
+                    character,
+                    battleService,
+                    out _))
+            {
+                yield return WaitForCombatAiProcessAction(character);
+
+                if (!IsActiveBattleContender(character))
+                {
+                    yield break;
+                }
+
+                UpdateTurnMovementProgress(character);
+            }
         }
 
         var profile = BuildProfile(character);
         var self = BuildSelfAssessment(character);
-        var turnPlan = BuildEndTurnActionOnlyRecoveryPlan(character, profile);
+        var turnPlan = BuildTerminalActionPlan(character, profile);
 
-        if (allowActionFallbacks && !allowSearchNoConnectedFinalFallback)
+        if (TryUseFallbackAtWillSelfBuff(
+                character,
+                self,
+                turnPlan,
+                clearTurnCacheAfterAction: false))
         {
-            var selfBuffResult = TryStartEndTurnRecoveryAction(
-                character,
-                () => TryUseFallbackAtWillSelfBuff(
-                    character,
-                    profile,
-                    self,
-                    turnPlan,
-                    clearTurnCacheAfterAction: false),
-                Id.PowerNoCost);
+            yield return WaitForCombatAiProcessAction(character);
 
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurnRecovery.self-buff-result",
-                $"result={selfBuffResult} {FormatCombatAiPendingState(character)}");
-
-            if (selfBuffResult == CombatAiActionRecoveryStartResult.StartedObserved)
+            if (!IsActiveBattleContender(character))
             {
-                LogCombatAiDiagnostic(
-                    character,
-                    "EndTurnRecovery.exit",
-                    "reason=self-buff-observed");
-                return selfBuffResult;
+                yield break;
             }
 
-            if (selfBuffResult == CombatAiActionRecoveryStartResult.StartedSubmittedUnobserved)
+        }
+
+        while (hostileAttemptsRemaining > 0 && IsActiveBattleContender(character))
+        {
+            var actionEconomy = BuildActionEconomySnapshot(character);
+
+            if (!actionEconomy.MainAvailable)
             {
-                LogCombatAiDiagnostic(
-                    character,
-                    "EndTurnRecovery.exit",
-                    "reason=self-buff-submitted-unobserved");
-                return selfBuffResult;
+                break;
             }
 
-            hasUnobservedActionStart |= selfBuffResult == CombatAiActionRecoveryStartResult.StartedUnobservedContinue;
-        }
-
-        if (!allowTerminalFallbacks)
-        {
-            LogCombatAiDiagnostic(
+            var mainUseCountBefore = GetActionUseCount(TurnMainActionUseCountCache, character);
+            var availableIterationsBefore = character.GetActionAvailableIterations(Id.AttackMain);
+            var usedMainAttacksBefore = character.UsedMainAttacks;
+            var mainStatusBefore = character.GetActionTypeStatus(ActionType.Main);
+            var hostileAction = TryUseCurrentPositionHostileMainAction(
                 character,
-                "EndTurnRecovery.exit",
-                $"reason=terminal-fallbacks-disabled hasUnobserved={hasUnobservedActionStart}");
-            return hasUnobservedActionStart
-                ? CombatAiActionRecoveryStartResult.StartedUnobservedContinue
-                : CombatAiActionRecoveryStartResult.NotStarted;
+                battleService);
+
+            if (!hostileAction.Executed)
+            {
+                break;
+            }
+
+            hostileAttemptsRemaining--;
+            yield return WaitForCombatAiProcessAction(character);
+
+            if (!IsActiveBattleContender(character))
+            {
+                yield break;
+            }
+
+            if (HasResidualHostileActionProgress(
+                    character,
+                    mainUseCountBefore,
+                    availableIterationsBefore,
+                    usedMainAttacksBefore,
+                    mainStatusBefore))
+            {
+                continue;
+            }
+
+            PendingResidualMainActionCache.Remove(character.Guid);
+            break;
         }
 
-        var currentTerminalScan = BuildCurrentTerminalActionScan(
+        var terminalEconomy = BuildActionEconomySnapshot(character);
+
+        if (!CanSpendTerminalMainAction(character, terminalEconomy))
+        {
+            yield break;
+        }
+
+        profile = BuildProfile(character);
+        turnPlan = BuildTerminalActionPlan(character, profile);
+        self = BuildSelfAssessment(character);
+        var terminalScan = BuildCurrentTerminalActionScan(
             character,
             turnPlan.ActionProbe,
             battleService,
-            profile,
             self);
-        var finalFallbackScan = allowSearchNoConnectedFinalFallback
-            ? new CurrentTerminalActionScan(false, false)
-            : currentTerminalScan;
-        var hasUnsafeTerminalFallbackBoundary = HasPendingRouteTerminalStableBoundaryBlock(character);
-        var canSpendReadyMain = CanSpendTerminalMainAction(character, actionEconomy);
-        var hasReadyTerminalFallbackBlock = TryGetTerminalFallbackBlock(
-            finalFallbackScan,
-            false,
-            out var readyTerminalFallbackBlockKind);
 
-        LogCombatAiDiagnostic(
-            character,
-            "EndTurnRecovery.eval",
-            $"{FormatTerminalScan(finalFallbackScan)} " +
-            $"unsafeBoundary={hasUnsafeTerminalFallbackBoundary} canSpendReadyMain={canSpendReadyMain} " +
-            $"readyBlock={hasReadyTerminalFallbackBlock} readyBlockKind={readyTerminalFallbackBlockKind} " +
-            $"skipReady={skipReadyFallback} skipDodge={skipDodgeFallback} " +
-            FormatCombatAiPendingState(character));
-
-        if (!skipReadyFallback &&
-            canSpendReadyMain &&
-            !hasReadyTerminalFallbackBlock)
-        {
-            var readyResult = TryStartEndTurnRecoveryAction(
+        if (!CanUseTerminalReadyDodgeFallback(
                 character,
-                () => TryUseFallbackReady(
+                profile,
+                turnPlan,
+                battleService,
+                terminalScan))
+        {
+            yield break;
+        }
+
+        if (TryUseFallbackReady(
+                character,
+                profile,
+                turnPlan,
+                battleService,
+                clearTurnCacheAfterAction: false))
+        {
+            yield return WaitForCombatAiProcessAction(character);
+            yield break;
+        }
+
+        if (!TryApplyFallbackDodge(character))
+        {
+            yield break;
+        }
+
+        yield return WaitForCombatAiProcessAction(character);
+    }
+
+    private static bool HasResidualHostileActionProgress(
+        GameLocationCharacter character,
+        int mainUseCountBefore,
+        int availableIterationsBefore,
+        int usedMainAttacksBefore,
+        ActionStatus mainStatusBefore)
+    {
+        return character != null &&
+               (GetActionUseCount(TurnMainActionUseCountCache, character) > mainUseCountBefore ||
+                character.GetActionAvailableIterations(Id.AttackMain) < availableIterationsBefore ||
+                character.UsedMainAttacks > usedMainAttacksBefore ||
+                character.GetActionTypeStatus(ActionType.Main) != mainStatusBefore);
+    }
+
+    private static bool TryStartResidualEngagementMove(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService,
+        out int3 start,
+        bool requireMainAction = true)
+    {
+        start = character?.LocationPosition ?? default;
+
+        if (character?.RulesetCharacter == null || battleService == null)
+        {
+            return false;
+        }
+
+        var profile = BuildProfile(character);
+        var turnPlan = BuildCombatAiTurnPlan(character, profile, battleService);
+
+        return TryStartResidualEngagementMove(
+            character,
+            battleService,
+            profile,
+            turnPlan,
+            out start,
+            requireMainAction);
+    }
+
+    private static bool TryStartResidualEngagementMove(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService,
+        CombatAiProfile profile,
+        CombatAiTurnPlan turnPlan,
+        out int3 start,
+        bool requireMainAction = true)
+    {
+        start = character?.LocationPosition ?? default;
+        var destination = default(int3);
+
+        if (character?.RulesetCharacter == null ||
+            battleService == null ||
+            !IsActiveBattleContender(character) ||
+            HasQueuedActionChain(character) ||
+            HasPendingReactionRequests())
+        {
+            return false;
+        }
+
+        if (!turnPlan.MovementPlan.HasGoal ||
+            turnPlan.MovementPlan.Goal == CombatAiMovementGoalKind.ClearLargeAllyPath)
+        {
+            return false;
+        }
+
+        if (requireMainAction && !BuildActionEconomySnapshot(character).MainAvailable)
+        {
+            return false;
+        }
+
+        if (character.RemainingTacticalMoves <= 0 ||
+            !character.CanDecideToMoveByItself ||
+            character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available)
+        {
+            if (requireMainAction)
+            {
+                RecordPreMainRouteMoveAttempt(
                     character,
-                    profile,
+                    CombatAiPreMainRouteMoveStatus.Unavailable,
+                    turnPlan.MovementPlan.Goal,
+                    default);
+            }
+
+            return false;
+        }
+
+        PrimeTurnMovementProgress(character, turnPlan);
+
+        if (IsGroundMeleePursuitPlan(turnPlan) &&
+            TryFindJumpImmediateAttackCandidate(
+                character,
+                turnPlan,
+                battleService,
+                out var jumpDestination))
+        {
+            var jumpCost = FreeJumpContext.ComputeAiFreeJumpMovementCost(start, jumpDestination);
+            var hasSafeWalkContact = TryGetSafeGroundMeleeWalkContactCost(
+                character,
+                profile,
+                turnPlan,
+                battleService,
+                out var walkCost);
+            var useJump = !hasSafeWalkContact ||
+                          walkCost - jumpCost >= FreeJumpMinimumContactRouteSavings;
+
+            if (useJump &&
+                TryExecuteAiFreeJumpTacticalMove(
+                    character,
+                    jumpDestination,
+                    CombatAiRouteMoveSourceKind.JumpImmediateAttack,
+                    observeActionLinkedCompletion: false))
+            {
+                JumpImmediateAttackReachableCache.Remove(character.Guid);
+                destination = jumpDestination;
+                TurnMovementProgressCache.TryGetValue(character.Guid, out var jumpProgress);
+                jumpProgress?.MarkFreeJumpMovementCandidate();
+
+                if (requireMainAction)
+                {
+                    RecordPreMainRouteMoveAttempt(
+                        character,
+                        CombatAiPreMainRouteMoveStatus.Executed,
+                        turnPlan.MovementPlan.Goal,
+                        destination);
+                }
+
+                return true;
+            }
+        }
+
+        JumpImmediateAttackReachableCache.Remove(character.Guid);
+
+        var hasTerminalMain = BuildActionEconomySnapshot(character).MainAvailable;
+        var routeContinuation = hasTerminalMain
+            ? CombatAiActionLinkedMoveContinuation.ReturnToCoordinatorAfterRouteMove
+            : CombatAiActionLinkedMoveContinuation.ReturnToVanillaDecision;
+
+        if (IsConnectedFiringLinePlan(turnPlan))
+        {
+            if (hasTerminalMain &&
+                TryUseConnectedFiringLineRouteMove(
+                    character,
                     turnPlan,
                     battleService,
-                    finalFallbackScan,
-                    clearTurnCacheAfterAction: false,
-                    ignoreStaleSearchMovementBlocks: allowSearchNoConnectedFinalFallback),
-                null,
-                true,
-                Id.Ready);
-
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurnRecovery.ready-result",
-                $"result={readyResult} {FormatCombatAiPendingState(character)}");
-
-            if (readyResult == CombatAiActionRecoveryStartResult.StartedObserved)
+                    profile,
+                    routeContinuation,
+                    requireActionAfterMove: true,
+                    routeMoveSource: CombatAiRouteMoveSourceKind.ConnectedFiringLine,
+                    closeOnFailure: false,
+                    out destination,
+                    out _))
             {
-                LogCombatAiDiagnostic(
+                RecordPreMainRouteMoveIfRequired(
                     character,
-                    "EndTurnRecovery.exit",
-                    "reason=ready-observed");
-                return readyResult;
+                    turnPlan,
+                    requireMainAction,
+                    CombatAiPreMainRouteMoveStatus.Executed,
+                    destination);
+                return true;
             }
 
-            if (readyResult != CombatAiActionRecoveryStartResult.NotStarted)
-            {
-                if (!allowSearchNoConnectedFinalFallback)
-                {
-                    LogCombatAiDiagnostic(
-                        character,
-                        "EndTurnRecovery.exit",
-                        $"reason=ready-result result={readyResult}");
-                    return readyResult;
-                }
-
-                if (readyResult == CombatAiActionRecoveryStartResult.StartedSubmittedUnobserved)
-                {
-                    hasSubmittedUnobservedActionStart = true;
-                }
-                else
-                {
-                    hasUnobservedActionStart = true;
-                }
-            }
-        }
-
-        var canTryDodgeFallback =
-            !hasSubmittedUnobservedActionStart &&
-            !skipDodgeFallback &&
-            actionEconomy.DodgeAvailable &&
-            !hasUnsafeTerminalFallbackBoundary &&
-            !finalFallbackScan.BlocksReadyOrDodge;
-
-        LogCombatAiDiagnostic(
-            character,
-            "EndTurnRecovery.eval-dodge",
-            $"canTry={canTryDodgeFallback} hasSubmitted={hasSubmittedUnobservedActionStart} " +
-            $"skipDodge={skipDodgeFallback} dodgeAvailable={actionEconomy.DodgeAvailable} " +
-            $"unsafeBoundary={hasUnsafeTerminalFallbackBoundary} scanBlocks={finalFallbackScan.BlocksReadyOrDodge} " +
-            FormatCombatAiPendingState(character));
-
-        if (canTryDodgeFallback)
-        {
-            var dodgeResult = TryStartEndTurnRecoveryAction(
-                character,
-                () => TryApplyFallbackDodge(character).Executed,
-                () => TryObserveDirectFallbackDodge(character, clearPendingWhenMissing: true),
-                true,
-                Id.Dodge);
-
-            LogCombatAiDiagnostic(
-                character,
-                "EndTurnRecovery.dodge-result",
-                $"result={dodgeResult} {FormatCombatAiPendingState(character)}");
-
-            if (dodgeResult == CombatAiActionRecoveryStartResult.StartedObserved)
-            {
-                LogCombatAiDiagnostic(
+            if (TryUseLostTargetSearchRouteMove(
                     character,
-                    "EndTurnRecovery.exit",
-                    "reason=dodge-observed");
-                return dodgeResult;
-            }
-
-            if (dodgeResult != CombatAiActionRecoveryStartResult.NotStarted)
+                    turnPlan,
+                    battleService,
+                    profile,
+                    routeContinuation,
+                    CombatAiRouteMoveSourceKind.SearchLostTarget,
+                    out destination))
             {
-                if (!allowSearchNoConnectedFinalFallback)
-                {
-                    LogCombatAiDiagnostic(
-                        character,
-                        "EndTurnRecovery.exit",
-                        $"reason=dodge-result result={dodgeResult}");
-                    return dodgeResult;
-                }
-
-                if (dodgeResult == CombatAiActionRecoveryStartResult.StartedSubmittedUnobserved)
-                {
-                    hasSubmittedUnobservedActionStart = true;
-                }
-                else
-                {
-                    hasUnobservedActionStart = true;
-                }
+                RecordPreMainRouteMoveIfRequired(
+                    character,
+                    turnPlan,
+                    requireMainAction,
+                    CombatAiPreMainRouteMoveStatus.Executed,
+                    destination);
+                return true;
             }
-        }
 
-        if (hasSubmittedUnobservedActionStart)
-        {
-            LogCombatAiDiagnostic(
+            RecordPreMainRouteMoveIfRequired(
                 character,
-                "EndTurnRecovery.exit",
-                "reason=submitted-unobserved");
-            return CombatAiActionRecoveryStartResult.StartedSubmittedUnobserved;
+                turnPlan,
+                requireMainAction,
+                CombatAiPreMainRouteMoveStatus.Blocked,
+                default);
+            return false;
         }
 
-        if (allowSearchNoConnectedFinalFallback)
+        if (IsSearchKnownTargetPlan(turnPlan))
         {
-            if (hasUnobservedActionStart)
+            if (TryUseLostTargetSearchRouteMove(
+                    character,
+                    turnPlan,
+                    battleService,
+                    profile,
+                    routeContinuation,
+                    CombatAiRouteMoveSourceKind.SearchLostTarget,
+                    out destination))
             {
-                PendingEndTurnRecoveryActionAcceptanceCache.Remove(character.Guid);
-                EndTurnRecoveryActionAcceptedCache.Remove(character.Guid);
-                EndTurnRecoveryActionSubmittedCache.Remove(character.Guid);
+                RecordPreMainRouteMoveIfRequired(
+                    character,
+                    turnPlan,
+                    requireMainAction,
+                    CombatAiPreMainRouteMoveStatus.Executed,
+                    destination);
+                return true;
             }
 
-            RouteMoveCompletionClosedCache.Remove(character.Guid);
-            ClearRouteTerminalState(character);
-        }
-
-        LogCombatAiDiagnostic(
-            character,
-            "EndTurnRecovery.exit",
-            $"reason=final hasUnobserved={hasUnobservedActionStart} " +
-            $"allowSearchNoConnectedFinalFallback={allowSearchNoConnectedFinalFallback}");
-
-        return hasUnobservedActionStart && !allowSearchNoConnectedFinalFallback
-            ? CombatAiActionRecoveryStartResult.StartedUnobservedContinue
-            : CombatAiActionRecoveryStartResult.NotStarted;
-    }
-
-    private static bool HasSearchNoConnectedEndTurnFallbackContext(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsActiveBattleContender(character))
-        {
-            return false;
-        }
-
-        if (HasActiveDisconnectedSearchMoveCompletionSeal(character) ||
-            HasActiveDisconnectedSearchNoRouteMovementSeal(character) ||
-            HasActiveSearchNoConnectedEndTurnFallbackContext(character))
-        {
-            return true;
-        }
-
-        if (!RouteMoveCompletionClosedCache.TryGetValue(character.Guid, out var closedRoute))
-        {
-            return false;
-        }
-
-        return closedRoute.MovementGoal == CombatAiMovementGoalKind.SearchKnownTarget &&
-               closedRoute.HasNoConnectedRoute &&
-               closedRoute.Round == GetCurrentBattleRound() &&
-               closedRoute.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp);
-    }
-
-    private static bool HasActiveSearchNoConnectedEndTurnFallbackContext(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !SearchNoConnectedEndTurnFallbackCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        if (memory.Matches(GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp)))
-        {
-            return true;
-        }
-
-        SearchNoConnectedEndTurnFallbackCache.Remove(character.Guid);
-
-        return false;
-    }
-
-    private static bool HasCurrentClosedNoConnectedSearchRoute(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !RouteMoveCompletionClosedCache.TryGetValue(character.Guid, out var closedRoute))
-        {
-            return false;
-        }
-
-        return closedRoute.MovementGoal == CombatAiMovementGoalKind.SearchKnownTarget &&
-               closedRoute.HasNoConnectedRoute &&
-               closedRoute.Round == GetCurrentBattleRound() &&
-               closedRoute.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp);
-    }
-
-    private static CombatAiActionRecoveryStartResult TryStartEndTurnRecoveryAction(
-        GameLocationCharacter character,
-        Func<bool> startAction,
-        params Id[] acceptedActionIds)
-    {
-        return TryStartEndTurnRecoveryAction(
-            character,
-            startAction,
-            null,
-            false,
-            acceptedActionIds);
-    }
-
-    private static CombatAiActionRecoveryStartResult TryStartEndTurnRecoveryAction(
-        GameLocationCharacter character,
-        Func<bool> startAction,
-        Func<bool> observeStartedAction,
-        bool terminalFallback,
-        params Id[] acceptedActionIds)
-    {
-        if (character?.RulesetCharacter == null || startAction == null)
-        {
-            return CombatAiActionRecoveryStartResult.NotStarted;
-        }
-
-        var guid = character.Guid;
-        var mainUseCountBefore = GetActionUseCount(TurnMainActionUseCountCache, character);
-        var bonusUseCountBefore = GetActionUseCount(TurnBonusActionUseCountCache, character);
-        var mainActionTypeBefore = character.GetActionTypeStatus(ActionType.Main);
-        var bonusActionTypeBefore = character.GetActionTypeStatus(ActionType.Bonus);
-        var hadLastActionBefore = TryGetCurrentTurnActionMemory(
-            character,
-            LastActionExecutionCache,
-            out var lastActionBefore);
-
-        if (acceptedActionIds is { Length: > 0 })
-        {
-            PendingEndTurnRecoveryActionAcceptanceCache[guid] = new EndTurnRecoveryActionAcceptanceMemory(
-                GetCurrentBattleRound(),
-                Math.Max(1, ObservedCombatMemoryTurnStamp),
-                acceptedActionIds);
-            EndTurnRecoveryActionAcceptedCache.Remove(guid);
-            EndTurnRecoveryActionSubmittedCache.Remove(guid);
-        }
-
-        var started = startAction();
-        var accepted = EndTurnRecoveryActionAcceptedCache.Remove(guid);
-        var submitted = EndTurnRecoveryActionSubmittedCache.Remove(guid);
-        var mainActionTypeAfter = character.GetActionTypeStatus(ActionType.Main);
-        var bonusActionTypeAfter = character.GetActionTypeStatus(ActionType.Bonus);
-
-        if (!started)
-        {
-            PendingEndTurnRecoveryActionAcceptanceCache.Remove(guid);
-            return CombatAiActionRecoveryStartResult.NotStarted;
-        }
-
-        var observed =
-            accepted ||
-            (observeStartedAction?.Invoke() == true) ||
-            WasEndTurnRecoveryActionTypeConsumed(
-                mainActionTypeBefore,
-                mainActionTypeAfter,
-                bonusActionTypeBefore,
-                bonusActionTypeAfter) ||
-            HasObservedActionExecutionSince(
+            RecordPreMainRouteMoveIfRequired(
                 character,
-                mainUseCountBefore,
-                bonusUseCountBefore,
-                hadLastActionBefore,
-                lastActionBefore);
-
-        if (observed)
-        {
-            PendingEndTurnRecoveryActionAcceptanceCache.Remove(guid);
-            return CombatAiActionRecoveryStartResult.StartedObserved;
+                turnPlan,
+                requireMainAction,
+                CombatAiPreMainRouteMoveStatus.Blocked,
+                default);
+            return false;
         }
 
-        if (submitted)
+        if (!turnPlan.IsAttackContinuation)
         {
-            return CombatAiActionRecoveryStartResult.StartedSubmittedUnobserved;
+            PrimeGroundMeleeTargetContactRouteQuery(character, turnPlan);
         }
 
-        PendingEndTurnRecoveryActionAcceptanceCache.Remove(guid);
+        var walkOnly = IsGroundMeleePursuitPlan(turnPlan);
 
-        return terminalFallback
-            ? CombatAiActionRecoveryStartResult.StartedUnobservedTerminal
-            : CombatAiActionRecoveryStartResult.StartedUnobservedContinue;
+        if (!TryGetReachableRouteDestinations(
+                character,
+                start,
+                character.RemainingTacticalMoves,
+                out var reachableDestinations,
+                allowPathfinding: true,
+                walkOnly: walkOnly))
+        {
+            RecordPreMainRouteMoveIfRequired(
+                character,
+                turnPlan,
+                requireMainAction,
+                CombatAiPreMainRouteMoveStatus.Blocked,
+                default);
+
+            return false;
+        }
+
+        foreach (var candidate in reachableDestinations.Positions)
+        {
+            _ = TryComputeTurnPlanMovementScore(
+                character,
+                profile,
+                candidate,
+                battleService,
+                turnPlan,
+                out _);
+        }
+
+        if (!TurnMovementProgressCache.TryGetValue(character.Guid, out var movementProgress) ||
+            !movementProgress.TryGetBestAcceptedMoveCandidate(out var bestCandidate) ||
+            bestCandidate.Position == start ||
+            !reachableDestinations.Contains(bestCandidate.Position) ||
+            !TryValidateAiTacticalMoveIssue(character, bestCandidate.Position, requireCanDecide: true))
+        {
+            RecordPreMainRouteMoveIfRequired(
+                character,
+                turnPlan,
+                requireMainAction,
+                CombatAiPreMainRouteMoveStatus.Blocked,
+                default);
+
+            return false;
+        }
+
+        destination = bestCandidate.Position;
+        FreeJumpContext.SuppressAiFreeJumpForNextMove(character, destination);
+        character.MyExecuteActionTacticalMove(destination);
+        RecordPreMainRouteMoveIfRequired(
+            character,
+            turnPlan,
+            requireMainAction,
+            CombatAiPreMainRouteMoveStatus.Executed,
+            destination);
+
+        return true;
     }
 
-    private static bool WasEndTurnRecoveryActionTypeConsumed(
-        ActionStatus mainActionTypeBefore,
-        ActionStatus mainActionTypeAfter,
-        ActionStatus bonusActionTypeBefore,
-        ActionStatus bonusActionTypeAfter)
+    private static void RecordPreMainRouteMoveIfRequired(
+        GameLocationCharacter character,
+        CombatAiTurnPlan turnPlan,
+        bool required,
+        CombatAiPreMainRouteMoveStatus status,
+        int3 destination)
     {
-        return mainActionTypeBefore == ActionStatus.Available && mainActionTypeAfter != ActionStatus.Available ||
-               bonusActionTypeBefore == ActionStatus.Available && bonusActionTypeAfter != ActionStatus.Available;
+        if (required)
+        {
+            RecordPreMainRouteMoveAttempt(
+                character,
+                status,
+                turnPlan.MovementPlan.Goal,
+                destination);
+        }
     }
 
-    private static bool TryUseCurrentPositionHostileMainActionAtEndTurn(
+    private static int GetResidualHostileActionAttemptLimit(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter == null)
+        {
+            return 0;
+        }
+
+        var rank = character.CurrentActionRankByType[ActionType.Main];
+        var allowedAttacks = Math.Max(0, character.GetAllowedMainAttacksForRank(rank));
+        var observedAttacks = Math.Max(0, character.UsedMainAttacks);
+
+        if (TryGetCurrentTurnActionMemory(character, LastMainActionExecutionCache, out var lastMainAction) &&
+            lastMainAction.ActionId == Id.AttackMain &&
+            lastMainAction.ActionRank == rank)
+        {
+            observedAttacks = Math.Max(
+                observedAttacks,
+                GetActionUseCount(TurnMainActionUseCountCache, character));
+        }
+
+        var unusedAllowedAttacks = Math.Max(0, allowedAttacks - observedAttacks);
+        var availableIterations = Math.Max(0, character.GetActionAvailableIterations(Id.AttackMain));
+
+        return Math.Max(1, allowedAttacks > 0 ? unusedAllowedAttacks : availableIterations);
+    }
+
+    private static IEnumerator WaitForCombatAiProcessAction(GameLocationCharacter character)
+    {
+        // MyExecuteAction can publish its chain on the following frame. Keep the AI turn
+        // coroutine alive until that publication boundary so the action cannot leak into
+        // the next contender's turn.
+        yield return null;
+
+        while (IsActiveBattleContender(character) &&
+               (HasAnyQueuedActionChain() ||
+                HasPendingReactionRequests() ||
+                character.MoveStepInProgress))
+        {
+            yield return null;
+        }
+    }
+
+    private static bool TryStartPostMainClearAllyCorridorMove(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService,
+        out int3 destination)
+    {
+        destination = default;
+
+        if (character?.RulesetCharacter == null ||
+            battleService == null ||
+            !IsActiveBattleContender(character) ||
+            !HasCommittedMainActionThisTurn(character) ||
+            BuildActionEconomySnapshot(character).MainAvailable ||
+            HasAvailableAttackMainContinuation(character) ||
+            character.RemainingTacticalMoves <= 0 ||
+            !character.CanDecideToMoveByItself ||
+            character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available ||
+            HasQueuedActionChain(character) ||
+            HasPendingReactionRequests())
+        {
+            return false;
+        }
+
+        var profile = BuildProfile(character);
+
+        return TryBuildPostMainClearAllyCorridorTurnPlan(
+                   character,
+                   profile,
+                   battleService,
+                   out var turnPlan) &&
+               !TryBlockRepeatedPostMainClearAllyCorridorAttempt(character) &&
+               TryUsePostMainClearAllyCorridorMove(
+                   character,
+                   turnPlan,
+                   battleService,
+                   out destination);
+    }
+
+    private static CombatAiResidualHostileActionResult TryUseCurrentPositionHostileMainAction(
         GameLocationCharacter character,
         IGameLocationBattleService battleService)
     {
@@ -11847,41 +6755,63 @@ validation = new CombatAiMainActionValidation(
             battleService == null ||
             !IsActiveBattleContender(character))
         {
-            return false;
+            return new CombatAiResidualHostileActionResult(
+                CombatAiResidualHostileActionResultKind.Unavailable);
         }
 
-        var actionKinds = GetCurrentHostileTargetActionKinds(character);
+        var profile = BuildProfile(character);
+        var turnPlan = BuildCombatAiTurnPlan(character, profile, battleService);
+        var result = TryUseResidualSafeHostileAction(
+            character,
+            turnPlan.ActionProbe,
+            battleService);
 
-        foreach (var target in GetCurrentHostileActionTargets(character, battleService))
+        if (result.Executed || result.PolicyHeld)
+        {
+            return result;
+        }
+
+        if (turnPlan.ActionProbe.CanUsePreferredAction ||
+            turnPlan.ActionProbe.CanUseBackupAction)
+        {
+            return result;
+        }
+
+        var targets = GetCurrentHostileActionTargets(character, battleService)
+            .Where(target => target?.RulesetCharacter != null && target.Side != character.Side)
+            .OrderBy(target => CanAttackInMeleeFromPosition(
+                character,
+                character.LocationPosition,
+                target,
+                target.LocationPosition,
+                battleService)
+                ? 0
+                : 1)
+            .ThenBy(target => ComputeGridDistance(character.LocationPosition, target.LocationPosition))
+            .ThenBy(target => target.Guid)
+            .ToArray();
+
+        foreach (var target in targets)
         {
             if (target?.RulesetCharacter == null || target.Side == character.Side)
             {
                 continue;
             }
 
-            foreach (var actionKind in actionKinds)
+            if (TryUseCurrentHostilePowerMainAction(
+                    character,
+                    target,
+                    battleService))
             {
-                if (TryUseResidualSafeHostileAction(
-                        character,
-                        target,
-                        actionKind,
-                        battleService,
-                        CombatAiActionLaunchBoundary.EndTurn).Executed)
-                {
-                    return true;
-                }
-            }
-
-            if (TryUseCurrentHostilePowerMainActionAtEndTurn(character, target, battleService))
-            {
-                return true;
+                return new CombatAiResidualHostileActionResult(
+                    CombatAiResidualHostileActionResultKind.Executed);
             }
         }
 
-        return false;
+        return result;
     }
 
-    private static bool TryUseCurrentHostilePowerMainActionAtEndTurn(
+    private static bool TryUseCurrentHostilePowerMainAction(
         GameLocationCharacter character,
         GameLocationCharacter target,
         IGameLocationBattleService battleService)
@@ -11894,7 +6824,11 @@ validation = new CombatAiMainActionValidation(
             battleService == null ||
             character.GetActionStatus(Id.PowerMain, ActionScope.Battle) != ActionStatus.Available ||
             character.GetActionTypeStatus(ActionType.Main) != ActionStatus.Available ||
-            HasCommittedMainActionThisTurn(character))
+            TryGetCommittedNonTerminalMainActionThisTurn(character, out var committedMainAction) &&
+            !HasUnspentMainActionRank(
+                character,
+                committedMainAction,
+                character.GetActionTypeStatus(ActionType.Main)))
         {
             return false;
         }
@@ -11956,15 +6890,13 @@ validation = new CombatAiMainActionValidation(
             MarkPendingResidualMainAction(character, Id.PowerMain);
             return TryExecuteResidualHostileAction(
                 actionService,
-                actionParams,
-                CombatAiActionLaunchBoundary.EndTurn,
-                character);
+                actionParams);
         }
 
         return false;
     }
 
-    private static CombatAiTurnPlan BuildEndTurnActionOnlyRecoveryPlan(
+    private static CombatAiTurnPlan BuildTerminalActionPlan(
         GameLocationCharacter character,
         CombatAiProfile profile)
     {
@@ -11985,700 +6917,15 @@ validation = new CombatAiMainActionValidation(
             null,
             character?.LocationPosition ?? default);
 
-        return new CombatAiTurnPlan(actionProbe, movementPlan);
-    }
-
-    private static bool TryConsumeSearchLostTargetRecoveryAtEndTurn(
-        GameLocationCharacter character,
-        out bool suppressEndTurn)
-    {
-        suppressEndTurn = false;
-
-        if (character?.RulesetCharacter == null ||
-            !TryGetCurrentPendingAiProcessTurnRecovery(character, out var recovery) ||
-            recovery.RecoveryReason != CombatAiTurnRecoveryReason.SearchLostTargetAbort)
-        {
-            return false;
-        }
-
-        PendingAiProcessTurnRecoveryCache.Remove(character.Guid);
-
-        if (ShouldAllowRecoveryActionLinkedMove(character, recovery.RecoveryReason) &&
-            TrySpendRecoveryLeftoverActionEconomy(character, true))
-        {
-            suppressEndTurn = true;
-
-            return true;
-        }
-
-        if (TrySpendRecoveryLeftoverActionEconomy(character, false))
-        {
-            suppressEndTurn = true;
-
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryCloseMissedAiProcessTerminalLaunchAtEndTurn(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PendingAiProcessTerminalLaunchCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-
-        PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
-        PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
-        PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-        PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-        PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-        ClearRouteMoveDashBlock(character);
-
-        if (memory.ActionId == Id.Dodge)
-        {
-            PendingFallbackDodgeConditionCache.Remove(character.Guid);
-            PendingTerminalDodgeEndTurnCache.Remove(character.Guid);
-            PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-        }
-        else if (memory.ActionId == Id.Ready)
-        {
-            PendingTerminalReadyEndTurnCache.Remove(character.Guid);
-            PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-        }
-
-
-        return true;
-    }
-
-    private static bool TryNormalizePendingTerminalDodgeAtEndTurn(
-        GameLocationCharacter character,
-        PendingTerminalDodgeEndTurnMemory pendingTerminalDodge,
-        out bool suppressEndTurn)
-    {
-        suppressEndTurn = false;
-
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        var hasPendingCondition =
-            PendingFallbackDodgeConditionCache.TryGetValue(character.Guid, out var existingConditions);
-        var condition = hasPendingCondition
-            ? FindNewDodgingCondition(character.RulesetCharacter, existingConditions)
-            : null;
-
-        if (condition != null)
-        {
-            PendingFallbackDodgeConditionCache.Remove(character.Guid);
-            PendingTerminalDodgeEndTurnCache.Remove(character.Guid);
-            PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-            NormalizeFallbackDodgeCondition(character, condition);
-            LogCombatAiDiagnostic(
-                character,
-                "DodgeFallback.normalize",
-                $"source=end-turn result=applied condition={condition.Guid} " +
-                $"existingDodgeConditions={existingConditions.Count}");
-            return true;
-        }
-
-        var dodgeStatus = character.GetActionStatus(Id.Dodge, ActionScope.Battle);
-
-        if (dodgeStatus != ActionStatus.Available)
-        {
-            if (pendingTerminalDodge.Round == GetCurrentBattleRound() &&
-                pendingTerminalDodge.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp))
-            {
-                return false;
-            }
-
-            PendingFallbackDodgeConditionCache.Remove(character.Guid);
-            PendingTerminalDodgeEndTurnCache.Remove(character.Guid);
-            PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-            LogCombatAiDiagnostic(
-                character,
-                "DodgeFallback.normalize",
-                $"source=end-turn result=engine-rejected dodgeStatus={dodgeStatus}");
-            TryCompleteTerminalDodgeEndTurn(
-                character,
-                true,
-                pendingTerminalDodge,
-                TerminalDodgeCompletionKind.EngineRejected);
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryNormalizePendingTerminalReadyAtEndTurn(
-        GameLocationCharacter character,
-        PendingTerminalDodgeEndTurnMemory pendingTerminalReady,
-        out bool suppressEndTurn)
-    {
-        suppressEndTurn = false;
-
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        var readyStatus = character.GetActionStatus(Id.Ready, ActionScope.Battle);
-
-        if (readyStatus != ActionStatus.Available)
-        {
-            if (pendingTerminalReady.Round == GetCurrentBattleRound() &&
-                pendingTerminalReady.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp))
-            {
-                return false;
-            }
-
-            PendingTerminalReadyEndTurnCache.Remove(character.Guid);
-            PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-            TryCompleteTerminalReadyEndTurn(
-                character,
-                pendingTerminalReady,
-                TerminalReadyCompletionKind.EngineRejected);
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool HasCurrentPendingTerminalReadyOrDodge(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        return PendingTerminalDodgeEndTurnCache.TryGetValue(character.Guid, out var pendingDodge) &&
-               pendingDodge.Round == currentRound &&
-               pendingDodge.TurnStamp == currentTurnStamp ||
-               PendingTerminalReadyEndTurnCache.TryGetValue(character.Guid, out var pendingReady) &&
-               pendingReady.Round == currentRound &&
-               pendingReady.TurnStamp == currentTurnStamp;
-    }
-
-    private static bool FailPendingTerminalDodgeActionNotAccepted(
-        GameLocationCharacter character,
-        PendingTerminalDodgeEndTurnMemory pendingTerminalDodge)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        var dodgeStatus = character.GetActionStatus(Id.Dodge, ActionScope.Battle);
-
-        PendingFallbackDodgeConditionCache.Remove(character.Guid);
-        PendingTerminalDodgeEndTurnCache.Remove(character.Guid);
-        PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
-        PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
-        PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-        PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-        PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-        ClearRouteMoveDashBlock(character);
-        TryCompleteTerminalDodgeEndTurn(
-            character,
-            true,
-            pendingTerminalDodge,
-            TerminalDodgeCompletionKind.EngineRejected);
-
-        return true;
-    }
-
-    private static bool FailPendingTerminalReadyActionNotAccepted(
-        GameLocationCharacter character,
-        PendingTerminalDodgeEndTurnMemory pendingTerminalReady)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        var readyStatus = character.GetActionStatus(Id.Ready, ActionScope.Battle);
-
-        PendingTerminalReadyEndTurnCache.Remove(character.Guid);
-        PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
-        PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
-        PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-        TryCompleteTerminalReadyEndTurn(
-            character,
-            pendingTerminalReady,
-            TerminalReadyCompletionKind.EngineRejected);
-
-        if (TryScheduleDodgeAfterRejectedReady(character))
-        {
-            return true;
-        }
-
-        PendingRouteActionOnlyTerminalCache.Remove(character.Guid);
-        PendingRouteTerminalStartNextResolutionCache.Remove(character.Guid);
-        ClearRouteMoveDashBlock(character);
-
-        return true;
-    }
-
-    private static bool TryScheduleDodgeAfterRejectedReady(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsActiveBattleContender(character) ||
-            !PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid))
-        {
-            return false;
-        }
-
-        var actionEconomy = BuildActionEconomySnapshot(character);
-        var dodgeStatus = character.GetActionStatus(Id.Dodge, ActionScope.Battle);
-
-        if (!actionEconomy.DodgeAvailable || dodgeStatus != ActionStatus.Available)
-        {
-            return false;
-        }
-
-        if (!SchedulePendingAiProcessTerminalLaunch(
-                character,
-                Id.Dodge,
-                default,
-                PendingTerminalLaunchKind.Dodge))
-        {
-            return false;
-        }
-
-        PendingTerminalActionEndTurnSuppressCache.Add(character.Guid);
-
-        return true;
-    }
-
-    private static bool TryNormalizePendingTerminalActionForInactiveContender(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null || IsActiveBattleContender(character))
-        {
-            return false;
-        }
-
-        if (PendingTerminalDodgeEndTurnCache.TryGetValue(character.Guid, out var pendingTerminalDodge))
-        {
-            if (TryNormalizePendingTerminalDodgeAtEndTurn(
-                    character,
-                    pendingTerminalDodge,
-                    out _))
-            {
-                return true;
-            }
-
-            return FailPendingTerminalDodgeActionNotAccepted(character, pendingTerminalDodge);
-        }
-
-        if (PendingTerminalReadyEndTurnCache.TryGetValue(character.Guid, out var pendingTerminalReady))
-        {
-            if (TryNormalizePendingTerminalReadyAtEndTurn(
-                    character,
-                    pendingTerminalReady,
-                    out _))
-            {
-                return true;
-            }
-
-            return FailPendingTerminalReadyActionNotAccepted(character, pendingTerminalReady);
-        }
-
-        return false;
-    }
-
-    internal static bool TryHandleAdvancedCombatAiBeforeEndTurn(
-        GameLocationCharacter character,
-        out bool suppressEndTurn)
-    {
-        suppressEndTurn = false;
-
-        if (character?.RulesetCharacter == null ||
-            !IsAdvancedCombatAiEnabled ||
-            !IsAiControlledForCombat(character))
-        {
-            return false;
-        }
-
-        EnsureCombatAiRuntimeCache(character);
-
-        if (!IsActiveBattleContender(character))
-        {
-            TryClearInactiveCombatAiTurnOwnership(character);
-            return false;
-        }
-
-        if (TryResolvePendingJumpImmediateMoveSettlingAtStableBoundary(character))
-        {
-            suppressEndTurn = true;
-            return true;
-        }
-
-        ResolveGroundMeleeMoveSettling(
-            character,
-            allowConnectedRouteValidation: false,
-            allowTerminalAction: false);
-
-        TrySpendLeftoverActionEconomyAtEndTurn(character, out suppressEndTurn);
-
-        return true;
-    }
-
-    internal static void TryUsePostMainMovementAfterActionExecution(
-        GameLocationCharacter character,
-        Id actionId,
-        ActionScope scope,
-        int mainRankBefore,
-        int mainAttacksBefore)
-    {
-        if (scope != ActionScope.Battle ||
-            actionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain))
-        {
-            return;
-        }
-
-        EnsureCombatAiRuntimeCache(character);
-
-        if (!IsAiControlledForCombat(character))
-        {
-            return;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            return;
-        }
-
-        TryApplyPendingRouteMovementLock(character);
-
-        var actionEconomy = BuildActionEconomySnapshot(character);
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-        var profile = BuildProfile(character);
-        var turnPlan = battleService == null
-            ? default
-            : BuildCombatAiTurnPlan(character, profile, battleService);
-        var isClearAllyCorridor = battleService != null && IsClearAllyCorridorMovementPlan(turnPlan);
-        var hasCommittedMainAction = HasCommittedMainActionThisTurn(character);
-
-        if (!isClearAllyCorridor &&
-            battleService != null &&
-            hasCommittedMainAction &&
-            TryBuildPostMainClearAllyCorridorTurnPlan(
-                character,
-                profile,
-                battleService,
-                out var corridorTurnPlan))
-        {
-            turnPlan = corridorTurnPlan;
-            isClearAllyCorridor = true;
-        }
-
-        if (!hasCommittedMainAction ||
-            ShouldDeferPostMainClearAllyCorridorForRemainingAttack(
-                character,
-                actionId,
-                mainRankBefore,
-                mainAttacksBefore))
-        {
-            return;
-        }
-
-        if (!isClearAllyCorridor)
-        {
-            return;
-        }
-
-        if (battleService == null ||
-            character.RemainingTacticalMoves <= 0 ||
-            !character.CanDecideToMoveByItself ||
-            actionEconomy.TacticalMove != ActionStatus.Available)
-        {
-            return;
-        }
-
-        if (!TryBlockRepeatedPostMainClearAllyCorridorAttempt(character) &&
-            TryUsePostMainClearAllyCorridorMove(
-                    character,
-                    turnPlan,
-                    battleService,
-                    out _))
-        {
-            return;
-        }
-    }
-
-    private static bool ShouldDeferPostMainClearAllyCorridorForRemainingAttack(
-        GameLocationCharacter character,
-        Id actionId,
-        int mainRankBefore,
-        int mainAttacksBefore)
-    {
-        if (actionId != Id.AttackMain ||
-            character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        var mainRank = character.CurrentActionRankByType[ActionType.Main];
-        var usedMainAttacks = character.UsedMainAttacks;
-        var allowedMainAttacks = character.GetAllowedMainAttacksForRank(mainRank);
-        var attackMainStatus = character.GetActionStatus(Id.AttackMain, ActionScope.Battle);
-
-        return attackMainStatus == ActionStatus.Available &&
-               allowedMainAttacks > 0 &&
-               usedMainAttacks > 0 &&
-               usedMainAttacks < allowedMainAttacks;
-    }
-
-    internal static void TryUsePreMainRouteMove(GameLocationCharacter character)
-    {
-        EnsureCombatAiRuntimeCache(character);
-
-        if (!IsAdvancedCombatAiEnabled ||
-            !IsAiControlledForCombat(character) ||
-            !IsActiveBattleContender(character))
-        {
-            return;
-        }
-
-        if (TryCloseGroundMeleeNoMoveTerminalSeal(character))
-        {
-            return;
-        }
-
-        var actionEconomy = BuildActionEconomySnapshot(character);
-
-        if (!actionEconomy.MainAvailable)
-        {
-            RecordPreMainRouteMoveAttempt(
-                character,
-                CombatAiPreMainRouteMoveStatus.Unavailable,
-                CombatAiMovementGoalKind.None,
-                default);
-            return;
-        }
-
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-
-        if (battleService == null)
-        {
-            RecordPreMainRouteMoveAttempt(
-                character,
-                CombatAiPreMainRouteMoveStatus.Unavailable,
-                CombatAiMovementGoalKind.None,
-                default);
-            return;
-        }
-
-        var profile = BuildProfile(character);
-        var turnPlan = BuildCombatAiTurnPlan(character, profile, battleService);
-
-        if (PreMainRouteMoveAttemptCache.ContainsKey(character.Guid))
-        {
-            return;
-        }
-
-        if (turnPlan.MovementPlan.Goal == CombatAiMovementGoalKind.AdvanceToMelee &&
-            turnPlan.MovementPlan.Policy == CombatAiMovementPolicyKind.FlyingPursuitPolicy)
-        {
-            RecordPreMainRouteMoveAttempt(
-                character,
-                CombatAiPreMainRouteMoveStatus.Unavailable,
-                turnPlan.MovementPlan.Goal,
-                default,
-                PreMainRouteMoveFlags.VanillaOwned);
-            return;
-        }
-
-        if (!ShouldUsePreMainRouteMove(character, profile, turnPlan))
-        {
-            return;
-        }
-
-        var continuation = GetPreMainRouteMoveContinuation(character, turnPlan);
-        var requireActionAfterMove = continuation == CombatAiActionLinkedMoveContinuation.ReturnToVanillaDecision;
-        var requireActionAfterNormalMove = requireActionAfterMove && !CanUseProgressOnlyNormalRoute(turnPlan);
-        var isFlyingMeleeRoute = IsFlyingMeleeMovementPlan(turnPlan);
-        var skipFreeJump = turnPlan.MovementPlan.Goal == CombatAiMovementGoalKind.MeleeSpacing ||
-                           isFlyingMeleeRoute;
-        var jumpRouteSource = CombatAiRouteMoveSourceKind.JumpFallback;
-
-        if (TryUseAdjacentContactFreeJumpImmediateAttack(
-                character,
-                turnPlan,
-                battleService,
-                skipFreeJump))
-        {
-            return;
-        }
-
-        if (ShouldEvaluateJumpImprovementBeforeNormalRoute(
-                character,
-                turnPlan,
-                skipFreeJump) &&
-            TryUseActionLinkedFreeJumpToResidualAction(
-                character,
-                turnPlan,
-                battleService,
-                continuation,
-                requireActionAfterMove,
-                requireJumpImprovement: true,
-                routeMoveSource: CombatAiRouteMoveSourceKind.JumpImprovement))
-        {
-            var destination = ActionLinkedMoveCache.TryGetValue(character.Guid, out var pending)
-                ? pending.ExpectedDestination
-                : default;
-
-            RecordPreMainRouteMoveAttempt(
-                character,
-                CombatAiPreMainRouteMoveStatus.Executed,
-                turnPlan.MovementPlan.Goal,
-                destination);
-            return;
-        }
-
-        if (TryUseConnectedFiringLineRouteMove(
-                character,
-                turnPlan,
-                battleService,
-                profile,
-                continuation,
-                requireActionAfterNormalMove,
-                CombatAiRouteMoveSourceKind.ConnectedFiringLine,
-                true,
-                out var connectedFiringLineDestination,
-                out var connectedFiringLineClosed))
-        {
-            RecordPreMainRouteMoveAttempt(
-                character,
-                CombatAiPreMainRouteMoveStatus.Executed,
-                turnPlan.MovementPlan.Goal,
-                connectedFiringLineDestination);
-            return;
-        }
-
-        if (connectedFiringLineClosed)
-        {
-            if (TryUseLostTargetSearchRouteMove(
-                    character,
-                    turnPlan,
-                    battleService,
-                    profile,
-                    CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove,
-                    CombatAiRouteMoveSourceKind.SearchLostTarget,
-                    out var connectedSearchDestination))
-            {
-                RecordPreMainRouteMoveAttempt(
-                    character,
-                    CombatAiPreMainRouteMoveStatus.Executed,
-                    CombatAiMovementGoalKind.SearchKnownTarget,
-                    connectedSearchDestination);
-                return;
-            }
-
-            RecordPreMainRouteMoveAttempt(
-                character,
-                CombatAiPreMainRouteMoveStatus.Blocked,
-                turnPlan.MovementPlan.Goal,
-                connectedFiringLineDestination,
-                PreMainRouteMoveFlags.DisconnectedSeekFailure);
-            return;
-        }
-
-        if (IsSearchKnownTargetPlan(turnPlan) &&
-            TryUseLostTargetSearchRouteMove(
-                character,
-                turnPlan,
-                battleService,
-                profile,
-                continuation,
-                CombatAiRouteMoveSourceKind.SearchLostTarget,
-                out var searchRouteDestination))
-        {
-            RecordPreMainRouteMoveAttempt(
-                character,
-                CombatAiPreMainRouteMoveStatus.Executed,
-                turnPlan.MovementPlan.Goal,
-                searchRouteDestination);
-            return;
-        }
-
-        if (TryUseRecordedPreMainRouteMove(
-                character,
-                turnPlan,
-                battleService,
-                continuation,
-                requireActionAfterNormalMove,
-                out var preferredTacticalStatus,
-                out var preferredTacticalDestination))
-        {
-            RecordPreMainRouteMoveAttempt(
-                character,
-                CombatAiPreMainRouteMoveStatus.Executed,
-                turnPlan.MovementPlan.Goal,
-                preferredTacticalDestination);
-            return;
-        }
-
-        if (ShouldEvaluateJumpFallbackAfterNormalRouteFailure(
-                character,
-                turnPlan,
-                skipFreeJump) &&
-            TryUseActionLinkedFreeJumpToResidualAction(
-                character,
-                turnPlan,
-                battleService,
-                continuation,
-                requireActionAfterMove,
-                routeMoveSource: jumpRouteSource))
-        {
-            var destination = ActionLinkedMoveCache.TryGetValue(character.Guid, out var pending)
-                ? pending.ExpectedDestination
-                : default;
-
-            RecordPreMainRouteMoveAttempt(
-                character,
-                CombatAiPreMainRouteMoveStatus.Executed,
-                turnPlan.MovementPlan.Goal,
-                destination);
-            return;
-        }
-
-        var tacticalDestination = preferredTacticalDestination;
-        var status = preferredTacticalStatus;
-
-        if (IsGroundMeleePursuitPlan(turnPlan) &&
-            status == CombatAiPreMainRouteMoveStatus.Blocked)
-        {
-            SealGroundMeleeNoMoveTerminal(character);
-        }
-
-        ScheduleConnectedFiringLineTerminalAfterFailedRoute(
-            character,
-            turnPlan,
-            actionEconomy,
-            status,
-            tacticalDestination);
-
-        RecordPreMainRouteMoveAttempt(
-            character,
-            status,
-            turnPlan.MovementPlan.Goal,
-            tacticalDestination,
-            status != CombatAiPreMainRouteMoveStatus.Executed &&
-            turnPlan.MovementPlan.Goal == CombatAiMovementGoalKind.MoveToPreferredRange
-                ? PreMainRouteMoveFlags.DisconnectedSeekFailure
-                : PreMainRouteMoveFlags.None);
+        return new CombatAiTurnPlan(
+            actionProbe,
+            movementPlan,
+            HasRemainingAttackMainContinuation(character));
     }
 
     internal static void TryUseBaselineFreeJumpRouteMove(GameLocationCharacter character)
     {
-        EnsureCombatAiRuntimeCache(character);
+        EnsureCombatAiRuntimeCache();
 
         if (IsAdvancedCombatAiEnabled ||
             !Main.Settings.EnableBonusActionFreeJump ||
@@ -12821,7 +7068,6 @@ validation = new CombatAiMainActionValidation(
             return;
         }
 
-        MarkDashBlockedAfterRouteMove(character, CombatAiMovementGoalKind.None, bestDestination);
         RecordBaselineFreeJumpAttempt(
             character,
             CombatAiPreMainRouteMoveStatus.Executed,
@@ -12848,12 +7094,8 @@ validation = new CombatAiMainActionValidation(
 
     private static bool ShouldUsePreMainRouteMove(
         GameLocationCharacter character,
-        CombatAiProfile profile,
         CombatAiTurnPlan turnPlan)
     {
-        _ = character;
-        _ = profile;
-
         if (!turnPlan.MovementPlan.HasGoal)
         {
             return false;
@@ -12927,191 +7169,6 @@ validation = new CombatAiMainActionValidation(
                turnPlan.MovementPlan.Policy == CombatAiMovementPolicyKind.SearchKnownTargetPolicy;
     }
 
-    private static bool CanUseProgressOnlyNormalRoute(CombatAiTurnPlan turnPlan)
-    {
-        if (IsImproveFiringPositionPlan(turnPlan) ||
-            turnPlan.MovementPlan.Policy == CombatAiMovementPolicyKind.FlyingPursuitPolicy)
-        {
-            return false;
-        }
-
-        return turnPlan.MovementPlan.Goal is CombatAiMovementGoalKind.SearchKnownTarget
-            or CombatAiMovementGoalKind.AdvanceToMelee;
-    }
-
-    private static bool ShouldEvaluateJumpImmediateAttackBeforeNormalRoute(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        bool skipFreeJump)
-    {
-        return !skipFreeJump &&
-               character?.RulesetCharacter != null &&
-               IsGroundMeleePursuitPlan(turnPlan);
-    }
-
-    private static bool TryUseAdjacentContactFreeJumpImmediateAttack(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        bool skipFreeJump)
-    {
-        if (!ShouldEvaluateJumpImmediateAttackBeforeNormalRoute(
-                character,
-                turnPlan,
-                skipFreeJump))
-        {
-            return false;
-        }
-
-        if (!TryUseActionLinkedFreeJumpToResidualAction(
-                character,
-                turnPlan,
-                battleService,
-                CombatAiActionLinkedMoveContinuation.ImmediateResidualAction,
-                requireActionAfterMove: true,
-                requireJumpImprovement: false,
-                routeMoveSource: CombatAiRouteMoveSourceKind.JumpImmediateAttack,
-                requireImmediateAttack: true))
-        {
-            if (character != null)
-            {
-                JumpImmediateAttackReachableCache.Remove(character.Guid);
-            }
-
-            return false;
-        }
-
-        var destination = ActionLinkedMoveCache.TryGetValue(character.Guid, out var pending)
-            ? pending.ExpectedDestination
-            : default;
-
-        JumpImmediateAttackReachableCache.Add(character.Guid);
-        RecordPreMainRouteMoveAttempt(
-            character,
-            CombatAiPreMainRouteMoveStatus.Executed,
-            turnPlan.MovementPlan.Goal,
-            destination);
-        return true;
-    }
-
-    private static bool ShouldEvaluateJumpImprovementBeforeNormalRoute(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        bool skipFreeJump)
-    {
-        if (skipFreeJump ||
-            character?.RulesetCharacter == null ||
-            !CanUseJumpImprovementGoal(turnPlan))
-        {
-            return false;
-        }
-
-        if (ShouldBlockGenericFreeJumpForPositioning(
-                turnPlan,
-                CombatAiRouteMoveSourceKind.JumpImprovement))
-        {
-            return false;
-        }
-
-        if (IsGroundMeleePursuitPlan(turnPlan))
-        {
-            return false;
-        }
-
-        if (!TurnMovementProgressCache.TryGetValue(character.Guid, out var movementProgress) ||
-            !movementProgress.HasAcceptedMoveCandidate)
-        {
-            return false;
-        }
-
-        if (movementProgress.HasImmediatePreferredActionMoveCandidate)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static bool ShouldEvaluateJumpFallbackAfterNormalRouteFailure(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        bool skipFreeJump)
-    {
-        if (skipFreeJump ||
-            character?.RulesetCharacter == null ||
-            !turnPlan.MovementPlan.HasGoal)
-        {
-            return false;
-        }
-
-        if (ShouldBlockGenericFreeJumpForPositioning(
-                turnPlan,
-                CombatAiRouteMoveSourceKind.JumpFallback))
-        {
-            return false;
-        }
-
-        if (TurnMovementProgressCache.TryGetValue(character.Guid, out var movementProgress) &&
-            movementProgress.HasAcceptedMoveCandidate)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static bool CanUseJumpImprovementGoal(CombatAiTurnPlan turnPlan)
-    {
-        if (turnPlan.MovementPlan.Goal is CombatAiMovementGoalKind.BreakThreat
-            or CombatAiMovementGoalKind.MaintainThreatAvoidance
-            or CombatAiMovementGoalKind.MeleeSpacing)
-        {
-            return false;
-        }
-
-        return turnPlan.MovementPlan.Goal is (CombatAiMovementGoalKind.MoveToPreferredRange
-                   or CombatAiMovementGoalKind.SearchKnownTarget
-                   or CombatAiMovementGoalKind.AdvanceToMelee) ||
-               IsImproveFiringPositionPlan(turnPlan);
-    }
-
-    private static bool ShouldBlockGenericFreeJumpForPositioning(
-        CombatAiTurnPlan turnPlan,
-        CombatAiRouteMoveSourceKind routeMoveSource)
-    {
-        var isPositioningOrSeek =
-            RequiresPostMoveActionConnectedPositioning(turnPlan) ||
-            turnPlan.MovementPlan.Goal == CombatAiMovementGoalKind.SearchKnownTarget;
-
-        if (turnPlan.MovementPlan.Goal == CombatAiMovementGoalKind.BreakThreat ||
-            !isPositioningOrSeek ||
-            routeMoveSource is not (CombatAiRouteMoveSourceKind.JumpImprovement
-                or CombatAiRouteMoveSourceKind.JumpFallback
-                or CombatAiRouteMoveSourceKind.FreeJump))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static bool TryGetRecentNoMoveProxyThreatAttempt(
-        GameLocationCharacter character,
-        int3 startPosition,
-        out ProxyThreatRouteAttemptMemory attempt)
-    {
-        attempt = default;
-
-        if (!TryGetSameTurnNoMoveProxyThreatAttempt(character, out attempt) ||
-            !TryGetProxyMeleeThreat(character, out var memory) ||
-            !attempt.MatchesSourceAndStart(memory, startPosition))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
     private static bool TryGetSameTurnNoMoveProxyThreatAttempt(
         GameLocationCharacter character,
         out ProxyThreatRouteAttemptMemory attempt)
@@ -13137,19 +7194,6 @@ validation = new CombatAiMainActionValidation(
         attempt = default;
 
         return false;
-    }
-
-    private static CombatAiActionLinkedMoveContinuation GetPreMainRouteMoveContinuation(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan)
-    {
-        if (turnPlan.MovementPlan.Goal == CombatAiMovementGoalKind.BreakThreat ||
-            turnPlan.MovementPlan.Goal == CombatAiMovementGoalKind.MeleeSpacing)
-        {
-            return CombatAiActionLinkedMoveContinuation.ReturnToVanillaDecision;
-        }
-
-        return CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove;
     }
 
     private static bool TryUseConnectedFiringLineRouteMove(
@@ -13190,16 +7234,14 @@ validation = new CombatAiMainActionValidation(
             {
                 CloseFailedConnectedFiringLineRoute(
                     character,
-                    turnPlan,
-                    BuildActionEconomySnapshot(character),
-                    destination);
+                    turnPlan);
                 closed = true;
             }
 
             return false;
         }
 
-        var movementProgress = GetOrCreateTurnMovementProgress(character, turnPlan);
+        _ = GetOrCreateTurnMovementProgress(character, turnPlan);
         var candidates = new List<ConnectedFiringLineCandidate>();
 
         foreach (var position in reachableDestinations.Positions)
@@ -13231,7 +7273,6 @@ validation = new CombatAiMainActionValidation(
                     battleService,
                     turnPlan,
                     canPreferred,
-                    movementProgress,
                     out var score,
                     out var actionKind))
             {
@@ -13282,59 +7323,8 @@ validation = new CombatAiMainActionValidation(
         {
             CloseFailedConnectedFiringLineRoute(
                 character,
-                turnPlan,
-                BuildActionEconomySnapshot(character),
-                destination);
+                turnPlan);
             closed = true;
-        }
-
-        return false;
-    }
-
-    private static bool TryUseConnectedFiringLineRecovery(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        CombatAiProfile profile)
-    {
-        if (character?.RulesetCharacter == null ||
-            battleService == null ||
-            !IsConnectedFiringLinePlan(turnPlan))
-        {
-            return false;
-        }
-
-        var round = GetCurrentBattleRound();
-        var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-        var key = $"{round}:{turnStamp}";
-
-        if (ConnectedFiringLineRecoveryAttemptCache.TryGetValue(character.Guid, out var previousKey) &&
-            previousKey == key)
-        {
-            return false;
-        }
-
-        ConnectedFiringLineRecoveryAttemptCache[character.Guid] = key;
-
-        if (character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available ||
-            character.RemainingTacticalMoves <= 0)
-        {
-            return false;
-        }
-
-        if (TryUseConnectedFiringLineRouteMove(
-                character,
-                turnPlan,
-                battleService,
-                profile,
-                CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove,
-                true,
-                    CombatAiRouteMoveSourceKind.ConnectedFiringLineRecovery,
-                false,
-                out _,
-                out _))
-        {
-            return true;
         }
 
         return false;
@@ -13374,10 +7364,8 @@ validation = new CombatAiMainActionValidation(
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
         var start = character.LocationPosition;
-        var attemptKey = BuildLostTargetSearchAttemptKey(round, turnStamp, start, anchor);
-
         if (LostTargetSearchAttemptCache.TryGetValue(character.Guid, out var previousAttempt) &&
-            previousAttempt == attemptKey)
+            previousAttempt.Matches(round, turnStamp, start, anchor))
         {
             return false;
         }
@@ -13399,7 +7387,8 @@ validation = new CombatAiMainActionValidation(
             turnPlan.ActionProbe.CapabilityCatalog);
         var searchTurnPlan = new CombatAiTurnPlan(
             searchActionProbe,
-            BuildSearchKnownTargetMovementPlan(searchTarget, anchor));
+            BuildSearchKnownTargetMovementPlan(searchTarget, anchor),
+            turnPlan.IsAttackContinuation);
         var remainingMove = Math.Max(0, character.RemainingTacticalMoves);
 
         var currentDistance = ComputeGridDistance(start, anchor);
@@ -13616,9 +7605,6 @@ validation = new CombatAiMainActionValidation(
                         searchTarget,
                         ref nextActionProbeBudget);
                 }
-                else if (!nextActionReachable)
-                {
-                }
 
                 if (!nextActionReachable)
                 {
@@ -13627,7 +7613,7 @@ validation = new CombatAiMainActionValidation(
             }
 
             var candidateContinuation =
-                continuation == CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove &&
+                continuation == CombatAiActionLinkedMoveContinuation.ReturnToCoordinatorAfterRouteMove &&
                 !candidate.ActionConnected
                     ? CombatAiActionLinkedMoveContinuation.ProgressOnlySearchMove
                     : continuation;
@@ -13932,15 +7918,14 @@ validation = new CombatAiMainActionValidation(
 
             if (moveCost <= remainingMove ||
                 moveCost > dashMoveBudget ||
-                !IsLegalAiRouteDestination(character, position, out _) ||
+                !IsLegalAiRouteDestination(character, position) ||
                 HasForcedRouteOpportunityExposure(character, start, position, battleService) ||
                 ShouldRejectTrafficBlockingMove(
                     character,
                     position,
                     battleService,
                     profile,
-                    searchTurnPlan,
-                    out _))
+                    searchTurnPlan))
             {
                 continue;
             }
@@ -14007,43 +7992,33 @@ validation = new CombatAiMainActionValidation(
         int3 start,
         int3 destination,
         int moveCost,
-        int allowedMoveBudget,
-        out SearchRouteDestinationValidationKind validationKind)
+        int allowedMoveBudget)
     {
-        validationKind = SearchRouteDestinationValidationKind.Accepted;
-
         if (character?.RulesetCharacter == null ||
             battleService == null ||
             destination == character.LocationPosition ||
             character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available)
         {
-            validationKind = SearchRouteDestinationValidationKind.NoTacticalMove;
             return false;
         }
 
         if (!character.CanDecideToMoveByItself)
         {
-            validationKind = SearchRouteDestinationValidationKind.CannotDecide;
             return false;
         }
 
-        if (!IsLegalAiRouteDestination(character, destination, out var legality))
+        if (!IsLegalAiRouteDestination(character, destination))
         {
-            validationKind = legality == AiRouteDestinationLegality.Occupied
-                ? SearchRouteDestinationValidationKind.Occupied
-                : SearchRouteDestinationValidationKind.NotLegal;
             return false;
         }
 
         if (moveCost > allowedMoveBudget)
         {
-            validationKind = SearchRouteDestinationValidationKind.OverBudget;
             return false;
         }
 
         if (HasForcedRouteOpportunityExposure(character, start, destination, battleService))
         {
-            validationKind = SearchRouteDestinationValidationKind.OpportunityRisk;
             return false;
         }
 
@@ -14052,28 +8027,23 @@ validation = new CombatAiMainActionValidation(
                 destination,
                 battleService,
                 profile,
-                turnPlan,
-                out _))
+                turnPlan))
         {
-            validationKind = SearchRouteDestinationValidationKind.Traffic;
             return false;
         }
 
         if (IsBacktrackingMove(character, start, destination))
         {
-            validationKind = SearchRouteDestinationValidationKind.Backtracking;
             return false;
         }
 
         if (IsFailedAiMoveTarget(character, start, destination))
         {
-            validationKind = SearchRouteDestinationValidationKind.FailedTarget;
             return false;
         }
 
         if (turnPlan.ActionProbe.Target?.RulesetCharacter == null)
         {
-            validationKind = SearchRouteDestinationValidationKind.StaleTarget;
             return false;
         }
 
@@ -14472,966 +8442,6 @@ validation = new CombatAiMainActionValidation(
         return actionKinds.ToArray();
     }
 
-    private static bool TryUseRecordedPreMainRouteMove(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        CombatAiActionLinkedMoveContinuation continuation,
-        bool requireActionAfterMove,
-        out CombatAiPreMainRouteMoveStatus failedStatus,
-        out int3 destination)
-    {
-        destination = default;
-        failedStatus = CombatAiPreMainRouteMoveStatus.Unavailable;
-
-        if (character?.RulesetCharacter == null || battleService == null)
-        {
-            return false;
-        }
-
-        var isGroundMeleePursuit = IsGroundMeleePursuitPlan(turnPlan);
-        var hasMovementProgress = TurnMovementProgressCache.TryGetValue(character.Guid, out var movementProgress);
-        var hasAcceptedRouteCandidate = hasMovementProgress && movementProgress.HasAcceptedMoveCandidate;
-        if (!isGroundMeleePursuit &&
-            !hasAcceptedRouteCandidate &&
-            !ShouldRequireReachableProxyThreatDestination(character, turnPlan))
-        {
-            return false;
-        }
-
-        var start = character.LocationPosition;
-        var profile = BuildProfile(character);
-        ReachableRouteDestinationMemory groundReachableDestinations = null;
-
-        if (isGroundMeleePursuit)
-        {
-            RecordGroundMeleeRouteMemoryGate(character, turnPlan);
-
-            var remainingMove = Math.Max(0, character.RemainingTacticalMoves);
-
-            if (!TryGetReachableRouteDestinations(
-                    character,
-                    start,
-                    remainingMove,
-                    out groundReachableDestinations,
-                    allowPathfinding: true,
-                    walkOnly: true))
-            {
-                // Reachable sets are only a pre-main hint here; the move result is the source of truth.
-            }
-        }
-
-        var candidateDestinations = hasAcceptedRouteCandidate
-            ? movementProgress.EnumerateAcceptedMoveCandidatePositions().ToArray()
-            : Array.Empty<int3>();
-        var excludedDestinations = candidateDestinations;
-        var rejectedCandidates = 0;
-        var durableDetour = default(GroundMeleeDetourCandidateMemory);
-        var durableDetourAvailable =
-            isGroundMeleePursuit &&
-            TryGetGroundMeleeDetourCandidate(
-                character,
-                turnPlan,
-                start,
-                out durableDetour);
-
-        if (TryGetRecentNoMoveProxyThreatAttempt(character, start, out var previousProxyAttempt))
-        {
-            excludedDestinations = candidateDestinations
-                .Append(previousProxyAttempt.FailedDestination)
-                .ToArray();
-            candidateDestinations = Array.Empty<int3>();
-            rejectedCandidates = hasAcceptedRouteCandidate ? excludedDestinations.Length : 0;
-            failedStatus = CombatAiPreMainRouteMoveStatus.Blocked;
-        }
-
-        if (isGroundMeleePursuit)
-        {
-            if (TryUseGroundMeleeOneRoundAttackRouteMove(
-                    character,
-                    turnPlan,
-                    battleService,
-                    profile,
-                    start,
-                    candidateDestinations,
-                    groundReachableDestinations,
-                    continuation,
-                    ref rejectedCandidates,
-                    out destination))
-            {
-                return true;
-            }
-
-            var jumpShortcutResult = TryUseGroundMeleeJumpShortcutRouteMove(
-                    character,
-                    turnPlan,
-                    battleService,
-                    profile,
-                    start,
-                    movementProgress,
-                    groundReachableDestinations,
-                    continuation);
-
-            if (jumpShortcutResult.Executed)
-            {
-                destination = jumpShortcutResult.Destination;
-                return true;
-            }
-
-            if (TryUseGroundMeleeTargetContactRouteMove(
-                    character,
-                    turnPlan,
-                    battleService,
-                    profile,
-                    start,
-                    movementProgress,
-                    durableDetourAvailable,
-                    durableDetour,
-                    groundReachableDestinations,
-                    continuation,
-                    requireActionAfterMove,
-                    ref rejectedCandidates,
-                    out destination))
-            {
-                return true;
-            }
-
-            return false;
-        }
-
-        foreach (var candidateDestination in candidateDestinations)
-        {
-            if (!TryExecutePreMainRouteMoveCandidate(
-                    character,
-                    turnPlan,
-                    battleService,
-                    profile,
-                    start,
-                    candidateDestination,
-                    continuation,
-                    requireActionAfterMove,
-                    CombatAiRouteMoveSourceKind.Normal,
-                    out destination))
-            {
-                rejectedCandidates++;
-                continue;
-            }
-
-            return true;
-        }
-
-        var fallbackLockRemainingMovement = ShouldLockRemainingMovementAfterRouteMove(turnPlan, continuation);
-
-        var proxyResult = TryUseReachableProxyThreatRouteMove(
-            character,
-            turnPlan,
-            battleService,
-            profile,
-            start,
-            excludedDestinations,
-            turnPlan.ActionProbe.Target,
-            CombatAiActionKind.None,
-            continuation,
-            turnPlan.MovementPlan.Goal,
-            fallbackLockRemainingMovement,
-            requireActionAfterMove,
-            out destination);
-
-        return proxyResult.Executed;
-    }
-
-    private static bool TryUseGroundMeleeOneRoundAttackRouteMove(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        CombatAiProfile profile,
-        int3 start,
-        IEnumerable<int3> acceptedDestinations,
-        ReachableRouteDestinationMemory reachableDestinations,
-        CombatAiActionLinkedMoveContinuation continuation,
-        ref int rejectedCandidates,
-        out int3 destination)
-    {
-        destination = default;
-
-        if (character?.RulesetCharacter == null ||
-            turnPlan.ActionProbe.Target?.RulesetCharacter == null ||
-            battleService == null ||
-            reachableDestinations?.Positions == null)
-        {
-            return false;
-        }
-
-        var seen = new HashSet<string>();
-        var target = turnPlan.ActionProbe.Target;
-        var candidates = (acceptedDestinations ?? Enumerable.Empty<int3>())
-            .Concat(reachableDestinations.Positions)
-            .Where(position => position != start)
-            .Where(position => seen.Add(GetPositionKey(position)))
-            .Where(reachableDestinations.Contains)
-            .Where(position => CanUseActionKindAtPosition(
-                character,
-                position,
-                target,
-                CombatAiActionKind.Melee,
-                battleService))
-            .OrderBy(reachableDestinations.GetMoveCost)
-            .ThenBy(position => position.x)
-            .ThenBy(position => position.y)
-            .ThenBy(position => position.z)
-            .ToArray();
-
-        if (candidates.Length == 0)
-        {
-            return false;
-        }
-
-        foreach (var candidate in candidates)
-        {
-            if (ShouldRejectGroundMeleeRouteFailureCandidate(
-                    character,
-                    turnPlan,
-                    start,
-                    candidate))
-            {
-                rejectedCandidates++;
-                continue;
-            }
-
-            if (!TryExecutePreMainRouteMoveCandidate(
-                    character,
-                    turnPlan,
-                    battleService,
-                    profile,
-                    start,
-                    candidate,
-                    continuation,
-                    true,
-                    CombatAiRouteMoveSourceKind.Normal,
-                    out destination))
-            {
-                rejectedCandidates++;
-                continue;
-            }
-
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryUseGroundMeleeTargetContactRouteMove(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        CombatAiProfile profile,
-        int3 start,
-        AiTurnMovementProgress movementProgress,
-        bool durableDetourAvailable,
-        GroundMeleeDetourCandidateMemory durableDetour,
-        ReachableRouteDestinationMemory reachableDestinations,
-        CombatAiActionLinkedMoveContinuation continuation,
-        bool requireActionAfterMove,
-        ref int rejectedCandidates,
-        out int3 destination)
-    {
-        destination = default;
-
-        var candidates = BuildGroundMeleeTargetContactRouteCandidates(
-            character,
-            turnPlan,
-            start,
-            movementProgress,
-            durableDetourAvailable,
-            durableDetour,
-            reachableDestinations);
-
-        if (candidates.Count == 0)
-        {
-            return false;
-        }
-
-        var completeCandidates = candidates
-            .Where(candidate => candidate.Complete)
-            .OrderBy(candidate => IsOneRoundGroundMeleeAttackRouteCandidate(
-                character,
-                turnPlan,
-                battleService,
-                candidate)
-                ? 0
-                : 1)
-            .ThenBy(candidate => candidate.Route.TotalPathCost)
-            .ThenBy(candidate => candidate.SelectedContactMoveCost)
-            .ThenByDescending(candidate => candidate.SelectedMoveCost)
-            .ThenBy(candidate => candidate.SelectedDestination.x)
-            .ThenBy(candidate => candidate.SelectedDestination.y)
-            .ThenBy(candidate => candidate.SelectedDestination.z)
-            .ThenBy(candidate => candidate.SourcePriority)
-            .ToList();
-
-        if (TryExecuteGroundMeleeTargetContactRouteCandidates(
-                character,
-                turnPlan,
-                battleService,
-                profile,
-                start,
-                completeCandidates,
-                continuation,
-                requireActionAfterMove,
-                ref rejectedCandidates,
-                out destination))
-        {
-            return true;
-        }
-
-        if (completeCandidates.Count > 0)
-        {
-            return false;
-        }
-
-        return false;
-    }
-
-    private static GroundMeleeJumpShortcutResult TryUseGroundMeleeJumpShortcutRouteMove(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        CombatAiProfile profile,
-        int3 start,
-        AiTurnMovementProgress movementProgress,
-        ReachableRouteDestinationMemory reachableDestinations,
-        CombatAiActionLinkedMoveContinuation continuation)
-    {
-        if (character?.RulesetCharacter == null ||
-            battleService == null ||
-            !IsGroundMeleePursuitPlan(turnPlan))
-        {
-            return new GroundMeleeJumpShortcutResult(false, GroundMeleeJumpShortcutBlockKind.BasicGate);
-        }
-
-        if (!CanUseFreeJumpForAi(character))
-        {
-            return new GroundMeleeJumpShortcutResult(false, GroundMeleeJumpShortcutBlockKind.FreeJumpUnavailable);
-        }
-
-        if (!TryGetGroundMeleeTargetContactRouteQuery(character, turnPlan, out var query) ||
-            !query.Complete)
-        {
-            var independentResult = TryUseGroundMeleeIndependentJumpShortcutRouteMove(
-                    character,
-                    turnPlan,
-                    battleService,
-                    start,
-                    movementProgress,
-                    continuation);
-
-            if (independentResult.Executed)
-            {
-                return independentResult;
-            }
-
-            return new GroundMeleeJumpShortcutResult(
-                false,
-                independentResult.BlockKind == GroundMeleeJumpShortcutBlockKind.NoIndependentShortcut
-                    ? GroundMeleeJumpShortcutBlockKind.NoTargetContactQuery
-                    : independentResult.BlockKind);
-        }
-
-        var startRemainingCost = query.TryGetContactCost(start, out var startContactCost, out _)
-            ? startContactCost
-            : query.BestGoalMoveCost;
-
-        if (startRemainingCost <= 0)
-        {
-            return new GroundMeleeJumpShortcutResult(false, GroundMeleeJumpShortcutBlockKind.AlreadyAtGoal);
-        }
-
-        var hasNormalBaseline = TryGetBestGroundMeleeNormalReachableCost(
-            query,
-            reachableDestinations,
-            start,
-            startRemainingCost,
-            out var normalDestination,
-            out var normalMoveCost,
-            out var normalRemainingCost,
-            out var normalTotalCost);
-        var normalBaselineFailed =
-            hasNormalBaseline &&
-            (IsFailedAiMoveTarget(character, start, normalDestination) ||
-             HasRecentNoMoveRouteCompletion(
-                 character,
-                 turnPlan.MovementPlan.Goal,
-                 start));
-        var found = false;
-        var selectedDestination = default(int3);
-        var selectedRemainingCost = 0;
-        var selectedTotalCost = int.MaxValue;
-        var selectedScore = float.MinValue;
-
-        bool ConsiderDestination(int3 candidate, float score)
-        {
-            if (candidate == start ||
-                !IsLegalAiRouteDestination(character, candidate, out _))
-            {
-                return true;
-            }
-
-            if (ShouldRejectGroundMeleeRouteFailureCandidate(
-                    character,
-                    turnPlan,
-                    start,
-                    candidate))
-            {
-                return true;
-            }
-
-            if (!query.TryGetContactCost(candidate, out var candidateRemainingCost, out _))
-            {
-                return true;
-            }
-
-            if (candidateRemainingCost >= startRemainingCost)
-            {
-                return true;
-            }
-
-            var jumpMoveCost = Math.Max(1, FreeJumpContext.ComputeAiFreeJumpMovementCost(start, candidate));
-            var totalCost = jumpMoveCost + candidateRemainingCost;
-
-            if (hasNormalBaseline &&
-                !normalBaselineFailed &&
-                (totalCost > normalTotalCost ||
-                 totalCost == normalTotalCost && candidateRemainingCost >= normalRemainingCost))
-            {
-                return true;
-            }
-
-            var actionScore =
-                (startRemainingCost - candidateRemainingCost) +
-                (hasNormalBaseline ? normalTotalCost - totalCost : 1) +
-                score * 0.01f +
-                ComputeStableTieBreakScore(character, turnPlan, candidate, CombatAiActionKind.Melee);
-
-            if (found &&
-                (totalCost > selectedTotalCost ||
-                 totalCost == selectedTotalCost && candidateRemainingCost > selectedRemainingCost ||
-                 totalCost == selectedTotalCost &&
-                 candidateRemainingCost == selectedRemainingCost &&
-                 actionScore <= selectedScore + 0.000001f))
-            {
-                return true;
-            }
-
-            found = true;
-            selectedDestination = candidate;
-            selectedRemainingCost = candidateRemainingCost;
-            selectedTotalCost = totalCost;
-            selectedScore = actionScore;
-            return true;
-        }
-
-        FreeJumpContext.TryEnumerateUsefulAiFreeJumpDestinations(
-            character,
-            ConsiderDestination);
-
-        if (!found)
-        {
-            return new GroundMeleeJumpShortcutResult(false, GroundMeleeJumpShortcutBlockKind.NoImprovingShortcut);
-        }
-
-        var lockRemainingMovement = ShouldLockRemainingMovementAfterRouteMove(turnPlan, continuation);
-        var moveToken = CreateActionLinkedMoveToken();
-        ActionLinkedMoveCache[character.Guid] = new ActionLinkedMoveMemory(
-            turnPlan.ActionProbe.Target,
-            CombatAiActionKind.None,
-            continuation,
-            turnPlan.MovementPlan.Goal,
-            start,
-            selectedDestination,
-            CombatAiRouteMoveSourceKind.GroundMeleeShortcut,
-            lockRemainingMovement,
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp),
-            moveToken);
-
-        if (lockRemainingMovement)
-        {
-            RecordPendingRouteMovementLock(character, turnPlan.MovementPlan.Goal, continuation, selectedDestination);
-        }
-
-        if (!TryExecuteAiFreeJumpTacticalMove(
-                character,
-                selectedDestination,
-                CombatAiRouteMoveSourceKind.GroundMeleeShortcut))
-        {
-            ActionLinkedMoveCache.Remove(character.Guid);
-            PendingRouteMovementLockCache.Remove(character.Guid);
-            return new GroundMeleeJumpShortcutResult(false, GroundMeleeJumpShortcutBlockKind.ExecuteFailed);
-        }
-
-        movementProgress?.MarkFreeJumpMovementCandidate();
-        MarkDashBlockedAfterRouteMove(
-            character,
-            turnPlan.MovementPlan.Goal,
-            selectedDestination);
-        GroundMeleeJumpRouteAvailableCache.Add(character.Guid);
-        return new GroundMeleeJumpShortcutResult(
-            true,
-            GroundMeleeJumpShortcutBlockKind.None,
-            selectedDestination);
-    }
-
-    private static GroundMeleeJumpShortcutResult TryUseGroundMeleeIndependentJumpShortcutRouteMove(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        int3 start,
-        AiTurnMovementProgress movementProgress,
-        CombatAiActionLinkedMoveContinuation continuation)
-    {
-        if (character?.RulesetCharacter == null ||
-            battleService == null ||
-            turnPlan.ActionProbe.Target?.RulesetCharacter == null ||
-            !CanUseFreeJumpForAi(character))
-        {
-            return new GroundMeleeJumpShortcutResult(false, GroundMeleeJumpShortcutBlockKind.FreeJumpUnavailable);
-        }
-
-        var target = turnPlan.ActionProbe.Target;
-        var targetPosition = turnPlan.MovementPlan.TargetPosition;
-        var startDistance = ComputeGroundMeleeRouteGoalDistance(start, targetPosition);
-        var normalTurnsToAction = movementProgress?.BestPreferredActionMoveTurnsToAction ?? -1;
-
-        if (normalTurnsToAction < 0)
-        {
-            normalTurnsToAction = movementProgress?.BestMoveCandidateTurnsToAction ?? -1;
-        }
-
-        var normalUnavailable =
-            normalTurnsToAction < 0 ||
-            HasRecentNoMoveRouteCompletion(
-                character,
-                turnPlan.MovementPlan.Goal,
-                start);
-        var found = false;
-        var selectedDestination = default(int3);
-        var selectedDistance = float.MaxValue;
-        var selectedTotalPathCost = int.MaxValue;
-        var selectedScore = float.MinValue;
-
-        bool ConsiderDestination(
-            int3 candidate,
-            FreeJumpContext.FreeJumpCandidateInfo? candidateInfo,
-            float score)
-        {
-            if (candidate == start ||
-                !IsLegalAiRouteDestination(character, candidate, out _))
-            {
-                return true;
-            }
-
-            if (ShouldRejectGroundMeleeRouteFailureCandidate(
-                    character,
-                    turnPlan,
-                    start,
-                    candidate))
-            {
-                return true;
-            }
-
-            var candidateDistance = ComputeGroundMeleeRouteGoalDistance(candidate, targetPosition);
-            var distanceGain = startDistance - candidateDistance;
-            var canMelee = CanUseActionKindAtPosition(
-                character,
-                candidate,
-                target,
-                CombatAiActionKind.Melee,
-                battleService);
-            var isContact = IsGroundMeleeRouteAdjacentContact(candidate, targetPosition);
-            var turnsToAction = canMelee
-                ? 0
-                : EstimateTurnsToPreferredAction(character, turnPlan, candidate);
-            var improvesTurns =
-                normalUnavailable &&
-                turnsToAction >= 0 &&
-                (normalTurnsToAction < 0 || turnsToAction < normalTurnsToAction);
-
-            if (!canMelee &&
-                !isContact &&
-                distanceGain < 0.75f &&
-                !improvesTurns)
-            {
-                return true;
-            }
-
-            var jumpMoveCost = candidateInfo?.Preview.MoveCost ??
-                               FreeJumpContext.ComputeAiFreeJumpMovementCost(start, candidate);
-            var approximateRemainingCost = Math.Max(0, (int)Math.Ceiling(candidateDistance));
-            var totalPathCost = Math.Max(1, jumpMoveCost) + approximateRemainingCost;
-            var actionScore =
-                (canMelee ? 4.0f : isContact ? 2.0f : 0f) +
-                (improvesTurns ? 1.5f : 0f) +
-                distanceGain +
-                score * 0.01f -
-                jumpMoveCost * 0.01f +
-                ComputeStableTieBreakScore(character, turnPlan, candidate, CombatAiActionKind.Melee);
-
-            if (found &&
-                (actionScore < selectedScore + 0.000001f ||
-                 Math.Abs(actionScore - selectedScore) <= 0.000001f &&
-                 (totalPathCost > selectedTotalPathCost ||
-                  totalPathCost == selectedTotalPathCost && candidateDistance >= selectedDistance)))
-            {
-                return true;
-            }
-
-            found = true;
-            selectedDestination = candidate;
-            selectedDistance = candidateDistance;
-            selectedTotalPathCost = totalPathCost;
-            selectedScore = actionScore;
-            return true;
-        }
-
-        FreeJumpContext.TryEnumerateTargetContactAiFreeJumpDestinations(
-            character,
-            targetPosition,
-            1,
-            FreeJumpDefaultMinimumSuccessChance,
-            (candidate, candidateInfo, score) => ConsiderDestination(candidate, candidateInfo, score));
-
-        FreeJumpContext.TryEnumerateUsefulAiFreeJumpDestinations(
-            character,
-            (candidate, score) => ConsiderDestination(candidate, null, score));
-
-        if (!found)
-        {
-            return new GroundMeleeJumpShortcutResult(false, GroundMeleeJumpShortcutBlockKind.NoIndependentShortcut);
-        }
-
-        var lockRemainingMovement = ShouldLockRemainingMovementAfterRouteMove(turnPlan, continuation);
-        var moveToken = CreateActionLinkedMoveToken();
-        ActionLinkedMoveCache[character.Guid] = new ActionLinkedMoveMemory(
-            target,
-            CombatAiActionKind.None,
-            continuation,
-            turnPlan.MovementPlan.Goal,
-            start,
-            selectedDestination,
-            CombatAiRouteMoveSourceKind.GroundMeleeShortcut,
-            lockRemainingMovement,
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp),
-            moveToken);
-
-        if (lockRemainingMovement)
-        {
-            RecordPendingRouteMovementLock(character, turnPlan.MovementPlan.Goal, continuation, selectedDestination);
-        }
-
-        if (!TryExecuteAiFreeJumpTacticalMove(
-                character,
-                selectedDestination,
-                CombatAiRouteMoveSourceKind.GroundMeleeShortcut))
-        {
-            ActionLinkedMoveCache.Remove(character.Guid);
-            PendingRouteMovementLockCache.Remove(character.Guid);
-            return new GroundMeleeJumpShortcutResult(false, GroundMeleeJumpShortcutBlockKind.ExecuteFailed);
-        }
-
-        movementProgress?.MarkFreeJumpMovementCandidate();
-        MarkDashBlockedAfterRouteMove(
-            character,
-            turnPlan.MovementPlan.Goal,
-            selectedDestination);
-        GroundMeleeJumpRouteAvailableCache.Add(character.Guid);
-        return new GroundMeleeJumpShortcutResult(
-            true,
-            GroundMeleeJumpShortcutBlockKind.None,
-            selectedDestination);
-    }
-
-    private static bool TryGetBestGroundMeleeNormalReachableCost(
-        GroundMeleeTargetContactRouteQuery query,
-        ReachableRouteDestinationMemory reachableDestinations,
-        int3 start,
-        int startRemainingCost,
-        out int3 destination,
-        out int moveCost,
-        out int remainingCost,
-        out int totalCost)
-    {
-        destination = default;
-        moveCost = 0;
-        remainingCost = 0;
-        totalCost = int.MaxValue;
-
-        if (!query.Complete || reachableDestinations?.Positions == null)
-        {
-            return false;
-        }
-
-        var found = false;
-
-        foreach (var position in reachableDestinations.Positions)
-        {
-            if (position == start ||
-                !query.TryGetContactCost(position, out var contactCost, out _) ||
-                contactCost >= startRemainingCost)
-            {
-                continue;
-            }
-
-            var candidateMoveCost = Math.Max(0, reachableDestinations.GetMoveCost(position));
-            var candidateTotalCost = candidateMoveCost + contactCost;
-
-            if (found &&
-                (candidateTotalCost > totalCost ||
-                 candidateTotalCost == totalCost && contactCost > remainingCost ||
-                 candidateTotalCost == totalCost &&
-                 contactCost == remainingCost &&
-                 candidateMoveCost <= moveCost))
-            {
-                continue;
-            }
-
-            found = true;
-            destination = position;
-            moveCost = candidateMoveCost;
-            remainingCost = contactCost;
-            totalCost = candidateTotalCost;
-        }
-
-        return found;
-    }
-
-    private static bool HasRecentNoMoveRouteCompletion(
-        GameLocationCharacter character,
-        CombatAiMovementGoalKind movementGoal,
-        int3 start)
-    {
-        if (character?.RulesetCharacter == null ||
-            !RouteMoveCompletionClosedCache.TryGetValue(character.Guid, out var closed) ||
-            closed.MovementGoal != movementGoal ||
-            closed.StartPosition != start ||
-            closed.Round != GetCurrentBattleRound() ||
-            closed.TurnStamp != Math.Max(1, ObservedCombatMemoryTurnStamp) ||
-            !closed.IsNoMove)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static bool IsOneRoundGroundMeleeAttackRouteCandidate(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        GroundMeleeTargetContactRouteCandidate candidate)
-    {
-        return character?.RulesetCharacter != null &&
-               turnPlan.ActionProbe.Target?.RulesetCharacter != null &&
-               battleService != null &&
-               candidate.Complete &&
-               CanUseActionKindAtPosition(
-                   character,
-                   candidate.SelectedDestination,
-                   turnPlan.ActionProbe.Target,
-                   CombatAiActionKind.Melee,
-                   battleService);
-    }
-
-    private static List<GroundMeleeTargetContactRouteCandidate> BuildGroundMeleeTargetContactRouteCandidates(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        int3 start,
-        AiTurnMovementProgress movementProgress,
-        bool durableDetourAvailable,
-        GroundMeleeDetourCandidateMemory durableDetour,
-        ReachableRouteDestinationMemory reachableDestinations)
-    {
-        var candidates = new List<GroundMeleeTargetContactRouteCandidate>();
-        var seeds = new List<GroundMeleeTargetContactRouteSeed>();
-        var seen = new HashSet<string> { GetPositionKey(start) };
-        var proofAttempts = 0;
-        var targetPosition = turnPlan.MovementPlan.TargetPosition;
-        var startDistance = ComputeGroundMeleeRouteGoalDistance(start, targetPosition);
-        var hasTargetContactQuery = TryBuildGroundMeleeTargetContactRouteQuery(
-            character,
-            turnPlan.ActionProbe.Target,
-            targetPosition,
-            start,
-            out var targetContactQuery);
-
-        void AddSeed(AiAcceptedMoveCandidate seed, int sourcePriority)
-        {
-            if (!IsLegalAiRouteDestination(character, seed.Position, out _))
-            {
-                return;
-            }
-
-            if (!seen.Add(GetPositionKey(seed.Position)))
-            {
-                return;
-            }
-
-            var firstStepMoveCost = GetGroundMeleeFirstStepMoveCost(start, seed.Position, reachableDestinations);
-
-            seeds.Add(new GroundMeleeTargetContactRouteSeed(
-                seed,
-                sourcePriority,
-                firstStepMoveCost));
-        }
-
-        void EvaluateSeed(GroundMeleeTargetContactRouteSeed seed)
-        {
-            if (ShouldRejectGroundMeleeRouteFailureCandidate(
-                    character,
-                    turnPlan,
-                    start,
-                    seed.Position))
-            {
-                return;
-            }
-
-            var selectedDestination = default(int3);
-            var selectedMoveCost = 0;
-            var selectedContactMoveCost = 0;
-            var selectedContactGoal = default(int3);
-            IReadOnlyList<GameLocationCharacterDefinitions.PathStep> routePath = [];
-            var route = default(GroundMeleeConnectedRoute);
-            var routeFound = false;
-
-            if (hasTargetContactQuery)
-            {
-                routeFound = TryBuildGroundMeleeConnectedRouteFromTargetContactQuery(
-                    character,
-                    turnPlan,
-                    start,
-                    targetContactQuery,
-                    seed,
-                    reachableDestinations,
-                    out selectedDestination,
-                    out selectedMoveCost,
-                    out selectedContactMoveCost,
-                    out selectedContactGoal,
-                    out routePath,
-                    out route);
-            }
-
-            if (!routeFound && !hasTargetContactQuery)
-            {
-                routeFound = TryBuildGroundMeleeConnectedRouteFromFirstStep(
-                    character,
-                    turnPlan.ActionProbe.Target,
-                    targetPosition,
-                    seed.Position,
-                    start,
-                    seed.FirstStepMoveCost,
-                    reachableDestinations,
-                    turnPlan,
-                    out selectedDestination,
-                    out selectedMoveCost,
-                    out selectedContactMoveCost,
-                    out selectedContactGoal,
-                    out routePath,
-                    out route);
-            }
-
-            if (!routeFound)
-            {
-                return;
-            }
-
-            candidates.Add(new GroundMeleeTargetContactRouteCandidate(
-                seed.Position,
-                selectedDestination,
-                selectedMoveCost,
-                selectedContactMoveCost,
-                selectedContactGoal,
-                routePath,
-                seed.SourcePriority,
-                seed.Candidate.Score,
-                seed.Candidate.TurnsToAction,
-                route));
-        }
-
-        if (movementProgress != null)
-        {
-            foreach (var candidate in movementProgress.EnumerateAcceptedMoveCandidates())
-            {
-                AddSeed(candidate, 1);
-            }
-
-            foreach (var candidate in movementProgress.EnumerateLongRoutePursuitCandidates())
-            {
-                AddSeed(candidate, 1);
-            }
-        }
-
-        if (durableDetourAvailable)
-        {
-            AddSeed(
-                new AiAcceptedMoveCandidate(
-                    durableDetour.Destination,
-                    durableDetour.Score,
-                    durableDetour.Progress,
-                    durableDetour.TurnsToAction),
-                1);
-        }
-
-        if (reachableDestinations?.Positions != null)
-        {
-            foreach (var position in reachableDestinations.Positions
-                         .OrderBy(position => GetTargetContactSeedTotalCost(
-                             targetContactQuery,
-                             position,
-                             GetGroundMeleeFirstStepMoveCost(start, position, reachableDestinations)))
-                         .ThenBy(position => GetTargetContactSeedRemainingCost(targetContactQuery, position))
-                         .ThenBy(position => GetGroundMeleeFirstStepMoveCost(start, position, reachableDestinations))
-                         .ThenBy(position => position.x)
-                         .ThenBy(position => position.y)
-                         .ThenBy(position => position.z)
-                         .Take(GroundMeleeTargetContactRouteSeedLimit))
-            {
-                var distance = ComputeGroundMeleeRouteGoalDistance(position, targetPosition);
-
-                AddSeed(
-                    new AiAcceptedMoveCandidate(
-                        position,
-                        startDistance - distance,
-                        startDistance - distance,
-                        -1),
-                    2);
-            }
-        }
-
-        foreach (var seed in seeds
-                     .OrderBy(seed => GetTargetContactSeedTotalCost(
-                         targetContactQuery,
-                         seed.Position,
-                         seed.FirstStepMoveCost))
-                     .ThenBy(seed => GetTargetContactSeedRemainingCost(targetContactQuery, seed.Position))
-                     .ThenBy(seed => seed.FirstStepMoveCost)
-                     .ThenBy(seed => seed.Position.x)
-                     .ThenBy(seed => seed.Position.y)
-                     .ThenBy(seed => seed.Position.z)
-                     .ThenBy(seed => seed.SourcePriority)
-                     .Take(GroundMeleeTargetContactRouteSeedLimit))
-        {
-            if (proofAttempts >= GroundMeleeTargetContactRouteProofLimit)
-            {
-                break;
-            }
-
-            proofAttempts++;
-            EvaluateSeed(seed);
-        }
-
-        return candidates;
-    }
-
     private static bool TryBuildGroundMeleeTargetContactRouteQuery(
         GameLocationCharacter character,
         GameLocationCharacter target,
@@ -15440,6 +8450,14 @@ validation = new CombatAiMainActionValidation(
         out GroundMeleeTargetContactRouteQuery query)
     {
         query = default;
+
+        if (character?.RulesetCharacter == null || target?.RulesetCharacter == null)
+        {
+            return false;
+        }
+
+        var round = GetCurrentBattleRound();
+        var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
         var routeBudget = GetGroundMeleeTargetContactRouteSearchBudget(character);
 
         if (!TryBuildGroundMeleeTargetContactRouteMap(
@@ -15468,7 +8486,6 @@ validation = new CombatAiMainActionValidation(
                 .Where(position => IsLegalAiRouteDestination(
                     character,
                     position,
-                    out _,
                     allowActorCurrentPosition: false))
                 .Where(position => ComputeGroundMeleeRouteGoalDistance(position, targetPosition) + 0.5f < startDistance)
                 .OrderBy(position => ComputeGroundMeleeRouteGoalDistance(position, targetPosition))
@@ -15486,8 +8503,12 @@ validation = new CombatAiMainActionValidation(
                 false,
                 default,
                 0,
-                new Dictionary<string, int>(),
-                new Dictionary<string, int3>());
+                new Dictionary<int3, int>(),
+                new Dictionary<int3, int3>(),
+                target.Guid,
+                targetPosition,
+                round,
+                turnStamp);
             TargetContactRouteQueryCache[character.Guid] = query;
             return false;
         }
@@ -15495,15 +8516,14 @@ validation = new CombatAiMainActionValidation(
         var bestGoal = orderedGoals[0];
 
         var bestGoalMoveCost = routeMap.GetMoveCost(bestGoal);
-        var contactCostByPosition = new Dictionary<string, int>();
-        var contactGoalByPosition = new Dictionary<string, int3>();
+        var contactCostByPosition = new Dictionary<int3, int>();
+        var contactGoalByPosition = new Dictionary<int3, int3>();
         var reverseGoals = 0;
 
         foreach (var goal in orderedGoals.Take(GroundMeleeTargetContactReverseGoalLimit))
         {
-            var goalKey = GetPositionKey(goal);
-            contactCostByPosition[goalKey] = 0;
-            contactGoalByPosition[goalKey] = goal;
+            contactCostByPosition[goal] = 0;
+            contactGoalByPosition[goal] = goal;
 
             if (!TryBuildGroundMeleeTargetContactRouteMap(
                     character,
@@ -15521,17 +8541,16 @@ validation = new CombatAiMainActionValidation(
 
             foreach (var position in reverseMap.Positions)
             {
-                var key = GetPositionKey(position);
                 var cost = reverseMap.GetMoveCost(position);
 
-                if (contactCostByPosition.TryGetValue(key, out var existingCost) &&
+                if (contactCostByPosition.TryGetValue(position, out var existingCost) &&
                     existingCost <= cost)
                 {
                     continue;
                 }
 
-                contactCostByPosition[key] = cost;
-                contactGoalByPosition[key] = goal;
+                contactCostByPosition[position] = cost;
+                contactGoalByPosition[position] = goal;
             }
         }
 
@@ -15542,276 +8561,12 @@ validation = new CombatAiMainActionValidation(
             bestGoalMoveCost,
             contactCostByPosition,
             contactGoalByPosition,
+            target.Guid,
+            targetPosition,
+            round,
+            turnStamp,
             !hasAttackContactGoal);
         TargetContactRouteQueryCache[character.Guid] = query;
-        return true;
-    }
-
-    private static int GetGroundMeleeFirstStepMoveCost(
-        int3 start,
-        int3 position,
-        ReachableRouteDestinationMemory reachableDestinations)
-    {
-        return reachableDestinations?.Contains(position) == true
-            ? Math.Max(0, reachableDestinations.GetMoveCost(position))
-            : ComputeForcedMoveCost(start, position);
-    }
-
-    private static int GetTargetContactSeedRemainingCost(
-        GroundMeleeTargetContactRouteQuery query,
-        int3 position)
-    {
-        if (!query.Complete ||
-            !query.TryGetContactCost(position, out var contactMoveCost, out _))
-        {
-            return int.MaxValue;
-        }
-
-        return contactMoveCost;
-    }
-
-    private static int GetTargetContactSeedTotalCost(
-        GroundMeleeTargetContactRouteQuery query,
-        int3 position,
-        int firstStepMoveCost)
-    {
-        var remainingCost = GetTargetContactSeedRemainingCost(query, position);
-
-        return remainingCost == int.MaxValue
-            ? int.MaxValue
-            : Math.Max(0, firstStepMoveCost) + remainingCost;
-    }
-
-    private static bool TrySelectGroundMeleeTargetContactRouteDestination(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        int3 start,
-        GroundMeleeTargetContactRouteQuery query,
-        GroundMeleeTargetContactRouteSeed seed,
-        int3 seedContactGoal,
-        int startContactMoveCost,
-        ReachableRouteDestinationMemory reachableDestinations,
-        out int3 selectedDestination,
-        out int selectedMoveCost,
-        out int selectedContactMoveCost,
-        out int3 selectedContactGoal,
-        out IReadOnlyList<GameLocationCharacterDefinitions.PathStep> routePath)
-    {
-        selectedDestination = default;
-        selectedMoveCost = 0;
-        selectedContactMoveCost = 0;
-        selectedContactGoal = default;
-        routePath = [];
-
-        if (!query.Complete)
-        {
-            return false;
-        }
-
-        IReadOnlyList<int3> positions = reachableDestinations?.Positions ?? [];
-        var seen = new HashSet<string>();
-        var nodes = new List<GroundMeleeRouteWaypointNode>();
-
-        void Evaluate(int3 position)
-        {
-            if (position == start || !seen.Add(GetPositionKey(position)))
-            {
-                return;
-            }
-
-            if (!IsLegalAiRouteDestination(
-                    character,
-                    position,
-                    out _,
-                    allowActorCurrentPosition: false))
-            {
-                return;
-            }
-
-            if (ShouldRejectGroundMeleeRouteFailureCandidate(
-                    character,
-                    turnPlan,
-                    start,
-                    position))
-            {
-                return;
-            }
-
-            if (!query.TryGetContactCost(position, out var contactMoveCost, out var contactGoal) ||
-                contactGoal != seedContactGoal)
-            {
-                return;
-            }
-
-            if (contactMoveCost >= startContactMoveCost)
-            {
-                return;
-            }
-
-            if (reachableDestinations?.Contains(position) != true)
-            {
-                return;
-            }
-
-            var moveCost = Math.Max(0, reachableDestinations.GetMoveCost(position));
-
-            nodes.Add(new GroundMeleeRouteWaypointNode(
-                position,
-                moveCost,
-                contactMoveCost,
-                contactGoal,
-                reachableDestinations.GetMoveMode(position),
-                reachableDestinations.GetMoveFlags(position)));
-        }
-
-        foreach (var position in positions
-                     .OrderBy(position => GetTargetContactSeedRemainingCost(query, position))
-                     .ThenBy(position => reachableDestinations?.GetMoveCost(position) ?? seed.FirstStepMoveCost)
-                     .ThenBy(position => position.x)
-                     .ThenBy(position => position.y)
-                     .ThenBy(position => position.z))
-        {
-            Evaluate(position);
-        }
-
-        Evaluate(seed.Position);
-
-        if (nodes.Count == 0)
-        {
-            return false;
-        }
-
-        var selectedNode = nodes[0];
-        var selectedSeedStep = false;
-
-        foreach (var node in nodes)
-        {
-            if (node.Position != seed.Position)
-            {
-                continue;
-            }
-
-            selectedNode = node;
-            selectedSeedStep = true;
-            break;
-        }
-
-        if (!selectedSeedStep)
-        {
-            selectedNode = nodes
-                .OrderBy(node => node.MoveCost + node.ContactMoveCost)
-                .ThenBy(node => node.ContactMoveCost)
-                .ThenByDescending(node => node.MoveCost)
-                .ThenBy(node => node.Position.x)
-                .ThenBy(node => node.Position.y)
-                .ThenBy(node => node.Position.z)
-                .First();
-        }
-
-        selectedDestination = selectedNode.Position;
-        selectedMoveCost = selectedNode.MoveCost;
-        selectedContactMoveCost = selectedNode.ContactMoveCost;
-        selectedContactGoal = selectedNode.ContactGoal;
-        routePath = [];
-        return true;
-    }
-
-    private static IReadOnlyList<GameLocationCharacterDefinitions.PathStep> TryBuildGroundMeleeSingleStepRoutePath(
-        int3 start,
-        int3 destination,
-        ReachableRouteDestinationMemory reachableDestinations)
-    {
-        if (reachableDestinations?.Contains(destination) != true ||
-            destination == start)
-        {
-            return [];
-        }
-
-        return
-        [
-            new GameLocationCharacterDefinitions.PathStep
-            {
-                position = destination,
-                moveMode = reachableDestinations.GetMoveMode(destination),
-                moveCost = Math.Max(1, reachableDestinations.GetMoveCost(destination)),
-                flags = reachableDestinations.GetMoveFlags(destination)
-            }
-        ];
-    }
-
-    private static bool TryBuildGroundMeleeConnectedRouteFromTargetContactQuery(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        int3 start,
-        GroundMeleeTargetContactRouteQuery query,
-        GroundMeleeTargetContactRouteSeed seed,
-        ReachableRouteDestinationMemory reachableDestinations,
-        out int3 selectedDestination,
-        out int selectedMoveCost,
-        out int selectedContactMoveCost,
-        out int3 selectedContactGoal,
-        out IReadOnlyList<GameLocationCharacterDefinitions.PathStep> routePath,
-        out GroundMeleeConnectedRoute connectedRoute)
-    {
-        selectedDestination = seed.Position;
-        selectedMoveCost = seed.FirstStepMoveCost;
-        selectedContactMoveCost = 0;
-        selectedContactGoal = default;
-        routePath = [];
-        connectedRoute = default;
-
-        if (!query.Complete ||
-            !query.TryGetContactCost(seed.Position, out _, out var contactGoal))
-        {
-            return false;
-        }
-
-        var startContactCost = query.TryGetContactCost(start, out var startCost, out _)
-            ? startCost
-            : query.BestGoalMoveCost;
-
-        if (!TrySelectGroundMeleeTargetContactRouteDestination(
-                character,
-                turnPlan,
-                start,
-                query,
-                seed,
-                contactGoal,
-                startContactCost,
-                reachableDestinations,
-                out selectedDestination,
-                out selectedMoveCost,
-                out selectedContactMoveCost,
-                out selectedContactGoal,
-                out routePath))
-        {
-            return false;
-        }
-
-        var targetPosition = turnPlan.MovementPlan.TargetPosition;
-        var startDistance = ComputeGroundMeleeRouteGoalDistance(start, targetPosition);
-        var firstStepDistance = ComputeGroundMeleeRouteGoalDistance(seed.Position, targetPosition);
-        var selectedDistance = ComputeGroundMeleeRouteGoalDistance(selectedDestination, targetPosition);
-        var contactDistance = ComputeGroundMeleeRouteGoalDistance(selectedContactGoal, targetPosition);
-        var routeTurns = EstimateGroundMeleeContactRouteTurns(character, selectedMoveCost + selectedContactMoveCost);
-        var routeGoal = query.IsCompleteApproach
-            ? GroundMeleeRouteProjectionGoal.Approach
-            : GroundMeleeRouteProjectionGoal.Contact;
-        var projection = new GroundMeleeRouteProjection(
-            routeTurns,
-            startDistance,
-            selectedDistance,
-            contactDistance,
-            routeGoal);
-
-        connectedRoute = new GroundMeleeConnectedRoute(
-            projection,
-            selectedContactGoal,
-            query.Map.NodeCount,
-            true,
-            false,
-            selectedMoveCost,
-            selectedContactMoveCost);
         return true;
     }
 
@@ -15828,57 +8583,48 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
+        var target = turnPlan.ActionProbe.Target;
+        var targetPosition = turnPlan.MovementPlan.TargetPosition;
+        var round = GetCurrentBattleRound();
+        var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
+
         if (TargetContactRouteQueryCache.TryGetValue(character.Guid, out var cached) &&
-            cached.Map.StartPosition == character.LocationPosition)
+            cached.Matches(target, targetPosition, character.LocationPosition, round, turnStamp))
         {
             query = cached;
             return cached.Complete;
         }
 
+        TargetContactRouteQueryCache.Remove(character.Guid);
+
         return TryBuildGroundMeleeTargetContactRouteQuery(
             character,
-            turnPlan.ActionProbe.Target,
-            turnPlan.MovementPlan.TargetPosition,
+            target,
+            targetPosition,
             character.LocationPosition,
             out query);
     }
 
-    private static bool TryExecuteGroundMeleeTargetContactRouteCandidates(
+    private static bool TryGetCachedGroundMeleeTargetContactRouteQuery(
         GameLocationCharacter character,
         CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        CombatAiProfile profile,
-        int3 start,
-        IReadOnlyCollection<GroundMeleeTargetContactRouteCandidate> candidates,
-        CombatAiActionLinkedMoveContinuation continuation,
-        bool requireActionAfterMove,
-        ref int rejectedCandidates,
-        out int3 destination)
+        out GroundMeleeTargetContactRouteQuery query)
     {
-        destination = default;
+        query = default;
 
-        foreach (var candidate in candidates)
+        if (character?.RulesetCharacter == null ||
+            turnPlan.ActionProbe.Target?.RulesetCharacter == null ||
+            !TargetContactRouteQueryCache.TryGetValue(character.Guid, out query))
         {
-            if (!TryExecutePreMainRouteMoveCandidate(
-                    character,
-                    turnPlan,
-                    battleService,
-                    profile,
-                    start,
-                    candidate.SelectedDestination,
-                    continuation,
-                    requireActionAfterMove,
-                    CombatAiRouteMoveSourceKind.Normal,
-                    out destination))
-            {
-                rejectedCandidates++;
-                continue;
-            }
-
-            return true;
+            return false;
         }
 
-        return false;
+        return query.Matches(
+            turnPlan.ActionProbe.Target,
+            turnPlan.MovementPlan.TargetPosition,
+            character.LocationPosition,
+            GetCurrentBattleRound(),
+            Math.Max(1, ObservedCombatMemoryTurnStamp));
     }
 
     private static bool TryExecutePreMainRouteMoveCandidate(
@@ -15984,7 +8730,7 @@ validation = new CombatAiMainActionValidation(
         CharacterAction.ActionChainExecutedHandler actionChainExecuted = null;
 
         if (continuation is
-            CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove or
+            CombatAiActionLinkedMoveContinuation.ReturnToCoordinatorAfterRouteMove or
             CombatAiActionLinkedMoveContinuation.ProgressOnlySearchMove)
         {
             actionChainExecuted = aborted =>
@@ -16005,8 +8751,6 @@ validation = new CombatAiMainActionValidation(
             FreeJumpContext.SuppressAiFreeJumpForNextMove(character, destination);
         }
 
-
-        MarkDashBlockedAfterRouteMove(character, turnPlan.MovementPlan.Goal, destination);
         character.MyExecuteActionTacticalMove(destination, actionChainExecuted);
 
         return true;
@@ -16037,8 +8781,7 @@ validation = new CombatAiMainActionValidation(
                 start,
                 destination,
                 moveCost,
-                allowedMoveBudget,
-                out _))
+                allowedMoveBudget))
         {
             return false;
         }
@@ -16048,7 +8791,7 @@ validation = new CombatAiMainActionValidation(
         CharacterAction.ActionChainExecutedHandler actionChainExecuted = null;
 
         if (continuation is
-            CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove or
+            CombatAiActionLinkedMoveContinuation.ReturnToCoordinatorAfterRouteMove or
             CombatAiActionLinkedMoveContinuation.ProgressOnlySearchMove)
         {
             actionChainExecuted = aborted =>
@@ -16060,15 +8803,6 @@ validation = new CombatAiMainActionValidation(
         if (!TryValidateAiTacticalMoveIssue(character, destination))
         {
             return false;
-        }
-
-        var progressOnlySearch =
-            continuation == CombatAiActionLinkedMoveContinuation.ProgressOnlySearchMove &&
-            !searchRouteActionConnected;
-
-        if (progressOnlySearch)
-        {
-            ClearRouteTerminalOwnership(character);
         }
 
         ActionLinkedMoveCache[character.Guid] = new ActionLinkedMoveMemory(
@@ -16087,332 +8821,8 @@ validation = new CombatAiMainActionValidation(
 
         ClearDisconnectedPositioningSealForSearchKnownTargetRoute(character);
 
-
-        if (!progressOnlySearch)
-        {
-            MarkDashBlockedAfterRouteMove(character, turnPlan.MovementPlan.Goal, destination);
-        }
-
         character.MyExecuteActionTacticalMove(destination, actionChainExecuted);
 
-        return true;
-    }
-
-    private static List<AiAcceptedMoveCandidate> BuildReachableGroundMeleePursuitCandidates(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        CombatAiProfile profile,
-        int3 start,
-        ReachableRouteDestinationMemory reachableDestinations,
-        IEnumerable<int3> excludedDestinations)
-    {
-        var candidates = new List<AiAcceptedMoveCandidate>();
-        var remainingMove = Math.Max(0, character?.RemainingTacticalMoves ?? 0);
-        var excludedKeys = new HashSet<string>(
-            (excludedDestinations ?? Enumerable.Empty<int3>()).Select(GetPositionKey))
-        {
-            GetPositionKey(start)
-        };
-
-        if (character?.RulesetCharacter == null ||
-            battleService == null ||
-            turnPlan.ActionProbe.Target?.RulesetCharacter == null ||
-            reachableDestinations == null ||
-            reachableDestinations.Positions.Count == 0)
-        {
-            return candidates;
-        }
-
-        foreach (var candidatePosition in reachableDestinations.Positions)
-        {
-            if (excludedKeys.Contains(GetPositionKey(candidatePosition)))
-            {
-                continue;
-            }
-
-            if (RequiresMainDashForForcedMove(character, start, candidatePosition) ||
-                IsFailedAiMoveTarget(character, start, candidatePosition) ||
-                IsBacktrackingMove(character, start, candidatePosition))
-            {
-                continue;
-            }
-
-            if (HasForcedRouteOpportunityExposure(character, start, candidatePosition, battleService))
-            {
-                continue;
-            }
-
-            if (ShouldRejectTrafficBlockingMove(
-                    character,
-                    candidatePosition,
-                    battleService,
-                    profile,
-                    turnPlan,
-                    out _))
-            {
-                continue;
-            }
-
-            if (ShouldRejectGroundMeleeRouteIntentCandidate(
-                    character,
-                    turnPlan,
-                    start,
-                    candidatePosition))
-            {
-                continue;
-            }
-
-            if (ShouldRejectGroundMeleeRouteFailureCandidate(
-                    character,
-                    turnPlan,
-                    start,
-                    candidatePosition))
-            {
-                continue;
-            }
-
-            if (!TryProjectGroundMeleeRouteFromFirstStep(
-                    character,
-                    turnPlan,
-                    candidatePosition,
-                    start,
-                    out var projection))
-            {
-                continue;
-            }
-
-            if (!IsGroundMeleeConnectedApproachProjection(
-                    start,
-                    candidatePosition,
-                    turnPlan.MovementPlan.TargetPosition,
-                    projection))
-            {
-                continue;
-            }
-
-            var moveCost = ComputeForcedMoveCost(start, candidatePosition);
-            var routeTurnScore = Math.Max(
-                0f,
-                (GroundMeleeRouteProjectionScoreTurnCap - Math.Min(projection.RouteTurns, GroundMeleeRouteProjectionScoreTurnCap) + 1) * 0.18f);
-            var routeProgressScore = Math.Max(0f, projection.Progress) * 0.12f;
-            var firstStepRegressionPenalty =
-                Math.Max(0f, projection.FirstStepDistance - projection.StartDistance) * 0.025f;
-            var score = Math.Max(
-                0.01f,
-                MovementGoalMeleeProgressScore +
-                routeTurnScore +
-                routeProgressScore +
-                (Mathf.Clamp01(moveCost / Math.Max(remainingMove, 1f)) * 0.18f) -
-                firstStepRegressionPenalty +
-                (projection.Goal == GroundMeleeRouteProjectionGoal.Contact ? 0.18f : 0f) +
-                ComputeStableTieBreakScore(character, turnPlan, candidatePosition, CombatAiActionKind.Melee));
-
-            candidates.Add(new AiAcceptedMoveCandidate(
-                candidatePosition,
-                score,
-                projection.Progress,
-                projection.RouteTurns));
-        }
-
-        return candidates
-            .OrderByDescending(candidate => candidate.Score)
-            .ThenBy(candidate => candidate.TurnsToAction)
-            .ThenBy(candidate => candidate.Position.x)
-            .ThenBy(candidate => candidate.Position.y)
-            .ThenBy(candidate => candidate.Position.z)
-            .Take(GroundMeleePursuitCandidateLimit)
-            .ToList();
-    }
-
-    private static bool TryProjectGroundMeleeRouteFromFirstStep(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        int3 firstStep,
-        int3 start,
-        out GroundMeleeRouteProjection projection)
-    {
-        if (!TryBuildGroundMeleeConnectedRouteFromFirstStep(
-                character,
-                turnPlan,
-                firstStep,
-                start,
-                out var connectedRoute))
-        {
-            projection = default;
-            return false;
-        }
-
-        projection = connectedRoute.Projection;
-        return true;
-    }
-
-    private static bool TryBuildGroundMeleeConnectedRouteFromFirstStep(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        int3 firstStep,
-        int3 start,
-        out GroundMeleeConnectedRoute connectedRoute)
-    {
-        return TryBuildGroundMeleeConnectedRouteFromFirstStep(
-            character,
-            turnPlan.ActionProbe.Target,
-            turnPlan.MovementPlan.TargetPosition,
-            firstStep,
-            start,
-            ComputeForcedMoveCost(start, firstStep),
-            null,
-            turnPlan,
-            out _,
-            out _,
-            out _,
-            out _,
-            out _,
-            out connectedRoute);
-    }
-
-    private static bool TryBuildGroundMeleeConnectedRouteFromFirstStep(
-        GameLocationCharacter character,
-        GameLocationCharacter target,
-        int3 targetPosition,
-        int3 firstStep,
-        int3 start,
-        int firstStepMoveCost,
-        ReachableRouteDestinationMemory reachableDestinations,
-        CombatAiTurnPlan turnPlan,
-        out int3 selectedDestination,
-        out int selectedMoveCost,
-        out int selectedContactMoveCost,
-        out int3 selectedContactGoal,
-        out IReadOnlyList<GameLocationCharacterDefinitions.PathStep> routePath,
-        out GroundMeleeConnectedRoute connectedRoute)
-    {
-        selectedDestination = firstStep;
-        selectedMoveCost = Math.Max(0, firstStepMoveCost);
-        selectedContactMoveCost = 0;
-        selectedContactGoal = firstStep;
-        routePath = TryBuildGroundMeleeSingleStepRoutePath(start, firstStep, reachableDestinations);
-        connectedRoute = default;
-
-        if (character?.RulesetCharacter == null ||
-            target?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        var startDistance = ComputeGroundMeleeRouteGoalDistance(start, targetPosition);
-        var firstStepDistance = ComputeGroundMeleeRouteGoalDistance(firstStep, targetPosition);
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-
-        if (IsGroundMeleeAttackContactGoal(character, target, firstStep, battleService))
-        {
-            var contactProjection = new GroundMeleeRouteProjection(
-                1,
-                startDistance,
-                firstStepDistance,
-                firstStepDistance,
-                GroundMeleeRouteProjectionGoal.Contact);
-            connectedRoute = new GroundMeleeConnectedRoute(
-                contactProjection,
-                firstStep,
-                1,
-                true,
-                false,
-                firstStepMoveCost,
-                0);
-            return true;
-        }
-
-        var routeBudget = GetGroundMeleeTargetContactRouteSearchBudget(character);
-
-        if (!TryBuildGroundMeleeTargetContactRouteMap(
-                character,
-                target,
-                targetPosition,
-                firstStep,
-                routeBudget,
-                out var routeMap))
-        {
-            return false;
-        }
-
-        if (routeMap.NodeCount <= 0)
-        {
-            return false;
-        }
-
-        var connectedNodes = routeMap.NodeCount;
-        var contactPositions = routeMap.ContactPositions
-            .OrderBy(routeMap.GetMoveCost)
-            .ThenBy(position => position.x)
-            .ThenBy(position => position.y)
-            .ThenBy(position => position.z)
-            .ToList();
-
-        if (contactPositions.Count > 0)
-        {
-            var contactPosition = contactPositions[0];
-            var contactDistance = ComputeGroundMeleeRouteGoalDistance(contactPosition, targetPosition);
-            var contactMoveCost = routeMap.GetMoveCost(contactPosition);
-            var contactRouteTurn = EstimateGroundMeleeContactRouteTurns(character, contactMoveCost);
-            var contactProjection = new GroundMeleeRouteProjection(
-                contactRouteTurn,
-                startDistance,
-                firstStepDistance,
-                contactDistance,
-                GroundMeleeRouteProjectionGoal.Contact);
-
-            connectedRoute = new GroundMeleeConnectedRoute(
-                contactProjection,
-                contactPosition,
-                connectedNodes,
-                true,
-                false,
-                firstStepMoveCost,
-                contactMoveCost);
-            selectedDestination = firstStep;
-            selectedMoveCost = firstStepMoveCost;
-            selectedContactMoveCost = contactMoveCost;
-            selectedContactGoal = contactPosition;
-            return true;
-        }
-
-        var bestPosition = routeMap.BestPosition;
-        var bestDistance = ComputeGroundMeleeRouteGoalDistance(bestPosition, targetPosition);
-        var approachProgress = startDistance - bestDistance;
-
-        if (bestPosition == firstStep ||
-            approachProgress <= 0.5f ||
-            !IsLegalAiRouteDestination(
-                character,
-                bestPosition,
-                out _,
-                allowActorCurrentPosition: true))
-        {
-            return false;
-        }
-
-        var approachMoveCost = routeMap.GetMoveCost(bestPosition);
-        var approachRouteTurn = EstimateGroundMeleeContactRouteTurns(character, firstStepMoveCost + approachMoveCost);
-        var approachProjection = new GroundMeleeRouteProjection(
-            approachRouteTurn,
-            startDistance,
-            firstStepDistance,
-            bestDistance,
-            GroundMeleeRouteProjectionGoal.Approach);
-
-        connectedRoute = new GroundMeleeConnectedRoute(
-            approachProjection,
-            bestPosition,
-            connectedNodes,
-            true,
-            false,
-            firstStepMoveCost,
-            approachMoveCost);
-        selectedDestination = firstStep;
-        selectedMoveCost = firstStepMoveCost;
-        selectedContactMoveCost = approachMoveCost;
-        selectedContactGoal = bestPosition;
         return true;
     }
 
@@ -16446,7 +8856,7 @@ validation = new CombatAiMainActionValidation(
             .ThenBy(position => position.z)
             .ToArray();
         var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-        var moveCostByPosition = positions.ToDictionary(GetPositionKey, reachableDestinations.GetMoveCost);
+        var moveCostByPosition = positions.ToDictionary(position => position, reachableDestinations.GetMoveCost);
         var contactPositions = positions
             .Where(position => IsGroundMeleeAttackContactGoal(character, target, position, battleService))
             .OrderBy(reachableDestinations.GetMoveCost)
@@ -16497,145 +8907,14 @@ validation = new CombatAiMainActionValidation(
         return 1 + Math.Max(0, (int)Math.Ceiling((float)distance / move));
     }
 
-    private static bool ShouldRejectGroundMeleeRouteIntentCandidate(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        int3 start,
-        int3 candidatePosition)
+    private static void ClearGroundMeleeRouteFailureAfterProgress(GameLocationCharacter character)
     {
-        if (character?.RulesetCharacter == null ||
-            !IsGroundMeleePursuitPlan(turnPlan) ||
-            !TryGetGroundMeleeRouteIntent(character, turnPlan, out var intent))
-        {
-            return false;
-        }
-
-
-        if (candidatePosition == intent.PreviousPosition)
-        {
-            if (TryProjectGroundMeleeRouteFromFirstStep(
-                    character,
-                    turnPlan,
-                    candidatePosition,
-                    start,
-                    out var previousPositionProjection) &&
-                IsGroundMeleeConnectedApproachProjection(
-                    start,
-                    candidatePosition,
-                    turnPlan.MovementPlan.TargetPosition,
-                    previousPositionProjection))
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        var candidateDistance = ComputeGroundMeleeRouteGoalDistance(candidatePosition, turnPlan.MovementPlan.TargetPosition);
-
-        if (candidateDistance > intent.BestRouteDistance + 2.0f &&
-            (!TryProjectGroundMeleeRouteFromFirstStep(
-                 character,
-                 turnPlan,
-                 candidatePosition,
-                 start,
-                 out var projection) ||
-             !IsGroundMeleeConnectedApproachProjection(
-                 start,
-                 candidatePosition,
-                 turnPlan.MovementPlan.TargetPosition,
-                 projection)))
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsGroundMeleeRouteImmediateActionCandidate(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        int3 candidatePosition)
-    {
-        var target = turnPlan.ActionProbe.Target;
-
-        if (character?.RulesetCharacter == null ||
-            target?.RulesetCharacter == null ||
-            battleService == null)
-        {
-            return false;
-        }
-
-        return CanUseActionKindAtPosition(
-                   character,
-                   candidatePosition,
-                   target,
-                   turnPlan.ActionProbe.PreferredAction,
-                   battleService) ||
-               CanUseActionKindAtPosition(
-                   character,
-                   candidatePosition,
-                   target,
-                   turnPlan.ActionProbe.BackupAction,
-                   battleService);
-    }
-
-    private static bool TryGetGroundMeleeRouteIntent(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        out GroundMeleeRouteIntentMemory intent)
-    {
-        intent = default;
-
-        if (character?.RulesetCharacter == null ||
-            turnPlan.ActionProbe.Target?.RulesetCharacter == null ||
-            !GroundMeleeRouteIntentCache.TryGetValue(GetGroundMeleeRouteMemoryKey(character), out intent))
-        {
-            return false;
-        }
-
-        if (intent.Matches(turnPlan.ActionProbe.Target))
-        {
-            return true;
-        }
-
-        GroundMeleeRouteIntentCache.Remove(GetGroundMeleeRouteMemoryKey(character));
-        return false;
-    }
-
-    private static void RecordGroundMeleeRouteIntent(
-        GameLocationCharacter character,
-        GameLocationCharacter target,
-        int3 previousPosition,
-        int3 actualDestination)
-    {
-        if (character?.RulesetCharacter == null ||
-            target?.RulesetCharacter == null ||
-            actualDestination == previousPosition)
+        if (character?.RulesetCharacter == null)
         {
             return;
         }
 
-        var routeDistance = ComputeGroundMeleeRouteGoalDistance(actualDestination, target.LocationPosition);
-
-        var routeMemoryKey = GetGroundMeleeRouteMemoryKey(character);
-
-        if (GroundMeleeRouteIntentCache.TryGetValue(routeMemoryKey, out var existing) &&
-            existing.TargetGuid == target.Guid)
-        {
-            routeDistance = Math.Min(routeDistance, existing.BestRouteDistance);
-        }
-
-        GroundMeleeRouteIntentCache[routeMemoryKey] = new GroundMeleeRouteIntentMemory(
-            target.Guid,
-            previousPosition,
-            actualDestination,
-            routeDistance,
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp));
-        GroundMeleeRouteFailureCache.Remove(routeMemoryKey);
-        GroundMeleeDetourCandidateCache.Remove(routeMemoryKey);
+        GroundMeleeRouteFailureCache.Remove(GetGroundMeleeRouteMemoryKey(character));
     }
 
     private static void RecordGroundMeleeRouteFailure(
@@ -16686,7 +8965,6 @@ validation = new CombatAiMainActionValidation(
         ActionLinkedMoveSettlingCache.Remove(character.Guid);
         PendingRouteMovementLockCache.Remove(character.Guid);
 
-
         return true;
     }
 
@@ -16700,8 +8978,6 @@ validation = new CombatAiMainActionValidation(
         {
             return false;
         }
-
-        GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
 
         var actualDestination = character.LocationPosition;
 
@@ -16727,8 +9003,7 @@ validation = new CombatAiMainActionValidation(
             CloseFailedJumpImmediateAttackRoute(
                 character,
                 pendingAction,
-                actualDestination,
-                CombatAiTurnRecoveryReason.JumpImmediateAttackNoMove);
+                actualDestination);
             return true;
         }
 
@@ -16737,8 +9012,7 @@ validation = new CombatAiMainActionValidation(
             CloseFailedJumpImmediateAttackRoute(
                 character,
                 pendingAction,
-                actualDestination,
-                CombatAiTurnRecoveryReason.JumpImmediateAttackAborted);
+                actualDestination);
             return true;
         }
 
@@ -16750,7 +9024,7 @@ validation = new CombatAiMainActionValidation(
             return true;
         }
 
-        return TryScheduleJumpImmediateAttackTerminal(character, pendingAction, actualDestination);
+        return TryCompleteJumpImmediateAttackMove(character, pendingAction);
     }
 
     private static bool HasObservedActionLinkedMoveCallback(
@@ -16764,10 +9038,9 @@ validation = new CombatAiMainActionValidation(
                memory.PendingAction.RouteMoveSource == pendingAction.RouteMoveSource;
     }
 
-    private static bool TryScheduleJumpImmediateAttackTerminal(
+    private static bool TryCompleteJumpImmediateAttackMove(
         GameLocationCharacter character,
-        ActionLinkedMoveMemory pendingAction,
-        int3 actualDestination)
+        ActionLinkedMoveMemory pendingAction)
     {
         if (character?.RulesetCharacter == null ||
             !IsGroundMeleeJumpImmediateAttackRoute(pendingAction))
@@ -16780,14 +9053,6 @@ validation = new CombatAiMainActionValidation(
         ActionLinkedMoveSettlingCache.Remove(character.Guid);
         GroundMeleeMoveSettlingCache.Remove(character.Guid);
         PendingRouteMovementLockCache.Remove(character.Guid);
-        GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
-
-        SchedulePendingRouteActionOnlyTerminal(
-            character,
-            pendingAction,
-            pendingAction.ExpectedDestination,
-            actualDestination);
-
 
         return true;
     }
@@ -16804,8 +9069,7 @@ validation = new CombatAiMainActionValidation(
         CloseFailedJumpImmediateAttackRoute(
             character,
             pendingAction,
-            character.LocationPosition,
-            CombatAiTurnRecoveryReason.JumpImmediateAttackNoMove);
+            character.LocationPosition);
     }
 
     private static bool TryDeferJumpImmediateAttackResolutionUntilStableBoundary(
@@ -16837,15 +9101,13 @@ validation = new CombatAiMainActionValidation(
         ActionLinkedMoveCache.Remove(character.Guid);
         GroundMeleeMoveSettlingCache.Remove(character.Guid);
 
-
         return true;
     }
 
     private static void CloseFailedJumpImmediateAttackRoute(
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
-        int3 actualDestination,
-        CombatAiTurnRecoveryReason recoveryReason)
+        int3 actualDestination)
     {
         if (character?.RulesetCharacter == null)
         {
@@ -16855,7 +9117,6 @@ validation = new CombatAiMainActionValidation(
         var noMove = actualDestination == pendingAction.StartPosition;
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
 
         RecordAiMoveFailure(character, pendingAction.StartPosition, pendingAction.ExpectedDestination);
         RecordGroundMeleeRouteFailure(
@@ -16870,8 +9131,7 @@ validation = new CombatAiMainActionValidation(
         PendingRouteMovementLockCache.Remove(character.Guid);
         GroundMeleeMoveSettlingCache.Remove(character.Guid);
         GroundMeleePartialRouteCache.Remove(character.Guid);
-        GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
-        RouteMoveDashBlockCache.Remove(character.Guid);
+
         TurnMovementProgressCache.Remove(character.Guid);
 
         RouteMoveCompletionClosedCache[character.Guid] = new RouteMoveCompletionClosedMemory(
@@ -16884,23 +9144,6 @@ validation = new CombatAiMainActionValidation(
             round,
             turnStamp);
 
-
-        ScheduleAiProcessTurnRecovery(character, Id.TacticalMove, recoveryReason);
-    }
-
-    private static bool TryConsumePendingJumpImmediateAttackMove(
-        GameLocationCharacter character,
-        out ActionLinkedMoveMemory pendingAction)
-    {
-        if (!TryGetPendingJumpImmediateAttackMove(character, out pendingAction))
-        {
-            return false;
-        }
-
-        GroundMeleeMoveSettlingCache.Remove(character.Guid);
-        ActionLinkedMoveCache.Remove(character.Guid);
-        ActionLinkedMoveSettlingCache.Remove(character.Guid);
-        return true;
     }
 
     private static bool TryGetPendingJumpImmediateAttackMove(
@@ -16938,34 +9181,6 @@ validation = new CombatAiMainActionValidation(
         return false;
     }
 
-    private static bool TryUseGroundMeleePartialRouteContinuationAfterActionChain(
-        GameLocationCharacter character,
-        bool aborted)
-    {
-        if (character?.RulesetCharacter == null ||
-            !GroundMeleePartialRouteCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (!memory.MatchesCurrentTurn(currentRound, currentTurnStamp))
-        {
-            GroundMeleePartialRouteCache.Remove(character.Guid);
-            return false;
-        }
-
-        if (aborted)
-        {
-            GroundMeleePartialRouteCache.Remove(character.Guid);
-            return false;
-        }
-
-        return false;
-    }
-
     private static bool TryResolveGroundMeleeMoveSettlingAfterActionChain(
         GameLocationCharacter character,
         bool aborted)
@@ -16983,14 +9198,12 @@ validation = new CombatAiMainActionValidation(
         if (!IsActiveBattleContender(character))
         {
             GroundMeleeMoveSettlingCache.Remove(character.Guid);
-            GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
             return true;
         }
 
         ResolveGroundMeleeMoveSettling(
             character,
-            allowConnectedRouteValidation: true,
-            allowTerminalAction: false);
+            allowConnectedRouteValidation: true);
 
         if (!noMove)
         {
@@ -17002,8 +9215,7 @@ validation = new CombatAiMainActionValidation(
 
     private static bool ResolveGroundMeleeMoveSettling(
         GameLocationCharacter character,
-        bool allowConnectedRouteValidation = false,
-        bool allowTerminalAction = false)
+        bool allowConnectedRouteValidation = false)
     {
         if (character?.RulesetCharacter == null ||
             !GroundMeleeMoveSettlingCache.TryGetValue(character.Guid, out var memory))
@@ -17012,12 +9224,10 @@ validation = new CombatAiMainActionValidation(
         }
 
         GroundMeleeMoveSettlingCache.Remove(character.Guid);
-        GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
 
         var pendingAction = memory.PendingAction;
         var actualDestination = character.LocationPosition;
         var isJumpImmediate = IsGroundMeleeJumpImmediateAttackRoute(pendingAction);
-
 
         if (!IsActiveBattleContender(character))
         {
@@ -17032,11 +9242,8 @@ validation = new CombatAiMainActionValidation(
                            character,
                            pendingAction,
                            actualDestination,
-                           allowTerminalAction,
-                           out var jumpSettlingHandled,
-                           out _) &&
+                           out var jumpSettlingHandled) &&
                        jumpSettlingHandled;
-
 
                 return resolved;
             }
@@ -17055,7 +9262,6 @@ validation = new CombatAiMainActionValidation(
                     pendingAction.Target,
                     pendingAction.StartPosition,
                     pendingAction.ExpectedDestination);
-                RouteMoveDashBlockCache.Remove(character.Guid);
                 TurnMovementProgressCache.Remove(character.Guid);
 
                 RouteMoveCompletionClosedCache[character.Guid] = new RouteMoveCompletionClosedMemory(
@@ -17065,20 +9271,11 @@ validation = new CombatAiMainActionValidation(
                     RouteMoveCompletionFlags.None,
                     GetCurrentBattleRound(),
                     Math.Max(1, ObservedCombatMemoryTurnStamp));
-                SchedulePendingRouteActionOnlyTerminal(
-                    character,
-                    pendingAction,
-                    pendingAction.ExpectedDestination,
-                    actualDestination,
-                    consumeAfterAbort: true);
+
                 return false;
             }
 
-            RecordGroundMeleeRouteIntent(
-                character,
-                pendingAction.Target,
-                pendingAction.StartPosition,
-                actualDestination);
+            ClearGroundMeleeRouteFailureAfterProgress(character);
             RouteMoveCompletionClosedCache[character.Guid] = new RouteMoveCompletionClosedMemory(
                 pendingAction.MovementGoal,
                 pendingAction.StartPosition,
@@ -17091,17 +9288,15 @@ validation = new CombatAiMainActionValidation(
                 pendingAction,
                 actualDestination);
 
-
             return false;
         }
 
-        if (isJumpImmediate && allowTerminalAction)
+        if (isJumpImmediate)
         {
             CloseFailedJumpImmediateAttackRoute(
                 character,
                 pendingAction,
-                actualDestination,
-                CombatAiTurnRecoveryReason.JumpImmediateAttackNoMove);
+                actualDestination);
             return true;
         }
 
@@ -17111,7 +9306,6 @@ validation = new CombatAiMainActionValidation(
             pendingAction.Target,
             pendingAction.StartPosition,
             pendingAction.ExpectedDestination);
-        RouteMoveDashBlockCache.Remove(character.Guid);
         TurnMovementProgressCache.Remove(character.Guid);
 
         RouteMoveCompletionClosedCache[character.Guid] = new RouteMoveCompletionClosedMemory(
@@ -17121,12 +9315,7 @@ validation = new CombatAiMainActionValidation(
             RouteMoveCompletionFlags.NoMove | RouteMoveCompletionFlags.GroundMeleeNoMove,
             GetCurrentBattleRound(),
             Math.Max(1, ObservedCombatMemoryTurnStamp));
-        SchedulePendingRouteActionOnlyTerminal(
-            character,
-            pendingAction,
-            pendingAction.ExpectedDestination,
-            actualDestination,
-            consumeAfterAbort: true);
+
         return false;
     }
 
@@ -17134,12 +9323,9 @@ validation = new CombatAiMainActionValidation(
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
         int3 actualDestination,
-        bool allowTerminalAction,
-        out bool handled,
-        out bool actionStarted)
+        out bool handled)
     {
         handled = false;
-        actionStarted = false;
 
         if (character?.RulesetCharacter == null ||
             !IsGroundMeleeJumpImmediateAttackRoute(pendingAction))
@@ -17147,16 +9333,9 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        if (!allowTerminalAction)
-        {
-            SealGroundMeleeNoMoveTerminal(character);
-            handled = true;
-            return true;
-        }
-
         if (!IsActiveBattleContender(character))
         {
-            SealGroundMeleeNoMoveTerminal(character);
+            ClearPendingMoveOwnership(character);
             handled = true;
             return true;
         }
@@ -17165,41 +9344,12 @@ validation = new CombatAiMainActionValidation(
 
         if (target?.RulesetCharacter != null)
         {
-
-            handled = TryScheduleJumpImmediateAttackTerminal(character, pendingAction, actualDestination);
-            actionStarted = false;
+            handled = TryCompleteJumpImmediateAttackMove(character, pendingAction);
             return handled;
         }
 
-
-        SealGroundMeleeNoMoveTerminal(character);
+        CloseFailedJumpImmediateAttackRoute(character, pendingAction, actualDestination);
         handled = true;
-        return true;
-    }
-
-    private static bool RecordJumpImmediateAttackResolved(
-        GameLocationCharacter character,
-        GameLocationCharacter target,
-        ActionLinkedMoveMemory pendingAction,
-        int3 actualDestination,
-        out bool handled,
-        out bool actionStarted)
-    {
-        handled = false;
-        actionStarted = false;
-
-        if (character?.RulesetCharacter == null || target?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        RecordGroundMeleeRouteIntent(
-            character,
-            target,
-            pendingAction.StartPosition,
-            actualDestination);
-        handled = true;
-        actionStarted = true;
         return true;
     }
 
@@ -17308,18 +9458,6 @@ validation = new CombatAiMainActionValidation(
         memory = default;
 
         return false;
-    }
-
-    private static bool TryGetDisconnectedPositioningMovementLeak(
-        GameLocationCharacter character,
-        out DisconnectedPositioningSealMemory memory)
-    {
-        if (!TryGetActiveDisconnectedPositioningSeal(character, out memory))
-        {
-            return false;
-        }
-
-        return character.LocationPosition != memory.StartPosition;
     }
 
     private static bool HasDisconnectedPostMovePositioning(
@@ -17545,9 +9683,42 @@ validation = new CombatAiMainActionValidation(
             return IsSeekRouteImprovementDestination(character, turnPlan, start, destination);
         }
 
-        _ = currentTurnsToAction;
-        _ = destinationTurnsToAction;
-        return false;
+        if (currentTurnsToAction > 0 &&
+            destinationTurnsToAction >= 0 &&
+            destinationTurnsToAction < currentTurnsToAction)
+        {
+            return true;
+        }
+
+        if (currentTurnsToAction >= 0 &&
+            destinationTurnsToAction >= 0 &&
+            destinationTurnsToAction > currentTurnsToAction)
+        {
+            return false;
+        }
+
+        var targetPosition = turnPlan.MovementPlan.TargetPosition;
+        var currentDistance = ComputeGridDistance(start, targetPosition);
+        var destinationDistance = ComputeGridDistance(destination, targetPosition);
+        var progress = currentDistance - destinationDistance;
+
+        if (progress <= 0f)
+        {
+            return false;
+        }
+
+        var minimumProgress = ComputeMinimumMovementGoalProgress(
+            character,
+            turnPlan.MovementPlan.Goal,
+            turnPlan.MovementPlan.Policy,
+            currentDistance);
+
+        if (TryGetMinimumLineRouteProgress(turnPlan.MovementPlan.Policy, out var minimumLineProgress))
+        {
+            minimumProgress = Math.Max(minimumProgress, minimumLineProgress);
+        }
+
+        return progress + 0.01f >= minimumProgress;
     }
 
     private static bool IsGroundMeleeActualDestinationRouteProgressValid(
@@ -17574,7 +9745,6 @@ validation = new CombatAiMainActionValidation(
             if (!IsLegalAiRouteDestination(
                     character,
                     actualDestination,
-                    out _,
                     allowActorCurrentPosition: true))
             {
                 return false;
@@ -17603,6 +9773,8 @@ validation = new CombatAiMainActionValidation(
 
             if (TryValidateCachedGroundMeleeRouteProgress(
                     character,
+                    target,
+                    targetPosition,
                     startPosition,
                     actualDestination,
                     out var cachedRouteEvaluated))
@@ -17648,6 +9820,8 @@ validation = new CombatAiMainActionValidation(
 
     private static bool TryValidateCachedGroundMeleeRouteProgress(
         GameLocationCharacter character,
+        GameLocationCharacter target,
+        int3 targetPosition,
         int3 startPosition,
         int3 actualDestination,
         out bool evaluated)
@@ -17655,8 +9829,14 @@ validation = new CombatAiMainActionValidation(
         evaluated = false;
 
         if (character?.RulesetCharacter == null ||
+            target?.RulesetCharacter == null ||
             !TargetContactRouteQueryCache.TryGetValue(character.Guid, out var cachedRouteQuery) ||
-            cachedRouteQuery.Map.StartPosition != startPosition ||
+            !cachedRouteQuery.Matches(
+                target,
+                targetPosition,
+                startPosition,
+                GetCurrentBattleRound(),
+                Math.Max(1, ObservedCombatMemoryTurnStamp)) ||
             !cachedRouteQuery.Complete)
         {
             return false;
@@ -17674,60 +9854,6 @@ validation = new CombatAiMainActionValidation(
             return true;
         }
 
-        return false;
-    }
-
-    private static void RecordGroundMeleeDetourCandidate(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        int3 candidatePosition,
-        float score,
-        float progress,
-        int turnsToAction)
-    {
-        var target = turnPlan.ActionProbe.Target;
-
-        if (character?.RulesetCharacter == null ||
-            target?.RulesetCharacter == null ||
-            !IsGroundMeleePursuitPlan(turnPlan))
-        {
-            return;
-        }
-
-        var memory = new GroundMeleeDetourCandidateMemory(
-            target.Guid,
-            character.LocationPosition,
-            candidatePosition,
-            score,
-            progress,
-            turnsToAction,
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp));
-
-        GroundMeleeDetourCandidateCache[GetGroundMeleeRouteMemoryKey(character)] = memory;
-    }
-
-    private static bool TryGetGroundMeleeDetourCandidate(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        int3 start,
-        out GroundMeleeDetourCandidateMemory memory)
-    {
-        memory = default;
-
-        if (character?.RulesetCharacter == null ||
-            !IsGroundMeleePursuitPlan(turnPlan) ||
-            !GroundMeleeDetourCandidateCache.TryGetValue(GetGroundMeleeRouteMemoryKey(character), out memory))
-        {
-            return false;
-        }
-
-        if (memory.Matches(turnPlan.ActionProbe.Target, start))
-        {
-            return true;
-        }
-
-        GroundMeleeDetourCandidateCache.Remove(GetGroundMeleeRouteMemoryKey(character));
         return false;
     }
 
@@ -17769,82 +9895,6 @@ validation = new CombatAiMainActionValidation(
         return true;
     }
 
-    private static bool TryValidateGroundMeleeJumpRouteCandidate(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        int3 start,
-        int3 candidatePosition,
-        bool attackConnected,
-        out bool routeImprovement)
-    {
-        routeImprovement = false;
-
-        if (character?.RulesetCharacter == null || !IsGroundMeleePursuitPlan(turnPlan))
-        {
-            return true;
-        }
-
-        if (attackConnected)
-        {
-            return true;
-        }
-
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-
-        if (ShouldRejectGroundMeleeCurrentStateRouteCandidate(
-                character,
-                turnPlan,
-                battleService,
-                start,
-                candidatePosition))
-        {
-            return false;
-        }
-
-        if (ShouldRejectGroundMeleeRouteIntentCandidate(
-                character,
-                turnPlan,
-                start,
-                candidatePosition))
-        {
-            return false;
-        }
-
-        if (ShouldRejectGroundMeleeRouteFailureCandidate(
-                character,
-                turnPlan,
-                start,
-                candidatePosition))
-        {
-            return false;
-        }
-
-        if (!attackConnected &&
-            TryGetGroundMeleeRouteIntent(character, turnPlan, out var intent) &&
-            ComputeHorizontalGridStepDistance(candidatePosition, intent.PreviousPosition) <= 1)
-        {
-            return false;
-        }
-
-        if (TryProjectGroundMeleeRouteFromFirstStep(
-                character,
-                turnPlan,
-                candidatePosition,
-                start,
-                out var projection) &&
-            IsGroundMeleeConnectedApproachProjection(
-                start,
-                candidatePosition,
-                turnPlan.MovementPlan.TargetPosition,
-                projection))
-        {
-            routeImprovement = true;
-            return true;
-        }
-
-        return false;
-    }
-
     private static float ComputeGroundMeleeRouteGoalDistance(int3 position, int3 targetPosition)
     {
         var horizontalDistance = ComputeHorizontalGridStepDistance(position, targetPosition);
@@ -17874,7 +9924,6 @@ validation = new CombatAiMainActionValidation(
         if (!IsLegalAiRouteDestination(
                 character,
                 position,
-                out _,
                 allowActorCurrentPosition: true))
         {
             return false;
@@ -17962,103 +10011,6 @@ validation = new CombatAiMainActionValidation(
         return reach;
     }
 
-    private static bool ShouldRejectGroundMeleeCurrentStateRouteCandidate(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        int3 start,
-        int3 candidatePosition)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsGroundMeleePursuitPlan(turnPlan))
-        {
-            return false;
-        }
-
-        if (IsGroundMeleeRouteImmediateActionCandidate(
-                character,
-                turnPlan,
-                battleService,
-                candidatePosition))
-        {
-            return false;
-        }
-
-        var targetPosition = turnPlan.MovementPlan.TargetPosition;
-        var startDistance = ComputeGroundMeleeRouteGoalDistance(start, targetPosition);
-        var candidateDistance = ComputeGroundMeleeRouteGoalDistance(candidatePosition, targetPosition);
-
-        if (IsGroundMeleeAttackContactGoal(
-                character,
-                turnPlan.ActionProbe.Target,
-                candidatePosition,
-                battleService))
-        {
-            return false;
-        }
-
-        if (TryProjectGroundMeleeRouteFromFirstStep(
-                character,
-                turnPlan,
-                candidatePosition,
-                start,
-                out var projection))
-        {
-            if (projection.Goal is GroundMeleeRouteProjectionGoal.Contact or GroundMeleeRouteProjectionGoal.Approach &&
-                IsGroundMeleeConnectedApproachProjection(
-                    start,
-                    candidatePosition,
-                    targetPosition,
-                    projection))
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        return true;
-    }
-
-    private static bool IsGroundMeleeConnectedApproachProjection(
-        int3 start,
-        int3 firstStep,
-        int3 targetPosition,
-        GroundMeleeRouteProjection projection)
-    {
-        if (projection.Goal == GroundMeleeRouteProjectionGoal.Contact)
-        {
-            return true;
-        }
-
-        if (projection.Goal == GroundMeleeRouteProjectionGoal.Approach)
-        {
-            return true;
-        }
-
-        if (projection.Goal is GroundMeleeRouteProjectionGoal.Capped or GroundMeleeRouteProjectionGoal.BudgetCapped)
-        {
-            return false;
-        }
-
-        if (projection.Goal != GroundMeleeRouteProjectionGoal.Incomplete)
-        {
-            return false;
-        }
-
-        return false;
-    }
-
-    private static void RecordGroundMeleeRouteMemoryGate(GameLocationCharacter character, CombatAiTurnPlan turnPlan)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsGroundMeleePursuitPlan(turnPlan))
-        {
-            return;
-        }
-
-    }
-
     private static bool TryValidateForcedRouteDestination(
         GameLocationCharacter character,
         CombatAiTurnPlan turnPlan,
@@ -18081,7 +10033,7 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        if (!IsLegalAiRouteDestination(character, destination, out _))
+        if (!IsLegalAiRouteDestination(character, destination))
         {
             return false;
         }
@@ -18110,7 +10062,6 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-
         if (turnPlan.MovementPlan.Goal == CombatAiMovementGoalKind.MeleeSpacing)
         {
             if (WouldLeaveCurrentReactionMeleeReach(
@@ -18129,8 +10080,7 @@ validation = new CombatAiMainActionValidation(
                 destination,
                 battleService,
                 profile,
-                turnPlan,
-                out _))
+                turnPlan))
         {
             return false;
         }
@@ -18145,8 +10095,7 @@ validation = new CombatAiMainActionValidation(
             turnPlan,
             battleService,
             start,
-            destination,
-            out _);
+            destination);
         var breakThreatDefensiveFallback =
             !breakThreatAttackConnected &&
             IsBreakThreatDefensiveFallbackDestination(
@@ -18154,8 +10103,7 @@ validation = new CombatAiMainActionValidation(
                 turnPlan,
                 battleService,
                 start,
-                destination,
-                out _);
+                destination);
 
         if (!breakThreatAttackConnected && !breakThreatDefensiveFallback)
         {
@@ -18304,8 +10252,8 @@ validation = new CombatAiMainActionValidation(
 
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-        var cacheKey = GetReachableRouteDestinationCacheKey(
-            character,
+        var cacheKey = new ReachableRouteCacheKey(
+            character.Guid,
             start,
             remainingMove,
             round,
@@ -18329,7 +10277,7 @@ validation = new CombatAiMainActionValidation(
             return cached.Positions.Count > 0;
         }
 
-        var pathfindingCountKey = GetReachableRoutePathfindingCountKey(character, round, turnStamp);
+        var pathfindingCountKey = new ActorTurnKey(character.Guid, round, turnStamp);
         var pathfindingCount = ReachableRoutePathfindingCountCache.TryGetValue(pathfindingCountKey, out var count)
             ? count
             : 0;
@@ -18356,10 +10304,7 @@ validation = new CombatAiMainActionValidation(
         }
 
         var positions = new List<int3>();
-        var moveCosts = new List<int>();
-        var moveModes = new List<MoveMode>();
-        var moveFlags = new List<PathfindingNode.InformationFlag>();
-        var seen = new HashSet<string>();
+        var factsByPosition = new Dictionary<int3, ReachableRouteDestinationFacts>();
 
         foreach (var destination in pathfindingService.ValidDestinations)
         {
@@ -18372,12 +10317,15 @@ validation = new CombatAiMainActionValidation(
                 continue;
             }
 
-            if (seen.Add(GetPositionKey(destination.position)))
+            if (!factsByPosition.ContainsKey(destination.position))
             {
                 positions.Add(destination.position);
-                moveCosts.Add(destination.moveCost);
-                moveModes.Add(destination.moveMode);
-                moveFlags.Add(destination.flags);
+                factsByPosition.Add(
+                    destination.position,
+                    new ReachableRouteDestinationFacts(
+                        destination.moveCost,
+                        destination.moveMode,
+                        destination.flags));
             }
         }
 
@@ -18387,9 +10335,7 @@ validation = new CombatAiMainActionValidation(
             round,
             turnStamp,
             positions,
-            moveCosts,
-            moveModes,
-            moveFlags,
+            factsByPosition,
             walkOnly);
         ReachableRouteDestinationCache[cacheKey] = reachableDestinations;
 
@@ -18399,25 +10345,6 @@ validation = new CombatAiMainActionValidation(
     private static bool IsGroundRouteMoveMode(MoveMode moveMode)
     {
         return moveMode != MoveMode.Fly;
-    }
-
-    private static string GetReachableRouteDestinationCacheKey(
-        GameLocationCharacter character,
-        int3 start,
-        int remainingMove,
-        int round,
-        int turnStamp,
-        bool walkOnly)
-    {
-        return $"{character.Guid}:{GetPositionKey(start)}:{remainingMove}:{round}:{turnStamp}:{walkOnly}";
-    }
-
-    private static string GetReachableRoutePathfindingCountKey(
-        GameLocationCharacter character,
-        int round,
-        int turnStamp)
-    {
-        return $"{character.Guid}:{round}:{turnStamp}";
     }
 
     private static bool TryGetCachedReachableRouteDestinations(
@@ -18436,8 +10363,8 @@ validation = new CombatAiMainActionValidation(
 
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-        var cacheKey = GetReachableRouteDestinationCacheKey(
-            character,
+        var cacheKey = new ReachableRouteCacheKey(
+            character.Guid,
             start,
             remainingMove,
             round,
@@ -18455,17 +10382,15 @@ validation = new CombatAiMainActionValidation(
             return;
         }
 
-        var prefix = $"{character.Guid}:";
-
         foreach (var key in ReachableRouteDestinationCache.Keys
-                     .Where(key => key.StartsWith(prefix, StringComparison.Ordinal))
+                     .Where(key => key.ActorGuid == character.Guid)
                      .ToArray())
         {
             ReachableRouteDestinationCache.Remove(key);
         }
 
         foreach (var key in ReachableRoutePathfindingCountCache.Keys
-                     .Where(key => key.StartsWith(prefix, StringComparison.Ordinal))
+                     .Where(key => key.ActorGuid == character.Guid)
                      .ToArray())
         {
             ReachableRoutePathfindingCountCache.Remove(key);
@@ -18495,19 +10420,6 @@ validation = new CombatAiMainActionValidation(
             return true;
         }
 
-        if (GroundMeleeNoMoveTerminalSealCache.TryGetValue(character.Guid, out var terminalSeal) &&
-            terminalSeal.Matches(round, turnStamp))
-        {
-            return true;
-        }
-
-        if (RouteMoveCompletionClosedCache.TryGetValue(character.Guid, out var completion) &&
-            completion.Round == round &&
-            completion.TurnStamp == turnStamp)
-        {
-            return true;
-        }
-
         return false;
     }
 
@@ -18532,176 +10444,14 @@ validation = new CombatAiMainActionValidation(
             Math.Max(1, ObservedCombatMemoryTurnStamp));
     }
 
-    private static void MarkDashBlockedAfterRouteMove(
-        GameLocationCharacter character,
-        CombatAiMovementGoalKind movementGoal,
-        int3 destination)
+    private static bool HasReachedExecutedPreMainRouteDestination(GameLocationCharacter character)
     {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        RouteMoveDashBlockCache[character.Guid] = new RouteMoveDashBlockMemory(
-            movementGoal,
-            destination,
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp));
-    }
-
-    private static void ClearRouteMoveDashBlock(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        RouteMoveDashBlockCache.Remove(character.Guid);
-        PendingRouteMovementLockCache.Remove(character.Guid);
-    }
-
-    private static void ClearRouteTerminalState(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        ClearRouteTerminalOwnership(character);
-        ClearRouteMoveDashBlock(character);
-    }
-
-    private static void ClearSearchNoConnectedTerminalState(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        var guid = character.Guid;
-
-        RouteMoveCompletionClosedCache.Remove(guid);
-        DisconnectedSearchMoveCompletionSealCache.Remove(guid);
-        DisconnectedSearchNoRouteMovementSealCache.Remove(guid);
-        SearchNoConnectedBoundaryCache.Remove(guid);
-        SearchNoConnectedStartNextPassCache.Remove(guid);
-        SearchNoConnectedEndTurnFallbackCache.Remove(guid);
-        PendingEndTurnRecoveryActionAcceptanceCache.Remove(guid);
-        EndTurnRecoveryActionAcceptedCache.Remove(guid);
-        EndTurnRecoveryActionSubmittedCache.Remove(guid);
-        PendingTerminalActionEndTurnSuppressCache.Remove(guid);
-        ClearRouteTerminalState(character);
-    }
-
-    private static void ClearRouteTerminalOwnership(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        var guid = character.Guid;
-
-        PendingRouteActionOnlyTerminalCache.Remove(guid);
-        PendingRouteTerminalStartNextResolutionCache.Remove(guid);
-        PendingAiProcessTerminalLaunchCache.Remove(guid);
-        PendingAiProcessTerminalLaunchAcceptedCache.Remove(guid);
-        PendingTerminalDodgeEndTurnCache.Remove(guid);
-        PendingTerminalReadyEndTurnCache.Remove(guid);
-        PendingTerminalActionEndTurnSuppressCache.Remove(guid);
-        PendingRouteTerminalBonusActionRequestCache.Remove(guid);
-        SearchNoConnectedBoundaryCache.Remove(guid);
-        SearchNoConnectedStartNextPassCache.Remove(guid);
-        SearchNoConnectedEndTurnFallbackCache.Remove(guid);
-    }
-
-    private static bool TryGetActiveRouteMoveDashBlock(
-        GameLocationCharacter character,
-        out RouteMoveDashBlockMemory memory)
-    {
-        memory = default;
-
-        if (character?.RulesetCharacter == null ||
-            !RouteMoveDashBlockCache.TryGetValue(character.Guid, out memory))
-        {
-            return false;
-        }
-
-        if (memory.Round == GetCurrentBattleRound() &&
-            memory.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp))
-        {
-            return true;
-        }
-
-        RouteMoveDashBlockCache.Remove(character.Guid);
-        memory = default;
-
-        return false;
-    }
-
-    private static bool TryGetSearchKnownTargetDashContinuationValidation(
-        GameLocationCharacter character,
-        RouteMoveDashBlockMemory memory,
-        out CombatAiMainActionValidation validation)
-    {
-        validation = default;
-
-        if (character?.RulesetCharacter == null ||
-            memory.MovementGoal != CombatAiMovementGoalKind.SearchKnownTarget ||
-            !TryGetPendingActionLinkedMoveForCompletion(character, out var pendingAction, out _) ||
-            !IsSearchKnownTargetRoute(pendingAction))
-        {
-            return false;
-        }
-
-        if (!TryGetSearchKnownTargetAnchor(
-                character,
-                pendingAction,
-                out var anchor,
-                out _))
-        {
-            validation = new CombatAiMainActionValidation(
-                false,
-                CombatAiMainActionBlockKind.ActionNotUsableAtPosition);
-            return true;
-        }
-
-        var startDistance = ComputeGridDistance(pendingAction.StartPosition, anchor);
-        var currentDistance = ComputeGridDistance(character.LocationPosition, anchor);
-
-        if (currentDistance > startDistance + 0.1f)
-        {
-            validation = new CombatAiMainActionValidation(
-                false,
-                CombatAiMainActionBlockKind.ActionNotUsableAtPosition);
-            return true;
-        }
-
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-
-        if (battleService != null)
-        {
-            var profile = BuildProfile(character);
-            var turnPlan = BuildCombatAiTurnPlan(character, profile, battleService);
-            var currentTerminalScan = BuildCurrentTerminalActionScan(
-                character,
-                turnPlan.ActionProbe,
-                battleService,
-                profile,
-                BuildSelfAssessment(character));
-
-            if (currentTerminalScan.HasValidatedAction || currentTerminalScan.HasUsefulUtility)
-            {
-                validation = new CombatAiMainActionValidation(
-                    false,
-                    CombatAiMainActionBlockKind.ActionNotUsableAtPosition);
-                return true;
-            }
-        }
-
-        validation = new CombatAiMainActionValidation(
-            true);
-        return true;
+        return character?.RulesetCharacter != null &&
+               PreMainRouteMoveAttemptCache.TryGetValue(character.Guid, out var attempt) &&
+               attempt.Status == CombatAiPreMainRouteMoveStatus.Executed &&
+               attempt.ExpectedDestination == character.LocationPosition &&
+               attempt.Round == GetCurrentBattleRound() &&
+               attempt.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp);
     }
 
     private static bool ShouldLockRemainingMovementAfterRouteMove(
@@ -18778,323 +10528,10 @@ validation = new CombatAiMainActionValidation(
 
     }
 
-    private static void SealGroundMeleeNoMoveTerminal(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        var memory = new TerminalSealMemory(
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp));
-
-        GroundMeleeNoMoveTerminalSealCache[character.Guid] = memory;
-
-        var pendingAction = new ActionLinkedMoveMemory(
-            null,
-            CombatAiActionKind.Melee,
-            CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove,
-            CombatAiMovementGoalKind.AdvanceToMelee,
-            character.LocationPosition,
-            character.LocationPosition,
-            CombatAiRouteMoveSourceKind.GroundMeleeUnresolved,
-            false,
-            memory.Round,
-            memory.TurnStamp);
-
-        SchedulePendingRouteActionOnlyTerminal(
-            character,
-            pendingAction,
-            character.LocationPosition,
-            character.LocationPosition);
-    }
-
-    private static bool TryCloseGroundMeleeNoMoveTerminalSeal(
-        GameLocationCharacter character,
-        bool blockTerminal = true)
-    {
-        if (character?.RulesetCharacter == null ||
-            !GroundMeleeNoMoveTerminalSealCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        var currentRound = GetCurrentBattleRound();
-        var currentTurnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
-
-        if (!memory.Matches(currentRound, currentTurnStamp))
-        {
-            GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
-
-            return false;
-        }
-
-        _ = blockTerminal;
-
-        return true;
-    }
-
-    private static bool TrySpendLeftoverActionEconomy(
-        GameLocationCharacter character,
-        bool allowActionLinkedMove,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
-    {
-        EnsureCombatAiRuntimeCache(character);
-        var actionEconomy = BuildActionEconomySnapshot(character);
-        var isEndTurnBoundary = launchBoundary == CombatAiActionLaunchBoundary.EndTurn;
-        var hasCurrentActionChain = isEndTurnBoundary && HasCurrentActionChain(character);
-        TryConsumePendingUtilityTerminalContinuation(character);
-
-        if (!IsAdvancedCombatAiActionEconomyEnabled ||
-            !actionEconomy.CanAutoAct ||
-            !actionEconomy.IsAiControlled ||
-            character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        if (!IsActiveBattleContender(character))
-        {
-            TryClearInactiveCombatAiTurnOwnership(character);
-
-            return false;
-        }
-
-        TryCloseGroundMeleeNoMoveTerminalSeal(character, blockTerminal: false);
-
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-
-        if (!actionEconomy.MainAvailable &&
-            !actionEconomy.ReadyAvailable &&
-            !actionEconomy.DodgeAvailable)
-        {
-
-            return TrySpendLeftoverBonusActionEconomy(character, actionEconomy, battleService);
-        }
-
-        if (battleService == null)
-        {
-            return false;
-        }
-
-        if (!HasLeftoverActionCombatContext(character))
-        {
-            return false;
-        }
-
-        var profile = BuildProfile(character);
-        var self = BuildSelfAssessment(character);
-        var turnPlan = allowActionLinkedMove
-            ? BuildCombatAiTurnPlan(character, profile, battleService)
-            : BuildCombatAiActionOnlyTurnPlan(character, profile, battleService);
-        var hostileActionFailed = false;
-        var hostileActionPolicyHeld = false;
-
-        var meleeAlternativeResult = TryUseRepeatedMeleeAlternativeAction(character, turnPlan, battleService);
-
-        if (meleeAlternativeResult.Executed)
-        {
-            return true;
-        }
-
-        if (turnPlan.ActionProbe.CanUsePreferredAction ||
-            (turnPlan.ActionProbe.CanUseBackupAction && !turnPlan.MovementPlan.HasGoal))
-        {
-            if (allowActionLinkedMove ||
-                !ShouldReleaseRangedBackupAfterFailedMeleePursuit(
-                    character,
-                    turnPlan.ActionProbe,
-                    battleService))
-            {
-                var attackResult = TryUseResidualSafeHostileAction(
-                         character,
-                         turnPlan.ActionProbe,
-                         battleService,
-                         out _);
-
-                if (attackResult.Executed)
-                {
-                    return true;
-                }
-
-                if (attackResult.PolicyHeld)
-                {
-                    hostileActionPolicyHeld = true;
-                }
-                else
-                {
-                    hostileActionFailed = true;
-                }
-            }
-        }
-
-        var movementAvailability = GetMovementAvailability(character, turnPlan, forResidualAction: true);
-        var movementDeferredForTerminal = false;
-
-        if (allowActionLinkedMove &&
-            movementAvailability.IsAvailable &&
-            IsSearchKnownTargetPlan(turnPlan) &&
-            TryUseLostTargetSearchRouteMove(
-                character,
-                turnPlan,
-                battleService,
-                profile,
-                CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove,
-                CombatAiRouteMoveSourceKind.SearchLostTarget,
-                out _))
-        {
-            return true;
-        }
-
-        _ = TryGetMissedMovementState(character, turnPlan, out _, out _);
-
-        if (turnPlan.ActionProbe.CanUseBackupAction &&
-            movementAvailability.Availability is CombatAiMovementAvailability.Blocked or CombatAiMovementAvailability.Spent &&
-            TryUseResidualSafeHostileAction(
-                character,
-                turnPlan.ActionProbe.Target,
-                turnPlan.ActionProbe.BackupAction,
-                battleService).Executed)
-        {
-            return true;
-        }
-
-        var terminalReprobeResult = TryUseTerminalReprobeHostileAction(character, turnPlan, battleService);
-
-        if (terminalReprobeResult.Executed)
-        {
-            return true;
-        }
-
-        if (TryUseAnyCurrentResidualHostileAction(character, turnPlan.ActionProbe, battleService).Executed)
-        {
-            return true;
-        }
-
-        if (TrySpendLeftoverBonusActionEconomy(character, actionEconomy, battleService))
-        {
-            return true;
-        }
-
-        var currentTerminalScan = BuildCurrentTerminalActionScan(
-            character,
-            turnPlan.ActionProbe,
-            battleService,
-            profile,
-            self);
-        var hasTerminalPolicyHeld = HasTerminalPolicyHeld(hostileActionPolicyHeld, terminalReprobeResult.PolicyHeld);
-        var hasTerminalFallbackBlock = TryGetTerminalFallbackBlock(
-            currentTerminalScan,
-            hasTerminalPolicyHeld,
-            out _);
-        var hasPendingSearchMovement = HasPendingSearchKnownTargetMovement(character);
-        var hasSearchMovementAvailable =
-            allowActionLinkedMove &&
-            movementAvailability.IsAvailable &&
-            IsSearchKnownTargetPlan(turnPlan);
-        var hasDisconnectedMovementLeak = TryGetDisconnectedPositioningMovementLeak(
-            character,
-            out _);
-
-        var hasGroundMeleePartialProgress = TryGetActiveGroundMeleePartialRouteProgress(
-            character,
-            out var partialRouteMemory);
-
-        if (movementAvailability.IsAvailable &&
-            turnPlan.MovementPlan.HasGoal &&
-            !hasGroundMeleePartialProgress)
-        {
-            movementDeferredForTerminal = true;
-        }
-
-        if (IsGroundMeleePursuitPlan(turnPlan) &&
-            turnPlan.MovementPlan.HasGoal &&
-            !hasGroundMeleePartialProgress)
-        {
-            movementDeferredForTerminal = true;
-        }
-
-        var canSpendTerminalMain = CanSpendTerminalMainAction(
-            character,
-            actionEconomy);
-
-        if (isEndTurnBoundary &&
-            TryUseFallbackAtWillSelfBuff(character, profile, self, turnPlan))
-        {
-            return true;
-        }
-
-        if (!hasGroundMeleePartialProgress &&
-            canSpendTerminalMain &&
-            isEndTurnBoundary &&
-            !hasCurrentActionChain &&
-            !hasPendingSearchMovement &&
-            !hasSearchMovementAvailable &&
-            !hasTerminalFallbackBlock &&
-            TryUseFallbackReady(
-                      character,
-                      profile,
-                      turnPlan,
-                      battleService,
-                      currentTerminalScan))
-        {
-            if (!isEndTurnBoundary)
-            {
-                RecordTerminalAction(character, turnPlan, CombatAiExecutedActionKind.Ready);
-            }
-
-            return true;
-        }
-
-        if (!isEndTurnBoundary &&
-            TryUseFallbackAtWillSelfBuff(character, profile, self, turnPlan))
-        {
-            return true;
-        }
-
-
-        var shouldUseDodge =
-            !hasPendingSearchMovement &&
-            !hasSearchMovementAvailable &&
-            !hasTerminalFallbackBlock &&
-            !hasDisconnectedMovementLeak &&
-            canSpendTerminalMain &&
-            (ShouldUseFallbackDodge(character, battleService, turnPlan) ||
-             hostileActionFailed ||
-             hasTerminalPolicyHeld ||
-             hasGroundMeleePartialProgress ||
-             movementDeferredForTerminal);
-
-        if (isEndTurnBoundary &&
-            !hasCurrentActionChain &&
-            actionEconomy.DodgeAvailable &&
-            shouldUseDodge)
-        {
-            if (TryApplyFallbackDodge(character).Executed)
-            {
-                if (!isEndTurnBoundary)
-                {
-                    RecordTerminalAction(character, turnPlan, CombatAiExecutedActionKind.Dodge);
-                }
-
-                return true;
-            }
-
-        }
-        else if (hasDisconnectedMovementLeak)
-        {
-            return false;
-        }
-
-        return false;
-    }
-
     private static bool TrySpendLeftoverBonusActionEconomy(
         GameLocationCharacter character,
         CombatAiActionEconomySnapshot actionEconomy,
-        IGameLocationBattleService battleService,
-        bool allowDuringRouteTerminal = false)
+        IGameLocationBattleService battleService)
     {
         if (character?.RulesetCharacter == null ||
             actionEconomy.Bonus != ActionStatus.Available ||
@@ -19109,131 +10546,10 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        if (!allowDuringRouteTerminal &&
-            ShouldDeferLeftoverBonusForRouteTerminal(character, actionEconomy))
-        {
-            return false;
-        }
-
         return TryUseLeftoverBonusSpell(character, battleService, hostile: true) ||
                TryUseLeftoverBonusPower(character, battleService, hostile: true) ||
                TryUseLeftoverBonusSpell(character, battleService, hostile: false) ||
                TryUseLeftoverBonusPower(character, battleService, hostile: false);
-    }
-
-    private static bool TryRequestRouteTerminalBonusAction(
-        GameLocationCharacter character,
-        CombatAiActionEconomySnapshot actionEconomy,
-        IGameLocationBattleService battleService)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid))
-        {
-            return TrySpendLeftoverBonusActionEconomy(character, actionEconomy, battleService);
-        }
-
-        PendingRouteTerminalBonusActionRequestCache.Add(character.Guid);
-
-        if (TrySpendLeftoverBonusActionEconomy(
-                character,
-                actionEconomy,
-                battleService,
-                allowDuringRouteTerminal: true))
-        {
-            return true;
-        }
-
-        PendingRouteTerminalBonusActionRequestCache.Remove(character.Guid);
-
-        return false;
-    }
-
-    private static bool TrySpendEndTurnBonusActionEconomy(
-        GameLocationCharacter character,
-        CombatAiActionEconomySnapshot actionEconomy,
-        IGameLocationBattleService battleService)
-    {
-        if (character?.RulesetCharacter == null ||
-            actionEconomy.Bonus != ActionStatus.Available ||
-            character.GetActionTypeStatus(ActionType.Bonus) != ActionStatus.Available ||
-            HasCommittedBonusActionThisTurn(character) ||
-            battleService == null ||
-            ShouldDeferLeftoverBonusForRouteTerminal(character, actionEconomy))
-        {
-            return false;
-        }
-
-        return TryUseLeftoverBonusSpell(character, battleService, hostile: true) ||
-               TryUseLeftoverBonusPower(character, battleService, hostile: true) ||
-               TryUseLeftoverBonusSpell(character, battleService, hostile: false, selfOnlyUtility: true) ||
-               TryUseLeftoverBonusPower(character, battleService, hostile: false, selfOnlyUtility: true);
-    }
-
-    private static bool HasUsableProgressOnlySearchBonusAction(GameLocationCharacter character)
-    {
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-
-        return battleService != null &&
-               (HasUsableLeftoverBonusSpell(character, battleService, hostile: true) ||
-                HasUsableLeftoverBonusPower(character, battleService, hostile: true) ||
-                HasUsableLeftoverBonusSpell(character, battleService, hostile: false, selfOnlyUtility: true) ||
-                HasUsableLeftoverBonusPower(character, battleService, hostile: false, selfOnlyUtility: true));
-    }
-
-    private static bool HasUsableLeftoverBonusSpell(
-        GameLocationCharacter character,
-        IGameLocationBattleService battleService,
-        bool hostile,
-        bool selfOnlyUtility = false)
-    {
-        if (character?.RulesetCharacter == null || battleService == null)
-        {
-            return false;
-        }
-
-        var targets = hostile
-            ? GetCurrentHostileActionTargets(character, battleService)
-            : GetLeftoverUtilityTargets(character, selfOnlyUtility);
-
-        return targets.Any(target => TryGetLeftoverBonusSpellFromPosition(
-            character,
-            target,
-            battleService,
-            hostile,
-            out _,
-            out _,
-            out _));
-    }
-
-    private static bool HasUsableLeftoverBonusPower(
-        GameLocationCharacter character,
-        IGameLocationBattleService battleService,
-        bool hostile,
-        bool selfOnlyUtility = false)
-    {
-        if (character?.RulesetCharacter == null || battleService == null)
-        {
-            return false;
-        }
-
-        var targets = hostile
-            ? GetCurrentHostileActionTargets(character, battleService)
-            : GetLeftoverUtilityTargets(character, selfOnlyUtility);
-
-        return targets.Any(target => TryGetLeftoverBonusPowerFromPosition(
-            character,
-            target,
-            hostile,
-            out _));
-    }
-
-    private static bool ShouldDeferLeftoverBonusForRouteTerminal(
-        GameLocationCharacter character,
-        CombatAiActionEconomySnapshot actionEconomy)
-    {
-        return character?.RulesetCharacter != null &&
-               PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid) &&
-               CanSpendTerminalMainAction(character, actionEconomy);
     }
 
     private static bool TryUseLeftoverBonusSpell(
@@ -19442,6 +10758,12 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
+        if (character.RulesetCharacter.ConcentratedSpell != null && spell.RequiresConcentration)
+        {
+            effectDescription = null;
+            return false;
+        }
+
         return true;
     }
 
@@ -19500,7 +10822,6 @@ validation = new CombatAiMainActionValidation(
             TargetCharacters = { target }
         };
 
-        MarkEndTurnRecoveryActionSubmitted(character);
         actionService.ExecuteAction(actionParams, null, true);
         return true;
     }
@@ -19600,7 +10921,6 @@ validation = new CombatAiMainActionValidation(
             TargetCharacters = { target }
         };
 
-        MarkEndTurnRecoveryActionSubmitted(character);
         actionService.ExecuteAction(actionParams, null, true);
         return true;
     }
@@ -19647,8 +10967,7 @@ validation = new CombatAiMainActionValidation(
                    targetAssessment.HasSeriousCondition;
         }
 
-        return target == character &&
-               HasDefensiveSelfBuffForm(effectDescription) &&
+        return HasDefensiveBuffForm(effectDescription) &&
                !HasEquivalentActiveEffectOrCondition(target.RulesetCharacter, effectDescription) &&
                !IsLowValueSelfUtility(effectDescription);
     }
@@ -19721,38 +11040,49 @@ validation = new CombatAiMainActionValidation(
         DecisionParameters parameters)
     {
         var character = parameters.character.GameLocationCharacter;
-        EnsureCombatAiRuntimeCache(character);
+        EnsureCombatAiRuntimeCache();
         var rulesetCharacter = character.RulesetCharacter;
         var approachSourceGuid = GetApproachSourceGuid(rulesetCharacter, consideration.StringParameter);
 
-        if (!IsAdvancedCombatAiEnabled)
+        if (!IsAdvancedCombatAiEnabled ||
+            approachSourceGuid != 0 ||
+            ShouldUseBaselinePositionScoringAfterResolvedMain(character, consideration))
         {
             return ComputeBaselineEnemyProximityScore(context, consideration, parameters, approachSourceGuid);
         }
 
+        var positionBased = IsPositionBasedScoring(consideration);
         var denominator = consideration.IntParameter > 0 ? consideration.IntParameter : 1;
         var floatParameter = consideration.FloatParameter;
         var position = consideration.BoolParameter ? context.position : character.LocationPosition;
         var profile = BuildProfile(character);
-        var self = BuildSelfAssessment(character);
 
         UpdateObservedCombatMemory(character, parameters);
-        var evaluations = CollectEnemyEvaluations(character, profile, position, parameters, approachSourceGuid);
+
+        var relevantEnemies = CollectRelevantEnemyTargets(character, parameters);
         var turnPlan = BuildCombatAiTurnPlan(character, profile, parameters.situationalInformation.BattleService);
 
-        if (evaluations.Length == 0)
+        if (relevantEnemies.Count == 0)
         {
-            return IsAdvancedCombatAiPositioningEnabled && IsPositionBasedScoring(consideration)
+            return IsAdvancedCombatAiPositioningEnabled && positionBased
                 ? ComputeSearchOrRegroupScore(character, position, parameters, floatParameter, turnPlan)
                 : 0f;
         }
 
-        if (IsPositionBasedScoring(consideration) &&
+        if (positionBased &&
             TryComputeTurnPlanMovementScore(character, profile, position, parameters, turnPlan, out var planScore))
         {
             return planScore;
         }
 
+        var self = BuildSelfAssessment(character);
+        var evaluations = CollectEnemyEvaluations(
+            character,
+            profile,
+            position,
+            parameters,
+            approachSourceGuid,
+            relevantEnemies);
         var reachableEnemyCount = 0;
 
         for (var i = 0; i < evaluations.Length; i++)
@@ -19778,12 +11108,17 @@ validation = new CombatAiMainActionValidation(
             }
 
             var distanceScore = evaluation.IsApproachSource
-                ? Mathf.Lerp(0.0f, 1f, Mathf.Clamp(evaluation.Distance / Math.Max(floatParameter, 1f), 0.0f, 1f))
+                ? Mathf.Lerp(
+                    0.0f,
+                    1f,
+                    Mathf.Clamp(evaluation.Distance / Math.Max(floatParameter, 1f), 0.0f, 1f))
                 : ComputeDistancePreferenceScore(profile, evaluation.Distance, floatParameter);
 
             if (!evaluation.IsApproachSource && evaluation.CanAttackFromPosition)
             {
-                distanceScore = Math.Max(distanceScore, evaluation.RangedCoverType <= CoverType.Half ? 0.95f : 0.85f);
+                distanceScore = Math.Max(
+                    distanceScore,
+                    evaluation.RangedCoverType <= CoverType.Half ? 0.95f : 0.85f);
             }
 
             numerator += distanceScore * ComputeEnemyPriorityWeight(profile, evaluation);
@@ -19795,7 +11130,7 @@ validation = new CombatAiMainActionValidation(
         {
             score += ComputePositionBias(profile, self, evaluations, floatParameter);
 
-            if (IsPositionBasedScoring(consideration))
+            if (positionBased)
             {
                 score += ComputeFallbackApproachOrRegroupScore(
                     character,
@@ -19846,6 +11181,23 @@ validation = new CombatAiMainActionValidation(
     private static bool IsPositionBasedScoring(ConsiderationDescription consideration)
     {
         return consideration is { BoolParameter: true };
+    }
+
+    private static bool ShouldUseBaselinePositionScoringAfterResolvedMain(
+        GameLocationCharacter character,
+        ConsiderationDescription consideration)
+    {
+        if (!IsPositionBasedScoring(consideration) ||
+            !TryGetCommittedNonTerminalMainActionThisTurn(character, out var committedMainAction) ||
+            committedMainAction.ActionId is not (Id.AttackMain or Id.CastMain or Id.PowerMain))
+        {
+            return false;
+        }
+
+        // Post-main movement is coordinated once after the vanilla AI process completes.
+        // Reapplying the pre-main position policy here makes vanilla emit a new move chain
+        // for each partial route before the remaining attack can be selected.
+        return true;
     }
 
     private static ulong GetApproachSourceGuid(RulesetCharacter rulesetCharacter, string conditionName)
@@ -20190,81 +11542,6 @@ validation = new CombatAiMainActionValidation(
         }
     }
 
-    private static bool TryGetRegroupPosition(
-        GameLocationCharacter actor,
-        DecisionParameters parameters,
-        out int3 position)
-    {
-        position = default;
-
-        if (actor?.RulesetCharacter == null || parameters?.situationalInformation == null)
-        {
-            return false;
-        }
-
-        var positioningService = parameters.situationalInformation.PositioningService;
-        var bestDistance = float.MaxValue;
-        var hasRegroup = false;
-
-        foreach (var ally in parameters.situationalInformation.RelevantAllies)
-        {
-            if (ally == actor || ally?.RulesetCharacter == null)
-            {
-                continue;
-            }
-
-            var distance = positioningService.ComputeDistanceBetweenCharactersApproximatingSize(
-                actor, actor.LocationPosition, ally, ally.LocationPosition);
-
-            if (distance >= bestDistance)
-            {
-                continue;
-            }
-
-            bestDistance = distance;
-            position = ally.LocationPosition;
-            hasRegroup = true;
-        }
-
-        return hasRegroup;
-    }
-
-    private static bool TryGetRegroupPosition(GameLocationCharacter actor, out int3 position)
-    {
-        position = default;
-
-        if (actor?.RulesetCharacter == null || Gui.Battle == null)
-        {
-            return false;
-        }
-
-        var bestDistance = float.MaxValue;
-        var hasRegroup = false;
-
-        var contenders = Gui.Battle.AllContenders.ToArray();
-
-        foreach (var ally in contenders)
-        {
-            if (ally == actor || ally?.RulesetCharacter == null || ally.Side != actor.Side)
-            {
-                continue;
-            }
-
-            var distance = ComputeGridDistance(actor.LocationPosition, ally.LocationPosition);
-
-            if (distance >= bestDistance)
-            {
-                continue;
-            }
-
-            bestDistance = distance;
-            position = ally.LocationPosition;
-            hasRegroup = true;
-        }
-
-        return hasRegroup;
-    }
-
     private static float ComputeSearchOrRegroupScore(
         GameLocationCharacter actor,
         int3 position,
@@ -20441,11 +11718,43 @@ validation = new CombatAiMainActionValidation(
             return;
         }
 
-        var movementProgress = new AiTurnMovementProgress(
-            character.LocationPosition,
-            ComputeGridDistance(character.LocationPosition, turnPlan.MovementPlan.TargetPosition));
-        TurnMovementProgressCache[character.Guid] = movementProgress;
+        var currentPosition = character.LocationPosition;
+        var currentDistance = ComputeGridDistance(currentPosition, turnPlan.MovementPlan.TargetPosition);
+
+        if (!TurnMovementProgressCache.TryGetValue(character.Guid, out var movementProgress) ||
+            !movementProgress.Matches(turnPlan))
+        {
+            movementProgress = new AiTurnMovementProgress(currentPosition, currentDistance, turnPlan);
+            TurnMovementProgressCache[character.Guid] = movementProgress;
+        }
+        else
+        {
+            movementProgress.BeginEvaluation(currentPosition, currentDistance);
+        }
+
         PrimeFlyingMeleeSupplementalMovementProgress(character, turnPlan, movementProgress);
+    }
+
+    private static void PrimeGroundMeleeTargetContactRouteQuery(
+        GameLocationCharacter character,
+        CombatAiTurnPlan turnPlan)
+    {
+        if (character?.RulesetCharacter == null || !IsGroundMeleePursuitPlan(turnPlan))
+        {
+            return;
+        }
+
+        if (TryGetCachedGroundMeleeTargetContactRouteQuery(character, turnPlan, out _))
+        {
+            return;
+        }
+
+        _ = TryBuildGroundMeleeTargetContactRouteQuery(
+            character,
+            turnPlan.ActionProbe.Target,
+            turnPlan.MovementPlan.TargetPosition,
+            character.LocationPosition,
+            out _);
     }
 
     private static AiTurnMovementProgress GetOrCreateTurnMovementProgress(
@@ -20457,7 +11766,8 @@ validation = new CombatAiMainActionValidation(
             return null;
         }
 
-        if (TurnMovementProgressCache.TryGetValue(character.Guid, out var movementProgress))
+        if (TurnMovementProgressCache.TryGetValue(character.Guid, out var movementProgress) &&
+            movementProgress.Matches(turnPlan))
         {
             return movementProgress;
         }
@@ -20469,7 +11779,8 @@ validation = new CombatAiMainActionValidation(
 
         movementProgress = new AiTurnMovementProgress(
             character.LocationPosition,
-            ComputeGridDistance(character.LocationPosition, turnPlan.MovementPlan.TargetPosition));
+            ComputeGridDistance(character.LocationPosition, turnPlan.MovementPlan.TargetPosition),
+            turnPlan);
         TurnMovementProgressCache[character.Guid] = movementProgress;
 
         return movementProgress;
@@ -20494,7 +11805,7 @@ validation = new CombatAiMainActionValidation(
 
         var movementProgress = GetOrCreateTurnMovementProgress(character, turnPlan);
 
-        movementProgress?.MarkVisited(
+        movementProgress?.BeginEvaluation(
             character.LocationPosition,
             ComputeGridDistance(character.LocationPosition, turnPlan.MovementPlan.TargetPosition));
     }
@@ -20523,13 +11834,6 @@ validation = new CombatAiMainActionValidation(
 
         var start = actor.LocationPosition;
         var currentDistance = ComputeGridDistance(start, target.LocationPosition);
-        var evaluated = 0;
-        var attackCapable = 0;
-        var safe = 0;
-        var nonCrowded = 0;
-        var accepted = 0;
-        var bestPosition = start;
-        var bestScore = float.MinValue;
 
         foreach (var candidate in EnumerateFlyingMeleeCandidatePositions(actor, target))
         {
@@ -20538,52 +11842,38 @@ validation = new CombatAiMainActionValidation(
                 continue;
             }
 
-            evaluated++;
-
             if (IsBlockingCombatantAtPosition(actor, candidate))
             {
-                movementProgress.RecordRejected(AiMoveRejectionKind.Traffic);
                 continue;
             }
 
             if (RequiresMainDashForForcedMove(actor, start, candidate))
             {
-                movementProgress.RecordRejected(AiMoveRejectionKind.NoProgress);
                 continue;
             }
 
             if (HasForcedRouteOpportunityExposure(actor, start, candidate, battleService))
             {
-                movementProgress.RecordRejected(AiMoveRejectionKind.Opportunity);
                 continue;
             }
 
             if (!CanUseActionKindAtPosition(actor, candidate, target, CombatAiActionKind.Melee, battleService))
             {
-                movementProgress.RecordRejected(AiMoveRejectionKind.NoProgress);
                 continue;
             }
 
-            attackCapable++;
-
-            if (ShouldRejectMeleeSpacingTrafficMove(actor, candidate, target, battleService, out _))
+            if (ShouldRejectMeleeSpacingTrafficMove(actor, candidate, target, battleService))
             {
-                movementProgress.RecordRejected(AiMoveRejectionKind.Traffic);
                 continue;
             }
 
-            safe++;
-            var adjacentAllies = CountMeleeAllyCrowding(actor, target, candidate);
-            var nearestAllyGap = GetNearestMeleeAllyCrowdingHorizontalGap(actor, target, candidate);
-            var clearsCrowding = adjacentAllies == 0 && nearestAllyGap >= MeleeSpacingRequiredGridGap;
+            var crowding = EvaluateMeleeAllyCrowding(actor, target, candidate);
+            var clearsCrowding = crowding.AdjacentCount == 0 &&
+                                 crowding.NearestHorizontalGap >= MeleeSpacingRequiredGridGap;
 
-            if (clearsCrowding)
+            if (!clearsCrowding &&
+                turnPlan.MovementPlan.Policy == CombatAiMovementPolicyKind.FlyingMeleeSpacingPolicy)
             {
-                nonCrowded++;
-            }
-            else if (turnPlan.MovementPlan.Policy == CombatAiMovementPolicyKind.FlyingMeleeSpacingPolicy)
-            {
-                movementProgress.RecordRejected(AiMoveRejectionKind.NoProgress);
                 continue;
             }
 
@@ -20598,15 +11888,7 @@ validation = new CombatAiMainActionValidation(
             movementProgress.MarkMeaningfulMovementCandidate();
             movementProgress.MarkPreferredActionMovementCandidate();
             movementProgress.RecordAccepted(candidate, score, progress, preferredActionCandidate: true, turnsToAction: 0);
-            accepted++;
-
-            if (score > bestScore + 0.000001f)
-            {
-                bestScore = score;
-                bestPosition = candidate;
-            }
         }
-
     }
 
     private static bool IsFlyingMeleeMovementPlan(CombatAiTurnPlan turnPlan)
@@ -20626,7 +11908,7 @@ validation = new CombatAiMainActionValidation(
         var remainingMove = Math.Max(0, actor.RemainingTacticalMoves);
         var minY = Math.Max(targetPosition.y - FlyingMeleeCandidateHeightBelowTarget, start.y - remainingMove);
         var maxY = Math.Min(targetPosition.y + FlyingMeleeCandidateHeightAboveTarget, start.y + remainingMove);
-        var seen = new HashSet<string>();
+        var seen = new HashSet<int3>();
 
         for (var y = maxY; y >= minY; y--)
         {
@@ -20643,7 +11925,7 @@ validation = new CombatAiMainActionValidation(
 
                         var candidate = new int3(targetPosition.x + x, y, targetPosition.z + z);
 
-                        if (seen.Add(GetPositionKey(candidate)))
+                        if (seen.Add(candidate))
                         {
                             yield return candidate;
                         }
@@ -20656,15 +11938,11 @@ validation = new CombatAiMainActionValidation(
     private static bool IsLegalAiRouteDestination(
         GameLocationCharacter actor,
         int3 destination,
-        out AiRouteDestinationLegality legality,
         bool allowActorCurrentPosition = false,
         bool allowNonOccupyingCombatProxy = true)
     {
-        legality = AiRouteDestinationLegality.Legal;
-
         if (actor?.RulesetCharacter == null)
         {
-            legality = AiRouteDestinationLegality.MissingActor;
             return false;
         }
 
@@ -20675,13 +11953,11 @@ validation = new CombatAiMainActionValidation(
                 return true;
             }
 
-            legality = AiRouteDestinationLegality.NoProgress;
             return false;
         }
 
         if (IsBlockingCombatantAtPosition(actor, destination))
         {
-            legality = AiRouteDestinationLegality.Occupied;
             return false;
         }
 
@@ -20695,7 +11971,6 @@ validation = new CombatAiMainActionValidation(
             return true;
         }
 
-        legality = AiRouteDestinationLegality.CannotPlace;
         return false;
     }
 
@@ -20817,26 +12092,78 @@ validation = new CombatAiMainActionValidation(
         }
     }
 
-    private static string GetPositionKey(int3 position)
-    {
-        return $"{position.x}:{position.y}:{position.z}";
-    }
-
-    private static string GetRouteCandidateCacheKey(
+    private static bool TryGetRouteCandidateCacheKey(
         GameLocationCharacter actor,
         int3 actorPosition,
         GameLocationCharacter target,
-        CombatAiActionKind actionKind)
+        CombatAiActionKind actionKind,
+        out RouteCandidateCacheKey cacheKey)
     {
-        return actor?.RulesetCharacter == null || target?.RulesetCharacter == null
-            ? string.Empty
-            : string.Join(
-                "|",
-                actor.Guid,
-                GetPositionKey(actorPosition),
-                target.Guid,
-                GetPositionKey(target.LocationPosition),
-                actionKind);
+        cacheKey = default;
+
+        if (actor?.RulesetCharacter == null || target?.RulesetCharacter == null)
+        {
+            return false;
+        }
+
+        cacheKey = new RouteCandidateCacheKey(
+            actor.Guid,
+            actorPosition,
+            target.Guid,
+            target.LocationPosition,
+            actionKind,
+            ComputeCombatAiActionStateSignature(actor),
+            ComputeCombatAiTargetStateSignature(target));
+
+        return true;
+    }
+
+    private static int ComputeCombatAiActionStateSignature(GameLocationCharacter actor)
+    {
+        if (actor?.RulesetCharacter == null)
+        {
+            return 0;
+        }
+
+        unchecked
+        {
+            var hash = actor.CurrentActionRankByType[ActionType.Main];
+
+            hash = (hash * 397) ^ (int)actor.GetActionTypeStatus(ActionType.Main);
+            hash = (hash * 397) ^ (int)actor.GetActionStatus(Id.AttackMain, ActionScope.Battle);
+            hash = (hash * 397) ^ (int)actor.GetActionStatus(Id.CastMain, ActionScope.Battle);
+            hash = (hash * 397) ^ actor.GetActionAvailableIterations(Id.AttackMain);
+            hash = (hash * 397) ^ actor.UsedMainAttacks;
+            hash = (hash * 397) ^ GetActionUseCount(TurnMainActionUseCountCache, actor);
+
+            if (TryGetCurrentTurnActionMemory(actor, LastMainActionExecutionCache, out var lastMainAction))
+            {
+                hash = (hash * 397) ^ (int)lastMainAction.ActionId;
+                hash = (hash * 397) ^ lastMainAction.ActionRank;
+            }
+
+            return hash;
+        }
+    }
+
+    private static int ComputeCombatAiTargetStateSignature(GameLocationCharacter target)
+    {
+        var rulesetTarget = target?.RulesetCharacter;
+
+        if (rulesetTarget == null)
+        {
+            return 0;
+        }
+
+        unchecked
+        {
+            var hash = rulesetTarget.IsDeadOrDyingOrUnconscious ? 1 : 0;
+
+            hash = (hash * 397) ^ (rulesetTarget.IsIncapacitated ? 1 : 0);
+            hash = (hash * 397) ^ (rulesetTarget.IsTouchingGround() ? 1 : 0);
+
+            return hash;
+        }
     }
 
     private static bool TryGetRangedAttackModifierFromPosition(
@@ -20861,7 +12188,9 @@ validation = new CombatAiMainActionValidation(
 
         foreach (var mode in attacker.RulesetCharacter.AttackModes)
         {
-            if (mode == null || !IsRangedAttackMode(mode))
+            if (mode == null ||
+                !IsRangedAttackMode(mode) ||
+                !IsAttackModeAvailableForMainAction(attacker, mode, out _))
             {
                 continue;
             }
@@ -20932,7 +12261,8 @@ validation = new CombatAiMainActionValidation(
 
         if (attacker?.RulesetCharacter == null ||
             target?.RulesetCharacter == null ||
-            battleService == null)
+            battleService == null ||
+            !CanUseMainSpellActionForAi(attacker))
         {
             return false;
         }
@@ -21026,11 +12356,6 @@ validation = new CombatAiMainActionValidation(
             character.Name ?? string.Empty);
     }
 
-    private static bool HasAtWillHostileSpell(RulesetCharacter rulesetCharacter)
-    {
-        return BuildAtWillHostileSpellSummary(rulesetCharacter).Count > 0;
-    }
-
     private static CombatAiSpellCapabilitySummary BuildAtWillHostileSpellSummary(RulesetCharacter rulesetCharacter)
     {
         if (rulesetCharacter == null)
@@ -21044,7 +12369,7 @@ validation = new CombatAiMainActionValidation(
 
         rulesetCharacter.EnumerateReadyAttackCantrips(cantrips);
 
-        foreach (var cantrip in OrderAtWillAttackCantrips(rulesetCharacter, cantrips))
+        foreach (var cantrip in cantrips)
         {
             if (cantrip == null ||
                 cantrip.ActivationTime != ActivationTime.Action ||
@@ -21091,17 +12416,10 @@ validation = new CombatAiMainActionValidation(
         var actionProbe = BuildCombatAiActionProbe(actor, profile, battleService);
         var movementPlan = BuildCombatAiMovementPlan(actor, profile, actionProbe);
 
-        return new CombatAiTurnPlan(actionProbe, movementPlan);
-    }
-
-    private static CombatAiTurnPlan BuildCombatAiActionOnlyTurnPlan(
-        GameLocationCharacter actor,
-        CombatAiProfile profile,
-        IGameLocationBattleService battleService)
-    {
-        var actionProbe = BuildCombatAiActionProbe(actor, profile, battleService);
-
-        return new CombatAiTurnPlan(actionProbe, default);
+        return new CombatAiTurnPlan(
+            actionProbe,
+            movementPlan,
+            HasRemainingAttackMainContinuation(actor));
     }
 
     private static bool TryBuildPostMainClearAllyCorridorTurnPlan(
@@ -21257,21 +12575,20 @@ validation = new CombatAiMainActionValidation(
 
         if (candidate == start)
         {
-            return new ClearAllyCorridorCandidateResult(false, blockKind: ClearAllyCorridorCandidateBlockKind.NoMovement);
+            return new ClearAllyCorridorCandidateResult(false);
         }
 
         if (!IsLegalAiRouteDestination(
                 actor,
                 candidate,
-                out _,
                 allowNonOccupyingCombatProxy: false))
         {
-            return new ClearAllyCorridorCandidateResult(false, blockKind: ClearAllyCorridorCandidateBlockKind.Placement);
+            return new ClearAllyCorridorCandidateResult(false);
         }
 
         if (IsRejectedAiMoveTarget(actor, start, candidate))
         {
-            return new ClearAllyCorridorCandidateResult(false, blockKind: ClearAllyCorridorCandidateBlockKind.Retry);
+            return new ClearAllyCorridorCandidateResult(false);
         }
 
         var moveCost = ComputeForcedMoveCost(start, candidate);
@@ -21279,7 +12596,7 @@ validation = new CombatAiMainActionValidation(
 
         if (moveCost <= 0 || moveCost > maximumMoveCost)
         {
-            return new ClearAllyCorridorCandidateResult(false, blockKind: ClearAllyCorridorCandidateBlockKind.MoveCost);
+            return new ClearAllyCorridorCandidateResult(false);
         }
 
         if (WouldClearAllyCorridorTriggerOpportunityAttack(
@@ -21289,7 +12606,7 @@ validation = new CombatAiMainActionValidation(
                 target,
                 battleService))
         {
-            return new ClearAllyCorridorCandidateResult(false, blockKind: ClearAllyCorridorCandidateBlockKind.Opportunity);
+            return new ClearAllyCorridorCandidateResult(false);
         }
 
         if (WouldClearAllyCorridorStillBlockTargetAlly(
@@ -21299,7 +12616,7 @@ validation = new CombatAiMainActionValidation(
                 battleService,
                 turnPlan))
         {
-            return new ClearAllyCorridorCandidateResult(false, blockKind: ClearAllyCorridorCandidateBlockKind.StillBlocks);
+            return new ClearAllyCorridorCandidateResult(false);
         }
 
         var candidateCanMelee =
@@ -21307,7 +12624,7 @@ validation = new CombatAiMainActionValidation(
 
         if (currentCanMelee && !candidateCanMelee)
         {
-            return new ClearAllyCorridorCandidateResult(false, blockKind: ClearAllyCorridorCandidateBlockKind.Pressure);
+            return new ClearAllyCorridorCandidateResult(false);
         }
 
         var currentDistance = ComputeGridDistance(start, target.LocationPosition);
@@ -21315,15 +12632,13 @@ validation = new CombatAiMainActionValidation(
 
         if (candidateDistance > currentDistance + ClearAllyCorridorRegressionTolerance)
         {
-            return new ClearAllyCorridorCandidateResult(false, blockKind: ClearAllyCorridorCandidateBlockKind.Pressure);
+            return new ClearAllyCorridorCandidateResult(false);
         }
 
         var trafficPenalty = 0f;
-        var hasTrafficSoftPenalty = false;
 
         if (ShouldRejectAllyFireLaneGate(actor, candidate, target, battleService))
         {
-            hasTrafficSoftPenalty = true;
             trafficPenalty = 0.10f;
         }
 
@@ -21334,7 +12649,7 @@ validation = new CombatAiMainActionValidation(
             (moveCost * 0.04f) -
             Math.Max(0f, candidateDistance - currentDistance) * 0.03f -
             trafficPenalty;
-        return new ClearAllyCorridorCandidateResult(true, score, hasTrafficSoftPenalty);
+        return new ClearAllyCorridorCandidateResult(true, score);
     }
 
     private static CombatAiActionProbe BuildCombatAiActionProbe(
@@ -21347,6 +12662,13 @@ validation = new CombatAiMainActionValidation(
         var hasAtWillHostileSpell = capabilityCatalog.HasAtWillHostileSpell;
         var preferred = GetPreferredActionKind(actor, profile, capabilityCatalog);
         var backup = GetBackupActionKind(actor, preferred, capabilityCatalog);
+
+        if (!CanAttemptActionKindThisTurn(actor, preferred) &&
+            CanAttemptActionKindThisTurn(actor, backup))
+        {
+            (preferred, backup) = (backup, preferred);
+        }
+
         SelectActionProbeTarget(
             actor,
             preferred,
@@ -21379,6 +12701,19 @@ validation = new CombatAiMainActionValidation(
             capabilityCatalog);
     }
 
+    private static bool CanAttemptActionKindThisTurn(
+        GameLocationCharacter actor,
+        CombatAiActionKind actionKind)
+    {
+        return actionKind switch
+        {
+            CombatAiActionKind.Melee or CombatAiActionKind.Ranged =>
+                HasAvailableAttackModeForMainAction(actor, actionKind),
+            CombatAiActionKind.Spell => CanUseMainSpellActionForAi(actor),
+            _ => false
+        };
+    }
+
     private static void SelectActionProbeTarget(
         GameLocationCharacter actor,
         CombatAiActionKind preferred,
@@ -21404,6 +12739,12 @@ validation = new CombatAiMainActionValidation(
         var preferredTargetCanBackup = false;
         GameLocationCharacter backupTarget = null;
         var backupTargetCanPreferred = false;
+        GameLocationCharacter plannedTarget = null;
+        var plannedTargetCanPreferred = false;
+        var plannedTargetCanBackup = false;
+        var plannedTargetGuid = TurnMovementProgressCache.TryGetValue(actor.Guid, out var movementProgress)
+            ? movementProgress.PlannedTargetGuid
+            : 0;
 
         foreach (var enemy in GetKnownEnemyTargets(actor))
         {
@@ -21431,6 +12772,13 @@ validation = new CombatAiMainActionValidation(
             {
                 firstCanPreferred = enemyCanPreferred;
                 firstCanBackup = enemyCanBackup;
+            }
+
+            if (plannedTargetGuid != 0 && enemy.Guid == plannedTargetGuid)
+            {
+                plannedTarget = enemy;
+                plannedTargetCanPreferred = enemyCanPreferred;
+                plannedTargetCanBackup = enemyCanBackup;
             }
 
             if (enemyCanPreferred)
@@ -21464,6 +12812,12 @@ validation = new CombatAiMainActionValidation(
             canPreferred = backupTargetCanPreferred;
             canBackup = true;
         }
+        else if (plannedTarget != null)
+        {
+            target = plannedTarget;
+            canPreferred = plannedTargetCanPreferred;
+            canBackup = plannedTargetCanBackup;
+        }
         else
         {
             target = firstTarget;
@@ -21481,7 +12835,6 @@ validation = new CombatAiMainActionValidation(
         {
             return default;
         }
-
 
         if (ShouldBuildBreakThreatMovementPlan(actor, profile, actionProbe, out var threat))
         {
@@ -21566,7 +12919,6 @@ validation = new CombatAiMainActionValidation(
 
                 return default;
             }
-
 
             return actionProbe.PreferredAction switch
             {
@@ -21744,8 +13096,7 @@ validation = new CombatAiMainActionValidation(
 
     private static bool IsConnectedFiringLineRoute(ActionLinkedMoveMemory pendingAction)
     {
-        return pendingAction.RouteMoveSource is CombatAiRouteMoveSourceKind.ConnectedFiringLine
-            or CombatAiRouteMoveSourceKind.ConnectedFiringLineRecovery;
+        return pendingAction.RouteMoveSource == CombatAiRouteMoveSourceKind.ConnectedFiringLine;
     }
 
     private static bool IsSearchKnownTargetRoute(ActionLinkedMoveMemory pendingAction)
@@ -21754,54 +13105,9 @@ validation = new CombatAiMainActionValidation(
                pendingAction.RouteMoveSource == CombatAiRouteMoveSourceKind.SearchLostTarget;
     }
 
-    private static bool HasConnectedFiringLineRouteFailed(
-        CombatAiPreMainRouteMoveStatus status)
-    {
-        return status != CombatAiPreMainRouteMoveStatus.Executed;
-    }
-
-    private static void ScheduleConnectedFiringLineTerminalAfterFailedRoute(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        CombatAiActionEconomySnapshot actionEconomy,
-        CombatAiPreMainRouteMoveStatus status,
-        int3 expectedDestination)
-    {
-        if (character?.RulesetCharacter == null ||
-            !actionEconomy.MainAvailable ||
-            !IsConnectedFiringLinePlan(turnPlan) ||
-            !HasConnectedFiringLineRouteFailed(status))
-        {
-            return;
-        }
-
-        var destination = expectedDestination.Equals(default(int3))
-            ? character.LocationPosition
-            : expectedDestination;
-        var pendingAction = new ActionLinkedMoveMemory(
-            turnPlan.ActionProbe.Target,
-            turnPlan.ActionProbe.PreferredAction,
-            CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove,
-            turnPlan.MovementPlan.Goal,
-            character.LocationPosition,
-            destination,
-            CombatAiRouteMoveSourceKind.ConnectedFiringLine,
-            false,
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp));
-
-        SchedulePendingRouteActionOnlyTerminal(
-            character,
-            pendingAction,
-            destination,
-            character.LocationPosition);
-    }
-
     private static void CloseFailedConnectedFiringLineRoute(
         GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        CombatAiActionEconomySnapshot actionEconomy,
-        int3 expectedDestination)
+        CombatAiTurnPlan turnPlan)
     {
         if (character?.RulesetCharacter == null ||
             !IsConnectedFiringLinePlan(turnPlan))
@@ -21812,14 +13118,6 @@ validation = new CombatAiMainActionValidation(
         RecordDisconnectedPositioningSeal(
             character,
             turnPlan);
-
-
-        ScheduleConnectedFiringLineTerminalAfterFailedRoute(
-            character,
-            turnPlan,
-            actionEconomy,
-            CombatAiPreMainRouteMoveStatus.Blocked,
-            expectedDestination);
     }
 
     private static bool ShouldBuildMaintainThreatAvoidanceMovementPlan(
@@ -21841,7 +13139,7 @@ validation = new CombatAiMainActionValidation(
 
         if (memory.IsEffectProxy)
         {
-            if (TryGetSameTurnNoMoveProxyThreatAttempt(actor, out var previousProxyAttempt))
+            if (TryGetSameTurnNoMoveProxyThreatAttempt(actor, out _))
             {
                 return false;
             }
@@ -21934,22 +13232,6 @@ validation = new CombatAiMainActionValidation(
                memory.ActionKind is CombatAiActionKind.Ranged or CombatAiActionKind.Spell;
     }
 
-    private static bool TryGetRepeatedMeleeAttackMemory(
-        GameLocationCharacter actor,
-        GameLocationCharacter target,
-        out RepeatedAttackActionMemory memory)
-    {
-        memory = default;
-
-        return actor?.RulesetCharacter != null &&
-               target?.RulesetCharacter != null &&
-               RepeatAttackActionCache.TryGetValue(actor.Guid, out memory) &&
-               memory.TargetGuid == target.Guid &&
-               memory.ActorPosition == actor.LocationPosition &&
-               memory.TargetPosition == target.LocationPosition &&
-               memory.ActionKind == CombatAiActionKind.Melee;
-    }
-
     private static bool HasMeleeAllyCrowding(GameLocationCharacter actor, GameLocationCharacter target)
     {
         if (actor?.RulesetCharacter == null ||
@@ -22013,8 +13295,7 @@ validation = new CombatAiMainActionValidation(
 
             if (!ShouldEvaluateProxyMeleeThreatPreMainBreakThreat(
                     actor,
-                    proxyThreatMemory,
-                    ServiceRepository.GetService<IGameLocationBattleService>()))
+                    proxyThreatMemory))
             {
                 return false;
             }
@@ -22030,12 +13311,6 @@ validation = new CombatAiMainActionValidation(
                 return false;
             }
         }
-        else if (isRecentThreat)
-        {
-        }
-
-        _ = threatPosition;
-
         return true;
     }
 
@@ -22128,8 +13403,7 @@ validation = new CombatAiMainActionValidation(
 
     private static bool ShouldEvaluateProxyMeleeThreatPreMainBreakThreat(
         GameLocationCharacter actor,
-        RecentMeleeThreatMemory memory,
-        IGameLocationBattleService battleService)
+        RecentMeleeThreatMemory memory)
     {
         if (actor?.RulesetCharacter == null)
         {
@@ -22141,7 +13415,6 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        _ = battleService;
         return true;
     }
 
@@ -22263,14 +13536,11 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        var canUseCache = IsAdvancedCombatAiEnabled;
-        var cacheKey = canUseCache
-            ? GetRouteCandidateCacheKey(actor, actorPosition, target, actionKind)
-            : string.Empty;
+        var cacheKey = default(RouteCandidateCacheKey);
+        var canUseCache = IsAdvancedCombatAiEnabled &&
+                          TryGetRouteCandidateCacheKey(actor, actorPosition, target, actionKind, out cacheKey);
 
-        if (canUseCache &&
-            !string.IsNullOrEmpty(cacheKey) &&
-            ActionKindPositionCache.TryGetValue(cacheKey, out var cached))
+        if (canUseCache && ActionKindPositionCache.TryGetValue(cacheKey, out var cached))
         {
             return cached;
         }
@@ -22300,31 +13570,12 @@ validation = new CombatAiMainActionValidation(
             _ => false
         };
 
-        if (canUseCache && !string.IsNullOrEmpty(cacheKey))
+        if (canUseCache)
         {
             ActionKindPositionCache[cacheKey] = canUseAction;
         }
 
         return canUseAction;
-    }
-
-    private static bool TryRecordGroundMeleeLongRoutePursuitCandidate(
-        GameLocationCharacter actor,
-        CombatAiTurnPlan turnPlan,
-        AiTurnMovementProgress movementProgress,
-        int3 candidatePosition,
-        float currentDistance,
-        float candidateDistance,
-        float progress,
-        int currentTurnsToAction,
-        int candidateTurnsToAction)
-    {
-        if (actor?.RulesetCharacter == null || !IsGroundMeleePursuitPlan(turnPlan))
-        {
-            return false;
-        }
-
-        return false;
     }
 
     private static bool TryComputeTurnPlanMovementScore(
@@ -22352,11 +13603,8 @@ validation = new CombatAiMainActionValidation(
         CombatAiTurnPlan turnPlan,
         IGameLocationBattleService battleService,
         int3 start,
-        int3 candidatePosition,
-        out BreakThreatConnectionBlockKind blockKind)
+        int3 candidatePosition)
     {
-        blockKind = BreakThreatConnectionBlockKind.NotBreakThreat;
-
         if (turnPlan.MovementPlan.Goal != CombatAiMovementGoalKind.BreakThreat)
         {
             return true;
@@ -22364,19 +13612,16 @@ validation = new CombatAiMainActionValidation(
 
         if (actor?.RulesetCharacter == null || battleService == null)
         {
-            blockKind = BreakThreatConnectionBlockKind.MissingActorOrBattleService;
             return false;
         }
 
         if (ComputeForcedMoveCost(start, candidatePosition) <= 1)
         {
-            blockKind = BreakThreatConnectionBlockKind.NearStart;
             return false;
         }
 
         if (WouldBeInCurrentOrRecentMeleeThreat(actor, candidatePosition, battleService))
         {
-            blockKind = BreakThreatConnectionBlockKind.ThreatRange;
             return false;
         }
 
@@ -22384,7 +13629,6 @@ validation = new CombatAiMainActionValidation(
 
         if (target?.RulesetCharacter == null)
         {
-            blockKind = BreakThreatConnectionBlockKind.NoTarget;
             return false;
         }
 
@@ -22405,11 +13649,9 @@ validation = new CombatAiMainActionValidation(
 
         if (canUsePreferredAction || canUseBackupAction)
         {
-            blockKind = BreakThreatConnectionBlockKind.None;
             return true;
         }
 
-        blockKind = BreakThreatConnectionBlockKind.NoPostMoveAttack;
         return false;
     }
 
@@ -22418,11 +13660,8 @@ validation = new CombatAiMainActionValidation(
         CombatAiTurnPlan turnPlan,
         IGameLocationBattleService battleService,
         int3 start,
-        int3 candidatePosition,
-        out BreakThreatDefensiveFallbackBlockKind blockKind)
+        int3 candidatePosition)
     {
-        blockKind = BreakThreatDefensiveFallbackBlockKind.NotBreakThreat;
-
         if (turnPlan.MovementPlan.Goal != CombatAiMovementGoalKind.BreakThreat)
         {
             return false;
@@ -22435,13 +13674,11 @@ validation = new CombatAiMainActionValidation(
             actor?.RulesetCharacter == null ||
             battleService == null)
         {
-            blockKind = BreakThreatDefensiveFallbackBlockKind.Policy;
             return false;
         }
 
         if (ComputeForcedMoveCost(start, candidatePosition) <= 1)
         {
-            blockKind = BreakThreatDefensiveFallbackBlockKind.NearStart;
             return false;
         }
 
@@ -22452,13 +13689,11 @@ validation = new CombatAiMainActionValidation(
                 out var threatPosition,
                 out _))
         {
-            blockKind = BreakThreatDefensiveFallbackBlockKind.NoThreat;
             return false;
         }
 
         if (WouldBeInCurrentOrRecentMeleeThreat(actor, candidatePosition, battleService))
         {
-            blockKind = BreakThreatDefensiveFallbackBlockKind.ThreatRange;
             return false;
         }
 
@@ -22467,11 +13702,9 @@ validation = new CombatAiMainActionValidation(
 
         if (threatProgress < ThreatAvoidanceMinimumDistanceGain)
         {
-            blockKind = BreakThreatDefensiveFallbackBlockKind.InsufficientGain;
             return false;
         }
 
-        blockKind = BreakThreatDefensiveFallbackBlockKind.None;
         return true;
     }
 
@@ -22496,19 +13729,16 @@ validation = new CombatAiMainActionValidation(
 
         if (IsFailedAiMoveTarget(actor, actor.LocationPosition, candidatePosition))
         {
-            movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
             return true;
         }
 
-        if (!IsLegalAiRouteDestination(actor, candidatePosition, out _))
+        if (!IsLegalAiRouteDestination(actor, candidatePosition))
         {
-            movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
             return true;
         }
 
         if (HasOpportunityAttackRisk(actor, actor.LocationPosition, candidatePosition, battleService))
         {
-            movementProgress?.RecordRejected(AiMoveRejectionKind.Opportunity);
             return true;
         }
 
@@ -22517,16 +13747,13 @@ validation = new CombatAiMainActionValidation(
                 candidatePosition,
                 battleService,
                 profile,
-                turnPlan,
-                out _))
+                turnPlan))
         {
-            movementProgress?.RecordRejected(AiMoveRejectionKind.Traffic);
             return true;
         }
 
         if (ShouldRejectThreatAvoidanceReturnMove(actor, profile, turnPlan, candidatePosition))
         {
-            movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
             return true;
         }
 
@@ -22539,29 +13766,25 @@ validation = new CombatAiMainActionValidation(
                     out var currentThreatPosition,
                     out _))
             {
-                movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
                 return true;
             }
 
             if (ShouldRequireReachableProxyThreatDestination(actor, turnPlan) &&
-                !TryValidateReachableProxyThreatDestination(
+                !TryValidateProxyThreatDistanceProgress(
                     actor,
                     actor.LocationPosition,
                     candidatePosition))
             {
-                movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
                 return true;
             }
 
             if (WouldBeInCurrentOrRecentMeleeThreat(actor, candidatePosition, battleService))
             {
-                movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
                 return true;
             }
 
             if (movementProgress != null && movementProgress.HasVisited(candidatePosition))
             {
-                movementProgress.RecordRejected(AiMoveRejectionKind.Regression);
                 return true;
             }
 
@@ -22570,8 +13793,7 @@ validation = new CombatAiMainActionValidation(
                 turnPlan,
                 battleService,
                 actor.LocationPosition,
-                candidatePosition,
-                out _);
+                candidatePosition);
             var breakThreatDefensiveFallback =
                 !breakThreatAttackConnected &&
                 IsBreakThreatDefensiveFallbackDestination(
@@ -22579,12 +13801,10 @@ validation = new CombatAiMainActionValidation(
                     turnPlan,
                     battleService,
                     actor.LocationPosition,
-                    candidatePosition,
-                    out _);
+                    candidatePosition);
 
             if (!breakThreatAttackConnected && !breakThreatDefensiveFallback)
             {
-                movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
                 return true;
             }
 
@@ -22595,7 +13815,6 @@ validation = new CombatAiMainActionValidation(
 
             if (threatProgress < minimumThreatProgress)
             {
-                movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
                 return true;
             }
 
@@ -22617,12 +13836,11 @@ validation = new CombatAiMainActionValidation(
         if (turnPlan.MovementPlan.Goal == CombatAiMovementGoalKind.MaintainThreatAvoidance)
         {
             if (ShouldRequireReachableProxyThreatDestination(actor, turnPlan) &&
-                !TryValidateReachableProxyThreatDestination(
+                !TryValidateProxyThreatDistanceProgress(
                     actor,
                     actor.LocationPosition,
                     candidatePosition))
             {
-                movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
                 return true;
             }
 
@@ -22633,7 +13851,6 @@ validation = new CombatAiMainActionValidation(
                     turnPlan,
                     out score))
             {
-                movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
                 return true;
             }
 
@@ -22696,7 +13913,6 @@ validation = new CombatAiMainActionValidation(
 
             if (progress + 0.01f < minimumSearchProgress)
             {
-                movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
                 return true;
             }
         }
@@ -22711,7 +13927,6 @@ validation = new CombatAiMainActionValidation(
                     canPreferredFromCandidate,
                     out score))
             {
-                movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
                 return true;
             }
 
@@ -22739,11 +13954,9 @@ validation = new CombatAiMainActionValidation(
                     battleService,
                     turnPlan,
                     canPreferredFromCandidate,
-                    movementProgress,
                     out score,
                     out var actionKind))
             {
-                movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
                 return true;
             }
 
@@ -22753,7 +13966,7 @@ validation = new CombatAiMainActionValidation(
                 candidatePosition,
                 score,
                 progress,
-                preferredActionCandidate: true,
+                preferredActionCandidate: canPreferredFromCandidate,
                 turnsToAction: candidateTurnsToAction);
 
             return true;
@@ -22779,26 +13992,6 @@ validation = new CombatAiMainActionValidation(
             return true;
         }
 
-        if (canBackupFromCandidate && !IsGroundMeleePursuitPlan(turnPlan))
-        {
-            movementProgress?.MarkPreferredActionMovementCandidate();
-            score = MovementGoalPreferredRangeScore +
-                    ComputePreferredActionPolicyBonus(turnPlan.MovementPlan.Policy) +
-                    ComputeFlyingMeleePolicyHeightScore(actor, candidatePosition, turnPlan) +
-                    ComputeStableTieBreakScore(
-                        actor,
-                        turnPlan,
-                        candidatePosition,
-                        turnPlan.ActionProbe.BackupAction);
-            movementProgress?.RecordAccepted(
-                candidatePosition,
-                score,
-                progress,
-                preferredActionCandidate: true,
-                turnsToAction: candidateTurnsToAction);
-            return true;
-        }
-
         if (IsGroundMeleePursuitPlan(turnPlan))
         {
             if (TryComputeGroundMeleeContactRouteMovementScore(
@@ -22811,7 +14004,57 @@ validation = new CombatAiMainActionValidation(
                 return true;
             }
 
-            movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
+            if (TryGetCachedGroundMeleeTargetContactRouteQuery(actor, turnPlan, out var contactQuery) &&
+                contactQuery.Complete)
+            {
+                return true;
+            }
+
+            if (canBackupFromCandidate)
+            {
+                var nonRegressingBackup =
+                    shortensPreferredRoute ||
+                    candidateDistance <= currentDistance + MovementGoalRegressionTolerance;
+
+                if (!nonRegressingBackup)
+                {
+                    return true;
+                }
+
+                score = MovementGoalMeleeProgressScore +
+                        0.12f +
+                        Math.Min(0.20f, Math.Max(0f, progress) * 0.04f) +
+                        ComputeStableTieBreakScore(
+                            actor,
+                            turnPlan,
+                            candidatePosition,
+                            turnPlan.ActionProbe.BackupAction);
+                movementProgress?.MarkMeaningfulMovementCandidate();
+                movementProgress?.RecordAccepted(
+                    candidatePosition,
+                    score,
+                    progress,
+                    turnsToAction: candidateTurnsToAction);
+                return true;
+            }
+        }
+
+        if (canBackupFromCandidate)
+        {
+            movementProgress?.MarkMeaningfulMovementCandidate();
+            score = MovementGoalPreferredRangeScore +
+                    ComputePreferredActionPolicyBonus(turnPlan.MovementPlan.Policy) +
+                    ComputeFlyingMeleePolicyHeightScore(actor, candidatePosition, turnPlan) +
+                    ComputeStableTieBreakScore(
+                        actor,
+                        turnPlan,
+                        candidatePosition,
+                        turnPlan.ActionProbe.BackupAction);
+            movementProgress?.RecordAccepted(
+                candidatePosition,
+                score,
+                progress,
+                turnsToAction: candidateTurnsToAction);
             return true;
         }
 
@@ -22819,7 +14062,6 @@ validation = new CombatAiMainActionValidation(
             movementProgress?.HadPreferredActionMovementCandidate == true)
         {
             CurrentStateRouteBlockCache[actor.Guid] = CurrentStateRouteBlockKind.NoPostMoveAction;
-            movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
             return true;
         }
 
@@ -22836,7 +14078,6 @@ validation = new CombatAiMainActionValidation(
                     candidateTurnsToAction))
             {
                 CurrentStateRouteBlockCache[actor.Guid] = CurrentStateRouteBlockKind.RangedSeekDisconnected;
-                movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
                 return true;
             }
 
@@ -22902,24 +14143,12 @@ validation = new CombatAiMainActionValidation(
             movementProgress?.HadPreferredActionMovementCandidate != true)
         {
             CurrentStateRouteBlockCache[actor.Guid] = CurrentStateRouteBlockKind.SeekRegression;
-            movementProgress?.RecordRejected(AiMoveRejectionKind.Regression);
             return true;
         }
 
         if (candidateDistance > currentDistance + MovementGoalRegressionTolerance ||
             progress <= 0f)
         {
-            TryRecordGroundMeleeLongRoutePursuitCandidate(
-                actor,
-                turnPlan,
-                movementProgress,
-                candidatePosition,
-                currentDistance,
-                candidateDistance,
-                progress,
-                currentTurnsToAction,
-                candidateTurnsToAction);
-            movementProgress?.RecordRejected(AiMoveRejectionKind.Regression);
             return true;
         }
 
@@ -22927,17 +14156,6 @@ validation = new CombatAiMainActionValidation(
             (movementProgress.HasVisited(candidatePosition) ||
              candidateDistance > movementProgress.BestDistanceToGoal + MovementGoalRegressionTolerance))
         {
-            TryRecordGroundMeleeLongRoutePursuitCandidate(
-                actor,
-                turnPlan,
-                movementProgress,
-                candidatePosition,
-                currentDistance,
-                candidateDistance,
-                progress,
-                currentTurnsToAction,
-                candidateTurnsToAction);
-            movementProgress.RecordRejected(AiMoveRejectionKind.Regression);
             return true;
         }
 
@@ -22952,7 +14170,6 @@ validation = new CombatAiMainActionValidation(
             turnPlan.MovementPlan.Goal is not CombatAiMovementGoalKind.BreakThreat
                 and not CombatAiMovementGoalKind.ClearLargeAllyPath)
         {
-            movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
             return true;
         }
 
@@ -22961,7 +14178,6 @@ validation = new CombatAiMainActionValidation(
             TryGetMinimumLineRouteProgress(turnPlan.MovementPlan.Policy, out var minimumLineProgress) &&
             progress + 0.01f < minimumLineProgress)
         {
-            movementProgress?.RecordRejected(AiMoveRejectionKind.NoProgress);
             return true;
         }
 
@@ -23029,7 +14245,7 @@ validation = new CombatAiMainActionValidation(
     {
         score = 0f;
 
-        if (!TryGetGroundMeleeTargetContactRouteQuery(actor, turnPlan, out var query) ||
+        if (!TryGetCachedGroundMeleeTargetContactRouteQuery(actor, turnPlan, out var query) ||
             !query.Complete)
         {
             return false;
@@ -23045,7 +14261,7 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        if (!query.TryGetContactCost(candidatePosition, out var candidateContactMoveCost, out var contactGoal))
+        if (!query.TryGetContactCost(candidatePosition, out var candidateContactMoveCost, out _))
         {
             return false;
         }
@@ -23184,7 +14400,7 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        if (ShouldRejectMeleeSpacingTrafficMove(actor, candidatePosition, target, battleService, out _))
+        if (ShouldRejectMeleeSpacingTrafficMove(actor, candidatePosition, target, battleService))
         {
             return false;
         }
@@ -23211,10 +14427,8 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        var currentAdjacentAllyCount = CountMeleeAllyCrowding(actor, target, actor.LocationPosition);
-        var candidateAdjacentAllyCount = CountMeleeAllyCrowding(actor, target, candidatePosition);
-        var currentNearestAlly = GetNearestMeleeAllyCrowdingHorizontalGap(actor, target, actor.LocationPosition);
-        var candidateNearestAlly = GetNearestMeleeAllyCrowdingHorizontalGap(actor, target, candidatePosition);
+        var currentCrowding = EvaluateMeleeAllyCrowding(actor, target, actor.LocationPosition);
+        var candidateCrowding = EvaluateMeleeAllyCrowding(actor, target, candidatePosition);
         var blocksLargeAllyCorridor = IsBlockingLargeMeleeAllyCorridor(
             actor,
             target,
@@ -23229,9 +14443,9 @@ validation = new CombatAiMainActionValidation(
                 battleService,
                 out _);
         var clearsAllyAdjacency =
-            currentAdjacentAllyCount > 0 &&
-            candidateAdjacentAllyCount == 0 &&
-            candidateNearestAlly >= MeleeSpacingRequiredGridGap;
+            currentCrowding.AdjacentCount > 0 &&
+            candidateCrowding.AdjacentCount == 0 &&
+            candidateCrowding.NearestHorizontalGap >= MeleeSpacingRequiredGridGap;
 
         if (!clearsAllyAdjacency && !clearsLargeAllyCorridor)
         {
@@ -23254,7 +14468,7 @@ validation = new CombatAiMainActionValidation(
 
         if (clearsAllyAdjacency)
         {
-            score += 0.18f + (currentAdjacentAllyCount * 0.04f);
+            score += 0.18f + (currentCrowding.AdjacentCount * 0.04f);
         }
 
         if (clearsLargeAllyCorridor)
@@ -23262,10 +14476,12 @@ validation = new CombatAiMainActionValidation(
             score += 0.22f;
         }
 
-        if (currentNearestAlly < int.MaxValue &&
-            candidateNearestAlly > currentNearestAlly)
+        if (currentCrowding.NearestHorizontalGap < int.MaxValue &&
+            candidateCrowding.NearestHorizontalGap > currentCrowding.NearestHorizontalGap)
         {
-            score += Math.Min(0.06f, (candidateNearestAlly - currentNearestAlly) * 0.02f);
+            score += Math.Min(
+                0.06f,
+                (candidateCrowding.NearestHorizontalGap - currentCrowding.NearestHorizontalGap) * 0.02f);
         }
 
         if (isFlyingSpacing)
@@ -23474,11 +14690,8 @@ validation = new CombatAiMainActionValidation(
         GameLocationCharacter actor,
         int3 destination,
         GameLocationCharacter target,
-        IGameLocationBattleService battleService,
-        out TrafficBlockKind blockKind)
+        IGameLocationBattleService battleService)
     {
-        blockKind = TrafficBlockKind.None;
-
         if (actor?.RulesetCharacter == null ||
             target?.RulesetCharacter == null ||
             battleService == null ||
@@ -23489,20 +14702,21 @@ validation = new CombatAiMainActionValidation(
 
         if (ShouldRejectAllyFireLaneGate(actor, destination, target, battleService))
         {
-            blockKind = TrafficBlockKind.AllyFireLane;
             return true;
         }
 
-        if (WouldPositionBlockLargeMeleeAllyCorridor(actor, destination, target, battleService, out _))
-        {
-            blockKind = TrafficBlockKind.LargeAllyCorridor;
-            return true;
-        }
-
-        return false;
+        return WouldPositionBlockLargeMeleeAllyCorridor(actor, destination, target, battleService, out _);
     }
 
-    private static int CountMeleeAllyCrowding(
+    private readonly struct MeleeAllyCrowdingFacts(
+        int adjacentCount,
+        int nearestHorizontalGap)
+    {
+        internal int AdjacentCount { get; } = adjacentCount;
+        internal int NearestHorizontalGap { get; } = nearestHorizontalGap;
+    }
+
+    private static MeleeAllyCrowdingFacts EvaluateMeleeAllyCrowding(
         GameLocationCharacter actor,
         GameLocationCharacter target,
         int3 actorPosition)
@@ -23511,42 +14725,10 @@ validation = new CombatAiMainActionValidation(
             target?.RulesetCharacter == null ||
             Gui.Battle == null)
         {
-            return 0;
+            return new MeleeAllyCrowdingFacts(0, int.MaxValue);
         }
 
         var count = 0;
-
-        foreach (var ally in OrderCharactersForCombatAi(Gui.Battle.AllContenders.ToArray(), target.LocationPosition))
-        {
-            if (ally == actor ||
-                ally?.RulesetCharacter == null ||
-                ally.Side != actor.Side ||
-                ComputeHorizontalGridStepDistance(ally.LocationPosition, actorPosition) >
-                MeleeSpacingAllyAdjacentGridSteps ||
-                ComputeHorizontalGridStepDistance(ally.LocationPosition, target.LocationPosition) >
-                MeleeSpacingTargetPressureDistance)
-            {
-                continue;
-            }
-
-            count++;
-        }
-
-        return count;
-    }
-
-    private static int GetNearestMeleeAllyCrowdingHorizontalGap(
-        GameLocationCharacter actor,
-        GameLocationCharacter target,
-        int3 actorPosition)
-    {
-        if (actor?.RulesetCharacter == null ||
-            target?.RulesetCharacter == null ||
-            Gui.Battle == null)
-        {
-            return int.MaxValue;
-        }
-
         var nearest = int.MaxValue;
 
         foreach (var ally in OrderCharactersForCombatAi(Gui.Battle.AllContenders.ToArray(), target.LocationPosition))
@@ -23560,10 +14742,17 @@ validation = new CombatAiMainActionValidation(
                 continue;
             }
 
-            nearest = Math.Min(nearest, ComputeHorizontalGridStepDistance(ally.LocationPosition, actorPosition));
+            var horizontalGap = ComputeHorizontalGridStepDistance(ally.LocationPosition, actorPosition);
+
+            nearest = Math.Min(nearest, horizontalGap);
+
+            if (horizontalGap <= MeleeSpacingAllyAdjacentGridSteps)
+            {
+                count++;
+            }
         }
 
-        return nearest;
+        return new MeleeAllyCrowdingFacts(count, nearest);
     }
 
     private static bool IsImproveFiringPositionPlan(CombatAiTurnPlan turnPlan)
@@ -23597,7 +14786,6 @@ validation = new CombatAiMainActionValidation(
         IGameLocationBattleService battleService,
         CombatAiTurnPlan turnPlan,
         bool canPreferredFromCandidate,
-        AiTurnMovementProgress movementProgress,
         out float score,
         out CombatAiActionKind actionKind)
     {
@@ -23610,12 +14798,6 @@ validation = new CombatAiMainActionValidation(
             target?.RulesetCharacter == null ||
             battleService == null)
         {
-            movementProgress?.RecordImproveFiringCandidate(
-                false,
-                false,
-                false,
-                false,
-                ImproveFiringCandidateState.Blocked);
             return false;
         }
 
@@ -23629,15 +14811,46 @@ validation = new CombatAiMainActionValidation(
                 turnPlan.ActionProbe.BackupAction,
                 battleService);
         var attackCapable = canPreferredFromCandidate || canBackupFromCandidate;
+        var connectsFiringLine = IsConnectedFiringLinePlan(turnPlan);
 
         if (!attackCapable)
         {
-            movementProgress?.RecordImproveFiringCandidate(
-                false,
-                false,
-                false,
-                false,
-                ImproveFiringCandidateState.Blocked);
+            var currentTurnsToAction = EstimateTurnsToPreferredAction(
+                actor,
+                turnPlan,
+                actor.LocationPosition);
+            var candidateTurnsToAction = EstimateTurnsToPreferredAction(
+                actor,
+                turnPlan,
+                candidatePosition);
+
+            if (connectsFiringLine &&
+                !WouldBeInCurrentOrRecentMeleeThreat(actor, candidatePosition, battleService) &&
+                ShouldAllowDisconnectedRangedSeekImprovement(
+                    actor,
+                    turnPlan,
+                    actor.LocationPosition,
+                    candidatePosition,
+                    currentTurnsToAction,
+                    candidateTurnsToAction))
+            {
+                var seekCurrentDistance = ComputeGridDistance(actor.LocationPosition, target.LocationPosition);
+                var seekCandidateDistance = ComputeGridDistance(candidatePosition, target.LocationPosition);
+                var progress = Math.Max(0f, seekCurrentDistance - seekCandidateDistance);
+                var turnsImprovement =
+                    currentTurnsToAction > 0 &&
+                    candidateTurnsToAction >= 0 &&
+                    candidateTurnsToAction < currentTurnsToAction
+                        ? currentTurnsToAction - candidateTurnsToAction
+                        : 0;
+
+                actionKind = turnPlan.ActionProbe.PreferredAction;
+                score = MovementGoalSearchScore +
+                        Mathf.Clamp01(progress / Math.Max(seekCurrentDistance, 1f)) * 0.20f +
+                        Math.Min(0.35f, turnsImprovement * 0.15f);
+                return true;
+            }
+
             return false;
         }
 
@@ -23674,7 +14887,6 @@ validation = new CombatAiMainActionValidation(
             !WouldBeInCurrentOrRecentMeleeThreat(actor, candidatePosition, battleService) &&
             ComputeGridDistance(candidatePosition, threatPosition) >
             ComputeGridDistance(currentPosition, threatPosition) + 0.5f;
-        var connectsFiringLine = IsConnectedFiringLinePlan(turnPlan);
         var strictImprovement = connectsFiringLine ||
                                 improvesRangeBand ||
                                 gainsHighGround ||
@@ -23690,16 +14902,6 @@ validation = new CombatAiMainActionValidation(
             forcedReposition &&
             candidatePosition != currentPosition &&
             avoidsThreat;
-        var safeCandidate = attackCapable && avoidsThreat;
-        var differentSafeCell = safeCandidate && candidatePosition != currentPosition;
-        movementProgress?.RecordImproveFiringCandidate(
-            attackCapable,
-            safeCandidate,
-            strictImprovement,
-            differentSafeCell,
-            strictImprovement || forcedSafeReposition
-                ? ImproveFiringCandidateState.Accepted
-                : ImproveFiringCandidateState.Blocked);
 
         if (!strictImprovement && !forcedSafeReposition)
         {
@@ -23751,14 +14953,11 @@ validation = new CombatAiMainActionValidation(
     {
         coverType = CoverType.ThreeQuarter;
 
-        var canUseCache = IsAdvancedCombatAiEnabled;
-        var cacheKey = canUseCache
-            ? GetRouteCandidateCacheKey(actor, actorPosition, target, actionKind) + "|cover"
-            : string.Empty;
+        var cacheKey = default(RouteCandidateCacheKey);
+        var canUseCache = IsAdvancedCombatAiEnabled &&
+                          TryGetRouteCandidateCacheKey(actor, actorPosition, target, actionKind, out cacheKey);
 
-        if (canUseCache &&
-            !string.IsNullOrEmpty(cacheKey) &&
-            CoverEvaluationCache.TryGetValue(cacheKey, out var cached))
+        if (canUseCache && CoverEvaluationCache.TryGetValue(cacheKey, out var cached))
         {
             coverType = cached.CoverType;
             return cached.HasCover;
@@ -23783,7 +14982,7 @@ validation = new CombatAiMainActionValidation(
 
         if (!hasModifier)
         {
-            if (canUseCache && !string.IsNullOrEmpty(cacheKey))
+            if (canUseCache)
             {
                 CoverEvaluationCache[cacheKey] = new CoverEvaluationMemory(false, coverType);
             }
@@ -23793,7 +14992,7 @@ validation = new CombatAiMainActionValidation(
 
         coverType = modifier?.coverType ?? CoverType.ThreeQuarter;
 
-        if (canUseCache && !string.IsNullOrEmpty(cacheKey))
+        if (canUseCache)
         {
             CoverEvaluationCache[cacheKey] = new CoverEvaluationMemory(true, coverType);
         }
@@ -23911,12 +15110,9 @@ validation = new CombatAiMainActionValidation(
             Math.Max(lowerBound, currentDistance - 1f));
     }
 
-    private static EnemyEvaluation[] CollectEnemyEvaluations(
+    private static List<GameLocationCharacter> CollectRelevantEnemyTargets(
         GameLocationCharacter actor,
-        CombatAiProfile profile,
-        int3 position,
-        DecisionParameters parameters,
-        ulong approachSourceGuid)
+        DecisionParameters parameters)
     {
         var relevantEnemies = new List<GameLocationCharacter>();
         var hasRelevantPerceivedTarget = parameters.situationalInformation.HasRelevantPerceivedTarget;
@@ -23932,7 +15128,18 @@ validation = new CombatAiMainActionValidation(
             relevantEnemies.Add(enemy);
         }
 
-        if (relevantEnemies.Count == 0)
+        return relevantEnemies;
+    }
+
+    private static EnemyEvaluation[] CollectEnemyEvaluations(
+        GameLocationCharacter actor,
+        CombatAiProfile profile,
+        int3 position,
+        DecisionParameters parameters,
+        ulong approachSourceGuid,
+        IReadOnlyList<GameLocationCharacter> relevantEnemies)
+    {
+        if (relevantEnemies == null || relevantEnemies.Count == 0)
         {
             return Array.Empty<EnemyEvaluation>();
         }
@@ -24456,64 +15663,6 @@ validation = new CombatAiMainActionValidation(
         return true;
     }
 
-    private static void UpdateTacticalSituationMemory(GameLocationCharacter actor)
-    {
-        if (actor?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        var memory = BuildTacticalSituationMemory(actor);
-
-        TacticalSituationMemoryCache[actor.Guid] = memory;
-    }
-
-    private static TacticalSituationMemory BuildTacticalSituationMemory(GameLocationCharacter actor)
-    {
-        var self = BuildSelfAssessment(actor);
-        var target = SelectPrimaryTarget(actor);
-        var targetSelf = BuildSelfAssessment(target);
-        var alliesDowned = 0;
-        var alliesCritical = 0;
-
-        if (Gui.Battle != null)
-        {
-            foreach (var ally in OrderCharactersForCombatAi(Gui.Battle.AllContenders.ToArray(), actor.LocationPosition))
-            {
-                if (ally == actor || ally?.RulesetCharacter == null || ally.Side != actor.Side)
-                {
-                    continue;
-                }
-
-                if (ally.RulesetCharacter.IsDeadOrDyingOrUnconscious)
-                {
-                    alliesDowned++;
-                    continue;
-                }
-
-                if (BuildSelfAssessment(ally).IsCritical)
-                {
-                    alliesCritical++;
-                }
-            }
-        }
-
-        var targetDodging = HasDodgingCondition(target?.RulesetCharacter);
-        var recentThreat = TryGetRecentMeleeThreat(actor, out var recentThreatMemory)
-            ? recentThreatMemory.Source?.Guid ?? 0
-            : 0;
-        var signature =
-            $"self:{self.IsBloodied}:{self.IsCritical}:{self.HasSeriousCondition}:{self.IsConcentrating};" +
-            $"ally:{alliesDowned}:{alliesCritical};" +
-            $"target:{target?.Guid ?? 0}:{targetSelf.IsBloodied}:{targetSelf.IsCritical}:" +
-            $"{targetSelf.HasSeriousCondition}:{targetSelf.IsConcentrating}:{targetDodging};" +
-            $"threat:{recentThreat}";
-        return new TacticalSituationMemory(
-            signature,
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp));
-    }
-
     private static bool HasDodgingCondition(RulesetCharacter rulesetCharacter)
     {
         if (rulesetCharacter == null)
@@ -24567,239 +15716,6 @@ validation = new CombatAiMainActionValidation(
         }
 
         return false;
-    }
-
-    private static bool HasLeftoverActionCombatContext(GameLocationCharacter character)
-    {
-        return HasRelevantPerceivedEnemies(character) ||
-               TryGetLocalMeleeThreat(character, character?.LocationPosition ?? default, out _, out _) ||
-               TryGetLastKnownEnemyPosition(character, out _) ||
-               TryGetRegroupPosition(character, out _);
-    }
-
-    private static TerminalReprobeResult TryUseTerminalReprobeHostileAction(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        GameLocationCharacter priorityTarget = null,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
-    {
-        if (character?.RulesetCharacter == null || battleService == null)
-        {
-            return new TerminalReprobeResult(TerminalReprobeStatus.Blocked);
-        }
-
-        ClearTerminalReprobeActionCaches();
-
-        var target = priorityTarget ?? turnPlan.ActionProbe.Target ?? SelectPrimaryTarget(character);
-
-        if (target?.RulesetCharacter == null)
-        {
-            return TryUseAnyCurrentResidualHostileAction(
-                character,
-                turnPlan.ActionProbe,
-                battleService,
-                priorityTarget,
-                launchBoundary);
-        }
-
-        var preferred = turnPlan.ActionProbe.PreferredAction;
-        var backup = turnPlan.ActionProbe.BackupAction;
-        var backupPolicyHeld = false;
-
-        if (preferred != CombatAiActionKind.None)
-        {
-            if (TryUseResidualSafeHostileAction(character, target, preferred, battleService, launchBoundary).Executed)
-            {
-                return new TerminalReprobeResult(TerminalReprobeStatus.Executed, preferred);
-            }
-        }
-
-        if (backup != CombatAiActionKind.None && backup != preferred)
-        {
-            if (TryUseTerminalRangedBackupAfterFailedMeleePursuit(
-                character,
-                turnPlan.ActionProbe,
-                battleService,
-                launchBoundary))
-            {
-                return new TerminalReprobeResult(TerminalReprobeStatus.Executed, backup);
-            }
-
-            if (ShouldSuppressRangedBackupForMeleeRoute(
-                    character,
-                    turnPlan.ActionProbe,
-                    battleService))
-            {
-                backupPolicyHeld = true;
-                // The actor can still pursue or perform melee this turn; do not spend Main on a thrown fallback.
-            }
-            else if (TryUseResidualSafeHostileAction(character, target, backup, battleService, launchBoundary).Executed)
-            {
-                return new TerminalReprobeResult(TerminalReprobeStatus.Executed, backup);
-            }
-        }
-
-        if (turnPlan.ActionProbe.HasAtWillHostileSpell &&
-            preferred != CombatAiActionKind.Spell &&
-            backup != CombatAiActionKind.Spell)
-        {
-            if (TryUseResidualSafeHostileAction(
-                    character,
-                    target,
-                    CombatAiActionKind.Spell,
-                    battleService,
-                    launchBoundary).Executed)
-            {
-                return new TerminalReprobeResult(TerminalReprobeStatus.Executed, CombatAiActionKind.Spell);
-            }
-        }
-
-        var currentResult = TryUseAnyCurrentResidualHostileAction(
-                character,
-                turnPlan.ActionProbe,
-                battleService,
-                priorityTarget,
-                launchBoundary);
-
-        if (currentResult.Executed)
-        {
-            return currentResult;
-        }
-
-        if (backupPolicyHeld || currentResult.PolicyHeld)
-        {
-            return new TerminalReprobeResult(TerminalReprobeStatus.PolicyHeld);
-        }
-
-        return new TerminalReprobeResult(TerminalReprobeStatus.Blocked);
-    }
-
-    private static TerminalReprobeResult TryUseAnyCurrentResidualHostileAction(
-        GameLocationCharacter character,
-        CombatAiActionProbe actionProbe,
-        IGameLocationBattleService battleService,
-        GameLocationCharacter priorityTarget = null,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
-    {
-        if (TryUseAnyCurrentResidualHostileSpellAction(character, battleService, priorityTarget, launchBoundary))
-        {
-            return new TerminalReprobeResult(TerminalReprobeStatus.Executed, CombatAiActionKind.Spell);
-        }
-
-        return TryUseAnyCurrentHostileAction(character, actionProbe, battleService, priorityTarget, launchBoundary);
-    }
-
-    private static bool TryUseAnyCurrentResidualHostileSpellAction(
-        GameLocationCharacter character,
-        IGameLocationBattleService battleService,
-        GameLocationCharacter priorityTarget = null,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        if (battleService == null)
-        {
-            return false;
-        }
-
-        var mainStatus = character.GetActionTypeStatus(ActionType.Main);
-
-        if (mainStatus != ActionStatus.Available)
-        {
-            return false;
-        }
-
-        if (TryGetCommittedNonTerminalMainActionThisTurn(character, out _))
-        {
-            return false;
-        }
-
-        var targets = GetCurrentHostileActionTargets(character, battleService, priorityTarget);
-
-        if (targets.Length == 0)
-        {
-            return false;
-        }
-
-        foreach (var target in targets)
-        {
-            if (target?.RulesetCharacter == null || target.Side == character.Side)
-            {
-                continue;
-            }
-
-            if (TryUseResidualHostileSpellAction(character, target, battleService, launchBoundary).Executed)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static TerminalReprobeResult TryUseAnyCurrentHostileAction(
-        GameLocationCharacter character,
-        CombatAiActionProbe actionProbe,
-        IGameLocationBattleService battleService,
-        GameLocationCharacter priorityTarget = null,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
-    {
-        if (character?.RulesetCharacter == null || battleService == null)
-        {
-            return new TerminalReprobeResult(TerminalReprobeStatus.Blocked);
-        }
-
-        var actionKinds = GetTerminalReprobeActionKinds(actionProbe);
-        var policyHeld = false;
-
-        foreach (var target in GetCurrentHostileActionTargets(character, battleService, priorityTarget))
-        {
-            if (target?.RulesetCharacter == null || target.Side == character.Side)
-            {
-                continue;
-            }
-
-            foreach (var actionKind in actionKinds)
-            {
-                var targetProbe = new CombatAiActionProbe(
-                    actionProbe.PreferredAction,
-                    actionProbe.BackupAction,
-                    target,
-                    actionKind == actionProbe.PreferredAction,
-                    actionKind == actionProbe.BackupAction,
-                    actionProbe.HasAtWillHostileSpell,
-                    actionProbe.CapabilityCatalog);
-
-                if (actionKind == CombatAiActionKind.Ranged &&
-                    ShouldSuppressRangedBackupForMeleeRoute(
-                        character,
-                        targetProbe,
-                        battleService))
-                {
-                    policyHeld = true;
-                    continue;
-                }
-
-                var actionResult = TryUseResidualSafeHostileAction(
-                        character,
-                        target,
-                        actionKind,
-                        battleService,
-                        launchBoundary);
-
-                if (actionResult.Executed)
-                {
-                    return new TerminalReprobeResult(TerminalReprobeStatus.Executed, actionKind);
-                }
-            }
-        }
-
-        return new TerminalReprobeResult(
-            policyHeld ? TerminalReprobeStatus.PolicyHeld : TerminalReprobeStatus.Blocked);
     }
 
     private static CombatAiActionKind[] GetTerminalReprobeActionKinds(CombatAiActionProbe actionProbe)
@@ -24871,9 +15787,7 @@ validation = new CombatAiMainActionValidation(
 
             foreach (var actionKind in actionKinds)
             {
-                var validation = ValidateResidualMainAction(character, target, actionKind, battleService);
-
-                if (!validation.IsValid)
+                if (!ValidateResidualMainAction(character, target, actionKind, battleService))
                 {
                     continue;
                 }
@@ -24889,7 +15803,6 @@ validation = new CombatAiMainActionValidation(
         GameLocationCharacter character,
         CombatAiActionProbe actionProbe,
         IGameLocationBattleService battleService,
-        CombatAiProfile profile,
         CombatAiSelfAssessment self,
         GameLocationCharacter priorityTarget = null)
     {
@@ -24911,7 +15824,7 @@ validation = new CombatAiMainActionValidation(
                 false);
         }
 
-        var hasUsefulUtility = HasCurrentUsefulUtility(character, profile, self);
+        var hasUsefulUtility = HasCurrentUsefulUtility(character, self);
 
         if (hasUsefulUtility)
         {
@@ -24927,11 +15840,8 @@ validation = new CombatAiMainActionValidation(
 
     private static bool HasCurrentUsefulUtility(
         GameLocationCharacter character,
-        CombatAiProfile profile,
         CombatAiSelfAssessment self)
     {
-        _ = profile;
-
         var rulesetCharacter = character?.RulesetCharacter;
 
         if (rulesetCharacter == null ||
@@ -24942,7 +15852,7 @@ validation = new CombatAiMainActionValidation(
 
         foreach (var usablePower in rulesetCharacter.UsablePowers)
         {
-            if (!IsEligibleFallbackSelfBuff(usablePower, rulesetCharacter, self))
+            if (!IsEligibleFallbackSelfBuff(usablePower, rulesetCharacter))
             {
                 continue;
             }
@@ -24953,34 +15863,11 @@ validation = new CombatAiMainActionValidation(
         return false;
     }
 
-    private static bool TryUseTerminalRangedBackupAfterFailedMeleePursuit(
-        GameLocationCharacter character,
-        CombatAiActionProbe actionProbe,
-        IGameLocationBattleService battleService,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
-    {
-        if (!ShouldReleaseRangedBackupAfterFailedMeleePursuit(character, actionProbe, battleService))
-        {
-            return false;
-        }
-
-        if (!TryUseResidualSafeHostileAction(
-                character,
-                actionProbe.Target,
-                CombatAiActionKind.Ranged,
-                battleService,
-                launchBoundary).Executed)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
     private static bool ShouldReleaseRangedBackupAfterFailedMeleePursuit(
         GameLocationCharacter character,
         CombatAiActionProbe actionProbe,
-        IGameLocationBattleService battleService)
+        IGameLocationBattleService battleService,
+        bool canContinueMoving)
     {
         if (character?.RulesetCharacter == null ||
             actionProbe.Target?.RulesetCharacter == null ||
@@ -24992,24 +15879,16 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        if (!TryGetSameTurnClosedMeleePursuitRoute(character, out _))
+        if (canContinueMoving && !TryGetSameTurnClosedMeleePursuitRoute(character, out _))
         {
             return false;
         }
 
-        if (character.RemainingTacticalMoves > 0 &&
-            HasImprovingMeleePursuit(character))
-        {
-            return false;
-        }
-
-        var validation = ValidateResidualMainAction(
-            character,
-            actionProbe.Target,
-            CombatAiActionKind.Ranged,
-            battleService);
-
-        if (!validation.IsValid)
+        if (!ValidateResidualMainAction(
+                character,
+                actionProbe.Target,
+                CombatAiActionKind.Ranged,
+                battleService))
         {
             return false;
         }
@@ -25035,43 +15914,50 @@ validation = new CombatAiMainActionValidation(
         return closedRoute.IsNoMove ||
                closedRoute.IsLateCompletion ||
                closedRoute.IsRouteUnavailable ||
-               closedRoute.HasNoConnectedRoute;
+               closedRoute.HasNoConnectedRoute ||
+               closedRoute.IsGroundMeleePartial;
     }
 
-    private static bool TryGetTerminalFallbackBlock(
-        CurrentTerminalActionScan currentActionScan,
-        bool hasTerminalPolicyHeld,
-        out TerminalFallbackBlockKind blockKind)
+    private static bool CanUseTerminalReadyDodgeFallback(
+        GameLocationCharacter character,
+        CombatAiProfile profile,
+        CombatAiTurnPlan turnPlan,
+        IGameLocationBattleService battleService,
+        CurrentTerminalActionScan currentActionScan)
     {
-        blockKind = TerminalFallbackBlockKind.None;
-
-        if (currentActionScan.BlocksReadyOrDodge)
+        if (character?.RulesetCharacter == null ||
+            battleService == null ||
+            !IsActiveBattleContender(character))
         {
-            blockKind = TerminalFallbackBlockKind.HostileOrUtility;
-            return true;
+            return false;
         }
 
-        if (hasTerminalPolicyHeld)
+        if (currentActionScan.BlocksReadyOrDodge ||
+            turnPlan.ActionProbe.CanUsePreferredAction ||
+            turnPlan.ActionProbe.CanUseBackupAction)
         {
-            blockKind = TerminalFallbackBlockKind.PolicyHeld;
-            return true;
+            return false;
         }
 
-        return false;
-    }
+        if (HasQueuedActionChain(character) ||
+            HasPendingReactionRequests() ||
+            character.MoveStepInProgress ||
+            MovementTracker.TryGetMovement(character.Guid, out _) ||
+            ActionLinkedMoveCache.ContainsKey(character.Guid) ||
+            ActionLinkedMoveSettlingCache.ContainsKey(character.Guid) ||
+            GroundMeleeMoveSettlingCache.ContainsKey(character.Guid))
+        {
+            return false;
+        }
 
-    private static bool HasTerminalPolicyHeld(
-        bool hostileActionPolicyHeld,
-        bool terminalReprobePolicyHeld)
-    {
-        return hostileActionPolicyHeld || terminalReprobePolicyHeld;
-    }
+        MarkFallbackFreeJumpMovementCandidate(character, turnPlan);
 
-    private static void ClearTerminalReprobeActionCaches()
-    {
-        MeleeAttackPositionCache.Clear();
-        SpellAttackPositionCache.Clear();
-        ActionKindPositionCache.Clear();
+        if (HasUnattemptedPreMainRouteMove(character, turnPlan))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static bool TryUseFallbackReady(
@@ -25079,10 +15965,7 @@ validation = new CombatAiMainActionValidation(
         CombatAiProfile profile,
         CombatAiTurnPlan turnPlan,
         IGameLocationBattleService battleService,
-        CurrentTerminalActionScan currentActionScan,
-        bool usePendingTerminalLaunch = false,
-        bool clearTurnCacheAfterAction = true,
-        bool ignoreStaleSearchMovementBlocks = false)
+        bool clearTurnCacheAfterAction = true)
     {
         var actionEconomy = BuildActionEconomySnapshot(character);
 
@@ -25096,74 +15979,19 @@ validation = new CombatAiMainActionValidation(
                 profile,
                 turnPlan,
                 battleService,
-                currentActionScan,
-                out var readyActionType,
-                ignoreStaleSearchMovementBlocks))
+                out var readyActionType))
         {
             return false;
         }
 
-        if (usePendingTerminalLaunch)
-        {
-            return SchedulePendingAiProcessTerminalLaunch(
-                character,
-                Id.Ready,
-                readyActionType,
-                PendingTerminalLaunchKind.Ready);
-        }
-
-        MarkEndTurnRecoveryActionSubmitted(character);
         character.MyExecuteActionReady(readyActionType);
 
         if (clearTurnCacheAfterAction)
         {
-            ClearTurnCache(character);
+            InvalidateTurnPlanningCache(character);
         }
 
         return true;
-    }
-
-    internal static void NormalizeFallbackReadyAfterAction(CharacterAction action)
-    {
-        var character = action?.ActingCharacter;
-
-        if (action?.ActionId != Id.Ready ||
-            character?.RulesetCharacter == null ||
-            !PendingTerminalReadyEndTurnCache.TryGetValue(character.Guid, out var pendingTerminalReady))
-        {
-            return;
-        }
-
-        PendingTerminalReadyEndTurnCache.Remove(character.Guid);
-        PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-        TryCompleteTerminalReadyEndTurn(character, pendingTerminalReady, TerminalReadyCompletionKind.Applied);
-    }
-
-    internal static bool IsPendingTerminalReadyOrDodgeAction(CharacterAction action)
-    {
-        var character = action?.ActingCharacter;
-
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        return action.ActionId == Id.Ready && TryGetPendingTerminalReadyEndTurn(character, out _) ||
-               action.ActionId == Id.Dodge && TryGetPendingTerminalDodgeEndTurn(character, out _);
-    }
-
-    private static void TryCompleteTerminalReadyEndTurn(
-        GameLocationCharacter character,
-        PendingTerminalDodgeEndTurnMemory pendingTerminalReady,
-        TerminalReadyCompletionKind result)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
-        PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
     }
 
     private static bool TryGetFallbackReadyOpportunity(
@@ -25171,9 +15999,7 @@ validation = new CombatAiMainActionValidation(
         CombatAiProfile profile,
         CombatAiTurnPlan turnPlan,
         IGameLocationBattleService battleService,
-        CurrentTerminalActionScan currentActionScan,
-        out ReadyActionType readyActionType,
-        bool ignoreStaleSearchMovementBlocks = false)
+        out ReadyActionType readyActionType)
     {
         readyActionType = default;
 
@@ -25186,72 +16012,6 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        if (!ignoreStaleSearchMovementBlocks)
-        {
-            if (turnPlan.ActionProbe.CanUsePreferredAction)
-            {
-                return false;
-            }
-
-            if (turnPlan.ActionProbe.CanUseBackupAction)
-            {
-                return false;
-            }
-
-            var movementAvailability = GetMovementAvailability(character, turnPlan, forResidualAction: true);
-
-            if (movementAvailability.IsAvailable && IsSearchKnownTargetPlan(turnPlan))
-            {
-                return false;
-            }
-
-            if (movementAvailability.IsAvailable)
-            {
-                return false;
-            }
-
-            if (HasUnattemptedPreMainRouteMove(character, profile, turnPlan))
-            {
-                return false;
-            }
-        }
-
-        if (HasDeferredGroundMeleeCombatParticipationRoute(character))
-        {
-            return false;
-        }
-
-        if (HasClosedNoMoveGroundMeleeRoute(character))
-        {
-            return false;
-        }
-
-        if (HasSameTurnPartialGroundMeleeRoute(character, out var partialRoute))
-        {
-            return false;
-        }
-
-        if (TryGetSameTurnNoMoveProxyThreatAttempt(character, out var proxyThreatAttempt))
-        {
-            return false;
-        }
-
-        var hasMissedMovementRoute = TryGetMissedMovementState(
-            character,
-            turnPlan,
-            out _,
-            out _);
-
-        if (!ignoreStaleSearchMovementBlocks && hasMissedMovementRoute)
-        {
-            return false;
-        }
-
-        if (IsRepeatedTerminalAction(character, turnPlan, CombatAiExecutedActionKind.Ready))
-        {
-            return false;
-        }
-
         var target = turnPlan.ActionProbe.Target ?? SelectPrimaryTarget(character);
 
         if (target?.RulesetCharacter == null)
@@ -25259,17 +16019,10 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        if (!ignoreStaleSearchMovementBlocks && currentActionScan.BlocksReadyOrDodge)
-        {
-            return false;
-        }
-
         var distance = ComputeGridDistance(character.LocationPosition, target.LocationPosition);
         var range = GetFallbackReadyRange(character, profile, readyActionType);
         var targetMove = Math.Max(ReadyOpportunityDefaultTargetMove, target.MaxTacticalMoves);
-        var effectiveRange = ignoreStaleSearchMovementBlocks
-            ? range + targetMove
-            : range;
+        var effectiveRange = range + targetMove;
 
         if (range <= 0f || distance > effectiveRange)
         {
@@ -25417,7 +16170,6 @@ validation = new CombatAiMainActionValidation(
 
     private static bool TryUseFallbackAtWillSelfBuff(
         GameLocationCharacter character,
-        CombatAiProfile profile,
         CombatAiSelfAssessment self,
         CombatAiTurnPlan turnPlan,
         bool clearTurnCacheAfterAction = true)
@@ -25441,7 +16193,7 @@ validation = new CombatAiMainActionValidation(
 
         foreach (var usablePower in rulesetCharacter.UsablePowers)
         {
-            if (!IsEligibleFallbackSelfBuff(usablePower, rulesetCharacter, self))
+            if (!IsEligibleFallbackSelfBuff(usablePower, rulesetCharacter))
             {
                 continue;
             }
@@ -25450,7 +16202,7 @@ validation = new CombatAiMainActionValidation(
 
             if (clearTurnCacheAfterAction)
             {
-                ClearTurnCache(character);
+                InvalidateTurnPlanningCache(character);
             }
 
             return true;
@@ -25461,8 +16213,7 @@ validation = new CombatAiMainActionValidation(
 
     private static bool IsEligibleFallbackSelfBuff(
         RulesetUsablePower usablePower,
-        RulesetCharacter actor,
-        CombatAiSelfAssessment self)
+        RulesetCharacter actor)
     {
         var power = usablePower?.PowerDefinition;
         var effectDescription = power?.EffectDescription;
@@ -25478,17 +16229,12 @@ validation = new CombatAiMainActionValidation(
             !actor.CanUsePower(power, true, true) ||
             HasEquivalentActiveEffectOrCondition(actor, effectDescription) ||
             IsLowValueSelfUtility(effectDescription) ||
-            !HasDefensiveSelfBuffForm(effectDescription))
+            !HasDefensiveBuffForm(effectDescription))
         {
             return false;
         }
 
-        if (self.IsConcentrating && CouldBreakConcentration(power))
-        {
-            return false;
-        }
-
-        return CanSpendActionForPower(power);
+        return true;
     }
 
     private static bool IsLowValueSelfUtility(EffectDescription effectDescription)
@@ -25521,7 +16267,7 @@ validation = new CombatAiMainActionValidation(
                conditionDefinition.Features.All(feature => feature is FeatureDefinitionSense);
     }
 
-    private static bool HasDefensiveSelfBuffForm(EffectDescription effectDescription)
+    private static bool HasDefensiveBuffForm(EffectDescription effectDescription)
     {
         foreach (var effectForm in effectDescription.EffectForms)
         {
@@ -25562,429 +16308,75 @@ validation = new CombatAiMainActionValidation(
         return false;
     }
 
-    private static bool HasEquivalentSenseUtility(
-        RulesetCharacter actor,
-        EffectDescription effectDescription)
-    {
-        if (actor == null || effectDescription == null)
-        {
-            return false;
-        }
-
-        foreach (var effectForm in effectDescription.EffectForms)
-        {
-            if (effectForm.FormType != EffectForm.EffectFormType.Condition ||
-                effectForm.ConditionForm is not { Operation: ConditionForm.ConditionOperation.Add } conditionForm ||
-                conditionForm.ConditionDefinition == null)
-            {
-                continue;
-            }
-
-            foreach (var feature in conditionForm.ConditionDefinition.Features)
-            {
-                if (feature is not FeatureDefinitionSense sense ||
-                    !HasEquivalentSenseMode(actor, sense.senseType))
-                {
-                    continue;
-                }
-
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool HasEquivalentSenseMode(RulesetCharacter actor, SenseMode.Type grantedSense)
-    {
-        if (grantedSense == SenseMode.Type.None)
-        {
-            return false;
-        }
-
-        foreach (var senseMode in actor.SenseModes)
-        {
-            if (IsEquivalentOrBetterSenseMode(senseMode.SenseType, grantedSense))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsEquivalentOrBetterSenseMode(SenseMode.Type existingSense, SenseMode.Type grantedSense)
-    {
-        if (existingSense == grantedSense)
-        {
-            return true;
-        }
-
-        return grantedSense switch
-        {
-            SenseMode.Type.Darkvision => existingSense is SenseMode.Type.SuperiorDarkvision or SenseMode.Type.Truesight,
-            SenseMode.Type.SuperiorDarkvision => existingSense == SenseMode.Type.Truesight,
-            SenseMode.Type.DetectInvisibility => existingSense == SenseMode.Type.Truesight,
-            _ => false
-        };
-    }
-
-    private static bool CouldBreakConcentration(FeatureDefinitionPower power)
-    {
-        return power.ActivationTime != ActivationTime.NoCost;
-    }
-
-    private static bool CanSpendActionForPower(FeatureDefinitionPower power)
-    {
-        return power.ActivationTime == ActivationTime.NoCost;
-    }
-
-    private static bool ShouldUseFallbackDodge(
-        GameLocationCharacter character,
-        IGameLocationBattleService battleService,
-        CombatAiTurnPlan turnPlan)
-    {
-        if (character?.RulesetCharacter == null || battleService == null)
-        {
-            return false;
-        }
-
-        if (GetMovementAvailability(character, turnPlan, forResidualAction: true).IsAvailable)
-        {
-            return false;
-        }
-
-        if (HasClosedNoMoveGroundMeleeRoute(character))
-        {
-            return false;
-        }
-
-        if (HasDeferredGroundMeleeCombatParticipationRoute(character))
-        {
-            return false;
-        }
-
-        var profile = BuildProfile(character);
-
-        if (HasUnattemptedPreMainRouteMove(character, profile, turnPlan))
-        {
-            return false;
-        }
-
-        return !turnPlan.ActionProbe.CanUsePreferredAction &&
-               !turnPlan.ActionProbe.CanUseBackupAction;
-    }
-
-    private static bool HasClosedNoMoveGroundMeleeRoute(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !RouteMoveCompletionClosedCache.TryGetValue(character.Guid, out var memory))
-        {
-            return false;
-        }
-
-        return memory.MovementGoal == CombatAiMovementGoalKind.AdvanceToMelee &&
-               memory.IsGroundMeleeNoMove &&
-               memory.Round == GetCurrentBattleRound() &&
-               memory.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp);
-    }
-
-    private static bool HasSameTurnPartialGroundMeleeRoute(
-        GameLocationCharacter character,
-        out RouteMoveCompletionClosedMemory memory)
-    {
-        memory = default;
-
-        if (character?.RulesetCharacter == null ||
-            !RouteMoveCompletionClosedCache.TryGetValue(character.Guid, out memory))
-        {
-            return false;
-        }
-
-        return memory.MovementGoal == CombatAiMovementGoalKind.AdvanceToMelee &&
-               memory.IsGroundMeleePartial &&
-               memory.Round == GetCurrentBattleRound() &&
-               memory.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp);
-    }
-
-    private static bool HasDeferredGroundMeleeCombatParticipationRoute(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PreMainRouteMoveAttemptCache.TryGetValue(character.Guid, out var attempt))
-        {
-            return false;
-        }
-
-        return attempt.Goal == CombatAiMovementGoalKind.AdvanceToMelee &&
-               attempt.Status != CombatAiPreMainRouteMoveStatus.Executed &&
-               attempt.Round == GetCurrentBattleRound() &&
-               attempt.TurnStamp == Math.Max(1, ObservedCombatMemoryTurnStamp) &&
-               attempt.IsVanillaOwned;
-    }
-
     private static bool HasUnattemptedPreMainRouteMove(
         GameLocationCharacter character,
-        CombatAiProfile profile,
         CombatAiTurnPlan turnPlan)
     {
         return character != null &&
-               ShouldUsePreMainRouteMove(character, profile, turnPlan) &&
+               ShouldUsePreMainRouteMove(character, turnPlan) &&
                !PreMainRouteMoveAttemptCache.ContainsKey(character.Guid);
     }
 
-    private static bool HasPreMainRouteMoveAttempt(
+    private static void MarkFallbackFreeJumpMovementCandidate(
         GameLocationCharacter character,
         CombatAiTurnPlan turnPlan)
     {
-        return character != null &&
-               turnPlan.MovementPlan.HasGoal &&
-               PreMainRouteMoveAttemptCache.ContainsKey(character.Guid);
-    }
-
-    private static bool TryGetMissedMovementState(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        out MissedMovementKind missedMovementKind,
-        out CombatAiMovementAvailabilityResult availability)
-    {
-        missedMovementKind = MissedMovementKind.None;
-        availability = default;
-
-        if (character == null ||
-            !turnPlan.MovementPlan.HasGoal ||
-            turnPlan.ActionProbe.CanUsePreferredAction ||
-            turnPlan.ActionProbe.CanUseBackupAction)
-        {
-            return false;
-        }
-
-        availability = GetMovementAvailability(character, turnPlan, forResidualAction: true);
-
-        if (availability.IsAvailable)
-        {
-            return false;
-        }
-
-        if (!TurnMovementProgressCache.TryGetValue(character.Guid, out var movementProgress))
-        {
-            missedMovementKind = MissedMovementKind.UnresolvedGoal;
-
-            return availability.Availability is CombatAiMovementAvailability.Spent;
-        }
-
-        if (!movementProgress.HadMeaningfulMovementCandidate)
-        {
-            missedMovementKind = MissedMovementKind.UnresolvedGoal;
-
-            return availability.Availability is CombatAiMovementAvailability.Spent;
-        }
-
-        missedMovementKind = MissedMovementKind.MissedMeaningfulMove;
-
-        return true;
-    }
-
-    private static CombatAiMovementAvailabilityResult GetMovementAvailability(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        bool forResidualAction = false)
-    {
         if (character?.RulesetCharacter == null || !turnPlan.MovementPlan.HasGoal)
         {
-            return new CombatAiMovementAvailabilityResult(CombatAiMovementAvailability.None);
+            return;
         }
-
-        var canUseResidualRouteMove = CanUseResidualRouteMovement(turnPlan);
-        var freeJumpAvailability = GetFallbackFreeJumpAvailability(character);
 
         if (HasDisconnectedPostMovePositioning(
                 character,
                 turnPlan))
         {
-            return new CombatAiMovementAvailabilityResult(
-                CombatAiMovementAvailability.Blocked,
-                freeJumpAvailability);
+            return;
         }
 
         if (character.RemainingTacticalMoves > 0 &&
             character.CanDecideToMoveByItself &&
             character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) == ActionStatus.Available)
         {
-            if (forResidualAction)
-            {
-                if (canUseResidualRouteMove)
-                {
-                    return new CombatAiMovementAvailabilityResult(
-                        CombatAiMovementAvailability.Available,
-                        freeJumpAvailability);
-                }
-
-                return new CombatAiMovementAvailabilityResult(
-                    CombatAiMovementAvailability.Blocked,
-                    freeJumpAvailability);
-            }
-
-            return new CombatAiMovementAvailabilityResult(
-                CombatAiMovementAvailability.Available,
-                freeJumpAvailability);
+            return;
         }
 
-        if (freeJumpAvailability == FreeJumpFallbackAvailability.Available)
+        if (FreeJumpContext.HasUsefulAiFreeJumpDestination(character))
         {
             GetOrCreateTurnMovementProgress(character, turnPlan)?.MarkFreeJumpMovementCandidate();
         }
-
-        if (character.RemainingTacticalMoves <= 0 ||
-            character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) == ActionStatus.Spent)
-        {
-            return new CombatAiMovementAvailabilityResult(
-                CombatAiMovementAvailability.Spent,
-                freeJumpAvailability);
-        }
-
-        return new CombatAiMovementAvailabilityResult(
-            CombatAiMovementAvailability.Blocked,
-            freeJumpAvailability);
     }
 
-    private static FreeJumpFallbackAvailability GetFallbackFreeJumpAvailability(GameLocationCharacter character)
-    {
-        if (FreeJumpContext.HasUsefulAiFreeJumpDestination(character))
-        {
-            return FreeJumpFallbackAvailability.Available;
-        }
-
-        return Main.Settings.EnableBonusActionFreeJump
-            ? FreeJumpFallbackAvailability.Unavailable
-            : FreeJumpFallbackAvailability.Disabled;
-    }
-
-    private static bool CanUseResidualRouteMovement(CombatAiTurnPlan turnPlan)
-    {
-        _ = turnPlan;
-
-        // EndTurn residual is not a safe phase to begin non action-linked movement.
-        // Vanilla movement scoring or explicit action-linked movement must own those moves.
-        return false;
-    }
-
-    private static TerminalFallbackActionResult TryApplyFallbackDodge(
-        GameLocationCharacter character,
-        bool usePendingTerminalLaunch = false)
+    private static bool TryApplyFallbackDodge(
+        GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null)
         {
-            return new TerminalFallbackActionResult(TerminalFallbackActionStatus.Blocked);
+            return false;
         }
 
         if (!IsActiveBattleContender(character))
         {
-            LogCombatAiDiagnostic(
-                character,
-                "DodgeFallback.exit",
-                $"reason=inactive usePendingLaunch={usePendingTerminalLaunch}");
-            return new TerminalFallbackActionResult(TerminalFallbackActionStatus.Blocked);
+            return false;
         }
 
         var actionEconomy = BuildActionEconomySnapshot(character);
         var dodgeStatus = character.GetActionStatus(Id.Dodge, ActionScope.Battle);
 
-        LogCombatAiDiagnostic(
-            character,
-            "DodgeFallback.enter",
-            $"usePendingLaunch={usePendingTerminalLaunch} dodgeStatus={dodgeStatus} " +
-            FormatActionEconomySnapshot(actionEconomy));
-
         if (!CanSpendTerminalMainAction(character, actionEconomy))
         {
-            LogCombatAiDiagnostic(
-                character,
-                "DodgeFallback.exit",
-                $"reason=no-terminal-main dodgeStatus={dodgeStatus} {FormatActionEconomySnapshot(actionEconomy)}");
-            return new TerminalFallbackActionResult(TerminalFallbackActionStatus.Blocked);
+            return false;
         }
 
         if (!actionEconomy.DodgeAvailable || dodgeStatus != ActionStatus.Available)
         {
-            LogCombatAiDiagnostic(
-                character,
-                "DodgeFallback.exit",
-                $"reason=dodge-unavailable dodgeStatus={dodgeStatus} {FormatActionEconomySnapshot(actionEconomy)}");
-            return new TerminalFallbackActionResult(TerminalFallbackActionStatus.Blocked);
-        }
-
-        if (usePendingTerminalLaunch)
-        {
-            var scheduled = SchedulePendingAiProcessTerminalLaunch(
-                character,
-                Id.Dodge,
-                default,
-                PendingTerminalLaunchKind.Dodge);
-
-            LogCombatAiDiagnostic(
-                character,
-                "DodgeFallback.exit",
-                $"reason=pending-launch scheduled={scheduled}");
-
-            return scheduled
-                ? new TerminalFallbackActionResult(TerminalFallbackActionStatus.Scheduled)
-                : new TerminalFallbackActionResult(TerminalFallbackActionStatus.Blocked);
+            return false;
         }
 
         var rulesetCharacter = character.RulesetCharacter;
         var existingConditions = CollectDodgingConditionGuids(rulesetCharacter);
 
         PendingFallbackDodgeConditionCache[character.Guid] = existingConditions;
-        MarkEndTurnRecoveryActionSubmitted(character);
-        LogCombatAiDiagnostic(
-            character,
-            "DodgeFallback.execute",
-            $"usePendingLaunch={usePendingTerminalLaunch} existingDodgeConditions={existingConditions.Count}");
         character.MyExecuteActionDodge();
-
-        LogCombatAiDiagnostic(
-            character,
-            "DodgeFallback.exit",
-            "reason=executed");
-
-        return new TerminalFallbackActionResult(TerminalFallbackActionStatus.Executed);
-    }
-
-    private static bool TryObserveDirectFallbackDodge(
-        GameLocationCharacter character,
-        bool clearPendingWhenMissing)
-    {
-        if (character?.RulesetCharacter == null ||
-            !PendingFallbackDodgeConditionCache.TryGetValue(character.Guid, out var existingConditions))
-        {
-            return false;
-        }
-
-        var condition = FindNewDodgingCondition(character.RulesetCharacter, existingConditions);
-
-        if (condition == null)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "DodgeFallback.observe",
-                $"result=no-condition clearPending={clearPendingWhenMissing} " +
-                $"existingDodgeConditions={existingConditions.Count}");
-
-            if (clearPendingWhenMissing)
-            {
-                PendingFallbackDodgeConditionCache.Remove(character.Guid);
-            }
-
-            return false;
-        }
-
-        PendingFallbackDodgeConditionCache.Remove(character.Guid);
-        NormalizeFallbackDodgeCondition(character, condition);
-
-        LogCombatAiDiagnostic(
-            character,
-            "DodgeFallback.observe",
-            $"result=applied condition={condition.Guid} existingDodgeConditions={existingConditions.Count}");
 
         return true;
     }
@@ -26002,88 +16394,22 @@ validation = new CombatAiMainActionValidation(
 
         var hasPendingCondition =
             PendingFallbackDodgeConditionCache.TryGetValue(character.Guid, out var existingConditions);
-        var isTerminalEndTurnDodge =
-            PendingTerminalDodgeEndTurnCache.TryGetValue(character.Guid, out var pendingTerminalDodge);
-
-        if (!hasPendingCondition && !isTerminalEndTurnDodge)
-        {
-            return;
-        }
-
-        if (hasPendingCondition)
-        {
-            PendingFallbackDodgeConditionCache.Remove(character.Guid);
-        }
-
-        if (isTerminalEndTurnDodge)
-        {
-            PendingTerminalDodgeEndTurnCache.Remove(character.Guid);
-            PendingTerminalActionEndTurnSuppressCache.Remove(character.Guid);
-        }
 
         if (!hasPendingCondition)
         {
-            LogCombatAiDiagnostic(
-                character,
-                "DodgeFallback.normalize",
-                $"source=after-action result=no-pending-condition isTerminal={isTerminalEndTurnDodge}");
-            TryCompleteTerminalDodgeEndTurn(
-                character,
-                isTerminalEndTurnDodge,
-                pendingTerminalDodge,
-                TerminalDodgeCompletionKind.NoPendingCondition);
             return;
         }
+
+        PendingFallbackDodgeConditionCache.Remove(character.Guid);
 
         var condition = FindNewDodgingCondition(rulesetCharacter, existingConditions);
 
         if (condition == null)
         {
-            LogCombatAiDiagnostic(
-                character,
-                "DodgeFallback.normalize",
-                $"source=after-action result=no-condition isTerminal={isTerminalEndTurnDodge} " +
-                $"existingDodgeConditions={existingConditions.Count}");
-            TryCompleteTerminalDodgeEndTurn(
-                character,
-                isTerminalEndTurnDodge,
-                pendingTerminalDodge,
-                TerminalDodgeCompletionKind.NoCondition);
             return;
         }
 
         NormalizeFallbackDodgeCondition(character, condition);
-        LogCombatAiDiagnostic(
-            character,
-            "DodgeFallback.normalize",
-            $"source=after-action result=applied isTerminal={isTerminalEndTurnDodge} " +
-            $"condition={condition.Guid} existingDodgeConditions={existingConditions.Count}");
-        TryCompleteTerminalDodgeEndTurn(
-            character,
-            isTerminalEndTurnDodge,
-            pendingTerminalDodge,
-            TerminalDodgeCompletionKind.Applied);
-    }
-
-    private static void TryCompleteTerminalDodgeEndTurn(
-        GameLocationCharacter character,
-        bool isTerminalEndTurnDodge,
-        PendingTerminalDodgeEndTurnMemory pendingTerminalDodge,
-        TerminalDodgeCompletionKind result)
-    {
-        if (!isTerminalEndTurnDodge || character?.RulesetCharacter == null)
-        {
-            return;
-        }
-
-        PendingAiProcessTerminalLaunchCache.Remove(character.Guid);
-        PendingAiProcessTerminalLaunchAcceptedCache.Remove(character.Guid);
-
-        LogCombatAiDiagnostic(
-            character,
-            "DodgeFallback.terminal-complete",
-            $"result={result} pendingRound={pendingTerminalDodge.Round} " +
-            $"pendingTurn={pendingTerminalDodge.TurnStamp}");
     }
 
     private static void NormalizeFallbackDodgeCondition(GameLocationCharacter character, RulesetCondition condition)
@@ -26139,133 +16465,6 @@ validation = new CombatAiMainActionValidation(
         }
 
         return null;
-    }
-
-    private static bool IsRepeatedTerminalAction(
-        GameLocationCharacter actor,
-        CombatAiTurnPlan turnPlan,
-        CombatAiExecutedActionKind action)
-    {
-        if (actor == null ||
-            action == CombatAiExecutedActionKind.None ||
-            !RepeatTerminalActionCache.TryGetValue(actor.Guid, out var memory))
-        {
-            return false;
-        }
-
-        var target = turnPlan.ActionProbe.Target ?? turnPlan.MovementPlan.Target;
-        var targetGuid = target?.Guid ?? 0;
-        var targetPosition = target?.LocationPosition ?? turnPlan.MovementPlan.TargetPosition;
-
-        return memory.Action == action &&
-               memory.TargetGuid == targetGuid &&
-               memory.ActorPosition == actor.LocationPosition &&
-               memory.TargetPosition == targetPosition;
-    }
-
-    private static void RecordTerminalAction(
-        GameLocationCharacter actor,
-        CombatAiTurnPlan turnPlan,
-        CombatAiExecutedActionKind action)
-    {
-        if (actor == null || action == CombatAiExecutedActionKind.None)
-        {
-            return;
-        }
-
-        var target = turnPlan.ActionProbe.Target ?? turnPlan.MovementPlan.Target;
-        var targetGuid = target?.Guid ?? 0;
-        var targetPosition = target?.LocationPosition ?? turnPlan.MovementPlan.TargetPosition;
-        var repeat = 1;
-
-        if (RepeatTerminalActionCache.TryGetValue(actor.Guid, out var memory) &&
-            memory.Action == action &&
-            memory.TargetGuid == targetGuid &&
-            memory.ActorPosition == actor.LocationPosition &&
-            memory.TargetPosition == targetPosition)
-        {
-            repeat = memory.RepeatCount + 1;
-        }
-
-        RepeatTerminalActionCache[actor.Guid] = new RepeatedEndStateMemory(
-            targetGuid,
-            action,
-            actor.LocationPosition,
-            targetPosition,
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp),
-            repeat);
-    }
-
-    private static CombatAiActionPathStatus GetActionRouteStatus(
-        GameLocationCharacter actor,
-        CombatAiTurnPlan turnPlan,
-        CombatAiMovementAvailabilityResult movementAvailability)
-    {
-        if (turnPlan.MovementPlan.Goal == CombatAiMovementGoalKind.BreakThreat)
-        {
-            var defensiveAvailability = movementAvailability.Availability switch
-            {
-                CombatAiMovementAvailability.Available => CombatAiActionPathAvailability.Available,
-                CombatAiMovementAvailability.Blocked => CombatAiActionPathAvailability.Blocked,
-                CombatAiMovementAvailability.Spent => CombatAiActionPathAvailability.Spent,
-                _ => CombatAiActionPathAvailability.None
-            };
-
-            return new CombatAiActionPathStatus(
-                CombatAiActionPathKind.BreakThreat,
-                defensiveAvailability);
-        }
-
-        if (turnPlan.ActionProbe.CanUsePreferredAction ||
-            (turnPlan.ActionProbe.CanUseBackupAction && !turnPlan.MovementPlan.HasGoal))
-        {
-            return new CombatAiActionPathStatus(
-                CombatAiActionPathKind.AttackNow,
-                CombatAiActionPathAvailability.Available);
-        }
-
-        if (!turnPlan.MovementPlan.HasGoal)
-        {
-            return new CombatAiActionPathStatus(
-                CombatAiActionPathKind.NoAction,
-                CombatAiActionPathAvailability.None);
-        }
-
-        var turnsToPreferredAction = EstimateTurnsToPreferredAction(
-            actor,
-            turnPlan,
-            actor?.LocationPosition ?? turnPlan.MovementPlan.TargetPosition);
-        var hasAttackCapablePositioningDestination =
-            HasAttackCapablePositioningDestination(actor, turnPlan);
-        var kind =
-            turnPlan.ActionProbe.PreferredAction != CombatAiActionKind.None &&
-            (hasAttackCapablePositioningDestination ||
-             (!RequiresPostMoveActionConnectedPositioning(turnPlan) &&
-              turnsToPreferredAction >= 0 &&
-              turnsToPreferredAction <= 1))
-                ? CombatAiActionPathKind.AttackAfterMove
-                : CombatAiActionPathKind.PursueForNextRound;
-
-        var availability = movementAvailability.Availability switch
-        {
-            CombatAiMovementAvailability.Available => CombatAiActionPathAvailability.Available,
-            CombatAiMovementAvailability.Blocked => CombatAiActionPathAvailability.Blocked,
-            CombatAiMovementAvailability.Spent => CombatAiActionPathAvailability.Spent,
-            _ => CombatAiActionPathAvailability.None
-        };
-
-        return new CombatAiActionPathStatus(kind, availability, turnsToPreferredAction);
-    }
-
-    private static string FormatPosition(int3 position)
-    {
-        return $"{position.x},{position.y},{position.z}";
-    }
-
-    private static string FormatTurnsToAction(int turnsToAction)
-    {
-        return turnsToAction >= 0 ? turnsToAction.ToString() : "unknown";
     }
 
     private static ulong GetGroundMeleeRouteMemoryKey(GameLocationCharacter character)
@@ -26487,10 +16686,18 @@ validation = new CombatAiMainActionValidation(
                 false);
         }
 
-        var attackModes = character.RulesetCharacter.AttackModes
-            .Where(mode => mode != null)
-            .ToArray();
-        var hasMelee = attackModes.Any(IsMeleeAttackModeForAi);
+        var attackModes = character.RulesetCharacter.AttackModes;
+        var hasMelee = false;
+
+        foreach (var mode in attackModes)
+        {
+            if (IsMeleeAttackModeForAi(mode))
+            {
+                hasMelee = true;
+                break;
+            }
+        }
+
         var hasThrownRanged = false;
         var hasTrueRanged = false;
         var trueRangedMaximumRange = 0f;
@@ -26574,22 +16781,20 @@ validation = new CombatAiMainActionValidation(
 
     private static bool HasRangedAttackModes(GameLocationCharacter character)
     {
-        return BuildCapabilityCatalog(character).HasAnyRanged;
-    }
+        if (character?.RulesetCharacter == null)
+        {
+            return false;
+        }
 
-    private static bool HasTrueRangedAttackModes(GameLocationCharacter character)
-    {
-        return BuildCapabilityCatalog(character).HasTrueRanged;
-    }
+        foreach (var mode in character.RulesetCharacter.AttackModes)
+        {
+            if (IsRangedAttackMode(mode))
+            {
+                return true;
+            }
+        }
 
-    private static bool HasThrownAttackModes(GameLocationCharacter character)
-    {
-        return BuildCapabilityCatalog(character).HasThrownRanged;
-    }
-
-    private static bool HasMeleeAttackModes(GameLocationCharacter character)
-    {
-        return BuildCapabilityCatalog(character).HasMelee;
+        return false;
     }
 
     private static bool HasOpportunityAttackRisk(
@@ -26992,7 +17197,6 @@ validation = new CombatAiMainActionValidation(
             memory.Round,
             memory.TurnStamp);
 
-
         return true;
     }
 
@@ -27151,27 +17355,19 @@ validation = new CombatAiMainActionValidation(
     }
 
     private static bool ApplyPostThreatReturnSeal(
-        GameLocationCharacter actor,
-        int3 startPosition,
-        int3 targetPosition)
+        GameLocationCharacter actor)
     {
         if (actor?.RulesetCharacter == null)
         {
             return false;
         }
 
-        var remainingTacticalMoves = actor.RemainingTacticalMoves;
-
-        if (remainingTacticalMoves <= 0)
+        if (actor.RemainingTacticalMoves <= 0)
         {
             return false;
         }
 
-        actor.UsedTacticalMoves += remainingTacticalMoves;
-        actor.UsedTacticalMovesChanged?.Invoke(actor);
-
-        _ = startPosition;
-        _ = targetPosition;
+        ClearPendingMoveOwnership(actor);
 
         return true;
     }
@@ -27223,11 +17419,8 @@ validation = new CombatAiMainActionValidation(
     private static bool ShouldRejectTrafficBlockingMove(
         GameLocationCharacter actor,
         int3 destination,
-        IGameLocationBattleService battleService,
-        out TrafficBlockKind blockKind)
+        IGameLocationBattleService battleService)
     {
-        blockKind = TrafficBlockKind.None;
-
         if (actor?.RulesetCharacter == null ||
             battleService == null ||
             Gui.Battle == null ||
@@ -27240,7 +17433,7 @@ validation = new CombatAiMainActionValidation(
 
         var turnPlan = BuildCombatAiTurnPlan(actor, profile, battleService);
 
-        return ShouldRejectTrafficBlockingMove(actor, destination, battleService, profile, turnPlan, out blockKind);
+        return ShouldRejectTrafficBlockingMove(actor, destination, battleService, profile, turnPlan);
     }
 
     private static bool ShouldRejectTrafficBlockingMove(
@@ -27248,11 +17441,8 @@ validation = new CombatAiMainActionValidation(
         int3 destination,
         IGameLocationBattleService battleService,
         CombatAiProfile profile,
-        CombatAiTurnPlan turnPlan,
-        out TrafficBlockKind blockKind)
+        CombatAiTurnPlan turnPlan)
     {
-        blockKind = TrafficBlockKind.None;
-
         if (actor?.RulesetCharacter == null ||
             battleService == null ||
             Gui.Battle == null ||
@@ -27295,7 +17485,6 @@ validation = new CombatAiMainActionValidation(
 
         if (ComputeGridDistance(destination, target.LocationPosition) > 2.25f)
         {
-            blockKind = TrafficBlockKind.AllyFireLane;
             return true;
         }
 
@@ -27322,7 +17511,6 @@ validation = new CombatAiMainActionValidation(
                 continue;
             }
 
-            blockKind = TrafficBlockKind.LargeAllyCorridor;
             return true;
         }
 
@@ -27331,7 +17519,6 @@ validation = new CombatAiMainActionValidation(
             return false;
         }
 
-        blockKind = TrafficBlockKind.AllyFireLane;
         return true;
     }
 
@@ -27444,122 +17631,72 @@ validation = new CombatAiMainActionValidation(
         return pending.Target == start && pending.Start == target;
     }
 
-    private static bool TryUseActionLinkedFreeJumpToResidualAction(
+    private static bool TryGetSafeGroundMeleeWalkContactCost(
         GameLocationCharacter character,
+        CombatAiProfile profile,
         CombatAiTurnPlan turnPlan,
         IGameLocationBattleService battleService,
-        CombatAiActionLinkedMoveContinuation continuation =
-            CombatAiActionLinkedMoveContinuation.ImmediateResidualAction,
-        bool requireActionAfterMove = true,
-        bool requireJumpImprovement = false,
-        CombatAiRouteMoveSourceKind routeMoveSource = CombatAiRouteMoveSourceKind.FreeJump,
-        bool requireImmediateAttack = false)
+        out int walkCost)
     {
+        walkCost = int.MaxValue;
+
         if (character?.RulesetCharacter == null ||
             battleService == null ||
-            turnPlan.ActionProbe.Target?.RulesetCharacter == null ||
-            character.GetActionTypeStatus(ActionType.Main) != ActionStatus.Available ||
-            character.RemainingTacticalMoves <= 0)
+            !IsGroundMeleePursuitPlan(turnPlan) ||
+            !TryGetGroundMeleeTargetContactRouteQuery(character, turnPlan, out var query) ||
+            !query.Complete ||
+            query.IsCompleteApproach ||
+            query.Map.ContactPositions == null)
         {
             return false;
         }
 
-        if (!requireImmediateAttack &&
-            ShouldBlockGenericFreeJumpForPositioning(turnPlan, routeMoveSource))
-        {
-            return false;
-        }
+        var start = character.LocationPosition;
+        var target = turnPlan.ActionProbe.Target;
+        var remainingMove = Math.Max(0, character.RemainingTacticalMoves);
 
-        var bestDestination = default(int3);
-        var bestAction = CombatAiActionKind.None;
-        var groundMeleeJumpRouteAvailable = false;
-        var foundCandidate = requireImmediateAttack
-            ? TryFindJumpImmediateAttackCandidate(
-                character,
-                turnPlan,
-                battleService,
-                out bestDestination,
-                out bestAction,
-                out _)
-            : TryFindActionLinkedFreeJumpCandidate(
-                character,
-                turnPlan,
-                battleService,
-                requireActionAfterMove,
-                out bestDestination,
-                out bestAction,
-                out _,
-                out groundMeleeJumpRouteAvailable,
-                requireJumpImprovement);
-
-        if (requireImmediateAttack)
+        foreach (var contactPosition in query.Map.ContactPositions)
         {
-            if (foundCandidate)
+            var candidateMoveCost = query.GetMoveCost(contactPosition);
+
+            if (candidateMoveCost > remainingMove ||
+                !CanUseActionKindAtPosition(
+                    character,
+                    contactPosition,
+                    target,
+                    CombatAiActionKind.Melee,
+                    battleService))
             {
-                JumpImmediateAttackReachableCache.Add(character.Guid);
+                continue;
             }
-            else
+
+            if (contactPosition != start &&
+                (!IsLegalAiRouteDestination(character, contactPosition) ||
+                 IsRejectedAiMoveTarget(character, start, contactPosition) ||
+                 HasForcedRouteOpportunityExposure(character, start, contactPosition, battleService) ||
+                 ShouldRejectTrafficBlockingMove(
+                     character,
+                     contactPosition,
+                     battleService,
+                     profile,
+                     turnPlan)))
             {
-                JumpImmediateAttackReachableCache.Remove(character.Guid);
+                continue;
             }
-        }
-        else if (foundCandidate && groundMeleeJumpRouteAvailable)
-        {
-            GroundMeleeJumpRouteAvailableCache.Add(character.Guid);
+
+            walkCost = Math.Min(walkCost, candidateMoveCost);
         }
 
-        if (!foundCandidate)
-        {
-            return false;
-        }
-
-        var lockRemainingMovement = ShouldLockRemainingMovementAfterRouteMove(turnPlan, continuation);
-
-        var moveToken = CreateActionLinkedMoveToken();
-        ActionLinkedMoveCache[character.Guid] = new ActionLinkedMoveMemory(
-            turnPlan.ActionProbe.Target,
-            bestAction,
-            continuation,
-            turnPlan.MovementPlan.Goal,
-            character.LocationPosition,
-            bestDestination,
-            routeMoveSource,
-            lockRemainingMovement,
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp),
-            moveToken);
-
-        if (lockRemainingMovement)
-        {
-            RecordPendingRouteMovementLock(character, turnPlan.MovementPlan.Goal, continuation, bestDestination);
-        }
-
-        if (!TryExecuteAiFreeJumpTacticalMove(
-                character,
-                bestDestination,
-                routeMoveSource))
-        {
-            ActionLinkedMoveCache.Remove(character.Guid);
-            PendingRouteMovementLockCache.Remove(character.Guid);
-            return false;
-        }
-
-        MarkDashBlockedAfterRouteMove(character, turnPlan.MovementPlan.Goal, bestDestination);
-
-        return true;
+        return walkCost < int.MaxValue;
     }
 
     private static bool TryFindJumpImmediateAttackCandidate(
         GameLocationCharacter character,
         CombatAiTurnPlan turnPlan,
         IGameLocationBattleService battleService,
-        out int3 bestDestination,
-        out CombatAiActionKind bestAction,
-        out float bestScore)
+        out int3 bestDestination)
     {
         bestDestination = default;
-        bestAction = CombatAiActionKind.None;
-        bestScore = float.MinValue;
 
         if (character?.RulesetCharacter == null ||
             battleService == null ||
@@ -27591,7 +17728,6 @@ validation = new CombatAiMainActionValidation(
         var target = turnPlan.ActionProbe.Target;
         var targetPosition = turnPlan.MovementPlan.TargetPosition;
         var selectedDestination = default(int3);
-        var selectedAction = CombatAiActionKind.None;
         var selectedScore = float.MinValue;
         var found = false;
 
@@ -27610,7 +17746,7 @@ validation = new CombatAiMainActionValidation(
                 return true;
             }
 
-            if (!IsLegalAiRouteDestination(character, destination, out _))
+            if (!IsLegalAiRouteDestination(character, destination))
             {
                 return true;
             }
@@ -27624,21 +17760,18 @@ validation = new CombatAiMainActionValidation(
                 return true;
             }
 
-            var candidateAction = CombatAiActionKind.Melee;
             var actionScore =
                 score +
                 (preferredAvailable ? 1.50f : 1.00f) -
                 (FreeJumpContext.ComputeAiFreeJumpMovementCost(start, destination) * 0.01f) +
-                ComputeStableTieBreakScore(character, turnPlan, destination, candidateAction);
+                ComputeStableTieBreakScore(character, turnPlan, destination, CombatAiActionKind.Melee);
 
             if (!ShouldReplaceJumpImmediateAttackCandidate(
                     found,
                     actionScore,
                     selectedScore,
                     destination,
-                    candidateAction,
-                    selectedDestination,
-                    selectedAction))
+                    selectedDestination))
             {
                 return true;
             }
@@ -27646,7 +17779,6 @@ validation = new CombatAiMainActionValidation(
             found = true;
             selectedScore = actionScore;
             selectedDestination = destination;
-            selectedAction = candidateAction;
             return true;
         }
 
@@ -27669,8 +17801,6 @@ validation = new CombatAiMainActionValidation(
         }
 
         bestDestination = selectedDestination;
-        bestAction = selectedAction;
-        bestScore = selectedScore;
         JumpImmediateAttackReachableCache.Add(character.Guid);
         return true;
     }
@@ -27680,9 +17810,7 @@ validation = new CombatAiMainActionValidation(
         float candidateScore,
         float selectedScore,
         int3 candidateDestination,
-        CombatAiActionKind candidateAction,
-        int3 selectedDestination,
-        CombatAiActionKind selectedAction)
+        int3 selectedDestination)
     {
         if (!hasSelectedCandidate)
         {
@@ -27697,13 +17825,6 @@ validation = new CombatAiMainActionValidation(
         if (candidateScore < selectedScore - CandidateScoreEpsilon)
         {
             return false;
-        }
-
-        var actionComparison = ((int)candidateAction).CompareTo((int)selectedAction);
-
-        if (actionComparison != 0)
-        {
-            return actionComparison < 0;
         }
 
         return ComparePositionKey(candidateDestination, selectedDestination) < 0;
@@ -27739,245 +17860,6 @@ validation = new CombatAiMainActionValidation(
             1,
             FreeJumpDefaultMinimumSuccessChance,
             (destination, _, score) => considerCandidate(destination, score));
-    }
-
-    private static bool TryFindActionLinkedFreeJumpCandidate(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        bool requireActionAfterMove,
-        out int3 bestDestination,
-        out CombatAiActionKind bestAction,
-        out float bestScore,
-        out bool selectedGroundMeleeRouteImprovement,
-        bool requireJumpImprovement = false,
-        bool requireImmediateAttack = false)
-    {
-        bestDestination = default;
-        bestAction = CombatAiActionKind.None;
-        bestScore = float.MinValue;
-        selectedGroundMeleeRouteImprovement = false;
-
-        if (character?.RulesetCharacter == null ||
-            battleService == null ||
-            turnPlan.ActionProbe.Target?.RulesetCharacter == null ||
-            character.GetActionTypeStatus(ActionType.Main) != ActionStatus.Available ||
-            character.RemainingTacticalMoves <= 0)
-        {
-            return false;
-        }
-
-        if (!CanUseFreeJumpForAi(character))
-        {
-            return false;
-        }
-
-        var found = false;
-        var selectedDestination = default(int3);
-        var selectedAction = CombatAiActionKind.None;
-        var selectedScore = float.MinValue;
-        var movementProgress = GetOrCreateTurnMovementProgress(character, turnPlan);
-        var hasNormalRouteBaseline = movementProgress?.HasAcceptedMoveCandidate == true;
-        var normalActionTurns = movementProgress?.BestPreferredActionMoveTurnsToAction ?? -1;
-        var normalMoveTurns = movementProgress?.BestMoveCandidateTurnsToAction ?? -1;
-        var normalTurnsToAction = normalActionTurns >= 0 ? normalActionTurns : normalMoveTurns;
-        var profile = BuildProfile(character);
-        var target = turnPlan.ActionProbe.Target;
-        var preferredAction = turnPlan.ActionProbe.PreferredAction;
-        var backupAction = turnPlan.ActionProbe.BackupAction;
-        var start = character.LocationPosition;
-        var isProxyThreatRoute = ShouldRequireReachableProxyThreatDestination(character, turnPlan);
-        var isGroundMeleePursuit = IsGroundMeleePursuitPlan(turnPlan);
-        var selectedGroundMeleeRouteImprovementLocal = false;
-
-        bool HandleFreeJumpDestination(int3 destination, float score)
-        {
-            var preferredAvailable = CanUseActionKindAtPosition(
-                character,
-                destination,
-                target,
-                preferredAction,
-                battleService);
-            var backupAvailable = !preferredAvailable &&
-                                  CanUseActionKindAtPosition(
-                                      character,
-                                      destination,
-                                      target,
-                                      backupAction,
-                                      battleService);
-
-            var routeScore = 0f;
-            var improveFiringCandidate =
-                IsImproveFiringPositionPlan(turnPlan) &&
-                (preferredAvailable || backupAvailable);
-            var contactBandAvailable =
-                requireImmediateAttack &&
-                isGroundMeleePursuit &&
-                IsGroundMeleeRouteAdjacentContact(destination, turnPlan.MovementPlan.TargetPosition);
-            var hasActionAfterJump = preferredAvailable || backupAvailable || contactBandAvailable;
-
-            if (requireImmediateAttack && !hasActionAfterJump)
-            {
-                return true;
-            }
-
-            var groundMeleeRouteImprovement = false;
-
-            if (isGroundMeleePursuit &&
-                !TryValidateGroundMeleeJumpRouteCandidate(
-                    character,
-                    turnPlan,
-                    start,
-                    destination,
-                    hasActionAfterJump,
-                    out groundMeleeRouteImprovement))
-            {
-                return true;
-            }
-
-            if (requireJumpImprovement &&
-                hasNormalRouteBaseline)
-            {
-                if (!hasActionAfterJump)
-                {
-                    return true;
-                }
-
-                if (normalTurnsToAction == 0)
-                {
-                    return true;
-                }
-            }
-
-            if (improveFiringCandidate)
-            {
-                movementProgress?.RecordImproveFiringFreeJumpCandidate();
-            }
-
-            if (requireImmediateAttack && hasActionAfterJump)
-            {
-                var selectedImmediateAction = CombatAiActionKind.Melee;
-                var immediateActionScore =
-                    score +
-                    1f +
-                    (CanUseActionKindAtPosition(
-                        character,
-                        destination,
-                        target,
-                        CombatAiActionKind.Melee,
-                        battleService)
-                        ? 0.25f
-                        : 0.15f) +
-                    ComputeStableTieBreakScore(
-                        character,
-                        turnPlan,
-                        destination,
-                        selectedImmediateAction);
-
-                if (found && immediateActionScore <= selectedScore + 0.000001f)
-                {
-                    return true;
-                }
-
-                found = true;
-                selectedScore = immediateActionScore;
-                selectedDestination = destination;
-                selectedAction = selectedImmediateAction;
-                return true;
-            }
-
-            var breakThreatAttackConnected = IsBreakThreatDestinationAttackConnected(
-                character,
-                turnPlan,
-                battleService,
-                start,
-                destination,
-                out _);
-            var breakThreatDefensiveFallback =
-                !breakThreatAttackConnected &&
-                IsBreakThreatDefensiveFallbackDestination(
-                    character,
-                    turnPlan,
-                    battleService,
-                    start,
-                    destination,
-                    out _);
-
-            if ((!requireActionAfterMove ||
-                 turnPlan.MovementPlan.Goal == CombatAiMovementGoalKind.BreakThreat) &&
-                (!TryComputeTurnPlanMovementScore(
-                     character,
-                     profile,
-                     destination,
-                     battleService,
-                     turnPlan,
-                     out routeScore) ||
-                 routeScore <= 0f))
-            {
-                if (!isProxyThreatRoute || !breakThreatDefensiveFallback)
-                {
-                    return true;
-                }
-
-                routeScore = Math.Max(routeScore, 0.15f);
-            }
-
-            if (requireActionAfterMove &&
-                !preferredAvailable &&
-                !backupAvailable &&
-                !breakThreatDefensiveFallback)
-            {
-                return true;
-            }
-
-            if (!breakThreatAttackConnected && !breakThreatDefensiveFallback)
-            {
-                return true;
-            }
-
-            var actionScore =
-                score +
-                routeScore +
-                (preferredAvailable ? 0.25f : backupAvailable ? 0.05f : -0.12f) +
-                ComputeStableTieBreakScore(
-                    character,
-                    turnPlan,
-                    destination,
-                    preferredAvailable ? preferredAction : backupAction);
-
-            if (found && actionScore <= selectedScore + 0.000001f)
-            {
-                return true;
-            }
-
-            found = true;
-            selectedScore = actionScore;
-            selectedDestination = destination;
-            selectedGroundMeleeRouteImprovementLocal = groundMeleeRouteImprovement;
-            selectedAction = preferredAvailable
-                ? preferredAction
-                : backupAvailable
-                    ? backupAction
-                    : CombatAiActionKind.None;
-
-            return true;
-        }
-
-        _ = requireImmediateAttack
-            ? FreeJumpContext.TryEnumerateImmediateAttackAiFreeJumpDestinations(character, HandleFreeJumpDestination)
-            : FreeJumpContext.TryEnumerateUsefulAiFreeJumpDestinations(character, HandleFreeJumpDestination);
-
-        if (!found)
-        {
-            return false;
-        }
-
-        bestDestination = selectedDestination;
-        bestAction = selectedAction;
-        bestScore = selectedScore;
-        selectedGroundMeleeRouteImprovement = selectedGroundMeleeRouteImprovementLocal;
-
-        return true;
     }
 
     private static void TryCompleteActionLinkedMove(
@@ -28115,7 +17997,7 @@ validation = new CombatAiMainActionValidation(
                 return;
             }
 
-            CloseLateCompletionAndScheduleTerminal(
+            CloseLateActionLinkedMoveCompletion(
                 character,
                 pendingAction,
                 pendingAction.StartPosition,
@@ -28125,38 +18007,32 @@ validation = new CombatAiMainActionValidation(
 
         if (IsGroundMeleePursuitTerminalRoute(pendingAction))
         {
-            RecordGroundMeleeRouteIntent(
-                character,
-                pendingAction.Target,
-                pendingAction.StartPosition,
-                character.LocationPosition);
+            ClearGroundMeleeRouteFailureAfterProgress(character);
         }
 
         ApplyRouteMovementLockAfterArrival(character, pendingAction);
 
+        if (pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.ImmediateResidualAction)
+        {
+            InvalidateTurnPlanningCache(character);
+            return;
+        }
+
         if (pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.ReturnToVanillaDecision)
         {
-            ClearTurnCache(character);
+
+            InvalidateTurnPlanningCache(character);
             return;
         }
 
-        if (pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove)
+        if (pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.ReturnToCoordinatorAfterRouteMove)
         {
-            SchedulePendingRouteActionOnlyTerminal(
-                character,
-                pendingAction,
-                pendingAction.ExpectedDestination,
-                character.LocationPosition);
-            ClearTurnCache(character);
+
+            InvalidateTurnPlanningCache(character);
             return;
         }
 
-        SchedulePendingRouteActionOnlyTerminal(
-            character,
-            pendingAction,
-            pendingAction.ExpectedDestination,
-            character.LocationPosition);
-        ClearTurnCache(character);
+        InvalidateTurnPlanningCache(character);
     }
 
     private static void ApplyRouteMovementLockAfterArrival(
@@ -28172,8 +18048,7 @@ validation = new CombatAiMainActionValidation(
         var actualSafe = IsRouteMovementLockActualDestinationValid(
             character,
             pendingAction,
-            actualDestination,
-            out _);
+            actualDestination);
         var partialThreatMove =
             !actualSafe &&
             CanApplyPartialThreatRouteMovementLock(
@@ -28207,7 +18082,6 @@ validation = new CombatAiMainActionValidation(
             return;
         }
 
-        ApplyRouteMovementLock(character);
         MarkRecentMeleeThreatHandledThisTurn(
             character,
             pendingAction,
@@ -28218,14 +18092,10 @@ validation = new CombatAiMainActionValidation(
     private static bool IsRouteMovementLockActualDestinationValid(
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
-        int3 actualDestination,
-        out RouteActualDestinationValidationKind validationKind)
+        int3 actualDestination)
     {
-        validationKind = RouteActualDestinationValidationKind.Valid;
-
         if (character?.RulesetCharacter == null)
         {
-            validationKind = RouteActualDestinationValidationKind.MissingActor;
             return false;
         }
 
@@ -28237,8 +18107,7 @@ validation = new CombatAiMainActionValidation(
                 character,
                 pendingAction,
                 actualDestination,
-                battleService,
-                out validationKind);
+                battleService);
         }
 
         if (!IsThreatRouteMovementLockGoal(pendingAction.MovementGoal))
@@ -28248,19 +18117,16 @@ validation = new CombatAiMainActionValidation(
 
         if (actualDestination == pendingAction.StartPosition)
         {
-            validationKind = RouteActualDestinationValidationKind.NoMovement;
             return false;
         }
 
         if (battleService != null && WouldBeInCurrentOrRecentMeleeThreat(character, actualDestination, battleService))
         {
-            validationKind = RouteActualDestinationValidationKind.ThreatZone;
             return false;
         }
 
         if (!TryGetThreatAvoidance(character, out var avoidance))
         {
-            validationKind = RouteActualDestinationValidationKind.NoAvoidanceMemory;
             return false;
         }
 
@@ -28270,7 +18136,6 @@ validation = new CombatAiMainActionValidation(
 
         if (afterDistance < beforeDistance + ThreatAvoidanceActualDistanceGain)
         {
-            validationKind = RouteActualDestinationValidationKind.InsufficientThreatDistanceGain;
             return false;
         }
 
@@ -28281,22 +18146,17 @@ validation = new CombatAiMainActionValidation(
         GameLocationCharacter character,
         ActionLinkedMoveMemory pendingAction,
         int3 actualDestination,
-        IGameLocationBattleService battleService,
-        out RouteActualDestinationValidationKind validationKind)
+        IGameLocationBattleService battleService)
     {
-        validationKind = RouteActualDestinationValidationKind.Valid;
-
         var target = pendingAction.Target;
 
         if (target?.RulesetCharacter == null || battleService == null)
         {
-            validationKind = RouteActualDestinationValidationKind.MissingTargetOrBattleService;
             return false;
         }
 
         if (actualDestination == pendingAction.StartPosition)
         {
-            validationKind = RouteActualDestinationValidationKind.NoMovement;
             return false;
         }
 
@@ -28305,14 +18165,12 @@ validation = new CombatAiMainActionValidation(
 
         if (!isFlyingSpacing && moveCost > MeleeSpacingMaximumMoveCost)
         {
-            validationKind = RouteActualDestinationValidationKind.SpacingMovedTooFar;
             return false;
         }
 
         if (isFlyingSpacing &&
             moveCost > Math.Max(character.MaxTacticalMoves, character.RemainingTacticalMoves))
         {
-            validationKind = RouteActualDestinationValidationKind.FlyingSpacingMovedTooFar;
             return false;
         }
 
@@ -28323,7 +18181,6 @@ validation = new CombatAiMainActionValidation(
                 CombatAiActionKind.Melee,
                 battleService))
         {
-            validationKind = RouteActualDestinationValidationKind.NoMeleePressure;
             return false;
         }
 
@@ -28333,29 +18190,25 @@ validation = new CombatAiMainActionValidation(
                 actualDestination,
                 battleService))
         {
-            validationKind = RouteActualDestinationValidationKind.OpportunityExposure;
             return false;
         }
 
-        if (ShouldRejectMeleeSpacingTrafficMove(character, actualDestination, target, battleService, out _))
+        if (ShouldRejectMeleeSpacingTrafficMove(character, actualDestination, target, battleService))
         {
-            validationKind = RouteActualDestinationValidationKind.Traffic;
             return false;
         }
 
-        var adjacentBefore = CountMeleeAllyCrowding(character, target, pendingAction.StartPosition);
-        var adjacentAfter = CountMeleeAllyCrowding(character, target, actualDestination);
-        var gridGapAfter = GetNearestMeleeAllyCrowdingHorizontalGap(character, target, actualDestination);
+        var crowdingBefore = EvaluateMeleeAllyCrowding(character, target, pendingAction.StartPosition);
+        var crowdingAfter = EvaluateMeleeAllyCrowding(character, target, actualDestination);
 
-        if (adjacentBefore <= 0)
+        if (crowdingBefore.AdjacentCount <= 0)
         {
-            validationKind = RouteActualDestinationValidationKind.NoAdjacentAllyBefore;
             return false;
         }
 
-        if (adjacentAfter > 0 || gridGapAfter < MeleeSpacingRequiredGridGap)
+        if (crowdingAfter.AdjacentCount > 0 ||
+            crowdingAfter.NearestHorizontalGap < MeleeSpacingRequiredGridGap)
         {
-            validationKind = RouteActualDestinationValidationKind.InsufficientHorizontalGap;
             return false;
         }
 
@@ -28400,8 +18253,7 @@ validation = new CombatAiMainActionValidation(
         var actualSafe = IsRouteMovementLockActualDestinationValid(
             character,
             pendingAction,
-            actualDestination,
-            out _);
+            actualDestination);
         partialThreatMove = !actualSafe && partialThreatMove;
 
         if (!actualSafe && !partialThreatMove)
@@ -28429,14 +18281,13 @@ validation = new CombatAiMainActionValidation(
 
         PendingRouteMovementLockCache.Remove(character.Guid);
         ProxyThreatRouteAttemptCache.Remove(character.Guid);
-        ApplyRouteMovementLock(character);
         MarkRecentMeleeThreatHandledThisTurn(
             character,
             pendingAction,
             actualDestination,
             safePositionUpdated);
 
-        ClearTurnCache(character);
+        InvalidateTurnPlanningCache(character);
 
         return true;
     }
@@ -28479,7 +18330,6 @@ validation = new CombatAiMainActionValidation(
         {
             RecordAiMoveFailure(character, startPosition, expectedDestination);
             RecordGroundMeleeRouteFailure(character, pendingAction.Target, startPosition, expectedDestination);
-            RouteMoveDashBlockCache.Remove(character.Guid);
             TurnMovementProgressCache.Remove(character.Guid);
             CloseGroundMeleePursuitRouteCompletion(
                 character,
@@ -28489,12 +18339,6 @@ validation = new CombatAiMainActionValidation(
                 actualDestination,
                 RouteMoveCompletionFlags.NoMove | RouteMoveCompletionFlags.GroundMeleeNoMove);
 
-            SchedulePendingRouteActionOnlyTerminal(
-                character,
-                pendingAction,
-                expectedDestination,
-                actualDestination,
-                consumeAfterAbort: true);
             return true;
         }
 
@@ -28507,7 +18351,6 @@ validation = new CombatAiMainActionValidation(
         {
             RecordAiMoveFailure(character, startPosition, expectedDestination);
             RecordGroundMeleeRouteFailure(character, pendingAction.Target, startPosition, expectedDestination);
-            RouteMoveDashBlockCache.Remove(character.Guid);
             TurnMovementProgressCache.Remove(character.Guid);
             CloseGroundMeleePursuitRouteCompletion(
                 character,
@@ -28517,22 +18360,11 @@ validation = new CombatAiMainActionValidation(
                 actualDestination,
                 RouteMoveCompletionFlags.None);
 
-            SchedulePendingRouteActionOnlyTerminal(
-                character,
-                pendingAction,
-                expectedDestination,
-                actualDestination,
-                consumeAfterAbort: true);
             return true;
         }
 
-        GroundMeleeNoMoveTerminalSealCache.Remove(character.Guid);
         UpdateTurnMovementProgress(character);
-        RecordGroundMeleeRouteIntent(
-            character,
-            pendingAction.Target,
-            startPosition,
-            actualDestination);
+        ClearGroundMeleeRouteFailureAfterProgress(character);
         CloseGroundMeleePursuitRouteCompletion(
             character,
             pendingAction,
@@ -28545,22 +18377,15 @@ validation = new CombatAiMainActionValidation(
             pendingAction,
             actualDestination);
 
-        SchedulePendingRouteActionOnlyTerminal(
-            character,
-            pendingAction,
-            expectedDestination,
-            actualDestination);
-
         return true;
     }
 
     private static bool IsGroundMeleePursuitTerminalRoute(ActionLinkedMoveMemory pendingAction)
     {
         return pendingAction.MovementGoal == CombatAiMovementGoalKind.AdvanceToMelee &&
-               pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove &&
+               pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.ReturnToCoordinatorAfterRouteMove &&
                pendingAction.RouteMoveSource is CombatAiRouteMoveSourceKind.Normal
-                   or CombatAiRouteMoveSourceKind.BonusDash
-                   or CombatAiRouteMoveSourceKind.GroundMeleeShortcut;
+                   or CombatAiRouteMoveSourceKind.BonusDash;
     }
 
     private static bool IsGroundMeleeJumpImmediateAttackRoute(ActionLinkedMoveMemory pendingAction)
@@ -28613,12 +18438,12 @@ validation = new CombatAiMainActionValidation(
 
     }
 
-    private static bool TryApplyPendingRouteMovementLock(GameLocationCharacter character)
+    private static void ApplyPendingRouteMovementState(GameLocationCharacter character)
     {
         if (character?.RulesetCharacter == null ||
             !PendingRouteMovementLockCache.TryGetValue(character.Guid, out var pendingLock))
         {
-            return false;
+            return;
         }
 
         var currentRound = GetCurrentBattleRound();
@@ -28628,13 +18453,13 @@ validation = new CombatAiMainActionValidation(
             currentTurnStamp != pendingLock.TurnStamp)
         {
             PendingRouteMovementLockCache.Remove(character.Guid);
-            return false;
+            return;
         }
 
         if (pendingLock.MovementGoal == CombatAiMovementGoalKind.MeleeSpacing)
         {
             PendingRouteMovementLockCache.Remove(character.Guid);
-            return false;
+            return;
         }
 
         var actualDestination = character.LocationPosition;
@@ -28647,25 +18472,21 @@ validation = new CombatAiMainActionValidation(
             {
                 PendingRouteMovementLockCache.Remove(character.Guid);
 
-
-                return false;
+                return;
             }
 
             PendingRouteMovementLockCache.Remove(character.Guid);
-            return false;
+            return;
         }
 
         if (!isThreatRoute &&
             ComputeGridDistance(actualDestination, pendingLock.ExpectedDestination) > 2f)
         {
-            return false;
+            return;
         }
 
         PendingRouteMovementLockCache.Remove(character.Guid);
         ProxyThreatRouteAttemptCache.Remove(character.Guid);
-
-        var validSafePosition = !isThreatRoute;
-        var canApplyMovementLock = !isThreatRoute;
 
         if (ThreatAvoidanceMemoryCache.TryGetValue(character.Guid, out var avoidance))
         {
@@ -28673,12 +18494,10 @@ validation = new CombatAiMainActionValidation(
             var beforeDistance = ComputeGridDistance(avoidance.StartPosition, sourcePosition);
             var afterDistance = ComputeGridDistance(actualDestination, sourcePosition);
             var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-            validSafePosition =
+            var validSafePosition =
                 afterDistance >= beforeDistance + ThreatAvoidanceActualDistanceGain &&
                 (battleService == null ||
                  !WouldBeInCurrentOrRecentMeleeThreat(character, actualDestination, battleService));
-            canApplyMovementLock = !isThreatRoute || actualMoved;
-
             ThreatAvoidanceMemoryCache[character.Guid] = new ThreatAvoidanceMemory(
                 avoidance.Source,
                 sourcePosition,
@@ -28692,17 +18511,6 @@ validation = new CombatAiMainActionValidation(
                 avoidance.TurnStamp);
 
         }
-        else if (isThreatRoute)
-        {
-            canApplyMovementLock = actualMoved;
-        }
-
-        if (!canApplyMovementLock)
-        {
-            return false;
-        }
-
-        return ApplyRouteMovementLock(character);
     }
 
     private static bool IsThreatRouteMovementLockGoal(CombatAiMovementGoalKind movementGoal)
@@ -28733,13 +18541,6 @@ validation = new CombatAiMainActionValidation(
             PendingRouteMovementLockCache.Remove(character.Guid);
             return true;
         }
-
-
-        ThreatRouteRecoveryCache[character.Guid] = new ThreatRouteRecoveryMemory(
-            pendingAction.MovementGoal,
-            failedDestination,
-            currentRound,
-            currentTurnStamp);
 
         RecordAiMoveFailure(character, startPosition, failedDestination);
         RecordProxyThreatRouteNoMove(character, pendingAction, startPosition, failedDestination);
@@ -28826,236 +18627,6 @@ validation = new CombatAiMainActionValidation(
 
     }
 
-    private static ProxyThreatRouteMoveResult TryUseReachableProxyThreatRouteMove(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        CombatAiProfile profile,
-        int3 startPosition,
-        IEnumerable<int3> excludedDestinations,
-        GameLocationCharacter target,
-        CombatAiActionKind actionKind,
-        CombatAiActionLinkedMoveContinuation continuation,
-        CombatAiMovementGoalKind movementGoal,
-        bool lockRemainingMovement,
-        bool requireActionAfterMove,
-        out int3 destination)
-    {
-        destination = default;
-
-        if (character?.RulesetCharacter == null ||
-            battleService == null ||
-            !IsThreatRouteMovementLockGoal(movementGoal) ||
-            !TryGetProxyMeleeThreat(character, out var proxyThreat))
-        {
-            return new ProxyThreatRouteMoveResult(ProxyThreatRouteMoveStatus.Unavailable);
-        }
-
-        var currentPosition = character.LocationPosition;
-        var sourcePosition = proxyThreat.Source?.LocationPosition ?? proxyThreat.SourcePosition;
-        var currentThreatDistance = ComputeGridDistance(currentPosition, sourcePosition);
-        var remainingMove = Math.Max(0, character.RemainingTacticalMoves);
-
-        if (remainingMove <= 0 ||
-            character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available ||
-            !character.CanDecideToMoveByItself)
-        {
-            return new ProxyThreatRouteMoveResult(ProxyThreatRouteMoveStatus.Unavailable);
-        }
-
-        if (!TryGetReachableRouteDestinations(
-                character,
-                currentPosition,
-                remainingMove,
-                out var reachableDestinations,
-                allowPathfinding: true))
-        {
-            return new ProxyThreatRouteMoveResult(ProxyThreatRouteMoveStatus.Unavailable);
-        }
-
-        var excludedKeys = new HashSet<string>(
-            (excludedDestinations ?? Enumerable.Empty<int3>())
-            .Select(GetPositionKey))
-        {
-            GetPositionKey(currentPosition),
-            GetPositionKey(startPosition)
-        };
-
-        if (TryGetRecentNoMoveProxyThreatAttempt(character, currentPosition, out var previousProxyAttempt))
-        {
-            excludedKeys.Add(GetPositionKey(previousProxyAttempt.FailedDestination));
-        }
-
-        var candidates = BuildReachableProxyThreatRecoveryCandidates(
-            character,
-            turnPlan,
-            battleService,
-            currentPosition,
-            sourcePosition,
-            reachableDestinations,
-            excludedKeys,
-            target ?? turnPlan.ActionProbe.Target,
-            remainingMove,
-            currentThreatDistance);
-        foreach (var candidate in candidates.Take(ProxyThreatRecoveryCandidateLimit))
-        {
-            if (!TryValidateForcedRouteDestination(
-                    character,
-                    turnPlan,
-                    battleService,
-                    profile,
-                    currentPosition,
-                    candidate.Position,
-                    requireActionAfterMove))
-            {
-                continue;
-            }
-
-            destination = candidate.Position;
-            var moveToken = CreateActionLinkedMoveToken();
-            ActionLinkedMoveCache[character.Guid] = new ActionLinkedMoveMemory(
-                target,
-                actionKind,
-                continuation,
-                movementGoal,
-                currentPosition,
-                candidate.Position,
-                CombatAiRouteMoveSourceKind.Normal,
-                lockRemainingMovement,
-                GetCurrentBattleRound(),
-                Math.Max(1, ObservedCombatMemoryTurnStamp),
-                moveToken);
-
-            if (lockRemainingMovement)
-            {
-                RecordPendingRouteMovementLock(character, movementGoal, continuation, candidate.Position);
-            }
-
-            if (!TryValidateAiTacticalMoveIssue(character, candidate.Position))
-            {
-                ActionLinkedMoveCache.Remove(character.Guid);
-                PendingRouteMovementLockCache.Remove(character.Guid);
-                return new ProxyThreatRouteMoveResult(ProxyThreatRouteMoveStatus.Unavailable);
-            }
-
-            MarkDashBlockedAfterRouteMove(
-                character,
-                movementGoal,
-                candidate.Position);
-
-            FreeJumpContext.SuppressAiFreeJumpForNextMove(character, candidate.Position);
-            character.MyExecuteActionTacticalMove(candidate.Position);
-
-            return new ProxyThreatRouteMoveResult(ProxyThreatRouteMoveStatus.Executed, candidate.Position);
-        }
-
-        return new ProxyThreatRouteMoveResult(ProxyThreatRouteMoveStatus.Unavailable);
-    }
-
-    private static List<ProxyThreatRecoveryCandidate> BuildReachableProxyThreatRecoveryCandidates(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService,
-        int3 currentPosition,
-        int3 sourcePosition,
-        ReachableRouteDestinationMemory reachableDestinations,
-        HashSet<string> excludedKeys,
-        GameLocationCharacter target,
-        int remainingMove,
-        float currentThreatDistance)
-    {
-        var candidates = new List<ProxyThreatRecoveryCandidate>();
-        var preferredAction = turnPlan.ActionProbe.PreferredAction;
-        var backupAction = turnPlan.ActionProbe.BackupAction;
-
-        foreach (var candidatePosition in reachableDestinations.Positions)
-        {
-            if (candidatePosition == currentPosition ||
-                excludedKeys.Contains(GetPositionKey(candidatePosition)))
-            {
-                continue;
-            }
-
-            if (RequiresMainDashForForcedMove(character, currentPosition, candidatePosition))
-            {
-                continue;
-            }
-
-            var candidateThreatDistance = ComputeGridDistance(candidatePosition, sourcePosition);
-            var threatGain = candidateThreatDistance - currentThreatDistance;
-
-            if (candidateThreatDistance <= ThreatAvoidanceThreatZoneDistance)
-            {
-                continue;
-            }
-
-            if (threatGain < ThreatAvoidanceMinimumDistanceGain)
-            {
-                continue;
-            }
-
-            var canUsePreferredAction =
-                target?.RulesetCharacter != null &&
-                preferredAction != CombatAiActionKind.None &&
-                CanUseActionKindAtPosition(
-                    character,
-                    candidatePosition,
-                    target,
-                    preferredAction,
-                    battleService);
-            var canUseBackupAction =
-                !canUsePreferredAction &&
-                target?.RulesetCharacter != null &&
-                backupAction != CombatAiActionKind.None &&
-                CanUseActionKindAtPosition(
-                    character,
-                    candidatePosition,
-                    target,
-                    backupAction,
-                    battleService);
-            var connectsAttack = canUsePreferredAction || canUseBackupAction;
-            var defensiveFallback =
-                !connectsAttack &&
-                IsBreakThreatDefensiveFallbackDestination(
-                    character,
-                    turnPlan,
-                    battleService,
-                    currentPosition,
-                    candidatePosition,
-                    out _);
-
-            if (!connectsAttack && !defensiveFallback)
-            {
-                continue;
-            }
-
-            var score =
-                threatGain +
-                (connectsAttack ? 1.0f : 0.25f) -
-                (ComputeForcedMoveCost(currentPosition, candidatePosition) * 0.03f) +
-                ComputeStableTieBreakScore(
-                    character,
-                    turnPlan,
-                    candidatePosition,
-                    connectsAttack
-                        ? canUsePreferredAction ? preferredAction : backupAction
-                        : CombatAiActionKind.None);
-
-            candidates.Add(new ProxyThreatRecoveryCandidate(
-                candidatePosition,
-                score,
-                threatGain,
-                connectsAttack));
-        }
-
-        return candidates
-            .OrderByDescending(candidate => candidate.Score)
-            .ThenBy(candidate => candidate.Position.x)
-            .ThenBy(candidate => candidate.Position.y)
-            .ThenBy(candidate => candidate.Position.z)
-            .ToList();
-    }
-
     private static bool CanApplyPartialThreatRouteMovementLock(
         CombatAiMovementGoalKind movementGoal,
         int3 startPosition,
@@ -29064,460 +18635,19 @@ validation = new CombatAiMainActionValidation(
         return IsThreatRouteMovementLockGoal(movementGoal) && actualDestination != startPosition;
     }
 
-    private static bool ApplyRouteMovementLock(GameLocationCharacter character)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        if (character.RemainingTacticalMoves <= 0)
-        {
-            return false;
-        }
-
-        var remainingTacticalMoves = character.RemainingTacticalMoves;
-        character.UsedTacticalMoves += remainingTacticalMoves;
-        character.UsedTacticalMovesChanged?.Invoke(character);
-
-
-        return true;
-    }
-
-    private static PostRouteTerminalResult TrySpendPostRouteTerminalAction(
-        GameLocationCharacter character,
-        IGameLocationBattleService battleService,
-        bool allowReadyDodge = true,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess,
-        GameLocationCharacter priorityTarget = null,
-        bool usePendingTerminalLaunch = false,
-        bool preferSelfBuffBeforeReady = false,
-        bool forceReadyDodgeFallback = false)
-    {
-        if (character?.RulesetCharacter == null || battleService == null)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.exit",
-                $"reason=invalid actorNull={character == null} battleServiceNull={battleService == null}");
-            return new PostRouteTerminalResult(PostRouteTerminalStatus.Blocked);
-        }
-
-        var actionEconomy = BuildActionEconomySnapshot(character);
-        var isEndTurnBoundary = launchBoundary == CombatAiActionLaunchBoundary.EndTurn;
-
-        LogCombatAiDiagnostic(
-            character,
-            "PostRoute.enter",
-            $"launch={launchBoundary} allowReadyDodge={allowReadyDodge} " +
-            $"usePendingLaunch={usePendingTerminalLaunch} preferSelfBuff={preferSelfBuffBeforeReady} " +
-            $"forceReadyDodge={forceReadyDodgeFallback} priorityTarget={FormatCombatAiCharacter(priorityTarget)} " +
-            $"{FormatActionEconomySnapshot(actionEconomy)}");
-
-        if (isEndTurnBoundary)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.exit",
-                "reason=end-turn-boundary-blocked");
-            return new PostRouteTerminalResult(PostRouteTerminalStatus.Blocked);
-        }
-
-        if (!actionEconomy.MainAvailable &&
-            !actionEconomy.ReadyAvailable &&
-            !actionEconomy.DodgeAvailable)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.no-main-ready-dodge",
-                FormatActionEconomySnapshot(actionEconomy));
-
-            if (isEndTurnBoundary)
-            {
-                return actionEconomy.Bonus == ActionStatus.Available
-                    ? new PostRouteTerminalResult(
-                        PostRouteTerminalStatus.Scheduled,
-                        CombatAiExecutedActionKind.BonusAction)
-                    : new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
-            }
-
-            return TryRequestRouteTerminalBonusAction(character, actionEconomy, battleService)
-                ? new PostRouteTerminalResult(
-                    usePendingTerminalLaunch || PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid)
-                        ? PostRouteTerminalStatus.Scheduled
-                        : PostRouteTerminalStatus.Executed,
-                    CombatAiExecutedActionKind.BonusAction)
-                : new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
-        }
-
-        var profile = BuildProfile(character);
-        var self = BuildSelfAssessment(character);
-        var turnPlan = BuildCombatAiActionOnlyTurnPlan(character, profile, battleService);
-
-        var terminalReprobeResult = new TerminalReprobeResult(TerminalReprobeStatus.Blocked);
-
-        if (launchBoundary != CombatAiActionLaunchBoundary.StartNext)
-        {
-            terminalReprobeResult = TryUseTerminalReprobeHostileAction(
-                character,
-                turnPlan,
-                battleService,
-                priorityTarget,
-                launchBoundary);
-
-            if (terminalReprobeResult.Executed)
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "PostRoute.exit",
-                    $"reason=terminal-reprobe-executed action={terminalReprobeResult.ActionKind}");
-                return new PostRouteTerminalResult(
-                    PostRouteTerminalStatus.Executed,
-                    ToPostRouteTerminalActionKind(terminalReprobeResult.ActionKind));
-            }
-
-            var currentResidualResult = TryUseAnyCurrentResidualHostileAction(
-                    character,
-                    turnPlan.ActionProbe,
-                    battleService,
-                    priorityTarget,
-                    launchBoundary);
-
-            if (currentResidualResult.Executed)
-            {
-                LogCombatAiDiagnostic(
-                    character,
-                    "PostRoute.exit",
-                    $"reason=current-residual-executed action={currentResidualResult.ActionKind}");
-                return new PostRouteTerminalResult(
-                    PostRouteTerminalStatus.Executed,
-                    ToPostRouteTerminalActionKind(currentResidualResult.ActionKind));
-            }
-        }
-
-        var currentTerminalScan = BuildCurrentTerminalActionScan(
-            character,
-            turnPlan.ActionProbe,
-            battleService,
-            profile,
-            self,
-            priorityTarget);
-        var hasTerminalPolicyHeld = HasTerminalPolicyHeld(false, terminalReprobeResult.PolicyHeld);
-        var hasTerminalFallbackBlock = TryGetTerminalFallbackBlock(
-            currentTerminalScan,
-            hasTerminalPolicyHeld,
-            out var terminalFallbackBlockKind);
-        var hasDisconnectedMovementLeak = TryGetDisconnectedPositioningMovementLeak(
-            character,
-            out _);
-        var canSpendTerminalMain = CanSpendTerminalMainAction(
-            character,
-            actionEconomy);
-        var shouldDeferReadyDodge =
-            !forceReadyDodgeFallback &&
-            ShouldDeferRouteTerminalReadyDodgeFallback(character, actionEconomy);
-
-        LogCombatAiDiagnostic(
-            character,
-            "PostRoute.eval",
-            $"{FormatTerminalScan(currentTerminalScan)} " +
-            $"terminalPolicyHeld={hasTerminalPolicyHeld} " +
-            $"terminalReprobePolicyHeld={terminalReprobeResult.PolicyHeld} " +
-            $"terminalFallbackBlock={hasTerminalFallbackBlock} " +
-            $"terminalFallbackBlockKind={terminalFallbackBlockKind} " +
-            $"disconnectedMovementLeak={hasDisconnectedMovementLeak} " +
-            $"canSpendTerminalMain={canSpendTerminalMain} " +
-            $"shouldDeferReadyDodge={shouldDeferReadyDodge} " +
-            $"{FormatActionEconomySnapshot(actionEconomy)} " +
-            FormatRouteTerminalBlockers(character));
-
-        if (!allowReadyDodge)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.exit",
-                "reason=ready-dodge-not-allowed");
-            return new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
-        }
-
-        if (shouldDeferReadyDodge)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.exit",
-                "reason=defer-route-terminal-ready-dodge");
-            return new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
-        }
-
-        if (preferSelfBuffBeforeReady &&
-            TryUseFallbackAtWillSelfBuff(character, profile, self, turnPlan))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.exit",
-                "reason=pre-ready-self-buff");
-            return new PostRouteTerminalResult(PostRouteTerminalStatus.Executed);
-        }
-
-        if (canSpendTerminalMain &&
-            !hasTerminalFallbackBlock &&
-            TryUseFallbackReady(
-                     character,
-                     profile,
-                     turnPlan,
-                     battleService,
-                     currentTerminalScan,
-                     usePendingTerminalLaunch))
-        {
-            if (!usePendingTerminalLaunch)
-            {
-                RecordTerminalAction(character, turnPlan, CombatAiExecutedActionKind.Ready);
-            }
-
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.exit",
-                $"reason=ready {(usePendingTerminalLaunch ? "scheduled" : "executed")}");
-            return new PostRouteTerminalResult(
-                usePendingTerminalLaunch ? PostRouteTerminalStatus.Scheduled : PostRouteTerminalStatus.Executed,
-                CombatAiExecutedActionKind.Ready);
-        }
-
-        if (TryRequestRouteTerminalBonusAction(character, actionEconomy, battleService))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.exit",
-                "reason=bonus-action");
-            return new PostRouteTerminalResult(
-                usePendingTerminalLaunch || PendingRouteActionOnlyTerminalCache.ContainsKey(character.Guid)
-                    ? PostRouteTerminalStatus.Scheduled
-                    : PostRouteTerminalStatus.Executed,
-                CombatAiExecutedActionKind.BonusAction);
-        }
-
-        if (!preferSelfBuffBeforeReady &&
-            TryUseFallbackAtWillSelfBuff(character, profile, self, turnPlan))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.exit",
-                "reason=post-ready-self-buff");
-            return new PostRouteTerminalResult(PostRouteTerminalStatus.Executed);
-        }
-
-        if (hasTerminalFallbackBlock)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.exit",
-                $"reason=terminal-fallback-block blockKind={terminalFallbackBlockKind}");
-            return new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
-        }
-
-        if (!canSpendTerminalMain)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.exit",
-                "reason=no-terminal-main");
-            return new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
-        }
-
-        if (hasDisconnectedMovementLeak)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.exit",
-                "reason=disconnected-movement-leak");
-            return new PostRouteTerminalResult(PostRouteTerminalStatus.Blocked);
-        }
-
-        if (!actionEconomy.DodgeAvailable)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.exit",
-                "reason=dodge-unavailable");
-            return new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
-        }
-
-        LogCombatAiDiagnostic(
-            character,
-            "PostRoute.dodge-request",
-            $"usePendingLaunch={usePendingTerminalLaunch}");
-        var dodgeResult = TryApplyFallbackDodge(character, usePendingTerminalLaunch);
-
-        if (!dodgeResult.Executed)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "PostRoute.exit",
-                $"reason=dodge-request-not-executed status={dodgeResult.Status}");
-            return new PostRouteTerminalResult(PostRouteTerminalStatus.NoAction);
-        }
-
-        if (!usePendingTerminalLaunch)
-        {
-            RecordTerminalAction(character, turnPlan, CombatAiExecutedActionKind.Dodge);
-        }
-
-        LogCombatAiDiagnostic(
-            character,
-            "PostRoute.exit",
-            $"reason=dodge {(usePendingTerminalLaunch ? "scheduled" : "executed")} status={dodgeResult.Status}");
-        return new PostRouteTerminalResult(
-            usePendingTerminalLaunch ? PostRouteTerminalStatus.Scheduled : PostRouteTerminalStatus.Executed,
-            CombatAiExecutedActionKind.Dodge);
-    }
-
-    private static bool ShouldDeferRouteTerminalReadyDodgeFallback(
-        GameLocationCharacter character,
-        CombatAiActionEconomySnapshot actionEconomy)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        if (!PendingRouteActionOnlyTerminalCache.TryGetValue(character.Guid, out var memory))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "RouteTerminal.defer",
-                $"result=False reason=no-pending-route-terminal {FormatActionEconomySnapshot(actionEconomy)}");
-            return false;
-        }
-
-        if (HasPendingRouteTerminalStableBoundaryBlock(character))
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "RouteTerminal.defer",
-                $"result=True reason=stable-boundary-block {FormatRouteTerminalMemory(memory)} " +
-                $"{FormatActionEconomySnapshot(actionEconomy)} {FormatRouteTerminalBlockers(character)}");
-            return true;
-        }
-
-        var allowMovementContinuation =
-            ShouldAllowRouteTerminalMovementContinuation(character, memory, actionEconomy);
-        var result = !memory.MovementContinuationAllowed && allowMovementContinuation;
-
-        LogCombatAiDiagnostic(
-            character,
-            "RouteTerminal.defer",
-            $"result={result} movementContinuationAllowed={memory.MovementContinuationAllowed} " +
-            $"allowMovementContinuation={allowMovementContinuation} {FormatRouteTerminalMemory(memory)} " +
-            $"{FormatActionEconomySnapshot(actionEconomy)} {FormatRouteTerminalBlockers(character)}");
-
-        return result;
-    }
-
-    private static bool TryAllowRouteTerminalMovementContinuationOnce(
-        GameLocationCharacter character,
-        PendingRouteActionOnlyTerminalMemory memory,
-        CombatAiActionEconomySnapshot actionEconomy)
-    {
-        if (character?.RulesetCharacter == null ||
-            memory.MovementContinuationAllowed ||
-            !ShouldAllowRouteTerminalMovementContinuation(character, memory, actionEconomy))
-        {
-            return false;
-        }
-
-        PendingRouteActionOnlyTerminalCache[character.Guid] = memory.WithMovementContinuationAllowed();
-
-        return true;
-    }
-
-    private static bool ShouldAllowRouteTerminalMovementContinuation(
-        GameLocationCharacter character,
-        PendingRouteActionOnlyTerminalMemory memory,
-        CombatAiActionEconomySnapshot actionEconomy)
-    {
-        if (character?.RulesetCharacter == null)
-        {
-            return false;
-        }
-
-        var pendingAction = memory.PendingAction;
-
-        if (IsSearchKnownTargetRoute(pendingAction) &&
-            !pendingAction.SearchRouteActionConnected)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "RouteTerminal.movement-continuation",
-                $"result=False reason=search-route-not-connected {FormatRouteTerminalMemory(memory)} " +
-                $"{FormatActionEconomySnapshot(actionEconomy)}");
-            return false;
-        }
-
-        if (pendingAction.Continuation != CombatAiActionLinkedMoveContinuation.TerminalAfterRouteMove)
-        {
-            LogCombatAiDiagnostic(
-                character,
-                "RouteTerminal.movement-continuation",
-                $"result=False reason=not-terminal-after-route continuation={pendingAction.Continuation} " +
-                $"{FormatRouteTerminalMemory(memory)} {FormatActionEconomySnapshot(actionEconomy)}");
-            return false;
-        }
-
-        var result =
-            character.LocationPosition != pendingAction.ExpectedDestination &&
-            actionEconomy.TacticalMove == ActionStatus.Available;
-
-        LogCombatAiDiagnostic(
-            character,
-            "RouteTerminal.movement-continuation",
-            $"result={result} actual={FormatCombatAiPosition(character.LocationPosition)} " +
-            $"expected={FormatCombatAiPosition(pendingAction.ExpectedDestination)} " +
-            $"tactical={actionEconomy.TacticalMove} {FormatRouteTerminalMemory(memory)}");
-
-        return result;
-    }
-
-    private static CombatAiExecutedActionKind ToPostRouteTerminalActionKind(CombatAiActionKind actionKind)
-    {
-        return actionKind switch
-        {
-            CombatAiActionKind.Spell => CombatAiExecutedActionKind.CastMain,
-            CombatAiActionKind.None => CombatAiExecutedActionKind.None,
-            _ => CombatAiExecutedActionKind.AttackMain
-        };
-    }
-
-    private static bool IsDirectHostileTerminalAction(CombatAiExecutedActionKind actionKind)
-    {
-        return actionKind is
-            CombatAiExecutedActionKind.AttackMain or
-            CombatAiExecutedActionKind.CastMain or
-            CombatAiExecutedActionKind.Shove or
-            CombatAiExecutedActionKind.Grapple;
-    }
-
-    private static bool ShouldRunNextChainsForResidualHostileAction(CombatAiActionLaunchBoundary launchBoundary)
-    {
-        _ = launchBoundary;
-        return true;
-    }
-
     private static bool TryExecuteResidualHostileAction(
         IGameLocationActionService actionService,
-        CharacterActionParams actionParams,
-        CombatAiActionLaunchBoundary launchBoundary,
-        GameLocationCharacter recoveryCharacter = null)
+        CharacterActionParams actionParams)
     {
         if (actionService == null || actionParams == null)
         {
             return false;
         }
 
-        MarkEndTurnRecoveryActionSubmitted(recoveryCharacter);
         actionService.ExecuteAction(
             actionParams,
             null,
-            ShouldRunNextChainsForResidualHostileAction(launchBoundary));
+            false);
 
         return true;
     }
@@ -29525,23 +18655,20 @@ validation = new CombatAiMainActionValidation(
     private static CombatAiResidualHostileActionResult TryUseResidualSafeHostileAction(
         GameLocationCharacter character,
         CombatAiActionProbe actionProbe,
-        IGameLocationBattleService battleService,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
+        IGameLocationBattleService battleService)
     {
         return TryUseResidualSafeHostileAction(
             character,
             actionProbe,
             battleService,
-            out _,
-            launchBoundary);
+            out _);
     }
 
     private static CombatAiResidualHostileActionResult TryUseResidualSafeHostileAction(
         GameLocationCharacter character,
         CombatAiActionProbe actionProbe,
         IGameLocationBattleService battleService,
-        out bool policyHeld,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
+        out bool policyHeld)
     {
         policyHeld = false;
 
@@ -29555,13 +18682,10 @@ validation = new CombatAiMainActionValidation(
                 character,
                 actionProbe.Target,
                 CombatAiActionKind.Melee,
-                battleService,
-                launchBoundary).Executed)
+                battleService).Executed)
         {
             return new CombatAiResidualHostileActionResult(
-                CombatAiResidualHostileActionResultKind.Executed,
-                CombatAiActionKind.Melee,
-                Id.AttackMain);
+                CombatAiResidualHostileActionResultKind.Executed);
         }
 
         if (ShouldSuppressRangedBackupForMeleeRoute(character, actionProbe, battleService))
@@ -29578,8 +18702,7 @@ validation = new CombatAiMainActionValidation(
                 character,
                 actionProbe.Target,
                 preferredFirst,
-                battleService,
-                launchBoundary);
+                battleService);
 
         if (preferredResult.Executed)
         {
@@ -29591,13 +18714,10 @@ validation = new CombatAiMainActionValidation(
                 character,
                 actionProbe.Target,
                 actionProbe.BackupAction,
-                battleService,
-                launchBoundary).Executed)
+                battleService).Executed)
         {
             return new CombatAiResidualHostileActionResult(
-                CombatAiResidualHostileActionResultKind.Executed,
-                actionProbe.BackupAction,
-                actionProbe.BackupAction == CombatAiActionKind.Spell ? Id.CastMain : Id.AttackMain);
+                CombatAiResidualHostileActionResultKind.Executed);
         }
 
         return preferredResult.IsBlocked
@@ -29614,13 +18734,14 @@ validation = new CombatAiMainActionValidation(
             actionProbe.Target?.RulesetCharacter == null ||
             battleService == null ||
             actionProbe.PreferredAction != CombatAiActionKind.Melee ||
-            actionProbe.BackupAction != CombatAiActionKind.Ranged)
+            actionProbe.BackupAction != CombatAiActionKind.Ranged ||
+            !actionProbe.CanUseBackupAction)
         {
             return false;
         }
 
         var profile = BuildProfile(character);
-        var capabilityCatalog = BuildCapabilityCatalog(character);
+        var capabilityCatalog = actionProbe.CapabilityCatalog;
 
         if (!ShouldPreferMeleeAction(profile, capabilityCatalog))
         {
@@ -29634,13 +18755,32 @@ validation = new CombatAiMainActionValidation(
                 CombatAiActionKind.Melee,
                 battleService))
         {
-            return true;
+            return false;
         }
+
+        if (HasReachedExecutedPreMainRouteDestination(character) &&
+            CanUseActionKindAtPosition(
+                character,
+                character.LocationPosition,
+                actionProbe.Target,
+                CombatAiActionKind.Ranged,
+                battleService))
+        {
+            return false;
+        }
+
+        var canContinueMoving = CanIssueAdditionalTacticalMove(character);
 
         if (ShouldReleaseRangedBackupAfterFailedMeleePursuit(
                 character,
                 actionProbe,
-                battleService))
+                battleService,
+                canContinueMoving))
+        {
+            return false;
+        }
+
+        if (!canContinueMoving)
         {
             return false;
         }
@@ -29656,12 +18796,7 @@ validation = new CombatAiMainActionValidation(
             return true;
         }
 
-        if (JumpImmediateAttackReachableCache.Contains(character.Guid))
-        {
-            return true;
-        }
-
-        return false;
+        return JumpImmediateAttackReachableCache.Contains(character.Guid);
     }
 
     private static bool ShouldPreferCurrentMeleeResidualAction(
@@ -29678,7 +18813,7 @@ validation = new CombatAiMainActionValidation(
         }
 
         var profile = BuildProfile(character);
-        var capabilityCatalog = BuildCapabilityCatalog(character);
+        var capabilityCatalog = actionProbe.CapabilityCatalog;
 
         return ShouldPreferMeleeAction(profile, capabilityCatalog) &&
                CanUseActionKindAtPosition(
@@ -29689,232 +18824,24 @@ validation = new CombatAiMainActionValidation(
                    battleService);
     }
 
-    private static RepeatedMeleeAlternativeResult TryUseRepeatedMeleeAlternativeAction(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService)
-    {
-        var target = turnPlan.ActionProbe.Target;
-
-        if (character?.RulesetCharacter == null ||
-            target?.RulesetCharacter == null ||
-            battleService == null ||
-            turnPlan.ActionProbe.PreferredAction != CombatAiActionKind.Melee ||
-            !turnPlan.ActionProbe.CanUsePreferredAction)
-        {
-            return new RepeatedMeleeAlternativeResult(RepeatedMeleeAlternativeResultKind.None);
-        }
-
-        if (!TryGetRepeatedMeleeAttackMemory(character, target, out var memory) ||
-            memory.RepeatCount < RepeatedMeleeAlternativeThreshold)
-        {
-            return new RepeatedMeleeAlternativeResult(RepeatedMeleeAlternativeResultKind.None);
-        }
-
-        var validation = ValidateResidualMainAction(character, target, CombatAiActionKind.Melee, battleService);
-
-        if (!validation.IsValid)
-        {
-            return new RepeatedMeleeAlternativeResult(
-                RepeatedMeleeAlternativeResultKind.Blocked,
-                CombatAiExecutedActionKind.None,
-                validation.BlockKind,
-                memory.RepeatCount);
-        }
-
-        if (TryUseResidualShoveProne(character, target, battleService))
-        {
-            return new RepeatedMeleeAlternativeResult(
-                RepeatedMeleeAlternativeResultKind.Executed,
-                CombatAiExecutedActionKind.Shove,
-                repeatCount: memory.RepeatCount);
-        }
-
-        if (TryUseResidualGrapple(character, target, battleService))
-        {
-            return new RepeatedMeleeAlternativeResult(
-                RepeatedMeleeAlternativeResultKind.Executed,
-                CombatAiExecutedActionKind.Grapple,
-                repeatCount: memory.RepeatCount);
-        }
-
-        return new RepeatedMeleeAlternativeResult(
-            RepeatedMeleeAlternativeResultKind.Blocked,
-            repeatCount: memory.RepeatCount);
-    }
-
-    private static bool TryUseResidualShoveProne(
-        GameLocationCharacter character,
-        GameLocationCharacter target,
-        IGameLocationBattleService battleService,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
-    {
-        if (target.RulesetCharacter.HasConditionOfTypeOrSubType(ConditionProne))
-        {
-            return false;
-        }
-
-        if (character.GetActionStatus(Id.Shove, ActionScope.Battle) != ActionStatus.Available)
-        {
-            return false;
-        }
-
-        if (!CanAttackInMeleeFromPosition(
-                character,
-                character.LocationPosition,
-                target,
-                target.LocationPosition,
-                battleService))
-        {
-            return false;
-        }
-
-        if (!HasLikelyAthleticsContestSuccess(character, target))
-        {
-            return false;
-        }
-
-        var actionService = ServiceRepository.GetService<IGameLocationActionService>();
-
-        if (actionService == null)
-        {
-            return false;
-        }
-
-        var actionParams = new CharacterActionParams(character, Id.Shove)
-        {
-            BoolParameter = true,
-            TargetCharacters = { target }
-        };
-
-        MarkPendingResidualMainAction(character, Id.Shove);
-        TryExecuteResidualHostileAction(actionService, actionParams, launchBoundary, character);
-
-        return true;
-    }
-
-    private static bool TryUseResidualGrapple(
-        GameLocationCharacter character,
-        GameLocationCharacter target,
-        IGameLocationBattleService battleService,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
-    {
-        var grappleActionId = (Id)ExtraActionId.Grapple;
-
-        if (!Main.Settings.EnableGrappleAction)
-        {
-            return false;
-        }
-
-        if (target.IsGrappled())
-        {
-            return false;
-        }
-
-        if (character.GetActionStatus(grappleActionId, ActionScope.Battle) != ActionStatus.Available)
-        {
-            return false;
-        }
-
-        if (!ValidatorsCharacter.HasFreeHand(character.RulesetCharacter))
-        {
-            return false;
-        }
-
-        if (GrappleContext.CantGrapple(character.RulesetCharacter, target.RulesetCharacter))
-        {
-            return false;
-        }
-
-        if (!CanAttackInMeleeFromPosition(
-                character,
-                character.LocationPosition,
-                target,
-                target.LocationPosition,
-                battleService))
-        {
-            return false;
-        }
-
-        if (!HasLikelyAthleticsContestSuccess(character, target))
-        {
-            return false;
-        }
-
-        var actionService = ServiceRepository.GetService<IGameLocationActionService>();
-
-        if (actionService == null)
-        {
-            return false;
-        }
-
-        var actionParams = new CharacterActionParams(character, grappleActionId)
-        {
-            TargetCharacters = { target }
-        };
-
-        MarkPendingResidualMainAction(character, grappleActionId);
-        TryExecuteResidualHostileAction(actionService, actionParams, launchBoundary, character);
-
-        return true;
-    }
-
-    private static bool HasLikelyAthleticsContestSuccess(
-        GameLocationCharacter actor,
-        GameLocationCharacter target)
-    {
-        var actorBonus = ComputeAthleticsContestBonus(actor);
-        var targetBonus = Math.Max(ComputeAthleticsContestBonus(target), ComputeAcrobaticsContestBonus(target));
-
-        if (target?.RulesetCharacter?.IsIncapacitated == true)
-        {
-            return true;
-        }
-
-        return actorBonus >= targetBonus + 1;
-    }
-
-    private static int ComputeAthleticsContestBonus(GameLocationCharacter character)
-    {
-        return character?.RulesetCharacter?.ComputeBaseAbilityCheckBonus(
-            AttributeDefinitions.Strength,
-            null,
-            SkillDefinitions.Athletics) ?? int.MinValue;
-    }
-
-    private static int ComputeAcrobaticsContestBonus(GameLocationCharacter character)
-    {
-        return character?.RulesetCharacter?.ComputeBaseAbilityCheckBonus(
-            AttributeDefinitions.Dexterity,
-            null,
-            SkillDefinitions.Acrobatics) ?? int.MinValue;
-    }
-
     private static CombatAiResidualHostileActionResult TryUseResidualSafeHostileAction(
         GameLocationCharacter character,
         GameLocationCharacter target,
         CombatAiActionKind actionKind,
-        IGameLocationBattleService battleService,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
+        IGameLocationBattleService battleService)
     {
-        var validation = ValidateResidualMainAction(character, target, actionKind, battleService);
-
-        if (!validation.IsValid)
+        if (!ValidateResidualMainAction(character, target, actionKind, battleService))
         {
             return new CombatAiResidualHostileActionResult(
-                CombatAiResidualHostileActionResultKind.Blocked,
-                actionKind,
-                Id.NoAction,
-                validation.BlockKind,
-                validation.ActionStatus);
+                CombatAiResidualHostileActionResultKind.Blocked);
         }
 
         return actionKind == CombatAiActionKind.Spell
-            ? TryUseResidualHostileSpellAction(character, target, battleService, launchBoundary)
-            : TryUseResidualWeaponAttack(character, target, actionKind, battleService, launchBoundary);
+            ? TryUseResidualHostileSpellAction(character, target, battleService)
+            : TryUseResidualWeaponAttack(character, target, actionKind, battleService);
     }
 
-    private static CombatAiMainActionValidation ValidateResidualMainAction(
+    private static bool ValidateResidualMainAction(
         GameLocationCharacter character,
         GameLocationCharacter target,
         CombatAiActionKind actionKind,
@@ -29922,60 +18849,52 @@ validation = new CombatAiMainActionValidation(
     {
         if (character?.RulesetCharacter == null)
         {
-            return new CombatAiMainActionValidation(false, CombatAiMainActionBlockKind.NoActor);
+            return false;
         }
 
         if (target?.RulesetCharacter == null || target.Side == character.Side)
         {
-            return new CombatAiMainActionValidation(false, CombatAiMainActionBlockKind.NoHostileTarget);
+            return false;
         }
 
         var isWeaponAttack = actionKind is CombatAiActionKind.Melee or CombatAiActionKind.Ranged;
 
         if (TryGetCommittedNonTerminalMainActionThisTurn(
                 character,
-                out var committedMainAction))
+                out var committedMainAction) &&
+            !HasUnspentMainActionRank(
+                character,
+                committedMainAction,
+                character.GetActionTypeStatus(ActionType.Main)))
         {
             if (!isWeaponAttack ||
                 committedMainAction.ActionId != Id.AttackMain ||
                 !HasAvailableAttackMainContinuation(character))
             {
-                return new CombatAiMainActionValidation(
-                    false,
-                    CombatAiMainActionBlockKind.MainAlreadySpent);
+                return false;
             }
         }
 
-        if (isWeaponAttack)
+        if (isWeaponAttack &&
+            character.GetActionStatus(Id.AttackMain, ActionScope.Battle) != ActionStatus.Available)
         {
-            var attackMainStatus = character.GetActionStatus(Id.AttackMain, ActionScope.Battle);
-
-            if (attackMainStatus != ActionStatus.Available)
-            {
-                return new CombatAiMainActionValidation(
-                    false,
-                    CombatAiMainActionBlockKind.AttackMainUnavailable,
-                    attackMainStatus);
-            }
+            return false;
         }
-        else if (character.GetActionTypeStatus(ActionType.Main) != ActionStatus.Available)
-        {
-            var mainStatus = character.GetActionTypeStatus(ActionType.Main);
 
-            return new CombatAiMainActionValidation(
-                false,
-                CombatAiMainActionBlockKind.MainUnavailable,
-                mainStatus);
+        if (!isWeaponAttack &&
+            character.GetActionTypeStatus(ActionType.Main) != ActionStatus.Available)
+        {
+            return false;
         }
 
         if (battleService == null)
         {
-            return new CombatAiMainActionValidation(false, CombatAiMainActionBlockKind.NoBattleService);
+            return false;
         }
 
         if (actionKind == CombatAiActionKind.None)
         {
-            return new CombatAiMainActionValidation(false, CombatAiMainActionBlockKind.NoActionKind);
+            return false;
         }
 
         var canUseAtPosition = actionKind == CombatAiActionKind.Spell
@@ -29988,20 +18907,17 @@ validation = new CombatAiMainActionValidation(
 
         if (!canUseAtPosition)
         {
-            return new CombatAiMainActionValidation(
-                false,
-                CombatAiMainActionBlockKind.ActionNotUsableAtPosition);
+            return false;
         }
 
-        return new CombatAiMainActionValidation(true);
+        return true;
     }
 
     private static CombatAiResidualHostileActionResult TryUseResidualWeaponAttack(
         GameLocationCharacter character,
         GameLocationCharacter target,
         CombatAiActionKind actionKind,
-        IGameLocationBattleService battleService,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
+        IGameLocationBattleService battleService)
     {
         if (actionKind is not (CombatAiActionKind.Melee or CombatAiActionKind.Ranged))
         {
@@ -30013,11 +18929,7 @@ validation = new CombatAiMainActionValidation(
         if (attackMainStatus != ActionStatus.Available)
         {
             return new CombatAiResidualHostileActionResult(
-                CombatAiResidualHostileActionResultKind.Blocked,
-                actionKind,
-                Id.AttackMain,
-                CombatAiMainActionBlockKind.AttackMainUnavailable,
-                attackMainStatus);
+                CombatAiResidualHostileActionResultKind.Blocked);
         }
 
         var actionService = ServiceRepository.GetService<IGameLocationActionService>();
@@ -30025,17 +18937,15 @@ validation = new CombatAiMainActionValidation(
         if (actionService == null)
         {
             return new CombatAiResidualHostileActionResult(
-                CombatAiResidualHostileActionResultKind.Blocked,
-                actionKind,
-                Id.AttackMain,
-                CombatAiMainActionBlockKind.Other);
+                CombatAiResidualHostileActionResultKind.Blocked);
         }
 
         foreach (var mode in character.RulesetCharacter.AttackModes)
         {
             if (mode == null ||
                 (actionKind == CombatAiActionKind.Melee && !IsMeleeAttackModeForAi(mode)) ||
-                (actionKind == CombatAiActionKind.Ranged && !IsRangedAttackMode(mode)))
+                (actionKind == CombatAiActionKind.Ranged && !IsRangedAttackMode(mode)) ||
+                !IsAttackModeAvailableForMainAction(character, mode, out _))
             {
                 continue;
             }
@@ -30072,21 +18982,14 @@ validation = new CombatAiMainActionValidation(
             MarkPendingResidualMainAction(character, Id.AttackMain);
             TryExecuteResidualHostileAction(
                 actionService,
-                new CharacterActionParams(character, Id.AttackMain, mode, target, modifier),
-                launchBoundary,
-                character);
+                new CharacterActionParams(character, Id.AttackMain, mode, target, modifier));
 
             return new CombatAiResidualHostileActionResult(
-                CombatAiResidualHostileActionResultKind.Executed,
-                actionKind,
-                Id.AttackMain);
+                CombatAiResidualHostileActionResultKind.Executed);
         }
 
         return new CombatAiResidualHostileActionResult(
-            CombatAiResidualHostileActionResultKind.Blocked,
-            actionKind,
-            Id.AttackMain,
-            CombatAiMainActionBlockKind.ActionNotUsableAtPosition);
+            CombatAiResidualHostileActionResultKind.Blocked);
     }
 
     private static bool CanUseResidualHostileSpellAtPosition(
@@ -30115,10 +19018,9 @@ validation = new CombatAiMainActionValidation(
     private static CombatAiResidualHostileActionResult TryUseResidualHostileSpellAction(
         GameLocationCharacter character,
         GameLocationCharacter target,
-        IGameLocationBattleService battleService,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
+        IGameLocationBattleService battleService)
     {
-        var cantripResult = TryUseResidualCantripAttack(character, target, battleService, launchBoundary);
+        var cantripResult = TryUseResidualCantripAttack(character, target, battleService);
 
         if (cantripResult.Executed)
         {
@@ -30129,8 +19031,7 @@ validation = new CombatAiMainActionValidation(
             character,
             target,
             battleService,
-            cantripResult,
-            launchBoundary);
+            cantripResult);
 
         return leveledResult;
     }
@@ -30139,8 +19040,7 @@ validation = new CombatAiMainActionValidation(
         GameLocationCharacter character,
         GameLocationCharacter target,
         IGameLocationBattleService battleService,
-        CombatAiResidualHostileActionResult fallbackResult,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
+        CombatAiResidualHostileActionResult fallbackResult)
     {
         if (character?.RulesetCharacter == null ||
             target?.RulesetCharacter == null ||
@@ -30165,10 +19065,7 @@ validation = new CombatAiMainActionValidation(
         if (actionService == null || implementationService == null)
         {
             return new CombatAiResidualHostileActionResult(
-                CombatAiResidualHostileActionResultKind.Blocked,
-                CombatAiActionKind.Spell,
-                Id.CastMain,
-                CombatAiMainActionBlockKind.Other);
+                CombatAiResidualHostileActionResultKind.Blocked);
         }
 
         var actionParams = new CharacterActionParams(character, Id.CastMain)
@@ -30187,12 +19084,10 @@ validation = new CombatAiMainActionValidation(
         };
 
         MarkPendingResidualMainAction(character, Id.CastMain);
-        TryExecuteResidualHostileAction(actionService, actionParams, launchBoundary, character);
+        TryExecuteResidualHostileAction(actionService, actionParams);
 
         return new CombatAiResidualHostileActionResult(
-            CombatAiResidualHostileActionResultKind.Executed,
-            CombatAiActionKind.Spell,
-            Id.CastMain);
+            CombatAiResidualHostileActionResultKind.Executed);
     }
 
     private static bool TryGetResidualHostileSpellFromPosition(
@@ -30210,7 +19105,10 @@ validation = new CombatAiMainActionValidation(
 
         var rulesetCharacter = character?.RulesetCharacter;
 
-        if (rulesetCharacter == null || target?.RulesetCharacter == null || battleService == null)
+        if (rulesetCharacter == null ||
+            target?.RulesetCharacter == null ||
+            battleService == null ||
+            !CanUseMainSpellActionForAi(character))
         {
             return false;
         }
@@ -30409,8 +19307,7 @@ validation = new CombatAiMainActionValidation(
     private static CombatAiResidualHostileActionResult TryUseResidualCantripAttack(
         GameLocationCharacter character,
         GameLocationCharacter target,
-        IGameLocationBattleService battleService,
-        CombatAiActionLaunchBoundary launchBoundary = CombatAiActionLaunchBoundary.AiProcess)
+        IGameLocationBattleService battleService)
     {
         if (character?.RulesetCharacter == null ||
             target?.RulesetCharacter == null ||
@@ -30436,10 +19333,7 @@ validation = new CombatAiMainActionValidation(
         if (actionService == null || implementationService == null)
         {
             return new CombatAiResidualHostileActionResult(
-                CombatAiResidualHostileActionResultKind.Blocked,
-                CombatAiActionKind.Spell,
-                Id.CastMain,
-                CombatAiMainActionBlockKind.Other);
+                CombatAiResidualHostileActionResultKind.Blocked);
         }
 
         var actionParams = new CharacterActionParams(character, Id.CastMain)
@@ -30458,12 +19352,10 @@ validation = new CombatAiMainActionValidation(
         };
 
         MarkPendingResidualMainAction(character, Id.CastMain);
-        TryExecuteResidualHostileAction(actionService, actionParams, launchBoundary, character);
+        TryExecuteResidualHostileAction(actionService, actionParams);
 
         return new CombatAiResidualHostileActionResult(
-            CombatAiResidualHostileActionResultKind.Executed,
-            CombatAiActionKind.Spell,
-            Id.CastMain);
+            CombatAiResidualHostileActionResultKind.Executed);
     }
 
     private static bool HasVisibleFlightContext(GameLocationCharacter actor)

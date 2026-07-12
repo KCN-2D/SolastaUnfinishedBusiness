@@ -1,8 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Reflection;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -19,54 +17,6 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationActionManagerPatcher
 {
-    [HarmonyPatch(typeof(GameLocationActionManager), "StartNextChain")]
-    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
-    [UsedImplicitly]
-    public static class StartNextChain_Patch
-    {
-        [UsedImplicitly]
-        public static bool Prefix(GameLocationCharacter character, ref bool __result)
-        {
-            if (CombatAiContext.TryHandlePendingTurnRecoveryStartNextChain(character, out var suppressStartNextChain) &&
-                suppressStartNextChain)
-            {
-                __result = false;
-                return false;
-            }
-
-            return true;
-        }
-    }
-
-    [HarmonyPatch]
-    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
-    [UsedImplicitly]
-    public static class TerminateChain_Patch
-    {
-        [UsedImplicitly]
-        private static MethodBase TargetMethod()
-        {
-            return AccessTools.Method(
-                typeof(GameLocationActionManager),
-                "TerminateChain",
-                new[] { typeof(GameLocationCharacter), typeof(bool), typeof(bool), typeof(bool).MakeByRefType() });
-        }
-
-        [UsedImplicitly]
-        public static void Prefix(GameLocationCharacter character, ref bool runNextChains)
-        {
-            if (!runNextChains)
-            {
-                return;
-            }
-
-            if (CombatAiContext.TrySuppressPostRecoveryRunNextChains(character))
-            {
-                runNextChains = false;
-            }
-        }
-    }
-
     [HarmonyPatch(typeof(GameLocationActionManager), nameof(GameLocationActionManager.ReactToSpendSpellSlot))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -112,10 +62,6 @@ public static class GameLocationActionManagerPatcher
         [UsedImplicitly]
         public static void Prefix(GameLocationActionManager __instance, CharacterActionParams reactionParams)
         {
-            CombatAiContext.RecordFallbackReadyTriggered(
-                reactionParams?.ActingCharacter,
-                reactionParams?.TargetCharacters?.FirstOrDefault());
-
             //PATCH: mark this attack as not AoO, so Sentinel movement stop won't trigger
             reactionParams.AttackMode?.AddAttackTagAsNeeded(AttacksOfOpportunity.NotAoOTag);
             //PATCH: mark as a reaction, so Attack After Magic Effect won't check for attack validity, since it was already checked prior to triggering the reaction

@@ -52,10 +52,13 @@ public static class CharacterActionMoveStepWalkPatcher
 
             var mover = __instance.ActingCharacter;
 
-            CombatAiContext.NotifyAiMoveStepCompleted(mover);
-
             if (mover != null && MovementTracker.TryGetMovement(mover.Guid, out var movement))
             {
+                CombatAiContext.NotifyAiMoveStepCompleted(
+                    mover,
+                    movement.from,
+                    movement.to);
+
                 FreeJumpContext.TrySpendAiBonusActionAfterCompletedMove(
                     mover,
                     movement.from,

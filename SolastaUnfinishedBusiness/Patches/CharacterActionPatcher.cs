@@ -60,8 +60,6 @@ public static class CharacterActionPatcher
     [UsedImplicitly]
     public static class Execute_Patch
     {
-        private static readonly Dictionary<CharacterAction, CombatAiMainActionBlockKind> BlockedInvalidAiMainActions = [];
-
         private static bool ActionShouldKeepConcentration(CharacterAction action)
         {
             var isProtectedPower =
@@ -120,7 +118,9 @@ public static class CharacterActionPatcher
         }
 
         [UsedImplicitly]
-        public static bool Prefix(CharacterAction __instance, ref IEnumerator __result)
+        internal static bool Prefix(
+            CharacterAction __instance,
+            ref IEnumerator __result)
         {
             var actingCharacter = __instance.ActingCharacter;
 
@@ -138,23 +138,6 @@ public static class CharacterActionPatcher
                 __result = AbortInvalidAiAction(__instance);
                 return false;
             }
-
-            if (CombatAiContext.ShouldBlockDisconnectedAiMovementAction(__instance))
-            {
-                __result = AbortInvalidAiAction(__instance);
-                return false;
-            }
-
-            if (CombatAiContext.ShouldBlockInvalidAiMainAction(__instance, out var blockKind))
-            {
-                BlockedInvalidAiMainActions[__instance] = blockKind;
-                CombatAiContext.NotifyBlockedInvalidAiMainAction(__instance, blockKind);
-                __result = AbortInvalidAiAction(__instance);
-                return false;
-            }
-
-            CombatAiContext.NotifyPendingTerminalActionAccepted(__instance);
-            CombatAiContext.RecordCombatAiActionExecution(__instance);
 
             //PATCH: support `IPreventRemoveConcentrationOnPowerUse`
             if (ActionShouldKeepConcentration(__instance))
@@ -207,22 +190,10 @@ public static class CharacterActionPatcher
         }
 
         [UsedImplicitly]
-        public static IEnumerator Postfix(IEnumerator values, CharacterAction __instance)
+        internal static IEnumerator Postfix(
+            IEnumerator values,
+            CharacterAction __instance)
         {
-            if (BlockedInvalidAiMainActions.TryGetValue(__instance, out var blockKind))
-            {
-                BlockedInvalidAiMainActions.Remove(__instance);
-
-                while (values != null && values.MoveNext())
-                {
-                    yield return values.Current;
-                }
-
-                CombatAiContext.TryCloseTurnAfterBlockedInvalidAiMainAction(__instance, blockKind);
-
-                yield break;
-            }
-
             using (CombatAnimationContext.BeginActionScope(__instance))
             {
                 while (values.MoveNext())
@@ -302,13 +273,7 @@ public static class CharacterActionPatcher
                     (ConditionInterruption)ExtraConditionInterruption.UsesBonusAction);
             }
 
-            CombatAiContext.NormalizeFallbackReadyAfterAction(__instance);
             CombatAiContext.NormalizeFallbackDodgeAfterAction(__instance);
-
-            if (CombatAiContext.TryConsumeSearchNoConnectedFallbackAfterActionCompletion(__instance))
-            {
-                yield return null;
-            }
         }
     }
 
