@@ -38,6 +38,7 @@ public class CursorMotionHelper : MonoBehaviour
     private bool _isGravityFissure;
     private IGameLocationPositioningService _positioningService;
     private string _positionsKey = string.Empty;
+    private bool _selectionEventsSubscribed;
     private IGameLocationSelectionService _selectionService;
     private IGameLocationService _locationService;
 
@@ -87,6 +88,8 @@ public class CursorMotionHelper : MonoBehaviour
 
     private void DoActivate()
     {
+        Cleanup();
+
         _selectionService = _cursor.SelectionService;
         _positioningService = ServiceRepository.GetService<IGameLocationPositioningService>();
         _locationService = ServiceRepository.GetService<IGameLocationService>();
@@ -95,7 +98,11 @@ public class CursorMotionHelper : MonoBehaviour
         _actingCharacterCenter = _positioningService.ComputeGravityCenterPosition(ActingCharacter);
         _info = BuildInfo();
 
-        if (_info == null) { return; }
+        if (_info == null)
+        {
+            Cleanup();
+            return;
+        }
 
         if (_cursor is not CursorLocationSelectTarget)
         {
@@ -104,18 +111,45 @@ public class CursorMotionHelper : MonoBehaviour
 
         _selectionService.CharacterHoverChange += HoverChanged;
         _selectionService.TargetSelectionChange += TargetsChanged;
+        _selectionEventsSubscribed = true;
     }
 
     private void DoDeactivate()
     {
-        if (_cursor is CursorLocationSelectTarget)
+        Cleanup();
+    }
+
+    private void OnDisable()
+    {
+        Cleanup();
+    }
+
+    private void OnDestroy()
+    {
+        Cleanup();
+    }
+
+    private void Cleanup()
+    {
+        if (_selectionEventsSubscribed && _selectionService != null)
         {
             _selectionService.CharacterHoverChange -= HoverChanged;
             _selectionService.TargetSelectionChange -= TargetsChanged;
         }
 
+        _selectionEventsSubscribed = false;
+        _info = null;
+        _isGravityFissure = false;
+        _actingCharacterCenter = Vector3.zero;
+        _aimedPosition = int3.zero;
+        _positionsKey = string.Empty;
         _gravityFissureTiles.Clear();
         DestroyHelpers();
+        _selectionService = null;
+        _positioningService = null;
+        _locationService = null;
+        _envService = null;
+        _characterService = null;
     }
 
     private void UpdateHelper([CanBeNull] GameLocationCharacter target)
@@ -193,8 +227,13 @@ public class CursorMotionHelper : MonoBehaviour
 
     private static void DestroyHelper(ActionChainHelper helper)
     {
+        if (!helper)
+        {
+            return;
+        }
+
         helper.Deactivate();
-        Destroy(helper);
+        Destroy(helper.gameObject);
     }
 
     private void DestroyHelper(ulong guid)

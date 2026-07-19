@@ -257,27 +257,8 @@ public static class CharacterActionAttackPatcher
             while (targetCharacterTurnCoroutine is { Empty: false } ||
                    actingCharacterTurnCoroutine is { Empty: false })
             {
-                if (actingCharacterTurnCoroutine is { Empty: false })
-                {
-                    actingCharacterTurnCoroutine.Run();
-
-                    if (actingCharacterTurnCoroutine.IsFinished)
-                    {
-                        actingCharacterTurnCoroutine.Reset();
-                        actingCharacterTurnCoroutine = null;
-                    }
-                }
-
-                if (targetCharacterTurnCoroutine is { Empty: false })
-                {
-                    targetCharacterTurnCoroutine.Run();
-
-                    if (targetCharacterTurnCoroutine.IsFinished)
-                    {
-                        targetCharacterTurnCoroutine.Reset();
-                        actingCharacterTurnCoroutine = null;
-                    }
-                }
+                RunTurnCoroutine(ref actingCharacterTurnCoroutine);
+                RunTurnCoroutine(ref targetCharacterTurnCoroutine);
 
                 yield return null;
             }
@@ -827,27 +808,8 @@ public static class CharacterActionAttackPatcher
             while (targetCharacterTurnCoroutine is { Empty: false } ||
                    actingCharacterTurnCoroutine is { Empty: false })
             {
-                if (actingCharacterTurnCoroutine is { Empty: false })
-                {
-                    actingCharacterTurnCoroutine.Run();
-
-                    if (actingCharacterTurnCoroutine.IsFinished)
-                    {
-                        actingCharacterTurnCoroutine.Reset();
-                        actingCharacterTurnCoroutine = null;
-                    }
-                }
-
-                if (targetCharacterTurnCoroutine is { Empty: false })
-                {
-                    targetCharacterTurnCoroutine.Run();
-
-                    if (targetCharacterTurnCoroutine.IsFinished)
-                    {
-                        targetCharacterTurnCoroutine.Reset();
-                        actingCharacterTurnCoroutine = null;
-                    }
-                }
+                RunTurnCoroutine(ref actingCharacterTurnCoroutine);
+                RunTurnCoroutine(ref targetCharacterTurnCoroutine);
 
                 yield return null;
             }
@@ -956,6 +918,24 @@ public static class CharacterActionAttackPatcher
 
             yield return battleManager.HandleCharacterAttackOrMagicEffectFinishedLate(
                 __instance, actingCharacter);
+        }
+
+        private static void RunTurnCoroutine(ref Coroutine coroutine)
+        {
+            if (coroutine is not { Empty: false })
+            {
+                return;
+            }
+
+            coroutine.Run();
+
+            if (!coroutine.IsFinished)
+            {
+                return;
+            }
+
+            coroutine.Reset();
+            coroutine = null;
         }
     }
 }
