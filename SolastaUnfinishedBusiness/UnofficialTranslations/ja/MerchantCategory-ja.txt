@@ -1,6 +1,6 @@
 MerchantCategory/&AdventuringTitle=冒険用装備
 MerchantCategory/&AllTitle=すべてのアイテム
-MerchantCategory/&ArmorTitle=鎧
+MerchantCategory/&ArmorTitle=防具
 MerchantCategory/&CraftingTitle=製作
 MerchantCategory/&DocumentTitle=書類
 MerchantCategory/&IngredientTitle=材料
