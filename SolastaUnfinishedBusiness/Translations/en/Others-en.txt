@@ -684,3 +684,4 @@ UI/&RecipeFilterArmor=Armor
 UI/&RecipeFilterUsableDevices=Usable Devices
 UI/&RecipeFilterWeapons=Weapons
 Tooltip/&PreReqAnyAbilityScoreList=Any one of {0} must be {1}+
+Rules/&ActivationTypeHours12Title=12 Hours

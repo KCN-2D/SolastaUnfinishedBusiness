@@ -703,3 +703,6 @@ Item/&Warlock_Armor_Survival_Title=生存のウォーロック・アーマー
 Tooltip/&NoFreeHandToLoadAmmoDescription=弾薬を装填するためのフリーハンドはありません。
 Tooltip/&TagPolearmWeaponTitle=長柄武器
 Tooltip/&TagReturningWeaponTitle=戻ってくる
+Tooltip/&TagMaterialSimulacrumRubyTitle=ブラッドルビー
+Item/&ItemWishCreatedTreasureDescription=〈願い〉によって作られた、25,000GP相当の非魔法的な財宝。
+Item/&ItemWishCreatedTreasureTitle=願いで作られた財宝

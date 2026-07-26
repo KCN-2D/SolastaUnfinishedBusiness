@@ -693,9 +693,10 @@ internal static class Level20Context
             return false;
         }
 
-        var castLevel = activeSpell.SlotLevel > 0 ? activeSpell.SlotLevel : activeSpell.EffectLevel;
+        var castLevel = RulesetEffectSpellWithOrigin.GetResourceSlotLevel(activeSpell);
+        var spellDefinition = RulesetEffectSpellWithOrigin.GetOriginSpell(activeSpell);
 
-        return TryGetWizardFreeCastSpell(activeSpell.SpellDefinition, castLevel,
+        return TryGetWizardFreeCastSpell(spellDefinition, castLevel,
             out normalizedSpellDefinition, out normalizedCastLevel);
     }
 

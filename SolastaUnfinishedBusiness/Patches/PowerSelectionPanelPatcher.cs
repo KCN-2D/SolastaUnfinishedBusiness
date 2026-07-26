@@ -8,6 +8,8 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Validators;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -62,12 +64,21 @@ public static class PowerSelectionPanelPatcher
             {
                 var power = relevantPowers[i];
 
-                if (ValidatorsValidatePowerUse.IsPowerNotValid(character, power)
-                    || ModifyPowerVisibility.IsPowerHidden(character, power, actionType))
+                if ((character is RulesetCharacterSimulacrum duplicate &&
+                     !SimulacrumBehavior.IsPowerCurrentlyActive(
+                         duplicate,
+                         power.PowerDefinition)) ||
+                    ValidatorsValidatePowerUse.IsPowerNotValid(character, power) ||
+                    ModifyPowerVisibility.IsPowerHidden(character, power, actionType))
                 {
                     relevantPowers.RemoveAt(i);
                 }
             }
+
+            SimulacrumDiagnostics.RecordPowerSelection(
+                character,
+                actionType,
+                relevantPowers);
         }
     }
 }

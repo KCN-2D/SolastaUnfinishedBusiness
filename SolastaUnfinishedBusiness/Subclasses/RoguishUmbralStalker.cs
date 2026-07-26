@@ -281,15 +281,19 @@ public sealed class RoguishUmbralStalker : AbstractSubclass
                 return;
             }
 
-            var rulesetHero = attacker.RulesetCharacter.GetOriginalHero();
+            var rulesetAttacker = attacker.RulesetCharacter.GetFeatureOwnerOrSelf();
 
-            if (rulesetHero == null)
+            if (rulesetAttacker == null)
             {
                 return;
             }
 
             ClassFeats.HandleCloseQuarters(
-                attacker, rulesetHero, defender, ref damageForm, "Feedback/&ChangeGloombladeDieType");
+                attacker,
+                rulesetAttacker,
+                defender,
+                ref damageForm,
+                "Feedback/&ChangeGloombladeDieType");
         }
     }
 

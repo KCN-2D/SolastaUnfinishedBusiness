@@ -1,9 +1,11 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Interfaces;
@@ -29,19 +31,19 @@ internal static class ArmorFeats
 
     internal static bool IsMediumArmorMasterMaxDexContextValid(
         ArmorDescription armorDescription,
-        RulesetCharacterHero rulesetCharacterHero)
+        RulesetCharacter character)
     {
         return IsMediumArmor(armorDescription) &&
-               HasMediumArmorMaster(rulesetCharacterHero, includeTabletop2024Equivalent: true);
+               HasMediumArmorMaster(character, includeTabletop2024Equivalent: true);
     }
 
     internal static bool IsMediumArmorMasterStealthContextValid(
         ItemDefinition itemDefinition,
-        RulesetCharacterHero rulesetCharacterHero)
+        RulesetCharacter character)
     {
         return itemDefinition.IsArmor &&
                IsMediumArmor(itemDefinition.ArmorDescription) &&
-               HasMediumArmorMaster(rulesetCharacterHero, includeTabletop2024Equivalent: false);
+               HasMediumArmorMaster(character, includeTabletop2024Equivalent: false);
     }
 
     private static bool IsMediumArmor(ArmorDescription armorDescription)
@@ -50,14 +52,17 @@ internal static class ArmorFeats
     }
 
     private static bool HasMediumArmorMaster(
-        RulesetCharacterHero rulesetCharacterHero,
+        RulesetCharacter character,
         bool includeTabletop2024Equivalent)
     {
-        return rulesetCharacterHero?.TrainedFeats?.Exists(feat =>
-            feat == FeatMediumArmorMaster ||
-            (includeTabletop2024Equivalent &&
-             Main.Settings.EnableTabletopFeatRules2024 &&
-             Tabletop2024Context.AreEquivalentTabletopFeatNames(feat.Name, FeatMediumArmorMaster.Name))) == true;
+        return SimulacrumBehavior.EnumerateTrainedFeats(character).Any(feat =>
+            feat != null &&
+            (feat == FeatMediumArmorMaster ||
+             (includeTabletop2024Equivalent &&
+              Main.Settings.EnableTabletopFeatRules2024 &&
+              Tabletop2024Context.AreEquivalentTabletopFeatNames(
+                  feat.Name,
+                  FeatMediumArmorMaster.Name))));
     }
 
     internal static void CreateFeats([NotNull] List<FeatDefinition> feats)

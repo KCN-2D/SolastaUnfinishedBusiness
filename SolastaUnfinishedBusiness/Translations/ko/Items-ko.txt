@@ -703,3 +703,6 @@ Item/&Warlock_Armor_Survival_Title=흑마법사 생존 갑옷
 Tooltip/&NoFreeHandToLoadAmmoDescription=탄약을 장전할 자유가 없습니다!
 Tooltip/&TagPolearmWeaponTitle=폴암
 Tooltip/&TagReturningWeaponTitle=돌아오는 중
+Tooltip/&TagMaterialSimulacrumRubyTitle=블러드 루비
+Item/&ItemWishCreatedTreasureDescription=소원으로 만든 25,000 GP 가치의 비마법 보물입니다.
+Item/&ItemWishCreatedTreasureTitle=소원으로 만든 보물

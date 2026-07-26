@@ -552,7 +552,8 @@ public sealed class SorcerousWildMagic : AbstractSubclass
                 action is not CharacterActionCastSpell actionCastSpell ||
                 actionCastSpell.Countered ||
                 actionCastSpell.ExecutionFailed ||
-                (actionCastSpell.ActiveSpell.SpellDefinition.SpellLevel == 0 && !hasChaos) ||
+                (RulesetEffectSpellWithOrigin.GetOriginSpell(actionCastSpell.ActiveSpell).SpellLevel == 0 &&
+                 !hasChaos) ||
                 (actionCastSpell.ActiveSpell.SpellRepertoire != null && // casting from a scroll so let wild surge
                  actionCastSpell.ActiveSpell.SpellRepertoire.SpellCastingClass != CharacterClassDefinitions.Sorcerer))
             {

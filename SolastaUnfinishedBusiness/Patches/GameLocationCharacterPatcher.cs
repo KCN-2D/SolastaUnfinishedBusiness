@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -13,6 +13,7 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Spells;
@@ -30,6 +31,83 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationCharacterPatcher
 {
+    [HarmonyPatch(typeof(GameLocationCharacter), "ItemEquiped")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ItemEquiped_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(
+            [NotNull] IEnumerable<CodeInstruction> instructions)
+        {
+            return MakeItemLightRegistrationIdempotent(
+                instructions,
+                "GameLocationCharacter.ItemEquiped");
+        }
+    }
+
+    [HarmonyPatch(
+        typeof(GameLocationCharacter),
+        nameof(GameLocationCharacter.CollectExistingLightSources))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CollectExistingLightSources_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(
+            [NotNull] IEnumerable<CodeInstruction> instructions)
+        {
+            return MakeItemLightRegistrationIdempotent(
+                instructions,
+                "GameLocationCharacter.CollectExistingLightSources");
+        }
+    }
+
+    private static IEnumerable<CodeInstruction> MakeItemLightRegistrationIdempotent(
+        IEnumerable<CodeInstruction> instructions,
+        string methodName)
+    {
+        var patched = instructions.ToList();
+        var lightSourceGetter = AccessTools.PropertyGetter(
+            typeof(RulesetItem),
+            nameof(RulesetItem.RulesetLightSource));
+        var addCharacterLightSource = AccessTools.Method(
+            typeof(IGameLocationVisibilityService),
+            nameof(IGameLocationVisibilityService.AddCharacterLightSource),
+            [
+                typeof(GameLocationCharacter),
+                typeof(RulesetLightSource),
+                typeof(bool)
+            ]);
+        var replaced = 0;
+
+        for (var index = 2; index < patched.Count; index++)
+        {
+            if (!patched[index].Calls(addCharacterLightSource) ||
+                patched[index - 1].opcode != OpCodes.Ldc_I4_1 ||
+                !patched[index - 2].Calls(lightSourceGetter))
+            {
+                continue;
+            }
+
+            // Equipping and collecting existing item lights are lifecycle ensures.
+            // The visibility manager already registers a missing light identically
+            // for either flag; false only avoids reporting an already registered
+            // item as a second application.
+            patched[index - 1].opcode = OpCodes.Ldc_I4_0;
+            patched[index - 1].operand = null;
+            replaced++;
+        }
+
+        if (replaced != 1)
+        {
+            throw new InvalidOperationException(
+                $"Expected one item light registration in {methodName}, replaced {replaced}.");
+        }
+
+        return patched;
+    }
+
     //PATCH: supports IForceLightingState
     [HarmonyPatch(typeof(GameLocationCharacter), nameof(GameLocationCharacter.LightingState), MethodType.Getter)]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -372,7 +450,30 @@ public static class GameLocationCharacterPatcher
                 return;
             }
 
-            var battleInProgress = Gui.Battle != null;
+            var battleInProgress = ServiceRepository
+                .GetService<IGameLocationBattleService>()
+                ?.IsBattleInProgress == true;
+
+            if (rulesetCharacter is RulesetCharacterSimulacrum
+                {
+                    LifecycleState: SimulacrumLifecycleState.Ready
+                } duplicate)
+            {
+                __result = duplicate.UsablePowers.Any(usablePower =>
+                    IsAvailableForActionType(
+                        duplicate,
+                        usablePower,
+                        actionType,
+                        accountDelegatedPowers,
+                        battleInProgress));
+                SimulacrumDiagnostics.RecordActionPrerequisite(
+                    duplicate,
+                    "power",
+                    actionType,
+                    __result);
+
+                return;
+            }
 
             //PATCH: force show power use button during exploration if it has at least one usable power
             //This makes it so that if a character only has powers that take longer than an action to activate the "Use Power" button is available.
@@ -397,6 +498,83 @@ public static class GameLocationCharacterPatcher
 
             return (accountDelegatedPowers || !power.DelegatedToAction)
                    && character.CanUsePower(power, false);
+        }
+
+        private static bool IsAvailableForActionType(
+            RulesetCharacter character,
+            RulesetUsablePower usablePower,
+            ActionType actionType,
+            bool accountDelegatedPowers,
+            bool battleInProgress)
+        {
+            var power = usablePower?.PowerDefinition;
+
+            if (power == null ||
+                !character.CanUsePower(power, false) ||
+                character.GetRemainingUsesOfPower(usablePower) <= 0 ||
+                (!accountDelegatedPowers && power.DelegatedToAction))
+            {
+                return false;
+            }
+
+            if (!battleInProgress)
+            {
+                return actionType switch
+                {
+                    ActionType.Main => power.ActivationTime is
+                        ActivationTime.Action or
+                        ActivationTime.BonusAction or
+                        ActivationTime.NoCost,
+                    ActionType.Reaction => power.ActivationTime == ActivationTime.Reaction,
+                    _ => false
+                };
+            }
+
+            return actionType switch
+            {
+                ActionType.Main => power.ActivationTime == ActivationTime.Action,
+                ActionType.Bonus => power.ActivationTime == ActivationTime.BonusAction,
+                ActionType.Reaction => power.ActivationTime == ActivationTime.Reaction,
+                ActionType.NoCost => power.ActivationTime == ActivationTime.NoCost,
+                _ => false
+            };
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationCharacter), nameof(GameLocationCharacter.CanPickItem))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CanPickItem_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(GameLocationCharacter __instance, ref bool __result)
+        {
+            if (__instance?.RulesetCharacter is not RulesetCharacterSimulacrum
+                {
+                    LifecycleState: SimulacrumLifecycleState.Ready
+                } duplicate)
+            {
+                return true;
+            }
+
+            var position = __instance.LocationPosition;
+            var items = ServiceRepository.GetService<IGameLocationItemService>()
+                ?.EnumerateGroundItems(position);
+            var itemCount = items?.Count ?? 0;
+
+            __result = itemCount > 0;
+            SimulacrumDiagnostics.RecordActionPrerequisite(
+                duplicate,
+                "loot",
+                ActionType.FreeOnce,
+                __result);
+            SimulacrumDiagnostics.RecordLootGate(
+                duplicate,
+                "action-cell",
+                __result,
+                $"position={position} items={itemCount}");
+
+            return false;
         }
     }
 
@@ -599,6 +777,15 @@ public static class GameLocationCharacterPatcher
     [UsedImplicitly]
     public static class RefreshActionPerformances_Patch
     {
+        [UsedImplicitly]
+        public static void Prefix(GameLocationCharacter __instance)
+        {
+            if (__instance?.RulesetCharacter is RulesetCharacterHero hero)
+            {
+                Tabletop2024Context.SynchronizeRitualCastingFeatures(hero);
+            }
+        }
+
         [NotNull]
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
@@ -794,17 +981,18 @@ public static class GameLocationCharacterPatcher
                 return true;
             }
 
-            var hero = rulesetCharacter.GetOriginalHero();
-            var concentratedSpell = hero?.ConcentratedSpell;
+            var featureCharacter = rulesetCharacter.GetFeatureOwnerOrSelf();
+            var concentratedSpell = featureCharacter?.ConcentratedSpell;
 
             if (concentratedSpell == null)
             {
                 return true;
             }
 
-            var shouldKeepConcentration = hero.GetSubFeaturesByType<IPreventRemoveConcentrationOnDamage>()
+            var shouldKeepConcentration = featureCharacter
+                .GetSubFeaturesByType<IPreventRemoveConcentrationOnDamage>()
                 .Any(x =>
-                    x.SpellsThatShouldNotRollConcentrationCheckFromDamage(hero)
+                    x.SpellsThatShouldNotRollConcentrationCheckFromDamage(featureCharacter)
                         .Contains(concentratedSpell.SpellDefinition));
 
             return !shouldKeepConcentration;

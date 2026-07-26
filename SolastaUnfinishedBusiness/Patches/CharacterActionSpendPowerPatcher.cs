@@ -209,20 +209,17 @@ public static class CharacterActionSpendPowerPatcher
                                 rulesetEffect, effectForms, i == 0, false);
                         }
 
-                        var hero = controller.RulesetCharacter.GetOriginalHero();
-
-                        if (hero != null)
+                        foreach (var magicalAttackBeforeHitConfirmedOnEnemy in SimulacrumBehavior
+                                     .EnumerateTrainedMetamagicOptions(controller.RulesetCharacter)
+                                     .SelectMany(metamagic =>
+                                         metamagic
+                                             .GetAllSubFeaturesOfType<
+                                                 IMagicEffectBeforeHitConfirmedOnEnemy>()))
                         {
-                            foreach (var magicalAttackBeforeHitConfirmedOnEnemy in hero.TrainedMetamagicOptions
-                                         .SelectMany(metamagic =>
-                                             metamagic
-                                                 .GetAllSubFeaturesOfType<IMagicEffectBeforeHitConfirmedOnEnemy>()))
-                            {
-                                yield return magicalAttackBeforeHitConfirmedOnEnemy
-                                    .OnMagicEffectBeforeHitConfirmedOnEnemy(
-                                        battleManager, controller, target, actionModifier,
-                                        rulesetEffect, effectForms, i == 0, false);
-                            }
+                            yield return magicalAttackBeforeHitConfirmedOnEnemy
+                                .OnMagicEffectBeforeHitConfirmedOnEnemy(
+                                    battleManager, controller, target, actionModifier,
+                                    rulesetEffect, effectForms, i == 0, false);
                         }
                     }
 

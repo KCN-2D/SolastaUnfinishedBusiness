@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Classes;
@@ -38,12 +39,19 @@ internal class InvocationPoolTypeCustom
 
     internal string PanelTitle { get; private set; }
 
-    internal static int GetClassOrSubclassLevel(RulesetCharacterHero hero, string classOrSubclassName)
+    internal static int GetClassOrSubclassLevel(
+        RulesetCharacter character,
+        string classOrSubclassName)
     {
+        if (character == null)
+        {
+            return 0;
+        }
+
         if (TryGetDefinition<CharacterClassDefinition>(classOrSubclassName, out var classDefinition) &&
             classDefinition)
         {
-            return hero.GetClassLevel(classDefinition);
+            return character.GetClassLevel(classDefinition);
         }
 
         if (!TryGetDefinition<CharacterSubclassDefinition>(classOrSubclassName, out var subclassDefinition) ||
@@ -52,12 +60,13 @@ internal class InvocationPoolTypeCustom
             return 0;
         }
 
-        var classDefinitionFromSubclass = hero.ClassesAndSubclasses
-            .FirstOrDefault(x => x.Value == subclassDefinition);
+        var classDefinitionFromSubclass = LevelUpHelper.GetClassForSubclass(subclassDefinition);
 
-        return classDefinitionFromSubclass.Key
-            // ReSharper disable once TailRecursiveCall
-            ? GetClassOrSubclassLevel(hero, classDefinitionFromSubclass.Key.Name)
+        return classDefinitionFromSubclass &&
+               character.GetSubclassLevel(
+                   classDefinitionFromSubclass,
+                   subclassDefinition.Name) > 0
+            ? character.GetClassLevel(classDefinitionFromSubclass)
             : 0;
     }
 

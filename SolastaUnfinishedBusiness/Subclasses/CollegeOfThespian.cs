@@ -238,15 +238,15 @@ public sealed class CollegeOfThespian : AbstractSubclass
     {
         public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
         {
-            var hero = action.ActingCharacter.RulesetCharacter.GetOriginalHero();
+            var featureCharacter = action.ActingCharacter.RulesetCharacter.GetFeatureOwnerOrSelf();
 
-            if (hero == null ||
-                hero.usedBardicInspiration == 0)
+            if (featureCharacter == null ||
+                featureCharacter.UsedBardicInspiration == 0)
             {
                 yield break;
             }
 
-            hero.usedBardicInspiration -= 1;
+            featureCharacter.UsedBardicInspiration -= 1;
         }
     }
 

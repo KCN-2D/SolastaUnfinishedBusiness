@@ -1006,7 +1006,9 @@ public static class RulesetActorPatcher
                 feature.ModifyDamageAffinity(actor, caster, featuresToBrowse);
             }
 
-            if (actor is not RulesetCharacterHero hero)
+            if (actor is not RulesetCharacter character ||
+                character is not (RulesetCharacterHero or RulesetCharacterSimulacrum) ||
+                character.CharacterInventory == null)
             {
                 return;
             }
@@ -1014,12 +1016,12 @@ public static class RulesetActorPatcher
             //PATCH: add `IDamageAffinityProvider` from dynamic item properties
             //fixes game not applying damage reductions from dynamic item properties
             //used for Inventor's Resistant Armor infusions
-            foreach (var equipedItem in hero.CharacterInventory.InventorySlotsByName
+            foreach (var equipedItem in character.CharacterInventory.InventorySlotsByName
                          .Select(keyValuePair => keyValuePair.Value)
                          .Where(slot => slot.EquipedItem != null && !slot.Disabled && !slot.ConfigSlot)
                          .Select(slot => slot.EquipedItem))
             {
-                featuresToBrowse.AddRange(equipedItem.DynamicItemProperties
+                featuresToBrowse.TryAddRange(equipedItem.DynamicItemProperties
                     .Select(dynamicItemProperty => dynamicItemProperty.FeatureDefinition)
                     .Where(definition => definition is IDamageAffinityProvider));
             }
@@ -1200,14 +1202,15 @@ public static class RulesetActorPatcher
                 return;
             }
 
-            var hero = rulesetCharacter.GetOriginalHero();
+            var featureCharacter = rulesetCharacter.GetFeatureOwnerOrSelf();
 
-            if (hero == null)
+            if (featureCharacter == null)
             {
                 return;
             }
 
-            var proficiencyBonusAttribute = hero.GetAttribute(AttributeDefinitions.ProficiencyBonus);
+            var proficiencyBonusAttribute =
+                featureCharacter.GetAttribute(AttributeDefinitions.ProficiencyBonus);
 
             if (!proficiencyBonusAttribute.upToDate)
             {
@@ -1234,11 +1237,14 @@ public static class RulesetActorPatcher
                             attributeModifier.Value = attribute.Key switch
                             {
                                 AttributeDefinitions.HealingPool =>
-                                    hero.GetClassLevel(DatabaseHelper.CharacterClassDefinitions.Paladin),
+                                    featureCharacter.GetClassLevel(
+                                        DatabaseHelper.CharacterClassDefinitions.Paladin),
                                 AttributeDefinitions.KiPoints =>
-                                    hero.GetClassLevel(DatabaseHelper.CharacterClassDefinitions.Monk),
+                                    featureCharacter.GetClassLevel(
+                                        DatabaseHelper.CharacterClassDefinitions.Monk),
                                 AttributeDefinitions.SorceryPoints =>
-                                    hero.GetClassLevel(DatabaseHelper.CharacterClassDefinitions.Sorcerer),
+                                    featureCharacter.GetClassLevel(
+                                        DatabaseHelper.CharacterClassDefinitions.Sorcerer),
                                 _ => 0
                             };
                             break;
@@ -1256,9 +1262,11 @@ public static class RulesetActorPatcher
                             attribute.Key == AttributeDefinitions.HealingPool:
                         {
                             var levels =
-                                hero.GetSubclassLevel(DatabaseHelper.CharacterClassDefinitions.Druid,
+                                featureCharacter.GetSubclassLevel(
+                                    DatabaseHelper.CharacterClassDefinitions.Druid,
                                     CircleOfTheAncientForest.Name) +
-                                hero.GetSubclassLevel(DatabaseHelper.CharacterClassDefinitions.Ranger,
+                                featureCharacter.GetSubclassLevel(
+                                    DatabaseHelper.CharacterClassDefinitions.Ranger,
                                     RangerLightBearer.Name);
 
                             attributeModifier.Value = levels * 5;

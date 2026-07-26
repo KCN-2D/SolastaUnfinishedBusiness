@@ -24,11 +24,12 @@ public sealed class ModifyEffectDescriptionSavingThrowRogue(
         RulesetCharacter character,
         RulesetEffect rulesetEffect)
     {
-        var hero = character.GetOriginalHero();
+        var featureCharacter = character.GetFeatureOwnerOrSelf();
 
-        if (hero == null ||
-            !hero.ClassesAndSubclasses.TryGetValue(DatabaseHelper.CharacterClassDefinitions.Rogue, out var subClass) ||
-            subClass != DatabaseHelper.CharacterSubclassDefinitions.RoguishHoodlum)
+        if (featureCharacter == null ||
+            featureCharacter.GetSubclassLevel(
+                DatabaseHelper.CharacterClassDefinitions.Rogue,
+                DatabaseHelper.CharacterSubclassDefinitions.RoguishHoodlum.Name) == 0)
         {
             return effectDescription;
         }

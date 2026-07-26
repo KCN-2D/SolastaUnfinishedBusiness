@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
@@ -117,7 +118,9 @@ internal static class SpellPointsContext
 
     internal static bool IsSpellPointsEnabled(this RulesetCharacter character)
     {
-        return Main.Settings.UseAlternateSpellPointsSystem && character is RulesetCharacterHero;
+        return Main.Settings.UseAlternateSpellPointsSystem &&
+               (character is RulesetCharacterHero ||
+                character is RulesetCharacterSimulacrum && character.HasPower(PowerSpellPoints));
     }
 
     internal static int GetMaxSpellPoints(this RulesetCharacter rulesetCharacter)
@@ -143,8 +146,7 @@ internal static class SpellPointsContext
     internal static void HideSpellSlots(RulesetCharacter character, RectTransform table)
     {
         if (!character.IsSpellPointsEnabled() ||
-            (character is RulesetCharacterHero hero &&
-             SharedSpellsContext.GetWarlockSpellRepertoire(hero) != null))
+            SharedSpellsContext.GetWarlockSpellRepertoire(character) != null)
         {
             return;
         }
@@ -266,12 +268,9 @@ internal static class SpellPointsContext
             usablePower.remainingUses -= cost;
         }
 
-        // NPCs cannot be multicasters so try to get a hero here
-        var hero = character as RulesetCharacterHero;
-
         // consume spell slots at levels points cannot cast anymore
         var level = isMulticaster
-            ? SharedSpellsContext.GetSharedSpellLevel(hero)
+            ? SharedSpellsContext.GetSharedSpellLevel(character)
             : repertoire.MaxSpellLevelOfSpellCastingLevel;
 
         for (var i = level; i > 0; i--)
@@ -295,7 +294,7 @@ internal static class SpellPointsContext
 
         void ConsumeSlot(int slot)
         {
-            var warlockLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
+            var warlockLevel = SharedSpellsContext.GetWarlockSpellLevel(character);
             var usedWarlockSlots = 0;
 
             if (level == warlockLevel &&
@@ -410,9 +409,9 @@ internal static class SpellPointsContext
         {
             switch (character)
             {
-                case RulesetCharacterHero hero:
+                case RulesetCharacterHero or RulesetCharacterSimulacrum:
                 {
-                    var casterLevel = GetCasterLevel(hero);
+                    var casterLevel = GetCasterLevel(character);
 
                     return SpellPointsByLevel[casterLevel];
                 }
@@ -425,14 +424,14 @@ internal static class SpellPointsContext
             }
         }
 
-        private static int GetCasterLevel(RulesetCharacterHero hero)
+        private static int GetCasterLevel(RulesetCharacter character)
         {
-            if (SharedSpellsContext.IsMulticaster(hero))
+            if (SharedSpellsContext.IsMulticaster(character))
             {
-                return SharedSpellsContext.GetSharedCasterLevel(hero);
+                return SharedSpellsContext.GetSharedCasterLevel(character);
             }
 
-            var spellRepertoire = hero.SpellRepertoires.FirstOrDefault(x =>
+            var spellRepertoire = character.SpellRepertoires.FirstOrDefault(x =>
                 x.SpellCastingFeature.SpellCastingOrigin
                     is CastingOrigin.Class
                     or CastingOrigin.Subclass);
@@ -442,7 +441,18 @@ internal static class SpellPointsContext
                 return 0;
             }
 
-            var characterLevel = hero.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
+            var classDefinition = spellRepertoire.SpellCastingClass;
+
+            if (classDefinition == null &&
+                spellRepertoire.SpellCastingSubclass != null)
+            {
+                classDefinition = LevelUpHelper.GetClassForSubclass(
+                    spellRepertoire.SpellCastingSubclass);
+            }
+
+            var characterLevel = SharedSpellsContext.GetClassLevel(
+                character,
+                classDefinition);
             var casterType = SharedSpellsContext.GetCasterTypeForClassOrSubclass(
                 spellRepertoire.SpellCastingClass?.Name, spellRepertoire.SpellCastingSubclass?.Name);
 

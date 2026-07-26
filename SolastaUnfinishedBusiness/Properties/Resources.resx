@@ -1400,6 +1400,12 @@
       PublicKeyToken=b03f5f7f11d50a3a
     </value>
   </data>
+  <data name="ConditionSimulacrum" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>../Resources/Conditions/ConditionSimulacrum.png;System.Byte[], mscorlib, Version=4.0.0.0,
+      Culture=neutral,
+      PublicKeyToken=b03f5f7f11d50a3a
+    </value>
+  </data>
   <data name="RadiantMotes" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>../Resources/Spells/RadiantMotes.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
       PublicKeyToken=b03f5f7f11d50a3a
@@ -2932,6 +2938,16 @@
   </data>
   <data name="ScrollLevel9" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Items\ScrollLevel9.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="Simulacrum" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\Simulacrum.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="Wish" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\Wish.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
         PublicKeyToken=b77a5c561934e089
     </value>
   </data>

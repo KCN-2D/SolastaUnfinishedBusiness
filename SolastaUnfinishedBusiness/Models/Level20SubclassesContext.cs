@@ -1792,18 +1792,18 @@ internal static class Level20SubclassesContext
                 return;
             }
 
-            var hero = rulesetCharacter.GetOriginalHero();
+            var featureCharacter = rulesetCharacter.GetFeatureOwnerOrSelf();
 
-            if (hero == null)
+            if (featureCharacter == null)
             {
                 return;
             }
 
-            var character = GameLocationCharacter.GetFromActor(hero);
+            var character = GameLocationCharacter.GetFromActor(featureCharacter);
 
             EffectHelpers.StartVisualEffect(character, character, MageArmor, EffectHelpers.EffectType.Caster);
-            hero.LogCharacterUsedFeature(featureManaOverflow);
-            hero.GainSorceryPoints(1);
+            featureCharacter.LogCharacterUsedFeature(featureManaOverflow);
+            featureCharacter.GainSorceryPoints(1);
         }
     }
 

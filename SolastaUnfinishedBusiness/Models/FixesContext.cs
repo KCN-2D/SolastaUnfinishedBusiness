@@ -1131,7 +1131,7 @@ internal static class FixesContext
                 return;
             }
 
-            var rulesetAttacker = attacker.RulesetCharacter.GetOriginalHero();
+            var rulesetAttacker = attacker.RulesetCharacter.GetFeatureOwnerOrSelf();
 
             if (rulesetAttacker == null)
             {

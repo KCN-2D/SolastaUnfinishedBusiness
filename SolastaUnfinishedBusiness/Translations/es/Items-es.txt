@@ -703,3 +703,6 @@ Item/&Warlock_Armor_Survival_Title=Armadura de supervivencia de brujo
 Tooltip/&NoFreeHandToLoadAmmoDescription=¡No hay manos libres para cargar munición!
 Tooltip/&TagPolearmWeaponTitle=Brazo de poste
 Tooltip/&TagReturningWeaponTitle=Regresando
+Tooltip/&TagMaterialSimulacrumRubyTitle=Rubí de sangre
+Item/&ItemWishCreatedTreasureDescription=Un tesoro no mágico creado por Deseo, por valor de 25.000 PO.
+Item/&ItemWishCreatedTreasureTitle=Tesoro creado por Deseo

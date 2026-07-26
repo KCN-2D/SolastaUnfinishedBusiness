@@ -691,3 +691,4 @@ UI/&RecipeFilterArmor=Rüstung
 UI/&RecipeFilterUsableDevices=Verwendbare Geräte
 UI/&RecipeFilterWeapons=Waffen
 Tooltip/&PreReqAnyAbilityScoreList=Ein beliebiger Wert aus {0} muss {1}+ sein
+Rules/&ActivationTypeHours12Title=12 Stunden

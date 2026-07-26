@@ -1042,6 +1042,11 @@ public static class GameLocationCharacterExtensions
                 }
             }
 
+            if (isValid && !character.CanCastInvocation(invocation))
+            {
+                isValid = false;
+            }
+
             if (isValid)
             {
                 return true;

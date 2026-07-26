@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -6,9 +6,12 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Diagnostics;
+using SolastaUnfinishedBusiness.Interfaces;
 using UnityEngine;
 using UnityEngine.UI;
 using static RuleDefinitions;
+using Object = UnityEngine.Object;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -54,6 +57,7 @@ public static class InvocationActivationBoxPatcher
         {
             //PATCH: clean up custom widgets added for power invocations
             DisablePowerUseSlots(__instance);
+            SpellCastingValidation.BindTooltipRepertoire(__instance.spellTooltip, null);
 
             var definition = invocation.InvocationDefinition;
             var isValid = definition
@@ -70,6 +74,17 @@ public static class InvocationActivationBoxPatcher
             else
             {
                 __instance.gameObject.SetActive(true);
+
+                if (activator is RulesetCharacterSimulacrum &&
+                    definition.GrantedSpell != null)
+                {
+                    SpellCastingValidation.BindTooltipRepertoire(
+                        __instance.spellTooltip,
+                        invocation.InvocationRepertoire ??
+                        activator.GetSpellRepertoireForInvocations(),
+                        bypassMaterialComponent: definition.OverrideMaterialComponent);
+                }
+
                 //PATCH: make custom tooltip
                 SetupCustomTooltip(__instance, invocation, activator);
 
@@ -78,7 +93,58 @@ public static class InvocationActivationBoxPatcher
 
                 //PATCH: support for invocations that recharge on short rest (like Fey Teleportation feat)
                 UpdateUsedState(__instance, invocation, activator);
+
+                // Native Bind deliberately enables every invocation while a gamepad is active.
+                // Simulacrum spell invocations must retain the same component validation used by
+                // execution so an unavailable entry cannot start an action that will fail.
+                ApplySimulacrumAvailability(__instance, invocation, activator);
             }
+        }
+
+        private static void ApplySimulacrumAvailability(
+            InvocationActivationBox box,
+            RulesetInvocation invocation,
+            RulesetCharacter activator)
+        {
+            if (activator is not RulesetCharacterSimulacrum simulacrum ||
+                invocation.IsPermanent())
+            {
+                return;
+            }
+
+            var available = simulacrum.CanCastInvocation(invocation, out var failure);
+
+            if (!available)
+            {
+                SetAvailability(box, false);
+
+                if (!string.IsNullOrEmpty(failure))
+                {
+                    box.tooptip.Content = Gui.FormatFailure(box.tooptip.Content, failure);
+
+                    if (box.spellTooltip)
+                    {
+                        box.spellTooltip.Content = Gui.FormatFailure(
+                            box.spellTooltip.Content,
+                            failure);
+                    }
+                }
+            }
+
+            SimulacrumDiagnostics.RecordInvocationUiAvailability(
+                simulacrum,
+                invocation.InvocationDefinition,
+                available,
+                box.button.interactable,
+                failure);
+        }
+
+        private static void SetAvailability(InvocationActivationBox box, bool available)
+        {
+            box.button.interactable = available;
+            box.canvasGroup.interactable = available;
+            box.icon.material = available ? box.availableMaterial : box.unavailableMaterial;
+            box.icon.color = available ? Color.white : new Color(0.5f, 0.5f, 0.5f, 1f);
         }
 
         private static void UpdateUsedState(InvocationActivationBox box, RulesetInvocation invocation,
@@ -101,10 +167,7 @@ public static class InvocationActivationBoxPatcher
 
             var available = !invocation.Used && activator.CanCastInvocation(invocation);
 
-            box.button.interactable = available;
-            box.canvasGroup.interactable = available;
-            box.icon.material = available ? box.availableMaterial : box.unavailableMaterial;
-            box.icon.color = available ? Color.white : new Color(0.5f, 0.5f, 0.5f, 1f);
+            SetAvailability(box, available);
         }
 
         private static void SetupCustomTooltip(
@@ -196,7 +259,7 @@ public static class InvocationActivationBoxPatcher
             }
 
             var usablePower = PowerProvider.Get(power, character);
-            var maxUses = character.GetMaxUsesOfPower(usablePower);
+            var maxUses = PowerProvider.GetEffectiveMaxUses(character, usablePower);
             var remainingUses = character.GetRemainingUsesOfPower(usablePower);
             var powerUsesPoints = character.IsPowerUsingPool(usablePower);
             var powerUsesSlots = character.IsPowerUsingSlots(usablePower);
@@ -277,6 +340,7 @@ public static class InvocationActivationBoxPatcher
         {
             //PATCH: clean up custom widgets added for power invocations
             DisablePowerUseSlots(__instance);
+            SpellCastingValidation.BindTooltipRepertoire(__instance.spellTooltip, null);
         }
     }
 }

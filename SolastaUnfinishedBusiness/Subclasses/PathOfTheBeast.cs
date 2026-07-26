@@ -282,12 +282,12 @@ public sealed class PathOfTheBeast : AbstractSubclass
 
         protected override List<RulesetAttackMode> GetAttackModes(RulesetCharacter character)
         {
-            if (character is not RulesetCharacterHero hero)
+            if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum))
             {
                 return null;
             }
 
-            var attackModifiers = hero.attackModifiers;
+            var attackModifiers = GetAttackModifiers(character);
             ActionDefinitions.ActionType[] list =
                 [ActionDefinitions.ActionType.Reaction, ActionDefinitions.ActionType.Main];
 
@@ -302,6 +302,7 @@ public sealed class PathOfTheBeast : AbstractSubclass
                         EquipmentDefinitions.SlotTypeMainHand,
                         attackModifiers,
                         character.FeaturesOrigin))
+                .Where(mode => mode != null)
                 .ToList();
         }
     }
@@ -364,21 +365,21 @@ public sealed class PathOfTheBeast : AbstractSubclass
 
         protected override List<RulesetAttackMode> GetAttackModes(RulesetCharacter character)
         {
-            if (character is not RulesetCharacterHero hero ||
+            if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum) ||
                 !ValidatorsCharacter.HasFreeHandConsiderGrapple(character))
             {
                 return null;
             }
 
-            var attackModifiers = hero.attackModifiers;
+            var attackModifiers = GetAttackModifiers(character);
             List<ActionDefinitions.ActionType> list = [ActionDefinitions.ActionType.Reaction];
 
-            if (hero.GetMainWeapon() == null)
+            if (character.GetMainWeapon() == null)
             {
                 list.Add(ActionDefinitions.ActionType.Main);
             }
 
-            if (hero.GetOffhandWeapon() == null)
+            if (character.GetOffhandWeapon() == null)
             {
                 list.Add(ActionDefinitions.ActionType.Bonus);
             }
@@ -396,6 +397,7 @@ public sealed class PathOfTheBeast : AbstractSubclass
                             : EquipmentDefinitions.SlotTypeOffHand,
                         attackModifiers,
                         character.FeaturesOrigin))
+                .Where(mode => mode != null)
                 .ToList();
         }
     }
@@ -509,12 +511,12 @@ public sealed class PathOfTheBeast : AbstractSubclass
 
         protected override List<RulesetAttackMode> GetAttackModes(RulesetCharacter character)
         {
-            if (character is not RulesetCharacterHero hero)
+            if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum))
             {
                 return null;
             }
 
-            var attackModifiers = hero.attackModifiers;
+            var attackModifiers = GetAttackModifiers(character);
             ActionDefinitions.ActionType[] list =
                 [ActionDefinitions.ActionType.Reaction, ActionDefinitions.ActionType.Main];
 
@@ -529,6 +531,7 @@ public sealed class PathOfTheBeast : AbstractSubclass
                         EquipmentDefinitions.SlotTypeMainHand,
                         attackModifiers,
                         character.FeaturesOrigin))
+                .Where(mode => mode != null)
                 .ToList();
         }
     }

@@ -6,10 +6,12 @@ using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Classes;
+using SolastaUnfinishedBusiness.Interfaces;
 using static RuleDefinitions;
 using static FeatureDefinitionAttributeModifier;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
@@ -503,9 +505,12 @@ internal static class MulticlassContext
 
     private static int SpellCastingLevel(RulesetSpellRepertoire repertoire, ISerializable caster, SpellDefinition spell)
     {
-        if (caster is RulesetCharacterHero hero && spell.SpellLevel == 0)
+        if (spell.SpellLevel == 0 &&
+            caster is RulesetCharacter character &&
+            (character is RulesetCharacterHero or RulesetCharacterSimulacrum ||
+             character.HasSubFeatureOfType<IUseIndependentSpellSlots>()))
         {
-            return hero.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
+            return character.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
         }
 
         return repertoire.SpellCastingLevel;

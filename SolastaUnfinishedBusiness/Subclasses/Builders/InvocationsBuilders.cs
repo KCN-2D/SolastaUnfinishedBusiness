@@ -352,12 +352,13 @@ internal static class InvocationsBuilders
     {
         return InvocationDefinitionBuilder
             .Create(name)
-            .SetGuiPresentation(Category.Invocation, FeatureDefinitionMagicAffinitys.MagicAffinitySpellBladeIntoTheFray)
+            .SetGuiPresentation(Category.Invocation, MagicWeapon)
             .SetRequirements(level, pact: FeatureSetPactBlade)
             .SetGrantedFeature(
                 FeatureDefinitionAttackModifierBuilder
                     .Create($"AttackModifier{name}")
                     .SetGuiPresentation(name, Category.Invocation)
+                    .SetRequiredProperty(RestrictedContextRequiredProperty.Weapon)
                     .SetAttackRollModifier(1)
                     .SetDamageRollModifier(1)
                     .AddToDB())

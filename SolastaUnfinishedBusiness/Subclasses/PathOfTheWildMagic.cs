@@ -1237,22 +1237,27 @@ public sealed class PathOfTheWildMagic : AbstractSubclass
 
         public bool IsValid(CursorLocationSelectTarget __instance, GameLocationCharacter target)
         {
-            var hero = target.RulesetCharacter.GetOriginalHero();
+            var spellcaster = target.RulesetCharacter;
 
-            if (hero == null)
+            if (spellcaster is not RulesetCharacterHero and not RulesetCharacterSimulacrum)
             {
-                __instance.actionModifier.FailureFlags.Add($"Failure/&{Name}NotAHero");
-                return false;
+                if (!spellcaster.TryGetShapeChangeOriginalHero(out var shapeChangeHero))
+                {
+                    __instance.actionModifier.FailureFlags.Add($"Failure/&{Name}NotAHero");
+                    return false;
+                }
+
+                spellcaster = shapeChangeHero;
             }
 
-            if (hero.HasAnyConditionOfType(_conditionNames))
+            if (spellcaster.HasAnyConditionOfType(_conditionNames))
             {
                 __instance.actionModifier.FailureFlags.Add($"Failure/&{Name}AlreadyBolstered");
                 return false;
             }
 
             // ReSharper disable once InvertIf
-            if (!hero.CanCastSpells())
+            if (!spellcaster.CanCastSpells())
             {
                 __instance.actionModifier.FailureFlags.Add($"Failure/&{Name}CannotCastSpells");
                 return false;

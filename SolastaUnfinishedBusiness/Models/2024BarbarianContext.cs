@@ -726,7 +726,8 @@ public static partial class Tabletop2024Context
     }
 
     private sealed class CustomBehaviorPowerBarbarianPersistentRageStart(
-        FeatureDefinitionPower powerBarbarianPersistentRegainRagePoints) : IInitiativeEndListener, IOnItemEquipped
+        FeatureDefinitionPower powerBarbarianPersistentRegainRagePoints)
+        : IInitiativeEndListener, IOnCharacterEquipmentChanged
     {
         public IEnumerator OnInitiativeEnded(GameLocationCharacter character)
         {
@@ -764,7 +765,7 @@ public static partial class Tabletop2024Context
             }
         }
 
-        public void OnItemEquipped(RulesetCharacterHero hero)
+        public void OnCharacterEquipmentChanged(RulesetCharacter hero)
         {
             if (hero.IsWearingHeavyArmor() &&
                 hero.TryGetConditionOfCategoryAndType(

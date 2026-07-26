@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -13,6 +13,7 @@ using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
@@ -34,6 +35,134 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetCharacterPatcher
 {
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.GetAmmunitionType))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class GetAmmunitionType_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetCharacter __instance,
+            ref string __result,
+            RulesetAttackMode mode)
+        {
+            if (__instance is RulesetCharacterSimulacrum)
+            {
+                RepeatingShot.IgnoreStandardAmmunition(__instance, mode, ref __result);
+            }
+        }
+    }
+
+    [HarmonyPatch(
+        typeof(RulesetCharacterMonster),
+        nameof(RulesetCharacterMonster.ComputeHitPoints))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ComputeHitPoints_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(
+            RulesetCharacterMonster __instance,
+            out int __state)
+        {
+            __state = __instance is RulesetCharacterSimulacrum
+                ? __instance.CurrentHitPoints
+                : -1;
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetCharacterMonster __instance,
+            int __state)
+        {
+            if (__state >= 0)
+            {
+                SimulacrumBehavior.RestoreHitPointsAfterCompute(
+                    __instance,
+                    __state);
+            }
+        }
+    }
+
+    [HarmonyPatch(
+        typeof(RulesetCharacter),
+        nameof(RulesetCharacter.EnumerateUsableRitualSpells))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class EnumerateUsableRitualSpells_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(
+            RulesetCharacter __instance,
+            RitualCasting __0,
+            List<SpellDefinition> __1)
+        {
+            if (__instance is not RulesetCharacterSimulacrum duplicate)
+            {
+                return true;
+            }
+
+            __1.Clear();
+            __1.AddRange(SimulacrumBehavior
+                .EnumerateRitualSpellCandidates(duplicate, __0)
+                .Select(candidate => candidate.Key)
+                .Distinct()
+                .OrderBy(x => x.SpellLevel)
+                .ThenBy(x => x.Name, StringComparer.Ordinal));
+            SimulacrumDiagnostics.RecordRitualSelection(duplicate, __0, __1);
+
+            return false;
+        }
+    }
+
+    [HarmonyPatch(
+        typeof(RulesetCharacter),
+        nameof(RulesetCharacter.CanCastAnyRitualSpell))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CanCastAnyRitualSpell_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(RulesetCharacter __instance, ref bool __result)
+        {
+            if (__instance is not RulesetCharacterSimulacrum duplicate)
+            {
+                return true;
+            }
+
+            // Native monster feature enumeration does not surface the copied magic affinity,
+            // even though it is present in the Simulacrum's active feature graph. Evaluate every
+            // copied ritual mode directly so 2024 Wizard spellbook rituals remain available
+            // without being prepared.
+            var ritualCastings = duplicate.ActiveFeatures
+                .OfType<FeatureDefinitionMagicAffinity>()
+                .Select(x => x.RitualCasting)
+                .Where(x => x != RitualCasting.None)
+                .Distinct()
+                .ToArray();
+
+            foreach (var ritualCasting in ritualCastings)
+            {
+                var spells = new List<SpellDefinition>();
+
+                duplicate.EnumerateUsableRitualSpells(ritualCasting, spells);
+
+                if (spells.Count == 0)
+                {
+                    continue;
+                }
+
+                __result = true;
+
+                return false;
+            }
+
+            __result = false;
+
+            return false;
+        }
+    }
+
     // helper to get infusions modifiers from items
     private static void EnumerateFeaturesFromItems<T>(
         RulesetCharacter __instance,
@@ -41,30 +170,34 @@ public static class RulesetCharacterPatcher
         Dictionary<FeatureDefinition, FeatureOrigin> featuresOrigin) where T : class
     {
         __instance.EnumerateFeaturesToBrowse<T>(featuresToBrowse, featuresOrigin);
-        if (__instance is not RulesetCharacterHero hero)
+        if (__instance is not (RulesetCharacterHero or RulesetCharacterSimulacrum) ||
+            __instance.CharacterInventory == null)
         {
             return;
         }
 
-        foreach (var definition in hero.CharacterInventory.InventorySlotsByName
+        foreach (var pair in __instance.CharacterInventory.InventorySlotsByName
                      .Select(keyValuePair => keyValuePair.Value)
                      .Where(slot => slot.EquipedItem != null && !slot.Disabled && !slot.ConfigSlot)
                      .Select(slot => slot.EquipedItem)
                      .SelectMany(equipedItem => equipedItem.DynamicItemProperties
-                         .Select(dynamicItemProperty => dynamicItemProperty.FeatureDefinition)
-                         .Where(definition => definition && definition is T)))
+                         .Select(dynamicItemProperty => (equipedItem, dynamicItemProperty.FeatureDefinition)))
+                     .Where(pair => pair.FeatureDefinition && pair.FeatureDefinition is T))
         {
-            featuresToBrowse.Add(definition);
+            var definition = pair.FeatureDefinition;
 
-            if (featuresOrigin.ContainsKey(definition))
+            if (!featuresToBrowse.Contains(definition))
             {
-                continue;
+                featuresToBrowse.Add(definition);
             }
 
-            featuresOrigin.Add(
+            featuresOrigin.TryAdd(
                 definition,
                 new FeatureOrigin(
-                    FeatureSourceType.CharacterFeature, definition.Name, null, definition.ParseSpecialFeatureTags()));
+                    FeatureSourceType.Equipment,
+                    pair.equipedItem.ItemDefinition.Name,
+                    pair.equipedItem.ItemDefinition,
+                    definition.ParseSpecialFeatureTags()));
         }
 
         //PATCH: allow ISpellCastingAffinityProvider to be validated with IsCharacterValidHandler
@@ -324,7 +457,7 @@ public static class RulesetCharacterPatcher
         {
             //PATCH: count wild-shaped heroes with monk classes as wielding monk weapons
             if (__instance is not RulesetCharacterMonster ||
-                __instance.OriginalFormCharacter is not RulesetCharacterHero hero)
+                !__instance.TryGetShapeChangeOriginalHero(out var hero))
             {
                 return;
             }
@@ -498,6 +631,7 @@ public static class RulesetCharacterPatcher
             definition.Features
                 .SelectMany(f => f.GetAllSubFeaturesOfType<IOnConditionAddedOrRemoved>())
                 .Do(c => c.OnConditionRemoved(__instance, activeCondition));
+
         }
 
         // ReSharper disable once SuggestBaseTypeForParameter
@@ -621,7 +755,9 @@ public static class RulesetCharacterPatcher
             var user = __instance;
 
             // __instance is required by Artillerist which has powers tied to caster
-            var summoner = user.GetMySummoner();
+            var summoner = user.HasSubFeatureOfType<IUseOwnStatsWhenSummoned>()
+                ? null
+                : user.GetMySummoner();
 
             if (summoner != null)
             {
@@ -679,6 +815,13 @@ public static class RulesetCharacterPatcher
         public static void Postfix(
             RulesetCharacter __instance, ref bool __result, SpellDefinition spellDefinition, ref string failure)
         {
+            if (RulesetEffectSpellWithOrigin.IsPendingOrigin(__instance, spellDefinition))
+            {
+                __result = true;
+                failure = string.Empty;
+                return;
+            }
+
             //PATCH: Validates if casters have the other hand free if grappling
             GrappleContext.ValidateIfCastingValid(__instance,
                 spellDefinition, ref __result, ref failure, GrappleContext.SpellValidationType.Somatic);
@@ -749,6 +892,49 @@ public static class RulesetCharacterPatcher
     [UsedImplicitly]
     public static class IsComponentMaterialValid_Patch
     {
+        internal static bool TryValidateSimulacrum(
+            RulesetCharacter character,
+            SpellDefinition spellDefinition,
+            ref bool result,
+            ref string failure)
+        {
+            if (character is not RulesetCharacterSimulacrum duplicate ||
+                spellDefinition == null)
+            {
+                return false;
+            }
+
+            SpellCastingValidation.TryGetSelectedRepertoire(
+                duplicate,
+                out var selectedRepertoire);
+            var repertoire = SpellCastingValidation.ResolveRepertoire(
+                duplicate,
+                selectedRepertoire,
+                spellDefinition);
+
+            result = SimulacrumBehavior.IsMaterialComponentValid(
+                duplicate,
+                repertoire,
+                spellDefinition,
+                out failure);
+
+            return true;
+        }
+
+        [UsedImplicitly]
+        public static bool Prefix(
+            RulesetCharacter __instance,
+            SpellDefinition spellDefinition,
+            ref bool __result,
+            ref string failure)
+        {
+            return !TryValidateSimulacrum(
+                __instance,
+                spellDefinition,
+                ref __result,
+                ref failure);
+        }
+
         [UsedImplicitly]
         public static void Postfix(
             RulesetCharacter __instance,
@@ -756,20 +942,40 @@ public static class RulesetCharacterPatcher
             SpellDefinition spellDefinition,
             ref string failure)
         {
+            ApplyAdditionalValidation(
+                __instance,
+                spellDefinition,
+                ref __result,
+                ref failure);
+        }
+
+        internal static void ApplyAdditionalValidation(
+            RulesetCharacter character,
+            SpellDefinition spellDefinition,
+            ref bool result,
+            ref string failure)
+        {
+            if (RulesetEffectSpellWithOrigin.IsPendingOrigin(character, spellDefinition))
+            {
+                result = true;
+                failure = string.Empty;
+                return;
+            }
+
             //PATCH: Allow spells to satisfy material components by using stack of equal or greater value
-            StackedMaterialComponent.IsComponentMaterialValid(__instance, spellDefinition, ref failure, ref __result);
+            StackedMaterialComponent.IsComponentMaterialValid(character, spellDefinition, ref failure, ref result);
 
             //PATCH: Validates if casters have the other hand free if grappling
             GrappleContext.ValidateIfCastingValid(
-                __instance, spellDefinition, ref __result, ref failure, GrappleContext.SpellValidationType.Material);
+                character, spellDefinition, ref result, ref failure, GrappleContext.SpellValidationType.Material);
 
             //PATCH: Allows spells to satisfy specific material components by actual active tags on an item that are not directly defined in ItemDefinition (like "Melee")
             //Used mostly for melee cantrips requiring melee weapon to cast
-            ValidateSpecificComponentsByTags(__instance, spellDefinition, ref __result, ref failure);
+            ValidateSpecificComponentsByTags(character, spellDefinition, ref result, ref failure);
 
             //PATCH: Allows spells to satisfy mundane material components if Inventor has infused item equipped
             //Used mostly for melee cantrips requiring melee weapon to cast
-            ValidateInfusedFocus(__instance, spellDefinition, ref __result, ref failure);
+            ValidateInfusedFocus(character, spellDefinition, ref result, ref failure);
         }
 
         //TODO: move to separate file
@@ -844,6 +1050,60 @@ public static class RulesetCharacterPatcher
         }
     }
 
+    // RulesetCharacterMonster overrides the virtual material-component method, so a
+    // patch on RulesetCharacter does not cover a Simulacrum. Intercept only the
+    // custom duplicate here; leave every native monster on its original path.
+    [HarmonyPatch(
+        typeof(RulesetCharacterMonster),
+        nameof(RulesetCharacterMonster.IsComponentMaterialValid))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class IsComponentMaterialValidMonster_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(
+            RulesetCharacterMonster __instance,
+            SpellDefinition spellDefinition,
+            ref bool __result,
+            ref string failure,
+            out bool __state)
+        {
+            __state = IsComponentMaterialValid_Patch.TryValidateSimulacrum(
+                __instance,
+                spellDefinition,
+                ref __result,
+                ref failure);
+
+            return !__state;
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetCharacterMonster __instance,
+            SpellDefinition spellDefinition,
+            ref bool __result,
+            ref string failure,
+            bool __state)
+        {
+            if (!__state)
+            {
+                return;
+            }
+
+            IsComponentMaterialValid_Patch.ApplyAdditionalValidation(
+                __instance,
+                spellDefinition,
+                ref __result,
+                ref failure);
+
+            SimulacrumDiagnostics.RecordRuntimeMaterialValidation(
+                __instance as RulesetCharacterSimulacrum,
+                spellDefinition,
+                __result,
+                failure);
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.SpendSpellMaterialComponentAsNeeded))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -852,6 +1112,11 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static bool Prefix(RulesetCharacter __instance, RulesetEffectSpell activeSpell)
         {
+            if (activeSpell is RulesetEffectSpellWithOrigin { BypassComponentsAndCastingTime: true })
+            {
+                return false;
+            }
+
             //PATCH: Modify original code to spend enough of a stack to meet component cost
             return StackedMaterialComponent.SpendSpellMaterialComponentAsNeeded(__instance, activeSpell);
         }
@@ -923,7 +1188,7 @@ public static class RulesetCharacterPatcher
         public static void Postfix(RulesetCharacter __instance, ref bool __result)
         {
             // wildshape
-            if (__instance.OriginalFormCharacter is RulesetCharacterHero hero && hero != __instance &&
+            if (__instance.TryGetShapeChangeOriginalHero(out var hero) &&
                 hero.classesAndLevels.TryGetValue(Druid, out var level) &&
                 level < 18)
             {
@@ -947,7 +1212,7 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance, ref List<RulesetSpellRepertoire> __result)
         {
-            if (__instance.OriginalFormCharacter is RulesetCharacterHero hero && hero != __instance)
+            if (__instance.TryGetShapeChangeOriginalHero(out var hero))
             {
                 __result = hero.SpellRepertoires;
             }
@@ -963,7 +1228,7 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance, int slotLevel, RulesetSpellRepertoire repertoire)
         {
-            if (__instance.OriginalFormCharacter is RulesetCharacterHero hero && hero != __instance)
+            if (__instance.TryGetShapeChangeOriginalHero(out var hero))
             {
                 hero.CreateSorceryPoints(slotLevel, repertoire);
             }
@@ -979,7 +1244,7 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance, int sorceryPointsGain)
         {
-            if (__instance.OriginalFormCharacter is RulesetCharacterHero hero && hero != __instance)
+            if (__instance.TryGetShapeChangeOriginalHero(out var hero))
             {
                 hero.GainSorceryPoints(sorceryPointsGain);
             }
@@ -1067,7 +1332,7 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance, RulesetUsablePower usablePower)
         {
-            if (__instance.OriginalFormCharacter is RulesetCharacterHero hero && hero != __instance)
+            if (__instance.TryGetShapeChangeOriginalHero(out var hero))
             {
                 // ReSharper disable once SwitchStatementMissingSomeEnumCasesNoDefault
                 switch (usablePower.PowerDefinition.RechargeRate)
@@ -1542,25 +1807,19 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Prefix(RulesetCharacter __instance)
         {
-            var hero = __instance.GetOriginalHero();
+            var featureCharacter = __instance.GetFeatureOwnerOrSelf();
 
-            if (hero != null &&
-                Main.Settings.UseAlternateSpellPointsSystem)
+            if (featureCharacter?.IsSpellPointsEnabled() == true)
             {
                 SpellPointsContext.ConvertAdditionalSlotsIntoSpellPointsBeforeRefreshSpellRepertoire(
-                    __instance.GetOriginalHero());
+                    featureCharacter);
             }
         }
 
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance)
         {
-            if (__instance is not RulesetCharacterHero hero)
-            {
-                return;
-            }
-
-            if (!SharedSpellsContext.IsMulticaster(hero))
+            if (!SharedSpellsContext.IsMulticaster(__instance))
             {
                 return;
             }
@@ -1568,7 +1827,7 @@ public static class RulesetCharacterPatcher
             var slots = new Dictionary<int, int>();
 
             // adds features slots
-            foreach (var additionalSlot in hero.FeaturesToBrowse
+            foreach (var additionalSlot in __instance.FeaturesToBrowse
                          .OfType<FeatureDefinitionMagicAffinity>()
                          // special Warlock case so we should discard it here
                          .Where(x => x != MagicAffinityChitinousBoonAdditionalSpellSlot)
@@ -1580,27 +1839,27 @@ public static class RulesetCharacterPatcher
             }
 
             // adds spell slots
-            var sharedCasterLevel = SharedSpellsContext.GetSharedCasterLevel(hero);
-            var sharedSpellLevel = SharedSpellsContext.GetSharedSpellLevel(hero);
+            var sharedCasterLevel = SharedSpellsContext.GetSharedCasterLevel(__instance);
+            var sharedSpellLevel = SharedSpellsContext.GetSharedSpellLevel(__instance);
 
             for (var i = 1; i <= sharedSpellLevel; i++)
             {
                 slots.TryAdd(i, 0);
-                slots[i] += hero.IsSpellPointsEnabled()
+                slots[i] += __instance.IsSpellPointsEnabled()
                     ? SpellPointsContext.SpellPointsFullCastingSlots[sharedCasterLevel - 1].Slots[i - 1]
                     : SharedSpellsContext.FullCastingSlots[sharedCasterLevel - 1].Slots[i - 1];
             }
 
-            var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
+            var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(__instance);
 
             for (var i = 1; i <= warlockSpellLevel; i++)
             {
                 slots.TryAdd(i, 0);
-                slots[i] += SharedSpellsContext.GetWarlockMaxSlots(hero);
+                slots[i] += SharedSpellsContext.GetWarlockMaxSlots(__instance);
             }
 
             // reassign slots back to repertoires except for race ones
-            foreach (var spellRepertoire in hero.SpellRepertoires
+            foreach (var spellRepertoire in __instance.SpellRepertoires
                          .Where(x => x.SpellCastingFeature.SpellCastingOrigin
                              is FeatureDefinitionCastSpell.CastingOrigin.Class
                              or FeatureDefinitionCastSpell.CastingOrigin.Subclass))
@@ -1623,6 +1882,21 @@ public static class RulesetCharacterPatcher
             ActionType actionType,
             bool canOnlyUseCantrips)
         {
+            if (__instance is RulesetCharacterSimulacrum duplicate)
+            {
+                __result = SimulacrumBehavior.CanCastSpellOfActionType(
+                    duplicate,
+                    actionType,
+                    canOnlyUseCantrips);
+                SimulacrumDiagnostics.RecordActionPrerequisite(
+                    duplicate,
+                    "spell",
+                    actionType,
+                    __result);
+
+                return;
+            }
+
             if (__result) { return; }
 
             if (actionType != ActionType.Bonus) { return; }
@@ -1648,7 +1922,7 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance, RulesetUsablePower usablePower)
         {
-            if (__instance.OriginalFormCharacter is RulesetCharacterHero hero && hero != __instance)
+            if (__instance.TryGetShapeChangeOriginalHero(out var hero))
             {
                 // ReSharper disable once SwitchStatementMissingSomeEnumCasesNoDefault
                 switch (usablePower.PowerDefinition.RechargeRate)
@@ -1719,8 +1993,29 @@ public static class RulesetCharacterPatcher
         }
 
         [UsedImplicitly]
-        public static void Prefix(RulesetCharacter __instance, RestType restType)
+        public static bool Prefix(
+            RulesetCharacter __instance,
+            RestType restType,
+            bool simulate)
         {
+            if (__instance.GetSubFeaturesByType<IPreventRestRecovery>()
+                .Any(provider => provider.PreventRestRecovery(__instance, restType)))
+            {
+                // Simulacra do not recover resources from a rest, but their ordinary
+                // timed effects must still advance and expire. World travel already
+                // takes this route through GameCampaignCharacter.EngageRest; this is
+                // the tactical/camp ApplyRest path and must run exactly once here.
+                if (__instance is RulesetCharacterSimulacrum duplicate)
+                {
+                    SimulacrumBehavior.AdvanceTimedEffectsForRest(
+                        duplicate,
+                        restType,
+                        simulate);
+                }
+
+                return false;
+            }
+
             // invert used channel divinity sign if any 2024 setting enabled and a short rest to avoid double dip
             if (restType == RestType.ShortRest &&
                 (Main.Settings.EnablePaladinChannelDivinity2024 || Main.Settings.EnableClericChannelDivinity2024))
@@ -1729,11 +2024,19 @@ public static class RulesetCharacterPatcher
             }
 
             SwitchBindChainPowers(restType, RechargeRate.LongRest);
+
+            return true;
         }
 
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance, RestType restType, bool simulate)
         {
+            if (__instance.GetSubFeaturesByType<IPreventRestRecovery>()
+                .Any(provider => provider.PreventRestRecovery(__instance, restType)))
+            {
+                return;
+            }
+
             // put back used channel divinity sign if any 2024 setting enabled and a short rest to avoid double dip
             if (restType == RestType.ShortRest &&
                 (Main.Settings.EnablePaladinChannelDivinity2024 || Main.Settings.EnableClericChannelDivinity2024))
@@ -1901,18 +2204,17 @@ public static class RulesetCharacterPatcher
             RestType restType)
         {
             if (restType == RestType.LongRest
-                || rulesetCharacter is not RulesetCharacterHero hero
-                || !SharedSpellsContext.IsMulticaster(hero))
+                || !SharedSpellsContext.IsMulticaster(rulesetCharacter))
             {
                 rulesetCharacter.RestoreAllSpellSlots();
 
                 return;
             }
 
-            var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
-            var warlockUsedSlots = SharedSpellsContext.GetWarlockUsedSlots(hero);
+            var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(rulesetCharacter);
+            var warlockUsedSlots = SharedSpellsContext.GetWarlockUsedSlots(rulesetCharacter);
 
-            foreach (var spellRepertoire in hero.SpellRepertoires
+            foreach (var spellRepertoire in rulesetCharacter.SpellRepertoires
                          .Where(x => x.SpellCastingFeature.SpellCastingOrigin
                              is FeatureDefinitionCastSpell.CastingOrigin.Class
                              or FeatureDefinitionCastSpell.CastingOrigin.Subclass))
@@ -1927,6 +2229,28 @@ public static class RulesetCharacterPatcher
 
                 spellRepertoire.RepertoireRefreshed?.Invoke(spellRepertoire);
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.IsComponentVerbalValid))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class IsComponentVerbalValid_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetCharacter __instance,
+            ref bool __result,
+            SpellDefinition spellDefinition,
+            ref string failure)
+        {
+            if (!RulesetEffectSpellWithOrigin.IsPendingOrigin(__instance, spellDefinition))
+            {
+                return;
+            }
+
+            __result = true;
+            failure = string.Empty;
         }
     }
 
@@ -2283,8 +2607,25 @@ public static class RulesetCharacterPatcher
     public static class RefreshEffectsForRealTimeLapse_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(RulesetCharacter __instance, int roundsNumber)
+        public static void Prefix(
+            RulesetCharacter __instance,
+            int roundsNumber,
+            out bool __state)
         {
+            var duplicate = __instance as RulesetCharacterSimulacrum;
+
+            __state = duplicate != null &&
+                      duplicate.SpellsCastByMe
+                          .OfType<RulesetEffectSpell>()
+                          .Any(spell => spell?.SpellDefinition?.Name == "Shillelagh");
+
+            if (__state)
+            {
+                SimulacrumDiagnostics.RecordShillelagh(
+                    duplicate,
+                    $"real-time-before-{roundsNumber}");
+            }
+
             //PATCH: fix Ice Storm not ending sometimes on Battle End
             //Noticed on Ice Storm spell, but it may affect other spells or even powers
             //caused by RemainingRounds being decremented on battle end in GameLocationCharacter.RefreshEffectsForBattleRoundEnd, without termination - not sure why
@@ -2297,6 +2638,33 @@ public static class RulesetCharacterPatcher
                 spell.RemainingRounds = 1;
             }
         }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetCharacter __instance,
+            int roundsNumber,
+            bool __state)
+        {
+            if (!__state ||
+                __instance is not RulesetCharacterSimulacrum duplicate)
+            {
+                return;
+            }
+
+            var remainsActive = duplicate.SpellsCastByMe
+                .OfType<RulesetEffectSpell>()
+                .Any(spell => spell?.SpellDefinition?.Name == "Shillelagh");
+
+            if (!remainsActive)
+            {
+                SimulacrumBehavior.RefreshEquipment(duplicate);
+            }
+
+            SimulacrumDiagnostics.RecordShillelagh(
+                duplicate,
+                $"real-time-after-{roundsNumber}",
+                force: true);
+        }
     }
 
     //PATCH: implement IPreventRemoveConcentrationOnPowerUse
@@ -2306,10 +2674,36 @@ public static class RulesetCharacterPatcher
     public static class TerminateSpell_Patch
     {
         [UsedImplicitly]
-        public static bool Prefix(RulesetCharacter __instance)
+        public static bool Prefix(
+            RulesetCharacter __instance,
+            RulesetEffectSpell activeSpell,
+            out bool __state)
         {
+            __state = __instance is RulesetCharacterSimulacrum &&
+                      activeSpell?.SpellDefinition?.Name == "Shillelagh";
+
             return !CharacterActionExtensions
                 .ShouldKeepConcentrationOnPowerUseOrSpend(__instance); // abort if should keep
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetCharacter __instance,
+            RulesetEffectSpell activeSpell,
+            bool __state)
+        {
+            if (!__state ||
+                __instance is not RulesetCharacterSimulacrum duplicate)
+            {
+                return;
+            }
+
+            SimulacrumBehavior.RefreshEquipment(duplicate);
+
+            SimulacrumDiagnostics.RecordShillelagh(
+                duplicate,
+                "effect-terminated",
+                activeSpell);
         }
     }
 
@@ -2327,6 +2721,11 @@ public static class RulesetCharacterPatcher
             ulong sourceGuid,
             RollInfo rollInfo)
         {
+            if (WishBehavior.IsApplyingIrreducibleDamage)
+            {
+                return;
+            }
+
             //PATCH: support for `ModifySustainedDamageHandler` sub-feature
             ModifySustainedDamage.ModifyDamage(
                 __instance, ref totalDamageRaw, damageType, criticalSuccess, sourceGuid, rollInfo);
@@ -2335,21 +2734,70 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
         {
+            var hasConditionOfTypeMethod = typeof(RulesetActor).GetMethod(
+                nameof(RulesetActor.HasConditionOfType),
+                [typeof(string)]);
+            var damageTakenAllyMultiplierMethod = typeof(IGameSettingsService)
+                .GetProperty(nameof(IGameSettingsService.DamageTakenAllyMultiplier))!
+                .GetMethod;
             var setCurrentHitPointsMethod = typeof(RulesetActor).GetProperty("CurrentHitPoints")!.SetMethod;
+            var hasConditionForSustainDamageMethod =
+                new Func<RulesetActor, string, bool>(HasConditionForSustainDamage).Method;
+            var getDamageTakenAllyMultiplierMethod =
+                new Func<IGameSettingsService, float>(GetDamageTakenAllyMultiplier).Method;
             var mySetCurrentHitPointsMethod =
                 new Action<RulesetActor, int, bool>(MySetCurrentHitPoints).Method;
 
             return instructions
+                .ReplaceCalls(
+                    hasConditionOfTypeMethod,
+                    "RulesetCharacter.SustainDamage.HasConditionOfType",
+                    new CodeInstruction(OpCodes.Call, hasConditionForSustainDamageMethod))
+                .ReplaceCalls(
+                    damageTakenAllyMultiplierMethod,
+                    "RulesetCharacter.SustainDamage.DamageTakenAllyMultiplier",
+                    new CodeInstruction(OpCodes.Call, getDamageTakenAllyMultiplierMethod))
+                .ReplaceEnumerateFeaturesToBrowse<IDamageAffinityProvider>(
+                    "RulesetCharacter.SustainDamage.EnumerateDamageAffinities",
+                    EnumerateDamageAffinitiesForSustainDamage)
                 .ReplaceCalls(setCurrentHitPointsMethod,
                     "RulesetCharacter.SustainDamage.set_CurrentHitPoints",
                     new CodeInstruction(OpCodes.Ldloc, 8), // success
                     new CodeInstruction(OpCodes.Call, mySetCurrentHitPointsMethod));
         }
 
+        private static bool HasConditionForSustainDamage(RulesetActor actor, string conditionType)
+        {
+            return !WishBehavior.IsApplyingIrreducibleDamage && actor.HasConditionOfType(conditionType);
+        }
+
+        private static float GetDamageTakenAllyMultiplier(IGameSettingsService settingsService)
+        {
+            return WishBehavior.IsApplyingIrreducibleDamage
+                ? 1
+                : settingsService.DamageTakenAllyMultiplier;
+        }
+
+        private static void EnumerateDamageAffinitiesForSustainDamage(
+            RulesetCharacter character,
+            List<FeatureDefinition> featuresToBrowse,
+            Dictionary<FeatureDefinition, FeatureOrigin> featuresOrigin)
+        {
+            if (WishBehavior.IsApplyingIrreducibleDamage)
+            {
+                featuresToBrowse.Clear();
+                return;
+            }
+
+            character.EnumerateFeaturesToBrowse<IDamageAffinityProvider>(featuresToBrowse, featuresOrigin);
+        }
+
         //TODO: review this as I believe it'll bleed into other scenarios. if so should get outcome from RollSaving with another transpiler
         private static void MySetCurrentHitPoints(RulesetActor actor, int currentHitPoints, bool success)
         {
-            if (!Main.Settings.EnableBarbarianRelentlessRage2024 || actor is not RulesetCharacter rulesetCharacter)
+            if (WishBehavior.IsApplyingIrreducibleDamage ||
+                !Main.Settings.EnableBarbarianRelentlessRage2024 ||
+                actor is not RulesetCharacter rulesetCharacter)
             {
                 actor.CurrentHitPoints = currentHitPoints;
 
@@ -2751,7 +3199,9 @@ public static class RulesetCharacterPatcher
             FeatureDefinition featureDefinition,
             ref CharacterClassDefinition __result)
         {
-            var gameLocationCharacter = __instance.GetMySummoner();
+            var gameLocationCharacter = __instance.HasSubFeatureOfType<IUseOwnStatsWhenSummoned>()
+                ? null
+                : __instance.GetMySummoner();
             var rulesetCharacter = gameLocationCharacter?.RulesetCharacter ?? __instance;
 
             //PATCH: replaces feature holding class with one provided by custom interface
@@ -2785,15 +3235,15 @@ public static class RulesetCharacterPatcher
             FeatureDefinition preserveSlotThresholdFeature = null;
             var preserveSlotThreshold = int.MaxValue;
 
-            var effectLevel = activeSpell.EffectLevel;
+            var resourceSlotLevel = RulesetEffectSpellWithOrigin.GetResourceSlotLevel(activeSpell);
 
-            if (effectLevel > 0)
+            if (resourceSlotLevel > 0)
             {
                 foreach (var featureDefinition in __instance
                              .FeaturesByType<ISpellCastingAffinityProvider>()
                              .Where(featureDefinition =>
                                  featureDefinition.PreserveSlotRoll &&
-                                 featureDefinition.PreserveSlotLevelCap >= effectLevel))
+                                 featureDefinition.PreserveSlotLevelCap >= resourceSlotLevel))
                 {
                     preserveSlotThreshold =
                         Math.Min(preserveSlotThreshold, featureDefinition.PreserveSlotThreshold);
@@ -2837,11 +3287,11 @@ public static class RulesetCharacterPatcher
                         TryRedirectFeatGrantedReactionSpellSlot(__instance, activeSpell) ??
                         activeSpell.SpellRepertoire;
 
-                    spellRepertoire.SpendSpellSlot(activeSpell.SlotLevel);
+                    spellRepertoire.SpendSpellSlot(resourceSlotLevel);
                 }
             }
 
-            __instance.AccountUsedMagicAndPower(activeSpell.SlotLevel);
+            __instance.AccountUsedMagicAndPower(resourceSlotLevel);
 
             return false;
         }
@@ -2850,7 +3300,8 @@ public static class RulesetCharacterPatcher
             RulesetCharacter caster,
             RulesetEffectSpell activeSpell)
         {
-            if (caster is not RulesetCharacterHero hero ||
+            if (activeSpell is RulesetEffectSpellWithOrigin ||
+                caster == null ||
                 activeSpell?.SpellDefinition == null ||
                 activeSpell.SlotLevel <= 0 ||
                 !IsFeatGrantedReactionRepertoire(activeSpell.SpellRepertoire))
@@ -2861,17 +3312,28 @@ public static class RulesetCharacterPatcher
             var spell = activeSpell.SpellDefinition;
             var currentRepertoire = activeSpell.SpellRepertoire;
 
-            if (currentRepertoire.TryGetAvailableSlotLevel(hero, activeSpell.SlotLevel, spell, out var isFreeUseAvailable) &&
+            if (currentRepertoire.TryGetAvailableSlotLevel(
+                    caster,
+                    activeSpell.SlotLevel,
+                    spell,
+                    out var isFreeUseAvailable) &&
                 isFreeUseAvailable)
             {
                 return null;
             }
 
-            var slotRepertoire = hero.SpellRepertoires
+            var slotRepertoire = caster.SpellRepertoires
                 .Where(repertoire => !IsRaceOrMonsterRepertoire(repertoire))
                 .FirstOrDefault(repertoire =>
-                    LevelUpHelper.IsSlotCastableExtraSpellForRepertoire(hero, repertoire, spell) &&
-                    repertoire.TryGetAvailableSlotLevel(hero, activeSpell.SlotLevel, spell, out var isAvailable) &&
+                    LevelUpHelper.IsSlotCastableExtraSpellForRepertoire(
+                        caster,
+                        repertoire,
+                        spell) &&
+                    repertoire.TryGetAvailableSlotLevel(
+                        caster,
+                        activeSpell.SlotLevel,
+                        spell,
+                        out var isAvailable) &&
                     isAvailable);
 
             if (slotRepertoire == null)

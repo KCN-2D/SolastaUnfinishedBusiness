@@ -1,6 +1,7 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -21,13 +22,24 @@ public static class CharacterPlateDetailedPatcher
             char separator;
             var guiCharacter = __instance.GuiCharacter;
 
-            if (guiCharacter.RulesetCharacterHero != null)
+            if (guiCharacter.RulesetCharacter is RulesetCharacterSimulacrum duplicate &&
+                SimulacrumBehavior.TryGetClassLevels(duplicate, out var duplicateClasses))
+            {
+                separator = '\n';
+                classesCount = duplicateClasses.Count;
+            }
+            else if (guiCharacter.RulesetCharacterHero != null)
             {
                 separator = '\n';
                 classesCount = guiCharacter.RulesetCharacterHero.ClassesAndLevels.Count;
             }
             else
             {
+                if (guiCharacter.Snapshot == null)
+                {
+                    return;
+                }
+
                 separator = '\\';
                 classesCount = guiCharacter.Snapshot.Classes.Length;
             }

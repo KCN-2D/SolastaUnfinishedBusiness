@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -79,7 +79,7 @@ internal static class Tooltips
         }
 
         var usablePower = PowerProvider.Get(power, character);
-        var maxUses = character.GetMaxUsesOfPower(usablePower);
+        var maxUses = PowerProvider.GetEffectiveMaxUses(character, usablePower);
         // must use GetRemainingPowerUses as power could be a Shared Pool
         var remainingUses = character.GetRemainingPowerUses(power);
 

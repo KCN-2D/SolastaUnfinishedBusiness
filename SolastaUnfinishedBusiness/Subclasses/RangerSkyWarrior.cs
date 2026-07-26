@@ -263,9 +263,9 @@ public sealed class RangerSkyWarrior : AbstractSubclass
 
     private sealed class ItemEquippedCheckHeroStillHasShield(
         // ReSharper disable once SuggestBaseTypeForParameterInConstructor
-        ConditionDefinition condition) : IOnItemEquipped
+        ConditionDefinition condition) : IOnCharacterEquipmentChanged
     {
-        public void OnItemEquipped(RulesetCharacterHero hero)
+        public void OnCharacterEquipmentChanged(RulesetCharacter hero)
         {
             // no need to check for source here as these are all self conditions
             if (!ValidatorsCharacter.HasShield(hero) &&

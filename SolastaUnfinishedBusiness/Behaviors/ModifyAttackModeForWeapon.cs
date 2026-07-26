@@ -128,21 +128,27 @@ internal class CanUseAttribute : IModifyWeaponAttackMode
     {
         ability = string.Empty;
 
-        var hero = character.GetOriginalHero();
+        var repertoireOwner = character is RulesetCharacterSimulacrum
+            ? character
+            : character.GetOriginalHero();
 
-        if (hero == null)
+        if (repertoireOwner == null)
         {
             return false;
         }
 
-        var spellCastingAbilities = hero.SpellRepertoires
-            .Select(x => x.SpellCastingAbility);
+        var spellCastingAbilities = repertoireOwner.SpellRepertoires
+            .Where(repertoire =>
+                repertoire != null &&
+                !string.IsNullOrEmpty(repertoire.SpellCastingAbility))
+            .Select(repertoire => repertoire.SpellCastingAbility)
+            .Distinct();
 
         var currentValue = 0;
 
         foreach (var spellCastingAbility in spellCastingAbilities)
         {
-            var value = hero.TryGetAttributeValue(spellCastingAbility);
+            var value = repertoireOwner.TryGetAttributeValue(spellCastingAbility);
 
             if (value <= currentValue)
             {

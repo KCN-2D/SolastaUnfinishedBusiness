@@ -14,10 +14,21 @@ public static class RulesetItemDevicePatcher
     {
         [UsedImplicitly]
         public static void Postfix(
+            RulesetItemDevice __instance,
             ref bool __result,
             RulesetDeviceFunction function,
-            RulesetCharacter character)
+            RulesetCharacter character,
+            ref string failureFlag)
         {
+            if (character is RulesetCharacterSimulacrum &&
+                __instance?.ItemDefinition?.RequiresAttunement == true)
+            {
+                __result = false;
+                failureFlag = "Failure/&SimulacrumCannotUseAttunedItem";
+
+                return;
+            }
+
             if (!__result)
             {
                 return;

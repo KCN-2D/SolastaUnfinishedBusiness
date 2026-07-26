@@ -175,8 +175,7 @@ internal static class LightingAndObscurementContext
         var defenderActor = defender.RulesetActor;
         var defenderHasAlertFeat =
             defenderActor is RulesetCharacter rulesetCharacter &&
-            rulesetCharacter.GetOriginalHero() is { } rulesetCharacterHero &&
-            rulesetCharacterHero.TrainedFeats.Contains(OtherFeats.FeatAlert);
+            SimulacrumBehavior.HasTrainedFeat(rulesetCharacter, OtherFeats.FeatAlert);
 
         if (defenderHasAlertFeat)
         {

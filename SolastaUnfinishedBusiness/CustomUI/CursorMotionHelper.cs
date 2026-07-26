@@ -27,6 +27,8 @@ public class CursorMotionHelper : MonoBehaviour
     private readonly List<int3> _gravityFissureTiles = [];
 
     private readonly Dictionary<ulong, ActionChainHelper> _helpers = [];
+    private CharacterActionParams _actionParams;
+    private GameLocationCharacter _actingCharacter;
     private Vector3 _actingCharacterCenter = Vector3.zero;
     private int3 _aimedPosition = int3.zero;
     private IGameLocationCharacterService _characterService;
@@ -42,8 +44,8 @@ public class CursorMotionHelper : MonoBehaviour
     private IGameLocationSelectionService _selectionService;
     private IGameLocationService _locationService;
 
-    private CharacterActionParams ActionParams => _cursor.ActionParams;
-    private GameLocationCharacter ActingCharacter => ActionParams.ActingCharacter;
+    private CharacterActionParams ActionParams => _actionParams;
+    private GameLocationCharacter ActingCharacter => _actingCharacter;
 
     internal static void Initialize(GameObject chainHelperPrefab)
     {
@@ -52,7 +54,13 @@ public class CursorMotionHelper : MonoBehaviour
 
     internal static void Activate(CursorLocation cursor)
     {
-        if (!Main.Settings.ShowMotionFormPreview) { return; }
+        if (!Main.Settings.ShowMotionFormPreview ||
+            !cursor ||
+            cursor.ActionParams?.ActingCharacter?.RulesetCharacter == null)
+        {
+            Deactivate(cursor);
+            return;
+        }
 
         if (!cursor.TryGetComponent<CursorMotionHelper>(out var helper))
         {
@@ -65,6 +73,11 @@ public class CursorMotionHelper : MonoBehaviour
 
     internal static void Deactivate(CursorLocation cursor)
     {
+        if (!cursor)
+        {
+            return;
+        }
+
         if (cursor.TryGetComponent<CursorMotionHelper>(out var helper))
         {
             helper.DoDeactivate();
@@ -73,7 +86,7 @@ public class CursorMotionHelper : MonoBehaviour
 
     internal static void RefreshHover(CursorLocationGeometricShape cursor)
     {
-        if (!Main.Settings.ShowMotionFormPreview) { return; }
+        if (!Main.Settings.ShowMotionFormPreview || !cursor) { return; }
 
         if (cursor.TryGetComponent<CursorMotionHelper>(out var helper))
         {
@@ -90,11 +103,30 @@ public class CursorMotionHelper : MonoBehaviour
     {
         Cleanup();
 
+        if (!_cursor ||
+            _cursor.ActionParams?.ActingCharacter?.RulesetCharacter == null)
+        {
+            return;
+        }
+
+        _actionParams = _cursor.ActionParams;
+        _actingCharacter = _actionParams.ActingCharacter;
         _selectionService = _cursor.SelectionService;
         _positioningService = ServiceRepository.GetService<IGameLocationPositioningService>();
         _locationService = ServiceRepository.GetService<IGameLocationService>();
         _envService = ServiceRepository.GetService<IGameLocationEnvironmentService>();
         _characterService = ServiceRepository.GetService<IGameLocationCharacterService>();
+
+        if (_selectionService == null ||
+            _positioningService == null ||
+            _locationService == null ||
+            _envService == null ||
+            _characterService == null)
+        {
+            Cleanup();
+            return;
+        }
+
         _actingCharacterCenter = _positioningService.ComputeGravityCenterPosition(ActingCharacter);
         _info = BuildInfo();
 
@@ -138,6 +170,8 @@ public class CursorMotionHelper : MonoBehaviour
         }
 
         _selectionEventsSubscribed = false;
+        _actionParams = null;
+        _actingCharacter = null;
         _info = null;
         _isGravityFissure = false;
         _actingCharacterCenter = Vector3.zero;

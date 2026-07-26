@@ -11,6 +11,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Spells;
@@ -388,10 +389,81 @@ public static class CharacterActionMagicEffectPatcher
                 $"Mismatch between number of targets ({actionParams.TargetCharacters.Count}) and number of action modifiers ({actionParams.ActionModifiers.Count}).");
 
             var rulesetEffect = actionParams.RulesetEffect;
+
+            if (rulesetEffect == null)
+            {
+                Trace.LogException(new Exception(
+                    "[TACTICAL INVISIBLE FOR PLAYERS] null RulesetEffect in CharacterActionMagicEffect.ExecuteImpl()."));
+                yield break;
+            }
+
+            using var vocalOriginScope = RulesetEffectSpellWithOrigin.TrackVocalOrigin(
+                actingCharacter.RulesetCharacter,
+                rulesetEffect as RulesetEffectSpell);
+
             var effectDescription = rulesetEffect.EffectDescription;
             var targets = actionParams.TargetCharacters;
             var targetPositions = actionParams.Positions;
             var actionModifiers = actionParams.ActionModifiers;
+
+            if (rulesetEffect is RulesetEffectSpell activeSpell)
+            {
+                var originSpell = RulesetEffectSpellWithOrigin.GetOriginSpell(activeSpell);
+                var spellRepertoire = SpellCastingValidation.ResolveRepertoire(
+                    actingCharacter.RulesetCharacter,
+                    activeSpell.SpellRepertoire ?? actionParams.SpellRepertoire,
+                    originSpell,
+                    activeSpell);
+
+                if (actingCharacter.RulesetCharacter is RulesetCharacterSimulacrum &&
+                    activeSpell.SpellRepertoire == null &&
+                    activeSpell.SlotLevel >= 0 &&
+                    spellRepertoire != null)
+                {
+                    activeSpell.spellRepertoire = spellRepertoire;
+                }
+
+                SimulacrumDiagnostics.RecordSpellActivation(
+                    "execute-start",
+                    actingCharacter.RulesetCharacter,
+                    spellRepertoire,
+                    originSpell);
+
+                if (actingCharacter.RulesetCharacter is RulesetCharacterSimulacrum duplicate &&
+                    originSpell?.Name == "Shillelagh")
+                {
+                    SimulacrumDiagnostics.RecordShillelagh(
+                        duplicate,
+                        "cast-execute-start",
+                        activeSpell);
+                }
+
+                var isOriginValid = SpellCastingValidation.IsValid(
+                    actingCharacter.RulesetCharacter,
+                    spellRepertoire,
+                    originSpell,
+                    activeSpell,
+                    out var castingFailure);
+                var isEffectValid = !isOriginValid ||
+                                    originSpell == activeSpell.SpellDefinition ||
+                                    SpellCastingValidation.IsValid(
+                                        actingCharacter.RulesetCharacter,
+                                        spellRepertoire,
+                                        activeSpell.SpellDefinition,
+                                        activeSpell,
+                                        out castingFailure);
+
+                if (!isOriginValid || !isEffectValid)
+                {
+                    if (actionModifiers.Count > 0 && !string.IsNullOrEmpty(castingFailure))
+                    {
+                        actionModifiers[0].FailureFlags.Add(castingFailure);
+                    }
+
+                    rulesetEffect.Terminate(false);
+                    yield break;
+                }
+            }
 
             // BEGIN PATCH
 
@@ -415,13 +487,6 @@ public static class CharacterActionMagicEffectPatcher
             }
 
             // END PATCH
-
-            if (rulesetEffect == null)
-            {
-                Trace.LogException(new Exception(
-                    "[TACTICAL INVISIBLE FOR PLAYERS] null RulesetEffect in CharacterActionMagicEffect.ExecuteImpl()."));
-                yield break;
-            }
 
             if (rulesetEffect.EntityImplementation is not GameLocationEffect)
             {
@@ -666,21 +731,20 @@ public static class CharacterActionMagicEffectPatcher
             }
 
             //PATCH: supports `IMagicEffectInitiatedByMe` on metamagic
-            var hero = actingCharacter.RulesetCharacter.GetOriginalHero();
+            var trainedMetamagicOptions = SimulacrumBehavior
+                .EnumerateTrainedMetamagicOptions(actingCharacter.RulesetCharacter)
+                .ToArray();
 
-            if (hero != null)
+            foreach (var metamagic in trainedMetamagicOptions)
             {
-                foreach (var metamagic in hero.TrainedMetamagicOptions)
+                foreach (var magicEffectInitiatedByMe in
+                         metamagic.GetAllSubFeaturesOfType<IMagicEffectInitiatedByMe>())
                 {
-                    foreach (var magicEffectInitiatedByMe in
-                             metamagic.GetAllSubFeaturesOfType<IMagicEffectInitiatedByMe>())
-                    {
-                        yield return magicEffectInitiatedByMe.OnMagicEffectInitiatedByMe(
-                            __instance,
-                            rulesetEffect,
-                            actingCharacter,
-                            targets);
-                    }
+                    yield return magicEffectInitiatedByMe.OnMagicEffectInitiatedByMe(
+                        __instance,
+                        rulesetEffect,
+                        actingCharacter,
+                        targets);
                 }
             }
 
@@ -973,16 +1037,13 @@ public static class CharacterActionMagicEffectPatcher
             }
 
             //PATCH: supports `IMagicEffectFinishedByMe` on metamagic
-            if (hero != null)
+            foreach (var metamagic in trainedMetamagicOptions)
             {
-                foreach (var metamagic in hero.TrainedMetamagicOptions)
+                foreach (var magicEffectFinishedByMe in
+                         metamagic.GetAllSubFeaturesOfType<IMagicEffectFinishedByMe>())
                 {
-                    foreach (var magicEffectFinishedByMe in
-                             metamagic.GetAllSubFeaturesOfType<IMagicEffectFinishedByMe>())
-                    {
-                        yield return
-                            magicEffectFinishedByMe.OnMagicEffectFinishedByMe(__instance, actingCharacter, targets);
-                    }
+                    yield return
+                        magicEffectFinishedByMe.OnMagicEffectFinishedByMe(__instance, actingCharacter, targets);
                 }
             }
 
@@ -1045,6 +1106,17 @@ public static class CharacterActionMagicEffectPatcher
             // END PATCH
 
             yield return __instance.HandlePostExecution();
+
+            if (actingCharacter.RulesetCharacter is RulesetCharacterSimulacrum simulacrum &&
+                rulesetEffect is RulesetEffectSpell completedSpell &&
+                RulesetEffectSpellWithOrigin.GetOriginSpell(completedSpell)?.Name == "Shillelagh")
+            {
+                SimulacrumDiagnostics.RecordShillelagh(
+                    simulacrum,
+                    "cast-action-completed",
+                    completedSpell);
+            }
+
             yield return battleManager.HandleCharacterAttackOrMagicEffectFinishedLate(__instance, actingCharacter);
         }
     }

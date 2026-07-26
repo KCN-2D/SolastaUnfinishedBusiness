@@ -703,3 +703,6 @@ Item/&Warlock_Armor_Survival_Title=Доспехи колдуна Выживан�
 Tooltip/&NoFreeHandToLoadAmmoDescription=Нет свободной руки, чтобы зарядить боеприпас!
 Tooltip/&TagPolearmWeaponTitle=Древковое
 Tooltip/&TagReturningWeaponTitle=Возвращающийся
+Tooltip/&TagMaterialSimulacrumRubyTitle=Кровавый рубин
+Item/&ItemWishCreatedTreasureDescription=Немагическое сокровище стоимостью 25 000 зм, созданное Желанием.
+Item/&ItemWishCreatedTreasureTitle=Сокровище, созданное Желанием

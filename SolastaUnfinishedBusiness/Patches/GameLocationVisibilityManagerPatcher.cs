@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Races;
@@ -29,12 +30,24 @@ public static class GameLocationVisibilityManagerPatcher
                 return;
             }
 
-            var originalHero = glc.RulesetCharacter.GetOriginalHero();
+            CharacterRaceDefinition lightSensitiveRace;
 
-            if (originalHero != null &&
-                (originalHero.SubRaceDefinition == RaceKoboldBuilder.SubraceDarkKobold ||
-                 originalHero.SubRaceDefinition == SubraceDarkelfBuilder.SubraceDarkelf ||
-                 originalHero.SubRaceDefinition == SubraceGrayDwarfBuilder.SubraceGrayDwarf))
+            if (glc.RulesetCharacter is RulesetCharacterSimulacrum duplicate)
+            {
+                _ = SimulacrumBehavior.TryGetHumanoidIdentity(
+                    duplicate,
+                    out var race,
+                    out var subRace);
+                lightSensitiveRace = subRace ?? race;
+            }
+            else
+            {
+                lightSensitiveRace = glc.RulesetCharacter.GetOriginalHero()?.SubRaceDefinition;
+            }
+
+            if (lightSensitiveRace == RaceKoboldBuilder.SubraceDarkKobold ||
+                lightSensitiveRace == SubraceDarkelfBuilder.SubraceDarkelf ||
+                lightSensitiveRace == SubraceGrayDwarfBuilder.SubraceGrayDwarf)
             {
                 glc.CheckLightingAffinityEffects();
             }

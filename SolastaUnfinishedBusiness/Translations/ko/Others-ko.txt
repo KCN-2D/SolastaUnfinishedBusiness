@@ -691,3 +691,4 @@ UI/&RecipeFilterArmor=갑옷
 UI/&RecipeFilterUsableDevices=사용 가능한 장치
 UI/&RecipeFilterWeapons=무기
 Tooltip/&PreReqAnyAbilityScoreList={0} 중 하나가 {1} 이상
+Rules/&ActivationTypeHours12Title=12시간

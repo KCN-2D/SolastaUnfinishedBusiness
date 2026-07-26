@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Subclasses;
 using static RuleDefinitions;
@@ -216,6 +217,37 @@ internal static class RulesetActorExtensions
         {
             case RulesetCharacterHero rulesetCharacterHero:
                 hero = rulesetCharacterHero;
+                break;
+            case RulesetCharacterSimulacrum simulacrum:
+                // Match the definition carriers a Hero exposes below. Feature-set
+                // carriers are restored separately because their leaf features are
+                // flattened by native enumeration.
+                foreach (var definition in simulacrum.FeaturesOrigin.Values
+                             .Select(origin => origin.source)
+                             .OfType<BaseDefinition>()
+                             .Concat(simulacrum.Invocations
+                                 .Where(invocation => invocation?.InvocationDefinition != null)
+                                 .Select(invocation =>
+                                     (BaseDefinition)invocation.InvocationDefinition))
+                             .Concat(SimulacrumBehavior
+                                 .EnumerateTrainedFeats(simulacrum)
+                                 .Cast<BaseDefinition>())
+                             .Concat(SimulacrumBehavior
+                                 .EnumerateTrainedFightingStyles(simulacrum)
+                                 .Cast<BaseDefinition>())
+                             .Where(definition => definition is
+                                 FeatDefinition or
+                                 InvocationDefinition or
+                                 FightingStyleDefinition)
+                             .Concat(SimulacrumBehavior.EnumerateBehaviorCarriers(simulacrum))
+                             .Distinct())
+                {
+                    if (!list.Contains(definition))
+                    {
+                        list.Add(definition);
+                    }
+                }
+
                 break;
             //WILDSHAPE: Original hero features
             case RulesetCharacterMonster { originalFormCharacter: RulesetCharacterHero rulesetCharacterHero }:

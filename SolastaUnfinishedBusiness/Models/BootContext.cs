@@ -18,6 +18,13 @@ internal static class BootContext
 {
     internal static void Startup()
     {
+        var enable = Main.Enable;
+
+        if (enable == null)
+        {
+            return;
+        }
+
 #if DEBUG
         ItemDefinitionVerification.Load();
         EffectFormVerification.Load();
@@ -153,7 +160,7 @@ internal static class BootContext
             LogMissingReferencesInUserCampaigns();
 
             // Enable mod
-            Main.Enable();
+            enable();
         };
     }
 

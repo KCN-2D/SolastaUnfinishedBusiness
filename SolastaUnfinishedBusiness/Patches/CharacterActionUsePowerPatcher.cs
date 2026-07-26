@@ -117,8 +117,10 @@ public static class CharacterActionUsePowerPatcher
 
         private static void TryRestoreMissingOriginItemFromPowerPoolDevice(CharacterActionUsePower instance)
         {
+            var character = instance.ActingCharacter.RulesetCharacter;
+
             if (!Global.IsMultiplayer ||
-                instance.ActingCharacter.RulesetCharacter is not RulesetCharacterHero hero)
+                character is not (RulesetCharacterHero or RulesetCharacterSimulacrum))
             {
                 return;
             }
@@ -139,7 +141,7 @@ public static class CharacterActionUsePowerPatcher
                 return;
             }
 
-            var device = provider.GetDevice(hero);
+            var device = provider.GetDevice(character);
 
             if (activePower.OriginItem == null)
             {
@@ -225,8 +227,8 @@ public static class CharacterActionUsePowerPatcher
                     continue;
                 }
 
-                var counteredSpellDefinition = counteredSpell.SpellDefinition;
-                var slotLevel = counteredSpell.SlotLevel;
+                var counteredSpellDefinition = RulesetEffectSpellWithOrigin.GetOriginSpell(counteredSpell);
+                var slotLevel = RulesetEffectSpellWithOrigin.GetResourceSlotLevel(counteredSpell);
 
                 if (counterForm.AutomaticSpellLevel >= slotLevel)
                 {

@@ -342,7 +342,7 @@ public sealed class PathOfTheLight : AbstractSubclass
 
         private static void ApplyLightsProtectionHealing(ulong sourceGuid)
         {
-            if (RulesetEntity.GetEntity<RulesetCharacter>(sourceGuid) is not RulesetCharacterHero conditionSource ||
+            if (RulesetEntity.GetEntity<RulesetCharacter>(sourceGuid) is not { } conditionSource ||
                 conditionSource.IsDeadOrDyingOrUnconscious)
             {
                 return;

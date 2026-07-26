@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -7,18 +8,339 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.ConditionDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionDamageAffinitys;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionPowers;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper.ItemDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.SpellDefinitions;
 
 namespace SolastaUnfinishedBusiness.Spells;
 
 internal static partial class SpellBuilders
 {
+    #region Simulacrum
+
+    internal const string SimulacrumName = "Simulacrum";
+
+    internal static SpellDefinition Simulacrum { get; private set; }
+
+    internal static SpellDefinition BuildSimulacrum()
+    {
+        if (Simulacrum)
+        {
+            return Simulacrum;
+        }
+
+        var simulacrumSprite = Sprites.GetSprite(
+            SimulacrumName,
+            Resources.Simulacrum,
+            128);
+        var simulacrumConditionSprite = Sprites.GetSprite(
+            $"Condition{SimulacrumName}",
+            Resources.ConditionSimulacrum,
+            32);
+        var rubyMaterialCost =
+            EquipmentDefinitions.GetApproximateCostInGold(Ingredient_Enchant_Blood_Gem.Costs);
+
+        if (!Ingredient_Enchant_Blood_Gem.ItemTags.Contains(SimulacrumBehavior.RubyMaterialTag))
+        {
+            Ingredient_Enchant_Blood_Gem.ItemTags.Add(SimulacrumBehavior.RubyMaterialTag);
+        }
+
+        var simulacrumPresentations = BuildSimulacrumPresentations(simulacrumSprite);
+
+        SimulacrumBehavior.BindPresentations(simulacrumPresentations);
+
+        var repairPower = BuildSimulacrumRepairPower(simulacrumSprite);
+        var dismissPower = BuildSimulacrumDismissPower(simulacrumSprite);
+
+        var ownerCondition = ConditionDefinitionBuilder
+            .Create($"Condition{SimulacrumName}Owner")
+            .SetGuiPresentationNoContent(true)
+            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetFeatures(repairPower)
+            .AddToDB();
+
+        ownerCondition.AddCustomSubFeatures(AddUsablePowersFromCondition.Marker);
+        ownerCondition.AddCustomSubFeatures(SimulacrumBehavior.OwnerReconciliationMarker);
+
+        var snapshotCondition = ConditionDefinitionBuilder
+            .Create($"Condition{SimulacrumName}Snapshot")
+            .SetGuiPresentation(SimulacrumName, Category.Condition, simulacrumConditionSprite)
+            .SetPossessive()
+            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetFeatures(FeatureDefinitionHealingModifiers.HealingModifierChilledByTouch)
+            .AddToDB();
+
+        snapshotCondition.AddCustomSubFeatures(
+            SimulacrumBehavior.SnapshotBindingMarker,
+            SimulacrumBehavior.RuntimeRestrictionsMarker);
+
+        var initiativeMarker = FeatureDefinitionBuilder
+            .Create($"Feature{SimulacrumName}Initiative")
+            .SetGuiPresentationNoContent(true)
+            .AddCustomSubFeatures(ForceInitiativeToSummoner.Mark)
+            .AddToDB();
+
+        var shellsBySize = DatabaseRepository
+            .GetDatabase<CharacterSizeDefinition>()
+            .Where(size => size != null)
+            .OrderBy(size => size.Name)
+            .ToDictionary(
+                size => size.Name,
+                size => BuildSimulacrumShell(
+                    size,
+                    initiativeMarker,
+                    dismissPower,
+                    simulacrumPresentations.Values.ToArray(),
+                    simulacrumSprite));
+        var defaultShell = shellsBySize[CharacterSizeDefinitions.Medium.Name];
+        var behavior = new SimulacrumBehavior(
+            shellsBySize.ToDictionary(pair => pair.Key, pair => pair.Value.Name));
+
+        Simulacrum = SpellDefinitionBuilder
+            .Create(SimulacrumName)
+            .SetGuiPresentation(Category.Spell, simulacrumSprite)
+            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolIllusion)
+            .SetSpellLevel(7)
+            .SetCastingTime(ActivationTime.Hours1)
+            .SetSpecificMaterialComponent(
+                SimulacrumBehavior.RubyMaterialTag,
+                rubyMaterialCost,
+                true)
+            .SetSomaticComponent(true)
+            .SetVerboseComponent(true)
+            .SetVocalSpellSameType(VocalSpellSemeType.Buff)
+            .SetUniqueInstance()
+            .SetEffectDescription(
+                EffectDescriptionBuilder
+                    .Create()
+                    .SetDurationData(DurationType.Permanent)
+                    .SetTargetingData(
+                        Side.Ally,
+                        RangeType.Touch,
+                        1,
+                        TargetType.IndividualsUnique)
+                    .SetEffectForms(
+                        EffectFormBuilder
+                            .Create()
+                            .SetSummonCreatureForm(1, defaultShell.Name)
+                            .Build())
+                    .SetParticleEffectParameters(SpellDefinitions.MirrorImage)
+                    .Build())
+            .AddToDB();
+
+        Simulacrum.AddCustomSubFeatures(
+            behavior,
+            new CustomSpellCastingTime(
+                12 * 60 * 60,
+                "Rules/&ActivationTypeHours12Title"),
+            SimulacrumBehavior.StackedMaterialRequirement,
+            RestrictEffectToNotTerminateWhileUnconscious.Marker,
+            SkipEffectRemovalOnLocationChange.Always);
+
+        SimulacrumBehavior.BindDefinitions(
+            Simulacrum,
+            snapshotCondition,
+            ownerCondition);
+        SimulacrumBehavior.BindPowers(repairPower);
+
+        return Simulacrum;
+    }
+
+    private static MonsterDefinition BuildSimulacrumShell(
+        CharacterSizeDefinition sizeDefinition,
+        FeatureDefinition initiativeMarker,
+        FeatureDefinitionPower dismissPower,
+        HumanoidMonsterPresentationDefinition[] presentations,
+        UnityEngine.AddressableAssets.AssetReferenceSprite sprite)
+    {
+        var shell = MonsterDefinitionBuilder
+            .Create(
+                GetDefinition<MonsterDefinition>("CultistGuard"),
+                $"{SimulacrumName}Shell{sizeDefinition.Name}")
+            .SetGuiPresentation(SimulacrumName, Category.Monster, sprite)
+            .SetFeatures(initiativeMarker, dismissPower)
+            .ClearAttackIterations()
+            .SetAbilityScores(10, 10, 10, 10, 10, 10)
+            .SetArmorClass(10, EquipmentDefinitions.EmptyMonsterArmor)
+            .SetHitDice(DieType.D8, 1)
+            .SetStandardHitPoints(1)
+            .SetSizeDefinition(sizeDefinition)
+            .SetAlignment(MonsterDefinitionBuilder.NeutralAlignment)
+            .SetCharacterFamily(CharacterFamilyDefinitions.Construct.Name)
+            .SetChallengeRating(0)
+            .SetDroppedLootDefinition(null)
+            .SetFullyControlledWhenAllied(true)
+            .SetDefaultFaction(FactionDefinitions.Party)
+            .SetBestiaryEntry(BestiaryDefinitions.BestiaryEntry.None)
+            .SetDungeonMakerPresence(MonsterDefinition.DungeonMaker.None)
+            .SetMonsterPresentation(BuildSimulacrumMonsterPresentation(presentations))
+            .NoExperienceGain()
+            .AddToDB();
+
+        shell.AddCustomSubFeatures(RulesetCharacterSimulacrum.FactoryMarker);
+        shell.stealableLootDefinition = null;
+        shell.bestiaryLootOptions = [];
+
+        return shell;
+    }
+
+    private static MonsterPresentation BuildSimulacrumMonsterPresentation(
+        HumanoidMonsterPresentationDefinition[] presentations)
+    {
+        var source = GetDefinition<MonsterDefinition>("CultistGuard").MonsterPresentation;
+
+        return new MonsterPresentation
+        {
+            useHumanoidMonsterPresentationName = true,
+            humanoidMonsterPresentationDefinitions = presentations,
+            useCustomMaterials = false,
+            customMaterials = [],
+            customShaderReference = source.customShaderReference,
+            mutantFleshDirection = source.mutantFleshDirection,
+            overrideCharacterShaderColors = false,
+            firstCharacterShaderColor = source.firstCharacterShaderColor,
+            secondCharacterShaderColor = source.secondCharacterShaderColor,
+            hasPhantomDistortion = source.hasPhantomDistortion,
+            hasPhantomFadingFeet = source.hasPhantomFadingFeet,
+            hasPhantomVertexAnimation = source.hasPhantomVertexAnimation,
+            attachedParticlesReference = source.attachedParticlesReference,
+            bestiaryAttachedParticlesReference = source.bestiaryAttachedParticlesReference,
+            hasPrefabVariants = false,
+            monsterPresentationDefinitions = [],
+            malePrefabReference = source.malePrefabReference,
+            maleModelScale = source.maleModelScale,
+            femalePrefabReference = source.femalePrefabReference,
+            femaleModelScale = source.femaleModelScale,
+            wieldedItemsScale = source.wieldedItemsScale,
+            hideWieldedItemsWhenPassive = source.hideWieldedItemsWhenPassive,
+            hideDuringCutscene = source.hideDuringCutscene,
+            hasLightingCutscene = source.hasLightingCutscene,
+            canGeneratePortrait = true,
+            needMerchantPortrait = false,
+            hasMonsterPortraitBackground = false,
+            portraitCameraFollowOffset = source.portraitCameraFollowOffset,
+            portraitCameraLookAtScreenOffset = source.portraitCameraLookAtScreenOffset,
+            portraitCameraFOV = source.portraitCameraFOV,
+            portraitCameraLightingOffset = source.portraitCameraLightingOffset
+        };
+    }
+
+    private static IReadOnlyDictionary<string, HumanoidMonsterPresentationDefinition>
+        BuildSimulacrumPresentations(
+            UnityEngine.AddressableAssets.AssetReferenceSprite simulacrumSprite)
+    {
+        var presentations = new Dictionary<string, HumanoidMonsterPresentationDefinition>();
+        var template = GetDefinition<MonsterDefinition>("CultistGuard")
+            .MonsterPresentation
+            .humanoidMonsterPresentationDefinitions
+            .First(x => x != null);
+
+        foreach (var race in DatabaseRepository
+                     .GetDatabase<CharacterRaceDefinition>()
+                     .Where(x => x != null)
+                     .OrderBy(x => x.Name))
+        {
+            BuildForRaceAndSubrace(race, null);
+
+            foreach (var subRace in race.SubRaces
+                         .Where(x => x != null)
+                         .OrderBy(x => x.Name))
+            {
+                BuildForRaceAndSubrace(race, subRace);
+            }
+        }
+
+        return presentations;
+
+        void BuildForRaceAndSubrace(
+            CharacterRaceDefinition race,
+            CharacterRaceDefinition subRace)
+        {
+            foreach (var sex in new[] { CreatureSex.Female, CreatureSex.Male })
+            {
+                var key = SimulacrumBehavior.GetPresentationKey(race, subRace, sex);
+
+                if (presentations.ContainsKey(key))
+                {
+                    continue;
+                }
+
+                var suffix = subRace?.Name ?? "Base";
+                var definition = HumanoidMonsterPresentationDefinitionBuilder
+                    .Create(
+                        template,
+                        $"SimulacrumPresentation_{race.Name}_{suffix}_{sex}")
+                    .SetGuiPresentation(SimulacrumName, Category.Monster, simulacrumSprite)
+                    .SetCharacterAppearance(race, subRace, sex, ClothesCommon.Name)
+                    .AddToDB();
+
+                presentations.Add(key, definition);
+            }
+        }
+    }
+
+    private static FeatureDefinitionPower BuildSimulacrumRepairPower(
+        UnityEngine.AddressableAssets.AssetReferenceSprite sprite)
+    {
+        var power = FeatureDefinitionPowerBuilder
+            .Create(SimulacrumBehavior.RepairPowerName)
+            .SetGuiPresentation(Category.Feature, sprite)
+            .SetUsesFixed(ActivationTime.Rest, RechargeRate.LongRest)
+            .SetEffectDescription(
+                EffectDescriptionBuilder
+                    .Create()
+                    .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
+                    .SetEffectForms()
+                    .Build())
+            .AddToDB();
+
+        power.AddCustomSubFeatures(
+            ModifyPowerVisibility.Hidden,
+            SimulacrumBehavior.CreateRepairPowerMarker(),
+            SimulacrumBehavior.RepairRestPowerSelectionMarker);
+
+        RestActivityDefinitionBuilder
+            .Create($"RestActivity{SimulacrumName}Repair")
+            .SetGuiPresentation(SimulacrumBehavior.RepairPowerName, Category.Feature, sprite)
+            .SetRestData(
+                RestDefinitions.RestStage.AfterRest,
+                RestType.LongRest,
+                RestActivityDefinition.ActivityCondition.CanUsePower,
+                PowerBundleContext.UseCustomRestPowerFunctorName,
+                SimulacrumBehavior.RepairPowerName)
+            .AddToDB();
+
+        return power;
+    }
+
+    private static FeatureDefinitionPower BuildSimulacrumDismissPower(
+        UnityEngine.AddressableAssets.AssetReferenceSprite sprite)
+    {
+        var power = FeatureDefinitionPowerBuilder
+            .Create(SimulacrumBehavior.DismissPowerName)
+            .SetGuiPresentation(Category.Feature, sprite)
+            .SetUsesFixed(ActivationTime.NoCost)
+            .SetEffectDescription(
+                EffectDescriptionBuilder
+                    .Create()
+                    .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
+                    .SetEffectForms()
+                    .Build())
+            .AddToDB();
+
+        power.AddCustomSubFeatures(SimulacrumBehavior.CreateDismissPowerMarker());
+
+        return power;
+    }
+
+    #endregion
+
     #region Reverse Gravity
 
     internal static SpellDefinition BuildReverseGravity()
@@ -331,7 +653,7 @@ internal static partial class SpellBuilders
             .CopyParticleReferences(DeathWard)
             .AddToDB();
 
-        conditionCrownOfStars.GuiPresentation.description = Gui.EmptyContent;
+        conditionCrownOfStars.GuiPresentation.description = Gui.NoLocalization;
 
         var lightSourceForm = Light.EffectDescription
             .GetFirstFormOfType(EffectForm.EffectFormType.LightSource).LightSourceForm;

@@ -684,3 +684,4 @@ UI/&RecipeFilterArmor=Броня
 UI/&RecipeFilterUsableDevices=Используемые
 UI/&RecipeFilterWeapons=Оружие
 Tooltip/&PreReqAnyAbilityScoreList=Одна из характеристик {0} должна быть {1}+
+Rules/&ActivationTypeHours12Title=12 часов

@@ -4,6 +4,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Races;
@@ -253,9 +254,14 @@ internal static class RacesContext
             return;
         }
 
-        var hero = evaluationParams.attacker.RulesetCharacter.GetOriginalHero();
+        var rulesetCharacter = evaluationParams.attacker.RulesetCharacter;
+        var isSmallRace = rulesetCharacter is RulesetCharacterSimulacrum duplicate
+            ? SimulacrumBehavior.TryGetHumanoidIdentity(duplicate, out var race, out _) &&
+              race.SizeDefinition == DatabaseHelper.CharacterSizeDefinitions.Small
+            : rulesetCharacter.GetOriginalHero()?.RaceDefinition.SizeDefinition ==
+              DatabaseHelper.CharacterSizeDefinitions.Small;
 
-        if (hero?.RaceDefinition.SizeDefinition == DatabaseHelper.CharacterSizeDefinitions.Small &&
+        if (isSmallRace &&
             evaluationParams.attackMode is { SourceDefinition: ItemDefinition { IsWeapon: true } itemDefinition } &&
             ValidatorsWeapon.IsHeavyWeapon(itemDefinition))
         {

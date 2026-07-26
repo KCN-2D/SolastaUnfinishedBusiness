@@ -4,6 +4,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
@@ -146,7 +147,7 @@ internal static class CommonBuilders
 
     internal static bool CanWeaponBeEnchanted(RulesetAttackMode mode, RulesetItem _, RulesetCharacter character)
     {
-        if (character is not RulesetCharacterHero hero)
+        if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum))
         {
             return false;
         }
@@ -160,8 +161,10 @@ internal static class CommonBuilders
         return
             ValidatorsWeapon.IsPolearmType(mode) ||
             ValidatorsWeapon.IsTwoHandedRanged(mode) ||
-            hero.TrainedFeats.Contains(MeleeCombatFeats.FeatFencer) ||
-            hero.TrainedFightingStyles.Contains(DatabaseHelper.FightingStyleDefinitions.TwoWeapon);
+            SimulacrumBehavior.HasTrainedFeat(character, MeleeCombatFeats.FeatFencer) ||
+            SimulacrumBehavior.HasTrainedFightingStyle(
+                character,
+                DatabaseHelper.FightingStyleDefinitions.TwoWeapon);
     }
 
     private sealed class AttackReplaceWithCantrip : IAttackReplaceWithCantrip;
@@ -179,7 +182,7 @@ internal static class CommonBuilders
                 action.ActionType is not (ActionDefinitions.ActionType.Main or ActionDefinitions.ActionType.Bonus) ||
                 action.ActionParams.activeEffect is not RulesetEffectSpell rulesetEffectSpell ||
                 (!Main.Settings.AllowCantripsTriggeringOnWarMagic &&
-                 rulesetEffectSpell.SpellDefinition.SpellLevel <= 0))
+                 RulesetEffectSpellWithOrigin.GetOriginSpell(rulesetEffectSpell).SpellLevel <= 0))
             {
                 yield break;
             }
@@ -240,19 +243,22 @@ internal static class CommonBuilders
 
         protected override List<RulesetAttackMode> GetAttackModes(RulesetCharacter character)
         {
-            if (character is not RulesetCharacterHero hero)
+            if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum))
             {
                 return null;
             }
 
-            var attackModifiers = hero.attackModifiers;
+            var unarmedStrike = character is RulesetCharacterHero hero
+                ? hero.UnarmedStrikeDefinition
+                : DatabaseHelper.ItemDefinitions.UnarmedStrikeBase;
+            var attackModifiers = GetAttackModifiers(character);
 
             // find attack mode that is unarmed strike
             var attackModes = new List<RulesetAttackMode>();
 
-            hero.attackModes.ForEach(attackMode =>
+            character.AttackModes.ForEach(attackMode =>
             {
-                if (attackMode.SourceDefinition != hero.UnarmedStrikeDefinition)
+                if (attackMode.SourceDefinition != unarmedStrike)
                 {
                     return;
                 }
@@ -267,6 +273,11 @@ internal static class CommonBuilders
                     attackModifiers,
                     character.FeaturesOrigin
                 );
+
+                if (newAttackMode == null)
+                {
+                    return;
+                }
 
                 newAttackMode.attacksNumber = attackMode.attacksNumber;
                 attackModes.Add(newAttackMode);

@@ -8,6 +8,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Interfaces;
 using static RuleDefinitions;
 using static RuleDefinitions.RechargeRate;
 using static RuleDefinitions.UsesDetermination;
@@ -111,7 +112,14 @@ public static class RulesetEffectPowerPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetEffectPower __instance, ref int __result, RulesetCharacter character)
         {
-            if (character is not RulesetCharacterHero hero)
+            if (character == null)
+            {
+                return;
+            }
+
+            var hero = character.GetOriginalHero();
+
+            if (character is not RulesetCharacterSimulacrum && hero == null)
             {
                 return;
             }
@@ -124,7 +132,9 @@ public static class RulesetEffectPowerPatcher
                 return;
             }
 
-            __result = hero.GetClassLevel(holder.Class);
+            __result = character is RulesetCharacterSimulacrum
+                ? character.GetClassLevel(holder.Class)
+                : hero.GetClassLevel(holder.Class);
         }
     }
 
@@ -162,7 +172,9 @@ public static class RulesetEffectPowerPatcher
             var user = __instance.User;
 
             // this is required by Artillerist which has powers tied to caster
-            var summoner = user.GetMySummoner();
+            var summoner = user.HasSubFeatureOfType<IUseOwnStatsWhenSummoned>()
+                ? null
+                : user.GetMySummoner();
 
             if (summoner != null)
             {
@@ -198,7 +210,9 @@ public static class RulesetEffectPowerPatcher
             var user = __instance.User;
 
             // this is required by Artillerist which has powers tied to caster
-            var summoner = user.GetMySummoner();
+            var summoner = user.HasSubFeatureOfType<IUseOwnStatsWhenSummoned>()
+                ? null
+                : user.GetMySummoner();
 
             if (summoner != null)
             {

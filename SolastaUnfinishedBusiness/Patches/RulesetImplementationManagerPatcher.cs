@@ -10,6 +10,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
@@ -74,10 +75,10 @@ public static class RulesetImplementationManagerPatcher
             var diceMaxValue = DiceMaxValue[(int)damageForm.dieType];
 
             if (damageForm.OverrideWithBardicInspirationDie &&
-                rulesetActor is RulesetCharacterHero hero &&
-                hero.GetBardicInspirationDieValue() != DieType.D1)
+                rulesetActor is RulesetCharacter character &&
+                character.GetBardicInspirationDieValue() != DieType.D1)
             {
-                dieType = hero.GetBardicInspirationDieValue();
+                dieType = character.GetBardicInspirationDieValue();
             }
 
             var totalDamage = rulesetActor.RollDiceAndSum(
@@ -151,10 +152,10 @@ public static class RulesetImplementationManagerPatcher
             var diceType = useVersatileDamage ? damageForm.VersatileDieType : damageForm.DieType;
 
             if (damageForm.OverrideWithBardicInspirationDie &&
-                rulesetActor is RulesetCharacterHero hero &&
-                hero.GetBardicInspirationDieValue() != DieType.D1)
+                rulesetActor is RulesetCharacter character &&
+                character.GetBardicInspirationDieValue() != DieType.D1)
             {
-                diceType = hero.GetBardicInspirationDieValue();
+                diceType = character.GetBardicInspirationDieValue();
             }
 
             var totalDamage = RollDiceKeepRollingMaxAndSum(rulesetActor,
@@ -188,10 +189,10 @@ public static class RulesetImplementationManagerPatcher
             var diceType = useVersatileDamage ? damageForm.VersatileDieType : damageForm.DieType;
 
             if (damageForm.OverrideWithBardicInspirationDie &&
-                rulesetActor is RulesetCharacterHero hero&&
-                hero.GetBardicInspirationDieValue() != DieType.D1)
+                rulesetActor is RulesetCharacter character &&
+                character.GetBardicInspirationDieValue() != DieType.D1)
             {
-                diceType = hero.GetBardicInspirationDieValue();
+                diceType = character.GetBardicInspirationDieValue();
             }
 
             // different from original game code we roll usual dices and multiply result by 2
@@ -399,6 +400,20 @@ public static class RulesetImplementationManagerPatcher
             //PATCH: supports College of Audacity defensive whirl
             CollegeOfAudacity.HandleDefensiveWhirl(rulesetCharacter, damageForm, damage);
 
+            SimulacrumDiagnostics.RecordDamageRoll(
+                formsParams.sourceCharacter as RulesetCharacterSimulacrum,
+                damageForm,
+                rolledValues,
+                addDice,
+                criticalSuccess,
+                additionalDamage,
+                damageRollReduction,
+                damageMultiplier,
+                useVersatileDamage,
+                attackModeDamage,
+                damage,
+                formsParams);
+
             return damage;
         }
 
@@ -479,6 +494,11 @@ public static class RulesetImplementationManagerPatcher
             EffectForm effectForm,
             RulesetImplementationDefinitions.ApplyFormsParams formsParams)
         {
+            if (TryApplySimulacrumInventoryItem(effectForm, formsParams))
+            {
+                return false;
+            }
+
             //PATCH: track item that is summoned to inventory
             //usually only items summoned to equipment slots are tracked
             //this code tracks item if it is single item summon and item is marked to be tracked
@@ -507,6 +527,273 @@ public static class RulesetImplementationManagerPatcher
 
             return false;
         }
+
+        internal static bool TryApplySimulacrumInventoryItem(
+            EffectForm effectForm,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams)
+        {
+            var summonForm = effectForm?.SummonForm;
+
+            if (summonForm?.SummonType != SummonForm.Type.InventoryItem ||
+                !summonForm.ItemDefinition ||
+                summonForm.Number <= 0 ||
+                formsParams.sourceCharacter is not RulesetCharacterSimulacrum duplicate)
+            {
+                return false;
+            }
+
+            if (formsParams.targetType == TargetType.FreeSlot &&
+                summonForm.Number == 1)
+            {
+                ApplyInventoryItemToFreeSlot(summonForm, formsParams, duplicate);
+            }
+            else if (WishBehavior.ShouldStoreCreatedItemInCasterInventory(
+                         formsParams.activeEffect?.SourceDefinition))
+            {
+                ApplyIndividualInventoryItems(summonForm, formsParams, duplicate);
+            }
+            else
+            {
+                ApplyStackedInventoryItems(summonForm, formsParams, duplicate);
+            }
+
+            return true;
+        }
+
+        private static void ApplyInventoryItemToFreeSlot(
+            SummonForm summonForm,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            RulesetCharacterSimulacrum duplicate)
+        {
+            var activeEffect = formsParams.activeEffect;
+            var inventory = duplicate.CharacterInventory;
+            var slotTypes = activeEffect?.EffectDescription?.SlotTypes;
+            var stored = 0;
+
+            using (duplicate.BeginInventoryMutation())
+            {
+                if (slotTypes == null ||
+                    inventory?.WieldedItemsConfigurations is not { Count: > 0 } configurations)
+                {
+                    goto Complete;
+                }
+
+                var configurationIndex = inventory.CurrentConfiguration < 2
+                    ? inventory.CurrentConfiguration
+                    : 0;
+
+                if (configurationIndex < 0 ||
+                    configurationIndex >= configurations.Count)
+                {
+                    goto Complete;
+                }
+
+                foreach (var slotType in slotTypes)
+                {
+                    RulesetItem item = null;
+
+                    if (slotType == EquipmentDefinitions.SlotTypeMainHand ||
+                        slotType == EquipmentDefinitions.SlotTypeOffHand)
+                    {
+                        var configuration = configurations[configurationIndex];
+                        var slot = slotType == EquipmentDefinitions.SlotTypeMainHand
+                            ? configuration.MainHandSlot
+                            : configuration.OffHandSlot;
+
+                        if (slot?.EquipedItem != null)
+                        {
+                            continue;
+                        }
+
+                        item = CreateSummonedItem(summonForm.ItemDefinition);
+                        inventory.DefineWieldedItemsConfiguration(
+                            configurationIndex,
+                            item,
+                            slotType);
+                    }
+                    else if (inventory.InventorySlotsByName.TryGetValue(
+                                 slotType,
+                                 out var slot) &&
+                             slot.EquipedItem == null)
+                    {
+                        item = CreateSummonedItem(summonForm.ItemDefinition);
+                        slot.EquipItem(item, -1, true, false);
+                    }
+
+                    if (item == null)
+                    {
+                        continue;
+                    }
+
+                    duplicate.AcceptItem(item);
+                    item.SourceSummoningEffectGuid = activeEffect.Guid;
+                    activeEffect.TrackSummonedItem(item);
+                    stored = 1;
+
+                    break;
+                }
+            }
+
+        Complete:
+            SimulacrumDiagnostics.RecordSummonedItem(
+                duplicate,
+                summonForm.ItemDefinition,
+                stored == 1 ? "free-slot-applied" : "free-slot-unavailable",
+                1,
+                stored,
+                0);
+        }
+
+        private static void ApplyStackedInventoryItems(
+            SummonForm summonForm,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            RulesetCharacterSimulacrum duplicate)
+        {
+            var stored = 0;
+            RulesetItem pendingItem = null;
+
+            using (duplicate.BeginInventoryMutation())
+            {
+                if (!summonForm.ItemDefinition.CanBeStacked)
+                {
+                    for (var index = 0; index < summonForm.Number; index++)
+                    {
+                        stored += GrantSummonedItem(
+                            duplicate,
+                            CreateSummonedItem(summonForm.ItemDefinition),
+                            summonForm.TrackItem,
+                            formsParams.activeEffect);
+                    }
+
+                    goto Complete;
+                }
+
+                for (var index = 0; index < summonForm.Number; index++)
+                {
+                    var createItem = pendingItem == null;
+
+                    if (!createItem)
+                    {
+                        if (pendingItem.StackCount == summonForm.ItemDefinition.StackSize)
+                        {
+                            stored += GrantSummonedItem(
+                                duplicate,
+                                pendingItem,
+                                summonForm.TrackItem,
+                                formsParams.activeEffect);
+                            createItem = true;
+                        }
+                        else
+                        {
+                            pendingItem.IncreaseStack(1);
+                        }
+                    }
+
+                    if (createItem)
+                    {
+                        pendingItem = CreateSummonedItem(summonForm.ItemDefinition);
+                    }
+                }
+
+                if (pendingItem != null)
+                {
+                    stored += GrantSummonedItem(
+                        duplicate,
+                        pendingItem,
+                        summonForm.TrackItem,
+                        formsParams.activeEffect);
+                }
+            }
+
+        Complete:
+            SimulacrumDiagnostics.RecordSummonedItem(
+                duplicate,
+                summonForm.ItemDefinition,
+                "inventory-applied",
+                summonForm.Number,
+                stored,
+                0);
+        }
+
+        private static void ApplyIndividualInventoryItems(
+            SummonForm summonForm,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            RulesetCharacterSimulacrum duplicate)
+        {
+            var droppedItems = new List<RulesetItem>();
+            var stored = 0;
+
+            using (duplicate.BeginInventoryMutation())
+            {
+                for (var index = 0; index < summonForm.Number; index++)
+                {
+                    var item = CreateSummonedItem(summonForm.ItemDefinition);
+
+                    if (GrantSummonedItem(
+                            duplicate,
+                            item,
+                            summonForm.TrackItem,
+                            formsParams.activeEffect) > 0)
+                    {
+                        stored++;
+                    }
+                    else
+                    {
+                        item.BearerGuid = 0;
+                        droppedItems.Add(item);
+                    }
+                }
+            }
+
+            if (droppedItems.Count != 0 &&
+                GameLocationCharacter.GetFromActor(duplicate) is { } location &&
+                ServiceRepository.GetService<IGameLocationItemService>() is { } itemService)
+            {
+                itemService.DropLoot(droppedItems, location.LocationPosition);
+            }
+
+            SimulacrumDiagnostics.RecordSummonedItem(
+                duplicate,
+                summonForm.ItemDefinition,
+                "individual-items-applied",
+                summonForm.Number,
+                stored,
+                droppedItems.Count);
+        }
+
+        private static RulesetItem CreateSummonedItem(ItemDefinition itemDefinition)
+        {
+            return ServiceRepository.GetService<IRulesetItemFactoryService>()
+                .CreateStandardItem(itemDefinition, true, null);
+        }
+
+        private static int GrantSummonedItem(
+            RulesetCharacterSimulacrum duplicate,
+            RulesetItem item,
+            bool trackItem,
+            RulesetEffect activeEffect)
+        {
+            if (trackItem && activeEffect != null)
+            {
+                item.SourceSummoningEffectGuid = activeEffect.Guid;
+            }
+
+            var grantedCount = item.StackCount;
+
+            // A tracked item must remain a distinct entity. Autostacking it into an
+            // older summon would discard the GUID that the active effect must remove.
+            if (!duplicate.GrantItem(item, false, autostack: !trackItem))
+            {
+                return 0;
+            }
+
+            if (trackItem)
+            {
+                activeEffect?.TrackSummonedItem(item);
+            }
+
+            return grantedCount;
+        }
     }
 
 
@@ -519,6 +806,14 @@ public static class RulesetImplementationManagerPatcher
         public static bool Prefix(RulesetImplementationManager __instance, RulesetEffect activeEffect,
             bool showGraphics)
         {
+            foreach (var handler in activeEffect
+                         .GetSourceDefinitionSafe()
+                         ?.GetAllSubFeaturesOfType<IOnBeforeEffectTerminated>()
+                     ?? [])
+            {
+                handler.OnBeforeEffectTerminated(activeEffect);
+            }
+
             //PATCH:
             // allows for extra careful tracking of summoned items
             // removes tracked items from any character, container or loot pile
@@ -746,6 +1041,69 @@ public static class RulesetImplementationManagerPatcher
         }
     }
 
+    [HarmonyPatch(
+        typeof(RulesetImplementationManager),
+        nameof(RulesetImplementationManager.ApplyAlterationForm))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ApplyAlterationForm_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(
+            EffectForm effectForm,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams)
+        {
+            var alteration = effectForm?.AlterationForm;
+
+            if (formsParams.sourceCharacter is not
+                    RulesetCharacterSimulacrum duplicate ||
+                alteration?.AlterationType != AlterationForm.Type.AbilityScoreIncrease)
+            {
+                return true;
+            }
+
+            var attribute = duplicate.GetAttribute(
+                alteration.AbilityScore,
+                false);
+
+            if (attribute == null)
+            {
+                SimulacrumDiagnostics.RecordEffectForm(
+                    duplicate,
+                    "ability-score-increase-missing-attribute",
+                    formsParams.activeEffect,
+                    $"ability={alteration.AbilityScore}");
+
+                return false;
+            }
+
+            var previousBase = attribute.BaseValue;
+            var previousMaximum = attribute.MaxValue;
+
+            attribute.BaseValue += alteration.ValueIncrease;
+            attribute.MaxValue += alteration.MaximumIncrease;
+            attribute.MaxEditableValue += alteration.MaximumIncrease;
+            attribute.Refresh(false);
+
+            duplicate.AbilityScoreIncreased?.Invoke(
+                duplicate,
+                alteration.AbilityScore,
+                alteration.ValueIncrease,
+                alteration.MaximumIncrease);
+            duplicate.RefreshAll();
+
+            SimulacrumDiagnostics.RecordEffectForm(
+                duplicate,
+                "ability-score-increase-applied",
+                formsParams.activeEffect,
+                $"ability={alteration.AbilityScore} " +
+                $"base={previousBase}->{attribute.BaseValue} " +
+                $"maximum={previousMaximum}->{attribute.MaxValue}");
+
+            return false;
+        }
+    }
+
     //PATCH: handles Sorcerer wildshape scenarios / enforces sorcerer class level / correctly handle slots recovery scenarios
     [HarmonyPatch(typeof(RulesetImplementationManager), nameof(RulesetImplementationManager.ApplySpellSlotsForm))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -757,10 +1115,12 @@ public static class RulesetImplementationManagerPatcher
             EffectForm effectForm,
             RulesetImplementationDefinitions.ApplyFormsParams formsParams)
         {
-            var originalHero = formsParams.sourceCharacter?.GetOriginalHero();
+            var resourceCharacter = formsParams.sourceCharacter is RulesetCharacterSimulacrum
+                ? formsParams.sourceCharacter
+                : formsParams.sourceCharacter?.GetOriginalHero();
 
             // this shouldn't happen so passing the problem back to original game code
-            if (originalHero == null)
+            if (resourceCharacter == null)
             {
                 return true;
             }
@@ -773,22 +1133,24 @@ public static class RulesetImplementationManagerPatcher
                     when SharedSpellsContext.RecoverySlots.TryGetValue(formsParams.activeEffect.Name,
                         out var invokerClass) && invokerClass is CharacterClassDefinition characterClassDefinition:
                 {
-                    foreach (var spellRepertoire in originalHero.SpellRepertoires)
+                    foreach (var spellRepertoire in resourceCharacter.SpellRepertoires)
                     {
                         var currentValue = 0;
 
                         if (spellRepertoire.SpellCastingClass == characterClassDefinition)
                         {
-                            currentValue = originalHero.ClassesAndLevels[characterClassDefinition];
+                            currentValue = resourceCharacter.GetClassLevel(
+                                characterClassDefinition);
                         }
                         else if (spellRepertoire.SpellCastingSubclass)
                         {
-                            var characterClass = originalHero.ClassesAndSubclasses
-                                .FirstOrDefault(x => x.Value == spellRepertoire.SpellCastingSubclass).Key;
+                            var characterClass = LevelUpHelper.GetClassForSubclass(
+                                spellRepertoire.SpellCastingSubclass);
 
                             if (characterClass == characterClassDefinition)
                             {
-                                currentValue = originalHero.ClassesAndLevels[characterClassDefinition];
+                                currentValue = resourceCharacter.GetClassLevel(
+                                    characterClassDefinition);
                             }
                         }
 
@@ -799,7 +1161,7 @@ public static class RulesetImplementationManagerPatcher
 
                         if (ServiceRepository.GetService<IPlayerControllerService>()?
                                 .ActivePlayerController?
-                                .IsCharacterControlled(originalHero) == false)
+                                .IsCharacterControlled(resourceCharacter) == false)
                         {
                             break;
                         }
@@ -807,7 +1169,7 @@ public static class RulesetImplementationManagerPatcher
                         var slotsCapital = (currentValue % 2) + (currentValue / 2);
 
                         Gui.GuiService.GetScreen<SlotRecoveryModal>().ShowSlotRecovery(
-                            originalHero,
+                            resourceCharacter,
                             formsParams.activeEffect.SourceDefinition.Name,
                             spellRepertoire,
                             slotsCapital,
@@ -825,41 +1187,48 @@ public static class RulesetImplementationManagerPatcher
                 {
                     if (ServiceRepository.GetService<IPlayerControllerService>()?
                             .ActivePlayerController?
-                            .IsCharacterControlled(originalHero) == false)
+                            .IsCharacterControlled(resourceCharacter) == false)
                     {
                         break;
                     }
 
-                    var spellRepertoire = originalHero.SpellRepertoires.Find(sr => sr.SpellCastingClass == Sorcerer);
+                    var spellRepertoire = resourceCharacter.SpellRepertoires.Find(
+                        sr => sr.SpellCastingClass == Sorcerer);
+
+                    if (spellRepertoire == null)
+                    {
+                        break;
+                    }
 
                     Gui.GuiService.GetScreen<FlexibleCastingModal>().ShowFlexibleCasting(
-                        originalHero,
+                        resourceCharacter,
                         spellRepertoire,
                         spellSlotsForm.Type == SpellSlotsForm.EffectType.CreateSpellSlot);
                     break;
                 }
                 case SpellSlotsForm.EffectType.GainSorceryPoints:
-                    formsParams.sourceCharacter.GainSorceryPoints(spellSlotsForm.SorceryPointsGain);
+                    resourceCharacter.GainSorceryPoints(spellSlotsForm.SorceryPointsGain);
                     break;
                 case SpellSlotsForm.EffectType.RecovererSorceryHalfLevelUp:
                 {
-                    var currentValue = originalHero.ClassesAndLevels[Sorcerer];
+                    var currentValue = resourceCharacter.GetClassLevel(Sorcerer);
                     var sorceryPointsGain = (currentValue % 2) + (currentValue / 2);
 
-                    formsParams.sourceCharacter.GainSorceryPoints(sorceryPointsGain);
+                    resourceCharacter.GainSorceryPoints(sorceryPointsGain);
                     break;
                 }
                 case (SpellSlotsForm.EffectType)ExtraEffectType.RecoverSorceryHalfLevelDown:
                 {
-                    var currentValue = originalHero.ClassesAndLevels[Sorcerer];
+                    var currentValue = resourceCharacter.GetClassLevel(Sorcerer);
                     var sorceryPointsGain = currentValue / 2;
 
-                    formsParams.sourceCharacter.GainSorceryPoints(sorceryPointsGain);
+                    resourceCharacter.GainSorceryPoints(sorceryPointsGain);
                     break;
                 }
-                case SpellSlotsForm.EffectType.RechargePower when formsParams.targetCharacter is RulesetCharacter:
+                case SpellSlotsForm.EffectType.RechargePower
+                    when formsParams.targetCharacter is RulesetCharacter targetCharacter:
                 {
-                    foreach (var usablePower in originalHero.UsablePowers.Where(usablePower =>
+                    foreach (var usablePower in targetCharacter.UsablePowers.Where(usablePower =>
                                  usablePower.PowerDefinition == spellSlotsForm.PowerDefinition))
                     {
                         usablePower.Recharge();

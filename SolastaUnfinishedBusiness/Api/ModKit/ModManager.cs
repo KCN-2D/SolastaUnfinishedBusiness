@@ -126,6 +126,14 @@ internal sealed class ModManager<TCore, TSettings>
 
         if (failures.Count > 0)
         {
+            foreach (var failure in failures)
+            {
+                Main.Error(
+                    $"Harmony patch failed for {failure.TypeName}:{Environment.NewLine}{failure.Exception}");
+            }
+
+            CleanupFailedPatchApplication(modEntry);
+
             var failureSummary = string.Join(
                 Environment.NewLine,
                 failures.Select(x => $"- {x.TypeName}: {x.Exception.GetType().Name}: {x.Exception.Message}"));
@@ -135,6 +143,41 @@ internal sealed class ModManager<TCore, TSettings>
         }
 
         Patched = true;
+    }
+
+    private void CleanupFailedPatchApplication(UnityModManager.ModEntry modEntry)
+    {
+        try
+        {
+            _harmonyInstance?.UnpatchAll(modEntry.Info.Id);
+        }
+        catch (Exception rollbackException)
+        {
+            Main.Error(
+                $"Failed to rollback Harmony patches for {modEntry.Info.Id}:{Environment.NewLine}{rollbackException}");
+        }
+        finally
+        {
+            Patched = false;
+            Enabled = false;
+        }
+
+        try
+        {
+            if (SaveGuiRegistered)
+            {
+                modEntry.OnSaveGUI -= HandleSaveGUI;
+            }
+        }
+        catch (Exception cleanupException)
+        {
+            Main.Error(
+                $"Failed to cleanup SaveGUI after Harmony patch failure:{Environment.NewLine}{cleanupException}");
+        }
+        finally
+        {
+            SaveGuiRegistered = false;
+        }
     }
 
     private void CreateEventHandlers(Type[] types)

@@ -9,6 +9,7 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Validators;
@@ -1634,7 +1635,7 @@ internal static partial class SpellBuilders
                 return false;
             }
 
-            var rulesetCaster = __instance.ActionParams.ActingCharacter.RulesetCharacter.GetOriginalHero();
+            var rulesetCaster = __instance.ActionParams.ActingCharacter.RulesetCharacter;
 
             if (rulesetCaster == null || !FamilyLanguages.TryGetValue(rulesetTarget.CharacterFamily, out var language))
             {
@@ -1642,7 +1643,23 @@ internal static partial class SpellBuilders
                 return false;
             }
 
-            if (rulesetCaster.LanguageProficiencies.Contains($"Language_{language}"))
+            var requiredLanguage = $"Language_{language}";
+            var knownLanguages = new List<string>();
+
+            rulesetCaster.EnumerateKnownLanguages(knownLanguages);
+            var understandsTarget = knownLanguages.Contains(requiredLanguage);
+
+            if (rulesetCaster is RulesetCharacterSimulacrum duplicate)
+            {
+                SimulacrumDiagnostics.RecordLanguageValidation(
+                    duplicate,
+                    rulesetTarget.CharacterFamily,
+                    requiredLanguage,
+                    knownLanguages,
+                    understandsTarget);
+            }
+
+            if (understandsTarget)
             {
                 return true;
             }

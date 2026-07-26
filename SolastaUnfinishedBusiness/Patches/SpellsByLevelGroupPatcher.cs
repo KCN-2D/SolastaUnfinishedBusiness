@@ -25,7 +25,7 @@ public static class SpellsByLevelGroupPatcher
         {
             //PATCH: add all auto prepared spells to extra spells map, so that different sources of auto spells won't bleed their tag
             //Don't use GetOriginalHero() here
-            LevelUpHelper.EnumerateExtraSpells(extraSpellsMap, caster as RulesetCharacterHero);
+            LevelUpHelper.EnumerateExtraSpells(extraSpellsMap, caster);
             LevelUpHelper.AddSlotCastableExtraSpellsToCommonBind(
                 __instance,
                 caster,

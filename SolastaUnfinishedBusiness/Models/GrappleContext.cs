@@ -6,6 +6,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.FightingStyles;
 using SolastaUnfinishedBusiness.Interfaces;
@@ -323,12 +324,12 @@ internal static class GrappleContext
 
         if ((extraActionId is ExtraActionId.Grapple or ExtraActionId.GrappleBonus &&
              (hasGrappleSource ||
-              !ValidatorsCharacter.HasFreeHand(rulesetCharacter) ||
+              !ValidatorsCharacter.HasFreeHandConsiderGrapple(rulesetCharacter) ||
               !ValidatorsCharacter.HasMainAttackAvailable(rulesetCharacter))) ||
             (extraActionId == ExtraActionId.DisableGrapple && !hasGrappleSource) ||
             (extraActionId == ExtraActionId.GrappleNoCost &&
              (hasGrappleSource ||
-              !ValidatorsCharacter.HasFreeHand(rulesetCharacter) ||
+              !ValidatorsCharacter.HasFreeHandConsiderGrapple(rulesetCharacter) ||
               rulesetCharacter.HasConditionOfCategoryAndType(
                   AttributeDefinitions.TagEffect, Tabletop2024Context.ConditionGrappleNoCostUsed.Name))))
         {
@@ -370,6 +371,26 @@ internal static class GrappleContext
             ConditionGrappleSourceFromHeightenedName,
             ConditionGrappleSourceWithGrapplerName,
             ConditionGrappleSourceWithGrapplerLargerName) == true;
+    }
+
+    internal static void ReleaseGrappleIfNoFreeHand(RulesetCharacter character)
+    {
+        var canKeepGrapple = ValidatorsCharacter.CanMaintainGrapple(character);
+
+        if (character is RulesetCharacterSimulacrum duplicate)
+        {
+            SimulacrumDiagnostics.RecordGrappleHands(
+                duplicate,
+                "equipment-changed",
+                ValidatorsCharacter.GetFreeHandsForGrapple(character),
+                canKeepGrapple);
+        }
+
+        if (!canKeepGrapple &&
+            GetGrappledActor(character, out var rulesetTarget, out var activeCondition))
+        {
+            rulesetTarget.RemoveCondition(activeCondition);
+        }
     }
 
     internal static bool HasGrappleImmunity(RulesetCharacter character)
@@ -418,11 +439,8 @@ internal static class GrappleContext
 
     private static int GetUnarmedReachRange(GameLocationCharacter character)
     {
-        var hero = character.RulesetCharacter.GetOriginalHero();
-
-        if (hero != null &&
-            // only Astral Reach grants reach on unarmed
-            hero.FeaturesByType<FeatureDefinition>().Any(x => x.Name == AstralReach.AstralReachFeatureName))
+        // only Astral Reach grants reach on unarmed
+        if (character.RulesetCharacter.HasAnyFeature(AstralReach.AstralReachFeatureName))
         {
             return 2;
         }
@@ -446,9 +464,28 @@ internal static class GrappleContext
         Material
     }
 
-    internal sealed class CustomBehaviorGrapple : IFilterTargetingCharacter, IPowerOrSpellFinishedByMe
+    internal sealed class CustomBehaviorGrapple :
+        IFilterTargetingCharacter,
+        IPowerOrSpellFinishedByMe,
+        IValidatePowerUse
     {
         public bool EnforceFullSelection => false;
+
+        public bool CanUsePower(RulesetCharacter character, FeatureDefinitionPower power)
+        {
+            var canGrapple = ValidatorsCharacter.HasFreeHandConsiderGrapple(character);
+
+            if (character is RulesetCharacterSimulacrum duplicate)
+            {
+                SimulacrumDiagnostics.RecordGrappleHands(
+                    duplicate,
+                    "power-validation",
+                    ValidatorsCharacter.GetFreeHandsForGrapple(character),
+                    canGrapple);
+            }
+
+            return canGrapple;
+        }
 
         public bool IsValid(CursorLocationSelectTarget __instance, GameLocationCharacter target)
         {
@@ -461,6 +498,22 @@ internal static class GrappleContext
 
             var actingCharacter = __instance.ActionParams.ActingCharacter;
             var rulesetCharacter = actingCharacter.RulesetCharacter;
+
+            var canGrapple = ValidatorsCharacter.HasFreeHandConsiderGrapple(rulesetCharacter);
+
+            if (rulesetCharacter is RulesetCharacterSimulacrum duplicate)
+            {
+                SimulacrumDiagnostics.RecordGrappleHands(
+                    duplicate,
+                    "target-validation",
+                    ValidatorsCharacter.GetFreeHandsForGrapple(rulesetCharacter),
+                    canGrapple);
+            }
+
+            if (!canGrapple)
+            {
+                return false;
+            }
 
             if (TooBigToGrapple(actingCharacter.RulesetCharacter, rulesetTarget))
             {
@@ -646,7 +699,7 @@ internal static class GrappleContext
     }
 
     private sealed class CustomBehaviorConditionGrappleSource
-        : IModifyWeaponAttackMode, IMoveStepStarted, IOnItemEquipped, IPhysicalAttackInitiatedByMe,
+        : IModifyWeaponAttackMode, IMoveStepStarted, IOnCharacterEquipmentChanged, IPhysicalAttackInitiatedByMe,
             IOnConditionAddedOrRemoved, IOnReducedToZeroHpByEnemy
     {
         internal static readonly CustomBehaviorConditionGrappleSource Marker = new();
@@ -740,13 +793,9 @@ internal static class GrappleContext
         }
 
         // should lose grapple if no free hand anymore
-        public void OnItemEquipped(RulesetCharacterHero hero)
+        public void OnCharacterEquipmentChanged(RulesetCharacter hero)
         {
-            if (!ValidatorsCharacter.HasFreeHand(hero) &&
-                GetGrappledActor(hero, out var rulesetTarget, out var activeCondition))
-            {
-                rulesetTarget.RemoveCondition(activeCondition);
-            }
+            ReleaseGrappleIfNoFreeHand(hero);
         }
 
         // remove grappled on target if source becomes unconscious

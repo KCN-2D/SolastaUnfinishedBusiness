@@ -253,15 +253,13 @@ public sealed class PathOfTheBattlerager : AbstractSubclass
                 return;
             }
 
-            if (character is RulesetCharacterHero hero)
-            {
-                var equipedItem =
-                    hero.characterInventory.InventorySlotsByName[EquipmentDefinitions.SlotTypeTorso].EquipedItem;
+            var equipedItem = character.CharacterInventory?
+                .InventorySlotsByName[EquipmentDefinitions.SlotTypeTorso]
+                .EquipedItem;
 
-                if (equipedItem != null && equipedItem.ItemDefinition.IsArmor && equipedItem.ItemDefinition.Magical)
-                {
-                    attackMode.AddAttackTagAsNeeded(TagsDefinitions.MagicalWeapon);
-                }
+            if (equipedItem?.ItemDefinition is { IsArmor: true, Magical: true })
+            {
+                attackMode.AddAttackTagAsNeeded(TagsDefinitions.MagicalWeapon);
             }
 
             var damage = attackMode.EffectDescription.FindFirstDamageForm();

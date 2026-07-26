@@ -221,6 +221,53 @@ internal static class EldritchVersatilityBuilders
             rulesetCharacter, out supportCondition);
     }
 
+    private static RulesetSpellRepertoire GetWarlockSpellRepertoire(RulesetCharacter character)
+    {
+        return GetStateOwner(character)?.GetClassSpellRepertoire(CharacterClassDefinitions.Warlock);
+    }
+
+    private static int GetWarlockSpellLevel(RulesetCharacter character)
+    {
+        var warlockLevel = GetStateOwner(character)?.GetClassLevel(CharacterClassDefinitions.Warlock) ?? 0;
+
+        return Math.Min(5, (warlockLevel + 1) / 2);
+    }
+
+    private static int GetWarlockSlotIndex(RulesetCharacter character)
+    {
+        var stateOwner = GetStateOwner(character);
+        var isMulticaster = stateOwner.SpellRepertoires.Count(repertoire =>
+            repertoire?.SpellCastingFeature != null &&
+            repertoire.SpellCastingFeature.SpellCastingOrigin !=
+            FeatureDefinitionCastSpell.CastingOrigin.Race) > 1;
+
+        return isMulticaster
+            ? SharedSpellsContext.PactMagicSlotsTab
+            : GetWarlockSpellLevel(character);
+    }
+
+    private static bool TryGetWarlockUsedSlots(
+        RulesetCharacter character,
+        out RulesetSpellRepertoire repertoire,
+        out int slotIndex,
+        out int usedSlots)
+    {
+        repertoire = GetWarlockSpellRepertoire(character);
+        slotIndex = GetWarlockSlotIndex(character);
+        usedSlots = 0;
+
+        return repertoire != null &&
+               repertoire.usedSpellsSlots.TryGetValue(slotIndex, out usedSlots);
+    }
+
+    private static RulesetCharacter GetStateOwner(RulesetCharacter character)
+    {
+        return character != null &&
+               character.TryGetShapeChangeOriginalHero(out var shapeChangeHero)
+            ? shapeChangeHero
+            : character;
+    }
+
     private static void BuildFeatureInvocation(
         string name,
         AssetReferenceSprite sprite,
@@ -403,19 +450,13 @@ internal static class EldritchVersatilityBuilders
 
         private void InitSupportCondition([NotNull] RulesetCharacter ownerCharacter)
         {
-            var ownerHero = ownerCharacter.GetOriginalHero();
+            var stateOwner = GetStateOwner(ownerCharacter);
+            var characterLevel = stateOwner.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
+            var proficiencyBonus = stateOwner.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
 
-            if (ownerHero == null)
-            {
-                return;
-            }
+            MaxPoints = stateOwner.GetClassLevel(CharacterClassDefinitions.Warlock);
 
-            var characterLevel = ownerHero.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
-            var proficiencyBonus = ownerHero.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
-
-            MaxPoints = ownerHero.GetClassLevel(CharacterClassDefinitions.Warlock);
-
-            if (ownerHero.HasSubFeatureOfType<ModifyEffectDescriptionEldritchBlast>())
+            if (stateOwner.HasSubFeatureOfType<ModifyEffectDescriptionEldritchBlast>())
             {
                 BeamNumber = PatronEldritchSurge.ComputeBeamCount(characterLevel, MaxPoints);
             }
@@ -424,47 +465,49 @@ internal static class EldritchVersatilityBuilders
                 BeamNumber = ProficiencyIncreaseLevels.Count(x => characterLevel >= x);
             }
 
-            if (ownerHero.TrainedFeats.Contains(FeatEldritchVersatilityAdept))
+            if (stateOwner.HasSubFeatureOfType<EldritchVersatilityAdeptCustom>())
             {
                 MaxPoints += proficiencyBonus;
             }
 
             CurrentPoints = 0;
-            SlotLevel = SharedSpellsContext.GetWarlockSpellLevel(ownerHero);
+            SlotLevel = GetWarlockSpellLevel(stateOwner);
             CreateSlotDC = 8 + proficiencyBonus + SlotLevel;
             IsValidBlastBreakthrough = false;
             IsOverload = false;
-            HasBlastPursuit = ownerHero.HasAnyFeature(FeatureBlastReload);
+            HasBlastPursuit = stateOwner.HasAnyFeature(FeatureBlastReload);
             LearntAmount =
-                ownerHero.TrainedInvocations.Count(
-                    x => x.Name.Contains($"Invocation{EldritchVersatilityBuilders.Name}"));
+                stateOwner.Invocations.Count(x =>
+                    x?.InvocationDefinition?.Name?.Contains(
+                        $"Invocation{EldritchVersatilityBuilders.Name}") == true);
             ReplacedAbilityScore = string.Empty;
             StrPowerPriority.Clear();
 
-            var names = ownerHero.GetSubFeaturesByType<ToggleableOnInvocation>().Select(x => x.InvocationName);
+            var names = stateOwner.GetSubFeaturesByType<ToggleableOnInvocation>().Select(x => x.InvocationName);
 
-            ownerHero.Invocations.DoIf(x =>
+            stateOwner.Invocations.DoIf(x =>
                 x.Active && names.Contains(x.InvocationDefinition.Name), y => y.Toggle());
 
-            ModifyAttributeScores(ownerHero, ReplacedAbilityScore);
+            ModifyAttributeScores(stateOwner, ReplacedAbilityScore);
 
             ReplacedAbilityScoreValue = 10 + (2 * proficiencyBonus);
             CopiedSpells.Clear();
         }
 
-        public void ModifyAttributeScores(RulesetCharacterHero hero, string abilityScore)
+        public void ModifyAttributeScores(RulesetCharacter character, string abilityScore)
         {
+            var stateOwner = GetStateOwner(character);
             var names = new List<string>
             {
                 AttributeDefinitions.Strength, AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom
             };
 
-            hero.Attributes.DoIf(x => names.Contains(x.Key),
+            stateOwner.Attributes.DoIf(x => names.Contains(x.Key),
                 y => y.Value.ActiveModifiers.RemoveAll(z => z.Tags.Contains(Name)));
 
             if (abilityScore == string.Empty)
             {
-                hero.Attributes.DoIf(x =>
+                stateOwner.Attributes.DoIf(x =>
                         names.Contains(x.Key),
                     y => y.Value.ActiveModifiers.TryAdd(
                         RulesetAttributeModifier
@@ -604,11 +647,7 @@ internal static class EldritchVersatilityBuilders
                     return;
                 }
 
-                var warlockRepertoire =
-                    target.GetOriginalHero()!.SpellRepertoires.Find(x =>
-                        x.SpellCastingClass == CharacterClassDefinitions.Warlock);
-
-                warlockRepertoire.ExtraSpellsByTag.Remove("BattlefieldShorthand");
+                GetWarlockSpellRepertoire(target)?.ExtraSpellsByTag.Remove("BattlefieldShorthand");
                 target.PowersUsedByMe.RemoveAll(x => x.PowerDefinition == PowerEldritchVersatilityPointPool);
             }
         }
@@ -807,8 +846,7 @@ internal static class EldritchVersatilityBuilders
                 yield break;
             }
 
-            var warlockRepertoire = featureOwner.GetOriginalHero()!
-                .SpellRepertoires.Find(x => x.SpellCastingClass == CharacterClassDefinitions.Warlock);
+            var warlockRepertoire = GetWarlockSpellRepertoire(featureOwner);
 
             if (warlockRepertoire is null)
             {
@@ -921,7 +959,16 @@ internal static class EldritchVersatilityBuilders
             var gameLocationCharacter = action.ActingCharacter;
             var featureOwner = gameLocationCharacter.RulesetCharacter;
 
-            featureOwner.GetVersatilitySupportCondition(out var supportCondition);
+            if (!featureOwner.GetVersatilitySupportCondition(out var supportCondition) ||
+                !TryGetWarlockUsedSlots(
+                    featureOwner,
+                    out var warlockRepertoire,
+                    out var slotLevelIndex,
+                    out var warlockUsedSlots) ||
+                warlockUsedSlots <= 0)
+            {
+                yield break;
+            }
 
             if (!supportCondition.IsOverload)
             {
@@ -988,43 +1035,33 @@ internal static class EldritchVersatilityBuilders
                 }
             }
 
-            supportCondition.TryEarnOrSpendPoints(PointAction.Modify, PointUsage.BattlefieldConversionSuccess);
-
-            var rulesetHero = featureOwner.GetOriginalHero();
-
-            if (rulesetHero == null)
+            if (!supportCondition.TryEarnOrSpendPoints(
+                    PointAction.Modify,
+                    PointUsage.BattlefieldConversionSuccess))
             {
                 yield break;
             }
-
-            var warlockRepertoire =
-                rulesetHero.SpellRepertoires.Find(x => x.SpellCastingClass == CharacterClassDefinitions.Warlock);
-            var slotLevelIndex = SharedSpellsContext.IsMulticaster(rulesetHero)
-                ? -1
-                : SharedSpellsContext.GetWarlockSpellLevel(rulesetHero);
 
             // Restore Slot and refresh
-            if (!warlockRepertoire.usedSpellsSlots.TryGetValue(slotLevelIndex, out var warlockUsedSlots))
-            {
-                yield break;
-            }
-
             warlockRepertoire.usedSpellsSlots[slotLevelIndex] = Math.Max(0, warlockUsedSlots - 1);
             warlockRepertoire.RepertoireRefreshed?.Invoke(warlockRepertoire);
         }
 
         public bool CanUsePower(RulesetCharacter character, FeatureDefinitionPower power)
         {
-            var rulesetHero = character.GetOriginalHero();
-
-            if (rulesetHero is not { IsDeadOrDyingOrUnconscious: false })
+            if (character is not { IsDeadOrDyingOrUnconscious: false } ||
+                !TryGetWarlockUsedSlots(
+                    character,
+                    out _,
+                    out _,
+                    out var usedSlots) ||
+                usedSlots <= 0)
             {
                 return false;
             }
 
             // Have spent pact slot && have enough points
-            return SharedSpellsContext.GetWarlockUsedSlots(rulesetHero) > 0 &&
-                   character.GetVersatilitySupportCondition(out var supportCondition) &&
+            return character.GetVersatilitySupportCondition(out var supportCondition) &&
                    supportCondition.TryEarnOrSpendPoints(PointAction.Require, PointUsage.BattlefieldConversionSuccess);
         }
     }
@@ -1562,8 +1599,7 @@ internal static class EldritchVersatilityBuilders
                 yield break;
             }
 
-            var warlockRepertoire = featureOwner.GetOriginalHero()!
-                .SpellRepertoires.Find(x => x.SpellCastingClass == CharacterClassDefinitions.Warlock);
+            var warlockRepertoire = GetWarlockSpellRepertoire(featureOwner);
 
             if (warlockRepertoire is null)
             {

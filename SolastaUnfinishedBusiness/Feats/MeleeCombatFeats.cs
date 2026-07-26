@@ -388,9 +388,9 @@ internal static class MeleeCombatFeats
         ConditionDefinition conditionArmorClass,
         ConditionDefinition conditionMovement)
         : IPhysicalAttackFinishedByMe, IPhysicalAttackBeforeHitConfirmedOnEnemy, IOnReducedToZeroHpByMe,
-            IOnItemEquipped
+            IOnCharacterEquipmentChanged
     {
-        public void OnItemEquipped(RulesetCharacterHero hero)
+        public void OnCharacterEquipmentChanged(RulesetCharacter hero)
         {
             if (!HasFreeHandWithHeavyOrVersatileInMain(hero) &&
                 hero.TryGetConditionOfCategoryAndType(
@@ -831,12 +831,13 @@ internal static class MeleeCombatFeats
                 continue;
             }
 
-            var rulesetAllyHero = ally.RulesetCharacter.GetOriginalHero();
-
-            if (rulesetAllyHero == null ||
-                !ally.IsWithinRange(standingUpCharacter, 1) ||
-                (!rulesetAllyHero.TrainedFeats.Contains(FeatOldTacticsDex) &&
-                 !rulesetAllyHero.TrainedFeats.Contains(FeatOldTacticsStr)))
+            if (!ally.IsWithinRange(standingUpCharacter, 1) ||
+                (!SimulacrumBehavior.HasTrainedFeat(
+                     ally.RulesetCharacter,
+                     FeatOldTacticsDex) &&
+                 !SimulacrumBehavior.HasTrainedFeat(
+                     ally.RulesetCharacter,
+                     FeatOldTacticsStr)))
             {
                 continue;
             }

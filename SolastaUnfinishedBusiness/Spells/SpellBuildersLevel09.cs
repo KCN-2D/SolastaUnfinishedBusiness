@@ -1,7 +1,8 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
@@ -20,6 +21,36 @@ namespace SolastaUnfinishedBusiness.Spells;
 
 internal static partial class SpellBuilders
 {
+    #region Wish
+
+    internal static SpellDefinition BuildWish()
+    {
+        var sprite = Sprites.GetSprite("Wish", Resources.Wish, 128);
+        var behavior = WishBehavior.Build(sprite);
+
+        return SpellDefinitionBuilder
+            .Create("Wish")
+            .SetGuiPresentation(Category.Spell, sprite)
+            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolConjuration)
+            .SetSpellLevel(9)
+            .SetCastingTime(ActivationTime.Action)
+            .SetMaterialComponent(MaterialComponentType.None)
+            .SetSomaticComponent(false)
+            .SetVerboseComponent(true)
+            .SetVocalSpellSameType(VocalSpellSemeType.Buff)
+            .SetEffectDescription(
+                EffectDescriptionBuilder
+                    .Create()
+                    .SetTargetingData(Side.All, RangeType.Self, 0, TargetType.Self)
+                    .SetParticleEffectParameters(DivineWord)
+                    .Build())
+            .SetSubSpells(behavior.TopLevelSpells)
+            .AddCustomSubFeatures(behavior, behavior.CastingValidator)
+            .AddToDB();
+    }
+
+    #endregion
+
     #region Foresight
 
     internal static SpellDefinition BuildForesight()

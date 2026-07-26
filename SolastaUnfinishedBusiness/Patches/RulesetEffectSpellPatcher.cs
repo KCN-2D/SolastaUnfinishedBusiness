@@ -225,14 +225,15 @@ public static class RulesetEffectSpellPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetEffectSpell __instance, ref int __result, RulesetCharacter character)
         {
-            if (character is not RulesetCharacterHero hero)
+            if (character is not RulesetCharacterHero &&
+                character is not RulesetCharacterSimulacrum)
             {
                 return;
             }
 
             if (__instance.SpellDefinition.SpellLevel == 0)
             {
-                __result = hero.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
+                __result = character.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
                 return;
             }
 
@@ -244,7 +245,7 @@ public static class RulesetEffectSpellPatcher
                 return;
             }
 
-            __result = hero.GetClassLevel(holder.Class);
+            __result = character.GetClassLevel(holder.Class);
         }
     }
 

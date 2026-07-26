@@ -10,6 +10,7 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
@@ -690,12 +691,6 @@ internal static partial class SpellBuilders
 
             var actingCharacter = action.ActingCharacter;
             var rulesetCharacter = actingCharacter.RulesetCharacter;
-            var hero = rulesetCharacter.GetOriginalHero();
-
-            if (hero == null)
-            {
-                yield break;
-            }
 
             var usablePowers = new List<RulesetUsablePower>();
             var skillsDb = DatabaseRepository.GetDatabase<SkillDefinition>();
@@ -710,9 +705,11 @@ internal static partial class SpellBuilders
                 }
 
                 var hasSkill =
-                    hero.SkillProficiencies.Contains(skill.Name) ||
+                    rulesetCharacter is RulesetCharacterMonster monster &&
+                    monster.SkillProficiencies.ContainsKey(skill.Name) ||
+                    rulesetCharacter is RulesetCharacterHero hero &&
                     hero.TrainedSkills.Contains(skill) ||
-                    hero.FeaturesByType<FeatureDefinitionProficiency>()
+                    rulesetCharacter.FeaturesByType<FeatureDefinitionProficiency>()
                         .Any(x =>
                             x.ProficiencyType == ProficiencyType.Skill &&
                             x.Proficiencies.Contains(skillName));
@@ -730,6 +727,12 @@ internal static partial class SpellBuilders
 
             var usablePower = PowerProvider.Get(powerPool, rulesetCharacter);
 
+            SimulacrumDiagnostics.RecordSpellChoice(
+                rulesetCharacter,
+                "BorrowedKnowledge",
+                "request",
+                usablePowers.Select(x => x.PowerDefinition.Name));
+
             yield return actingCharacter.MyReactToSpendPowerBundle(
                 usablePower,
                 [actingCharacter],
@@ -744,7 +747,27 @@ internal static partial class SpellBuilders
 
             void ReactionValidated(ReactionRequestSpendBundlePower reactionRequest)
             {
-                var selectedPower = powers[reactionRequest.SelectedSubOption];
+                if (reactionRequest.SelectedSubOption < 0 ||
+                    reactionRequest.SelectedSubOption >= usablePowers.Count)
+                {
+                    SimulacrumDiagnostics.RecordSpellChoice(
+                        rulesetCharacter,
+                        "BorrowedKnowledge",
+                        "invalid-selection",
+                        usablePowers.Select(x => x.PowerDefinition.Name));
+
+                    return;
+                }
+
+                var selectedPower =
+                    usablePowers[reactionRequest.SelectedSubOption].PowerDefinition;
+
+                SimulacrumDiagnostics.RecordSpellChoice(
+                    rulesetCharacter,
+                    "BorrowedKnowledge",
+                    "validated",
+                    usablePowers.Select(x => x.PowerDefinition.Name),
+                    selectedPower.Name);
 
                 foreach (var skill in skillsDb)
                 {

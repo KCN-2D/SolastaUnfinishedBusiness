@@ -1,10 +1,26 @@
 ﻿using UnityEngine.UI;
+using System;
+using HarmonyLib;
 using static ActionDefinitions;
 
 namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
 public static class InvocationSelectionPanelExtensions
 {
+    private static readonly AccessTools.FieldRef<InvocationSelectionPanel, UnityEngine.GameObject>
+        InvocationPrefab =
+            AccessTools.FieldRefAccess<InvocationSelectionPanel, UnityEngine.GameObject>("invocationPrefab");
+    private static readonly System.Reflection.MethodInfo InvocationSelectedMethod =
+        AccessTools.DeclaredMethod(
+            typeof(InvocationSelectionPanel),
+            "OnInvocationSelected",
+            [typeof(InvocationActivationBox)]);
+    private static readonly System.Reflection.MethodInfo PermanentInvocationToggledMethod =
+        AccessTools.DeclaredMethod(
+            typeof(InvocationSelectionPanel),
+            "OnPermanentInvocationToggled",
+            [typeof(InvocationActivationBox)]);
+
     //Custom bind that acknowledges bonus action invocations
     public static void CustomBind(
         this InvocationSelectionPanel invocationPanel,
@@ -13,7 +29,14 @@ public static class InvocationSelectionPanelExtensions
         InvocationSelectionPanel.InvocationCancelledHandler canceled,
         CharacterActionPanel actionPanel)
     {
-        invocationPanel.Bind(caster, selected, canceled);
+        if (caster?.RulesetCharacter is RulesetCharacterSimulacrum)
+        {
+            BindSimulacrum(invocationPanel, caster, selected, canceled);
+        }
+        else
+        {
+            invocationPanel.Bind(caster, selected, canceled);
+        }
 
         var table = invocationPanel.invocationsTable;
         var invocations = caster.RulesetCharacter.Invocations;
@@ -60,5 +83,56 @@ public static class InvocationSelectionPanelExtensions
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(table);
         Gui.InputService.RecomputeSelectableNavigation(true);
+    }
+
+    private static void BindSimulacrum(
+        InvocationSelectionPanel panel,
+        GameLocationCharacter caster,
+        InvocationSelectionPanel.InvocationSelectedHandler selected,
+        InvocationSelectionPanel.InvocationCancelledHandler canceled)
+    {
+        if (InvocationSelectedMethod == null || PermanentInvocationToggledMethod == null)
+        {
+            throw new MissingMethodException(
+                typeof(InvocationSelectionPanel).FullName,
+                "Simulacrum invocation callbacks");
+        }
+
+        panel.Caster = caster;
+        panel.InvocationSelected = selected;
+        panel.InvocationCanceled = canceled;
+
+        var invocations = caster.RulesetCharacter.Invocations;
+        var table = panel.invocationsTable;
+        var prefab = InvocationPrefab(panel);
+        var engaged = (InvocationActivationBox.InvocationEngagedHandler)Delegate.CreateDelegate(
+            typeof(InvocationActivationBox.InvocationEngagedHandler),
+            panel,
+            InvocationSelectedMethod);
+        var toggled = (InvocationActivationBox.PermanentInvocationToggledHandler)Delegate.CreateDelegate(
+            typeof(InvocationActivationBox.PermanentInvocationToggledHandler),
+            panel,
+            PermanentInvocationToggledMethod);
+
+        while (table.childCount < invocations.Count)
+        {
+            Gui.GetPrefabFromPool(prefab, table);
+        }
+
+        for (var index = 0; index < table.childCount; index++)
+        {
+            var box = table.GetChild(index).GetComponent<InvocationActivationBox>();
+
+            if (index < invocations.Count)
+            {
+                box.gameObject.SetActive(true);
+                box.Bind(invocations[index], engaged, toggled, caster.RulesetCharacter);
+            }
+            else
+            {
+                box.Unbind();
+                box.gameObject.SetActive(false);
+            }
+        }
     }
 }

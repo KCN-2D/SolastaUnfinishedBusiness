@@ -10,6 +10,7 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
@@ -739,12 +740,6 @@ internal static partial class SpellBuilders
             var rulesetCharacter = actingCharacter.RulesetCharacter;
             var target = action.ActionParams.TargetCharacters[0];
             var rulesetTarget = target.RulesetCharacter;
-            var hero = rulesetTarget.GetOriginalHero();
-
-            if (hero == null)
-            {
-                yield break;
-            }
 
             var usablePowers = new List<RulesetUsablePower>();
             var skillsDb = DatabaseRepository.GetDatabase<SkillDefinition>();
@@ -759,16 +754,23 @@ internal static partial class SpellBuilders
                 }
 
                 var hasSkill =
-                    hero.SkillProficiencies.Contains(skill.Name) ||
+                    rulesetTarget is RulesetCharacterMonster monster &&
+                    monster.SkillProficiencies.ContainsKey(skill.Name) ||
+                    rulesetTarget is RulesetCharacterHero hero &&
                     hero.TrainedSkills.Contains(skill) ||
-                    hero.FeaturesByType<FeatureDefinitionProficiency>()
+                    rulesetTarget.FeaturesByType<FeatureDefinitionProficiency>()
                         .Any(x =>
                             x.ProficiencyType == ProficiencyType.Skill &&
                             x.Proficiencies.Contains(skillName));
 
                 var hasExpertise =
-                    hero.TrainedExpertises.Contains(skill.name) ||
-                    hero.ExpertiseProficiencies.Contains(skill.Name);
+                    rulesetTarget is RulesetCharacterHero expertiseHero &&
+                    (expertiseHero.TrainedExpertises.Contains(skill.name) ||
+                     expertiseHero.ExpertiseProficiencies.Contains(skill.Name)) ||
+                    rulesetTarget.FeaturesByType<FeatureDefinitionProficiency>()
+                        .Any(x =>
+                            x.ProficiencyType == ProficiencyType.Expertise &&
+                            x.Proficiencies.Contains(skillName));
 
                 if (!hasSkill || hasExpertise)
                 {
@@ -782,6 +784,12 @@ internal static partial class SpellBuilders
             }
 
             var usablePower = PowerProvider.Get(powerPool, rulesetCharacter);
+
+            SimulacrumDiagnostics.RecordSpellChoice(
+                rulesetCharacter,
+                "EmpoweredKnowledge",
+                "request",
+                usablePowers.Select(x => x.PowerDefinition.Name));
 
             yield return actingCharacter.MyReactToSpendPowerBundle(
                 usablePower,
@@ -797,11 +805,31 @@ internal static partial class SpellBuilders
 
             void ReactionValidated(ReactionRequestSpendBundlePower reactionRequest)
             {
-                var selectedPower = powers[reactionRequest.SelectedSubOption];
+                if (reactionRequest.SelectedSubOption < 0 ||
+                    reactionRequest.SelectedSubOption >= usablePowers.Count)
+                {
+                    SimulacrumDiagnostics.RecordSpellChoice(
+                        rulesetCharacter,
+                        "EmpoweredKnowledge",
+                        "invalid-selection",
+                        usablePowers.Select(x => x.PowerDefinition.Name));
+
+                    return;
+                }
+
+                var selectedPower =
+                    usablePowers[reactionRequest.SelectedSubOption].PowerDefinition;
                 var locationCharacterService = ServiceRepository.GetService<IGameLocationCharacterService>();
                 var contenders =
                     locationCharacterService.PartyCharacters.Union(locationCharacterService.GuestCharacters)
                         .ToArray();
+
+                SimulacrumDiagnostics.RecordSpellChoice(
+                    rulesetCharacter,
+                    "EmpoweredKnowledge",
+                    "validated",
+                    usablePowers.Select(x => x.PowerDefinition.Name),
+                    selectedPower.Name);
 
                 foreach (var contender in contenders)
                 {
@@ -912,8 +940,7 @@ internal static partial class SpellBuilders
 
         public bool IsValid(CursorLocationSelectTarget __instance, GameLocationCharacter target)
         {
-            var hero = target.RulesetCharacter.GetOriginalHero();
-            var rulesetItem = hero?.CharacterInventory.EnumerateAllSlots()
+            var rulesetItem = target.RulesetCharacter.CharacterInventory?.EnumerateAllSlots()
                 .FirstOrDefault(x =>
                     x.EquipedItem?.DynamicItemProperties.Any(y => y.FeatureDefinition == additionalDamage) == true)
                 ?.EquipedItem;
@@ -1109,40 +1136,52 @@ internal static partial class SpellBuilders
             // Empty
         }
 
-        private static bool IsBowOrCrossbow(RulesetAttackMode mode, RulesetItem item, RulesetCharacterHero hero)
+        private static bool IsBowOrCrossbow(
+            RulesetAttackMode mode,
+            RulesetItem item,
+            RulesetCharacter character)
         {
             return ValidatorsWeapon.IsOfWeaponType(
                 LongbowType, ShortbowType, HeavyCrossbowType, LightCrossbowType,
-                CustomWeaponsContext.HandXbowWeaponType)(mode, item, hero);
+                CustomWeaponsContext.HandXbowWeaponType)(mode, item, character);
         }
 
         protected override List<RulesetAttackMode> GetAttackModes([NotNull] RulesetCharacter character)
         {
-            if (character is not RulesetCharacterHero hero)
+            if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum) ||
+                character.CharacterInventory == null ||
+                !character.CharacterInventory.InventorySlotsByName.TryGetValue(
+                    EquipmentDefinitions.SlotTypeMainHand,
+                    out var mainHandSlot))
             {
                 return null;
             }
 
-            var item = hero.CharacterInventory.InventorySlotsByName[EquipmentDefinitions.SlotTypeMainHand].EquipedItem;
+            var item = mainHandSlot.EquipedItem;
 
             if (item == null ||
-                !IsBowOrCrossbow(null, item, hero))
+                !IsBowOrCrossbow(null, item, character))
             {
                 return null;
             }
 
             var strikeDefinition = item.ItemDefinition;
-            var attackMode = hero.RefreshAttackMode(
+            var attackMode = character.TryRefreshAttackMode(
                 ActionType,
                 strikeDefinition,
                 strikeDefinition.WeaponDescription,
-                ValidatorsCharacter.IsFreeOffhandVanilla(hero),
+                ValidatorsCharacter.IsFreeOffhandVanilla(character),
                 true,
                 EquipmentDefinitions.SlotTypeMainHand,
-                hero.attackModifiers,
-                hero.FeaturesOrigin,
+                GetAttackModifiers(character),
+                character.FeaturesOrigin,
                 item
             );
+
+            if (attackMode == null)
+            {
+                return null;
+            }
 
             attackMode.AttacksNumber = 2;
             attackMode.AddAttackTagAsNeeded(SwiftQuiverAttackTag);

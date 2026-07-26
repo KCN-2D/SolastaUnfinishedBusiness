@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
@@ -142,10 +143,9 @@ public static class CharacterActionShovePatcher
 
             //PATCH: support for Poisonous feat
             //Poison attacker if feat owner gets shoved
-            var rulesetTargetHero = target.RulesetCharacter.GetOriginalHero();
-
-            if (rulesetTargetHero != null &&
-                rulesetTargetHero.TrainedFeats.Contains(OtherFeats.FeatPoisonousSkin))
+            if (SimulacrumBehavior.HasTrainedFeat(
+                    target.RulesetCharacter,
+                    OtherFeats.FeatPoisonousSkin))
             {
                 yield return OtherFeats.PoisonTarget(target, actingCharacter);
             }

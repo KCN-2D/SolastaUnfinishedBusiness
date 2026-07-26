@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 
 namespace SolastaUnfinishedBusiness.Interfaces;
 
@@ -48,15 +49,11 @@ internal static class TryAlterOutcomeAttack
             Handlers.AddRange(unit.RulesetCharacter.GetSubFeaturesByType<ITryAlterOutcomeAttack>()
                 .Select(handler => (handler, unit)));
 
-            // supports metamagic use cases
-            var hero = unit.RulesetCharacter.GetOriginalHero();
-
-            if (hero != null)
-            {
-                Handlers.AddRange(hero.TrainedMetamagicOptions
-                    .SelectMany(metamagic => metamagic.GetAllSubFeaturesOfType<ITryAlterOutcomeAttack>())
-                    .Select(handler => (handler, unit)));
-            }
+            // supports metamagic use cases, including snapshotted Simulacrum identities
+            Handlers.AddRange(SimulacrumBehavior
+                .EnumerateTrainedMetamagicOptions(unit.RulesetCharacter)
+                .SelectMany(metamagic => metamagic.GetAllSubFeaturesOfType<ITryAlterOutcomeAttack>())
+                .Select(handler => (handler, unit)));
         }
     }
 

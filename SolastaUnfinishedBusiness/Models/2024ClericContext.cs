@@ -665,24 +665,25 @@ public static partial class Tabletop2024Context
                 yield break;
             }
 
-            var hero = rulesetAttacker.GetOriginalHero();
+            var featureOwner = rulesetAttacker.TryGetShapeChangeOriginalHero(out var shapeChangeHero)
+                ? shapeChangeHero
+                : rulesetAttacker;
             var powers = new List<RulesetUsablePower>();
 
-            foreach (var subclass in hero!.ClassesAndSubclasses.Values)
+            foreach (var pair in AdditionalDamageBlessedStrikes)
             {
-                if (!AdditionalDamageBlessedStrikes.TryGetValue(subclass.Name, out var powerNames))
+                if (featureOwner.GetSubclassLevel(Cleric, pair.Key) <= 0)
                 {
                     continue;
                 }
 
-                powers.AddRange(powerNames.Select(x =>
+                powers.AddRange(pair.Value.Select(x =>
                     PowerProvider.Get(GetDefinition<FeatureDefinitionPower>(x), rulesetAttacker)));
 
                 break;
             }
 
-
-            hero.UsablePowers.AddRange(powers);
+            featureOwner.UsablePowers.AddRange(powers);
 
             var usablePowerPool = PowerProvider.Get(powerBlessedStrikes, rulesetAttacker);
 
@@ -694,7 +695,7 @@ public static partial class Tabletop2024Context
                 reactionValidated: ReactionValidated,
                 battleManager: battleManager);
 
-            powers.Do(x => hero.UsablePowers.Remove(x));
+            powers.Do(x => featureOwner.UsablePowers.Remove(x));
 
             yield break;
 

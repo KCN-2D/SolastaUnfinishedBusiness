@@ -87,6 +87,8 @@ internal static class PowerBundleContext
                     ruleChar.UsePower(usablePower);
                     ruleChar.LogCharacterUsedPower(power, $"Feedback/&{power.Name}UsedWhileTravellingFormat");
                 }
+
+                yield break;
             }
 
             Trace.LogWarning("Unable to assign targets to power");

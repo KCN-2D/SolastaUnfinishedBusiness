@@ -233,7 +233,7 @@ public sealed class PatronSoulBlade : AbstractSubclass
 
     private static bool CanWeaponBeEmpowered(RulesetAttackMode mode, RulesetItem item, RulesetCharacter character)
     {
-        if (character is not RulesetCharacterHero hero)
+        if (character == null)
         {
             return false;
         }
@@ -246,10 +246,17 @@ public sealed class PatronSoulBlade : AbstractSubclass
             //if weapon is 2h melee and has pact of the blade
             canWeaponBeEmpowered =
                 (ValidatorsWeapon.IsTwoHandedRanged(mode) &&
-                 hero.TrainedInvocations.Any(p => p == Builders.InvocationsBuilders.ImprovedPactWeapon)) ||
+                 character.Invocations.Any(invocation =>
+                     (BaseDefinition)invocation?.InvocationDefinition ==
+                     Builders.InvocationsBuilders.ImprovedPactWeapon)) ||
                 (ValidatorsWeapon.IsTwoHanded(mode) &&
-                (hero.ActiveFeatures.Any(p => p.Value.Contains(FeatureDefinitionFeatureSets.FeatureSetPactBlade)) ||
-                 hero.HasActiveInvocation(Tabletop2024Context.InvocationPactBlade)));
+                 (character.FeaturesOrigin.Values.Any(origin =>
+                      (BaseDefinition)origin.source ==
+                      FeatureDefinitionFeatureSets.FeatureSetPactBlade) ||
+                  character is RulesetCharacterHero hero &&
+                  hero.ActiveFeatures.Any(pair =>
+                      pair.Value.Contains(FeatureDefinitionFeatureSets.FeatureSetPactBlade)) ||
+                  character.HasActiveInvocation(Tabletop2024Context.InvocationPactBlade)));
         }
 
         return canWeaponBeEmpowered;

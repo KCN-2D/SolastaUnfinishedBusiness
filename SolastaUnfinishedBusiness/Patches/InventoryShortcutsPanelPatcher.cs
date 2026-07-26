@@ -1,9 +1,13 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Diagnostics;
 using UnityEngine;
 using static ActionDefinitions;
 
@@ -12,20 +16,124 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class InventoryShortcutsPanelPatcher
 {
+    private static List<WieldedConfigurationSelector> GetDirectSelectors(
+        RectTransform configurationsTable)
+    {
+        var selectors = new List<WieldedConfigurationSelector>();
+
+        if (!configurationsTable)
+        {
+            return selectors;
+        }
+
+        for (var index = 0; index < configurationsTable.childCount; index++)
+        {
+            selectors.Add(
+                configurationsTable.GetChild(index)
+                    .GetComponent<WieldedConfigurationSelector>());
+        }
+
+        return selectors;
+    }
+
+    private static List<WieldedConfigurationSelector> EnsureDirectSelectors(
+        InventoryShortcutsPanel panel,
+        int requiredCount)
+    {
+        while (panel.configurationsTable.childCount < requiredCount)
+        {
+            Gui.GetPrefabFromPool(
+                panel.wieldedConfigurationButtonPrefab,
+                panel.configurationsTable);
+        }
+
+        var selectors = GetDirectSelectors(panel.configurationsTable);
+
+        for (var index = 0; index < requiredCount; index++)
+        {
+            if (selectors[index])
+            {
+                continue;
+            }
+
+            throw new MissingComponentException(
+                $"{nameof(WieldedConfigurationSelector)} is missing from direct inventory " +
+                $"configuration child {index}.");
+        }
+
+        return selectors;
+    }
+
     [HarmonyPatch(typeof(InventoryShortcutsPanel), nameof(InventoryShortcutsPanel.OnConfigurationSwitched))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
     public static class OnConfigurationSwitched_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(ref int rank)
+        public static bool Prefix(
+            InventoryShortcutsPanel __instance,
+            ref int rank,
+            bool force)
         {
+            var duplicate = __instance.GuiCharacter?.RulesetCharacter as
+                                RulesetCharacterSimulacrum ??
+                            (SimulacrumEquipmentPanel.TryGetActiveCharacter(out var activeDuplicate)
+                                ? activeDuplicate
+                                : null);
+
+            if (duplicate != null)
+            {
+                if (duplicate.LifecycleState != SimulacrumLifecycleState.Ready)
+                {
+                    return false;
+                }
+
+                var inventory = duplicate.CharacterInventory;
+
+                if (rank < 0 || rank >= inventory.WieldedItemsConfigurations.Count)
+                {
+                    return false;
+                }
+
+                if (rank != inventory.CurrentConfiguration || force)
+                {
+                    if (GameLocationCharacter.GetFromActor(duplicate) is { } location &&
+                        ServiceRepository.GetService<ICommandService>() is { } commandService)
+                    {
+                        commandService.SwitchWeaponConfiguration(location, rank);
+                    }
+                    else
+                    {
+                        using (duplicate.BeginInventoryMutation())
+                        {
+                            inventory.SwitchToWieldItemsOfConfiguration(rank);
+                        }
+                    }
+                }
+
+                var selectors = GetDirectSelectors(__instance.configurationsTable);
+
+                for (var index = 0;
+                     index < inventory.WieldedItemsConfigurations.Count && index < selectors.Count;
+                     index++)
+                {
+                    if (selectors[index])
+                    {
+                        selectors[index].Selected = index == rank;
+                    }
+                }
+
+                return false;
+            }
+
             var isCtrlPressed = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
 
             if (Main.Settings.EnableCtrlClickOnlySwapsMainHand && isCtrlPressed)
             {
                 rank += 100;
             }
+
+            return true;
         }
 
         [UsedImplicitly]
@@ -41,10 +149,14 @@ public static class InventoryShortcutsPanelPatcher
             var itemsConfigurations = __instance.GuiCharacter.RulesetCharacterHero.CharacterInventory
                 .WieldedItemsConfigurations;
 
-            for (var index = 0; index < itemsConfigurations.Count; ++index)
+            var selectors = GetDirectSelectors(__instance.configurationsTable);
+
+            for (var index = 0; index < itemsConfigurations.Count && index < selectors.Count; ++index)
             {
-                __instance.configurationsTable.GetChild(index).GetComponent<WieldedConfigurationSelector>().Selected =
-                    index == rank;
+                if (selectors[index])
+                {
+                    selectors[index].Selected = index == rank;
+                }
             }
         }
     }
@@ -69,18 +181,27 @@ public static class InventoryShortcutsPanelPatcher
             out RulesetItem targetItem, bool fallbackOnTorsoArmor = false)
         {
             if (!Main.Settings.QuickCastLightCantripOnWornItemsFirst ||
-                rulesetCharacter is not RulesetCharacterHero hero)
+                rulesetCharacter is not (RulesetCharacterHero or RulesetCharacterSimulacrum) ||
+                rulesetCharacter.CharacterInventory?.InventorySlotsByName is not { } slots)
             {
                 return rulesetCharacter.TryFindTargetWieldedItem(out targetItem, fallbackOnTorsoArmor);
             }
 
-            var slots = hero.CharacterInventory.InventorySlotsByName;
+            targetItem =
+                (slots.TryGetValue(EquipmentDefinitions.SlotTypeHead, out var head)
+                    ? head?.EquipedItem
+                    : null) ??
+                (slots.TryGetValue(EquipmentDefinitions.SlotTypeNeck, out var neck)
+                    ? neck?.EquipedItem
+                    : null) ??
+                (slots.TryGetValue(EquipmentDefinitions.SlotTypeTorso, out var torso)
+                    ? torso?.EquipedItem
+                    : null);
 
-            targetItem = slots[EquipmentDefinitions.SlotTypeHead].EquipedItem
-                         ?? slots[EquipmentDefinitions.SlotTypeNeck].EquipedItem
-                         ?? slots[EquipmentDefinitions.SlotTypeTorso].EquipedItem;
-
-            return targetItem != null || hero.TryFindTargetWieldedItem(out targetItem);
+            return targetItem != null ||
+                   rulesetCharacter.TryFindTargetWieldedItem(
+                       out targetItem,
+                       fallbackOnTorsoArmor);
         }
     }
 
@@ -93,35 +214,66 @@ public static class InventoryShortcutsPanelPatcher
         [UsedImplicitly]
         public static bool Prefix(InventoryShortcutsPanel __instance)
         {
-            if (__instance.GuiCharacter?.RulesetCharacterHero == null)
+            var duplicate = __instance.GuiCharacter?.RulesetCharacter as
+                                RulesetCharacterSimulacrum ??
+                            (SimulacrumEquipmentPanel.TryGetActiveCharacter(out var activeDuplicate)
+                                ? activeDuplicate
+                                : null);
+            var owner = SimulacrumEquipmentPanel.GetTransportHero(__instance.GuiCharacter);
+
+            if (duplicate == null && owner == null)
             {
                 return false;
             }
 
-            var wieldedItemsConfigurations = __instance.GuiCharacter.RulesetCharacterHero.CharacterInventory
-                .WieldedItemsConfigurations;
-            while (__instance.configurationsTable.childCount < wieldedItemsConfigurations.Count)
+            if (duplicate is { LifecycleState: not SimulacrumLifecycleState.Ready })
             {
-                Gui.GetPrefabFromPool(__instance.wieldedConfigurationButtonPrefab, __instance.configurationsTable);
+                return false;
+            }
+
+            var inventory = duplicate?.CharacterInventory ?? owner.CharacterInventory;
+            var wieldedItemsConfigurations = inventory.WieldedItemsConfigurations;
+            var locationCharacter = duplicate == null
+                ? __instance.GuiCharacter.GameLocationCharacter
+                : GameLocationCharacter.GetFromActor(duplicate);
+            var selectors = EnsureDirectSelectors(
+                __instance,
+                wieldedItemsConfigurations.Count);
+
+            if (duplicate != null)
+            {
+                SimulacrumDiagnostics.RecordInventoryShortcuts(
+                    duplicate,
+                    "configurations-bound",
+                    wieldedItemsConfigurations.Count,
+                    __instance.configurationsTable.childCount,
+                    selectors.Count(x => x));
             }
 
             for (var i = 0; i < wieldedItemsConfigurations.Count; i++)
             {
-                var child = __instance.configurationsTable.GetChild(i);
-                child.gameObject.SetActive(true);
-                var component = child.GetComponent<WieldedConfigurationSelector>();
+                var component = selectors[i];
+
+                component.gameObject.SetActive(true);
                 component.Bind(__instance.GuiCharacter, i, wieldedItemsConfigurations[i],
                     __instance.OnConfigurationSwitched,
-                    i == __instance.GuiCharacter.RulesetCharacterHero.CharacterInventory.CurrentConfiguration,
+                    i == inventory.CurrentConfiguration,
                     __instance.inMainHud,
                     __instance.forceRefresh,
                     __instance.tooltipAnchor);
+
                 var flag = false;
-                if (__instance.GuiCharacter.GameLocationCharacter != null)
+
+                if (locationCharacter != null)
                 {
                     var service = ServiceRepository.GetService<IPlayerControllerService>();
-                    var flag2 = service?.ActivePlayerController?.IsCharacterControlled(__instance.GuiCharacter
-                        .GameLocationCharacter);
+                    var flag2 = service?.ActivePlayerController?.IsCharacterControlled(locationCharacter);
+                    flag = flag2 ?? true;
+                }
+                else if (duplicate != null)
+                {
+                    var service = ServiceRepository.GetService<IPlayerControllerService>();
+                    var flag2 = service?.ActivePlayerController?.IsCharacterControlled(duplicate);
                     flag = flag2 ?? true;
                 }
                 else if (__instance.GuiCharacter.GameCampaignCharacter != null)
@@ -137,8 +289,8 @@ public static class InventoryShortcutsPanelPatcher
                     component.Interactable = false;
                     component.Tooltip.Content = component.TooltipContent;
                 }
-                else if (__instance.GuiCharacter.GameLocationCharacter != null &&
-                         __instance.GuiCharacter.GameLocationCharacter.HasForcedActionOrManipulation())
+                else if (locationCharacter != null &&
+                         locationCharacter.HasForcedActionOrManipulation())
                 {
                     component.Interactable = false;
                     component.Tooltip.Content = component.TooltipContent;
@@ -149,8 +301,8 @@ public static class InventoryShortcutsPanelPatcher
                     {
                         case false when
                             Gui.Battle != null &&
-                            __instance.GuiCharacter.GameLocationCharacter != null &&
-                            __instance.GuiCharacter.GameLocationCharacter.GetActionTypeStatus(ActionType.FreeOnce) ==
+                            locationCharacter != null &&
+                            locationCharacter.GetActionTypeStatus(ActionType.FreeOnce) ==
                             ActionStatus.Spent && !__instance.ItemSelectionInProgress:
                             component.Tooltip.Content = Gui.FormatFailure(component.TooltipContent,
                                 "Failure/&FailureFlagFreeOnceActionSpent");
@@ -158,16 +310,16 @@ public static class InventoryShortcutsPanelPatcher
                             break;
                         case false when
                             Gui.Battle != null &&
-                            __instance.GuiCharacter.GameLocationCharacter != null &&
-                            __instance.GuiCharacter.GameLocationCharacter.GetActionTypeStatus(ActionType.FreeOnce) ==
+                            locationCharacter != null &&
+                            locationCharacter.GetActionTypeStatus(ActionType.FreeOnce) ==
                             ActionStatus.Unavailable && !__instance.ItemSelectionInProgress:
                             component.Tooltip.Content = Gui.FormatFailure(component.TooltipContent,
                                 "Failure/&FailureFlagFreeOnceActionUnavailable");
                             component.Interactable = false;
                             break;
                         case true when
-                            __instance.GuiCharacter.GameLocationCharacter != null:
-                            __instance.GuiCharacter.GameLocationCharacter.RefundActionUse(ActionType.FreeOnce);
+                            locationCharacter != null:
+                            locationCharacter.RefundActionUse(ActionType.FreeOnce);
 
                             component.Interactable = true;
                             component.Tooltip.Content = component.TooltipContent;
@@ -180,12 +332,75 @@ public static class InventoryShortcutsPanelPatcher
                 }
             }
 
-            for (var j = wieldedItemsConfigurations.Count; j < __instance.configurationsTable.childCount; j++)
+            for (var j = wieldedItemsConfigurations.Count; j < selectors.Count; j++)
             {
-                __instance.configurationsTable.GetChild(j).gameObject.SetActive(false);
+                selectors[j].gameObject.SetActive(false);
             }
 
             return false;
+        }
+    }
+
+    [HarmonyPatch(
+        typeof(InventoryShortcutsPanel),
+        nameof(InventoryShortcutsPanel.CollectSlots))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CollectSlots_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(
+            InventoryShortcutsPanel __instance,
+            List<InventorySlotBox> __0)
+        {
+            if (__instance.GuiCharacter?.RulesetCharacter is not
+                RulesetCharacterSimulacrum duplicate)
+            {
+                return true;
+            }
+
+            var inventory = duplicate.CharacterInventory;
+            var configurationCount = inventory.WieldedItemsConfigurations.Count;
+            var selectors = GetDirectSelectors(__instance.configurationsTable);
+
+            SimulacrumDiagnostics.RecordInventoryShortcuts(
+                duplicate,
+                "collect-slots",
+                configurationCount,
+                __instance.configurationsTable.childCount,
+                selectors.Count(x => x));
+
+            AddConfigurationSlots(inventory.CurrentConfiguration);
+
+            for (var index = 0; index < configurationCount; index++)
+            {
+                if (index != inventory.CurrentConfiguration)
+                {
+                    AddConfigurationSlots(index);
+                }
+            }
+
+            return false;
+
+            void AddConfigurationSlots(int index)
+            {
+                if (index < 0 || index >= selectors.Count || !selectors[index])
+                {
+                    return;
+                }
+
+                var selector = selectors[index];
+
+                if (selector.MainHandSlotBox?.InventorySlot is { ProxySlot: false })
+                {
+                    __0.TryAdd(selector.MainHandSlotBox);
+                }
+
+                if (selector.OffHandSlotBox?.InventorySlot is { ProxySlot: false })
+                {
+                    __0.TryAdd(selector.OffHandSlotBox);
+                }
+            }
         }
     }
 }

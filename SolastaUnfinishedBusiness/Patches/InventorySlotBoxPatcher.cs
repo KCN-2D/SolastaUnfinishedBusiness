@@ -40,13 +40,26 @@ public static class InventorySlotBoxPatcher
             }
 
             var flagsTransform = box.itemFlagsTableInstance.transform;
-            var n = flagsTransform.childCount;
+            var flags = definition?.ItemPresentation?.ItemFlags;
+
+            if (flags == null)
+            {
+                return;
+            }
+
+            var n = System.Math.Min(flagsTransform.childCount, flags.Count);
 
             for (var index = 0; index < n; index++)
             {
                 var child = flagsTransform.GetChild(index);
                 var img = child.GetComponent<Image>();
-                var flag = definition.ItemPresentation.ItemFlags[index];
+                var flag = flags[index];
+
+                if (flag == null)
+                {
+                    continue;
+                }
+
                 child.TryGetComponent<GuiTooltip>(out var tooltip);
                 var custom = flag.GetFirstSubFeatureOfType<RecipeHelper.TooltipModifier<ItemDefinition>>();
                 custom?.Invoke(tooltip, img, child, definition, null);
@@ -55,7 +68,9 @@ public static class InventorySlotBoxPatcher
 
         private static void TintNonProficientItems(InventorySlotBox box, ItemDefinition item)
         {
-            var hero = box.GuiCharacter?.RulesetCharacterHero ?? Global.InspectedHero;
+            RulesetCharacter character = RulesetCharacterSimulacrum.FindBySlot(box.InventorySlot);
+
+            character ??= box.GuiCharacter?.RulesetCharacterHero ?? Global.InspectedHero;
 
             if (!item || !box.equipedItemImage)
             {
@@ -63,7 +78,8 @@ public static class InventorySlotBoxPatcher
             }
 
             var color = Color.white;
-            if ((Main.Settings.EnableInventoryTaintNonProficientItemsRed && !(hero?.IsProficientWithItem(item) ?? true))
+            if ((Main.Settings.EnableInventoryTaintNonProficientItemsRed &&
+                 !(character?.IsProficientWithItem(item) ?? true))
                 || (Main.Settings.EnableInventoryTintKnownRecipesRed && RecipeHelper.RecipeIsKnown(item)))
             {
                 color = Color.red;

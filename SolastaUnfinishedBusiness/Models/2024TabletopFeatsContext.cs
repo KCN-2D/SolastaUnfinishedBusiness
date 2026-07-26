@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -2911,14 +2911,14 @@ public static partial class Tabletop2024Context
     }
 
     internal static IEnumerable<(SpellDefinition Spell, string DisplayTag)> EnumerateSlotCastableTabletop2024FeatSpellsWithTags(
-        RulesetCharacterHero hero)
+        RulesetCharacter character)
     {
-        if (!Main.Settings.EnableTabletopFeatRules2024 || hero == null)
+        if (!Main.Settings.EnableTabletopFeatRules2024 || character == null)
         {
             yield break;
         }
 
-        foreach (var repertoire in hero.SpellRepertoires)
+        foreach (var repertoire in character.SpellRepertoires)
         {
             var spellCastingFeature = repertoire.SpellCastingFeature;
 
@@ -3073,14 +3073,14 @@ public static partial class Tabletop2024Context
     {
         saveDC = 0;
 
-        if (!TryGetMagicInitiate2024SpellcastingContext(repertoire, out var hero, out var ability))
+        if (!TryGetMagicInitiate2024SpellcastingContext(repertoire, out var caster, out var ability))
         {
             return false;
         }
 
         saveDC = 8 +
-                 ComputeMagicInitiate2024SpellcastingBaseBonus(hero, ability) +
-                 ComputeFlatSaveDCModifier(hero);
+                 ComputeMagicInitiate2024SpellcastingBaseBonus(caster, ability) +
+                 ComputeFlatSaveDCModifier(caster);
 
         return true;
     }
@@ -3091,46 +3091,48 @@ public static partial class Tabletop2024Context
     {
         spellAttackBonus = 0;
 
-        if (!TryGetMagicInitiate2024SpellcastingContext(repertoire, out var hero, out var ability))
+        if (!TryGetMagicInitiate2024SpellcastingContext(repertoire, out var caster, out var ability))
         {
             return false;
         }
 
-        spellAttackBonus = ComputeMagicInitiate2024SpellcastingBaseBonus(hero, ability) +
-                           ComputeFlatSpellAttackModifier(hero);
+        spellAttackBonus = ComputeMagicInitiate2024SpellcastingBaseBonus(caster, ability) +
+                           ComputeFlatSpellAttackModifier(caster);
 
         return true;
     }
 
-    private static int ComputeMagicInitiate2024SpellcastingBaseBonus(RulesetCharacterHero hero, string ability)
+    private static int ComputeMagicInitiate2024SpellcastingBaseBonus(
+        RulesetCharacter caster,
+        string ability)
     {
-        var abilityScore = hero.TryGetAttributeValue(ability);
+        var abilityScore = caster.TryGetAttributeValue(ability);
         var abilityModifier = AttributeDefinitions.ComputeAbilityScoreModifier(abilityScore);
-        var proficiencyBonus = hero.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+        var proficiencyBonus = caster.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
 
         return proficiencyBonus + abilityModifier;
     }
 
-    private static int ComputeFlatSaveDCModifier(RulesetCharacterHero hero)
+    private static int ComputeFlatSaveDCModifier(RulesetCharacter caster)
     {
-        return hero.FeaturesByType<ISpellCastingAffinityProvider>()
+        return caster.FeaturesByType<ISpellCastingAffinityProvider>()
             .Where(x => x.SaveDCModifierType == SpellParamsModifierType.FlatValue)
             .Sum(x => x.SaveDCModifier);
     }
 
-    private static int ComputeFlatSpellAttackModifier(RulesetCharacterHero hero)
+    private static int ComputeFlatSpellAttackModifier(RulesetCharacter caster)
     {
-        return hero.FeaturesByType<ISpellCastingAffinityProvider>()
+        return caster.FeaturesByType<ISpellCastingAffinityProvider>()
             .Where(x => x.SpellAttackModifierType == SpellParamsModifierType.FlatValue)
             .Sum(x => x.SpellAttackModifier);
     }
 
     private static bool TryGetMagicInitiate2024SpellcastingContext(
         RulesetSpellRepertoire repertoire,
-        out RulesetCharacterHero hero,
+        out RulesetCharacter caster,
         out string ability)
     {
-        hero = null;
+        caster = null;
         ability = null;
 
         var spellTag = repertoire?.SpellCastingFeature?
@@ -3138,28 +3140,28 @@ public static partial class Tabletop2024Context
 
         if (!Main.Settings.EnableTabletopFeatRules2024 ||
             !IsMagicInitiate2024SpellTagName(spellTag) ||
-            repertoire.GetCaster() is not RulesetCharacterHero caster)
+            repertoire.GetCaster() is not { } repertoireCaster)
         {
             return false;
         }
 
-        if (!TryGetMagicInitiate2024BestSpellcastingAbility(caster, out ability))
+        if (!TryGetMagicInitiate2024BestSpellcastingAbility(repertoireCaster, out ability))
         {
             return false;
         }
 
-        hero = caster;
+        caster = repertoireCaster;
 
         return true;
     }
 
     private static bool TryGetMagicInitiate2024BestSpellcastingAbility(
-        RulesetCharacterHero hero,
+        RulesetCharacter caster,
         out string ability)
     {
         ability = null;
 
-        if (hero == null)
+        if (caster == null)
         {
             return false;
         }
@@ -3168,7 +3170,7 @@ public static partial class Tabletop2024Context
 
         foreach (var candidate in MagicInitiate2024SpellcastingAbilities)
         {
-            var abilityScore = hero.TryGetAttributeValue(candidate);
+            var abilityScore = caster.TryGetAttributeValue(candidate);
             var abilityModifier = AttributeDefinitions.ComputeAbilityScoreModifier(abilityScore);
 
             if (ability != null && abilityModifier <= bestModifier)
@@ -6794,20 +6796,15 @@ public static partial class Tabletop2024Context
                IsOptInOnlyManagedTabletopCanonicalName(GetCanonicalTabletopFeatName(feat.Name));
     }
 
-    internal static bool HasEquivalentTrainedFeat(RulesetCharacterHero hero, FeatDefinition feat)
+    internal static bool HasEquivalentTrainedFeat(RulesetCharacter character, FeatDefinition feat)
     {
-        if (hero?.TrainedFeats == null || feat == null)
+        if (character == null || feat == null)
         {
             return false;
         }
 
-        foreach (var trainedFeat in hero.TrainedFeats)
+        foreach (var trainedFeat in SimulacrumBehavior.EnumerateTrainedFeats(character))
         {
-            if (trainedFeat == null)
-            {
-                continue;
-            }
-
             if (trainedFeat == feat || trainedFeat.Name == feat.Name)
             {
                 return true;
@@ -6830,7 +6827,7 @@ public static partial class Tabletop2024Context
 
     internal static bool HasSkulker2024(RulesetCharacter rulesetCharacter)
     {
-        return HasEquivalentTrainedFeat(rulesetCharacter?.GetOriginalHero(), _featSkulker2024);
+        return HasEquivalentTrainedFeat(rulesetCharacter, _featSkulker2024);
     }
 
     internal static void TryStartSkulker2024FogOfWar(CharacterAction action)

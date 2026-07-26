@@ -212,9 +212,9 @@ public sealed class WizardBladeDancer : AbstractSubclass
                !hero.IsWieldingTwoHandedWeapon();
     }
 
-    private sealed class CheckDanceValidity : IOnItemEquipped
+    private sealed class CheckDanceValidity : IOnCharacterEquipmentChanged
     {
-        public void OnItemEquipped(RulesetCharacterHero hero)
+        public void OnCharacterEquipmentChanged(RulesetCharacter hero)
         {
             if (IsBladeDanceValid(hero))
             {

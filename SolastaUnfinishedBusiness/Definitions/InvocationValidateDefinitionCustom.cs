@@ -44,8 +44,8 @@ internal class InvocationDefinitionCustom : InvocationDefinition, IValidateDefin
     {
         requirement = null;
 
-        if (character is not RulesetCharacterHero hero
-            || definition is not InvocationDefinitionCustom invocation)
+        if (character == null ||
+            definition is not InvocationDefinitionCustom invocation)
         {
             return true;
         }
@@ -62,7 +62,9 @@ internal class InvocationDefinitionCustom : InvocationDefinition, IValidateDefin
 
         if (requiredClassName != null)
         {
-            level = InvocationPoolTypeCustom.GetClassOrSubclassLevel(hero, requiredClassName);
+            level = InvocationPoolTypeCustom.GetClassOrSubclassLevel(
+                character,
+                requiredClassName);
 
             var levelText = requiredLevel.ToString();
             var classText = InvocationPoolTypeCustom.GetClassOrSubclassTitle(requiredClassName);
@@ -76,7 +78,7 @@ internal class InvocationDefinitionCustom : InvocationDefinition, IValidateDefin
         }
         else
         {
-            level = hero.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
+            level = character.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
 
             var levelText = level.ToString();
 
@@ -98,8 +100,8 @@ internal class InvocationDefinitionCustom : InvocationDefinition, IValidateDefin
     {
         requirement = null;
 
-        if (character is not RulesetCharacterHero hero
-            || definition is not InvocationDefinitionCustom invocation)
+        if (character == null ||
+            definition is not InvocationDefinitionCustom invocation)
         {
             return true;
         }
@@ -112,7 +114,8 @@ internal class InvocationDefinitionCustom : InvocationDefinition, IValidateDefin
         }
 
         var text = requiredSpell.FormatTitle();
-        var valid = hero.spellRepertoires.Any(r => r.HasKnowledgeOfSpell(requiredSpell));
+        var valid = character.SpellRepertoires.Any(r =>
+            r.HasKnowledgeOfSpell(requiredSpell));
 
         if (!valid)
         {
@@ -128,8 +131,8 @@ internal class InvocationDefinitionCustom : InvocationDefinition, IValidateDefin
     {
         requirement = null;
 
-        if (character is not RulesetCharacterHero hero
-            || definition is not InvocationDefinitionCustom invocation)
+        if (character == null ||
+            definition is not InvocationDefinitionCustom invocation)
         {
             return true;
         }
@@ -142,7 +145,7 @@ internal class InvocationDefinitionCustom : InvocationDefinition, IValidateDefin
         }
 
         var text = requiredPact.FormatTitle();
-        var valid = hero.HasAnyFeature(requiredPact);
+        var valid = character.HasAnyFeature(requiredPact);
 
         if (!valid)
         {

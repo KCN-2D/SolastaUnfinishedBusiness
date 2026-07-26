@@ -26,4 +26,25 @@ public class RepeatingShot
     {
         return item != null && item.HasSubFeatureOfType<RepeatingShot>();
     }
+
+    internal static void IgnoreStandardAmmunition(
+        RulesetCharacter character,
+        RulesetAttackMode mode,
+        ref string ammunitionType)
+    {
+        var currentAmmunitionSlot =
+            character?.CharacterInventory?.GetCurrentAmmunitionSlot(ammunitionType);
+        var ammunitionDefinition = currentAmmunitionSlot?.EquipedItem?.ItemDefinition;
+
+        // Keep special ammunition that carries its own effect. Repeating Shot only
+        // replaces ordinary ammunition supplied by the weapon.
+        if (ammunitionDefinition?.AmmunitionDescription?.EffectDescription == null ||
+            ammunitionDefinition.AmmunitionDescription.EffectDescription.FindFirstDamageForm() != null ||
+            !HasRepeatingShot(mode?.sourceObject as RulesetItem))
+        {
+            return;
+        }
+
+        ammunitionType = string.Empty;
+    }
 }

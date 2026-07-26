@@ -138,7 +138,7 @@ internal static class MetamagicContext
         RulesetEffectSpell rulesetEffectSpell)
     {
         return !Main.Settings.EnableSorcererMetamagic2024 ||
-               rulesetEffectSpell.SpellDefinition.SpellLevel == 0 ||
+               RulesetEffectSpellWithOrigin.GetOriginSpell(rulesetEffectSpell).SpellLevel == 0 ||
                !HasLeveledSpellCastThisTurn(character);
     }
 
@@ -159,7 +159,7 @@ internal static class MetamagicContext
     {
         if (!Main.Settings.EnableSorcererMetamagic2024 ||
             action.ActionParams?.RulesetEffect is not RulesetEffectSpell rulesetEffectSpell ||
-            rulesetEffectSpell.SpellDefinition.SpellLevel == 0)
+            RulesetEffectSpellWithOrigin.GetOriginSpell(rulesetEffectSpell).SpellLevel == 0)
         {
             return;
         }

@@ -38,7 +38,7 @@ internal static class MulticlassWildshapeContext
 
     internal static void HandleExtraUnarmedAttacks(RulesetCharacterMonster monster)
     {
-        if (monster.originalFormCharacter is not RulesetCharacterHero hero)
+        if (!monster.TryGetShapeChangeOriginalHero(out var hero))
         {
             return;
         }
@@ -69,7 +69,12 @@ internal static class MulticlassWildshapeContext
                 var strikeDefinition = hero.UnarmedStrikeDefinition;
 
                 bonusUnarmedAttack = monster.RefreshAttackMode(
-                    ActionType.Bonus, strikeDefinition, strikeDefinition.WeaponDescription, true,
+                    ActionType.Bonus,
+                    strikeDefinition,
+                    strikeDefinition.WeaponDescription,
+                    monster.GetOffhandWeapon() == null,
+                    true,
+                    EquipmentDefinitions.SlotTypeMainHand,
                     monster.attackModifiers, monster.FeaturesOrigin);
                 bonusUnarmedAttack.AttacksNumber = attackModifier.AdditionalBonusUnarmedStrikeAttacksCount;
 
@@ -86,7 +91,7 @@ internal static class MulticlassWildshapeContext
 
     private static void UpdateSenses(RulesetCharacterMonster monster)
     {
-        if (monster.originalFormCharacter is not RulesetCharacterHero hero)
+        if (!monster.TryGetShapeChangeOriginalHero(out var hero))
         {
             return;
         }
@@ -104,7 +109,7 @@ internal static class MulticlassWildshapeContext
     //PATCH: correctly syncs powers used by hero into WS monster
     private static void UpdateUsablePowers(RulesetCharacterMonster monster)
     {
-        if (monster.originalFormCharacter is not RulesetCharacterHero hero)
+        if (!monster.TryGetShapeChangeOriginalHero(out var hero))
         {
             return;
         }
@@ -123,7 +128,7 @@ internal static class MulticlassWildshapeContext
 
     private static void UpdateAttributeModifiers(RulesetCharacterMonster monster, bool keepMentalAbilityScores)
     {
-        if (monster.originalFormCharacter is not RulesetCharacterHero hero)
+        if (!monster.TryGetShapeChangeOriginalHero(out var hero))
         {
             return;
         }
@@ -179,7 +184,7 @@ internal static class MulticlassWildshapeContext
 
     private static void FixShapeShiftedAc(RulesetCharacterMonster monster)
     {
-        if (monster.originalFormCharacter is not RulesetCharacterHero)
+        if (!monster.TryGetShapeChangeOriginalHero(out _))
         {
             return;
         }
@@ -216,7 +221,7 @@ internal static class MulticlassWildshapeContext
 
     private static void RefreshWildShapeAcFeatures(RulesetCharacter rulesetCharacter, RulesetAttribute ac)
     {
-        if (rulesetCharacter.OriginalFormCharacter is not RulesetCharacterHero hero)
+        if (!rulesetCharacter.TryGetShapeChangeOriginalHero(out var hero))
         {
             return;
         }
@@ -283,7 +288,7 @@ internal static class MulticlassWildshapeContext
             RulesetCharacterMonster monster)
         {
             //process only for wild-shaped heroes
-            if (monster.OriginalFormCharacter is RulesetCharacterHero)
+            if (monster.TryGetShapeChangeOriginalHero(out _))
             {
                 var ac = monster.GetAttribute(AttributeDefinitions.ArmorClass);
 

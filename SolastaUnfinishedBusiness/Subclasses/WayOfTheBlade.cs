@@ -293,32 +293,49 @@ public sealed class WayOfBlade : AbstractSubclass
         {
             if (Gui.Battle == null) { return null; }
 
-            if (character is not RulesetCharacterHero hero ||
-                !ValidatorsCharacter.IsMonkMeleeWeapon(hero) ||
-                GameLocationCharacter.GetFromActor(hero)?.GetSpecialFeatureUses(OneWithTheBlade) > 0)
+            if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum) ||
+                !ValidatorsCharacter.IsMonkMeleeWeapon(character) ||
+                GameLocationCharacter.GetFromActor(character)?.GetSpecialFeatureUses(OneWithTheBlade) > 0)
             {
                 return null;
             }
 
-            var mainWeapon = hero.GetMainWeapon();
+            var mainWeapon = character.GetMainWeapon();
             var itemDefinition = mainWeapon!.ItemDefinition;
-            var attackModifiers = hero.attackModifiers;
-            var attackMode = hero.RefreshAttackMode(
+            var attackMode = character.TryRefreshAttackMode(
                 ActionType,
                 itemDefinition,
                 itemDefinition.WeaponDescription,
-                IsFreeOffhand(hero),
+                IsFreeOffhand(character),
                 true,
                 EquipmentDefinitions.SlotTypeMainHand,
-                attackModifiers,
-                hero.FeaturesOrigin,
+                GetAttackModifiers(character),
+                character.FeaturesOrigin,
                 mainWeapon
             );
+
+            if (attackMode == null)
+            {
+                return null;
+            }
 
             attackMode.AddAttackTagAsNeeded(OneWithTheBlade);
             attackMode.AttacksNumber = 3; // max number of unarmed bonus attacks a Monk can have
 
             return [attackMode];
+        }
+
+        protected override AttackModeOrder GetOrder(RulesetCharacter character)
+        {
+            var hasEmptyMainHand = character switch
+            {
+                RulesetCharacterHero hero => hero.HasEmptyMainHand(),
+                RulesetCharacterSimulacrum duplicate =>
+                    GetEquippedItem(duplicate, EquipmentDefinitions.SlotTypeMainHand) == null,
+                _ => false
+            };
+
+            return hasEmptyMainHand ? AttackModeOrder.Start : base.GetOrder(character);
         }
     }
 
@@ -385,9 +402,9 @@ public sealed class WayOfBlade : AbstractSubclass
     // Swift Strike
     //
 
-    private sealed class OnItemEquippedSwiftStrike : IOnItemEquipped
+    private sealed class OnItemEquippedSwiftStrike : IOnCharacterEquipmentChanged
     {
-        public void OnItemEquipped(RulesetCharacterHero hero)
+        public void OnCharacterEquipmentChanged(RulesetCharacter hero)
         {
             if (!ValidatorsCharacter.IsMonkMeleeWeapon(hero) &&
                 hero.TryGetConditionOfCategoryAndType(

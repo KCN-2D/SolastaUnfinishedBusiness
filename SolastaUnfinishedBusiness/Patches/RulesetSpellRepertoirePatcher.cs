@@ -8,7 +8,9 @@ using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Feats;
+using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using static RuleDefinitions;
@@ -36,6 +38,79 @@ public static class RulesetSpellRepertoirePatcher
         return character?.SpellRepertoires
             .Where(x => x.SpellCastingFeature.SpellCastingOrigin != FeatureDefinitionCastSpell.CastingOrigin.Race)
             ?? Enumerable.Empty<RulesetSpellRepertoire>();
+    }
+
+    [HarmonyPatch(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.CanCastSpell))]
+    [HarmonyPatch([typeof(SpellDefinition), typeof(bool)])]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CanCastSpell_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(
+            RulesetSpellRepertoire __instance,
+            SpellDefinition spellDefinition,
+            ref bool __result)
+        {
+            var caster = __instance.GetCaster();
+
+            if (caster == null ||
+                !RulesetEffectSpellWithOrigin.IsPendingOrigin(caster, spellDefinition))
+            {
+                return true;
+            }
+
+            __result = true;
+            return false;
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetSpellRepertoire __instance,
+            SpellDefinition spellDefinition,
+            ref bool __result)
+        {
+            var caster = __instance.GetCaster();
+
+            if (caster is RulesetCharacterSimulacrum)
+            {
+                SimulacrumDiagnostics.RecordSpellActivation(
+                    "native-can-cast",
+                    caster,
+                    __instance,
+                    spellDefinition,
+                    globallyValid: __result);
+                SimulacrumDiagnostics.RecordSpellSlots(
+                    caster,
+                    "native-can-cast",
+                    __instance,
+                    spellDefinition?.SpellLevel ?? -1,
+                    spell: spellDefinition);
+            }
+
+            if (!__result)
+            {
+                return;
+            }
+
+            __result = caster == null ||
+                       SpellCastingValidation.IsValid(
+                           caster,
+                           __instance,
+                           spellDefinition,
+                           null,
+                           out _);
+
+            if (caster is RulesetCharacterSimulacrum)
+            {
+                SimulacrumDiagnostics.RecordSpellActivation(
+                    "validated-can-cast",
+                    caster,
+                    __instance,
+                    spellDefinition,
+                    globallyValid: __result);
+            }
+        }
     }
 
     private static bool FormatHeaderTitle(RulesetSpellRepertoire __instance, ref string __result)
@@ -273,8 +348,12 @@ public static class RulesetSpellRepertoirePatcher
     public static class ComputeSpellSlots_Patch
     {
         [UsedImplicitly]
-        public static bool Prefix(RulesetSpellRepertoire __instance)
+        private static bool Prefix(
+            RulesetSpellRepertoire __instance,
+            out DeferredRepertoireRefresh __state)
         {
+            __state = DeferredRepertoireRefresh.TryCreate(__instance);
+
             var spellCastingLevel = __instance?.SpellCastingLevel ?? 0;
             var slotsPerLevels = __instance?.SpellCastingFeature?.SlotsPerLevels;
 
@@ -287,6 +366,76 @@ public static class RulesetSpellRepertoirePatcher
             __instance.spellsSlotCapacities?.Clear();
 
             return false;
+        }
+
+        [UsedImplicitly]
+        private static void Postfix(DeferredRepertoireRefresh __state)
+        {
+            __state?.Complete(true);
+        }
+
+        [UsedImplicitly]
+        private static Exception Finalizer(
+            Exception __exception,
+            DeferredRepertoireRefresh __state)
+        {
+            __state?.Complete(__exception == null);
+
+            return __exception;
+        }
+
+        private sealed class DeferredRepertoireRefresh
+        {
+            private readonly RulesetCharacterSimulacrum _character;
+            private readonly RulesetSpellRepertoire _repertoire;
+            private readonly RulesetSpellRepertoire.RepertoireRefreshedHandler _callback;
+            private bool _completed;
+
+            private DeferredRepertoireRefresh(
+                RulesetCharacterSimulacrum character,
+                RulesetSpellRepertoire repertoire,
+                RulesetSpellRepertoire.RepertoireRefreshedHandler callback)
+            {
+                _character = character;
+                _repertoire = repertoire;
+                _callback = callback;
+            }
+
+            internal static DeferredRepertoireRefresh TryCreate(
+                RulesetSpellRepertoire repertoire)
+            {
+                if (repertoire?.RepertoireRefreshed == null ||
+                    repertoire.GetCaster() is not RulesetCharacterSimulacrum
+                    {
+                        LifecycleState: SimulacrumLifecycleState.Ready,
+                        RefreshAllDepth: > 0
+                    } character)
+                {
+                    return null;
+                }
+
+                var callback = repertoire.RepertoireRefreshed;
+
+                repertoire.RepertoireRefreshed = null;
+
+                return new DeferredRepertoireRefresh(character, repertoire, callback);
+            }
+
+            internal void Complete(bool publishAfterRestore)
+            {
+                if (_completed)
+                {
+                    return;
+                }
+
+                _completed = true;
+                _repertoire.RepertoireRefreshed = _callback;
+
+                if (publishAfterRestore)
+                {
+                    _character.DeferRepertoireRefresh(_repertoire);
+                }
+            }
         }
     }
 
@@ -334,7 +483,19 @@ public static class RulesetSpellRepertoirePatcher
         [UsedImplicitly]
         public static bool Prefix(RulesetSpellRepertoire __instance, int slotLevel)
         {
+            var character = __instance.GetCaster();
+
+            SimulacrumDiagnostics.RecordSpellSlots(
+                character,
+                "spend-before",
+                __instance,
+                slotLevel);
             SpendSpellSlot(__instance, slotLevel);
+            SimulacrumDiagnostics.RecordSpellSlots(
+                character,
+                "spend-after",
+                __instance,
+                slotLevel);
 
             return false;
         }
@@ -368,22 +529,26 @@ public static class RulesetSpellRepertoirePatcher
                 return;
             }
 
-            var hero = character as RulesetCharacterHero;
-
-            RulesetSpellRepertoire warlockSpellRepertoire = null;
-
-            if (hero != null)
+            if (character?.HasSubFeatureOfType<IUseIndependentSpellSlots>() == true)
             {
-                warlockSpellRepertoire = SharedSpellsContext.GetWarlockSpellRepertoire(hero);
+                SpendIndependentSpellSlot(character, __instance, slotLevel);
+
+                return;
             }
 
+            var warlockSpellRepertoire =
+                SharedSpellsContext.GetWarlockSpellRepertoire(character);
+
             // handle single caster scenarios both alternate system and vanilla
-            if (!SharedSpellsContext.IsMulticaster(hero))
+            if (!SharedSpellsContext.IsMulticaster(character))
             {
                 if (Main.Settings.UseAlternateSpellPointsSystem &&
                     warlockSpellRepertoire == null)
                 {
-                    SpellPointsContext.ConsumeSlotsAtLevelsPointsCannotCastAnymore(hero, __instance, slotLevel);
+                    SpellPointsContext.ConsumeSlotsAtLevelsPointsCannotCastAnymore(
+                        character,
+                        __instance,
+                        slotLevel);
                 }
                 else
                 {
@@ -416,14 +581,293 @@ public static class RulesetSpellRepertoirePatcher
             // handles MC Warlock
             else
             {
-                SpendMulticasterWarlockSlots(__instance, hero, slotLevel);
+                SpendMulticasterWarlockSlots(__instance, character, slotLevel);
             }
         }
 
-        private static void SpendWarlockSlots(
-            RulesetSpellRepertoire rulesetSpellRepertoire, RulesetCharacterHero heroWithSpellRepertoire)
+        private static void SpendIndependentSpellSlot(
+            RulesetCharacter character,
+            RulesetSpellRepertoire activeRepertoire,
+            int slotLevel)
         {
-            var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(heroWithSpellRepertoire);
+            var sharedRepertoires = EnumerateSharedSlotRepertoires(character).ToArray();
+
+            if (sharedRepertoires.Length == 0)
+            {
+                ConsumeSlot(activeRepertoire, slotLevel);
+
+                return;
+            }
+
+            var warlockRepertoire = sharedRepertoires.FirstOrDefault(
+                x => x.SpellCastingClass == DatabaseHelper.CharacterClassDefinitions.Warlock);
+            var spellPointPool = Main.Settings.UseAlternateSpellPointsSystem
+                ? character.UsablePowers.FirstOrDefault(
+                    x => x.PowerDefinition == SpellPointsContext.PowerSpellPoints)
+                : null;
+
+            if (sharedRepertoires.Length == 1)
+            {
+                if (spellPointPool == null || warlockRepertoire != null)
+                {
+                    ConsumeSlot(activeRepertoire, slotLevel);
+                }
+                else
+                {
+                    SpendIndependentSpellPoints(
+                        sharedRepertoires,
+                        spellPointPool,
+                        slotLevel,
+                        0,
+                        0);
+                }
+
+                return;
+            }
+
+            if (warlockRepertoire == null ||
+                !TryGetPactSlotState(
+                    character,
+                    activeRepertoire,
+                    warlockRepertoire,
+                    slotLevel,
+                    out var pactSpellLevel,
+                    out var pactMax,
+                    out var sharedRemaining,
+                    out var pactRemaining))
+            {
+                SpendIndependentSharedSlots(
+                    sharedRepertoires,
+                    spellPointPool,
+                    slotLevel,
+                    0,
+                    0);
+
+                return;
+            }
+
+            var gameLocationCharacter = GameLocationCharacter.GetFromActor(character);
+            var wasShiftPressed = gameLocationCharacter.GetAndClearShiftState();
+            var consumePactSlot = false;
+
+            if (slotLevel >= pactSpellLevel && pactRemaining > 0)
+            {
+                if (slotLevel > pactSpellLevel || sharedRemaining == 0)
+                {
+                    consumePactSlot = true;
+                }
+                else if (slotLevel == pactSpellLevel)
+                {
+                    consumePactSlot = Main.Settings.AlwaysSpendPactSlotsFirst ||
+                                      (activeRepertoire.SpellCastingClass !=
+                                          DatabaseHelper.CharacterClassDefinitions.Warlock && wasShiftPressed) ||
+                                      (activeRepertoire.SpellCastingClass ==
+                                          DatabaseHelper.CharacterClassDefinitions.Warlock && !wasShiftPressed);
+                }
+            }
+
+            if (consumePactSlot)
+            {
+                SpendIndependentPactSlot(sharedRepertoires, pactSpellLevel);
+
+                return;
+            }
+
+            SpendIndependentSharedSlots(
+                sharedRepertoires,
+                spellPointPool,
+                slotLevel,
+                pactSpellLevel,
+                pactMax);
+        }
+
+        private static void SpendIndependentSharedSlots(
+            IReadOnlyList<RulesetSpellRepertoire> sharedRepertoires,
+            RulesetUsablePower spellPointPool,
+            int slotLevel,
+            int pactSpellLevel,
+            int pactMax)
+        {
+            if (spellPointPool != null)
+            {
+                SpendIndependentSpellPoints(
+                    sharedRepertoires,
+                    spellPointPool,
+                    slotLevel,
+                    pactSpellLevel,
+                    pactMax);
+
+                return;
+            }
+
+            foreach (var repertoire in sharedRepertoires)
+            {
+                ConsumeSlot(repertoire, slotLevel);
+            }
+        }
+
+        private static void SpendIndependentSpellPoints(
+            IReadOnlyList<RulesetSpellRepertoire> sharedRepertoires,
+            RulesetUsablePower spellPointPool,
+            int slotLevel,
+            int pactSpellLevel,
+            int pactMax)
+        {
+            var spellCost = slotLevel < SpellPointsContext.SpellCostByLevel.Count
+                ? SpellPointsContext.SpellCostByLevel[slotLevel]
+                : 0;
+
+            spellPointPool.remainingUses = Math.Max(0, spellPointPool.remainingUses - spellCost);
+
+            var remainingPoints = spellPointPool.RemainingUses;
+            var sharedMaxSpellLevel = sharedRepertoires
+                .SelectMany(x => x.spellsSlotCapacities)
+                .Where(x =>
+                    x.Key > 0 &&
+                    x.Value - (x.Key <= pactSpellLevel ? pactMax : 0) > 0)
+                .Select(x => x.Key)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            foreach (var repertoire in sharedRepertoires)
+            {
+                repertoire.usedSpellsSlots.TryGetValue(
+                    SharedSpellsContext.PactMagicSlotsTab,
+                    out var pactUsed);
+
+                for (var level = 1; level <= sharedMaxSpellLevel; level++)
+                {
+                    repertoire.usedSpellsSlots.TryGetValue(level, out var totalUsed);
+
+                    var pactUsedAtLevel = level <= pactSpellLevel ? pactUsed : 0;
+                    var sharedUsed = Math.Max(0, totalUsed - pactUsedAtLevel);
+                    var uniqueLevelAlreadyUsed = level > 5 &&
+                                                 (level == slotLevel || sharedUsed > 0);
+                    var cannotAffordLevel =
+                        level >= SpellPointsContext.SpellCostByLevel.Count ||
+                        remainingPoints < SpellPointsContext.SpellCostByLevel[level];
+
+                    repertoire.usedSpellsSlots[level] =
+                        pactUsedAtLevel + (uniqueLevelAlreadyUsed || cannotAffordLevel ? 1 : 0);
+                }
+
+                repertoire.RepertoireRefreshed?.Invoke(repertoire);
+            }
+        }
+
+        private static void SpendIndependentPactSlot(
+            IEnumerable<RulesetSpellRepertoire> sharedRepertoires,
+            int pactSpellLevel)
+        {
+            foreach (var repertoire in sharedRepertoires)
+            {
+                for (var level = SharedSpellsContext.PactMagicSlotsTab;
+                     level <= pactSpellLevel;
+                     level++)
+                {
+                    if (level == 0)
+                    {
+                        continue;
+                    }
+
+                    repertoire.usedSpellsSlots.TryAdd(level, 0);
+                    repertoire.usedSpellsSlots[level]++;
+                }
+
+                repertoire.RepertoireRefreshed?.Invoke(repertoire);
+            }
+        }
+
+        private static bool TryGetPactSlotState(
+            RulesetCharacter character,
+            RulesetSpellRepertoire activeRepertoire,
+            RulesetSpellRepertoire warlockRepertoire,
+            int slotLevel,
+            out int pactSpellLevel,
+            out int pactMax,
+            out int sharedRemaining,
+            out int pactRemaining)
+        {
+            pactSpellLevel = GetPactSpellLevel(warlockRepertoire, out pactMax);
+            sharedRemaining = 0;
+            pactRemaining = 0;
+
+            if (pactSpellLevel <= 0 || pactMax <= 0)
+            {
+                return false;
+            }
+
+            pactMax += character
+                .FeaturesByType<FeatureDefinitionMagicAffinity>()
+                .Where(x => x == DatabaseHelper.FeatureDefinitionMagicAffinitys
+                    .MagicAffinityChitinousBoonAdditionalSpellSlot)
+                .SelectMany(x => x.AdditionalSlots)
+                .Sum(x => x.SlotsNumber);
+
+            activeRepertoire.spellsSlotCapacities.TryGetValue(slotLevel, out var totalMax);
+            activeRepertoire.usedSpellsSlots.TryGetValue(slotLevel, out var totalUsed);
+            warlockRepertoire.usedSpellsSlots.TryGetValue(
+                SharedSpellsContext.PactMagicSlotsTab,
+                out var pactUsed);
+
+            if (slotLevel <= pactSpellLevel)
+            {
+                pactRemaining = Math.Max(0, pactMax - pactUsed);
+            }
+
+            var pactAppliesAtLevel = slotLevel <= pactSpellLevel;
+            var sharedMax = Math.Max(0, totalMax - (pactAppliesAtLevel ? pactMax : 0));
+            var sharedUsed = Math.Max(0, totalUsed - (pactAppliesAtLevel ? pactUsed : 0));
+
+            sharedRemaining = Math.Max(0, sharedMax - sharedUsed);
+
+            return true;
+        }
+
+        private static int GetPactSpellLevel(
+            RulesetSpellRepertoire warlockRepertoire,
+            out int pactMax)
+        {
+            pactMax = 0;
+
+            var spellCastingLevel = warlockRepertoire.SpellCastingLevel;
+            var slotsPerLevels = warlockRepertoire.SpellCastingFeature.SlotsPerLevels;
+
+            if (spellCastingLevel <= 0 ||
+                slotsPerLevels == null ||
+                spellCastingLevel > slotsPerLevels.Count)
+            {
+                return 0;
+            }
+
+            var slots = slotsPerLevels[spellCastingLevel - 1]?.Slots;
+
+            if (slots == null)
+            {
+                return 0;
+            }
+
+            var pactSpellLevel = 0;
+
+            for (var index = 0; index < slots.Count; index++)
+            {
+                if (slots[index] <= 0)
+                {
+                    continue;
+                }
+
+                pactSpellLevel = index + 1;
+                pactMax = Math.Max(pactMax, slots[index]);
+            }
+
+            return pactSpellLevel;
+        }
+
+        private static void SpendWarlockSlots(
+            RulesetSpellRepertoire rulesetSpellRepertoire,
+            RulesetCharacter character)
+        {
+            var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(character);
             var usedSpellsSlots = rulesetSpellRepertoire.usedSpellsSlots;
 
             for (var i = SharedSpellsContext.PactMagicSlotsTab; i <= warlockSpellLevel; i++)
@@ -442,18 +886,20 @@ public static class RulesetSpellRepertoirePatcher
         }
 
         private static void SpendMulticasterWarlockSlots(
-            RulesetSpellRepertoire __instance, RulesetCharacterHero hero, int slotLevel)
+            RulesetSpellRepertoire __instance,
+            RulesetCharacter character,
+            int slotLevel)
         {
-            var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
+            var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(character);
             __instance.GetSharedAndPactSlotNumbers(
-                hero,
+                character,
                 slotLevel,
                 out var sharedRemainingSlots,
                 out _,
                 out var pactRemainingSlots,
                 out _);
 
-            var glc = GameLocationCharacter.GetFromActor(hero);
+            var glc = GameLocationCharacter.GetFromActor(character);
             var wasShiftPressed = glc.GetAndClearShiftState();
             var consumePactSlot = false;
 
@@ -476,9 +922,9 @@ public static class RulesetSpellRepertoirePatcher
             // uses short rest slots across all non race repertoires
             if (consumePactSlot)
             {
-                foreach (var spellRepertoire in EnumerateSharedSlotRepertoires(hero))
+                foreach (var spellRepertoire in EnumerateSharedSlotRepertoires(character))
                 {
-                    SpendWarlockSlots(spellRepertoire, hero);
+                    SpendWarlockSlots(spellRepertoire, character);
                 }
             }
 
@@ -487,12 +933,16 @@ public static class RulesetSpellRepertoirePatcher
             {
                 var consume = true;
 
-                foreach (var spellRepertoire in EnumerateSharedSlotRepertoires(hero))
+                foreach (var spellRepertoire in EnumerateSharedSlotRepertoires(character))
                 {
                     if (Main.Settings.UseAlternateSpellPointsSystem)
                     {
                         SpellPointsContext.ConsumeSlotsAtLevelsPointsCannotCastAnymore(
-                            hero, spellRepertoire, slotLevel, consume, true);
+                            character,
+                            spellRepertoire,
+                            slotLevel,
+                            consume,
+                            true);
 
                         consume = false;
                     }
@@ -541,20 +991,31 @@ public static class RulesetSpellRepertoirePatcher
                 return true;
             }
 
+            if (__instance.GetCaster()?.HasSubFeatureOfType<IUseIndependentSpellSlots>() == true)
+            {
+                __result = __instance.spellsSlotCapacities
+                    .Where(x => x.Key > 0 && x.Value > 0)
+                    .Select(x => x.Key)
+                    .DefaultIfEmpty(0)
+                    .Max();
+
+                return false;
+            }
+
             if (SharedSpellsContext.UseMaxSpellLevelOfSpellCastingLevelDefaultBehavior)
             {
                 return true;
             }
 
-            var heroWithSpellRepertoire = __instance.GetCaster() as RulesetCharacterHero;
+            var character = __instance.GetCaster();
 
-            if (!SharedSpellsContext.IsMulticaster(heroWithSpellRepertoire))
+            if (!SharedSpellsContext.IsMulticaster(character))
             {
                 return true;
             }
 
-            var sharedSpellLevel = SharedSpellsContext.GetSharedSpellLevel(heroWithSpellRepertoire);
-            var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(heroWithSpellRepertoire);
+            var sharedSpellLevel = SharedSpellsContext.GetSharedSpellLevel(character);
+            var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(character);
 
             __result = Math.Max(sharedSpellLevel, warlockSpellLevel);
 
@@ -582,17 +1043,19 @@ public static class RulesetSpellRepertoirePatcher
                 return true;
             }
 
-            if (__instance.GetCaster() is not RulesetCharacterHero hero)
+            var character = __instance.GetCaster();
+
+            if (character == null)
             {
                 return true;
             }
 
-            if (!SharedSpellsContext.IsMulticaster(hero))
+            if (!SharedSpellsContext.IsMulticaster(character))
             {
                 return true;
             }
 
-            foreach (var spellRepertoire in hero.SpellRepertoires)
+            foreach (var spellRepertoire in character.SpellRepertoires)
             {
                 var usedSpellsSlots = spellRepertoire.usedSpellsSlots;
 
@@ -630,17 +1093,21 @@ public static class RulesetSpellRepertoirePatcher
                 return;
             }
 
-            var heroWithSpellRepertoire = __instance.GetCaster() as RulesetCharacterHero;
+            var character = __instance.GetCaster();
 
-            if (!SharedSpellsContext.IsMulticaster(heroWithSpellRepertoire) ||
-                SharedSpellsContext.GetWarlockSpellLevel(heroWithSpellRepertoire) == 0)
+            if (!SharedSpellsContext.IsMulticaster(character) ||
+                SharedSpellsContext.GetWarlockSpellLevel(character) == 0)
             {
                 return;
             }
 
             foreach (var slotLevel in availableSlotLevels.ToArray())
             {
-                if (__instance.TryGetAvailableSlotLevel(heroWithSpellRepertoire, slotLevel, null, out var isAvailable) &&
+                if (__instance.TryGetAvailableSlotLevel(
+                        character,
+                        slotLevel,
+                        null,
+                        out var isAvailable) &&
                     isAvailable)
                 {
                     continue;
@@ -686,14 +1153,15 @@ public static class RulesetSpellRepertoirePatcher
         [UsedImplicitly]
         public static bool Prefix(RulesetSpellRepertoire __instance, ref int __result)
         {
+            var character = __instance.GetCaster();
+
             // get off here if not multicaster
-            if (__instance.GetCaster() is not RulesetCharacterHero hero ||
-                !SharedSpellsContext.IsMulticaster(hero))
+            if (!SharedSpellsContext.IsMulticaster(character))
             {
                 return true;
             }
 
-            var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
+            var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(character);
 
             // get off here if it doesn't have any Warlock level
             if (warlockSpellLevel == 0)
@@ -702,17 +1170,24 @@ public static class RulesetSpellRepertoirePatcher
             }
 
             var availableSlotLevels = new List<int>();
-            var maxSpellLevel = Math.Max(SharedSpellsContext.GetSharedSpellLevel(hero), warlockSpellLevel);
+            var maxSpellLevel = Math.Max(
+                SharedSpellsContext.GetSharedSpellLevel(character),
+                warlockSpellLevel);
 
             for (var slotLevel = 1; slotLevel <= maxSpellLevel; slotLevel++)
             {
-                if (__instance.TryGetAvailableSlotLevel(hero, slotLevel, null, out var isAvailable) && isAvailable)
+                if (__instance.TryGetAvailableSlotLevel(
+                        character,
+                        slotLevel,
+                        null,
+                        out var isAvailable) &&
+                    isAvailable)
                 {
                     availableSlotLevels.Add(slotLevel);
                 }
             }
 
-            __result = __instance.GetPreferredSlotLevel(hero, availableSlotLevels);
+            __result = __instance.GetPreferredSlotLevel(character, availableSlotLevels);
 
             return false;
         }
@@ -749,7 +1224,7 @@ public static class RulesetSpellRepertoirePatcher
 
             //PATCH: allow slot-castable spells granted by feats / extra features on regular class repertoires
             __result = LevelUpHelper.IsPreparedOrSlotCastableExtraSpellForRepertoire(
-                __instance.GetCaster() as RulesetCharacterHero,
+                __instance.GetCaster(),
                 __instance,
                 consideredSpellDefinition);
         }
@@ -773,7 +1248,7 @@ public static class RulesetSpellRepertoirePatcher
 
             //PATCH: allow slot-castable spells granted by feats / extra features on regular class repertoires
             __result = LevelUpHelper.IsPreparedOrSlotCastableExtraSpellForRepertoire(
-                __instance.GetCaster() as RulesetCharacterHero,
+                __instance.GetCaster(),
                 __instance,
                 consideredSpellDefinition);
         }

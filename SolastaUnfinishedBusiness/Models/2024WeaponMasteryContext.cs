@@ -1135,12 +1135,14 @@ public static partial class Tabletop2024Context
     //
 
     /**Returns true for attacks that should be removed after Nick was used*/
-    internal static void ModifyNickOffHandAttack(RulesetCharacterHero hero, List<RulesetAttackMode> modes)
+    internal static void ModifyNickOffHandAttack(
+        RulesetCharacter character,
+        List<RulesetAttackMode> modes)
     {
-        var locationCharacter = GameLocationCharacter.GetFromActor(hero);
+        var locationCharacter = GameLocationCharacter.GetFromActor(character);
         if (locationCharacter == null || locationCharacter.GetSpecialFeatureUses(WeaponMasteryNick) < 1) { return; }
 
-        var offHand = hero.GetOffhandWeapon();
+        var offHand = character.GetOffhandWeapon();
         var nickAttack = offHand != null
             ? modes.FirstOrDefault(m => m.ActionType == ActionType.Bonus && m.SourceObject == offHand)
             : null;
@@ -1384,11 +1386,20 @@ public static partial class Tabletop2024Context
             var invocationToLearn =
                 GetDefinition<InvocationDefinition>($"CustomInvocationWeaponMastery{weaponTypeLearnName}");
 
-            var hero = attacker.RulesetCharacter.GetOriginalHero();
-
-            hero!.TrainedInvocations.Remove(invocationToUnlearn);
-            hero.TrainedInvocations.Add(invocationToLearn);
-            hero.GrantInvocations();
+            switch (attacker.RulesetCharacter)
+            {
+                case RulesetCharacterHero hero:
+                    hero.TrainedInvocations.Remove(invocationToUnlearn);
+                    hero.TrainedInvocations.Add(invocationToLearn);
+                    hero.GrantInvocations();
+                    break;
+                case RulesetCharacterSimulacrum duplicate:
+                    SimulacrumBehavior.TryReplaceInvocation(
+                        duplicate,
+                        invocationToUnlearn,
+                        invocationToLearn);
+                    break;
+            }
         }
     }
 

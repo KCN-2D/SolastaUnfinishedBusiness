@@ -297,14 +297,14 @@ internal static class ClassFeats
 
     internal static void HandleCloseQuarters(
         GameLocationCharacter attacker,
-        RulesetCharacterHero rulesetAttacker,
+        RulesetCharacter rulesetAttacker,
         GameLocationCharacter defender,
         ref DamageForm damageForm,
         string text = "Feedback/&ChangeSneakDiceDieType")
     {
         if (!attacker.IsWithinRange(defender, 1) ||
-            (!rulesetAttacker.TrainedFeats.Contains(CloseQuartersDex) &&
-             !rulesetAttacker.TrainedFeats.Contains(CloseQuartersInt)))
+            (!SimulacrumBehavior.HasTrainedFeat(rulesetAttacker, CloseQuartersDex) &&
+             !SimulacrumBehavior.HasTrainedFeat(rulesetAttacker, CloseQuartersInt)))
         {
             return;
         }
@@ -503,13 +503,17 @@ internal static class ClassFeats
         // ReSharper disable once InconsistentNaming
         internal static void GrantTempHP(RulesetCharacterMonster __instance)
         {
-            if (__instance.OriginalFormCharacter is not RulesetCharacterHero rulesetCharacterHero ||
-                !rulesetCharacterHero.TrainedFeats.Exists(x => x.Name.StartsWith("FeatAwakenTheBeastWithin")))
+            if (__instance.OriginalFormCharacter is not RulesetCharacter originalCharacter ||
+                !SimulacrumBehavior.HasTrainedFeat(
+                    originalCharacter,
+                    feat => feat.Name.StartsWith(
+                        "FeatAwakenTheBeastWithin",
+                        StringComparison.Ordinal)))
             {
                 return;
             }
 
-            var classLevel = rulesetCharacterHero.GetClassLevel(Druid);
+            var classLevel = originalCharacter.GetClassLevel(Druid);
 
             __instance.ReceiveTemporaryHitPoints(
                 2 * classLevel, DurationType.UntilAnyRest, 0, TurnOccurenceType.StartOfTurn, TemporaryHitPointsGuid);
@@ -805,10 +809,13 @@ internal static class ClassFeats
             CharacterActionMagicEffect actionMagicEffect,
             RulesetAttackMode attackMode)
         {
-            var hero = character.RulesetCharacter.GetOriginalHero();
+            var rulesetCharacter = character.RulesetCharacter;
 
-            if (hero == null ||
-                !hero.TrainedFeats.Any(x => x.Name.StartsWith("FeatPotentSpellcaster")) ||
+            if (!SimulacrumBehavior.HasTrainedFeat(
+                    rulesetCharacter,
+                    feat => feat.Name.StartsWith(
+                        "FeatPotentSpellcaster",
+                        StringComparison.Ordinal)) ||
                 actionMagicEffect.ActionParams.activeEffect.SourceDefinition is not SpellDefinition { SpellLevel: 0 })
             {
                 return;
@@ -816,12 +823,14 @@ internal static class ClassFeats
 
             var damage = attackMode.EffectDescription.FindFirstDamageForm();
             var attribute = actionMagicEffect.ActionParams.activeEffect.SourceAbility;
-            var bonus = AttributeDefinitions.ComputeAbilityScoreModifier(hero.TryGetAttributeValue(attribute));
+            var bonus =
+                AttributeDefinitions.ComputeAbilityScoreModifier(
+                    rulesetCharacter.TryGetAttributeValue(attribute));
 
             damage.BonusDamage += bonus;
             damage.DamageBonusTrends.Add(
                 new TrendInfo(bonus, FeatureSourceType.CharacterFeature, string.Empty, null));
-            character.RulesetCharacter.LogCharacterActivatesAbility(Title);
+            rulesetCharacter.LogCharacterActivatesAbility(Title);
         }
     }
 

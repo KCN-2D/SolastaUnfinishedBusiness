@@ -86,6 +86,14 @@ internal class FeatureDefinitionMagicAffinityBuilder
         return this;
     }
 
+    internal FeatureDefinitionMagicAffinityBuilder SetSpellImmunities(params SpellDefinition[] spells)
+    {
+        Definition.SpellImmunities.SetRange(
+            spells.Select(spell => spell.Name).OrderBy(name => name, StringComparer.Ordinal));
+
+        return this;
+    }
+
     internal FeatureDefinitionMagicAffinityBuilder SetSpellWithModifiedSaveDc(
         SpellDefinition spellDefinition,
         int bonus)

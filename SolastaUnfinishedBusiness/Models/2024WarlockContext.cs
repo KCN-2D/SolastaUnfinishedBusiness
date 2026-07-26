@@ -4,6 +4,7 @@ using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Interfaces;
@@ -256,26 +257,36 @@ public static partial class Tabletop2024Context
     {
         public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
         {
-            var hero = action.ActingCharacter.RulesetCharacter.GetOriginalHero();
+            var character = action.ActingCharacter.RulesetCharacter;
+            var repertoire = character.SpellRepertoires.FirstOrDefault(candidate =>
+                candidate?.SpellCastingClass == Warlock);
+            var warlockClassLevel = character switch
+            {
+                RulesetCharacterHero hero => hero.GetClassLevel(Warlock),
+                RulesetCharacterSimulacrum simulacrum
+                    when SimulacrumBehavior.TryGetClassLevels(simulacrum, out var classLevels) =>
+                    classLevels
+                        .Where(entry => entry.ClassDefinition == Warlock)
+                        .Select(entry => entry.Level)
+                        .FirstOrDefault(),
+                _ => 0
+            };
 
-            if (hero == null)
+            if (repertoire == null || warlockClassLevel <= 0)
             {
                 yield break;
             }
 
-            var repertoire = SharedSpellsContext.GetWarlockSpellRepertoire(hero);
-
-            if (repertoire == null)
-            {
-                yield break;
-            }
-
-            hero.ClassesAndLevels.TryGetValue(Warlock, out var warlockClassLevel);
-
-            var slotLevel = SharedSpellsContext.IsMulticaster(hero)
+            var slotLevel = character.SpellRepertoires.Count(candidate =>
+                                candidate?.SpellCastingFeature?.SpellCastingOrigin !=
+                                FeatureDefinitionCastSpell.CastingOrigin.Race) > 1
                 ? SharedSpellsContext.PactMagicSlotsTab
-                : SharedSpellsContext.GetWarlockSpellLevel(hero);
-            var maxSlots = SharedSpellsContext.GetWarlockMaxSlots(hero);
+                : repertoire.spellsSlotCapacities
+                    .Where(pair => pair.Key is > 0 and <= 9 && pair.Value > 0)
+                    .Select(pair => pair.Key)
+                    .DefaultIfEmpty()
+                    .Max();
+            repertoire.spellsSlotCapacities.TryGetValue(slotLevel, out var maxSlots);
             var halfSlotsRoundUp = (maxSlots + 1) / (warlockClassLevel == 20 ? 1 : 2);
 
             if (!repertoire.usedSpellsSlots.TryGetValue(slotLevel, out var value))

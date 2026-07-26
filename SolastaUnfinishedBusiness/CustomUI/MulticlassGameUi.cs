@@ -6,6 +6,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Patches;
 using UnityEngine;
@@ -89,15 +90,15 @@ internal static class MulticlassGameUi
     internal static void RebuildSlotsTable(SpellRepertoirePanel __instance)
     {
         var spellRepertoire = __instance.SpellRepertoire;
-        var hero = __instance.GuiCharacter.RulesetCharacterHero;
-        var isMulticaster = SharedSpellsContext.IsMulticaster(hero);
-        var sharedSpellLevel = SharedSpellsContext.GetSharedSpellLevel(hero);
-        var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
+        var character = __instance.GuiCharacter.RulesetCharacter;
+        var isMulticaster = SharedSpellsContext.IsMulticaster(character);
+        var sharedSpellLevel = SharedSpellsContext.GetSharedSpellLevel(character);
+        var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(character);
         var classSpellLevel = spellRepertoire.spellCastingRace
             ? spellRepertoire.MaxSpellLevelOfSpellCastingLevel
             : SharedSpellsContext.MaxSpellLevelOfSpellCastingLevel(spellRepertoire);
 
-        SharedSpellsContext.FactorMysticArcanum(hero, spellRepertoire, ref classSpellLevel);
+        SharedSpellsContext.FactorMysticArcanum(character, spellRepertoire, ref classSpellLevel);
 
         var slotLevel = !isMulticaster ? classSpellLevel : Math.Max(sharedSpellLevel, warlockSpellLevel);
         var accountForCantrips = spellRepertoire.KnownCantrips.Count > 0 ? 1 : 0;
@@ -145,7 +146,7 @@ internal static class MulticlassGameUi
     }
 
     internal static void PaintPactSlots(
-        [NotNull] RulesetCharacterHero hero,
+        [NotNull] RulesetCharacter character,
         int totalSlotsCount,
         int totalSlotsRemainingCount,
         int slotLevel,
@@ -154,8 +155,8 @@ internal static class MulticlassGameUi
         bool ignorePactSlots = false)
     {
         var rectTransform = slotStatusTable.table;
-        var warlockSpellRepertoire = SharedSpellsContext.GetWarlockSpellRepertoire(hero);
-        var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
+        var warlockSpellRepertoire = SharedSpellsContext.GetWarlockSpellRepertoire(character);
+        var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(character);
 
         var pactSlotsCount = 0;
         var pactSlotsRemainingCount = 0;
@@ -163,8 +164,8 @@ internal static class MulticlassGameUi
 
         if (warlockSpellRepertoire != null)
         {
-            pactSlotsCount = SharedSpellsContext.GetWarlockMaxSlots(hero);
-            pactSlotsUsedCount = SharedSpellsContext.GetWarlockUsedSlots(hero);
+            pactSlotsCount = SharedSpellsContext.GetWarlockMaxSlots(character);
+            pactSlotsUsedCount = SharedSpellsContext.GetWarlockUsedSlots(character);
             pactSlotsRemainingCount = pactSlotsCount - pactSlotsUsedCount;
         }
 
@@ -203,7 +204,7 @@ internal static class MulticlassGameUi
             if (index >= pactSlotsCount || slotLevel > warlockSpellLevel)
             {
                 //PATCH: support display cost on spell level blocks (SPELL_POINTS)
-                if (hero.IsSpellPointsEnabled())
+                if (character.IsSpellPointsEnabled())
                 {
                     SpellPointsContext.DisplayCostOnSpellLevelBlocks(slotStatusTable, component, slotLevel,
                         spellsAtLevel);
@@ -248,23 +249,23 @@ internal static class MulticlassGameUi
 
     // reaction and flexible panels should paint white slots first
     internal static void PaintPactSlotsAlternate(
-        [NotNull] RulesetCharacterHero hero,
+        [NotNull] RulesetCharacter character,
         int totalSlotsCount,
         int totalSlotsRemainingCount,
         int slotLevel,
         [NotNull] RectTransform rectTransform)
     {
-        var warlockSpellRepertoire = SharedSpellsContext.GetWarlockSpellRepertoire(hero);
-        var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
-
+        var warlockSpellRepertoire =
+            SharedSpellsContext.GetWarlockSpellRepertoire(character);
+        var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(character);
         var pactSlotsCount = 0;
         var pactSlotsRemainingCount = 0;
 
         if (warlockSpellRepertoire != null)
         {
-            var pactSlotsUsedCount = SharedSpellsContext.GetWarlockUsedSlots(hero);
+            var pactSlotsUsedCount = SharedSpellsContext.GetWarlockUsedSlots(character);
 
-            pactSlotsCount = SharedSpellsContext.GetWarlockMaxSlots(hero);
+            pactSlotsCount = SharedSpellsContext.GetWarlockMaxSlots(character);
             pactSlotsRemainingCount = pactSlotsCount - pactSlotsUsedCount;
         }
 
@@ -301,7 +302,7 @@ internal static class MulticlassGameUi
             else
             {
                 //PATCH: support alternate spell system to avoid displaying spell slots on selection (SPELL_POINTS)
-                if (hero.IsSpellPointsEnabled())
+                if (character.IsSpellPointsEnabled())
                 {
                     SetSlotState(component, null);
                 }
@@ -325,7 +326,9 @@ internal static class MulticlassGameUi
     }
 
     /**Adds available slot level options to optionsAvailability and returns index of pre-picked option, or -1*/
-    internal static int AddAvailableSubLevels(Dictionary<int, bool> optionsAvailability, RulesetCharacterHero hero,
+    internal static int AddAvailableSubLevels(
+        Dictionary<int, bool> optionsAvailability,
+        RulesetCharacter character,
         [NotNull] RulesetSpellRepertoire spellRepertoire, int minSpellLevel = 1, int maxSpellLevel = 0,
         SpellDefinition spellDefinition = null)
     {
@@ -334,13 +337,17 @@ internal static class MulticlassGameUi
         if (maxSpellLevel == 0)
         {
             maxSpellLevel = Math.Max(
-                SharedSpellsContext.GetSharedSpellLevel(hero),
-                SharedSpellsContext.GetWarlockSpellLevel(hero));
+                SharedSpellsContext.GetSharedSpellLevel(character),
+                SharedSpellsContext.GetWarlockSpellLevel(character));
         }
 
         for (var level = minSpellLevel; level <= maxSpellLevel; ++level)
         {
-            if (!spellRepertoire.TryGetAvailableSlotLevel(hero, level, spellDefinition, out var isAvailable))
+            if (!spellRepertoire.TryGetAvailableSlotLevel(
+                    character,
+                    level,
+                    spellDefinition,
+                    out var isAvailable))
             {
                 continue;
             }
@@ -353,7 +360,7 @@ internal static class MulticlassGameUi
             }
         }
 
-        var selectedLevel = spellRepertoire.GetPreferredSlotLevel(hero, availableSlotLevels);
+        var selectedLevel = spellRepertoire.GetPreferredSlotLevel(character, availableSlotLevels);
 
         if (selectedLevel == 0)
         {
@@ -382,8 +389,64 @@ internal static class MulticlassGameUi
         var builder = new StringBuilder();
         var snapshot = character?.Snapshot;
         var hero = character?.RulesetCharacterHero;
+        var duplicate = character?.RulesetCharacter as RulesetCharacterSimulacrum;
 
-        if (snapshot != null && snapshot.Classes.Length > 1)
+        if (duplicate != null &&
+            SimulacrumBehavior.TryGetClassLevels(duplicate, out var duplicateClasses) &&
+            duplicateClasses.Count > 0)
+        {
+            var classesCount = duplicateClasses.Count;
+
+            if (classesCount == 1)
+            {
+                var classDefinition = duplicateClasses[0].ClassDefinition;
+
+                builder
+                    .Append(classDefinition.FormatTitle())
+                    .Append(separator);
+
+                if (SimulacrumBehavior.TryGetPrimarySubclass(
+                        duplicate,
+                        classDefinition,
+                        out var subclassDefinition))
+                {
+                    builder
+                        .Append(subclassDefinition.FormatTitle())
+                        .Append(separator);
+                }
+
+                return builder.ToString().Remove(builder.Length - 1, 1);
+            }
+
+            var newLine = separator == '\n' || classesCount <= 4 ? 2 : 3;
+            var index = 0;
+
+            foreach (var classLevel in duplicateClasses
+                         .OrderByDescending(entry => entry.Level)
+                         .ThenBy(entry => entry.ClassDefinition.FormatTitle()))
+            {
+                builder
+                    .Append(classLevel.ClassDefinition.FormatTitle())
+                    .Append('/')
+                    .Append(classLevel.Level);
+
+                if (classesCount <= 3)
+                {
+                    builder.Append(separator);
+                }
+                else
+                {
+                    builder.Append(' ');
+                    index++;
+
+                    if (index % newLine == 0)
+                    {
+                        builder.Append('\n');
+                    }
+                }
+            }
+        }
+        else if (snapshot != null && snapshot.Classes.Length > 1)
         {
             foreach (var className in snapshot.Classes)
             {

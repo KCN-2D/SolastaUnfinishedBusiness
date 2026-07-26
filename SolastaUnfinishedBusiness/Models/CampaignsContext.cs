@@ -11,6 +11,7 @@ using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Patches;
 using TA;
 using UnityEngine;
@@ -336,9 +337,17 @@ internal static class CampaignsContext
 
             var startLevel = 0;
             var maxLevel = rulesetSpellRepertoire.MaxSpellLevelOfSpellCastingLevel;
+            var nativeMaxLevel = maxLevel;
 
-            SharedSpellsContext.FactorMysticArcanum(caster.RulesetCharacterHero, rulesetSpellRepertoire,
+            SharedSpellsContext.FactorMysticArcanum(caster.RulesetCharacter, rulesetSpellRepertoire,
                 ref maxLevel);
+            SimulacrumDiagnostics.RecordSpellPanelRange(
+                caster.RulesetCharacter,
+                rulesetSpellRepertoire,
+                actionType,
+                cantripOnly,
+                nativeMaxLevel,
+                maxLevel);
 
             for (var level = startLevel; level <= maxLevel; level++)
             {
@@ -1252,7 +1261,7 @@ internal static class CampaignsContext
         }
 
         if (LevelUpHelper.HasSlotCastableExtraSpellOfLevelAndActionType(
-                spellRepertoire.GetCaster() as RulesetCharacterHero,
+                spellRepertoire.GetCaster(),
                 spellRepertoire,
                 level,
                 actionType))

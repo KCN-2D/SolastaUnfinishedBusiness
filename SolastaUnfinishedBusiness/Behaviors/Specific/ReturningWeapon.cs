@@ -20,24 +20,40 @@ internal class ReturningWeapon
     }
 
     internal static RuleDefinitions.AttackProximity Process(
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         RulesetAttackMode mode,
         RuleDefinitions.AttackProximity proximity)
     {
-        if (proximity != RuleDefinitions.AttackProximity.Range || !mode.Thrown)
+        if (character?.CharacterInventory == null ||
+            mode == null ||
+            proximity != RuleDefinitions.AttackProximity.Range ||
+            !mode.Thrown)
         {
             return proximity;
         }
 
-        var inventory = hero.characterInventory;
+        var inventory = character.CharacterInventory;
         var num = inventory.CurrentConfiguration;
         var configurations = inventory.WieldedItemsConfigurations;
 
-        if (inventory.CurrentConfiguration == configurations.Count - 1)
+        if (configurations == null ||
+            configurations.Count == 0 ||
+            num < 0 ||
+            num >= configurations.Count)
+        {
+            return proximity;
+        }
+
+        if (num == configurations.Count - 1)
         {
             num = configurations[num].MainHandSlot.ShadowedSlot != configurations[0].MainHandSlot
                 ? 1
                 : 0;
+
+            if (num >= configurations.Count)
+            {
+                return proximity;
+            }
         }
 
         var itemCfg = configurations[num];
@@ -64,11 +80,13 @@ internal class ReturningWeapon
 
         var isWeaponValid = droppedItem.GetSubFeaturesByType<ReturningWeapon>().Aggregate(
             false,
-            (current, returningWeapon) => current || returningWeapon._isWeaponValidHandler(mode, null, hero));
+            (current, returningWeapon) =>
+                current || returningWeapon._isWeaponValidHandler(mode, null, character));
 
-        isWeaponValid = hero.GetSubFeaturesByType<ReturningWeapon>().Aggregate(
+        isWeaponValid = character.GetSubFeaturesByType<ReturningWeapon>().Aggregate(
             isWeaponValid,
-            (current, returningWeapon) => current || returningWeapon._isWeaponValidHandler(mode, null, hero));
+            (current, returningWeapon) =>
+                current || returningWeapon._isWeaponValidHandler(mode, null, character));
 
         if (!isWeaponValid)
         {
@@ -77,7 +95,7 @@ internal class ReturningWeapon
 
         proximity = RuleDefinitions.AttackProximity.Melee;
 
-        hero.LogCharacterActivatesAbility(droppedItem.ItemDefinition.GuiPresentation.Title,
+        character.LogCharacterActivatesAbility(droppedItem.ItemDefinition.GuiPresentation.Title,
             ActivateReturningFormat, tooltipClass: "ItemDefinition", tooltipContent: droppedItem.Name);
 
         return proximity;

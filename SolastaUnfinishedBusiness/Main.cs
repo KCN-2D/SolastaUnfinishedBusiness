@@ -26,6 +26,7 @@ internal static class Main
     internal static Action Enable { get; private set; }
 
     internal static string SettingsFolder => Path.Combine(ModFolder, "Settings");
+    internal static string Version => ModEntry?.Info?.Version?.ToString() ?? "<unavailable>";
     internal static string[] SettingsFiles { get; private set; }
     internal static string SettingsFilename { get; private set; } = string.Empty;
     internal static Settings Settings => Mod.Settings;

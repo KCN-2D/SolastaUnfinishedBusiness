@@ -366,15 +366,20 @@ public static class SmiteSpells2024Context
 
     internal static bool HasSmites(this RulesetCharacter character)
     {
-        if (character is not RulesetCharacterHero hero) { return false; }
+        if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum)) { return false; }
 
         if (!Main.Settings.AddPaladinSmiteToggle) { return false; }
 
-        if (hero.ClassesHistory.Contains(CharacterClassDefinitions.Paladin)) { return true; }
+        if (character is RulesetCharacterHero hero
+                ? hero.ClassesHistory.Contains(CharacterClassDefinitions.Paladin)
+                : character.GetClassLevel(CharacterClassDefinitions.Paladin) > 0)
+        {
+            return true;
+        }
 
         if (!Main.Settings.EnableSmiteSpells2024) { return false; }
 
-        return hero.SpellRepertoires.Any(repertoire =>
+        return character.SpellRepertoires.Any(repertoire =>
             AlLSmiteSpells.Any(spell => repertoire.HasKnowledgeOfSpell(spell) && repertoire.IsSpellReady(spell)));
     }
 }

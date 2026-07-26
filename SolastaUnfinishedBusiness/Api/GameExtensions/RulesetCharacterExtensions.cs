@@ -43,6 +43,13 @@ internal static class RulesetCharacterExtensions
     internal static int GetSubclassLevel(
         this RulesetCharacter character, CharacterClassDefinition klass, string subclass)
     {
+        var provider = character.GetSubFeaturesByType<ISubclassLevelProvider>().FirstOrDefault();
+
+        if (provider != null)
+        {
+            return provider.GetSubclassLevel(character, klass, subclass);
+        }
+
         var hero = character.GetOriginalHero();
 
         if (hero == null
@@ -77,12 +84,20 @@ internal static class RulesetCharacterExtensions
 
     internal static bool IsWearingMediumArmor([NotNull] this RulesetCharacter character)
     {
-        if (character is not RulesetCharacterHero hero)
+        if (character is not RulesetCharacterHero &&
+            character is not RulesetCharacterSimulacrum)
         {
             return false;
         }
 
-        var equipedItem = hero.characterInventory.InventorySlotsByName[EquipmentDefinitions.SlotTypeTorso].EquipedItem;
+        var inventory = character.CharacterInventory;
+        RulesetInventorySlot torsoSlot = null;
+
+        inventory?.InventorySlotsByName?.TryGetValue(
+            EquipmentDefinitions.SlotTypeTorso,
+            out torsoSlot);
+
+        var equipedItem = torsoSlot?.EquipedItem;
 
         if (equipedItem == null || !equipedItem.ItemDefinition.IsArmor)
         {
@@ -202,6 +217,12 @@ internal static class RulesetCharacterExtensions
             return false;
         }
 
+        if (instance is RulesetCharacterSimulacrum duplicate &&
+            !SimulacrumBehavior.IsPowerCurrentlyActive(duplicate, power))
+        {
+            return false;
+        }
+
         if (considerHaving && !instance.HasPower(power))
         {
             return false;
@@ -285,17 +306,21 @@ internal static class RulesetCharacterExtensions
         CharacterClassDefinition classDefinition)
     {
         var className = !classDefinition ? string.Empty : classDefinition.name;
-        var gameLocationCharacter = instance.GetMySummoner();
+        var gameLocationCharacter = instance.HasSubFeatureOfType<IUseOwnStatsWhenSummoned>()
+            ? null
+            : instance.GetMySummoner();
         var rulesetCharacter = gameLocationCharacter?.RulesetCharacter ?? instance;
 
-        if (string.IsNullOrEmpty(className) || rulesetCharacter is not RulesetCharacterHero hero)
+        if (string.IsNullOrEmpty(className) ||
+            rulesetCharacter is not RulesetCharacterHero &&
+            rulesetCharacter is not RulesetCharacterSimulacrum)
         {
             return rulesetCharacter.GetClassSpellRepertoire();
         }
 
         CharacterSubclassDefinition subclassDefinition = null;
 
-        if (classDefinition)
+        if (rulesetCharacter is RulesetCharacterHero hero && classDefinition)
         {
             hero.ClassesAndSubclasses.TryGetValue(classDefinition, out subclassDefinition);
         }
@@ -304,7 +329,8 @@ internal static class RulesetCharacterExtensions
             (r.SpellCastingFeature.SpellCastingOrigin == FeatureDefinitionCastSpell.CastingOrigin.Class &&
              r.SpellCastingClass == classDefinition) ||
             (r.SpellCastingFeature.SpellCastingOrigin == FeatureDefinitionCastSpell.CastingOrigin.Subclass &&
-             r.SpellCastingSubclass == subclassDefinition));
+             (r.SpellCastingClass == classDefinition ||
+              subclassDefinition != null && r.SpellCastingSubclass == subclassDefinition)));
     }
 
     /**@returns true if item holds an infusion created by this character*/
@@ -360,6 +386,13 @@ internal static class RulesetCharacterExtensions
 
     internal static int GetClassLevel(this RulesetCharacter instance, CharacterClassDefinition classDefinition)
     {
+        var provider = instance.GetSubFeaturesByType<IClassLevelProvider>().FirstOrDefault();
+
+        if (provider != null)
+        {
+            return provider.GetClassLevel(instance, classDefinition);
+        }
+
         var hero = instance.GetOriginalHero();
 
         return hero?.GetClassLevel(classDefinition) ?? 0;
@@ -367,9 +400,12 @@ internal static class RulesetCharacterExtensions
 
     internal static int GetClassLevel(this RulesetCharacter instance, string className)
     {
-        var hero = instance.GetOriginalHero();
+        if (DatabaseHelper.TryGetDefinition<CharacterClassDefinition>(className, out var classDefinition))
+        {
+            return instance.GetClassLevel(classDefinition);
+        }
 
-        return hero?.GetClassLevel(className) ?? 0;
+        return 0;
     }
 
     internal static bool HasActiveInvocation(this RulesetCharacter self, InvocationDefinition invocation)
@@ -486,7 +522,7 @@ internal static class RulesetCharacterExtensions
         var reverse = CustomActionIdContext.IsReverseToggleId(actionId);
         rulesetCharacter.SetToggle(actionId, !reverse);
     }
-    
+
     private static void SetToggle(this RulesetCharacter rulesetCharacter, Id actionId, bool value)
     {
         var toggleName = actionId.ToString();
@@ -529,9 +565,12 @@ internal static class RulesetCharacterExtensions
                 actionType,
                 itemDefinition,
                 weaponDescription,
+                freeOffHand,
                 canAddAbilityDamageBonus,
+                slotName,
                 attackModifiers,
-                featuresOrigin),
+                featuresOrigin,
+                weapon),
             _ => null
         };
     }
@@ -574,7 +613,39 @@ internal static class RulesetCharacterExtensions
     [CanBeNull]
     internal static RulesetCharacterHero GetOriginalHero(this RulesetCharacter character)
     {
-        return character as RulesetCharacterHero ?? character.OriginalFormCharacter as RulesetCharacterHero;
+        return character switch
+        {
+            RulesetCharacterHero hero => hero,
+            RulesetCharacterSimulacrum => null,
+            _ => character?.OriginalFormCharacter as RulesetCharacterHero
+        };
+    }
+
+    [CanBeNull]
+    internal static RulesetCharacter GetFeatureOwnerOrSelf(this RulesetCharacter character)
+    {
+        return character switch
+        {
+            RulesetCharacterHero hero => hero,
+            RulesetCharacterSimulacrum simulacrum => simulacrum,
+            RulesetCharacterMonster
+            {
+                OriginalFormCharacter: RulesetCharacterSimulacrum simulacrum
+            } => simulacrum,
+            _ when character.TryGetShapeChangeOriginalHero(out var hero) => hero,
+            _ => null
+        };
+    }
+
+    internal static bool TryGetShapeChangeOriginalHero(
+        this RulesetCharacter character,
+        out RulesetCharacterHero hero)
+    {
+        hero = character is RulesetCharacterSimulacrum
+            ? null
+            : character?.OriginalFormCharacter as RulesetCharacterHero;
+
+        return hero != null && hero != character;
     }
 
     internal static bool HasTemporaryConditionOfType(this RulesetCharacter character, string conditionName)
@@ -583,5 +654,124 @@ internal static class RulesetCharacterExtensions
             .SelectMany(x => x.Value)
             .Any(condition => condition.ConditionDefinition.IsSubtypeOf(conditionName) &&
                               condition.DurationType != DurationType.Permanent);
+    }
+
+    internal static IEnumerable<RulesetItemDevice> EnumerateInventoryDevices(
+        this RulesetCharacter character,
+        bool includeContainer,
+        bool ignoreActivationTimeChecks = false)
+    {
+        List<RulesetItemDevice> devices = [];
+        var inBattle = ServiceRepository.GetService<IGameLocationBattleService>() is
+        {
+            IsBattleInProgress: true
+        };
+
+        if (character is RulesetCharacterHero { UsableDeviceFromMenu: { } selectedDevice })
+        {
+            devices.TryAdd(selectedDevice);
+
+            return devices;
+        }
+
+        var inventory = character.CharacterInventory;
+
+        if (inventory == null)
+        {
+            return devices;
+        }
+
+        foreach (var slotName in new[]
+                 {
+                     EquipmentDefinitions.SlotTypeMainHand,
+                     EquipmentDefinitions.SlotTypeOffHand
+                 })
+        {
+            if (!inventory.InventorySlotsByName.TryGetValue(slotName, out var slot) ||
+                slot?.EquipedItem is not RulesetItemDevice
+                {
+                    HasUsableFunctions: true,
+                    ItemDefinition: { } itemDefinition
+                } device ||
+                !itemDefinition.SlotsWhereActive.Contains(slotName) ||
+                character is RulesetCharacterSimulacrum &&
+                itemDefinition.RequiresAttunement ||
+                slotName != EquipmentDefinitions.SlotTypeOffHand &&
+                !device.IsAnyFunctionAvailable(
+                    character,
+                    inBattle,
+                    false,
+                    false,
+                    ignoreActivationTimeChecks))
+            {
+                continue;
+            }
+
+            devices.TryAdd(device);
+        }
+
+        foreach (var pair in inventory.InventorySlotsByType.Where(pair =>
+                     pair.Key != EquipmentDefinitions.SlotTypeMainHand &&
+                     pair.Key != EquipmentDefinitions.SlotTypeOffHand))
+        {
+            foreach (var slot in pair.Value)
+            {
+                if (slot.EquipedItem is not RulesetItemDevice
+                    {
+                        HasUsableFunctions: true,
+                        ItemDefinition: { } itemDefinition
+                    } device ||
+                    !itemDefinition.SlotsWhereActive.Contains(pair.Key) ||
+                    character is RulesetCharacterSimulacrum &&
+                    itemDefinition.RequiresAttunement ||
+                    !device.IsAnyFunctionAvailable(
+                        character,
+                        inBattle,
+                        false,
+                        false,
+                        ignoreActivationTimeChecks))
+                {
+                    continue;
+                }
+
+                devices.TryAdd(device);
+            }
+        }
+
+        if (includeContainer)
+        {
+            foreach (var slot in inventory.PersonalContainer.InventorySlots)
+            {
+                if (slot?.EquipedItem is not RulesetItemDevice
+                    {
+                        HasUsableFunctions: true,
+                        ItemDefinition: { } itemDefinition
+                    } device ||
+                    character is RulesetCharacterSimulacrum &&
+                    itemDefinition.RequiresAttunement ||
+                    !device.IsAnyFunctionAvailable(
+                        character,
+                        inBattle,
+                        false,
+                        false,
+                        ignoreActivationTimeChecks))
+                {
+                    continue;
+                }
+
+                devices.TryAdd(device);
+            }
+        }
+
+        if (character is RulesetCharacterHero or RulesetCharacterSimulacrum)
+        {
+            foreach (var device in character.GetSubFeaturesByType<PowerPoolDevice>()
+                         .Select(provider => provider.GetDevice(character)))
+            {
+                devices.TryAdd(device);
+            }
+        }
+
+        return devices;
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -400,32 +401,33 @@ public sealed class InnovationArmor : AbstractSubclass
 
         protected override List<RulesetAttackMode> GetAttackModes(RulesetCharacter character)
         {
-            if (character is not RulesetCharacterHero hero)
+            if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum))
             {
                 return null;
             }
 
             var strikeDefinition = CustomWeaponsContext.ThunderGauntlet;
-
-            var attackModifiers = hero.attackModifiers;
-
-            var attackMode = hero.RefreshAttackMode(
+            var attackMode = character.TryRefreshAttackMode(
                 ActionType,
                 strikeDefinition,
                 strikeDefinition.WeaponDescription,
-                ValidatorsCharacter.IsFreeOffhandVanilla(hero),
+                ValidatorsCharacter.IsFreeOffhandVanilla(character),
                 true,
                 EquipmentDefinitions.SlotTypeMainHand,
-                attackModifiers,
-                hero.FeaturesOrigin
+                GetAttackModifiers(character),
+                character.FeaturesOrigin
             );
 
-            AddArmorBonusesToBuiltinAttack(hero, attackMode);
+            if (attackMode == null)
+            {
+                return null;
+            }
+
+            AddArmorBonusesToBuiltinAttack(character, attackMode);
 
             var modes = new List<RulesetAttackMode> { attackMode };
-
-            var main = hero.GetMainWeapon();
-            var off = hero.GetOffhandWeapon();
+            var main = character.GetMainWeapon();
+            var off = character.GetOffhandWeapon();
 
             WeaponDescription weapon = null;
             if (main != null && main.itemDefinition.isWeapon)
@@ -439,7 +441,8 @@ public sealed class InnovationArmor : AbstractSubclass
                     || (weapon != null //or main hand is 1-handed melee weapon
                         && !weapon.WeaponTags.Contains(TagsDefinitions.WeaponTagTwoHanded)
                         && weapon.WeaponTypeDefinition.weaponProximity == AttackProximity.Melee))
-                && hero.CanDualWieldNonLight)
+                && character.FeaturesByType<FeatureDefinitionAttackModifier>()
+                    .Any(feature => feature.CanDualWieldNonLight))
             {
                 var offhand = RulesetAttackMode.AttackModesPool.Get();
 
@@ -466,7 +469,15 @@ public sealed class InnovationArmor : AbstractSubclass
 
         protected override AttackModeOrder GetOrder(RulesetCharacter character)
         {
-            return character is RulesetCharacterHero hero && hero.HasEmptyMainHand()
+            var hasEmptyMainHand = character switch
+            {
+                RulesetCharacterHero hero => hero.HasEmptyMainHand(),
+                RulesetCharacterSimulacrum duplicate =>
+                    GetEquippedItem(duplicate, EquipmentDefinitions.SlotTypeMainHand) == null,
+                _ => false
+            };
+
+            return hasEmptyMainHand
                 ? AttackModeOrder.Start
                 : base.GetOrder(character);
         }
@@ -479,25 +490,30 @@ public sealed class InnovationArmor : AbstractSubclass
     {
         protected override List<RulesetAttackMode> GetAttackModes(RulesetCharacter character)
         {
-            if (character is not RulesetCharacterHero hero)
+            if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum))
             {
                 return null;
             }
 
             var strikeDefinition = CustomWeaponsContext.LightningLauncher;
-            var attackModifiers = hero.attackModifiers;
-            var attackMode = hero.RefreshAttackMode(
+            var attackMode = character.TryRefreshAttackMode(
                 ActionType,
                 strikeDefinition,
                 strikeDefinition.WeaponDescription,
-                ValidatorsCharacter.IsFreeOffhandVanilla(hero),
+                ValidatorsCharacter.IsFreeOffhandVanilla(character),
                 true,
                 EquipmentDefinitions.SlotTypeMainHand,
-                attackModifiers,
-                hero.FeaturesOrigin
+                GetAttackModifiers(character),
+                character.FeaturesOrigin
             );
 
-            var attacked = hero.HasConditionOfType(CustomWeaponsContext.AttackedWithLauncherConditionName);
+            if (attackMode == null)
+            {
+                return null;
+            }
+
+            var attacked = character.HasConditionOfType(
+                CustomWeaponsContext.AttackedWithLauncherConditionName);
 
             if (!attacked)
             {
@@ -509,7 +525,7 @@ public sealed class InnovationArmor : AbstractSubclass
                 }
             }
 
-            AddArmorBonusesToBuiltinAttack(hero, attackMode);
+            AddArmorBonusesToBuiltinAttack(character, attackMode);
 
             return [attackMode];
         }

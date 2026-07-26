@@ -102,8 +102,8 @@ internal class ReactionRequestWarcaster : ReactionRequest
 
         var rulesetCharacter = character.RulesetCharacter;
 
-        // should not trigger if a wildshape form
-        if (rulesetCharacter is not RulesetCharacterHero)
+        // should not trigger for ordinary monsters or a wildshape form
+        if (rulesetCharacter is not (RulesetCharacterHero or RulesetCharacterSimulacrum))
         {
             return null;
         }

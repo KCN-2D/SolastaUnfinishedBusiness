@@ -1,8 +1,13 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
+using System;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Diagnostics;
+using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityEngine.UI;
@@ -17,6 +22,108 @@ public static class TooltipPanelPatcher
     private static TooltipPanel ActiveTooltipPanel;
     private static readonly List<TooltipPanel> TooltipForegroundPanels = new();
     private static readonly Dictionary<TooltipPanel, TooltipForegroundState> TooltipForegroundStates = new();
+
+    [HarmonyPatch(typeof(TooltipFeatureHeader), nameof(TooltipFeatureHeader.Bind))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class TooltipFeatureHeaderBind_Patch
+    {
+        private static readonly ConditionalWeakTable<Image, RawImage> Portraits = new();
+
+        [UsedImplicitly]
+        public static void Prefix(Image ___image)
+        {
+            Reset(___image);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            ITooltip tooltip,
+            Image ___image,
+            RectTransform ___mask)
+        {
+            if (!___image ||
+                tooltip?.TooltipClass?.StartsWith(
+                    GuiMonsterDefinition.TooltipClassMonsterDefinition,
+                    StringComparison.Ordinal) != true ||
+                tooltip.DataProvider is not IMonsterBasicInfoProvider ||
+                tooltip.DataProvider is ISpellParametersProvider ||
+                GetSimulacrum(tooltip.Context) is not { } duplicate)
+            {
+                return;
+            }
+
+            if (!Portraits.TryGetValue(___image, out var portrait) || !portrait)
+            {
+                var portraitObject = new GameObject(
+                    "SimulacrumPortrait",
+                    typeof(RectTransform),
+                    typeof(CanvasRenderer),
+                    typeof(RawImage));
+                var portraitTransform = portraitObject.GetComponent<RectTransform>();
+
+                portraitTransform.SetParent(
+                    ___mask ? ___mask : ___image.rectTransform.parent,
+                    false);
+                portraitTransform.anchorMin = Vector2.zero;
+                portraitTransform.anchorMax = Vector2.one;
+                portraitTransform.offsetMin = Vector2.zero;
+                portraitTransform.offsetMax = Vector2.zero;
+                portraitTransform.pivot = new Vector2(0.5f, 0.5f);
+                portrait = portraitObject.GetComponent<RawImage>();
+                portrait.raycastTarget = false;
+                Portraits.Remove(___image);
+                Portraits.Add(___image, portrait);
+            }
+
+            portrait.gameObject.SetActive(true);
+            ___image.enabled = false;
+            SimulacrumPortraits.TryAssign(duplicate, portrait);
+        }
+
+        private static RulesetCharacterSimulacrum GetSimulacrum(object context)
+        {
+            return context switch
+            {
+                GameLocationCharacter location =>
+                    location.RulesetCharacter as RulesetCharacterSimulacrum,
+                GuiCharacter guiCharacter =>
+                    guiCharacter.RulesetCharacter as RulesetCharacterSimulacrum,
+                RulesetCharacterSimulacrum duplicate => duplicate,
+                _ => null
+            };
+        }
+
+        private static void Reset(Image image)
+        {
+            if (!image)
+            {
+                return;
+            }
+
+            image.enabled = true;
+
+            if (!Portraits.TryGetValue(image, out var portrait) || !portrait)
+            {
+                return;
+            }
+
+            SimulacrumPortraits.Release(portrait);
+            portrait.gameObject.SetActive(false);
+        }
+    }
+
+    [HarmonyPatch(typeof(TooltipFeatureHeader), nameof(TooltipFeatureHeader.Unbind))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class TooltipFeatureHeaderUnbind_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(Image ___image)
+        {
+            TooltipFeatureHeaderBind_Patch.Prefix(___image);
+        }
+    }
 
     [HarmonyPatch(typeof(TooltipPanel), nameof(TooltipPanel.SetupFeatures))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -175,10 +282,122 @@ public static class TooltipPanelPatcher
     public static class TooltipFeatureSpellParameters_Bind_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(TooltipFeatureSpellParameters __instance)
+        public static void Prefix(ITooltip tooltip, out System.IDisposable __state)
+        {
+            __state = SpellCastingValidation.EnterTooltipRepertoire(tooltip);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            TooltipFeatureSpellParameters __instance,
+            ITooltip tooltip,
+            Image ___verbalComponentMarker,
+            Image ___somaticComponentMarker,
+            Image ___materialComponentMarker,
+            Image ___specificComponentMarker,
+            Color ___validColor,
+            Color ___invalidColor)
         {
             Tooltips.ModifyWidth<TooltipFeatureSpellParamsWidthModifier, TooltipFeatureSpellParameters>(__instance);
             Tooltips.RefreshAdaptiveSpellParameterTopRow(__instance);
+
+            var bypassAllComponents =
+                SpellCastingValidation.TooltipBypassesComponentsAndCastingTime(tooltip);
+            var bypassMaterialComponent =
+                SpellCastingValidation.TooltipBypassesMaterialComponent(tooltip);
+
+            if (bypassAllComponents)
+            {
+                foreach (var marker in new[]
+                         {
+                             ___verbalComponentMarker,
+                             ___somaticComponentMarker,
+                             ___materialComponentMarker,
+                             ___specificComponentMarker
+                         })
+                {
+                    if (marker?.gameObject.activeSelf == true)
+                    {
+                        marker.color = ___validColor;
+                    }
+                }
+
+                SimulacrumDiagnostics.RecordWishTooltipComponentBypass(
+                    (tooltip?.DataProvider as ISpellParametersProvider)?.SpellDefinition);
+            }
+            else if (bypassMaterialComponent)
+            {
+                foreach (var marker in new[]
+                         {
+                             ___materialComponentMarker,
+                             ___specificComponentMarker
+                         })
+                {
+                    if (marker?.gameObject.activeSelf == true)
+                    {
+                        marker.color = ___validColor;
+                    }
+                }
+            }
+
+            var duplicate = tooltip?.Context switch
+            {
+                RulesetCharacterSimulacrum rulesetCharacter => rulesetCharacter,
+                GameLocationCharacter locationCharacter =>
+                    locationCharacter.RulesetCharacter as RulesetCharacterSimulacrum,
+                GuiCharacter guiCharacter =>
+                    guiCharacter.RulesetCharacter as RulesetCharacterSimulacrum,
+                _ => null
+            };
+
+            if (!bypassAllComponents &&
+                !bypassMaterialComponent &&
+                duplicate != null &&
+                tooltip.DataProvider is ISpellParametersProvider provider &&
+                provider.SpellDefinition is { MaterialComponentType: not RuleDefinitions.MaterialComponentType.None }
+                    spellDefinition &&
+                SpellCastingValidation.TryGetTooltipRepertoire(tooltip, out var repertoire))
+            {
+                bool valid;
+
+                // Use the same virtual runtime path as spell activation. A
+                // RulesetCharacterSimulacrum inherits the monster override, and its
+                // Harmony patch applies focus, stacked-cost, dynamic-tag, infusion,
+                // and grapple-hand validation as one result.
+                using (SpellCastingValidation.EnterSelectedRepertoire(repertoire))
+                {
+                    valid = duplicate.IsComponentMaterialValid(
+                        spellDefinition,
+                        out _);
+                }
+
+                var color = valid ? ___validColor : ___invalidColor;
+
+                if (___materialComponentMarker?.gameObject.activeSelf == true)
+                {
+                    ___materialComponentMarker.color = color;
+                }
+
+                if (___specificComponentMarker?.gameObject.activeSelf == true)
+                {
+                    ___specificComponentMarker.color = color;
+                }
+            }
+
+            SimulacrumDiagnostics.RecordMaterialTooltip(
+                tooltip,
+                ___materialComponentMarker,
+                ___invalidColor);
+        }
+
+        [UsedImplicitly]
+        public static System.Exception Finalizer(
+            System.Exception __exception,
+            System.IDisposable __state)
+        {
+            __state?.Dispose();
+
+            return __exception;
         }
     }
 

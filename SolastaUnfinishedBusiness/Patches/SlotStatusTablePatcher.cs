@@ -24,11 +24,11 @@ public static class SlotStatusTablePatcher
             FeatureDefinitionCastSpell featureDefinitionCastSpell,
             RulesetSpellRepertoire rulesetSpellRepertoire)
         {
-            // NPCs cannot be multicasters so try to get a hero here
-            var hero = rulesetSpellRepertoire.GetCaster() as RulesetCharacterHero;
+            var character = rulesetSpellRepertoire.GetCaster();
 
-            //PATCH: displays slots on any multicaster hero so Warlocks can see their spell slots
-            return featureDefinitionCastSpell.UniqueLevelSlots && !SharedSpellsContext.IsMulticaster(hero);
+            // PATCH: display slots on multiclass casters so Warlocks can see their spell slots.
+            return featureDefinitionCastSpell.UniqueLevelSlots &&
+                   !SharedSpellsContext.IsMulticaster(character);
         }
 
         [UsedImplicitly]
@@ -68,9 +68,7 @@ public static class SlotStatusTablePatcher
                 return;
             }
 
-            // NPCs cannot be multicasters so try to get a hero here
-            if (character is not RulesetCharacterHero hero ||
-                !SharedSpellsContext.IsMulticaster(hero))
+            if (!SharedSpellsContext.IsMulticaster(character))
             {
                 //PATCH: support display cost on spell level blocks (SPELL_POINTS)
                 if (!character.IsSpellPointsEnabled() ||
@@ -93,7 +91,7 @@ public static class SlotStatusTablePatcher
             spellRepertoire.GetSlotsNumber(spellLevel, out var totalSlotsRemainingCount, out var totalSlotsCount);
 
             MulticlassGameUi.PaintPactSlots(
-                hero,
+                character,
                 totalSlotsCount,
                 totalSlotsRemainingCount,
                 spellLevel,

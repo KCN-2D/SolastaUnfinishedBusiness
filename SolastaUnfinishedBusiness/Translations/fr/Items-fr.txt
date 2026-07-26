@@ -703,3 +703,6 @@ Item/&Warlock_Armor_Survival_Title=Armure de Survie du Sorcier
 Tooltip/&NoFreeHandToLoadAmmoDescription=Pas de mains libres pour charger les munitions !
 Tooltip/&TagPolearmWeaponTitle=Bras de perche
 Tooltip/&TagReturningWeaponTitle=De retour
+Tooltip/&TagMaterialSimulacrumRubyTitle=Rubis de sang
+Item/&ItemWishCreatedTreasureDescription=Un trésor non magique créé par Souhait, d'une valeur de 25 000 PO.
+Item/&ItemWishCreatedTreasureTitle=Trésor créé par Souhait

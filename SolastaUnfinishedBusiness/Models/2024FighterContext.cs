@@ -425,7 +425,7 @@ public static partial class Tabletop2024Context
             int outcomeDelta,
             List<EffectForm> effectForms)
         {
-            if (rulesetActorDefender is not RulesetCharacterHero rulesetCharacterDefender)
+            if (rulesetActorDefender is not RulesetCharacter rulesetCharacterDefender)
             {
                 return;
             }

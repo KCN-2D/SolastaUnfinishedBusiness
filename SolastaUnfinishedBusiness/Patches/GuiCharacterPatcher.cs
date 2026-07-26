@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection.Emit;
 using System.Text;
@@ -6,7 +6,10 @@ using System.Text.RegularExpressions;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityEngine.UI;
@@ -17,6 +20,91 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GuiCharacterPatcher
 {
+    [HarmonyPatch(typeof(GuiCharacter), nameof(GuiCharacter.Name), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Name_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GuiCharacter __instance, ref string __result)
+        {
+            if (__instance.RulesetCharacter is RulesetCharacterSimulacrum duplicate &&
+                SimulacrumBehavior.TryGetDisplayName(duplicate, out var displayName))
+            {
+                __result = displayName;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiCharacter), nameof(GuiCharacter.FullName), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class FullName_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GuiCharacter __instance, ref string __result)
+        {
+            if (__instance.RulesetCharacter is RulesetCharacterSimulacrum duplicate &&
+                SimulacrumBehavior.TryGetDisplayName(duplicate, out var displayName))
+            {
+                __result = displayName;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiCharacter), nameof(GuiCharacter.RaceTitle), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RaceTitle_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GuiCharacter __instance, ref string __result)
+        {
+            if (__instance.RulesetCharacter is RulesetCharacterSimulacrum duplicate &&
+                SimulacrumBehavior.TryGetHumanoidIdentity(duplicate, out var race, out var subRace))
+            {
+                __result = (subRace ? subRace : race).FormatTitle();
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiCharacter), nameof(GuiCharacter.RaceDescription), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RaceDescription_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GuiCharacter __instance, ref string __result)
+        {
+            if (__instance.RulesetCharacter is RulesetCharacterSimulacrum duplicate &&
+                SimulacrumBehavior.TryGetHumanoidIdentity(duplicate, out var race, out var subRace))
+            {
+                __result = (subRace ? subRace : race).FormatDescription();
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiCharacter), nameof(GuiCharacter.CharacterLevel), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CharacterLevel_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GuiCharacter __instance, ref int __result)
+        {
+            if (__instance.RulesetCharacter is RulesetCharacterSimulacrum duplicate)
+            {
+                var characterLevel =
+                    duplicate.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
+
+                if (characterLevel > 0)
+                {
+                    __result = characterLevel;
+                }
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(GuiCharacter), nameof(GuiCharacter.DisplayUniqueLevelSpellSlots))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -39,17 +127,20 @@ public static class GuiCharacterPatcher
                 return;
             }
 
-            // need to check for not null hero as we don't wanna these slots displayed under WS
-            var hero = __instance.RulesetCharacterHero;
+            // Ordinary substitute monsters have no class slot identity. A Simulacrum
+            // does, and must use the copied Warlock/multiclass repertoires rather than
+            // being treated as a wildshape UI.
+            var character = __instance.RulesetCharacter;
 
-            if (hero != null &&
+            if (character is RulesetCharacterHero or RulesetCharacterSimulacrum &&
                 !(Main.Settings.DisplayPactSlotsOnSpellSelectionPanel &&
                   !Main.Settings.UseAlternateSpellPointsSystem))
             {
                 return;
             }
 
-            if (hero != null && !SharedSpellsContext.IsMulticaster(hero))
+            if (character is RulesetCharacterHero or RulesetCharacterSimulacrum &&
+                !SharedSpellsContext.IsMulticaster(character))
             {
                 return;
             }
@@ -68,15 +159,15 @@ public static class GuiCharacterPatcher
             //PATCH: calculates the Warlock slots number correctly under a MC scenario (MULTICLASS)
             spellRepertoire.GetSlotsNumber(spellLevel, out remaining, out max);
 
-            var hero = guiCharacter.RulesetCharacterHero;
+            var character = guiCharacter.RulesetCharacter;
 
-            if (!SharedSpellsContext.IsMulticaster(hero))
+            if (!SharedSpellsContext.IsMulticaster(character))
             {
                 return;
             }
 
-            max = SharedSpellsContext.GetWarlockMaxSlots(hero);
-            remaining = max - SharedSpellsContext.GetWarlockUsedSlots(hero);
+            max = SharedSpellsContext.GetWarlockMaxSlots(character);
+            remaining = max - SharedSpellsContext.GetWarlockUsedSlots(character);
         }
 
         [UsedImplicitly]
@@ -97,8 +188,18 @@ public static class GuiCharacterPatcher
     public static class MainClassDefinition_Getter_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(ref CharacterClassDefinition __result)
+        public static void Postfix(
+            GuiCharacter __instance,
+            ref CharacterClassDefinition __result)
         {
+            if (__instance.RulesetCharacter is RulesetCharacterSimulacrum duplicate &&
+                SimulacrumBehavior.TryGetPrimaryClass(duplicate, out var primaryClass))
+            {
+                __result = primaryClass;
+
+                return;
+            }
+
             //PATCH: EnableEnhancedCharacterInspection
             // NOTE: don't use SelectedClass??. which bypasses Unity object lifetime check
             var selectedClass = CharacterInspectionScreenEnhancement.SelectedClass;
@@ -355,6 +456,14 @@ public static class GuiCharacterPatcher
                 return;
             }
 
+            // Native DescriptionChanged prepares the monster tooltip after this Prefix. A
+            // Simulacrum therefore replaces its data provider in Postfix, once the native image
+            // provider is available, instead of being overwritten with the shared shell stats.
+            if (__instance.GuiCharacter?.RulesetCharacter is RulesetCharacterSimulacrum)
+            {
+                return;
+            }
+
             if (hero == null || !Main.Settings.EnableStatsOnHeroTooltip)
             {
                 tooltip.TooltipClass = "HeroDescription";
@@ -384,6 +493,161 @@ public static class GuiCharacterPatcher
             tooltip.Content = sb.ToString();
             tooltip.TooltipClass = string.Empty;
         }
+
+        [UsedImplicitly]
+        public static void Postfix(CharacterPlateGame __instance)
+        {
+            SetupSimulacrumTooltip(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterPlateGame), nameof(CharacterPlateGame.DescriptionChanged))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class DescriptionChanged_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(CharacterPlateGame __instance)
+        {
+            SetupSimulacrumTooltip(__instance);
+        }
+    }
+
+    private static void SetupSimulacrumTooltip(CharacterPlateGame characterPlate)
+    {
+        if (characterPlate.GuiCharacter?.RulesetCharacter is not
+            RulesetCharacterSimulacrum duplicate)
+        {
+            return;
+        }
+
+        SetupSimulacrumTooltip(characterPlate.GuiTooltip, duplicate);
+    }
+
+    [HarmonyPatch(typeof(WorldLocationCharacter), nameof(WorldLocationCharacter.DescriptionChanged))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class WorldLocationCharacterDescriptionChanged_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(WorldLocationCharacter __instance)
+        {
+            if (__instance?.GameLocationCharacter?.RulesetCharacter is
+                RulesetCharacterSimulacrum duplicate)
+            {
+                SetupSimulacrumTooltip(__instance.GraphicsTooltip, duplicate);
+            }
+        }
+    }
+
+    private static void SetupSimulacrumTooltip(
+        ITooltip tooltip,
+        RulesetCharacterSimulacrum duplicate)
+    {
+        if (tooltip == null ||
+            ServiceRepository.GetService<IGuiWrapperService>()
+                ?.GetGuiMonsterDefinition(duplicate.MonsterDefinition.Name) is not
+                { } guiMonsterDefinition)
+        {
+            return;
+        }
+
+        var nativeImageProvider = tooltip.DataProvider as IImageProvider;
+
+        if (nativeImageProvider is SimulacrumMonsterTooltipProvider)
+        {
+            return;
+        }
+
+        tooltip.TooltipClass = guiMonsterDefinition.TooltipClass;
+        tooltip.Content = guiMonsterDefinition.Description;
+        tooltip.Context = duplicate;
+        var dataProvider = new SimulacrumMonsterTooltipProvider(
+            guiMonsterDefinition,
+            duplicate,
+            nativeImageProvider);
+
+        tooltip.DataProvider = dataProvider;
+        SimulacrumDiagnostics.RecordTooltip(
+            duplicate,
+            dataProvider.HitPoints,
+            dataProvider.ArmorClass,
+            dataProvider.MoveModesString);
+    }
+
+    private sealed class SimulacrumMonsterTooltipProvider(
+        GuiMonsterDefinition definition,
+        RulesetCharacterSimulacrum character,
+        IImageProvider imageProvider) :
+        ITitleProvider,
+        IImageProvider,
+        IDescriptionProvider,
+        ISubTitleProvider,
+        IMonsterBasicInfoProvider,
+        IMonsterAttacksProvider
+    {
+        private readonly Dictionary<Image, bool> _originalPreserveAspect = [];
+
+        public string Title => definition.Title;
+        public string Subtitle => definition.Subtitle;
+        public string Description => definition.Description;
+        public int ArmorClass => character.TryGetAttributeValue(AttributeDefinitions.ArmorClass);
+        public int HitPoints => character.TryGetAttributeValue(AttributeDefinitions.HitPoints);
+        public int HitPointsUnaltered => HitPoints;
+        public string MoveModesString => Gui.FormatMoveModes(character.MoveModes, character, false, -1);
+        public float ChallengeRating => definition.ChallengeRating;
+        public int KnowledgeLevel => 4;
+        public List<MonsterAttackIteration> AttackIterations => definition.AttackIterations;
+
+        public string GetDisplayName(object context)
+        {
+            return definition.GetDisplayName(context);
+        }
+
+        public void SetupSprite(Image image, object context)
+        {
+            if (image && !_originalPreserveAspect.ContainsKey(image))
+            {
+                _originalPreserveAspect.Add(image, image.preserveAspect);
+            }
+
+            if (imageProvider != null)
+            {
+                imageProvider.SetupSprite(image, context);
+            }
+            else
+            {
+                definition.SetupSprite(image, context);
+            }
+
+            if (image)
+            {
+                image.preserveAspect = true;
+            }
+        }
+
+        public void ReleaseSprite(Image image)
+        {
+            if (imageProvider != null)
+            {
+                imageProvider.ReleaseSprite(image);
+            }
+            else
+            {
+                definition.ReleaseSprite(image);
+            }
+
+            if (image && _originalPreserveAspect.TryGetValue(image, out var preserveAspect))
+            {
+                image.preserveAspect = preserveAspect;
+                _originalPreserveAspect.Remove(image);
+            }
+        }
+
+        public bool CanAccess(BestiaryDefinitions.BestiaryAccess access)
+        {
+            return true;
+        }
     }
 
     //PATCH: supports custom portraits on heroes and monsters
@@ -393,9 +657,45 @@ public static class GuiCharacterPatcher
     public static class AssignPortraitImage_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(GuiCharacter __instance, RawImage portraitImage)
+        public static bool Prefix(
+            GuiCharacter __instance,
+            RawImage portraitImage,
+            RectTransform portraitGroup,
+            RectTransform portraitBack,
+            System.Action response,
+            out bool __state)
         {
-            PortraitsContext.ChangePortrait(__instance, portraitImage);
+            __state = SimulacrumPortraits.TryAssign(__instance, portraitImage);
+
+            if (__state)
+            {
+                CompleteSimulacrumPortraitBinding(
+                    portraitImage,
+                    portraitGroup,
+                    portraitBack,
+                    null,
+                    response);
+            }
+            else
+            {
+                // Character plate images are pooled. Remove a previous Simulacrum binding before
+                // native code reuses this RawImage for its owner or another party member.
+                SimulacrumPortraits.Release(portraitImage);
+            }
+
+            return !__state;
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            GuiCharacter __instance,
+            RawImage portraitImage,
+            bool __state)
+        {
+            if (!__state)
+            {
+                PortraitsContext.ChangePortrait(__instance, portraitImage);
+            }
         }
     }
 
@@ -406,9 +706,77 @@ public static class GuiCharacterPatcher
     public static class AssignActiveCharacterPortraitImage_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(GuiCharacter __instance, RawImage portraitRawImage)
+        public static bool Prefix(
+            GuiCharacter __instance,
+            RawImage portraitRawImage,
+            Image portraitImage,
+            RectTransform portraitGroup,
+            RectTransform portraitBack,
+            System.Action response,
+            out bool __state)
         {
-            PortraitsContext.ChangePortrait(__instance, portraitRawImage);
+            __state = SimulacrumPortraits.TryAssign(
+                __instance,
+                portraitRawImage,
+                true);
+
+            if (__state)
+            {
+                CompleteSimulacrumPortraitBinding(
+                    portraitRawImage,
+                    portraitGroup,
+                    portraitBack,
+                    portraitImage,
+                    response);
+            }
+            else
+            {
+                SimulacrumPortraits.Release(portraitRawImage);
+            }
+
+            return !__state;
         }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            GuiCharacter __instance,
+            RawImage portraitRawImage,
+            bool __state)
+        {
+            if (!__state)
+            {
+                PortraitsContext.ChangePortrait(__instance, portraitRawImage);
+            }
+        }
+    }
+
+    private static void CompleteSimulacrumPortraitBinding(
+        RawImage portraitImage,
+        RectTransform portraitGroup,
+        RectTransform portraitBack,
+        Image alternatePortraitImage,
+        System.Action response)
+    {
+        if (portraitBack)
+        {
+            portraitBack.gameObject.SetActive(false);
+        }
+
+        if (portraitGroup)
+        {
+            portraitGroup.gameObject.SetActive(true);
+        }
+
+        if (portraitImage)
+        {
+            portraitImage.gameObject.SetActive(true);
+        }
+
+        if (alternatePortraitImage)
+        {
+            alternatePortraitImage.gameObject.SetActive(false);
+        }
+
+        response?.Invoke();
     }
 }

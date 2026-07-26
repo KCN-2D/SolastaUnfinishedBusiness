@@ -1,96 +1,104 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
-using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
+using SolastaUnfinishedBusiness.Interfaces;
 
 namespace SolastaUnfinishedBusiness.Behaviors.Specific;
 
 internal static class UpcastConjureElementalAndFey
 {
-    private static List<SpellDefinition> _filteredSubspells;
+    private static readonly ICustomSubspellSelectionProvider Provider = new SelectionProvider();
 
-    /**
-     * Patch implementation
-     * Replaces subspell activation with custom code for upcasted elementals/fey
-     */
-    internal static bool CheckSubSpellActivated(SubspellSelectionModal __instance, int index)
+    internal static ICustomSubspellSelectionProvider TryGetProvider(SpellDefinition masterSpell)
     {
-        if (!Main.Settings.EnableUpcastConjureElementalAndFey || _filteredSubspells is not { Count: > 0 })
+        if (!Main.Settings.EnableUpcastConjureElementalAndFey)
         {
-            return true;
+            return null;
         }
 
-        if (_filteredSubspells.Count <= index)
-        {
-            return true;
-        }
-
-        __instance.spellCastEngaged?.Invoke(
-            __instance.spellRepertoire, _filteredSubspells[index], __instance.slotLevel);
-
-        __instance.Hide();
-
-        _filteredSubspells.Clear();
-
-        return false;
+        return masterSpell.Name == DatabaseHelper.SpellDefinitions.ConjureElemental.Name ||
+               masterSpell.Name == DatabaseHelper.SpellDefinitions.ConjureFey.Name
+            ? Provider
+            : null;
     }
 
-    /**
-     * Patch implementation
-     * Replaces calls to masterSpell.SubspellsList getter with custom method that adds extra options for upcasted elementals/fey
-     */
-    [CanBeNull]
-    internal static List<SpellDefinition> SubspellsList([NotNull] SpellDefinition masterSpell, int slotLevel)
+    internal static List<SpellDefinition> GetSubspells(SpellDefinition masterSpell, int slotLevel)
     {
         var subspellsList = masterSpell.SubspellsList;
-        var mySlotLevel =
-            masterSpell.Name == DatabaseHelper.SpellDefinitions.ConjureElemental.Name ||
-            masterSpell.Name == DatabaseHelper.SpellDefinitions.ConjureFey.Name
-                ? slotLevel
-                : -1;
 
-        if (!Main.Settings.EnableUpcastConjureElementalAndFey || mySlotLevel < 0 || subspellsList == null ||
-            subspellsList.Count == 0)
+        if (subspellsList is not { Count: > 0 })
         {
             return subspellsList;
         }
 
-        var subspellsGroupedAndFilteredByCR = subspellsList
-            .Select(s =>
+        var subspellsGroupedAndFilteredByCr = subspellsList
+            .Select(spell =>
                 new
                 {
-                    SpellDefinition = s,
-                    s.EffectDescription
+                    SpellDefinition = spell,
+                    spell.EffectDescription
                         .GetFirstFormOfType(EffectForm.EffectFormType.Summon)
                         .SummonForm
                         .MonsterDefinitionName
                 })
-            .Select(s => new
+            .Select(spell => new
             {
-                s.SpellDefinition,
-                s.MonsterDefinitionName,
+                spell.SpellDefinition,
                 ChallengeRating =
-                    DatabaseHelper.TryGetDefinition<MonsterDefinition>(s.MonsterDefinitionName,
+                    DatabaseHelper.TryGetDefinition<MonsterDefinition>(
+                        spell.MonsterDefinitionName,
                         out var monsterDefinition)
                         ? monsterDefinition.ChallengeRating
                         : int.MaxValue
             })
-            .GroupBy(s => s.ChallengeRating)
-            .Select(g => new
+            .GroupBy(spell => spell.ChallengeRating)
+            .Select(group => new
             {
-                ChallengeRating = g.Key,
-                SpellDefinitions = g.Select(s => s.SpellDefinition)
-                    .OrderBy(s => Gui.Localize(s.GuiPresentation.Title))
+                ChallengeRating = group.Key,
+                SpellDefinitions = group
+                    .Select(spell => spell.SpellDefinition)
+                    .OrderBy(spell => spell.Name, System.StringComparer.Ordinal)
             })
-            .Where(s => s.ChallengeRating <= mySlotLevel)
-            .OrderByDescending(s => s.ChallengeRating);
+            .Where(group => group.ChallengeRating <= slotLevel)
+            .OrderByDescending(group => group.ChallengeRating);
 
         var allOrMostPowerful = Main.Settings.OnlyShowMostPowerfulUpcastConjuredElementalOrFey
-            ? subspellsGroupedAndFilteredByCR.Take(1)
-            : subspellsGroupedAndFilteredByCR;
+            ? subspellsGroupedAndFilteredByCr.Take(1)
+            : subspellsGroupedAndFilteredByCr;
 
-        _filteredSubspells = allOrMostPowerful.SelectMany(s => s.SpellDefinitions).ToList();
+        return allOrMostPowerful.SelectMany(group => group.SpellDefinitions).ToList();
+    }
 
-        return _filteredSubspells;
+    private sealed class SelectionProvider : ICustomSubspellSelectionProvider
+    {
+        public ICustomSubspellSelectionSession CreateSession(
+            SpellDefinition masterSpell,
+            RulesetCharacter caster,
+            RulesetSpellRepertoire repertoire,
+            int slotLevel)
+        {
+            return new SelectionSession(GetSubspells(masterSpell, slotLevel));
+        }
+    }
+
+    private sealed class SelectionSession(List<SpellDefinition> subspells) : ICustomSubspellSelectionSession
+    {
+        public List<SpellDefinition> GetSubspells()
+        {
+            return subspells;
+        }
+
+        public bool OnActivate(SubspellSelectionModal modal, int index)
+        {
+            if (index < 0 || index >= subspells.Count)
+            {
+                return true;
+            }
+
+            modal.spellCastEngaged?.Invoke(modal.spellRepertoire, subspells[index], modal.slotLevel);
+            modal.Hide();
+
+            return false;
+        }
     }
 }

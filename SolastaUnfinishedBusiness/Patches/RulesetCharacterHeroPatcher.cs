@@ -773,62 +773,6 @@ public static class RulesetCharacterHeroPatcher
             return weaponDescription.WeaponTags.Where(x => x != "TwoHanded").ToList();
         }
 
-        private static void HandleFollowUpStrike(RulesetCharacterHero rulesetCharacterHero)
-        {
-            var mainHandInventorySlot =
-                rulesetCharacterHero.CharacterInventory.InventorySlotsByType[EquipmentDefinitions.SlotTypeMainHand][0];
-            var equipedItem = mainHandInventorySlot.EquipedItem;
-            var itemDefinition = mainHandInventorySlot.EquipedItem?.ItemDefinition;
-            var weaponDescription = itemDefinition?.WeaponDescription;
-
-            if (weaponDescription == null ||
-                !weaponDescription.WeaponTags.Contains("TwoHanded") ||
-                weaponDescription.WeaponTypeDefinition.WeaponProximity != AttackProximity.Melee ||
-                rulesetCharacterHero.ExecutedAttacks == 0)
-            {
-                return;
-            }
-
-            foreach (var attackModifier in rulesetCharacterHero.attackModifiers)
-            {
-                if (!attackModifier.FollowUpStrike)
-                {
-                    continue;
-                }
-
-                var attackMode = rulesetCharacterHero.RefreshAttackMode(
-                    ActionDefinitions.ActionType.Bonus,
-                    itemDefinition,
-                    weaponDescription,
-                    false,
-                    attackModifier.FollowUpAddAbilityBonus,
-                    mainHandInventorySlot.Name,
-                    rulesetCharacterHero.attackModifiers,
-                    rulesetCharacterHero.FeaturesOrigin,
-                    equipedItem);
-
-                var effectDamageForms = attackMode.EffectDescription.EffectForms
-                    .Where(x => x.FormType == EffectForm.EffectFormType.Damage)
-                    .ToList();
-
-                if (effectDamageForms.Count != 0)
-                {
-                    effectDamageForms[0] = EffectForm.GetCopy(effectDamageForms[0]);
-                    effectDamageForms[0].DamageForm.DieType = attackModifier.FollowUpDamageDie;
-                    effectDamageForms[0].DamageForm.DiceNumber = 1;
-                }
-
-                if (!Main.Settings.AccountForAllDiceOnFollowUpStrike &&
-                    effectDamageForms.Count > 1)
-                {
-                    effectDamageForms.RemoveRange(1, effectDamageForms.Count - 1);
-                }
-
-                attackMode.EffectDescription.EffectForms.SetRange(effectDamageForms);
-                rulesetCharacterHero.AttackModes.Add(attackMode);
-            }
-        }
-
         [UsedImplicitly]
         public static void Prefix(ref bool callRefresh)
         {
@@ -842,7 +786,10 @@ public static class RulesetCharacterHeroPatcher
         public static void Postfix(RulesetCharacterHero __instance)
         {
             //PATCH: supports AccountForAllDiceOnFollowUpStrike
-            HandleFollowUpStrike(__instance);
+            CustomWeaponsContext.AddFollowUpStrikeAttackModes(
+                __instance,
+                __instance.attackModifiers,
+                __instance.FeaturesOrigin);
 
             //PATCH: Allows adding extra attack modes
             __instance.GetSubFeaturesByType<IAddExtraAttack>()
@@ -962,6 +909,8 @@ public static class RulesetCharacterHeroPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacterHero __instance)
         {
+            Tabletop2024Context.SynchronizeRitualCastingFeatures(__instance);
+
             //PATCH: allow power use validators to work on permanent (aura) powers
             __instance.UpdatePermanentPowersAsNeeded();
         }
@@ -1362,97 +1311,10 @@ public static class RulesetCharacterHeroPatcher
             bool includeContainer,
             bool ignoreActivationTimeChecks = false)
         {
-            __result = EnumerateAvailableDevices(__instance, includeContainer, ignoreActivationTimeChecks);
+            __result = __instance.EnumerateInventoryDevices(
+                includeContainer,
+                ignoreActivationTimeChecks);
             return false;
-        }
-
-        private static IEnumerable<RulesetItemDevice> EnumerateAvailableDevices(
-            RulesetCharacterHero hero,
-            bool includeContainer,
-            bool ignoreActivationTimeChecks = false)
-        {
-            //Mostly copied from the original method, but making sure there are no repeated devices and added support for `PowerPoolDevice`
-            //original code could return same device twice if it was held in off-hand with empty main hand, and you switch to the Lighting weapon config with no torch equipped
-
-            List<RulesetItemDevice> devices = [];
-            var service = ServiceRepository.GetService<IGameLocationBattleService>();
-            var inBattle = service is { IsBattleInProgress: true };
-            if (hero.UsableDeviceFromMenu != null)
-            {
-                devices.TryAdd(hero.UsableDeviceFromMenu);
-            }
-            else
-            {
-                var characterInventory = hero.characterInventory;
-                var item = characterInventory.InventorySlotsByName[EquipmentDefinitions.SlotTypeMainHand].EquipedItem;
-                if (item != null
-                    && item.ItemDefinition != null
-                    && item.ItemDefinition.SlotsWhereActive.Contains(EquipmentDefinitions.SlotTypeMainHand)
-                    && item.ItemDefinition.IsUsableDevice
-                    && item is RulesetItemDevice { HasUsableFunctions: true } device1
-                    && device1.IsAnyFunctionAvailable(hero, inBattle, false, false, ignoreActivationTimeChecks))
-                {
-                    devices.TryAdd(device1);
-                }
-
-                item = characterInventory.InventorySlotsByName[EquipmentDefinitions.SlotTypeOffHand].EquipedItem;
-                if (item != null
-                    && item.ItemDefinition != null
-                    && item.ItemDefinition.SlotsWhereActive.Contains(EquipmentDefinitions.SlotTypeOffHand)
-                    && item.ItemDefinition.IsUsableDevice
-                    && item is RulesetItemDevice { HasUsableFunctions: true } device2)
-                {
-                    devices.TryAdd(device2);
-                }
-
-                foreach (var kvp in characterInventory.InventorySlotsByType)
-                {
-                    if (kvp.Key == EquipmentDefinitions.SlotTypeMainHand
-                        || kvp.Key == EquipmentDefinitions.SlotTypeOffHand)
-                    {
-                        continue;
-                    }
-
-                    foreach (var rulesetInventorySlot in kvp.Value)
-                    {
-                        item = rulesetInventorySlot.EquipedItem;
-                        if (item != null
-                            && item.ItemDefinition != null
-                            && item.ItemDefinition.SlotsWhereActive.Contains(kvp.Key)
-                            && item.ItemDefinition.IsUsableDevice
-                            && item is RulesetItemDevice { HasUsableFunctions: true } device3
-                            && device3.IsAnyFunctionAvailable(hero, inBattle, false, false, ignoreActivationTimeChecks))
-                        {
-                            devices.TryAdd(device3);
-                        }
-                    }
-                }
-
-                if (includeContainer)
-                {
-                    foreach (var inventorySlot in characterInventory.PersonalContainer.InventorySlots)
-                    {
-                        item = inventorySlot.EquipedItem;
-                        if (item != null
-                            && item.ItemDefinition != null
-                            && item.ItemDefinition.IsUsableDevice
-                            && item is RulesetItemDevice { HasUsableFunctions: true } device4
-                            && device4.IsAnyFunctionAvailable(hero, inBattle, false, false, ignoreActivationTimeChecks))
-                        {
-                            devices.TryAdd(device4);
-                        }
-                    }
-                }
-
-                //PATCH: enabled `PowerPoolDevice` by adding fake device to hero's usable devices list
-                var providers = hero.GetSubFeaturesByType<PowerPoolDevice>();
-                if (providers.Count != 0)
-                {
-                    devices.TryAddRange(providers.Select(provider => provider.GetDevice(hero)));
-                }
-            }
-
-            return devices;
         }
     }
 
@@ -1545,6 +1407,8 @@ public static class RulesetCharacterHeroPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacterHero __instance)
         {
+            __instance.GetSubFeaturesByType<IOnCharacterEquipmentChanged>()
+                .ForEach(f => f.OnCharacterEquipmentChanged(__instance));
             __instance.GetSubFeaturesByType<IOnItemEquipped>()
                 .ForEach(f => f.OnItemEquipped(__instance));
 
@@ -1671,22 +1535,7 @@ public static class RulesetCharacterHeroPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacterHero __instance, ref string __result, RulesetAttackMode mode)
         {
-            var currentAmmunitionSlot = __instance.CharacterInventory.GetCurrentAmmunitionSlot(__result);
-
-            // only standard ammunition
-            if (currentAmmunitionSlot?.EquipedItem == null ||
-                !currentAmmunitionSlot.EquipedItem.ItemDefinition ||
-                currentAmmunitionSlot.EquipedItem.ItemDefinition.AmmunitionDescription?.EffectDescription == null ||
-                currentAmmunitionSlot.EquipedItem.ItemDefinition.AmmunitionDescription.EffectDescription
-                    .FindFirstDamageForm() != null)
-            {
-                return;
-            }
-
-            if (RepeatingShot.HasRepeatingShot(mode.sourceObject as RulesetItem))
-            {
-                __result = string.Empty;
-            }
+            RepeatingShot.IgnoreStandardAmmunition(__instance, mode, ref __result);
         }
     }
 

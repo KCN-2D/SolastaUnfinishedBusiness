@@ -981,9 +981,7 @@ internal static class OtherFeats
         RulesetCharacter defender,
         ref string sourceConditionName)
     {
-        var hero = attacker.GetOriginalHero();
-
-        if (HasGrapplerFeat(hero))
+        if (HasGrapplerFeat(attacker))
         {
             sourceConditionName =
                 attacker.SizeDefinition.WieldingSize < defender.SizeDefinition.WieldingSize
@@ -992,14 +990,12 @@ internal static class OtherFeats
         }
     }
 
-    private static bool HasGrapplerFeat(RulesetCharacterHero hero)
+    private static bool HasGrapplerFeat(RulesetCharacter character)
     {
         var allowEquivalent2024 = Main.Settings.EnableTabletopFeatRules2024;
+        var hero = character?.GetOriginalHero();
 
-        return hero?.TrainedFeats?.Any(feat =>
-                   feat == FeatGrappler ||
-                   allowEquivalent2024 &&
-                   Tabletop2024Context.AreEquivalentTabletopFeatNames(feat.Name, FeatGrappler.Name)) == true ||
+        return Tabletop2024Context.HasEquivalentTrainedFeat(character, FeatGrappler) ||
                hero?.FeatProficiencies?.Any(featName =>
                    featName == FeatGrappler.Name ||
                    allowEquivalent2024 &&
@@ -1077,10 +1073,8 @@ internal static class OtherFeats
 
         var actingCharacter = action.ActingCharacter;
         var rulesetCharacter = actingCharacter.RulesetCharacter;
-        var rulesetHero = rulesetCharacter.GetOriginalHero();
 
-        if (rulesetHero == null ||
-            !Tabletop2024Context.HasEquivalentTrainedFeat(rulesetHero, FeatStealthy))
+        if (!Tabletop2024Context.HasEquivalentTrainedFeat(rulesetCharacter, FeatStealthy))
         {
             return;
         }
@@ -3188,7 +3182,7 @@ internal static class OtherFeats
                     .SetCastingModifiers(0, SpellParamsModifierType.FlatValue, 0,
                         SpellParamsModifierType.None)
                     .SetConcentrationModifiers(ConcentrationAffinity.Advantage)
-                    .SetHandsFullCastingModifiers(true, true, true)
+                    .SetHandsFullCastingModifiers(true, true)
                     .AddToDB())
             .SetMustCastSpellsPrerequisite()
             .AddCustomSubFeatures(WarCasterMarker.Mark)

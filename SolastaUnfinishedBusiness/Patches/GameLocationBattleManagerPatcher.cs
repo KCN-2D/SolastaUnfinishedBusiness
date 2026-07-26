@@ -774,6 +774,12 @@ public static class GameLocationBattleManagerPatcher
                 yield return values.Current;
             }
 
+            foreach (var handler in downedCreature.RulesetActor.GetSubFeaturesByType<IOnReducedToZeroHp>())
+            {
+                yield return handler.HandleReducedToZeroHp(
+                    attacker, downedCreature, rulesetAttackMode, activeEffect);
+            }
+
             if (__instance.Battle == null)
             {
                 yield break;
@@ -852,20 +858,17 @@ public static class GameLocationBattleManagerPatcher
                         criticalHit);
                 }
 
-                // supports metamagic use cases
-                var hero = controller.RulesetCharacter.GetOriginalHero();
-
-                if (hero != null)
+                // supports metamagic use cases, including snapshotted Simulacrum identities
+                foreach (var magicEffectBeforeHitConfirmedOnEnemy in SimulacrumBehavior
+                             .EnumerateTrainedMetamagicOptions(controller.RulesetCharacter)
+                             .SelectMany(metamagic =>
+                                 metamagic.GetAllSubFeaturesOfType<
+                                     IMagicEffectBeforeHitConfirmedOnEnemy>()))
                 {
-                    foreach (var magicEffectBeforeHitConfirmedOnEnemy in hero.TrainedMetamagicOptions
-                                 .SelectMany(metamagic =>
-                                     metamagic.GetAllSubFeaturesOfType<IMagicEffectBeforeHitConfirmedOnEnemy>()))
-                    {
-                        yield return magicEffectBeforeHitConfirmedOnEnemy.OnMagicEffectBeforeHitConfirmedOnEnemy(
-                            __instance, controller, defender, magicModifier, rulesetEffect, actualEffectForms,
-                            firstTarget,
-                            criticalHit);
-                    }
+                    yield return magicEffectBeforeHitConfirmedOnEnemy.OnMagicEffectBeforeHitConfirmedOnEnemy(
+                        __instance, controller, defender, magicModifier, rulesetEffect, actualEffectForms,
+                        firstTarget,
+                        criticalHit);
                 }
 
                 if (rulesetEffect is { SourceDefinition: SpellDefinition spellDefinition })
@@ -967,7 +970,12 @@ public static class GameLocationBattleManagerPatcher
 
             // This also allows utilities out of battle
             var characterService = ServiceRepository.GetService<IGameLocationCharacterService>();
-            var allyCharacters = characterService.PartyCharacters.Select(x => x.RulesetCharacter);
+            var allyCharacters = characterService.PartyCharacters
+                .Union(characterService.GuestCharacters)
+                .Select(x => x.RulesetCharacter);
+            var observedSpellDefinition = selectEffectSpell == null
+                ? selectedSpellDefinition
+                : RulesetEffectSpellWithOrigin.GetOriginSpell(selectEffectSpell);
 
             foreach (var allyCharacter in allyCharacters.Where(x => x is { IsDeadOrDyingOrUnconscious: false }))
             {
@@ -978,7 +986,7 @@ public static class GameLocationBattleManagerPatcher
                 {
                     yield return magicalAttackCastedSpell.OnSpellCasted(
                         allyCharacter, caster, castAction, selectEffectSpell, selectedRepertoire,
-                        selectedSpellDefinition);
+                        observedSpellDefinition);
                 }
             }
 
@@ -989,8 +997,9 @@ public static class GameLocationBattleManagerPatcher
                 foreach (var ally in Gui.Battle.GetContenders(caster, withinRange: 1)
                              .Where(x =>
                                  x.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } rulesetCharacter &&
-                                 rulesetCharacter.GetOriginalHero() is { } rulesetCharacterHero &&
-                                 rulesetCharacterHero.TrainedFeats.Contains(OtherFeats.FeatMageSlayer)))
+                                 SimulacrumBehavior.HasTrainedFeat(
+                                     rulesetCharacter,
+                                     OtherFeats.FeatMageSlayer)))
                 {
                     yield return
                         OtherFeats.CustomBehaviorMageSlayer.HandleEnemyCastSpellWithin5Ft(caster, ally);

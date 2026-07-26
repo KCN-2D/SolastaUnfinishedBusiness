@@ -252,19 +252,21 @@ internal static class CustomItemsContext
 
     internal static bool IsAttackModeInvalid(RulesetCharacter character, RulesetAttackMode mode)
     {
-        if (character is not RulesetCharacterHero hero)
+        if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum))
         {
             return false;
         }
 
-        return IsHandCrossbowUseInvalid(mode.sourceObject as RulesetItem, hero,
-            hero.GetItemInSlot(EquipmentDefinitions.SlotTypeMainHand),
-            hero.GetItemInSlot(EquipmentDefinitions.SlotTypeOffHand));
+        return IsHandCrossbowUseInvalid(
+            mode.sourceObject as RulesetItem,
+            character,
+            character.GetItemInSlot(EquipmentDefinitions.SlotTypeMainHand),
+            character.GetItemInSlot(EquipmentDefinitions.SlotTypeOffHand));
     }
 
     internal static bool IsHandCrossbowUseInvalid(
         RulesetItem item,
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         RulesetItem main,
         RulesetItem off)
     {
@@ -273,13 +275,13 @@ internal static class CustomItemsContext
             return false;
         }
 
-        if (item == null || hero == null)
+        if (item == null || character == null)
         {
             return false;
         }
 
         Tags.Clear();
-        item.FillTags(Tags, hero, true);
+        item.FillTags(Tags, character, true);
 
         if (!Tags.ContainsKey(TagsDefinitions.WeaponTagAmmunition) ||
             Tags.ContainsKey(TagsDefinitions.WeaponTagTwoHanded))
@@ -308,13 +310,7 @@ internal static class CustomItemsContext
 
         public bool CanUsePower(RulesetCharacter character, FeatureDefinitionPower power)
         {
-            //does this work properly for wild-shaped heroes?
-            if (character is not RulesetCharacterHero hero)
-            {
-                return false;
-            }
-
-            return Main.Settings.IdentifyAfterRest && hero.HasNonIdentifiedItems();
+            return Main.Settings.IdentifyAfterRest && HasNonIdentifiedItems(character);
         }
     }
 
@@ -324,12 +320,53 @@ internal static class CustomItemsContext
 
         public void OnConditionAdded(RulesetCharacter target, RulesetCondition rulesetCondition)
         {
-            target.GetOriginalHero()?.AutoIdentifyInventoryItems();
+            AutoIdentifyInventoryItems(target);
         }
 
         public void OnConditionRemoved(RulesetCharacter target, RulesetCondition rulesetCondition)
         {
             // empty
+        }
+    }
+
+    private static bool HasNonIdentifiedItems(RulesetCharacter character)
+    {
+        if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum) ||
+            character.CharacterInventory == null)
+        {
+            return false;
+        }
+
+        var items = new List<RulesetItem>();
+
+        character.CharacterInventory.EnumerateAllItems(items);
+
+        return items.Any(item => item.NeedsIdentification());
+    }
+
+    private static void AutoIdentifyInventoryItems(RulesetCharacter character)
+    {
+        if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum) ||
+            character.CharacterInventory == null)
+        {
+            return;
+        }
+
+        var items = new List<RulesetItem>();
+        var loreService = ServiceRepository.GetService<IGameLoreService>();
+
+        character.CharacterInventory.EnumerateAllItems(items);
+
+        foreach (var item in items.Where(item => item.NeedsIdentification()))
+        {
+            if (loreService != null)
+            {
+                loreService.IdentifyItem(character, item, true);
+            }
+            else
+            {
+                item.Identified = true;
+            }
         }
     }
 

@@ -1,4 +1,5 @@
-﻿using System.Linq;
+using System;
+using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
@@ -39,7 +40,7 @@ internal static class PowerProvider
         //Update properties to match actor
         UpdateUses(actor, result);
         UpdateSaveDc(actor, result);
-        UpdatePoolUses(actor, result);
+        UpdateSharedPoolRemainingUses(actor, result);
 
         return result;
     }
@@ -54,9 +55,28 @@ internal static class PowerProvider
             return;
         }
 
-        var powerDefinition = usablePower.powerDefinition;
+        if (actor != null)
+        {
+            BindUsesAttribute(actor, usablePower);
+        }
+        usablePower.Recharge();
+    }
 
-        var attributeName = powerDefinition.RechargeRate switch
+    internal static void BindUsesAttribute(
+        RulesetCharacter actor,
+        RulesetUsablePower usablePower)
+    {
+        var attributeName = GetUsesAttributeName(usablePower.powerDefinition);
+
+        if (!string.IsNullOrEmpty(attributeName))
+        {
+            usablePower.UsesAttribute = actor.GetAttribute(attributeName);
+        }
+    }
+
+    internal static string GetUsesAttributeName(FeatureDefinitionPower powerDefinition)
+    {
+        return powerDefinition?.RechargeRate switch
         {
             RechargeRate.ChannelDivinity => AttributeDefinitions.ChannelDivinityNumber,
             RechargeRate.HealingPool => AttributeDefinitions.HealingPool,
@@ -70,34 +90,96 @@ internal static class PowerProvider
                 _ => null
             }
         };
-        if (!string.IsNullOrEmpty(attributeName))
-        {
-            usablePower.UsesAttribute = actor.GetAttribute(attributeName);
-        }
-
-        usablePower.Recharge();
     }
 
-    private static void UpdatePoolUses([CanBeNull] RulesetCharacter character, RulesetUsablePower usablePower)
+    internal static int GetEffectiveMaxUses(
+        RulesetCharacter actor,
+        RulesetUsablePower usablePower)
     {
-        if (character == null)
+        if (usablePower?.PowerDefinition == null)
+        {
+            return 0;
+        }
+
+        BindUsesAttribute(actor, usablePower);
+
+        if (usablePower.PowerDefinition is FeatureDefinitionPowerSharedPool)
+        {
+            return TryGetSharedPoolUses(actor, usablePower, out var maxUses, out _)
+                ? maxUses
+                : 0;
+        }
+
+        return Math.Max(
+            0,
+            actor?.GetMaxUsesOfPower(usablePower) ?? usablePower.MaxUses);
+    }
+
+    internal static void RestoreRemainingUses(
+        RulesetCharacter actor,
+        RulesetUsablePower usablePower,
+        int capturedMaxUses,
+        int capturedRemainingUses)
+    {
+        if (usablePower?.PowerDefinition == null)
         {
             return;
+        }
+
+        if (usablePower.PowerDefinition is FeatureDefinitionPowerSharedPool)
+        {
+            // Shared powers mirror their root pool and never own an independent
+            // resource count.
+            UpdateSharedPoolRemainingUses(actor, usablePower);
+
+            return;
+        }
+
+        var effectiveMaxUses = GetEffectiveMaxUses(actor, usablePower);
+
+        usablePower.remainingUses = Math.Min(
+            Math.Min(Math.Max(0, capturedRemainingUses), Math.Max(0, capturedMaxUses)),
+            effectiveMaxUses);
+    }
+
+    private static void UpdateSharedPoolRemainingUses(
+        [CanBeNull] RulesetCharacter character,
+        RulesetUsablePower usablePower)
+    {
+        if (TryGetSharedPoolUses(character, usablePower, out _, out var remainingUses))
+        {
+            usablePower.remainingUses = remainingUses;
+        }
+    }
+
+    private static bool TryGetSharedPoolUses(
+        [CanBeNull] RulesetCharacter character,
+        RulesetUsablePower usablePower,
+        out int maxUses,
+        out int remainingUses)
+    {
+        maxUses = 0;
+        remainingUses = 0;
+
+        if (character == null ||
+            usablePower?.PowerDefinition is not FeatureDefinitionPowerSharedPool)
+        {
+            return false;
         }
 
         var pool = PowerBundle.GetPoolPower(usablePower, character);
 
-        if (pool == null ||
-            pool == usablePower)
+        if (pool == null || pool == usablePower)
         {
-            return;
+            return false;
         }
 
-        var powerCost = usablePower.PowerDefinition.CostPerUse;
-        var maxUsesForPool = character.GetMaxUsesOfPower(usablePower);
+        var powerCost = Math.Max(1, usablePower.PowerDefinition.CostPerUse);
 
-        usablePower.maxUses = maxUsesForPool / powerCost;
-        usablePower.remainingUses = pool.RemainingUses / powerCost;
+        maxUses = Math.Max(0, character.GetMaxUsesOfPower(pool) / powerCost);
+        remainingUses = Math.Min(maxUses, Math.Max(0, pool.RemainingUses / powerCost));
+
+        return true;
     }
 
     internal static void UpdateSaveDc(

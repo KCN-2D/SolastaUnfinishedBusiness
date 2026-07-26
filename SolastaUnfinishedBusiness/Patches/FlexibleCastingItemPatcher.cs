@@ -1,9 +1,11 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -24,7 +26,32 @@ public static class FlexibleCastingItemPatcher
         {
             //PATCH: creates different slots colors and pop up messages depending on slot types (MULTICLASS)
             var flexibleCastingModal = __instance.GetComponentInParent<FlexibleCastingModal>();
-            var hero = flexibleCastingModal.caster.GetOriginalHero();
+            var caster = flexibleCastingModal.caster;
+
+            if (caster is RulesetCharacterSimulacrum duplicate)
+            {
+                var isMulticaster = duplicate.SpellRepertoires.Count(repertoire =>
+                    repertoire?.SpellCastingFeature != null &&
+                    repertoire.SpellCastingFeature.SpellCastingOrigin !=
+                    FeatureDefinitionCastSpell.CastingOrigin.Race) > 1;
+
+                if (!isMulticaster)
+                {
+                    if (duplicate.GetClassSpellRepertoire(Warlock) == null)
+                    {
+                        SpellPointsContext.HideSpellSlots(duplicate, __instance.slotStatusTable);
+                    }
+
+                    return;
+                }
+
+                MulticlassGameUi.PaintPactSlotsAlternate(
+                    duplicate, maxSlots, remainingSlots, slotLevel, __instance.slotStatusTable);
+
+                return;
+            }
+
+            var hero = caster.GetOriginalHero();
 
             if (hero == null)
             {

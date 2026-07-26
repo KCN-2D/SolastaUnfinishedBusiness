@@ -20,6 +20,76 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterActionCastSpellPatcher
 {
+    [HarmonyPatch(typeof(CharacterActionCastSpell), nameof(CharacterActionCastSpell.SpendMagicEffectUses))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class SpendMagicEffectUses_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterActionCastSpell __instance, out bool __state)
+        {
+            __state = __instance.ActingCharacter.UsedMainCantrip;
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(CharacterActionCastSpell __instance, bool __state)
+        {
+            if (__instance.ActionId != ActionDefinitions.Id.CastMain ||
+                __instance.ActiveSpell is not RulesetEffectSpellWithOrigin activeSpell ||
+                RulesetEffectSpellWithOrigin.GetOriginSpell(activeSpell).SpellLevel <= 0 ||
+                activeSpell.SpellDefinition.SpellLevel > 0)
+            {
+                return;
+            }
+
+            __instance.ActingCharacter.UsedMainSpell = true;
+            __instance.ActingCharacter.UsedMainCantrip = __state;
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterActionCastSpell), nameof(CharacterActionCastSpell.HandleSpecialCastingTime))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class HandleSpecialCastingTime_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(ref IEnumerator __result, CharacterActionCastSpell __instance)
+        {
+            if (__instance.ActiveSpell is RulesetEffectSpellWithOrigin
+                {
+                    BypassComponentsAndCastingTime: true
+                })
+            {
+                __result = Empty();
+                return false;
+            }
+
+            var customCastingTime = __instance.ActiveSpell?.SpellDefinition
+                ?.GetFirstSubFeatureOfType<CustomSpellCastingTime>();
+
+            if (customCastingTime == null)
+            {
+                return true;
+            }
+
+            var restingService = ServiceRepository.GetService<IGameRestingService>();
+
+            if (restingService == null)
+            {
+                return true;
+            }
+
+            __result = restingService.ExecuteCampSequence(customCastingTime.DurationSeconds);
+
+            return false;
+        }
+
+        private static IEnumerator Empty()
+        {
+            yield break;
+        }
+    }
+
     private static bool RequiresConcentration(
         SpellDefinition spellDefinition,
         CharacterActionCastSpell characterActionCastSpell)
@@ -174,8 +244,8 @@ public static class CharacterActionCastSpellPatcher
             var actionParams = characterActionCastSpell.ActionParams;
             var targetActionParams = targetAction.ActionParams;
             var counteredSpell = targetActionParams.RulesetEffect as RulesetEffectSpell;
-            var counteredSpellDefinition = counteredSpell!.SpellDefinition;
-            var slotLevel = counteredSpell.SlotLevel;
+            var counteredSpellDefinition = RulesetEffectSpellWithOrigin.GetOriginSpell(counteredSpell!);
+            var slotLevel = RulesetEffectSpellWithOrigin.GetResourceSlotLevel(counteredSpell);
             var actionModifier = actionParams.ActionModifiers[0];
 
             foreach (var counterForm in actionParams.RulesetEffect.EffectDescription.EffectForms

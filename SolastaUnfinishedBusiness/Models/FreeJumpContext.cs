@@ -2637,6 +2637,16 @@ internal static class FreeJumpContext
 
     private static bool CanFreeJumpCharacterAct(GameLocationCharacter character)
     {
+        var rulesetCharacter = character?.RulesetCharacter;
+
+        if (rulesetCharacter == null ||
+            !rulesetCharacter.TryGetAttribute(AttributeDefinitions.Strength, out _) ||
+            rulesetCharacter is RulesetCharacterEffectProxy proxy &&
+            proxy.EffectProxyDefinition?.CanMove != true)
+        {
+            return false;
+        }
+
         if (IsUnableToAct(character))
         {
             return false;
@@ -2736,7 +2746,14 @@ internal static class FreeJumpContext
             return false;
         }
 
-        var strength = rulesetCharacter.TryGetAttributeValue(AttributeDefinitions.Strength);
+        if (!rulesetCharacter.TryGetAttribute(
+                AttributeDefinitions.Strength,
+                out var strengthAttribute))
+        {
+            return false;
+        }
+
+        var strength = strengthAttribute.CurrentValue;
         var strengthModifier = AttributeDefinitions.ComputeAbilityScoreModifier(strength);
         var athleticsBonus = rulesetCharacter.ComputeBaseAbilityCheckBonus(
             AttributeDefinitions.Strength, null, SkillDefinitions.Athletics);

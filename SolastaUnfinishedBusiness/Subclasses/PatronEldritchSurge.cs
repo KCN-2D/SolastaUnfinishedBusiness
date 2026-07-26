@@ -175,6 +175,13 @@ public class PatronEldritchSurge : AbstractSubclass
         return 1 + BeamIncreaseDeterminationThresholds.Count(level => determination >= level);
     }
 
+    private static RulesetCharacter GetStateOwner(RulesetCharacter character)
+    {
+        return character.TryGetShapeChangeOriginalHero(out var shapeChangeHero)
+            ? shapeChangeHero
+            : character;
+    }
+
     private class VersatilitySwitchCustom(string replacedAbilityScore) : IPowerOrSpellFinishedByMe
     {
         private string ReplacedAbilityScore { get; } = replacedAbilityScore;
@@ -183,14 +190,18 @@ public class PatronEldritchSurge : AbstractSubclass
         {
             var rulesetCharacter = action.ActingCharacter.RulesetCharacter;
 
-            rulesetCharacter.GetVersatilitySupportCondition(out var supportCondition);
+            if (!rulesetCharacter.GetVersatilitySupportCondition(out var supportCondition))
+            {
+                yield break;
+            }
+
             supportCondition.ReplacedAbilityScore = ReplacedAbilityScore;
-            supportCondition.ModifyAttributeScores(rulesetCharacter.GetOriginalHero(), ReplacedAbilityScore);
+            supportCondition.ModifyAttributeScores(rulesetCharacter, ReplacedAbilityScore);
 
             // Auto recharge out of combat
             if (Gui.Battle is null)
             {
-                rulesetCharacter.GetOriginalHero()!.UsablePowers.DoIf(x =>
+                GetStateOwner(rulesetCharacter).UsablePowers.DoIf(x =>
                         x.PowerDefinition == PowerVersatilitySwitch,
                     y => y.Recharge());
             }
@@ -216,15 +227,9 @@ public class PatronEldritchSurge : AbstractSubclass
             RulesetCharacter rulesetCharacter,
             RulesetEffect rulesetEffect)
         {
-            var rulesetHero = rulesetCharacter.GetOriginalHero();
-
-            if (rulesetHero == null)
-            {
-                return effectDescription;
-            }
-
-            var characterLevel = rulesetHero.classesHistory.Count;
-            var warlockLevel = rulesetHero.GetClassLevel(CharacterClassDefinitions.Warlock);
+            var stateOwner = GetStateOwner(rulesetCharacter);
+            var characterLevel = stateOwner.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
+            var warlockLevel = stateOwner.GetClassLevel(CharacterClassDefinitions.Warlock);
 
             effectDescription.effectAdvancement.Clear();
             effectDescription.targetParameter = ComputeBeamCount(characterLevel, warlockLevel);
@@ -309,7 +314,7 @@ public class PatronEldritchSurge : AbstractSubclass
                 yield break;
             }
 
-            switch (rulesetEffectSpell.SpellDefinition.SpellLevel)
+            switch (RulesetEffectSpellWithOrigin.GetOriginSpell(rulesetEffectSpell).SpellLevel)
             {
                 case 0:
                     supportCondition.CantripAsMain = true;
@@ -399,7 +404,7 @@ public class PatronEldritchSurge : AbstractSubclass
     {
         public void OnCharacterBattleEnded(GameLocationCharacter locationCharacter)
         {
-            locationCharacter.RulesetCharacter.GetOriginalHero()!.UsablePowers.DoIf(x =>
+            GetStateOwner(locationCharacter.RulesetCharacter).UsablePowers.DoIf(x =>
                     x.PowerDefinition == PowerVersatilitySwitch,
                 y => y.Recharge());
         }

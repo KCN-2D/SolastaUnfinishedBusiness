@@ -130,8 +130,11 @@ internal static class GLBM
             return;
         }
 
-        //[CE] Store original RulesetCharacterHero for future use
-        var hero = attacker.RulesetCharacter.GetOriginalHero();
+        //[CE] Store the feature-bearing character for future use
+        var rulesetAttacker = attacker.RulesetCharacter;
+        var featureCharacter = rulesetAttacker is RulesetCharacterSimulacrum
+            ? rulesetAttacker
+            : rulesetAttacker.GetOriginalHero();
 
         /*
          * Support for wild-shaped characters
@@ -160,16 +163,18 @@ internal static class GLBM
                 //CharacterClassDefinition classDefinition = hero.FindClassHoldingFeature(featureDefinition);
 
                 // Use null-coalescing operator to ward against possible `NullReferenceException`
-                var classDefinition = hero?.FindClassHoldingFeature(featureDefinition);
+                var classDefinition = featureCharacter?.FindClassHoldingFeature(featureDefinition);
 
                 /*
                  * Support for wild-shaped characters
                  * [CE] EDIT END
                  * ######################################
-                 */
+                */
                 if (classDefinition)
                 {
-                    var classLevel = hero.ClassesAndLevels[classDefinition];
+                    var classLevel = featureCharacter is RulesetCharacterHero featureHero
+                        ? featureHero.GetClassLevel(classDefinition)
+                        : featureCharacter.GetClassLevel(classDefinition);
                     diceNumber = provider.GetDiceOfRank(classLevel);
                 }
             }
@@ -182,9 +187,10 @@ internal static class GLBM
             else if ((ExtraAdditionalDamageAdvancement)provider.DamageAdvancement ==
                      ExtraAdditionalDamageAdvancement.CharacterLevel)
             {
-                if (hero != null)
+                if (featureCharacter != null)
                 {
-                    var characterLevel = hero.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
+                    var characterLevel =
+                        featureCharacter.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
                     diceNumber = provider.GetDiceOfRank(characterLevel);
                 }
             }
@@ -251,7 +257,7 @@ internal static class GLBM
 
             additionalDamageForm.DieType = RuleDefinitions.DieType.D1;
             additionalDamageForm.DiceNumber = 0;
-            additionalDamageForm.BonusDamage = customModifierProvider?.Invoke(hero) ?? 0;
+            additionalDamageForm.BonusDamage = customModifierProvider?.Invoke(featureCharacter) ?? 0;
         }
         /*
          * ######################################
@@ -266,11 +272,13 @@ internal static class GLBM
             if (provider.DamageAdvancement == RuleDefinitions.AdditionalDamageAdvancement.ClassLevel)
             {
                 // Find the character class which triggered this
-                var classDefinition = hero!.FindClassHoldingFeature(featureDefinition);
+                var classDefinition = featureCharacter?.FindClassHoldingFeature(featureDefinition);
 
                 if (classDefinition)
                 {
-                    var classLevel = hero.ClassesAndLevels[classDefinition];
+                    var classLevel = featureCharacter is RulesetCharacterHero featureHero
+                        ? featureHero.GetClassLevel(classDefinition)
+                        : featureCharacter.GetClassLevel(classDefinition);
                     bonus += provider.GetDiceOfRank(classLevel);
                 }
             }
@@ -278,9 +286,10 @@ internal static class GLBM
             else if ((ExtraAdditionalDamageAdvancement)provider.DamageAdvancement ==
                      ExtraAdditionalDamageAdvancement.CharacterLevel)
             {
-                if (hero != null)
+                if (featureCharacter != null)
                 {
-                    var characterLevel = hero.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
+                    var characterLevel =
+                        featureCharacter.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
                     bonus += provider.GetDiceOfRank(characterLevel);
                 }
             }
@@ -329,8 +338,8 @@ internal static class GLBM
         //Commented out original check
         //else if (attacker.RulesetCharacter is RulesetCharacterHero &&
 
-        //check previously saved hero variable to allow wild-shaped heroes to count for these bonuses
-        else if (hero != null &&
+        //check the saved feature character to allow wild-shaped heroes and Simulacra to count
+        else if (featureCharacter != null &&
                  /*
                   * Support for wild-shaped characters
                   * [CE] EDIT END
@@ -361,9 +370,9 @@ internal static class GLBM
                 //Commented out original check
                 // additionalDamageForm.BonusDamage += (attacker.RulesetCharacter as RulesetCharacterHero).GetAttribute(AttributeDefinitions.ProficiencyBonus).CurrentValue;
 
-                //use previously saved original RulesetCharacterHero
+                // use the feature-bearing character
                 additionalDamageForm.BonusDamage +=
-                    hero.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+                    featureCharacter.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
 
                 /*
                  * Support for wild-shaped characters
@@ -379,10 +388,10 @@ internal static class GLBM
             {
                 // Look for the Spell Repertoire
                 var spellBonus = 0;
-                foreach (var spellRepertoire in hero.SpellRepertoires)
+                foreach (var spellRepertoire in featureCharacter.SpellRepertoires)
                 {
-                    spellBonus = AttributeDefinitions.ComputeAbilityScoreModifier(hero
-                        .GetAttribute(spellRepertoire.SpellCastingAbility).CurrentValue);
+                    spellBonus = AttributeDefinitions.ComputeAbilityScoreModifier(
+                        featureCharacter.TryGetAttributeValue(spellRepertoire.SpellCastingAbility));
 
                     // Stop if this is a class repertoire
                     if (spellRepertoire.SpellCastingFeature.SpellCastingOrigin ==
@@ -402,12 +411,12 @@ internal static class GLBM
                 if (featureDefinition == AdditionalDamageInvocationAgonizingBlast ||
                     featureDefinition == AdditionalDamageLifedrinker)
                 {
-                    spellBonus = AttributeDefinitions.ComputeAbilityScoreModifier(hero
+                    spellBonus = AttributeDefinitions.ComputeAbilityScoreModifier(featureCharacter
                         .TryGetAttributeValue(AttributeDefinitions.Charisma));
                 }
                 else if (featureDefinition == AdditionalDamageTraditionShockArcanistArcaneFury)
                 {
-                    spellBonus = AttributeDefinitions.ComputeAbilityScoreModifier(hero
+                    spellBonus = AttributeDefinitions.ComputeAbilityScoreModifier(featureCharacter
                         .TryGetAttributeValue(AttributeDefinitions.Intelligence));
                 }
 
@@ -422,7 +431,7 @@ internal static class GLBM
             if (provider.DamageValueDetermination == RuleDefinitions.AdditionalDamageValueDetermination.RageDamage)
             {
                 additionalDamageForm.BonusDamage =
-                    hero.TryGetAttributeValue(AttributeDefinitions.RageDamage);
+                    featureCharacter.TryGetAttributeValue(AttributeDefinitions.RageDamage);
             }
 
             if (provider.DamageValueDetermination == RuleDefinitions.AdditionalDamageValueDetermination.FlatBonus)
@@ -455,9 +464,10 @@ internal static class GLBM
         //Commented out original check
         // else if (provider.DamageValueDetermination == RuleDefinitions.AdditionalDamageValueDetermination.TargetKnowledgeLevel && attacker.RulesetCharacter is RulesetCharacterHero && defender.RulesetCharacter is RulesetCharacterMonster)
 
-        // [CE] use previously saved hero variable to check if attacker is actually a  hero, this allows for wild-shaped characters to count
+        // [CE] use the saved feature character so wild-shaped characters and Simulacra count
         else if (provider.DamageValueDetermination ==
-                 RuleDefinitions.AdditionalDamageValueDetermination.TargetKnowledgeLevel && hero != null &&
+                 RuleDefinitions.AdditionalDamageValueDetermination.TargetKnowledgeLevel &&
+                 featureCharacter != null &&
                  defender.RulesetCharacter is RulesetCharacterMonster)
             /*
              * Support for wild-shaped characters
@@ -548,9 +558,11 @@ internal static class GLBM
          */
         var originalDamageType = additionalDamageForm.DamageType;
 
-        if (provider is FeatureDefinitionAdditionalDamage featureDefinitionAdditionalDamage)
+        if (featureCharacter != null &&
+            provider is FeatureDefinitionAdditionalDamage featureDefinitionAdditionalDamage)
         {
-            foreach (var modifyAdditionalDamageForm in hero.GetSubFeaturesByType<IModifyAdditionalDamage>())
+            foreach (var modifyAdditionalDamageForm in
+                     featureCharacter.GetSubFeaturesByType<IModifyAdditionalDamage>())
             {
                 modifyAdditionalDamageForm.ModifyAdditionalDamage(
                     attacker, defender, attackMode, featureDefinitionAdditionalDamage, actualEffectForms,
@@ -1004,10 +1016,18 @@ internal static class GLBM
                          * ######################################
                          */
                     {
-                        //TODO: implement wild-shape, MC and warlock spell slot tweaks 
                         // This is used for Divine Smite
                         // Look for the spellcasting feature holding the smite
-                        var hero = attacker.RulesetCharacter.GetOriginalHero();
+                        var rulesetAttacker = attacker.RulesetCharacter;
+                        var hero = rulesetAttacker.GetOriginalHero();
+                        var smiteCharacter = rulesetAttacker is RulesetCharacterSimulacrum
+                            ? rulesetAttacker
+                            : hero;
+
+                        if (smiteCharacter == null)
+                        {
+                            break;
+                        }
 
                         // This is used to only offer divine smites on critical hits
                         var isDivineSmite = featureDefinition is FeatureDefinitionAdditionalDamage
@@ -1040,16 +1060,17 @@ internal static class GLBM
                         if (!criticalHit &&
                             Main.Settings.AddPaladinSmiteToggle &&
                             isDivineSmite &&
-                            !hero.IsToggleEnabled((ActionDefinitions.Id)ExtraActionId.PaladinSmiteToggle))
+                            !smiteCharacter.IsToggleEnabled(
+                                (ActionDefinitions.Id)ExtraActionId.PaladinSmiteToggle))
                         {
                             break;
                         }
 
-                        var classDefinition = hero.FindClassHoldingFeature(featureDefinition);
+                        var classDefinition = smiteCharacter.FindClassHoldingFeature(featureDefinition);
 
                         RulesetSpellRepertoire selectedSpellRepertoire = null;
 
-                        foreach (var spellRepertoire in hero.SpellRepertoires)
+                        foreach (var spellRepertoire in smiteCharacter.SpellRepertoires)
                         {
                             if (spellRepertoire.SpellCastingClass != classDefinition)
                             {
@@ -1069,7 +1090,8 @@ internal static class GLBM
                                 if (featureDefinition is FeatureDefinitionAdditionalDamage
                                     {
                                         NotificationTag: InvocationsBuilders.EldritchSmiteTag
-                                    })
+                                    } &&
+                                    hero != null)
                                 {
                                     var pactMagicMaxSlots = SharedSpellsContext.GetWarlockMaxSlots(hero);
                                     var pactMagicUsedSlots = SharedSpellsContext.GetWarlockUsedSlots(hero);
@@ -1110,7 +1132,8 @@ internal static class GLBM
 
                             //TODO: convert this to a proper interface to change number of smite dice
                             if (validTrigger && isDivineSmite &&
-                                hero.GetSubclassLevel(DatabaseHelper.CharacterClassDefinitions.Paladin,
+                                smiteCharacter.GetSubclassLevel(
+                                    DatabaseHelper.CharacterClassDefinitions.Paladin,
                                     OathOfThunder.Name) == 20)
                             {
                                 reactionParams.intParameter++;

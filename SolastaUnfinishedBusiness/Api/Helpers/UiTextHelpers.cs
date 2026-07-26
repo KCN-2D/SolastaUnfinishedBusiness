@@ -18,6 +18,7 @@ internal static class UiTextHelpers
     private const float CjkTwoLineSpacing = -6f;
     private const int DeferredSpellBoxFitFrames = 2;
     private const int DeferredActionItemCaptionFitFrames = 2;
+    private const int DeferredConstrainedLabelFitFrames = 2;
     private const float PreferredSizeTolerance = 0.5f;
     private const float TitleMinFontScale = 0.72f;
     private const float TitleAbsoluteMinFontSize = 8f;
@@ -141,6 +142,29 @@ internal static class UiTextHelpers
         }
 
         FitSingleLine(label.TMP_Text, minFontScale, absoluteMin);
+    }
+
+    internal static void FitConstrainedSingleLine(GuiLabel label, float minFontScale = TitleMinFontScale,
+        float absoluteMin = TitleAbsoluteMinFontSize)
+    {
+        FitConstrainedSingleLine(label?.TMP_Text, minFontScale, absoluteMin);
+    }
+
+    internal static void FitConstrainedSingleLine(TMP_Text text, float minFontScale = TitleMinFontScale,
+        float absoluteMin = TitleAbsoluteMinFontSize)
+    {
+        if (!text ||
+            !text.gameObject.activeInHierarchy)
+        {
+            return;
+        }
+
+        ApplyConstrainedSingleLineFit(text, minFontScale, absoluteMin);
+
+        var deferredFit = text.GetComponent<DeferredConstrainedLabelFit>() ??
+                          text.gameObject.AddComponent<DeferredConstrainedLabelFit>();
+
+        deferredFit.Schedule(text, minFontScale, absoluteMin);
     }
 
     internal static void FitSideLabel(GuiLabel label)
@@ -386,31 +410,13 @@ internal static class UiTextHelpers
             return;
         }
 
-        var useCjkCompactSpacing = ShouldUseCjkCompactLineSpacing(text);
-
-        if (state.HasFitSignature(
-                nameof(FitActionCaption),
-                text,
-                availableSize,
-                ActionCaptionMinFontScale,
-                ActionCaptionAbsoluteMinFontSize,
-                useCjkCompactSpacing))
-        {
-            return;
-        }
-
+        // Forms are reused and their TMP layout can be reset without changing the text or rectangle.
+        // Recalculate instead of trusting the card-title fit signature.
         ApplyActionCaptionBaseStyle(text, state);
 
         var fontSize = Mathf.Clamp(GetSingleLineFontSize(text, availableSize, maxFontSize), minFontSize, maxFontSize);
 
         ApplyCardTextFit(text, 1, false, fontSize, state);
-        state.RememberFitSignature(
-            nameof(FitActionCaption),
-            text,
-            availableSize,
-            ActionCaptionMinFontScale,
-            ActionCaptionAbsoluteMinFontSize,
-            useCjkCompactSpacing);
     }
 
     private static void ApplyActionCaptionBaseStyle(TMP_Text text, TextFitState state)
@@ -742,6 +748,81 @@ internal static class UiTextHelpers
             : maxFontSize;
 
         return Mathf.Min(maxFontSize, widthFontSize, heightFontSize);
+    }
+
+    private static void ApplyConstrainedSingleLineFit(
+        TMP_Text text,
+        float minFontScale,
+        float absoluteMin)
+    {
+        if (!text)
+        {
+            return;
+        }
+
+        var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+
+        state.Capture(text);
+
+        if (!TryGetFontSizeBounds(
+                text,
+                state,
+                minFontScale,
+                absoluteMin,
+                out var maxFontSize,
+                out var minFontSize))
+        {
+            return;
+        }
+
+        if (!TryGetTextContentSize(text, out var availableSize) ||
+            string.IsNullOrEmpty(text.text))
+        {
+            ApplyConstrainedSingleLineStyle(text, maxFontSize, state);
+
+            return;
+        }
+
+        var preferredSize = GetPreferredSize(
+            text,
+            maxFontSize,
+            false,
+            1,
+            state.OriginalLineSpacing,
+            float.PositiveInfinity);
+        var widthFontSize = preferredSize.x > 0f
+            ? maxFontSize * availableSize.x / preferredSize.x
+            : maxFontSize;
+
+        // These labels sit on deliberately shallow one-line plates. TMP's regular
+        // auto-sizing also fits the font's line metrics to that height, which shrinks
+        // even short captions. Only reduce the original size when the actual text is
+        // wider than the plate.
+        ApplyConstrainedSingleLineStyle(
+            text,
+            Mathf.Clamp(widthFontSize, minFontSize, maxFontSize),
+            state);
+    }
+
+    private static void ApplyConstrainedSingleLineStyle(
+        TMP_Text text,
+        float fontSize,
+        TextFitState state)
+    {
+        text.enableAutoSizing = false;
+        text.enableWordWrapping = false;
+        text.maxVisibleLines = state.OriginalMaxVisibleLines;
+        // The HUD plates are shallower than the font's normal line metrics. Preserve
+        // their original vertical overflow policy so a short caption is not clipped or
+        // ellipsized merely because only horizontal fitting was requested.
+        text.overflowMode = state.OriginalOverflowMode;
+        text.autoSizeTextContainer = false;
+        text.fontSize = fontSize;
+        text.fontSizeMax = state.OriginalFontSizeMax;
+        text.fontSizeMin = fontSize;
+        ApplyCjkLineSpacing(text, false, state);
+        text.SetLayoutDirty();
+        text.SetVerticesDirty();
     }
 
     private static float GetTwoLineFontSize(
@@ -1079,6 +1160,8 @@ internal static class UiTextHelpers
     {
         internal float OriginalFontSizeMax { get; private set; }
         internal float OriginalLineSpacing { get; private set; }
+        internal int OriginalMaxVisibleLines { get; private set; }
+        internal TextOverflowModes OriginalOverflowMode { get; private set; }
         internal Quaternion OriginalLocalRotation { get; private set; }
         internal TextAlignmentOptions OriginalAlignment { get; private set; }
         internal bool OriginalEnabled { get; private set; }
@@ -1107,6 +1190,8 @@ internal static class UiTextHelpers
                 ? text.fontSizeMax
                 : text.fontSize;
             OriginalLineSpacing = text.lineSpacing;
+            OriginalMaxVisibleLines = text.maxVisibleLines;
+            OriginalOverflowMode = text.overflowMode;
             OriginalLocalRotation = text.rectTransform
                 ? text.rectTransform.localRotation
                 : Quaternion.identity;
@@ -1227,6 +1312,51 @@ internal static class UiTextHelpers
             {
                 yield return null;
                 ApplyActionItemCaptionFit(Form);
+            }
+
+            Coroutine = null;
+        }
+
+        private void OnDisable()
+        {
+            if (Coroutine == null)
+            {
+                return;
+            }
+
+            StopCoroutine(Coroutine);
+            Coroutine = null;
+        }
+    }
+
+    private sealed class DeferredConstrainedLabelFit : MonoBehaviour
+    {
+        private float AbsoluteMin { get; set; }
+
+        private Coroutine Coroutine { get; set; }
+
+        private TMP_Text Text { get; set; }
+
+        private float MinFontScale { get; set; }
+
+        internal void Schedule(TMP_Text text, float minFontScale, float absoluteMin)
+        {
+            Text = text;
+            MinFontScale = minFontScale;
+            AbsoluteMin = absoluteMin;
+
+            if (Coroutine == null)
+            {
+                Coroutine = StartCoroutine(ApplyLater());
+            }
+        }
+
+        private IEnumerator ApplyLater()
+        {
+            for (var i = 0; i < DeferredConstrainedLabelFitFrames; i++)
+            {
+                yield return null;
+                ApplyConstrainedSingleLineFit(Text, MinFontScale, AbsoluteMin);
             }
 
             Coroutine = null;

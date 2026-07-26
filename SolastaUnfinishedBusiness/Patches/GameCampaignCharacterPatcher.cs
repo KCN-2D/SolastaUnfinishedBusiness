@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using static RuleDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -17,14 +18,23 @@ public static class GameCampaignCharacterPatcher
         public static bool Prefix([NotNull] GameCampaignCharacter __instance, RestType restType)
         {
             //PATCH: terminates effects correctly on world travel
-            // call `RefreshEffectsForRest` instead of `ApplyRestForConditions` for heroes
-            // this makes powers and spells that last until rest properly terminate on rest during world travel
-            if (__instance.RulesetCharacter is not RulesetCharacterHero hero)
+            // Use the complete rest-effect path for heroes. Simulacra do not rest, but ordinary
+            // timed effects still have to advance by the elapsed travel/camp duration.
+            var rulesetCharacter = __instance.RulesetCharacter;
+
+            if (rulesetCharacter is RulesetCharacterSimulacrum duplicate)
+            {
+                SimulacrumBehavior.AdvanceTimedEffectsForRest(duplicate, restType);
+
+                return false;
+            }
+
+            if (rulesetCharacter is not RulesetCharacterHero)
             {
                 return true;
             }
 
-            hero.RefreshEffectsForRest(restType);
+            rulesetCharacter.RefreshEffectsForRest(restType);
             return false;
         }
     }

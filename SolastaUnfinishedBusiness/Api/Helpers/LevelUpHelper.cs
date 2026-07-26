@@ -435,20 +435,20 @@ internal static class LevelUpHelper
     private static bool IsSlotCastableAutoPreparedFeatureValidForRepertoire(
         FeatureDefinitionAutoPreparedSpells feature,
         RulesetSpellRepertoire repertoire,
-        RulesetCharacterHero hero)
+        RulesetCharacter character)
     {
         var matcher = feature.GetFirstSubFeatureOfType<RepertoireValidForAutoPreparedFeature>();
 
         // UB feat-granted spells that can be cast with regular slots mark their valid target repertoire explicitly.
-        return matcher != null && matcher(repertoire, hero);
+        return matcher != null && matcher(repertoire, character);
     }
 
     internal static IEnumerable<(SpellDefinition Spell, string DisplayTag)> EnumerateSlotCastableExtraSpellsForRepertoire(
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         RulesetSpellRepertoire repertoire,
         int spellLevel = AnySpellLevel)
     {
-        if (hero == null || !IsClassOrSubclassSpellRepertoire(repertoire))
+        if (character == null || !IsClassOrSubclassSpellRepertoire(repertoire))
         {
             yield break;
         }
@@ -461,11 +461,12 @@ internal static class LevelUpHelper
         }
 
         HashSet<SpellDefinition> yielded = [];
-        var classLevel = hero.GetSpellcastingLevel(repertoire);
+        var classLevel = character.GetSpellcastingLevel(repertoire);
 
-        foreach (var feature in hero.FeaturesByType<FeatureDefinitionAutoPreparedSpells>()
+        foreach (var feature in character.FeaturesByType<FeatureDefinitionAutoPreparedSpells>()
                      .Where(feature => feature.AutoPreparedSpellsGroups != null)
-                     .Where(feature => IsSlotCastableAutoPreparedFeatureValidForRepertoire(feature, repertoire, hero)))
+                     .Where(feature =>
+                         IsSlotCastableAutoPreparedFeatureValidForRepertoire(feature, repertoire, character)))
         {
             foreach (var spell in feature.AutoPreparedSpellsGroups
                          .Where(group => group.ClassLevel <= classLevel)
@@ -479,7 +480,8 @@ internal static class LevelUpHelper
             }
         }
 
-        foreach (var (spell, displayTag) in Tabletop2024Context.EnumerateSlotCastableTabletop2024FeatSpellsWithTags(hero)
+        foreach (var (spell, displayTag) in Tabletop2024Context
+                     .EnumerateSlotCastableTabletop2024FeatSpellsWithTags(character)
                      .Where(entry => IsSpellCastableWithRepertoireSlots(entry.Spell, maxSpellLevel, spellLevel)))
         {
             if (yielded.Add(spell))
@@ -493,12 +495,7 @@ internal static class LevelUpHelper
         RulesetCharacter character,
         RulesetSpellRepertoire repertoire)
     {
-        if (character is not RulesetCharacterHero hero)
-        {
-            return;
-        }
-
-        foreach (var (spell, _) in EnumerateSlotCastableExtraSpellsForRepertoire(hero, repertoire))
+        foreach (var (spell, _) in EnumerateSlotCastableExtraSpellsForRepertoire(character, repertoire))
         {
             repertoire.AutoPreparedSpells.TryAdd(spell);
         }
@@ -512,7 +509,7 @@ internal static class LevelUpHelper
         Dictionary<SpellDefinition, string> tagBySpell,
         Dictionary<SpellDefinition, string> extraSpellsMap)
     {
-        if (caster is not RulesetCharacterHero hero ||
+        if (caster == null ||
             group is not { SpellRepertoire: not null, SpellLevel: > 0 } ||
             allSpells == null)
         {
@@ -520,7 +517,7 @@ internal static class LevelUpHelper
         }
 
         foreach (var (spell, displayTag) in EnumerateSlotCastableExtraSpellsForRepertoire(
-                     hero,
+                     caster,
                      group.SpellRepertoire,
                      group.SpellLevel))
         {
@@ -538,13 +535,13 @@ internal static class LevelUpHelper
     {
         if (spellLevel <= 0 ||
             extraSpellsMap == null ||
-            repertoire?.GetCaster() is not RulesetCharacterHero hero)
+            repertoire?.GetCaster() is not { } character)
         {
             return;
         }
 
         foreach (var (spell, displayTag) in EnumerateSlotCastableExtraSpellsForRepertoire(
-                     hero,
+                     character,
                      repertoire,
                      spellLevel))
         {
@@ -558,17 +555,17 @@ internal static class LevelUpHelper
     }
 
     internal static bool IsSlotCastableExtraSpellForRepertoire(
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         RulesetSpellRepertoire repertoire,
         SpellDefinition spell)
     {
         return spell != null &&
-               EnumerateSlotCastableExtraSpellsForRepertoire(hero, repertoire, spell.SpellLevel)
+               EnumerateSlotCastableExtraSpellsForRepertoire(character, repertoire, spell.SpellLevel)
                    .Any(entry => entry.Spell == spell);
     }
 
     internal static bool IsPreparedOrSlotCastableExtraSpellForRepertoire(
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         RulesetSpellRepertoire repertoire,
         SpellDefinition spell)
     {
@@ -587,18 +584,18 @@ internal static class LevelUpHelper
             repertoire.PreparedSpells.Contains(spell);
 
         return isPreparedSpellForWholeListCaster ||
-               IsSlotCastableExtraSpellForRepertoire(hero, repertoire, spell);
+               IsSlotCastableExtraSpellForRepertoire(character, repertoire, spell);
     }
 
     internal static bool HasSlotCastableExtraSpellOfLevelAndActionType(
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         RulesetSpellRepertoire repertoire,
         int spellLevel,
         ActionDefinitions.ActionType actionType)
     {
         if (actionType == ActionDefinitions.ActionType.None)
         {
-            return EnumerateSlotCastableExtraSpellsForRepertoire(hero, repertoire, spellLevel)
+            return EnumerateSlotCastableExtraSpellsForRepertoire(character, repertoire, spellLevel)
                 .Any(entry => entry.Spell.ActivationTime is not ActivationTime.Reaction and not ActivationTime.OnAttackHit);
         }
 
@@ -609,7 +606,7 @@ internal static class LevelUpHelper
             return false;
         }
 
-        return EnumerateSlotCastableExtraSpellsForRepertoire(hero, repertoire, spellLevel)
+        return EnumerateSlotCastableExtraSpellsForRepertoire(character, repertoire, spellLevel)
             .Any(entry => entry.Spell.ActivationTime == activationTime);
     }
 
@@ -627,16 +624,16 @@ internal static class LevelUpHelper
 
     internal static void EnumerateExtraSpells(
         Dictionary<SpellDefinition, string> extraSpells,
-        RulesetCharacterHero hero)
+        RulesetCharacter character)
     {
-        if (hero == null)
+        if (character == null)
         {
             return;
         }
 
         void AddAutoPreparedSpells(FeatureDefinitionAutoPreparedSpells feature)
         {
-            var maxLevel = GetMaxAutoPrepSpellsLevel(hero, feature);
+            var maxLevel = GetMaxAutoPrepSpellsLevel(character, feature);
 
             foreach (var spell in feature.AutoPreparedSpellsGroups
                          .SelectMany(x => x.SpellsList)
@@ -646,17 +643,21 @@ internal static class LevelUpHelper
             }
         }
 
-        foreach (var feature in hero.FeaturesByType<FeatureDefinitionAutoPreparedSpells>())
+        foreach (var feature in character.FeaturesByType<FeatureDefinitionAutoPreparedSpells>())
         {
             AddAutoPreparedSpells(feature);
         }
 
-        foreach (var (spell, displayTag) in Tabletop2024Context.EnumerateSlotCastableTabletop2024FeatSpellsWithTags(hero))
+        foreach (var (spell, displayTag) in Tabletop2024Context
+                     .EnumerateSlotCastableTabletop2024FeatSpellsWithTags(character))
         {
             extraSpells.TryAdd(spell, displayTag);
         }
 
-        if (!hero.TryGetHeroBuildingData(out var data))
+        // Level-up selections only exist on a Hero. Runtime feature and repertoire
+        // enumeration above deliberately remains shared with a Simulacrum.
+        if (character is not RulesetCharacterHero hero ||
+            !hero.TryGetHeroBuildingData(out var data))
         {
             return;
         }

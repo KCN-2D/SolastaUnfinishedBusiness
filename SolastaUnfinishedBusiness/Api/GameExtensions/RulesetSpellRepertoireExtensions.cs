@@ -12,27 +12,36 @@ namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 public static class RulesetSpellRepertoireExtensions
 {
     private static bool TryGetMulticasterWarlockSpellLevel(
-        [CanBeNull] RulesetCharacterHero hero,
+        [CanBeNull] RulesetCharacter character,
         out int warlockSpellLevel)
     {
         warlockSpellLevel = 0;
 
-        if (hero == null ||
-            !SharedSpellsContext.IsMulticaster(hero) ||
-            SharedSpellsContext.GetWarlockSpellRepertoire(hero) == null)
+        if (character == null ||
+            !SharedSpellsContext.IsMulticaster(character) ||
+            SharedSpellsContext.GetWarlockSpellRepertoire(character) == null)
         {
             return false;
         }
 
-        warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
+        warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(character);
 
         return true;
     }
 
     public static RulesetCharacter GetCaster(this RulesetSpellRepertoire repertoire)
     {
-        return EffectHelpers.GetCharacterByGuid(repertoire?.CharacterInventory?.BearerGuid ?? 0)
-               ?? Global.InspectedHero;
+        var caster = EffectHelpers.GetCharacterByGuid(
+            repertoire?.CharacterInventory?.BearerGuid ?? 0);
+
+        if (caster != null)
+        {
+            return caster;
+        }
+
+        return Global.InspectedHero?.SpellRepertoires.Contains(repertoire) == true
+            ? Global.InspectedHero
+            : null;
     }
 
     [CanBeNull]
@@ -63,7 +72,7 @@ public static class RulesetSpellRepertoireExtensions
 
     internal static void GetSharedAndPactSlotNumbers(
         this RulesetSpellRepertoire repertoire,
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         int slotLevel,
         out int sharedRemaining,
         out int sharedMax,
@@ -77,7 +86,7 @@ public static class RulesetSpellRepertoireExtensions
         pactRemaining = 0;
         pactMax = 0;
 
-        if (!TryGetMulticasterWarlockSpellLevel(hero, out var warlockSpellLevel))
+        if (!TryGetMulticasterWarlockSpellLevel(character, out var warlockSpellLevel))
         {
             return;
         }
@@ -87,9 +96,9 @@ public static class RulesetSpellRepertoireExtensions
             return;
         }
 
-        pactMax = SharedSpellsContext.GetWarlockMaxSlots(hero);
+        pactMax = SharedSpellsContext.GetWarlockMaxSlots(character);
 
-        var pactUsed = SharedSpellsContext.GetWarlockUsedSlots(hero);
+        var pactUsed = SharedSpellsContext.GetWarlockUsedSlots(character);
         var totalUsed = totalMax - totalRemaining;
         var sharedUsed = Math.Max(0, totalUsed - pactUsed);
 
@@ -100,13 +109,13 @@ public static class RulesetSpellRepertoireExtensions
 
     internal static void GetDisplaySlotNumbers(
         this RulesetSpellRepertoire repertoire,
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         int slotLevel,
         out int remaining,
         out int max)
     {
         repertoire.GetSharedAndPactSlotNumbers(
-            hero,
+            character,
             slotLevel,
             out var sharedRemaining,
             out var sharedMax,
@@ -116,7 +125,7 @@ public static class RulesetSpellRepertoireExtensions
         remaining = sharedRemaining;
         max = sharedMax;
 
-        if (!TryGetMulticasterWarlockSpellLevel(hero, out var warlockSpellLevel))
+        if (!TryGetMulticasterWarlockSpellLevel(character, out var warlockSpellLevel))
         {
             return;
         }
@@ -132,14 +141,15 @@ public static class RulesetSpellRepertoireExtensions
 
     internal static bool TryGetAvailableSlotLevel(
         this RulesetSpellRepertoire repertoire,
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         int slotLevel,
         SpellDefinition spellDefinition,
         out bool isAvailable)
     {
-        var warlockSpellLevel = hero == null ? 0 : SharedSpellsContext.GetWarlockSpellLevel(hero);
-        var isSingleClassWarlock = hero != null &&
-                                   !SharedSpellsContext.IsMulticaster(hero) &&
+        var warlockSpellLevel =
+            character == null ? 0 : SharedSpellsContext.GetWarlockSpellLevel(character);
+        var isSingleClassWarlock = character != null &&
+                                   !SharedSpellsContext.IsMulticaster(character) &&
                                    warlockSpellLevel > 0;
 
         if (isSingleClassWarlock && slotLevel != warlockSpellLevel)
@@ -149,22 +159,29 @@ public static class RulesetSpellRepertoireExtensions
             return false;
         }
 
-        if (hero != null)
+        if (character != null)
         {
-            repertoire.GetDisplaySlotNumbers(hero, slotLevel, out var remaining, out var max);
+            repertoire.GetDisplaySlotNumbers(character, slotLevel, out var remaining, out var max);
 
             isAvailable = remaining > 0;
 
             if (spellDefinition != null)
             {
-                if (hero.IsSpellPointsEnabled())
+                if (character.IsSpellPointsEnabled())
                 {
-                    isAvailable = SpellPointsContext.CanCastSpellOfLevel(hero, repertoire, slotLevel);
+                    isAvailable = SpellPointsContext.CanCastSpellOfLevel(
+                        character,
+                        repertoire,
+                        slotLevel);
                 }
 
                 if (!isAvailable)
                 {
-                    isAvailable = Level20Context.HasFreeWizardCast(hero, repertoire, spellDefinition, slotLevel);
+                    isAvailable = Level20Context.HasFreeWizardCast(
+                        character,
+                        repertoire,
+                        spellDefinition,
+                        slotLevel);
                 }
             }
 
@@ -179,7 +196,7 @@ public static class RulesetSpellRepertoireExtensions
 
     internal static int GetPreferredSlotLevel(
         this RulesetSpellRepertoire repertoire,
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         IReadOnlyList<int> availableSlotLevels)
     {
         if (availableSlotLevels.Count == 0)
@@ -187,19 +204,19 @@ public static class RulesetSpellRepertoireExtensions
             return 0;
         }
 
-        if (hero == null || !SharedSpellsContext.IsMulticaster(hero))
+        if (character == null || !SharedSpellsContext.IsMulticaster(character))
         {
             return availableSlotLevels[0];
         }
 
-        var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
+        var warlockSpellLevel = SharedSpellsContext.GetWarlockSpellLevel(character);
 
         if (warlockSpellLevel == 0)
         {
             return availableSlotLevels[0];
         }
 
-        var shiftPressed = GameLocationCharacter.GetFromActor(hero)?.GetShiftState() == true;
+        var shiftPressed = GameLocationCharacter.GetFromActor(character)?.GetShiftState() == true;
         var preferPact = Main.Settings.AlwaysSpendPactSlotsFirst ||
                          (repertoire.SpellCastingClass != Warlock && shiftPressed) ||
                          (repertoire.SpellCastingClass == Warlock && !shiftPressed);

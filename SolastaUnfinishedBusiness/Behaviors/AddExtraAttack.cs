@@ -97,12 +97,44 @@ internal abstract class AddExtraAttackBase(
         return AttackModeOrder.End;
     }
 
-    protected static bool HasGreatWeaponMasterFollowUpCondition(RulesetCharacterHero hero)
+    protected static bool HasGreatWeaponMasterFollowUpCondition(RulesetCharacter character)
     {
-        return hero != null &&
-               (hero.HasConditionOfCategoryAndType(AttributeDefinitions.TagEffect, ConditionFeatCleavingAttackFinish) ||
-                hero.HasConditionOfCategoryAndType(
+        return character != null &&
+               (character.HasConditionOfCategoryAndType(
+                    AttributeDefinitions.TagEffect,
+                    ConditionFeatCleavingAttackFinish) ||
+                character.HasConditionOfCategoryAndType(
                     AttributeDefinitions.TagEffect, ConditionFeatGreatWeaponMaster2024Finish));
+    }
+
+    protected static List<IAttackModificationProvider> GetAttackModifiers(
+        RulesetCharacter character)
+    {
+        return character switch
+        {
+            RulesetCharacterHero hero => hero.attackModifiers,
+            RulesetCharacterMonster monster => monster.attackModifiers,
+            _ => null
+        };
+    }
+
+    protected static bool SupportsInventoryAttackModes(RulesetCharacter character)
+    {
+        return character is RulesetCharacterHero or RulesetCharacterSimulacrum &&
+               character.CharacterInventory?.InventorySlotsByName != null;
+    }
+
+    [CanBeNull]
+    protected static RulesetItem GetEquippedItem(
+        RulesetCharacter character,
+        string slotName)
+    {
+        return SupportsInventoryAttackModes(character) &&
+               character.CharacterInventory.InventorySlotsByName.TryGetValue(
+                   slotName,
+                   out var slot)
+            ? slot?.EquipedItem
+            : null;
     }
 
     //Copied from RulesetAttackMode.IsComparableForNetwork, but not checking for attack number
@@ -146,8 +178,10 @@ internal sealed class AddExtraUnarmedAttack : AddExtraAttackBase
             return null;
         }
 
-        var originalHero = character.GetOriginalHero();
-        var mainHand = hero.GetMainWeapon();
+        var originalHero = character is RulesetCharacterSimulacrum
+            ? null
+            : character.GetOriginalHero();
+        var mainHand = character.GetMainWeapon();
         // although IsUnarmed can take null this is a special case: isUnarmedWeapon vs isUnarmed only
         var isUnarmedWeapon = mainHand != null && ValidatorsWeapon.IsUnarmed(mainHand);
         var strikeDefinition = isUnarmedWeapon
@@ -162,7 +196,7 @@ internal sealed class AddExtraUnarmedAttack : AddExtraAttackBase
             ActionType,
             strikeDefinition,
             strikeDefinition.WeaponDescription,
-            IsFreeOffhand(hero),
+            IsFreeOffhand(character),
             true,
             EquipmentDefinitions.SlotTypeMainHand,
             attackModifiers,
@@ -184,34 +218,39 @@ internal sealed class AddExtraMainHandAttack : AddExtraAttackBase
 
     protected override List<RulesetAttackMode> GetAttackModes([NotNull] RulesetCharacter character)
     {
-        if (character is not RulesetCharacterHero hero)
+        if (!SupportsInventoryAttackModes(character))
         {
             return null;
         }
 
-        var mainHandItem = hero.GetMainWeapon();
+        var mainHandItem = character.GetMainWeapon();
 
         // don't use ?? on Unity Objects as it bypasses the lifetime check on the underlying object
         var strikeDefinition = mainHandItem?.ItemDefinition;
 
         if (!strikeDefinition)
         {
-            strikeDefinition = hero.UnarmedStrikeDefinition;
+            strikeDefinition = character is RulesetCharacterHero hero
+                ? hero.UnarmedStrikeDefinition
+                : DatabaseHelper.ItemDefinitions.UnarmedStrikeBase;
         }
 
-        var attackModifiers = hero.attackModifiers;
-
-        var attackMode = hero.RefreshAttackMode(
+        var attackMode = character.TryRefreshAttackMode(
             ActionType,
             strikeDefinition,
             strikeDefinition.WeaponDescription,
-            IsFreeOffhand(hero),
+            IsFreeOffhand(character),
             true,
             EquipmentDefinitions.SlotTypeMainHand,
-            attackModifiers,
-            hero.FeaturesOrigin,
+            GetAttackModifiers(character),
+            character.FeaturesOrigin,
             mainHandItem
         );
+
+        if (attackMode == null)
+        {
+            return null;
+        }
 
         attackMode.AddAttackTagAsNeeded(UpgradeWeaponDice.AbortUpgradeWeaponDice);
 
@@ -233,30 +272,30 @@ internal sealed class AddExtraRangedAttack : AddExtraAttackBase
 
     protected override List<RulesetAttackMode> GetAttackModes([NotNull] RulesetCharacter character)
     {
-        if (character is not RulesetCharacterHero hero)
-        {
-            return null;
-        }
+        var item = GetEquippedItem(character, EquipmentDefinitions.SlotTypeMainHand);
 
-        var item = hero.CharacterInventory.InventorySlotsByName[EquipmentDefinitions.SlotTypeMainHand].EquipedItem;
-
-        if (item == null || !_weaponValidator.Invoke(null, item, hero))
+        if (item == null || !_weaponValidator.Invoke(null, item, character))
         {
             return null;
         }
 
         var strikeDefinition = item.ItemDefinition;
-        var attackMode = hero.RefreshAttackMode(
+        var attackMode = character.TryRefreshAttackMode(
             ActionType,
             strikeDefinition,
             strikeDefinition.WeaponDescription,
-            IsFreeOffhand(hero),
+            IsFreeOffhand(character),
             true,
             EquipmentDefinitions.SlotTypeMainHand,
-            hero.attackModifiers,
-            hero.FeaturesOrigin,
+            GetAttackModifiers(character),
+            character.FeaturesOrigin,
             item
         );
+
+        if (attackMode == null)
+        {
+            return null;
+        }
 
         attackMode.Reach = false;
         attackMode.Ranged = true;
@@ -281,12 +320,7 @@ internal sealed class AddPolearmFollowUpAttack : AddExtraAttackBase
 
     protected override List<RulesetAttackMode> GetAttackModes([NotNull] RulesetCharacter character)
     {
-        if (character is not RulesetCharacterHero hero)
-        {
-            return null;
-        }
-
-        var item = hero.CharacterInventory.InventorySlotsByName[EquipmentDefinitions.SlotTypeMainHand].EquipedItem;
+        var item = GetEquippedItem(character, EquipmentDefinitions.SlotTypeMainHand);
 
         if (item == null ||
             !ValidatorsWeapon.IsWeaponType(item, _weaponTypeDefinition))
@@ -295,24 +329,29 @@ internal sealed class AddPolearmFollowUpAttack : AddExtraAttackBase
         }
 
         var strikeDefinition = item.ItemDefinition;
-        var attackMode = hero.RefreshAttackMode(
+        var attackMode = character.TryRefreshAttackMode(
             ActionType,
             strikeDefinition,
             strikeDefinition.WeaponDescription,
-            IsFreeOffhand(hero),
+            IsFreeOffhand(character),
             true,
             EquipmentDefinitions.SlotTypeMainHand,
-            hero.attackModifiers,
-            hero.FeaturesOrigin,
+            GetAttackModifiers(character),
+            character.FeaturesOrigin,
             item
         );
+
+        if (attackMode == null)
+        {
+            return null;
+        }
 
         var effectDamageForm = attackMode.EffectDescription.EffectForms
             .FirstOrDefault(x => x.FormType == EffectForm.EffectFormType.Damage);
 
         if (effectDamageForm == null ||
             // ensures PAM interacts well with GWM
-            HasGreatWeaponMasterFollowUpCondition(hero))
+            HasGreatWeaponMasterFollowUpCondition(character))
         {
             return [attackMode];
         }
@@ -342,12 +381,7 @@ internal sealed class AddWhirlWindFollowUpAttack : AddExtraAttackBase
 
     protected override List<RulesetAttackMode> GetAttackModes([NotNull] RulesetCharacter character)
     {
-        if (character is not RulesetCharacterHero hero)
-        {
-            return null;
-        }
-
-        var item = hero.CharacterInventory.InventorySlotsByName[EquipmentDefinitions.SlotTypeMainHand].EquipedItem;
+        var item = GetEquippedItem(character, EquipmentDefinitions.SlotTypeMainHand);
 
         if (item == null ||
             !ValidatorsWeapon.IsWeaponType(item, _weaponTypeDefinition))
@@ -356,24 +390,29 @@ internal sealed class AddWhirlWindFollowUpAttack : AddExtraAttackBase
         }
 
         var strikeDefinition = item.ItemDefinition;
-        var attackMode = hero.RefreshAttackMode(
+        var attackMode = character.TryRefreshAttackMode(
             ActionType,
             strikeDefinition,
             strikeDefinition.WeaponDescription,
-            IsFreeOffhand(hero),
+            IsFreeOffhand(character),
             true,
             EquipmentDefinitions.SlotTypeMainHand,
-            hero.attackModifiers,
-            hero.FeaturesOrigin,
+            GetAttackModifiers(character),
+            character.FeaturesOrigin,
             item
         );
+
+        if (attackMode == null)
+        {
+            return null;
+        }
 
         var effectDamageForm = attackMode.EffectDescription.EffectForms
             .FirstOrDefault(x => x.FormType == EffectForm.EffectFormType.Damage);
 
         if (effectDamageForm == null ||
             // ensures WhirlWind interacts well with GWM
-            HasGreatWeaponMasterFollowUpCondition(hero))
+            HasGreatWeaponMasterFollowUpCondition(character))
         {
             return [attackMode];
         }
@@ -398,12 +437,12 @@ internal sealed class AddBonusShieldAttack : AddExtraAttackBase
     [CanBeNull]
     protected override List<RulesetAttackMode> GetAttackModes([NotNull] RulesetCharacter character)
     {
-        if (character is not RulesetCharacterHero hero)
+        if (!SupportsInventoryAttackModes(character))
         {
             return null;
         }
 
-        var offHandItem = hero.GetOffhandWeapon();
+        var offHandItem = character.GetOffhandWeapon();
 
         if (offHandItem == null ||
             !ValidatorsWeapon.IsShield(offHandItem.ItemDefinition))
@@ -419,17 +458,21 @@ internal sealed class AddBonusShieldAttack : AddExtraAttackBase
             .Select(x => x.ModifierValue)
             .AddItem(0)
             .Max();
-        var attackModifiers = hero.attackModifiers;
-        var attackMode = hero.RefreshAttackMode(
+        var attackMode = character.TryRefreshAttackMode(
             ActionDefinitions.ActionType.Bonus,
             offHandItem.ItemDefinition,
             ShieldStrike.ShieldWeaponDescription,
-            IsFreeOffhand(hero),
+            IsFreeOffhand(character),
             true,
             EquipmentDefinitions.SlotTypeOffHand,
-            attackModifiers,
-            hero.FeaturesOrigin,
+            GetAttackModifiers(character),
+            character.FeaturesOrigin,
             offHandItem);
+
+        if (attackMode == null)
+        {
+            return null;
+        }
 
         var damageForm = attackMode.EffectDescription.FindFirstDamageForm();
 
@@ -476,30 +519,30 @@ internal sealed class AddBonusTorchAttack : AddExtraAttackBase
 
     protected override List<RulesetAttackMode> GetAttackModes([NotNull] RulesetCharacter character)
     {
-        if (character is not RulesetCharacterHero hero)
-        {
-            return null;
-        }
+        var item = GetEquippedItem(character, EquipmentDefinitions.SlotTypeOffHand);
 
-        var item = hero.CharacterInventory.InventorySlotsByName[EquipmentDefinitions.SlotTypeOffHand].EquipedItem;
-
-        if (item == null || !ValidatorsCharacter.HasLightSourceOffHand(hero))
+        if (item == null || !ValidatorsCharacter.HasLightSourceOffHand(character))
         {
             return null;
         }
 
         var strikeDefinition = item.ItemDefinition;
-        var attackMode = hero.RefreshAttackMode(
+        var attackMode = character.TryRefreshAttackMode(
             ActionType,
             strikeDefinition,
             strikeDefinition.WeaponDescription,
-            IsFreeOffhand(hero),
+            IsFreeOffhand(character),
             true,
             EquipmentDefinitions.SlotTypeOffHand,
-            hero.attackModifiers,
-            hero.FeaturesOrigin,
+            GetAttackModifiers(character),
+            character.FeaturesOrigin,
             item
         );
+
+        if (attackMode == null)
+        {
+            return null;
+        }
 
         attackMode.Reach = false;
         attackMode.Ranged = false;
@@ -508,8 +551,8 @@ internal sealed class AddBonusTorchAttack : AddExtraAttackBase
         attackMode.EffectDescription.Clear();
         attackMode.EffectDescription.Copy(_torchPower.EffectDescription);
 
-        var proficiencyBonus = hero.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
-        var dexterity = hero.TryGetAttributeValue(AttributeDefinitions.Dexterity);
+        var proficiencyBonus = character.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+        var dexterity = character.TryGetAttributeValue(AttributeDefinitions.Dexterity);
 
         attackMode.EffectDescription.fixedSavingThrowDifficultyClass =
             8 + proficiencyBonus + AttributeDefinitions.ComputeAbilityScoreModifier(dexterity);

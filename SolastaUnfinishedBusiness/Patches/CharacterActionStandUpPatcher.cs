@@ -2,6 +2,7 @@
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Feats;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -17,9 +18,12 @@ public static class CharacterActionStandUpPatcher
         [UsedImplicitly]
         public static void Prefix(GameLocationCharacter character, ref bool applyCost)
         {
-            if (character.RulesetCharacter.GetOriginalHero() is { } hero &&
-                (hero.TrainedFeats.Contains(OtherFeats.FeatAthleteStr) ||
-                 hero.TrainedFeats.Contains(OtherFeats.FeatAthleteDex)))
+            if (SimulacrumBehavior.HasTrainedFeat(
+                    character.RulesetCharacter,
+                    OtherFeats.FeatAthleteStr) ||
+                SimulacrumBehavior.HasTrainedFeat(
+                    character.RulesetCharacter,
+                    OtherFeats.FeatAthleteDex))
             {
                 applyCost = false;
             }

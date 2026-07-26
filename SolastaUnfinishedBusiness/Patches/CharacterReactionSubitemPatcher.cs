@@ -35,14 +35,10 @@ public static class CharacterReactionSubitemPatcher
                 return;
             }
 
-            // NPCs cannot be multicasters so try to get a hero here
-            // don't use GetOriginalHero here
-            var hero = character as RulesetCharacterHero;
-
-            if (hero == null || !SharedSpellsContext.IsMulticaster(hero))
+            if (!SharedSpellsContext.IsMulticaster(character))
             {
                 //PATCH: support alternate spell system to avoid displaying spell slots on selection (SPELL_POINTS)
-                SpellPointsContext.HideSpellSlots(hero, __instance.slotStatusTable);
+                SpellPointsContext.HideSpellSlots(character, __instance.slotStatusTable);
 
                 return;
             }
@@ -50,7 +46,10 @@ public static class CharacterReactionSubitemPatcher
             spellRepertoire.GetSlotsNumber(slotLevel, out var totalSlotsRemainingCount, out var totalSlotsCount);
 
             MulticlassGameUi.PaintPactSlotsAlternate(
-                hero, totalSlotsCount, totalSlotsRemainingCount, slotLevel,
+                character,
+                totalSlotsCount,
+                totalSlotsRemainingCount,
+                slotLevel,
                 __instance.slotStatusTable);
         }
     }

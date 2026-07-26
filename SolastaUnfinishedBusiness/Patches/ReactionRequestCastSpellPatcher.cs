@@ -22,11 +22,11 @@ public static class ReactionRequestCastSpellPatcher
     public static class BuildSlotSubOptions_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(ReactionRequestCastSpell __instance)
+        public static bool Prefix(ReactionRequestCastSpell __instance)
         {
             if (__instance.ReactionParams.RulesetEffect is not RulesetEffectSpell rulesetEffectSpell)
             {
-                return;
+                return true;
             }
 
             var repertoire = ResolveReactionSpellRepertoire(__instance, rulesetEffectSpell);
@@ -36,14 +36,18 @@ public static class ReactionRequestCastSpellPatcher
                 rulesetEffectSpell.spellRepertoire = repertoire;
                 __instance.ReactionParams.SpellRepertoire = repertoire;
             }
+
+            return true;
         }
 
         [UsedImplicitly]
         public static void Postfix(ReactionRequestCastSpell __instance)
         {
-            if (__instance.Character.RulesetCharacter is not RulesetCharacterHero hero
-                || (SharedSpellsContext.GetWarlockSpellRepertoire(hero) != null
-                    && !SharedSpellsContext.IsMulticaster(hero)))
+            var character = __instance.Character.RulesetCharacter;
+
+            if (!IsSupportedCaster(character) ||
+                SharedSpellsContext.GetWarlockSpellRepertoire(character) != null &&
+                !SharedSpellsContext.IsMulticaster(character))
             {
                 return;
             }
@@ -68,14 +72,14 @@ public static class ReactionRequestCastSpellPatcher
             var spellLevel = rulesetEffectSpell.SpellDefinition.SpellLevel;
             var selected = TryBuildFeatReactionSlotOptions(
                 __instance,
-                hero,
+                character,
                 rulesetEffectSpell,
                 optionsAvailability,
                 out var mergedSelected)
                 ? mergedSelected
                 : MulticlassGameUi.AddAvailableSubLevels(
                     optionsAvailability,
-                    hero,
+                    character,
                     repertoire,
                     spellLevel,
                     0,
@@ -102,9 +106,11 @@ public static class ReactionRequestCastSpellPatcher
                 return true;
             }
 
-            if (__instance.Character.RulesetCharacter is not RulesetCharacterHero hero
-                || (SharedSpellsContext.GetWarlockSpellRepertoire(hero) != null
-                    && !SharedSpellsContext.IsMulticaster(hero)))
+            var character = __instance.Character.RulesetCharacter;
+
+            if (!IsSupportedCaster(character) ||
+                SharedSpellsContext.GetWarlockSpellRepertoire(character) != null &&
+                !SharedSpellsContext.IsMulticaster(character))
             {
                 return true;
             }
@@ -113,7 +119,7 @@ public static class ReactionRequestCastSpellPatcher
 
             if (TryApplyFeatReactionRepertoireForSlot(
                     __instance,
-                    hero,
+                    character,
                     spellEffect,
                     spellEffect.SlotLevel))
             {
@@ -146,9 +152,11 @@ public static class ReactionRequestCastSpellPatcher
                 return true;
             }
 
-            if (__instance.Character.RulesetCharacter is not RulesetCharacterHero hero
-                || (SharedSpellsContext.GetWarlockSpellRepertoire(hero) != null
-                    && !SharedSpellsContext.IsMulticaster(hero)))
+            var character = __instance.Character.RulesetCharacter;
+
+            if (!IsSupportedCaster(character) ||
+                SharedSpellsContext.GetWarlockSpellRepertoire(character) != null &&
+                !SharedSpellsContext.IsMulticaster(character))
             {
                 return true;
             }
@@ -163,15 +171,16 @@ public static class ReactionRequestCastSpellPatcher
         ReactionRequestCastSpell request,
         RulesetEffectSpell effect)
     {
-        if (request?.Character?.RulesetCharacter is not RulesetCharacterHero hero ||
-            effect?.SpellDefinition == null)
+        var character = request?.Character?.RulesetCharacter;
+
+        if (!IsSupportedCaster(character) || effect?.SpellDefinition == null)
         {
             return effect?.SpellRepertoire;
         }
 
         var spell = effect.SpellDefinition;
         var current = request.ReactionParams.SpellRepertoire ?? effect.SpellRepertoire;
-        var knownRepertoires = hero.SpellRepertoires
+        var knownRepertoires = character.SpellRepertoires
             .Where(repertoire => repertoire.KnownSpells.Contains(spell))
             .ToArray();
         var featReactionRepertoire =
@@ -185,16 +194,19 @@ public static class ReactionRequestCastSpellPatcher
             return current ?? knownRepertoires.FirstOrDefault();
         }
 
-        if (HasAvailableSlotLevel(hero, featReactionRepertoire, spell, spell.SpellLevel))
+        if (HasAvailableSlotLevel(character, featReactionRepertoire, spell, spell.SpellLevel))
         {
             return featReactionRepertoire;
         }
 
-        var classRepertoire = hero.SpellRepertoires
+        var classRepertoire = character.SpellRepertoires
             .Where(repertoire => !IsRaceOrMonsterRepertoire(repertoire))
             .FirstOrDefault(repertoire =>
-                LevelUpHelper.IsSlotCastableExtraSpellForRepertoire(hero, repertoire, spell) &&
-                HasAvailableSlotLevel(hero, repertoire, spell, spell.SpellLevel));
+                LevelUpHelper.IsSlotCastableExtraSpellForRepertoire(
+                    character,
+                    repertoire,
+                    spell) &&
+                HasAvailableSlotLevel(character, repertoire, spell, spell.SpellLevel));
 
         if (classRepertoire != null)
         {
@@ -206,14 +218,14 @@ public static class ReactionRequestCastSpellPatcher
 
     private static bool TryBuildFeatReactionSlotOptions(
         ReactionRequestCastSpell request,
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         RulesetEffectSpell effect,
         Dictionary<int, bool> optionsAvailability,
         out int selected)
     {
         selected = -1;
 
-        if (!TryGetFeatReactionRepertoire(request, effect, hero, out var featRepertoire))
+        if (!TryGetFeatReactionRepertoire(request, effect, character, out var featRepertoire))
         {
             return false;
         }
@@ -223,8 +235,8 @@ public static class ReactionRequestCastSpellPatcher
         var maxSpellLevel = Math.Max(
             minSpellLevel,
             Math.Max(
-                SharedSpellsContext.GetSharedSpellLevel(hero),
-                SharedSpellsContext.GetWarlockSpellLevel(hero)));
+                SharedSpellsContext.GetSharedSpellLevel(character),
+                SharedSpellsContext.GetWarlockSpellLevel(character)));
         var selectedLevel = 0;
 
         optionsAvailability.Clear();
@@ -233,9 +245,9 @@ public static class ReactionRequestCastSpellPatcher
         {
             var freeUseAvailable =
                 level == minSpellLevel &&
-                HasAvailableSlotLevel(hero, featRepertoire, spell, level);
+                HasAvailableSlotLevel(character, featRepertoire, spell, level);
             var hasClassOption = TryGetClassSlotRepertoireForLevel(
-                hero,
+                character,
                 spell,
                 level,
                 requireAvailable: false,
@@ -285,10 +297,11 @@ public static class ReactionRequestCastSpellPatcher
         out RulesetSpellRepertoire repertoire)
     {
         repertoire = null;
+        var character = request?.Character?.RulesetCharacter;
 
-        if (request?.Character?.RulesetCharacter is not RulesetCharacterHero hero ||
+        if (!IsSupportedCaster(character) ||
             request.ReactionParams.RulesetEffect is not RulesetEffectSpell effect ||
-            !TryGetFeatReactionRepertoire(request, effect, hero, out var featRepertoire))
+            !TryGetFeatReactionRepertoire(request, effect, character, out var featRepertoire))
         {
             return false;
         }
@@ -296,14 +309,14 @@ public static class ReactionRequestCastSpellPatcher
         var spell = effect.SpellDefinition;
 
         if (slotLevel == spell.SpellLevel &&
-            HasAvailableSlotLevel(hero, featRepertoire, spell, slotLevel))
+            HasAvailableSlotLevel(character, featRepertoire, spell, slotLevel))
         {
             repertoire = featRepertoire;
             return true;
         }
 
         if (TryGetClassSlotRepertoireForLevel(
-                hero,
+                character,
                 spell,
                 slotLevel,
                 requireAvailable: false,
@@ -321,11 +334,11 @@ public static class ReactionRequestCastSpellPatcher
 
     private static bool TryApplyFeatReactionRepertoireForSlot(
         ReactionRequestCastSpell request,
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         RulesetEffectSpell effect,
         int slotLevel)
     {
-        if (!TryGetFeatReactionRepertoire(request, effect, hero, out var featRepertoire))
+        if (!TryGetFeatReactionRepertoire(request, effect, character, out var featRepertoire))
         {
             return false;
         }
@@ -334,7 +347,7 @@ public static class ReactionRequestCastSpellPatcher
         var spellLevel = spell.SpellLevel;
         var freeUseAvailable =
             slotLevel == spellLevel &&
-            HasAvailableSlotLevel(hero, featRepertoire, spell, slotLevel);
+            HasAvailableSlotLevel(character, featRepertoire, spell, slotLevel);
 
         if (freeUseAvailable)
         {
@@ -343,7 +356,7 @@ public static class ReactionRequestCastSpellPatcher
         }
 
         if (TryGetClassSlotRepertoireForLevel(
-                hero,
+                character,
                 spell,
                 slotLevel,
                 requireAvailable: true,
@@ -362,14 +375,14 @@ public static class ReactionRequestCastSpellPatcher
     private static bool TryGetFeatReactionRepertoire(
         ReactionRequestCastSpell request,
         RulesetEffectSpell effect,
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         out RulesetSpellRepertoire featRepertoire)
     {
         featRepertoire = null;
 
         if (request == null ||
             effect?.SpellDefinition == null ||
-            hero == null)
+            !IsSupportedCaster(character))
         {
             return false;
         }
@@ -379,7 +392,7 @@ public static class ReactionRequestCastSpellPatcher
 
         featRepertoire = IsFeatGrantedReactionRepertoire(current)
             ? current
-            : hero.SpellRepertoires
+            : character.SpellRepertoires
                 .Where(repertoire => repertoire.KnownSpells.Contains(spell))
                 .FirstOrDefault(IsFeatGrantedReactionRepertoire);
 
@@ -387,7 +400,7 @@ public static class ReactionRequestCastSpellPatcher
     }
 
     private static bool TryGetClassSlotRepertoireForLevel(
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         SpellDefinition spell,
         int slotLevel,
         bool requireAvailable,
@@ -397,10 +410,18 @@ public static class ReactionRequestCastSpellPatcher
         repertoire = null;
         isAvailable = false;
 
-        foreach (var candidate in hero.SpellRepertoires.Where(repertoire => !IsRaceOrMonsterRepertoire(repertoire)))
+        foreach (var candidate in character.SpellRepertoires
+                     .Where(repertoire => !IsRaceOrMonsterRepertoire(repertoire)))
         {
-            if (!LevelUpHelper.IsSlotCastableExtraSpellForRepertoire(hero, candidate, spell) ||
-                !candidate.TryGetAvailableSlotLevel(hero, slotLevel, spell, out var available))
+            if (!LevelUpHelper.IsSlotCastableExtraSpellForRepertoire(
+                    character,
+                    candidate,
+                    spell) ||
+                !candidate.TryGetAvailableSlotLevel(
+                    character,
+                    slotLevel,
+                    spell,
+                    out var available))
             {
                 continue;
             }
@@ -432,14 +453,24 @@ public static class ReactionRequestCastSpellPatcher
     }
 
     private static bool HasAvailableSlotLevel(
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         RulesetSpellRepertoire repertoire,
         SpellDefinition spell,
         int slotLevel)
     {
         return repertoire != null &&
-               repertoire.TryGetAvailableSlotLevel(hero, slotLevel, spell, out var isAvailable) &&
+               repertoire.TryGetAvailableSlotLevel(
+                   character,
+                   slotLevel,
+                   spell,
+                   out var isAvailable) &&
                isAvailable;
+    }
+
+    private static bool IsSupportedCaster(RulesetCharacter character)
+    {
+        return character is RulesetCharacterHero or RulesetCharacterSimulacrum ||
+               character?.OriginalFormCharacter is RulesetCharacterSimulacrum;
     }
 
     private static bool IsFeatGrantedReactionRepertoire(RulesetSpellRepertoire repertoire)

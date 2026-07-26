@@ -7,6 +7,8 @@ using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Diagnostics;
+using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
 using UnityEngine.AddressableAssets;
@@ -65,7 +67,7 @@ internal static class CustomWeaponsContext
         BuildLongMaces();
         BuildKatana();
         BuildHandXbow();
-        WeaponizeProducedFlame();
+        ConfigureProducedFlame();
         BuildThunderGauntlet();
         BuildLightningLauncher();
         BuildUnarmedStrikeClaws();
@@ -867,7 +869,7 @@ internal static class CustomWeaponsContext
     }
 
     internal static void ModifyUnarmedAttackWithGauntlet(
-        RulesetCharacterHero hero,
+        RulesetCharacter character,
         ref ItemDefinition itemDefinition,
         ref WeaponDescription weaponDescription,
         ref RulesetItem weapon)
@@ -879,7 +881,16 @@ internal static class CustomWeaponsContext
             return;
         }
 
-        var item = hero.CharacterInventory.InventorySlotsByType[EquipmentDefinitions.SlotTypeGloves][0]?.EquipedItem;
+        if (character?.CharacterInventory?.InventorySlotsByType == null ||
+            !character.CharacterInventory.InventorySlotsByType.TryGetValue(
+                EquipmentDefinitions.SlotTypeGloves,
+                out var gloveSlots))
+        {
+            return;
+        }
+
+        var item = gloveSlots.FirstOrDefault(slot =>
+            slot is { Disabled: false, ConfigSlot: false })?.EquipedItem;
 
         if (item is not { ItemDefinition.WeaponDescription.WeaponType: EquipmentDefinitions.WeaponTypeUnarmedStrike })
         {
@@ -891,17 +902,86 @@ internal static class CustomWeaponsContext
         weapon = item;
     }
 
+    internal static void AddFollowUpStrikeAttackModes(
+        RulesetCharacter character,
+        List<IAttackModificationProvider> attackModifiers,
+        Dictionary<FeatureDefinition, FeatureOrigin> featuresOrigin)
+    {
+        var mainHandSlot =
+            character.CharacterInventory.InventorySlotsByType[
+                EquipmentDefinitions.SlotTypeMainHand][0];
+        var equippedItem = mainHandSlot.EquipedItem;
+        var itemDefinition = equippedItem?.ItemDefinition;
+        var weaponDescription = itemDefinition?.WeaponDescription;
+
+        if (weaponDescription == null ||
+            !weaponDescription.WeaponTags.Contains(
+                TagsDefinitions.WeaponTagTwoHanded) ||
+            weaponDescription.WeaponTypeDefinition.WeaponProximity !=
+            AttackProximity.Melee ||
+            character.ExecutedAttacks == 0)
+        {
+            return;
+        }
+
+        foreach (var attackModifier in attackModifiers.Where(modifier =>
+                     modifier.FollowUpStrike))
+        {
+            var attackMode = character.TryRefreshAttackMode(
+                ActionDefinitions.ActionType.Bonus,
+                itemDefinition,
+                weaponDescription,
+                false,
+                attackModifier.FollowUpAddAbilityBonus,
+                mainHandSlot.Name,
+                attackModifiers,
+                featuresOrigin,
+                equippedItem);
+
+            if (attackMode == null)
+            {
+                continue;
+            }
+
+            var effectDamageForms = attackMode.EffectDescription.EffectForms
+                .Where(form => form.FormType == EffectForm.EffectFormType.Damage)
+                .ToList();
+
+            if (effectDamageForms.Count != 0)
+            {
+                effectDamageForms[0] = EffectForm.GetCopy(effectDamageForms[0]);
+                effectDamageForms[0].DamageForm.DieType =
+                    attackModifier.FollowUpDamageDie;
+                effectDamageForms[0].DamageForm.DiceNumber = 1;
+            }
+
+            if (!Main.Settings.AccountForAllDiceOnFollowUpStrike &&
+                effectDamageForms.Count > 1)
+            {
+                effectDamageForms.RemoveRange(
+                    1,
+                    effectDamageForms.Count - 1);
+            }
+
+            attackMode.EffectDescription.EffectForms.Clear();
+            attackMode.EffectDescription.EffectForms.AddRange(
+                effectDamageForms);
+            character.AttackModes.Add(attackMode);
+        }
+    }
 
     //TODO: not sure this is the best place for this method
-    internal static void TryAddMainActionUnarmedAttacks(RulesetCharacterHero hero)
+    internal static void TryAddMainActionUnarmedAttacks(RulesetCharacter character)
     {
-        if (!Main.Settings.EnableUnarmedMainAttackAction)
+        if (!Main.Settings.EnableUnarmedMainAttackAction ||
+            character is not (RulesetCharacterHero or RulesetCharacterSimulacrum) ||
+            character.CharacterInventory?.InventorySlotsByType == null)
         {
             return;
         }
 
         //skip if we already have main unarmed attack
-        if (hero.AttackModes.Any(m => m is
+        if (character.AttackModes.Any(m => m is
                 {
                     ActionType: ActionDefinitions.ActionType.Main,
                     SourceDefinition: ItemDefinition
@@ -915,7 +995,11 @@ internal static class CustomWeaponsContext
         }
 
         //checkin only extra glove slot, because gauntlets in main hand slot would already add attack
-        var item = hero.CharacterInventory.InventorySlotsByType[EquipmentDefinitions.SlotTypeGloves][0]?.EquipedItem;
+        character.CharacterInventory.InventorySlotsByType.TryGetValue(
+            EquipmentDefinitions.SlotTypeGloves,
+            out var gloveSlots);
+        var item = gloveSlots?.FirstOrDefault(slot =>
+            slot is { Disabled: false, ConfigSlot: false })?.EquipedItem;
         var definition = item?.ItemDefinition;
 
         if (item is not { ItemDefinition.WeaponDescription.WeaponType: EquipmentDefinitions.WeaponTypeUnarmedStrike })
@@ -926,21 +1010,40 @@ internal static class CustomWeaponsContext
 
         definition ??= ItemDefinitions.UnarmedStrikeBase;
 
-        if (hero.GetClassLevel(CharacterClassDefinitions.Monk) == 0 && item == null)
+        if (character.GetClassLevel(CharacterClassDefinitions.Monk) == 0 && item == null)
         {
             return;
         }
 
-        hero.AttackModes.Add(hero.RefreshAttackMode(ActionDefinitions.ActionType.Main, definition,
-            definition.WeaponDescription, hero.HasFreeHandSlot(), true, EquipmentDefinitions.SlotTypeMainHand,
-            hero.attackModifiers, hero.FeaturesOrigin, item));
+        var featuresToBrowse = new List<FeatureDefinition>();
+        var featuresOrigin = new Dictionary<FeatureDefinition, FeatureOrigin>();
+
+        character.EnumerateFeaturesToBrowse<IAttackModificationProvider>(
+            featuresToBrowse,
+            featuresOrigin);
+
+        var attackMode = character.TryRefreshAttackMode(
+            ActionDefinitions.ActionType.Main,
+            definition,
+            definition.WeaponDescription,
+            character.HasFreeHandSlot(),
+            true,
+            EquipmentDefinitions.SlotTypeMainHand,
+            featuresToBrowse.OfType<IAttackModificationProvider>().ToList(),
+            featuresOrigin,
+            item);
+
+        if (attackMode != null)
+        {
+            character.AttackModes.Add(attackMode);
+        }
     }
 
     #endregion
 
     #region Produce Flame
 
-    private static void WeaponizeProducedFlame()
+    private static void ConfigureProducedFlame()
     {
         var flame = ItemDefinitions.ProducedFlame;
 
@@ -957,37 +1060,46 @@ internal static class CustomWeaponsContext
         damageForm.damageType = DamageTypeFire;
         damageForm.dieType = DieType.D8;
 
-        var weapon = new WeaponDescription(ItemDefinitions.UnarmedStrikeBase.weaponDefinition);
-
-        weapon.EffectDescription.effectForms.Add(
-            EffectFormBuilder
-                .Create()
-                .SetDamageForm(DamageTypeFire, 1, DieType.D8)
-                .SetCreatedBy(false, false)
-                .Build());
         flame.staticProperties.Add(
             BuildFrom(
                 FeatureDefinitionBuilder
                     .Create("FeatureProducedFlameThrower")
                     .SetGuiPresentationNoContent()
                     .AddCustomSubFeatures(
-                        new ModifyWeaponProducedFlameDice(),
+                        new ModifyProducedFlameAttackMode(),
                         new AddThrowProducedFlameAttack())
                     .AddToDB(), false));
-
-        flame.IsWeapon = true;
-        flame.weaponDefinition = weapon;
     }
 
-    internal static void ProcessProducedFlameAttack([NotNull] RulesetCharacterHero hero,
+    internal static void ProcessProducedFlameAttack([NotNull] RulesetCharacter character,
         [NotNull] RulesetAttackMode mode)
     {
-        var num = hero.characterInventory.CurrentConfiguration;
-        var configurations = hero.characterInventory.WieldedItemsConfigurations;
+        var inventory = character.CharacterInventory;
+
+        if (inventory == null)
+        {
+            return;
+        }
+
+        var num = inventory.CurrentConfiguration;
+        var configurations = inventory.WieldedItemsConfigurations;
+
+        if (configurations == null ||
+            configurations.Count == 0 ||
+            num < 0 ||
+            num >= configurations.Count)
+        {
+            return;
+        }
 
         if (num == configurations.Count - 1)
         {
             num = configurations[num].MainHandSlot.ShadowedSlot != configurations[0].MainHandSlot ? 1 : 0;
+
+            if (num >= configurations.Count)
+            {
+                return;
+            }
         }
 
         var itemsConfiguration = configurations[num];
@@ -1007,16 +1119,17 @@ internal static class CustomWeaponsContext
             return;
         }
 
-        hero.CharacterInventory.DefineWieldedItemsConfiguration(num, null, mode.SlotName);
+        inventory.DefineWieldedItemsConfiguration(num, null, mode.SlotName);
     }
 
     #endregion
 }
 
-internal sealed class ModifyWeaponProducedFlameDice : ModifyWeaponAttackModeBase
+internal sealed class ModifyProducedFlameAttackMode : ModifyWeaponAttackModeBase
 {
-    internal ModifyWeaponProducedFlameDice() : base((_, weapon, _) =>
-        weapon != null && weapon.ItemDefinition == ItemDefinitions.ProducedFlame)
+    internal ModifyProducedFlameAttackMode() : base((attackMode, _, _) =>
+        attackMode?.SourceDefinition == CustomWeaponsContext.ProducedFlameDart &&
+        (attackMode.SourceObject as RulesetItem)?.ItemDefinition == ItemDefinitions.ProducedFlame)
     {
     }
 
@@ -1034,6 +1147,29 @@ internal sealed class ModifyWeaponProducedFlameDice : ModifyWeaponAttackModeBase
         var casterLevel = character.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
 
         damage.diceNumber = 1 + SpellAdvancementByCasterLevel[casterLevel - 1];
+
+        var item = attackMode.SourceObject as RulesetItem;
+        var activeSpell =
+            EffectHelpers.GetEffectByGuid(item?.SourceSummoningEffectGuid ?? 0) as RulesetEffectSpell;
+        var repertoire = SpellCastingValidation.ResolveRepertoire(
+            character,
+            activeSpell?.SpellRepertoire,
+            SpellDefinitions.ProduceFlame,
+            activeSpell);
+
+        if (repertoire?.SpellCastingAbility is not { Length: > 0 })
+        {
+            return;
+        }
+
+        attackMode.AbilityScore = repertoire.SpellCastingAbility;
+        attackMode.ToHitBonus = repertoire.SpellAttackBonus;
+        attackMode.ToHitBonusTrends.Clear();
+
+        if (repertoire.MagicAttackTrends != null)
+        {
+            attackMode.ToHitBonusTrends.AddRange(repertoire.MagicAttackTrends);
+        }
     }
 }
 
@@ -1045,26 +1181,31 @@ internal sealed class AddThrowProducedFlameAttack : AddExtraAttackBase
 
     protected override List<RulesetAttackMode> GetAttackModes([NotNull] RulesetCharacter character)
     {
-        if (character is not RulesetCharacterHero hero)
+        if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum))
         {
             return null;
         }
 
         var result = new List<RulesetAttackMode>();
 
-        AddItemAttack(result, EquipmentDefinitions.SlotTypeMainHand, hero);
-        AddItemAttack(result, EquipmentDefinitions.SlotTypeOffHand, hero);
+        AddItemAttack(result, EquipmentDefinitions.SlotTypeMainHand, character);
+        AddItemAttack(result, EquipmentDefinitions.SlotTypeOffHand, character);
 
         return result;
     }
 
-    // ReSharper disable once SuggestBaseTypeForParameter
     private static void AddItemAttack(
         List<RulesetAttackMode> attackModes,
         [NotNull] string slot,
-        [NotNull] RulesetCharacterHero hero)
+        [NotNull] RulesetCharacter character)
     {
-        var item = hero.CharacterInventory.InventorySlotsByName[slot].EquipedItem;
+        if (character.CharacterInventory == null ||
+            !character.CharacterInventory.InventorySlotsByName.TryGetValue(slot, out var inventorySlot))
+        {
+            return;
+        }
+
+        var item = inventorySlot.EquipedItem;
 
         if (item == null || item.ItemDefinition != ItemDefinitions.ProducedFlame)
         {
@@ -1073,28 +1214,31 @@ internal sealed class AddThrowProducedFlameAttack : AddExtraAttackBase
 
         var strikeDefinition = CustomWeaponsContext.ProducedFlameDart;
 
-        var action = slot == EquipmentDefinitions.SlotTypeOffHand
-            ? ActionDefinitions.ActionType.Bonus
-            : ActionDefinitions.ActionType.Main;
-
-        var attackMode = hero.RefreshAttackMode(
-            action,
+        var attackMode = character.TryRefreshAttackMode(
+            ActionDefinitions.ActionType.Main,
             strikeDefinition,
             strikeDefinition.WeaponDescription,
             false,
             false,
             slot,
-            hero.attackModifiers,
-            hero.FeaturesOrigin,
+            GetAttackModifiers(character),
+            character.FeaturesOrigin,
             item
         );
 
+        if (attackMode == null)
+        {
+            return;
+        }
+
+        attackMode.AttacksNumber = 1;
         attackMode.closeRange = attackMode.maxRange = 6;
         attackMode.Reach = false;
         attackMode.Ranged = true;
         attackMode.Thrown = true;
         attackMode.AttackTags.Remove(TagsDefinitions.WeaponTagMelee);
 
+        SimulacrumDiagnostics.RecordProducedFlameAttackMode(character, attackMode);
         attackModes.Add(attackMode);
     }
 }

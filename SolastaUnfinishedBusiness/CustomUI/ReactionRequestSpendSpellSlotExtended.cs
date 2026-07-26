@@ -2,6 +2,8 @@
 using System.Linq;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses.Builders;
 
@@ -16,11 +18,55 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
     {
         SubOptionsAvailability.Clear();
 
-        var hero = actionParams.ActingCharacter.RulesetCharacter.GetOriginalHero();
+        var rulesetCharacter = actionParams.ActingCharacter.RulesetCharacter;
+        var hero = rulesetCharacter.GetOriginalHero();
         var spellRepertoire = ReactionParams.SpellRepertoire;
+        var spell = (ReactionParams.RulesetEffect as RulesetEffectSpell)?.SpellDefinition;
         int selected;
 
-        if (actionParams.StringParameter == InvocationsBuilders.EldritchSmiteTag)
+        if (rulesetCharacter is RulesetCharacterSimulacrum smiteDuplicate &&
+            actionParams.StringParameter == InvocationsBuilders.EldritchSmiteTag)
+        {
+            selected = AddSimulacrumPactSlotOption(
+                smiteDuplicate,
+                spellRepertoire);
+
+            SimulacrumDiagnostics.RecordReactionSpellSlots(
+                smiteDuplicate,
+                spell,
+                spellRepertoire,
+                SubOptionsAvailability,
+                selected,
+                GetSelectedSlotLevel(selected),
+                "eldritch-smite-options");
+        }
+        else if (rulesetCharacter is RulesetCharacterSimulacrum duplicate)
+        {
+            var minimumLevel = Math.Max(1, actionParams.IntParameter);
+            var maximumLevel = spellRepertoire.spellsSlotCapacities.Keys
+                .Concat(spellRepertoire.usedSpellsSlots.Keys)
+                .Where(level => level >= minimumLevel)
+                .DefaultIfEmpty(minimumLevel)
+                .Max();
+
+            selected = MulticlassGameUi.AddAvailableSubLevels(
+                SubOptionsAvailability,
+                null,
+                spellRepertoire,
+                minimumLevel,
+                maximumLevel,
+                spell);
+
+            SimulacrumDiagnostics.RecordReactionSpellSlots(
+                duplicate,
+                spell,
+                spellRepertoire,
+                SubOptionsAvailability,
+                selected,
+                GetSelectedSlotLevel(selected),
+                "options-built");
+        }
+        else if (actionParams.StringParameter == InvocationsBuilders.EldritchSmiteTag)
         {
             var minLevel = SharedSpellsContext.GetWarlockSpellLevel(hero);
 
@@ -36,6 +82,18 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
         if (selected >= 0)
         {
             SelectSubOption(selected);
+
+            if (rulesetCharacter is RulesetCharacterSimulacrum selectedDuplicate)
+            {
+                SimulacrumDiagnostics.RecordReactionSpellSlots(
+                    selectedDuplicate,
+                    spell,
+                    spellRepertoire,
+                    SubOptionsAvailability,
+                    selected,
+                    ReactionParams.IntParameter,
+                    "selected");
+            }
         }
 
         _guiCharacter = new GuiCharacter(Character);
@@ -80,5 +138,54 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
     public override void SelectSubOption(int option)
     {
         ReactionParams.IntParameter = SubOptionsAvailability.Keys.ToArray()[option];
+    }
+
+    private int GetSelectedSlotLevel(int selectedIndex)
+    {
+        return selectedIndex >= 0 && selectedIndex < SubOptionsAvailability.Count
+            ? SubOptionsAvailability.Keys.ElementAt(selectedIndex)
+            : -1;
+    }
+
+    private int AddSimulacrumPactSlotOption(
+        RulesetCharacterSimulacrum duplicate,
+        RulesetSpellRepertoire repertoire)
+    {
+        var warlock = DatabaseHelper.CharacterClassDefinitions.Warlock;
+        var warlockLevel = duplicate.GetClassLevel(warlock);
+
+        if (warlockLevel <= 0 || repertoire?.SpellCastingClass != warlock)
+        {
+            return -1;
+        }
+
+        var pactSpellLevel = Math.Min(5, (warlockLevel + 1) / 2);
+        var pactMax = warlockLevel switch
+        {
+            1 => 1,
+            <= 10 => 2,
+            <= 16 => 3,
+            _ => 4
+        };
+
+        pactMax += duplicate
+            .FeaturesByType<FeatureDefinitionMagicAffinity>()
+            .Where(x => x == DatabaseHelper.FeatureDefinitionMagicAffinitys
+                .MagicAffinityChitinousBoonAdditionalSpellSlot)
+            .SelectMany(x => x.AdditionalSlots)
+            .Sum(x => x.SlotsNumber);
+
+        var hasSharedClassSlots = duplicate.SpellRepertoires.Count(x =>
+            x.SpellCastingFeature?.SpellCastingOrigin !=
+            FeatureDefinitionCastSpell.CastingOrigin.Race) > 1;
+        var usedSlotKey = hasSharedClassSlots
+            ? SharedSpellsContext.PactMagicSlotsTab
+            : pactSpellLevel;
+
+        repertoire.usedSpellsSlots.TryGetValue(usedSlotKey, out var used);
+
+        SubOptionsAvailability.Add(pactSpellLevel, used < pactMax);
+
+        return used < pactMax ? 0 : -1;
     }
 }

@@ -10,6 +10,9 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Diagnostics;
+using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Spells;
 using SolastaUnfinishedBusiness.Validators;
@@ -21,6 +24,487 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetImplementationManagerLocationPatcher
 {
+    [HarmonyPatch(
+        typeof(RulesetImplementationManagerLocation),
+        nameof(RulesetImplementationManagerLocation.ApplyItemPropertyForm),
+        typeof(EffectForm),
+        typeof(RulesetImplementationDefinitions.ApplyFormsParams))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ApplyItemPropertyForm_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(RulesetImplementationDefinitions.ApplyFormsParams formsParams)
+        {
+            if (formsParams.targetCharacter is not RulesetCharacterSimulacrum duplicate ||
+                formsParams.activeEffect is not RulesetEffect activeEffect)
+            {
+                return;
+            }
+
+            EnsureTrackedItemProperties(duplicate, activeEffect);
+            SimulacrumBehavior.RefreshEquipment(duplicate);
+
+            if (activeEffect is RulesetEffectSpell activeSpell &&
+                RulesetEffectSpellWithOrigin.GetOriginSpell(activeSpell)?.Name == "Shillelagh")
+            {
+                SimulacrumDiagnostics.RecordShillelagh(
+                    duplicate,
+                    "item-property-applied",
+                    activeSpell);
+            }
+        }
+
+        private static void EnsureTrackedItemProperties(
+            RulesetCharacterSimulacrum duplicate,
+            RulesetEffect activeEffect)
+        {
+            var inventory = duplicate.CharacterInventory;
+            var locationGuid = GameLocationCharacter.GetFromActor(duplicate)?.Guid ?? duplicate.Guid;
+
+            if (inventory == null)
+            {
+                return;
+            }
+
+            var items = new List<RulesetItem>();
+
+            inventory.EnumerateAllItems(items, true, false);
+
+            foreach (var item in items)
+            {
+                var slot = inventory.FindSlotHoldingItem(item);
+
+                foreach (var property in item.dynamicItemProperties
+                             .Where(property =>
+                                 property?.SourceEffectGuid == activeEffect.Guid &&
+                                 !activeEffect.TrackedItemPropertyGuids.Contains(property.Guid))
+                             .ToArray())
+                {
+                    activeEffect.TrackItemProperty(
+                        item,
+                        locationGuid,
+                        slot?.Name ?? string.Empty,
+                        property);
+                    inventory.ItemAltered?.Invoke(inventory, slot, item);
+                }
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetImplementationManagerLocation),
+        nameof(RulesetImplementationManagerLocation.InstantiateEffectRitual))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class InstantiateEffectRitual_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(
+            IEnumerable<CodeInstruction> instructions)
+        {
+            var constructor = AccessTools.Constructor(
+                typeof(RulesetEffectSpell),
+                [typeof(RulesetCharacter), typeof(SpellDefinition)]);
+            var replacement = AccessTools.Method(
+                typeof(InstantiateEffectRitual_Patch),
+                nameof(CreateRitualEffect));
+            var replaced = 0;
+
+            foreach (var instruction in instructions)
+            {
+                if (instruction.opcode == OpCodes.Newobj &&
+                    Equals(instruction.operand, constructor))
+                {
+                    replaced++;
+                    var replacementInstruction = new CodeInstruction(
+                        OpCodes.Call,
+                        replacement);
+
+                    replacementInstruction.labels.AddRange(instruction.labels);
+                    replacementInstruction.blocks.AddRange(instruction.blocks);
+                    yield return replacementInstruction;
+                    continue;
+                }
+
+                yield return instruction;
+            }
+
+            if (replaced != 1)
+            {
+                throw new InvalidOperationException(
+                    $"Expected one ritual spell constructor, replaced {replaced}.");
+            }
+        }
+
+        private static RulesetEffectSpell CreateRitualEffect(
+            RulesetCharacter caster,
+            SpellDefinition spellDefinition)
+        {
+            if (caster is not RulesetCharacterSimulacrum duplicate)
+            {
+                return new RulesetEffectSpell(caster, spellDefinition);
+            }
+
+            var repertoire = SimulacrumBehavior.ResolveRitualRepertoire(
+                duplicate,
+                spellDefinition);
+
+            SimulacrumDiagnostics.RecordSpellActivation(
+                "ritual-effect",
+                duplicate,
+                repertoire,
+                spellDefinition);
+
+            var effect = new RulesetEffectSpell(caster, spellDefinition);
+
+            // Native ritual timing requires both SlotLevel < 0 and SpellRepertoire == null.
+            // Keep the selected repertoire out-of-band so validation can still use the exact
+            // spellbook without turning the ritual into the spell's normal casting time.
+            SpellCastingValidation.BindEffectRepertoire(effect, repertoire);
+
+            return effect;
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetImplementationManagerLocation),
+        nameof(RulesetImplementationManagerLocation.InstantiateEffectSpell))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class InstantiateEffectSpell_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(
+            RulesetImplementationManagerLocation __instance,
+            ref RulesetEffectSpell __result,
+            RulesetCharacter caster,
+            RulesetSpellRepertoire spellRepertoire,
+            SpellDefinition spellDefinition,
+            int slotLevel,
+            bool delayRegistration)
+        {
+            return RulesetEffectSpellWithOrigin.TryInstantiate(
+                __instance,
+                ref __result,
+                caster,
+                spellRepertoire,
+                spellDefinition,
+                slotLevel,
+                delayRegistration);
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetImplementationManagerLocation),
+        nameof(RulesetImplementationManagerLocation.ApplySummonForm))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ApplySummonForm_Patch
+    {
+        [ThreadStatic]
+        private static Stack<SummonFormState> _invocationStates;
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(
+            IEnumerable<CodeInstruction> instructions)
+        {
+            var constructor = AccessTools.Constructor(
+                typeof(RulesetCharacterMonster),
+                [
+                    typeof(MonsterDefinition),
+                    typeof(int),
+                    typeof(SpawnOverrides),
+                    typeof(GadgetDefinitions.CreatureSex),
+                    typeof(RulesetCharacter),
+                    typeof(bool),
+                    typeof(bool),
+                    typeof(bool)
+                ]);
+            var factory = AccessTools.Method(
+                typeof(ApplySummonForm_Patch),
+                nameof(CreateRulesetCharacterMonster));
+            var replaced = 0;
+
+            foreach (var instruction in instructions)
+            {
+                if (instruction.opcode == OpCodes.Newobj &&
+                    Equals(instruction.operand, constructor))
+                {
+                    instruction.opcode = OpCodes.Call;
+                    instruction.operand = factory;
+                    replaced++;
+                }
+
+                yield return instruction;
+            }
+
+            if (replaced != 1)
+            {
+                throw new InvalidOperationException(
+                    $"ApplySummonForm monster factory patch expected 1 constructor, found {replaced}.");
+            }
+        }
+
+        [UsedImplicitly]
+        public static RulesetCharacterMonster CreateRulesetCharacterMonster(
+            MonsterDefinition monsterDefinition,
+            int experience,
+            SpawnOverrides spawnOverrides,
+            GadgetDefinitions.CreatureSex sex,
+            RulesetCharacter originalFormCharacter,
+            bool keepMentalAbilityScores,
+            bool useMentalAbilityScores,
+            bool useOriginalFormConstitution)
+        {
+            var factory = monsterDefinition
+                ?.GetFirstSubFeatureOfType<IRulesetCharacterMonsterFactory>();
+
+            var summonedCharacter = factory?.Create(
+                       monsterDefinition,
+                       experience,
+                       spawnOverrides,
+                       sex,
+                       originalFormCharacter,
+                       keepMentalAbilityScores,
+                       useMentalAbilityScores,
+                       useOriginalFormConstitution)
+                   ?? new RulesetCharacterMonster(
+                       monsterDefinition,
+                       experience,
+                       spawnOverrides,
+                       sex,
+                       originalFormCharacter,
+                       keepMentalAbilityScores,
+                       useMentalAbilityScores,
+                       useOriginalFormConstitution);
+
+            if (_invocationStates is { Count: > 0 } &&
+                _invocationStates.Peek() is { PreparationSucceeded: true } state)
+            {
+                foreach (var invocation in state.Invocations)
+                {
+                    invocation.Handler.InitializeSummonedCharacter(
+                        summonedCharacter,
+                        invocation.Context);
+                }
+            }
+
+            return summonedCharacter;
+        }
+
+        internal static void InitializeConstructionAttributes(
+            RulesetCharacterMonster summonedCharacter)
+        {
+            if (_invocationStates is not { Count: > 0 } ||
+                _invocationStates.Peek() is not
+                {
+                    PreparationSucceeded: true
+                } state)
+            {
+                return;
+            }
+
+            foreach (var invocation in state.Invocations)
+            {
+                if (invocation.Handler is ICustomSummonCharacterConstructionHandler handler)
+                {
+                    handler.InitializeConstructionAttributes(
+                        summonedCharacter,
+                        invocation.Context);
+                }
+            }
+        }
+
+        [UsedImplicitly]
+        public static bool Prefix(
+            ref EffectForm effectForm,
+            ref RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            out object __state)
+        {
+            __state = null;
+
+            if (RulesetImplementationManagerPatcher.ApplySummonForm_Patch
+                .TryApplySimulacrumInventoryItem(effectForm, formsParams))
+            {
+                return false;
+            }
+
+            var summonForm = effectForm?.SummonForm;
+            var sourceDefinition = formsParams.activeEffect?.SourceDefinition;
+
+            if (summonForm?.SummonType != SummonForm.Type.Creature ||
+                !sourceDefinition)
+            {
+                return true;
+            }
+
+            var handlers = sourceDefinition
+                .GetAllSubFeaturesOfType<ICustomSummonFormHandler>()
+                .ToArray();
+
+            if (handlers.Length == 0)
+            {
+                return true;
+            }
+
+            var invocationEffectForm = new EffectForm();
+
+            invocationEffectForm.Copy(effectForm);
+            effectForm = invocationEffectForm;
+            summonForm = invocationEffectForm.SummonForm;
+
+            var state = new SummonFormState(formsParams.position);
+
+            __state = state;
+
+            foreach (var handler in handlers)
+            {
+                if (!handler.TryPrepare(
+                        effectForm,
+                        ref formsParams,
+                        out var invocationContext,
+                        out var failureFeedback))
+                {
+                    state.PreparationSucceeded = false;
+                    formsParams.activeEffect?.DoTerminate(formsParams.sourceCharacter);
+
+                    if (!string.IsNullOrEmpty(failureFeedback))
+                    {
+                        Gui.GuiService.ShowAlert(
+                            failureFeedback,
+                            Gui.ColorFailure,
+                            2.5f);
+                    }
+
+                    return false;
+                }
+
+                state.Invocations.Add(new HandlerInvocation(handler, invocationContext));
+
+                var monsterDefinitionName = handler.GetMonsterDefinitionName(
+                    effectForm,
+                    formsParams,
+                    invocationContext);
+
+                if (string.IsNullOrEmpty(monsterDefinitionName) ||
+                    monsterDefinitionName == summonForm.MonsterDefinitionName)
+                {
+                    continue;
+                }
+
+                summonForm.monsterDefinitionName = monsterDefinitionName;
+
+                break;
+            }
+
+            (_invocationStates ??= new Stack<SummonFormState>()).Push(state);
+            state.Pushed = true;
+
+            return true;
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            EffectForm effectForm,
+            ref RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            object __state)
+        {
+            try
+            {
+                if (__state is not SummonFormState
+                    {
+                        PreparationSucceeded: true
+                    } state)
+                {
+                    return;
+                }
+
+                foreach (var invocation in state.Invocations)
+                {
+                    invocation.Handler.AfterApply(
+                        effectForm,
+                        formsParams,
+                        invocation.Context);
+                }
+            }
+            finally
+            {
+                RestoreState(ref formsParams, __state);
+            }
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(
+            Exception __exception,
+            ref RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            object __state)
+        {
+            RestoreState(ref formsParams, __state);
+
+            return __exception;
+        }
+
+        private static void RestoreState(
+            ref RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            object state)
+        {
+            if (state is SummonFormState summonFormState)
+            {
+                formsParams.position = summonFormState.Position;
+                PopInvocationState(summonFormState);
+            }
+        }
+
+        private static void PopInvocationState(SummonFormState state)
+        {
+            if (!state.Pushed)
+            {
+                return;
+            }
+
+            state.Pushed = false;
+
+            if (_invocationStates is not { Count: > 0 } ||
+                !ReferenceEquals(_invocationStates.Peek(), state))
+            {
+                Trace.LogWarning("Custom summon invocation context stack is inconsistent.");
+                _invocationStates?.Clear();
+
+                return;
+            }
+
+            _invocationStates.Pop();
+        }
+
+        private sealed class SummonFormState(int3 position)
+        {
+            internal readonly List<HandlerInvocation> Invocations = [];
+            internal readonly int3 Position = position;
+            internal bool PreparationSucceeded = true;
+            internal bool Pushed;
+        }
+
+        private sealed class HandlerInvocation(
+            ICustomSummonFormHandler handler,
+            ICustomSummonInvocationContext context)
+        {
+            internal readonly ICustomSummonInvocationContext Context = context;
+            internal readonly ICustomSummonFormHandler Handler = handler;
+        }
+    }
+
+    [HarmonyPatch(
+        typeof(RulesetCharacterMonster),
+        nameof(RulesetCharacterMonster.RegisterAttributes))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RulesetCharacterMonsterRegisterAttributes_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(RulesetCharacterMonster __instance)
+        {
+            ApplySummonForm_Patch.InitializeConstructionAttributes(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetImplementationManagerLocation),
         nameof(RulesetImplementationManagerLocation.InstantiateEffectInvocation))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -257,6 +741,38 @@ public static class RulesetImplementationManagerLocationPatcher
             return ReplaceMetamagicOption.PatchMetamagicGetter(instructions,
                 "RulesetImplementationManagerLocation.IsAnyMetamagicOptionAvailable");
         }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetImplementationManagerLocation __instance,
+            RulesetEffectSpell rulesetEffectSpell,
+            RulesetCharacter caster,
+            ref bool __result)
+        {
+            if (__result ||
+                caster is not RulesetCharacterSimulacrum &&
+                caster?.OriginalFormCharacter is not RulesetCharacterSimulacrum)
+            {
+                return;
+            }
+
+            foreach (var metamagicOption in ReplaceMetamagicOption.GetOptions(caster))
+            {
+                if (!__instance.IsMetamagicOptionAvailable(
+                        rulesetEffectSpell,
+                        caster,
+                        metamagicOption,
+                        out _,
+                        out _))
+                {
+                    continue;
+                }
+
+                __result = true;
+
+                return;
+            }
+        }
     }
 
     //PATCH: supports light and obscurement rules
@@ -266,6 +782,39 @@ public static class RulesetImplementationManagerLocationPatcher
     [UsedImplicitly]
     public static class ApplyCounterForm_Patch
     {
+        private static RulesetCharacter ResolveCounterCharacter(
+            RulesetCharacter character)
+        {
+            return character is
+                RulesetCharacterHero or RulesetCharacterSimulacrum
+                ? character
+                : null;
+        }
+
+        [UsedImplicitly]
+        public static void Prefix(
+            EffectForm effectForm,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams)
+        {
+            var counter = effectForm?.CounterForm;
+
+            if (formsParams.sourceCharacter is not
+                    RulesetCharacterSimulacrum duplicate ||
+                counter == null ||
+                !counter.AddProficiencyBonus &&
+                !counter.AddAbilityBonus)
+            {
+                return;
+            }
+
+            SimulacrumDiagnostics.RecordEffectForm(
+                duplicate,
+                "counter-bonuses-enabled",
+                formsParams.activeEffect,
+                $"proficiency={counter.AddProficiencyBonus} " +
+                $"ability={counter.AddAbilityBonus}:{counter.AbilityToAdd}");
+        }
+
         [NotNull]
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
@@ -273,10 +822,89 @@ public static class RulesetImplementationManagerLocationPatcher
             var conditionDefinitionMethod = typeof(ConditionForm).GetMethod("get_ConditionDefinition");
             var myConditionDefinitionMethod =
                 new Func<ConditionForm, ConditionDefinition>(LightingAndObscurementContext.CheckForDarknessCondition).Method;
+            var resolveCounterCharacter = new Func<
+                RulesetCharacter,
+                RulesetCharacter>(ResolveCounterCharacter).Method;
+            var replacedHeroGates = 0;
+            var patched = new List<CodeInstruction>();
 
-            return instructions.ReplaceCalls(conditionDefinitionMethod,
+            foreach (var instruction in instructions)
+            {
+                if (instruction.opcode == OpCodes.Isinst &&
+                    instruction.operand as Type == typeof(RulesetCharacterHero))
+                {
+                    replacedHeroGates++;
+                    var replacement = new CodeInstruction(
+                        OpCodes.Call,
+                        resolveCounterCharacter);
+
+                    replacement.labels.AddRange(instruction.labels);
+                    replacement.blocks.AddRange(instruction.blocks);
+                    patched.Add(replacement);
+                }
+                else
+                {
+                    patched.Add(instruction);
+                }
+            }
+
+            if (replacedHeroGates != 2)
+            {
+                throw new InvalidOperationException(
+                    "Expected two ApplyCounterForm Hero bonus gates, " +
+                    $"replaced {replacedHeroGates}.");
+            }
+
+            return patched.ReplaceCalls(conditionDefinitionMethod,
                 "RulesetImplementationManagerLocation.ApplyCounterForm",
                 new CodeInstruction(OpCodes.Call, myConditionDefinitionMethod));
+        }
+    }
+
+    [HarmonyPatch(
+        typeof(RulesetImplementationManagerLocation),
+        nameof(RulesetImplementationManagerLocation.ApplyLightSourceForm))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ApplyLightSourceForm_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams)
+        {
+            var item = formsParams.targetItem;
+
+            if (item?.RulesetLightSource == null ||
+                !RulesetEntity.TryGetEntity(
+                    item.BearerGuid,
+                    out RulesetCharacterSimulacrum duplicate) ||
+                duplicate.CharacterInventory is not { } inventory ||
+                inventory.FindSlotHoldingItem(item) is not { } slot ||
+                slot.SlotTypeDefinition?.CanDisplayLight != true ||
+                slot.ConfigSlot &&
+                inventory.IsItemInInactiveConfiguration(item) ||
+                GameLocationCharacter.GetFromActor(duplicate) is not { } location ||
+                ServiceRepository.GetService<IGameLocationVisibilityService>() is not
+                    { } visibility)
+            {
+                return;
+            }
+
+            // Native item-light registration is gated to RulesetCharacterHero even
+            // though the item light and effect tracking above it are generic. Complete
+            // the missing creation-time registration for a Simulacrum, retaining the
+            // warning here because a duplicate at this boundary is not expected.
+            visibility.AddCharacterLightSource(
+                location,
+                item.RulesetLightSource,
+                true);
+
+            SimulacrumDiagnostics.RecordEffectForm(
+                duplicate,
+                "item-light-registration-ensured",
+                formsParams.activeEffect,
+                $"item={item.ItemDefinition?.Name ?? "<null>"}:{item.Guid} " +
+                $"light={item.RulesetLightSource.Guid}");
         }
     }
 

@@ -1,24 +1,62 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Interfaces;
 
 namespace SolastaUnfinishedBusiness.Behaviors.Specific;
 
 /// <summary>
 ///     Allow spells that require consumption of a material component (e.g. a gem of value >= 1000gp) use a stack
 ///     of lesser value components (e.g. 4 x 300gp diamonds).
-///     Note that this implementation will only work with identical components - e.g. 'all diamonds', it won't consider
-///     combining different types of items with the tag 'gem'.
+///     This implementation combines stacks of the same item definition, but doesn't combine different types of items
+///     that happen to share the same material tag.
 /// </summary>
 internal static class StackedMaterialComponent
 {
+    private sealed class ConsumptionEntry
+    {
+        internal ConsumptionEntry(RulesetItem rulesetItem, int count)
+        {
+            RulesetItem = rulesetItem;
+            Count = count;
+        }
+
+        internal RulesetItem RulesetItem { get; }
+
+        internal int Count { get; }
+    }
+
+    private sealed class ConsumptionPlan
+    {
+        internal ConsumptionPlan(
+            ItemDefinition itemDefinition,
+            List<ConsumptionEntry> entries,
+            int itemCount,
+            long totalCost)
+        {
+            ItemDefinition = itemDefinition;
+            Entries = entries;
+            ItemCount = itemCount;
+            TotalCost = totalCost;
+        }
+
+        internal ItemDefinition ItemDefinition { get; }
+
+        internal List<ConsumptionEntry> Entries { get; }
+
+        internal int ItemCount { get; }
+
+        internal long TotalCost { get; }
+    }
+
     internal static void IsComponentMaterialValid(
         RulesetCharacter character,
         SpellDefinition spellDefinition,
         ref string failure,
         ref bool result)
     {
-        if (!Main.Settings.AllowStackedMaterialComponent)
+        if (!IsEnabled(spellDefinition))
         {
             return;
         }
@@ -28,14 +66,7 @@ internal static class StackedMaterialComponent
             return;
         }
 
-        // Repeats the last section of the original method but adds 'approximateCostInGold * item.StackCount'
-        var items = new List<RulesetItem>();
-
-        character.CharacterInventory.EnumerateAllItems(items);
-
-        if (!items.Any(item => item.ItemDefinition.ItemTags.Contains(spellDefinition.SpecificMaterialComponentTag) &&
-                               EquipmentDefinitions.GetApproximateCostInGold(item.ItemDefinition.Costs) *
-                               item.StackCount >= spellDefinition.SpecificMaterialComponentCostGp))
+        if (!TryBuildConsumptionPlan(character, spellDefinition, out _))
         {
             return;
         }
@@ -44,15 +75,15 @@ internal static class StackedMaterialComponent
         failure = string.Empty;
     }
 
-    //Modify original code to spend enough of a stack to meet component cost
+    // Modify original code to spend enough matching items to meet the component cost.
     internal static bool SpendSpellMaterialComponentAsNeeded(RulesetCharacter character, RulesetEffectSpell activeSpell)
     {
-        if (!Main.Settings.AllowStackedMaterialComponent)
+        var spell = activeSpell.SpellDefinition;
+
+        if (!IsEnabled(spell))
         {
             return true;
         }
-
-        var spell = activeSpell.SpellDefinition;
 
         if (spell.MaterialComponentType != RuleDefinitions.MaterialComponentType.Specific
             || !spell.SpecificMaterialComponentConsumed
@@ -63,39 +94,7 @@ internal static class StackedMaterialComponent
             return false;
         }
 
-        var items = new List<RulesetItem>();
-
-        character.CharacterInventory.EnumerateAllItems(items);
-
-        var itemToUse = items
-            .Where(item => item.ItemDefinition.ItemTags.Contains(spell.SpecificMaterialComponentTag))
-            .Select(item => new
-            {
-                RulesetItem = item,
-                // Note original code is "int cost = rulesetItem2.ItemDefinition.Costs[1];" which doesn't agree with IsComponentMaterialValid which
-                // uses GetApproximateCostInGold
-                Cost = EquipmentDefinitions.GetApproximateCostInGold(item.ItemDefinition.Costs)
-            })
-            .Select(item => new
-            {
-                item.RulesetItem,
-                item.Cost,
-                StackCountRequired = (int)Math.Ceiling(spell.SpecificMaterialComponentCostGp / (double)item.Cost)
-            })
-            .Where(item => item.StackCountRequired <= item.RulesetItem.StackCount)
-            .Select(item => new
-            {
-                item.RulesetItem,
-                item.Cost,
-                item.StackCountRequired,
-                TotalCost = item.StackCountRequired * item.Cost
-            })
-            .Where(item => item.TotalCost >= activeSpell.SpellDefinition.SpecificMaterialComponentCostGp)
-            .OrderBy(item => item.TotalCost) // min total cost used
-            .ThenBy(item => item.StackCountRequired) // min items used
-            .FirstOrDefault();
-
-        if (itemToUse == null)
+        if (!TryBuildConsumptionPlan(character, spell, out var consumptionPlan))
         {
             // ReSharper disable once InvocationIsSkipped
             Main.Log("Didn't find item.");
@@ -104,36 +103,124 @@ internal static class StackedMaterialComponent
         }
 
         // ReSharper disable once InvocationIsSkipped
-        Main.Log($"Spending stack={itemToUse.StackCountRequired}, cost={itemToUse.TotalCost}");
+        Main.Log(
+            $"Spending stacks={consumptionPlan.Entries.Count}, items={consumptionPlan.ItemCount}, " +
+            $"cost={consumptionPlan.TotalCost}");
 
         var componentConsumed = character.SpellComponentConsumed;
 
-        if (componentConsumed != null)
+        foreach (var entry in consumptionPlan.Entries)
         {
-            for (var i = 0; i < itemToUse.StackCountRequired; i++)
+            if (componentConsumed != null)
             {
-                componentConsumed(character, spell, itemToUse.RulesetItem);
+                for (var i = 0; i < entry.Count; i++)
+                {
+                    componentConsumed(character, spell, entry.RulesetItem);
+                }
+            }
+
+            var rulesetItem = entry.RulesetItem;
+
+            if (rulesetItem.ItemDefinition.CanBeStacked && entry.Count < rulesetItem.StackCount)
+            {
+                rulesetItem.SpendStack(entry.Count);
+            }
+            else
+            {
+                character.CharacterInventory.DestroyItem(rulesetItem);
             }
         }
 
-        var rulesetItem = itemToUse.RulesetItem;
-
-        if (rulesetItem.ItemDefinition.CanBeStacked && rulesetItem.StackCount > 1 &&
-            itemToUse.StackCountRequired < rulesetItem.StackCount)
-        {
-            // ReSharper disable once InvocationIsSkipped
-            Main.Log($"Spending stack={itemToUse.StackCountRequired}, cost={itemToUse.TotalCost}");
-
-            rulesetItem.SpendStack(itemToUse.StackCountRequired);
-        }
-        else
-        {
-            // ReSharper disable once InvocationIsSkipped
-            Main.Log("Destroy item");
-
-            character.CharacterInventory.DestroyItem(rulesetItem);
-        }
-
         return false;
+    }
+
+    private static bool IsEnabled(SpellDefinition spellDefinition)
+    {
+        return Main.Settings.AllowStackedMaterialComponent ||
+               spellDefinition.GetFirstSubFeatureOfType<IForceStackedMaterialComponent>() != null;
+    }
+
+    private static bool TryBuildConsumptionPlan(
+        RulesetCharacter character,
+        SpellDefinition spellDefinition,
+        out ConsumptionPlan consumptionPlan)
+    {
+        consumptionPlan = null;
+
+        if (spellDefinition.MaterialComponentType != RuleDefinitions.MaterialComponentType.Specific
+            || string.IsNullOrEmpty(spellDefinition.SpecificMaterialComponentTag)
+            || spellDefinition.SpecificMaterialComponentCostGp <= 0
+            || character.CharacterInventory == null)
+        {
+            return false;
+        }
+
+        var items = new List<RulesetItem>();
+
+        character.CharacterInventory.EnumerateAllItems(items);
+
+        consumptionPlan = items
+            .Where(item => item.StackCount > 0 &&
+                           item.ItemDefinition.ItemTags.Contains(spellDefinition.SpecificMaterialComponentTag))
+            .GroupBy(item => item.ItemDefinition)
+            .Select(group => BuildConsumptionPlan(
+                group.Key,
+                group,
+                spellDefinition.SpecificMaterialComponentCostGp))
+            .Where(plan => plan != null)
+            .OrderBy(plan => plan.TotalCost)
+            .ThenBy(plan => plan.ItemCount)
+            .ThenBy(plan => plan.ItemDefinition.Name, StringComparer.Ordinal)
+            .ThenBy(plan => plan.Entries[0].RulesetItem.Guid)
+            .FirstOrDefault();
+
+        return consumptionPlan != null;
+    }
+
+    private static ConsumptionPlan BuildConsumptionPlan(
+        ItemDefinition itemDefinition,
+        IEnumerable<RulesetItem> stacks,
+        int requiredCost)
+    {
+        // The base game spends Costs[1], while validation uses GetApproximateCostInGold. Use the latter consistently.
+        var itemCost = EquipmentDefinitions.GetApproximateCostInGold(itemDefinition.Costs);
+
+        if (itemCost <= 0)
+        {
+            return null;
+        }
+
+        var itemCount = (int)((requiredCost + (long)itemCost - 1) / itemCost);
+        var orderedStacks = stacks
+            .OrderBy(item => item.Guid)
+            .ToList();
+
+        if (orderedStacks.Sum(item => (long)item.StackCount) < itemCount)
+        {
+            return null;
+        }
+
+        var entries = new List<ConsumptionEntry>();
+        var remaining = itemCount;
+
+        foreach (var stack in orderedStacks)
+        {
+            var count = Math.Min(stack.StackCount, remaining);
+
+            if (count <= 0)
+            {
+                continue;
+            }
+
+            entries.Add(new ConsumptionEntry(stack, count));
+            remaining -= count;
+
+            if (remaining == 0)
+            {
+                break;
+            }
+        }
+
+        return new ConsumptionPlan(itemDefinition, entries, itemCount, itemCount * (long)itemCost);
     }
 }

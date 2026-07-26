@@ -6,7 +6,10 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Diagnostics;
+using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
+using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -18,17 +21,63 @@ public static class SpellActivationBoxPatcher
     [UsedImplicitly]
     public static class BindSpell_Patch
     {
+        [UsedImplicitly]
+        public static void Prefix(
+            SpellActivationBox __instance,
+            RulesetSpellRepertoire __1,
+            out IDisposable __state)
+        {
+            SpellCastingValidation.BindTooltipRepertoire(__instance.tooltip, __1);
+            __state = SpellCastingValidation.EnterSelectedRepertoire(__1);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            SpellActivationBox __instance,
+            RulesetCharacter __0,
+            RulesetSpellRepertoire __1,
+            SpellDefinition __2)
+        {
+            if (!__instance.globalValid ||
+                SpellCastingValidation.IsValid(
+                    __0,
+                    __1,
+                    __2,
+                    null,
+                    out _))
+            {
+                return;
+            }
+
+            __instance.globalValid = false;
+            __instance.canvasGroup.interactable = false;
+            __instance.image.color = Color.grey;
+            __instance.image.material = __instance.unavailableMaterial;
+            SimulacrumDiagnostics.RecordSpellActivation(
+                "box-validation",
+                __0,
+                __1,
+                __2,
+                false,
+                false);
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(Exception __exception, IDisposable __state)
+        {
+            __state?.Dispose();
+
+            return __exception;
+        }
+
         private static bool UniqueLevelSlots(
             FeatureDefinitionCastSpell featureDefinitionCastSpell,
             RulesetCharacter character)
         {
             //PATCH: MC casters must use the standard slot picker so shared and pact slots can coexist
-            if (character.GetOriginalHero() is not RulesetCharacterHero hero)
-            {
-                return featureDefinitionCastSpell.UniqueLevelSlots;
-            }
+            var caster = character.GetOriginalHero() ?? character;
 
-            return featureDefinitionCastSpell.UniqueLevelSlots && !SharedSpellsContext.IsMulticaster(hero);
+            return featureDefinitionCastSpell.UniqueLevelSlots && !SharedSpellsContext.IsMulticaster(caster);
         }
 
         [UsedImplicitly]
@@ -58,14 +107,9 @@ public static class SpellActivationBoxPatcher
             }
             else
             {
-                if (caster.GetOriginalHero() is RulesetCharacterHero hero)
-                {
-                    repertoire.GetDisplaySlotNumbers(hero, spellLevel, out remaining, out max);
-                }
-                else
-                {
-                    repertoire.GetSlotsNumber(spellLevel, out remaining, out max);
-                }
+                var slotOwner = caster.GetOriginalHero() ?? caster;
+
+                repertoire.GetDisplaySlotNumbers(slotOwner, spellLevel, out remaining, out max);
 
                 if (remaining == 0 && hasFreeWizardCast)
                 {
@@ -73,6 +117,16 @@ public static class SpellActivationBoxPatcher
                     max = max == 0 ? 1 : max;
                 }
             }
+
+            SimulacrumDiagnostics.RecordSpellSlots(
+                caster,
+                "box-bind",
+                repertoire,
+                spellLevel,
+                hasFreeWizardCast,
+                spellDefinition,
+                remaining,
+                max);
         }
 
         [UsedImplicitly]
@@ -94,6 +148,7 @@ public static class SpellActivationBoxPatcher
                     new CodeInstruction(OpCodes.Ldarg_1),
                     new CodeInstruction(OpCodes.Call, myUniqueLevelSlotsMethod));
         }
+
     }
 
     //PATCH: register on acting character if SHIFT is pressed on spell box activation
@@ -113,6 +168,14 @@ public static class SpellActivationBoxPatcher
             var rulesetCaster = __instance.tooltip.Context as RulesetCharacter
                                 ?? __instance.spellRepertoire.GetCaster();
             var caster = GameLocationCharacter.GetFromActor(rulesetCaster);
+
+            SimulacrumDiagnostics.RecordSpellActivation(
+                "box-click",
+                rulesetCaster,
+                __instance.spellRepertoire,
+                __instance.GuiSpellDefinition?.SpellDefinition,
+                __instance.button?.interactable,
+                __instance.globalValid);
 
             caster?.RegisterShiftState();
         }

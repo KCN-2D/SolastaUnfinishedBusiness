@@ -703,3 +703,6 @@ Item/&Warlock_Armor_Survival_Title=Hexenmeister-Rüstung des Überlebens
 Tooltip/&NoFreeHandToLoadAmmoDescription=Keine freie Hand zum Laden der Munition!
 Tooltip/&TagPolearmWeaponTitle=Stangenarm
 Tooltip/&TagReturningWeaponTitle=Rückkehr
+Tooltip/&TagMaterialSimulacrumRubyTitle=Blutrubin
+Item/&ItemWishCreatedTreasureDescription=Ein durch Wunsch erschaffener nichtmagischer Schatz im Wert von 25.000 GM.
+Item/&ItemWishCreatedTreasureTitle=Durch Wunsch erschaffener Schatz

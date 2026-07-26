@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
@@ -145,6 +145,10 @@ public static class CustomActionIdContext
 
         ActionDefinitionBuilder
             .Create(ProxySpiritualWeapon, "ActionProxyFaithfulHound")
+            .SetGuiPresentation(
+                "Proxy/&ProxyFaithfulHoundTitle",
+                "Spell/&FaithfulHoundDescription",
+                Sprites.GetSprite("FaithfulHound", Resources.FaithfulHound, 128))
             .SetActionId(ExtraActionId.ProxyHoundWeapon)
             .SetActionType(ActionType.NoCost)
             .AddToDB();
@@ -881,12 +885,12 @@ public static class CustomActionIdContext
             return ActionStatus.Unavailable;
         }
 
-        var hero = glc.RulesetCharacter.GetOriginalHero();
         var quickenedSpell = MetamagicOptionDefinitions.MetamagicQuickenedSpell;
 
         // more or less in order of cost
-        if (hero == null ||
-            !hero.TrainedMetamagicOptions.Contains(quickenedSpell) ||
+        if (!SimulacrumBehavior.HasTrainedMetamagicOption(
+                glc.RulesetCharacter,
+                quickenedSpell) ||
             (Main.Settings.HideQuickenedActionWhenMetamagicOff && !glc.IsActionOnGoing(Id.MetamagicToggle)) ||
             glc.GetActionTypeStatus(ActionType.Bonus) != ActionStatus.Available ||
             !glc.RulesetCharacter.CanCastSpellOfActionType(ActionType.Main, glc.CanOnlyUseCantrips))
@@ -894,7 +898,7 @@ public static class CustomActionIdContext
             return ActionStatus.Unavailable;
         }
 
-        return hero.RemainingSorceryPoints < quickenedSpell.SorceryPointsCost
+        return glc.RulesetCharacter.RemainingSorceryPoints < quickenedSpell.SorceryPointsCost
             ? ActionStatus.OutOfUses
             : ActionStatus.Available;
     }

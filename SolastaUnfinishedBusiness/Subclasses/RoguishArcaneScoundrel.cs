@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
@@ -327,11 +328,8 @@ public sealed class RoguishArcaneScoundrel : AbstractSubclass
             RulesetCharacter character,
             RulesetEffect rulesetEffect)
         {
-            var hero = character.GetOriginalHero();
-
-            if (hero != null &&
-                (hero.TrainedFeats.Contains(ClassFeats.CloseQuartersDex) ||
-                 hero.TrainedFeats.Contains(ClassFeats.CloseQuartersInt)))
+            if (SimulacrumBehavior.HasTrainedFeat(character, ClassFeats.CloseQuartersDex) ||
+                SimulacrumBehavior.HasTrainedFeat(character, ClassFeats.CloseQuartersInt))
             {
                 effectDescription.EffectForms[0].DamageForm.DieType = DieType.D8;
             }

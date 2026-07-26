@@ -25,6 +25,7 @@ namespace SolastaUnfinishedBusiness.Models;
 public static partial class Tabletop2024Context
 {
     private const int KnownSpellsTableLength = 20;
+    private const string RitualCastingFeatureOriginMarker = "Tabletop2024RitualCasting";
 
     private static readonly int[] BardPreparedSpells2024 =
         [4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22];
@@ -132,39 +133,212 @@ public static partial class Tabletop2024Context
     internal static void SwitchOneDndSpellRitualOnAllCasters()
     {
         var subclasses = SharedSpellsContext.SubclassCasterType.Keys.Select(GetDefinition<CharacterSubclassDefinition>);
+        var enabled = Main.Settings.EnableRitualOnAllCasters2024;
 
-        if (Main.Settings.EnableRitualOnAllCasters2024)
-        {
-            Paladin.FeatureUnlocks.Add(new FeatureUnlockByLevel(FeatureSetClericRitualCasting,
-                Main.Settings.EnablePaladinSpellCastingAtLevel1 ? 1 : 2));
-            Ranger.FeatureUnlocks.Add(new FeatureUnlockByLevel(FeatureSetClericRitualCasting,
-                Main.Settings.EnableRangerSpellCastingAtLevel1 ? 1 : 2));
-            Sorcerer.FeatureUnlocks.Add(new FeatureUnlockByLevel(FeatureSetClericRitualCasting, 1));
-        }
-        else
-        {
-            Paladin.FeatureUnlocks.RemoveAll(x => x.FeatureDefinition == FeatureSetClericRitualCasting);
-            Ranger.FeatureUnlocks.RemoveAll(x => x.FeatureDefinition == FeatureSetClericRitualCasting);
-            Sorcerer.FeatureUnlocks.RemoveAll(x => x.FeatureDefinition == FeatureSetClericRitualCasting);
-        }
-
-        Paladin.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
-        Ranger.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
-        Sorcerer.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+        SetRitualCastingFeature(
+            Paladin.FeatureUnlocks,
+            Main.Settings.EnablePaladinSpellCastingAtLevel1 ? 1 : 2,
+            enabled);
+        SetRitualCastingFeature(
+            Ranger.FeatureUnlocks,
+            Main.Settings.EnableRangerSpellCastingAtLevel1 ? 1 : 2,
+            enabled);
+        SetRitualCastingFeature(Sorcerer.FeatureUnlocks, 1, enabled);
+        SetRitualCastingFeature(Warlock.FeatureUnlocks, 1, enabled);
 
         foreach (var subclass in subclasses)
         {
-            if (Main.Settings.EnableRitualOnAllCasters2024)
+            SetRitualCastingFeature(subclass.FeatureUnlocks, 3, enabled);
+        }
+    }
+
+    internal static void SynchronizeRitualCastingFeatures(RulesetCharacterHero hero)
+    {
+        if (hero?.ActiveFeatures == null ||
+            hero.ClassesAndLevels == null ||
+            hero.ClassesAndSubclasses == null)
+        {
+            return;
+        }
+
+        var managedTags = new HashSet<string>
+        {
+            AttributeDefinitions.GetClassTag(Paladin, 1),
+            AttributeDefinitions.GetClassTag(Paladin, 2),
+            AttributeDefinitions.GetClassTag(Ranger, 1),
+            AttributeDefinitions.GetClassTag(Ranger, 2),
+            AttributeDefinitions.GetClassTag(Sorcerer, 1),
+            AttributeDefinitions.GetClassTag(Warlock, 1)
+        };
+        var activeTags = new HashSet<string>();
+        var enabled = Main.Settings.EnableRitualOnAllCasters2024;
+
+        if (enabled)
+        {
+            AddEligibleClassTag(
+                hero,
+                Paladin,
+                Main.Settings.EnablePaladinSpellCastingAtLevel1 ? 1 : 2,
+                activeTags);
+            AddEligibleClassTag(
+                hero,
+                Ranger,
+                Main.Settings.EnableRangerSpellCastingAtLevel1 ? 1 : 2,
+                activeTags);
+            AddEligibleClassTag(hero, Sorcerer, 1, activeTags);
+            AddEligibleClassTag(hero, Warlock, 1, activeTags);
+        }
+
+        foreach (var classAndSubclass in hero.ClassesAndSubclasses)
+        {
+            var characterClass = classAndSubclass.Key;
+            var subclass = classAndSubclass.Value;
+
+            if (subclass == null ||
+                !SharedSpellsContext.SubclassCasterType.ContainsKey(subclass.Name))
             {
-                subclass.FeatureUnlocks.Add(new FeatureUnlockByLevel(FeatureSetClericRitualCasting, 3));
-            }
-            else
-            {
-                subclass.FeatureUnlocks.RemoveAll(x => x.FeatureDefinition == FeatureSetClericRitualCasting);
+                continue;
             }
 
-            subclass.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+            var tag = AttributeDefinitions.GetSubclassTag(characterClass, 3, subclass);
+
+            managedTags.Add(tag);
+
+            if (enabled &&
+                hero.ClassesAndLevels.TryGetValue(characterClass, out var classLevel) &&
+                classLevel >= 3)
+            {
+                activeTags.Add(tag);
+            }
         }
+
+        // Feature origins are rebuilt by native feature browsing and are not a durable save
+        // boundary. Restrict stale cleanup to the class/subclass tags exclusively managed by
+        // this option so an existing Cleric (or any other native ritual source) is never altered.
+        foreach (var tag in managedTags.Where(tag => !activeTags.Contains(tag)))
+        {
+            SynchronizeRitualCastingTag(hero, tag, false);
+        }
+
+        foreach (var tag in activeTags)
+        {
+            SynchronizeRitualCastingTag(hero, tag, true);
+        }
+    }
+
+    private static void AddEligibleClassTag(
+        RulesetCharacterHero hero,
+        CharacterClassDefinition characterClass,
+        int featureLevel,
+        ISet<string> activeTags)
+    {
+        if (hero.ClassesAndLevels.TryGetValue(characterClass, out var classLevel) &&
+            classLevel >= featureLevel)
+        {
+            activeTags.Add(AttributeDefinitions.GetClassTag(characterClass, featureLevel));
+        }
+    }
+
+    private static void SynchronizeRitualCastingTag(
+        RulesetCharacterHero hero,
+        string tag,
+        bool active)
+    {
+        if (!hero.ActiveFeatures.TryGetValue(tag, out var features))
+        {
+            if (!active)
+            {
+                return;
+            }
+
+            features = [];
+            hero.ActiveFeatures.Add(tag, features);
+        }
+
+        if (active)
+        {
+            SynchronizeRitualCastingFeature(hero, features, FeatureSetClericRitualCasting);
+
+            foreach (var feature in FeatureSetClericRitualCasting.FeatureSet)
+            {
+                SynchronizeRitualCastingFeature(hero, features, feature);
+            }
+
+            return;
+        }
+
+        features.RemoveAll(IsRitualCastingFeature);
+
+        foreach (var feature in EnumerateRitualCastingFeatureGraph())
+        {
+            if (hero.FeaturesOrigin.TryGetValue(feature, out var origin) &&
+                IsRitualCastingFeatureOrigin(origin))
+            {
+                hero.FeaturesOrigin.Remove(feature);
+            }
+        }
+    }
+
+    private static void SynchronizeRitualCastingFeature(
+        RulesetCharacterHero hero,
+        ICollection<FeatureDefinition> features,
+        FeatureDefinition feature)
+    {
+        if (feature == null)
+        {
+            return;
+        }
+
+        if (!features.Contains(feature))
+        {
+            features.Add(feature);
+        }
+
+        hero.FeaturesOrigin[feature] = new FeatureOrigin(
+            FeatureSourceType.ExplicitFeature,
+            RitualCastingFeatureOriginMarker,
+            FeatureSetClericRitualCasting,
+            string.Empty);
+    }
+
+    private static IEnumerable<FeatureDefinition> EnumerateRitualCastingFeatureGraph()
+    {
+        yield return FeatureSetClericRitualCasting;
+
+        foreach (var feature in FeatureSetClericRitualCasting.FeatureSet)
+        {
+            yield return feature;
+        }
+    }
+
+    private static bool IsRitualCastingFeature(FeatureDefinition feature)
+    {
+        return feature == FeatureSetClericRitualCasting ||
+               FeatureSetClericRitualCasting.FeatureSet.Contains(feature);
+    }
+
+    private static bool IsRitualCastingFeatureOrigin(FeatureOrigin origin)
+    {
+        return origin.sourceType == FeatureSourceType.ExplicitFeature &&
+               origin.sourceName == RitualCastingFeatureOriginMarker &&
+               ReferenceEquals(origin.source, FeatureSetClericRitualCasting);
+    }
+
+    private static void SetRitualCastingFeature(
+        List<FeatureUnlockByLevel> featureUnlocks,
+        int level,
+        bool enabled)
+    {
+        featureUnlocks.RemoveAll(
+            unlock => unlock.FeatureDefinition == FeatureSetClericRitualCasting);
+
+        if (enabled)
+        {
+            featureUnlocks.Add(
+                new FeatureUnlockByLevel(FeatureSetClericRitualCasting, level));
+        }
+
+        featureUnlocks.Sort(Sorting.CompareFeatureUnlock);
     }
 
     internal static void SwitchOneDndSpellBarkskin()

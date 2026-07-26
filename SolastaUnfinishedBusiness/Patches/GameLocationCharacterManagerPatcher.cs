@@ -1,12 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Diagnostics;
+using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
 using TA;
@@ -18,6 +23,74 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationCharacterManagerPatcher
 {
+    [HarmonyPatch(typeof(GameLocationCharacterManager), nameof(GameLocationCharacterManager.TickRounds))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class TickRounds_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GameLocationCharacterManager __instance, int __0)
+        {
+            var rounds = __0;
+
+            if (rounds <= 0)
+            {
+                return;
+            }
+
+            foreach (var guest in __instance.GuestCharacters.ToArray())
+            {
+                if (guest?.RulesetCharacter is not RulesetCharacterSimulacrum duplicate ||
+                    duplicate.LifecycleState != SimulacrumLifecycleState.Ready)
+                {
+                    continue;
+                }
+
+                var matchingEntityCount = __instance.AllValidEntities.Count(entity =>
+                    entity?.RulesetCharacter?.Guid == duplicate.Guid);
+
+                // TickRounds normally reaches every active guest through AllValidEntities. A
+                // persistent guest can temporarily be absent while the party lists are being
+                // reconciled; apply the same native lapse once in that exceptional state.
+                if (matchingEntityCount == 0)
+                {
+                    guest.ApplyTimeLapse(rounds);
+                }
+
+                SimulacrumDiagnostics.RecordTimeLapseMembership(
+                    duplicate,
+                    rounds,
+                    matchingEntityCount,
+                    matchingEntityCount == 0);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationCharacterManager), nameof(GameLocationCharacterManager.RestoreSummonedGuests))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RestoreSummonedGuests_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GameLocationCharacterManager __instance)
+        {
+            SimulacrumBehavior.FlushDeferredCleanup();
+
+            var restorationHandlers = __instance.GuestCharacters
+                .Union(__instance.PartyCharacters)
+                .SelectMany(character => character.RulesetCharacter
+                    .GetSubFeaturesByType<IOnLocationCharacterRestored>()
+                    .Select(provider => (character.RulesetCharacter, Provider: provider)))
+                .OrderBy(handler => handler.Provider.Priority)
+                .ToArray();
+
+            foreach (var (character, provider) in restorationHandlers)
+            {
+                provider.OnLocationCharacterRestored(character);
+            }
+        }
+    }
+
     //BUGFIX: fix demonic influence getting all enemies agro on a custom map
     [HarmonyPatch(typeof(GameLocationCharacterManager), nameof(GameLocationCharacterManager.CreateCharacter))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]

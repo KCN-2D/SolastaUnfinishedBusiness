@@ -188,7 +188,7 @@ public static class ActionSwitching
         EnumerateFeaturesHierarchically<T>(features, monster.activeFeatures, monster.monsterDefinition.Name);
 
         //WILDSHAPE: Original hero features
-        if (monster.originalFormCharacter is RulesetCharacterHero hero)
+        if (monster.TryGetShapeChangeOriginalHero(out var hero))
         {
             features.AddRange(EnumerateHeroFeatures<T>(hero, true));
         }

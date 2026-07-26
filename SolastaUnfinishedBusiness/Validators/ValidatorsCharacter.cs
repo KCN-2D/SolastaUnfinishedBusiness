@@ -115,12 +115,19 @@ internal static class ValidatorsCharacter
         !HasArmorCategory(character, EquipmentDefinitions.HeavyArmorCategory);
 
     internal static readonly IsCharacterValidHandler HasLightSourceOffHand = character =>
-        character is RulesetCharacterHero && character.GetOffhandWeapon()?.ItemDefinition.IsLightSourceItem == true;
+        character is RulesetCharacterHero or RulesetCharacterSimulacrum &&
+        character.GetOffhandWeapon()?.ItemDefinition.IsLightSourceItem == true;
 
     internal static readonly IsCharacterValidHandler HasFreeHand = character =>
     {
         var mainHand = character.GetMainWeapon();
         var offHand = character.GetOffhandWeapon();
+
+        if (character is RulesetCharacterSimulacrum)
+        {
+            return ValidatorsWeapon.IsUnarmed(offHand) ||
+                   ValidatorsWeapon.IsUnarmed(mainHand);
+        }
 
         return ValidatorsWeapon.IsUnarmed(offHand) ||
                ValidatorsWeapon.IsUnarmed(mainHand) ||
@@ -131,6 +138,12 @@ internal static class ValidatorsCharacter
     {
         var mainHand = character.GetMainWeapon();
         var offHand = character.GetOffhandWeapon();
+
+        if (character is RulesetCharacterSimulacrum)
+        {
+            return ValidatorsWeapon.IsUnarmed(offHand) &&
+                   ValidatorsWeapon.IsUnarmed(mainHand);
+        }
 
         return (ValidatorsWeapon.IsUnarmed(offHand) &&
                 ValidatorsWeapon.IsUnarmed(mainHand)) ||
@@ -144,11 +157,22 @@ internal static class ValidatorsCharacter
              itemDefinition, TagsDefinitions.WeaponTagTwoHanded));
 
     internal static readonly IsCharacterValidHandler HasFreeHandConsiderGrapple = character =>
+        GetFreeHandsForGrapple(character) > 0 ||
+        character is RulesetCharacterMonster and not RulesetCharacterSimulacrum;
+
+    // Simulacra have inventory-backed hands unlike ordinary monster stat blocks.
+    // Count the currently wielded configuration. An existing grapple occupies
+    // one of these otherwise free hands, but does not require a second free hand.
+    internal static int GetFreeHandsForGrapple(RulesetCharacter character)
     {
-        var freeHands = 0;
+        if (character == null)
+        {
+            return 0;
+        }
+
         var mainHand = character.GetMainWeapon();
         var offHand = character.GetOffhandWeapon();
-        var hasGrappleSource = GrappleContext.HasGrappleSource(character);
+        var freeHands = 0;
 
         if (ValidatorsWeapon.IsUnarmed(mainHand))
         {
@@ -160,13 +184,30 @@ internal static class ValidatorsCharacter
             freeHands++;
         }
 
-        if (hasGrappleSource)
+        // A two-handed weapon always occupies both hands. A versatile weapon
+        // occupies the off hand only while its live attack mode uses versatile
+        // damage; carrying an off-hand item (including a shield) already made
+        // that hand unavailable above.
+        if (mainHand?.ItemDefinition is { IsWeapon: true } mainHandDefinition &&
+            (ValidatorsWeapon.HasAnyWeaponTag(mainHandDefinition, TagsDefinitions.WeaponTagTwoHanded) ||
+             ValidatorsWeapon.HasAnyWeaponTag(mainHandDefinition, TagsDefinitions.WeaponTagVersatile) &&
+             ValidatorsWeapon.IsUnarmed(offHand) &&
+             character.AttackModes.Any(mode =>
+                 mode is { UseVersatileDamage: true } &&
+                 mode.SourceDefinition == mainHandDefinition)))
         {
-            freeHands--;
+            freeHands = 0;
         }
 
-        return freeHands > 0 || character is RulesetCharacterMonster;
-    };
+        return freeHands > 0 ? freeHands : 0;
+    }
+
+    internal static bool CanMaintainGrapple(RulesetCharacter character)
+    {
+        return !GrappleContext.HasGrappleSource(character) ||
+               GetFreeHandsForGrapple(character) > 0 ||
+               character is RulesetCharacterMonster and not RulesetCharacterSimulacrum;
+    }
 
     internal static readonly IsCharacterValidHandler HasTwoHandedQuarterstaff = character =>
         ValidatorsWeapon.IsWeaponType(character.GetMainWeapon(), QuarterstaffType) && IsFreeOffhandVanilla(character);
@@ -375,14 +416,18 @@ internal static class ValidatorsCharacter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool HasArmorCategory(RulesetCharacter character, string category)
     {
-        // required for wildshape scenarios
-        if (character is not RulesetCharacterHero)
+        // Other monsters can expose their original Hero inventory while wild-shaped.
+        // Simulacrum owns a separate humanoid inventory and must use its own equipment.
+        if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum) ||
+            character.CharacterInventory == null ||
+            !character.CharacterInventory.InventorySlotsByName.TryGetValue(
+                EquipmentDefinitions.SlotTypeTorso,
+                out var torsoSlot))
         {
             return false;
         }
 
-        var equipedItem =
-            character.CharacterInventory.InventorySlotsByName[EquipmentDefinitions.SlotTypeTorso].EquipedItem;
+        var equipedItem = torsoSlot.EquipedItem;
 
         if (equipedItem == null || !equipedItem.ItemDefinition.IsArmor)
         {

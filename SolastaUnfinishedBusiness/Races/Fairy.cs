@@ -159,9 +159,9 @@ internal static class RaceFairyBuilder
 
     private sealed class CheckFairyFlying(
         // ReSharper disable once SuggestBaseTypeForParameterInConstructor
-        ConditionDefinition condition) : IOnItemEquipped
+        ConditionDefinition condition) : IOnCharacterEquipmentChanged
     {
-        public void OnItemEquipped(RulesetCharacterHero hero)
+        public void OnCharacterEquipmentChanged(RulesetCharacter hero)
         {
             if (IsFlightValid(hero))
             {

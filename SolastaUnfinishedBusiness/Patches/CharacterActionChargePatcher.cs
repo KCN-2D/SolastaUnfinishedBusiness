@@ -20,8 +20,7 @@ public static class CharacterActionChargePatcher
         [UsedImplicitly]
         public static bool Prefix(ref IEnumerator __result, CharacterActionCharge __instance)
         {
-            if (__instance.ActingCharacter.RulesetCharacter.GetOriginalHero() is not { } hero ||
-                !HasOrcishAggressionFeat(hero))
+            if (!HasOrcishAggressionFeat(__instance.ActingCharacter.RulesetCharacter))
             {
                 return true;
             }
@@ -31,10 +30,14 @@ public static class CharacterActionChargePatcher
             return false;
         }
 
-        private static bool HasOrcishAggressionFeat(RulesetCharacterHero hero)
+        private static bool HasOrcishAggressionFeat(RulesetCharacter character)
         {
-            return Tabletop2024Context.HasEquivalentTrainedFeat(hero, RaceFeats.FeatOrcishAggressionStr) ||
-                   Tabletop2024Context.HasEquivalentTrainedFeat(hero, RaceFeats.FeatOrcishAggressionCon);
+            return Tabletop2024Context.HasEquivalentTrainedFeat(
+                       character,
+                       RaceFeats.FeatOrcishAggressionStr) ||
+                   Tabletop2024Context.HasEquivalentTrainedFeat(
+                       character,
+                       RaceFeats.FeatOrcishAggressionCon);
         }
     }
 }

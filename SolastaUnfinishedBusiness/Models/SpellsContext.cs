@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -234,8 +234,17 @@ internal static class SpellsContext
         }
     }
 
+    private static void NormalizeBaseSpellDurations()
+    {
+        // Shillelagh lasts one minute in both the 2014 and 2024 tabletop rules.
+        Shillelagh.EffectDescription.DurationType = DurationType.Minute;
+        Shillelagh.EffectDescription.DurationParameter = 1;
+    }
+
     internal static void LateLoad()
     {
+        NormalizeBaseSpellDurations();
+
         // init collections
         foreach (var spellList in SpellLists.Values)
         {
@@ -406,6 +415,7 @@ internal static class SpellsContext
         RegisterSpell(BuildDraconicTransformation(), 0, SpellListDruid, SpellListSorcerer, SpellListWizard);
         RegisterSpell(BuildRescueTheDying(), 0, SpellListCleric, SpellListDruid);
         RegisterSpell(BuildReverseGravity(), 0, SpellListDruid, SpellListSorcerer, SpellListWizard);
+        RegisterSpell(BuildSimulacrum(), 0, SpellListWizard);
 
         // 8th level
         RegisterSpell(BuildAbiDalzimHorridWilting(), 0, SpellListSorcerer, SpellListWizard);
@@ -425,6 +435,7 @@ internal static class SpellsContext
         RegisterSpell(BuildTimeStop(), 0, SpellListWizard, SpellListSorcerer);
         RegisterSpell(BuildShapechange(), 0, SpellListDruid, SpellListWizard);
         RegisterSpell(BuildWeird(), 0, SpellListWarlock, SpellListWizard);
+        RegisterSpell(BuildWish(), 0, SpellListSorcerer, SpellListWizard);
 
         Spells = [.. Spells.OrderBy(x => x.SpellLevel).ThenBy(x => x.FormatTitle())];
 
@@ -475,6 +486,16 @@ internal static class SpellsContext
         SwitchRecurringEffectOnEntangle();
         SwitchUseHeightOneCylinderEffect();
         SwitchDimensionDoorRange();
+    }
+
+    internal static HashSet<SpellDefinition> GetActiveSpells(int maximumSpellLevel)
+    {
+        return SpellLists.Values
+            .SelectMany(spellList => spellList.SpellsByLevel)
+            .Where(spellsByLevel => spellsByLevel.Level <= maximumSpellLevel)
+            .SelectMany(spellsByLevel => spellsByLevel.Spells)
+            .Where(spell => spell is { SpellLevel: >= 0 } && spell.SpellLevel <= maximumSpellLevel)
+            .ToHashSet();
     }
 
     private static void RegisterSpell(

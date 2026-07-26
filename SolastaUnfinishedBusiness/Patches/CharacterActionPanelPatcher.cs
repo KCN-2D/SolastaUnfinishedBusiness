@@ -11,6 +11,7 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
 using UnityEngine;
@@ -138,6 +139,28 @@ public static class CharacterActionPanelPatcher
                 "CharacterActionPanel.RefreshActions",
                 new CodeInstruction(OpCodes.Ldarg_0),
                 new CodeInstruction(OpCodes.Call, method));
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(CharacterActionPanel __instance)
+        {
+            // Bind and Refresh can run while pooled forms are inactive and before
+            // RefreshActions dispatches its final widths. Refit only the active
+            // captions after that layout step; FitActionItemCaption also repeats
+            // the fit for two frames while TMP finalizes its geometry.
+            foreach (var item in __instance.actionItems)
+            {
+                if (!item ||
+                    !item.gameObject.activeInHierarchy ||
+                    !item.currentItemForm)
+                {
+                    continue;
+                }
+
+                UiTextHelpers.FitActionItemCaption(item.currentItemForm);
+            }
+
+            UiTextDiagnostics.ScheduleActionCaptions(__instance);
         }
 
         private static int FilterActions(List<Id> actions, CharacterActionPanel panel)
@@ -621,6 +644,142 @@ public static class CharacterActionPanelPatcher
             return panel.actionId == (Id)ExtraActionId.CastQuickened
                 ? ActionType.Main
                 : panel.ActionType;
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterActionPanel), nameof(CharacterActionPanel.SpellcastEngaged))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class SpellcastEngaged_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(
+            CharacterActionPanel __instance,
+            RulesetSpellRepertoire __0,
+            SpellDefinition __1)
+        {
+            var spellRepertoire = __0;
+            var spellDefinition = __1;
+
+            if (__instance?.GuiCharacter?.RulesetCharacter is not
+                    RulesetCharacterSimulacrum duplicate ||
+                spellDefinition == null)
+            {
+                return;
+            }
+
+            var actingCharacter = __instance.GuiCharacter.GameLocationCharacter;
+            var actionParams = __instance.actionParams;
+            var candidateAction = ResolveSpellAction(__instance, spellDefinition, actingCharacter);
+            var actionStatus = actingCharacter?.GetActionStatus(
+                candidateAction,
+                __instance.ActionScope) ?? ActionStatus.Unavailable;
+
+            SimulacrumDiagnostics.RecordSpellEngagement(
+                "engaged-enter",
+                __instance,
+                spellRepertoire,
+                spellDefinition,
+                candidateAction,
+                actionStatus);
+
+            var needsFreshParams = actionParams == null ||
+                                   actionParams.ActingCharacter != actingCharacter ||
+                                   actionParams.ActionDefinition == null ||
+                                   actionParams.ActionDefinition.Parameter != ActionParameter.SelectSpell;
+
+            if (!needsFreshParams)
+            {
+                return;
+            }
+
+            if (actingCharacter == null || actionStatus != ActionStatus.Available)
+            {
+                SimulacrumDiagnostics.RecordSpellActivation(
+                    "engaged-rejected",
+                    duplicate,
+                    spellRepertoire,
+                    spellDefinition);
+
+                return;
+            }
+
+            __instance.actionId = candidateAction;
+            __instance.actionParams = new CharacterActionParams(actingCharacter, candidateAction);
+            SimulacrumDiagnostics.RecordSpellEngagement(
+                "engaged-rebuilt",
+                __instance,
+                spellRepertoire,
+                spellDefinition,
+                candidateAction,
+                actionStatus);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            CharacterActionPanel __instance,
+            RulesetSpellRepertoire __0,
+            SpellDefinition __1)
+        {
+            var spellRepertoire = __0;
+            var spellDefinition = __1;
+
+            if (__instance?.GuiCharacter?.RulesetCharacter is not RulesetCharacterSimulacrum ||
+                spellDefinition == null)
+            {
+                return;
+            }
+
+            var candidateAction = __instance.actionParams?.ActionDefinition?.Id ?? __instance.actionId;
+            var actionStatus = __instance.GuiCharacter.GameLocationCharacter?.GetActionStatus(
+                candidateAction,
+                __instance.ActionScope) ?? ActionStatus.Unavailable;
+
+            SimulacrumDiagnostics.RecordSpellEngagement(
+                "engaged-exit",
+                __instance,
+                spellRepertoire,
+                spellDefinition,
+                candidateAction,
+                actionStatus);
+        }
+
+        private static Id ResolveSpellAction(
+            CharacterActionPanel panel,
+            SpellDefinition spellDefinition,
+            GameLocationCharacter actingCharacter)
+        {
+            if (actingCharacter != null &&
+                panel.actionId != Id.NoAction &&
+                actingCharacter.GetActionStatus(panel.actionId, panel.ActionScope) == ActionStatus.Available &&
+                ServiceRepository.GetService<IGameLocationActionService>()?
+                    .AllActionDefinitions.TryGetValue(panel.actionId, out var currentDefinition) == true &&
+                currentDefinition.Parameter == ActionParameter.SelectSpell)
+            {
+                return panel.actionId;
+            }
+
+            return spellDefinition.BattleActionId;
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterActionPanel), nameof(CharacterActionPanel.ExecuteEffectOfAction))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ExecuteEffectOfAction_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterActionPanel __instance)
+        {
+            var actionParams = __instance?.actionParams;
+
+            if (actionParams?.ActingCharacter?.RulesetCharacter is not RulesetCharacterSimulacrum ||
+                actionParams.RulesetEffect?.EffectDescription?.TargetType != TargetType.Item)
+            {
+                return true;
+            }
+
+            return !SimulacrumEquipmentPanel.TrySelectSpellItem(__instance);
         }
     }
 
