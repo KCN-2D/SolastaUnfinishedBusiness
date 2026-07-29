@@ -3,7 +3,6 @@ using System.Linq;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses.Builders;
 
@@ -30,17 +29,8 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
             selected = AddSimulacrumPactSlotOption(
                 smiteDuplicate,
                 spellRepertoire);
-
-            SimulacrumDiagnostics.RecordReactionSpellSlots(
-                smiteDuplicate,
-                spell,
-                spellRepertoire,
-                SubOptionsAvailability,
-                selected,
-                GetSelectedSlotLevel(selected),
-                "eldritch-smite-options");
         }
-        else if (rulesetCharacter is RulesetCharacterSimulacrum duplicate)
+        else if (rulesetCharacter is RulesetCharacterSimulacrum)
         {
             var minimumLevel = Math.Max(1, actionParams.IntParameter);
             var maximumLevel = spellRepertoire.spellsSlotCapacities.Keys
@@ -56,15 +46,6 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
                 minimumLevel,
                 maximumLevel,
                 spell);
-
-            SimulacrumDiagnostics.RecordReactionSpellSlots(
-                duplicate,
-                spell,
-                spellRepertoire,
-                SubOptionsAvailability,
-                selected,
-                GetSelectedSlotLevel(selected),
-                "options-built");
         }
         else if (actionParams.StringParameter == InvocationsBuilders.EldritchSmiteTag)
         {
@@ -82,18 +63,6 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
         if (selected >= 0)
         {
             SelectSubOption(selected);
-
-            if (rulesetCharacter is RulesetCharacterSimulacrum selectedDuplicate)
-            {
-                SimulacrumDiagnostics.RecordReactionSpellSlots(
-                    selectedDuplicate,
-                    spell,
-                    spellRepertoire,
-                    SubOptionsAvailability,
-                    selected,
-                    ReactionParams.IntParameter,
-                    "selected");
-            }
         }
 
         _guiCharacter = new GuiCharacter(Character);
@@ -138,13 +107,6 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
     public override void SelectSubOption(int option)
     {
         ReactionParams.IntParameter = SubOptionsAvailability.Keys.ToArray()[option];
-    }
-
-    private int GetSelectedSlotLevel(int selectedIndex)
-    {
-        return selectedIndex >= 0 && selectedIndex < SubOptionsAvailability.Count
-            ? SubOptionsAvailability.Keys.ElementAt(selectedIndex)
-            : -1;
     }
 
     private int AddSimulacrumPactSlotOption(

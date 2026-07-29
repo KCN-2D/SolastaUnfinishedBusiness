@@ -9,7 +9,6 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Validators;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -75,10 +74,6 @@ public static class PowerSelectionPanelPatcher
                 }
             }
 
-            SimulacrumDiagnostics.RecordPowerSelection(
-                character,
-                actionType,
-                relevantPowers);
         }
     }
 }

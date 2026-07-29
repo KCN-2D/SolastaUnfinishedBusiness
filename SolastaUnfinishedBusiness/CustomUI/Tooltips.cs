@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
@@ -8,6 +9,7 @@ using SolastaUnfinishedBusiness.Models;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
 using static RuleDefinitions.EffectDifficultyClassComputation;
 using Object = UnityEngine.Object;
 
@@ -43,6 +45,64 @@ internal static class Tooltips
         item.GuiTooltip.Context = character;
     }
 
+    internal static RulesetCharacter ResolveCharacter(ITooltip tooltip)
+    {
+        return tooltip?.Context switch
+        {
+            RulesetCharacter rulesetCharacter => rulesetCharacter,
+            GameLocationCharacter locationCharacter => locationCharacter.RulesetCharacter,
+            GuiCharacter guiCharacter => guiCharacter.RulesetCharacter,
+            _ => null
+        };
+    }
+
+    internal static bool TrySetupLiveFriendlyMonsterTooltip(
+        ITooltip tooltip,
+        RulesetCharacterMonster character)
+    {
+        if (tooltip == null ||
+            character == null ||
+            character.Side != RuleDefinitions.Side.Ally ||
+            character.MonsterDefinition == null ||
+            ServiceRepository.GetService<IGuiWrapperService>()
+                ?.GetGuiMonsterDefinition(character.MonsterDefinition.Name) is not
+                { } guiMonsterDefinition)
+        {
+            return false;
+        }
+
+        IImageProvider imageProvider;
+
+        if (tooltip.DataProvider is LiveFriendlyMonsterTooltipProvider currentProvider)
+        {
+            if (ReferenceEquals(currentProvider.Character, character))
+            {
+                tooltip.TooltipClass = guiMonsterDefinition.TooltipClass;
+                tooltip.Content = guiMonsterDefinition.Description;
+
+                return true;
+            }
+
+            // Tooltip instances are pooled. A provider captured for another character
+            // may itself carry that character's portrait, so fall back to the new
+            // definition rather than retaining stale visual state.
+            imageProvider = guiMonsterDefinition;
+        }
+        else
+        {
+            imageProvider = tooltip.DataProvider as IImageProvider;
+        }
+
+        tooltip.TooltipClass = guiMonsterDefinition.TooltipClass;
+        tooltip.Content = guiMonsterDefinition.Description;
+        tooltip.DataProvider = new LiveFriendlyMonsterTooltipProvider(
+            guiMonsterDefinition,
+            character,
+            imageProvider);
+
+        return true;
+    }
+
     internal static void UpdatePowerUses(ITooltip tooltip, TooltipFeaturePowerParameters parameters)
     {
         if (tooltip.DataProvider is not GuiPowerDefinition guiPowerDefinition)
@@ -50,7 +110,7 @@ internal static class Tooltips
             return;
         }
 
-        if (tooltip.Context is not RulesetCharacter character)
+        if (ResolveCharacter(tooltip) is not { } character)
         {
             return;
         }
@@ -105,7 +165,7 @@ internal static class Tooltips
             return;
         }
 
-        if (tooltip.Context is not RulesetCharacter character)
+        if (ResolveCharacter(tooltip) is not { } character)
         {
             return;
         }
@@ -118,6 +178,48 @@ internal static class Tooltips
         var saveDC = EffectHelpers.CalculateSaveDc(character, effectDescription, classDefinition);
 
         parameters.savingThrowLabel.Text = Gui.Format("{0} {1}", attribute.GuiPresentation.Title, saveDC.ToString());
+    }
+
+    internal static void UpdateBardicInspirationPowerParameters(
+        ITooltip tooltip,
+        TooltipFeaturePowerParameters parameters)
+    {
+        if (tooltip.DataProvider is not GuiPowerDefinition guiPowerDefinition)
+        {
+            return;
+        }
+
+        var power = guiPowerDefinition.PowerDefinition;
+        var character = ResolveCharacter(tooltip);
+        var hasBardicRecharge =
+            power.RechargeRate == RuleDefinitions.RechargeRate.BardicInspiration;
+        var grantsBardicInspiration = guiPowerDefinition.EffectDescription.EffectForms.Any(
+            form =>
+                form.FormType == EffectForm.EffectFormType.Condition &&
+                form.ConditionForm?.ConditionDefinition ==
+                ConditionDefinitions.ConditionBardicInspiration);
+
+        if (!hasBardicRecharge && !grantsBardicInspiration)
+        {
+            return;
+        }
+
+        var condition = ConditionDefinitions.ConditionBardicInspiration;
+
+        if (hasBardicRecharge)
+        {
+            var rechargeRate = character?.HasFastBardicInspirationRecovery() == true
+                ? RuleDefinitions.RechargeRate.ShortRest
+                : RuleDefinitions.RechargeRate.LongRest;
+
+            parameters.rechargeLabel.Text = Gui.FormatRechargeRate(rechargeRate);
+        }
+
+        if (grantsBardicInspiration)
+        {
+            parameters.durationLabel.Text =
+                Gui.FormatDuration(condition.DurationType, condition.DurationParameter);
+        }
     }
 
     internal static void UpdateCraftingTooltip(TooltipFeatureDescription description, ITooltip tooltip)

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -11,7 +11,6 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Spells;
@@ -423,21 +422,6 @@ public static class CharacterActionMagicEffectPatcher
                     activeSpell.spellRepertoire = spellRepertoire;
                 }
 
-                SimulacrumDiagnostics.RecordSpellActivation(
-                    "execute-start",
-                    actingCharacter.RulesetCharacter,
-                    spellRepertoire,
-                    originSpell);
-
-                if (actingCharacter.RulesetCharacter is RulesetCharacterSimulacrum duplicate &&
-                    originSpell?.Name == "Shillelagh")
-                {
-                    SimulacrumDiagnostics.RecordShillelagh(
-                        duplicate,
-                        "cast-execute-start",
-                        activeSpell);
-                }
-
                 var isOriginValid = SpellCastingValidation.IsValid(
                     actingCharacter.RulesetCharacter,
                     spellRepertoire,
@@ -709,6 +693,34 @@ public static class CharacterActionMagicEffectPatcher
                         actionModifiers.RemoveAt(i);
                     }
                 }
+            }
+
+            // Revalidate the final synchronized targets immediately before spell slots,
+            // power uses, or material components are consumed. Custom summon preparation
+            // performs a second validation after special casting time.
+            foreach (var validator in
+                     baseDefinition.GetAllSubFeaturesOfType<IValidateMagicEffectBeforeSpend>())
+            {
+                if (validator.IsValid(
+                        __instance,
+                        actingCharacter,
+                        targets,
+                        out var validationFailure))
+                {
+                    continue;
+                }
+
+                rulesetEffect.Terminate(false);
+
+                if (!string.IsNullOrEmpty(validationFailure))
+                {
+                    Gui.GuiService.ShowAlert(
+                        validationFailure,
+                        Gui.ColorFailure,
+                        2.5f);
+                }
+
+                yield break;
             }
 
             //PATCH: supports `IPowerOrSpellInitiatedByMe`
@@ -1106,16 +1118,6 @@ public static class CharacterActionMagicEffectPatcher
             // END PATCH
 
             yield return __instance.HandlePostExecution();
-
-            if (actingCharacter.RulesetCharacter is RulesetCharacterSimulacrum simulacrum &&
-                rulesetEffect is RulesetEffectSpell completedSpell &&
-                RulesetEffectSpellWithOrigin.GetOriginSpell(completedSpell)?.Name == "Shillelagh")
-            {
-                SimulacrumDiagnostics.RecordShillelagh(
-                    simulacrum,
-                    "cast-action-completed",
-                    completedSpell);
-            }
 
             yield return battleManager.HandleCharacterAttackOrMagicEffectFinishedLate(__instance, actingCharacter);
         }

@@ -9,7 +9,7 @@ public abstract class PowerTooltipModifier
             return;
         }
 
-        Apply(parameters, guiPowerDefinition, tooltip.Context as RulesetCharacter);
+        Apply(parameters, guiPowerDefinition, Tooltips.ResolveCharacter(tooltip));
     }
 
     protected abstract void Apply(

@@ -26,6 +26,8 @@ public sealed class RangerWildMaster : AbstractSubclass
 {
     private const string Name = "RangerWildMaster";
     private const string BeastCompanionTag = "BeastCompanion";
+    private const string BeastCompanionDescription =
+        "Feature/&FeatureSetRangerWildMasterBeastCompanionDescription";
     private const string PowerSummonBeastCompanionPrefix = $"Power{Name}SummonBeastCompanion";
 
     private const int BaseAC = 10;
@@ -489,6 +491,14 @@ public sealed class RangerWildMaster : AbstractSubclass
 
     # region Beast Companion
 
+    private static GuiPresentation BuildBeastCompanionPresentation(MonsterDefinition monsterDefinition)
+    {
+        return GuiPresentationBuilder.Build(
+            monsterDefinition.GuiPresentation,
+            monsterDefinition.GuiPresentation.Title,
+            BeastCompanionDescription);
+    }
+
     private static FeatureDefinitionPowerSharedPool BuildBeastCompanionBear(
         FeatureDefinitionPower sharedPoolPower, params FeatureDefinition[] monsterAdditionalFeatures)
     {
@@ -496,7 +506,7 @@ public sealed class RangerWildMaster : AbstractSubclass
         var beastCompanion03 =
             MonsterDefinitionBuilder
                 .Create(monsterDefinition, Name + monsterDefinition.name + "03")
-                .SetGuiPresentation(MonsterDefinitions.BlackBear.GuiPresentation)
+                .SetGuiPresentation(BuildBeastCompanionPresentation(monsterDefinition))
                 .SetMonsterPresentation(MonsterDefinitions.BlackBear.MonsterPresentation)
                 .AddFeatures(Tabletop2014Context.FeatureDefinitionPowerHelpAction)
                 .AddFeatures(monsterAdditionalFeatures)
@@ -522,7 +532,6 @@ public sealed class RangerWildMaster : AbstractSubclass
                 $"AttackDefinition{Name}{beastCompanion03.Name}02")
             .AddToDB();
 
-        beastCompanionAttack1.EffectDescription.FindFirstDamageForm().BonusDamage = 0;
         beastCompanionAttack2.EffectDescription.FindFirstDamageForm().BonusDamage = 0;
 
         beastCompanion03.AttackIterations[0].monsterAttackDefinition = beastCompanionAttack1;
@@ -531,7 +540,7 @@ public sealed class RangerWildMaster : AbstractSubclass
         var beastCompanion11 =
             MonsterDefinitionBuilder
                 .Create(monsterDefinition, Name + monsterDefinition.name + "11")
-                .SetGuiPresentation(MonsterDefinitions.BlackBear.GuiPresentation)
+                .SetGuiPresentation(BuildBeastCompanionPresentation(monsterDefinition))
                 .SetMonsterPresentation(MonsterDefinitions.BlackBear.MonsterPresentation)
                 .AddFeatures(Tabletop2014Context.FeatureDefinitionPowerHelpAction)
                 .AddFeatures(monsterAdditionalFeatures)
@@ -608,7 +617,7 @@ public sealed class RangerWildMaster : AbstractSubclass
         var beastCompanion03 =
             MonsterDefinitionBuilder
                 .Create(monsterDefinition, Name + monsterDefinition.name + "03")
-                .SetGuiPresentation(MonsterDefinitions.Giant_Eagle.GuiPresentation)
+                .SetGuiPresentation(BuildBeastCompanionPresentation(monsterDefinition))
                 .SetMonsterPresentation(MonsterDefinitions.Giant_Eagle.MonsterPresentation)
                 .AddFeatures(Tabletop2014Context.FeatureDefinitionPowerHelpAction)
                 .AddFeatures(monsterAdditionalFeatures)
@@ -634,7 +643,6 @@ public sealed class RangerWildMaster : AbstractSubclass
                 $"AttackDefinition{Name}{beastCompanion03.Name}02")
             .AddToDB();
 
-        beastCompanionAttack1.EffectDescription.FindFirstDamageForm().BonusDamage = 0;
         beastCompanionAttack2.EffectDescription.FindFirstDamageForm().BonusDamage = 0;
 
         beastCompanion03.AttackIterations[0].monsterAttackDefinition = beastCompanionAttack1;
@@ -643,7 +651,7 @@ public sealed class RangerWildMaster : AbstractSubclass
         var beastCompanion11 =
             MonsterDefinitionBuilder
                 .Create(monsterDefinition, Name + monsterDefinition.name + "11")
-                .SetGuiPresentation(MonsterDefinitions.Giant_Eagle.GuiPresentation)
+                .SetGuiPresentation(BuildBeastCompanionPresentation(monsterDefinition))
                 .SetMonsterPresentation(MonsterDefinitions.Giant_Eagle.MonsterPresentation)
                 .AddFeatures(Tabletop2014Context.FeatureDefinitionPowerHelpAction)
                 .AddFeatures(monsterAdditionalFeatures)
@@ -699,7 +707,7 @@ public sealed class RangerWildMaster : AbstractSubclass
         var beastCompanion03 =
             MonsterDefinitionBuilder
                 .Create(monsterDefinition, Name + monsterDefinition.name + "03")
-                .SetGuiPresentation(MonsterDefinitions.AlphaWolf.GuiPresentation)
+                .SetGuiPresentation(BuildBeastCompanionPresentation(monsterDefinition))
                 .SetMonsterPresentation(MonsterDefinitions.AlphaWolf.MonsterPresentation)
                 .AddFeatures(Tabletop2014Context.FeatureDefinitionPowerHelpAction)
                 .AddFeatures(monsterAdditionalFeatures)
@@ -725,7 +733,7 @@ public sealed class RangerWildMaster : AbstractSubclass
         var beastCompanion11 =
             MonsterDefinitionBuilder
                 .Create(monsterDefinition, Name + monsterDefinition.name + "11")
-                .SetGuiPresentation(MonsterDefinitions.AlphaWolf.GuiPresentation)
+                .SetGuiPresentation(BuildBeastCompanionPresentation(monsterDefinition))
                 .SetMonsterPresentation(MonsterDefinitions.AlphaWolf.MonsterPresentation)
                 .AddFeatures(Tabletop2014Context.FeatureDefinitionPowerHelpAction)
                 .AddFeatures(monsterAdditionalFeatures)

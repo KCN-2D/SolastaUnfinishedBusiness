@@ -1,12 +1,12 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
 using System;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
@@ -19,9 +19,94 @@ public static class TooltipPanelPatcher
 {
     private const int TooltipForegroundSortingOrder = 31000;
 
+    [ThreadStatic]
+    private static RulesetCharacter _effectFormattingCharacter;
+
+    private static RulesetCharacter ResolveEffectFormattingCharacter(object context)
+    {
+        return context switch
+        {
+            RulesetCharacter character => character,
+            GameLocationCharacter locationCharacter => locationCharacter.RulesetCharacter,
+            GuiCharacter guiCharacter => guiCharacter.RulesetCharacter,
+            _ => null
+        };
+    }
+
     private static TooltipPanel ActiveTooltipPanel;
     private static readonly List<TooltipPanel> TooltipForegroundPanels = new();
     private static readonly Dictionary<TooltipPanel, TooltipForegroundState> TooltipForegroundStates = new();
+
+    [HarmonyPatch(
+        typeof(TooltipFeatureMonsterAttacksEnumerator),
+        nameof(TooltipFeatureMonsterAttacksEnumerator.Bind))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class TooltipFeatureMonsterAttacksEnumeratorBind_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(
+            TooltipFeatureMonsterAttacksEnumerator __instance,
+            ITooltip tooltip,
+            RectTransform ___table,
+            GameObject ___attackIterationPrefab)
+        {
+            if (tooltip?.DataProvider is not ILiveMonsterAttacksProvider provider)
+            {
+                return true;
+            }
+
+            var attackModes = provider.LiveAttackModes
+                .Where(mode =>
+                    mode is
+                    {
+                        SourceDefinition: not null,
+                        EffectDescription: not null,
+                        ActionType: ActionDefinitions.ActionType.Main or
+                            ActionDefinitions.ActionType.Bonus
+                    })
+                .ToArray();
+
+            if (attackModes.Length == 0)
+            {
+                __instance.gameObject.SetActive(false);
+
+                return false;
+            }
+
+            __instance.gameObject.SetActive(true);
+
+            while (___table.childCount < attackModes.Length)
+            {
+                Gui.GetPrefabFromPool(___attackIterationPrefab, ___table);
+            }
+
+            for (var i = 0; i < attackModes.Length; i++)
+            {
+                var child = ___table.GetChild(i);
+                var attackModeBox = child.GetComponent<AttackModeBox>();
+
+                child.gameObject.SetActive(true);
+                attackModeBox.Unbind();
+                attackModeBox.Bind(attackModes[i]);
+            }
+
+            for (var i = attackModes.Length; i < ___table.childCount; i++)
+            {
+                var child = ___table.GetChild(i);
+
+                child.GetComponent<AttackModeBox>().Unbind();
+                child.gameObject.SetActive(false);
+            }
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(___table);
+            __instance.RectTransform.sizeDelta = new Vector2(
+                __instance.RectTransform.sizeDelta.x,
+                ___table.rect.height - ___table.anchoredPosition.y);
+
+            return false;
+        }
+    }
 
     [HarmonyPatch(typeof(TooltipFeatureHeader), nameof(TooltipFeatureHeader.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -48,7 +133,7 @@ public static class TooltipPanelPatcher
                     StringComparison.Ordinal) != true ||
                 tooltip.DataProvider is not IMonsterBasicInfoProvider ||
                 tooltip.DataProvider is ISpellParametersProvider ||
-                GetSimulacrum(tooltip.Context) is not { } duplicate)
+                GetSimulacrum(tooltip) is not { } duplicate)
             {
                 return;
             }
@@ -81,17 +166,21 @@ public static class TooltipPanelPatcher
             SimulacrumPortraits.TryAssign(duplicate, portrait);
         }
 
-        private static RulesetCharacterSimulacrum GetSimulacrum(object context)
+        private static RulesetCharacterSimulacrum GetSimulacrum(ITooltip tooltip)
         {
-            return context switch
+            var duplicate = tooltip?.Context switch
             {
                 GameLocationCharacter location =>
                     location.RulesetCharacter as RulesetCharacterSimulacrum,
                 GuiCharacter guiCharacter =>
                     guiCharacter.RulesetCharacter as RulesetCharacterSimulacrum,
-                RulesetCharacterSimulacrum duplicate => duplicate,
+                RulesetCharacterSimulacrum contextDuplicate => contextDuplicate,
                 _ => null
             };
+
+            return duplicate ??
+                   (tooltip?.DataProvider as LiveFriendlyMonsterTooltipProvider)
+                   ?.Character as RulesetCharacterSimulacrum;
         }
 
         private static void Reset(Image image)
@@ -256,9 +345,68 @@ public static class TooltipPanelPatcher
     public static class TooltipFeatureEffectsEnumerator_Bind_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(TooltipFeatureEffectsEnumerator __instance)
+        public static void Prefix(ITooltip tooltip, out RulesetCharacter __state)
         {
-            Tooltips.ModifyWidth<TooltipFeatureEffectsEnumWidthMod, TooltipFeatureEffectsEnumerator>(__instance);
+            __state = _effectFormattingCharacter;
+            _effectFormattingCharacter =
+                ResolveEffectFormattingCharacter(tooltip?.Context) ?? __state;
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            TooltipFeatureEffectsEnumerator __instance,
+            RulesetCharacter __state)
+        {
+            try
+            {
+                Tooltips.ModifyWidth<TooltipFeatureEffectsEnumWidthMod, TooltipFeatureEffectsEnumerator>(__instance);
+            }
+            finally
+            {
+                _effectFormattingCharacter = __state;
+            }
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(
+            Exception __exception,
+            RulesetCharacter __state)
+        {
+            _effectFormattingCharacter = __state;
+
+            return __exception;
+        }
+    }
+
+    [HarmonyPatch(typeof(Gui), nameof(Gui.FormatConditionOperation))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class FormatConditionOperation_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(
+            ConditionDefinition conditionDefinition,
+            ref string description,
+            ref string __result)
+        {
+            if (conditionDefinition?.UsesBardicInspirationDie() != true)
+            {
+                return;
+            }
+
+            // Definition-only surfaces have no character context. D6 is the Bardic Inspiration
+            // feature's base die and is preferable to exposing an unresolved "{0}" placeholder.
+            var die = _effectFormattingCharacter?.GetBardicInspirationDieValue() ??
+                      RuleDefinitions.DieType.D6;
+            var dieName = Gui.FormatDieTitle(die);
+
+            if (die == RuleDefinitions.DieType.D1)
+            {
+                return;
+            }
+
+            __result = __result?.Replace("{0}", dieName);
+            description = description?.Replace("{0}", dieName);
         }
     }
 
@@ -322,8 +470,6 @@ public static class TooltipPanelPatcher
                     }
                 }
 
-                SimulacrumDiagnostics.RecordWishTooltipComponentBypass(
-                    (tooltip?.DataProvider as ISpellParametersProvider)?.SpellDefinition);
             }
             else if (bypassMaterialComponent)
             {
@@ -384,10 +530,6 @@ public static class TooltipPanelPatcher
                 }
             }
 
-            SimulacrumDiagnostics.RecordMaterialTooltip(
-                tooltip,
-                ___materialComponentMarker,
-                ___invalidColor);
         }
 
         [UsedImplicitly]

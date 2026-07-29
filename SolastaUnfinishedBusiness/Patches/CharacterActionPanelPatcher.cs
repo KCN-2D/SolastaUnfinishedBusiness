@@ -11,7 +11,6 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
 using UnityEngine;
@@ -159,8 +158,6 @@ public static class CharacterActionPanelPatcher
 
                 UiTextHelpers.FitActionItemCaption(item.currentItemForm);
             }
-
-            UiTextDiagnostics.ScheduleActionCaptions(__instance);
         }
 
         private static int FilterActions(List<Id> actions, CharacterActionPanel panel)
@@ -655,14 +652,12 @@ public static class CharacterActionPanelPatcher
         [UsedImplicitly]
         public static void Prefix(
             CharacterActionPanel __instance,
-            RulesetSpellRepertoire __0,
             SpellDefinition __1)
         {
-            var spellRepertoire = __0;
             var spellDefinition = __1;
 
             if (__instance?.GuiCharacter?.RulesetCharacter is not
-                    RulesetCharacterSimulacrum duplicate ||
+                    RulesetCharacterSimulacrum ||
                 spellDefinition == null)
             {
                 return;
@@ -674,14 +669,6 @@ public static class CharacterActionPanelPatcher
             var actionStatus = actingCharacter?.GetActionStatus(
                 candidateAction,
                 __instance.ActionScope) ?? ActionStatus.Unavailable;
-
-            SimulacrumDiagnostics.RecordSpellEngagement(
-                "engaged-enter",
-                __instance,
-                spellRepertoire,
-                spellDefinition,
-                candidateAction,
-                actionStatus);
 
             var needsFreshParams = actionParams == null ||
                                    actionParams.ActingCharacter != actingCharacter ||
@@ -695,53 +682,11 @@ public static class CharacterActionPanelPatcher
 
             if (actingCharacter == null || actionStatus != ActionStatus.Available)
             {
-                SimulacrumDiagnostics.RecordSpellActivation(
-                    "engaged-rejected",
-                    duplicate,
-                    spellRepertoire,
-                    spellDefinition);
-
                 return;
             }
 
             __instance.actionId = candidateAction;
             __instance.actionParams = new CharacterActionParams(actingCharacter, candidateAction);
-            SimulacrumDiagnostics.RecordSpellEngagement(
-                "engaged-rebuilt",
-                __instance,
-                spellRepertoire,
-                spellDefinition,
-                candidateAction,
-                actionStatus);
-        }
-
-        [UsedImplicitly]
-        public static void Postfix(
-            CharacterActionPanel __instance,
-            RulesetSpellRepertoire __0,
-            SpellDefinition __1)
-        {
-            var spellRepertoire = __0;
-            var spellDefinition = __1;
-
-            if (__instance?.GuiCharacter?.RulesetCharacter is not RulesetCharacterSimulacrum ||
-                spellDefinition == null)
-            {
-                return;
-            }
-
-            var candidateAction = __instance.actionParams?.ActionDefinition?.Id ?? __instance.actionId;
-            var actionStatus = __instance.GuiCharacter.GameLocationCharacter?.GetActionStatus(
-                candidateAction,
-                __instance.ActionScope) ?? ActionStatus.Unavailable;
-
-            SimulacrumDiagnostics.RecordSpellEngagement(
-                "engaged-exit",
-                __instance,
-                spellRepertoire,
-                spellDefinition,
-                candidateAction,
-                actionStatus);
         }
 
         private static Id ResolveSpellAction(

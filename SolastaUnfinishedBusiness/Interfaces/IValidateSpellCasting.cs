@@ -4,7 +4,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Interfaces;
@@ -262,12 +261,8 @@ internal static class SpellCastingValidation
                 continue;
             }
 
-            SimulacrumDiagnostics.RecordSpellValidation(context, false, failure);
-
             return false;
         }
-
-        SimulacrumDiagnostics.RecordSpellValidation(context, true, failure);
 
         return true;
     }

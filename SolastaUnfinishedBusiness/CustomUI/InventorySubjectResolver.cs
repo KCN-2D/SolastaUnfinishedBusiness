@@ -1,5 +1,6 @@
 ﻿using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 
 namespace SolastaUnfinishedBusiness.CustomUI;
 
@@ -18,6 +19,11 @@ internal static class InventorySubjectResolver
 
         if (RulesetCharacterSimulacrum.FindByContainer(container) is { } duplicate)
         {
+            if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                return false;
+            }
+
             character = duplicate;
 
             return true;

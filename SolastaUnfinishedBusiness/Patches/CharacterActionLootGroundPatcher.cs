@@ -7,7 +7,6 @@ using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -147,19 +146,11 @@ internal static class CharacterActionLootGroundPatcher
             return character;
         }
 
-        if (character is not RulesetCharacterSimulacrum
-            {
-                LifecycleState: SimulacrumLifecycleState.Ready
-            } duplicate)
+        if (character is not RulesetCharacterSimulacrum duplicate ||
+            !SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
         {
             return null;
         }
-
-        SimulacrumDiagnostics.RecordLootGate(
-            duplicate,
-            "hero-gate",
-            true,
-            "type=simulacrum");
 
         return character;
     }
@@ -170,24 +161,24 @@ internal static class CharacterActionLootGroundPatcher
     {
         var nativeResult = controller?.IsCharacterControlled(locationCharacter) == true;
 
-        if (nativeResult ||
-            locationCharacter?.RulesetCharacter is not RulesetCharacterSimulacrum
-            {
-                LifecycleState: SimulacrumLifecycleState.Ready
-            } duplicate)
+        if (locationCharacter?.RulesetCharacter is not RulesetCharacterSimulacrum duplicate)
         {
             return nativeResult;
+        }
+
+        if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+        {
+            return false;
+        }
+
+        if (nativeResult)
+        {
+            return true;
         }
 
         var ownerControlled = SimulacrumBehavior.TryGetOwner(duplicate, out var owner) &&
                               GameLocationCharacter.GetFromActor(owner) is { } ownerLocation &&
                               controller?.IsCharacterControlled(ownerLocation) == true;
-
-        SimulacrumDiagnostics.RecordLootGate(
-            duplicate,
-            "action-controller",
-            ownerControlled,
-            $"native={nativeResult} owner={owner?.Guid.ToString() ?? "<null>"}");
 
         return ownerControlled;
     }

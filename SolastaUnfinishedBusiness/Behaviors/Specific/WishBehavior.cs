@@ -5,7 +5,6 @@ using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Patches;
@@ -341,10 +340,8 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
             .AddToDB();
 
         conditionAid.AddCustomSubFeatures(
-            WishDiagnostics.ConditionLifecycleMarker,
             new RealityRevisionOneShot(conditionAid, RealityRevisionMode.Aid));
         conditionHinder.AddCustomSubFeatures(
-            WishDiagnostics.ConditionLifecycleMarker,
             new RealityRevisionOneShot(conditionHinder, RealityRevisionMode.Hinder));
 
         var aid = BuildAlternateSpell(
@@ -407,7 +404,6 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
                     ConditionDefinitions.ConditionProtectedInsideMagicCircle)
                 .SetPossessive()
                 .SetFeatures(affinity)
-                .AddCustomSubFeatures(WishDiagnostics.ConditionLifecycleMarker)
                 .AddToDB();
             var option = BuildAlternateSpell(
                 $"WishResistance{suffix}",
@@ -441,7 +437,6 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
                     ConditionDefinitions.ConditionShielded)
                 .SetPossessive()
                 .SetFeatures(affinity)
-                .AddCustomSubFeatures(WishDiagnostics.ConditionLifecycleMarker)
                 .AddToDB();
             var option = SpellDefinitionBuilder
                 .Create($"WishSpellImmunity{root.Name}")
@@ -511,7 +506,6 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
             .SetConditionType(ConditionType.Detrimental)
             .SetPossessive()
             .SetFeatures(strengthModifier)
-            .AddCustomSubFeatures(WishDiagnostics.ConditionLifecycleMarker)
             .AddToDB();
 
         ConditionWishStress = ConditionDefinitionBuilder
@@ -519,9 +513,7 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
             .SetGuiPresentation(Category.Condition, ConditionDefinitions.ConditionExhausted)
             .SetConditionType(ConditionType.Detrimental)
             .SetPossessive()
-            .AddCustomSubFeatures(
-                WishDiagnostics.ConditionLifecycleMarker,
-                new StressDamageOnSpellCasted())
+            .AddCustomSubFeatures(new StressDamageOnSpellCasted())
             .AddToDB();
 
         ConditionWishLost = ConditionDefinitionBuilder
@@ -529,7 +521,6 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
             .SetGuiPresentation(Category.Condition, ConditionDefinitions.ConditionCursed)
             .SetConditionType(ConditionType.Neutral)
             .SetPossessive()
-            .AddCustomSubFeatures(WishDiagnostics.ConditionLifecycleMarker)
             .AddToDB();
 
         CastingValidator = new WishCastingValidator(ConditionWishLost);
@@ -698,20 +689,12 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
                 yield break;
             }
 
-            var originalOutcome = action.AttackRollOutcome;
             var finalOutcome = forceSuccess ? RollOutcome.Success : RollOutcome.Failure;
 
             action.AttackSuccessDelta = forceSuccess ? 1 : -1;
             action.AttackRollOutcome = finalOutcome;
 
             Consume(helper);
-            WishDiagnostics.RecordRealityRevision(
-                mode.ToString(),
-                "attack",
-                helper,
-                attacker,
-                originalOutcome,
-                finalOutcome);
 
             yield break;
         }
@@ -729,7 +712,6 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
             }
 
             var forceSuccess = mode == RealityRevisionMode.Aid;
-            var originalOutcome = abilityCheckData.AbilityCheckRollOutcome;
             var originalDelta = abilityCheckData.AbilityCheckSuccessDelta;
             var finalDelta = forceSuccess ? 1 : -1;
             var finalOutcome = forceSuccess ? RollOutcome.Success : RollOutcome.Failure;
@@ -739,13 +721,6 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
             abilityCheckData.AbilityCheckRollOutcome = finalOutcome;
 
             Consume(helper);
-            WishDiagnostics.RecordRealityRevision(
-                mode.ToString(),
-                "check",
-                helper,
-                defender,
-                originalOutcome,
-                finalOutcome);
 
             yield break;
         }
@@ -774,19 +749,11 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
             }
 
             var forceSuccess = mode == RealityRevisionMode.Aid;
-            var originalOutcome = savingThrowData.SaveOutcome;
             var finalOutcome = forceSuccess ? RollOutcome.Success : RollOutcome.Failure;
 
             savingThrowData.SaveOutcomeDelta = forceSuccess ? 1 : -1;
             savingThrowData.SaveOutcome = finalOutcome;
             Consume(helper);
-            WishDiagnostics.RecordRealityRevision(
-                mode.ToString(),
-                "save",
-                helper,
-                defender,
-                originalOutcome,
-                finalOutcome);
 
             yield break;
         }

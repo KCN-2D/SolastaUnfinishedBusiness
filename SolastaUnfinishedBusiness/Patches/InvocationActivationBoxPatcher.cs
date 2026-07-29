@@ -6,7 +6,6 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using UnityEngine;
 using UnityEngine.UI;
@@ -130,13 +129,6 @@ public static class InvocationActivationBoxPatcher
                     }
                 }
             }
-
-            SimulacrumDiagnostics.RecordInvocationUiAvailability(
-                simulacrum,
-                invocation.InvocationDefinition,
-                available,
-                box.button.interactable,
-                failure);
         }
 
         private static void SetAvailability(InvocationActivationBox box, bool available)
@@ -190,7 +182,7 @@ public static class InvocationActivationBoxPatcher
                 : new CustomItemTooltipProvider(feature, gui, item);
 
             tooltip.TooltipClass = dataProvider.TooltipClass;
-            tooltip.Content = feature.GuiPresentation.Description;
+            tooltip.Content = CustomTooltipProvider.GetActivationContent(feature);
             tooltip.Context = character;
             tooltip.DataProvider = dataProvider;
         }

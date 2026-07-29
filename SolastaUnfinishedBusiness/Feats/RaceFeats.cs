@@ -664,7 +664,7 @@ internal static class RaceFeats
                 if (dieRoll <= action.AttackRoll)
                 {
                     rulesetHelper.LogCharacterActivatesAbility(
-                        "Feat/&FeatBountifulLuckyTitle",
+                        "Feat/&FeatBountifulLuckTitle",
                         "Feedback/&IsNotLuckyLower",
                         extra:
                         [
@@ -748,7 +748,7 @@ internal static class RaceFeats
                 if (dieRoll <= rawRoll)
                 {
                     rulesetHelper.LogCharacterActivatesAbility(
-                        "Feat/&FeatBountifulLuckyTitle",
+                        "Feat/&FeatBountifulLuckTitle",
                         "Feedback/&IsNotLuckyLower",
                         extra:
                         [
@@ -849,7 +849,7 @@ internal static class RaceFeats
                 if (dieRoll <= savingRoll)
                 {
                     rulesetHelper.LogCharacterActivatesAbility(
-                        "Feat/&FeatBountifulLuckyTitle",
+                        "Feat/&FeatBountifulLuckTitle",
                         "Feedback/&IsNotLuckyLower",
                         extra:
                         [

@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Patches;
 using static ActionDefinitions;
@@ -55,7 +54,7 @@ internal static class SimulacrumEquipmentPanel
         RulesetContainer externalContainer,
         bool includeNearbyGroundItems)
     {
-        if (duplicate.LifecycleState != SimulacrumLifecycleState.Ready)
+        if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
         {
             ShowUnavailable("Failure/&SimulacrumInventoryUnavailable");
 
@@ -93,7 +92,6 @@ internal static class SimulacrumEquipmentPanel
 
         try
         {
-            SimulacrumDiagnostics.RecordInventory(duplicate, "before-screen-show", screen);
             var mode = inBattle
                 ? InventoryManagementMode.Battle
                 : InventoryManagementMode.Free;
@@ -131,13 +129,10 @@ internal static class SimulacrumEquipmentPanel
                     duplicate.CharacterInventory.PersonalContainer,
                     mode);
             }
-            SimulacrumDiagnostics.RecordInventory(duplicate, "after-screen-show", screen);
-
             return true;
         }
         catch (Exception ex)
         {
-            SimulacrumDiagnostics.RecordException("inventory", "screen-show", ex);
             Trace.LogException(new Exception("Unable to open the Simulacrum inventory.", ex));
 
             try
@@ -176,7 +171,7 @@ internal static class SimulacrumEquipmentPanel
             return false;
         }
 
-        if (duplicate.LifecycleState != SimulacrumLifecycleState.Ready ||
+        if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate) ||
             !SimulacrumBehavior.TryGetOwner(duplicate, out var owner))
         {
             ShowUnavailable("Failure/&SimulacrumInventoryUnavailable");
@@ -226,14 +221,12 @@ internal static class SimulacrumEquipmentPanel
                 effectDescription.ItemSelectionType,
                 actionParams);
             actionPanel.RestoreDefaultCursor();
-            SimulacrumDiagnostics.RecordInventory(
-                duplicate,
-                "spell-item-selection-open",
-                screen);
         }
         catch (Exception ex)
         {
-            SimulacrumDiagnostics.RecordException("inventory", "spell-item-selection", ex);
+            Trace.LogException(new Exception(
+                "Unable to select a spell item from the Simulacrum inventory.",
+                ex));
             actionParams.RulesetEffect?.Terminate(false);
             actionPanel.RestoreDefaultCursor();
 
@@ -319,6 +312,7 @@ internal static class SimulacrumEquipmentPanel
         }
 
         if (!session.TryGetSubject(out var duplicate) ||
+            !SimulacrumBehavior.CanAccessHumanoidInventory(duplicate) ||
             transportHero?.Guid != session.TransportGuid)
         {
             session.State = SimulacrumInventorySessionState.Failed;
@@ -334,7 +328,6 @@ internal static class SimulacrumEquipmentPanel
 
         session.Binding = true;
         session.State = SimulacrumInventorySessionState.Opening;
-        SimulacrumDiagnostics.RecordInventory(duplicate, "bind-enter", screen);
         var externalContainer = screen.externalContainer;
 
         try
@@ -364,21 +357,15 @@ internal static class SimulacrumEquipmentPanel
             Gui.GenderContext = duplicate.Sex;
             Global.InspectedHero = null;
 
-            SimulacrumDiagnostics.RecordInventory(duplicate, "before-character-plate-bind", screen);
             screen.characterPlate.Bind(guiCharacter);
             screen.characterPlate.Refresh();
-            SimulacrumDiagnostics.RecordInventory(duplicate, "character-plate-bound", screen);
-            SimulacrumDiagnostics.RecordInventory(duplicate, "before-inventory-screen-prepare", screen);
             PrepareInventoryOnlyScreen(screen, session);
-            SimulacrumDiagnostics.RecordInventory(duplicate, "inventory-screen-prepared", screen);
-            SimulacrumDiagnostics.RecordInventory(duplicate, "before-inventory-panel-bind", screen);
             screen.InventoryPanel.Bind(
                 guiCharacter,
                 mode,
                 screen.externalContainer,
                 itemSelected,
                 screen.characterPlatesTable);
-            SimulacrumDiagnostics.RecordInventory(duplicate, "inventory-panel-bound", screen);
             BindEvents(screen, duplicate);
 
             screen.screenCaption.gameObject.SetActive(true);
@@ -392,8 +379,6 @@ internal static class SimulacrumEquipmentPanel
 
             session.Bound = true;
             session.State = SimulacrumInventorySessionState.Bound;
-            SimulacrumDiagnostics.RecordInventory(duplicate, "bind-complete", screen);
-
             return true;
         }
         finally
@@ -430,7 +415,7 @@ internal static class SimulacrumEquipmentPanel
 
         return TryGetSession(screen, out var session) &&
                session.TryGetSubject(out character) &&
-               character.LifecycleState == SimulacrumLifecycleState.Ready;
+               SimulacrumBehavior.CanAccessHumanoidInventory(character);
     }
 
     internal static RulesetCharacterHero GetTransportHero(GuiCharacter guiCharacter)
@@ -532,10 +517,12 @@ internal static class SimulacrumEquipmentPanel
         RulesetCharacterSimulacrum duplicate,
         RulesetItem item)
     {
-        if (duplicate.LifecycleState != SimulacrumLifecycleState.Ready &&
-            SimulacrumBehavior.TryGetOwner(duplicate, out var owner))
+        if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
         {
-            inventoryCommands.GrantItem(owner, item, false);
+            if (SimulacrumBehavior.TryGetOwner(duplicate, out var owner))
+            {
+                inventoryCommands.GrantItem(owner, item, false);
+            }
 
             return;
         }
@@ -573,7 +560,6 @@ internal static class SimulacrumEquipmentPanel
         CharacterStatsPanelPatcher.RefreshAbilityScores(screen.abilityScoresListingPanel);
         CharacterStatsPanelPatcher.RefreshCharacter(screen.characterStatsPanel);
         CharacterStatsPanelPatcher.RefreshAttackModes(screen.attackModesPanel);
-        SimulacrumDiagnostics.RecordInventory(duplicate, "begin-show-complete", screen);
     }
 
     internal static bool TryRefresh(CharacterInspectionScreen screen)
@@ -632,12 +618,6 @@ internal static class SimulacrumEquipmentPanel
 
         session.PreviewRefreshRevision = visualRevision;
         session.PreviewEquipmentSignature = equipmentSignature;
-        SimulacrumDiagnostics.RecordPreviewRefresh(
-            duplicate,
-            "dirty",
-            visualRevision,
-            session.PreviewRefreshPending,
-            equipmentSignature);
     }
 
     internal static void QueuePreviewRefresh(
@@ -665,12 +645,6 @@ internal static class SimulacrumEquipmentPanel
         }
 
         session.PreviewRefreshPending = true;
-        SimulacrumDiagnostics.RecordPreviewRefresh(
-            duplicate,
-            "queued",
-            visualRevision,
-            true,
-            equipmentSignature);
         screen.StartCoroutine(RefreshPreviewAfterInventoryMutation(screen, duplicate.Guid));
     }
 
@@ -714,12 +688,6 @@ internal static class SimulacrumEquipmentPanel
                 break;
             }
 
-            SimulacrumDiagnostics.RecordPreviewRefresh(
-                pendingDuplicate,
-                "waiting-for-world",
-                session.PreviewRefreshRevision,
-                true,
-                session.PreviewEquipmentSignature);
         }
 
         session.PreviewRefreshPending = false;
@@ -740,16 +708,6 @@ internal static class SimulacrumEquipmentPanel
             yield break;
         }
 
-        SimulacrumDiagnostics.RecordPreviewRefresh(
-            duplicate,
-            "rebind",
-            session.PreviewRefreshRevision,
-            false,
-            session.PreviewEquipmentSignature);
-        SimulacrumDiagnostics.RecordAppearance(
-            duplicate,
-            "inventory-preview-rebind",
-            "equipment");
         viewport.Unbind(false);
         viewport.Bind(
             GraphicsCharacterDefinitions.CharacterType.Inventory,
@@ -788,11 +746,6 @@ internal static class SimulacrumEquipmentPanel
         }
 
         session.Bound = false;
-        if (session.TryGetSubject(out var duplicate))
-        {
-            SimulacrumDiagnostics.RecordInventory(duplicate, "bind-failure", screen);
-        }
-
         UnbindScreen(screen, false);
         session.State = SimulacrumInventorySessionState.Failed;
     }
@@ -879,7 +832,6 @@ internal static class SimulacrumEquipmentPanel
 
         if (duplicate != null)
         {
-            SimulacrumDiagnostics.RecordInventory(duplicate, "unbind-start", screen);
             TryCleanup("events", () =>
             {
                 if (GameLocationCharacter.GetFromActor(duplicate) is { } location)
@@ -967,11 +919,6 @@ internal static class SimulacrumEquipmentPanel
         if (removeSession)
         {
             Sessions.Remove(screen);
-        }
-
-        if (duplicate != null)
-        {
-            SimulacrumDiagnostics.RecordInventory(duplicate, "unbind-complete", screen);
         }
 
         return;

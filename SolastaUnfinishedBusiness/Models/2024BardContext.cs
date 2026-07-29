@@ -65,6 +65,12 @@ public static partial class Tabletop2024Context
             new TryAlterOutcomeSavingThrowBardCounterCharm());
     }
 
+    private static void LoadBardBardicInspiration()
+    {
+        PowerBardGiveBardicInspiration.GuiPresentation.description =
+            "Feature/&PowerBardGiveBardicInspirationConciseDescription";
+    }
+
     internal static void SwitchBardCounterCharm()
     {
         var level = Main.Settings.EnableBardCounterCharm2024 ? 7 : 6;

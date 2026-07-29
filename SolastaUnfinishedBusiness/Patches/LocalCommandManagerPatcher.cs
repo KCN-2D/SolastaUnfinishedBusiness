@@ -4,7 +4,6 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -12,6 +11,42 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class LocalCommandManagerPatcher
 {
+    [HarmonyPatch(typeof(LocalCommandManager), nameof(LocalCommandManager.OpenMerchant))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OpenMerchant_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GameLocationCharacter merchantGameLocationCharacter)
+        {
+            var networkingService = ServiceRepository.GetService<INetworkingService>();
+
+            if (networkingService?.IsMultiplayerGame == true)
+            {
+                return;
+            }
+
+            var merchant = merchantGameLocationCharacter?.Merchant;
+            var merchantScreen = Gui.GuiService.GetScreen<GameMerchantScreen>();
+
+            if (merchant == null ||
+                merchantScreen == null ||
+                !object.ReferenceEquals(merchantScreen.GameMerchant, merchant))
+            {
+                return;
+            }
+
+            var playerId = networkingService?.LocalPlayerNumber ?? -1;
+
+            // OpenMerchant acquires a player lock only in multiplayer, while
+            // GameMerchantScreen always releases one when it closes.
+            if (!merchant.HasPlayerLock(playerId))
+            {
+                merchant.AddPlayerLock(playerId);
+            }
+        }
+    }
+
     [HarmonyPatch(
         typeof(LocalCommandManager),
         nameof(LocalCommandManager.ExamineItem),
@@ -32,11 +67,6 @@ public static class LocalCommandManagerPatcher
             {
                 return true;
             }
-
-            SimulacrumDiagnostics.Write(
-                "inventory",
-                $"stage=document-learning-host-blocked guid={duplicate.Guid} " +
-                $"item={__1.ItemDefinition.Name}");
 
             return false;
         }
@@ -60,6 +90,11 @@ public static class LocalCommandManagerPatcher
                     out var duplicate))
             {
                 return true;
+            }
+
+            if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                return false;
             }
 
             using (duplicate.BeginInventoryMutation())
@@ -98,6 +133,13 @@ public static class LocalCommandManagerPatcher
             if (duplicate == null)
             {
                 return true;
+            }
+
+            if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                __result = null;
+
+                return false;
             }
 
             using (duplicate.BeginInventoryMutation())
@@ -145,6 +187,11 @@ public static class LocalCommandManagerPatcher
                 return true;
             }
 
+            if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                return false;
+            }
+
             using (duplicate.BeginInventoryMutation())
             {
                 duplicate.CharacterInventory.DefineWieldedItemsConfiguration(
@@ -180,6 +227,11 @@ public static class LocalCommandManagerPatcher
                     out var duplicate))
             {
                 return true;
+            }
+
+            if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                return false;
             }
 
             using (duplicate.BeginInventoryMutation())
@@ -257,6 +309,13 @@ public static class LocalCommandManagerPatcher
             if (duplicate == null || __1?.ItemDefinition == null)
             {
                 return true;
+            }
+
+            if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                __result = null;
+
+                return false;
             }
 
             if (source != null && destination != null && source.Guid != destination.Guid)
@@ -355,7 +414,8 @@ public static class LocalCommandManagerPatcher
                 return true;
             }
 
-            if (slot.Disabled || !duplicate.CanUseHumanoidEquipment())
+            if (slot.Disabled ||
+                !SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
             {
                 Gui.GuiService.ShowAlert(
                     "Failure/&SimulacrumCannotEquipItem",
@@ -446,6 +506,12 @@ public static class LocalCommandManagerPatcher
             out ContainerMutationState __state)
         {
             __state = null;
+
+            if (RulesetCharacterSimulacrum.FindByContainer(__0) is { } containerDuplicate &&
+                !SimulacrumBehavior.CanAccessHumanoidInventory(containerDuplicate))
+            {
+                return false;
+            }
 
             if (!InventorySubjectResolver.TryResolve(__0, out var destination))
             {
@@ -544,12 +610,23 @@ public static class LocalCommandManagerPatcher
     public static class UnequipItem_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(
+        public static bool Prefix(
             RulesetInventorySlot __0,
             out System.IDisposable __state)
         {
-            __state = RulesetCharacterSimulacrum.FindBySlot(__0)
-                ?.BeginInventoryMutation();
+            var duplicate = RulesetCharacterSimulacrum.FindBySlot(__0);
+
+            if (duplicate != null &&
+                !SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                __state = null;
+
+                return false;
+            }
+
+            __state = duplicate?.BeginInventoryMutation();
+
+            return true;
         }
 
         [UsedImplicitly]
@@ -620,6 +697,11 @@ public static class LocalCommandManagerPatcher
             if (character?.RulesetCharacter is not RulesetCharacterSimulacrum duplicate)
             {
                 return true;
+            }
+
+            if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                return false;
             }
 
             var inventory = duplicate.CharacterInventory;

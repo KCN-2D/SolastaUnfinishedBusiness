@@ -9,7 +9,6 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using UnityEngine;
 
@@ -32,7 +31,7 @@ public static class SubspellSelectionModalPatcher
 
         try
         {
-            ClearPooledTooltipBindings(modal, state);
+            ClearPooledTooltipBindings(modal);
             modal.Unbind();
             modal.Bind(
                 state.MasterSpell,
@@ -48,9 +47,7 @@ public static class SubspellSelectionModalPatcher
         }
     }
 
-    private static void ClearPooledTooltipBindings(
-        SubspellSelectionModal modal,
-        SessionState state)
+    private static void ClearPooledTooltipBindings(SubspellSelectionModal modal)
     {
         var subspellItems = modal.subspellsTable.GetComponentsInChildren<SubspellItem>(true);
 
@@ -59,10 +56,6 @@ public static class SubspellSelectionModalPatcher
             SpellCastingValidation.BindTooltipRepertoire(subspellItem.tooltip, null);
         }
 
-        SimulacrumDiagnostics.Write(
-            "subspell-modal",
-            $"stage=refresh-unbind page={state.PageRevision} master={state.MasterSpell.Name} " +
-            $"items={subspellItems.Length}");
     }
 
     private static void RebindPooledTooltipBindings(
@@ -90,11 +83,6 @@ public static class SubspellSelectionModalPatcher
             if (expectedDefinition != null &&
                 !string.Equals(actualDefinitionName, expectedDefinition.Name, StringComparison.Ordinal))
             {
-                SimulacrumDiagnostics.Write(
-                    "subspell-modal",
-                    $"stage=binding-mismatch page={state.PageRevision} master={state.MasterSpell.Name} " +
-                    $"index={index} expected={expectedDefinition.Name} actual={actualDefinitionName}");
-
                 subspellItem.Bind(state.Caster, expectedDefinition, index, modal.OnActivate);
             }
 
@@ -104,10 +92,6 @@ public static class SubspellSelectionModalPatcher
                 state.BypassComponentsAndCastingTime);
         }
 
-        SimulacrumDiagnostics.Write(
-            "subspell-modal",
-            $"stage=refresh-rebind page={state.PageRevision} master={state.MasterSpell.Name} " +
-            $"items={subspellItems.Length} expected={expectedDefinitions.Count}");
     }
 
     private static List<SpellDefinition> GetSubspells(
@@ -159,14 +143,6 @@ public static class SubspellSelectionModalPatcher
                                 out failure);
 
             subspellItem.Button.interactable = available;
-            SimulacrumDiagnostics.RecordInvocationSubspellAvailability(
-                state.Caster,
-                state.Invocation.InvocationDefinition,
-                spell,
-                "modal-bind",
-                available,
-                subspellItem.Button.interactable,
-                failure);
 
             if (!available && spell != null && !string.IsNullOrEmpty(failure))
             {
@@ -240,31 +216,13 @@ public static class SubspellSelectionModalPatcher
                     invocationState.MasterSpell,
                     __instance.slotLevel,
                     __instance);
-                var failure = string.Empty;
-
                 if (index < 0 ||
                     index >= subspells.Count ||
                     !invocationState.Caster.CanCastInvocationSpell(
                         invocationState.Invocation,
                         subspells[index],
-                        out failure))
+                        out _))
                 {
-                    var actualInteractable = __instance.subspellsTable
-                        .GetComponentsInChildren<SubspellItem>(true)
-                        .FirstOrDefault(item =>
-                            item.gameObject.activeSelf &&
-                            item.index == index)?
-                        .Button.interactable ?? false;
-
-                    SimulacrumDiagnostics.RecordInvocationSubspellAvailability(
-                        invocationState.Caster,
-                        invocationState.Invocation.InvocationDefinition,
-                        index >= 0 && index < subspells.Count ? subspells[index] : null,
-                        "click-blocked",
-                        false,
-                        actualInteractable,
-                        failure);
-
                     return false;
                 }
             }
@@ -385,12 +343,9 @@ public static class SubspellSelectionModalPatcher
 
             ResetInvocationAvailability(__instance);
             InvocationSessions.Remove(__instance);
-            ClearPooledTooltipBindings(__instance, state);
+            ClearPooledTooltipBindings(__instance);
             Sessions.Remove(__instance);
 
-            SimulacrumDiagnostics.Write(
-                "subspell-modal",
-                $"stage=end-hide page={state.PageRevision} master={state.MasterSpell.Name}");
         }
     }
 
@@ -414,7 +369,7 @@ public static class SubspellSelectionModalPatcher
             {
                 ResetInvocationAvailability(__instance);
                 InvocationSessions.Remove(__instance);
-                ClearPooledTooltipBindings(__instance, state);
+                ClearPooledTooltipBindings(__instance);
                 Sessions.Remove(__instance);
             }
         }
@@ -450,12 +405,10 @@ public static class SubspellSelectionModalPatcher
         internal readonly int SlotLevel = slotLevel;
         internal readonly SpellsByLevelBox.SpellCastEngagedHandler SpellCastEngaged = spellCastEngaged;
         internal bool IsRefreshing;
-        internal int PageRevision { get; private set; }
 
         internal void BeginRefresh()
         {
             IsRefreshing = true;
-            PageRevision++;
         }
 
         internal void EndRefresh()

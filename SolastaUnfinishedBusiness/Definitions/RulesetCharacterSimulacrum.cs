@@ -5,7 +5,6 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using static FeatureDefinitionFeatureSet;
 using static RuleDefinitions;
@@ -38,6 +37,8 @@ internal sealed class RulesetCharacterSimulacrum :
     private bool _discardPendingEquipmentRefresh;
     private DeityDefinition _deityDefinition;
     private bool _equipmentRefreshPending;
+    private List<string> _skillExpertises = [];
+    private bool _skillSnapshotCaptured;
     private string _voiceId = "MAL1";
     private readonly HashSet<RulesetSpellRepertoire> _deferredRepertoireRefreshes = [];
     private int _refreshAllDepth;
@@ -49,6 +50,8 @@ internal sealed class RulesetCharacterSimulacrum :
     internal bool UsesInventoryAppearanceSeed { get; private set; }
     internal bool PublishingRestoredState { get; set; }
     internal int RefreshAllDepth => _refreshAllDepth;
+    internal IReadOnlyCollection<string> SkillExpertises => _skillExpertises;
+    internal bool SkillSnapshotCaptured => _skillSnapshotCaptured;
 
     [UsedImplicitly]
     public RulesetCharacterSimulacrum()
@@ -118,25 +121,11 @@ internal sealed class RulesetCharacterSimulacrum :
 
             if (classLevel > 0)
             {
-                SimulacrumDiagnostics.RecordSpellcastingLevel(
-                    this,
-                    spellRepertoire,
-                    classLevel,
-                    "snapshot-class");
-
                 return classLevel;
             }
         }
 
-        var fallback = base.GetSpellcastingLevel(spellRepertoire);
-
-        SimulacrumDiagnostics.RecordSpellcastingLevel(
-            this,
-            spellRepertoire,
-            fallback,
-            "native-fallback");
-
-        return fallback;
+        return base.GetSpellcastingLevel(spellRepertoire);
     }
 
     public override void EnumerateKnownLanguages(List<string> languages)
@@ -145,6 +134,72 @@ internal sealed class RulesetCharacterSimulacrum :
         {
             base.EnumerateKnownLanguages(languages);
         }
+    }
+
+    public override int ComputeBaseAbilityCheckBonus(
+        string abilityScoreName,
+        List<TrendInfo> modifierTrends,
+        string proficiencyName = null,
+        bool doubleProficiency = false,
+        bool checkInventory = true,
+        bool checkFeatures = true)
+    {
+        var result = base.ComputeBaseAbilityCheckBonus(
+            abilityScoreName,
+            modifierTrends,
+            proficiencyName,
+            doubleProficiency,
+            checkInventory,
+            checkFeatures);
+
+        if (string.IsNullOrEmpty(proficiencyName))
+        {
+            return result;
+        }
+
+        var snapshotRank = GetSnapshotSkillProficiencyRank(proficiencyName);
+        var currentRank = checkFeatures
+            ? GetSkillProficiencyRank(proficiencyName)
+            : snapshotRank;
+
+        if (doubleProficiency && currentRank > 0)
+        {
+            currentRank = 2;
+        }
+
+        var proficiencyDelta =
+            (currentRank - snapshotRank) *
+            TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+
+        if (proficiencyDelta <= 0)
+        {
+            return result;
+        }
+
+        modifierTrends?.Add(
+            new TrendInfo(
+                proficiencyDelta,
+                FeatureSourceType.Proficiency,
+                string.Empty,
+                null));
+
+        return result + proficiencyDelta;
+    }
+
+    public override bool IsProficient(string proficiencyName)
+    {
+        return base.IsProficient(proficiencyName) ||
+               GetSkillProficiencyRank(proficiencyName) > 0;
+    }
+
+    internal bool HasSkillProficiency(string skillName)
+    {
+        return GetSkillProficiencyRank(skillName) > 0;
+    }
+
+    internal bool HasSkillExpertise(string skillName)
+    {
+        return GetSkillProficiencyRank(skillName) >= 2;
     }
 
     internal bool BeginRefreshAllTransaction()
@@ -273,7 +328,9 @@ internal sealed class RulesetCharacterSimulacrum :
         bool includeContainer,
         bool ignoreActivationTimeChecks = false)
     {
-        return this.EnumerateInventoryDevices(includeContainer, ignoreActivationTimeChecks);
+        return CanUseHumanoidEquipment()
+            ? this.EnumerateInventoryDevices(includeContainer, ignoreActivationTimeChecks)
+            : Enumerable.Empty<RulesetItemDevice>();
     }
 
     public override RulesetItemDevice GetFirstAvailableDevice(bool includeContainer)
@@ -284,7 +341,8 @@ internal sealed class RulesetCharacterSimulacrum :
     public override bool IsMatchingEquipementCondition(
         EquipmentDefinitions.EquipmentContext equipmentContext)
     {
-        return CharacterInventory.IsMatchingEquipementCondition(equipmentContext);
+        return CanUseHumanoidEquipment() &&
+               CharacterInventory.IsMatchingEquipementCondition(equipmentContext);
     }
 
     public override string GetAmmunitionType(RulesetAttackMode mode)
@@ -376,7 +434,7 @@ internal sealed class RulesetCharacterSimulacrum :
 
     public override bool CarriesItemOfDefinition(ItemDefinition itemDefinition)
     {
-        if (itemDefinition == null)
+        if (!CanUseHumanoidEquipment() || itemDefinition == null)
         {
             return false;
         }
@@ -392,7 +450,7 @@ internal sealed class RulesetCharacterSimulacrum :
 
     public override bool CarriesItemOfTag(string tag)
     {
-        if (string.IsNullOrEmpty(tag))
+        if (!CanUseHumanoidEquipment() || string.IsNullOrEmpty(tag))
         {
             return false;
         }
@@ -424,8 +482,9 @@ internal sealed class RulesetCharacterSimulacrum :
 
     public override bool HasFreeHandSlot()
     {
-        return GetEquippedItem(EquipmentDefinitions.SlotTypeMainHand) == null ||
-               GetEquippedItem(EquipmentDefinitions.SlotTypeOffHand) == null;
+        return CanUseHumanoidEquipment() &&
+               (GetEquippedItem(EquipmentDefinitions.SlotTypeMainHand) == null ||
+                GetEquippedItem(EquipmentDefinitions.SlotTypeOffHand) == null);
     }
 
     public override bool IsWearingArmor()
@@ -496,11 +555,18 @@ internal sealed class RulesetCharacterSimulacrum :
 
     public override bool CanCarryItem(RulesetItem item)
     {
-        return item != null && CanCarryWeight(item.ComputeWeight());
+        return CanUseHumanoidEquipment() &&
+               item != null &&
+               CanCarryWeight(item.ComputeWeight());
     }
 
     public override bool CanCarryWeight(float additionalWeight)
     {
+        if (!CanUseHumanoidEquipment())
+        {
+            return false;
+        }
+
         ComputeEncumbranceThresholds(out _, out _, out var maxEncumbrance);
 
         return CharacterInventory.ComputeCarriedWeight() + additionalWeight <= maxEncumbrance;
@@ -508,7 +574,8 @@ internal sealed class RulesetCharacterSimulacrum :
 
     public override bool CanEquipOrStoreItem(RulesetItem item)
     {
-        return CanCarryItem(item) &&
+        return CanUseHumanoidEquipment() &&
+               CanCarryItem(item) &&
                CharacterInventory.CanEquipOrStoreItem(item, null, false, out _);
     }
 
@@ -520,7 +587,8 @@ internal sealed class RulesetCharacterSimulacrum :
         bool autostack = true,
         bool feedbackOnCharacter = false)
     {
-        if (equipmentItem?.ItemDefinition == null)
+        if (!CanUseHumanoidEquipment() ||
+            equipmentItem?.ItemDefinition == null)
         {
             return false;
         }
@@ -900,39 +968,16 @@ internal sealed class RulesetCharacterSimulacrum :
 
         if (definition == null)
         {
-            SimulacrumDiagnostics.RecordInvocationValidation(
-                this,
-                invocation,
-                null,
-                false,
-                "definition-missing");
-
             return false;
         }
 
         if (definition.GetPower() is { } power)
         {
-            var result = !invocation.Used && this.CanUsePower(power);
-
-            SimulacrumDiagnostics.RecordInvocationValidation(
-                this,
-                invocation,
-                power,
-                result,
-                result ? "power-ready" : "power-unavailable");
-
-            return result;
+            return !invocation.Used && this.CanUsePower(power);
         }
 
         if (definition.IsPermanent())
         {
-            SimulacrumDiagnostics.RecordInvocationValidation(
-                this,
-                invocation,
-                null,
-                true,
-                "permanent-feature");
-
             return true;
         }
 
@@ -940,13 +985,6 @@ internal sealed class RulesetCharacterSimulacrum :
             invocation.Used ||
             !invocation.IsAvailable(this))
         {
-            SimulacrumDiagnostics.RecordInvocationValidation(
-                this,
-                invocation,
-                null,
-                false,
-                "spell-unavailable");
-
             return false;
         }
 
@@ -958,15 +996,6 @@ internal sealed class RulesetCharacterSimulacrum :
         {
             if (CanCastInvocationSpell(invocation, candidateSpell, out var candidateFailure))
             {
-                SimulacrumDiagnostics.RecordInvocationValidation(
-                    this,
-                    invocation,
-                    null,
-                    true,
-                    definition.OverrideMaterialComponent
-                        ? "spell-ready-material-override"
-                        : "spell-ready");
-
                 return true;
             }
 
@@ -975,13 +1004,6 @@ internal sealed class RulesetCharacterSimulacrum :
                 failure = candidateFailure;
             }
         }
-
-        SimulacrumDiagnostics.RecordInvocationValidation(
-            this,
-            invocation,
-            null,
-            false,
-            string.IsNullOrEmpty(failure) ? "components-unavailable" : failure);
 
         return false;
     }
@@ -1352,6 +1374,107 @@ internal sealed class RulesetCharacterSimulacrum :
             _equipmentRefreshPending = false;
             _deferredRepertoireRefreshes.Clear();
         }
+    }
+
+    internal void RestoreSkillProficiencySnapshot(
+        IReadOnlyList<string> skillNames,
+        IReadOnlyList<int> skillRanks)
+    {
+        _skillExpertises ??= [];
+        _skillExpertises.Clear();
+
+        if (skillNames == null ||
+            skillRanks == null ||
+            skillNames.Count != skillRanks.Count ||
+            skillRanks.Any(rank => rank is < 1 or > 2))
+        {
+            _skillSnapshotCaptured = false;
+
+            return;
+        }
+
+        _skillExpertises.AddRange(
+            skillNames
+                .Where((name, index) =>
+                    skillRanks[index] == 2 &&
+                    !string.IsNullOrEmpty(name))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(name => name, StringComparer.Ordinal));
+
+        _skillSnapshotCaptured = true;
+    }
+
+    internal int GetSnapshotSkillProficiencyRank(string skillName)
+    {
+        if (string.IsNullOrEmpty(skillName) ||
+            !SkillProficiencies.ContainsKey(skillName))
+        {
+            return 0;
+        }
+
+        return _skillSnapshotCaptured &&
+               _skillExpertises?.Contains(skillName) == true
+            ? 2
+            : 1;
+    }
+
+    internal int GetSkillProficiencyRank(string skillName)
+    {
+        var rank = GetSnapshotSkillProficiencyRank(skillName);
+
+        if (string.IsNullOrEmpty(skillName))
+        {
+            return rank;
+        }
+
+        var featuresToBrowse = new List<FeatureDefinition>();
+        var featuresOrigin = new Dictionary<FeatureDefinition, FeatureOrigin>();
+
+        EnumerateFeaturesToBrowse<FeatureDefinitionProficiency>(
+            featuresToBrowse,
+            featuresOrigin);
+
+        var matchingProficiencies = featuresToBrowse
+            .OfType<FeatureDefinitionProficiency>()
+            .Where(feature =>
+                feature.Proficiencies.Contains(skillName) &&
+                featuresOrigin.TryGetValue(feature, out var origin) &&
+                IsRuntimeSkillProficiencyOrigin(origin.sourceType))
+            .Distinct()
+            .ToArray();
+
+        if (matchingProficiencies.Any(feature =>
+                feature.ProficiencyType == ProficiencyType.Skill))
+        {
+            rank = Math.Max(rank, 1);
+        }
+
+        if (matchingProficiencies.Any(feature =>
+                feature.ProficiencyType == ProficiencyType.Expertise))
+        {
+            rank = 2;
+        }
+
+        foreach (var _ in matchingProficiencies.Where(feature =>
+                     feature.ProficiencyType == ProficiencyType.SkillOrExpertise))
+        {
+            rank = rank > 0 ? 2 : 1;
+        }
+
+        return rank;
+    }
+
+    private static bool IsRuntimeSkillProficiencyOrigin(FeatureSourceType sourceType)
+    {
+        return sourceType is
+            FeatureSourceType.Equipment or
+            FeatureSourceType.Condition or
+            FeatureSourceType.Spell or
+            FeatureSourceType.Power or
+            FeatureSourceType.Lighting or
+            FeatureSourceType.Proximity or
+            FeatureSourceType.EffectProxy or
+            FeatureSourceType.TargetTag;
     }
 
     internal IDisposable BeginInventoryMutation(bool suppressRefresh = false)

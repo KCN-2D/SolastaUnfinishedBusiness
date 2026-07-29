@@ -7,6 +7,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Models;
 using static RuleDefinitions;
 using static FeatureDefinitionAttributeModifier;
@@ -24,12 +25,26 @@ public static class GuiPatcher
     public static class LocalizeImpl_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(ref bool silent)
+        public static bool Prefix(
+            string key,
+            ref string translation,
+            ref Gui.LocalizationResult __result,
+            ref bool silent)
         {
+            if (key == GuiPresentationBuilder.EmptyString)
+            {
+                translation = string.Empty;
+                __result = Gui.LocalizationResult.Success;
+
+                return false;
+            }
+
             if (!silent)
             {
                 silent = !Main.Enabled;
             }
+
+            return true;
         }
     }
 

@@ -3,7 +3,6 @@ using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using UnityEngine;
 using UnityEngine.UI;
@@ -41,11 +40,6 @@ internal static class RitualBoxPatcher
                 __instance.GuiTooltip,
                 repertoire);
             __state = SpellCastingValidation.EnterSelectedRepertoire(repertoire);
-            SimulacrumDiagnostics.RecordSpellActivation(
-                "ritual-bind",
-                duplicate,
-                repertoire,
-                __1);
         }
 
         [UsedImplicitly]

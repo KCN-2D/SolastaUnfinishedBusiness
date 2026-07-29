@@ -692,3 +692,4 @@ UI/&RecipeFilterUsableDevices=可用设备
 UI/&RecipeFilterWeapons=武器
 Tooltip/&PreReqAnyAbilityScoreList={0}中任一项达到{1}或更高
 Rules/&ActivationTypeHours12Title=12小时
+Feature/&PowerBardGiveBardicInspirationConciseDescription=使用一个附赠动作，使一个生物获得一枚诗人激励骰。该生物可以使用它来改变一次攻击检定、豁免检定或属性检定的结果。激励骰会在更高等级时增大。

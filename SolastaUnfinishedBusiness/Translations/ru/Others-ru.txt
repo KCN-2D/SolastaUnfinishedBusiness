@@ -685,3 +685,4 @@ UI/&RecipeFilterUsableDevices=Используемые
 UI/&RecipeFilterWeapons=Оружие
 Tooltip/&PreReqAnyAbilityScoreList=Одна из характеристик {0} должна быть {1}+
 Rules/&ActivationTypeHours12Title=12 часов
+Feature/&PowerBardGiveBardicInspirationConciseDescription=Бонусным действием вы даёте существу кость бардовского вдохновения. Существо может использовать её, чтобы изменить результат атаки, спасброска или проверки характеристики. Размер кости увеличивается на более высоких уровнях.

@@ -13,7 +13,6 @@ using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
@@ -109,7 +108,6 @@ public static class RulesetCharacterPatcher
                 .Distinct()
                 .OrderBy(x => x.SpellLevel)
                 .ThenBy(x => x.Name, StringComparer.Ordinal));
-            SimulacrumDiagnostics.RecordRitualSelection(duplicate, __0, __1);
 
             return false;
         }
@@ -1095,12 +1093,6 @@ public static class RulesetCharacterPatcher
                 spellDefinition,
                 ref __result,
                 ref failure);
-
-            SimulacrumDiagnostics.RecordRuntimeMaterialValidation(
-                __instance as RulesetCharacterSimulacrum,
-                spellDefinition,
-                __result,
-                failure);
         }
     }
 
@@ -1888,11 +1880,6 @@ public static class RulesetCharacterPatcher
                     duplicate,
                     actionType,
                     canOnlyUseCantrips);
-                SimulacrumDiagnostics.RecordActionPrerequisite(
-                    duplicate,
-                    "spell",
-                    actionType,
-                    __result);
 
                 return;
             }
@@ -2601,6 +2588,18 @@ public static class RulesetCharacterPatcher
         }
     }
 
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.RefreshMoveModes))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RefreshMoveModes_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(RulesetCharacter __instance)
+        {
+            RacesContext.ApplySpeciesBaseWalkSpeed(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.RefreshEffectsForRealTimeLapse))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -2618,13 +2617,6 @@ public static class RulesetCharacterPatcher
                       duplicate.SpellsCastByMe
                           .OfType<RulesetEffectSpell>()
                           .Any(spell => spell?.SpellDefinition?.Name == "Shillelagh");
-
-            if (__state)
-            {
-                SimulacrumDiagnostics.RecordShillelagh(
-                    duplicate,
-                    $"real-time-before-{roundsNumber}");
-            }
 
             //PATCH: fix Ice Storm not ending sometimes on Battle End
             //Noticed on Ice Storm spell, but it may affect other spells or even powers
@@ -2660,10 +2652,6 @@ public static class RulesetCharacterPatcher
                 SimulacrumBehavior.RefreshEquipment(duplicate);
             }
 
-            SimulacrumDiagnostics.RecordShillelagh(
-                duplicate,
-                $"real-time-after-{roundsNumber}",
-                force: true);
         }
     }
 
@@ -2699,11 +2687,6 @@ public static class RulesetCharacterPatcher
             }
 
             SimulacrumBehavior.RefreshEquipment(duplicate);
-
-            SimulacrumDiagnostics.RecordShillelagh(
-                duplicate,
-                "effect-terminated",
-                activeSpell);
         }
     }
 

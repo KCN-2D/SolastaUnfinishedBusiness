@@ -13,7 +13,6 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Spells;
@@ -466,11 +465,6 @@ public static class GameLocationCharacterPatcher
                         actionType,
                         accountDelegatedPowers,
                         battleInProgress));
-                SimulacrumDiagnostics.RecordActionPrerequisite(
-                    duplicate,
-                    "power",
-                    actionType,
-                    __result);
 
                 return;
             }
@@ -549,12 +543,16 @@ public static class GameLocationCharacterPatcher
         [UsedImplicitly]
         public static bool Prefix(GameLocationCharacter __instance, ref bool __result)
         {
-            if (__instance?.RulesetCharacter is not RulesetCharacterSimulacrum
-                {
-                    LifecycleState: SimulacrumLifecycleState.Ready
-                } duplicate)
+            if (__instance?.RulesetCharacter is not RulesetCharacterSimulacrum duplicate)
             {
                 return true;
+            }
+
+            if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                __result = false;
+
+                return false;
             }
 
             var position = __instance.LocationPosition;
@@ -563,17 +561,6 @@ public static class GameLocationCharacterPatcher
             var itemCount = items?.Count ?? 0;
 
             __result = itemCount > 0;
-            SimulacrumDiagnostics.RecordActionPrerequisite(
-                duplicate,
-                "loot",
-                ActionType.FreeOnce,
-                __result);
-            SimulacrumDiagnostics.RecordLootGate(
-                duplicate,
-                "action-cell",
-                __result,
-                $"position={position} items={itemCount}");
-
             return false;
         }
     }

@@ -100,6 +100,13 @@ public static class GuiCharacterActionPatcher
             ref string currentTooltip,
             ref ActionDefinitions.ActionStatus currentActionStatus)
         {
+            if (guiTooltip.DataProvider is GuiPowerDefinition)
+            {
+                // Native action-power tooltips are initialized without their acting character.
+                // Preserve that context so character-dependent values and effect text can be formatted.
+                guiTooltip.Context = __instance.ActingCharacter?.RulesetCharacter;
+            }
+
             //PATCH: Get custom error message for CastQuickened action
             CustomActionIdContext.CheckQuickenedStatus(__instance, actionStatus, guiTooltip, ref currentFailureString);
 

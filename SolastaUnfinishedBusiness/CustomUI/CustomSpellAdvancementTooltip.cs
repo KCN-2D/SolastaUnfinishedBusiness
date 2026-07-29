@@ -12,4 +12,11 @@ public static class CustomSpellAdvancementTooltip
 
         return _ => Gui.Format(format, $"{count:+0;-#} {Gui.GetDieSymbol(type)}");
     }
+
+    internal static CustomSpellAdvancementTooltipDelegate FormattedQuantity(
+        string formatKey,
+        int count = 1)
+    {
+        return _ => Gui.Format(formatKey, count.ToString("+0;-#"));
+    }
 }

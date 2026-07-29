@@ -7,7 +7,6 @@ using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
@@ -1221,7 +1220,9 @@ internal sealed class AddThrowProducedFlameAttack : AddExtraAttackBase
             false,
             false,
             slot,
-            GetAttackModifiers(character),
+            // The hidden dart only drives the attack. Weapon attack modifiers such as
+            // Dueling must not apply to this ranged spell attack.
+            [],
             character.FeaturesOrigin,
             item
         );
@@ -1238,7 +1239,6 @@ internal sealed class AddThrowProducedFlameAttack : AddExtraAttackBase
         attackMode.Thrown = true;
         attackMode.AttackTags.Remove(TagsDefinitions.WeaponTagMelee);
 
-        SimulacrumDiagnostics.RecordProducedFlameAttackMode(character, attackMode);
         attackModes.Add(attackMode);
     }
 }

@@ -9,7 +9,6 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityEngine.UI;
@@ -497,7 +496,7 @@ public static class GuiCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(CharacterPlateGame __instance)
         {
-            SetupSimulacrumTooltip(__instance);
+            SetupFriendlyMonsterTooltip(__instance);
         }
     }
 
@@ -509,19 +508,19 @@ public static class GuiCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(CharacterPlateGame __instance)
         {
-            SetupSimulacrumTooltip(__instance);
+            SetupFriendlyMonsterTooltip(__instance);
         }
     }
 
-    private static void SetupSimulacrumTooltip(CharacterPlateGame characterPlate)
+    private static void SetupFriendlyMonsterTooltip(CharacterPlateGame characterPlate)
     {
         if (characterPlate.GuiCharacter?.RulesetCharacter is not
-            RulesetCharacterSimulacrum duplicate)
+            RulesetCharacterMonster monster)
         {
             return;
         }
 
-        SetupSimulacrumTooltip(characterPlate.GuiTooltip, duplicate);
+        Tooltips.TrySetupLiveFriendlyMonsterTooltip(characterPlate.GuiTooltip, monster);
     }
 
     [HarmonyPatch(typeof(WorldLocationCharacter), nameof(WorldLocationCharacter.DescriptionChanged))]
@@ -533,120 +532,10 @@ public static class GuiCharacterPatcher
         public static void Postfix(WorldLocationCharacter __instance)
         {
             if (__instance?.GameLocationCharacter?.RulesetCharacter is
-                RulesetCharacterSimulacrum duplicate)
+                RulesetCharacterMonster monster)
             {
-                SetupSimulacrumTooltip(__instance.GraphicsTooltip, duplicate);
+                Tooltips.TrySetupLiveFriendlyMonsterTooltip(__instance.GraphicsTooltip, monster);
             }
-        }
-    }
-
-    private static void SetupSimulacrumTooltip(
-        ITooltip tooltip,
-        RulesetCharacterSimulacrum duplicate)
-    {
-        if (tooltip == null ||
-            ServiceRepository.GetService<IGuiWrapperService>()
-                ?.GetGuiMonsterDefinition(duplicate.MonsterDefinition.Name) is not
-                { } guiMonsterDefinition)
-        {
-            return;
-        }
-
-        var nativeImageProvider = tooltip.DataProvider as IImageProvider;
-
-        if (nativeImageProvider is SimulacrumMonsterTooltipProvider)
-        {
-            return;
-        }
-
-        tooltip.TooltipClass = guiMonsterDefinition.TooltipClass;
-        tooltip.Content = guiMonsterDefinition.Description;
-        tooltip.Context = duplicate;
-        var dataProvider = new SimulacrumMonsterTooltipProvider(
-            guiMonsterDefinition,
-            duplicate,
-            nativeImageProvider);
-
-        tooltip.DataProvider = dataProvider;
-        SimulacrumDiagnostics.RecordTooltip(
-            duplicate,
-            dataProvider.HitPoints,
-            dataProvider.ArmorClass,
-            dataProvider.MoveModesString);
-    }
-
-    private sealed class SimulacrumMonsterTooltipProvider(
-        GuiMonsterDefinition definition,
-        RulesetCharacterSimulacrum character,
-        IImageProvider imageProvider) :
-        ITitleProvider,
-        IImageProvider,
-        IDescriptionProvider,
-        ISubTitleProvider,
-        IMonsterBasicInfoProvider,
-        IMonsterAttacksProvider
-    {
-        private readonly Dictionary<Image, bool> _originalPreserveAspect = [];
-
-        public string Title => definition.Title;
-        public string Subtitle => definition.Subtitle;
-        public string Description => definition.Description;
-        public int ArmorClass => character.TryGetAttributeValue(AttributeDefinitions.ArmorClass);
-        public int HitPoints => character.TryGetAttributeValue(AttributeDefinitions.HitPoints);
-        public int HitPointsUnaltered => HitPoints;
-        public string MoveModesString => Gui.FormatMoveModes(character.MoveModes, character, false, -1);
-        public float ChallengeRating => definition.ChallengeRating;
-        public int KnowledgeLevel => 4;
-        public List<MonsterAttackIteration> AttackIterations => definition.AttackIterations;
-
-        public string GetDisplayName(object context)
-        {
-            return definition.GetDisplayName(context);
-        }
-
-        public void SetupSprite(Image image, object context)
-        {
-            if (image && !_originalPreserveAspect.ContainsKey(image))
-            {
-                _originalPreserveAspect.Add(image, image.preserveAspect);
-            }
-
-            if (imageProvider != null)
-            {
-                imageProvider.SetupSprite(image, context);
-            }
-            else
-            {
-                definition.SetupSprite(image, context);
-            }
-
-            if (image)
-            {
-                image.preserveAspect = true;
-            }
-        }
-
-        public void ReleaseSprite(Image image)
-        {
-            if (imageProvider != null)
-            {
-                imageProvider.ReleaseSprite(image);
-            }
-            else
-            {
-                definition.ReleaseSprite(image);
-            }
-
-            if (image && _originalPreserveAspect.TryGetValue(image, out var preserveAspect))
-            {
-                image.preserveAspect = preserveAspect;
-                _originalPreserveAspect.Remove(image);
-            }
-        }
-
-        public bool CanAccess(BestiaryDefinitions.BestiaryAccess access)
-        {
-            return true;
         }
     }
 

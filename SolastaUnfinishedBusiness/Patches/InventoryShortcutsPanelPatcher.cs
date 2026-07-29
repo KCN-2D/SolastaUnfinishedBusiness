@@ -1,13 +1,11 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using UnityEngine;
 using static ActionDefinitions;
 
@@ -240,16 +238,6 @@ public static class InventoryShortcutsPanelPatcher
                 __instance,
                 wieldedItemsConfigurations.Count);
 
-            if (duplicate != null)
-            {
-                SimulacrumDiagnostics.RecordInventoryShortcuts(
-                    duplicate,
-                    "configurations-bound",
-                    wieldedItemsConfigurations.Count,
-                    __instance.configurationsTable.childCount,
-                    selectors.Count(x => x));
-            }
-
             for (var i = 0; i < wieldedItemsConfigurations.Count; i++)
             {
                 var component = selectors[i];
@@ -362,13 +350,6 @@ public static class InventoryShortcutsPanelPatcher
             var inventory = duplicate.CharacterInventory;
             var configurationCount = inventory.WieldedItemsConfigurations.Count;
             var selectors = GetDirectSelectors(__instance.configurationsTable);
-
-            SimulacrumDiagnostics.RecordInventoryShortcuts(
-                duplicate,
-                "collect-slots",
-                configurationCount,
-                __instance.configurationsTable.childCount,
-                selectors.Count(x => x));
 
             AddConfigurationSlots(inventory.CurrentConfiguration);
 

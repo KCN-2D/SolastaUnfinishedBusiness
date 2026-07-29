@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -98,9 +98,15 @@ internal static partial class SpellBuilders
                     dismissPower,
                     simulacrumPresentations.Values.ToArray(),
                     simulacrumSprite));
+        var definitionPresentationShells = BuildDefinitionPresentationShells(
+            initiativeMarker,
+            dismissPower,
+            simulacrumPresentations.Values.ToArray(),
+            simulacrumSprite);
         var defaultShell = shellsBySize[CharacterSizeDefinitions.Medium.Name];
         var behavior = new SimulacrumBehavior(
-            shellsBySize.ToDictionary(pair => pair.Key, pair => pair.Value.Name));
+            shellsBySize.ToDictionary(pair => pair.Key, pair => pair.Value.Name),
+            definitionPresentationShells);
 
         Simulacrum = SpellDefinitionBuilder
             .Create(SimulacrumName)
@@ -157,12 +163,14 @@ internal static partial class SpellBuilders
         FeatureDefinition initiativeMarker,
         FeatureDefinitionPower dismissPower,
         HumanoidMonsterPresentationDefinition[] presentations,
-        UnityEngine.AddressableAssets.AssetReferenceSprite sprite)
+        UnityEngine.AddressableAssets.AssetReferenceSprite sprite,
+        string shellName = null,
+        MonsterDefinition presentationSource = null)
     {
-        var shell = MonsterDefinitionBuilder
+        var builder = MonsterDefinitionBuilder
             .Create(
                 GetDefinition<MonsterDefinition>("CultistGuard"),
-                $"{SimulacrumName}Shell{sizeDefinition.Name}")
+                shellName ?? $"{SimulacrumName}Shell{sizeDefinition.Name}")
             .SetGuiPresentation(SimulacrumName, Category.Monster, sprite)
             .SetFeatures(initiativeMarker, dismissPower)
             .ClearAttackIterations()
@@ -179,15 +187,70 @@ internal static partial class SpellBuilders
             .SetDefaultFaction(FactionDefinitions.Party)
             .SetBestiaryEntry(BestiaryDefinitions.BestiaryEntry.None)
             .SetDungeonMakerPresence(MonsterDefinition.DungeonMaker.None)
-            .SetMonsterPresentation(BuildSimulacrumMonsterPresentation(presentations))
-            .NoExperienceGain()
-            .AddToDB();
+            .SetMonsterPresentation(
+                presentationSource?.MonsterPresentation ??
+                BuildSimulacrumMonsterPresentation(presentations))
+            .NoExperienceGain();
+
+        if (presentationSource != null)
+        {
+            builder
+                .SetHeight(presentationSource.Height)
+                .SetPresentationRuntimeData(presentationSource);
+        }
+
+        var shell = builder.AddToDB();
 
         shell.AddCustomSubFeatures(RulesetCharacterSimulacrum.FactoryMarker);
         shell.stealableLootDefinition = null;
         shell.bestiaryLootOptions = [];
 
         return shell;
+    }
+
+    private static IReadOnlyDictionary<string, string> BuildDefinitionPresentationShells(
+        FeatureDefinition initiativeMarker,
+        FeatureDefinitionPower dismissPower,
+        HumanoidMonsterPresentationDefinition[] presentations,
+        UnityEngine.AddressableAssets.AssetReferenceSprite sprite)
+    {
+        var shells = new Dictionary<string, string>();
+
+        foreach (var source in DatabaseRepository
+                     .GetDatabase<MonsterDefinition>()
+                     .Where(source =>
+                         source != null &&
+                         source.CharacterFamily is "Beast" or "Humanoid" &&
+                         source.SizeDefinition != null &&
+                         source.MonsterPresentation is
+                         {
+                             HasPrefabVariants: false,
+                             UseHumanoidMonsterPresentationName: false
+                         })
+                     .OrderBy(source => source.Name)
+                     .ToArray())
+        {
+            if (source.MonsterPresentation
+                    .GetPrefabReference(CreatureSex.Female)?.RuntimeKeyIsValid() != true &&
+                source.MonsterPresentation
+                    .GetPrefabReference(CreatureSex.Male)?.RuntimeKeyIsValid() != true)
+            {
+                continue;
+            }
+
+            var shell = BuildSimulacrumShell(
+                source.SizeDefinition,
+                initiativeMarker,
+                dismissPower,
+                presentations,
+                sprite,
+                $"{SimulacrumName}Shell{source.SizeDefinition.Name}For{source.Name}",
+                source);
+
+            shells[source.Name] = shell.Name;
+        }
+
+        return shells;
     }
 
     private static MonsterPresentation BuildSimulacrumMonsterPresentation(
@@ -631,8 +694,6 @@ internal static partial class SpellBuilders
                 EffectDescriptionBuilder
                     .Create()
                     .SetTargetingData(Side.Enemy, RangeType.RangeHit, 24, TargetType.IndividualsUnique)
-                    .SetEffectAdvancement(EffectIncrementMethod.PerAdditionalSlotLevel,
-                        additionalSummonsPerIncrement: 2)
                     .SetEffectForms(EffectFormBuilder.DamageForm(DamageTypeRadiant, 4, DieType.D12))
                     .SetParticleEffectParameters(ShadowDagger)
                     .SetParticleEffectParameters(GuidingBolt)
@@ -673,8 +734,7 @@ internal static partial class SpellBuilders
                     .Create(Light)
                     .SetDurationData(DurationType.Hour, 1)
                     .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
-                    .SetEffectAdvancement(EffectIncrementMethod.PerAdditionalSlotLevel,
-                        additionalSummonsPerIncrement: 2)
+                    .SetEffectAdvancement(EffectIncrementMethod.PerAdditionalSlotLevel)
                     .SetEffectForms(
                         EffectFormBuilder.ConditionForm(conditionCrownOfStars),
                         EffectFormBuilder
@@ -691,7 +751,11 @@ internal static partial class SpellBuilders
 
         var customBehavior = new CustomBehaviorCrownOfStars(spell, powerCrownOfStars, conditionCrownOfStars);
 
-        spell.AddCustomSubFeatures(customBehavior);
+        spell.AddCustomSubFeatures(
+            customBehavior,
+            CustomSpellAdvancementTooltip.FormattedQuantity(
+                "Tooltip/&AdvancementGainCrownOfStarsMotesFormat",
+                2));
 
         powerCrownOfStars.AddCustomSubFeatures(
             new ModifyPowerPoolAmount

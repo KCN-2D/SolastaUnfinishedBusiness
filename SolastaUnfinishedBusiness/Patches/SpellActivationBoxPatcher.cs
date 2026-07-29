@@ -6,7 +6,6 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
@@ -53,13 +52,6 @@ public static class SpellActivationBoxPatcher
             __instance.canvasGroup.interactable = false;
             __instance.image.color = Color.grey;
             __instance.image.material = __instance.unavailableMaterial;
-            SimulacrumDiagnostics.RecordSpellActivation(
-                "box-validation",
-                __0,
-                __1,
-                __2,
-                false,
-                false);
         }
 
         [UsedImplicitly]
@@ -118,15 +110,6 @@ public static class SpellActivationBoxPatcher
                 }
             }
 
-            SimulacrumDiagnostics.RecordSpellSlots(
-                caster,
-                "box-bind",
-                repertoire,
-                spellLevel,
-                hasFreeWizardCast,
-                spellDefinition,
-                remaining,
-                max);
         }
 
         [UsedImplicitly]
@@ -168,14 +151,6 @@ public static class SpellActivationBoxPatcher
             var rulesetCaster = __instance.tooltip.Context as RulesetCharacter
                                 ?? __instance.spellRepertoire.GetCaster();
             var caster = GameLocationCharacter.GetFromActor(rulesetCaster);
-
-            SimulacrumDiagnostics.RecordSpellActivation(
-                "box-click",
-                rulesetCaster,
-                __instance.spellRepertoire,
-                __instance.GuiSpellDefinition?.SpellDefinition,
-                __instance.button?.interactable,
-                __instance.globalValid);
 
             caster?.RegisterShiftState();
         }

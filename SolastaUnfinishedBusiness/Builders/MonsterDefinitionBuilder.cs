@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
@@ -52,6 +52,22 @@ internal class MonsterDefinitionBuilder : DefinitionBuilder<MonsterDefinition, M
     public MonsterDefinitionBuilder SetMonsterPresentation(MonsterPresentation presentation)
     {
         Definition.monsterPresentation = presentation;
+        return this;
+    }
+
+    internal MonsterDefinitionBuilder SetPresentationRuntimeData(MonsterDefinition source)
+    {
+        Definition.audioRaceRTPCValue = source.AudioRaceRTPCValue;
+        Definition.audioSwitches = source.AudioSwitches?.ToList() ?? [];
+        Definition.audioSwitchesOnHands = source.AudioSwitchesOnHands?.ToList() ?? [];
+        Definition.dualSex = source.DualSex;
+        Definition.followFloorAngle = source.FollowFloorAngle;
+        Definition.forceCombatStartsAnimation = source.ForceCombatStartsAnimation;
+        Definition.forceHasComplexActions = source.ForceHasComplexActions;
+        Definition.forceNoFlyAnimation = source.ForceNoFlyAnimation;
+        Definition.forcePersistentBody = source.ForcePersistentBody;
+        Definition.hasLookAt = source.HasLookAt;
+
         return this;
     }
 

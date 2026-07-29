@@ -8,7 +8,6 @@ using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
@@ -72,22 +71,6 @@ public static class RulesetSpellRepertoirePatcher
         {
             var caster = __instance.GetCaster();
 
-            if (caster is RulesetCharacterSimulacrum)
-            {
-                SimulacrumDiagnostics.RecordSpellActivation(
-                    "native-can-cast",
-                    caster,
-                    __instance,
-                    spellDefinition,
-                    globallyValid: __result);
-                SimulacrumDiagnostics.RecordSpellSlots(
-                    caster,
-                    "native-can-cast",
-                    __instance,
-                    spellDefinition?.SpellLevel ?? -1,
-                    spell: spellDefinition);
-            }
-
             if (!__result)
             {
                 return;
@@ -100,16 +83,6 @@ public static class RulesetSpellRepertoirePatcher
                            spellDefinition,
                            null,
                            out _);
-
-            if (caster is RulesetCharacterSimulacrum)
-            {
-                SimulacrumDiagnostics.RecordSpellActivation(
-                    "validated-can-cast",
-                    caster,
-                    __instance,
-                    spellDefinition,
-                    globallyValid: __result);
-            }
         }
     }
 
@@ -483,19 +456,7 @@ public static class RulesetSpellRepertoirePatcher
         [UsedImplicitly]
         public static bool Prefix(RulesetSpellRepertoire __instance, int slotLevel)
         {
-            var character = __instance.GetCaster();
-
-            SimulacrumDiagnostics.RecordSpellSlots(
-                character,
-                "spend-before",
-                __instance,
-                slotLevel);
             SpendSpellSlot(__instance, slotLevel);
-            SimulacrumDiagnostics.RecordSpellSlots(
-                character,
-                "spend-after",
-                __instance,
-                slotLevel);
 
             return false;
         }

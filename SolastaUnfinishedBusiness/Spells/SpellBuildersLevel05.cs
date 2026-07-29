@@ -10,7 +10,6 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
@@ -665,7 +664,7 @@ internal static partial class SpellBuilders
                                 ConditionDefinitionBuilder
                                     .Create($"Condition{NAME}{skill.Name}")
                                     .SetGuiPresentation(
-                                        skill.GuiPresentation.Title, Gui.EmptyContent, ConditionBullsStrength)
+                                        skill.GuiPresentation.Title, Gui.NoLocalization, ConditionBullsStrength)
                                     .SetPossessive()
                                     .SetFeatures(
                                         FeatureDefinitionProficiencyBuilder
@@ -753,26 +752,8 @@ internal static partial class SpellBuilders
                     continue;
                 }
 
-                var hasSkill =
-                    rulesetTarget is RulesetCharacterMonster monster &&
-                    monster.SkillProficiencies.ContainsKey(skill.Name) ||
-                    rulesetTarget is RulesetCharacterHero hero &&
-                    hero.TrainedSkills.Contains(skill) ||
-                    rulesetTarget.FeaturesByType<FeatureDefinitionProficiency>()
-                        .Any(x =>
-                            x.ProficiencyType == ProficiencyType.Skill &&
-                            x.Proficiencies.Contains(skillName));
-
-                var hasExpertise =
-                    rulesetTarget is RulesetCharacterHero expertiseHero &&
-                    (expertiseHero.TrainedExpertises.Contains(skill.name) ||
-                     expertiseHero.ExpertiseProficiencies.Contains(skill.Name)) ||
-                    rulesetTarget.FeaturesByType<FeatureDefinitionProficiency>()
-                        .Any(x =>
-                            x.ProficiencyType == ProficiencyType.Expertise &&
-                            x.Proficiencies.Contains(skillName));
-
-                if (!hasSkill || hasExpertise)
+                if (!HasSkillProficiency(rulesetTarget, skill) ||
+                    HasSkillExpertise(rulesetTarget, skill))
                 {
                     continue;
                 }
@@ -784,12 +765,6 @@ internal static partial class SpellBuilders
             }
 
             var usablePower = PowerProvider.Get(powerPool, rulesetCharacter);
-
-            SimulacrumDiagnostics.RecordSpellChoice(
-                rulesetCharacter,
-                "EmpoweredKnowledge",
-                "request",
-                usablePowers.Select(x => x.PowerDefinition.Name));
 
             yield return actingCharacter.MyReactToSpendPowerBundle(
                 usablePower,
@@ -805,31 +780,19 @@ internal static partial class SpellBuilders
 
             void ReactionValidated(ReactionRequestSpendBundlePower reactionRequest)
             {
-                if (reactionRequest.SelectedSubOption < 0 ||
-                    reactionRequest.SelectedSubOption >= usablePowers.Count)
-                {
-                    SimulacrumDiagnostics.RecordSpellChoice(
-                        rulesetCharacter,
-                        "EmpoweredKnowledge",
-                        "invalid-selection",
-                        usablePowers.Select(x => x.PowerDefinition.Name));
+                var selectedPower =
+                    (reactionRequest.ReactionParams.RulesetEffect as RulesetEffectPower)?.PowerDefinition;
 
+                if (!selectedPower ||
+                    usablePowers.All(x => x.PowerDefinition != selectedPower))
+                {
                     return;
                 }
 
-                var selectedPower =
-                    usablePowers[reactionRequest.SelectedSubOption].PowerDefinition;
                 var locationCharacterService = ServiceRepository.GetService<IGameLocationCharacterService>();
                 var contenders =
                     locationCharacterService.PartyCharacters.Union(locationCharacterService.GuestCharacters)
                         .ToArray();
-
-                SimulacrumDiagnostics.RecordSpellChoice(
-                    rulesetCharacter,
-                    "EmpoweredKnowledge",
-                    "validated",
-                    usablePowers.Select(x => x.PowerDefinition.Name),
-                    selectedPower.Name);
 
                 foreach (var contender in contenders)
                 {

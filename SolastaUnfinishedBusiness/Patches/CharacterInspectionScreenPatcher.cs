@@ -2,7 +2,6 @@
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 
@@ -132,15 +131,6 @@ public static class CharacterInspectionScreenPatcher
         {
             SimulacrumEquipmentPanel.AfterBeginShow(__instance);
 
-            if (!SimulacrumEquipmentPanel.TryGetActiveCharacter(__instance, out _) &&
-                __instance.InspectedCharacter?.RulesetCharacter is
-                    RulesetCharacterHero character)
-            {
-                SimulacrumDiagnostics.RecordInspectionPanels(
-                    character,
-                    "hero-begin-show-complete",
-                    __instance);
-            }
         }
     }
 

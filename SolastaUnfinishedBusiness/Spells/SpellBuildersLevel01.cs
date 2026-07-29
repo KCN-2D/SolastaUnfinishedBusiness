@@ -9,7 +9,6 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Validators;
@@ -1648,16 +1647,6 @@ internal static partial class SpellBuilders
 
             rulesetCaster.EnumerateKnownLanguages(knownLanguages);
             var understandsTarget = knownLanguages.Contains(requiredLanguage);
-
-            if (rulesetCaster is RulesetCharacterSimulacrum duplicate)
-            {
-                SimulacrumDiagnostics.RecordLanguageValidation(
-                    duplicate,
-                    rulesetTarget.CharacterFamily,
-                    requiredLanguage,
-                    knownLanguages,
-                    understandsTarget);
-            }
 
             if (understandsTarget)
             {

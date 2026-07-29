@@ -205,6 +205,12 @@ internal static class RulesetActorExtensions
             .ToList();
     }
 
+    internal static bool HasFastBardicInspirationRecovery(this RulesetActor actor)
+    {
+        return actor.FeaturesByType<FeatureDefinitionCampAffinity>()
+            .Any(feature => feature.FastBardicInspirationRecovery);
+    }
+
     [NotNull]
     // ReSharper disable once ReturnTypeCanBeEnumerable.Local
     private static List<BaseDefinition> AllActiveDefinitions([CanBeNull] RulesetActor actor)

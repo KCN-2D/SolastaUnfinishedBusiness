@@ -77,6 +77,7 @@ public static class CharacterStageRaceSelectionPanelPatcher
 
         foreach (var item in featureItems)
         {
+            changed |= FeatureDescriptionItemPatcher.RefreshSpeciesBaseWalkSpeedDescription(item);
             changed |= FeatureDescriptionItemPatcher.RefreshSelectionFeatureDisplayLayout(item);
         }
 

@@ -9,7 +9,6 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
@@ -306,11 +305,6 @@ public static class RulesetCharacterMonsterPatcher
             __instance.GetSubFeaturesByType<IOnRefreshAttackModes>()
                 .Do(provider => provider.AfterRefreshAttackModes(__instance));
 
-            if (__instance is RulesetCharacterSimulacrum duplicate)
-            {
-                SimulacrumDiagnostics.RecordShillelagh(duplicate, "attack-modes-refreshed");
-            }
-
             //refresh character if needed after postfix
             if (__state)
             {
@@ -338,11 +332,6 @@ public static class RulesetCharacterMonsterPatcher
                     mode,
                     out var simulacrumRemainingUses))
             {
-                SimulacrumDiagnostics.RecordAttackUseFallback(
-                    (RulesetCharacterSimulacrum)__instance,
-                    mode,
-                    __result,
-                    simulacrumRemainingUses);
                 __result = simulacrumRemainingUses;
 
                 return;
@@ -407,7 +396,7 @@ public static class RulesetCharacterMonsterPatcher
             if (!SimulacrumBehavior.TryGetUnlimitedCopiedAttackUses(
                     __instance,
                     mode,
-                    out var remainingUses))
+                    out _))
             {
                 return true;
             }
@@ -416,17 +405,12 @@ public static class RulesetCharacterMonsterPatcher
             // MonsterDefinition. Inventory-backed copied attacks deliberately are
             // not present there and are unlimited, so acknowledging them natively
             // only emits "Invalid mode rank" without consuming any real resource.
-            SimulacrumDiagnostics.RecordAttackUseAcknowledgementSkipped(
-                duplicate,
-                mode,
-                remainingUses);
             droppedItem = null;
             needToRefreshAttackModes = false;
             ProcessInventoryItemUse(
                 duplicate,
                 mode,
                 proximity,
-                hit,
                 ref droppedItem,
                 ref needToRefreshAttackModes);
             __state = false;
@@ -439,7 +423,6 @@ public static class RulesetCharacterMonsterPatcher
             RulesetCharacterMonster __instance,
             RulesetAttackMode mode,
             AttackProximity proximity,
-            bool hit,
             ref RulesetItem droppedItem,
             ref bool needToRefreshAttackModes,
             bool __state)
@@ -450,7 +433,6 @@ public static class RulesetCharacterMonsterPatcher
                     duplicate,
                     mode,
                     proximity,
-                    hit,
                     ref droppedItem,
                     ref needToRefreshAttackModes);
             }
@@ -460,29 +442,13 @@ public static class RulesetCharacterMonsterPatcher
             RulesetCharacterSimulacrum duplicate,
             RulesetAttackMode mode,
             AttackProximity proximity,
-            bool hit,
             ref RulesetItem droppedItem,
             ref bool needToRefreshAttackModes)
         {
             var sourceItem = mode?.SourceObject as RulesetItem;
-            var ammunitionType = string.Empty;
-            var ammunitionBefore = -1;
-            var ammunitionAfter = -1;
 
             if (sourceItem == null || proximity != AttackProximity.Range)
             {
-                SimulacrumDiagnostics.RecordInventoryAttackUse(
-                    duplicate,
-                    mode,
-                    sourceItem,
-                    proximity,
-                    hit,
-                    droppedItem,
-                    ammunitionType,
-                    ammunitionBefore,
-                    ammunitionAfter,
-                    needToRefreshAttackModes);
-
                 return;
             }
 
@@ -500,34 +466,16 @@ public static class RulesetCharacterMonsterPatcher
                     }
                     else
                     {
-                        ProcessAmmunition(
-                            duplicate,
-                            mode,
-                            out ammunitionType,
-                            out ammunitionBefore,
-                            out ammunitionAfter);
+                        ProcessAmmunition(duplicate, mode);
                     }
                 }
             }
             catch (Exception exception)
             {
-                SimulacrumDiagnostics.RecordException(
-                    "attack-use",
-                    $"inventory:{mode.SourceDefinition?.Name ?? "<null>"}",
-                    exception);
+                Trace.LogException(new Exception(
+                    "Unable to update the Simulacrum inventory after a ranged attack.",
+                    exception));
             }
-
-            SimulacrumDiagnostics.RecordInventoryAttackUse(
-                duplicate,
-                mode,
-                sourceItem,
-                proximity,
-                hit,
-                droppedItem,
-                ammunitionType,
-                ammunitionBefore,
-                ammunitionAfter,
-                needToRefreshAttackModes);
         }
 
         private static void ProcessThrownItem(
@@ -651,14 +599,9 @@ public static class RulesetCharacterMonsterPatcher
 
         private static void ProcessAmmunition(
             RulesetCharacterSimulacrum duplicate,
-            RulesetAttackMode mode,
-            out string ammunitionType,
-            out int ammunitionBefore,
-            out int ammunitionAfter)
+            RulesetAttackMode mode)
         {
-            ammunitionType = duplicate.GetAmmunitionType(mode);
-            ammunitionBefore = -1;
-            ammunitionAfter = -1;
+            var ammunitionType = duplicate.GetAmmunitionType(mode);
 
             if (string.IsNullOrEmpty(ammunitionType))
             {
@@ -674,17 +617,13 @@ public static class RulesetCharacterMonsterPatcher
                 return;
             }
 
-            ammunitionBefore = ammunition.StackCount;
-
             if (ammunition.StackCount > 1)
             {
                 ammunition.SpendStack(1);
-                ammunitionAfter = ammunition.StackCount;
             }
             else
             {
                 ammunitionSlot.UnequipItem(true, false);
-                ammunitionAfter = 0;
             }
         }
     }

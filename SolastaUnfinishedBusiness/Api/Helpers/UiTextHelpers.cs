@@ -167,6 +167,48 @@ internal static class UiTextHelpers
         deferredFit.Schedule(text, minFontScale, absoluteMin);
     }
 
+    internal static Rect GetWorldRect(RectTransform rectTransform)
+    {
+        if (!rectTransform)
+        {
+            return default;
+        }
+
+        var corners = new Vector3[4];
+
+        rectTransform.GetWorldCorners(corners);
+        var xMin = Mathf.Min(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
+        var yMin = Mathf.Min(corners[0].y, corners[1].y, corners[2].y, corners[3].y);
+        var xMax = Mathf.Max(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
+        var yMax = Mathf.Max(corners[0].y, corners[1].y, corners[2].y, corners[3].y);
+
+        return Rect.MinMaxRect(xMin, yMin, xMax, yMax);
+    }
+
+    internal static Rect GetWorldTextBounds(TMP_Text text)
+    {
+        if (!text)
+        {
+            return default;
+        }
+
+        text.ForceMeshUpdate();
+
+        var bounds = text.textBounds;
+        var min = bounds.min;
+        var max = bounds.max;
+        var bottomLeft = text.transform.TransformPoint(min.x, min.y, 0);
+        var topLeft = text.transform.TransformPoint(min.x, max.y, 0);
+        var bottomRight = text.transform.TransformPoint(max.x, min.y, 0);
+        var topRight = text.transform.TransformPoint(max.x, max.y, 0);
+        var xMin = Mathf.Min(bottomLeft.x, topLeft.x, bottomRight.x, topRight.x);
+        var xMax = Mathf.Max(bottomLeft.x, topLeft.x, bottomRight.x, topRight.x);
+        var yMin = Mathf.Min(bottomLeft.y, topLeft.y, bottomRight.y, topRight.y);
+        var yMax = Mathf.Max(bottomLeft.y, topLeft.y, bottomRight.y, topRight.y);
+
+        return Rect.MinMaxRect(xMin, yMin, xMax, yMax);
+    }
+
     internal static void FitSideLabel(GuiLabel label)
     {
         if (!label)

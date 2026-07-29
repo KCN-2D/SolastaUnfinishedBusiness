@@ -8,7 +8,6 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -95,14 +94,10 @@ internal static class FunctorInventoryLootPatcher
         {
             var transport = character as RulesetCharacterHero;
 
-            if (character is RulesetCharacterSimulacrum duplicate)
+            if (character is RulesetCharacterSimulacrum duplicate &&
+                SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
             {
                 SimulacrumBehavior.TryGetOwner(duplicate, out transport);
-                SimulacrumDiagnostics.RecordLootGate(
-                    duplicate,
-                    "transport",
-                    transport != null,
-                    $"transport={transport?.Guid.ToString() ?? "<null>"}");
             }
 
             return transport;
@@ -114,24 +109,24 @@ internal static class FunctorInventoryLootPatcher
         {
             var nativeResult = controller?.IsCharacterControlled(locationCharacter) == true;
 
-            if (nativeResult ||
-                locationCharacter?.RulesetCharacter is not RulesetCharacterSimulacrum
-                {
-                    LifecycleState: SimulacrumLifecycleState.Ready
-                } duplicate)
+            if (locationCharacter?.RulesetCharacter is not RulesetCharacterSimulacrum duplicate)
             {
                 return nativeResult;
+            }
+
+            if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                return false;
+            }
+
+            if (nativeResult)
+            {
+                return true;
             }
 
             var ownerControlled = SimulacrumBehavior.TryGetOwner(duplicate, out var owner) &&
                                   GameLocationCharacter.GetFromActor(owner) is { } ownerLocation &&
                                   controller?.IsCharacterControlled(ownerLocation) == true;
-
-            SimulacrumDiagnostics.RecordLootGate(
-                duplicate,
-                "controller",
-                ownerControlled,
-                $"native={nativeResult} owner={owner?.Guid.ToString() ?? "<null>"}");
 
             return ownerControlled;
         }
@@ -151,28 +146,14 @@ internal static class FunctorInventoryLootPatcher
             GameLocationCharacter __0,
             ref bool __result)
         {
-            if (__0?.RulesetCharacter is not RulesetCharacterSimulacrum
-                {
-                    LifecycleState: SimulacrumLifecycleState.Ready
-                } duplicate)
+            if (__0?.RulesetCharacter is not RulesetCharacterSimulacrum duplicate ||
+                !__instance.HasFunctor(FunctorDefinitions.FunctorInventoryLoot))
             {
                 return;
             }
 
-            var nativeResult = __result;
-            var isLootGadget = __instance.HasFunctor(FunctorDefinitions.FunctorInventoryLoot);
-
-            if (__instance.HasValidScope && isLootGadget)
-            {
-                __result = true;
-            }
-
-            SimulacrumDiagnostics.RecordLootGate(
-                duplicate,
-                "gadget",
-                __result,
-                $"native={nativeResult} validScope={__instance.HasValidScope} " +
-                $"inventoryLoot={isLootGadget}");
+            __result = __instance.HasValidScope &&
+                       SimulacrumBehavior.CanAccessHumanoidInventory(duplicate);
         }
     }
 
@@ -183,6 +164,9 @@ internal static class FunctorInventoryLootPatcher
     [UsedImplicitly]
     internal static class ExecuteFastLoot_Patch
     {
+        private static readonly NetworkingDefinitions.OnCommandAcknowledgedHandler
+            CompleteAcknowledgement = () => { };
+
         [UsedImplicitly]
         private static bool Prefix(
             GameLocationCharacter __0,
@@ -191,6 +175,11 @@ internal static class FunctorInventoryLootPatcher
             if (__0?.RulesetCharacter is not RulesetCharacterSimulacrum duplicate)
             {
                 return true;
+            }
+
+            if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                return false;
             }
 
             var inventoryCommands = ServiceRepository.GetService<IInventoryCommandService>();
@@ -211,42 +200,14 @@ internal static class FunctorInventoryLootPatcher
 
                 if (item.ItemDefinition.IsWealthPile)
                 {
-                    var treasury = Gui.GameCampaign?.Party?.Treasury;
-                    var gains = item.Gains;
-
-                    if (!SimulacrumBehavior.TryGetOwner(duplicate, out var owner) ||
-                        treasury?.CurrencyAmounts == null ||
-                        gains == null ||
-                        gains.Length > treasury.CurrencyAmounts.Length)
+                    if (!SimulacrumBehavior.TryGetOwner(duplicate, out var owner))
                     {
-                        SimulacrumDiagnostics.RecordLootGate(
-                            duplicate,
-                            "fast-container-skip",
-                            false,
-                            $"item={item.ItemDefinition.Name} reason=invalid-wealth-destination");
                         continue;
                     }
 
-                    var currencyBefore = treasury.CurrencyAmounts.ToArray();
-
                     inventoryCommands.UnequipItem(slot);
                     inventoryCommands.GrantItem(owner, item, false);
-                    commandService.AcknowledgePreviousCommandLocally(() =>
-                    {
-                        var currencyAfter = treasury.CurrencyAmounts;
-                        var gainsApplied = currencyAfter != null &&
-                                           gains.Select((gain, index) =>
-                                                   currencyAfter[index] >= currencyBefore[index] + gain)
-                                               .All(applied => applied);
-                        var sourceCleared = slot.EquipedItem != item;
-
-                        SimulacrumDiagnostics.RecordLootGate(
-                            duplicate,
-                            "fast-container-result",
-                            sourceCleared && gainsApplied,
-                            $"item={item.ItemDefinition.Name} kind=wealth " +
-                            $"sourceCleared={sourceCleared} gainsApplied={gainsApplied}");
-                    });
+                    commandService.AcknowledgePreviousCommandLocally(CompleteAcknowledgement);
                 }
                 else if (CanStoreInPersonalContainer(duplicate, item))
                 {
@@ -262,35 +223,9 @@ internal static class FunctorInventoryLootPatcher
                             default);
                     }
 
-                    commandService.AcknowledgePreviousCommandLocally(() =>
-                    {
-                        var sourceCleared = slot.EquipedItem != item;
-                        var destination = duplicate.CharacterInventory?.PersonalContainer;
-                        var stored = destination != null &&
-                                     (destination.FindSlotHoldingItem(item) != null ||
-                                      destination.ItemHasBeenStacked(item));
-
-                        SimulacrumDiagnostics.RecordLootGate(
-                            duplicate,
-                            "fast-container-result",
-                            sourceCleared && stored,
-                            $"item={item.ItemDefinition.Name} kind=item " +
-                            $"sourceCleared={sourceCleared} stored={stored}");
-                    });
-                }
-                else
-                {
-                    SimulacrumDiagnostics.RecordLootGate(
-                        duplicate,
-                        "fast-container-skip",
-                        false,
-                        $"item={item.ItemDefinition.Name} reason=cannot-store");
+                    commandService.AcknowledgePreviousCommandLocally(CompleteAcknowledgement);
                 }
             }
-
-            SimulacrumDiagnostics.Write(
-                "inventory",
-                $"stage=fast-container-loot guid={duplicate.Guid}");
 
             return false;
         }

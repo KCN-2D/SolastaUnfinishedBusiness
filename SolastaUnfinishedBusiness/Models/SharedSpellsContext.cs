@@ -21,6 +21,8 @@ namespace SolastaUnfinishedBusiness.Models;
 
 internal static class SharedSpellsContext
 {
+    private const int MaxSpellLevel = 9;
+
     internal const int PactMagicSlotsTab = -1;
 
     internal static readonly Dictionary<string, BaseDefinition> RecoverySlots = new()
@@ -111,7 +113,9 @@ internal static class SharedSpellsContext
 
         if (warlockLevel > 0)
         {
-            level = (warlockLevel + 1) / 2;
+            // Mystic Arcanum extends the displayed/known spell range beyond pact slots,
+            // but spell levels themselves stop at 9.
+            level = Math.Min(MaxSpellLevel, (warlockLevel + 1) / 2);
         }
     }
 

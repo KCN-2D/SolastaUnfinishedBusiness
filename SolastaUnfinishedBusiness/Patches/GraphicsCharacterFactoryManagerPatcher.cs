@@ -2,13 +2,13 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 
@@ -34,9 +34,20 @@ public static class GraphicsCharacterFactoryManagerPatcher
             "RefreshAllMorphotypeParameters",
             [typeof(GraphicsCharacter)]);
 
+    private const string ScavengerIntegratedHairPrefix =
+        "Dwarf_Female_Muscular_Hair_A_LOD";
+    private const string GnomeScavengerHoodHeadBoneName =
+        "Bip001 Head";
+    private const string GnomeScavengerHoodHeadProxyName =
+        "UB_GnomeScavengerHoodHeadScale";
+    private const float GnomeScavengerHoodScale = 1.2f;
+
     private static readonly ConditionalWeakTable<
         GraphicsCharacterMonster,
         InventoryAppearanceFinalizationState> InventoryAppearanceFinalizationStates = new();
+    private static readonly ConditionalWeakTable<
+        GraphicsCharacter,
+        GnomeScavengerMutationState> GnomeScavengerMutationStates = new();
 
     internal static int GetInventoryAppearanceFinalizationGeneration(
         GraphicsCharacterMonster graphicsCharacter)
@@ -52,11 +63,9 @@ public static class GraphicsCharacterFactoryManagerPatcher
     internal static bool TryGetInventoryAppearanceFinalizationResult(
         GraphicsCharacterMonster graphicsCharacter,
         int previousGeneration,
-        out bool succeeded,
-        out string failedStages)
+        out bool succeeded)
     {
         succeeded = false;
-        failedStages = "<not-observed>";
 
         if (graphicsCharacter == null ||
             !InventoryAppearanceFinalizationStates.TryGetValue(
@@ -68,23 +77,21 @@ public static class GraphicsCharacterFactoryManagerPatcher
         }
 
         succeeded = state.Succeeded;
-        failedStages = state.FailedStages;
 
         return true;
     }
 
     internal static bool ApplySimulacrumWeaponStance(
-        GraphicsCharacterMonster graphicsCharacter,
-        string context)
+        GraphicsCharacterMonster graphicsCharacter)
     {
         if (graphicsCharacter?.RulesetCharacterMonster is not
-            RulesetCharacterSimulacrum duplicate)
+                RulesetCharacterSimulacrum duplicate ||
+            !SimulacrumBehavior.CanUseHumanoidEquipment(duplicate))
         {
             return false;
         }
 
         var animationTag = AnimationDefinitions.WeaponTypes[0];
-        ItemDefinition itemDefinition = null;
         var oneHandedVersatile = false;
         var slotName = EquipmentDefinitions.SlotTypeMainHand;
 
@@ -104,7 +111,6 @@ public static class GraphicsCharacterFactoryManagerPatcher
 
         if (equippedWeapon != null && weaponType != null)
         {
-            itemDefinition = equippedWeapon;
             animationTag = weaponType.AnimationTag;
             oneHandedVersatile = IsVersatileWeaponUsedInOneHand(
                 duplicate,
@@ -121,15 +127,284 @@ public static class GraphicsCharacterFactoryManagerPatcher
         }
 
         graphicsCharacter.WeaponType = animationTag;
-        SimulacrumDiagnostics.RecordWeaponStance(
-            duplicate,
-            itemDefinition,
-            animationTag,
-            oneHandedVersatile,
-            context,
-            graphicsCharacter.UseGameplayController);
 
         return true;
+    }
+
+    private static bool TryGetGnomeHero(
+        GraphicsCharacter graphicsCharacter,
+        out RulesetCharacterHero hero)
+    {
+        hero = graphicsCharacter?.RulesetCharacter as RulesetCharacterHero;
+
+        return hero != null &&
+            hero.RaceDefinition ==
+            SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterRaceDefinitions.Gnome;
+    }
+
+    private static bool IsScavengerOutfit(ItemDefinition itemDefinition)
+    {
+        return itemDefinition ==
+               SolastaUnfinishedBusiness.Api.DatabaseHelper.ItemDefinitions.ClothesScavenger_A ||
+               itemDefinition ==
+               SolastaUnfinishedBusiness.Api.DatabaseHelper.ItemDefinitions.ClothesScavenger_B;
+    }
+
+    private static bool TryGetGnomeScavengerHero(
+        GraphicsCharacter graphicsCharacter,
+        out RulesetCharacterHero hero)
+    {
+        return TryGetGnomeHero(graphicsCharacter, out hero) &&
+               IsScavengerOutfit(hero
+                   .GetItemInSlot(EquipmentDefinitions.SlotTypeTorso)
+                   ?.ItemDefinition);
+    }
+
+    private static SkinnedMeshRenderer[] GetBodyPartRenderers(
+        SkinnedMeshRenderer[][] renderersBySlot,
+        GraphicsCharacterDefinitions.BodyPart bodyPart)
+    {
+        var index = (int)bodyPart;
+
+        return renderersBySlot != null &&
+               renderersBySlot.Length > index &&
+               renderersBySlot[index] != null
+            ? renderersBySlot[index]
+            : [];
+    }
+
+    private static void ApplyGnomeScavengerAppearance(
+        GraphicsCharacter graphicsCharacter,
+        RulesetCharacterHero hero)
+    {
+        var mutationState = GnomeScavengerMutationStates.GetValue(
+            graphicsCharacter,
+            _ => new GnomeScavengerMutationState());
+        var hasSeparateHeadItem =
+            hero.GetItemInSlot(EquipmentDefinitions.SlotTypeHead) != null;
+
+        foreach (var renderer in GetBodyPartRenderers(
+                     graphicsCharacter.ShapeSkinnedMeshRenderersPerBodySlot,
+                     GraphicsCharacterDefinitions.BodyPart.Hair)
+                 .Where(renderer => renderer))
+        {
+            if (!hasSeparateHeadItem && renderer.forceRenderingOff)
+            {
+                mutationState.Remember(renderer);
+                renderer.forceRenderingOff = false;
+            }
+        }
+
+        var hoodBodyPart = hero.Sex == RuleDefinitions.CreatureSex.Female
+            ? GraphicsCharacterDefinitions.BodyPart.Body
+            : GraphicsCharacterDefinitions.BodyPart.Helmet;
+
+        foreach (var renderer in GetBodyPartRenderers(
+                     graphicsCharacter.ArmorSkinnedMeshRenderersPerBodySlot,
+                     hoodBodyPart)
+                 .Where(renderer => renderer))
+        {
+            if (hero.Sex == RuleDefinitions.CreatureSex.Female &&
+                IsScavengerIntegratedHair(renderer))
+            {
+                if (!renderer.forceRenderingOff)
+                {
+                    mutationState.Remember(renderer);
+                    renderer.forceRenderingOff = true;
+                }
+
+                continue;
+            }
+
+            if (!IsScavengerHoodRenderer(renderer))
+            {
+                continue;
+            }
+
+            if (renderer.forceRenderingOff)
+            {
+                continue;
+            }
+
+            ScaleGnomeScavengerHood(renderer, mutationState);
+        }
+    }
+
+    private static bool IsScavengerIntegratedHair(
+        SkinnedMeshRenderer renderer)
+    {
+        return renderer?.name?.StartsWith(
+                   ScavengerIntegratedHairPrefix,
+                   StringComparison.Ordinal) == true ||
+               renderer?.sharedMesh?.name?.StartsWith(
+                   ScavengerIntegratedHairPrefix,
+                   StringComparison.Ordinal) == true ||
+               ((ContainsOrdinalIgnoreCase(renderer?.name, "_Hair_") ||
+                 ContainsOrdinalIgnoreCase(renderer?.sharedMesh?.name, "_Hair_")) &&
+                (renderer?.sharedMaterials ?? [])
+                .Where(material => material)
+                .Any(material =>
+                    ContainsOrdinalIgnoreCase(
+                        material.name,
+                        "Scavenger_Hair")));
+    }
+
+    private static bool IsScavengerHoodRenderer(
+        SkinnedMeshRenderer renderer)
+    {
+        if (!renderer || IsScavengerIntegratedHair(renderer))
+        {
+            return false;
+        }
+
+        return ContainsOrdinalIgnoreCase(renderer.name, "Scavenger") ||
+               ContainsOrdinalIgnoreCase(
+                   renderer.sharedMesh?.name,
+                   "Scavenger") ||
+               (renderer.sharedMaterials ?? [])
+               .Where(material => material)
+               .Any(material =>
+                   ContainsOrdinalIgnoreCase(material.name, "Scavenger") &&
+                   !ContainsOrdinalIgnoreCase(material.name, "Scavenger_Hair"));
+    }
+
+    private static bool ContainsOrdinalIgnoreCase(string value, string expected)
+    {
+        return !string.IsNullOrEmpty(value) &&
+               value.IndexOf(expected, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static void ScaleGnomeScavengerHood(
+        SkinnedMeshRenderer renderer,
+        GnomeScavengerMutationState mutationState)
+    {
+        if (!renderer || !renderer.sharedMesh)
+        {
+            return;
+        }
+
+        var bones = renderer.bones;
+
+        if (bones is not { Length: > 0 })
+        {
+            return;
+        }
+
+        var headBoneIndices = Enumerable.Range(0, bones.Length)
+            .Where(index =>
+                bones[index] &&
+                (bones[index].name == GnomeScavengerHoodHeadBoneName ||
+                 bones[index].name.EndsWith(" Head", StringComparison.Ordinal)))
+            .ToArray();
+
+        if (headBoneIndices.Length == 0)
+        {
+            return;
+        }
+
+        mutationState.Remember(renderer);
+
+        foreach (var headBoneIndex in headBoneIndices)
+        {
+            var headBone = bones[headBoneIndex];
+            var proxy = headBone.Find(GnomeScavengerHoodHeadProxyName);
+
+            if (!proxy)
+            {
+                proxy = new GameObject(GnomeScavengerHoodHeadProxyName).transform;
+                proxy.SetParent(headBone, false);
+            }
+
+            proxy.localPosition = Vector3.zero;
+            proxy.localRotation = Quaternion.identity;
+            proxy.localScale = Vector3.one * GnomeScavengerHoodScale;
+            bones[headBoneIndex] = proxy;
+        }
+
+        renderer.bones = bones;
+
+        var localBounds = renderer.localBounds;
+
+        localBounds.extents = Vector3.Scale(
+            localBounds.extents,
+            Vector3.one * GnomeScavengerHoodScale);
+        renderer.localBounds = localBounds;
+    }
+
+    private static void RestoreGnomeScavengerAppearance(
+        GraphicsCharacter graphicsCharacter)
+    {
+        if (!graphicsCharacter ||
+            !GnomeScavengerMutationStates.TryGetValue(
+                graphicsCharacter,
+                out var state))
+        {
+            return;
+        }
+
+        state.Restore();
+        GnomeScavengerMutationStates.Remove(graphicsCharacter);
+    }
+
+    private sealed class GnomeScavengerMutationState
+    {
+        private readonly List<GnomeScavengerRendererMutation> mutations = [];
+
+        internal void Remember(SkinnedMeshRenderer renderer)
+        {
+            if (!renderer ||
+                mutations.Any(mutation =>
+                    ReferenceEquals(mutation.Renderer, renderer)))
+            {
+                return;
+            }
+
+            mutations.Add(new GnomeScavengerRendererMutation(renderer));
+        }
+
+        internal void Restore()
+        {
+            foreach (var mutation in mutations)
+            {
+                mutation.Restore();
+            }
+
+            mutations.Clear();
+        }
+    }
+
+    private sealed class GnomeScavengerRendererMutation
+    {
+        private readonly Transform[] originalBones;
+        private readonly Bounds originalLocalBounds;
+        private readonly bool originalForceRenderingOff;
+
+        internal GnomeScavengerRendererMutation(
+            SkinnedMeshRenderer renderer)
+        {
+            Renderer = renderer;
+            originalBones = renderer.bones?.ToArray();
+            originalLocalBounds = renderer.localBounds;
+            originalForceRenderingOff = renderer.forceRenderingOff;
+        }
+
+        internal SkinnedMeshRenderer Renderer { get; }
+
+        internal void Restore()
+        {
+            if (!Renderer)
+            {
+                return;
+            }
+
+            Renderer.forceRenderingOff = originalForceRenderingOff;
+            Renderer.localBounds = originalLocalBounds;
+
+            if (originalBones != null)
+            {
+                Renderer.bones = originalBones;
+            }
+        }
     }
 
     private static bool TryGetEquippedWeapon(
@@ -167,7 +442,7 @@ public static class GraphicsCharacterFactoryManagerPatcher
         [UsedImplicitly]
         public static bool Prefix(GraphicsCharacterMonster __instance)
         {
-            return !ApplySimulacrumWeaponStance(__instance, "check-has-weapon");
+            return !ApplySimulacrumWeaponStance(__instance);
         }
     }
 
@@ -181,14 +456,10 @@ public static class GraphicsCharacterFactoryManagerPatcher
         {
             if (__0 is GraphicsCharacterMonster
                 {
-                    RulesetCharacterMonster: RulesetCharacterSimulacrum duplicate
+                    RulesetCharacterMonster: RulesetCharacterSimulacrum
                 } graphicsCharacter)
             {
-                ApplySimulacrumWeaponStance(graphicsCharacter, "inventory-viewport");
-                SimulacrumDiagnostics.RecordGraphicsAppearance(
-                    duplicate,
-                    graphicsCharacter,
-                    "inventory-viewport-created");
+                ApplySimulacrumWeaponStance(graphicsCharacter);
             }
         }
     }
@@ -244,12 +515,6 @@ public static class GraphicsCharacterFactoryManagerPatcher
                            attackMode.SlotName == EquipmentDefinitions.SlotTypeOffHand;
                 isMultiattack = false;
                 randomMonkAttackId = 0;
-                SimulacrumDiagnostics.RecordAttackAnimation(
-                    duplicate,
-                    attackMode,
-                    weaponType,
-                    __result,
-                    oneHandedVersatile);
 
                 return false;
             }
@@ -260,10 +525,10 @@ public static class GraphicsCharacterFactoryManagerPatcher
                         ? inner
                         : exception;
 
-                SimulacrumDiagnostics.RecordException(
-                    "animation",
-                    $"weapon-resolution:{attackMode.SourceDefinition?.Name ?? "<null>"}",
-                    rootException);
+                Trace.LogException(
+                    new Exception(
+                        "Failed to resolve a Simulacrum weapon animation.",
+                        rootException));
 
                 return true;
             }
@@ -325,10 +590,6 @@ public static class GraphicsCharacterFactoryManagerPatcher
             // race/subrace/sex prefixes before every world or preview render.
             SimulacrumBehavior.PrepareInventoryAppearance(duplicate);
 
-            SimulacrumDiagnostics.RecordAppearance(
-                duplicate,
-                "inventory-body-parts-requested",
-                "inventory");
             __result = __instance.InstantiateBodyPartsFromInventoryAsync(__0, __1);
 
             return false;
@@ -362,19 +623,17 @@ public static class GraphicsCharacterFactoryManagerPatcher
             refreshed = () =>
             {
                 var succeeded = false;
-                var failedStages = "finalization-wrapper";
 
                 try
                 {
-                    (succeeded, failedStages) =
-                        FinalizeInventoryAppearance(__instance, graphicsCharacter, duplicate);
+                    succeeded = FinalizeInventoryAppearance(__instance, graphicsCharacter);
                 }
                 catch (Exception exception)
                 {
-                    SimulacrumDiagnostics.RecordException(
-                        "appearance-finalization",
-                        "finalization-wrapper",
-                        exception);
+                    Trace.LogException(
+                        new Exception(
+                            "Failed to finalize a Simulacrum inventory appearance.",
+                            exception));
                 }
                 finally
                 {
@@ -384,19 +643,17 @@ public static class GraphicsCharacterFactoryManagerPatcher
 
                     state.Generation++;
                     state.Succeeded = succeeded;
-                    state.FailedStages = failedStages;
                     nativeCallback?.Invoke();
                 }
             };
         }
     }
 
-    private static (bool Succeeded, string FailedStages) FinalizeInventoryAppearance(
+    private static bool FinalizeInventoryAppearance(
         GraphicsCharacterFactoryManager graphicsFactory,
-        GraphicsCharacterMonster graphicsCharacter,
-        RulesetCharacterSimulacrum duplicate)
+        GraphicsCharacterMonster graphicsCharacter)
     {
-        var failedStages = new List<string>();
+        var succeeded = true;
 
         // The native monster refresh stops after ApplyLayer/RefreshRenderers, while its
         // initial humanoid creation also performs these three finalization steps. The
@@ -419,18 +676,7 @@ public static class GraphicsCharacterFactoryManagerPatcher
                     graphicsFactory,
                     [graphicsCharacter]);
             });
-        SimulacrumDiagnostics.RecordGraphicsAppearance(
-            duplicate,
-            graphicsCharacter,
-            failedStages.Count == 0
-                ? "inventory-refresh-finalized"
-                : "inventory-refresh-partial-failed");
-
-        return (
-            failedStages.Count == 0,
-            failedStages.Count == 0
-                ? "<none>"
-                : string.Join(",", failedStages));
+        return succeeded;
 
         void TryFinalize(string stage, Action action)
         {
@@ -445,18 +691,17 @@ public static class GraphicsCharacterFactoryManagerPatcher
                         ? inner
                         : exception;
 
-                failedStages.Add(stage);
-                SimulacrumDiagnostics.RecordException(
-                    "appearance-finalization",
-                    stage,
-                    rootException);
+                succeeded = false;
+                Trace.LogException(
+                    new Exception(
+                        $"Failed to finalize a Simulacrum inventory appearance ({stage}).",
+                        rootException));
             }
         }
     }
 
     private sealed class InventoryAppearanceFinalizationState
     {
-        internal string FailedStages { get; set; } = "<not-observed>";
         internal int Generation { get; set; }
         internal bool Succeeded { get; set; }
     }
@@ -532,6 +777,68 @@ public static class GraphicsCharacterFactoryManagerPatcher
             scale.y *= feature.Y;
             scale.z *= feature.Z;
             transform.localScale = scale;
+        }
+    }
+
+    [HarmonyPatch(
+        typeof(GraphicsCharacterFactoryManager),
+        "RefreshAllMorphotypeParameters",
+        typeof(GraphicsCharacter))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class FinalizeGnomeScavengerAppearance_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(
+            [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter)
+        {
+            try
+            {
+                RestoreGnomeScavengerAppearance(graphicsCharacter);
+            }
+            catch (Exception ex)
+            {
+                Trace.LogException(
+                    new Exception("Failed to restore a Gnome Scavenger appearance.", ex));
+            }
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter)
+        {
+            try
+            {
+                Apply(graphicsCharacter);
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    RestoreGnomeScavengerAppearance(graphicsCharacter);
+                }
+                catch (Exception restoreException)
+                {
+                    Trace.LogException(
+                        new Exception(
+                            "Failed to restore a Gnome Scavenger appearance after an apply failure.",
+                            restoreException));
+                }
+
+                Trace.LogException(
+                    new Exception("Failed to apply a Gnome Scavenger appearance.", ex));
+            }
+        }
+
+        private static void Apply(
+            GraphicsCharacter graphicsCharacter)
+        {
+            if (!TryGetGnomeScavengerHero(graphicsCharacter, out var hero))
+            {
+                return;
+            }
+
+            ApplyGnomeScavengerAppearance(graphicsCharacter, hero);
         }
     }
 

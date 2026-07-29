@@ -6,7 +6,6 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.FightingStyles;
 using SolastaUnfinishedBusiness.Interfaces;
@@ -377,15 +376,6 @@ internal static class GrappleContext
     {
         var canKeepGrapple = ValidatorsCharacter.CanMaintainGrapple(character);
 
-        if (character is RulesetCharacterSimulacrum duplicate)
-        {
-            SimulacrumDiagnostics.RecordGrappleHands(
-                duplicate,
-                "equipment-changed",
-                ValidatorsCharacter.GetFreeHandsForGrapple(character),
-                canKeepGrapple);
-        }
-
         if (!canKeepGrapple &&
             GetGrappledActor(character, out var rulesetTarget, out var activeCondition))
         {
@@ -475,15 +465,6 @@ internal static class GrappleContext
         {
             var canGrapple = ValidatorsCharacter.HasFreeHandConsiderGrapple(character);
 
-            if (character is RulesetCharacterSimulacrum duplicate)
-            {
-                SimulacrumDiagnostics.RecordGrappleHands(
-                    duplicate,
-                    "power-validation",
-                    ValidatorsCharacter.GetFreeHandsForGrapple(character),
-                    canGrapple);
-            }
-
             return canGrapple;
         }
 
@@ -500,15 +481,6 @@ internal static class GrappleContext
             var rulesetCharacter = actingCharacter.RulesetCharacter;
 
             var canGrapple = ValidatorsCharacter.HasFreeHandConsiderGrapple(rulesetCharacter);
-
-            if (rulesetCharacter is RulesetCharacterSimulacrum duplicate)
-            {
-                SimulacrumDiagnostics.RecordGrappleHands(
-                    duplicate,
-                    "target-validation",
-                    ValidatorsCharacter.GetFreeHandsForGrapple(rulesetCharacter),
-                    canGrapple);
-            }
 
             if (!canGrapple)
             {

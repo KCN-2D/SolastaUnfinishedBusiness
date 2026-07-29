@@ -456,8 +456,18 @@ public static class CharacterActionPatcher
         if (roll)
         {
             __instance.cachePotentialDetectors.Clear();
-            __instance.cachePotentialDetectors.AddRange(__instance.CharactersInNoiseRange);
-            __instance.cachePotentialDetectors.AddRange(__instance.PerceivedFoes); //any foe character can see could potentially detect visually
+
+            foreach (var detector in __instance.CharactersInNoiseRange)
+            {
+                __instance.cachePotentialDetectors.TryAdd(detector);
+            }
+
+            // Any foe the character can see could potentially detect them visually.
+            foreach (var detector in __instance.PerceivedFoes)
+            {
+                __instance.cachePotentialDetectors.TryAdd(detector);
+            }
+
             if (detectorsWithAdvantage != null)
             {
                 foreach (GameLocationCharacter item in detectorsWithAdvantage)
@@ -483,8 +493,6 @@ public static class CharacterActionPatcher
                     flag2 = true;
                     bool hasLightDisadvantage = false;
                     int num2 = cachePotentialDetector.ComputePassivePerceptionOnTarget(__instance, out hasLightDisadvantage);
-                    int num3 = 10;
-                    num3 += cachePotentialDetector.RulesetCharacter.ComputeBaseAbilityCheckBonus("Wisdom", null, "Perception");
                     if (num2 > num)
                     {
                         gameLocationCharacter = cachePotentialDetector;
@@ -498,8 +506,8 @@ public static class CharacterActionPatcher
                         int successDelta = 0;
                         //either the detectors are explicitly set to detect movement, otherwise foes are at disadvantage
                         RuleDefinitions.AdvantageType advantageType = ((detectorsWithAdvantage != null && detectorsWithAdvantage.Contains(cachePotentialDetector)) ? RuleDefinitions.AdvantageType.Advantage : RuleDefinitions.AdvantageType.Disadvantage);
-                        
                         int baseBonus = cachePotentialDetector.RulesetCharacter.ComputeBaseAbilityCheckBonus("Wisdom", actionModifier.AbilityCheckModifierTrends, "Perception");
+                        int minimumResult = 10 + baseBonus;
                         
                         switch (advantageType)
                         {
@@ -521,7 +529,7 @@ public static class CharacterActionPatcher
                         int diceRoll;
                         int firstRoll;
                         int secondRoll;
-                        int num4 = cachePotentialDetector.RulesetCharacter.RollAbilityCheck(baseBonus, "Wisdom", "Perception", actionModifier.AbilityCheckModifierTrends, actionModifier.AbilityCheckAdvantageTrends, actionModifier.AbilityCheckModifier, 0, passive: false, 0, out diceRoll, out firstRoll, out secondRoll, out outcome, out successDelta, rollDie: true, notify: false, displayDieOutcome: false, num3);
+                        int num4 = cachePotentialDetector.RulesetCharacter.RollAbilityCheck(baseBonus, "Wisdom", "Perception", actionModifier.AbilityCheckModifierTrends, actionModifier.AbilityCheckAdvantageTrends, actionModifier.AbilityCheckModifier, 0, passive: false, 0, out diceRoll, out firstRoll, out secondRoll, out outcome, out successDelta, rollDie: false, notify: false, displayDieOutcome: false, minResult: minimumResult);
                         if (num4 > num)
                         {
                             gameLocationCharacter = cachePotentialDetector;

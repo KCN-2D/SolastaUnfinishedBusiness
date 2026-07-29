@@ -304,6 +304,28 @@ public static class FeatureDescriptionItemPatcher
                 item.GetComponentInParent<CharacterStageSubclassSelectionPanel>());
     }
 
+    internal static bool RefreshSpeciesBaseWalkSpeedDescription(FeatureDescriptionItem item)
+    {
+        var feature = item ? FeatureRef(item) : null;
+
+        if (!item ||
+            !item.GetComponentInParent<CharacterStageRaceSelectionPanel>() ||
+            !item.featureDescription ||
+            !RacesContext.TryFormatSpeciesBaseWalkSpeedDescription(
+                feature,
+                out var description,
+                out _))
+        {
+            return false;
+        }
+
+        var changed = item.featureDescription.Text != description;
+
+        item.featureDescription.Text = description;
+
+        return changed;
+    }
+
     private static bool PlaceSelectionFeatureText(GuiLabel label, ref float cursor)
     {
         if (!TryPrepareWrappedFeatureText(label, false, out var rectTransform, out var height))
@@ -541,13 +563,18 @@ public static class FeatureDescriptionItemPatcher
         {
             var hero = Global.LevelUpHero;
 
-            if (hero != null && LevelUpHelper.IsClassSelectionStage(hero))
+            if (__instance.choiceDropdown &&
+                hero != null &&
+                LevelUpHelper.IsClassSelectionStage(hero))
             {
-                __instance.choiceDropdown.gameObject.SetActive(false);
+                // Keep the control active so native TryGetCurrentFeature can resolve
+                // the selected child feature while this class preview remains read-only.
+                __instance.choiceDropdown.interactable = false;
             }
 
             RestoreHumanOriginFeatSelection(__instance);
             SaveHumanOriginFeatSelection(__instance, false);
+            RefreshSpeciesBaseWalkSpeedDescription(__instance);
             RefreshSelectionFeatureDisplayLayout(__instance);
 
             if (TryGetBackgroundFeatDisplayPanel(__instance, out var backgroundPanel))

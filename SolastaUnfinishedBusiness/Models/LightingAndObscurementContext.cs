@@ -32,6 +32,8 @@ namespace SolastaUnfinishedBusiness.Models;
 
 internal static class LightingAndObscurementContext
 {
+    private const int CloseRangePerceptionDistance = 2;
+
     private static Dictionary<GameLocationCharacter, RuleDefinitions.RollOutcome> GetOrCreatePerceptionRollCache(
         GameLocationCharacter sensor)
     {
@@ -574,7 +576,8 @@ internal static class LightingAndObscurementContext
 
         if (Main.Settings.EnableChanceToPerceiveCloseRange
             && !Global.IsMultiplayer
-            && distance < 11
+            // Distance values are grid cells: 10 feet is two cells, not ten.
+            && distance <= CloseRangePerceptionDistance
             && sensor != null
             && target != null
             && !targetIsInvisible
@@ -590,11 +593,30 @@ internal static class LightingAndObscurementContext
             RuleDefinitions.RollOutcome sensorOutcome;
             if (!targets.TryGetValue(target, out sensorOutcome))
             {
-                sensor.RollAbilityCheck(AttributeDefinitions.Wisdom, SkillDefinitions.Perception, (int)distance + 10,
-                    advantage, new ActionModifier(), false, 0, out _, out _, out _, out _, out sensorOutcome, out _,
-                    true);
+                // Reserve the pair before notifying listeners. Any nested perception query
+                // observes a conservative failure instead of rolling the same pair again.
+                sensorOutcome = RuleDefinitions.RollOutcome.Failure;
+                targets[target] = sensorOutcome;
 
-                 targets[target] = sensorOutcome;
+                sensor.RollAbilityCheck(
+                    AttributeDefinitions.Wisdom,
+                    SkillDefinitions.Perception,
+                    (int)distance + 10,
+                    advantage,
+                    new ActionModifier(),
+                    false,
+                    0,
+                    out _,
+                    out _,
+                    out _,
+                    out _,
+                    out sensorOutcome,
+                    out _,
+                    rollDie: false,
+                    notify: true,
+                    displayDieOutcome: false);
+
+                targets[target] = sensorOutcome;
             }
 
             if (sensorOutcome == RuleDefinitions.RollOutcome.Success)

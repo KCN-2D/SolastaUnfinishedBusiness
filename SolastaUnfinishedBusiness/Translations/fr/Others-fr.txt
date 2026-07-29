@@ -692,3 +692,4 @@ UI/&RecipeFilterUsableDevices=Appareils utilisables
 UI/&RecipeFilterWeapons=Armes
 Tooltip/&PreReqAnyAbilityScoreList=Au moins l'un de {0} doit être à {1}+
 Rules/&ActivationTypeHours12Title=12 heures
+Feature/&PowerBardGiveBardicInspirationConciseDescription=Utilisez une action bonus pour accorder un dé d'Inspiration bardique à une créature. Elle peut l'utiliser pour modifier le résultat d'une attaque, d'un jet de sauvegarde ou d'un test de caractéristique. La valeur du dé augmente à certains niveaux.

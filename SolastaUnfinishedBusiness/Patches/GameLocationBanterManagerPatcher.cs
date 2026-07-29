@@ -7,7 +7,6 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using TA;
@@ -61,23 +60,12 @@ public static class GameLocationBanterManagerPatcher
             if (!TryPrepareIncantation(
                     duplicate,
                     ref __0,
-                    out var spell,
-                    out var repertoire,
-                    out var characterClass,
                     out var seme1,
                     out var seme2,
                     out var seme3,
                     out var onlyPlaySeme3,
                     out var reason))
             {
-                SimulacrumDiagnostics.RecordIncantation(
-                    duplicate,
-                    ShouldUseNativeFallback(reason) ? "native-fallback" : "skipped",
-                    spell,
-                    repertoire,
-                    characterClass,
-                    reason);
-
                 return ShouldUseNativeFallback(reason);
             }
 
@@ -91,31 +79,17 @@ public static class GameLocationBanterManagerPatcher
             }
             catch (Exception ex)
             {
-                SimulacrumDiagnostics.RecordException(
-                    "incantation",
-                    "playback",
-                    ex);
-
-                SimulacrumDiagnostics.RecordIncantation(
-                    duplicate,
-                    "native-fallback",
-                    spell,
-                    repertoire,
-                    characterClass,
-                    "playback-invoke-failed");
+                Trace.LogException(new Exception(
+                    "Unable to start a Simulacrum incantation.",
+                    ex));
 
                 return true;
             }
 
             if (coroutine == null)
             {
-                SimulacrumDiagnostics.RecordIncantation(
-                    duplicate,
-                    "native-fallback",
-                    spell,
-                    repertoire,
-                    characterClass,
-                    "playback-coroutine-null");
+                Trace.LogWarning(
+                    "Unable to play a Simulacrum incantation because no playback coroutine was created.");
 
                 return true;
             }
@@ -123,51 +97,22 @@ public static class GameLocationBanterManagerPatcher
             try
             {
                 CoroutineListRef(__instance).Add(
-                    TrackIncantation(
-                        coroutine,
-                        duplicate,
-                        __0.Caster,
-                        spell,
-                        repertoire,
-                        characterClass),
+                    TrackIncantation(coroutine),
                     false);
             }
             catch (Exception ex)
             {
-                SimulacrumDiagnostics.RecordException(
-                    "incantation",
-                    "queue",
-                    ex);
-
-                SimulacrumDiagnostics.RecordIncantation(
-                    duplicate,
-                    "native-fallback",
-                    spell,
-                    repertoire,
-                    characterClass,
-                    "playback-queue-failed");
+                Trace.LogException(new Exception(
+                    "Unable to queue a Simulacrum incantation.",
+                    ex));
 
                 return true;
             }
 
-            SimulacrumDiagnostics.RecordIncantation(
-                duplicate,
-                "started",
-                spell,
-                repertoire,
-                characterClass,
-                $"quick={onlyPlaySeme3} voice={duplicate.VoiceID} playerVoice=true");
-
             return false;
         }
 
-        private static IEnumerator TrackIncantation(
-            IEnumerator coroutine,
-            RulesetCharacterSimulacrum duplicate,
-            GameLocationCharacter caster,
-            SpellDefinition spell,
-            RulesetSpellRepertoire repertoire,
-            CharacterClassDefinition characterClass)
+        private static IEnumerator TrackIncantation(IEnumerator coroutine)
         {
             while (true)
             {
@@ -179,17 +124,9 @@ public static class GameLocationBanterManagerPatcher
                 }
                 catch (Exception ex)
                 {
-                    SimulacrumDiagnostics.RecordException(
-                        "incantation",
-                        "playback-coroutine",
-                        ex);
-                    SimulacrumDiagnostics.RecordIncantation(
-                        duplicate,
-                        "faulted",
-                        spell,
-                        repertoire,
-                        characterClass,
-                        $"speaking={caster?.IsSpeaking.ToString() ?? "<null>"}");
+                    Trace.LogException(new Exception(
+                        "Simulacrum incantation playback failed.",
+                        ex));
 
                     throw;
                 }
@@ -201,14 +138,6 @@ public static class GameLocationBanterManagerPatcher
 
                 yield return coroutine.Current;
             }
-
-            SimulacrumDiagnostics.RecordIncantation(
-                duplicate,
-                "completed",
-                spell,
-                repertoire,
-                characterClass,
-                $"speaking={caster?.IsSpeaking.ToString() ?? "<null>"}");
         }
 
         private static bool ShouldUseNativeFallback(string reason)
@@ -219,18 +148,12 @@ public static class GameLocationBanterManagerPatcher
         private static bool TryPrepareIncantation(
             RulesetCharacterSimulacrum duplicate,
             ref ActionDefinitions.MagicEffectCastData castData,
-            out SpellDefinition spell,
-            out RulesetSpellRepertoire repertoire,
-            out CharacterClassDefinition characterClass,
             out string seme1,
             out string seme2,
             out string seme3,
             out bool onlyPlaySeme3,
             out string reason)
         {
-            spell = null;
-            repertoire = null;
-            characterClass = null;
             seme1 = null;
             seme2 = null;
             seme3 = null;
@@ -264,7 +187,7 @@ public static class GameLocationBanterManagerPatcher
             }
 
             if (!DatabaseRepository.GetDatabase<SpellDefinition>()
-                    .TryGetElement(castData.Source, out spell) &&
+                    .TryGetElement(castData.Source, out var spell) &&
                 !RulesetEffectSpellWithOrigin.TryGetVocalOrigin(
                     duplicate,
                     castData.Source,
@@ -276,7 +199,7 @@ public static class GameLocationBanterManagerPatcher
                 return false;
             }
 
-            var vocalSpell = ResolveVocalSpell(duplicate, spell, out var vocalSpellSource);
+            var vocalSpell = ResolveVocalSpell(duplicate, spell);
 
             if (!vocalSpell.VerboseComponent)
             {
@@ -311,12 +234,12 @@ public static class GameLocationBanterManagerPatcher
                 return false;
             }
 
-            repertoire = SpellCastingValidation.ResolveRepertoire(
+            var repertoire = SpellCastingValidation.ResolveRepertoire(
                 duplicate,
                 null,
                 spell);
-            characterClass = ResolveVocalClass(duplicate, repertoire);
-            var semeClass = ResolveVocalSemeClass(duplicate, characterClass, out var semeClassSource);
+            var characterClass = ResolveVocalClass(duplicate, repertoire);
+            var semeClass = ResolveVocalSemeClass(duplicate, characterClass);
             seme1 = GameConfiguration.Banter.GetVoiceLineIdBySemeClass(semeClass);
             seme2 = GameConfiguration.Banter.GetVoiceLineIdBySemeSchool(vocalSpell.SchoolOfMagic);
             seme3 = GameConfiguration.Banter.GetVoiceLineIdBySemeType(vocalSpell.VocalSpellSemeType);
@@ -372,29 +295,23 @@ public static class GameLocationBanterManagerPatcher
                 ServiceRepository.GetService<IGameLocationBattleService>() is
                     { IsBattleInProgress: true } &&
                 castData.IsQuickSpell;
-            reason = $"ready;class={semeClassSource};spell={vocalSpellSource}";
 
             return true;
         }
 
         private static VocalSpellSemeClass ResolveVocalSemeClass(
             RulesetCharacterSimulacrum duplicate,
-            CharacterClassDefinition characterClass,
-            out string source)
+            CharacterClassDefinition characterClass)
         {
             if (characterClass?.VocalSpellSemeClass is { } classSeme &&
                 classSeme != VocalSpellSemeClass.None)
             {
-                source = characterClass.Name;
-
                 return classSeme;
             }
 
             if (duplicate.DeityDefinition?.VocalSpellSemeClass is { } deitySeme &&
                 deitySeme != VocalSpellSemeClass.None)
             {
-                source = $"deity:{duplicate.DeityDefinition.Name}";
-
                 return deitySeme;
             }
 
@@ -402,15 +319,12 @@ public static class GameLocationBanterManagerPatcher
             // stable native voice family used when no source-specific family
             // exists; it keeps verbal components audible without inventing a
             // class or bypassing stealth/subtle restrictions.
-            source = "fallback:Arcana";
-
             return VocalSpellSemeClass.Arcana;
         }
 
         private static SpellDefinition ResolveVocalSpell(
             RulesetCharacterSimulacrum duplicate,
-            SpellDefinition spell,
-            out string source)
+            SpellDefinition spell)
         {
             if (RulesetEffectSpellWithOrigin.TryGetVocalOrigin(
                     duplicate,
@@ -419,20 +333,14 @@ public static class GameLocationBanterManagerPatcher
                     out var mode) &&
                 mode != RulesetEffectSpellWithOrigin.OriginMode.None)
             {
-                source = $"origin:{mode}:{originatingSpell.Name}";
-
                 return originatingSpell;
             }
 
             if (SpellsContext.SpellsChildMaster.TryGetValue(spell, out var masterSpell) &&
                 masterSpell.Name == "Wish")
             {
-                source = "master:Wish";
-
                 return masterSpell;
             }
-
-            source = $"selected:no-origin-effect:{spell.Name}";
 
             return spell;
         }

@@ -7,7 +7,6 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -48,12 +47,14 @@ internal static class ContainerLootModalPatcher
 
             Sessions.Remove(__instance);
 
-            if (__0?.RulesetCharacter is not RulesetCharacterSimulacrum
-                {
-                    LifecycleState: SimulacrumLifecycleState.Ready
-                } duplicate)
+            if (__0?.RulesetCharacter is not RulesetCharacterSimulacrum duplicate)
             {
                 return true;
+            }
+
+            if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                return false;
             }
 
             if (!SimulacrumBehavior.TryGetOwner(duplicate, out var owner) ||
@@ -70,10 +71,6 @@ internal static class ContainerLootModalPatcher
             duplicate.NormalizeInventory();
             Sessions.Add(__instance, new LootSession(duplicate.Guid, owner.Guid, __1));
             __0 = transport;
-            SimulacrumDiagnostics.Write(
-                "loot",
-                $"stage=container-open guid={duplicate.Guid} transport={owner.Guid} " +
-                $"container={__1?.Guid.ToString() ?? "<null>"}");
 
             return true;
         }
@@ -105,9 +102,16 @@ internal static class ContainerLootModalPatcher
         [UsedImplicitly]
         internal static bool Prefix(ContainerLootModal __instance)
         {
-            if (!TryGetSession(__instance, out var session, out var duplicate, out _))
+            if (!Sessions.TryGetValue(__instance, out var knownSession))
             {
                 return true;
+            }
+
+            if (!TryGetSession(__instance, out var session, out var duplicate, out _))
+            {
+                AbortSession(__instance, knownSession);
+
+                return false;
             }
 
             if (session.TransferInProgress)
@@ -125,10 +129,6 @@ internal static class ContainerLootModalPatcher
                     Gui.CurrentLocationScreen,
                     session.Container))
             {
-                SimulacrumDiagnostics.Write(
-                    "loot",
-                    $"stage=container-inventory-open guid={duplicate.Guid} " +
-                    $"transport={session.TransportGuid} container={session.Container?.Guid.ToString() ?? "<null>"}");
                 __instance.Hide(false);
             }
 
@@ -170,9 +170,16 @@ internal static class ContainerLootModalPatcher
             RulesetItem __2,
             RulesetInventorySlot __3)
         {
-            if (!TryGetSession(__instance, out var session, out var duplicate, out _))
+            if (!Sessions.TryGetValue(__instance, out var knownSession))
             {
                 return true;
+            }
+
+            if (!TryGetSession(__instance, out var session, out var duplicate, out _))
+            {
+                AbortSession(__instance, knownSession);
+
+                return false;
             }
 
             BeginTransfer(
@@ -194,9 +201,16 @@ internal static class ContainerLootModalPatcher
         [UsedImplicitly]
         internal static bool Prefix(ContainerLootModal __instance)
         {
-            if (!TryGetSession(__instance, out var session, out var duplicate, out _))
+            if (!Sessions.TryGetValue(__instance, out var knownSession))
             {
                 return true;
+            }
+
+            if (!TryGetSession(__instance, out var session, out var duplicate, out _))
+            {
+                AbortSession(__instance, knownSession);
+
+                return false;
             }
 
             var items = session.Container?.InventorySlots
@@ -217,6 +231,13 @@ internal static class ContainerLootModalPatcher
         IReadOnlyCollection<(RulesetInventorySlot Slot, RulesetItem Item)> items,
         bool closeWhenComplete)
     {
+        if (!IsSessionActive(modal, session, duplicate))
+        {
+            AbortSession(modal, session);
+
+            return;
+        }
+
         if (session.TransferInProgress ||
             items.Count == 0 ||
             ServiceRepository.GetService<IInventoryCommandService>() is not { } inventoryCommands ||
@@ -247,6 +268,13 @@ internal static class ContainerLootModalPatcher
         ICommandService commandService,
         bool closeWhenComplete)
     {
+        if (!IsSessionActive(modal, session, duplicate))
+        {
+            AbortSession(modal, session);
+
+            return;
+        }
+
         if (queue.Count == 0)
         {
             CompleteTransfer(modal, session, duplicate, closeWhenComplete);
@@ -291,6 +319,18 @@ internal static class ContainerLootModalPatcher
         inventoryCommands.UnequipItem(slot);
         commandService.AcknowledgePreviousCommandLocally(() =>
         {
+            if (!IsSessionActive(modal, session, duplicate))
+            {
+                if (slot.EquipedItem != item)
+                {
+                    slot.EquipItem(item, -1, true, false);
+                }
+
+                AbortSession(modal, session);
+
+                return;
+            }
+
             if (item.ItemDefinition.IsWealthPile &&
                 RulesetEntity.TryGetEntity<RulesetCharacterHero>(session.TransportGuid, out var owner))
             {
@@ -325,9 +365,6 @@ internal static class ContainerLootModalPatcher
         bool closeWhenComplete)
     {
         session.TransferInProgress = false;
-        SimulacrumDiagnostics.Write(
-            "loot",
-            $"stage=container-transfer-complete guid={duplicate.Guid} close={closeWhenComplete}");
 
         if (modal)
         {
@@ -347,6 +384,38 @@ internal static class ContainerLootModalPatcher
         if (session.HideCompleted)
         {
             Sessions.Remove(modal);
+        }
+    }
+
+    private static bool IsSessionActive(
+        ContainerLootModal modal,
+        LootSession session,
+        RulesetCharacterSimulacrum duplicate)
+    {
+        return modal != null &&
+               session != null &&
+               duplicate != null &&
+               Sessions.TryGetValue(modal, out var current) &&
+               ReferenceEquals(current, session) &&
+               duplicate.Guid == session.SubjectGuid &&
+               SimulacrumBehavior.CanAccessHumanoidInventory(duplicate);
+    }
+
+    private static void AbortSession(
+        ContainerLootModal modal,
+        LootSession session)
+    {
+        if (session != null)
+        {
+            session.TransferInProgress = false;
+        }
+
+        RestoreNativePanels(modal);
+        Sessions.Remove(modal);
+
+        if (modal && modal.Visible)
+        {
+            modal.Hide(false);
         }
     }
 
@@ -374,7 +443,8 @@ internal static class ContainerLootModalPatcher
         return modal != null &&
                Sessions.TryGetValue(modal, out session) &&
                RulesetEntity.TryGetEntity(session.SubjectGuid, out duplicate) &&
-               RulesetEntity.TryGetEntity(session.TransportGuid, out transport);
+               RulesetEntity.TryGetEntity(session.TransportGuid, out transport) &&
+               SimulacrumBehavior.CanAccessHumanoidInventory(duplicate);
     }
 
     private sealed class LootSession(

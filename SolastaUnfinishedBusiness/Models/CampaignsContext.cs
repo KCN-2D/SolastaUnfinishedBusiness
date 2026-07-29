@@ -11,7 +11,6 @@ using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Patches;
 using TA;
 using UnityEngine;
@@ -337,17 +336,9 @@ internal static class CampaignsContext
 
             var startLevel = 0;
             var maxLevel = rulesetSpellRepertoire.MaxSpellLevelOfSpellCastingLevel;
-            var nativeMaxLevel = maxLevel;
 
             SharedSpellsContext.FactorMysticArcanum(caster.RulesetCharacter, rulesetSpellRepertoire,
                 ref maxLevel);
-            SimulacrumDiagnostics.RecordSpellPanelRange(
-                caster.RulesetCharacter,
-                rulesetSpellRepertoire,
-                actionType,
-                cantripOnly,
-                nativeMaxLevel,
-                maxLevel);
 
             for (var level = startLevel; level <= maxLevel; level++)
             {
@@ -1584,69 +1575,78 @@ internal static class CampaignsContext
 
     internal static void SwitchEmpressGarb()
     {
-        EmpressGarbOriginalItemPresentation ??= Enchanted_ChainShirt_Empress_war_garb.ItemPresentation;
+        EmpressGarbOriginalItemPresentation ??=
+            Enchanted_ChainShirt_Empress_war_garb.ItemPresentation.DeepCopy();
+
+        ItemPresentation presentation;
+        string armorAddressableName = null;
 
         switch (SettingsContext.GuiModManagerInstance.EmpressGarbAppearance)
         {
             case "Normal":
-                Enchanted_ChainShirt_Empress_war_garb.itemPresentation = EmpressGarbOriginalItemPresentation;
+                presentation = EmpressGarbOriginalItemPresentation.DeepCopy();
                 break;
 
             case "Barbarian":
-                Enchanted_ChainShirt_Empress_war_garb.itemPresentation = BarbarianClothes.ItemPresentation;
+                presentation = BarbarianClothes.ItemPresentation.DeepCopy();
                 break;
 
             case "Druid":
-                Enchanted_ChainShirt_Empress_war_garb.itemPresentation = LeatherDruid.ItemPresentation;
-                Enchanted_ChainShirt_Empress_war_garb.ItemPresentation.useArmorAddressableName = true;
-                Enchanted_ChainShirt_Empress_war_garb.ItemPresentation.armorAddressableName = LeatherDruid.Name;
+                presentation = LeatherDruid.ItemPresentation.DeepCopy();
+                armorAddressableName = LeatherDruid.Name;
                 break;
 
             case "ElvenChain":
-                Enchanted_ChainShirt_Empress_war_garb.itemPresentation = ElvenChain.ItemPresentation;
+                presentation = ElvenChain.ItemPresentation.DeepCopy();
                 break;
 
             case "SorcererOutfit":
-                Enchanted_ChainShirt_Empress_war_garb.itemPresentation = SorcererArmor.ItemPresentation;
+                presentation = SorcererArmor.ItemPresentation.DeepCopy();
                 break;
 
             case "StuddedLeather":
-                Enchanted_ChainShirt_Empress_war_garb.itemPresentation = StuddedLeather.ItemPresentation;
+                presentation = StuddedLeather.ItemPresentation.DeepCopy();
                 break;
 
             case "GreenMageArmor":
-                Enchanted_ChainShirt_Empress_war_garb.itemPresentation = GreenmageArmor.ItemPresentation;
+                presentation = GreenmageArmor.ItemPresentation.DeepCopy();
                 break;
 
             case "WizardOutfit":
-                Enchanted_ChainShirt_Empress_war_garb.itemPresentation = WizardClothes_Alternate.ItemPresentation;
+                presentation = WizardClothes_Alternate.ItemPresentation.DeepCopy();
                 break;
 
             case "ScavengerOutfit1": // Ranger
-                Enchanted_ChainShirt_Empress_war_garb.itemPresentation = ClothesScavenger_A.ItemPresentation;
-                Enchanted_ChainShirt_Empress_war_garb.ItemPresentation.useArmorAddressableName = true;
-                Enchanted_ChainShirt_Empress_war_garb.ItemPresentation.armorAddressableName = ClothesScavenger_A.Name;
+                presentation = ClothesScavenger_A.ItemPresentation.DeepCopy();
+                armorAddressableName = ClothesScavenger_A.Name;
                 break;
 
             case "ScavengerOutfit2": // Rogue
-                Enchanted_ChainShirt_Empress_war_garb.itemPresentation = ClothesScavenger_B.ItemPresentation;
+                presentation = ClothesScavenger_B.ItemPresentation.DeepCopy();
                 break;
 
             case "BardArmor":
-                Enchanted_ChainShirt_Empress_war_garb.itemPresentation = Bard_Armor.ItemPresentation;
-                Enchanted_ChainShirt_Empress_war_garb.ItemPresentation.useArmorAddressableName = true;
-                Enchanted_ChainShirt_Empress_war_garb.ItemPresentation.armorAddressableName = Bard_Armor.Name;
+                presentation = Bard_Armor.ItemPresentation.DeepCopy();
+                armorAddressableName = Bard_Armor.Name;
                 break;
 
             case "WarlockArmor":
-                Enchanted_ChainShirt_Empress_war_garb.itemPresentation = Warlock_Armor.ItemPresentation;
-                Enchanted_ChainShirt_Empress_war_garb.ItemPresentation.useArmorAddressableName = true;
-                Enchanted_ChainShirt_Empress_war_garb.ItemPresentation.armorAddressableName = Warlock_Armor.Name;
+                presentation = Warlock_Armor.ItemPresentation.DeepCopy();
+                armorAddressableName = Warlock_Armor.Name;
                 break;
+
             default:
-                Enchanted_ChainShirt_Empress_war_garb.itemPresentation = EmpressGarbOriginalItemPresentation;
+                presentation = EmpressGarbOriginalItemPresentation.DeepCopy();
                 break;
         }
+
+        if (!string.IsNullOrEmpty(armorAddressableName))
+        {
+            presentation.useArmorAddressableName = true;
+            presentation.armorAddressableName = armorAddressableName;
+        }
+
+        Enchanted_ChainShirt_Empress_war_garb.itemPresentation = presentation;
     }
 
     internal static FeatureDefinitionActionAffinity ActionAffinityFeatCrusherToggle { get; private set; }

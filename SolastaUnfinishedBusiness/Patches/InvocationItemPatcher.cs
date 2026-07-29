@@ -43,7 +43,7 @@ public static class InvocationItemPatcher
 
             dataProvider.SetPrerequisites(requirements);
             tooltip.TooltipClass = dataProvider.TooltipClass;
-            tooltip.Content = custom.GuiPresentation.Description;
+            tooltip.Content = CustomTooltipProvider.GetActivationContent(custom);
             tooltip.Context = hero;
             tooltip.DataProvider = dataProvider;
         }

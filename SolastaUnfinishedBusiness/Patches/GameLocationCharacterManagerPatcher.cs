@@ -10,7 +10,6 @@ using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
@@ -23,6 +22,70 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationCharacterManagerPatcher
 {
+    [HarmonyPatch(typeof(GameLocationCharacterManager), "UpdateImpl")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class UpdateImpl_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(
+            GameLocationCharacterManager __instance,
+            List<GameLocationCharacter> ___allValidEntities,
+            List<GameLocationCharacter> ___conjuredCharactersToKill)
+        {
+            if (!NetworkingDefinitions.CanUpdate() ||
+                ___conjuredCharactersToKill is not { Count: > 0 })
+            {
+                return;
+            }
+
+            var processed = new HashSet<GameLocationCharacter>();
+
+            // Native UpdateImpl enumerates this live list and clears it only after
+            // every KillCharacter call. Killing a parent summon can enqueue its child
+            // and invalidate that enumerator. Drain stable waves instead; native still
+            // performs its proxy cleanup and coroutine work with an empty kill queue.
+            while (___conjuredCharactersToKill.Count > 0)
+            {
+                var pending = ___conjuredCharactersToKill.ToArray();
+
+                foreach (var character in pending)
+                {
+                    if (character == null)
+                    {
+                        continue;
+                    }
+
+                    if (!processed.Add(character))
+                    {
+                        continue;
+                    }
+
+                    if (___allValidEntities.Contains(character) &&
+                        character.RulesetCharacter is { IsDead: false })
+                    {
+                        __instance.KillCharacter(
+                            character,
+                            false,
+                            true,
+                            true,
+                            true,
+                            true);
+                    }
+                }
+
+                // Keep the current wave in the live list while killing so native
+                // Contains checks suppress self-requeue. Remove only the captured
+                // entries afterward; newly enqueued child summons form the next wave.
+                foreach (var character in pending)
+                {
+                    ___conjuredCharactersToKill.Remove(character);
+                }
+            }
+
+        }
+    }
+
     [HarmonyPatch(typeof(GameLocationCharacterManager), nameof(GameLocationCharacterManager.TickRounds))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -46,22 +109,14 @@ public static class GameLocationCharacterManagerPatcher
                     continue;
                 }
 
-                var matchingEntityCount = __instance.AllValidEntities.Count(entity =>
-                    entity?.RulesetCharacter?.Guid == duplicate.Guid);
-
                 // TickRounds normally reaches every active guest through AllValidEntities. A
                 // persistent guest can temporarily be absent while the party lists are being
                 // reconciled; apply the same native lapse once in that exceptional state.
-                if (matchingEntityCount == 0)
+                if (__instance.AllValidEntities.All(entity =>
+                        entity?.RulesetCharacter?.Guid != duplicate.Guid))
                 {
                     guest.ApplyTimeLapse(rounds);
                 }
-
-                SimulacrumDiagnostics.RecordTimeLapseMembership(
-                    duplicate,
-                    rounds,
-                    matchingEntityCount,
-                    matchingEntityCount == 0);
             }
         }
     }

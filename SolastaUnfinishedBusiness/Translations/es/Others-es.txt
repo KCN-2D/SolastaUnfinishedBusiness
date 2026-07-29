@@ -692,3 +692,4 @@ UI/&RecipeFilterUsableDevices=Dispositivos utilizables
 UI/&RecipeFilterWeapons=Armas
 Tooltip/&PreReqAnyAbilityScoreList=Cualquiera de {0} debe ser {1}+
 Rules/&ActivationTypeHours12Title=12 horas
+Feature/&PowerBardGiveBardicInspirationConciseDescription=Usa una acción adicional para otorgar un dado de Inspiración de bardo a una criatura. La criatura puede usarlo para cambiar el resultado de un ataque, una tirada de salvación o una prueba de habilidad. El dado aumenta en niveles superiores.

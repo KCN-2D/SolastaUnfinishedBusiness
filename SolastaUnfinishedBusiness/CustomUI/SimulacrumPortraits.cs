@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Spells;
 using UnityEngine;
 using UnityEngine.UI;
@@ -64,12 +63,6 @@ internal static class SimulacrumPortraits
         if (texture)
         {
             AssignTexturePreservingAspect(image, texture);
-            RecordPortrait(
-                duplicate,
-                state,
-                $"{kind.ToString().ToLowerInvariant()}-cached",
-                image,
-                texture);
         }
         else
         {
@@ -82,14 +75,6 @@ internal static class SimulacrumPortraits
             if (fallbackTexture)
             {
                 AssignTexturePreservingAspect(image, fallbackTexture);
-                RecordPortrait(
-                    duplicate,
-                    state,
-                    usesStandardFallback
-                        ? "active-standard-fallback"
-                        : "fallback",
-                    image,
-                    fallbackTexture);
             }
         }
 
@@ -184,8 +169,6 @@ internal static class SimulacrumPortraits
         SimulacrumBehavior.TryGetVisualRefreshState(
             character,
             out var requestedRevision,
-            out _,
-            out _,
             out var equipmentSignature);
         PrepareRefresh(
             character,
@@ -221,7 +204,6 @@ internal static class SimulacrumPortraits
         state.WaitingForGraphics = false;
         RebindLiveImages(state, character.Guid);
         AssignRetainedTexturesToLiveImages(state, character);
-        RecordPortrait(character, state, "visual-dirty", null);
     }
 
     private static void ReleaseNativePhotos(RulesetCharacterSimulacrum character)
@@ -261,14 +243,6 @@ internal static class SimulacrumPortraits
             if (texture)
             {
                 AssignTexturePreservingAspect(image, texture);
-                RecordPortrait(
-                    character,
-                    state,
-                    state.HasCurrentTexture(binding.Kind)
-                        ? "invalidate-current"
-                        : "invalidate-retained",
-                    image,
-                    texture);
             }
             else
             {
@@ -313,13 +287,14 @@ internal static class SimulacrumPortraits
             // Entity GUIDs can be reused when another save is loaded in the same process. Do not
             // let the previous Simulacrum's cached render or an old async completion bind to the
             // replacement character.
+            if (state.TryGetOwner(out var previousOwner))
+            {
+                ReleaseNativePhotos(previousOwner);
+            }
+
             DetachAll(state, character.Guid);
             state.DestroyOwnedTextures();
             States.Remove(character.Guid);
-            SimulacrumDiagnostics.RecordPortrait(
-                character,
-                "state-reset-guid-reuse",
-                null);
         }
 
         state = new PortraitState(character);
@@ -364,14 +339,14 @@ internal static class SimulacrumPortraits
             return;
         }
 
+        if (kind == PortraitKind.Active)
+        {
+            ClearSupersededActiveRequests(state);
+        }
+
         state.SetInFlight(kind, true);
 
         var requestedRevision = state.Revision;
-        RecordPortrait(
-            character,
-            state,
-            $"{kind.ToString().ToLowerInvariant()}-request",
-            null);
 
         if (kind == PortraitKind.Active)
         {
@@ -399,6 +374,23 @@ internal static class SimulacrumPortraits
             256,
             384,
             default);
+    }
+
+    private static void ClearSupersededActiveRequests(PortraitState requestingState)
+    {
+        foreach (var state in States.Values)
+        {
+            if (ReferenceEquals(state, requestingState) ||
+                !state.ActiveInFlight)
+            {
+                continue;
+            }
+
+            // GraphicsCharacterPhotoManager keeps only its newest active-photo request and drops
+            // the previous callback. Mirror that cancellation locally so the previous portrait
+            // can request a fresh photo when its UI surface is bound again.
+            state.ActiveInFlight = false;
+        }
     }
 
     private static void ScheduleWhenGraphicsReady(
@@ -531,30 +523,7 @@ internal static class SimulacrumPortraits
 
             AssignTexturePreservingAspect(image, texture);
             binding.SetLastAssignedTexture(texture);
-            RecordPortrait(
-                character,
-                state,
-                $"{kind.ToString().ToLowerInvariant()}-complete",
-                image,
-                texture);
         }
-    }
-
-    private static void RecordPortrait(
-        RulesetCharacterSimulacrum character,
-        PortraitState state,
-        string stage,
-        RawImage image,
-        Texture texture = null)
-    {
-        SimulacrumDiagnostics.RecordPortrait(
-            character,
-            stage,
-            image,
-            texture,
-            state?.VisualRevision ?? -1,
-            state?.Revision ?? -1,
-            state?.EquipmentSignature);
     }
 
     private static bool HasLiveBinding(
@@ -643,6 +612,16 @@ internal static class SimulacrumPortraits
             {
                 state.Images.RemoveAt(index);
             }
+        }
+
+        if (binding.Kind == PortraitKind.Active &&
+            state.ActiveInFlight &&
+            !HasLiveBinding(state, binding.CharacterGuid, PortraitKind.Active))
+        {
+            // Native active-photo requests can be canceled without invoking their callback.
+            // Once the last active surface is detached, the request must not remain permanently
+            // in flight or the next bind will be forced to reuse the standard portrait crop.
+            state.ActiveInFlight = false;
         }
     }
 
@@ -748,6 +727,11 @@ internal static class SimulacrumPortraits
             return character != null &&
                    _owner.TryGetTarget(out var owner) &&
                    ReferenceEquals(owner, character);
+        }
+
+        internal bool TryGetOwner(out RulesetCharacterSimulacrum owner)
+        {
+            return _owner.TryGetTarget(out owner) && owner != null;
         }
 
         internal bool IsInFlight(PortraitKind kind)

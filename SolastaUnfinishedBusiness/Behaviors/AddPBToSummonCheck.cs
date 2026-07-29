@@ -24,16 +24,21 @@ public class AddPBToSummonCheck(int multiplier, params string[] abilities)
 
         monster.EnumerateFeaturesToBrowse<T>(features);
 
-        var mods = features.SelectMany(f => f.GetAllSubFeaturesOfType<AddPBToSummonCheck>()).ToArray();
+        int? maximumMultiplier = null;
 
-        if (mods.Length == 0)
+        foreach (var feature in features)
         {
-            return;
+            foreach (var modifier in feature.GetAllSubFeaturesOfType<AddPBToSummonCheck>())
+            {
+                var value = modifier.Modifier(proficiency);
+
+                maximumMultiplier = !maximumMultiplier.HasValue || value > maximumMultiplier.Value
+                    ? value
+                    : maximumMultiplier;
+            }
         }
 
-        var multiplier = mods.Max(m => m.Modifier(proficiency));
-
-        if (multiplier == 0)
+        if (maximumMultiplier is not { } multiplier || multiplier == 0)
         {
             return;
         }

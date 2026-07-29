@@ -3,7 +3,6 @@ using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
-using SolastaUnfinishedBusiness.Diagnostics;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -15,9 +14,7 @@ public static class GuiLabelPatcher
 {
     private const float ConstrainedLabelMinFontScale = 0.58f;
     private const float ConstrainedLabelAbsoluteMinFontSize = 7f;
-    private const string GameLocationMenuTarget = "GameLocationBaseScreen.menuButton";
     private const string GameMenuTitleTerm = "Screen/&GameMenuTitle";
-    private const string NavigationGamepadMenuTarget = "TimeAndNavigationPanel.menuButtonGamepad";
     private const float WidthTolerance = 0.5f;
 
     [HarmonyPatch(typeof(GuiLabel), nameof(GuiLabel.ApplyText))]
@@ -50,7 +47,6 @@ public static class GuiLabelPatcher
             RefreshGameMenuLayout(
                 __instance,
                 __instance.MenuButtonGamepad,
-                NavigationGamepadMenuTarget,
                 true);
         }
     }
@@ -66,7 +62,6 @@ public static class GuiLabelPatcher
             RefreshGameMenuLayout(
                 __instance,
                 __instance.MenuButtonGamepad,
-                NavigationGamepadMenuTarget,
                 true);
         }
     }
@@ -85,7 +80,6 @@ public static class GuiLabelPatcher
             RefreshGameMenuLayout(
                 __instance,
                 __instance.menuButton,
-                GameLocationMenuTarget,
                 true);
         }
     }
@@ -103,7 +97,6 @@ public static class GuiLabelPatcher
             RefreshGameMenuLayout(
                 __instance,
                 __instance.menuButton,
-                GameLocationMenuTarget,
                 true);
         }
     }
@@ -111,7 +104,6 @@ public static class GuiLabelPatcher
     private static void RefreshGameMenuLayout(
         Component owner,
         Button menuButton,
-        string target,
         bool applyImmediately)
     {
         if (!owner)
@@ -122,7 +114,7 @@ public static class GuiLabelPatcher
         var watcher = owner.GetComponent<NavigationMenuLayoutWatcher>() ??
                       owner.gameObject.AddComponent<NavigationMenuLayoutWatcher>();
 
-        watcher.Bind(menuButton, target, applyImmediately);
+        watcher.Bind(menuButton, applyImmediately);
     }
 
     private static TMP_Text FindGameMenuLabel(Button menuButton)
@@ -172,8 +164,7 @@ public static class GuiLabelPatcher
 
     private static void ApplyGameMenuLayout(
         Button menuButton,
-        TMP_Text label,
-        string target)
+        TMP_Text label)
     {
         if (!menuButton)
         {
@@ -239,8 +230,6 @@ public static class GuiLabelPatcher
                 ConstrainedLabelMinFontScale,
                 ConstrainedLabelAbsoluteMinFontSize);
         }
-
-        UiTextDiagnostics.ScheduleNavigationMenu(menuButton, label, target);
     }
 
     private static float GetWidthInParentSpace(
@@ -278,21 +267,11 @@ public static class GuiLabelPatcher
         private int _lastLayoutSignature = int.MinValue;
         private Button _menuButton;
         private int _nextLabelSearchFrame;
-        private string _target;
 
         internal void Bind(
             Button menuButton,
-            string target,
             bool applyImmediately)
         {
-            if (!string.Equals(_target, target, StringComparison.Ordinal))
-            {
-                _target = target;
-                _label = null;
-                _lastLayoutSignature = int.MinValue;
-                _nextLabelSearchFrame = 0;
-            }
-
             BindMenuButton(menuButton);
 
             if (applyImmediately)
@@ -340,7 +319,7 @@ public static class GuiLabelPatcher
                 return;
             }
 
-            ApplyGameMenuLayout(_menuButton, _label, _target);
+            ApplyGameMenuLayout(_menuButton, _label);
             _lastLayoutSignature = ComputeLayoutSignature(_menuButton, _label);
         }
 

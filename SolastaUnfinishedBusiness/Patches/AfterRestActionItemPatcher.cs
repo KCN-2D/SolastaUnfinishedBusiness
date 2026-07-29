@@ -7,7 +7,6 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 
@@ -136,12 +135,7 @@ public static class AfterRestActionItemPatcher
 
             if (SimulacrumRepairInput.TryTakeSuccessfulExecution(item.Hero))
             {
-                SimulacrumDiagnostics.RecordRepair(item.Hero, "activity-consumed", 0, 0);
                 item.AfterRestActionTaken?.Invoke();
-            }
-            else
-            {
-                SimulacrumDiagnostics.RecordRepair(item.Hero, "activity-retained", 0, 0);
             }
 
             completed = true;
@@ -159,8 +153,6 @@ public static class AfterRestActionItemPatcher
                 {
                     item.Hero.RepayPowerUse(usablePower);
                 }
-
-                SimulacrumDiagnostics.RecordRepair(item.Hero, "activity-faulted", 0, 0);
             }
 
             SimulacrumRepairInput.TryTakeSuccessfulExecution(item.Hero);

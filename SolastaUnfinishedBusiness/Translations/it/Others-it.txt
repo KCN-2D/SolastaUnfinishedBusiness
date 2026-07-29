@@ -692,3 +692,4 @@ UI/&RecipeFilterUsableDevices=Dispositivi utilizzabili
 UI/&RecipeFilterWeapons=Armi
 Tooltip/&PreReqAnyAbilityScoreList=Uno qualsiasi tra {0} deve essere {1}+
 Rules/&ActivationTypeHours12Title=12 ore
+Feature/&PowerBardGiveBardicInspirationConciseDescription=Usa un'azione bonus per concedere a una creatura un dado di Ispirazione bardica. La creatura può usarlo per modificare l'esito di un attacco, di un tiro salvezza o di una prova di caratteristica. Il dado aumenta ai livelli superiori.

@@ -465,7 +465,6 @@ Feature/&ElfSylvanLanguagesTitle=言語
 Feature/&ElfSylvanSurvivalDescription=〈生存〉と〈運動〉に習熟する。\n狩猟時の〈生存〉判定で有利を得る。
 Feature/&ElfSylvanSurvivalTitle=シルヴァンの適応性
 Feature/&ElfWeaponTrainingTitle=エルフの武器訓練
-Feature/&Emptystring=
 Feature/&EncumbranceImmunityFormat=負担ペナルティの影響を受けません。
 Feature/&EnemyOfMagicDescription=マゲベインは激怒中、呪文を発動できるクリーチャーに近接攻撃を命中させると、追加で武器ダメージ・ダイスを1つロールします。
 Feature/&EnemyOfMagicTitle=魔法の敵

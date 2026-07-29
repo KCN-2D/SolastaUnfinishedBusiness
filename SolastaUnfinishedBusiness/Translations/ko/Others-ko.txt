@@ -692,3 +692,4 @@ UI/&RecipeFilterUsableDevices=사용 가능한 장치
 UI/&RecipeFilterWeapons=무기
 Tooltip/&PreReqAnyAbilityScoreList={0} 중 하나가 {1} 이상
 Rules/&ActivationTypeHours12Title=12시간
+Feature/&PowerBardGiveBardicInspirationConciseDescription=추가 행동으로 크리처 하나에게 바드의 고양감 주사위를 부여합니다. 대상은 이 주사위를 사용해 명중 굴림, 내성 굴림 또는 능력 판정의 결과를 바꿀 수 있습니다. 주사위는 레벨이 오르면 커집니다.

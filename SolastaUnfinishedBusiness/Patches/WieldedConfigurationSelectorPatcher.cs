@@ -7,7 +7,6 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Validators;
 using UnityEngine;
@@ -80,8 +79,6 @@ public static class WieldedConfigurationSelectorPatcher
                     __instance,
                     duplicate,
                     configuration,
-                    rank,
-                    currentRank,
                     isCurrentConfiguration);
 
                 return;
@@ -105,8 +102,6 @@ public static class WieldedConfigurationSelectorPatcher
             WieldedConfigurationSelector selector,
             RulesetCharacterSimulacrum duplicate,
             RulesetWieldedConfiguration configuration,
-            int configurationRank,
-            int currentConfigurationRank,
             bool isCurrentConfiguration)
         {
             var mainHand = configuration?.MainHandSlot?.EquipedItem;
@@ -173,39 +168,6 @@ public static class WieldedConfigurationSelectorPatcher
                 configuration.OffHandSlot,
                 duplicate,
                 configuration);
-
-            SimulacrumDiagnostics.RecordDualWieldEligibility(
-                duplicate,
-                mainHand,
-                offHand,
-                mainLight,
-                offLight,
-                canDualWieldNonLight,
-                pairPassesOffHandEquipmentRules,
-                matchingBonusModePresent,
-                matchingBonusModeInvalidByEquipment,
-                bonusModeSuppressesLightWarning,
-                configurationRank,
-                currentConfigurationRank,
-                isCurrentConfiguration,
-                computedLightWarningMain,
-                computedLightWarningOff,
-                IsWarningActive(selector.mainHandWarning),
-                GetWarningContent(selector.mainHandWarning),
-                IsWarningActive(selector.offHandWarning),
-                GetWarningContent(selector.offHandWarning));
-        }
-
-        private static bool IsWarningActive(Component warning)
-        {
-            return warning && warning.gameObject.activeSelf;
-        }
-
-        private static string GetWarningContent(Component warning)
-        {
-            return warning
-                ? warning.GetComponent<GuiTooltip>()?.Content
-                : null;
         }
 
         private static void SetLightWeaponWarning(Component warning, bool active)

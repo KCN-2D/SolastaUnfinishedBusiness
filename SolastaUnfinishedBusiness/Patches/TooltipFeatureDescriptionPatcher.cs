@@ -18,6 +18,7 @@ public static class TooltipFeatureDescriptionPatcher
         {
             //PATCH: adds crafting details to recipe tooltips
             Tooltips.UpdateCraftingTooltip(__instance, tooltip);
+
         }
     }
 }

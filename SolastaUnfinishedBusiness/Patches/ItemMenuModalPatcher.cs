@@ -8,7 +8,6 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 using static ActionDefinitions;
 using static RuleDefinitions;
@@ -158,13 +157,6 @@ public static class ItemMenuModalPatcher
                 var deityHero = FindDeityMarkHero(itemMenuModal, duplicate);
                 var eligible = deityHero != null;
 
-                SimulacrumDiagnostics.RecordDeityMark(
-                    duplicate,
-                    "eligibility",
-                    itemMenuModal.GuiEquipmentItem?.EquipementItem,
-                    deityHero,
-                    eligible);
-
                 return eligible;
             }
 
@@ -248,18 +240,6 @@ public static class ItemMenuModalPatcher
             }
 
             RegisterButtonMethod.Invoke(itemMenuModal, [buttonInfo]);
-
-            if (buttonInfo.type == ItemMenuButton.ItemButtonType.MarkDeity &&
-                itemMenuModal.GuiCharacter?.RulesetCharacter is
-                    RulesetCharacterSimulacrum duplicate)
-            {
-                SimulacrumDiagnostics.RecordDeityMark(
-                    duplicate,
-                    "button-registered",
-                    itemMenuModal.GuiEquipmentItem?.EquipementItem,
-                    FindDeityMarkHero(itemMenuModal, duplicate),
-                    interactable: buttonInfo.interactable);
-            }
         }
 
         private static ActionStatus PatchedActionStatus(GameLocationCharacter character,
@@ -369,11 +349,6 @@ public static class ItemMenuModalPatcher
                 {
                     inventoryCommands.MarkDeity(deityHero, item);
                     __instance.Hide(false);
-                    SimulacrumDiagnostics.RecordDeityMark(
-                        duplicate,
-                        "requested",
-                        item,
-                        deityHero);
                 }
 
                 return false;
@@ -382,11 +357,6 @@ public static class ItemMenuModalPatcher
             if (__0.type == ItemMenuButton.ItemButtonType.Examine &&
                 IsUnsupportedSimulacrumDocument(item?.ItemDefinition))
             {
-                SimulacrumDiagnostics.Write(
-                    "inventory",
-                    $"stage=document-learning-blocked guid={duplicate.Guid} " +
-                    $"item={item?.ItemDefinition?.Name ?? "<null>"}");
-
                 return false;
             }
 

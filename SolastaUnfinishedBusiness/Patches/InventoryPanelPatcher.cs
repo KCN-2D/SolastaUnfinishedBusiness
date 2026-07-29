@@ -7,7 +7,6 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using static ActionDefinitions;
@@ -133,16 +132,6 @@ public static class InventoryPanelPatcher
             panel.canManipulateInventory = playerController == null ||
                                            controlsDuplicate ||
                                            controlsOwner;
-            duplicate.ComputeEncumbranceThresholds(
-                out var lightThreshold,
-                out var heavyThreshold,
-                out var maximumWeight);
-            SimulacrumDiagnostics.Write(
-                "inventory",
-                $"stage=authority guid={duplicate.Guid} canManipulate={panel.canManipulateInventory} " +
-                $"controlsDuplicate={controlsDuplicate} controlsOwner={controlsOwner} " +
-                $"carry={lightThreshold:0.###}/{heavyThreshold:0.###}/{maximumWeight:0.###}");
-
             if (panel.canManipulateInventory && Gui.GamepadActive &&
                 mode == InventoryManagementMode.Merchant)
             {
@@ -156,12 +145,10 @@ public static class InventoryPanelPatcher
             }
 
             panel.audioService = ServiceRepository.GetService<IAudioService>();
-            SimulacrumDiagnostics.RecordInventory(duplicate, "before-character-viewport-bind");
             panel.characterViewport.Bind(
                 GraphicsCharacterDefinitions.CharacterType.Inventory,
                 duplicate,
                 false);
-            SimulacrumDiagnostics.RecordInventory(duplicate, "character-viewport-bound");
             Gui.GuiService.CharacterViewportBounding += panel.CharacterViewportBounding;
             Gui.GuiService.CharacterViewportUnbound += panel.CharacterViewportUnbound;
             BindSimulacrumTreasury(panel, duplicate);
@@ -179,12 +166,8 @@ public static class InventoryPanelPatcher
             panel.inventoryShortcutsPanel.ItemSelectionInProgress =
                 mode == InventoryManagementMode.SelectItem;
             panel.ItemSelected = itemSelected;
-            SimulacrumDiagnostics.RecordInventory(duplicate, "before-equipment-layout-bind");
             panel.equipmentLayoutPanel.Bind(guiCharacter);
-            SimulacrumDiagnostics.RecordInventory(duplicate, "equipment-layout-bound");
-            SimulacrumDiagnostics.RecordInventory(duplicate, "before-shortcuts-bind");
             panel.inventoryShortcutsPanel.Bind(guiCharacter, false, null);
-            SimulacrumDiagnostics.RecordInventory(duplicate, "shortcuts-bound");
             panel.externalContainer = externalContainer;
             InventoryPanelPatcher.RefreshSimulacrumPersonalContainer(
                 panel,
@@ -193,9 +176,6 @@ public static class InventoryPanelPatcher
 
             if (panel.externalContainerPanel && externalContainer != null)
             {
-                SimulacrumDiagnostics.RecordInventory(
-                    duplicate,
-                    "before-external-container-bind");
                 panel.externalContainerPanel.Bind(
                     externalContainer,
                     guiCharacter,
@@ -210,9 +190,6 @@ public static class InventoryPanelPatcher
                 }
 
                 SimulacrumEquipmentPanel.SetExternalContainer(duplicate, externalContainer);
-                SimulacrumDiagnostics.RecordInventory(
-                    duplicate,
-                    "external-container-bound");
             }
             else if (panel.externalContainerPanel)
             {
@@ -221,21 +198,13 @@ public static class InventoryPanelPatcher
             }
 
             panel.characterPlatesTable = characterPlatesTable;
-            SimulacrumDiagnostics.RecordInventory(duplicate, "before-stop-drag");
             panel.StopDrag(false);
-            SimulacrumDiagnostics.RecordInventory(duplicate, "stop-drag-complete");
             Gui.GuiService.ResetOverlayCanvasSortingOrder();
             Gui.TooltipService.HideTooltip();
 
             if (InventoryManagementContext.Enabled && panel.MainContainerPanel)
             {
-                SimulacrumDiagnostics.RecordInventory(
-                    duplicate,
-                    "before-management-context-bind");
                 InventoryManagementContext.BindInventory(panel.MainContainerPanel);
-                SimulacrumDiagnostics.RecordInventory(
-                    duplicate,
-                    "management-context-bound");
             }
         }
 
@@ -250,20 +219,12 @@ public static class InventoryPanelPatcher
             if (!SimulacrumBehavior.TryGetOwner(duplicate, out var ownerHero))
             {
                 treasuryPanel.gameObject.SetActive(false);
-                SimulacrumDiagnostics.RecordInventory(
-                    duplicate,
-                    "treasury-owner-unavailable",
-                    panel.ParentScreen as CharacterInspectionScreen);
 
                 return;
             }
 
             treasuryPanel.gameObject.SetActive(true);
             treasuryPanel.Bind(new GuiCharacter(ownerHero));
-            SimulacrumDiagnostics.RecordInventory(
-                duplicate,
-                "treasury-bound",
-                panel.ParentScreen as CharacterInspectionScreen);
         }
     }
 
@@ -317,10 +278,6 @@ public static class InventoryPanelPatcher
         }
 
         personalContainerPanel.gameObject.SetActive(true);
-        SimulacrumDiagnostics.RecordInventory(
-            duplicate,
-            $"personal-container-{stage}",
-            panel.ParentScreen as CharacterInspectionScreen);
     }
 
     [HarmonyPatch(typeof(EncumbrancePanel), nameof(EncumbrancePanel.Bind))]
@@ -437,9 +394,6 @@ public static class InventoryPanelPatcher
             }
 
             __instance.Refresh();
-            SimulacrumDiagnostics.Write(
-                "inventory",
-                $"stage=external-container-loot-all guid={duplicate.Guid} items={items.Length}");
 
             return false;
         }

@@ -232,6 +232,7 @@ ModUi/&EnablePaladinSpellCastingAtLevel1=在第 1 级（而非 2 级）启用<co
 ModUi/&EnablePcgRandom=启用更好的随机生成器算法<i><color=#F0DAA0>[https://www.pcg-random.org]</color></i>
 ModUi/&EnablePoisonsBonusAction2024=启用涂抹<color=#D89555>毒药</color>作为附赠动作
 ModUi/&EnablePotionsBonusAction2024=启用饮用<color=#D89555>药水</color>作为附赠动作
+ModUi/&EnableSpeciesBaseWalkSpeed2024=将<color=#D89555>基础移动速度为5格的可玩种族</color>的基础移动速度设为6格
 ModUi/&EnablePreparedSpellsTables2024=允许所有<color=#D89555>施法者</color>使用新的准备法术表<i><color=#F0DAA0>[奇械师、吟游诗人、牧师、德鲁伊、圣骑士、游侠、术士、魔法师]</color></i>
 ModUi/&EnableProneAction=启用<color=#D89555>倒地</color>动作<i><color=#F0DAA0>[你可以无代价倒地]</color></i>
 ModUi/&EnablePullPushOnVerticalDirection=使推拉运动效果也适用于上/下轴

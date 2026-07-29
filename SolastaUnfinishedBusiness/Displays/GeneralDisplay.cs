@@ -67,14 +67,15 @@ internal static class ToolsDisplay
 
         if (tagType == TagType.T2024)
         {
-            ApplySpellcastingTableSettings();
+            ApplyTabletop2024RuntimeSettings();
         }
     }
 
-    private static void ApplySpellcastingTableSettings()
+    private static void ApplyTabletop2024RuntimeSettings()
     {
         Tabletop2024Context.SwitchRangerSpellCastingAtOne();
         Tabletop2024Context.SwitchOneDndPreparedSpellsTables();
+        Tabletop2024Context.SwitchSpeciesBaseWalkSpeed();
     }
 
     private static void SelectTabletopSet()
@@ -379,7 +380,7 @@ internal static class ToolsDisplay
         if (UI.SelectionGrid(ref intValue, Main.SettingsFiles, Main.SettingsFiles.Length, 4, UI.Width(440f)))
         {
             Main.LoadSettings(Main.SettingsFiles[intValue]);
-            ApplySpellcastingTableSettings();
+            ApplyTabletop2024RuntimeSettings();
         }
     }
 
@@ -397,6 +398,13 @@ internal static class ToolsDisplay
         }
 
         UI.Label();
+
+        toggle = Main.Settings.EnableSpeciesBaseWalkSpeed2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableSpeciesBaseWalkSpeed2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableSpeciesBaseWalkSpeed2024 = toggle;
+            Tabletop2024Context.SwitchSpeciesBaseWalkSpeed();
+        }
 
         toggle = Main.Settings.EnablePoisonsBonusAction2024;
         if (UI.Toggle(Gui.Localize("ModUi/&EnablePoisonsBonusAction2024"), ref toggle, UI.AutoWidth()))

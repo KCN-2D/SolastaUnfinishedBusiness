@@ -10,7 +10,6 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
@@ -400,20 +399,6 @@ public static class RulesetImplementationManagerPatcher
             //PATCH: supports College of Audacity defensive whirl
             CollegeOfAudacity.HandleDefensiveWhirl(rulesetCharacter, damageForm, damage);
 
-            SimulacrumDiagnostics.RecordDamageRoll(
-                formsParams.sourceCharacter as RulesetCharacterSimulacrum,
-                damageForm,
-                rolledValues,
-                addDice,
-                criticalSuccess,
-                additionalDamage,
-                damageRollReduction,
-                damageMultiplier,
-                useVersatileDamage,
-                attackModeDamage,
-                damage,
-                formsParams);
-
             return damage;
         }
 
@@ -542,6 +527,11 @@ public static class RulesetImplementationManagerPatcher
                 return false;
             }
 
+            if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                return true;
+            }
+
             if (formsParams.targetType == TargetType.FreeSlot &&
                 summonForm.Number == 1)
             {
@@ -568,14 +558,13 @@ public static class RulesetImplementationManagerPatcher
             var activeEffect = formsParams.activeEffect;
             var inventory = duplicate.CharacterInventory;
             var slotTypes = activeEffect?.EffectDescription?.SlotTypes;
-            var stored = 0;
 
             using (duplicate.BeginInventoryMutation())
             {
                 if (slotTypes == null ||
                     inventory?.WieldedItemsConfigurations is not { Count: > 0 } configurations)
                 {
-                    goto Complete;
+                    return;
                 }
 
                 var configurationIndex = inventory.CurrentConfiguration < 2
@@ -585,7 +574,7 @@ public static class RulesetImplementationManagerPatcher
                 if (configurationIndex < 0 ||
                     configurationIndex >= configurations.Count)
                 {
-                    goto Complete;
+                    return;
                 }
 
                 foreach (var slotType in slotTypes)
@@ -628,20 +617,10 @@ public static class RulesetImplementationManagerPatcher
                     duplicate.AcceptItem(item);
                     item.SourceSummoningEffectGuid = activeEffect.Guid;
                     activeEffect.TrackSummonedItem(item);
-                    stored = 1;
 
                     break;
                 }
             }
-
-        Complete:
-            SimulacrumDiagnostics.RecordSummonedItem(
-                duplicate,
-                summonForm.ItemDefinition,
-                stored == 1 ? "free-slot-applied" : "free-slot-unavailable",
-                1,
-                stored,
-                0);
         }
 
         private static void ApplyStackedInventoryItems(
@@ -649,7 +628,6 @@ public static class RulesetImplementationManagerPatcher
             RulesetImplementationDefinitions.ApplyFormsParams formsParams,
             RulesetCharacterSimulacrum duplicate)
         {
-            var stored = 0;
             RulesetItem pendingItem = null;
 
             using (duplicate.BeginInventoryMutation())
@@ -658,14 +636,14 @@ public static class RulesetImplementationManagerPatcher
                 {
                     for (var index = 0; index < summonForm.Number; index++)
                     {
-                        stored += GrantSummonedItem(
+                        GrantSummonedItem(
                             duplicate,
                             CreateSummonedItem(summonForm.ItemDefinition),
                             summonForm.TrackItem,
                             formsParams.activeEffect);
                     }
 
-                    goto Complete;
+                    return;
                 }
 
                 for (var index = 0; index < summonForm.Number; index++)
@@ -676,7 +654,7 @@ public static class RulesetImplementationManagerPatcher
                     {
                         if (pendingItem.StackCount == summonForm.ItemDefinition.StackSize)
                         {
-                            stored += GrantSummonedItem(
+                            GrantSummonedItem(
                                 duplicate,
                                 pendingItem,
                                 summonForm.TrackItem,
@@ -697,22 +675,13 @@ public static class RulesetImplementationManagerPatcher
 
                 if (pendingItem != null)
                 {
-                    stored += GrantSummonedItem(
+                    GrantSummonedItem(
                         duplicate,
                         pendingItem,
                         summonForm.TrackItem,
                         formsParams.activeEffect);
                 }
             }
-
-        Complete:
-            SimulacrumDiagnostics.RecordSummonedItem(
-                duplicate,
-                summonForm.ItemDefinition,
-                "inventory-applied",
-                summonForm.Number,
-                stored,
-                0);
         }
 
         private static void ApplyIndividualInventoryItems(
@@ -721,7 +690,6 @@ public static class RulesetImplementationManagerPatcher
             RulesetCharacterSimulacrum duplicate)
         {
             var droppedItems = new List<RulesetItem>();
-            var stored = 0;
 
             using (duplicate.BeginInventoryMutation())
             {
@@ -733,15 +701,13 @@ public static class RulesetImplementationManagerPatcher
                             duplicate,
                             item,
                             summonForm.TrackItem,
-                            formsParams.activeEffect) > 0)
+                            formsParams.activeEffect))
                     {
-                        stored++;
+                        continue;
                     }
-                    else
-                    {
-                        item.BearerGuid = 0;
-                        droppedItems.Add(item);
-                    }
+
+                    item.BearerGuid = 0;
+                    droppedItems.Add(item);
                 }
             }
 
@@ -751,14 +717,6 @@ public static class RulesetImplementationManagerPatcher
             {
                 itemService.DropLoot(droppedItems, location.LocationPosition);
             }
-
-            SimulacrumDiagnostics.RecordSummonedItem(
-                duplicate,
-                summonForm.ItemDefinition,
-                "individual-items-applied",
-                summonForm.Number,
-                stored,
-                droppedItems.Count);
         }
 
         private static RulesetItem CreateSummonedItem(ItemDefinition itemDefinition)
@@ -767,7 +725,7 @@ public static class RulesetImplementationManagerPatcher
                 .CreateStandardItem(itemDefinition, true, null);
         }
 
-        private static int GrantSummonedItem(
+        private static bool GrantSummonedItem(
             RulesetCharacterSimulacrum duplicate,
             RulesetItem item,
             bool trackItem,
@@ -778,13 +736,11 @@ public static class RulesetImplementationManagerPatcher
                 item.SourceSummoningEffectGuid = activeEffect.Guid;
             }
 
-            var grantedCount = item.StackCount;
-
             // A tracked item must remain a distinct entity. Autostacking it into an
             // older summon would discard the GUID that the active effect must remove.
             if (!duplicate.GrantItem(item, false, autostack: !trackItem))
             {
-                return 0;
+                return false;
             }
 
             if (trackItem)
@@ -792,7 +748,7 @@ public static class RulesetImplementationManagerPatcher
                 activeEffect?.TrackSummonedItem(item);
             }
 
-            return grantedCount;
+            return true;
         }
     }
 
@@ -1068,17 +1024,12 @@ public static class RulesetImplementationManagerPatcher
 
             if (attribute == null)
             {
-                SimulacrumDiagnostics.RecordEffectForm(
-                    duplicate,
-                    "ability-score-increase-missing-attribute",
-                    formsParams.activeEffect,
-                    $"ability={alteration.AbilityScore}");
+                Trace.LogWarning(
+                    $"Unable to apply a Simulacrum ability score increase: " +
+                    $"attribute '{alteration.AbilityScore}' was not found.");
 
                 return false;
             }
-
-            var previousBase = attribute.BaseValue;
-            var previousMaximum = attribute.MaxValue;
 
             attribute.BaseValue += alteration.ValueIncrease;
             attribute.MaxValue += alteration.MaximumIncrease;
@@ -1091,14 +1042,6 @@ public static class RulesetImplementationManagerPatcher
                 alteration.ValueIncrease,
                 alteration.MaximumIncrease);
             duplicate.RefreshAll();
-
-            SimulacrumDiagnostics.RecordEffectForm(
-                duplicate,
-                "ability-score-increase-applied",
-                formsParams.activeEffect,
-                $"ability={alteration.AbilityScore} " +
-                $"base={previousBase}->{attribute.BaseValue} " +
-                $"maximum={previousMaximum}->{attribute.MaxValue}");
 
             return false;
         }

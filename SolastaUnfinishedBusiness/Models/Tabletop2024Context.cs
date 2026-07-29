@@ -96,6 +96,7 @@ public static partial class Tabletop2024Context
         LoadBarbarianBrutalStrike();
         LoadBarbarianInstinctivePounce();
         LoadBarbarianPersistentRage();
+        LoadBardBardicInspiration();
         LoadBardCounterCharm();
         LoadClericBlessedStrikes();
         LoadClericChannelDivinity();
@@ -211,6 +212,7 @@ public static partial class Tabletop2024Context
         SwitchSorcererOriginLearningLevel();
         SwitchSorcererSorcerousRestorationAtLevel5();
         SwitchSorcererDraconicBloodlineAC();
+        SwitchSpeciesBaseWalkSpeed();
         SwitchTabletopFeatRules2024();
         SwitchSurprisedEnforceDisadvantage();
         SwitchWarlockInvocationsProgression();
@@ -223,6 +225,11 @@ public static partial class Tabletop2024Context
         SwitchMartialChampion();
         HomeBrewSomeSpells();
         SmiteSpells2024Context.LateLoad();
+    }
+
+    internal static void SwitchSpeciesBaseWalkSpeed()
+    {
+        RacesContext.RefreshSpeciesBaseWalkSpeeds();
     }
 
     internal static void SwitchSurprisedEnforceDisadvantage()

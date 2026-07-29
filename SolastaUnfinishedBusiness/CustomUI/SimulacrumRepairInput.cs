@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using HarmonyLib;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -34,10 +33,7 @@ internal static class SimulacrumRepairInput
             return false;
         }
 
-        if (ConfirmedRequests.Remove(ownerGuid))
-        {
-            SimulacrumDiagnostics.RecordRepair(owner, "stale-request-cleared", 0, 0);
-        }
+        ConfirmedRequests.Remove(ownerGuid);
 
         if (_selection != null)
         {
@@ -46,7 +42,6 @@ internal static class SimulacrumRepairInput
 
         if (!SimulacrumBehavior.TryGetMaximumRepairHitPoints(owner, out var maximum))
         {
-            SimulacrumDiagnostics.RecordRepair(owner, "selection-unavailable", 0, 0);
             Gui.GuiService.ShowAlert("Failure/&SimulacrumInsufficientRepairMaterials", Gui.ColorFailure, 2.5f);
 
             return true;
@@ -81,17 +76,6 @@ internal static class SimulacrumRepairInput
         Gui.GuiService.ResetOverlayCanvasSortingOrder();
         modal.transform.SetAsLastSibling();
         _selection.ApplyForeground(parentScreen);
-        SimulacrumDiagnostics.RecordRepair(
-            owner,
-            "selection-open",
-            0,
-            maximum,
-            $"parentSort={parentScreen?.SortIndex.ToString() ?? "<none>"} " +
-            $"modalSort={modal.SortIndex} " +
-            $"parentCanvas={parentScreen?.GetComponentInParent<Canvas>()?.sortingOrder.ToString() ?? "<none>"} " +
-            $"modalCanvas={_selection.ForegroundCanvas?.sortingOrder.ToString() ?? "<none>"} " +
-            $"sibling={modal.transform.GetSiblingIndex()}");
-
         return true;
     }
 
@@ -108,7 +92,6 @@ internal static class SimulacrumRepairInput
         if (!SimulacrumBehavior.TryGetMaximumRepairHitPoints(owner, out var maximum))
         {
             Close(selection, modal);
-            SimulacrumDiagnostics.RecordRepair(owner, "selection-confirm-rejected", requestedHitPoints, 0);
             Gui.GuiService.ShowAlert(
                 "Failure/&SimulacrumInsufficientRepairMaterials",
                 Gui.ColorFailure,
@@ -122,16 +105,9 @@ internal static class SimulacrumRepairInput
         if (!selection.Item)
         {
             Close(selection, modal);
-            SimulacrumDiagnostics.RecordRepair(
-                owner,
-                "selection-item-expired",
-                requestedHitPoints,
-                maximum);
-
             return true;
         }
 
-        SimulacrumDiagnostics.RecordRepair(owner, "selection-confirm", requestedHitPoints, maximum);
         ConfirmedRequests[ownerGuid] = requestedHitPoints;
         ConfirmedExecutions.Add(ownerGuid);
         Close(selection, modal);
@@ -156,8 +132,6 @@ internal static class SimulacrumRepairInput
         }
 
         Close(selection, modal);
-        SimulacrumDiagnostics.RecordRepair(selection.Owner, "selection-cancel", 0, 0);
-
         return true;
     }
 
@@ -166,7 +140,6 @@ internal static class SimulacrumRepairInput
         if (TryTake(modal, out var selection))
         {
             RestoreSortIndex(selection);
-            SimulacrumDiagnostics.RecordRepair(selection.Owner, "selection-hide", 0, 0);
         }
     }
 

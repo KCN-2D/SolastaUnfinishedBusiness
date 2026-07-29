@@ -7,7 +7,6 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.ItemCrafting;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
@@ -63,6 +62,11 @@ internal static class ProximityLootModalPatcher
                 return true;
             }
 
+            if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+            {
+                return false;
+            }
+
             SolastaUnfinishedBusiness.Behaviors.Specific.SimulacrumBehavior.TryGetOwner(
                 duplicate,
                 out var owner);
@@ -85,10 +89,6 @@ internal static class ProximityLootModalPatcher
             Sessions.Add(__instance, new LootSession(duplicate.Guid));
             __0 = host;
 
-            SimulacrumDiagnostics.Write(
-                "loot",
-                $"stage=open guid={duplicate.Guid} transport={host.RulesetCharacter.Guid}");
-
             return true;
         }
     }
@@ -103,9 +103,16 @@ internal static class ProximityLootModalPatcher
         [UsedImplicitly]
         internal static bool Prefix(ProximityLootModal __instance)
         {
-            if (!TryGetLootingCharacter(__instance, out var duplicate))
+            if (!Sessions.TryGetValue(__instance, out var session))
             {
                 return true;
+            }
+
+            if (!TryGetActiveLootSession(__instance, out _, out var duplicate))
+            {
+                AbortSession(__instance, session);
+
+                return false;
             }
 
             var locationCharacter = GameLocationCharacter.GetFromActor(duplicate);
@@ -122,11 +129,6 @@ internal static class ProximityLootModalPatcher
             }
 
             __instance.BuildSlots();
-            duplicate.ComputeEncumbranceThresholds(out _, out _, out var maximumWeight);
-            SimulacrumDiagnostics.Write(
-                "loot",
-                $"stage=selection guid={duplicate.Guid} location={locationCharacter?.LocationPosition} " +
-                $"items={__instance.itemsMap.Count} maxCarry={maximumWeight:0.###}");
 
             return false;
         }
@@ -169,24 +171,23 @@ internal static class ProximityLootModalPatcher
             ref bool __result)
         {
             if (__instance is not ProximityLootModal modal ||
-                !TryGetLootingCharacter(modal, out var duplicate))
+                !Sessions.TryGetValue(modal, out var session))
             {
                 return true;
             }
 
+            if (!TryGetActiveLootSession(modal, out _, out var duplicate))
+            {
+                AbortSession(modal, session);
+                __result = false;
+
+                return false;
+            }
+
             var item = __0?.InventorySlot?.EquipedItem;
-            var canCarry = item != null && duplicate.CanCarryItem(item);
             var canEquipOrStore = item != null && duplicate.CanEquipOrStoreItem(item);
             var canDispatch = CanDispatchLootCommand();
             var hasGroundPosition = item != null && __instance.itemsMap.ContainsKey(item);
-
-            SimulacrumDiagnostics.RecordLootEligibility(
-                duplicate,
-                item,
-                canCarry,
-                canEquipOrStore,
-                canDispatch,
-                hasGroundPosition);
 
             if (item == null ||
                 !canEquipOrStore ||
@@ -230,8 +231,19 @@ internal static class ProximityLootModalPatcher
             RulesetItem __0,
             TA.int3 __1)
         {
-            if (!TryGetLootingCharacter(__instance, out _) ||
-                __0?.ItemDefinition?.IsWealthPile == true)
+            if (!Sessions.TryGetValue(__instance, out var session))
+            {
+                return true;
+            }
+
+            if (!TryGetActiveLootSession(__instance, out _, out _))
+            {
+                AbortSession(__instance, session);
+
+                return false;
+            }
+
+            if (__0?.ItemDefinition?.IsWealthPile == true)
             {
                 return true;
             }
@@ -250,27 +262,13 @@ internal static class ProximityLootModalPatcher
                 return false;
             }
 
-            if (!Sessions.TryGetValue(__instance, out var session))
-            {
-                return false;
-            }
-
             session.PendingCommands++;
-
-            SimulacrumDiagnostics.Write(
-                "loot",
-                $"stage=ground-remove guid={session.SubjectGuid} item={__0.ItemDefinition.Name} " +
-                $"pending={session.PendingCommands}");
 
             inventoryCommands.LootItemAtPosition(__0, __1);
             commandService.AcknowledgePreviousCommandLocally(() =>
             {
                 if (itemService.EnumerateGroundItems(__1).Contains(__0))
                 {
-                    SimulacrumDiagnostics.Write(
-                        "loot",
-                        $"stage=ground-remove-failed guid={session.SubjectGuid} " +
-                        $"item={__0.ItemDefinition.Name}");
                     CompletePendingCommand(__instance, session);
 
                     return;
@@ -279,12 +277,10 @@ internal static class ProximityLootModalPatcher
                 if (RulesetEntity.TryGetEntity<RulesetCharacterSimulacrum>(
                         session.SubjectGuid,
                         out var currentDuplicate) &&
+                    SimulacrumBehavior.CanAccessHumanoidInventory(currentDuplicate) &&
                     SimulacrumBehavior.TryGetSnapshot(currentDuplicate, out var snapshot) &&
                     snapshot.IsCurrentSchema)
                 {
-                    SimulacrumDiagnostics.Write(
-                        "loot",
-                        $"stage=store-request guid={session.SubjectGuid} item={__0.ItemDefinition.Name}");
                     PendingGroundPickups.Add((__0.Guid, currentDuplicate.Guid));
 
                     try
@@ -301,9 +297,6 @@ internal static class ProximityLootModalPatcher
                 }
                 else
                 {
-                    SimulacrumDiagnostics.Write(
-                        "loot",
-                        $"stage=restore-ground guid={session.SubjectGuid} item={__0.ItemDefinition.Name}");
                     inventoryCommands.CreateItemAtPosition(__0, __1);
                 }
 
@@ -315,10 +308,6 @@ internal static class ProximityLootModalPatcher
                         !ContainsItem(currentDuplicate.CharacterInventory, __0) &&
                         !itemService.EnumerateGroundItems(__1).Contains(__0))
                     {
-                        SimulacrumDiagnostics.Write(
-                            "loot",
-                            $"stage=store-failed-restore guid={session.SubjectGuid} " +
-                            $"item={__0.ItemDefinition.Name}");
                         inventoryCommands.CreateItemAtPosition(__0, __1);
                         commandService.AcknowledgePreviousCommandLocally(
                             () => CompletePendingCommand(__instance, session));
@@ -341,16 +330,29 @@ internal static class ProximityLootModalPatcher
     internal static class OnLootAllCb_Patch
     {
         [UsedImplicitly]
-        internal static void Prefix(LootEnumerationModal __instance)
+        internal static bool Prefix(LootEnumerationModal __instance)
         {
-            if (__instance is ProximityLootModal modal &&
-                TryGetLootingCharacter(modal, out var duplicate) &&
-                !__instance.hasLootAllButtonBeenClicked &&
+            if (__instance is not ProximityLootModal modal ||
+                !Sessions.TryGetValue(modal, out var session))
+            {
+                return true;
+            }
+
+            if (!TryGetActiveLootSession(modal, out _, out var duplicate))
+            {
+                AbortSession(modal, session);
+
+                return false;
+            }
+
+            if (!__instance.hasLootAllButtonBeenClicked &&
                 __instance.itemsToLootCache.Count == 0)
             {
                 BeginLootAll(modal);
                 duplicate.CharacterInventory.PersonalContainer.ClearStackedItems();
             }
+
+            return true;
         }
     }
 
@@ -366,9 +368,16 @@ internal static class ProximityLootModalPatcher
         internal static bool Prefix(LootEnumerationModal __instance)
         {
             if (__instance is not ProximityLootModal modal ||
-                !TryGetLootSession(modal, out var session, out var duplicate))
+                !Sessions.TryGetValue(modal, out var knownSession))
             {
                 return true;
+            }
+
+            if (!TryGetActiveLootSession(modal, out var session, out var duplicate))
+            {
+                AbortSession(modal, knownSession);
+
+                return false;
             }
 
             if (session.PendingCommands > 0)
@@ -517,6 +526,14 @@ internal static class ProximityLootModalPatcher
 
             if (proximityModal != null)
             {
+                if (!Sessions.TryGetValue(proximityModal, out var session) ||
+                    !TryGetActiveLootSession(proximityModal, out _, out _))
+                {
+                    AbortSession(proximityModal, session);
+
+                    return;
+                }
+
                 BeginLootAll(proximityModal);
             }
 
@@ -597,7 +614,16 @@ internal static class ProximityLootModalPatcher
         ProximityLootModal modal,
         out RulesetCharacterSimulacrum duplicate)
     {
-        return TryGetLootSession(modal, out _, out duplicate);
+        return TryGetActiveLootSession(modal, out _, out duplicate);
+    }
+
+    private static bool TryGetActiveLootSession(
+        ProximityLootModal modal,
+        out LootSession session,
+        out RulesetCharacterSimulacrum duplicate)
+    {
+        return TryGetLootSession(modal, out session, out duplicate) &&
+               SimulacrumBehavior.CanAccessHumanoidInventory(duplicate);
     }
 
     private static bool TryGetLootSession(
@@ -615,7 +641,7 @@ internal static class ProximityLootModalPatcher
 
     private static void BeginLootAll(ProximityLootModal modal)
     {
-        if (Sessions.TryGetValue(modal, out var session))
+        if (TryGetActiveLootSession(modal, out var session, out _))
         {
             session.LootAllInProgress = true;
             session.LootAllResultPending = false;
@@ -632,14 +658,17 @@ internal static class ProximityLootModalPatcher
             return;
         }
 
+        if (!SimulacrumBehavior.CanAccessHumanoidInventory(duplicate))
+        {
+            AbortSession(modal, session);
+
+            return;
+        }
+
         if (session.PendingCommands > 0)
         {
             session.PendingCommands--;
         }
-
-        SimulacrumDiagnostics.Write(
-            "loot",
-            $"stage=command-complete guid={session.SubjectGuid} pending={session.PendingCommands}");
 
         if (session.PendingCommands == 0 && session.LootAllResultPending)
         {
@@ -695,6 +724,35 @@ internal static class ProximityLootModalPatcher
         if (session.HideCompleted)
         {
             Sessions.Remove(modal);
+        }
+    }
+
+    private static void AbortSession(
+        ProximityLootModal modal,
+        LootSession session)
+    {
+        if (session != null)
+        {
+            PendingGroundPickups.RemoveWhere(entry =>
+                entry.CharacterGuid == session.SubjectGuid);
+        }
+
+        Sessions.Remove(modal);
+
+        if (!modal)
+        {
+            return;
+        }
+
+        modal.itemsToLootCache.Clear();
+        modal.lootingCharacterItemsCache.Clear();
+        modal.hasLootAllButtonBeenClicked = false;
+        modal.lootingHeroesTable.gameObject.SetActive(true);
+        modal.encumbrancePanel.gameObject.SetActive(true);
+
+        if (modal.Visible)
+        {
+            modal.Hide(false);
         }
     }
 

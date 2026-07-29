@@ -572,6 +572,10 @@ internal static class MetamagicBuilders
                 rulesetHelper.LogCharacterActivatesAbility(
                     "Feature/&MetamagicSeekingSpellTitle",
                     "Feedback/&MetamagicSeekingSpellToHitRoll",
+                    tooltipContent: DatabaseRepository
+                        .GetDatabase<MetamagicOptionDefinition>()
+                        .GetElement(MetamagicSeeking)
+                        ?.FormatDescription(),
                     extra:
                     [
                         (dieRoll > previousRoll ? ConsoleStyleDuplet.ParameterType.Positive : ConsoleStyleDuplet.ParameterType.Negative,

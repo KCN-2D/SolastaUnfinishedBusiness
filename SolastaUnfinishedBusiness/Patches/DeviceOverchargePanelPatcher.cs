@@ -210,12 +210,13 @@ public static class DeviceOverchargePanelPatcher
                     bonusBySlotDelta.ToString("+0;-#"));
             }
 
-            effect.EffectAdvancement.ComputeAdditionalWeaponDieBySlotDelta(slotDelta);
+            var weaponDieBySlotDelta =
+                effect.EffectAdvancement.ComputeAdditionalWeaponDieBySlotDelta(slotDelta);
 
-            if (bonusBySlotDelta > 0)
+            if (weaponDieBySlotDelta > 0)
             {
                 result = result + "\n" + Gui.Format("Action/&CastSpellHigherSlotAddWeaponDieTile",
-                    bonusBySlotDelta.ToString("+0;-#"));
+                    weaponDieBySlotDelta.ToString("+0;-#"));
             }
 
             return result;

@@ -1351,7 +1351,7 @@ internal static class SpellBoxExtensions
 
         dataProvider.SetPrerequisites(requirements);
         tooltip.TooltipClass = dataProvider.TooltipClass;
-        tooltip.Content = feature.GuiPresentation.Description;
+        tooltip.Content = CustomTooltipProvider.GetActivationContent(feature);
         tooltip.Context = hero;
         tooltip.DataProvider = dataProvider;
 

@@ -174,7 +174,7 @@ public class MirrorImage
 
         console.AddCharacterEntry(attacker, entry);
         entry.AddParameter(ParameterType.Negative, "Rules/&ConditionBlindedTitle");
-        entry.AddParameter(ParameterType.AttackSpellPower, SpellDefinitions.MirrorImage.FormatTitle());
+        AddMirrorImageParameter(entry);
         console.AddEntry(entry);
     }
 
@@ -185,7 +185,7 @@ public class MirrorImage
 
         console.AddCharacterEntry(attacker, entry);
         entry.AddParameter(ParameterType.Positive, Gui.Format(Gui.SenseTypeTitleFormat, $"{sense}"));
-        entry.AddParameter(ParameterType.AttackSpellPower, SpellDefinitions.MirrorImage.FormatTitle());
+        AddMirrorImageParameter(entry);
         console.AddEntry(entry);
     }
 
@@ -212,7 +212,7 @@ public class MirrorImage
 
         console.AddCharacterEntry(target, entry);
         entry.AddParameter(resultType, Gui.Format(result, roll.ToString()));
-        entry.AddParameter(ParameterType.AttackSpellPower, SpellDefinitions.MirrorImage.FormatTitle());
+        AddMirrorImageParameter(entry);
         console.AddEntry(entry);
 
         //Add line about what attacker will target - defender or decoy
@@ -225,7 +225,10 @@ public class MirrorImage
 
         if (success)
         {
-            entry.AddParameter(ParameterType.AttackSpellPower, ConditionTitle);
+            entry.AddParameter(
+                ParameterType.AttackSpellPower,
+                ConditionTitle,
+                tooltipContent: Condition.FormatDescription());
         }
         else
         {
@@ -233,6 +236,15 @@ public class MirrorImage
         }
 
         console.AddEntry(entry);
+    }
+
+    private static void AddMirrorImageParameter(GameConsoleEntry entry)
+    {
+        entry.AddParameter(
+            ParameterType.AttackSpellPower,
+            SpellDefinitions.MirrorImage.FormatTitle(),
+            tooltipContent: SpellDefinitions.MirrorImage.Name,
+            tooltipClass: GuiSpellDefinition.TooltipClassSpellDefinition);
     }
 
     private class DuplicateCounter : IOnConditionAddedOrRemoved

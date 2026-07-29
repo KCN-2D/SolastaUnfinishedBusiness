@@ -10,7 +10,6 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
@@ -603,6 +602,78 @@ internal static partial class SpellBuilders
 
     #region Borrowed Knowledge
 
+    private static bool HasSkillProficiency(
+        RulesetCharacter character,
+        SkillDefinition skill)
+    {
+        return GetSkillProficiencyRank(character, skill) > 0;
+    }
+
+    private static bool HasSkillExpertise(
+        RulesetCharacter character,
+        SkillDefinition skill)
+    {
+        return GetSkillProficiencyRank(character, skill) >= 2;
+    }
+
+    private static int GetSkillProficiencyRank(
+        RulesetCharacter character,
+        SkillDefinition skill)
+    {
+        if (character == null || skill == null)
+        {
+            return 0;
+        }
+
+        if (character is RulesetCharacterSimulacrum simulacrum)
+        {
+            return simulacrum.GetSkillProficiencyRank(skill.Name);
+        }
+
+        if (character is RulesetCharacterHero hero)
+        {
+            if (hero.ExpertiseProficiencies.Contains(skill.Name) ||
+                hero.TrainedExpertises.Contains(skill.Name))
+            {
+                return 2;
+            }
+
+            return hero.SkillProficiencies.Contains(skill.Name) ||
+                   hero.TrainedSkills.Contains(skill)
+                ? 1
+                : 0;
+        }
+
+        var rank = character is RulesetCharacterMonster monster &&
+                   monster.SkillProficiencies.ContainsKey(skill.Name)
+            ? 1
+            : 0;
+        var matchingProficiencies = character
+            .FeaturesByType<FeatureDefinitionProficiency>()
+            .Where(feature => feature.Proficiencies.Contains(skill.Name))
+            .ToArray();
+
+        if (matchingProficiencies.Any(feature =>
+                feature.ProficiencyType == ProficiencyType.Skill))
+        {
+            rank = System.Math.Max(rank, 1);
+        }
+
+        if (matchingProficiencies.Any(feature =>
+                feature.ProficiencyType == ProficiencyType.Expertise))
+        {
+            rank = 2;
+        }
+
+        foreach (var _ in matchingProficiencies.Where(feature =>
+                     feature.ProficiencyType == ProficiencyType.SkillOrExpertise))
+        {
+            rank = rank > 0 ? 2 : 1;
+        }
+
+        return rank;
+    }
+
     internal static SpellDefinition BuildBorrowedKnowledge()
     {
         const string NAME = "BorrowedKnowledge";
@@ -634,7 +705,7 @@ internal static partial class SpellBuilders
                                 ConditionDefinitionBuilder
                                     .Create($"Condition{NAME}{skill.Name}")
                                     .SetGuiPresentation(
-                                        skill.GuiPresentation.Title, Gui.EmptyContent, ConditionBullsStrength)
+                                        skill.GuiPresentation.Title, Gui.NoLocalization, ConditionBullsStrength)
                                     .SetPossessive()
                                     .SetFeatures(
                                         FeatureDefinitionProficiencyBuilder
@@ -704,17 +775,7 @@ internal static partial class SpellBuilders
                     continue;
                 }
 
-                var hasSkill =
-                    rulesetCharacter is RulesetCharacterMonster monster &&
-                    monster.SkillProficiencies.ContainsKey(skill.Name) ||
-                    rulesetCharacter is RulesetCharacterHero hero &&
-                    hero.TrainedSkills.Contains(skill) ||
-                    rulesetCharacter.FeaturesByType<FeatureDefinitionProficiency>()
-                        .Any(x =>
-                            x.ProficiencyType == ProficiencyType.Skill &&
-                            x.Proficiencies.Contains(skillName));
-
-                if (hasSkill)
+                if (HasSkillProficiency(rulesetCharacter, skill))
                 {
                     continue;
                 }
@@ -726,12 +787,6 @@ internal static partial class SpellBuilders
             }
 
             var usablePower = PowerProvider.Get(powerPool, rulesetCharacter);
-
-            SimulacrumDiagnostics.RecordSpellChoice(
-                rulesetCharacter,
-                "BorrowedKnowledge",
-                "request",
-                usablePowers.Select(x => x.PowerDefinition.Name));
 
             yield return actingCharacter.MyReactToSpendPowerBundle(
                 usablePower,
@@ -747,27 +802,14 @@ internal static partial class SpellBuilders
 
             void ReactionValidated(ReactionRequestSpendBundlePower reactionRequest)
             {
-                if (reactionRequest.SelectedSubOption < 0 ||
-                    reactionRequest.SelectedSubOption >= usablePowers.Count)
-                {
-                    SimulacrumDiagnostics.RecordSpellChoice(
-                        rulesetCharacter,
-                        "BorrowedKnowledge",
-                        "invalid-selection",
-                        usablePowers.Select(x => x.PowerDefinition.Name));
+                var selectedPower =
+                    (reactionRequest.ReactionParams.RulesetEffect as RulesetEffectPower)?.PowerDefinition;
 
+                if (!selectedPower ||
+                    usablePowers.All(x => x.PowerDefinition != selectedPower))
+                {
                     return;
                 }
-
-                var selectedPower =
-                    usablePowers[reactionRequest.SelectedSubOption].PowerDefinition;
-
-                SimulacrumDiagnostics.RecordSpellChoice(
-                    rulesetCharacter,
-                    "BorrowedKnowledge",
-                    "validated",
-                    usablePowers.Select(x => x.PowerDefinition.Name),
-                    selectedPower.Name);
 
                 foreach (var skill in skillsDb)
                 {

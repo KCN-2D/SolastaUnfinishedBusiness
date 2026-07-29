@@ -272,13 +272,15 @@ internal static class CharacterInspectionScreenEnhancement
         bool noLevel)
     {
         var title = parentFeature.FormatTitle();
-        var description = selectedFeature.FormatDescription();
+        var description = CustomTooltipProvider.FormatDescription(selectedFeature);
 
         label.Text = title + (!noLevel ? $" ({feature.Level})" : string.Empty);
         provider.SetTitle(title);
         provider.SetSubtitle(selectedFeature.FormatTitle());
         provider.SetDescription(description);
-        tooltip.Content = description;
+        tooltip.Content = string.IsNullOrEmpty(description)
+            ? CustomTooltipProvider.GetActivationContent(selectedFeature)
+            : description;
     }
 
     internal static bool EnhanceFeatureList(
@@ -342,6 +344,8 @@ internal static class CharacterInspectionScreenEnhancement
         var tooltip = child.GetComponent<GuiTooltip>();
         var provider = new CustomTooltipProvider(feature.FeatureDefinition, null);
 
+        tooltip.Content = CustomTooltipProvider.GetActivationContent(feature.FeatureDefinition);
+
         if (Tabletop2024Context.TryGetHumanOriginInspectionDisplayFeature(
                 inspectedHero,
                 buildingData,
@@ -360,12 +364,15 @@ internal static class CharacterInspectionScreenEnhancement
                 label.Text = humanOriginTitle + (!noLevel ? $" ({feature.Level})" : string.Empty);
                 provider.SetSubtitle(displayFeature.FormatTitle());
                 provider.SetDescription(description);
-                tooltip.Content = description;
+
+                if (!string.IsNullOrEmpty(description))
+                {
+                    tooltip.Content = description;
+                }
             }
             else
             {
                 label.Text = fallbackTitle + (!noLevel ? $" ({feature.Level})" : string.Empty);
-                tooltip.Content = feature.FeatureDefinition.FormatDescription();
             }
         }
         else if (feature.FeatureDefinition is FeatureDefinitionPower)
@@ -373,7 +380,10 @@ internal static class CharacterInspectionScreenEnhancement
             var guiPowerDefinition = ServiceRepository.GetService<IGuiWrapperService>()
                 .GetGuiPowerDefinition(feature.FeatureDefinition.Name);
 
-            tooltip.Content = guiPowerDefinition.Description;
+            if (!CustomTooltipProvider.IsUnavailableContent(guiPowerDefinition.Description))
+            {
+                tooltip.Content = guiPowerDefinition.Description;
+            }
         }
         else if (Tabletop2024Context.TryGetHalfElfVersatileBloodlineInspectionDisplayFeature(
                      feature.FeatureDefinition,
@@ -418,11 +428,6 @@ internal static class CharacterInspectionScreenEnhancement
                 provider.SetSubtitle(choiceFeature.GuiPresentation.Title);
             }
         }
-        else
-        {
-            tooltip.Content = feature.FeatureDefinition.FormatDescription();
-        }
-
         tooltip.TooltipClass = "FeatDefinition";
         tooltip.DataProvider = provider;
         tooltip.Context = panel.InspectedCharacter?.RulesetCharacter;

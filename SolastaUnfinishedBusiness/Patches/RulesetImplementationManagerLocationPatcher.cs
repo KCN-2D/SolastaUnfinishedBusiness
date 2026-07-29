@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -11,7 +11,6 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
-using SolastaUnfinishedBusiness.Diagnostics;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Spells;
@@ -44,15 +43,6 @@ public static class RulesetImplementationManagerLocationPatcher
 
             EnsureTrackedItemProperties(duplicate, activeEffect);
             SimulacrumBehavior.RefreshEquipment(duplicate);
-
-            if (activeEffect is RulesetEffectSpell activeSpell &&
-                RulesetEffectSpellWithOrigin.GetOriginSpell(activeSpell)?.Name == "Shillelagh")
-            {
-                SimulacrumDiagnostics.RecordShillelagh(
-                    duplicate,
-                    "item-property-applied",
-                    activeSpell);
-            }
         }
 
         private static void EnsureTrackedItemProperties(
@@ -147,12 +137,6 @@ public static class RulesetImplementationManagerLocationPatcher
 
             var repertoire = SimulacrumBehavior.ResolveRitualRepertoire(
                 duplicate,
-                spellDefinition);
-
-            SimulacrumDiagnostics.RecordSpellActivation(
-                "ritual-effect",
-                duplicate,
-                repertoire,
                 spellDefinition);
 
             var effect = new RulesetEffectSpell(caster, spellDefinition);
@@ -791,30 +775,6 @@ public static class RulesetImplementationManagerLocationPatcher
                 : null;
         }
 
-        [UsedImplicitly]
-        public static void Prefix(
-            EffectForm effectForm,
-            RulesetImplementationDefinitions.ApplyFormsParams formsParams)
-        {
-            var counter = effectForm?.CounterForm;
-
-            if (formsParams.sourceCharacter is not
-                    RulesetCharacterSimulacrum duplicate ||
-                counter == null ||
-                !counter.AddProficiencyBonus &&
-                !counter.AddAbilityBonus)
-            {
-                return;
-            }
-
-            SimulacrumDiagnostics.RecordEffectForm(
-                duplicate,
-                "counter-bonuses-enabled",
-                formsParams.activeEffect,
-                $"proficiency={counter.AddProficiencyBonus} " +
-                $"ability={counter.AddAbilityBonus}:{counter.AbilityToAdd}");
-        }
-
         [NotNull]
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
@@ -898,13 +858,6 @@ public static class RulesetImplementationManagerLocationPatcher
                 location,
                 item.RulesetLightSource,
                 true);
-
-            SimulacrumDiagnostics.RecordEffectForm(
-                duplicate,
-                "item-light-registration-ensured",
-                formsParams.activeEffect,
-                $"item={item.ItemDefinition?.Name ?? "<null>"}:{item.Guid} " +
-                $"light={item.RulesetLightSource.Guid}");
         }
     }
 

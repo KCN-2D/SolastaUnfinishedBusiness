@@ -1,6 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Builders;
 using UnityEngine;
 using UnityEngine.UI;
 using static RuleDefinitions;
@@ -28,10 +31,51 @@ internal class CustomTooltipProvider : GuiBaseDefinitionWrapper, ISubTitleProvid
     public override string TooltipClass => "FeatDefinition";
 
     public override string Title =>
-        string.IsNullOrEmpty(_title) ? BaseDefinition.FormatTitle() : _title;
+        string.IsNullOrEmpty(_title)
+            ? FormatPresentation(BaseDefinition.GuiPresentation?.Title, BaseDefinition.FormatTitle)
+            : NormalizeContent(_title);
 
     public override string Description =>
-        string.IsNullOrEmpty(_description) ? BaseDefinition.FormatDescription() : _description;
+        string.IsNullOrEmpty(_description)
+            ? FormatDescription(BaseDefinition)
+            : NormalizeContent(_description);
+
+    internal static string FormatDescription(BaseDefinition definition)
+    {
+        return definition == null
+            ? string.Empty
+            : FormatPresentation(
+                definition.GuiPresentation?.Description,
+                definition.FormatDescription);
+    }
+
+    internal static string GetActivationContent(BaseDefinition definition)
+    {
+        if (definition == null)
+        {
+            return string.Empty;
+        }
+
+        var description = NormalizeContent(definition.GuiPresentation?.Description);
+
+        if (!string.IsNullOrEmpty(description))
+        {
+            return description;
+        }
+
+        var title = NormalizeContent(definition.GuiPresentation?.Title);
+
+        return string.IsNullOrEmpty(title) ? definition.Name : title;
+    }
+
+    internal static bool IsUnavailableContent(string content)
+    {
+        return string.IsNullOrWhiteSpace(content) ||
+               string.Equals(content.Trim(), "-", StringComparison.Ordinal) ||
+               string.Equals(content, Gui.NoLocalization, StringComparison.Ordinal) ||
+               string.Equals(content, Gui.EmptyContent, StringComparison.Ordinal) ||
+               string.Equals(content, GuiPresentationBuilder.EmptyString, StringComparison.Ordinal);
+    }
 
     public string EnumeratePrerequisites(RulesetCharacterHero hero)
     {
@@ -100,6 +144,18 @@ internal class CustomTooltipProvider : GuiBaseDefinitionWrapper, ISubTitleProvid
     internal void SetTitle(string title)
     {
         _title = title;
+    }
+
+    private static string FormatPresentation(string key, Func<string> formatter)
+    {
+        return IsUnavailableContent(key)
+            ? string.Empty
+            : formatter();
+    }
+
+    private static string NormalizeContent(string content)
+    {
+        return IsUnavailableContent(content) ? string.Empty : content;
     }
 }
 
@@ -197,4 +253,116 @@ internal class CustomItemTooltipProvider : CustomTooltipProvider,
     public float MaxRangeDistance => _guiItem.MaxRangeDistance;
     public int AttackRollModifier => _guiItem.AttackRollModifier;
     public int DamageRollModifier => _guiItem.DamageRollModifier;
+}
+
+internal interface ILiveMonsterAttacksProvider
+{
+    IReadOnlyList<RulesetAttackMode> LiveAttackModes { get; }
+}
+
+internal sealed class LiveFriendlyMonsterTooltipProvider(
+    GuiMonsterDefinition definition,
+    RulesetCharacterMonster character,
+    IImageProvider imageProvider) :
+    ITitleProvider,
+    IImageProvider,
+    IDescriptionProvider,
+    ISubTitleProvider,
+    IMonsterBasicInfoProvider,
+    IMonsterAttacksProvider,
+    ILiveMonsterAttacksProvider
+{
+    private readonly Dictionary<Image, bool> _originalPreserveAspect = [];
+
+    internal RulesetCharacterMonster Character { get; } = character;
+    internal IImageProvider ImageProvider { get; } = imageProvider;
+
+    public string Title =>
+        Character is RulesetCharacterSimulacrum duplicate &&
+        SimulacrumBehavior.TryGetDisplayName(duplicate, out var displayName)
+            ? displayName
+            : definition.Title;
+    public string Subtitle => definition.Subtitle;
+    public string Description => definition.Description;
+    public int ArmorClass => Character.TryGetAttributeValue(AttributeDefinitions.ArmorClass);
+    public int HitPoints => Character.TryGetAttributeValue(AttributeDefinitions.HitPoints);
+    public int HitPointsUnaltered => HitPoints;
+    public string MoveModesString => FormatLiveMoveModes();
+    public float ChallengeRating => definition.ChallengeRating;
+    public int KnowledgeLevel => 4;
+    public List<MonsterAttackIteration> AttackIterations => definition.AttackIterations;
+    public IReadOnlyList<RulesetAttackMode> LiveAttackModes => Character.AttackModes;
+
+    public string GetDisplayName(object context)
+    {
+        return Title;
+    }
+
+    private string FormatLiveMoveModes()
+    {
+        var orderedMoveModes = new Dictionary<int, int>();
+
+        foreach (var moveMode in definition.MonsterDefinition.Features
+                     .OfType<FeatureDefinitionMoveMode>())
+        {
+            var key = (int)moveMode.MoveMode;
+
+            if (Character.MoveModes.TryGetValue(key, out var speed))
+            {
+                orderedMoveModes[key] = speed;
+            }
+        }
+
+        foreach (var pair in Character.MoveModes)
+        {
+            orderedMoveModes[pair.Key] = pair.Value;
+        }
+
+        return Gui.FormatMoveModes(orderedMoveModes, Character, false, -1);
+    }
+
+    public void SetupSprite(Image image, object context)
+    {
+        if (image && !_originalPreserveAspect.ContainsKey(image))
+        {
+            _originalPreserveAspect.Add(image, image.preserveAspect);
+        }
+
+        if (ImageProvider != null)
+        {
+            ImageProvider.SetupSprite(image, context);
+        }
+        else
+        {
+            definition.SetupSprite(image, context);
+        }
+
+        if (image)
+        {
+            image.preserveAspect = true;
+        }
+    }
+
+    public void ReleaseSprite(Image image)
+    {
+        if (ImageProvider != null)
+        {
+            ImageProvider.ReleaseSprite(image);
+        }
+        else
+        {
+            definition.ReleaseSprite(image);
+        }
+
+        if (image && _originalPreserveAspect.TryGetValue(image, out var preserveAspect))
+        {
+            image.preserveAspect = preserveAspect;
+            _originalPreserveAspect.Remove(image);
+        }
+    }
+
+    public bool CanAccess(BestiaryDefinitions.BestiaryAccess access)
+    {
+        return true;
+    }
 }
