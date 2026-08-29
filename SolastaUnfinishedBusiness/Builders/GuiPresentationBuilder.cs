@@ -157,7 +157,8 @@ internal static class BaseDefinitionBuilderGuiPresentationExtensions
         AssetReferenceSprite sprite = null, int? sortOrder = null, bool hidden = false)
         where TBuilder : IDefinitionBuilder
     {
-        return SetGuiPresentation(builder, GuiPresentationBuilder.Build(null, title, description, sprite, sortOrder));
+        return SetGuiPresentation(builder,
+            GuiPresentationBuilder.Build(null, title, description, sprite, sortOrder, hidden));
     }
 
     /// <summary>
@@ -332,10 +333,8 @@ internal static class BaseDefinitionBuilderGuiPresentationExtensions
         AssetReferenceSprite sprite = null, int? sortOrder = null)
         where TBuilder : IDefinitionBuilder
     {
-        builder.SetGuiPresentation(hidden
-            ? GuiPresentationBuilder.NoContentHidden
-            : GuiPresentationBuilder.NoContent);
-        return builder;
+        return SetGuiPresentation(builder,
+            GuiPresentationBuilder.Build(Gui.NoLocalization, Gui.NoLocalization, sprite, sortOrder, hidden));
     }
 
     internal static TBuilder SetSortOrder<TBuilder>(this TBuilder builder, BaseDefinition definition)

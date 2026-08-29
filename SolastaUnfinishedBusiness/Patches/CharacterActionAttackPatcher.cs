@@ -36,6 +36,9 @@ public static class CharacterActionAttackPatcher
 
         internal static IEnumerator ExecuteImpl(CharacterActionAttack __instance)
         {
+            var actionParams = __instance.ActionParams;
+            var attackMode = actionParams.AttackMode;
+            var originatingMagicEffect = AttackAfterMagicEffect.ConsumeOriginatingEffect(attackMode);
             var battleManager = ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
 
             if (!battleManager)
@@ -45,8 +48,6 @@ public static class CharacterActionAttackPatcher
 
             var actingCharacter = __instance.ActingCharacter;
             var rulesetCharacter = actingCharacter.RulesetCharacter;
-            var actionParams = __instance.ActionParams;
-            var attackMode = actionParams.AttackMode;
             var locationPositioningService = ServiceRepository.GetService<IGameLocationPositioningService>();
             var locationEntityFactoryService = ServiceRepository.GetService<IWorldLocationEntityFactoryService>();
             var implementationService = ServiceRepository.GetService<IRulesetImplementationService>();
@@ -184,6 +185,17 @@ public static class CharacterActionAttackPatcher
 
             yield return battleManager.HandleCharacterPhysicalAttackInitiated(
                 __instance, actingCharacter, target, attackModifier, attackMode);
+
+            foreach (var modifier in rulesetCharacter
+                         .GetSubFeaturesByType<IModifyMagicEffectAttackModifier>())
+            {
+                modifier.ModifyMagicEffectAttackModifier(
+                    rulesetCharacter,
+                    rulesetDefender,
+                    attackMode,
+                    originatingMagicEffect,
+                    attackModifier);
+            }
 
             // Determine the attack success
             __instance.AttackRollOutcome = RollOutcome.Failure;
@@ -497,6 +509,30 @@ public static class CharacterActionAttackPatcher
                             null,
                             __instance.AttackRollOutcome == RollOutcome.CriticalSuccess,
                             true);
+                    }
+
+                    // Resulting spend-power actions are executed only after this attack finishes. Snapshot any
+                    // condition-backed magic-effect provenance now, before attack interruptions remove the condition.
+                    foreach (var resultingAction in __instance.ResultingActions
+                                 .OfType<CharacterActionSpendPower>())
+                    {
+                        var resultingActionParams = resultingAction.ActionParams;
+                        var resultingRulesetEffect = resultingActionParams.RulesetEffect;
+
+                        if (resultingRulesetEffect == null)
+                        {
+                            continue;
+                        }
+
+                        foreach (var magicEffectBeforeInitiatedByMe in rulesetCharacter
+                                     .GetSubFeaturesByType<IMagicEffectBeforeInitiatedByMe>())
+                        {
+                            yield return magicEffectBeforeInitiatedByMe.OnMagicEffectBeforeInitiatedByMe(
+                                resultingAction,
+                                resultingRulesetEffect,
+                                actingCharacter,
+                                resultingActionParams.TargetCharacters);
+                        }
                     }
 
                     // Check if the target was killed by a reaction

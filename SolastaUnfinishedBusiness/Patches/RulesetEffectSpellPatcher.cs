@@ -114,6 +114,8 @@ public static class RulesetEffectSpellPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetEffectSpell __instance, ref int __result)
         {
+            Tabletop2024Context.ModifyInnateSorcerySaveDc(__instance, ref __result);
+
             //PATCH: allow devices have DC based on user or item summoner stats, instead of static value
             var originItem = __instance.OriginItem;
 

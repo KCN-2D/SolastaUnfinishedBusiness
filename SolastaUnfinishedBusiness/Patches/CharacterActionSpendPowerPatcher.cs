@@ -80,6 +80,17 @@ public static class CharacterActionSpendPowerPatcher
             // Create an active power
             __instance.activePower = activePower;
 
+            // Resulting spend-power actions are snapshotted by their parent action before condition interruptions.
+            if (!__instance.IsResultingAction)
+            {
+                foreach (var magicEffectBeforeInitiatedByMe in actingCharacter.RulesetCharacter
+                             .GetSubFeaturesByType<IMagicEffectBeforeInitiatedByMe>())
+                {
+                    yield return magicEffectBeforeInitiatedByMe.OnMagicEffectBeforeInitiatedByMe(
+                        __instance, rulesetEffect, actingCharacter, targets);
+                }
+            }
+
             //PATCH: supports `IMagicEffectInitiatedByMe`
             foreach (var magicEffectInitiatedByMe in actingCharacter.RulesetCharacter
                          .GetSubFeaturesByType<IMagicEffectInitiatedByMe>())

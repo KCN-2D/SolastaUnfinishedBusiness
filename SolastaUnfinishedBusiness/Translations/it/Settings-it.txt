@@ -459,7 +459,7 @@ ModUi/&Subclasses=<color=#F0DAA0>Sottoclassi</color>
 ModUi/&Subraces=<color=#F0DAA0>Sottorazze</color>
 ModUi/&SwapAbjurationSavant=Sostituisci <b>Abjurer</b> <color=#D89555>Savant dell'Abjurazione</color> con la versione 5e 2024 <i><color=#F0DAA0>[impara 2 incantesimi della scuola quando acquisiti, imparane 1 in più ogni volta che guadagni un livello slot]</color></i>
 ModUi/&SwapCraftedItemAndRecipeIcons=<i>+ Scambia le icone delle ricette e degli oggetti realizzati nel negozio</i>
-ModUi/&SwapEvocationPotentCantripAndSculptSpell=Sostituisci <b>Evocatore</b> <color=#D89555>Incantesimi di Scultura</color> e <color=#D89555>Trucchetto Potente</color> durante la progressione
+ModUi/&SwapEvocationPotentCantripAndSculptSpell=Sostituisci <b>Invocatore</b> <color=#D89555>Plasmare Incantesimi</color> e <color=#D89555>Potente trucchetto</color> durante la progressione
 ModUi/&EnableEvocationPotentCantrip2024=Usa la versione 5e 2024 di <b>Evocatore</b> <color=#D89555>Trucchetto Potente</color> <i><color=#F0DAA0>[i trucchetti con tiro di attacco non aggiungono più il bonus di competenza quando colpiscono; un mancato colpo infligge metà danni]</color></i>
 ModUi/&SwapEvocationSavant=Sostituisci <b>Evocatore</b> <color=#D89555>Sapiente dell'evocazione</color> con la versione 5e 2024 <i><color=#F0DAA0>[impara 2 incantesimi della scuola quando acquisiti, imparane 1 in più ogni volta che guadagni un livello slot]</color></i>
 ModUi/&SwapMartialChampion=Sostituisci <b>Campione Marziale</b> con la versione 5e 2024

@@ -54,6 +54,7 @@ public static class CustomActionIdContext
         (Id)ExtraActionId.PowerSurgeToggle,
         (Id)ExtraActionId.PressTheAdvantageToggle,
         (Id)ExtraActionId.QuiveringPalmToggle,
+        (Id)ExtraActionId.SharpEye2024Toggle,
         (Id)ExtraActionId.SupremeWillToggle,
         (Id)ExtraActionId.TacticalMasterToggle,
         (Id)ExtraActionId.ThunderousStrikeToggle,
@@ -85,6 +86,7 @@ public static class CustomActionIdContext
         (Id)ExtraActionId.OrcishFuryToggle,
         (Id)ExtraActionId.PowerSurgeToggle,
         (Id)ExtraActionId.QuiveringPalmToggle,
+        (Id)ExtraActionId.SharpEye2024Toggle,
         (Id)ExtraActionId.ZenShotToggle
     ];
 

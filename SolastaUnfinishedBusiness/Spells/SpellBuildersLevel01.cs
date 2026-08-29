@@ -1020,7 +1020,8 @@ internal static partial class SpellBuilders
             initAndFinishBehavior,
             filterTargetBehavior);
         conditionLeap.AddCustomSubFeatures(
-            damageDeterminationBehavior);
+            damageDeterminationBehavior,
+            new ClearSpellDerivedConditionOrigin());
 
         return spell;
     }
@@ -1074,6 +1075,29 @@ internal static partial class SpellBuilders
                 actionCastSpell.ActiveSpell.EffectLevel,
                 0,
                 0);
+
+            if (rulesetAttacker.TryGetConditionOfCategoryAndType(
+                    AttributeDefinitions.TagEffect,
+                    conditionLeap.Name,
+                    out var rulesetCondition))
+            {
+                Tabletop2024Context.BindSpellDerivedConditionOrigin(
+                    rulesetCondition,
+                    actionCastSpell.ActiveSpell.SpellRepertoire);
+            }
+        }
+    }
+
+    private sealed class ClearSpellDerivedConditionOrigin : IOnConditionAddedOrRemoved
+    {
+        public void OnConditionAdded(RulesetCharacter target, RulesetCondition rulesetCondition)
+        {
+            // The origin repertoire is bound immediately after the condition is inflicted.
+        }
+
+        public void OnConditionRemoved(RulesetCharacter target, RulesetCondition rulesetCondition)
+        {
+            Tabletop2024Context.UnbindSpellDerivedConditionOrigin(rulesetCondition);
         }
     }
 
@@ -2580,7 +2604,11 @@ internal static partial class SpellBuilders
             return true;
         }
 
-        var outcome = attacker.MakeSimpleSavingThrow(AttributeDefinitions.Wisdom, dc: condition.Amount,
+        var saveDc = condition.Amount;
+
+        Tabletop2024Context.ModifyInnateSorcerySaveDc(condition, ref saveDc);
+
+        var outcome = attacker.MakeSimpleSavingThrow(AttributeDefinitions.Wisdom, dc: saveDc,
             ConditionSanctuary, schoolOfMagic: SchoolOfMagicDefinitions.SchoolAbjuration.Name);
 
         return outcome is RollOutcome.Success or RollOutcome.CriticalSuccess;

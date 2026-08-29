@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
@@ -100,6 +100,7 @@ internal enum ExtraActionId
     NickMasteryAttack,
     BonusActionFreeJump,
     ExplorationFreeJumpToggle,
+    SharpEye2024Toggle,
     PrioritizeAction = 10000
 }
 

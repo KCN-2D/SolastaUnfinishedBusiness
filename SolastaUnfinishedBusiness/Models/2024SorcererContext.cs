@@ -1,7 +1,9 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
@@ -23,16 +25,16 @@ namespace SolastaUnfinishedBusiness.Models;
 
 public static partial class Tabletop2024Context
 {
+    private static readonly ConditionalWeakTable<RulesetCondition, RulesetSpellRepertoire>
+        SpellDerivedConditionRepertoires = new();
+
+    private static readonly ConditionalWeakTable<RulesetEffectPower, RulesetSpellRepertoire>
+        SpellDerivedPowerRepertoires = new();
+
     private static readonly ConditionDefinition ConditionSorcererInnateSorcery = ConditionDefinitionBuilder
         .Create("ConditionSorcererInnateSorcery")
         .SetGuiPresentation(Category.Condition, ConditionAuraOfCourage)
-        .SetFeatures(
-            FeatureDefinitionMagicAffinityBuilder
-                .Create("MagicAffinitySorcererInnateSorcery")
-                .SetGuiPresentation("PowerSorcererInnateSorcery", Category.Feature)
-                .SetCastingModifiers(0, SpellParamsModifierType.None, 1)
-                .AddToDB())
-        .AddCustomSubFeatures(new ModifyAttackActionModifierInnateSorcery())
+        .AddCustomSubFeatures(new ModifyMagicEffectAttackModifierInnateSorcery())
         .AddToDB();
 
     private static readonly FeatureDefinitionPower PowerSorcererInnateSorcery = FeatureDefinitionPowerBuilder
@@ -199,6 +201,196 @@ public static partial class Tabletop2024Context
 
         return rulesetCharacter.HasConditionOfCategoryAndType(
             AttributeDefinitions.TagEffect, ConditionSorcererInnateSorcery.Name);
+    }
+
+    internal static void ModifyInnateSorcerySaveDc(
+        RulesetEffectSpell spellEffect,
+        ref int saveDc)
+    {
+        if (spellEffect?.EffectDescription?.HasSavingThrow == true &&
+            IsInnateSorceryValid(spellEffect))
+        {
+            saveDc++;
+        }
+    }
+
+    internal static void ModifyInnateSorcerySaveDc(
+        RulesetEffectPower powerEffect,
+        ref int saveDc)
+    {
+        if (!TryGetSpellDerivedPowerRepertoire(powerEffect, out var spellRepertoire) ||
+            !IsSorcererSpellRepertoire(spellRepertoire))
+        {
+            return;
+        }
+
+        if (powerEffect.EffectDescription.DifficultyClassComputation ==
+            EffectDifficultyClassComputation.SpellCastingFeature)
+        {
+            saveDc = spellRepertoire.SaveDC;
+        }
+
+        if (powerEffect.EffectDescription.HasSavingThrow && IsInnateSorceryValid(spellRepertoire))
+        {
+            saveDc++;
+        }
+    }
+
+    internal static void ModifyInnateSorcerySaveDc(
+        RulesetCondition condition,
+        ref int saveDc)
+    {
+        if (condition != null &&
+            IsInnateSorceryValid(GetSpellDerivedConditionRepertoire(condition)))
+        {
+            saveDc++;
+        }
+    }
+
+    internal static void BindSpellDerivedPowerOrigin(RulesetEffectPower powerEffect)
+    {
+        if (powerEffect == null)
+        {
+            return;
+        }
+
+        SpellDerivedPowerRepertoires.Remove(powerEffect);
+
+        if (TryResolveSpellDerivedPowerRepertoire(powerEffect, out var spellRepertoire))
+        {
+            SpellDerivedPowerRepertoires.Add(powerEffect, spellRepertoire);
+        }
+    }
+
+    internal static void BindSpellDerivedConditionOrigin(
+        RulesetCondition condition,
+        RulesetSpellRepertoire spellRepertoire)
+    {
+        if (condition == null)
+        {
+            return;
+        }
+
+        SpellDerivedConditionRepertoires.Remove(condition);
+
+        if (spellRepertoire != null)
+        {
+            SpellDerivedConditionRepertoires.Add(condition, spellRepertoire);
+        }
+    }
+
+    internal static void UnbindSpellDerivedConditionOrigin(RulesetCondition condition)
+    {
+        if (condition != null)
+        {
+            SpellDerivedConditionRepertoires.Remove(condition);
+        }
+    }
+
+    private static bool IsInnateSorceryValid(RulesetSpellRepertoire spellRepertoire)
+    {
+        return IsSorcererSpellRepertoire(spellRepertoire) &&
+               spellRepertoire.GetCaster()?.HasConditionOfCategoryAndType(
+                   AttributeDefinitions.TagEffect, ConditionSorcererInnateSorcery.Name) == true;
+    }
+
+    private static bool IsInnateSorceryValid(RulesetEffect rulesetEffect)
+    {
+        if (rulesetEffect is RulesetEffectSpell spellEffect)
+        {
+            return spellEffect.OriginItem == null &&
+                   IsInnateSorceryValid(spellEffect.SpellRepertoire);
+        }
+
+        return rulesetEffect is RulesetEffectPower powerEffect &&
+               TryGetSpellDerivedPowerRepertoire(powerEffect, out var spellRepertoire) &&
+               IsInnateSorceryValid(spellRepertoire);
+    }
+
+    private static bool IsSorcererSpellRepertoire(RulesetSpellRepertoire spellRepertoire)
+    {
+        return spellRepertoire?.SpellCastingFeature?.SpellCastingOrigin ==
+                   FeatureDefinitionCastSpell.CastingOrigin.Class &&
+               spellRepertoire.SpellCastingClass == Sorcerer;
+    }
+
+    private static bool TryGetSpellDerivedPowerRepertoire(
+        RulesetEffectPower powerEffect,
+        out RulesetSpellRepertoire spellRepertoire)
+    {
+        spellRepertoire = null;
+
+        if (powerEffect == null || powerEffect.OriginItem != null)
+        {
+            return false;
+        }
+
+        if (SpellDerivedPowerRepertoires.TryGetValue(powerEffect, out spellRepertoire))
+        {
+            return true;
+        }
+
+        if (!TryResolveSpellDerivedPowerRepertoire(powerEffect, out spellRepertoire))
+        {
+            return false;
+        }
+
+        SpellDerivedPowerRepertoires.Add(powerEffect, spellRepertoire);
+
+        return true;
+    }
+
+    private static bool TryResolveSpellDerivedPowerRepertoire(
+        RulesetEffectPower powerEffect,
+        out RulesetSpellRepertoire spellRepertoire)
+    {
+        spellRepertoire = null;
+
+        if (powerEffect == null ||
+            powerEffect.OriginItem != null ||
+            powerEffect.User == null ||
+            powerEffect.PowerDefinition == null)
+        {
+            return false;
+        }
+
+        foreach (var condition in powerEffect.User.AllConditions.Where(x =>
+                     x.ConditionDefinition.Features.Contains(powerEffect.PowerDefinition)))
+        {
+            var candidate = GetSpellDerivedConditionRepertoire(condition);
+
+            if (candidate == null)
+            {
+                continue;
+            }
+
+            // A usable power does not identify which of two equal condition features granted it.
+            // Refuse an ambiguous cross-repertoire origin instead of applying the feature to the wrong spell.
+            if (spellRepertoire != null && spellRepertoire != candidate)
+            {
+                spellRepertoire = null;
+
+                return false;
+            }
+
+            spellRepertoire = candidate;
+        }
+
+        return spellRepertoire != null;
+    }
+
+    private static RulesetSpellRepertoire GetSpellDerivedConditionRepertoire(RulesetCondition condition)
+    {
+        if (SpellDerivedConditionRepertoires.TryGetValue(condition, out var spellRepertoire))
+        {
+            return spellRepertoire;
+        }
+
+        var sourceCharacter = EffectHelpers.GetCharacterByGuid(condition.SourceGuid);
+
+        return sourceCharacter?.SpellsCastByMe
+            .FirstOrDefault(x => x.TrackedConditionGuids.Contains(condition.Guid))
+            ?.SpellRepertoire;
     }
 
     internal static void SwitchSorcererInnateSorcery()
@@ -390,29 +582,22 @@ public static partial class Tabletop2024Context
         }
     }
 
-    private sealed class ModifyAttackActionModifierInnateSorcery : IModifyAttackActionModifier
+    private sealed class ModifyMagicEffectAttackModifierInnateSorcery : IModifyMagicEffectAttackModifier
     {
         private readonly TrendInfo _trendInfo =
             new(1, FeatureSourceType.CharacterFeature, "PowerSorcererInnateSorcery", null);
 
-        public void OnAttackComputeModifier(
-            RulesetCharacter myself,
-            RulesetCharacter defender,
-            BattleDefinitions.AttackProximity attackProximity,
+        public void ModifyMagicEffectAttackModifier(
+            RulesetCharacter attacker,
+            RulesetActor defender,
             RulesetAttackMode attackMode,
-            string effectName,
-            ref ActionModifier attackModifier)
+            RulesetEffect rulesetEffect,
+            ActionModifier actionModifier)
         {
-            if (attackProximity is
-                    not (BattleDefinitions.AttackProximity.MagicRange
-                    or BattleDefinitions.AttackProximity.MagicReach) &&
-                (attackMode is null ||
-                 !attackMode.AttackTags.Contains(AttackAfterMagicEffect.AttackAfterMagicEffectTag)))
+            if (IsInnateSorceryValid(rulesetEffect))
             {
-                return;
+                actionModifier.AttackAdvantageTrends.Add(_trendInfo);
             }
-
-            attackModifier.AttackAdvantageTrends.Add(_trendInfo);
         }
     }
 }

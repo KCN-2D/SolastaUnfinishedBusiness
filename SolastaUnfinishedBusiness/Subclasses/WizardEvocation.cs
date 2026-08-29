@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -57,7 +58,7 @@ public sealed class WizardEvocation : AbstractSubclass
     {
         "PowerCrownOfStars",
         "PowerHolyWeapon",
-        "PowerThunderousSmite"
+        "PowerThunderousSmiteThunderousSmite"
     };
 
     private static readonly FeatureDefinition FeatureSculptSpells = FeatureDefinitionBuilder
@@ -123,7 +124,7 @@ public sealed class WizardEvocation : AbstractSubclass
         var featureEmpoweredEvocation = FeatureDefinitionBuilder
             .Create($"Feature{Name}EmpoweredEvocation")
             .SetGuiPresentation(Category.Feature)
-            .AddCustomSubFeatures(new MagicEffectBeforeHitConfirmedOnEnemyEmpoweredEvocation())
+            .AddCustomSubFeatures(new CustomBehaviorEmpoweredEvocation())
             .AddToDB();
 
         // LEVEL 14
@@ -581,9 +582,55 @@ public sealed class WizardEvocation : AbstractSubclass
     // Empowered Evocation
     //
 
-    private sealed class MagicEffectBeforeHitConfirmedOnEnemyEmpoweredEvocation
-        : IMagicEffectBeforeHitConfirmedOnEnemy, IModifyAdditionalDamage
+    private sealed class CustomBehaviorEmpoweredEvocation
+        : IMagicEffectBeforeInitiatedByMe, IMagicEffectBeforeHitConfirmedOnEnemy, IModifyAdditionalDamage,
+            IMagicEffectFinishedByMe, IModifyMagicEffectAttackModifier, IPhysicalAttackFinishedByMe
     {
+        private static readonly object WizardEvocationMarker = new();
+
+        private readonly ConditionalWeakTable<RulesetAttackMode, object> _wizardBladeCantripAttackModes = new();
+        private readonly ConditionalWeakTable<RulesetEffect, object> _wizardEvocationPowerEffects = new();
+
+        public IEnumerator OnMagicEffectBeforeInitiatedByMe(
+            CharacterAction action,
+            RulesetEffect activeEffect,
+            GameLocationCharacter attacker,
+            List<GameLocationCharacter> targets)
+        {
+            _wizardEvocationPowerEffects.Remove(activeEffect);
+
+            if (activeEffect.SourceDefinition is FeatureDefinition featureDefinition &&
+                SpellsPowerDamages.Contains(featureDefinition.Name) &&
+                IsFeatureGrantedByWizardEvocationSpell(attacker.RulesetCharacter, featureDefinition))
+            {
+                _wizardEvocationPowerEffects.Add(activeEffect, WizardEvocationMarker);
+            }
+
+            yield break;
+        }
+
+        public void ModifyMagicEffectAttackModifier(
+            RulesetCharacter attacker,
+            RulesetActor defender,
+            RulesetAttackMode attackMode,
+            RulesetEffect rulesetEffect,
+            ActionModifier actionModifier)
+        {
+            if (attackMode == null)
+            {
+                return;
+            }
+
+            _wizardBladeCantripAttackModes.Remove(attackMode);
+
+            if (rulesetEffect?.SourceDefinition is SpellDefinition spellDefinition &&
+                BladeCantripAdditionalDamageBySpell.ContainsKey(spellDefinition.Name) &&
+                IsWizardEvocationSpell(rulesetEffect))
+            {
+                _wizardBladeCantripAttackModes.Add(attackMode, WizardEvocationMarker);
+            }
+        }
+
         public IEnumerator OnMagicEffectBeforeHitConfirmedOnEnemy(
             GameLocationBattleManager battleManager,
             GameLocationCharacter attacker,
@@ -594,17 +641,21 @@ public sealed class WizardEvocation : AbstractSubclass
             bool firstTarget,
             bool criticalHit)
         {
-            var isSpell = rulesetEffect.SourceDefinition is SpellDefinition;
-
-            switch (isSpell)
+            if (rulesetEffect.SourceDefinition is SpellDefinition)
             {
-                case false when !SpellsPowerDamages.Contains(rulesetEffect.SourceDefinition.Name):
-                case true when rulesetEffect.SchoolOfMagic != SchoolEvocation:
-                case true when !firstTarget &&
-                               rulesetEffect.EffectDescription.TargetType
-                                   is TargetType.Individuals
-                                   or TargetType.IndividualsUnique:
+                if (!IsWizardEvocationSpell(rulesetEffect) ||
+                    (!firstTarget &&
+                     rulesetEffect.EffectDescription.TargetType is
+                         TargetType.Individuals or TargetType.IndividualsUnique))
+                {
                     yield break;
+                }
+            }
+            else if (rulesetEffect.SourceDefinition is not FeatureDefinition featureDefinition ||
+                     !SpellsPowerDamages.Contains(featureDefinition.Name) ||
+                     !_wizardEvocationPowerEffects.TryGetValue(rulesetEffect, out _))
+            {
+                yield break;
             }
 
             var effectForm = actualEffectForms
@@ -632,7 +683,19 @@ public sealed class WizardEvocation : AbstractSubclass
         {
             var featureName = featureDefinitionAdditionalDamage.Name;
 
-            if (!CantripsAdditionalDamages.Contains(featureName) && !SpellsAdditionalDamages.Contains(featureName))
+            if (CantripsAdditionalDamages.Contains(featureName))
+            {
+                if (attackMode == null ||
+                    !_wizardBladeCantripAttackModes.TryGetValue(attackMode, out _))
+                {
+                    return;
+                }
+            }
+            else if (!SpellsAdditionalDamages.Contains(featureName) ||
+                     !IsAdditionalDamageGrantedByWizardEvocationSpell(
+                         attacker.RulesetCharacter,
+                         attackMode,
+                         featureDefinitionAdditionalDamage))
             {
                 return;
             }
@@ -641,6 +704,84 @@ public sealed class WizardEvocation : AbstractSubclass
                 attacker.RulesetCharacter.TryGetAttributeValue(AttributeDefinitions.Intelligence));
 
             damageForm.BonusDamage += Math.Max(1, intelligenceModifier);
+        }
+
+        public IEnumerator OnMagicEffectFinishedByMe(
+            CharacterAction action,
+            GameLocationCharacter attacker,
+            List<GameLocationCharacter> targets)
+        {
+            var rulesetEffect = action.ActionParams.RulesetEffect;
+
+            if (rulesetEffect != null)
+            {
+                _wizardEvocationPowerEffects.Remove(rulesetEffect);
+            }
+
+            yield break;
+        }
+
+        public IEnumerator OnPhysicalAttackFinishedByMe(
+            GameLocationBattleManager battleManager,
+            CharacterAction action,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            RulesetAttackMode attackMode,
+            RollOutcome rollOutcome,
+            int damageAmount)
+        {
+            if (attackMode != null)
+            {
+                _wizardBladeCantripAttackModes.Remove(attackMode);
+            }
+
+            yield break;
+        }
+
+        private static bool IsWizardEvocationSpell(RulesetEffect rulesetEffect)
+        {
+            return rulesetEffect is RulesetEffectSpell rulesetEffectSpell &&
+                   rulesetEffectSpell.OriginItem == null &&
+                   rulesetEffectSpell.SpellRepertoire?.SpellCastingFeature?.SpellCastingOrigin ==
+                       FeatureDefinitionCastSpell.CastingOrigin.Class &&
+                   rulesetEffectSpell.SpellRepertoire.SpellCastingClass == CharacterClassDefinitions.Wizard &&
+                   rulesetEffectSpell.SpellDefinition.SchoolOfMagic == SchoolEvocation;
+        }
+
+        private static bool IsFeatureGrantedByWizardEvocationSpell(
+            RulesetCharacter featureOwner,
+            FeatureDefinition featureDefinition)
+        {
+            return featureOwner.AllConditions
+                .Where(x => x.ConditionDefinition.Features.Contains(featureDefinition))
+                .Any(condition =>
+                {
+                    var sourceCharacter = EffectHelpers.GetCharacterByGuid(condition.SourceGuid);
+
+                    return sourceCharacter?.SpellsCastByMe.Any(x =>
+                        x.TrackedConditionGuids.Contains(condition.Guid) && IsWizardEvocationSpell(x)) == true;
+                });
+        }
+
+        private static bool IsAdditionalDamageGrantedByWizardEvocationSpell(
+            RulesetCharacter featureOwner,
+            RulesetAttackMode attackMode,
+            FeatureDefinitionAdditionalDamage featureDefinitionAdditionalDamage)
+        {
+            if (attackMode?.SourceObject is RulesetItem rulesetItem)
+            {
+                var itemProperties = rulesetItem.DynamicItemProperties
+                    .Where(x => x.FeatureDefinition == featureDefinitionAdditionalDamage)
+                    .ToArray();
+
+                if (itemProperties.Length > 0)
+                {
+                    return itemProperties.Any(x =>
+                        IsWizardEvocationSpell(EffectHelpers.GetEffectByGuid(x.SourceEffectGuid)));
+                }
+            }
+
+            return IsFeatureGrantedByWizardEvocationSpell(featureOwner, featureDefinitionAdditionalDamage);
         }
     }
 

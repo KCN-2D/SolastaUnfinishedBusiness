@@ -20,3 +20,7 @@ public interface IModifyAbilityCheck
         ref int rollModifier,
         ref int minRoll);
 }
+
+public interface IRequireAbilityCheckRoll
+{
+}

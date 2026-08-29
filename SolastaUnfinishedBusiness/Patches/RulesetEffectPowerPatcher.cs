@@ -9,6 +9,7 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using static RuleDefinitions;
 using static RuleDefinitions.RechargeRate;
 using static RuleDefinitions.UsesDetermination;
@@ -30,6 +31,12 @@ public static class RulesetEffectPowerPatcher
     // ReSharper disable once InconsistentNaming
     public static class RulesetEffectPower_Ctor_Patch
     {
+        [UsedImplicitly]
+        public static void Postfix(RulesetEffectPower __instance)
+        {
+            Tabletop2024Context.BindSpellDerivedPowerOrigin(__instance);
+        }
+
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
         {
@@ -74,6 +81,8 @@ public static class RulesetEffectPowerPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetEffectPower __instance, ref int __result)
         {
+            Tabletop2024Context.ModifyInnateSorcerySaveDc(__instance, ref __result);
+
             //PATCH: allow devices have DC based on user or item summoner stats, instead of static value
             var originItem = __instance.OriginItem;
 

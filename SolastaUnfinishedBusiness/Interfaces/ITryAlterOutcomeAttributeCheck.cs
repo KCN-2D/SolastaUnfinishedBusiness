@@ -20,6 +20,24 @@ public interface ITryAlterOutcomeAttributeCheck
         GameLocationCharacter helper);
 }
 
+public interface IAttributeCheckOutcomeFinalizedByMe
+{
+    void OnAttributeCheckOutcomeFinalized(
+        AbilityCheckData abilityCheckData,
+        GameLocationCharacter actingCharacter,
+        int rawRoll);
+}
+
+public interface IAttributeCheckRolledByMe
+{
+    void OnAttributeCheckRolled(
+        RulesetCharacter rulesetCharacter,
+        RollOutcome outcome,
+        int rawRoll,
+        List<TrendInfo> modifierTrends,
+        List<TrendInfo> advantageTrends);
+}
+
 public sealed class AbilityCheckData
 {
     public int AbilityCheckRoll { get; set; }
@@ -208,6 +226,8 @@ internal static class TryAlterOutcomeAttributeCheck
                 advantageTrends, modifierTrends, ref rollModifier, ref minRoll);
         }
 
+        advantageType = ComputeAdvantage(advantageTrends);
+
         var roll = rulesetCharacter.RollDie(
             dieType, rollContext, isProficient, advantageType, out _, out _,
             enumerateFeatures, canRerollDice, skill);
@@ -304,7 +324,7 @@ internal static class TryAlterOutcomeAttributeCheck
         PrepareActorAbilityCheckData();
 
         yield return HandleITryAlterOutcomeAttributeCheck(
-            GameLocationCharacter.GetFromActor(rulesetCharacter), abilityCheckData, rawRoll);
+            GameLocationCharacter.GetFromActor(rulesetCharacter), abilityCheckData, rawRoll, finalizeOutcome: false);
 
         totalRoll = totalRoll - rawRoll + abilityCheckData.AbilityCheckRoll +
                     abilityCheckData.AbilityCheckActionModifier.AbilityCheckModifier;
@@ -315,7 +335,8 @@ internal static class TryAlterOutcomeAttributeCheck
         PrepareOpponentAbilityCheckData();
 
         yield return HandleITryAlterOutcomeAttributeCheck(
-            GameLocationCharacter.GetFromActor(opponent), opponentAbilityCheckData, opponentRawRoll);
+            GameLocationCharacter.GetFromActor(opponent), opponentAbilityCheckData, opponentRawRoll,
+            finalizeOutcome: false);
 
         opponentTotalRoll = opponentTotalRoll - opponentRawRoll + opponentAbilityCheckData.AbilityCheckRoll +
                             opponentAbilityCheckData.AbilityCheckActionModifier.AbilityCheckModifier;
@@ -325,6 +346,10 @@ internal static class TryAlterOutcomeAttributeCheck
         // calculate final results
         PrepareActorAbilityCheckData();
         PrepareOpponentAbilityCheckData();
+        HandleIAttributeCheckOutcomeFinalizedByMe(
+            GameLocationCharacter.GetFromActor(rulesetCharacter), abilityCheckData, rawRoll);
+        HandleIAttributeCheckOutcomeFinalizedByMe(
+            GameLocationCharacter.GetFromActor(opponent), opponentAbilityCheckData, opponentRawRoll);
 
         rulesetCharacter.ProcessConditionsMatchingInterruption(ConditionInterruption.AbilityCheck);
         opponent.ProcessConditionsMatchingInterruption(ConditionInterruption.AbilityCheck);
@@ -375,7 +400,7 @@ internal static class TryAlterOutcomeAttributeCheck
     }
 
     internal static IEnumerator HandleITryAlterOutcomeAttributeCheck(GameLocationCharacter actingCharacter,
-        AbilityCheckData abilityCheckData, int rawRoll)
+        AbilityCheckData abilityCheckData, int rawRoll, bool finalizeOutcome = true)
     {
         var battleManager = ServiceRepository.GetService<IGameLocationBattleService>()
             as GameLocationBattleManager;
@@ -408,6 +433,28 @@ internal static class TryAlterOutcomeAttributeCheck
                 yield return tryAlterOutcomeAttributeCheck.OnTryAlterAttributeCheck(
                     battleManager, rawRoll, abilityCheckData, actingCharacter, unit);
             }
+        }
+
+        if (finalizeOutcome)
+        {
+            HandleIAttributeCheckOutcomeFinalizedByMe(actingCharacter, abilityCheckData, rawRoll);
+        }
+    }
+
+    private static void HandleIAttributeCheckOutcomeFinalizedByMe(
+        GameLocationCharacter actingCharacter,
+        AbilityCheckData abilityCheckData,
+        int rawRoll)
+    {
+        if (actingCharacter?.RulesetCharacter == null)
+        {
+            return;
+        }
+
+        foreach (var handler in actingCharacter.RulesetCharacter
+                     .GetSubFeaturesByType<IAttributeCheckOutcomeFinalizedByMe>())
+        {
+            handler.OnAttributeCheckOutcomeFinalized(abilityCheckData, actingCharacter, rawRoll);
         }
     }
 

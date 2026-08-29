@@ -508,7 +508,7 @@ ModUi/&UseWeaponMasterySystemFlurryTriggersMastery=<i>+二連猛攻の追加攻�
 ModUi/&UseWeaponMasterySystemNickExtraAttackTriggersMastery=<i>+連撃マスタリーの追加攻撃で別の武器マスタリーを発動できます</i>
 ModUi/&UseWeaponMasterySystemNickDualFlurry=<i>+連撃マスタリーの追加攻撃で二連猛攻を発動できます</i>
 ModUi/&UseWeaponMasterySystemPushSave=<i>+押し出しマスタリーでは、クリーチャーは筋力セーヴィング・スロー（難易度8+攻撃ロール能力修正値+習熟ボーナス）を行う必要があります</i>
-ModUi/&UseWeaponMasterySystemAlternateProperties=<i>+少し調べた実際の武器特性を反映した代替武器特性を使用します。ショートボウの「崩し」は不自然です<b><i><color=#C04040E0>（再起動が必要）</color></i></b></i>
+ModUi/&UseWeaponMasterySystemAlternateProperties=<i>+少し調べた実際の武器特性を反映した代替武器特性を使用します。ショートボウの〈崩し〉は不自然です<b><i><color=#C04040E0>（再起動が必要）</color></i></b></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white><color=#D89555>ソーサラーの荒ぶる魔法</color>の確率ダイスしきい値を設定します：</color>\n<i><color=#F0DAA0>（ロールがしきい値以下であればワイルドサージが発動します）</color></i>
 ModUI/&ModifyJumpRulesForArmorAndEncumberance=荷重と鎧によるペナルティを跳躍距離に適用します
 ModUI/&EnableBonusActionFreeJump=ボーナス・アクション跳躍を有効化します

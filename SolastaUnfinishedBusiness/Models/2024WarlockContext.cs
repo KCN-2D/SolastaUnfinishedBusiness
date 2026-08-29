@@ -35,16 +35,12 @@ public static partial class Tabletop2024Context
         .Create("InvocationPactBlade")
         .SetGuiPresentation(
             FeatureSetPactBlade.GuiPresentation.Title,
-            FeatureSetPactBlade.GuiPresentation.Description,
+            "Feature/&FeatureSetPactBladeAlternateDescription",
             ThirstingBlade)
         .SetGrantedFeature(FeatureSetPactBlade)
         .AddCustomSubFeatures(
             new CanUseAttribute(
-                CanUseAttribute.SpellCastingAbilityTag, (mode, _, character) =>
-                    mode.ActionType != ActionDefinitions.ActionType.Bonus &&
-                    ValidatorsWeapon.IsMelee(mode) ||
-                    (ValidatorsWeapon.IsTwoHandedRanged(mode) &&
-                     character.HasActiveInvocation(InvocationsBuilders.ImprovedPactWeapon))))
+                AttributeDefinitions.Charisma, IsPactBladeWeapon))
         .AddToDB();
 
     private static readonly InvocationDefinition InvocationPactChain = InvocationDefinitionBuilder
@@ -241,6 +237,17 @@ public static partial class Tabletop2024Context
         GuiWrapperContext.RecacheInvocations();
 
         Warlock.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+    }
+
+    private static bool IsPactBladeWeapon(
+        RulesetAttackMode mode,
+        RulesetItem _,
+        RulesetCharacter character)
+    {
+        return mode?.SourceDefinition is ItemDefinition { IsWeapon: true } itemDefinition &&
+               (ValidatorsWeapon.IsMelee(itemDefinition) ||
+                (ValidatorsWeapon.IsTwoHandedRanged(mode) &&
+                 character.HasActiveInvocation(InvocationsBuilders.ImprovedPactWeapon)));
     }
 
     private sealed class PowerOrSpellFinishedByMeInvocationOneWithShadows : IPowerOrSpellFinishedByMe

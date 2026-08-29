@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Feats;
@@ -12,6 +13,8 @@ namespace SolastaUnfinishedBusiness.Behaviors.Specific;
 internal sealed class AttackAfterMagicEffect(AttackAfterMagicEffect.AttackType attackType, bool firstTargetOnly)
     : IFilterTargetingCharacter
 {
+    private static readonly ConditionalWeakTable<RulesetAttackMode, RulesetEffect> OriginatingEffects = new();
+
     internal const string AttackAfterMagicEffectTag = "AttackAfterMagicEffectTag";
 
     private const RollOutcome MinOutcomeToAttack = RollOutcome.Success;
@@ -170,6 +173,13 @@ internal sealed class AttackAfterMagicEffect(AttackAfterMagicEffect.AttackType a
             //handle interaction with Potent Spell Caster feat and blade cantrips
             ClassFeats.CustomBehaviorFeatPotentSpellcaster.HandleBladeCantrips(caster, actionMagicEffect, attackMode);
 
+            OriginatingEffects.Remove(attackMode);
+
+            if (actionParams.RulesetEffect != null)
+            {
+                OriginatingEffects.Add(attackMode, actionParams.RulesetEffect);
+            }
+
             // always use free attack
             var attackActionParams =
                 new CharacterActionParams(caster, ActionDefinitions.Id.AttackFree) { AttackMode = attackMode };
@@ -180,6 +190,18 @@ internal sealed class AttackAfterMagicEffect(AttackAfterMagicEffect.AttackType a
         }
 
         return attacks;
+    }
+
+    internal static RulesetEffect ConsumeOriginatingEffect(RulesetAttackMode attackMode)
+    {
+        if (attackMode == null || !OriginatingEffects.TryGetValue(attackMode, out var rulesetEffect))
+        {
+            return null;
+        }
+
+        OriginatingEffects.Remove(attackMode);
+
+        return rulesetEffect;
     }
 
     [Flags]

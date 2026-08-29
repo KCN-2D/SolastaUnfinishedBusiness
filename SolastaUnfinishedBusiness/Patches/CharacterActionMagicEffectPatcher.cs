@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -723,6 +723,17 @@ public static class CharacterActionMagicEffectPatcher
                 yield break;
             }
 
+            //PATCH: supports `IMagicEffectBeforeInitiatedByMe`
+            foreach (var magicEffectBeforeInitiatedByMe in actingCharacter.RulesetCharacter
+                         .GetSubFeaturesByType<IMagicEffectBeforeInitiatedByMe>())
+            {
+                yield return magicEffectBeforeInitiatedByMe.OnMagicEffectBeforeInitiatedByMe(
+                    __instance,
+                    rulesetEffect,
+                    actingCharacter,
+                    targets);
+            }
+
             //PATCH: supports `IPowerOrSpellInitiatedByMe`
             var powerOrSpellInitiatedByMe = baseDefinition.GetFirstSubFeatureOfType<IPowerOrSpellInitiatedByMe>();
 
@@ -1196,6 +1207,17 @@ public static class CharacterActionMagicEffectPatcher
 
             if (needToRollDie)
             {
+                foreach (var modifier in actingCharacter.RulesetCharacter
+                             .GetSubFeaturesByType<IModifyMagicEffectAttackModifier>())
+                {
+                    modifier.ModifyMagicEffectAttackModifier(
+                        actingCharacter.RulesetCharacter,
+                        rulesetTarget,
+                        null,
+                        rulesetEffect,
+                        actionModifier);
+                }
+
                 // Roll dice + handle target reaction
                 __instance.AttackRoll = actingCharacter.RulesetCharacter.RollMagicAttack(
                     rulesetEffect,

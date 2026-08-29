@@ -81,7 +81,7 @@ You were a member of a town guard or the civil militia dedicated to the protecti
 
 - Proficiency in light armor.
 - Proficiency in short sword and spear.
-- Athletics, Deception and Intimidation
+- Investigation, Perception and Intimidation
 - 3 x Torch, 1 x 10 gold pieces
 
 # 11. - Occultist [SOL]

@@ -76,6 +76,7 @@ public static partial class Tabletop2024Context
     private const string Alert2024ReadyStepConditionName = "ConditionFeatAlert2024ReadyStep";
     private const string Healer2024FeatName = "FeatHealer2024";
     private const string Lucky2024FeatName = "FeatLucky2024";
+    private const string Musician2024FeatName = "FeatMusician2024";
     private const string Lucky2024PoolPowerName = "PowerFeatLucky2024Pool";
     private const string Lucky2024AdvantagePowerName = "PowerFeatLucky2024Advantage";
     private const string Lucky2024AdvantageActionName = "Lucky2024AdvantageToggle";
@@ -84,6 +85,12 @@ public static partial class Tabletop2024Context
     private static readonly Id Lucky2024AdvantageToggleActionId = (Id)ExtraActionId.Lucky2024AdvantageToggle;
     private const string SavageAttacker2024FeatName = "FeatSavageAttack2024";
     internal const string SavageAttacker2024SpecialFeatureName = "SavageAttacker2024";
+    private const string SharpEye2024FeatName = "FeatSharpEye2024";
+    private const string SharpEye2024ToggleActionName = "SharpEye2024Toggle";
+    private static readonly Id SharpEye2024ToggleActionId = (Id)ExtraActionId.SharpEye2024Toggle;
+    private const string Survivor2024FeatName = "FeatSurvivor2024";
+    private const string TavernBrawler2024FeatName = "FeatTavernBrawler2024";
+    private const string TavernBrawler2024PushSpecialFeatureName = "TavernBrawler2024Push";
     private const string FeyTeleport2024Family = "FeyTeleport";
     private const string FeyTouched2024Family = "FeyTouched2024";
     private const string FeyTouched2024ChoiceTag = "FeyTouched2024Choice";
@@ -118,12 +125,30 @@ public static partial class Tabletop2024Context
         new("Warlock", "CastSpellWarlock", () => ClassHolder.Warlock),
         new("Wizard", "CastSpellWizard", () => ClassHolder.Wizard)
     ];
+    private static readonly HashSet<string> SelectableMagicInitiate2024ClassNames =
+    [
+        "Cleric",
+        "Druid",
+        "Wizard"
+    ];
     private static readonly string[] MagicInitiate2024SpellSelectionTags = MagicInitiate2024ClassProfiles
         .Select(profile => GetMagicInitiate2024SpellTag(profile.ClassName))
         .Append(MagicInitiate2024SpellTag)
         .ToArray();
     private static readonly HashSet<string> MagicInitiate2024SpellSelectionTagNames = MagicInitiate2024SpellSelectionTags
         .ToHashSet(StringComparer.Ordinal);
+    private static readonly HashSet<string> SharpEye2024SkillNames =
+    [
+        SkillDefinitions.Arcana,
+        SkillDefinitions.History,
+        SkillDefinitions.Insight,
+        SkillDefinitions.Investigation,
+        SkillDefinitions.Medecine,
+        SkillDefinitions.Nature,
+        SkillDefinitions.Perception,
+        SkillDefinitions.Religion,
+        SkillDefinitions.Survival
+    ];
     private const string ModeratelyArmored2024Family = "ModeratelyArmored2024";
     private const string HeavilyArmored2024Family = "HeavilyArmored2024";
     private const string HeavilyArmored2024GroupFeatName = "FeatGroupHeavilyArmored2024";
@@ -466,7 +491,11 @@ public static partial class Tabletop2024Context
     private static FeatDefinition _featDurable2024;
     private static FeatDefinition _featHealer2024;
     private static FeatDefinition _featLucky2024;
+    private static FeatDefinition _featMusician2024;
     private static FeatDefinition _featSavageAttack2024;
+    private static FeatDefinition _featSharpEye2024;
+    private static FeatDefinition _featSurvivor2024;
+    private static FeatDefinition _featTavernBrawler2024;
     private static FeatDefinition _featGrappler2024Dex;
     private static FeatDefinition _featGrappler2024Str;
     private static FeatDefinition _featGroupCharger2024;
@@ -601,6 +630,7 @@ public static partial class Tabletop2024Context
         }
 
         RefreshModeAwareOriginFeatDefinitions();
+        SwitchBackgroundBonusFeats();
         ClearPendingFeatSelections();
         FeatsContext.ClearFeatSubPanel2024UiState();
 
@@ -731,14 +761,228 @@ public static partial class Tabletop2024Context
         _featAlert2024 = BuildAlert2024();
         _featHealer2024 = BuildHealer2024();
         _featLucky2024 = BuildLucky2024();
+        _featMusician2024 = BuildMusician2024();
         _featSavageAttack2024 = BuildSavageAttack2024();
+        _featSharpEye2024 = BuildSharpEye2024();
+        _featSurvivor2024 = BuildSurvivor2024();
+        _featTavernBrawler2024 = BuildTavernBrawler2024();
 
-        foreach (var feat in new[] { _featAlert2024, _featHealer2024, _featLucky2024, _featSavageAttack2024 }
+        foreach (var feat in new[]
+                 {
+                     _featAlert2024,
+                     _featHealer2024,
+                     _featLucky2024,
+                     _featMusician2024,
+                     _featSavageAttack2024,
+                     _featSharpEye2024,
+                     _featSurvivor2024,
+                     _featTavernBrawler2024
+                 }
                      .Where(feat => feat != null))
         {
             SetFeatVisibility(feat, false);
             RegisterManagedTabletopFeats(true, feat);
         }
+    }
+
+    private static FeatDefinition BuildMusician2024()
+    {
+        var lyreProficiency = FeatureDefinitionProficiencyBuilder
+            .Create("ProficiencyFeatMusician2024Lyre")
+            .SetGuiPresentationNoContent(true)
+            .SetProficiencies(
+                ProficiencyType.Tool,
+                ToolMusicalInstrumentLyreTypeName)
+            .AddToDB();
+        var condition = ConditionDefinitionBuilder
+            .Create("ConditionFeatMusician2024HeroicInspiration")
+            .SetGuiPresentation(
+                "Condition/&ConditionFeatMusician2024HeroicInspirationTitle",
+                "Condition/&ConditionFeatMusician2024HeroicInspirationDescription",
+                ConditionDefinitions.ConditionBardicInspiration)
+            .AddToDB();
+
+        condition.AddCustomSubFeatures(new CustomBehaviorHeroicInspiration2024(condition));
+
+        var power = FeatureDefinitionPowerBuilder
+            .Create("PowerFeatMusician2024Performance")
+            .SetGuiPresentation(
+                "Feature/&PowerFeatMusician2024PerformanceTitle",
+                "Feature/&PowerFeatMusician2024PerformanceDescription",
+                FeatureDefinitionPowers.PowerBardGiveBardicInspiration)
+            .SetUsesFixed(ActivationTime.Minute10)
+            .SetShowCasting(false)
+            .SetEffectDescription(
+                EffectDescriptionBuilder
+                    .Create()
+                    .SetDurationData(DurationType.Permanent)
+                    .SetTargetingData(Side.Ally, RangeType.Distance, 24, TargetType.IndividualsUnique)
+                    .ExcludeCaster()
+                    .SetEffectForms(EffectFormBuilder.ConditionForm(condition))
+                    .SetParticleEffectParameters(Bless)
+                    .Build())
+            .AddCustomSubFeatures(
+                new FilterTargetingCharacterMusician2024(condition),
+                new ValidatePowerUseMusician2024(condition))
+            .AddToDB();
+
+        return FeatDefinitionBuilder
+            .Create(Musician2024FeatName)
+            .SetGuiPresentation(
+                "Feat/&FeatMusician2024Title",
+                "Feat/&FeatMusician2024Description",
+                hidden: false)
+            .SetFeatures(lyreProficiency, power)
+            .AddToDB();
+    }
+
+    private static FeatDefinition BuildSharpEye2024()
+    {
+        var cautiousAction = GetDefinition<ActionDefinition>("Cautious");
+        var power = FeatureDefinitionPowerBuilder
+            .Create("PowerFeatSharpEye2024")
+            .SetGuiPresentation(
+                "Feature/&PowerFeatSharpEye2024Title",
+                "Feature/&PowerFeatSharpEye2024Description",
+                cautiousAction)
+            .SetUsesProficiencyBonus(ActivationTime.NoCost, RechargeRate.LongRest)
+            .SetShowCasting(false)
+            .DelegatedToAction()
+            .AddCustomSubFeatures(ModifyPowerVisibility.Hidden)
+            .AddToDB();
+
+        _ = ActionDefinitionBuilder
+            .Create(MetamagicToggle, SharpEye2024ToggleActionName)
+            .SetOrUpdateGuiPresentation(power.Name, Category.Feature, cautiousAction)
+            .RequiresAuthorization()
+            .SetActionId(ExtraActionId.SharpEye2024Toggle)
+            .SetActivatedPower(power)
+            .SetActionScope(ActionScope.All)
+            .SetActionType(ActionType.NoCost)
+            .OverrideClassName("Toggle")
+            .AddToDB();
+
+        var actionAffinity = FeatureDefinitionActionAffinityBuilder
+            .Create(
+                FeatureDefinitionActionAffinitys.ActionAffinitySorcererMetamagicToggle,
+                "ActionAffinitySharpEye2024Toggle")
+            .SetGuiPresentationNoContent(true)
+            .SetAuthorizedActions(SharpEye2024ToggleActionId)
+            .AddCustomSubFeatures(
+                new ValidateDefinitionApplication(ValidatorsCharacter.HasAvailablePowerUsage(power)))
+            .AddToDB();
+        var feature = FeatureDefinitionBuilder
+            .Create("FeatureFeatSharpEye2024")
+            .SetGuiPresentationNoContent(true)
+            .AddCustomSubFeatures(
+                new CustomBehaviorSharpEye2024(power, SharpEye2024ToggleActionId))
+            .AddToDB();
+
+        return FeatDefinitionBuilder
+            .Create(SharpEye2024FeatName)
+            .SetGuiPresentation(
+                "Feat/&FeatSharpEye2024Title",
+                "Feat/&FeatSharpEye2024Description",
+                hidden: false)
+            .SetFeatures(power, actionAffinity, feature)
+            .AddToDB();
+    }
+
+    private static FeatDefinition BuildSurvivor2024()
+    {
+        var powerSteelYourself = FeatureDefinitionPowerBuilder
+            .Create("PowerFeatSurvivor2024SteelYourself")
+            .SetGuiPresentation(
+                "Feature/&PowerFeatSurvivor2024SteelYourselfTitle",
+                "Feature/&PowerFeatSurvivor2024SteelYourselfDescription")
+            .SetUsesFixed(ActivationTime.NoCost, RechargeRate.LongRest)
+            .SetShowCasting(false)
+            .AddCustomSubFeatures(ModifyPowerVisibility.Hidden)
+            .AddToDB();
+        var feature = FeatureDefinitionBuilder
+            .Create("FeatureFeatSurvivor2024")
+            .SetGuiPresentationNoContent(true)
+            .AddCustomSubFeatures(
+                new ModifyDiceRollSurvivor2024(),
+                new TryAlterOutcomeSavingThrowSurvivor2024(powerSteelYourself))
+            .AddToDB();
+
+        return FeatDefinitionBuilder
+            .Create(Survivor2024FeatName)
+            .SetGuiPresentation(
+                "Feat/&FeatSurvivor2024Title",
+                "Feat/&FeatSurvivor2024Description",
+                hidden: false)
+            .SetFeatures(powerSteelYourself, feature)
+            .AddToDB();
+    }
+
+    private static FeatDefinition BuildTavernBrawler2024()
+    {
+        var dieRollModifier = FeatureDefinitionDieRollModifierBuilder
+            .Create("DieRollModifierFeatTavernBrawler2024")
+            .SetGuiPresentationNoContent(true)
+            .SetModifiers(
+                RollContext.AttackDamageValueRoll,
+                1,
+                0,
+                1,
+                "Feedback/&FeatBrawlerReroll")
+            .AddToDB();
+        var rerollCondition = ConditionDefinitionBuilder
+            .Create("ConditionFeatTavernBrawler2024DamageReroll")
+            .SetGuiPresentationNoContent(true)
+            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetFeatures(dieRollModifier)
+            .AddCustomSubFeatures(new AllowRerollDiceTavernBrawler2024())
+            .AddToDB();
+        var powerPool = FeatureDefinitionPowerBuilder
+            .Create("PowerFeatTavernBrawler2024PushPool")
+            .SetGuiPresentationNoContent(true)
+            .SetUsesFixed(ActivationTime.NoCost)
+            .SetShowCasting(false)
+            .AddToDB();
+        var powerPush = FeatureDefinitionPowerSharedPoolBuilder
+            .Create("PowerFeatTavernBrawler2024Push")
+            .SetGuiPresentation(
+                "Feature/&PowerFeatTavernBrawler2024PushTitle",
+                "Feature/&PowerFeatTavernBrawler2024PushDescription",
+                hidden: true)
+            .SetSharedPool(ActivationTime.NoCost, powerPool)
+            .SetShowCasting(false)
+            .SetEffectDescription(
+                EffectDescriptionBuilder
+                    .Create()
+                    .SetTargetingData(Side.Enemy, RangeType.Distance, 1, TargetType.IndividualsUnique)
+                    .SetEffectForms(
+                        EffectFormBuilder
+                            .Create()
+                            .SetMotionForm(MotionForm.MotionType.PushFromOrigin, 1)
+                            .Build())
+                    .Build())
+            .AddCustomSubFeatures(ModifyPowerVisibility.Hidden)
+            .AddToDB();
+
+        PowerBundle.RegisterPowerBundle(powerPool, true, powerPush);
+
+        var feature = FeatureDefinitionBuilder
+            .Create("FeatureFeatTavernBrawler2024")
+            .SetGuiPresentationNoContent(true)
+            .AddCustomSubFeatures(
+                new UpgradeWeaponDice(
+                    (_, damage) => (Math.Max(1, damage.DiceNumber), DieType.D4, DieType.D4),
+                    (attackMode, _, _) => ValidatorsWeapon.IsUnarmed(attackMode)),
+                new CustomBehaviorTavernBrawler2024(rerollCondition, powerPool))
+            .AddToDB();
+
+        return FeatDefinitionBuilder
+            .Create(TavernBrawler2024FeatName)
+            .SetGuiPresentation(
+                "Feat/&FeatTavernBrawler2024Title",
+                "Feat/&FeatTavernBrawler2024Description",
+                hidden: false)
+            .SetFeatures(powerPool, powerPush, feature)
+            .AddToDB();
     }
 
     private static FeatureDefinitionProficiency BuildSkillOrExpertiseProficiency2024(
@@ -1210,7 +1454,7 @@ public static partial class Tabletop2024Context
             or RollContext.DeathSavingThrow;
     }
 
-    private static bool TryGetLucky2024UsablePower(
+    private static bool TryGetUsablePower(
         RulesetCharacter rulesetCharacter,
         FeatureDefinitionPower power,
         out RulesetUsablePower usablePower)
@@ -1222,9 +1466,9 @@ public static partial class Tabletop2024Context
                rulesetCharacter.GetRemainingUsesOfPower(usablePower) > 0;
     }
 
-    private static bool CanUseLucky2024Advantage(
+    private static bool CanUsePowerToggle(
         RulesetCharacter rulesetCharacter,
-        FeatureDefinitionPower powerAdvantage,
+        FeatureDefinitionPower power,
         Id toggleActionId,
         out RulesetUsablePower usablePower)
     {
@@ -1236,7 +1480,7 @@ public static partial class Tabletop2024Context
             return false;
         }
 
-        var canUse = TryGetLucky2024UsablePower(rulesetCharacter, powerAdvantage, out usablePower);
+        var canUse = TryGetUsablePower(rulesetCharacter, power, out usablePower);
 
         if (!canUse)
         {
@@ -1262,7 +1506,7 @@ public static partial class Tabletop2024Context
                attacker.RulesetCharacter is not RulesetCharacterEffectProxy &&
                attackModifier != null &&
                rulesetDefender is { IsDeadOrDyingOrUnconscious: false } &&
-               TryGetLucky2024UsablePower(rulesetDefender, powerPool, out usablePower);
+               TryGetUsablePower(rulesetDefender, powerPool, out usablePower);
     }
 
     private static bool IsLucky2024MagicAttack(
@@ -3240,6 +3484,18 @@ public static partial class Tabletop2024Context
         return $"{MagicInitiate2024SpellTag}{className}";
     }
 
+    private static bool IsSelectableMagicInitiate2024Class(string className)
+    {
+        return !string.IsNullOrEmpty(className) && SelectableMagicInitiate2024ClassNames.Contains(className);
+    }
+
+    private static bool IsSelectableMagicInitiate2024LegacyFeatName(string featName)
+    {
+        return MagicInitiate2024ClassProfiles.Any(profile =>
+            IsSelectableMagicInitiate2024Class(profile.ClassName) &&
+            GetMagicInitiate2024LegacyFeatName(profile.ClassName) == featName);
+    }
+
     private static bool TryGetMagicInitiate2024SpellSelectionTag(string tag, out string selectionTag)
     {
         return TryGetSpellSelectionTagBySuffix(tag, MagicInitiate2024SpellSelectionTags, out selectionTag);
@@ -3352,7 +3608,11 @@ public static partial class Tabletop2024Context
                 .AddCustomSubFeatures(FeatsContext.HideFromFeats.Marker)
                 .AddToDB();
 
-            magicInitiateFeats.Add(feat);
+            if (IsSelectableMagicInitiate2024Class(className))
+            {
+                magicInitiateFeats.Add(feat);
+            }
+
             MagicInitiate2024ByLegacyName[legacyFeatName] = feat;
         }
 
@@ -3558,7 +3818,11 @@ public static partial class Tabletop2024Context
         RegisterManagedCatalogEntry(LegacyAlertFeatName, _featAlert2024, true, true);
         RegisterManagedCatalogEntry(LegacyHealerFeatName, _featHealer2024, true, true);
         RegisterManagedCatalogEntry(LegacyLuckyFeatName, _featLucky2024, true, true);
+        RegisterManagedCatalogEntry(Musician2024FeatName, _featMusician2024, true, true);
         RegisterManagedCatalogEntry(LegacySavageAttackerFeatName, _featSavageAttack2024, true, true);
+        RegisterManagedCatalogEntry(SharpEye2024FeatName, _featSharpEye2024, true, true);
+        RegisterManagedCatalogEntry(Survivor2024FeatName, _featSurvivor2024, true, true);
+        RegisterManagedCatalogEntry(TavernBrawler2024FeatName, _featTavernBrawler2024, true, true);
         RegisterManagedCatalogEntry("FeatMobile", _featGroupSpeedy, true);
         RegisterManagedCatalogEntry(LegacyWarCasterFeatName, _featGroupWarCaster2024, true);
         RegisterManagedCatalogEntry("FeatRangedExpert", _featCrossbowExpert2024, true, true);
@@ -3610,11 +3874,13 @@ public static partial class Tabletop2024Context
             null);
         foreach (var magicInitiate2024 in MagicInitiate2024ByLegacyName)
         {
+            var selectable = IsSelectableMagicInitiate2024LegacyFeatName(magicInitiate2024.Key);
+
             RegisterManagedCatalogPair(
                 magicInitiate2024.Key,
                 magicInitiate2024.Value,
-                TabletopFeatCatalogKind.GroupedChild,
-                _featGroupMagicInitiate2024);
+                selectable ? TabletopFeatCatalogKind.GroupedChild : TabletopFeatCatalogKind.Helper,
+                selectable ? _featGroupMagicInitiate2024 : null);
         }
         RegisterManagedCatalogEntry("FeatGroupShadowTouched", _featGroupShadowTouched2024, true);
         RegisterManagedCatalogEntry("FeatGroupSpellSniper", _featGroupSpellSniper2024, true);
@@ -4001,9 +4267,25 @@ public static partial class Tabletop2024Context
                 [GetDefinition<FeatDefinition>(LegacyLuckyFeatName)],
                 [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupBodyResilience, GroupFeats.FeatGroupSupportCombat]),
             new TabletopFeat2024Profile(
+                _featMusician2024,
+                [],
+                [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupSupportCombat, GroupFeats.FeatGroupTools]),
+            new TabletopFeat2024Profile(
                 _featSavageAttack2024,
                 [GetDefinition<FeatDefinition>(LegacySavageAttackerFeatName)],
                 [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupMeleeCombat]),
+            new TabletopFeat2024Profile(
+                _featSharpEye2024,
+                [],
+                [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupSkills]),
+            new TabletopFeat2024Profile(
+                _featSurvivor2024,
+                [],
+                [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupBodyResilience]),
+            new TabletopFeat2024Profile(
+                _featTavernBrawler2024,
+                [],
+                [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupUnarmoredCombat]),
             new TabletopFeat2024Profile(
                 _featGroupSpeedy,
                 [ForestRunner, featMobile],
@@ -7973,7 +8255,7 @@ public static partial class Tabletop2024Context
             usablePower = null;
 
             return IsLucky2024RollContext(rollContext) &&
-                   CanUseLucky2024Advantage(rulesetCharacter, powerAdvantage, toggleActionId, out usablePower);
+                   CanUsePowerToggle(rulesetCharacter, powerAdvantage, toggleActionId, out usablePower);
         }
     }
 
@@ -8143,6 +8425,731 @@ public static partial class Tabletop2024Context
                     0,
                     0);
             }
+        }
+    }
+
+    private sealed class FilterTargetingCharacterMusician2024(ConditionDefinition condition)
+        : IFilterTargetingCharacter
+    {
+        public bool EnforceFullSelection => true;
+
+        public bool IsValid(CursorLocationSelectTarget __instance, GameLocationCharacter target)
+        {
+            var rulesetTarget = target?.RulesetCharacter;
+
+            if (rulesetTarget?.HasConditionOfType(ConditionDefinitions.ConditionDeafened.Name) == true)
+            {
+                __instance.actionModifier.FailureFlags.Add("Failure/&FailureFlagTargetDeafened");
+
+                return false;
+            }
+
+            return rulesetTarget is { IsDeadOrDyingOrUnconscious: false } &&
+                   target != __instance.ActionParams.ActingCharacter &&
+                   !rulesetTarget.HasConditionOfCategoryAndType(
+                       AttributeDefinitions.TagEffect,
+                       condition.Name);
+        }
+    }
+
+    private sealed class ValidatePowerUseMusician2024(ConditionDefinition condition) : IValidatePowerUse
+    {
+        public bool CanUsePower(RulesetCharacter character, FeatureDefinitionPower power)
+        {
+            if (ServiceRepository.GetService<IGameLocationBattleService>() is { IsBattleInProgress: true })
+            {
+                return false;
+            }
+
+            var musician = GameLocationCharacter.GetFromActor(character);
+            var characterService = ServiceRepository.GetService<IGameLocationCharacterService>();
+
+            return musician != null &&
+                   characterService != null &&
+                   characterService.PartyCharacters
+                       .Union(characterService.GuestCharacters)
+                       .Any(target =>
+                           target != musician &&
+                           target.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } rulesetTarget &&
+                           !rulesetTarget.HasConditionOfType(ConditionDefinitions.ConditionDeafened.Name) &&
+                           !rulesetTarget.HasConditionOfCategoryAndType(
+                               AttributeDefinitions.TagEffect,
+                               condition.Name));
+        }
+    }
+
+    private sealed class CustomBehaviorHeroicInspiration2024(ConditionDefinition condition)
+        : ITryAlterOutcomeAttack, ITryAlterOutcomeAttributeCheck, ITryAlterOutcomeSavingThrow
+    {
+        public int HandlerPriority => -10;
+
+        public IEnumerator OnTryAlterOutcomeAttack(
+            GameLocationBattleManager battleManager,
+            CharacterAction action,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            GameLocationCharacter helper,
+            ActionModifier attackModifier,
+            RulesetAttackMode attackMode,
+            RulesetEffect rulesetEffect)
+        {
+            if (helper != attacker ||
+                action?.AttackRoll <= 0 ||
+                action.AttackRollOutcome is not (RollOutcome.Failure or RollOutcome.CriticalFailure))
+            {
+                yield break;
+            }
+
+            yield return helper.MyReactToDoNothing(
+                ExtraActionId.DoNothingFree,
+                attacker,
+                "Musician2024HeroicInspiration",
+                "CustomReactionMusician2024HeroicInspirationDescription".Localized(Category.Reaction),
+                Reroll,
+                battleManager: battleManager);
+
+            yield break;
+
+            void Reroll()
+            {
+                var rulesetHelper = helper.RulesetCharacter;
+
+                if (!TrySpend(rulesetHelper))
+                {
+                    return;
+                }
+
+                var previousRoll = action.AttackRoll;
+                var newRoll = RollD20(rulesetHelper);
+
+                action.AttackSuccessDelta += newRoll - previousRoll;
+                action.AttackRoll = newRoll;
+                action.AttackRollOutcome = newRoll switch
+                {
+                    20 => RollOutcome.CriticalSuccess,
+                    1 => RollOutcome.CriticalFailure,
+                    _ when action.AttackSuccessDelta >= 0 => RollOutcome.Success,
+                    _ => RollOutcome.Failure
+                };
+            }
+        }
+
+        public IEnumerator OnTryAlterAttributeCheck(
+            GameLocationBattleManager battleManager,
+            int rawRoll,
+            AbilityCheckData abilityCheckData,
+            GameLocationCharacter defender,
+            GameLocationCharacter helper)
+        {
+            if (helper != defender ||
+                rawRoll <= 0 ||
+                abilityCheckData.AbilityCheckRollOutcome is not
+                    (RollOutcome.Failure or RollOutcome.CriticalFailure))
+            {
+                yield break;
+            }
+
+            yield return helper.MyReactToDoNothing(
+                ExtraActionId.DoNothingFree,
+                defender,
+                "Musician2024HeroicInspiration",
+                "CustomReactionMusician2024HeroicInspirationDescription".Localized(Category.Reaction),
+                Reroll,
+                battleManager: battleManager);
+
+            yield break;
+
+            void Reroll()
+            {
+                var rulesetHelper = helper.RulesetCharacter;
+
+                if (!TrySpend(rulesetHelper))
+                {
+                    return;
+                }
+
+                var delta = RollD20(rulesetHelper) - rawRoll;
+
+                abilityCheckData.AbilityCheckSuccessDelta += delta;
+                abilityCheckData.AbilityCheckRoll += delta;
+                abilityCheckData.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckSuccessDelta >= 0
+                    ? RollOutcome.Success
+                    : RollOutcome.Failure;
+            }
+        }
+
+        public IEnumerator OnTryAlterOutcomeSavingThrow(
+            GameLocationBattleManager battleManager,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            GameLocationCharacter helper,
+            SavingThrowData savingThrowData,
+            bool hasHitVisual)
+        {
+            if (helper != defender || !savingThrowData.IsFailedSavingThrowOutcome())
+            {
+                yield break;
+            }
+
+            yield return helper.MyReactToDoNothing(
+                ExtraActionId.DoNothingFree,
+                defender,
+                "Musician2024HeroicInspiration",
+                "CustomReactionMusician2024HeroicInspirationDescription".Localized(Category.Reaction),
+                Reroll,
+                battleManager: battleManager);
+
+            yield break;
+
+            void Reroll()
+            {
+                var rulesetHelper = helper.RulesetCharacter;
+
+                if (!TrySpend(rulesetHelper))
+                {
+                    return;
+                }
+
+                var previousRoll =
+                    savingThrowData.SaveOutcomeDelta -
+                    savingThrowData.SaveBonusAndRollModifier +
+                    savingThrowData.SaveDC;
+
+                savingThrowData.SaveOutcomeDelta += RollD20(rulesetHelper) - previousRoll;
+                savingThrowData.SaveOutcome = savingThrowData.SaveOutcomeDelta >= 0
+                    ? RollOutcome.Success
+                    : RollOutcome.Failure;
+            }
+        }
+
+        private static int RollD20(RulesetCharacter character)
+        {
+            return character.RollDie(
+                DieType.D20,
+                RollContext.None,
+                false,
+                AdvantageType.None,
+                out _,
+                out _);
+        }
+
+        private bool TrySpend(RulesetCharacter character)
+        {
+            if (character?.TryGetConditionOfCategoryAndType(
+                    AttributeDefinitions.TagEffect,
+                    condition.Name,
+                    out var activeCondition) != true)
+            {
+                return false;
+            }
+
+            character.RemoveCondition(activeCondition);
+
+            if (_featMusician2024)
+            {
+                character.LogCharacterUsedFeature(_featMusician2024);
+            }
+
+            return true;
+        }
+    }
+
+    private sealed class CustomBehaviorSharpEye2024(
+        FeatureDefinitionPower power,
+        Id toggleActionId)
+        : IModifyAbilityCheck, IRequireAbilityCheckRoll, IModifyDiceRoll,
+            IAttributeCheckRolledByMe, IAttributeCheckOutcomeFinalizedByMe
+    {
+        private sealed class PendingSettlement
+        {
+            internal List<TrendInfo> AdvantageTrends { get; set; }
+            internal bool HasRollCorrelation { get; set; }
+            internal List<TrendInfo> ModifierTrends { get; set; }
+            internal bool PowerUseConsumed { get; set; }
+            internal int RawRoll { get; set; }
+        }
+
+        private readonly Dictionary<ulong, (
+            List<TrendInfo> AdvantageTrends,
+            List<TrendInfo> ModifierTrends)> _preparedChecks = [];
+        private readonly Dictionary<ulong, PendingSettlement> _pendingSettlements = [];
+
+        public void MinRoll(
+            RulesetCharacter character,
+            int baseBonus,
+            string abilityScoreName,
+            string proficiencyName,
+            List<TrendInfo> advantageTrends,
+            List<TrendInfo> modifierTrends,
+            ref int rollModifier,
+            ref int minRoll)
+        {
+            if (character == null)
+            {
+                return;
+            }
+
+            _preparedChecks.Remove(character.Guid);
+
+            if (!SharpEye2024SkillNames.Contains(proficiencyName) ||
+                !CanUsePowerToggle(character, power, toggleActionId, out _))
+            {
+                return;
+            }
+
+            _preparedChecks[character.Guid] = (advantageTrends, modifierTrends);
+        }
+
+        public void BeforeRoll(
+            RollContext rollContext,
+            RulesetCharacter rulesetCharacter,
+            ref DieType dieType,
+            ref AdvantageType advantageType)
+        {
+            if (rollContext != RollContext.AbilityCheck ||
+                rulesetCharacter == null ||
+                !_preparedChecks.ContainsKey(rulesetCharacter.Guid))
+            {
+                return;
+            }
+
+            advantageType = advantageType == AdvantageType.Disadvantage
+                ? AdvantageType.None
+                : AdvantageType.Advantage;
+        }
+
+        public void AfterRoll(
+            DieType dieType,
+            AdvantageType advantageType,
+            RollContext rollContext,
+            RulesetCharacter rulesetCharacter,
+            ref int firstRoll,
+            ref int secondRoll,
+            ref int result)
+        {
+            if (rollContext != RollContext.AbilityCheck ||
+                rulesetCharacter == null ||
+                !_preparedChecks.TryGetValue(rulesetCharacter.Guid, out var preparedCheck))
+            {
+                return;
+            }
+
+            _preparedChecks.Remove(rulesetCharacter.Guid);
+
+            if (TryConsumeUsage(rulesetCharacter))
+            {
+                _pendingSettlements[rulesetCharacter.Guid] = new PendingSettlement
+                {
+                    AdvantageTrends = preparedCheck.AdvantageTrends,
+                    ModifierTrends = preparedCheck.ModifierTrends,
+                    PowerUseConsumed = true
+                };
+            }
+        }
+
+        public void OnAttributeCheckRolled(
+            RulesetCharacter rulesetCharacter,
+            RollOutcome outcome,
+            int rawRoll,
+            List<TrendInfo> modifierTrends,
+            List<TrendInfo> advantageTrends)
+        {
+            if (rulesetCharacter == null ||
+                !_pendingSettlements.TryGetValue(rulesetCharacter.Guid, out var pendingSettlement) ||
+                pendingSettlement.HasRollCorrelation ||
+                !ReferenceEquals(pendingSettlement.ModifierTrends, modifierTrends) ||
+                !ReferenceEquals(pendingSettlement.AdvantageTrends, advantageTrends))
+            {
+                return;
+            }
+
+            pendingSettlement.HasRollCorrelation = true;
+            pendingSettlement.RawRoll = rawRoll;
+            SetPowerUseForOutcome(
+                rulesetCharacter,
+                outcome,
+                pendingSettlement);
+        }
+
+        public void OnAttributeCheckOutcomeFinalized(
+            AbilityCheckData abilityCheckData,
+            GameLocationCharacter actingCharacter,
+            int rawRoll)
+        {
+            var rulesetCharacter = actingCharacter?.RulesetCharacter;
+
+            if (rulesetCharacter == null ||
+                !_pendingSettlements.TryGetValue(rulesetCharacter.Guid, out var pendingSettlement))
+            {
+                return;
+            }
+
+            if (pendingSettlement.HasRollCorrelation &&
+                (pendingSettlement.RawRoll != rawRoll ||
+                 !ReferenceEquals(
+                     pendingSettlement.ModifierTrends,
+                     abilityCheckData.AbilityCheckActionModifier?.AbilityCheckModifierTrends) ||
+                 !ReferenceEquals(
+                     pendingSettlement.AdvantageTrends,
+                     abilityCheckData.AbilityCheckActionModifier?.AbilityCheckAdvantageTrends)))
+            {
+                return;
+            }
+
+            SetPowerUseForOutcome(
+                rulesetCharacter,
+                abilityCheckData.AbilityCheckRollOutcome,
+                pendingSettlement);
+            _pendingSettlements.Remove(rulesetCharacter.Guid);
+        }
+
+        private void SetPowerUseForOutcome(
+            RulesetCharacter rulesetCharacter,
+            RollOutcome outcome,
+            PendingSettlement pendingSettlement)
+        {
+            var failed = outcome is RollOutcome.Failure or RollOutcome.CriticalFailure;
+
+            if ((failed && !pendingSettlement.PowerUseConsumed) ||
+                (!failed && pendingSettlement.PowerUseConsumed))
+            {
+                return;
+            }
+
+            var usablePower = PowerProvider.Get(power, rulesetCharacter);
+
+            if (usablePower == null)
+            {
+                return;
+            }
+
+            if (failed)
+            {
+                rulesetCharacter.RepayPowerUse(usablePower);
+                pendingSettlement.PowerUseConsumed = false;
+                return;
+            }
+
+            if (rulesetCharacter.GetRemainingUsesOfPower(usablePower) > 0)
+            {
+                usablePower.Consume();
+                pendingSettlement.PowerUseConsumed = true;
+            }
+        }
+
+        private bool TryConsumeUsage(RulesetCharacter rulesetCharacter)
+        {
+            rulesetCharacter.DisableToggle(toggleActionId);
+
+            if (!TryGetUsablePower(rulesetCharacter, power, out var usablePower))
+            {
+                return false;
+            }
+
+            usablePower.Consume();
+            rulesetCharacter.LogCharacterUsedPower(power);
+
+            return true;
+        }
+    }
+
+    private sealed class ModifyDiceRollSurvivor2024 : IModifyDiceRoll, IInitiativeEndListener
+    {
+        private readonly Dictionary<ulong, (DieType DieType, AdvantageType AdvantageType, int FirstRoll,
+            int SecondRoll)> _initiativeRolls = [];
+
+        public void BeforeRoll(
+            RollContext rollContext,
+            RulesetCharacter rulesetCharacter,
+            ref DieType dieType,
+            ref AdvantageType advantageType)
+        {
+        }
+
+        public void AfterRoll(
+            DieType dieType,
+            AdvantageType advantageType,
+            RollContext rollContext,
+            RulesetCharacter rulesetCharacter,
+            ref int firstRoll,
+            ref int secondRoll,
+            ref int result)
+        {
+            if (rollContext != RollContext.InitiativeRoll || rulesetCharacter == null)
+            {
+                return;
+            }
+
+            _initiativeRolls[rulesetCharacter.Guid] = (dieType, advantageType, firstRoll, secondRoll);
+        }
+
+        public IEnumerator OnInitiativeEnded(GameLocationCharacter locationCharacter)
+        {
+            var rulesetCharacter = locationCharacter?.RulesetCharacter;
+
+            if (rulesetCharacter == null ||
+                !_initiativeRolls.TryGetValue(rulesetCharacter.Guid, out var initiativeRoll))
+            {
+                yield break;
+            }
+
+            _initiativeRolls.Remove(rulesetCharacter.Guid);
+
+            var battle = Gui.Battle;
+            var battleScreen = Gui.GuiService.GetScreen<GameLocationScreenBattle>();
+
+            if (rulesetCharacter.LastInitiativeRoll > 9 || battle == null || !battleScreen)
+            {
+                yield break;
+            }
+
+            yield return locationCharacter.MyReactToDoNothing(
+                ExtraActionId.DoNothingFree,
+                locationCharacter,
+                "Survivor2024Hypervigilance",
+                "CustomReactionSurvivor2024HypervigilanceDescription".Localized(Category.Reaction),
+                RerollInitiative);
+
+            yield break;
+
+            void RerollInitiative()
+            {
+                var firstRoll = initiativeRoll.FirstRoll;
+                var secondRoll = initiativeRoll.SecondRoll;
+                var reroll = RuleDefinitions.RollDie(
+                    initiativeRoll.DieType,
+                    AdvantageType.None,
+                    out _,
+                    out _,
+                    0);
+                int newInitiativeRoll;
+
+                switch (initiativeRoll.AdvantageType)
+                {
+                    case AdvantageType.Advantage:
+                        if (firstRoll >= secondRoll)
+                        {
+                            firstRoll = reroll;
+                        }
+                        else
+                        {
+                            secondRoll = reroll;
+                        }
+
+                        newInitiativeRoll = Math.Max(firstRoll, secondRoll);
+                        break;
+                    case AdvantageType.Disadvantage:
+                        if (firstRoll <= secondRoll)
+                        {
+                            firstRoll = reroll;
+                        }
+                        else
+                        {
+                            secondRoll = reroll;
+                        }
+
+                        newInitiativeRoll = Math.Min(firstRoll, secondRoll);
+                        break;
+                    default:
+                        newInitiativeRoll = reroll;
+                        break;
+                }
+
+                var previousInitiativeRoll = rulesetCharacter.LastInitiativeRoll;
+
+                battle.ContenderModified(
+                    locationCharacter, GameLocationBattle.ContenderModificationMode.Remove, false, false);
+                rulesetCharacter.LastInitiativeRoll = newInitiativeRoll;
+                locationCharacter.LastInitiative += newInitiativeRoll - previousInitiativeRoll;
+                battle.initiativeSortedContenders.Sort(battle);
+                battle.ContenderModified(
+                    locationCharacter, GameLocationBattle.ContenderModificationMode.Add, false, false);
+
+                rulesetCharacter.LogCharacterUsedFeature(_featSurvivor2024);
+            }
+        }
+    }
+
+    private sealed class TryAlterOutcomeSavingThrowSurvivor2024(FeatureDefinitionPower power)
+        : ITryAlterOutcomeSavingThrow
+    {
+        public IEnumerator OnTryAlterOutcomeSavingThrow(
+            GameLocationBattleManager battleManager,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            GameLocationCharacter helper,
+            SavingThrowData savingThrowData,
+            bool hasHitVisual)
+        {
+            var rulesetDefender = defender?.RulesetCharacter;
+
+            if (helper != defender ||
+                rulesetDefender is not { IsDeadOrDyingOrUnconscious: false } ||
+                !savingThrowData.IsFailedSavingThrowOutcome() ||
+                !defender.CanReact() ||
+                !IsCharmedOrFrightenedSavingThrow(savingThrowData))
+            {
+                yield break;
+            }
+
+            var proficiencyBonus = rulesetDefender.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+            var usablePower = PowerProvider.Get(power, rulesetDefender);
+
+            if (usablePower == null ||
+                rulesetDefender.GetRemainingUsesOfPower(usablePower) <= 0)
+            {
+                yield break;
+            }
+
+            yield return defender.MyReactToSpendPower(
+                usablePower,
+                defender,
+                "Survivor2024SteelYourself",
+                Gui.Format(
+                    "Reaction/&UseSurvivor2024SteelYourselfDescription",
+                    savingThrowData.Title),
+                ReactionValidated,
+                battleManager);
+
+            yield break;
+
+            void ReactionValidated()
+            {
+                defender.SpendActionType(ActionType.Reaction);
+
+                savingThrowData.SaveOutcomeDelta += proficiencyBonus;
+                savingThrowData.SaveOutcome = savingThrowData.SaveOutcomeDelta >= 0
+                    ? RollOutcome.Success
+                    : RollOutcome.Failure;
+
+                if (savingThrowData.SaveActionModifier != null)
+                {
+                    savingThrowData.SaveActionModifier.SavingThrowModifier += proficiencyBonus;
+                    savingThrowData.SaveActionModifier.SavingThrowModifierTrends.Add(
+                        new TrendInfo(
+                            proficiencyBonus,
+                            FeatureSourceType.Power,
+                            power.Name,
+                            power));
+                }
+
+                rulesetDefender.LogCharacterUsedPower(power);
+            }
+        }
+
+        private static bool IsCharmedOrFrightenedSavingThrow(SavingThrowData savingThrowData)
+        {
+            if (savingThrowData.SourceDefinition is ConditionDefinition sourceCondition &&
+                (sourceCondition.IsSubtypeOf(ConditionDefinitions.ConditionCharmed.Name) ||
+                 sourceCondition.IsSubtypeOf(ConditionDefinitions.ConditionFrightened.Name)))
+            {
+                return true;
+            }
+
+            return savingThrowData.EffectDescription?.EffectForms?.Any(effectForm =>
+                effectForm.FormType == EffectForm.EffectFormType.Condition &&
+                (effectForm.ConditionForm.ConditionDefinition.IsSubtypeOf(ConditionDefinitions.ConditionCharmed.Name) ||
+                 effectForm.ConditionForm.ConditionDefinition.IsSubtypeOf(
+                     ConditionDefinitions.ConditionFrightened.Name))) == true;
+        }
+    }
+
+    private sealed class AllowRerollDiceTavernBrawler2024 : IAllowRerollDice
+    {
+        public bool IsValid(RulesetActor rulesetActor, bool attackModeDamage, DamageForm damageForm)
+        {
+            return attackModeDamage;
+        }
+    }
+
+    private sealed class CustomBehaviorTavernBrawler2024(
+        ConditionDefinition rerollCondition,
+        FeatureDefinitionPower powerPool)
+        : IPhysicalAttackBeforeHitConfirmedOnEnemy, IPhysicalAttackFinishedByMe
+    {
+        public IEnumerator OnPhysicalAttackBeforeHitConfirmedOnEnemy(
+            GameLocationBattleManager battleManager,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            ActionModifier actionModifier,
+            RulesetAttackMode attackMode,
+            bool rangedAttack,
+            AdvantageType advantageType,
+            List<EffectForm> actualEffectForms,
+            bool firstTarget,
+            bool criticalHit)
+        {
+            if (!ValidatorsWeapon.IsUnarmed(attackMode))
+            {
+                yield break;
+            }
+
+            var rulesetAttacker = attacker.RulesetCharacter;
+
+            rulesetAttacker.InflictCondition(
+                rerollCondition.Name,
+                DurationType.Round,
+                0,
+                TurnOccurenceType.EndOfTurn,
+                AttributeDefinitions.TagEffect,
+                rulesetAttacker.Guid,
+                rulesetAttacker.CurrentFaction.Name,
+                1,
+                rerollCondition.Name,
+                0,
+                0,
+                0);
+        }
+
+        public IEnumerator OnPhysicalAttackFinishedByMe(
+            GameLocationBattleManager battleManager,
+            CharacterAction action,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            RulesetAttackMode attackMode,
+            RollOutcome rollOutcome,
+            int damageAmount)
+        {
+            var rulesetAttacker = attacker?.RulesetCharacter;
+
+            if (rulesetAttacker?.TryGetConditionOfCategoryAndType(
+                    AttributeDefinitions.TagEffect,
+                    rerollCondition.Name,
+                    out var activeCondition) == true)
+            {
+                rulesetAttacker.RemoveCondition(activeCondition);
+            }
+
+            if (battleManager == null ||
+                attacker?.IsMyTurn() != true ||
+                defender?.RulesetCharacter is not { IsDeadOrDyingOrUnconscious: false } ||
+                action?.ActionId != Id.AttackMain ||
+                attackMode?.ActionType != ActionType.Main ||
+                rollOutcome is not (RollOutcome.Success or RollOutcome.CriticalSuccess) ||
+                !ValidatorsWeapon.IsUnarmed(attackMode) ||
+                !attacker.IsWithinRange(defender, 1) ||
+                !attacker.OnceInMyTurnIsValid(TavernBrawler2024PushSpecialFeatureName))
+            {
+                yield break;
+            }
+
+            var usablePower = PowerProvider.Get(powerPool, rulesetAttacker);
+
+            if (usablePower == null)
+            {
+                yield break;
+            }
+
+            yield return attacker.MyReactToSpendPowerBundle(
+                usablePower,
+                [defender],
+                attacker,
+                powerPool.Name,
+                Gui.Format("Reaction/&UseTavernBrawler2024PushDescription", defender.Name),
+                reactionValidated: _ => attacker.UsedSpecialFeatures.TryAdd(
+                    TavernBrawler2024PushSpecialFeatureName,
+                    1),
+                battleManager: battleManager);
         }
     }
 }

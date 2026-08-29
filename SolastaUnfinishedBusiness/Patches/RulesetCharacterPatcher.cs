@@ -1690,13 +1690,47 @@ public static class RulesetCharacterPatcher
             List<TrendInfo> modifierTrends,
             List<TrendInfo> advantageTrends,
             ref int rollModifier,
-            ref int minRoll)
+            ref int minRoll,
+            [HarmonyArgument(7)] bool passive,
+            [HarmonyArgument(14)] bool rollDie)
         {
             foreach (var modifyAbilityCheck in __instance.GetSubFeaturesByType<IModifyAbilityCheck>())
             {
+                if ((passive || !rollDie) &&
+                    modifyAbilityCheck is IRequireAbilityCheckRoll)
+                {
+                    continue;
+                }
+
                 modifyAbilityCheck.MinRoll(
                     __instance, baseBonus, abilityScoreName, proficiencyName,
                     advantageTrends, modifierTrends, ref rollModifier, ref minRoll);
+            }
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            [NotNull] RulesetCharacter __instance,
+            [HarmonyArgument(3)] List<TrendInfo> modifierTrends,
+            [HarmonyArgument(4)] List<TrendInfo> advantageTrends,
+            [HarmonyArgument(7)] bool passive,
+            [HarmonyArgument(9)] int rawRoll,
+            [HarmonyArgument(12)] RollOutcome outcome,
+            [HarmonyArgument(14)] bool rollDie)
+        {
+            if (passive || !rollDie)
+            {
+                return;
+            }
+
+            foreach (var handler in __instance.GetSubFeaturesByType<IAttributeCheckRolledByMe>())
+            {
+                handler.OnAttributeCheckRolled(
+                    __instance,
+                    outcome,
+                    rawRoll,
+                    modifierTrends,
+                    advantageTrends);
             }
         }
     }

@@ -1024,9 +1024,11 @@ public static class CharacterBuildingManagerPatcher
 
         AddDisplayableFinalizeFeats(
             snapshot,
-            heroBuildingData.LevelupTrainedFeats?.Values
-                .Where(feats => feats != null)
-                .SelectMany(feats => feats));
+            heroBuildingData.LevelupTrainedFeats?
+                .Where(entry =>
+                    !Tabletop2024Context.IsBackgroundOriginFeatTag(entry.Key) &&
+                    entry.Value != null)
+                .SelectMany(entry => entry.Value));
 
         FeatDefinition backgroundFeat = null;
 
@@ -1711,7 +1713,8 @@ public static class CharacterBuildingManagerPatcher
         [UsedImplicitly]
         public static bool Prefix(CharacterHeroBuildingData heroBuildingData, FeatureDefinition feature)
         {
-            return !Tabletop2024Context.TryApplyHumanOriginFeatPointPool(heroBuildingData, feature);
+            return !Tabletop2024Context.TryApplyHumanOriginFeatPointPool(heroBuildingData, feature) &&
+                   !Tabletop2024Context.ShouldSuppressReplacedBackgroundFeatPointPool(heroBuildingData, feature);
         }
 
         [UsedImplicitly]
