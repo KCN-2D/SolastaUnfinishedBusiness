@@ -22,7 +22,7 @@ TutorialStep/&Crafting06Description=クラフトを始めるには、キャラ�
 TutorialStep/&Crafting06Title=クラフト画面
 TutorialStep/&Crafting06XBoxDescription=クラフトを開始するには、<sprite index={11}>を使用してキャラクターの画面を開き、<sprite index={8}>または<sprite index={9}>を使用して「クラフト」タブを選択します。開始するには、利用可能なレシピを選択するだけです。\n移動中に進行状況バーが表示され、製作作業が完了すると通知が表示されるので、必要に応じて別のレシピを開始できます。\n製作作業をキャンセルすると、材料は失われます。
 TutorialStep/&FoodDescription=所持品に食料がないなら、物色できるコンテナや倒れた敵の所持品から食料を探しましょう。
-TutorialStep/&FoodTitle=食べ物
+TutorialStep/&FoodTitle=食料
 TutorialStep/&GatheringDescription=冒険を進めるには、特定の場所へパーティ全員を集めなければならないことがあります。\n\nクエストの次の段階を進めるには、全員をその区域まで連れて行く方法を見つけてください。
 TutorialStep/&GatheringTitle=パーティを集める
 TutorialStep/&InventorySpaceDescription=キャラクターは、重荷になるまで筋力の5倍の重量を運べます。\n\n各アイテムには重量があります。矢のように1つの所持品枠へまとめられるものもありますが、その重量は合計されます。\n\n装備を回収するときは、重荷ゲージを確認してください。キャラクターの動きが遅いなら、持ちすぎていないか見直しましょう。
@@ -31,7 +31,7 @@ TutorialStep/&LightingDescription=ソラスタでは、自然光のない暗く�
 TutorialStep/&LightingTitle=照明と光源
 TutorialStep/&MajorGateBoneKeep_Description=このマイナー・ゲートを使うと、城の外へ瞬間移動できます。\n\n後ろのメジャー・ゲートを使えば、ケール・サイフレンへ瞬間移動することもできます。
 TutorialStep/&MajorGateBoneKeep_Title=メジャー・ゲート
-TutorialStep/&MechanismsDescription=ときには、通路を開いたり仕掛けを起動したりするために、インタラクト可能な装置を見つけなければなりません。\n探索し、慎重モードで発見しやすくし、操作可能な対象を示す歯車アイコンを探してください。\nあとはあなた次第です。起動するか、それとも見送るか。
+TutorialStep/&MechanismsDescription=ときには、通路を開いたり仕掛けを起動したりするために、操作可能な装置を見つける必要があります。\n周囲を探索し、慎重モードで発見しやすくして、操作可能な対象を示す歯車アイコンを探してください。\n起動するか、見送るかはあなた次第です。
 TutorialStep/&MechanismsTitle=インタラクティブなオブジェクト
 TutorialStep/&MovingCharactersDescription=地面上の目的地を左クリックすると、選択したキャラクターがその場所に移動します。\n\nカメラは自動的にそのキャラクターを追跡します。\n\nカーソルは、選択した場所が移動先として無効かどうかを示します。
 TutorialStep/&MovingCharactersDescriptionXBox=<sprite index={4}>を使用してカーソルを移動し、<sprite index={0}>を押して、選択したキャラクターをその位置に移動します。\n\nカーソルは、選択した場所が移動先として無効かどうかを示します。
@@ -149,7 +149,7 @@ TutorialStep/&Tuto04_Attack_Shove2_Title=突き飛ばし
 TutorialStep/&Tuto04_Attack_ShoveXbox_Description=通常武器で敵を攻撃するには、敵へカーソルを合わせて<sprite index={0}>を押します。\n\n<sprite index={12}>を押せば武器構成を切り替えられ、たとえば遠隔武器のような別の武器も使えます。\n\nキャラクターによっては、呪文などの特殊な能力も使用できます。
 TutorialStep/&Tuto04_Attack_Shove_Description=通常武器で敵を攻撃するには、敵へマウスを合わせて左クリックします。\n\n攻撃呪文を発動したり、武器構成を切り替えて遠隔武器など別の武器を使ったりすることもできます。\n\nキャラクターによっては、特殊な能力も使用できます。
 TutorialStep/&Tuto04_Attack_Shove_Title=攻撃
-TutorialStep/&Tuto04_Dashing_Description=黄色のエリア内のポイントに移動すると、アクションは早足に使用されます。\n早足を行うと、そのターンの最大移動量が2倍になります。\n\nただし、アクションを使用して攻撃したり、呪文を発動したりすることはできません。\n\n通常どおりに移動してから、さらに早足するか、アクションを他のことに使うかを決定できることを覚えておいてください。
+TutorialStep/&Tuto04_Dashing_Description=黄色の範囲まで移動すると、アクションを〈早足〉に使います。\n〈早足〉を行うと、そのターンの最大移動量が2倍になります。\n\nただし、そのアクションで攻撃や呪文発動はできません。\n\nまず通常どおり移動し、その後でさらに移動するために〈早足〉を使うか、別のアクションを行うか決められます。
 TutorialStep/&Tuto04_Dashing_Title=早足
 TutorialStep/&Tuto04_Disengaging_Description=機会攻撃を回避するには、「離脱」アクションを使用できます。ターンの残りの間、機会攻撃を受けることなく自由に移動できます。\n\nただし、離脱にはアクションが使われるため、このターン中は攻撃したり早足したりすることはできません。
 TutorialStep/&Tuto04_Disengaging_Title=離脱中
@@ -193,7 +193,7 @@ TutorialStep/&Tuto_LevelUp2_Description=夜が終わり、英雄たちは過去�
 TutorialStep/&Tuto_LevelUp2_Title=レベルアップ！
 TutorialStep/&Tuto_LevelUpGeneric_Description=次のレベルに必要な経験点に達したら、大休憩をとってレベルアップウィンドウを開きます。\n\nそこでは、クラスに応じて追加のヒット・ポイントと特徴を獲得できます。\n\nレベルを上げるには、宿屋、移動中、または探索場所内で大休憩を取れることを忘れないでください。
 TutorialStep/&Tuto_LevelUpGeneric_Title=レベルアップ
-TutorialStep/&Tuto_LevelUp_Description=ヒーローたちはレベルアップする準備ができています！\n\nそのためには、大休憩を取る必要があります。\n\n墓守の樽に戻り、バーテンダーのカレルと話してください。宿泊できるように部屋をリクエストしてください。
+TutorialStep/&Tuto_LevelUp_Description=ヒーローたちはレベルアップできる状態です！\n\nレベルアップするには、大休憩を取る必要があります。\n\n〈墓守の樽〉亭へ戻り、酒場の主人カレルに話しかけて部屋を借りましょう。
 TutorialStep/&Tuto_LevelUp_Title=レベルアップ！
 TutorialStep/&Tuto_LocationMap2Xbox_Description=<sprite index={17}>を押してロケーションマップを開きます。\n\n出口を見つけ、そこまでの道が通っていれば、ワールドマップへ直接高速移動することもできます。\n\n高速移動地点へカーソルを合わせ、<sprite index={0}>で選択してください。<sprite index={28}>を押し続けると高速移動が始まり、<sprite index={1}>でキャンセルできます。
 TutorialStep/&Tuto_LocationMap2_Description=地図ボタンを押してロケーションマップを開きます。\n\n出口を見つけ、そこまでの道が通っていれば、ワールドマップへ直接高速移動することもできます。\n\n高速移動ボタンを押して「はい」を選んでください。
@@ -230,7 +230,7 @@ TutorialStep/&Tuto_Stalactites_Title=落下物の危険
 TutorialStep/&Tuto_SurpriseAttack2_Description=道中で襲撃を受けたあとも、マップの出口を探して旅を再開できます。\nキャンプ中に襲われた場合は、焚き火を操作して大休憩を再開します。
 TutorialStep/&Tuto_SurpriseAttack2_Title=遭遇から生き残る
 TutorialStep/&Tuto_SurpriseAttack3XBox_Description=あなたの存在に気づいていない敵へこっそり近づければ、不意を突いて戦闘の最初のターンを失わせることができます。\nそれには、<sprite index={2}>を押し、いずれかのキャラクターで攻撃オプションか攻撃呪文を選び、敵を対象にして攻撃を確定します。\nこれで戦闘が始まり、奇襲の優位を得られます。また、あなたのキャラクターが見つかっていない限り、攻撃ロールに有利を得ます。
-TutorialStep/&Tuto_SurpriseAttack3_Description=自分たちの存在に気づいていない敵へこっそり近づければ、不意を突いて戦闘の最初のターンを失わせられます。\nそのためには、いずれかのキャラクターで攻撃オプションか攻撃呪文を選び、敵を対象にして攻撃を確定します。\nこれで戦闘が始まり、奇襲の利を得られます。さらに、あなたのキャラクターが見えていない限り、攻撃ロールに有利を得ます。
+TutorialStep/&Tuto_SurpriseAttack3_Description=自分たちの存在に気づいていない敵へこっそり近づければ、不意を突いて戦闘の最初のターンを失わせられます。\nそのためには、いずれかのキャラクターで攻撃か攻撃呪文を選び、敵を対象にして攻撃を確定します。\nこれで戦闘が始まり、奇襲の利を得られます。さらに、キャラクターが隠れている間は攻撃ロールに有利を得ます。
 TutorialStep/&Tuto_SurpriseAttack3_Title=奇襲
 TutorialStep/&Tuto_SurpriseAttack_Description=キャンプ中に奇襲された！出発する前に襲撃者を撃退しなければなりません。\n不意を突かれているため、戦闘の最初のターンには何もできません！\n\n呪文やパワーを惜しむ必要はありません。戦闘が終われば大休憩も完了するので、生き残るために全力を尽くしましょう！
 TutorialStep/&Tuto_SurpriseAttack_Title=奇襲！

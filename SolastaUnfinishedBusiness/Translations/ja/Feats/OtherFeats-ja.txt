@@ -192,7 +192,7 @@ Tag/&InitiateCantripSpecialTagTitle=魔法のたしなみの初級呪文
 Tag/&InitiateSpellSpecialTagTitle=魔法のたしなみの呪文
 Tag/&SniperCantripSpecialTagTitle=呪文狙撃手の初級呪文
 
-Feat/&FeatSpeedyDexTitle=俊足［敏捷力］
+Feat/&FeatSpeedyDexTitle=機動力［敏捷力］
 Feat/&FeatSpeedyDexDescription=敏捷力を1増加させ、最大20まで高めます。\n移動速度が2マス増加します。\n早足を行ったターンの間、移動困難な地形は追加の移動を要求しません。\nあなたに対する機会攻撃は不利になります。
-Feat/&FeatSpeedyConTitle=俊足［耐久力］
+Feat/&FeatSpeedyConTitle=機動力［耐久力］
 Feat/&FeatSpeedyConDescription=耐久力を1増加させ、最大20まで高めます。\n移動速度が2マス増加します。\n早足を行ったターンの間、移動困難な地形は追加の移動を要求しません。\nあなたに対する機会攻撃は不利になります。

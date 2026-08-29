@@ -59,12 +59,12 @@ ModUi/&Crafting=<color=#F0DAA0>クラフト：</color>
 ModUi/&CraftingItems=クラフトとアイテム
 ModUi/&Credits=クレジット
 ModUi/&CreditsAndDiagnostics=クレジットと診断
-ModUi/&Critical=<color=#F0DAA0>クリティカルヒット：</color>
+ModUi/&Critical=<color=#F0DAA0>クリティカル・ヒット：</color>
 ModUi/&CriticalOption0=<color=#D89555><b>0</b></color>：ゲームのデフォルト。ダメージダイスを2回ロールし、その結果と修正値を追加します<i><color=#F0DAA0>（XdY+XdY+Z）</color></i>
 ModUi/&CriticalOption1=<color=#D89555><b>1</b></color>：ダメージダイスの最大結果を合計し、それを攻撃のダメージに加えます<i><color=#F0DAA0>（XdY+(X*Y)+Z）</color></i>
 ModUi/&CriticalOption2=<color=#D89555><b>2</b></color>：可能な限り最高の結果を出したダメージダイスを再度振り直し、合計ダメージに加えます。
 ModUi/&CriticalOption3=<color=#D89555><b>3</b></color>：追加のサイコロを振る代わりに、攻撃の合計ダメージを2倍にします。<i><color=#F0DAA0>（(XdY+Z)*2）</color></i>
-ModUI/&EnableCriticalHitsMissesAt10=ACと変更された攻撃ロール結果の違いが10以上の場合、クリティカルヒットとミスを有効にします
+ModUI/&EnableCriticalHitsMissesAt10=ACと修正後の攻撃ロール結果の差が10以上の場合、クリティカル・ヒットとクリティカル・ミスを有効にします
 ModUi/&DisableAutoEquip=インベントリ内のアイテムの自動装備を無効にする
 ModUi/&DisableCastSpellPreRequisitesOnModFeats=MOD<color=#D89555>特技</color>の呪文発動の前提条件を無効にします<b><i><color=#C04040E0>（再起動が必要）</color></i></b>
 ModUi/&DisableClassPrerequisitesOnModFeats=<color=#D89555>特技</color>のレベル前提条件を無効にする
@@ -267,7 +267,7 @@ ModUi/&EnableSpeechOnNpcs=<i>+NPCの音声読み上げを有効にする<color=#
 ModUi/&EnableSpeechVoiceHelp=• 音声とナレーションの速度を選択します
 ModUi/&EnableStackableArtItems=<color=#D89555>芸術品</color>のスタックを有効にする<i><color=#F0DAA0>（この設定が無効になっている間は分割できません）</color></i>
 ModUi/&EnableStackableAxesAndDaggers=<color=#D89555>ダガー</color>と<color=#D89555>ハンドアックス</color>のスタックを有効にする<i><color=#F0DAA0>（この設定が無効になっている間は分割できません）</color></i>
-ModUi/&EnableStatsOnHeroTooltip=ヒーローのツールチップに統計情報を表示します<i><color=#F0DAA0>（例：クリティカルヒット、クリティカル失敗など）</color></i>
+ModUi/&EnableStatsOnHeroTooltip=英雄のツールチップに統計情報を表示します<i><color=#F0DAA0>（例：クリティカル・ヒット、クリティカル失敗など）</color></i>
 ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+また、各ヒーローはランダム性を高めるためにd20ロールを重みに追加します<color=#F0DAA0>（選択重み=投票数 * ヒーローの魅力修正値+d20ロール）</color></i>
 ModUi/&EnableSurprisedToEnforceDisadvantage=<color=#D89555>驚き</color>状態を有効にして、ラウンドをスキップする代わりにイニシアチブの不利を強制します。
 ModUi/&EnableTeleportToRemoveRestrained=<color=#D89555>瞬間移動</color>を有効にすると、対象からすべての<color=#D89555>拘束</color>状態が解除されます。
@@ -324,7 +324,7 @@ ModUi/&HideExitAndTeleporterGizmosIfNotDiscovered=まだ発見されていない
 ModUi/&EnableOutOfCombatTargetingSightLines=非戦闘時の対象指定で、視認できる敵への視線を有効にする
 ModUi/&EnableCeilingAwareTargetPerception=天井付近での対象視認判定を改善する
 ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>天井付近の位置から下方へ伸びる視線判定線が、天井境界によって遮られたように見える場合に限り、わずかに低い地点から視認判定を再試行します。壁、遮蔽、暗闇、不可視、射程は無視しません。</i>
-ModUi/&HideMonsterHitPoints=モンスターの体力を正確なヒット・ポイントではなく、25%/50%/75%/100%の単位で表示します。
+ModUi/&HideMonsterHitPoints=モンスターの正確なヒット・ポイントを隠し、25%／50%／75%／100%の段階で状態を表示します。
 ModUi/&HideQuickenedActionWhenMetamagicOff=<i>+呪文修正トグルがオフのときはこのアクションを非表示にする</i>
 ModUi/&HighContrastTargetingAoeColor=効果範囲内クリーチャーの<b><color=$$$$$$>選択ハイライト色</color></b>を変更します
 ModUi/&HighContrastTargetingSingleColor=単体クリーチャーの<b><color=$$$$$$>選択ハイライト色</color></b>を変更します
@@ -444,7 +444,7 @@ ModUi/&TableTopHelp2=• ボタンを押すと、<b>キャラクタータブの�
 ModUi/&Tabletop=<color=#F0DAA0>テーブルトップ<i>（5e 2014）</i>：</color>
 ModUi/&TargetLanguage=対象言語
 ModUi/&TotalCraftingTimeModifier=<color=white>クラフト時間を短縮</color>
-ModUi/&TotalFeatsGrantedFirstLevel=<color=white>第1レベルで付与される<color=#D89555>特技</color>の合計</color>
+ModUi/&TotalFeatsGrantedFirstLevel=<color=white>1レベルで付与される<color=#D89555>特技</color>の合計</color>
 ModUi/&Translate=翻訳する
 ModUi/&TranslateCancel={1}で{0}をキャンセル
 ModUi/&Translations=<color=#F0DAA0>翻訳：</color>
