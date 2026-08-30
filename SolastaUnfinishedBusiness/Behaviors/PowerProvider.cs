@@ -55,10 +55,8 @@ internal static class PowerProvider
             return;
         }
 
-        if (actor != null)
-        {
-            BindUsesAttribute(actor, usablePower);
-        }
+        BindUsesAttribute(actor, usablePower);
+
         usablePower.Recharge();
     }
 
@@ -113,6 +111,50 @@ internal static class PowerProvider
         return Math.Max(
             0,
             actor?.GetMaxUsesOfPower(usablePower) ?? usablePower.MaxUses);
+    }
+
+    // Definitions can change independently of serialized maxUses; only repair invalid lower bounds.
+    internal static void EnsureIndependentFixedPowerUseMinimums([CanBeNull] RulesetCharacter actor)
+    {
+        if (actor == null)
+        {
+            return;
+        }
+
+        foreach (var usablePower in actor.UsablePowers)
+        {
+            var power = usablePower?.PowerDefinition;
+
+            if (power is FeatureDefinitionPowerSharedPool ||
+                !UsesIndependentFixedPool(power) ||
+                usablePower.maxUses >= power.FixedUsesPerRecharge)
+            {
+                continue;
+            }
+
+            usablePower.maxUses = power.FixedUsesPerRecharge;
+            usablePower.remainingUses = Math.Min(
+                Math.Max(0, usablePower.remainingUses),
+                GetEffectiveMaxUses(actor, usablePower));
+        }
+    }
+
+    private static bool UsesIndependentFixedPool([CanBeNull] FeatureDefinitionPower power)
+    {
+        return power is
+        {
+            UsesDetermination: UsesDetermination.Fixed,
+            FixedUsesPerRecharge: > 0,
+            CostPerUse: > 0,
+            RechargeRate: RechargeRate.OneMinute or
+                RechargeRate.ShortRest or
+                RechargeRate.LongRest or
+                RechargeRate.Dawn or
+                RechargeRate.D6_6 or
+                RechargeRate.None or
+                RechargeRate.D6_56 or
+                RechargeRate.TurnStart
+        };
     }
 
     internal static void RestoreRemainingUses(

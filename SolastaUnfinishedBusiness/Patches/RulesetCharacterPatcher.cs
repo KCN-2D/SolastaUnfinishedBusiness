@@ -2890,6 +2890,7 @@ public static class RulesetCharacterPatcher
         public static void Postfix(RulesetCharacter __instance)
         {
             RemoveUnboundActivePowers(__instance);
+            PowerProvider.EnsureIndependentFixedPowerUseMinimums(__instance);
 
             if (__instance is not RulesetCharacterHero hero)
             {

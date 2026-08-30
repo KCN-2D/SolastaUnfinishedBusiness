@@ -16,6 +16,9 @@ public static class TooltipFeatureDescriptionPatcher
         [UsedImplicitly]
         public static void Postfix(TooltipFeatureDescription __instance, ITooltip tooltip)
         {
+            //PATCH: adds the current reason a visible but unavailable power cannot be used
+            Tooltips.UpdatePowerUseFailure(__instance, tooltip);
+
             //PATCH: adds crafting details to recipe tooltips
             Tooltips.UpdateCraftingTooltip(__instance, tooltip);
 

@@ -6,6 +6,7 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Models;
+using SolastaUnfinishedBusiness.Validators;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -144,6 +145,37 @@ internal static class Tooltips
         var remainingUses = character.GetRemainingPowerUses(power);
 
         return $"{remainingUses}/{maxUses}";
+    }
+
+    internal static void UpdatePowerUseFailure(
+        TooltipFeatureDescription description,
+        ITooltip tooltip)
+    {
+        if (tooltip.DataProvider is not GuiPowerDefinition guiPowerDefinition ||
+            ResolveCharacter(tooltip) is not { } character)
+        {
+            return;
+        }
+
+        var power = guiPowerDefinition.PowerDefinition;
+
+        if (!ModifyPowerVisibility.ShouldKeepVisibleWhenUnavailable(power))
+        {
+            return;
+        }
+
+        string failure;
+
+        if (character.GetRemainingPowerUses(power) <= 0)
+        {
+            failure = "Failure/&FailureFlagNoPowerUses";
+        }
+        else if (!ValidatorsValidatePowerUse.TryGetPowerUseFailure(character, power, out failure))
+        {
+            return;
+        }
+
+        description.DescriptionLabel.Text += $"\n\n{Gui.FormatFailure(string.Empty, failure)}";
     }
 
     internal static void UpdatePowerSaveDC(ITooltip tooltip, TooltipFeaturePowerParameters parameters)

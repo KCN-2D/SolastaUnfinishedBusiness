@@ -62,13 +62,15 @@ public static class PowerSelectionPanelPatcher
             for (var i = relevantPowers.Count - 1; i >= 0; i--)
             {
                 var power = relevantPowers[i];
+                var powerDefinition = power.PowerDefinition;
 
                 if ((character is RulesetCharacterSimulacrum duplicate &&
                      !SimulacrumBehavior.IsPowerCurrentlyActive(
                          duplicate,
-                         power.PowerDefinition)) ||
-                    ValidatorsValidatePowerUse.IsPowerNotValid(character, power) ||
-                    ModifyPowerVisibility.IsPowerHidden(character, power, actionType))
+                         powerDefinition)) ||
+                    ModifyPowerVisibility.IsPowerHidden(character, powerDefinition, actionType) ||
+                    (ValidatorsValidatePowerUse.IsPowerNotValid(character, power) &&
+                     !ModifyPowerVisibility.ShouldKeepVisibleWhenUnavailable(powerDefinition)))
                 {
                     relevantPowers.RemoveAt(i);
                 }

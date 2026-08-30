@@ -73,4 +73,23 @@ internal sealed class ValidatorsValidatePowerUse : IValidatePowerUse
     {
         return !character.CanUsePower(power.PowerDefinition, false);
     }
+
+    internal static bool TryGetPowerUseFailure(
+        RulesetCharacter character,
+        FeatureDefinitionPower power,
+        out string failure)
+    {
+        foreach (var validator in power.GetAllSubFeaturesOfType<IValidatePowerUseWithFailure>())
+        {
+            if (!validator.CanUsePower(character, power, out failure) &&
+                !string.IsNullOrEmpty(failure))
+            {
+                return true;
+            }
+        }
+
+        failure = string.Empty;
+
+        return false;
+    }
 }

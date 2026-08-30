@@ -810,8 +810,8 @@ public static partial class Tabletop2024Context
                 "Feature/&PowerFeatMusician2024PerformanceTitle",
                 "Feature/&PowerFeatMusician2024PerformanceDescription",
                 FeatureDefinitionPowers.PowerBardGiveBardicInspiration)
-            .SetUsesFixed(ActivationTime.Minute10)
-            .SetShowCasting(false)
+            .SetUsesFixed(ActivationTime.Minute10, RechargeRate.ShortRest)
+            .SetShowCasting(true)
             .SetEffectDescription(
                 EffectDescriptionBuilder
                     .Create()
@@ -819,12 +819,15 @@ public static partial class Tabletop2024Context
                     .SetTargetingData(Side.Ally, RangeType.Distance, 24, TargetType.IndividualsUnique)
                     .ExcludeCaster()
                     .SetEffectForms(EffectFormBuilder.ConditionForm(condition))
-                    .SetParticleEffectParameters(Bless)
+                    .SetParticleEffectParameters(FeatureDefinitionPowers.PowerBardGiveBardicInspiration)
                     .Build())
-            .AddCustomSubFeatures(
-                new FilterTargetingCharacterMusician2024(condition),
-                new ValidatePowerUseMusician2024(condition))
             .AddToDB();
+
+        power.AddCustomSubFeatures(
+            new ModifyEffectDescriptionMusician2024(power),
+            ModifyPowerVisibility.NotInCombatWhenUnavailable,
+            new FilterTargetingCharacterMusician2024(power, condition),
+            new ValidatePowerUseMusician2024(power, condition));
 
         return FeatDefinitionBuilder
             .Create(Musician2024FeatName)
@@ -8428,10 +8431,74 @@ public static partial class Tabletop2024Context
         }
     }
 
-    private sealed class FilterTargetingCharacterMusician2024(ConditionDefinition condition)
+    private sealed class ModifyEffectDescriptionMusician2024(FeatureDefinitionPower power)
+        : IModifyEffectDescription
+    {
+        public bool IsValid(
+            BaseDefinition definition,
+            RulesetCharacter character,
+            EffectDescription effectDescription)
+        {
+            return definition == power;
+        }
+
+        public EffectDescription GetEffectDescription(
+            BaseDefinition definition,
+            EffectDescription effectDescription,
+            RulesetCharacter character,
+            RulesetEffect rulesetEffect)
+        {
+            effectDescription.targetParameter = Math.Max(1, character.TryGetProficiencyBonus());
+
+            return effectDescription;
+        }
+    }
+
+    private static bool HasMusicalInstrument(RulesetCharacter character)
+    {
+        var inventory = character?.CharacterInventory;
+
+        if (inventory == null)
+        {
+            return false;
+        }
+
+        var items = character.Items;
+
+        inventory.EnumerateAllItems(items);
+
+        var result = items.Exists(item => item.ItemDefinition.IsMusicalInstrument);
+
+        items.Clear();
+
+        return result;
+    }
+
+    private static bool IsEligibleMusician2024Target(
+        GameLocationCharacter musician,
+        GameLocationCharacter target,
+        FeatureDefinitionPower power,
+        ConditionDefinition condition)
+    {
+        var rulesetTarget = target?.RulesetCharacter;
+
+        return musician != null &&
+               target != musician &&
+               target?.Side == musician.Side &&
+               musician.IsWithinRange(target, power.EffectDescription.RangeParameter) &&
+               rulesetTarget is { IsDeadOrDyingOrUnconscious: false } &&
+               !rulesetTarget.HasConditionOfType(ConditionDefinitions.ConditionDeafened.Name) &&
+               !rulesetTarget.HasConditionOfCategoryAndType(
+                   AttributeDefinitions.TagEffect,
+                   condition.Name);
+    }
+
+    private sealed class FilterTargetingCharacterMusician2024(
+        FeatureDefinitionPower power,
+        ConditionDefinition condition)
         : IFilterTargetingCharacter
     {
-        public bool EnforceFullSelection => true;
+        public bool EnforceFullSelection => false;
 
         public bool IsValid(CursorLocationSelectTarget __instance, GameLocationCharacter target)
         {
@@ -8444,37 +8511,91 @@ public static partial class Tabletop2024Context
                 return false;
             }
 
-            return rulesetTarget is { IsDeadOrDyingOrUnconscious: false } &&
-                   target != __instance.ActionParams.ActingCharacter &&
-                   !rulesetTarget.HasConditionOfCategoryAndType(
-                       AttributeDefinitions.TagEffect,
-                       condition.Name);
+            return IsEligibleMusician2024Target(
+                __instance.ActionParams.ActingCharacter,
+                target,
+                power,
+                condition);
         }
     }
 
-    private sealed class ValidatePowerUseMusician2024(ConditionDefinition condition) : IValidatePowerUse
+    private sealed class ValidatePowerUseMusician2024(
+        FeatureDefinitionPower power,
+        ConditionDefinition condition)
+        : IValidatePowerUseWithFailure, IValidateMagicEffectBeforeSpend
     {
+        public bool IsValid(
+            CharacterActionMagicEffect action,
+            GameLocationCharacter actingCharacter,
+            IReadOnlyList<GameLocationCharacter> targets,
+            out string failure)
+        {
+            if (!HasMusicalInstrument(actingCharacter?.RulesetCharacter))
+            {
+                failure = "Failure/&FailureFlagMusician2024NoInstrument";
+
+                return false;
+            }
+
+            var maximumTargets = Math.Max(
+                1,
+                actingCharacter.RulesetCharacter.TryGetProficiencyBonus());
+            var result = targets.Count > 0 &&
+                         targets.Count <= maximumTargets &&
+                         targets.Distinct().Count() == targets.Count &&
+                         targets.All(target => IsEligibleMusician2024Target(
+                             actingCharacter,
+                             target,
+                             power,
+                             condition));
+
+            failure = result ? string.Empty : "Failure/&FailureFlagMusician2024NoTarget";
+
+            return result;
+        }
+
         public bool CanUsePower(RulesetCharacter character, FeatureDefinitionPower power)
+        {
+            return CanUsePower(character, power, out _);
+        }
+
+        public bool CanUsePower(
+            RulesetCharacter character,
+            FeatureDefinitionPower power,
+            out string failure)
         {
             if (ServiceRepository.GetService<IGameLocationBattleService>() is { IsBattleInProgress: true })
             {
+                failure = string.Empty;
+
+                return false;
+            }
+
+            if (!HasMusicalInstrument(character))
+            {
+                failure = "Failure/&FailureFlagMusician2024NoInstrument";
+
                 return false;
             }
 
             var musician = GameLocationCharacter.GetFromActor(character);
             var characterService = ServiceRepository.GetService<IGameLocationCharacterService>();
 
-            return musician != null &&
-                   characterService != null &&
-                   characterService.PartyCharacters
-                       .Union(characterService.GuestCharacters)
-                       .Any(target =>
-                           target != musician &&
-                           target.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } rulesetTarget &&
-                           !rulesetTarget.HasConditionOfType(ConditionDefinitions.ConditionDeafened.Name) &&
-                           !rulesetTarget.HasConditionOfCategoryAndType(
-                               AttributeDefinitions.TagEffect,
-                               condition.Name));
+            var result = musician != null &&
+                         characterService != null &&
+                         characterService.PartyCharacters
+                             .Union(characterService.GuestCharacters)
+                             .Any(target => IsEligibleMusician2024Target(
+                                 musician,
+                                 target,
+                                 power,
+                                 condition));
+
+            failure = result
+                ? string.Empty
+                : "Failure/&FailureFlagMusician2024NoEligibleTarget";
+
+            return result;
         }
     }
 

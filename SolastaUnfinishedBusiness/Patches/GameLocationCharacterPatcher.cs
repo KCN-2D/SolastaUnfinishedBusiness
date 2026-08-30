@@ -478,20 +478,29 @@ public static class GameLocationCharacterPatcher
 
             if (actionType == ActionType.Main &&
                 rulesetCharacter.UsablePowers.Any(rulesetUsablePower =>
-                    CanUsePower(rulesetCharacter, rulesetUsablePower, accountDelegatedPowers)))
+                    CanDisplayPower(
+                        rulesetCharacter,
+                        rulesetUsablePower,
+                        actionType,
+                        accountDelegatedPowers)))
 
             {
                 __result = true;
             }
         }
 
-        private static bool CanUsePower(RulesetCharacter character, RulesetUsablePower usablePower,
+        private static bool CanDisplayPower(
+            RulesetCharacter character,
+            RulesetUsablePower usablePower,
+            ActionType actionType,
             bool accountDelegatedPowers)
         {
             var power = usablePower.PowerDefinition;
 
             return (accountDelegatedPowers || !power.DelegatedToAction)
-                   && character.CanUsePower(power, false);
+                   && !ModifyPowerVisibility.IsPowerHidden(character, power, actionType)
+                   && (character.CanUsePower(power, false) ||
+                       character.CanDisplayPowerWhenUnavailable(power));
         }
 
         private static bool IsAvailableForActionType(
@@ -502,10 +511,13 @@ public static class GameLocationCharacterPatcher
             bool battleInProgress)
         {
             var power = usablePower?.PowerDefinition;
+            var keepVisibleWhenUnavailable = character.CanDisplayPowerWhenUnavailable(power);
 
             if (power == null ||
-                !character.CanUsePower(power, false) ||
-                character.GetRemainingUsesOfPower(usablePower) <= 0 ||
+                ModifyPowerVisibility.IsPowerHidden(character, power, actionType) ||
+                (!keepVisibleWhenUnavailable &&
+                 (!character.CanUsePower(power, false) ||
+                  character.GetRemainingUsesOfPower(usablePower) <= 0)) ||
                 (!accountDelegatedPowers && power.DelegatedToAction))
             {
                 return false;
@@ -513,6 +525,11 @@ public static class GameLocationCharacterPatcher
 
             if (!battleInProgress)
             {
+                if (actionType == ActionType.Main && keepVisibleWhenUnavailable)
+                {
+                    return true;
+                }
+
                 return actionType switch
                 {
                     ActionType.Main => power.ActivationTime is

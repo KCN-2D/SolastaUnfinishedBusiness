@@ -195,7 +195,8 @@ internal static class RulesetCharacterExtensions
                 continue;
             }
 
-            if (!character.CanUsePower(power, true, true))
+            if (!character.CanUsePower(power, true, true) &&
+                !character.CanDisplayPowerWhenUnavailable(power, true))
             {
                 continue;
             }
@@ -204,6 +205,22 @@ internal static class RulesetCharacterExtensions
         }
 
         return false;
+    }
+
+    internal static bool CanDisplayPowerWhenUnavailable(
+        this RulesetCharacter instance,
+        [CanBeNull] FeatureDefinitionPower power,
+        bool considerHaving = false)
+    {
+        if (!power ||
+            !ModifyPowerVisibility.ShouldKeepVisibleWhenUnavailable(power) ||
+            (considerHaving && !instance.HasPower(power)))
+        {
+            return false;
+        }
+
+        return instance is not RulesetCharacterSimulacrum duplicate ||
+               SimulacrumBehavior.IsPowerCurrentlyActive(duplicate, power);
     }
 
     /**Checks if power has enough uses and that all validators are OK*/

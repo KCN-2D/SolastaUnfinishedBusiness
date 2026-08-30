@@ -2,7 +2,10 @@
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Validators;
+using UnityEngine;
 using UnityEngine.UI;
 using static RuleDefinitions;
 
@@ -19,6 +22,11 @@ public static class UsablePowerBoxPatcher
         [UsedImplicitly]
         public static bool Prefix(UsablePowerBox __instance)
         {
+            if (!__instance.globalValid)
+            {
+                return true;
+            }
+
             //PATCH: used by Power Bundles feature
             //if the activated power is a bundle, this tries to replace activation with sub-spell selector and
             //then activates bundled power according to selected subspell.
@@ -35,19 +43,31 @@ public static class UsablePowerBoxPatcher
         [UsedImplicitly]
         public static void Postfix(UsablePowerBox __instance)
         {
+            var powerDefinition = __instance.usablePower.PowerDefinition;
+            var unavailable =
+                ModifyPowerVisibility.ShouldKeepVisibleWhenUnavailable(powerDefinition) &&
+                ValidatorsValidatePowerUse.IsPowerNotValid(__instance.activator, __instance.usablePower);
+
             //PATCH: sets current character as context for power tooltip, so it may update its properties based on user
             __instance.GuiTooltip.Context = __instance.activator;
 
-            //PATCH: make reaction powers not active
-            if (__instance.usablePower.PowerDefinition.activationTime == ActivationTime.Reaction)
+            //PATCH: make reaction powers not active while keeping unavailable powers focusable for their tooltip
+            if (powerDefinition.activationTime == ActivationTime.Reaction)
             {
                 __instance.canvasGroup.interactable = false;
-                __instance.titleActiveLabel.gameObject.SetActive(false);
-                __instance.titleInactiveLabel.gameObject.SetActive(true);
+                __instance.RefreshLabel(false);
             }
             else
             {
                 __instance.canvasGroup.interactable = true;
+            }
+
+            if (unavailable)
+            {
+                __instance.globalValid = false;
+                __instance.RefreshLabel(false);
+                __instance.image.material = __instance.unavailableMaterial;
+                __instance.image.color = new Color(0.5f, 0.5f, 0.5f, 1f);
             }
 
             UiTextHelpers.FitCardTitle(__instance.titleActiveLabel);
