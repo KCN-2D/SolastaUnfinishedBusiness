@@ -1083,7 +1083,7 @@ internal static partial class SpellBuilders
             {
                 Tabletop2024Context.BindSpellDerivedConditionOrigin(
                     rulesetCondition,
-                    actionCastSpell.ActiveSpell.SpellRepertoire);
+                    actionCastSpell.ActiveSpell);
             }
         }
     }
@@ -1092,7 +1092,7 @@ internal static partial class SpellBuilders
     {
         public void OnConditionAdded(RulesetCharacter target, RulesetCondition rulesetCondition)
         {
-            // The origin repertoire is bound immediately after the condition is inflicted.
+            // The spell origin is bound immediately after the condition is inflicted.
         }
 
         public void OnConditionRemoved(RulesetCharacter target, RulesetCondition rulesetCondition)
@@ -2562,6 +2562,7 @@ internal static partial class SpellBuilders
         .AddSpecialInterruptions(ConditionInterruption.Attacks)
         //TODO: make it break only when targeting enemies
         .AddSpecialInterruptions(ExtraConditionInterruption.AffectsEnemy)
+        .AddCustomSubFeatures(new ClearSpellDerivedConditionOrigin())
         .AddToDB();
 
     internal static SpellDefinition BuildSanctuary()
@@ -2677,7 +2678,10 @@ internal static partial class SpellBuilders
 
                 rulesetTarget.EnumerateFeaturesToBrowse<ISpellCastingAffinityProvider>(
                     rulesetCaster.FeaturesToBrowse, rulesetCaster.FeaturesOrigin);
-                activeCondition.Amount = rulesetCaster.ComputeSaveDC(actionCastSpell.activeSpell.SpellRepertoire);
+                activeCondition.Amount = Tabletop2024Context.GetSpellBaseSaveDc(actionCastSpell.ActiveSpell);
+                Tabletop2024Context.BindSpellDerivedConditionOrigin(
+                    activeCondition,
+                    actionCastSpell.ActiveSpell);
             }
         }
     }

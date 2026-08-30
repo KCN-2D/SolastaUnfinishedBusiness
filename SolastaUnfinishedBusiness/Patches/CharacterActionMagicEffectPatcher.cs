@@ -396,11 +396,6 @@ public static class CharacterActionMagicEffectPatcher
                 yield break;
             }
 
-            using var vocalOriginScope = RulesetEffectSpellWithOrigin.TrackVocalOrigin(
-                actingCharacter.RulesetCharacter,
-                rulesetEffect as RulesetEffectSpell);
-
-            var effectDescription = rulesetEffect.EffectDescription;
             var targets = actionParams.TargetCharacters;
             var targetPositions = actionParams.Positions;
             var actionModifiers = actionParams.ActionModifiers;
@@ -448,6 +443,12 @@ public static class CharacterActionMagicEffectPatcher
                     yield break;
                 }
             }
+
+            using var vocalOriginScope = RulesetEffectSpellWithOrigin.TrackVocalOrigin(
+                actingCharacter.RulesetCharacter,
+                rulesetEffect as RulesetEffectSpell);
+
+            var effectDescription = rulesetEffect.EffectDescription;
 
             // BEGIN PATCH
 

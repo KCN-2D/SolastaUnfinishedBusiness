@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
@@ -35,6 +36,8 @@ namespace SolastaUnfinishedBusiness.Models;
 
 internal static class Level20Context
 {
+    private static readonly ConditionalWeakTable<RulesetEffectSpell, object> FreeWizardCasts = new();
+
     internal const string ActionSurgeOncePerTurnName = "PowerFighterActionSurge.OncePerTurn";
     internal const string PowerWarlockEldritchMasterName = "PowerWarlockEldritchMaster";
     internal const int ModMaxLevel = 20;
@@ -658,6 +661,22 @@ internal static class Level20Context
     {
         return WizardSpellMastery.HasFreeCast(spellRepertoire, spellDefinition, castLevel) ||
                WizardSignatureSpells.HasFreeCast(caster, spellRepertoire, spellDefinition, castLevel);
+    }
+
+    internal static void MarkFreeWizardCast(RulesetEffectSpell activeSpell)
+    {
+        if (activeSpell == null)
+        {
+            return;
+        }
+
+        FreeWizardCasts.Remove(activeSpell);
+        FreeWizardCasts.Add(activeSpell, new object());
+    }
+
+    internal static bool WasFreeWizardCast(RulesetEffectSpell activeSpell)
+    {
+        return activeSpell != null && FreeWizardCasts.TryGetValue(activeSpell, out _);
     }
 
     private static SpellDefinition GetWizardFreeCastSpell(SpellDefinition spellDefinition)

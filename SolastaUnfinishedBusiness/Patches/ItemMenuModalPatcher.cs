@@ -85,10 +85,24 @@ public static class ItemMenuModalPatcher
                 RulesetDeviceFunction
             >(PatchedOnActivateActionExternal).Method;
 
-            return instructions.ReplaceCalls(oldMethod, "ItemMenuModal.ActivateFunction",
-                new CodeInstruction(OpCodes.Ldarg_2),
-                new CodeInstruction(OpCodes.Ldarg_3),
-                new CodeInstruction(OpCodes.Call, newMethod));
+            var targetTypeGetter = typeof(EffectDescription)
+                .GetProperty(nameof(EffectDescription.TargetType))
+                ?.GetGetMethod();
+            var pendingDeviceTargetType =
+                new Func<EffectDescription, TargetType>(
+                    RulesetEffectSpellWithOrigin.GetPendingDeviceTargetType).Method;
+
+            return instructions
+                .ReplaceCalls(oldMethod, "ItemMenuModal.ActivateFunction.Action",
+                    new CodeInstruction(OpCodes.Ldarg_2),
+                    new CodeInstruction(OpCodes.Ldarg_3),
+                    new CodeInstruction(OpCodes.Call, newMethod))
+                .ReplaceCallChecked(
+                    targetTypeGetter,
+                    1,
+                    3,
+                    "ItemMenuModal.ActivateFunction.PendingWishTarget",
+                    new CodeInstruction(OpCodes.Call, pendingDeviceTargetType));
         }
 
         private static void PatchedOnActivateActionExternal(

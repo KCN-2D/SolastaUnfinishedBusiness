@@ -689,6 +689,7 @@ internal static class ClassFeats
         IMagicEffectBeforeHitConfirmedOnEnemy
     {
         private const string Title = "Feat/&FeatPotentSpellcasterTitle1";
+        private CharacterClassDefinition CastingClass => castingClass;
 
         public IEnumerator OnMagicEffectBeforeHitConfirmedOnEnemy(
             GameLocationBattleManager battleManager,
@@ -700,7 +701,11 @@ internal static class ClassFeats
             bool firstTarget,
             bool criticalHit)
         {
-            if (rulesetEffect.SourceDefinition is SpellDefinition { SpellLevel: 0 })
+            if (rulesetEffect is RulesetEffectSpell
+                {
+                    SpellDefinition: { SpellLevel: 0 } spellDefinition
+                } spellEffect &&
+                attacker.RulesetCharacter.IsSpellCastAsClassOrSubclassSpell(spellEffect, castingClass))
             {
                 attacker.RulesetCharacter.LogCharacterActivatesAbility(Title);
             }
@@ -713,12 +718,8 @@ internal static class ClassFeats
             RulesetCharacter character,
             EffectDescription effectDescription)
         {
-            if (definition is not SpellDefinition { SpellLevel: 0 } spell) { return false; }
-
-            var repertoires = new List<RulesetSpellRepertoire>();
-            character.GetSpellRepertoireFromDefinition(spell, allMatchingRepertoires: repertoires);
-
-            return repertoires.Any(r => r.GetCastingClass() == castingClass);
+            return definition is SpellDefinition { SpellLevel: 0 } spell &&
+                   character.IsSpellOnClassOrSubclassSpellList(spell, castingClass);
         }
 
         public EffectDescription GetEffectDescription(
@@ -732,28 +733,20 @@ internal static class ClassFeats
                 return effectDescription;
             }
 
-            var spellRepertoire =
-                character.SpellRepertoires.FirstOrDefault(x =>
-                    x.SpellCastingClass == castingClass && x.HasKnowledgeOfSpell(spell));
+            var isClassSpell = rulesetEffect is RulesetEffectSpell spellEffect
+                ? character.IsSpellCastAsClassOrSubclassSpell(spellEffect, castingClass)
+                : character.IsSpellOnClassOrSubclassSpellList(spell, castingClass);
 
-            if (spellRepertoire == null)
+            if (!isClassSpell)
             {
-                if (SpellsContext.SpellsChildMaster.TryGetValue(spell, out var parentSpell))
-                {
-                    spellRepertoire =
-                        character.SpellRepertoires.FirstOrDefault(x =>
-                            x.SpellCastingClass == castingClass && x.HasKnowledgeOfSpell(parentSpell));
-                }
-
-                if (spellRepertoire == null)
-                {
-                    return effectDescription;
-                }
+                return effectDescription;
             }
+
+            var spellRepertoire = GetCastingClassRepertoire(character);
 
             var damage = effectDescription.FindFirstDamageForm();
 
-            if (damage == null)
+            if (spellRepertoire == null || damage == null)
             {
                 return effectDescription;
             }
@@ -786,11 +779,10 @@ internal static class ClassFeats
                 return;
             }
 
-            var spellRepertoire =
-                character.SpellRepertoires.FirstOrDefault(x =>
-                    x.SpellCastingClass == castingClass && x.HasKnowledgeOfSpell(ProduceFlame));
+            var spellRepertoire = GetCastingClassRepertoire(character);
 
-            if (spellRepertoire == null)
+            if (spellRepertoire == null ||
+                !character.IsSpellOnClassOrSubclassSpellList(ProduceFlame, castingClass))
             {
                 return;
             }
@@ -811,26 +803,49 @@ internal static class ClassFeats
         {
             var rulesetCharacter = character.RulesetCharacter;
 
-            if (!SimulacrumBehavior.HasTrainedFeat(
-                    rulesetCharacter,
-                    feat => feat.Name.StartsWith(
-                        "FeatPotentSpellcaster",
-                        StringComparison.Ordinal)) ||
-                actionMagicEffect.ActionParams.activeEffect.SourceDefinition is not SpellDefinition { SpellLevel: 0 })
+            if (actionMagicEffect.ActionParams.activeEffect is not RulesetEffectSpell
+                {
+                    SpellDefinition: { SpellLevel: 0 } spellDefinition
+                } spellEffect)
             {
                 return;
             }
 
+            foreach (var behavior in rulesetCharacter
+                         .GetSubFeaturesByType<CustomBehaviorFeatPotentSpellcaster>()
+                         .Distinct()
+                         .Where(x => rulesetCharacter.IsSpellCastAsClassOrSubclassSpell(
+                             spellEffect,
+                             x.CastingClass)))
+            {
+                behavior.ApplyBladeCantripBonus(rulesetCharacter, attackMode);
+            }
+        }
+
+        private void ApplyBladeCantripBonus(
+            RulesetCharacter rulesetCharacter,
+            RulesetAttackMode attackMode)
+        {
             var damage = attackMode.EffectDescription.FindFirstDamageForm();
-            var attribute = actionMagicEffect.ActionParams.activeEffect.SourceAbility;
-            var bonus =
-                AttributeDefinitions.ComputeAbilityScoreModifier(
-                    rulesetCharacter.TryGetAttributeValue(attribute));
+            var spellRepertoire = GetCastingClassRepertoire(rulesetCharacter);
+
+            if (damage == null || spellRepertoire == null)
+            {
+                return;
+            }
+
+            var bonus = AttributeDefinitions.ComputeAbilityScoreModifier(
+                rulesetCharacter.TryGetAttributeValue(spellRepertoire.SpellCastingAbility));
 
             damage.BonusDamage += bonus;
             damage.DamageBonusTrends.Add(
-                new TrendInfo(bonus, FeatureSourceType.CharacterFeature, string.Empty, null));
+                new TrendInfo(bonus, FeatureSourceType.CharacterFeature, baseDefinition.Name, baseDefinition));
             rulesetCharacter.LogCharacterActivatesAbility(Title);
+        }
+
+        private RulesetSpellRepertoire GetCastingClassRepertoire(RulesetCharacter character)
+        {
+            return character.GetFeatureOwnerOrSelf()?.GetClassSpellRepertoire(castingClass);
         }
     }
 

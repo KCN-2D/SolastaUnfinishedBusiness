@@ -19,6 +19,24 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetEffectSpellPatcher
 {
+    private static IEnumerable<CodeInstruction> UseOriginatingSpellForItemCastingStats(
+        IEnumerable<CodeInstruction> instructions,
+        string context,
+        int expectedCalls)
+    {
+        var spellDefinition = typeof(RulesetEffectSpell)
+            .GetProperty(nameof(RulesetEffectSpell.SpellDefinition))
+            ?.GetGetMethod();
+        var getOriginSpell =
+            new Func<RulesetEffectSpell, SpellDefinition>(RulesetEffectSpellWithOrigin.GetOriginSpell).Method;
+
+        return instructions.ReplaceCalls(
+            spellDefinition,
+            expectedCalls,
+            context,
+            new CodeInstruction(OpCodes.Call, getOriginSpell));
+    }
+
     [HarmonyPatch(typeof(RulesetEffectSpell), nameof(RulesetEffectSpell.ApplyEffectOnCharacter))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -111,30 +129,39 @@ public static class RulesetEffectSpellPatcher
     // ReSharper disable once InconsistentNaming
     public static class SaveDC_Getter_Patch
     {
+        [NotNull]
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(
+            [NotNull] IEnumerable<CodeInstruction> instructions)
+        {
+            return UseOriginatingSpellForItemCastingStats(
+                instructions,
+                "RulesetEffectSpell.SaveDC",
+                2);
+        }
+
         [UsedImplicitly]
         public static void Postfix(RulesetEffectSpell __instance, ref int __result)
         {
-            Tabletop2024Context.ModifyInnateSorcerySaveDc(__instance, ref __result);
-
             //PATCH: allow devices have DC based on user or item summoner stats, instead of static value
             var originItem = __instance.OriginItem;
 
-            if (originItem == null || __result >= 0)
+            if (originItem != null && __result < 0)
             {
-                return;
+                var caster = __instance.Caster;
+
+                if (__result == EffectHelpers.BasedOnItemSummoner)
+                {
+                    caster = EffectHelpers.GetCharacterByEffectGuid(originItem.SourceSummoningEffectGuid) ?? caster;
+                }
+
+                var classHolder = originItem.ItemDefinition.GetFirstSubFeatureOfType<ClassHolder>();
+
+                __result = EffectHelpers.CalculateSaveDc(
+                    caster, __instance.spellDefinition.effectDescription, classHolder?.Class);
             }
 
-            var caster = __instance.Caster;
-
-            if (__result == EffectHelpers.BasedOnItemSummoner)
-            {
-                caster = EffectHelpers.GetCharacterByEffectGuid(originItem.SourceSummoningEffectGuid) ?? caster;
-            }
-
-            var classHolder = originItem.ItemDefinition.GetFirstSubFeatureOfType<ClassHolder>();
-
-            __result = EffectHelpers.CalculateSaveDc(
-                caster, __instance.spellDefinition.effectDescription, classHolder?.Class);
+            Tabletop2024Context.ModifyInnateSorcerySaveDc(__instance, ref __result);
         }
     }
 
@@ -143,6 +170,17 @@ public static class RulesetEffectSpellPatcher
     [UsedImplicitly]
     public static class MagicAttackBonus_Getter_Patch
     {
+        [NotNull]
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(
+            [NotNull] IEnumerable<CodeInstruction> instructions)
+        {
+            return UseOriginatingSpellForItemCastingStats(
+                instructions,
+                "RulesetEffectSpell.MagicAttackBonus",
+                2);
+        }
+
         [UsedImplicitly]
         public static void Postfix(RulesetEffectSpell __instance, ref int __result)
         {
@@ -183,6 +221,17 @@ public static class RulesetEffectSpellPatcher
     [UsedImplicitly]
     public static class MagicAttackTrends_Getter_Patch
     {
+        [NotNull]
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(
+            [NotNull] IEnumerable<CodeInstruction> instructions)
+        {
+            return UseOriginatingSpellForItemCastingStats(
+                instructions,
+                "RulesetEffectSpell.MagicAttackTrends",
+                1);
+        }
+
         [UsedImplicitly]
         public static void Postfix(RulesetEffectSpell __instance, ref List<TrendInfo> __result)
         {

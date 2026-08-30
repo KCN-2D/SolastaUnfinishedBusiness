@@ -517,8 +517,10 @@ public sealed class DomainOrder : AbstractSubclass
                 .RulesetCharacter; // First enemy target
 
             if (action is not CharacterActionCastSpell castSpell ||
-                castSpell.ActiveSpell.SlotLevel != 0 ||
-                castSpell.ActiveSpell.spellRepertoire?.SpellCastingClass != Cleric ||
+                castSpell.ActiveSpell.SpellDefinition.SpellLevel != 0 ||
+                !rulesetAttacker.IsSpellCastAsClassOrSubclassSpell(
+                    castSpell.ActiveSpell,
+                    Cleric) ||
                 rulesetTarget is null ||
                 action is not { SaveOutcome: RollOutcome.Failure or RollOutcome.CriticalFailure } ||
                 !rulesetAttacker.CanUsePower(powerOrdersWrath) ||

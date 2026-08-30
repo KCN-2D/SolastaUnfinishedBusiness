@@ -750,17 +750,9 @@ public static class RulesetCharacterPatcher
                 return;
             }
 
-            var user = __instance;
-
-            // __instance is required by Artillerist which has powers tied to caster
-            var summoner = user.HasSubFeatureOfType<IUseOwnStatsWhenSummoned>()
-                ? null
-                : user.GetMySummoner();
-
-            if (summoner != null)
-            {
-                user = summoner.RulesetCharacter;
-            }
+            // Artillerist devices use their summoner's stats; shapechanged heroes and
+            // simulacra retain the class stats of their original form.
+            var user = __instance.GetClassFeatureStatsOwner();
 
             var repertoire = user.GetClassSpellRepertoire(user.FindClassHoldingFeature(featureDefinitionPower));
 
@@ -1204,9 +1196,11 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance, ref List<RulesetSpellRepertoire> __result)
         {
-            if (__instance.TryGetShapeChangeOriginalHero(out var hero))
+            var featureOwner = __instance.GetFeatureOwnerOrSelf();
+
+            if (featureOwner != null && featureOwner != __instance)
             {
-                __result = hero.SpellRepertoires;
+                __result = featureOwner.SpellRepertoires;
             }
         }
     }
@@ -3217,10 +3211,7 @@ public static class RulesetCharacterPatcher
             FeatureDefinition featureDefinition,
             ref CharacterClassDefinition __result)
         {
-            var gameLocationCharacter = __instance.HasSubFeatureOfType<IUseOwnStatsWhenSummoned>()
-                ? null
-                : __instance.GetMySummoner();
-            var rulesetCharacter = gameLocationCharacter?.RulesetCharacter ?? __instance;
+            var rulesetCharacter = __instance.GetClassFeatureStatsOwner();
 
             //PATCH: replaces feature holding class with one provided by custom interface
             //used for features that are not granted directly through class but need to scale with class levels
@@ -3292,11 +3283,13 @@ public static class RulesetCharacterPatcher
                     //BEGIN PATCH: supports Wizard Spell Mastery and Signature Spells
                     if (!Level20Context.WizardSpellMastery.ShouldConsumeSlot(__instance, activeSpell))
                     {
+                        Level20Context.MarkFreeWizardCast(activeSpell);
                         return false;
                     }
 
                     if (!Level20Context.WizardSignatureSpells.ShouldConsumeSlot(__instance, activeSpell))
                     {
+                        Level20Context.MarkFreeWizardCast(activeSpell);
                         return false;
                     }
                     //END PATCH

@@ -126,9 +126,9 @@ public static class RulesetEffectPowerPatcher
                 return;
             }
 
-            var hero = character.GetOriginalHero();
+            var featureOwner = character.GetFeatureOwnerOrSelf();
 
-            if (character is not RulesetCharacterSimulacrum && hero == null)
+            if (featureOwner == null)
             {
                 return;
             }
@@ -141,9 +141,7 @@ public static class RulesetEffectPowerPatcher
                 return;
             }
 
-            __result = character is RulesetCharacterSimulacrum
-                ? character.GetClassLevel(holder.Class)
-                : hero.GetClassLevel(holder.Class);
+            __result = featureOwner.GetClassLevel(holder.Class);
         }
     }
 
@@ -178,17 +176,9 @@ public static class RulesetEffectPowerPatcher
                 return;
             }
 
-            var user = __instance.User;
-
-            // this is required by Artillerist which has powers tied to caster
-            var summoner = user.HasSubFeatureOfType<IUseOwnStatsWhenSummoned>()
-                ? null
-                : user.GetMySummoner();
-
-            if (summoner != null)
-            {
-                user = summoner.RulesetCharacter;
-            }
+            // Artillerist devices use their summoner's stats; shapechanged heroes and
+            // simulacra retain the class stats of their original form.
+            var user = __instance.User.GetClassFeatureStatsOwner();
 
             var repertoire = user.GetClassSpellRepertoire(user.FindClassHoldingFeature(power));
 
@@ -216,17 +206,9 @@ public static class RulesetEffectPowerPatcher
                 return;
             }
 
-            var user = __instance.User;
-
-            // this is required by Artillerist which has powers tied to caster
-            var summoner = user.HasSubFeatureOfType<IUseOwnStatsWhenSummoned>()
-                ? null
-                : user.GetMySummoner();
-
-            if (summoner != null)
-            {
-                user = summoner.RulesetCharacter;
-            }
+            // Artillerist devices use their summoner's stats; shapechanged heroes and
+            // simulacra retain the class stats of their original form.
+            var user = __instance.User.GetClassFeatureStatsOwner();
 
             var repertoire = user.GetClassSpellRepertoire(user.FindClassHoldingFeature(power));
 

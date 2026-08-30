@@ -245,7 +245,7 @@ internal static class SpellCastingValidation
             bypassMaterialComponent);
         var validators = new List<IValidateSpellCasting>();
 
-        if (caster is RulesetCharacterSimulacrum &&
+        if (caster.GetFeatureOwnerOrSelf() is RulesetCharacterSimulacrum &&
             SimulacrumBehavior.RuntimeRestrictionsMarker is IValidateSpellCasting runtimeRestrictions)
         {
             validators.Add(runtimeRestrictions);

@@ -25,25 +25,22 @@ public static class CharacterActionCastSpellPatcher
     [UsedImplicitly]
     public static class SpendMagicEffectUses_Patch
     {
+        [NotNull]
         [UsedImplicitly]
-        public static void Prefix(CharacterActionCastSpell __instance, out bool __state)
+        public static IEnumerable<CodeInstruction> Transpiler(
+            [NotNull] IEnumerable<CodeInstruction> instructions)
         {
-            __state = __instance.ActingCharacter.UsedMainCantrip;
-        }
+            var spellDefinition = typeof(RulesetEffectSpell)
+                .GetProperty(nameof(RulesetEffectSpell.SpellDefinition))
+                ?.GetGetMethod();
+            var getOriginSpell =
+                new Func<RulesetEffectSpell, SpellDefinition>(RulesetEffectSpellWithOrigin.GetOriginSpell).Method;
 
-        [UsedImplicitly]
-        public static void Postfix(CharacterActionCastSpell __instance, bool __state)
-        {
-            if (__instance.ActionId != ActionDefinitions.Id.CastMain ||
-                __instance.ActiveSpell is not RulesetEffectSpellWithOrigin activeSpell ||
-                RulesetEffectSpellWithOrigin.GetOriginSpell(activeSpell).SpellLevel <= 0 ||
-                activeSpell.SpellDefinition.SpellLevel > 0)
-            {
-                return;
-            }
-
-            __instance.ActingCharacter.UsedMainSpell = true;
-            __instance.ActingCharacter.UsedMainCantrip = __state;
+            return instructions.ReplaceCalls(
+                spellDefinition,
+                6,
+                "CharacterActionCastSpell.SpendMagicEffectUses",
+                new CodeInstruction(OpCodes.Call, getOriginSpell));
         }
     }
 

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
@@ -320,7 +321,12 @@ public sealed class OathOfAncients : AbstractSubclass
             if (action.ActionType != ActionDefinitions.ActionType.Main ||
                 action is not CharacterActionCastSpell actionCastSpell ||
                 actionCastSpell.Countered ||
-                actionCastSpell.ExecutionFailed)
+                actionCastSpell.ExecutionFailed ||
+                actionCastSpell.ActiveSpell is not { } activeSpell ||
+                activeSpell.SpellDefinition.ActivationTime != ActivationTime.Action ||
+                !attacker.RulesetCharacter.IsSpellCastAsClassOrSubclassSpell(
+                    activeSpell,
+                    CharacterClassDefinitions.Paladin))
             {
                 yield break;
             }

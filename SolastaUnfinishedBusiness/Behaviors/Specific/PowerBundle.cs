@@ -301,7 +301,10 @@ internal static class PowerBundle
         return ModifyMagicEffect(original, power.PowerDefinition, power.User, power);
     }
 
-    private static string Key(BaseDefinition definition, BaseDefinition metamagic)
+    private static string Key(
+        BaseDefinition definition,
+        BaseDefinition metamagic,
+        RulesetEffect effect)
     {
         var key = $"{definition.GetType()}:{definition.Name}:";
 
@@ -310,26 +313,47 @@ internal static class PowerBundle
             key += metamagic.Name;
         }
 
+        if (definition is SpellDefinition)
+        {
+            var spellEffect = effect as RulesetEffectSpell;
+            var associatedRepertoire = spellEffect?.GetClassOrSubclassSpellAssociation();
+
+            key += effect == null
+                ? ":SpellPreview"
+                : associatedRepertoire != null
+                    ? $":SpellAssociation:{associatedRepertoire.SpellCastingFeature.SpellCastingOrigin}:" +
+                      $"{associatedRepertoire.SpellCastingClass?.Name}:" +
+                      $"{associatedRepertoire.SpellCastingSubclass?.Name}:" +
+                      associatedRepertoire.SpellCastingFeature.Name
+                    : spellEffect?.UsesSpellListClassification() == true
+                        ? ":SpellListClassification"
+                        : ":SpellUnsupportedOrigin";
+        }
+
         return key;
     }
 
     private static EffectDescription GetCachedEffect(
         RulesetEntity caster,
         BaseDefinition definition,
-        BaseDefinition metamagic)
+        BaseDefinition metamagic,
+        RulesetEffect effect)
     {
         if (!SpellEffectCache.TryGetValue(caster.Guid, out var effects))
         {
             return null;
         }
 
-        return effects.TryGetValue(Key(definition, metamagic), out var effect) ? effect : null;
+        return effects.TryGetValue(Key(definition, metamagic, effect), out var cachedEffect)
+            ? cachedEffect
+            : null;
     }
 
     private static void CacheEffect(
         RulesetEntity caster,
         BaseDefinition definition,
         BaseDefinition metamagic,
+        RulesetEffect rulesetEffect,
         EffectDescription effect)
     {
         if (!SpellEffectCache.TryGetValue(caster.Guid, out var value))
@@ -338,7 +362,7 @@ internal static class PowerBundle
             SpellEffectCache.Add(caster.Guid, value);
         }
 
-        value.AddOrReplace(Key(definition, metamagic), effect);
+        value.AddOrReplace(Key(definition, metamagic, rulesetEffect), effect);
     }
 
     internal static void ClearSpellEffectCache(RulesetCharacter caster)
@@ -358,7 +382,7 @@ internal static class PowerBundle
         }
 
         var metamagic = effect is RulesetEffectSpell spell ? spell.MetamagicOption : null;
-        var cached = GetCachedEffect(caster, definition, metamagic);
+        var cached = GetCachedEffect(caster, definition, metamagic, effect);
 
         if (cached != null)
         {
@@ -394,7 +418,7 @@ internal static class PowerBundle
                 (current, f) => f.GetEffectDescription(definition, current, caster, effect));
         }
 
-        CacheEffect(caster, definition, metamagic, result);
+        CacheEffect(caster, definition, metamagic, effect, result);
 
         return result;
     }

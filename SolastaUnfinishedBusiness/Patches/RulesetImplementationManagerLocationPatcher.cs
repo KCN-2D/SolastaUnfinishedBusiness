@@ -595,8 +595,22 @@ public static class RulesetImplementationManagerLocationPatcher
             RulesetItemDevice usableDevice,
             RulesetDeviceFunction usableDeviceFunction,
             int addedCharges,
-            bool delayRegistration)
+            bool delayRegistration,
+            int subSpellIndex)
         {
+            if (!RulesetEffectSpellWithOrigin.TryInstantiateDevice(
+                    __instance,
+                    ref __result,
+                    user,
+                    usableDevice,
+                    usableDeviceFunction,
+                    addedCharges,
+                    subSpellIndex,
+                    delayRegistration))
+            {
+                return false;
+            }
+
             //PATCH: support `RulesetEffectPowerWithAdvancement` by creating custom instance when needed
             return RulesetEffectPowerWithAdvancement.InstantiateActiveDeviceFunction(__instance, ref __result, user,
                 usableDevice, usableDeviceFunction, addedCharges, delayRegistration);

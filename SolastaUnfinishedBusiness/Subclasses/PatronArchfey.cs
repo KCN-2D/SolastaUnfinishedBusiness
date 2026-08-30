@@ -64,6 +64,7 @@ public class PatronArchfey : AbstractSubclass
                     .SetSavingThrowData(false, AttributeDefinitions.Wisdom, false,
                         EffectDifficultyClassComputation.SpellCastingFeature)
                     .Build())
+            .AddCustomSubFeatures(ClassHolder.Warlock)
             .AddToDB();
 
         var powerFeyPresenceCharmed = FeatureDefinitionPowerSharedPoolBuilder
@@ -89,6 +90,7 @@ public class PatronArchfey : AbstractSubclass
                     .SetImpactEffectParameters(
                         CharmPerson.EffectDescription.EffectParticleParameters.effectParticleReference)
                     .Build())
+            .AddCustomSubFeatures(ClassHolder.Warlock)
             .AddToDB();
 
         var powerFeyPresenceFrightened = FeatureDefinitionPowerSharedPoolBuilder
@@ -114,6 +116,7 @@ public class PatronArchfey : AbstractSubclass
                     .SetImpactEffectParameters(
                         Malediction.EffectDescription.EffectParticleParameters.effectParticleReference)
                     .Build())
+            .AddCustomSubFeatures(ClassHolder.Warlock)
             .AddToDB();
 
         PowerBundle.RegisterPowerBundle(powerFeyPresence, false,
@@ -203,6 +206,7 @@ public class PatronArchfey : AbstractSubclass
                     .SetImpactEffectParameters(
                         CharmPerson.EffectDescription.EffectParticleParameters.effectParticleReference)
                     .Build())
+            .AddCustomSubFeatures(ClassHolder.Warlock)
             .AddToDB();
 
         powerBeguilingDefenses.AddCustomSubFeatures(
@@ -238,6 +242,7 @@ public class PatronArchfey : AbstractSubclass
                     .SetSavingThrowData(false, AttributeDefinitions.Wisdom, false,
                         EffectDifficultyClassComputation.SpellCastingFeature)
                     .Build())
+            .AddCustomSubFeatures(ClassHolder.Warlock)
             .AddToDB();
 
         var conditionDarkDeliriumCharmed = ConditionDefinitionBuilder
@@ -268,6 +273,7 @@ public class PatronArchfey : AbstractSubclass
                     .SetImpactEffectParameters(
                         CharmPerson.EffectDescription.EffectParticleParameters.effectParticleReference)
                     .Build())
+            .AddCustomSubFeatures(ClassHolder.Warlock)
             .AddToDB();
 
         var conditionDarkDeliriumFrightened = ConditionDefinitionBuilder
@@ -297,6 +303,7 @@ public class PatronArchfey : AbstractSubclass
                     .SetCasterEffectParameters(PowerGreen_Hag_Invisibility)
                     .SetEffectEffectParameters(PhantasmalKiller)
                     .Build())
+            .AddCustomSubFeatures(ClassHolder.Warlock)
             .AddToDB();
 
         PowerBundle.RegisterPowerBundle(powerDarkDelirium, false,

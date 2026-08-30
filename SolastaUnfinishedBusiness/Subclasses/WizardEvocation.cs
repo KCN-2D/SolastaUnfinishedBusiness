@@ -12,6 +12,7 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
@@ -741,10 +742,9 @@ public sealed class WizardEvocation : AbstractSubclass
         private static bool IsWizardEvocationSpell(RulesetEffect rulesetEffect)
         {
             return rulesetEffect is RulesetEffectSpell rulesetEffectSpell &&
-                   rulesetEffectSpell.OriginItem == null &&
-                   rulesetEffectSpell.SpellRepertoire?.SpellCastingFeature?.SpellCastingOrigin ==
-                       FeatureDefinitionCastSpell.CastingOrigin.Class &&
-                   rulesetEffectSpell.SpellRepertoire.SpellCastingClass == CharacterClassDefinitions.Wizard &&
+                   rulesetEffectSpell.Caster?.IsSpellCastAsClassOrSubclassSpell(
+                       rulesetEffectSpell,
+                       CharacterClassDefinitions.Wizard) == true &&
                    rulesetEffectSpell.SpellDefinition.SchoolOfMagic == SchoolEvocation;
         }
 
@@ -815,10 +815,22 @@ public sealed class WizardEvocation : AbstractSubclass
         {
             var rulesetAttacker = attacker.RulesetCharacter;
 
-            // only spells between 1st and 5th levels
+            // only wizard spells between 1st and 5th levels
             if (!firstTarget ||
                 !rulesetAttacker.IsToggleEnabled((ActionDefinitions.Id)ExtraActionId.OverChannelToggle) ||
-                rulesetEffect.SourceDefinition is not SpellDefinition spellDefinition ||
+                rulesetEffect is not RulesetEffectSpell
+                {
+                    OriginItem: null,
+                    SpellRepertoire: not null,
+                    SpellDefinition: { } spellDefinition
+                } spellEffect ||
+                !spellEffect.SpellRepertoire.GetCaster().IsSpellCastAsClassOrSubclassSpell(
+                    spellEffect.SpellRepertoire,
+                    spellDefinition,
+                    CharacterClassDefinitions.Wizard,
+                    false) ||
+                Level20Context.WasFreeWizardCast(spellEffect) ||
+                RulesetEffectSpellWithOrigin.GetResourceSlotLevel(spellEffect) is < 1 or > 5 ||
                 spellDefinition.SpellLevel == 0 ||
                 spellDefinition.SpellLevel > 5)
             {
@@ -884,7 +896,10 @@ public sealed class WizardEvocation : AbstractSubclass
             const DieType DIE_TYPE = DieType.D12;
 
             var rulesetEffect = action.ActionParams.RulesetEffect;
-            var diceNumber = overChannelInstancesCount * rulesetEffect.EffectLevel;
+            var spellLevel = rulesetEffect is RulesetEffectSpell spellEffect
+                ? RulesetEffectSpellWithOrigin.GetResourceSlotLevel(spellEffect)
+                : rulesetEffect.EffectLevel;
+            var diceNumber = overChannelInstancesCount * spellLevel;
             var rolls = new List<int>();
             var damage = rulesetAttacker.RollDiceAndSum(DIE_TYPE, RollContext.None, diceNumber, rolls, false);
 

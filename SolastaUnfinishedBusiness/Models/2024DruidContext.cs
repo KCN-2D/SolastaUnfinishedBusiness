@@ -558,7 +558,8 @@ public static partial class Tabletop2024Context
     {
         public bool IsValid(BaseDefinition definition, RulesetCharacter character, EffectDescription effectDescription)
         {
-            return definition is SpellDefinition { SpellLevel: 0 };
+            return definition is SpellDefinition { SpellLevel: 0 } spellDefinition &&
+                   character.IsSpellOnClassOrSubclassSpellList(spellDefinition, Druid);
         }
 
         public EffectDescription GetEffectDescription(
@@ -567,6 +568,12 @@ public static partial class Tabletop2024Context
             RulesetCharacter character,
             RulesetEffect rulesetEffect)
         {
+            if (rulesetEffect is RulesetEffectSpell spellEffect &&
+                !character.IsSpellCastAsClassOrSubclassSpell(spellEffect, Druid))
+            {
+                return effectDescription;
+            }
+
             if (effectDescription.RangeType is RangeType.Distance or RangeType.RangeHit ||
                 definition == SpellsContext.ThornyVines)
             {

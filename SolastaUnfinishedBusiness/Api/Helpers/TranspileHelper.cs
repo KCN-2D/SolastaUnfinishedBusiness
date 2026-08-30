@@ -20,6 +20,28 @@ internal static class TranspileHelper
             -1, 0, patchContext, codeInstructions);
     }
 
+    public static IEnumerable<CodeInstruction> ReplaceCalls(
+        this IEnumerable<CodeInstruction> instructions,
+        MethodInfo methodInfo,
+        int expectedOccurrences,
+        string patchContext,
+        params CodeInstruction[] codeInstructions)
+    {
+        var code = instructions.ToList();
+        var actualOccurrences = methodInfo == null ? 0 : code.Count(i => i.Calls(methodInfo));
+
+        if (actualOccurrences != expectedOccurrences)
+        {
+            Main.Error(
+                $"Failed to apply transpiler patch [{patchContext}]: " +
+                $"expected {expectedOccurrences} calls but found {actualOccurrences}.");
+
+            return code;
+        }
+
+        return code.ReplaceCalls(methodInfo, patchContext, codeInstructions);
+    }
+
     // 11 replace call
     public static IEnumerable<CodeInstruction> ReplaceCall(
         this IEnumerable<CodeInstruction> instructions,
@@ -30,6 +52,29 @@ internal static class TranspileHelper
     {
         return instructions.ReplaceCodeImpl(i => i.Calls(methodInfo),
             occurrence, 0, patchContext, codeInstructions);
+    }
+
+    public static IEnumerable<CodeInstruction> ReplaceCallChecked(
+        this IEnumerable<CodeInstruction> instructions,
+        MethodInfo methodInfo,
+        int occurrence,
+        int expectedOccurrences,
+        string patchContext,
+        params CodeInstruction[] codeInstructions)
+    {
+        var code = instructions.ToList();
+        var actualOccurrences = methodInfo == null ? 0 : code.Count(i => i.Calls(methodInfo));
+
+        if (actualOccurrences != expectedOccurrences)
+        {
+            Main.Error(
+                $"Failed to apply transpiler patch [{patchContext}]: " +
+                $"expected {expectedOccurrences} calls but found {actualOccurrences}.");
+
+            return code;
+        }
+
+        return code.ReplaceCall(methodInfo, occurrence, patchContext, codeInstructions);
     }
 
     // 3 bypass replace call

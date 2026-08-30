@@ -323,10 +323,7 @@ internal static class RulesetCharacterExtensions
         CharacterClassDefinition classDefinition)
     {
         var className = !classDefinition ? string.Empty : classDefinition.name;
-        var gameLocationCharacter = instance.HasSubFeatureOfType<IUseOwnStatsWhenSummoned>()
-            ? null
-            : instance.GetMySummoner();
-        var rulesetCharacter = gameLocationCharacter?.RulesetCharacter ?? instance;
+        var rulesetCharacter = instance.GetClassFeatureStatsOwner();
 
         if (string.IsNullOrEmpty(className) ||
             rulesetCharacter is not RulesetCharacterHero &&
@@ -341,13 +338,307 @@ internal static class RulesetCharacterExtensions
         {
             hero.ClassesAndSubclasses.TryGetValue(classDefinition, out subclassDefinition);
         }
+        else if (rulesetCharacter is RulesetCharacterSimulacrum simulacrum && classDefinition)
+        {
+            SimulacrumBehavior.TryGetPrimarySubclass(
+                simulacrum,
+                classDefinition,
+                out subclassDefinition);
+        }
 
         return rulesetCharacter.SpellRepertoires.FirstOrDefault(r =>
             (r.SpellCastingFeature.SpellCastingOrigin == FeatureDefinitionCastSpell.CastingOrigin.Class &&
              r.SpellCastingClass == classDefinition) ||
-            (r.SpellCastingFeature.SpellCastingOrigin == FeatureDefinitionCastSpell.CastingOrigin.Subclass &&
+             (r.SpellCastingFeature.SpellCastingOrigin == FeatureDefinitionCastSpell.CastingOrigin.Subclass &&
              (r.SpellCastingClass == classDefinition ||
               subclassDefinition != null && r.SpellCastingSubclass == subclassDefinition)));
+    }
+
+    internal static bool IsSpellOnClassOrSubclassSpellList(
+        this RulesetCharacter instance,
+        SpellDefinition spellDefinition,
+        CharacterClassDefinition classDefinition)
+    {
+        if (instance == null || !spellDefinition || !classDefinition)
+        {
+            return false;
+        }
+
+        if (SpellsContext.SpellsChildMaster.TryGetValue(spellDefinition, out var masterSpell))
+        {
+            spellDefinition = masterSpell;
+        }
+
+        var featureOwner = instance.GetFeatureOwnerOrSelf();
+
+        if (featureOwner == null || featureOwner.GetClassLevel(classDefinition) == 0)
+        {
+            return false;
+        }
+
+        var spellRepertoire = featureOwner.GetClassSpellRepertoire(classDefinition);
+
+        if (spellRepertoire?.SpellCastingFeature?.HasAccessToSpell(spellDefinition) == true)
+        {
+            return true;
+        }
+
+        var classLevel = featureOwner.GetClassLevel(classDefinition);
+        HashSet<FeatureDefinition> visitedFeatures = [];
+
+        return EnumerateClassSpellListFeatures(featureOwner, classDefinition)
+            .Any(feature => GrantsClassSpellAccess(
+                feature,
+                spellDefinition,
+                classDefinition,
+                classLevel,
+                visitedFeatures));
+    }
+
+    internal static bool IsSpellCastAsClassOrSubclassSpell(
+        this RulesetCharacter instance,
+        RulesetEffectSpell spellEffect,
+        CharacterClassDefinition classDefinition)
+    {
+        if (spellEffect == null)
+        {
+            return false;
+        }
+
+        var associatedRepertoire = spellEffect.GetClassOrSubclassSpellAssociation();
+
+        if (associatedRepertoire == null && !spellEffect.UsesSpellListClassification())
+        {
+            return false;
+        }
+
+        return instance.IsSpellCastAsClassOrSubclassSpell(
+            spellEffect.SpellRepertoire,
+            spellEffect.SpellDefinition,
+            classDefinition,
+            associatedRepertoire == null);
+    }
+
+    internal static bool IsSpellCastAsClassOrSubclassSpell(
+        this RulesetCharacter instance,
+        RulesetSpellRepertoire spellRepertoire,
+        SpellDefinition spellDefinition,
+        CharacterClassDefinition classDefinition,
+        bool useSpellListClassification)
+    {
+        if (!instance.IsSpellOnClassOrSubclassSpellList(spellDefinition, classDefinition))
+        {
+            return false;
+        }
+
+        if (useSpellListClassification)
+        {
+            return true;
+        }
+
+        var castingFeature = spellRepertoire?.SpellCastingFeature;
+
+        if (castingFeature == null)
+        {
+            return false;
+        }
+
+        if (castingFeature.SpellCastingOrigin != FeatureDefinitionCastSpell.CastingOrigin.Class &&
+            castingFeature.SpellCastingOrigin != FeatureDefinitionCastSpell.CastingOrigin.Subclass)
+        {
+            return false;
+        }
+
+        if (castingFeature.SpellCastingOrigin == FeatureDefinitionCastSpell.CastingOrigin.Subclass &&
+            spellRepertoire.SpellCastingSubclass)
+        {
+            return LevelUpHelper.GetClassForSubclass(spellRepertoire.SpellCastingSubclass) == classDefinition;
+        }
+
+        return spellRepertoire.GetCastingClass() == classDefinition;
+    }
+
+    internal static RulesetSpellRepertoire GetClassOrSubclassSpellAssociation(
+        this RulesetEffectSpell spellEffect)
+    {
+        if (spellEffect == null ||
+            spellEffect.OriginItem != null ||
+            spellEffect is RulesetEffectSpellWithOrigin
+            {
+                Mode: not RulesetEffectSpellWithOrigin.OriginMode.None
+            })
+        {
+            return null;
+        }
+
+        var spellRepertoire = spellEffect.SpellRepertoire;
+        var castingOrigin = spellRepertoire?.SpellCastingFeature?.SpellCastingOrigin;
+
+        return castingOrigin is FeatureDefinitionCastSpell.CastingOrigin.Class or
+            FeatureDefinitionCastSpell.CastingOrigin.Subclass
+            ? spellRepertoire
+            : null;
+    }
+
+    internal static bool UsesSpellListClassification(this RulesetEffectSpell spellEffect)
+    {
+        if (spellEffect == null)
+        {
+            return false;
+        }
+
+        if (spellEffect.OriginItem != null)
+        {
+            return true;
+        }
+
+        var castingOrigin = spellEffect.SpellRepertoire?.SpellCastingFeature?.SpellCastingOrigin;
+
+        if (spellEffect is RulesetEffectSpellWithOrigin
+            {
+                Mode: not RulesetEffectSpellWithOrigin.OriginMode.None
+            })
+        {
+            return castingOrigin is FeatureDefinitionCastSpell.CastingOrigin.Class or
+                FeatureDefinitionCastSpell.CastingOrigin.Subclass or
+                FeatureDefinitionCastSpell.CastingOrigin.Race;
+        }
+
+        return castingOrigin == FeatureDefinitionCastSpell.CastingOrigin.Race;
+    }
+
+    private static IEnumerable<FeatureDefinition> EnumerateClassSpellListFeatures(
+        RulesetCharacter featureOwner,
+        CharacterClassDefinition classDefinition)
+    {
+        if (featureOwner is RulesetCharacterSimulacrum simulacrum)
+        {
+            SimulacrumBehavior.TryGetPrimarySubclass(
+                simulacrum,
+                classDefinition,
+                out var simulacrumSubclass);
+
+            var classLevel = simulacrum.GetClassLevel(classDefinition);
+            var unlockedFeatures = classDefinition.FeatureUnlocks
+                .Where(unlock => unlock.Level <= classLevel)
+                .Select(unlock => unlock.FeatureDefinition)
+                .Concat(simulacrumSubclass
+                    ? simulacrumSubclass.FeatureUnlocks
+                        .Where(unlock => unlock.Level <= classLevel)
+                        .Select(unlock => unlock.FeatureDefinition)
+                    : []);
+            var copiedActiveFeatures = SimulacrumBehavior.GetCurrentlyActiveFeatures(simulacrum)
+                .Where(feature => IsSimulacrumClassOrSubclassFeature(
+                    simulacrum,
+                    feature,
+                    classDefinition));
+
+            return unlockedFeatures.Concat(copiedActiveFeatures).Distinct();
+        }
+
+        if (featureOwner is not RulesetCharacterHero hero)
+        {
+            return [];
+        }
+
+        hero.ClassesAndSubclasses.TryGetValue(classDefinition, out var subclassDefinition);
+
+        return Enumerable.Range(1, hero.GetClassLevel(classDefinition))
+            .SelectMany(level => EnumerateClassSpellListFeaturesAtLevel(
+                hero,
+                classDefinition,
+                subclassDefinition,
+                level));
+    }
+
+    private static IEnumerable<FeatureDefinition> EnumerateClassSpellListFeaturesAtLevel(
+        RulesetCharacterHero hero,
+        CharacterClassDefinition classDefinition,
+        CharacterSubclassDefinition subclassDefinition,
+        int level)
+    {
+        if (hero.ActiveFeatures.TryGetValue(
+                AttributeDefinitions.GetClassTag(classDefinition, level),
+                out var classFeatures))
+        {
+            foreach (var feature in classFeatures)
+            {
+                yield return feature;
+            }
+        }
+
+        if (subclassDefinition &&
+            hero.ActiveFeatures.TryGetValue(
+                AttributeDefinitions.GetSubclassTag(classDefinition, level, subclassDefinition),
+                out var subclassFeatures))
+        {
+            foreach (var feature in subclassFeatures)
+            {
+                yield return feature;
+            }
+        }
+    }
+
+    private static bool GrantsClassSpellAccess(
+        FeatureDefinition feature,
+        SpellDefinition spellDefinition,
+        CharacterClassDefinition classDefinition,
+        int classLevel,
+        HashSet<FeatureDefinition> visitedFeatures)
+    {
+        if (!feature || !visitedFeatures.Add(feature))
+        {
+            return false;
+        }
+
+        switch (feature)
+        {
+            case FeatureDefinitionCastSpell castSpell:
+                return castSpell.HasAccessToSpell(spellDefinition);
+
+            case FeatureDefinitionMagicAffinity { ExtendedSpellList: not null } magicAffinity:
+                return magicAffinity.ExtendedSpellList.ContainsSpell(spellDefinition);
+
+            case FeatureDefinitionAutoPreparedSpells autoPreparedSpells
+                when autoPreparedSpells.SpellcastingClass == classDefinition:
+                return autoPreparedSpells.AutoPreparedSpellsGroups.Any(group =>
+                    group.ClassLevel <= classLevel && group.SpellsList.Contains(spellDefinition));
+
+            case FeatureDefinitionBonusCantrips bonusCantrips:
+                return bonusCantrips.BonusCantrips.Contains(spellDefinition);
+
+            case FeatureDefinitionFeatureSet { Mode: FeatureDefinitionFeatureSet.FeatureSetMode.Union } featureSet:
+                return featureSet.FeatureSet.Any(child => GrantsClassSpellAccess(
+                    child,
+                    spellDefinition,
+                    classDefinition,
+                    classLevel,
+                    visitedFeatures));
+
+            default:
+                return false;
+        }
+    }
+
+    private static bool IsSimulacrumClassOrSubclassFeature(
+        RulesetCharacterSimulacrum simulacrum,
+        FeatureDefinition feature,
+        CharacterClassDefinition classDefinition)
+    {
+        if (simulacrum?.FeaturesOrigin == null ||
+            feature == null ||
+            !simulacrum.FeaturesOrigin.TryGetValue(feature, out var origin))
+        {
+            return false;
+        }
+
+        return origin.source switch
+        {
+            CharacterClassDefinition sourceClass => sourceClass == classDefinition,
+            CharacterSubclassDefinition sourceSubclass =>
+                LevelUpHelper.GetClassForSubclass(sourceSubclass) == classDefinition,
+            _ => false
+        };
     }
 
     /**@returns true if item holds an infusion created by this character*/
@@ -652,6 +943,26 @@ internal static class RulesetCharacterExtensions
             _ when character.TryGetShapeChangeOriginalHero(out var hero) => hero,
             _ => null
         };
+    }
+
+    [CanBeNull]
+    internal static RulesetCharacter GetClassFeatureStatsOwner(this RulesetCharacter character)
+    {
+        if (character == null)
+        {
+            return null;
+        }
+
+        var featureOwner = character.GetFeatureOwnerOrSelf();
+
+        if (featureOwner != null)
+        {
+            return featureOwner;
+        }
+
+        return character.HasSubFeatureOfType<IUseOwnStatsWhenSummoned>()
+            ? character
+            : character.GetMySummoner()?.RulesetCharacter ?? character;
     }
 
     internal static bool TryGetShapeChangeOriginalHero(

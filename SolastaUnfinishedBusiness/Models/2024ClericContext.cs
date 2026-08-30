@@ -140,7 +140,11 @@ public static partial class Tabletop2024Context
 
             if (!rulesetAttacker.HasPower(PowerBlessedStrikes) &&
                 actualEffectForms.Any(x => x.FormType == EffectForm.EffectFormType.Damage) &&
-                rulesetEffect.SourceDefinition is SpellDefinition { SpellLevel: 0 } &&
+                rulesetEffect is RulesetEffectSpell
+                {
+                    SpellDefinition: { SpellLevel: 0 } spellDefinition
+                } spellEffect &&
+                rulesetAttacker.IsSpellCastAsClassOrSubclassSpell(spellEffect, Cleric) &&
                 !rulesetAttacker.HasConditionOfCategoryAndType(
                     AttributeDefinitions.TagEffect, ConditionClericImprovedBlessedStrikes.Name))
             {

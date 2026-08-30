@@ -25,11 +25,25 @@ namespace SolastaUnfinishedBusiness.Models;
 
 public static partial class Tabletop2024Context
 {
-    private static readonly ConditionalWeakTable<RulesetCondition, RulesetSpellRepertoire>
-        SpellDerivedConditionRepertoires = new();
+    private static readonly ConditionalWeakTable<RulesetCondition, SpellEffectOrigin>
+        SpellDerivedConditionOrigins = new();
 
-    private static readonly ConditionalWeakTable<RulesetEffectPower, RulesetSpellRepertoire>
-        SpellDerivedPowerRepertoires = new();
+    private static readonly ConditionalWeakTable<RulesetEffectPower, SpellEffectOrigin>
+        SpellDerivedPowerOrigins = new();
+
+    private sealed class SpellEffectOrigin(
+        RulesetSpellRepertoire spellRepertoire,
+        SpellDefinition spellDefinition,
+        ulong casterGuid,
+        int baseSaveDc,
+        bool useSpellListClassification)
+    {
+        internal RulesetSpellRepertoire SpellRepertoire { get; } = spellRepertoire;
+        internal SpellDefinition SpellDefinition { get; } = spellDefinition;
+        internal ulong CasterGuid { get; } = casterGuid;
+        internal int BaseSaveDc { get; } = baseSaveDc;
+        internal bool UseSpellListClassification { get; } = useSpellListClassification;
+    }
 
     private static readonly ConditionDefinition ConditionSorcererInnateSorcery = ConditionDefinitionBuilder
         .Create("ConditionSorcererInnateSorcery")
@@ -218,19 +232,26 @@ public static partial class Tabletop2024Context
         RulesetEffectPower powerEffect,
         ref int saveDc)
     {
-        if (!TryGetSpellDerivedPowerRepertoire(powerEffect, out var spellRepertoire) ||
-            !IsSorcererSpellRepertoire(spellRepertoire))
+        if (!TryGetSpellDerivedPowerOrigin(powerEffect, out var spellOrigin) ||
+            !IsSorcererSpell(
+                spellOrigin.SpellRepertoire,
+                spellOrigin.SpellDefinition,
+                EffectHelpers.GetCharacterByGuid(spellOrigin.CasterGuid),
+                spellOrigin.UseSpellListClassification))
         {
             return;
         }
 
+        var spellRepertoire = spellOrigin.SpellRepertoire;
+
         if (powerEffect.EffectDescription.DifficultyClassComputation ==
             EffectDifficultyClassComputation.SpellCastingFeature)
         {
-            saveDc = spellRepertoire.SaveDC;
+            saveDc = spellRepertoire?.SaveDC ?? spellOrigin.BaseSaveDc;
         }
 
-        if (powerEffect.EffectDescription.HasSavingThrow && IsInnateSorceryValid(spellRepertoire))
+        if (powerEffect.EffectDescription.HasSavingThrow &&
+            IsInnateSorceryValid(spellOrigin))
         {
             saveDc++;
         }
@@ -241,7 +262,7 @@ public static partial class Tabletop2024Context
         ref int saveDc)
     {
         if (condition != null &&
-            IsInnateSorceryValid(GetSpellDerivedConditionRepertoire(condition)))
+            IsInnateSorceryValid(GetSpellDerivedConditionOrigin(condition)))
         {
             saveDc++;
         }
@@ -254,28 +275,30 @@ public static partial class Tabletop2024Context
             return;
         }
 
-        SpellDerivedPowerRepertoires.Remove(powerEffect);
+        SpellDerivedPowerOrigins.Remove(powerEffect);
 
-        if (TryResolveSpellDerivedPowerRepertoire(powerEffect, out var spellRepertoire))
+        if (TryResolveSpellDerivedPowerOrigin(powerEffect, out var spellOrigin))
         {
-            SpellDerivedPowerRepertoires.Add(powerEffect, spellRepertoire);
+            SpellDerivedPowerOrigins.Add(powerEffect, spellOrigin);
         }
     }
 
     internal static void BindSpellDerivedConditionOrigin(
         RulesetCondition condition,
-        RulesetSpellRepertoire spellRepertoire)
+        RulesetEffectSpell spellEffect)
     {
         if (condition == null)
         {
             return;
         }
 
-        SpellDerivedConditionRepertoires.Remove(condition);
+        SpellDerivedConditionOrigins.Remove(condition);
 
-        if (spellRepertoire != null)
+        var spellOrigin = CreateSpellEffectOrigin(spellEffect, condition.SourceGuid);
+
+        if (spellOrigin != null)
         {
-            SpellDerivedConditionRepertoires.Add(condition, spellRepertoire);
+            SpellDerivedConditionOrigins.Add(condition, spellOrigin);
         }
     }
 
@@ -283,68 +306,118 @@ public static partial class Tabletop2024Context
     {
         if (condition != null)
         {
-            SpellDerivedConditionRepertoires.Remove(condition);
+            SpellDerivedConditionOrigins.Remove(condition);
         }
     }
 
-    private static bool IsInnateSorceryValid(RulesetSpellRepertoire spellRepertoire)
+    private static bool IsInnateSorceryValid(SpellEffectOrigin spellOrigin)
     {
-        return IsSorcererSpellRepertoire(spellRepertoire) &&
-               spellRepertoire.GetCaster()?.HasConditionOfCategoryAndType(
-                   AttributeDefinitions.TagEffect, ConditionSorcererInnateSorcery.Name) == true;
+        return spellOrigin != null &&
+               IsInnateSorceryValid(
+                   spellOrigin.SpellRepertoire,
+                   spellOrigin.SpellDefinition,
+                   EffectHelpers.GetCharacterByGuid(spellOrigin.CasterGuid),
+                   spellOrigin.UseSpellListClassification);
+    }
+
+    private static bool IsInnateSorceryValid(
+        RulesetSpellRepertoire spellRepertoire,
+        SpellDefinition spellDefinition,
+        RulesetCharacter effectCaster,
+        bool useSpellListClassification)
+    {
+        return IsSorcererSpell(
+                   spellRepertoire,
+                   spellDefinition,
+                   effectCaster,
+                   useSpellListClassification) &&
+               (HasInnateSorceryCondition(effectCaster) ||
+                HasInnateSorceryCondition(spellRepertoire?.GetCaster()));
     }
 
     private static bool IsInnateSorceryValid(RulesetEffect rulesetEffect)
     {
         if (rulesetEffect is RulesetEffectSpell spellEffect)
         {
-            return spellEffect.OriginItem == null &&
-                   IsInnateSorceryValid(spellEffect.SpellRepertoire);
+            var effectCaster = spellEffect.Caster;
+
+            return effectCaster?.IsSpellCastAsClassOrSubclassSpell(spellEffect, Sorcerer) == true &&
+                   (HasInnateSorceryCondition(effectCaster) ||
+                    HasInnateSorceryCondition(spellEffect.SpellRepertoire?.GetCaster()));
         }
 
         return rulesetEffect is RulesetEffectPower powerEffect &&
-               TryGetSpellDerivedPowerRepertoire(powerEffect, out var spellRepertoire) &&
-               IsInnateSorceryValid(spellRepertoire);
+               TryGetSpellDerivedPowerOrigin(powerEffect, out var spellOrigin) &&
+               IsInnateSorceryValid(spellOrigin);
     }
 
-    private static bool IsSorcererSpellRepertoire(RulesetSpellRepertoire spellRepertoire)
+    private static bool HasInnateSorceryCondition(RulesetCharacter character)
     {
-        return spellRepertoire?.SpellCastingFeature?.SpellCastingOrigin ==
-                   FeatureDefinitionCastSpell.CastingOrigin.Class &&
-               spellRepertoire.SpellCastingClass == Sorcerer;
+        if (character == null)
+        {
+            return false;
+        }
+
+        if (character.HasConditionOfCategoryAndType(
+                AttributeDefinitions.TagEffect,
+                ConditionSorcererInnateSorcery.Name))
+        {
+            return true;
+        }
+
+        var featureOwner = character.GetFeatureOwnerOrSelf();
+
+        return featureOwner != character &&
+               featureOwner?.HasConditionOfCategoryAndType(
+                   AttributeDefinitions.TagEffect,
+                   ConditionSorcererInnateSorcery.Name) == true;
     }
 
-    private static bool TryGetSpellDerivedPowerRepertoire(
+    private static bool IsSorcererSpell(
+        RulesetSpellRepertoire spellRepertoire,
+        SpellDefinition spellDefinition,
+        RulesetCharacter effectCaster,
+        bool useSpellListClassification)
+    {
+        return (effectCaster ?? spellRepertoire?.GetCaster())
+            ?.IsSpellCastAsClassOrSubclassSpell(
+                spellRepertoire,
+                spellDefinition,
+                Sorcerer,
+                useSpellListClassification) == true;
+    }
+
+    private static bool TryGetSpellDerivedPowerOrigin(
         RulesetEffectPower powerEffect,
-        out RulesetSpellRepertoire spellRepertoire)
+        out SpellEffectOrigin spellOrigin)
     {
-        spellRepertoire = null;
+        spellOrigin = null;
 
         if (powerEffect == null || powerEffect.OriginItem != null)
         {
             return false;
         }
 
-        if (SpellDerivedPowerRepertoires.TryGetValue(powerEffect, out spellRepertoire))
+        if (SpellDerivedPowerOrigins.TryGetValue(powerEffect, out spellOrigin))
         {
             return true;
         }
 
-        if (!TryResolveSpellDerivedPowerRepertoire(powerEffect, out spellRepertoire))
+        if (!TryResolveSpellDerivedPowerOrigin(powerEffect, out spellOrigin))
         {
             return false;
         }
 
-        SpellDerivedPowerRepertoires.Add(powerEffect, spellRepertoire);
+        SpellDerivedPowerOrigins.Add(powerEffect, spellOrigin);
 
         return true;
     }
 
-    private static bool TryResolveSpellDerivedPowerRepertoire(
+    private static bool TryResolveSpellDerivedPowerOrigin(
         RulesetEffectPower powerEffect,
-        out RulesetSpellRepertoire spellRepertoire)
+        out SpellEffectOrigin spellOrigin)
     {
-        spellRepertoire = null;
+        spellOrigin = null;
 
         if (powerEffect == null ||
             powerEffect.OriginItem != null ||
@@ -357,40 +430,106 @@ public static partial class Tabletop2024Context
         foreach (var condition in powerEffect.User.AllConditions.Where(x =>
                      x.ConditionDefinition.Features.Contains(powerEffect.PowerDefinition)))
         {
-            var candidate = GetSpellDerivedConditionRepertoire(condition);
+            var candidate = GetSpellDerivedConditionOrigin(condition);
 
             if (candidate == null)
             {
-                continue;
-            }
-
-            // A usable power does not identify which of two equal condition features granted it.
-            // Refuse an ambiguous cross-repertoire origin instead of applying the feature to the wrong spell.
-            if (spellRepertoire != null && spellRepertoire != candidate)
-            {
-                spellRepertoire = null;
+                spellOrigin = null;
 
                 return false;
             }
 
-            spellRepertoire = candidate;
+            // A usable power does not identify which of two equal condition features granted it.
+            // Refuse an ambiguous origin instead of applying the feature to the wrong spell.
+            if (spellOrigin != null &&
+                (spellOrigin.SpellRepertoire != candidate.SpellRepertoire ||
+                 spellOrigin.SpellDefinition != candidate.SpellDefinition ||
+                 spellOrigin.CasterGuid != candidate.CasterGuid ||
+                 spellOrigin.BaseSaveDc != candidate.BaseSaveDc ||
+                 spellOrigin.UseSpellListClassification != candidate.UseSpellListClassification))
+            {
+                spellOrigin = null;
+
+                return false;
+            }
+
+            spellOrigin = candidate;
         }
 
-        return spellRepertoire != null;
+        return spellOrigin != null;
     }
 
-    private static RulesetSpellRepertoire GetSpellDerivedConditionRepertoire(RulesetCondition condition)
+    private static SpellEffectOrigin GetSpellDerivedConditionOrigin(RulesetCondition condition)
     {
-        if (SpellDerivedConditionRepertoires.TryGetValue(condition, out var spellRepertoire))
+        if (condition == null)
         {
-            return spellRepertoire;
+            return null;
+        }
+
+        if (SpellDerivedConditionOrigins.TryGetValue(condition, out var spellOrigin))
+        {
+            return spellOrigin;
         }
 
         var sourceCharacter = EffectHelpers.GetCharacterByGuid(condition.SourceGuid);
+        var spellEffect = sourceCharacter?.SpellsCastByMe
+            .FirstOrDefault(x => x.TrackedConditionGuids.Contains(condition.Guid));
 
-        return sourceCharacter?.SpellsCastByMe
-            .FirstOrDefault(x => x.TrackedConditionGuids.Contains(condition.Guid))
-            ?.SpellRepertoire;
+        spellOrigin = CreateSpellEffectOrigin(spellEffect, condition.SourceGuid);
+
+        if (spellOrigin != null)
+        {
+            SpellDerivedConditionOrigins.Add(condition, spellOrigin);
+        }
+
+        return spellOrigin;
+    }
+
+    private static SpellEffectOrigin CreateSpellEffectOrigin(
+        RulesetEffectSpell spellEffect,
+        ulong fallbackCasterGuid = 0)
+    {
+        if (spellEffect == null || !spellEffect.SpellDefinition)
+        {
+            return null;
+        }
+
+        var spellDefinition = spellEffect.SpellDefinition;
+
+        if (SpellsContext.SpellsChildMaster.TryGetValue(spellDefinition, out var masterSpell))
+        {
+            spellDefinition = masterSpell;
+        }
+
+        var casterGuid = spellEffect.Caster?.Guid ??
+                         (fallbackCasterGuid != 0
+                             ? fallbackCasterGuid
+                             : spellEffect.SpellRepertoire?.GetCaster()?.Guid ?? 0);
+
+        if (casterGuid == 0)
+        {
+            return null;
+        }
+
+        return new SpellEffectOrigin(
+            spellEffect.SpellRepertoire,
+            spellDefinition,
+            casterGuid,
+            GetSpellBaseSaveDc(spellEffect),
+            spellEffect.UsesSpellListClassification());
+    }
+
+    internal static int GetSpellBaseSaveDc(RulesetEffectSpell spellEffect)
+    {
+        var saveDc = spellEffect.SaveDC;
+
+        if (spellEffect.EffectDescription?.HasSavingThrow == true &&
+            IsInnateSorceryValid(spellEffect))
+        {
+            saveDc--;
+        }
+
+        return saveDc;
     }
 
     internal static void SwitchSorcererInnateSorcery()

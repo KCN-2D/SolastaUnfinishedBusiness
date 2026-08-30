@@ -6,6 +6,7 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Subclasses;
 using static RuleDefinitions;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
 
 namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
@@ -27,7 +28,24 @@ internal static class RulesetActorExtensions
             return;
         }
 
-        if (sourceDefinition is not SpellDefinition { castingTime: ActivationTime.Action } &&
+        var isPaladinSpell = false;
+
+        if (sourceDefinition is SpellDefinition spellDefinition)
+        {
+            isPaladinSpell = RulesetEffectSpellWithOrigin.TryGetActiveSpellClassification(
+                caster,
+                spellDefinition,
+                out var spellRepertoire,
+                out var useSpellListClassification)
+                ? caster.IsSpellCastAsClassOrSubclassSpell(
+                    spellRepertoire,
+                    spellDefinition,
+                    Paladin,
+                    useSpellListClassification)
+                : false;
+        }
+
+        if (!isPaladinSpell &&
             sourceDefinition is not FeatureDefinitionPower { RechargeRate: RechargeRate.ChannelDivinity } &&
             !caster.ConditionsByCategory
                 .SelectMany(x => x.Value)
@@ -260,6 +278,13 @@ internal static class RulesetActorExtensions
                 hero = rulesetCharacterHero;
                 list.AddRange(FeaturesByType<BaseDefinition>(hero)
                     .Where(f => !list.Contains(f)));
+                break;
+            case RulesetCharacterMonster
+            {
+                originalFormCharacter: RulesetCharacterSimulacrum simulacrum
+            }:
+                list.AddRange(AllActiveDefinitions(simulacrum)
+                    .Where(definition => !list.Contains(definition)));
                 break;
         }
 

@@ -552,10 +552,23 @@ public sealed class SorcerousWildMagic : AbstractSubclass
                 action is not CharacterActionCastSpell actionCastSpell ||
                 actionCastSpell.Countered ||
                 actionCastSpell.ExecutionFailed ||
-                (RulesetEffectSpellWithOrigin.GetOriginSpell(actionCastSpell.ActiveSpell).SpellLevel == 0 &&
-                 !hasChaos) ||
-                (actionCastSpell.ActiveSpell.SpellRepertoire != null && // casting from a scroll so let wild surge
-                 actionCastSpell.ActiveSpell.SpellRepertoire.SpellCastingClass != CharacterClassDefinitions.Sorcerer))
+                actionCastSpell.ActiveSpell is not { } activeSpell)
+            {
+                yield break;
+            }
+
+            var triggeringSpell = RulesetEffectSpellWithOrigin.GetOriginSpell(activeSpell);
+            var castingOrigin = activeSpell.SpellRepertoire?.SpellCastingFeature?.SpellCastingOrigin;
+            var useSpellListClassification = activeSpell.OriginItem != null ||
+                                             castingOrigin == FeatureDefinitionCastSpell.CastingOrigin.Race;
+            var isSorcererSpell = rulesetAttacker.IsSpellCastAsClassOrSubclassSpell(
+                activeSpell.SpellRepertoire,
+                triggeringSpell,
+                CharacterClassDefinitions.Sorcerer,
+                useSpellListClassification);
+
+            if ((triggeringSpell.SpellLevel == 0 && !hasChaos) ||
+                !isSorcererSpell)
             {
                 yield break;
             }
@@ -1182,8 +1195,7 @@ public sealed class SorcerousWildMagic : AbstractSubclass
             if (levels < 18 ||
                 ((action.Countered ||
                   action is CharacterActionCastSpell { ExecutionFailed: true } ||
-                  activeEffect is not RulesetEffectSpell rulesetEffectSpell ||
-                  rulesetEffectSpell.SpellRepertoire?.SpellCastingClass != CharacterClassDefinitions.Sorcerer) &&
+                  activeEffect is not RulesetEffectSpell) &&
                  activeEffect.SourceDefinition != PowerFireball))
             {
                 yield break;

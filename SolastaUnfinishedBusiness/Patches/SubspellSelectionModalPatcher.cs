@@ -320,6 +320,62 @@ public static class SubspellSelectionModalPatcher
         }
     }
 
+    [HarmonyPatch(typeof(SubspellSelectionModal), nameof(SubspellSelectionModal.Bind))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [HarmonyPatch([
+        typeof(RulesetItemDevice), typeof(RulesetDeviceFunction), typeof(GuiCharacter),
+        typeof(UsableDeviceFunctionBox.DeviceFunctionEngagedHandler), typeof(RectTransform)
+    ])]
+    [UsedImplicitly]
+    public static class BindDevice_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(
+            SubspellSelectionModal __instance,
+            RulesetItemDevice rulesetItemDevice,
+            RulesetDeviceFunction rulesetDeviceFunction,
+            GuiCharacter guiCharacter,
+            UsableDeviceFunctionBox.DeviceFunctionEngagedHandler deviceFunctionEngaged,
+            RectTransform masterSpellBox)
+        {
+            var masterSpell = rulesetDeviceFunction?.DeviceFunctionDescription?.SpellDefinition;
+            var caster = guiCharacter?.RulesetCharacter;
+            var provider = masterSpell?.GetFirstSubFeatureOfType<ICustomSubspellSelectionProvider>();
+
+            if (provider is not WishBehavior || caster == null)
+            {
+                return true;
+            }
+
+            SpellsByLevelBox.SpellCastEngagedHandler spellCastEngaged = (_, _, _) =>
+            {
+                using (RulesetEffectSpellWithOrigin.UseDeviceOrigin(
+                           rulesetItemDevice,
+                           rulesetDeviceFunction,
+                           0,
+                           0))
+                {
+                    deviceFunctionEngaged?.Invoke(
+                        guiCharacter,
+                        rulesetItemDevice,
+                        rulesetDeviceFunction,
+                        0,
+                        0);
+                }
+            };
+
+            __instance.Bind(
+                masterSpell,
+                caster,
+                null,
+                spellCastEngaged,
+                masterSpell.SpellLevel,
+                masterSpellBox);
+
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(SubspellSelectionModal), nameof(SubspellSelectionModal.OnEndHide))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
