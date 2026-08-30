@@ -109,7 +109,7 @@ public static partial class Tabletop2024Context
         { BackgroundAcolyteName, (SkillDefinitions.Insight, SkillDefinitions.Religion, ToolTypeDefinitions.ScrollKitType.Name, ToolMusicalInstrumentLyreTypeName) },
         { BackgroundAesceticName, (SkillDefinitions.Medecine, SkillDefinitions.Religion, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.ScrollKitType.Name) },
         { BackgroundAristocratName, (SkillDefinitions.History, SkillDefinitions.Persuasion, ToolGamingSetDiceTypeName, ToolMusicalInstrumentLyreTypeName) },
-        { BackgroundArtistName, (SkillDefinitions.Acrobatics, SkillDefinitions.Performance, ToolMusicalInstrumentLyreTypeName, ToolTypeDefinitions.DisguiseKitType.Name) },
+        { BackgroundArtistName, (SkillDefinitions.Acrobatics, SkillDefinitions.Performance, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name, ToolTypeDefinitions.DisguiseKitType.Name) },
         { BackgroundLawkeeperName, (SkillDefinitions.Investigation, SkillDefinitions.Intimidation, ToolTypeDefinitions.ScrollKitType.Name, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
         { BackgroundLowlifeName, (SkillDefinitions.Insight, SkillDefinitions.Stealth, ToolTypeDefinitions.ThievesToolsType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
         { BackgroundOccultistName, (SkillDefinitions.Arcana, SkillDefinitions.Religion, ToolTypeDefinitions.EnchantingToolType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
