@@ -37,6 +37,7 @@ internal static class InventorClass
     private static FeatureDefinitionCastSpell _spellCasting;
     private static FeatureDefinitionPower _powerInventorSoulOfArtifice;
     private static int _infusionPoolIncreases;
+    private static bool _spellStoringItemsLoaded;
     private static readonly List<FeatureDefinitionPowerSharedPool> SpellStoringItemPowers1 = [];
     private static readonly List<FeatureDefinitionPowerSharedPool> SpellStoringItemPowers2 = [];
 
@@ -693,6 +694,11 @@ internal static class InventorClass
 
     internal static void SwitchSpellStoringItemSubPower(SpellDefinition spell, bool active)
     {
+        if (!_spellStoringItemsLoaded)
+        {
+            return;
+        }
+
         if (spell.ActivationTime != ActivationTime.Action || (spell.SpellLevel != 1 && spell.SpellLevel != 2))
         {
             return;
@@ -702,45 +708,56 @@ internal static class InventorClass
         {
             case 1:
             {
-                var power = SpellStoringItemPowers1.FirstOrDefault(x => x.SourceDefinition == spell);
+                var childPower = SpellStoringItemPowers1.FirstOrDefault(x => x.SourceDefinition == spell);
 
-                // Main.Enabled as during initialization the powers weren't registered yet
-                if (Main.Enabled && !power)
+                if (!childPower)
                 {
-                    Main.Error("found a null power when trying to switch a spell storing item");
+                    if (Main.Enabled)
+                    {
+                        Main.Error("found a null power when trying to switch a spell storing item");
+                    }
+
+                    return;
                 }
 
-                Switch(PowerInventorSpellStoringItem1, active);
+                Switch(PowerInventorSpellStoringItem1, childPower, active);
                 break;
             }
             case 2:
             {
-                var power = SpellStoringItemPowers2.FirstOrDefault(x => x.SourceDefinition == spell);
+                var childPower = SpellStoringItemPowers2.FirstOrDefault(x => x.SourceDefinition == spell);
 
-                // Main.Enabled as during initialization the powers weren't registered yet
-                if (Main.Enabled && !power)
+                if (!childPower)
                 {
-                    Main.Error("found a null power when trying to switch a spell storing item");
+                    if (Main.Enabled)
+                    {
+                        Main.Error("found a null power when trying to switch a spell storing item");
+                    }
+
+                    return;
                 }
 
-                Switch(PowerInventorSpellStoringItem2, active);
+                Switch(PowerInventorSpellStoringItem2, childPower, active);
                 break;
             }
         }
 
         return;
 
-        static void Switch(FeatureDefinitionPower power, bool active)
+        static void Switch(
+            FeatureDefinitionPower masterPower,
+            FeatureDefinitionPower childPower,
+            bool active)
         {
-            var subPowers = power.GetBundle()?.SubPowers;
+            var subPowers = masterPower.GetBundle()?.SubPowers;
 
             if (active)
             {
-                subPowers?.TryAdd(power);
+                subPowers?.TryAdd(childPower);
             }
             else
             {
-                subPowers?.Remove(power);
+                subPowers?.Remove(childPower);
             }
         }
     }
@@ -803,6 +820,8 @@ internal static class InventorClass
             subclass.FeatureUnlocks.Add(new FeatureUnlockByLevel(featureSetSub, 11));
             subclass.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
         }
+
+        _spellStoringItemsLoaded = true;
     }
 
     private static FeatureDefinitionPower BuildSpellStoringItem(int level, FeatureDefinitionPower power)
@@ -826,7 +845,7 @@ internal static class InventorClass
 
         PowerBundle.RegisterPowerBundle(power, true, inventorPowers);
         ForceGlobalUniqueEffects.AddToGroup(
-            ForceGlobalUniqueEffects.Group.InventorSpellStoringItem, [.. inventorPowers]);
+            ForceGlobalUniqueEffects.Group.InventorSpellStoringItem, [.. spellStoringItems]);
 
         return power;
     }

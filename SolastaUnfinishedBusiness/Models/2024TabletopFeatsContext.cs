@@ -1294,6 +1294,7 @@ public static partial class Tabletop2024Context
 
     private static FeatDefinition BuildAlert2024()
     {
+        var featAlert = GetDefinition<FeatDefinition>(LegacyAlertFeatName);
         var initiativeModifier = FeatureDefinitionAttributeModifierBuilder
             .Create("AttributeModifierFeatAlert2024Initiative")
             .SetGuiPresentationNoContent(true)
@@ -1308,8 +1309,12 @@ public static partial class Tabletop2024Context
             .AddToDB();
         var readyStepCondition = ConditionDefinitionBuilder
             .Create(Alert2024ReadyStepConditionName)
-            .SetGuiPresentationNoContent(true)
-            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetGuiPresentation(
+                "Condition/&ConditionFeatAlert2024ReadyStepTitle",
+                "Condition/&ConditionFeatAlert2024ReadyStepDescription",
+                featAlert)
+            .SetConditionType(ConditionType.Beneficial)
+            .SetSilent(Silent.None)
             .SetFeatures(readyStepMovement)
             .AddToDB();
         var readyStepFeature = FeatureDefinitionBuilder
@@ -1677,8 +1682,12 @@ public static partial class Tabletop2024Context
 
         var conditionAfterDash = ConditionDefinitionBuilder
             .Create($"Condition{name}AfterDash")
-            .SetGuiPresentationNoContent(true)
-            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetGuiPresentation(
+                "Condition/&ConditionFeatSpeedyAfterDashTitle",
+                "Condition/&ConditionFeatSpeedyAfterDashDescription",
+                ConditionDefinitions.ConditionFreedomOfMovement)
+            .SetConditionType(ConditionType.Beneficial)
+            .SetSilent(Silent.None)
             .SetFeatures(movementAffinityDash)
             .AddToDB();
 
@@ -2064,8 +2073,12 @@ public static partial class Tabletop2024Context
             .AddToDB();
         var conditionAfterDash = ConditionDefinitionBuilder
             .Create($"Condition{Charger2024FeatName}AfterDash")
-            .SetGuiPresentationNoContent(true)
-            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetGuiPresentation(
+                "Condition/&ConditionFeatCharger2024AfterDashTitle",
+                "Condition/&ConditionFeatCharger2024AfterDashDescription",
+                featCharger)
+            .SetConditionType(ConditionType.Beneficial)
+            .SetSilent(Silent.None)
             .SetFeatures(movementAffinityAfterDash)
             .AddToDB();
         var featureAfterDash = FeatureDefinitionBuilder
@@ -2172,8 +2185,12 @@ public static partial class Tabletop2024Context
             Gui.Localize("Feat/&FeatDefensiveDuelist2024Description"));
         var conditionParry = ConditionDefinitionBuilder
             .Create(DefensiveDuelist2024ParryConditionName)
-            .SetGuiPresentationNoContent(true)
-            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetGuiPresentation(
+                "Condition/&ConditionFeatDefensiveDuelist2024ParryTitle",
+                "Condition/&ConditionFeatDefensiveDuelist2024ParryDescription",
+                featDefensiveDuelist)
+            .SetConditionType(ConditionType.Beneficial)
+            .SetSilent(Silent.None)
             .AddToDB();
         var powerParry = FeatureDefinitionPowerBuilder
             .Create(DefensiveDuelist2024PowerName)
@@ -2397,8 +2414,12 @@ public static partial class Tabletop2024Context
             .AddToDB();
         var condition = ConditionDefinitionBuilder
             .Create("ConditionFeatMageSlayer2024ConcentrationBreaker")
-            .SetGuiPresentationNoContent(true)
-            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetGuiPresentation(
+                "Condition/&ConditionFeatMageSlayer2024ConcentrationBreakerTitle",
+                "Condition/&ConditionFeatMageSlayer2024ConcentrationBreakerDescription",
+                feat)
+            .SetConditionType(ConditionType.Detrimental)
+            .SetSilent(Silent.None)
             .AddFeatures(
                 FeatureDefinitionMagicAffinityBuilder
                     .Create("MagicAffinityFeatMageSlayer2024ConcentrationBreaker")

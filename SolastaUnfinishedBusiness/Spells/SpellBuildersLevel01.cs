@@ -1,4 +1,5 @@
-﻿using System.Collections;
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -548,6 +549,7 @@ internal static partial class SpellBuilders
     #region Wrathful Smite
 
     internal static FeatureDefinitionAdditionalDamage AdditionalDamageWrathfulSmite;
+    internal static ConditionDefinition ConditionWrathfulSmite;
     internal static SpellDefinition BuildWrathfulSmite()
     {
         const string NAME = "WrathfulSmite";
@@ -583,7 +585,7 @@ internal static partial class SpellBuilders
             .SetImpactParticleReference(Fear)
             .AddToDB();
 
-        var conditionWrathfulSmite = ConditionDefinitionBuilder
+        ConditionWrathfulSmite = ConditionDefinitionBuilder
             .Create($"Condition{NAME}")
             .SetGuiPresentation(NAME, Category.Spell, ConditionBrandingSmite)
             .SetPossessive()
@@ -607,14 +609,14 @@ internal static partial class SpellBuilders
                     .SetDurationData(DurationType.Minute, 1)
                     .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
                     .SetEffectAdvancement(EffectIncrementMethod.PerAdditionalSlotLevel, additionalDicePerIncrement: 1)
-                    .SetEffectForms(EffectFormBuilder.ConditionForm(conditionWrathfulSmite))
+                    .SetEffectForms(EffectFormBuilder.ConditionForm(ConditionWrathfulSmite))
                     .SetParticleEffectParameters(Fear)
                     .Build())
             .AddToDB();
         
         SmiteSpells2024Context.SmiteSpells.Add(spell);
         SmiteSpells2024Context.SmiteDamages.Add(AdditionalDamageWrathfulSmite);
-        SmiteSpells2024Context.SmiteConditions.Add(conditionWrathfulSmite);
+        SmiteSpells2024Context.SmiteConditions.Add(ConditionWrathfulSmite);
 
         return spell;
     }
@@ -2688,6 +2690,410 @@ internal static partial class SpellBuilders
 
     #endregion
 
+    #region Silvery Barbs
+
+    internal static SpellDefinition BuildSilveryBarbs()
+    {
+        const string NAME = "SilveryBarbs";
+
+        var sprite = Sprites.GetSprite(NAME, Resources.SilveryBarbs, 128);
+        var combatAffinity = FeatureDefinitionCombatAffinityBuilder
+            .Create($"CombatAffinity{NAME}Empowerment")
+            .SetGuiPresentationNoContent(true)
+            .SetMyAttackAdvantage(AdvantageType.Advantage)
+            .AddToDB();
+        var abilityCheckAffinity = FeatureDefinitionAbilityCheckAffinityBuilder
+            .Create($"AbilityCheckAffinity{NAME}Empowerment")
+            .SetGuiPresentationNoContent(true)
+            .BuildAndSetAffinityGroups(
+                CharacterAbilityCheckAffinity.Advantage,
+                AttributeDefinitions.AbilityScoreNames)
+            .AddToDB();
+        var savingThrowAffinity = FeatureDefinitionSavingThrowAffinityBuilder
+            .Create($"SavingThrowAffinity{NAME}Empowerment")
+            .SetGuiPresentationNoContent(true)
+            .SetAffinities(
+                CharacterSavingThrowAffinity.Advantage,
+                false,
+                AttributeDefinitions.AbilityScoreNames)
+            .AddToDB();
+        var conditionEmpowerment = ConditionDefinitionBuilder
+            .Create($"Condition{NAME}Empowerment")
+            .SetGuiPresentation(Category.Condition, sprite)
+            .SetPossessive()
+            .SetConditionType(ConditionType.Beneficial)
+            .SetSpecialDuration(DurationType.Minute, 1)
+            .SetSpecialInterruptions(
+                ConditionInterruption.Attacks,
+                ConditionInterruption.AbilityCheck,
+                ConditionInterruption.SavingThrow)
+            .SetFeatures(combatAffinity, abilityCheckAffinity, savingThrowAffinity)
+            .AddToDB();
+        var spell = SpellDefinitionBuilder
+            .Create(NAME)
+            .SetGuiPresentation(Category.Spell, sprite)
+            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolEnchantment)
+            .SetSpellLevel(1)
+            .SetCastingTime(ActivationTime.Reaction)
+            .SetMaterialComponent(MaterialComponentType.None)
+            .SetVerboseComponent(true)
+            .SetSomaticComponent(false)
+            .SetVocalSpellSameType(VocalSpellSemeType.Defense)
+            .SetEffectDescription(
+                EffectDescriptionBuilder
+                    .Create()
+                    .SetTargetingData(Side.All, RangeType.Distance, 12, TargetType.IndividualsUnique)
+                    .SetParticleEffectParameters(Bane)
+                    .Build())
+            .AddToDB();
+
+        spell.AddCustomSubFeatures(new CustomBehaviorSilveryBarbs(spell, conditionEmpowerment));
+
+        return spell;
+    }
+
+    private sealed class CustomBehaviorSilveryBarbs(
+        SpellDefinition spell,
+        ConditionDefinition conditionEmpowerment)
+        : ITryAlterOutcomeAttack,
+            ITryAlterOutcomeAttributeCheck,
+            ITryAlterOutcomeSavingThrow,
+            IPowerOrSpellFinishedByMe
+    {
+        private readonly Dictionary<ulong, PendingSilveryBarbs> _pendingByCaster = [];
+
+        public int HandlerPriority => 0;
+
+        public IEnumerator OnTryAlterOutcomeAttack(
+            GameLocationBattleManager battleManager,
+            CharacterAction action,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            GameLocationCharacter helper,
+            ActionModifier actionModifier,
+            RulesetAttackMode attackMode,
+            RulesetEffect rulesetEffect)
+        {
+            if (action?.AttackRoll <= 0 ||
+                action.AttackRollOutcome is not (RollOutcome.Success or RollOutcome.CriticalSuccess) ||
+                !CanOfferReaction(helper, attacker))
+            {
+                yield break;
+            }
+
+            yield return ReactToSuccess(
+                helper,
+                attacker,
+                attacker,
+                battleManager,
+                () => ApplyLowerAttackRoll(action, attacker.RulesetCharacter, helper.RulesetCharacter));
+        }
+
+        public IEnumerator OnTryAlterAttributeCheck(
+            GameLocationBattleManager battleManager,
+            int rawRoll,
+            AbilityCheckData abilityCheckData,
+            GameLocationCharacter defender,
+            GameLocationCharacter helper)
+        {
+            if (abilityCheckData.CurrentRoll <= 0 ||
+                abilityCheckData.AbilityCheckRollOutcome is not
+                    (RollOutcome.Success or RollOutcome.CriticalSuccess) ||
+                !CanOfferReaction(helper, defender))
+            {
+                yield break;
+            }
+
+            yield return ReactToSuccess(
+                helper,
+                defender,
+                helper,
+                battleManager,
+                () => ApplyLowerAbilityCheckRoll(
+                    abilityCheckData,
+                    defender.RulesetCharacter,
+                    helper.RulesetCharacter));
+        }
+
+        public IEnumerator OnTryAlterOutcomeSavingThrow(
+            GameLocationBattleManager battleManager,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            GameLocationCharacter helper,
+            SavingThrowData savingThrowData,
+            bool hasHitVisual)
+        {
+            if (savingThrowData.SaveOutcome is not (RollOutcome.Success or RollOutcome.CriticalSuccess) ||
+                !CanOfferReaction(helper, defender))
+            {
+                yield break;
+            }
+
+            yield return ReactToSuccess(
+                helper,
+                defender,
+                helper,
+                battleManager,
+                () => ApplyLowerSavingThrowRoll(
+                    savingThrowData,
+                    defender.RulesetCharacter,
+                    helper.RulesetCharacter));
+        }
+
+        public IEnumerator OnPowerOrSpellFinishedByMe(
+            CharacterActionMagicEffect action,
+            BaseDefinition baseDefinition)
+        {
+            var caster = action.ActingCharacter;
+
+            if (baseDefinition != spell ||
+                !_pendingByCaster.TryGetValue(caster.Guid, out var pending))
+            {
+                yield break;
+            }
+
+            _pendingByCaster.Remove(caster.Guid);
+            pending.ApplyLowerRoll();
+
+            var empowered = pending.EmpoweredCreature;
+            var rulesetEmpowered = empowered?.RulesetCharacter;
+
+            if (rulesetEmpowered is not { IsDeadOrDyingOrUnconscious: false })
+            {
+                yield break;
+            }
+
+            rulesetEmpowered.RemoveAllConditionsOfCategoryAndType(
+                AttributeDefinitions.TagEffect,
+                conditionEmpowerment.Name);
+            rulesetEmpowered.InflictCondition(
+                conditionEmpowerment.Name,
+                DurationType.Minute,
+                1,
+                TurnOccurenceType.EndOfTurn,
+                AttributeDefinitions.TagEffect,
+                caster.Guid,
+                caster.RulesetCharacter.CurrentFaction.Name,
+                1,
+                conditionEmpowerment.Name,
+                0,
+                0,
+                0);
+
+            EffectHelpers.StartVisualEffect(caster, empowered, Bless, EffectHelpers.EffectType.Effect);
+        }
+
+        private bool CanOfferReaction(
+            GameLocationCharacter helper,
+            GameLocationCharacter triggeringCreature)
+        {
+            var rulesetHelper = helper?.RulesetCharacter;
+
+            if (rulesetHelper is not { IsDeadOrDyingOrUnconscious: false } ||
+                triggeringCreature?.RulesetCharacter == null ||
+                !helper.CanReact() ||
+                !rulesetHelper.UsableSpells.Contains(spell) ||
+                !rulesetHelper.AreSpellComponentsValid(spell) ||
+                !helper.IsWithinRange(triggeringCreature, 12) ||
+                helper != triggeringCreature && !helper.CanPerceiveTarget(triggeringCreature))
+            {
+                return false;
+            }
+
+            var slotLevel = rulesetHelper.GetLowestSlotLevelAndRepertoireToCastSpell(spell, out var repertoire);
+
+            return repertoire != null && slotLevel >= spell.SpellLevel;
+        }
+
+        private IEnumerator ReactToSuccess(
+            GameLocationCharacter helper,
+            GameLocationCharacter triggeringCreature,
+            GameLocationCharacter waiter,
+            GameLocationBattleManager battleManager,
+            Action applyLowerRoll)
+        {
+            GameLocationCharacter empoweredCreature = null;
+            var empowermentSelected = false;
+            var candidates = GetEmpowermentCandidates(helper, triggeringCreature);
+
+            if (candidates.Length == 0)
+            {
+                empowermentSelected = true;
+            }
+            else
+            {
+                yield return helper.MyReactToSelectTarget(
+                    candidates,
+                    waiter,
+                    "SilveryBarbsTarget",
+                    "CustomReactionSilveryBarbsTargetDescription".Formatted(
+                        Category.Reaction,
+                        triggeringCreature.Name),
+                    target =>
+                    {
+                        empoweredCreature = target;
+                        empowermentSelected = true;
+                    },
+                    battleManager: battleManager);
+            }
+
+            if (!empowermentSelected || !CanOfferReaction(helper, triggeringCreature))
+            {
+                yield break;
+            }
+
+            _pendingByCaster[helper.Guid] = new PendingSilveryBarbs(empoweredCreature, applyLowerRoll);
+
+            try
+            {
+                yield return helper.MyReactToCastSpell(
+                    spell,
+                    triggeringCreature,
+                    waiter,
+                    battleManager: battleManager);
+            }
+            finally
+            {
+                // A completed cast removes its own entry. Any entry left here belongs to a declined,
+                // countered, failed, or interrupted cast and must not alter the triggering roll.
+                _pendingByCaster.Remove(helper.Guid);
+            }
+        }
+
+        private static GameLocationCharacter[] GetEmpowermentCandidates(
+            GameLocationCharacter helper,
+            GameLocationCharacter triggeringCreature)
+        {
+            var locationCharacterService = ServiceRepository.GetService<IGameLocationCharacterService>();
+            var contenders = Gui.Battle?.AllContenders ??
+                             locationCharacterService.PartyCharacters.Union(
+                                 locationCharacterService.GuestCharacters);
+
+            return contenders
+                .Where(candidate =>
+                    candidate != triggeringCreature &&
+                    candidate.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } &&
+                    helper.IsWithinRange(candidate, 12) &&
+                    (candidate == helper || helper.CanPerceiveTarget(candidate)))
+                .OrderBy(candidate => candidate.Guid)
+                .ToArray();
+        }
+
+        private static void ApplyLowerAttackRoll(
+            CharacterAction action,
+            RulesetCharacter rulesetRoller,
+            RulesetCharacter rulesetCaster)
+        {
+            var previousRoll = action.AttackRoll;
+            var reroll = RollD20(rulesetRoller);
+            var lowerRoll = Math.Min(previousRoll, reroll);
+
+            LogReroll(rulesetCaster, previousRoll, reroll);
+
+            if (lowerRoll == previousRoll)
+            {
+                return;
+            }
+
+            action.AttackSuccessDelta += lowerRoll - previousRoll;
+            action.AttackRoll = lowerRoll;
+            action.AttackRollOutcome = lowerRoll switch
+            {
+                1 => RollOutcome.CriticalFailure,
+                _ when action.AttackSuccessDelta >= 0 => RollOutcome.Success,
+                _ => RollOutcome.Failure
+            };
+        }
+
+        private static void ApplyLowerAbilityCheckRoll(
+            AbilityCheckData abilityCheckData,
+            RulesetCharacter rulesetRoller,
+            RulesetCharacter rulesetCaster)
+        {
+            var previousRoll = abilityCheckData.CurrentRoll;
+            var reroll = RollD20(rulesetRoller);
+            var lowerRoll = Math.Min(previousRoll, reroll);
+
+            LogReroll(rulesetCaster, previousRoll, reroll);
+
+            if (lowerRoll == previousRoll)
+            {
+                return;
+            }
+
+            var delta = lowerRoll - previousRoll;
+
+            abilityCheckData.CurrentRoll = lowerRoll;
+            abilityCheckData.AbilityCheckRoll += delta;
+            abilityCheckData.AbilityCheckSuccessDelta += delta;
+            abilityCheckData.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckSuccessDelta >= 0
+                ? RollOutcome.Success
+                : RollOutcome.Failure;
+        }
+
+        private static void ApplyLowerSavingThrowRoll(
+            SavingThrowData savingThrowData,
+            RulesetCharacter rulesetRoller,
+            RulesetCharacter rulesetCaster)
+        {
+            var previousRoll =
+                savingThrowData.SaveOutcomeDelta -
+                savingThrowData.SaveBonusAndRollModifier +
+                savingThrowData.SaveDC;
+            var reroll = RollD20(rulesetRoller);
+            var lowerRoll = Math.Min(previousRoll, reroll);
+
+            LogReroll(rulesetCaster, previousRoll, reroll);
+
+            if (lowerRoll == previousRoll)
+            {
+                return;
+            }
+
+            savingThrowData.SaveOutcomeDelta += lowerRoll - previousRoll;
+            savingThrowData.SaveOutcome = savingThrowData.SaveOutcomeDelta >= 0
+                ? RollOutcome.Success
+                : RollOutcome.Failure;
+        }
+
+        private static int RollD20(RulesetCharacter rulesetCharacter)
+        {
+            return rulesetCharacter.RollDie(
+                DieType.D20,
+                RollContext.None,
+                false,
+                AdvantageType.None,
+                out _,
+                out _);
+        }
+
+        private static void LogReroll(RulesetCharacter rulesetCaster, int previousRoll, int reroll)
+        {
+            rulesetCaster.LogCharacterActivatesAbility(
+                "Spell/&SilveryBarbsTitle",
+                "Feedback/&SilveryBarbsReroll",
+                extra:
+                [
+                    (reroll < previousRoll
+                        ? ConsoleStyleDuplet.ParameterType.Positive
+                        : ConsoleStyleDuplet.ParameterType.Negative, reroll.ToString()),
+                    (previousRoll <= reroll
+                        ? ConsoleStyleDuplet.ParameterType.Positive
+                        : ConsoleStyleDuplet.ParameterType.Negative, previousRoll.ToString())
+                ]);
+        }
+
+        private sealed class PendingSilveryBarbs(
+            GameLocationCharacter empoweredCreature,
+            Action applyLowerRoll)
+        {
+            internal GameLocationCharacter EmpoweredCreature { get; } = empoweredCreature;
+            internal Action ApplyLowerRoll { get; } = applyLowerRoll;
+        }
+    }
+
+    #endregion
+
     #region Owl Familiar
 
     private const string OwlFamiliar = "OwlFamiliar";
@@ -2738,7 +3144,9 @@ internal static partial class SpellBuilders
             .AddToDB();
 
         var spell = SpellDefinitionBuilder.Create(Fireball, "FindFamiliar")
-            .SetGuiPresentation(Category.Spell, AnimalFriendship)
+            .SetGuiPresentation(
+                Category.Spell,
+                Sprites.GetSprite("FindFamiliar", Resources.FindFamiliar, 128))
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolConjuration)
             .SetSpellLevel(1)
             .SetCastingTime(ActivationTime.Hours1)
@@ -2787,7 +3195,7 @@ internal static partial class SpellBuilders
 
         var spell = SpellDefinitionBuilder
             .Create(NAME)
-            .SetGuiPresentation(Category.Spell, CalmEmotions)
+            .SetGuiPresentation(Category.Spell, Sprites.GetSprite(NAME, Resources.GiftOfAlacrity, 128))
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolDivination)
             .SetSpellLevel(1)
             .SetCastingTime(ActivationTime.Minute1)

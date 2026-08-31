@@ -131,3 +131,5 @@ Spell/&TollTheDeadDescription=Señalas a una criatura que puedas ver dentro del 
 Spell/&TollTheDeadTitle=Cuenta de muertos
 Spell/&WrackDescription=Desata una ola de dolor paralizante contra una criatura que se encuentre dentro del alcance. El objetivo debe realizar una tirada de salvación de Constitución o sufrir 1d6 puntos de daño necrótico, lo que le impide correr o retirarse.
 Spell/&WrackTitle=Estante
+Spell/&SorcerousBurstDescription=Lanzas un estallido de energía hechicera contra una criatura u objeto que esté dentro del alcance. Elige ácido, frío, fuego, relámpago, veneno, psíquico o trueno y realiza un ataque de conjuro a distancia. Si impactas, el objetivo recibe 1d8 de daño del tipo elegido. Cada vez que obtengas un 8 en un d8 de este conjuro, tira otro d8 y añádelo al daño. El número máximo de dados añadidos de este modo es igual a tu modificador por característica para lanzar conjuros. El daño aumenta en 1d8 en los niveles 5, 11 y 17.
+Spell/&SorcerousBurstTitle=Estallido hechicero

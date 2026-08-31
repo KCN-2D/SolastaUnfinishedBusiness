@@ -202,7 +202,7 @@ ModUi/&EnableMonkSuperiorDefense2024=Aktivieren Sie <color=#D89555>Überlegene V
 ModUi/&EnableMonkUncannyMetabolism2024=Aktiviere <color=#D89555>Unheimlichen Stoffwechsel</color> auf Stufe 2 <i><color=#F0DAA0>[Ki und HP bei Initiativewurf wiederherstellen]</color></i>
 ModUi/&EnableMulticlass=Aktivieren Sie <color=#D89555>Multiclass</color> <b><i><color=#C04040E0>[Neustart erforderlich]</color></i></b>
 ModUi/&EnableOneDndBarkskinSpell=Aktiviere <color=#D89555>Barkskin</color> 5e 2024 Zauberversion <i><color=#F0DAA0>[Bonusaktion, keine Konzentration, AC auf 17 gesetzt]</color></i>
-ModUi/&EnableOneDndBladeWardCantrip=Aktivieren <color =#d89555> Blade Ward </color> Cantrip 5e 2024 Version <i> <color =#f0daa0> [1 Minute Konzentration, Angreifer subtrahieren 1D4 von Angriffsrollen] </color> </i>
+ModUi/&EnableOneDndBladeWardCantrip=Aktiviere die 5e-2024-Version des Zaubertricks <color=#D89555>Klingenschutz</color> <i><color=#F0DAA0>[Konzentration für 1 Minute; Angreifer ziehen 1d4 von ihren Angriffswürfen ab]</color></i>
 ModUi/&EnableOneDndChillTouchCantrip=Aktivieren Sie <color=#D89555>Chill Touch</color> 5e 2024 Cantrip-Version <i><color=#F0DAA0>[Schadenswürfel D10 statt D8, Nahkampftreffer statt 24 Reichweite]</color></i>
 ModUi/&EnableOneDndDamagingSpellsUpgrade=Aktiviere <color=#D89555>Arkanes Schwert</color>, <color=#D89555>Kreis des Todes</color>, <color=#D89555>Flammenschlag</color>, <color=#D89555>Eissturm</color>, <color=#D89555>Prismatischer Sprühnebel</color>. und <color=#D89555>Bösartige Verhöhnung</color> 5e 2024 Zauberversion <i><color=#F0DAA0>[besserer Schaden]</color></i>
 ModUi/&EnableOneDndDivineFavorSpell=Aktivieren Sie die Zauberversion <color=#D89555>Göttliche Gunst</color> 5e 2024 <i><color=#F0DAA0>[keine Konzentration]</color></i>
@@ -234,6 +234,8 @@ ModUi/&EnablePoisonsBonusAction2024=Aktivieren Sie das Auftragen von <color=#D89
 ModUi/&EnablePotionsBonusAction2024=Aktivieren Sie das Trinken von <color=#D89555>Tränken</color> als Bonusaktion
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Setzt die Grundbewegungsrate <color=#D89555>spielbarer Spezies mit 5 Feldern</color> auf 6 Felder
 ModUi/&EnablePreparedSpellsTables2024=Ermöglichen Sie allen <color=#D89555>Zauberern</color> die Verwendung neuer vorbereiteter Zaubertabellen <i><color=#F0DAA0>[Kunsthandwerker, Barde, Kleriker, Druide, Paladin, Waldläufer, Zauberer, Magier]</color></i>
+ModUi/&EnableSpellLists2024=Klassenzauberlisten von 2024 verwenden
+ModUi/&SpellLists2024ListHelp=<i><color=#F0DAA0>[Offizielle Zauber der 2024-Listen sind aktiviert und gesperrt, UB-eigene Zauber deaktiviert und gesperrt. Von UB umgesetzte Tabletop-Zauber bleiben auswählbar]</color></i>
 ModUi/&EnableProneAction=Aktivieren Sie die Aktion <color=#D89555>In die Hocke gehen</color> <i><color=#F0DAA0>[Sie können kostenlos in die Hocke gehen]</color></i>
 ModUi/&EnablePullPushOnVerticalDirection=Aktivieren Sie Push- und Pull-Bewegungseffekte, damit diese auch auf der Auf-/Ab-Achse funktionieren
 ModUi/&EnableRangerAnyFightingStyle2024=Erlaube <color=#D89555>Waldläufer</color> jeden Kampfstil zu wählen <i><color=#F0DAA0>[fügt Kampf mit großen Waffen und Schutz hinzu]</color></i>

@@ -202,7 +202,7 @@ ModUi/&EnableMonkSuperiorDefense2024=Habilita <color=#D89555>Defensa superior</c
 ModUi/&EnableMonkUncannyMetabolism2024=Habilita <color=#D89555>Metabolismo sobrenatural</color> en el nivel 2 <i><color=#F0DAA0>[recupera Ki y HP en la tirada de iniciativa]</color></i>
 ModUi/&EnableMulticlass=Habilitar <color=#D89555>multiclase</color> <b><i><color=#C04040E0>[Requiere reinicio]</color></i></b>
 ModUi/&EnableOneDndBarkskinSpell=Habilitar la versión del hechizo <color=#D89555>Corteza</color> 5e 2024 <i><color=#F0DAA0>[acción adicional, sin concentración, CA establecida en 17]</color></i>
-ModUi/&EnableOneDndBladeWardCantrip=Enable <color =#d895555> blade ward </ color> cantrip 5e 2024 versión <i> <color =#f0daa0> [concentración de 1 minuto, los atacantes restan 1d4 de los rollos de ataque] </color> </i>
+ModUi/&EnableOneDndBladeWardCantrip=Habilitar la versión 5e 2024 del truco <color=#D89555>Guardia de la espada</color> <i><color=#F0DAA0>[concentración durante 1 minuto; los atacantes restan 1d4 a sus tiradas de ataque]</color></i>
 ModUi/&EnableOneDndChillTouchCantrip=Habilite <color=#D89555>Chill Touch</color> versión del truco 5e 2024 <i><color=#F0DAA0>[daño dado D10 en lugar de D8, golpe cuerpo a cuerpo en lugar de 24 de alcance]</color></i>
 ModUi/&EnableOneDndDamagingSpellsUpgrade=Habilita los hechizos <color=#D89555>Espada arcana</color>, <color=#D89555>Círculo de la muerte</color>, <color=#D89555>Golpe de llamas</color>, <color=#D89555>Tormenta de hielo</color>, <color=#D89555>Rociado prismático</color> y <color=#D89555>Burla cruel</color> versión 5e 2024 <i><color=#F0DAA0>[mejor daño]</color></i>
 ModUi/&EnableOneDndDivineFavorSpell=Habilitar <color=#D89555>Favor divino</color> versión del hechizo 5e 2024 <i><color=#F0DAA0>[sin concentración]</color></i>
@@ -234,6 +234,8 @@ ModUi/&EnablePoisonsBonusAction2024=Habilitar la aplicación de <color=#D89555>v
 ModUi/&EnablePotionsBonusAction2024=Habilitar beber <color=#D89555>Pociones</color> como acción adicional
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Aumentar a 6 casillas la velocidad base de las <color=#D89555>especies jugables con 5 casillas</color>
 ModUi/&EnablePreparedSpellsTables2024=Permitir que todos los <color=#D89555>lanzadores de conjuros</color> utilicen las nuevas tablas de conjuros preparadas <i><color=#F0DAA0>[Artificiero, Bardo, Clérigo, Druida, Paladín, Explorador, Hechicero, Mago]</color></i>
+ModUi/&EnableSpellLists2024=Usar las listas de conjuros de clase de 2024
+ModUi/&SpellLists2024ListHelp=<i><color=#F0DAA0>[Los conjuros oficiales incluidos en las listas de 2024 quedan activados y bloqueados; los conjuros originales de UB quedan desactivados y bloqueados. Los conjuros de mesa implementados por UB siguen siendo seleccionables]</color></i>
 ModUi/&EnableProneAction=Habilita la acción <color=#D89555>Caer boca abajo</color> <i><color=#F0DAA0>[puedes caer boca abajo sin costo]</color></i>
 ModUi/&EnablePullPushOnVerticalDirection=Habilite los efectos de movimiento de empujar y tirar para que funcionen también en el eje arriba/abajo
 ModUi/&EnableRangerAnyFightingStyle2024=Permitir que <color=#D89555>Explorador</color> elija cualquier estilo de lucha <i><color=#F0DAA0>[añade Lucha con arma grande y Protección]</color></i>

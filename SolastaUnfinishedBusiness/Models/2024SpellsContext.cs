@@ -8,8 +8,10 @@ using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
+using SolastaUnfinishedBusiness.Classes;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Spells;
+using SolastaUnfinishedBusiness.Subclasses;
 using UnityEngine.AddressableAssets;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
@@ -19,6 +21,7 @@ using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefiniti
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionFeatureSets;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionAttributeModifiers;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionDamageAffinitys;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper.SpellListDefinitions;
 
 namespace SolastaUnfinishedBusiness.Models;
 
@@ -54,21 +57,109 @@ public static partial class Tabletop2024Context
     internal static readonly IReadOnlyList<int> ArtificerPreparedSpells2024 =
         [2, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15];
 
-    private static void HomeBrewSomeSpells()
+    internal static void SwitchSpellLists2024()
     {
-        //    .SetSavingThrowData(true, AttributeDefinitions.Wisdom, true,
-        //EffectDifficultyClassComputation.SpellCastingFeature, "Wisdom", 15)
-        Shine.EffectDescription.DifficultyClassComputation = EffectDifficultyClassComputation.FixedValue;
-        Shine.EffectDescription.FixedSavingThrowDifficultyClass = 15;        
-        
+        var enabled = Main.Settings.EnableSpellLists2024;
 
-        //not to brew
-            //Barkskin.requiresConcentration = true;
-            //Barkskin.castingTime = ActivationTime.Action;
-            //AttributeModifierBarkskin.modifierValue = 16;
-            //Barkskin.GuiPresentation.description = "Spell/&BarkskinDescription";
-            //ConditionBarkskin.GuiPresentation.description = "Rules/&ConditionBarkskinDescription";
+        foreach (var (spellList, spell, included) in EnumerateSpellListChanges2024())
+        {
+            SpellsContext.ApplySpellList2024Change(spellList, spell, included, enabled);
+        }
 
+        SpellsContext.SwitchSpellAvailabilityWithSpellLists2024(SpellsContext.SorcerousBurst, enabled);
+        SpellsContext.ApplySpellList2024Restrictions(enabled);
+        SpellsContext.RecalculateAllSpells();
+        WizardAbjuration.RefreshSpellList();
+        WizardEvocation.RefreshSpellList();
+        RefreshFeatSpellSelectionLists2024();
+    }
+
+    private static IEnumerable<(SpellListDefinition SpellList, SpellDefinition Spell, bool Included)>
+        EnumerateSpellListChanges2024()
+    {
+        // Bard
+        yield return (SpellListBard, ColorSpray, true);
+        yield return (SpellListBard, Aid, true);
+        yield return (SpellListBard, MassHealingWord, true);
+        yield return (SpellListBard, Slow, true);
+        yield return (SpellListBard, PhantasmalKiller, true);
+        yield return (SpellListBard, GetDefinition<SpellDefinition>("HeroesFeast"), true);
+        yield return (SpellListBard, PrismaticSpray, true);
+
+        // Cleric
+        yield return (SpellListCleric, GetDefinition<SpellDefinition>("CircleOfMagicalNegation"), true);
+        yield return (SpellListCleric, Sunbeam, true);
+        yield return (SpellListCleric, Sunburst, true);
+
+        // Druid
+        yield return (SpellListDruid, SpareTheDying, true);
+        yield return (SpellListDruid, Aid, true);
+        yield return (SpellListDruid, ProtectionFromEvilGood, true);
+        yield return (SpellListDruid, SpellsContext.AuraOfVitality, true);
+        yield return (SpellListDruid, Revivify, true);
+        yield return (SpellListDruid, FireShield, true);
+        yield return (SpellListDruid, ConeOfCold, true);
+        yield return (SpellListDruid, GetDefinition<SpellDefinition>("Symbol"), true);
+        yield return (SpellListDruid, IncendiaryCloud, true);
+
+        // Paladin
+        yield return (SpellListPaladin, GreaterRestoration, true);
+        yield return (SpellListPaladin, PrayerOfHealing, true);
+        yield return (SpellListPaladin, WardingBond, true);
+
+        // Ranger
+        yield return (SpellListRanger, DispelMagic, true);
+        yield return (SpellListRanger, Entangle, true);
+        yield return (SpellListRanger, Aid, true);
+        yield return (SpellListRanger, EnhanceAbility, true);
+        yield return (SpellListRanger, MagicWeapon, true);
+        yield return (SpellListRanger, Revivify, true);
+        yield return (SpellListRanger, DominateBeast, true);
+        yield return (SpellListRanger, GreaterRestoration, true);
+        yield return (SpellListRanger, SpellsContext.SearingSmite, false);
+
+        // Sorcerer
+        yield return (SpellListSorcerer, Grease, true);
+        yield return (SpellListSorcerer, FlameBlade, true);
+        yield return (SpellListSorcerer, FlamingSphere, true);
+        yield return (SpellListSorcerer, MagicWeapon, true);
+        yield return (SpellListSorcerer, VampiricTouch, true);
+        yield return (SpellListSorcerer, FireShield, true);
+        yield return (SpellListSorcerer, FreezingSphere, true);
+        yield return (SpellListSorcerer, SpellsContext.SorcerousBurst, true);
+
+        // Warlock
+        yield return (SpellListWarlock, Bane, true);
+        yield return (SpellListWarlock, DetectMagic, true);
+        yield return (SpellListWarlock, HideousLaughter, true);
+        yield return (SpellListWarlock, Shatter, false);
+        yield return (SpellListWarlock, ConjureFey, false);
+        // Wizard
+        yield return (SpellListWizard, EnhanceAbility, true);
+        yield return (SpellListWizard, GetDefinition<SpellDefinition>("CircleOfMagicalNegation"), true);
+
+        // Revised Artificer
+        yield return (InventorClass.SpellList, DancingLights, true);
+        yield return (InventorClass.SpellList, Light, true);
+        yield return (InventorClass.SpellList, TrueStrike, true);
+        yield return (InventorClass.SpellList, GetDefinition<SpellDefinition>("WaterBreathing"), true);
+        yield return (InventorClass.SpellList, GetDefinition<SpellDefinition>("WaterWalk"), true);
+        yield return (
+            InventorClass.SpellList,
+            GetDefinition<SpellDefinition>("DragonsBreathSpell"),
+            true);
+        yield return (
+            InventorClass.SpellList,
+            GetDefinition<SpellDefinition>("CircleOfMagicalNegation"),
+            true);
+    }
+
+    internal static void SwitchShineCantrip()
+    {
+        Shine.EffectDescription.DifficultyClassComputation = Main.Settings.SwapShineCantrip
+            ? EffectDifficultyClassComputation.FixedValue
+            : EffectDifficultyClassComputation.SpellCastingFeature;
+        Shine.EffectDescription.FixedSavingThrowDifficultyClass = Main.Settings.SwapShineCantrip ? 15 : 0;
     }
 
     private static readonly List<(string, string)> GuidanceProficiencyPairs =
@@ -460,8 +551,8 @@ public static partial class Tabletop2024Context
     {
         SpareTheDying.GuiPresentation.description =
             Main.Settings.EnableOneDndSpareTheDyingSpell
-                ? "Spell/&SpareTheDyingDescription"
-                : "Spell/&SpareTheDyingExtendedDescription";
+                ? "Spell/&SpareTheDyingExtendedDescription"
+                : "Spell/&SpareTheDyingDescription";
     }
 
     internal static void SwitchOneDndSpellSpiderClimb()

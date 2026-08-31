@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -83,7 +83,7 @@ internal static class SpeechContext
     private static bool PiperInitializationAttempted;
     private static bool VoiceDataInitialized;
     private static bool CampaignVoiceDataInitialized;
-    private static bool Unloading;
+    private static volatile bool Unloading;
     private static int SpeechGeneration;
 
     private static readonly Queue<SpeechRequest> SpeechQueue = [];
@@ -1567,12 +1567,10 @@ internal static class SpeechContext
             $"--model {QuoteArgument(modelFileName)} --length_scale {FormatScale(scale)} --output-raw",
             true);
 
-        if (!piper.Start())
+        if (!TryStartAndRegisterSpeechProcess(piper))
         {
             return null;
         }
-
-        RegisterSpeechProcess(piper);
 
         try
         {
@@ -1629,12 +1627,10 @@ internal static class SpeechContext
 
             piper.StartInfo.EnvironmentVariables["PIPER_MODEL_DIR"] = PiperPlusModelsFolder;
 
-            if (!piper.Start())
+            if (!TryStartAndRegisterSpeechProcess(piper))
             {
                 return null;
             }
-
-            RegisterSpeechProcess(piper);
 
             try
             {
@@ -1693,11 +1689,18 @@ internal static class SpeechContext
         return process;
     }
 
-    private static void RegisterSpeechProcess(Process process)
+    private static bool TryStartAndRegisterSpeechProcess(Process process)
     {
         lock (SpeechProcessLock)
         {
+            if (Unloading || !process.Start())
+            {
+                return false;
+            }
+
             SpeechProcesses.Add(process);
+
+            return true;
         }
     }
 
@@ -1726,6 +1729,7 @@ internal static class SpeechContext
                 if (!process.HasExited)
                 {
                     process.Kill();
+                    process.WaitForExit(1000);
                 }
             }
             catch
@@ -1809,12 +1813,10 @@ internal static class SpeechContext
 
         try
         {
-            if (!piper.Start())
+            if (!TryStartAndRegisterSpeechProcess(piper))
             {
                 return false;
             }
-
-            RegisterSpeechProcess(piper);
 
             try
             {

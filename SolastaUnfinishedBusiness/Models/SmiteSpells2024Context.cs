@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -52,6 +52,14 @@ public static class SmiteSpells2024Context
 
     internal static void SwitchSmiteSpells()
     {
+        var wrathfulSmiteDescription = Main.Settings.EnableSmiteSpells2024
+            ? "Spell/&WrathfulSmite2024Description"
+            : "Spell/&WrathfulSmiteDescription";
+
+        SpellsContext.WrathfulSmite.GuiPresentation.description = wrathfulSmiteDescription;
+        SpellBuilders.ConditionWrathfulSmite.GuiPresentation.description = wrathfulSmiteDescription;
+        SpellBuilders.AdditionalDamageWrathfulSmite.GuiPresentation.description = wrathfulSmiteDescription;
+
         if (Main.Settings.EnableSmiteSpells2024)
         {
             SmiteSpells.ForEach(SwitchSmiteSpellOn);

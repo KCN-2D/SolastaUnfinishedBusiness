@@ -131,3 +131,5 @@ Spell/&TollTheDeadDescription=Vous désignez une créature que vous pouvez voir 
 Spell/&TollTheDeadTitle=Faire le bilan des morts
 Spell/&WrackDescription=Déchaîne une vague de douleur paralysante sur une créature à portée. La cible doit réussir un jet de sauvegarde de Constitution ou subir 1d6 dégâts nécrotiques, ce qui l'empêche de foncer ou de se désengager.
 Spell/&WrackTitle=Varech
+Spell/&SorcerousBurstDescription=Vous projetez une décharge d'énergie ensorcelée vers une créature ou un objet à portée. Choisissez acide, froid, feu, foudre, poison, psychique ou tonnerre, puis effectuez une attaque de sort à distance. Si elle touche, la cible subit 1d8 dégâts du type choisi. Chaque fois qu'un d8 de ce sort donne 8, lancez un autre d8 et ajoutez-le aux dégâts. Le nombre maximal de dés ajoutés ainsi est égal au modificateur de votre caractéristique d'incantation. Les dégâts augmentent de 1d8 aux niveaux 5, 11 et 17.
+Spell/&SorcerousBurstTitle=Décharge ensorcelée

@@ -282,6 +282,16 @@
       PublicKeyToken=b77a5c561934e089
     </value>
   </data>
+  <data name="SorcerousBurst" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>../Resources/Spells/SorcerousBurst.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+      PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="SilveryBarbs" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>../Resources/Spells/SilveryBarbs.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+      PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
   <data name="LightningLure" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>../Resources/Spells/LightningLure.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
       PublicKeyToken=b77a5c561934e089
@@ -2948,6 +2958,76 @@
   </data>
   <data name="Wish" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Spells\Wish.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="FindFamiliar" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\FindFamiliar.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="BindingIce" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\BindingIce.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="IlluminatingSphere" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\IlluminatingSphere.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ThunderStrike" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\ThunderStrike.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="BoomingBlade" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\BoomingBlade.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="TollTheDead" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\TollTheDead.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="GiftOfAlacrity" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\GiftOfAlacrity.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="MassHeal" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\MassHeal.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="DragonsBreath" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\DragonsBreath.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CollegeOfAudacity" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Subclasses\CollegeOfAudacity.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="RoguishSwashbuckler" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Subclasses\RoguishSwashbuckler.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="DomainOrder" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Subclasses\DomainOrder.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="AstralReach" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\FightingStyles\AstralReach.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="RemarkableTechnique" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\FightingStyles\RemarkableTechnique.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
         PublicKeyToken=b77a5c561934e089
     </value>
   </data>

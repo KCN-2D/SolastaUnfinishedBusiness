@@ -1,4 +1,9 @@
-﻿using System.IO;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -16,14 +21,22 @@ namespace SolastaUnfinishedBusiness.Models;
 
 internal static class BootContext
 {
-    internal static void Startup()
-    {
-        var enable = Main.Enable;
+    private static bool RuntimeInitialized { get; set; }
+    private static bool StartupStarted { get; set; }
+    private static GameManager CoroutineHost { get; set; }
+    private static IRuntimeService RuntimeService { get; set; }
+    private static Runtime.RuntimeLoadedHandler RuntimeLoadedHandler { get; set; }
+    private static CancellationTokenSource UserCampaignAuditCancellation { get; set; }
 
-        if (enable == null)
+    internal static void Startup(GameManager gameManager)
+    {
+        if (!gameManager || StartupStarted || Main.Enable == null)
         {
             return;
         }
+
+        StartupStarted = true;
+        CoroutineHost = gameManager;
 
 #if DEBUG
         ItemDefinitionVerification.Load();
@@ -93,75 +106,124 @@ internal static class BootContext
 
         MerchantContext.Load();
 
-        ServiceRepository.GetService<IRuntimeService>().RuntimeLoaded += _ =>
+        RuntimeService = ServiceRepository.GetService<IRuntimeService>();
+
+        if (RuntimeService == null)
         {
-            // There are feats that need all character classes loaded before they can properly be setup.
-            FeatsContext.LateLoad();
+            Main.Error("Runtime service is unavailable during mod startup.");
 
-            // Late initialized to allow feats and races from other mods
-            RulesContext.LateLoad();
+            return;
+        }
 
-            // Custom invocations
-            InvocationsContext.LateLoad();
+        RuntimeLoadedHandler = OnRuntimeLoaded;
+        RuntimeService.RuntimeLoaded += RuntimeLoadedHandler;
+    }
 
-            // Custom metamagic
-            MetamagicContext.LateLoad();
+    internal static void Unload()
+    {
+        DetachRuntimeLoadedHandler();
 
-            // Action Switching
-            ActionSwitching.LateLoad();
+        var cancellation = UserCampaignAuditCancellation;
 
-            // Vanilla Fixes
-            FixesContext.LateLoad();
+        UserCampaignAuditCancellation = null;
+        CoroutineHost = null;
+        cancellation?.Cancel();
+        cancellation?.Dispose();
+    }
 
-            // Level 20 - patching and final configs
-            Level20Context.LateLoad();
+    private static void DetachRuntimeLoadedHandler()
+    {
+        var runtimeService = RuntimeService;
+        var runtimeLoadedHandler = RuntimeLoadedHandler;
 
-            // Multiclass - patching and final configs
-            MulticlassContext.LateLoad();
+        RuntimeService = null;
+        RuntimeLoadedHandler = null;
 
-            // Spells context need Level 20 and Multiclass to properly register spells
-            SpellsContext.LateLoad();
+        if (runtimeService != null && runtimeLoadedHandler != null)
+        {
+            runtimeService.RuntimeLoaded -= runtimeLoadedHandler;
+        }
+    }
 
-            // Shared Slots - patching and final configs
-            SharedSpellsContext.LateLoad();
+    private static void OnRuntimeLoaded(Runtime _)
+    {
+        DetachRuntimeLoadedHandler();
 
-            // Set anything on subs that depends on spells and others
-            Tabletop2014Context.LateLoad();
-            Tabletop2024Context.LateLoad();
+        var enable = Main.Enable;
 
-            SubclassesContext.LateLoad();
-            InventorClass.LateLoadSpellStoringItem();
-            LightingAndObscurementContext.LateLoad();
-            GrappleContext.LateLoad();
-            ScrollsData.LateLoad();
-            CustomizedWeaponTypesContext.LateLoad();
+        if (RuntimeInitialized || enable == null)
+        {
+            return;
+        }
 
-            // Spell Points should load closer to the bottom after all other blueprints initiated
-            SpellPointsContext.LateLoad();
+        RuntimeInitialized = true;
 
-            // Save by location initialization depends on services to be ready
-            SaveByLocationContext.LateLoad();
+        // There are feats that need all character classes loaded before they can properly be setup.
+        FeatsContext.LateLoad();
 
-            // Recache all gui collections
-            GuiWrapperContext.Recache();
+        // Late initialized to allow feats and races from other mods
+        RulesContext.LateLoad();
 
-            // Cache CE definitions for diagnostics and export
-            DiagnosticsContext.CacheCeDefinitions();
+        // Custom invocations
+        InvocationsContext.LateLoad();
 
-            // Dump documentations to mod folder when version or files changed
-            DocumentationContext.DumpDocumentationIfNeeded();
-            ModUi.LoadTabletopDefinitions();
+        // Custom metamagic
+        MetamagicContext.LateLoad();
 
-            // Manages update or welcome messages
-            UpdateContext.Load();
+        // Action Switching
+        ActionSwitching.LateLoad();
 
-            //TODO: find a better place to implement these
-            AddExtraTooltipDefinitions();
-            LogMissingReferencesInUserCampaigns();
+        // Vanilla Fixes
+        FixesContext.LateLoad();
 
-            // Enable mod
-            enable();
-        };
+        // Level 20 - patching and final configs
+        Level20Context.LateLoad();
+
+        // Multiclass - patching and final configs
+        MulticlassContext.LateLoad();
+
+        // Spells context need Level 20 and Multiclass to properly register spells
+        SpellsContext.LateLoad();
+
+        // Shared Slots - patching and final configs
+        SharedSpellsContext.LateLoad();
+
+        // Set anything on subs that depends on spells and others
+        Tabletop2014Context.LateLoad();
+        Tabletop2024Context.LateLoad();
+
+        SubclassesContext.LateLoad();
+        InventorClass.LateLoadSpellStoringItem();
+        LightingAndObscurementContext.LateLoad();
+        GrappleContext.LateLoad();
+        ScrollsData.LateLoad();
+        CustomizedWeaponTypesContext.LateLoad();
+
+        // Spell Points should load closer to the bottom after all other blueprints initiated
+        SpellPointsContext.LateLoad();
+
+        // Save by location initialization depends on services to be ready
+        SaveByLocationContext.LateLoad();
+
+        // Recache all gui collections
+        GuiWrapperContext.Recache();
+
+        // Cache CE definitions for diagnostics and export
+        DiagnosticsContext.CacheCeDefinitions();
+
+        // Dump documentations to mod folder when version or files changed
+        DocumentationContext.DumpDocumentationIfNeeded();
+        ModUi.LoadTabletopDefinitions();
+
+        // Manages update or welcome messages
+        UpdateContext.Load();
+
+        //TODO: find a better place to implement these
+        AddExtraTooltipDefinitions();
+
+        // Enable mod before optional diagnostics parse user-authored data.
+        enable();
+        StartMissingReferencesAudit();
     }
 
     private static void AddExtraTooltipDefinitions()
@@ -209,55 +271,114 @@ internal static class BootContext
         definition.tooltipFeatures[index] = info;
     }
 
-    private static void LogMissingReferencesInUserCampaigns()
+    private static void StartMissingReferencesAudit()
     {
         if (!Main.Settings.EnableLoggingInvalidReferencesInUserCampaigns)
         {
             return;
         }
 
-        var userCampaigns = Directory.GetFiles(TacticalAdventuresApplication.UserCampaignsDirectory);
+        var coroutineHost = CoroutineHost;
+
+        if (!coroutineHost)
+        {
+            Main.Error("Cannot start the user campaign reference audit without a game manager.");
+
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+
+        UserCampaignAuditCancellation?.Cancel();
+        UserCampaignAuditCancellation?.Dispose();
+        UserCampaignAuditCancellation = cancellation;
+
+        coroutineHost.StartCoroutine(LogMissingReferencesInUserCampaigns(cancellation.Token));
+    }
+
+    private static IEnumerator LogMissingReferencesInUserCampaigns(CancellationToken cancellationToken)
+    {
+        string[] userCampaigns = null;
+
+        try
+        {
+            userCampaigns = Directory.GetFiles(TacticalAdventuresApplication.UserCampaignsDirectory);
+        }
+        catch
+        {
+            Main.Error("Cannot enumerate user campaigns for the reference audit.");
+        }
+
+        if (userCampaigns == null)
+        {
+            CompleteMissingReferencesAudit(cancellationToken);
+
+            yield break;
+        }
 
         foreach (var userCampaign in userCampaigns)
         {
-            try
+            var task = Task.Run(
+                () => ReadUserCampaignReferences(userCampaign, cancellationToken),
+                cancellationToken);
+
+            while (!task.IsCompleted)
             {
-                var payload = File.ReadAllText(userCampaign);
-                var infoJson = JsonConvert.DeserializeObject<JObject>(payload);
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    yield break;
+                }
 
-                var campaignName = Path.GetFileName(userCampaign);
-
-                LogMissingReferencesInUserCampaign<ItemDefinition>(
-                    campaignName, infoJson, "userItems", "item");
-                LogMissingReferencesInUserCampaign<MonsterDefinition>(
-                    campaignName, infoJson, "userMonsters", "monster");
+                yield return null;
             }
-            catch
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                yield break;
+            }
+
+            if (task.IsFaulted || task.IsCanceled || task.Result == null)
             {
                 Main.Error($"User campaign {Path.GetFileName(userCampaign)} is really messed up.");
+
+                continue;
             }
+
+            var references = task.Result;
+
+            if (references.IsInvalid)
+            {
+                Main.Error($"User campaign {references.CampaignName} is really messed up.");
+
+                continue;
+            }
+
+            LogMissingReferencesInUserCampaign<ItemDefinition>(
+                references.CampaignName,
+                references.ItemReferences,
+                "item");
+            LogMissingReferencesInUserCampaign<MonsterDefinition>(
+                references.CampaignName,
+                references.MonsterReferences,
+                "monster");
+
+            yield return null;
         }
+
+        CompleteMissingReferencesAudit(cancellationToken);
     }
 
     private static void LogMissingReferencesInUserCampaign<TDefinition>(
         string campaignName,
-        JObject infoJson,
-        string collectionName,
+        IEnumerable<string> references,
         string referenceKind)
         where TDefinition : BaseDefinition
     {
-        if (infoJson[collectionName] is not JArray references)
-        {
-            return;
-        }
-
         var database = DatabaseRepository.GetDatabase<TDefinition>();
-        var checkedReferences = new System.Collections.Generic.HashSet<string>();
+        var checkedReferences = new HashSet<string>();
 
-        foreach (var reference in references)
+        foreach (var referenceDefinition in references)
         {
-            var referenceDefinition = reference["referenceDefinition"]?.Value<string>();
-
             if (string.IsNullOrWhiteSpace(referenceDefinition) ||
                 !checkedReferences.Add(referenceDefinition) ||
                 database.TryGetElement(referenceDefinition, out _))
@@ -268,5 +389,83 @@ internal static class BootContext
             Main.Error(
                 $"User campaign {campaignName} has an invalid {referenceKind} reference: {referenceDefinition}");
         }
+    }
+
+    private static UserCampaignReferenceAudit ReadUserCampaignReferences(
+        string userCampaign,
+        CancellationToken cancellationToken)
+    {
+        var campaignName = Path.GetFileName(userCampaign);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(userCampaign);
+            using var textReader = new StreamReader(stream);
+            using var jsonReader = new JsonTextReader(textReader);
+            var infoJson = JObject.Load(jsonReader);
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return null;
+            }
+
+            return new UserCampaignReferenceAudit(
+                campaignName,
+                GetReferenceDefinitions(infoJson, "userItems"),
+                GetReferenceDefinitions(infoJson, "userMonsters"),
+                false);
+        }
+        catch
+        {
+            return new UserCampaignReferenceAudit(campaignName, [], [], true);
+        }
+    }
+
+    private static string[] GetReferenceDefinitions(JObject infoJson, string collectionName)
+    {
+        return infoJson[collectionName] is JArray references
+            ? references
+                .Select(reference => reference["referenceDefinition"]?.Value<string>())
+                .Where(reference => !string.IsNullOrWhiteSpace(reference))
+                .ToArray()
+            : [];
+    }
+
+    private static void CompleteMissingReferencesAudit(CancellationToken cancellationToken)
+    {
+        var cancellation = UserCampaignAuditCancellation;
+
+        if (cancellation == null || cancellation.Token != cancellationToken)
+        {
+            return;
+        }
+
+        UserCampaignAuditCancellation = null;
+        cancellation.Dispose();
+    }
+
+    private sealed class UserCampaignReferenceAudit
+    {
+        internal UserCampaignReferenceAudit(
+            string campaignName,
+            string[] itemReferences,
+            string[] monsterReferences,
+            bool isInvalid)
+        {
+            CampaignName = campaignName;
+            ItemReferences = itemReferences;
+            MonsterReferences = monsterReferences;
+            IsInvalid = isInvalid;
+        }
+
+        internal string CampaignName { get; }
+        internal string[] ItemReferences { get; }
+        internal bool IsInvalid { get; }
+        internal string[] MonsterReferences { get; }
     }
 }

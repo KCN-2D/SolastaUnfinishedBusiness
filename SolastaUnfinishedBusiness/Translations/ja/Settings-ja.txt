@@ -196,7 +196,7 @@ ModUi/&EnableMonkUncannyMetabolism2024=レベル2で<color=#D89555>超新陳代�
 ModUi/&EnableMulticlass=<color=#D89555>マルチクラス</color>を有効にする<b><i><color=#C04040E0>（再起動が必要）</color></i></b>
 ModUI/&SwapShineCantrip=〈発光〉のセーヴ難易度15を有効にします
 ModUi/&EnableOneDndBarkskinSpell=<color=#D89555>樹皮の肌</color>の5e 2024版を有効にします<i><color=#F0DAA0>（AC最低値17、精神集中不要）</color></i>
-ModUi/&EnableOneDndBladeWardCantrip=<color=#D89555>防刃</color>の5e 2024版を有効にします<i><color=#F0DAA0>（リアクション、精神集中、攻撃ロールを1d4低下）</color></i>
+ModUi/&EnableOneDndBladeWardCantrip=<color=#D89555>防刃</color>の5e 2024版を有効にします<i><color=#F0DAA0>（1分間の精神集中。攻撃者は攻撃ロールから1d4を減算）</color></i>
 ModUi/&EnableOneDndChillTouchCantrip=<color=#D89555>負力の接触</color>の5e 2024版を有効にします<i><color=#F0DAA0>（近接呪文攻撃、ダメージ1d10、アンデッドを恐怖状態にする可能性）</color></i>
 ModUi/&EnableOneDndDamagingSpellsUpgrade=<color=#D89555>秘術の剣</color>、<color=#D89555>死の円環</color>、<color=#D89555>天罰の火</color>、<color=#D89555>氷の嵐</color>、<color=#D89555>虹色の噴射</color>、<color=#D89555>悪意ある嘲り</color>の5e 2024版を有効にします
 ModUi/&EnableOneDndDivineFavorSpell=<color=#D89555>神寵</color>の5e 2024版を有効にします<i><color=#F0DAA0>（精神集中不要）</color></i>
@@ -226,6 +226,8 @@ ModUi/&EnablePoisonsBonusAction2024=ボーナス・アクションとして武�
 ModUi/&EnablePotionsBonusAction2024=ボーナス・アクションとして<color=#D89555>ポーション</color>を飲めるようにする
 ModUi/&EnableSpeciesBaseWalkSpeed2024=<color=#D89555>基本移動速度が5マスの種族</color>の基本移動速度を6マスにする
 ModUi/&EnablePreparedSpellsTables2024=すべての<color=#D89555>呪文発動者</color>が新しい準備済み呪文テーブル<i><color=#F0DAA0>（アーティフィサー、バード、クレリック、ドルイド、パラディン、レンジャー、ソーサラー、ウィザード）</color></i>を使用できるようにします。
+ModUi/&EnableSpellLists2024=2024年版のクラス呪文リストを使用する
+ModUi/&SpellLists2024ListHelp=<i><color=#F0DAA0>（2024年版リストに含まれるゲーム公式呪文は有効に固定され、UB独自の呪文は無効に固定されます。UBが実装したテーブルトップ由来の呪文は個別に選択できます）</color></i>
 ModUi/&EnableProneAction=<color=#D89555>伏せ状態になる</color>アクションを有効にする<i><color=#F0DAA0>（コストなしで伏せ状態になれます）</color></i>
 ModUi/&EnablePullPushOnVerticalDirection=押し出しと引き寄せの移動効果を上下方向にも有効にします
 ModUi/&EnableRangerDeftExplorer2024=2レベルで<color=#D89555>巧みな探検家</color>を有効にする<i><color=#F0DAA0>（レンジャー技能の習熟強化を1つ取得し、言語を2つ習得します）</color></i>

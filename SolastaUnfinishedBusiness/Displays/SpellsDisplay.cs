@@ -311,6 +311,7 @@ internal static class SpellsDisplay
         if (UI.Toggle(Gui.Localize("ModUI/&SwapShineCantrip"), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.SwapShineCantrip = toggle;
+            Tabletop2024Context.SwitchShineCantrip();
         }
     }
 
@@ -337,7 +338,21 @@ internal static class SpellsDisplay
 
         UI.Label();
 
-        var toggle = Main.Settings.AllowDisplayingOfficialSpells;
+        var toggle = Main.Settings.EnableSpellLists2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableSpellLists2024"), ref toggle,
+                UI.Width(ModUi.PixelsPerColumn)))
+        {
+            Main.Settings.EnableSpellLists2024 = toggle;
+            Tabletop2024Context.SwitchSpellLists2024();
+        }
+
+        if (Main.Settings.EnableSpellLists2024)
+        {
+            UI.Label(Gui.Localize("ModUi/&SpellLists2024ListHelp"));
+            UI.Label();
+        }
+
+        toggle = Main.Settings.AllowDisplayingOfficialSpells;
         if (UI.Toggle(Gui.Localize("ModUi/&AllowDisplayingOfficialSpells"), ref toggle,
                 UI.Width(ModUi.PixelsPerColumn)))
         {
@@ -354,14 +369,14 @@ internal static class SpellsDisplay
         }
 
         toggle = Main.Settings.AddNewScrollsToShops;
-        if (UI.Toggle(Gui.Localize(Gui.Localize("ModUi/&AddNewScrollsToShops")), ref toggle,
+        if (UI.Toggle(Gui.Localize("ModUi/&AddNewScrollsToShops"), ref toggle,
                 UI.Width(ModUi.PixelsPerColumn)))
         {
             Main.Settings.AddNewScrollsToShops = toggle;
         }
 
         toggle = Main.Settings.AddNewScrollsToTreasure;
-        if (UI.Toggle(Gui.Localize(Gui.Localize("ModUi/&AddNewScrollsToTreasure")), ref toggle,
+        if (UI.Toggle(Gui.Localize("ModUi/&AddNewScrollsToTreasure"), ref toggle,
                 UI.Width(ModUi.PixelsPerColumn)))
         {
             Main.Settings.AddNewScrollsToTreasure = toggle;
@@ -423,7 +438,9 @@ internal static class SpellsDisplay
                 spellEnabled,
                 ref displayToggle,
                 ref sliderPos,
-                additionalRendering: AdditionalRendering);
+                additionalRendering: AdditionalRendering,
+                toggleEnabled: spellListContext.IsSpellToggleEnabled,
+                toggleValueOverride: spellListContext.GetSpellToggleValueOverride);
 
             Main.Settings.DisplaySpellListsToggle[name] = displayToggle;
             Main.Settings.SpellListSliderPosition[name] = sliderPos;

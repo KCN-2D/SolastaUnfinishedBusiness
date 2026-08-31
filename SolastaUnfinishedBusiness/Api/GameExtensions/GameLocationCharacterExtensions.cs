@@ -439,6 +439,52 @@ public static class GameLocationCharacterExtensions
         }
     }
 
+    internal static IEnumerator MyReactToSelectTarget(
+        this GameLocationCharacter character,
+        IEnumerable<GameLocationCharacter> candidates,
+        GameLocationCharacter waiter,
+        string type,
+        string stringParameter,
+        Action<GameLocationCharacter> reactionValidated = null,
+        Action reactionNotValidated = null,
+        GameLocationBattleManager battleManager = null)
+    {
+        if (!TryGetReactionManagers(out var actionManager, out battleManager, battleManager))
+        {
+            yield break;
+        }
+
+        var candidateList = candidates?.ToArray() ?? [];
+
+        if (!candidateList.Any(ReactionRequestSelectTarget.IsCandidateValid))
+        {
+            reactionNotValidated?.Invoke();
+            yield break;
+        }
+
+        var reactionParams = new CharacterActionParams(character, (Id)ExtraActionId.DoNothingFree)
+        {
+            StringParameter = stringParameter
+        };
+        var reactionRequest = new ReactionRequestSelectTarget(reactionParams, candidateList, type);
+        var count = actionManager.PendingReactionRequestGroups.Count;
+
+        actionManager.AddInterruptRequest(reactionRequest);
+
+        yield return battleManager.WaitForReactions(waiter, actionManager, count);
+
+        var selectedTarget = reactionRequest.SelectedTarget;
+
+        if (reactionParams.ReactionValidated && selectedTarget != null)
+        {
+            reactionValidated?.Invoke(selectedTarget);
+        }
+        else
+        {
+            reactionNotValidated?.Invoke();
+        }
+    }
+
     internal static IEnumerator MyReactToSpendPower(
         this GameLocationCharacter character,
         RulesetUsablePower usablePower,

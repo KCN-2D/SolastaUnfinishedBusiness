@@ -23,4 +23,12 @@ internal static class SpellListDefinitionExtensions
             list.spellsByLevel[index].spells.TryAdd(spell);
         }
     }
+
+    internal static void RemoveSpell(this SpellListDefinition list, SpellDefinition spell)
+    {
+        foreach (var spellsByLevel in list.SpellsByLevel)
+        {
+            spellsByLevel.Spells.RemoveAll(x => x == spell);
+        }
+    }
 }

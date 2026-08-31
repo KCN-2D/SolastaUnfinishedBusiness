@@ -531,6 +531,7 @@ public class Settings : UnityModManager.ModSettings
 
     public bool AllowBladeCantripsToUseReach { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnablePreparedSpellsTables2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableSpellLists2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableRitualOnAllCasters2024 { get; set; }
     public bool QuickCastLightCantripOnWornItemsFirst { get; set; }
     [Tag(Type = TagType.T2014)] public bool IllusionSpellsAutomaticallyFailAgainstTrueSightInRange { get; set; }

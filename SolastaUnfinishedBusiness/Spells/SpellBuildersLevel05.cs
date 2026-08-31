@@ -453,7 +453,7 @@ internal static partial class SpellBuilders
 
         var spell = SpellDefinitionBuilder
             .Create(BrandingSmite, NAME)
-            .SetGuiPresentation(Category.Spell, Sprites.GetSprite(NAME, Resources.ThunderousSmite, 128))
+            .SetGuiPresentation(Category.Spell, Sprites.GetSprite(NAME, Resources.BanishmentSmite, 128))
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolConjuration)
             .SetSpellLevel(5)
             .SetCastingTime(ActivationTime.BonusAction)

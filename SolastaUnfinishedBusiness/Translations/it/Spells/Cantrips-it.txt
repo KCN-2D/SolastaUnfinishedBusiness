@@ -131,3 +131,5 @@ Spell/&TollTheDeadDescription=Indichi una creatura che puoi vedere entro il ragg
 Spell/&TollTheDeadTitle=Suonare i morti
 Spell/&WrackDescription=Scatena un'ondata di dolore paralizzante contro una creatura entro il raggio d'azione. Il bersaglio deve effettuare un tiro salvezza su Costituzione o subire 1d6 danni necrotici, impedendogli di scattare o disimpegnarsi.
 Spell/&WrackTitle=Relitto
+Spell/&SorcerousBurstDescription=Scagli un'esplosione di energia stregonesca contro una creatura o un oggetto entro gittata. Scegli acido, freddo, fuoco, fulmine, veleno, psichico o tuono, poi effettua un attacco con incantesimo a distanza. Se colpisci, il bersaglio subisce 1d8 danni del tipo scelto. Ogni volta che ottieni 8 con un d8 di questo incantesimo, tira un altro d8 e aggiungilo ai danni. Il numero massimo di dadi aggiunti in questo modo è pari al modificatore della tua caratteristica da incantatore. I danni aumentano di 1d8 ai livelli 5, 11 e 17.
+Spell/&SorcerousBurstTitle=Esplosione stregonesca

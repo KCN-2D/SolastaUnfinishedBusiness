@@ -131,3 +131,5 @@ Spell/&TollTheDeadDescription=Você aponta para uma criatura que você pode ver 
 Spell/&TollTheDeadTitle=Tocar o pedágio dos mortos
 Spell/&WrackDescription=Desencadeia uma onda de dor paralisante em uma criatura dentro do alcance. O alvo deve fazer um teste de resistência de Constituição ou sofrer 1d6 de dano necrótico, e impedindo-o de correr ou se desvencilhar.
 Spell/&WrackTitle=Destruição
+Spell/&SorcerousBurstDescription=Você lança uma explosão de energia feiticeira contra uma criatura ou objeto dentro do alcance. Escolha ácido, frio, fogo, elétrico, veneno, psíquico ou trovejante e faça um ataque mágico à distância. Se acertar, o alvo sofre 1d8 de dano do tipo escolhido. Sempre que sair 8 em um d8 desta magia, role outro d8 e some-o ao dano. O número máximo de dados adicionados dessa forma é igual ao modificador da sua habilidade de conjuração. O dano aumenta em 1d8 nos níveis 5, 11 e 17.
+Spell/&SorcerousBurstTitle=Explosão feiticeira

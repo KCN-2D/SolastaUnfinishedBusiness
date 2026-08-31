@@ -196,7 +196,7 @@ ModUi/&EnableMonkUncannyMetabolism2024=Enable <color=#D89555>Uncanny Metabolism<
 ModUi/&EnableMulticlass=Enable <color=#D89555>multiclass</color> <b><i><color=#C04040E0>[Requires Restart]</color></i></b>
 ModUI/&SwapShineCantrip=Enable Shine DC 15
 ModUi/&EnableOneDndBarkskinSpell=Enable <color=#D89555>Barkskin</color> 5e 2024 spell version <i><color=#F0DAA0>[bonus action, no concentration, AC set to 17]</color></i>
-ModUi/&EnableOneDndBladeWardCantrip=Enable <color=#D89555>Blade Ward</color> cantrip 5e 2024 version <i><color=#F0DAA0>[1 minute concentration, attackers subtract 1d4 from attack rolls]</color></i>
+ModUi/&EnableOneDndBladeWardCantrip=Enable the 5e 2024 version of the <color=#D89555>Blade Ward</color> cantrip <i><color=#F0DAA0>[concentration for 1 minute; attackers subtract 1d4 from their attack rolls]</color></i>
 ModUi/&EnableOneDndChillTouchCantrip=Enable <color=#D89555>Chill Touch</color> 5e 2024 cantrip version <i><color=#F0DAA0>[damage die D10 instead of D8, melee hit instead of 24 range]</color></i>
 ModUi/&EnableOneDndDamagingSpellsUpgrade=Enable <color=#D89555>Arcane Sword</color>, <color=#D89555>Circle of Death</color>, <color=#D89555>Flame Strike</color>, <color=#D89555>Ice Storm</color>, <color=#D89555>Prismatic Spray</color>. and <color=#D89555>Vicious Mockery</color> 5e 2024 spells version <i><color=#F0DAA0>[better damage]</color></i>
 ModUi/&EnableOneDndDivineFavorSpell=Enable <color=#D89555>Divine Favor</color> 5e 2024 spell version <i><color=#F0DAA0>[no concentration]</color></i>
@@ -226,6 +226,8 @@ ModUi/&EnablePoisonsBonusAction2024=Enable applying <color=#D89555>Poisons</colo
 ModUi/&EnablePotionsBonusAction2024=Enable drinking <color=#D89555>Potions</color> as a bonus action
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Set the base walking speed of <color=#D89555>playable species with 5-cell speed</color> to 6 cells
 ModUi/&EnablePreparedSpellsTables2024=Enable all <color=#D89555>Casters</color> to use new prepared spells tables <i><color=#F0DAA0>[Artificer, Bard, Cleric, Druid, Paladin, Ranger, Sorcerer, Wizard]</color></i>
+ModUi/&EnableSpellLists2024=Use the 2024 class spell lists
+ModUi/&SpellLists2024ListHelp=<i><color=#F0DAA0>[Official spells included in the 2024 lists are locked on, while UB-original spells are locked off. Tabletop-derived spells implemented by UB remain selectable]</color></i>
 ModUi/&EnableProneAction=Enable the <color=#D89555>Fall Prone</color> action <i><color=#F0DAA0>[you can fall prone at no cost]</color></i>
 ModUi/&EnablePullPushOnVerticalDirection=Enable push and pull motion effects to also work on up/down axis
 ModUi/&EnableRangerDeftExplorer2024=Enable <color=#D89555>Deft Explorer</color> at level 2 <i><color=#F0DAA0>[get one expertise on Ranger skills, and learn 2 languages]</color></i>

@@ -131,3 +131,5 @@ Spell/&TollTheDeadDescription=You point at one creature you can see within range
 Spell/&TollTheDeadTitle=Toll the Dead
 Spell/&WrackDescription=Unleash a wave of crippling pain at a creature within range. The target must make a Constitution saving throw or take 1d6 necrotic damage, and preventing them from dashing or disengaging.
 Spell/&WrackTitle=Wrack
+Spell/&SorcerousBurstDescription=You hurl a burst of sorcerous energy at one creature or object within range. Choose Acid, Cold, Fire, Lightning, Poison, Psychic, or Thunder, then make a ranged spell attack. On a hit, the target takes 1d8 damage of the chosen type. Whenever an 8 is rolled on a d8 for this spell, roll another d8 and add it to the damage. The maximum number of dice added this way equals your spellcasting ability modifier. The damage increases by 1d8 at levels 5, 11, and 17.
+Spell/&SorcerousBurstTitle=Sorcerous Burst

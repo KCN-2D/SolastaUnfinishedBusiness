@@ -213,6 +213,11 @@ public sealed class WizardAbjuration : AbstractSubclass
         SwapSavantAndSavant2024();
         SwapAbjurationBaldurGate3Mode();
 
+        RefreshSpellList();
+    }
+
+    internal static void RefreshSpellList()
+    {
         SpellListAbjurer.SpellsByLevel.SetRange(
             SpellListDefinitions.SpellListWizard.SpellsByLevel
                 .Select(spellByLevel => new SpellListDefinition.SpellsByLevelDuplet

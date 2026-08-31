@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -19,6 +19,7 @@ internal static class Main
     private static MenuManager Menu { get; set; }
     private static ModManager<Core, Settings> Mod { get; set; }
     private static UnityModManager.ModEntry ModEntry { get; set; }
+    private static bool ApplicationQuitCleanupStarted { get; set; }
 
     internal static bool Enabled { get; private set; }
     internal static bool IsApplicationQuitting { get; private set; }
@@ -79,8 +80,7 @@ internal static class Main
     {
         ModEntry = modEntry;
         IsApplicationQuitting = false;
-        Application.wantsToQuit -= OnApplicationWantsToQuit;
-        Application.wantsToQuit += OnApplicationWantsToQuit;
+        ApplicationQuitCleanupStarted = false;
         Application.quitting -= OnApplicationQuitting;
         Application.quitting += OnApplicationQuitting;
 
@@ -136,29 +136,37 @@ internal static class Main
         return true;
     }
 
-    private static bool OnApplicationWantsToQuit()
-    {
-        IsApplicationQuitting = true;
-
-        return true;
-    }
-
     private static void OnApplicationQuitting()
     {
         IsApplicationQuitting = true;
+
+        if (ApplicationQuitCleanupStarted)
+        {
+            return;
+        }
+
+        ApplicationQuitCleanupStarted = true;
+
+        // Stop managed work before UMM starts tearing down Unity objects. These
+        // cleanup paths are intentionally safe to invoke again from OnUnload.
+        TryCleanup(BootContext.Unload);
+        TryCleanup(() => SpeechContext.Unload(false));
+        TryCleanup(UpdateContext.Unload);
+        TryCleanup(() => CampaignTranslationExecutor.Unload(false));
+        TryCleanup(TranslationServiceFactory.Unload);
     }
 
     private static bool OnUnload(UnityModManager.ModEntry modEntry)
     {
         var applicationQuitting = IsApplicationQuitting;
 
+        TryCleanup(BootContext.Unload);
         TryCleanup(() =>
         {
             Menu?.Unload(modEntry);
             Menu = null;
         });
         TryCleanup(() => modEntry.OnShowGUI = null);
-        TryCleanup(() => Application.wantsToQuit -= OnApplicationWantsToQuit);
         TryCleanup(() => Application.quitting -= OnApplicationQuitting);
         TryCleanup(() => SpeechContext.Unload(!applicationQuitting));
         TryCleanup(UpdateContext.Unload);
@@ -184,6 +192,7 @@ internal static class Main
         TryCleanup(() => { Mod?.Unload(modEntry); });
 
         Enabled = false;
+        Enable = null;
 
         return true;
     }

@@ -17,7 +17,7 @@ internal sealed class AstralReach : AbstractFightingStyle
 
     internal override FightingStyleDefinition FightingStyle { get; } = FightingStyleBuilder
         .Create(AstralReachName)
-        .SetGuiPresentation(Category.FightingStyle, Sprites.GetSprite(AstralReachName, Resources.Lunger, 256))
+        .SetGuiPresentation(Category.FightingStyle, Sprites.GetSprite(AstralReachName, Resources.AstralReach, 256))
         .SetFeatures(
             FeatureDefinitionBuilder
                 .Create(AstralReachFeatureName)

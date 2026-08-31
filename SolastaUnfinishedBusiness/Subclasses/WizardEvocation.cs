@@ -192,6 +192,11 @@ public sealed class WizardEvocation : AbstractSubclass
         SwapSavantAndSavant2024();
         SwitchPotentCantrip2024();
 
+        RefreshSpellList();
+    }
+
+    internal static void RefreshSpellList()
+    {
         SpellListEvoker.SpellsByLevel.SetRange(
             SpellListDefinitions.SpellListWizard.SpellsByLevel
                 .Select(spellByLevel => new SpellListDefinition.SpellsByLevelDuplet

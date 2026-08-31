@@ -15,7 +15,7 @@ internal sealed class RemarkableTechnique : AbstractFightingStyle
 
     internal override FightingStyleDefinition FightingStyle { get; } = FightingStyleBuilder
         .Create(Name)
-        .SetGuiPresentation(Category.FightingStyle, Sprites.GetSprite(Name, Resources.MartialTactician, 256))
+        .SetGuiPresentation(Category.FightingStyle, Sprites.GetSprite(Name, Resources.RemarkableTechnique, 256))
         .SetFeatures(
             GambitsBuilders.GambitPool,
             GambitsBuilders.Learn1Gambit,

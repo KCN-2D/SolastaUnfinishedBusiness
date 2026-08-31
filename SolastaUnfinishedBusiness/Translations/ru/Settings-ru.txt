@@ -202,7 +202,7 @@ ModUi/&EnableMonkSuperiorDefense2024=Включить <color=#D89555>Прево�
 ModUi/&EnableMonkUncannyMetabolism2024=Включить <color=#D89555>Феноменальный метаболизм</color> на уровне 2 <i><color=#F0DAA0>[восстановление ци и хитов при бросках инициативы]</color></i>
 ModUi/&EnableMulticlass=Включить <color=#D89555>мультиклассирование</color> <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>
 ModUi/&EnableOneDndBarkskinSpell=Включить версию заклинания <color=#D89555>Дубовая кора</color> из 5e 2024 <i><color=#F0DAA0>[бонусное действие, не требует концентрации, КД на 17]</color></i>
-ModUi/&EnableOneDndBladeWardCantrip=Enable <color =#D89555> Blade Ward </color> Cantrip 5e 2024 версия <i> <color =#f0daa0> [1 -минутная концентрация, злоумышленники вычитают 1d4 из рулонов атаки] </color> </i>
+ModUi/&EnableOneDndBladeWardCantrip=Включить версию заговора <color=#D89555>Защита от оружия</color> из 5e 2024 <i><color=#F0DAA0>[концентрация в течение 1 минуты; атакующие вычитают 1d4 из своих бросков атаки]</color></i>
 ModUi/&EnableOneDndChillTouchCantrip=Включить <color=#D89555>Chill Touch</color> 5e 2024 версия колдовства <i><color=#F0DAA0>[урон D10 вместо D8, удар в ближнем бою вместо 24 дальности]</color></i>
 ModUi/&EnableOneDndDamagingSpellsUpgrade=Включить версии заклинаний <color=#D89555>Магический меч</color>, <color=#D89555>Круг смерти</color>, <color=#D89555>Огненный удар</color>, <color=#D89555>Град</color>, <color=#D89555>Радужные брызги</color>  и <color=#D89555>Злая насмешка</color> из 5e 2024 <i><color=#F0DAA0>[больше урона]</color></i>
 ModUi/&EnableOneDndDivineFavorSpell=Включить версию заклинания <color=#D89555>Божественное благоволение</color> из 5e 2024 <i><color=#F0DAA0>[не требует концентрации]</color></i>
@@ -234,6 +234,8 @@ ModUi/&EnablePoisonsBonusAction2024=Включить нанесение <color=#
 ModUi/&EnablePotionsBonusAction2024=Включить использование <color=#D89555>Зелий</color> бонусным действием
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Установить скорость 6 клеток для <color=#D89555>игровых видов с базовой скоростью 5 клеток</color>
 ModUi/&EnablePreparedSpellsTables2024=Включить всем <color=#D89555>Заклинателям</color> использовать новые таблицы подготовленных заклинаний <i><color=#F0DAA0>[Изобретатель, Бард, Жрец, Друид, Паладин, Следопыт, Чародей, Волшебник]</color></i>
+ModUi/&EnableSpellLists2024=Использовать списки классовых заклинаний 2024 года
+ModUi/&SpellLists2024ListHelp=<i><color=#F0DAA0>[Официальные заклинания из списков 2024 года остаются включёнными и заблокированными, а оригинальные заклинания UB — отключёнными и заблокированными. Заклинания из настольной версии, реализованные UB, по-прежнему можно выбирать]</color></i>
 ModUi/&EnableProneAction=Включить действие <color=#D89555>Упасть ничком</color> <i><color=#F0DAA0>[вы можете упасть ничком без затрат каких-либо действий]</color></i>
 ModUi/&EnablePullPushOnVerticalDirection=Включить работу эффектов толкания и притяжения по вертикальным осям
 ModUi/&EnableRangerAnyFightingStyle2024=Разрешить <color=#D89555>Следопыту</color> выбирать любой боевой стиль <i><color=#F0DAA0>[добавляет Бой большим оружием и Защита]</color></i>

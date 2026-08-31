@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -52,8 +52,9 @@ public static class SessionState_SetupPatcher
                 return campaignDefinition.PredefinedParty;
             }
 
-            var max = Main.Settings.OverridePartySize;
+            var max = Math.Max(0, Main.Settings.OverridePartySize);
             var result = campaignDefinition.PredefinedParty.ToList();
+            var seed = result.ToArray();
 
             while (result.Count > max)
             {
@@ -62,7 +63,7 @@ public static class SessionState_SetupPatcher
 
             while (result.Count < max)
             {
-                result.Add(result[result.Count % 4]);
+                result.Add(seed[(result.Count - seed.Length) % seed.Length]);
             }
 
             return result;

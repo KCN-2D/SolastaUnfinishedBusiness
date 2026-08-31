@@ -189,7 +189,7 @@ public sealed class RoguishSwashbuckler : AbstractSubclass
         // MAIN
         Subclass = CharacterSubclassDefinitionBuilder
             .Create(Name)
-            .SetGuiPresentation(Category.Subclass, Sprites.GetSprite(Name, Resources.RoguishDuelist, 256))
+            .SetGuiPresentation(Category.Subclass, Sprites.GetSprite(Name, Resources.RoguishSwashbuckler, 256))
             .AddFeaturesAtLevel(3,
                 attributeModifierRakishAudacityInitiative,
                 additionalDamageRakishAudacity1v1,

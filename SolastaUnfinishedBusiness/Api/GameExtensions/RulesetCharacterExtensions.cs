@@ -40,6 +40,14 @@ internal static class RulesetCharacterExtensions
         return controllerCharacter ?? rulesetCharacter;
     }
 
+    internal static IEnumerable<T> GetUsableSpellSubFeaturesByType<T>(this RulesetCharacter rulesetCharacter)
+        where T : class
+    {
+        return rulesetCharacter.UsableSpells
+            .SelectMany(spell => spell.GetAllSubFeaturesOfType<T>())
+            .Distinct();
+    }
+
     internal static int GetSubclassLevel(
         this RulesetCharacter character, CharacterClassDefinition klass, string subclass)
     {

@@ -283,8 +283,7 @@ public sealed class DomainOrder : AbstractSubclass
 
         Subclass = CharacterSubclassDefinitionBuilder
             .Create(Name)
-            //TODO: Get an image for the Order
-            .SetGuiPresentation(Category.Subclass, Sprites.GetSprite(Name, Resources.DomainSmith, 256))
+            .SetGuiPresentation(Category.Subclass, Sprites.GetSprite(Name, Resources.DomainOrder, 256))
             .AddFeaturesAtLevel(1,
                 autoPreparedSpellsDomainOrder,
                 featureSetBonusProficiencies,

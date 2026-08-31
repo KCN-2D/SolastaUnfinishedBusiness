@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
@@ -75,7 +75,7 @@ internal static partial class SpellBuilders
     {
         const string NAME = "BindingIce";
 
-        var spriteReference = Sprites.GetSprite("WinterBreath", Resources.WinterBreath, 128);
+        var spriteReference = Sprites.GetSprite(NAME, Resources.BindingIce, 128);
         var battlePackage = AiHelpers.BuildDecisionPackageBreakFree(
             "ConditionGrappledRestrainedIceBound", AiHelpers.RandomType.RandomMedium);
 
@@ -1315,7 +1315,7 @@ internal static partial class SpellBuilders
                 .SetGuiPresentation(title, description, dragonbornBreathPower.GuiPresentation.SpriteReference)
                 .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolTransmutation)
                 .SetSpellLevel(2)
-                .SetCastingTime(ActivationTime.Action)
+                .SetCastingTime(ActivationTime.BonusAction)
                 .SetVerboseComponent(true)
                 .SetSomaticComponent(true)
                 .SetMaterialComponent(MaterialComponentType.Mundane)
@@ -1337,7 +1337,7 @@ internal static partial class SpellBuilders
 
         return SpellDefinitionBuilder
             .Create(NAME)
-            .SetGuiPresentation(Category.Spell, PowerDragonbornBreathWeaponGold)
+            .SetGuiPresentation(Category.Spell, Sprites.GetSprite(NAME, Resources.DragonsBreath, 128))
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolTransmutation)
             .SetSpellLevel(2)
             .SetVerboseComponent(true)
@@ -1349,7 +1349,7 @@ internal static partial class SpellBuilders
             .SetSubSpells([.. subSpells])
             .SetEffectDescription(EffectDescriptionBuilder.Create()
                 .SetDurationData(DurationType.Minute, 1)
-                .SetTargetingData(Side.All, RangeType.Touch, 0, TargetType.IndividualsUnique)
+                .SetTargetingData(Side.Ally, RangeType.Touch, 0, TargetType.IndividualsUnique)
                 .SetEffectAdvancement(EffectIncrementMethod.PerAdditionalSlotLevel)
                 .Build())
             .AddToDB();

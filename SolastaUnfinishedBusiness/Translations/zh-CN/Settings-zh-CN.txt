@@ -202,7 +202,7 @@ ModUi/&EnableMonkSuperiorDefense2024=启用 5e 2024 版本<color=#D89555>无懈�
 ModUi/&EnableMonkUncannyMetabolism2024=在 2 级时启用<color=#D89555>运转周天</color><i><color=#F0DAA0>[在先攻检定中恢复气和生命值]</color></i>
 ModUi/&EnableMulticlass=启用<color=#D89555>兼职</color> <b><i><color=#C04040E0>[需要重启]</color></i></b>
 ModUi/&EnableOneDndBarkskinSpell=启用 5e 2024 版本<color=#D89555>树肤术</color>法术<i><color=#F0DAA0>[附赠行动，无需专注，AC 变为 17]</color></i>
-ModUi/&EnableOneDndBladeWardCantrip=启用 5e 2024 版本<color=#d89555>剑刃防护</color=#d89555>戏法<i><color=#f0daa0>[1分钟专注，攻击者的攻击检定减少1d4] </color=#f0daa0> </i>
+ModUi/&EnableOneDndBladeWardCantrip=启用 5e 2024 版<color=#D89555>剑刃防护</color>戏法<i><color=#F0DAA0>[专注 1 分钟；攻击者从其攻击检定中减去 1d4]</color></i>
 ModUi/&EnableOneDndChillTouchCantrip=启用<color=#D89555>Chill Touch</color> 5e 2024 cantrip版本<i><color=#F0DAA0>[伤害模具D10而不是D8，近战命中而不是24范围]</color></i>
 ModUi/&EnableOneDndDamagingSpellsUpgrade=启用 5e 2024 版本<color=#D89555>奥术剑刃</color>、<color=#D89555>死亡法阵</color>、<color=#D89555>炽焰斩</color>、<color=#D89555>冰风暴</color>、<color=#D89555>虹光喷射</color>。以及<color=#D89555>恶言相加</color>法术<i><color=#F0DAA0>[伤害骰提高]</color></i>
 ModUi/&EnableOneDndDivineFavorSpell=启用 5e 2024 版本<color=#D89555>神恩</color>法术<i><color=#F0DAA0>[无需专注]</color></i>
@@ -234,6 +234,8 @@ ModUi/&EnablePoisonsBonusAction2024=启用涂抹<color=#D89555>毒药</color>作
 ModUi/&EnablePotionsBonusAction2024=启用饮用<color=#D89555>药水</color>作为附赠动作
 ModUi/&EnableSpeciesBaseWalkSpeed2024=将<color=#D89555>基础移动速度为5格的可玩种族</color>的基础移动速度设为6格
 ModUi/&EnablePreparedSpellsTables2024=允许所有<color=#D89555>施法者</color>使用新的准备法术表<i><color=#F0DAA0>[奇械师、吟游诗人、牧师、德鲁伊、圣骑士、游侠、术士、魔法师]</color></i>
+ModUi/&EnableSpellLists2024=使用2024版职业法术列表
+ModUi/&SpellLists2024ListHelp=<i><color=#F0DAA0>[2024版列表中的游戏官方法术将锁定为启用，UB原创法术将锁定为禁用。由UB实现的桌面版法术仍可单独选择]</color></i>
 ModUi/&EnableProneAction=启用<color=#D89555>倒地</color>动作<i><color=#F0DAA0>[你可以无代价倒地]</color></i>
 ModUi/&EnablePullPushOnVerticalDirection=使推拉运动效果也适用于上/下轴
 ModUi/&EnableRangerAnyFightingStyle2024=允许<color=#D89555>游侠</color>选择任意战斗风格<i><color=#F0DAA0>[增加巨武器战斗和防护]</color></i>

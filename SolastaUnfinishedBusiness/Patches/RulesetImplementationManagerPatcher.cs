@@ -214,6 +214,31 @@ public static class RulesetImplementationManagerPatcher
                 ((2 * totalDamage) + damageForm.BonusDamage - damageRollReduction + additionalDamage));
         }
 
+        private static int GetCriticalHitMode(RulesetActor rulesetActor, bool criticalSuccess)
+        {
+            if (!criticalSuccess)
+            {
+                return 0;
+            }
+
+            var criticalHitMode = rulesetActor.Side switch
+            {
+                Side.Ally => Main.Settings.CriticalHitModeAllies,
+                Side.Enemy => Main.Settings.CriticalHitModeEnemies,
+                Side.Neutral => Main.Settings.CriticalHitModeNeutral,
+                _ => 0
+            };
+
+            //PATCH: supports Umbral Stalker shadow dance
+            if (rulesetActor.HasConditionOfCategoryAndType(
+                    AttributeDefinitions.TagEffect, RoguishUmbralStalker.ConditionShadowDanceAdditionalDice.Name))
+            {
+                criticalHitMode = 2;
+            }
+
+            return criticalHitMode;
+        }
+
         private static int RollDamageValue(
             RulesetActor rulesetActor,
             DamageForm damageForm,
@@ -254,22 +279,9 @@ public static class RulesetImplementationManagerPatcher
             else
             {
                 //PATCH: supports different critical damage algorithms
-                var rollDamageOption = rulesetActor.Side switch
-                {
-                    Side.Ally => Main.Settings.CriticalHitModeAllies,
-                    Side.Enemy => Main.Settings.CriticalHitModeEnemies,
-                    Side.Neutral => Main.Settings.CriticalHitModeNeutral,
-                    _ => 0
-                };
+                var criticalHitMode = GetCriticalHitMode(rulesetActor, true);
 
-                //PATCH: supports Umbral Stalker shadow dance
-                if (rulesetActor.HasConditionOfCategoryAndType(
-                        AttributeDefinitions.TagEffect, RoguishUmbralStalker.ConditionShadowDanceAdditionalDice.Name))
-                {
-                    rollDamageOption = 2;
-                }
-
-                damage = rollDamageOption switch
+                damage = criticalHitMode switch
                 {
                     1 => RollDamageOption1(
                         rulesetActor, damageForm, addDice, additionalDamage, damageRollReduction, damageMultiplier,
@@ -376,6 +388,36 @@ public static class RulesetImplementationManagerPatcher
                     rolledValues,
                     canRerollDice,
                     formsParams);
+            }
+
+            var sourceCharacter = formsParams.sourceCharacter ?? rulesetCharacter;
+            var sourceDefinition = formsParams.activeEffect?.SourceDefinition;
+
+            if (sourceCharacter != null && sourceDefinition != null)
+            {
+                var criticalHitMode = GetCriticalHitMode(rulesetActor, criticalSuccess);
+
+                // Modes 1 and 3 append synthetic critical values for display; "roll" triggers use real rolls only.
+                IReadOnlyList<int> actualRolledValues =
+                    criticalSuccess && criticalHitMode is 1 or 3
+                        ? rolledValues.Take(rolledValues.Count / 2).ToList()
+                        : [.. rolledValues];
+
+                foreach (var handler in sourceDefinition.GetAllSubFeaturesOfType<IModifyMagicEffectDamageRoll>())
+                {
+                    handler.ModifyDamageRoll(
+                        sourceCharacter,
+                        damageForm,
+                        formsParams,
+                        criticalSuccess,
+                        criticalHitMode,
+                        maximumDamage,
+                        damageMultiplier,
+                        actualRolledValues,
+                        rolledValues,
+                        canRerollDice,
+                        ref damage);
+                }
             }
 
             //BUGFIX: don't allow damage roll reduction to spam across many damage forms

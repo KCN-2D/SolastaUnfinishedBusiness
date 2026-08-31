@@ -202,7 +202,7 @@ ModUi/&EnableMonkSuperiorDefense2024=레벨 18에서 <color=#D89555>빈 몸</col
 ModUi/&EnableMonkUncannyMetabolism2024=레벨 2에서 <color=#D89555>기이한 신진대사</color>를 활성화합니다. <i><color=#F0DAA0>[이니셔티브 롤에서 기와 체력 회복]</color></i>
 ModUi/&EnableMulticlass=<color=#D89555>다중클래스</color> 활성화 <b><i><color=#C04040E0>[재시작 필요]</color></i></b>
 ModUi/&EnableOneDndBarkskinSpell=<color=#D89555>Barkskin</color> 5e 2024 주문 버전 활성화 <i><color=#F0DAA0>[보너스 액션, 집중 없음, AC 17로 설정]</color></i>
-ModUi/&EnableOneDndBladeWardCantrip=활성화 <color =#d89555> Blade Ward </color> Cantrip 5e 2024 버전 <i> <color =#f0daa0>
+ModUi/&EnableOneDndBladeWardCantrip=<color=#D89555>블레이드 와드</color> 5e 2024 캔트립 버전을 활성화합니다. <i><color=#F0DAA0>[1분 동안 집중을 유지하며, 공격자는 명중 굴림에서 1d4를 뺍니다]</color></i>
 ModUi/&EnableOneDndChillTouchCantrip=<color=#D89555>Chill Touch</color> 5e 2024 cantrip 버전 활성화 <i><color=#F0DAA0>[D8 대신 D10 피해, 24 범위 대신 근접 공격]</color></i>
 ModUi/&EnableOneDndDamagingSpellsUpgrade=<color=#D89555>비전의 검</color>, <color=#D89555>죽음의 원</color>, <color=#D89555>불꽃 일격</color>, <color=#D89555>얼음 폭풍</color>, <color=#D89555>프리즘 스프레이</color>, <color=#D89555>사악한 조롱</color> 5e 2024 주문 버전 <i><color=#F0DAA0>[더 나은 데미지]</color></i>을 활성화합니다.
 ModUi/&EnableOneDndDivineFavorSpell=<color=#D89555>신성한 호의</color> 5e 2024 주문 버전 활성화 <i><color=#F0DAA0>[집중 없음]</color></i>
@@ -234,6 +234,8 @@ ModUi/&EnablePoisonsBonusAction2024=보너스 액션으로 무기에 <color=#D89
 ModUi/&EnablePotionsBonusAction2024=보너스 액션으로 <color=#D89555>물약</color> 마시기를 활성화합니다.
 ModUi/&EnableSpeciesBaseWalkSpeed2024=<color=#D89555>기본 이동 속도가 5칸인 플레이 가능한 종족</color>의 속도를 6칸으로 설정합니다.
 ModUi/&EnablePreparedSpellsTables2024=모든 <color=#D89555>주문자</color>가 새로 준비된 주문표 <i><color=#F0DAA0>[기술자, 바드, 성직자, 드루이드, 성기사, 레인저, 소서러, 위저드]</color></i>를 사용할 수 있도록 합니다.
+ModUi/&EnableSpellLists2024=2024년 클래스 주문 목록 사용
+ModUi/&SpellLists2024ListHelp=<i><color=#F0DAA0>[2024년 목록에 포함된 게임 공식 주문은 활성화된 상태로 고정되고, UB 고유 주문은 비활성화된 상태로 고정됩니다. UB에서 구현한 테이블탑 기반 주문은 개별적으로 선택할 수 있습니다]</color></i>
 ModUi/&EnableProneAction=<color=#D89555>엎드려 넘어짐</color> 동작을 활성화하세요 <i><color=#F0DAA0>[비용 없이 엎드려 넘어질 수 있습니다]</color></i>
 ModUi/&EnablePullPushOnVerticalDirection=위/아래 축에서도 푸시 및 풀 모션 효과를 작동하도록 설정
 ModUi/&EnableRangerAnyFightingStyle2024=<color=#D89555>레인저</color>가 모든 전투 스타일을 선택할 수 있도록 허용 <i><color=#F0DAA0>[대형 무기 전투 및 보호 추가]</color></i>

@@ -434,7 +434,7 @@ internal static class DocumentationContext
             {
                 var components = " (";
 
-                components += spellDefinition.MaterialComponentType == RuleDefinitions.MaterialComponentType.Specific
+                components += spellDefinition.MaterialComponentType != RuleDefinitions.MaterialComponentType.None
                     ? "M,"
                     : string.Empty;
 

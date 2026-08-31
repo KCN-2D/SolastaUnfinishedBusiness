@@ -202,7 +202,7 @@ ModUi/&EnableMonkSuperiorDefense2024=Habilitar <color=#D89555>Defesa Superior</c
 ModUi/&EnableMonkUncannyMetabolism2024=Habilitar <color=#D89555>Metabolismo Sobrenatural</color> no nível 2 <i><color=#F0DAA0>[recupera Ki e HP na jogada de iniciativa]</color></i>
 ModUi/&EnableMulticlass=Habilitar <color=#D89555>multiclasse</color> <b><i><color=#C04040E0>[Requer reinicialização]</color></i></b>
 ModUi/&EnableOneDndBarkskinSpell=Habilitar <color=#D89555>Barkskin</color> versão de magia 5e 2024 <i><color=#F0DAA0>[ação bônus, sem concentração, CA definida como 17]</color></i>
-ModUi/&EnableOneDndBladeWardCantrip=Enable <color =#d89555> lâmina da ala </ro Color> cantrip 5e 2024 versão <i> <color =#f0daa0> [concentração de 1 minuto, os atacantes subtraem 1d4 de rolos de ataque] </ro Color> </i>
+ModUi/&EnableOneDndBladeWardCantrip=Habilitar a versão 5e 2024 do truque <color=#D89555>Proteção da Lâmina</color> <i><color=#F0DAA0>[concentração por 1 minuto; os atacantes subtraem 1d4 de suas jogadas de ataque]</color></i>
 ModUi/&EnableOneDndChillTouchCantrip=Habilite <color=#D89555>Chill Touch</color> 5e 2024 cantrip versão <i><color=#F0DAA0>[dado de dano D10 em vez de D8, golpe corpo a corpo em vez de 24 alcance]</color></i>
 ModUi/&EnableOneDndDamagingSpellsUpgrade=Habilitar <color=#D89555>Arcane Sword</color>, <color=#D89555>Circle of Death</color>, <color=#D89555>Flame Strike</color>, <color=#D89555>Ice Storm</color>, <color=#D89555>Prismatic Spray</color> e <color=#D89555>Vicious Mockery</color> versão de magias 5e 2024 <i><color=#F0DAA0>[melhor dano]</color></i>
 ModUi/&EnableOneDndDivineFavorSpell=Habilitar <color=#D89555>Favor Divino</color> versão de magia 5e 2024 <i><color=#F0DAA0>[sem concentração]</color></i>
@@ -234,6 +234,8 @@ ModUi/&EnablePoisonsBonusAction2024=Habilitar a aplicação de <color=#D89555>Ve
 ModUi/&EnablePotionsBonusAction2024=Habilitar beber <color=#D89555>Poções</color> como uma ação bônus
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Definir como 6 células o deslocamento básico das <color=#D89555>espécies jogáveis com deslocamento básico de 5 células</color>
 ModUi/&EnablePreparedSpellsTables2024=Permitir que todos os <color=#D89555>Conjuradores</color> usem novas tabelas de magias preparadas <i><color=#F0DAA0>[Artífice, Bardo, Clérigo, Druida, Paladino, Patrulheiro, Feiticeiro, Mago]</color></i>
+ModUi/&EnableSpellLists2024=Usar as listas de magias de classe de 2024
+ModUi/&SpellLists2024ListHelp=<i><color=#F0DAA0>[As magias oficiais incluídas nas listas de 2024 ficam ativadas e bloqueadas; as magias originais da UB ficam desativadas e bloqueadas. As magias da versão de mesa implementadas pela UB continuam selecionáveis]</color></i>
 ModUi/&EnableProneAction=Habilite a ação <color=#D89555>Cair de bruços</color> <i><color=#F0DAA0>[você pode cair de bruços sem nenhum custo]</color></i>
 ModUi/&EnablePullPushOnVerticalDirection=Habilitar efeitos de movimento de empurrar e puxar para também funcionarem no eixo para cima/baixo
 ModUi/&EnableRangerAnyFightingStyle2024=Permitir que <color=#D89555>Patrulheiro</color> escolha qualquer estilo de luta <i><color=#F0DAA0>[adiciona Luta com Arma Grande e Proteção]</color></i>

@@ -8,6 +8,47 @@ namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
 internal static class CharacterReactionSubitemExtension
 {
+    internal static void BindTargetChoice(
+        [NotNull] this CharacterReactionSubitem instance,
+        [NotNull] ReactionRequestSelectTarget reactionRequest,
+        int option,
+        bool interactable,
+        CharacterReactionSubitem.SubitemSelectedHandler subitemSelected)
+    {
+        if (option < 0 || option >= reactionRequest.Candidates.Count)
+        {
+            return;
+        }
+
+        var label = instance.label;
+        var toggle = instance.toggle;
+        var tooltip = GetOrMakeBackgroundTooltip(toggle.transform);
+        var target = reactionRequest.Candidates[option];
+
+        if (tooltip)
+        {
+            tooltip.Disabled = true;
+            tooltip.Content = string.Empty;
+            tooltip.Context = null;
+            tooltip.DataProvider = null;
+        }
+
+        label.Text = new GuiCharacter(target).Name;
+        toggle.interactable = interactable;
+        instance.canvasGroup.interactable = interactable;
+        instance.SubitemSelected = subitemSelected;
+
+        toggle.GetComponent<RectTransform>()
+            .SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 250);
+
+        var slotStatusTable = instance.slotStatusTable;
+
+        for (var index = 0; index < slotStatusTable.childCount; ++index)
+        {
+            slotStatusTable.GetChild(index).gameObject.SetActive(false);
+        }
+    }
+
     internal static void BindWarcaster(
         [NotNull] this CharacterReactionSubitem instance,
         [NotNull] ReactionRequestWarcaster reactionRequest,

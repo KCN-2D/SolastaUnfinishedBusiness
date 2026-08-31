@@ -131,3 +131,5 @@ Spell/&TollTheDeadDescription=Du zeigst auf eine Kreatur, die du in Reichweite s
 Spell/&TollTheDeadTitle=Die Totenglocke
 Spell/&WrackDescription=Entfesseln Sie eine Welle lähmenden Schmerzes auf eine Kreatur in Reichweite. Das Ziel muss einen Konstitutionsrettungswurf machen oder erleidet 1W6 nekrotischen Schaden und kann nicht davonstürmen oder sich lösen.
 Spell/&WrackTitle=Wrack
+Spell/&SorcerousBurstDescription=Du schleuderst einen Ausbruch magischer Energie auf eine Kreatur oder einen Gegenstand in Reichweite. Wähle Säure, Kälte, Feuer, Blitz, Gift, Psychisch oder Schall und führe dann einen Fernkampf-Zauberangriff aus. Bei einem Treffer erleidet das Ziel 1W8 Schaden der gewählten Art. Immer wenn bei einem W8 dieses Zaubers eine 8 fällt, würfelst du einen weiteren W8 und addierst ihn zum Schaden. Die Höchstzahl dieser zusätzlichen Würfel entspricht deinem Zauberwirken-Attributsmodifikator. Der Schaden steigt auf den Stufen 5, 11 und 17 um jeweils 1W8.
+Spell/&SorcerousBurstTitle=Magieausbruch

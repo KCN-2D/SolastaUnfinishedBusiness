@@ -49,6 +49,9 @@ internal static class TryAlterOutcomeAttack
             Handlers.AddRange(unit.RulesetCharacter.GetSubFeaturesByType<ITryAlterOutcomeAttack>()
                 .Select(handler => (handler, unit)));
 
+            Handlers.AddRange(unit.RulesetCharacter.GetUsableSpellSubFeaturesByType<ITryAlterOutcomeAttack>()
+                .Select(handler => (handler, unit)));
+
             // supports metamagic use cases, including snapshotted Simulacrum identities
             Handlers.AddRange(SimulacrumBehavior
                 .EnumerateTrainedMetamagicOptions(unit.RulesetCharacter)

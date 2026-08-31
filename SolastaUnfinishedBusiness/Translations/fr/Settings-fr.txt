@@ -202,7 +202,7 @@ ModUi/&EnableMonkSuperiorDefense2024=Activez la <color=#D89555>Défense supérie
 ModUi/&EnableMonkUncannyMetabolism2024=Activer <color=#D89555>Métabolisme étrange</color> au niveau 2 <i><color=#F0DAA0>[récupérer Ki et HP sur jet d'initiative]</color></i>
 ModUi/&EnableMulticlass=Activer <color=#D89555>multiclasse</color> <b><i><color=#C04040E0>[Nécessite un redémarrage]</color></i></b>
 ModUi/&EnableOneDndBarkskinSpell=Activer <color=#D89555>Écorce</color> 5e 2024 version du sort <i><color=#F0DAA0>[action bonus, pas de concentration, CA fixée à 17]</color></i>
-ModUi/&EnableOneDndBladeWardCantrip=Activer <Color = # D89555> Blade Ward </ Color> Cantrip 5E 2024 Version <i> <Color = # F0DAA0> [Concentration de 1 minute, les attaquants soustraient 1d4 des rouleaux d'attaque] </imor> </i>
+ModUi/&EnableOneDndBladeWardCantrip=Activer la version 5e 2024 du tour de magie <color=#D89555>Garde de lame</color> <i><color=#F0DAA0>[concentration pendant 1 minute ; les attaquants soustraient 1d4 à leurs jets d'attaque]</color></i>
 ModUi/&EnableOneDndChillTouchCantrip=Activer <color=#D89555>Chill Touch</color> version cantrip 5e 2024 <i><color=#F0DAA0>[dégâts D10 au lieu de D8, coup en mêlée au lieu de 24 portée]</color></i>
 ModUi/&EnableOneDndDamagingSpellsUpgrade=Activez les sorts <color=#D89555>Épée arcanique</color>, <color=#D89555>Cercle de la mort</color>, <color=#D89555>Frappe de flammes</color>, <color=#D89555>Tempête de glace</color>, <color=#D89555>Vaporisation prismatique</color> et <color=#D89555>Moquerie vicieuse</color> 5e version 2024 <i><color=#F0DAA0>[meilleurs dégâts]</color></i>
 ModUi/&EnableOneDndDivineFavorSpell=Activer <color=#D89555>Faveur divine</color> 5e 2024 version du sort <i><color=#F0DAA0>[aucune concentration]</color></i>
@@ -234,6 +234,8 @@ ModUi/&EnablePoisonsBonusAction2024=Activer l'application de <color=#D89555>Pois
 ModUi/&EnablePotionsBonusAction2024=Activer la consommation de <color=#D89555>potions</color> en tant qu'action bonus
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Fixer à 6 cases la vitesse des <color=#D89555>espèces jouables dont la vitesse de base est de 5 cases</color>
 ModUi/&EnablePreparedSpellsTables2024=Permettre à tous les <color=#D89555>lanceurs de sorts</color> d'utiliser les nouvelles tables de sorts préparés <i><color=#F0DAA0>[Artificier, Barde, Clerc, Druide, Paladin, Rôdeur, Sorcier, Magicien]</color></i>
+ModUi/&EnableSpellLists2024=Utiliser les listes de sorts de classe de 2024
+ModUi/&SpellLists2024ListHelp=<i><color=#F0DAA0>[Les sorts officiels inclus dans les listes de 2024 restent activés et verrouillés ; les sorts originaux d'UB restent désactivés et verrouillés. Les sorts issus du jeu sur table et implémentés par UB restent sélectionnables]</color></i>
 ModUi/&EnableProneAction=Activer l'action <color=#D89555>Tomber à plat ventre</color> <i><color=#F0DAA0>[vous pouvez tomber à plat ventre sans frais]</color></i>
 ModUi/&EnablePullPushOnVerticalDirection=Activez les effets de mouvement de poussée et de traction pour qu'ils fonctionnent également sur l'axe haut/bas
 ModUi/&EnableRangerAnyFightingStyle2024=Permettre au <color=#D89555>Rôdeur</color> de choisir n'importe quel style de combat <i><color=#F0DAA0>[ajoute Combat à l'arme à deux mains et Protection]</color></i>

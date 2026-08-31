@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -40,7 +40,6 @@ public static class GameLocationManagerPatcher
     {
         [UsedImplicitly]
         public static void Prefix(
-            GameLocationManager __instance,
             ref string userLocationName,
             string userCampaignName)
         {
@@ -93,7 +92,6 @@ public static class GameLocationManagerPatcher
                 }
             }
 
-            __instance.StartCoroutine(ServiceRepository.GetService<IGameSerializationService>()?.EnumerateSavesGames());
         }
     }
 

@@ -163,6 +163,7 @@ public static partial class Tabletop2024Context
         SwitchOneDndDamagingSpellsUpgrade();
         SwitchOneDndHealingSpellsUpgrade();
         SwitchOneDndPreparedSpellsTables();
+        SwitchSpellLists2024();
         SwitchOneDndSpellBarkskin();
         SwitchOneDndCantripChillTouch();
         SwitchOneDndCantripBladeWard();
@@ -223,7 +224,7 @@ public static partial class Tabletop2024Context
         SwitchWizardSchoolOfMagicLearningLevel();
         SwitchWeaponMastery();
         SwitchMartialChampion();
-        HomeBrewSomeSpells();
+        SwitchShineCantrip();
         SmiteSpells2024Context.LateLoad();
     }
 

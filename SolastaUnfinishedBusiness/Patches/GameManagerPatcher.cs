@@ -15,10 +15,10 @@ public static class GameManagerPatcher
     public static class BindPostDatabase_Patch
     {
         [UsedImplicitly]
-        public static void Postfix()
+        public static void Postfix(GameManager __instance)
         {
             //PATCH: loads all mod contexts
-            BootContext.Startup();
+            BootContext.Startup(__instance);
         }
     }
 

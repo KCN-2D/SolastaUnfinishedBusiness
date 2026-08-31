@@ -106,7 +106,9 @@ internal static class TryAlterOutcomeSavingThrow
                      .ToArray())
         {
             foreach (var feature in unit.RulesetCharacter
-                         .GetSubFeaturesByType<ITryAlterOutcomeSavingThrow>())
+                         .GetSubFeaturesByType<ITryAlterOutcomeSavingThrow>()
+                         .Concat(unit.RulesetCharacter
+                             .GetUsableSpellSubFeaturesByType<ITryAlterOutcomeSavingThrow>()))
             {
                 yield return feature.OnTryAlterOutcomeSavingThrow(
                     battleManager, attacker, defender, unit, savingThrowData, hasHitVisual);

@@ -35,6 +35,26 @@ public static class CharacterStageRaceSelectionPanelPatcher
             true);
     }
 
+    private static void SyncDisplayedHumanOriginFeatSelection(CharacterStageRaceSelectionPanel panel)
+    {
+        if (panel?.currentHero == null)
+        {
+            return;
+        }
+
+        foreach (var featureDescriptionItem in panel.GetComponentsInChildren<FeatureDescriptionItem>(false))
+        {
+            if (!TrySaveHumanOriginFeatSelection(panel, featureDescriptionItem))
+            {
+                continue;
+            }
+
+            Tabletop2024Context.SyncHumanOriginFeatPools(panel.currentHero.GetHeroBuildingData());
+
+            return;
+        }
+    }
+
     private static void RefreshRaceContentLayout(CharacterStageRaceSelectionPanel panel)
     {
         if (!panel || !panel.selectedRaceTitle)
@@ -403,6 +423,21 @@ public static class CharacterStageRaceSelectionPanelPatcher
 
                 __instance.sortedSubRaces[raceDefinition].Sort(__instance);
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterStageRaceSelectionPanel),
+        nameof(CharacterStageRaceSelectionPanel.CanProceedToNextStage))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CanProceedToNextStage_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterStageRaceSelectionPanel __instance)
+        {
+            // Bind runs before RefreshCharacter assigns the initial race, and the first entry may not raise
+            // a change event. Persist and materialize that displayed choice before leaving the race stage.
+            SyncDisplayedHumanOriginFeatSelection(__instance);
         }
     }
 

@@ -225,7 +225,7 @@ public sealed class CollegeOfAudacity : AbstractSubclass
 
         Subclass = CharacterSubclassDefinitionBuilder
             .Create(Name)
-            .SetGuiPresentation(Category.Subclass, Sprites.GetSprite(Name, Resources.RoguishDuelist, 256))
+            .SetGuiPresentation(Category.Subclass, Sprites.GetSprite(Name, Resources.CollegeOfAudacity, 256))
             .AddFeaturesAtLevel(3, featureSetBonusProficiencies, proficiencyFightingStyle, featureSetAudaciousWhirl)
             .AddFeaturesAtLevel(6, AttributeModifierCasterFightingExtraAttack, AttackReplaceWithCantripCasterFighting)
             .AddFeaturesAtLevel(14, featureSetMasterfulWhirl)

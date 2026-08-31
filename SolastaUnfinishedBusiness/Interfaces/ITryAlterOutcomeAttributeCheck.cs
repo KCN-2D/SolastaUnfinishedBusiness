@@ -41,6 +41,7 @@ public interface IAttributeCheckRolledByMe
 public sealed class AbilityCheckData
 {
     public int AbilityCheckRoll { get; set; }
+    public int CurrentRoll { get; set; }
     public RollOutcome AbilityCheckRollOutcome { get; set; }
     public int AbilityCheckSuccessDelta { get; set; }
     public ActionModifier AbilityCheckActionModifier { get; set; }
@@ -407,6 +408,8 @@ internal static class TryAlterOutcomeAttributeCheck
 
         yield return HandleBardicRollOnFailure(battleManager, actingCharacter, abilityCheckData);
 
+        abilityCheckData.CurrentRoll = rawRoll;
+
         var actionService = ServiceRepository.GetService<IGameLocationActionService>();
         var locationCharacterService = ServiceRepository.GetService<IGameLocationCharacterService>();
         var contenders =
@@ -428,7 +431,9 @@ internal static class TryAlterOutcomeAttributeCheck
             }
 
             foreach (var tryAlterOutcomeAttributeCheck in unit.RulesetCharacter
-                         .GetSubFeaturesByType<ITryAlterOutcomeAttributeCheck>())
+                         .GetSubFeaturesByType<ITryAlterOutcomeAttributeCheck>()
+                         .Concat(unit.RulesetCharacter
+                             .GetUsableSpellSubFeaturesByType<ITryAlterOutcomeAttributeCheck>()))
             {
                 yield return tryAlterOutcomeAttributeCheck.OnTryAlterAttributeCheck(
                     battleManager, rawRoll, abilityCheckData, actingCharacter, unit);

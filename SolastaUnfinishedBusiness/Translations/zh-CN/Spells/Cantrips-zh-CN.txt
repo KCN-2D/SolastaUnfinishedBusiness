@@ -131,3 +131,5 @@ Spell/&TollTheDeadDescription=你指向一个你能看到的范围内的生物�
 Spell/&TollTheDeadTitle=亡者丧钟
 Spell/&WrackDescription=对范围内的一个生物释放一波极度痛苦。目标必须进行一次体质豁免检定，否则将受到 1d6 黯蚀伤害，并阻止他们疾走或撤离。
 Spell/&WrackTitle=折磨术
+Spell/&SorcerousBurstDescription=你向施法距离内的一个生物或物体射出一股术法能量。选择强酸、寒冷、火焰、闪电、毒素、心灵或雷鸣伤害，然后进行一次远程法术攻击。命中时，目标受到1d8点所选类型的伤害。每当此法术的d8掷出8时，再掷一枚d8并将结果加入伤害。以此方式增加的骰子数量上限等于你的施法关键属性调整值。伤害在5、11和17级时各增加1d8。
+Spell/&SorcerousBurstTitle=术法爆发

@@ -26,6 +26,7 @@ internal static class SpellsContext
 
     internal static readonly Dictionary<SpellDefinition, SpellDefinition> SpellsChildMaster = [];
     internal static readonly Dictionary<SpellListDefinition, SpellListContext> SpellListContextTab = [];
+    private static readonly HashSet<SpellDefinition> SpellsAvailableWithSpellLists2024Only = [];
 
     internal static readonly SpellListDefinition EmptySpellList = SpellListDefinitionBuilder
         .Create("SpellListEmpty")
@@ -40,6 +41,7 @@ internal static class SpellsContext
     // ReSharper disable once InconsistentNaming
     private static readonly SortedList<string, SpellListDefinition> spellLists = [];
     private static readonly Dictionary<SpellDefinition, List<SpellListDefinition>> SpellSpellListMap = [];
+    private static readonly CharacterClassDefinition[] SpellSniperClasses = [Cleric, Druid, Sorcerer, Warlock, Wizard];
 
     internal static readonly SpellDefinition AirBlast = BuildAirBlast();
     internal static readonly SpellDefinition AshardalonStride = BuildAshardalonStride();
@@ -72,6 +74,8 @@ internal static class SpellsContext
     internal static readonly SpellDefinition PsychicWhip = BuildPsychicWhip();
     internal static readonly SpellDefinition PulseWave = BuildPulseWave();
     internal static readonly SpellDefinition SearingSmite = BuildSearingSmite();
+    internal static readonly SpellDefinition SilveryBarbs = BuildSilveryBarbs();
+    internal static readonly SpellDefinition SorcerousBurst = BuildSorcerousBurst();
     internal static readonly SpellDefinition SonicBoom = BuildSonicBoom();
     internal static readonly SpellDefinition StaggeringSmite = BuildStaggeringSmite();
     internal static readonly SpellDefinition SteelWhirlwind = BuildSteelWhirlwind();
@@ -234,6 +238,53 @@ internal static class SpellsContext
         }
     }
 
+    internal static void RecalculateAllSpells()
+    {
+        foreach (var spellListContext in SpellListContextTab.Values)
+        {
+            spellListContext.CalculateAllSpells();
+            spellListContext.CalculateDisplayedSpellsInternal();
+        }
+    }
+
+    internal static void ApplySpellList2024Change(
+        SpellListDefinition spellList,
+        SpellDefinition spell,
+        bool included,
+        bool enabled)
+    {
+        SpellListContextTab[spellList].ApplySpellList2024Change(spell, included, enabled);
+    }
+
+    internal static void SwitchSpellAvailabilityWithSpellLists2024(
+        SpellDefinition spell,
+        bool enabled)
+    {
+        foreach (var spellListContext in SpellListContextTab.Values)
+        {
+            spellListContext.SetConditionalSpellAvailability(spell, enabled);
+        }
+    }
+
+    internal static void ApplySpellList2024Restrictions(bool enabled)
+    {
+        foreach (var spellListContext in SpellListContextTab.Values)
+        {
+            spellListContext.ApplySpellList2024Restrictions(enabled);
+        }
+    }
+
+    private static bool IsUbOriginalSpell(SpellDefinition spellDefinition)
+    {
+        return spellDefinition.ContentPack == CeContentPackContext.CeContentPack &&
+               !ModUi.TabletopDefinitionNames.Contains(spellDefinition.Name);
+    }
+
+    private static bool IsSpellList2024RestrictedSpell(SpellDefinition spellDefinition)
+    {
+        return Main.Settings.EnableSpellLists2024 && IsUbOriginalSpell(spellDefinition);
+    }
+
     private static void NormalizeBaseSpellDurations()
     {
         // Shillelagh lasts one minute in both the 2014 and 2024 tabletop rules.
@@ -288,6 +339,8 @@ internal static class SpellsContext
             spellListInventorClass);
         RegisterSpell(BuildSwordStorm(), 0, SpellListSorcerer, SpellListWarlock, SpellListWizard,
             spellListInventorClass);
+        SpellsAvailableWithSpellLists2024Only.Add(SorcerousBurst);
+        RegisterSpell(SorcerousBurst);
         RegisterSpell(BuildStarryWisp(), 0, SpellListBard, SpellListDruid);
         RegisterSpell(BuildTollTheDead(), 0, SpellListCleric, SpellListWarlock, SpellListWizard);
         RegisterSpell(ThornyVines, 0, SpellListDruid, spellListInventorClass);
@@ -314,6 +367,7 @@ internal static class SpellsContext
         RegisterSpell(BuildRayOfSickness(), 0, SpellListSorcerer, SpellListWizard);
         RegisterSpell(BuildSanctuary(), 0, SpellListCleric, spellListInventorClass);
         RegisterSpell(SearingSmite, 0, SpellListPaladin, SpellListRanger);
+        RegisterSpell(SilveryBarbs, 0, SpellListBard, SpellListSorcerer, SpellListWizard);
         RegisterSpell(BuildSkinOfRetribution(), 0, SpellListWarlock);
         RegisterSpell(BuildSpikeBarrage(), 0, SpellListRanger);
         RegisterSpell(ThunderousSmite, 0, SpellListPaladin);
@@ -539,39 +593,56 @@ internal static class SpellsContext
             SpellListContextTab[spellList].Switch(spellDefinition, enable);
         }
 
-        var isActiveInAtLeastOneRepertoire = SpellLists.Values.Any(x => x.ContainsSpell(spellDefinition));
+        RefreshAuxiliarySpellLists(spellDefinition);
+    }
 
-        if (!isActiveInAtLeastOneRepertoire || spellDefinition.contentPack != CeContentPackContext.CeContentPack)
+    private static void RefreshAuxiliarySpellLists(SpellDefinition spellDefinition)
+    {
+        if (spellDefinition.contentPack != CeContentPackContext.CeContentPack)
         {
             return;
         }
 
-        //Add cantrips to `All Cantrips` list, so that Warlock's `Pact of the Tome` and Loremaster's `Arcane Professor` would see them
-        if (spellDefinition.SpellLevel == 0)
+        var isConditional = SpellsAvailableWithSpellLists2024Only.Contains(spellDefinition);
+        var isAvailable = (!isConditional || Main.Settings.EnableSpellLists2024) &&
+                          !IsSpellList2024RestrictedSpell(spellDefinition);
+        var isActive = SpellLists.Values.Any(x => x.ContainsSpell(spellDefinition));
+
+        if (isActive && isAvailable)
         {
-            SpellListAllCantrips.AddSpell(spellDefinition);
+            if (spellDefinition.SpellLevel == 0)
+            {
+                SpellListAllCantrips.AddSpell(spellDefinition);
+            }
+
+            SpellListAllSpells.AddSpell(spellDefinition);
+        }
+        else if (!isAvailable)
+        {
+            SpellListAllCantrips.RemoveSpell(spellDefinition);
+            SpellListAllSpells.RemoveSpell(spellDefinition);
         }
 
-        //Add spells to `All Spells` list, so that Warlock's `Book of Ancient Secrets` and Bard's `Magic Secrets` would see them
-        SpellListAllSpells.AddSpell(spellDefinition);
-
-        //Add spells to Snipers lists
-        var spellSniperClasses = new List<CharacterClassDefinition>
+        if (spellDefinition.SpellLevel != 0)
         {
-            Cleric,
-            Druid,
-            Sorcerer,
-            Warlock,
-            Wizard
-        };
+            return;
+        }
 
-        foreach (var spellSniperClass in spellSniperClasses)
+        foreach (var spellSniperClass in SpellSniperClasses)
         {
-            if (spellDefinition.SpellLevel == 0 &&
-                TryGetDefinition<SpellListDefinition>(
+            if (!TryGetDefinition<SpellListDefinition>(
                     $"SpellListFeatSpellSniper{spellSniperClass.Name}", out var spellListSniper))
             {
+                continue;
+            }
+
+            if (isActive && isAvailable)
+            {
                 spellListSniper.AddSpell(spellDefinition);
+            }
+            else if (!isAvailable)
+            {
+                spellListSniper.RemoveSpell(spellDefinition);
             }
         }
     }
@@ -853,6 +924,8 @@ internal static class SpellsContext
             MinimumSpells = [];
             SuggestedSpells = [];
             TabletopSpells = [];
+            SpellList2024ExcludedSpells = [];
+            SpellList2024States = [];
         }
 
         private List<string> SelectedSpells => Main.Settings.SpellListSpellEnabled[SpellList.Name];
@@ -866,35 +939,67 @@ internal static class SpellsContext
         internal HashSet<SpellDefinition> MinimumSpells { get; }
         internal HashSet<SpellDefinition> SuggestedSpells { get; }
         private HashSet<SpellDefinition> TabletopSpells { get; }
+        private HashSet<SpellDefinition> SpellList2024ExcludedSpells { get; }
+        private Dictionary<SpellDefinition, SpellList2024State> SpellList2024States { get; }
 
 
         // ReSharper disable once MemberHidesStaticFromOuterClass
         internal bool IsAllSetSelected =>
-            DisplayedSpells.All(x => SelectedSpells.Contains(x.Name));
+            DisplayedSpells
+                .Where(IsSpellToggleEnabled)
+                .All(x => SelectedSpells.Contains(x.Name));
 
         // ReSharper disable once MemberHidesStaticFromOuterClass
         internal bool IsSuggestedSetSelected =>
-            DisplayedSuggestedSpells.All(x => SelectedSpells.Contains(x.Name)) &&
-            DisplayedNonSuggestedSpells.All(x => !SelectedSpells.Contains(x.Name));
+            DisplayedSuggestedSpells
+                .Where(IsSpellToggleEnabled)
+                .All(x => SelectedSpells.Contains(x.Name)) &&
+            DisplayedNonSuggestedSpells
+                .Where(IsSpellToggleEnabled)
+                .All(x => !SelectedSpells.Contains(x.Name));
 
         // ReSharper disable once MemberHidesStaticFromOuterClass
         internal bool IsTabletopSetSelected =>
-            DisplayedTabletopSpells.All(x => SelectedSpells.Contains(x.Name)) &&
-            DisplayedNonTabletopSpells.All(x => !SelectedSpells.Contains(x.Name));
+            DisplayedTabletopSpells
+                .Where(IsSpellToggleEnabled)
+                .All(x => SelectedSpells.Contains(x.Name)) &&
+            DisplayedNonTabletopSpells
+                .Where(IsSpellToggleEnabled)
+                .All(x => !SelectedSpells.Contains(x.Name));
+
+        internal bool IsSpellToggleEnabled(SpellDefinition spellDefinition)
+        {
+            return !IsRequiredSpellList2024Spell(spellDefinition) &&
+                   !IsSpellList2024RestrictedSpell(spellDefinition);
+        }
+
+        internal bool? GetSpellToggleValueOverride(SpellDefinition spellDefinition)
+        {
+            if (IsRequiredSpellList2024Spell(spellDefinition))
+            {
+                return true;
+            }
+
+            return IsSpellList2024RestrictedSpell(spellDefinition) ? false : null;
+        }
 
         internal void CalculateAllSpells()
         {
+            AllSpells.Clear();
+            TabletopSpells.Clear();
+
             var minSpellLevel = SpellList.HasCantrips ? 0 : 1;
             var maxSpellLevel = SpellList.MaxSpellLevel;
 
             foreach (var spell in Spells.Where(x =>
                          x.SpellLevel >= minSpellLevel &&
                          x.SpellLevel <= maxSpellLevel &&
-                         !MinimumSpells.Contains(x)))
+                         (!MinimumSpells.Contains(x) || IsRequiredSpellList2024Spell(x))))
             {
                 AllSpells.Add(spell);
 
-                if (ModUi.TabletopDefinitionNames.Contains(spell.Name))
+                if (ModUi.TabletopDefinitionNames.Contains(spell.Name) &&
+                    SuggestedSpells.Contains(spell))
                 {
                     TabletopSpells.Add(spell);
                 }
@@ -912,6 +1017,13 @@ internal static class SpellsContext
             // ReSharper disable once ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
             foreach (var spell in AllSpells)
             {
+                if ((SpellsAvailableWithSpellLists2024Only.Contains(spell) &&
+                     !Main.Settings.EnableSpellLists2024) ||
+                    SpellList2024ExcludedSpells.Contains(spell))
+                {
+                    continue;
+                }
+
                 if (SpellsDisplay.SpellLevelFilter != -1 &&
                     spell.SpellLevel != SpellsDisplay.SpellLevelFilter)
                 {
@@ -919,7 +1031,8 @@ internal static class SpellsContext
                 }
 
                 if (!Main.Settings.AllowDisplayingOfficialSpells &&
-                    spell.ContentPack != CeContentPackContext.CeContentPack)
+                    spell.ContentPack != CeContentPackContext.CeContentPack &&
+                    !IsRequiredSpellList2024Spell(spell))
                 {
                     continue;
                 }
@@ -955,7 +1068,7 @@ internal static class SpellsContext
 
         internal void SelectAllSetInternal(bool toggle)
         {
-            foreach (var spell in DisplayedSpells)
+            foreach (var spell in DisplayedSpells.Where(IsSpellToggleEnabled))
             {
                 Switch(spell, toggle);
             }
@@ -968,7 +1081,7 @@ internal static class SpellsContext
                 SelectAllSetInternal(false);
             }
 
-            foreach (var spell in DisplayedSpells.Intersect(SuggestedSpells))
+            foreach (var spell in DisplayedSpells.Intersect(SuggestedSpells).Where(IsSpellToggleEnabled))
             {
                 Switch(spell, toggle);
             }
@@ -981,7 +1094,7 @@ internal static class SpellsContext
                 SelectAllSetInternal(false);
             }
 
-            foreach (var spell in DisplayedSpells.Intersect(TabletopSpells))
+            foreach (var spell in DisplayedSpells.Intersect(TabletopSpells).Where(IsSpellToggleEnabled))
             {
                 Switch(spell, toggle);
             }
@@ -989,21 +1102,136 @@ internal static class SpellsContext
 
         internal void Switch([NotNull] SpellDefinition spellDefinition, bool active)
         {
-            var spellListName = SpellList.Name;
-            var spellName = spellDefinition.Name;
-
             if (!SpellList.HasCantrips && spellDefinition.SpellLevel == 0)
             {
                 return;
             }
 
-            InventorClass.SwitchSpellStoringItemSubPower(spellDefinition, active);
-
-            if (!Main.Settings.AllowDisplayingOfficialSpells &&
-                spellDefinition.ContentPack != CeContentPackContext.CeContentPack)
+            // A 2024 exclusion belongs to this class list only. Keep the stored user toggle untouched so
+            // disabling the 2024 list can restore the exact pre-switch state.
+            if (SpellList2024ExcludedSpells.Contains(spellDefinition))
             {
                 return;
             }
+
+            if (IsRequiredSpellList2024Spell(spellDefinition))
+            {
+                return;
+            }
+
+            if (IsSpellList2024RestrictedSpell(spellDefinition))
+            {
+                return;
+            }
+
+            if (active &&
+                SpellsAvailableWithSpellLists2024Only.Contains(spellDefinition) &&
+                !Main.Settings.EnableSpellLists2024)
+            {
+                return;
+            }
+
+            SetSpellPresence(spellDefinition, active, true);
+        }
+
+        private bool IsRequiredSpellList2024Spell(SpellDefinition spellDefinition)
+        {
+            return MinimumSpells.Contains(spellDefinition) &&
+                   SpellList2024States.TryGetValue(spellDefinition, out var state) &&
+                   !state.Minimum;
+        }
+
+        internal void ApplySpellList2024Change(
+            SpellDefinition spellDefinition,
+            bool included,
+            bool enabled)
+        {
+            if (!enabled)
+            {
+                if (!SpellList2024States.TryGetValue(spellDefinition, out var state))
+                {
+                    SpellList2024ExcludedSpells.Remove(spellDefinition);
+
+                    return;
+                }
+
+                SpellList2024States.Remove(spellDefinition);
+                var wasExcluded = SpellList2024ExcludedSpells.Remove(spellDefinition);
+
+                SetCollectionMembership(MinimumSpells, spellDefinition, state.Minimum);
+                SetCollectionMembership(SuggestedSpells, spellDefinition, state.Suggested);
+
+                if (spellDefinition.ContentPack != CeContentPackContext.CeContentPack || wasExcluded)
+                {
+                    SetSpellPresence(spellDefinition, state.Active, false);
+                }
+
+                return;
+            }
+
+            if (!SpellList2024States.ContainsKey(spellDefinition))
+            {
+                SpellList2024States.Add(
+                    spellDefinition,
+                    new SpellList2024State(
+                        MinimumSpells.Contains(spellDefinition),
+                        SuggestedSpells.Contains(spellDefinition),
+                        SpellList.ContainsSpell(spellDefinition)));
+            }
+
+            SetCollectionMembership(SpellList2024ExcludedSpells, spellDefinition, !included);
+
+            if (spellDefinition.ContentPack == CeContentPackContext.CeContentPack)
+            {
+                SetCollectionMembership(SuggestedSpells, spellDefinition, included);
+
+                if (!included)
+                {
+                    SetSpellPresence(spellDefinition, false, false);
+                }
+            }
+            else
+            {
+                SetCollectionMembership(MinimumSpells, spellDefinition, included);
+                SetSpellPresence(spellDefinition, included, false);
+            }
+        }
+
+        internal void SetConditionalSpellAvailability(SpellDefinition spellDefinition, bool enabled)
+        {
+            if (!SpellList.HasCantrips && spellDefinition.SpellLevel == 0)
+            {
+                return;
+            }
+
+            SetSpellPresence(
+                spellDefinition,
+                enabled &&
+                !IsSpellList2024RestrictedSpell(spellDefinition) &&
+                SelectedSpells.Contains(spellDefinition.Name),
+                false);
+        }
+
+        internal void ApplySpellList2024Restrictions(bool enabled)
+        {
+            foreach (var spellDefinition in AllSpells.Where(IsUbOriginalSpell))
+            {
+                var active = !enabled && SelectedSpells.Contains(spellDefinition.Name);
+
+                if (SpellList.ContainsSpell(spellDefinition) != active)
+                {
+                    SetSpellPresence(spellDefinition, active, false);
+                }
+            }
+        }
+
+        private void SetSpellPresence(
+            SpellDefinition spellDefinition,
+            bool active,
+            bool updateSettings)
+        {
+            var spellListName = SpellList.Name;
+            var spellName = spellDefinition.Name;
 
             if (active)
             {
@@ -1015,31 +1243,63 @@ internal static class SpellsContext
                     SpellListShockArcanist.AddSpell(spellDefinition);
                 }
 
-                Main.Settings.SpellListSpellEnabled[spellListName].TryAdd(spellName);
+                if (updateSettings)
+                {
+                    Main.Settings.SpellListSpellEnabled[spellListName].TryAdd(spellName);
+                }
             }
             else
             {
-                foreach (var spellsByLevel in SpellList.SpellsByLevel)
-                {
-                    spellsByLevel.Spells.RemoveAll(x => x == spellDefinition);
-                }
+                SpellList.RemoveSpell(spellDefinition);
 
                 // sync shock arcanist list with wizard
                 if (SpellList == SpellListWizard && spellDefinition.SchoolOfMagic == SchoolEvocation)
                 {
-                    foreach (var spellsByLevel in SpellListShockArcanist.SpellsByLevel)
-                    {
-                        spellsByLevel.Spells.RemoveAll(x => x == spellDefinition);
-                    }
+                    SpellListShockArcanist.RemoveSpell(spellDefinition);
                 }
 
-                Main.Settings.SpellListSpellEnabled[spellListName].Remove(spellName);
+                if (updateSettings)
+                {
+                    Main.Settings.SpellListSpellEnabled[spellListName].Remove(spellName);
+                }
             }
 
-            if (spellDefinition.SpellLevel <= 1)
+            if (SpellList == InventorClass.SpellList)
+            {
+                InventorClass.SwitchSpellStoringItemSubPower(spellDefinition, active);
+            }
+
+            RefreshAuxiliarySpellLists(spellDefinition);
+
+            if (updateSettings && spellDefinition.SpellLevel <= 1)
             {
                 Tabletop2024Context.RefreshFeatSpellSelectionLists2024();
             }
+        }
+
+        private static void SetCollectionMembership(
+            HashSet<SpellDefinition> collection,
+            SpellDefinition spellDefinition,
+            bool active)
+        {
+            if (active)
+            {
+                collection.Add(spellDefinition);
+            }
+            else
+            {
+                collection.Remove(spellDefinition);
+            }
+        }
+
+        private readonly struct SpellList2024State(
+            bool minimum,
+            bool suggested,
+            bool active)
+        {
+            internal bool Minimum { get; } = minimum;
+            internal bool Suggested { get; } = suggested;
+            internal bool Active { get; } = active;
         }
     }
 

@@ -1,5 +1,7 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -28,6 +30,13 @@ internal static partial class SpellBuilders
     [
         (DamageTypeAcid, AcidSplash), (DamageTypeCold, ConeOfCold), (DamageTypeFire, FireBolt),
         (DamageTypeLightning, LightningBolt), (DamageTypePoison, PoisonSpray), (DamageTypeThunder, Shatter)
+    ];
+
+    private static readonly (string, IMagicEffect)[] SorcerousBurstDamagesAndEffects =
+    [
+        (DamageTypeAcid, AcidSplash), (DamageTypeCold, ConeOfCold), (DamageTypeFire, FireBolt),
+        (DamageTypeLightning, LightningBolt), (DamageTypePoison, PoisonSpray), (DamageTypePsychic, MindTwist),
+        (DamageTypeThunder, Shatter)
     ];
 
     #region Air Blast
@@ -283,7 +292,7 @@ internal static partial class SpellBuilders
 
         var spell = SpellDefinitionBuilder
             .Create(Sparkle, NAME)
-            .SetGuiPresentation(Category.Spell, Shine)
+            .SetGuiPresentation(Category.Spell, Sprites.GetSprite(NAME, Resources.IlluminatingSphere, 128))
             .SetVocalSpellSameType(VocalSpellSemeType.Detection)
             .SetEffectDescription(
                 EffectDescriptionBuilder
@@ -593,6 +602,137 @@ internal static partial class SpellBuilders
 
     #endregion
 
+    #region Sorcerous Burst
+
+    internal static SpellDefinition BuildSorcerousBurst()
+    {
+        const string NAME = "SorcerousBurst";
+
+        var sprite = Sprites.GetSprite(NAME, Resources.SorcerousBurst, 128);
+        var subSpells = new List<SpellDefinition>();
+
+        foreach (var (damageType, magicEffect) in SorcerousBurstDamagesAndEffects)
+        {
+            var effectDescription = EffectDescriptionBuilder.Create(magicEffect.EffectDescription).Build();
+
+            if (damageType == DamageTypePoison)
+            {
+                effectDescription.EffectParticleParameters.impactParticleReference =
+                    effectDescription.EffectParticleParameters.effectParticleReference;
+                effectDescription.EffectParticleParameters.effectParticleReference = new AssetReference();
+            }
+
+            var title = Gui.Localize($"Tooltip/&Tag{damageType}Title");
+            var spell = SpellDefinitionBuilder
+                .Create(NAME + damageType)
+                .SetGuiPresentation(title, "Spell/&SorcerousBurstDescription", sprite)
+                .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolEvocation)
+                .SetSpellLevel(0)
+                .SetCastingTime(ActivationTime.Action)
+                .SetMaterialComponent(MaterialComponentType.None)
+                .SetVerboseComponent(true)
+                .SetSomaticComponent(true)
+                .SetVocalSpellSameType(VocalSpellSemeType.Attack)
+                .SetEffectDescription(
+                    EffectDescriptionBuilder
+                        .Create()
+                        .SetTargetingData(Side.Enemy, RangeType.RangeHit, 24, TargetType.IndividualsUnique)
+                        .SetEffectAdvancement(EffectIncrementMethod.CasterLevelTable, additionalDicePerIncrement: 1)
+                        .SetEffectForms(EffectFormBuilder.DamageForm(damageType, 1, DieType.D8))
+                        .SetParticleEffectParameters(effectDescription.EffectParticleParameters)
+                        .Build())
+                .AddCustomSubFeatures(new ModifyMagicEffectDamageRollSorcerousBurst(damageType))
+                .AddToDB();
+
+            subSpells.Add(spell);
+        }
+
+        return SpellDefinitionBuilder
+            .Create(NAME)
+            .SetGuiPresentation(Category.Spell, sprite)
+            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolEvocation)
+            .SetSpellLevel(0)
+            .SetCastingTime(ActivationTime.Action)
+            .SetMaterialComponent(MaterialComponentType.None)
+            .SetVerboseComponent(true)
+            .SetSomaticComponent(true)
+            .SetVocalSpellSameType(VocalSpellSemeType.Attack)
+            .SetSubSpells([.. subSpells])
+            .SetEffectDescription(
+                EffectDescriptionBuilder
+                    .Create()
+                    .SetTargetingData(Side.Enemy, RangeType.RangeHit, 24, TargetType.IndividualsUnique)
+                    .SetEffectAdvancement(EffectIncrementMethod.CasterLevelTable, additionalDicePerIncrement: 1)
+                    .Build())
+            .AddToDB();
+    }
+
+    private sealed class ModifyMagicEffectDamageRollSorcerousBurst(string expectedDamageType)
+        : IModifyMagicEffectDamageRoll
+    {
+        public void ModifyDamageRoll(
+            RulesetCharacter rulesetCharacter,
+            DamageForm damageForm,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            bool criticalSuccess,
+            int criticalHitMode,
+            bool maximumDamage,
+            float damageMultiplier,
+            IReadOnlyList<int> actualRolledValues,
+            List<int> rolledValues,
+            bool canRerollDice,
+            ref int damage)
+        {
+            if (maximumDamage ||
+                damageForm.DieType != DieType.D8 ||
+                damageForm.DamageType != expectedDamageType ||
+                formsParams.activeEffect == null)
+            {
+                return;
+            }
+
+            var maximumAdditionalDice = Math.Max(
+                0,
+                formsParams.activeEffect.ComputeSourceAbilityBonus(rulesetCharacter));
+            var pendingAdditionalDice = actualRolledValues.Count(roll => roll == 8);
+            var additionalDice = 0;
+            var additionalDamage = 0;
+
+            while (pendingAdditionalDice > 0 && additionalDice < maximumAdditionalDice)
+            {
+                pendingAdditionalDice--;
+
+                var roll = rulesetCharacter.RollDie(
+                    DieType.D8,
+                    RollContext.MagicDamageValueRoll,
+                    false,
+                    AdvantageType.None,
+                    out _,
+                    out _,
+                    false,
+                    canRerollDice);
+
+                rolledValues.Add(roll);
+                additionalDamage += roll;
+                additionalDice++;
+
+                if (roll == 8)
+                {
+                    pendingAdditionalDice++;
+                }
+            }
+
+            if (criticalSuccess && criticalHitMode == 3)
+            {
+                additionalDamage *= 2;
+            }
+
+            damage += Mathf.FloorToInt(damageMultiplier * additionalDamage);
+        }
+    }
+
+    #endregion
+
     #region Starry Wisp
 
     internal static SpellDefinition BuildStarryWisp()
@@ -807,7 +947,7 @@ internal static partial class SpellBuilders
 
         var spell = SpellDefinitionBuilder
             .Create(NAME)
-            .SetGuiPresentation(Category.Spell, Shield)
+            .SetGuiPresentation(Category.Spell, Sprites.GetSprite(NAME, Resources.ThunderStrike, 128))
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolEvocation)
             .SetSpellLevel(0)
             .SetCastingTime(ActivationTime.Action)
@@ -965,7 +1105,7 @@ internal static partial class SpellBuilders
 
         var spell = SpellDefinitionBuilder
             .Create("BoomingBlade")
-            .SetGuiPresentation(Category.Spell, DivineBlade)
+            .SetGuiPresentation(Category.Spell, Sprites.GetSprite("BoomingBlade", Resources.BoomingBlade, 128))
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolEvocation)
             .SetSpellLevel(0)
             .SetCastingTime(ActivationTime.Action)
@@ -1265,7 +1405,7 @@ internal static partial class SpellBuilders
 
         var spell = SpellDefinitionBuilder
             .Create(NAME)
-            .SetGuiPresentation(Category.Spell, Bane.GuiPresentation.SpriteReference)
+            .SetGuiPresentation(Category.Spell, Sprites.GetSprite(NAME, Resources.TollTheDead, 128))
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolNecromancy)
             .SetSpellLevel(0)
             .SetCastingTime(ActivationTime.Action)

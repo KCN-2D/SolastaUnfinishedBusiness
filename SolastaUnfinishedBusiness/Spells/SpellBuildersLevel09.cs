@@ -149,7 +149,7 @@ internal static partial class SpellBuilders
     {
         return SpellDefinitionBuilder
             .Create("MassHeal")
-            .SetGuiPresentation(Category.Spell, Heal)
+            .SetGuiPresentation(Category.Spell, Sprites.GetSprite("MassHeal", Resources.MassHeal, 128))
             .SetCastingTime(ActivationTime.Action)
             .SetSpellLevel(9)
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolTransmutation)
@@ -161,6 +161,7 @@ internal static partial class SpellBuilders
                 EffectDescriptionBuilder
                     .Create()
                     .SetTargetingData(Side.All, RangeType.Distance, 12, TargetType.IndividualsUnique, 6)
+                    .AddImmuneCreatureFamilies(CharacterFamilyDefinitions.Construct, CharacterFamilyDefinitions.Undead)
                     .SetEffectForms(
                         EffectFormBuilder
                             .Create()
@@ -171,6 +172,17 @@ internal static partial class SpellBuilders
                                 0,
                                 false,
                                 HealingCap.MaximumHitPoints)
+                            .Build(),
+                        EffectFormBuilder
+                            .Create()
+                            .SetConditionForm(
+                                ConditionDefinitions.ConditionDiseased,
+                                ConditionForm.ConditionOperation.RemoveDetrimentalAll,
+                                false,
+                                false,
+                                ConditionDefinitions.ConditionDiseased,
+                                ConditionDefinitions.ConditionBlinded,
+                                ConditionDefinitions.ConditionDeafened)
                             .Build())
                     .SetParticleEffectParameters(Heal)
                     .Build())
