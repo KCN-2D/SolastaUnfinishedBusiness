@@ -625,7 +625,7 @@ internal static partial class SpellBuilders
             var title = Gui.Localize($"Tooltip/&Tag{damageType}Title");
             var spell = SpellDefinitionBuilder
                 .Create(NAME + damageType)
-                .SetGuiPresentation(title, "Spell/&SorcerousBurstDescription", sprite)
+                .SetGuiPresentation(title, GuiPresentationBuilder.EmptyString, sprite)
                 .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolEvocation)
                 .SetSpellLevel(0)
                 .SetCastingTime(ActivationTime.Action)
