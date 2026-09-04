@@ -1,4 +1,4 @@
-Condition/&ConditionMindBlankDescription=精神ダメージおよび魅了状態に対する完全耐性。
+Condition/&ConditionMindBlankDescription=精神ダメージと魅了状態への完全耐性を得ます。
 Condition/&ConditionMindBlankTitle=空白の心
 Condition/&ConditionSoulExpulsionCombatAffinityTitle=動揺
 Spell/&AbiDalzimHorridWiltingDescription=射程内で選んだ点を中心とする6マス立方の範囲にいるすべてのクリーチャーから水分を吸い取ります。範囲内の各クリーチャーは耐久力セーヴィング・スローを行わなければなりません。人造とアンデッドは影響を受けませんが、植物と氷のエレメンタルはこのセーヴィング・スローを不利で行います。失敗すると10d8の死霊ダメージを受け、成功するとその半分のダメージを受けます。

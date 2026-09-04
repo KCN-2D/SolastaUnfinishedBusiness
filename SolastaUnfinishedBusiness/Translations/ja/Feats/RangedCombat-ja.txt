@@ -14,4 +14,4 @@ Feature/&PowerFeatSteadyAimDescription=ボーナス・アクションとして�
 Feature/&PowerFeatSteadyAimTitle=着実な狙い
 Tooltip/&DeadeyeConcentration=射撃の名手を無効化します。
 Feat/&FeatSharpshooter2024Title=射撃の名手
-Feat/&FeatSharpshooter2024Description=敏捷力を1上昇させます（最大20）。\n武器による遠隔攻撃は1/2遮蔽と3/4遮蔽を無視します。\n敵の1マス以内にいても、遠隔武器による攻撃ロールに不利を受けません。\n遠隔武器で長射程の攻撃を行っても、攻撃ロールに不利を受けません。
+Feat/&FeatSharpshooter2024Description=敏捷力を1増加させ、最大20まで高めます。\n武器による遠隔攻撃は1/2遮蔽と3/4遮蔽を無視します。\n敵の1マス以内にいても、遠隔武器による攻撃ロールに不利を受けません。\n遠隔武器で長射程の攻撃を行っても、攻撃ロールに不利を受けません。

@@ -1,10 +1,10 @@
-Feat/&FeatElvenAccuracyCharismaDescription=力任せではなく精密さに頼った攻撃で、驚異的な狙いを定められます。魅力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
+Feat/&FeatElvenAccuracyCharismaDescription=力任せではなく精密さを要する攻撃では、並外れた正確さで狙いを定められます。魅力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
 Feat/&FeatElvenAccuracyCharismaTitle=エルフの正確さ［魅力］
-Feat/&FeatElvenAccuracyDexterityDescription=力任せではなく精密さに頼った攻撃で、驚異的な狙いを定められます。敏捷力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
+Feat/&FeatElvenAccuracyDexterityDescription=力任せではなく精密さを要する攻撃では、並外れた正確さで狙いを定められます。敏捷力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
 Feat/&FeatElvenAccuracyDexterityTitle=エルフの正確さ［敏捷力］
-Feat/&FeatElvenAccuracyIntelligenceDescription=力任せではなく精密さに頼った攻撃で、驚異的な狙いを定められます。知力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
+Feat/&FeatElvenAccuracyIntelligenceDescription=力任せではなく精密さを要する攻撃では、並外れた正確さで狙いを定められます。知力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
 Feat/&FeatElvenAccuracyIntelligenceTitle=エルフの正確さ［知力］
-Feat/&FeatElvenAccuracyWisdomDescription=力任せではなく精密さに頼った攻撃で、驚異的な狙いを定められます。判断力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
+Feat/&FeatElvenAccuracyWisdomDescription=力任せではなく精密さを要する攻撃では、並外れた正確さで狙いを定められます。判断力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
 Feat/&FeatElvenAccuracyWisdomTitle=エルフの正確さ［判断力］
 Feedback/&ElvenAccuracyTriggered={0}は{1}を使って{2}を保持し、{3}を{4}に振り直します。
 Tooltip/&FeatElvenAccuracyBaseDescription=敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
