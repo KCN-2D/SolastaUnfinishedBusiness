@@ -8267,7 +8267,7 @@ public static partial class Tabletop2024Context
             }
 
             rulesetCharacter.DisableToggle(toggleActionId);
-            usablePower.Consume();
+            rulesetCharacter.UsePower(usablePower);
             rulesetCharacter.LogCharacterUsedPower(powerAdvantage);
         }
 

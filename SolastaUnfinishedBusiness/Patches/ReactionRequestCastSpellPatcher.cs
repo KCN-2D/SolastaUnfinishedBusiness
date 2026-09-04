@@ -44,6 +44,36 @@ public static class ReactionRequestCastSpellPatcher
         public static void Postfix(ReactionRequestCastSpell __instance)
         {
             var character = __instance.Character.RulesetCharacter;
+            var optionsAvailability = __instance.SubOptionsAvailability;
+            var reactionParams = __instance.ReactionParams;
+
+            if (reactionParams.RulesetEffect is not RulesetEffectSpell rulesetEffectSpell)
+            {
+                return;
+            }
+
+            var spellLevel = rulesetEffectSpell.SpellDefinition.SpellLevel;
+
+            var spellSlotMode = SpellSlotCastingLimit2024Context.GetReactionSpellSlotMode(
+                reactionParams,
+                out var noSlotRepertoire,
+                out var noSlotLevel);
+
+            if (spellSlotMode != SpellSlotCastingLimit2024Context.ReactionSpellSlotMode.Standard)
+            {
+                optionsAvailability.Clear();
+
+                if (spellSlotMode == SpellSlotCastingLimit2024Context.ReactionSpellSlotMode.NoSlotOnly)
+                {
+                    SetReactionSpellRepertoire(__instance, rulesetEffectSpell, noSlotRepertoire);
+                    rulesetEffectSpell.SlotLevel = noSlotLevel;
+                    reactionParams.IntParameter = noSlotLevel;
+                    optionsAvailability.Add(noSlotLevel, true);
+                    __instance.SelectSubOption(0);
+                }
+
+                return;
+            }
 
             if (!IsSupportedCaster(character) ||
                 SharedSpellsContext.GetWarlockSpellRepertoire(character) != null &&
@@ -52,10 +82,7 @@ public static class ReactionRequestCastSpellPatcher
                 return;
             }
 
-            var optionsAvailability = __instance.SubOptionsAvailability;
-            var reactionParams = __instance.ReactionParams;
-            var repertoire = reactionParams.SpellRepertoire
-                             ?? (reactionParams.RulesetEffect as RulesetEffectSpell)?.SpellRepertoire;
+            var repertoire = reactionParams.SpellRepertoire ?? rulesetEffectSpell.SpellRepertoire;
 
             if (repertoire == null)
             {
@@ -64,12 +91,6 @@ public static class ReactionRequestCastSpellPatcher
 
             optionsAvailability.Clear();
 
-            if (__instance.ReactionParams.RulesetEffect is not RulesetEffectSpell rulesetEffectSpell)
-            {
-                return;
-            }
-
-            var spellLevel = rulesetEffectSpell.SpellDefinition.SpellLevel;
             var selected = TryBuildFeatReactionSlotOptions(
                 __instance,
                 character,
@@ -83,7 +104,8 @@ public static class ReactionRequestCastSpellPatcher
                     repertoire,
                     spellLevel,
                     0,
-                    rulesetEffectSpell.SpellDefinition);
+                    rulesetEffectSpell.SpellDefinition,
+                    enforceSpellCastingLimit: true);
 
             if (selected >= 0)
             {
@@ -425,6 +447,17 @@ public static class ReactionRequestCastSpellPatcher
             {
                 continue;
             }
+
+            if (requireAvailable && !available)
+            {
+                continue;
+            }
+
+            available &= SpellSlotCastingLimit2024Context.CanUseSpellSlotLevel(
+                character,
+                candidate,
+                spell,
+                slotLevel);
 
             if (requireAvailable && !available)
             {

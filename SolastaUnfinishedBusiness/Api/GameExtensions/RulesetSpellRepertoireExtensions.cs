@@ -12,12 +12,14 @@ namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 public static class RulesetSpellRepertoireExtensions
 {
     private static bool TryGetMulticasterWarlockSpellLevel(
+        RulesetSpellRepertoire repertoire,
         [CanBeNull] RulesetCharacter character,
         out int warlockSpellLevel)
     {
         warlockSpellLevel = 0;
 
-        if (character == null ||
+        if (!repertoire.UsesSharedSpellSlots() ||
+            character == null ||
             !SharedSpellsContext.IsMulticaster(character) ||
             SharedSpellsContext.GetWarlockSpellRepertoire(character) == null)
         {
@@ -49,6 +51,18 @@ public static class RulesetSpellRepertoireExtensions
     {
         return repertoire.SpellCastingFeature.GetFirstSubFeatureOfType<ClassHolder>()?.Class
                ?? repertoire.SpellCastingClass;
+    }
+
+    internal static bool UsesSharedSpellSlots(this FeatureDefinitionCastSpell spellCastingFeature)
+    {
+        return spellCastingFeature?.SpellCastingOrigin is
+            FeatureDefinitionCastSpell.CastingOrigin.Class or
+            FeatureDefinitionCastSpell.CastingOrigin.Subclass;
+    }
+
+    internal static bool UsesSharedSpellSlots(this RulesetSpellRepertoire repertoire)
+    {
+        return repertoire?.SpellCastingFeature.UsesSharedSpellSlots() == true;
     }
 
     public static bool AtLeastOneSpellSlotAvailable(this RulesetSpellRepertoire repertoire)
@@ -86,7 +100,7 @@ public static class RulesetSpellRepertoireExtensions
         pactRemaining = 0;
         pactMax = 0;
 
-        if (!TryGetMulticasterWarlockSpellLevel(character, out var warlockSpellLevel))
+        if (!TryGetMulticasterWarlockSpellLevel(repertoire, character, out var warlockSpellLevel))
         {
             return;
         }
@@ -125,7 +139,7 @@ public static class RulesetSpellRepertoireExtensions
         remaining = sharedRemaining;
         max = sharedMax;
 
-        if (!TryGetMulticasterWarlockSpellLevel(character, out var warlockSpellLevel))
+        if (!TryGetMulticasterWarlockSpellLevel(repertoire, character, out var warlockSpellLevel))
         {
             return;
         }
@@ -146,9 +160,13 @@ public static class RulesetSpellRepertoireExtensions
         SpellDefinition spellDefinition,
         out bool isAvailable)
     {
+        var usesSharedSpellSlots = repertoire.UsesSharedSpellSlots();
         var warlockSpellLevel =
-            character == null ? 0 : SharedSpellsContext.GetWarlockSpellLevel(character);
-        var isSingleClassWarlock = character != null &&
+            !usesSharedSpellSlots || character == null
+                ? 0
+                : SharedSpellsContext.GetWarlockSpellLevel(character);
+        var isSingleClassWarlock = usesSharedSpellSlots &&
+                                   character != null &&
                                    !SharedSpellsContext.IsMulticaster(character) &&
                                    warlockSpellLevel > 0;
 
@@ -167,7 +185,7 @@ public static class RulesetSpellRepertoireExtensions
 
             if (spellDefinition != null)
             {
-                if (character.IsSpellPointsEnabled())
+                if (usesSharedSpellSlots && character.IsSpellPointsEnabled())
                 {
                     isAvailable = SpellPointsContext.CanCastSpellOfLevel(
                         character,
@@ -204,7 +222,9 @@ public static class RulesetSpellRepertoireExtensions
             return 0;
         }
 
-        if (character == null || !SharedSpellsContext.IsMulticaster(character))
+        if (!repertoire.UsesSharedSpellSlots() ||
+            character == null ||
+            !SharedSpellsContext.IsMulticaster(character))
         {
             return availableSlotLevels[0];
         }

@@ -63,7 +63,8 @@ internal static class RitualBoxPatcher
                     repertoire,
                     __1,
                     null,
-                    out _))
+                    out _,
+                    bypassSpellSlotLimit: true))
             {
                 return;
             }

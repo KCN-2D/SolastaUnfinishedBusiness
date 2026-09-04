@@ -1,13 +1,15 @@
-Failure/&FailureFlagSpellMustBeOfTargetArea=El hechizo debe tener un área de efecto de cono, cubo, cilindro o esfera.
+﻿Failure/&FailureFlagSpellMustBeOfTargetArea=El hechizo debe tener un área de efecto de cono, cubo, cilindro o esfera.
 Failure/&FailureFlagSpellMustHaveDamageForm=El hechizo debe tener al menos una forma de daño.
 Failure/&FailureFlagSpellMustRequireConcentration=El hechizo debe requerir concentración.
 Failure/&FailureFlagSpellRangeMustBeSelf=El alcance del hechizo debe ser propio.
 Failure/&FailureSeekingSpell=El hechizo de búsqueda solo se activa después de un ataque mágico fallido.
 Failure/&FailureTransmutedSpell=El hechizo debe causar uno de estos tipos de daño: ácido, frío, fuego, rayo, veneno, trueno.
 Failure/&FailureFlagTwinnedSpell2024InvalidTargetAdvancement=El conjuro debe poder tener una criatura adicional como objetivo cuando se lanza con un espacio de nivel superior.
+Failure/&FailureFlagQuickenedSpell2024AlreadyCastLeveledSpell=No puedes usar Hechizo acelerado después de lanzar un conjuro de nivel 1 o superior en este turno.
+Failure/&FailureFlagQuickenedSpell2024CantripsOnly=Tras usar Hechizo acelerado, solo puedes lanzar trucos durante el resto de este turno.
 Rules/&MetamagicOptionCarefulSpell2024Description=Elige criaturas afectadas por el conjuro hasta tu modificador de Carisma, con un mínimo de una criatura. Tienen éxito automáticamente en sus tiradas de salvación, y si recibirían la mitad del daño con una salvación exitosa, no reciben daño en su lugar.
 Rules/&MetamagicOptionExtendedSpell2024Description=Duplica la duración de un conjuro que dura 1 minuto o más, hasta 24 horas. Si el conjuro requiere concentración, tienes ventaja en las tiradas de salvación de Constitución para mantener la concentración en él.
-Rules/&MetamagicOptionQuickenedSpell2024Description=Lanza un conjuro con tiempo de lanzamiento de 1 acción como acción adicional. Si lanzas así un conjuro de nivel 1 o superior, no puedes lanzar otro conjuro de nivel 1 o superior en el mismo turno, y no puedes usar esta opción si ya lanzaste uno este turno. Los trucos no están restringidos.
+Rules/&MetamagicOptionQuickenedSpell2024Description=Lanza un conjuro con un tiempo de lanzamiento de 1 acción como acción adicional. No puedes usar esta opción si ya has lanzado un conjuro de nivel 1 o superior en el turno actual. Tras usarla, solo puedes lanzar trucos durante el resto de ese turno.
 Rules/&MetamagicOptionTwinnedSpell2024Description=Cuando lanzas un conjuro que tendría una criatura adicional como objetivo si se lanzara con un espacio de un nivel superior, gasta 1 punto de hechicería para tratar su nivel efectivo como 1 superior para los objetivos sin gastar un espacio de nivel superior.
 Feature/&MetamagicAltruisticSpellAllyDescription=Crea un hechizo para apuntar a un aliado dentro de 30 pies en lugar de a ti mismo.
 Feature/&MetamagicAltruisticSpellAllyTitle=Hechizo compartido, solo aliado

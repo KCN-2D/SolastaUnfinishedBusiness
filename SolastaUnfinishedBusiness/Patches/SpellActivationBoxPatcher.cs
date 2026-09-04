@@ -69,7 +69,9 @@ public static class SpellActivationBoxPatcher
             //PATCH: MC casters must use the standard slot picker so shared and pact slots can coexist
             var caster = character.GetOriginalHero() ?? character;
 
-            return featureDefinitionCastSpell.UniqueLevelSlots && !SharedSpellsContext.IsMulticaster(caster);
+            return featureDefinitionCastSpell.UniqueLevelSlots &&
+                   (!featureDefinitionCastSpell.UsesSharedSpellSlots() ||
+                    !SharedSpellsContext.IsMulticaster(caster));
         }
 
         [UsedImplicitly]
@@ -84,7 +86,7 @@ public static class SpellActivationBoxPatcher
             var spellDefinition = spellActivationBox.GuiSpellDefinition?.SpellDefinition;
             var hasFreeWizardCast = Level20Context.HasFreeWizardCast(caster, repertoire, spellDefinition, spellLevel);
 
-            if (caster.IsSpellPointsEnabled())
+            if (repertoire.UsesSharedSpellSlots() && caster.IsSpellPointsEnabled())
             {
                 var canCastSpell = hasFreeWizardCast ||
                                    SpellPointsContext.CanCastSpellOfLevel(caster, repertoire, spellLevel);
@@ -110,6 +112,16 @@ public static class SpellActivationBoxPatcher
                 }
             }
 
+            if (remaining > 0 &&
+                !SpellSlotCastingLimit2024Context.CanUseSpellSlotLevel(
+                    caster,
+                    repertoire,
+                    spellDefinition,
+                    spellLevel))
+            {
+                remaining = 0;
+                spellActivationBox.hasUpcast = false;
+            }
         }
 
         [UsedImplicitly]

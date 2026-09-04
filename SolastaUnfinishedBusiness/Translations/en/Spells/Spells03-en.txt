@@ -85,3 +85,4 @@ Spell/&VitalityTransferDescription=You sacrifice some of your health to mend ano
 Spell/&VitalityTransferTitle=Life Transference
 Spell/&WinterBreathDescription=Create a blast of cold wind to chill your enemies and knock them prone.
 Spell/&WinterBreathTitle=Winter's Breath
+Spell/&CounterspellOneDndDescription=You attempt to interrupt a creature in the process of casting a spell. The creature makes a Constitution saving throw against your spell save DC. On a failed save, its spell fails and has no effect. If the spell was cast with a spell slot, that slot isn't expended.

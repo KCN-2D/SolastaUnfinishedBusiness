@@ -21,7 +21,8 @@ internal readonly struct SpellCastingValidationContext(
     SpellDefinition spellDefinition,
     RulesetEffectSpell activeSpell,
     bool bypassComponentsAndCastingTime,
-    bool bypassMaterialComponent)
+    bool bypassMaterialComponent,
+    bool bypassSpellSlotLimit)
 {
     internal RulesetCharacter Caster { get; } = caster;
     internal RulesetSpellRepertoire Repertoire { get; } = repertoire;
@@ -29,6 +30,7 @@ internal readonly struct SpellCastingValidationContext(
     internal RulesetEffectSpell ActiveSpell { get; } = activeSpell;
     internal bool BypassComponentsAndCastingTime { get; } = bypassComponentsAndCastingTime;
     internal bool BypassMaterialComponent { get; } = bypassMaterialComponent;
+    internal bool BypassSpellSlotLimit { get; } = bypassSpellSlotLimit;
 }
 
 internal static class SpellCastingValidation
@@ -211,7 +213,8 @@ internal static class SpellCastingValidation
         RulesetEffectSpell activeSpell,
         out string failure,
         bool bypassComponentsAndCastingTime = false,
-        bool bypassMaterialComponent = false)
+        bool bypassMaterialComponent = false,
+        bool bypassSpellSlotLimit = false)
     {
         failure = string.Empty;
 
@@ -242,7 +245,15 @@ internal static class SpellCastingValidation
             spellDefinition,
             activeSpell,
             bypassComponentsAndCastingTime,
-            bypassMaterialComponent);
+            bypassMaterialComponent,
+            bypassSpellSlotLimit);
+
+        if (!MetamagicContext.CanCastSpellWithQuickenedSpell2024Rules(context, out failure) ||
+            !SpellSlotCastingLimit2024Context.CanCastSpell(context, out failure))
+        {
+            return false;
+        }
+
         var validators = new List<IValidateSpellCasting>();
 
         if (caster.GetFeatureOwnerOrSelf() is RulesetCharacterSimulacrum &&
@@ -267,7 +278,7 @@ internal static class SpellCastingValidation
         return true;
     }
 
-    private static bool KnowsSpell(
+    internal static bool KnowsSpell(
         RulesetSpellRepertoire repertoire,
         SpellDefinition spellDefinition)
     {

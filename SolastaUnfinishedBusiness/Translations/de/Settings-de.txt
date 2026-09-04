@@ -254,6 +254,8 @@ ModUi/&EnableRangerTireless2024=Aktiviere <color=#D89555>Tireless</color>, um <c
 ModUi/&EnableRelearnSpells=Aktivieren Sie die Auswahl von Zaubersprüchen oder Zaubersprüchen, die Sie bereits aus anderen Quellen gelernt haben.
 ModUi/&EnableRespecAction=Aktivieren Sie <color=#D89555>RESPEC</color> nach der Rest-Aktion <i><color=#F0DAA0>[RESPEC nicht während einer Multiplayer-Sitzung verwenden]</color></i>
 ModUi/&EnableRitualOnAllCasters2024=Aktivieren Sie das Wirken von <color=#D89555>Ritualen</color> für alle Zauberer.
+ModUi/&EnableOneSpellSlotPerTurn2024=Wendet die 2024-Regel an, nach der pro Zug nur ein Zauberplatz zum Wirken eines Zaubers verbraucht werden kann <i><color=#F0DAA0>[Zaubertricks und Zauber ohne Zauberplatz sind nicht betroffen]</color></i>
+ModUi/&EnableOneDndCounterspellSpell=Verwendet die 2024-Regeln für <color=#D89555>Gegenzauber</color> <i><color=#F0DAA0>[der Zauberwirker macht einen Konstitutionsrettungswurf gegen deinen Zauberrettungs-SG; bei einem Fehlschlag wird der Platz des unterbrochenen Zaubers nicht verbraucht]</color></i>
 ModUi/&EnableRogueCunningStrike2024=Aktiviere <color=#D89555>Cunning Strike</color>, <color=#D89555>Improved Cunning Strike</color> und <color=#D89555>Devious Strike</color> auf den Leveln 5, 11 und 14 <i><color=#F0DAA0>[du lässt 1 Schleichangriffswürfel für zusätzliche Treffereffekte weg]</color></i>
 ModUi/&EnableRogueFightingStyle=Aktiviere die Auswahl <color=#D89555>Kampfstil</color> auf Stufe 2.
 ModUi/&EnableRogueReliableTalent2024=Aktiviere <color=#D89555>Zuverlässiges Talent</color> auf Stufe 7 statt 11.

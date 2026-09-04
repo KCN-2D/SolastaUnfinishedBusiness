@@ -93,9 +93,7 @@ internal static class SharedSpellsContext
     {
         return HasClassIdentity(rulesetCharacter) &&
                rulesetCharacter.SpellRepertoires
-                   .Count(repertoire =>
-                       repertoire?.SpellCastingFeature != null &&
-                       repertoire.SpellCastingFeature.SpellCastingOrigin != CastingOrigin.Race) > 1;
+                   .Count(repertoire => repertoire.UsesSharedSpellSlots()) > 1;
     }
 
     // factor mystic arcanum level if Warlock repertoire

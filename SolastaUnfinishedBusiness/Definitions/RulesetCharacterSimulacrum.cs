@@ -1054,7 +1054,8 @@ internal sealed class RulesetCharacterSimulacrum :
             spell,
             null,
             out failure,
-            bypassMaterialComponent: definition.OverrideMaterialComponent);
+            bypassMaterialComponent: definition.OverrideMaterialComponent,
+            bypassSpellSlotLimit: !definition.ConsumesSpellSlot);
     }
 
     public override bool CanCastAnyInvocation()

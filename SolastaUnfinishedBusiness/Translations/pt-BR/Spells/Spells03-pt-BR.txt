@@ -85,3 +85,4 @@ Spell/&VitalityTransferDescription=Você sacrifica um pouco da sua saúde para c
 Spell/&VitalityTransferTitle=Transferência de vida
 Spell/&WinterBreathDescription=Crie uma rajada de vento frio para congelar seus inimigos e derrubá-los.
 Spell/&WinterBreathTitle=Respiração do inverno
+Spell/&CounterspellOneDndDescription=Você tenta interromper uma criatura enquanto ela conjura uma magia. A criatura faz um teste de resistência de Constituição contra a sua CD de magia. Em caso de falha, a magia falha e não produz efeito. Se ela foi conjurada com um espaço de magia, esse espaço não é gasto.

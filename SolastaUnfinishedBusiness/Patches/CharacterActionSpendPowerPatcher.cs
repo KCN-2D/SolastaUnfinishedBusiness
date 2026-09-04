@@ -46,7 +46,8 @@ public static class CharacterActionSpendPowerPatcher
                 yield return battleManager.HandleReactionToDamageShare(target, damageReceived);
             }
 
-            if (!targetWasDeadOrDyingOrUnconscious && target.RulesetActor.IsDeadOrDyingOrUnconscious)
+            if (!targetWasDeadOrDyingOrUnconscious &&
+                target.RulesetActor is { IsDeadOrDyingOrUnconscious: true })
             {
                 yield return battleManager.HandleTargetReducedToZeroHP(attacker, target, null, effect);
             }
@@ -238,6 +239,14 @@ public static class CharacterActionSpendPowerPatcher
                     // should also happen outside battles
                     if (target.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false })
                     {
+                        foreach (var magicalAttackBeforeHitConfirmedOnMe in target.RulesetCharacter
+                                     .GetUsableSpellSubFeaturesByType<IMagicEffectBeforeHitConfirmedOnMe>())
+                        {
+                            yield return magicalAttackBeforeHitConfirmedOnMe.OnMagicEffectBeforeHitConfirmedOnMe(
+                                battleManager, actingCharacter, target, actionModifier,
+                                rulesetEffect, effectForms, i == 0, false);
+                        }
+
                         foreach (var magicalAttackBeforeHitConfirmedOnMe in target.RulesetCharacter
                                      .GetSubFeaturesByType<IMagicEffectBeforeHitConfirmedOnMe>())
                         {

@@ -1058,6 +1058,8 @@
     <AllowBladeCantripsToUseReach>true</AllowBladeCantripsToUseReach>
     <EnablePreparedSpellsTables2024>true</EnablePreparedSpellsTables2024>
     <EnableRitualOnAllCasters2024>true</EnableRitualOnAllCasters2024>
+    <EnableOneSpellSlotPerTurn2024>true</EnableOneSpellSlotPerTurn2024>
+    <EnableOneDndCounterspellSpell>true</EnableOneDndCounterspellSpell>
     <QuickCastLightCantripOnWornItemsFirst>false</QuickCastLightCantripOnWornItemsFirst>
     <IllusionSpellsAutomaticallyFailAgainstTrueSightInRange>true
     </IllusionSpellsAutomaticallyFailAgainstTrueSightInRange>

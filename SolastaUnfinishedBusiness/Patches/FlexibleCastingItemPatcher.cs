@@ -30,10 +30,8 @@ public static class FlexibleCastingItemPatcher
 
             if (caster is RulesetCharacterSimulacrum duplicate)
             {
-                var isMulticaster = duplicate.SpellRepertoires.Count(repertoire =>
-                    repertoire?.SpellCastingFeature != null &&
-                    repertoire.SpellCastingFeature.SpellCastingOrigin !=
-                    FeatureDefinitionCastSpell.CastingOrigin.Race) > 1;
+                var isMulticaster = duplicate.SpellRepertoires.Count(
+                    repertoire => repertoire.UsesSharedSpellSlots()) > 1;
 
                 if (!isMulticaster)
                 {

@@ -20,6 +20,11 @@ public interface ITryAlterOutcomeSavingThrow
         bool hasHitVisual);
 }
 
+internal delegate bool TryRollSavingThrowDelegate(
+    ActionModifier actionModifier,
+    out RollOutcome saveOutcome,
+    out int saveOutcomeDelta);
+
 public sealed class SavingThrowData
 {
     public RollOutcome SaveOutcome { get; set; }
@@ -33,6 +38,7 @@ public sealed class SavingThrowData
     public string Title { get; set; }
     public bool LegendaryResistanceUsed { get; set; }
     [CanBeNull] public CharacterAction Action { get; set; }
+    [CanBeNull] internal TryRollSavingThrowDelegate RerollSavingThrow { get; set; }
 
     internal void UpdateActionSaveOutcome()
     {
@@ -105,10 +111,13 @@ internal static class TryAlterOutcomeSavingThrow
                      .Where(u => u.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false })
                      .ToArray())
         {
-            foreach (var feature in unit.RulesetCharacter
-                         .GetSubFeaturesByType<ITryAlterOutcomeSavingThrow>()
-                         .Concat(unit.RulesetCharacter
-                             .GetUsableSpellSubFeaturesByType<ITryAlterOutcomeSavingThrow>()))
+            var handlers = unit.RulesetCharacter
+                .GetSubFeaturesByType<ITryAlterOutcomeSavingThrow>()
+                .Concat(unit.RulesetCharacter
+                    .GetUsableSpellSubFeaturesByType<ITryAlterOutcomeSavingThrow>())
+                .ToArray();
+
+            foreach (var feature in handlers)
             {
                 yield return feature.OnTryAlterOutcomeSavingThrow(
                     battleManager, attacker, defender, unit, savingThrowData, hasHitVisual);
@@ -126,8 +135,18 @@ internal static class TryAlterOutcomeSavingThrow
         var saveOutcome = RollOutcome.Neutral;
         var saveOutcomeDelta = 0;
 
+        if (savingThrowData.RerollSavingThrow != null)
+        {
+            if (!savingThrowData.RerollSavingThrow(
+                    new ActionModifier(),
+                    out saveOutcome,
+                    out saveOutcomeDelta))
+            {
+                return;
+            }
+        }
         // save comes from a gadget
-        if (action == null)
+        else if (action == null)
         {
             var actionModifier = new ActionModifier();
             var implementationService = ServiceRepository.GetService<IRulesetImplementationService>();

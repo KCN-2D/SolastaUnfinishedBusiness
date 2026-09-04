@@ -1,13 +1,15 @@
-Failure/&FailureFlagSpellMustBeOfTargetArea=주문에는 원뿔, 큐브, 원통 또는 구체의 효과 영역이 있어야 합니다.
+﻿Failure/&FailureFlagSpellMustBeOfTargetArea=주문에는 원뿔, 큐브, 원통 또는 구체의 효과 영역이 있어야 합니다.
 Failure/&FailureFlagSpellMustHaveDamageForm=주문에는 피해 형태가 하나 이상 있어야 합니다.
 Failure/&FailureFlagSpellMustRequireConcentration=주문에는 집중력이 필요합니다
 Failure/&FailureFlagSpellRangeMustBeSelf=주문 범위는 self여야 합니다.
 Failure/&FailureSeekingSpell=탐색 주문은 마법 공격이 실패한 후에만 발동됩니다.
 Failure/&FailureTransmutedSpell=주문은 산성, 냉기, 불, 번개, 독, 천둥 피해 유형 중 하나를 처리해야 합니다.
 Failure/&FailureFlagTwinnedSpell2024InvalidTargetAdvancement=그 주문은 더 높은 레벨의 주문 슬롯으로 시전할 때 추가 크리처 하나를 대상으로 삼을 수 있어야 합니다.
+Failure/&FailureFlagQuickenedSpell2024AlreadyCastLeveledSpell=이번 턴에 1레벨 이상의 주문을 시전한 후에는 재빠른 주문을 사용할 수 없습니다.
+Failure/&FailureFlagQuickenedSpell2024CantripsOnly=재빠른 주문을 사용한 후에는 이번 턴이 끝날 때까지 캔트립만 시전할 수 있습니다.
 Rules/&MetamagicOptionCarefulSpell2024Description=주문의 영향을 받는 크리처를 당신의 매력 수정치 수만큼, 최소 1체 선택합니다. 선택된 크리처는 내성 굴림에 자동으로 성공하며, 성공 시 절반 피해를 받을 효과라면 대신 피해를 받지 않습니다.
 Rules/&MetamagicOptionExtendedSpell2024Description=1분 이상 지속되는 주문의 지속시간을 최대 24시간까지 두 배로 늘립니다. 그 주문이 집중을 요구한다면, 그 집중을 유지하기 위한 건강 내성 굴림에 이점을 얻습니다.
-Rules/&MetamagicOptionQuickenedSpell2024Description=시전 시간이 1 행동인 주문을 추가 행동으로 시전합니다. 이 방법으로 1레벨 이상의 주문을 시전한 턴에는 같은 턴에 1레벨 이상의 다른 주문을 시전할 수 없으며, 이미 이 턴에 1레벨 이상의 주문을 시전했다면 이 옵션을 사용할 수 없습니다. 캔트립은 제한되지 않습니다.
+Rules/&MetamagicOptionQuickenedSpell2024Description=시전 시간이 1 행동인 주문을 추가 행동으로 시전합니다. 현재 턴에 이미 1레벨 이상의 주문을 시전했다면 이 옵션을 사용할 수 없습니다. 이 옵션을 사용한 후에는 그 턴이 끝날 때까지 캔트립만 시전할 수 있습니다.
 Rules/&MetamagicOptionTwinnedSpell2024Description=한 단계 높은 주문 슬롯으로 시전하면 추가 크리처 1체를 대상으로 삼을 수 있는 주문을 시전할 때, 1 소서리 포인트를 사용하여 더 높은 슬롯을 소비하지 않고 대상 계산에 한해 유효 레벨을 1 높입니다.
 Feature/&MetamagicAltruisticSpellAllyDescription=자신이 아닌 30피트 내의 아군을 대상으로 하는 주문을 만드세요.
 Feature/&MetamagicAltruisticSpellAllyTitle=공유 주문, 동맹국만

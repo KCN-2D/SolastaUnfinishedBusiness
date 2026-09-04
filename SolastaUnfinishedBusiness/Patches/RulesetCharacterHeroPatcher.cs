@@ -433,6 +433,40 @@ public static class RulesetCharacterHeroPatcher
             __result = __instance.CanUsePower(power);
             return false;
         }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetCharacterHero __instance,
+            RulesetInvocation invocation,
+            ref bool __result)
+        {
+            var definition = invocation?.InvocationDefinition;
+
+            if (!__result || definition?.GrantedSpell is not { } grantedSpell)
+            {
+                return;
+            }
+
+            if (!MetamagicContext.CanCastLeveledSpellAfterQuickenedSpell2024(__instance, grantedSpell))
+            {
+                __result = false;
+                return;
+            }
+
+            if (!definition.ConsumesSpellSlot)
+            {
+                return;
+            }
+
+            var repertoire =
+                invocation.InvocationRepertoire ?? __instance.GetSpellRepertoireForInvocations();
+
+            __result = SpellSlotCastingLimit2024Context.CanCastSpell(
+                __instance,
+                repertoire,
+                grantedSpell,
+                null);
+        }
     }
 
     [HarmonyPatch(typeof(RulesetCharacterHero), nameof(RulesetCharacterHero.GrantInvocations))]

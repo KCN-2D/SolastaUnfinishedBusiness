@@ -330,7 +330,8 @@ internal static class MulticlassGameUi
         Dictionary<int, bool> optionsAvailability,
         RulesetCharacter character,
         [NotNull] RulesetSpellRepertoire spellRepertoire, int minSpellLevel = 1, int maxSpellLevel = 0,
-        SpellDefinition spellDefinition = null)
+        SpellDefinition spellDefinition = null,
+        bool enforceSpellCastingLimit = false)
     {
         var availableSlotLevels = new List<int>();
 
@@ -350,6 +351,17 @@ internal static class MulticlassGameUi
                     out var isAvailable))
             {
                 continue;
+            }
+
+            if (isAvailable &&
+                enforceSpellCastingLimit &&
+                !SpellSlotCastingLimit2024Context.CanUseSpellSlotLevel(
+                    character,
+                    spellRepertoire,
+                    spellDefinition,
+                    level))
+            {
+                isAvailable = false;
             }
 
             optionsAvailability.Add(level, isAvailable);

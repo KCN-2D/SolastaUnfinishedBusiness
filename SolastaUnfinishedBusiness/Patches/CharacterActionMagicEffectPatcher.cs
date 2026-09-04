@@ -25,6 +25,66 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterActionMagicEffectPatcher
 {
+    [HarmonyPatch]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    internal static class HandlePostApplyMagicEffectOnZoneOrTargetsMoveNext_Patch
+    {
+        [UsedImplicitly]
+        private static MethodBase TargetMethod()
+        {
+            var iterator = typeof(CharacterActionMagicEffect)
+                .GetNestedTypes(BindingFlags.NonPublic)
+                .Single(type => type.Name.Contains("<HandlePostApplyMagicEffectOnZoneOrTargets>d__"));
+
+            return AccessTools.Method(iterator, "MoveNext");
+        }
+
+        [UsedImplicitly]
+        private static IEnumerable<CodeInstruction> Transpiler(
+            IEnumerable<CodeInstruction> instructions)
+        {
+            var actorStateGetter = AccessTools.PropertyGetter(
+                typeof(RulesetActor),
+                nameof(RulesetActor.IsDeadOrDyingOrUnconscious));
+            var safeActorStateGetter = AccessTools.Method(
+                typeof(HandlePostApplyMagicEffectOnZoneOrTargetsMoveNext_Patch),
+                nameof(IsDeadOrDyingOrUnconscious));
+            var replacements = 0;
+
+            foreach (var instruction in instructions)
+            {
+                if ((instruction.opcode == OpCodes.Call || instruction.opcode == OpCodes.Callvirt) &&
+                    Equals(instruction.operand, actorStateGetter))
+                {
+                    replacements++;
+                    var replacement = new CodeInstruction(OpCodes.Call, safeActorStateGetter);
+
+                    replacement.labels.AddRange(instruction.labels);
+                    replacement.blocks.AddRange(instruction.blocks);
+                    yield return replacement;
+                    continue;
+                }
+
+                yield return instruction;
+            }
+
+            if (replacements != 1)
+            {
+                throw new InvalidOperationException(
+                    "Expected one post-magic target actor state check, " +
+                    $"replaced {replacements}.");
+            }
+        }
+
+        private static bool IsDeadOrDyingOrUnconscious(RulesetActor actor)
+        {
+            // Damage reactions may terminate a summon while this iterator is suspended.
+            // A detached location target has no remaining reduced-to-zero pipeline to run.
+            return actor?.IsDeadOrDyingOrUnconscious ?? false;
+        }
+    }
+
     [HarmonyPatch(typeof(CharacterActionMagicEffect), nameof(CharacterActionMagicEffect.MagicEffectExecuteOnPositions))]
     [UsedImplicitly]
     public static class MagicEffectExecuteOnPositions_Patch
@@ -775,13 +835,18 @@ public static class CharacterActionMagicEffectPatcher
             // END PATCH
 
             __instance.SpendMagicEffectUses();
-            MetamagicContext.MarkLeveledSpellCast2024(__instance);
+            MetamagicContext.MarkSpellCast2024(__instance);
 
             // This is used to remove invisibility (for example) when casting a spell
             __instance.CheckInterruptionBefore();
 
             // Handle spell countering
             yield return __instance.WaitSpellCastAction(battleManager);
+
+            if (rulesetEffect is RulesetEffectSpell completedSpell)
+            {
+                SpellSlotCastingLimit2024Context.ForgetPayment(completedSpell);
+            }
 
             if (__instance.Countered)
             {

@@ -27,16 +27,20 @@ public static class SpellSelectionPanelPatcher
             ref bool cantripOnly,
             ActionDefinitions.ActionType actionType)
         {
-            //PATCH: supports `IReplaceAttackWithCantrip`
             var gameLocationCaster = caster.GameLocationCharacter;
 
+            // CharacterActionPanel passes the vanilla UsedMainSpell/UsedBonusSpell restriction to Bind.
+            // Rebuild the panel restriction when the 2024 slot-expenditure rule replaces that legacy rule.
+            SpellSlotCastingLimit2024Context.RemoveLegacyBonusActionSpellRestriction(ref cantripOnly);
+
+            //PATCH: supports `IReplaceAttackWithCantrip`
             if (gameLocationCaster.RulesetCharacter.HasSubFeatureOfType<IAttackReplaceWithCantrip>()
                 && gameLocationCaster.UsedMainAttacks > 0 && actionType == ActionDefinitions.ActionType.Main)
             {
                 cantripOnly = true;
             }
 
-            ActionSwitching.CheckSpellcastingCantrips(caster.GameLocationCharacter, actionType, ref cantripOnly);
+            ActionSwitching.CheckSpellcastingCantrips(gameLocationCaster, actionType, ref cantripOnly);
             MetamagicContext.RestrictToCantripsAfterQuickenedSpell2024(gameLocationCaster, ref cantripOnly);
         }
 

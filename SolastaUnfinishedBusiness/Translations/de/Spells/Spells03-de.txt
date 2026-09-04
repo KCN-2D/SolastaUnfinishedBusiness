@@ -85,3 +85,4 @@ Spell/&VitalityTransferDescription=Du opferst einen Teil deiner Gesundheit, um d
 Spell/&VitalityTransferTitle=Lebensübertragung
 Spell/&WinterBreathDescription=Erzeugen Sie einen kalten Windstoß, der Ihre Feinde unterkühlt und niederstreckt.
 Spell/&WinterBreathTitle=Winteratem
+Spell/&CounterspellOneDndDescription=Du versuchst, eine Kreatur beim Wirken eines Zaubers zu unterbrechen. Die Kreatur macht einen Konstitutionsrettungswurf gegen deinen Zauberrettungs-SG. Bei einem Fehlschlag misslingt ihr Zauber und hat keine Wirkung. Wurde der Zauber mit einem Zauberplatz gewirkt, wird dieser Platz nicht verbraucht.

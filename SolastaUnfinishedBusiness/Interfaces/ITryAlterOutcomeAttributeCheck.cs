@@ -430,10 +430,13 @@ internal static class TryAlterOutcomeAttributeCheck
                 continue;
             }
 
-            foreach (var tryAlterOutcomeAttributeCheck in unit.RulesetCharacter
-                         .GetSubFeaturesByType<ITryAlterOutcomeAttributeCheck>()
-                         .Concat(unit.RulesetCharacter
-                             .GetUsableSpellSubFeaturesByType<ITryAlterOutcomeAttributeCheck>()))
+            var handlers = unit.RulesetCharacter
+                .GetSubFeaturesByType<ITryAlterOutcomeAttributeCheck>()
+                .Concat(unit.RulesetCharacter
+                    .GetUsableSpellSubFeaturesByType<ITryAlterOutcomeAttributeCheck>())
+                .ToArray();
+
+            foreach (var tryAlterOutcomeAttributeCheck in handlers)
             {
                 yield return tryAlterOutcomeAttributeCheck.OnTryAlterAttributeCheck(
                     battleManager, rawRoll, abilityCheckData, actingCharacter, unit);

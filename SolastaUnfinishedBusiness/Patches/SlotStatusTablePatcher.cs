@@ -28,7 +28,8 @@ public static class SlotStatusTablePatcher
 
             // PATCH: display slots on multiclass casters so Warlocks can see their spell slots.
             return featureDefinitionCastSpell.UniqueLevelSlots &&
-                   !SharedSpellsContext.IsMulticaster(character);
+                   (!featureDefinitionCastSpell.UsesSharedSpellSlots() ||
+                    !SharedSpellsContext.IsMulticaster(character));
         }
 
         [UsedImplicitly]
@@ -63,7 +64,7 @@ public static class SlotStatusTablePatcher
                 return;
             }
 
-            if (spellRepertoire.SpellCastingRace)
+            if (!spellRepertoire.UsesSharedSpellSlots())
             {
                 return;
             }

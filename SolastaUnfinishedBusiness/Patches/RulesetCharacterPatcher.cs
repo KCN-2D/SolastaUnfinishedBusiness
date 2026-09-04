@@ -779,20 +779,41 @@ public static class RulesetCharacterPatcher
             //PATCH: game doesn't consider cantrips gained from BonusCantrips feature
             //because of __instance issue Inventor can't use Light cantrip from quick-cast button on UI
             //__instance patch tries to find requested cantrip in repertoire's ExtraSpellsByTag
-            if (spellDefinitionToCast.spellLevel != 0 || matchingRepertoire != null)
+            if (spellDefinitionToCast.spellLevel == 0 && matchingRepertoire == null)
+            {
+                foreach (var repertoire in __instance.SpellRepertoires
+                             .Where(repertoire => repertoire.ExtraSpellsByTag
+                                 .Any(x => x.Value.Contains(spellDefinitionToCast))))
+                {
+                    matchingRepertoire = repertoire;
+                    __result = 0;
+
+                    break;
+                }
+            }
+
+            if (__result <= 0 ||
+                matchingRepertoire == null ||
+                SpellSlotCastingLimit2024Context.CanUseSpellSlotLevel(
+                    __instance,
+                    matchingRepertoire,
+                    spellDefinitionToCast,
+                    __result))
             {
                 return;
             }
 
-            foreach (var repertoire in __instance.SpellRepertoires
-                         .Where(repertoire => repertoire.ExtraSpellsByTag
-                             .Any(x => x.Value.Contains(spellDefinitionToCast))))
+            if (SpellSlotCastingLimit2024Context.TryGetAvailableFreeUse(
+                    __instance,
+                    spellDefinitionToCast,
+                    out matchingRepertoire,
+                    out __result))
             {
-                matchingRepertoire = repertoire;
-                __result = 0;
-
-                break;
+                return;
             }
+
+            matchingRepertoire = null;
+            __result = 0;
         }
     }
 
@@ -3232,6 +3253,37 @@ public static class RulesetCharacterPatcher
         }
     }
 
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.CastSpell))]
+    [HarmonyPatch([typeof(RulesetEffectSpell), typeof(bool), typeof(bool)])]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CastSpell_Patch
+    {
+        [UsedImplicitly]
+        private static void Prefix(
+            RulesetCharacter __instance,
+            [HarmonyArgument(0)] RulesetEffectSpell activeSpell,
+            out SpellSlotCastingLimit2024Context.SpellSlotPaymentCapture __state)
+        {
+            __state = activeSpell?.RulesetInvocation?.InvocationDefinition is { ConsumesSpellSlot: true }
+                ? SpellSlotCastingLimit2024Context.BeginPayment(
+                    __instance,
+                    activeSpell,
+                    __instance.GetSpellRepertoireForInvocations())
+                : null;
+        }
+
+        [UsedImplicitly]
+        private static Exception Finalizer(
+            Exception __exception,
+            SpellSlotCastingLimit2024Context.SpellSlotPaymentCapture __state)
+        {
+            __state?.Complete();
+
+            return __exception;
+        }
+    }
+
     //PATCH: implements a better algorithm on SpendSpellSlot to support more than 1 affinity that preserves slot roll
     [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.SpendSpellSlot))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -3297,8 +3349,13 @@ public static class RulesetCharacterPatcher
                     var spellRepertoire =
                         TryRedirectFeatGrantedReactionSpellSlot(__instance, activeSpell) ??
                         activeSpell.SpellRepertoire;
+                    var payment = SpellSlotCastingLimit2024Context.BeginPayment(
+                        __instance,
+                        activeSpell,
+                        spellRepertoire);
 
                     spellRepertoire.SpendSpellSlot(resourceSlotLevel);
+                    payment?.Complete();
                 }
             }
 

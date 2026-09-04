@@ -304,7 +304,12 @@ public static class SmiteSpells2024Context
                    && ((canFreeUseDivineSmite && spell == Tabletop2024Context.DivineSmiteSpell)
                        || (spellPoints && repertoire.SpellCastingFeature?.UniqueLevelSlots != true
                            ? SpellPointsContext.CanCastSpellOfLevel(character, spell.SpellLevel)
-                           : repertoire.CanCastSpellOfLevel(spell.SpellLevel)));
+                           : repertoire.CanCastSpellOfLevel(spell.SpellLevel)) &&
+                       SpellSlotCastingLimit2024Context.CanUseSpellSlotLevel(
+                           character,
+                           repertoire,
+                           spell,
+                           spell.SpellLevel));
         }
     }
     
@@ -349,13 +354,6 @@ public static class SmiteSpells2024Context
     }
     else if (index >= caster.actionPerformancesByType[actionType].Count)
     {
-        return ActionStatus.Unavailable;
-    }
-
-
-    if (index >= caster.actionPerformancesByType[actionType].Count)
-    {
-        Trace.LogAssertion("Not enough ranks for action type" + actionType);
         return ActionStatus.Unavailable;
     }
 
@@ -510,7 +508,12 @@ internal class ReactionRequestSelectSmiteSlot : ReactionRequestCastSpell
         for (var slotLevel = _spellLevel; slotLevel <= maxSpellLevel; ++slotLevel, ++index)
         {
             spellRepertoire.GetSlotsNumber(slotLevel, out var remaining, out _);
-            var hasSlots = remaining > 0;
+            var hasSlots = remaining > 0 &&
+                           SpellSlotCastingLimit2024Context.CanUseSpellSlotLevel(
+                               reactionParams.ActingCharacter.RulesetCharacter,
+                               spellRepertoire,
+                               spell,
+                               slotLevel);
             SubOptionsAvailability.Add(slotLevel, hasSlots);
             if (preSelected < 0 && hasSlots) { preSelected = index; }
         }

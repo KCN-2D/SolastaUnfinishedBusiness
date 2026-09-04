@@ -284,9 +284,8 @@ public static partial class Tabletop2024Context
                 yield break;
             }
 
-            var slotLevel = character.SpellRepertoires.Count(candidate =>
-                                candidate?.SpellCastingFeature?.SpellCastingOrigin !=
-                                FeatureDefinitionCastSpell.CastingOrigin.Race) > 1
+            var slotLevel = character.SpellRepertoires.Count(
+                                candidate => candidate.UsesSharedSpellSlots()) > 1
                 ? SharedSpellsContext.PactMagicSlotsTab
                 : repertoire.spellsSlotCapacities
                     .Where(pair => pair.Key is > 0 and <= 9 && pair.Value > 0)

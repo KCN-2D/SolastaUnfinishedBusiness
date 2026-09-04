@@ -900,6 +900,11 @@ public static class CustomActionIdContext
             return ActionStatus.Unavailable;
         }
 
+        if (MetamagicContext.HasLeveledSpellCastThisTurn(glc))
+        {
+            return ActionStatus.CannotPerform;
+        }
+
         return glc.RulesetCharacter.RemainingSorceryPoints < quickenedSpell.SorceryPointsCost
             ? ActionStatus.OutOfUses
             : ActionStatus.Available;
@@ -909,6 +914,18 @@ public static class CustomActionIdContext
         ref string fail)
     {
         if (action.ActionId != (Id)ExtraActionId.CastQuickened) { return; }
+
+        if (status == ActionStatus.CannotPerform &&
+            MetamagicContext.HasLeveledSpellCastThisTurn(action.ActingCharacter))
+        {
+            tooltip.Content = tooltip.Content.Substring(0, tooltip.Content.Length - fail.Length);
+            fail = "\n" + Gui.Colorize(
+                Gui.Format(MetamagicContext.FailureFlagQuickenedSpell2024AlreadyCastLeveledSpell),
+                Gui.ColorFailure);
+            tooltip.Content += fail;
+
+            return;
+        }
 
         if (status != ActionStatus.OutOfUses) { return; }
 

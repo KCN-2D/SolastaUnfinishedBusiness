@@ -41,11 +41,15 @@ internal static class MetamagicContext
     private const string MetamagicTwinnedSpell2024Description =
         "Rules/&MetamagicOptionTwinnedSpell2024Description";
     private const string LeveledSpellCastThisTurn = "Metamagic2024LeveledSpellCastThisTurn";
-    private const string QuickenedLeveledSpellCastThisTurn = "Metamagic2024QuickenedLeveledSpellCastThisTurn";
+    private const string QuickenedSpellCastThisTurn = "Metamagic2024QuickenedSpellCastThisTurn";
     private const string ConditionCarefulSpell2024 = "ConditionMetamagicCarefulSpell2024Protected";
     private const string ConditionExtendedSpell2024 = "ConditionMetamagicExtendedSpell2024Concentration";
     internal const string FailureFlagTwinnedSpell2024InvalidTargetAdvancement =
         "Failure/&FailureFlagTwinnedSpell2024InvalidTargetAdvancement";
+    internal const string FailureFlagQuickenedSpell2024AlreadyCastLeveledSpell =
+        "Failure/&FailureFlagQuickenedSpell2024AlreadyCastLeveledSpell";
+    internal const string FailureFlagQuickenedSpell2024CantripsOnly =
+        "Failure/&FailureFlagQuickenedSpell2024CantripsOnly";
 
     private static readonly Dictionary<string, MetamagicCostState> LegacyCostStates = [];
     private static readonly Dictionary<string, string> LegacyDescriptionKeys = [];
@@ -130,15 +134,20 @@ internal static class MetamagicContext
     internal static bool HasLeveledSpellCastThisTurn(GameLocationCharacter character)
     {
         return Main.Settings.EnableSorcererMetamagic2024 &&
+               IsCurrentTurn(character) &&
                character.UsedSpecialFeatures.ContainsKey(LeveledSpellCastThisTurn);
     }
 
-    internal static bool CanConfirmQuickenedSpell2024(
-        GameLocationCharacter character,
-        RulesetEffectSpell rulesetEffectSpell)
+    internal static bool HasQuickenedSpellCastThisTurn(GameLocationCharacter character)
+    {
+        return Main.Settings.EnableSorcererMetamagic2024 &&
+               IsCurrentTurn(character) &&
+               character.UsedSpecialFeatures.ContainsKey(QuickenedSpellCastThisTurn);
+    }
+
+    internal static bool CanUseQuickenedSpell2024(GameLocationCharacter character)
     {
         return !Main.Settings.EnableSorcererMetamagic2024 ||
-               RulesetEffectSpellWithOrigin.GetOriginSpell(rulesetEffectSpell).SpellLevel == 0 ||
                !HasLeveledSpellCastThisTurn(character);
     }
 
@@ -147,7 +156,7 @@ internal static class MetamagicContext
         ref bool cantripOnly)
     {
         if (!Main.Settings.EnableSorcererMetamagic2024 ||
-            !character.UsedSpecialFeatures.ContainsKey(QuickenedLeveledSpellCastThisTurn))
+            !HasQuickenedSpellCastThisTurn(character))
         {
             return;
         }
@@ -155,22 +164,80 @@ internal static class MetamagicContext
         cantripOnly = true;
     }
 
-    internal static void MarkLeveledSpellCast2024(CharacterActionMagicEffect action)
+    internal static bool CanCastSpellWithQuickenedSpell2024Rules(
+        SpellCastingValidationContext context,
+        out string failure)
+    {
+        failure = string.Empty;
+
+        if (!Main.Settings.EnableSorcererMetamagic2024)
+        {
+            return true;
+        }
+
+        var character = GameLocationCharacter.GetFromActor(context.Caster);
+        var spell = context.ActiveSpell == null
+            ? context.SpellDefinition
+            : RulesetEffectSpellWithOrigin.GetOriginSpell(context.ActiveSpell);
+
+        if (context.ActiveSpell?.MetamagicOption == MetamagicOptionDefinitions.MetamagicQuickenedSpell &&
+            HasLeveledSpellCastThisTurn(character))
+        {
+            failure = FailureFlagQuickenedSpell2024AlreadyCastLeveledSpell;
+            return false;
+        }
+
+        if (spell?.SpellLevel <= 0 ||
+            !HasQuickenedSpellCastThisTurn(character))
+        {
+            return true;
+        }
+
+        failure = FailureFlagQuickenedSpell2024CantripsOnly;
+        return false;
+    }
+
+    internal static bool CanQueueReactionSpell2024(CharacterActionParams reactionParams)
+    {
+        if (reactionParams?.ActionDefinition?.Id != ActionDefinitions.Id.CastReaction ||
+            reactionParams.RulesetEffect is not RulesetEffectSpell activeSpell)
+        {
+            return true;
+        }
+
+        return CanCastLeveledSpellAfterQuickenedSpell2024(
+            reactionParams.ActingCharacter?.RulesetCharacter,
+            RulesetEffectSpellWithOrigin.GetOriginSpell(activeSpell));
+    }
+
+    internal static bool CanCastLeveledSpellAfterQuickenedSpell2024(
+        RulesetCharacter caster,
+        SpellDefinition spellDefinition)
+    {
+        return !Main.Settings.EnableSorcererMetamagic2024 ||
+               spellDefinition?.SpellLevel <= 0 ||
+               !HasQuickenedSpellCastThisTurn(GameLocationCharacter.GetFromActor(caster));
+    }
+
+    internal static void MarkSpellCast2024(CharacterActionMagicEffect action)
     {
         if (!Main.Settings.EnableSorcererMetamagic2024 ||
-            action.ActionParams?.RulesetEffect is not RulesetEffectSpell rulesetEffectSpell ||
-            RulesetEffectSpellWithOrigin.GetOriginSpell(rulesetEffectSpell).SpellLevel == 0)
+            action.ActionParams?.RulesetEffect is not RulesetEffectSpell rulesetEffectSpell)
         {
             return;
         }
 
+        var spell = RulesetEffectSpellWithOrigin.GetOriginSpell(rulesetEffectSpell);
         var actingCharacter = action.ActingCharacter;
-
-        actingCharacter.UsedSpecialFeatures[LeveledSpellCastThisTurn] = 1;
 
         if (rulesetEffectSpell.MetamagicOption == MetamagicOptionDefinitions.MetamagicQuickenedSpell)
         {
-            actingCharacter.UsedSpecialFeatures[QuickenedLeveledSpellCastThisTurn] = 1;
+            actingCharacter.UsedSpecialFeatures[QuickenedSpellCastThisTurn] = 1;
+        }
+
+        if (spell?.SpellLevel > 0)
+        {
+            actingCharacter.UsedSpecialFeatures[LeveledSpellCastThisTurn] = 1;
         }
     }
 
@@ -340,6 +407,12 @@ internal static class MetamagicContext
             carefulSpell.AddCustomSubFeatures(new CarefulSpell2024Behavior(_conditionCarefulSpell2024));
         }
 
+        if (TryGetMetamagic(MetamagicQuickenedSpell, out var quickenedSpell))
+        {
+            quickenedSpell.AddCustomSubFeatures(
+                new ValidateMetamagicApplication(ValidateQuickenedSpell2024));
+        }
+
         if (TryGetMetamagic(MetamagicExtendedSpell, out var extendedSpell))
         {
             extendedSpell.AddCustomSubFeatures(new ExtendedSpell2024Behavior(_conditionExtendedSpell2024));
@@ -398,6 +471,34 @@ internal static class MetamagicContext
 
         result = CanApplyTwinnedSpell2024(rulesetEffectSpell, false);
         failure = result ? string.Empty : FailureFlagTwinnedSpell2024InvalidTargetAdvancement;
+    }
+
+    private static void ValidateQuickenedSpell2024(
+        RulesetCharacter caster,
+        RulesetEffectSpell rulesetEffectSpell,
+        MetamagicOptionDefinition metamagicOption,
+        ref bool result,
+        ref string failure)
+    {
+        _ = rulesetEffectSpell;
+
+        if (!Main.Settings.EnableSorcererMetamagic2024 ||
+            metamagicOption.Name != MetamagicQuickenedSpell ||
+            CanUseQuickenedSpell2024(GameLocationCharacter.GetFromActor(caster)))
+        {
+            return;
+        }
+
+        result = false;
+        failure = FailureFlagQuickenedSpell2024AlreadyCastLeveledSpell;
+    }
+
+    private static bool IsCurrentTurn(GameLocationCharacter character)
+    {
+        return character != null &&
+               ServiceRepository.GetService<IGameLocationBattleService>() is
+               { IsBattleInProgress: true, Battle: { } battle } &&
+               ReferenceEquals(battle.ActiveContender, character);
     }
 
     private static bool TryGetMetamagic(string name, out MetamagicOptionDefinition metamagicOption)

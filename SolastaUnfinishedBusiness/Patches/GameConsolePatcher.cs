@@ -122,6 +122,43 @@ public static class GameConsolePatcher
         }
     }
 
+    [HarmonyPatch(typeof(GameConsole), nameof(GameConsole.LegendaryActionUsed))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class LegendaryActionUsed_Patch
+    {
+        private const string UnknownLegendarySpellLine =
+            "Feedback/&LegendaryActionSpellCastUnknownLine";
+
+        [UsedImplicitly]
+        public static bool Prefix(
+            GameConsole __instance,
+            RulesetCharacter character,
+            LegendaryActionDescription legendaryActionDescription)
+        {
+            if (character is not RulesetCharacterMonster { Side: RuleDefinitions.Side.Enemy } ||
+                legendaryActionDescription?.Subaction != LegendaryActionDescription.SubactionType.Spell)
+            {
+                return true;
+            }
+
+            // Native logging reveals the spell name before the identification check runs.
+            // Keep the legendary-action event visible, then let SpellIdentified disclose the
+            // specific spell only when the subsequent identification check succeeds.
+            var entry = new GameConsoleEntry(
+                UnknownLegendarySpellLine,
+                __instance.consoleTableDefinition)
+            {
+                Indent = true
+            };
+
+            __instance.AddCharacterEntry(character, entry);
+            __instance.AddEntry(entry);
+
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(GameConsoleEntry), nameof(GameConsoleEntry.ComputeHeight))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

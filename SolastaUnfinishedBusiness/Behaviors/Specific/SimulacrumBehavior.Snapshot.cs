@@ -46,10 +46,25 @@ internal sealed partial class SimulacrumBehavior
             return;
         }
 
-        if (duplicate.LifecycleState == SimulacrumLifecycleState.Initializing &&
-            InitializingSnapshotSeeds.TryGetValue(duplicate, out var seed))
+        if (duplicate.LifecycleState == SimulacrumLifecycleState.Initializing)
         {
-            seed.ApplyInitialAttributes(duplicate);
+            if (InitializingSnapshotSeeds.TryGetValue(duplicate, out var seed))
+            {
+                seed.ApplyInitialAttributes(duplicate);
+
+                return;
+            }
+
+            // Monster PostLoad refreshes the 1 HP construction shell before the loaded
+            // snapshot is reapplied. Preserve the CurrentHitPoints read by RulesetActor.
+            if (TryGetSnapshot(duplicate, out var loadedSnapshot) &&
+                loadedSnapshot.IsCurrentSchema &&
+                loadedSnapshot.HalfMaximumHitPoints > 0)
+            {
+                loadedSnapshot.RestoreHitPointsAfterCompute(
+                    duplicate,
+                    currentHitPoints);
+            }
 
             return;
         }

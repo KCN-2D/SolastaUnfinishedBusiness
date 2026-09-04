@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -16,6 +17,10 @@ namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
 internal static class RulesetCharacterExtensions
 {
+    private static readonly Action<RulesetCharacter> RefreshUsableSpells =
+        AccessTools.MethodDelegate<Action<RulesetCharacter>>(
+            AccessTools.Method(typeof(RulesetCharacter), "EnumerateUsableSpells"));
+
 #if false
     internal static bool IsWearingLightArmor([NotNull] this RulesetCharacter _)
     {
@@ -43,9 +48,13 @@ internal static class RulesetCharacterExtensions
     internal static IEnumerable<T> GetUsableSpellSubFeaturesByType<T>(this RulesetCharacter rulesetCharacter)
         where T : class
     {
+        // UsableSpells is a rebuildable game cache. Reaction hooks may run before any vanilla caller refreshes it.
+        RefreshUsableSpells(rulesetCharacter);
+
         return rulesetCharacter.UsableSpells
             .SelectMany(spell => spell.GetAllSubFeaturesOfType<T>())
-            .Distinct();
+            .Distinct()
+            .ToArray();
     }
 
     internal static int GetSubclassLevel(

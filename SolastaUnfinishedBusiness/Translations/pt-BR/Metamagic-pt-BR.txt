@@ -1,13 +1,15 @@
-Failure/&FailureFlagSpellMustBeOfTargetArea=O feitiço deve ter uma área de efeito de cone, cubo, cilindro ou esfera
+﻿Failure/&FailureFlagSpellMustBeOfTargetArea=O feitiço deve ter uma área de efeito de cone, cubo, cilindro ou esfera
 Failure/&FailureFlagSpellMustHaveDamageForm=O feitiço deve ter pelo menos uma forma de dano
 Failure/&FailureFlagSpellMustRequireConcentration=O feitiço deve exigir concentração
 Failure/&FailureFlagSpellRangeMustBeSelf=O alcance do feitiço deve ser próprio
 Failure/&FailureSeekingSpell=A busca por magia só é ativada após um ataque mágico falhado
 Failure/&FailureTransmutedSpell=O feitiço deve causar um destes tipos de dano: ácido, frio, fogo, raio, veneno, trovão
 Failure/&FailureFlagTwinnedSpell2024InvalidTargetAdvancement=A magia deve poder ter uma criatura adicional como alvo quando conjurada com um espaço de nível superior.
+Failure/&FailureFlagQuickenedSpell2024AlreadyCastLeveledSpell=Você não pode usar Magia Acelerada depois de conjurar uma magia de nível 1 ou superior neste turno.
+Failure/&FailureFlagQuickenedSpell2024CantripsOnly=Depois de usar Magia Acelerada, você só pode conjurar truques pelo restante deste turno.
 Rules/&MetamagicOptionCarefulSpell2024Description=Escolha criaturas afetadas pela magia até o seu modificador de Carisma, com mínimo de uma criatura. Elas obtêm sucesso automaticamente em suas salvaguardas e, se sofreriam metade do dano com uma salvaguarda bem-sucedida, não sofrem dano.
 Rules/&MetamagicOptionExtendedSpell2024Description=Dobra a duração de uma magia que dure 1 minuto ou mais, até 24 horas. Se a magia exigir concentração, você tem vantagem nas salvaguardas de Constituição para manter a concentração nela.
-Rules/&MetamagicOptionQuickenedSpell2024Description=Conjure uma magia com tempo de conjuração de 1 ação como ação bônus. Se você conjurar assim uma magia de nível 1 ou superior, não pode conjurar outra magia de nível 1 ou superior no mesmo turno, e não pode usar esta opção se já conjurou uma neste turno. Truques não são restringidos.
+Rules/&MetamagicOptionQuickenedSpell2024Description=Conjure uma magia com tempo de conjuração de 1 ação como ação bônus. Você não pode usar esta opção se já tiver conjurado uma magia de nível 1 ou superior no turno atual. Depois de usá-la, você só pode conjurar truques pelo restante desse turno.
 Rules/&MetamagicOptionTwinnedSpell2024Description=Quando você conjura uma magia que teria uma criatura adicional como alvo se fosse conjurada com um espaço um nível acima, gaste 1 Ponto de Feitiçaria para tratar seu nível efetivo como 1 maior para alvos, sem gastar um espaço superior.
 Feature/&MetamagicAltruisticSpellAllyDescription=Crie um feitiço para mirar em um aliado a até 9 metros de distância em vez de em si mesmo.
 Feature/&MetamagicAltruisticSpellAllyTitle=Feitiço Compartilhado, Somente Aliado

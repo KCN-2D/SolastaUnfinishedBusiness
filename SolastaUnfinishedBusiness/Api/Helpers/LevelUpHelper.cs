@@ -415,12 +415,6 @@ internal static class LevelUpHelper
         return spellRepertoire != null ? SharedSpellsContext.MaxSpellLevelOfSpellCastingLevel(spellRepertoire) : 1;
     }
 
-    private static bool IsClassOrSubclassSpellRepertoire(RulesetSpellRepertoire repertoire)
-    {
-        return repertoire is { SpellCastingFeature: not null } &&
-               (repertoire.SpellCastingClass || repertoire.SpellCastingSubclass);
-    }
-
     private static bool IsSpellCastableWithRepertoireSlots(
         SpellDefinition spell,
         int maxSpellLevel,
@@ -448,7 +442,7 @@ internal static class LevelUpHelper
         RulesetSpellRepertoire repertoire,
         int spellLevel = AnySpellLevel)
     {
-        if (character == null || !IsClassOrSubclassSpellRepertoire(repertoire))
+        if (character == null || !repertoire.UsesSharedSpellSlots())
         {
             yield break;
         }

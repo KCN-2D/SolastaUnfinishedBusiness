@@ -142,9 +142,35 @@ public static class GameLocationActionManagerPatcher
             bool stillConscious,
             bool massiveDamage)
         {
-            //PATCH: support for `DoNotTerminateWhileUnconscious`
-            yield return RestrictEffectToNotTerminateWhileUnconscious.TerminateAllSpellsAndEffects(
-                values, rulesetTarget, wasConscious, stillConscious, massiveDamage);
+            var characterGuid = SimulacrumBehavior.BeginDamageResolution(rulesetTarget);
+
+            return TrackDamageResolution(
+                values,
+                rulesetTarget,
+                wasConscious,
+                stillConscious,
+                massiveDamage,
+                characterGuid);
+        }
+
+        private static IEnumerator TrackDamageResolution(
+            IEnumerator values,
+            RulesetCharacter rulesetTarget,
+            bool wasConscious,
+            bool stillConscious,
+            bool massiveDamage,
+            ulong characterGuid)
+        {
+            try
+            {
+                //PATCH: support for `DoNotTerminateWhileUnconscious`
+                yield return RestrictEffectToNotTerminateWhileUnconscious.TerminateAllSpellsAndEffects(
+                    values, rulesetTarget, wasConscious, stillConscious, massiveDamage);
+            }
+            finally
+            {
+                SimulacrumBehavior.EndDamageResolution(characterGuid);
+            }
         }
     }
 
@@ -203,6 +229,16 @@ public static class GameLocationActionManagerPatcher
         [UsedImplicitly]
         public static bool Prefix(GameLocationActionManager __instance, ReactionRequest reactionRequest)
         {
+            // Apply the 2024 casting restrictions at the common queue boundary. This prevents blocked
+            // reaction spells from opening a menu regardless of which request type created them.
+            if (!MetamagicContext.CanQueueReactionSpell2024(reactionRequest.ReactionParams) ||
+                !SpellSlotCastingLimit2024Context.CanQueueReactionSpell(reactionRequest.ReactionParams))
+            {
+                reactionRequest.ReactionParams.RulesetEffect?.Terminate(false);
+
+                return false;
+            }
+
             AddInterruptRequest(__instance, reactionRequest);
 
             return false;

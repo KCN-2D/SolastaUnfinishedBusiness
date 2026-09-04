@@ -149,6 +149,19 @@ internal static class SpellsDisplay
             Tabletop2024Context.SwitchOneDndSpellRitualOnAllCasters();
         }
 
+        toggle = Main.Settings.EnableOneSpellSlotPerTurn2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneSpellSlotPerTurn2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneSpellSlotPerTurn2024 = toggle;
+        }
+
+        toggle = Main.Settings.EnableOneDndCounterspellSpell;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndCounterspellSpell"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndCounterspellSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellCounterspell();
+        }
+
         UI.Label();
 
         toggle = Main.Settings.EnableOneDndBarkskinSpell;

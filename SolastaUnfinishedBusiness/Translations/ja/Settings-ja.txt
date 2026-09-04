@@ -246,6 +246,8 @@ ModUi/&EnableRangerAnyFightingStyle2024=<color=#D89555>レンジャー</color>�
 ModUi/&EnableRelearnSpells=他のソースからすでに学習した初級呪文や呪文を選択できるようにする
 ModUi/&EnableRespecAction=休憩アクション後に<color=#D89555>RESPEC</color>を有効にします<i><color=#F0DAA0>（マルチプレイヤーセッション中はRESPECを使用しないでください）</color></i>
 ModUi/&EnableRitualOnAllCasters2024=すべての呪文発動者が準備済みの儀式呪文を儀式として発動できるようにする
+ModUi/&EnableOneSpellSlotPerTurn2024=1ターン中、呪文を発動するために消費できる呪文スロットを1つに制限する<i><color=#F0DAA0>（初級呪文と、呪文スロットを消費せずに発動する呪文には影響しない）</color></i>
+ModUi/&EnableOneDndCounterspellSpell=<color=#D89555>呪文妨害</color>を2024年版に変更する<i><color=#F0DAA0>（対象の呪文発動者はあなたの呪文セーヴ難易度に対して耐久力セーヴィング・スローを行う。失敗すると妨害された呪文は失敗し、その発動に使用した呪文スロットは消費されない）</color></i>
 ModUi/&EnableRogueCunningStrike2024=レベル5、11、14で<color=#D89555>巧妙な一撃</color>、<color=#D89555>改良された巧妙な一撃</color>、<color=#D89555>悪巧みの一撃</color>を有効にします<i><color=#F0DAA0>（追加の命中時効果を得るために、急所攻撃ダイスを1つ放棄します）</color></i>
 ModUi/&EnableRogueFightingStyle=レベル2で<color=#D89555>戦闘スタイル</color>の選択を有効にする
 ModUi/&EnableRogueReliableTalent2024=<color=#D89555>信頼できる才能</color>をレベル11ではなくレベル7で有効にします

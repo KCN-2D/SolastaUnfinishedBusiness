@@ -194,6 +194,10 @@ public static class CharacterActionPatcher
             IEnumerator values,
             CharacterAction __instance)
         {
+            var actingCharacter = __instance.ActingCharacter;
+            using var reactionEngagementScope =
+                new ExplorationReactionEngagementScope(__instance, actingCharacter);
+
             using (CombatAnimationContext.BeginActionScope(__instance))
             {
                 while (values.MoveNext())
@@ -205,7 +209,6 @@ public static class CharacterActionPatcher
             CombatAiContext.TryCompletePendingActionLinkedMove(__instance);
 
             //PATCH: support for `IActionFinishedByMe`
-            var actingCharacter = __instance.ActingCharacter;
             var rulesetCharacter = actingCharacter.RulesetCharacter;
 
             foreach (var actionFinished in rulesetCharacter
@@ -274,6 +277,40 @@ public static class CharacterActionPatcher
             }
 
             CombatAiContext.NormalizeFallbackDodgeAfterAction(__instance);
+        }
+
+        private readonly struct ExplorationReactionEngagementScope : IDisposable
+        {
+            private readonly CharacterAction _action;
+            private readonly GameLocationCharacter _actingCharacter;
+
+            internal ExplorationReactionEngagementScope(
+                CharacterAction action,
+                GameLocationCharacter actingCharacter)
+            {
+                _action = action;
+                _actingCharacter = actingCharacter;
+            }
+
+            public void Dispose()
+            {
+                ReleaseExplorationReactionEngagement(_action, _actingCharacter);
+            }
+        }
+
+        private static void ReleaseExplorationReactionEngagement(
+            CharacterAction action,
+            GameLocationCharacter actingCharacter)
+        {
+            if (action.ActionType != ActionDefinitions.ActionType.Reaction ||
+                actingCharacter == null ||
+                ServiceRepository.GetService<IGameLocationBattleService>() is not { IsBattleInProgress: false })
+            {
+                return;
+            }
+
+            // BUGFIX: reaction actions set this flag on execution, but exploration has no turn reset to clear it.
+            actingCharacter.ReactionEngaged = false;
         }
     }
 

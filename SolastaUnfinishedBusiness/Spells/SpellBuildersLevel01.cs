@@ -2055,7 +2055,7 @@ internal static partial class SpellBuilders
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolAbjuration)
             .SetSpellLevel(1)
             .SetCastingTime(ActivationTime.Reaction)
-            .SetMaterialComponent(MaterialComponentType.Mundane)
+            .SetMaterialComponent(MaterialComponentType.None)
             .SetVerboseComponent(false)
             .SetSomaticComponent(true)
             .SetVocalSpellSameType(VocalSpellSemeType.Attack)
@@ -2149,11 +2149,45 @@ internal static partial class SpellBuilders
     }
 
     private sealed class CustomBehaviorElementalInfusion(SpellDefinition spellDefinition) :
-        IPhysicalAttackBeforeHitConfirmedOnMe, IMagicEffectBeforeHitConfirmedOnMe
+        IPhysicalAttackBeforeHitConfirmedOnMe,
+        IMagicEffectBeforeHitConfirmedOnMe,
+        IPowerOrSpellFinishedByMe
     {
         private static readonly IEnumerable<string> AllowedDamageTypes = DamagesAndEffects
             .Where(x => x.Item1 != DamageTypePoison)
             .Select(x => x.Item1);
+
+        private readonly Dictionary<ulong, PendingElementalInfusion> _pendingByCaster = [];
+
+        public IEnumerator OnPowerOrSpellFinishedByMe(
+            CharacterActionMagicEffect action,
+            BaseDefinition baseDefinition)
+        {
+            if (baseDefinition != spellDefinition ||
+                action.Countered ||
+                action.ExecutionFailed ||
+                action is not CharacterActionCastSpell { ActiveSpell: { } activeSpell })
+            {
+                yield break;
+            }
+
+            var actor = action.ActingCharacter;
+
+            if (actor == null || !_pendingByCaster.TryGetValue(actor.Guid, out var pending))
+            {
+                yield break;
+            }
+
+            var slotUsed = RulesetEffectSpellWithOrigin.GetResourceSlotLevel(activeSpell);
+
+            if (slotUsed >= spellDefinition.SpellLevel)
+            {
+                pending.CastCompleted = true;
+                pending.SlotUsed = slotUsed;
+            }
+
+            yield break;
+        }
 
         public IEnumerator OnMagicEffectBeforeHitConfirmedOnMe(
             GameLocationBattleManager battleManager,
@@ -2189,7 +2223,28 @@ internal static partial class SpellBuilders
             GameLocationCharacter defender,
             IEnumerable<EffectForm> actualEffectForms)
         {
+            var rulesetDefender = defender?.RulesetCharacter;
+
+            if (rulesetDefender is not { IsDeadOrDyingOrUnconscious: false })
+            {
+                yield break;
+            }
+
             if (!defender.CanReact())
+            {
+                yield break;
+            }
+
+            if (!rulesetDefender.AreSpellComponentsValid(spellDefinition))
+            {
+                yield break;
+            }
+
+            var slotLevel = rulesetDefender.GetLowestSlotLevelAndRepertoireToCastSpell(
+                spellDefinition,
+                out var repertoire);
+
+            if (slotLevel < spellDefinition.SpellLevel || repertoire == null)
             {
                 yield break;
             }
@@ -2199,7 +2254,6 @@ internal static partial class SpellBuilders
                 .Select(x => x.DamageForm.DamageType)
                 .Distinct()
                 .ToArray();
-
             var resistanceDamageTypes = AllowedDamageTypes.Intersect(attackDamageTypes).ToArray();
 
             if (resistanceDamageTypes.Length == 0)
@@ -2207,16 +2261,22 @@ internal static partial class SpellBuilders
                 yield break;
             }
 
-            var rulesetDefender = defender.RulesetCharacter;
+            var pending = new PendingElementalInfusion();
 
-            yield return defender.MyReactToCastSpell(
-                SpellsContext.ElementalInfusion, defender, attacker, ReactionValidated, battleManager);
+            _pendingByCaster[defender.Guid] = pending;
 
-            yield break;
-
-            void ReactionValidated(CharacterActionParams actionParams)
+            try
             {
-                var slotUsed = actionParams.IntParameter;
+                yield return defender.MyReactToCastSpell(
+                    spellDefinition,
+                    defender,
+                    attacker,
+                    battleManager: battleManager);
+
+                if (!pending.CastCompleted)
+                {
+                    yield break;
+                }
 
                 EffectHelpers.StartVisualEffect(defender, defender, ShadowArmor, EffectHelpers.EffectType.Caster);
                 EffectHelpers.StartVisualEffect(defender, defender, ShadowArmor, EffectHelpers.EffectType.Effect);
@@ -2236,11 +2296,25 @@ internal static partial class SpellBuilders
                         rulesetDefender.CurrentFaction.Name,
                         1,
                         condition.Name,
-                        slotUsed,
+                        pending.SlotUsed,
                         0,
                         0);
                 }
             }
+            finally
+            {
+                if (_pendingByCaster.TryGetValue(defender.Guid, out var registeredPending) &&
+                    ReferenceEquals(registeredPending, pending))
+                {
+                    _pendingByCaster.Remove(defender.Guid);
+                }
+            }
+        }
+
+        private sealed class PendingElementalInfusion
+        {
+            internal bool CastCompleted { get; set; }
+            internal int SlotUsed { get; set; }
         }
     }
 
@@ -2696,7 +2770,11 @@ internal static partial class SpellBuilders
     {
         const string NAME = "SilveryBarbs";
 
-        var sprite = Sprites.GetSprite(NAME, Resources.SilveryBarbs, 128);
+        var spellSprite = Sprites.GetSprite(NAME, Resources.SilveryBarbs, 128);
+        var conditionSprite = Sprites.GetSprite(
+            $"Condition{NAME}Empowerment",
+            Resources.ConditionSilveryBarbsEmpowerment,
+            32);
         var combatAffinity = FeatureDefinitionCombatAffinityBuilder
             .Create($"CombatAffinity{NAME}Empowerment")
             .SetGuiPresentationNoContent(true)
@@ -2719,7 +2797,7 @@ internal static partial class SpellBuilders
             .AddToDB();
         var conditionEmpowerment = ConditionDefinitionBuilder
             .Create($"Condition{NAME}Empowerment")
-            .SetGuiPresentation(Category.Condition, sprite)
+            .SetGuiPresentation(Category.Condition, conditionSprite)
             .SetPossessive()
             .SetConditionType(ConditionType.Beneficial)
             .SetSpecialDuration(DurationType.Minute, 1)
@@ -2731,7 +2809,7 @@ internal static partial class SpellBuilders
             .AddToDB();
         var spell = SpellDefinitionBuilder
             .Create(NAME)
-            .SetGuiPresentation(Category.Spell, sprite)
+            .SetGuiPresentation(Category.Spell, spellSprite)
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolEnchantment)
             .SetSpellLevel(1)
             .SetCastingTime(ActivationTime.Reaction)
@@ -2847,20 +2925,132 @@ internal static partial class SpellBuilders
             var caster = action.ActingCharacter;
 
             if (baseDefinition != spell ||
+                action.Countered ||
+                action.ExecutionFailed ||
+                caster == null ||
                 !_pendingByCaster.TryGetValue(caster.Guid, out var pending))
             {
                 yield break;
             }
 
-            _pendingByCaster.Remove(caster.Guid);
-            pending.ApplyLowerRoll();
+            pending.CastCompleted = true;
 
-            var empowered = pending.EmpoweredCreature;
-            var rulesetEmpowered = empowered?.RulesetCharacter;
+            yield break;
+        }
+
+        private bool CanOfferReaction(
+            GameLocationCharacter helper,
+            GameLocationCharacter triggeringCreature)
+        {
+            var rulesetHelper = helper?.RulesetCharacter;
+
+            if (rulesetHelper is not { IsDeadOrDyingOrUnconscious: false } ||
+                triggeringCreature?.RulesetCharacter == null ||
+                !helper.IsOppositeSide(triggeringCreature.Side) ||
+                !helper.CanReact() ||
+                !rulesetHelper.UsableSpells.Contains(spell) ||
+                !rulesetHelper.AreSpellComponentsValid(spell) ||
+                !helper.IsWithinRange(triggeringCreature, 12) ||
+                !helper.CanPerceiveTarget(triggeringCreature))
+            {
+                return false;
+            }
+
+            var slotLevel = rulesetHelper.GetLowestSlotLevelAndRepertoireToCastSpell(spell, out var repertoire);
+
+            return repertoire != null && slotLevel >= spell.SpellLevel;
+        }
+
+        private IEnumerator ReactToSuccess(
+            GameLocationCharacter helper,
+            GameLocationCharacter triggeringCreature,
+            GameLocationCharacter waiter,
+            GameLocationBattleManager battleManager,
+            Action applyLowerRoll)
+        {
+            var pending = new PendingSilveryBarbs(applyLowerRoll);
+
+            _pendingByCaster[helper.Guid] = pending;
+
+            try
+            {
+                yield return helper.MyReactToCastSpell(
+                    spell,
+                    triggeringCreature,
+                    waiter,
+                    battleManager: battleManager);
+
+                if (!pending.CastCompleted)
+                {
+                    yield break;
+                }
+
+                pending.ApplyLowerRoll();
+
+                GameLocationCharacter empoweredCreature = null;
+                var candidates = GetEmpowermentCandidates(helper, triggeringCreature);
+
+                if (candidates.Length == 0)
+                {
+                    yield break;
+                }
+
+                yield return helper.MyReactToSelectTarget(
+                    candidates,
+                    waiter,
+                    "SilveryBarbsTarget",
+                    "CustomReactionSilveryBarbsTargetDescription".Formatted(
+                        Category.Reaction,
+                        triggeringCreature.Name),
+                    target => empoweredCreature = target,
+                    battleManager: battleManager);
+
+                ApplyEmpowerment(helper, empoweredCreature);
+            }
+            finally
+            {
+                // Declined, countered, failed, and interrupted casts never reach the completion hook.
+                if (_pendingByCaster.TryGetValue(helper.Guid, out var registeredPending) &&
+                    ReferenceEquals(registeredPending, pending))
+                {
+                    _pendingByCaster.Remove(helper.Guid);
+                }
+            }
+        }
+
+        private static GameLocationCharacter[] GetEmpowermentCandidates(
+            GameLocationCharacter helper,
+            GameLocationCharacter triggeringCreature)
+        {
+            var locationCharacterService = ServiceRepository.GetService<IGameLocationCharacterService>();
+
+            if (locationCharacterService == null)
+            {
+                return [];
+            }
+
+            return locationCharacterService.PartyCharacters
+                .Union(locationCharacterService.GuestCharacters)
+                .Where(candidate =>
+                    candidate.Guid != triggeringCreature.Guid &&
+                    candidate.Side == helper.Side &&
+                    candidate.RulesetCharacter is
+                        { IsDeadOrDyingOrUnconscious: false } and not RulesetCharacterEffectProxy &&
+                    helper.IsWithinRange(candidate, 12) &&
+                    (candidate == helper || helper.CanPerceiveTarget(candidate)))
+                .OrderBy(candidate => candidate.Guid)
+                .ToArray();
+        }
+
+        private void ApplyEmpowerment(
+            GameLocationCharacter caster,
+            GameLocationCharacter empoweredCreature)
+        {
+            var rulesetEmpowered = empoweredCreature?.RulesetCharacter;
 
             if (rulesetEmpowered is not { IsDeadOrDyingOrUnconscious: false })
             {
-                yield break;
+                return;
             }
 
             rulesetEmpowered.RemoveAllConditionsOfCategoryAndType(
@@ -2880,103 +3070,7 @@ internal static partial class SpellBuilders
                 0,
                 0);
 
-            EffectHelpers.StartVisualEffect(caster, empowered, Bless, EffectHelpers.EffectType.Effect);
-        }
-
-        private bool CanOfferReaction(
-            GameLocationCharacter helper,
-            GameLocationCharacter triggeringCreature)
-        {
-            var rulesetHelper = helper?.RulesetCharacter;
-
-            if (rulesetHelper is not { IsDeadOrDyingOrUnconscious: false } ||
-                triggeringCreature?.RulesetCharacter == null ||
-                !helper.CanReact() ||
-                !rulesetHelper.UsableSpells.Contains(spell) ||
-                !rulesetHelper.AreSpellComponentsValid(spell) ||
-                !helper.IsWithinRange(triggeringCreature, 12) ||
-                helper != triggeringCreature && !helper.CanPerceiveTarget(triggeringCreature))
-            {
-                return false;
-            }
-
-            var slotLevel = rulesetHelper.GetLowestSlotLevelAndRepertoireToCastSpell(spell, out var repertoire);
-
-            return repertoire != null && slotLevel >= spell.SpellLevel;
-        }
-
-        private IEnumerator ReactToSuccess(
-            GameLocationCharacter helper,
-            GameLocationCharacter triggeringCreature,
-            GameLocationCharacter waiter,
-            GameLocationBattleManager battleManager,
-            Action applyLowerRoll)
-        {
-            GameLocationCharacter empoweredCreature = null;
-            var empowermentSelected = false;
-            var candidates = GetEmpowermentCandidates(helper, triggeringCreature);
-
-            if (candidates.Length == 0)
-            {
-                empowermentSelected = true;
-            }
-            else
-            {
-                yield return helper.MyReactToSelectTarget(
-                    candidates,
-                    waiter,
-                    "SilveryBarbsTarget",
-                    "CustomReactionSilveryBarbsTargetDescription".Formatted(
-                        Category.Reaction,
-                        triggeringCreature.Name),
-                    target =>
-                    {
-                        empoweredCreature = target;
-                        empowermentSelected = true;
-                    },
-                    battleManager: battleManager);
-            }
-
-            if (!empowermentSelected || !CanOfferReaction(helper, triggeringCreature))
-            {
-                yield break;
-            }
-
-            _pendingByCaster[helper.Guid] = new PendingSilveryBarbs(empoweredCreature, applyLowerRoll);
-
-            try
-            {
-                yield return helper.MyReactToCastSpell(
-                    spell,
-                    triggeringCreature,
-                    waiter,
-                    battleManager: battleManager);
-            }
-            finally
-            {
-                // A completed cast removes its own entry. Any entry left here belongs to a declined,
-                // countered, failed, or interrupted cast and must not alter the triggering roll.
-                _pendingByCaster.Remove(helper.Guid);
-            }
-        }
-
-        private static GameLocationCharacter[] GetEmpowermentCandidates(
-            GameLocationCharacter helper,
-            GameLocationCharacter triggeringCreature)
-        {
-            var locationCharacterService = ServiceRepository.GetService<IGameLocationCharacterService>();
-            var contenders = Gui.Battle?.AllContenders ??
-                             locationCharacterService.PartyCharacters.Union(
-                                 locationCharacterService.GuestCharacters);
-
-            return contenders
-                .Where(candidate =>
-                    candidate != triggeringCreature &&
-                    candidate.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } &&
-                    helper.IsWithinRange(candidate, 12) &&
-                    (candidate == helper || helper.CanPerceiveTarget(candidate)))
-                .OrderBy(candidate => candidate.Guid)
-                .ToArray();
+            EffectHelpers.StartVisualEffect(caster, empoweredCreature, Bless, EffectHelpers.EffectType.Effect);
         }
 
         private static void ApplyLowerAttackRoll(
@@ -3083,11 +3177,9 @@ internal static partial class SpellBuilders
                 ]);
         }
 
-        private sealed class PendingSilveryBarbs(
-            GameLocationCharacter empoweredCreature,
-            Action applyLowerRoll)
+        private sealed class PendingSilveryBarbs(Action applyLowerRoll)
         {
-            internal GameLocationCharacter EmpoweredCreature { get; } = empoweredCreature;
+            internal bool CastCompleted { get; set; }
             internal Action ApplyLowerRoll { get; } = applyLowerRoll;
         }
     }

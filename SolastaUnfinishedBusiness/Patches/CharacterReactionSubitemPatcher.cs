@@ -30,7 +30,7 @@ public static class CharacterReactionSubitemPatcher
                 return;
             }
 
-            if (spellRepertoire.SpellCastingRace)
+            if (!spellRepertoire.UsesSharedSpellSlots())
             {
                 return;
             }
@@ -62,6 +62,8 @@ public static class CharacterReactionSubitemPatcher
         [UsedImplicitly]
         public static void Prefix(CharacterReactionSubitem __instance)
         {
+            var targetChoiceLayoutRestored = __instance.RestoreTargetChoiceLayout();
+
             //PATCH: ensures slot colors are white before getting back to pool
             MulticlassGameUi.PaintSlotsWhite(__instance.slotStatusTable);
 
@@ -69,7 +71,10 @@ public static class CharacterReactionSubitemPatcher
             //default implementation doesn't use tooltips, so we are cleaning up after custom warcaster and bundled power binds
             var toggle = __instance.toggle.GetComponent<RectTransform>();
 
-            toggle.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 34);
+            if (!targetChoiceLayoutRestored)
+            {
+                toggle.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 34);
+            }
 
             var background = toggle.FindChildRecursive("Background");
 

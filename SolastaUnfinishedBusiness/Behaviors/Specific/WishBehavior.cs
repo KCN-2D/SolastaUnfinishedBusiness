@@ -934,7 +934,8 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
                             root,
                             null,
                             out _,
-                            true)))
+                            true,
+                            bypassSpellSlotLimit: true)))
                     .OrderBy(pair => pair.Key)
                     .Select(pair => new Choice(
                         pair.Value,
@@ -989,7 +990,8 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
                         root,
                         null,
                         out _,
-                        true))
+                        true,
+                        bypassSpellSlotLimit: true))
                     .Select(root => new Choice(
                         root,
                         (session, currentModal) => session.SelectDuplicateRoot(currentModal, root)))
@@ -1046,7 +1048,8 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
                                child,
                                null,
                                out _,
-                               true))
+                               true,
+                               bypassSpellSlotLimit: true))
                        .Distinct()
                        .OrderBy(child => child.Name, StringComparer.Ordinal)
                        .ToList()

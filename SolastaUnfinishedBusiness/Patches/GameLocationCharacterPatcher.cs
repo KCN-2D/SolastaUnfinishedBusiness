@@ -30,6 +30,22 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationCharacterPatcher
 {
+    [HarmonyPatch(
+        typeof(GameLocationCharacter),
+        nameof(GameLocationCharacter.CanOnlyUseCantrips),
+        MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CanOnlyUseCantrips_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GameLocationCharacter __instance, ref bool __result)
+        {
+            SpellSlotCastingLimit2024Context.RemoveLegacyBonusActionSpellRestriction(ref __result);
+            MetamagicContext.RestrictToCantripsAfterQuickenedSpell2024(__instance, ref __result);
+        }
+    }
+
     [HarmonyPatch(typeof(GameLocationCharacter), "ItemEquiped")]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -296,6 +312,8 @@ public static class GameLocationCharacterPatcher
         [UsedImplicitly]
         public static void Prefix(GameLocationCharacter __instance)
         {
+            SpellSlotCastingLimit2024Context.StartTurn(__instance);
+
             //PATCH: acts as a callback for the character's before combat turn started event
             CharacterBattleListenersPatch.OnCharacterBeforeTurnStarted(__instance);
         }

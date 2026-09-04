@@ -298,13 +298,12 @@ public static class GameLocationBattleManagerPatcher
                     rangedAttack, advantageType, actualEffectForms, firstTarget, criticalHit);
             }
 
-            //PATCH: support for `IMagicEffectBeforeHitConfirmedOnMe` on SPELLS
+            //PATCH: support for `IPhysicalAttackBeforeHitConfirmedOnMe` on SPELLS
             // should also happen outside battles
             if (defender.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false })
             {
-                foreach (var attackBeforeHitConfirmedOnMe in defender.RulesetCharacter.UsableSpells
-                             .SelectMany(x => x.GetAllSubFeaturesOfType<IPhysicalAttackBeforeHitConfirmedOnMe>())
-                             .ToArray())
+                foreach (var attackBeforeHitConfirmedOnMe in defender.RulesetCharacter
+                             .GetUsableSpellSubFeaturesByType<IPhysicalAttackBeforeHitConfirmedOnMe>())
                 {
                     yield return attackBeforeHitConfirmedOnMe.OnPhysicalAttackBeforeHitConfirmedOnMe(
                         __instance, attacker, defender, attackModifier, attackMode,
@@ -912,9 +911,8 @@ public static class GameLocationBattleManagerPatcher
             // should also happen outside battles
             if (defender.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false })
             {
-                foreach (var magicalAttackBeforeHitConfirmedOnMe in defender.RulesetCharacter.UsableSpells
-                             .SelectMany(x => x.GetAllSubFeaturesOfType<IMagicEffectBeforeHitConfirmedOnMe>())
-                             .ToArray())
+                foreach (var magicalAttackBeforeHitConfirmedOnMe in defender.RulesetCharacter
+                             .GetUsableSpellSubFeaturesByType<IMagicEffectBeforeHitConfirmedOnMe>())
                 {
                     yield return magicalAttackBeforeHitConfirmedOnMe.OnMagicEffectBeforeHitConfirmedOnMe(
                         __instance, attacker, defender, magicModifier, rulesetEffect, actualEffectForms,

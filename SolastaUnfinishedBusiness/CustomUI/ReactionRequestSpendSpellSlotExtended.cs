@@ -20,10 +20,41 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
         var rulesetCharacter = actionParams.ActingCharacter.RulesetCharacter;
         var hero = rulesetCharacter.GetOriginalHero();
         var spellRepertoire = ReactionParams.SpellRepertoire;
-        var spell = (ReactionParams.RulesetEffect as RulesetEffectSpell)?.SpellDefinition;
+        var spellEffect = ReactionParams.RulesetEffect as RulesetEffectSpell;
+        var spell = spellEffect == null
+            ? null
+            : RulesetEffectSpellWithOrigin.GetOriginSpell(spellEffect);
+        var spellSlotMode = SpellSlotCastingLimit2024Context.GetReactionSpellSlotMode(
+            actionParams,
+            out var noSlotRepertoire,
+            out var noSlotLevel);
         int selected;
 
-        if (rulesetCharacter is RulesetCharacterSimulacrum smiteDuplicate &&
+        if (spellSlotMode != SpellSlotCastingLimit2024Context.ReactionSpellSlotMode.Standard)
+        {
+            // Once the turn's slot expenditure is used, never merge this no-slot option
+            // with class, shared, or pact slots in the reaction menu.
+            if (spellSlotMode == SpellSlotCastingLimit2024Context.ReactionSpellSlotMode.NoSlotOnly)
+            {
+                spellRepertoire = noSlotRepertoire;
+                ReactionParams.SpellRepertoire = noSlotRepertoire;
+                ReactionParams.IntParameter = noSlotLevel;
+
+                if (spellEffect != null)
+                {
+                    spellEffect.spellRepertoire = noSlotRepertoire;
+                    spellEffect.SlotLevel = noSlotLevel;
+                }
+
+                SubOptionsAvailability.Add(noSlotLevel, true);
+                selected = 0;
+            }
+            else
+            {
+                selected = -1;
+            }
+        }
+        else if (rulesetCharacter is RulesetCharacterSimulacrum smiteDuplicate &&
             actionParams.StringParameter == InvocationsBuilders.EldritchSmiteTag)
         {
             selected = AddSimulacrumPactSlotOption(
@@ -41,11 +72,12 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
 
             selected = MulticlassGameUi.AddAvailableSubLevels(
                 SubOptionsAvailability,
-                null,
+                rulesetCharacter,
                 spellRepertoire,
                 minimumLevel,
                 maximumLevel,
-                spell);
+                spell,
+                enforceSpellCastingLimit: spell != null);
         }
         else if (actionParams.StringParameter == InvocationsBuilders.EldritchSmiteTag)
         {
@@ -57,7 +89,9 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
         else
         {
             selected = MulticlassGameUi.AddAvailableSubLevels(SubOptionsAvailability, hero, spellRepertoire,
-                actionParams.IntParameter);
+                actionParams.IntParameter,
+                spellDefinition: spell,
+                enforceSpellCastingLimit: spell != null);
         }
 
         if (selected >= 0)
@@ -106,7 +140,14 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
 
     public override void SelectSubOption(int option)
     {
-        ReactionParams.IntParameter = SubOptionsAvailability.Keys.ToArray()[option];
+        var slotLevel = SubOptionsAvailability.Keys.ToArray()[option];
+
+        ReactionParams.IntParameter = slotLevel;
+
+        if (ReactionParams.RulesetEffect is RulesetEffectSpell spellEffect)
+        {
+            spellEffect.SlotLevel = slotLevel;
+        }
     }
 
     private int AddSimulacrumPactSlotOption(
@@ -137,9 +178,8 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
             .SelectMany(x => x.AdditionalSlots)
             .Sum(x => x.SlotsNumber);
 
-        var hasSharedClassSlots = duplicate.SpellRepertoires.Count(x =>
-            x.SpellCastingFeature?.SpellCastingOrigin !=
-            FeatureDefinitionCastSpell.CastingOrigin.Race) > 1;
+        var hasSharedClassSlots = duplicate.SpellRepertoires.Count(
+            repertoire => repertoire.UsesSharedSpellSlots()) > 1;
         var usedSlotKey = hasSharedClassSlots
             ? SharedSpellsContext.PactMagicSlotsTab
             : pactSpellLevel;

@@ -38,7 +38,7 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
 
     public override int SelectedSubOption => _selectedOption;
 
-    public override string SuboptionTag => $"TargetSelect{_type}";
+    public override string SuboptionTag => _type;
 
     public override bool IsStillValid => Candidates.Any(IsCandidateValid);
 
@@ -46,7 +46,8 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
     {
         var characterService = ServiceRepository.GetService<IGameLocationCharacterService>();
 
-        return candidate?.RulesetCharacter != null &&
+        return candidate?.RulesetCharacter is
+                   { IsDeadOrDyingOrUnconscious: false } and not RulesetCharacterEffectProxy &&
                characterService?.ValidCharacters?.Contains(candidate) == true;
     }
 

@@ -236,6 +236,12 @@ public static class CharacterActionCastSpellPatcher
                 yield break;
             }
 
+            if (Counterspell2024Context.ShouldResolve(characterActionCastSpell, targetAction))
+            {
+                yield return Counterspell2024Context.Resolve(characterActionCastSpell, targetAction);
+                yield break;
+            }
+
             var actingCharacter = characterActionCastSpell.ActingCharacter;
             var rulesetCharacter = actingCharacter.RulesetCharacter;
             var actionParams = characterActionCastSpell.ActionParams;

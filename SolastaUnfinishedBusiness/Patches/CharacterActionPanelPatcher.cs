@@ -744,8 +744,8 @@ public static class CharacterActionPanelPatcher
 
             var rulesetEffectSpell = (RulesetEffectSpell)__instance.actionParams.activeEffect;
 
-            if (!MetamagicContext.CanConfirmQuickenedSpell2024(
-                    __instance.GuiCharacter.GameLocationCharacter, rulesetEffectSpell))
+            if (!MetamagicContext.CanUseQuickenedSpell2024(
+                    __instance.GuiCharacter.GameLocationCharacter))
             {
                 return false;
             }

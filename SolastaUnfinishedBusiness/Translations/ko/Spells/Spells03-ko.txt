@@ -85,3 +85,4 @@ Spell/&VitalityTransferDescription=당신은 다른 생물의 부상을 치료�
 Spell/&VitalityTransferTitle=생명 전이
 Spell/&WinterBreathDescription=차가운 바람을 일으켜 적들을 냉각시키고 쓰러뜨립니다.
 Spell/&WinterBreathTitle=겨울의 숨결
+Spell/&CounterspellOneDndDescription=주문을 시전 중인 크리처를 방해합니다. 대상은 당신의 주문 내성 DC에 대해 건강 내성 굴림을 합니다. 실패하면 대상의 주문은 실패하며 아무 효과도 없습니다. 그 주문이 주문 슬롯으로 시전되었다면 해당 슬롯은 소비되지 않습니다.

@@ -22,6 +22,21 @@ public static class CharacterReactionItemPatcher
     [UsedImplicitly]
     public static class Bind_Patch
     {
+        [UsedImplicitly]
+        public static void Prefix(
+            [NotNull] CharacterReactionItem __instance,
+            [NotNull] ReactionRequest reactionRequest)
+        {
+            if (reactionRequest is ReactionRequestSelectTarget)
+            {
+                __instance.CaptureTargetChoiceContainerLayout();
+
+                return;
+            }
+
+            __instance.RestoreTargetChoiceContainerLayout();
+        }
+
         [NotNull]
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
@@ -33,7 +48,7 @@ public static class CharacterReactionItemPatcher
                     CharacterReactionSubitem.SubitemSelectedHandler, ReactionRequest>(CustomBind).Method;
             var spellRepertoires = typeof(RulesetCharacter).GetMethod("get_SpellRepertoires");
             var customSpellRepertoiresMethod =
-                new Func<RulesetCharacter, List<RulesetSpellRepertoire>>(SpellRepertoiresNoRace).Method;
+                new Func<RulesetCharacter, List<RulesetSpellRepertoire>>(SpellRepertoiresUsingSharedSlots).Method;
 
             return instructions
                 .ReplaceCalls(bind, "CharacterReactionItem.Bind",
@@ -51,6 +66,12 @@ public static class CharacterReactionItemPatcher
         public static void Postfix([NotNull] CharacterReactionItem __instance)
         {
             var request = __instance.ReactionRequest;
+
+            if (request?.Character != null)
+            {
+                __instance.characterName.Text = ReactionCharacterNameFormatter.Format(request.Character);
+            }
+
             var size = request is ReactionRequestWarcaster or ReactionRequestSpendBundlePower
                 or ReactionRequestSelectTarget
                 or ReactionRequestSelectSmiteSpell
@@ -59,6 +80,11 @@ public static class CharacterReactionItemPatcher
 
             __instance.GetComponent<RectTransform>()
                 .SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size);
+
+            if (request is ReactionRequestSelectTarget)
+            {
+                __instance.ApplyTargetChoiceContainerLayout();
+            }
 
             if (request is ReactionRequestSpendBundlePower)
             {
@@ -121,10 +147,11 @@ public static class CharacterReactionItemPatcher
         }
 
         //BUGFIX: game currently gets the first spell repertoire to present slots on screen
-        private static List<RulesetSpellRepertoire> SpellRepertoiresNoRace(RulesetCharacter rulesetCharacter)
+        private static List<RulesetSpellRepertoire> SpellRepertoiresUsingSharedSlots(
+            RulesetCharacter rulesetCharacter)
         {
             return rulesetCharacter.SpellRepertoires
-                .Where(x => !x.SpellCastingRace)
+                .Where(x => x.UsesSharedSpellSlots())
                 .ToList();
         }
 
@@ -184,6 +211,18 @@ public static class CharacterReactionItemPatcher
                     instance.Bind(spellRepertoire, slotLevel, text, interactable, subitemSelected);
                     break;
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterReactionItem), nameof(CharacterReactionItem.Unbind))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Unbind_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix([NotNull] CharacterReactionItem __instance)
+        {
+            __instance.RestoreTargetChoiceContainerLayout();
         }
     }
 

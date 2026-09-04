@@ -35,7 +35,7 @@ public static class RulesetSpellRepertoirePatcher
     private static IEnumerable<RulesetSpellRepertoire> EnumerateSharedSlotRepertoires(RulesetCharacter character)
     {
         return character?.SpellRepertoires
-            .Where(x => x.SpellCastingFeature.SpellCastingOrigin != FeatureDefinitionCastSpell.CastingOrigin.Race)
+            .Where(x => x.UsesSharedSpellSlots())
             ?? Enumerable.Empty<RulesetSpellRepertoire>();
     }
 
@@ -1046,15 +1046,36 @@ public static class RulesetSpellRepertoirePatcher
         [UsedImplicitly]
         public static void Postfix(
             RulesetSpellRepertoire __instance,
-            List<int> availableSlotLevels)
+            SpellDefinition spellDefinition,
+            List<int> availableSlotLevels,
+            ref bool __result)
         {
+            var character = __instance.GetCaster();
+
+            foreach (var slotLevel in availableSlotLevels.ToArray())
+            {
+                if (SpellSlotCastingLimit2024Context.CanUseSpellSlotLevel(
+                        character,
+                        __instance,
+                        spellDefinition,
+                        slotLevel))
+                {
+                    continue;
+                }
+
+                availableSlotLevels.Remove(slotLevel);
+            }
+
+            if (availableSlotLevels.Count == 0)
+            {
+                __result = false;
+            }
+
             if (__instance.SpellCastingFeature.SpellCastingOrigin is FeatureDefinitionCastSpell.CastingOrigin.Race
                 or FeatureDefinitionCastSpell.CastingOrigin.Monster)
             {
                 return;
             }
-
-            var character = __instance.GetCaster();
 
             if (!SharedSpellsContext.IsMulticaster(character) ||
                 SharedSpellsContext.GetWarlockSpellLevel(character) == 0)

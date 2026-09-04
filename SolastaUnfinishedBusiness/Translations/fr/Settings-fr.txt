@@ -254,6 +254,8 @@ ModUi/&EnableRangerTireless2024=Activez <color=#D89555>Tireless</color> pour rem
 ModUi/&EnableRelearnSpells=Activer la sélection de sorts ou de sorts déjà appris à partir d'autres sources
 ModUi/&EnableRespecAction=Activer l'action <color=#D89555>RESPEC</color> après le repos <i><color=#F0DAA0>[ne pas utiliser RESPEC pendant une session multijoueur]</color></i>
 ModUi/&EnableRitualOnAllCasters2024=Activer le lancement de <color=#D89555>rituel</color> sur tous les lanceurs de sorts
+ModUi/&EnableOneSpellSlotPerTurn2024=Applique la règle de 2024 qui ne permet de dépenser qu'un seul emplacement de sort pour lancer un sort à chaque tour <i><color=#F0DAA0>[les sorts mineurs et les sorts lancés sans emplacement ne sont pas concernés]</color></i>
+ModUi/&EnableOneDndCounterspellSpell=Utilise les règles de 2024 pour <color=#D89555>Contresort</color> <i><color=#F0DAA0>[le lanceur effectue un jet de sauvegarde de Constitution contre votre DD de sauvegarde des sorts ; en cas d'échec, l'emplacement du sort interrompu n'est pas dépensé]</color></i>
 ModUi/&EnableRogueCunningStrike2024=Activez <color=#D89555>Cunning Strike</color>, <color=#D89555>Improved Cunning Strike</color> et <color=#D89555>Devious Strike</color> aux niveaux 5, 11 et 14 <i><color=#F0DAA0>[vous renoncez à 1 dé d'attaque sournoise pour des effets de coup supplémentaires]</color></i>
 ModUi/&EnableRogueFightingStyle=Activer le choix du <color=#D89555>Style de combat</color> au niveau 2
 ModUi/&EnableRogueReliableTalent2024=Activer le <color=#D89555>talent fiable</color> au niveau 7 au lieu de 11

@@ -85,3 +85,4 @@ Spell/&VitalityTransferDescription=Sacrifichi parte della tua salute per curare 
 Spell/&VitalityTransferTitle=Trasferimento della vita
 Spell/&WinterBreathDescription=Crea una folata di vento freddo per congelare i tuoi nemici e buttarli a terra.
 Spell/&WinterBreathTitle=Il respiro dell'inverno
+Spell/&CounterspellOneDndDescription=Tenti di interrompere una creatura mentre lancia un incantesimo. La creatura effettua un tiro salvezza su Costituzione contro la tua CD degli incantesimi. Se fallisce, il suo incantesimo fallisce e non ha effetto. Se l'incantesimo è stato lanciato con uno slot, quello slot non viene speso.

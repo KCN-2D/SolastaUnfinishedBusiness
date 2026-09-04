@@ -533,6 +533,8 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnablePreparedSpellsTables2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSpellLists2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableRitualOnAllCasters2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableOneSpellSlotPerTurn2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableOneDndCounterspellSpell { get; set; }
     public bool QuickCastLightCantripOnWornItemsFirst { get; set; }
     [Tag(Type = TagType.T2014)] public bool IllusionSpellsAutomaticallyFailAgainstTrueSightInRange { get; set; }
     public bool AllowTargetingSelectionWhenCastingChainLightningSpell { get; set; }

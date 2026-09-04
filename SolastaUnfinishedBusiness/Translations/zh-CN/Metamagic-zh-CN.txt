@@ -1,13 +1,15 @@
-Failure/&FailureFlagSpellMustBeOfTargetArea=该法术必须有一个锥体、立方体、圆柱体或球体的效果区域
+﻿Failure/&FailureFlagSpellMustBeOfTargetArea=该法术必须有一个锥体、立方体、圆柱体或球体的效果区域
 Failure/&FailureFlagSpellMustHaveDamageForm=该法术必须至少有一种伤害形态
 Failure/&FailureFlagSpellMustRequireConcentration=该法术需要专注
 Failure/&FailureFlagSpellRangeMustBeSelf=法术范围必须是自身
 Failure/&FailureSeekingSpell=寻踪法术仅在魔法攻击失败后触发
 Failure/&FailureTransmutedSpell=该法术必须造成以下伤害类型之一：強酸、冷冻、火焰、闪电、毒素、雷鸣
 Failure/&FailureFlagTwinnedSpell2024InvalidTargetAdvancement=该法术必须能在使用更高环级法术位施放时额外指定一个生物为目标。
+Failure/&FailureFlagQuickenedSpell2024AlreadyCastLeveledSpell=你在本回合施放过 1 环或更高环级的法术后，不能使用瞬发法术。
+Failure/&FailureFlagQuickenedSpell2024CantripsOnly=使用瞬发法术后，在本回合剩余时间内你只能施放戏法。
 Rules/&MetamagicOptionCarefulSpell2024Description=选择受到该法术影响的生物，数量最多等于你的魅力调整值，至少 1 个生物。它们自动通过豁免检定；如果成功豁免时本应受到一半伤害，则改为不受伤害。
 Rules/&MetamagicOptionExtendedSpell2024Description=将持续 1 分钟或更久的法术持续时间加倍，最长 24 小时。如果该法术需要专注，你在维持该法术专注的体质豁免检定上具有优势。
-Rules/&MetamagicOptionQuickenedSpell2024Description=将施法时间为 1 个动作的法术作为附赠动作施放。如果你以这种方式施放 1 环或更高环级的法术，则本回合不能再施放另一个 1 环或更高环级的法术；如果你本回合已经施放过这样的法术，也不能使用此选项。戏法不受限制。
+Rules/&MetamagicOptionQuickenedSpell2024Description=将施法时间为 1 个动作的法术作为附赠动作施放。如果你在当前回合已经施放过 1 环或更高环级的法术，则不能使用此选项。使用此选项后，在该回合剩余时间内你只能施放戏法。
 Rules/&MetamagicOptionTwinnedSpell2024Description=当你施放一个若使用高 1 环的法术位就能额外指定 1 个生物为目标的法术时，花费 1 个术士点，使其在目标数量计算上视为有效环级提高 1，而不消耗更高环级的法术位。
 Feature/&MetamagicAltruisticSpellAllyDescription=施放法术以 30 尺内的盟友为目标，而不是自身。
 Feature/&MetamagicAltruisticSpellAllyTitle=共享法术，仅限盟友使用

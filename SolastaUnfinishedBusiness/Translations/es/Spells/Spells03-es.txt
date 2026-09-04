@@ -85,3 +85,4 @@ Spell/&VitalityTransferDescription=Sacrificas parte de tu salud para curar las h
 Spell/&VitalityTransferTitle=Transferencia de vida
 Spell/&WinterBreathDescription=Crea una ráfaga de viento frío para congelar a tus enemigos y derribarlos.
 Spell/&WinterBreathTitle=Aliento de invierno
+Spell/&CounterspellOneDndDescription=Intentas interrumpir a una criatura mientras lanza un conjuro. La criatura hace una tirada de salvación de Constitución contra tu CD de salvación de conjuros. Si falla, su conjuro fracasa y no tiene efecto. Si el conjuro se lanzó con un espacio de conjuro, dicho espacio no se gasta.

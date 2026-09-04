@@ -358,6 +358,13 @@ internal sealed partial class SimulacrumBehavior
         Exception exception)
     {
         Trace.LogException(new Exception($"Error {operation} for Simulacrum.", exception));
+        QueueSnapshotRuntimeCleanup(character, snapshot);
+    }
+
+    private static void QueueSnapshotRuntimeCleanup(
+        RulesetCharacter character,
+        SimulacrumSnapshotRulesetCondition snapshot)
+    {
         QueueRuntimeCleanup(
             character as RulesetCharacterSimulacrum,
             EffectHelpers.GetEffectByGuid(snapshot.OwningEffectGuid),
@@ -444,6 +451,22 @@ internal sealed partial class SimulacrumBehavior
             yield return null;
         }
 
+        // Reduced-to-zero callbacks run inside the enclosing action, and that action can
+        // remain suspended through nested reactions. CharacterDamageReceivedAsync also
+        // runs in the separate unstoppable-coroutine list after the action becomes idle.
+        // Do not detach its target until both paths have released the character.
+        var damageResolutionDeadline = Time.realtimeSinceStartup + 60f;
+
+        while (ServiceRepository.GetService<IGameLocationActionService>()
+                   ?.IsAnyActionExecuting() == true ||
+               IsDamageResolutionInProgress(characterGuid) &&
+               Time.realtimeSinceStartup < damageResolutionDeadline)
+        {
+            yield return null;
+        }
+
+        ActiveDamageResolutionCounts.Remove(characterGuid);
+
         if (!RuntimeCleanupCharacters.TryGetValue(characterGuid, out var request))
         {
             yield break;
@@ -498,6 +521,43 @@ internal sealed partial class SimulacrumBehavior
         {
             DestroyOrphan(duplicate);
         }
+    }
+
+    internal static ulong BeginDamageResolution(RulesetCharacter character)
+    {
+        if (character is not RulesetCharacterSimulacrum || character.Guid == 0)
+        {
+            return 0;
+        }
+
+        ActiveDamageResolutionCounts.TryGetValue(character.Guid, out var count);
+        ActiveDamageResolutionCounts[character.Guid] = count + 1;
+
+        return character.Guid;
+    }
+
+    internal static void EndDamageResolution(ulong characterGuid)
+    {
+        if (characterGuid == 0 ||
+            !ActiveDamageResolutionCounts.TryGetValue(characterGuid, out var count))
+        {
+            return;
+        }
+
+        if (count <= 1)
+        {
+            ActiveDamageResolutionCounts.Remove(characterGuid);
+
+            return;
+        }
+
+        ActiveDamageResolutionCounts[characterGuid] = count - 1;
+    }
+
+    private static bool IsDamageResolutionInProgress(ulong characterGuid)
+    {
+        return ActiveDamageResolutionCounts.TryGetValue(characterGuid, out var count) &&
+               count > 0;
     }
 
     private static void QueueDeferredCleanup(
@@ -694,14 +754,13 @@ internal sealed partial class SimulacrumBehavior
             return;
         }
 
-        // Tactical damage schedules the native reduced-to-zero coroutine from the same event.
-        // Let IOnReducedToZeroHp terminate the effect after that pipeline has completed.
-        if (ServiceRepository.GetService<IGameLocationBattleService>() is
-            {
-                IsBattleInProgress: true
-            } &&
-            GameLocationCharacter.GetFromActor(character) != null)
+        // A placed target is still owned by the enclosing attack, magic, or power action.
+        // Queue cleanup here so direct script or environmental damage is also covered; the
+        // cleanup coroutine waits for the complete action chain before detaching the actor.
+        if (GameLocationCharacter.GetFromActor(character) != null)
         {
+            QueueSnapshotRuntimeCleanup(character, snapshot);
+
             return;
         }
 

@@ -254,6 +254,8 @@ ModUi/&EnableRangerTireless2024=在第 10 级时启用<color=#D89555>不知疲�
 ModUi/&EnableRelearnSpells=可以选择已从其他来源学到的戏法或法术
 ModUi/&EnableRespecAction=休息行动后启用 <color=#D89555>洗点</color> <i><color=#F0DAA0>[在多人游戏会话期间不要使用 洗点]</color></i>
 ModUi/&EnableRitualOnAllCasters2024=对所有施法者启用<color=#D89555>仪式</color>施法
+ModUi/&EnableOneSpellSlotPerTurn2024=启用2024版规则：每个回合只能为施放法术消耗一个法术位<i><color=#F0DAA0>[戏法和不消耗法术位施放的法术不受影响]</color></i>
+ModUi/&EnableOneDndCounterspellSpell=使用2024版<color=#D89555>法术反制</color>规则<i><color=#F0DAA0>[施法者对你的法术豁免DC进行一次体质豁免；若失败，被打断法术的法术位不会消耗]</color></i>
 ModUi/&EnableRogueCunningStrike2024=在等级 5、11 和 14 时启用<color=#D89555>狡猾打击</color>、<color=#D89555>强化狡猾打击</color>和<color=#D89555>阴险打击</color> <i><color=#F0DAA0>[你放弃 1 个偷袭骰子以获得额外的命中效果]</color></i>
 ModUi/&EnableRogueFightingStyle=在第 2 级启用<color=#D89555>战斗风格</color>选择
 ModUi/&EnableRogueReliableTalent2024=将<color=#D89555>可靠天赋</color>设置为 7 级（而非 11 级）

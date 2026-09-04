@@ -254,6 +254,8 @@ ModUi/&EnableRangerTireless2024=레벨 10에서 <color=#D89555>Hide in Plain Sig
 ModUi/&EnableRelearnSpells=다른 출처에서 이미 배운 주문이나 주문 선택 가능
 ModUi/&EnableRespecAction=휴식 동작 후 <color=#D89555>RESPEC</color> 활성화 <i><color=#F0DAA0>[멀티플레이어 세션 동안 RESPEC 사용하지 마세요]</color></i>
 ModUi/&EnableRitualOnAllCasters2024=모든 시전자에 <color=#D89555>의식</color> 시전 활성화
+ModUi/&EnableOneSpellSlotPerTurn2024=한 턴에 주문 시전으로 주문 슬롯을 하나만 소비할 수 있는 2024년 규칙을 적용합니다. <i><color=#F0DAA0>[소마법과 주문 슬롯을 소비하지 않는 시전에는 영향을 주지 않습니다]</color></i>
+ModUi/&EnableOneDndCounterspellSpell=<color=#D89555>주문 방해</color>에 2024년 규칙을 적용합니다. <i><color=#F0DAA0>[대상 시전자는 당신의 주문 내성 DC에 대해 건강 내성 굴림을 하며, 실패하면 방해된 주문의 슬롯을 소비하지 않습니다]</color></i>
 ModUi/&EnableRogueCunningStrike2024=레벨 5, 11, 14에서 <color=#D89555>교활한 일격</color>, <color=#D89555>개선된 교활한 일격</color>, <color=#D89555>사악한 일격</color>을 활성화합니다. <i><color=#F0DAA0>[추가 적중 효과를 위해 몰래 공격 주사위 1개를 포기합니다]</color></i>
 ModUi/&EnableRogueFightingStyle=레벨 2에서 <color=#D89555>격투 스타일</color> 선택 가능
 ModUi/&EnableRogueReliableTalent2024=레벨 11 대신 레벨 7에서 <color=#D89555>신뢰할 수 있는 재능</color>을 활성화합니다.

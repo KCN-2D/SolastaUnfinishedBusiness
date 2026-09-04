@@ -24,6 +24,8 @@ internal static class PowerProvider
 
         if (result != null)
         {
+            UpdateSharedPoolUses(actor, result);
+
             return result;
         }
 
@@ -40,7 +42,7 @@ internal static class PowerProvider
         //Update properties to match actor
         UpdateUses(actor, result);
         UpdateSaveDc(actor, result);
-        UpdateSharedPoolRemainingUses(actor, result);
+        UpdateSharedPoolUses(actor, result);
 
         return result;
     }
@@ -172,7 +174,7 @@ internal static class PowerProvider
         {
             // Shared powers mirror their root pool and never own an independent
             // resource count.
-            UpdateSharedPoolRemainingUses(actor, usablePower);
+            UpdateSharedPoolUses(actor, usablePower);
 
             return;
         }
@@ -184,12 +186,13 @@ internal static class PowerProvider
             effectiveMaxUses);
     }
 
-    private static void UpdateSharedPoolRemainingUses(
+    private static void UpdateSharedPoolUses(
         [CanBeNull] RulesetCharacter character,
         RulesetUsablePower usablePower)
     {
-        if (TryGetSharedPoolUses(character, usablePower, out _, out var remainingUses))
+        if (TryGetSharedPoolUses(character, usablePower, out var maxUses, out var remainingUses))
         {
+            usablePower.maxUses = maxUses;
             usablePower.remainingUses = remainingUses;
         }
     }

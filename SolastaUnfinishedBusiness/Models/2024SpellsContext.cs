@@ -452,6 +452,13 @@ public static partial class Tabletop2024Context
         }
     }
 
+    internal static void SwitchOneDndSpellCounterspell()
+    {
+        Counterspell.GuiPresentation.description = Main.Settings.EnableOneDndCounterspellSpell
+            ? "Spell/&CounterspellOneDndDescription"
+            : "Spell/&CounterspellDescription";
+    }
+
     internal static void SwitchOneDndCantripChillTouch()
     {
         var effectDescription = ChillTouch.EffectDescription;

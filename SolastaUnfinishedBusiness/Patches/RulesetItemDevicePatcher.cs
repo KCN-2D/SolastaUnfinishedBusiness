@@ -13,6 +13,20 @@ public static class RulesetItemDevicePatcher
     public static class IsFunctionAvailable_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(ref bool usedMainSpell, ref bool usedBonusSpell)
+        {
+            if (SpellSlotCastingLimit2024Context.UsesLegacyBonusActionSpellRestriction)
+            {
+                return;
+            }
+
+            // Item charges are not spell slots. Apply this at the shared device
+            // boundary so inventory, action-panel, revive, and tooltip checks agree.
+            usedMainSpell = false;
+            usedBonusSpell = false;
+        }
+
+        [UsedImplicitly]
         public static void Postfix(
             RulesetItemDevice __instance,
             ref bool __result,

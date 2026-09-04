@@ -85,3 +85,4 @@ Spell/&VitalityTransferDescription=他のクリーチャーの傷を修復する
 Spell/&VitalityTransferTitle=生命力譲渡
 Spell/&WinterBreathDescription=冷たい風を起こして敵を冷やし、伏せさせます。
 Spell/&WinterBreathTitle=冬の息吹
+Spell/&CounterspellOneDndDescription=呪文を発動しようとしているクリーチャーを妨害します。対象はあなたの呪文セーヴ難易度に対して耐久力セーヴィング・スローを行います。失敗すると対象の呪文は失敗し、何の効果も発揮しません。その呪文が呪文スロットを使って発動されていた場合、そのスロットは消費されません。

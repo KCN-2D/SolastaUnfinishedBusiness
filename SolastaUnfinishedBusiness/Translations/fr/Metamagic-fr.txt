@@ -1,13 +1,15 @@
-Failure/&FailureFlagSpellMustBeOfTargetArea=Le sort doit avoir une zone d'effet de type cône, cube, cylindre ou sphère.
+﻿Failure/&FailureFlagSpellMustBeOfTargetArea=Le sort doit avoir une zone d'effet de type cône, cube, cylindre ou sphère.
 Failure/&FailureFlagSpellMustHaveDamageForm=Le sort doit avoir au moins une forme de dégâts
 Failure/&FailureFlagSpellMustRequireConcentration=Le sort doit demander de la concentration
 Failure/&FailureFlagSpellRangeMustBeSelf=La portée du sort doit être soi-même
 Failure/&FailureSeekingSpell=Le sort de recherche ne se déclenche qu'après une attaque magique ratée
 Failure/&FailureTransmutedSpell=Le sort doit infliger l'un de ces types de dégâts : acide, froid, feu, foudre, poison, tonnerre
 Failure/&FailureFlagTwinnedSpell2024InvalidTargetAdvancement=Le sort doit pouvoir cibler une créature supplémentaire lorsqu'il est lancé avec un emplacement de niveau supérieur.
+Failure/&FailureFlagQuickenedSpell2024AlreadyCastLeveledSpell=Vous ne pouvez pas utiliser l'option Sort accéléré après avoir lancé un sort de niveau 1 ou supérieur pendant ce tour.
+Failure/&FailureFlagQuickenedSpell2024CantripsOnly=Après avoir utilisé l'option Sort accéléré, vous ne pouvez lancer que des tours de magie jusqu'à la fin de ce tour.
 Rules/&MetamagicOptionCarefulSpell2024Description=Choisissez des créatures affectées par le sort, jusqu'à votre modificateur de Charisme, avec un minimum d'une créature. Elles réussissent automatiquement leurs jets de sauvegarde, et si elles devraient subir la moitié des dégâts en cas de sauvegarde réussie, elles ne subissent aucun dégât à la place.
 Rules/&MetamagicOptionExtendedSpell2024Description=Doublez la durée d'un sort qui dure 1 minute ou plus, jusqu'à 24 heures. Si le sort requiert de la concentration, vous avez l'avantage aux jets de sauvegarde de Constitution pour maintenir votre concentration sur celui-ci.
-Rules/&MetamagicOptionQuickenedSpell2024Description=Lancez un sort dont le temps d'incantation est de 1 action comme action bonus. Si vous lancez ainsi un sort de niveau 1 ou plus, vous ne pouvez pas lancer un autre sort de niveau 1 ou plus au même tour, et vous ne pouvez pas utiliser cette option si vous avez déjà lancé un tel sort ce tour-ci. Les tours de magie ne sont pas restreints.
+Rules/&MetamagicOptionQuickenedSpell2024Description=Lancez un sort dont le temps d'incantation est de 1 action comme action bonus. Vous ne pouvez pas utiliser cette option si vous avez déjà lancé un sort de niveau 1 ou supérieur pendant le tour actuel. Après l'avoir utilisée, vous ne pouvez lancer que des tours de magie jusqu'à la fin de ce tour.
 Rules/&MetamagicOptionTwinnedSpell2024Description=Lorsque vous lancez un sort qui ciblerait une créature supplémentaire s'il était lancé avec un emplacement d'un niveau supérieur, dépensez 1 point de sorcellerie pour traiter son niveau effectif comme supérieur de 1 pour les cibles, sans dépenser d'emplacement supérieur.
 Feature/&MetamagicAltruisticSpellAllyDescription=Créez un sort pour cibler un allié à moins de 30 pieds au lieu de vous-même.
 Feature/&MetamagicAltruisticSpellAllyTitle=Sort partagé, allié uniquement

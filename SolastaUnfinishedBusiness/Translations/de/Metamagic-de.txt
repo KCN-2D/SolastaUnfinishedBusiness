@@ -1,13 +1,15 @@
-Failure/&FailureFlagSpellMustBeOfTargetArea=Der Zauber muss einen kegelförmigen, würfelförmigen, zylinderförmigen oder kugelförmigen Wirkungsbereich haben
+﻿Failure/&FailureFlagSpellMustBeOfTargetArea=Der Zauber muss einen kegelförmigen, würfelförmigen, zylinderförmigen oder kugelförmigen Wirkungsbereich haben
 Failure/&FailureFlagSpellMustHaveDamageForm=Der Zauber muss mindestens eine Schadensform haben
 Failure/&FailureFlagSpellMustRequireConcentration=Der Zauber muss Konzentration erfordern
 Failure/&FailureFlagSpellRangeMustBeSelf=Die Reichweite des Zaubers muss selbst sein.
 Failure/&FailureSeekingSpell=Der Suchzauber wird nur nach einem fehlgeschlagenen magischen Angriff ausgelöst.
 Failure/&FailureTransmutedSpell=Der Zauber muss eine dieser Schadensarten verursachen: Säure, Kälte, Feuer, Blitz, Gift, Donner
 Failure/&FailureFlagTwinnedSpell2024InvalidTargetAdvancement=Der Zauber muss eine zusätzliche Kreatur als Ziel erhalten können, wenn er mit einem höheren Zauberplatz gewirkt wird.
+Failure/&FailureFlagQuickenedSpell2024AlreadyCastLeveledSpell=Du kannst die Option „Beschleunigter Zauber“ nicht verwenden, nachdem du in diesem Zug einen Zauber des 1. Grades oder höher gewirkt hast.
+Failure/&FailureFlagQuickenedSpell2024CantripsOnly=Nachdem du die Option „Beschleunigter Zauber“ verwendet hast, kannst du für den Rest dieses Zuges nur noch Zaubertricks wirken.
 Rules/&MetamagicOptionCarefulSpell2024Description=Wähle von dem Zauber betroffene Kreaturen bis zur Höhe deines Charisma-Modifikators, mindestens eine Kreatur. Sie bestehen ihre Rettungswürfe automatisch, und wenn sie bei einem erfolgreichen Rettungswurf halben Schaden erleiden würden, erleiden sie stattdessen keinen Schaden.
 Rules/&MetamagicOptionExtendedSpell2024Description=Verdopple die Dauer eines Zaubers, der 1 Minute oder länger anhält, bis zu 24 Stunden. Wenn der Zauber Konzentration erfordert, hast du Vorteil bei Konstitutionsrettungswürfen, um die Konzentration darauf aufrechtzuerhalten.
-Rules/&MetamagicOptionQuickenedSpell2024Description=Wirke einen Zauber mit einer Wirkzeit von 1 Aktion als Bonusaktion. Wenn du so einen Zauber des 1. Grades oder höher wirkst, kannst du im selben Zug keinen weiteren Zauber des 1. Grades oder höher wirken, und du kannst diese Option nicht nutzen, wenn du in diesem Zug bereits einen solchen Zauber gewirkt hast. Zaubertricks sind nicht eingeschränkt.
+Rules/&MetamagicOptionQuickenedSpell2024Description=Wirke einen Zauber mit einer Wirkzeit von 1 Aktion als Bonusaktion. Du kannst diese Option nicht verwenden, wenn du im aktuellen Zug bereits einen Zauber des 1. Grades oder höher gewirkt hast. Nachdem du diese Option verwendet hast, kannst du für den Rest dieses Zuges nur noch Zaubertricks wirken.
 Rules/&MetamagicOptionTwinnedSpell2024Description=Wenn du einen Zauber wirkst, der mit einem Zauberplatz um 1 Grad höher eine zusätzliche Kreatur als Ziel hätte, gib 1 Zaubereipunkt aus, um seine effektive Stufe für die Zielwahl um 1 zu erhöhen, ohne einen höheren Zauberplatz zu verbrauchen.
 Feature/&MetamagicAltruisticSpellAllyDescription=Erschaffe einen Zauber, der auf einen Verbündeten im Umkreis von 30 Fuß zielt, statt auf dich selbst.
 Feature/&MetamagicAltruisticSpellAllyTitle=Gemeinsamer Zauber, nur Verbündeter

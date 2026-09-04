@@ -236,10 +236,8 @@ internal static class EldritchVersatilityBuilders
     private static int GetWarlockSlotIndex(RulesetCharacter character)
     {
         var stateOwner = GetStateOwner(character);
-        var isMulticaster = stateOwner.SpellRepertoires.Count(repertoire =>
-            repertoire?.SpellCastingFeature != null &&
-            repertoire.SpellCastingFeature.SpellCastingOrigin !=
-            FeatureDefinitionCastSpell.CastingOrigin.Race) > 1;
+        var isMulticaster = stateOwner.SpellRepertoires.Count(
+            repertoire => repertoire.UsesSharedSpellSlots()) > 1;
 
         return isMulticaster
             ? SharedSpellsContext.PactMagicSlotsTab

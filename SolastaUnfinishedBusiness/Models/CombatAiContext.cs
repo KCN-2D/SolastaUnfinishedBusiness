@@ -5786,13 +5786,32 @@ internal static partial class CombatAiContext
                HasAnyUsableAttackAgainstVisibleEnemies(character, battleService);
     }
 
+    internal static bool TryTerminateIncapacitatedAiTurn(GameLocationCharacter character)
+    {
+        if (character?.RulesetCharacter is not { IsIncapacitated: true } ||
+            !CanExecuteAutomaticCombatAction(character) ||
+            !IsAiControlledByGame(character) ||
+            !IsActiveBattleContender(character))
+        {
+            return false;
+        }
+
+        // Let the owning AI coroutine finish naturally after the current activity. Ending the
+        // battle turn from inside an action chain can leave movement or reaction work attached
+        // to the next contender.
+        ClearTurnCache(character);
+
+        return true;
+    }
+
     internal static IEnumerator RunAdvancedCombatAiTurn(
         GameLocationCharacter character,
         IEnumerator vanillaTurn)
     {
         yield return PrepareAdvancedCombatAiTurnBeforeVanilla(character);
 
-        if (!IsActiveBattleContender(character))
+        if (TryTerminateIncapacitatedAiTurn(character) ||
+            !IsActiveBattleContender(character))
         {
             yield break;
         }
@@ -5801,10 +5820,16 @@ internal static partial class CombatAiContext
         {
             yield return vanillaTurn.Current;
 
-            if (!IsActiveBattleContender(character))
+            if (TryTerminateIncapacitatedAiTurn(character) ||
+                !IsActiveBattleContender(character))
             {
                 yield break;
             }
+        }
+
+        if (TryTerminateIncapacitatedAiTurn(character))
+        {
+            yield break;
         }
 
         yield return CompleteAdvancedCombatAiTurnAtProcessBoundary(character);

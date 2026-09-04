@@ -782,6 +782,8 @@
     <AllowBladeCantripsToUseReach>false</AllowBladeCantripsToUseReach>
     <EnablePreparedSpellsTables2024>false</EnablePreparedSpellsTables2024>
     <EnableRitualOnAllCasters2024>false</EnableRitualOnAllCasters2024>
+    <EnableOneSpellSlotPerTurn2024>false</EnableOneSpellSlotPerTurn2024>
+    <EnableOneDndCounterspellSpell>false</EnableOneDndCounterspellSpell>
     <QuickCastLightCantripOnWornItemsFirst>false</QuickCastLightCantripOnWornItemsFirst>
     <IllusionSpellsAutomaticallyFailAgainstTrueSightInRange>false
     </IllusionSpellsAutomaticallyFailAgainstTrueSightInRange>

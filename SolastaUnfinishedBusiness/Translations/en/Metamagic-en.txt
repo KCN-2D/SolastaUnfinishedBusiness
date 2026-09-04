@@ -1,13 +1,15 @@
-Failure/&FailureFlagSpellMustBeOfTargetArea=The spell must have a cone, cube, cylinder or sphere area of effect
+﻿Failure/&FailureFlagSpellMustBeOfTargetArea=The spell must have a cone, cube, cylinder or sphere area of effect
 Failure/&FailureFlagSpellMustHaveDamageForm=The spell must have at least one damage form
 Failure/&FailureFlagSpellMustRequireConcentration=The spell must require concentration
 Failure/&FailureFlagSpellRangeMustBeSelf=The spell range must be self
 Failure/&FailureSeekingSpell=Seeking spell only triggers after a failed magic attack
 Failure/&FailureTransmutedSpell=The spell must deal one of these damage types: acid, cold, fire, lightning, poison, thunder
 Failure/&FailureFlagTwinnedSpell2024InvalidTargetAdvancement=The spell must be able to target one additional creature when cast with a higher-level spell slot.
+Failure/&FailureFlagQuickenedSpell2024AlreadyCastLeveledSpell=You can't use Quickened Spell after casting a level 1 or higher spell on this turn.
+Failure/&FailureFlagQuickenedSpell2024CantripsOnly=After using Quickened Spell, you can cast only cantrips for the rest of this turn.
 Rules/&MetamagicOptionCarefulSpell2024Description=Choose creatures affected by the spell up to your Charisma modifier, with a minimum of one creature. They automatically succeed on their saving throws, and if they would take half damage on a successful save, they take no damage instead.
 Rules/&MetamagicOptionExtendedSpell2024Description=Double the duration of a spell that lasts 1 minute or longer, up to 24 hours. If the spell requires concentration, you have advantage on Constitution saving throws to maintain concentration on it.
-Rules/&MetamagicOptionQuickenedSpell2024Description=Cast a spell that has a casting time of 1 action as a Bonus Action. If you cast a level 1 or higher spell this way, you can't cast another level 1 or higher spell on the same turn, and you can't use this option if you already cast a level 1 or higher spell this turn. Cantrips are not restricted.
+Rules/&MetamagicOptionQuickenedSpell2024Description=Cast a spell that has a casting time of 1 action as a Bonus Action. You can't use this option if you have already cast a level 1 or higher spell on the current turn. After using this option, you can cast only cantrips for the rest of that turn.
 Rules/&MetamagicOptionTwinnedSpell2024Description=When you cast a spell that would target one additional creature if cast with a slot one level higher, spend 1 Sorcery Point to treat its effective level as 1 higher for targeting without spending a higher-level slot.
 Feature/&MetamagicAltruisticSpellAllyDescription=Make spell to target an ally within 30ft instead of self.
 Feature/&MetamagicAltruisticSpellAllyTitle=Shared Spell, Ally Only

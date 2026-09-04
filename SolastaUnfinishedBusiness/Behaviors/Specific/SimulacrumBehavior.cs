@@ -101,6 +101,7 @@ internal sealed partial class SimulacrumBehavior :
         InitializingSnapshotSeeds = new();
     private static readonly ConditionalWeakTable<RulesetCharacterSimulacrum, VisualRefreshState>
         VisualRefreshStates = new();
+    private static readonly Dictionary<ulong, int> ActiveDamageResolutionCounts = [];
     private static readonly Dictionary<ulong, bool> DeferredCleanupCharacters = [];
     private static readonly Dictionary<ulong, RuntimeCleanupRequest> RuntimeCleanupCharacters = [];
     private static IReadOnlyDictionary<string, HumanoidMonsterPresentationDefinition>
@@ -1671,10 +1672,9 @@ internal sealed partial class SimulacrumBehavior :
         {
             if (TryGetSnapshot(downedCreature.RulesetCharacter, out var snapshot))
             {
-                if (!TerminateOwningEffect(downedCreature.RulesetCharacter, snapshot))
-                {
-                    DestroyOrphan(downedCreature.RulesetCharacter);
-                }
+                // The enclosing attack or magic action still owns the target while this
+                // callback runs. Removing it here leaves that action with a detached actor.
+                QueueSnapshotRuntimeCleanup(downedCreature.RulesetCharacter, snapshot);
             }
 
             yield break;

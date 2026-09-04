@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Builders;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
@@ -201,6 +202,13 @@ internal class PerformanceFilterExtraData
 
     public bool CantripsOnly(GameLocationCharacter character, ActionDefinitions.ActionType actionType)
     {
+        // The 2024 rule limits actual spell-slot expenditure instead of applying
+        // the legacy bonus-action spell restriction to every leveled spell.
+        if (!SpellSlotCastingLimit2024Context.UsesLegacyBonusActionSpellRestriction)
+        {
+            return false;
+        }
+
         var key = _customSpellcasting ? Key(SpellFlags) : DefaultSpellFlags;
 
         if (!character.UsedSpecialFeatures.TryGetValue(key, out var flags))
