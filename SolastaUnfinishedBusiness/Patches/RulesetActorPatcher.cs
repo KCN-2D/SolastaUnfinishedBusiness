@@ -128,6 +128,8 @@ public static class RulesetActorPatcher
                 return;
             }
 
+            MovementSuspensionContext.ResumeBeforeReapplication(__instance, newCondition);
+
             // Enable RulesetConditionCustom
             var replaceWithRulesetConditionCustom = newCondition.conditionDefinition
                 .GetFirstSubFeatureOfType<IBindToRulesetConditionCustom>();

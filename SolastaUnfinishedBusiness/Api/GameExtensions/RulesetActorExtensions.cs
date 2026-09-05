@@ -363,27 +363,6 @@ internal static class RulesetActorExtensions
                !(actor is RulesetCharacter other && other.MoveModes.ContainsKey((int)MoveMode.Fly));
     }
 
-    internal static bool IsTemporarilyFlying(this RulesetActor actor)
-    {
-        return actor is RulesetCharacter character
-               && character.HasTemporaryConditionOfType(ConditionFlying)
-               && !character.HasConditionOfType(ConditionLevitate);
-        /*
-         * For future use, when can allow flying wildshape to temporarily walk
-         *
-        || (actor.HasConditionOfType(RuleDefinitions.ConditionWildShapeSubstituteForm)
-                && actor is RulesetCharacterMonster monster
-                && monster.MoveModes.ContainsKey((int)RuleDefinitions.MoveMode.Fly)
-                && !actor.HasConditionOfType("ConditionFlightSuspended")
-
-        );*/
-    }
-
-    internal static bool HasSuspendableFlightCondition(this RulesetActor actor)
-    {
-        return actor.IsTemporarilyFlying();
-    }
-
     internal static bool HasAnyConditionOfType(this RulesetActor actor, params string[] conditions)
     {
         return actor is RulesetCharacter && conditions.Any(actor.HasConditionOfType);

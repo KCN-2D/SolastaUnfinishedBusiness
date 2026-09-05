@@ -101,6 +101,8 @@ internal enum ExtraActionId
     BonusActionFreeJump,
     ExplorationFreeJumpToggle,
     SharpEye2024Toggle,
+    LevitateSuspend,
+    LevitateResume,
     PrioritizeAction = 10000
 }
 

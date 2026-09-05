@@ -28,6 +28,7 @@ ModUi/&AllowDisplayingNonSuggestedSpells=各呪文リストに、MODで推奨さ
 ModUi/&AllowDisplayingOfficialSpells=各呪文リストに、ゲーム公式の呪文も表示します
 ModUi/&AllowDungeonsMaxLevel20=ダンジョンの最大レベルを20まで設定できるようにします
 ModUi/&AllowFlightSuspend=アイテムや呪文による飛行を一時的に停止できるようにします<i><color=#F0DAA0>（自然の化身や飛行種族には影響せず、高度で有効打がないAIも必要時に着地できます）</color></i>
+ModUi/&AllowLevitateSuspend=自分や味方による空中浮揚を一時停止し、地上を歩けるようにします
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=ガジェットや小道具を配置する際のチェックを回避するために、<color=#1E81B0>Ctrl</color>クリックを有効にします
 ModUi/&AllowHasteCasting=加速により追加アクションで呪文を発動できるようにします<i><color=#F0DAA0>（1ラウンドあたりアクション呪文は1つに制限されます）</color></i>
 ModUi/&AllowHornsOnAllRaces=すべての種族で角を許可します<i><color=#F0DAA0>（種族、頭部、角の組み合わせによっては見た目が崩れる場合があります）</color></i>

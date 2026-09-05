@@ -506,6 +506,12 @@ internal static class RulesDisplay
             }
         }
 
+        toggle = Main.Settings.AllowLevitateSuspend;
+        if (UI.Toggle(Gui.Localize("ModUi/&AllowLevitateSuspend"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.AllowLevitateSuspend = toggle;
+        }
+
         toggle = Main.Settings.EnablePullPushOnVerticalDirection;
         if (UI.Toggle(Gui.Localize("ModUi/&EnablePullPushOnVerticalDirection"), ref toggle, UI.AutoWidth()))
         {

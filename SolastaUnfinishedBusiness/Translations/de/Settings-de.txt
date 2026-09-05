@@ -35,6 +35,7 @@ ModUi/&AllowDisplayingNonSuggestedSpells=Erlaube Mods, die nicht vorgeschlagene 
 ModUi/&AllowDisplayingOfficialSpells=Offizielle Spielzauber auf jeder Liste zulassen
 ModUi/&AllowDungeonsMaxLevel20=Erlaube Dungeons mit max. Level 20
 ModUi/&AllowFlightSuspend=Erlaubt die vorübergehende Aussetzung des Flugs durch Gegenstände und Zauber <i><color=#F0DAA0>[betrifft keine Wildform- oder Flugrassen; die erweiterte Kampf-KI kann den Flug bei Bedarf ebenfalls aussetzen]</color></i>
+ModUi/&AllowLevitateSuspend=Erlaubt es, die von dir oder einem Verbündeten gewirkte Levitation vorübergehend auszusetzen, um am Boden zu gehen
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=Aktivieren Sie <color=#1E81B0>STRG</color>-Klick, um alle Überprüfungen beim Platzieren von Gadgets oder Requisiten zu umgehen
 ModUi/&AllowHasteCasting=Erlaubt das Wirken von Zaubersprüchen mit zusätzlicher Aktion durch Beschleunigung <i><color=#F0DAA0>[Sie sind weiterhin auf 1 Hauptaktionszauber pro Runde beschränkt]</color></i>
 ModUi/&AllowHornsOnAllRaces=Hörner bei allen Rassen zulassen <i><color=#F0DAA0>[die Ergebnisse können je nach Rasse, Kopf und Horn schrecklich aussehen]</color></i>

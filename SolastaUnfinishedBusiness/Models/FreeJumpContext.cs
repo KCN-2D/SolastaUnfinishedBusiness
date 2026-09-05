@@ -22,7 +22,6 @@ internal static class FreeJumpContext
     private const int JumpSpellVerticalBonusCells = 1;
     private const int JumpSpellDcReduction = 5;
     private const string BonusActionMoveMarker = "UB:BonusActionFreeJump";
-    private const string FlightSuspendedConditionName = "ConditionFlightSuspended";
 
     private static readonly Dictionary<ulong, ScopeData> ActiveScopes = [];
     private static readonly HashSet<ulong> SuppressedAiPathfindingGuids = [];
@@ -2669,18 +2668,7 @@ internal static class FreeJumpContext
             return false;
         }
 
-        if (rulesetCharacter.HasConditionOfType(FlightSuspendedConditionName))
-        {
-            return false;
-        }
-
-        if (!rulesetCharacter.IsTouchingGround() ||
-            rulesetCharacter.MoveModes.ContainsKey((int)RuleDefinitions.MoveMode.Fly))
-        {
-            return true;
-        }
-
-        return false;
+        return !rulesetCharacter.IsTouchingGround();
     }
 
     private static bool IsUnableToAct(GameLocationCharacter character)

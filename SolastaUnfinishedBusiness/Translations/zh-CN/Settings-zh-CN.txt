@@ -35,6 +35,7 @@ ModUi/&AllowDisplayingNonSuggestedSpells=允许每个列表中的 mod 非建议�
 ModUi/&AllowDisplayingOfficialSpells=允许每个列表中的游戏官方法术
 ModUi/&AllowDungeonsMaxLevel20=允许最高等级为 20 的地下城
 ModUi/&AllowFlightSuspend=允许暂时中止因物品和法术而产生的飞行<i><color=#F0DAA0>[不影响荒野形态或飞行种族；高级战斗AI在没有有效手段时也会在需要时降落]</color></i>
+ModUi/&AllowLevitateSuspend=允许暂时中止由你或盟友施展的浮空术，以便在地面行走
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=启用<color=#1E81B0>CTRL</color>单击以在放置小工具或道具时绕过任何检查
 ModUi/&AllowHasteCasting=允许使用加速术的额外动作施展法术<i><color=#F0DAA0>[你每轮仍然只能施放 1 个动作法术]</color></i>
 ModUi/&AllowHornsOnAllRaces=允许所有种族拥有犄角<i><color=#F0DAA0>[结果可能看起来很糟糕，具体取决于种族、头部和犄角]</color></i>

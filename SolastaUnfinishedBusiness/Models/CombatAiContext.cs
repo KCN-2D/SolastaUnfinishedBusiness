@@ -221,7 +221,6 @@ internal static partial class CombatAiContext
     private const string OozeFamilyName = "Ooze";
     private const string PlantFamilyName = "Plant";
     private const string UndeadFamilyName = "Undead";
-    private const string FlightSuspendedConditionName = "ConditionFlightSuspended";
     private const int FreeJumpDefaultMinimumSuccessChance = 70;
     private const int FreeJumpImprovedPositionMinimumSuccessChance = 65;
     private const int FreeJumpEmergencyMinimumSuccessChance = 50;
@@ -5770,7 +5769,7 @@ internal static partial class CombatAiContext
 
         if (!IsAdvancedCombatAiFlightEnabled ||
             rulesetCharacter == null ||
-            rulesetCharacter.HasConditionOfType(FlightSuspendedConditionName) ||
+            rulesetCharacter.IsTouchingGround() ||
             !profile.HasFlight)
         {
             return false;

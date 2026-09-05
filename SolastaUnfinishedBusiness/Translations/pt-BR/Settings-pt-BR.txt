@@ -35,6 +35,7 @@ ModUi/&AllowDisplayingNonSuggestedSpells=Permitir mod feitiços não sugeridos e
 ModUi/&AllowDisplayingOfficialSpells=Permitir magias oficiais do jogo em cada lista
 ModUi/&AllowDungeonsMaxLevel20=Permitir masmorras com nível máximo 20
 ModUi/&AllowFlightSuspend=Permitir a suspensão temporária do voo de itens e magias <i><color=#F0DAA0>[não afeta Forma Selvagem nem raças voadoras; a IA de combate avançada também pode pousar quando ficar sem opções úteis]</color></i>
+ModUi/&AllowLevitateSuspend=Permitir suspender temporariamente a levitação conjurada por você ou um aliado para caminhar no chão
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=Habilitar clique <color=#1E81B0>CTRL</color> para ignorar qualquer verificação ao colocar gadgets ou adereços
 ModUi/&AllowHasteCasting=Permitir conjurar magias com ação extra por ser Acelerado <i><color=#F0DAA0>[você ainda está limitado a 1 magia de ação principal por rodada]</color></i>
 ModUi/&AllowHornsOnAllRaces=Permitir chifres em todas as raças <i><color=#F0DAA0>[os resultados podem parecer terríveis dependendo da raça, cabeça e chifre]</color></i>

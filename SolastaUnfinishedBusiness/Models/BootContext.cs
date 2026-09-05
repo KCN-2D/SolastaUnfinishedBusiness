@@ -205,6 +205,8 @@ internal static class BootContext
         // Save by location initialization depends on services to be ready
         SaveByLocationContext.LateLoad();
 
+        MovementSuspensionContext.LateLoad();
+
         // Recache all gui collections
         GuiWrapperContext.Recache();
 

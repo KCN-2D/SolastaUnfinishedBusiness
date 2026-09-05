@@ -658,31 +658,27 @@ public static class CustomActionIdContext
 
                 return;
             }
-            case (Id)ExtraActionId.FlightSuspend:
+            case Id.Levitate:
             {
-                if (Main.Settings.AllowFlightSuspend && character.HasSuspendableFlightCondition())
-                {
-                    result = ActionStatus.Available;
-                }
-                else
+                if (MovementSuspensionContext.IsControlledLevitationSuspended(character))
                 {
                     result = ActionStatus.Unavailable;
                 }
 
                 return;
             }
+            case (Id)ExtraActionId.FlightSuspend:
             case (Id)ExtraActionId.FlightResume:
+            case (Id)ExtraActionId.LevitateSuspend:
+            case (Id)ExtraActionId.LevitateResume:
             {
-                if (Main.Settings.AllowFlightSuspend &&
-                    character.HasConditionOfTypeOrSubType(CustomConditionsContext.FlightSuspended.Name))
-                {
-                    result = ActionStatus.Available;
-                }
-                else
-                {
-                    result = ActionStatus.Unavailable;
-                }
-
+                var kind = actionId is (Id)ExtraActionId.FlightSuspend or (Id)ExtraActionId.FlightResume
+                    ? MovementSuspensionContext.MovementKind.Flight
+                    : MovementSuspensionContext.MovementKind.Levitation;
+                var resume = actionId is (Id)ExtraActionId.FlightResume or (Id)ExtraActionId.LevitateResume;
+                result = MovementSuspensionContext.CanToggle(character, kind, resume)
+                    ? ActionStatus.Available
+                    : ActionStatus.Unavailable;
                 return;
             }
             case (Id)ExtraActionId.CrystalDefenseOff:

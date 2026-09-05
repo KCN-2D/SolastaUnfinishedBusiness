@@ -35,6 +35,7 @@ ModUi/&AllowDisplayingNonSuggestedSpells=Consenti mod incantesimi non suggeriti 
 ModUi/&AllowDisplayingOfficialSpells=Consenti incantesimi ufficiali di gioco su ogni elenco
 ModUi/&AllowDungeonsMaxLevel20=Consenti dungeon con livello massimo 20
 ModUi/&AllowFlightSuspend=Consenti la sospensione temporanea del volo da oggetti e incantesimi <i><color=#F0DAA0>[non influisce sulle razze in forma selvatica o volanti; la IA di combattimento avanzata può anche interrompere il volo quando resta senza opzioni utili]</color></i>
+ModUi/&AllowLevitateSuspend=Consenti di sospendere temporaneamente la levitazione lanciata da te o da un alleato per camminare a terra
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=Abilita il clic <color=#1E81B0>CTRL</color> per ignorare qualsiasi controllo quando si posizionano gadget o oggetti di scena
 ModUi/&AllowHasteCasting=Consenti di lanciare incantesimi con azione extra dall'essere Frettato <i><color=#F0DAA0>[sei ancora limitato a 1 incantesimo di azione principale per round]</color></i>
 ModUi/&AllowHornsOnAllRaces=Consenti le corna su tutte le razze <i><color=#F0DAA0>[i risultati potrebbero sembrare terribili a seconda della razza, della testa e del corno]</color></i>

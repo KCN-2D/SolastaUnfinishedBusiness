@@ -162,6 +162,7 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2014)] public bool AddDexModifierToEnemiesInitiativeRoll { get; set; }
     [Tag(Type = TagType.T2014)] public bool EnemiesAlwaysRollInitiative { get; set; }
     public bool AllowFlightSuspend { get; set; }
+    public bool AllowLevitateSuspend { get; set; }
     public bool FlightSuspendWingedBoots { get; set; }
     [Tag(Type = TagType.T2014)] public bool EnablePullPushOnVerticalDirection { get; set; }
     [Tag(Type = TagType.T2014)] public bool FullyControlConjurations { get; set; }

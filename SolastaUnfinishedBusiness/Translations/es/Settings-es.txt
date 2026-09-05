@@ -35,6 +35,7 @@ ModUi/&AllowDisplayingNonSuggestedSpells=Permitir hechizos no sugeridos por mods
 ModUi/&AllowDisplayingOfficialSpells=Permitir hechizos oficiales del juego en cada lista
 ModUi/&AllowDungeonsMaxLevel20=Permitir mazmorras con nivel máximo 20
 ModUi/&AllowFlightSuspend=Permitir suspender temporalmente el vuelo de objetos y hechizos <i><color=#F0DAA0>[no afecta a las razas voladoras ni a las de forma salvaje; la IA de combate avanzada también puede aterrizar si se queda sin opciones útiles]</color></i>
+ModUi/&AllowLevitateSuspend=Permitir suspender temporalmente la levitación lanzada por ti o un aliado para caminar por el suelo
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=Habilite el clic con la tecla <color=#1E81B0>CTRL</color> para omitir cualquier verificación al colocar dispositivos o accesorios
 ModUi/&AllowHasteCasting=Permite lanzar hechizos con acción adicional al estar en modo Acelerado <i><color=#F0DAA0>[aún estás limitado a 1 hechizo de acción principal por ronda]</color></i>
 ModUi/&AllowHornsOnAllRaces=Permitir cuernos en todas las razas <i><color=#F0DAA0>[los resultados pueden verse terribles dependiendo de la raza, la cabeza y el cuerno]</color></i>

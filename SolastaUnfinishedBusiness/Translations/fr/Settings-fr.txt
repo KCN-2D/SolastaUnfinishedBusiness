@@ -35,6 +35,7 @@ ModUi/&AllowDisplayingNonSuggestedSpells=Autoriser les sorts non suggérés par 
 ModUi/&AllowDisplayingOfficialSpells=Autoriser les sorts officiels du jeu sur chaque liste
 ModUi/&AllowDungeonsMaxLevel20=Autoriser les donjons avec un niveau maximum de 20
 ModUi/&AllowFlightSuspend=Autoriser la suspension temporaire du vol des objets et des sorts <i><color=#F0DAA0>[n'affecte pas les races de forme sauvage ou volantes ; l'IA de combat avancée peut aussi interrompre son vol si elle n'a aucune option utile]</color></i>
+ModUi/&AllowLevitateSuspend=Autoriser la suspension temporaire de la lévitation lancée par vous ou un allié pour marcher au sol
 ModUi/&AllowGadgetsAndPropsToBePlacedAnywhere=Activez le clic <color=#1E81B0>CTRL</color> pour contourner toute vérification lors du placement de gadgets ou d'accessoires
 ModUi/&AllowHasteCasting=Autoriser le lancement de sorts avec une action supplémentaire en étant accéléré <i><color=#F0DAA0>[vous êtes toujours limité à 1 sort d'action principale par tour]</color></i>
 ModUi/&AllowHornsOnAllRaces=Autoriser les cornes sur toutes les races <i><color=#F0DAA0>[les résultats peuvent être terribles selon la race, la tête et la corne]</color></i>

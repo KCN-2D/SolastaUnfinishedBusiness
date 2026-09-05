@@ -5,12 +5,43 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class RulesetEffectPatcher
 {
+    [HarmonyPatch(typeof(RulesetEffect), nameof(RulesetEffect.RemainingRounds), MethodType.Setter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    public static class RemainingRounds_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(RulesetEffect __instance, int value)
+        {
+            // The owning power and its suspended condition must keep the same remaining duration.
+            return value >= __instance.RemainingRounds || !MovementSuspensionContext.IsDurationPaused(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetEffect), nameof(RulesetEffect.ConditionRemoved))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    public static class ConditionRemoved_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            // Native termination checks for other targets with the same condition name.
+            // Active and suspended states must remain one spell for a twinned/multi-target effect.
+            return instructions.ReplaceCalls(
+                AccessTools.PropertyGetter(typeof(BaseDefinition), nameof(BaseDefinition.Name)),
+                "RulesetEffect.ConditionRemoved",
+                new CodeInstruction(OpCodes.Call,
+                    AccessTools.Method(typeof(MovementSuspensionContext),
+                        nameof(MovementSuspensionContext.GetTrackingConditionName))));
+        }
+    }
+
     //PATCH: supports Oath of Ancients / Oath of Dread level 20 powers
     [HarmonyPatch(typeof(RulesetEffect), nameof(RulesetEffect.ConditionSaveRerollRequested))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
