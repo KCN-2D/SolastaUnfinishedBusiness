@@ -5,4 +5,4 @@ Marketing/&JoinCommunityTitle=コミュニティに参加する
 Marketing/&SteamWishlistAddress=https://store.steampowered.com/app/1096530/Solasta_Crown_of_the_Magister/
 Marketing/&SteamWishlistTitle=Steamのウィッシュリストに追加する
 Marketing/&YoutubeAddress=https://www.youtube.com/tacticaladventures
-Marketing/&YoutubeTitle=YouTubeで登録する
+Marketing/&YoutubeTitle=YouTubeチャンネルを登録

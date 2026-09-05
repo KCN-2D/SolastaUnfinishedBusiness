@@ -1,8 +1,8 @@
 Feature/&AttributeModifierDarkelfCharismaAbilityScoreIncreaseDescription=魅力+1
 Feature/&AttributeModifierDarkelfCharismaAbilityScoreIncreaseTitle=能力値上昇
-Feature/&CastSpellDarkelfMagicDescription=あなたは初級呪文<b>踊る灯</b>を修得します。3レベルで<b>妖精の火</b>を、5レベルで<b>闇</b>を修得します。いずれも大休憩ごとに1回使用できます。
+Feature/&CastSpellDarkelfMagicDescription=初級呪文<b>〈踊る灯〉</b>を修得します。3レベルで<b>〈妖精の火〉</b>を、5レベルで<b>〈暗闇〉</b>を修得します。後者2つの呪文は、それぞれ大休憩ごとに1回発動できます。
 Feature/&CastSpellDarkelfMagicTitle=ダーク・エルフの魔法
-Feature/&ProficiencyDarkelfWeaponTrainingDescription=あなたはレイピア、ショートソード、ハンドクロスボウの習熟しています。
+Feature/&ProficiencyDarkelfWeaponTrainingDescription=レイピア、ショートソード、ハンド・クロスボウに習熟します。
 Feature/&ProficiencyDarkelfWeaponTrainingTitle=ダーク・エルフの武器訓練
-Race/&RaceDarkelfDescription=ダーク・エルフは、人を寄せ付けないバッドランズで暮らすうちに変化したエルフの子孫です。主に夜行性であり、古代のバッドランズ遺跡、特に地下に埋もれた遺跡での生活に適応しています。彼らは暗い肌と淡い髪を持つ傾向があります。
+Race/&RaceDarkelfDescription=ダーク・エルフは、過酷なバッドランズで暮らすうちに変化したエルフの子孫です。主に夜行性で、バッドランズに残る古代遺跡、とりわけ地中に埋もれた遺跡での生活に適応しています。肌は暗い色、髪は淡い色をしていることが多いです。
 Race/&RaceDarkelfTitle=ダーク・エルフ

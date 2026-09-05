@@ -1,14 +1,14 @@
 Class/&BarbarianDescription=バーバリアンは文明の辺境に生きる獰猛な戦士です。戦いの中で湧き上がる激怒が、彼らを危険な戦士にします。
 Class/&BarbarianTitle=バーバリアン
-Class/&BardDescription=バードは有能な戦士でもありますが、その真価は言葉と音楽にあります。聞く者を鼓舞し、士気を高め、さまざまな形で心に働きかけられます。伝承と魔法にも精通しています。
+Class/&BardDescription=バードは有能な戦士でもあるが、その真価は言葉と音楽にあります。聞く者を鼓舞し、士気を高め、さまざまな形で心に働きかけられます。伝承と魔法にも精通しています。
 Class/&BardTitle=バード
 Class/&CharacterClassSubTitle=キャラクターのクラス
 Class/&CharacterRaceSubTitle=キャラクターの種族
-Class/&ClericDescription=クレリックは選んだ神格のしもべです。信仰と奉仕の見返りとして奇跡の力を授かりますが、それは神の教えに従い、その宗教の儀式を執り行う限りにおいてです。
+Class/&ClericDescription=クレリックは選んだ神格のしもべです。信仰と奉仕の見返りとして奇跡の力を授かるが、それは神の教えに従い、その宗教の儀式を執り行う限りにおいてです。
 Class/&ClericTitle=クレリック
 Class/&DruidDescription=ドルイドは自然に身を捧げる古代の教団の一員です。彼らの力と呪文は、野獣、植物、そして元素の力と調和しています。
 Class/&DruidTitle=ドルイド
-Class/&FighterDescription=ファイターは戦闘技法を修めた者です。ほとんどの武器を巧みに扱えますが、特定の武器への特化を選ぶ者も多くいます。すべてのファイターは鎧、盾、遠隔武器を扱えます。
+Class/&FighterDescription=ファイターは戦闘技法を修めた者です。ほとんどの武器を巧みに扱えるが、特定の武器への特化を選ぶ者も多くいます。すべてのファイターは鎧、盾、遠隔武器を扱えます。
 Class/&FighterTitle=ファイター
 Class/&MonkDescription=その名に反して、すべてのモンクが瞑想的で宗教的な生活を送っているわけではありません。しかし誰もが心身をほとんど完璧な域まで鍛え上げ、他者が畏敬のあまり言葉を失うような偉業を成し遂げられます。
 Class/&MonkTitle=モンク

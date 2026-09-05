@@ -1,10 +1,10 @@
-Feature/&CastSpellOniOgreMagicDescription=3レベルになると、大休憩ごとに1回、<b>雷鳴の一撃</b>を発動できます。この呪文の呪文発動能力値は<b>判断力</b>です。
+Feature/&CastSpellOniOgreMagicDescription=3レベルに達すると、大休憩ごとに1回、<b>〈雷鳴の一撃〉</b>を発動できます。この呪文の呪文発動能力値は<b>判断力</b>です。
 Feature/&CastSpellOniOgreMagicTitle=オーガの魔法
 Feature/&FeatureSetOniAbilityScoreIncreaseDescription=筋力+2、判断力+1
 Feature/&FeatureSetOniAbilityScoreIncreaseTitle=能力値上昇
-Feature/&ProficiencyOniOgreMightDescription=あなたは<b>軍用武器</b>に習熟しています。
+Feature/&ProficiencyOniOgreMightDescription=<b>軍用武器</b>に習熟します。
 Feature/&ProficiencyOniOgreMightTitle=オーガの剛力
-Feature/&ProficiencyOniThirdEyeDescription=あなたは<b>〈知覚〉</b>技能に習熟しています。
+Feature/&ProficiencyOniThirdEyeDescription=<b>〈知覚〉</b>技能に習熟します。
 Feature/&ProficiencyOniThirdEyeTitle=第三の目
-Race/&RaceOniDescription=オニは極東の島国ヒモトに由来する、デーモンめいた生き物です。彼らは起動した大門を通ってソラスタへやって来ました。
+Race/&RaceOniDescription=オニは、極東の島国ヒモトに由来する、デーモンに似た生き物です。彼らは起動された大門を通ってソラスタへやって来ました。
 Race/&RaceOniTitle=オニ

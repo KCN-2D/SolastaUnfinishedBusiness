@@ -1,7 +1,7 @@
 Power/&DemonicInfluence_Description=敵があなたのデーモン的な影響を振り払うまで、その敵を魅了し、あなたのために戦わせます。
 Power/&PowerStoneGolemSlow_Description=ストーン・ゴーレムは近くの敵の動きを遅くできます。
 Power/&PowerStoneGolemSlow_Title=減速
-Power/&Vrock_Screech_Description=ヴロックは周囲の敵を朦朧状態にしかねない強烈な叫び声を放ちます。
+Power/&Vrock_Screech_Description=ヴロックは強烈な金切り声を上げ、周囲の敵を朦朧状態にすることがあります。
 Power/&Vrock_Screech_Title=金切り声
 Power/&Vrock_Spores_Description=ヴロックの毒は毎ターン1d10の毒ダメージを与えます。
 Power/&Vrock_Spores_Title=胞子

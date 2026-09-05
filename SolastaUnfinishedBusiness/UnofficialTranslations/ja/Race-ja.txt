@@ -1,4 +1,4 @@
-Race/&DragonbornDescription=ドラゴンボーンは、姿を変えたドラゴンが人型生物の血統と交わった結果として生まれました。マナカロン帝国では広く受け入れられていましたが、大変動の後は用心深く孤立するようになり、自給自足しつつも距離を置いて暮らしています。
+Race/&DragonbornDescription=ドラゴンボーンは、姿を変えたドラゴンが人型生物の血統と交わった結果として生まれました。マナカロン帝国では広く受け入れられていたが、大変動の後は用心深く孤立するようになり、自給自足しつつも距離を置いて暮らしています。
 Race/&DragonbornFemaleName10Title=マイラ
 Race/&DragonbornFemaleName11Title=ポリムニア
 Race/&DragonbornFemaleName12Title=ローダンセ
@@ -170,7 +170,7 @@ Race/&GnomeNickname6Title=ヴィンラル
 Race/&GnomeNickname7Title=マルドロ
 Race/&GnomeNickname8Title=ブロウェイン
 Race/&GnomeNickname9Title=グリモット
-Race/&GnomeRockDescription=岩山の奥深くに住むノームは、\n頑健で創意に富んでいます。地上でも暮らせますが、地下こそが彼らの故郷です。
+Race/&GnomeRockDescription=岩山の奥深くに住むノームは、\n頑健で創意に富んでいます。地上でも暮らせるが、地下こそが彼らの故郷です。
 Race/&GnomeRockTitle=ロック・ノーム
 Race/&GnomeShadowDescription=ロック・ノームが地下に定住することを選んだ一方で、シャドウ・ノームは生来の能力を活かし、人目につかない場所に隠れて暮らしました。そのため、彼らは思いもよらない場所で大変動を生き延びました。内気でよそよそしく見える彼らは、隠密能力に優れるため、いたずら好きとして恐れられています。
 Race/&GnomeShadowTitle=シャドウ・ノーム
@@ -247,7 +247,7 @@ Race/&HalflingMaleName3Title=トンボ
 Race/&HalflingMaleName4Title=グリン
 Race/&HalflingMaleName5Title=エドマンド
 Race/&HalflingMaleName6Title=ダーク
-Race/&HalflingMarshDescription=<color=#B5D3DE>マーシュ・ハーフリング</color>は、湿地を移動し、戦い、ときには眠ることさえした祖先の伝統に従って暮らしてきました。彼らは島のいとこたちと比べて特に頑健ですが、一般に人当たりはやや悪く、勇敢さではまったく劣りません。
+Race/&HalflingMarshDescription=<color=#B5D3DE>マーシュ・ハーフリング</color>は、湿地を移動し、戦い、ときには眠ることさえした祖先の伝統に従って暮らしてきました。彼らは島のいとこたちと比べて特に頑健であるが、一般に人当たりはやや悪く、勇敢さではまったく劣りません。
 Race/&HalflingMarshTitle=マーシュ・ハーフリング
 Race/&HalflingSurName1Title=マーシュ
 Race/&HalflingSurName2Title=ウェットフット
