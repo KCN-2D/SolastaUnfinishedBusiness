@@ -113,7 +113,7 @@ ModUi/&EnableTeleportAllowsMidAirPositions=自由座標指定の瞬間移動呪�
 ModUi/&EnableAlternateHuman=代替の<color=#D89555>ヒューマン</color>を有効にする<i><color=#F0DAA0>（+1特技/+2能力値選択/+1技能）</color></i>
 ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>背景の能力値上昇が有効な間、ヒューマンは種族の能力値上昇を失う代わりに、代替ヒューマンの特技と技能パッケージを自動的に使用します。</color></i>
 ModUi/&EnableAlternateVotingSystem=代替投票システムを有効にします<i><color=#F0DAA0>（選択肢の重み=投票数×ヒーローの魅力修正値）</color></i>
-ModUi/&EnableBG3AbjurationArcaneWard=<b>防御術師</b>の<color=#D89555>秘術の防壁</color>実装を有効にし、BG3のように動作させます。
+ModUi/&EnableBG3AbjurationArcaneWard=<b>防御術士</b>の<color=#D89555>秘術の防壁</color>実装を有効にし、BG3のように動作させます。
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>（ダメージを防ぐたびに1減少します（防いだダメージ量ではありません）。有効化のために防御術呪文を唱える必要はありません\nただし、最大値はウィザード・レベルの2倍であり、ウィザード・レベル+知力修正値の2倍ではありません。また、大休憩時には半分までしか再充填されません）</color></i>
 ModUi/&EnableBarbarianBrutalStrike2024=9、13、17レベルで<color=#D89555>残忍な一撃</color>と<color=#D89555>残忍な一撃強化</color>を有効にし、<color=#D89555>荒々しきクリティカル</color>を置き換えます
 ModUi/&EnableBarbarianFightingStyle=レベル2で<color=#D89555>戦闘スタイル</color>の選択を有効にする
@@ -301,7 +301,7 @@ ModUi/&EnableAdvancedCombatAI=高度な戦闘AIを有効にする<i><color=#F0DA
 ModUi/&EnemiesAlwaysRollInitiative=<i>+敵は常に強制値ではなくイニシアチブをロールします<color=#F0DAA0>（例：Sorak Assassin）</color></i>
 ModUi/&EvocationSculptSpellNoPerception=<b>力術士</b>の<color=#D89555>呪文効果範囲操作</color>で味方を視認している必要をなくします
 ModUi/&ExpandAll=すべて展開
-ModUi/&FactionHelp=<color=#C04040E0>派閥関係を変更するには、公式キャンペーンのゲームをロードします...</color>
+ModUi/&FactionHelp=<color=#C04040E0>派閥関係を変更するには、公式キャンペーンのゲームをロードします……</color>
 ModUi/&FactionRelations=<color=#F0DAA0>派閥：</color>
 ModUi/&FasterTimeModifier=<color=white>スペースバーを押したときのゲーム時間の変更</color>
 ModUi/&FeatGroups=<color=#F0DAA0>特技グループ</color>
@@ -315,7 +315,7 @@ ModUi/&FixRingOfRegenerationHealRate=<color=#D89555>再生の指輪</color>の�
 ModUi/&FlightSuspendWingedBoots=<i>+ウィングドブーツの公式ルールを使用<color=#F0DAA0>（飛行が中断されると残り時間はカウントされません）</color></i>
 ModUi/&ForceModSpeechOnNpcs=<i>+キャンペーンマッピングの代わりに、すべてのNPCに音声の自動割り当てを強制する</i>
 ModUi/&Formation=<color=#F0DAA0>フォーメーション：</color>
-ModUi/&FormationError=<color=#C04040E0>マルチプレイヤーゲーム中はフォーメーションを変更できません...</color>
+ModUi/&FormationError=<color=#C04040E0>マルチプレイヤーゲーム中はフォーメーションを変更できません……</color>
 ModUi/&FormationHelp1=• 数字ボタンで各セットを編集します<i><color=#F0DAA0>（入力設定でホットキーを有効にすることを推奨）</color></i>
 ModUi/&FormationHelp2=• <b><color=#1E81B0>@</color></b>は相対的なヒーローの位置を表します
 ModUi/&FormationHelp3=• 任意の2つのボタンをクリックして位置を入れ替えます
@@ -342,7 +342,7 @@ ModUi/&IncreaseGameTimeBy=ゲーム時間を増やす
 ModUi/&IncreaseMaxAttunedItems=レベル10で最大<color=#D89555>同調アイテム</color>を4個、レベル18で5個に増加
 ModUi/&Invocations=<color=#F0DAA0>妖術</color>
 ModUi/&Items=<color=#F0DAA0>アイテム：</color>
-ModUi/&ItemsHelp1=<color=#C04040E0>キャラクター検査画面を開いてヒーローにアイテムを追加します...</color>
+ModUi/&ItemsHelp1=<color=#C04040E0>キャラクター検査画面を開いてヒーローにアイテムを追加します……</color>
 ModUi/&ItemsHelp2=<b>+を押すと地上の容器にアイテムが追加されます</b>
 ModUi/&KeepInvisibilityWhenUsingItems=アイテム使用で<color=#D89555>不可視状態</color>が解除されないようにします
 ModUi/&MakeAllMagicStaveArcaneFoci=すべての魔法の杖を秘術焦点具として扱います<i><color=#F0DAA0>（<color=#D89555>治癒の杖</color>は汎用焦点具のため除外）</color></i>
@@ -436,7 +436,7 @@ ModUi/&StockGorimStoreWithAllNonMagicalInstruments=ゴリムの店に魔法以�
 ModUi/&StockHugoStoreWithAdditionalFoci=ヒューゴの店に、焦点具として使える<color=#D89555>秘術の杖</color>、<color=#D89555>ドルイドのアミュレット</color>、<color=#D89555>スタッフ</color>、<color=#D89555>クラブ</color>を補充します。
 ModUi/&Subclasses=<color=#F0DAA0>サブクラス</color>
 ModUi/&Subraces=<color=#F0DAA0>亜種族</color>
-ModUi/&SwapAbjurationSavant=<b>防御術師</b><color=#D89555>防御術の専門家</color>を5e 2024版と入れ替えます<i><color=#F0DAA0>（取得時に2つの防御術呪文を習得し、スロット・レベルが上がるたびに1つずつ追加で習得する）</color></i>
+ModUi/&SwapAbjurationSavant=<b>防御術士</b>の<color=#D89555>防御術の専門家</color>を5e 2024版と入れ替えます<i><color=#F0DAA0>（取得時に2つの防御術呪文を習得し、スロット・レベルが上がるたびに1つずつ追加で習得する）</color></i>
 ModUi/&SwapCraftedItemAndRecipeIcons=<i>+ショップでレシピとクラフトアイテムのアイコンを交換</i>
 ModUi/&LearnAllScrollRecipes=基本ゲーム内の呪文の巻物作成レシピをすべて習得します<i><color=#F0DAA0>（作成には巻物作成道具の習熟と呪文の知識が必要です）</color></i>
 ModUi/&SwapEvocationPotentCantripAndSculptSpell=進行時に<b>力術士</b>の<color=#D89555>呪文効果範囲操作</color>と<color=#D89555>初級呪文強化</color>を入れ替えます

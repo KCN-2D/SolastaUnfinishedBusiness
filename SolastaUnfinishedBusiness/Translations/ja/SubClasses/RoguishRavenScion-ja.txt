@@ -14,7 +14,7 @@ Feedback/&AdditionalDamageSniperAimFormat=狙撃手の照準
 Feedback/&AdditionalDamageSniperAimLine=狙撃手の照準は追加で+{2}ダメージを与えます！
 Feedback/&TriggerRavenScionRerollLine={0}は{1}={2}をロールしました。〈致死の集中〉によりクリティカル・ヒットになります。
 Reaction/&SpendPowerRavenScionDeadlyFocusDescription=〈致死の集中〉を使って攻撃をやり直しますか？
-Reaction/&SpendPowerRavenScionDeadlyFocusReactDescription=〈致死の集中〉を使って攻撃をやり直す。
+Reaction/&SpendPowerRavenScionDeadlyFocusReactDescription=〈致死の集中〉を使って攻撃をやり直します。
 Reaction/&SpendPowerRavenScionDeadlyFocusReactTitle=攻撃をやり直す
 Reaction/&SpendPowerRavenScionDeadlyFocusTitle=致死の集中
 Subclass/&RoguishRavenScionDescription=レイヴンの末裔は、敵を素早く効果的に仕留める訓練を受けた遠隔武器の専門家です。

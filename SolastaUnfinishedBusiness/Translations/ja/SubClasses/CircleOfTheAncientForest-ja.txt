@@ -1,6 +1,6 @@
 Condition/&ConditionAncientForestPhotosynthesisDescription=太陽光から力を吸収できます。明るい光が直接当たっている間、自分のターン開始時にヒット・ポイントを2回復します。
 Condition/&ConditionAncientForestPhotosynthesisTitle=光合成
-Condition/&ConditionAncientForestRootedDescription=木の蔓が足元から伸びて地面に食い込みます。〈からみつき〉を自在に発動できます。移動速度は0になり、押しや引き寄せ、転倒を防ぐためのセーヴィング・スローに有利を得ます。
+Condition/&ConditionAncientForestRootedDescription=足元から木の根のような蔓が伸び、地面に食い込みます。〈からみつき〉を回数無制限で発動できます。移動速度は0になり、押しやり、引き寄せ、伏せ状態にする効果に対するセーヴィング・スローに有利を得ます。
 Condition/&ConditionAncientForestRootedTitle=根を張る
 Equipment/&HerbalBrewDamageAffinityAcidResistanceDescription=1時間、酸ダメージへの抵抗を得ます。
 Equipment/&HerbalBrewDamageAffinityAcidResistanceTitle=酸防護の調合薬
@@ -22,11 +22,11 @@ Feature/&FeatureSetWallOfThornsDescription=1日あたり習熟ボーナスに等
 Feature/&FeatureSetWallOfThornsTitle=森の障壁
 Feature/&LightAffinityAncientForestPhotosynthesisDescription=太陽光から力を吸収できます。明るい光が直接当たっている間、自分のターン開始時にヒット・ポイントを2回復します。
 Feature/&LightAffinityAncientForestPhotosynthesisTitle=光合成
-Feature/&OnMagicalAttackDamageEffectAncientForestLifeSapDescription=呪文で敵にダメージを与えると、各ターンに1回、自分のレベルの半分に等しいヒット・ポイントを回復します。自分のヒット・ポイントが半分以下なら、代わりに自分のレベルに等しいヒット・ポイントを回復しますが、回復量は最大ヒット・ポイントの半分までです。
+Feature/&OnMagicalAttackDamageEffectAncientForestLifeSapDescription=呪文で敵にダメージを与えると、各ターンに1回、自分のレベルの半分に等しいヒット・ポイントを回復します。現在のヒット・ポイントが最大値の半分未満なら、代わりに自分のレベルに等しいヒット・ポイントを回復します。ただし、この場合も回復後のヒット・ポイントは最大値の半分を超えません。
 Feature/&OnMagicalAttackDamageEffectAncientForestLifeSapTitle=生命吸収
-Feature/&PowerAncientForestRegrowthDescription=大休憩で補充される治癒力の蓄えを得ます。この蓄えから、ドルイド・レベル × 5に等しい合計ヒット・ポイントを回復できます。
+Feature/&PowerAncientForestRegrowthDescription=大休憩で補充される治癒力の蓄えを得ます。この蓄えを使い、合計でドルイド・レベル×5に等しいヒット・ポイントを回復できます。
 Feature/&PowerAncientForestRegrowthTitle=再生
-Feature/&PowerAncientForestRootedDescription=木の蔓が足元から伸びて地面に食い込みます。移動速度は0になり、押しや引き寄せ、転倒を防ぐためのセーヴィング・スローに有利を得ます。〈からみつき〉を自在に発動できます。
+Feature/&PowerAncientForestRootedDescription=足元から木の根のような蔓が伸び、地面に食い込みます。移動速度は0になり、押しやり、引き寄せ、伏せ状態にする効果に対するセーヴィング・スローに有利を得ます。〈からみつき〉を回数無制限で発動できます。
 Feature/&PowerAncientForestRootedTitle=根を張る
 Feature/&PowerPoolAncientForestHerbalBrewDescription=次の大休憩まで持続する薬草の調合薬を作成できます。作成できる総数は習熟ボーナスに等しく、調合薬ごとに次のいずれかを選びます：\n<color=#ADD8E6>防護の調合薬</color>：1時間、特定のダメージ種別への抵抗を与えます。\n<color=#ADD8E6>活力の調合薬</color>：2d4ヒット・ポイントを回復します。\n<color=#ADD8E6>毒化の調合薬</color>：1分間持続する毒として武器に塗布できます。命中した対象は、攻撃が当たるたびに1d4の毒ダメージを受けます。
 Feature/&PowerPoolAncientForestHerbalBrewTitle=薬草調合
@@ -39,5 +39,5 @@ Feedback/&AncientForestHerbalBrewDamageAffinityPoisonResistancePowerUsedWhileTra
 Feedback/&AncientForestHerbalBrewDamageAffinityRadiantResistancePowerUsedWhileTravellingFormat={0}は{1}を作成します
 Feedback/&AncientForestHerbalBrewHealingPowerUsedWhileTravellingFormat={0}は{1}を作成します
 Feedback/&AncientForestHerbalBrewToxifyingPowerUsedWhileTravellingFormat={0}は{1}を作成します
-Subclass/&CircleOfTheAncientForestDescription=あなたは強大な自然の実体と絆を結んできました。古代のドライアド、アーチドルイド、物質界へとにじみ出たフェイワイルドの顕現、あるいは原初の時代の忘れられた神々などです。その存在は、あなたに自然界を守るよう望んでいるのかもしれませんし、自らは行けない遠方の地を旅させたいのかもしれません。あるいは、短命な定命の者にはうかがい知れない別の思惑を抱いているのかもしれません。
+Subclass/&CircleOfTheAncientForestDescription=あなたは自然の強大な存在と絆を結んでいます。古代のドライアド、大ドルイド、物質界ににじみ出たフェイワイルドの力の化身、あるいは原初の時代の忘れられた神々などです。その存在は、あなたに自然界を守ることや、自らは行けない遠方の地を旅することを望んでいるのかもしれません。あるいは、短命な定命の者にはうかがい知れない別の思惑を抱いているのかもしれません。
 Subclass/&CircleOfTheAncientForestTitle=古代の森の円環

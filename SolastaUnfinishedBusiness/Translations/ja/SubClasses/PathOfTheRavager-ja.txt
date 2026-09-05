@@ -8,5 +8,5 @@ Reaction/&UseIntimidatingPresenceDescription=〈恐怖の存在〉をフリー�
 Reaction/&UseIntimidatingPresenceReactDescription=〈恐怖の存在〉をフリー・アクションとして使用します。
 Reaction/&UseIntimidatingPresenceReactTitle=恐怖の存在
 Reaction/&UseIntimidatingPresenceTitle=恐怖の存在
-Subclass/&PathOfTheRavagerDescription=蹂躙者の道は、血でぬめる制御なき激怒の道です。蹂躙者の怒りに身を委ねると、自らの安全も顧みず、戦いの混沌に歓喜するようになります。
+Subclass/&PathOfTheRavagerDescription=蹂躙者の道は、血にまみれた、抑えようのない怒りの道です。蹂躙者の激怒に身を委ねると、自らの身の安全も顧みず、戦いの混沌に歓喜するようになります。
 Subclass/&PathOfTheRavagerTitle=蹂躙者の道

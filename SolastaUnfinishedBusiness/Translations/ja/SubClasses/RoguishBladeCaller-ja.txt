@@ -1,4 +1,4 @@
-Condition/&ConditionRoguishBladeCallerBladeMarkDescription=この印を消費して行う攻撃は有利になり、レベルの半分（端数切り上げ）に等しい追加ダメージを与えます。
+Condition/&ConditionRoguishBladeCallerBladeMarkDescription=この印を付けた者は、このクリーチャーに対する攻撃ロールに有利を得て、自分のレベルの半分（端数切り上げ）に等しい追加ダメージを与えます。
 Condition/&ConditionRoguishBladeCallerBladeMarkTitle=刃の印
 Condition/&ConditionRoguishBladeCallerBladeSurgeDescription=追加の武器攻撃1回と、さらに2マスの移動速度を得ます。
 Condition/&ConditionRoguishBladeCallerBladeSurgeTitle=刃の昂ぶり
