@@ -389,6 +389,7 @@ Feature/&SenseRangerFeralSenses2024Description=Votre connexion aux forces de la 
 Feature/&SenseRangerFeralSenses2024Title=Sens sauvages
 Feature/&ToolGainChoicesPluralDescription=Choisissez {0} de ces outils : {1}
 Feature/&ToolGainChoicesSingleDescription=Choisissez l'un de ces outils : {1}
+Feature/&TraditionCourtMageCounterspellMastery2024Description=Lorsque vous lancez Contresort, la cible a un désavantage à son jet de sauvegarde de Constitution. Vous avez un avantage aux jets de sauvegarde de Constitution contre Contresort.
 Feature/&VisionBlindsightDescription=Vous avez la vision aveugle.
 Feedback/&AdditionalDamageBrutalStrikeFormat=Grève brutale
 Feedback/&AdditionalDamageBrutalStrikeLine=Frappe brutale inflige +{2} dégâts supplémentaires !

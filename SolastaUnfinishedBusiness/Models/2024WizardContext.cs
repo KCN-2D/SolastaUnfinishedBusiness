@@ -1,8 +1,9 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
+using SolastaUnfinishedBusiness.Subclasses;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionSubclassChoices;
@@ -47,6 +48,11 @@ public static partial class Tabletop2024Context
         .SetFixedAmount(0)
         .AddToDB();
 
+
+    internal static void SwitchWizardAbjurerSpellBreaker()
+    {
+        WizardAbjuration.SwitchSpellBreaker();
+    }
 
     internal static void SwitchWizardSchoolOfMagicLearningLevel()
     {

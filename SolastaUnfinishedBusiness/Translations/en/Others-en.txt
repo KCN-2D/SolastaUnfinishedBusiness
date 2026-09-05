@@ -386,6 +386,7 @@ Feature/&FeatureSetDivineSmite2024Description=You always have the Divine Smite s
 Feature/&FeatureSetDivineSmite2024Title=Paladin's Smite
 Feature/&ToolGainChoicesPluralDescription=Choose {0} of these tools: {1}
 Feature/&ToolGainChoicesSingleDescription=Choose one of these tools: {1}
+Feature/&TraditionCourtMageCounterspellMastery2024Description=When you cast Counterspell, the target has disadvantage on its Constitution saving throw. You have advantage on Constitution saving throws against Counterspell.
 Feature/&VisionBlindsightDescription=You have blindsight.
 Feedback/&AdditionalDamageBrutalStrikeFormat=Brutal Strike
 Feedback/&AdditionalDamageBrutalStrikeLine=Brutal Strike deals extra +{2} damage!

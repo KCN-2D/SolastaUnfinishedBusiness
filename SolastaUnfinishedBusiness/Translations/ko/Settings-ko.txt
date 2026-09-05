@@ -256,6 +256,7 @@ ModUi/&EnableRespecAction=휴식 동작 후 <color=#D89555>RESPEC</color> 활성
 ModUi/&EnableRitualOnAllCasters2024=모든 시전자에 <color=#D89555>의식</color> 시전 활성화
 ModUi/&EnableOneSpellSlotPerTurn2024=한 턴에 주문 시전으로 주문 슬롯을 하나만 소비할 수 있는 2024년 규칙을 적용합니다. <i><color=#F0DAA0>[소마법과 주문 슬롯을 소비하지 않는 시전에는 영향을 주지 않습니다]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=<color=#D89555>주문 방해</color>에 2024년 규칙을 적용합니다. <i><color=#F0DAA0>[대상 시전자는 당신의 주문 내성 DC에 대해 건강 내성 굴림을 하며, 실패하면 방해된 주문의 슬롯을 소비하지 않습니다]</color></i>
+ModUi/&Counterspell2024CompatibilityDescription=10레벨 방호술사의 주문 파괴자도 자동으로 활성화됩니다. 코트 메이지의 주문 반사 통달은 자신의 카운터스펠 대상이 하는 내성 굴림에 불리점을 주고, 카운터스펠에 맞서는 자신의 내성 굴림에는 이점을 줍니다.
 ModUi/&EnableRogueCunningStrike2024=레벨 5, 11, 14에서 <color=#D89555>교활한 일격</color>, <color=#D89555>개선된 교활한 일격</color>, <color=#D89555>사악한 일격</color>을 활성화합니다. <i><color=#F0DAA0>[추가 적중 효과를 위해 몰래 공격 주사위 1개를 포기합니다]</color></i>
 ModUi/&EnableRogueFightingStyle=레벨 2에서 <color=#D89555>격투 스타일</color> 선택 가능
 ModUi/&EnableRogueReliableTalent2024=레벨 11 대신 레벨 7에서 <color=#D89555>신뢰할 수 있는 재능</color>을 활성화합니다.
@@ -295,6 +296,8 @@ ModUi/&EnableWarlockInvocationProgression2024=<color=#D89555>호출</color>을 5
 ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=레벨 2에서 <color=#D89555>마법의 교활함</color>을 활성화하고 레벨 20에서 <color=#D89555>엘드리치 마스터</color>를 향상시킵니다.
 ModUi/&EnableWarlockMagicalCunningAtLevel2=레벨 2에서 <color=#D89555>마법의 교활함</color>을 활성화합니다.
 ModUi/&EnableWarlockToLearnPatronAtLevel3=레벨 1 대신 레벨 3에서 <color=#D89555>후원자</color> 활성화
+ModUi/&EnableAbjurerSpellBreaker2024=방호술사의 10레벨 능력을 2024년판 <color=#D89555>주문 파괴자</color>로 변경
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=2024년판 카운터스펠 규칙을 사용하는 동안 자동으로 활성화됩니다. 주문 파괴자의 개별 설정은 보존되며 해당 규칙을 끄면 원래 선택이 다시 적용됩니다.
 ModUi/&EnableWizardMemorizeSpell2024=레벨 5에서 <color=#D89555>주문 기억</color>을 활성화합니다.
 ModUi/&EnableWizardToLearnScholarAtLevel2=레벨 2에서 <color=#D89555>학자</color> 활성화
 ModUi/&EnableWizardToLearnSchoolAtLevel3=<color=#D89555>마법 학교</color>를 2레벨 대신 3레벨로 활성화합니다.

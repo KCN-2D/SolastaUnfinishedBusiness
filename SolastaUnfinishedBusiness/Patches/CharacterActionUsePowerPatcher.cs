@@ -7,6 +7,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using static RuleDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -202,7 +203,10 @@ public static class CharacterActionUsePowerPatcher
 
         private static IEnumerator Process(CharacterActionUsePower actionUsePower)
         {
-            if (actionUsePower.ActionParams.TargetAction == null)
+            var targetAction = actionUsePower.ActionParams.TargetAction;
+
+            if (targetAction?.ActionParams?.RulesetEffect is not RulesetEffectSpell counteredSpell ||
+                targetAction.Countered)
             {
                 yield break;
             }
@@ -211,28 +215,21 @@ public static class CharacterActionUsePowerPatcher
             var rulesetCharacter = actingCharacter.RulesetCharacter;
             var actionParams = actionUsePower.ActionParams;
             var actionModifier = actionParams.ActionModifiers[0];
-            var targetAction = actionParams.TargetAction;
-            var targetActionParams = targetAction.ActionParams;
+            var counteredSpellDefinition = RulesetEffectSpellWithOrigin.GetOriginSpell(counteredSpell);
+            var slotLevel = RulesetEffectSpellWithOrigin.GetResourceSlotLevel(counteredSpell);
 
             foreach (var effectForm in actionParams.RulesetEffect.EffectDescription.EffectForms)
             {
-                if (effectForm.FormType != EffectForm.EffectFormType.Counter)
+                if (effectForm.FormType != EffectForm.EffectFormType.Counter ||
+                    effectForm.CounterForm.Type != CounterForm.CounterType.InterruptSpellcasting)
                 {
                     continue;
                 }
 
                 var counterForm = effectForm.CounterForm;
-                if (targetActionParams.RulesetEffect is not RulesetEffectSpell counteredSpell)
-                {
-                    continue;
-                }
-
-                var counteredSpellDefinition = RulesetEffectSpellWithOrigin.GetOriginSpell(counteredSpell);
-                var slotLevel = RulesetEffectSpellWithOrigin.GetResourceSlotLevel(counteredSpell);
-
                 if (counterForm.AutomaticSpellLevel >= slotLevel)
                 {
-                    targetAction.Countered = true;
+                    SpellInterruptionContext.TryCounterSpell(actionUsePower, targetAction);
                 }
                 else if (counterForm.CheckBaseDC != 0)
                 {
@@ -270,18 +267,15 @@ public static class CharacterActionUsePowerPatcher
                                 counteredSpell.CounterAffinityOrigin, null));
                     }
 
-                    var abilityScoreName = AttributeDefinitions.Charisma;
-
-                    foreach (var spellRepertoire in rulesetCharacter.SpellRepertoires
-                                 .Where(repertoire =>
-                                     repertoire.SpellCastingFeature.SpellCastingOrigin
-                                         is FeatureDefinitionCastSpell.CastingOrigin.Class
-                                         or FeatureDefinitionCastSpell.CastingOrigin.Subclass))
-                    {
-                        abilityScoreName = spellRepertoire.SpellCastingFeature.SpellcastingAbility;
-
-                        break;
-                    }
+                    var classHolder = actionParams.RulesetEffect.GetSourceDefinitionSafe()
+                        .GetFirstSubFeatureOfType<ClassHolder>();
+                    var castingRepertoire = classHolder != null
+                        ? rulesetCharacter.GetClassSpellRepertoire(classHolder.Class)
+                        : rulesetCharacter.SpellRepertoires.FirstOrDefault(repertoire =>
+                            repertoire.SpellCastingFeature.SpellCastingOrigin
+                                is FeatureDefinitionCastSpell.CastingOrigin.Class
+                                or FeatureDefinitionCastSpell.CastingOrigin.Subclass);
+                    var abilityScoreName = castingRepertoire?.SpellCastingAbility ?? AttributeDefinitions.Charisma;
 
                     var proficiencyName = string.Empty;
 
@@ -319,26 +313,27 @@ public static class CharacterActionUsePowerPatcher
                     actionUsePower.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckRollOutcome;
                     actionUsePower.AbilityCheckSuccessDelta = abilityCheckData.AbilityCheckSuccessDelta;
 
-                    if (actionUsePower.AbilityCheckRollOutcome == RollOutcome.Success)
+                    if (actionUsePower.AbilityCheckRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
                     {
-                        targetAction.Countered = true;
+                        SpellInterruptionContext.TryCounterSpell(actionUsePower, targetAction);
                     }
                 }
 
-                if (!targetAction.Countered ||
-                    rulesetCharacter.SpellCounter == null)
+                if (!SpellInterruptionContext.HasCounteredSpell(actionUsePower))
                 {
                     continue;
                 }
 
                 var unknown = string.IsNullOrEmpty(counteredSpell.IdentifiedBy);
 
-                rulesetCharacter.SpellCounter(
+                rulesetCharacter.SpellCounter?.Invoke(
                     rulesetCharacter,
                     targetAction.ActingCharacter.RulesetCharacter,
                     counteredSpellDefinition,
                     targetAction.Countered,
                     unknown);
+
+                yield break;
             }
         }
     }

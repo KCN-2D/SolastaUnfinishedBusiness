@@ -873,12 +873,7 @@ internal sealed partial class SimulacrumBehavior :
             return false;
         }
 
-        if (!canOnlyUseCantrips && character.HasSmites())
-        {
-            return true;
-        }
-
-        return character.HasAnyFeature(PatronEldritchSurge.FeatureBlastReload);
+        return !canOnlyUseCantrips && character.HasSmites();
 
         static bool HasCastingActionType(SpellDefinition spell, ActionType expectedActionType)
         {

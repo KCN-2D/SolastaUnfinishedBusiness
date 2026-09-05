@@ -1,10 +1,9 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
-using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
-using SolastaUnfinishedBusiness.Subclasses;
+using SolastaUnfinishedBusiness.Interfaces;
 using static RuleDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -44,11 +43,13 @@ public static class SpellRepertoireLinePatcher
         [UsedImplicitly]
         public static void Postfix([NotNull] List<SpellDefinition> spellDefinitions, SpellRepertoireLine __instance)
         {
-            //PATCH: Enable Blast Reload feature
-            var hero = __instance.caster.rulesetCharacter;
-
-            hero?.GetSubFeaturesByType<PatronEldritchSurge.IQualifySpellToRepertoireLine>()
-                .ForEach(f => f.QualifySpells(hero, __instance, spellDefinitions));
+            SpellActionTypeContext.QualifySpells(
+                __instance.caster?.RulesetCharacter,
+                __instance.spellRepertoire,
+                __instance.actionType,
+                spellDefinitions,
+                __instance.relevantSpells);
+            __instance.relevantSpells.Sort(__instance);
         }
     }
 }

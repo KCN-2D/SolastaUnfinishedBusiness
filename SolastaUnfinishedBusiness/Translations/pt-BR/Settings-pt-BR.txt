@@ -256,6 +256,7 @@ ModUi/&EnableRespecAction=Habilitar <color=#D89555>RESPEC</color> após a ação
 ModUi/&EnableRitualOnAllCasters2024=Habilitar a conjuração de <color=#D89555>Ritual</color> em todos os conjuradores
 ModUi/&EnableOneSpellSlotPerTurn2024=Aplica a regra de 2024 que permite gastar apenas um espaço de magia para conjurar uma magia em cada turno <i><color=#F0DAA0>[truques e magias conjuradas sem espaço não são afetados]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Usa as regras de 2024 para <color=#D89555>Contramágica</color> <i><color=#F0DAA0>[o conjurador faz um teste de resistência de Constituição contra a sua CD de magia; em caso de falha, o espaço da magia interrompida não é gasto]</color></i>
+ModUi/&Counterspell2024CompatibilityDescription=Também ativa Quebra-magia para Abjuradores de nível 10. Maestria em Contramágica do Mago da Corte impõe desvantagem nos testes de resistência dos alvos da sua Contramágica e concede vantagem aos seus testes de resistência contra Contramágica.
 ModUi/&EnableRogueCunningStrike2024=Habilite <color=#D89555>Golpe Astuto</color>, <color=#D89555>Golpe Astuto Aprimorado</color> e <color=#D89555>Golpe Desonesto</color> nos níveis 5, 11 e 14 <i><color=#F0DAA0>[você deixa de lado 1 dado de ataque furtivo para efeitos de acerto adicionais]</color></i>
 ModUi/&EnableRogueFightingStyle=Habilitar a escolha <color=#D89555>Estilo de luta</color> no nível 2
 ModUi/&EnableRogueReliableTalent2024=Habilite <color=#D89555>Talento Confiável</color> no nível 7 em vez de 11
@@ -295,6 +296,8 @@ ModUi/&EnableWarlockInvocationProgression2024=Troque <color=#D89555>Invocações
 ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=Habilite <color=#D89555>Astúcia Mágica</color> no nível 2 e melhore <color=#D89555>Mestre Eldritch</color> no nível 20
 ModUi/&EnableWarlockMagicalCunningAtLevel2=Habilitar <color=#D89555>Astúcia Mágica</color> no nível 2
 ModUi/&EnableWarlockToLearnPatronAtLevel3=Habilitar <color=#D89555>Patrono</color> no nível 3 em vez de 1
+ModUi/&EnableAbjurerSpellBreaker2024=Ativar <color=#D89555>Quebra-magia</color> para o Abjurador no nível 10 (2024)
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=Ativado automaticamente enquanto as regras de Contramágica de 2024 estiverem em uso. Sua preferência independente de Quebra-magia é preservada e volta a valer quando essas regras são desativadas.
 ModUi/&EnableWizardMemorizeSpell2024=Habilitar <color=#D89555>Memorizar Feitiço</color> no nível 5
 ModUi/&EnableWizardToLearnScholarAtLevel2=Habilitar <color=#D89555>Scholar</color> no nível 2
 ModUi/&EnableWizardToLearnSchoolAtLevel3=Habilitar <color=#D89555>Escola de Magia</color> no nível 3 em vez de 2

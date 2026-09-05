@@ -389,6 +389,7 @@ Feature/&SenseRangerFeralSenses2024Description=你与自然力量的联系赋予
 Feature/&SenseRangerFeralSenses2024Title=野性感官
 Feature/&ToolGainChoicesPluralDescription=从这些工具中选择 {0}：{1}
 Feature/&ToolGainChoicesSingleDescription=选择以下工具之一：{1}
+Feature/&TraditionCourtMageCounterspellMastery2024Description=当你施放法术反制时，目标的体质豁免检定具有劣势。你在对抗法术反制的体质豁免检定中具有优势。
 Feature/&VisionBlindsightDescription=你有盲视。
 Feedback/&AdditionalDamageBrutalStrikeFormat=凶蛮打击
 Feedback/&AdditionalDamageBrutalStrikeLine=凶蛮打击造成额外 +{2} 伤害！

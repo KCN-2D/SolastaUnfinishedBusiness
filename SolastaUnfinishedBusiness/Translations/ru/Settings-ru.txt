@@ -256,6 +256,7 @@ ModUi/&EnableRespecAction=Включить возможность <color=#D89555
 ModUi/&EnableRitualOnAllCasters2024=Включить <color=#D89555>Ритуальное колдовство</color> для всех заклинателей
 ModUi/&EnableOneSpellSlotPerTurn2024=Применяет правило 2024 года: за один ход можно потратить только одну ячейку на сотворение заклинания <i><color=#F0DAA0>[заговоры и заклинания без расхода ячейки не затрагиваются]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Использует правила 2024 года для <color=#D89555>Контрзаклинания</color> <i><color=#F0DAA0>[заклинатель совершает спасбросок Телосложения против вашей Сл спасброска заклинаний; при провале ячейка прерванного заклинания не расходуется]</color></i>
+ModUi/&Counterspell2024CompatibilityDescription=Также включает Разрушитель заклинаний для Оградителей 10-го уровня. Мастер контрзаклинаний Придворного мага даёт целям помеху на спасброски против вашего Контрзаклинания, а вам — преимущество на спасброски против Контрзаклинания.
 ModUi/&EnableRogueCunningStrike2024=Включить умения <color=#D89555>Хитрого удара</color>, <color=#D89555>Улучшенного хитрого удара</color> и <color=#D89555>Коварного удара</color> на уровнях 5, 11 и 14 соответственно <i><color=#F0DAA0>[вы отказываетесь от 1 кости скрытой атаки для применения дополнительных эффектов]</color></i>
 ModUi/&EnableRogueFightingStyle=Включить выбор <color=#D89555>Боевого стиля</color> на уровне 2
 ModUi/&EnableRogueReliableTalent2024=Включить <color=#D89555>Надёжный талант</color> на уровне 7 вместо 11
@@ -295,6 +296,8 @@ ModUi/&EnableWarlockInvocationProgression2024=Заменить <color=#D89555>В
 ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=Включить <color=#D89555>Магическую хитрость</color> на уровне 2 и улучшить <color=#D89555>Таинственного мастера</color> на уровне 20
 ModUi/&EnableWarlockMagicalCunningAtLevel2=Включить <color=#D89555>Магическую хитрость</color> на уровне 2
 ModUi/&EnableWarlockToLearnPatronAtLevel3=Включить выбор <color=#D89555>Покровителя</color> на 3-м уровне вместо 1-го
+ModUi/&EnableAbjurerSpellBreaker2024=Включить <color=#D89555>Разрушитель заклинаний</color> для Оградителя на 10-м уровне (2024)
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=Включается автоматически при использовании правил Контрзаклинания 2024 года. Отдельная настройка Разрушителя заклинаний сохраняется и снова применяется после отключения этих правил.
 ModUi/&EnableWizardMemorizeSpell2024=Включить <color=#D89555>Заучивание заклинаний</color> на уровне 5
 ModUi/&EnableWizardToLearnScholarAtLevel2=Включить <color=#D89555>Учёного</color> на уровне 2
 ModUi/&EnableWizardToLearnSchoolAtLevel3=Включить изучение <color=#D89555>Магических традиций</color> на 3-м уровне вместо 2-го

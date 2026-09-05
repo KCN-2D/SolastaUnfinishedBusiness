@@ -389,6 +389,7 @@ Feature/&SenseRangerFeralSenses2024Description=Ihre Verbindung zu den Kräften d
 Feature/&SenseRangerFeralSenses2024Title=Wilde Sinne
 Feature/&ToolGainChoicesPluralDescription=Wählen Sie {0} dieser Tools: {1}
 Feature/&ToolGainChoicesSingleDescription=Wählen Sie eines dieser Tools: {1}
+Feature/&TraditionCourtMageCounterspellMastery2024Description=Wenn du Gegenzauber wirkst, hat das Ziel Nachteil auf seinen Konstitutionsrettungswurf. Du hast Vorteil auf Konstitutionsrettungswürfe gegen Gegenzauber.
 Feature/&VisionBlindsightDescription=Sie leiden an Blindsicht.
 Feedback/&AdditionalDamageBrutalStrikeFormat=Brutaler Schlag
 Feedback/&AdditionalDamageBrutalStrikeLine=Brutaler Schlag verursacht zusätzlichen +{2} Schaden!

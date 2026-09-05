@@ -386,6 +386,7 @@ Feature/&FeatureSetDivineSmite2024Description=あなたは常に〈神聖なる�
 Feature/&FeatureSetDivineSmite2024Title=パラディンの神聖なる一撃
 Feature/&ToolGainChoicesPluralDescription=次のツールから{0}個を選択してください：{1}
 Feature/&ToolGainChoicesSingleDescription=次のツールのいずれかを選択します：{1}
+Feature/&TraditionCourtMageCounterspellMastery2024Description=あなたが〈呪文妨害〉を発動すると、対象はその耐久力セーヴィング・スローに不利を受けます。あなた自身は、〈呪文妨害〉に対する耐久力セーヴィング・スローに有利を得ます。
 Feature/&VisionBlindsightDescription=あなたは擬似視覚を持つ。
 Feedback/&AdditionalDamageBrutalStrikeFormat=残忍な一撃
 Feedback/&AdditionalDamageBrutalStrikeLine=残忍な一撃は追加で+{2}ダメージを与える！

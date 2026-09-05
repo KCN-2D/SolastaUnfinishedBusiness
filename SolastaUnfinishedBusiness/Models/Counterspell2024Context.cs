@@ -61,6 +61,10 @@ internal static class Counterspell2024Context
             out RollOutcome outcome,
             out int outcomeDelta)
         {
+            // The original caster now rolls, so old counterspell check affinities change sides.
+            // Reapply them here because saving throw rerolls receive a new action modifier.
+            ApplyCounterspellAffinities(counterspeller.RulesetCharacter, counteredSpell, modifier);
+
             return implementationService.TryRollSavingThrow(
                 counterspeller.RulesetCharacter,
                 counterspeller.Side,
@@ -133,7 +137,11 @@ internal static class Counterspell2024Context
             yield break;
         }
 
-        targetAction.Countered = true;
+        if (!SpellInterruptionContext.TryCounterSpell(counterAction, targetAction))
+        {
+            yield break;
+        }
+
         SpellSlotCastingLimit2024Context.TryRefundPayment(counteredSpell);
 
         var rulesetCounterspeller = counterspeller.RulesetCharacter;
@@ -153,5 +161,40 @@ internal static class Counterspell2024Context
             counteredSpellDefinition,
             true,
             unknown);
+    }
+
+    private static void ApplyCounterspellAffinities(
+        RulesetCharacter counterspeller,
+        RulesetEffectSpell counteredSpell,
+        ActionModifier actionModifier)
+    {
+        foreach (var magicAffinity in counterspeller.FeaturesByType<FeatureDefinitionMagicAffinity>().Distinct())
+        {
+            AddInvertedSavingThrowAffinity(
+                actionModifier, magicAffinity.CounterspellAffinity, magicAffinity.Name);
+        }
+
+        // The effect retains the defensive affinity captured when its caster began casting.
+        AddInvertedSavingThrowAffinity(
+            actionModifier, counteredSpell.CounterAffinity, counteredSpell.CounterAffinityOrigin);
+    }
+
+    private static void AddInvertedSavingThrowAffinity(
+        ActionModifier actionModifier,
+        AdvantageType counterspellCheckAffinity,
+        string sourceName)
+    {
+        var trend = counterspellCheckAffinity switch
+        {
+            AdvantageType.Advantage => -1,
+            AdvantageType.Disadvantage => 1,
+            _ => 0
+        };
+
+        if (trend != 0)
+        {
+            actionModifier.SavingThrowAdvantageTrends.Add(
+                new TrendInfo(trend, FeatureSourceType.CharacterFeature, sourceName, null));
+        }
     }
 }

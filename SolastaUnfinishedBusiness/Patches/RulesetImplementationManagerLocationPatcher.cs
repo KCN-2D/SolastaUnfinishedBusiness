@@ -780,6 +780,23 @@ public static class RulesetImplementationManagerLocationPatcher
     [UsedImplicitly]
     public static class ApplyCounterForm_Patch
     {
+        [UsedImplicitly]
+        public static void Prefix(
+            EffectForm effectForm,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            out IDisposable __state)
+        {
+            __state = effectForm.CounterForm.Type == CounterForm.CounterType.DissipateSpells
+                ? SpellInterruptionContext.ObserveDispel(formsParams)
+                : null;
+        }
+
+        [UsedImplicitly]
+        public static void Finalizer(IDisposable __state)
+        {
+            __state?.Dispose();
+        }
+
         private static RulesetCharacter ResolveCounterCharacter(
             RulesetCharacter character)
         {

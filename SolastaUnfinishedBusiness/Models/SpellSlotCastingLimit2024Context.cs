@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -242,7 +242,9 @@ internal static class SpellSlotCastingLimit2024Context
         RulesetSpellRepertoire spendingRepertoire)
     {
         if (!Main.Settings.EnableOneSpellSlotPerTurn2024 &&
-            !Main.Settings.EnableOneDndCounterspellSpell)
+            !Main.Settings.EnableOneDndCounterspellSpell &&
+            !caster.GetSubFeaturesByType<IRefundSpellSlotOnFailure>()
+                .Any(policy => policy.IsEligible(caster, activeSpell)))
         {
             return null;
         }
@@ -513,8 +515,17 @@ internal static class SpellSlotCastingLimit2024Context
                     repertoire.usedSpellsSlots.TryGetValue(level, out var current);
                     repertoire.usedSpellsSlots[level] = Math.Max(0, current - delta);
                 }
+            }
 
-                repertoire.RepertoireRefreshed?.Invoke(repertoire);
+            // Publish the refund only after slots and the turn expenditure agree.
+            // UI refresh callbacks can immediately ask whether another slot may be spent.
+            if (markerIncremented &&
+                paymentGeneration == _turnGeneration &&
+                usageOwner != null &&
+                TurnUsages.TryGetValue(usageOwner, out var usage) &&
+                usage.Generation == paymentGeneration)
+            {
+                usage.Count = Math.Max(0, usage.Count - 1);
             }
 
             if (spellPointPool != null && spentSpellPoints > 0)
@@ -522,16 +533,10 @@ internal static class SpellSlotCastingLimit2024Context
                 caster.AddSpellPoints(spentSpellPoints);
             }
 
-            if (!markerIncremented ||
-                paymentGeneration != _turnGeneration ||
-                usageOwner == null ||
-                !TurnUsages.TryGetValue(usageOwner, out var usage) ||
-                usage.Generation != paymentGeneration)
+            foreach (var repertoire in slotDeltas.Keys)
             {
-                return;
+                repertoire.RepertoireRefreshed?.Invoke(repertoire);
             }
-
-            usage.Count = Math.Max(0, usage.Count - 1);
         }
     }
 

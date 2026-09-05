@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
@@ -579,29 +579,6 @@ internal static class LevelUpHelper
 
         return isPreparedSpellForWholeListCaster ||
                IsSlotCastableExtraSpellForRepertoire(character, repertoire, spell);
-    }
-
-    internal static bool HasSlotCastableExtraSpellOfLevelAndActionType(
-        RulesetCharacter character,
-        RulesetSpellRepertoire repertoire,
-        int spellLevel,
-        ActionDefinitions.ActionType actionType)
-    {
-        if (actionType == ActionDefinitions.ActionType.None)
-        {
-            return EnumerateSlotCastableExtraSpellsForRepertoire(character, repertoire, spellLevel)
-                .Any(entry => entry.Spell.ActivationTime is not ActivationTime.Reaction and not ActivationTime.OnAttackHit);
-        }
-
-        var activationTime = GetSpellActivationTime(actionType);
-
-        if (activationTime is ActivationTime.Reaction or ActivationTime.OnAttackHit)
-        {
-            return false;
-        }
-
-        return EnumerateSlotCastableExtraSpellsForRepertoire(character, repertoire, spellLevel)
-            .Any(entry => entry.Spell.ActivationTime == activationTime);
     }
 
     internal static ActivationTime GetSpellActivationTime(ActionDefinitions.ActionType actionType)

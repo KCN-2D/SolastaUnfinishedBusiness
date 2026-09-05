@@ -248,6 +248,7 @@ ModUi/&EnableRespecAction=Enable the <color=#D89555>RESPEC</color> after rest ac
 ModUi/&EnableRitualOnAllCasters2024=Enable <color=#D89555>Ritual</color> casting on all casters
 ModUi/&EnableOneSpellSlotPerTurn2024=Apply the 2024 rule that only one spell slot can be expended to cast a spell on each turn <i><color=#F0DAA0>[cantrips and spells cast without a spell slot are unaffected]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Use the 2024 rules for <color=#D89555>Counterspell</color> <i><color=#F0DAA0>[the caster makes a Constitution saving throw against your spell save DC; on a failure, the interrupted spell's slot is not expended]</color></i>
+ModUi/&Counterspell2024CompatibilityDescription=Also enables Spell Breaker for level 10 Abjurers. Court Mage Counterspell Mastery gives your targets disadvantage on their Counterspell saves and gives you advantage on saves against Counterspell.
 ModUi/&EnableRogueCunningStrike2024=Enable <color=#D89555>Cunning Strike</color>, <color=#D89555>Improved Cunning Strike</color>, and <color=#D89555>Devious Strike</color> at levels 5, 11 and 14 <i><color=#F0DAA0>[you let forgo 1 sneak attack dice for additional hit effects]</color></i>
 ModUi/&EnableRogueFightingStyle=Enable <color=#D89555>Fighting Style</color> choice at level 2
 ModUi/&EnableRogueReliableTalent2024=Enable <color=#D89555>Reliable Talent</color> at level 7 instead of 11
@@ -286,6 +287,8 @@ ModUi/&EnableWarlockInvocationProgression2024=Swap <color=#D89555>Invocations</c
 ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=Enable <color=#D89555>Magical Cunning</color> at level 2 and improve <color=#D89555>Eldritch Master</color> at 20
 ModUi/&EnableWarlockMagicalCunningAtLevel2=Enable <color=#D89555>Magical Cunning</color> at level 2
 ModUi/&EnableWarlockToLearnPatronAtLevel3=Enable <color=#D89555>Patron</color> at level 3 instead of 1
+ModUi/&EnableAbjurerSpellBreaker2024=Enable <color=#D89555>Spell Breaker</color> for the Abjurer at level 10 (2024)
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=Automatically enabled while the 2024 Counterspell rules are active. Your separate Spell Breaker preference is preserved and applies again when those rules are disabled.
 ModUi/&EnableWizardMemorizeSpell2024=Enable <color=#D89555>Memorize Spell</color> at level 5
 ModUi/&EnableWizardToLearnScholarAtLevel2=Enable <color=#D89555>Scholar</color> at level 2
 ModUi/&EnableWizardToLearnSchoolAtLevel3=Enable <color=#D89555>School of Magic</color> at level 3 instead of 2

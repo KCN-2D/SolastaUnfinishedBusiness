@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -264,13 +264,9 @@ public class PatronEldritchSurge : AbstractSubclass
         }
     }
 
-    internal interface IQualifySpellToRepertoireLine
-    {
-        void QualifySpells(RulesetCharacter character, SpellRepertoireLine line, List<SpellDefinition> spells);
-    }
 
     private sealed class BlastReloadCustom :
-        IMagicEffectFinishedByMe, ICharacterTurnStartListener, IQualifySpellToRepertoireLine
+        IMagicEffectFinishedByMe, ICharacterTurnStartListener, IAllowSpellActionType
     {
         public void OnCharacterTurnStarted(GameLocationCharacter gameLocationCharacter)
         {
@@ -325,29 +321,18 @@ public class PatronEldritchSurge : AbstractSubclass
             }
         }
 
-        public void QualifySpells(
+        public bool IsAllowed(
             RulesetCharacter rulesetCharacter,
-            SpellRepertoireLine spellRepertoireLine,
-            List<SpellDefinition> spells)
+            RulesetSpellRepertoire repertoire,
+            SpellDefinition spell,
+            ActionType actionType)
         {
-            if (spellRepertoireLine.actionType != ActionType.Bonus
-                || !BlastReloadSupportRulesetCondition.GetCustomConditionFromCharacter(
-                    rulesetCharacter, out var supportCondition))
-            {
-                return;
-            }
-
-            if (supportCondition.SpellAsMain)
-            {
-                spellRepertoireLine.relevantSpells.AddRange(spells.FindAll(x =>
-                    x.ActivationTime == ActivationTime.Action && x.SpellLevel == 0));
-            }
-
-            if (supportCondition.CantripAsMain)
-            {
-                spellRepertoireLine.relevantSpells.AddRange(spells.FindAll(x =>
-                    x.ActivationTime == ActivationTime.Action && x.SpellLevel > 0));
-            }
+            return actionType == ActionType.Bonus &&
+                   spell.ActivationTime == ActivationTime.Action &&
+                   BlastReloadSupportRulesetCondition.GetCustomConditionFromCharacter(
+                       rulesetCharacter, out var supportCondition) &&
+                   ((supportCondition.SpellAsMain && spell.SpellLevel == 0) ||
+                    (supportCondition.CantripAsMain && spell.SpellLevel > 0));
         }
     }
 

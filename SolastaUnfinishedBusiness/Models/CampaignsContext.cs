@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,6 +11,7 @@ using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Patches;
 using TA;
 using UnityEngine;
@@ -342,7 +343,8 @@ internal static class CampaignsContext
 
             for (var level = startLevel; level <= maxLevel; level++)
             {
-                if (!IsLevelActive(rulesetSpellRepertoire, level, actionType))
+                if (!SpellActionTypeContext.HasSpellOfLevelAndActionType(
+                        caster.RulesetCharacter, rulesetSpellRepertoire, level, actionType))
                 {
                     continue;
                 }
@@ -1227,71 +1229,6 @@ internal static class CampaignsContext
         spellRepertoireLines.Add(component);
 
         return component;
-    }
-
-    private static bool IsLevelActive(
-        RulesetSpellRepertoire spellRepertoire, int level,
-        ActionDefinitions.ActionType actionType)
-    {
-        var spellActivationTime = actionType switch
-        {
-            ActionDefinitions.ActionType.Bonus => ActivationTime.BonusAction,
-            ActionDefinitions.ActionType.Main => ActivationTime.Action,
-            ActionDefinitions.ActionType.Reaction => ActivationTime.Reaction,
-            ActionDefinitions.ActionType.NoCost => ActivationTime.NoCost,
-            _ => ActivationTime.Action
-        };
-
-        if (level == 0)
-        {
-            // changed to support game v1.3.44 and allow ancestry cantrips to display off battle
-            return actionType == ActionDefinitions.ActionType.None ||
-                   spellRepertoire.KnownCantrips.Any(cantrip => cantrip.ActivationTime == spellActivationTime) ||
-                   (spellRepertoire.ExtraSpellsByTag.TryGetValue("BonusCantrips", out var bonusCantrips) &&
-                    bonusCantrips.Any(cantrip => cantrip.ActivationTime == spellActivationTime));
-        }
-
-        if (LevelUpHelper.HasSlotCastableExtraSpellOfLevelAndActionType(
-                spellRepertoire.GetCaster(),
-                spellRepertoire,
-                level,
-                actionType))
-        {
-            return true;
-        }
-
-        switch (spellRepertoire.SpellCastingFeature.SpellReadyness)
-        {
-            case SpellReadyness.Prepared when spellRepertoire.PreparedSpells
-                                                 .Any(spellDefinition =>
-                                                     spellDefinition.SpellLevel == level
-                                                     && IsSpellVisibleForActionType(spellDefinition, actionType)):
-            case SpellReadyness.AllKnown
-                when spellRepertoire.KnownSpells.Any(spellDefinition => spellDefinition.SpellLevel == level)
-                     || spellRepertoire.ExtraSpellsByTag.Any(x => x.Value.Any(s => s.SpellLevel == level)):
-
-                return true;
-
-            default:
-                return false;
-        }
-    }
-
-    private static bool IsSpellVisibleForActionType(
-        SpellDefinition spellDefinition,
-        ActionDefinitions.ActionType actionType)
-    {
-        if (!spellDefinition)
-        {
-            return false;
-        }
-
-        if (actionType == ActionDefinitions.ActionType.None)
-        {
-            return spellDefinition.ActivationTime is not ActivationTime.Reaction and not ActivationTime.OnAttackHit;
-        }
-
-        return spellDefinition.ActivationTime == LevelUpHelper.GetSpellActivationTime(actionType);
     }
 
     internal static void SetTeleporterGadgetActiveAnimation(WorldGadget worldGadget, bool visibility = false)

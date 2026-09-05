@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -9,6 +9,7 @@ using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
 using static RuleDefinitions;
@@ -112,12 +113,17 @@ public sealed class RoguishArcaneScoundrel : AbstractSubclass
 
         var powerArcaneBackslashCounterSpell = FeatureDefinitionPowerBuilder
             .Create($"Power{Name}ArcaneBackslashCounterSpell")
-            .SetGuiPresentation(Counterspell.GuiPresentation)
+            // This power keeps its spell-level countering progression under both spell rulesets.
+            .SetGuiPresentation(GuiPresentationBuilder.Build(
+                Counterspell.GuiPresentation,
+                Counterspell.GuiPresentation.Title,
+                $"Feature/&Power{Name}ArcaneBackslashCounterSpellDescription"))
             .SetUsesFixed(ActivationTime.Reaction, RechargeRate.LongRest)
             .SetEffectDescription(EffectDescriptionBuilder.Create(Counterspell).Build())
             .AddToDB();
 
         powerArcaneBackslashCounterSpell.AddCustomSubFeatures(
+            ClassHolder.Rogue,
             new ModifyEffectDescriptionArcaneBackslashCounterSpell(powerArcaneBackslashCounterSpell));
 
         var powerArcaneBacklashSneakDamage = FeatureDefinitionPowerBuilder
@@ -277,9 +283,13 @@ public sealed class RoguishArcaneScoundrel : AbstractSubclass
             GameLocationCharacter attacker,
             List<GameLocationCharacter> targets)
         {
-            if ((action.ActionParams.RulesetEffect.SourceDefinition != Counterspell &&
-                 action.ActionParams.RulesetEffect.SourceDefinition != powerCounterSpell)
-                || action.ActionParams.TargetAction?.Countered != true)
+            var effect = action.ActionParams.RulesetEffect;
+            var source = effect is RulesetEffectSpell spell
+                ? RulesetEffectSpellWithOrigin.GetOriginSpell(spell)
+                : effect.SourceDefinition;
+
+            if ((source != Counterspell && source != powerCounterSpell) ||
+                !SpellInterruptionContext.HasCounteredSpell(action))
             {
                 yield break;
             }

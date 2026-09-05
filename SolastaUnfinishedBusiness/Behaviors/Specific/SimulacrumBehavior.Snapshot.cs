@@ -2169,6 +2169,17 @@ internal sealed partial class SimulacrumBehavior
             RestoreCopiedFeaturesAndOrigins(duplicate);
             PrepareEquipmentFeatures(duplicate);
             SynchronizeConditionalFeatures(duplicate);
+
+            // Readiness granted by a mode-aware feature is derived from the current
+            // rules, not the rule selection when the duplicate was first created.
+            if (duplicate.HasSubFeatureOfType<IModifyAutoPreparedSpells>())
+            {
+                foreach (var repertoire in duplicate.SpellRepertoires)
+                {
+                    duplicate.ComputeAutopreparedSpells(repertoire);
+                }
+            }
+
             ApplyEquipmentAttributeModifiers(duplicate);
             duplicate.RefreshAttributes();
 

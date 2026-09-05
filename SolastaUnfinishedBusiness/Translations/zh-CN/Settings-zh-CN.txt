@@ -256,6 +256,7 @@ ModUi/&EnableRespecAction=休息行动后启用 <color=#D89555>洗点</color> <i
 ModUi/&EnableRitualOnAllCasters2024=对所有施法者启用<color=#D89555>仪式</color>施法
 ModUi/&EnableOneSpellSlotPerTurn2024=启用2024版规则：每个回合只能为施放法术消耗一个法术位<i><color=#F0DAA0>[戏法和不消耗法术位施放的法术不受影响]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=使用2024版<color=#D89555>法术反制</color>规则<i><color=#F0DAA0>[施法者对你的法术豁免DC进行一次体质豁免；若失败，被打断法术的法术位不会消耗]</color></i>
+ModUi/&Counterspell2024CompatibilityDescription=同时为10级护法师自动启用破法者。宫廷法师的法术反制大师使你的法术反制目标在豁免检定中具有劣势，并使你在对抗法术反制的豁免检定中具有优势。
 ModUi/&EnableRogueCunningStrike2024=在等级 5、11 和 14 时启用<color=#D89555>狡猾打击</color>、<color=#D89555>强化狡猾打击</color>和<color=#D89555>阴险打击</color> <i><color=#F0DAA0>[你放弃 1 个偷袭骰子以获得额外的命中效果]</color></i>
 ModUi/&EnableRogueFightingStyle=在第 2 级启用<color=#D89555>战斗风格</color>选择
 ModUi/&EnableRogueReliableTalent2024=将<color=#D89555>可靠天赋</color>设置为 7 级（而非 11 级）
@@ -295,6 +296,8 @@ ModUi/&EnableWarlockInvocationProgression2024=将<color=#D89555>Invocations</col
 ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=在 2 级启用<color=#D89555>魔法狡猾</color>并在 20 级提升<color=#D89555>神秘大师</color>
 ModUi/&EnableWarlockMagicalCunningAtLevel2=在第 2 级启用<color=#D89555>魔法狡猾</color>
 ModUi/&EnableWarlockToLearnPatronAtLevel3=在 3 级（而非 1 级）启用 <color=#D89555>Patron</color>
+ModUi/&EnableAbjurerSpellBreaker2024=为护法师启用10级能力<color=#D89555>破法者</color>（2024版）
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=启用2024版法术反制规则时，此能力会自动启用。破法者的独立设置会保留，关闭该规则后会恢复原先的选择。
 ModUi/&EnableWizardMemorizeSpell2024=在第 5 级启用<color=#D89555>记忆法术</color>
 ModUi/&EnableWizardToLearnScholarAtLevel2=启用 2 级 <color=#D89555>Scholar</color>
 ModUi/&EnableWizardToLearnSchoolAtLevel3=在 3 级（而非 2 级）启用<color=#D89555>魔法学校</color>

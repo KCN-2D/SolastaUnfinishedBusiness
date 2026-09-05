@@ -389,6 +389,7 @@ Feature/&SenseRangerFeralSenses2024Description=Sua conexão com as forças da na
 Feature/&SenseRangerFeralSenses2024Title=Sentidos selvagens
 Feature/&ToolGainChoicesPluralDescription=Escolha {0} destas ferramentas: {1}
 Feature/&ToolGainChoicesSingleDescription=Escolha uma destas ferramentas: {1}
+Feature/&TraditionCourtMageCounterspellMastery2024Description=Quando você conjura Contramágica, o alvo tem desvantagem no teste de resistência de Constituição. Você tem vantagem nos testes de resistência de Constituição contra Contramágica.
 Feature/&VisionBlindsightDescription=Você tem visão cega.
 Feedback/&AdditionalDamageBrutalStrikeFormat=Ataque Brutal
 Feedback/&AdditionalDamageBrutalStrikeLine=Ataque Brutal causa dano extra de +{2}!

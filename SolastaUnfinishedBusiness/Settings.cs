@@ -464,6 +464,7 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnableWarlockInvocationProgression2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableWarlockMagicalCunningAndImprovedEldritchMaster2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableWarlockToLearnPatronAtLevel3 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableAbjurerSpellBreaker2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableWizardMemorizeSpell2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableWizardToLearnScholarAtLevel2 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableWizardToLearnSchoolAtLevel3 { get; set; }

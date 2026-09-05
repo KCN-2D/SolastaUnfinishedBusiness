@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,6 +13,7 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using static ActionDefinitions;
 using static FeatureDefinitionAttributeModifier;
@@ -319,9 +320,8 @@ public sealed class WizardWarMagic : AbstractSubclass
             List<GameLocationCharacter> targets)
         {
             if (action is not CharacterActionCastSpell actionCastSpell ||
-                actionCastSpell.Countered ||
-                actionCastSpell.ExecutionFailed ||
-                actionCastSpell.ActiveSpell.SpellDefinition != SpellDefinitions.Counterspell)
+                RulesetEffectSpellWithOrigin.GetOriginSpell(actionCastSpell.ActiveSpell) != SpellDefinitions.Counterspell ||
+                !SpellInterruptionContext.HasCounteredSpell(action))
             {
                 yield break;
             }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -460,6 +460,8 @@ public static class CharacterActionMagicEffectPatcher
             var targetPositions = actionParams.Positions;
             var actionModifiers = actionParams.ActionModifiers;
 
+            using var interruptionScope = SpellInterruptionContext.Track(__instance);
+
             if (rulesetEffect is RulesetEffectSpell activeSpell)
             {
                 var originSpell = RulesetEffectSpellWithOrigin.GetOriginSpell(activeSpell);
@@ -843,13 +845,9 @@ public static class CharacterActionMagicEffectPatcher
             // Handle spell countering
             yield return __instance.WaitSpellCastAction(battleManager);
 
-            if (rulesetEffect is RulesetEffectSpell completedSpell)
-            {
-                SpellSlotCastingLimit2024Context.ForgetPayment(completedSpell);
-            }
-
             if (__instance.Countered)
             {
+                interruptionScope.Complete();
                 var activeEffect = actionParams.RulesetEffect;
 
                 activeEffect.Terminate(false);
@@ -861,6 +859,7 @@ public static class CharacterActionMagicEffectPatcher
 
             if (__instance.ExecutionFailed)
             {
+                interruptionScope.Complete();
                 var activeEffect = actionParams.RulesetEffect;
 
                 activeEffect.Terminate(false);
@@ -1090,6 +1089,8 @@ public static class CharacterActionMagicEffectPatcher
             }
 
             // BEGIN PATCH
+
+            interruptionScope.Complete();
 
             //PATCH: support for `IMagicEffectFinishedOnMe`
             foreach (var target in targets)

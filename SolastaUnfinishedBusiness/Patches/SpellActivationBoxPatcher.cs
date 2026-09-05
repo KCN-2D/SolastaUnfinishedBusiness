@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection.Emit;
@@ -133,8 +133,15 @@ public static class SpellActivationBoxPatcher
 
             var getSlotsNumberMethod = typeof(RulesetSpellRepertoire).GetMethod("GetSlotsNumber");
             var myGetSlotsNumberMethod = typeof(BindSpell_Patch).GetMethod("MyGetSlotsNumber");
+            var getActivationTimeMethod = typeof(SpellDefinition).GetMethod("get_ActivationTime");
+            var getDisplayedActivationTimeMethod =
+                new Func<SpellDefinition, SpellActivationBox, RuleDefinitions.ActivationTime>(
+                    SpellActionTypeContext.GetDisplayedActivationTime).Method;
 
             return instructions
+                .ReplaceCalls(getActivationTimeMethod, 2, "SpellActivationBox.BindSpell.ActivationTime",
+                    new CodeInstruction(OpCodes.Ldarg_0),
+                    new CodeInstruction(OpCodes.Call, getDisplayedActivationTimeMethod))
                 .ReplaceCalls(getSlotsNumberMethod, "SpellActivationBox.BindSpell.GetSlotsNumber",
                     new CodeInstruction(OpCodes.Ldarg_1),
                     new CodeInstruction(OpCodes.Ldarg_0),

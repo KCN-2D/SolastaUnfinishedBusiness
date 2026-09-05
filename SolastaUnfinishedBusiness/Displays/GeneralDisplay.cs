@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.ModKit;
@@ -1117,6 +1117,23 @@ internal static class ToolsDisplay
         UI.Label("<color=#F0DAA0>" + Gui.Localize("Class/&WizardTitle") + ":</color>");
         UI.Label();
 
+        // Show the effective rule without overwriting the user's independent preference.
+        toggle = WizardAbjuration.IsSpellBreakerEnabled;
+        var wizardGuiEnabled = GUI.enabled;
+        GUI.enabled = wizardGuiEnabled && !Main.Settings.EnableOneDndCounterspellSpell;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableAbjurerSpellBreaker2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableAbjurerSpellBreaker2024 = toggle;
+            Tabletop2024Context.SwitchWizardAbjurerSpellBreaker();
+        }
+        GUI.enabled = wizardGuiEnabled;
+
+        if (Main.Settings.EnableOneDndCounterspellSpell)
+        {
+            UI.Label(Gui.Localize("ModUi/&AbjurerSpellBreakerForcedByCounterspell2024"),
+                new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
+        }
+
         toggle = Main.Settings.EnableWizardMemorizeSpell2024;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableWizardMemorizeSpell2024"), ref toggle, UI.AutoWidth()))
         {
@@ -1179,6 +1196,12 @@ internal static class ToolsDisplay
         {
             Main.Settings.EnableOneDndCounterspellSpell = toggle;
             Tabletop2024Context.SwitchOneDndSpellCounterspell();
+        }
+
+        if (Main.Settings.EnableOneDndCounterspellSpell)
+        {
+            UI.Label(Gui.Localize("ModUi/&Counterspell2024CompatibilityDescription"),
+                new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
         }
 
         UI.Label();

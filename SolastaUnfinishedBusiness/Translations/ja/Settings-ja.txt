@@ -248,6 +248,7 @@ ModUi/&EnableRespecAction=休憩アクション後に<color=#D89555>RESPEC</colo
 ModUi/&EnableRitualOnAllCasters2024=すべての呪文発動者が、準備済みの<color=#D89555>儀式</color>呪文を儀式発動できるようにします
 ModUi/&EnableOneSpellSlotPerTurn2024=1ターン中、呪文を発動するために消費できる呪文スロットを1つに制限する<i><color=#F0DAA0>（初級呪文と、呪文スロットを消費せずに発動する呪文には影響しない）</color></i>
 ModUi/&EnableOneDndCounterspellSpell=<color=#D89555>呪文妨害</color>を2024年版に変更する<i><color=#F0DAA0>（対象の呪文発動者はあなたの呪文セーヴ難易度に対して耐久力セーヴィング・スローを行う。失敗すると妨害された呪文は失敗し、その発動に使用した呪文スロットは消費されない）</color></i>
+ModUi/&Counterspell2024CompatibilityDescription=防御術士のレベル10能力である呪文破りも自動的に有効になります。宮廷魔術師の呪文妨害熟練は、自分の呪文妨害に対する対象のセーヴに不利を与え、他者の呪文妨害に対する自分のセーヴに有利を与えます。
 ModUi/&EnableRogueCunningStrike2024=レベル5、11、14で<color=#D89555>巧妙な一撃</color>、<color=#D89555>改良された巧妙な一撃</color>、<color=#D89555>悪巧みの一撃</color>を有効にします<i><color=#F0DAA0>（追加の命中時効果を得るために、急所攻撃ダイスを1つ放棄します）</color></i>
 ModUi/&EnableRogueFightingStyle=レベル2で<color=#D89555>戦闘スタイル</color>の選択を有効にする
 ModUi/&EnableRogueReliableTalent2024=<color=#D89555>信頼できる才能</color>をレベル11ではなくレベル7で有効にします
@@ -286,6 +287,8 @@ ModUi/&EnableWarlockInvocationProgression2024=<color=#D89555>妖術</color>を5e
 ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=レベル2で<color=#D89555>魔法の狡猾さ</color>を有効にし、レベル20で<color=#D89555>呪文復活</color>を強化する
 ModUi/&EnableWarlockMagicalCunningAtLevel2=レベル2で<color=#D89555>魔法の狡猾さ</color>を有効にする
 ModUi/&EnableWarlockToLearnPatronAtLevel3=<color=#D89555>パトロン</color>をレベル1ではなくレベル3で有効にする
+ModUi/&EnableAbjurerSpellBreaker2024=防御術士のレベル10能力を2024年版の<color=#D89555>呪文破り</color>に変更する
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=2024年版の呪文妨害ルールが有効なため、自動的に有効になります。呪文破りの個別設定は保持され、呪文妨害ルールを無効にすると元の選択に戻ります。
 ModUi/&EnableWizardMemorizeSpell2024=レベル5で<color=#D89555>呪文記憶</color>を有効にする
 ModUi/&EnableWizardToLearnScholarAtLevel2=レベル2で<color=#D89555>学者</color>を有効にする
 ModUi/&EnableWizardToLearnSchoolAtLevel3=レベル2ではなくレベル3で<color=#D89555>魔法の学派</color>を選択できるようにする

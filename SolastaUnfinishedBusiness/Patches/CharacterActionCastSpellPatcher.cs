@@ -217,21 +217,19 @@ public static class CharacterActionCastSpellPatcher
     public static class CounterEffectAction_Patch
     {
         [UsedImplicitly]
-        public static bool Prefix(ref IEnumerator __result, CharacterActionCastSpell __instance,
-            CharacterAction counterAction)
+        public static bool Prefix(ref IEnumerator __result, CharacterActionCastSpell __instance)
         {
-            __result = Process(__instance, counterAction);
+            __result = Process(__instance);
 
             return false;
         }
 
-        private static IEnumerator Process(
-            CharacterActionCastSpell characterActionCastSpell,
-            CharacterAction counterAction)
+        private static IEnumerator Process(CharacterActionCastSpell characterActionCastSpell)
         {
             var targetAction = characterActionCastSpell.ActionParams.TargetAction;
 
-            if (targetAction == null)
+            if (targetAction?.ActionParams?.RulesetEffect is not RulesetEffectSpell counteredSpell ||
+                targetAction.Countered)
             {
                 yield break;
             }
@@ -245,19 +243,18 @@ public static class CharacterActionCastSpellPatcher
             var actingCharacter = characterActionCastSpell.ActingCharacter;
             var rulesetCharacter = actingCharacter.RulesetCharacter;
             var actionParams = characterActionCastSpell.ActionParams;
-            var targetActionParams = targetAction.ActionParams;
-            var counteredSpell = targetActionParams.RulesetEffect as RulesetEffectSpell;
-            var counteredSpellDefinition = RulesetEffectSpellWithOrigin.GetOriginSpell(counteredSpell!);
+            var counteredSpellDefinition = RulesetEffectSpellWithOrigin.GetOriginSpell(counteredSpell);
             var slotLevel = RulesetEffectSpellWithOrigin.GetResourceSlotLevel(counteredSpell);
             var actionModifier = actionParams.ActionModifiers[0];
 
             foreach (var counterForm in actionParams.RulesetEffect.EffectDescription.EffectForms
-                         .Where(effectForm => effectForm.FormType == EffectForm.EffectFormType.Counter)
+                         .Where(effectForm => effectForm.FormType == EffectForm.EffectFormType.Counter &&
+                                              effectForm.CounterForm.Type == CounterForm.CounterType.InterruptSpellcasting)
                          .Select(effectForm => effectForm.CounterForm))
             {
                 if (counterForm.AutomaticSpellLevel + characterActionCastSpell.addSpellLevel >= slotLevel)
                 {
-                    targetAction.Countered = true;
+                    SpellInterruptionContext.TryCounterSpell(characterActionCastSpell, targetAction);
                 }
                 else if (counterForm.CheckBaseDC != 0)
                 {
@@ -329,26 +326,27 @@ public static class CharacterActionCastSpellPatcher
                     characterActionCastSpell.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckRollOutcome;
                     characterActionCastSpell.AbilityCheckSuccessDelta = abilityCheckData.AbilityCheckSuccessDelta;
 
-                    if (counterAction.AbilityCheckRollOutcome == RollOutcome.Success)
+                    if (characterActionCastSpell.AbilityCheckRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
                     {
-                        targetAction.Countered = true;
+                        SpellInterruptionContext.TryCounterSpell(characterActionCastSpell, targetAction);
                     }
                 }
 
-                if (!targetAction.Countered ||
-                    rulesetCharacter.SpellCounter == null)
+                if (!SpellInterruptionContext.HasCounteredSpell(characterActionCastSpell))
                 {
                     continue;
                 }
 
                 var unknown = string.IsNullOrEmpty(counteredSpell.IdentifiedBy);
 
-                characterActionCastSpell.ActingCharacter.RulesetCharacter.SpellCounter(
+                rulesetCharacter.SpellCounter?.Invoke(
                     rulesetCharacter,
                     targetAction.ActingCharacter.RulesetCharacter,
                     counteredSpellDefinition,
                     targetAction.Countered,
                     unknown);
+
+                yield break;
             }
         }
     }

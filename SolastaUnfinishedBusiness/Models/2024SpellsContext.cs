@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
@@ -29,6 +29,8 @@ public static partial class Tabletop2024Context
 {
     private const int KnownSpellsTableLength = 20;
     private const string RitualCastingFeatureOriginMarker = "Tabletop2024RitualCasting";
+
+    private static string _courtMageCounterspellMasteryDescription;
 
     private static readonly int[] BardPreparedSpells2024 =
         [4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22];
@@ -457,6 +459,15 @@ public static partial class Tabletop2024Context
         Counterspell.GuiPresentation.description = Main.Settings.EnableOneDndCounterspellSpell
             ? "Spell/&CounterspellOneDndDescription"
             : "Spell/&CounterspellDescription";
+
+        var mastery = GetDefinition<FeatureDefinitionMagicAffinity>("MagicAffinityCourtMageCounterspellMastery");
+        _courtMageCounterspellMasteryDescription ??= mastery.GuiPresentation.description;
+        mastery.GuiPresentation.description = Main.Settings.EnableOneDndCounterspellSpell
+            ? "Feature/&TraditionCourtMageCounterspellMastery2024Description"
+            : _courtMageCounterspellMasteryDescription;
+
+        // Also runs at startup and keeps dependent subclass rules in sync after every toggle.
+        SwitchWizardAbjurerSpellBreaker();
     }
 
     internal static void SwitchOneDndCantripChillTouch()

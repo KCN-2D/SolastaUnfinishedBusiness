@@ -256,6 +256,7 @@ ModUi/&EnableRespecAction=Aktivieren Sie <color=#D89555>RESPEC</color> nach der 
 ModUi/&EnableRitualOnAllCasters2024=Aktivieren Sie das Wirken von <color=#D89555>Ritualen</color> für alle Zauberer.
 ModUi/&EnableOneSpellSlotPerTurn2024=Wendet die 2024-Regel an, nach der pro Zug nur ein Zauberplatz zum Wirken eines Zaubers verbraucht werden kann <i><color=#F0DAA0>[Zaubertricks und Zauber ohne Zauberplatz sind nicht betroffen]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Verwendet die 2024-Regeln für <color=#D89555>Gegenzauber</color> <i><color=#F0DAA0>[der Zauberwirker macht einen Konstitutionsrettungswurf gegen deinen Zauberrettungs-SG; bei einem Fehlschlag wird der Platz des unterbrochenen Zaubers nicht verbraucht]</color></i>
+ModUi/&Counterspell2024CompatibilityDescription=Aktiviert auch Zauberbrecher für Bannmagier der Stufe 10. Gegenzauber-Meisterschaft des Hofmagiers gibt Zielen deines Gegenzaubers Nachteil auf ihren Rettungswurf und dir Vorteil auf Rettungswürfe gegen Gegenzauber.
 ModUi/&EnableRogueCunningStrike2024=Aktiviere <color=#D89555>Cunning Strike</color>, <color=#D89555>Improved Cunning Strike</color> und <color=#D89555>Devious Strike</color> auf den Leveln 5, 11 und 14 <i><color=#F0DAA0>[du lässt 1 Schleichangriffswürfel für zusätzliche Treffereffekte weg]</color></i>
 ModUi/&EnableRogueFightingStyle=Aktiviere die Auswahl <color=#D89555>Kampfstil</color> auf Stufe 2.
 ModUi/&EnableRogueReliableTalent2024=Aktiviere <color=#D89555>Zuverlässiges Talent</color> auf Stufe 7 statt 11.
@@ -295,6 +296,8 @@ ModUi/&EnableWarlockInvocationProgression2024=Tauschen Sie <color=#D89555>Anrufu
 ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=Aktiviere <color=#D89555>Magische List</color> auf Level 2 und verbessere <color=#D89555>Eldritch Master</color> auf 20.
 ModUi/&EnableWarlockMagicalCunningAtLevel2=Aktiviere <color=#D89555>Magische List</color> auf Stufe 2.
 ModUi/&EnableWarlockToLearnPatronAtLevel3=Aktivieren Sie <color=#D89555>Patron</color> auf Stufe 3 statt auf Stufe 1.
+ModUi/&EnableAbjurerSpellBreaker2024=<color=#D89555>Zauberbrecher</color> für den Bannmagier auf Stufe 10 aktivieren (2024)
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=Automatisch aktiv, solange die Gegenzauber-Regeln von 2024 gelten. Deine separate Zauberbrecher-Einstellung bleibt gespeichert und gilt wieder, sobald diese Regeln deaktiviert sind.
 ModUi/&EnableWizardMemorizeSpell2024=Aktiviere <color=#D89555>Zauber merken</color> auf Stufe 5.
 ModUi/&EnableWizardToLearnScholarAtLevel2=Aktiviere <color=#D89555>Gelehrter</color> auf Stufe 2
 ModUi/&EnableWizardToLearnSchoolAtLevel3=Aktiviere die <color=#D89555>Schule der Magie</color> auf Level 3 statt auf Level 2.

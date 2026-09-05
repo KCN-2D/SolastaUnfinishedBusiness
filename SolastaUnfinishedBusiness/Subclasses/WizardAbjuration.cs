@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
@@ -11,6 +11,7 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.SpellDefinitions;
@@ -64,6 +65,17 @@ public sealed class WizardAbjuration : AbstractSubclass
             .AddToDB();
 
     private static CharacterSubclassDefinition _subclass;
+    private static FeatureDefinitionFeatureSet _featureSetImprovedAbjuration;
+
+    internal static bool IsSpellBreakerEnabled =>
+        Main.Settings.EnableAbjurerSpellBreaker2024 || Main.Settings.EnableOneDndCounterspellSpell;
+
+    internal static bool HasSpellBreaker(RulesetCharacter character)
+    {
+        return IsSpellBreakerEnabled &&
+               character != null &&
+               character.GetSubclassLevel(CharacterClassDefinitions.Wizard, Name) >= 10;
+    }
 
     public WizardAbjuration()
     {
@@ -125,16 +137,19 @@ public sealed class WizardAbjuration : AbstractSubclass
         var powerCounterSpellAffinity = FeatureDefinitionPowerBuilder
             .Create($"Power{Name}CounterSpell")
             .SetGuiPresentationNoContent(true)
-            .AddCustomSubFeatures(new ModifyCounterspellAddProficiency())
+            .AddCustomSubFeatures(
+                new ModifyCounterMagicProficiency(Counterspell, CounterForm.CounterType.InterruptSpellcasting))
             .AddToDB();
 
         var powerCounterDispelAffinity = FeatureDefinitionPowerBuilder
             .Create($"Power{Name}CounterDispel")
             .SetGuiPresentationNoContent(true)
-            .AddCustomSubFeatures(new ModifyDispelMagicAddProficiency())
+            .AddCustomSubFeatures(
+                new ModifyCounterMagicProficiency(DispelMagic, CounterForm.CounterType.DissipateSpells),
+                new SpellBreaker())
             .AddToDB();
 
-        var featureSetImprovedAbjuration = FeatureDefinitionFeatureSetBuilder
+        _featureSetImprovedAbjuration = FeatureDefinitionFeatureSetBuilder
             .Create($"FeatureSet{Name}ImprovedAbjuration")
             .SetGuiPresentation($"Power{Name}ImprovedAbjuration", Category.Feature)
             .SetFeatureSet(powerCounterSpellAffinity, powerCounterDispelAffinity)
@@ -187,7 +202,7 @@ public sealed class WizardAbjuration : AbstractSubclass
             .SetGuiPresentation(Category.Subclass, Sprites.GetSprite(Name, Resources.WizardAbjuration, 256))
             .AddFeaturesAtLevel(2, MagicAffinitySavant, PowerArcaneWard, BuildRechargeArcaneWard())
             .AddFeaturesAtLevel(6, powerProjectedWard)
-            .AddFeaturesAtLevel(10, featureSetImprovedAbjuration)
+            .AddFeaturesAtLevel(10, _featureSetImprovedAbjuration)
             .AddFeaturesAtLevel(14, featureSetSpellResistance)
             .AddToDB();
 
@@ -212,8 +227,52 @@ public sealed class WizardAbjuration : AbstractSubclass
     {
         SwapSavantAndSavant2024();
         SwapAbjurationBaldurGate3Mode();
+        SwitchSpellBreaker();
 
         RefreshSpellList();
+    }
+
+    internal static void SwitchSpellBreaker()
+    {
+        if (_featureSetImprovedAbjuration == null)
+        {
+            return;
+        }
+
+        // Keep the existing level-10 feature and powers so loaded heroes gain the
+        // selected behavior without replacing serialized features or rebuilding them.
+        var presentation = _featureSetImprovedAbjuration.GuiPresentation;
+        presentation.Title = IsSpellBreakerEnabled
+            ? "Feature/&FeatureWizardAbjurationSpellBreakerTitle"
+            : $"Feature/&Power{Name}ImprovedAbjurationTitle";
+        presentation.Description = !IsSpellBreakerEnabled
+            ? $"Feature/&Power{Name}ImprovedAbjurationDescription"
+            : Main.Settings.EnableOneDndCounterspellSpell
+                ? "Feature/&FeatureWizardAbjurationSpellBreakerDescription"
+                : "Feature/&FeatureWizardAbjurationSpellBreakerWithCounterspellCheckDescription";
+
+        var entities = ServiceRepository.GetService<IRulesetEntityService>()?.RulesetEntities;
+
+        if (entities == null)
+        {
+            return;
+        }
+
+        foreach (var character in entities.Values.OfType<RulesetCharacter>().ToArray())
+        {
+            if (character.GetSubclassLevel(CharacterClassDefinitions.Wizard, Name) < 10)
+            {
+                continue;
+            }
+
+            PowerBundle.ClearSpellEffectCache(character);
+
+            foreach (var repertoire in character.SpellRepertoires)
+            {
+                character.ComputeAutopreparedSpells(repertoire);
+                repertoire.RepertoireRefreshed?.Invoke(repertoire);
+            }
+        }
     }
 
     internal static void RefreshSpellList()
@@ -607,63 +666,87 @@ public sealed class WizardAbjuration : AbstractSubclass
         }
     }
 
-    private sealed class ModifyCounterspellAddProficiency : IModifyEffectDescription
+    private sealed class ModifyCounterMagicProficiency(
+        SpellDefinition spell,
+        CounterForm.CounterType counterType) : IModifyEffectDescription
     {
-        private static readonly EffectForm EffectForm = EffectFormBuilder.Create()
-            .SetCounterForm(CounterForm.CounterType.InterruptSpellcasting, 3, 10, true, true)
-            .Build();
+        public bool IsValid(BaseDefinition definition, RulesetCharacter character, EffectDescription effectDescription)
+        {
+            return definition == spell &&
+                   character.GetSubclassLevel(CharacterClassDefinitions.Wizard, Name) >= 10 &&
+                   (spell != Counterspell || !Main.Settings.EnableOneDndCounterspellSpell);
+        }
 
-        EffectDescription IModifyEffectDescription.GetEffectDescription(
+        public EffectDescription GetEffectDescription(
             BaseDefinition definition,
             EffectDescription effectDescription,
             RulesetCharacter character,
             RulesetEffect rulesetEffect)
         {
-            effectDescription.EffectForms.SetRange(EffectForm);
+            // Preserve the spell's other forms and any changes supplied by other features.
+            foreach (var form in effectDescription.EffectForms.Where(form =>
+                         form.FormType == EffectForm.EffectFormType.Counter && form.CounterForm.Type == counterType))
+            {
+                form.CounterForm.addProficiencyBonus = true;
+            }
 
             return effectDescription;
-        }
-
-        bool IModifyEffectDescription.IsValid(
-            BaseDefinition definition, RulesetCharacter character, EffectDescription effectDescription)
-        {
-            return character.GetSubclassLevel(CharacterClassDefinitions.Wizard, Name) >= 10 &&
-                   definition == Counterspell;
         }
     }
 
-    private sealed class ModifyDispelMagicAddProficiency : IModifyEffectDescription
+    private sealed class SpellBreaker : IModifyAutoPreparedSpells, IAllowSpellActionType, IRefundSpellSlotOnFailure
     {
-        private static readonly List<EffectForm> EffectForms =
-        [
-            EffectFormBuilder.Create()
-                .SetCounterForm(CounterForm.CounterType.DissipateSpells, 3, 10, true, true)
-                .SetCreatedBy(true)
-                .SetBonusMode(AddBonusMode.None)
-                .Build(),
-            EffectFormBuilder.Create()
-                .SetAlterationForm(AlterationForm.Type.DissipateSpell)
-                .SetCreatedBy(true)
-                .SetBonusMode(AddBonusMode.None)
-                .Build()
-        ];
-
-        EffectDescription IModifyEffectDescription.GetEffectDescription(
-            BaseDefinition definition,
-            EffectDescription effectDescription,
-            RulesetCharacter character,
-            RulesetEffect rulesetEffect)
+        public bool IsEligible(RulesetCharacter character, RulesetEffectSpell spell)
         {
-            effectDescription.EffectForms.SetRange(EffectForms);
+            if (spell == null)
+            {
+                return false;
+            }
 
-            return effectDescription;
+            var definition = RulesetEffectSpellWithOrigin.GetOriginSpell(spell);
+
+            return HasSpellBreaker(character) && (definition == Counterspell || definition == DispelMagic);
         }
 
-        bool IModifyEffectDescription.IsValid(
-            BaseDefinition definition, RulesetCharacter character, EffectDescription effectDescription)
+        public bool ShouldRefundSpellSlot(CharacterActionMagicEffect action)
         {
-            return character.GetSubclassLevel(CharacterClassDefinitions.Wizard, Name) >= 10 &&
-                   definition == DispelMagic;
+            if (action.ActionParams.RulesetEffect is not RulesetEffectSpell spell)
+            {
+                return false;
+            }
+
+            var definition = RulesetEffectSpellWithOrigin.GetOriginSpell(spell);
+
+            if (definition == Counterspell)
+            {
+                return !SpellInterruptionContext.HasCounteredSpell(action);
+            }
+
+            return definition == DispelMagic &&
+                   !SpellInterruptionContext.HasDispelledSpell(action.ActionParams.RulesetEffect);
+        }
+
+        public void ModifyAutoPreparedSpells(RulesetCharacter character, RulesetSpellRepertoire repertoire)
+        {
+            if (!HasSpellBreaker(character) || !Level20Context.IsWizardPreparedSpellRepertoire(repertoire))
+            {
+                return;
+            }
+
+            repertoire.AutoPreparedSpells.TryAdd(Counterspell);
+            repertoire.AutoPreparedSpells.TryAdd(DispelMagic);
+            repertoire.AutoPreparedTag = SpellTag;
+        }
+
+        public bool IsAllowed(
+            RulesetCharacter character,
+            RulesetSpellRepertoire repertoire,
+            SpellDefinition spell,
+            ActionDefinitions.ActionType actionType)
+        {
+            return actionType == ActionDefinitions.ActionType.Bonus &&
+                   spell == DispelMagic &&
+                   HasSpellBreaker(character);
         }
     }
 

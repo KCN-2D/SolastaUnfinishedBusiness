@@ -256,6 +256,7 @@ ModUi/&EnableRespecAction=Activer l'action <color=#D89555>RESPEC</color> après 
 ModUi/&EnableRitualOnAllCasters2024=Activer le lancement de <color=#D89555>rituel</color> sur tous les lanceurs de sorts
 ModUi/&EnableOneSpellSlotPerTurn2024=Applique la règle de 2024 qui ne permet de dépenser qu'un seul emplacement de sort pour lancer un sort à chaque tour <i><color=#F0DAA0>[les sorts mineurs et les sorts lancés sans emplacement ne sont pas concernés]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Utilise les règles de 2024 pour <color=#D89555>Contresort</color> <i><color=#F0DAA0>[le lanceur effectue un jet de sauvegarde de Constitution contre votre DD de sauvegarde des sorts ; en cas d'échec, l'emplacement du sort interrompu n'est pas dépensé]</color></i>
+ModUi/&Counterspell2024CompatibilityDescription=Active aussi Briseur de sorts pour les Abjurateurs de niveau 10. La Maîtrise du contresort du Mage de cour désavantage les jets de sauvegarde des cibles de votre Contresort et vous avantage aux jets de sauvegarde contre Contresort.
 ModUi/&EnableRogueCunningStrike2024=Activez <color=#D89555>Cunning Strike</color>, <color=#D89555>Improved Cunning Strike</color> et <color=#D89555>Devious Strike</color> aux niveaux 5, 11 et 14 <i><color=#F0DAA0>[vous renoncez à 1 dé d'attaque sournoise pour des effets de coup supplémentaires]</color></i>
 ModUi/&EnableRogueFightingStyle=Activer le choix du <color=#D89555>Style de combat</color> au niveau 2
 ModUi/&EnableRogueReliableTalent2024=Activer le <color=#D89555>talent fiable</color> au niveau 7 au lieu de 11
@@ -295,6 +296,8 @@ ModUi/&EnableWarlockInvocationProgression2024=Échangez <color=#D89555>les invoc
 ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=Activez la <color=#D89555>ruse magique</color> au niveau 2 et améliorez le <color=#D89555>maître eldritch</color> à 20
 ModUi/&EnableWarlockMagicalCunningAtLevel2=Activer la <color=#D89555>ruse magique</color> au niveau 2
 ModUi/&EnableWarlockToLearnPatronAtLevel3=Activer <color=#D89555>Patron</color> au niveau 3 au lieu de 1
+ModUi/&EnableAbjurerSpellBreaker2024=Activer <color=#D89555>Briseur de sorts</color> pour l’Abjurateur au niveau 10 (2024)
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=Activé automatiquement tant que les règles de Contresort de 2024 sont actives. Votre choix indépendant pour Briseur de sorts est conservé et s’applique à nouveau lorsque ces règles sont désactivées.
 ModUi/&EnableWizardMemorizeSpell2024=Activer <color=#D89555>Mémoriser le sort</color> au niveau 5
 ModUi/&EnableWizardToLearnScholarAtLevel2=Activer <color=#D89555>Scholar</color> au niveau 2
 ModUi/&EnableWizardToLearnSchoolAtLevel3=Activer l'<color=#D89555>École de magie</color> au niveau 3 au lieu de 2

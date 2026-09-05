@@ -389,6 +389,7 @@ Feature/&SenseRangerFeralSenses2024Description=자연의 힘과의 연결로 인
 Feature/&SenseRangerFeralSenses2024Title=야생의 감각
 Feature/&ToolGainChoicesPluralDescription=다음 도구 중 {0}개를 선택하세요: {1}
 Feature/&ToolGainChoicesSingleDescription=다음 도구 중 하나를 선택하십시오: {1}
+Feature/&TraditionCourtMageCounterspellMastery2024Description=카운터스펠을 시전하면 대상은 건강 내성 굴림에 불리점을 받습니다. 자신은 카운터스펠에 대한 건강 내성 굴림에 이점을 받습니다.
 Feature/&VisionBlindsightDescription=당신은 시력이 없습니다.
 Feedback/&AdditionalDamageBrutalStrikeFormat=잔인한 일격
 Feedback/&AdditionalDamageBrutalStrikeLine=잔인한 일격이 추가로 +{2} 피해를 입힙니다!
