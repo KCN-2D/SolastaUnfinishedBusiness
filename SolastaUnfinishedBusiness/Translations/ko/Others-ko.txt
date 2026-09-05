@@ -699,3 +699,4 @@ Tooltip/&PreReqAnyAbilityScoreList={0} 중 하나가 {1} 이상
 Rules/&ActivationTypeHours12Title=12시간
 Feature/&PowerBardGiveBardicInspirationConciseDescription=추가 행동으로 크리처 하나에게 바드의 고양감 주사위를 부여합니다. 대상은 이 주사위를 사용해 명중 굴림, 내성 굴림 또는 능력 판정의 결과를 바꿀 수 있습니다. 주사위는 레벨이 오르면 커집니다.
 Failure/&FailureFlagOneSpellSlotPerTurn2024=이번 턴에는 이미 주문을 시전하며 주문 슬롯을 하나 소비했습니다
+Rules/&Counterspell2024EffectDescription=대상이 건강 내성 굴림에 실패하면 주문 시전이 실패합니다. 해당 주문을 시전하는 데 사용한 주문 슬롯은 소모되지 않습니다.

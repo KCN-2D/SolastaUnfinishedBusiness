@@ -692,3 +692,4 @@ Tooltip/&PreReqAnyAbilityScoreList=能力値：{0}のいずれかが{1}以上
 Rules/&ActivationTypeHours12Title=12時間
 Feature/&PowerBardGiveBardicInspirationConciseDescription=ボーナス・アクションを使用して、声援ダイスをクリーチャーに付与します。このダイスを使用すると、攻撃ロール、セーヴィング・スロー、または能力値判定の結果を変えられます。ダイスの値はレベルが上がるにつれて増加します。
 Failure/&FailureFlagOneSpellSlotPerTurn2024=このターン中はすでに、呪文を発動するために呪文スロットを1つ消費しています
+Rules/&Counterspell2024EffectDescription=対象が耐久力セーヴィング・スローに失敗すると、その呪文発動を妨げます。対象がその呪文に使用した呪文スロットは消費されません。

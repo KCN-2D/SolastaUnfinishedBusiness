@@ -734,6 +734,27 @@ internal static class Level20Context
                spellRepertoire.SpellCastingFeature.SpellReadyness == SpellReadyness.Prepared;
     }
 
+    internal static SpellSelectionByLevel GetWizardExtraSpellSelection(
+        RulesetCharacter character,
+        RulesetSpellRepertoire spellRepertoire)
+    {
+        if (WizardSpellMastery.IsPreparation(character, spellRepertoire, out _))
+        {
+            return WizardSpellMastery.SpellSelection;
+        }
+
+        return WizardSignatureSpells.IsPreparation(character, spellRepertoire, out _)
+            ? WizardSignatureSpells.SpellSelection
+            : null;
+    }
+
+    internal static SpellDefinition[] GetWizardSelectedSpells(
+        RulesetSpellRepertoire spellRepertoire,
+        IEnumerable<SpellDefinition> preparedSpells)
+    {
+        return preparedSpells.Where(spell => !spellRepertoire.AutoPreparedSpells.Contains(spell)).ToArray();
+    }
+
     private static void PrepareWizardExtraSpellSelection(RulesetSpellRepertoire spellRepertoire, string tag)
     {
         spellRepertoire.ExtraSpellsByTag.TryAdd(tag, []);
@@ -761,6 +782,8 @@ internal static class Level20Context
     {
         private const string Mastery = "SpellMastery";
 
+        internal static readonly SpellSelectionByLevel SpellSelection = new(1, 2);
+
         internal static readonly FeatureDefinition FeatureSpellMastery = FeatureDefinitionBuilder
             .Create("FeatureWizardSpellMastery")
             .SetGuiPresentation(Category.Feature)
@@ -782,24 +805,12 @@ internal static class Level20Context
             return activity != RestActivitySpellMastery || hero.GetClassLevel(Wizard) >= 18;
         }
 
-        internal static bool IsInvalidSelectedSpell(
-            RulesetCharacter rulesetCharacter,
-            RulesetSpellRepertoire spellRepertoire,
-            SpellDefinition spell)
-        {
-            return
-                IsWizardPreparedSpellRepertoire(spellRepertoire) &&
-                rulesetCharacter.HasConditionOfCategoryAndType(
-                    AttributeDefinitions.TagEffect, $"Condition{Mastery}") &&
-                spell.SpellLevel is not (1 or 2);
-        }
-
         internal static bool IsPreparation(
             RulesetCharacter rulesetCharacter,
             RulesetSpellRepertoire spellRepertoire,
             out int maxPreparedSpell)
         {
-            maxPreparedSpell = 2;
+            maxPreparedSpell = SpellSelection.SpellCount;
 
             return IsWizardPreparedSpellRepertoire(spellRepertoire) &&
                    rulesetCharacter.HasConditionOfCategoryAndType(
@@ -908,6 +919,8 @@ internal static class Level20Context
     {
         private const string Signature = "SignatureSpells";
 
+        internal static readonly SpellSelectionByLevel SpellSelection = new(3, 3);
+
         internal static readonly FeatureDefinitionPower PowerSignatureSpells = FeatureDefinitionPowerBuilder
             .Create("PowerWizardSignatureSpells")
             .SetGuiPresentation(Category.Feature)
@@ -942,23 +955,11 @@ internal static class Level20Context
             RulesetSpellRepertoire spellRepertoire,
             out int maxPreparedSpell)
         {
-            maxPreparedSpell = 2;
+            maxPreparedSpell = SpellSelection.SpellCount;
 
             return IsWizardPreparedSpellRepertoire(spellRepertoire) &&
                    rulesetCharacter.HasConditionOfCategoryAndType(
                 AttributeDefinitions.TagEffect, $"Condition{Signature}");
-        }
-
-        internal static bool IsInvalidSelectedSpell(
-            RulesetCharacter rulesetCharacter,
-            RulesetSpellRepertoire spellRepertoire,
-            SpellDefinition spell)
-        {
-            return
-                IsWizardPreparedSpellRepertoire(spellRepertoire) &&
-                rulesetCharacter.HasConditionOfCategoryAndType(
-                    AttributeDefinitions.TagEffect, $"Condition{Signature}") &&
-                spell.SpellLevel is not 3;
         }
 
         internal static bool HasFreeCast(

@@ -31,6 +31,7 @@ public static partial class Tabletop2024Context
     private const string RitualCastingFeatureOriginMarker = "Tabletop2024RitualCasting";
 
     private static string _courtMageCounterspellMasteryDescription;
+    private static EffectDescription _counterspellOriginalEffectDescription;
 
     private static readonly int[] BardPreparedSpells2024 =
         [4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22];
@@ -456,13 +457,31 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchOneDndSpellCounterspell()
     {
-        Counterspell.GuiPresentation.description = Main.Settings.EnableOneDndCounterspellSpell
+        var enabled = Main.Settings.EnableOneDndCounterspellSpell;
+        var effectDescription = Counterspell.EffectDescription;
+        _counterspellOriginalEffectDescription ??= EffectDescriptionBuilder.Create(effectDescription).Build();
+
+        Counterspell.GuiPresentation.description = enabled
             ? "Spell/&CounterspellOneDndDescription"
             : "Spell/&CounterspellDescription";
 
+        // The rules resolver handles the saving throw. Keep its counter form, but replace
+        // the legacy effect summary and remove slot-level improvements from the definition.
+        effectDescription.specialFormsDescription = enabled
+            ? "Rules/&Counterspell2024EffectDescription"
+            : _counterspellOriginalEffectDescription.specialFormsDescription;
+        effectDescription.EffectAdvancement.Copy(_counterspellOriginalEffectDescription.EffectAdvancement);
+
+        if (enabled)
+        {
+            effectDescription.EffectAdvancement.Clear();
+        }
+
+        PowerBundle.ClearSpellEffectCacheForDefinition(Counterspell);
+
         var mastery = GetDefinition<FeatureDefinitionMagicAffinity>("MagicAffinityCourtMageCounterspellMastery");
         _courtMageCounterspellMasteryDescription ??= mastery.GuiPresentation.description;
-        mastery.GuiPresentation.description = Main.Settings.EnableOneDndCounterspellSpell
+        mastery.GuiPresentation.description = enabled
             ? "Feature/&TraditionCourtMageCounterspellMastery2024Description"
             : _courtMageCounterspellMasteryDescription;
 

@@ -201,23 +201,23 @@ ModUi/&EnableMonkStunningStrike2024=启用 5e 2024 版本<color=#D89555>震慑�
 ModUi/&EnableMonkSuperiorDefense2024=启用 5e 2024 版本<color=#D89555>无懈可击</color>替代 18 级时的<color=#D89555>空灵体</color> <i><color=#F0DAA0>[获得伤害抗性]</color></i>
 ModUi/&EnableMonkUncannyMetabolism2024=在 2 级时启用<color=#D89555>运转周天</color><i><color=#F0DAA0>[在先攻检定中恢复气和生命值]</color></i>
 ModUi/&EnableMulticlass=启用<color=#D89555>兼职</color> <b><i><color=#C04040E0>[需要重启]</color></i></b>
-ModUi/&EnableOneDndBarkskinSpell=启用 5e 2024 版本<color=#D89555>树肤术</color>法术<i><color=#F0DAA0>[附赠行动，无需专注，AC 变为 17]</color></i>
-ModUi/&EnableOneDndBladeWardCantrip=启用 5e 2024 版<color=#D89555>剑刃防护</color>戏法<i><color=#F0DAA0>[专注 1 分钟；攻击者从其攻击检定中减去 1d4]</color></i>
-ModUi/&EnableOneDndChillTouchCantrip=启用<color=#D89555>Chill Touch</color> 5e 2024 cantrip版本<i><color=#F0DAA0>[伤害模具D10而不是D8，近战命中而不是24范围]</color></i>
-ModUi/&EnableOneDndDamagingSpellsUpgrade=启用 5e 2024 版本<color=#D89555>奥术剑刃</color>、<color=#D89555>死亡法阵</color>、<color=#D89555>炽焰斩</color>、<color=#D89555>冰风暴</color>、<color=#D89555>虹光喷射</color>。以及<color=#D89555>恶言相加</color>法术<i><color=#F0DAA0>[伤害骰提高]</color></i>
-ModUi/&EnableOneDndDivineFavorSpell=启用 5e 2024 版本<color=#D89555>神恩</color>法术<i><color=#F0DAA0>[无需专注]</color></i>
-ModUi/&EnableOneDndGuidanceSpell=启用 5e 2024 版本<color=#D89555>神导术</color> <i><color=#F0DAA0>[施法时选择一项技能并获得最多 1 分钟的加值。]</color></i>
-ModUi/&EnableOneDndHealingSpellsUpgrade=启用 5e 2024 版本<color=#D89555>疗伤术</color>、<color=#D89555>虚假生命</color>、<color=#D89555>治愈真言</color>、<color=#D89555>群体疗伤术</color>和<color=#D89555>群体治愈真言</color>法术 <i><color=#F0DAA0>[治疗骰提高]</color></i>
-ModUi/&EnableOneDndHideousLaughterSpell=启用 5e 2024 版本<color=#D89555>狂笑术</color>法术<i><color=#F0DAA0>[+1 目标/升环]</color></i>
-ModUi/&EnableOneDndHuntersMarkSpell=启用 5e 2024 版本<color=#D89555>猎人印记</color>法术<i><color=#F0DAA0>[强制伤害]</color></i>
-ModUi/&EnableOneDndLesserRestorationSpell=启用 5e 2024 版本<color=#D89555>次级修复术</color>法术<i><color=#F0DAA0>[附赠动作]</color></i>
-ModUi/&EnableOneDndMagicWeaponSpell=启用 5e 2024 版本<color=#D89555>魔法武器</color>法术<i><color=#F0DAA0>[附赠行动，无需专注，在 3 环和 6 环施展时增强]</color></i>
-ModUi/&EnableOneDndPowerWordStunSpell=启用 5e 2024 版本<color=#D89555>律令震慑</color>法术<i><color=#F0DAA0>[如果目标的生命值不超过 150，则震慑一回合]</color></i>
-ModUi/&EnableOneDndSpareTheDyingSpell=启用 5e 2024 版本<color=#D89555>维生术</color>法术<i><color=#F0DAA0>[范围在 5、11 和 17 级加倍]</color></i>
-ModUi/&EnableOneDndSpiderClimbSpell=启用 5e 2024 版本<color=#D89555>蛛行术</color>法术<i><color=#F0DAA0>[升环施法 +1 目标]</color></i>
-ModUi/&EnableOneDndStoneSkinSpell=启用 5e 2024 版本<color=#D89555>石肤术</color> 5e 2024 法术版本<i><color=#F0DAA0>[同时提供对魔法钝击、穿刺、挥砍的抗性]</color></i>
-ModUi/&EnableOneDndTrueStrikeCantrip=启用 5e 2024 版本<color=#D89555>克敌先击</color>法术<b><i><color=#C04040E0>[需要重启]</color></i></b><i><color=#F0DAA0>[攻击时使用你的施法属性调整值进行攻击掷骰和伤害加值，并从 5 级开始造成额外的光耀伤害]</color></i>
-ModUi/&EnableOneDndWitchBoltSpell=启用<color=#D89555>女巫箭</color> 5e 2024法术版本<i><color=#F0DAA0>[重新施加伤害的奖励动作]</color></i>
+ModUi/&EnableOneDndBarkskinSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[附赠动作、无需专注、AC至少为17]</color></i>
+ModUi/&EnableOneDndBladeWardCantrip=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[专注 1 分钟；攻击者从其攻击检定中减去 1d4]</color></i>
+ModUi/&EnableOneDndChillTouchCantrip=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[近战法术攻击，伤害骰为1d10]</color></i>
+ModUi/&EnableOneDndDamagingSpellsUpgrade=启用<color=#D89555>{0}</color>、<color=#D89555>{1}</color>、<color=#D89555>{2}</color>、<color=#D89555>{3}</color>、<color=#D89555>{4}</color>和<color=#D89555>{5}</color>的2024版<i><color=#F0DAA0>[伤害骰提高]</color></i>
+ModUi/&EnableOneDndDivineFavorSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[无需专注]</color></i>
+ModUi/&EnableOneDndGuidanceSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[施法时选择一项技能并获得最多 1 分钟的加值。]</color></i>
+ModUi/&EnableOneDndHealingSpellsUpgrade=启用<color=#D89555>{0}</color>、<color=#D89555>{1}</color>、<color=#D89555>{2}</color>、<color=#D89555>{3}</color>和<color=#D89555>{4}</color>的2024版<i><color=#F0DAA0>[提高治疗量和临时生命值]</color></i>
+ModUi/&EnableOneDndHideousLaughterSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[+1 目标/升环]</color></i>
+ModUi/&EnableOneDndHuntersMarkSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[强制伤害]</color></i>
+ModUi/&EnableOneDndLesserRestorationSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[附赠动作]</color></i>
+ModUi/&EnableOneDndMagicWeaponSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[附赠行动，无需专注，在 3 环和 6 环施展时增强]</color></i>
+ModUi/&EnableOneDndPowerWordStunSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[如果目标的生命值不超过 150，则震慑一回合]</color></i>
+ModUi/&EnableOneDndSpareTheDyingSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[范围在 5、11 和 17 级加倍]</color></i>
+ModUi/&EnableOneDndSpiderClimbSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[升环施法 +1 目标]</color></i>
+ModUi/&EnableOneDndStoneSkinSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[同时提供对魔法钝击、穿刺、挥砍的抗性]</color></i>
+ModUi/&EnableOneDndTrueStrikeCantrip=启用<color=#D89555>{0}</color>的2024版<b><i><color=#C04040E0>[需要重启]</color></i></b>\n<i><color=#F0DAA0>[攻击时使用你的施法属性调整值进行攻击掷骰和伤害加值，并从 5 级开始造成额外的光耀伤害]</color></i>
+ModUi/&EnableOneDndWitchBoltSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[重新施加伤害的奖励动作]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=在非战斗状态下瞄准可见敌人时启用视线
 ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
 ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
@@ -255,7 +255,7 @@ ModUi/&EnableRelearnSpells=可以选择已从其他来源学到的戏法或法�
 ModUi/&EnableRespecAction=休息行动后启用 <color=#D89555>洗点</color> <i><color=#F0DAA0>[在多人游戏会话期间不要使用 洗点]</color></i>
 ModUi/&EnableRitualOnAllCasters2024=对所有施法者启用<color=#D89555>仪式</color>施法
 ModUi/&EnableOneSpellSlotPerTurn2024=启用2024版规则：每个回合只能为施放法术消耗一个法术位<i><color=#F0DAA0>[戏法和不消耗法术位施放的法术不受影响]</color></i>
-ModUi/&EnableOneDndCounterspellSpell=使用2024版<color=#D89555>法术反制</color>规则<i><color=#F0DAA0>[施法者对你的法术豁免DC进行一次体质豁免；若失败，被打断法术的法术位不会消耗]</color></i>
+ModUi/&EnableOneDndCounterspellSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[体质豁免失败时打断施法，被打断法术所用的法术位不被消耗]</color></i>
 ModUi/&Counterspell2024CompatibilityDescription=同时为10级护法师自动启用破法者。宫廷法师的法术反制大师使你的法术反制目标在豁免检定中具有劣势，并使你在对抗法术反制的豁免检定中具有优势。
 ModUi/&EnableRogueCunningStrike2024=在等级 5、11 和 14 时启用<color=#D89555>狡猾打击</color>、<color=#D89555>强化狡猾打击</color>和<color=#D89555>阴险打击</color> <i><color=#F0DAA0>[你放弃 1 个偷袭骰子以获得额外的命中效果]</color></i>
 ModUi/&EnableRogueFightingStyle=在第 2 级启用<color=#D89555>战斗风格</color>选择

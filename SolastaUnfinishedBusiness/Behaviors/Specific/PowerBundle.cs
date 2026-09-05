@@ -301,12 +301,17 @@ internal static class PowerBundle
         return ModifyMagicEffect(original, power.PowerDefinition, power.User, power);
     }
 
+    private static string DefinitionKey(BaseDefinition definition)
+    {
+        return $"{definition.GetType()}:{definition.Name}:";
+    }
+
     private static string Key(
         BaseDefinition definition,
         BaseDefinition metamagic,
         RulesetEffect effect)
     {
-        var key = $"{definition.GetType()}:{definition.Name}:";
+        var key = DefinitionKey(definition);
 
         if (metamagic)
         {
@@ -368,6 +373,19 @@ internal static class PowerBundle
     internal static void ClearSpellEffectCache(RulesetCharacter caster)
     {
         SpellEffectCache.Remove(caster.Guid);
+    }
+
+    internal static void ClearSpellEffectCacheForDefinition(BaseDefinition definition)
+    {
+        var prefix = DefinitionKey(definition);
+
+        foreach (var effects in SpellEffectCache.Values)
+        {
+            foreach (var key in effects.Keys.Where(key => key.StartsWith(prefix, StringComparison.Ordinal)).ToArray())
+            {
+                effects.Remove(key);
+            }
+        }
     }
 
     private static EffectDescription ModifyMagicEffect(

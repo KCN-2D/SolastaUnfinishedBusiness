@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -179,8 +180,15 @@ public static class SpellRepertoirePanelPatcher
         return code;
     }
 
-    //PATCH: Supports Wizard Mastery and Signature spell features
-    //UI allows other spells to be selected so easier to prevent it here
+    private static bool CanValidateWizardSpellSelection(SpellRepertoirePanel panel)
+    {
+        var selection = GetWizardExtraSpellSelection(panel.GuiCharacter.RulesetCharacter, panel.SpellRepertoire);
+
+        return selection == null ||
+               selection.IsValidSelection(GetWizardSelectedSpells(panel.SpellRepertoire, panel.preparedSpells));
+    }
+
+    //PATCH: Apply the same spell-level limits to mouse and gamepad selection.
     [HarmonyPatch(typeof(SpellRepertoirePanel), nameof(SpellRepertoirePanel.OnSpellSelectedForPreparation))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -193,9 +201,12 @@ public static class SpellRepertoirePanelPatcher
             var spellRepertoire = __instance.SpellRepertoire;
             var spellDefinition = spellBox.SpellDefinition;
 
+            var selection = GetWizardExtraSpellSelection(rulesetCharacter, spellRepertoire);
+
             return !Tabletop2024Context.IsInvalidMemorizeSelectedSpell(__instance, rulesetCharacter, spellDefinition) &&
-                   !WizardSpellMastery.IsInvalidSelectedSpell(rulesetCharacter, spellRepertoire, spellDefinition) &&
-                   !WizardSignatureSpells.IsInvalidSelectedSpell(rulesetCharacter, spellRepertoire, spellDefinition);
+                   (selection == null ||
+                    selection.CanSelectSpell(GetWizardSelectedSpells(spellRepertoire, __instance.preparedSpells),
+                        spellDefinition));
         }
     }
 
@@ -224,6 +235,53 @@ public static class SpellRepertoirePanelPatcher
                     new CodeInstruction(OpCodes.Call, myRefreshInteractivePreparationMethod));
         }
 
+        [UsedImplicitly]
+        public static void Postfix(SpellRepertoirePanel __instance)
+        {
+            var character = __instance.GuiCharacter.RulesetCharacter;
+            var repertoire = __instance.SpellRepertoire;
+            var selection = GetWizardExtraSpellSelection(character, repertoire);
+            var isMemorizeSpell = Tabletop2024Context.IsMemorizeSpellPreparation(character, repertoire);
+
+            if (isMemorizeSpell)
+            {
+                RepaintPanel(
+                    __instance, Tabletop2024Context.FeatureMemorizeSpell.FormatTitle(),
+                    false, false, false,
+                    Gui.Localize("Screen/&PreparePanelMemorizeSpellSelect"));
+            }
+            else if (WizardSpellMastery.IsPreparation(character, repertoire, out _))
+            {
+                RepaintPanel(
+                    __instance, WizardSpellMastery.FeatureSpellMastery.FormatTitle(),
+                    true, false, true,
+                    Gui.Localize("Screen/&PreparePanelSpellMasterySelect"));
+            }
+            else if (WizardSignatureSpells.IsPreparation(character, repertoire, out _))
+            {
+                RepaintPanel(
+                    __instance, WizardSignatureSpells.PowerSignatureSpells.FormatTitle(),
+                    Main.Settings.EnableSignatureSpellsRelearn, false, true,
+                    Gui.Localize("Screen/&PreparePanelSignatureSpellsSelect"));
+            }
+            else
+            {
+                RepaintPanel(__instance, Gui.Localize("Screen/&PreparePanelTitle"), true, true, true);
+            }
+
+            if (selection != null)
+            {
+                __instance.validatePreparationButton.interactable = CanValidateWizardSpellSelection(__instance);
+            }
+
+            // Native navigation was computed before these feature-specific controls were updated.
+            if (Gui.GamepadActive && (selection != null || isMemorizeSpell))
+            {
+                Gui.InputService.RecomputeSelectableNavigation(false, false, false);
+                __instance.SelectDefaultControl();
+            }
+        }
+
         private static void RepaintPanel(
             SpellRepertoirePanel __instance,
             string title,
@@ -246,8 +304,12 @@ public static class SpellRepertoirePanelPatcher
                 ? new Vector3(-12.5f, -61)
                 : new Vector3(-1000, -1000);
 
-            clearButtonTransform!.gameObject.SetActive(showClearRevertButtons);
-            revertButtonTransform!.gameObject.SetActive(showClearRevertButtons);
+            var gamepadActive = Gui.GamepadActive;
+
+            __instance.automatePreparationButtonGamepad.gameObject.SetActive(showAutoButton && gamepadActive);
+            clearButtonTransform!.gameObject.SetActive(showClearRevertButtons && !gamepadActive);
+            revertButtonTransform!.gameObject.SetActive(showClearRevertButtons && !gamepadActive);
+            __instance.clearPreparationButtonGamepad.gameObject.SetActive(showClearRevertButtons && gamepadActive);
 
             if (byPassInstruction != null)
             {
@@ -262,38 +324,18 @@ public static class SpellRepertoirePanelPatcher
             List<SpellDefinition> preparedSpells,
             SpellRepertoirePanel spellRepertoirePanel)
         {
-            var rulesetCharacter = spellRepertoirePanel.GuiCharacter.RulesetCharacter;
-            var spellRepertoire = spellRepertoirePanel.SpellRepertoire;
+            var selection = GetWizardExtraSpellSelection(
+                spellRepertoirePanel.GuiCharacter.RulesetCharacter, spellRepertoirePanel.SpellRepertoire);
 
-            if (Tabletop2024Context.IsMemorizeSpellPreparation(rulesetCharacter, spellRepertoire))
+            if (selection != null)
             {
-                RepaintPanel(
-                    spellRepertoirePanel, Tabletop2024Context.FeatureMemorizeSpell.FormatTitle(),
-                    false, false, false,
-                    Gui.Localize("Screen/&PreparePanelMemorizeSpellSelect"));
-            }
-            else if (WizardSpellMastery.IsPreparation(rulesetCharacter, spellRepertoire, out _))
-            {
-                RepaintPanel(
-                    spellRepertoirePanel, WizardSpellMastery.FeatureSpellMastery.FormatTitle(),
-                    true, false, true);
+                var selectedSpells = GetWizardSelectedSpells(spellRepertoirePanel.SpellRepertoire, preparedSpells);
+                var spellLevel = spellsByLevelGroup.SpellLevel;
 
-                canSelectSpells = spellsByLevelGroup.SpellLevel is 1 or 2;
-            }
-            else if (WizardSignatureSpells.IsPreparation(rulesetCharacter, spellRepertoire, out _))
-            {
-                RepaintPanel(
-                    spellRepertoirePanel, WizardSignatureSpells.PowerSignatureSpells.FormatTitle(),
-                    Main.Settings.EnableSignatureSpellsRelearn, false, true);
-
-                canSelectSpells = spellsByLevelGroup.SpellLevel is 3;
-            }
-            else
-            {
-                RepaintPanel(
-                    spellRepertoirePanel,
-                    Gui.Localize("Screen/&PreparePanelTitle"),
-                    true, true, true);
+                canSelectSpells = selection.AllowsLevel(spellLevel) ||
+                                  selectedSpells.Any(spell => spell != null && spell.SpellLevel == spellLevel);
+                maxReached = selectedSpells.Length >= selection.SpellCount ||
+                             selection.IsLevelFull(selectedSpells, spellLevel);
             }
 
             spellsByLevelGroup.RefreshInteractivePreparation(canSelectSpells, maxReached, preparedSpells);
@@ -306,11 +348,45 @@ public static class SpellRepertoirePanelPatcher
     public static class OnValidatePreparationCb_Patch
     {
         [UsedImplicitly]
+        public static bool Prefix(SpellRepertoirePanel __instance)
+        {
+            return CanValidateWizardSpellSelection(__instance);
+        }
+
+        [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
         {
             return ReplacePreparedSpellCount(
                 instructions,
                 "SpellRepertoirePanel.OnValidatePreparationCb.PreparedSpellCount");
+        }
+    }
+
+    [HarmonyPatch(typeof(SpellRepertoirePanel), nameof(SpellRepertoirePanel.DoValidate))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class DoValidate_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(SpellRepertoirePanel __instance)
+        {
+            return CanValidateWizardSpellSelection(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(SpellRepertoirePanel), nameof(SpellRepertoirePanel.OnAutomatePreparationCb))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnAutomatePreparationCb_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(SpellRepertoirePanel __instance)
+        {
+            var character = __instance.GuiCharacter.RulesetCharacter;
+            var repertoire = __instance.SpellRepertoire;
+
+            return GetWizardExtraSpellSelection(character, repertoire) == null &&
+                   !Tabletop2024Context.IsMemorizeSpellPreparation(character, repertoire);
         }
     }
 }

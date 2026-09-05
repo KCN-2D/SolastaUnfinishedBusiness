@@ -31,6 +31,22 @@ public static class GuiEffectsFormaterPatcher
             }
         }
 
+        [UsedImplicitly]
+        public static void Postfix(GuiEffectsFormater __instance, string specialFormsDescription)
+        {
+            if (string.IsNullOrEmpty(specialFormsDescription))
+            {
+                return;
+            }
+
+            // A special description uses one row. Native cleanup starts at the form count
+            // and can leave rows from the previous tooltip visible when there are several forms.
+            for (var i = 1; i < __instance.table.childCount; i++)
+            {
+                __instance.table.GetChild(i).gameObject.SetActive(false);
+            }
+        }
+
         private static List<EffectForm> FilterDuplicateRemoveDarknessForms(List<EffectForm> effectForms)
         {
             HashSet<string> removeDarknessDescriptions = null;

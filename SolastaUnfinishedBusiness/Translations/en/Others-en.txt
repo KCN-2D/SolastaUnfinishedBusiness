@@ -692,3 +692,4 @@ Tooltip/&PreReqAnyAbilityScoreList=Any one of {0} must be {1}+
 Rules/&ActivationTypeHours12Title=12 Hours
 Feature/&PowerBardGiveBardicInspirationConciseDescription=Use a bonus action to grant a creature a Bardic Inspiration die. The creature can use it to change the outcome of an attack, saving throw, or ability check. The die increases at higher levels.
 Failure/&FailureFlagOneSpellSlotPerTurn2024=You have already expended a spell slot to cast a spell this turn
+Rules/&Counterspell2024EffectDescription=If the target fails its Constitution saving throw, its spell fails. Any spell slot used to cast that spell is not expended.

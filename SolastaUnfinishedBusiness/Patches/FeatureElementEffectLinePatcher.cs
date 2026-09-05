@@ -7,6 +7,28 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public class FeatureElementEffectLinePatcher
 {
+    private static void ClearTooltip(FeatureElementEffectLine effectLine)
+    {
+        var tooltip = effectLine.tooltip;
+
+        if (tooltip)
+        {
+            tooltip.Content = string.Empty;
+        }
+    }
+
+    [HarmonyPatch(typeof(FeatureElementEffectLine), nameof(FeatureElementEffectLine.Bind), typeof(string))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class BindSpecialDescription_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(FeatureElementEffectLine __instance)
+        {
+            ClearTooltip(__instance);
+        }
+    }
+
     //PATCH: clear tooltip on bind, so it does not show previous value if new effect has no trends
     [HarmonyPatch(typeof(FeatureElementEffectLine), nameof(FeatureElementEffectLine.Bind))]
     [HarmonyPatch([
@@ -24,12 +46,7 @@ public class FeatureElementEffectLinePatcher
         [UsedImplicitly]
         public static void Prefix([NotNull] FeatureElementEffectLine __instance)
         {
-            var tooltip = __instance.tooltip;
-
-            if (tooltip)
-            {
-                tooltip.Content = string.Empty;
-            }
+            ClearTooltip(__instance);
         }
     }
 }

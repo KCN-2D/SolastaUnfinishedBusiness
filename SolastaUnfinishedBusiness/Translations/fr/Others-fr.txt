@@ -699,3 +699,4 @@ Tooltip/&PreReqAnyAbilityScoreList=Au moins l'un de {0} doit être à {1}+
 Rules/&ActivationTypeHours12Title=12 heures
 Feature/&PowerBardGiveBardicInspirationConciseDescription=Utilisez une action bonus pour accorder un dé d'Inspiration bardique à une créature. Elle peut l'utiliser pour modifier le résultat d'une attaque, d'un jet de sauvegarde ou d'un test de caractéristique. La valeur du dé augmente à certains niveaux.
 Failure/&FailureFlagOneSpellSlotPerTurn2024=Vous avez déjà dépensé un emplacement de sort pour lancer un sort pendant ce tour
+Rules/&Counterspell2024EffectDescription=Si la cible rate sa sauvegarde de Constitution, son sort échoue. L'emplacement utilisé pour le lancer n'est pas dépensé.

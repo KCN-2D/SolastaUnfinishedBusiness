@@ -195,23 +195,23 @@ ModUi/&EnableMonkSuperiorDefense2024=Enable <color=#D89555>Superior Defense</col
 ModUi/&EnableMonkUncannyMetabolism2024=Enable <color=#D89555>Uncanny Metabolism</color> at level 2 <i><color=#F0DAA0>[recover Ki and HP on initiative roll]</color></i>
 ModUi/&EnableMulticlass=Enable <color=#D89555>multiclass</color> <b><i><color=#C04040E0>[Requires Restart]</color></i></b>
 ModUI/&SwapShineCantrip=Enable Shine DC 15
-ModUi/&EnableOneDndBarkskinSpell=Enable <color=#D89555>Barkskin</color> 5e 2024 spell version <i><color=#F0DAA0>[bonus action, no concentration, AC set to 17]</color></i>
-ModUi/&EnableOneDndBladeWardCantrip=Enable the 5e 2024 version of the <color=#D89555>Blade Ward</color> cantrip <i><color=#F0DAA0>[concentration for 1 minute; attackers subtract 1d4 from their attack rolls]</color></i>
-ModUi/&EnableOneDndChillTouchCantrip=Enable <color=#D89555>Chill Touch</color> 5e 2024 cantrip version <i><color=#F0DAA0>[damage die D10 instead of D8, melee hit instead of 24 range]</color></i>
-ModUi/&EnableOneDndDamagingSpellsUpgrade=Enable <color=#D89555>Arcane Sword</color>, <color=#D89555>Circle of Death</color>, <color=#D89555>Flame Strike</color>, <color=#D89555>Ice Storm</color>, <color=#D89555>Prismatic Spray</color>. and <color=#D89555>Vicious Mockery</color> 5e 2024 spells version <i><color=#F0DAA0>[better damage]</color></i>
-ModUi/&EnableOneDndDivineFavorSpell=Enable <color=#D89555>Divine Favor</color> 5e 2024 spell version <i><color=#F0DAA0>[no concentration]</color></i>
-ModUi/&EnableOneDndGuidanceSpell=Enable <color=#D89555>Guidance</color> 5e 2024 spell version <i><color=#F0DAA0>[choose one skill at casting and get bonus for up to 1 minute]</color></i>
-ModUi/&EnableOneDndHealingSpellsUpgrade=Enable <color=#D89555>Cure Wounds</color>, <color=#D89555>False Life</color>, <color=#D89555>Healing Word</color>, <color=#D89555>Mass Cure Wounds</color>, and <color=#D89555>Mass Healing Word</color> 5e 2024 spells version <i><color=#F0DAA0>[better healing]</color></i>
-ModUi/&EnableOneDndHideousLaughterSpell=Enable <color=#D89555>Hideous Laughter</color> 5e 2024 spell version <i><color=#F0DAA0>[+1 target per upcast]</color></i>
-ModUi/&EnableOneDndHuntersMarkSpell=Enable <color=#D89555>Hunter's Mark</color> 5e 2024 spell version <i><color=#F0DAA0>[force damage]</color></i>
-ModUi/&EnableOneDndLesserRestorationSpell=Enable <color=#D89555>Lesser Restoration</color> 5e 2024 spell version <i><color=#F0DAA0>[bonus action]</color></i>
-ModUi/&EnableOneDndMagicWeaponSpell=Enable <color=#D89555>Magic Weapon</color> 5e 2024 spell version <i><color=#F0DAA0>[bonus action, no concentration, enhancement upgrade at 3rd and 6th spell level]</color></i>
-ModUi/&EnableOneDndPowerWordStunSpell=Enable <color=#D89555>Power Word Stun</color> 5e 2024 spell version <i><color=#F0DAA0>[target stopped for one turn if has more than 150 hp]</color></i>
-ModUi/&EnableOneDndSpareTheDyingSpell=Enable <color=#D89555>Spare the Dying</color> 5e 2024 spell version <i><color=#F0DAA0>[range doubles on levels 5, 11, and 17]</color></i>
-ModUi/&EnableOneDndSpiderClimbSpell=Enable <color=#D89555>Spider Climb</color> 5e 2024 spell version <i><color=#F0DAA0>[+1 target per upcast]</color></i>
-ModUi/&EnableOneDndStoneSkinSpell=Enable <color=#D89555>Stone Skin</color> 5e 2024 spell version <i><color=#F0DAA0>[provides resistance to magical B/P/S as well]</color></i>
-ModUi/&EnableOneDndTrueStrikeCantrip=Enable <color=#D89555>True Strike</color> 5e 2024 cantrip version <b><i><color=#C04040E0>[Requires Restart]</color></i></b>\n<i><color=#F0DAA0>[attack uses your spellcasting ability for the attack roll and damage bonus, and additional radiant damage from level 5]</color></i>
-ModUi/&EnableOneDndWitchBoltSpell=Enable <color=#D89555>Witch Bolt</color> 5e 2024 spell version <i><color=#F0DAA0>[Bonus Action to re-apply damage]</color></i>
+ModUi/&EnableOneDndBarkskinSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[bonus action, no concentration, minimum AC 17]</color></i>
+ModUi/&EnableOneDndBladeWardCantrip=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[concentration for 1 minute; attackers subtract 1d4 from their attack rolls]</color></i>
+ModUi/&EnableOneDndChillTouchCantrip=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[melee spell attack, damage die 1d10]</color></i>
+ModUi/&EnableOneDndDamagingSpellsUpgrade=Enable the 2024 versions of <color=#D89555>{0}</color>, <color=#D89555>{1}</color>, <color=#D89555>{2}</color>, <color=#D89555>{3}</color>, <color=#D89555>{4}</color>, and <color=#D89555>{5}</color> <i><color=#F0DAA0>[better damage]</color></i>
+ModUi/&EnableOneDndDivineFavorSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[no concentration]</color></i>
+ModUi/&EnableOneDndGuidanceSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[choose one skill at casting and get bonus for up to 1 minute]</color></i>
+ModUi/&EnableOneDndHealingSpellsUpgrade=Enable the 2024 versions of <color=#D89555>{0}</color>, <color=#D89555>{1}</color>, <color=#D89555>{2}</color>, <color=#D89555>{3}</color>, and <color=#D89555>{4}</color> <i><color=#F0DAA0>[increased healing and temporary hit points]</color></i>
+ModUi/&EnableOneDndHideousLaughterSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[+1 target per upcast]</color></i>
+ModUi/&EnableOneDndHuntersMarkSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[force damage]</color></i>
+ModUi/&EnableOneDndLesserRestorationSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[bonus action]</color></i>
+ModUi/&EnableOneDndMagicWeaponSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[bonus action, no concentration, enhancement upgrade at 3rd and 6th spell level]</color></i>
+ModUi/&EnableOneDndPowerWordStunSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[target stopped for one turn if has more than 150 hp]</color></i>
+ModUi/&EnableOneDndSpareTheDyingSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[range doubles on levels 5, 11, and 17]</color></i>
+ModUi/&EnableOneDndSpiderClimbSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[+1 target per upcast]</color></i>
+ModUi/&EnableOneDndStoneSkinSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[provides resistance to magical B/P/S as well]</color></i>
+ModUi/&EnableOneDndTrueStrikeCantrip=Enable the 2024 version of <color=#D89555>{0}</color> <b><i><color=#C04040E0>[Requires Restart]</color></i></b>\n<i><color=#F0DAA0>[attack uses your spellcasting ability for the attack roll and damage bonus, and additional radiant damage from level 5]</color></i>
+ModUi/&EnableOneDndWitchBoltSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[Bonus Action to re-apply damage]</color></i>
 ModUi/&EnablePaladinAbjureFoes2024=Enable <color=#D89555>Abjure Foes</color> at level 9
 ModUi/&EnablePaladinChannelDivinity2024=Swap <color=#D89555>Channel Divinity</color> with 5e 2024 version <i><color=#F0DAA0>[different usages]</color></i>
 ModUi/&EnablePaladinLayOnHands2024=Swap <color=#D89555>Lay on Hands</color> with 5e 2024 version <i><color=#F0DAA0>[bonus action]</color></i>
@@ -247,7 +247,7 @@ ModUi/&EnableRelearnSpells=Enable selection of cantrips or spells already learne
 ModUi/&EnableRespecAction=Enable the <color=#D89555>RESPEC</color> after rest action <i><color=#F0DAA0>[don't use RESPEC during a multiplayer session]</color></i>
 ModUi/&EnableRitualOnAllCasters2024=Enable <color=#D89555>Ritual</color> casting on all casters
 ModUi/&EnableOneSpellSlotPerTurn2024=Apply the 2024 rule that only one spell slot can be expended to cast a spell on each turn <i><color=#F0DAA0>[cantrips and spells cast without a spell slot are unaffected]</color></i>
-ModUi/&EnableOneDndCounterspellSpell=Use the 2024 rules for <color=#D89555>Counterspell</color> <i><color=#F0DAA0>[the caster makes a Constitution saving throw against your spell save DC; on a failure, the interrupted spell's slot is not expended]</color></i>
+ModUi/&EnableOneDndCounterspellSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[Constitution save; failure interrupts casting without expending the target spell's slot]</color></i>
 ModUi/&Counterspell2024CompatibilityDescription=Also enables Spell Breaker for level 10 Abjurers. Court Mage Counterspell Mastery gives your targets disadvantage on their Counterspell saves and gives you advantage on saves against Counterspell.
 ModUi/&EnableRogueCunningStrike2024=Enable <color=#D89555>Cunning Strike</color>, <color=#D89555>Improved Cunning Strike</color>, and <color=#D89555>Devious Strike</color> at levels 5, 11 and 14 <i><color=#F0DAA0>[you let forgo 1 sneak attack dice for additional hit effects]</color></i>
 ModUi/&EnableRogueFightingStyle=Enable <color=#D89555>Fighting Style</color> choice at level 2

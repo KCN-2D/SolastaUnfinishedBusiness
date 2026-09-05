@@ -201,23 +201,23 @@ ModUi/&EnableMonkStunningStrike2024=<color=#D89555>Stunning Strike</color>를 5e
 ModUi/&EnableMonkSuperiorDefense2024=레벨 18에서 <color=#D89555>빈 몸</color>을 <color=#D89555>최고 방어력</color>으로 대체합니다. <i><color=#F0DAA0>[피해 저항력]</color></i>
 ModUi/&EnableMonkUncannyMetabolism2024=레벨 2에서 <color=#D89555>기이한 신진대사</color>를 활성화합니다. <i><color=#F0DAA0>[이니셔티브 롤에서 기와 체력 회복]</color></i>
 ModUi/&EnableMulticlass=<color=#D89555>다중클래스</color> 활성화 <b><i><color=#C04040E0>[재시작 필요]</color></i></b>
-ModUi/&EnableOneDndBarkskinSpell=<color=#D89555>Barkskin</color> 5e 2024 주문 버전 활성화 <i><color=#F0DAA0>[보너스 액션, 집중 없음, AC 17로 설정]</color></i>
-ModUi/&EnableOneDndBladeWardCantrip=<color=#D89555>블레이드 와드</color> 5e 2024 캔트립 버전을 활성화합니다. <i><color=#F0DAA0>[1분 동안 집중을 유지하며, 공격자는 명중 굴림에서 1d4를 뺍니다]</color></i>
-ModUi/&EnableOneDndChillTouchCantrip=<color=#D89555>Chill Touch</color> 5e 2024 cantrip 버전 활성화 <i><color=#F0DAA0>[D8 대신 D10 피해, 24 범위 대신 근접 공격]</color></i>
-ModUi/&EnableOneDndDamagingSpellsUpgrade=<color=#D89555>비전의 검</color>, <color=#D89555>죽음의 원</color>, <color=#D89555>불꽃 일격</color>, <color=#D89555>얼음 폭풍</color>, <color=#D89555>프리즘 스프레이</color>, <color=#D89555>사악한 조롱</color> 5e 2024 주문 버전 <i><color=#F0DAA0>[더 나은 데미지]</color></i>을 활성화합니다.
-ModUi/&EnableOneDndDivineFavorSpell=<color=#D89555>신성한 호의</color> 5e 2024 주문 버전 활성화 <i><color=#F0DAA0>[집중 없음]</color></i>
-ModUi/&EnableOneDndGuidanceSpell=<color=#D89555>지침</color> 5e 2024 주문 버전을 활성화합니다. <i><color=#F0DAA0>[시전 시 스킬 하나를 선택하고 최대 1분 동안 보너스를 받습니다.]</color></i>
-ModUi/&EnableOneDndHealingSpellsUpgrade=<color=#D89555>상처 치료</color>, <color=#D89555>거짓 생명</color>, <color=#D89555>치유의 말씀</color>, <color=#D89555>대량 상처 치료</color>, <color=#D89555>대량 치유의 말씀</color> 5e 2024 주문 버전 <i><color=#F0DAA0>[치유력 향상]</color></i>을 활성화합니다.
-ModUi/&EnableOneDndHideousLaughterSpell=<color=#D89555>흉측한 웃음</color> 5e 2024 주문 버전 활성화 <i><color=#F0DAA0>[업캐스트당 대상 1개 추가]</color></i>
-ModUi/&EnableOneDndHuntersMarkSpell=<color=#D89555>사냥꾼의 표식</color> 5e 2024 주문 버전 <i><color=#F0DAA0>[강제 피해]</color></i>을 활성화합니다.
-ModUi/&EnableOneDndLesserRestorationSpell=<color=#D89555>하위 회복</color> 5e 2024 주문 버전 <i><color=#F0DAA0>[보너스 액션]</color></i>을 활성화합니다.
-ModUi/&EnableOneDndMagicWeaponSpell=<color=#D89555>마법 무기</color> 5e 2024 주문 버전 활성화 <i><color=#F0DAA0>[보너스 액션, 집중 없음, 3, 6번째 주문 레벨에서 강화 업그레이드]</color></i>
-ModUi/&EnableOneDndPowerWordStunSpell=<color=#D89555>파워워드 스턴</color> 5e 2024 주문 버전을 활성화합니다. <i><color=#F0DAA0>[대상의 체력이 150을 넘으면 1턴 동안 멈춤]</color></i>
-ModUi/&EnableOneDndSpareTheDyingSpell=<color=#D89555>죽음을 막아라</color> 5e 2024 주문 버전 활성화 <i><color=#F0DAA0>[5, 11, 17레벨에서 범위가 두 배가 됨]</color></i>
-ModUi/&EnableOneDndSpiderClimbSpell=<color=#D89555>거미 등반</color> 5e 2024 주문 버전 활성화 <i><color=#F0DAA0>[업캐스트당 대상 +1개]</color></i>
-ModUi/&EnableOneDndStoneSkinSpell=<color=#D89555>스톤 스킨</color> 5e 2024 주문 버전을 활성화합니다. <i><color=#F0DAA0>[마법 B/P/S에 대한 저항력도 제공]</color></i>
-ModUi/&EnableOneDndTrueStrikeCantrip=<color=#D89555>True Strike</color> 5e 2024 캔트립 버전 사용 <b><i><color=#C04040E0>[재시작 필요]</color></i></b>\n<i><color=#F0DAA0>[공격 시 공격 굴림과 피해 보너스에 주문 시전 능력을 사용하고, 레벨 5부터 추가 방사형 피해]</color></i>
-ModUi/&EnableOneDndWitchBoltSpell=<color=#D89555>Witch Bolt</color> 5e 2024 주문 버전 활성화 <i><color=#F0DAA0>[피해를 다시 적용하는 보너스 액션]</color></i>
+ModUi/&EnableOneDndBarkskinSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[보너스 행동, 집중 불필요, AC 최소 17]</color></i>
+ModUi/&EnableOneDndBladeWardCantrip=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[1분 동안 집중을 유지하며, 공격자는 명중 굴림에서 1d4를 뺍니다]</color></i>
+ModUi/&EnableOneDndChillTouchCantrip=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[근접 주문 공격, 피해 주사위 1d10]</color></i>
+ModUi/&EnableOneDndDamagingSpellsUpgrade=<color=#D89555>{0}</color>, <color=#D89555>{1}</color>, <color=#D89555>{2}</color>, <color=#D89555>{3}</color>, <color=#D89555>{4}</color>, <color=#D89555>{5}</color>의 2024년판 활성화 <i><color=#F0DAA0>[더 나은 데미지]</color></i>
+ModUi/&EnableOneDndDivineFavorSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[집중 없음]</color></i>
+ModUi/&EnableOneDndGuidanceSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[시전 시 스킬 하나를 선택하고 최대 1분 동안 보너스를 받습니다.]</color></i>
+ModUi/&EnableOneDndHealingSpellsUpgrade=<color=#D89555>{0}</color>, <color=#D89555>{1}</color>, <color=#D89555>{2}</color>, <color=#D89555>{3}</color>, <color=#D89555>{4}</color>의 2024년판 활성화 <i><color=#F0DAA0>[치유량 및 임시 HP 증가]</color></i>
+ModUi/&EnableOneDndHideousLaughterSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[업캐스트당 대상 1개 추가]</color></i>
+ModUi/&EnableOneDndHuntersMarkSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[강제 피해]</color></i>
+ModUi/&EnableOneDndLesserRestorationSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[보너스 액션]</color></i>
+ModUi/&EnableOneDndMagicWeaponSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[보너스 액션, 집중 없음, 3, 6번째 주문 레벨에서 강화 업그레이드]</color></i>
+ModUi/&EnableOneDndPowerWordStunSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[대상의 체력이 150을 넘으면 1턴 동안 멈춤]</color></i>
+ModUi/&EnableOneDndSpareTheDyingSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[5, 11, 17레벨에서 범위가 두 배가 됨]</color></i>
+ModUi/&EnableOneDndSpiderClimbSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[업캐스트당 대상 +1개]</color></i>
+ModUi/&EnableOneDndStoneSkinSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[마법 B/P/S에 대한 저항력도 제공]</color></i>
+ModUi/&EnableOneDndTrueStrikeCantrip=<color=#D89555>{0}</color>의 2024년판 활성화 <b><i><color=#C04040E0>[재시작 필요]</color></i></b>\n<i><color=#F0DAA0>[공격 시 공격 굴림과 피해 보너스에 주문 시전 능력을 사용하고, 레벨 5부터 추가 방사형 피해]</color></i>
+ModUi/&EnableOneDndWitchBoltSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[피해를 다시 적용하는 보너스 액션]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=비전투 대상을 지정할 때 눈에 보이는 적에 대한 시선 활성화
 ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
 ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
@@ -255,7 +255,7 @@ ModUi/&EnableRelearnSpells=다른 출처에서 이미 배운 주문이나 주문
 ModUi/&EnableRespecAction=휴식 동작 후 <color=#D89555>RESPEC</color> 활성화 <i><color=#F0DAA0>[멀티플레이어 세션 동안 RESPEC 사용하지 마세요]</color></i>
 ModUi/&EnableRitualOnAllCasters2024=모든 시전자에 <color=#D89555>의식</color> 시전 활성화
 ModUi/&EnableOneSpellSlotPerTurn2024=한 턴에 주문 시전으로 주문 슬롯을 하나만 소비할 수 있는 2024년 규칙을 적용합니다. <i><color=#F0DAA0>[소마법과 주문 슬롯을 소비하지 않는 시전에는 영향을 주지 않습니다]</color></i>
-ModUi/&EnableOneDndCounterspellSpell=<color=#D89555>주문 방해</color>에 2024년 규칙을 적용합니다. <i><color=#F0DAA0>[대상 시전자는 당신의 주문 내성 DC에 대해 건강 내성 굴림을 하며, 실패하면 방해된 주문의 슬롯을 소비하지 않습니다]</color></i>
+ModUi/&EnableOneDndCounterspellSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[건강 내성 굴림 실패 시 시전을 방해하며 대상 주문의 슬롯은 소모되지 않음]</color></i>
 ModUi/&Counterspell2024CompatibilityDescription=10레벨 방호술사의 주문 파괴자도 자동으로 활성화됩니다. 코트 메이지의 주문 반사 통달은 자신의 카운터스펠 대상이 하는 내성 굴림에 불리점을 주고, 카운터스펠에 맞서는 자신의 내성 굴림에는 이점을 줍니다.
 ModUi/&EnableRogueCunningStrike2024=레벨 5, 11, 14에서 <color=#D89555>교활한 일격</color>, <color=#D89555>개선된 교활한 일격</color>, <color=#D89555>사악한 일격</color>을 활성화합니다. <i><color=#F0DAA0>[추가 적중 효과를 위해 몰래 공격 주사위 1개를 포기합니다]</color></i>
 ModUi/&EnableRogueFightingStyle=레벨 2에서 <color=#D89555>격투 스타일</color> 선택 가능
