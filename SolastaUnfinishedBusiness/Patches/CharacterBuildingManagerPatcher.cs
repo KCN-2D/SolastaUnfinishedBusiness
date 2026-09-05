@@ -1711,10 +1711,16 @@ public static class CharacterBuildingManagerPatcher
     public static class ApplyFeatureDefinitionPointPool_Patch
     {
         [UsedImplicitly]
-        public static bool Prefix(CharacterHeroBuildingData heroBuildingData, FeatureDefinition feature)
+        public static bool Prefix(CharacterHeroBuildingData heroBuildingData, FeatureDefinition feature, string __2)
         {
-            return !Tabletop2024Context.TryApplyHumanOriginFeatPointPool(heroBuildingData, feature) &&
-                   !Tabletop2024Context.ShouldSuppressReplacedBackgroundFeatPointPool(heroBuildingData, feature);
+            if (!Tabletop2024Context.TryApplyHumanOriginFeatPointPool(heroBuildingData, feature) &&
+                !Tabletop2024Context.ShouldSuppressReplacedBackgroundFeatPointPool(heroBuildingData, feature) &&
+                feature is FeatureDefinitionPointPool pointPoolFeature)
+            {
+                PointPoolContext.ApplyFeaturePool(heroBuildingData, pointPoolFeature, __2);
+            }
+
+            return false;
         }
 
         [UsedImplicitly]
@@ -1732,7 +1738,7 @@ public static class CharacterBuildingManagerPatcher
                 return;
             }
 
-            var poolTag = __2 + pointPoolFeature.ExtraSpellsTag;
+            var poolTag = PointPoolContext.GetPoolTag(pointPoolFeature.PoolType, __2, pointPoolFeature.ExtraSpellsTag);
 
             if (!pointPoolStack.ActivePools.TryGetValue(poolTag, out var pointPool) &&
                 !pointPoolStack.ActivePools.TryGetValue(__2, out pointPool))
@@ -1741,6 +1747,20 @@ public static class CharacterBuildingManagerPatcher
             }
 
             Tabletop2024Context.NormalizeModeAwareFeatPointPool(pointPool);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.UnregisterPoolStacksOfTag))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class UnregisterPoolStacksOfTag_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterHeroBuildingData heroBuildingData, string tag)
+        {
+            PointPoolContext.RemovePoolsOfTag(heroBuildingData, tag);
+
+            return false;
         }
     }
 

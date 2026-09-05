@@ -331,10 +331,6 @@ internal static class CampaignsContext
 
         foreach (var rulesetSpellRepertoire in spellRepertoires)
         {
-            LevelUpHelper.AddSlotCastableExtraSpellsToAutoPreparedSpells(
-                caster.RulesetCharacter,
-                rulesetSpellRepertoire);
-
             var startLevel = 0;
             var maxLevel = rulesetSpellRepertoire.MaxSpellLevelOfSpellCastingLevel;
 

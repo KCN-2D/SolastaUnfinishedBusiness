@@ -818,6 +818,7 @@ public static partial class Tabletop2024Context
         HealingWord.schoolOfMagic = school;
         MassCureWounds.schoolOfMagic = school;
         MassHealingWord.schoolOfMagic = school;
+        GetDefinition<SpellDefinition>("MassHeal").schoolOfMagic = school;
         PrayerOfHealing.schoolOfMagic = school;
     }
 

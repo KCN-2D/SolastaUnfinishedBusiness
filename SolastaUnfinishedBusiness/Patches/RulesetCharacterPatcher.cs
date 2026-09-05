@@ -2306,56 +2306,19 @@ public static class RulesetCharacterPatcher
         public static bool Prefix(
             [NotNull] RulesetCharacter __instance, [NotNull] RulesetSpellRepertoire spellRepertoire)
         {
-            //BEGIN PATCH
-            var spellcastingClass = spellRepertoire.SpellCastingClass;
+            // Compute readiness and its source from the same snapshot used by the UI.
+            var preparedSpells = SpellPreparationContext
+                .EnumerateAutoPreparedSpells(__instance, spellRepertoire)
+                .ToArray();
 
-            if (!spellcastingClass && spellRepertoire.SpellCastingSubclass)
-            {
-                spellcastingClass = LevelUpHelper.GetClassForSubclass(spellRepertoire.SpellCastingSubclass);
-            }
-            //END PATCH
-
-            // __instance includes all the logic for the base function
             spellRepertoire.AutoPreparedSpells.Clear();
-            __instance.EnumerateFeaturesToBrowse<FeatureDefinitionAutoPreparedSpells>(__instance.FeaturesToBrowse);
+            spellRepertoire.AutoPreparedSpells.AddRange(preparedSpells.Select(entry => entry.Spell));
 
-            var features = __instance.FeaturesToBrowse.OfType<FeatureDefinitionAutoPreparedSpells>();
+            // The native field can describe a single common source only. Mixed sources
+            // are resolved per spell rather than inheriting the last processed feature.
+            var sourceTags = preparedSpells.Select(entry => entry.DisplayTag).Distinct().ToArray();
 
-            foreach (var autoPreparedSpells in features)
-            {
-                var matcher = autoPreparedSpells.GetFirstSubFeatureOfType<RepertoireValidForAutoPreparedFeature>();
-                bool matches;
-
-                if (matcher == null)
-                {
-                    matches = autoPreparedSpells.SpellcastingClass == spellcastingClass;
-                }
-                else
-                {
-                    matches = matcher(spellRepertoire, __instance);
-                }
-
-                if (!matches)
-                {
-                    continue;
-                }
-
-                var classLevel = __instance.GetSpellcastingLevel(spellRepertoire);
-
-                foreach (var preparedSpellsGroup in autoPreparedSpells.AutoPreparedSpellsGroups
-                             .Where(preparedSpellsGroup => preparedSpellsGroup.ClassLevel <= classLevel))
-                {
-                    spellRepertoire.AutoPreparedSpells.AddRange(preparedSpellsGroup.SpellsList);
-                    spellRepertoire.AutoPreparedTag = autoPreparedSpells.AutoPreparedTag;
-                }
-            }
-
-            LevelUpHelper.AddSlotCastableExtraSpellsToAutoPreparedSpells(__instance, spellRepertoire);
-
-            foreach (var modifier in __instance.GetSubFeaturesByType<IModifyAutoPreparedSpells>())
-            {
-                modifier.ModifyAutoPreparedSpells(__instance, spellRepertoire);
-            }
+            spellRepertoire.AutoPreparedTag = sourceTags.Length == 1 ? sourceTags[0] : string.Empty;
 
             return false;
         }

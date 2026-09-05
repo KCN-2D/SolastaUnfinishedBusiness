@@ -383,11 +383,11 @@ internal static partial class SpellBuilders
         var spell = SpellDefinitionBuilder
             .Create(NAME)
             .SetGuiPresentation(Category.Spell, Sprites.GetSprite(NAME, Resources.SynapticStatic, 128))
-            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolEvocation)
+            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolEnchantment)
             .SetSpellLevel(5)
             .SetCastingTime(ActivationTime.Action)
             .SetMaterialComponent(MaterialComponentType.None)
-            .SetSomaticComponent(false)
+            .SetSomaticComponent(true)
             .SetVerboseComponent(true)
             .SetVocalSpellSameType(VocalSpellSemeType.Buff)
             .SetEffectDescription(
@@ -688,13 +688,14 @@ internal static partial class SpellBuilders
         var spell = SpellDefinitionBuilder
             .Create(NAME)
             .SetGuiPresentation(Category.Spell, Sprites.GetSprite(NAME, Resources.EmpoweredKnowledge, 128))
-            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolDivination)
+            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolTransmutation)
             .SetSpellLevel(5)
             .SetCastingTime(ActivationTime.Action)
-            .SetMaterialComponent(MaterialComponentType.Mundane)
+            .SetMaterialComponent(MaterialComponentType.None)
             .SetVerboseComponent(true)
             .SetSomaticComponent(true)
             .SetVocalSpellSameType(VocalSpellSemeType.Buff)
+            .SetRequiresConcentration(true)
             .SetEffectDescription(
                 EffectDescriptionBuilder
                     .Create()
@@ -720,7 +721,14 @@ internal static partial class SpellBuilders
         {
             var hero = target.GetOriginalHero();
 
-            hero?.ExpertiseProficiencies.Remove(skillName);
+            if (hero == null)
+            {
+                return;
+            }
+
+            // Native refresh retains cached expertise. Rebuild this skill from the remaining sources.
+            hero.ExpertiseProficiencies.RemoveAll(x => x == skillName);
+            hero.RefreshProficiencies();
         }
     }
 
@@ -730,7 +738,9 @@ internal static partial class SpellBuilders
     {
         public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
         {
-            if (action.Countered || action.ExecutionFailed)
+            if (action.Countered || action.ExecutionFailed ||
+                action is not CharacterActionCastSpell castSpell ||
+                action.ActionParams.TargetCharacters.Count == 0)
             {
                 yield break;
             }
@@ -764,53 +774,59 @@ internal static partial class SpellBuilders
                 rulesetCharacter.UsablePowers.Add(up);
             }
 
+            if (usablePowers.Count == 0)
+            {
+                yield break;
+            }
+
             var usablePower = PowerProvider.Get(powerPool, rulesetCharacter);
+            RulesetEffectPower selectedEffect = null;
 
-            yield return actingCharacter.MyReactToSpendPowerBundle(
-                usablePower,
-                [target],
-                actingCharacter,
-                "EmpoweredKnowledge",
-                reactionValidated: ReactionValidated);
+            try
+            {
+                yield return actingCharacter.MyReactToSpendPowerBundle(
+                    usablePower,
+                    [target],
+                    actingCharacter,
+                    "EmpoweredKnowledge",
+                    reactionValidated: ReactionValidated);
+            }
+            finally
+            {
+                usablePowers.ForEach(x => rulesetCharacter.UsablePowers.Remove(x));
+            }
 
-            rulesetCharacter.UsablePowers.Remove(usablePower);
-            usablePowers.ForEach(x => rulesetCharacter.UsablePowers.Remove(x));
+            if (selectedEffect == null ||
+                !rulesetTarget.ConditionsByCategory.TryGetValue(AttributeDefinitions.TagEffect, out var conditions))
+            {
+                yield break;
+            }
+
+            // The bundle applies the chosen skill after the spell's normal concentration check.
+            // Track its actual condition on the spell so ending concentration also removes the expertise.
+            foreach (var condition in conditions
+                         .Where(x => selectedEffect.TrackedConditionGuids.Contains(x.Guid))
+                         .ToArray())
+            {
+                castSpell.ActiveSpell.TrackCondition(
+                    rulesetCharacter,
+                    rulesetCharacter.Guid,
+                    rulesetTarget,
+                    rulesetTarget.Guid,
+                    condition,
+                    AttributeDefinitions.TagEffect);
+            }
+
+            castSpell.StartConcentrationAsNeeded();
 
             yield break;
 
             void ReactionValidated(ReactionRequestSpendBundlePower reactionRequest)
             {
-                var selectedPower =
-                    (reactionRequest.ReactionParams.RulesetEffect as RulesetEffectPower)?.PowerDefinition;
-
-                if (!selectedPower ||
-                    usablePowers.All(x => x.PowerDefinition != selectedPower))
+                if (reactionRequest.ReactionParams.RulesetEffect is RulesetEffectPower effect &&
+                    usablePowers.Any(x => x.PowerDefinition == effect.PowerDefinition))
                 {
-                    return;
-                }
-
-                var locationCharacterService = ServiceRepository.GetService<IGameLocationCharacterService>();
-                var contenders =
-                    locationCharacterService.PartyCharacters.Union(locationCharacterService.GuestCharacters)
-                        .ToArray();
-
-                foreach (var contender in contenders)
-                {
-                    var rulesetContender = contender.RulesetCharacter;
-
-                    foreach (var skill in skillsDb)
-                    {
-                        var conditionName = $"ConditionEmpoweredKnowledge{skill.Name}";
-
-                        if (rulesetContender.TryGetConditionOfCategoryAndType(
-                                AttributeDefinitions.TagEffect, conditionName, out var activeCondition) &&
-                            activeCondition.SourceGuid == rulesetCharacter.Guid &&
-                            (activeCondition.TargetGuid != rulesetTarget.Guid ||
-                             !selectedPower.Name.Contains(skill.Name)))
-                        {
-                            rulesetContender.RemoveCondition(activeCondition);
-                        }
-                    }
+                    selectedEffect = effect;
                 }
             }
         }
@@ -873,7 +889,7 @@ internal static partial class SpellBuilders
             .SetGuiPresentation(Category.Spell, Sprites.GetSprite(NAME, Resources.HolyWeapon, 128))
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolEvocation)
             .SetSpellLevel(5)
-            .SetCastingTime(ActivationTime.Action)
+            .SetCastingTime(ActivationTime.BonusAction)
             .SetMaterialComponent(MaterialComponentType.None)
             .SetSomaticComponent(true)
             .SetVerboseComponent(true)

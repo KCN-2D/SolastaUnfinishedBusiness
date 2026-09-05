@@ -404,17 +404,6 @@ internal static class LevelUpHelper
             : levelUpData.OtherClassesKnownSpells;
     }
 
-    internal static int GetMaxAutoPrepSpellsLevel(
-        RulesetCharacter rulesetCharacter,
-        FeatureDefinitionAutoPreparedSpells featureDefinitionAutoPreparedSpells)
-    {
-        var spellCastingClass = featureDefinitionAutoPreparedSpells.SpellcastingClass;
-        var spellRepertoire = rulesetCharacter.SpellRepertoires
-            .Find(x => x.SpellCastingClass == spellCastingClass);
-
-        return spellRepertoire != null ? SharedSpellsContext.MaxSpellLevelOfSpellCastingLevel(spellRepertoire) : 1;
-    }
-
     private static bool IsSpellCastableWithRepertoireSlots(
         SpellDefinition spell,
         int maxSpellLevel,
@@ -424,17 +413,6 @@ internal static class LevelUpHelper
                spell.SpellLevel <= maxSpellLevel &&
                (spellLevel == AnySpellLevel || spell.SpellLevel == spellLevel) &&
                !SpellsContext.SpellsChildMaster.ContainsKey(spell);
-    }
-
-    private static bool IsSlotCastableAutoPreparedFeatureValidForRepertoire(
-        FeatureDefinitionAutoPreparedSpells feature,
-        RulesetSpellRepertoire repertoire,
-        RulesetCharacter character)
-    {
-        var matcher = feature.GetFirstSubFeatureOfType<RepertoireValidForAutoPreparedFeature>();
-
-        // UB feat-granted spells that can be cast with regular slots mark their valid target repertoire explicitly.
-        return matcher != null && matcher(repertoire, character);
     }
 
     internal static IEnumerable<(SpellDefinition Spell, string DisplayTag)> EnumerateSlotCastableExtraSpellsForRepertoire(
@@ -455,16 +433,12 @@ internal static class LevelUpHelper
         }
 
         HashSet<SpellDefinition> yielded = [];
-        var classLevel = character.GetSpellcastingLevel(repertoire);
-
         foreach (var feature in character.FeaturesByType<FeatureDefinitionAutoPreparedSpells>()
                      .Where(feature => feature.AutoPreparedSpellsGroups != null)
-                     .Where(feature =>
-                         IsSlotCastableAutoPreparedFeatureValidForRepertoire(feature, repertoire, character)))
+                     .OrderBy(feature => feature.Name, StringComparer.Ordinal)
+                     .Where(feature => feature.HasSubFeatureOfType<RepertoireValidForAutoPreparedFeature>()))
         {
-            foreach (var spell in feature.AutoPreparedSpellsGroups
-                         .Where(group => group.ClassLevel <= classLevel)
-                         .SelectMany(group => group.SpellsList)
+            foreach (var spell in SpellPreparationContext.EnumerateFeatureSpells(character, repertoire, feature)
                          .Where(spell => IsSpellCastableWithRepertoireSlots(spell, maxSpellLevel, spellLevel)))
             {
                 if (yielded.Add(spell))
@@ -474,9 +448,7 @@ internal static class LevelUpHelper
             }
         }
 
-        foreach (var (spell, displayTag) in Tabletop2024Context
-                     .EnumerateSlotCastableTabletop2024FeatSpellsWithTags(character)
-                     .Where(entry => IsSpellCastableWithRepertoireSlots(entry.Spell, maxSpellLevel, spellLevel)))
+        foreach (var (spell, displayTag) in EnumerateSlotCastableFeatRepertoireSpells(character, repertoire, spellLevel))
         {
             if (yielded.Add(spell))
             {
@@ -485,17 +457,33 @@ internal static class LevelUpHelper
         }
     }
 
-    internal static void AddSlotCastableExtraSpellsToAutoPreparedSpells(
+    internal static IEnumerable<(SpellDefinition Spell, string DisplayTag)> EnumerateSlotCastableFeatRepertoireSpells(
         RulesetCharacter character,
-        RulesetSpellRepertoire repertoire)
+        RulesetSpellRepertoire repertoire,
+        int spellLevel = AnySpellLevel)
     {
-        foreach (var (spell, _) in EnumerateSlotCastableExtraSpellsForRepertoire(character, repertoire))
+        if (character == null || !repertoire.UsesSharedSpellSlots())
         {
-            repertoire.AutoPreparedSpells.TryAdd(spell);
+            yield break;
+        }
+
+        var maxSpellLevel = repertoire.MaxSpellLevelOfSpellCastingLevel;
+
+        if (maxSpellLevel <= 0)
+        {
+            yield break;
+        }
+
+        foreach (var entry in Tabletop2024Context.EnumerateSlotCastableTabletop2024FeatSpellsWithTags(character)
+                     .Where(entry => IsSpellCastableWithRepertoireSlots(entry.Spell, maxSpellLevel, spellLevel))
+                     .OrderBy(entry => entry.DisplayTag, StringComparer.Ordinal)
+                     .ThenBy(entry => entry.Spell.Name, StringComparer.Ordinal))
+        {
+            yield return entry;
         }
     }
 
-    internal static void AddSlotCastableExtraSpellsToCommonBind(
+    internal static void AddAutoPreparedSpellsToCommonBind(
         SpellsByLevelGroup group,
         RulesetCharacter caster,
         List<SpellDefinition> allSpells,
@@ -510,19 +498,32 @@ internal static class LevelUpHelper
             return;
         }
 
-        foreach (var (spell, displayTag) in EnumerateSlotCastableExtraSpellsForRepertoire(
-                     caster,
-                     group.SpellRepertoire,
-                     group.SpellLevel))
+        var repertoire = group.SpellRepertoire;
+        var selectedSpells = repertoire.ExtraSpellsByTag
+            .OrderBy(entry => entry.Key, StringComparer.Ordinal)
+            .SelectMany(entry => entry.Value.Select(spell => (Spell: spell, DisplayTag: entry.Key)))
+            .Where(entry => entry.Spell.SpellLevel == group.SpellLevel)
+            .ToArray();
+
+        foreach (var (spell, displayTag) in SpellPreparationContext
+                     .EnumerateAutoPreparedSpells(caster, repertoire)
+                     .Where(entry => entry.Spell.SpellLevel == group.SpellLevel))
         {
             allSpells.TryAdd(spell);
-            autoPreparedSpells?.TryAdd(spell);
-            tagBySpell?.TryAdd(spell, displayTag);
-            extraSpellsMap?.TryAdd(spell, displayTag);
+            autoPreparedSpells.TryAdd(spell);
+            tagBySpell[spell] = displayTag;
+            extraSpellsMap[spell] = displayTag;
+        }
+
+        // Mastery, signature spells and other explicit repertoire choices retain their own source.
+        foreach (var (spell, displayTag) in selectedSpells)
+        {
+            tagBySpell[spell] = displayTag;
+            extraSpellsMap[spell] = displayTag;
         }
     }
 
-    internal static void AddSlotCastableExtraSpellsToExtraSpellsMap(
+    internal static void AddAutoPreparedSpellsToExtraSpellsMap(
         RulesetSpellRepertoire repertoire,
         int spellLevel,
         Dictionary<SpellDefinition, string> extraSpellsMap)
@@ -534,10 +535,9 @@ internal static class LevelUpHelper
             return;
         }
 
-        foreach (var (spell, displayTag) in EnumerateSlotCastableExtraSpellsForRepertoire(
-                     character,
-                     repertoire,
-                     spellLevel))
+        foreach (var (spell, displayTag) in SpellPreparationContext
+                     .EnumerateAutoPreparedSpells(character, repertoire)
+                     .Where(entry => entry.Spell.SpellLevel == spellLevel))
         {
             if (spell.ActivationTime is ActivationTime.Reaction or ActivationTime.OnAttackHit)
             {
@@ -595,38 +595,20 @@ internal static class LevelUpHelper
 
     internal static void EnumerateExtraSpells(
         Dictionary<SpellDefinition, string> extraSpells,
-        RulesetCharacter character)
+        RulesetCharacter character,
+        RulesetSpellRepertoire repertoire)
     {
-        if (character == null)
+        if (character == null || repertoire == null)
         {
             return;
         }
 
-        void AddAutoPreparedSpells(FeatureDefinitionAutoPreparedSpells feature)
-        {
-            var maxLevel = GetMaxAutoPrepSpellsLevel(character, feature);
-
-            foreach (var spell in feature.AutoPreparedSpellsGroups
-                         .SelectMany(x => x.SpellsList)
-                         .Where(x => x.SpellLevel <= maxLevel))
-            {
-                extraSpells.TryAdd(spell, feature.AutoPreparedTag);
-            }
-        }
-
-        foreach (var feature in character.FeaturesByType<FeatureDefinitionAutoPreparedSpells>())
-        {
-            AddAutoPreparedSpells(feature);
-        }
-
-        foreach (var (spell, displayTag) in Tabletop2024Context
-                     .EnumerateSlotCastableTabletop2024FeatSpellsWithTags(character))
+        foreach (var (spell, displayTag) in SpellPreparationContext.EnumerateAutoPreparedSpells(character, repertoire))
         {
             extraSpells.TryAdd(spell, displayTag);
         }
 
-        // Level-up selections only exist on a Hero. Runtime feature and repertoire
-        // enumeration above deliberately remains shared with a Simulacrum.
+        // Pending level-up feats may not have been granted to the hero yet.
         if (character is not RulesetCharacterHero hero ||
             !hero.TryGetHeroBuildingData(out var data))
         {
@@ -634,13 +616,17 @@ internal static class LevelUpHelper
         }
 
         var features = data.levelupTrainedFeats
-            .SelectMany(x => x.Value)
-            .SelectMany(f => f.Features)
-            .OfType<FeatureDefinitionAutoPreparedSpells>();
+            .SelectMany(entry => entry.Value)
+            .SelectMany(feat => feat.Features)
+            .OfType<FeatureDefinitionAutoPreparedSpells>()
+            .OrderBy(feature => feature.Name, StringComparer.Ordinal);
 
         foreach (var feature in features)
         {
-            AddAutoPreparedSpells(feature);
+            foreach (var spell in SpellPreparationContext.EnumerateFeatureSpells(character, repertoire, feature))
+            {
+                extraSpells.TryAdd(spell, feature.AutoPreparedTag);
+            }
         }
     }
 

@@ -3248,6 +3248,26 @@ public static partial class Tabletop2024Context
             : selectionTag;
     }
 
+    internal static bool TryGetTabletop2024FeatSpellSourceDescription(
+        string spellTagName,
+        SpellDefinition spell,
+        out string description)
+    {
+        description = null;
+        var selectionTag = GetTabletop2024FeatSpellSelectionTag(spellTagName);
+
+        if (spell is not { SpellLevel: 0 } || !IsMagicInitiate2024SpellTagName(selectionTag))
+        {
+            return false;
+        }
+
+        // The source name is the feat, even when the card label includes a spell suffix.
+        var sourceTitle = Gui.Localize($"Screen/&{selectionTag}ExtraSpellTitle");
+        description = Gui.Format("Screen/&FeatGrantedCantripDescriptionFormat", sourceTitle);
+
+        return true;
+    }
+
     private static string GetNormalizedTabletop2024FeatSpellTag(string spellTagName)
     {
         return spellTagName switch

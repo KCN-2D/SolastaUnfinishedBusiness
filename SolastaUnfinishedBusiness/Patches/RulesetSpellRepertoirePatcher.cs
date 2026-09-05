@@ -1186,7 +1186,7 @@ public static class RulesetSpellRepertoirePatcher
             int spellLevel,
             Dictionary<SpellDefinition, string> extraSpells)
         {
-            LevelUpHelper.AddSlotCastableExtraSpellsToExtraSpellsMap(__instance, spellLevel, extraSpells);
+            LevelUpHelper.AddAutoPreparedSpellsToExtraSpellsMap(__instance, spellLevel, extraSpells);
         }
     }
 

@@ -19,14 +19,22 @@ public static class SpellsByLevelGroupPatcher
             SpellsByLevelGroup __instance,
             RulesetCharacter caster,
             List<SpellDefinition> allSpells,
-            List<SpellDefinition> autoPreparedSpells,
-            Dictionary<SpellDefinition, string> tagBySpell,
-            Dictionary<SpellDefinition, string> extraSpellsMap)
+            ref List<SpellDefinition> autoPreparedSpells,
+            ref Dictionary<SpellDefinition, string> tagBySpell,
+            ref Dictionary<SpellDefinition, string> extraSpellsMap)
         {
-            //PATCH: add all auto prepared spells to extra spells map, so that different sources of auto spells won't bleed their tag
-            //Don't use GetOriginalHero() here
-            LevelUpHelper.EnumerateExtraSpells(extraSpellsMap, caster);
-            LevelUpHelper.AddSlotCastableExtraSpellsToCommonBind(
+            if (caster == null || __instance.SpellRepertoire == null || allSpells == null)
+            {
+                return;
+            }
+
+            // Keep allSpells shared: the caller uses its sorted indices to refresh the bound boxes.
+            // Copy preparation state and source maps so rendering cannot change the repertoire.
+            autoPreparedSpells = autoPreparedSpells == null ? [] : [..autoPreparedSpells];
+            tagBySpell = tagBySpell == null ? [] : new Dictionary<SpellDefinition, string>(tagBySpell);
+            extraSpellsMap = extraSpellsMap == null ? [] : new Dictionary<SpellDefinition, string>(extraSpellsMap);
+
+            LevelUpHelper.AddAutoPreparedSpellsToCommonBind(
                 __instance,
                 caster,
                 allSpells,

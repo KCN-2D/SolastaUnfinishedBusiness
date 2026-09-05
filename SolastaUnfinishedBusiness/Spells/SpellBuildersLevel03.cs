@@ -1226,7 +1226,7 @@ internal static partial class SpellBuilders
         var spell = SpellDefinitionBuilder
             .Create(Name)
             .SetGuiPresentation(Category.Spell, Sprites.GetSprite(Name, Resources.HungerOfTheVoid, 128))
-            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolTransmutation)
+            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolConjuration)
             .SetSpellLevel(3)
             .SetCastingTime(ActivationTime.Action)
             .SetMaterialComponent(MaterialComponentType.Mundane)

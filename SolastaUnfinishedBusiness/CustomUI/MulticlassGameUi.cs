@@ -566,6 +566,8 @@ internal static class MulticlassGameUi
     {
         var localHeroCharacter = panel.currentHero;
         var heroBuildingData = localHeroCharacter.GetHeroBuildingData();
+        var selectionRepertoire = localHeroCharacter.SpellRepertoires
+            .Find(repertoire => repertoire.SpellCastingFeature == spellFeature);
         var pointPool = GetCurrentPool(panel, characterBuildingService, heroBuildingData, spellFeature);
         var effectiveSpellListDefinition = pointPool?.spellListOverride ?? spellListDefinition;
         var effectiveRitualOnly = ritualOnly || pointPool?.ritualOnly == true;
@@ -580,15 +582,7 @@ internal static class MulticlassGameUi
         group.slotStatusTable.gameObject.SetActive(true);
         group.SpellLevel = spellLevel;
 
-        if (spellFeature)
-        {
-            foreach (var spellRepertoire in localHeroCharacter.SpellRepertoires
-                         .Where(spellRepertoire => spellRepertoire.SpellCastingFeature == spellFeature))
-            {
-                spellRepertoire.EnumerateExtraSpellsOfLevel(group.SpellLevel, group.extraSpellsMap);
-                break;
-            }
-        }
+        selectionRepertoire?.EnumerateExtraSpellsOfLevel(group.SpellLevel, group.extraSpellsMap);
 
         var allSpells = effectiveSpellListDefinition
             .SpellsByLevel[effectiveSpellListDefinition.HasCantrips ? spellLevel : spellLevel - 1]
@@ -629,29 +623,18 @@ internal static class MulticlassGameUi
 
         if (!useDedicatedTouchedSpellList && group.SpellLevel > 0)
         {
-            localHeroCharacter
-                .EnumerateFeaturesToBrowse<FeatureDefinitionAutoPreparedSpells>(group.features);
+            LevelUpHelper.EnumerateExtraSpells(group.extraSpellsMap, localHeroCharacter, selectionRepertoire);
 
-            foreach (var featureDefinitionAutoPreparedSpells in group.features
-                         .OfType<FeatureDefinitionAutoPreparedSpells>())
+            foreach (var entry in group.extraSpellsMap
+                         .Where(entry => entry.Key.SpellLevel == group.SpellLevel))
             {
-                var maxLevel =
-                    LevelUpHelper.GetMaxAutoPrepSpellsLevel(localHeroCharacter, featureDefinitionAutoPreparedSpells);
+                var spell = entry.Key;
+                group.autoPreparedSpells.TryAdd(spell);
+                tagBySpell[spell] = entry.Value;
 
-                foreach (var spells in featureDefinitionAutoPreparedSpells.AutoPreparedSpellsGroups
-                             .SelectMany(preparedSpellsGroup => preparedSpellsGroup.SpellsList
-                                 .Where(spell => spell.SpellLevel <= maxLevel)
-                                 .Where(spell => spell.SpellLevel == group.SpellLevel)))
+                if (!effectiveRitualOnly || spell.Ritual)
                 {
-                    group.autoPreparedSpells.Add(spells);
-                    tagBySpell.TryAdd(spells, featureDefinitionAutoPreparedSpells.AutoPreparedTag);
-                }
-
-                foreach (var autoPreparedSpell in group.autoPreparedSpells
-                             .Where(spell => !allSpells.Contains(spell))
-                             .Where(spell => !effectiveRitualOnly || spell.Ritual))
-                {
-                    allSpells.Add(autoPreparedSpell);
+                    allSpells.TryAdd(spell);
                 }
             }
         }
@@ -669,22 +652,8 @@ internal static class MulticlassGameUi
         if (!useDedicatedTouchedSpellList &&
             !spellTag.Contains(AttributeDefinitions.TagRace)) // this is a patch over original TA code
         {
-            CollectAllAutoPreparedSpells(group, localHeroCharacter, allSpells, group.autoPreparedSpells);
-
             FilterMulticlassBleeding(group, localHeroCharacter, allSpells, group.autoPreparedSpells, pointPool,
                 group.extraSpellsMap);
-        }
-
-        if (!useDedicatedTouchedSpellList)
-        {
-            //Properly tag and not allow to pick spells that are auto-prepared from various features
-            LevelUpHelper.EnumerateExtraSpells(group.extraSpellsMap, localHeroCharacter);
-
-            // this is required to support when other caster is whole list
-            var keys = group.extraSpellsMap.Keys
-                .Where(x => x.SpellLevel == group.SpellLevel && !allSpells.Contains(x));
-
-            group.autoPreparedSpells.AddRange(keys);
         }
 
         NormalizeSpellSourceTags(tagBySpell);
@@ -828,40 +797,6 @@ internal static class MulticlassGameUi
         if (!Main.Settings.DisplayAllKnownSpellsDuringLevelUp)
         {
             allSpells.RemoveAll(x => !allowedSpells.Contains(x));
-        }
-    }
-
-    private static void CollectAllAutoPreparedSpells(
-        [NotNull] SpellsByLevelGroup __instance,
-        // ReSharper disable once SuggestBaseTypeForParameter
-        [NotNull] RulesetCharacterHero hero,
-        [NotNull] List<SpellDefinition> allSpells,
-        // ReSharper disable once SuggestBaseTypeForParameter
-        [NotNull] List<SpellDefinition> auToPreparedSpells)
-    {
-        // Collect all the auto prepared spells.
-        // Also filter the prepped spells by level this group is displaying.
-        hero.EnumerateFeaturesToBrowse<FeatureDefinitionAutoPreparedSpells>(hero.FeaturesToBrowse);
-
-        foreach (var featureDefinitionAutoPreparedSpells in hero.FeaturesToBrowse
-                     .OfType<FeatureDefinitionAutoPreparedSpells>())
-        {
-            var maxLevel = LevelUpHelper.GetMaxAutoPrepSpellsLevel(hero, featureDefinitionAutoPreparedSpells);
-
-            foreach (var spell in from preparedSpellsGroup in featureDefinitionAutoPreparedSpells
-                         .AutoPreparedSpellsGroups
-                     from spell in preparedSpellsGroup.SpellsList
-                     let flag = !auToPreparedSpells.Contains(spell) && __instance.SpellLevel == spell.SpellLevel &&
-                                spell.SpellLevel <= maxLevel
-                     where flag
-                     select spell)
-            {
-                auToPreparedSpells.Add(spell);
-
-                // If a spell is not in all spells it won't be shown in the UI.
-                // Add the auto prepared spells here to make sure the user sees them.
-                allSpells.TryAdd(spell);
-            }
         }
     }
 

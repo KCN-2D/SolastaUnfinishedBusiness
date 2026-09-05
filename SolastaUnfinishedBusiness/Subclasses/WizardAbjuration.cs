@@ -726,16 +726,19 @@ public sealed class WizardAbjuration : AbstractSubclass
                    !SpellInterruptionContext.HasDispelledSpell(action.ActionParams.RulesetEffect);
         }
 
-        public void ModifyAutoPreparedSpells(RulesetCharacter character, RulesetSpellRepertoire repertoire)
+        public FeatureDefinition SourceFeature => _featureSetImprovedAbjuration;
+
+        public IEnumerable<SpellDefinition> GetAutoPreparedSpells(
+            RulesetCharacter character,
+            RulesetSpellRepertoire repertoire)
         {
             if (!HasSpellBreaker(character) || !Level20Context.IsWizardPreparedSpellRepertoire(repertoire))
             {
-                return;
+                yield break;
             }
 
-            repertoire.AutoPreparedSpells.TryAdd(Counterspell);
-            repertoire.AutoPreparedSpells.TryAdd(DispelMagic);
-            repertoire.AutoPreparedTag = SpellTag;
+            yield return Counterspell;
+            yield return DispelMagic;
         }
 
         public bool IsAllowed(

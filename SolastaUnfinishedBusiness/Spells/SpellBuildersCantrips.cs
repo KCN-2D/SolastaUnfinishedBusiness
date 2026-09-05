@@ -878,12 +878,12 @@ internal static partial class SpellBuilders
         var spell = SpellDefinitionBuilder
             .Create(NAME)
             .SetGuiPresentation(Category.Spell, Sprites.GetSprite(NAME, Resources.SwordStorm, 128))
-            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolEnchantment)
+            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolConjuration)
             .SetSpellLevel(0)
             .SetCastingTime(ActivationTime.Action)
-            .SetMaterialComponent(MaterialComponentType.Mundane)
+            .SetMaterialComponent(MaterialComponentType.None)
             .SetVerboseComponent(true)
-            .SetSomaticComponent(true)
+            .SetSomaticComponent(false)
             .SetVocalSpellSameType(VocalSpellSemeType.Debuff)
             .SetEffectDescription(
                 EffectDescriptionBuilder
@@ -952,7 +952,7 @@ internal static partial class SpellBuilders
             .SetSpellLevel(0)
             .SetCastingTime(ActivationTime.Action)
             .SetMaterialComponent(MaterialComponentType.None)
-            .SetVerboseComponent(true)
+            .SetVerboseComponent(false)
             .SetSomaticComponent(true)
             .SetVocalSpellSameType(VocalSpellSemeType.Attack)
             .SetEffectDescription(

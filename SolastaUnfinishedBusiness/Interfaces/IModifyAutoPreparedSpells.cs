@@ -1,6 +1,12 @@
+using System.Collections.Generic;
+
 namespace SolastaUnfinishedBusiness.Interfaces;
 
 internal interface IModifyAutoPreparedSpells
 {
-    void ModifyAutoPreparedSpells(RulesetCharacter character, RulesetSpellRepertoire repertoire);
+    FeatureDefinition SourceFeature { get; }
+
+    IEnumerable<SpellDefinition> GetAutoPreparedSpells(
+        RulesetCharacter character,
+        RulesetSpellRepertoire repertoire);
 }
