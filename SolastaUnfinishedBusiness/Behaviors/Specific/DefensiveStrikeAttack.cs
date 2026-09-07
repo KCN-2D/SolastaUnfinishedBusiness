@@ -69,7 +69,7 @@ internal static class DefensiveStrikeAttack
         }
 
         //Can this unit see defender?
-        if (!unit.CanPerceiveTarget(defender))
+        if (!unit.CanSeeTarget(defender))
         {
             yield break;
         }

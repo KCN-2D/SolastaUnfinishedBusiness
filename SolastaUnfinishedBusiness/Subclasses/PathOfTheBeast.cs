@@ -485,7 +485,7 @@ public sealed class PathOfTheBeast : AbstractSubclass
                 helper != defender ||
                 defender.IsMyTurn() ||
                 !defender.CanReact() ||
-                !defender.CanPerceiveTarget(attacker) ||
+                !defender.CanSeeTarget(attacker) ||
                 DistanceCalculation.GetDistanceFromCharacters(attacker, defender) > 2)
             {
                 yield break;

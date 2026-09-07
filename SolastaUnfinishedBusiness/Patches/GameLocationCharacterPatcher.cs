@@ -30,6 +30,21 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationCharacterPatcher
 {
+    [HarmonyPatch(typeof(GameLocationCharacter), nameof(GameLocationCharacter.FallReactionHandled), MethodType.Setter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class SetFallReactionHandled_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(GameLocationCharacter __instance, bool value)
+        {
+            // The native setter always assigns true, even when FreeFall clears it after its reaction phase.
+            // Respect that reset so an earlier fall cannot suppress all later fall-prevention reactions.
+            __instance.fallReactionHandled = value;
+            return false;
+        }
+    }
+
     [HarmonyPatch(
         typeof(GameLocationCharacter),
         nameof(GameLocationCharacter.CanOnlyUseCantrips),

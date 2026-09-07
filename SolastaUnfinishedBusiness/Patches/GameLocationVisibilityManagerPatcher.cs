@@ -105,18 +105,20 @@ public static class GameLocationVisibilityManagerPatcher
                 var senseRange = senseMode.SenseRange;
 
                 if (magnitude > senseRange ||
-                    (hasImpairedSight && SenseMode.CanBeImpaired(senseType) && magnitude > 1.7999999523162842) ||
-                    !VisibilityPerceptionContext.HasPerceptionLineOfSight(
-                        __instance,
-                        origin,
-                        position,
-                        fromWorldPosition1,
-                        fromWorldPosition2))
+                    (hasImpairedSight && SenseMode.CanBeImpaired(senseType) && magnitude > 1.7999999523162842))
                 {
                     continue;
                 }
 
-                __result = true;
+                // Geometry does not depend on the sense type. Once a sense reaches the
+                // target, a blocked ray cannot become clear by trying another sense.
+                __result = VisibilityPerceptionContext.HasPerceptionLineOfSight(
+                    __instance,
+                    origin,
+                    position,
+                    fromWorldPosition1,
+                    fromWorldPosition2,
+                    GameLocationCharacter.GetFromActor(rulesetCharacter));
 
                 return false;
             }
@@ -181,9 +183,7 @@ public static class GameLocationVisibilityManagerPatcher
                         }
 
                         //BEGIN PATCH
-                        if (OtherFeats.FeatStealthPositionsCache
-                                .TryGetValue(key, out var stealthyPositions) &&
-                            stealthyPositions.Contains(key.LocationPosition))
+                        if (OtherFeats.IsProtectedByFeatStealthMovement(key))
                         {
                             continue;
                         }

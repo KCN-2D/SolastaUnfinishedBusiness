@@ -425,7 +425,7 @@ public static class RulesetCharacterPatcher
         }
     }
 
-    //PATCH: can only cast counter spell if self can perceive caster when lighting rules are enabled
+    //PATCH: Counterspell requires seeing its caster, independently of lighting options.
     [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.CanCastCounterSpell))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -434,14 +434,14 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance, ref bool __result)
         {
-            if (!__result || !Main.Settings.UseOfficialLightingObscurementAndVisionRules)
+            var caster = GameLocationBattleManagerPatcher.HandleSpellCast_Patch.Caster;
+            if (!__result || caster == null)
             {
                 return;
             }
 
             var glc = GameLocationCharacter.GetFromActor(__instance);
-
-            __result = glc.CanPerceiveTarget(GameLocationBattleManagerPatcher.HandleSpellCast_Patch.Caster);
+            __result = glc.CanSeeTarget(caster);
         }
     }
 
@@ -792,28 +792,25 @@ public static class RulesetCharacterPatcher
                 }
             }
 
-            if (__result <= 0 ||
-                matchingRepertoire == null ||
-                SpellSlotCastingLimit2024Context.CanUseSpellSlotLevel(
-                    __instance,
-                    matchingRepertoire,
-                    spellDefinitionToCast,
-                    __result))
+            if (spellDefinitionToCast.SpellLevel <= 0)
             {
                 return;
             }
 
-            if (SpellSlotCastingLimit2024Context.TryGetAvailableFreeUse(
+            // Use the same resource candidates as the reaction picker, including wizard free
+            // casts when the native slot-only search did not find any remaining spell slots.
+            var preferredRepertoire = matchingRepertoire;
+
+            if (!SpellCastingResourceContext.TryGetPreferredResource(
                     __instance,
                     spellDefinitionToCast,
                     out matchingRepertoire,
-                    out __result))
+                    out __result,
+                    preferredRepertoire))
             {
-                return;
+                matchingRepertoire = null;
+                __result = 0;
             }
-
-            matchingRepertoire = null;
-            __result = 0;
         }
     }
 
@@ -3267,22 +3264,48 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static bool Prefix(RulesetCharacter __instance, RulesetEffectSpell activeSpell)
         {
-            FeatureDefinition preserveSlotThresholdFeature = null;
-            var preserveSlotThreshold = int.MaxValue;
-
             var resourceSlotLevel = RulesetEffectSpellWithOrigin.GetResourceSlotLevel(activeSpell);
 
             if (resourceSlotLevel > 0)
             {
-                foreach (var featureDefinition in __instance
-                             .FeaturesByType<ISpellCastingAffinityProvider>()
-                             .Where(featureDefinition =>
-                                 featureDefinition.PreserveSlotRoll &&
-                                 featureDefinition.PreserveSlotLevelCap >= resourceSlotLevel))
+                // Consume only the selected owner, even if legacy metadata gives the same spell
+                // multiple free uses. Unmanaged casts retain their existing automatic priority.
+                var hasSelection = SpellCastingResourceContext.TryGetSelectionKind(activeSpell, out var selectedKind);
+
+                if ((!hasSelection || selectedKind == SpellCastingResourceContext.ResourceKind.SpellMastery) &&
+                    !Level20Context.WizardSpellMastery.ShouldConsumeSlot(__instance, activeSpell))
                 {
-                    preserveSlotThreshold =
-                        Math.Min(preserveSlotThreshold, featureDefinition.PreserveSlotThreshold);
-                    preserveSlotThresholdFeature = (FeatureDefinition)featureDefinition;
+                    Level20Context.MarkFreeWizardCast(activeSpell);
+                    return false;
+                }
+
+                if ((!hasSelection || selectedKind == SpellCastingResourceContext.ResourceKind.SignatureSpell) &&
+                    !Level20Context.WizardSignatureSpells.ShouldConsumeSlot(__instance, activeSpell))
+                {
+                    Level20Context.MarkFreeWizardCast(activeSpell);
+                    return false;
+                }
+
+                var spellRepertoire = SpellCastingResourceContext.HasExplicitSelection(activeSpell)
+                    ? activeSpell.SpellRepertoire
+                    : TryRedirectFeatGrantedReactionSpellSlot(__instance, activeSpell) ?? activeSpell.SpellRepertoire;
+                FeatureDefinition preserveSlotThresholdFeature = null;
+                var preserveSlotThreshold = int.MaxValue;
+
+                // Daily feat and racial uses are represented by repertoire counters, but they
+                // are not spell slots and cannot be saved by a spell-slot preservation roll.
+                if (!SpellSlotCastingLimit2024Context.IsFreeUseRepertoire(spellRepertoire))
+                {
+                    foreach (var featureDefinition in __instance
+                                 .FeaturesByType<ISpellCastingAffinityProvider>()
+                                 .Where(featureDefinition =>
+                                     featureDefinition.PreserveSlotRoll &&
+                                     featureDefinition.PreserveSlotLevelCap >= resourceSlotLevel))
+                    {
+                        preserveSlotThreshold =
+                            Math.Min(preserveSlotThreshold, featureDefinition.PreserveSlotThreshold);
+                        preserveSlotThresholdFeature = (FeatureDefinition)featureDefinition;
+                    }
                 }
 
                 var rolledValue = 0;
@@ -3306,23 +3329,6 @@ public static class RulesetCharacterPatcher
                 }
                 else
                 {
-                    //BEGIN PATCH: supports Wizard Spell Mastery and Signature Spells
-                    if (!Level20Context.WizardSpellMastery.ShouldConsumeSlot(__instance, activeSpell))
-                    {
-                        Level20Context.MarkFreeWizardCast(activeSpell);
-                        return false;
-                    }
-
-                    if (!Level20Context.WizardSignatureSpells.ShouldConsumeSlot(__instance, activeSpell))
-                    {
-                        Level20Context.MarkFreeWizardCast(activeSpell);
-                        return false;
-                    }
-                    //END PATCH
-
-                    var spellRepertoire =
-                        TryRedirectFeatGrantedReactionSpellSlot(__instance, activeSpell) ??
-                        activeSpell.SpellRepertoire;
                     var payment = SpellSlotCastingLimit2024Context.BeginPayment(
                         __instance,
                         activeSpell,

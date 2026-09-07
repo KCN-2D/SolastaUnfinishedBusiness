@@ -67,6 +67,7 @@ internal static partial class SpellBuilders
 
         ownerCondition.AddCustomSubFeatures(AddUsablePowersFromCondition.Marker);
         ownerCondition.AddCustomSubFeatures(SimulacrumBehavior.OwnerReconciliationMarker);
+        ownerCondition.AddCustomSubFeatures(DispelCheckContext.ConditionPolicy.Ignore);
 
         var snapshotCondition = ConditionDefinitionBuilder
             .Create($"Condition{SimulacrumName}Snapshot")
@@ -76,7 +77,11 @@ internal static partial class SpellBuilders
             .SetFeatures(FeatureDefinitionHealingModifiers.HealingModifierChilledByTouch)
             .AddToDB();
 
+        // Dispelling the duplicate must end its owning summon, including inventory cleanup.
+        snapshotCondition.terminateWhenRemoved = true;
+
         snapshotCondition.AddCustomSubFeatures(
+            DispelCheckContext.ConditionPolicy.Include,
             SimulacrumBehavior.SnapshotBindingMarker,
             SimulacrumBehavior.RuntimeRestrictionsMarker);
 
@@ -652,7 +657,7 @@ internal static partial class SpellBuilders
                     x.Side == defender.Side &&
                     x.CanReact() &&
                     x.IsWithinRange(defender, 18) &&
-                    x.CanPerceiveTarget(defender) &&
+                    x.CanSeeTarget(defender) &&
                     x.RulesetCharacter.UsableSpells.Contains(_rescueTheDying) &&
                     x.RulesetCharacter.AreSpellComponentsValid(_rescueTheDying))
                 .ToArray();

@@ -462,6 +462,29 @@ public static class CharacterActionMagicEffectPatcher
 
             using var interruptionScope = SpellInterruptionContext.Track(__instance);
 
+            // Recheck after a queued choice, before spending resources or starting effects.
+            // Automatic powers have their own observer/target rules; this guard is for spells.
+            if (rulesetEffect is RulesetEffectSpell && baseDefinition is SpellDefinition magicEffect)
+            {
+                for (var index = 0; index < targets.Count; index++)
+                {
+                    if (LightingAndObscurementContext.IsMagicEffectValidIfHeavilyObscuredOrInNaturalDarkness(
+                            actingCharacter, magicEffect, targets[index]))
+                    {
+                        continue;
+                    }
+
+                    __instance.ExecutionFailed = true;
+                    if (index < actionModifiers.Count)
+                    {
+                        actionModifiers[index].FailureFlags.Add("Failure/&FailureFlagNoPerceptionOfTargetDescription");
+                    }
+
+                    rulesetEffect.Terminate(false);
+                    yield break;
+                }
+            }
+
             if (rulesetEffect is RulesetEffectSpell activeSpell)
             {
                 var originSpell = RulesetEffectSpellWithOrigin.GetOriginSpell(activeSpell);
@@ -477,6 +500,19 @@ public static class CharacterActionMagicEffectPatcher
                     spellRepertoire != null)
                 {
                     activeSpell.spellRepertoire = spellRepertoire;
+                }
+
+                if (!SpellCastingResourceContext.IsSelectionAvailable(actingCharacter.RulesetCharacter, activeSpell))
+                {
+                    // An explicit resource choice must never silently fall back to a different pool.
+                    __instance.ExecutionFailed = true;
+                    if (actionModifiers.Count > 0)
+                    {
+                        actionModifiers[0].FailureFlags.Add("Failure/&FailureFlagReactionSpellResourceUnavailable");
+                    }
+
+                    rulesetEffect.Terminate(false);
+                    yield break;
                 }
 
                 var isOriginValid = SpellCastingValidation.IsValid(

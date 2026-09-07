@@ -710,7 +710,7 @@ public static partial class Tabletop2024Context
             if (damageAmount > 0 ||
                 rulesetDefender.RemainingKiPoints == 0 ||
                 !defender.CanAct() ||
-                !defender.CanPerceiveTarget(attacker) ||
+                !defender.CanSeeTarget(attacker) ||
                 !hasReturnAttacks)
             {
                 if (hasReturnAttacks)

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -60,7 +59,7 @@ public static class SpellSelectionPanelPatcher
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
         {
-            //PATCH: hide spell panels for repertoires that have hidden spell casting feature
+            //PATCH: use the same casting-source visibility and free-use columns in both panel layouts
             var getRepertoires = typeof(RulesetCharacter).GetMethod("get_SpellRepertoires");
             var getVisibleRepertoires = new Func<RulesetCharacter, List<RulesetSpellRepertoire>>(GetRepertoires).Method;
 
@@ -70,9 +69,7 @@ public static class SpellSelectionPanelPatcher
 
         private static List<RulesetSpellRepertoire> GetRepertoires(RulesetCharacter character)
         {
-            return character.SpellRepertoires
-                .Where(r => !r.SpellCastingFeature.GuiPresentation.Hidden)
-                .ToList();
+            return SpellSelectionContext.GetRepertoires(character);
         }
     }
 

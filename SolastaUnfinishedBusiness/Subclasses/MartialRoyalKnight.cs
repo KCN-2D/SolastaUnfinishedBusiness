@@ -241,7 +241,7 @@ public sealed class MartialRoyalKnight : AbstractSubclass
 
             if (savingThrowData.SaveOutcome != RollOutcome.Failure ||
                 !originalHelper.CanReact() ||
-                !originalHelper.CanPerceiveTarget(defender) ||
+                !originalHelper.CanSeeTarget(defender) ||
                 rulesetHelper.GetRemainingUsesOfPower(usablePower) == 0)
             {
                 yield break;

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Spells;
 using UnityEngine;
 using UnityEngine.UI;
@@ -37,7 +38,7 @@ internal static class SimulacrumPortraits
         return TryAssign(
             duplicate,
             image,
-            GetPortraitKind(image, activePortrait));
+            activePortrait ? PortraitKind.Active : PortraitKind.Standard);
     }
 
     private static bool TryAssign(
@@ -81,16 +82,6 @@ internal static class SimulacrumPortraits
         RequestPhoto(duplicate, state, kind);
 
         return true;
-    }
-
-    private static PortraitKind GetPortraitKind(RawImage image, bool activePortrait)
-    {
-        if (activePortrait)
-        {
-            return PortraitKind.Active;
-        }
-
-        return PortraitKind.Standard;
     }
 
     internal static void Release(RawImage image)
@@ -267,12 +258,7 @@ internal static class SimulacrumPortraits
             States.Remove(character.Guid);
         }
 
-        if (ServiceRepository.GetService<IGraphicsCharacterPhotoService>() is
-            { } photoService)
-        {
-            photoService.ReleaseCharacterPhoto(character);
-            photoService.ReleaseActiveCharacterPhoto(character);
-        }
+        ReleaseNativePhotos(character);
     }
 
     private static PortraitState GetOrCreateState(RulesetCharacterSimulacrum character)
@@ -339,58 +325,16 @@ internal static class SimulacrumPortraits
             return;
         }
 
-        if (kind == PortraitKind.Active)
-        {
-            ClearSupersededActiveRequests(state);
-        }
-
         state.SetInFlight(kind, true);
 
         var requestedRevision = state.Revision;
+        var requestVersion = state.GetRequestVersion(kind);
 
-        if (kind == PortraitKind.Active)
-        {
-            photoService.RequestActiveCharacterPhoto(
-                character,
-                texture => Complete(
-                    character.Guid,
-                    state,
-                    requestedRevision,
-                    texture,
-                    kind));
-
-            return;
-        }
-
-        photoService.RequestCharacterPhoto(
+        PortraitsContext.RequestCompletedPhoto(
+            photoService,
             character,
-            texture => Complete(
-                character.Guid,
-                state,
-                requestedRevision,
-                texture,
-                kind),
-            false,
-            256,
-            384,
-            default);
-    }
-
-    private static void ClearSupersededActiveRequests(PortraitState requestingState)
-    {
-        foreach (var state in States.Values)
-        {
-            if (ReferenceEquals(state, requestingState) ||
-                !state.ActiveInFlight)
-            {
-                continue;
-            }
-
-            // GraphicsCharacterPhotoManager keeps only its newest active-photo request and drops
-            // the previous callback. Mirror that cancellation locally so the previous portrait
-            // can request a fresh photo when its UI surface is bound again.
-            state.ActiveInFlight = false;
-        }
+            kind == PortraitKind.Active,
+            texture => Complete(character.Guid, state, requestedRevision, requestVersion, texture, kind));
     }
 
     private static void ScheduleWhenGraphicsReady(
@@ -458,12 +402,13 @@ internal static class SimulacrumPortraits
         ulong characterGuid,
         PortraitState expectedState,
         int revision,
+        int requestVersion,
         Texture texture,
         PortraitKind kind)
     {
         if (!States.TryGetValue(characterGuid, out var state) ||
             !ReferenceEquals(state, expectedState) ||
-            state.Revision != revision)
+            state.Revision != revision || !state.IsCurrentRequest(kind, requestVersion))
         {
             return;
         }
@@ -483,7 +428,12 @@ internal static class SimulacrumPortraits
             return;
         }
 
-        state.SetTexture(kind, texture, revision);
+        var snapshot = state.SetTexture(kind, texture, revision);
+
+        if (!snapshot)
+        {
+            return;
+        }
 
         var assignedImages = new HashSet<RawImage>();
 
@@ -502,7 +452,7 @@ internal static class SimulacrumPortraits
             if (binding.Revision != revision ||
                 (kind == PortraitKind.Active
                     ? binding.Kind != PortraitKind.Active
-                    : binding.Kind == PortraitKind.Active) ||
+                    : binding.Kind == PortraitKind.Active && state.GetTexture(PortraitKind.Active)) ||
                 !assignedImages.Add(image))
             {
                 continue;
@@ -521,8 +471,7 @@ internal static class SimulacrumPortraits
                 continue;
             }
 
-            AssignTexturePreservingAspect(image, texture);
-            binding.SetLastAssignedTexture(texture);
+            AssignTexturePreservingAspect(image, snapshot);
         }
     }
 
@@ -613,16 +562,6 @@ internal static class SimulacrumPortraits
                 state.Images.RemoveAt(index);
             }
         }
-
-        if (binding.Kind == PortraitKind.Active &&
-            state.ActiveInFlight &&
-            !HasLiveBinding(state, binding.CharacterGuid, PortraitKind.Active))
-        {
-            // Native active-photo requests can be canceled without invoking their callback.
-            // Once the last active surface is detached, the request must not remain permanently
-            // in flight or the next bind will be forced to reuse the standard portrait crop.
-            state.ActiveInFlight = false;
-        }
     }
 
     private static void DetachAll(PortraitState state, ulong characterGuid)
@@ -705,10 +644,12 @@ internal static class SimulacrumPortraits
 
         internal readonly List<WeakReference<RawImage>> Images = [];
         internal bool ActiveInFlight;
+        internal int ActiveRequestVersion;
         internal Texture ActiveTexture;
         internal int ActiveTextureRevision = -1;
         internal string EquipmentSignature;
         internal bool InFlight;
+        internal int RequestVersion;
         internal bool OwnsActiveTexture;
         internal bool OwnsTexture;
         internal bool WaitingForGraphics;
@@ -767,45 +708,76 @@ internal static class SimulacrumPortraits
             {
                 case PortraitKind.Active:
                     ActiveInFlight = value;
+                    if (value)
+                    {
+                        ActiveRequestVersion++;
+                    }
+
                     break;
                 default:
                     InFlight = value;
+                    if (value)
+                    {
+                        RequestVersion++;
+                    }
+
                     break;
             }
         }
 
-        internal void SetTexture(PortraitKind kind, Texture texture, int revision)
+        internal int GetRequestVersion(PortraitKind kind)
         {
+            return kind == PortraitKind.Active ? ActiveRequestVersion : RequestVersion;
+        }
+
+        internal bool IsCurrentRequest(PortraitKind kind, int requestVersion)
+        {
+            return IsInFlight(kind) && GetRequestVersion(kind) == requestVersion;
+        }
+
+        internal Texture SetTexture(PortraitKind kind, Texture texture, int revision)
+        {
+            // The photo service owns a temporary render target. Its cache can release and reuse
+            // that same object for another character, so only retain an independently owned copy.
+            var snapshot = CloneTexture(texture);
+
+            if (!snapshot)
+            {
+                return null;
+            }
+
             switch (kind)
             {
                 case PortraitKind.Active:
                     DestroyOwnedTexture(ref ActiveTexture, ref OwnsActiveTexture);
-                    ActiveTexture = texture;
+                    ActiveTexture = snapshot;
+                    OwnsActiveTexture = true;
                     ActiveTextureRevision = revision;
                     break;
                 default:
                     DestroyOwnedTexture(ref Texture, ref OwnsTexture);
-                    Texture = texture;
+                    Texture = snapshot;
+                    OwnsTexture = true;
                     TextureRevision = revision;
                     break;
             }
+
+            return snapshot;
         }
 
         internal void RetainTexturesForRefresh()
         {
-            var standardSource = Texture;
-            var activeSource = ActiveTexture ? ActiveTexture : standardSource;
-            var retainedStandard = CloneTexture(standardSource);
-            var retainedActive = CloneTexture(activeSource);
+            // Completed snapshots are already owned: keep them until their replacements arrive.
+            // An active surface using the standard fallback needs a separate retained copy before
+            // the standard snapshot can be replaced and destroyed.
+            if (!ActiveTexture && Texture)
+            {
+                ActiveTexture = CloneTexture(Texture);
+                OwnsActiveTexture = ActiveTexture != null;
+            }
 
-            DestroyOwnedTextures();
-
-            Texture = retainedStandard;
             TextureRevision = -1;
-            OwnsTexture = retainedStandard != null;
-            ActiveTexture = retainedActive;
             ActiveTextureRevision = -1;
-            OwnsActiveTexture = retainedActive != null;
         }
 
         internal void DestroyOwnedTextures()
@@ -827,13 +799,35 @@ internal static class SimulacrumPortraits
                 0,
                 RenderTextureFormat.ARGB32)
             {
-                name = "SimulacrumPortraitRetained"
+                name = "SimulacrumPortraitSnapshot"
             };
 
-            copy.Create();
-            Graphics.Blit(source, copy);
+            var completed = false;
 
-            return copy;
+            try
+            {
+                if (!copy.Create())
+                {
+                    Main.Error("Unable to allocate a Simulacrum portrait snapshot.");
+                    return null;
+                }
+
+                Graphics.Blit(source, copy);
+                completed = true;
+                return copy;
+            }
+            catch (Exception exception)
+            {
+                Main.Error(exception);
+                return null;
+            }
+            finally
+            {
+                if (!completed)
+                {
+                    UnityEngine.Object.Destroy(copy);
+                }
+            }
         }
 
         private static void DestroyOwnedTexture(

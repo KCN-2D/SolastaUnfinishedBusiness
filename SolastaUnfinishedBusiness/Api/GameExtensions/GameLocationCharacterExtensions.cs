@@ -375,7 +375,8 @@ public static class GameLocationCharacterExtensions
         var ruleCaster = caster.RulesetCharacter;
         var slotLevel = ruleCaster.GetLowestSlotLevelAndRepertoireToCastSpell(spell, out var repertoire);
 
-        if (slotLevel < spell.SpellLevel || repertoire == null)
+        if (slotLevel < spell.SpellLevel || repertoire == null ||
+            !LightingAndObscurementContext.IsMagicEffectValidIfHeavilyObscuredOrInNaturalDarkness(caster, spell, target))
         {
             yield break;
         }
@@ -664,38 +665,61 @@ public static class GameLocationCharacterExtensions
         return DistanceCalculation.GetDistanceFromCharacters(source, target) <= range;
     }
 
-    // consolidate all checks if a character can perceive another
-    public static bool CanPerceiveTarget(this GameLocationCharacter __instance,
+    // General perception can include locating a target without seeing it.
+    public static bool CanPerceiveTarget(this GameLocationCharacter sensor,
         GameLocationCharacter target, int3? targetPosition = null)
     {
-        if (__instance == target)
+        return CanPerceiveTarget(sensor, target, targetPosition, false);
+    }
+
+    // Use this for rules that explicitly require a creature the observer can see.
+    public static bool CanSeeTarget(this GameLocationCharacter sensor,
+        GameLocationCharacter target, int3? targetPosition = null)
+    {
+        return CanPerceiveTarget(sensor, target, targetPosition, true);
+    }
+
+    private static bool CanPerceiveTarget(GameLocationCharacter sensor,
+        GameLocationCharacter target, int3? targetPosition, bool requireSight)
+    {
+        if (sensor?.RulesetCharacter == null || target?.RulesetActor == null)
+        {
+            return false;
+        }
+
+        if (sensor == target)
         {
             return true;
         }
 
-        var vanillaCanPerceive =
-            (__instance.Side == target.Side && __instance.PerceivedAllies.Contains(target)) ||
-            (__instance.Side != target.Side && __instance.PerceivedFoes.Contains(target));
-
-        if (!Main.Settings.UseOfficialLightingObscurementAndVisionRules) // || !vanillaCanPerceive)
+        var knownTarget = sensor.Side == target.Side
+            ? sensor.PerceivedAllies.Contains(target)
+            : sensor.PerceivedFoes.Contains(target);
+        if (!requireSight && !Main.Settings.UseOfficialLightingObscurementAndVisionRules)
         {
-            return vanillaCanPerceive;
+            return knownTarget;
         }
 
-        // can only perceive targets on cells that can be perceived
         var visibilityService = ServiceRepository.GetService<IGameLocationVisibilityService>();
+        if (visibilityService == null ||
+            (!Main.Settings.UseOfficialLightingObscurementAndVisionRules && !knownTarget))
+        {
+            return false;
+        }
 
         var size = target.RulesetActor.sizeParams;
         var targetPos = targetPosition ?? target.LocationPosition;
         if (size.IsSmallest)
         {
-            return visibilityService.MyIsCellPerceivedByCharacter(targetPos, __instance, target);
+            return visibilityService.MyIsCellPerceivedByCharacter(targetPos, sensor, target,
+                requireLineOfSight: requireSight, useCellPos: true, requireSight: requireSight);
         }
 
         var box = new BoxInt(targetPos + size.minExtent, targetPos + size.maxExtent);
         foreach (var pos in box.EnumerateAllPositionsWithin())
         {
-            if (visibilityService.MyIsCellPerceivedByCharacter(pos, __instance, target, useCellPos: true))
+            if (visibilityService.MyIsCellPerceivedByCharacter(pos, sensor, target,
+                    requireLineOfSight: requireSight, useCellPos: true, requireSight: requireSight))
             {
                 return true;
             }
@@ -797,7 +821,7 @@ public static class GameLocationCharacterExtensions
         }
 
         if (Main.Settings.BlindedConditionDontAllowAttackOfOpportunity &&
-            !instance.CanPerceiveTarget(target, positionBefore))
+            !instance.CanSeeTarget(target, positionBefore))
         {
             return false;
         }
@@ -882,7 +906,7 @@ public static class GameLocationCharacterExtensions
         }
 
         if (Main.Settings.BlindedConditionDontAllowAttackOfOpportunity &&
-            !instance.CanPerceiveTarget(target, positionAfter))
+            !instance.CanSeeTarget(target, positionAfter))
         {
             return false;
         }

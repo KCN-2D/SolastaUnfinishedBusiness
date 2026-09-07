@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -1062,39 +1063,57 @@ internal static class OtherFeats
                 .AddToDB())
         .AddToDB();
 
-    internal static readonly Dictionary<GameLocationCharacter, HashSet<int3>> FeatStealthPositionsCache = [];
+    private static readonly ConditionalWeakTable<GameLocationCharacter, HashSet<int3>> FeatStealthPositionsCache = new();
+
+    internal static bool IsProtectedByFeatStealthMovement(GameLocationCharacter target)
+    {
+        if (Gui.Battle == null || target is not { Stealthy: true, IsPositionTemporarilyRevealed: false })
+        {
+            if (target != null)
+            {
+                FeatStealthPositionsCache.Remove(target);
+            }
+
+            return false;
+        }
+
+        // MoveStepInProgress is already false during each step's visibility updates.
+        // MoveInProgress spans those updates and ends before the stopped notification.
+        return target.MoveInProgress &&
+               FeatStealthPositionsCache.TryGetValue(target, out var positions) &&
+               positions.Contains(target.LocationPosition);
+    }
 
     internal static void NotifyFeatStealth(CharacterActionMoveStepBase action)
     {
-        if (Gui.Battle == null)
+        var actingCharacter = action?.ActingCharacter;
+
+        if (actingCharacter == null)
         {
             return;
         }
 
-        var actingCharacter = action.ActingCharacter;
-        var rulesetCharacter = actingCharacter.RulesetCharacter;
+        // A later ordinary move must not inherit the protection of an earlier hidden move.
+        FeatStealthPositionsCache.Remove(actingCharacter);
 
-        if (!Tabletop2024Context.HasEquivalentTrainedFeat(rulesetCharacter, FeatStealthy))
+        if (Gui.Battle == null ||
+            !actingCharacter.Stealthy || actingCharacter.IsPerceivedByFoes ||
+            actingCharacter.IsPositionTemporarilyRevealed || action.MovePath.Count < 2 ||
+            !Tabletop2024Context.HasEquivalentTrainedFeat(actingCharacter.RulesetCharacter, FeatStealthy))
         {
             return;
         }
 
-        if (!FeatStealthPositionsCache.TryGetValue(actingCharacter, out var positions))
-        {
-            positions = [];
-            FeatStealthPositionsCache[actingCharacter] = positions;
-        }
-        else
-        {
-            positions.Clear();
-        }
+        var positions = new HashSet<int3>();
 
         for (var i = 0; i < action.MovePath.Count - 1; i++)
         {
-            var position = action.MovePath[i].position;
-
-            positions.Add(position);
+            positions.Add(action.MovePath[i].position);
         }
+
+        // A route can revisit its destination earlier; the final cell is never protected.
+        positions.Remove(action.MovePath[action.MovePath.Count - 1].position);
+        FeatStealthPositionsCache.Add(actingCharacter, positions);
     }
 
     #endregion
@@ -3269,8 +3288,8 @@ internal static class OtherFeats
                 : (proficiencyBonus + 1) / 2;
             var targets =
                 Gui.Battle.GetContenders(
-                        downedCreature, attacker, isOppositeSide: false, hasToPerceivePerceiver: true,
-                        withinRange: distance)
+                        downedCreature, isOppositeSide: false, withinRange: distance)
+                    .Where(target => target.CanSeeTarget(downedCreature))
                     .ToArray();
 
             attacker.MyExecuteActionSpendPower(usablePower, targets);

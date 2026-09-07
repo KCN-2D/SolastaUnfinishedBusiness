@@ -637,7 +637,7 @@ internal static class RaceFeats
                 attacker.IsOppositeSide(helper.Side) ||
                 !helper.CanReact() ||
                 !helper.IsWithinRange(attacker, 6) ||
-                !helper.CanPerceiveTarget(attacker))
+                !helper.CanSeeTarget(attacker))
             {
                 yield break;
             }
@@ -723,7 +723,7 @@ internal static class RaceFeats
                 helper.IsOppositeSide(defender.Side) ||
                 !helper.CanReact() ||
                 !helper.IsWithinRange(defender, 6) ||
-                !helper.CanPerceiveTarget(defender))
+                !helper.CanSeeTarget(defender))
             {
                 yield break;
             }
@@ -813,7 +813,7 @@ internal static class RaceFeats
                 helper.IsOppositeSide(defender.Side) ||
                 !helper.CanReact() ||
                 !helper.IsWithinRange(defender, 6) ||
-                !helper.CanPerceiveTarget(defender))
+                !helper.CanSeeTarget(defender))
             {
                 yield break;
             }
@@ -1830,7 +1830,7 @@ internal static class RaceFeats
             if (action.AttackRollOutcome is not (RollOutcome.Success or RollOutcome.CriticalSuccess) ||
                 helper != defender ||
                 !defender.CanReact() ||
-                !defender.CanPerceiveTarget(attacker) ||
+                !defender.CanSeeTarget(attacker) ||
                 rulesetHelper.HasConditionOfType(conditionSecondChance))
             {
                 yield break;

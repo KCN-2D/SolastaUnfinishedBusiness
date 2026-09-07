@@ -365,7 +365,7 @@ public sealed class DomainTempest : AbstractSubclass
                 action.AttackRollOutcome is not (RollOutcome.Success or RollOutcome.CriticalSuccess) ||
                 !defender.CanReact() ||
                 !defender.IsWithinRange(attacker, 1) ||
-                !defender.CanPerceiveTarget(attacker) ||
+                !defender.CanSeeTarget(attacker) ||
                 rulesetDefender.GetRemainingUsesOfPower(usablePower) == 0)
             {
                 yield break;

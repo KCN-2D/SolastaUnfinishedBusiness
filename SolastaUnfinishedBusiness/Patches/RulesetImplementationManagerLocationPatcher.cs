@@ -787,7 +787,7 @@ public static class RulesetImplementationManagerLocationPatcher
             out IDisposable __state)
         {
             __state = effectForm.CounterForm.Type == CounterForm.CounterType.DissipateSpells
-                ? SpellInterruptionContext.ObserveDispel(formsParams)
+                ? new DispelCheckContext(formsParams, effectForm.CounterForm)
                 : null;
         }
 
@@ -846,9 +846,22 @@ public static class RulesetImplementationManagerLocationPatcher
                     $"replaced {replacedHeroGates}.");
             }
 
-            return patched.ReplaceCalls(conditionDefinitionMethod,
-                "RulesetImplementationManagerLocation.ApplyCounterForm",
-                new CodeInstruction(OpCodes.Call, myConditionDefinitionMethod));
+            return patched
+                .ReplaceCalls(AccessTools.Method(typeof(RuleDefinitions), nameof(RuleDefinitions.RollDie)),
+                    "ApplyCounterForm.DeferDispelDie",
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(DispelCheckContext), nameof(DispelCheckContext.RollFallbackDie))))
+                .ReplaceCalls(AccessTools.Method(typeof(RulesetActor), nameof(RulesetActor.DissipateSpells)),
+                    "ApplyCounterForm.DissipateSpells",
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(DispelCheckContext), nameof(DispelCheckContext.ApplyToCharacter))))
+                .ReplaceCalls(AccessTools.Method(typeof(RulesetCharacterEffectProxy), nameof(RulesetCharacterEffectProxy.DissipateSpell)),
+                    "ApplyCounterForm.DissipateProxy",
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(DispelCheckContext), nameof(DispelCheckContext.ApplyToProxy))))
+                .ReplaceCalls(AccessTools.Method(typeof(RulesetActor), nameof(RulesetActor.RefreshAll)),
+                    3, "ApplyCounterForm.RefreshAfterDispel",
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(DispelCheckContext), nameof(DispelCheckContext.RefreshAfterDispel))))
+                .ReplaceCalls(conditionDefinitionMethod,
+                    "RulesetImplementationManagerLocation.ApplyCounterForm",
+                    new CodeInstruction(OpCodes.Call, myConditionDefinitionMethod));
         }
     }
 

@@ -238,7 +238,7 @@ public sealed class OathOfAltruism : AbstractSubclass
                 helper == defender ||
                 helper.IsOppositeSide(defender.Side) ||
                 !helper.CanReact(true) ||
-                !helper.CanPerceiveTarget(defender) ||
+                !helper.CanSeeTarget(defender) ||
                 rulesetHelper.GetRemainingUsesOfPower(usablePower) == 0)
             {
                 yield break;

@@ -1186,6 +1186,14 @@ public static class RulesetSpellRepertoirePatcher
             int spellLevel,
             Dictionary<SpellDefinition, string> extraSpells)
         {
+            // A display-only free-cast column contains exactly its selected spell.
+            // Class preparation and feat spells belong to the real repertoire's column.
+            if (SpellSelectionContext.TryGetOption(__instance, out _))
+            {
+                extraSpells.Clear();
+                return;
+            }
+
             LevelUpHelper.AddAutoPreparedSpellsToExtraSpellsMap(__instance, spellLevel, extraSpells);
         }
     }

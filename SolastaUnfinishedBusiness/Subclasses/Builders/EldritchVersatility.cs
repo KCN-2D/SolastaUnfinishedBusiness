@@ -839,7 +839,7 @@ internal static class EldritchVersatilityBuilders
 
             var owner = GameLocationCharacter.GetFromActor(featureOwner);
 
-            if (owner != null && (!owner.IsWithinRange(caster, 12) || !caster.CanPerceiveTarget(owner)))
+            if (owner != null && (!owner.IsWithinRange(caster, 12) || !owner.CanSeeTarget(caster)))
             {
                 yield break;
             }
@@ -1092,7 +1092,7 @@ internal static class EldritchVersatilityBuilders
             if (action.AttackRollOutcome is not (RollOutcome.Success or RollOutcome.CriticalSuccess) ||
                 helper.IsOppositeSide(defender.Side) ||
                 (!(alreadyBlocked && eldritchAegisSupportCondition.SourceGuid == helperCharacter.Guid) &&
-                 (!defender.IsWithinRange(helper, 7) || !helper.CanPerceiveTarget(defender))))
+                 (!defender.IsWithinRange(helper, 7) || !helper.CanSeeTarget(defender))))
             {
                 yield break;
             }
@@ -1297,7 +1297,7 @@ internal static class EldritchVersatilityBuilders
             var alreadyWarded = EldritchWardSupportRulesetCondition.GetCustomConditionFromCharacter(
                 defenderCharacter, out var eldritchWardSupportCondition);
             if (!(alreadyWarded && eldritchWardSupportCondition.SourceGuid == helperCharacter.Guid) &&
-                (!defender.IsWithinRange(helper, 7) || !helper.CanPerceiveTarget(defender)))
+                (!defender.IsWithinRange(helper, 7) || !helper.CanSeeTarget(defender)))
             {
                 yield break;
             }

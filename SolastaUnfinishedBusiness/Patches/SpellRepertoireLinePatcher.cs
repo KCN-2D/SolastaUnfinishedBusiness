@@ -4,6 +4,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using static RuleDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -21,6 +22,11 @@ public static class SpellRepertoireLinePatcher
         {
             if (__instance.showHeader)
             {
+                if (SpellSelectionContext.TryGetOption(__instance.spellRepertoire, out var option))
+                {
+                    __instance.headerLabel.Text = option.SourceTitle;
+                }
+
                 UiTextHelpers.FitSideLabel(__instance.headerLabel);
             }
         }
@@ -32,23 +38,17 @@ public static class SpellRepertoireLinePatcher
     public static class FindAndSortRelevantSpells_Patch
     {
         [UsedImplicitly]
-        public static void Prefix([NotNull] List<SpellDefinition> spellDefinitions)
-        {
-            //PATCH: hide reaction spells from spell panel
-            spellDefinitions.RemoveAll(x => x.ActivationTime == ActivationTime.Reaction);
-            //PATCH: hide smite spells from spell panel
-            spellDefinitions.RemoveAll(x => x.ActivationTime == ActivationTime.OnAttackHit);
-        }
-
-        [UsedImplicitly]
         public static void Postfix([NotNull] List<SpellDefinition> spellDefinitions, SpellRepertoireLine __instance)
         {
             SpellActionTypeContext.QualifySpells(
                 __instance.caster?.RulesetCharacter,
-                __instance.spellRepertoire,
+                SpellSelectionContext.Resolve(__instance.spellRepertoire),
                 __instance.actionType,
                 spellDefinitions,
                 __instance.relevantSpells);
+            // Filter the display result; callers can pass the character's actual KnownCantrips list.
+            __instance.relevantSpells.RemoveAll(spell =>
+                spell.ActivationTime is ActivationTime.Reaction or ActivationTime.OnAttackHit);
             __instance.relevantSpells.Sort(__instance);
         }
     }

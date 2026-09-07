@@ -128,6 +128,12 @@ public static class RulesetSpellRepertoireExtensions
         out int remaining,
         out int max)
     {
+        if (SpellSelectionContext.TryGetOption(repertoire, out var option))
+        {
+            SpellSelectionContext.GetViewSlots(option, slotLevel, out remaining, out max);
+            return;
+        }
+
         repertoire.GetSharedAndPactSlotNumbers(
             character,
             slotLevel,

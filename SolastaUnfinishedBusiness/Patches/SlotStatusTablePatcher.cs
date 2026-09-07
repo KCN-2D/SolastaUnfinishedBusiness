@@ -20,6 +20,20 @@ public static class SlotStatusTablePatcher
     [UsedImplicitly]
     public static class Bind_Patch
     {
+        [UsedImplicitly]
+        public static void Prefix(SlotStatusTable __instance, RulesetSpellRepertoire spellRepertoire,
+            List<SpellDefinition> spells, ref int spellLevel)
+        {
+            SpellUseTooltips.Restore(__instance);
+            if (spellLevel > 0 && spells?.Count == 1 &&
+                SpellSlotCastingLimit2024Context.IsFreeUseRepertoire(spellRepertoire) &&
+                spellRepertoire.SpellCastingFeature.CannotUpcast &&
+                spellRepertoire.GetCaster() is { } caster)
+            {
+                spellLevel = SpellSelectionContext.GetBaseSelection(caster, spellRepertoire, spells[0]).SlotLevel;
+            }
+        }
+
         private static bool UniqueLevelSlots(
             FeatureDefinitionCastSpell featureDefinitionCastSpell,
             RulesetSpellRepertoire rulesetSpellRepertoire)
@@ -52,6 +66,19 @@ public static class SlotStatusTablePatcher
             List<SpellDefinition> spells,
             int spellLevel)
         {
+            SpellUseTooltips.Bind(__instance, spellRepertoire, spellLevel);
+            if (SpellSelectionContext.TryGetOption(spellRepertoire, out var option))
+            {
+                if (option.Kind == SpellCastingResourceContext.ResourceKind.SpellMastery)
+                {
+                    __instance.table.gameObject.SetActive(false);
+                    __instance.slotsText.gameObject.SetActive(false);
+                    __instance.infinitySymbol.gameObject.SetActive(true);
+                }
+
+                return;
+            }
+
             var character = spellRepertoire?.GetCaster();
             if (spellLevel == 0 && __instance.cantripLabel != null) // Missing cantrip localization
             {
@@ -114,6 +141,7 @@ public static class SlotStatusTablePatcher
         [UsedImplicitly]
         public static void Prefix(SlotStatusTable __instance)
         {
+            SpellUseTooltips.Restore(__instance);
             MulticlassGameUi.PaintSlotsWhite(__instance.table);
         }
     }

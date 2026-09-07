@@ -2951,7 +2951,7 @@ internal static partial class SpellBuilders
                 !rulesetHelper.UsableSpells.Contains(spell) ||
                 !rulesetHelper.AreSpellComponentsValid(spell) ||
                 !helper.IsWithinRange(triggeringCreature, 12) ||
-                !helper.CanPerceiveTarget(triggeringCreature))
+                !helper.CanSeeTarget(triggeringCreature))
             {
                 return false;
             }
@@ -3037,7 +3037,7 @@ internal static partial class SpellBuilders
                     candidate.RulesetCharacter is
                         { IsDeadOrDyingOrUnconscious: false } and not RulesetCharacterEffectProxy &&
                     helper.IsWithinRange(candidate, 12) &&
-                    (candidate == helper || helper.CanPerceiveTarget(candidate)))
+                    (candidate == helper || helper.CanSeeTarget(candidate)))
                 .OrderBy(candidate => candidate.Guid)
                 .ToArray();
         }
@@ -3048,7 +3048,8 @@ internal static partial class SpellBuilders
         {
             var rulesetEmpowered = empoweredCreature?.RulesetCharacter;
 
-            if (rulesetEmpowered is not { IsDeadOrDyingOrUnconscious: false })
+            if (rulesetEmpowered is not { IsDeadOrDyingOrUnconscious: false } ||
+                !caster.IsWithinRange(empoweredCreature, 12) || !caster.CanSeeTarget(empoweredCreature))
             {
                 return;
             }

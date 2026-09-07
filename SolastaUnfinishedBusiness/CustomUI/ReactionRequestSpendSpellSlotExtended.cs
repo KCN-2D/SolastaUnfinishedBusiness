@@ -15,6 +15,15 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
     internal ReactionRequestSpendSpellSlotExtended(CharacterActionParams actionParams)
         : base("SpendSpellSlot", actionParams)
     {
+        _guiCharacter = new GuiCharacter(Character);
+
+        // Spell reactions use the same resource choices as native counter/defense reactions.
+        // Other slot-spending powers retain their own minimum level and pact-slot restrictions.
+        if (SpellCastingResourceContext.BuildOptions(this))
+        {
+            return;
+        }
+
         SubOptionsAvailability.Clear();
 
         var rulesetCharacter = actionParams.ActingCharacter.RulesetCharacter;
@@ -99,11 +108,12 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
             SelectSubOption(selected);
         }
 
-        _guiCharacter = new GuiCharacter(Character);
     }
 
     public override int SelectedSubOption =>
-        Array.IndexOf([.. SubOptionsAvailability.Keys], ReactionParams.IntParameter);
+        SpellCastingResourceContext.IsManaged(this)
+            ? SpellCastingResourceContext.GetSelectedOption(this)
+            : Array.IndexOf([.. SubOptionsAvailability.Keys], ReactionParams.IntParameter);
 
     public override string SuboptionTag => ReactionParams.StringParameter;
 
@@ -140,6 +150,11 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
 
     public override void SelectSubOption(int option)
     {
+        if (SpellCastingResourceContext.SelectOption(this, option))
+        {
+            return;
+        }
+
         var slotLevel = SubOptionsAvailability.Keys.ToArray()[option];
 
         ReactionParams.IntParameter = slotLevel;

@@ -832,7 +832,7 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
                 !helper.CanReact() ||
                 attacker.IsOppositeSide(helper.Side) ||
                 !helper.IsWithinRange(attacker, 6) ||
-                !helper.CanPerceiveTarget(attacker))
+                !helper.CanSeeTarget(attacker))
             {
                 yield break;
             }
@@ -898,7 +898,7 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
                 !helper.CanReact() ||
                 defender.IsOppositeSide(helper.Side) ||
                 !helper.IsWithinRange(defender, 6) ||
-                !helper.CanPerceiveTarget(defender))
+                !helper.CanSeeTarget(defender))
             {
                 yield break;
             }
@@ -969,7 +969,7 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
                 !helper.CanReact() ||
                 helper.IsOppositeSide(defender.Side) ||
                 !helper.IsWithinRange(defender, 6) ||
-                !helper.CanPerceiveTarget(defender) ||
+                !helper.CanSeeTarget(defender) ||
                 rulesetHelper.GetRemainingUsesOfPower(usablePower) == 0)
             {
                 yield break;
@@ -1053,7 +1053,7 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
                 !helper.CanReact() ||
                 !helper.IsOppositeSide(attacker.Side) ||
                 !helper.IsWithinRange(attacker, 6) ||
-                !helper.CanPerceiveTarget(attacker) ||
+                !helper.CanSeeTarget(attacker) ||
                 rulesetHelper.GetRemainingUsesOfPower(usablePower) == 0)
             {
                 yield break;
@@ -1120,7 +1120,7 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
                 !helper.CanReact() ||
                 !helper.IsOppositeSide(defender.Side) ||
                 !helper.IsWithinRange(defender, 6) ||
-                !helper.CanPerceiveTarget(defender) ||
+                !helper.CanSeeTarget(defender) ||
                 rulesetHelper.GetRemainingUsesOfPower(usablePower) == 0)
             {
                 yield break;
@@ -1194,7 +1194,7 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
                 !helper.CanReact() ||
                 !helper.IsOppositeSide(defender.Side) ||
                 !helper.IsWithinRange(defender, 6) ||
-                !helper.CanPerceiveTarget(defender) ||
+                !helper.CanSeeTarget(defender) ||
                 rulesetHelper.GetRemainingUsesOfPower(usablePower) == 0)
             {
                 yield break;

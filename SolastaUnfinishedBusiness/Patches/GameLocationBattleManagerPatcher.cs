@@ -945,7 +945,7 @@ public static class GameLocationBattleManagerPatcher
     [UsedImplicitly]
     public static class HandleSpellCast_Patch
     {
-        //PATCH: can only cast counter spell if self can perceive caster when lighting rules are enabled
+        //PATCH: identify the spellcaster for sight checks, including nested counterspells.
         public static GameLocationCharacter Caster { get; private set; }
 
         [UsedImplicitly]
@@ -957,14 +957,19 @@ public static class GameLocationBattleManagerPatcher
             RulesetSpellRepertoire selectedRepertoire,
             SpellDefinition selectedSpellDefinition)
         {
+            var previousCaster = Caster;
             Caster = caster;
-
-            while (values.MoveNext())
+            try
             {
-                yield return values.Current;
+                while (values.MoveNext())
+                {
+                    yield return values.Current;
+                }
             }
-
-            Caster = null;
+            finally
+            {
+                Caster = previousCaster;
+            }
 
             // This also allows utilities out of battle
             var characterService = ServiceRepository.GetService<IGameLocationCharacterService>();

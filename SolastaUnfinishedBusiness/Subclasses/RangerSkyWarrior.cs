@@ -316,7 +316,7 @@ public sealed class RangerSkyWarrior : AbstractSubclass
 
             if (helper != defender ||
                 !defender.CanReact() ||
-                !defender.CanPerceiveTarget(attacker) ||
+                !defender.CanSeeTarget(attacker) ||
                 !defender.IsWithinRange(attacker, 12) ||
                 rulesetHelper.GetRemainingUsesOfPower(usablePower) == 0)
             {

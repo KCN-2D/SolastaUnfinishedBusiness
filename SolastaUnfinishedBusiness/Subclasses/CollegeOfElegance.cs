@@ -356,7 +356,9 @@ public sealed class CollegeOfElegance : AbstractSubclass
                 yield break;
             }
 
-            var targets = Gui.Battle.GetContenders(attacker, hasToPerceivePerceiver: true, withinRange: 6);
+            var targets = Gui.Battle.GetContenders(attacker, withinRange: 6);
+
+            targets.RemoveAll(target => !target.CanSeeTarget(attacker));
 
             // remove enemies previously target by amazing display
             targets.RemoveAll(x =>

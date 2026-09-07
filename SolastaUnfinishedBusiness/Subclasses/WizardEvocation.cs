@@ -304,7 +304,7 @@ public sealed class WizardEvocation : AbstractSubclass
             }
 
             if (target.IsOppositeSide(caster.Side)
-                || (!Main.Settings.EvocationSculptSpellNoPerception && !caster.CanPerceiveTarget(target)))
+                || (!Main.Settings.EvocationSculptSpellNoPerception && !caster.CanSeeTarget(target)))
             {
                 return true;
             }

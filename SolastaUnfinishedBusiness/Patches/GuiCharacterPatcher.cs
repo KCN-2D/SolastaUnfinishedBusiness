@@ -546,6 +546,27 @@ public static class GuiCharacterPatcher
     public static class AssignPortraitImage_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var characterRequest = AccessTools.Method(typeof(IGraphicsCharacterPhotoService),
+                nameof(IGraphicsCharacterPhotoService.RequestCharacterPhoto),
+                [typeof(RulesetCharacter), typeof(System.Action<Texture>), typeof(bool), typeof(int), typeof(int),
+                    typeof(GraphicsCharacterPhotoManager.PhotoParameters)]);
+            var snapshotRequest = AccessTools.Method(typeof(IGraphicsCharacterPhotoService),
+                nameof(IGraphicsCharacterPhotoService.RequestCharacterPhoto),
+                [typeof(RulesetCharacterHero.Snapshot), typeof(System.Action<Texture>), typeof(System.Action)]);
+
+            return instructions.ReplaceCalls(characterRequest, 1, "GuiCharacter.AssignPortraitImage",
+                    new CodeInstruction(OpCodes.Ldarg_1),
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(PortraitsContext),
+                        nameof(PortraitsContext.RequestCharacterPortrait))))
+                .ReplaceCalls(snapshotRequest, 1, "GuiCharacter.AssignPortraitImage",
+                    new CodeInstruction(OpCodes.Ldarg_1),
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(PortraitsContext),
+                        nameof(PortraitsContext.RequestSnapshotPortrait))));
+        }
+
+        [UsedImplicitly]
         public static bool Prefix(
             GuiCharacter __instance,
             RawImage portraitImage,
@@ -554,6 +575,7 @@ public static class GuiCharacterPatcher
             System.Action response,
             out bool __state)
         {
+            PortraitsContext.BeginBinding(__instance, portraitImage);
             __state = SimulacrumPortraits.TryAssign(__instance, portraitImage);
 
             if (__state)
@@ -595,6 +617,18 @@ public static class GuiCharacterPatcher
     public static class AssignActiveCharacterPortraitImage_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var request = AccessTools.Method(typeof(IGraphicsCharacterPhotoService),
+                nameof(IGraphicsCharacterPhotoService.RequestActiveCharacterPhoto));
+
+            return instructions.ReplaceCalls(request, 1, "GuiCharacter.AssignActiveCharacterPortraitImage",
+                new CodeInstruction(OpCodes.Ldarg_1),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(PortraitsContext),
+                    nameof(PortraitsContext.RequestActivePortrait))));
+        }
+
+        [UsedImplicitly]
         public static bool Prefix(
             GuiCharacter __instance,
             RawImage portraitRawImage,
@@ -604,6 +638,7 @@ public static class GuiCharacterPatcher
             System.Action response,
             out bool __state)
         {
+            PortraitsContext.BeginBinding(__instance, portraitRawImage);
             __state = SimulacrumPortraits.TryAssign(
                 __instance,
                 portraitRawImage,
@@ -636,6 +671,32 @@ public static class GuiCharacterPatcher
             {
                 PortraitsContext.ChangePortrait(__instance, portraitRawImage);
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiCharacter), nameof(GuiCharacter.RemovePortrait))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RemovePortrait_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(RawImage portraitImage)
+        {
+            PortraitsContext.Release(portraitImage);
+            SimulacrumPortraits.Release(portraitImage);
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiCharacter), nameof(GuiCharacter.RemoveActiveCharacterPortrait))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RemoveActiveCharacterPortrait_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(RawImage portraitRawImage)
+        {
+            PortraitsContext.Release(portraitRawImage);
+            SimulacrumPortraits.Release(portraitRawImage);
         }
     }
 

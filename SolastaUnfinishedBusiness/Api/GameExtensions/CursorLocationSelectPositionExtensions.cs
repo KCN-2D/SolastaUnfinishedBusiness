@@ -43,7 +43,8 @@ internal static class CursorLocationSelectPositionExtensions
             {
                 if (visibilityService.MyIsCellPerceivedByCharacter(int3, locationCharacter,
                         additionalBlockedLightingState: additionalBlockedState,
-                        requireLineOfSight: __instance.requiresVisibilityForPosition))
+                        requireLineOfSight: __instance.requiresVisibilityForPosition,
+                        requireSight: __instance.requiresVisibilityForPosition))
                 {
                     __instance.validPositionsCache.Add(int3);
                 }

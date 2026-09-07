@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -205,8 +206,6 @@ internal readonly struct CombatAiSelfAssessment(
 
 internal static partial class CombatAiContext
 {
-    private const int ObservedCombatMemoryMaxRounds = 2;
-    private const int ObservedCombatMemoryMaxTurns = 6;
     private const string AberrationFamilyName = "Aberration";
     private const string BeastFamilyName = "Beast";
     private const string CelestialFamilyName = "Celestial";
@@ -261,7 +260,6 @@ internal static partial class CombatAiContext
     private const int GroundMeleeTargetContactRouteBudgetMultiplier = 8;
     private const int GroundMeleeTargetContactRouteMaxBudget = 48;
     private const int GroundMeleeRoutePathfindingPerTurnLimit = 16;
-    private const int SearchLostTargetNextActionProbeLimit = 8;
     private const int GroundMeleeTargetContactReverseGoalLimit = 3;
     private const int MoveResultSettlingFrameLimit = 3;
     private const int JumpImmediateMoveResultSettlingFrameLimit = MoveResultSettlingFrameLimit;
@@ -447,19 +445,15 @@ internal static partial class CombatAiContext
         internal bool Failed => Kind == SearchKnownTargetCompletionKind.FailedNoMeaningfulMovement;
     }
 
-    private readonly struct ObservedCombatMemory(
-        int3 lastKnownEnemyPosition,
-        int round,
-        int turnStamp)
+    private readonly struct ObservedCombatMemory(int3 lastKnownEnemyPosition)
     {
         internal int3 LastKnownEnemyPosition { get; } = lastKnownEnemyPosition;
-        internal int Round { get; } = round;
-        internal int TurnStamp { get; } = turnStamp;
     }
 
     private enum SearchLostTargetRouteCandidateQuality
     {
         Rejected,
+        Progress,
         FiringLineProbe,
         TurnsImproved,
         SeverityImproved,
@@ -486,7 +480,6 @@ internal static partial class CombatAiContext
         bool actionConnected,
         SearchLostTargetRouteCandidateQuality quality,
         bool forwardProgress,
-        bool nextActionReachable,
         RouteActionConnection actionConnection,
         int moveCost)
     {
@@ -499,7 +492,6 @@ internal static partial class CombatAiContext
         internal bool BlockSeverityImproved => Quality == SearchLostTargetRouteCandidateQuality.SeverityImproved;
         internal bool TurnsToActionImproved => Quality == SearchLostTargetRouteCandidateQuality.TurnsImproved;
         internal bool FiringLineProbe => Quality == SearchLostTargetRouteCandidateQuality.FiringLineProbe;
-        internal bool NextActionReachable { get; } = nextActionReachable;
         internal bool ForwardProgress { get; } = forwardProgress;
         internal RouteActionConnection ActionConnection { get; } = actionConnection;
         internal int MoveCost { get; } = moveCost;
@@ -949,7 +941,9 @@ internal static partial class CombatAiContext
         int turnStamp,
         List<int3> positions,
         Dictionary<int3, ReachableRouteDestinationFacts> factsByPosition,
-        bool walkOnly)
+        bool walkOnly,
+        Dictionary<int3, int3> parents,
+        Dictionary<int3, int> pathCosts)
     {
         internal int3 StartPosition { get; } = startPosition;
         internal int RemainingMove { get; } = remainingMove;
@@ -970,6 +964,32 @@ internal static partial class CombatAiContext
         internal bool Contains(int3 position)
         {
             return factsByPosition.ContainsKey(position);
+        }
+
+        internal int GetPathMoveCost(int3 position)
+        {
+            return pathCosts.TryGetValue(position, out var cost) ? cost : int.MaxValue;
+        }
+
+        internal bool TryGetPath(int3 goal, out List<int3> path)
+        {
+            path = [];
+            var visited = new HashSet<int3>();
+            var position = goal;
+            while (position != StartPosition)
+            {
+                if (!visited.Add(position) || !parents.TryGetValue(position, out var parent))
+                {
+                    path.Clear();
+                    return false;
+                }
+
+                path.Add(position);
+                position = parent;
+            }
+
+            path.Reverse();
+            return path.Count > 0;
         }
 
         internal int GetMoveCost(int3 position)
@@ -1104,8 +1124,10 @@ internal static partial class CombatAiContext
         int turnStamp,
         int moveToken = 0,
         bool searchRouteActionConnected = false,
-        int routeContinuationCount = 0)
+        int routeContinuationCount = 0,
+        IReadOnlyDictionary<int3, int> searchPath = null)
     {
+        internal IReadOnlyDictionary<int3, int> SearchPath { get; } = searchPath;
         internal GameLocationCharacter Target { get; } = target;
         internal CombatAiActionKind ActionKind { get; } = actionKind;
         internal CombatAiActionLinkedMoveContinuation Continuation { get; } = continuation;
@@ -1914,6 +1936,8 @@ internal static partial class CombatAiContext
                 return;
             }
 
+            ForgetSearchedEnemyPositions(character);
+            UpdateObservedCombatMemory(character);
             var profile = BuildProfile(character);
             var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
 
@@ -1922,7 +1946,8 @@ internal static partial class CombatAiContext
                 var turnPlan = BuildCombatAiTurnPlan(character, profile, battleService);
 
                 PrimeTurnMovementProgress(character, turnPlan);
-                PrimeGroundMeleeTargetContactRouteQuery(character, turnPlan);
+                // Route searches run at the owning AI coroutine boundary, not inside
+                // this synchronous turn-start notification.
             }
         }
 
@@ -1951,6 +1976,7 @@ internal static partial class CombatAiContext
             return;
         }
 
+        PendingContactRouteQueries.Remove(character);
         ProfileCache.Remove(character.Guid);
         MeleeAttackPositionCache.Clear();
         ActionKindPositionCache.Clear();
@@ -2036,6 +2062,9 @@ internal static partial class CombatAiContext
 
     private static void ClearRuntimeCaches()
     {
+        AiWorkBudget.Reset();
+        // Invalidate suspended searches without letting their finally blocks remove a newer request.
+        PendingContactRouteQueries = new();
         ProfileCache.Clear();
         PersonalityFlagsCache.Clear();
         ObservedCombatMemoryCache.Clear();
@@ -2410,6 +2439,13 @@ internal static partial class CombatAiContext
             GetCurrentBattleRound(),
             Math.Max(1, ObservedCombatMemoryTurnStamp));
 
+        // A walk/jump step is a child of the submitted route. Intermediate cells must
+        // not release its ownership before the remaining steps and reactions settle.
+        if (to != pendingAction.ExpectedDestination)
+        {
+            return;
+        }
+
         TryCompleteConnectedFiringLineMovementStep(character);
         TryCompleteSearchKnownTargetMovementStep(character);
     }
@@ -2470,7 +2506,7 @@ internal static partial class CombatAiContext
     private static SearchKnownTargetCompletionResult TryCompleteSearchKnownTargetMovementStep(
         GameLocationCharacter character,
         bool includeSettling = false,
-        bool allowProgressOnlyPartialContinuation = true)
+        bool actionChainCompleted = false)
     {
         if (character?.RulesetCharacter == null)
         {
@@ -2491,7 +2527,7 @@ internal static partial class CombatAiContext
                 default);
         }
 
-        if (ShouldWaitForActionLinkedMoveCallback(character, pendingAction))
+        if (!actionChainCompleted && ShouldWaitForActionLinkedMoveCallback(character, pendingAction))
         {
             return new SearchKnownTargetCompletionResult(
                 SearchKnownTargetCompletionKind.Pending,
@@ -2501,7 +2537,7 @@ internal static partial class CombatAiContext
         var actualDestination = character.LocationPosition;
         var progress = ComputeSearchKnownTargetProgress(character, pendingAction, actualDestination);
 
-        if (actualDestination == pendingAction.StartPosition)
+        if (actualDestination == pendingAction.StartPosition && !actionChainCompleted)
         {
             return new SearchKnownTargetCompletionResult(
                 SearchKnownTargetCompletionKind.Pending,
@@ -2521,8 +2557,21 @@ internal static partial class CombatAiContext
 
         if (!hasMeaningfulProgress && !hasValidatedAction)
         {
+            if (!actionChainCompleted)
+            {
+                return new SearchKnownTargetCompletionResult(
+                    SearchKnownTargetCompletionKind.Pending,
+                    progress);
+            }
+
+            CloseSearchKnownTargetMoveResult(
+                character,
+                pendingAction,
+                pendingAction.StartPosition,
+                pendingAction.ExpectedDestination,
+                SearchKnownTargetCompletionKind.FailedNoMeaningfulMovement);
             return new SearchKnownTargetCompletionResult(
-                SearchKnownTargetCompletionKind.Pending,
+                SearchKnownTargetCompletionKind.FailedNoMeaningfulMovement,
                 progress);
         }
 
@@ -2531,7 +2580,7 @@ internal static partial class CombatAiContext
             : SearchKnownTargetCompletionKind.SettledPartial;
 
         if (result == SearchKnownTargetCompletionKind.SettledPartial &&
-            allowProgressOnlyPartialContinuation &&
+            !actionChainCompleted &&
             TryDeferProgressOnlySearchPartialMove(
                 character,
                 pendingAction,
@@ -2566,6 +2615,19 @@ internal static partial class CombatAiContext
         ActionLinkedMoveMemory pendingAction,
         int3 actualDestination)
     {
+        if (pendingAction.SearchPath != null &&
+            pendingAction.SearchPath.TryGetValue(pendingAction.ExpectedDestination, out var plannedCost) &&
+            (actualDestination == pendingAction.StartPosition ||
+             pendingAction.SearchPath.ContainsKey(actualDestination)))
+        {
+            pendingAction.SearchPath.TryGetValue(pendingAction.StartPosition, out var startCost);
+            var completedCost = actualDestination == pendingAction.StartPosition
+                ? startCost
+                : pendingAction.SearchPath[actualDestination];
+            return new SearchKnownTargetProgress(pendingAction.ExpectedDestination,
+                plannedCost - startCost, plannedCost - completedCost, Math.Min(2f, plannedCost - startCost));
+        }
+
         var anchor = pendingAction.ExpectedDestination;
 
         if (TryGetSearchKnownTargetAnchor(
@@ -3503,6 +3565,7 @@ internal static partial class CombatAiContext
         SearchKnownTargetCompletionKind resultKind)
     {
         var actualDestination = character.LocationPosition;
+        ForgetSearchedEnemyPositions(character);
         var failed = resultKind == SearchKnownTargetCompletionKind.FailedNoMeaningfulMovement;
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
@@ -3589,7 +3652,8 @@ internal static partial class CombatAiContext
             GetCurrentBattleRound(),
             Math.Max(1, ObservedCombatMemoryTurnStamp),
             pendingAction.MoveToken,
-            pendingAction.SearchRouteActionConnected);
+            pendingAction.SearchRouteActionConnected,
+            searchPath: pendingAction.SearchPath);
         var callbackObserved =
             ActionLinkedMoveSettlingCache.TryGetValue(character.Guid, out var settling) &&
             settling.PendingAction.MoveToken == pendingAction.MoveToken &&
@@ -4291,6 +4355,12 @@ internal static partial class CombatAiContext
         }
 
         if (destination == pendingAction.ExpectedDestination)
+        {
+            allowed = true;
+            return true;
+        }
+
+        if (pendingAction.SearchPath?.ContainsKey(destination) == true)
         {
             allowed = true;
             return true;
@@ -5109,31 +5179,37 @@ internal static partial class CombatAiContext
         }
 
         var canUseCache = IsAdvancedCombatAiEnabled;
-        var cacheKey = canUseCache
-            ? new AttackPositionKey(
-                attacker.Guid,
-                attackerPosition,
-                target.Guid,
-                targetPosition,
-                ComputeCombatAiActionStateSignature(attacker),
-                ComputeCombatAiTargetStateSignature(target))
-            : default;
-
-        if (canUseCache && MeleeAttackPositionCache.TryGetValue(cacheKey, out var cached))
-        {
-            return cached;
-        }
+        var cacheKey = default(AttackPositionKey);
+        var hasCacheKey = false;
 
         foreach (var mode in attacker.RulesetCharacter.AttackModes)
         {
-            if (mode == null ||
-                !ValidatorsWeapon.IsMelee(mode) ||
-                !IsAttackModeAvailableForMainAction(attacker, mode, out _))
+            // Most route cells are outside melee reach. Neither action-state queries
+            // nor negative cache entries are useful for these inexpensive rejections.
+            if (mode == null || !ValidatorsWeapon.IsMelee(mode) ||
+                !battleService.IsWithinXCells(attacker, attackerPosition, target, targetPosition, mode.reachRange))
             {
                 continue;
             }
 
-            if (!battleService.IsWithinXCells(attacker, attackerPosition, target, targetPosition, mode.reachRange))
+            if (canUseCache && !hasCacheKey)
+            {
+                cacheKey = new AttackPositionKey(
+                    attacker.Guid,
+                    attackerPosition,
+                    target.Guid,
+                    targetPosition,
+                    ComputeCombatAiActionStateSignature(attacker),
+                    ComputeCombatAiTargetStateSignature(target));
+                hasCacheKey = true;
+
+                if (MeleeAttackPositionCache.TryGetValue(cacheKey, out var cached))
+                {
+                    return cached;
+                }
+            }
+
+            if (!IsAttackModeAvailableForMainAction(attacker, mode, out _))
             {
                 continue;
             }
@@ -5146,7 +5222,7 @@ internal static partial class CombatAiContext
 
             if (battleService.CanAttack(attackParams))
             {
-                if (canUseCache)
+                if (hasCacheKey)
                 {
                     MeleeAttackPositionCache[cacheKey] = true;
                 }
@@ -5155,7 +5231,7 @@ internal static partial class CombatAiContext
             }
         }
 
-        if (canUseCache)
+        if (hasCacheKey)
         {
             MeleeAttackPositionCache[cacheKey] = false;
         }
@@ -5858,6 +5934,16 @@ internal static partial class CombatAiContext
         var profile = BuildProfile(character);
         var turnPlan = BuildCombatAiTurnPlan(character, profile, battleService);
 
+        var planningStart = character.LocationPosition;
+        var planningMoves = character.RemainingTacticalMoves;
+        var planningRound = GetCurrentBattleRound();
+        var planningStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
+        yield return PrimeGroundMeleeTargetContactRouteQuery(character, turnPlan);
+        if (!IsRoutePlanningStateCurrent(character, planningStart, planningMoves, planningRound, planningStamp))
+        {
+            yield break;
+        }
+
         var dashCandidate = EvaluateBonusDashMeleeEngagement(
             character,
             profile,
@@ -5915,12 +6001,12 @@ internal static partial class CombatAiContext
 
             var remainingMovesBefore = character.RemainingTacticalMoves;
 
-            if (!TryStartResidualEngagementMove(
-                    character,
-                    battleService,
-                    profile,
-                    turnPlan,
-                    out var start))
+            var movement = new RouteMoveResult();
+            yield return StartResidualEngagementMove(character, battleService, profile, turnPlan, movement);
+            var start = movement.Start;
+
+            if (!movement.Started || character?.RulesetCharacter is not { IsIncapacitated: false } ||
+                !IsActiveBattleContender(character))
             {
                 yield break;
             }
@@ -6230,10 +6316,14 @@ internal static partial class CombatAiContext
             break;
         }
 
-        if (TryStartResidualEngagementMove(
-                character,
-                battleService,
-                out _))
+        var movement = new RouteMoveResult();
+        yield return StartResidualEngagementMove(character, battleService, movement);
+        if (character?.RulesetCharacter is not { IsIncapacitated: false } || !IsActiveBattleContender(character))
+        {
+            yield break;
+        }
+
+        if (movement.Started)
         {
             yield return WaitForCombatAiProcessAction(character);
 
@@ -6268,20 +6358,27 @@ internal static partial class CombatAiContext
                 yield break;
             }
 
-            if (character.RemainingTacticalMoves > remainingMovesBeforeBonus &&
-                TryStartResidualEngagementMove(
-                    character,
-                    battleService,
-                    out _))
+            if (character.RemainingTacticalMoves > remainingMovesBeforeBonus)
             {
-                yield return WaitForCombatAiProcessAction(character);
-
-                if (!IsActiveBattleContender(character))
+                movement = new RouteMoveResult();
+                yield return StartResidualEngagementMove(character, battleService, movement);
+                if (character?.RulesetCharacter is not { IsIncapacitated: false } ||
+                    !IsActiveBattleContender(character))
                 {
                     yield break;
                 }
 
-                UpdateTurnMovementProgress(character);
+                if (movement.Started)
+                {
+                    yield return WaitForCombatAiProcessAction(character);
+
+                    if (!IsActiveBattleContender(character))
+                    {
+                        yield break;
+                    }
+
+                    UpdateTurnMovementProgress(character);
+                }
             }
         }
 
@@ -6407,40 +6504,62 @@ internal static partial class CombatAiContext
                 character.GetActionTypeStatus(ActionType.Main) != mainStatusBefore);
     }
 
-    private static bool TryStartResidualEngagementMove(
+    private sealed class RouteMoveResult
+    {
+        internal bool Started;
+        internal int3 Start;
+        internal int3 Destination;
+    }
+
+    private static bool IsRoutePlanningStateCurrent(GameLocationCharacter character, int3 start, int remainingMoves,
+        int round, int turnStamp)
+    {
+        return character?.RulesetCharacter is { IsIncapacitated: false } &&
+               IsActiveBattleContender(character) && character.LocationPosition == start &&
+               character.RemainingTacticalMoves == remainingMoves && GetCurrentBattleRound() == round &&
+               Math.Max(1, ObservedCombatMemoryTurnStamp) == turnStamp &&
+               !HasQueuedActionChain(character) && !HasPendingReactionRequests() && !character.MoveStepInProgress &&
+               !IsRoutePathfindingUnsafePhase(character, round, turnStamp);
+    }
+
+    private static IEnumerator StartResidualEngagementMove(
         GameLocationCharacter character,
         IGameLocationBattleService battleService,
-        out int3 start,
+        RouteMoveResult result,
         bool requireMainAction = true)
     {
-        start = character?.LocationPosition ?? default;
+        result.Start = character?.LocationPosition ?? default;
 
         if (character?.RulesetCharacter == null || battleService == null)
         {
-            return false;
+            yield break;
         }
 
         var profile = BuildProfile(character);
         var turnPlan = BuildCombatAiTurnPlan(character, profile, battleService);
 
-        return TryStartResidualEngagementMove(
+        yield return StartResidualEngagementMove(
             character,
             battleService,
             profile,
             turnPlan,
-            out start,
+            result,
             requireMainAction);
     }
 
-    private static bool TryStartResidualEngagementMove(
+    private static IEnumerator StartResidualEngagementMove(
         GameLocationCharacter character,
         IGameLocationBattleService battleService,
         CombatAiProfile profile,
         CombatAiTurnPlan turnPlan,
-        out int3 start,
+        RouteMoveResult result,
         bool requireMainAction = true)
     {
-        start = character?.LocationPosition ?? default;
+        var start = character?.LocationPosition ?? default;
+        result.Start = start;
+        var round = GetCurrentBattleRound();
+        var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
+        var remainingMoves = character?.RemainingTacticalMoves ?? 0;
         var destination = default(int3);
 
         if (character?.RulesetCharacter == null ||
@@ -6449,18 +6568,36 @@ internal static partial class CombatAiContext
             HasQueuedActionChain(character) ||
             HasPendingReactionRequests())
         {
-            return false;
+            yield break;
+        }
+
+        var planningBattle = Gui.Battle;
+        var target = turnPlan.ActionProbe.Target;
+        var targetPosition = target?.LocationPosition ?? default;
+        var targetCharacter = target?.RulesetCharacter;
+        var targetState = ComputeCombatAiTargetStateSignature(target);
+        var actionState = ComputeCombatAiActionStateSignature(character);
+
+        bool IsCurrent()
+        {
+            return IsAdvancedCombatAiEnabled && IsAiControlledForCombat(character) &&
+                   ReferenceEquals(Gui.Battle, planningBattle) &&
+                   IsRoutePlanningStateCurrent(character, start, remainingMoves, round, turnStamp) &&
+                   (target == null || (target.LocationPosition == targetPosition &&
+                                      ReferenceEquals(target.RulesetCharacter, targetCharacter))) &&
+                   ComputeCombatAiTargetStateSignature(target) == targetState &&
+                   ComputeCombatAiActionStateSignature(character) == actionState;
         }
 
         if (!turnPlan.MovementPlan.HasGoal ||
             turnPlan.MovementPlan.Goal == CombatAiMovementGoalKind.ClearLargeAllyPath)
         {
-            return false;
+            yield break;
         }
 
         if (requireMainAction && !BuildActionEconomySnapshot(character).MainAvailable)
         {
-            return false;
+            yield break;
         }
 
         if (character.RemainingTacticalMoves <= 0 ||
@@ -6476,10 +6613,19 @@ internal static partial class CombatAiContext
                     default);
             }
 
-            return false;
+            yield break;
         }
 
         PrimeTurnMovementProgress(character, turnPlan);
+
+        if (!turnPlan.IsAttackContinuation)
+        {
+            yield return PrimeGroundMeleeTargetContactRouteQuery(character, turnPlan);
+            if (!IsCurrent())
+            {
+                yield break;
+            }
+        }
 
         if (IsGroundMeleePursuitPlan(turnPlan) &&
             TryFindJumpImmediateAttackCandidate(
@@ -6519,11 +6665,18 @@ internal static partial class CombatAiContext
                         destination);
                 }
 
-                return true;
+                result.Started = true;
+                yield break;
             }
         }
 
         JumpImmediateAttackReachableCache.Remove(character.Guid);
+
+        yield return ComputeReachableRouteDestinations(character, start, remainingMoves, validateTurn: true);
+        if (!IsCurrent())
+        {
+            yield break;
+        }
 
         var hasTerminalMain = BuildActionEconomySnapshot(character).MainAvailable;
         var routeContinuation = hasTerminalMain
@@ -6532,8 +6685,9 @@ internal static partial class CombatAiContext
 
         if (IsConnectedFiringLinePlan(turnPlan))
         {
-            if (hasTerminalMain &&
-                TryUseConnectedFiringLineRouteMove(
+            if (hasTerminalMain)
+            {
+                yield return UseConnectedFiringLineRouteMove(
                     character,
                     turnPlan,
                     battleService,
@@ -6541,35 +6695,43 @@ internal static partial class CombatAiContext
                     routeContinuation,
                     requireActionAfterMove: true,
                     routeMoveSource: CombatAiRouteMoveSourceKind.ConnectedFiringLine,
-                    closeOnFailure: false,
-                    out destination,
-                    out _))
-            {
-                RecordPreMainRouteMoveIfRequired(
-                    character,
-                    turnPlan,
-                    requireMainAction,
-                    CombatAiPreMainRouteMoveStatus.Executed,
-                    destination);
-                return true;
+                    result: result,
+                    isCurrent: IsCurrent);
+
+                if (result.Started)
+                {
+                    RecordPreMainRouteMoveIfRequired(
+                        character,
+                        turnPlan,
+                        requireMainAction,
+                        CombatAiPreMainRouteMoveStatus.Executed,
+                        result.Destination);
+                    yield break;
+                }
+
+                if (!IsCurrent())
+                {
+                    yield break;
+                }
             }
 
-            if (TryUseLostTargetSearchRouteMove(
-                    character,
-                    turnPlan,
-                    battleService,
-                    profile,
-                    routeContinuation,
-                    CombatAiRouteMoveSourceKind.SearchLostTarget,
-                    out destination))
+            yield return UseLostTargetSearchRouteMove(character, turnPlan, battleService, profile,
+                routeContinuation, CombatAiRouteMoveSourceKind.SearchLostTarget, result, IsCurrent);
+            if (!result.Started && !IsCurrent())
             {
+                yield break;
+            }
+
+            if (result.Started)
+            {
+                destination = result.Destination;
                 RecordPreMainRouteMoveIfRequired(
                     character,
                     turnPlan,
                     requireMainAction,
                     CombatAiPreMainRouteMoveStatus.Executed,
                     destination);
-                return true;
+                yield break;
             }
 
             RecordPreMainRouteMoveIfRequired(
@@ -6578,27 +6740,28 @@ internal static partial class CombatAiContext
                 requireMainAction,
                 CombatAiPreMainRouteMoveStatus.Blocked,
                 default);
-            return false;
+            yield break;
         }
 
         if (IsSearchKnownTargetPlan(turnPlan))
         {
-            if (TryUseLostTargetSearchRouteMove(
-                    character,
-                    turnPlan,
-                    battleService,
-                    profile,
-                    routeContinuation,
-                    CombatAiRouteMoveSourceKind.SearchLostTarget,
-                    out destination))
+            yield return UseLostTargetSearchRouteMove(character, turnPlan, battleService, profile,
+                routeContinuation, CombatAiRouteMoveSourceKind.SearchLostTarget, result, IsCurrent);
+            if (!result.Started && !IsCurrent())
             {
+                yield break;
+            }
+
+            if (result.Started)
+            {
+                destination = result.Destination;
                 RecordPreMainRouteMoveIfRequired(
                     character,
                     turnPlan,
                     requireMainAction,
                     CombatAiPreMainRouteMoveStatus.Executed,
                     destination);
-                return true;
+                yield break;
             }
 
             RecordPreMainRouteMoveIfRequired(
@@ -6607,12 +6770,7 @@ internal static partial class CombatAiContext
                 requireMainAction,
                 CombatAiPreMainRouteMoveStatus.Blocked,
                 default);
-            return false;
-        }
-
-        if (!turnPlan.IsAttackContinuation)
-        {
-            PrimeGroundMeleeTargetContactRouteQuery(character, turnPlan);
+            yield break;
         }
 
         var walkOnly = IsGroundMeleePursuitPlan(turnPlan);
@@ -6632,11 +6790,24 @@ internal static partial class CombatAiContext
                 CombatAiPreMainRouteMoveStatus.Blocked,
                 default);
 
-            return false;
+            yield break;
         }
+
+        AiWorkBudget.Resume();
 
         foreach (var candidate in reachableDestinations.Positions)
         {
+            if (AiWorkBudget.ShouldYield())
+            {
+                yield return null;
+                if (!IsCurrent())
+                {
+                    yield break;
+                }
+
+                AiWorkBudget.Resume();
+            }
+
             _ = TryComputeTurnPlanMovementScore(
                 character,
                 profile,
@@ -6644,6 +6815,18 @@ internal static partial class CombatAiContext
                 battleService,
                 turnPlan,
                 out _);
+        }
+
+        // Do not append validation/action dispatch to an exhausted scoring frame.
+        if (AiWorkBudget.ShouldYield())
+        {
+            yield return null;
+            if (!IsCurrent())
+            {
+                yield break;
+            }
+
+            AiWorkBudget.Resume();
         }
 
         if (!TurnMovementProgressCache.TryGetValue(character.Guid, out var movementProgress) ||
@@ -6659,7 +6842,7 @@ internal static partial class CombatAiContext
                 CombatAiPreMainRouteMoveStatus.Blocked,
                 default);
 
-            return false;
+            yield break;
         }
 
         destination = bestCandidate.Position;
@@ -6672,7 +6855,7 @@ internal static partial class CombatAiContext
             CombatAiPreMainRouteMoveStatus.Executed,
             destination);
 
-        return true;
+        result.Started = true;
     }
 
     private static void RecordPreMainRouteMoveIfRequired(
@@ -7220,7 +7403,7 @@ internal static partial class CombatAiContext
         return false;
     }
 
-    private static bool TryUseConnectedFiringLineRouteMove(
+    private static IEnumerator UseConnectedFiringLineRouteMove(
         GameLocationCharacter character,
         CombatAiTurnPlan turnPlan,
         IGameLocationBattleService battleService,
@@ -7228,48 +7411,47 @@ internal static partial class CombatAiContext
         CombatAiActionLinkedMoveContinuation continuation,
         bool requireActionAfterMove,
         CombatAiRouteMoveSourceKind routeMoveSource,
-        bool closeOnFailure,
-        out int3 destination,
-        out bool closed)
+        RouteMoveResult result,
+        Func<bool> isCurrent)
     {
-        destination = default;
-        closed = false;
-
         if (character?.RulesetCharacter == null ||
             battleService == null ||
-            !IsConnectedFiringLinePlan(turnPlan))
+            !IsConnectedFiringLinePlan(turnPlan) ||
+            !isCurrent())
         {
-            return false;
+            yield break;
         }
 
         var start = character.LocationPosition;
         var remainingMove = Math.Max(0, character.RemainingTacticalMoves);
+        result.Start = start;
 
-        if (!TryGetReachableRouteDestinations(
-                character,
-                start,
-                remainingMove,
-                out var reachableDestinations,
-                allowPathfinding: true,
-                walkOnly: false))
+        yield return ComputeReachableRouteDestinations(character, start, remainingMove,
+            validateTurn: true, queryIsCurrent: isCurrent);
+        if (!isCurrent() || !TryGetCachedReachableRouteDestinations(
+                character, start, remainingMove, false, out var reachableDestinations))
         {
-            destination = start;
-            if (closeOnFailure)
-            {
-                CloseFailedConnectedFiringLineRoute(
-                    character,
-                    turnPlan);
-                closed = true;
-            }
-
-            return false;
+            yield break;
         }
 
         _ = GetOrCreateTurnMovementProgress(character, turnPlan);
         var candidates = new List<ConnectedFiringLineCandidate>();
 
+        AiWorkBudget.Resume();
+
         foreach (var position in reachableDestinations.Positions)
         {
+            if (AiWorkBudget.ShouldYield())
+            {
+                yield return null;
+                if (!isCurrent())
+                {
+                    yield break;
+                }
+
+                AiWorkBudget.Resume();
+            }
+
             var canPreferred = CanUseActionKindAtPosition(
                 character,
                 position,
@@ -7312,17 +7494,35 @@ internal static partial class CombatAiContext
                 reachableDestinations.GetMoveCost(position)));
         }
 
-        var orderedCandidates = candidates
-            .OrderByDescending(candidate => candidate.Score)
-            .ThenBy(candidate => candidate.TurnsToAction < 0 ? int.MaxValue : candidate.TurnsToAction)
-            .ThenBy(candidate => candidate.MoveCost)
-            .ThenBy(candidate => candidate.Position.x)
-            .ThenBy(candidate => candidate.Position.y)
-            .ThenBy(candidate => candidate.Position.z)
-            .ToArray();
-
-        foreach (var candidate in orderedCandidates)
+        // Sorting can be synchronous, but must not extend an exhausted scoring frame.
+        if (AiWorkBudget.ShouldYield())
         {
+            yield return null;
+            if (!isCurrent())
+            {
+                yield break;
+            }
+
+            AiWorkBudget.Resume();
+        }
+
+        candidates.Sort(CompareConnectedFiringLineCandidates);
+
+        foreach (var candidate in candidates)
+        {
+            if (AiWorkBudget.ShouldYield())
+            {
+                yield return null;
+                if (!isCurrent())
+                {
+                    yield break;
+                }
+
+                AiWorkBudget.Resume();
+            }
+
+            // Validation and issuance stay atomic; only rejected candidates can
+            // yield before another candidate is tried.
             if (!TryExecutePreMainRouteMoveCandidate(
                     character,
                     turnPlan,
@@ -7333,46 +7533,72 @@ internal static partial class CombatAiContext
                     continuation,
                     requireActionAfterMove,
                     routeMoveSource,
-                    out destination))
+                    out var destination))
             {
                 continue;
             }
 
             ClearDisconnectedPositioningSealForConnectedFiringLineRoute(character);
-            return true;
+            result.Destination = destination;
+            result.Started = true;
+            yield break;
         }
-
-        destination = start;
-        if (closeOnFailure)
-        {
-            CloseFailedConnectedFiringLineRoute(
-                character,
-                turnPlan);
-            closed = true;
-        }
-
-        return false;
     }
 
-    private static bool TryUseLostTargetSearchRouteMove(
+    private static int CompareConnectedFiringLineCandidates(
+        ConnectedFiringLineCandidate left,
+        ConnectedFiringLineCandidate right)
+    {
+        var comparison = right.Score.CompareTo(left.Score);
+        if (comparison != 0)
+        {
+            return comparison;
+        }
+
+        var leftTurns = left.TurnsToAction < 0 ? int.MaxValue : left.TurnsToAction;
+        var rightTurns = right.TurnsToAction < 0 ? int.MaxValue : right.TurnsToAction;
+        comparison = leftTurns.CompareTo(rightTurns);
+        if (comparison != 0)
+        {
+            return comparison;
+        }
+
+        comparison = left.MoveCost.CompareTo(right.MoveCost);
+        if (comparison != 0)
+        {
+            return comparison;
+        }
+
+        comparison = left.Position.x.CompareTo(right.Position.x);
+        if (comparison != 0)
+        {
+            return comparison;
+        }
+
+        comparison = left.Position.y.CompareTo(right.Position.y);
+        return comparison != 0 ? comparison : left.Position.z.CompareTo(right.Position.z);
+    }
+
+    private static IEnumerator UseLostTargetSearchRouteMove(
         GameLocationCharacter character,
         CombatAiTurnPlan turnPlan,
         IGameLocationBattleService battleService,
         CombatAiProfile profile,
         CombatAiActionLinkedMoveContinuation continuation,
         CombatAiRouteMoveSourceKind routeMoveSource,
-        out int3 destination)
+        RouteMoveResult result,
+        Func<bool> isCurrent)
     {
-        destination = default;
+        var destination = default(int3);
 
-        if (character?.RulesetCharacter == null || battleService == null)
+        if (character?.RulesetCharacter == null || battleService == null || !isCurrent())
         {
-            return false;
+            yield break;
         }
 
         if (HasPendingSearchKnownTargetMovement(character))
         {
-            return false;
+            yield break;
         }
 
         if (!TryGetLostTargetSearchAnchor(
@@ -7382,7 +7608,7 @@ internal static partial class CombatAiContext
                 out var anchor,
                 out var searchTarget))
         {
-            return false;
+            yield break;
         }
 
         var round = GetCurrentBattleRound();
@@ -7391,14 +7617,14 @@ internal static partial class CombatAiContext
         if (LostTargetSearchAttemptCache.TryGetValue(character.Guid, out var previousAttempt) &&
             previousAttempt.Matches(round, turnStamp, start, anchor))
         {
-            return false;
+            yield break;
         }
 
         if (character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available ||
             character.RemainingTacticalMoves <= 0 ||
             !character.CanDecideToMoveByItself)
         {
-            return false;
+            yield break;
         }
 
         var searchActionProbe = new CombatAiActionProbe(
@@ -7428,41 +7654,31 @@ internal static partial class CombatAiContext
         var currentTurnsToAction = EstimateTurnsToPreferredAction(character, searchTurnPlan, start);
         var currentBlockSeverity = GetSearchRouteConnectionBlockSeverity(currentActionConnection);
         var candidates = new List<SearchLostTargetRouteCandidate>();
-        var connectedCandidates = 0;
-        var hasReachableDestinations = false;
-        var meaningfulProgressCandidateCount = 0;
-        bool? shouldSealNoRouteMovement = null;
 
-        bool ShouldSealNoRouteMovementOnce()
+        yield return ComputeReachableRouteDestinations(character, start, remainingMove,
+            validateTurn: true, queryIsCurrent: isCurrent);
+        if (!isCurrent())
         {
-            if (!shouldSealNoRouteMovement.HasValue)
-            {
-                shouldSealNoRouteMovement = ShouldSealSearchNoRouteMovement(
-                    character,
-                    searchTurnPlan,
-                    searchActionProbe,
-                    battleService,
-                    profile,
-                    start,
-                    searchTarget,
-                    remainingMove);
-            }
-
-            return shouldSealNoRouteMovement.Value;
+            yield break;
         }
 
-        if (TryGetReachableRouteDestinations(
-                character,
-                start,
-                remainingMove,
-                out var reachableDestinations,
-                allowPathfinding: true,
-                walkOnly: false))
+        if (TryGetCachedReachableRouteDestinations(character, start, remainingMove, false,
+                out var reachableDestinations))
         {
-            hasReachableDestinations = true;
-
+            AiWorkBudget.Resume();
             foreach (var position in reachableDestinations.Positions)
             {
+                if (AiWorkBudget.ShouldYield())
+                {
+                    yield return null;
+                    if (!isCurrent())
+                    {
+                        yield break;
+                    }
+
+                    AiWorkBudget.Resume();
+                }
+
                 if (IsFailedAiMoveTarget(character, start, position) ||
                     IsBacktrackingMove(character, start, position))
                 {
@@ -7481,6 +7697,12 @@ internal static partial class CombatAiContext
                     remainingMove,
                     remainingMove);
                 var actionConnected = actionConnection.Connected;
+                var candidateBlockSeverity = GetSearchRouteConnectionBlockSeverity(actionConnection);
+                var meaningfulProgress = IsMeaningfulSearchLostTargetProgressCandidate(
+                    actionConnection,
+                    currentBlockSeverity,
+                    candidateBlockSeverity,
+                    progress);
 
                 var turnsToAction = EstimateTurnsToPreferredAction(character, searchTurnPlan, position);
                 var forwardProgress = progress > 0.01f;
@@ -7488,8 +7710,8 @@ internal static partial class CombatAiContext
 
                 if (!actionConnected)
                 {
-                    var candidateBlockSeverity = GetSearchRouteConnectionBlockSeverity(actionConnection);
-                    var firingLineProbe = AllowsSearchLostTargetFiringLineProbe(
+                    var firingLineProbe = searchTarget?.RulesetCharacter != null &&
+                                          AllowsSearchLostTargetFiringLineProbe(
                         searchActionProbe,
                         currentActionConnection,
                         actionConnection,
@@ -7516,24 +7738,22 @@ internal static partial class CombatAiContext
                         turnsToAction,
                         firingLineProbe);
 
-                    if (candidateQuality == SearchLostTargetRouteCandidateQuality.Rejected)
-                    {
-                        continue;
-                    }
-
                     if (candidateQuality == SearchLostTargetRouteCandidateQuality.FiringLineProbe &&
                         progress + 0.01f < MinimumRangedRouteProgress)
                     {
                         continue;
                     }
 
-                    if (IsMeaningfulSearchLostTargetProgressCandidate(
-                            actionConnection,
-                            currentBlockSeverity,
-                            candidateBlockSeverity,
-                            progress))
+                    // Searching can span several turns without changing attack range
+                    // or line of sight. Actual progress remains useful throughout it.
+                    if (meaningfulProgress && candidateQuality == SearchLostTargetRouteCandidateQuality.Rejected)
                     {
-                        meaningfulProgressCandidateCount++;
+                        candidateQuality = SearchLostTargetRouteCandidateQuality.Progress;
+                    }
+
+                    if (candidateQuality == SearchLostTargetRouteCandidateQuality.Rejected)
+                    {
+                        continue;
                     }
                 }
 
@@ -7548,11 +7768,6 @@ internal static partial class CombatAiContext
                         position,
                         searchTurnPlan.ActionProbe.PreferredAction);
 
-                if (actionConnected)
-                {
-                    connectedCandidates++;
-                }
-
                 var candidate = new SearchLostTargetRouteCandidate(
                     position,
                     score,
@@ -7561,35 +7776,31 @@ internal static partial class CombatAiContext
                     actionConnected,
                     candidateQuality,
                     forwardProgress,
-                    HasEstimatedSearchLostTargetNextActionReachability(actionConnection, turnsToAction),
                     actionConnection,
                     reachableDestinations.GetMoveCost(position));
 
-                if (candidateQuality == SearchLostTargetRouteCandidateQuality.FiringLineProbe &&
-                    !ShouldSealNoRouteMovementOnce())
-                {
-                    continue;
-                }
-
+                // Admission depends on this route's progress and attack connection.
+                // A terminal movement lock or a future attack cannot invalidate it.
                 candidates.Add(candidate);
             }
         }
 
-        if (!hasReachableDestinations)
+        if (AiWorkBudget.ShouldYield())
         {
-            RecordLostTargetSearchAttempt(character, round, turnStamp, start, anchor);
-            CloseSearchNoRouteWithoutTerminalOwnership(
-                character,
-                ShouldSealNoRouteMovementOnce());
-            return false;
+            yield return null;
+            if (!isCurrent())
+            {
+                yield break;
+            }
+
+            AiWorkBudget.Resume();
         }
 
         var orderedCandidates = candidates
             .OrderByDescending(candidate => candidate.ActionConnected)
             .ThenByDescending(candidate => candidate.BlockSeverityImproved)
-            .ThenByDescending(candidate => candidate.TurnsToActionImproved && candidate.NextActionReachable)
+            .ThenByDescending(candidate => candidate.TurnsToActionImproved)
             .ThenBy(candidate => candidate.FiringLineProbe)
-            .ThenByDescending(candidate => candidate.NextActionReachable)
             .ThenByDescending(candidate => candidate.ForwardProgress)
             .ThenBy(candidate => GetSearchRouteConnectionBlockSeverity(candidate.ActionConnection))
             .ThenBy(candidate => candidate.TurnsToAction < 0 ? int.MaxValue : candidate.TurnsToAction)
@@ -7601,39 +7812,17 @@ internal static partial class CombatAiContext
             .ThenBy(candidate => candidate.Position.z)
             .ToArray();
 
-        var requireConnectedCandidate = connectedCandidates > 0;
-
-        var nextActionProbeBudget = SearchLostTargetNextActionProbeLimit;
-
         foreach (var candidate in orderedCandidates)
         {
-            if (requireConnectedCandidate && !candidate.ActionConnected)
+            if (AiWorkBudget.ShouldYield())
             {
-                break;
-            }
-
-            var nextActionReachable = candidate.NextActionReachable;
-
-            if (!candidate.ActionConnected &&
-                candidate.Quality is
-                    SearchLostTargetRouteCandidateQuality.TurnsImproved or
-                    SearchLostTargetRouteCandidateQuality.FiringLineProbe)
-            {
-                if (!nextActionReachable && nextActionProbeBudget > 0)
+                yield return null;
+                if (!isCurrent())
                 {
-                    nextActionReachable = CanReachSearchKnownTargetActionWithOneAdditionalMove(
-                        character,
-                        searchActionProbe,
-                        battleService,
-                        candidate.Position,
-                        searchTarget,
-                        ref nextActionProbeBudget);
+                    yield break;
                 }
 
-                if (!nextActionReachable)
-                {
-                    continue;
-                }
+                AiWorkBudget.Resume();
             }
 
             var candidateContinuation =
@@ -7659,44 +7848,133 @@ internal static partial class CombatAiContext
                 continue;
             }
 
-            return true;
+            result.Started = true;
+            result.Destination = destination;
+            yield break;
+        }
+
+        yield return UseLostTargetSearchDetour(character, searchTurnPlan, battleService, profile,
+            start, anchor, remainingMove, routeMoveSource, result, isCurrent);
+        if (result.Started || !isCurrent())
+        {
+            yield break;
         }
 
         RecordLostTargetSearchAttempt(character, round, turnStamp, start, anchor);
-        if (connectedCandidates == 0 && meaningfulProgressCandidateCount > 0)
+        CloseSearchNoRouteWithoutTerminalOwnership(
+            character,
+            ShouldSealSearchNoRouteMovement(
+                character,
+                searchTurnPlan,
+                searchActionProbe,
+                battleService,
+                profile,
+                start,
+                searchTarget,
+                remainingMove));
+    }
+
+    private static IEnumerator UseLostTargetSearchDetour(
+        GameLocationCharacter character, CombatAiTurnPlan turnPlan, IGameLocationBattleService battleService,
+        CombatAiProfile profile, int3 start, int3 anchor, int remainingMove,
+        CombatAiRouteMoveSourceKind routeMoveSource, RouteMoveResult result, Func<bool> isCurrent)
+    {
+        var destination = default(int3);
+        var budget = Math.Min(GroundMeleeTargetContactRouteMaxBudget,
+            Math.Max(12, Math.Max(remainingMove, character.MaxTacticalMoves) * 3));
+        yield return ComputeReachableRouteDestinations(character, start, budget,
+            validateTurn: true, queryIsCurrent: isCurrent);
+        if (!isCurrent() ||
+            !TryGetCachedReachableRouteDestinations(character, start, budget, false, out var routes))
         {
-            foreach (var candidate in orderedCandidates.Where(candidate => !candidate.ActionConnected && candidate.ForwardProgress))
+            yield break;
+        }
+
+        AiWorkBudget.Resume();
+        if (AiWorkBudget.ShouldYield())
+        {
+            yield return null;
+            if (!isCurrent())
             {
-                if (!TryExecuteSearchLostTargetRouteMoveCandidate(
-                        character,
-                        searchTurnPlan,
-                        battleService,
-                        profile,
-                        start,
-                        candidate.Position,
-                        CombatAiActionLinkedMoveContinuation.ProgressOnlySearchMove,
-                        routeMoveSource: routeMoveSource,
-                        out destination,
-                        searchRouteActionConnected: false,
-                        moveCost: candidate.MoveCost,
-                        allowedMoveBudget: remainingMove))
+                yield break;
+            }
+
+            AiWorkBudget.Resume();
+        }
+
+        var startDistance = ComputeGridDistance(start, anchor);
+        var endpoints = new HashSet<int3>();
+        var goals = routes.Positions
+            .Where(position => ComputeGridDistance(position, anchor) + 0.75f < startDistance)
+            .OrderBy(position => ComputeGridDistance(position, anchor))
+            .ThenBy(routes.GetMoveCost)
+            .ThenBy(position => position.x).ThenBy(position => position.y).ThenBy(position => position.z)
+            .Take(32);
+
+        foreach (var goal in goals)
+        {
+            if (AiWorkBudget.ShouldYield())
+            {
+                yield return null;
+                if (!isCurrent())
+                {
+                    yield break;
+                }
+
+                AiWorkBudget.Resume();
+            }
+
+            if (!routes.TryGetPath(goal, out var path))
+            {
+                continue;
+            }
+
+            var prefix = new Dictionary<int3, int>();
+            foreach (var step in path)
+            {
+                var cost = routes.GetPathMoveCost(step);
+                if (cost > remainingMove)
+                {
+                    break;
+                }
+
+                prefix[step] = cost;
+            }
+
+            // Choose a full movement segment on the verified path, not a nearby cell
+            // selected only because its straight-line distance happens to be smaller.
+            foreach (var candidate in prefix.Where(entry => routes.Contains(entry.Key)).OrderByDescending(entry => entry.Value))
+            {
+                if (AiWorkBudget.ShouldYield())
+                {
+                    yield return null;
+                    if (!isCurrent())
+                    {
+                        yield break;
+                    }
+
+                    AiWorkBudget.Resume();
+                }
+
+                if (candidate.Value < Math.Min(2, remainingMove) || !endpoints.Add(candidate.Key))
                 {
                     continue;
                 }
 
-                return true;
+                if (!TryExecuteSearchLostTargetRouteMoveCandidate(character, turnPlan, battleService, profile,
+                        start, candidate.Key, CombatAiActionLinkedMoveContinuation.ProgressOnlySearchMove,
+                        routeMoveSource, out destination, searchRouteActionConnected: false,
+                        moveCost: candidate.Value, allowedMoveBudget: remainingMove, searchPath: prefix))
+                {
+                    continue;
+                }
+
+                result.Started = true;
+                result.Destination = destination;
+                yield break;
             }
         }
 
-        if (meaningfulProgressCandidateCount > 0)
-        {
-            return false;
-        }
-
-        CloseSearchNoRouteWithoutTerminalOwnership(
-            character,
-            ShouldSealNoRouteMovementOnce());
-        return false;
     }
 
     private static bool IsMeaningfulSearchLostTargetProgressCandidate(
@@ -7788,84 +8066,6 @@ internal static partial class CombatAiContext
         }
 
         return true;
-    }
-
-    private static bool HasEstimatedSearchLostTargetNextActionReachability(
-        RouteActionConnection actionConnection,
-        int turnsToAction)
-    {
-        if (actionConnection.Connected)
-        {
-            return true;
-        }
-
-        return turnsToAction is >= 0 and <= 1 &&
-               !actionConnection.DashMainRejected &&
-               !actionConnection.RangeBlocked &&
-               !actionConnection.CanAttackBlocked;
-    }
-
-    private static bool CanReachSearchKnownTargetActionWithOneAdditionalMove(
-        GameLocationCharacter character,
-        CombatAiActionProbe searchActionProbe,
-        IGameLocationBattleService battleService,
-        int3 candidatePosition,
-        GameLocationCharacter searchTarget,
-        ref int remainingProbeBudget)
-    {
-        if (character?.RulesetCharacter == null ||
-            battleService == null ||
-            searchTarget?.RulesetCharacter == null ||
-            remainingProbeBudget <= 0)
-        {
-            return false;
-        }
-
-        var nextMoveBudget = Math.Max(0, character.MaxTacticalMoves);
-
-        if (nextMoveBudget <= 0)
-        {
-            return false;
-        }
-
-        remainingProbeBudget--;
-
-        if (!TryGetReachableRouteDestinations(
-                character,
-                candidatePosition,
-                nextMoveBudget,
-                out var reachableDestinations,
-                allowPathfinding: true,
-                walkOnly: false,
-                ignoreTurnPathfindingLimit: true))
-        {
-            return false;
-        }
-
-        foreach (var position in reachableDestinations.Positions)
-        {
-            if (IsFailedAiMoveTarget(character, candidatePosition, position))
-            {
-                continue;
-            }
-
-            var connection = GetSearchKnownTargetActionConnection(
-                character,
-                searchActionProbe,
-                battleService,
-                candidatePosition,
-                position,
-                searchTarget,
-                nextMoveBudget,
-                nextMoveBudget);
-
-            if (connection.Connected)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static bool ShouldSealSearchNoRouteMovement(
@@ -8066,7 +8266,8 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        if (turnPlan.ActionProbe.Target?.RulesetCharacter == null)
+        // A remembered position remains a valid search goal after the target is lost.
+        if (!turnPlan.MovementPlan.HasGoal)
         {
             return false;
         }
@@ -8466,6 +8667,15 @@ internal static partial class CombatAiContext
         return actionKinds.ToArray();
     }
 
+    private static ConditionalWeakTable<GameLocationCharacter, TargetContactRouteBuildResult>
+        PendingContactRouteQueries = new();
+
+    private sealed class TargetContactRouteBuildResult
+    {
+        internal GroundMeleeTargetContactRouteQuery Query;
+        internal bool Success;
+    }
+
     private static bool TryBuildGroundMeleeTargetContactRouteQuery(
         GameLocationCharacter character,
         GameLocationCharacter target,
@@ -8474,44 +8684,149 @@ internal static partial class CombatAiContext
         out GroundMeleeTargetContactRouteQuery query)
     {
         query = default;
+        if (character != null && PendingContactRouteQueries.TryGetValue(character, out _))
+        {
+            // A UI/AI probe during a cooperative yield must not restart the entire
+            // pending search synchronously or acquire the native pathfinder again.
+            return false;
+        }
 
+        // Synchronous engine callbacks must complete the query before returning.
+        // Turn-owned planning uses the coroutine path instead.
+        var result = new TargetContactRouteBuildResult();
+        ComputeGroundMeleeTargetContactRouteQuery(character, target, targetPosition, start, result)
+            .ExecuteUntilDone();
+        query = result.Query;
+        return result.Success;
+    }
+
+    private static IEnumerator ComputeGroundMeleeTargetContactRouteQuery(
+        GameLocationCharacter character,
+        GameLocationCharacter target,
+        int3 targetPosition,
+        int3 start,
+        TargetContactRouteBuildResult result,
+        bool validateTurn = false)
+    {
         if (character?.RulesetCharacter == null || target?.RulesetCharacter == null)
         {
-            return false;
+            yield break;
         }
 
         var round = GetCurrentBattleRound();
         var turnStamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
+        var planningStart = character.LocationPosition;
+        var remainingMoves = character.RemainingTacticalMoves;
+        var targetStart = target.LocationPosition;
+        var targetCharacter = target.RulesetCharacter;
+        var planningBattle = Gui.Battle;
+        var pathfindingService = ServiceRepository.GetService<IGameLocationPathfindingService>();
         var routeBudget = GetGroundMeleeTargetContactRouteSearchBudget(character);
 
-        if (!TryBuildGroundMeleeTargetContactRouteMap(
-                character,
-                target,
-                targetPosition,
-                start,
-                routeBudget,
-                out var routeMap,
-                ignoreTurnPathfindingLimit: true))
+        bool IsCurrent()
         {
-            return false;
+            return !validateTurn ||
+                   (IsAdvancedCombatAiEnabled && IsAiControlledForCombat(character) &&
+                    PendingContactRouteQueries.TryGetValue(character, out var pending) &&
+                    ReferenceEquals(pending, result) && ReferenceEquals(Gui.Battle, planningBattle) &&
+                    IsRoutePlanningStateCurrent(character, planningStart, remainingMoves, round, turnStamp) &&
+                    target.LocationPosition == targetStart && ReferenceEquals(target.RulesetCharacter, targetCharacter) &&
+                    ReferenceEquals(ServiceRepository.GetService<IGameLocationPathfindingService>(), pathfindingService));
         }
 
+        if (!IsCurrent())
+        {
+            yield break;
+        }
+
+        yield return ComputeReachableRouteDestinations(character, start, routeBudget,
+            walkOnly: true, ignoreTurnPathfindingLimit: true, validateTurn: validateTurn, queryIsCurrent: IsCurrent);
+        if (!IsCurrent() ||
+            !TryGetCachedReachableRouteDestinations(character, start, routeBudget, true, out var forward) ||
+            forward.Positions.Count == 0)
+        {
+            yield break;
+        }
+
+        var positions = forward.Positions
+            .OrderBy(forward.GetMoveCost)
+            .ThenBy(position => position.x)
+            .ThenBy(position => position.y)
+            .ThenBy(position => position.z)
+            .ToArray();
+        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
+        var moveCostByPosition = new Dictionary<int3, int>(positions.Length);
+        var contactPositions = new List<int3>();
+        var bestPosition = start;
+        var bestDistance = float.MaxValue;
+
+        AiWorkBudget.Resume();
+
+        foreach (var position in positions)
+        {
+            if (AiWorkBudget.ShouldYield())
+            {
+                yield return null;
+                if (!IsCurrent())
+                {
+                    yield break;
+                }
+
+                AiWorkBudget.Resume();
+            }
+
+            moveCostByPosition.Add(position, forward.GetMoveCost(position));
+            if (IsGroundMeleeAttackContactGoal(character, target, position, battleService))
+            {
+                contactPositions.Add(position);
+            }
+
+            // Positions are already ordered by cost and coordinates. Keeping the
+            // first equal-distance entry preserves the old stable tie-break.
+            var distance = ComputeGroundMeleeRouteGoalDistance(position, targetPosition);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                bestPosition = position;
+            }
+        }
+
+        var routeMap = new GroundMeleeTargetContactRouteMap(start, positions, contactPositions,
+            moveCostByPosition, bestPosition, contactPositions.Count > 0);
         var startDistance = ComputeGroundMeleeRouteGoalDistance(start, targetPosition);
-        var hasAttackContactGoal = routeMap.ContactPositions.Count > 0;
-        var orderedGoals = hasAttackContactGoal
-            ? routeMap.ContactPositions
-                .OrderBy(routeMap.GetMoveCost)
-                .ThenBy(position => position.x)
-                .ThenBy(position => position.y)
-                .ThenBy(position => position.z)
-                .ToArray()
-            : routeMap.Positions
-                .Where(position => position != start)
-                .Where(position => IsLegalAiRouteDestination(
-                    character,
-                    position,
-                    allowActorCurrentPosition: false))
-                .Where(position => ComputeGroundMeleeRouteGoalDistance(position, targetPosition) + 0.5f < startDistance)
+        var hasAttackContactGoal = contactPositions.Count > 0;
+        int3[] orderedGoals;
+        if (hasAttackContactGoal)
+        {
+            orderedGoals = contactPositions.ToArray();
+        }
+        else
+        {
+            var approachPositions = new List<int3>();
+            AiWorkBudget.Resume();
+
+            foreach (var position in routeMap.Positions)
+            {
+                if (AiWorkBudget.ShouldYield())
+                {
+                    yield return null;
+                    if (!IsCurrent())
+                    {
+                        yield break;
+                    }
+
+                    AiWorkBudget.Resume();
+                }
+
+                if (position != start &&
+                    IsLegalAiRouteDestination(character, position, allowActorCurrentPosition: false) &&
+                    ComputeGroundMeleeRouteGoalDistance(position, targetPosition) + 0.5f < startDistance)
+                {
+                    approachPositions.Add(position);
+                }
+            }
+
+            orderedGoals = approachPositions
                 .OrderBy(position => ComputeGroundMeleeRouteGoalDistance(position, targetPosition))
                 .ThenBy(routeMap.GetMoveCost)
                 .ThenBy(position => position.x)
@@ -8519,56 +8834,57 @@ internal static partial class CombatAiContext
                 .ThenBy(position => position.z)
                 .Take(GroundMeleeTargetContactReverseGoalLimit)
                 .ToArray();
+        }
 
         if (orderedGoals.Length == 0)
         {
-            query = new GroundMeleeTargetContactRouteQuery(
-                routeMap,
-                false,
-                default,
-                0,
-                new Dictionary<int3, int>(),
-                new Dictionary<int3, int3>(),
-                target.Guid,
-                targetPosition,
-                round,
-                turnStamp);
-            TargetContactRouteQueryCache[character.Guid] = query;
-            return false;
+            result.Query = new GroundMeleeTargetContactRouteQuery(
+                routeMap, false, default, 0, new Dictionary<int3, int>(), new Dictionary<int3, int3>(),
+                target.Guid, targetPosition, round, turnStamp);
+            TargetContactRouteQueryCache[character.Guid] = result.Query;
+            yield break;
         }
 
         var bestGoal = orderedGoals[0];
-
         var bestGoalMoveCost = routeMap.GetMoveCost(bestGoal);
         var contactCostByPosition = new Dictionary<int3, int>();
         var contactGoalByPosition = new Dictionary<int3, int3>();
-        var reverseGoals = 0;
 
         foreach (var goal in orderedGoals.Take(GroundMeleeTargetContactReverseGoalLimit))
         {
             contactCostByPosition[goal] = 0;
             contactGoalByPosition[goal] = goal;
 
-            if (!TryBuildGroundMeleeTargetContactRouteMap(
-                    character,
-                    target,
-                    targetPosition,
-                    goal,
-                    routeBudget,
-                    out var reverseMap,
-                    ignoreTurnPathfindingLimit: true))
+            yield return ComputeReachableRouteDestinations(character, goal, routeBudget,
+                walkOnly: true, ignoreTurnPathfindingLimit: true, validateTurn: validateTurn, queryIsCurrent: IsCurrent);
+            if (!IsCurrent())
+            {
+                yield break;
+            }
+
+            // Reverse maps only supply traversal costs. Re-evaluating every attack
+            // contact and sorting every reverse map served no consumer of this data.
+            if (!TryGetCachedReachableRouteDestinations(character, goal, routeBudget, true, out var reverse))
             {
                 continue;
             }
 
-            reverseGoals++;
-
-            foreach (var position in reverseMap.Positions)
+            AiWorkBudget.Resume();
+            foreach (var position in reverse.Positions)
             {
-                var cost = reverseMap.GetMoveCost(position);
+                if (AiWorkBudget.ShouldYield())
+                {
+                    yield return null;
+                    if (!IsCurrent())
+                    {
+                        yield break;
+                    }
 
-                if (contactCostByPosition.TryGetValue(position, out var existingCost) &&
-                    existingCost <= cost)
+                    AiWorkBudget.Resume();
+                }
+
+                var cost = reverse.GetMoveCost(position);
+                if (contactCostByPosition.TryGetValue(position, out var existingCost) && existingCost <= cost)
                 {
                     continue;
                 }
@@ -8578,20 +8894,16 @@ internal static partial class CombatAiContext
             }
         }
 
-        query = new GroundMeleeTargetContactRouteQuery(
-            routeMap,
-            true,
-            bestGoal,
-            bestGoalMoveCost,
-            contactCostByPosition,
-            contactGoalByPosition,
-            target.Guid,
-            targetPosition,
-            round,
-            turnStamp,
-            !hasAttackContactGoal);
-        TargetContactRouteQueryCache[character.Guid] = query;
-        return true;
+        if (!IsCurrent())
+        {
+            yield break;
+        }
+
+        result.Query = new GroundMeleeTargetContactRouteQuery(
+            routeMap, true, bestGoal, bestGoalMoveCost, contactCostByPosition, contactGoalByPosition,
+            target.Guid, targetPosition, round, turnStamp, !hasAttackContactGoal);
+        result.Success = true;
+        TargetContactRouteQueryCache[character.Guid] = result.Query;
     }
 
     private static bool TryGetGroundMeleeTargetContactRouteQuery(
@@ -8775,7 +9087,11 @@ internal static partial class CombatAiContext
             FreeJumpContext.SuppressAiFreeJumpForNextMove(character, destination);
         }
 
-        character.MyExecuteActionTacticalMove(destination, actionChainExecuted);
+        if (!character.MyExecuteActionTacticalMove(destination, actionChainExecuted, null))
+        {
+            ClearPendingMoveOwnership(character);
+            return false;
+        }
 
         return true;
     }
@@ -8793,7 +9109,8 @@ internal static partial class CombatAiContext
         bool searchRouteActionConnected,
         int moveCost,
         int allowedMoveBudget,
-        int moveToken = 0)
+        int moveToken = 0,
+        IReadOnlyDictionary<int3, int> searchPath = null)
     {
         destination = candidateDestination;
 
@@ -8812,17 +9129,10 @@ internal static partial class CombatAiContext
 
         moveToken = moveToken == 0 ? CreateActionLinkedMoveToken() : moveToken;
 
-        CharacterAction.ActionChainExecutedHandler actionChainExecuted = null;
-
-        if (continuation is
-            CombatAiActionLinkedMoveContinuation.ReturnToCoordinatorAfterRouteMove or
-            CombatAiActionLinkedMoveContinuation.ProgressOnlySearchMove)
+        CharacterAction.ActionChainExecutedHandler actionChainExecuted = aborted =>
         {
-            actionChainExecuted = aborted =>
-            {
-                OnAiTacticalMoveActionChainExecuted(character, aborted, routeMoveSource, moveToken);
-            };
-        }
+            OnAiTacticalMoveActionChainExecuted(character, aborted, routeMoveSource, moveToken);
+        };
 
         if (!TryValidateAiTacticalMoveIssue(character, destination))
         {
@@ -8841,71 +9151,18 @@ internal static partial class CombatAiContext
             GetCurrentBattleRound(),
             Math.Max(1, ObservedCombatMemoryTurnStamp),
             moveToken,
-            searchRouteActionConnected);
+            searchRouteActionConnected,
+            searchPath: searchPath);
 
         ClearDisconnectedPositioningSealForSearchKnownTargetRoute(character);
 
-        character.MyExecuteActionTacticalMove(destination, actionChainExecuted);
-
-        return true;
-    }
-
-    private static bool TryBuildGroundMeleeTargetContactRouteMap(
-        GameLocationCharacter character,
-        GameLocationCharacter target,
-        int3 targetPosition,
-        int3 start,
-        int routeBudget,
-        out GroundMeleeTargetContactRouteMap routeMap,
-        bool ignoreTurnPathfindingLimit = false)
-    {
-        routeMap = default;
-
-        if (!TryGetReachableRouteDestinations(
-                character,
-                start,
-                routeBudget,
-                out var reachableDestinations,
-                allowPathfinding: true,
-                walkOnly: true,
-                ignoreTurnPathfindingLimit: ignoreTurnPathfindingLimit))
+        if (!character.MyExecuteActionTacticalMove(destination, actionChainExecuted, null))
         {
+            ClearPendingMoveOwnership(character);
             return false;
         }
 
-        var positions = reachableDestinations.Positions
-            .OrderBy(reachableDestinations.GetMoveCost)
-            .ThenBy(position => position.x)
-            .ThenBy(position => position.y)
-            .ThenBy(position => position.z)
-            .ToArray();
-        var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
-        var moveCostByPosition = positions.ToDictionary(position => position, reachableDestinations.GetMoveCost);
-        var contactPositions = positions
-            .Where(position => IsGroundMeleeAttackContactGoal(character, target, position, battleService))
-            .OrderBy(reachableDestinations.GetMoveCost)
-            .ThenBy(position => position.x)
-            .ThenBy(position => position.y)
-            .ThenBy(position => position.z)
-            .ToArray();
-        var bestPosition = positions
-            .OrderBy(position => ComputeGroundMeleeRouteGoalDistance(position, targetPosition))
-            .ThenBy(reachableDestinations.GetMoveCost)
-            .ThenBy(position => position.x)
-            .ThenBy(position => position.y)
-            .ThenBy(position => position.z)
-            .DefaultIfEmpty(start)
-            .First();
-
-        routeMap = new GroundMeleeTargetContactRouteMap(
-            start,
-            positions,
-            contactPositions,
-            moveCostByPosition,
-            bestPosition,
-            contactPositions.Length > 0);
-
-        return positions.Length > 0;
+        return true;
     }
 
     private static int GetGroundMeleeTargetContactRouteSearchBudget(GameLocationCharacter character)
@@ -9939,32 +10196,18 @@ internal static partial class CombatAiContext
         IGameLocationBattleService battleService,
         bool allowStrictAdjacentFallback = false)
     {
-        if (character?.RulesetCharacter == null ||
-            target?.RulesetCharacter == null)
+        if (character?.RulesetCharacter == null || target?.RulesetCharacter == null)
         {
             return false;
         }
 
-        if (!IsLegalAiRouteDestination(
-                character,
-                position,
-                allowActorCurrentPosition: true))
-        {
-            return false;
-        }
-
-        if (battleService != null &&
-            CanUseActionKindAtPosition(character, position, target, CombatAiActionKind.Melee, battleService))
-        {
-            return true;
-        }
-
+        // These are route goals, not permission to attack. Every successful melee
+        // CanAttack probe also passes this range predicate, and the old fallback
+        // accepted it even when CanAttack failed. Avoid the redundant attack probe
+        // and reject distant cells before the more expensive placement query.
         return IsGroundMeleeStrictRouteContactGoal(
-            character,
-            target,
-            position,
-            battleService,
-            allowStrictAdjacentFallback);
+                   character, target, position, battleService, allowStrictAdjacentFallback) &&
+               IsLegalAiRouteDestination(character, position, allowActorCurrentPosition: true);
     }
 
     private static bool IsGroundMeleeStrictRouteContactGoal(
@@ -10263,15 +10506,36 @@ internal static partial class CombatAiContext
         bool ignoreTurnPathfindingLimit = false)
     {
         reachableDestinations = null;
-
-        if (character?.RulesetCharacter == null)
+        if (!allowPathfinding || character?.RulesetCharacter == null || remainingMove <= 0 ||
+            IsRoutePathfindingUnsafePhase(character, GetCurrentBattleRound(), Math.Max(1, ObservedCombatMemoryTurnStamp)))
         {
             return false;
         }
 
+        ComputeReachableRouteDestinations(character, start, remainingMove, true, walkOnly,
+            ignoreTurnPathfindingLimit).ExecuteUntilDone();
+        return TryGetCachedReachableRouteDestinations(character, start, remainingMove, walkOnly,
+                   out reachableDestinations) && reachableDestinations.Positions.Count > 0;
+    }
+
+    private static IEnumerator ComputeReachableRouteDestinations(
+        GameLocationCharacter character,
+        int3 start,
+        int remainingMove,
+        bool allowPathfinding = true,
+        bool walkOnly = false,
+        bool ignoreTurnPathfindingLimit = false,
+        bool validateTurn = false,
+        Func<bool> queryIsCurrent = null)
+    {
+        if (character?.RulesetCharacter == null)
+        {
+            yield break;
+        }
+
         if (remainingMove <= 0)
         {
-            return false;
+            yield break;
         }
 
         var round = GetCurrentBattleRound();
@@ -10286,19 +10550,18 @@ internal static partial class CombatAiContext
 
         if (!allowPathfinding)
         {
-            return false;
+            yield break;
         }
 
         if (IsRoutePathfindingUnsafePhase(character, round, turnStamp))
         {
-            return false;
+            yield break;
         }
 
         if (ReachableRouteDestinationCache.TryGetValue(cacheKey, out var cached) &&
             cached.Matches(start, remainingMove, round, turnStamp, walkOnly))
         {
-            reachableDestinations = cached;
-            return cached.Positions.Count > 0;
+            yield break;
         }
 
         var pathfindingCountKey = new ActorTurnKey(character.Guid, round, turnStamp);
@@ -10309,61 +10572,86 @@ internal static partial class CombatAiContext
         if (!ignoreTurnPathfindingLimit &&
             pathfindingCount >= GroundMeleeRoutePathfindingPerTurnLimit)
         {
-            return false;
+            yield break;
         }
 
         var pathfindingService = ServiceRepository.GetService<IGameLocationPathfindingService>();
 
         if (pathfindingService == null)
         {
-            return false;
+            yield break;
         }
 
-        using (FreeJumpContext.SuppressAiPathfindingFreeJump(character))
+        var startingMoves = character.RemainingTacticalMoves;
+        var planningStart = character.LocationPosition;
+
+        bool IsCurrent()
         {
-            ReachableRoutePathfindingCountCache[pathfindingCountKey] = pathfindingCount + 1;
-            pathfindingService
-                .ComputeValidDestinationsAsync(character, start, remainingMove, 0, true, true)
-                .ExecuteUntilDone();
+            return (!validateTurn || IsRoutePlanningStateCurrent(character, planningStart, startingMoves, round, turnStamp)) &&
+                   (queryIsCurrent == null || queryIsCurrent());
         }
 
-        var positions = new List<int3>();
-        var factsByPosition = new Dictionary<int3, ReachableRouteDestinationFacts>();
-
-        foreach (var destination in pathfindingService.ValidDestinations)
+        var routeSnapshot = new AiPathfindingRouteContext(pathfindingService);
+        if (!routeSnapshot.CanStart || !IsCurrent())
         {
-            if ((walkOnly
-                    ? !IsGroundRouteMoveMode(destination.moveMode)
-                    : destination.moveMode is not (MoveMode.Walk or MoveMode.Fly)) ||
-                destination.position == start ||
-                destination.moveCost > remainingMove)
+            yield break;
+        }
+
+        // Query origin can be a reverse-search goal, not the actor's occupied cell.
+        // Keep the real planning anchor stable across yields while preserving native routes.
+        ReachableRoutePathfindingCountCache[pathfindingCountKey] = pathfindingCount + 1;
+        yield return routeSnapshot.Compute(character, start, remainingMove, IsCurrent);
+        if (!routeSnapshot.Completed || !routeSnapshot.IsCurrent || !IsCurrent())
+        {
+            yield break;
+        }
+
+        CacheDestinations(walkOnly);
+        CacheDestinations(!walkOnly);
+
+        ReachableRouteDestinationMemory CacheDestinations(bool groundOnly)
+        {
+            var positions = new List<int3>();
+            var factsByPosition = new Dictionary<int3, ReachableRouteDestinationFacts>();
+
+            foreach (var destination in routeSnapshot.Destinations)
             {
-                continue;
+                if ((groundOnly
+                        ? !IsGroundRouteMoveMode(destination.moveMode)
+                        : destination.moveMode is not (MoveMode.Walk or MoveMode.Fly)) ||
+                    destination.position == start ||
+                    destination.moveCost > remainingMove)
+                {
+                    continue;
+                }
+
+                if (!factsByPosition.ContainsKey(destination.position))
+                {
+                    positions.Add(destination.position);
+                    factsByPosition.Add(
+                        destination.position,
+                        new ReachableRouteDestinationFacts(
+                            destination.moveCost,
+                            destination.moveMode,
+                            destination.flags));
+                }
             }
 
-            if (!factsByPosition.ContainsKey(destination.position))
-            {
-                positions.Add(destination.position);
-                factsByPosition.Add(
-                    destination.position,
-                    new ReachableRouteDestinationFacts(
-                        destination.moveCost,
-                        destination.moveMode,
-                        destination.flags));
-            }
+            var memory = new ReachableRouteDestinationMemory(
+                start,
+                remainingMove,
+                round,
+                turnStamp,
+                positions,
+                factsByPosition,
+                groundOnly,
+                routeSnapshot.Parents,
+                routeSnapshot.Costs);
+            var key = new ReachableRouteCacheKey(character.Guid, start, remainingMove, round, turnStamp, groundOnly);
+            ReachableRouteDestinationCache[key] = memory;
+
+            return memory;
         }
-
-        reachableDestinations = new ReachableRouteDestinationMemory(
-            start,
-            remainingMove,
-            round,
-            turnStamp,
-            positions,
-            factsByPosition,
-            walkOnly);
-        ReachableRouteDestinationCache[cacheKey] = reachableDestinations;
-
-        return positions.Count > 0;
     }
 
     private static bool IsGroundRouteMoveMode(MoveMode moveMode)
@@ -11245,17 +11533,14 @@ internal static partial class CombatAiContext
         return 0;
     }
 
-    private static void UpdateObservedCombatMemory(GameLocationCharacter actor, DecisionParameters parameters)
+    private static void UpdateObservedCombatMemory(GameLocationCharacter actor, DecisionParameters parameters = null)
     {
-        if (!IsAdvancedCombatAiPositioningEnabled ||
-            actor?.RulesetCharacter == null ||
-            parameters?.situationalInformation == null)
+        if (!IsAdvancedCombatAiPositioningEnabled || actor?.RulesetCharacter == null)
         {
             return;
         }
 
-        var hasRelevantPerceivedTarget = parameters.situationalInformation.HasRelevantPerceivedTarget;
-        var positioningService = parameters.situationalInformation.PositioningService;
+        var hasRelevantPerceivedTarget = parameters?.situationalInformation?.HasRelevantPerceivedTarget ?? false;
         var bestDistance = float.MaxValue;
         var hasObservedEnemy = false;
         var lastKnownEnemyPosition = actor.LocationPosition;
@@ -11268,8 +11553,7 @@ internal static partial class CombatAiContext
                 continue;
             }
 
-            var distance = positioningService.ComputeDistanceBetweenCharactersApproximatingSize(
-                actor, actor.LocationPosition, enemy, enemy.LocationPosition);
+            var distance = ComputeGridDistance(actor.LocationPosition, enemy.LocationPosition);
 
             if (distance >= bestDistance)
             {
@@ -11286,19 +11570,17 @@ internal static partial class CombatAiContext
             return;
         }
 
-        ObservedCombatMemoryCache[actor.Guid] = new ObservedCombatMemory(
-            lastKnownEnemyPosition,
-            GetCurrentBattleRound(),
-            Math.Max(1, ObservedCombatMemoryTurnStamp));
+        ObservedCombatMemoryCache[actor.Guid] = new ObservedCombatMemory(lastKnownEnemyPosition);
     }
 
     internal static bool TryGetLastKnownEnemyPosition(GameLocationCharacter actor, out int3 position)
     {
         position = default;
+        ForgetSearchedEnemyPositions(actor);
 
         if (actor == null ||
             !ObservedCombatMemoryCache.TryGetValue(actor.Guid, out var memory) ||
-            !IsObservedCombatMemoryFresh(memory))
+            !IsUnsearchedEnemyPosition(actor, memory))
         {
             return false;
         }
@@ -11310,7 +11592,8 @@ internal static partial class CombatAiContext
 
     private static GameLocationCharacter[] GetKnownEnemyTargets(
         GameLocationCharacter actor,
-        DecisionParameters parameters = null)
+        DecisionParameters parameters = null,
+        bool sortByPriority = true)
     {
         if (actor?.RulesetCharacter == null)
         {
@@ -11330,7 +11613,7 @@ internal static partial class CombatAiContext
         {
             var contenders = Gui.Battle.AllContenders.ToArray();
 
-            foreach (var ally in OrderCharactersForCombatAi(contenders, actor.LocationPosition))
+            foreach (var ally in contenders)
             {
                 if (ally == actor || ally?.RulesetCharacter == null || ally.Side != actor.Side)
                 {
@@ -11339,6 +11622,13 @@ internal static partial class CombatAiContext
 
                 AddKnownEnemyTargets(actor, SnapshotCharacters(ally.PerceivedFoes), targets);
             }
+        }
+
+        // Target selection retains its total ordering. Boolean risk checks need
+        // only the same snapshot, not repeated priority/condition evaluation.
+        if (!sortByPriority)
+        {
+            return targets.ToArray();
         }
 
         return targets
@@ -11604,7 +11894,7 @@ internal static partial class CombatAiContext
         EnemyEvaluation[] evaluations,
         float floatParameter)
     {
-        if (actor?.RulesetCharacter == null || evaluations.Length == 0)
+        if (actor?.RulesetCharacter == null)
         {
             return 0f;
         }
@@ -11718,16 +12008,49 @@ internal static partial class CombatAiContext
         return Mathf.Clamp(score * maxScore, 0f, maxScore);
     }
 
-    private static bool IsObservedCombatMemoryFresh(ObservedCombatMemory memory)
+    private static void ForgetSearchedEnemyPositions(GameLocationCharacter actor)
     {
-        var currentRound = GetCurrentBattleRound();
-
-        if (currentRound > 0 && memory.Round > 0)
+        if (actor?.RulesetCharacter == null || ObservedCombatMemoryCache.Count == 0)
         {
-            return currentRound - memory.Round <= ObservedCombatMemoryMaxRounds;
+            return;
         }
 
-        return ObservedCombatMemoryTurnStamp - memory.TurnStamp <= ObservedCombatMemoryMaxTurns;
+        // Allies share sightings, so they must also share the result of searching a
+        // reported location. Remove it permanently until a new observation records it.
+        IEnumerable<GameLocationCharacter> observers = Gui.Battle == null
+            ? new[] { actor }
+            : Gui.Battle.AllContenders;
+
+        foreach (var observer in observers)
+        {
+            if (observer != null && observer.Side == actor.Side &&
+                ObservedCombatMemoryCache.TryGetValue(observer.Guid, out var memory) &&
+                !IsUnsearchedEnemyPosition(actor, memory))
+            {
+                ObservedCombatMemoryCache.Remove(observer.Guid);
+            }
+        }
+    }
+
+    private static bool IsUnsearchedEnemyPosition(GameLocationCharacter actor, ObservedCombatMemory memory)
+    {
+        if (actor == null)
+        {
+            return false;
+        }
+
+        var position = memory.LastKnownEnemyPosition;
+        if (ComputeHorizontalGridStepDistance(actor.LocationPosition, position) > 1)
+        {
+            return true;
+        }
+
+        // Search by inspecting the remembered cell, not by occupying an unreachable
+        // airborne cell. A nearby cell behind a wall is still unsearched.
+        var visibility = ServiceRepository.GetService<IGameLocationVisibilityService>();
+        return visibility != null
+            ? !visibility.IsCellPerceivedByCharacter(position, actor)
+            : ComputeGridDistance(actor.LocationPosition, position) > 1f;
     }
 
     private static int GetCurrentBattleRound()
@@ -11759,26 +12082,31 @@ internal static partial class CombatAiContext
         PrimeFlyingMeleeSupplementalMovementProgress(character, turnPlan, movementProgress);
     }
 
-    private static void PrimeGroundMeleeTargetContactRouteQuery(
+    private static IEnumerator PrimeGroundMeleeTargetContactRouteQuery(
         GameLocationCharacter character,
         CombatAiTurnPlan turnPlan)
     {
-        if (character?.RulesetCharacter == null || !IsGroundMeleePursuitPlan(turnPlan))
+        if (character?.RulesetCharacter == null || !IsGroundMeleePursuitPlan(turnPlan) ||
+            TryGetCachedGroundMeleeTargetContactRouteQuery(character, turnPlan, out _) ||
+            PendingContactRouteQueries.TryGetValue(character, out _))
         {
-            return;
+            yield break;
         }
 
-        if (TryGetCachedGroundMeleeTargetContactRouteQuery(character, turnPlan, out _))
+        var result = new TargetContactRouteBuildResult();
+        PendingContactRouteQueries.Add(character, result);
+        try
         {
-            return;
+            yield return ComputeGroundMeleeTargetContactRouteQuery(character, turnPlan.ActionProbe.Target,
+                turnPlan.MovementPlan.TargetPosition, character.LocationPosition, result, validateTurn: true);
         }
-
-        _ = TryBuildGroundMeleeTargetContactRouteQuery(
-            character,
-            turnPlan.ActionProbe.Target,
-            turnPlan.MovementPlan.TargetPosition,
-            character.LocationPosition,
-            out _);
+        finally
+        {
+            if (PendingContactRouteQueries.TryGetValue(character, out var pending) && ReferenceEquals(pending, result))
+            {
+                PendingContactRouteQueries.Remove(character);
+            }
+        }
     }
 
     private static AiTurnMovementProgress GetOrCreateTurnMovementProgress(
@@ -12981,12 +13309,11 @@ internal static partial class CombatAiContext
         CombatAiProfile profile,
         CombatAiActionProbe actionProbe)
     {
-        return profile.PrefersDistance &&
-               profile.Role is not (CombatAiRole.Melee or CombatAiRole.Hybrid) &&
-               (actionProbe.PreferredAction is CombatAiActionKind.Ranged or CombatAiActionKind.Spell ||
-                actionProbe.CapabilityCatalog.HasAnyRanged ||
-                actionProbe.CapabilityCatalog.HasAtWillHostileSpell ||
-                profile.HasSpellcasting);
+        return actionProbe.PreferredAction != CombatAiActionKind.None ||
+               actionProbe.CapabilityCatalog.HasMelee ||
+               actionProbe.CapabilityCatalog.HasAnyRanged ||
+               actionProbe.CapabilityCatalog.HasAtWillHostileSpell ||
+               profile.HasSpellcasting;
     }
 
     private static bool TryGetLostTargetSearchAnchor(
@@ -13011,8 +13338,10 @@ internal static partial class CombatAiContext
             return true;
         }
 
+        ForgetSearchedEnemyPositions(actor);
+
         if (ObservedCombatMemoryCache.TryGetValue(actor.Guid, out var ownMemory) &&
-            IsObservedCombatMemoryFresh(ownMemory))
+            IsUnsearchedEnemyPosition(actor, ownMemory))
         {
             anchor = ownMemory.LastKnownEnemyPosition;
             return true;
@@ -13030,7 +13359,8 @@ internal static partial class CombatAiContext
                     ally?.RulesetCharacter == null ||
                     ally.Side != actor.Side ||
                     !ObservedCombatMemoryCache.TryGetValue(ally.Guid, out var allyMemory) ||
-                    !IsObservedCombatMemoryFresh(allyMemory))
+                    !IsUnsearchedEnemyPosition(actor, allyMemory) ||
+                    !IsUnsearchedEnemyPosition(ally, allyMemory))
                 {
                     continue;
                 }
@@ -13051,12 +13381,6 @@ internal static partial class CombatAiContext
             {
                 return true;
             }
-        }
-
-        if (TryGetLastKnownEnemyPosition(actor, out var lastKnownEnemyPosition))
-        {
-            anchor = lastKnownEnemyPosition;
-            return true;
         }
 
         return false;
@@ -13127,21 +13451,6 @@ internal static partial class CombatAiContext
     {
         return pendingAction.MovementGoal == CombatAiMovementGoalKind.SearchKnownTarget &&
                pendingAction.RouteMoveSource == CombatAiRouteMoveSourceKind.SearchLostTarget;
-    }
-
-    private static void CloseFailedConnectedFiringLineRoute(
-        GameLocationCharacter character,
-        CombatAiTurnPlan turnPlan)
-    {
-        if (character?.RulesetCharacter == null ||
-            !IsConnectedFiringLinePlan(turnPlan))
-        {
-            return;
-        }
-
-        RecordDisconnectedPositioningSeal(
-            character,
-            turnPlan);
     }
 
     private static bool ShouldBuildMaintainThreatAvoidanceMovementPlan(
@@ -13555,9 +13864,15 @@ internal static partial class CombatAiContext
         CombatAiActionKind actionKind,
         IGameLocationBattleService battleService)
     {
-        if (actionKind == CombatAiActionKind.None)
+        if (actionKind == CombatAiActionKind.None || actor?.RulesetCharacter == null ||
+            target?.RulesetCharacter == null || battleService == null)
         {
             return false;
+        }
+
+        if (actionKind == CombatAiActionKind.Melee)
+        {
+            return CanAttackInMeleeFromPosition(actor, actorPosition, target, target.LocationPosition, battleService);
         }
 
         var cacheKey = default(RouteCandidateCacheKey);
@@ -13571,12 +13886,6 @@ internal static partial class CombatAiContext
 
         var canUseAction = actionKind switch
         {
-            CombatAiActionKind.Melee => CanAttackInMeleeFromPosition(
-                actor,
-                actorPosition,
-                target,
-                target.LocationPosition,
-                battleService),
             CombatAiActionKind.Ranged => TryGetRangedAttackModifierFromPosition(
                 actor,
                 actorPosition,
@@ -16513,19 +16822,20 @@ internal static partial class CombatAiContext
             return hasRangedBackup ? CombatAiRole.SupportCaster : CombatAiRole.OffensiveCaster;
         }
 
-        if (package == DefaultRangeWithBackupMeleeDecisions)
+        // A decision package suggests a preferred role; it cannot supply missing attack modes.
+        if (hasRangedBackup && package == DefaultRangeWithBackupMeleeDecisions)
         {
             return CombatAiRole.Ranged;
         }
 
-        if (package == DefaultSupportCasterWithBackupAttacksDecisions ||
-            package == ClericCombatDecisions)
+        if (hasSpellcasting &&
+            (package == DefaultSupportCasterWithBackupAttacksDecisions || package == ClericCombatDecisions))
         {
             return CombatAiRole.SupportCaster;
         }
 
-        if (package == OffensiveCasterCombatDecisions ||
-            package == CasterCombatDecisions)
+        if (hasSpellcasting &&
+            (package == OffensiveCasterCombatDecisions || package == CasterCombatDecisions))
         {
             return CombatAiRole.OffensiveCaster;
         }
@@ -16546,7 +16856,7 @@ internal static partial class CombatAiContext
 
         foreach (var mode in character.RulesetCharacter.AttackModes)
         {
-            if (ValidatorsWeapon.IsMelee(mode))
+            if (IsMeleeAttackModeForAi(mode))
             {
                 meleeModes++;
             }
@@ -16845,7 +17155,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        foreach (var enemy in GetKnownEnemyTargets(actor))
+        foreach (var enemy in GetKnownEnemyTargets(actor, sortByPriority: false))
         {
             if (enemy?.RulesetCharacter == null ||
                 enemy.GetActionTypeStatus(ActionType.Reaction) != ActionStatus.Available)
@@ -16912,7 +17222,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        foreach (var enemy in GetKnownEnemyTargets(actor))
+        foreach (var enemy in GetKnownEnemyTargets(actor, sortByPriority: false))
         {
             if (enemy?.RulesetCharacter == null ||
                 enemy.GetActionTypeStatus(ActionType.Reaction) != ActionStatus.Available)
@@ -16951,7 +17261,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        foreach (var enemy in GetKnownEnemyTargets(actor))
+        foreach (var enemy in GetKnownEnemyTargets(actor, sortByPriority: false))
         {
             if (enemy?.RulesetCharacter == null ||
                 enemy.GetActionTypeStatus(ActionType.Reaction) != ActionStatus.Available ||
@@ -17501,49 +17811,31 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        if (ComputeGridDistance(destination, target.LocationPosition) > 2.25f &&
-            !ShouldRejectAllyFireLaneGate(actor, destination, target, battleService))
-        {
-            return false;
-        }
-
         if (ComputeGridDistance(destination, target.LocationPosition) > 2.25f)
         {
-            return true;
+            return ShouldRejectAllyFireLaneGate(actor, destination, target, battleService);
         }
 
-        foreach (var ally in OrderCharactersForCombatAi(Gui.Battle.AllContenders.ToArray(), target.LocationPosition))
+        // Only the existence of a blocker matters; sorting all contenders and
+        // constructing their tie-break names for every destination changes no result.
+        foreach (var ally in Gui.Battle.AllContenders.ToArray())
         {
             if (ally == actor ||
                 ally?.RulesetCharacter == null ||
                 ally.Side != actor.Side ||
+                ComputeGridDistance(ally.LocationPosition, target.LocationPosition) >
+                Math.Max(ally.RemainingTacticalMoves, ally.MaxTacticalMoves) + 2.0f ||
+                ComputeDistanceToSegment2D(destination, ally.LocationPosition, target.LocationPosition) > 0.75f ||
                 !IsLargeMeleeAlly(ally) ||
                 CanAttackInMeleeFromPosition(ally, ally.LocationPosition, target, target.LocationPosition, battleService))
             {
                 continue;
             }
 
-            var allyDistanceToTarget = ComputeGridDistance(ally.LocationPosition, target.LocationPosition);
-
-            if (allyDistanceToTarget > Math.Max(ally.RemainingTacticalMoves, ally.MaxTacticalMoves) + 2.0f)
-            {
-                continue;
-            }
-
-            if (ComputeDistanceToSegment2D(destination, ally.LocationPosition, target.LocationPosition) > 0.75f)
-            {
-                continue;
-            }
-
             return true;
         }
 
-        if (!ShouldRejectAllyFireLaneGate(actor, destination, target, battleService))
-        {
-            return false;
-        }
-
-        return true;
+        return ShouldRejectAllyFireLaneGate(actor, destination, target, battleService);
     }
 
     private static bool ShouldRejectAllyFireLaneGate(
@@ -17560,48 +17852,33 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        foreach (var ally in OrderCharactersForCombatAi(Gui.Battle.AllContenders.ToArray(), target.LocationPosition))
+        var nearTarget = ComputeGridDistance(destination, target.LocationPosition) <= 1.5f;
+
+        foreach (var ally in Gui.Battle.AllContenders.ToArray())
         {
+            // Test the lane before inspecting cantrips, action availability and rays.
+            // Allies outside this corridor cannot be blocked by the destination.
             if (ally == actor ||
                 ally?.RulesetCharacter == null ||
                 ally.Side != actor.Side ||
                 ally.LocationPosition == destination ||
-                ComputeGridDistance(ally.LocationPosition, target.LocationPosition) <= 1.5f)
-            {
-                continue;
-            }
-
-            var allyCapabilities = BuildCapabilityCatalog(ally);
-            var allyHasCurrentShot =
-                allyCapabilities.HasTrueRanged &&
-                CanUseActionKindAtPosition(
-                    ally,
-                    ally.LocationPosition,
-                    target,
-                    CombatAiActionKind.Ranged,
-                    battleService);
-
-            var allyHasCurrentSpell =
-                allyCapabilities.HasAtWillHostileSpell &&
-                CanUseActionKindAtPosition(
-                    ally,
-                    ally.LocationPosition,
-                    target,
-                    CombatAiActionKind.Spell,
-                    battleService);
-
-            if (!allyHasCurrentShot && !allyHasCurrentSpell)
-            {
-                continue;
-            }
-
-            if (ComputeGridDistance(destination, target.LocationPosition) > 1.5f &&
+                ComputeGridDistance(ally.LocationPosition, target.LocationPosition) <= 1.5f ||
+                !nearTarget &&
                 ComputeDistanceToSegment2D(destination, ally.LocationPosition, target.LocationPosition) > 0.75f)
             {
                 continue;
             }
 
-            return true;
+            var allyCapabilities = BuildCapabilityCatalog(ally);
+            if ((allyCapabilities.HasTrueRanged &&
+                 CanUseActionKindAtPosition(
+                     ally, ally.LocationPosition, target, CombatAiActionKind.Ranged, battleService)) ||
+                (allyCapabilities.HasAtWillHostileSpell &&
+                 CanUseActionKindAtPosition(
+                     ally, ally.LocationPosition, target, CombatAiActionKind.Spell, battleService)))
+            {
+                return true;
+            }
         }
 
         return false;
@@ -17953,7 +18230,10 @@ internal static partial class CombatAiContext
                 return;
             }
 
-            if (!TryCompleteSearchKnownTargetMovementStep(character, includeSettling: fromSettling).IsComplete)
+            if (!TryCompleteSearchKnownTargetMovementStep(
+                    character,
+                    includeSettling: fromSettling,
+                    actionChainCompleted: allowSettledNoMoveFinalization).IsComplete)
             {
                 DeferSearchKnownTargetMoveResult(
                     character,

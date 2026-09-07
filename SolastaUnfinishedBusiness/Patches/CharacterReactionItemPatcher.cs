@@ -27,14 +27,14 @@ public static class CharacterReactionItemPatcher
             [NotNull] CharacterReactionItem __instance,
             [NotNull] ReactionRequest reactionRequest)
         {
-            if (reactionRequest is ReactionRequestSelectTarget)
+            if (reactionRequest is ReactionRequestSelectTarget || SpellCastingResourceContext.IsManaged(reactionRequest))
             {
-                __instance.CaptureTargetChoiceContainerLayout();
+                __instance.CaptureReactionChoiceContainerLayout();
 
                 return;
             }
 
-            __instance.RestoreTargetChoiceContainerLayout();
+            __instance.RestoreReactionChoiceContainerLayout();
         }
 
         [NotNull]
@@ -74,16 +74,27 @@ public static class CharacterReactionItemPatcher
 
             var size = request is ReactionRequestWarcaster or ReactionRequestSpendBundlePower
                 or ReactionRequestSelectTarget
-                or ReactionRequestSelectSmiteSpell
+                or ReactionRequestSelectSmiteSpell || SpellCastingResourceContext.IsManaged(request)
                 ? 400
                 : 290;
 
             __instance.GetComponent<RectTransform>()
                 .SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size);
 
-            if (request is ReactionRequestSelectTarget)
+            if (request is ReactionRequestSelectTarget || SpellCastingResourceContext.IsManaged(request))
             {
-                __instance.ApplyTargetChoiceContainerLayout();
+                __instance.ApplyReactionChoiceContainerLayout(SpellCastingResourceContext.IsManaged(request));
+            }
+
+            if (SpellCastingResourceContext.IsManaged(request))
+            {
+                __instance.subItemsLabel.Text = "Reaction/&SubitemSelectSpellResourceTitle";
+                var tooltip = Gui.GetTooltip(__instance.subItemsLabel.gameObject);
+
+                if (tooltip)
+                {
+                    tooltip.Content = "Reaction/&SubitemSelectSpellResourceDescription";
+                }
             }
 
             if (request is ReactionRequestSpendBundlePower)
@@ -183,6 +194,17 @@ public static class CharacterReactionItemPatcher
             CharacterReactionSubitem.SubitemSelectedHandler subitemSelected,
             ReactionRequest reactionRequest)
         {
+            // The native item may rebind a pooled row without calling Unbind first.
+            instance.RestoreReactionChoiceLayout();
+
+            if (SpellCastingResourceContext.TryGetOption(reactionRequest, slotLevel, out var resourceOption))
+            {
+                instance.BindSpellResource(
+                    resourceOption, reactionRequest.Character.RulesetCharacter, interactable, subitemSelected);
+
+                return;
+            }
+
             switch (reactionRequest)
             {
                 case ReactionRequestSelectTarget selectTargetRequest:
@@ -200,13 +222,6 @@ public static class CharacterReactionItemPatcher
                 case ReactionRequestSelectSmiteSlot:
                     instance.BindSmiteSlot(spellRepertoire, slotLevel, text, interactable, subitemSelected);
                     break;
-                case ReactionRequestCastSpell castSpellRequest
-                    when ReactionRequestCastSpellPatcher.TryGetFeatReactionDisplayRepertoire(
-                        castSpellRequest,
-                        slotLevel,
-                        out var displayRepertoire):
-                    instance.Bind(displayRepertoire ?? spellRepertoire, slotLevel, text, interactable, subitemSelected);
-                    break;
                 default:
                     instance.Bind(spellRepertoire, slotLevel, text, interactable, subitemSelected);
                     break;
@@ -222,7 +237,7 @@ public static class CharacterReactionItemPatcher
         [UsedImplicitly]
         public static void Postfix([NotNull] CharacterReactionItem __instance)
         {
-            __instance.RestoreTargetChoiceContainerLayout();
+            __instance.RestoreReactionChoiceContainerLayout();
         }
     }
 
@@ -270,7 +285,12 @@ public static class CharacterReactionItemPatcher
         var caster = item.guiCharacter.rulesetCharacter;
         var current = caster.GetRemainingSpellPoints();
 
-        var slot = item.ReactionRequest.SubOptionsAvailability.Keys.ElementAtOrDefault(item.GetSelectedSubItem());
+        var optionKey = item.ReactionRequest.SubOptionsAvailability.Keys.ElementAtOrDefault(item.GetSelectedSubItem());
+        var managed = SpellCastingResourceContext.TryGetOption(item.ReactionRequest, optionKey, out var option);
+        var slot = managed ? option.SlotLevel : optionKey;
+        var cost = managed && option.IsFree
+            ? 0
+            : SpellPointsContext.SpellCostByLevel.ElementAtOrDefault(slot);
 
         item.ReleaseAddressableSprite(item.resourceCostSprite);
         item.resourceCostSprite = null;
@@ -279,9 +299,9 @@ public static class CharacterReactionItemPatcher
         item.remainingResourceImage.canvasRenderer.SetAlpha(0); //hide resource sprite 
         item.remainingResourceValue.Text = $"{current}";
 
-        item.resourceCostGroup.gameObject.SetActive(slot > 0);
+        item.resourceCostGroup.gameObject.SetActive(managed || slot > 0);
         item.resourceCostImage.canvasRenderer.SetAlpha(0); //hide resource sprite
-        item.resourceCostValue.Text = $"{SpellPointsContext.SpellCostByLevel[slot]}";
+        item.resourceCostValue.Text = $"{cost}";
     }
 
     [HarmonyPatch(typeof(CharacterReactionItem), nameof(CharacterReactionItem.SubitemSelected))]
@@ -293,6 +313,7 @@ public static class CharacterReactionItemPatcher
         public static void Postfix([NotNull] CharacterReactionItem __instance)
         {
             SetupSpellPoints(__instance);
+            __instance.EnsureReactionChoiceVisible();
         }
     }
 }

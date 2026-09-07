@@ -1310,7 +1310,7 @@ internal static class InvocationsBuilders
 
                 foreach (var position in boxInt.EnumerateAllPositionsWithin())
                 {
-                    if (!visibilityService.MyIsCellPerceivedByCharacter(position, actingCharacter) ||
+                    if (!visibilityService.MyIsCellPerceivedByCharacter(position, actingCharacter, requireSight: true) ||
                         !positioningService.CanPlaceCharacter(
                             actingCharacter, position, CellHelpers.PlacementMode.Station) ||
                         !positioningService.CanCharacterStayAtPosition_Floor(

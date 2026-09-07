@@ -140,6 +140,15 @@ internal static class SpellSlotCastingLimit2024Context
             return true;
         }
 
+        if (SpellCastingResourceContext.HasExplicitSelection(activeSpell))
+        {
+            return CanCastSpell(
+                reactionParams.ActingCharacter?.RulesetCharacter,
+                activeSpell.SpellRepertoire,
+                RulesetEffectSpellWithOrigin.GetOriginSpell(activeSpell),
+                activeSpell);
+        }
+
         var spellSlotMode = GetReactionSpellSlotMode(
             reactionParams,
             out var noSlotRepertoire,
@@ -333,6 +342,11 @@ internal static class SpellSlotCastingLimit2024Context
             return false;
         }
 
+        if (SpellCastingResourceContext.IsExplicitSlotSelection(activeSpell))
+        {
+            return true;
+        }
+
         if (!IsFreeUseRepertoire(repertoire))
         {
             return !Level20Context.HasFreeWizardCast(
@@ -364,7 +378,7 @@ internal static class SpellSlotCastingLimit2024Context
                !IsFreeUseRepertoire(repertoire);
     }
 
-    private static bool IsFreeUseRepertoire(RulesetSpellRepertoire repertoire)
+    internal static bool IsFreeUseRepertoire(RulesetSpellRepertoire repertoire)
     {
         var castSpell = repertoire?.SpellCastingFeature;
 

@@ -297,7 +297,7 @@ public sealed class RangerFeyWanderer : AbstractSubclass
                 !helper.CanReact() ||
                 (attacker != null && !helper.IsOppositeSide(attacker.Side)) ||
                 !helper.IsWithinRange(defender, 24) ||
-                !helper.CanPerceiveTarget(defender))
+                !helper.CanSeeTarget(defender))
             {
                 yield break;
             }

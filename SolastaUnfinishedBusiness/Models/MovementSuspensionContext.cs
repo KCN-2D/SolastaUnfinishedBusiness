@@ -144,6 +144,15 @@ internal static class MovementSuspensionContext
             return false;
         }
 
+        var locationCharacter = GameLocationCharacter.GetFromActor(character);
+
+        // Do not restore lift while the native fall/movement action is still resolving.
+        if (locationCharacter != null && (locationCharacter.Falling || locationCharacter.Pushed ||
+                                          locationCharacter.Climbing || locationCharacter.Dropping))
+        {
+            return false;
+        }
+
         // Turning an option off must not strand a character whose effect is already suspended.
         if (!resume && (character is RulesetCharacterMonster ||
                         !(kind == MovementKind.Flight
@@ -212,10 +221,29 @@ internal static class MovementSuspensionContext
     private static void ChangeDefinition(RulesetCharacter character, RulesetCondition condition,
         ConditionDefinition definition)
     {
-        // Keep the instance, GUID, source, duration and all native effect subscriptions intact.
-        // Removing/recreating a condition would end Levitate and lose cancellation/dispel tracking.
-        character.ConditionRemovedForVisual?.Invoke(character, condition, false, true);
-        condition.ConditionDefinition = definition;
+        // Visual removal checks the actor's remaining conditions before clearing the flying animation.
+        // Match the native removal order, but retain the instance, GUID and effect subscriptions:
+        // emitting ConditionRemoved would terminate Levitate and its caster's control action.
+        var conditions = character.ConditionsByCategory.Values.FirstOrDefault(value => value.Contains(condition));
+        var index = conditions?.IndexOf(condition) ?? -1;
+
+        if (index < 0)
+        {
+            return;
+        }
+
+        conditions.RemoveAt(index);
+
+        try
+        {
+            character.ConditionRemovedForVisual?.Invoke(character, condition, false, true);
+            condition.ConditionDefinition = definition;
+        }
+        finally
+        {
+            conditions.Insert(System.Math.Min(index, conditions.Count), condition);
+        }
+
         character.ConditionAdded?.Invoke(character, condition, true);
     }
 
@@ -228,10 +256,20 @@ internal static class MovementSuspensionContext
         }
 
         // Let the native stacking/refresh rules see the original definition when the effect is reapplied.
+        var resumed = false;
+
         foreach (var condition in character.ConditionsByCategory.Values.SelectMany(conditions => conditions)
                      .Where(condition => condition.ConditionDefinition == movement.Suspended).ToArray())
         {
             ChangeDefinition(character, condition, movement.Active);
+            resumed = true;
+        }
+
+        if (resumed)
+        {
+            // Untracked conditions (e.g. Wild Magic flight) only refresh their timer when reapplied.
+            // That native branch skips RefreshAll, so restore movement features here as well.
+            character.RefreshAll();
         }
     }
 

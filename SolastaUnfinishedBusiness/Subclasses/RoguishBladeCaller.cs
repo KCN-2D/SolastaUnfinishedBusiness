@@ -353,8 +353,10 @@ public sealed class RoguishBladeCaller : AbstractSubclass
             }
 
             var targets = Gui.Battle
-                .GetContenders(defender, attacker,
-                    isOppositeSide: false, excludeSelf: false, hasToPerceiveTarget: true, withinRange: 2);
+                .GetContenders(defender,
+                    isOppositeSide: false, excludeSelf: false, withinRange: 2);
+
+            targets.RemoveAll(target => !attacker.CanSeeTarget(target));
 
             yield return attacker.MyReactToUsePower(
                 ActionDefinitions.Id.PowerReaction,

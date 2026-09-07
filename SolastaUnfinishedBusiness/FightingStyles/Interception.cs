@@ -82,7 +82,7 @@ internal sealed class Interception : AbstractFightingStyle
             if (helper == defender ||
                 helper.IsOppositeSide(defender.Side) ||
                 !helper.CanReact() ||
-                !helper.CanPerceiveTarget(defender) ||
+                !helper.CanSeeTarget(attacker) ||
                 !helper.IsWithinRange(defender, 1))
             {
                 yield break;

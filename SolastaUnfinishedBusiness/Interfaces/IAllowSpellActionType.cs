@@ -66,8 +66,7 @@ internal static class SpellActionTypeContext
             return false;
         }
 
-        foreach (var repertoire in character.SpellRepertoires.Where(repertoire =>
-                     repertoire?.SpellCastingFeature is { GuiPresentation.Hidden: false }))
+        foreach (var repertoire in character.SpellRepertoires.Where(SpellSelectionContext.IsDisplayedRepertoire))
         {
             var candidates = EnumerateReadySpells(repertoire)
                 .Where(spell => !canOnlyUseCantrips || spell.SpellLevel == 0);
@@ -113,7 +112,7 @@ internal static class SpellActionTypeContext
             spell.SpellLevel == spellLevel &&
             spell.ActivationTime is not ActivationTime.Reaction and not ActivationTime.OnAttackHit &&
             (actionType == ActionType.None || spell.ActivationTime == activationTime ||
-             providers.Any(provider => provider.IsAllowed(character, repertoire, spell, actionType))));
+             providers.Any(provider => provider.IsAllowed(character, SpellSelectionContext.Resolve(repertoire), spell, actionType))));
     }
 
     internal static SpellRepertoireLine GetRepertoireLine(SpellActivationBox spellBox)
@@ -147,7 +146,7 @@ internal static class SpellActionTypeContext
         var character = line?.caster?.RulesetCharacter;
         var repertoire = spellBox.spellRepertoire;
 
-        if (character == null || line.spellRepertoire != repertoire ||
+        if (character == null || SpellSelectionContext.Resolve(line.spellRepertoire) != repertoire ||
             !character.SpellRepertoires.Contains(repertoire) ||
             !character.GetSubFeaturesByType<IAllowSpellActionType>().Any(provider =>
                 provider.IsAllowed(character, repertoire, spell, line.actionType)))

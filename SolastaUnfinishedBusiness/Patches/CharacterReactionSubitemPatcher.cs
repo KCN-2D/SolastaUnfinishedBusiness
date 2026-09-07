@@ -23,6 +23,11 @@ public static class CharacterReactionSubitemPatcher
             RulesetSpellRepertoire spellRepertoire,
             int slotLevel)
         {
+            if (SpellSelectionContext.TryGetOption(spellRepertoire, out _))
+            {
+                return;
+            }
+
             var character = spellRepertoire?.GetCaster();
 
             if (character == null)
@@ -62,7 +67,7 @@ public static class CharacterReactionSubitemPatcher
         [UsedImplicitly]
         public static void Prefix(CharacterReactionSubitem __instance)
         {
-            var targetChoiceLayoutRestored = __instance.RestoreTargetChoiceLayout();
+            var choiceLayoutRestored = __instance.RestoreReactionChoiceLayout();
 
             //PATCH: ensures slot colors are white before getting back to pool
             MulticlassGameUi.PaintSlotsWhite(__instance.slotStatusTable);
@@ -71,7 +76,7 @@ public static class CharacterReactionSubitemPatcher
             //default implementation doesn't use tooltips, so we are cleaning up after custom warcaster and bundled power binds
             var toggle = __instance.toggle.GetComponent<RectTransform>();
 
-            if (!targetChoiceLayoutRestored)
+            if (!choiceLayoutRestored)
             {
                 toggle.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 34);
             }
@@ -83,9 +88,13 @@ public static class CharacterReactionSubitemPatcher
                 return;
             }
 
-            if (background.TryGetComponent<GuiTooltip>(out var tooltip))
+            if (!choiceLayoutRestored && background.TryGetComponent<GuiTooltip>(out var tooltip))
             {
                 tooltip.Disabled = true;
+                tooltip.Content = string.Empty;
+                tooltip.Context = null;
+                tooltip.DataProvider = null;
+                tooltip.TooltipClass = GuiManager.DefaultTooltipClass;
             }
         }
     }

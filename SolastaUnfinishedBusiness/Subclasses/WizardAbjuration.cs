@@ -619,7 +619,7 @@ public sealed class WizardAbjuration : AbstractSubclass
                 !helper.CanReact() ||
                 helper.IsOppositeSide(defender.Side) ||
                 !helper.IsWithinRange(defender, 6) ||
-                !helper.CanPerceiveTarget(defender) ||
+                !helper.CanSeeTarget(defender) ||
                 !HasActiveArcaneWard(rulesetHelper))
             {
                 yield break;

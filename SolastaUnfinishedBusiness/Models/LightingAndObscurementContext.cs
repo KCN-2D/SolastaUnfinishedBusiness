@@ -113,6 +113,16 @@ internal static class LightingAndObscurementContext
         "Aksha_Legendary"
     ];
 
+    // These fixed patterns exceed the runtime's static Regex cache; reuse the parsed expressions.
+    private static Regex[] MonsterDarkvisionPatterns { get; } = MonstersThatShouldHaveDarkvision
+        .Select(pattern => new Regex(pattern, RegexOptions.IgnoreCase)).ToArray();
+
+    private static Regex[] MonsterTruesightPatterns { get; } = MonstersThatShouldHaveTrueSight
+        .Select(pattern => new Regex(pattern, RegexOptions.IgnoreCase)).ToArray();
+
+    private static Regex[] MonsterBlindsightPatterns { get; } = MonstersThatShouldHaveBlindSight
+        .Select(pattern => new Regex(pattern, RegexOptions.IgnoreCase)).ToArray();
+
     private static string[] EffectsThatTargetDistantIndividualsAndDontRequireSight { get; } =
     [
         "AcidSplash",
@@ -123,7 +133,9 @@ internal static class LightingAndObscurementContext
         "BlessingOfRime",
         "BoomingBlade",
         "DispelMagic",
+        "DissonantWhispers",
         "FeatherFall",
+        "FizbanPlatinumShield",
         "Knock",
         "Levitate",
         "MassCureWounds",
@@ -149,7 +161,6 @@ internal static class LightingAndObscurementContext
         "PowerRangerLightBearerBlessedWarrior",
         "PowerRiftWalkerRiftStrike",
         "PowerSorcerousPsionMindOverMatter",
-        "PowerSorcerousPsionMindOverMatter",
         "PowerTraditionOpenHandQuiveringPalmTrigger",
         "PowerWayOfTheDistantHandZenArrowTechnique",
         "PowerWayOfTheDistantHandZenArrowUpgradedTechnique",
@@ -159,7 +170,9 @@ internal static class LightingAndObscurementContext
         "ShieldOfFaith",
         "Sparkle",
         "SunlightBlade",
-        "TrueStrike"
+        "SwiftQuiver",
+        "TrueStrike",
+        "WitherAndBloom"
     ];
 
     private static bool ShouldIgnoreInvisibility(this RulesetActor actor)
@@ -354,14 +367,14 @@ internal static class LightingAndObscurementContext
         GameLocationCharacter target)
     {
         return target == null ||
-               !Main.Settings.UseOfficialLightingObscurementAndVisionRules ||
+               (magicEffect is not SpellDefinition && !Main.Settings.UseOfficialLightingObscurementAndVisionRules) ||
                magicEffect.EffectDescription is not
                {
                    RangeType: RuleDefinitions.RangeType.Distance,
                    TargetType: RuleDefinitions.TargetType.Individuals or RuleDefinitions.TargetType.IndividualsUnique
                } ||
                EffectsThatTargetDistantIndividualsAndDontRequireSight.Contains(magicEffect.Name) ||
-               source.CanPerceiveTarget(target);
+               source.CanSeeTarget(target);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -408,10 +421,11 @@ internal static class LightingAndObscurementContext
         GameLocationCharacter target = null,
         LightingState additionalBlockedLightingState = LightingState.Darkness,
         bool requireLineOfSight = false,
-        bool useCellPos = false)
+        bool useCellPos = false,
+        bool requireSight = false)
     {
         // gadgets cannot perceive anything
-        if (sensor.RulesetActor is RulesetGadget)
+        if (instance == null || sensor?.RulesetCharacter == null || sensor.RulesetActor is RulesetGadget)
         {
             return false;
         }
@@ -431,8 +445,18 @@ internal static class LightingAndObscurementContext
             sensor = locationController;
         }
 
+        // A hidden creature must have been discovered by this observer, not just by an ally.
+        if (requireSight && target != null && sensor.IsOppositeSide(target.Side) &&
+            ((target.Stealthy &&
+              (instance is not GameLocationVisibilityManager visibilityManager ||
+               !visibilityManager.IsCharacterPerceivedByCharacter(target, sensor))) ||
+             OtherFeats.IsProtectedByFeatStealthMovement(target)))
+        {
+            return false;
+        }
+
         //check line of sight
-        if ((requireLineOfSight || !Main.Settings.UseOfficialLightingObscurementAndVisionRules)
+        if ((requireLineOfSight || requireSight || !Main.Settings.UseOfficialLightingObscurementAndVisionRules)
             && !instance.IsCellPerceivedByCharacter(cellPosition, sensor))
         {
             return false;
@@ -441,8 +465,8 @@ internal static class LightingAndObscurementContext
         // use the improved lighting state detection to diff between darkness and heavily obscured
         var targetLightingState = ComputeLightingStateOnTargetPosition(sensor, cellPosition);
 
-        // use vanilla if setting is off but still supporting additionalBlockedLightingState logic
-        if (!Main.Settings.UseOfficialLightingObscurementAndVisionRules)
+        // A known position is sufficient for general perception, but not for sight-only effects.
+        if (!requireSight && !Main.Settings.UseOfficialLightingObscurementAndVisionRules)
         {
             // Silhouette Step is the only one using additionalBlockedLightingState as it requires to block BRIGHT
             return additionalBlockedLightingState == LightingState.Darkness ||
@@ -459,22 +483,24 @@ internal static class LightingAndObscurementContext
         var sourceIsBlindFromDarkness = IsBlindFromDarkness(sensorCharacter);
         var sourceIsBlindNotFromDarkness = IsBlindNotFromDarkness(sensorCharacter);
         var targetIsNotTouchingGround = target != null && !target.RulesetActor.IsTouchingGround();
-        var targetIsInMagicalDarkness = target != null && IsInMagicalDarkness(target.RulesetCharacter, sensorCharacter);
+        var targetIsInMagicalDarkness =
+            (target != null && IsInMagicalDarkness(target.RulesetCharacter, sensorCharacter)) ||
+            (requireSight && targetLightingState == LightingState.Darkness &&
+             !SensorCanSeeTargetThroughDarkness(target?.RulesetCharacter, sensorCharacter));
         var targetIsInvisible =
-            target != null && target.RulesetActor.HasConditionOfTypeOrSubType(ConditionInvisibleBase.Name);
+            target != null && target.RulesetActor.HasConditionOfTypeOrSubType(ConditionInvisibleBase.Name) &&
+            !target.RulesetActor.ShouldIgnoreInvisibility();
 
         var senseModesToPrevent = new List<SenseMode.Type>();
 
-        if (Main.Settings.OfficialObscurementRulesTweakMonsters)
+        if (Main.Settings.UseOfficialLightingObscurementAndVisionRules &&
+            Main.Settings.OfficialObscurementRulesTweakMonsters)
         {
-            if (MonstersThatShouldHaveBlindSight
-                .Any(m => Regex.IsMatch(sensorCharacter.Name, m, RegexOptions.IgnoreCase)))
+            if (MonsterBlindsightPatterns.Any(pattern => pattern.IsMatch(sensorCharacter.Name)))
                 AddSenseModeIfMissing(sensorCharacter, SenseMode.Type.Blindsight, 10, 1);
-            if (MonstersThatShouldHaveDarkvision
-                .Any(m => Regex.IsMatch(sensorCharacter.Name, m, RegexOptions.IgnoreCase)))
+            if (MonsterDarkvisionPatterns.Any(pattern => pattern.IsMatch(sensorCharacter.Name)))
                 AddSenseModeIfMissing(sensorCharacter, SenseMode.Type.Darkvision, 60, 1);
-            if (MonstersThatShouldHaveTrueSight
-                .Any(m => Regex.IsMatch(sensorCharacter.Name, m, RegexOptions.IgnoreCase)))
+            if (MonsterTruesightPatterns.Any(pattern => pattern.IsMatch(sensorCharacter.Name)))
                 AddSenseModeIfMissing(sensorCharacter, SenseMode.Type.Truesight, 60, 1);
         }
 
@@ -486,17 +512,23 @@ internal static class LightingAndObscurementContext
             }
         }
 
+        // See Invisibility supplements vision; it does not itself grant sight in darkness.
+        var detectsInvisibility = requireSight && sensorCharacter.SenseModes.Any(mode =>
+            mode.SenseType == SenseMode.Type.DetectInvisibility && distance <= mode.SenseRange &&
+            !senseModesToPrevent.Contains(mode.SenseType));
+        SightPathContext.Obscurement? pathObscurement = null;
+
         // try to find any sense mode that is valid for the current lighting state and constraints
         // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var senseMode in sensorCharacter.SenseModes
                      .Where(x => !senseModesToPrevent.Contains(x.SenseType)))
         {
-            if (distance > senseMode.SenseRange)
+            var senseType = senseMode.SenseType;
+            if (senseType == SenseMode.Type.None || distance > senseMode.SenseRange ||
+                (requireSight && !IsSightSense(senseType)))
             {
                 continue;
             }
-
-            var senseType = senseMode.SenseType;
 
             // UNLIT 
             if (targetLightingState is LightingState.Unlit && senseType is SenseMode.Type.NormalVision)
@@ -551,13 +583,24 @@ internal static class LightingAndObscurementContext
             }
 
             // INVISIBLE
-            if (targetIsInvisible && senseType is
+            if (targetIsInvisible && (!requireSight || !detectsInvisibility) && senseType is
                     SenseMode.Type.NormalVision or
                     SenseMode.Type.Darkvision or
                     SenseMode.Type.SuperiorDarkvision or
                     WayOfShadow.SenseModeDarkness)
             {
                 continue;
+            }
+
+            if (requireSight && senseType != SenseMode.Type.Blindsight)
+            {
+                pathObscurement ??= SightPathContext.GetObscurement(sensor, cellPosition);
+                if (pathObscurement == SightPathContext.Obscurement.HeavilyObscured ||
+                    (pathObscurement == SightPathContext.Obscurement.MagicalDarkness &&
+                     senseType is not (SenseMode.Type.Truesight or WayOfShadow.SenseModeDarkness)))
+                {
+                    continue;
+                }
             }
 
             //consider this a successful perception roll as the sensor has skills to perceive
@@ -574,7 +617,8 @@ internal static class LightingAndObscurementContext
                    targetLightingState != additionalBlockedLightingState;
         }
 
-        if (Main.Settings.EnableChanceToPerceiveCloseRange
+        // Hearing or locating a nearby creature never satisfies a rule that requires sight.
+        if (!requireSight && Main.Settings.EnableChanceToPerceiveCloseRange
             && !Global.IsMultiplayer
             // Distance values are grid cells: 10 feet is two cells, not ten.
             && distance <= CloseRangePerceptionDistance
@@ -628,6 +672,13 @@ internal static class LightingAndObscurementContext
 
 
         return false;
+    }
+
+    private static bool IsSightSense(SenseMode.Type type)
+    {
+        return type is SenseMode.Type.NormalVision or SenseMode.Type.Darkvision or
+            SenseMode.Type.SuperiorDarkvision or SenseMode.Type.Truesight or
+            SenseMode.Type.Blindsight or WayOfShadow.SenseModeDarkness;
     }
 
     private static LightingState ComputeLightingStateOnTargetPosition(

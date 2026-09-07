@@ -342,7 +342,7 @@ internal static class Tabletop2014Context
             var locationDefender = GameLocationCharacter.GetFromActor(defender);
 
             return Main.Settings.BlindedConditionDontAllowAttackOfOpportunity &&
-                   !locationAttacker.CanPerceiveTarget(locationDefender);
+                   !locationAttacker.CanSeeTarget(locationDefender);
         }
     }
 

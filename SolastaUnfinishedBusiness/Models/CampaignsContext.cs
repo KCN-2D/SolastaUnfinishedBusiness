@@ -319,9 +319,7 @@ internal static class CampaignsContext
         spellRepertoireSecondaryLine.gameObject.SetActive(false);
 
         var spellLineHolder = EnsureSpellSelectionLineHolder(spellRepertoireLinesTable) ?? spellRepertoireLinesTable;
-        var spellRepertoires = __instance.Caster.RulesetCharacter.SpellRepertoires
-            .Where(r => r.SpellCastingFeature.SpellListDefinition != SpellsContext.EmptySpellList)
-            .ToArray();
+        var spellRepertoires = SpellSelectionContext.GetRepertoires(__instance.Caster.RulesetCharacter).ToArray();
 
         var needNewLine = true;
         var lineIndex = 0;

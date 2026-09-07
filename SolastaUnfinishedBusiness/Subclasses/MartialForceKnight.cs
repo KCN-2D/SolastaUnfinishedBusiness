@@ -740,7 +740,7 @@ public sealed class MartialForceKnight : AbstractSubclass
             if (action.AttackRollOutcome is not RollOutcome.Success ||
                 helper.IsOppositeSide(defender.Side) ||
                 !helper.CanReact() ||
-                !helper.CanPerceiveTarget(defender) ||
+                !helper.CanSeeTarget(defender) ||
                 // must use GetRemainingPowerUses as a shared pool power
                 rulesetHelper.GetRemainingPowerUses(powerKineticBarrier) == 0)
             {
