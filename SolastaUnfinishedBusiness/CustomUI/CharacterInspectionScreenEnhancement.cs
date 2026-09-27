@@ -262,25 +262,140 @@ internal static class CharacterInspectionScreenEnhancement
         return true;
     }
 
-    private static void BindParentChoiceFeatureDisplay(
-        GuiLabel label,
-        GuiTooltip tooltip,
-        CustomTooltipProvider provider,
-        FeatureUnlockByLevel feature,
-        FeatureDefinition parentFeature,
-        FeatureDefinition selectedFeature,
-        bool noLevel)
+    private sealed class FeatureDisplay
     {
-        var title = parentFeature.FormatTitle();
+        internal FeatureDisplay(FeatureDefinition feature)
+        {
+            Title = CustomTooltipProvider.FormatTitle(feature);
+            TooltipProvider = new CustomTooltipProvider(feature, null);
+            TooltipContent = CustomTooltipProvider.GetActivationContent(feature);
+        }
+
+        internal string Title { get; set; }
+        internal CustomTooltipProvider TooltipProvider { get; }
+        internal string TooltipContent { get; set; }
+    }
+
+    private static void SetParentChoiceFeatureDisplay(
+        FeatureDisplay display,
+        FeatureDefinition parentFeature,
+        FeatureDefinition selectedFeature)
+    {
+        var parentTitle = CustomTooltipProvider.FormatTitle(parentFeature);
+        var selectedTitle = CustomTooltipProvider.FormatTitle(selectedFeature);
         var description = CustomTooltipProvider.FormatDescription(selectedFeature);
 
-        label.Text = title + (!noLevel ? $" ({feature.Level})" : string.Empty);
-        provider.SetTitle(title);
-        provider.SetSubtitle(selectedFeature.FormatTitle());
-        provider.SetDescription(description);
-        tooltip.Content = string.IsNullOrEmpty(description)
+        display.Title = string.IsNullOrEmpty(parentTitle) ? selectedTitle : parentTitle;
+        display.TooltipProvider.SetTitle(display.Title);
+        display.TooltipProvider.SetSubtitle(selectedTitle);
+        display.TooltipProvider.SetDescription(description);
+        display.TooltipContent = string.IsNullOrEmpty(description)
             ? CustomTooltipProvider.GetActivationContent(selectedFeature)
             : description;
+    }
+
+    private static string FormatChoiceTitle(string parentTitle, string selectedTitle)
+    {
+        if (string.IsNullOrEmpty(parentTitle))
+        {
+            return selectedTitle;
+        }
+
+        return string.IsNullOrEmpty(selectedTitle)
+            ? parentTitle
+            : Gui.Format("{1} ({0})", selectedTitle, parentTitle);
+    }
+
+    [CanBeNull]
+    private static FeatureDisplay ResolveFeatureDisplay(
+        CharacterInformationPanel panel,
+        FeatureDefinition feature,
+        RulesetCharacterHero inspectedHero,
+        CharacterHeroBuildingData buildingData)
+    {
+        if (feature == null || feature.GuiPresentation.Hidden)
+        {
+            return null;
+        }
+
+        var display = new FeatureDisplay(feature);
+        var provider = display.TooltipProvider;
+
+        if (feature is FeatureDefinitionPower)
+        {
+            var guiPowerDefinition = ServiceRepository.GetService<IGuiWrapperService>()
+                .GetGuiPowerDefinition(feature.Name);
+
+            if (!CustomTooltipProvider.IsUnavailableContent(guiPowerDefinition.Description))
+            {
+                display.TooltipContent = guiPowerDefinition.Description;
+            }
+        }
+
+        if (Tabletop2024Context.TryGetHumanOriginInspectionDisplayFeature(
+                inspectedHero,
+                buildingData,
+                feature,
+                out var displayFeature,
+                out var fallbackTitle))
+        {
+            var humanOriginTitle = Gui.Localize("Feature/&PointPoolHumanOriginFeatTitle");
+
+            provider.SetTitle(humanOriginTitle);
+            display.Title = displayFeature ? humanOriginTitle : fallbackTitle;
+
+            if (displayFeature)
+            {
+                var description = Tabletop2024Context.FormatOriginFeatGainDescription(displayFeature);
+
+                provider.SetSubtitle(CustomTooltipProvider.FormatTitle(displayFeature));
+                provider.SetDescription(description);
+
+                if (!string.IsNullOrEmpty(description))
+                {
+                    display.TooltipContent = description;
+                }
+            }
+        }
+        else if (Tabletop2024Context.TryGetHalfElfVersatileBloodlineInspectionDisplayFeature(
+                     feature,
+                     out var halfElfParentFeature,
+                     out var halfElfSelectedFeature))
+        {
+            SetParentChoiceFeatureDisplay(display, halfElfParentFeature, halfElfSelectedFeature);
+        }
+        else if (TryGetDragonbornDraconicChoiceInspectionDisplayFeature(
+                     feature,
+                     out var dragonbornParentFeature,
+                     out var dragonbornSelectedFeature))
+        {
+            SetParentChoiceFeatureDisplay(display, dragonbornParentFeature, dragonbornSelectedFeature);
+        }
+        else if (TryFindChoiceFeature(panel, feature, out var choiceFeature))
+        {
+            var selectedTitle = display.Title;
+            var choiceTitle = CustomTooltipProvider.FormatTitle(choiceFeature);
+
+            display.Title = FormatChoiceTitle(choiceTitle, selectedTitle);
+
+            if (string.IsNullOrEmpty(CustomTooltipProvider.FormatDescription(feature)))
+            {
+                provider.BaseDefinition = choiceFeature;
+                provider.SetTitle(string.IsNullOrEmpty(choiceTitle) ? selectedTitle : choiceTitle);
+                provider.SetSubtitle(selectedTitle);
+                display.TooltipContent = CustomTooltipProvider.GetActivationContent(choiceFeature);
+            }
+            else
+            {
+                // A nameless child can still be represented by its meaningful choice parent.
+                provider.SetTitle(string.IsNullOrEmpty(selectedTitle) ? choiceTitle : selectedTitle);
+                provider.SetSubtitle(choiceTitle);
+            }
+        }
+
+        // Resolve dynamic names and choice parents before deciding whether there is a row to display.
+        // The level annotation and tooltip activation fallback are not feature names.
+        return CustomTooltipProvider.IsUnavailableContent(display.Title) ? null : display;
     }
 
     internal static bool EnhanceFeatureList(
@@ -298,24 +413,29 @@ internal static class CharacterInspectionScreenEnhancement
             inspectedHero.TryGetHeroBuildingData(out buildingData);
         }
 
-        while (table.childCount < features.Count)
-        {
-            Gui.GetPrefabFromPool(panel.featurePrefab, table);
-        }
-
         var index = 0;
 
         foreach (var feature in features)
         {
-            var child = table.GetChild(index);
+            var display = ResolveFeatureDisplay(panel, feature.FeatureDefinition, inspectedHero, buildingData);
 
-            BindFeatureRow(panel, child, feature, insufficientLevelFormat, tooltipAnchorMode, inspectedHero, buildingData);
+            if (display == null)
+            {
+                continue;
+            }
+
+            if (index == table.childCount)
+            {
+                Gui.GetPrefabFromPool(panel.featurePrefab, table);
+            }
+
+            BindFeatureRow(panel, table.GetChild(index), feature, display, insufficientLevelFormat, tooltipAnchorMode);
             ++index;
         }
 
-        for (var count = features.Count; count < table.childCount; ++count)
+        for (; index < table.childCount; ++index)
         {
-            HideFeatureRow(panel, table.GetChild(count));
+            HideFeatureRow(panel, table.GetChild(index));
         }
 
         return false;
@@ -325,109 +445,24 @@ internal static class CharacterInspectionScreenEnhancement
         CharacterInformationPanel panel,
         Transform child,
         FeatureUnlockByLevel feature,
+        FeatureDisplay display,
         string insufficientLevelFormat,
-        TooltipDefinitions.AnchorMode tooltipAnchorMode,
-        RulesetCharacterHero inspectedHero,
-        CharacterHeroBuildingData buildingData)
+        TooltipDefinitions.AnchorMode tooltipAnchorMode)
     {
         child.gameObject.SetActive(true);
         RestoreFeatureRowPresentation(panel, child);
 
         var label = child.GetComponent<GuiLabel>();
         var noLevel = feature.Level == 0;
-        var title = feature.FeatureDefinition.FormatTitle();
+        var provider = display.TooltipProvider;
 
-        label.Text = title + (!noLevel ? $" ({feature.Level})" : string.Empty);
+        label.Text = display.Title + (!noLevel ? $" ({feature.Level})" : string.Empty);
         Gui.HexaKeyToColor(noLevel ? Gui.ColorAlmostWhite : Gui.ColorNegative, out var color);
         label.TMP_Text.color = color;
 
         var tooltip = child.GetComponent<GuiTooltip>();
-        var provider = new CustomTooltipProvider(feature.FeatureDefinition, null);
 
-        tooltip.Content = CustomTooltipProvider.GetActivationContent(feature.FeatureDefinition);
-
-        if (Tabletop2024Context.TryGetHumanOriginInspectionDisplayFeature(
-                inspectedHero,
-                buildingData,
-                feature.FeatureDefinition,
-                out var displayFeature,
-                out var fallbackTitle))
-        {
-            var humanOriginTitle = Gui.Localize("Feature/&PointPoolHumanOriginFeatTitle");
-
-            provider.SetTitle(humanOriginTitle);
-
-            if (displayFeature)
-            {
-                var description = Tabletop2024Context.FormatOriginFeatGainDescription(displayFeature);
-
-                label.Text = humanOriginTitle + (!noLevel ? $" ({feature.Level})" : string.Empty);
-                provider.SetSubtitle(displayFeature.FormatTitle());
-                provider.SetDescription(description);
-
-                if (!string.IsNullOrEmpty(description))
-                {
-                    tooltip.Content = description;
-                }
-            }
-            else
-            {
-                label.Text = fallbackTitle + (!noLevel ? $" ({feature.Level})" : string.Empty);
-            }
-        }
-        else if (feature.FeatureDefinition is FeatureDefinitionPower)
-        {
-            var guiPowerDefinition = ServiceRepository.GetService<IGuiWrapperService>()
-                .GetGuiPowerDefinition(feature.FeatureDefinition.Name);
-
-            if (!CustomTooltipProvider.IsUnavailableContent(guiPowerDefinition.Description))
-            {
-                tooltip.Content = guiPowerDefinition.Description;
-            }
-        }
-        else if (Tabletop2024Context.TryGetHalfElfVersatileBloodlineInspectionDisplayFeature(
-                     feature.FeatureDefinition,
-                     out var halfElfParentFeature,
-                     out var halfElfSelectedFeature))
-        {
-            BindParentChoiceFeatureDisplay(
-                label,
-                tooltip,
-                provider,
-                feature,
-                halfElfParentFeature,
-                halfElfSelectedFeature,
-                noLevel);
-        }
-        else if (TryGetDragonbornDraconicChoiceInspectionDisplayFeature(
-                     feature.FeatureDefinition,
-                     out var dragonbornParentFeature,
-                     out var dragonbornSelectedFeature))
-        {
-            BindParentChoiceFeatureDisplay(
-                label,
-                tooltip,
-                provider,
-                feature,
-                dragonbornParentFeature,
-                dragonbornSelectedFeature,
-                noLevel);
-        }
-        else if (TryFindChoiceFeature(panel, feature.FeatureDefinition, out var choiceFeature))
-        {
-            label.Text = Gui.Format("{1} ({0})", feature.FeatureDefinition.FormatTitle(),
-                choiceFeature.FormatTitle());
-
-            if (feature.FeatureDefinition.GuiPresentation.Description == Gui.NoLocalization)
-            {
-                provider.BaseDefinition = choiceFeature;
-                provider.SetSubtitle(feature.FeatureDefinition.GuiPresentation.Title);
-            }
-            else
-            {
-                provider.SetSubtitle(choiceFeature.GuiPresentation.Title);
-            }
-        }
+        tooltip.Content = display.TooltipContent;
         tooltip.TooltipClass = "FeatDefinition";
         tooltip.DataProvider = provider;
         tooltip.Context = panel.InspectedCharacter?.RulesetCharacter;
@@ -444,6 +479,13 @@ internal static class CharacterInspectionScreenEnhancement
     private static void HideFeatureRow(CharacterInformationPanel panel, Transform child)
     {
         RestoreFeatureRowPresentation(panel, child);
+        child.GetComponent<GuiLabel>().Text = string.Empty;
+
+        var tooltip = child.GetComponent<GuiTooltip>();
+
+        tooltip.Content = string.Empty;
+        tooltip.Context = null;
+        tooltip.DataProvider = null;
         child.gameObject.SetActive(false);
     }
 

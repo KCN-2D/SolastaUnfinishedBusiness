@@ -33,13 +33,20 @@ internal class CustomTooltipProvider : GuiBaseDefinitionWrapper, ISubTitleProvid
 
     public override string Title =>
         string.IsNullOrEmpty(_title)
-            ? FormatPresentation(BaseDefinition.GuiPresentation?.Title, BaseDefinition.FormatTitle)
+            ? FormatTitle(BaseDefinition)
             : NormalizeContent(_title);
 
     public override string Description =>
         string.IsNullOrEmpty(_description)
             ? FormatDescription(BaseDefinition)
             : NormalizeContent(_description);
+
+    internal static string FormatTitle(BaseDefinition definition)
+    {
+        return definition == null
+            ? string.Empty
+            : FormatPresentation(definition.GuiPresentation?.Title, definition.FormatTitle);
+    }
 
     internal static string FormatDescription(BaseDefinition definition)
     {
@@ -160,9 +167,15 @@ internal class CustomTooltipProvider : GuiBaseDefinitionWrapper, ISubTitleProvid
 
     private static string FormatPresentation(string key, Func<string> formatter)
     {
-        return IsUnavailableContent(key)
+        // Definitions can generate meaningful titles and descriptions even when their raw keys are empty.
+        // Discard a placeholder only when the formatter still returns that placeholder's localized content.
+        var content = formatter();
+
+        return IsUnavailableContent(content) ||
+               (IsUnavailableContent(key) &&
+                string.Equals(content, Gui.Localize(key ?? string.Empty), StringComparison.Ordinal))
             ? string.Empty
-            : formatter();
+            : content;
     }
 
     private static string NormalizeContent(string content)
