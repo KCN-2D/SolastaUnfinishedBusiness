@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Backgrounds;
 
 namespace SolastaUnfinishedBusiness.Models;
@@ -25,6 +26,32 @@ internal static class BackgroundsContext
                      .ToArray())
         {
             Main.Settings.BackgroundEnabled.Remove(name);
+        }
+    }
+
+    internal static void RestoreSelectedPersonalityFlags(RulesetCharacterHero hero)
+    {
+        var background = hero.BackgroundDefinition;
+
+        var legacyPersonality = background.GetFirstSubFeatureOfType<LegacyBackgroundPersonality>();
+
+        if (legacyPersonality == null)
+        {
+            return;
+        }
+
+        // Changing the choices for new heroes must not silence traits explicitly chosen in an existing save.
+        // Native refresh already adds current choices; only restore choices recorded in this background's history.
+        foreach (var flagName in hero.BackgroundOptionalPersonalityFlags.Distinct())
+        {
+            if (string.IsNullOrEmpty(flagName) ||
+                background.OptionalPersonalityFlags.Any(x => x.PersonalityFlag == flagName) ||
+                !legacyPersonality.TryGetWeight(flagName, out var weight))
+            {
+                continue;
+            }
+
+            hero.AddAlignmentExplicit(flagName, weight);
         }
     }
 

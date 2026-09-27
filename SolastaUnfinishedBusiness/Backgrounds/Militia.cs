@@ -40,13 +40,11 @@ internal static partial class BackgroundsBuilders
                         Perception,
                         Intimidation)
                     .AddToDB())
-            .AddDefaultOptionalPersonality("Lawfulness")
-            .AddDefaultOptionalPersonality("Authority")
-            .AddOptionalPersonality("Lawfulness", 8)
-            .AddOptionalPersonality("Authority", 8)
+            .AddOptionalPersonality("Lawfulness", 8, selectedByDefault: true)
+            .AddOptionalPersonality("Authority", 8, selectedByDefault: true)
             .AddOptionalPersonality("Helpfulness", 8)
             .AddOptionalPersonality("Self-Preservation", 8)
-            .AddStaticPersonality("Slang", 30)
+            .AddStaticPersonality("Formal", 30)
             .AddStaticPersonality("Normal", 5)
             .AddEquipmentRow(new List<CharacterClassDefinition.HeroEquipmentOption>
             {

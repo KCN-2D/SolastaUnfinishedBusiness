@@ -225,6 +225,7 @@ ModUi/&EnablePaladinAnyFightingStyle2024=Enable <color=#D89555>Paladin</color> t
 ModUi/&EnablePcgRandom=Enable a better random generator algorithm <i><color=#F0DAA0>[https://www.pcg-random.org]</color></i>
 ModUi/&EnablePoisonsBonusAction2024=Enable applying <color=#D89555>Poisons</color> to weapons as a bonus action
 ModUi/&EnablePotionsBonusAction2024=Enable drinking <color=#D89555>Potions</color> as a bonus action
+ModUi/&EnableHalfOrcAdrenalineRush2024=For <color=#D89555>{0}</color>, replace <color=#D89555>{1}</color> with <color=#D89555>{2}</color> (2024)
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Set the base walking speed of <color=#D89555>playable species with 5-cell speed</color> to 6 cells
 ModUi/&EnablePreparedSpellsTables2024=Enable all <color=#D89555>Casters</color> to use new prepared spells tables <i><color=#F0DAA0>[Artificer, Bard, Cleric, Druid, Paladin, Ranger, Sorcerer, Wizard]</color></i>
 ModUi/&EnableSpellLists2024=Use the 2024 class spell lists

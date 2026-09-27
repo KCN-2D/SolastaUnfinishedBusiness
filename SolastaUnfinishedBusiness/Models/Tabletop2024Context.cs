@@ -215,6 +215,7 @@ public static partial class Tabletop2024Context
         SwitchSorcererSorcerousRestorationAtLevel5();
         SwitchSorcererDraconicBloodlineAC();
         SwitchSpeciesBaseWalkSpeed();
+        SwitchHalfOrcAdrenalineRush();
         SwitchTabletopFeatRules2024();
         SwitchSurprisedEnforceDisadvantage();
         SwitchWarlockInvocationsProgression();

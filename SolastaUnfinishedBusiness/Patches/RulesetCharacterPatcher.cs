@@ -2091,14 +2091,10 @@ public static class RulesetCharacterPatcher
                 PowerBundle.RechargeLinkedPowers(__instance, restType);
             }
 
-            // The player isn't recharging the shared pool features, just the pool.
-            // Hide the features that use the pool from the UI.
-            foreach (var feature in __instance.RecoveredFeatures
-                         .Where(f => f is FeatureDefinitionPowerSharedPool)
-                         .ToArray())
-            {
-                __instance.RecoveredFeatures.Remove(feature);
-            }
+            // Report active resources, not their shared consumers or disabled replacement traits.
+            __instance.RecoveredFeatures.RemoveAll(feature =>
+                feature is FeatureDefinitionPowerSharedPool ||
+                RaceFeatureReplacement.IsInactiveReplacement(__instance, feature));
 
             //PATCH: support for invocations that recharge on short rest (like Fey Teleportation feat)
             if (!simulate)

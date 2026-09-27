@@ -7,6 +7,7 @@ using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
 using static RuleDefinitions;
 using static SkillDefinitions;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterBackgroundDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.ItemDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.WeaponTypeDefinitions;
 
@@ -47,12 +48,12 @@ internal static partial class BackgroundsBuilders
                         Nature,
                         Perception)
                     .AddToDB())
-            .AddDefaultOptionalPersonality("Pragmatism")
-            .AddDefaultOptionalPersonality("Friendliness")
+            // Older versions offered the same personality choices and weights as Wanderer.
+            .AddCustomSubFeatures(new LegacyBackgroundPersonality(Wanderer.OptionalPersonalityFlags))
+            .AddOptionalPersonality("Pragmatism", 8, selectedByDefault: true)
+            .AddOptionalPersonality("Friendliness", 8, selectedByDefault: true)
+            .AddOptionalPersonality("Helpfulness", 8)
             .AddOptionalPersonality("Self-Preservation", 8)
-            .AddOptionalPersonality("Selfishness", 8)
-            .AddOptionalPersonality("Pragmatism", 8)
-            .AddOptionalPersonality("Friendliness", 8)
             .AddStaticPersonality("Slang", 30)
             .AddStaticPersonality("Normal", 5)
             .AddEquipmentRow(new List<CharacterClassDefinition.HeroEquipmentOption>

@@ -233,6 +233,7 @@ ModUi/&EnablePaladinSpellCastingAtLevel1=Aktiviere <color=#D89555>Zauberwirken</
 ModUi/&EnablePcgRandom=Aktivieren Sie einen besseren Zufallsgenerator-Algorithmus <i><color=#F0DAA0>[https://www.pcg-random.org]</color></i>
 ModUi/&EnablePoisonsBonusAction2024=Aktivieren Sie das Auftragen von <color=#D89555>Giften</color> auf Waffen als Bonusaktion.
 ModUi/&EnablePotionsBonusAction2024=Aktivieren Sie das Trinken von <color=#D89555>Tränken</color> als Bonusaktion
+ModUi/&EnableHalfOrcAdrenalineRush2024=Bei <color=#D89555>{0}</color> das Merkmal <color=#D89555>{1}</color> durch <color=#D89555>{2}</color> ersetzen (2024)
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Setzt die Grundbewegungsrate <color=#D89555>spielbarer Spezies mit 5 Feldern</color> auf 6 Felder
 ModUi/&EnablePreparedSpellsTables2024=Ermöglichen Sie allen <color=#D89555>Zauberern</color> die Verwendung neuer vorbereiteter Zaubertabellen <i><color=#F0DAA0>[Kunsthandwerker, Barde, Kleriker, Druide, Paladin, Waldläufer, Zauberer, Magier]</color></i>
 ModUi/&EnableSpellLists2024=Klassenzauberlisten von 2024 verwenden

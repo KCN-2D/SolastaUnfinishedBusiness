@@ -233,6 +233,7 @@ ModUi/&EnablePaladinSpellCastingAtLevel1=Habilitar <color=#D89555>lanzamiento de
 ModUi/&EnablePcgRandom=Habilitar mejor algoritmo generador aleatorio <i><color=#F0DAA0>[https://www.pcg-random.org]</color></i>
 ModUi/&EnablePoisonsBonusAction2024=Habilitar la aplicación de <color=#D89555>venenos</color> a las armas como acción adicional
 ModUi/&EnablePotionsBonusAction2024=Habilitar beber <color=#D89555>Pociones</color> como acción adicional
+ModUi/&EnableHalfOrcAdrenalineRush2024=Para <color=#D89555>{0}</color>, sustituir el rasgo <color=#D89555>{1}</color> por <color=#D89555>{2}</color> (2024)
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Aumentar a 6 casillas la velocidad base de las <color=#D89555>especies jugables con 5 casillas</color>
 ModUi/&EnablePreparedSpellsTables2024=Permitir que todos los <color=#D89555>lanzadores de conjuros</color> utilicen las nuevas tablas de conjuros preparadas <i><color=#F0DAA0>[Artificiero, Bardo, Clérigo, Druida, Paladín, Explorador, Hechicero, Mago]</color></i>
 ModUi/&EnableSpellLists2024=Usar las listas de conjuros de clase de 2024

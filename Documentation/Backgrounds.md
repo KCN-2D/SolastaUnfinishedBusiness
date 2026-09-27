@@ -46,6 +46,7 @@ You eschew the world and its material concerns, devoting yourself to spiritual a
 
 After years of purposeless wandering and fruitless searching, you have found your cause. Be it a deity or religion, a political campaign, a philosophical movement, or simply promotion of Master Tuckin's fine ales and mead, you have seen the light and are wholeheartedly devoted to furthering your chosen cause.
 
+- Personality: choose two from Lawfulness, Altruism, Authority, and Kindness.
 - Gain the cantrip Sacred Flame.
 - Insight, Investigation and Religion
 - 1 x Noble Clothes (Dominion), 1 x Potion of Healing, 1 x Torch, 5 x Ration Pouch
@@ -54,6 +55,7 @@ After years of purposeless wandering and fruitless searching, you have found you
 
 You have worked the land and hand-raised livestock from birth to feed the mouths of many. As a farmer, you woke up before the sun and came in from working the fields after it set. You have left behind a mundane life to seek adventure for thrill or fame or fortune.
 
+- Personality: choose two from Pragmatism, Kindness, Altruism, and Caution.
 - Proficiency in clubs and hand axes. +1 to hit with them.
 - Animal Handling, Nature and Perception
 - 1 x Commoner's Clothing (Masgarth), 1 x Handaxe, 1 x Torch, 5 x Ration Pouch
@@ -79,6 +81,7 @@ Born in the streets, you have always been discarded by most commoners, and learn
 
 You were a member of a town guard or the civil militia dedicated to the protection of a settlement.
 
+- Personality: choose two from Lawfulness, Authority, Altruism, and Caution.
 - Proficiency in light armor.
 - Proficiency in short sword and spear.
 - Investigation, Perception and Intimidation
@@ -126,6 +129,7 @@ You have spent years working as a low-level diplomatic aide, learning the tricks
 
 Wastrels in city streets and noble courts.
 
+- Personality: choose two from Pragmatism, Greed, Cynicism, and Egoism.
 - Proficiency in rapier.
 - Athletics, Deception and Intimidation
 - Choose one additional language.

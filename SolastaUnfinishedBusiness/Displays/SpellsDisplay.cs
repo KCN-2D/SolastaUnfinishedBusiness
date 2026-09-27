@@ -1,7 +1,10 @@
 ﻿using System.Linq;
+using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.Models;
+using UnityEngine;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper.SpellDefinitions;
 
 namespace SolastaUnfinishedBusiness.Displays;
 
@@ -135,169 +138,7 @@ internal static class SpellsDisplay
         UI.Label();
         UI.Label();
 
-        toggle = Main.Settings.EnablePreparedSpellsTables2024;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnablePreparedSpellsTables2024"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnablePreparedSpellsTables2024 = toggle;
-            Tabletop2024Context.SwitchOneDndPreparedSpellsTables();
-        }
-
-        toggle = Main.Settings.EnableRitualOnAllCasters2024;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableRitualOnAllCasters2024"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableRitualOnAllCasters2024 = toggle;
-            Tabletop2024Context.SwitchOneDndSpellRitualOnAllCasters();
-        }
-
-        toggle = Main.Settings.EnableOneSpellSlotPerTurn2024;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneSpellSlotPerTurn2024"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneSpellSlotPerTurn2024 = toggle;
-        }
-
-        toggle = Main.Settings.EnableOneDndCounterspellSpell;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndCounterspellSpell"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndCounterspellSpell = toggle;
-            Tabletop2024Context.SwitchOneDndSpellCounterspell();
-        }
-
-        UI.Label();
-
-        toggle = Main.Settings.EnableOneDndBarkskinSpell;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndBarkskinSpell"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndBarkskinSpell = toggle;
-            Tabletop2024Context.SwitchOneDndSpellBarkskin();
-        }
-
-        toggle = Main.Settings.EnableOneDndBladeWardCantrip;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndBladeWardCantrip"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndBladeWardCantrip = toggle;
-            Tabletop2024Context.SwitchOneDndCantripBladeWard();
-        }
-
-        toggle = Main.Settings.EnableOneDndChillTouchCantrip;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndChillTouchCantrip"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndChillTouchCantrip = toggle;
-            Tabletop2024Context.SwitchOneDndCantripChillTouch();
-        }
-
-        toggle = Main.Settings.EnableOneDndDamagingSpellsUpgrade;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndDamagingSpellsUpgrade"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndDamagingSpellsUpgrade = toggle;
-            Tabletop2024Context.SwitchOneDndDamagingSpellsUpgrade();
-        }
-
-        toggle = Main.Settings.EnableOneDndHealingSpellsUpgrade;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndHealingSpellsUpgrade"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndHealingSpellsUpgrade = toggle;
-            Tabletop2024Context.SwitchOneDndHealingSpellsUpgrade();
-        }
-
-        toggle = Main.Settings.EnableOneDndDivineFavorSpell;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndDivineFavorSpell"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndDivineFavorSpell = toggle;
-            Tabletop2024Context.SwitchOneDndSpellDivineFavor();
-        }
-
-        toggle = Main.Settings.EnableSmiteSpells2024;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableSmiteSpells2024"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableSmiteSpells2024 = toggle;
-            SmiteSpells2024Context.SwitchSmiteSpells();
-        }
-
-        if (Main.Settings.EnableSmiteSpells2024)
-        {
-            toggle = Main.Settings.AddPaladinSmiteToggle;
-            if (UI.Toggle(" + " + Gui.Localize("ModUi/&AddPaladinSmiteToggle"), ref toggle, UI.AutoWidth()))
-            {
-                Main.Settings.AddPaladinSmiteToggle = toggle;
-                Global.RefreshControlledCharacter();
-            }
-        }
-
-        toggle = Main.Settings.EnableOneDndGuidanceSpell;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndGuidanceSpell"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndGuidanceSpell = toggle;
-            Tabletop2024Context.SwitchOneDndSpellGuidance();
-        }
-
-        toggle = Main.Settings.EnableOneDndHideousLaughterSpell;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndHideousLaughterSpell"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndHideousLaughterSpell = toggle;
-            Tabletop2024Context.SwitchOneDndSpellHideousLaughter();
-        }
-
-        toggle = Main.Settings.EnableOneDndHuntersMarkSpell;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndHuntersMarkSpell"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndHuntersMarkSpell = toggle;
-            Tabletop2024Context.SwitchOneDndSpellHuntersMark();
-        }
-
-        toggle = Main.Settings.EnableOneDndLesserRestorationSpell;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndLesserRestorationSpell"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndLesserRestorationSpell = toggle;
-            Tabletop2024Context.SwitchOneDndSpellLesserRestoration();
-        }
-
-        toggle = Main.Settings.EnableOneDndMagicWeaponSpell;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndMagicWeaponSpell"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndMagicWeaponSpell = toggle;
-            Tabletop2024Context.SwitchOneDndSpellMagicWeapon();
-        }
-
-        toggle = Main.Settings.EnableOneDndPowerWordStunSpell;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndPowerWordStunSpell"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndPowerWordStunSpell = toggle;
-            Tabletop2024Context.SwitchOneDndSpellPowerWordStun();
-        }
-
-        toggle = Main.Settings.EnableOneDndSpareTheDyingSpell;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndSpareTheDyingSpell"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndSpareTheDyingSpell = toggle;
-            Tabletop2024Context.SwitchOneDndSpellSpareTheDying();
-        }
-
-        toggle = Main.Settings.EnableOneDndSpiderClimbSpell;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndSpiderClimbSpell"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndSpiderClimbSpell = toggle;
-            Tabletop2024Context.SwitchOneDndSpellSpiderClimb();
-        }
-
-        toggle = Main.Settings.EnableOneDndStoneSkinSpell;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndStoneSkinSpell"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndStoneSkinSpell = toggle;
-            Tabletop2024Context.SwitchOneDndSpellStoneSkin();
-        }
-
-        toggle = Main.Settings.EnableOneDndWitchBoltSpell;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndWitchBoltSpell"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndWitchBoltSpell = toggle;
-            Tabletop2024Context.SwitchOneDndSpellWitchBolt();
-        }
-
-        toggle = Main.Settings.EnableOneDndTrueStrikeCantrip;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneDndTrueStrikeCantrip"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableOneDndTrueStrikeCantrip = toggle;
-        }
+        DisplaySpells2024();
 
         UI.Label();
 
@@ -326,6 +167,238 @@ internal static class SpellsDisplay
             Main.Settings.SwapShineCantrip = toggle;
             Tabletop2024Context.SwitchShineCantrip();
         }
+    }
+
+    internal static void DisplaySpells2024()
+    {
+        var toggle = Main.Settings.EnablePreparedSpellsTables2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnablePreparedSpellsTables2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnablePreparedSpellsTables2024 = toggle;
+            Tabletop2024Context.SwitchOneDndPreparedSpellsTables();
+        }
+
+        toggle = Main.Settings.EnableRitualOnAllCasters2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableRitualOnAllCasters2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableRitualOnAllCasters2024 = toggle;
+            Tabletop2024Context.SwitchOneDndSpellRitualOnAllCasters();
+        }
+
+        toggle = Main.Settings.EnableOneSpellSlotPerTurn2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableOneSpellSlotPerTurn2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneSpellSlotPerTurn2024 = toggle;
+        }
+
+        toggle = Main.Settings.EnableOneDndCounterspellSpell;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndCounterspellSpell",
+                    Counterspell),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndCounterspellSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellCounterspell();
+        }
+
+        if (Main.Settings.EnableOneDndCounterspellSpell)
+        {
+            UI.Label(Gui.Localize("ModUi/&Counterspell2024CompatibilityDescription"),
+                new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
+        }
+
+        UI.Label();
+
+        toggle = Main.Settings.EnableOneDndBarkskinSpell;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndBarkskinSpell",
+                    Barkskin),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndBarkskinSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellBarkskin();
+        }
+
+        toggle = Main.Settings.EnableOneDndBladeWardCantrip;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndBladeWardCantrip",
+                    SpellsContext.BladeWard),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndBladeWardCantrip = toggle;
+            Tabletop2024Context.SwitchOneDndCantripBladeWard();
+        }
+
+        toggle = Main.Settings.EnableOneDndChillTouchCantrip;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndChillTouchCantrip",
+                    ChillTouch),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndChillTouchCantrip = toggle;
+            Tabletop2024Context.SwitchOneDndCantripChillTouch();
+        }
+
+        toggle = Main.Settings.EnableOneDndDamagingSpellsUpgrade;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndDamagingSpellsUpgrade",
+                    ArcaneSword, CircleOfDeath, FlameStrike, IceStorm, PrismaticSpray, ViciousMockery),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndDamagingSpellsUpgrade = toggle;
+            Tabletop2024Context.SwitchOneDndDamagingSpellsUpgrade();
+        }
+
+        toggle = Main.Settings.EnableOneDndHealingSpellsUpgrade;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndHealingSpellsUpgrade",
+                    CureWounds, FalseLife, HealingWord, MassCureWounds, MassHealingWord),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndHealingSpellsUpgrade = toggle;
+            Tabletop2024Context.SwitchOneDndHealingSpellsUpgrade();
+        }
+
+        toggle = Main.Settings.EnableOneDndDivineFavorSpell;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndDivineFavorSpell",
+                    DivineFavor),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndDivineFavorSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellDivineFavor();
+        }
+
+        toggle = Main.Settings.EnableSmiteSpells2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableSmiteSpells2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableSmiteSpells2024 = toggle;
+            SmiteSpells2024Context.SwitchSmiteSpells();
+        }
+
+        if (Main.Settings.EnableSmiteSpells2024)
+        {
+            toggle = Main.Settings.AddPaladinSmiteToggle;
+            if (UI.Toggle(" + " + Gui.Localize("ModUi/&AddPaladinSmiteToggle"), ref toggle, UI.AutoWidth()))
+            {
+                Main.Settings.AddPaladinSmiteToggle = toggle;
+                Global.RefreshControlledCharacter();
+            }
+        }
+
+        toggle = Main.Settings.EnableOneDndGuidanceSpell;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndGuidanceSpell",
+                    Guidance),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndGuidanceSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellGuidance();
+        }
+
+        toggle = Main.Settings.EnableOneDndHideousLaughterSpell;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndHideousLaughterSpell",
+                    HideousLaughter),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndHideousLaughterSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellHideousLaughter();
+        }
+
+        toggle = Main.Settings.EnableOneDndHuntersMarkSpell;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndHuntersMarkSpell",
+                    HuntersMark),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndHuntersMarkSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellHuntersMark();
+        }
+
+        toggle = Main.Settings.EnableOneDndLesserRestorationSpell;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndLesserRestorationSpell",
+                    LesserRestoration),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndLesserRestorationSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellLesserRestoration();
+        }
+
+        toggle = Main.Settings.EnableOneDndMagicWeaponSpell;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndMagicWeaponSpell",
+                    MagicWeapon),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndMagicWeaponSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellMagicWeapon();
+        }
+
+        toggle = Main.Settings.EnableOneDndPowerWordStunSpell;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndPowerWordStunSpell",
+                    PowerWordStun),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndPowerWordStunSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellPowerWordStun();
+        }
+
+        toggle = Main.Settings.EnableOneDndSpareTheDyingSpell;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndSpareTheDyingSpell",
+                    SpareTheDying),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndSpareTheDyingSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellSpareTheDying();
+        }
+
+        toggle = Main.Settings.EnableOneDndSpiderClimbSpell;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndSpiderClimbSpell",
+                    SpiderClimb),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndSpiderClimbSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellSpiderClimb();
+        }
+
+        toggle = Main.Settings.EnableOneDndStoneSkinSpell;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndStoneSkinSpell",
+                    Stoneskin),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndStoneSkinSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellStoneSkin();
+        }
+
+        toggle = Main.Settings.EnableOneDndWitchBoltSpell;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndWitchBoltSpell",
+                    DatabaseHelper.GetDefinition<SpellDefinition>("WitchBolt")),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndWitchBoltSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellWitchBolt();
+        }
+
+        toggle = Main.Settings.EnableOneDndTrueStrikeCantrip;
+        if (UI.Toggle(
+                FormatSpellRuleSetting("ModUi/&EnableOneDndTrueStrikeCantrip",
+                    TrueStrike),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndTrueStrikeCantrip = toggle;
+        }
+    }
+
+    private static string FormatSpellRuleSetting(string settingKey, params SpellDefinition[] spells)
+    {
+        return Gui.Format(settingKey, spells.Select(spell => spell.FormatTitle()).ToArray());
     }
 
     internal static void DisplaySpells()

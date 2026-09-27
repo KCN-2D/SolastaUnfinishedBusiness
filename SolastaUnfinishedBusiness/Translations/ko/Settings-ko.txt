@@ -233,6 +233,7 @@ ModUi/&EnablePaladinSpellCastingAtLevel1=레벨 2 대신 레벨 1에서 <color=#
 ModUi/&EnablePcgRandom=더 나은 난수 생성 알고리즘을 활성화하세요 <i><color=#F0DAA0>[https://www.pcg-random.org]</color></i>
 ModUi/&EnablePoisonsBonusAction2024=보너스 액션으로 무기에 <color=#D89555>독</color>을 적용하도록 활성화합니다.
 ModUi/&EnablePotionsBonusAction2024=보너스 액션으로 <color=#D89555>물약</color> 마시기를 활성화합니다.
+ModUi/&EnableHalfOrcAdrenalineRush2024=<color=#D89555>{0}</color>: <color=#D89555>{1}</color> 특성을 <color=#D89555>{2}</color> 특성으로 교체합니다 (2024)
 ModUi/&EnableSpeciesBaseWalkSpeed2024=<color=#D89555>기본 이동 속도가 5칸인 플레이 가능한 종족</color>의 속도를 6칸으로 설정합니다.
 ModUi/&EnablePreparedSpellsTables2024=모든 <color=#D89555>주문자</color>가 새로 준비된 주문표 <i><color=#F0DAA0>[기술자, 바드, 성직자, 드루이드, 성기사, 레인저, 소서러, 위저드]</color></i>를 사용할 수 있도록 합니다.
 ModUi/&EnableSpellLists2024=2024년 클래스 주문 목록 사용

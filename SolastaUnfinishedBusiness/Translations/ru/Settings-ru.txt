@@ -233,6 +233,7 @@ ModUi/&EnablePaladinSpellCastingAtLevel1=Включить возможность
 ModUi/&EnablePcgRandom=Включить улучшенный алгоритм генерации случайных чисел <i><color=#F0DAA0>[https://www.pcg-random.org]</color></i>
 ModUi/&EnablePoisonsBonusAction2024=Включить нанесение <color=#D89555>Ядов</color> на оружие бонусным действием
 ModUi/&EnablePotionsBonusAction2024=Включить использование <color=#D89555>Зелий</color> бонусным действием
+ModUi/&EnableHalfOrcAdrenalineRush2024=<color=#D89555>{0}</color>: заменить особенность <color=#D89555>{1}</color> на <color=#D89555>{2}</color> (2024)
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Установить скорость 6 клеток для <color=#D89555>игровых видов с базовой скоростью 5 клеток</color>
 ModUi/&EnablePreparedSpellsTables2024=Включить всем <color=#D89555>Заклинателям</color> использовать новые таблицы подготовленных заклинаний <i><color=#F0DAA0>[Изобретатель, Бард, Жрец, Друид, Паладин, Следопыт, Чародей, Волшебник]</color></i>
 ModUi/&EnableSpellLists2024=Использовать списки классовых заклинаний 2024 года

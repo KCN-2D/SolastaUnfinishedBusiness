@@ -225,6 +225,7 @@ ModUi/&EnablePaladinAnyFightingStyle2024=<color=#D89555>パラディン</color>�
 ModUi/&EnablePcgRandom=より優れた乱数生成アルゴリズムを有効にする<i><color=#F0DAA0>（https://www.pcg-random.org）</color></i>
 ModUi/&EnablePoisonsBonusAction2024=ボーナス・アクションとして武器に<color=#D89555>毒</color>を適用できるようにします
 ModUi/&EnablePotionsBonusAction2024=ボーナス・アクションとして<color=#D89555>ポーション</color>を飲めるようにします
+ModUi/&EnableHalfOrcAdrenalineRush2024=<color=#D89555>{0}</color>の<color=#D89555>{1}</color>を<color=#D89555>{2}</color>に置き換えます（2024）
 ModUi/&EnableSpeciesBaseWalkSpeed2024=<color=#D89555>基本移動速度が5マスの種族</color>の基本移動速度を6マスにします
 ModUi/&EnablePreparedSpellsTables2024=すべての<color=#D89555>呪文発動者</color>が新しい準備済み呪文テーブル<i><color=#F0DAA0>（アーティフィサー、バード、クレリック、ドルイド、パラディン、レンジャー、ソーサラー、ウィザード）</color></i>を使用できるようにします。
 ModUi/&EnableSpellLists2024=2024年版のクラス呪文リストを使用します

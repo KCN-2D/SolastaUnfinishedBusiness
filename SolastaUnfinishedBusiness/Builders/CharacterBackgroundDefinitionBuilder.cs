@@ -34,7 +34,10 @@ internal class CharacterBackgroundDefinitionBuilder
         return this;
     }
 
-    internal CharacterBackgroundDefinitionBuilder AddOptionalPersonality(string personalityFlag, int weight)
+    internal CharacterBackgroundDefinitionBuilder AddOptionalPersonality(
+        string personalityFlag,
+        int weight,
+        bool selectedByDefault = false)
     {
         Definition.optionalPersonalityFlags.Add(
             new PersonalityFlagOccurence(
@@ -43,12 +46,10 @@ internal class CharacterBackgroundDefinitionBuilder
                 weight = weight, personalityFlag = personalityFlag
             });
 
-        return this;
-    }
-
-    internal CharacterBackgroundDefinitionBuilder AddDefaultOptionalPersonality(string personalityFlag)
-    {
-        Definition.defaultOptionalPersonalityFlags.Add(personalityFlag);
+        if (selectedByDefault)
+        {
+            Definition.defaultOptionalPersonalityFlags.Add(personalityFlag);
+        }
 
         return this;
     }

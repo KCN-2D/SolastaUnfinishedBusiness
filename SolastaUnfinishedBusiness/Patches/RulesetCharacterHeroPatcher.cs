@@ -30,6 +30,19 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetCharacterHeroPatcher
 {
+    [HarmonyPatch(typeof(RulesetCharacterHero), nameof(RulesetCharacterHero.RefreshPersonalityFlags))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RefreshPersonalityFlags_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(RulesetCharacterHero __instance)
+        {
+            //PATCH: preserve saved personality choices when their background's offered traits change
+            BackgroundsContext.RestoreSelectedPersonalityFlags(__instance);
+        }
+    }
+
     private static void EnumerateFeatureDefinitionSavingThrowAffinity(
         RulesetCharacter __instance,
         List<FeatureDefinition> featuresToBrowse,
@@ -930,6 +943,8 @@ public static class RulesetCharacterHeroPatcher
         [UsedImplicitly]
         public static void Prefix(RulesetCharacterHero __instance)
         {
+            Tabletop2024Context.SynchronizeSpeciesFeatures(__instance);
+
             //PATCH: clears cached customized spell effects
             PowerBundle.ClearSpellEffectCache(__instance);
 

@@ -21,7 +21,7 @@ internal static partial class BackgroundsBuilders
             .Create(BackgroundTroublemaker)
             .SetGuiPresentation(Category.Background,
                 Sprites.GetSprite(BackgroundTroublemaker, Resources.BackgroundTroublemaker, 1024, 512))
-            .SetBanterList(BanterDefinitions.BanterList.Formal)
+            .SetBanterList(BanterDefinitions.BanterList.Cynical)
             .SetFeatures(
                 FeatureDefinitionProficiencyBuilder
                     .Create($"Proficiency{BackgroundTroublemaker}Weapons")
@@ -37,12 +37,10 @@ internal static partial class BackgroundsBuilders
                         Intimidation)
                     .AddToDB(),
                 DatabaseHelper.FeatureDefinitionPointPools.PointPoolBackgroundLanguageChoice_one)
-            .AddDefaultOptionalPersonality("Pragmatism")
-            .AddDefaultOptionalPersonality("Greed")
+            .AddOptionalPersonality("Pragmatism", 8, selectedByDefault: true)
+            .AddOptionalPersonality("Greed", 8, selectedByDefault: true)
             .AddOptionalPersonality("Cynicism", 8)
             .AddOptionalPersonality("Selfishness", 8)
-            .AddOptionalPersonality("Pragmatism", 8)
-            .AddOptionalPersonality("Greed", 8)
             .AddStaticPersonality("Slang", 30)
             .AddStaticPersonality("Normal", 5)
             .AddEquipmentRow(new List<CharacterClassDefinition.HeroEquipmentOption>

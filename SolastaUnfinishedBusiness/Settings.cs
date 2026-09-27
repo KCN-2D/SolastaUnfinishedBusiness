@@ -123,6 +123,7 @@ public class Settings : UnityModManager.ModSettings
     public bool UseAlternateSpellPointsSystem { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSmiteSpells2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSpeciesBaseWalkSpeed2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableHalfOrcAdrenalineRush2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableHeavyWeaponAbilityRequirement2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool UseWeaponMasterySystem { get; set; }
     [Tag(Type = TagType.T2024)] public bool UseWeaponMasterySystemAddWeaponTag { get; set; }
