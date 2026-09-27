@@ -153,6 +153,7 @@ internal static class ModUi
         "FeatGroupShadowTouched",
         "FeatGroupShadowTouched2024",
         "FeatGroupSentinel2024",
+        "FeatGroupSkillExpert",
         "FeatGroupSlasher",
         "FeatGroupSpeedy",
         "FeatGroupSpellSniper",

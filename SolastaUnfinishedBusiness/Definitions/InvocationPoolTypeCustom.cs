@@ -5,6 +5,7 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Classes;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Subclasses;
 using UnityEngine.AddressableAssets;
 using static ActionDefinitions;
@@ -22,6 +23,10 @@ internal class InvocationPoolTypeCustom
     }
 
     internal string Name { get; private set; }
+
+    internal int SelectionOrder { get; private set; }
+
+    internal bool AllowExhaustedSelection { get; private set; }
 
     /**Are level requirements in character levels or class levels?*/
     internal string RequireClassLevels { get; private set; }
@@ -95,11 +100,15 @@ internal class InvocationPoolTypeCustom
         string panelTitle = null,
         Id main = Id.CastInvocation,
         Id bonus = (Id)ExtraActionId.CastInvocationBonus,
-        Id noCost = (Id)ExtraActionId.CastInvocationNoCost)
+        Id noCost = (Id)ExtraActionId.CastInvocationNoCost,
+        int selectionOrder = 0,
+        bool allowExhaustedSelection = false)
     {
         var pool = new InvocationPoolTypeCustom
         {
             Name = name,
+            SelectionOrder = selectionOrder,
+            AllowExhaustedSelection = allowExhaustedSelection,
             PanelTitle = panelTitle ?? $"Screen/&InvocationPool{name}Header",
             Sprite = sprite,
             RequireClassLevels = requireClassLevel,
@@ -171,6 +180,18 @@ internal class InvocationPoolTypeCustom
 
     internal static class Pools
     {
+        internal static readonly InvocationPoolTypeCustom FeatSkilled =
+            Register("FeatSkilled", ProficiencyChoiceSprites.Get("Skilled"),
+                allowExhaustedSelection: true);
+
+        internal static readonly InvocationPoolTypeCustom FeatSkillExpertSkill =
+            Register("FeatSkillExpertSkill", ProficiencyChoiceSprites.Get("Skilled"),
+                allowExhaustedSelection: true);
+
+        internal static readonly InvocationPoolTypeCustom FeatSkillExpertExpertise =
+            Register("FeatSkillExpertExpertise", ProficiencyChoiceSprites.Get("SkillExpert"),
+                selectionOrder: 1, allowExhaustedSelection: true);
+
         internal static readonly InvocationPoolTypeCustom ArcaneShotChoice =
             Register("ArcaneShotChoice");
 

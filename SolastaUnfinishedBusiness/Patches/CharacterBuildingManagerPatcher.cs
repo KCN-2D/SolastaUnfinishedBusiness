@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection.Emit;
@@ -967,7 +966,7 @@ public static class CharacterBuildingManagerPatcher
         foreach (var currentFeat in currentFeats)
         {
             if (!Tabletop2024Context.TryResolveTrainableModeAwareFeat(currentFeat, out var resolvedFeat) ||
-                !Tabletop2024Context.IsDisplayableManagedTabletopLeaf(resolvedFeat) ||
+                !Tabletop2024Context.IsSelectableTabletopFeatLeaf(resolvedFeat) ||
                 pointPool != null &&
                 !Tabletop2024Context.TryPrepareIndependentFeatTraining(
                     heroBuildingData,
@@ -979,7 +978,8 @@ public static class CharacterBuildingManagerPatcher
                 continue;
             }
 
-            if (distinctResolvedFeats.Any(existingFeat =>
+            if (!SkillFeats.IsRepeatable(resolvedFeat) &&
+                distinctResolvedFeats.Any(existingFeat =>
                     Tabletop2024Context.AreEquivalentTabletopFeatNames(existingFeat.Name, resolvedFeat.Name)))
             {
                 needsSanitize = true;
@@ -989,16 +989,15 @@ public static class CharacterBuildingManagerPatcher
             distinctResolvedFeats.Add(resolvedFeat);
         }
 
-        if (resolvedSelectedFeat != null &&
+        if (pointPool?.maxPoints == 1 &&
+            resolvedSelectedFeat != null &&
             currentFeats.Any(currentFeat =>
                 !Tabletop2024Context.AreEquivalentTabletopFeatNames(currentFeat.Name, resolvedSelectedFeat.Name)))
         {
             needsSanitize = true;
         }
 
-        if (pointPool != null &&
-            pointPool.maxPoints <= 1 &&
-            distinctResolvedFeats.Count > 1)
+        if (pointPool != null && distinctResolvedFeats.Count > pointPool.maxPoints)
         {
             needsSanitize = true;
         }
@@ -1030,21 +1029,15 @@ public static class CharacterBuildingManagerPatcher
                     entry.Value != null)
                 .SelectMany(entry => entry.Value));
 
-        FeatDefinition backgroundFeat = null;
-
-        if (Tabletop2024Context.TryGetBackgroundBonusFeatForDisplay(hero, heroBuildingData, out backgroundFeat))
+        if (Tabletop2024Context.TryGetBackgroundBonusFeatForDisplay(hero, heroBuildingData, out var backgroundFeat))
         {
             AddDisplayableFinalizeFeats(snapshot, [backgroundFeat]);
         }
 
-        FeatDefinition humanOriginFeat = null;
-
-        if (Tabletop2024Context.TryGetHumanOriginFeatForFinalizeSnapshot(hero, heroBuildingData, out humanOriginFeat))
+        if (Tabletop2024Context.TryGetHumanOriginFeatForFinalizeSnapshot(hero, heroBuildingData, out var humanOriginFeat))
         {
             AddDisplayableFinalizeFeats(snapshot, [humanOriginFeat]);
         }
-
-        LogFinalizeDisplaySnapshot(hero, snapshot, backgroundFeat, humanOriginFeat);
 
         return snapshot;
     }
@@ -1085,8 +1078,7 @@ public static class CharacterBuildingManagerPatcher
 
         return feat.GetFirstSubFeatureOfType<IGroupedFeat>() == null &&
                !Tabletop2024Context.IsTabletopContainerGroup(feat) &&
-               !Tabletop2024Context.IsNonSelectableTabletopGroup(feat) &&
-               Tabletop2024Context.GetCanonicalTabletopFeatName(feat.Name) != "FeatSkilled";
+               !Tabletop2024Context.IsNonSelectableTabletopGroup(feat);
     }
 
     private static void EnsureDisplayFeatsPresentInHeroTrainedFeats(
@@ -1100,8 +1092,6 @@ public static class CharacterBuildingManagerPatcher
 
         hero.trainedFeats ??= [];
 
-        var addedFeatNames = new List<string>();
-
         foreach (var feat in trainedFeats?.Where(IsDisplayableFinalizeFeat) ?? [])
         {
             feat.GuiPresentation.hidden = false;
@@ -1114,45 +1104,12 @@ public static class CharacterBuildingManagerPatcher
             }
 
             hero.trainedFeats.Add(feat);
-            addedFeatNames.Add(feat.Name);
         }
 
         foreach (var feat in hero.trainedFeats.Where(IsDisplayableFinalizeFeat))
         {
             feat.GuiPresentation.hidden = false;
         }
-
-        LogFinalizeDisplaySync(hero, addedFeatNames);
-    }
-
-    [Conditional("DEBUG")]
-    private static void LogFinalizeDisplaySnapshot(
-        RulesetCharacterHero hero,
-        IEnumerable<FeatDefinition> snapshot,
-        FeatDefinition backgroundFeat,
-        FeatDefinition humanOriginFeat)
-    {
-        var snapshotNames = snapshot?.Where(feat => feat != null).Select(feat => feat.Name) ?? [];
-
-        Main.Log(
-            $"Finalize display snapshot: hero={hero?.Name ?? "null"} guid={(hero != null ? hero.Guid.ToString() : "null")} " +
-            $"use2024={Main.Settings.EnableTabletopFeatRules2024} " +
-            $"background={backgroundFeat?.Name ?? "null"} humanOrigin={humanOriginFeat?.Name ?? "null"} " +
-            $"snapshot=[{string.Join(", ", snapshotNames)}]");
-    }
-
-    [Conditional("DEBUG")]
-    private static void LogFinalizeDisplaySync(
-        RulesetCharacterHero hero,
-        IEnumerable<string> addedFeatNames)
-    {
-        var trainedFeatNames = hero?.trainedFeats?.Where(feat => feat != null).Select(feat => feat.Name) ?? [];
-        var addedNames = addedFeatNames?.Where(name => !string.IsNullOrEmpty(name)) ?? [];
-
-        Main.Log(
-            $"Finalize display sync: hero={hero?.Name ?? "null"} guid={(hero != null ? hero.Guid.ToString() : "null")} " +
-            $"trained=[{string.Join(", ", trainedFeatNames)}] " +
-            $"added=[{string.Join(", ", addedNames)}]");
     }
 
     [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.CreateNewCharacter))]
@@ -2358,6 +2315,7 @@ public static class CharacterBuildingManagerPatcher
             CharacterHeroBuildingData heroBuildingData,
             ref FeatDefinition feat,
             string tag,
+            bool checkPool,
             out object __state)
         {
             __state = default;
@@ -2397,6 +2355,16 @@ public static class CharacterBuildingManagerPatcher
             if (feat?.GetFirstSubFeatureOfType<IGroupedFeat>() != null)
             {
                 Tabletop2024Context.ClearPendingFeatSelection(hero, tag);
+                return false;
+            }
+
+            if (SkillFeats.IsRepeatable(feat) && checkPool &&
+                (buildingService?.GetPointPoolOfTypeAndTag(
+                     heroBuildingData, HeroDefinitions.PointsPoolType.Feat, tag) is not { } repeatablePool ||
+                 repeatablePool.remainingPoints <= 0))
+            {
+                Tabletop2024Context.ClearPendingFeatSelection(hero, tag);
+
                 return false;
             }
 

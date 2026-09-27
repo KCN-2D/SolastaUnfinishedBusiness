@@ -383,6 +383,7 @@ public static partial class Tabletop2024Context
 
     private static readonly string[] ExplicitIndependentLegacyStandaloneRootNames =
     [
+        SkillFeats.SkilledName,
         "FeatAcrobat",
         LegacyAlertFeatName,
         "FeatArcanist",
@@ -411,6 +412,7 @@ public static partial class Tabletop2024Context
 
     private static readonly string[] ExplicitIndependentLegacyGroupedRootNames =
     [
+        SkillFeats.SkillExpertGroupName,
         AthleteGroupFeatName,
         "FeatGroupBalefulScion",
         "FeatGroupChef",
@@ -452,6 +454,7 @@ public static partial class Tabletop2024Context
     ];
     private static readonly HashSet<string> ManagedHalfFeatCustomVariantTitleCanonicalRoots =
     [
+        SkillFeats.SkillExpertGroupName,
         "FeatGroupElementalAdept",
         KeenMind2024GroupFeatName,
         Observant2024GroupFeatName
@@ -476,8 +479,7 @@ public static partial class Tabletop2024Context
         "FeatArcaneArcherAdept",
         "FeatEldritchVersatilityAdept",
         "FeatInfusionsAdept",
-        "FeatMonkInitiate",
-        "FeatSkilled"
+        "FeatMonkInitiate"
     ];
 
     private static bool _tabletopFeats2024Loaded;
@@ -659,9 +661,6 @@ public static partial class Tabletop2024Context
 
             FeatsContext.RefreshFeatVisibilityFromSettings();
             GuiWrapperContext.RecacheFeats();
-#if DEBUG
-            LogLegacyFeatVisibilityState();
-#endif
         }
 
         LastAppliedTabletopFeatRules2024State = use2024;
@@ -5055,14 +5054,16 @@ public static partial class Tabletop2024Context
             TryGetDefinition(parentName, out parentGroupedFeat);
         }
 
+        var alreadySelected = service.IsFeatSelectedForTraining(heroBuildingData, feat, tag);
+
+        // Revalidating a chosen half-feat against its own family would erase it when adding another bonus feat.
         if (!MatchesRestrictedChoice(feat, parentGroupedFeat, pointPool.RestrictedChoices?.ToHashSet() ?? []) ||
-            !IsFeatMatchingPrerequisites(service, heroBuildingData, feat, out _))
+            (!alreadySelected && !IsFeatMatchingPrerequisites(service, heroBuildingData, feat, out _)))
         {
             return false;
         }
 
-        return !service.IsFeatKnownOrTrained(heroBuildingData, feat) ||
-               service.IsFeatSelectedForTraining(heroBuildingData, feat, tag);
+        return alreadySelected || !service.IsFeatKnownOrTrained(heroBuildingData, feat);
     }
 
     internal static bool CanSelectFeatForCurrentPointPool(
@@ -5082,7 +5083,8 @@ public static partial class Tabletop2024Context
         }
 
         if (!TryResolveTrainableModeAwareFeat(feat, out var resolvedFeat) ||
-            !IsSelectableTabletopFeatLeaf(resolvedFeat))
+            !IsSelectableTabletopFeatLeaf(resolvedFeat) ||
+            (SkillFeats.IsRepeatable(resolvedFeat) && pointPool.remainingPoints <= 0))
         {
             return false;
         }
@@ -7198,8 +7200,7 @@ public static partial class Tabletop2024Context
 
     internal static bool IsDisplayableManagedTabletopLeaf(FeatDefinition feat)
     {
-        return IsSelectableManagedTabletopFeatLeaf(feat) &&
-               GetCanonicalTabletopFeatName(feat.Name) != "FeatSkilled";
+        return IsSelectableManagedTabletopFeatLeaf(feat);
     }
 
     private static bool RequiresManagedTabletopFeatLevel4Prerequisite(FeatDefinition feat)
@@ -7252,8 +7253,9 @@ public static partial class Tabletop2024Context
 
     private static bool IsManagedTabletopCanonicalNameInOriginContainer(string canonicalName)
     {
-        if (ManagedTabletopContainerNamesByCanonicalName.TryGetValue(canonicalName, out var containerNames) &&
-            containerNames.Contains("FeatGroupOrigin"))
+        if (Tabletop2024OriginFeatNames.Contains(canonicalName) ||
+            (ManagedTabletopContainerNamesByCanonicalName.TryGetValue(canonicalName, out var containerNames) &&
+             containerNames.Contains("FeatGroupOrigin")))
         {
             return true;
         }
@@ -7441,28 +7443,6 @@ public static partial class Tabletop2024Context
 
         feat.GuiPresentation.hidden = !visible;
     }
-
-#if DEBUG
-    private static void LogLegacyFeatVisibilityState()
-    {
-        var visibleGroups = FeatsContext.FeatGroups.Count(feat => feat is { GuiPresentation.hidden: false });
-        var visibleFeats = FeatsContext.Feats.Count(feat => feat is { GuiPresentation.hidden: false });
-        var visibleHideFromFeats = FeatsContext.Feats.Count(feat =>
-            feat is { GuiPresentation.hidden: false } &&
-            feat.HasSubFeatureOfType<FeatsContext.HideFromFeats>());
-        var visibleManagedFeats = FeatsContext.Feats
-            .Concat(FeatsContext.FeatGroups)
-            .Where(feat => feat != null)
-            .Distinct()
-            .Count(feat => IsManagedTabletopFeat(feat) && !feat.GuiPresentation.hidden);
-
-        Main.Log(
-            $"SwitchTabletopFeatRules2024(false): enabled={Main.Settings.EnableTabletopFeatRules2024}, " +
-            $"containers={ManagedTabletopContainerGroupNames.Count}, visibleGroups={visibleGroups}, " +
-            $"visibleFeats={visibleFeats}, visibleHideFromFeats={visibleHideFromFeats}, " +
-            $"visibleManagedFeats={visibleManagedFeats}.");
-    }
-#endif
 
     private static bool IsDefinitionEnabledBySettings(FeatDefinition feat)
     {

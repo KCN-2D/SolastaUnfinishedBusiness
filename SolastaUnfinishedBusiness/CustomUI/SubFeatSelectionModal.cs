@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -331,7 +332,8 @@ internal class SubFeatSelectionModal : GuiGameScreen
         var service = ServiceRepository.GetService<ICharacterBuildingService>();
         var buildingData = hero.GetHeroBuildingData();
         var pool = service.GetPointPoolOfTypeAndTag(buildingData, item.CurrentPoolType, item.StageTag);
-        var isGroupedFeat = item.GuiFeatDefinition.FeatDefinition.HasSubFeatureOfType<IGroupedFeat>();
+        var isGroupedFeat = feat.HasSubFeatureOfType<IGroupedFeat>();
+        var isRepeatable = SkillFeats.IsRepeatable(feat);
         var hasSelectedDescendant = Main.Settings.EnableTabletopFeatRules2024 &&
                                     Tabletop2024Context.HasTrainedOrSelectedDescendant(
                                         buildingData,
@@ -346,13 +348,14 @@ internal class SubFeatSelectionModal : GuiGameScreen
 
         var isSameFamily = false;
 
-        if ((!isGroupedFeat && hasSelectedDescendant) ||
-            service.IsFeatKnownOrTrained(buildingData, feat) ||
-            hero.TrainedFeats.Contains(feat))
+        if (!isRepeatable &&
+            ((!isGroupedFeat && hasSelectedDescendant) ||
+             service.IsFeatKnownOrTrained(buildingData, feat) ||
+             hero.TrainedFeats.Contains(feat)))
         {
             interactiveMode = ProficiencyBaseItem.InteractiveMode.Static;
         }
-        else if (pool == null)
+        else if (pool == null || (isRepeatable && pool.remainingPoints <= 0))
         {
             color = DisabledColor;
             interactiveMode = ProficiencyBaseItem.InteractiveMode.Disabled;

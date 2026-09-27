@@ -50,6 +50,15 @@ public static class CharacterInformationPanelPatcher
     [UsedImplicitly]
     public static class Refresh_Patch
     {
+        [UsedImplicitly]
+        public static void Postfix(CharacterInformationPanel __instance)
+        {
+            // These dedicated artwork slots must keep the sprite proportions as their masked panels resize.
+            __instance.raceImage.preserveAspect = true;
+            __instance.classImage.preserveAspect = true;
+            __instance.backgroundImage.preserveAspect = true;
+        }
+
         [NotNull]
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)

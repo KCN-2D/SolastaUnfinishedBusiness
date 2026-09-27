@@ -206,5 +206,23 @@ public static class Sprites
         return new AssetReferenceSprite(GetSpriteGuid(sprite.name));
     }
 
+    // Atlas regions share the cached texture and participate in the same sprite unload lifecycle.
+    internal static AssetReferenceSprite GetSpriteFromAtlas(
+        string name, string atlasName, byte[] bitmap, Vector2Int atlasSize, Rect region)
+    {
+        var (id, guid) = GetSpriteId(name, (int)region.width, (int)region.height);
+
+        if (!SpritesByGuid.ContainsKey(guid))
+        {
+            var atlas = GetOrCreateSprite(atlasName, bitmap, atlasSize.x, atlasSize.y);
+            var sprite = Sprite.Create(atlas.texture, region, new Vector2(0.5f, 0.5f));
+
+            sprite.name = id;
+            SpritesByGuid[guid] = sprite;
+        }
+
+        return new AssetReferenceSprite(guid);
+    }
+
     #endregion
 }

@@ -33,9 +33,12 @@ internal class InvocationDefinitionCustom : InvocationDefinition, IValidateDefin
         }
     }
 
-    //TODO: add validator setter
-    public IEnumerable<IValidateDefinitionPreRequisites.Validate> Validators { get; } =
+    private static readonly IValidateDefinitionPreRequisites.Validate[] BaseValidators =
         [CheckRequiredLevel, CheckRequiredSpell, CheckRequiredPact];
+
+    internal List<IValidateDefinitionPreRequisites.Validate> CustomValidators { get; } = [];
+
+    public IEnumerable<IValidateDefinitionPreRequisites.Validate> Validators => BaseValidators.Concat(CustomValidators);
 
     private static bool CheckRequiredLevel(
         RulesetCharacter character,
@@ -80,7 +83,7 @@ internal class InvocationDefinitionCustom : InvocationDefinition, IValidateDefin
         {
             level = character.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
 
-            var levelText = level.ToString();
+            var levelText = requiredLevel.ToString();
 
             if (level < requiredLevel)
             {

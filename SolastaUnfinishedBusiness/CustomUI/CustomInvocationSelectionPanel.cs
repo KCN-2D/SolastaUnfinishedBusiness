@@ -26,7 +26,14 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
 
     private readonly Comparison<FeaturePool> _poolCompare = (a, b) =>
     {
-        var r = string.CompareOrdinal(a.Id.Tag, b.Id.Tag);
+        var r = a.Type.SelectionOrder.CompareTo(b.Type.SelectionOrder);
+
+        if (r != 0)
+        {
+            return r;
+        }
+
+        r = string.CompareOrdinal(a.Id.Tag, b.Id.Tag);
 
         if (r != 0)
         {
@@ -57,16 +64,30 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
 
     private void OnFeatureSelected(SpellBox spellBox)
     {
-        if (_wasClicked)
+        if (_wasClicked || IsFinalStep)
+        {
+            return;
+        }
+
+        var feature = spellBox.GetFeature();
+        var pool = _allPools[_currentLearnStep];
+
+        if (feature == null || feature.PoolType != pool.Type)
+        {
+            return;
+        }
+
+        var learned = GetOrMakeLearnedList(pool.Id);
+
+        if (!pool.IsUnlearn && !learned.Contains(feature) &&
+            (pool.Remaining <= 0 ||
+             currentHero.TrainedInvocations.Contains(feature) ||
+             !PowerBundle.ValidatePrerequisites(currentHero, feature, feature.Validators, out _)))
         {
             return;
         }
 
         _wasClicked = true;
-
-        var feature = spellBox.GetFeature();
-        var pool = _allPools[_currentLearnStep];
-        var learned = GetOrMakeLearnedList(pool.Id);
 
         if (learned.Contains(feature))
         {
@@ -197,30 +218,49 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
         });
     }
 
+    private bool CanSkipRemaining(FeaturePool pool)
+    {
+        if (pool.IsUnlearn)
+        {
+            return true;
+        }
+
+        if (!pool.Type.AllowExhaustedSelection || pool.Used >= pool.Max)
+        {
+            return false;
+        }
+
+        // A shortage of eligible proficiencies may be skipped, but available choices must be used first.
+        var selected = new HashSet<InvocationDefinitionCustom>(_learnedInvocations
+            .Where(entry => !entry.Key.Unlearn)
+            .SelectMany(entry => entry.Value));
+
+        return !pool.Type.AllLevels
+            .SelectMany(pool.Type.GetLevelFeatures)
+            .Any(feature => !selected.Contains(feature) &&
+                            !currentHero.TrainedInvocations.Contains(feature) &&
+                            PowerBundle.ValidatePrerequisites(currentHero, feature, feature.Validators, out _));
+    }
+
     private void OnSkipRemaining()
     {
-        if (_wasClicked)
+        if (_wasClicked || IsFinalStep || !CanSkipRemaining(_allPools[_currentLearnStep]))
         {
             return;
         }
 
         _wasClicked = true;
-
-        if (IsUnlearnStep(_currentLearnStep))
-        {
-            _allPools[_currentLearnStep].Skipped = true;
-            MoveToNextLearnStep();
-        }
-
+        _allPools[_currentLearnStep].Skipped = true;
+        MoveToNextLearnStep();
         ResetWasClickedFlag();
     }
 
     private void ResetLearnings(int stepNumber, Action onDone = null)
     {
-        // this happens when users go back on selection if UI is offered on 1st level [i.e.: Draconic Choices]
-        if (IsFinalStep)
+        if (stepNumber < 0 || stepNumber >= _allPools.Count)
         {
-            stepNumber = 0;
+            onDone?.Invoke();
+            return;
         }
 
         var pool = _allPools[stepNumber];
@@ -814,8 +854,7 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
     {
         if (!IsFinalStep ||
             !initialized ||
-            (_allPools.Count != 0 &&
-             _allPools[_allPools.Count - 1].Remaining > 0))
+            _allPools.Any(pool => pool.Remaining > 0 || (pool.Skipped && !CanSkipRemaining(pool))))
         {
             failureString = Gui.Localize("UI/&CustomFeatureSelectionStageNotDone");
             return false;
@@ -830,23 +869,26 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
     {
         initialized = false;
 
-        while (IsFinalStep)
+        _currentLearnStep = 0;
+
+        foreach (var pool in _allPools)
         {
-            _currentLearnStep--;
+            pool.Used = 0;
+            pool.Skipped = false;
         }
 
-        for (var i = _currentLearnStep; i >= 0; i--)
-        {
-            ResetLearnings(i);
-        }
-
-        var heroBuildingCommandService = ServiceRepository.GetService<IHeroBuildingCommandService>();
-
-        heroBuildingCommandService.AcknowledgePreviousCharacterBuildingCommandLocally(OnCancelStageDone);
+        _learnedInvocations.Clear();
+        GrantAcquiredFeatures(OnCancelStageDone);
     }
 
     public override void Refresh()
     {
+        if (_allPools.Count == 0)
+        {
+            base.Refresh();
+            return;
+        }
+
         var currentPoolIndex = 0;
 
         for (var i = 0; i < _learnStepsTable.childCount; i++)
@@ -875,6 +917,7 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
                 status = LearnStepItem.Status.Locked;
             }
 
+            stepItem.ignoreAvailable = CanSkipRemaining(_allPools[i]);
             stepItem.CustomRefresh(status, _allPools[i]);
 
             if (status == LearnStepItem.Status.InProgress)
@@ -1014,8 +1057,13 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
             }
         }
 
+        if (!group)
+        {
+            yield break;
+        }
+
         var initialX = _spellsByLevelTable.anchoredPosition.x;
-        var finalX = -group!.RectTransform.anchoredPosition.x + SpellsByLevelMargin;
+        var finalX = -group.RectTransform.anchoredPosition.x + SpellsByLevelMargin;
 
         while (duration > 0)
         {
@@ -1083,7 +1131,6 @@ internal static class LearnStepItemExtension
         resetButton.gameObject.SetActive(status == LearnStepItem.Status.InProgress);
         autoButton.gameObject.SetActive(false);
         ignoreButton.gameObject.SetActive(ignoreAvailable);
-        instance.ignoreButton.gameObject.SetActive(ignoreAvailable);
 
         if (status == LearnStepItem.Status.InProgress)
         {
@@ -1298,6 +1345,9 @@ internal static class SpellBoxExtensions
         SpellBox.BindMode bindMode,
         SpellBox.SpellBoxChangedHandler spellBoxChanged)
     {
+        // Cards share the spell pool. Release the previous spell wrapper and clear its source label
+        // through Unbind before a custom feature bypasses the normal spell Bind path.
+        instance.Unbind();
         Features.AddOrReplace(instance, feature);
 
         instance.bindMode = bindMode;
@@ -1355,7 +1405,7 @@ internal static class SpellBoxExtensions
         tooltip.Context = hero;
         tooltip.DataProvider = dataProvider;
 
-        if (gui.SpriteReference == null || gui.SpriteReference == GuiPresentationBuilder.EmptySprite)
+        if (gui.SpriteReference?.RuntimeKeyIsValid() != true)
         {
             gui.spriteReference = sprite;
         }
@@ -1363,7 +1413,16 @@ internal static class SpellBoxExtensions
         title.Text = gui.Title;
         UiTextHelpers.KeepSpellBoxTextInside(instance);
 
-        image.SetupSprite(gui.spriteReference);
+        image.SetupSprite(gui.spriteReference, true);
+
+        if (!image.sprite && gui.SpriteReference != sprite && sprite?.RuntimeKeyIsValid() == true)
+        {
+            gui.spriteReference = sprite;
+            image.SetupSprite(sprite, true);
+        }
+
+        // A pooled card must not retain a white Image when neither the definition nor the pool can supply artwork.
+        image.gameObject.SetActive(image.sprite);
     }
 
     internal static void CustomUnbind(this SpellBox instance)

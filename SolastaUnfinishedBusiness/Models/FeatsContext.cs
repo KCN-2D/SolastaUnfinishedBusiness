@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -81,6 +80,7 @@ internal static class FeatsContext
         ArmorFeats.CreateFeats(feats);
         CasterFeats.CreateFeats(feats);
         OtherFeats.CreateFeats(feats); // must come before Class Feats
+        SkillFeats.CreateFeats(feats);
         ClassFeats.CreateFeats(feats);
         CraftyFeats.CreateFeats(feats);
         CriticalVirtuosoFeats.CreateFeats(feats);
@@ -950,10 +950,6 @@ internal static class FeatsContext
             AddDisplayOnlyFallbackFeatsForExistingHero(hero, displayFeats);
         }
 
-#if DEBUG
-        LogActualDisplayFeats(hero, includeBuildingData, displayFeats);
-#endif
-
         return displayFeats;
     }
 
@@ -1073,42 +1069,7 @@ internal static class FeatsContext
         return feat.GetFirstSubFeatureOfType<IGroupedFeat>() == null &&
                !Tabletop2024Context.IsTabletopContainerGroup(feat) &&
                !Tabletop2024Context.IsNonSelectableTabletopGroup(feat) &&
-               (allowHideFromFeatsLeaf || !feat.HasSubFeatureOfType<HideFromFeats>()) &&
-               Tabletop2024Context.GetCanonicalTabletopFeatName(feat.Name) != "FeatSkilled";
-    }
-
-    [Conditional("DEBUG")]
-    private static void LogActualDisplayFeats(
-        RulesetCharacterHero hero,
-        bool includeBuildingData,
-        List<FeatDefinition> displayFeats)
-    {
-        var trainedNames = hero?.TrainedFeats?.Where(feat => feat != null).Select(feat => feat.Name) ?? [];
-        var proficiencyNames = hero?.FeatProficiencies?.Where(name => !string.IsNullOrEmpty(name)) ?? [];
-        var buildingDataNames = includeBuildingData
-            ? hero?.GetHeroBuildingData()?.LevelupTrainedFeats?.Values
-                .Where(feats => feats != null)
-                .SelectMany(feats => feats)
-                .Where(feat => feat != null)
-                .Select(feat => feat.Name) ?? []
-            : [];
-        var finalNames = displayFeats?.Where(feat => feat != null).Select(feat => feat.Name) ?? [];
-
-        if (finalNames.Any() ||
-            (!trainedNames.Any() &&
-             !proficiencyNames.Any() &&
-             !buildingDataNames.Any()))
-        {
-            return;
-        }
-
-        Main.Log(
-            $"Actual display feats: hero={hero?.Name ?? "null"} guid={(hero != null ? hero.Guid.ToString() : "null")} " +
-            $"use2024={Main.Settings.EnableTabletopFeatRules2024} includeBuildingData={includeBuildingData} " +
-            $"trained=[{string.Join(", ", trainedNames)}] " +
-            $"proficiencies=[{string.Join(", ", proficiencyNames)}] " +
-            $"levelup=[{string.Join(", ", buildingDataNames)}] " +
-            $"display=[{string.Join(", ", finalNames)}]");
+               (allowHideFromFeatsLeaf || !feat.HasSubFeatureOfType<HideFromFeats>());
     }
 
     private static IEnumerable<FeatDefinition> EnumerateTooltipFeatGroupChildren(FeatDefinition feat)
@@ -1142,7 +1103,6 @@ internal static class FeatsContext
             Tabletop2024Context.IsManagedTabletopFeat(feat) ||
             Tabletop2024Context.IsTabletopContainerGroup(feat) ||
             Tabletop2024Context.IsNonSelectableTabletopGroup(feat) ||
-            Tabletop2024Context.GetCanonicalTabletopFeatName(feat.Name) == "FeatSkilled" ||
             FightingStyleContext.HideFightingStyle(feat) ||
             feat.HasSubFeatureOfType<HideFromFeats>())
         {
@@ -1214,11 +1174,8 @@ internal static class FeatsContext
         if (Tabletop2024Context.IsManagedTabletopFeat(feat) ||
             Tabletop2024Context.IsTabletopContainerGroup(feat) ||
             Tabletop2024Context.IsNonSelectableTabletopGroup(feat) ||
-            Tabletop2024Context.GetCanonicalTabletopFeatName(feat.Name) == "FeatSkilled" ||
             FightingStyleContext.HideFightingStyle(feat))
         {
-            LogLegacyGroupedChildRejected(parentGroup, feat, "common-filter");
-
             return false;
         }
 
@@ -1228,19 +1185,10 @@ internal static class FeatsContext
         {
             if (hasRegisteredRootState && !isEnabledRegisteredRoot)
             {
-                LogLegacyGroupedChildRejected(parentGroup, feat, "registered-root-disabled");
-
                 return false;
             }
 
-            var hasVisibleDescendant = HasVisibleLegacyGroupedFeatDescendant(feat);
-
-            if (!hasVisibleDescendant)
-            {
-                LogLegacyGroupedChildRejected(parentGroup, feat, "no-visible-descendant");
-            }
-
-            return hasVisibleDescendant;
+            return HasVisibleLegacyGroupedFeatDescendant(feat);
         }
 
         if (IsGroupedLeafVariantOf(parentGroup, feat))
@@ -1250,22 +1198,10 @@ internal static class FeatsContext
 
         if (hasRegisteredRootState)
         {
-            if (!isEnabledRegisteredRoot)
-            {
-                LogLegacyGroupedChildRejected(parentGroup, feat, "registered-leaf-disabled");
-            }
-
             return isEnabledRegisteredRoot;
         }
 
-        var visible = !feat.GuiPresentation.hidden;
-
-        if (!visible)
-        {
-            LogLegacyGroupedChildRejected(parentGroup, feat, "hidden-unregistered-child");
-        }
-
-        return visible;
+        return !feat.GuiPresentation.hidden;
     }
 
     internal static bool HasVisibleLegacyGroupedFeatDescendant(FeatDefinition feat)
@@ -1406,14 +1342,6 @@ internal static class FeatsContext
         }
 
         return false;
-    }
-
-    private static void LogLegacyGroupedChildRejected(FeatDefinition parentGroup, FeatDefinition child, string reason)
-    {
-#if DEBUG
-        Main.Log(
-            $"Legacy grouped child rejected: parent={parentGroup?.Name ?? "null"}, child={child?.Name ?? "null"}, reason={reason}");
-#endif
     }
 
     internal static void RebindPanelChildren(

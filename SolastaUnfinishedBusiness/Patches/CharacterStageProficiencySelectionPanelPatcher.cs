@@ -743,7 +743,7 @@ public static class CharacterStageProficiencySelectionPanelPatcher
 
         if (!Tabletop2024Context.IsFeatMatchingPrerequisites(service, buildingData, feat, out _) ||
             service.IsFeatKnownOrTrained(buildingData, feat) ||
-            service.IsFeatSelectedForTraining(buildingData, feat, tag))
+            (!SkillFeats.IsRepeatable(feat) && service.IsFeatSelectedForTraining(buildingData, feat, tag)))
         {
             return;
         }
@@ -819,7 +819,7 @@ public static class CharacterStageProficiencySelectionPanelPatcher
         {
             var trainedFeatCount = GetEquivalentTrainedFeatCount(buildingData, item.Tag, selectedFeat);
 
-            if (!HasTrainedFeat(buildingData, item.Tag, selectedFeat))
+            if (SkillFeats.IsRepeatable(selectedFeat) || !HasTrainedFeat(buildingData, item.Tag, selectedFeat))
             {
                 __instance.CharacterBuildingService.TrainFeat(buildingData, selectedFeat, item.Tag, true);
             }
@@ -1046,13 +1046,7 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             {
                 if (IsHumanOriginFeatStep(item))
                 {
-                    if (!TryTrainHumanOriginFeat(__instance, item, false) &&
-                        Tabletop2024Context.IsHumanOriginSkilledSelected(__instance.currentHero))
-                    {
-                        Tabletop2024Context.SyncHumanOriginFeatPools(__instance.currentHero?.GetHeroBuildingData());
-                        __instance.OnPreRefresh();
-                        __instance.RefreshNow();
-                    }
+                    TryTrainHumanOriginFeat(__instance, item, false);
 
                     return false;
                 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Interfaces;
 
 namespace SolastaUnfinishedBusiness.Builders;
 
@@ -22,6 +23,12 @@ internal class CustomInvocationDefinitionBuilder
     internal CustomInvocationDefinitionBuilder SetPoolType(InvocationPoolTypeCustom poolType)
     {
         Definition.PoolType = poolType;
+        return this;
+    }
+
+    internal CustomInvocationDefinitionBuilder AddValidators(params IValidateDefinitionPreRequisites.Validate[] validators)
+    {
+        Definition.CustomValidators.AddRange(validators);
         return this;
     }
 }

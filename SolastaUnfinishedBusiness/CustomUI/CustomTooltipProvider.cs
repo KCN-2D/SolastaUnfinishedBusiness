@@ -4,6 +4,7 @@ using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityEngine.UI;
 using static RuleDefinitions;
@@ -93,9 +94,20 @@ internal class CustomTooltipProvider : GuiBaseDefinitionWrapper, ISubTitleProvid
             FeatureDefinitionPower => "UI/&CustomFeatureSelectionTooltipTypePower",
             FeatureDefinitionBonusCantrips => "UI/&CustomFeatureSelectionTooltipTypeCantrip",
             FeatureDefinitionProficiency => "UI/&CustomFeatureSelectionTooltipTypeProficiency",
-            InvocationDefinitionCustom f => $"UI/&CustomFeatureSelectionTooltipType{f.PoolType.Name}",
+            InvocationDefinitionCustom f => GetInvocationSubtitle(f),
             _ => "UI/&CustomFeatureSelectionTooltipTypeFeature"
         };
+    }
+
+    private static string GetInvocationSubtitle(InvocationDefinitionCustom invocation)
+    {
+        var key = $"UI/&CustomFeatureSelectionTooltipType{invocation.PoolType?.Name}";
+
+        return TranslatorContext.HasTranslation(key)
+            ? key
+            : invocation.GrantedFeature is FeatureDefinitionProficiency
+                ? "UI/&CustomFeatureSelectionTooltipTypeProficiency"
+                : "UI/&CustomFeatureSelectionTooltipTypeFeature";
     }
 
     public override void SetupSprite(Image image, object context = null)
@@ -272,10 +284,9 @@ internal sealed class LiveFriendlyMonsterTooltipProvider(
     IMonsterAttacksProvider,
     ILiveMonsterAttacksProvider
 {
-    private readonly Dictionary<Image, bool> _originalPreserveAspect = [];
+    private readonly IImageProvider _imageProvider = imageProvider ?? definition;
 
     internal RulesetCharacterMonster Character { get; } = character;
-    internal IImageProvider ImageProvider { get; } = imageProvider;
 
     public string Title =>
         Character is RulesetCharacterSimulacrum duplicate &&
@@ -323,42 +334,12 @@ internal sealed class LiveFriendlyMonsterTooltipProvider(
 
     public void SetupSprite(Image image, object context)
     {
-        if (image && !_originalPreserveAspect.ContainsKey(image))
-        {
-            _originalPreserveAspect.Add(image, image.preserveAspect);
-        }
-
-        if (ImageProvider != null)
-        {
-            ImageProvider.SetupSprite(image, context);
-        }
-        else
-        {
-            definition.SetupSprite(image, context);
-        }
-
-        if (image)
-        {
-            image.preserveAspect = true;
-        }
+        _imageProvider.SetupSprite(image, context);
     }
 
     public void ReleaseSprite(Image image)
     {
-        if (ImageProvider != null)
-        {
-            ImageProvider.ReleaseSprite(image);
-        }
-        else
-        {
-            definition.ReleaseSprite(image);
-        }
-
-        if (image && _originalPreserveAspect.TryGetValue(image, out var preserveAspect))
-        {
-            image.preserveAspect = preserveAspect;
-            _originalPreserveAspect.Remove(image);
-        }
+        _imageProvider.ReleaseSprite(image);
     }
 
     public bool CanAccess(BestiaryDefinitions.BestiaryAccess access)
