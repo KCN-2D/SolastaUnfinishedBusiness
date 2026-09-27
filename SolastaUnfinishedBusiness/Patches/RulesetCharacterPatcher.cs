@@ -2722,8 +2722,11 @@ public static class RulesetCharacterPatcher
             string damageType,
             bool criticalSuccess,
             ulong sourceGuid,
-            RollInfo rollInfo)
+            RollInfo rollInfo,
+            out bool __state)
         {
+            __state = DamageReceivedContext.BeginSustainedDamage(__instance);
+
             if (WishBehavior.IsApplyingIrreducibleDamage)
             {
                 return;
@@ -2732,6 +2735,12 @@ public static class RulesetCharacterPatcher
             //PATCH: support for `ModifySustainedDamageHandler` sub-feature
             ModifySustainedDamage.ModifyDamage(
                 __instance, ref totalDamageRaw, damageType, criticalSuccess, sourceGuid, rollInfo);
+        }
+
+        [UsedImplicitly]
+        public static void Finalizer(bool __state)
+        {
+            DamageReceivedContext.EndSustainedDamage(__state);
         }
 
         [UsedImplicitly]
@@ -2760,6 +2769,13 @@ public static class RulesetCharacterPatcher
                     damageTakenAllyMultiplierMethod,
                     "RulesetCharacter.SustainDamage.DamageTakenAllyMultiplier",
                     new CodeInstruction(OpCodes.Call, getDamageTakenAllyMultiplierMethod))
+                .ReplaceCalls(
+                    AccessTools.Method(typeof(RulesetActor), nameof(RulesetActor.AccountReceivedDamage)),
+                    "RulesetCharacter.SustainDamage.DamageReceived",
+                    new CodeInstruction(OpCodes.Ldarg_2),
+                    new CodeInstruction(OpCodes.Ldarg_S, 4),
+                    new CodeInstruction(OpCodes.Call,
+                        AccessTools.Method(typeof(SustainDamage_Patch), nameof(AccountReceivedDamage))))
                 .ReplaceEnumerateFeaturesToBrowse<IDamageAffinityProvider>(
                     "RulesetCharacter.SustainDamage.EnumerateDamageAffinities",
                     EnumerateDamageAffinitiesForSustainDamage)
@@ -2769,6 +2785,17 @@ public static class RulesetCharacterPatcher
                     new CodeInstruction(OpCodes.Call, mySetCurrentHitPointsMethod));
         }
 
+        private static void AccountReceivedDamage(
+            RulesetActor actor, int damage, string damageType, ulong sourceGuid)
+        {
+            actor.AccountReceivedDamage(damage);
+
+            if (actor is RulesetCharacter character)
+            {
+                DamageReceivedContext.Notify(character, damage, damageType, sourceGuid);
+            }
+        }
+
         private static bool HasConditionForSustainDamage(RulesetActor actor, string conditionType)
         {
             return !WishBehavior.IsApplyingIrreducibleDamage && actor.HasConditionOfType(conditionType);
@@ -2776,7 +2803,7 @@ public static class RulesetCharacterPatcher
 
         private static float GetDamageTakenAllyMultiplier(IGameSettingsService settingsService)
         {
-            return WishBehavior.IsApplyingIrreducibleDamage
+            return WishBehavior.IsApplyingIrreducibleDamage || DamageReceivedContext.SkipDifficultyScaling
                 ? 1
                 : settingsService.DamageTakenAllyMultiplier;
         }

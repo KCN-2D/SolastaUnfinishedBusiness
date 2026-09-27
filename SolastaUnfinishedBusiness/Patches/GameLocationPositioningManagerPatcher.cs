@@ -6,6 +6,7 @@ using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Behaviors;
 using TA;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -13,6 +14,19 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationPositioningManagerPatcher
 {
+    // Actual movement and placement share this path; position setters also serve hypothetical distance checks.
+    [HarmonyPatch(typeof(GameLocationPositioningManager), nameof(GameLocationPositioningManager.FinalizeNewPosition))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class FinalizeNewPosition_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GameLocationCharacter character)
+        {
+            EffectCharacterChange.Notify(character.RulesetCharacter);
+        }
+    }
+
     //PATCH: avoids a trace message when party greater than 4 (PARTYSIZE)
     [HarmonyPatch(typeof(GameLocationPositioningManager), nameof(GameLocationPositioningManager.CharacterMoved),
         typeof(GameLocationCharacter),

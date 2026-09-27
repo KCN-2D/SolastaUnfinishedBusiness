@@ -1027,21 +1027,26 @@ internal static class OtherFeats
                 yield break;
             }
 
+            var accepted = false;
+
             yield return attacker.MyReactToDoNothing(
                 ExtraActionId.DoNothingFree,
                 attacker,
                 "Grappler",
                 "CustomReactionGrapplerDescription".Formatted(Category.Reaction, defender.Name),
-                ReactionValidated);
+                () => accepted = true);
 
-            yield break;
-
-            void ReactionValidated()
+            if (!accepted)
             {
-                attacker.SetSpecialFeatureUses(FeatGrappler.Name, 0);
-                rulesetAttacker.DisableToggle((Id)ExtraActionId.GrappleOnUnarmedToggle);
-                GrappleContext.CustomBehaviorGrapple.ExecuteGrapple(false, attacker, defender).ExecuteUntilDone();
+                yield break;
             }
+
+            attacker.SetSpecialFeatureUses(FeatGrappler.Name, 0);
+            rulesetAttacker.DisableToggle((Id)ExtraActionId.GrappleOnUnarmedToggle);
+
+            // The contest can prompt for another reaction. Let the action coroutine
+            // resume it on later frames instead of synchronously draining a UI wait.
+            yield return GrappleContext.CustomBehaviorGrapple.ExecuteGrapple(false, attacker, defender);
         }
     }
 

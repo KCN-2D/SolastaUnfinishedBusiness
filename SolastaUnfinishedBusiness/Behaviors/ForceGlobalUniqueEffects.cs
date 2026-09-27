@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -56,7 +57,8 @@ internal static class ForceGlobalUniqueEffects
 
     internal static void EnforceLimitedInstancePower(CharacterActionUsePower action)
     {
-        var power = action.ActionParams.RulesetEffect.GetSourceDefinitionSafe();
+        var incomingEffect = action.ActionParams.RulesetEffect;
+        var power = incomingEffect.GetSourceDefinitionSafe();
 
         if (!power)
         {
@@ -75,7 +77,7 @@ internal static class ForceGlobalUniqueEffects
 
         foreach (var effect in EffectHelpers.GetAllEffectsBySourceGuid(character.Guid))
         {
-            if (effect is not RulesetEffectPower powerEffect)
+            if (effect == incomingEffect || effect.Terminated || effect is not RulesetEffectPower powerEffect)
             {
                 continue;
             }
@@ -99,8 +101,10 @@ internal static class ForceGlobalUniqueEffects
 
         effects.Sort((x, y) => x.Guid.CompareTo(y.Guid));
 
-        var limit = limiter.GetLimit(character);
-        var remove = effects.Count - limit;
+        // Reserve the incoming effect explicitly: entity registration can happen before
+        // or after uniqueness handling, and must not change the active-effect limit.
+        var previousEffectLimit = Math.Max(0, limiter.GetLimit(character) - 1);
+        var remove = effects.Count - previousEffectLimit;
 
         for (var i = 0; i < remove; i++)
         {

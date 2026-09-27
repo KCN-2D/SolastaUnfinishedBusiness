@@ -5,6 +5,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -12,6 +13,23 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetEffectPatcher
 {
+    [HarmonyPatch(typeof(RulesetEffect), nameof(RulesetEffect.TrackCondition))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class TrackCondition_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetEffect __instance, RulesetCharacter source, RulesetActor target, RulesetCondition condition)
+        {
+            foreach (var handler in __instance.GetSourceDefinitionSafe()
+                         .GetAllSubFeaturesOfType<IOnEffectConditionTracked>())
+            {
+                handler.OnConditionTracked(__instance, source, target, condition);
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetEffect), nameof(RulesetEffect.RemainingRounds), MethodType.Setter)]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     public static class RemainingRounds_Patch

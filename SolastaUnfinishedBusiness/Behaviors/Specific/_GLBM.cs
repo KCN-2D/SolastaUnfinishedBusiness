@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
@@ -782,6 +783,22 @@ internal static class GLBM
     }
 
 
+    private static void AddItemAdditionalDamageProviders(
+        GameLocationBattleManager battleManager,
+        RulesetItem item,
+        string characterName)
+    {
+        if (item == null)
+        {
+            return;
+        }
+
+        item.EnumerateFeaturesToBrowse<IAdditionalDamageProvider>(battleManager.featuresToBrowseItem, characterName);
+        // Character features already include item properties that apply beyond the item itself.
+        battleManager.featuresToBrowseReaction.TryAddRange(battleManager.featuresToBrowseItem);
+        battleManager.featuresToBrowseItem.Clear();
+    }
+
     /**
      * This method is almost completely original game source provided by TA (1.4.8)
      * All changes made by CE mod should be clearly marked for easy future updates
@@ -807,46 +824,17 @@ internal static class GLBM
         attacker.RulesetCharacter.EnumerateFeaturesToBrowse<IAdditionalDamageProvider>(
             instance.featuresToBrowseReaction);
 
-        /*
-         * ######################################
-         * [CE] EDIT START
-         * Supports for extra damage from elemental infusions on armorer
-         */
-
+        // Built-in armorer weapons inherit the equipped armor's item effects, if any.
+        // An unarmored character or substitute may have no torso item or inventory slot.
         if (InnovationArmor.IsBuiltInWeapon(attackMode, null, null))
         {
-            var torsoSlot =
-                attacker.RulesetCharacter.CharacterInventory.InventorySlotsByType[
-                    DatabaseHelper.SlotTypeDefinitions.TorsoSlot.Name];
-
-            if (torsoSlot is { Count: > 0 })
-            {
-                var additionalDamages = torsoSlot[0].EquipedItem.DynamicItemProperties
-                    .Select(x => x.FeatureDefinition)
-                    .OfType<IAdditionalDamageProvider>()
-                    .OfType<FeatureDefinition>();
-
-                instance.featuresToBrowseReaction.AddRange(additionalDamages);
-            }
+            AddItemAdditionalDamageProviders(
+                instance,
+                attacker.RulesetCharacter.GetItemInSlot(EquipmentDefinitions.SlotTypeTorso),
+                attacker.Name);
         }
 
-        /*
-         * Supports for extra damage from elemental infusions on armorer
-         * [CE] EDIT END
-         * ######################################
-         */
-
-        // Add item properties?
-        if (attacker.RulesetCharacter.CharacterInventory != null)
-        {
-            if (attackMode?.SourceObject is RulesetItem weapon)
-            {
-                weapon.EnumerateFeaturesToBrowse<IAdditionalDamageProvider>(
-                    instance.featuresToBrowseItem, attacker.Name);
-                instance.featuresToBrowseReaction.AddRange(instance.featuresToBrowseItem);
-                instance.featuresToBrowseItem.Clear();
-            }
-        }
+        AddItemAdditionalDamageProviders(instance, attackMode?.SourceObject as RulesetItem, attacker.Name);
 
         /*
          * ######################################

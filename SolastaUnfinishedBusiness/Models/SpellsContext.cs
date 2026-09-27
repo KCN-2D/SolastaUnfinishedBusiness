@@ -3,6 +3,7 @@ using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Classes;
 using SolastaUnfinishedBusiness.Displays;
@@ -295,6 +296,8 @@ internal static class SpellsContext
     internal static void LateLoad()
     {
         NormalizeBaseSpellDurations();
+        WardingBondBehavior.Load();
+        SpellListCleric.AddSpell(WardingBond);
 
         // init collections
         foreach (var spellList in SpellLists.Values)
@@ -309,6 +312,11 @@ internal static class SpellsContext
         }
 
         var spellListInventorClass = InventorClass.SpellList;
+
+        // This native spell was omitted from every native class list. Once completed,
+        // treat its Cleric access as a baseline in both rule sets, including when the
+        // settings screen hides official spells. Paladin access remains the 2024 delta.
+        RegisterSpell(WardingBond, 1, SpellListCleric);
 
         // MUST COME BEFORE ANY MOD REGISTERED SPELL
         foreach (var kvp in SpellSpellListMap)
@@ -598,11 +606,6 @@ internal static class SpellsContext
 
     private static void RefreshAuxiliarySpellLists(SpellDefinition spellDefinition)
     {
-        if (spellDefinition.contentPack != CeContentPackContext.CeContentPack)
-        {
-            return;
-        }
-
         var isConditional = SpellsAvailableWithSpellLists2024Only.Contains(spellDefinition);
         var isAvailable = (!isConditional || Main.Settings.EnableSpellLists2024) &&
                           !IsSpellList2024RestrictedSpell(spellDefinition);
@@ -623,7 +626,7 @@ internal static class SpellsContext
             SpellListAllSpells.RemoveSpell(spellDefinition);
         }
 
-        if (spellDefinition.SpellLevel != 0)
+        if (spellDefinition.contentPack != CeContentPackContext.CeContentPack || spellDefinition.SpellLevel != 0)
         {
             return;
         }

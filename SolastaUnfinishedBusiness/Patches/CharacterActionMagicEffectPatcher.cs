@@ -1147,9 +1147,8 @@ public static class CharacterActionMagicEffectPatcher
             }
 
             //PATCH: supports `IPowerOrSpellFinishedByMe`
-            var powerOrSpellFinishedByMe = baseDefinition.GetFirstSubFeatureOfType<IPowerOrSpellFinishedByMe>();
-
-            if (powerOrSpellFinishedByMe != null)
+            foreach (var powerOrSpellFinishedByMe in baseDefinition
+                         .GetAllSubFeaturesOfType<IPowerOrSpellFinishedByMe>())
             {
                 yield return powerOrSpellFinishedByMe.OnPowerOrSpellFinishedByMe(__instance, baseDefinition);
             }

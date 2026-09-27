@@ -10,6 +10,7 @@ using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Classes;
 using SolastaUnfinishedBusiness.Interfaces;
@@ -28,6 +29,27 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetActorPatcher
 {
+    [HarmonyPatch(typeof(RulesetActor), nameof(RulesetActor.CurrentHitPoints), MethodType.Setter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CurrentHitPoints_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(RulesetActor __instance, out int __state)
+        {
+            __state = __instance.CurrentHitPoints;
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(RulesetActor __instance, int __state)
+        {
+            if (__instance.CurrentHitPoints != __state && __instance is RulesetCharacter character)
+            {
+                EffectCharacterChange.Notify(character);
+            }
+        }
+    }
+
     //PATCH: applies Soul of Artifice to direct RulesetActor.RollSavingThrow calls
     [HarmonyPatch(typeof(RulesetActor), nameof(RulesetActor.RollSavingThrow))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]

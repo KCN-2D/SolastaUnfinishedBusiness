@@ -1,5 +1,5 @@
 ModUi/&AccountForAllDiceOnFollowUpStrike=基本武器のすべての追加効果を<color=#D89555>追撃攻撃</color>特技に追加します
-ModUi/&AccountForAllDiceOnSavageAttack=武器の基本ダメージを加算する特徴で、基本武器ダメージのすべてのダイスを対象にします。ダイス1個だけには限定しません<i><color=#F0DAA0>（猛打、両手用武器など）</color></i>
+ModUi/&AccountForAllDiceOnSavageAttack=武器の基本ダメージを加算する特徴で、基本武器ダメージのすべてのダイスを対象にします。ダイス1個だけには限定しません<i><color=#F0DAA0>（凶暴な戦士、両手用武器など）</color></i>
 ModUi/&AddAllToStore=以下をショップに追加します<i><color=#F0DAA0>（これらは他の武器カテゴリで再利用されたゲームレシピです）</color></i>
 ModUi/&AddBleedingToLesserRestoration=<color=#D89555>上級回復術</color>と<color=#D89555>初級回復術</color>で解除される状態に、<color=#D89555>出血</color>を追加します。
 ModUi/&AddCustomIconsToOfficialItems=公式ゲームアイテムにカスタムアイコンを追加します<i><color=#F0DAA0>（弾薬、レシピ、キットなど）</color></i><b><i><color=#C04040E0>（再起動が必要）</color></i></b>

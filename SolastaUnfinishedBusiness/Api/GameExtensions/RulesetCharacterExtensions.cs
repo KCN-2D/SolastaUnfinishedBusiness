@@ -314,9 +314,11 @@ internal static class RulesetCharacterExtensions
     [CanBeNull]
     internal static RulesetItem GetItemInSlot([CanBeNull] this RulesetCharacter instance, string slot)
     {
-        var inventorySlot = instance?.CharacterInventory?.InventorySlotsByName?[slot];
+        var slots = instance?.CharacterInventory?.InventorySlotsByName;
 
-        return inventorySlot?.EquipedItem;
+        return slots != null && slot != null && slots.TryGetValue(slot, out var inventorySlot)
+            ? inventorySlot?.EquipedItem
+            : null;
     }
 
     [CanBeNull]

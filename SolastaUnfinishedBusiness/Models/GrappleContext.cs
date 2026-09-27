@@ -324,6 +324,7 @@ internal static class GrappleContext
         if ((extraActionId is ExtraActionId.Grapple or ExtraActionId.GrappleBonus &&
              (hasGrappleSource ||
               !ValidatorsCharacter.HasFreeHandConsiderGrapple(rulesetCharacter) ||
+              extraActionId == ExtraActionId.Grapple &&
               !ValidatorsCharacter.HasMainAttackAvailable(rulesetCharacter))) ||
             (extraActionId == ExtraActionId.DisableGrapple && !hasGrappleSource) ||
             (extraActionId == ExtraActionId.GrappleNoCost &&
@@ -528,8 +529,9 @@ internal static class GrappleContext
             var defender = action.ActionParams.TargetCharacters[0];
             var isHeightenedFocus = action.ActionDefinition.Name == $"Action{Grapple}NoCost";
 
-            // grapple no cost from monk Heightened Focus 
-            if (!isHeightenedFocus)
+            // Only the regular grapple replaces an attack. Bonus-action grapples
+            // spend their action through the action service; Heightened Focus is free.
+            if (action.ActionId == (ActionDefinitions.Id)ExtraActionId.Grapple)
             {
                 attacker.BurnOneMainAttack();
             }

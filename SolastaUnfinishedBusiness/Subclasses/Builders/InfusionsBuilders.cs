@@ -397,6 +397,21 @@ internal static class InventorInfusions
         invocation.GuiPresentation.description = description;
     }
 
+    private static FeatureDefinitionPowerSharedPoolBuilder CreateInfusionPower(string name)
+    {
+        // Item properties and replicas share one lifetime contract: one active item per
+        // infusion, also bounded by the character's total infusion limit.
+        return FeatureDefinitionPowerSharedPoolBuilder.Create(name)
+            .SetSharedPool(ActivationTime.Action, InventorClass.InfusionPool)
+            .SetUniqueInstance()
+            .AddCustomSubFeatures(
+                RestrictEffectToNotTerminateWhileUnconscious.Marker,
+                TrackItemsCarefully.Marker,
+                SkipEffectRemovalOnLocationChange.Always,
+                InventorClass.InfusionLimiter,
+                ModifyPowerFromInvocation.Marker);
+    }
+
     private static FeatureDefinitionPowerSharedPool BuildInfuseItemPower(
         string name,
         string guiName,
@@ -416,16 +431,9 @@ internal static class InventorInfusions
     {
         var powerName = $"Power{name}";
 
-        return FeatureDefinitionPowerSharedPoolBuilder.Create(powerName)
+        return CreateInfusionPower(powerName)
             .SetGuiPresentation(guiName, Category.Feature, icon)
-            .SetSharedPool(ActivationTime.Action, InventorClass.InfusionPool)
-            .AddCustomSubFeatures(
-                RestrictEffectToNotTerminateWhileUnconscious.Marker,
-                TrackItemsCarefully.Marker,
-                SkipEffectRemovalOnLocationChange.Always,
-                InventorClass.InfusionLimiter,
-                ModifyPowerFromInvocation.Marker,
-                itemFilter)
+            .AddCustomSubFeatures(itemFilter)
             .SetEffectDescription(BuildInfuseItemWithFeaturesEffect(features))
             .AddToDB();
     }
@@ -469,15 +477,8 @@ internal static class InventorInfusions
     private static FeatureDefinitionPowerSharedPool BuildCreateItemPower(ItemDefinition item, string description)
     {
         var powerName = $"PowerCreate{item.name}";
-        var power = FeatureDefinitionPowerSharedPoolBuilder.Create(powerName)
+        var power = CreateInfusionPower(powerName)
             .SetGuiPresentation(Category.Feature, item)
-            .SetSharedPool(ActivationTime.Action, InventorClass.InfusionPool)
-            .AddCustomSubFeatures(
-                RestrictEffectToNotTerminateWhileUnconscious.Marker,
-                TrackItemsCarefully.Marker,
-                SkipEffectRemovalOnLocationChange.Always,
-                InventorClass.InfusionLimiter,
-                ModifyPowerFromInvocation.Marker)
             .SetEffectDescription(
                 EffectDescriptionBuilder
                     .Create()

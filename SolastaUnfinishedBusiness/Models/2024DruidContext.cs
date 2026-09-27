@@ -464,12 +464,16 @@ public static partial class Tabletop2024Context
             }
 
             var rulesetCharacter = action.ActingCharacter.RulesetCharacter;
-            var classLevel = rulesetCharacter.GetClassLevel(Druid);
-            var rulesetMonster = ServiceRepository.GetService<IGameLocationCharacterService>().PartyCharacters
-                .FirstOrDefault(x => x.RulesetCharacter.OriginalFormCharacter == rulesetCharacter)?.RulesetCharacter;
+            var originalCharacter = rulesetCharacter.OriginalFormCharacter ?? rulesetCharacter;
+            var classLevel = originalCharacter.GetClassLevel(Druid);
+            var characterService = ServiceRepository.GetService<IGameLocationCharacterService>();
+            var rulesetMonster = rulesetCharacter.OriginalFormCharacter != null
+                ? rulesetCharacter
+                : characterService.PartyCharacters.Concat(characterService.GuestCharacters)
+                    .FirstOrDefault(x => x.RulesetCharacter.OriginalFormCharacter == originalCharacter)?.RulesetCharacter;
 
             rulesetMonster?.ReceiveTemporaryHitPoints(
-                classLevel, DurationType.UntilAnyRest, 1, TurnOccurenceType.EndOfTurn, rulesetCharacter.Guid);
+                classLevel, DurationType.UntilAnyRest, 1, TurnOccurenceType.EndOfTurn, originalCharacter.Guid);
         }
     }
 
