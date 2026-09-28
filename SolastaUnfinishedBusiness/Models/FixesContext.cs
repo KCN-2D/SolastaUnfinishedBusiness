@@ -118,6 +118,17 @@ internal static class FixesContext
         // fix condition UI
         FeatureDefinitionCombatAffinitys.CombatAffinityForeknowledge.GuiPresentation.Description = Gui.NoLocalization;
 
+        // Native demon grease conditions contain literal English instead of their existing localized terms.
+        var attackDisadvantage =
+            GetDefinition<ConditionDefinition>("ConditionDemonGreasePseudoLifeDisadvAttacks").GuiPresentation;
+        attackDisadvantage.Title = "Feature/&AttackDisadvantageTitle";
+        attackDisadvantage.Description = "Feature/&AttackDisadvantageDescription";
+
+        var increasedSpellAttack =
+            GetDefinition<ConditionDefinition>("ConditionDemonGreaseNightHuntHigherSpellAtk").GuiPresentation;
+        increasedSpellAttack.Title = "Feature/&SpellAttackIncreased_Title";
+        increasedSpellAttack.Description = "Feature/&SpellAttackIncreased_Description";
+
         // fix demonic influence duration and combat log (conditions with ForcedBehavior should have special duration)
         ConditionDefinitions.ConditionUnderDemonicInfluence.specialDuration = true;
         ConditionDefinitions.ConditionUnderDemonicInfluence.durationType = DurationType.Hour;
