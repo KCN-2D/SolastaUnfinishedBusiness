@@ -16,8 +16,8 @@ ModUi/&AddCustomIconsToOfficialItems=Añade íconos personalizados a los element
 ModUi/&AddDarknessPerceptiveToDarkRaces=Habilita <color=#D89555>Percepción de la oscuridad</color> en <color=#D89555>Darkelf</color>, <color=#D89555>Kóbold oscuro</color> y <color=#D89555>Enano gris</color> <i><color=#F0DAA0>\n[otorga ventaja en las pruebas de percepción cuando no está iluminado o bajo oscuridad mágica]</color></i>
 ModUi/&AddDexModifierToEnemiesInitiativeRoll=Añade el modificador DEX a los enemigos <color=#D89555>Tiro de iniciativa</color>
 ModUi/&AddHumanoidFavoredEnemyToRanger=Habilitar enemigos preferidos <color=#D89555>humanoides</color> <b><i><color=#C04040E0>[Requiere reinicio]</color></i></b>
-ModUi/&AddNewScrollsToShops=Agregue pergaminos para nuevos hechizos a las tiendas apropiadas <b> <i> <color =#C04040E0> [Requiere reiniciar] </ color> </i> </b>
-ModUi/&AddNewScrollsToTreasure=Agregue los pergaminos para nuevos hechizos a los paquetes de tesoros apropiados <b> <i> <color =#C04040E0> [Requiere reiniciar] </color> </i> </b>
+ModUi/&AddNewScrollsToShops=Agregue pergaminos para nuevos hechizos a las tiendas apropiadas <b> <i> <color=#C04040E0> [Requiere reiniciar] </color> </i> </b>
+ModUi/&AddNewScrollsToTreasure=Agregue los pergaminos para nuevos hechizos a los paquetes de tesoros apropiados <b> <i> <color=#C04040E0> [Requiere reiniciar] </color> </i> </b>
 ModUi/&AddNewWeaponsAndRecipesToShops=Añade nuevas armas y recetas a las tiendas <i><color=#F0DAA0>[vendas de mano, alabardas, picas, mazas largas, ballestas de mano]</color></i> <b><i><color=#C04040E0>[Requiere reinicio]</color></i></b>
 ModUi/&AddPaladinSmiteToggle=Agregar un interruptor para permitir que los <color=#D89555>Paladines</color> solo habiliten golpes críticos. <i><color=#F0DAA0>[útil para minimizar las solicitudes de reacción]</color></i>
 ModUi/&AddPickPocketableLoot=Añadir botín hurtable <i><color=#F0DAA0>[sugerido si la dote <color=#D89555>Hurto</color> está habilitada]</color></i>
@@ -120,7 +120,7 @@ ModUi/&EnableAllyMovementAllowsFlight=Permitir que las características que muev
 ModUi/&EnableTeleportAllowsMidAirPositions=Permitir que los hechizos y poderes de teletransporte con destino libre apunten a espacios aéreos visibles y desocupados
 ModUi/&EnableAlternateHuman=Habilitar el <color=#D89555>Humano</color> alternativo <i><color=#F0DAA0>[+1 dote / +2 opciones de atributo / +1 habilidad]</color></i>
 ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
-ModUi/&EnableAlternateVotingSystem=Habilitar sistema de votación alternativo <i><color=#F0DAA0>[peso de la elección = votos * modificador de Carisma del héroe]</color></i>
+ModUi/&EnableAlternateVotingSystem=Habilitar sistema de votación alternativo <i><color=#F0DAA0>[peso de la elección = suma de los modificadores de Carisma de todos los héroes que votan por esa elección]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=Habilitar la implementación de <color=#D89555>Arcane Ward</color> de Abjurer para que se comporte como BG3
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[Disminuye en 1 cada vez que previene daño, en lugar de por el daño prevenido. No es necesario lanzar un hechizo de abjuración para estar activo\npero el valor máximo es 2 veces el nivel de mago en lugar de 2 veces el nivel de mago + mod de INT y solo se recarga a la mitad en un descanso prolongado]</color></i>
 ModUi/&EnableBarbarianBrutalStrike2024=Habilita <color=#D89555>Golpe brutal</color> y <color=#D89555>Mejora de golpe brutal</color> para reemplazar <color=#D89555>Crítico brutal</color> en los niveles 9, 13 y 17
@@ -163,7 +163,7 @@ ModUi/&EnableDungeonMakerModdedContent=Habilitar Dungeon Maker Pro\n<i><color=#F
 ModUi/&EnableElevationCameraToStayAtPosition=<i>+ Habilita la cámara de elevación durante la batalla para que permanezca en la posición después de deshabilitarla y triplicar su alcance</i>
 ModUi/&EnableEpicPointsAndArray=Habilitar un sistema de compra épico de 35 puntos y una matriz <i><color=#F0DAA0>[17,15,13,12,10,8]</color></i> <b><i><color=#C04040E0>[Requiere reinicio]</color></i></b>
 ModUi/&ForcePointBuyAbilityScores=Forzar compra por puntos para las puntuaciones de característica durante la creación de personaje y RESPEC
-ModUi/&EnableExtendedProficienciesPanelDisplay=Habilitar la visualización del panel de competencias extendidas <i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[reducción del rendimiento en la inspección del personaje. úsalo bajo tu propio riesgo]</color></i></b>
+ModUi/&EnableExtendedProficienciesPanelDisplay=Habilitar la visualización del panel de competencias extendidas <i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[reducción del rendimiento en la inspección del personaje]</color></i></b>
 ModUi/&EnableFeatsAtEvenLevels=Habilitar la selección de <color=#D89555>dotes</color> en los niveles 2, 10 y 18
 ModUi/&EnableFeatsAtEvenLevelsMiddle=Habilitar la selección de <color=#D89555>dotes</color> en los niveles 6 y 14
 ModUi/&EnableFighterIndomitableSaving2024=Intercambia <color=#D89555>Resistencia indomable</color> con la versión 5e 2024 <i><color=#F0DAA0>[añade el nivel de clase como bonificación a la repetición de la tirada de salvación]</color></i>
@@ -179,7 +179,7 @@ ModUi/&EnableGrappleAction=Habilitar la acción <color=#D89555>Garra</color>
 ModUi/&EnableHelpAction=Habilita la acción <color=#D89555>Ayuda</color> <i><color=#F0DAA0>[puedes ayudar a una criatura amistosa a atacar a una criatura a 1 celda de ti]</color></i>
 ModUi/&EnableHeroWithBestProficiencyToRollChoice=Permite que el héroe con mayor habilidad realice elecciones de diálogo. <i><color=#F0DAA0>[funciona, pero las narraciones se ven extrañas en las campañas oficiales]</color></i>
 ModUi/&EnableHigherGroundRules=Habilitar las reglas de <color=#D89555>terreno más alto</color> <i><color=#F0DAA0>[+1 para golpear si ataca desde un terreno más alto]</color></i>
-ModUi/&EnableInitiativeRollOnEveryRoundStart=Habilitar <color=#D89555>Tiradas de iniciativa</color> en cada inicio de turno
+ModUi/&EnableInitiativeRollOnEveryRoundStart=Habilitar <color=#D89555>Tiradas de iniciativa</color> al inicio de cada ronda
 ModUi/&EnableInventoryFilteringAndSorting=Habilitar el filtrado y la clasificación del inventario
 ModUi/&EnableInventoryTaintNonProficientItemsRed=Tiñe de rojo cualquier objeto con el que el héroe no sea competente.
 ModUi/&EnableInventoryTintKnownRecipesRed=Recetas conocidas para teñir de rojo
@@ -187,7 +187,7 @@ ModUi/&EnableLevel20=Habilitar <color=#D89555>nivel 20</color><b><i><color=#C040
 ModUi/&EnableLogDialoguesToConsole=Habilitar diálogos de registro en la consola de juegos durante secuencias narrativas
 ModUi/&EnableLoggingInvalidReferencesInUserCampaigns=Habilitar el registro de referencias no válidas en campañas personalizadas
 ModUi/&EnableMinInOutAttributes=<i>+ Hacer cumplir los requisitos mínimos de puntuación de habilidad para entrar y salir</i>
-ModUi/&EnableMonkAbundantKi=Habilita <color=#D89555>Ki abundante</color> en el nivel 2 <i><color=#F0DAA0>[obtienes Ki adicional equivalente a la mitad de la bonificación de competencia redondeada hacia arriba]</color></i>
+ModUi/&EnableMonkAbundantKi=Habilita <color=#D89555>Ki abundante</color> en el nivel 2 <i><color=#F0DAA0>[obtienes Ki adicional equivalente a la mitad de la bonificación de competencia redondeada hacia abajo]</color></i>
 ModUi/&EnableMonkBodyAndMind2024=Habilita <color=#D89555>Cuerpo y Mente</color> para reemplazar a <color=#D89555>Perfección Personal</color> en el nivel 20
 ModUi/&EnableMonkDeflectAttacks2024=Habilita <color=#D89555>Desviar ataques</color> y <color=#D89555>Desviar energía</color> para reemplazar <color=#D89555>Desviar misiles</color> y <color=#D89555>Lengua del sol y la luna</color> en los niveles 3 y 13\n<i><color=#F0DAA0>[también puede desviar ataques cuerpo a cuerpo en el nivel 3 y cualquier tipo de daño en el nivel 13]</color></i>
 ModUi/&EnableMonkFightingStyle=Habilitar la opción <color=#D89555>Estilo de lucha</color> en el nivel 2
@@ -249,7 +249,7 @@ ModUi/&EnableRangerFeralSenses2024=Intercambia <color=#D89555>Sentidos salvajes<
 ModUi/&EnableRangerFoeSlayers2024=Intercambia <color=#D89555>Asesino de enemigos</color> con la versión 5e 2024 <i><color=#F0DAA0>[aumenta el dado Marca del cazador a d10]</color></i>
 ModUi/&EnableRangerNatureShroud2024=Habilita la característica <color=#D89555>Velo de la Naturaleza</color> en el nivel 14 <i><color=#F0DAA0>[como acción adicional, puedes volverte invisible mágicamente hasta el comienzo del siguiente turno]</color></i>
 ModUi/&EnableRangerPreciseHunter2024=Habilita <color=#D89555>Cazador preciso</color> en el nivel 17 <i><color=#F0DAA0>[ventaja contra criaturas marcadas por Cazador]</color></i>
-ModUi/&EnableRangerRelentlessHunter2024=Habilita <color=#D89555>Cazador implacable</color> en el nivel 13 <i><color=#F0DAA0>[no se pierde la concentración en la Marca del cazador]</color></i>
+ModUi/&EnableRangerRelentlessHunter2024=Habilita <color=#D89555>Cazador implacable</color> en el nivel 13 <i><color=#F0DAA0>[el daño no interrumpe la concentración en la Marca del cazador]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ Eliminar los requisitos de concentración de la Marca del Cazador en su lugar</i>
 ModUi/&EnableRangerRoving2024=Habilita <color=#D89555>Roving</color> en el nivel 6 <i><color=#F0DAA0>[obtén 10 pies de movimiento cuando no uses armadura pesada y la misma velocidad de escalada]</color></i>
 ModUi/&EnableRangerSpellCastingAtLevel1=Habilitar el <color=#D89555>lanzamiento de hechizos</color> en el nivel 1 en lugar del 2
@@ -260,7 +260,7 @@ ModUi/&EnableRitualOnAllCasters2024=Habilitar el lanzamiento de <color=#D89555>R
 ModUi/&EnableOneSpellSlotPerTurn2024=Aplica la regla de 2024 que permite gastar solo un espacio de conjuro para lanzar un conjuro en cada turno <i><color=#F0DAA0>[los trucos y los conjuros lanzados sin espacio no se ven afectados]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Activar la versión de 2024 de <color=#D89555>{0}</color> <i><color=#F0DAA0>[salvación de Constitución; un fallo interrumpe el lanzamiento sin gastar el espacio del conjuro objetivo]</color></i>
 ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>[También activa Rompehechizos para los Abjuradores de nivel 10. Dominio del contrahechizo del Mago de la Corte da desventaja a los objetivos en las salvaciones contra tu Contrahechizo y te da ventaja en las salvaciones contra Contrahechizo.]</color></i>
-ModUi/&EnableRogueCunningStrike2024=Habilita <color=#D89555>Golpe astuto</color>, <color=#D89555>Golpe astuto mejorado</color> y <color=#D89555>Golpe tortuoso</color> en los niveles 5, 11 y 14. <i><color=#F0DAA0>[dejas de usar 1 dado de ataque furtivo para obtener efectos de golpe adicionales]</color></i>
+ModUi/&EnableRogueCunningStrike2024=Habilita <color=#D89555>Golpe astuto</color>, <color=#D89555>Golpe astuto mejorado</color> y <color=#D89555>Golpe tortuoso</color> en los niveles 5, 11 y 14. <i><color=#F0DAA0>[renuncias a dados de ataque furtivo para obtener efectos adicionales al impactar]</color></i>
 ModUi/&EnableRogueFightingStyle=Habilitar la opción <color=#D89555>Estilo de lucha</color> en el nivel 2
 ModUi/&EnableRogueReliableTalent2024=Habilitar <color=#D89555>Talento confiable</color> en el nivel 7 en lugar del 11
 ModUi/&EnableRogueSlipperyMind2024=Intercambia <color=#D89555>Mente resbaladiza</color> con la versión 5e 2024 <i><color=#F0DAA0>[además de sabiduría, también obtienes competencia en tiradas de salvación de carisma]</color></i>
@@ -268,7 +268,7 @@ ModUi/&EnableRogueSteadyAim2024=Habilita <color=#D89555>Apunta firme</color> en 
 ModUi/&EnableRogueStrSaving=Habilitar los modificadores DEX o STR de <b>Hoodlum</b> en <color=#D89555>Golpe astuto/desviado</color>
 ModUi/&EnableScimitarSpecialization=Cimitarra de concesión <color=#D89555>Especialización en armas</color>
 ModUi/&EnableSignatureSpellsRelearn=Permite que los <color=#D89555>hechizos exclusivos</color> se preparen cada descanso prolongado <i><color=#F0DAA0>[en lugar de una vez en el nivel 20]</color></i>
-ModUi/&EnableSmiteSpells2024=Intercambie los hechizos de Smite con la versión 5E 2024 <i> <color =#f0daa0> [disparar en el golpe y no requerir concentración] </color> </i>
+ModUi/&EnableSmiteSpells2024=Intercambie los hechizos de Smite con la versión 5E 2024 <i> <color=#f0daa0> [disparar en el golpe y no requerir concentración] </color> </i>
 ModUi/&EnableSorcererArcaneApotheosis2024=Habilita <color=#D89555>Apoteosis arcana</color> para reemplazar <color=#D89555>Restauración hechicera</color> en el nivel 20
 ModUi/&EnableSorcererDraconicBloodlineAC2024=Habilite la versión 2024 de <color=#D89555>Draconic Resilience</color> de <color=#D89555>Draconic Bloodline</color> <i><color=#F0DAA0>[10+DEX+CHA en lugar de 13+DEX]</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=Habilita <color=#D89555>Hechicería innata</color> y <color=#D89555>Hechicería encarnada</color> en los niveles 1 y 7
@@ -285,7 +285,7 @@ ModUi/&EnableSpeechVoiceHelp=• Seleccione una voz y velocidad de narración
 ModUi/&EnableStackableArtItems=Habilitar apilamiento de <color=#D89555>Elementos de arte</color> <i><color=#F0DAA0>[no se puede dividir mientras esta configuración esté deshabilitada]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Habilitar la acumulación de <color=#D89555>Dagas</color> y <color=#D89555>Hachas de mano</color> <i><color=#F0DAA0>[no se puede dividir mientras esta configuración esté deshabilitada]</color></i>
 ModUi/&EnableStatsOnHeroTooltip=Mostrar estadísticas en la información sobre herramientas del héroe <i><color=#F0DAA0>[es decir: golpes críticos, fallos críticos, etc.]</color></i>
-ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ Además, cada héroe suma un D20 en la tirada para darle un poco de aleatoriedad. <color=#F0DAA0>[peso de la elección = votos * modificador de Carisma del héroe + tirada del D20]</color></i>
+ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ Además, cada héroe suma un D20 en la tirada para darle un poco de aleatoriedad. <color=#F0DAA0>[peso de la elección = suma del modificador de Carisma y la tirada de D20 de cada héroe que vota por ella]</color></i>
 ModUi/&EnableSurprisedToEnforceDisadvantage=Habilite la condición <color=#D89555>Sorprendido</color> para imponer una desventaja de iniciativa en lugar de omitir una ronda
 ModUi/&EnableTeleportToRemoveRestrained=Habilite <color=#D89555>Teletransporte</color> para eliminar todas las condiciones <color=#D89555>restringidas</color> del objetivo
 ModUi/&EnableTooltipDistance=Habilitar la visualización de la distancia en las descripciones emergentes al pasar el cursor sobre un personaje en combate
@@ -339,12 +339,12 @@ ModUi/&FullyControlConjurations=Controla completamente los conjuros <i><color=#F
 ModUi/&Gameplay=Jugabilidad
 ModUi/&General=<color=#F0DAA0>General:</color>
 ModUi/&GeneralMenu=General
-ModUi/&GridSelectedColor=Cambiar el movimiento <b><color=$$$$$$$>color de la cuadrícula</color></b>
+ModUi/&GridSelectedColor=Cambiar el movimiento <b><color=$$$$$$>color de la cuadrícula</color></b>
 ModUi/&HideExitAndTeleporterGizmosIfNotDiscovered=Ocultar los efectos visuales de las salidas y los teletransportadores si aún no se han descubierto
 ModUi/&HideMonsterHitPoints=Muestra la salud de los monstruos en pasos de 25% / 50% / 75% / 100% en lugar de puntos de vida exactos.
 ModUi/&HideQuickenedActionWhenMetamagicOff=<i>+ Ocultar esta acción cuando la opción metamágica esté desactivada</i>
-ModUi/&HighContrastTargetingAoeColor=Cambiar criaturas de área de efecto <b><color=$$$$$$$>resaltar color de selección</color></b>
-ModUi/&HighContrastTargetingSingleColor=Cambiar criaturas individuales <b><color=$$$$$$$>resaltar seleccionar color</color></b>
+ModUi/&HighContrastTargetingAoeColor=Cambiar criaturas de área de efecto <b><color=$$$$$$>resaltar color de selección</color></b>
+ModUi/&HighContrastTargetingSingleColor=Cambiar criaturas individuales <b><color=$$$$$$>resaltar seleccionar color</color></b>
 ModUi/&IdentifyAfterRest=Añade un poder para <color=#D89555>identificar objetos mágicos</color> durante un descanso corto o largo.
 ModUi/&IgnoreHandXbowFreeHandRequirements=No se requiere mano libre para utilizar <color=#D89555>Ballestas de mano</color>
 ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=Los hechizos de ilusión fallan automáticamente contra objetivos con <color=#D89555>TrueSight</color> dentro del alcance.
@@ -357,7 +357,7 @@ ModUi/&ItemsHelp2=<b>Presione + para agregar elementos al contenedor de tierra</
 ModUi/&KeepInvisibilityWhenUsingItems=Habilitar el uso de elementos que no alteren la <color=#D89555>invisibilidad</color>
 ModUi/&LearnAllScrollRecipes=Aprende todas las recetas de elaboración de pergaminos del juego base <i><color=#F0DAA0>[el dominio del kit de pergaminos y el conocimiento del hechizo aún son necesarios para crear]</color></i>
 ModUi/&LegendaryTweaksDetails=Aquí puedes cambiar el tipo de armas de armas legendarias. Por seguridad haz esto mientras que el arma no está equipado.
-ModUi/&LegendaryTweaksTitle=<color =#f0daa0> Tweaks legendarios: </ color>
+ModUi/&LegendaryTweaksTitle=<color=#f0daa0> Tweaks legendarios: </color>
 ModUi/&MakeAllMagicStaveArcaneFoci=Convierte todos los bastones mágicos en focos arcanos. <i><color=#F0DAA0>[excepto el <color=#D89555>Bastón de sanación</color>, que es universal]</color></i>
 ModUi/&MarkInvisibleTeleportersOnLevelMap=<i>+ También marca la ubicación de los teletransportadores invisibles en el mapa de nivel después del descubrimiento</i>
 ModUi/&MaxAllowedClasses=<color=white>Clases máximas permitidas</color>
@@ -459,9 +459,9 @@ ModUi/&StealthBreaksWhenAttackMisses=Habilitar pérdida de sigilo cuando falla u
 ModUi/&StealthBreaksWhenCastingMaterial=Habilitar pérdida de sigilo al lanzar <color=#D89555>Material</color> <i><color=#F0DAA0>[cualquier hechizo que no sea de ataque con objetivo TODOS o ENEMIGO]</color></i>
 ModUi/&StealthBreaksWhenCastingSomatic=Habilita la pérdida de sigilo al lanzar <color=#D89555>Somático</color> <i><color=#F0DAA0>[cualquier hechizo que no sea de ataque con objetivo TODOS o ENEMIGO]</color></i>
 ModUi/&StealthBreaksWhenCastingVerbose=Habilita la pérdida de sigilo al lanzar <color=#D89555>Verbal</color> <i><color=#F0DAA0>[cualquier hechizo que no sea de ataque con objetivo TODOS o ENEMIGO]</color></i>
-ModUi/&StealthBreaksWhenMoving=Habilite la pérdida de sigilo cuando se mueva. La hazaña sigilosa tendrá ventaja, los enemigos normales tienen desventaja <b> <i> <color =#c04040e0> [requiere reiniciar] </ color> </i> </b>
+ModUi/&StealthBreaksWhenMoving=Habilite la pérdida de sigilo cuando se mueva. La hazaña sigilosa tendrá ventaja, los enemigos normales tienen desventaja <b> <i> <color=#c04040e0> [requiere reiniciar] </color> </i> </b>
 ModUi/&StealthDoesNotBreakWithSubtle=Habilitar sigilo sin rodar si hay <color=#D89555>Metamagia sutil</color> y ningún componente <b>Material</b>
-ModUi/&StealthRollForBreak=Habilitar el rodamiento de sigilo para la ruptura (si la pérdida de sigilo está habilitado arriba) <b> <i> <color =#C04040E0> [Requiere reiniciar] </ color> </i> </b>
+ModUi/&StealthRollForBreak=Habilitar el rodamiento de sigilo para la ruptura (si la pérdida de sigilo está habilitado arriba) <b> <i> <color=#C04040E0> [Requiere reiniciar] </color> </i> </b>
 ModUi/&StockGorimStoreWithAllNonMagicalClothing=Llena la tienda de Gorim con toda la ropa no mágica. <b><i><color=#C04040E0>[Requiere reinicio]</color></i></b>
 ModUi/&StockGorimStoreWithAllNonMagicalInstruments=Llena la tienda de Gorim con todos los instrumentos musicales no mágicos. <b><i><color=#C04040E0>[Requiere reinicio]</color></i></b>
 ModUi/&StockHugoStoreWithAdditionalFoci=Llena la tienda de Hugo con <color=#D89555>Bastón Arcano</color>, <color=#D89555>Cuello de Druida</color>, <color=#D89555>Bastón</color> y <color=#D89555>Maza</color> como elementos de foco
@@ -523,7 +523,7 @@ ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Otorga 2 selecciones de dominio de ar
 ModUi/&UseWeaponMasterySystem=Habilitar las reglas de <color=#D89555>Maestría en armas</color>
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ Maestría en hendidura: añade un modificador de puntuación de atributo al daño del segundo ataque</i>
 ModUi/&UseWeaponMasterySystemAddWeaponTag=<i>+ Añadir etiqueta de maestría a todas las armas del juego</i>
-ModUi/&UseWeaponMasterySystemAlternateProperties=<i>+ propiedades de arma alternativa para representar propiedades de la vida real a partir de un poco de investigación. "Vex" en Shortbow no tiene sentido <b> <i> <color =#C04040E0> [Requiere reiniciar] </ color> </i> </b> </i>
+ModUi/&UseWeaponMasterySystemAlternateProperties=<i>+ Usar propiedades alternativas para las armas. <b><color=#C04040E0>[Requiere reiniciar]</color></b></i>
 ModUi/&UseWeaponMasterySystemFlurryTriggersMastery=<i>+ El ataque adicional de Doble Ráfaga puede activar otra maestría</i>
 ModUi/&UseWeaponMasterySystemNickDualFlurry=<i>+ El ataque adicional de dominio de Nick puede activar Dual Flurry</i>
 ModUi/&UseWeaponMasterySystemNickExtraAttackTriggersMastery=<i>+ El ataque adicional de maestría de Nick puede activar otra maestría</i>
@@ -532,7 +532,7 @@ ModUi/&WeaponMasterySystemCustomizeResetAll=Restablecer todo
 ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Restablecerá todas las propiedades de dominio de arma al valor predeterminado
 ModUi/&WeaponMasterySystemCustomizeToggle=Personalizar propiedades de dominio de armas
 ModUi/&WideScreenBattleUI=Habilite la interfaz de usuario de batalla en pantalla ancha <i><color=#F0DAA0>(Para resoluciones con una relación de aspecto superior a 16:9)</color></i>
-ModUi/&WildSurgeDieRollThreshold=<color=white>Establecer umbral de dados de probabilidad de <color=#D89555>Magia salvaje de hechicero</color>:</color><99}<i><color=#F0DAA0>[la oleada salvaje se activa si los resultados son menores o iguales al umbral]</color></i>
+ModUi/&WildSurgeDieRollThreshold=<color=white>Establecer umbral de dados de probabilidad de <color=#D89555>Magia salvaje de hechicero</color>:</color>\n<i><color=#F0DAA0>[la oleada salvaje se activa si los resultados son menores o iguales al umbral]</color></i>
 ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race; Human is adjusted because the default all +1 is removed <i><color=#F0DAA0>[Flexible Races is incompatible and will be toggled off]</color></i>
 ModUi/&EnableBackgroundBonusFeats=Change background grants to 2024-style origin feat, two skills, and one tool <i><color=#F0DAA0>[Requires Background ASI; Flexible Backgrounds is incompatible and will be toggled off]</color></i>
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn

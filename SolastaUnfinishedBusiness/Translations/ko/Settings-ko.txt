@@ -17,7 +17,7 @@ ModUi/&AddDarknessPerceptiveToDarkRaces=<color=#D89555>다크엘프</color>, <co
 ModUi/&AddDexModifierToEnemiesInitiativeRoll=적에게 DEX 수정치를 추가합니다 <color=#D89555>이니셔티브 롤</color>
 ModUi/&AddHumanoidFavoredEnemyToRanger=<color=#D89555>인간형</color> 선호 적 활성화 <b><i><color=#C04040E0>[재시작 필요]</color></i></b>
 ModUi/&AddNewScrollsToShops=적절한 상점에 ​​새 주문에 대한 두루마리를 추가하십시오.
-ModUi/&AddNewScrollsToTreasure=적절한 보물 팩에 새 주문에 대한 두루마리를 추가하십시오 <b> <i> <color =#c04040e0> [다시 시작해야합니다] </color> </i> </b>
+ModUi/&AddNewScrollsToTreasure=적절한 보물 팩에 새 주문에 대한 두루마리를 추가하십시오 <b> <i> <color=#c04040e0> [다시 시작해야합니다] </color> </i> </b>
 ModUi/&AddNewWeaponsAndRecipesToShops=상점에 새로운 무기와 제조법을 추가하세요 <i><color=#F0DAA0>[손가락 묶는 무기, 도끼창, 창, 긴 메이스, 손 석궁]</color></i> <b><i><color=#C04040E0>[재시작 필요]</color></i></b>
 ModUi/&AddPaladinSmiteToggle=<color=#D89555>성기사</color>가 치명타에만 스마이트를 사용할 수 있도록 토글을 추가합니다. <i><color=#F0DAA0>[반응 프롬프트를 최소화하는 데 유용함]</color></i>
 ModUi/&AddPickPocketableLoot=주머니털이 가능한 전리품 추가 <i><color=#F0DAA0>[<color=#D89555>주머니털이</color> 특기가 활성화된 경우 추천]</color></i>
@@ -120,7 +120,7 @@ ModUi/&EnableAllyMovementAllowsFlight=비행 중인 생물이 있는 경우 공�
 ModUi/&EnableTeleportAllowsMidAirPositions=자유 지정 순간이동 주문과 능력이 보이고 비어 있는 공중 공간을 대상으로 할 수 있게 합니다
 ModUi/&EnableAlternateHuman=대체 <color=#D89555>인간</color> <i><color=#F0DAA0>[+1 특기 / +2 속성 선택 / +1 기술]</color></i>을 활성화합니다.
 ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
-ModUi/&EnableAlternateVotingSystem=대체 투표 시스템 활성화 <i><color=#F0DAA0>[선택 가중치 = 투표 수 * 영웅 카리스마 수정치]</color></i>
+ModUi/&EnableAlternateVotingSystem=대체 투표 시스템 활성화 <i><color=#F0DAA0>[선택 가중치 = 해당 선택지에 투표한 모든 영웅의 카리스마 수정치 합계]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=<b>Abjurer</b> <color=#D89555>Arcane Ward</color> 구현을 BG3처럼 동작하도록 활성화합니다.
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[피해를 방지할 때마다 1씩 감소, 방지한 피해에 따라 감소하는 것이 아님. 활성화하려면 금지 주문을 시전할 필요가 없음\n하지만 최대값은 위저드 레벨의 2배 + INT 수정치 대신 위저드 레벨의 2배이며 긴 휴식 시에만 절반으로 재충전됨]</color></i>
 ModUi/&EnableBarbarianBrutalStrike2024=레벨 9, 13, 17에서 <color=#D89555>잔혹한 일격</color>과 <color=#D89555>잔혹한 일격 개선</color>을 활성화하여 <color=#D89555>잔혹한 치명타</color>를 대체합니다.
@@ -163,7 +163,7 @@ ModUi/&EnableDungeonMakerModdedContent=Dungeon Maker Pro 활성화\n<i><color=#F
 ModUi/&EnableElevationCameraToStayAtPosition=<i>+ 전투 중 고도 카메라를 활성화하여 비활성화 후에도 위치를 유지하고 범위를 3배로 늘립니다.</i>
 ModUi/&EnableEpicPointsAndArray=35포인트의 장대한 구매 시스템과 배열을 활성화하세요 <i><color=#F0DAA0>[17,15,13,12,10,8]</color></i> <b><i><color=#C04040E0>[재시작 필요]</color></i></b>
 ModUi/&ForcePointBuyAbilityScores=캐릭터 생성 및 RESPEC 중 능력치 결정을 포인트 구매로 고정합니다
-ModUi/&EnableExtendedProficienciesPanelDisplay=확장된 숙련도 패널 표시 활성화 <i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[캐릭터 검사 시 성능 저하. 사용 시 모든 위험을 감수해야 함]</color></i></b>
+ModUi/&EnableExtendedProficienciesPanelDisplay=확장된 숙련도 패널 표시 활성화 <i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[캐릭터 검사 시 성능 저하]</color></i></b>
 ModUi/&EnableFeatsAtEvenLevels=레벨 2, 10, 18에서 <color=#D89555>특기</color> 선택 활성화
 ModUi/&EnableFeatsAtEvenLevelsMiddle=레벨 6과 14에서 <color=#D89555>특기</color> 선택 활성화
 ModUi/&EnableFighterIndomitableSaving2024=<color=#D89555>불굴의 저항</color>을 5e 2024 버전으로 바꾸세요 <i><color=#F0DAA0>[세이브 스로우 재시도에 보너스로 클래스 레벨 추가]</color></i>
@@ -179,7 +179,7 @@ ModUi/&EnableGrappleAction=<color=#D89555>Grapple</color> 액션을 활성화합
 ModUi/&EnableHelpAction=<color=#D89555>도움</color> 액션을 활성화합니다. <i><color=#F0DAA0>[당신은 1셀 이내의 생물을 공격하는 데 아군 생물을 도울 수 있습니다]</color></i>
 ModUi/&EnableHeroWithBestProficiencyToRollChoice=가장 뛰어난 능력을 가진 영웅이 대화 선택을 할 수 있도록 합니다. <i><color=#F0DAA0>[작동하지만 공식 캠페인에서는 내레이션이 이상하게 보입니다.]</color></i>
 ModUi/&EnableHigherGroundRules=<color=#D89555>높은 곳</color> 규칙 활성화 <i><color=#F0DAA0>[높은 곳에서 공격 시 적중률 +1]</color></i>
-ModUi/&EnableInitiativeRollOnEveryRoundStart=매 턴 시작 시 <color=#D89555>이니셔티브 롤</color> 활성화
+ModUi/&EnableInitiativeRollOnEveryRoundStart=매 라운드 시작 시 <color=#D89555>이니셔티브 롤</color> 활성화
 ModUi/&EnableInventoryFilteringAndSorting=재고 필터링 및 정렬 활성화
 ModUi/&EnableInventoryTaintNonProficientItemsRed=영웅이 능숙하지 않은 모든 아이템을 빨간색으로 칠합니다.
 ModUi/&EnableInventoryTintKnownRecipesRed=알려진 레시피를 빨간색으로 칠하다
@@ -187,7 +187,7 @@ ModUi/&EnableLevel20=<color=#D89555>레벨 20</color> 활성화 <b><i><color=#C0
 ModUi/&EnableLogDialoguesToConsole=내러티브 시퀀스 중 게임 콘솔에 로그 대화 활성화
 ModUi/&EnableLoggingInvalidReferencesInUserCampaigns=사용자 정의 캠페인에서 잘못된 참조 로깅 활성화
 ModUi/&EnableMinInOutAttributes=<i>+ 최소 입출력 전제 조건 능력치 적용</i>
-ModUi/&EnableMonkAbundantKi=2레벨에서 <color=#D89555>풍부한 기</color>를 활성화합니다. <i><color=#F0DAA0>[숙련도 보너스의 절반에 해당하는 추가 기를 얻습니다(올림)]</color></i>
+ModUi/&EnableMonkAbundantKi=2레벨에서 <color=#D89555>풍부한 기</color>를 활성화합니다. <i><color=#F0DAA0>[숙련도 보너스의 절반에 해당하는 추가 기를 얻습니다(내림)]</color></i>
 ModUi/&EnableMonkBodyAndMind2024=레벨 20에서 <color=#D89555>완벽한 자아</color>를 대체하기 위해 <color=#D89555>신체와 정신</color>을 활성화합니다.
 ModUi/&EnableMonkDeflectAttacks2024=<color=#D89555>공격 반사</color>와 <color=#D89555>에너지 반사</color>를 활성화하여 레벨 3과 13에서 <color=#D89555>미사일 반사</color>와 <color=#D89555>태양과 달의 혀</color>를 대체합니다.\n<i><color=#F0DAA0>[3레벨에서는 근접 공격을 반사할 수 있고, 13레벨에서는 모든 유형의 피해를 반사할 수 있습니다]</color></i>
 ModUi/&EnableMonkFightingStyle=레벨 2에서 <color=#D89555>격투 스타일</color> 선택 가능
@@ -249,7 +249,7 @@ ModUi/&EnableRangerFeralSenses2024=<color=#D89555>야생의 감각</color>을 5e
 ModUi/&EnableRangerFoeSlayers2024=<color=#D89555>적 처치자</color>를 5e 2024 버전으로 바꾸세요 <i><color=#F0DAA0>[사냥꾼의 표식 주사위를 d10으로 증가]</color></i>
 ModUi/&EnableRangerNatureShroud2024=레벨 14에서 <color=#D89555>자연의 베일</color> 기능을 활성화합니다. <i><color=#F0DAA0>[보너스 액션으로 다음 턴이 시작될 때까지 마법으로 투명해질 수 있습니다.]</color></i>
 ModUi/&EnableRangerPreciseHunter2024=레벨 17에서 <color=#D89555>정밀 사냥꾼</color>을 활성화합니다. <i><color=#F0DAA0>[사냥꾼이 표시한 생물에 대한 이점]</color></i>
-ModUi/&EnableRangerRelentlessHunter2024=레벨 13에서 <color=#D89555>끈질긴 사냥꾼</color> 활성화 <i><color=#F0DAA0>[사냥꾼의 표식에 집중력 잃지 않음]</color></i>
+ModUi/&EnableRangerRelentlessHunter2024=레벨 13에서 <color=#D89555>끈질긴 사냥꾼</color> 활성화 <i><color=#F0DAA0>[피해를 받아도 사냥꾼의 표식에 대한 집중을 잃지 않음]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ 대신 사냥꾼의 표식에서 집중력 요구 사항을 제거합니다.</i>
 ModUi/&EnableRangerRoving2024=레벨 6에서 <color=#D89555>이동</color> 가능 <i><color=#F0DAA0>[중갑옷을 착용하지 않을 때 10피트 이동 가능, 동일한 등반 속도]</color></i>
 ModUi/&EnableRangerSpellCastingAtLevel1=레벨 2 대신 레벨 1에서 <color=#D89555>주문 시전</color>을 활성화합니다.
@@ -260,7 +260,7 @@ ModUi/&EnableRitualOnAllCasters2024=모든 시전자에 <color=#D89555>의식</c
 ModUi/&EnableOneSpellSlotPerTurn2024=한 턴에 주문 시전으로 주문 슬롯을 하나만 소비할 수 있는 2024년 규칙을 적용합니다. <i><color=#F0DAA0>[소마법과 주문 슬롯을 소비하지 않는 시전에는 영향을 주지 않습니다]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[건강 내성 굴림 실패 시 시전을 방해하며 대상 주문의 슬롯은 소모되지 않음]</color></i>
 ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>[10레벨 방호술사의 주문 파괴자도 자동으로 활성화됩니다. 코트 메이지의 주문 반사 통달은 자신의 카운터스펠 대상이 하는 내성 굴림에 불리점을 주고, 카운터스펠에 맞서는 자신의 내성 굴림에는 이점을 줍니다.]</color></i>
-ModUi/&EnableRogueCunningStrike2024=레벨 5, 11, 14에서 <color=#D89555>교활한 일격</color>, <color=#D89555>개선된 교활한 일격</color>, <color=#D89555>사악한 일격</color>을 활성화합니다. <i><color=#F0DAA0>[추가 적중 효과를 위해 몰래 공격 주사위 1개를 포기합니다]</color></i>
+ModUi/&EnableRogueCunningStrike2024=레벨 5, 11, 14에서 <color=#D89555>교활한 일격</color>, <color=#D89555>개선된 교활한 일격</color>, <color=#D89555>사악한 일격</color>을 활성화합니다. <i><color=#F0DAA0>[명중 시 추가 효과를 얻기 위해 몰래 공격 주사위를 포기합니다]</color></i>
 ModUi/&EnableRogueFightingStyle=레벨 2에서 <color=#D89555>격투 스타일</color> 선택 가능
 ModUi/&EnableRogueReliableTalent2024=레벨 11 대신 레벨 7에서 <color=#D89555>신뢰할 수 있는 재능</color>을 활성화합니다.
 ModUi/&EnableRogueSlipperyMind2024=<color=#D89555>Slippery Mind</color>를 5e 2024 버전과 교환하세요 <i><color=#F0DAA0>[지혜 외에도 카리스마 세이빙 스로우에 능숙해짐]</color></i>
@@ -268,7 +268,7 @@ ModUi/&EnableRogueSteadyAim2024=레벨 3에서 <color=#D89555>안정적인 조�
 ModUi/&EnableRogueStrSaving=<color=#D89555>교활한/사악한 일격</color>에 <b>후드럼</b> DEX 또는 STR 수정치를 활성화합니다.
 ModUi/&EnableScimitarSpecialization=그랜트 스키미터 <color=#D89555>무기 전문화</color>
 ModUi/&EnableSignatureSpellsRelearn=긴 휴식마다 <color=#D89555>특징 주문</color>을 준비할 수 있게 합니다. <i><color=#F0DAA0>[레벨 20에서 한 번만]</color></i>
-ModUi/&EnableSmiteSpells2024=5E 2024 버전으로 Smite 주문을 바꾸십시오 <i> <color =#f0daa0> [HIT의 트리거 및 농도가 필요하지 않음] </color> </i>
+ModUi/&EnableSmiteSpells2024=5E 2024 버전으로 Smite 주문을 바꾸십시오 <i> <color=#f0daa0> [HIT의 트리거 및 농도가 필요하지 않음] </color> </i>
 ModUi/&EnableSorcererArcaneApotheosis2024=레벨 20에서 <color=#D89555>마법의 회복</color>을 대체하기 위해 <color=#D89555>비전의 신격화</color>를 활성화합니다.
 ModUi/&EnableSorcererDraconicBloodlineAC2024=<color=#D89555>Draconic Bloodline</color> <i><color=#F0DAA0>[13+DEX 대신 10+DEX+CHA]</color></i>에서 <color=#D89555>Draconic Resilience</color> 2024 버전을 활성화하세요.
 ModUi/&EnableSorcererInnateSorcery2024=레벨 1과 7에서 <color=#D89555>선천적 마법</color>과 <color=#D89555>마법의 화신</color>을 활성화합니다.
@@ -285,7 +285,7 @@ ModUi/&EnableSpeechVoiceHelp=• 음성 및 내레이션 속도를 선택하세�
 ModUi/&EnableStackableArtItems=<color=#D89555>아트 아이템</color> 스택 활성화 <i><color=#F0DAA0>[이 설정이 비활성화된 동안에는 분할할 수 없음]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=<color=#D89555>단검</color>과 <color=#D89555>손도끼</color>를 중첩할 수 있습니다. <i><color=#F0DAA0>[이 설정이 비활성화된 동안에는 분할할 수 없습니다]</color></i>
 ModUi/&EnableStatsOnHeroTooltip=영웅의 툴팁에 통계 표시 <i><color=#F0DAA0>[예: 치명타, 치명타 실패 등]</color></i>
-ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ 또한 각 영웅은 약간의 무작위성을 위해 D20 롤을 가중치에 추가합니다 <color=#F0DAA0>[선택 가중치 = 투표 * 영웅 카리스마 수정치 + D20 롤]</color></i>
+ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ 또한 각 영웅은 약간의 무작위성을 위해 D20 롤을 가중치에 추가합니다 <color=#F0DAA0>[선택 가중치 = 해당 선택지에 투표한 각 영웅의 카리스마 수정치와 D20 굴림 결과의 합계]</color></i>
 ModUi/&EnableSurprisedToEnforceDisadvantage=라운드를 건너뛰는 대신 이니셔티브 불이익을 적용하려면 <color=#D89555>놀람</color> 조건을 활성화하세요.
 ModUi/&EnableTeleportToRemoveRestrained=<color=#D89555>순간이동</color>을 활성화하여 대상의 모든 <color=#D89555>제한된</color> 조건을 제거합니다.
 ModUi/&EnableTooltipDistance=전투 중 캐릭터 위에 마우스를 올려 놓으면 툴팁에 거리 표시가 활성화됩니다.
@@ -357,7 +357,7 @@ ModUi/&ItemsHelp2=<b>지상 컨테이너에 아이템을 추가하려면 +를 �
 ModUi/&KeepInvisibilityWhenUsingItems=아이템 사용을 활성화해도 <color=#D89555>투명성</color>이 깨지지 않습니다.
 ModUi/&LearnAllScrollRecipes=모든 기본 게임 스크롤 제작 레시피를 배우세요 <i><color=#F0DAA0>[스크롤 키트 숙련도 및 주문을 아는 것이 제작에 여전히 필요함]</color></i>
 ModUi/&LegendaryTweaksDetails=여기서 전설적인 무기의 무기 유형을 변경할 수 있습니다. 안전을 위해 무기는 장비가없는 동안이 작업을 수행하십시오.
-ModUi/&LegendaryTweaksTitle=<color =#f0daa0> 전설 조정 : </color>
+ModUi/&LegendaryTweaksTitle=<color=#f0daa0> 전설 조정 : </color>
 ModUi/&MakeAllMagicStaveArcaneFoci=모든 마법 지팡이를 비전 초점으로 만듭니다. <i><color=#F0DAA0>[일반적인 <color=#D89555>치유의 지팡이</color>는 제외]</color></i>
 ModUi/&MarkInvisibleTeleportersOnLevelMap=<i>+ 발견 후 레벨 맵에 보이지 않는 텔레포터의 위치도 표시</i>
 ModUi/&MaxAllowedClasses=<color=white>최대 허용 클래스</color>
@@ -459,9 +459,9 @@ ModUi/&StealthBreaksWhenAttackMisses=무기 또는 주문 공격이 빗나갔을
 ModUi/&StealthBreaksWhenCastingMaterial=<color=#D89555>재료</color>를 시전할 때 은신 해제를 활성화합니다. <i><color=#F0DAA0>[대상이 모두 또는 적인 모든 비공격 주문]</color></i>
 ModUi/&StealthBreaksWhenCastingSomatic=<color=#D89555>체학</color> <i><color=#F0DAA0>[대상이 전체 또는 적인 모든 비공격 주문]</color></i>인 경우 은신 해제를 활성화합니다.
 ModUi/&StealthBreaksWhenCastingVerbose=<color=#D89555>구두</color> 시전 시 은신 해제 활성화 <i><color=#F0DAA0>[대상 전체 또는 적에게 공격이 아닌 모든 주문]</color></i>
-ModUi/&StealthBreaksWhenMoving=움직일 때 스텔스 손실을 가능하게합니다. 은밀한 업적은 유리할 것입니다. 정상적인 적은 단점 <b> <i> <color =#c04040e0> [다시 시작해야합니다] </color> </i> </b>
+ModUi/&StealthBreaksWhenMoving=움직일 때 스텔스 손실을 가능하게합니다. 은밀한 업적은 유리할 것입니다. 정상적인 적은 단점 <b> <i> <color=#c04040e0> [다시 시작해야합니다] </color> </i> </b>
 ModUi/&StealthDoesNotBreakWithSubtle=<color=#D89555>미묘한 메타매직</color>과 <b>재료</b> 구성 요소가 없는 경우 스텔스 활성화 굴리기
-ModUi/&StealthRollForBreak=휴식을위한 스텔스 롤링 활성화 (위에서 스텔스 손실이 가능하면) <b> <i> <color =#c04040e0> [다시 시작해야합니다] </color> </i> </b>
+ModUi/&StealthRollForBreak=휴식을위한 스텔스 롤링 활성화 (위에서 스텔스 손실이 가능하면) <b> <i> <color=#c04040e0> [다시 시작해야합니다] </color> </i> </b>
 ModUi/&StockGorimStoreWithAllNonMagicalClothing=고림의 상점에 마법이 아닌 모든 의류를 비치하세요 <b><i><color=#C04040E0>[재시작 필요]</color></i></b>
 ModUi/&StockGorimStoreWithAllNonMagicalInstruments=고림의 상점에 마법이 아닌 모든 악기를 채워 넣으세요 <b><i><color=#C04040E0>[재시작 필요]</color></i></b>
 ModUi/&StockHugoStoreWithAdditionalFoci=<color=#D89555>비전 지팡이</color>, <color=#D89555>드루이드 목</color>, <color=#D89555>지팡이</color> 및 <color=#D89555>클럽</color> 세트를 초점 아이템으로 휴고의 상점에 비축하세요.
@@ -523,7 +523,7 @@ ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Way of Blade Monk 하위 클래스에
 ModUi/&UseWeaponMasterySystem=<color=#D89555>무기 마스터리</color> 규칙 활성화
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ 클리브 마스터리 2차 공격 데미지에 속성 점수 수정치 추가</i>
 ModUi/&UseWeaponMasterySystemAddWeaponTag=<i>+ 모든 게임 무기에 마스터리 태그 추가</i>
-ModUi/&UseWeaponMasterySystemAlternateProperties=<i>+ 작은 연구에서 실제 속성을 나타내는 대체 무기 특성. Shortbow의 "Vex"는 의미가 없습니다
+ModUi/&UseWeaponMasterySystemAlternateProperties=<i>+ 대체 무기 속성을 사용합니다. <b><color=#C04040E0>[재시작 필요]</color></b></i>
 ModUi/&UseWeaponMasterySystemFlurryTriggersMastery=<i>+ 듀얼 플러리 추가 공격은 다른 마스터리를 발동할 수 있습니다.</i>
 ModUi/&UseWeaponMasterySystemNickDualFlurry=<i>+ 닉 마스터리 추가 공격으로 듀얼 플러리 발동 가능</i>
 ModUi/&UseWeaponMasterySystemNickExtraAttackTriggersMastery=<i>+닉 마스터리 추가 공격은 다른 마스터리를 발동할 수 있습니다.</i>

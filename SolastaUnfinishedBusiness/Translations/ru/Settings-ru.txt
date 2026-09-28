@@ -16,8 +16,8 @@ ModUi/&AddCustomIconsToOfficialItems=Добавить кастомные зна�
 ModUi/&AddDarknessPerceptiveToDarkRaces=Включить <color=#D89555>Восприятие тьмы</color> для рас <color=#D89555>Тёмных эльфов</color>, <color=#D89555>Тёмных кобольдов</color> и <color=#D89555>Серых дварфов</color> <i><color=#F0DAA0>\n[даёт преимущество при проверках восприятия, когда персонаж не на свету или находится в магической темноте]</color></i>
 ModUi/&AddDexModifierToEnemiesInitiativeRoll=Добавлять модификатор Ловкости к <color=#D89555>броскам Инициативы</color> противников
 ModUi/&AddHumanoidFavoredEnemyToRanger=Включить <color=#D89555>Гуманоидов</color> в список избранных врагов <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>
-ModUi/&AddNewScrollsToShops=Добавьте прокрутки для новых заклинаний в соответствующие магазины <b> <i> <color =#C04040e0> [Требуется перезапуск] </color> </i> </b>
-ModUi/&AddNewScrollsToTreasure=Добавьте свитки для новых заклинаний в соответствующие пакеты сокровищ <b> <i> <color =#C04040e0> [требуется перезапуск] </color> </i> </b>
+ModUi/&AddNewScrollsToShops=Добавьте прокрутки для новых заклинаний в соответствующие магазины <b> <i> <color=#C04040e0> [Требуется перезапуск] </color> </i> </b>
+ModUi/&AddNewScrollsToTreasure=Добавьте свитки для новых заклинаний в соответствующие пакеты сокровищ <b> <i> <color=#C04040e0> [требуется перезапуск] </color> </i> </b>
 ModUi/&AddNewWeaponsAndRecipesToShops=Добавить новые оружия и рецепты в магазины <i><color=#F0DAA0>[обмотки, алебарды, пики, длинные булавы, ручные арбалеты]</color></i> <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>
 ModUi/&AddPaladinSmiteToggle=Добавить переключатель, чтобы позволить <color=#D89555>Паладинам</color> использовать кару только при критах <i><color=#F0DAA0>[полезно для уменьшения количества запросов на реакции]</color></i>
 ModUi/&AddPickPocketableLoot=Добавить лута для кражи <i><color=#F0DAA0>[рекомендуется, если черта <color=#D89555>Кража</color> включена]</color></i>
@@ -120,7 +120,7 @@ ModUi/&EnableAllyMovementAllowsFlight=Позволить умениям, пер�
 ModUi/&EnableTeleportAllowsMidAirPositions=Разрешить заклинаниям и умениям телепортации со свободным выбором точки назначать видимые незанятые клетки в воздухе
 ModUi/&EnableAlternateHuman=Включить альтернативное происхождение <color=#D89555>Человека</color> <i><color=#F0DAA0>[+1 черта / +2 очка характеристик / +1 навык]</color></i>
 ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
-ModUi/&EnableAlternateVotingSystem=Включить альтернативную систему голосования <i><color=#F0DAA0>[весомость выбора = голоса * модификатор Харизмы героя]</color></i>
+ModUi/&EnableAlternateVotingSystem=Включить альтернативную систему голосования <i><color=#F0DAA0>[весомость выбора = сумма модификаторов Харизмы всех героев, голосующих за этот вариант]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=Включить реализацию <color=#D89555>Магической защиты</color> Волшебника школы <b>Ограждения</b> как в BG3
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[Уменьшать на 1 каждый раз при предотвращении урона вместо уменьшения на количество предотвращённого урона. Нет необходимости в накладывании заклинания школы Ограждения для активации,\nно максимальные хиты защиты равны двукратному уровню Волшебника без модификатора ИНТ, восстанавливается наполовину после долгого отдыха]</color></i>
 ModUi/&EnableBarbarianBrutalStrike2024=Включить <color=#D89555>Жестокий удар</color> и <color=#D89555>Улучшенный жестокий удар</color> вместо <color=#D89555>Сильного критического удара</color> на уровнях 9, 13 и 17
@@ -163,7 +163,7 @@ ModUi/&EnableDungeonMakerModdedContent=Включить Создатель По�
 ModUi/&EnableElevationCameraToStayAtPosition=<i>+ Включить сохранение позиции уровня камеры во время боя после отключения, и утроить её масштаб</i>
 ModUi/&EnableEpicPointsAndArray=Включить эпические варианты поинт-бай системы (35 очков) и массива характеристик <i><color=#F0DAA0>[17,15,13,12,10,8]</color></i> <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>
 ModUi/&ForcePointBuyAbilityScores=Принудительно использовать покупку за очки для характеристик при создании персонажа и RESPEC
-ModUi/&EnableExtendedProficienciesPanelDisplay=Включить отображение панели расширенных владений <i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[снижает производительность при просмотре персонажа, используйте на свой страх и риск]</color></i></b>
+ModUi/&EnableExtendedProficienciesPanelDisplay=Включить отображение панели расширенных владений <i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[снижает производительность при просмотре персонажа]</color></i></b>
 ModUi/&EnableFeatsAtEvenLevels=Включить возможность выбора <color=#D89555>черты</color> на уровнях 2, 10 и 18
 ModUi/&EnableFeatsAtEvenLevelsMiddle=Включить возможность выбора <color=#D89555>черты</color> на уровнях 6 и 14
 ModUi/&EnableFighterIndomitableSaving2024=Заменить умение <color=#D89555>Упорный</color> на версию из 5e 2024 <i><color=#F0DAA0>[добавлять уровень класса к повторным спасброскам]</color></i>
@@ -179,7 +179,7 @@ ModUi/&EnableGrappleAction=Включить действие <color=#D89555>За
 ModUi/&EnableHelpAction=Включить действие <color=#D89555>Помощь</color> <i><color=#F0DAA0>[вы можете помочь дружественному существу атаковать другое существо, находящееся в пределах 1 клетки от вас]</color></i>
 ModUi/&EnableHeroWithBestProficiencyToRollChoice=Включить возможность персонажу с лучшими владениями проходить проверки в диалогах <i><color=#F0DAA0>[работает, но повествование выглядит странно в официальных кампаниях]</color></i>
 ModUi/&EnableHigherGroundRules=Включить правила <color=#D89555>возвышенности</color> <i><color=#F0DAA0>[+1 к атаке с высоты]</color></i>
-ModUi/&EnableInitiativeRollOnEveryRoundStart=Включить <color=#D89555>броски Инициативы</color> в начале каждого хода
+ModUi/&EnableInitiativeRollOnEveryRoundStart=Включить <color=#D89555>броски Инициативы</color> в начале каждого раунда
 ModUi/&EnableInventoryFilteringAndSorting=Включить фильтры и сортировку инвентаря
 ModUi/&EnableInventoryTaintNonProficientItemsRed=Отмечать красным цветом предметы, которыми герой не владеет
 ModUi/&EnableInventoryTintKnownRecipesRed=Отмечать красным цветом известные рецепты
@@ -187,7 +187,7 @@ ModUi/&EnableLevel20=Включить <color=#D89555>20-й уровень</color
 ModUi/&EnableLogDialoguesToConsole=Включить лог диалогов в консоли игры во время нарративных последовательностей
 ModUi/&EnableLoggingInvalidReferencesInUserCampaigns=Включить лог неверных ссылок в пользовательских кампаниях
 ModUi/&EnableMinInOutAttributes=<i>+ Принудительно устанавливать минимальные характеристики для соответствия требованиям</i>
-ModUi/&EnableMonkAbundantKi=Включить <color=#D89555>Обильное Ци</color> на уровне 2 <i><color=#F0DAA0>[вы получаете дополнительные очки Ци, равные половине бонуса мастерства, округлённого в большую сторону]</color></i>
+ModUi/&EnableMonkAbundantKi=Включить <color=#D89555>Обильное Ци</color> на уровне 2 <i><color=#F0DAA0>[вы получаете дополнительные очки Ци, равные половине бонуса мастерства, округлённого в меньшую сторону]</color></i>
 ModUi/&EnableMonkBodyAndMind2024=Включить <color=#D89555>Тело и разум</color> вместо <color=#D89555>Совершенства</color> на уровне 20
 ModUi/&EnableMonkDeflectAttacks2024=Включить <color=#D89555>Отражение атак</color> и <color=#D89555>Отражение энергии</color> в качестве замены <color=#D89555>Отражению снарядов</color> и <color=#D89555>Языку Солнца и Луны</color> на уровнях 3 и 13 соответственно\n<i><color=#F0DAA0>[может отражать рукопашные атаки на 3-м и любой тип урона на 13-м]</color></i>
 ModUi/&EnableMonkFightingStyle=Включить выбор <color=#D89555>Боевого стиля</color> на уровне 2
@@ -249,7 +249,7 @@ ModUi/&EnableRangerFeralSenses2024=Заменить <color=#D89555>Дикие ч
 ModUi/&EnableRangerFoeSlayers2024=Заменить <color=#D89555>Убийцу врагов</color> на версию из 5e 2024 <i><color=#F0DAA0>[увеличить кость Метки охотника до d10]</color></i>
 ModUi/&EnableRangerNatureShroud2024=Включить <color=#D89555>Природную завесу</color> в качестве замены <color=#D89555>Исчезновения</color> на уровне 14 <i><color=#F0DAA0>[бонусным действием вы можете волшебным образом стать невидимым до начала следующего хода]</color></i>
 ModUi/&EnableRangerPreciseHunter2024=Включить <color=#D89555>Меткого охотника</color> на уровне 17 <i><color=#F0DAA0>[преимущество против существ, отмеченных Следопытом]</color></i>
-ModUi/&EnableRangerRelentlessHunter2024=Включить <color=#D89555>Беспощадного охотника</color> на уровне 13 <i><color=#F0DAA0>[концентрация не теряется на Метке охотника]</color></i>
+ModUi/&EnableRangerRelentlessHunter2024=Включить <color=#D89555>Беспощадного охотника</color> на уровне 13 <i><color=#F0DAA0>[урон не прерывает концентрацию на Метке охотника]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ Вместо этого убрать требования концентрации с Метки охотника</i>
 ModUi/&EnableRangerRoving2024=Включить <color=#D89555>Бродягу</color> на уровне 6 <i><color=#F0DAA0>[получить 10 футов скорости, если не используются тяжёлые доспехи, и скорость лазания равную скорости ходьбы]</color></i>
 ModUi/&EnableRangerSpellCastingAtLevel1=Включить возможность <color=#D89555>наложения заклинаний</color> на 1-м уровне вместо 2-го
@@ -260,7 +260,7 @@ ModUi/&EnableRitualOnAllCasters2024=Включить <color=#D89555>Ритуал
 ModUi/&EnableOneSpellSlotPerTurn2024=Применяет правило 2024 года: за один ход можно потратить только одну ячейку на сотворение заклинания <i><color=#F0DAA0>[заговоры и заклинания без расхода ячейки не затрагиваются]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Включить версию 2024 года для <color=#D89555>{0}</color> <i><color=#F0DAA0>[спасбросок Телосложения; при провале накладывание прерывается без расходования ячейки выбранного заклинания]</color></i>
 ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>[Также включает Разрушитель заклинаний для Оградителей 10-го уровня. Мастер контрзаклинаний Придворного мага даёт целям помеху на спасброски против вашего Контрзаклинания, а вам — преимущество на спасброски против Контрзаклинания.]</color></i>
-ModUi/&EnableRogueCunningStrike2024=Включить умения <color=#D89555>Хитрого удара</color>, <color=#D89555>Улучшенного хитрого удара</color> и <color=#D89555>Коварного удара</color> на уровнях 5, 11 и 14 соответственно <i><color=#F0DAA0>[вы отказываетесь от 1 кости скрытой атаки для применения дополнительных эффектов]</color></i>
+ModUi/&EnableRogueCunningStrike2024=Включить умения <color=#D89555>Хитрого удара</color>, <color=#D89555>Улучшенного хитрого удара</color> и <color=#D89555>Коварного удара</color> на уровнях 5, 11 и 14 соответственно <i><color=#F0DAA0>[вы отказываетесь от костей скрытой атаки ради дополнительных эффектов при попадании]</color></i>
 ModUi/&EnableRogueFightingStyle=Включить выбор <color=#D89555>Боевого стиля</color> на уровне 2
 ModUi/&EnableRogueReliableTalent2024=Включить <color=#D89555>Надёжный талант</color> на уровне 7 вместо 11
 ModUi/&EnableRogueSlipperyMind2024=Заменить <color=#D89555>Скользкий ум</color> на версию 5e 2024 <i><color=#F0DAA0>[вы также получаете владение спасбросками Харизмы в дополнение к Мудрости]</color></i>
@@ -268,7 +268,7 @@ ModUi/&EnableRogueSteadyAim2024=Включить <color=#D89555>Точное п�
 ModUi/&EnableRogueStrSaving=Включить <b>Головорезу</b> использование модификаторов ЛОВ или СИЛ для <color=#D89555>Хитрого/Коварного удара</color>
 ModUi/&EnableScimitarSpecialization=Дать <color=#D89555>Специализацию на оружии</color> скимитаров
 ModUi/&EnableSignatureSpellsRelearn=Включить подготовку <color=#D89555>Фирменных заклинаний</color> после каждого продолжительного отдыха <i><color=#F0DAA0>[вместо того, чтобы выбирать их один раз на 20-м уровне]</color></i>
-ModUi/&EnableSmiteSpells2024=Заклинания Shap Smite с версией 5E 2024 <i> <color =#f0daa0> [триггер при хит и не требует концентрации] </color> </i>
+ModUi/&EnableSmiteSpells2024=Заклинания Shap Smite с версией 5E 2024 <i> <color=#f0daa0> [триггер при хит и не требует концентрации] </color> </i>
 ModUi/&EnableSorcererArcaneApotheosis2024=Включить <color=#D89555>Апофеоз магии</color> в качестве замены <color=#D89555>Чародейскому восстановлению</color> на уровне 20
 ModUi/&EnableSorcererDraconicBloodlineAC2024=Включить версию <color=#D89555>Драконова устойчивость</color> из <color=#D89555>Драконова родословная</color> <i><color=#F0DAA0>[10+DEX+CHA вместо 13+DEX]</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=Включить <color=#D89555>Врождённое чародейство</color> и <color=#D89555>Воплощение чародейства</color> на уровнях 1 и 7 соответственно
@@ -285,7 +285,7 @@ ModUi/&EnableSpeechVoiceHelp=• Выберите голос и скорость
 ModUi/&EnableStackableArtItems=Включить возможность стакать <color=#D89555>Художественные предметы</color> <i><color=#F0DAA0>[нельзя разделить, пока эта настройка отключена]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Включить возможность стакать <color=#D89555>Кинжалы</color> и <color=#D89555>Топорики</color> <i><color=#F0DAA0>[нельзя разделить, пока эта настройка отключена]</color></i>
 ModUi/&EnableStatsOnHeroTooltip=Отображать статистику на всплывающей подсказке о герое <i><color=#F0DAA0>[например: критические удары, критические промахи и т.д.]</color></i>
-ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ Также каждый герой добавляет к весомости результат броска D20 для привнесения элемента случайности <color=#F0DAA0>[весомость выбора = голоса * модификатор Харизмы героя + бросок D20]</color></i>
+ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ Также каждый герой добавляет к весомости результат броска D20 для привнесения элемента случайности <color=#F0DAA0>[весомость выбора = сумма модификатора Харизмы и результата броска D20 каждого героя, голосующего за этот вариант]</color></i>
 ModUi/&EnableSurprisedToEnforceDisadvantage=Включить изменения для состояния <color=#D89555>Застигнут врасплох</color>: бросок инициативы совершается с помехой вместо пропуска раунда
 ModUi/&EnableTeleportToRemoveRestrained=Включить возможность <color=#D89555>Телепортации</color> снимать все состояния <color=#D89555>задержки</color> с цели
 ModUi/&EnableTooltipDistance=Включить отображение расстояния во всплывающей подсказке панели при наведении курсора на персонажа в бою
@@ -357,7 +357,7 @@ ModUi/&ItemsHelp2=<b>Нажмите + для добавления предмет
 ModUi/&KeepInvisibilityWhenUsingItems=Включить возможность использования предметов без прекращения <color=#D89555>Невидимости</color>
 ModUi/&LearnAllScrollRecipes=Изучите все рецепты изготовления свитков из базовой игры <i><color=#F0DAA0>[для изготовления по-прежнему необходимы знание набора свитков и знание заклинания]</color></i>
 ModUi/&LegendaryTweaksDetails=Здесь вы можете изменить тип оружия легендарного оружия. Для безопасности делайте это, пока оружие не экипировано.
-ModUi/&LegendaryTweaksTitle=<color =#f0daa0> Легендарные настройки: </color>
+ModUi/&LegendaryTweaksTitle=<color=#f0daa0> Легендарные настройки: </color>
 ModUi/&MakeAllMagicStaveArcaneFoci=Сделать все волшебные посохи подходящими для магической фокусировки <i><color=#F0DAA0>[кроме <color=#D89555>Посоха лечения</color>, который является универсальным]</color></i>
 ModUi/&MarkInvisibleTeleportersOnLevelMap=<i>+ Также помечать местонахождение невидимых телепортов на карте уровня после того, как они открыты</i>
 ModUi/&MaxAllowedClasses=<color=white>Максимальное разрешённое количество классов</color>
@@ -459,7 +459,7 @@ ModUi/&StealthBreaksWhenAttackMisses=Включить потерю скрытн�
 ModUi/&StealthBreaksWhenCastingMaterial=Включить потерю скрытности при использовании <color=#D89555>Материального</color> компонента заклинания <i><color=#F0DAA0>[любое не атакующее заклинание, выбирающее целью ВСЕХ или ПРОТИВНИКОВ]</color></i>
 ModUi/&StealthBreaksWhenCastingSomatic=Включить потерю скрытности при использовании <color=#D89555>Соматического</color> компонента заклинания <i><color=#F0DAA0>[любое не атакующее заклинание, выбирающее целью ВСЕХ или ПРОТИВНИКОВ]</color></i>
 ModUi/&StealthBreaksWhenCastingVerbose=Включить потерю скрытности при использовании <color=#D89555>Вербального</color> компонента заклинания <i><color=#F0DAA0>[любое не атакующее заклинание, выбирающее целью ВСЕХ или ПРОТИВНИКОВ]</color></i>
-ModUi/&StealthBreaksWhenMoving=Включить потерю скрытности при переезде. Удежный подвиг будет иметь преимущество, нормальные враги имеют недостаток <b> <i> <color =#c04040e0> [требуется перезапуск] </color> </i> </b>
+ModUi/&StealthBreaksWhenMoving=Включить потерю скрытности при переезде. Удежный подвиг будет иметь преимущество, нормальные враги имеют недостаток <b> <i> <color=#c04040e0> [требуется перезапуск] </color> </i> </b>
 ModUi/&StealthDoesNotBreakWithSubtle=Включить сохранение скрытности, если используется <color=#D89555>Неуловимое заклинание</color> (метамагия) и не используется <b>Материальный</b> компонент
 ModUi/&StealthRollForBreak=Включите Stealth Rolling для разрыва (если потеря невидится выше)
 ModUi/&StockGorimStoreWithAllNonMagicalClothing=Пополнить магазин Горима всей немагической одеждой <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>
@@ -502,7 +502,7 @@ ModUi/&UnleashEnemyAsNpc=Позволить выбирать монстров в
 ModUi/&UnleashNpcAsEnemy=Разблокировать выбор монстров
 ModUi/&Update=<b><color=#D89555>Обновить</color></b>
 ModUi/&UseAlternateSpellPointsSystem=Включить альтернативную систему <color=#D89555>Очков заклинаний</color> <i><color=#F0DAA0>[вы обладаете запасом очков заклинаний, который увеличивается с уровнем заклинателя]</color></i>
-ModUi/&UseAlternateSpellPointsSystemHelp=<i><color=#F0DAA0>[Ур1: <color=white>04</color> Ур2: <color=white>06</color> Ур3: <color=white>14</color> Ур4: <color=white>17</color> Ур5: <color=white>27</color> Ур6: <color=white>32</color> Ур7: <color=white>38</color> Ур8: <color=white>44</color> Ур9: <color=white>57</color> Ур10: <color=white>64</color>\nУр11: <color=white>73</color> Ур12: <color=white>73</color> Ур13: <color=white>83</color> Ур14: <color=white>83</color> Ур15: <color =white>94</color> Ур16: <color=white>94</color> Ур17: <color=white>107</color> Ур18: <color=white>114</color> Ур19: <color=white>123</color> Ур20: <color=white>133</color>\nСтоимость наложения заклинаний следующая УЗ1: <color=white>2</color> УЗ2: <color=white>3</color> УЗ3: <color=white>5</color> УЗ4: <color=white>6</color> УЗ5: <color=white>7</color> УЗ6: <color=white>9</color> УЗ7: <color=white>10</color> УЗ8: <color=white>11</color> УЗ9: <color=white>13</color>\nСпособности восстановления ячеек заклинаний после короткого отдыха не будут работать в этой системе]</color></i>
+ModUi/&UseAlternateSpellPointsSystemHelp=<i><color=#F0DAA0>[Ур1: <color=white>04</color> Ур2: <color=white>06</color> Ур3: <color=white>14</color> Ур4: <color=white>17</color> Ур5: <color=white>27</color> Ур6: <color=white>32</color> Ур7: <color=white>38</color> Ур8: <color=white>44</color> Ур9: <color=white>57</color> Ур10: <color=white>64</color>\nУр11: <color=white>73</color> Ур12: <color=white>73</color> Ур13: <color=white>83</color> Ур14: <color=white>83</color> Ур15: <color=white>94</color> Ур16: <color=white>94</color> Ур17: <color=white>107</color> Ур18: <color=white>114</color> Ур19: <color=white>123</color> Ур20: <color=white>133</color>\nСтоимость наложения заклинаний следующая УЗ1: <color=white>2</color> УЗ2: <color=white>3</color> УЗ3: <color=white>5</color> УЗ4: <color=white>6</color> УЗ5: <color=white>7</color> УЗ6: <color=white>9</color> УЗ7: <color=white>10</color> УЗ8: <color=white>11</color> УЗ9: <color=white>13</color>\nСпособности восстановления ячеек заклинаний после короткого отдыха не будут работать в этой системе]</color></i>
 ModUi/&UseElfFaceModelsOnTieflings=Использовать <color=#D89555>Эльфийские</color> лица на <color=#D89555>Тифлингах</color>
 ModUi/&UseHeightOneCylinderEffect=Ограничить высоту эффекта одним уровнем при накладывании <color=#D89555>Чёрных щупалец, Опутывания, Смазки</color> <i><color=#F0DAA0>[квадрат]</color></i> или <color=#D89555>Шипов</color> <i><color=#F0DAA0>[круг]</color></i>
 ModUi/&UseMathFlankingRules=<i>+ Использовать точную математику для определения окружения <color=#F0DAA0>[может повлиять на производительность на медленных компьютерах]</color></i>
@@ -523,7 +523,7 @@ ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Дайте 2 выбора масте�
 ModUi/&UseWeaponMasterySystem=Включить правила <color=#D89555>Оружейного мастерства</color>
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ Мастерство рассекающего удара добавляет модификатор характеристики к урону второй атаки</i>
 ModUi/&UseWeaponMasterySystemAddWeaponTag=<i>+ Добавить метку мастерства ко всему оружию в игре</i>
-ModUi/&UseWeaponMasterySystemAlternateProperties=<i>+ Альтернативные свойства оружия для представления реальных свойств из небольшого исследования. «Vex» на короткобалле не имеет смысла <b> <i> <color =#c04040e0> [Требуется перезапуск] </color> </i> </b> </i>
+ModUi/&UseWeaponMasterySystemAlternateProperties=<i>+ Использовать альтернативные свойства оружия. <b><color=#C04040E0>[Требуется перезапуск]</color></b></i>
 ModUi/&UseWeaponMasterySystemFlurryTriggersMastery=<i>+ Дополнительная атакая Двойного шквала может активировать ещё одно оружейное мастерство</i>
 ModUi/&UseWeaponMasterySystemNickDualFlurry=<i>+ Дополнительная атака мастерства Царапина может вызвать двойной шквал</i>
 ModUi/&UseWeaponMasterySystemNickExtraAttackTriggersMastery=<i>+ Дополнительная атака Царапины может активировать ещё одно оружейное мастерство</i>

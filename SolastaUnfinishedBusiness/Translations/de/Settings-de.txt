@@ -1,4 +1,4 @@
-ModUI/&EnableChanceToPerceiveCloseRange=<i>+ roll
+ModUI/&EnableChanceToPerceiveCloseRange=<i>+ Führt einen Wahrnehmungswurf durch, um nicht wahrgenommene Ziele innerhalb von 2 Feldern zu bemerken.</i>
 ModUI/&EnableCriticalHitsMissesAt10=Ermöglichen
 ModUI/&EnableDamageOnFailedJumpCheck=Wendet 1W4 -Schäden bei fehlgeschlagenen Sprungprüfungen an
 ModUI/&ModVersionControl=-Unfinished Business Mod-Versionseinstellungen-
@@ -16,8 +16,8 @@ ModUi/&AddCustomIconsToOfficialItems=Fügen Sie offiziellen Spielgegenständen b
 ModUi/&AddDarknessPerceptiveToDarkRaces=Aktiviere <color=#D89555>Dunkelheitswahrnehmung</color> bei <color=#D89555>Dunkelelf</color>, <color=#D89555>Dunkelkobold</color> und <color=#D89555>Grauem Zwerg</color> <i><color=#F0DAA0>\n[gewährt einen Vorteil bei Wahrnehmungsprüfungen im unbeleuchteten Zustand oder in magischer Dunkelheit]</color></i>
 ModUi/&AddDexModifierToEnemiesInitiativeRoll=DEX-Modifikator zu Feinden hinzufügen <color=#D89555>Initiative Roll</color>
 ModUi/&AddHumanoidFavoredEnemyToRanger=Aktiviere <color=#D89555>Humanoide</color> bevorzugte Feinde <b><i><color=#C04040E0>[Neustart erforderlich]</color></i></b>
-ModUi/&AddNewScrollsToShops=Fügen Sie Schriftrollen für neue Zauber in geeignete Geschäfte hinzu <b> <i> <color =#C04040E0> [Benötigt Neustart] </color> </i> </b>
-ModUi/&AddNewScrollsToTreasure=Fügen Sie Scrolls für neue Zaubersprüche zu den entsprechenden Schatzpackungen hinzu <b> <i> <color =#C04040E0> [Benötigt Neustart] </color> </i> </b>
+ModUi/&AddNewScrollsToShops=Fügen Sie Schriftrollen für neue Zauber in geeignete Geschäfte hinzu <b> <i> <color=#C04040E0> [Benötigt Neustart] </color> </i> </b>
+ModUi/&AddNewScrollsToTreasure=Fügen Sie Scrolls für neue Zaubersprüche zu den entsprechenden Schatzpackungen hinzu <b> <i> <color=#C04040E0> [Benötigt Neustart] </color> </i> </b>
 ModUi/&AddNewWeaponsAndRecipesToShops=Neue Waffen und Rezepte zu den Läden hinzufügen <i><color=#F0DAA0>[Handbandagen, Hellebarden, Piken, lange Streitkolben, Handarmbrüste]</color></i> <b><i><color=#C04040E0>[Neustart erforderlich]</color></i></b>
 ModUi/&AddPaladinSmiteToggle=Fügen Sie einen Schalter hinzu, um <color=#D89555>Paladinen</color> zu erlauben, Smites nur bei kritischen Treffern zu aktivieren <i><color=#F0DAA0>[nützlich, um Reaktionsaufforderungen zu minimieren]</color></i>
 ModUi/&AddPickPocketableLoot=Beute, die durch Taschendiebstahl gestohlen werden kann, hinzufügen <i><color=#F0DAA0>[empfohlen, wenn die Fähigkeit <color=#D89555>Taschendiebstahl</color> aktiviert ist]</color></i>
@@ -120,7 +120,7 @@ ModUi/&EnableAllyMovementAllowsFlight=Erlauben Sie Funktionen, die sich selbst o
 ModUi/&EnableTeleportAllowsMidAirPositions=Erlauben Sie frei platzierbaren Teleportationszaubern und -kräften, sichtbare unbesetzte Positionen in der Luft als Ziel zu wählen
 ModUi/&EnableAlternateHuman=Aktiviere den alternativen <color=#D89555>Menschen</color> <i><color=#F0DAA0>[+1 Talent / +2 Attributauswahl / +1 Fertigkeit]</color></i>
 ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
-ModUi/&EnableAlternateVotingSystem=Alternatives Abstimmungssystem aktivieren <i><color=#F0DAA0>[Auswahlgewicht = Stimmen * Charisma-Modifikator des Helden]</color></i>
+ModUi/&EnableAlternateVotingSystem=Alternatives Abstimmungssystem aktivieren <i><color=#F0DAA0>[Auswahlgewicht = Summe der Charisma-Modifikatoren aller Helden, die für diese Auswahl stimmen]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=Aktivieren Sie die Implementierung von <b>Abjurer</b> <color=#D89555>Arcane Ward</color>, damit sie sich wie BG3 verhält
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[Verringert sich jedes Mal um 1, wenn Schaden verhindert wird, statt um verhinderten Schaden. Es ist nicht nötig, einen Bannzauber zu wirken, um aktiv zu sein,\naber der Maximalwert beträgt 2x Zaubererstufe statt 2x Zaubererstufe + INT-Mod und wird bei einer langen Pause nur auf die Hälfte aufgeladen]</color></i>
 ModUi/&EnableBarbarianBrutalStrike2024=Aktiviere <color=#D89555>Brutal Strike</color> und <color=#D89555>Brutal Strike Improvement</color>, um <color=#D89555>Brutal Critical</color> auf den Stufen 9, 13 und 17 zu ersetzen.
@@ -163,7 +163,7 @@ ModUi/&EnableDungeonMakerModdedContent=Aktivieren Sie Dungeon Maker Pro\n<i><col
 ModUi/&EnableElevationCameraToStayAtPosition=<i>+ Aktivieren Sie die Höhenkamera während des Gefechts, damit sie nach der Deaktivierung an ihrer Position bleibt und ihre Reichweite verdreifacht</i>
 ModUi/&EnableEpicPointsAndArray=Aktiviere ein episches 35-Punkte-Kaufsystem und -Array <i><color=#F0DAA0>[17,15,13,12,10,8]</color></i> <b><i><color=#C04040E0>[Neustart erforderlich]</color></i></b>
 ModUi/&ForcePointBuyAbilityScores=Attributswerte bei Charaktererstellung und RESPEC auf Punktekauf erzwingen
-ModUi/&EnableExtendedProficienciesPanelDisplay=Anzeige des erweiterten Kompetenzfelds aktivieren <i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[Leistungseinbußen bei der Charakterüberprüfung. Verwendung auf eigene Gefahr]</color></i></b>
+ModUi/&EnableExtendedProficienciesPanelDisplay=Anzeige des erweiterten Kompetenzfelds aktivieren <i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[Leistungseinbußen bei der Charakterüberprüfung]</color></i></b>
 ModUi/&EnableFeatsAtEvenLevels=Aktiviere die Auswahl von <color=#D89555>Fähigkeiten</color> auf den Stufen 2, 10 und 18
 ModUi/&EnableFeatsAtEvenLevelsMiddle=Aktiviere die Auswahl von <color=#D89555>Fähigkeiten</color> auf den Stufen 6 und 14.
 ModUi/&EnableFighterIndomitableSaving2024=Tauschen Sie <color=#D89555>Unbezwingbarer Widerstand</color> gegen die Version 5e 2024 aus <i><color=#F0DAA0>[fügen Sie die Klassenstufe als Bonus zum erneuten Wurf des Rettungswurfs hinzu]</color></i>
@@ -187,7 +187,7 @@ ModUi/&EnableLevel20=Aktiviere <color=#D89555>Level 20</color> <b><i><color=#C04
 ModUi/&EnableLogDialoguesToConsole=Aktivieren Sie die Protokollierung von Dialogen auf der Spielkonsole während Erzählsequenzen
 ModUi/&EnableLoggingInvalidReferencesInUserCampaigns=Aktivieren Sie die Protokollierung ungültiger Referenzen in benutzerdefinierten Kampagnen
 ModUi/&EnableMinInOutAttributes=<i>+ Mindestfähigkeitswerte für die Teilnahme und den Abschluss von Vorbedingungen durchsetzen</i>
-ModUi/&EnableMonkAbundantKi=Aktiviere <color=#D89555>Reichlich Ki</color> auf Level 2 <i><color=#F0DAA0>[erhalte zusätzliches Ki in Höhe der Hälfte des aufgerundeten Kompetenzbonus]</color></i>
+ModUi/&EnableMonkAbundantKi=Aktiviere <color=#D89555>Reichlich Ki</color> auf Level 2 <i><color=#F0DAA0>[erhalte zusätzliches Ki in Höhe der Hälfte des abgerundeten Kompetenzbonus]</color></i>
 ModUi/&EnableMonkBodyAndMind2024=Aktiviere <color=#D89555>Körper und Geist</color>, um <color=#D89555>Perfektes Selbst</color> auf Stufe 20 zu ersetzen.
 ModUi/&EnableMonkDeflectAttacks2024=Aktiviere <color=#D89555>Angriffe abwehren</color> und <color=#D89555>Energie abwehren</color>, um <color=#D89555>Raketen abwehren</color> und <color=#D89555>Zunge von Sonne und Mond</color> auf den Leveln 3 und 13 zu ersetzen\n<i><color=#F0DAA0>[kann auf Level 3 auch Nahkampf und auf Level 13 jede Schadensart abwehren]</color></i>
 ModUi/&EnableMonkFightingStyle=Aktiviere die Auswahl <color=#D89555>Kampfstil</color> auf Stufe 2.
@@ -249,7 +249,7 @@ ModUi/&EnableRangerFeralSenses2024=Tauschen Sie <color=#D89555>Wilde Sinne</colo
 ModUi/&EnableRangerFoeSlayers2024=Tauschen Sie <color=#D89555>Foe Slayer</color> gegen die 5e 2024-Version aus <i><color=#F0DAA0>[Hunter's Mark-Würfel auf d10 erhöhen]</color></i>
 ModUi/&EnableRangerNatureShroud2024=Aktivieren Sie die Funktion <color=#D89555>Nature's Veil</color> auf Stufe 14 <i><color=#F0DAA0>[als Bonusaktion können Sie bis zum Beginn der nächsten Runde auf magische Weise unsichtbar werden]</color></i>
 ModUi/&EnableRangerPreciseHunter2024=Aktiviere <color=#D89555>Precise Hunter</color> auf Level 17 <i><color=#F0DAA0>[Vorteil gegenüber von Hunter markierten Kreaturen]</color></i>
-ModUi/&EnableRangerRelentlessHunter2024=Aktiviere <color=#D89555>Relentless Hunter</color> auf Level 13 <i><color=#F0DAA0>[keine Konzentration verloren bei Hunter's Mark]</color></i>
+ModUi/&EnableRangerRelentlessHunter2024=Aktiviere <color=#D89555>Relentless Hunter</color> auf Level 13 <i><color=#F0DAA0>[Schaden bricht die Konzentration auf Hunter's Mark nicht]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ Entfernen Sie stattdessen die Konzentrationsanforderungen von Hunter's Mark</i>
 ModUi/&EnableRangerRoving2024=Aktivieren Sie <color=#D89555>Umherziehen</color> auf Stufe 6 <i><color=#F0DAA0>[erhalten Sie 10 Fuß Bewegung, wenn Sie keine schwere Rüstung verwenden, und dieselbe Klettergeschwindigkeit]</color></i>
 ModUi/&EnableRangerSpellCastingAtLevel1=Aktiviere <color=#D89555>Zauberwirken</color> auf Stufe 1 statt 2.
@@ -260,7 +260,7 @@ ModUi/&EnableRitualOnAllCasters2024=Aktivieren Sie das Wirken von <color=#D89555
 ModUi/&EnableOneSpellSlotPerTurn2024=Wendet die 2024-Regel an, nach der pro Zug nur ein Zauberplatz zum Wirken eines Zaubers verbraucht werden kann <i><color=#F0DAA0>[Zaubertricks und Zauber ohne Zauberplatz sind nicht betroffen]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Aktiviere die 2024-Version von <color=#D89555>{0}</color> <i><color=#F0DAA0>[Konstitutionsrettungswurf; bei Misserfolg wird das Wirken unterbrochen, ohne den Zauberplatz des Zielzaubers zu verbrauchen]</color></i>
 ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>[Aktiviert auch Zauberbrecher für Bannmagier der Stufe 10. Gegenzauber-Meisterschaft des Hofmagiers gibt Zielen deines Gegenzaubers Nachteil auf ihren Rettungswurf und dir Vorteil auf Rettungswürfe gegen Gegenzauber.]</color></i>
-ModUi/&EnableRogueCunningStrike2024=Aktiviere <color=#D89555>Cunning Strike</color>, <color=#D89555>Improved Cunning Strike</color> und <color=#D89555>Devious Strike</color> auf den Leveln 5, 11 und 14 <i><color=#F0DAA0>[du lässt 1 Schleichangriffswürfel für zusätzliche Treffereffekte weg]</color></i>
+ModUi/&EnableRogueCunningStrike2024=Aktiviere <color=#D89555>Cunning Strike</color>, <color=#D89555>Improved Cunning Strike</color> und <color=#D89555>Devious Strike</color> auf den Leveln 5, 11 und 14 <i><color=#F0DAA0>[du verzichtest auf Schleichangriffswürfel für zusätzliche Effekte bei einem Treffer]</color></i>
 ModUi/&EnableRogueFightingStyle=Aktiviere die Auswahl <color=#D89555>Kampfstil</color> auf Stufe 2.
 ModUi/&EnableRogueReliableTalent2024=Aktiviere <color=#D89555>Zuverlässiges Talent</color> auf Stufe 7 statt 11.
 ModUi/&EnableRogueSlipperyMind2024=Tauschen Sie <color=#D89555>Slippery Mind</color> gegen die 5e 2024-Version aus <i><color=#F0DAA0>[Sie erhalten neben Weisheit auch Kenntnisse in Charismarettungswürfen]</color></i>
@@ -268,7 +268,7 @@ ModUi/&EnableRogueSteadyAim2024=Aktivieren Sie <color=#D89555>Zielen ohne Unterb
 ModUi/&EnableRogueStrSaving=Aktivieren Sie <b>Hoodlum</b> DEX- oder STR-Modifikatoren bei <color=#D89555>Cunning/Devious Strike</color>
 ModUi/&EnableScimitarSpecialization=Gewähre Krummsäbel <color=#D89555>Waffenspezialisierung</color>
 ModUi/&EnableSignatureSpellsRelearn=Aktiviere, dass <color=#D89555>Signaturzauber</color> bei jeder langen Pause vorbereitet werden <i><color=#F0DAA0>[statt einmal auf Stufe 20]</color></i>
-ModUi/&EnableSmiteSpells2024=Swap Smite -Zauber mit 5E 2024 Version <i> <color =#f0daa0> [Trigger auf Treffer und keine Konzentration erfordern] </color> </i>
+ModUi/&EnableSmiteSpells2024=Swap Smite -Zauber mit 5E 2024 Version <i> <color=#f0daa0> [Trigger auf Treffer und keine Konzentration erfordern] </color> </i>
 ModUi/&EnableSorcererArcaneApotheosis2024=Aktiviere <color=#D89555>Arkane Apotheose</color>, um <color=#D89555>Zauberhafte Wiederherstellung</color> auf Level 20 zu ersetzen.
 ModUi/&EnableSorcererDraconicBloodlineAC2024=Aktiviere die 2024-Version von <color=#D89555>Draconic Resilience</color> von <color=#D89555>Draconic Bloodline</color> <i><color=#F0DAA0>[10+DEX+CHA statt 13+DEX]</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=Aktiviere <color=#D89555>Innate Sorcery</color> und <color=#D89555>Sorcery Incarnate</color> auf Level 1 und 7.
@@ -285,7 +285,7 @@ ModUi/&EnableSpeechVoiceHelp=• Wählen Sie eine Stimme und Erzählgeschwindigk
 ModUi/&EnableStackableArtItems=Stapeln aktivieren <color=#D89555>Kunstgegenstände</color> <i><color=#F0DAA0>[kann nicht geteilt werden, solange diese Einstellung deaktiviert ist]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Stapeln von <color=#D89555>Dolchen</color> und <color=#D89555>Handäxten</color> aktivieren <i><color=#F0DAA0>[kann nicht geteilt werden, solange diese Einstellung deaktiviert ist]</color></i>
 ModUi/&EnableStatsOnHeroTooltip=Statistiken im Tooltip des Helden anzeigen <i><color=#F0DAA0>[z. B.: kritische Treffer, kritische Fehlschläge usw.]</color></i>
-ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ Außerdem fügt jeder Held einen D20-Wurf zur Gewichtung hinzu, um ein wenig Zufälligkeit zu erzeugen <color=#F0DAA0>[Wahlgewicht = Stimmen * Charisma-Modifikator des Helden + D20-Wurf]</color></i>
+ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ Außerdem fügt jeder Held einen D20-Wurf zur Gewichtung hinzu, um ein wenig Zufälligkeit zu erzeugen <color=#F0DAA0>[Auswahlgewicht = Summe aus dem Charisma-Modifikator und dem D20-Wurf jedes abstimmenden Helden]</color></i>
 ModUi/&EnableSurprisedToEnforceDisadvantage=Aktivieren Sie die Bedingung <color=#D89555>Überrascht</color>, um einen Initiativenachteil durchzusetzen, anstatt eine Runde zu überspringen.
 ModUi/&EnableTeleportToRemoveRestrained=Aktivieren Sie <color=#D89555>Teleportieren</color>, um alle <color=#D89555>eingeschränkten</color> Bedingungen vom Ziel zu entfernen
 ModUi/&EnableTooltipDistance=Aktivieren Sie die Anzeige der Entfernung in den Tooltips, wenn Sie mit der Maus über einen Charakter im Kampf fahren.
@@ -357,7 +357,7 @@ ModUi/&ItemsHelp2=<b>Drücken Sie +, um Elemente zum Bodencontainer hinzuzufüge
 ModUi/&KeepInvisibilityWhenUsingItems=Aktivieren Sie die Verwendung von Elementen, ohne die <color=#D89555>Unsichtbarkeit</color> zu beeinträchtigen.
 ModUi/&LearnAllScrollRecipes=Erfahren Sie alle Rezepte für die Herstellung von Schriftrollen im Basisspiel <i><color=#F0DAA0>[Zum Herstellen sind weiterhin Kenntnisse im Schriftrollen-Kit und die Kenntnis des Zaubers erforderlich]</color></i>
 ModUi/&LegendaryTweaksDetails=Hier können Sie legendäre Waffenwaffenwaffen wechseln. Für die Sicherheit tun Sie dies, während die Waffe ungleichmäßig ist.
-ModUi/&LegendaryTweaksTitle=<color =#f0daa0> legendäre Tweaks: </color>
+ModUi/&LegendaryTweaksTitle=<color=#f0daa0> legendäre Tweaks: </color>
 ModUi/&MakeAllMagicStaveArcaneFoci=Machen Sie alle Zauberstäbe zu arkanen Fokussen <i><color=#F0DAA0>[außer dem <color=#D89555>Stab der Heilung</color>, der universell ist]</color></i>
 ModUi/&MarkInvisibleTeleportersOnLevelMap=<i>+ Markieren Sie auch die Position unsichtbarer Teleporter auf der Levelkarte, nachdem Sie diese entdeckt haben</i>
 ModUi/&MaxAllowedClasses=<color=white>Maximal zulässige Klassen</color>
@@ -459,9 +459,9 @@ ModUi/&StealthBreaksWhenAttackMisses=Aktivieren Sie den Tarnverlust, wenn Waffen
 ModUi/&StealthBreaksWhenCastingMaterial=Aktiviere Tarnverlust beim Wirken von <color=#D89555>Material</color> <i><color=#F0DAA0>[jeder Nichtangriffszauber mit Ziel ALLE oder FEIND]</color></i>
 ModUi/&StealthBreaksWhenCastingSomatic=Aktiviere den Verlust der Tarnung beim Wirken von <color=#D89555>Somatic</color> <i><color=#F0DAA0>[jeder Nichtangriffszauber mit Ziel ALLE oder FEINDE]</color></i>
 ModUi/&StealthBreaksWhenCastingVerbose=Aktivieren Sie den Verlust der Tarnung beim Wirken von <color=#D89555>Verbal</color> <i><color=#F0DAA0>[jeder Nichtangriffszauber mit Ziel ALLE oder FEIND]</color></i>
-ModUi/&StealthBreaksWhenMoving=Aktivieren Sie den Verlust von Stealth beim Umzug. Stealthy Feat wird Vorteil haben, normale Feinde haben Nachteile <b> <i> <color =#C04040E0> [Erfordert neu starten] </color> </i> </b>
+ModUi/&StealthBreaksWhenMoving=Aktivieren Sie den Verlust von Stealth beim Umzug. Stealthy Feat wird Vorteil haben, normale Feinde haben Nachteile <b> <i> <color=#C04040E0> [Erfordert neu starten] </color> </i> </b>
 ModUi/&StealthDoesNotBreakWithSubtle=Aktivieren Sie Tarnung ohne Rollen, wenn <color=#D89555>Subtile Metamagie</color> und keine <b>materielle</b> Komponente vorhanden ist.
-ModUi/&StealthRollForBreak=Aktivieren Sie das Stealth Rolling für Break (wenn der Stealth -Verlust oben aktiviert ist) <b> <i> <color =#C04040E0> [erfordert Neustart] </color> </i> </b>
+ModUi/&StealthRollForBreak=Aktivieren Sie das Stealth Rolling für Break (wenn der Stealth -Verlust oben aktiviert ist) <b> <i> <color=#C04040E0> [erfordert Neustart] </color> </i> </b>
 ModUi/&StockGorimStoreWithAllNonMagicalClothing=Füllen Sie Gorims Laden mit allen nicht magischen Kleidungsstücken auf <b><i><color=#C04040E0>[Neustart erforderlich]</color></i></b>
 ModUi/&StockGorimStoreWithAllNonMagicalInstruments=Füllen Sie Gorims Laden mit allen nicht magischen Musikinstrumenten auf <b><i><color=#C04040E0>[Neustart erforderlich]</color></i></b>
 ModUi/&StockHugoStoreWithAdditionalFoci=Füllen Sie Hugos Laden mit <color=#D89555>Arkanstab</color>, <color=#D89555>Druidenhals</color>, <color=#D89555>Stab</color> und <color=#D89555>Keule</color> als Fokusgegenstände.
@@ -523,7 +523,7 @@ ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Gewähre der Unterklasse „Way of Bl
 ModUi/&UseWeaponMasterySystem=Aktivieren Sie die Regeln für <color=#D89555>Waffenbeherrschung</color>
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ Cleave-Meisterung fügt Attributwertmodifikator zum Schaden des zweiten Angriffs hinzu</i>
 ModUi/&UseWeaponMasterySystemAddWeaponTag=<i>+ Meisterschafts-Tag zu allen Spielwaffen hinzufügen</i>
-ModUi/&UseWeaponMasterySystemAlternateProperties=<i>+ alternative Waffeneigenschaften zur Darstellung realer Eigenschaften aus einer kleinen Forschung. "Vex" auf Shortbow macht keinen Sinn <b> <i> <color =#C04040E0> [erfordert neu starten] </color> </i> </b> </i>
+ModUi/&UseWeaponMasterySystemAlternateProperties=<i>+ Alternative Waffeneigenschaften verwenden. <b><color=#C04040E0>[Neustart erforderlich]</color></b></i>
 ModUi/&UseWeaponMasterySystemFlurryTriggersMastery=<i>+ Dual Flurry-Zusatzangriff kann eine weitere Meisterung auslösen</i>
 ModUi/&UseWeaponMasterySystemNickDualFlurry=<i>+ Nick-Meisterungs-Zusatzangriff kann Dual Flurry auslösen</i>
 ModUi/&UseWeaponMasterySystemNickExtraAttackTriggersMastery=<i>+ Nick-Meisterung – zusätzlicher Angriff kann eine weitere Meisterung auslösen</i>
