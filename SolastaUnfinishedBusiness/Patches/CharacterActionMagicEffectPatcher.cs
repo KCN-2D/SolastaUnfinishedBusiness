@@ -1,16 +1,17 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Reflection;
 using System.Reflection.Emit;
+using System.Reflection;
+using System;
+using Coroutine = TA.Coroutine;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
-using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Spells;
@@ -18,13 +19,30 @@ using TA;
 using UnityEngine;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.GameExtensions.GameLocationBattleExtensions;
-using Coroutine = TA.Coroutine;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class CharacterActionMagicEffectPatcher
 {
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class MagicEffectExecution_MoveNext_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return CombinedMetamagic.GetIteratorMoveNext(typeof(CharacterActionMagicEffect), nameof(CharacterActionMagicEffect.MagicEffectExecuteOnZone));
+            yield return CombinedMetamagic.GetIteratorMoveNext(typeof(CharacterActionMagicEffect), nameof(CharacterActionMagicEffect.MagicEffectExecuteOnTargets));
+            yield return CombinedMetamagic.GetIteratorMoveNext(typeof(CharacterActionMagicEffect), nameof(CharacterActionMagicEffect.MagicEffectExecuteOnPositions));
+        }
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, MethodBase original) =>
+            CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.SubtleSpell, $"{original.DeclaringType?.Name}.{original.Name}");
+    }
+
+
     [HarmonyPatch]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -242,7 +260,7 @@ public static class CharacterActionMagicEffectPatcher
                     ImpactPoint = impactPoint,
                     ComputedTargetParameter = actionMagicEffect.computedTargetParameter,
                     Subtle = rulesetActiveEffect.MetamagicOption &&
-                             rulesetActiveEffect.MetamagicOption.Type == MetamagicType.SubtleSpell
+                             CombinedMetamagic.HasType(rulesetActiveEffect.MetamagicOption, MetamagicType.SubtleSpell)
                 };
                 var magicEffectCastData3 = magicEffectCastData2;
 
@@ -1257,6 +1275,34 @@ public static class CharacterActionMagicEffectPatcher
             return false;
         }
 
+        [UsedImplicitly]
+        private static void Postfix(
+            CharacterActionMagicEffect __instance,
+            RulesetEffect activeEffect,
+            GameLocationCharacter target,
+            ref IEnumerator __result)
+        {
+            __result = ExecuteWithFinishedHandlers(__result, __instance, activeEffect, target);
+        }
+
+        private static IEnumerator ExecuteWithFinishedHandlers(
+            IEnumerator original,
+            CharacterActionMagicEffect action,
+            RulesetEffect activeEffect,
+            GameLocationCharacter target)
+        {
+            yield return original;
+
+            if (activeEffect.EffectDescription.NeedsToRollDie())
+            {
+                foreach (var handler in action.ActingCharacter.RulesetCharacter
+                             .GetSubFeaturesByType<IMagicAttackFinishedByMe>())
+                {
+                    handler.OnMagicAttackFinishedByMe(action.ActingCharacter, target, action.AttackRollOutcome);
+                }
+            }
+        }
+
         private static IEnumerator ExecuteMagicAttack(
             CharacterActionMagicEffect __instance,
             RulesetEffect rulesetEffect,
@@ -1498,6 +1544,8 @@ public static class CharacterActionMagicEffectPatcher
                             SaveOutcome = __instance.SaveOutcome,
                             SaveOutcomeDelta = __instance.SaveOutcomeDelta,
                             SaveDC = RulesetActorExtensions.SaveDC,
+                            CurrentRoll = RulesetActorExtensions.SaveRoll,
+                            MinimumResult = RulesetActorExtensions.SaveMinimumResult,
                             SaveBonusAndRollModifier = RulesetActorExtensions.SaveBonusAndRollModifier,
                             SavingThrowAbility = RulesetActorExtensions.SavingThrowAbility,
                             SourceDefinition = null,

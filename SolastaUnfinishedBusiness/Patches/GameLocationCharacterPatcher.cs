@@ -1155,4 +1155,17 @@ public static class GameLocationCharacterPatcher
             return false;
         }
     }
+
+    [HarmonyPatch(typeof(GameLocationCharacter), nameof(GameLocationCharacter.ComputeAbilityCheckActionModifier))]
+    [UsedImplicitly]
+    internal static class ComputeAbilityCheckActionModifier_Patch
+    {
+        [UsedImplicitly]
+        [HarmonyPriority(Priority.First)]
+        private static void Prefix(GameLocationCharacter __instance, ref string abilityScoreName, string proficiencyName)
+        {
+            abilityScoreName = AbilityCheckAbilityReplacement.Resolve(
+                __instance.RulesetCharacter, abilityScoreName, proficiencyName);
+        }
+    }
 }

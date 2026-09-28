@@ -16,6 +16,9 @@ public static class TooltipFeatureDescriptionPatcher
         [UsedImplicitly]
         public static void Postfix(TooltipFeatureDescription __instance, ITooltip tooltip)
         {
+            //PATCH: resolve character-specific text without mutating shared definition wrappers
+            Tooltips.UpdateContextualDescription(__instance, tooltip);
+
             //PATCH: adds the current reason a visible but unavailable power cannot be used
             Tooltips.UpdatePowerUseFailure(__instance, tooltip);
 

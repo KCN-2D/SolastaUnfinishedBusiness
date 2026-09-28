@@ -24,3 +24,4 @@ Race/&RaceTieflingMephistophelesDescription=Mephistopheles offers arcane power t
 Race/&RaceTieflingMephistophelesTitle=Mephistopheles
 Race/&RaceTieflingZarielDescription=Tieflings with a blood tie to Zariel are stronger than the typical tiefling and receive magical abilities that aid them in battle.
 Race/&RaceTieflingZarielTitle=Zariel
+Feature/&CastSpellTieflingSpeciesSpellcastingDescription=You know the Produce Flame cantrip. When you reach level 3, you can cast the Hellish Rebuke spell as a level 2 spell once with this trait, and regain the ability to do so again when you finish a long rest. When you reach level 5, you can cast the Darkness spell once with this trait, and regain the ability to do so again when you finish a long rest.

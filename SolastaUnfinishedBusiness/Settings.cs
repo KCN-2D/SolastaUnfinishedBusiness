@@ -123,6 +123,7 @@ public class Settings : UnityModManager.ModSettings
     public bool UseAlternateSpellPointsSystem { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSmiteSpells2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSpeciesBaseWalkSpeed2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableSpeciesSpellcastingAbility2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableHalfOrcAdrenalineRush2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableHeavyWeaponAbilityRequirement2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool UseWeaponMasterySystem { get; set; }
@@ -374,6 +375,7 @@ public class Settings : UnityModManager.ModSettings
     //
 
     public bool EnableBardScimitarSpecialization { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableBardWeaponProficiency2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableBardicInspiration2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableBardCounterCharm2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableBardExpertiseOneLevelBefore2024 { get; set; }
@@ -387,11 +389,15 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnableBarbarianPersistentRage2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableBarbarianPrimalKnowledge2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableBarbarianReckless2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableBarbarianDangerSense2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableBarbarianIndomitableMight2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnablePaladinRadiantStrikes2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableBarbarianRage2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableBarbarianRelentlessRage2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableClericBlessedStrikes2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableClericChannelDivinity2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableClericDivineOrder2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableClericDivineIntervention2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableClericSearUndead2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableClericToLearnDomainAtLevel3 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableDruidArchDruid2024 { get; set; }
@@ -409,10 +415,12 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnableFighterTacticalMaster2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableFighterTacticalProgression2024 { get; set; }
     public bool EnableMonkAbundantKi { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableMonkWeaponProficiency2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableMonkBodyAndMind2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableMonkDeflectAttacks2024 { get; set; }
     public bool EnableMonkFightingStyle { get; set; }
     public bool EnableMonkHandwrapsOnGauntletSlot { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableMonkEmpoweredStrikes2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableMonkHeightenedFocus2024 { get; set; }
     public bool EnableMonkImprovedUnarmoredMovement { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableMonkSelfRestoration2024 { get; set; }
@@ -448,12 +456,16 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnableRangerFeralSenses2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableRangerFoeSlayers2024 { get; set; }
     public bool EnableRogueScimitarSpecialization { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableRogueWeaponProficiency2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableRogueCunningStrike2024 { get; set; }
     public bool EnableRogueFightingStyle { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableRogueReliableTalent2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableRogueSlipperyMind2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableRogueSteadyAim2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableRogueStrokeOfLuck2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableThiefUseMagicDevice2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool RemoveRogueBlindSense2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableSorcererWeaponProficiency2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSorcererArcaneApotheosis2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSorcererInnateSorcery2024 { get; set; }
     [Tag(Type = TagType.T2014)] public bool EnableSorcererMagicalGuidance { get; set; }
@@ -467,7 +479,9 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnableWarlockMagicalCunningAndImprovedEldritchMaster2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableWarlockToLearnPatronAtLevel3 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableAbjurerSpellBreaker2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableWizardWeaponProficiency2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableWizardMemorizeSpell2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableWizardSpellMastery2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableWizardToLearnScholarAtLevel2 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableWizardToLearnSchoolAtLevel3 { get; set; }
     public bool EnableSignatureSpellsRelearn { get; set; }
@@ -565,6 +579,7 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnableOneDndMagicWeaponSpell { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableOneDndPowerWordStunSpell { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableOneDndSpareTheDyingSpell { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableOneDndShillelaghSpell { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableOneDndSpiderClimbSpell { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableOneDndStoneSkinSpell { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableOneDndTrueStrikeCantrip { get; set; }

@@ -192,7 +192,7 @@ internal static class MetamagicBuilders
         {
             var rulesetCharacter = attacker.RulesetCharacter;
 
-            if (rulesetEffect.MetamagicOption != metamagicFocused)
+            if (!CombinedMetamagic.Contains(rulesetEffect.MetamagicOption, metamagicFocused.Name))
             {
                 yield break;
             }
@@ -264,7 +264,7 @@ internal static class MetamagicBuilders
             bool firstTarget,
             bool criticalHit)
         {
-            if (rulesetEffect.MetamagicOption != metamagicOptionDefinition)
+            if (!CombinedMetamagic.Contains(rulesetEffect.MetamagicOption, metamagicOptionDefinition.Name))
             {
                 yield break;
             }
@@ -382,9 +382,9 @@ internal static class MetamagicBuilders
             var rulesetAttacker = attacker.RulesetCharacter;
             var rulesetEffect = action.ActionParams.RulesetEffect;
 
-            if (rulesetEffect.MetamagicOption != metamagicOptionDefinition &&
-                rulesetAttacker.SpellsCastByMe
-                    .FirstOrDefault(x => x.SystemName == "BoomingStep")?.MetamagicOption != metamagicOptionDefinition)
+            if (!CombinedMetamagic.Contains(rulesetEffect.MetamagicOption, metamagicOptionDefinition.Name) &&
+                !CombinedMetamagic.Contains(rulesetAttacker.SpellsCastByMe
+                    .FirstOrDefault(x => x.SystemName == "BoomingStep")?.MetamagicOption, metamagicOptionDefinition.Name))
             {
                 yield break;
             }
@@ -557,7 +557,8 @@ internal static class MetamagicBuilders
                     out _);
                 var previousRoll = action.AttackRoll;
 
-                action.AttackSuccessDelta += dieRoll - previousRoll;
+                action.AttackSuccessDelta = TryAlterOutcomeAttack.GetReplacementRollSuccessDelta(
+                    action, dieRoll, defender.RulesetActor, attackModifier, attackMode, rulesetEffect);
                 action.AttackRoll = dieRoll;
 
                 if (action.AttackSuccessDelta >= 0)

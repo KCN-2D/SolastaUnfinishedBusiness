@@ -3,6 +3,7 @@ Feature/&AttributeModifierBolgrifStrengthAbilityScoreIncreaseTitle=Aumento degli
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseDescription=Saggezza +2
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseTitle=Aumento degli attributi
 Feature/&CastSpellBolgrifMagicDescription=Conosci un trucchetto a tua scelta dalla lista degli incantesimi del Druido. La saggezza è la tua abilità di incantatore per questo.
+Feature/&CastSpellBolgrifMagicSpeciesSpellcastingDescription=Conosci un trucchetto a tua scelta dalla lista degli incantesimi del Druido.
 Feature/&CastSpellBolgrifMagicTitle=Magia druidica
 Feature/&EquipmentAffinityBolgrifPowerfulBuildDescription=Per determinare la capacità di carico, la tua taglia è considerata Grande.
 Feature/&EquipmentAffinityBolgrifPowerfulBuildTitle=Costruzione potente

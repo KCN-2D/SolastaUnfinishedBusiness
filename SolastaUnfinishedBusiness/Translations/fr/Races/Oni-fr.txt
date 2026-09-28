@@ -1,4 +1,5 @@
 Feature/&CastSpellOniOgreMagicDescription=Au niveau 3, vous pouvez lancer <b>Châtiment tonitruant</b> une fois par repos long. <b>Sagesse</b> est votre capacité de lancement de sorts pour ce sort.
+Feature/&CastSpellOniOgreMagicSpeciesSpellcastingDescription=Au niveau 3, vous pouvez lancer <b>Châtiment tonitruant</b> une fois par repos long.
 Feature/&CastSpellOniOgreMagicTitle=Magie des ogres
 Feature/&FeatureSetOniAbilityScoreIncreaseDescription=Force +2, Sagesse +1
 Feature/&FeatureSetOniAbilityScoreIncreaseTitle=Augmentation des attributs

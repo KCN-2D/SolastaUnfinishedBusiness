@@ -1,23 +1,24 @@
-using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection.Emit;
+using System;
 using HarmonyLib;
 using JetBrains.Annotations;
-using SolastaUnfinishedBusiness.Api;
+using Object = UnityEngine.Object;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
-using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
-using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine;
 using static ActionDefinitions;
 using static RuleDefinitions;
-using Object = UnityEngine.Object;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper.SpellDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -652,8 +653,17 @@ public static class CharacterActionPanelPatcher
         [UsedImplicitly]
         public static void Prefix(
             CharacterActionPanel __instance,
-            SpellDefinition __1)
+            ref RulesetSpellRepertoire __0,
+            SpellDefinition __1,
+            ref int __2)
         {
+            var option = SpellCastingResourceContext.CurrentSelection;
+            if (option != null && SpellCastingResourceContext.IsSameSpell(option.Spell, __1))
+            {
+                __0 = option.Repertoire;
+                __2 = option.SlotLevel;
+            }
+
             var spellDefinition = __1;
 
             if (__instance?.GuiCharacter?.RulesetCharacter is not
@@ -687,6 +697,18 @@ public static class CharacterActionPanelPatcher
 
             __instance.actionId = candidateAction;
             __instance.actionParams = new CharacterActionParams(actingCharacter, candidateAction);
+        }
+
+        [UsedImplicitly]
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            // Bind before native concentration confirmation or immediate self-target execution.
+            return instructions.ReplaceCalls(
+                AccessTools.PropertySetter(typeof(CharacterActionParams), nameof(CharacterActionParams.RulesetEffect)),
+                1, "CharacterActionPanel.SpellcastEngaged.CastingSelection",
+                new CodeInstruction(OpCodes.Call,
+                    AccessTools.Method(typeof(SpellCastingResourceContext),
+                        nameof(SpellCastingResourceContext.SetSelectedEffect))));
         }
 
         private static Id ResolveSpellAction(
@@ -750,12 +772,22 @@ public static class CharacterActionPanelPatcher
                 return false;
             }
 
+            var caster = __instance.GuiCharacter.GameLocationCharacter;
+            var quickened = DatabaseHelper.MetamagicOptionDefinitions.MetamagicQuickenedSpell;
+
             __instance.actionId = Id.CastBonus;
-            __instance.MetamagicSelected(
-                __instance.GuiCharacter.GameLocationCharacter,
-                rulesetEffectSpell,
-                DatabaseHelper.MetamagicOptionDefinitions.MetamagicQuickenedSpell
-            );
+
+            if (SorceryIncarnateContext.TrySelectAdditional(
+                    __instance.MetamagicSelectionPanel, caster, rulesetEffectSpell, quickened,
+                    __instance.MetamagicSelected,
+                    () => __instance.MetamagicSelected(caster, rulesetEffectSpell, quickened)))
+            {
+                // Ignoring the additional choice retains the metamagic requested by this menu.
+                __instance.MetamagicSelectionPanel.Show();
+                return false;
+            }
+
+            __instance.MetamagicSelected(caster, rulesetEffectSpell, quickened);
             return false;
         }
     }
@@ -1027,6 +1059,11 @@ public static class CharacterActionPanelPatcher
     public static class MetamagicSelected_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.QuickenedSpell, "CharacterActionPanel.MetamagicSelected");
+
+
+        [UsedImplicitly]
         public static bool Prefix(
             CharacterActionPanel __instance,
             RulesetEffectSpell spellEffect,
@@ -1042,7 +1079,7 @@ public static class CharacterActionPanelPatcher
             // BEGIN VANILLA CODE
             spellEffect.MetamagicOption = metamagicOption;
 
-            if (metamagicOption.Type == MetamagicType.QuickenedSpell)
+            if (CombinedMetamagic.HasType(metamagicOption, MetamagicType.QuickenedSpell))
             {
                 __instance.actionParams.ActionDefinition = ServiceRepository.GetService<IGameLocationActionService>()
                     .AllActionDefinitions[Id.CastBonus];
@@ -1054,5 +1091,137 @@ public static class CharacterActionPanelPatcher
 
             return false;
         }
+    }
+
+    [HarmonyPatch(typeof(CharacterActionPanel), nameof(CharacterActionPanel.OnCastSpellOnItemExternal))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnCastSpellOnItemExternal_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(
+            CharacterActionPanel __instance,
+            GameLocationCharacter __0,
+            RulesetItem __1,
+            bool __2)
+        {
+            var caster = __0?.RulesetCharacter;
+
+            if (!SpellCastingResourceContext.SupportsItemResourceSelection || __2 || caster == null || __1 == null ||
+                SpellCastingResourceContext.CurrentSelection != null)
+            {
+                return true;
+            }
+
+            caster.CanCastSpell(Identify, false, out var preferredRepertoire);
+            var inspectionScreen = Gui.GuiService.GetScreen<CharacterInspectionScreen>();
+            var attachment = inspectionScreen != null && inspectionScreen.Visible
+                ? inspectionScreen.GetComponent<RectTransform>()
+                : Gui.GuiService.GetScreen<GameLocationScreenExploration>()?.GetComponent<RectTransform>();
+
+            // Item identification does not enter SpellcastEngaged or show the exploration action panel.
+            // Keep the picker on the visible screen, and begin the native action only after selection.
+            return !SpellResourceSelectionPanel.ShowOptions(
+                __instance.SpellSelectionPanel.SlotAdvancementPanel,
+                caster,
+                Identify,
+                preferredRepertoire,
+                0,
+                (_, _) => __instance.OnCastSpellOnItemExternal(__0, __1, false),
+                attachment);
+        }
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var code = instructions.ToList();
+            var canCast = AccessTools.Method(typeof(RulesetCharacter), nameof(RulesetCharacter.CanCastSpell),
+                [typeof(SpellDefinition), typeof(bool), typeof(RulesetSpellRepertoire).MakeByRefType()]);
+            var lowestLevel = AccessTools.Method(typeof(RulesetSpellRepertoire),
+                nameof(RulesetSpellRepertoire.GetLowestAvailableSlotLevel));
+            var clone = AccessTools.Method(typeof(CharacterActionParams), nameof(CharacterActionParams.Clone));
+            var canCastCalls = canCast == null ? 0 : code.Count(instruction => instruction.Calls(canCast));
+            var lowestLevelCalls = lowestLevel == null ? 0 : code.Count(instruction => instruction.Calls(lowestLevel));
+            var cloneCalls = clone == null ? 0 : code.Count(instruction => instruction.Calls(clone));
+
+            SpellCastingResourceContext.SupportsItemResourceSelection =
+                canCastCalls == 1 && lowestLevelCalls == 1 && cloneCalls == 2;
+
+            if (!SpellCastingResourceContext.SupportsItemResourceSelection)
+            {
+                Main.Error("Failed to apply item spell resource selection: " +
+                           $"expected CanCastSpell=1, lowestLevel=1, Clone=2; found " +
+                           $"{canCastCalls}, {lowestLevelCalls}, {cloneCalls}.");
+                return code;
+            }
+
+            return code
+                .ReplaceCalls(canCast, 1, "ItemSpellResource.CanCastSpell",
+                    new CodeInstruction(OpCodes.Call,
+                        AccessTools.Method(typeof(OnCastSpellOnItemExternal_Patch), nameof(CanCastSelectedSpell))))
+                .ReplaceCalls(lowestLevel, 1, "ItemSpellResource.LowestLevel",
+                    new CodeInstruction(OpCodes.Call,
+                        AccessTools.Method(typeof(OnCastSpellOnItemExternal_Patch), nameof(GetSelectedSlotLevel))))
+                .ReplaceCalls(clone, 2, "ItemSpellResource.Clone",
+                    new CodeInstruction(OpCodes.Call,
+                        AccessTools.Method(typeof(OnCastSpellOnItemExternal_Patch), nameof(CloneWithSelection))));
+        }
+
+        private static bool CanCastSelectedSpell(
+            RulesetCharacter caster,
+            SpellDefinition spell,
+            bool checkAvailableSlot,
+            out RulesetSpellRepertoire repertoire)
+        {
+            var selection = SpellCastingResourceContext.CurrentSelection;
+
+            if (selection == null || selection.Spell != spell)
+            {
+                return caster.CanCastSpell(spell, checkAvailableSlot, out repertoire);
+            }
+
+            repertoire = selection.Repertoire;
+
+            // Retain knowledge, preparation, and existing casting validation without requiring a
+            // conventional slot when the selected resource is a Wizard or repertoire free use.
+            return selection.IsAvailable(caster) && repertoire.CanCastSpell(spell, false);
+        }
+
+        private static int GetSelectedSlotLevel(RulesetSpellRepertoire repertoire)
+        {
+            var selection = SpellCastingResourceContext.CurrentSelection;
+
+            return selection?.Repertoire == repertoire
+                ? selection.SlotLevel
+                : repertoire.GetLowestAvailableSlotLevel();
+        }
+
+        private static CharacterActionParams CloneWithSelection(CharacterActionParams parameters)
+        {
+            if (parameters.ActionDefinition.Id != ActionDefinitions.Id.CastRitual &&
+                SpellCastingResourceContext.CurrentSelection?.Spell == Identify &&
+                parameters.RulesetEffect is RulesetEffectSpell
+                {
+                    OriginItem: null,
+                    RulesetInvocation: null,
+                    SlotLevel: > 0
+                } effect &&
+                effect is not RulesetEffectSpellWithOrigin && effect.SpellDefinition == Identify)
+            {
+                SpellCastingResourceContext.SetSelectedEffect(parameters, effect);
+            }
+
+            return parameters.Clone();
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterActionPanel), nameof(CharacterActionPanel.PowerEngaged))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class PowerEngaged_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterActionPanel __instance, RulesetUsablePower usablePower) =>
+            !Tabletop2024Context.TrySelectDivineIntervention(__instance, usablePower);
     }
 }

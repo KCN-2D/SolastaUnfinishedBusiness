@@ -153,6 +153,13 @@ internal static class MulticlassContext
         { Wizard, [ProficiencyWizardWeapon, PointPoolWizardSkillPoints, ProficiencyWizardSavingThrow] }
     };
 
+    internal static bool IsFeatureExcludedFromMulticlass(
+        CharacterClassDefinition characterClass, FeatureDefinition feature)
+    {
+        return (FeaturesToExclude.TryGetValue(characterClass, out var excluded) && excluded.Contains(feature)) ||
+               Tabletop2024Context.IsClassWeaponProficiencyExcludedFromMulticlass(characterClass, feature);
+    }
+
     private static (MethodInfo, HeroContext) FeatureUnlocksContext { get; set; }
 
     internal static void LateLoad()
@@ -482,10 +489,8 @@ internal static class MulticlassContext
         }
 
         // exclude features per mc rules
-        if (FeaturesToExclude.TryGetValue(selectedClass, out var featureNamesToExclude))
-        {
-            filteredFeatureUnlockByLevels.RemoveAll(x => featureNamesToExclude.Contains(x.FeatureDefinition));
-        }
+        filteredFeatureUnlockByLevels.RemoveAll(x =>
+            IsFeatureExcludedFromMulticlass(selectedClass, x.FeatureDefinition));
 
         // sort back results
         filteredFeatureUnlockByLevels.Sort(Sorting.CompareFeatureUnlock);

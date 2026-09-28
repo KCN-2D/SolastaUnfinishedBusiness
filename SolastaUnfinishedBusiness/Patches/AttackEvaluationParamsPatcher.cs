@@ -1,8 +1,10 @@
-﻿using System;
+﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Models;
 using static RuleDefinitions;
 
@@ -11,6 +13,28 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class AttackEvaluationParamsPatcher
 {
+    [HarmonyPatch(typeof(BattleDefinitions.AttackEvaluationParams), nameof(BattleDefinitions.AttackEvaluationParams.FillForMagicDistance))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class FillForMagicDistance_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.DistantSpell, "BattleDefinitions.AttackEvaluationParams.FillForMagicDistance");
+    }
+
+
+    [HarmonyPatch(typeof(BattleDefinitions.AttackEvaluationParams), nameof(BattleDefinitions.AttackEvaluationParams.FillForMagicRangeAttack))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class FillForMagicRangeAttack_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.DistantSpell, "BattleDefinitions.AttackEvaluationParams.FillForMagicRangeAttack");
+    }
+
+
     private static void HandlePhysicalAttackRules(BattleDefinitions.AttackEvaluationParams evaluationParams)
     {
         //PATCH: apply flanking rules
@@ -33,6 +57,11 @@ public static class AttackEvaluationParamsPatcher
     public static class FillForMagicTouchAttack_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.DistantSpell, "BattleDefinitions.AttackEvaluationParams.FillForMagicTouchAttack", true);
+
+
+        [UsedImplicitly]
         public static void Postfix(
             // Since `AttackEvaluationParams` is a struct, we need to use ref to get actual object, instead of a copy
             ref BattleDefinitions.AttackEvaluationParams __instance,
@@ -40,7 +69,7 @@ public static class AttackEvaluationParamsPatcher
             MetamagicOptionDefinition metamagicOption)
         {
             //PATCH: allow for `Touch` effects to have reach changed, unless `Distant Spell` metamagic is used
-            if (metamagicOption is { Type: MetamagicType.DistantSpell })
+            if (CombinedMetamagic.HasType(metamagicOption, MetamagicType.DistantSpell))
             {
                 return;
             }
@@ -55,6 +84,11 @@ public static class AttackEvaluationParamsPatcher
     [UsedImplicitly]
     public static class FillForMagicReachAttack_Patch
     {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.DistantSpell, "BattleDefinitions.AttackEvaluationParams.FillForMagicReachAttack", true);
+
+
         [UsedImplicitly]
         public static void Postfix(
             // Since `AttackEvaluationParams` is a struct, we need to use ref to get actual object, instead of a copy
@@ -72,7 +106,7 @@ public static class AttackEvaluationParamsPatcher
             RacesContext.HandleSmallRaces(__instance);
 
             //PATCH: allow for `MeleeHit` effects to have reach changed, unless `Distant Spell` metamagic is used
-            if (metamagicOption is { Type: MetamagicType.DistantSpell })
+            if (CombinedMetamagic.HasType(metamagicOption, MetamagicType.DistantSpell))
             {
                 return;
             }

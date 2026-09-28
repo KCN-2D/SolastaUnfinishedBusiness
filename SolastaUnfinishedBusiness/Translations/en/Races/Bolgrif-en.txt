@@ -3,6 +3,7 @@ Feature/&AttributeModifierBolgrifStrengthAbilityScoreIncreaseTitle=Attribute Inc
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseDescription=Wisdom +2
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseTitle=Attribute Increase
 Feature/&CastSpellBolgrifMagicDescription=You know one cantrip of your choice from the Druid spell list. Wisdom is your spellcasting ability for it.
+Feature/&CastSpellBolgrifMagicSpeciesSpellcastingDescription=You know one cantrip of your choice from the Druid spell list.
 Feature/&CastSpellBolgrifMagicTitle=Druidic Magic
 Feature/&EquipmentAffinityBolgrifPowerfulBuildDescription=You count your size as Large when determining your carrying capacity.
 Feature/&EquipmentAffinityBolgrifPowerfulBuildTitle=Powerful Build

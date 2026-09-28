@@ -139,6 +139,23 @@ public static class RulesetActorPatcher
     public static class AddConditionOfCategory_Patch
     {
         [UsedImplicitly]
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var original = typeof(RulesetCondition).GetMethod(nameof(RulesetCondition.IsDurationDefinedByEffect));
+            var replacement = new Func<RulesetCondition, bool>(ShouldReplaceCondition).Method;
+
+            return instructions.ReplaceCalls(original, "RulesetActor.AddConditionOfCategory.SmiteReapplication",
+                new CodeInstruction(OpCodes.Call, replacement));
+        }
+
+        private static bool ShouldReplaceCondition(RulesetCondition condition)
+        {
+            // Only reapplication uses this decision. Expiry still uses the condition's own SpecialDuration.
+            // Native refreshes only RemainingRounds otherwise, leaving the old source, spell level and save DC.
+            return condition.IsDurationDefinedByEffect() || SmiteSpells2024Context.IsTrackedSmiteCondition(condition);
+        }
+
+        [UsedImplicitly]
         public static void Prefix(
             RulesetActor __instance,
             ref string category,

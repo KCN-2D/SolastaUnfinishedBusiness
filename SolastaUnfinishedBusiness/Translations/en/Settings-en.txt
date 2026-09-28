@@ -137,7 +137,7 @@ ModUi/&EnableBetaContent=Enable beta content <b><i><color=#C04040E0>[Requires Re
 ModUi/&EnableCancelEditOnRightMouseClick=Enable cancel actions with right mouse click
 ModUi/&EnableCantripsTriggeringOnWarMagic=Allow cantrips to trigger <color=#D89555>War Magic</color> extra bonus attack
 ModUi/&EnableCharactersOnFireToEmitLight=Characters <color=#D89555>On Fire</color> should emit light <i><color=#F0DAA0>[Cube of Light, Fire Elemental, Fire Jester, Fire Osprey, Fire Spider, and on fire condition family]</color></i>
-ModUi/&EnableClericBlessedStrikes2024=Enable <color=#D89555>Blessed Strikes</color>, and <color=#D89555>Improved Blessed Strikes</color> at levels 7 and 14\n<i><color=#F0DAA0>[only impacts domains Defiler, Life, Mischief, Nature, Smith, Sun, and Tempest]</color></i>
+ModUi/&EnableClericBlessedStrikes2024=Enable <color=#D89555>Blessed Strikes</color>, and <color=#D89555>Improved Blessed Strikes</color> at levels 7 and 14
 ModUi/&EnableClericChannelDivinity2024=Swap <color=#D89555>Channel Divinity</color> with 5e 2024 version <i><color=#F0DAA0>[different usages]</color></i>
 ModUi/&EnableClericDivineOrder2024=Enable <color=#D89555>Divine Order</color> at level 1 <i><color=#F0DAA0>[choice between heavy armor/martial weapons prof. or bonus cantrip and some INT checks]</color></i>
 ModUi/&EnableClericSearUndead2024=Enable <color=#D89555>Sear Undead</color> to replace <color=#D89555>Destroy Undead</color> at level 5
@@ -226,6 +226,7 @@ ModUi/&EnablePcgRandom=Enable a better random generator algorithm <i><color=#F0D
 ModUi/&EnablePoisonsBonusAction2024=Enable applying <color=#D89555>Poisons</color> to weapons as a bonus action
 ModUi/&EnablePotionsBonusAction2024=Enable drinking <color=#D89555>Potions</color> as a bonus action
 ModUi/&EnableHalfOrcAdrenalineRush2024=For <color=#D89555>{0}</color>, replace <color=#D89555>{1}</color> with <color=#D89555>{2}</color> (2024)
+ModUi/&EnableSpeciesSpellcastingAbility2024=Allow choosing Intelligence, Wisdom, or Charisma as the spellcasting ability for species spells.
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Set the base walking speed of <color=#D89555>playable species with 5-cell speed</color> to 6 cells
 ModUi/&EnablePreparedSpellsTables2024=Enable all <color=#D89555>Casters</color> to use new prepared spells tables <i><color=#F0DAA0>[Artificer, Bard, Cleric, Druid, Paladin, Ranger, Sorcerer, Wizard]</color></i>
 ModUi/&EnableSpellLists2024=Use the 2024 class spell lists
@@ -250,7 +251,7 @@ ModUi/&EnableRespecAction=Enable the <color=#D89555>RESPEC</color> after rest ac
 ModUi/&EnableRitualOnAllCasters2024=Enable <color=#D89555>Ritual</color> casting on all casters
 ModUi/&EnableOneSpellSlotPerTurn2024=Apply the 2024 rule that only one spell slot can be expended to cast a spell on each turn <i><color=#F0DAA0>[cantrips and spells cast without a spell slot are unaffected]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[Constitution save; failure interrupts casting without expending the target spell's slot]</color></i>
-ModUi/&Counterspell2024CompatibilityDescription=Also enables Spell Breaker for level 10 Abjurers. Court Mage Counterspell Mastery gives your targets disadvantage on their Counterspell saves and gives you advantage on saves against Counterspell.
+ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>[Also enables Spell Breaker for level 10 Abjurers. Court Mage Counterspell Mastery gives your targets disadvantage on their Counterspell saves and gives you advantage on saves against Counterspell.]</color></i>
 ModUi/&EnableRogueCunningStrike2024=Enable <color=#D89555>Cunning Strike</color>, <color=#D89555>Improved Cunning Strike</color>, and <color=#D89555>Devious Strike</color> at levels 5, 11 and 14 <i><color=#F0DAA0>[you let forgo 1 sneak attack dice for additional hit effects]</color></i>
 ModUi/&EnableRogueFightingStyle=Enable <color=#D89555>Fighting Style</color> choice at level 2
 ModUi/&EnableRogueReliableTalent2024=Enable <color=#D89555>Reliable Talent</color> at level 7 instead of 11
@@ -290,7 +291,7 @@ ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=Enable <color=#D
 ModUi/&EnableWarlockMagicalCunningAtLevel2=Enable <color=#D89555>Magical Cunning</color> at level 2
 ModUi/&EnableWarlockToLearnPatronAtLevel3=Enable <color=#D89555>Patron</color> at level 3 instead of 1
 ModUi/&EnableAbjurerSpellBreaker2024=Enable <color=#D89555>Spell Breaker</color> for the Abjurer at level 10 (2024)
-ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=Automatically enabled while the 2024 Counterspell rules are active. Your separate Spell Breaker preference is preserved and applies again when those rules are disabled.
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=<i><color=#F0DAA0>[Automatically enabled while the 2024 Counterspell rules are active. Your separate Spell Breaker preference is preserved and applies again when those rules are disabled.]</color></i>
 ModUi/&EnableWizardMemorizeSpell2024=Enable <color=#D89555>Memorize Spell</color> at level 5
 ModUi/&EnableWizardToLearnScholarAtLevel2=Enable <color=#D89555>Scholar</color> at level 2
 ModUi/&EnableWizardToLearnSchoolAtLevel3=Enable <color=#D89555>School of Magic</color> at level 3 instead of 2
@@ -542,3 +543,18 @@ ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses
 ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[While enabled, only the independent 2024 feats below can be toggled. Legacy feat toggles are locked]</color></i>
 ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
 ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
+ModUi/&EnableWizardSpellMastery2024=Enable 2024 <color=#D89555>Spell Mastery</color> <i><color=#F0DAA0>[action spells; replace one spell after a Long Rest]</color></i>
+ModUi/&EnableThiefUseMagicDevice2024=Enable 2024 Thief <color=#D89555>Use Magic Device</color> <i><color=#F0DAA0>[four attuned items, charge preservation, and Intelligence-based scrolls]</color></i>
+ModUi/&EnableBarbarianDangerSense2024=Enable 2024 <color=#D89555>Danger Sense</color> <i><color=#F0DAA0>[Dexterity save advantage unless Incapacitated]</color></i>
+ModUi/&EnableBarbarianIndomitableMight2024=Enable 2024 <color=#D89555>Indomitable Might</color> <i><color=#F0DAA0>[minimum total for Strength checks and saves]</color></i>
+ModUi/&EnableClericDivineIntervention2024=Enable the 2024 <color=#D89555>Divine Intervention</color> and <color=#D89555>Greater Divine Intervention</color> <i><color=#F0DAA0>[choose a Cleric spell; Wish at level 20]</color></i>
+ModUi/&EnablePaladinRadiantStrikes2024=Enable the 2024 <color=#D89555>Radiant Strikes</color> <i><color=#F0DAA0>[also applies to unarmed strikes]</color></i>
+ModUi/&EnableOneDndShillelaghSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[damage scales at character levels 5, 11, and 17; optional Force damage]</color></i>
+ModUi/&HideousLaughter2024TargetingHelp=<i><color=#F0DAA0>[With 2024 Hideous Laughter enabled, all creature types can be targeted. Your separate targeting preference is retained for when this option is disabled.]</color></i>
+ModUi/&EnableMonkEmpoweredStrikes2024=Enable 2024 <color=#D89555>Empowered Strikes</color> <i><color=#F0DAA0>[choose Force damage for Unarmed Strikes]</color></i>
+ModUi/&EnableRogueStrokeOfLuck2024=Enable 2024 <color=#D89555>Stroke of Luck</color> <i><color=#F0DAA0>[replace a failed D20 roll with 20]</color></i>
+ModUi/&EnableBardWeaponProficiency2024=Enable 2024 <color=#D89555>Bard Weapon Proficiencies</color> <i><color=#F0DAA0>[simple weapons]</color></i>
+ModUi/&EnableMonkWeaponProficiency2024=Enable 2024 <color=#D89555>Monk Weapon Proficiencies</color> <i><color=#F0DAA0>[simple weapons and martial weapons with the Light property]</color></i>
+ModUi/&EnableRogueWeaponProficiency2024=Enable 2024 <color=#D89555>Rogue Weapon Proficiencies</color> <i><color=#F0DAA0>[simple weapons and martial weapons with the Finesse or Light property]</color></i>
+ModUi/&EnableSorcererWeaponProficiency2024=Enable 2024 <color=#D89555>Sorcerer weapon proficiencies</color> <i><color=#F0DAA0>[all simple weapons]</color></i>
+ModUi/&EnableWizardWeaponProficiency2024=Enable 2024 <color=#D89555>Wizard weapon proficiencies</color> <i><color=#F0DAA0>[all simple weapons]</color></i>

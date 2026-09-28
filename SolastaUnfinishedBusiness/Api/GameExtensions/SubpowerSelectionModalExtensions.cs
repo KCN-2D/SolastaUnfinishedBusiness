@@ -17,6 +17,7 @@ internal static class SubpowerSelectionModalExtensions
     {
         var wasActive = instance.gameObject.activeSelf;
         var mainPanel = instance.mainPanel;
+        FloatingPanelBounds.RestoreAttachmentList(mainPanel.RectTransform);
 
         instance.gameObject.SetActive(true);
         mainPanel.gameObject.SetActive(true);
@@ -67,7 +68,6 @@ internal static class SubpowerSelectionModalExtensions
         }
 
         FloatingPanelBounds.ConfigureNearAttachmentList(
-            instance,
             mainPanel.RectTransform,
             attachment,
             instance.subpowersTable,

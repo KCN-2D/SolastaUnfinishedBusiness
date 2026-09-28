@@ -1,6 +1,7 @@
 Condition/&ConditionDarkKoboldGrovelCowerAndBegDescription=你对你的狗头人盟友 10 尺内的敌人的攻击检定具有优势。
 Condition/&ConditionDarkKoboldGrovelCowerAndBegTitle=卑躬屈膝、畏缩和乞求
 Feature/&CastSpellDraconicKoboldMagicDescription=你习得你从术士法术列表中选择的一个戏法。使用魅力施法。
+Feature/&CastSpellDraconicKoboldMagicSpeciesSpellcastingDescription=你习得你从术士法术列表中选择的一个戏法。
 Feature/&CastSpellDraconicKoboldMagicTitle=狗头人魔法
 Feature/&PowerDarkKoboldGrovelCowerAndBegDescription=在你的回合中，你可以使用一个动作可悲地蜷缩起来以分散附近敌人的注意力。在你的下一回合结束前，你的盟友在对距离你 10 尺内能看到你的敌人进行攻击时获得优势。一旦你使用了这个特性，直到下次短休或长休前你都无法再次使用。
 Feature/&PowerDarkKoboldGrovelCowerAndBegTitle=卑躬屈膝、畏缩和乞求

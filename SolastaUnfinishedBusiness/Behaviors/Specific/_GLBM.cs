@@ -50,7 +50,7 @@ internal static class GLBM
                 foreach (var spellRepertoire in character.SpellRepertoires)
                 {
                     var candidate = RuleDefinitions.ComputeAbilityScoreBasedDC(
-                        character.TryGetAttributeValue(spellRepertoire.SpellCastingFeature.SpellcastingAbility),
+                        character.TryGetAttributeValue(spellRepertoire.SpellCastingAbility),
                         proficiencyBonus);
 
                     if (candidate > saveDc)

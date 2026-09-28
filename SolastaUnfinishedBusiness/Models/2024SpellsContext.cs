@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
@@ -12,6 +13,7 @@ using SolastaUnfinishedBusiness.Classes;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Spells;
 using SolastaUnfinishedBusiness.Subclasses;
+using SolastaUnfinishedBusiness.Validators;
 using UnityEngine.AddressableAssets;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
@@ -30,6 +32,8 @@ public static partial class Tabletop2024Context
     private const int KnownSpellsTableLength = 20;
     private const string RitualCastingFeatureOriginMarker = "Tabletop2024RitualCasting";
 
+    private static FeatureDefinition[] _arcaneSwordMoveFeatures;
+    private static int _arcaneSwordRange;
     private static string _courtMageCounterspellMasteryDescription;
     private static EffectDescription _counterspellOriginalEffectDescription;
 
@@ -189,6 +193,8 @@ public static partial class Tabletop2024Context
 
     private static readonly List<SpellDefinition> GuidanceSubSpells = [];
 
+    private const string TrueStrikeAttackTag = "TrueStrike2024";
+
     private static readonly ConditionDefinition ConditionTrueStrike2024 = ConditionDefinitionBuilder
         .Create("ConditionTrueStrike2024")
         .SetGuiPresentationNoContent(true)
@@ -208,9 +214,14 @@ public static partial class Tabletop2024Context
                 .SetImpactParticleReference(SacredFlame
                     .EffectDescription.EffectParticleParameters.effectParticleReference)
                 .SetAttackModeOnly()
+                .AddCustomSubFeatures(new ValidateContextInsteadOfRestrictedProperty(
+                    (_, _, _, _, _, mode, _) => (OperationType.And,
+                        mode != null && mode.AttackTags.Contains(TrueStrikeAttackTag))))
                 .AddToDB())
         .SetSpecialInterruptions(ExtraConditionInterruption.AttacksWithWeaponOrUnarmed)
-        .AddCustomSubFeatures(new ModifyAttackActionModifierTrueStrike())
+        .AddCustomSubFeatures(WeaponDamageTypeChoice.Handler, new WeaponDamageTypeChoice(
+            () => Main.Settings.EnableOneDndTrueStrikeCantrip,
+            (mode, _, _) => mode != null && mode.AttackTags.Contains(TrueStrikeAttackTag), DamageTypeRadiant))
         .AddToDB();
 
     private static readonly EffectForm EffectFormPowerWordStunStopped = EffectFormBuilder
@@ -219,7 +230,7 @@ public static partial class Tabletop2024Context
         .SetConditionForm(
             ConditionDefinitionBuilder
                 .Create(CustomConditionsContext.StopMovement, "ConditionPowerWordStunStopped")
-                .SetSpecialDuration(DurationType.Round, 0, TurnOccurenceType.StartOfTurn)
+                .SetSpecialDuration(DurationType.Round, 0, (TurnOccurenceType)ExtraTurnOccurenceType.StartOfSourceTurn)
                 .AddToDB(),
             ConditionForm.ConditionOperation.Add)
         .Build();
@@ -492,6 +503,20 @@ public static partial class Tabletop2024Context
     internal static void SwitchOneDndCantripChillTouch()
     {
         var effectDescription = ChillTouch.EffectDescription;
+        var condition = GetDefinition<ConditionDefinition>("ConditionChilledByTouch");
+        var undeadDisadvantage = GetDefinition<FeatureDefinitionCombatAffinity>("CombatAffinityChilledByTouch");
+        condition.Features.Remove(undeadDisadvantage);
+        if (!Main.Settings.EnableOneDndChillTouchCantrip)
+        {
+            condition.Features.Add(undeadDisadvantage);
+        }
+
+        effectDescription.endOfEffect = Main.Settings.EnableOneDndChillTouchCantrip
+            ? TurnOccurenceType.EndOfSourceTurn
+            : TurnOccurenceType.StartOfTurn;
+        ChillTouch.GuiPresentation.Description = Main.Settings.EnableOneDndChillTouchCantrip
+            ? "Spell/&ChillTouch2024Description"
+            : "Spell/&ChillTouchDescription";
         if (Main.Settings.EnableOneDndChillTouchCantrip)
         {
             effectDescription.FindFirstDamageForm().dieType = DieType.D10;
@@ -653,6 +678,7 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchOneDndSpellHideousLaughter()
     {
+        SpellsContext.SwitchFilterOnHideousLaughter();
         HideousLaughter.EffectDescription.EffectAdvancement.effectIncrementMethod =
             Main.Settings.EnableOneDndHideousLaughterSpell
                 ? EffectIncrementMethod.PerAdditionalSlotLevel
@@ -661,6 +687,8 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchOneDndSpellHuntersMark()
     {
+        FeatureDefinitionAdditionalDamages.AdditionalDamageHuntersMark.attackModeOnly =
+            !Main.Settings.EnableOneDndHuntersMarkSpell;
         FeatureDefinitionAdditionalDamages.AdditionalDamageHuntersMark.specificDamageType = DamageTypeForce;
         FeatureDefinitionAdditionalDamages.AdditionalDamageHuntersMark.additionalDamageType =
             Main.Settings.EnableOneDndHuntersMarkSpell
@@ -678,6 +706,7 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchOneDndSpellMagicWeapon()
     {
+        MagicWeapon.uniqueInstance = Main.Settings.EnableOneDndMagicWeaponSpell;
         if (Main.Settings.EnableOneDndMagicWeaponSpell)
         {
             MagicWeapon.requiresConcentration = false;
@@ -687,7 +716,7 @@ public static partial class Tabletop2024Context
         else
         {
             MagicWeapon.requiresConcentration = true;
-            MagicWeapon.castingTime = ActivationTime.Action;
+            MagicWeapon.castingTime = ActivationTime.BonusAction;
             MagicWeapon.EffectDescription.EffectForms[0].ItemPropertyForm.FeatureBySlotLevel[1].level = 4;
         }
     }
@@ -770,7 +799,7 @@ public static partial class Tabletop2024Context
         TrueStrike.AddCustomSubFeatures(
             FixesContext.NoDistanced.Mark,
             FixesContext.NoTwinned.Mark,
-            AttackAfterMagicEffect.MarkerAnyWeaponAttack);
+            AttackAfterMagicEffect.MarkerAnyWeaponAttack, new ModifyAttackAfterMagicEffectTrueStrike());
         TrueStrike.GuiPresentation.description = "Spell/&TrueStrike2024Description";
         TrueStrike.requiresConcentration = false;
         TrueStrike.effectDescription = EffectDescriptionBuilder
@@ -786,11 +815,107 @@ public static partial class Tabletop2024Context
             .Build();
     }
 
+    private static readonly CustomBehaviorShillelagh ShillelaghBehavior = new();
+
+    internal static void SwitchOneDndSpellShillelagh()
+    {
+        var enabled = Main.Settings.EnableOneDndShillelaghSpell;
+        var modifier = GetDefinition<FeatureDefinitionAttackModifier>("AttackModifierShillelagh");
+
+        if (!modifier.GetAllSubFeaturesOfType<CustomBehaviorShillelagh>().Any())
+        {
+            modifier.AddCustomSubFeatures(
+                ShillelaghBehavior,
+                new WeaponDamageTypeChoice(
+                    () => Main.Settings.EnableOneDndShillelaghSpell,
+                    (mode, weapon, _) => GetShillelaghEffect(mode, weapon) != null,
+                    DamageTypeForce),
+                WeaponDamageTypeChoice.Handler);
+        }
+
+        // Resolve the casting repertoire from the enchantment instead of another multiclass repertoire.
+        modifier.abilityScoreReplacement = enabled
+            ? AbilityScoreReplacement.None
+            : AbilityScoreReplacement.SpellcastingAbility;
+        Shillelagh.terminateOnItemUnequip = enabled;
+        Shillelagh.GuiPresentation.description = enabled
+            ? "Spell/&Shillelagh2024Description"
+            : "Spell/&ShillelaghDescription";
+        modifier.GuiPresentation.description = enabled
+            ? "Spell/&Shillelagh2024Description"
+            : "Feature/&AttackModifierShillelaghDescription";
+    }
+
+    private static RulesetEffectSpell GetShillelaghEffect(RulesetAttackMode mode, RulesetItem weapon)
+    {
+        if (mode?.SourceDefinition is not ItemDefinition { IsWeapon: true } item ||
+            item.WeaponDescription.WeaponTypeDefinition.WeaponProximity != AttackProximity.Melee)
+        {
+            return null;
+        }
+
+        weapon ??= mode.SourceObject as RulesetItem;
+        var property = weapon?.DynamicItemProperties.FirstOrDefault(candidate =>
+            candidate.FeatureDefinition == GetDefinition<FeatureDefinitionAttackModifier>("AttackModifierShillelagh"));
+
+        return property == null ? null : EffectHelpers.GetEffectByGuid(property.SourceEffectGuid) as RulesetEffectSpell;
+    }
+
+    private sealed class CustomBehaviorShillelagh : IModifyWeaponAttackMode
+    {
+        public void ModifyWeaponAttackMode(
+            RulesetCharacter character,
+            RulesetAttackMode attackMode,
+            RulesetItem weapon,
+            bool canAddAbilityDamageBonus)
+        {
+            if (!Main.Settings.EnableOneDndShillelaghSpell ||
+                GetShillelaghEffect(attackMode, weapon) is not { } spell)
+            {
+                return;
+            }
+
+            var damage = attackMode.EffectDescription.FindFirstDamageForm();
+
+            if (damage == null)
+            {
+                return;
+            }
+
+            var level = spell.Caster.TryGetAttributeValue(AttributeDefinitions.CharacterLevel);
+            var die = level switch
+            {
+                >= 17 => DieType.D6,
+                >= 11 => DieType.D12,
+                >= 5 => DieType.D10,
+                _ => DieType.D8
+            };
+
+            damage.DiceNumber = level >= 17 ? 2 : 1;
+            damage.DieType = die;
+            damage.VersatileDieType = die;
+
+            var ability = spell.SpellRepertoire?.SpellCastingAbility;
+
+            if (!string.IsNullOrEmpty(ability))
+            {
+                CanUseAttribute.ChangeAttackModeAttributeIfBetter(
+                    character, attackMode, attackMode.AbilityScore, ability, canAddAbilityDamageBonus);
+            }
+        }
+    }
+
     internal static void SwitchOneDndSpellWitchBolt()
     {
-        SpellBuilders.WitchBoltPower.activationTime = Main.Settings.EnableOneDndWitchBoltSpell
-            ? ActivationTime.BonusAction
-            : ActivationTime.Action;
+        var enabled = Main.Settings.EnableOneDndWitchBoltSpell;
+        var spell = GetDefinition<SpellDefinition>("WitchBolt");
+        spell.EffectDescription.rangeParameter = enabled ? 12 : 6;
+        spell.EffectDescription.FindFirstDamageForm().diceNumber = enabled ? 2 : 1;
+        spell.GuiPresentation.Description = enabled
+            ? "Spell/&WitchBolt2024Description"
+            : "Spell/&WitchBoltDescription";
+        SpellBuilders.WitchBoltPower.EffectDescription.rangeParameter = enabled ? 12 : 6;
+        SpellBuilders.WitchBoltPower.activationTime = enabled ? ActivationTime.BonusAction : ActivationTime.Action;
     }
 
     internal static void SwitchOneDndHealingSpellsUpgrade()
@@ -801,6 +926,9 @@ public static partial class Tabletop2024Context
         CureWounds.EffectDescription.EffectForms[0].healingForm.diceNumber = dice;
         CureWounds.EffectDescription.effectAdvancement.additionalDicePerIncrement = dice;
         FalseLife.EffectDescription.EffectForms[0].temporaryHitPointsForm.diceNumber = dice;
+        FalseLife.EffectDescription.durationType = Main.Settings.EnableOneDndHealingSpellsUpgrade
+            ? DurationType.Instantaneous
+            : DurationType.Hour;
         HealingWord.EffectDescription.EffectForms[0].healingForm.diceNumber = dice;
         HealingWord.EffectDescription.effectAdvancement.additionalDicePerIncrement = dice;
 
@@ -820,19 +948,30 @@ public static partial class Tabletop2024Context
         MassHealingWord.schoolOfMagic = school;
         GetDefinition<SpellDefinition>("MassHeal").schoolOfMagic = school;
         PrayerOfHealing.schoolOfMagic = school;
+
+        RefreshFiendishVigor();
     }
 
     internal static void SwitchOneDndDamagingSpellsUpgrade()
     {
-        EffectProxyDefinitions.ProxyArcaneSword.AdditionalFeatures.Clear();
+        var sword = EffectProxyDefinitions.ProxyArcaneSword;
+        if (_arcaneSwordMoveFeatures == null)
+        {
+            _arcaneSwordMoveFeatures = sword.AdditionalFeatures.ToArray();
+            _arcaneSwordRange = ArcaneSword.EffectDescription.RangeParameter;
+        }
+        sword.AdditionalFeatures.SetRange(_arcaneSwordMoveFeatures);
+        ArcaneSword.EffectDescription.rangeParameter = Main.Settings.EnableOneDndDamagingSpellsUpgrade
+            ? 18 : _arcaneSwordRange;
 
         if (Main.Settings.EnableOneDndDamagingSpellsUpgrade)
         {
             EffectProxyDefinitions.ProxyArcaneSword.damageDie = DieType.D12;
             EffectProxyDefinitions.ProxyArcaneSword.damageDieNum = 4;
             EffectProxyDefinitions.ProxyArcaneSword.addAbilityToDamage = true;
-            EffectProxyDefinitions.ProxyArcaneSword.AdditionalFeatures.AddRange(
-                FeatureDefinitionMoveModes.MoveModeFly2,
+            sword.AdditionalFeatures.RemoveAll(feature => feature is FeatureDefinitionMoveMode);
+            sword.AdditionalFeatures.AddRange(
+                GetDefinition<FeatureDefinitionMoveMode>("MoveModeFly6"),
                 FeatureDefinitionMoveModes.MoveModeMove6);
             CircleOfDeath.EffectDescription.EffectForms[0].DamageForm.dieType = DieType.D8;
             FlameStrike.EffectDescription.EffectForms[0].DamageForm.diceNumber = 5;
@@ -848,9 +987,6 @@ public static partial class Tabletop2024Context
             EffectProxyDefinitions.ProxyArcaneSword.damageDie = DieType.D10;
             EffectProxyDefinitions.ProxyArcaneSword.damageDieNum = 3;
             EffectProxyDefinitions.ProxyArcaneSword.addAbilityToDamage = false;
-            EffectProxyDefinitions.ProxyArcaneSword.AdditionalFeatures.AddRange(
-                FeatureDefinitionMoveModes.MoveModeFly2,
-                FeatureDefinitionMoveModes.MoveModeMove4);
             CircleOfDeath.EffectDescription.EffectForms[0].DamageForm.dieType = DieType.D6;
             FlameStrike.EffectDescription.EffectForms[0].DamageForm.diceNumber = 4;
             FlameStrike.EffectDescription.EffectForms[1].DamageForm.diceNumber = 4;
@@ -897,40 +1033,18 @@ public static partial class Tabletop2024Context
         }
     }
 
-    private sealed class ModifyAttackActionModifierTrueStrike : IModifyAttackActionModifier
+    private sealed class ModifyAttackAfterMagicEffectTrueStrike : IModifyAttackAfterMagicEffect
     {
-        public void OnAttackComputeModifier(
-            RulesetCharacter attacker,
-            RulesetCharacter defender,
-            BattleDefinitions.AttackProximity attackProximity,
-            RulesetAttackMode attackMode,
-            string effectName,
-            ref ActionModifier attackModifier)
+        public void ModifyAttack(RulesetEffect effect, RulesetCharacter caster, RulesetAttackMode attackMode)
         {
-            if (attackMode == null)
+            if (string.IsNullOrEmpty(effect.SourceAbility))
             {
                 return;
             }
 
-            var repertoire = attacker.SpellRepertoires.FirstOrDefault(x => x.HasKnowledgeOfSpell(TrueStrike));
-
-            if (repertoire == null)
-            {
-                return;
-            }
-
-            var damageForm = attackMode.EffectDescription.FindFirstDamageForm();
-
-            if (damageForm != null)
-            {
-                damageForm.damageType = DamageTypeRadiant;
-            }
-
-            var oldAttribute = attackMode.AbilityScore;
-            var newAttribute = repertoire.SpellCastingAbility;
-
-            CanUseAttribute.ChangeAttackModeAttributeIfBetter(
-                attacker, attackMode, oldAttribute, newAttribute, true);
+            attackMode.AddAttackTagAsNeeded(TrueStrikeAttackTag);
+            CanUseAttribute.ChangeAttackModeAttribute(caster, attackMode, attackMode.AbilityScore,
+                effect.SourceAbility, true);
         }
     }
 }

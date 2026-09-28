@@ -23,6 +23,28 @@ internal static class SpellCastingResourceContext
 
     internal static ResourceOption CurrentSelection => _currentSelection;
 
+    internal static bool SupportsItemResourceSelection { get; set; }
+
+    internal static void SetSelectedEffect(CharacterActionParams parameters, RulesetEffect effect)
+    {
+        parameters.RulesetEffect = effect;
+        if (effect is not RulesetEffectSpell spell || !SupportsSelection(spell))
+        {
+            return;
+        }
+
+        var selected = CurrentSelection;
+        if (selected != null && IsSameSpell(selected.Spell, spell.SpellDefinition))
+        {
+            ApplySelection(parameters, selected);
+        }
+        else
+        {
+            // A cancelled cast may leave the panel's reusable parameters carrying an old choice.
+            ClearSelectionMarker(parameters);
+        }
+    }
+
     internal enum ResourceKind
     {
         SpellSlot,

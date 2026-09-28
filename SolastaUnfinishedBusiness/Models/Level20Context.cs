@@ -740,7 +740,7 @@ internal static class Level20Context
     {
         if (WizardSpellMastery.IsPreparation(character, spellRepertoire, out _))
         {
-            return WizardSpellMastery.SpellSelection;
+            return WizardSpellMastery.GetSelection(spellRepertoire);
         }
 
         return WizardSignatureSpells.IsPreparation(character, spellRepertoire, out _)
@@ -782,7 +782,13 @@ internal static class Level20Context
     {
         private const string Mastery = "SpellMastery";
 
-        internal static readonly SpellSelectionByLevel SpellSelection = new(1, 2);
+        internal static readonly SpellSelectionByLevel SpellSelection = new(IsEligibleSpell, 1, 2);
+        private static readonly ConditionalWeakTable<RulesetSpellRepertoire, SpellSelectionByLevel> Selections = new();
+
+        internal static SpellSelectionByLevel GetSelection(RulesetSpellRepertoire repertoire)
+        {
+            return Selections.TryGetValue(repertoire, out var selection) ? selection : SpellSelection;
+        }
 
         internal static readonly FeatureDefinition FeatureSpellMastery = FeatureDefinitionBuilder
             .Create("FeatureWizardSpellMastery")
@@ -817,6 +823,12 @@ internal static class Level20Context
                 AttributeDefinitions.TagEffect, $"Condition{Mastery}");
         }
 
+        private static bool IsEligibleSpell(SpellDefinition spell)
+        {
+            return spell != null &&
+                   (!Main.Settings.EnableWizardSpellMastery2024 || spell.ActivationTime == ActivationTime.Action);
+        }
+
         internal static bool HasFreeCast(
             RulesetSpellRepertoire spellRepertoire,
             SpellDefinition spellDefinition,
@@ -828,7 +840,8 @@ internal static class Level20Context
                 return false;
             }
 
-            return spellRepertoire != null &&
+            return IsWizardPreparedSpellRepertoire(spellRepertoire) &&
+                   IsEligibleSpell(spellDefinition) &&
                    castLevel == spellDefinition.SpellLevel &&
                    spellRepertoire.ExtraSpellsByTag.TryGetValue(Mastery, out var masteryPreparedSpells) &&
                    masteryPreparedSpells.Contains(spellDefinition);
@@ -882,6 +895,19 @@ internal static class Level20Context
 
                 var preparedSpellsClone = spellRepertoire.PreparedSpells.ToArray();
 
+                var previousSpells = spellRepertoire.ExtraSpellsByTag.TryGetValue(Mastery, out var knownMastery)
+                    ? knownMastery.ToArray()
+                    : [];
+
+                Selections.Remove(spellRepertoire);
+
+                // First selection and migration from ineligible saved choices can fill both levels.
+                // A valid existing pair can replace only one spell at this long rest.
+                if (Main.Settings.EnableWizardSpellMastery2024 && SpellSelection.IsValidSelection(previousSpells))
+                {
+                    Selections.Add(spellRepertoire, new SpellSelectionByLevel(IsEligibleSpell, previousSpells, 1, 1, 2));
+                }
+
                 PrepareWizardExtraSpellSelection(spellRepertoire, Mastery);
 
                 var activeCondition = hero.InflictCondition(
@@ -909,6 +935,7 @@ internal static class Level20Context
                 }
 
                 FinalizeWizardExtraSpellSelection(spellRepertoire, Mastery, preparedSpellsClone);
+                Selections.Remove(spellRepertoire);
                 partyStatusScreen.SetupDisplayPreferences(true, true, true);
                 hero.RemoveCondition(activeCondition);
             }
@@ -1123,7 +1150,7 @@ internal static class Level20Context
         }
     }
 
-    private sealed class ModifyAbilityCheckBarbarianIndomitableMight : IModifyAbilityCheck
+    private sealed class ModifyAbilityCheckBarbarianIndomitableMight : IModifyAbilityCheck, IMinimumSavingThrowResult
     {
         public void MinRoll(
             RulesetCharacter character,
@@ -1137,8 +1164,20 @@ internal static class Level20Context
         {
             if (abilityScoreName == AttributeDefinitions.Strength)
             {
-                minRoll = Math.Max(minRoll, character.TryGetAttributeValue(AttributeDefinitions.Strength));
+                var strength = character.TryGetAttributeValue(AttributeDefinitions.Strength);
+                var minimumDie = Main.Settings.EnableBarbarianIndomitableMight2024
+                    ? strength - baseBonus - rollModifier
+                    : strength;
+
+                minRoll = Math.Max(minRoll, minimumDie);
             }
+        }
+        public int GetMinimumResult(RulesetCharacter character, string abilityScoreName)
+        {
+            return Main.Settings.EnableBarbarianIndomitableMight2024 &&
+                   abilityScoreName == AttributeDefinitions.Strength
+                ? character.TryGetAttributeValue(AttributeDefinitions.Strength)
+                : int.MinValue;
         }
     }
 
@@ -1279,9 +1318,12 @@ internal static class Level20Context
 
             void ReactionValidated()
             {
+                action.AttackSuccessDelta = Main.Settings.EnableRogueStrokeOfLuck2024
+                    ? TryAlterOutcomeAttack.GetReplacementRollSuccessDelta(
+                        action, 20, defender.RulesetActor, attackModifier, attackMode, rulesetEffect)
+                    : 0;
                 action.AttackRoll = 20;
                 action.AttackRollOutcome = RollOutcome.CriticalSuccess;
-                action.AttackSuccessDelta = 0;
             }
         }
 
@@ -1313,9 +1355,23 @@ internal static class Level20Context
 
             void ReactionValidated()
             {
-                abilityCheckData.AbilityCheckRoll += 20 - rawRoll;
-                abilityCheckData.AbilityCheckSuccessDelta = 0;
-                abilityCheckData.AbilityCheckRollOutcome = RollOutcome.CriticalSuccess;
+                var delta = 20 - abilityCheckData.CurrentRoll;
+
+                abilityCheckData.CurrentRoll = 20;
+                abilityCheckData.AbilityCheckRoll += delta;
+
+                if (Main.Settings.EnableRogueStrokeOfLuck2024)
+                {
+                    abilityCheckData.AbilityCheckSuccessDelta += delta;
+                    abilityCheckData.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckSuccessDelta >= 0
+                        ? RollOutcome.Success
+                        : RollOutcome.Failure;
+                }
+                else
+                {
+                    abilityCheckData.AbilityCheckSuccessDelta = 0;
+                    abilityCheckData.AbilityCheckRollOutcome = RollOutcome.CriticalSuccess;
+                }
             }
         }
 
@@ -1330,7 +1386,7 @@ internal static class Level20Context
             var rulesetHelper = helper.RulesetCharacter;
             var usablePower = PowerProvider.Get(power, rulesetHelper);
 
-            if (savingThrowData.SaveOutcome != RollOutcome.Failure ||
+            if (!savingThrowData.IsFailedSavingThrowOutcome() ||
                 helper != defender ||
                 rulesetHelper.GetRemainingUsesOfPower(usablePower) == 0)
             {
@@ -1348,8 +1404,15 @@ internal static class Level20Context
 
             void ReactionValidated()
             {
-                savingThrowData.SaveOutcomeDelta = 0;
-                savingThrowData.SaveOutcome = RollOutcome.Success;
+                if (Main.Settings.EnableRogueStrokeOfLuck2024)
+                {
+                    savingThrowData.ReplaceRoll(20);
+                }
+                else
+                {
+                    savingThrowData.SaveOutcomeDelta = 0;
+                    savingThrowData.SaveOutcome = RollOutcome.Success;
+                }
             }
         }
     }

@@ -31,6 +31,7 @@ namespace SolastaUnfinishedBusiness.Models;
 public static partial class Tabletop2024Context
 {
     private const string ElementalFury = "ElementalFury";
+    private static FeatureDefinition _featureDruidPotentSpellcasting;
 
     private static readonly FeatureDefinitionFeatureSet FeatureSetDruidPrimalOrder = FeatureDefinitionFeatureSetBuilder
         .Create("FeatureSetDruidPrimalOrder")
@@ -65,9 +66,6 @@ public static partial class Tabletop2024Context
                 .AddToDB())
         .AddToDB();
 
-    private static readonly List<string> DruidWeaponsCategories =
-        [.. ProficiencyDruidWeapon.Proficiencies, "ConjuredWeaponType"];
-
     private static readonly FeatureDefinitionPower FeatureDefinitionPowerNatureShroud = FeatureDefinitionPowerBuilder
         .Create("PowerRangerNatureShroud")
         .SetGuiPresentation(Category.Feature, Invisibility)
@@ -76,7 +74,7 @@ public static partial class Tabletop2024Context
             EffectDescriptionBuilder
                 .Create()
                 .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
-                .SetDurationData(DurationType.Round, 0, TurnOccurenceType.StartOfTurn)
+                .SetDurationData(DurationType.Round, 1, TurnOccurenceType.EndOfTurn)
                 .SetEffectForms(EffectFormBuilder.ConditionForm(ConditionDefinitions.ConditionInvisible))
                 .SetParticleEffectParameters(PowerDruidCircleBalanceBalanceOfPower)
                 .Build())
@@ -226,7 +224,7 @@ public static partial class Tabletop2024Context
 
     private static void LoadDruidElementalFury()
     {
-        var featurePotentSpellcasting = FeatureDefinitionBuilder
+        var featurePotentSpellcasting = _featureDruidPotentSpellcasting = FeatureDefinitionBuilder
             .Create("FeatureDruidElementalFuryPotentSpellcasting")
             .SetGuiPresentation(Category.Feature)
             .AddToDB();
@@ -396,10 +394,7 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchDruidWeaponProficiency()
     {
-        ProficiencyDruidWeapon.proficiencies =
-            Main.Settings.EnableDruidWeaponProficiency2024
-                ? [WeaponCategoryDefinitions.SimpleWeaponCategory.Name]
-                : DruidWeaponsCategories;
+        SwitchClassWeaponProficiency(Druid, ProficiencyDruidWeapon, Main.Settings.EnableDruidWeaponProficiency2024);
     }
 
     internal static void SwitchDruidWildResurgence()
@@ -562,7 +557,8 @@ public static partial class Tabletop2024Context
     {
         public bool IsValid(BaseDefinition definition, RulesetCharacter character, EffectDescription effectDescription)
         {
-            return definition is SpellDefinition { SpellLevel: 0 } spellDefinition &&
+            return character.HasAnyFeature(_featureDruidPotentSpellcasting) &&
+                   definition is SpellDefinition { SpellLevel: 0 } spellDefinition &&
                    character.IsSpellOnClassOrSubclassSpellList(spellDefinition, Druid);
         }
 

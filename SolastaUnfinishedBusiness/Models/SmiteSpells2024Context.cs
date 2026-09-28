@@ -13,7 +13,7 @@ using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
 
 namespace SolastaUnfinishedBusiness.Models;
 
-public static class SmiteSpells2024Context
+public static partial class SmiteSpells2024Context
 {
     private static readonly List<SpellDefinition> AlLSmiteSpells = [];
 
@@ -47,6 +47,7 @@ public static class SmiteSpells2024Context
         AlLSmiteSpells.Add(SpellsContext.BanishingSmite);
         AlLSmiteSpells.Add(SpellsContext.BlindingSmite);
 
+        LoadRevisedSmiteEffects();
         SwitchSmiteSpells();
     }
 
@@ -81,6 +82,7 @@ public static class SmiteSpells2024Context
             SpellsContext.WrathfulSmite.schoolOfMagic = SchoolEvocation;
         }
 
+        SwitchRevisedSmiteEffects();
         Global.RefreshControlledCharacter();
 
         return;
@@ -94,9 +96,10 @@ public static class SmiteSpells2024Context
 
         static void SwitchSmiteSpellOff(SpellDefinition spell)
         {
-            spell.castingTime = ActivationTime.BonusAction;
-            spell.requiresConcentration = true;
-            spell.effectDescription.speedParameter = 4.5f;
+            var original = SmiteSpellDefaults[spell];
+            spell.castingTime = original.Casting;
+            spell.requiresConcentration = original.Concentration;
+            spell.effectDescription.speedParameter = original.Speed;
         }
 
         static void SwitchSmiteDamageOn(FeatureDefinitionAdditionalDamage damage)
@@ -108,11 +111,12 @@ public static class SmiteSpells2024Context
 
         static void SwitchSmiteDamageOff(FeatureDefinitionAdditionalDamage damage)
         {
-            damage.requiredProperty = RestrictedContextRequiredProperty.MeleeWeapon;
+            damage.requiredProperty = SmiteDamageDefaults[damage];
 
-            // Add custom validator to allow Oath of Demon Hunter to use crossbows in non-2024 mode
+            // Preserve ranged smites; only melee-only effects need the Demon Hunter exception.
             damage.SetSubFeatureOfType<OathOfDemonHunter.ValidateSmiteDamageForDemonHunter>(
-                new OathOfDemonHunter.ValidateSmiteDamageForDemonHunter());
+                damage.RequiredProperty == RestrictedContextRequiredProperty.MeleeWeapon
+                    ? new OathOfDemonHunter.ValidateSmiteDamageForDemonHunter() : null);
         }
 
 
@@ -124,8 +128,9 @@ public static class SmiteSpells2024Context
 
         static void SwitchSmiteConditionOff(ConditionDefinition condition)
         {
-            condition.silentWhenAdded = false;
-            condition.silentWhenRemoved = false;
+            var original = SmiteConditionDefaults[condition];
+            condition.silentWhenAdded = original.Added;
+            condition.silentWhenRemoved = original.Removed;
         }
     }
 
@@ -247,7 +252,10 @@ public static class SmiteSpells2024Context
         yield return battleManager.WaitForReactions(attacker, actionManager, pendingRequests);
 
         //didn't confirm slot selection
-        if (!reactionParams.ReactionValidated || slotRequest.SelectedSubOption > 0) { yield break; }
+        if (!reactionParams.ReactionValidated || !hasFreeUseDivineSmite || slotRequest.SelectedSubOption != 0)
+        {
+            yield break;
+        }
 
         attackerCharacter.InflictCondition(ConditionMarkUsedFreeSmite.Name, DurationType.UntilLongRest, 0,
             TurnOccurenceType.EndOfTurn, AttributeDefinitions.TagEffect, attackerCharacter.Guid,

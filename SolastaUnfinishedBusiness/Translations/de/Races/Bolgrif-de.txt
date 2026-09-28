@@ -3,6 +3,7 @@ Feature/&AttributeModifierBolgrifStrengthAbilityScoreIncreaseTitle=Attributserh�
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseDescription=Weisheit +2
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseTitle=Attributserhöhung
 Feature/&CastSpellBolgrifMagicDescription=Du kennst einen Zauberspruch deiner Wahl aus der Liste der Druidenzauber. Weisheit ist deine Zauberfähigkeit dafür.
+Feature/&CastSpellBolgrifMagicSpeciesSpellcastingDescription=Du kennst einen Zauberspruch deiner Wahl aus der Liste der Druidenzauber.
 Feature/&CastSpellBolgrifMagicTitle=Druidische Magie
 Feature/&EquipmentAffinityBolgrifPowerfulBuildDescription=Bei der Ermittlung Ihrer Tragfähigkeit wird Ihre Größe als groß gezählt.
 Feature/&EquipmentAffinityBolgrifPowerfulBuildTitle=Kraftvoller Körperbau

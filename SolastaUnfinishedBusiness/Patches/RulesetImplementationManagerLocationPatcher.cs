@@ -1,16 +1,16 @@
-using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection.Emit;
+using System;
 using HarmonyLib;
 using JetBrains.Annotations;
-using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
-using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Spells;
@@ -511,6 +511,20 @@ public static class RulesetImplementationManagerLocationPatcher
     [UsedImplicitly]
     public static class IsMetamagicOptionAvailable_Patch
     {
+        [UsedImplicitly]
+        public static bool Prefix(RulesetEffectSpell rulesetEffectSpell, RulesetCharacter caster,
+            MetamagicOptionDefinition metamagicOption, ref string failure, ref int sorceryCost, ref bool __result)
+        {
+            if (!metamagicOption.HasSubFeatureOfType<CombinedMetamagic>())
+            {
+                return true;
+            }
+
+            __result = SorceryIncarnateContext.ValidatePair(rulesetEffectSpell, caster, metamagicOption,
+                out failure, out sorceryCost);
+            return false;
+        }
+
         private static int RemainingSorceryPoints(RulesetCharacter caster, RulesetEffectSpell rulesetEffectSpell)
         {
             return Tabletop2024Context.IsArcaneApotheosisValid(caster, rulesetEffectSpell)
@@ -537,8 +551,14 @@ public static class RulesetImplementationManagerLocationPatcher
             RulesetEffectSpell rulesetEffectSpell,
             RulesetCharacter caster,
             MetamagicOptionDefinition metamagicOption,
-            ref string failure)
+            ref string failure,
+            ref int sorceryCost)
         {
+            if (metamagicOption.HasSubFeatureOfType<CombinedMetamagic>())
+            {
+                return; // Each component has already passed this validator independently.
+            }
+
             if (!__result)
             {
                 if (!MetamagicContext.TryHandleTwinnedSpell2024Availability(
@@ -556,6 +576,9 @@ public static class RulesetImplementationManagerLocationPatcher
                     return;
                 }
             }
+
+            // Availability and the displayed price use the same cost as activation.
+            sorceryCost = SorceryIncarnateContext.GetPayableCost(caster, rulesetEffectSpell, metamagicOption);
 
             //PATCH: support for custom metamagic
             foreach (var validator in metamagicOption.GetAllSubFeaturesOfType<ValidateMetamagicApplication>())

@@ -102,6 +102,8 @@ public static class FunctorSetGadgetConditionBySavingThrowPatcher
                     SaveOutcome = saveOutcome,
                     SaveOutcomeDelta = saveOutcomeDelta,
                     SaveDC = RulesetActorExtensions.SaveDC,
+                    CurrentRoll = RulesetActorExtensions.SaveRoll,
+                    MinimumResult = RulesetActorExtensions.SaveMinimumResult,
                     SaveBonusAndRollModifier = RulesetActorExtensions.SaveBonusAndRollModifier,
                     SavingThrowAbility = RulesetActorExtensions.SavingThrowAbility,
                     SourceDefinition = gadgetDefinition,

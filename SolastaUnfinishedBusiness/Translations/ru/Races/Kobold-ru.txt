@@ -1,6 +1,7 @@
 Condition/&ConditionDarkKoboldGrovelCowerAndBegDescription=Вы имеете преимущество на ваши броски атаки против врагов в радиусе 10 футов от вашего союзника Кобольда.
 Condition/&ConditionDarkKoboldGrovelCowerAndBegTitle=Склонись, съёжься и умоляй
 Feature/&CastSpellDraconicKoboldMagicDescription=Вы знаете заговор по своему выбору из списка Чародея. Харизма является вашей заклинательной характеристикой для него.
+Feature/&CastSpellDraconicKoboldMagicSpeciesSpellcastingDescription=Вы знаете заговор по своему выбору из списка Чародея.
 Feature/&CastSpellDraconicKoboldMagicTitle=Магия кобольдов
 Feature/&PowerDarkKoboldGrovelCowerAndBegDescription=Действием в свой ход вы можете трусливо съёжиться, чтобы отвлечь ближайших врагов. До конца вашего следующего хода ваши союзники получают преимущество при бросках атаки против врагов в радиусе 10 футов от вас, которые могут вас видеть. После использования этого умения вы не сможете использовать ее снова, пока не окончите короткий или продолжительный отдых.
 Feature/&PowerDarkKoboldGrovelCowerAndBegTitle=Склонись, съёжься и умоляй

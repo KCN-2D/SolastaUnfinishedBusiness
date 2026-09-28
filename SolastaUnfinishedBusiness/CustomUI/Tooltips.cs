@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Validators;
 using TMPro;
@@ -19,6 +21,8 @@ namespace SolastaUnfinishedBusiness.CustomUI;
 internal static class Tooltips
 {
     private const string DistanceTextAnchorObjectName = "DistanceTextAnchorObject";
+
+    private static readonly ConditionalWeakTable<Image, RawImage> HeaderPortraits = new();
 
     private static GameObject _tooltipInfoCharacterDescription;
     private static GameObject _distanceTextObject;
@@ -104,6 +108,144 @@ internal static class Tooltips
         return true;
     }
 
+    internal static void ResetHeaderImage(Image image)
+    {
+        if (!image)
+        {
+            return;
+        }
+
+        image.enabled = true;
+
+        if (!HeaderPortraits.TryGetValue(image, out var portrait) || !portrait)
+        {
+            return;
+        }
+
+        SimulacrumPortraits.Release(portrait);
+        portrait.gameObject.SetActive(false);
+    }
+
+    internal static void UpdateHeaderPortrait(
+        ITooltip tooltip,
+        Image image,
+        RectTransform mask)
+    {
+        if (!image ||
+            tooltip?.TooltipClass?.StartsWith(
+                GuiMonsterDefinition.TooltipClassMonsterDefinition,
+                StringComparison.Ordinal) != true ||
+            tooltip.DataProvider is not IMonsterBasicInfoProvider ||
+            tooltip.DataProvider is ISpellParametersProvider ||
+            GetSimulacrum(tooltip) is not { } duplicate)
+        {
+            return;
+        }
+
+        if (!HeaderPortraits.TryGetValue(image, out var portrait) || !portrait)
+        {
+            var portraitObject = new GameObject(
+                "SimulacrumPortrait",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(RawImage));
+            var portraitTransform = portraitObject.GetComponent<RectTransform>();
+
+            portraitTransform.SetParent(
+                mask ? mask : image.rectTransform.parent,
+                false);
+            portraitTransform.anchorMin = Vector2.zero;
+            portraitTransform.anchorMax = Vector2.one;
+            portraitTransform.offsetMin = Vector2.zero;
+            portraitTransform.offsetMax = Vector2.zero;
+            portraitTransform.pivot = new Vector2(0.5f, 0.5f);
+            portrait = portraitObject.GetComponent<RawImage>();
+            portrait.raycastTarget = false;
+            HeaderPortraits.Remove(image);
+            HeaderPortraits.Add(image, portrait);
+        }
+
+        portrait.gameObject.SetActive(true);
+        image.enabled = false;
+        SimulacrumPortraits.TryAssign(duplicate, portrait);
+    }
+
+    private static RulesetCharacterSimulacrum GetSimulacrum(ITooltip tooltip)
+    {
+        var duplicate = ResolveCharacter(tooltip) as RulesetCharacterSimulacrum;
+
+        return duplicate ??
+               (tooltip?.DataProvider as LiveFriendlyMonsterTooltipProvider)
+               ?.Character as RulesetCharacterSimulacrum;
+    }
+
+    internal static void FitConditionHeaderImage(TooltipFeatureHeader header, ITooltip tooltip)
+    {
+        if (tooltip.DataProvider is not GuiActiveCondition || !header.image || !header.mask ||
+            !header.image.sprite)
+        {
+            return;
+        }
+
+        // A status symbol must fit completely inside its slot. The native cover sizing is
+        // still appropriate for illustrated power, spell and character headers.
+        var spriteRect = header.image.sprite.rect;
+        var maskRect = header.mask.rect;
+
+        if (spriteRect.width <= 0f || spriteRect.height <= 0f ||
+            maskRect.width <= 0f || maskRect.height <= 0f)
+        {
+            return;
+        }
+
+        var scale = Mathf.Min(maskRect.width / spriteRect.width, maskRect.height / spriteRect.height);
+        var imageRect = header.image.rectTransform;
+        imageRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, spriteRect.width * scale);
+        imageRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, spriteRect.height * scale);
+    }
+
+    internal static float GetHeaderSpriteWidth(Texture texture, TooltipFeatureHeader header)
+    {
+        var sprite = header.image ? header.image.sprite : null;
+
+        return sprite ? sprite.rect.width : texture ? texture.width : 1f;
+    }
+
+    internal static float GetHeaderSpriteHeight(Texture texture, TooltipFeatureHeader header)
+    {
+        var sprite = header.image ? header.image.sprite : null;
+
+        return sprite ? sprite.rect.height : texture ? texture.height : 1f;
+    }
+
+    internal static void UpdateSpellCastingTime(TooltipFeatureSpellParameters parameters, ITooltip tooltip)
+    {
+        if (tooltip is not GuiTooltip guiTooltip ||
+            tooltip.DataProvider is not ISpellParametersProvider { SpellDefinition: { } spell })
+        {
+            return;
+        }
+
+        var spellBox = guiTooltip.GetComponentInParent<SpellActivationBox>();
+        var character = ResolveCharacter(tooltip);
+        var line = SpellActionTypeContext.GetRepertoireLine(spellBox);
+
+        if (spellBox == null || spellBox.tooltip != guiTooltip ||
+            character == null || line?.caster?.RulesetCharacter != character ||
+            !SpellCastingValidation.TryGetTooltipRepertoire(tooltip, out var repertoire) ||
+            repertoire != spellBox.spellRepertoire)
+        {
+            return;
+        }
+
+        var activationTime = SpellActionTypeContext.GetDisplayedActivationTime(spell, spellBox);
+
+        if (activationTime != spell.ActivationTime)
+        {
+            parameters.castingTimeLabel.Text = Gui.FormatActivationTime(activationTime);
+        }
+    }
+
     internal static void UpdatePowerUses(ITooltip tooltip, TooltipFeaturePowerParameters parameters)
     {
         if (tooltip.DataProvider is not GuiPowerDefinition guiPowerDefinition)
@@ -145,6 +287,18 @@ internal static class Tooltips
         var remainingUses = character.GetRemainingPowerUses(power);
 
         return $"{remainingUses}/{maxUses}";
+    }
+
+    internal static void UpdateContextualDescription(TooltipFeatureDescription description, ITooltip tooltip)
+    {
+        if (tooltip.DataProvider is not GuiBaseDefinitionWrapper definition ||
+            definition.BaseDefinition.GetFirstSubFeatureOfType<FormattedDefinitionText>() is not { } formattedText)
+        {
+            return;
+        }
+
+        description.DescriptionLabel.Text = formattedText.FormatCharacterDescription(
+            description.DescriptionLabel.TMP_Text.text, ResolveCharacter(tooltip));
     }
 
     internal static void UpdatePowerUseFailure(

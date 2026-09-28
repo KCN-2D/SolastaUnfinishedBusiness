@@ -49,6 +49,14 @@ public static partial class Tabletop2024Context
         .AddToDB();
 
 
+    internal static void SwitchWizardSpellMastery()
+    {
+        Level20Context.WizardSpellMastery.FeatureSpellMastery.GuiPresentation.description =
+            Main.Settings.EnableWizardSpellMastery2024
+                ? "Feature/&FeatureWizardSpellMastery2024Description"
+                : "Feature/&FeatureWizardSpellMasteryDescription";
+    }
+
     internal static void SwitchWizardAbjurerSpellBreaker()
     {
         WizardAbjuration.SwitchSpellBreaker();

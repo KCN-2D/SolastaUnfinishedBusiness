@@ -3,6 +3,7 @@ Feature/&AttributeModifierBolgrifStrengthAbilityScoreIncreaseTitle=Aumento de At
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseDescription=Sabedoria +2
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseTitle=Aumento de Atributo
 Feature/&CastSpellBolgrifMagicDescription=Você conhece um cantrip de sua escolha da lista de magias do Druida. Sabedoria é sua habilidade de conjuração para ele.
+Feature/&CastSpellBolgrifMagicSpeciesSpellcastingDescription=Você conhece um cantrip de sua escolha da lista de magias do Druida.
 Feature/&CastSpellBolgrifMagicTitle=Magia Druídica
 Feature/&EquipmentAffinityBolgrifPowerfulBuildDescription=Você considera seu tamanho como Grande ao determinar sua capacidade de carga.
 Feature/&EquipmentAffinityBolgrifPowerfulBuildTitle=Construção poderosa

@@ -462,6 +462,8 @@ internal static class FixesContext
             ValidateContextInsteadOfRestrictedProperty.Or(
                 OperationType.Set,
                 ValidatorsRestrictedContext.IsMeleeWeaponAttack,
+                new ValidateContextInsteadOfRestrictedProperty((_, _, _, _, _, mode, _) =>
+                    (OperationType.Set, Main.Settings.EnablePaladinRadiantStrikes2024 && ValidatorsWeapon.IsUnarmed(mode))),
                 ValidatorsRestrictedContext.IsOathOfDemonHunter,
                 ValidatorsRestrictedContext.IsOathOfThunder
             ));

@@ -2864,7 +2864,9 @@ internal static partial class SpellBuilders
                 attacker,
                 attacker,
                 battleManager,
-                () => ApplyLowerAttackRoll(action, attacker.RulesetCharacter, helper.RulesetCharacter));
+                () => ApplyLowerAttackRoll(
+                    action, attacker.RulesetCharacter, helper.RulesetCharacter,
+                    defender.RulesetActor, actionModifier, attackMode, rulesetEffect));
         }
 
         public IEnumerator OnTryAlterAttributeCheck(
@@ -3077,7 +3079,11 @@ internal static partial class SpellBuilders
         private static void ApplyLowerAttackRoll(
             CharacterAction action,
             RulesetCharacter rulesetRoller,
-            RulesetCharacter rulesetCaster)
+            RulesetCharacter rulesetCaster,
+            RulesetActor defender,
+            ActionModifier actionModifier,
+            RulesetAttackMode attackMode,
+            RulesetEffect rulesetEffect)
         {
             var previousRoll = action.AttackRoll;
             var reroll = RollD20(rulesetRoller);
@@ -3090,7 +3096,8 @@ internal static partial class SpellBuilders
                 return;
             }
 
-            action.AttackSuccessDelta += lowerRoll - previousRoll;
+            action.AttackSuccessDelta = TryAlterOutcomeAttack.GetReplacementRollSuccessDelta(
+                action, lowerRoll, defender, actionModifier, attackMode, rulesetEffect);
             action.AttackRoll = lowerRoll;
             action.AttackRollOutcome = lowerRoll switch
             {
@@ -3131,10 +3138,7 @@ internal static partial class SpellBuilders
             RulesetCharacter rulesetRoller,
             RulesetCharacter rulesetCaster)
         {
-            var previousRoll =
-                savingThrowData.SaveOutcomeDelta -
-                savingThrowData.SaveBonusAndRollModifier +
-                savingThrowData.SaveDC;
+            var previousRoll = savingThrowData.CurrentRoll;
             var reroll = RollD20(rulesetRoller);
             var lowerRoll = Math.Min(previousRoll, reroll);
 
@@ -3145,10 +3149,7 @@ internal static partial class SpellBuilders
                 return;
             }
 
-            savingThrowData.SaveOutcomeDelta += lowerRoll - previousRoll;
-            savingThrowData.SaveOutcome = savingThrowData.SaveOutcomeDelta >= 0
-                ? RollOutcome.Success
-                : RollOutcome.Failure;
+            savingThrowData.ReplaceRoll(lowerRoll);
         }
 
         private static int RollD20(RulesetCharacter rulesetCharacter)
@@ -3527,11 +3528,12 @@ internal static partial class SpellBuilders
                 .SetParticleEffectParameters(ChainLightning)
                 .SetImpactEffectParameters(LightningBolt)
                 .Build())
+            .AddCustomSubFeatures(new ApplyConditionsOnAttackMiss(() => Main.Settings.EnableOneDndWitchBoltSpell))
             .AddToDB();
 
         var witchBoltDuration = ComputeRoundsDuration(DurationType.Minute, 1);
         WitchBoltPower.AddCustomSubFeatures(
-            new CustomBehaviorWitchBolt(spell, WitchBoltPower, conditionWitchBolt),
+            new CustomBehaviorWitchBolt(conditionWitchBolt),
             new ModifyPowerVisibility((character, power, _) =>
             {
                 if (power.activationTime == ActivationTime.Action) { return true; }
@@ -3555,54 +3557,40 @@ internal static partial class SpellBuilders
         return spell;
     }
 
-    private sealed class CustomBehaviorWitchBolt(
-        // ReSharper disable once SuggestBaseTypeForParameterInConstructor
-        SpellDefinition spellWitchBolt,
-        // ReSharper disable once SuggestBaseTypeForParameterInConstructor
-        FeatureDefinitionPower powerWitchBolt,
-        // ReSharper disable once SuggestBaseTypeForParameterInConstructor
-        ConditionDefinition conditionWitchBolt) : IFilterTargetingCharacter, IModifyEffectDescription
+    private sealed class CustomBehaviorWitchBolt(ConditionDefinition conditionWitchBolt) : IFilterTargetingCharacter
     {
         public bool EnforceFullSelection => false;
 
-        public bool IsValid(CursorLocationSelectTarget __instance, GameLocationCharacter target)
+        public bool IsValid(CursorLocationSelectTarget cursor, GameLocationCharacter target)
         {
-            if (target.RulesetCharacter == null)
-            {
-                return false;
-            }
-
-            var isValid = target.RulesetCharacter.HasConditionOfCategoryAndType(
-                AttributeDefinitions.TagEffect, conditionWitchBolt.Name);
+            var caster = cursor.ActionParams.ActingCharacter;
+            var isValid = target.RulesetCharacter != null &&
+                target.RulesetCharacter.ConditionsByCategory.SelectMany(entry => entry.Value)
+                    .Any(condition => condition.ConditionDefinition == conditionWitchBolt &&
+                                      condition.SourceGuid == caster.RulesetCharacter.Guid) &&
+                IsWitchBoltLinkValid(caster, target);
 
             if (!isValid)
             {
-                __instance.actionModifier.FailureFlags.Add("Failure/&MustBeWitchBolt");
+                cursor.actionModifier.FailureFlags.Add("Failure/&MustBeWitchBolt");
             }
 
             return isValid;
         }
+    }
 
-        public bool IsValid(BaseDefinition definition, RulesetCharacter character, EffectDescription effectDescription)
+    private static bool IsWitchBoltLinkValid(GameLocationCharacter caster, GameLocationCharacter target)
+    {
+        if (caster == null || target == null ||
+            !caster.IsWithinRange(target, Main.Settings.EnableOneDndWitchBoltSpell ? 12 : 6))
         {
-            return definition == powerWitchBolt;
+            return false;
         }
 
-        public EffectDescription GetEffectDescription(
-            BaseDefinition definition,
-            EffectDescription effectDescription,
-            RulesetCharacter character,
-            RulesetEffect rulesetEffect)
-        {
-            if (character.ConcentratedSpell != null &&
-                character.ConcentratedSpell.SpellDefinition == spellWitchBolt)
-            {
-                effectDescription.EffectForms[0].DamageForm.DiceNumber =
-                    1 + (character.ConcentratedSpell.EffectLevel - 1);
-            }
-
-            return effectDescription;
-        }
+        var visibility = ServiceRepository.GetService<IGameLocationVisibilityService>();
+        // Physical line of sight is independent of invisibility and the caster's senses.
+        return visibility == null || visibility.ComputeLineOfSight(target.LocationPosition, target,
+            caster.LocationPosition, caster, out _, out _);
     }
 
     private sealed class ActionFinishedByMeWitchBolt(
@@ -3635,7 +3623,7 @@ internal static partial class SpellBuilders
             var actingCharacter = action.ActingCharacter;
             var rulesetCharacter = actingCharacter.RulesetCharacter;
 
-            if (action.ActionType
+            if (Main.Settings.EnableOneDndWitchBoltSpell || action.ActionType
                 is ActionType.Move
                 // these although allowed could potentially move both contenders off range
                 or ActionType.Bonus
@@ -3648,11 +3636,12 @@ internal static partial class SpellBuilders
                 }
 
                 var stillInRange = Gui.Battle
-                    .GetContenders(actingCharacter, withinRange: 6)
+                    .GetContenders(actingCharacter, withinRange: Main.Settings.EnableOneDndWitchBoltSpell ? 12 : 6)
                     .Any(x =>
                         x.RulesetCharacter.TryGetConditionOfCategoryAndType(
                             AttributeDefinitions.TagEffect, conditionWitchBolt.Name, out var activeCondition) &&
-                        rulesetCharacter.Guid == activeCondition.SourceGuid);
+                        rulesetCharacter.Guid == activeCondition.SourceGuid &&
+                        IsWitchBoltLinkValid(actingCharacter, x));
 
                 if (stillInRange)
                 {
@@ -3691,22 +3680,14 @@ internal static partial class SpellBuilders
                 yield break;
             }
 
-            var stillInRange = Gui.Battle.GetContenders(actingCharacter, withinRange: 6).Any(x =>
-                x.RulesetCharacter.Guid == activeCondition.SourceGuid);
-
-            if (stillInRange)
-            {
-                yield break;
-            }
-
             var rulesetCaster = EffectHelpers.GetCharacterByGuid(activeCondition.SourceGuid);
-
-            if (rulesetCaster == null)
+            if (rulesetCaster == null ||
+                IsWitchBoltLinkValid(GameLocationCharacter.GetFromActor(rulesetCaster), actingCharacter))
             {
                 yield break;
             }
 
-            var rulesetSpell = rulesetCharacter.SpellsCastByMe.FirstOrDefault(x => x.SpellDefinition == spellWitchBolt);
+            var rulesetSpell = rulesetCaster.SpellsCastByMe.FirstOrDefault(x => x.SpellDefinition == spellWitchBolt);
 
             if (rulesetSpell != null)
             {

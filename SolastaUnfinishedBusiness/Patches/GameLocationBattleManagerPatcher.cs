@@ -1,16 +1,17 @@
-﻿using System;
+﻿using System.Collections.Generic;
 using System.Collections;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection.Emit;
+using System.Reflection;
+using System;
 using HarmonyLib;
 using JetBrains.Annotations;
-using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
-using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
@@ -26,6 +27,20 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationBattleManagerPatcher
 {
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class HandleSpellCast_MoveNext_Patch
+    {
+        [UsedImplicitly]
+        public static MethodBase TargetMethod() =>
+            CombinedMetamagic.GetIteratorMoveNext(typeof(GameLocationBattleManager), nameof(GameLocationBattleManager.HandleSpellCast));
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.SubtleSpell, "GameLocationBattleManager.HandleSpellCast.MoveNext");
+    }
+
+
     [HarmonyPatch(typeof(GameLocationBattleManager), nameof(GameLocationBattleManager.CanCharacterUsePower))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -290,8 +305,15 @@ public static class GameLocationBattleManagerPatcher
 
             //PATCH: support for `IPhysicalAttackBeforeHitConfirmedOnEnemy`
             // should also happen outside battles
-            foreach (var attackBeforeHitConfirmedOnEnemy in attacker.RulesetCharacter
-                         .GetSubFeaturesByType<IPhysicalAttackBeforeHitConfirmedOnEnemy>())
+            var attackBeforeHitHandlers = attacker.RulesetCharacter
+                .GetSubFeaturesByType<IPhysicalAttackBeforeHitConfirmedOnEnemy>();
+
+            if (attackMode?.SourceObject is RulesetItem weapon)
+            {
+                attackBeforeHitHandlers.AddRange(weapon.GetSubFeaturesByType<IPhysicalAttackBeforeHitConfirmedOnEnemy>());
+            }
+
+            foreach (var attackBeforeHitConfirmedOnEnemy in attackBeforeHitHandlers.Distinct())
             {
                 yield return attackBeforeHitConfirmedOnEnemy.OnPhysicalAttackBeforeHitConfirmedOnEnemy(
                     __instance, attacker, defender, attackModifier, attackMode,
@@ -632,6 +654,8 @@ public static class GameLocationBattleManagerPatcher
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
         {
+            instructions = CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.DistantSpell, "GameLocationBattleManager.CanAttack");
+
             var oldIsProjBlocked = typeof(IGameLocationPositioningService)
                 .GetMethod(nameof(IGameLocationPositioningService.IsProjectileBlocked));
             var newIsProjBlocked = new Func<IGameLocationPositioningService, int3, int3, AttackEvaluationParams,

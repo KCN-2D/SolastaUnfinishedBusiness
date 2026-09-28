@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
@@ -46,7 +47,7 @@ public static partial class Tabletop2024Context
         .Create("ConditionStudiedAttacks")
         .SetGuiPresentation(Category.Condition, ConditionMarkedByHunter)
         .SetConditionType(ConditionType.Detrimental)
-        .AddCustomSubFeatures(new PhysicalAttackFinishedOnMeStudiedAttacks())
+        .AllowMultipleInstances()
         .SetPossessive()
         .AddToDB();
 
@@ -63,7 +64,7 @@ public static partial class Tabletop2024Context
     private static readonly FeatureDefinition FeatureFighterStudiedAttacks = FeatureDefinitionBuilder
         .Create("FeatureFighterStudiedAttacks")
         .SetGuiPresentation(Category.Feature)
-        .AddCustomSubFeatures(new PhysicalAttackFinishedByMeStudiedAttacks())
+        .AddCustomSubFeatures(new AttackFinishedByMeStudiedAttacks())
         .AddToDB();
 
     private static readonly FeatureDefinitionPower PowerFighterTacticalMasterPool = FeatureDefinitionPowerBuilder
@@ -220,13 +221,13 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchFighterSkillOptions()
     {
+        var choices = PointPoolFighterSkillPoints.restrictedChoices;
+
+        choices.RemoveAll(skill => skill == SkillDefinitions.Persuasion);
+
         if (Main.Settings.EnableFighterSkillOptions2024)
         {
-            PointPoolFighterSkillPoints.restrictedChoices.Add(SkillDefinitions.Persuasion);
-        }
-        else
-        {
-            PointPoolFighterSkillPoints.restrictedChoices.Remove(SkillDefinitions.Persuasion);
+            choices.Add(SkillDefinitions.Persuasion);
         }
     }
 
@@ -348,32 +349,7 @@ public static partial class Tabletop2024Context
         }
     }
 
-    private sealed class PhysicalAttackFinishedOnMeStudiedAttacks : IPhysicalAttackFinishedOnMe
-    {
-        public IEnumerator OnPhysicalAttackFinishedOnMe(
-            GameLocationBattleManager battleManager,
-            CharacterAction action,
-            GameLocationCharacter attacker,
-            GameLocationCharacter defender,
-            RulesetAttackMode attackMode,
-            RollOutcome rollOutcome,
-            int damageAmount)
-        {
-            var rulesetDefender = defender.RulesetActor;
-
-            if (rulesetDefender.TryGetConditionOfCategoryAndType(
-                    AttributeDefinitions.TagEffect, ConditionStudiedAttacks.Name, out var activeCondition) &&
-                activeCondition.SourceGuid == attacker.Guid &&
-                rollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
-            {
-                rulesetDefender.RemoveCondition(activeCondition);
-            }
-
-            yield break;
-        }
-    }
-
-    private sealed class PhysicalAttackFinishedByMeStudiedAttacks : IPhysicalAttackFinishedByMe
+    private sealed class AttackFinishedByMeStudiedAttacks : IPhysicalAttackFinishedByMe, IMagicAttackFinishedByMe
     {
         public IEnumerator OnPhysicalAttackFinishedByMe(
             GameLocationBattleManager battleManager,
@@ -384,22 +360,58 @@ public static partial class Tabletop2024Context
             RollOutcome rollOutcome,
             int damageAmount)
         {
-            if (rollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
+            Apply(attacker, defender, rollOutcome);
+            yield break;
+        }
+
+        public void OnMagicAttackFinishedByMe(
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            RollOutcome outcome)
+        {
+            Apply(attacker, defender, outcome);
+        }
+
+        private static void Apply(
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            RollOutcome outcome)
+        {
+            if (!Main.Settings.EnableFighterStudiedAttacks2024 ||
+                outcome is not (RollOutcome.Success or RollOutcome.CriticalSuccess or
+                    RollOutcome.Failure or RollOutcome.CriticalFailure))
             {
-                yield break;
+                return;
             }
 
-            var rulesetAttacker = attacker.RulesetCharacter;
-            var rulesetDefender = defender.RulesetActor;
+            var source = attacker.RulesetCharacter;
+            var target = defender.RulesetCharacter;
 
-            rulesetDefender.InflictCondition(
+            if (source == null || target == null)
+            {
+                return;
+            }
+
+            foreach (var condition in target.AllConditions.Where(condition =>
+                         condition.ConditionDefinition == ConditionStudiedAttacks &&
+                         condition.SourceGuid == source.Guid).ToArray())
+            {
+                target.RemoveCondition(condition);
+            }
+
+            if (outcome is RollOutcome.Success or RollOutcome.CriticalSuccess || target.IsDeadOrDying)
+            {
+                return;
+            }
+
+            target.InflictCondition(
                 ConditionStudiedAttacks.Name,
                 DurationType.Round,
                 1,
                 TurnOccurenceType.EndOfSourceTurn,
                 AttributeDefinitions.TagEffect,
-                rulesetAttacker.Guid,
-                rulesetAttacker.CurrentFaction.Name,
+                source.Guid,
+                source.CurrentFaction.Name,
                 1,
                 ConditionStudiedAttacks.Name,
                 0,

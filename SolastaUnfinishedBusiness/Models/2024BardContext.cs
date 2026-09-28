@@ -22,6 +22,16 @@ namespace SolastaUnfinishedBusiness.Models;
 
 public static partial class Tabletop2024Context
 {
+    private static readonly FeatureDefinitionPower PowerBardFontOfInspiration = FeatureDefinitionPowerBuilder
+        .Create("PowerBardFontOfInspiration")
+        .SetGuiPresentation("Feature/&BardFontOfInspirationTitle", "Feature/&BardFontOfInspiration2024Description")
+        .SetUsesFixed(ActivationTime.NoCost)
+        .SetEffectDescription(EffectDescriptionBuilder.Create()
+            .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
+            .Build())
+        .AddCustomSubFeatures(new CustomBehaviorBardFontOfInspiration())
+        .AddToDB();
+
     private static readonly ConditionDefinition ConditionBardCounterCharmSavingThrowAdvantage =
         ConditionDefinitionBuilder
             .Create("ConditionBardCounterCharmSavingThrowAdvantage")
@@ -124,6 +134,14 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchBardBardicInspiration()
     {
+        Bard.FeatureUnlocks.RemoveAll(unlock => unlock.FeatureDefinition == PowerBardFontOfInspiration);
+
+        if (Main.Settings.EnableBardicInspiration2024)
+        {
+            Bard.FeatureUnlocks.Add(new FeatureUnlockByLevel(PowerBardFontOfInspiration, 5));
+        }
+
+        Bard.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
         if (Main.Settings.EnableBardicInspiration2024)
         {
             ConditionDefinitions.ConditionBardicInspiration.durationType = DurationType.Hour;
@@ -164,7 +182,7 @@ public static partial class Tabletop2024Context
         else
         {
             Bard.FeatureUnlocks.AddRange(
-                new FeatureUnlockByLevel(PointPoolBardMagicalSecrets14, 10),
+                new FeatureUnlockByLevel(PointPoolBardMagicalSecrets10, 10),
                 new FeatureUnlockByLevel(PointPoolBardMagicalSecrets14, 14),
                 new FeatureUnlockByLevel(Level20Context.PointPoolBardMagicalSecrets18, 18));
         }
@@ -200,6 +218,52 @@ public static partial class Tabletop2024Context
         Bard.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
     }
 
+    private sealed class CustomBehaviorBardFontOfInspiration : IValidatePowerUse, IPowerOrSpellFinishedByMe
+    {
+        public bool CanUsePower(RulesetCharacter character, FeatureDefinitionPower power)
+        {
+            return Main.Settings.EnableBardicInspiration2024 && character.usedBardicInspiration > 0 &&
+                   character.GetClassSpellRepertoire(Bard)?.AtLeastOneSpellSlotAvailable() == true;
+        }
+
+        public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition definition)
+        {
+            var character = action.ActingCharacter;
+            var rulesetCharacter = character.RulesetCharacter;
+            var battleManager = ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
+            var actionService = ServiceRepository.GetService<IGameLocationActionService>();
+
+            if (battleManager == null || actionService == null ||
+                !CanUsePower(rulesetCharacter, PowerBardFontOfInspiration))
+            {
+                yield break;
+            }
+
+            var count = actionService.PendingReactionRequestGroups.Count;
+            var reactionParams = new CharacterActionParams(character, Id.SpendSpellSlot)
+            {
+                IntParameter = 1,
+                StringParameter = "FontOfInspiration",
+                SpellRepertoire = rulesetCharacter.GetClassSpellRepertoire(Bard)
+            };
+
+            actionService.ReactToSpendSpellSlot(reactionParams);
+            yield return battleManager.WaitForReactions(character, actionService, count);
+
+            // The native slot-spending action owns payment, including shared and pact slots.
+            // Cancelling the selection spends neither a slot nor an action.
+            if (!reactionParams.ReactionValidated)
+            {
+                yield break;
+            }
+
+            rulesetCharacter.usedBardicInspiration--;
+            rulesetCharacter.BardicInspirationAltered?.Invoke(rulesetCharacter,
+                rulesetCharacter.RemainingBardicInspirations);
+            rulesetCharacter.LogCharacterUsedPower(PowerBardFontOfInspiration);
+        }
+    }
+
     private sealed class TryAlterOutcomeSavingThrowBardCounterCharm : ITryAlterOutcomeSavingThrow
     {
         public IEnumerator OnTryAlterOutcomeSavingThrow(
@@ -233,10 +297,9 @@ public static partial class Tabletop2024Context
 
             static bool HasCharmedOrFrightened(List<EffectForm> effectForms)
             {
-                return effectForms.Any(x =>
-                    x.FormType == EffectForm.EffectFormType.Condition &&
-                    (x.ConditionForm.ConditionDefinition.IsSubtypeOf(ConditionDefinitions.ConditionCharmed.Name) ||
-                     x.ConditionForm.ConditionDefinition.IsSubtypeOf(ConditionDefinitions.ConditionFrightened.Name)));
+                return effectForms.GetAppliedConditionDefinitions().Any(condition =>
+                    condition.IsSubtypeOf(ConditionDefinitions.ConditionCharmed.Name) ||
+                    condition.IsSubtypeOf(ConditionDefinitions.ConditionFrightened.Name));
             }
 
             void ReactionValidated()

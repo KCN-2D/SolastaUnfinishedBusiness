@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
@@ -63,7 +64,6 @@ internal static class FloatingPanelBounds
     }
 
     internal static void ConfigureNearAttachmentList(
-        MonoBehaviour owner,
         RectTransform panel,
         RectTransform attachment,
         RectTransform table,
@@ -80,8 +80,6 @@ internal static class FloatingPanelBounds
                          panel.gameObject.AddComponent<FloatingPanelAttachmentController>();
 
         controller.Configure(panel, attachment, table, fallbackLocalPosition, verticalOffset, margin);
-
-        controller.ScheduleReapply(owner);
     }
 
     internal static void ConfigureTooltipBounds(TooltipPanel tooltipPanel, float margin = DefaultMargin)
@@ -136,52 +134,12 @@ internal static class FloatingPanelBounds
         }
     }
 
-    private static void PlaceNearAttachmentAndClamp(
-        RectTransform panel,
-        RectTransform attachment,
-        RectTransform table,
-        Vector3 fallbackLocalPosition,
-        float verticalOffset,
-        float margin)
+    internal static void RestoreAttachmentList(RectTransform panel)
     {
-        if (!CanUseScreen(panel))
+        if (panel && panel.GetComponent<FloatingPanelAttachmentController>() is { } controller)
         {
-            return;
+            controller.Restore();
         }
-
-        RestoreListLayout(table);
-
-        if (table)
-        {
-            LayoutRebuilder.ForceRebuildLayoutImmediate(table);
-        }
-
-        LayoutRebuilder.ForceRebuildLayoutImmediate(panel);
-
-        if (!TryGetCanvasLocalBounds(panel, out _, out var canvasRect))
-        {
-            return;
-        }
-
-        var canvasBounds = GetInsetCanvasRect(canvasRect, margin);
-
-        if (!attachment || !attachment.gameObject.activeInHierarchy ||
-            !TryGetCanvasLocalBounds(attachment, canvasRect, out var attachmentBounds))
-        {
-            panel.localPosition = fallbackLocalPosition;
-            FitListToAvailableHeight(table, panel, canvasBounds.height);
-            ClampToScreen(panel, true, margin);
-            return;
-        }
-
-        var topSpace = Mathf.Max(1f, canvasBounds.yMax - attachmentBounds.yMax - verticalOffset);
-        var bottomSpace = Mathf.Max(1f, attachmentBounds.yMin - canvasBounds.yMin - verticalOffset);
-        var selectedSide = bottomSpace >= topSpace ? AttachmentSide.Below : AttachmentSide.Above;
-        var availableHeight = selectedSide == AttachmentSide.Below ? bottomSpace : topSpace;
-
-        FitListToAvailableHeight(table, panel, availableHeight);
-        AlignToAttachment(panel, attachmentBounds, selectedSide, verticalOffset, canvasRect);
-        ClampToScreen(panel, false, margin);
     }
 
     private static void AlignToAttachment(
@@ -205,10 +163,10 @@ internal static class FloatingPanelBounds
         ApplyCanvasLocalDelta(panel, canvasRect, new Vector2(deltaX, deltaY));
     }
 
-    private static void FitListToAvailableHeight(
+    private static void FitListToAvailableArea(
         RectTransform table,
         RectTransform panel,
-        float availableHeight)
+        Vector2 availableSize)
     {
         if (!table)
         {
@@ -238,8 +196,9 @@ internal static class FloatingPanelBounds
         }
 
         var spacing = GetVerticalSpacing(table);
+        var padding = table.GetComponent<LayoutGroup>()?.padding ?? new RectOffset();
         var overhead = panel ? Mathf.Max(0f, panel.rect.height - table.rect.height) : 0f;
-        var listHeight = Mathf.Max(itemHeight, availableHeight - overhead);
+        var listHeight = Mathf.Max(itemHeight, availableSize.y - overhead - padding.vertical);
         var rowHeight = itemHeight + spacing;
         var maxRows = Mathf.Max(1, Mathf.FloorToInt((listHeight + spacing) / rowHeight));
 
@@ -251,7 +210,31 @@ internal static class FloatingPanelBounds
             return;
         }
 
-        ApplyColumnLayout(table, activeCount, maxRows, itemWidth, itemHeight, spacing);
+        var horizontalOverhead = Mathf.Max(0f, panel.rect.width - table.rect.width);
+        var maximumColumns = Mathf.Max(1, Mathf.FloorToInt(
+            (availableSize.x - horizontalOverhead - padding.horizontal + DefaultColumnSpacing) /
+            (itemWidth + DefaultColumnSpacing)));
+        var columns = Mathf.Min(maximumColumns, Mathf.CeilToInt(activeCount / (float)maxRows));
+        var rows = Mathf.CeilToInt(activeCount / (float)columns);
+        var scrolls = rows > maxRows;
+
+        // Reserve a visible scrollbar before deciding how many full-width buttons fit.
+        if (scrolls)
+        {
+            maximumColumns = Mathf.Max(1, Mathf.FloorToInt(
+                (availableSize.x - horizontalOverhead - padding.horizontal - FloatingPanelLayoutState.ScrollbarWidth +
+                 DefaultColumnSpacing) / (itemWidth + DefaultColumnSpacing)));
+            columns = Mathf.Min(columns, maximumColumns);
+            rows = Mathf.CeilToInt(activeCount / (float)columns);
+        }
+
+        ApplyColumnLayout(table, activeCount, rows, itemWidth, itemHeight, spacing);
+        if (scrolls)
+        {
+            table.GetComponent<FloatingPanelLayoutState>().ConfigureScroll(
+                table, padding.vertical + maxRows * itemHeight + Mathf.Max(0, maxRows - 1) * spacing);
+        }
+
         LayoutRebuilder.ForceRebuildLayoutImmediate(table);
         LayoutRebuilder.ForceRebuildLayoutImmediate(panel);
     }
@@ -300,6 +283,9 @@ internal static class FloatingPanelBounds
         var width = padding.horizontal + columns * itemWidth + Mathf.Max(0, columns - 1) * DefaultColumnSpacing;
         var height = padding.vertical + rows * itemHeight + Mathf.Max(0, rows - 1) * spacing;
 
+        // The parent uses MinSize, not just the table's RectTransform dimensions.
+        state.Width = width;
+        state.Height = height;
         table.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
         table.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
     }
@@ -622,11 +608,13 @@ internal static class FloatingPanelBounds
         private RectTransform _attachment;
         private Vector3 _fallbackLocalPosition;
         private bool _configured;
-        private bool _isReapplying;
+        private bool _layoutDirty;
         private float _margin;
         private RectTransform _panel;
         private RectTransform _table;
         private float _verticalOffset;
+        private Vector2 _availableSize;
+        private GameObject _selected;
 
         internal void Configure(
             RectTransform panel,
@@ -636,6 +624,7 @@ internal static class FloatingPanelBounds
             float verticalOffset,
             float margin)
         {
+            Restore();
             _panel = panel;
             _attachment = attachment;
             _table = table;
@@ -643,69 +632,179 @@ internal static class FloatingPanelBounds
             _verticalOffset = verticalOffset;
             _margin = margin;
             _configured = true;
-            _isReapplying = false;
-
+            _layoutDirty = true;
             Apply();
         }
 
-        internal void Apply()
+        internal void Restore()
         {
-            if (!_configured)
+            _configured = false;
+            _selected = null;
+            RestoreListLayout(_table);
+        }
+
+        private void LateUpdate()
+        {
+            // Show modifiers and canvas scaling can run after Bind/OnEnable. Follow placement
+            // until hidden, but rebuild the list only when its available area actually changes.
+            Apply();
+            RevealSelectedItem();
+        }
+
+        private void Apply()
+        {
+            if (!_configured || !CanUseScreen(_panel) ||
+                !TryGetRootCanvasRect(_panel, out var canvas))
             {
                 return;
             }
 
-            PlaceNearAttachmentAndClamp(
-                _panel,
-                _attachment,
-                _table,
-                _fallbackLocalPosition,
-                _verticalOffset,
-                _margin);
+            var bounds = GetInsetCanvasRect(canvas, _margin);
+            var attachmentBounds = default(Rect);
+            var hasAttachment = _attachment && _attachment.gameObject.activeInHierarchy &&
+                                TryGetCanvasLocalBounds(_attachment, canvas, out attachmentBounds);
+            var topSpace = hasAttachment
+                ? Mathf.Max(1f, bounds.yMax - attachmentBounds.yMax - _verticalOffset)
+                : bounds.height;
+            var bottomSpace = hasAttachment
+                ? Mathf.Max(1f, attachmentBounds.yMin - bounds.yMin - _verticalOffset)
+                : 0f;
+            var side = bottomSpace >= topSpace ? AttachmentSide.Below : AttachmentSide.Above;
+            var canvasSize = new Vector3(bounds.width, Mathf.Max(topSpace, bottomSpace), 0f);
+            var localSize = _panel.InverseTransformVector(canvas.TransformVector(canvasSize));
+            var available = new Vector2(Mathf.Abs(localSize.x), Mathf.Abs(localSize.y));
+
+            if (_layoutDirty || (_availableSize - available).sqrMagnitude > 0.01f)
+            {
+                RestoreListLayout(_table);
+                FitListToAvailableArea(_table, _panel, available);
+                _availableSize = available;
+                _layoutDirty = false;
+                _selected = null;
+            }
+
+            if (hasAttachment)
+            {
+                AlignToAttachment(_panel, attachmentBounds, side, _verticalOffset, canvas);
+            }
+            else if (_panel.localPosition != _fallbackLocalPosition)
+            {
+                _panel.localPosition = _fallbackLocalPosition;
+            }
+
+            ClampToScreen(_panel, false, _margin);
         }
 
-        internal void ScheduleReapply(MonoBehaviour owner)
+        private void RevealSelectedItem()
         {
-            if (!owner || !owner.isActiveAndEnabled || _isReapplying)
+            var selected = EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
+            if (selected == _selected)
             {
                 return;
             }
 
-            _isReapplying = true;
-            owner.StartCoroutine(ReapplyForNextFramesCoroutine());
-        }
-
-        private IEnumerator ReapplyForNextFramesCoroutine()
-        {
-            try
+            _selected = selected;
+            var scroll = _table ? _table.GetComponentInParent<ScrollRect>() : null;
+            if (!selected || !scroll || !selected.transform.IsChildOf(_table) ||
+                selected.transform is not RectTransform selectedRect)
             {
-                Apply();
-
-                for (var i = 0; i < DefaultReapplyFrames; i++)
-                {
-                    yield return null;
-                    Apply();
-                }
+                return;
             }
-            finally
+
+            var bounds = RectTransformUtility.CalculateRelativeRectTransformBounds(scroll.viewport, selectedRect);
+            var viewport = scroll.viewport.rect;
+            var position = _table.anchoredPosition;
+            if (bounds.max.y > viewport.yMax)
             {
-                _isReapplying = false;
+                position.y -= bounds.max.y - viewport.yMax;
             }
-        }
+            else if (bounds.min.y < viewport.yMin)
+            {
+                position.y += viewport.yMin - bounds.min.y;
+            }
 
-        private void OnEnable()
-        {
-            ScheduleReapply(this);
-        }
-
-        private void OnDisable()
-        {
-            _isReapplying = false;
+            position.y = Mathf.Clamp(position.y, 0f, Mathf.Max(0f, _table.rect.height - viewport.height));
+            scroll.StopMovement();
+            _table.anchoredPosition = position;
         }
     }
 
-    private sealed class FloatingPanelLayoutState : MonoBehaviour
+    private sealed class FloatingPanelLayoutState : MonoBehaviour, ILayoutElement
     {
+        internal const float ScrollbarWidth = 16f;
+        internal float Width = -1f;
+        internal float Height = -1f;
+        private RectTransform _scrollRoot;
+        private Transform _tableParent;
+        private int _tableSibling;
+        private ChildLayoutState _tableState;
+
+        public float minWidth => Width;
+        public float preferredWidth => Width;
+        public float flexibleWidth => -1f;
+        public float minHeight => Height;
+        public float preferredHeight => Height;
+        public float flexibleHeight => -1f;
+        public int layoutPriority => 10;
+        public void CalculateLayoutInputHorizontal() { }
+        public void CalculateLayoutInputVertical() { }
+
+        internal void ConfigureScroll(RectTransform table, float viewportHeight)
+        {
+            _tableParent = table.parent;
+            _tableSibling = table.GetSiblingIndex();
+            _tableState = new ChildLayoutState(table);
+            _scrollRoot = CreateRect("SelectionScroll", _tableParent, table.gameObject.layer);
+            _scrollRoot.SetSiblingIndex(_tableSibling);
+            var layout = _scrollRoot.gameObject.AddComponent<LayoutElement>();
+            layout.minWidth = layout.preferredWidth = Width + ScrollbarWidth;
+            layout.minHeight = layout.preferredHeight = viewportHeight;
+            var viewport = CreateRect("Viewport", _scrollRoot, table.gameObject.layer);
+            viewport.anchorMax = Vector2.one;
+            viewport.offsetMax = new Vector2(-ScrollbarWidth, 0f);
+            viewport.gameObject.AddComponent<RectMask2D>();
+            viewport.gameObject.AddComponent<Image>().color = Color.clear;
+            var scroll = _scrollRoot.gameObject.AddComponent<ScrollRect>();
+            scroll.viewport = viewport;
+            scroll.content = table;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.inertia = false;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 36f;
+            table.SetParent(viewport, false);
+            table.anchorMin = table.anchorMax = new Vector2(0f, 1f);
+            table.pivot = new Vector2(0f, 1f);
+            table.anchoredPosition = Vector2.zero;
+            table.sizeDelta = new Vector2(Width, Height);
+
+            var barRect = CreateRect("Scrollbar", _scrollRoot, table.gameObject.layer);
+            barRect.anchorMin = new Vector2(1f, 0f);
+            barRect.anchorMax = Vector2.one;
+            barRect.offsetMin = new Vector2(-ScrollbarWidth + 4f, 0f);
+            barRect.gameObject.AddComponent<Image>().color = new Color(0.12f, 0.15f, 0.16f, 0.85f);
+            var handle = CreateRect("Handle", barRect, table.gameObject.layer);
+            handle.anchorMax = Vector2.one;
+            var image = handle.gameObject.AddComponent<Image>();
+            image.color = new Color(0.65f, 0.75f, 0.78f);
+            var scrollbar = barRect.gameObject.AddComponent<Scrollbar>();
+            scrollbar.direction = Scrollbar.Direction.BottomToTop;
+            scrollbar.handleRect = handle;
+            scrollbar.targetGraphic = image;
+            scroll.verticalScrollbar = scrollbar;
+            scroll.verticalNormalizedPosition = 1f;
+        }
+
+        private static RectTransform CreateRect(string name, Transform parent, int layer)
+        {
+            var rect = (RectTransform)new GameObject(name, typeof(RectTransform)).transform;
+            rect.gameObject.layer = layer;
+            rect.SetParent(parent, false);
+            rect.anchorMin = rect.anchorMax = Vector2.zero;
+            rect.sizeDelta = Vector2.zero;
+            return rect;
+        }
+
         internal ContentSizeFitter ContentSizeFitter;
         internal readonly List<ChildLayoutState> ChildStates = [];
         internal bool HasOriginalLayout;
@@ -762,6 +861,15 @@ internal static class FloatingPanelBounds
 
         internal void Restore(RectTransform table)
         {
+            if (_scrollRoot)
+            {
+                _scrollRoot.GetComponent<ScrollRect>().content = null;
+                table.SetParent(_tableParent, false);
+                table.SetSiblingIndex(_tableSibling);
+                _tableState.Restore();
+                Object.DestroyImmediate(_scrollRoot.gameObject);
+            }
+
             if (VerticalLayoutGroup)
             {
                 VerticalLayoutGroup.enabled = WasVerticalLayoutEnabled;

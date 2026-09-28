@@ -378,7 +378,9 @@ internal static class ValidatorsCharacter
         var monkWeaponSpecializations = character.GetSubFeaturesByType<WayOfBlade.WeaponSpecialization>();
 
         return weaponDescription == null ||
-               weaponDescription.IsMonkWeaponOrUnarmed() ||
+               (Main.Settings.EnableMonkMartialArts2024
+                   ? Tabletop2024Context.IsMonkWeapon2024(weaponDescription)
+                   : weaponDescription.IsMonkWeaponOrUnarmed()) ||
                WayOfZenArchery.IsZenArcheryWeapon(character, weaponDescription) ||
                (Main.Settings.EnableMonkKatanaSpecialization &&
                 weaponDescription.WeaponTypeDefinition == CustomWeaponsContext.KatanaWeaponType) ||

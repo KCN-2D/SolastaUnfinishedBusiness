@@ -799,7 +799,8 @@ public sealed class RoguishSwashbuckler : AbstractSubclass
 
                     var finalRoll = System.Math.Max(firstRoll, secondRoll);
 
-                    action.AttackSuccessDelta += finalRoll - action.AttackRoll;
+                    action.AttackSuccessDelta = TryAlterOutcomeAttack.GetReplacementRollSuccessDelta(
+                        action, finalRoll, defender.RulesetActor, actionModifier, attackMode, rulesetEffect);
                     action.AttackRoll = finalRoll;
 
                     if (action.AttackSuccessDelta >= 0)

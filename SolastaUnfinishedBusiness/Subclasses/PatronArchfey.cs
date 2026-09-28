@@ -546,9 +546,8 @@ public class PatronArchfey : AbstractSubclass
         {
             if (!defender.CanReact() ||
                 !defender.CanPerceiveTarget(attacker) ||
-                !actualEffectForms.Any(x =>
-                    x.FormType == EffectForm.EffectFormType.Condition &&
-                    x.ConditionForm.ConditionDefinition.IsSubtypeOf(ConditionDefinitions.ConditionCharmed.Name)))
+                !actualEffectForms.GetAppliedConditionDefinitions().Any(condition =>
+                    condition.IsSubtypeOf(ConditionDefinitions.ConditionCharmed.Name)))
             {
                 yield break;
             }

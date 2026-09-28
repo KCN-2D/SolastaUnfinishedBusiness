@@ -1,4 +1,5 @@
 Feature/&CastSpellOniOgreMagicDescription=Al 3° livello, puoi lanciare <b>Colpo Tonante</b> una volta per riposo lungo. La tua caratteristica da incantatore per questo è <b>Saggezza</b>.
+Feature/&CastSpellOniOgreMagicSpeciesSpellcastingDescription=Al 3° livello, puoi lanciare <b>Colpo Tonante</b> una volta per riposo lungo.
 Feature/&CastSpellOniOgreMagicTitle=Magia degli orchi
 Feature/&FeatureSetOniAbilityScoreIncreaseDescription=Forza +2, Saggezza +1
 Feature/&FeatureSetOniAbilityScoreIncreaseTitle=Aumento degli attributi

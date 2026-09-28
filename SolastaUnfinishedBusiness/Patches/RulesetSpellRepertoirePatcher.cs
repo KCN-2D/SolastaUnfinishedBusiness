@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
@@ -19,6 +21,56 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetSpellRepertoirePatcher
 {
+    // Native methods patched before the ability getter can inline its original body.
+    // Resolve overrides explicitly while retaining each caller's native calculations.
+    internal static IEnumerable<CodeInstruction> UseEffectiveSpellcastingAbility(IEnumerable<CodeInstruction> instructions)
+    {
+        var featureGetter = AccessTools.PropertyGetter(typeof(RulesetSpellRepertoire),
+            nameof(RulesetSpellRepertoire.SpellCastingFeature));
+        var definitionAbilityGetter = AccessTools.PropertyGetter(typeof(FeatureDefinitionCastSpell),
+            nameof(FeatureDefinitionCastSpell.SpellcastingAbility));
+        var effectiveAbilityGetter = AccessTools.PropertyGetter(typeof(RulesetSpellRepertoire),
+            nameof(RulesetSpellRepertoire.SpellCastingAbility));
+        var abilityResolver = AccessTools.Method(typeof(RulesetSpellRepertoirePatcher),
+            nameof(GetEffectiveSpellcastingAbility));
+        var codes = instructions.ToList();
+
+        for (var index = 0; index < codes.Count; index++)
+        {
+            if (index + 1 < codes.Count && codes[index].Calls(featureGetter) &&
+                codes[index + 1].Calls(definitionAbilityGetter))
+            {
+                yield return new CodeInstruction(OpCodes.Call, abilityResolver)
+                    .MoveLabelsFrom(codes[index]).MoveBlocksFrom(codes[index])
+                    .MoveLabelsFrom(codes[index + 1]).MoveBlocksFrom(codes[index + 1]);
+                index++;
+            }
+            else if (codes[index].Calls(effectiveAbilityGetter))
+            {
+                yield return new CodeInstruction(OpCodes.Call, abilityResolver)
+                    .MoveLabelsFrom(codes[index]).MoveBlocksFrom(codes[index]);
+            }
+            else
+            {
+                yield return codes[index];
+            }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static string GetEffectiveSpellcastingAbility(RulesetSpellRepertoire repertoire)
+    {
+        return TryGetSpellcastingAbilityOverride(repertoire, out var ability)
+            ? ability
+            : repertoire.SpellCastingAbility;
+    }
+
+    private static bool TryGetSpellcastingAbilityOverride(RulesetSpellRepertoire repertoire, out string ability)
+    {
+        return SpeciesSpellcastingContext.TryGetSpellcastingAbility(repertoire, out ability) ||
+               Tabletop2024Context.TryGetMagicInitiate2024SpellcastingAbility(repertoire, out ability);
+    }
+
     private static readonly string[] SpellSourceTitleFormats =
     [
         "Screen/&{0}ExtraSpellTitle",
@@ -54,7 +106,7 @@ public static class RulesetSpellRepertoirePatcher
             var caster = __instance.GetCaster();
 
             if (caster == null ||
-                !RulesetEffectSpellWithOrigin.IsPendingOrigin(caster, spellDefinition))
+                !RulesetEffectSpellWithOrigin.IsPendingOrigin(caster, spellDefinition, false))
             {
                 return true;
             }
@@ -276,7 +328,7 @@ public static class RulesetSpellRepertoirePatcher
         [UsedImplicitly]
         public static void Postfix(RulesetSpellRepertoire __instance, ref string __result)
         {
-            if (Tabletop2024Context.TryGetMagicInitiate2024SpellcastingAbility(__instance, out var ability))
+            if (TryGetSpellcastingAbilityOverride(__instance, out var ability))
             {
                 __result = ability;
             }
@@ -923,9 +975,16 @@ public static class RulesetSpellRepertoirePatcher
     [UsedImplicitly]
     public static class MaxSpellLevelOfSpellCastingLevel_Getter_Patch
     {
+        [HarmonyPriority(Priority.First)]
         [UsedImplicitly]
         public static bool Prefix(RulesetSpellRepertoire __instance, ref int __result)
         {
+            if (SpellSelectionContext.TryGetOption(__instance, out var option))
+            {
+                __result = option.SlotLevel;
+                return false;
+            }
+
             var spellCastingFeature = __instance?.SpellCastingFeature;
 
             if (!spellCastingFeature)
@@ -1262,6 +1321,24 @@ public static class RulesetSpellRepertoirePatcher
             {
                 __result = true;
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.GetSlotsNumber))]
+    [UsedImplicitly]
+    private static class GetSlotsNumber_Patch
+    {
+        [HarmonyPriority(Priority.First)]
+        [UsedImplicitly]
+        private static bool Prefix(RulesetSpellRepertoire __instance, int __0, ref int __1, ref int __2)
+        {
+            if (!SpellSelectionContext.TryGetOption(__instance, out var option))
+            {
+                return true;
+            }
+
+            SpellSelectionContext.GetViewSlots(option, __0, out __1, out __2);
+            return false;
         }
     }
 }

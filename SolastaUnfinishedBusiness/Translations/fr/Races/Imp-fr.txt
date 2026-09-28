@@ -11,6 +11,7 @@ Failure/&TargetOutOfRange=La cible est hors de portée.
 Feature/&ActionAffinityImpForestInnateCunningDescription=Vous utilisez votre action bonus pour vous désengager ou vous cacher.
 Feature/&ActionAffinityImpForestInnateCunningTitle=Ruse innée
 Feature/&CastSpellImpInfernalDescription=Vous connaissez le sort de moquerie vicieuse. Lorsque vous atteignez le niveau 3, vous pouvez lancer Invisibilité une fois par repos long. Le Charisme est votre capacité à lancer ces sorts.
+Feature/&CastSpellImpInfernalSpeciesSpellcastingDescription=Vous connaissez le sort de moquerie vicieuse. Lorsque vous atteignez le niveau 3, vous pouvez lancer Invisibilité une fois par repos long.
 Feature/&CastSpellImpInfernalTitle=Trickster diabolique
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseDescription=Constitution +2, Intelligence +1
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseTitle=Augmentation du score de capacité

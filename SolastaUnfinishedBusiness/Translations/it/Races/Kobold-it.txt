@@ -1,6 +1,7 @@
 Condition/&ConditionDarkKoboldGrovelCowerAndBegDescription=Hai vantaggio sui tiri per colpire contro i nemici entro 10 piedi dal tuo alleato Kobold.
 Condition/&ConditionDarkKoboldGrovelCowerAndBegTitle=Grovel, Cower e Beg
 Feature/&CastSpellDraconicKoboldMagicDescription=Conosci un trucchetto a tua scelta dalla lista degli incantesimi dello Stregone. Il Carisma è la tua abilità di lancio di incantesimi per questo.
+Feature/&CastSpellDraconicKoboldMagicSpeciesSpellcastingDescription=Conosci un trucchetto a tua scelta dalla lista degli incantesimi dello Stregone.
 Feature/&CastSpellDraconicKoboldMagicTitle=Magia dei coboldi
 Feature/&PowerDarkKoboldGrovelCowerAndBegDescription=Come azione nel tuo turno, puoi rannicchiarti pateticamente per distrarre i nemici vicini. Fino alla fine del tuo turno successivo, i tuoi alleati ottengono vantaggio sui tiri per colpire contro i nemici entro 10 piedi da te che possono vederti. Una volta che usi questo tratto, non puoi usarlo di nuovo finché non finisci un riposo breve o lungo.
 Feature/&PowerDarkKoboldGrovelCowerAndBegTitle=Grovel, Cower e Beg

@@ -24,3 +24,4 @@ Race/&RaceTieflingMephistophelesDescription=Mephistopheles bietet jenen, die ihn
 Race/&RaceTieflingMephistophelesTitle=Mephistopheles
 Race/&RaceTieflingZarielDescription=Tieflinge mit einer Blutsverwandtschaft zu Zariel sind stärker als der typische Tiefling und erhalten magische Fähigkeiten, die ihnen im Kampf helfen.
 Race/&RaceTieflingZarielTitle=Zariel
+Feature/&CastSpellTieflingSpeciesSpellcastingDescription=Du kennst den Zaubertrick Flammen erzeugen. Wenn du Stufe 3 erreichst, kannst du einmal den Zauber Höllischer Tadel als Zauber der Stufe 2 mit dieser Eigenschaft wirken. Nach Ende einer langen Rast erhältst du erneut die Fähigkeit dazu. Wenn du Stufe 5 erreichst, kannst du einmal den Zauber Dunkelheit mit dieser Eigenschaft wirken. Nach Ende einer langen Rast erhältst du erneut die Fähigkeit dazu.

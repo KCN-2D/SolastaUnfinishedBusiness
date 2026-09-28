@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -29,6 +30,8 @@ public sealed class SavingThrowData
 {
     public RollOutcome SaveOutcome { get; set; }
     public int SaveOutcomeDelta { get; set; }
+    public int CurrentRoll { get; set; }
+    public int MinimumResult { get; set; } = int.MinValue;
     public ActionModifier SaveActionModifier { get; set; }
     public string SavingThrowAbility { get; set; }
     public int SaveDC { get; set; }
@@ -39,6 +42,16 @@ public sealed class SavingThrowData
     public bool LegendaryResistanceUsed { get; set; }
     [CanBeNull] public CharacterAction Action { get; set; }
     [CanBeNull] internal TryRollSavingThrowDelegate RerollSavingThrow { get; set; }
+
+    internal void ReplaceRoll(int roll)
+    {
+        var previousTotal = Math.Max(CurrentRoll + SaveBonusAndRollModifier, MinimumResult);
+        var newTotal = Math.Max(roll + SaveBonusAndRollModifier, MinimumResult);
+
+        CurrentRoll = roll;
+        SaveOutcomeDelta += newTotal - previousTotal;
+        SaveOutcome = SaveOutcomeDelta >= 0 ? RollOutcome.Success : RollOutcome.Failure;
+    }
 
     internal void UpdateActionSaveOutcome()
     {
@@ -203,6 +216,9 @@ internal static class TryAlterOutcomeSavingThrow
             }
         }
 
+        savingThrowData.CurrentRoll = RulesetActorExtensions.SaveRoll;
+        savingThrowData.MinimumResult = RulesetActorExtensions.SaveMinimumResult;
+        savingThrowData.SaveBonusAndRollModifier = RulesetActorExtensions.SaveBonusAndRollModifier;
         savingThrowData.SaveOutcomeDelta = saveOutcomeDelta;
         savingThrowData.SaveOutcome = saveOutcome;
     }

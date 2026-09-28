@@ -31,6 +31,27 @@ public interface ITryAlterOutcomeAttack
 
 internal static class TryAlterOutcomeAttack
 {
+    internal static int GetReplacementRollSuccessDelta(
+        CharacterAction action,
+        int newRoll,
+        RulesetActor defender,
+        ActionModifier actionModifier,
+        RulesetAttackMode attackMode,
+        RulesetEffect rulesetEffect)
+    {
+        // Native natural 1/20 results omit the numerical margin. Other critical thresholds
+        // already have a margin, and subsequent reaction adjustments must be retained.
+        var toHitBonus = attackMode?.ToHitBonus ?? rulesetEffect?.MagicAttackBonus;
+
+        if (action.AttackRoll is 1 or 20 && action.AttackSuccessDelta == 0 && toHitBonus.HasValue)
+        {
+            return newRoll + toHitBonus.Value + actionModifier.AttackRollModifier -
+                   defender.GetAttribute(AttributeDefinitions.ArmorClass).CurrentValue;
+        }
+
+        return action.AttackSuccessDelta + newRoll - action.AttackRoll;
+    }
+
     private static readonly List<(ITryAlterOutcomeAttack, GameLocationCharacter)> Handlers = [];
 
     private static void CollectHandlers()

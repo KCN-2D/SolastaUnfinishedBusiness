@@ -1,4 +1,5 @@
 Feature/&CastSpellOniOgreMagicDescription=En el nivel 3, puedes lanzar <b>Golpe atronador</b> una vez por cada descanso prolongado. <b>Sabiduría</b> es tu capacidad de lanzamiento de conjuros para ello.
+Feature/&CastSpellOniOgreMagicSpeciesSpellcastingDescription=En el nivel 3, puedes lanzar <b>Golpe atronador</b> una vez por cada descanso prolongado.
 Feature/&CastSpellOniOgreMagicTitle=Magia de ogro
 Feature/&FeatureSetOniAbilityScoreIncreaseDescription=Fuerza +2, Sabiduría +1
 Feature/&FeatureSetOniAbilityScoreIncreaseTitle=Aumento de atributos

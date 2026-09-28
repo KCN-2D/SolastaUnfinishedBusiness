@@ -144,7 +144,7 @@ ModUi/&EnableBetaContent=启用测试版内容<b><i><color=#C04040E0>[需要重�
 ModUi/&EnableCancelEditOnRightMouseClick=通过鼠标右键单击启用取消动作
 ModUi/&EnableCantripsTriggeringOnWarMagic=允许戏法触发<color=#D89555>战争魔法</color>的额外攻击
 ModUi/&EnableCharactersOnFireToEmitLight=<color=#D89555>着火</color>的角色应该发光<i><color=#F0DAA0>[光之立方体、火元素、火小丑、火鱼鹰、火蜘蛛和一系列的着火状态]</color></i>
-ModUi/&EnableClericBlessedStrikes2024=在第 7 级和 14 级时启用<color=#D89555>神圣打击</color>和<color=#D89555>精通神圣打击</color>{99><i><color=#F0DAA0>[仅影响亵渎、生命、诡计、自然、铁匠、太阳和风暴领域]</color></i>
+ModUi/&EnableClericBlessedStrikes2024=在第 7 级和 14 级时启用<color=#D89555>神圣打击</color>和<color=#D89555>精通神圣打击</color>
 ModUi/&EnableClericChannelDivinity2024=启用 5e 2024 版本<color=#D89555>引导神力</color><i><color=#F0DAA0>[用法改变]</color></i>
 ModUi/&EnableClericDivineOrder2024=在第 1 级启用<color=#D89555>圣职</color> <i><color=#F0DAA0>[在重甲与军用武器受训或额外戏法与部分智力检定获得加值间进行选择]</color></i>
 ModUi/&EnableClericSearUndead2024=在第 5 级启用<color=#D89555>灼净亡灵</color> 来替代 <color=#D89555>摧毁亡灵</color>
@@ -234,6 +234,7 @@ ModUi/&EnablePcgRandom=启用更好的随机生成器算法<i><color=#F0DAA0>[ht
 ModUi/&EnablePoisonsBonusAction2024=启用涂抹<color=#D89555>毒药</color>作为附赠动作
 ModUi/&EnablePotionsBonusAction2024=启用饮用<color=#D89555>药水</color>作为附赠动作
 ModUi/&EnableHalfOrcAdrenalineRush2024=<color=#D89555>{0}</color>：将<color=#D89555>{1}</color>替换为<color=#D89555>{2}</color>（2024）
+ModUi/&EnableSpeciesSpellcastingAbility2024=允许选择智力、感知或魅力作为种族法术的施法属性。
 ModUi/&EnableSpeciesBaseWalkSpeed2024=将<color=#D89555>基础移动速度为5格的可玩种族</color>的基础移动速度设为6格
 ModUi/&EnablePreparedSpellsTables2024=允许所有<color=#D89555>施法者</color>使用新的准备法术表<i><color=#F0DAA0>[奇械师、吟游诗人、牧师、德鲁伊、圣骑士、游侠、术士、魔法师]</color></i>
 ModUi/&EnableSpellLists2024=使用2024版职业法术列表
@@ -258,7 +259,7 @@ ModUi/&EnableRespecAction=休息行动后启用 <color=#D89555>洗点</color> <i
 ModUi/&EnableRitualOnAllCasters2024=对所有施法者启用<color=#D89555>仪式</color>施法
 ModUi/&EnableOneSpellSlotPerTurn2024=启用2024版规则：每个回合只能为施放法术消耗一个法术位<i><color=#F0DAA0>[戏法和不消耗法术位施放的法术不受影响]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[体质豁免失败时打断施法，被打断法术所用的法术位不被消耗]</color></i>
-ModUi/&Counterspell2024CompatibilityDescription=同时为10级护法师自动启用破法者。宫廷法师的法术反制大师使你的法术反制目标在豁免检定中具有劣势，并使你在对抗法术反制的豁免检定中具有优势。
+ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>[同时为10级护法师自动启用破法者。宫廷法师的法术反制大师使你的法术反制目标在豁免检定中具有劣势，并使你在对抗法术反制的豁免检定中具有优势。]</color></i>
 ModUi/&EnableRogueCunningStrike2024=在等级 5、11 和 14 时启用<color=#D89555>狡猾打击</color>、<color=#D89555>强化狡猾打击</color>和<color=#D89555>阴险打击</color> <i><color=#F0DAA0>[你放弃 1 个偷袭骰子以获得额外的命中效果]</color></i>
 ModUi/&EnableRogueFightingStyle=在第 2 级启用<color=#D89555>战斗风格</color>选择
 ModUi/&EnableRogueReliableTalent2024=将<color=#D89555>可靠天赋</color>设置为 7 级（而非 11 级）
@@ -299,7 +300,7 @@ ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=在 2 级启用<
 ModUi/&EnableWarlockMagicalCunningAtLevel2=在第 2 级启用<color=#D89555>魔法狡猾</color>
 ModUi/&EnableWarlockToLearnPatronAtLevel3=在 3 级（而非 1 级）启用 <color=#D89555>Patron</color>
 ModUi/&EnableAbjurerSpellBreaker2024=为护法师启用10级能力<color=#D89555>破法者</color>（2024版）
-ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=启用2024版法术反制规则时，此能力会自动启用。破法者的独立设置会保留，关闭该规则后会恢复原先的选择。
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=<i><color=#F0DAA0>[启用2024版法术反制规则时，此能力会自动启用。破法者的独立设置会保留，关闭该规则后会恢复原先的选择。]</color></i>
 ModUi/&EnableWizardMemorizeSpell2024=在第 5 级启用<color=#D89555>记忆法术</color>
 ModUi/&EnableWizardToLearnScholarAtLevel2=启用 2 级 <color=#D89555>Scholar</color>
 ModUi/&EnableWizardToLearnSchoolAtLevel3=在 3 级（而非 2 级）启用<color=#D89555>魔法学校</color>
@@ -542,3 +543,18 @@ ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses
 ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[While enabled, only the independent 2024 feats below can be toggled. Legacy feat toggles are locked]</color></i>
 ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
 ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
+ModUi/&EnableWizardSpellMastery2024=启用2024<color=#D89555>法术精通</color><i><color=#F0DAA0>[动作施法；长休后可更换一个法术]</color></i>
+ModUi/&EnableThiefUseMagicDevice2024=启用2024盗贼<color=#D89555>使用魔法装置</color><i><color=#F0DAA0>[四件同调物品、保留充能、使用智力施放卷轴]</color></i>
+ModUi/&EnableBarbarianDangerSense2024=启用2024<color=#D89555>危机感应</color><i><color=#F0DAA0>[未失能时敏捷豁免具有优势]</color></i>
+ModUi/&EnableBarbarianIndomitableMight2024=启用2024<color=#D89555>不屈勇武</color><i><color=#F0DAA0>[力量检定和力量豁免的总值下限]</color></i>
+ModUi/&EnableClericDivineIntervention2024=启用2024版<color=#D89555>神圣干预</color>与<color=#D89555>高等神圣干预</color><i><color=#F0DAA0>[选择牧师法术，20级可选祈愿术]</color></i>
+ModUi/&EnablePaladinRadiantStrikes2024=启用2024版<color=#D89555>光耀打击</color><i><color=#F0DAA0>[也适用于徒手打击]</color></i>
+ModUi/&EnableOneDndShillelaghSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[伤害在角色等级5、11和17级时提升；可选择力场伤害]</color></i>
+ModUi/&HideousLaughter2024TargetingHelp=<i><color=#F0DAA0>[启用2024版塔莎狂笑术时，可以选择所有类型的生物作为目标。单独的目标限制设置会保留，并在关闭2024版选项后重新生效。]</color></i>
+ModUi/&EnableMonkEmpoweredStrikes2024=启用2024版<color=#D89555>强化打击</color><i><color=#F0DAA0>[徒手打击可选择力场伤害]</color></i>
+ModUi/&EnableRogueStrokeOfLuck2024=启用2024版<color=#D89555>幸运一击</color><i><color=#F0DAA0>[将失败的d20掷骰结果改为20]</color></i>
+ModUi/&EnableBardWeaponProficiency2024=启用2024版<color=#D89555>吟游诗人的武器熟练</color><i><color=#F0DAA0>[简易武器]</color></i>
+ModUi/&EnableMonkWeaponProficiency2024=启用2024版<color=#D89555>武僧的武器熟练</color><i><color=#F0DAA0>[简易武器和具有轻型属性的军用武器]</color></i>
+ModUi/&EnableRogueWeaponProficiency2024=启用2024版<color=#D89555>游荡者的武器熟练</color><i><color=#F0DAA0>[简易武器和具有灵巧或轻型属性的军用武器]</color></i>
+ModUi/&EnableSorcererWeaponProficiency2024=启用2024版<color=#D89555>术士的武器熟练</color><i><color=#F0DAA0>[所有简易武器]</color></i>
+ModUi/&EnableWizardWeaponProficiency2024=启用2024版<color=#D89555>法师的武器熟练</color><i><color=#F0DAA0>[所有简易武器]</color></i>

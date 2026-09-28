@@ -1,15 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection.Emit;
+using System;
 using HarmonyLib;
 using JetBrains.Annotations;
-using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
-using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
@@ -23,6 +23,16 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetImplementationManagerPatcher
 {
+    [HarmonyPatch(typeof(RulesetImplementationManager), nameof(RulesetImplementationManager.ComputeSavingThrowDC))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ComputeSavingThrowDC_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            RulesetSpellRepertoirePatcher.UseEffectiveSpellcastingAbility(instructions);
+    }
+
     private static void EnumerateFeatureDefinitionSavingThrowAffinity(
         RulesetCharacter __instance,
         List<FeatureDefinition> featuresToBrowse,
@@ -1256,7 +1266,16 @@ public static class RulesetImplementationManagerPatcher
             >(AddTagToWeapon.GetCustomWeaponTags).Method;
             var customIsWeapon = new Func<ItemDefinition, bool>(ShieldAttack.IsWeaponOrShield).Method;
 
+            //PATCH: share Monk weapon rules with equipment validation, including specializations.
+            var isMonkWeapon = typeof(WeaponDescription).GetMethod(nameof(WeaponDescription.IsMonkWeaponOrUnarmed));
+            var customIsMonkWeapon =
+                new Func<WeaponDescription, RulesetCharacter, bool>(IsMonkWeaponOrUnarmed).Method;
+
             return instructions
+                .ReplaceCalls(isMonkWeapon,
+                    "RulesetImplementationManager.IsValidContextForRestrictedContextProvider.IsMonkWeaponOrUnarmed",
+                    new CodeInstruction(OpCodes.Ldarg_2),
+                    new CodeInstruction(OpCodes.Call, customIsMonkWeapon))
                 .ReplaceCalls(weaponDescription,
                     "RulesetImplementationManager.IsValidContextForRestrictedContextProvider.WeaponDescription",
                     new CodeInstruction(OpCodes.Call, customWeaponDescription))
@@ -1268,6 +1287,11 @@ public static class RulesetImplementationManagerPatcher
                 .ReplaceCalls(isWeapon,
                     "RulesetImplementationManager.IsValidContextForRestrictedContextProvider.IsWeapon",
                     new CodeInstruction(OpCodes.Call, customIsWeapon));
+        }
+
+        private static bool IsMonkWeaponOrUnarmed(WeaponDescription weapon, RulesetCharacter character)
+        {
+            return character.IsMonkWeaponOrUnarmed(weapon);
         }
 
         [UsedImplicitly]
@@ -1294,6 +1318,8 @@ public static class RulesetImplementationManagerPatcher
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
         {
+            instructions = CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.CarefulSpell, "RulesetImplementationManager.TryRollSavingThrow");
+
             var rollSavingThrowMethod = typeof(RulesetActor).GetMethod("RollSavingThrow");
             var myRollSavingThrowMethod = typeof(TryRollSavingThrow_Patch).GetMethod("RollSavingThrow");
             //PATCH: make ISpellCastingAffinityProvider from dynamic item properties apply to repertoires
@@ -1370,11 +1396,36 @@ public static class RulesetImplementationManagerPatcher
         }
     }
 
+    [HarmonyPatch(typeof(RulesetImplementationManager), nameof(RulesetImplementationManager.ApplyEffectForm))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ApplyEffectForm_Patch
+    {
+        [UsedImplicitly]
+        private static void Prefix(EffectForm effectForm, ref RulesetImplementationDefinitions.ApplyFormsParams formsParams)
+        {
+            if (effectForm.FormType == EffectForm.EffectFormType.Condition &&
+                formsParams.attackOutcome is RollOutcome.Failure or RollOutcome.CriticalFailure &&
+                formsParams.activeEffect?.SourceDefinition.GetAllSubFeaturesOfType<ApplyConditionsOnAttackMiss>()
+                    .Any(behavior => behavior.IsEnabled) == true)
+            {
+                // Only this form receives a successful application. The attack and its damage still miss.
+                formsParams.attackOutcome = RollOutcome.Success;
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetImplementationManager), nameof(RulesetImplementationManager.ApplyConditionForm))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
     public static class ApplyConditionForm_Patch
     {
+        [UsedImplicitly]
+        private static void Postfix(EffectForm __0, RulesetImplementationDefinitions.ApplyFormsParams __1)
+        {
+            SmiteSpells2024Context.FinalizeSmiteCondition(__0, __1);
+        }
+
         private static readonly List<CodeInstruction> MatchPattern =
         [
             new(OpCodes.Ldarg_2),

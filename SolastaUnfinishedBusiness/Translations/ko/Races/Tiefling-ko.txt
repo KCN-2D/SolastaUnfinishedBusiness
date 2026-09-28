@@ -24,3 +24,4 @@ Race/&RaceTieflingMephistophelesDescription=메피스토펠레스는 자신에�
 Race/&RaceTieflingMephistophelesTitle=메피스토펠레스
 Race/&RaceTieflingZarielDescription=자리엘과 혈연관계가 있는 티플링은 일반적인 티플링보다 강하며 전투에 도움이 되는 마법 능력을 받습니다.
 Race/&RaceTieflingZarielTitle=자리엘
+Feature/&CastSpellTieflingSpeciesSpellcastingDescription=불꽃 생성 주문 캔트립을 알게 됩니다. 3 레벨에 도달하면, 이 특성으로 지옥의 책망 주문을 2 레벨 주문으로 한 번 시전할 수 있으며 긴 휴식을 마치면 다시 사용 가능합니다. 5 레벨이 되면 이 특성으로 어둠 주문을 한 번 시전할 수 있으며, 긴 휴식이 끝나면 다시 사용 가능합니다.

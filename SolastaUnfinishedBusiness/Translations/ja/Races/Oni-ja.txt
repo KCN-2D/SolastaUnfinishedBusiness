@@ -1,4 +1,5 @@
 Feature/&CastSpellOniOgreMagicDescription=3レベルに達すると、大休憩ごとに1回、<b>〈雷鳴の一撃〉</b>を発動できます。この呪文の呪文発動能力値は<b>判断力</b>です。
+Feature/&CastSpellOniOgreMagicSpeciesSpellcastingDescription=3レベルに達すると、大休憩ごとに1回、<b>〈雷鳴の一撃〉</b>を発動できます。
 Feature/&CastSpellOniOgreMagicTitle=オーガの魔法
 Feature/&FeatureSetOniAbilityScoreIncreaseDescription=筋力+2、判断力+1
 Feature/&FeatureSetOniAbilityScoreIncreaseTitle=能力値上昇

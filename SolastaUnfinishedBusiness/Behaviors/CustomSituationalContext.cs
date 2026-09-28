@@ -85,6 +85,11 @@ internal static class CustomSituationalContext
             ExtraSituationalContext.IsConcentratingOnSpell =>
                 contextParams.source.ConcentratedSpell != null,
 
+            ExtraSituationalContext.TargetHasConditionCreatedByMe =>
+                contextParams.target != null && contextParams.source != null && contextParams.condition != null &&
+                contextParams.target.HasConditionOfTypeAndSource(
+                    contextParams.condition.Name, contextParams.source.Guid),
+
             ExtraSituationalContext.IsConditionSource =>
                 // this is required whenever condition is on target
                 IsConditionSource(contextParams.source, contextParams.condition, contextParams.target.guid) ||
@@ -97,17 +102,14 @@ internal static class CustomSituationalContext
     private static bool IsConditionSource(
         RulesetCharacter conditionHolder, [CanBeNull] ConditionDefinition condition, ulong guid)
     {
-        return conditionHolder.TryGetConditionOfCategoryAndType(
-                   AttributeDefinitions.TagEffect, condition?.Name ?? string.Empty, out var activeCondition) &&
-               activeCondition.SourceGuid == guid;
+        return conditionHolder != null && condition != null &&
+               conditionHolder.HasConditionOfTypeAndSource(condition.Name, guid);
     }
 
     private static bool IsNotConditionSource(
         RulesetCharacter conditionHolder, [CanBeNull] ConditionDefinition condition, ulong guid)
     {
-        return !conditionHolder.TryGetConditionOfCategoryAndType(
-                   AttributeDefinitions.TagEffect, condition?.Name ?? string.Empty, out var activeCondition) ||
-               activeCondition.SourceGuid != guid;
+        return !IsConditionSource(conditionHolder, condition, guid);
     }
 
     private static bool AttackerNextToTargetOrYeomanWithLongbow(

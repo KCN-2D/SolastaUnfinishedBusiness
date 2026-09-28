@@ -169,3 +169,5 @@ Screen/&SignatureSpellsExtraSpellDescription=Dieser Signaturzauber ist immer vor
 Screen/&SignatureSpellsExtraSpellTitle=Unterschrift
 Screen/&SpellMasteryExtraSpellDescription=Dieser Meisterschaftszauber ist immer vorbereitet und verbraucht keinen Zauberplatz, wenn er auf der Stufe gewirkt wird.
 Screen/&SpellMasteryExtraSpellTitle=Meisterschaft
+Feature/&FeatureWizardSpellMastery2024Description=Wähle einen Zauber des 1. und einen des 2. Grades aus deinem Zauberbuch mit einer Wirkzeit von einer Aktion. Beide sind stets vorbereitet und können auf ihrem niedrigsten Grad ohne Zauberplatz gewirkt werden. Höhere Grade erfordern einen Zauberplatz. Nach einer langen Rast kannst du einen durch einen zulässigen Zauber desselben Grades ersetzen.
+Feature/&PowerRogueStrokeOfLuck2024Description=Wenn ein Angriffswurf, Attributswurf oder Rettungswurf misslingt, kannst du das W20-Ergebnis durch eine 20 ersetzen. Nach einer kurzen oder langen Rast kannst du diese Fähigkeit erneut einsetzen.

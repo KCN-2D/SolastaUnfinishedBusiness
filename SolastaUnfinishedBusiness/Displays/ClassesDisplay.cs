@@ -59,6 +59,13 @@ internal static class ClassesDisplay
             Tabletop2024Context.SwitchBardSongOfRest();
         }
 
+        toggle = Main.Settings.EnableBardWeaponProficiency2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableBardWeaponProficiency2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableBardWeaponProficiency2024 = toggle;
+            Tabletop2024Context.SwitchBardWeaponProficiency();
+        }
+
         toggle = Main.Settings.EnableBardicInspiration2024;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableBardicInspiration2024"), ref toggle, UI.AutoWidth()))
         {
@@ -112,6 +119,20 @@ internal static class ClassesDisplay
             Tabletop2024Context.SwitchBarbarianPersistentRage();
         }
 
+        toggle = Main.Settings.EnableBarbarianDangerSense2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableBarbarianDangerSense2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableBarbarianDangerSense2024 = toggle;
+            Tabletop2024Context.SwitchBarbarianDangerSense();
+        }
+
+        toggle = Main.Settings.EnableBarbarianIndomitableMight2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableBarbarianIndomitableMight2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableBarbarianIndomitableMight2024 = toggle;
+            Tabletop2024Context.SwitchBarbarianIndomitableMight();
+        }
+
         toggle = Main.Settings.EnableBarbarianRage2024;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableBarbarianRage2024"), ref toggle, UI.AutoWidth()))
         {
@@ -145,6 +166,13 @@ internal static class ClassesDisplay
         }
 
         UI.Label();
+
+        toggle = Main.Settings.EnableClericDivineIntervention2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableClericDivineIntervention2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableClericDivineIntervention2024 = toggle;
+            Tabletop2024Context.SwitchClericDivineIntervention();
+        }
 
         toggle = Main.Settings.EnableClericDivineOrder2024;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableClericDivineOrder2024"), ref toggle, UI.AutoWidth()))
@@ -295,6 +323,13 @@ internal static class ClassesDisplay
             ClassesContext.SwitchMonkAbundantKi();
         }
 
+        toggle = Main.Settings.EnableMonkWeaponProficiency2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableMonkWeaponProficiency2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableMonkWeaponProficiency2024 = toggle;
+            Tabletop2024Context.SwitchMonkWeaponProficiency();
+        }
+
         toggle = Main.Settings.EnableMonkBodyAndMind2024;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableMonkBodyAndMind2024"), ref toggle,
                 UI.AutoWidth()))
@@ -326,6 +361,13 @@ internal static class ClassesDisplay
         {
             Main.Settings.EnableMonkHandwrapsOnGauntletSlot = toggle;
             ClassesContext.SwitchMonkHandwrapsGauntletSlot();
+        }
+
+        toggle = Main.Settings.EnableMonkEmpoweredStrikes2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableMonkEmpoweredStrikes2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableMonkEmpoweredStrikes2024 = toggle;
+            Tabletop2024Context.SwitchMonkEmpoweredStrikes();
         }
 
         toggle = Main.Settings.EnableMonkHeightenedFocus2024;
@@ -458,6 +500,13 @@ internal static class ClassesDisplay
         {
             Main.Settings.EnablePaladinChannelDivinity2024 = toggle;
             Tabletop2024Context.SwitchPaladinChannelDivinity();
+        }
+
+        toggle = Main.Settings.EnablePaladinRadiantStrikes2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnablePaladinRadiantStrikes2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnablePaladinRadiantStrikes2024 = toggle;
+            Tabletop2024Context.SwitchPaladinRadiantStrikes();
         }
 
         toggle = Main.Settings.EnablePaladinSmite2024;
@@ -605,6 +654,13 @@ internal static class ClassesDisplay
         UI.Label("<color=#F0DAA0>" + Gui.Localize("Class/&RogueTitle") + ":</color>");
         UI.Label();
 
+        toggle = Main.Settings.EnableRogueWeaponProficiency2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableRogueWeaponProficiency2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableRogueWeaponProficiency2024 = toggle;
+            Tabletop2024Context.SwitchRogueWeaponProficiency();
+        }
+
         toggle = Main.Settings.EnableRogueCunningStrike2024;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableRogueCunningStrike2024"), ref toggle, UI.AutoWidth()))
         {
@@ -617,6 +673,13 @@ internal static class ClassesDisplay
         {
             Main.Settings.EnableRogueFightingStyle = toggle;
             ClassesContext.SwitchRogueFightingStyle();
+        }
+
+        toggle = Main.Settings.EnableThiefUseMagicDevice2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableThiefUseMagicDevice2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableThiefUseMagicDevice2024 = toggle;
+            Tabletop2024Context.SwitchThiefUseMagicDevice();
         }
 
         toggle = Main.Settings.EnableRogueSteadyAim2024;
@@ -654,9 +717,23 @@ internal static class ClassesDisplay
             Tabletop2024Context.SwitchRogueSlipperyMind();
         }
 
+        toggle = Main.Settings.EnableRogueStrokeOfLuck2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableRogueStrokeOfLuck2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableRogueStrokeOfLuck2024 = toggle;
+            Tabletop2024Context.SwitchRogueStrokeOfLuck();
+        }
+
         UI.Label();
         UI.Label("<color=#F0DAA0>" + Gui.Localize("Class/&SorcererTitle") + ":</color>");
         UI.Label();
+
+        toggle = Main.Settings.EnableSorcererWeaponProficiency2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableSorcererWeaponProficiency2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableSorcererWeaponProficiency2024 = toggle;
+            Tabletop2024Context.SwitchSorcererWeaponProficiency();
+        }
 
         toggle = Main.Settings.EnableSorcererArcaneApotheosis2024;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableSorcererArcaneApotheosis2024"), ref toggle, UI.AutoWidth()))
@@ -752,6 +829,20 @@ internal static class ClassesDisplay
         UI.Label();
         UI.Label("<color=#F0DAA0>" + Gui.Localize("Class/&WizardTitle") + ":</color>");
         UI.Label();
+
+        toggle = Main.Settings.EnableWizardWeaponProficiency2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableWizardWeaponProficiency2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableWizardWeaponProficiency2024 = toggle;
+            Tabletop2024Context.SwitchWizardWeaponProficiency();
+        }
+
+        toggle = Main.Settings.EnableWizardSpellMastery2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableWizardSpellMastery2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableWizardSpellMastery2024 = toggle;
+            Tabletop2024Context.SwitchWizardSpellMastery();
+        }
 
         toggle = Main.Settings.EnableWizardMemorizeSpell2024;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableWizardMemorizeSpell2024"), ref toggle, UI.AutoWidth()))

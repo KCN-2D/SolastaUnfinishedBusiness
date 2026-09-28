@@ -2497,7 +2497,8 @@ internal static class OtherFeats
                         return;
                 }
 
-                action.AttackSuccessDelta += dieRoll - action.AttackRoll;
+                action.AttackSuccessDelta = TryAlterOutcomeAttack.GetReplacementRollSuccessDelta(
+                    action, dieRoll, defender.RulesetActor, attackModifier, attackMode, rulesetEffect);
                 action.AttackRoll = dieRoll;
 
                 if (action.AttackSuccessDelta >= 0)

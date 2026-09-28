@@ -1,9 +1,13 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Models;
 using TMPro;
@@ -363,6 +367,46 @@ public static class CharacterStageRaceSelectionPanelPatcher
             hadLayoutElement = true;
             minHeight = layout.minHeight;
             preferredHeight = layout.preferredHeight;
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterStageRaceSelectionPanel),
+        nameof(CharacterStageRaceSelectionPanel.EnumerateValidationGroups))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class EnumerateValidationGroups_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            // Both feature lists need the native input hints, focus order and mouse-mode reset.
+            var getEnumerator = AccessTools.Method(typeof(Transform), nameof(Transform.GetEnumerator));
+            var enumerateFeatures = new Func<Transform, Transform, IEnumerator>(EnumerateFeatures).Method;
+
+            return instructions.ReplaceCalls(getEnumerator, 1,
+                "CharacterStageRaceSelectionPanel.EnumerateValidationGroups",
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Ldfld,
+                    AccessTools.Field(typeof(CharacterStageRaceSelectionPanel), "subRacialDescriptionsList")),
+                new CodeInstruction(OpCodes.Call, enumerateFeatures));
+        }
+
+        private static IEnumerator EnumerateFeatures(Transform racialDescriptions, Transform subRacialDescriptions)
+        {
+            return racialDescriptions.Cast<Transform>().Concat(subRacialDescriptions.Cast<Transform>()).GetEnumerator();
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterStageRaceSelectionPanel),
+        nameof(CharacterStageRaceSelectionPanel.ChangeSelectorBinding))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ChangeSelectorBinding_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(CharacterStageRaceSelectionPanel __instance, bool status)
+        {
+            __instance.ChangeChildrenSelectorStatus(__instance.subRacialDescriptionsList, status);
         }
     }
 

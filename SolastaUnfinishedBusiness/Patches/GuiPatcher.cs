@@ -63,6 +63,66 @@ public static class GuiPatcher
         }
     }
 
+    [HarmonyPatch(typeof(Gui), nameof(Gui.FormatTemporaryHitPointsForm))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class FormatTemporaryHitPointsForm_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(
+            TemporaryHitPointsForm temporaryHitPointsForm,
+            AddBonusMode addAbilityBonusMode,
+            ref string __result)
+        {
+            var bonus = temporaryHitPointsForm.BonusHitPoints;
+            var bonusFormat = addAbilityBonusMode switch
+            {
+                AddBonusMode.AbilityBonus => "Rules/&AbilityScoreBonusFormat",
+                AddBonusMode.Proficiency => "Rules/&ProficiencyBonusFormat",
+                AddBonusMode.DoubleProficiency => "Rules/&ProficiencyBonusDoubleFormat",
+                _ => null
+            };
+
+            // Use the same source attribute as ApplyTemporaryHitPointsForm. Definition-only
+            // tooltips retain the formula, without changing the shared effect definition.
+            if (TooltipPanelPatcher.EffectFormattingCharacter is { } character &&
+                addAbilityBonusMode is AddBonusMode.Proficiency or AddBonusMode.DoubleProficiency)
+            {
+                var multiplier = addAbilityBonusMode == AddBonusMode.DoubleProficiency ? 2 : 1;
+
+                bonus += multiplier * character.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+                bonusFormat = null;
+            }
+
+            var amount = temporaryHitPointsForm.DiceNumber > 0
+                ? temporaryHitPointsForm.DiceNumber.ToString(CultureInfo.InvariantCulture) +
+                  Gui.GetDieSymbol(temporaryHitPointsForm.DieType)
+                : string.Empty;
+
+            if (bonus != 0)
+            {
+                amount += bonus.ToString(string.IsNullOrEmpty(amount) ? "0;-#" : "+0;-#",
+                    CultureInfo.InvariantCulture);
+            }
+
+            if (bonusFormat != null)
+            {
+                amount += Gui.Localize(bonusFormat);
+            }
+
+            amount = amount.TrimStart(' ', '+');
+            __result = Gui.Format("Rules/&TemporaryHitPointsAmountFormat",
+                string.IsNullOrEmpty(amount) ? "0" : amount);
+
+            if (temporaryHitPointsForm.ApplyToSelf)
+            {
+                __result = Gui.Format("Rules/&ApplySelfFormat", __result);
+            }
+
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(Gui), nameof(Gui.FormatMotionForm))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

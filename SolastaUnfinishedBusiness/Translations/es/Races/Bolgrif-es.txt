@@ -3,6 +3,7 @@ Feature/&AttributeModifierBolgrifStrengthAbilityScoreIncreaseTitle=Aumento de at
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseDescription=Sabiduría +2
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseTitle=Aumento de atributos
 Feature/&CastSpellBolgrifMagicDescription=Conoces un truco de tu elección de la lista de hechizos del druida. Sabiduría es tu habilidad para lanzar hechizos.
+Feature/&CastSpellBolgrifMagicSpeciesSpellcastingDescription=Conoces un truco de tu elección de la lista de hechizos del druida.
 Feature/&CastSpellBolgrifMagicTitle=Magia druídica
 Feature/&EquipmentAffinityBolgrifPowerfulBuildDescription=Tu talla se considera Grande al determinar tu capacidad de carga.
 Feature/&EquipmentAffinityBolgrifPowerfulBuildTitle=Construcción poderosa

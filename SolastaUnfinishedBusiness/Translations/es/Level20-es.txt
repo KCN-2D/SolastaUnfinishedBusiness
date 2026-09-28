@@ -169,3 +169,5 @@ Screen/&SignatureSpellsExtraSpellDescription=Este hechizo característico siempr
 Screen/&SignatureSpellsExtraSpellTitle=Firma
 Screen/&SpellMasteryExtraSpellDescription=Este hechizo de maestría siempre está preparado y no consume un espacio de hechizo cuando se lanza en el nivel.
 Screen/&SpellMasteryExtraSpellTitle=Maestría
+Feature/&FeatureWizardSpellMastery2024Description=Elige un conjuro de nivel 1 y otro de nivel 2 de tu libro cuyo tiempo de lanzamiento sea una acción. Siempre los tienes preparados y puedes lanzarlos a su nivel mínimo sin gastar espacios. Lanzarlos a un nivel superior requiere un espacio. Tras un descanso largo, puedes sustituir uno por otro válido del mismo nivel.
+Feature/&PowerRogueStrokeOfLuck2024Description=Cuando fallas una tirada de ataque, prueba de característica o tirada de salvación, puedes sustituir el resultado del d20 por un 20. Recuperas este uso tras un descanso corto o largo.

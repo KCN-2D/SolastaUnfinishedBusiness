@@ -169,3 +169,5 @@ Screen/&SignatureSpellsExtraSpellDescription=该招牌法术始终视为已准�
 Screen/&SignatureSpellsExtraSpellTitle=招牌
 Screen/&SpellMasteryExtraSpellDescription=该精通法术始终视为已准备，并且在自身环阶施展时不消耗法术位。
 Screen/&SpellMasteryExtraSpellTitle=精通
+Feature/&FeatureWizardSpellMastery2024Description=从法术书中选择施法时间为一个动作的一环和二环法术各一个。它们始终准备，使用最低环阶施放时无需消耗法术位。升环施放需要消耗法术位。每次长休后，可将其中一个替换为同环阶且符合条件的法术。
+Feature/&PowerRogueStrokeOfLuck2024Description=当你的攻击检定、属性检定或豁免检定失败时，你可以将该次d20的结果改为20。完成短休或长休后恢复此次使用机会。

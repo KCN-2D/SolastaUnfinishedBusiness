@@ -169,3 +169,5 @@ Screen/&SignatureSpellsExtraSpellDescription=Esta magia de assinatura está semp
 Screen/&SignatureSpellsExtraSpellTitle=Assinatura
 Screen/&SpellMasteryExtraSpellDescription=Esta magia de Maestria está sempre preparada e não consome espaço de magia quando conjurada em nível.
 Screen/&SpellMasteryExtraSpellTitle=Domínio
+Feature/&FeatureWizardSpellMastery2024Description=Escolha uma magia de nível 1 e uma de nível 2 de seu grimório com tempo de conjuração de uma ação. Elas ficam sempre preparadas e podem ser conjuradas no menor nível sem espaço de magia. Níveis superiores exigem um espaço. Após um Descanso Longo, você pode substituir uma escolha por outra magia válida do mesmo nível.
+Feature/&PowerRogueStrokeOfLuck2024Description=Quando falha em uma jogada de ataque, teste de atributo ou salvaguarda, você pode substituir o resultado do d20 por 20. Você recupera esse uso após um descanso curto ou longo.

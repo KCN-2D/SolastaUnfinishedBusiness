@@ -169,3 +169,5 @@ Screen/&SignatureSpellsExtraSpellDescription=Ce sort de prédilection est toujou
 Screen/&SignatureSpellsExtraSpellTitle=Signature
 Screen/&SpellMasteryExtraSpellDescription=Ce sort de maîtrise est toujours préparé et ne consomme pas d'emplacement de sort lorsqu'il est lancé au niveau.
 Screen/&SpellMasteryExtraSpellTitle=La maîtrise
+Feature/&FeatureWizardSpellMastery2024Description=Choisissez dans votre grimoire un sort de niveau 1 et un de niveau 2 dont l'incantation prend une action. Ils sont toujours préparés et peuvent être lancés à leur niveau minimal sans emplacement. Un lancement à un niveau supérieur exige un emplacement. Après un repos long, vous pouvez remplacer un choix par un sort admissible de même niveau.
+Feature/&PowerRogueStrokeOfLuck2024Description=Quand vous ratez un jet d'attaque, un test de caractéristique ou un jet de sauvegarde, vous pouvez remplacer le résultat du d20 par 20. Vous récupérez cette utilisation après un repos court ou long.

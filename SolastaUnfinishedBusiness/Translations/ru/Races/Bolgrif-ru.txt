@@ -3,6 +3,7 @@ Feature/&AttributeModifierBolgrifStrengthAbilityScoreIncreaseTitle=Увелич�
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseDescription=Мудрость +2
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseTitle=Увеличение характеристики
 Feature/&CastSpellBolgrifMagicDescription=Вы узнаёте один заговор по вашему выбору из списка заклинаний Друида. Мудрость является вашей заклинательной характеристикой для этого заговора.
+Feature/&CastSpellBolgrifMagicSpeciesSpellcastingDescription=Вы узнаёте один заговор по вашему выбору из списка заклинаний Друида.
 Feature/&CastSpellBolgrifMagicTitle=Друидическая магия
 Feature/&EquipmentAffinityBolgrifPowerfulBuildDescription=Вы считаетесь на один размер больше, когда определяется ваша грузоподъемность.
 Feature/&EquipmentAffinityBolgrifPowerfulBuildTitle=Мощное телосложение

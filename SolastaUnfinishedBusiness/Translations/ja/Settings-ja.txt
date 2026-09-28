@@ -137,7 +137,7 @@ ModUi/&EnableBetaContent=ベータ版コンテンツを有効にする<b><i><col
 ModUi/&EnableCancelEditOnRightMouseClick=マウスの右クリックで操作を取り消せるようにします
 ModUi/&EnableCantripsTriggeringOnWarMagic=初級呪文で<color=#D89555>魔法戦士</color>の追加ボーナス攻撃を発動できるようにする
 ModUi/&EnableCharactersOnFireToEmitLight=<color=#D89555>炎上中</color>のキャラクターが光を放つようにします<i><color=#F0DAA0>（光のキューブ、ファイア・エレメンタル、ファイア・ジェスター、ファイア・オスプレイ、ファイア・スパイダー、および炎上状態ファミリー）</color></i>
-ModUi/&EnableClericBlessedStrikes2024=7、14レベルで<color=#D89555>祝福された一撃</color>と<color=#D89555>祝福された一撃強化</color>を有効にします\n<i><color=#F0DAA0>（汚染、生命、悪戯、自然、鍛冶、太陽、嵐の領域にのみ影響）</color></i>
+ModUi/&EnableClericBlessedStrikes2024=7、14レベルで<color=#D89555>祝福された一撃</color>と<color=#D89555>祝福された一撃強化</color>を有効にします
 ModUi/&EnableClericChannelDivinity2024=<color=#D89555>神性伝導</color>を5e 2024版<i><color=#F0DAA0>（用途が異なります）</color></i>と入れ替えます
 ModUi/&EnableClericDivineOrder2024=レベル1で<color=#D89555>神聖なる使命</color>を有効にします<i><color=#F0DAA0>（重装鎧/軍用武器習熟、または追加初級呪文と一部の知力判定のどちらかを選択）</color></i>
 ModUi/&EnableClericSearUndead2024=5レベルで<color=#D89555>アンデッド焼灼</color>を有効にし、<color=#D89555>アンデッド破壊</color>を置き換えます
@@ -226,6 +226,7 @@ ModUi/&EnablePcgRandom=より優れた乱数生成アルゴリズムを有効に
 ModUi/&EnablePoisonsBonusAction2024=ボーナス・アクションとして武器に<color=#D89555>毒</color>を適用できるようにします
 ModUi/&EnablePotionsBonusAction2024=ボーナス・アクションとして<color=#D89555>ポーション</color>を飲めるようにします
 ModUi/&EnableHalfOrcAdrenalineRush2024=<color=#D89555>{0}</color>の<color=#D89555>{1}</color>を<color=#D89555>{2}</color>に置き換えます（2024）
+ModUi/&EnableSpeciesSpellcastingAbility2024=種族の呪文発動能力値を、知力・判断力・魅力から選択できるようにします。
 ModUi/&EnableSpeciesBaseWalkSpeed2024=<color=#D89555>基本移動速度が5マスの種族</color>の基本移動速度を6マスにします
 ModUi/&EnablePreparedSpellsTables2024=すべての<color=#D89555>呪文発動者</color>が新しい準備済み呪文テーブル<i><color=#F0DAA0>（アーティフィサー、バード、クレリック、ドルイド、パラディン、レンジャー、ソーサラー、ウィザード）</color></i>を使用できるようにします。
 ModUi/&EnableSpellLists2024=2024年版のクラス呪文リストを使用します
@@ -250,7 +251,7 @@ ModUi/&EnableRespecAction=休憩アクション後に<color=#D89555>RESPEC</colo
 ModUi/&EnableRitualOnAllCasters2024=すべての呪文発動者が、準備済みの<color=#D89555>儀式</color>呪文を儀式発動できるようにします
 ModUi/&EnableOneSpellSlotPerTurn2024=1ターン中、呪文を発動するために消費できる呪文スロットを1つに制限します<i><color=#F0DAA0>（初級呪文と、呪文スロットを消費せずに発動する呪文には影響しません）</color></i>
 ModUi/&EnableOneDndCounterspellSpell=<color=#D89555>{0}</color>の2024年版を有効にします<i><color=#F0DAA0>（耐久力セーヴ失敗で発動を妨害、妨害された呪文のスロットは非消費）</color></i>
-ModUi/&Counterspell2024CompatibilityDescription=防御術士のレベル10能力である呪文破りも自動的に有効になります。宮廷魔術師の呪文妨害熟練は、自分の呪文妨害に対する対象のセーヴに不利を与え、他者の呪文妨害に対する自分のセーヴに有利を与えます。
+ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>（防御術士のレベル10能力である呪文破りも自動的に有効になります。宮廷魔術師の呪文妨害熟練は、自分の呪文妨害に対する対象のセーヴに不利を与え、他者の呪文妨害に対する自分のセーヴに有利を与えます。）</color></i>
 ModUi/&EnableRogueCunningStrike2024=レベル5、11、14で<color=#D89555>巧妙な一撃</color>、<color=#D89555>改良された巧妙な一撃</color>、<color=#D89555>悪巧みの一撃</color>を有効にします<i><color=#F0DAA0>（追加の命中時効果を得るために、急所攻撃ダイスを1つ放棄します）</color></i>
 ModUi/&EnableRogueFightingStyle=レベル2で<color=#D89555>戦闘スタイル</color>の選択を有効にする
 ModUi/&EnableRogueReliableTalent2024=<color=#D89555>信頼できる才能</color>をレベル11ではなくレベル7で有効にします
@@ -290,7 +291,7 @@ ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=レベル2で<co
 ModUi/&EnableWarlockMagicalCunningAtLevel2=レベル2で<color=#D89555>魔法の狡猾さ</color>を有効にする
 ModUi/&EnableWarlockToLearnPatronAtLevel3=<color=#D89555>パトロン</color>をレベル1ではなくレベル3で有効にする
 ModUi/&EnableAbjurerSpellBreaker2024=防御術士のレベル10能力を2024年版の<color=#D89555>呪文破り</color>に変更します
-ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=2024年版の呪文妨害ルールが有効なため、自動的に有効になります。呪文破りの個別設定は保持され、呪文妨害ルールを無効にすると元の選択に戻ります。
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=<i><color=#F0DAA0>（2024年版の呪文妨害ルールが有効なため、自動的に有効になります。呪文破りの個別設定は保持され、呪文妨害ルールを無効にすると元の選択に戻ります。）</color></i>
 ModUi/&EnableWizardMemorizeSpell2024=レベル5で<color=#D89555>呪文記憶</color>を有効にします
 ModUi/&EnableWizardToLearnScholarAtLevel2=レベル2で<color=#D89555>学者</color>を有効にする
 ModUi/&EnableWizardToLearnSchoolAtLevel3=レベル2ではなくレベル3で<color=#D89555>魔法の学派</color>を選択できるようにする
@@ -344,7 +345,7 @@ ModUi/&IncreaseGameTimeBy=ゲーム時間を増やす
 ModUi/&IncreaseMaxAttunedItems=レベル10で最大<color=#D89555>同調アイテム</color>を4個、レベル18で5個に増加
 ModUi/&Invocations=<color=#F0DAA0>妖術</color>
 ModUi/&Items=<color=#F0DAA0>アイテム：</color>
-ModUi/&ItemsHelp1=<color=#C04040E0>キャラクター検査画面を開いてヒーローにアイテムを追加します……</color>
+ModUi/&ItemsHelp1=<color=#C04040E0>アイテムを追加するには、キャラクター画面を開いてください。</color>
 ModUi/&ItemsHelp2=<b>+を押すと地上の容器にアイテムが追加されます</b>
 ModUi/&KeepInvisibilityWhenUsingItems=アイテム使用で<color=#D89555>不可視状態</color>が解除されないようにします
 ModUi/&MakeAllMagicStaveArcaneFoci=すべての魔法の杖を秘術焦点具として扱います<i><color=#F0DAA0>（<color=#D89555>治癒の杖</color>は汎用焦点具のため除外）</color></i>
@@ -542,3 +543,18 @@ ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>（有効中は独立した20
 ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>（有効中に個別に切り替えられるのは下の独立2024特技だけです。旧特技トグルはロックされます）</color></i>
 ModUi/&EnableStrictTabletopClassSelection=厳密なテーブルトップクラス/サブクラス選択を使う
 ModUi/&EnableStrictTabletopClassSelectionHelp=有効にすると、テーブルトップ由来クラスとテーブルトップタグ付きサブクラスだけを選択できます。対象外サブクラスのUBトグルは強制的に無効化されます。有効時、クレリックの領域は神格で制限されません。
+ModUi/&EnableWizardSpellMastery2024=<color=#D89555>呪文体得</color>の2024年版を有効にします<i><color=#F0DAA0>（発動時間はアクション、大休憩後に1つ変更可能）</color></i>
+ModUi/&EnableThiefUseMagicDevice2024=シーフの<color=#D89555>魔法装置使用</color>を2024年版に変更します<i><color=#F0DAA0>（同調4個、チャージの節約、知力による巻物の使用）</color></i>
+ModUi/&EnableBarbarianDangerSense2024=<color=#D89555>危険感知</color>の2024年版を有効にします<i><color=#F0DAA0>（無力状態でなければ敏捷力セーヴに有利）</color></i>
+ModUi/&EnableBarbarianIndomitableMight2024=<color=#D89555>大力無双</color>の2024年版を有効にします<i><color=#F0DAA0>（筋力判定と筋力セーヴの合計値に下限を適用）</color></i>
+ModUi/&EnableClericDivineIntervention2024=<color=#D89555>神性介入</color>と<color=#D89555>神性介入の強化</color>の2024年版を有効にします<i><color=#F0DAA0>（クレリック呪文を選択、20レベルで願いを追加）</color></i>
+ModUi/&EnablePaladinRadiantStrikes2024=<color=#D89555>光輝の打撃</color>の2024年版を有効にします<i><color=#F0DAA0>（素手打撃にも適用）</color></i>
+ModUi/&EnableOneDndShillelaghSpell=<color=#D89555>{0}</color>の2024年版を有効にします<i><color=#F0DAA0>（キャラクター・レベル5・11・17でダメージが増加し、力場ダメージを選択可能）</color></i>
+ModUi/&HideousLaughter2024TargetingHelp=<i><color=#F0DAA0>（2024年版のターシャの抱腹絶倒が有効な間は、すべてのクリーチャー種別を目標にできます。個別の対象制限の設定は保存され、2024年版を無効にすると再び適用されます。）</color></i>
+ModUi/&EnableMonkEmpoweredStrikes2024=<color=#D89555>気打撃</color>の2024年版を有効にします<i><color=#F0DAA0>（素手打撃のダメージ種別を力場に変更可能）</color></i>
+ModUi/&EnableRogueStrokeOfLuck2024=<color=#D89555>幸運児</color>の2024年版を有効にします<i><color=#F0DAA0>（失敗したd20テストの出目を20に変更）</color></i>
+ModUi/&EnableBardWeaponProficiency2024=<color=#D89555>バードの武器習熟</color>を2024年版に変更します<i><color=#F0DAA0>（単純武器）</color></i>
+ModUi/&EnableMonkWeaponProficiency2024=<color=#D89555>モンクの武器習熟</color>を2024年版に変更します<i><color=#F0DAA0>（単純武器と、軽武器の特性を持つ軍用武器）</color></i>
+ModUi/&EnableRogueWeaponProficiency2024=<color=#D89555>ローグの武器習熟</color>を2024年版に変更します<i><color=#F0DAA0>（単純武器と、妙技または軽武器の特性を持つ軍用武器）</color></i>
+ModUi/&EnableSorcererWeaponProficiency2024=<color=#D89555>ソーサラーの武器習熟</color>を2024年版に変更します<i><color=#F0DAA0>（すべての単純武器）</color></i>
+ModUi/&EnableWizardWeaponProficiency2024=<color=#D89555>ウィザードの武器習熟</color>を2024年版に変更します<i><color=#F0DAA0>（すべての単純武器）</color></i>

@@ -1,6 +1,7 @@
 Condition/&ConditionDarkKoboldGrovelCowerAndBegDescription=Sie haben einen Vorteil bei Ihren Angriffswürfen gegen Feinde im Umkreis von 10 Fuß Ihres Kobold-Verbündeten.
 Condition/&ConditionDarkKoboldGrovelCowerAndBegTitle=Kriechen, kauern und betteln
 Feature/&CastSpellDraconicKoboldMagicDescription=Du kennst einen Zauberspruch deiner Wahl aus der Zauberliste des Zauberers. Charisma ist deine Zauberfähigkeit dafür.
+Feature/&CastSpellDraconicKoboldMagicSpeciesSpellcastingDescription=Du kennst einen Zauberspruch deiner Wahl aus der Zauberliste des Zauberers.
 Feature/&CastSpellDraconicKoboldMagicTitle=Koboldmagie
 Feature/&PowerDarkKoboldGrovelCowerAndBegDescription=Als Aktion während deines Zuges kannst du dich erbärmlich ducken, um Gegner in der Nähe abzulenken. Bis zum Ende deines nächsten Zuges haben deine Verbündeten einen Vorteil bei Angriffswürfen gegen Gegner, die dich innerhalb von 10 Fuß um dich herum sehen können. Sobald du diese Eigenschaft verwendest, kannst du sie nicht erneut verwenden, bis du eine kurze oder lange Pause eingelegt hast.
 Feature/&PowerDarkKoboldGrovelCowerAndBegTitle=Kriechen, kauern und betteln

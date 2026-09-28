@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.CustomUI;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -27,6 +28,12 @@ public class FeatureElementEffectLinePatcher
         {
             ClearTooltip(__instance);
         }
+
+        [UsedImplicitly]
+        public static void Postfix(FeatureElementEffectLine __instance)
+        {
+            TooltipEffectForms.RemoveRepeatedDescriptions(__instance);
+        }
     }
 
     //PATCH: clear tooltip on bind, so it does not show previous value if new effect has no trends
@@ -47,6 +54,12 @@ public class FeatureElementEffectLinePatcher
         public static void Prefix([NotNull] FeatureElementEffectLine __instance)
         {
             ClearTooltip(__instance);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(FeatureElementEffectLine __instance, EffectForm effectForm)
+        {
+            TooltipEffectForms.RemoveRepeatedDescriptions(__instance, effectForm);
         }
     }
 }

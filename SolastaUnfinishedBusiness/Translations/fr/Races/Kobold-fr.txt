@@ -1,6 +1,7 @@
 Condition/&ConditionDarkKoboldGrovelCowerAndBegDescription=Vous bénéficiez d'un avantage sur vos jets d'attaque contre les ennemis à moins de 10 pieds de votre allié Kobold.
 Condition/&ConditionDarkKoboldGrovelCowerAndBegTitle=Ramper, se recroqueviller et supplier
 Feature/&CastSpellDraconicKoboldMagicDescription=Vous connaissez un sort de votre choix dans la liste des sorts de Sorcier. Le Charisme est votre capacité à lancer des sorts pour ce sort.
+Feature/&CastSpellDraconicKoboldMagicSpeciesSpellcastingDescription=Vous connaissez un sort de votre choix dans la liste des sorts de Sorcier.
 Feature/&CastSpellDraconicKoboldMagicTitle=Magie Kobold
 Feature/&PowerDarkKoboldGrovelCowerAndBegDescription=En tant qu'action pendant votre tour, vous pouvez vous recroqueviller pathétiquement pour distraire les ennemis proches. Jusqu'à la fin de votre prochain tour, vos alliés bénéficient d'un avantage sur les jets d'attaque contre les ennemis à 3 mètres ou moins de vous qui peuvent vous voir. Une fois que vous avez utilisé cette aptitude, vous ne pouvez plus l'utiliser avant d'avoir terminé un repos court ou long.
 Feature/&PowerDarkKoboldGrovelCowerAndBegTitle=Ramper, se recroqueviller et supplier

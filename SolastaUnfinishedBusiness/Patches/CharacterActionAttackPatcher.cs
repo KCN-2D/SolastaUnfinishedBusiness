@@ -561,6 +561,8 @@ public static class CharacterActionAttackPatcher
                             SaveOutcome = __instance.SaveOutcome,
                             SaveOutcomeDelta = __instance.SaveOutcomeDelta,
                             SaveDC = RulesetActorExtensions.SaveDC,
+                            CurrentRoll = RulesetActorExtensions.SaveRoll,
+                            MinimumResult = RulesetActorExtensions.SaveMinimumResult,
                             SaveBonusAndRollModifier = RulesetActorExtensions.SaveBonusAndRollModifier,
                             SavingThrowAbility = RulesetActorExtensions.SavingThrowAbility,
                             SourceDefinition = null,

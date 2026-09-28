@@ -54,7 +54,7 @@ public static class CharacterActionCastSpellPatcher
         {
             if (__instance.ActiveSpell is RulesetEffectSpellWithOrigin
                 {
-                    BypassComponentsAndCastingTime: true
+                    BypassCastingTime: true
                 })
             {
                 __result = Empty();
@@ -361,6 +361,29 @@ public static class CharacterActionCastSpellPatcher
         {
             //PATCH: Used for making Saving Throw when affecting target under Sanctuary
             return SpellBuilders.CheckSanctuaryForMagicEffect(__instance, targetCharacter, out isImmune);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterActionCastSpell), MethodType.Constructor, [typeof(CharacterActionParams)])]
+    [UsedImplicitly]
+    internal static class Constructor_Patch
+    {
+        [UsedImplicitly]
+        private static void Postfix(CharacterActionParams __0)
+        {
+            // Reconstruct explicit payment after the native action/effect network deserialization.
+            SpellCastingResourceContext.RestoreSelection(__0);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterActionCastSpell), nameof(CharacterActionCastSpell.CheckExecutionFailure))]
+    [UsedImplicitly]
+    internal static class CheckExecutionFailure_Patch
+    {
+        [UsedImplicitly]
+        internal static void Postfix(CharacterActionCastSpell __instance, ref IEnumerator __result)
+        {
+            __result = ThiefUseMagicDevice2024Context.CheckScrollExecutionFailure(__result, __instance);
         }
     }
 }

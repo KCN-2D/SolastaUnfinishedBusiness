@@ -308,8 +308,8 @@ __pycache__/
 # Linux direnv  files
 .envrc
 
-# Environment files with sensitive data
-Scripts/.env
+# Local-only development and verification scripts
+/Scripts/RuntimeVerification
 
 # Cake - Uncomment if you are using it
 # tools/**

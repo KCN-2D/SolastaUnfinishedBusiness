@@ -11,6 +11,7 @@ Failure/&TargetOutOfRange=Il bersaglio è fuori portata.
 Feature/&ActionAffinityImpForestInnateCunningDescription=Utilizzi la tua azione bonus per Disimpegnarti o Nasconderti.
 Feature/&ActionAffinityImpForestInnateCunningTitle=Astuzia innata
 Feature/&CastSpellImpInfernalDescription=Conosci il trucchetto Vicious Mockery. Quando raggiungi il livello 3, puoi lanciare Invisibility una volta per ogni riposo lungo. Il Carisma è la tua abilità di lancio di incantesimi per questi incantesimi.
+Feature/&CastSpellImpInfernalSpeciesSpellcastingDescription=Conosci il trucchetto Vicious Mockery. Quando raggiungi il livello 3, puoi lanciare Invisibility una volta per ogni riposo lungo.
 Feature/&CastSpellImpInfernalTitle=Imbroglione diabolico
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseDescription=Costituzione +2, Intelligenza +1
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseTitle=Aumento del punteggio di abilità

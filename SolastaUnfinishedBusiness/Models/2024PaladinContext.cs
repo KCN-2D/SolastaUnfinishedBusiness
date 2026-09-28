@@ -27,6 +27,18 @@ public static partial class Tabletop2024Context
 {
     internal static readonly SpellDefinition DivineSmiteSpell = SpellBuilders.BuildDivineSmite();
 
+    internal static void SwitchPaladinRadiantStrikes()
+    {
+        var feature = FeatureDefinitionAdditionalDamages.AdditionalDamagePaladinImprovedDivineSmite;
+        feature.GuiPresentation.title = Main.Settings.EnablePaladinRadiantStrikes2024
+            ? "Feature/&PaladinRadiantStrikes2024Title"
+            : "Feature/&PaladinImprovedDivineSmiteTitle";
+        feature.GuiPresentation.description = Main.Settings.EnablePaladinRadiantStrikes2024
+            ? "Feature/&PaladinRadiantStrikes2024Description"
+            : "Feature/&PaladinImprovedDivineSmiteDescription";
+    }
+
+
     internal static readonly FeatureDefinitionAutoPreparedSpells DivineSmite2024AutoSpell =
         FeatureDefinitionAutoPreparedSpellsBuilder.Create("AutoPreparedSpellsDivineSmite2024")
             .SetGuiPresentationNoContent(hidden: true)
@@ -104,6 +116,7 @@ public static partial class Tabletop2024Context
         ConditionDefinitions.ConditionFrightened,
         ConditionDefinitions.ConditionBlinded,
         ConditionDefinitions.ConditionCharmed,
+        ConditionDefinitions.ConditionDeafened,
         ConditionDefinitions.ConditionParalyzed,
         ConditionDefinitions.ConditionStunned
     ];
@@ -120,13 +133,13 @@ public static partial class Tabletop2024Context
         // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var condition in RestoringTouchConditions)
         {
-            var conditionTitle = condition.FormatTitle();
-            var title = "PowerPaladinRestoringTouchSubPowerTitle".Formatted(Category.Feature, conditionTitle);
-            var description =
-                "PowerPaladinRestoringTouchSubPowerDescription".Formatted(Category.Feature, conditionTitle);
             var power = FeatureDefinitionPowerSharedPoolBuilder
                 .Create($"PowerPaladinRestoringTouch{condition.Name}")
-                .SetGuiPresentation(title, description)
+                .SetGuiPresentation("Feature/&PowerPaladinRestoringTouchSubPowerTitle",
+                    "Feature/&PowerPaladinRestoringTouchSubPowerDescription")
+                .AddCustomSubFeatures(new FormattedDefinitionText(
+                    () => Gui.Format("Feature/&PowerPaladinRestoringTouchSubPowerTitle", condition.FormatTitle()),
+                    () => Gui.Format("Feature/&PowerPaladinRestoringTouchSubPowerDescription", condition.FormatTitle())))
                 .SetSharedPool(ActivationTime.NoCost, PowerPaladinRestoringTouch, 5)
                 .SetEffectDescription(EffectDescriptionBuilder.Create()
                     .SetTargetingData(Side.Ally, RangeType.Distance, 12, TargetType.IndividualsUnique)
@@ -142,48 +155,52 @@ public static partial class Tabletop2024Context
 
     private static void LoadPaladinRestoreLevel20Features()
     {
-        // Get List<(Subclass, Power)> of tuples for features to recharge
-        var subclassPower = DatabaseRepository.GetDatabase<CharacterSubclassDefinition>()
-            .Where(subclass => subclass.Name.StartsWith("OathOf"))
-            .SelectMany((subclass, _) => //flatten the list in case there are multiple Lv.20 powers
-                    subclass.FeatureUnlocks
-                        .Where(unlock => unlock is
-                        {
-                            Level: 20, FeatureDefinition: FeatureDefinitionPower
-                            {
-                                RechargeRate: RechargeRate.LongRest
-                            }
-                        })
-                        .Select(unlock => unlock.FeatureDefinition as FeatureDefinitionPower)
-                , (subclass, power) =>
-                    (Subclass: subclass, Power: power)) // create a tuple
-            .Where(x => x.Power != null)
-            .Select(x => x)
-            .ToArray();
+        // Include inactive UB subclasses as well as the native subclasses from the class choice.
+        var subclasses = FeatureDefinitionSubclassChoices.SubclassChoicePaladinSacredOaths.Subclasses
+            .Select(GetDefinition<CharacterSubclassDefinition>)
+            .Concat(SubclassesContext.KlassListContextTab[Paladin].AllSubClasses)
+            .Distinct();
+        var rechargePowers = new Dictionary<FeatureDefinitionPower, FeatureDefinitionPower>();
 
-        const string TITLE = "Feature/&FeaturePaladinRechargeLv20PowerTitle";
-        const string DESCRIPTION = "Feature/&FeaturePaladinRechargeLv20PowerDescription";
-
-        foreach (var (subclass, power) in subclassPower)
+        foreach (var subclass in subclasses)
         {
-            var powerName = Gui.Localize("Feature/&" + power.Name + "Title");
-            // Build recharge power
-            var rechargePower = FeatureDefinitionPowerBuilder
-                .Create("PowerRecharge" + power.Name)
-                .SetGuiPresentation(
-                    Gui.Format(TITLE, powerName),
-                    Gui.Format(DESCRIPTION, powerName),
-                    Sprites.GetSprite("PowerCallForCharge", Resources.PowerCallForCharge, 256, 128))
-                .SetShowCasting(false)
-                .AddToDB();
+            var powers = subclass.FeatureUnlocks
+                .Where(unlock => unlock.Level == 20)
+                .SelectMany(unlock => EnumerateFeatureTree(unlock.FeatureDefinition))
+                .OfType<FeatureDefinitionPower>()
+                .Where(power => power.RechargeRate == RechargeRate.LongRest &&
+                                power.ActivationTime != ActivationTime.Permanent &&
+                                power.CostPerUse > 0)
+                .Distinct();
 
-            // Add custom behaviour to recharge a given feature
-            rechargePower.AddCustomSubFeatures(new CustomBehaviourPaladinRechargeLv20Power(power));
+            foreach (var power in powers)
+            {
+                if (!rechargePowers.TryGetValue(power, out var rechargePower))
+                {
+                    rechargePower = FeatureDefinitionPowerBuilder
+                        .Create("PowerRecharge" + power.Name)
+                        .SetGuiPresentation(
+                            "Feature/&FeaturePaladinRechargeLv20PowerTitle",
+                            "Feature/&FeaturePaladinRechargeLv20PowerDescription",
+                            Sprites.GetSprite("PowerCallForCharge", Resources.PowerCallForCharge, 256, 128))
+                        .SetUsesFixed(ActivationTime.NoCost)
+                        .SetEffectDescription(EffectDescriptionBuilder.Create()
+                            .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
+                            .SetParticleEffectParameters(PowerPaladinLayOnHands)
+                            .UseQuickAnimations()
+                            .Build())
+                        .SetShowCasting(true)
+                        .AddCustomSubFeatures(
+                            new CustomBehaviourPaladinRechargeLv20Power(power),
+                            new FormattedDefinitionText(
+                                () => Gui.Format("Feature/&FeaturePaladinRechargeLv20PowerTitle", power.FormatTitle()),
+                                () => Gui.Format("Feature/&FeaturePaladinRechargeLv20PowerDescription", power.FormatTitle())))
+                        .AddToDB();
+                    rechargePowers.Add(power, rechargePower);
+                }
 
-            // Add power to subclasses
-            var featureUnlock = new FeatureUnlockByLevel(rechargePower, 20);
-
-            SubclassFeatureTuples.Add((subclass, featureUnlock));
+                SubclassFeatureTuples.Add((subclass, new FeatureUnlockByLevel(rechargePower, 20)));
+            }
         }
     }
 
@@ -191,9 +208,7 @@ public static partial class Tabletop2024Context
     {
         foreach (var (subclass, feature) in SubclassFeatureTuples)
         {
-            subclass.FeatureUnlocks.RemoveAll(x =>
-                x.FeatureDefinition == feature.FeatureDefinition &&
-                x.Level == feature.Level);
+            subclass.FeatureUnlocks.RemoveAll(x => x.FeatureDefinition == feature.FeatureDefinition);
 
             if (Main.Settings.EnablePaladinRechargeLv20Feature)
             {
@@ -201,6 +216,96 @@ public static partial class Tabletop2024Context
             }
 
             subclass.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+        }
+
+        var characterService = ServiceRepository.GetService<IGameLocationCharacterService>();
+
+        if (characterService == null)
+        {
+            return;
+        }
+
+        foreach (var character in characterService.PartyCharacters)
+        {
+            if (character.RulesetCharacter is RulesetCharacterHero hero)
+            {
+                UpdatePaladinRechargeLv20Power(hero);
+            }
+        }
+    }
+
+    internal static void UpdatePaladinRechargeLv20Power(RulesetCharacterHero hero)
+    {
+        if (!hero.ClassesAndSubclasses.TryGetValue(Paladin, out var subclass))
+        {
+            return;
+        }
+
+        var enabled = Main.Settings.EnablePaladinRechargeLv20Feature && hero.GetClassLevel(Paladin) >= 20;
+        var tag = AttributeDefinitions.GetSubclassTag(Paladin, 20, subclass);
+        var powers = SubclassFeatureTuples.Where(entry => entry.Subclass == subclass)
+            .Select(entry => (FeatureDefinitionPower)entry.Feature.FeatureDefinition)
+            .ToArray();
+
+        if (!hero.ActiveFeatures.TryGetValue(tag, out var features))
+        {
+            if (!enabled || powers.Length == 0)
+            {
+                return;
+            }
+
+            features = [];
+            hero.ActiveFeatures.Add(tag, features);
+        }
+
+        foreach (var power in powers)
+        {
+            if (enabled)
+            {
+                features.TryAdd(power);
+            }
+            else
+            {
+                features.Remove(power);
+                hero.UsablePowers.RemoveAll(usable => usable.PowerDefinition == power);
+            }
+        }
+
+        if (enabled)
+        {
+            foreach (var power in powers.Where(power => hero.GetPowerFromDefinition(power) == null))
+            {
+                hero.UsablePowers.Add(PowerProvider.Get(power, hero));
+            }
+        }
+    }
+
+    private static IEnumerable<FeatureDefinition> EnumerateFeatureTree(FeatureDefinition root)
+    {
+        var pending = new Stack<FeatureDefinition>();
+        var visited = new HashSet<FeatureDefinition>();
+        pending.Push(root);
+
+        while (pending.Count > 0)
+        {
+            var feature = pending.Pop();
+
+            if (feature == null || !visited.Add(feature))
+            {
+                continue;
+            }
+
+            yield return feature;
+
+            if (feature is not FeatureDefinitionFeatureSet featureSet)
+            {
+                continue;
+            }
+
+            foreach (var child in featureSet.FeatureSet)
+            {
+                pending.Push(child);
+            }
         }
     }
 
@@ -403,7 +508,8 @@ public static partial class Tabletop2024Context
     {
         public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
         {
-            if (!Main.Settings.EnablePaladinRestoringTouch2024)
+            if (!Main.Settings.EnablePaladinRestoringTouch2024 || action.Countered || action.ExecutionFailed ||
+                action.ActionParams.TargetCharacters.Count == 0)
             {
                 yield break;
             }
@@ -456,25 +562,37 @@ public static partial class Tabletop2024Context
     {
         public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition power)
         {
-            var character = action.ActingCharacter;
-            var rulesetCharacter = character.RulesetCharacter;
-            var repertoire = rulesetCharacter.GetClassSpellRepertoire(Paladin);
-            var usablePower = PowerProvider.Get(powerToRecharge, rulesetCharacter);
+            var character = action.ActingCharacter.RulesetCharacter;
 
-            repertoire!.SpendSpellSlot(5);
-            rulesetCharacter.UpdateUsageForPowerPool(-1, usablePower);
+            // Recheck the same resources at completion; a cancelled or stale command must not spend a slot.
+            if (action.Countered || action.ExecutionFailed ||
+                !CanUsePower(character, power as FeatureDefinitionPower))
+            {
+                yield break;
+            }
 
-            yield break;
+            var repertoire = character.GetClassSpellRepertoire(Paladin);
+            var usablePower = character.GetPowerFromDefinition(powerToRecharge);
+
+            repertoire.SpendSpellSlot(5);
+            character.UpdateUsageForPowerPool(-powerToRecharge.CostPerUse, usablePower);
+            character.PowerRecharged?.Invoke(character, usablePower);
         }
 
-        public bool CanUsePower(RulesetCharacter rulesetCharacter, FeatureDefinitionPower power)
+        public bool CanUsePower(RulesetCharacter character, FeatureDefinitionPower power)
         {
-            var repertoire = rulesetCharacter.GetClassSpellRepertoire(Paladin);
-            var remaining = 0;
+            if (!Main.Settings.EnablePaladinRechargeLv20Feature || character.GetClassLevel(Paladin) < 20 ||
+                character.GetPowerFromDefinition(powerToRecharge) is not { } usablePower ||
+                character.GetRemainingUsesOfPower(usablePower) > 0)
+            {
+                return false;
+            }
 
+            var repertoire = character.GetClassSpellRepertoire(Paladin);
+            var remaining = 0;
             repertoire?.GetSlotsNumber(5, out remaining, out _);
 
-            return remaining > 0 && rulesetCharacter.GetRemainingPowerUses(powerToRecharge) == 0;
+            return remaining > 0;
         }
     }
 

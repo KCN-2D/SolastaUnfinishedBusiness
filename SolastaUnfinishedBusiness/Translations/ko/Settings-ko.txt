@@ -144,7 +144,7 @@ ModUi/&EnableBetaContent=베타 콘텐츠 활성화 <b><i><color=#C04040E0>[재�
 ModUi/&EnableCancelEditOnRightMouseClick=마우스 오른쪽 클릭으로 취소 작업 활성화
 ModUi/&EnableCantripsTriggeringOnWarMagic=주문이 <color=#D89555>전쟁 마법</color> 추가 보너스 공격을 발동하도록 허용합니다.
 ModUi/&EnableCharactersOnFireToEmitLight=<color=#D89555>불타는</color> 캐릭터는 빛을 내야 합니다. <i><color=#F0DAA0>[빛의 큐브, 불의 정령, 불의 광대, 불의 물수리, 불의 거미, 불의 상태 패밀리]</color></i>
-ModUi/&EnableClericBlessedStrikes2024=레벨 7과 14에서 <color=#D89555>축복받은 일격</color>과 <color=#D89555>개선된 축복받은 일격</color>을 활성화합니다.\n<i><color=#F0DAA0>[Defiler, Life, Mischief, Nature, Smith, Sun, Tempest 도메인에만 영향을 미칩니다.]</color></i>
+ModUi/&EnableClericBlessedStrikes2024=레벨 7과 14에서 <color=#D89555>축복받은 일격</color>과 <color=#D89555>개선된 축복받은 일격</color>을 활성화합니다.
 ModUi/&EnableClericChannelDivinity2024=<color=#D89555>채널 디비니티</color>를 5e 2024 버전 <i><color=#F0DAA0>[다른 용도]</color></i>으로 바꾸세요
 ModUi/&EnableClericDivineOrder2024=레벨 1에서 <color=#D89555>신성한 질서</color> 활성화 <i><color=#F0DAA0>[중갑옷/무술 무기 전문가 또는 보너스 주문과 일부 INT 검사 중 선택]</color></i>
 ModUi/&EnableClericSearUndead2024=레벨 5에서 ​​<color=#D89555>언데드 파괴</color>를 대체하기 위해 <color=#D89555>언데드 태우기</color>를 활성화합니다.
@@ -234,6 +234,7 @@ ModUi/&EnablePcgRandom=더 나은 난수 생성 알고리즘을 활성화하세�
 ModUi/&EnablePoisonsBonusAction2024=보너스 액션으로 무기에 <color=#D89555>독</color>을 적용하도록 활성화합니다.
 ModUi/&EnablePotionsBonusAction2024=보너스 액션으로 <color=#D89555>물약</color> 마시기를 활성화합니다.
 ModUi/&EnableHalfOrcAdrenalineRush2024=<color=#D89555>{0}</color>: <color=#D89555>{1}</color> 특성을 <color=#D89555>{2}</color> 특성으로 교체합니다 (2024)
+ModUi/&EnableSpeciesSpellcastingAbility2024=종족 주문의 주문 시전 능력을 지능, 지혜, 매력 중에서 선택할 수 있게 합니다.
 ModUi/&EnableSpeciesBaseWalkSpeed2024=<color=#D89555>기본 이동 속도가 5칸인 플레이 가능한 종족</color>의 속도를 6칸으로 설정합니다.
 ModUi/&EnablePreparedSpellsTables2024=모든 <color=#D89555>주문자</color>가 새로 준비된 주문표 <i><color=#F0DAA0>[기술자, 바드, 성직자, 드루이드, 성기사, 레인저, 소서러, 위저드]</color></i>를 사용할 수 있도록 합니다.
 ModUi/&EnableSpellLists2024=2024년 클래스 주문 목록 사용
@@ -258,7 +259,7 @@ ModUi/&EnableRespecAction=휴식 동작 후 <color=#D89555>RESPEC</color> 활성
 ModUi/&EnableRitualOnAllCasters2024=모든 시전자에 <color=#D89555>의식</color> 시전 활성화
 ModUi/&EnableOneSpellSlotPerTurn2024=한 턴에 주문 시전으로 주문 슬롯을 하나만 소비할 수 있는 2024년 규칙을 적용합니다. <i><color=#F0DAA0>[소마법과 주문 슬롯을 소비하지 않는 시전에는 영향을 주지 않습니다]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[건강 내성 굴림 실패 시 시전을 방해하며 대상 주문의 슬롯은 소모되지 않음]</color></i>
-ModUi/&Counterspell2024CompatibilityDescription=10레벨 방호술사의 주문 파괴자도 자동으로 활성화됩니다. 코트 메이지의 주문 반사 통달은 자신의 카운터스펠 대상이 하는 내성 굴림에 불리점을 주고, 카운터스펠에 맞서는 자신의 내성 굴림에는 이점을 줍니다.
+ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>[10레벨 방호술사의 주문 파괴자도 자동으로 활성화됩니다. 코트 메이지의 주문 반사 통달은 자신의 카운터스펠 대상이 하는 내성 굴림에 불리점을 주고, 카운터스펠에 맞서는 자신의 내성 굴림에는 이점을 줍니다.]</color></i>
 ModUi/&EnableRogueCunningStrike2024=레벨 5, 11, 14에서 <color=#D89555>교활한 일격</color>, <color=#D89555>개선된 교활한 일격</color>, <color=#D89555>사악한 일격</color>을 활성화합니다. <i><color=#F0DAA0>[추가 적중 효과를 위해 몰래 공격 주사위 1개를 포기합니다]</color></i>
 ModUi/&EnableRogueFightingStyle=레벨 2에서 <color=#D89555>격투 스타일</color> 선택 가능
 ModUi/&EnableRogueReliableTalent2024=레벨 11 대신 레벨 7에서 <color=#D89555>신뢰할 수 있는 재능</color>을 활성화합니다.
@@ -299,7 +300,7 @@ ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=레벨 2에서 <
 ModUi/&EnableWarlockMagicalCunningAtLevel2=레벨 2에서 <color=#D89555>마법의 교활함</color>을 활성화합니다.
 ModUi/&EnableWarlockToLearnPatronAtLevel3=레벨 1 대신 레벨 3에서 <color=#D89555>후원자</color> 활성화
 ModUi/&EnableAbjurerSpellBreaker2024=방호술사의 10레벨 능력을 2024년판 <color=#D89555>주문 파괴자</color>로 변경
-ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=2024년판 카운터스펠 규칙을 사용하는 동안 자동으로 활성화됩니다. 주문 파괴자의 개별 설정은 보존되며 해당 규칙을 끄면 원래 선택이 다시 적용됩니다.
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=<i><color=#F0DAA0>[2024년판 카운터스펠 규칙을 사용하는 동안 자동으로 활성화됩니다. 주문 파괴자의 개별 설정은 보존되며 해당 규칙을 끄면 원래 선택이 다시 적용됩니다.]</color></i>
 ModUi/&EnableWizardMemorizeSpell2024=레벨 5에서 <color=#D89555>주문 기억</color>을 활성화합니다.
 ModUi/&EnableWizardToLearnScholarAtLevel2=레벨 2에서 <color=#D89555>학자</color> 활성화
 ModUi/&EnableWizardToLearnSchoolAtLevel3=<color=#D89555>마법 학교</color>를 2레벨 대신 3레벨로 활성화합니다.
@@ -542,3 +543,18 @@ ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses
 ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[While enabled, only the independent 2024 feats below can be toggled. Legacy feat toggles are locked]</color></i>
 ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
 ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
+ModUi/&EnableWizardSpellMastery2024=2024 <color=#D89555>주문 통달</color> 사용 <i><color=#F0DAA0>[행동 주문, 긴 휴식 후 주문 하나 교체]</color></i>
+ModUi/&EnableThiefUseMagicDevice2024=2024 도둑 <color=#D89555>마법 도구 사용</color> 적용 <i><color=#F0DAA0>[조율 4개, 충전 보존, 지능으로 두루마리 사용]</color></i>
+ModUi/&EnableBarbarianDangerSense2024=2024 <color=#D89555>위험 감지</color> 사용 <i><color=#F0DAA0>[행동불능이 아니면 민첩 내성에 이점]</color></i>
+ModUi/&EnableBarbarianIndomitableMight2024=2024 <color=#D89555>불굴의 힘</color> 사용 <i><color=#F0DAA0>[힘 판정과 힘 내성의 합계에 최솟값 적용]</color></i>
+ModUi/&EnableClericDivineIntervention2024=2024 <color=#D89555>신성한 개입</color>과 <color=#D89555>상급 신성한 개입</color>을 활성화합니다 <i><color=#F0DAA0>[클레릭 주문 선택, 20레벨에 소원 추가]</color></i>
+ModUi/&EnablePaladinRadiantStrikes2024=2024 <color=#D89555>광휘의 타격</color>을 활성화합니다 <i><color=#F0DAA0>[비무장 타격에도 적용]</color></i>
+ModUi/&EnableOneDndShillelaghSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[캐릭터 레벨 5, 11, 17에 피해 증가; 역장 피해 선택 가능]</color></i>
+ModUi/&HideousLaughter2024TargetingHelp=<i><color=#F0DAA0>[2024 끔찍한 웃음이 활성화되면 모든 유형의 크리처를 대상으로 삼을 수 있습니다. 별도의 대상 제한 설정은 저장되며 이 옵션을 끄면 다시 적용됩니다.]</color></i>
+ModUi/&EnableMonkEmpoweredStrikes2024=2024 <color=#D89555>강화된 타격</color> 활성화 <i><color=#F0DAA0>[비무장 타격의 피해를 역장 피해로 선택]</color></i>
+ModUi/&EnableRogueStrokeOfLuck2024=2024 <color=#D89555>행운의 일격</color> 활성화 <i><color=#F0DAA0>[실패한 d20 굴림을 20으로 변경]</color></i>
+ModUi/&EnableBardWeaponProficiency2024=바드의 2024년 <color=#D89555>무기 숙련</color>을 적용합니다 <i><color=#F0DAA0>[단순 무기]</color></i>
+ModUi/&EnableMonkWeaponProficiency2024=몽크의 2024년 <color=#D89555>무기 숙련</color>을 적용합니다 <i><color=#F0DAA0>[단순 무기와 경량 속성을 가진 군용 무기]</color></i>
+ModUi/&EnableRogueWeaponProficiency2024=로그의 2024년 <color=#D89555>무기 숙련</color>을 적용합니다 <i><color=#F0DAA0>[단순 무기와 기교 또는 경량 속성을 가진 군용 무기]</color></i>
+ModUi/&EnableSorcererWeaponProficiency2024=소서러의 2024년 <color=#D89555>무기 숙련</color>을 적용합니다 <i><color=#F0DAA0>[모든 단순 무기]</color></i>
+ModUi/&EnableWizardWeaponProficiency2024=위저드의 2024년 <color=#D89555>무기 숙련</color>을 적용합니다 <i><color=#F0DAA0>[모든 단순 무기]</color></i>

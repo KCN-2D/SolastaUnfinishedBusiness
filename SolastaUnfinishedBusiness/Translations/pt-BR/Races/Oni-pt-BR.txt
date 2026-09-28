@@ -1,4 +1,5 @@
 Feature/&CastSpellOniOgreMagicDescription=No 3º nível, você pode conjurar <b>Golpe Trovejante</b> uma vez por descanso longo. <b>Sabedoria</b> é sua habilidade de conjuração para isso.
+Feature/&CastSpellOniOgreMagicSpeciesSpellcastingDescription=No 3º nível, você pode conjurar <b>Golpe Trovejante</b> uma vez por descanso longo.
 Feature/&CastSpellOniOgreMagicTitle=Magia de Ogro
 Feature/&FeatureSetOniAbilityScoreIncreaseDescription=Força +2, Sabedoria +1
 Feature/&FeatureSetOniAbilityScoreIncreaseTitle=Aumento de Atributo

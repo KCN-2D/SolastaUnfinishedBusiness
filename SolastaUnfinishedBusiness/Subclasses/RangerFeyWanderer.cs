@@ -324,10 +324,8 @@ public sealed class RangerFeyWanderer : AbstractSubclass
 
         private static bool HasCharmedOrFrightened(List<EffectForm> effectForms)
         {
-            return effectForms.Any(x =>
-                x.FormType == EffectForm.EffectFormType.Condition &&
-                (x.ConditionForm.ConditionDefinition.IsSubtypeOf(ConditionCharmed) ||
-                 x.ConditionForm.ConditionDefinition.IsSubtypeOf(ConditionFrightened)));
+            return effectForms.GetAppliedConditionDefinitions().Any(condition =>
+                condition.IsSubtypeOf(ConditionCharmed) || condition.IsSubtypeOf(ConditionFrightened));
         }
     }
 

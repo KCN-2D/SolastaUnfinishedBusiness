@@ -149,4 +149,20 @@ public static class RulesetEffectPatcher
                 effectForms);
         }
     }
+
+    [HarmonyPatch(typeof(RulesetEffect), nameof(RulesetEffect.TryRollSavingThrow))]
+    [UsedImplicitly]
+    public static class TryRollSavingThrow_Patch
+    {
+        [UsedImplicitly]
+        private static void Postfix(RulesetCharacter caster, RulesetActor target, bool __result)
+        {
+            if (__result && caster != null && target != caster &&
+                GameLocationCharacter.GetFromActor(caster) is { } source &&
+                GameLocationCharacter.GetFromActor(target) is { } defender && source.Side != defender.Side)
+            {
+                BarbarianRage2024Context.Renew(caster);
+            }
+        }
+    }
 }

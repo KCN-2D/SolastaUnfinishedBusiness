@@ -2,9 +2,10 @@
 using System.Collections.Generic;
 using System;
 using System.Linq;
-using System.Runtime.CompilerServices;
+using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
@@ -22,16 +23,7 @@ public static class TooltipPanelPatcher
     [ThreadStatic]
     private static RulesetCharacter _effectFormattingCharacter;
 
-    private static RulesetCharacter ResolveEffectFormattingCharacter(object context)
-    {
-        return context switch
-        {
-            RulesetCharacter character => character,
-            GameLocationCharacter locationCharacter => locationCharacter.RulesetCharacter,
-            GuiCharacter guiCharacter => guiCharacter.RulesetCharacter,
-            _ => null
-        };
-    }
+    internal static RulesetCharacter EffectFormattingCharacter => _effectFormattingCharacter;
 
     private static TooltipPanel ActiveTooltipPanel;
     private static readonly List<TooltipPanel> TooltipForegroundPanels = new();
@@ -113,92 +105,50 @@ public static class TooltipPanelPatcher
     [UsedImplicitly]
     public static class TooltipFeatureHeaderBind_Patch
     {
-        private static readonly ConditionalWeakTable<Image, RawImage> Portraits = new();
-
         [UsedImplicitly]
         public static void Prefix(Image ___image)
         {
-            Reset(___image);
+            Tooltips.ResetHeaderImage(___image);
         }
 
         [UsedImplicitly]
         public static void Postfix(
+            TooltipFeatureHeader __instance,
             ITooltip tooltip,
             Image ___image,
             RectTransform ___mask)
         {
-            if (!___image ||
-                tooltip?.TooltipClass?.StartsWith(
-                    GuiMonsterDefinition.TooltipClassMonsterDefinition,
-                    StringComparison.Ordinal) != true ||
-                tooltip.DataProvider is not IMonsterBasicInfoProvider ||
-                tooltip.DataProvider is ISpellParametersProvider ||
-                GetSimulacrum(tooltip) is not { } duplicate)
-            {
-                return;
-            }
-
-            if (!Portraits.TryGetValue(___image, out var portrait) || !portrait)
-            {
-                var portraitObject = new GameObject(
-                    "SimulacrumPortrait",
-                    typeof(RectTransform),
-                    typeof(CanvasRenderer),
-                    typeof(RawImage));
-                var portraitTransform = portraitObject.GetComponent<RectTransform>();
-
-                portraitTransform.SetParent(
-                    ___mask ? ___mask : ___image.rectTransform.parent,
-                    false);
-                portraitTransform.anchorMin = Vector2.zero;
-                portraitTransform.anchorMax = Vector2.one;
-                portraitTransform.offsetMin = Vector2.zero;
-                portraitTransform.offsetMax = Vector2.zero;
-                portraitTransform.pivot = new Vector2(0.5f, 0.5f);
-                portrait = portraitObject.GetComponent<RawImage>();
-                portrait.raycastTarget = false;
-                Portraits.Remove(___image);
-                Portraits.Add(___image, portrait);
-            }
-
-            portrait.gameObject.SetActive(true);
-            ___image.enabled = false;
-            SimulacrumPortraits.TryAssign(duplicate, portrait);
+            Tooltips.FitConditionHeaderImage(__instance, tooltip);
+            Tooltips.UpdateHeaderPortrait(tooltip, ___image, ___mask);
         }
 
-        private static RulesetCharacterSimulacrum GetSimulacrum(ITooltip tooltip)
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            var duplicate = tooltip?.Context switch
-            {
-                GameLocationCharacter location =>
-                    location.RulesetCharacter as RulesetCharacterSimulacrum,
-                GuiCharacter guiCharacter =>
-                    guiCharacter.RulesetCharacter as RulesetCharacterSimulacrum,
-                RulesetCharacterSimulacrum contextDuplicate => contextDuplicate,
-                _ => null
-            };
+            var code = instructions.ToList();
+            var width = AccessTools.PropertyGetter(typeof(Texture), nameof(Texture.width));
+            var height = AccessTools.PropertyGetter(typeof(Texture), nameof(Texture.height));
 
-            return duplicate ??
-                   (tooltip?.DataProvider as LiveFriendlyMonsterTooltipProvider)
-                   ?.Character as RulesetCharacterSimulacrum;
-        }
-
-        private static void Reset(Image image)
-        {
-            if (!image)
+            // Native cover sizing uses the entire texture, which distorts sprites cut from an atlas.
+            // Replace both dimensions together, keeping the native mask, anchoring and cover branches.
+            if (code.Count(instruction => instruction.Calls(width)) != 1 ||
+                code.Count(instruction => instruction.Calls(height)) != 1)
             {
-                return;
+                Main.Error("Failed to apply transpiler patch [TooltipFeatureHeader.Bind]: " +
+                           "expected one texture width and height calculation.");
+
+                return code;
             }
 
-            image.enabled = true;
-
-            if (!Portraits.TryGetValue(image, out var portrait) || !portrait)
-            {
-                return;
-            }
-
-            SimulacrumPortraits.Release(portrait);
-            portrait.gameObject.SetActive(false);
+            return code
+                .ReplaceCalls(width, "TooltipFeatureHeader.Bind.SpriteWidth",
+                    new CodeInstruction(OpCodes.Ldarg_0),
+                    new CodeInstruction(OpCodes.Call,
+                        AccessTools.Method(typeof(Tooltips), nameof(Tooltips.GetHeaderSpriteWidth))))
+                .ReplaceCalls(height, "TooltipFeatureHeader.Bind.SpriteHeight",
+                    new CodeInstruction(OpCodes.Ldarg_0),
+                    new CodeInstruction(OpCodes.Call,
+                        AccessTools.Method(typeof(Tooltips), nameof(Tooltips.GetHeaderSpriteHeight))));
         }
     }
 
@@ -210,7 +160,7 @@ public static class TooltipPanelPatcher
         [UsedImplicitly]
         public static void Prefix(Image ___image)
         {
-            TooltipFeatureHeaderBind_Patch.Prefix(___image);
+            Tooltips.ResetHeaderImage(___image);
         }
     }
 
@@ -325,7 +275,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeature), nameof(TooltipFeature.Setup))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -338,7 +287,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeatureEffectsEnumerator), nameof(TooltipFeatureEffectsEnumerator.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -349,10 +297,11 @@ public static class TooltipPanelPatcher
         {
             __state = _effectFormattingCharacter;
             _effectFormattingCharacter =
-                ResolveEffectFormattingCharacter(tooltip?.Context) ?? __state;
+                Tooltips.ResolveCharacter(tooltip) ?? __state;
         }
 
         [UsedImplicitly]
+        [HarmonyPriority(Priority.Last)]
         public static void Postfix(
             TooltipFeatureEffectsEnumerator __instance,
             RulesetCharacter __state)
@@ -365,6 +314,9 @@ public static class TooltipPanelPatcher
             {
                 _effectFormattingCharacter = __state;
             }
+
+            // Measure the final width before native ComputeSize.
+            TooltipEffectForms.RefreshLayout(__instance);
         }
 
         [UsedImplicitly]
@@ -383,6 +335,28 @@ public static class TooltipPanelPatcher
     [UsedImplicitly]
     public static class FormatConditionOperation_Patch
     {
+        [UsedImplicitly]
+        public static bool Prefix(
+            ConditionForm.ConditionOperation operation,
+            List<ConditionDefinition> conditionsList,
+            ref string description,
+            ref string __result)
+        {
+            if (operation is not (ConditionForm.ConditionOperation.RemoveDetrimentalRandom or
+                ConditionForm.ConditionOperation.RemoveDetrimentalAll or ConditionForm.ConditionOperation.AddRandom) ||
+                conditionsList is { Count: > 0 })
+            {
+                return true;
+            }
+
+            // Native list formatting indexes the last entry even when no conditions are present.
+            // An empty list has no effect to describe; do not alter the shared effect definition.
+            description = string.Empty;
+            __result = string.Empty;
+
+            return false;
+        }
+
         [UsedImplicitly]
         public static void Postfix(
             ConditionDefinition conditionDefinition,
@@ -410,7 +384,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeatureSubSpellsEnumerator), nameof(TooltipFeatureSubSpellsEnumerator.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -423,7 +396,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeatureSpellParameters), nameof(TooltipFeatureSpellParameters.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -446,6 +418,7 @@ public static class TooltipPanelPatcher
             Color ___validColor,
             Color ___invalidColor)
         {
+            Tooltips.UpdateSpellCastingTime(__instance, tooltip);
             Tooltips.ModifyWidth<TooltipFeatureSpellParamsWidthModifier, TooltipFeatureSpellParameters>(__instance);
             Tooltips.RefreshAdaptiveSpellParameterTopRow(__instance);
 
@@ -543,7 +516,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeatureBaseMagicParameters), nameof(TooltipFeatureBaseMagicParameters.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -557,7 +529,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeatureTagsEnumerator), nameof(TooltipFeatureTagsEnumerator.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -570,7 +541,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeatureSpellAdvancement), nameof(TooltipFeatureSpellAdvancement.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -584,7 +554,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeatureDeviceParameters), nameof(TooltipFeatureDeviceParameters.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -597,7 +566,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeatureItemPropertiesEnumerator), nameof(TooltipFeatureItemPropertiesEnumerator.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -611,7 +579,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeatureDeviceFunctionsEnumerator),
         nameof(TooltipFeatureDeviceFunctionsEnumerator.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -626,7 +593,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeatureItemStats), nameof(TooltipFeatureItemStats.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -639,7 +605,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeatureWeaponParameters), nameof(TooltipFeatureWeaponParameters.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -652,7 +617,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeatureArmorParameters), nameof(TooltipFeatureArmorParameters.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -665,7 +629,6 @@ public static class TooltipPanelPatcher
         }
     }
 
-    //TODO: move to separate file
     [HarmonyPatch(typeof(TooltipFeatureLightSourceParameters), nameof(TooltipFeatureLightSourceParameters.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -810,21 +773,6 @@ public static class TooltipPanelPatcher
     }
 }
 
-//TODO: move to separate file
-[HarmonyPatch(typeof(TooltipFeaturePowerParameters), nameof(TooltipFeaturePowerParameters.Bind))]
-[SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
-[UsedImplicitly]
-public static class TooltipFeaturePowerParameters_Bind_Patch
-{
-    [UsedImplicitly]
-    public static void Postfix(TooltipFeaturePowerParameters __instance)
-    {
-        Tooltips.ModifyWidth<TooltipFeaturePowerParamsWidthMod, TooltipFeaturePowerParameters>(__instance);
-        Tooltips.RefreshAdaptivePowerParameterTopRow(__instance);
-    }
-}
-
-//TODO: move to separate file
 [HarmonyPatch(typeof(TooltipFeaturePrerequisites), nameof(TooltipFeaturePrerequisites.Bind))]
 [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
 [UsedImplicitly]

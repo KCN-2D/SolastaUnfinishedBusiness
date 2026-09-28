@@ -236,7 +236,8 @@ internal enum ExtraSituationalContext
     IsNotConditionSourceNotRanged = 9016,
     IsConcentratingOnSpell = 9017,
     IsConditionSource = 9018,
-    HasMonkMeleeWeaponInMainHand = 9019
+    HasMonkMeleeWeaponInMainHand = 9019,
+    TargetHasConditionCreatedByMe = 9020
 }
 
 internal enum ExtraTurnOccurenceType

@@ -28,15 +28,12 @@ internal static class ClassesContext
         InventorClass.Build();
 
         SwitchBarbarianFightingStyle();
-        SwitchBardScimitarSpecialization();
         SwitchMonkAbundantKi();
         SwitchMonkFightingStyle();
         SwitchMonkHandwrapsGauntletSlot();
         SwitchMonkImprovedUnarmoredMovement();
-        SwitchMonkKatanaSpecialization();
         SwitchRangerHumanoidFavoredEnemy();
         SwitchRogueFightingStyle();
-        SwitchRogueScimitarSpecialization();
         SwitchRogueStrSaving();
         SwitchSorcererMagicalGuidance();
     }
@@ -65,12 +62,7 @@ internal static class ClassesContext
 
     internal static void SwitchBardScimitarSpecialization()
     {
-        ProficiencyBardWeapon.Proficiencies.Remove(WeaponTypeDefinitions.ScimitarType.Name);
-
-        if (Main.Settings.EnableBardScimitarSpecialization)
-        {
-            ProficiencyBardWeapon.Proficiencies.Add(WeaponTypeDefinitions.ScimitarType.Name);
-        }
+        Tabletop2024Context.SwitchBardWeaponProficiency();
     }
 
     #endregion
@@ -197,14 +189,7 @@ internal static class ClassesContext
 
     internal static void SwitchMonkKatanaSpecialization()
     {
-        if (Main.Settings.EnableMonkKatanaSpecialization)
-        {
-            ProficiencyMonkWeapon.Proficiencies.TryAdd(CustomWeaponsContext.KatanaWeaponType.Name);
-        }
-        else
-        {
-            ProficiencyMonkWeapon.Proficiencies.Remove(CustomWeaponsContext.KatanaWeaponType.Name);
-        }
+        Tabletop2024Context.SwitchMonkWeaponProficiency();
     }
 
     #endregion
@@ -239,12 +224,7 @@ internal static class ClassesContext
 
     internal static void SwitchRogueScimitarSpecialization()
     {
-        ProficiencyRogueWeapon.Proficiencies.Remove(WeaponTypeDefinitions.ScimitarType.Name);
-
-        if (Main.Settings.EnableRogueScimitarSpecialization)
-        {
-            ProficiencyRogueWeapon.Proficiencies.Add(WeaponTypeDefinitions.ScimitarType.Name);
-        }
+        Tabletop2024Context.SwitchRogueWeaponProficiency();
     }
 
     private static void SwitchRogueStrSaving()

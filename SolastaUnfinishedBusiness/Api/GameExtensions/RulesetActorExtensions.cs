@@ -81,6 +81,8 @@ internal static class RulesetActorExtensions
 
     // keep a tab on last SaveDC / SaveBonusAndRollModifier / SavingThrowAbility
     internal static int SaveDC { get; private set; }
+    internal static int SaveRoll { get; private set; }
+    internal static int SaveMinimumResult { get; private set; }
     internal static int SaveBonusAndRollModifier { get; private set; }
     internal static string SavingThrowAbility { get; private set; }
 
@@ -135,16 +137,22 @@ internal static class RulesetActorExtensions
             }
         }
 
-        // keep a tab on last SaveDC / SaveBonusAndRollModifier / SavingThrowAbility
-        SaveDC = saveDC;
-        SaveBonusAndRollModifier = saveBonus + rollModifier;
-        SavingThrowAbility = abilityScoreName;
-
         var saveRoll = rulesetActorTarget.RollDie(
             DieType.D20, RollContext.SavingThrow, false, ComputeAdvantage(advantageTrends),
             out var firstRoll, out var secondRoll);
 
         var totalRoll = saveRoll + saveBonus + rollModifier;
+        var minimumResult = int.MinValue;
+
+        if (rulesetCharacterTarget != null)
+        {
+            foreach (var minimum in rulesetCharacterTarget.GetSubFeaturesByType<IMinimumSavingThrowResult>())
+            {
+                minimumResult = Math.Max(minimumResult, minimum.GetMinimumResult(rulesetCharacterTarget, abilityScoreName));
+            }
+        }
+
+        totalRoll = Math.Max(totalRoll, minimumResult);
         outcomeDelta = totalRoll - saveDC;
         outcome = totalRoll < saveDC ? RollOutcome.Failure : RollOutcome.Success;
 
@@ -167,12 +175,6 @@ internal static class RulesetActorExtensions
 
         rulesetActorTarget.ProcessConditionsMatchingInterruption(ConditionInterruption.SavingThrow);
 
-        //BEGIN PATCH
-        if (rulesetCharacterTarget == null)
-        {
-            return;
-        }
-
         //PATCH: supports `IRollSavingThrowFinished` interface
         foreach (var rollSavingThrowFinished in rulesetCharacterTarget.GetSubFeaturesByType<IRollSavingThrowFinished>())
         {
@@ -192,6 +194,13 @@ internal static class RulesetActorExtensions
                 effectForms);
         }
         //END PATCH
+
+        // Capture after callbacks so a nested roll cannot replace this result.
+        SaveRoll = saveRoll;
+        SaveMinimumResult = minimumResult;
+        SaveDC = saveDC;
+        SaveBonusAndRollModifier = saveBonus + rollModifier;
+        SavingThrowAbility = abilityScoreName;
     }
 
     #endregion

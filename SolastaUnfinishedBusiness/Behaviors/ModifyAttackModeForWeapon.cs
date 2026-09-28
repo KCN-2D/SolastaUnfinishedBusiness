@@ -70,10 +70,22 @@ internal class CanUseAttribute : IModifyWeaponAttackMode
         string newAttribute,
         bool canAddAbilityDamageBonus)
     {
+        ChangeAttackModeAttribute(character, attackMode, oldAttribute, newAttribute,
+            canAddAbilityDamageBonus, onlyIfBetter: true);
+    }
+
+    internal static void ChangeAttackModeAttribute(
+        RulesetCharacter character,
+        RulesetAttackMode attackMode,
+        string oldAttribute,
+        string newAttribute,
+        bool canAddAbilityDamageBonus,
+        bool onlyIfBetter = false)
+    {
         var oldValue = AttributeDefinitions.ComputeAbilityScoreModifier(character.TryGetAttributeValue(oldAttribute));
         var newValue = AttributeDefinitions.ComputeAbilityScoreModifier(character.TryGetAttributeValue(newAttribute));
 
-        if (newValue <= oldValue)
+        if (onlyIfBetter && newValue <= oldValue)
         {
             return;
         }

@@ -169,3 +169,5 @@ Screen/&SignatureSpellsExtraSpellDescription=이 시그니처 주문은 항상 �
 Screen/&SignatureSpellsExtraSpellTitle=시그니처 주문
 Screen/&SpellMasteryExtraSpellDescription=이 마스터리 주문은 항상 준비되어 있으며 레벨에서 시전할 때 주문 슬롯을 소모하지 않습니다.
 Screen/&SpellMasteryExtraSpellTitle=주문 숙달
+Feature/&FeatureWizardSpellMastery2024Description=주문책에서 시전 시간이 행동인 1레벨 주문과 2레벨 주문을 하나씩 선택합니다. 항상 준비되어 있으며 최저 레벨로 시전할 때 주문 슬롯을 소비하지 않습니다. 더 높은 레벨로 시전하려면 슬롯이 필요합니다. 긴 휴식 후 선택한 주문 하나를 같은 레벨의 적합한 주문으로 교체할 수 있습니다.
+Feature/&PowerRogueStrokeOfLuck2024Description=공격 굴림, 능력 판정 또는 내성 굴림에 실패하면 해당 d20의 결과를 20으로 바꿀 수 있습니다. 짧은 휴식 또는 긴 휴식을 마치면 이 능력을 다시 사용할 수 있습니다.

@@ -1,6 +1,10 @@
-﻿using HarmonyLib;
+﻿using System;
+using System.Collections.Generic;
+using System.Reflection.Emit;
+using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -56,6 +60,19 @@ public static class RulesetItemDevicePatcher
             }
 
             __result = character.CanUsePower(power, false);
+        }
+
+        [UsedImplicitly]
+        internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var isOnSpellList = typeof(RulesetCharacter).GetMethod(nameof(RulesetCharacter.IsSpellDefinitionOnAnySpellList));
+            var canUseScroll = new Func<RulesetCharacter, SpellDefinition, bool>(
+                ThiefUseMagicDevice2024Context.CanUseScroll).Method;
+
+            // Replace only the scroll-list requirement; keep verbal components and
+            // native action, attunement, identification, and charge checks intact.
+            return instructions.ReplaceCalls(isOnSpellList, 1, "Thief.IsFunctionAvailable.Scroll",
+                new CodeInstruction(OpCodes.Call, canUseScroll));
         }
     }
 

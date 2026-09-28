@@ -24,3 +24,4 @@ Race/&RaceTieflingMephistophelesDescription=Méphistophélès offre des pouvoirs
 Race/&RaceTieflingMephistophelesTitle=Méphistophélès
 Race/&RaceTieflingZarielDescription=Les Tieflings ayant un lien de sang avec Zariel sont plus forts que le tiefling typique et reçoivent des capacités magiques qui les aident au combat.
 Race/&RaceTieflingZarielTitle=Zariel
+Feature/&CastSpellTieflingSpeciesSpellcastingDescription=Vous connaissez le sort mineur Production de flamme. À partir du niveau 3, vous pouvez lancer le sort Représailles infernales en tant que sort de niveau 2 une fois avec ce trait, puis le refaire après un repos long. À partir du niveau 5, vous pouvez lancer le sort Ténèbres une fois avec ce trait, puis le refaire après un repos long.

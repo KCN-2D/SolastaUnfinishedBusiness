@@ -26,15 +26,16 @@ public static class TooltipFeaturePowerParametersPatcher
             Tooltips.UpdateBardicInspirationPowerParameters(tooltip, __instance);
 
             //PATCH: support for power tooltip customization
-            if (tooltip.DataProvider is not GuiPowerDefinition guiPowerDefinition)
+            if (tooltip.DataProvider is GuiPowerDefinition guiPowerDefinition)
             {
-                return;
+                foreach (var modifier in guiPowerDefinition.PowerDefinition.GetAllSubFeaturesOfType<PowerTooltipModifier>())
+                {
+                    modifier.ModifyPowerTooltip(tooltip, __instance);
+                }
             }
 
-            foreach (var modifier in guiPowerDefinition.PowerDefinition.GetAllSubFeaturesOfType<PowerTooltipModifier>())
-            {
-                modifier.ModifyPowerTooltip(tooltip, __instance);
-            }
+            Tooltips.ModifyWidth<TooltipFeaturePowerParamsWidthMod, TooltipFeaturePowerParameters>(__instance);
+            Tooltips.RefreshAdaptivePowerParameterTopRow(__instance);
         }
     }
 }

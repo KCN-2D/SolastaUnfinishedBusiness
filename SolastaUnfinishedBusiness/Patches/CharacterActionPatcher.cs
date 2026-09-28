@@ -18,6 +18,8 @@ using UnityEngine;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
 
+using SolastaUnfinishedBusiness.Behaviors;
+
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
@@ -378,8 +380,8 @@ public static class CharacterActionPatcher
                     }
                     else if (spell.EffectDescription.TargetSide != Side.Ally)
                     {
-                        var isSubtle = activeSpell.MetamagicOption ==
-                                       DatabaseHelper.MetamagicOptionDefinitions.MetamagicSubtleSpell;
+                        var isSubtle = CombinedMetamagic.Contains(activeSpell.MetamagicOption,
+                            DatabaseHelper.MetamagicOptionDefinitions.MetamagicSubtleSpell.Name);
 
                         if (Main.Settings.StealthDoesNotBreakWithSubtle
                             && isSubtle

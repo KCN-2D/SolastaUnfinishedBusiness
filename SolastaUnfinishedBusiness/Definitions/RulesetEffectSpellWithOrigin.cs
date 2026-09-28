@@ -57,6 +57,10 @@ internal class RulesetEffectSpellWithOrigin : RulesetEffectSpell
 
     internal OriginMode Mode { get; private set; }
 
+    internal bool BypassCastingTime => BypassComponentsAndCastingTime || Mode == OriginMode.DivineIntervention;
+
+    internal bool BypassMaterialComponent => BypassComponentsAndCastingTime || Mode == OriginMode.DivineIntervention;
+
     internal static IDisposable UseOrigin(
         RulesetCharacter caster,
         RulesetSpellRepertoire repertoire,
@@ -185,6 +189,12 @@ internal class RulesetEffectSpellWithOrigin : RulesetEffectSpell
                pending.CasterGuid == caster.Guid &&
                pending.SelectedSpell == spellDefinition &&
                (!requireBypass || pending.BypassComponentsAndCastingTime);
+    }
+
+    internal static bool IsPendingOriginWithMaterialBypass(RulesetCharacter caster, SpellDefinition spellDefinition)
+    {
+        return IsPendingOrigin(caster, spellDefinition, false) &&
+               (_pendingOrigin.BypassComponentsAndCastingTime || _pendingOrigin.Mode == OriginMode.DivineIntervention);
     }
 
     internal static bool TryGetPendingOrigin(
@@ -407,7 +417,9 @@ internal class RulesetEffectSpellWithOrigin : RulesetEffectSpell
     internal static SpellDefinition GetOriginSpell(RulesetEffectSpell activeSpell)
     {
         return activeSpell is RulesetEffectSpellWithOrigin withOrigin
-            ? withOrigin.OriginatingSpell ?? withOrigin.SpellDefinition
+            ? withOrigin.Mode == OriginMode.DivineIntervention
+                ? withOrigin.SpellDefinition
+                : withOrigin.OriginatingSpell ?? withOrigin.SpellDefinition
             : activeSpell.SpellDefinition;
     }
 
@@ -450,7 +462,8 @@ internal class RulesetEffectSpellWithOrigin : RulesetEffectSpell
     {
         None,
         WishSpellReplication,
-        WishAlternateEffect
+        WishAlternateEffect,
+        DivineIntervention
     }
 
     private sealed class PendingOrigin(

@@ -11,6 +11,7 @@ Failure/&TargetOutOfRange=대상이 범위를 벗어났습니다.
 Feature/&ActionAffinityImpForestInnateCunningDescription=보너스 액션을 사용하여 Disengage(해제) 또는 Hide(숨기기)를 수행합니다.
 Feature/&ActionAffinityImpForestInnateCunningTitle=타고난 교활함
 Feature/&CastSpellImpInfernalDescription=당신은 Vicious Mockery 캔 트립을 알고 있습니다. 레벨 3에 도달하면 긴 휴식마다 한 번씩 투명화를 시전할 수 있습니다. 카리스마는 이러한 주문에 대한 주문 시전 능력입니다.
+Feature/&CastSpellImpInfernalSpeciesSpellcastingDescription=당신은 Vicious Mockery 캔 트립을 알고 있습니다. 레벨 3에 도달하면 긴 휴식마다 한 번씩 투명화를 시전할 수 있습니다.
 Feature/&CastSpellImpInfernalTitle=사악한 사기꾼
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseDescription=체력 +2, 지능 +1
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseTitle=능력치 증가

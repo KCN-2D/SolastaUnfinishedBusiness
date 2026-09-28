@@ -84,4 +84,46 @@ public static class SpellSelectionPanelPatcher
             CampaignsContext.SpellSelectionPanelMultilineUnbind();
         }
     }
+
+    [HarmonyPatch(typeof(SpellsByLevelBox), nameof(SpellsByLevelBox.OnActivateStandardBox))]
+    [UsedImplicitly]
+    private static class OnActivateStandardBox_Patch
+    {
+        [UsedImplicitly]
+        private static bool Prefix(SpellsByLevelBox __instance, int index, out IDisposable __state)
+        {
+            __state = null;
+            if (!__instance.spellsByIndex.TryGetValue(index, out var spell) || spell.SpellLevel == 0 ||
+                __instance.spellRepertoire.IsMysticArcanumSpell(spell))
+            {
+                return true;
+            }
+
+            var repertoire = __instance.spellRepertoire;
+            var option = SpellSelectionContext.GetBaseSelection(__instance.caster, repertoire, spell);
+            return SpellSelectionContext.TryBeginSelection(__instance.caster, option, out __state);
+        }
+
+        [UsedImplicitly]
+        private static void Finalizer(IDisposable __state) => __state?.Dispose();
+    }
+
+    [HarmonyPatch(typeof(SpellsByLevelBox), nameof(SpellsByLevelBox.OnActivateAdvancedBox))]
+    [UsedImplicitly]
+    private static class OnActivateAdvancedBox_Patch
+    {
+        [UsedImplicitly]
+        private static bool Prefix(SpellsByLevelBox __instance, int index, int slotLevel, out IDisposable __state)
+        {
+            GameLocationCharacter.GetFromActor(__instance.caster)?.RegisterShiftState();
+            __state = null;
+            return !__instance.spellsByIndex.TryGetValue(index, out var spell) ||
+                   SpellSelectionContext.TryBeginSelection(__instance.caster,
+                       SpellSelectionContext.GetSelection(__instance.spellRepertoire, spell, slotLevel),
+                       out __state);
+        }
+
+        [UsedImplicitly]
+        private static void Finalizer(IDisposable __state) => __state?.Dispose();
+    }
 }

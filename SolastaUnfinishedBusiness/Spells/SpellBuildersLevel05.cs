@@ -504,8 +504,23 @@ internal static partial class SpellBuilders
                 yield break;
             }
 
+            var banishedCondition = conditionDefinition;
+            if (Main.Settings.EnableSmiteSpells2024)
+            {
+                var saved = true;
+                yield return SmiteSpells2024Context.SaveAgainstSmite(battleManager, attacker, defender,
+                    SpellsContext.BanishingSmite, AttributeDefinitions.Charisma,
+                    SmiteSpells2024Context.BanishingSmiteCondition2024, outcome => saved = outcome);
+                if (saved || rulesetDefender.IsDeadOrDyingOrUnconscious)
+                {
+                    yield break;
+                }
+
+                banishedCondition = SmiteSpells2024Context.BanishingSmiteCondition2024;
+            }
+
             rulesetDefender.InflictCondition(
-                conditionDefinition.Name,
+                banishedCondition.Name,
                 DurationType.Minute,
                 1,
                 TurnOccurenceType.EndOfTurn,
@@ -513,7 +528,7 @@ internal static partial class SpellBuilders
                 rulesetAttacker.guid,
                 rulesetAttacker.CurrentFaction.Name,
                 1,
-                conditionDefinition.Name,
+                banishedCondition.Name,
                 0,
                 0,
                 0);

@@ -24,3 +24,4 @@ Race/&RaceTieflingMephistophelesDescription=Mefistofele offre poteri arcani a co
 Race/&RaceTieflingMephistophelesTitle=Mefistofele
 Race/&RaceTieflingZarielDescription=I tiefling con un legame di sangue con Zariel sono più forti dei normali tiefling e ricevono abilità magiche che li aiutano in battaglia.
 Race/&RaceTieflingZarielTitle=Zariel
+Feature/&CastSpellTieflingSpeciesSpellcastingDescription=Conosci il trucchetto Produci Fiamma. Quando raggiungi il livello 3, puoi lanciare l'incantesimo Hellish Rebuke come incantesimo di livello 2 una volta con questo tratto e riguadagnare la capacità di farlo di nuovo quando finisci un riposo lungo. Quando raggiungi il livello 5, puoi lanciare l'incantesimo Oscurità una volta con questo tratto e riacquistare la capacità di farlo di nuovo quando finisci un riposo lungo.

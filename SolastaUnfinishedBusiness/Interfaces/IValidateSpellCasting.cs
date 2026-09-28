@@ -223,7 +223,10 @@ internal static class SpellCastingValidation
             return false;
         }
 
+        bypassSpellSlotLimit |= Tabletop2024Context.IsDivineInterventionSpell(caster, spellDefinition, activeSpell);
         bypassMaterialComponent |=
+            activeSpell is RulesetEffectSpellWithOrigin { BypassMaterialComponent: true } ||
+            RulesetEffectSpellWithOrigin.IsPendingOriginWithMaterialBypass(caster, spellDefinition) ||
             activeSpell?.RulesetInvocation?.InvocationDefinition is
             {
                 OverrideMaterialComponent: true

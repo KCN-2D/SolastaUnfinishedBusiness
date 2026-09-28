@@ -30,6 +30,16 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetCharacterHeroPatcher
 {
+    [HarmonyPatch(typeof(RulesetCharacterHero), nameof(RulesetCharacterHero.ComputeAttackModeAbilityScoreReplacement))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ComputeAttackModeAbilityScoreReplacement_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            RulesetSpellRepertoirePatcher.UseEffectiveSpellcastingAbility(instructions);
+    }
+
     [HarmonyPatch(typeof(RulesetCharacterHero), nameof(RulesetCharacterHero.RefreshPersonalityFlags))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -1390,6 +1400,17 @@ public static class RulesetCharacterHeroPatcher
 
             __instance.UpdateUsageForPower(feature.Pool, useAmount);
         }
+
+        [UsedImplicitly]
+        internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var spendCharges = typeof(RulesetItemDevice).GetMethod(nameof(RulesetItemDevice.SpendCharges));
+            var spendThiefCharges = new Func<RulesetItemDevice, int, RulesetCharacterHero, int>(
+                ThiefUseMagicDevice2024Context.SpendCharges).Method;
+
+            return instructions.ReplaceCalls(spendCharges, 1, "Thief.UseDeviceFunction.SpendCharges",
+                new CodeInstruction(OpCodes.Ldarg_0), new CodeInstruction(OpCodes.Call, spendThiefCharges));
+        }
     }
 
     [HarmonyPatch(typeof(RulesetCharacterHero), nameof(RulesetCharacterHero.Unregister))]
@@ -1701,6 +1722,28 @@ public static class RulesetCharacterHeroPatcher
             {
                 __result = __instance.HasEmptyMainHand() && __instance.HasEmptyOffHand();
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetCharacterHero), nameof(RulesetCharacterHero.PostLoad))]
+    [UsedImplicitly]
+    public static class PostLoad_Patch
+    {
+        [UsedImplicitly]
+        private static void Postfix(RulesetCharacterHero __instance) => BarbarianRage2024Context.UpdateCharacter(__instance);
+    }
+
+    [HarmonyPatch(typeof(RulesetCharacterHero), nameof(RulesetCharacterHero.RefreshProficiencies))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RefreshProficiencies_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(RulesetCharacterHero __instance)
+        {
+            Tabletop2024Context.UpdateClassWeaponProficiencies(__instance);
+            Tabletop2024Context.UpdateClericDomainProficiencies(__instance);
+            Tabletop2024Context.UpdateClericBlessedStrikes(__instance);
         }
     }
 }

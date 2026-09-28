@@ -34,6 +34,13 @@ internal static class TranslatorContext
 
     internal static readonly List<LanguageEntry> Languages = [];
 
+    // Native language identifiers need not match the regional names of bundled translation packs.
+    // Keep these asset aliases separate from the source language selected by unofficial translations.
+    private static readonly Dictionary<string, string> TranslationPackAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["pt"] = "pt-BR"
+    };
+
     /// <summary>
     ///     Maps unofficial language codes to official language codes.
     /// </summary>
@@ -417,7 +424,16 @@ internal static class TranslatorContext
         using var zipStream = new MemoryStream(Properties.Resources.Translations);
         using var zip = new ZipArchive(zipStream, ZipArchiveMode.Read);
 
-        foreach (var entry in zip.Entries.Where(x => validate(x.FullName, languageCode)))
+        var entries = zip.Entries.Where(entry => validate(entry.FullName, languageCode)).ToList();
+
+        // Prefer exact-code resources (including native translation fixes). Only fall back to the
+        // bundled regional pack when that resource group is absent for the requested language.
+        if (entries.Count == 0 && TranslationPackAliases.TryGetValue(languageCode, out var packCode))
+        {
+            entries = zip.Entries.Where(entry => validate(entry.FullName, packCode)).ToList();
+        }
+
+        foreach (var entry in entries)
         {
             using var dataStream = entry.Open();
             using var data = new StreamReader(dataStream);

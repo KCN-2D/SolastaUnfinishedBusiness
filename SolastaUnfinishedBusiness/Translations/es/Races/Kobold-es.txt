@@ -1,6 +1,7 @@
 Condition/&ConditionDarkKoboldGrovelCowerAndBegDescription=Tienes ventaja en tus tiradas de ataque contra enemigos dentro de un radio de 10 pies de tu aliado Kobold.
 Condition/&ConditionDarkKoboldGrovelCowerAndBegTitle=Arrodillarse, encogerse y suplicar
 Feature/&CastSpellDraconicKoboldMagicDescription=Conoces un truco de tu elección de la lista de hechizos del hechicero. El carisma es tu habilidad para lanzar hechizos.
+Feature/&CastSpellDraconicKoboldMagicSpeciesSpellcastingDescription=Conoces un truco de tu elección de la lista de hechizos del hechicero.
 Feature/&CastSpellDraconicKoboldMagicTitle=Magia de los Kobolds
 Feature/&PowerDarkKoboldGrovelCowerAndBegDescription=Como acción durante tu turno, puedes encogerte patéticamente para distraer a los enemigos cercanos. Hasta el final de tu siguiente turno, tus aliados obtienen ventaja en las tiradas de ataque contra enemigos que se encuentren a 10 pies de ti y que puedan verte. Una vez que uses este rasgo, no podrás volver a usarlo hasta que termines un descanso corto o largo.
 Feature/&PowerDarkKoboldGrovelCowerAndBegTitle=Arrodillarse, encogerse y suplicar

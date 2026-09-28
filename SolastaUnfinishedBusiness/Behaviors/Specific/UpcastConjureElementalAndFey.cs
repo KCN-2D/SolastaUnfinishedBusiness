@@ -71,6 +71,10 @@ internal static class UpcastConjureElementalAndFey
 
     private sealed class SelectionProvider : ICustomSubspellSelectionProvider
     {
+        public bool BypassComponentsAndCastingTime => false;
+
+        public bool BypassMaterialComponent => false;
+
         public ICustomSubspellSelectionSession CreateSession(
             SpellDefinition masterSpell,
             RulesetCharacter caster,

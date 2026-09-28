@@ -7,6 +7,42 @@ namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
 internal static class EffectDescriptionExtensions
 {
+    // AddRandom uses ConditionsList, including null entries for a possible no-effect outcome.
+    // Removal operations do not describe conditions that the effect can apply.
+    public static IEnumerable<ConditionDefinition> GetAppliedConditionDefinitions(
+        this IEnumerable<EffectForm> effectForms)
+    {
+        if (effectForms == null)
+        {
+            yield break;
+        }
+
+        foreach (var effectForm in effectForms)
+        {
+            if (effectForm?.FormType != EffectForm.EffectFormType.Condition ||
+                effectForm.ConditionForm is not { } conditionForm)
+            {
+                continue;
+            }
+
+            switch (conditionForm.Operation)
+            {
+                case ConditionForm.ConditionOperation.Add when conditionForm.ConditionDefinition != null:
+                    yield return conditionForm.ConditionDefinition;
+                    break;
+                case ConditionForm.ConditionOperation.AddRandom:
+                    foreach (var condition in conditionForm.ConditionsList)
+                    {
+                        if (condition != null)
+                        {
+                            yield return condition;
+                        }
+                    }
+                    break;
+            }
+        }
+    }
+
     public static EffectForm WithSavingThrow(this EffectForm effect, EffectSavingThrowType savingThrowAffinity,
         TurnOccurenceType saveOccurence = TurnOccurenceType.EndOfTurn, bool canSaveToCancel = false)
     {

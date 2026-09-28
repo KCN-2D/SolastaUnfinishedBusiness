@@ -8,6 +8,7 @@ using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Properties;
+using SolastaUnfinishedBusiness.Validators;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
@@ -36,7 +37,6 @@ public static partial class Tabletop2024Context
                     .Create("PointPoolRangerDeftExplorerSkills")
                     .SetGuiPresentationNoContent(true)
                     .SetPool(HeroDefinitions.PointsPoolType.Expertise, 1)
-                    .AddCustomSubFeatures(new TryAlterOutcomeAttributeCheckPrimalKnowledge())
                     .AddToDB())
             .AddToDB();
 
@@ -46,6 +46,7 @@ public static partial class Tabletop2024Context
             .SetGuiPresentation(Category.Feature)
             .SetBaseSpeedAdditiveModifier(2)
             .SetClimbing(true)
+            .AddCustomSubFeatures(new ValidateDefinitionApplication(ValidatorsCharacter.DoesNotHaveHeavyArmor))
             .AddToDB();
 
     private static readonly FeatureDefinitionPointPool PointPoolRangerExpertise = FeatureDefinitionPointPoolBuilder
@@ -59,7 +60,9 @@ public static partial class Tabletop2024Context
             .Create("CombatAffinityRangerPreciseHunter")
             .SetGuiPresentation(Category.Feature)
             .SetMyAttackAdvantage(AdvantageType.Advantage)
-            .SetSituationalContext(SituationalContext.TargetHasCondition, ConditionDefinitions.ConditionMarkedByHunter)
+            .SetSituationalContext(
+                (SituationalContext)ExtraSituationalContext.TargetHasConditionCreatedByMe,
+                ConditionDefinitions.ConditionMarkedByHunter)
             .DisableAutoFormatDescription()
             .AddToDB();
 
@@ -67,18 +70,14 @@ public static partial class Tabletop2024Context
         .Create("PowerRangerTireless")
         .SetGuiPresentation(Category.Feature,
             Sprites.GetSprite("PowerRangerTireless", Resources.PowerTireless, 256, 128))
-        .SetUsesAbilityBonus(ActivationTime.BonusAction, RechargeRate.LongRest, AttributeDefinitions.Wisdom)
+        .SetUsesAbilityBonus(ActivationTime.Action, RechargeRate.LongRest, AttributeDefinitions.Wisdom)
         .SetExplicitAbilityScore(AttributeDefinitions.Wisdom)
         .SetEffectDescription(
             EffectDescriptionBuilder
                 .Create()
-                .SetDurationData(DurationType.UntilAnyRest)
+                .SetDurationData(DurationType.UntilLongRest)
                 .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
-                .SetEffectForms(
-                    EffectFormBuilder
-                        .Create()
-                        .SetTempHpForm(5, DieType.D8, 1)
-                        .Build())
+                .SetEffectForms()
                 .SetCasterEffectParameters(Command)
                 .Build())
         .AddCustomSubFeatures(new CustomBehaviorTireless())
@@ -334,25 +333,21 @@ public static partial class Tabletop2024Context
         }
     }
 
-    private sealed class CustomBehaviorTireless : IModifyEffectDescription
+    private sealed class CustomBehaviorTireless : IPowerOrSpellFinishedByMe
     {
-        public bool IsValid(BaseDefinition definition, RulesetCharacter character, EffectDescription effectDescription)
+        public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition definition)
         {
-            return definition == PowerRangerTireless;
-        }
+            var character = action.ActingCharacter.RulesetCharacter;
+            var wisdom = AttributeDefinitions.ComputeAbilityScoreModifier(
+                character.TryGetAttributeValue(AttributeDefinitions.Wisdom));
+            var roll = character.RollDiceAndSum(DieType.D8, RollContext.HealValueRoll, 1, []);
 
-        public EffectDescription GetEffectDescription(
-            BaseDefinition definition,
-            EffectDescription effectDescription,
-            RulesetCharacter character,
-            RulesetEffect rulesetEffect)
-        {
-            var levels = character.GetClassLevel(Ranger);
-            var halfRoundUp = (levels + 1) / 2;
+            // Native temporary-HP forms clamp to zero, while Tireless has a minimum total of one.
+            character.ReceiveTemporaryHitPoints(
+                System.Math.Max(1, roll + wisdom), DurationType.UntilLongRest, 0,
+                TurnOccurenceType.EndOfTurn, character.Guid);
 
-            effectDescription.EffectForms[0].TemporaryHitPointsForm.BonusHitPoints = halfRoundUp;
-
-            return effectDescription;
+            yield break;
         }
     }
 
@@ -388,17 +383,22 @@ public static partial class Tabletop2024Context
     {
         public bool RequiresConcentration(RulesetCharacter rulesetCharacter, RulesetEffectSpell rulesetEffectSpell)
         {
-            if (!Main.Settings.EnableRangerRelentlessHunter2024)
+            if (!Main.Settings.EnableRangerRelentlessHunter2024 ||
+                !Main.Settings.EnableRangerRelentlessHunter2024AsNoConcentration)
             {
                 return rulesetEffectSpell.SpellDefinition.RequiresConcentration;
             }
 
-            return rulesetEffectSpell.SpellDefinition != HuntersMark;
+            return rulesetEffectSpell.SpellDefinition != HuntersMark &&
+                   rulesetEffectSpell.SpellDefinition.RequiresConcentration;
         }
 
         public SpellDefinition[] SpellsThatShouldNotRollConcentrationCheckFromDamage(RulesetCharacter rulesetCharacter)
         {
-            return Main.Settings.EnableRangerRelentlessHunter2024AsNoConcentration ? [] : [HuntersMark];
+            return Main.Settings.EnableRangerRelentlessHunter2024 &&
+                   !Main.Settings.EnableRangerRelentlessHunter2024AsNoConcentration
+                ? [HuntersMark]
+                : [];
         }
     }
 }

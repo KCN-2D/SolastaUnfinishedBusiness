@@ -677,7 +677,7 @@ internal static class SpellsContext
     {
         HideousLaughter.effectDescription.restrictedCreatureFamilies.Clear();
 
-        if (!Main.Settings.RemoveHumanoidFilterOnHideousLaughter)
+        if (!Main.Settings.RemoveHumanoidFilterOnHideousLaughter && !Main.Settings.EnableOneDndHideousLaughterSpell)
         {
             HideousLaughter.effectDescription.restrictedCreatureFamilies.Add(CharacterFamilyDefinitions.Humanoid.Name);
         }

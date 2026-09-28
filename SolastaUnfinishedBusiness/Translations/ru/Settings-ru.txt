@@ -144,7 +144,7 @@ ModUi/&EnableBetaContent=Включить бета-контент <b><i><color=#
 ModUi/&EnableCancelEditOnRightMouseClick=Включить отмену действия правым кликом мыши
 ModUi/&EnableCantripsTriggeringOnWarMagic=Разрешить срабатывание дополнительной бонусной атаки <color=#D89555>Боевой магии</color> от заговоров
 ModUi/&EnableCharactersOnFireToEmitLight=<color=#D89555>Горящие</color> персонажи должны излучать свет <i><color=#F0DAA0>[Куб света, Огненный элементаль, Огненный балагур, Огненная скопа, Огненный паук, а также любые горящие существа]</color></i>
-ModUi/&EnableClericBlessedStrikes2024=Включить <color=#D89555>Благословлённые удары</color> и <color=#D89555>Улучшенные благословлённые удары</color> на уровнях 7 и 14\n<i><color=#F0DAA0>[затрагивает только домены Осквернителя, Жизни, Шалости, Природы, Кузни, Солнца и Бури]</color></i>
+ModUi/&EnableClericBlessedStrikes2024=Включить <color=#D89555>Благословлённые удары</color> и <color=#D89555>Улучшенные благословлённые удары</color> на уровнях 7 и 14
 ModUi/&EnableClericChannelDivinity2024=Заменить <color=#D89555>Божественный канал</color> на версию из 5e 2024 <i><color=#F0DAA0>[различные варианты использования]</color></i>
 ModUi/&EnableClericDivineOrder2024=Включить <color=#D89555>Божественный порядок</color> на уровне 1 <i><color=#F0DAA0>[выбор между тяжелыми доспехами/воинским оружием и бонусным заговором/некоторыми проверками ИНТ]</color></i>
 ModUi/&EnableClericSearUndead2024=Включить <color=#D89555>Опаление нежити</color> вместо <color=#D89555>Уничтожения нежити</color> на уровне 5
@@ -234,6 +234,7 @@ ModUi/&EnablePcgRandom=Включить улучшенный алгоритм г
 ModUi/&EnablePoisonsBonusAction2024=Включить нанесение <color=#D89555>Ядов</color> на оружие бонусным действием
 ModUi/&EnablePotionsBonusAction2024=Включить использование <color=#D89555>Зелий</color> бонусным действием
 ModUi/&EnableHalfOrcAdrenalineRush2024=<color=#D89555>{0}</color>: заменить особенность <color=#D89555>{1}</color> на <color=#D89555>{2}</color> (2024)
+ModUi/&EnableSpeciesSpellcastingAbility2024=Позволяет выбрать Интеллект, Мудрость или Харизму в качестве заклинательной характеристики для заклинаний вида.
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Установить скорость 6 клеток для <color=#D89555>игровых видов с базовой скоростью 5 клеток</color>
 ModUi/&EnablePreparedSpellsTables2024=Включить всем <color=#D89555>Заклинателям</color> использовать новые таблицы подготовленных заклинаний <i><color=#F0DAA0>[Изобретатель, Бард, Жрец, Друид, Паладин, Следопыт, Чародей, Волшебник]</color></i>
 ModUi/&EnableSpellLists2024=Использовать списки классовых заклинаний 2024 года
@@ -258,7 +259,7 @@ ModUi/&EnableRespecAction=Включить возможность <color=#D89555
 ModUi/&EnableRitualOnAllCasters2024=Включить <color=#D89555>Ритуальное колдовство</color> для всех заклинателей
 ModUi/&EnableOneSpellSlotPerTurn2024=Применяет правило 2024 года: за один ход можно потратить только одну ячейку на сотворение заклинания <i><color=#F0DAA0>[заговоры и заклинания без расхода ячейки не затрагиваются]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Включить версию 2024 года для <color=#D89555>{0}</color> <i><color=#F0DAA0>[спасбросок Телосложения; при провале накладывание прерывается без расходования ячейки выбранного заклинания]</color></i>
-ModUi/&Counterspell2024CompatibilityDescription=Также включает Разрушитель заклинаний для Оградителей 10-го уровня. Мастер контрзаклинаний Придворного мага даёт целям помеху на спасброски против вашего Контрзаклинания, а вам — преимущество на спасброски против Контрзаклинания.
+ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>[Также включает Разрушитель заклинаний для Оградителей 10-го уровня. Мастер контрзаклинаний Придворного мага даёт целям помеху на спасброски против вашего Контрзаклинания, а вам — преимущество на спасброски против Контрзаклинания.]</color></i>
 ModUi/&EnableRogueCunningStrike2024=Включить умения <color=#D89555>Хитрого удара</color>, <color=#D89555>Улучшенного хитрого удара</color> и <color=#D89555>Коварного удара</color> на уровнях 5, 11 и 14 соответственно <i><color=#F0DAA0>[вы отказываетесь от 1 кости скрытой атаки для применения дополнительных эффектов]</color></i>
 ModUi/&EnableRogueFightingStyle=Включить выбор <color=#D89555>Боевого стиля</color> на уровне 2
 ModUi/&EnableRogueReliableTalent2024=Включить <color=#D89555>Надёжный талант</color> на уровне 7 вместо 11
@@ -299,7 +300,7 @@ ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=Включить
 ModUi/&EnableWarlockMagicalCunningAtLevel2=Включить <color=#D89555>Магическую хитрость</color> на уровне 2
 ModUi/&EnableWarlockToLearnPatronAtLevel3=Включить выбор <color=#D89555>Покровителя</color> на 3-м уровне вместо 1-го
 ModUi/&EnableAbjurerSpellBreaker2024=Включить <color=#D89555>Разрушитель заклинаний</color> для Оградителя на 10-м уровне (2024)
-ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=Включается автоматически при использовании правил Контрзаклинания 2024 года. Отдельная настройка Разрушителя заклинаний сохраняется и снова применяется после отключения этих правил.
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=<i><color=#F0DAA0>[Включается автоматически при использовании правил Контрзаклинания 2024 года. Отдельная настройка Разрушителя заклинаний сохраняется и снова применяется после отключения этих правил.]</color></i>
 ModUi/&EnableWizardMemorizeSpell2024=Включить <color=#D89555>Заучивание заклинаний</color> на уровне 5
 ModUi/&EnableWizardToLearnScholarAtLevel2=Включить <color=#D89555>Учёного</color> на уровне 2
 ModUi/&EnableWizardToLearnSchoolAtLevel3=Включить изучение <color=#D89555>Магических традиций</color> на 3-м уровне вместо 2-го
@@ -542,3 +543,18 @@ ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses
 ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[While enabled, only the independent 2024 feats below can be toggled. Legacy feat toggles are locked]</color></i>
 ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
 ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
+ModUi/&EnableWizardSpellMastery2024=Включить <color=#D89555>Мастерство заклинаний</color> 2024 <i><color=#F0DAA0>[заклинания за действие; замена одного после продолжительного отдыха]</color></i>
+ModUi/&EnableThiefUseMagicDevice2024=Включить <color=#D89555>Использование магических предметов</color> Вора 2024 <i><color=#F0DAA0>[четыре настройки, сохранение зарядов, свитки через Интеллект]</color></i>
+ModUi/&EnableBarbarianDangerSense2024=Включить <color=#D89555>Чувство опасности</color> 2024 <i><color=#F0DAA0>[преимущество к спасброскам Ловкости, если не недееспособны]</color></i>
+ModUi/&EnableBarbarianIndomitableMight2024=Включить <color=#D89555>Неукротимую мощь</color> 2024 <i><color=#F0DAA0>[минимальный итог проверок и спасбросков Силы]</color></i>
+ModUi/&EnableClericDivineIntervention2024=Включить <color=#D89555>Божественное вмешательство</color> и <color=#D89555>Великое божественное вмешательство</color> 2024 года <i><color=#F0DAA0>[выбор заклинания жреца; Исполнение желаний на 20-м уровне]</color></i>
+ModUi/&EnablePaladinRadiantStrikes2024=Включить <color=#D89555>Сияющие удары</color> 2024 года <i><color=#F0DAA0>[также для безоружных ударов]</color></i>
+ModUi/&EnableOneDndShillelaghSpell=Включить версию 2024 года для <color=#D89555>{0}</color> <i><color=#F0DAA0>[урон растёт на уровнях персонажа 5, 11 и 17; можно выбрать урон силовым полем]</color></i>
+ModUi/&HideousLaughter2024TargetingHelp=<i><color=#F0DAA0>[При включённом Жутком смехе 2024 можно выбирать существ любого типа. Отдельная настройка ограничения целей сохраняется и снова действует после отключения этой опции.]</color></i>
+ModUi/&EnableMonkEmpoweredStrikes2024=Включить <color=#D89555>Усиленные удары</color> 2024 года <i><color=#F0DAA0>[силовой урон безоружных ударов]</color></i>
+ModUi/&EnableRogueStrokeOfLuck2024=Включить <color=#D89555>Удачу</color> 2024 года <i><color=#F0DAA0>[заменить результат проваленного броска к20 на 20]</color></i>
+ModUi/&EnableBardWeaponProficiency2024=Включить <color=#D89555>владение оружием</color> барда по правилам 2024 года <i><color=#F0DAA0>[простое оружие]</color></i>
+ModUi/&EnableMonkWeaponProficiency2024=Включить <color=#D89555>владение оружием</color> монаха по правилам 2024 года <i><color=#F0DAA0>[простое оружие и воинское оружие со свойством «лёгкое»]</color></i>
+ModUi/&EnableRogueWeaponProficiency2024=Включить <color=#D89555>владение оружием</color> плута по правилам 2024 года <i><color=#F0DAA0>[простое оружие и воинское оружие со свойством «фехтовальное» или «лёгкое»]</color></i>
+ModUi/&EnableSorcererWeaponProficiency2024=Включить <color=#D89555>владение оружием</color> чародея по правилам 2024 года <i><color=#F0DAA0>[всё простое оружие]</color></i>
+ModUi/&EnableWizardWeaponProficiency2024=Включить <color=#D89555>владение оружием</color> волшебника по правилам 2024 года <i><color=#F0DAA0>[всё простое оружие]</color></i>

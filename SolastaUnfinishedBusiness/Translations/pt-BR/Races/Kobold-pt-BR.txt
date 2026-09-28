@@ -1,6 +1,7 @@
 Condition/&ConditionDarkKoboldGrovelCowerAndBegDescription=Você tem vantagem em suas jogadas de ataque contra inimigos a até 3 metros de seu aliado Kobold.
 Condition/&ConditionDarkKoboldGrovelCowerAndBegTitle=Rastejar, encolher-se e implorar
 Feature/&CastSpellDraconicKoboldMagicDescription=Você conhece um cantrip de sua escolha da lista de magias do Sorcerer. Carisma é sua habilidade de conjuração para ele.
+Feature/&CastSpellDraconicKoboldMagicSpeciesSpellcastingDescription=Você conhece um cantrip de sua escolha da lista de magias do Sorcerer.
 Feature/&CastSpellDraconicKoboldMagicTitle=Magia Kobold
 Feature/&PowerDarkKoboldGrovelCowerAndBegDescription=Como uma ação no seu turno, você pode se encolher pateticamente para distrair inimigos próximos. Até o final do seu próximo turno, seus aliados ganham vantagem em jogadas de ataque contra inimigos a até 10 pés de você que podem vê-lo. Depois de usar essa característica, você não pode usá-la novamente até terminar um descanso curto ou longo.
 Feature/&PowerDarkKoboldGrovelCowerAndBegTitle=Rastejar, encolher-se e implorar

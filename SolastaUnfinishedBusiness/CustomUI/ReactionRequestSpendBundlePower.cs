@@ -44,9 +44,9 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
                 return -1;
             }
 
-            var subPowers = _masterPower.GetBundle()?.SubPowers;
-
-            return subPowers?.FindIndex(p => p == power) ?? -1;
+            // The UI lists only usable subpowers, so its index must use the same filtered list.
+            return ReactionParams.SpellRepertoire?.KnownSpells.FindIndex(
+                spell => PowerBundle.GetPower(spell) == power) ?? -1;
         }
     }
 

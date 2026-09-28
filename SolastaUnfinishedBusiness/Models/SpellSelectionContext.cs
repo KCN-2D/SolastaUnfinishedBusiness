@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -12,6 +13,18 @@ namespace SolastaUnfinishedBusiness.Models;
 internal static class SpellSelectionContext
 {
     private static readonly ConditionalWeakTable<RulesetSpellRepertoire, ResourceOption> Views = new();
+
+    internal static bool TryBeginSelection(RulesetCharacter caster, ResourceOption option, out IDisposable state)
+    {
+        state = null;
+        if (!option.IsAvailable(caster))
+        {
+            return false;
+        }
+
+        state = BeginSelection(option);
+        return true;
+    }
 
     internal static bool TryGetOption(RulesetSpellRepertoire repertoire, out ResourceOption option)
     {

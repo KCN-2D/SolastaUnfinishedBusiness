@@ -22,7 +22,9 @@ public static class WieldedConfigurationSelectorPatcher
     public static class Bind_Patch
     {
         [UsedImplicitly]
-        public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
+        public static IEnumerable<CodeInstruction> Transpiler(
+            [NotNull] IEnumerable<CodeInstruction> instructions,
+            MethodBase original)
         {
             //PATCH: do not show warning sign over specialized monk weapons
             var baseIsMonkWeapon =
@@ -32,10 +34,11 @@ public static class WieldedConfigurationSelectorPatcher
                 typeof(Bind_Patch).GetMethod(nameof(IsMonkWeaponOrUnarmed),
                     BindingFlags.Static | BindingFlags.NonPublic);
 
-            return instructions.ReplaceCalls(baseIsMonkWeapon,
-                "WieldedConfigurationSelector.Bind",
-                new CodeInstruction(OpCodes.Ldarg_1),
-                new CodeInstruction(OpCodes.Call, customIsMonkWeapon));
+            return SimulacrumInventoryUiPatcher.ReplaceWieldedConfigurationGetters(instructions, original)
+                .ReplaceCalls(baseIsMonkWeapon,
+                    "WieldedConfigurationSelector.Bind",
+                    new CodeInstruction(OpCodes.Ldarg_1),
+                    new CodeInstruction(OpCodes.Call, customIsMonkWeapon));
         }
 
         private static bool IsMonkWeaponOrUnarmed(WeaponDescription description, GuiCharacter guiCharacter)

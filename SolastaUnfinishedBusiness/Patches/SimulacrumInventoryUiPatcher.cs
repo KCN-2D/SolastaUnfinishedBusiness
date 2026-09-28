@@ -25,6 +25,71 @@ internal static class SimulacrumInventoryUiPatcher
         typeof(SimulacrumEquipmentPanel),
         nameof(SimulacrumEquipmentPanel.GetTransportHero));
 
+    private static readonly MethodInfo ActualHeroGetter = AccessTools.Method(
+        typeof(SimulacrumInventoryUiPatcher),
+        nameof(GetActualHero));
+
+    internal static IEnumerable<CodeInstruction> ReplaceWieldedConfigurationGetters(
+        IEnumerable<CodeInstruction> instructions,
+        MethodBase original)
+    {
+        return ReplaceMixedInventoryGetters(instructions, original,
+            [HeroGetterRole.Transport, HeroGetterRole.Subject, HeroGetterRole.Transport]);
+    }
+
+    private static IEnumerable<CodeInstruction> ReplaceMixedInventoryGetters(
+        IEnumerable<CodeInstruction> instructions,
+        MethodBase original,
+        HeroGetterRole[] roles)
+    {
+        var codes = instructions.ToList();
+        var replacementIndex = 0;
+
+        for (var index = 0; index < codes.Count; index++)
+        {
+            if (!codes[index].Calls(HeroGetter))
+            {
+                continue;
+            }
+
+            if (replacementIndex >= roles.Length)
+            {
+                throw new InvalidOperationException(
+                    $"Too many Hero getters in {original.DeclaringType?.Name}.{original.Name}.");
+            }
+
+            codes[index].opcode = OpCodes.Call;
+            codes[index].operand = roles[replacementIndex++] switch
+            {
+                HeroGetterRole.Subject => SubjectGetter,
+                HeroGetterRole.Transport => TransportGetter,
+                HeroGetterRole.ActualHero => ActualHeroGetter,
+                _ => throw new ArgumentOutOfRangeException()
+            };
+        }
+
+        if (replacementIndex != roles.Length)
+        {
+            throw new InvalidOperationException(
+                $"Simulacrum inventory getter patch expected {roles.Length} Hero getters in " +
+                $"{original.DeclaringType?.Name}.{original.Name}, found {replacementIndex}.");
+        }
+
+        return codes;
+    }
+
+    private static RulesetCharacterHero GetActualHero(GuiCharacter guiCharacter)
+    {
+        return guiCharacter?.RulesetCharacter as RulesetCharacterHero;
+    }
+
+    private enum HeroGetterRole
+    {
+        Subject,
+        Transport,
+        ActualHero
+    }
+
     // These panels only use the Hero getter to reach members declared on
     // RulesetCharacter. Keep the actual Simulacrum as their inventory subject.
     [HarmonyPatch]
@@ -105,9 +170,6 @@ internal static class SimulacrumInventoryUiPatcher
     [UsedImplicitly]
     internal static class MixedInventoryGetter_Patch
     {
-        private static readonly MethodInfo ActualHeroGetter = AccessTools.Method(
-            typeof(MixedInventoryGetter_Patch),
-            nameof(GetActualHero));
         private static readonly IReadOnlyDictionary<MethodBase, HeroGetterRole[]> Targets = BuildTargets();
 
         [UsedImplicitly]
@@ -121,9 +183,6 @@ internal static class SimulacrumInventoryUiPatcher
             IEnumerable<CodeInstruction> instructions,
             MethodBase original)
         {
-            var codes = instructions.ToList();
-            var replacementIndex = 0;
-
             if (!Targets.TryGetValue(original, out var roles))
             {
                 throw new InvalidOperationException(
@@ -131,42 +190,7 @@ internal static class SimulacrumInventoryUiPatcher
                     $"{original.DeclaringType?.Name}.{original.Name}.");
             }
 
-            for (var index = 0; index < codes.Count; index++)
-            {
-                if (!codes[index].Calls(HeroGetter))
-                {
-                    continue;
-                }
-
-                if (replacementIndex >= roles.Length)
-                {
-                    throw new InvalidOperationException(
-                        $"Too many Hero getters in {original.DeclaringType?.Name}.{original.Name}.");
-                }
-
-                codes[index].opcode = OpCodes.Call;
-                codes[index].operand = roles[replacementIndex++] switch
-                {
-                    HeroGetterRole.Subject => SubjectGetter,
-                    HeroGetterRole.Transport => TransportGetter,
-                    HeroGetterRole.ActualHero => ActualHeroGetter,
-                    _ => throw new ArgumentOutOfRangeException()
-                };
-            }
-
-            if (replacementIndex != roles.Length)
-            {
-                throw new InvalidOperationException(
-                    $"Simulacrum inventory getter patch expected {roles.Length} Hero getters in " +
-                    $"{original.DeclaringType?.Name}.{original.Name}, found {replacementIndex}.");
-            }
-
-            return codes;
-        }
-
-        private static RulesetCharacterHero GetActualHero(GuiCharacter guiCharacter)
-        {
-            return guiCharacter?.RulesetCharacter as RulesetCharacterHero;
+            return ReplaceMixedInventoryGetters(instructions, original, roles);
         }
 
         private static IReadOnlyDictionary<MethodBase, HeroGetterRole[]> BuildTargets()
@@ -233,32 +257,13 @@ internal static class SimulacrumInventoryUiPatcher
                     [typeof(bool), typeof(RulesetItem)])] =
                     [HeroGetterRole.Subject, HeroGetterRole.ActualHero, HeroGetterRole.Subject],
                 [RequireMethod(typeof(InventorySlotBox), "OnSwitchAmmunitionCb", [typeof(bool)])] =
-                    [HeroGetterRole.Transport],
-                [RequireMethod(typeof(WieldedConfigurationSelector), nameof(WieldedConfigurationSelector.Bind),
-                    [
-                        typeof(GuiCharacter),
-                        typeof(int),
-                        typeof(RulesetWieldedConfiguration),
-                        typeof(WieldedConfigurationSelector.OnConfigurationSwitchedHandler),
-                        typeof(bool),
-                        typeof(bool),
-                        typeof(bool),
-                        typeof(RectTransform)
-                    ])] =
-                    [HeroGetterRole.Transport, HeroGetterRole.Subject, HeroGetterRole.Transport]
+                    [HeroGetterRole.Transport]
             };
         }
 
         private static HeroGetterRole[] Repeat(HeroGetterRole role, int count)
         {
             return Enumerable.Repeat(role, count).ToArray();
-        }
-
-        private enum HeroGetterRole
-        {
-            Subject,
-            Transport,
-            ActualHero
         }
     }
 

@@ -1,17 +1,18 @@
-using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Reflection;
 using System.Reflection.Emit;
+using System.Reflection;
+using System;
 using HarmonyLib;
 using JetBrains.Annotations;
-using SolastaUnfinishedBusiness.Api;
+using MirrorImage = SolastaUnfinishedBusiness.Behaviors.Specific.MirrorImage;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
-using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
@@ -19,21 +20,42 @@ using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
 using SolastaUnfinishedBusiness.Validators;
 using UnityEngine;
-using static RuleDefinitions;
-using static FeatureDefinitionAttributeModifier;
 using static ActionDefinitions;
+using static FeatureDefinitionAttributeModifier;
+using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionAttributeModifiers;
-using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionPowers;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionMagicAffinitys;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionPowers;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.SpellDefinitions;
-using MirrorImage = SolastaUnfinishedBusiness.Behaviors.Specific.MirrorImage;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class RulesetCharacterPatcher
 {
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.ActivateMetamagic))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ActivateMetamagic_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(RulesetCharacter __instance, RulesetEffectSpell __0, MetamagicOptionDefinition __1) =>
+            SorceryIncarnateContext.Activate(__instance, __0, __1);
+    }
+
+
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.ComputeSavingThrowModifierImposedOnTarget))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ComputeSavingThrowModifierImposedOnTarget_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.HeightenedSpell, "RulesetCharacter.ComputeSavingThrowModifierImposedOnTarget");
+    }
+
+
     [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.GetAmmunitionType))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -479,6 +501,8 @@ public static class RulesetCharacterPatcher
             {
                 __instance.isIncapacitated = true;
             }
+
+            BarbarianRage2024Context.CheckTermination(__instance);
         }
     }
 
@@ -963,7 +987,7 @@ public static class RulesetCharacterPatcher
             ref bool result,
             ref string failure)
         {
-            if (RulesetEffectSpellWithOrigin.IsPendingOrigin(character, spellDefinition))
+            if (RulesetEffectSpellWithOrigin.IsPendingOriginWithMaterialBypass(character, spellDefinition))
             {
                 result = true;
                 failure = string.Empty;
@@ -1114,7 +1138,7 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static bool Prefix(RulesetCharacter __instance, RulesetEffectSpell activeSpell)
         {
-            if (activeSpell is RulesetEffectSpellWithOrigin { BypassComponentsAndCastingTime: true })
+            if (activeSpell is RulesetEffectSpellWithOrigin { BypassMaterialComponent: true })
             {
                 return false;
             }
@@ -1694,10 +1718,11 @@ public static class RulesetCharacterPatcher
     public static class RollAbilityCheck_Patch
     {
         [UsedImplicitly]
+        [HarmonyPriority(Priority.First)]
         public static void Prefix(
             [NotNull] RulesetCharacter __instance,
             int baseBonus,
-            string abilityScoreName,
+            ref string abilityScoreName,
             string proficiencyName,
             List<TrendInfo> modifierTrends,
             List<TrendInfo> advantageTrends,
@@ -1706,6 +1731,8 @@ public static class RulesetCharacterPatcher
             [HarmonyArgument(7)] bool passive,
             [HarmonyArgument(14)] bool rollDie)
         {
+            abilityScoreName = AbilityCheckAbilityReplacement.Resolve(__instance, abilityScoreName, proficiencyName);
+
             foreach (var modifyAbilityCheck in __instance.GetSubFeaturesByType<IModifyAbilityCheck>())
             {
                 if ((passive || !rollDie) &&
@@ -2107,6 +2134,8 @@ public static class RulesetCharacterPatcher
                 }
             }
 
+            Tabletop2024Context.RecoverClericDivineIntervention(__instance, restType, simulate);
+
             //TODO: time to make this an interface to support scenarios like below
             if (restType != RestType.ShortRest)
             {
@@ -2500,6 +2529,10 @@ public static class RulesetCharacterPatcher
     [UsedImplicitly]
     public static class ComputeSaveDC_Patch
     {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            RulesetSpellRepertoirePatcher.UseEffectiveSpellcastingAbility(instructions);
+
         [UsedImplicitly]
         public static bool Prefix(RulesetCharacter __instance, RulesetSpellRepertoire spellRepertoire, ref int __result)
         {
@@ -2918,6 +2951,8 @@ public static class RulesetCharacterPatcher
 
             //PATCH: support for 2024 Smite spells
             Tabletop2024Context.UpdatePaladinSmite(hero);
+            Tabletop2024Context.UpdatePaladinRechargeLv20Power(hero);
+            Tabletop2024Context.UpdateClericDivineIntervention(hero);
 
             //PATCH: fix scenarios where hero doesn't have an instance of a usable power
             var featureDefinitionPowers = hero.ActiveFeatures
@@ -3284,9 +3319,15 @@ public static class RulesetCharacterPatcher
     [UsedImplicitly]
     public static class SpendSpellSlot_Patch
     {
+        [HarmonyPriority(Priority.First)]
         [UsedImplicitly]
         public static bool Prefix(RulesetCharacter __instance, RulesetEffectSpell activeSpell)
         {
+            if (Tabletop2024Context.TrySpendDivineIntervention(__instance, activeSpell))
+            {
+                return false;
+            }
+
             var resourceSlotLevel = RulesetEffectSpellWithOrigin.GetResourceSlotLevel(activeSpell);
 
             if (resourceSlotLevel > 0)
@@ -3431,6 +3472,38 @@ public static class RulesetCharacterPatcher
         {
             return repertoire?.SpellCastingFeature?.SpellCastingOrigin is FeatureDefinitionCastSpell.CastingOrigin.Race
                 or FeatureDefinitionCastSpell.CastingOrigin.Monster;
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetCharacter), "EnumerateUsableSpells")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class EnumerateUsableSpells_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(RulesetCharacter __instance)
+        {
+            SpellCastingResourceContext.AddFreeWizardUsableSpells(__instance);
+        }
+    }
+
+    [HarmonyPatch]
+    [UsedImplicitly]
+    internal static class AbilityCheckAbilityReplacement_Patch
+    {
+        [UsedImplicitly]
+        private static IEnumerable<MethodBase> TargetMethods()
+        {
+            return AccessTools.GetDeclaredMethods(typeof(RulesetCharacter)).Where(method =>
+                method.Name is nameof(RulesetCharacter.ComputeBaseAbilityCheckBonus) or
+                    nameof(RulesetCharacter.RollBasicAbilityCheck));
+        }
+
+        [UsedImplicitly]
+        [HarmonyPriority(Priority.First)]
+        private static void Prefix(RulesetCharacter __instance, ref string abilityScoreName, string proficiencyName)
+        {
+            abilityScoreName = AbilityCheckAbilityReplacement.Resolve(__instance, abilityScoreName, proficiencyName);
         }
     }
 }

@@ -58,7 +58,19 @@ internal sealed class AttackAfterMagicEffect(AttackAfterMagicEffect.AttackType a
         RulesetAttackMode attackMode = null)
     {
         attackMode ??= attacker.FindActionAttackMode(ActionDefinitions.Id.AttackMain);
+        return CanAttack(attacker, defender, allowMelee, allowRanged, allowThrown, attackMode, out _);
+    }
 
+    private static bool CanAttack(
+        GameLocationCharacter attacker,
+        GameLocationCharacter defender,
+        bool allowMelee,
+        bool allowRanged,
+        bool allowThrown,
+        RulesetAttackMode attackMode,
+        out bool rangedAttack)
+    {
+        rangedAttack = attackMode?.Ranged ?? false;
         if (attackMode == null)
         {
             return false;
@@ -82,13 +94,23 @@ internal sealed class AttackAfterMagicEffect(AttackAfterMagicEffect.AttackType a
 
                 canAttack = battleService.CanAttack(evalParams) && attacker.IsWithinRange(defender, reach);
 
-                if (!canAttack && allowThrown)
+                if (!canAttack && allowThrown && attackMode.Thrown)
                 {
-                    attackMode.ranged = true;
-                    evalParams.FillForPhysicalRangeAttack(
-                        attacker, attackerPosition, attackMode, defender, defenderPosition, attackModifier);
+                    var wasRanged = attackMode.Ranged;
+                    try
+                    {
+                        attackMode.Ranged = true;
+                        evalParams.FillForPhysicalRangeAttack(
+                            attacker, attackerPosition, attackMode, defender, defenderPosition, attackModifier);
 
-                    canAttack = battleService.CanAttack(evalParams);
+                        canAttack = battleService.CanAttack(evalParams);
+                        rangedAttack = canAttack;
+                    }
+                    finally
+                    {
+                        // Target previews also use the character's reusable attack mode.
+                        attackMode.Ranged = wasRanged;
+                    }
                 }
 
                 break;
@@ -133,9 +155,9 @@ internal sealed class AttackAfterMagicEffect(AttackAfterMagicEffect.AttackType a
         }
 
         var caster = actionParams.ActingCharacter;
-        var attackMode = caster.FindActionAttackMode(ActionDefinitions.Id.AttackMain);
+        var originalAttackMode = caster.FindActionAttackMode(ActionDefinitions.Id.AttackMain);
 
-        if (attackMode == null)
+        if (originalAttackMode == null)
         {
             return attacks;
         }
@@ -143,7 +165,7 @@ internal sealed class AttackAfterMagicEffect(AttackAfterMagicEffect.AttackType a
         var targets = actionParams.IsReactionEffect
             ? actionParams.TargetCharacters
             : actionParams.TargetCharacters
-                .Where(t => CanAttack(caster, t, AllowMelee, AllowRanged, AllowThrown, attackMode))
+                .Where(t => CanAttack(caster, t, AllowMelee, AllowRanged, AllowThrown, originalAttackMode))
                 .ToList();
 
         if (targets.Count == 0)
@@ -156,10 +178,10 @@ internal sealed class AttackAfterMagicEffect(AttackAfterMagicEffect.AttackType a
         for (var i = 0; i < maxTargets; i++)
         {
             //get copy to be sure we don't break existing mode
-            var rulesetAttackModeCopy = RulesetAttackMode.AttackModesPool.Get();
-
-            rulesetAttackModeCopy.Copy(attackMode);
-            attackMode = rulesetAttackModeCopy;
+            var attackMode = RulesetAttackMode.AttackModesPool.Get();
+            attackMode.Copy(originalAttackMode);
+            CanAttack(caster, targets[i], AllowMelee, AllowRanged, AllowThrown, attackMode, out var rangedAttack);
+            attackMode.Ranged = rangedAttack;
 
             //set action type to be same as the one used for the magic effect
             attackMode.ActionType = actionMagicEffect.ActionType;
@@ -178,6 +200,12 @@ internal sealed class AttackAfterMagicEffect(AttackAfterMagicEffect.AttackType a
             if (actionParams.RulesetEffect != null)
             {
                 OriginatingEffects.Add(attackMode, actionParams.RulesetEffect);
+
+                foreach (var modifier in actionParams.RulesetEffect.SourceDefinition
+                             .GetAllSubFeaturesOfType<IModifyAttackAfterMagicEffect>())
+                {
+                    modifier.ModifyAttack(actionParams.RulesetEffect, caster.RulesetCharacter, attackMode);
+                }
             }
 
             // always use free attack

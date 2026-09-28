@@ -24,3 +24,4 @@ Race/&RaceTieflingMephistophelesDescription=墨菲斯托为那些向他恳求的
 Race/&RaceTieflingMephistophelesTitle=墨菲斯托
 Race/&RaceTieflingZarielDescription=与扎瑞尔有血缘关系的提夫林比典型的提夫林更强大，并获得有助于他们战斗的魔法能力。
 Race/&RaceTieflingZarielTitle=扎瑞尔
+Feature/&CastSpellTieflingSpeciesSpellcastingDescription=你懂得燃火术戏法。达到 3 级时，你可以使用这个特性，以 2 环法术的形式施放炼狱叱喝，在一次长休后，即可恢复其使用能力。达到 5 级时，你可以使用这个特性施放黑暗术，在一次长休后，即可恢复其使用能力。

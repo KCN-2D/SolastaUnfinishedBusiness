@@ -70,3 +70,5 @@ Spell/&TreeForestGuardianDescription=你的皮肤看起来像树皮，头发上�
 Spell/&TreeForestGuardianTitle=原初之森
 Spell/&VitriolicSphereDescription=你指向范围内的某个地方，一个直径 1 英尺的绿色酸球便会在那里划出一道条纹，并在半径 20 英尺的范围内爆炸。该区域内的每个生物都必须进行敏捷豁免检定。如果豁免失败，生物将受到 10d4 酸伤害，并在其下一回合结束时受到 5d4 酸伤害。如果豁免成功，生物将受到一半的初始伤害，并在其下一回合结束时不受伤害。当你使用 5 级或更高级别的法术位施放此法术时，初始伤害每高于 4 级法术位增加 2d4。
 Spell/&VitriolicSphereTitle=浓酸球
+Spell/&StoneskinExtendedDescription=抵抗钝击、砍击和穿刺伤害。
+Spell/&StaggeringSmite2024Description=近战武器或徒手打击命中后，立即造成额外4d6心灵伤害。目标进行一次感知豁免，失败则陷入震慑状态，直至你的下个回合结束。使用的法术位每比4环高一环，额外伤害就增加1d6。

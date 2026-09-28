@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -13,6 +13,23 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GuiSpellDefinitionPatcher
 {
+    [HarmonyPatch(typeof(GuiSpellDefinition), nameof(GuiSpellDefinition.Duration), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Duration_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GuiSpellDefinition __instance, ref string __result)
+        {
+            var duration = __instance.SpellDefinition.GetFirstSubFeatureOfType<CustomSpellDuration>();
+
+            if (duration is { IsValid: true })
+            {
+                __result = duration.FormatDuration(__instance.SpellDefinition.RequiresConcentration);
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(GuiSpellDefinition), nameof(GuiSpellDefinition.CastingTime), MethodType.Getter)]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -28,6 +29,34 @@ namespace SolastaUnfinishedBusiness.Models;
 
 public static partial class Tabletop2024Context
 {
+    private static readonly ModifyAttunementLimit ThiefAttunementLimit =
+        new(0, 4, () => Main.Settings.EnableThiefUseMagicDevice2024);
+
+    internal static void SwitchThiefUseMagicDevice()
+    {
+        var feature = ThiefUseMagicDevice2024Context.Feature;
+
+        if (!feature.GetAllSubFeaturesOfType<ModifyAttunementLimit>().Contains(ThiefAttunementLimit))
+        {
+            feature.AddCustomSubFeatures(ThiefAttunementLimit);
+        }
+
+        feature.ignoreClassRestrictionsOnMagicalItems = !Main.Settings.EnableThiefUseMagicDevice2024;
+        feature.GuiPresentation.description = Main.Settings.EnableThiefUseMagicDevice2024
+            ? "Feature/&MagicAffinityUseMagicalItem2024Description"
+            : "Feature/&MagicAffinityUseMagicalItemDescription";
+    }
+
+    internal static void SwitchRogueStrokeOfLuck()
+    {
+        var feature = DatabaseRepository.GetDatabase<FeatureDefinitionPower>()
+            .GetElement("PowerRogueStrokeOfLuck");
+
+        feature.GuiPresentation.description = Main.Settings.EnableRogueStrokeOfLuck2024
+            ? "Feature/&PowerRogueStrokeOfLuck2024Description"
+            : "Feature/&PowerRogueStrokeOfLuckDescription";
+    }
+
     private const string FeatSteadyAim = "FeatSteadyAim";
 
     private static readonly FeatureDefinitionPower PowerFeatSteadyAim = FeatureDefinitionPowerBuilder

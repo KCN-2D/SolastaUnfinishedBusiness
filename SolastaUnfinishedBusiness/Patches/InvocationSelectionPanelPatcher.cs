@@ -16,6 +16,8 @@ public static class InvocationSelectionPanelPatcher
         [UsedImplicitly]
         public static bool Prefix(InvocationSelectionPanel __instance, InvocationActivationBox invocationActivationBox)
         {
+            SubspellSelectionModalPatcher.RecordInvocationSelection(__instance, invocationActivationBox);
+
             //PATCH: used by Power Bundles feature
             //if the activated invocation is a power bundle, this tries to replace activation with sub-power selector and
             //then activates bundled power according to selected subspell.

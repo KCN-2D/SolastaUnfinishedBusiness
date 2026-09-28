@@ -124,23 +124,21 @@ public static partial class Tabletop2024Context
             .AddCustomSubFeatures(new CustomBehaviorFeatureClericImprovedBlessedStrikes())
             .AddToDB();
 
-    private sealed class CustomBehaviorFeatureClericImprovedBlessedStrikes : IMagicEffectBeforeHitConfirmedOnEnemy
+    private sealed class CustomBehaviorFeatureClericImprovedBlessedStrikes : IMagicEffectFinishedByMe
     {
-        public IEnumerator OnMagicEffectBeforeHitConfirmedOnEnemy(
-            GameLocationBattleManager battleManager,
+        public IEnumerator OnMagicEffectFinishedByMe(
+            CharacterAction action,
             GameLocationCharacter attacker,
-            GameLocationCharacter defender,
-            ActionModifier actionModifier,
-            RulesetEffect rulesetEffect,
-            List<EffectForm> actualEffectForms,
-            bool firstTarget,
-            bool criticalHit)
+            List<GameLocationCharacter> targets)
         {
             var rulesetAttacker = attacker.RulesetCharacter;
 
-            if (!rulesetAttacker.HasPower(PowerBlessedStrikes) &&
-                actualEffectForms.Any(x => x.FormType == EffectForm.EffectFormType.Damage) &&
-                rulesetEffect is RulesetEffectSpell
+            if (Main.Settings.EnableClericBlessedStrikes2024 &&
+                action is CharacterActionMagicEffect { Countered: false, ExecutionFailed: false } magicAction &&
+                magicAction.damagePerTargetIndexCache.Values.Any(damage => damage > 0) &&
+                rulesetAttacker.HasAnyFeature(FeaturePotentSpellcasting) &&
+                rulesetAttacker.GetClassLevel(Cleric) >= 14 &&
+                action.ActionParams.RulesetEffect is RulesetEffectSpell
                 {
                     SpellDefinition: { SpellLevel: 0 } spellDefinition
                 } spellEffect &&
@@ -167,38 +165,8 @@ public static partial class Tabletop2024Context
         }
     }
 
-    private static readonly Dictionary<string, List<string>> AdditionalDamageBlessedStrikes = new()
-    {
-        {
-            "DomainDefiler", [
-                "PowerClericBlessedStrikesDamageNecrotic",
-                "PowerClericBlessedStrikesDamageRadiant"
-            ]
-        },
-        {
-            "DomainLife", [
-                "PowerClericBlessedStrikesDamageNecrotic",
-                "PowerClericBlessedStrikesDamageRadiant"
-            ]
-        },
-        { "DomainMischief", ["PowerClericBlessedStrikesDamagePsychic"] },
-        {
-            "DomainNature", [
-                "PowerClericBlessedStrikesDamageCold" //, //
-                //"PowerClericBlessedStrikesDamageFire", //
-                //"PowerClericBlessedStrikesDamageLighting" //
-            ]
-        },
-        { "DomainOrder", ["PowerClericBlessedStrikesDamagePsychic"] },
-        { "DomainSmith", ["PowerClericBlessedStrikesDamageFire"] },
-        {
-            "DomainSun", [
-                "PowerClericBlessedStrikesDamageNecrotic",
-                "PowerClericBlessedStrikesDamageRadiant"
-            ]
-        },
-        { "DomainTempest", ["PowerClericBlessedStrikesDamageThunder"] }
-    };
+    private static List<(CharacterSubclassDefinition Subclass, FeatureUnlockByLevel Unlock)> _legacyDivineStrikeUnlocks;
+    private static readonly Dictionary<FeatureDefinition, FeatureDefinition> SavedBlessedStrikesChoices = [];
 
     private static readonly FeatureDefinition FeaturePotentSpellcasting = FeatureDefinitionBuilder
         .Create("FeatureClericBlessedStrikesPotentSpellcasting")
@@ -261,13 +229,14 @@ public static partial class Tabletop2024Context
                 .SetFeatures(additionalDamageBlessedStrikes)
                 .AddToDB();
 
-            var damageTitle = Gui.Localize($"Tooltip/&Tag{damageType}Title");
-
             var powerDivineStrike = FeatureDefinitionPowerSharedPoolBuilder
                 .Create($"PowerClericBlessedStrikes{damageType}")
                 .SetGuiPresentation(
                     $"Tooltip/&Tag{damageType}Title",
-                    Gui.Format("Feature/&PowerClericBlessedStrikesSubPowerDescription", damageTitle))
+                    "Feature/&PowerClericBlessedStrikesSubPowerDescription")
+                .AddCustomSubFeatures(new FormattedDefinitionText(description: () => Gui.Format(
+                    "Feature/&PowerClericBlessedStrikesSubPowerDescription",
+                    Gui.Localize($"Tooltip/&Tag{damageType}Title"))))
                 .SetShowCasting(false)
                 .SetSharedPool(ActivationTime.NoCost, PowerBlessedStrikes)
                 .SetEffectDescription(
@@ -286,8 +255,13 @@ public static partial class Tabletop2024Context
             FeatureDefinitionBuilder
                 .Create($"FeatureClericAdditionalDamageGenericBlessed{damageType}")
                 .SetGuiPresentation(
-                    Gui.Format("Feature/&FeatureClericAdditionalDamageGenericBlessedTitle", damageTitle),
-                    Gui.Format("Feature/&FeatureClericAdditionalDamageGenericBlessedDescription", damageTitle))
+                    "Feature/&FeatureClericAdditionalDamageGenericBlessedTitle",
+                    "Feature/&FeatureClericAdditionalDamageGenericBlessedDescription")
+                .AddCustomSubFeatures(new FormattedDefinitionText(
+                    () => Gui.Format("Feature/&FeatureClericAdditionalDamageGenericBlessedTitle",
+                        Gui.Localize($"Tooltip/&Tag{damageType}Title")),
+                    () => Gui.Format("Feature/&FeatureClericAdditionalDamageGenericBlessedDescription",
+                        Gui.Localize($"Tooltip/&Tag{damageType}Title"))))
                 .AddToDB();
         }
 
@@ -305,6 +279,14 @@ public static partial class Tabletop2024Context
 
         PowerBundle.RegisterPowerBundle(PowerBlessedStrikes, false, powers);
         FeatureSetClericBlessedStrikes.FeatureSet.SetRange(FeaturePotentSpellcasting, featureSetPrimalStrike);
+
+        foreach (var choice in FeatureSetClericBlessedStrikes.FeatureSet)
+        {
+            SavedBlessedStrikesChoices.Add(choice, FeatureDefinitionBuilder
+                .Create("FeatureSavedBlessedStrikes" + choice.Name)
+                .SetGuiPresentationNoContent(true)
+                .AddToDB());
+        }
     }
 
     private static void LoadClericChannelDivinity()
@@ -395,62 +377,176 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchClericBlessedStrikes()
     {
-        var domains = new[]
+        _legacyDivineStrikeUnlocks ??= ClericDomains.SelectMany(domain => domain.FeatureUnlocks
+                .Where(unlock => HasLegacyDivineStrike(unlock.FeatureDefinition, []))
+                .Select(unlock => (domain, unlock)))
+            .ToList();
+
+        Cleric.FeatureUnlocks.RemoveAll(unlock => unlock.FeatureDefinition == FeatureSetClericBlessedStrikes ||
+                                                  unlock.FeatureDefinition == FeatureClericImprovedBlessedStrikes);
+
+        if (Main.Settings.EnableClericBlessedStrikes2024)
         {
-            ("DomainDefiler", "AdditionalDamageDomainDefilerDivineStrike", string.Empty),
-            ("DomainLife", "AdditionalDamageDomainLifeDivineStrike", string.Empty),
-            ("DomainMischief", "AdditionalDamageDomainMischiefDivineStrike", DamageTypePsychic),
-            ("DomainNature", "FeatureSetDomainNatureNatureStrikes", DamageTypeCold),
-            ("DomainOrder", "AdditionalDamageDomainOrderDivineStrike", DamageTypePsychic),
-            ("DomainSmith", "AdditionalDamageDomainSmithDivineStrike", DamageTypeFire),
-            ("DomainSun", "AdditionalDamageDomainLifeDivineStrike", string.Empty),
-            ("DomainTempest", "AdditionalDamageDomainTempestDivineStrike", DamageTypeThunder)
-        };
-
-        var fromLevel = Main.Settings.EnableClericBlessedStrikes2024 ? 8 : 7;
-        var toLevel = Main.Settings.EnableClericBlessedStrikes2024 ? 7 : 8;
-
-        foreach (var (subclassName, additionalDamageName, damageType) in domains)
-        {
-            var subclass = GetDefinition<CharacterSubclassDefinition>(subclassName);
-            var additionalDamage = GetDefinition<FeatureDefinition>(additionalDamageName);
-            var featureDamage = !string.IsNullOrEmpty(damageType)
-                ? GetDefinition<FeatureDefinition>($"FeatureClericAdditionalDamageGenericBlessed{damageType}")
-                : null;
-
-            subclass.FeatureUnlocks.RemoveAll(x =>
-                x.FeatureDefinition == additionalDamage ||
-                x.FeatureDefinition == featureDamage ||
-                x.FeatureDefinition == FeatureSetClericBlessedStrikes ||
-                x.FeatureDefinition == FeatureClericImprovedBlessedStrikes);
-
-            if (Main.Settings.EnableClericBlessedStrikes2024)
-            {
-                subclass.FeatureUnlocks.AddRange(
-                    new FeatureUnlockByLevel(FeatureSetClericBlessedStrikes, 7),
-                    new FeatureUnlockByLevel(FeatureClericImprovedBlessedStrikes, 14));
-
-                if (featureDamage)
-                {
-                    subclass.FeatureUnlocks.AddRange(new FeatureUnlockByLevel(featureDamage, 7));
-                }
-            }
-            else
-            {
-                subclass.FeatureUnlocks.Add(new FeatureUnlockByLevel(additionalDamage, 8));
-            }
+            Cleric.FeatureUnlocks.Add(new FeatureUnlockByLevel(FeatureSetClericBlessedStrikes, 7));
+            Cleric.FeatureUnlocks.Add(new FeatureUnlockByLevel(FeatureClericImprovedBlessedStrikes, 14));
         }
 
-        foreach (var featureUnlock in ClericDomains
-                     .SelectMany(domain => domain.FeatureUnlocks.Where(x => x.Level == fromLevel)))
+        foreach (var (domain, unlock) in _legacyDivineStrikeUnlocks)
         {
-            featureUnlock.level = toLevel;
-        }
+            domain.FeatureUnlocks.Remove(unlock);
 
-        foreach (var domain in ClericDomains)
-        {
+            if (!Main.Settings.EnableClericBlessedStrikes2024)
+            {
+                domain.FeatureUnlocks.Add(unlock);
+            }
+
             domain.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
         }
+
+        Cleric.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+
+        var characters = ServiceRepository.GetService<IGameLocationCharacterService>()?.PartyCharacters;
+
+        if (characters != null)
+        {
+            foreach (var character in characters)
+            {
+                if (character.RulesetCharacter is RulesetCharacterHero hero)
+                {
+                    UpdateClericBlessedStrikes(hero);
+                }
+            }
+        }
+    }
+
+    internal static void UpdateClericBlessedStrikes(RulesetCharacterHero hero)
+    {
+        if (hero.GetClassLevel(Cleric) < 7 || !hero.ClassesAndSubclasses.TryGetValue(Cleric, out var subclass))
+        {
+            return;
+        }
+
+        var classTag = AttributeDefinitions.GetClassTag(Cleric, 7);
+        var choiceTags = new[] { classTag, AttributeDefinitions.GetSubclassTag(Cleric, 7, subclass),
+            AttributeDefinitions.GetSubclassTag(Cleric, 8, subclass) };
+        var selected = SavedBlessedStrikesChoices.Keys.FirstOrDefault(choice => choiceTags.Any(tag =>
+            hero.ActiveFeatures.TryGetValue(tag, out var features) &&
+            (features.Contains(choice) || features.Contains(SavedBlessedStrikesChoices[choice]))));
+
+        // Only migrate an explicit saved choice. Characters without one retain their existing features.
+        if (selected == null)
+        {
+            return;
+        }
+
+        var saved = SavedBlessedStrikesChoices[selected];
+
+        foreach (var tag in choiceTags)
+        {
+            if (hero.ActiveFeatures.TryGetValue(tag, out var features))
+            {
+                features.Remove(selected);
+                features.Remove(saved);
+            }
+        }
+
+        if (!hero.ActiveFeatures.TryGetValue(classTag, out var choices))
+        {
+            choices = [];
+            hero.ActiveFeatures.Add(classTag, choices);
+        }
+
+        var enabled = Main.Settings.EnableClericBlessedStrikes2024;
+        choices.Add(enabled ? selected : saved);
+        UpdateBlessedStrikesPowers(hero, selected, enabled);
+
+        foreach (var (domain, unlock) in _legacyDivineStrikeUnlocks ?? [])
+        {
+            if (domain != subclass || unlock.Level > hero.GetClassLevel(Cleric) ||
+                EnumerateFeatureTree(unlock.FeatureDefinition).OfType<FeatureDefinitionFeatureSet>()
+                    .Any(set => set.Mode == FeatureDefinitionFeatureSet.FeatureSetMode.Exclusion))
+            {
+                continue;
+            }
+
+            // These are automatic features from the hero's actual domain and attained level.
+            // Exclusion choices are never reconstructed from the modern selection.
+            var legacyTag = AttributeDefinitions.GetSubclassTag(Cleric, unlock.Level, subclass);
+            if (!hero.ActiveFeatures.TryGetValue(legacyTag, out var legacyFeatures))
+            {
+                if (enabled)
+                {
+                    continue;
+                }
+
+                legacyFeatures = [];
+                hero.ActiveFeatures.Add(legacyTag, legacyFeatures);
+            }
+
+            legacyFeatures.Remove(unlock.FeatureDefinition);
+            if (!enabled)
+            {
+                legacyFeatures.Add(unlock.FeatureDefinition);
+            }
+
+            UpdateBlessedStrikesPowers(hero, unlock.FeatureDefinition, !enabled);
+        }
+
+        var improvedTag = AttributeDefinitions.GetClassTag(Cleric, 14);
+
+        foreach (var tag in new[] { improvedTag, AttributeDefinitions.GetSubclassTag(Cleric, 14, subclass) })
+        {
+            if (hero.ActiveFeatures.TryGetValue(tag, out var features))
+            {
+                features.Remove(FeatureClericImprovedBlessedStrikes);
+            }
+        }
+
+        if (enabled && hero.GetClassLevel(Cleric) >= 14)
+        {
+            if (!hero.ActiveFeatures.TryGetValue(improvedTag, out var features))
+            {
+                features = [];
+                hero.ActiveFeatures.Add(improvedTag, features);
+            }
+
+            features.Add(FeatureClericImprovedBlessedStrikes);
+        }
+    }
+
+    private static void UpdateBlessedStrikesPowers(RulesetCharacterHero hero, FeatureDefinition feature, bool enabled)
+    {
+        foreach (var power in EnumerateFeatureTree(feature).OfType<FeatureDefinitionPower>())
+        {
+            var usable = hero.UsablePowers.FirstOrDefault(candidate => candidate.PowerDefinition == power);
+            if (enabled && usable == null)
+            {
+                hero.UsablePowers.Add(PowerProvider.Get(power, hero));
+            }
+            else if (!enabled && usable != null)
+            {
+                hero.UsablePowers.Remove(usable);
+            }
+        }
+    }
+
+    private static bool HasLegacyDivineStrike(FeatureDefinition feature, HashSet<BaseDefinition> visited)
+    {
+        if (feature == null || !visited.Add(feature))
+        {
+            return false;
+        }
+
+        return feature switch
+        {
+            FeatureDefinitionAdditionalDamage damage => damage.NotificationTag == "DivineStrike",
+            FeatureDefinitionFeatureSet set => set.FeatureSet.Any(child => HasLegacyDivineStrike(child, visited)),
+            FeatureDefinitionPower power => power.EffectDescription.EffectForms
+                .GetAppliedConditionDefinitions()
+                .Where(condition => visited.Add(condition))
+                .Any(condition => condition.Features.Any(child => HasLegacyDivineStrike(child, visited))),
+            _ => false
+        };
     }
 
     internal static void SwitchClericChannelDivinity()
@@ -485,16 +581,24 @@ public static partial class Tabletop2024Context
             Cleric.FeatureUnlocks.Add(new FeatureUnlockByLevel(FeatureSetClericDivineOrder, 1));
         }
 
+        SwitchClericDomainProficiencies();
+
         Cleric.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
     }
 
-    private static readonly CharacterSubclassDefinition[] ClericDomains = DatabaseRepository
-        .GetDatabase<CharacterSubclassDefinition>()
-        .Where(x => x.Name.StartsWith("Domain"))
+    private static CharacterSubclassDefinition[] ClericDomains => DatabaseRepository
+        .GetDatabase<DeityDefinition>()
+        .SelectMany(deity => deity.Subclasses)
+        .Concat(SubclassChoiceClericDivineDomains.Subclasses)
+        .Select(GetDefinition<CharacterSubclassDefinition>)
+        .Concat(SubclassesContext.KlassListContextTab[Cleric].AllSubClasses)
+        .Distinct()
         .ToArray();
 
-    private static readonly (CharacterSubclassDefinition, FeatureDefinition)[] ClericFeaturesGrantedAt2 =
-        ClericDomains
+    private static (CharacterSubclassDefinition, FeatureDefinition)[] _clericFeaturesGrantedAt2;
+
+    private static (CharacterSubclassDefinition, FeatureDefinition)[] ClericFeaturesGrantedAt2 =>
+        _clericFeaturesGrantedAt2 ??= ClericDomains
             .SelectMany(y =>
                     y.FeatureUnlocks.Where(z => z.Level == 2),
                 (subclass, feature) => (subclass, feature.FeatureDefinition))
@@ -515,10 +619,16 @@ public static partial class Tabletop2024Context
 
         foreach (var (subClass, feature) in ClericFeaturesGrantedAt2)
         {
-            subClass.FeatureUnlocks.FirstOrDefault(x => x.FeatureDefinition == feature)!.level = level;
+            var unlock = subClass.FeatureUnlocks.FirstOrDefault(x => x.FeatureDefinition == feature);
+
+            if (unlock != null)
+            {
+                unlock.level = level;
+            }
         }
 
         SwitchSubclassLearningLevel(ClericDomains, Cleric, SubclassChoiceClericDivineDomains, fromLevel, toLevel);
+        SwitchClericDomainProficiencies();
     }
 
     internal static void SwitchClericSearUndead()
@@ -597,7 +707,7 @@ public static partial class Tabletop2024Context
             RulesetCharacter character,
             RulesetEffect rulesetEffect)
         {
-            if (!Main.Settings.EnableClericSearUndead2024)
+            if (!Main.Settings.EnableClericSearUndead2024 || character.GetClassLevel(Cleric) < 5)
             {
                 effectDescription.EffectForms.Remove(SearUndeadDamageForm);
 
@@ -653,7 +763,8 @@ public static partial class Tabletop2024Context
             bool firstTarget,
             bool criticalHit)
         {
-            if (ValidatorsWeapon.IsMelee(attackMode))
+            if (attackMode?.SourceDefinition is ItemDefinition { IsWeapon: true } item &&
+                item.WeaponDescription.WeaponTypeDefinition != WeaponTypeDefinitions.UnarmedStrikeType)
             {
                 yield return HandleReaction(attacker, battleManager);
             }
@@ -663,31 +774,12 @@ public static partial class Tabletop2024Context
         {
             var rulesetAttacker = attacker.RulesetCharacter;
 
-            if (!rulesetAttacker.IsToggleEnabled((Id)ExtraActionId.BlessedStrikesToggle) ||
+            if (!Main.Settings.EnableClericBlessedStrikes2024 ||
+                !rulesetAttacker.IsToggleEnabled((Id)ExtraActionId.BlessedStrikesToggle) ||
                 !attacker.OnceInMyTurnIsValid(BlessedStrikes))
             {
                 yield break;
             }
-
-            var featureOwner = rulesetAttacker.TryGetShapeChangeOriginalHero(out var shapeChangeHero)
-                ? shapeChangeHero
-                : rulesetAttacker;
-            var powers = new List<RulesetUsablePower>();
-
-            foreach (var pair in AdditionalDamageBlessedStrikes)
-            {
-                if (featureOwner.GetSubclassLevel(Cleric, pair.Key) <= 0)
-                {
-                    continue;
-                }
-
-                powers.AddRange(pair.Value.Select(x =>
-                    PowerProvider.Get(GetDefinition<FeatureDefinitionPower>(x), rulesetAttacker)));
-
-                break;
-            }
-
-            featureOwner.UsablePowers.AddRange(powers);
 
             var usablePowerPool = PowerProvider.Get(powerBlessedStrikes, rulesetAttacker);
 
@@ -698,8 +790,6 @@ public static partial class Tabletop2024Context
                 powerBlessedStrikes.Name,
                 reactionValidated: ReactionValidated,
                 battleManager: battleManager);
-
-            powers.Do(x => featureOwner.UsablePowers.Remove(x));
 
             yield break;
 
@@ -723,7 +813,8 @@ public static partial class Tabletop2024Context
             RulesetCharacter character,
             RulesetEffect rulesetEffect)
         {
-            var tempHp = GetWisdomModifierMinimumOne(character) * 2;
+            var tempHp = Math.Max(0, AttributeDefinitions.ComputeAbilityScoreModifier(
+                character.TryGetAttributeValue(AttributeDefinitions.Wisdom))) * 2;
 
             effectDescription.EffectForms[0].TemporaryHitPointsForm.BonusHitPoints = tempHp;
 

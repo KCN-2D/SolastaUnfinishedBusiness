@@ -1,4 +1,5 @@
 Feature/&CastSpellOniOgreMagicDescription=На 3-м уровне вы можете использовать <b>Громовую кару</b> один раз до длительного отдыха. <b>Мудрость</b> является вашей заклинательной характеристикой.
+Feature/&CastSpellOniOgreMagicSpeciesSpellcastingDescription=На 3-м уровне вы можете использовать <b>Громовую кару</b> один раз до длительного отдыха.
 Feature/&CastSpellOniOgreMagicTitle=Магия огра
 Feature/&FeatureSetOniAbilityScoreIncreaseDescription=Сила +2, Мудрость +1
 Feature/&FeatureSetOniAbilityScoreIncreaseTitle=Увеличение характеристик

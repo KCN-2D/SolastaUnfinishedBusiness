@@ -3,6 +3,7 @@ Feature/&AttributeModifierBolgrifStrengthAbilityScoreIncreaseTitle=属性值提�
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseDescription=感知 +2
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseTitle=属性值提升
 Feature/&CastSpellBolgrifMagicDescription=你习得从德鲁伊法术列表中选择的一个戏法。用感知施法。
+Feature/&CastSpellBolgrifMagicSpeciesSpellcastingDescription=你习得从德鲁伊法术列表中选择的一个戏法。
 Feature/&CastSpellBolgrifMagicTitle=德鲁伊魔法
 Feature/&EquipmentAffinityBolgrifPowerfulBuildDescription=在确定你的承载能力时，你将你的尺寸算作大型。
 Feature/&EquipmentAffinityBolgrifPowerfulBuildTitle=强健体格

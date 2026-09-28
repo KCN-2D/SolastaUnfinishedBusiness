@@ -3,6 +3,7 @@ Feature/&AttributeModifierBolgrifStrengthAbilityScoreIncreaseTitle=속성 증가
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseDescription=지혜 +2
 Feature/&AttributeModifierBolgrifWisdomAbilityScoreIncreaseTitle=속성 증가
 Feature/&CastSpellBolgrifMagicDescription=당신은 드루이드 주문 목록에서 당신이 선택한 캔트립 하나를 알고 있습니다. 지혜는 당신의 주문 시전 능력입니다.
+Feature/&CastSpellBolgrifMagicSpeciesSpellcastingDescription=당신은 드루이드 주문 목록에서 당신이 선택한 캔트립 하나를 알고 있습니다.
 Feature/&CastSpellBolgrifMagicTitle=드루이드 마법
 Feature/&EquipmentAffinityBolgrifPowerfulBuildDescription=운반 능력을 결정할 때 크기를 대형으로 간주합니다.
 Feature/&EquipmentAffinityBolgrifPowerfulBuildTitle=강력한 빌드

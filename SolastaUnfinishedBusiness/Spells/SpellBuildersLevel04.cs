@@ -972,17 +972,14 @@ internal static partial class SpellBuilders
             int outcomeDelta,
             List<EffectForm> effectForms)
         {
-            if (effectForms.Any(x =>
-                    x.FormType == EffectForm.EffectFormType.Condition
-                    && (x.ConditionForm.ConditionDefinition.IsSubtypeOf(ConditionDefinitions.ConditionBlinded.Name)
-                        || x.ConditionForm.ConditionDefinition.IsSubtypeOf(ConditionDefinitions.ConditionCharmed.Name)
-                        || x.ConditionForm.ConditionDefinition.IsSubtypeOf(ConditionDefinitions.ConditionDeafened.Name)
-                        || x.ConditionForm.ConditionDefinition.IsSubtypeOf(
-                            ConditionDefinitions.ConditionFrightened.Name)
-                        || x.ConditionForm.ConditionDefinition.IsSubtypeOf(ConditionDefinitions.ConditionParalyzed.Name)
-                        || x.ConditionForm.ConditionDefinition.IsSubtypeOf(ConditionDefinitions.ConditionPoisoned.Name)
-                        || x.ConditionForm.ConditionDefinition.IsSubtypeOf(ConditionDefinitions.ConditionStunned
-                            .Name))))
+            if (effectForms.GetAppliedConditionDefinitions().Any(condition =>
+                    condition.IsSubtypeOf(ConditionDefinitions.ConditionBlinded.Name) ||
+                    condition.IsSubtypeOf(ConditionDefinitions.ConditionCharmed.Name) ||
+                    condition.IsSubtypeOf(ConditionDefinitions.ConditionDeafened.Name) ||
+                    condition.IsSubtypeOf(ConditionDefinitions.ConditionFrightened.Name) ||
+                    condition.IsSubtypeOf(ConditionDefinitions.ConditionParalyzed.Name) ||
+                    condition.IsSubtypeOf(ConditionDefinitions.ConditionPoisoned.Name) ||
+                    condition.IsSubtypeOf(ConditionDefinitions.ConditionStunned.Name)))
             {
                 advantageTrends.Add(
                     new TrendInfo(1, FeatureSourceType.Spell, spellDefinition.Name, spellDefinition));

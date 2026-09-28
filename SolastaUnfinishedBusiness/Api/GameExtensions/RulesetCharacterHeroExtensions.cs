@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -176,9 +177,10 @@ internal static class RulesetCharacterHeroExtensions
             return limit;
         }
 
-        var mods = hero.GetSubFeaturesByType<ModifyAttunementLimit>();
+        var mods = hero.GetSubFeaturesByType<ModifyAttunementLimit>().Where(mod => mod.IsEnabled).ToArray();
 
         limit += mods.Sum(mod => mod.Value);
+        limit = Math.Max(limit, mods.Select(mod => mod.Minimum).DefaultIfEmpty(0).Max());
 
         return limit;
     }

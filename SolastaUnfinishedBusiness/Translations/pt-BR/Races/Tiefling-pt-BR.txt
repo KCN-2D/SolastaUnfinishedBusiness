@@ -24,3 +24,4 @@ Race/&RaceTieflingMephistophelesDescription=Mefistófeles oferece poder arcano p
 Race/&RaceTieflingMephistophelesTitle=Mefistófeles
 Race/&RaceTieflingZarielDescription=Tieflings com laços de sangue com Zariel são mais fortes que os tieflings comuns e recebem habilidades mágicas que os ajudam na batalha.
 Race/&RaceTieflingZarielTitle=Zariel
+Feature/&CastSpellTieflingSpeciesSpellcastingDescription=Você conhece o truque Produzir Chama. Ao chegar no nível 3, você pode conjurar a magia Repreensão Diabólica como uma magia de nível 2 uma vez com essa característica, e recupera o uso dessa habilidade após fazer um descanso longo. Ao chegar no nível 5, você pode conjurar a magia Escuridão uma vez com essa característica, e recupera o uso dessa habilidade após fazer um descanso longo.

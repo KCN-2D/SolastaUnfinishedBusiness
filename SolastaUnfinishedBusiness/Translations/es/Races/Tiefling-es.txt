@@ -24,3 +24,4 @@ Race/&RaceTieflingMephistophelesDescription=Mefistófeles ofrece poderes arcanos
 Race/&RaceTieflingMephistophelesTitle=Mefistófeles
 Race/&RaceTieflingZarielDescription=Los tieflings con un vínculo de sangre con Zariel son más fuertes que los tieflings típicos y reciben habilidades mágicas que los ayudan en la batalla.
 Race/&RaceTieflingZarielTitle=Zariel
+Feature/&CastSpellTieflingSpeciesSpellcastingDescription=Conoces el cantrip Produce Flame. Cuando alcanzas el nivel 3, puedes lanzar el hechizo Reprensión infernal como un hechizo de nivel 2 una vez con este rasgo, y recuperar la capacidad de hacerlo nuevamente cuando termines un descanso prolongado. Cuando alcanzas el nivel 5, puedes lanzar el hechizo Oscuridad una vez con este rasgo y recuperar la capacidad de volver a hacerlo cuando termines un descanso prolongado.

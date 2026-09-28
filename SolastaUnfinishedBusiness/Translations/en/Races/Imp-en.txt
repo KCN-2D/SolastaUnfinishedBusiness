@@ -11,6 +11,7 @@ Failure/&TargetOutOfRange=Target is out of range.
 Feature/&ActionAffinityImpForestInnateCunningDescription=You use your bonus action to Disengage or Hide.
 Feature/&ActionAffinityImpForestInnateCunningTitle=Innate Cunning
 Feature/&CastSpellImpInfernalDescription=You know the Vicious Mockery cantrip. When you reach level 3, you can cast Invisibility once every long rest. Charisma is your spellcasting ability for these spells.
+Feature/&CastSpellImpInfernalSpeciesSpellcastingDescription=You know the Vicious Mockery cantrip. When you reach level 3, you can cast Invisibility once every long rest.
 Feature/&CastSpellImpInfernalTitle=Fiendish Trickster
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseDescription=Constitution +2, Intelligence +1
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseTitle=Ability Score Increase

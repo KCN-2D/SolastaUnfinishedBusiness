@@ -140,6 +140,7 @@ public static class RulesetEffectSpellPatcher
                 2);
         }
 
+        [HarmonyPriority(Priority.Last)]
         [UsedImplicitly]
         public static void Postfix(RulesetEffectSpell __instance, ref int __result)
         {
@@ -162,6 +163,12 @@ public static class RulesetEffectSpellPatcher
             }
 
             Tabletop2024Context.ModifyInnateSorcerySaveDc(__instance, ref __result);
+
+            if (ThiefUseMagicDevice2024Context.IsScroll(__instance) &&
+                __instance.EffectDescription.DifficultyClassComputation != EffectDifficultyClassComputation.FixedValue)
+            {
+                __result = 8 + ThiefUseMagicDevice2024Context.GetSpellAttackBonus(__instance.Caster);
+            }
         }
     }
 
@@ -181,37 +188,41 @@ public static class RulesetEffectSpellPatcher
                 2);
         }
 
+        [HarmonyPriority(Priority.Last)]
         [UsedImplicitly]
         public static void Postfix(RulesetEffectSpell __instance, ref int __result)
         {
             //PATCH: allow devices have magic attack bonus based on user or item summoner stats, instead of static value
             var originItem = __instance.OriginItem;
 
-            if (originItem == null || originItem.UsableDeviceDescription.magicAttackBonus >= 0)
+            if (originItem != null && originItem.UsableDeviceDescription.magicAttackBonus < 0)
             {
-                return;
+                var caster = __instance.Caster;
+                string className = null;
+
+                if (__result == EffectHelpers.BasedOnItemSummoner)
+                {
+                    caster = EffectHelpers.GetCharacterByEffectGuid(originItem.SourceSummoningEffectGuid) ?? caster;
+                }
+
+                var classHolder = originItem.ItemDefinition.GetFirstSubFeatureOfType<ClassHolder>();
+
+                if (classHolder != null)
+                {
+                    className = classHolder.Class.Name;
+                }
+
+                var repertoire = caster.GetClassSpellRepertoire(className);
+
+                if (repertoire != null)
+                {
+                    __result = repertoire.SpellAttackBonus;
+                }
             }
 
-            var caster = __instance.Caster;
-            string className = null;
-
-            if (__result == EffectHelpers.BasedOnItemSummoner)
+            if (ThiefUseMagicDevice2024Context.IsScroll(__instance))
             {
-                caster = EffectHelpers.GetCharacterByEffectGuid(originItem.SourceSummoningEffectGuid) ?? caster;
-            }
-
-            var classHolder = originItem.ItemDefinition.GetFirstSubFeatureOfType<ClassHolder>();
-
-            if (classHolder != null)
-            {
-                className = classHolder.Class.Name;
-            }
-
-            var repertoire = caster.GetClassSpellRepertoire(className);
-
-            if (repertoire != null)
-            {
-                __result = repertoire.SpellAttackBonus;
+                __result = ThiefUseMagicDevice2024Context.GetSpellAttackBonus(__instance.Caster);
             }
         }
     }
@@ -232,37 +243,41 @@ public static class RulesetEffectSpellPatcher
                 1);
         }
 
+        [HarmonyPriority(Priority.Last)]
         [UsedImplicitly]
         public static void Postfix(RulesetEffectSpell __instance, ref List<TrendInfo> __result)
         {
             //PATCH: allow devices have magic attack trends based on user or item summoner stats, instead of static value
             var originItem = __instance.OriginItem;
 
-            if (originItem == null || originItem.UsableDeviceDescription.magicAttackBonus >= 0)
+            if (originItem != null && originItem.UsableDeviceDescription.magicAttackBonus < 0)
             {
-                return;
+                var caster = __instance.Caster;
+                string className = null;
+
+                if (originItem.UsableDeviceDescription.magicAttackBonus == EffectHelpers.BasedOnItemSummoner)
+                {
+                    caster = EffectHelpers.GetCharacterByEffectGuid(originItem.SourceSummoningEffectGuid) ?? caster;
+                }
+
+                var classHolder = originItem.ItemDefinition.GetFirstSubFeatureOfType<ClassHolder>();
+
+                if (classHolder != null)
+                {
+                    className = classHolder.Class.Name;
+                }
+
+                var repertoire = caster.GetClassSpellRepertoire(className);
+
+                if (repertoire != null)
+                {
+                    __result = repertoire.MagicAttackTrends;
+                }
             }
 
-            var caster = __instance.Caster;
-            string className = null;
-
-            if (originItem.UsableDeviceDescription.magicAttackBonus == EffectHelpers.BasedOnItemSummoner)
+            if (ThiefUseMagicDevice2024Context.IsScroll(__instance))
             {
-                caster = EffectHelpers.GetCharacterByEffectGuid(originItem.SourceSummoningEffectGuid) ?? caster;
-            }
-
-            var classHolder = originItem.ItemDefinition.GetFirstSubFeatureOfType<ClassHolder>();
-
-            if (classHolder != null)
-            {
-                className = classHolder.Class.Name;
-            }
-
-            var repertoire = caster.GetClassSpellRepertoire(className);
-
-            if (repertoire != null)
-            {
-                __result = repertoire.MagicAttackTrends;
+                __result = ThiefUseMagicDevice2024Context.GetSpellAttackTrends(__instance.Caster);
             }
         }
     }

@@ -9,6 +9,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Interfaces;
 using UnityEngine;
 
@@ -31,7 +32,6 @@ public static class SubspellSelectionModalPatcher
 
         try
         {
-            ClearPooledTooltipBindings(modal);
             modal.Unbind();
             modal.Bind(
                 state.MasterSpell,
@@ -47,17 +47,6 @@ public static class SubspellSelectionModalPatcher
         }
     }
 
-    private static void ClearPooledTooltipBindings(SubspellSelectionModal modal)
-    {
-        var subspellItems = modal.subspellsTable.GetComponentsInChildren<SubspellItem>(true);
-
-        foreach (var subspellItem in subspellItems)
-        {
-            SpellCastingValidation.BindTooltipRepertoire(subspellItem.tooltip, null);
-        }
-
-    }
-
     private static void RebindPooledTooltipBindings(
         SubspellSelectionModal modal,
         SessionState state)
@@ -67,7 +56,8 @@ public static class SubspellSelectionModalPatcher
 
         foreach (var subspellItem in subspellItems)
         {
-            if (!subspellItem.gameObject.activeInHierarchy)
+            // Bind restores the modal's hidden state before this postfix runs.
+            if (!subspellItem.gameObject.activeSelf)
             {
                 SpellCastingValidation.BindTooltipRepertoire(subspellItem.tooltip, null);
 
@@ -89,7 +79,20 @@ public static class SubspellSelectionModalPatcher
             SpellCastingValidation.BindTooltipRepertoire(
                 subspellItem.tooltip,
                 state.Repertoire,
-                state.BypassComponentsAndCastingTime);
+                state.BypassComponentsAndCastingTime ||
+                state.Session is ICustomSubspellSelectionAvailability { BypassComponentsAndCastingTime: true },
+                state.BypassMaterialComponent);
+
+            if (state.Session is ICustomSubspellSelectionAvailability availability && expectedDefinition != null)
+            {
+                var available = availability.IsAvailable(expectedDefinition, out var failure);
+                subspellItem.Button.interactable = available;
+
+                if (!available && !string.IsNullOrEmpty(failure))
+                {
+                    subspellItem.tooltip.Content = Gui.FormatFailure(expectedDefinition.Name, failure);
+                }
+            }
         }
 
     }
@@ -153,7 +156,7 @@ public static class SubspellSelectionModalPatcher
         Gui.InputService.RecomputeSelectableNavigation(true);
     }
 
-    private static void ResetInvocationAvailability(SubspellSelectionModal modal)
+    private static void ResetPooledSelectionState(SubspellSelectionModal modal)
     {
         foreach (var subspellItem in
                  modal.subspellsTable.GetComponentsInChildren<SubspellItem>(true))
@@ -163,43 +166,35 @@ public static class SubspellSelectionModalPatcher
         }
     }
 
-    [HarmonyPatch(typeof(InvocationSelectionPanel), nameof(InvocationSelectionPanel.OnInvocationSelected))]
-    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
-    [UsedImplicitly]
-    public static class OnInvocationSelected_Patch
+    internal static void RecordInvocationSelection(
+        InvocationSelectionPanel panel, InvocationActivationBox invocationActivationBox)
     {
-        [UsedImplicitly]
-        public static void Prefix(
-            InvocationSelectionPanel __instance,
-            InvocationActivationBox invocationActivationBox)
+        var modal = Gui.GuiService.GetScreen<SubspellSelectionModal>();
+
+        if (!modal)
         {
-            var modal = Gui.GuiService.GetScreen<SubspellSelectionModal>();
-
-            if (!modal)
-            {
-                return;
-            }
-
-            InvocationSessions.Remove(modal);
-
-            var invocation = invocationActivationBox
-                ? invocationActivationBox.Invocation
-                : null;
-            var masterSpell = invocation?.InvocationDefinition?.GrantedSpell;
-
-            if (__instance.Caster?.RulesetCharacter is not RulesetCharacterSimulacrum duplicate ||
-                masterSpell == null ||
-                !masterSpell.SpellsBundle ||
-                !duplicate.Invocations.Contains(invocation))
-            {
-                return;
-            }
-
-            InvocationSessions[modal] = new InvocationState(
-                duplicate,
-                invocation,
-                masterSpell);
+            return;
         }
+
+        InvocationSessions.Remove(modal);
+
+        var invocation = invocationActivationBox
+            ? invocationActivationBox.Invocation
+            : null;
+        var masterSpell = invocation?.InvocationDefinition?.GrantedSpell;
+
+        if (panel.Caster?.RulesetCharacter is not RulesetCharacterSimulacrum duplicate ||
+            masterSpell == null ||
+            !masterSpell.SpellsBundle ||
+            !duplicate.Invocations.Contains(invocation))
+        {
+            return;
+        }
+
+        InvocationSessions[modal] = new InvocationState(
+            duplicate,
+            invocation,
+            masterSpell);
     }
 
     [HarmonyPatch(typeof(SubspellSelectionModal), nameof(SubspellSelectionModal.OnActivate))]
@@ -241,17 +236,33 @@ public static class SubspellSelectionModalPatcher
     [UsedImplicitly]
     public static class Bind_Patch
     {
+        [HarmonyPriority(Priority.First)]
         [UsedImplicitly]
         public static void Prefix(
             SubspellSelectionModal __instance,
             SpellDefinition masterSpell,
             RulesetCharacter caster,
-            RulesetSpellRepertoire spellRepertoire,
-            SpellsByLevelBox.SpellCastEngagedHandler spellCastEngaged,
-            int slotLevel,
+            ref RulesetSpellRepertoire spellRepertoire,
+            ref SpellsByLevelBox.SpellCastEngagedHandler spellCastEngaged,
+            ref int slotLevel,
             RectTransform masterSpellBox)
         {
-            ResetInvocationAvailability(__instance);
+            var selected = SpellCastingResourceContext.CurrentSelection;
+            if (selected != null && SpellCastingResourceContext.IsSameSpell(selected.Spell, masterSpell))
+            {
+                // The child picker runs after this click returns. Its callback owns the captured choice.
+                spellRepertoire = selected.Repertoire;
+                slotLevel = selected.SlotLevel;
+                var callback = spellCastEngaged;
+                spellCastEngaged = (repertoire, spell, level) =>
+                {
+                    using var selection = SpellCastingResourceContext.BeginSelection(selected);
+                    callback(repertoire, spell, level);
+                };
+            }
+
+            FloatingPanelBounds.RestoreAttachmentList(__instance.mainPanel.RectTransform);
+            ResetPooledSelectionState(__instance);
 
             if (InvocationSessions.TryGetValue(__instance, out var invocationState) &&
                 (!ReferenceEquals(invocationState.Caster, caster) ||
@@ -276,7 +287,8 @@ public static class SubspellSelectionModalPatcher
 
             Sessions[__instance] = new SessionState(
                 provider.CreateSession(masterSpell, caster, spellRepertoire, slotLevel),
-                provider is WishBehavior,
+                provider.BypassComponentsAndCastingTime,
+                provider.BypassMaterialComponent,
                 masterSpell,
                 caster,
                 spellRepertoire,
@@ -312,7 +324,6 @@ public static class SubspellSelectionModalPatcher
             ApplyInvocationAvailability(__instance);
 
             FloatingPanelBounds.ConfigureNearAttachmentList(
-                __instance,
                 __instance.mainPanel.RectTransform,
                 masterSpellBox,
                 __instance.subspellsTable,
@@ -338,6 +349,8 @@ public static class SubspellSelectionModalPatcher
             UsableDeviceFunctionBox.DeviceFunctionEngagedHandler deviceFunctionEngaged,
             RectTransform masterSpellBox)
         {
+            FloatingPanelBounds.RestoreAttachmentList(__instance.mainPanel.RectTransform);
+
             var masterSpell = rulesetDeviceFunction?.DeviceFunctionDescription?.SpellDefinition;
             var caster = guiCharacter?.RulesetCharacter;
             var provider = masterSpell?.GetFirstSubFeatureOfType<ICustomSubspellSelectionProvider>();
@@ -374,6 +387,16 @@ public static class SubspellSelectionModalPatcher
 
             return false;
         }
+
+        [UsedImplicitly]
+        public static void Postfix(SubspellSelectionModal __instance, RectTransform masterSpellBox)
+        {
+            FloatingPanelBounds.ConfigureNearAttachmentList(
+                __instance.mainPanel.RectTransform,
+                masterSpellBox,
+                __instance.subspellsTable,
+                new Vector3(70, -400, 0));
+        }
     }
 
     [HarmonyPatch(typeof(SubspellSelectionModal), nameof(SubspellSelectionModal.OnEndHide))]
@@ -386,7 +409,7 @@ public static class SubspellSelectionModalPatcher
         {
             if (!Sessions.TryGetValue(__instance, out var state))
             {
-                ResetInvocationAvailability(__instance);
+                ResetPooledSelectionState(__instance);
                 InvocationSessions.Remove(__instance);
 
                 return;
@@ -397,11 +420,9 @@ public static class SubspellSelectionModalPatcher
                 return;
             }
 
-            ResetInvocationAvailability(__instance);
+            ResetPooledSelectionState(__instance);
             InvocationSessions.Remove(__instance);
-            ClearPooledTooltipBindings(__instance);
             Sessions.Remove(__instance);
-
         }
     }
 
@@ -411,23 +432,19 @@ public static class SubspellSelectionModalPatcher
     public static class Unbind_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(SubspellSelectionModal __instance)
+        public static void Prefix(SubspellSelectionModal __instance)
         {
-            if (!Sessions.TryGetValue(__instance, out var state))
-            {
-                ResetInvocationAvailability(__instance);
-                InvocationSessions.Remove(__instance);
+            // Native Unbind returns the children to the shared pool. Reset their state before they leave.
+            FloatingPanelBounds.RestoreAttachmentList(__instance.mainPanel.RectTransform);
+            ResetPooledSelectionState(__instance);
 
+            if (Sessions.TryGetValue(__instance, out var state) && state.IsRefreshing)
+            {
                 return;
             }
 
-            if (!state.IsRefreshing)
-            {
-                ResetInvocationAvailability(__instance);
-                InvocationSessions.Remove(__instance);
-                ClearPooledTooltipBindings(__instance);
-                Sessions.Remove(__instance);
-            }
+            InvocationSessions.Remove(__instance);
+            Sessions.Remove(__instance);
         }
     }
 
@@ -444,6 +461,7 @@ public static class SubspellSelectionModalPatcher
     private sealed class SessionState(
         ICustomSubspellSelectionSession session,
         bool bypassComponentsAndCastingTime,
+        bool bypassMaterialComponent,
         SpellDefinition masterSpell,
         RulesetCharacter caster,
         RulesetSpellRepertoire repertoire,
@@ -454,6 +472,7 @@ public static class SubspellSelectionModalPatcher
         internal readonly RulesetCharacter Caster = caster;
         internal readonly bool BypassComponentsAndCastingTime =
             bypassComponentsAndCastingTime;
+        internal readonly bool BypassMaterialComponent = bypassMaterialComponent;
         internal readonly SpellDefinition MasterSpell = masterSpell;
         internal readonly RectTransform MasterSpellBox = masterSpellBox;
         internal readonly RulesetSpellRepertoire Repertoire = repertoire;

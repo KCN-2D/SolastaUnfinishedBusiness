@@ -144,7 +144,7 @@ ModUi/&EnableBetaContent=Activer le contenu bêta <b><i><color=#C04040E0>[Néces
 ModUi/&EnableCancelEditOnRightMouseClick=Activer les actions d'annulation avec un clic droit de la souris
 ModUi/&EnableCantripsTriggeringOnWarMagic=Autoriser les tours de passe-passe à déclencher une attaque bonus supplémentaire de <color=#D89555>Magie de guerre</color>
 ModUi/&EnableCharactersOnFireToEmitLight=Les personnages <color=#D89555>En feu</color> doivent émettre de la lumière <i><color=#F0DAA0>[Cube de lumière, Élémentaire de feu, Bouffon de feu, Balbuzard pêcheur de feu, Araignée de feu et famille de conditions en feu]</color></i>
-ModUi/&EnableClericBlessedStrikes2024=Activez les <color=#D89555>frappes bénies</color> et les <color=#D89555>frappes bénies améliorées</color> aux niveaux 7 et 14\n<i><color=#F0DAA0>[affecte uniquement les domaines Profanateur, Vie, Malice, Nature, Forgeron, Soleil et Tempête]</color></i>
+ModUi/&EnableClericBlessedStrikes2024=Activez les <color=#D89555>frappes bénies</color> et les <color=#D89555>frappes bénies améliorées</color> aux niveaux 7 et 14
 ModUi/&EnableClericChannelDivinity2024=Échangez <color=#D89555>Channel Divinity</color> avec la version 5e 2024 <i><color=#F0DAA0>[différentes utilisations]</color></i>
 ModUi/&EnableClericDivineOrder2024=Activer <color=#D89555>Ordre divin</color> au niveau 1 <i><color=#F0DAA0>[choix entre armure lourde/prof. armes martiales ou tour de passe-passe bonus et quelques tests d'INT]</color></i>
 ModUi/&EnableClericSearUndead2024=Activez <color=#D89555>Sear Undead</color> pour remplacer <color=#D89555>Destroy Undead</color> au niveau 5
@@ -234,6 +234,7 @@ ModUi/&EnablePcgRandom=Activer un meilleur algorithme de générateur aléatoire
 ModUi/&EnablePoisonsBonusAction2024=Activer l'application de <color=#D89555>Poisons</color> aux armes en tant qu'action bonus
 ModUi/&EnablePotionsBonusAction2024=Activer la consommation de <color=#D89555>potions</color> en tant qu'action bonus
 ModUi/&EnableHalfOrcAdrenalineRush2024=Pour <color=#D89555>{0}</color>, remplacer le trait <color=#D89555>{1}</color> par <color=#D89555>{2}</color> (2024)
+ModUi/&EnableSpeciesSpellcastingAbility2024=Permet de choisir l’Intelligence, la Sagesse ou le Charisme comme caractéristique d’incantation de l’espèce.
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Fixer à 6 cases la vitesse des <color=#D89555>espèces jouables dont la vitesse de base est de 5 cases</color>
 ModUi/&EnablePreparedSpellsTables2024=Permettre à tous les <color=#D89555>lanceurs de sorts</color> d'utiliser les nouvelles tables de sorts préparés <i><color=#F0DAA0>[Artificier, Barde, Clerc, Druide, Paladin, Rôdeur, Sorcier, Magicien]</color></i>
 ModUi/&EnableSpellLists2024=Utiliser les listes de sorts de classe de 2024
@@ -258,7 +259,7 @@ ModUi/&EnableRespecAction=Activer l'action <color=#D89555>RESPEC</color> après 
 ModUi/&EnableRitualOnAllCasters2024=Activer le lancement de <color=#D89555>rituel</color> sur tous les lanceurs de sorts
 ModUi/&EnableOneSpellSlotPerTurn2024=Applique la règle de 2024 qui ne permet de dépenser qu'un seul emplacement de sort pour lancer un sort à chaque tour <i><color=#F0DAA0>[les sorts mineurs et les sorts lancés sans emplacement ne sont pas concernés]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Activer la version 2024 de <color=#D89555>{0}</color> <i><color=#F0DAA0>[sauvegarde de Constitution ; en cas d'échec, l'incantation est interrompue sans dépenser l'emplacement du sort ciblé]</color></i>
-ModUi/&Counterspell2024CompatibilityDescription=Active aussi Briseur de sorts pour les Abjurateurs de niveau 10. La Maîtrise du contresort du Mage de cour désavantage les jets de sauvegarde des cibles de votre Contresort et vous avantage aux jets de sauvegarde contre Contresort.
+ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>[Active aussi Briseur de sorts pour les Abjurateurs de niveau 10. La Maîtrise du contresort du Mage de cour désavantage les jets de sauvegarde des cibles de votre Contresort et vous avantage aux jets de sauvegarde contre Contresort.]</color></i>
 ModUi/&EnableRogueCunningStrike2024=Activez <color=#D89555>Cunning Strike</color>, <color=#D89555>Improved Cunning Strike</color> et <color=#D89555>Devious Strike</color> aux niveaux 5, 11 et 14 <i><color=#F0DAA0>[vous renoncez à 1 dé d'attaque sournoise pour des effets de coup supplémentaires]</color></i>
 ModUi/&EnableRogueFightingStyle=Activer le choix du <color=#D89555>Style de combat</color> au niveau 2
 ModUi/&EnableRogueReliableTalent2024=Activer le <color=#D89555>talent fiable</color> au niveau 7 au lieu de 11
@@ -299,7 +300,7 @@ ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=Activez la <colo
 ModUi/&EnableWarlockMagicalCunningAtLevel2=Activer la <color=#D89555>ruse magique</color> au niveau 2
 ModUi/&EnableWarlockToLearnPatronAtLevel3=Activer <color=#D89555>Patron</color> au niveau 3 au lieu de 1
 ModUi/&EnableAbjurerSpellBreaker2024=Activer <color=#D89555>Briseur de sorts</color> pour l’Abjurateur au niveau 10 (2024)
-ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=Activé automatiquement tant que les règles de Contresort de 2024 sont actives. Votre choix indépendant pour Briseur de sorts est conservé et s’applique à nouveau lorsque ces règles sont désactivées.
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=<i><color=#F0DAA0>[Activé automatiquement tant que les règles de Contresort de 2024 sont actives. Votre choix indépendant pour Briseur de sorts est conservé et s’applique à nouveau lorsque ces règles sont désactivées.]</color></i>
 ModUi/&EnableWizardMemorizeSpell2024=Activer <color=#D89555>Mémoriser le sort</color> au niveau 5
 ModUi/&EnableWizardToLearnScholarAtLevel2=Activer <color=#D89555>Scholar</color> au niveau 2
 ModUi/&EnableWizardToLearnSchoolAtLevel3=Activer l'<color=#D89555>École de magie</color> au niveau 3 au lieu de 2
@@ -542,3 +543,18 @@ ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses
 ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[While enabled, only the independent 2024 feats below can be toggled. Legacy feat toggles are locked]</color></i>
 ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
 ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
+ModUi/&EnableWizardSpellMastery2024=Activer <color=#D89555>Maîtrise des sorts</color> 2024 <i><color=#F0DAA0>[sorts d'une action ; remplacer un sort après un repos long]</color></i>
+ModUi/&EnableThiefUseMagicDevice2024=Activer <color=#D89555>Utilisation d'objets magiques</color> du Voleur 2024 <i><color=#F0DAA0>[quatre harmonisations, conservation des charges et parchemins avec Intelligence]</color></i>
+ModUi/&EnableBarbarianDangerSense2024=Activer <color=#D89555>Sens du danger</color> 2024 <i><color=#F0DAA0>[avantage aux sauvegardes de Dextérité sauf en état neutralisé]</color></i>
+ModUi/&EnableBarbarianIndomitableMight2024=Activer <color=#D89555>Puissance indomptable</color> 2024 <i><color=#F0DAA0>[total minimal des tests et sauvegardes de Force]</color></i>
+ModUi/&EnableClericDivineIntervention2024=Active l'<color=#D89555>Intervention divine</color> et l'<color=#D89555>Intervention divine supérieure</color> de 2024 <i><color=#F0DAA0>[choix d'un sort de clerc ; Souhait au niveau 20]</color></i>
+ModUi/&EnablePaladinRadiantStrikes2024=Active les <color=#D89555>Frappes radiantes</color> de 2024 <i><color=#F0DAA0>[également pour les frappes à mains nues]</color></i>
+ModUi/&EnableOneDndShillelaghSpell=Activer la version 2024 de <color=#D89555>{0}</color> <i><color=#F0DAA0>[dégâts augmentés aux niveaux de personnage 5, 11 et 17 ; dégâts de force facultatifs]</color></i>
+ModUi/&HideousLaughter2024TargetingHelp=<i><color=#F0DAA0>[Avec le Fou rire de 2024, tous les types de créatures peuvent être ciblés. Votre réglage séparé de restriction des cibles est conservé et reprend effet lorsque cette option est désactivée.]</color></i>
+ModUi/&EnableMonkEmpoweredStrikes2024=Activer <color=#D89555>Frappes renforcées</color> de 2024 <i><color=#F0DAA0>[choisir des dégâts de force pour les frappes à mains nues]</color></i>
+ModUi/&EnableRogueStrokeOfLuck2024=Activer <color=#D89555>Coup de chance</color> de 2024 <i><color=#F0DAA0>[remplacer un d20 raté par 20]</color></i>
+ModUi/&EnableBardWeaponProficiency2024=Activer les <color=#D89555>maîtrises d’armes</color> de 2024 du barde <i><color=#F0DAA0>[armes courantes]</color></i>
+ModUi/&EnableMonkWeaponProficiency2024=Activer les <color=#D89555>maîtrises d’armes</color> de 2024 du moine <i><color=#F0DAA0>[armes courantes et armes de guerre dotées de la propriété Légère]</color></i>
+ModUi/&EnableRogueWeaponProficiency2024=Activer les <color=#D89555>maîtrises d’armes</color> de 2024 du roublard <i><color=#F0DAA0>[armes courantes et armes de guerre dotées de la propriété Finesse ou Légère]</color></i>
+ModUi/&EnableSorcererWeaponProficiency2024=Activer les <color=#D89555>maîtrises d’armes</color> de 2024 de l’ensorceleur <i><color=#F0DAA0>[toutes les armes courantes]</color></i>
+ModUi/&EnableWizardWeaponProficiency2024=Activer les <color=#D89555>maîtrises d’armes</color> de 2024 du magicien <i><color=#F0DAA0>[toutes les armes courantes]</color></i>

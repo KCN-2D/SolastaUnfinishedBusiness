@@ -1,18 +1,43 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection.Emit;
+using System;
 using HarmonyLib;
 using JetBrains.Annotations;
+using Object = UnityEngine.Object;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.CustomUI;
-using UnityEngine;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine.UI;
-using Object = UnityEngine.Object;
+using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 public static class MetamagicSelectionPanelPatcher
 {
+    [HarmonyPatch(typeof(MetamagicSelectionPanel), nameof(MetamagicSelectionPanel.OnIgnoreCb))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnIgnoreCb_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(MetamagicSelectionPanel __instance) =>
+            SorceryIncarnateContext.Ignore(__instance);
+    }
+
+
+    [HarmonyPatch(typeof(MetamagicSelectionPanel), nameof(MetamagicSelectionPanel.OnMetamagicOptionSelected))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnMetamagicOptionSelected_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(MetamagicSelectionPanel __instance, MetamagicOptionDefinition __0) =>
+            SorceryIncarnateContext.Select(__instance, __0);
+    }
+
+
     private const float CanvasMargin = 12f;
     private const float DefaultItemSpacing = 8f;
 
@@ -33,7 +58,12 @@ public static class MetamagicSelectionPanelPatcher
                 instructions,
                 "MetamagicSelectionPanel.Bind",
                 new CodeInstruction(OpCodes.Ldarg_1),
-                new CodeInstruction(OpCodes.Callvirt, rulesetCharacterGetter));
+                new CodeInstruction(OpCodes.Callvirt, rulesetCharacterGetter))
+                .ReplaceCalls(new Func<RulesetCharacter, List<MetamagicOptionDefinition>>(ReplaceMetamagicOption.GetOptions).Method,
+                    "MetamagicSelectionPanel.SelectionOptions",
+                    new CodeInstruction(OpCodes.Ldarg_0),
+                    new CodeInstruction(OpCodes.Call,
+                        new Func<RulesetCharacter, MetamagicSelectionPanel, List<MetamagicOptionDefinition>>(SorceryIncarnateContext.GetOptions).Method));
         }
 
         [UsedImplicitly]
@@ -81,6 +111,7 @@ public static class MetamagicSelectionPanelPatcher
         [UsedImplicitly]
         public static void Prefix(MetamagicSelectionPanel __instance)
         {
+            SorceryIncarnateContext.Unbind(__instance);
             __instance.GetComponent<MetamagicSelectionLayoutState>()?.Restore();
         }
     }

@@ -166,6 +166,8 @@ public class FunctorEnvironmentEffectPatcher
                             SaveOutcome = saveOutcome,
                             SaveOutcomeDelta = saveOutcomeDelta,
                             SaveDC = RulesetActorExtensions.SaveDC,
+                            CurrentRoll = RulesetActorExtensions.SaveRoll,
+                            MinimumResult = RulesetActorExtensions.SaveMinimumResult,
                             SaveBonusAndRollModifier = RulesetActorExtensions.SaveBonusAndRollModifier,
                             SavingThrowAbility = RulesetActorExtensions.SavingThrowAbility,
                             SourceDefinition = activeEnvironmentEffect.SourceDefinition,

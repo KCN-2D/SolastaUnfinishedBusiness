@@ -13,6 +13,8 @@ public class ReplaceMetamagicOption
 {
     private readonly List<MetamagicOptionDefinition> _options = [];
 
+    internal IReadOnlyList<MetamagicOptionDefinition> Options => _options;
+
     public ReplaceMetamagicOption(params MetamagicOptionDefinition[] options)
     {
         _options.AddRange(options);

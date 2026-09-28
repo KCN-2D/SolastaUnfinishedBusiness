@@ -7,6 +7,7 @@ using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Builders;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Validators;
@@ -180,7 +181,7 @@ internal static class MetamagicContext
             ? context.SpellDefinition
             : RulesetEffectSpellWithOrigin.GetOriginSpell(context.ActiveSpell);
 
-        if (context.ActiveSpell?.MetamagicOption == MetamagicOptionDefinitions.MetamagicQuickenedSpell &&
+        if (CombinedMetamagic.Contains(context.ActiveSpell?.MetamagicOption, MetamagicQuickenedSpell) &&
             HasLeveledSpellCastThisTurn(character))
         {
             failure = FailureFlagQuickenedSpell2024AlreadyCastLeveledSpell;
@@ -230,7 +231,7 @@ internal static class MetamagicContext
         var spell = RulesetEffectSpellWithOrigin.GetOriginSpell(rulesetEffectSpell);
         var actingCharacter = action.ActingCharacter;
 
-        if (rulesetEffectSpell.MetamagicOption == MetamagicOptionDefinitions.MetamagicQuickenedSpell)
+        if (CombinedMetamagic.Contains(rulesetEffectSpell.MetamagicOption, MetamagicQuickenedSpell))
         {
             actingCharacter.UsedSpecialFeatures[QuickenedSpellCastThisTurn] = 1;
         }
@@ -248,7 +249,7 @@ internal static class MetamagicContext
         if (!Main.Settings.EnableSorcererMetamagic2024 ||
             _conditionCarefulSpell2024 == null ||
             formsParams.activeEffect is not RulesetEffectSpell rulesetEffectSpell ||
-            rulesetEffectSpell.MetamagicOption?.Name != MetamagicCarefulSpell ||
+            !CombinedMetamagic.Contains(rulesetEffectSpell.MetamagicOption, MetamagicCarefulSpell) ||
             !formsParams.rolledSaveThrow ||
             formsParams.saveOutcome is not (RollOutcome.Success or RollOutcome.CriticalSuccess) ||
             !formsParams.targetCharacter.HasConditionOfCategoryAndType(
@@ -290,7 +291,7 @@ internal static class MetamagicContext
     {
         if (!Main.Settings.EnableSorcererMetamagic2024 ||
             requireSelectedMetamagic &&
-            rulesetEffectSpell.MetamagicOption != MetamagicOptionDefinitions.MetamagicTwinnedSpell)
+            !CombinedMetamagic.Contains(rulesetEffectSpell.MetamagicOption, MetamagicTwinnedSpell))
         {
             return false;
         }
@@ -566,7 +567,7 @@ internal static class MetamagicContext
             List<GameLocationCharacter> targets)
         {
             if (!Main.Settings.EnableSorcererMetamagic2024 ||
-                activeEffect.MetamagicOption?.Name != MetamagicCarefulSpell ||
+                !CombinedMetamagic.Contains(activeEffect.MetamagicOption, MetamagicCarefulSpell) ||
                 !activeEffect.EffectDescription.EffectForms.Any(IsHalfDamageEffectForm))
             {
                 yield break;
@@ -617,7 +618,7 @@ internal static class MetamagicContext
             List<GameLocationCharacter> targets)
         {
             if (!Main.Settings.EnableSorcererMetamagic2024 ||
-                action.ActionParams?.RulesetEffect.MetamagicOption?.Name != MetamagicCarefulSpell)
+                !CombinedMetamagic.Contains(action.ActionParams?.RulesetEffect.MetamagicOption, MetamagicCarefulSpell))
             {
                 yield break;
             }
@@ -657,7 +658,7 @@ internal static class MetamagicContext
         {
             if (!Main.Settings.EnableSorcererMetamagic2024 ||
                 activeEffect is not RulesetEffectSpell rulesetEffectSpell ||
-                rulesetEffectSpell.MetamagicOption?.Name != MetamagicExtendedSpell ||
+                !CombinedMetamagic.Contains(rulesetEffectSpell.MetamagicOption, MetamagicExtendedSpell) ||
                 !rulesetEffectSpell.SpellDefinition.RequiresConcentration)
             {
                 yield break;

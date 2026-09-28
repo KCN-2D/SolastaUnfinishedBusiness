@@ -29,6 +29,33 @@ namespace SolastaUnfinishedBusiness.Models;
 
 public static partial class Tabletop2024Context
 {
+    private static readonly IsCharacterValidHandler BarbarianDangerSenseValidator = character =>
+        !Main.Settings.EnableBarbarianDangerSense2024 ||
+        !character.HasConditionOfTypeOrSubType(RuleDefinitions.ConditionIncapacitated);
+
+    internal static void SwitchBarbarianDangerSense()
+    {
+        var feature = DatabaseRepository.GetDatabase<FeatureDefinitionSavingThrowAffinity>()
+            .GetElement("SavingThrowAffinityBarbarianDangerSense");
+
+        if (!feature.GetAllSubFeaturesOfType<IsCharacterValidHandler>().Contains(BarbarianDangerSenseValidator))
+        {
+            feature.AddCustomSubFeatures(BarbarianDangerSenseValidator);
+        }
+
+        feature.GuiPresentation.description = Main.Settings.EnableBarbarianDangerSense2024
+            ? "Feature/&BarbarianDangerSense2024Description"
+            : "Feature/&DangerSenseDescription";
+    }
+
+    internal static void SwitchBarbarianIndomitableMight()
+    {
+        GetDefinition<FeatureDefinition>("ChangeAbilityCheckBarbarianIndomitableMight").GuiPresentation.description =
+            Main.Settings.EnableBarbarianIndomitableMight2024
+                ? "Feature/&BarbarianIndomitableMight2024Description"
+                : "Feature/&ChangeAbilityCheckBarbarianIndomitableMightDescription";
+    }
+
     private const string BrutalStrike = "BarbarianBrutalStrike";
     private static ConditionDefinition _conditionBrutalStrike;
     private static ConditionDefinition _conditionHamstringBlow;
@@ -48,7 +75,15 @@ public static partial class Tabletop2024Context
         .Create(FeatureDefinitionPointPools.PointPoolBarbarianrSkillPoints, "PointPoolBarbarianPrimalKnowledge")
         .SetGuiPresentation(Category.Feature)
         .SetPool(HeroDefinitions.PointsPoolType.Skill, 1)
-        .AddCustomSubFeatures(new TryAlterOutcomeAttributeCheckPrimalKnowledge())
+        .AddCustomSubFeatures(new AbilityCheckAbilityReplacement(
+            AttributeDefinitions.Strength,
+            character => Main.Settings.EnableBarbarianPrimalKnowledge2024 &&
+                         character.HasConditionOfTypeOrSubType(RuleDefinitions.ConditionRaging),
+            SkillDefinitions.Acrobatics,
+            SkillDefinitions.Intimidation,
+            SkillDefinitions.Perception,
+            SkillDefinitions.Stealth,
+            SkillDefinitions.Survival))
         .AddToDB();
 
     private static readonly ConditionDefinition ConditionPounce = ConditionDefinitionBuilder
@@ -314,6 +349,7 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchBarbarianRage()
     {
+        SwitchBarbarianPersistentRage();
         FeatureSetBarbarianRage.GuiPresentation.description = Main.Settings.EnableBarbarianRage2024
             ? "Feature/&FeatureSetRageExtendedDescription"
             : "Feature/&FeatureSetRageDescription";
@@ -342,40 +378,24 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchBarbarianPersistentRage()
     {
-        if (Main.Settings.EnableBarbarianPersistentRage2024)
+        // Capture and switch Rage durations before changing any subclass dependencies.
+        BarbarianRage2024Context.Switch();
+        var extended = Main.Settings.EnableBarbarianRage2024 || Main.Settings.EnableBarbarianPersistentRage2024;
+        PathOfTheSpirits.FeatureSetPathOfTheSpiritsSpiritWalker.GuiPresentation.description = extended
+            ? "Feature/&FeatureSetPathOfTheSpiritsSpiritWalkerExtendedDescription"
+            : "Feature/&FeatureSetPathOfTheSpiritsSpiritWalkerDescription";
+
+        foreach (var condition in new[]
+                 {
+                     PathOfTheSpirits.ConditionSpiritGuardians,
+                     PathOfTheSpirits.ConditionSpiritGuardiansSelf
+                 })
         {
-            ConditionRagingNormal.SpecialInterruptions.SetRange(
-                ConditionInterruption.NoAttackOrDamagedInTurn);
-            ConditionRagingPersistent.durationParameter = 10;
-            ConditionRagingPersistent.SpecialInterruptions.Clear();
-            ConditionBerserkerMindlessRage.durationParameter = 10;
-            ConditionBerserkerFrenzy.durationParameter = 10;
-            ConditionStoneResilience.durationParameter = 10;
-            ConditionStoneResilience.specialDuration = true;
-            PathOfTheSpirits.FeatureSetPathOfTheSpiritsSpiritWalker.GuiPresentation.description =
-                "Feature/&FeatureSetPathOfTheSpiritsSpiritWalkerExtendedDescription";
-            PathOfTheSpirits.ConditionSpiritGuardians.SpecialInterruptions.SetRange(ConditionInterruption.RageStop);
-            PathOfTheSpirits.ConditionSpiritGuardiansSelf.SpecialInterruptions.SetRange(ConditionInterruption.RageStop);
-            ConditionRagingPersistent.GuiPresentation.description = "Action/&PersistentRageStartExtendedDescription";
-            PowerBarbarianPersistentRageStart.GuiPresentation.description =
-                "Action/&PersistentRageStartExtendedDescription";
-        }
-        else
-        {
-            ConditionRagingNormal.SpecialInterruptions.SetRange(
-                ConditionInterruption.NoAttackOrDamagedInTurn, ConditionInterruption.BattleEnd);
-            ConditionRagingPersistent.durationParameter = 1;
-            ConditionRagingPersistent.SpecialInterruptions.SetRange(ConditionInterruption.BattleEnd);
-            ConditionBerserkerMindlessRage.durationParameter = 1;
-            ConditionBerserkerFrenzy.durationParameter = 1;
-            ConditionStoneResilience.durationParameter = 1;
-            ConditionStoneResilience.specialDuration = false;
-            PathOfTheSpirits.FeatureSetPathOfTheSpiritsSpiritWalker.GuiPresentation.description =
-                "Feature/&FeatureSetPathOfTheSpiritsSpiritWalkerDescription";
-            PathOfTheSpirits.ConditionSpiritGuardians.SpecialInterruptions.Clear();
-            PathOfTheSpirits.ConditionSpiritGuardiansSelf.SpecialInterruptions.Clear();
-            ConditionRagingPersistent.GuiPresentation.description = "Action/&PersistentRageStartDescription";
-            PowerBarbarianPersistentRageStart.GuiPresentation.description = "Action/&PersistentRageStartDescription";
+            condition.SpecialInterruptions.Remove(ConditionInterruption.RageStop);
+            if (extended)
+            {
+                condition.SpecialInterruptions.Add(ConditionInterruption.RageStop);
+            }
         }
     }
 
@@ -772,84 +792,6 @@ public static partial class Tabletop2024Context
                     AttributeDefinitions.TagEffect, ConditionRagingPersistent.Name, out var activeCondition))
             {
                 hero.RemoveCondition(activeCondition);
-            }
-        }
-    }
-
-    private sealed class TryAlterOutcomeAttributeCheckPrimalKnowledge : ITryAlterOutcomeAttributeCheck,
-        IModifyAbilityCheck
-    {
-        private readonly string[] _allowedProficiencies =
-        [
-            SkillDefinitions.Acrobatics,
-            SkillDefinitions.Intimidation,
-            SkillDefinitions.Perception,
-            SkillDefinitions.Stealth,
-            SkillDefinitions.Survival
-        ];
-
-        private string _proficiencyName;
-
-        public void MinRoll(
-            RulesetCharacter character, int baseBonus, string abilityScoreName, string proficiencyName,
-            List<TrendInfo> advantageTrends, List<TrendInfo> modifierTrends, ref int rollModifier, ref int minRoll)
-        {
-            _proficiencyName = proficiencyName;
-        }
-
-        public IEnumerator OnTryAlterAttributeCheck(
-            GameLocationBattleManager battleManager,
-            int rawRoll,
-            AbilityCheckData abilityCheckData,
-            GameLocationCharacter defender,
-            GameLocationCharacter helper)
-        {
-            var rulesetHelper = helper.RulesetCharacter;
-            var strength = rulesetHelper.TryGetAttributeValue(AttributeDefinitions.Strength);
-            var strMod = AttributeDefinitions.ComputeAbilityScoreModifier(strength);
-
-            if (rawRoll == 0 ||
-                abilityCheckData.AbilityCheckRollOutcome != RollOutcome.Failure ||
-                abilityCheckData.AbilityCheckSuccessDelta < -strMod ||
-                helper != defender ||
-                rulesetHelper.RemainingRagePoints == 0 ||
-                !_allowedProficiencies.Contains(_proficiencyName))
-            {
-                yield break;
-            }
-
-            yield return helper.MyReactToDoNothing(
-                ExtraActionId.DoNothingFree,
-                defender,
-                "PrimalKnowledgeCheck",
-                "CustomReactionPrimalKnowledgeCheckDescription".Localized(Category.Reaction),
-                ReactionValidated,
-                battleManager: battleManager);
-
-            yield break;
-
-            void ReactionValidated()
-            {
-                var abilityCheckModifier = abilityCheckData.AbilityCheckActionModifier;
-
-                abilityCheckModifier.AbilityCheckModifierTrends.Add(
-                    new TrendInfo(strMod, FeatureSourceType.CharacterFeature, PointPoolBarbarianPrimalKnowledge.Name,
-                        PointPoolBarbarianPrimalKnowledge));
-
-                abilityCheckModifier.AbilityCheckModifier += strMod;
-                abilityCheckData.AbilityCheckRoll += strMod;
-                abilityCheckData.AbilityCheckSuccessDelta += strMod;
-
-                if (abilityCheckData.AbilityCheckSuccessDelta >= 0)
-                {
-                    abilityCheckData.AbilityCheckRollOutcome = RollOutcome.Success;
-                    rulesetHelper.SpendRagePoint();
-                }
-
-                rulesetHelper.LogCharacterActivatesAbility(
-                    "Feature/&PointPoolBarbarianPrimalKnowledgeTitle",
-                    "Feedback/&PrimalKnowledgeCheckToHitRoll",
-                    extra: [(ConsoleStyleDuplet.ParameterType.Positive, strMod.ToString())]);
             }
         }
     }

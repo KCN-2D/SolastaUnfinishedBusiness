@@ -1133,45 +1133,66 @@ public static class CharacterBuildingManagerPatcher
     public static class TrainInvocation_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(
+        public static bool Prefix(
             CharacterBuildingManager __instance,
             CharacterHeroBuildingData heroBuildingData,
             InvocationDefinition invocation,
+            string tag,
             ref bool checkPool)
         {
-            //PATCH: do not check or modify point pools when dealing with custom invocations
+            // Custom selections do not consume the warlock invocation pool.
             if (invocation is InvocationDefinitionCustom)
             {
                 checkPool = false;
             }
 
-            if (invocation.GrantedFeature is not FeatureDefinitionPointPool featureDefinitionPointPool)
+            var grantedPools = RulesetActorExtensions.FlattenFeatureList([invocation.GrantedFeature])
+                .OfType<FeatureDefinitionPointPool>().ToArray();
+
+            if (grantedPools.Length == 0)
             {
-                return;
+                return true;
             }
 
-            if (!heroBuildingData.PointPoolStacks.TryGetValue(
-                    featureDefinitionPointPool.PoolType, out var pointPoolStack))
+            if (!heroBuildingData.LevelupTrainedInvocations.TryGetValue(tag, out var invocations))
             {
-                return;
+                invocations = [];
+                heroBuildingData.LevelupTrainedInvocations.Add(tag, invocations);
             }
 
-            var hero = heroBuildingData.HeroCharacter;
+            invocations.Add(invocation);
 
-            __instance.GetLastAssignedClassAndLevel(hero, out var classDefinition, out var level);
-
-            var finaTag = AttributeDefinitions.GetClassTag(classDefinition, level) +
-                          featureDefinitionPointPool.ExtraSpellsTag;
-
-            if (pointPoolStack.ActivePools
-                .TryGetValue(finaTag + featureDefinitionPointPool.ExtraSpellsTag, out var pool))
+            if (checkPool)
             {
-                pool.maxPoints += featureDefinitionPointPool.poolAmount;
+                __instance.ModifyPoolPoints(heroBuildingData, HeroDefinitions.PointsPoolType.Invocation, tag, -1);
             }
-            else
+
+            __instance.GetLastAssignedClassAndLevel(heroBuildingData.HeroCharacter, out var klass, out var level);
+
+            // Native TrainInvocation stops after the first direct child pool. Use the same
+            // recursive ownership and tagging for every pool, including nested feature sets.
+            foreach (var feature in grantedPools)
             {
-                __instance.ApplyFeatureDefinitionPointPool(heroBuildingData, featureDefinitionPointPool, finaTag);
+                if (!heroBuildingData.PointPoolStacks.TryGetValue(feature.PoolType, out var stack))
+                {
+                    continue;
+                }
+
+                var featureTag = AttributeDefinitions.GetClassTag(klass, level) + feature.ExtraSpellsTag;
+                var poolTag = PointPoolContext.GetPoolTag(feature.PoolType, featureTag, feature.ExtraSpellsTag);
+
+                if (stack.ActivePools.TryGetValue(poolTag, out var pool))
+                {
+                    pool.maxPoints += feature.PoolAmount;
+                    pool.remainingPoints += feature.PoolAmount;
+                }
+                else
+                {
+                    __instance.ApplyFeatureDefinitionPointPool(heroBuildingData, feature, featureTag);
+                }
             }
+
+            return false;
         }
     }
 
@@ -1198,37 +1219,58 @@ public static class CharacterBuildingManagerPatcher
         CharacterHeroBuildingData heroBuildingData,
         InvocationDefinition invocation)
     {
-        if (invocation.GrantedFeature is not FeatureDefinitionPointPool featureDefinitionPointPool)
+        __instance.GetLastAssignedClassAndLevel(heroBuildingData.HeroCharacter, out var klass, out var level);
+
+        foreach (var feature in RulesetActorExtensions.FlattenFeatureList([invocation.GrantedFeature])
+                     .OfType<FeatureDefinitionPointPool>())
         {
-            return;
-        }
+            if (!heroBuildingData.PointPoolStacks.TryGetValue(feature.PoolType, out var stack))
+            {
+                continue;
+            }
 
-        if (!heroBuildingData.PointPoolStacks.TryGetValue(featureDefinitionPointPool.PoolType,
-                out var pointPoolStack))
-        {
-            return;
-        }
+            var featureTag = AttributeDefinitions.GetClassTag(klass, level) + feature.ExtraSpellsTag;
+            var poolTag = PointPoolContext.GetPoolTag(feature.PoolType, featureTag, feature.ExtraSpellsTag);
 
-        var hero = heroBuildingData.HeroCharacter;
+            if (!stack.ActivePools.TryGetValue(poolTag, out var pool))
+            {
+                continue;
+            }
 
-        __instance.GetLastAssignedClassAndLevel(hero, out var classDefinition, out var level);
+            pool.maxPoints -= feature.PoolAmount;
+            pool.remainingPoints = Math.Max(0, pool.remainingPoints - feature.PoolAmount);
 
-        var finaTag = AttributeDefinitions.GetClassTag(classDefinition, level) +
-                      featureDefinitionPointPool.ExtraSpellsTag + featureDefinitionPointPool.ExtraSpellsTag;
+            // Remove only choices exceeding the reduced capacity, keeping earlier selections.
+            TrimInvocationSpellChoices(heroBuildingData.AcquiredCantrips, poolTag, pool);
+            TrimInvocationSpellChoices(heroBuildingData.AcquiredSpells, poolTag, pool);
 
-        if (!pointPoolStack.ActivePools.TryGetValue(finaTag, out var pool))
-        {
-            return;
-        }
-
-        pool.maxPoints -= featureDefinitionPointPool.poolAmount;
-
-        if (pool.maxPoints == 0)
-        {
-            pointPoolStack.ActivePools.Remove(finaTag);
+            if (pool.maxPoints <= 0)
+            {
+                stack.ActivePools.Remove(poolTag);
+                heroBuildingData.AcquiredCantrips.Remove(poolTag);
+                heroBuildingData.AcquiredSpells.Remove(poolTag);
+            }
         }
     }
 
+
+    private static void TrimInvocationSpellChoices(
+        Dictionary<string, List<SpellDefinition>> choices, string tag, PointPool pool)
+    {
+        if (!choices.TryGetValue(tag, out var spells))
+        {
+            return;
+        }
+
+        var capacity = Math.Max(0, pool.maxPoints);
+
+        if (spells.Count > capacity)
+        {
+            spells.RemoveRange(capacity, spells.Count - capacity);
+        }
+
+        pool.remainingPoints = capacity - spells.Count;
+    }
 
     [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.UntrainInvocations))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -1425,6 +1467,7 @@ public static class CharacterBuildingManagerPatcher
             GrantCantripFromCustomAcquiredPool(hero, Tabletop2024Context.ClericThaumaturgeExtraSpellsTag);
             GrantCantripFromCustomAcquiredPool(hero, "DomainNature");
             GrantCantripFromCustomAcquiredPool(hero, "PactTome");
+            Tabletop2024Context.GrantPactTomeRitualSpells(hero);
             GrantCantripFromCustomAcquiredPool(hero, "PrimalOrder");
 
             //PATCH: grant spells for these 2 subs as pools with tags aren't granted from subs if not at sub 1st level
@@ -2614,6 +2657,21 @@ public static class CharacterBuildingManagerPatcher
         public static void Postfix(CharacterHeroBuildingData heroBuildingData)
         {
             Tabletop2024Context.ClearPendingFeatSelections(heroBuildingData?.HeroCharacter);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.IsFeatKnownOrTrained))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class IsFeatKnownOrTrained_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(FeatDefinition feat, ref bool __result)
+        {
+            if (SkillFeats.IsRepeatable(feat))
+            {
+                __result = false;
+            }
         }
     }
 }

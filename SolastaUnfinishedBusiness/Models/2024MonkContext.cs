@@ -91,6 +91,7 @@ public static partial class Tabletop2024Context
         FeatureDefinitionBuilder
             .Create("FeatureMonkPerfectFocus")
             .SetGuiPresentation(Category.Feature)
+            .AddCustomSubFeatures(new InitiativeEndListenerPerfectFocus())
             .AddToDB();
 
     internal static readonly FeatureDefinitionPower PowerMonkReturnAttacks = FeatureDefinitionPowerBuilder
@@ -359,6 +360,27 @@ public static partial class Tabletop2024Context
     private static void LoadMonkStunningStrike()
     {
         PowerMonkStunningStrike.AddCustomSubFeatures(new MagicEffectFinishedByMeStunningStrike());
+    }
+
+    private static readonly WeaponDamageTypeChoice MonkEmpoweredStrikesChoice = new(
+        () => Main.Settings.EnableMonkEmpoweredStrikes2024,
+        (mode, _, _) => ValidatorsWeapon.IsUnarmed(mode),
+        DamageTypeForce);
+
+    internal static void SwitchMonkEmpoweredStrikes()
+    {
+        var feature = DatabaseRepository.GetDatabase<FeatureDefinitionAttackModifier>()
+            .GetElement("AttackModifierMonkKiEmpoweredStrikes");
+
+        if (!feature.GetAllSubFeaturesOfType<WeaponDamageTypeChoice>().Contains(MonkEmpoweredStrikesChoice))
+        {
+            feature.AddCustomSubFeatures(MonkEmpoweredStrikesChoice, WeaponDamageTypeChoice.Handler);
+        }
+
+        feature.magicalWeapon = !Main.Settings.EnableMonkEmpoweredStrikes2024;
+        feature.GuiPresentation.description = Main.Settings.EnableMonkEmpoweredStrikes2024
+            ? "Feature/&MonkEmpoweredStrikes2024Description"
+            : "Feature/&MonkKiEmpoweredStrikesDescription";
     }
 
     internal static void SwitchMonkDeflectAttacks()
@@ -804,7 +826,7 @@ public static partial class Tabletop2024Context
         {
             if (!Main.Settings.EnableMonkStunningStrike2024 ||
                 action.ActionParams.RulesetEffect?.SourceDefinition != PowerMonkStunningStrike ||
-                action.SaveOutcome == RollOutcome.Failure)
+                action.SaveOutcome is not (RollOutcome.Success or RollOutcome.CriticalSuccess))
             {
                 yield break;
             }
@@ -872,7 +894,7 @@ public static partial class Tabletop2024Context
                     rulesetCharacter.GetMonkDieType(), RollContext.HealValueRoll, 2, []);
 
                 rulesetCharacter.ReceiveTemporaryHitPoints(
-                    tempHp, DurationType.Round, 1, TurnOccurenceType.StartOfTurn, rulesetCharacter.Guid);
+                    tempHp, DurationType.UntilLongRest, 0, TurnOccurenceType.StartOfTurn, rulesetCharacter.Guid);
             }
             else if (definition == PowerMonkStepOfTheWindDash ||
                      definition == PowerMonkStepOftheWindDisengage ||
@@ -942,6 +964,25 @@ public static partial class Tabletop2024Context
         }
     }
 
+    private sealed class InitiativeEndListenerPerfectFocus : IInitiativeEndListener
+    {
+        public IEnumerator OnInitiativeEnded(GameLocationCharacter character)
+        {
+            var rulesetCharacter = character.RulesetCharacter;
+
+            // Uncanny Metabolism's listener owns the choice and its declined/unavailable fallback.
+            if (!rulesetCharacter.HasAnyFeature(PowerMonkUncannyMetabolism) &&
+                Main.Settings.EnableMonkHeightenedFocus2024 && rulesetCharacter.RemainingKiPoints < 4)
+            {
+                rulesetCharacter.UsedKiPoints -= 4 - rulesetCharacter.RemainingKiPoints;
+                rulesetCharacter.KiPointsAltered?.Invoke(rulesetCharacter, rulesetCharacter.RemainingKiPoints);
+                rulesetCharacter.LogCharacterUsedFeature(FeatureMonkPerfectFocus);
+            }
+
+            yield break;
+        }
+    }
+
     private sealed class InitiativeEndListenerUncannyMetabolism : IInitiativeEndListener
     {
         public IEnumerator OnInitiativeEnded(GameLocationCharacter character)
@@ -949,7 +990,8 @@ public static partial class Tabletop2024Context
             var rulesetCharacter = character.RulesetCharacter;
             var usablePower = PowerProvider.Get(PowerMonkUncannyMetabolism, rulesetCharacter);
 
-            if ((rulesetCharacter.UsedKiPoints == 0 && rulesetCharacter.MissingHitPoints == 0) ||
+            if (!Main.Settings.EnableMonkUncannyMetabolism2024 ||
+                (rulesetCharacter.UsedKiPoints == 0 && rulesetCharacter.MissingHitPoints == 0) ||
                 rulesetCharacter.GetRemainingUsesOfPower(usablePower) == 0)
             {
                 HandlePerfectFocus();

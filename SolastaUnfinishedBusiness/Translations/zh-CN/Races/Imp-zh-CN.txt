@@ -11,6 +11,7 @@ Failure/&TargetOutOfRange=目标超出范围。
 Feature/&ActionAffinityImpForestInnateCunningDescription=你可以使用附赠动作来撤离或躲藏。
 Feature/&ActionAffinityImpForestInnateCunningTitle=先天狡黠
 Feature/&CastSpellImpInfernalDescription=你熟知 <b>恶言相加</b> 戏法。当你达到 3 级时，你可以在每次长休后施放一次 <b>隐形术</b> 。你使用魅力作为这些法术的施法属性。
+Feature/&CastSpellImpInfernalSpeciesSpellcastingDescription=你熟知 <b>恶言相加</b> 戏法。当你达到 3 级时，你可以在每次长休后施放一次 <b>隐形术</b> 。
 Feature/&CastSpellImpInfernalTitle=恶魔诡术
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseDescription=体质 +2，智力 +1
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseTitle=属性值提升

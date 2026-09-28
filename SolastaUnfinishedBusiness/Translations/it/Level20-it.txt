@@ -169,3 +169,5 @@ Screen/&SignatureSpellsExtraSpellDescription=Questo incantesimo distintivo è se
 Screen/&SignatureSpellsExtraSpellTitle=Firma
 Screen/&SpellMasteryExtraSpellDescription=Questo incantesimo di Maestria è sempre preparato e non consuma uno slot incantesimo quando viene lanciato a livello.
 Screen/&SpellMasteryExtraSpellTitle=Padronanza
+Feature/&FeatureWizardSpellMastery2024Description=Scegli dal libro un incantesimo di livello 1 e uno di livello 2 con tempo di lancio di un'azione. Sono sempre preparati e puoi lanciarli al livello minimo senza slot. Lanciarli a un livello superiore richiede uno slot. Dopo un riposo lungo puoi sostituire una scelta con un incantesimo valido dello stesso livello.
+Feature/&PowerRogueStrokeOfLuck2024Description=Quando fallisci un tiro per colpire, una prova di caratteristica o un tiro salvezza, puoi sostituire il risultato del d20 con un 20. Recuperi questo uso dopo un riposo breve o lungo.

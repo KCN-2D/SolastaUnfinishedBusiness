@@ -169,3 +169,5 @@ Screen/&SignatureSpellsExtraSpellDescription=This signature spell is always prep
 Screen/&SignatureSpellsExtraSpellTitle=Signature
 Screen/&SpellMasteryExtraSpellDescription=This Mastery spell is always prepared and doesn't consume a spell slot when cast at level.
 Screen/&SpellMasteryExtraSpellTitle=Mastery
+Feature/&FeatureWizardSpellMastery2024Description=Choose one level 1 and one level 2 spell in your spellbook with a casting time of an action. They are always prepared and can be cast at their lowest level without a spell slot. Higher-level casting requires a slot. After a Long Rest, you can replace one choice with an eligible spell of the same level.
+Feature/&PowerRogueStrokeOfLuck2024Description=When you fail an attack roll, ability check, or saving throw, you can replace its d20 roll with a 20. You regain this use after a Short or Long Rest.

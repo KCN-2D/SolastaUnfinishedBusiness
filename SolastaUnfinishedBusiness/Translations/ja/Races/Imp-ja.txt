@@ -11,6 +11,7 @@ Failure/&TargetOutOfRange=対象が範囲外です。
 Feature/&ActionAffinityImpForestInnateCunningDescription=ボーナス・アクションとして、離脱または隠れ身を行うことができます。
 Feature/&ActionAffinityImpForestInnateCunningTitle=生来の狡猾さ
 Feature/&CastSpellImpInfernalDescription=初級呪文〈悪意ある嘲り〉を修得します。3レベルに達すると、大休憩ごとに1回、〈不可視化〉を発動できます。これらの呪文の呪文発動能力値は魅力です。
+Feature/&CastSpellImpInfernalSpeciesSpellcastingDescription=初級呪文〈悪意ある嘲り〉を修得します。3レベルに達すると、大休憩ごとに1回、〈不可視化〉を発動できます。
 Feature/&CastSpellImpInfernalTitle=悪魔の策士
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseDescription=耐久力+2、知力+1
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseTitle=能力値上昇

@@ -119,31 +119,33 @@ public static class FeatureDescriptionItemPatcher
 
     private static void RestoreHumanOriginFeatSelection(FeatureDescriptionItem item)
     {
-        if (!Tabletop2024Context.IsHumanOriginFeatSelectionFeature(FeatureRef(item)))
+        if (Tabletop2024Context.IsHumanOriginFeatSelectionFeature(FeatureRef(item)) &&
+            Tabletop2024Context.TryGetHumanOriginSelectionFeature(CurrentHero, out var selectionFeature))
         {
-            return;
+            RestoreSelectedFeature(item, selectionFeature);
         }
+    }
 
-        var hero = CurrentHero;
+    private static void RestoreSpeciesSpellcastingSelection(FeatureDescriptionItem item)
+    {
+        if (SpeciesSpellcastingContext.IsSelectionFeature(FeatureRef(item)) &&
+            SpeciesSpellcastingContext.TryGetSelectedAbilityFeature(CurrentHero, out var selectionFeature))
+        {
+            RestoreSelectedFeature(item, selectionFeature);
+        }
+    }
+
+    private static void RestoreSelectedFeature(FeatureDescriptionItem item, FeatureDefinition selectionFeature)
+    {
         var availableFeatures = AvailableFeaturesRef(item);
-
-        if (availableFeatures is not { Count: > 0 })
-        {
-            return;
-        }
-
-        if (!Tabletop2024Context.TryGetHumanOriginSelectionFeature(hero, out var selectionFeature))
-        {
-            return;
-        }
-
-        var index = availableFeatures.IndexOf(selectionFeature);
+        var index = availableFeatures?.IndexOf(selectionFeature) ?? -1;
 
         if (index < 0)
         {
             return;
         }
 
+        // Restore the current hero's choice without a new change event or a shared definition default.
         if (item.choiceDropdown && item.choiceDropdown.gameObject.activeSelf)
         {
             item.choiceDropdown.SetValueWithoutNotify(index);
@@ -573,6 +575,7 @@ public static class FeatureDescriptionItemPatcher
             }
 
             RestoreHumanOriginFeatSelection(__instance);
+            RestoreSpeciesSpellcastingSelection(__instance);
             SaveHumanOriginFeatSelection(__instance, false);
             RefreshSpeciesBaseWalkSpeedDescription(__instance);
             RefreshSelectionFeatureDisplayLayout(__instance);

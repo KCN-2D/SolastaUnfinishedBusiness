@@ -1,4 +1,5 @@
 Feature/&CastSpellOniOgreMagicDescription=At 3rd level, you can cast <b>Thunderous Smite</b> once per long rest. <b>Wisdom</b> is your spellcasting ability for it.
+Feature/&CastSpellOniOgreMagicSpeciesSpellcastingDescription=At 3rd level, you can cast <b>Thunderous Smite</b> once per long rest.
 Feature/&CastSpellOniOgreMagicTitle=Ogre Magic
 Feature/&FeatureSetOniAbilityScoreIncreaseDescription=Strength +2, Wisdom +1
 Feature/&FeatureSetOniAbilityScoreIncreaseTitle=Attribute Increase

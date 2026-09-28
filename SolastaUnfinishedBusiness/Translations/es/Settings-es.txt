@@ -144,7 +144,7 @@ ModUi/&EnableBetaContent=Habilitar contenido beta <b><i><color=#C04040E0>[Requie
 ModUi/&EnableCancelEditOnRightMouseClick=Habilitar acciones de cancelación con clic derecho del mouse
 ModUi/&EnableCantripsTriggeringOnWarMagic=Permitir que los trucos activen un ataque adicional adicional de <color=#D89555>Magia de guerra</color>
 ModUi/&EnableCharactersOnFireToEmitLight=Los personajes <color=#D89555>On Fire</color> deben emitir luz <i><color=#F0DAA0>[Cubo de luz, Elemental de fuego, Bufón de fuego, Águila pescadora de fuego, Araña de fuego y familia de condición en llamas]</color></i>
-ModUi/&EnableClericBlessedStrikes2024=Habilita <color=#D89555>Golpes benditos</color> y <color=#D89555>Golpes benditos mejorados</color> en los niveles 7 y 14\n<i><color=#F0DAA0>[solo afecta a los dominios Desecrador, Vida, Travesura, Naturaleza, Herrero, Sol y Tempestad]</color></i>
+ModUi/&EnableClericBlessedStrikes2024=Habilita <color=#D89555>Golpes benditos</color> y <color=#D89555>Golpes benditos mejorados</color> en los niveles 7 y 14
 ModUi/&EnableClericChannelDivinity2024=Intercambia <color=#D89555>Divinidad canalizada</color> con la versión 5e 2024 <i><color=#F0DAA0>[usos diferentes]</color></i>
 ModUi/&EnableClericDivineOrder2024=Habilita <color=#D89555>Orden Divina</color> en el nivel 1 <i><color=#F0DAA0>[elección entre armadura pesada/armas marciales, truco profesional o adicional y algunas pruebas de INT]</color></i>
 ModUi/&EnableClericSearUndead2024=Habilita <color=#D89555>Quemar no muertos</color> para reemplazar <color=#D89555>Destruir no muertos</color> en el nivel 5
@@ -234,6 +234,7 @@ ModUi/&EnablePcgRandom=Habilitar mejor algoritmo generador aleatorio <i><color=#
 ModUi/&EnablePoisonsBonusAction2024=Habilitar la aplicación de <color=#D89555>venenos</color> a las armas como acción adicional
 ModUi/&EnablePotionsBonusAction2024=Habilitar beber <color=#D89555>Pociones</color> como acción adicional
 ModUi/&EnableHalfOrcAdrenalineRush2024=Para <color=#D89555>{0}</color>, sustituir el rasgo <color=#D89555>{1}</color> por <color=#D89555>{2}</color> (2024)
+ModUi/&EnableSpeciesSpellcastingAbility2024=Permite elegir Inteligencia, Sabiduría o Carisma como característica para lanzar los conjuros de tu especie.
 ModUi/&EnableSpeciesBaseWalkSpeed2024=Aumentar a 6 casillas la velocidad base de las <color=#D89555>especies jugables con 5 casillas</color>
 ModUi/&EnablePreparedSpellsTables2024=Permitir que todos los <color=#D89555>lanzadores de conjuros</color> utilicen las nuevas tablas de conjuros preparadas <i><color=#F0DAA0>[Artificiero, Bardo, Clérigo, Druida, Paladín, Explorador, Hechicero, Mago]</color></i>
 ModUi/&EnableSpellLists2024=Usar las listas de conjuros de clase de 2024
@@ -258,7 +259,7 @@ ModUi/&EnableRespecAction=Habilitar la acción <color=#D89555>RESPECT</color> de
 ModUi/&EnableRitualOnAllCasters2024=Habilitar el lanzamiento de <color=#D89555>Ritual</color> para todos los lanzadores
 ModUi/&EnableOneSpellSlotPerTurn2024=Aplica la regla de 2024 que permite gastar solo un espacio de conjuro para lanzar un conjuro en cada turno <i><color=#F0DAA0>[los trucos y los conjuros lanzados sin espacio no se ven afectados]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Activar la versión de 2024 de <color=#D89555>{0}</color> <i><color=#F0DAA0>[salvación de Constitución; un fallo interrumpe el lanzamiento sin gastar el espacio del conjuro objetivo]</color></i>
-ModUi/&Counterspell2024CompatibilityDescription=También activa Rompehechizos para los Abjuradores de nivel 10. Dominio del contrahechizo del Mago de la Corte da desventaja a los objetivos en las salvaciones contra tu Contrahechizo y te da ventaja en las salvaciones contra Contrahechizo.
+ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>[También activa Rompehechizos para los Abjuradores de nivel 10. Dominio del contrahechizo del Mago de la Corte da desventaja a los objetivos en las salvaciones contra tu Contrahechizo y te da ventaja en las salvaciones contra Contrahechizo.]</color></i>
 ModUi/&EnableRogueCunningStrike2024=Habilita <color=#D89555>Golpe astuto</color>, <color=#D89555>Golpe astuto mejorado</color> y <color=#D89555>Golpe tortuoso</color> en los niveles 5, 11 y 14. <i><color=#F0DAA0>[dejas de usar 1 dado de ataque furtivo para obtener efectos de golpe adicionales]</color></i>
 ModUi/&EnableRogueFightingStyle=Habilitar la opción <color=#D89555>Estilo de lucha</color> en el nivel 2
 ModUi/&EnableRogueReliableTalent2024=Habilitar <color=#D89555>Talento confiable</color> en el nivel 7 en lugar del 11
@@ -299,7 +300,7 @@ ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=Habilita <color=
 ModUi/&EnableWarlockMagicalCunningAtLevel2=Habilita <color=#D89555>Astucia mágica</color> en el nivel 2
 ModUi/&EnableWarlockToLearnPatronAtLevel3=Habilitar <color=#D89555>Patron</color> en el nivel 3 en lugar del 1
 ModUi/&EnableAbjurerSpellBreaker2024=Activar <color=#D89555>Rompehechizos</color> para el Abjurador a nivel 10 (2024)
-ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=Se activa automáticamente mientras se usen las reglas de Contrahechizo de 2024. Tu preferencia independiente de Rompehechizos se conserva y vuelve a aplicarse al desactivar esas reglas.
+ModUi/&AbjurerSpellBreakerForcedByCounterspell2024=<i><color=#F0DAA0>[Se activa automáticamente mientras se usen las reglas de Contrahechizo de 2024. Tu preferencia independiente de Rompehechizos se conserva y vuelve a aplicarse al desactivar esas reglas.]</color></i>
 ModUi/&EnableWizardMemorizeSpell2024=Habilitar <color=#D89555>Memorizar hechizo</color> en el nivel 5
 ModUi/&EnableWizardToLearnScholarAtLevel2=Habilitar <color=#D89555>Scholar</color> en el nivel 2
 ModUi/&EnableWizardToLearnSchoolAtLevel3=Habilitar <color=#D89555>Escuela de Magia</color> en el nivel 3 en lugar de 2
@@ -542,3 +543,18 @@ ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses
 ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[While enabled, only the independent 2024 feats below can be toggled. Legacy feat toggles are locked]</color></i>
 ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
 ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
+ModUi/&EnableWizardSpellMastery2024=Activar <color=#D89555>Maestría de conjuros</color> de 2024 <i><color=#F0DAA0>[conjuros de acción; sustituir uno tras un descanso largo]</color></i>
+ModUi/&EnableThiefUseMagicDevice2024=Activar <color=#D89555>Usar objetos mágicos</color> del Ladrón de 2024 <i><color=#F0DAA0>[cuatro vinculaciones, conservar cargas y pergaminos con Inteligencia]</color></i>
+ModUi/&EnableBarbarianDangerSense2024=Activar <color=#D89555>Sentido del peligro</color> de 2024 <i><color=#F0DAA0>[ventaja en salvaciones de Destreza salvo estando incapacitado]</color></i>
+ModUi/&EnableBarbarianIndomitableMight2024=Activar <color=#D89555>Fuerza indómita</color> de 2024 <i><color=#F0DAA0>[total mínimo en pruebas y salvaciones de Fuerza]</color></i>
+ModUi/&EnableClericDivineIntervention2024=Activa <color=#D89555>Intervención divina</color> e <color=#D89555>Intervención divina mayor</color> de 2024 <i><color=#F0DAA0>[elige un conjuro de clérigo; Deseo en el nivel 20]</color></i>
+ModUi/&EnablePaladinRadiantStrikes2024=Activa <color=#D89555>Golpes radiantes</color> de 2024 <i><color=#F0DAA0>[también se aplica a los ataques sin armas]</color></i>
+ModUi/&EnableOneDndShillelaghSpell=Activar la versión de 2024 de <color=#D89555>{0}</color> <i><color=#F0DAA0>[el daño aumenta en los niveles de personaje 5, 11 y 17; daño de fuerza opcional]</color></i>
+ModUi/&HideousLaughter2024TargetingHelp=<i><color=#F0DAA0>[Con Risa horrible de 2024 activa, se puede elegir cualquier tipo de criatura. La preferencia de restricción de objetivos se conserva y vuelve a aplicarse al desactivar esta opción.]</color></i>
+ModUi/&EnableMonkEmpoweredStrikes2024=Activar <color=#D89555>Golpes potenciados</color> de 2024 <i><color=#F0DAA0>[elegir daño de fuerza para golpes sin armas]</color></i>
+ModUi/&EnableRogueStrokeOfLuck2024=Activar <color=#D89555>Golpe de suerte</color> de 2024 <i><color=#F0DAA0>[sustituir por 20 una tirada de d20 fallida]</color></i>
+ModUi/&EnableBardWeaponProficiency2024=Activa las <color=#D89555>competencias con armas</color> de 2024 del bardo <i><color=#F0DAA0>[armas simples]</color></i>
+ModUi/&EnableMonkWeaponProficiency2024=Activa las <color=#D89555>competencias con armas</color> de 2024 del monje <i><color=#F0DAA0>[armas simples y armas marciales con la propiedad Ligera]</color></i>
+ModUi/&EnableRogueWeaponProficiency2024=Activa las <color=#D89555>competencias con armas</color> de 2024 del pícaro <i><color=#F0DAA0>[armas simples y armas marciales con la propiedad Finura o Ligera]</color></i>
+ModUi/&EnableSorcererWeaponProficiency2024=Activa las <color=#D89555>competencias con armas</color> de 2024 del hechicero <i><color=#F0DAA0>[todas las armas simples]</color></i>
+ModUi/&EnableWizardWeaponProficiency2024=Activa las <color=#D89555>competencias con armas</color> de 2024 del mago <i><color=#F0DAA0>[todas las armas simples]</color></i>

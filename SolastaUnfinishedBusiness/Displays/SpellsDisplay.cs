@@ -98,11 +98,18 @@ internal static class SpellsDisplay
             SpellsContext.SwitchRecurringEffectOnEntangle();
         }
 
-        toggle = Main.Settings.RemoveHumanoidFilterOnHideousLaughter;
+        var laughterGuiEnabled = GUI.enabled;
+        GUI.enabled = laughterGuiEnabled && !Main.Settings.EnableOneDndHideousLaughterSpell;
+        toggle = Main.Settings.RemoveHumanoidFilterOnHideousLaughter || Main.Settings.EnableOneDndHideousLaughterSpell;
         if (UI.Toggle(Gui.Localize("ModUi/&RemoveHumanoidFilterOnHideousLaughter"), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.RemoveHumanoidFilterOnHideousLaughter = toggle;
             SpellsContext.SwitchFilterOnHideousLaughter();
+        }
+        GUI.enabled = laughterGuiEnabled;
+        if (Main.Settings.EnableOneDndHideousLaughterSpell)
+        {
+            UI.Label(Gui.Localize("ModUi/&HideousLaughter2024TargetingHelp"));
         }
 
         UI.Label();
@@ -208,6 +215,14 @@ internal static class SpellsDisplay
         }
 
         UI.Label();
+
+        toggle = Main.Settings.EnableOneDndShillelaghSpell;
+        if (UI.Toggle(FormatSpellRuleSetting("ModUi/&EnableOneDndShillelaghSpell", Shillelagh),
+                ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableOneDndShillelaghSpell = toggle;
+            Tabletop2024Context.SwitchOneDndSpellShillelagh();
+        }
 
         toggle = Main.Settings.EnableOneDndBarkskinSpell;
         if (UI.Toggle(

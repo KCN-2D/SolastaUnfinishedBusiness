@@ -100,6 +100,7 @@ public static partial class Tabletop2024Context
         LoadBardCounterCharm();
         LoadClericBlessedStrikes();
         LoadClericChannelDivinity();
+        LoadClericDivineIntervention();
         LoadClericSearUndead();
         LoadDruidArchDruid();
         LoadDruidElementalFury();
@@ -123,9 +124,12 @@ public static partial class Tabletop2024Context
         SwitchBarbarianInstinctivePounce();
         SwitchBarbarianPersistentRage();
         SwitchBarbarianReckless();
+        SwitchBarbarianDangerSense();
+        SwitchBarbarianIndomitableMight();
         SwitchBarbarianRage();
         SwitchBarbarianRelentlessRage();
         SwitchBardBardMagicalSecrets();
+        SwitchBardWeaponProficiency();
         SwitchBardBardicInspiration();
         SwitchBardCounterCharm();
         SwitchBardExpertiseOneLevelBefore();
@@ -135,6 +139,7 @@ public static partial class Tabletop2024Context
         SwitchClericBlessedStrikes();
         SwitchClericChannelDivinity();
         SwitchClericDivineOrder();
+        SwitchClericDivineIntervention();
         SwitchClericDomainLearningLevel();
         SwitchClericSearUndead();
         SwitchDruidArchDruid();
@@ -151,9 +156,11 @@ public static partial class Tabletop2024Context
         SwitchFighterStudiedAttacks();
         SwitchFighterTacticalMaster();
         SwitchFighterTacticalProgression();
+        SwitchMonkWeaponProficiency();
         SwitchMonkBodyAndMind();
         SwitchMonkDeflectAttacks();
         SwitchMonkFocus();
+        SwitchMonkEmpoweredStrikes();
         SwitchMonkHeightenedFocus();
         SwitchMonkMartialArts();
         SwitchMonkStunningStrike();
@@ -177,6 +184,7 @@ public static partial class Tabletop2024Context
         SwitchOneDndSpellPowerWordStun();
         SwitchOneDndSpellRitualOnAllCasters();
         SwitchOneDndSpellSpareTheDying();
+        SwitchOneDndSpellShillelagh();
         SwitchOneDndSpellSpiderClimb();
         SwitchOneDndSpellStoneSkin();
         SwitchOneDndSpellWitchBolt();
@@ -185,6 +193,8 @@ public static partial class Tabletop2024Context
         SwitchPaladinChannelDivinity();
         SwitchPaladinLayOnHand();
         SwitchPaladinRestoringTouch();
+        SwitchPaladinRadiantStrikes();
+        SwitchPaladinRechargeLv20Power();
         SwitchPaladinSpellCastingAtOne();
         SwitchPaladinDivineSmite();
         SwitchPaladinAnyFightingStyle();
@@ -204,10 +214,14 @@ public static partial class Tabletop2024Context
         SwitchRangerTireless();
         SwitchRangerAnyFightingStyle();
         SwitchRogueBlindSense();
+        SwitchRogueWeaponProficiency();
         SwitchRogueCunningStrike();
         SwitchRogueReliableTalent();
         SwitchRogueSlipperyMind();
         SwitchRogueSteadyAim();
+        SwitchRogueStrokeOfLuck();
+        SwitchThiefUseMagicDevice();
+        SwitchSorcererWeaponProficiency();
         SwitchSorcererArcaneApotheosis();
         SwitchSorcererInnateSorcery();
         SwitchSorcererMetamagic();
@@ -215,19 +229,23 @@ public static partial class Tabletop2024Context
         SwitchSorcererSorcerousRestorationAtLevel5();
         SwitchSorcererDraconicBloodlineAC();
         SwitchSpeciesBaseWalkSpeed();
+        SpeciesSpellcastingContext.Switch();
         SwitchHalfOrcAdrenalineRush();
         SwitchTabletopFeatRules2024();
         SwitchSurprisedEnforceDisadvantage();
         SwitchWarlockInvocationsProgression();
         SwitchWarlockMagicalCunningAndImprovedEldritchMaster();
         SwitchWarlockPatronLearningLevel();
+        SwitchWizardWeaponProficiency();
         SwitchWizardMemorizeSpell();
+        SwitchWizardSpellMastery();
         SwitchWizardScholar();
         SwitchWizardSchoolOfMagicLearningLevel();
         SwitchWeaponMastery();
         SwitchMartialChampion();
         SwitchShineCantrip();
         SmiteSpells2024Context.LateLoad();
+        SorceryIncarnateContext.LateLoad();
     }
 
     internal static void SwitchSpeciesBaseWalkSpeed()
@@ -405,7 +423,8 @@ public static partial class Tabletop2024Context
                     return;
                 }
 
-                action.AttackSuccessDelta += dieRoll - action.AttackRoll;
+                action.AttackSuccessDelta = TryAlterOutcomeAttack.GetReplacementRollSuccessDelta(
+                    action, dieRoll, defender.RulesetActor, attackModifier, attackMode, rulesetEffect);
                 action.AttackRoll = dieRoll;
 
                 if (action.AttackSuccessDelta >= 0)

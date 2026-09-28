@@ -11,6 +11,7 @@ using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using static ActionDefinitions;
 using static RuleDefinitions;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper.SpellDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -312,6 +313,14 @@ public static class ItemMenuModalPatcher
                 ItemMenuButton.ItemButtonInfo>(RegisterButtonForInventorySubject).Method;
 
             return instructions
+                .ReplaceCalls(
+                    AccessTools.Method(typeof(RulesetSpellRepertoire),
+                        nameof(RulesetSpellRepertoire.CanCastSpellOfLevel)),
+                    1,
+                    "ItemSpellResource.IdentifyAvailability",
+                    new CodeInstruction(OpCodes.Ldarg_0),
+                    new CodeInstruction(OpCodes.Call,
+                        AccessTools.Method(typeof(SetupFromItem_Patch), nameof(CanIdentify))))
                 .ReplaceCall(guiCharacterSetter, 1, "ItemMenuModal.SetupFromItem.InventorySubject",
                     new CodeInstruction(OpCodes.Ldarg_3),
                     new CodeInstruction(OpCodes.Call, setInventorySubject))
@@ -332,6 +341,23 @@ public static class ItemMenuModalPatcher
                 .ReplaceCall(oldActionStatus, 1, "ItemMenuModal.SetupFromItem3",
                     new CodeInstruction(OpCodes.Ldloc_S, 7),
                     new CodeInstruction(OpCodes.Call, newActionStatus));
+        }
+
+        private static bool CanIdentify(RulesetSpellRepertoire repertoire, int level, ItemMenuModal menu)
+        {
+            if (repertoire.CanCastSpellOfLevel(level))
+            {
+                return true;
+            }
+
+            var caster = menu.GuiCharacter?.RulesetCharacter;
+
+            // Only replace the inventory button's resource check. Native preparation, battle,
+            // and material-component checks still decide whether identification is permitted.
+            return SpellCastingResourceContext.SupportsItemResourceSelection &&
+                   level == Identify.SpellLevel && caster != null &&
+                   SpellCastingResourceContext.EnumerateResources(caster, Identify, repertoire)
+                       .Any(option => option.IsFree && option.IsAvailable(caster));
         }
     }
 

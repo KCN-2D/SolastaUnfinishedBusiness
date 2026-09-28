@@ -11,6 +11,7 @@ Failure/&TargetOutOfRange=Ziel ist außerhalb der Reichweite.
 Feature/&ActionAffinityImpForestInnateCunningDescription=Sie verwenden Ihre Bonusaktion, um sich zurückzuziehen oder zu verstecken.
 Feature/&ActionAffinityImpForestInnateCunningTitle=Angeborene Gerissenheit
 Feature/&CastSpellImpInfernalDescription=Du kennst den Zauberspruch „Bösartige Verhöhnung“. Wenn du Level 3 erreichst, kannst du einmal pro langer Pause Unsichtbarkeit wirken. Charisma ist deine Zauberfähigkeit für diese Zauber.
+Feature/&CastSpellImpInfernalSpeciesSpellcastingDescription=Du kennst den Zauberspruch „Bösartige Verhöhnung“. Wenn du Level 3 erreichst, kannst du einmal pro langer Pause Unsichtbarkeit wirken.
 Feature/&CastSpellImpInfernalTitle=Teuflischer Trickser
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseDescription=Konstitution +2, Intelligenz +1
 Feature/&FeatureSetImpBadlandAbilityScoreIncreaseTitle=Steigerung des Fähigkeitswerts

@@ -406,15 +406,10 @@ public sealed class PathOfTheSpirits : AbstractSubclass
             RulesetCharacter character,
             RulesetEffect rulesetEffect)
         {
-            if (!Main.Settings.EnableBarbarianPersistentRage2024)
-            {
-                return effectDescription;
-            }
-
             var classLevel = character.GetClassLevel(CharacterClassDefinitions.Barbarian);
 
-            // persistent rage is only granted at 15
-            if (classLevel < 15)
+            if (!Main.Settings.EnableBarbarianRage2024 &&
+                !(Main.Settings.EnableBarbarianPersistentRage2024 && classLevel >= 15))
             {
                 return effectDescription;
             }
@@ -459,7 +454,7 @@ public sealed class PathOfTheSpirits : AbstractSubclass
                 [attacker],
                 attacker,
                 "SpiritWalker",
-                Main.Settings.EnableBarbarianRelentlessRage2024
+                Main.Settings.EnableBarbarianRage2024 || Main.Settings.EnableBarbarianPersistentRage2024
                     ? "Reaction/&UseSpiritWalkerExtendedDescription"
                     : "Reaction/&UseSpiritWalkerDescription",
                 ReactionValidated);

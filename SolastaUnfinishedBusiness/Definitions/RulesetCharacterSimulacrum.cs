@@ -6,6 +6,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Validators;
 using static FeatureDefinitionFeatureSet;
 using static RuleDefinitions;
 
@@ -1342,7 +1343,7 @@ internal sealed class RulesetCharacterSimulacrum :
             return true;
         }
 
-        return definition.WeaponDescription?.IsMonkWeaponOrUnarmed() == true;
+        return this.IsMonkWeaponOrUnarmed(definition);
     }
 
     private bool IsShieldInSlot(string slotName)

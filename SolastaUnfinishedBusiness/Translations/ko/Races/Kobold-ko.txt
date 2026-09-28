@@ -1,6 +1,7 @@
 Condition/&ConditionDarkKoboldGrovelCowerAndBegDescription=당신은 코볼트 아군으로부터 10피트 이내의 적에 대한 공격 굴림에서 이점을 얻습니다.
 Condition/&ConditionDarkKoboldGrovelCowerAndBegTitle=그로블, 카워, 그리고 구걸
 Feature/&CastSpellDraconicKoboldMagicDescription=당신은 소서러 주문 목록에서 당신이 선택한 캔트립 하나를 알고 있습니다. 카리스마는 주문 시전 능력입니다.
+Feature/&CastSpellDraconicKoboldMagicSpeciesSpellcastingDescription=당신은 소서러 주문 목록에서 당신이 선택한 캔트립 하나를 알고 있습니다.
 Feature/&CastSpellDraconicKoboldMagicTitle=코볼트 매직
 Feature/&PowerDarkKoboldGrovelCowerAndBegDescription=당신의 차례에 행동으로, 당신은 한심하게 몸을 움츠려 근처의 적들의 주의를 분산시킬 수 있습니다. 다음 턴이 끝날 때까지, 당신의 동맹은 당신을 볼 수 있는 당신으로부터 10피트 내의 적에 대한 공격 굴림에서 이점을 얻습니다. 이 특성을 한 번 사용하면 짧거나 긴 휴식을 마칠 때까지 다시 사용할 수 없습니다.
 Feature/&PowerDarkKoboldGrovelCowerAndBegTitle=그로블, 카워, 그리고 구걸

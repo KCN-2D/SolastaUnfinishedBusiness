@@ -24,3 +24,4 @@ Race/&RaceTieflingMephistophelesDescription=メフィストフェレスは、自
 Race/&RaceTieflingMephistophelesTitle=メフィストフェレス
 Race/&RaceTieflingZarielDescription=ザリエルの血を引くティーフリングは、一般的なティーフリングよりも力強く、戦いに役立つ魔法の能力を授かっています。
 Race/&RaceTieflingZarielTitle=ザリエル
+Feature/&CastSpellTieflingSpeciesSpellcastingDescription=初級呪文〈火炎作成〉を習得します。3レベルで呪文〈地獄の叱咤〉を2レベル版として1回、5レベルで呪文〈暗闇〉を1回、呪文スロットを消費せずに発動できます。これらの使用回数は大休憩を終えると回復します。

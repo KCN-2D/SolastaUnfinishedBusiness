@@ -3338,22 +3338,6 @@ public static partial class Tabletop2024Context
         return TryGetMagicInitiate2024SpellcastingContext(repertoire, out _, out ability);
     }
 
-    internal static bool TryGetMagicInitiate2024SpellcastingAbilityLabel(
-        RulesetSpellRepertoire repertoire,
-        out string label)
-    {
-        label = null;
-
-        if (!TryGetMagicInitiate2024SpellcastingAbility(repertoire, out var ability))
-        {
-            return false;
-        }
-
-        label = GetAbilityAbbreviation(ability);
-
-        return true;
-    }
-
     internal static bool TryGetMagicInitiate2024SaveDC(
         RulesetSpellRepertoire repertoire,
         out int saveDC)
@@ -8661,10 +8645,10 @@ public static partial class Tabletop2024Context
                     return;
                 }
 
-                var previousRoll = action.AttackRoll;
                 var newRoll = RollD20(rulesetHelper);
 
-                action.AttackSuccessDelta += newRoll - previousRoll;
+                action.AttackSuccessDelta = TryAlterOutcomeAttack.GetReplacementRollSuccessDelta(
+                    action, newRoll, defender.RulesetActor, attackModifier, attackMode, rulesetEffect);
                 action.AttackRoll = newRoll;
                 action.AttackRollOutcome = newRoll switch
                 {
@@ -9188,11 +9172,9 @@ public static partial class Tabletop2024Context
                 return true;
             }
 
-            return savingThrowData.EffectDescription?.EffectForms?.Any(effectForm =>
-                effectForm.FormType == EffectForm.EffectFormType.Condition &&
-                (effectForm.ConditionForm.ConditionDefinition.IsSubtypeOf(ConditionDefinitions.ConditionCharmed.Name) ||
-                 effectForm.ConditionForm.ConditionDefinition.IsSubtypeOf(
-                     ConditionDefinitions.ConditionFrightened.Name))) == true;
+            return savingThrowData.EffectDescription?.EffectForms.GetAppliedConditionDefinitions().Any(condition =>
+                condition.IsSubtypeOf(ConditionDefinitions.ConditionCharmed.Name) ||
+                condition.IsSubtypeOf(ConditionDefinitions.ConditionFrightened.Name)) == true;
         }
     }
 

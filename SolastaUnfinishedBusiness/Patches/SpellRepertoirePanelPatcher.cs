@@ -29,7 +29,7 @@ public static class SpellRepertoirePanelPatcher
             //PATCH: filters how spells and slots are displayed on inspection (MULTICLASS)
             MulticlassGameUi.RebuildSlotsTable(__instance);
 
-            RefreshMagicInitiate2024SpellcastingLabels(__instance);
+            RefreshSpellcastingLabels(__instance);
             RefreshPreparedSpellsLabel(__instance);
 
             //PATCH: displays sorcery point box for sorcerers only
@@ -45,28 +45,22 @@ public static class SpellRepertoirePanelPatcher
         }
     }
 
-    private static void RefreshMagicInitiate2024SpellcastingLabels(SpellRepertoirePanel panel)
+    private static void RefreshSpellcastingLabels(SpellRepertoirePanel panel)
     {
         var repertoire = panel.SpellRepertoire;
 
-        if (Tabletop2024Context.TryGetMagicInitiate2024SpellcastingAbilityLabel(
-                repertoire,
-                out var abilityLabel))
+        if (repertoire == null)
         {
-            SetLabelText(panel.abilityLabel, abilityLabel);
+            return;
         }
 
-        if (Tabletop2024Context.TryGetMagicInitiate2024SaveDC(repertoire, out var saveDC))
-        {
-            SetLabelText(panel.saveDCLabel, saveDC.ToString());
-        }
+        // Native Bind reads the shared casting definition. The repertoire owns the effective ability and stats.
+        var ability = DatabaseRepository.GetDatabase<SmartAttributeDefinition>()
+            .GetElement(repertoire.SpellCastingAbility);
 
-        if (Tabletop2024Context.TryGetMagicInitiate2024SpellAttackBonus(
-                repertoire,
-                out var spellAttackBonus))
-        {
-            SetLabelText(panel.spellAttackBonusLabel, spellAttackBonus.ToString("+0;-#"));
-        }
+        SetLabelText(panel.abilityLabel, ability.FormatTitle());
+        SetLabelText(panel.saveDCLabel, repertoire.SaveDC.ToString());
+        SetLabelText(panel.spellAttackBonusLabel, repertoire.SpellAttackBonus.ToString("+0;-#"));
     }
 
     private static void SetLabelText(GuiLabel label, string text)
@@ -255,7 +249,9 @@ public static class SpellRepertoirePanelPatcher
                 RepaintPanel(
                     __instance, WizardSpellMastery.FeatureSpellMastery.FormatTitle(),
                     true, false, true,
-                    Gui.Localize("Screen/&PreparePanelSpellMasterySelect"));
+                    Gui.Localize(Main.Settings.EnableWizardSpellMastery2024
+                        ? "Screen/&PreparePanelSpellMastery2024Select"
+                        : "Screen/&PreparePanelSpellMasterySelect"));
             }
             else if (WizardSignatureSpells.IsPreparation(character, repertoire, out _))
             {
@@ -339,6 +335,21 @@ public static class SpellRepertoirePanelPatcher
             }
 
             spellsByLevelGroup.RefreshInteractivePreparation(canSelectSpells, maxReached, preparedSpells);
+
+            if (selection == null)
+            {
+                return;
+            }
+
+            var selected = GetWizardSelectedSpells(spellRepertoirePanel.SpellRepertoire, preparedSpells);
+
+            foreach (var spellBox in spellsByLevelGroup.spellsTable.GetComponentsInChildren<SpellBox>())
+            {
+                if (!selection.CanSelectSpell(selected, spellBox.SpellDefinition))
+                {
+                    spellBox.RefreshPreparation(false, preparedSpells.Contains(spellBox.SpellDefinition), false);
+                }
+            }
         }
     }
 

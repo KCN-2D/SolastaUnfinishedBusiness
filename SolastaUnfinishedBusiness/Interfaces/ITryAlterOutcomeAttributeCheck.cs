@@ -5,6 +5,7 @@ using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors;
 using UnityEngine;
 using static RuleDefinitions;
 
@@ -256,6 +257,11 @@ internal static class TryAlterOutcomeAttributeCheck
         AbilityCheckData opponentAbilityCheckData,
         bool notify = true)
     {
+        abilityScoreName = AbilityCheckAbilityReplacement.Resolve(
+            rulesetCharacter, abilityScoreName, proficiencyName);
+        opponentAbilityScoreName = AbilityCheckAbilityReplacement.Resolve(
+            opponent, opponentAbilityScoreName, opponentProficiencyName);
+
         var advantageActor = ComputeAdvantage(advantageTrends);
         var isProficientActor = rulesetCharacter.IsProficient(proficiencyName);
 
@@ -327,9 +333,9 @@ internal static class TryAlterOutcomeAttributeCheck
         yield return HandleITryAlterOutcomeAttributeCheck(
             GameLocationCharacter.GetFromActor(rulesetCharacter), abilityCheckData, rawRoll, finalizeOutcome: false);
 
-        totalRoll = totalRoll - rawRoll + abilityCheckData.AbilityCheckRoll +
+        totalRoll = abilityCheckData.AbilityCheckRoll +
                     abilityCheckData.AbilityCheckActionModifier.AbilityCheckModifier;
-        rawRoll = abilityCheckData.AbilityCheckRoll;
+        rawRoll = abilityCheckData.CurrentRoll;
         modifierTrends.AddRange(abilityCheckData.AbilityCheckActionModifier.AbilityCheckModifierTrends);
 
         // handle opponent interruptions
@@ -339,9 +345,9 @@ internal static class TryAlterOutcomeAttributeCheck
             GameLocationCharacter.GetFromActor(opponent), opponentAbilityCheckData, opponentRawRoll,
             finalizeOutcome: false);
 
-        opponentTotalRoll = opponentTotalRoll - opponentRawRoll + opponentAbilityCheckData.AbilityCheckRoll +
+        opponentTotalRoll = opponentAbilityCheckData.AbilityCheckRoll +
                             opponentAbilityCheckData.AbilityCheckActionModifier.AbilityCheckModifier;
-        opponentRawRoll = opponentAbilityCheckData.AbilityCheckRoll;
+        opponentRawRoll = opponentAbilityCheckData.CurrentRoll;
         opponentModifierTrends.AddRange(opponentAbilityCheckData.AbilityCheckActionModifier.AbilityCheckModifierTrends);
 
         // calculate final results

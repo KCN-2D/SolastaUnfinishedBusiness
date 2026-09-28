@@ -19,6 +19,10 @@ namespace SolastaUnfinishedBusiness.Behaviors.Specific;
 
 internal sealed class WishBehavior : ICustomSubspellSelectionProvider
 {
+    public bool BypassComponentsAndCastingTime => true;
+
+    public bool BypassMaterialComponent => true;
+
     private const int WishSlotLevel = 9;
 
     [ThreadStatic]

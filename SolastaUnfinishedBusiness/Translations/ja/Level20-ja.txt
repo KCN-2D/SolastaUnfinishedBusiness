@@ -169,3 +169,5 @@ Screen/&SignatureSpellsExtraSpellDescription=この愛用呪文は常に準備�
 Screen/&SignatureSpellsExtraSpellTitle=愛用呪文
 Screen/&SpellMasteryExtraSpellDescription=この体得呪文は常に準備されており、最低レベルで発動するときは呪文スロットを消費しません。
 Screen/&SpellMasteryExtraSpellTitle=呪文体得
+Feature/&FeatureWizardSpellMastery2024Description=呪文書にある、発動時間がアクションの1レベル呪文と2レベル呪文を1つずつ選びます。選んだ呪文は常に準備され、最低レベルでの発動には呪文スロットを消費しません。高レベルでの発動には呪文スロットが必要です。大休憩を終えるたび、選んだ呪文の1つを、条件を満たす同じレベルの呪文に変更できます。
+Feature/&PowerRogueStrokeOfLuck2024Description=攻撃ロール、能力値判定、またはセーヴィング・スローに失敗したとき、そのd20の出目を20に変更できます。一度使用すると、小休憩または大休憩を終えるまで再び使用できません。
