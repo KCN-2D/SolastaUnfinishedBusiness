@@ -309,7 +309,10 @@ __pycache__/
 .envrc
 
 # Local-only development and verification scripts
-/Scripts/RuntimeVerification
+Scripts/RuntimeVerification
+
+# Environment files with sensitive data
+Scripts/.env
 
 # Cake - Uncomment if you are using it
 # tools/**
