@@ -228,6 +228,7 @@ public static partial class Tabletop2024Context
         SwitchSorcererOriginLearningLevel();
         SwitchSorcererSorcerousRestorationAtLevel5();
         SwitchSorcererDraconicBloodlineAC();
+        SwitchSorcererDraconicBloodlineResistance();
         SwitchSpeciesBaseWalkSpeed();
         SpeciesSpellcastingContext.Switch();
         SwitchHalfOrcAdrenalineRush();

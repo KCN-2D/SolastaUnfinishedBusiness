@@ -271,6 +271,7 @@ ModUi/&EnableSignatureSpellsRelearn=긴 휴식마다 <color=#D89555>특징 주�
 ModUi/&EnableSmiteSpells2024=5E 2024 버전으로 Smite 주문을 바꾸십시오 <i> <color=#f0daa0> [HIT의 트리거 및 농도가 필요하지 않음] </color> </i>
 ModUi/&EnableSorcererArcaneApotheosis2024=레벨 20에서 <color=#D89555>마법의 회복</color>을 대체하기 위해 <color=#D89555>비전의 신격화</color>를 활성화합니다.
 ModUi/&EnableSorcererDraconicBloodlineAC2024=<color=#D89555>Draconic Bloodline</color> <i><color=#F0DAA0>[13+DEX 대신 10+DEX+CHA]</color></i>에서 <color=#D89555>Draconic Resilience</color> 2024 버전을 활성화하세요.
+ModUi/&EnableSorcererDraconicBloodlineResistance2024=<color=#D89555>용의 혈통</color>의 저항을 2024년 규칙으로 변경합니다 <i><color=#F0DAA0>(용의 혈통에 해당하는 피해 유형에 영구적으로 저항)</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=레벨 1과 7에서 <color=#D89555>선천적 마법</color>과 <color=#D89555>마법의 화신</color>을 활성화합니다.
 ModUi/&EnableSorcererMagicalGuidance=레벨 5에서 <color=#D89555>마법의 안내</color>를 활성화합니다.
 ModUi/&EnableSorcererMetamagic2024=2024 <color=#D89555>메타매직</color> 규칙을 사용합니다. 2레벨에 메타매직을 얻고, 10레벨과 17레벨에 추가 옵션을 얻으며, 갱신된 옵션 규칙을 적용합니다.

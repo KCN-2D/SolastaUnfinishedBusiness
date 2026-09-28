@@ -45,6 +45,32 @@ public static partial class Tabletop2024Context
         internal bool UseSpellListClassification { get; } = useSpellListClassification;
     }
 
+    private static readonly FeatureDefinitionDamageAffinity DamageAffinitySorcererDraconicElementalResistance2024 =
+        FeatureDefinitionDamageAffinityBuilder
+            .Create(GetDefinition<FeatureDefinitionDamageAffinity>("DamageAffinitySorcererDraconicElementalResistance"),
+                "DamageAffinitySorcererDraconicElementalResistance2024")
+            .SetGuiPresentation("Feature/&PowerSorcererDraconicElementalResistanceTitle",
+                "Feature/&DamageAffinitySorcererDraconicElementalResistance2024Description")
+            .AddToDB();
+
+    private static readonly CharacterFeatureReplacement DraconicResistanceReplacement = new(
+        Sorcerer,
+        CharacterSubclassDefinitions.SorcerousDraconicBloodline,
+        6,
+        PowerSorcererDraconicElementalResistance,
+        DamageAffinitySorcererDraconicElementalResistance2024,
+        () => Main.Settings.EnableSorcererDraconicBloodlineResistance2024);
+
+    internal static void SwitchSorcererDraconicBloodlineResistance()
+    {
+        DraconicResistanceReplacement.Apply();
+    }
+
+    internal static void SynchronizeSorcererFeatures(RulesetCharacterHero hero)
+    {
+        DraconicResistanceReplacement.Synchronize(hero);
+    }
+
     private static readonly ConditionDefinition ConditionSorcererInnateSorcery = ConditionDefinitionBuilder
         .Create("ConditionSorcererInnateSorcery")
         .SetGuiPresentation(Category.Condition, ConditionAuraOfCourage)

@@ -954,6 +954,7 @@ public static class RulesetCharacterHeroPatcher
         public static void Prefix(RulesetCharacterHero __instance)
         {
             Tabletop2024Context.SynchronizeSpeciesFeatures(__instance);
+            Tabletop2024Context.SynchronizeSorcererFeatures(__instance);
 
             //PATCH: clears cached customized spell effects
             PowerBundle.ClearSpellEffectCache(__instance);

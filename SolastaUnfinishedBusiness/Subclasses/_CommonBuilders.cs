@@ -88,15 +88,21 @@ internal static class CommonBuilders
             .SetCastingModifiers(0, SpellParamsModifierType.None, 0, SpellParamsModifierType.FlatValue, true)
             .AddToDB();
 
+    private static readonly FormattedDefinitionText WarMagicDescription = new(
+        description: FormatWarMagicDescription,
+        conditionDescription: _ => FormatWarMagicDescription());
+
     internal static readonly FeatureDefinition PowerCasterFightingWarMagic = FeatureDefinitionBuilder
         .Create("PowerCasterFightingWarMagic")
         .SetGuiPresentation(Category.Feature)
         .AddCustomSubFeatures(
             ModifyPowerVisibility.Hidden,
+            WarMagicDescription,
             new CustomBehaviorCasterFightingWarMagic(
                 ConditionDefinitionBuilder
                     .Create("ConditionCasterFightingWarMagic")
                     .SetGuiPresentation("PowerCasterFightingWarMagic", Category.Feature)
+                    .AddCustomSubFeatures(WarMagicDescription)
                     .SetSilent(Silent.WhenRefreshedOrRemoved)
                     .SetPossessive()
                     .AddFeatures(
@@ -140,6 +146,13 @@ internal static class CommonBuilders
             .SetOrUpdateGuiPresentation("Rules/&DieD3Title", Gui.NoLocalization)
             .SetDieType(DieType.D3)
             .AddToDB();
+
+    private static string FormatWarMagicDescription()
+    {
+        return Gui.Localize(Main.Settings.AllowCantripsTriggeringOnWarMagic
+            ? "Feature/&PowerCasterFightingWarMagicCantripDescription"
+            : "Feature/&PowerCasterFightingWarMagicDescription");
+    }
 
     //
     // Enchant Weapon

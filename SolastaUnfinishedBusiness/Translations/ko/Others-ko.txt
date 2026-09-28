@@ -233,6 +233,7 @@ Feature/&FeatureSetRangerDeftExplorerDescription=여행 덕분에 다음과 같�
 Feature/&FeatureSetRangerDeftExplorerTitle=데프트 탐험가
 Feature/&FeatureSetRangerFavoredEnemyDescription=당신은 항상 Hunter's Mark 주문을 준비합니다. 당신은 주문 슬롯을 소모하지 않고 두 번 시전할 수 있으며, Long Rest를 완료하면 이 능력의 소모된 모든 사용을 회복합니다. 주문 슬롯 없이 주문을 시전할 수 있는 횟수는 특정 레인저 레벨에서 증가하여 5레벨에서 3회, 9레벨에서 4회, 13레벨에서 5회, 17레벨에서 6회로 증가합니다.
 Feature/&FeatureSetRangerFavoredEnemyTitle=선호하는 적
+Feature/&DamageAffinitySorcererDraconicElementalResistance2024Description=용의 혈통에 해당하는 피해 유형에 저항을 얻습니다.
 Feature/&FeatureSetSorcererDraconicResilience2024Description=레벨당 1의 추가 체력을 얻고 갑옷 클래스는 갑옷을 착용하지 않을 때 10 + 민첩성 보너스 + 카리스마 보너스입니다.
 Feature/&FeatureSetSorcererSorceryIncarnateDescription=선천적 마법을 더 이상 사용할 수 없다면, 보너스 액션을 취해 활성화할 때 마법 포인트 2개를 사용하면 사용할 수 있습니다.\n선천적 마법이 활성화되어 있는 동안 각 주문에 서로 다른 두 메타매직 옵션을 적용하고 각각의 비용을 지불할 수 있습니다.
 Feature/&FeatureSetSorcererSorceryIncarnateTitle=마법의 화신

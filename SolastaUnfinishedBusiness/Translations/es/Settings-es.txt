@@ -271,6 +271,7 @@ ModUi/&EnableSignatureSpellsRelearn=Permite que los <color=#D89555>hechizos excl
 ModUi/&EnableSmiteSpells2024=Intercambie los hechizos de Smite con la versión 5E 2024 <i> <color=#f0daa0> [disparar en el golpe y no requerir concentración] </color> </i>
 ModUi/&EnableSorcererArcaneApotheosis2024=Habilita <color=#D89555>Apoteosis arcana</color> para reemplazar <color=#D89555>Restauración hechicera</color> en el nivel 20
 ModUi/&EnableSorcererDraconicBloodlineAC2024=Habilite la versión 2024 de <color=#D89555>Draconic Resilience</color> de <color=#D89555>Draconic Bloodline</color> <i><color=#F0DAA0>[10+DEX+CHA en lugar de 13+DEX]</color></i>
+ModUi/&EnableSorcererDraconicBloodlineResistance2024=Habilita la resistencia de <color=#D89555>Linaje dracónico</color> de 2024 <i><color=#F0DAA0>(resistencia permanente al tipo de daño de tu ascendencia)</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=Habilita <color=#D89555>Hechicería innata</color> y <color=#D89555>Hechicería encarnada</color> en los niveles 1 y 7
 ModUi/&EnableSorcererMagicalGuidance=Habilitar <color=#D89555>Guía mágica</color> en el nivel 5
 ModUi/&EnableSorcererMetamagic2024=Usar las reglas de <color=#D89555>Metamagia</color> de 2024: obtener Metamagia en el nivel 2, opciones adicionales en los niveles 10 y 17, y aplicar las reglas actualizadas de las opciones

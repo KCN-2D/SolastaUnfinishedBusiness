@@ -1185,6 +1185,13 @@ internal static class ToolsDisplay
             Tabletop2024Context.SwitchSorcererDraconicBloodlineAC();
         }
 
+        toggle = Main.Settings.EnableSorcererDraconicBloodlineResistance2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableSorcererDraconicBloodlineResistance2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableSorcererDraconicBloodlineResistance2024 = toggle;
+            Tabletop2024Context.SwitchSorcererDraconicBloodlineResistance();
+        }
+
         UI.Label();
         UI.Label("<color=#F0DAA0>" + Gui.Localize("Class/&WarlockTitle") + ":</color>");
         UI.Label();

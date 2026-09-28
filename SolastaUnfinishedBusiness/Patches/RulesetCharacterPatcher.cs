@@ -2121,7 +2121,7 @@ public static class RulesetCharacterPatcher
             // Report active resources, not their shared consumers or disabled replacement traits.
             __instance.RecoveredFeatures.RemoveAll(feature =>
                 feature is FeatureDefinitionPowerSharedPool ||
-                RaceFeatureReplacement.IsInactiveReplacement(__instance, feature));
+                CharacterFeatureReplacement.IsInactiveReplacement(__instance, feature));
 
             //PATCH: support for invocations that recharge on short rest (like Fey Teleportation feat)
             if (!simulate)

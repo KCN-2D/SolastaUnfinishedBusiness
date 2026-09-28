@@ -233,6 +233,7 @@ Feature/&FeatureSetRangerDeftExplorerDescription=得益于你的旅途，你获�
 Feature/&FeatureSetRangerDeftExplorerTitle=熟练探险家
 Feature/&FeatureSetRangerFavoredEnemyDescription=你始终准备好猎人印记法术。你可以无需法术位地施展此法术共计两次，当你完成长休时，你将恢复该技能的所有消耗使用次数。在某些游侠等级上，无需消耗法术位即可施放该法术的次数会增加，在 5 级时增加为 3 次，在 9 级时增加为 4 次，在 13 级时增加为 5 次，在 17 级时增加为 6 次。
 Feature/&FeatureSetRangerFavoredEnemyTitle=宿敌
+Feature/&DamageAffinitySorcererDraconicElementalResistance2024Description=你对与你的巨龙先祖对应的伤害类型具有抗性。
 Feature/&FeatureSetSorcererDraconicResilience2024Description=每升一级，你获得一个额外的生命值，当你不穿盔甲时，你的盔甲等级为 10 + 敏捷加值 + 魅力加值
 Feature/&FeatureSetSorcererSorceryIncarnateDescription=如果你的先天术法特性的使用次数耗尽，则你仍可以消耗2点术法点来用附赠动作继续激活该特性。\n先天术法生效期间，你可以对每个法术应用两种不同的超魔法选项，并支付各自的术法点费用。
 Feature/&FeatureSetSorcererSorceryIncarnateTitle=术法化身

@@ -36,7 +36,7 @@ public static partial class Tabletop2024Context
                 .Build())
         .AddToDB();
 
-    private static readonly RaceFeatureReplacement HalfOrcAdrenalineRushReplacement = new(
+    private static readonly CharacterFeatureReplacement HalfOrcAdrenalineRushReplacement = new(
         CharacterRaceDefinitions.HalfOrc,
         FeatureDefinitionAdditionalDamages.AdditionalDamageHalfOrcSavageAttacks,
         PowerHalfOrcAdrenalineRush,
