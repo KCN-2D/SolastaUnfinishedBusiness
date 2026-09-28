@@ -1291,7 +1291,9 @@ public static class RulesetActorPatcher
                             break;
                         case AttributeModifierOperation.AddHalfProficiencyBonus:
                         {
-                            attributeModifier.Value = proficiencyBonus / 2;
+                            attributeModifier.Value =
+                                RulesetAttributeModifierPatcher.ComputeHalfProficiencyBonus(
+                                    attributeModifier, proficiencyBonus);
                             break;
                         }
                         case AttributeModifierOperation.AddProficiencyBonus:

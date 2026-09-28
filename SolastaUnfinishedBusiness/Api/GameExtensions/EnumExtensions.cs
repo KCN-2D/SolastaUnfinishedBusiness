@@ -152,6 +152,12 @@ internal enum ExtraAncestryType
     CollegeOfAudacityDefensiveWhirl
 }
 
+internal enum ExtraAttributeModifierOperation
+{
+    // ModifierValue supplies the minimum bonus.
+    AddHalfProficiencyBonusRoundUp = 9000
+}
+
 internal enum ExtraCombatAffinityValueDetermination
 {
     ConditionAmount = 9000,

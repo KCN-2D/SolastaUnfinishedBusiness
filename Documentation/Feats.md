@@ -503,7 +503,7 @@ When you reduce a target to 0 HP using a melee weapon attack on your turn, enemi
 
 # 101. - *Metamagic Adept* © [UB]
 
-You learn two metamagic options of your choice from the sorcerer class and gain half your proficiency bonus (rounded down) in sorcery points to spend on it.
+You learn two metamagic options of your choice from the sorcerer class and gain half your proficiency bonus (rounded up, minimum 2) in sorcery points to spend on it.
 
 # 102. - Might of the Iron Legion [SOL]
 
