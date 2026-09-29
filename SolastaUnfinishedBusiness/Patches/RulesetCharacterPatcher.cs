@@ -34,6 +34,16 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetCharacterPatcher
 {
+    [HarmonyPatch(typeof(RulesetCharacterEffectProxy), nameof(RulesetCharacterEffectProxy.RefreshAttackModes))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class EffectProxyRefreshAttackModes_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(RulesetCharacterEffectProxy __instance) =>
+            PowerBundle.ModifyEffectProxyAttackModes(__instance);
+    }
+
     [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.ActivateMetamagic))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

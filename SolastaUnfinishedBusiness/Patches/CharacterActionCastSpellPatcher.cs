@@ -297,7 +297,9 @@ public static class CharacterActionCastSpellPatcher
                         proficiencyName = "ForcedProficiency";
                     }
 
-                    var abilityCheckRoll = actingCharacter.RollAbilityCheckEx(
+                    var abilityCheckData = new AbilityCheckData { Action = characterActionCastSpell };
+
+                    yield return actingCharacter.RollAbilityCheckWithPrompt(
                         characterActionCastSpell.activeSpell.SpellRepertoire.SpellCastingAbility,
                         proficiencyName,
                         checkDC,
@@ -305,22 +307,11 @@ public static class CharacterActionCastSpellPatcher
                         actionModifier,
                         false,
                         0,
-                        out var outcome,
-                        out var successDelta,
-                        out var rawRoll,
+                        abilityCheckData,
                         true);
 
-                    var abilityCheckData = new AbilityCheckData
-                    {
-                        AbilityCheckRoll = abilityCheckRoll,
-                        AbilityCheckRollOutcome = outcome,
-                        AbilityCheckSuccessDelta = successDelta,
-                        AbilityCheckActionModifier = actionModifier,
-                        Action = characterActionCastSpell
-                    };
-
                     yield return TryAlterOutcomeAttributeCheck
-                        .HandleITryAlterOutcomeAttributeCheck(actingCharacter, abilityCheckData, rawRoll);
+                        .HandleITryAlterOutcomeAttributeCheck(actingCharacter, abilityCheckData, abilityCheckData.CurrentRoll);
 
                     characterActionCastSpell.AbilityCheckRoll = abilityCheckData.AbilityCheckRoll;
                     characterActionCastSpell.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckRollOutcome;

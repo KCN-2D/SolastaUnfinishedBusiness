@@ -67,28 +67,40 @@ public static class FunctorSetGadgetConditionBySavingThrowPatcher
                 ? functorParameters.TargetGadget
                 : functorParameters.SourceGadget;
             var gadgetDefinition = functorParameters.GadgetDefinition ?? worldGadget.GadgetDefinition;
-            var rolledSavingThrow = implementationService.TryRollSavingThrow(
-                null,
-                RuleDefinitions.Side.Enemy,
-                rulesetCharacter,
-                actionModifier,
-                false,
-                true,
-                abilityScoreName,
-                saveDC,
-                false,
-                false,
-                false,
-                RuleDefinitions.FeatureSourceType.Base,
-                EmptyEffectDescription.EffectForms,
-                null,
-                null,
-                string.Empty,
-                gadgetDefinition,
-                string.Empty,
-                null,
-                out var saveOutcome,
-                out var saveOutcomeDelta);
+            using var savingRollContext = new D20RollContext(rulesetCharacter, RuleDefinitions.RollContext.SavingThrow,
+                abilityScoreName, advantageTrends: actionModifier.SavingThrowAdvantageTrends);
+
+            yield return savingRollContext.Prompt(actingCharacter);
+
+            bool rolledSavingThrow;
+            RuleDefinitions.RollOutcome saveOutcome;
+            int saveOutcomeDelta;
+
+            using (savingRollContext.Activate())
+            {
+                rolledSavingThrow = implementationService.TryRollSavingThrow(
+                    null,
+                    RuleDefinitions.Side.Enemy,
+                    rulesetCharacter,
+                    actionModifier,
+                    false,
+                    true,
+                    abilityScoreName,
+                    saveDC,
+                    false,
+                    false,
+                    false,
+                    RuleDefinitions.FeatureSourceType.Base,
+                    EmptyEffectDescription.EffectForms,
+                    null,
+                    null,
+                    string.Empty,
+                    gadgetDefinition,
+                    string.Empty,
+                    null,
+                    out saveOutcome,
+                    out saveOutcomeDelta);
+            }
 
             if (rolledSavingThrow)
             {

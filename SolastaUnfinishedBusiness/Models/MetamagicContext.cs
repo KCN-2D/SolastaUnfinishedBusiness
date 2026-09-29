@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -87,6 +88,220 @@ internal static class MetamagicContext
             Main.Settings.MetamagicEnabled.Remove(name);
         }
     }
+
+    private static readonly ConditionalWeakTable<MetamagicSelectionPanel, SelectionFlow> Selections = new();
+
+    private sealed class SelectionFlow(RulesetEffectSpell spell, Action back = null)
+    {
+        internal RulesetEffectSpell Spell { get; } = spell;
+        internal Action Back { get; } = back;
+        internal List<SelectionPage> Pages { get; } = [];
+        internal SelectionPage Current => Pages[Pages.Count - 1];
+    }
+
+    private sealed class SelectionPage(
+        MetamagicOptionDefinition first = null, MetamagicOptionDefinition replacement = null)
+    {
+        internal MetamagicOptionDefinition First { get; } = first;
+        internal MetamagicOptionDefinition Replacement { get; } = replacement;
+    }
+
+    private static SelectionFlow GetSelection(MetamagicSelectionPanel panel)
+    {
+        if (!panel || !Selections.TryGetValue(panel, out var flow))
+        {
+            return null;
+        }
+
+        if (flow.Spell == panel.SpellEffect)
+        {
+            return flow;
+        }
+
+        Selections.Remove(panel);
+        return null;
+    }
+
+    internal static MetamagicOptionDefinition GetFirstSelection(MetamagicSelectionPanel panel) =>
+        GetSelection(panel)?.Current.First;
+
+    internal static MetamagicOptionDefinition GetReplacementSelection(MetamagicSelectionPanel panel) =>
+        GetSelection(panel)?.Current.Replacement;
+
+    internal static List<MetamagicOptionDefinition> GetOptions(
+        RulesetCharacter caster, MetamagicSelectionPanel panel)
+    {
+        var page = GetSelection(panel)?.Current;
+        var options = page?.Replacement?.GetFirstSubFeatureOfType<ReplaceMetamagicOption>()?.Options.ToList() ??
+                      ReplaceMetamagicOption.GetSelectionOptions(caster);
+        if (page?.First is not { } first)
+        {
+            return options;
+        }
+
+        var pairs = options.Select(option => SorceryIncarnateContext.GetCombinedOption(first, option))
+            .Where(option => option != null).ToList();
+        if (page.Replacement == null)
+        {
+            pairs.Insert(0, first);
+        }
+
+        return pairs;
+    }
+
+    private static MetamagicOptionDefinition GetPendingReplacement(MetamagicOptionDefinition option) =>
+        CombinedMetamagic.Enumerate(option).FirstOrDefault(component =>
+            component.GetFirstSubFeatureOfType<ReplaceMetamagicOption>()?.RequiresSelection == true);
+
+    // Family tiles preview concrete choices; only a resolved option reaches the casting action.
+    internal static bool IsSelectionOptionAvailable(
+        IRulesetImplementationService service, RulesetEffectSpell spell, RulesetCharacter caster,
+        MetamagicOptionDefinition option, out string failure, out int cost)
+    {
+        var parent = GetPendingReplacement(option);
+        if (parent == null)
+        {
+            return service.IsMetamagicOptionAvailable(spell, caster, option, out failure, out cost);
+        }
+
+        var first = CombinedMetamagic.Enumerate(option).FirstOrDefault(component => component != parent);
+        failure = string.Empty;
+        cost = 0;
+        foreach (var child in parent.GetFirstSubFeatureOfType<ReplaceMetamagicOption>().Options)
+        {
+            var candidate = first == null ? child : SorceryIncarnateContext.GetCombinedOption(first, child);
+            if (candidate != null && service.IsMetamagicOptionAvailable(spell, caster, candidate, out failure, out cost))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static bool Select(MetamagicSelectionPanel panel, MetamagicOptionDefinition option)
+    {
+        var first = GetFirstSelection(panel);
+        var service = ServiceRepository.GetService<IRulesetImplementationService>();
+        if (option == first || !IsSelectionOptionAvailable(service, panel.SpellEffect,
+                panel.Caster.RulesetCharacter, option, out _, out _))
+        {
+            return false;
+        }
+
+        if (GetPendingReplacement(option) is { } parent)
+        {
+            var flow = GetSelection(panel) ?? new SelectionFlow(panel.SpellEffect);
+            if (flow.Pages.Count == 0)
+            {
+                flow.Pages.Add(new SelectionPage());
+            }
+            flow.Pages.Add(new SelectionPage(first, parent));
+            Rebind(panel, flow);
+            return false;
+        }
+
+        if (first != null)
+        {
+            Selections.Remove(panel);
+            return true;
+        }
+
+        if (TrySelectAdditional(panel, panel.Caster, panel.SpellEffect, option,
+                panel.MetamagicOptionSelected, panel.MetamagicOptionIgnored))
+        {
+            return false;
+        }
+
+        Selections.Remove(panel);
+        return true;
+    }
+
+    internal static bool TrySelectAdditional(
+        MetamagicSelectionPanel panel, GameLocationCharacter caster, RulesetEffectSpell spell,
+        MetamagicOptionDefinition first,
+        MetamagicSelectionPanel.MetamagicOptionSelectedHandler selected,
+        MetamagicSelectionPanel.MetamagicOptionIgnoredHandler ignored, Action back = null)
+    {
+        if (!SorceryIncarnateContext.CanCombine(caster?.RulesetCharacter))
+        {
+            return false;
+        }
+
+        var service = ServiceRepository.GetService<IRulesetImplementationService>();
+        if (!ReplaceMetamagicOption.GetOptions(caster.RulesetCharacter)
+                .Select(candidate => SorceryIncarnateContext.GetCombinedOption(first, candidate))
+                .Any(pair => pair != null && service.IsMetamagicOptionAvailable(
+                    spell, caster.RulesetCharacter, pair, out _, out _)))
+        {
+            return false;
+        }
+
+        var flow = GetSelection(panel) ?? new SelectionFlow(spell, back);
+        if (flow.Pages.Count == 0 && back == null)
+        {
+            flow.Pages.Add(new SelectionPage());
+        }
+        flow.Pages.Add(new SelectionPage(first));
+        panel.Unbind();
+        Selections.Add(panel, flow);
+        panel.Bind(caster, spell, selected, ignored);
+        return true;
+    }
+
+    internal static void ConfirmFirstSelection(MetamagicSelectionPanel panel)
+    {
+        if (GetReplacementSelection(panel) != null || GetFirstSelection(panel) is not { } first)
+        {
+            return;
+        }
+
+        var service = ServiceRepository.GetService<IRulesetImplementationService>();
+        if (!service.IsMetamagicOptionAvailable(panel.SpellEffect, panel.Caster.RulesetCharacter, first, out _, out _))
+        {
+            return;
+        }
+
+        Selections.Remove(panel);
+        panel.MetamagicOptionSelected?.Invoke(panel.Caster, panel.SpellEffect, first);
+        panel.Hide();
+    }
+
+    internal static bool Ignore(MetamagicSelectionPanel panel)
+    {
+        var flow = GetSelection(panel);
+        if (flow == null || (flow.Pages.Count == 1 && flow.Back == null))
+        {
+            Selections.Remove(panel);
+            return true;
+        }
+
+        if (flow.Pages.Count == 1)
+        {
+            panel.Unbind();
+            panel.Hide(true);
+            flow.Back();
+        }
+        else
+        {
+            flow.Pages.RemoveAt(flow.Pages.Count - 1);
+            Rebind(panel, flow);
+        }
+        return false;
+    }
+
+    private static void Rebind(MetamagicSelectionPanel panel, SelectionFlow flow)
+    {
+        var caster = panel.Caster;
+        var spell = panel.SpellEffect;
+        var selected = panel.MetamagicOptionSelected;
+        var ignored = panel.MetamagicOptionIgnored;
+        panel.Unbind();
+        Selections.Add(panel, flow);
+        panel.Bind(caster, spell, selected, ignored);
+    }
+
+    internal static void Unbind(MetamagicSelectionPanel panel) => Selections.Remove(panel);
 
     internal static void SwitchSorcererMetamagicRules2024()
     {

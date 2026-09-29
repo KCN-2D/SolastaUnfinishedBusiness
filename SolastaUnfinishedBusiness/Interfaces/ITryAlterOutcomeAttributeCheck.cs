@@ -278,20 +278,30 @@ internal static class TryAlterOutcomeAttributeCheck
             abilityCheckDieRolled?.Invoke(rulesetCharacter, modifierTrend);
         }
 
-        var rawRoll = ExtendedRollDie(
-            rulesetCharacter,
-            DieType.D20, RollContext.AbilityCheck,
-            isProficientActor,
-            advantageActor,
-            true,
-            true,
-            proficiencyName,
-            baseBonus,
-            rollModifier,
-            abilityScoreName,
-            proficiencyName,
-            advantageTrends,
-            modifierTrends);
+        using var actorRollContext = new D20RollContext(rulesetCharacter, RollContext.AbilityCheck,
+            abilityScoreName, proficiencyName, advantageTrends);
+
+        yield return actorRollContext.Prompt(GameLocationCharacter.GetFromActor(rulesetCharacter));
+
+        int rawRoll;
+
+        using (actorRollContext.Activate())
+        {
+            rawRoll = ExtendedRollDie(
+                rulesetCharacter,
+                DieType.D20, RollContext.AbilityCheck,
+                isProficientActor,
+                advantageActor,
+                true,
+                true,
+                proficiencyName,
+                baseBonus,
+                rollModifier,
+                abilityScoreName,
+                proficiencyName,
+                advantageTrends,
+                modifierTrends);
+        }
 
         var advantageOpponent = ComputeAdvantage(opponentAdvantageTrends);
         var isProficientOpponent = opponent.IsProficient(opponentProficiencyName);
@@ -309,20 +319,30 @@ internal static class TryAlterOutcomeAttributeCheck
             abilityCheckDieRolled?.Invoke(opponent, opponentModifierTrend);
         }
 
-        var opponentRawRoll = ExtendedRollDie(
-            opponent,
-            DieType.D20, RollContext.AbilityCheck,
-            isProficientOpponent,
-            advantageOpponent,
-            true,
-            true,
-            proficiencyName,
-            opponentBaseBonus,
-            opponentRollModifier,
-            opponentAbilityScoreName,
-            opponentProficiencyName,
-            opponentAdvantageTrends,
-            opponentModifierTrends);
+        using var opponentRollContext = new D20RollContext(opponent, RollContext.AbilityCheck,
+            opponentAbilityScoreName, opponentProficiencyName, opponentAdvantageTrends);
+
+        yield return opponentRollContext.Prompt(GameLocationCharacter.GetFromActor(rulesetCharacter));
+
+        int opponentRawRoll;
+
+        using (opponentRollContext.Activate())
+        {
+            opponentRawRoll = ExtendedRollDie(
+                opponent,
+                DieType.D20, RollContext.AbilityCheck,
+                isProficientOpponent,
+                advantageOpponent,
+                true,
+                true,
+                opponentProficiencyName,
+                opponentBaseBonus,
+                opponentRollModifier,
+                opponentAbilityScoreName,
+                opponentProficiencyName,
+                opponentAdvantageTrends,
+                opponentModifierTrends);
+        }
 
         var totalRoll = baseBonus + rawRoll + rollModifier;
         var opponentTotalRoll = opponentBaseBonus + opponentRawRoll + opponentRollModifier;

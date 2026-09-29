@@ -6,6 +6,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using Object = UnityEngine.Object;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
@@ -23,7 +24,7 @@ public static class MetamagicSelectionPanelPatcher
     {
         [UsedImplicitly]
         public static bool Prefix(MetamagicSelectionPanel __instance) =>
-            SorceryIncarnateContext.Ignore(__instance);
+            MetamagicContext.Ignore(__instance);
     }
 
 
@@ -34,7 +35,7 @@ public static class MetamagicSelectionPanelPatcher
     {
         [UsedImplicitly]
         public static bool Prefix(MetamagicSelectionPanel __instance, MetamagicOptionDefinition __0) =>
-            SorceryIncarnateContext.Select(__instance, __0);
+            MetamagicContext.Select(__instance, __0);
     }
 
 
@@ -63,16 +64,23 @@ public static class MetamagicSelectionPanelPatcher
                     "MetamagicSelectionPanel.SelectionOptions",
                     new CodeInstruction(OpCodes.Ldarg_0),
                     new CodeInstruction(OpCodes.Call,
-                        new Func<RulesetCharacter, MetamagicSelectionPanel, List<MetamagicOptionDefinition>>(SorceryIncarnateContext.GetOptions).Method));
+                        new Func<RulesetCharacter, MetamagicSelectionPanel, List<MetamagicOptionDefinition>>(MetamagicContext.GetOptions).Method))
+                .ReplaceCalls(AccessTools.Method(typeof(IRulesetImplementationService),
+                        nameof(IRulesetImplementationService.IsMetamagicOptionAvailable)),
+                    "MetamagicSelectionPanel.SelectionAvailability",
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(MetamagicContext),
+                        nameof(MetamagicContext.IsSelectionOptionAvailable))));
         }
+
+        [UsedImplicitly]
+        public static void Prefix(MetamagicSelectionPanel __instance) =>
+            __instance.GetComponent<MetamagicSelectionLayoutState>()?.Restore();
 
         [UsedImplicitly]
         public static void Postfix(
             MetamagicSelectionPanel __instance,
             RectTransform ___metamagicOptionsTable)
         {
-            __instance.GetComponent<MetamagicSelectionLayoutState>()?.Restore();
-
             if (!___metamagicOptionsTable)
             {
                 return;
@@ -80,7 +88,18 @@ public static class MetamagicSelectionPanelPatcher
 
             var state = __instance.gameObject.AddComponent<MetamagicSelectionLayoutState>();
 
-            state.Configure(__instance.RectTransform, ___metamagicOptionsTable);
+            state.Configure(__instance, ___metamagicOptionsTable);
+
+            if (__instance.Visible)
+            {
+                OnBeginShow_Patch.Postfix(__instance);
+                if (Gui.GamepadActive)
+                {
+                    Gui.InputService.ClearCurrentSelectable();
+                    Gui.InputService.RecomputeSelectableNavigation(true);
+                    __instance.SelectDefaultControl();
+                }
+            }
         }
     }
 
@@ -111,7 +130,7 @@ public static class MetamagicSelectionPanelPatcher
         [UsedImplicitly]
         public static void Prefix(MetamagicSelectionPanel __instance)
         {
-            SorceryIncarnateContext.Unbind(__instance);
+            MetamagicContext.Unbind(__instance);
             __instance.GetComponent<MetamagicSelectionLayoutState>()?.Restore();
         }
     }
@@ -149,10 +168,11 @@ public static class MetamagicSelectionPanelPatcher
         private Vector2 _cellSize;
         private int _activeItemCount;
         private bool _configured;
+        private MetamagicSelectionControls _additionalControls;
 
-        internal void Configure(RectTransform panel, RectTransform table)
+        internal void Configure(MetamagicSelectionPanel panel, RectTransform table)
         {
-            _panel = panel;
+            _panel = panel.RectTransform;
             _table = table;
 
             Canvas.ForceUpdateCanvases();
@@ -160,6 +180,7 @@ public static class MetamagicSelectionPanelPatcher
             LayoutRebuilder.ForceRebuildLayoutImmediate(_panel);
 
             CaptureLayout();
+            _additionalControls = MetamagicSelectionControls.Create(panel);
 
             if (_activeItemCount == 0 || _cellSize.x <= 0f || _cellSize.y <= 0f)
             {
@@ -179,7 +200,8 @@ public static class MetamagicSelectionPanelPatcher
 
             var availableCanvasSize = GetAvailableCanvasSize();
             var horizontalChrome = _leftInset * 2f;
-            var verticalChrome = Mathf.Max(0f, _panelRectSize.y - _tableRectSize.y);
+            var footerHeight = _additionalControls?.Height ?? 0f;
+            var verticalChrome = Mathf.Max(0f, _panelRectSize.y - _tableRectSize.y) + footerHeight;
             var maximumTableWidth = Mathf.Max(
                 _cellSize.x + _layoutPadding.horizontal,
                 availableCanvasSize.x - horizontalChrome);
@@ -221,7 +243,7 @@ public static class MetamagicSelectionPanelPatcher
                 Mathf.Max(
                     Mathf.Min(_panelRectSize.x, availableCanvasSize.x),
                     tableWidth + horizontalChrome));
-            var panelHeight = _panelRectSize.y + Mathf.Max(0f, tableHeight - _tableRectSize.y);
+            var panelHeight = _panelRectSize.y + Mathf.Max(0f, tableHeight - _tableRectSize.y) + footerHeight;
 
             DisableOriginalLayout();
 
@@ -237,6 +259,9 @@ public static class MetamagicSelectionPanelPatcher
 
         internal void Restore()
         {
+            _additionalControls?.Restore();
+            _additionalControls = null;
+
             if (!_panel || !_table)
             {
                 Object.DestroyImmediate(this);
@@ -373,6 +398,16 @@ public static class MetamagicSelectionPanelPatcher
                     _cellSize.y,
                     size.y,
                     LayoutUtility.GetPreferredHeight(childState.RectTransform));
+
+                // Native tiles have a fixed preferred height. Measure their final localized
+                // titles too, so typed and combined options cannot overflow that fixed box.
+                if (childState.RectTransform.GetComponent<MetamagicOptionItem>() is { } item)
+                {
+                    var text = item.titleLabel.TMP_Text;
+                    var textRect = text.rectTransform.rect;
+                    var preferred = text.GetPreferredValues(text.text, textRect.width, float.PositiveInfinity);
+                    _cellSize.y = Mathf.Max(_cellSize.y, size.y + Mathf.Max(0f, preferred.y - textRect.height));
+                }
             }
         }
 
@@ -539,7 +574,7 @@ public static class MetamagicSelectionPanelPatcher
             _table.anchorMin = new Vector2(0.5f, 0f);
             _table.anchorMax = new Vector2(0.5f, 0f);
             _table.pivot = new Vector2(0.5f, 0f);
-            _table.anchoredPosition = new Vector2(0f, _bottomInset);
+            _table.anchoredPosition = new Vector2(0f, _bottomInset + (_additionalControls?.Height ?? 0f));
         }
 
         private static void CaptureSizeFitter(
@@ -569,6 +604,132 @@ public static class MetamagicSelectionPanelPatcher
             fitter.horizontalFit = horizontalFit;
             fitter.verticalFit = verticalFit;
             fitter.enabled = enabled;
+        }
+    }
+
+    // Owned by the layout snapshot, so rebinding restores native captions, shortcuts and geometry.
+    private sealed class MetamagicSelectionControls
+    {
+        private readonly GuiLabel _title;
+        private readonly GuiLabel _description;
+        private readonly GuiLabel _backLabel;
+        private readonly string _originalTitle;
+        private readonly string _originalDescription;
+        private readonly string _originalBackLabel;
+        private readonly ChildLayoutState _backLayout;
+        private readonly Button _confirmButton;
+        private readonly LayoutElement _backLabelLayout;
+        private readonly float _backLabelWidth;
+        private readonly LayoutElement _backButtonLayout;
+        private readonly float _backButtonWidth;
+        private readonly ContentSizeFitter _backSizeFitter;
+        private readonly bool _backSizeFitterEnabled;
+
+        internal float Height { get; }
+
+        private MetamagicSelectionControls(
+            MetamagicSelectionPanel panel, MetamagicOptionDefinition first, Button backButton,
+            GuiLabel title, GuiLabel description)
+        {
+            _title = title;
+            _description = description;
+            _originalTitle = title.Text;
+            _originalDescription = description.Text;
+            _backLabel = backButton.transform.Find("Label").GetComponent<GuiLabel>();
+            _originalBackLabel = _backLabel.Text;
+            _backLabelLayout = _backLabel.GetComponent<LayoutElement>();
+            _backLabelWidth = _backLabelLayout.preferredWidth;
+            _backButtonLayout = backButton.GetComponent<LayoutElement>();
+            _backButtonWidth = _backButtonLayout.preferredWidth;
+            _backSizeFitter = backButton.GetComponent<ContentSizeFitter>();
+            _backSizeFitterEnabled = _backSizeFitter.enabled;
+            _backLayout = new ChildLayoutState((RectTransform)backButton.transform);
+
+            var replacement = MetamagicContext.GetReplacementSelection(panel)
+                ?.GetFirstSubFeatureOfType<ReplaceMetamagicOption>();
+            if (replacement == null)
+            {
+                _confirmButton = Object.Instantiate(backButton, backButton.transform.parent, false);
+                _confirmButton.name = "ConfirmFirstMetamagicButton";
+                _confirmButton.onClick = new Button.ButtonClickedEvent();
+                _confirmButton.onClick.AddListener(() => MetamagicContext.ConfirmFirstSelection(panel));
+
+                // The cloned Cancel shortcut belongs exclusively to Back. Confirm remains reachable
+                // through normal mouse and gamepad navigation, without a misleading cancel icon.
+                var setup = _confirmButton.GetComponent<GuiButtonSetup>();
+                setup.DeactivateGamepadBindingButton();
+                setup.enabled = false;
+                setup.BasicImage.gameObject.SetActive(false);
+                var confirmLabel = _confirmButton.transform.Find("Label").GetComponent<GuiLabel>();
+                confirmLabel.Text = "Screen/&MetamagicConfirmFirstTitle";
+                FitButtonLabel(confirmLabel);
+                foreach (var tooltip in _confirmButton.GetComponentsInChildren<GuiTooltip>(true))
+                {
+                    tooltip.Content = Gui.Format("Screen/&MetamagicConfirmFirstDescription", first.FormatTitle());
+                }
+
+            }
+
+            title.Text = replacement?.SelectionTitle ?? "Screen/&MetamagicAdditionalTitle";
+            description.Text = first != null
+                ? Gui.Format("Screen/&MetamagicFirstSelectionFormat", first.FormatTitle())
+                : replacement?.SelectionDescription;
+            _backLabel.Text = "Screen/&MetamagicBackTitle";
+            FitButtonLabel(_backLabel);
+            PositionButton((RectTransform)backButton.transform, false);
+            LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)backButton.transform);
+            if (_confirmButton)
+            {
+                PositionButton((RectTransform)_confirmButton.transform, true);
+                LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)_confirmButton.transform);
+            }
+            Height = Mathf.Max(((RectTransform)backButton.transform).rect.height,
+                _confirmButton ? ((RectTransform)_confirmButton.transform).rect.height : 0f) + 2f * CanvasMargin;
+        }
+
+        internal static MetamagicSelectionControls Create(MetamagicSelectionPanel panel)
+        {
+            var first = MetamagicContext.GetFirstSelection(panel);
+            if (!first && !MetamagicContext.GetReplacementSelection(panel))
+            {
+                return null;
+            }
+
+            var backButton = panel.transform.Find("IgnoreButton")?.GetComponent<Button>();
+            var title = panel.transform.Find("CaptionTitle")?.GetComponent<GuiLabel>();
+            var description = panel.transform.Find("CaptionDescription")?.GetComponent<GuiLabel>();
+            return backButton && title && description
+                ? new MetamagicSelectionControls(panel, first, backButton, title, description)
+                : null;
+        }
+
+        internal void Restore()
+        {
+            _title.Text = _originalTitle;
+            _description.Text = _originalDescription;
+            _backLabel.Text = _originalBackLabel;
+            _backLabelLayout.preferredWidth = _backLabelWidth;
+            _backButtonLayout.preferredWidth = _backButtonWidth;
+            _backSizeFitter.enabled = _backSizeFitterEnabled;
+            _backLayout.Restore();
+            if (_confirmButton)
+            {
+                Object.DestroyImmediate(_confirmButton.gameObject);
+            }
+        }
+
+        private static void FitButtonLabel(GuiLabel label)
+        {
+            label.GetComponent<LayoutElement>().preferredWidth = Mathf.Ceil(label.TMP_Text.preferredWidth) + 2f;
+            // The prefab's fixed preferred width otherwise overrides its content-size fitter.
+            label.transform.parent.GetComponent<LayoutElement>().preferredWidth = -1f;
+            label.transform.parent.GetComponent<ContentSizeFitter>().enabled = true;
+        }
+
+        private static void PositionButton(RectTransform button, bool right)
+        {
+            button.anchorMin = button.anchorMax = button.pivot = new Vector2(right ? 1f : 0f, 0f);
+            button.anchoredPosition = new Vector2(right ? -CanvasMargin : CanvasMargin, CanvasMargin);
         }
     }
 

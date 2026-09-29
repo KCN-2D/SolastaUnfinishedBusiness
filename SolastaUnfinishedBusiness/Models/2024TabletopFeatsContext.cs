@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
@@ -84,7 +85,8 @@ public static partial class Tabletop2024Context
     private const string Lucky2024DisadvantagePromptName = "Lucky2024Disadvantage";
     private static readonly Id Lucky2024AdvantageToggleActionId = (Id)ExtraActionId.Lucky2024AdvantageToggle;
     private const string SavageAttacker2024FeatName = "FeatSavageAttack2024";
-    internal const string SavageAttacker2024SpecialFeatureName = "SavageAttacker2024";
+    internal const string SavageAttacker2024SpecialFeatureName = "FeatureFeatSavageAttack2024";
+    private static readonly ConditionalWeakTable<ActionModifier, DamageForm> SavageAttacker2024ApprovedDamage = new();
     private const string SharpEye2024FeatName = "FeatSharpEye2024";
     private const string SharpEye2024ToggleActionName = "SharpEye2024Toggle";
     private static readonly Id SharpEye2024ToggleActionId = (Id)ExtraActionId.SharpEye2024Toggle;
@@ -1458,7 +1460,7 @@ public static partial class Tabletop2024Context
     private static bool IsLucky2024RollContext(RollContext rollContext)
     {
         return rollContext is RollContext.AttackRoll or RollContext.AbilityCheck or RollContext.SavingThrow
-            or RollContext.DeathSavingThrow;
+            or RollContext.DeathSavingThrow or RollContext.ConcentrationCheck;
     }
 
     private static bool TryGetUsablePower(
@@ -1539,9 +1541,9 @@ public static partial class Tabletop2024Context
     private static FeatDefinition BuildSavageAttack2024()
     {
         var feature = FeatureDefinitionBuilder
-            .Create("FeatureFeatSavageAttack2024")
+            .Create(SavageAttacker2024SpecialFeatureName)
             .SetGuiPresentationNoContent(true)
-            .AddCustomSubFeatures(new SavageAttacker2024Marker())
+            .AddCustomSubFeatures(new SavageAttacker2024Marker(), RechargeFeatureUseAtEveryTurn.Marker)
             .AddToDB();
 
         return FeatDefinitionBuilder
@@ -1551,14 +1553,33 @@ public static partial class Tabletop2024Context
             .AddToDB();
     }
 
-    internal static bool CanApplySavageAttacker2024(RulesetCharacter rulesetCharacter, bool attackModeDamage)
+    private static bool IsSavageAttacker2024Available(GameLocationCharacter attacker)
     {
         return Main.Settings.EnableTabletopFeatRules2024 &&
-               rulesetCharacter != null &&
-               attackModeDamage &&
-               rulesetCharacter.GetSubFeaturesByType<SavageAttacker2024Marker>().Count > 0 &&
-               GameLocationCharacter.GetFromActor(rulesetCharacter)?.OnceInMyTurnIsValid(
-                   SavageAttacker2024SpecialFeatureName) == true;
+               Gui.Battle != null &&
+               attacker?.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } rulesetCharacter &&
+               rulesetCharacter.HasSubFeatureOfType<SavageAttacker2024Marker>() &&
+               attacker.OncePerTurnIsValid(SavageAttacker2024SpecialFeatureName);
+    }
+
+    internal static bool CanApplySavageAttacker2024(
+        RulesetCharacter rulesetCharacter,
+        bool attackModeDamage,
+        DamageForm damageForm,
+        ActionModifier actionModifier)
+    {
+        if (!attackModeDamage ||
+            actionModifier == null ||
+            !SavageAttacker2024ApprovedDamage.TryGetValue(actionModifier, out var approvedDamage) ||
+            !ReferenceEquals(approvedDamage, damageForm))
+        {
+            return false;
+        }
+
+        // Only the selected hit's weapon damage may consume its approval.
+        SavageAttacker2024ApprovedDamage.Remove(actionModifier);
+
+        return IsSavageAttacker2024Available(GameLocationCharacter.GetFromActor(rulesetCharacter));
     }
 
     internal static void MarkSavageAttacker2024Used(RulesetCharacter rulesetCharacter)
@@ -8216,17 +8237,152 @@ public static partial class Tabletop2024Context
         }
     }
 
+    private static IEnumerator PromptD20AdvantagePower(
+        D20RollContext context,
+        GameLocationCharacter waiter,
+        FeatureDefinitionPower power,
+        Id toggleActionId,
+        string promptName)
+    {
+        var character = context.Character;
+        var actingCharacter = GameLocationCharacter.GetFromActor(character);
+
+        if (!context.CanGainAdvantage || actingCharacter == null ||
+            !TryGetUsablePower(character, power, out _))
+        {
+            yield break;
+        }
+
+        // An explicit decision for this roll supersedes a previously reserved use.
+        character.DisableToggle(toggleActionId);
+
+        yield return actingCharacter.MyReactToDoNothing(
+            ExtraActionId.DoNothingFree,
+            waiter ?? actingCharacter,
+            promptName,
+            Gui.Localize($"Reaction/&CustomReaction{promptName}Description"),
+            () => context.Approve(power.Name),
+            resource: new ReactionResourcePowerPool(power, power.GuiPresentation.SpriteReference));
+    }
+
+    private static bool CanUseD20AdvantagePower(
+        RulesetCharacter character,
+        RollContext rollContext,
+        FeatureDefinitionPower power,
+        Id toggleActionId,
+        bool consumeApproval,
+        out RulesetUsablePower usablePower)
+    {
+        var context = D20RollContext.Current;
+
+        if (context == null)
+        {
+            return CanUsePowerToggle(character, power, toggleActionId, out usablePower);
+        }
+
+        usablePower = null;
+
+        if (!ReferenceEquals(context.Character, character) || context.RollContext != rollContext)
+        {
+            return false;
+        }
+
+        return
+               !context.HasExistingAdvantage && context.IsApproved(power.Name) &&
+               TryGetUsablePower(character, power, out usablePower) &&
+               (!consumeApproval || context.TryConsumeApproval(power.Name));
+    }
+
     private sealed class ModifyDiceRollLucky2024Advantage(
         FeatureDefinitionPower powerAdvantage,
-        Id toggleActionId) : IModifyDiceRoll
+        Id toggleActionId) : IModifyDiceRollWithResource, IBeforeD20Roll, IModifyAbilityCheck,
+        IRequireAbilityCheckRoll, IRollSavingThrowInitiated, IRollSavingCheckInitiated
     {
+        private readonly Dictionary<ulong, RulesetUsablePower> _appliedRolls = [];
+        private readonly Dictionary<(ulong Character, RollContext Context), List<TrendInfo>> _rollAdvantageTrends = [];
+
+        public void MinRoll(
+            RulesetCharacter character,
+            int baseBonus,
+            string abilityScoreName,
+            string proficiencyName,
+            List<TrendInfo> advantageTrends,
+            List<TrendInfo> modifierTrends,
+            ref int rollModifier,
+            ref int minRoll)
+        {
+            RecordAdvantageTrends(character, RollContext.AbilityCheck, advantageTrends);
+        }
+
+        public void OnSavingThrowInitiated(
+            RulesetActor rulesetActorCaster,
+            RulesetActor rulesetActorDefender,
+            ref int saveBonus,
+            ref string abilityScoreName,
+            BaseDefinition sourceDefinition,
+            List<TrendInfo> modifierTrends,
+            List<TrendInfo> advantageTrends,
+            ref int rollModifier,
+            ref int saveDC,
+            ref bool hasHitVisual,
+            RollOutcome outcome,
+            int outcomeDelta,
+            List<EffectForm> effectForms)
+        {
+            RecordAdvantageTrends(rulesetActorDefender as RulesetCharacter, RollContext.SavingThrow, advantageTrends);
+        }
+
+        public void OnRollSavingCheckInitiated(
+            RulesetCharacter defender,
+            int saveDC,
+            string damageType,
+            ref ActionModifier actionModifier,
+            ref int modifier)
+        {
+            RecordAdvantageTrends(defender, RollContext.ConcentrationCheck, actionModifier.SavingThrowAdvantageTrends);
+        }
+
+        private void RecordAdvantageTrends(RulesetCharacter character, RollContext context, List<TrendInfo> trends)
+        {
+            if (character != null)
+            {
+                // Keep the live list: later callbacks can still add an affinity before the die is rolled.
+                _rollAdvantageTrends[(character.Guid, context)] = trends;
+            }
+        }
+
+        public IEnumerator OnBeforeD20Roll(D20RollContext context, GameLocationCharacter waiter)
+        {
+            if (IsLucky2024RollContext(context.RollContext))
+            {
+                yield return PromptD20AdvantagePower(
+                    context, waiter, powerAdvantage, toggleActionId, "Lucky2024Advantage");
+            }
+        }
+
         public void BeforeRoll(
             RollContext rollContext,
             RulesetCharacter rulesetCharacter,
             ref DieType dieType,
             ref AdvantageType advantageType)
         {
-            if (!CanApply(rollContext, rulesetCharacter, out _))
+            if (rulesetCharacter == null)
+            {
+                return;
+            }
+
+            _appliedRolls.Remove(rulesetCharacter.Guid);
+
+            var rollKey = (rulesetCharacter.Guid, rollContext);
+            var hasExistingAdvantage = _rollAdvantageTrends.TryGetValue(rollKey, out var trends) &&
+                                       trends?.Any(trend => trend.value > 0) == true;
+
+            _rollAdvantageTrends.Remove(rollKey);
+
+            if (dieType != DieType.D20 || hasExistingAdvantage || advantageType == AdvantageType.Advantage ||
+                !IsLucky2024RollContext(rollContext) ||
+                !CanUseD20AdvantagePower(
+                    rulesetCharacter, rollContext, powerAdvantage, toggleActionId, true, out var usablePower))
             {
                 return;
             }
@@ -8234,6 +8390,7 @@ public static partial class Tabletop2024Context
             advantageType = advantageType == AdvantageType.Disadvantage
                 ? AdvantageType.None
                 : AdvantageType.Advantage;
+            _appliedRolls[rulesetCharacter.Guid] = usablePower;
         }
 
         public void AfterRoll(
@@ -8245,25 +8402,16 @@ public static partial class Tabletop2024Context
             ref int secondRoll,
             ref int result)
         {
-            if (!CanApply(rollContext, rulesetCharacter, out var usablePower))
+            if (rulesetCharacter == null ||
+                !_appliedRolls.TryGetValue(rulesetCharacter.Guid, out var usablePower))
             {
                 return;
             }
 
+            _appliedRolls.Remove(rulesetCharacter.Guid);
             rulesetCharacter.DisableToggle(toggleActionId);
             rulesetCharacter.UsePower(usablePower);
             rulesetCharacter.LogCharacterUsedPower(powerAdvantage);
-        }
-
-        private bool CanApply(
-            RollContext rollContext,
-            RulesetCharacter rulesetCharacter,
-            out RulesetUsablePower usablePower)
-        {
-            usablePower = null;
-
-            return IsLucky2024RollContext(rollContext) &&
-                   CanUsePowerToggle(rulesetCharacter, powerAdvantage, toggleActionId, out usablePower);
         }
     }
 
@@ -8331,8 +8479,65 @@ public static partial class Tabletop2024Context
         }
     }
 
-    internal sealed class SavageAttacker2024Marker
+    internal sealed class SavageAttacker2024Marker : IPhysicalAttackBeforeHitConfirmedOnEnemy
     {
+        public IEnumerator OnPhysicalAttackBeforeHitConfirmedOnEnemy(
+            GameLocationBattleManager battleManager,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            ActionModifier actionModifier,
+            RulesetAttackMode attackMode,
+            bool rangedAttack,
+            AdvantageType advantageType,
+            List<EffectForm> actualEffectForms,
+            bool firstTarget,
+            bool criticalHit)
+        {
+            if (actionModifier == null)
+            {
+                yield break;
+            }
+
+            SavageAttacker2024ApprovedDamage.Remove(actionModifier);
+
+            if (!IsSavageAttacker2024Available(attacker) ||
+                attackMode?.SourceDefinition is not ItemDefinition { IsWeapon: true } ||
+                ValidatorsWeapon.IsUnarmed(attackMode))
+            {
+                yield break;
+            }
+
+            var damageForm = attackMode.EffectDescription?.FindFirstDamageForm();
+
+            if (damageForm is not { DiceNumber: > 0 } ||
+                !actualEffectForms.Any(form =>
+                    form.FormType == EffectForm.EffectFormType.Damage &&
+                    ReferenceEquals(form.DamageForm, damageForm)))
+            {
+                yield break;
+            }
+
+            yield return attacker.MyReactToDoNothing(
+                ExtraActionId.DoNothingFree,
+                attacker,
+                "SavageAttacker2024",
+                "CustomReactionSavageAttacker2024Description".Formatted(Category.Reaction, defender.Name),
+                ReactionValidated,
+                battleManager: battleManager);
+
+            yield break;
+
+            void ReactionValidated()
+            {
+                if (!IsSavageAttacker2024Available(attacker))
+                {
+                    return;
+                }
+
+                SavageAttacker2024ApprovedDamage.Remove(actionModifier);
+                SavageAttacker2024ApprovedDamage.Add(actionModifier, damageForm);
+            }
+        }
     }
 
     private sealed class CustomBehaviorShieldMaster2024(
@@ -8783,7 +8988,7 @@ public static partial class Tabletop2024Context
     private sealed class CustomBehaviorSharpEye2024(
         FeatureDefinitionPower power,
         Id toggleActionId)
-        : IModifyAbilityCheck, IRequireAbilityCheckRoll, IModifyDiceRoll,
+        : IModifyAbilityCheck, IRequireAbilityCheckRoll, IModifyDiceRollWithResource, IBeforeD20Roll,
             IAttributeCheckRolledByMe, IAttributeCheckOutcomeFinalizedByMe
     {
         private sealed class PendingSettlement
@@ -8799,6 +9004,15 @@ public static partial class Tabletop2024Context
             List<TrendInfo> AdvantageTrends,
             List<TrendInfo> ModifierTrends)> _preparedChecks = [];
         private readonly Dictionary<ulong, PendingSettlement> _pendingSettlements = [];
+
+        public IEnumerator OnBeforeD20Roll(D20RollContext context, GameLocationCharacter waiter)
+        {
+            if (context.RollContext == RollContext.AbilityCheck &&
+                SharpEye2024SkillNames.Contains(context.ProficiencyName))
+            {
+                yield return PromptD20AdvantagePower(context, waiter, power, toggleActionId, "SharpEye2024");
+            }
+        }
 
         public void MinRoll(
             RulesetCharacter character,
@@ -8818,7 +9032,9 @@ public static partial class Tabletop2024Context
             _preparedChecks.Remove(character.Guid);
 
             if (!SharpEye2024SkillNames.Contains(proficiencyName) ||
-                !CanUsePowerToggle(character, power, toggleActionId, out _))
+                advantageTrends?.Any(trend => trend.value > 0) == true ||
+                !CanUseD20AdvantagePower(
+                    character, RollContext.AbilityCheck, power, toggleActionId, false, out _))
             {
                 return;
             }
@@ -8836,6 +9052,14 @@ public static partial class Tabletop2024Context
                 rulesetCharacter == null ||
                 !_preparedChecks.ContainsKey(rulesetCharacter.Guid))
             {
+                return;
+            }
+
+            if (dieType != DieType.D20 || advantageType == AdvantageType.Advantage ||
+                !CanUseD20AdvantagePower(
+                    rulesetCharacter, rollContext, power, toggleActionId, true, out _))
+            {
+                _preparedChecks.Remove(rulesetCharacter.Guid);
                 return;
             }
 

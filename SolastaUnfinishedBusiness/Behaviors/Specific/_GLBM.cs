@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
@@ -103,6 +104,23 @@ internal static class GLBM
             : RuleDefinitions.RollOutcome.Failure;
     }
 
+    private static CharacterClassDefinition GetClassForFeatureSubclass(
+        RulesetCharacter character, CharacterSubclassDefinition subclass)
+    {
+        // Saved ownership remains valid when the subclass is hidden from new-character choices.
+        var holdingClass = character switch
+        {
+            RulesetCharacterHero hero => hero.ClassesAndSubclasses
+                .FirstOrDefault(entry => entry.Value == subclass).Key,
+            RulesetCharacterSimulacrum simulacrum => DatabaseRepository.GetDatabase<CharacterClassDefinition>()
+                .FirstOrDefault(candidate => SimulacrumBehavior.TryGetPrimarySubclass(
+                    simulacrum, candidate, out var selected) && selected == subclass),
+            _ => null
+        };
+
+        return holdingClass ?? LevelUpHelper.GetClassForSubclass(subclass);
+    }
+
     /**
      * This method is almost completely original game source provided by TA (1.4.8)
      * All changes made by CE mod should be clearly marked for easy future updates
@@ -133,9 +151,7 @@ internal static class GLBM
 
         //[CE] Store the feature-bearing character for future use
         var rulesetAttacker = attacker.RulesetCharacter;
-        var featureCharacter = rulesetAttacker is RulesetCharacterSimulacrum
-            ? rulesetAttacker
-            : rulesetAttacker.GetOriginalHero();
+        var featureCharacter = rulesetAttacker.GetFeatureOwnerOrSelf();
 
         /*
          * Support for wild-shaped characters
@@ -387,46 +403,42 @@ internal static class GLBM
                     .SpellcastingBonus or RuleDefinitions.AdditionalDamageValueDetermination
                     .ProficiencyBonusAndSpellcastingBonus)
             {
-                // Look for the Spell Repertoire
-                var spellBonus = 0;
-                foreach (var spellRepertoire in featureCharacter.SpellRepertoires)
+                // Resolve the ability from the feature's owning class, not the first class learned.
+                // ClassHolder also identifies features granted indirectly by invocations or conditions.
+                var holdingClass = featureDefinition.GetFirstSubFeatureOfType<ClassHolder>()?.Class ??
+                                   featureCharacter.FindClassHoldingFeature(featureDefinition);
+                if (!holdingClass && featureCharacter.FeaturesOrigin.TryGetValue(featureDefinition, out var origin))
                 {
-                    spellBonus = AttributeDefinitions.ComputeAbilityScoreModifier(
-                        featureCharacter.TryGetAttributeValue(spellRepertoire.SpellCastingAbility));
-
-                    // Stop if this is a class repertoire
-                    if (spellRepertoire.SpellCastingFeature.SpellCastingOrigin ==
-                        FeatureDefinitionCastSpell.CastingOrigin.Class)
+                    holdingClass = origin.source switch
                     {
-                        break;
-                    }
+                        CharacterClassDefinition originClass => originClass,
+                        CharacterSubclassDefinition originSubclass => GetClassForFeatureSubclass(
+                            featureCharacter, originSubclass),
+                        _ => null
+                    };
                 }
 
-                //TODO: make this a custom feature where we can grab a forced casting attribute
-                //for now there are only 3 cases that fall here so hard-coded
-                /*
-                 * ######################################
-                 * [CE] EDIT START
-                 * Support 3 exceptional cases here
-                 */
-                if (featureDefinition == AdditionalDamageInvocationAgonizingBlast ||
-                    featureDefinition == AdditionalDamageLifedrinker)
+                var repertoire = holdingClass
+                    ? featureCharacter.GetClassSpellRepertoire(holdingClass)
+                    : featureCharacter.SpellRepertoires.FirstOrDefault(x =>
+                          x.SpellCastingFeature.SpellCastingOrigin == FeatureDefinitionCastSpell.CastingOrigin.Class) ??
+                      featureCharacter.SpellRepertoires.LastOrDefault();
+
+                var ability = repertoire?.SpellCastingAbility;
+                if (string.IsNullOrEmpty(ability) && holdingClass)
                 {
-                    spellBonus = AttributeDefinitions.ComputeAbilityScoreModifier(featureCharacter
-                        .TryGetAttributeValue(AttributeDefinitions.Charisma));
-                }
-                else if (featureDefinition == AdditionalDamageTraditionShockArcanistArcaneFury)
-                {
-                    spellBonus = AttributeDefinitions.ComputeAbilityScoreModifier(featureCharacter
-                        .TryGetAttributeValue(AttributeDefinitions.Intelligence));
+                    // A feat can grant a class feature without granting that class's repertoire.
+                    ability = RulesetActorExtensions.FlattenFeatureList(
+                            holdingClass.FeatureUnlocks.Select(unlock => unlock.FeatureDefinition))
+                        .OfType<FeatureDefinitionCastSpell>()
+                        .FirstOrDefault()?.SpellcastingAbility;
                 }
 
-                /*
-                 * Support 3 exceptional cases here
-                 * [CE] EDIT END
-                 * ######################################
-                 */
-                additionalDamageForm.BonusDamage += spellBonus;
+                if (!string.IsNullOrEmpty(ability))
+                {
+                    additionalDamageForm.BonusDamage += AttributeDefinitions.ComputeAbilityScoreModifier(
+                        featureCharacter.TryGetAttributeValue(ability));
+                }
             }
 
             if (provider.DamageValueDetermination == RuleDefinitions.AdditionalDamageValueDetermination.RageDamage)
@@ -630,7 +642,7 @@ internal static class GLBM
              * ######################################
              */
 
-            // For ancestry damage, add to the existing / matching damage, instead of add a new effect form
+            // Add an ancestry spellcasting bonus once to matching damage, without duplicating it across damage forms.
             if (provider.AdditionalDamageType == RuleDefinitions.AdditionalDamageType.AncestryDamageType
                 && provider.DamageValueDetermination ==
                 RuleDefinitions.AdditionalDamageValueDetermination.SpellcastingBonus)
@@ -644,6 +656,7 @@ internal static class GLBM
                     }
 
                     effectForm.DamageForm.BonusDamage += additionalDamageForm.BonusDamage;
+                    break;
                 }
             }
             else

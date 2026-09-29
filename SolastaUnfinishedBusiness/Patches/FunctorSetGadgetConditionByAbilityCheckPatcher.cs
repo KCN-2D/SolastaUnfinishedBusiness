@@ -165,7 +165,9 @@ public static class FunctorSetGadgetConditionByAbilityCheckPatcher
 
             if (rollOutcome == RuleDefinitions.RollOutcome.Neutral)
             {
-                var abilityCheckRoll = actingCharacter.RollAbilityCheckEx(
+                var abilityCheckData = new AbilityCheckData { Action = null };
+
+                yield return actingCharacter.RollAbilityCheckWithPrompt(
                     functorParameters.AbilityCheck.AbilityScoreName,
                     functorParameters.AbilityCheck.ProficiencyName,
                     checkDC,
@@ -173,24 +175,12 @@ public static class FunctorSetGadgetConditionByAbilityCheckPatcher
                     actionModifier,
                     passive,
                     minRoll,
-                    out rollOutcome,
-                    out var successDelta,
-                    out var rawRoll,
+                    abilityCheckData,
                     !functorParameters.AbilityCheck.Silent,
                     !functorParameters.AbilityCheck.Silent);
 
-                //PATCH: support for Bardic Inspiration roll off battle and ITryAlterOutcomeAttributeCheck
-                var abilityCheckData = new AbilityCheckData
-                {
-                    AbilityCheckRoll = abilityCheckRoll,
-                    AbilityCheckRollOutcome = rollOutcome,
-                    AbilityCheckSuccessDelta = successDelta,
-                    AbilityCheckActionModifier = actionModifier,
-                    Action = null
-                };
-
                 yield return TryAlterOutcomeAttributeCheck
-                    .HandleITryAlterOutcomeAttributeCheck(actingCharacter, abilityCheckData, rawRoll);
+                    .HandleITryAlterOutcomeAttributeCheck(actingCharacter, abilityCheckData, abilityCheckData.CurrentRoll);
 
                 rollOutcome = abilityCheckData.AbilityCheckRollOutcome;
             }

@@ -1219,6 +1219,26 @@ public static class GameLocationCharacterExtensions
         instance.UsedBonusAttacks = 0;
     }
 
+    private static int PrepareAbilityCheckRoll(
+        GameLocationCharacter instance,
+        string abilityScoreName,
+        string proficiencyName,
+        RuleDefinitions.AdvantageType baseAffinity,
+        ActionModifier checkModifier)
+    {
+        var abilityCheckBonus = instance.RulesetCharacter.ComputeBaseAbilityCheckBonus(abilityScoreName,
+            checkModifier.AbilityCheckModifierTrends, proficiencyName);
+        var contextField = (int)RuleDefinitions.AbilityCheckContext.None;
+        if (instance.RulesetCharacter != null && !instance.RulesetCharacter.IsWearingHeavyArmor())
+        {
+            contextField |= (int)RuleDefinitions.AbilityCheckContext.NotWearingHeavyArmor;
+        }
+
+        instance.PrepareActionModifier(abilityScoreName, proficiencyName, baseAffinity, checkModifier, contextField);
+
+        return abilityCheckBonus;
+    }
+
     internal static int RollAbilityCheckEx(this GameLocationCharacter instance,
         string abilityScoreName,
         string proficiencyName,
@@ -1234,20 +1254,49 @@ public static class GameLocationCharacterExtensions
         bool notify = true,
         bool displayDieOutcome = true)
     {
-        var abilityCheckBonus = instance.RulesetCharacter.ComputeBaseAbilityCheckBonus(abilityScoreName,
-            checkModifier.AbilityCheckModifierTrends, proficiencyName);
-        var contextField = (int)RuleDefinitions.AbilityCheckContext.None;
-        if (instance.RulesetCharacter != null && !instance.RulesetCharacter.IsWearingHeavyArmor())
-        {
-            contextField |= (int)RuleDefinitions.AbilityCheckContext.NotWearingHeavyArmor;
-        }
-
-        instance.PrepareActionModifier(abilityScoreName, proficiencyName, baseAffinity, checkModifier, contextField);
+        var abilityCheckBonus = PrepareAbilityCheckRoll(
+            instance, abilityScoreName, proficiencyName, baseAffinity, checkModifier);
         var result = instance.RulesetCharacter.RollAbilityCheck(abilityCheckBonus, abilityScoreName, proficiencyName,
             checkModifier.AbilityCheckModifierTrends, checkModifier.AbilityCheckAdvantageTrends,
             checkModifier.AbilityCheckModifier, checkDC, passive, minRoll, out rawRoll, out var firstRoll,
             out var secondRoll, out outcome, out successDelta, rollDie, notify, displayDieOutcome);
 
         return result;
+    }
+
+    internal static IEnumerator RollAbilityCheckWithPrompt(this GameLocationCharacter instance,
+        string abilityScoreName,
+        string proficiencyName,
+        int checkDC,
+        RuleDefinitions.AdvantageType baseAffinity,
+        ActionModifier checkModifier,
+        bool passive,
+        int minRoll,
+        AbilityCheckData abilityCheckData,
+        bool rollDie,
+        bool notify = true,
+        bool displayDieOutcome = true)
+    {
+        var abilityCheckBonus = PrepareAbilityCheckRoll(
+            instance, abilityScoreName, proficiencyName, baseAffinity, checkModifier);
+
+        using var rollContext = new D20RollContext(instance.RulesetCharacter, RuleDefinitions.RollContext.AbilityCheck,
+            abilityScoreName, proficiencyName, checkModifier.AbilityCheckAdvantageTrends,
+            canGainAdvantage: !passive && rollDie);
+
+        yield return rollContext.Prompt(instance);
+
+        using (rollContext.Activate())
+        {
+            abilityCheckData.AbilityCheckRoll = instance.RulesetCharacter.RollAbilityCheck(
+                abilityCheckBonus, abilityScoreName, proficiencyName,
+                checkModifier.AbilityCheckModifierTrends, checkModifier.AbilityCheckAdvantageTrends,
+                checkModifier.AbilityCheckModifier, checkDC, passive, minRoll, out var rawRoll,
+                out _, out _, out var outcome, out var successDelta, rollDie, notify, displayDieOutcome);
+            abilityCheckData.CurrentRoll = rawRoll;
+            abilityCheckData.AbilityCheckRollOutcome = outcome;
+            abilityCheckData.AbilityCheckSuccessDelta = successDelta;
+            abilityCheckData.AbilityCheckActionModifier = checkModifier;
+        }
     }
 }

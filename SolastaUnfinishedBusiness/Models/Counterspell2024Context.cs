@@ -89,10 +89,18 @@ internal static class Counterspell2024Context
                 out outcomeDelta);
         }
 
-        counterAction.RolledSaveThrow = RollSavingThrow(
-            actionModifier,
-            out var saveOutcome,
-            out var saveOutcomeDelta);
+        using var savingRollContext = new D20RollContext(originalCaster.RulesetCharacter, RollContext.SavingThrow,
+            AttributeDefinitions.Constitution, advantageTrends: actionModifier.SavingThrowAdvantageTrends);
+
+        yield return savingRollContext.Prompt(counterspeller);
+
+        RollOutcome saveOutcome;
+        int saveOutcomeDelta;
+
+        using (savingRollContext.Activate())
+        {
+            counterAction.RolledSaveThrow = RollSavingThrow(actionModifier, out saveOutcome, out saveOutcomeDelta);
+        }
         counterAction.SaveOutcome = saveOutcome;
         counterAction.SaveOutcomeDelta = saveOutcomeDelta;
 

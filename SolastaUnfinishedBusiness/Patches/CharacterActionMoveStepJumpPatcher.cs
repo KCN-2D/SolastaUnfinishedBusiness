@@ -154,7 +154,9 @@ public static class CharacterActionMoveStepJumpPatcher
             int checkDc,
             RuleDefinitions.AdvantageType baseAffinity)
         {
-            var abilityCheckRoll = actingCharacter.RollAbilityCheckEx(
+            var abilityCheckData = new AbilityCheckData { Action = action };
+
+            yield return actingCharacter.RollAbilityCheckWithPrompt(
                 abilityScoreName,
                 proficiencyName,
                 checkDc,
@@ -162,22 +164,11 @@ public static class CharacterActionMoveStepJumpPatcher
                 actionModifier,
                 false,
                 -1,
-                out var outcome,
-                out var successDelta,
-                out var rawRoll,
+                abilityCheckData,
                 true);
 
-            var abilityCheckData = new AbilityCheckData
-            {
-                AbilityCheckRoll = abilityCheckRoll,
-                AbilityCheckRollOutcome = outcome,
-                AbilityCheckSuccessDelta = successDelta,
-                AbilityCheckActionModifier = actionModifier,
-                Action = action
-            };
-
             yield return TryAlterOutcomeAttributeCheck
-                .HandleITryAlterOutcomeAttributeCheck(actingCharacter, abilityCheckData, rawRoll);
+                .HandleITryAlterOutcomeAttributeCheck(actingCharacter, abilityCheckData, abilityCheckData.CurrentRoll);
 
             action.AbilityCheckRoll = abilityCheckData.AbilityCheckRoll;
             action.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckRollOutcome;

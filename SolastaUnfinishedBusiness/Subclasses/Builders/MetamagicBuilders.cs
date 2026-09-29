@@ -318,7 +318,8 @@ internal static class MetamagicBuilders
 
         PowerBundle.RegisterPowerBundle(powerPool, false, powers);
 
-        var condition = ConditionDefinitionBuilder
+        // Retain legacy definition identities for existing saves; new casts use typed options.
+        ConditionDefinitionBuilder
             .Create($"Condition{MetamagicTransmuted}")
             .SetGuiPresentationNoContent(true)
             .SetSilent(Silent.WhenAddedOrRemoved)
@@ -328,17 +329,27 @@ internal static class MetamagicBuilders
             .SetSpecialInterruptions(ConditionInterruption.AnyBattleTurnEnd)
             .AddToDB();
 
-        condition.AddCustomSubFeatures(new CustomBehaviorTransmuted(condition));
-
         var metamagic = MetamagicOptionDefinitionBuilder
             .Create(MetamagicTransmuted)
             .SetGuiPresentation(Category.Feature)
             .SetCost()
             .AddToDB();
 
-        metamagic.AddCustomSubFeatures(
-            new MagicEffectInitiatedByMeTransmuted(metamagic, condition, powerPool), validator);
+        var options = TransmutedDamageTypes.Select(damageType =>
+            MetamagicOptionDefinitionBuilder
+                .Create($"{MetamagicTransmuted}{damageType}")
+                .SetGuiPresentation($"Tooltip/&Tag{damageType}Title",
+                    metamagic.GuiPresentation.Description, hidden: true)
+                .SetCost()
+                .AddCustomSubFeatures(new ModifyEffectDescriptionTransmuted(damageType), validator,
+                    new FormattedDefinitionText(
+                        () => Gui.Format("Feature/&MetamagicTransmutedSpellOptionTitle",
+                            metamagic.FormatTitle(), Gui.Localize($"Tooltip/&Tag{damageType}Title")),
+                        () => metamagic.FormatDescription()))
+                .AddToDB()).ToArray();
 
+        metamagic.AddCustomSubFeatures(validator, new ReplaceMetamagicOption(
+            "Screen/&MetamagicDamageTypeTitle", "Screen/&MetamagicDamageTypeDescription", options));
         return metamagic;
     }
 
@@ -349,141 +360,70 @@ internal static class MetamagicBuilders
         ref bool result,
         ref string failure)
     {
-        if (rulesetEffect.EffectDescription.EffectForms.Any(x =>
-                x.FormType == EffectForm.EffectFormType.Damage &&
-                TransmutedDamageTypeSet.Contains(x.DamageForm.DamageType)) ||
-            rulesetEffect.SpellDefinition.Name == "BoomingStep")
+        // Validate the source forms, not the already transformed effect. Condition-granted
+        // powers follow the same origin graph as the effect-description inheritance path.
+        var types = new HashSet<string>();
+        CollectTransmutableDamageTypes(rulesetEffect.SpellDefinition,
+            rulesetEffect.SpellDefinition.EffectDescription, new HashSet<BaseDefinition>(), types);
+        var destination = metamagicOption.GetFirstSubFeatureOfType<ModifyEffectDescriptionTransmuted>()?.DamageType;
+        if (types.Count == 0)
+        {
+            result = false;
+            failure = "Failure/&FailureTransmutedSpell";
+        }
+        else if (destination != null && types.All(type => type == destination))
+        {
+            result = false;
+            failure = "Failure/&FailureFlagMetamagicSameDamageType";
+        }
+    }
+
+    private static void CollectTransmutableDamageTypes(
+        BaseDefinition definition, EffectDescription description,
+        HashSet<BaseDefinition> visited, HashSet<string> types)
+    {
+        if (!visited.Add(definition))
         {
             return;
         }
 
-        failure = "Failure/&FailureTransmutedSpell";
-        result = false;
-    }
-
-    private const string TransmutedDamage = "TransmutedDamage";
-
-    private static string TransmutedSpell(RulesetEffect effect)
-    {
-        return $"TransmutedSpell:{effect.Name}:{effect.Guid}";
-    }
-
-    private sealed class MagicEffectInitiatedByMeTransmuted(
-        MetamagicOptionDefinition metamagicOptionDefinition,
-        ConditionDefinition condition,
-        FeatureDefinitionPower powerPool) : IMagicEffectInitiatedByMe
-    {
-        public IEnumerator OnMagicEffectInitiatedByMe(
-            CharacterAction action,
-            RulesetEffect activeEffect,
-            GameLocationCharacter attacker,
-            List<GameLocationCharacter> targets)
+        foreach (var form in description.EffectForms)
         {
-            var rulesetAttacker = attacker.RulesetCharacter;
-            var rulesetEffect = action.ActionParams.RulesetEffect;
-
-            if (!CombinedMetamagic.Contains(rulesetEffect.MetamagicOption, metamagicOptionDefinition.Name) &&
-                !CombinedMetamagic.Contains(rulesetAttacker.SpellsCastByMe
-                    .FirstOrDefault(x => x.SystemName == "BoomingStep")?.MetamagicOption, metamagicOptionDefinition.Name))
+            if (form.FormType == EffectForm.EffectFormType.Damage &&
+                TransmutedDamageTypeSet.Contains(form.DamageForm.DamageType))
             {
-                yield break;
+                types.Add(form.DamageForm.DamageType);
             }
-
-            var activeCondition = rulesetAttacker.InflictCondition(
-                condition.Name,
-                DurationType.Round,
-                0,
-                TurnOccurenceType.StartOfTurn,
-                AttributeDefinitions.TagEffect,
-                rulesetAttacker.guid,
-                rulesetAttacker.CurrentFaction.Name,
-                1,
-                condition.Name,
-                0,
-                0,
-                0);
-
-            var usablePower = PowerProvider.Get(powerPool, rulesetAttacker);
-
-            yield return attacker.MyReactToSpendPowerBundle(
-                usablePower,
-                [attacker],
-                attacker,
-                MetamagicTransmuted,
-                string.Empty,
-                reactionRequest =>
+            else if (form.FormType == EffectForm.EffectFormType.Condition &&
+                     form.ConditionForm.Operation == ConditionForm.ConditionOperation.Add)
+            {
+                foreach (var power in form.ConditionForm.ConditionDefinition.Features.OfType<FeatureDefinitionPower>())
                 {
-                    attacker.SetSpecialFeatureUses(TransmutedDamage, reactionRequest.SelectedSubOption);
-                    attacker.SetSpecialFeatureUses(TransmutedSpell(activeEffect), 1);
-                },
-                _ =>
-                {
-                    attacker.SetSpecialFeatureUses(TransmutedDamage, -1);
-                    attacker.SetSpecialFeatureUses(TransmutedSpell(activeEffect), -1);
-                    rulesetAttacker.RemoveCondition(activeCondition);
-                    rulesetAttacker.SpendSorceryPoints(-1);
-                });
+                    CollectTransmutableDamageTypes(power, power.EffectDescription, visited, types);
+                }
+            }
         }
     }
 
-    private sealed class CustomBehaviorTransmuted(ConditionDefinition condition)
-        : IMagicEffectBeforeHitConfirmedOnEnemy, IMagicEffectFinishedByMe
+    private sealed class ModifyEffectDescriptionTransmuted(string damageType) : IModifySpellDerivedEffectDescription
     {
-        public IEnumerator OnMagicEffectBeforeHitConfirmedOnEnemy(
-            GameLocationBattleManager battleManager,
-            GameLocationCharacter attacker,
-            GameLocationCharacter defender,
-            ActionModifier actionModifier,
-            RulesetEffect rulesetEffect,
-            List<EffectForm> actualEffectForms,
-            bool firstTarget,
-            bool criticalHit)
+        internal string DamageType { get; } = damageType;
+
+        public bool IsValid(BaseDefinition definition, RulesetCharacter character, EffectDescription effectDescription)
+            => true;
+
+        public EffectDescription GetEffectDescription(
+            BaseDefinition definition, EffectDescription effectDescription,
+            RulesetCharacter character, RulesetEffect rulesetEffect)
         {
-            if (attacker.GetSpecialFeatureUses(TransmutedSpell(rulesetEffect)) != 1)
+            foreach (var form in effectDescription.EffectForms.Where(form =>
+                         form.FormType == EffectForm.EffectFormType.Damage &&
+                         TransmutedDamageTypeSet.Contains(form.DamageForm.DamageType)))
             {
-                yield break;
+                form.DamageForm.damageType = DamageType;
             }
 
-            var option = attacker.GetSpecialFeatureUses(TransmutedDamage);
-
-            if (option < 0)
-            {
-                yield break;
-            }
-
-            var newDamageType = TransmutedDamageTypes[option];
-
-            foreach (var effectForm in actualEffectForms
-                         .Where(x =>
-                             x.FormType == EffectForm.EffectFormType.Damage &&
-                             TransmutedDamageTypeSet.Contains(x.DamageForm.DamageType)))
-            {
-                effectForm.DamageForm.damageType = newDamageType;
-            }
-        }
-
-        public IEnumerator OnMagicEffectFinishedByMe(
-            CharacterAction action,
-            GameLocationCharacter attacker,
-            List<GameLocationCharacter> targets)
-        {
-            var transmutedSpell = TransmutedSpell(action.actionParams.activeEffect);
-            if (attacker.GetSpecialFeatureUses(transmutedSpell) != 1)
-            {
-                yield break;
-            }
-
-            attacker.SetSpecialFeatureUses(transmutedSpell, -1);
-
-            var rulesetAttacker = attacker.RulesetCharacter;
-
-            if (!rulesetAttacker.TryGetConditionOfCategoryAndType(AttributeDefinitions.TagEffect, condition.Name,
-                    out var activeCondition))
-            {
-                yield break;
-            }
-
-            rulesetAttacker.RemoveCondition(activeCondition);
+            return effectDescription;
         }
     }
 

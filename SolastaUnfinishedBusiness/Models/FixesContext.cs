@@ -450,6 +450,20 @@ internal static class FixesContext
 
     private static void FixAdditionalDamageRestrictions()
     {
+        // These bonuses modify a spell's damage, including damage to allies or the caster.
+        // Keep first-target restrictions and damage/ancestry requirements unchanged.
+        foreach (var additionalDamage in DatabaseRepository.GetDatabase<FeatureDefinitionAdditionalDamage>()
+                     .Where(x => x.TriggerCondition is AdditionalDamageTriggerCondition.SpellDamageMatchesSourceAncestry
+                         or AdditionalDamageTriggerCondition.EvocationSpellDamage))
+        {
+            additionalDamage.targetSide = Side.All;
+        }
+
+        // These providers are granted through an invocation or condition rather than a direct class unlock.
+        AdditionalDamageInvocationAgonizingBlast.AddCustomSubFeatures(ClassHolder.Warlock);
+        AdditionalDamageLifedrinker.AddCustomSubFeatures(ClassHolder.Warlock);
+        AdditionalDamageTraditionShockArcanistArcaneFury.AddCustomSubFeatures(ClassHolder.Wizard);
+
         //BUGFIX: Some vanilla additional damage definitions have incorrect attributes
         AdditionalDamageDomainLifeDivineStrike.attackModeOnly = true;
         AdditionalDamageDomainLifeDivineStrike.requiredProperty = RestrictedContextRequiredProperty.Weapon;

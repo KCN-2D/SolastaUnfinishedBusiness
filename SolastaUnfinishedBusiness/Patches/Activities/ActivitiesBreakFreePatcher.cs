@@ -115,7 +115,9 @@ public static class BreakFreePatcher
                     ]);
 
                 var actionModifier = new ActionModifier();
-                var abilityCheckRoll = gameLocationCharacter.RollAbilityCheckEx(
+                var abilityCheckData = new AbilityCheckData { Action = null };
+
+                yield return gameLocationCharacter.RollAbilityCheckWithPrompt(
                     attributeName,
                     string.Empty,
                     checkDC,
@@ -123,23 +125,11 @@ public static class BreakFreePatcher
                     actionModifier,
                     false,
                     -1,
-                    out var rollOutcome,
-                    out var successDelta,
-                    out var rawRoll,
+                    abilityCheckData,
                     true);
 
-                //PATCH: support for Bardic Inspiration roll off battle and ITryAlterOutcomeAttributeCheck
-                var abilityCheckData = new AbilityCheckData
-                {
-                    AbilityCheckRoll = abilityCheckRoll,
-                    AbilityCheckRollOutcome = rollOutcome,
-                    AbilityCheckSuccessDelta = successDelta,
-                    AbilityCheckActionModifier = actionModifier,
-                    Action = null
-                };
-
                 yield return TryAlterOutcomeAttributeCheck
-                    .HandleITryAlterOutcomeAttributeCheck(gameLocationCharacter, abilityCheckData, rawRoll);
+                    .HandleITryAlterOutcomeAttributeCheck(gameLocationCharacter, abilityCheckData, abilityCheckData.CurrentRoll);
 
                 success = abilityCheckData.AbilityCheckRollOutcome
                     is RollOutcome.Success or RollOutcome.CriticalSuccess;

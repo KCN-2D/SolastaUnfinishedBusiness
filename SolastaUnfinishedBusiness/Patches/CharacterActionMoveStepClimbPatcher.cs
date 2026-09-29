@@ -84,7 +84,9 @@ public static class CharacterActionMoveStepClimbPatcher
                     {
                         const RuleDefinitions.AdvantageType BASE_AFFINITY = RuleDefinitions.AdvantageType.None;
 
-                        var abilityCheckRoll = actingCharacter.RollAbilityCheckEx(
+                        var abilityCheckData = new AbilityCheckData { Action = action };
+
+                        yield return actingCharacter.RollAbilityCheckWithPrompt(
                             AttributeDefinitions.Strength,
                             SkillDefinitions.Athletics,
                             action.dc,
@@ -92,22 +94,13 @@ public static class CharacterActionMoveStepClimbPatcher
                             actionModifier,
                             false,
                             -1,
-                            out var outcome,
-                            out var successDelta,
-                            out var rawRoll,
+                            abilityCheckData,
                             true);
 
-                        var abilityCheckData = new AbilityCheckData
-                        {
-                            AbilityCheckRoll = abilityCheckRoll,
-                            AbilityCheckRollOutcome = outcome,
-                            AbilityCheckSuccessDelta = successDelta,
-                            AbilityCheckActionModifier = actionModifier,
-                            Action = action
-                        };
+                        var outcome = abilityCheckData.AbilityCheckRollOutcome;
 
                         yield return TryAlterOutcomeAttributeCheck
-                            .HandleITryAlterOutcomeAttributeCheck(actingCharacter, abilityCheckData, rawRoll);
+                            .HandleITryAlterOutcomeAttributeCheck(actingCharacter, abilityCheckData, abilityCheckData.CurrentRoll);
 
                         action.AbilityCheckRoll = abilityCheckData.AbilityCheckRoll;
                         action.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckRollOutcome;

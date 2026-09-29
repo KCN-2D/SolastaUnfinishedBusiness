@@ -163,7 +163,9 @@ public static class CharacterActionBreakFreePatcher
 
             IEnumerator RollAbilityCheck()
             {
-                var abilityCheckRoll = __instance.ActingCharacter.RollAbilityCheckEx(
+                var abilityCheckData = new AbilityCheckData { Action = __instance };
+
+                yield return __instance.ActingCharacter.RollAbilityCheckWithPrompt(
                     abilityScoreName,
                     proficiencyName,
                     checkDC,
@@ -171,23 +173,11 @@ public static class CharacterActionBreakFreePatcher
                     actionModifier,
                     false,
                     -1,
-                    out var rollOutcome,
-                    out var successDelta,
-                    out var rawRoll,
+                    abilityCheckData,
                     true);
 
-                //PATCH: support for Bardic Inspiration roll off battle and ITryAlterOutcomeAttributeCheck
-                var abilityCheckData = new AbilityCheckData
-                {
-                    AbilityCheckRoll = abilityCheckRoll,
-                    AbilityCheckRollOutcome = rollOutcome,
-                    AbilityCheckSuccessDelta = successDelta,
-                    AbilityCheckActionModifier = actionModifier,
-                    Action = __instance
-                };
-
                 yield return TryAlterOutcomeAttributeCheck
-                    .HandleITryAlterOutcomeAttributeCheck(__instance.ActingCharacter, abilityCheckData, rawRoll);
+                    .HandleITryAlterOutcomeAttributeCheck(__instance.ActingCharacter, abilityCheckData, abilityCheckData.CurrentRoll);
 
                 __instance.AbilityCheckRoll = abilityCheckData.AbilityCheckRoll;
                 __instance.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckRollOutcome;

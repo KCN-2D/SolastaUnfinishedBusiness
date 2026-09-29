@@ -36,8 +36,12 @@ public static partial class Tabletop2024Context
         SpellDefinition spellDefinition,
         ulong casterGuid,
         int baseSaveDc,
-        bool useSpellListClassification)
+        bool useSpellListClassification,
+        RulesetEffectSpell spellEffect)
     {
+        // Keep the originating effect, rather than a metamagic snapshot: selection can finish
+        // after an origin is first bound, and recurring powers must retain that final choice.
+        internal RulesetEffectSpell SpellEffect { get; } = spellEffect;
         internal RulesetSpellRepertoire SpellRepertoire { get; } = spellRepertoire;
         internal SpellDefinition SpellDefinition { get; } = spellDefinition;
         internal ulong CasterGuid { get; } = casterGuid;
@@ -295,6 +299,13 @@ public static partial class Tabletop2024Context
         }
     }
 
+    internal static RulesetEffectSpell GetSpellDerivedPowerSpell(RulesetEffectPower powerEffect)
+    {
+        return TryGetSpellDerivedPowerOrigin(powerEffect, out var spellOrigin)
+            ? spellOrigin.SpellEffect
+            : null;
+    }
+
     internal static void BindSpellDerivedPowerOrigin(RulesetEffectPower powerEffect)
     {
         if (powerEffect == null)
@@ -416,7 +427,8 @@ public static partial class Tabletop2024Context
 
     private static bool TryGetSpellDerivedPowerOrigin(
         RulesetEffectPower powerEffect,
-        out SpellEffectOrigin spellOrigin)
+        out SpellEffectOrigin spellOrigin,
+        HashSet<RulesetEntity> resolving = null)
     {
         spellOrigin = null;
 
@@ -430,7 +442,7 @@ public static partial class Tabletop2024Context
             return true;
         }
 
-        if (!TryResolveSpellDerivedPowerOrigin(powerEffect, out spellOrigin))
+        if (!TryResolveSpellDerivedPowerOrigin(powerEffect, out spellOrigin, resolving))
         {
             return false;
         }
@@ -442,7 +454,8 @@ public static partial class Tabletop2024Context
 
     private static bool TryResolveSpellDerivedPowerOrigin(
         RulesetEffectPower powerEffect,
-        out SpellEffectOrigin spellOrigin)
+        out SpellEffectOrigin spellOrigin,
+        HashSet<RulesetEntity> resolving = null)
     {
         spellOrigin = null;
 
@@ -454,39 +467,56 @@ public static partial class Tabletop2024Context
             return false;
         }
 
-        foreach (var condition in powerEffect.User.AllConditions.Where(x =>
-                     x.ConditionDefinition.Features.Contains(powerEffect.PowerDefinition)))
+        resolving ??= [];
+        if (!resolving.Add(powerEffect))
         {
-            var candidate = GetSpellDerivedConditionOrigin(condition);
-
-            if (candidate == null)
-            {
-                spellOrigin = null;
-
-                return false;
-            }
-
-            // A usable power does not identify which of two equal condition features granted it.
-            // Refuse an ambiguous origin instead of applying the feature to the wrong spell.
-            if (spellOrigin != null &&
-                (spellOrigin.SpellRepertoire != candidate.SpellRepertoire ||
-                 spellOrigin.SpellDefinition != candidate.SpellDefinition ||
-                 spellOrigin.CasterGuid != candidate.CasterGuid ||
-                 spellOrigin.BaseSaveDc != candidate.BaseSaveDc ||
-                 spellOrigin.UseSpellListClassification != candidate.UseSpellListClassification))
-            {
-                spellOrigin = null;
-
-                return false;
-            }
-
-            spellOrigin = candidate;
+            return false;
         }
 
-        return spellOrigin != null;
+        try
+        {
+            foreach (var condition in powerEffect.User.AllConditions.Where(x =>
+                         x.ConditionDefinition.Features.Contains(powerEffect.PowerDefinition)))
+            {
+                var candidate = GetSpellDerivedConditionOrigin(condition, resolving);
+
+                // A usable power does not identify which equal condition feature granted it.
+                // Refuse an unknown or ambiguous origin instead of changing the wrong spell.
+                if (!MergeSpellEffectOrigin(ref spellOrigin, candidate))
+                {
+                    spellOrigin = null;
+                    return false;
+                }
+            }
+
+            return spellOrigin != null;
+        }
+        finally
+        {
+            resolving.Remove(powerEffect);
+        }
     }
 
-    private static SpellEffectOrigin GetSpellDerivedConditionOrigin(RulesetCondition condition)
+    private static bool MergeSpellEffectOrigin(ref SpellEffectOrigin origin, SpellEffectOrigin candidate)
+    {
+        if (candidate == null ||
+            (origin != null &&
+             (origin.SpellRepertoire != candidate.SpellRepertoire ||
+              origin.SpellDefinition != candidate.SpellDefinition ||
+              origin.CasterGuid != candidate.CasterGuid ||
+              origin.BaseSaveDc != candidate.BaseSaveDc ||
+              origin.UseSpellListClassification != candidate.UseSpellListClassification ||
+              origin.SpellEffect != candidate.SpellEffect)))
+        {
+            return false;
+        }
+
+        origin = candidate;
+        return true;
+    }
+
+    private static SpellEffectOrigin GetSpellDerivedConditionOrigin(
+        RulesetCondition condition, HashSet<RulesetEntity> resolving = null)
     {
         if (condition == null)
         {
@@ -498,18 +528,52 @@ public static partial class Tabletop2024Context
             return spellOrigin;
         }
 
-        var sourceCharacter = EffectHelpers.GetCharacterByGuid(condition.SourceGuid);
-        var spellEffect = sourceCharacter?.SpellsCastByMe
-            .FirstOrDefault(x => x.TrackedConditionGuids.Contains(condition.Guid));
-
-        spellOrigin = CreateSpellEffectOrigin(spellEffect, condition.SourceGuid);
-
-        if (spellOrigin != null)
+        resolving ??= [];
+        if (!resolving.Add(condition))
         {
-            SpellDerivedConditionOrigins.Add(condition, spellOrigin);
+            return null;
         }
 
-        return spellOrigin;
+        try
+        {
+            var sourceCharacter = EffectHelpers.GetCharacterByGuid(condition.SourceGuid);
+            if (sourceCharacter == null)
+            {
+                return null;
+            }
+
+            foreach (var spell in sourceCharacter.SpellsCastByMe
+                         .Where(x => x.TrackedConditionGuids.Contains(condition.Guid)))
+            {
+                if (!MergeSpellEffectOrigin(ref spellOrigin, CreateSpellEffectOrigin(spell, condition.SourceGuid)))
+                {
+                    return null;
+                }
+            }
+
+            // A spell-granted power may itself grant another condition and power. Follow the
+            // native ownership links, using a path guard rather than guessing by definition name.
+            foreach (var power in sourceCharacter.PowersUsedByMe
+                         .Where(x => x.TrackedConditionGuids.Contains(condition.Guid)))
+            {
+                if (!TryGetSpellDerivedPowerOrigin(power, out var candidate, resolving) ||
+                    !MergeSpellEffectOrigin(ref spellOrigin, candidate))
+                {
+                    return null;
+                }
+            }
+
+            if (spellOrigin != null)
+            {
+                SpellDerivedConditionOrigins.Add(condition, spellOrigin);
+            }
+
+            return spellOrigin;
+        }
+        finally
+        {
+            resolving.Remove(condition);
+        }
     }
 
     private static SpellEffectOrigin CreateSpellEffectOrigin(
@@ -543,7 +607,8 @@ public static partial class Tabletop2024Context
             spellDefinition,
             casterGuid,
             GetSpellBaseSaveDc(spellEffect),
-            spellEffect.UsesSpellListClassification());
+            spellEffect.UsesSpellListClassification(),
+            spellEffect);
     }
 
     internal static int GetSpellBaseSaveDc(RulesetEffectSpell spellEffect)

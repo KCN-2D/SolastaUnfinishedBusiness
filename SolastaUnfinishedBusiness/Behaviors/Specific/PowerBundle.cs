@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
@@ -318,6 +319,14 @@ internal static class PowerBundle
             key += metamagic.Name;
         }
 
+        if (effect is RulesetEffectPower power &&
+            Tabletop2024Context.GetSpellDerivedPowerSpell(power) is { } originatingSpell)
+        {
+            // A granted power can be cast by different spell instances or at different slot
+            // levels. Its metamagic and condition-based modifiers belong to that origin.
+            key += $":SpellOrigin:{originatingSpell.Guid}:{originatingSpell.EffectLevel}";
+        }
+
         if (definition is SpellDefinition)
         {
             var spellEffect = effect as RulesetEffectSpell;
@@ -399,7 +408,7 @@ internal static class PowerBundle
             return original;
         }
 
-        var metamagic = effect is RulesetEffectSpell spell ? spell.MetamagicOption : null;
+        var metamagic = GetEffectMetamagic(effect);
         var cached = GetCachedEffect(caster, definition, metamagic, effect);
 
         if (cached != null)
@@ -422,8 +431,11 @@ internal static class PowerBundle
 
         if (metamagic)
         {
-            // all metamagic from metamagic feature are valid so no need to filter
-            modifiers.AddRange(metamagic.GetAllSubFeaturesOfType<IModifyEffectDescription>());
+            // A derived power inherits damage transformations, but not the original spell's
+            // targeting or range. Its own definition continues to control those properties.
+            modifiers.AddRange(effect is RulesetEffectPower
+                ? metamagic.GetAllSubFeaturesOfType<IModifySpellDerivedEffectDescription>()
+                : metamagic.GetAllSubFeaturesOfType<IModifyEffectDescription>());
         }
 
         if (modifiers.Count > 0)
@@ -439,6 +451,44 @@ internal static class PowerBundle
         CacheEffect(caster, definition, metamagic, effect, result);
 
         return result;
+    }
+
+    private static MetamagicOptionDefinition GetEffectMetamagic(RulesetEffect effect)
+    {
+        return effect switch
+        {
+            RulesetEffectSpell spell => spell.MetamagicOption,
+            RulesetEffectPower power =>
+                Tabletop2024Context.GetSpellDerivedPowerSpell(power)?.MetamagicOption,
+            _ => null
+        };
+    }
+
+    internal static void ModifyEffectProxyAttackModes(RulesetCharacterEffectProxy proxy)
+    {
+        var sourceEffect = EffectHelpers.GetEffectByGuid(proxy.EffectGuid);
+        var metamagic = GetEffectMetamagic(sourceEffect);
+        if (!metamagic)
+        {
+            return;
+        }
+
+        var modifiers = metamagic.GetAllSubFeaturesOfType<IModifySpellDerivedEffectDescription>();
+        var caster = EffectHelpers.GetCharacterByEffectGuid(proxy.EffectGuid);
+        var definition = sourceEffect.GetSourceDefinitionSafe();
+        if (modifiers.Count == 0 || caster == null || definition == null)
+        {
+            return;
+        }
+
+        // Native proxy attacks copy the blueprint (or proxy template), bypassing the source
+        // effect's transformed damage. Apply only the modifiers explicitly safe to inherit.
+        foreach (var attackMode in proxy.AttackModes)
+        {
+            attackMode.EffectDescription = modifiers.Aggregate(
+                EffectDescriptionBuilder.Create(attackMode.EffectDescription).Build(),
+                (current, modifier) => modifier.GetEffectDescription(definition, current, caster, sourceEffect));
+        }
     }
 
     /**Modifies spell/power description for GUI purposes.*/

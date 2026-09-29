@@ -1115,6 +1115,17 @@ public static class RulesetActorPatcher
             RulesetActor actor,
             RollContext rollContext)
         {
+            var changeDiceRollList = actor.GetSubFeaturesByType<IModifyDiceRoll>()
+                .OrderBy(modifier => modifier is IModifyDiceRollWithResource)
+                .ToArray();
+
+            foreach (var changeDiceRoll in changeDiceRollList)
+            {
+                changeDiceRoll.BeforeRoll(rollContext, actor as RulesetCharacter,
+                    ref dieType,
+                    ref advantageType);
+            }
+
             int result;
 
             if (rollContext == RollContext.AttackRoll &&
@@ -1124,29 +1135,20 @@ public static class RulesetActorPatcher
             }
             else
             {
-                var changeDiceRollList = actor.GetSubFeaturesByType<IModifyDiceRoll>();
-
-                foreach (var changeDiceRoll in changeDiceRollList)
-                {
-                    changeDiceRoll.BeforeRoll(rollContext, actor as RulesetCharacter,
-                        ref dieType,
-                        ref advantageType);
-                }
-
                 result = RuleDefinitions.RollDie(
                     dieType, advantageType, out firstRoll, out secondRoll, rollAlterationScore);
+            }
 
-                foreach (var changeDiceRoll in changeDiceRollList)
-                {
-                    changeDiceRoll.AfterRoll(
-                        dieType,
-                        advantageType,
-                        rollContext,
-                        actor as RulesetCharacter,
-                        ref firstRoll,
-                        ref secondRoll,
-                        ref result);
-                }
+            foreach (var changeDiceRoll in changeDiceRollList)
+            {
+                changeDiceRoll.AfterRoll(
+                    dieType,
+                    advantageType,
+                    rollContext,
+                    actor as RulesetCharacter,
+                    ref firstRoll,
+                    ref secondRoll,
+                    ref result);
             }
 
             if (rollContext != RollContext.AttackRoll)

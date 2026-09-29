@@ -22,8 +22,14 @@ internal static class UnityImageExtensions
         imageComponent.sprite = null;
     }
 
-    internal static Sprite LoadAddressableSprite([CanBeNull] this Component owner, [NotNull] string assetPath)
+    [CanBeNull]
+    internal static Sprite LoadAddressableSprite([CanBeNull] this Component owner, [CanBeNull] string assetPath)
     {
+        if (string.IsNullOrEmpty(assetPath))
+        {
+            return null;
+        }
+
         var sprite = Gui.LoadAssetSync<Sprite>(assetPath);
 
         owner.TrackAddressableSprite(sprite);
@@ -31,10 +37,16 @@ internal static class UnityImageExtensions
         return sprite;
     }
 
+    [CanBeNull]
     internal static Sprite LoadAddressableSprite(
         [CanBeNull] this Component owner,
-        [NotNull] AssetReferenceSprite spriteReference)
+        [CanBeNull] AssetReferenceSprite spriteReference)
     {
+        if (spriteReference == null || !spriteReference.RuntimeKeyIsValid())
+        {
+            return null;
+        }
+
         var sprite = Gui.LoadAssetSync<Sprite>(spriteReference);
 
         owner.TrackAddressableSprite(sprite);

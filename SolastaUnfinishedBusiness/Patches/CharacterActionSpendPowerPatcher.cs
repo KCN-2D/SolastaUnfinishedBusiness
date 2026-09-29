@@ -148,18 +148,27 @@ public static class CharacterActionSpendPowerPatcher
 
                 if (activePower != null)
                 {
-                    __instance.RolledSaveThrow = activePower.TryRollSavingThrow(
-                        actingCharacter.RulesetCharacter,
-                        actingCharacter.Side,
-                        target.RulesetActor,
-                        actionModifier,
-                        activePower.EffectDescription.EffectForms,
-                        false,
-                        out var saveOutcome,
-                        out var saveOutcomeDelta);
+                    using var savingRollContext = new D20RollContext(target.RulesetCharacter, RuleDefinitions.RollContext.SavingThrow,
+                        activePower.EffectDescription.SavingThrowAbility, advantageTrends: actionModifier.SavingThrowAdvantageTrends,
+                        canGainAdvantage: activePower.EffectDescription.HasSavingThrow);
 
-                    __instance.SaveOutcome = saveOutcome;
-                    __instance.SaveOutcomeDelta = saveOutcomeDelta;
+                    yield return savingRollContext.Prompt(actingCharacter);
+
+                    using (savingRollContext.Activate())
+                    {
+                        __instance.RolledSaveThrow = activePower.TryRollSavingThrow(
+                            actingCharacter.RulesetCharacter,
+                            actingCharacter.Side,
+                            target.RulesetActor,
+                            actionModifier,
+                            activePower.EffectDescription.EffectForms,
+                            false,
+                            out var saveOutcome,
+                            out var saveOutcomeDelta);
+
+                        __instance.SaveOutcome = saveOutcome;
+                        __instance.SaveOutcomeDelta = saveOutcomeDelta;
+                    }
 
                     if (__instance.RolledSaveThrow)
                     {

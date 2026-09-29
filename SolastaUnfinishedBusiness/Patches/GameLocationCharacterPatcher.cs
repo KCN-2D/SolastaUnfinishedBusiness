@@ -395,7 +395,8 @@ public static class GameLocationCharacterPatcher
             foreach (var key in __instance.usedSpecialFeatures.Keys)
             {
                 if (db.TryGetElement(key, out var result)
-                    && result is FeatureDefinitionAdditionalDamage { LimitedUsage: FeatureLimitedUsage.OncePerTurn })
+                    && (result is FeatureDefinitionAdditionalDamage { LimitedUsage: FeatureLimitedUsage.OncePerTurn }
+                        || result.HasSubFeatureOfType<RechargeFeatureUseAtEveryTurn>()))
                 {
                     __instance.restoredFeatures.Add(result);
                 }

@@ -286,7 +286,21 @@ public static partial class SmiteSpells2024Context
         }
 
         var modifier = new ActionModifier();
-        if (!RollSavingThrow(modifier, out var outcome, out var delta))
+        using var savingRollContext = new D20RollContext(target.RulesetCharacter, RollContext.SavingThrow,
+            ability, advantageTrends: modifier.SavingThrowAdvantageTrends);
+
+        yield return savingRollContext.Prompt(caster);
+
+        bool rolledSavingThrow;
+        RollOutcome outcome;
+        int delta;
+
+        using (savingRollContext.Activate())
+        {
+            rolledSavingThrow = RollSavingThrow(modifier, out outcome, out delta);
+        }
+
+        if (!rolledSavingThrow)
         {
             completed(true);
             yield break;

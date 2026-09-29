@@ -16,3 +16,13 @@ internal class OncePerTurn : FeatureUseLimiter
         return character.OncePerTurnIsValid(feature.Name);
     }
 }
+
+// Attach to the feature whose definition name is used as the UsedSpecialFeatures key.
+internal sealed class RechargeFeatureUseAtEveryTurn
+{
+    internal static readonly RechargeFeatureUseAtEveryTurn Marker = new();
+
+    private RechargeFeatureUseAtEveryTurn()
+    {
+    }
+}

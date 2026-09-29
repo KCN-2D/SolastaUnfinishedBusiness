@@ -777,12 +777,13 @@ public static class CharacterActionPanelPatcher
 
             __instance.actionId = Id.CastBonus;
 
-            if (SorceryIncarnateContext.TrySelectAdditional(
+            if (MetamagicContext.TrySelectAdditional(
                     __instance.MetamagicSelectionPanel, caster, rulesetEffectSpell, quickened,
                     __instance.MetamagicSelected,
-                    () => __instance.MetamagicSelected(caster, rulesetEffectSpell, quickened)))
+                    () => __instance.MetamagicSelected(caster, rulesetEffectSpell, quickened),
+                    __instance.SpellCastCancelled))
             {
-                // Ignoring the additional choice retains the metamagic requested by this menu.
+                // Confirming only the preset retains Quickened Spell; Back cancels the pending cast.
                 __instance.MetamagicSelectionPanel.Show();
                 return false;
             }

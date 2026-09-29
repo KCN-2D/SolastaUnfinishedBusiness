@@ -15,6 +15,17 @@ public class ReplaceMetamagicOption
 
     internal IReadOnlyList<MetamagicOptionDefinition> Options => _options;
 
+    internal string SelectionTitle { get; }
+    internal string SelectionDescription { get; }
+    internal bool RequiresSelection => !string.IsNullOrEmpty(SelectionTitle);
+
+    public ReplaceMetamagicOption(string selectionTitle, string selectionDescription,
+        params MetamagicOptionDefinition[] options) : this(options)
+    {
+        SelectionTitle = selectionTitle;
+        SelectionDescription = selectionDescription;
+    }
+
     public ReplaceMetamagicOption(params MetamagicOptionDefinition[] options)
     {
         _options.AddRange(options);
@@ -25,11 +36,17 @@ public class ReplaceMetamagicOption
         return ApplyReplacements(hero?.TrainedMetamagicOptions);
     }
 
-    internal static List<MetamagicOptionDefinition> GetOptions(RulesetCharacter character)
+    internal static List<MetamagicOptionDefinition> GetOptions(RulesetCharacter character) =>
+        GetOptions(character, true);
+
+    internal static List<MetamagicOptionDefinition> GetSelectionOptions(RulesetCharacter character) =>
+        GetOptions(character, false);
+
+    private static List<MetamagicOptionDefinition> GetOptions(RulesetCharacter character, bool expandSelection)
     {
         if (character is RulesetCharacterHero hero)
         {
-            return GetOptions(hero);
+            return ApplyReplacements(hero.TrainedMetamagicOptions, expandSelection);
         }
 
         if (character is not RulesetCharacterSimulacrum &&
@@ -39,11 +56,11 @@ public class ReplaceMetamagicOption
         }
 
         return ApplyReplacements(
-            SimulacrumBehavior.EnumerateTrainedMetamagicOptions(character).ToList());
+            SimulacrumBehavior.EnumerateTrainedMetamagicOptions(character).ToList(), expandSelection);
     }
 
     private static List<MetamagicOptionDefinition> ApplyReplacements(
-        List<MetamagicOptionDefinition> sourceOptions)
+        List<MetamagicOptionDefinition> sourceOptions, bool expandSelection = true)
     {
         List<MetamagicOptionDefinition> list = null;
         var options = sourceOptions?
@@ -54,7 +71,7 @@ public class ReplaceMetamagicOption
         {
             var replacer = option.GetFirstSubFeatureOfType<ReplaceMetamagicOption>();
 
-            if (replacer == null)
+            if (replacer == null || (!expandSelection && replacer.RequiresSelection))
             {
                 continue;
             }

@@ -1367,20 +1367,31 @@ public static class CharacterActionMagicEffectPatcher
                 }
 
                 // Roll dice + handle target reaction
-                __instance.AttackRoll = actingCharacter.RulesetCharacter.RollMagicAttack(
-                    rulesetEffect,
-                    rulesetTarget,
-                    rulesetEffect.GetEffectSource(),
-                    actionModifier.AttacktoHitTrends,
-                    actionModifier.AttackAdvantageTrends,
-                    false,
-                    actionModifier.AttackRollModifier,
-                    out var outcome,
-                    out var successDelta,
-                    -1,
-                    true);
-                __instance.AttackRollOutcome = outcome;
-                __instance.AttackSuccessDelta = successDelta;
+                using var attackRollContext = new D20RollContext(actingCharacter.RulesetCharacter, RollContext.AttackRoll,
+                    advantageTrends: actionModifier.AttackAdvantageTrends);
+
+                yield return attackRollContext.Prompt(actingCharacter);
+
+                RollOutcome outcome;
+                int successDelta;
+
+                using (attackRollContext.Activate())
+                {
+                    __instance.AttackRoll = actingCharacter.RulesetCharacter.RollMagicAttack(
+                        rulesetEffect,
+                        rulesetTarget,
+                        rulesetEffect.GetEffectSource(),
+                        actionModifier.AttacktoHitTrends,
+                        actionModifier.AttackAdvantageTrends,
+                        false,
+                        actionModifier.AttackRollModifier,
+                        out outcome,
+                        out successDelta,
+                        -1,
+                        true);
+                    __instance.AttackRollOutcome = outcome;
+                    __instance.AttackSuccessDelta = successDelta;
+                }
 
                 // If this roll is failed (not critically), can we use a bardic inspiration to change the outcome?
                 if (__instance.AttackRollOutcome == RollOutcome.Failure)
@@ -1523,18 +1534,27 @@ public static class CharacterActionMagicEffectPatcher
                     // Saving throw?
                     var hasBorrowedLuck = rulesetTarget.HasConditionOfTypeOrSubType(ConditionBorrowedLuck);
 
-                    __instance.RolledSaveThrow = rulesetEffect.TryRollSavingThrow(
-                        actingCharacter.RulesetCharacter,
-                        actingCharacter.Side,
-                        rulesetTarget,
-                        actionModifier,
-                        actualEffectForms,
-                        hasSavingThrowAnimation,
-                        out var saveOutcome,
-                        out var saveOutcomeDelta);
+                    using var savingRollContext = new D20RollContext(rulesetTarget as RulesetCharacter, RollContext.SavingThrow,
+                        effectDescription.SavingThrowAbility, advantageTrends: actionModifier.SavingThrowAdvantageTrends,
+                        canGainAdvantage: effectDescription.HasSavingThrow);
 
-                    __instance.SaveOutcome = saveOutcome;
-                    __instance.SaveOutcomeDelta = saveOutcomeDelta;
+                    yield return savingRollContext.Prompt(actingCharacter);
+
+                    using (savingRollContext.Activate())
+                    {
+                        __instance.RolledSaveThrow = rulesetEffect.TryRollSavingThrow(
+                            actingCharacter.RulesetCharacter,
+                            actingCharacter.Side,
+                            rulesetTarget,
+                            actionModifier,
+                            actualEffectForms,
+                            hasSavingThrowAnimation,
+                            out var saveOutcome,
+                            out var saveOutcomeDelta);
+
+                        __instance.SaveOutcome = saveOutcome;
+                        __instance.SaveOutcomeDelta = saveOutcomeDelta;
+                    }
 
                     if (__instance.RolledSaveThrow)
                     {

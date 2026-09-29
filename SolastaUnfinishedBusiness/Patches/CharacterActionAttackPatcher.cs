@@ -213,23 +213,31 @@ public static class CharacterActionAttackPatcher
             // Automatic hit is for Flaming Sphere, which hits automatically with a saving throw
             if (!attackMode.AutomaticHit)
             {
-                __instance.AttackRoll = rulesetCharacter.RollAttackMode(
-                    attackMode,
-                    rangeAttack,
-                    rulesetDefender,
-                    attackMode.SourceDefinition,
-                    attackModifier.AttacktoHitTrends,
-                    attackModifier.IgnoreAdvantage,
-                    attackModifier.AttackAdvantageTrends,
-                    opportunity,
-                    attackModifier.AttackRollModifier,
-                    out var outcome,
-                    out var successDelta,
-                    -1,
-                    true);
+                using var attackRollContext = new D20RollContext(rulesetCharacter, RollContext.AttackRoll,
+                    advantageTrends: attackModifier.AttackAdvantageTrends, canGainAdvantage: !attackModifier.IgnoreAdvantage);
 
-                __instance.AttackRollOutcome = outcome;
-                __instance.AttackSuccessDelta = successDelta;
+                yield return attackRollContext.Prompt(actingCharacter);
+
+                using (attackRollContext.Activate())
+                {
+                    __instance.AttackRoll = rulesetCharacter.RollAttackMode(
+                        attackMode,
+                        rangeAttack,
+                        rulesetDefender,
+                        attackMode.SourceDefinition,
+                        attackModifier.AttacktoHitTrends,
+                        attackModifier.IgnoreAdvantage,
+                        attackModifier.AttackAdvantageTrends,
+                        opportunity,
+                        attackModifier.AttackRollModifier,
+                        out var outcome,
+                        out var successDelta,
+                        -1,
+                        true);
+
+                    __instance.AttackRollOutcome = outcome;
+                    __instance.AttackSuccessDelta = successDelta;
+                }
             }
             else
             {
@@ -542,16 +550,25 @@ public static class CharacterActionAttackPatcher
                     var hasBorrowedLuck = rulesetDefender.HasConditionOfTypeOrSubType(ConditionBorrowedLuck);
 
                     // These bool information must be store as a class member, as it is passed to HandleFailedSavingThrow
-                    __instance.RolledSaveThrow = attackMode.TryRollSavingThrow(
-                        rulesetCharacter,
-                        rulesetDefender,
-                        attackModifier,
-                        __instance.actualEffectForms,
-                        out var saveOutcome,
-                        out var saveOutcomeDelta);
+                    using var savingRollContext = new D20RollContext(rulesetDefender as RulesetCharacter, RollContext.SavingThrow,
+                        attackMode.EffectDescription.SavingThrowAbility, advantageTrends: attackModifier.SavingThrowAdvantageTrends,
+                        canGainAdvantage: attackMode.EffectDescription.HasSavingThrow);
 
-                    __instance.SaveOutcome = saveOutcome;
-                    __instance.SaveOutcomeDelta = saveOutcomeDelta;
+                    yield return savingRollContext.Prompt(actingCharacter);
+
+                    using (savingRollContext.Activate())
+                    {
+                        __instance.RolledSaveThrow = attackMode.TryRollSavingThrow(
+                            rulesetCharacter,
+                            rulesetDefender,
+                            attackModifier,
+                            __instance.actualEffectForms,
+                            out var saveOutcome,
+                            out var saveOutcomeDelta);
+
+                        __instance.SaveOutcome = saveOutcome;
+                        __instance.SaveOutcomeDelta = saveOutcomeDelta;
+                    }
 
                     if (__instance.RolledSaveThrow)
                     {

@@ -330,7 +330,8 @@ public static class RulesetImplementationManagerPatcher
             int damage;
 
             if (rulesetCharacter != null &&
-                Tabletop2024Context.CanApplySavageAttacker2024(rulesetCharacter, attackModeDamage))
+                Tabletop2024Context.CanApplySavageAttacker2024(
+                    rulesetCharacter, attackModeDamage, damageForm, formsParams.actionModifier))
             {
                 var originalBonusDamage = damageForm.bonusDamage;
                 var firstRolledValues = new List<int>();

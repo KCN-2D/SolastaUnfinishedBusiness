@@ -175,6 +175,12 @@ public static class CharacterReactionItemPatcher
 
             item.ReleaseAddressableSprite(item.resourceCostSprite);
             item.resourceCostSprite = item.LoadAddressableSprite(resource.Icon);
+
+            // Some resources have no icon. Keep their values visible without an empty image.
+            var iconAlpha = item.resourceCostSprite ? 1 : 0;
+            item.remainingResourceImage.canvasRenderer.SetAlpha(iconAlpha);
+            item.resourceCostImage.canvasRenderer.SetAlpha(iconAlpha);
+
             item.remainingResourceGroup.gameObject.SetActive(true);
             item.remainingResourceImage.sprite = item.resourceCostSprite;
             item.remainingResourceValue.Text = resource.GetUses(item.guiCharacter.rulesetCharacter);
