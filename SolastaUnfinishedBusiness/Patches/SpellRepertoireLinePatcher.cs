@@ -49,6 +49,7 @@ public static class SpellRepertoireLinePatcher
             // Filter the display result; callers can pass the character's actual KnownCantrips list.
             __instance.relevantSpells.RemoveAll(spell =>
                 spell.ActivationTime is ActivationTime.Reaction or ActivationTime.OnAttackHit);
+            ActionPanelContext.FilterFamiliarTouchSpells(__instance);
             __instance.relevantSpells.Sort(__instance);
         }
     }

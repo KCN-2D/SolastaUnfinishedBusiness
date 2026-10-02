@@ -1481,6 +1481,7 @@ public static class CharacterBuildingManagerPatcher
 
             //PATCH: grants spell repertoires and respective selected spells from feats
             LevelUpHelper.GrantSpellsOrCantripsFromFeatCastSpell(__instance, hero);
+            LevelUpHelper.FinalizeFeatSpellReplacements(hero);
 
             //PATCH: keeps spell repertoires sorted by class title but ancestry one is always kept first
             LevelUpHelper.SortHeroRepertoires(hero);
@@ -1892,6 +1893,89 @@ public static class CharacterBuildingManagerPatcher
         }
     }
 
+    // Replacement pools use the ordinary building commands, including their multiplayer acknowledgement path.
+    [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.AcquireSpell))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class AcquireSpell_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterHeroBuildingData heroBuildingData, SpellDefinition spell, string tag)
+        {
+            var replacement = LevelUpHelper.GetFeatSpellReplacement(heroBuildingData, tag);
+            return replacement == null || !replacement.GetSelected(heroBuildingData).Contains(spell) &&
+                replacement.CanSelect(heroBuildingData, spell);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.AcquireCantrip))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class AcquireCantrip_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterHeroBuildingData heroBuildingData, SpellDefinition spell, string tag)
+        {
+            return AcquireSpell_Patch.Prefix(heroBuildingData, spell, tag);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.UnacquireSpell))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class UnacquireSpell_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterHeroBuildingData heroBuildingData, SpellDefinition spell, string tag)
+        {
+            var replacement = LevelUpHelper.GetFeatSpellReplacement(heroBuildingData, tag);
+            return replacement == null || replacement.GetSelected(heroBuildingData).Contains(spell);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.UnacquireCantrip))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class UnacquireCantrip_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterHeroBuildingData heroBuildingData, SpellDefinition spell, string tag)
+        {
+            return UnacquireSpell_Patch.Prefix(heroBuildingData, spell, tag);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.UnacquireCantripsOrSpells))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class UnacquireCantripsOrSpells_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterHeroBuildingData heroBuildingData, string tag)
+        {
+            var replacement = LevelUpHelper.GetFeatSpellReplacement(heroBuildingData, tag);
+            if (replacement == null)
+            {
+                return true;
+            }
+
+            replacement.Reset(heroBuildingData);
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.AutoAcquireSpells))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class AutoAcquireSpells_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterHeroBuildingData heroBuildingData, string spellTag)
+        {
+            return UnacquireCantripsOrSpells_Patch.Prefix(heroBuildingData, spellTag);
+        }
+    }
+
     [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.EnumerateKnownAndAcquiredSpells))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -1920,6 +2004,12 @@ public static class CharacterBuildingManagerPatcher
             ref FeatureDefinitionCastSpell __result)
         {
             var hero = heroBuildingData.HeroCharacter;
+            var replacement = LevelUpHelper.GetFeatSpellReplacement(heroBuildingData, tag);
+            if (replacement != null)
+            {
+                __result = replacement.DisplayFeature;
+                return false;
+            }
 
             //PATCH: support cast spell granted from feat
             foreach (var featureDefinitionCastSpell in heroBuildingData.levelupTrainedFeats.SelectMany(x =>
@@ -2134,6 +2224,8 @@ public static class CharacterBuildingManagerPatcher
                 }
             }
 
+            LevelUpHelper.EnsureFeatSpellReplacementPools(__instance, heroBuildingData);
+
             return false;
         }
     }
@@ -2164,13 +2256,14 @@ public static class CharacterBuildingManagerPatcher
 
             //PATCH: fixes being able to select feats from same family when more than 1 feat selection is possible aat same time
             //vanilla code doesn't check if we already have selected feats from same family
-            if (!__result || !feat.HasFamilyTag || string.IsNullOrEmpty(feat.FamilyTag))
+            var family = Tabletop2024Context.GetEffectiveFeatFamily(feat);
+            if (!__result || string.IsNullOrEmpty(family))
             {
                 return;
             }
 
             if (!heroBuildingData.levelupTrainedFeats.Any(pair =>
-                    pair.Value.Any(f => f.HasFamilyTag && f.FamilyTag == feat.FamilyTag)))
+                    pair.Value.Any(f => Tabletop2024Context.GetEffectiveFeatFamily(f) == family)))
             {
                 return;
             }
@@ -2371,16 +2464,20 @@ public static class CharacterBuildingManagerPatcher
             {
                 feat = pendingFeat;
             }
-            else if (Tabletop2024Context.TryGetHumanOriginFeatToTrain(hero, tag, out var humanOriginFeat))
+            else if (Tabletop2024Context.TryGetHumanOriginFeatToTrain(hero, tag, out var humanOriginFeat) &&
+                     Tabletop2024Context.TryResolveTrainableModeAwareFeat(
+                         humanOriginFeat, out var trainableHumanOriginFeat))
             {
-                feat = humanOriginFeat;
+                feat = trainableHumanOriginFeat;
             }
             else if (Tabletop2024Context.TryGetSingleOriginRestrictedFeatDefinition(
                          heroBuildingData,
                          tag,
-                         out var backgroundOriginFeat))
+                         out var backgroundOriginFeat) &&
+                     Tabletop2024Context.TryResolveTrainableModeAwareFeat(
+                         backgroundOriginFeat, out var trainableBackgroundOriginFeat))
             {
-                feat = backgroundOriginFeat;
+                feat = trainableBackgroundOriginFeat;
             }
 
             if (feat != null &&

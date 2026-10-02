@@ -8,8 +8,8 @@ using static SolastaUnfinishedBusiness.Models.SpellCastingResourceContext;
 
 namespace SolastaUnfinishedBusiness.Models;
 
-// Display-only repertoires keep free Wizard casts in the same native columns as innate spells.
-// They are never attached to a character or serialized; all casts resolve back to their real owner.
+// Display-only repertoires expose independent free Wizard uses in native columns.
+// They are never attached to a character or serialized; casts resolve to real source and resource owners.
 internal static class SpellSelectionContext
 {
     private static readonly ConditionalWeakTable<RulesetSpellRepertoire, ResourceOption> Views = new();
@@ -34,7 +34,7 @@ internal static class SpellSelectionContext
 
     internal static RulesetSpellRepertoire Resolve(RulesetSpellRepertoire repertoire)
     {
-        return TryGetOption(repertoire, out var option) ? option.Repertoire : repertoire;
+        return TryGetOption(repertoire, out var option) ? option.CastingRepertoire : repertoire;
     }
 
     internal static List<RulesetSpellRepertoire> GetRepertoires(RulesetCharacter caster)
@@ -81,8 +81,9 @@ internal static class SpellSelectionContext
             spellCastingLevel = owner.SpellCastingLevel,
             CharacterInventory = owner.CharacterInventory,
             CharacterName = owner.CharacterName,
-            spellAttackBonus = owner.SpellAttackBonus,
-            saveDC = owner.SaveDC
+            spellAttackBonus = option.CastingRepertoire.SpellAttackBonus,
+            saveDC = option.CastingRepertoire.SaveDC,
+            formAbilityBonus = option.CastingRepertoire.FormAbilityBonus
         };
 
         view.KnownSpells.Add(option.Spell);
@@ -96,7 +97,9 @@ internal static class SpellSelectionContext
     {
         if (TryGetOption(repertoire, out var view))
         {
-            return view;
+            return view.IsFree
+                ? view
+                : view.AtLevel(GetBaseSelection(caster, view.Repertoire, spell).SlotLevel);
         }
 
         var level = spell.SpellLevel;
@@ -122,36 +125,46 @@ internal static class SpellSelectionContext
             level = repertoire.GetLowestAvailableSlotLevel();
         }
 
-        return GetSelection(repertoire, spell, level);
+        return GetSelection(repertoire, spell, level, caster);
     }
 
     internal static ResourceOption GetSelection(
-        RulesetSpellRepertoire repertoire, SpellDefinition spell, int level)
+        RulesetSpellRepertoire repertoire, SpellDefinition spell, int level, RulesetCharacter caster = null)
     {
-        if (TryGetOption(repertoire, out var free))
+        if (TryGetOption(repertoire, out var option))
         {
-            return free;
+            return option.IsFree ? option : option.AtLevel(level);
         }
 
         var kind = SpellSlotCastingLimit2024Context.IsFreeUseRepertoire(repertoire)
             ? ResourceKind.FreeRepertoire
             : ResourceKind.SpellSlot;
-        return new ResourceOption(repertoire, spell, level, kind);
+        return kind == ResourceKind.SpellSlot
+            ? GetSlotSelection(repertoire, spell, level, caster)
+            : new ResourceOption(repertoire, spell, level, kind);
     }
 
     internal static void GetViewSlots(ResourceOption option, int level, out int remaining, out int maximum)
     {
         remaining = maximum = 0;
-        if (option.SlotLevel != level)
+        if (option.IsFree && option.SlotLevel != level || level < option.Spell.SpellLevel)
         {
             return;
         }
 
-        option.GetUses(option.Repertoire.GetCaster(), out remaining, out maximum);
+        option = option.IsFree ? option : option.AtLevel(level);
+        var caster = option.CastingRepertoire.GetCaster();
+        option.GetUses(caster, out remaining, out maximum);
+        if (!option.IsAvailable(caster))
+        {
+            remaining = 0;
+        }
+
         // Native counters need finite capacities. The native infinity indicator is bound separately.
         if (maximum < 0)
         {
-            remaining = maximum = 1;
+            maximum = 1;
+            remaining = remaining < 0 ? 1 : remaining;
         }
     }
 }

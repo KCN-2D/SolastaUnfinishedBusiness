@@ -1268,12 +1268,10 @@ internal static partial class SpellBuilders
 
             var dragonbornBreathPower = powers.First(
                 x => x.EffectDescription.FindFirstDamageFormOfType([damageType]) != null);
-            var dmgStr = Gui.Localize($"Tooltip/&Tag{damageType}Title");
-            var title = Gui.Format($"Feature/&Power{NAME}Title", dmgStr);
-            var description = Gui.Format($"Feature/&Power{NAME}Description", dmgStr);
             var powerBreathAttack = FeatureDefinitionPowerBuilder
                 .Create($"Power{NAME}{damageType}")
-                .SetGuiPresentation(title, description, dragonbornBreathPower.GuiPresentation.SpriteReference)
+                .SetGuiPresentation($"Power{NAME}", Category.Feature,
+                    dragonbornBreathPower.GuiPresentation.SpriteReference)
                 .SetUsesFixed(ActivationTime.Action)
                 .SetEffectDescription(EffectDescriptionBuilder.Create()
                     .SetTargetingData(Side.All, RangeType.Self, 1, TargetType.Cone, 3)
@@ -1289,30 +1287,35 @@ internal static partial class SpellBuilders
                     .SetParticleEffectParameters(dragonbornBreathPower)
                     .SetAnimationMagicEffect(dragonbornBreathPower.EffectDescription.AnimationMagicEffect)
                     .Build())
+                .AddCustomSubFeatures(new FormattedDefinitionText(
+                    title: () => Gui.Format($"Feature/&Power{NAME}Title",
+                        Gui.Localize($"Tooltip/&Tag{damageType}Title")),
+                    description: () => Gui.Format($"Feature/&Power{NAME}Description",
+                        Gui.Localize($"Tooltip/&Tag{damageType}Title"))))
                 .AddToDB();
-
-            description = Gui.Format($"Condition/&Condition{NAME}Description", dmgStr);
 
             var conditionDragonsBreath = ConditionDefinitionBuilder
                 .Create($"Condition{NAME}{damageType}")
-                .SetGuiPresentation($"Condition{NAME}", Category.Condition, description,
+                .SetGuiPresentation($"Condition{NAME}", Category.Condition,
                     ConditionSorcererDraconicElementalResistance.GuiPresentation.SpriteReference)
                 .SetPossessive()
                 .SetConditionType(ConditionType.Beneficial)
                 .AddFeatures(powerBreathAttack)
                 .SetConditionParticleReference(dragonbornBreathPower)
-                .AddCustomSubFeatures(AddUsablePowersFromCondition.Marker)
+                .AddCustomSubFeatures(
+                    AddUsablePowersFromCondition.Marker,
+                    new FormattedDefinitionText(description: () => Gui.Format(
+                        $"Condition/&Condition{NAME}Description",
+                        Gui.Localize($"Tooltip/&Tag{damageType}Title"))))
                 .AddToDB();
 
             powerBreathAttack.AddCustomSubFeatures(
                 new ModifySaveDCDragonsBreath(conditionDragonsBreath, powerBreathAttack));
 
-            title = Gui.Localize($"Tooltip/&Tag{damageType}Title");
-            description = Gui.Format($"Spell/&SubSpell{NAME}Description", title);
-
             var spell = SpellDefinitionBuilder
                 .Create(NAME + damageType)
-                .SetGuiPresentation(title, description, dragonbornBreathPower.GuiPresentation.SpriteReference)
+                .SetGuiPresentation($"Tooltip/&Tag{damageType}Title", $"Spell/&SubSpell{NAME}Description",
+                    dragonbornBreathPower.GuiPresentation.SpriteReference)
                 .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolTransmutation)
                 .SetSpellLevel(2)
                 .SetCastingTime(ActivationTime.BonusAction)
@@ -1329,7 +1332,11 @@ internal static partial class SpellBuilders
                     .SetCasterEffectParameters(Heroism)
                     .SetParticleEffectParameters(magicEffect)
                     .Build())
-                .AddCustomSubFeatures(new PowerOrSpellFinishedByMeDragonsBreath(conditionDragonsBreath))
+                .AddCustomSubFeatures(
+                    new PowerOrSpellFinishedByMeDragonsBreath(conditionDragonsBreath),
+                    new FormattedDefinitionText(description: () => Gui.Format(
+                        $"Spell/&SubSpell{NAME}Description",
+                        Gui.Localize($"Tooltip/&Tag{damageType}Title"))))
                 .AddToDB();
 
             subSpells.Add(spell);

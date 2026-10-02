@@ -860,6 +860,27 @@ public static class GameLocationCharacterPatcher
         }
     }
 
+    [HarmonyPatch(typeof(GameLocationCharacter), nameof(GameLocationCharacter.ApplyTimeLapse))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ApplyTimeLapse_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GameLocationCharacter __instance, int __0)
+        {
+            if (__0 <= 0 || __instance.RulesetCharacter == null || __instance.ReactionEngaged ||
+                __instance.CurrentActionRankByType[ActionType.Reaction] <= 0 ||
+                ServiceRepository.GetService<IGameLocationBattleService>() is not { IsBattleInProgress: false })
+            {
+                return;
+            }
+
+            // Exploration advances effects every real-time round, but native only resets reaction
+            // uses on battle turns. Directly spent reactions need the same recovery during exploration.
+            __instance.RefundActionUse(ActionType.Reaction);
+        }
+    }
+
     [HarmonyPatch(typeof(GameLocationCharacter), nameof(GameLocationCharacter.RefundActionUse))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

@@ -6,6 +6,8 @@ Feedback/&AdditionalDamageCripplingFormat=致残伤害！
 Feedback/&AdditionalDamageCripplingLine={1} 遭受致残伤害。
 Feedback/&AdditionalDamageExecutionerFormat=处决！
 Feedback/&AdditionalDamageExecutionerLine={0} 处决了 {1}，造成 +{2} 点额外伤害！
+Feedback/&AdditionalDamageThrownWeaponFightingFormat=投掷武器战斗
+Feedback/&AdditionalDamageThrownWeaponFightingLine={0}通过投掷武器战斗对{1}造成+{2}点伤害。
 FightingStyle/&AstralReachDescription=只要你的双手空着，你的徒手攻击距离便会增加 5 尺。
 FightingStyle/&AstralReachTitle=星界触及
 FightingStyle/&BlessedWarriorDescription=你从牧师法术列表中习得两道自选戏法。它们对你视作圣武士法术，且这些法术的施法属性为魅力。
@@ -38,6 +40,8 @@ FightingStyle/&SentinelDescription=你已掌握趁敌防御松懈时出击的技
 FightingStyle/&SentinelTitle=哨兵
 FightingStyle/&ShieldExpertDescription=你可以以附赠动作用你的盾牌猛击一名生物，暂时将其视为你擅长的一种特殊临时武器。对距离你 5 尺内的一名生物进行一次近战武器攻击，攻击检定使用你的力量调整值。如果命中，该生物将受到 1d4 + 你的力量调整值 点钝击伤害。
 FightingStyle/&ShieldExpertTitle=盾击
+FightingStyle/&ThrownWeaponFightingDescription=当你使用具有投掷属性的武器进行远程攻击并命中时，该次伤害掷骰获得+2加值。
+FightingStyle/&ThrownWeaponFightingTitle=投掷武器战斗
 FightingStyle/&TorchbearerDescription=你擅长在战斗中运用火把。每回合一次，作为一个附赠动作，你可以选择使用你装备的光源，尝试点燃一名你能够触及的敌人。目标必须通过一次敏捷豁免（DC = 8 + 你的熟练加值 + 你的敏捷调整值），否则将在每轮承受 1d4 点火焰伤害，持续 1 分钟（10 回合）或直到火焰被熄灭。
 FightingStyle/&TorchbearerTitle=火炬手
 FightingStyle/&ZenArcherDescription=当你使用弓时，你的直觉会引导你的出手。你的感知 +1（最高 20）。你可以用感知调整值替代敏捷调整值，来进行这些武器的攻击和伤害检定。

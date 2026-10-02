@@ -121,16 +121,27 @@ public static class GameLocationCharacterManagerPatcher
         }
     }
 
-    [HarmonyPatch(typeof(GameLocationCharacterManager), nameof(GameLocationCharacterManager.RestoreSummonedGuests))]
+    [HarmonyPatch]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
     public static class RestoreSummonedGuests_Patch
     {
         [UsedImplicitly]
+        private static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(GameLocationCharacterManager),
+                nameof(GameLocationCharacterManager.RestoreSummonedGuests));
+            yield return AccessTools.Method(typeof(GameLocationCharacterManager),
+                nameof(GameLocationCharacterManager.PostLoadPostSectors));
+        }
+
+        [UsedImplicitly]
         public static void Postfix(GameLocationCharacterManager __instance)
         {
             SimulacrumBehavior.FlushDeferredCleanup();
 
+            // Party setup restores inactive guests; save loading restores active effects
+            // in PostLoadPostSectors. Both paths need the same idempotent reconciliation.
             var restorationHandlers = __instance.GuestCharacters
                 .Union(__instance.PartyCharacters)
                 .SelectMany(character => character.RulesetCharacter

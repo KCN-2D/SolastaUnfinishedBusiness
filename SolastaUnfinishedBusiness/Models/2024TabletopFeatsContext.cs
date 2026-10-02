@@ -106,12 +106,16 @@ public static partial class Tabletop2024Context
     private const string LightlyArmored2024Family = "LightlyArmored2024";
     private const string LegacyGreatWeaponMasterFeatName = "FeatCleavingAttack";
     private const string GiftOfTheChromaticDragonFeatName = "FeatGiftOfTheChromaticDragon";
+    private const string GiftOfTheMetallicDragonGroupFeatName = "FeatGroupGiftOfTheMetallicDragon";
     private const string GreatWeaponMaster2024FeatName = "FeatGreatWeaponMaster2024";
     private const string LegacyGreatWeaponMaster2024SettingName = "FeatCleavingAttack2024";
     private const string GreatWeaponMaster2024FinishConditionName = "ConditionFeatGreatWeaponMaster2024Finish";
     private const string GreatWeaponMaster2024NotificationTag = "GreatWeaponMaster2024";
-    private const string MagicInitiate2024Family = "FeatMagicInitiate";
     private const string MagicInitiate2024SpellTag = "MagicInitiate2024";
+    private const string MagicConnoisseur2024GroupFeatName = "FeatGroupMagicConnoisseur2024";
+    private const string MagicConnoisseur2024SpellTag = "MagicConnoisseur2024";
+    private static readonly Dictionary<FeatureDefinitionCastSpell, string> MagicConnoisseur2024CastingClasses = [];
+    private static readonly Dictionary<string, string> MagicConnoisseur2024SelectionTags = [];
     private static readonly string[] MagicInitiate2024SpellcastingAbilities =
     [
         AttributeDefinitions.Intelligence,
@@ -454,10 +458,11 @@ public static partial class Tabletop2024Context
         "FeatGroupWeaponMaster",
         "FeatGroupWeaponMastery"
     ];
-    private static readonly HashSet<string> ManagedHalfFeatCustomVariantTitleCanonicalRoots =
+    private static readonly HashSet<string> ManagedHalfFeatCustomVariantPresentationCanonicalRoots =
     [
         SkillFeats.SkillExpertGroupName,
         "FeatGroupElementalAdept",
+        GiftOfTheMetallicDragonGroupFeatName,
         KeenMind2024GroupFeatName,
         Observant2024GroupFeatName
     ];
@@ -508,12 +513,14 @@ public static partial class Tabletop2024Context
     private static FeatDefinition _featGroupFeyTeleport2024;
     private static FeatDefinition _featGroupFeyTouched2024;
     private static FeatDefinition _featGroupGrappler2024;
+    private static FeatDefinition _featGroupGiftOfTheMetallicDragon2024;
     private static FeatDefinition _featGroupHeavyArmorMaster2024;
     private static FeatDefinition _featGroupHeavilyArmored2024;
     private static FeatDefinition _featGroupInspiringLeader2024;
     private static FeatDefinition _featGroupLightlyArmored2024;
     private static FeatDefinition _featGroupMageSlayer2024;
     private static FeatDefinition _featGroupMagicInitiate2024;
+    private static FeatDefinition _featGroupMagicConnoisseur2024;
     private static FeatDefinition _featGroupMediumArmorMaster2024;
     private static FeatDefinition _featGroupModeratelyArmored2024;
     private static FeatDefinition _featGroupObservant2024;
@@ -529,6 +536,8 @@ public static partial class Tabletop2024Context
     private static FeatDefinition _featGroupKeenMind2024;
     private static FeatDefinition _featShieldMaster2024;
     private static readonly Dictionary<string, FeatDefinition> MagicInitiate2024ByLegacyName = [];
+    private static readonly Dictionary<string, FeatDefinition> MagicInitiate2024GroupsByLegacyName = [];
+    private static readonly HashSet<FeatureDefinitionCastSpell> LegacyMagicInitiate2024CastingFeatures = [];
 
     internal static void Load2024TabletopFeats()
     {
@@ -558,6 +567,7 @@ public static partial class Tabletop2024Context
             BuildCharger2024();
             BuildDefensiveDuelist2024();
             BuildGrappler2024();
+            BuildGiftOfTheMetallicDragon2024();
             BuildElementalAdept2024();
             BuildInspiringLeader2024();
             BuildLightlyArmored2024();
@@ -572,6 +582,7 @@ public static partial class Tabletop2024Context
             BuildHeavilyArmored2024();
             BuildFeyTeleport2024();
             BuildMagicInitiate2024();
+            BuildMagicConnoisseur2024();
             BuildRitualCaster2024();
             BuildFeyTouched2024();
             BuildShadowTouched2024();
@@ -1587,6 +1598,41 @@ public static partial class Tabletop2024Context
         GameLocationCharacter.GetFromActor(rulesetCharacter)?.UsedSpecialFeatures.TryAdd(
             SavageAttacker2024SpecialFeatureName,
             1);
+    }
+
+    private static void BuildGiftOfTheMetallicDragon2024()
+    {
+        var sourceGroup = GetDefinition<FeatDefinition>(GiftOfTheMetallicDragonGroupFeatName);
+        var sourceFeats = sourceGroup.GetFirstSubFeatureOfType<IGroupedFeat>().GetSubFeats(true);
+        var feats = sourceFeats.Select(sourceFeat =>
+            {
+                var castSpell = sourceFeat.Features.OfType<FeatureDefinitionCastSpell>().Single();
+                var attribute = castSpell.SpellcastingAbility;
+
+                var feat = Build2024SingleHalfFeat(
+                    sourceFeat,
+                    BuildIndependentTabletopName(sourceFeat.Name),
+                    GetHalfFeatAttributeModifier(attribute),
+                    sourceFeat.FamilyTag,
+                    attribute,
+                    sourceFeat.GuiPresentation.Title,
+                    sourceFeat.FormatDescription(),
+                    hideFromFeats: true,
+                    prerequisiteValue: null);
+                feat.SetSubFeatureOfType<FormattedDefinitionText>(new FormattedDefinitionText(
+                    description: () => BuildHalfFeatDescription(attribute, sourceFeat.FormatDescription())));
+
+                return feat;
+            })
+            .ToArray();
+
+        _featGroupGiftOfTheMetallicDragon2024 = BuildManagedGroupFromPrerequisiteSource(
+            BuildIndependentTabletopName(sourceGroup.Name),
+            sourceGroup.FamilyTag,
+            sourceGroup.GuiPresentation.Title,
+            "Feat/&FeatGiftOfTheMetallicDragon2024Description",
+            sourceGroup,
+            feats);
     }
 
     private static void BuildStandaloneHalfAsi2024Feats()
@@ -3140,7 +3186,7 @@ public static partial class Tabletop2024Context
                !SpellsContext.SpellsChildMaster.ContainsKey(spell);
     }
 
-    internal static bool UsesDedicatedTouchedSpellSelectionList2024(
+    internal static bool UsesDedicatedFeatSpellSelectionList2024(
         FeatureDefinitionCastSpell spellFeature,
         SpellListDefinition spellListDefinition,
         string spellTag)
@@ -3150,6 +3196,14 @@ public static partial class Tabletop2024Context
             string.IsNullOrEmpty(spellTag))
         {
             return false;
+        }
+
+        var featTag = spellFeature?.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.Name;
+        if (featTag != null && spellTag.EndsWith(featTag, StringComparison.Ordinal) &&
+            spellListDefinition == spellFeature.SpellListDefinition &&
+            (IsMagicInitiate2024SpellTagName(featTag) || MagicConnoisseur2024SelectionTags.ContainsKey(featTag)))
+        {
+            return true;
         }
 
         return IsDedicatedFeatSpellSelectionList2024(
@@ -3198,54 +3252,14 @@ public static partial class Tabletop2024Context
                 (allowMissingSpellFeature && spellFeature == null));
     }
 
-    internal static IEnumerable<(SpellDefinition Spell, string DisplayTag)> EnumerateSlotCastableTabletop2024FeatSpellsWithTags(
-        RulesetCharacter character)
-    {
-        if (!Main.Settings.EnableTabletopFeatRules2024 || character == null)
-        {
-            yield break;
-        }
-
-        foreach (var repertoire in character.SpellRepertoires)
-        {
-            var spellCastingFeature = repertoire.SpellCastingFeature;
-
-            if (!spellCastingFeature)
-            {
-                continue;
-            }
-
-            var spellTag = spellCastingFeature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>();
-
-            if (!IsSlotCastableTabletop2024FeatSpellTag(spellTag))
-            {
-                continue;
-            }
-
-            var sourceTag = GetTabletop2024FeatSpellSourceTag(spellTag.Name);
-
-            foreach (var spell in repertoire.KnownSpells)
-            {
-                yield return (spell, sourceTag);
-            }
-
-            if (!(spellTag.ForceFixedList || spellCastingFeature.SpellKnowledge == SpellKnowledge.FixedList) ||
-                !spellCastingFeature.SpellListDefinition)
-            {
-                continue;
-            }
-
-            foreach (var spell in spellCastingFeature.SpellListDefinition.SpellsByLevel
-                         .Where(x => x.Level > 0)
-                         .SelectMany(x => x.Spells))
-            {
-                yield return (spell, sourceTag);
-            }
-        }
-    }
-
     internal static string GetTabletop2024FeatSpellSelectionTag(string spellTagName)
     {
+        if (TryGetSpellSelectionTagBySuffix(
+                spellTagName, MagicConnoisseur2024SelectionTags.Keys, out var connoisseurTag))
+        {
+            return MagicConnoisseur2024SelectionTags[connoisseurTag];
+        }
+
         if (TryGetMagicInitiate2024SpellSelectionTag(spellTagName, out var selectionTag))
         {
             return selectionTag;
@@ -3262,6 +3276,11 @@ public static partial class Tabletop2024Context
     internal static string GetTabletop2024FeatSpellSourceTag(string spellTagName)
     {
         var selectionTag = GetTabletop2024FeatSpellSelectionTag(spellTagName);
+
+        if (selectionTag is MagicConnoisseur2024SpellTag + "Level1" or MagicConnoisseur2024SpellTag + "Level2")
+        {
+            return MagicConnoisseur2024SpellTag;
+        }
 
         return IsMagicInitiate2024SpellTagName(selectionTag)
             ? MagicInitiate2024SpellTag
@@ -3324,7 +3343,7 @@ public static partial class Tabletop2024Context
         return TryLocalizeTabletop2024Title(titleKey, out title);
     }
 
-    internal static bool TryGetMagicInitiate2024SpellSourceShortTitle(
+    internal static bool TryGetTabletop2024FeatSpellSourceShortTitle(
         string spellTagName,
         out string title)
     {
@@ -3334,10 +3353,18 @@ public static partial class Tabletop2024Context
 
         if (!TryGetMagicInitiate2024ClassProfile(selectionTag, out var profile))
         {
-            return false;
+            if (!TryGetSpellSelectionTagBySuffix(
+                    spellTagName, MagicConnoisseur2024SelectionTags.Keys, out var connoisseurTag))
+            {
+                return false;
+            }
+
+            profile = MagicInitiate2024ClassProfiles.FirstOrDefault(candidate =>
+                connoisseurTag.StartsWith(
+                    $"{MagicConnoisseur2024SpellTag}{candidate.ClassName}Level", StringComparison.Ordinal));
         }
 
-        title = profile.ClassHolder.Class.FormatTitle();
+        title = profile?.ClassHolder.Class.FormatTitle();
 
         return !string.IsNullOrEmpty(title);
     }
@@ -3352,49 +3379,50 @@ public static partial class Tabletop2024Context
         return profile != null;
     }
 
-    internal static bool TryGetMagicInitiate2024SpellcastingAbility(
+    internal static bool TryGetTabletop2024FeatSpellcastingAbility(
         RulesetSpellRepertoire repertoire,
-        out string ability)
+        out string ability,
+        RulesetCharacter explicitCaster = null)
     {
-        return TryGetMagicInitiate2024SpellcastingContext(repertoire, out _, out ability);
+        return TryGetTabletop2024FeatSpellcastingContext(repertoire, out _, out ability, explicitCaster);
     }
 
-    internal static bool TryGetMagicInitiate2024SaveDC(
+    internal static bool TryGetTabletop2024FeatSaveDC(
         RulesetSpellRepertoire repertoire,
         out int saveDC)
     {
         saveDC = 0;
 
-        if (!TryGetMagicInitiate2024SpellcastingContext(repertoire, out var caster, out var ability))
+        if (!TryGetTabletop2024FeatSpellcastingContext(repertoire, out var caster, out var ability))
         {
             return false;
         }
 
         saveDC = 8 +
-                 ComputeMagicInitiate2024SpellcastingBaseBonus(caster, ability) +
+                 ComputeTabletop2024FeatSpellcastingBaseBonus(caster, ability) +
                  ComputeFlatSaveDCModifier(caster);
 
         return true;
     }
 
-    internal static bool TryGetMagicInitiate2024SpellAttackBonus(
+    internal static bool TryGetTabletop2024FeatSpellAttackBonus(
         RulesetSpellRepertoire repertoire,
         out int spellAttackBonus)
     {
         spellAttackBonus = 0;
 
-        if (!TryGetMagicInitiate2024SpellcastingContext(repertoire, out var caster, out var ability))
+        if (!TryGetTabletop2024FeatSpellcastingContext(repertoire, out var caster, out var ability))
         {
             return false;
         }
 
-        spellAttackBonus = ComputeMagicInitiate2024SpellcastingBaseBonus(caster, ability) +
+        spellAttackBonus = ComputeTabletop2024FeatSpellcastingBaseBonus(caster, ability) +
                            ComputeFlatSpellAttackModifier(caster);
 
         return true;
     }
 
-    private static int ComputeMagicInitiate2024SpellcastingBaseBonus(
+    private static int ComputeTabletop2024FeatSpellcastingBaseBonus(
         RulesetCharacter caster,
         string ability)
     {
@@ -3419,32 +3447,48 @@ public static partial class Tabletop2024Context
             .Sum(x => x.SpellAttackModifier);
     }
 
-    private static bool TryGetMagicInitiate2024SpellcastingContext(
+    private static bool TryGetTabletop2024FeatSpellcastingContext(
         RulesetSpellRepertoire repertoire,
         out RulesetCharacter caster,
-        out string ability)
+        out string ability,
+        RulesetCharacter explicitCaster = null)
     {
         caster = null;
         ability = null;
 
-        var spellTag = repertoire?.SpellCastingFeature?
-            .GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.Name;
-
-        if (!Main.Settings.EnableTabletopFeatRules2024 ||
-            !IsMagicInitiate2024SpellTagName(spellTag) ||
-            repertoire.GetCaster() is not { } repertoireCaster)
+        if (repertoire?.SpellCastingFeature == null)
         {
             return false;
         }
 
-        if (!TryGetMagicInitiate2024BestSpellcastingAbility(repertoireCaster, out ability))
+        var feature = repertoire.SpellCastingFeature;
+        var repertoireCaster = explicitCaster ?? repertoire.GetCaster();
+        if (MagicConnoisseur2024CastingClasses.TryGetValue(feature, out var className))
+        {
+            feature = GetMagicInitiateCastingFeature(repertoireCaster, className);
+            if (feature == null)
+            {
+                return false;
+            }
+
+            ability = feature.SpellcastingAbility;
+        }
+        else if (!Main.Settings.EnableTabletopFeatRules2024 ||
+                 !LegacyMagicInitiate2024CastingFeatures.Contains(feature))
+        {
+            return false;
+        }
+
+        if (Main.Settings.EnableTabletopFeatRules2024 &&
+            LegacyMagicInitiate2024CastingFeatures.Contains(feature) &&
+            !TryGetMagicInitiate2024BestSpellcastingAbility(repertoireCaster, out ability))
         {
             return false;
         }
 
         caster = repertoireCaster;
 
-        return true;
+        return caster != null && !string.IsNullOrEmpty(ability);
     }
 
     private static bool TryGetMagicInitiate2024BestSpellcastingAbility(
@@ -3501,9 +3545,9 @@ public static partial class Tabletop2024Context
         return true;
     }
 
-    private static bool IsSlotCastableTabletop2024FeatSpellTag(FeatHelpers.SpellTag spellTag)
+    internal static bool IsSlotCastableTabletop2024FeatSpellTag(FeatHelpers.SpellTag spellTag)
     {
-        if (spellTag == null)
+        if (!Main.Settings.EnableTabletopFeatRules2024 || spellTag == null)
         {
             return false;
         }
@@ -3535,13 +3579,6 @@ public static partial class Tabletop2024Context
     private static bool IsSelectableMagicInitiate2024Class(string className)
     {
         return !string.IsNullOrEmpty(className) && SelectableMagicInitiate2024ClassNames.Contains(className);
-    }
-
-    private static bool IsSelectableMagicInitiate2024LegacyFeatName(string featName)
-    {
-        return MagicInitiate2024ClassProfiles.Any(profile =>
-            IsSelectableMagicInitiate2024Class(profile.ClassName) &&
-            GetMagicInitiate2024LegacyFeatName(profile.ClassName) == featName);
     }
 
     private static bool TryGetMagicInitiate2024SpellSelectionTag(string tag, out string selectionTag)
@@ -3592,10 +3629,10 @@ public static partial class Tabletop2024Context
     private static void BuildMagicInitiate2024()
     {
         MagicInitiate2024ByLegacyName.Clear();
+        MagicInitiate2024GroupsByLegacyName.Clear();
+        LegacyMagicInitiate2024CastingFeatures.Clear();
 
-        var magicInitiateFeats = new List<FeatDefinition>();
-        var groupTitle = Gui.Localize("Feat/&FeatGroupMagicInitiateTitle");
-        var groupDescription = Gui.Localize("Feat/&FeatGroupMagicInitiate2024Description");
+        var magicInitiateGroups = new List<FeatDefinition>();
 
         foreach (var profile in MagicInitiate2024ClassProfiles)
         {
@@ -3603,28 +3640,43 @@ public static partial class Tabletop2024Context
             var classHolder = profile.ClassHolder;
             var spellList = castSpell.SpellListDefinition;
             var className = profile.ClassName;
-            var classTitle = classHolder.Class.FormatTitle();
             var legacyFeatName = GetMagicInitiate2024LegacyFeatName(className);
             var featName = GetMagicInitiate2024FeatName(className);
             var spellTag = GetMagicInitiate2024SpellTag(className);
-            var description = Gui.Format("Feat/&FeatMagicInitiate2024Description", classTitle);
-            var featureDefinitionCastSpell = FeatureDefinitionCastSpellBuilder
-                .Create(castSpell, $"CastSpell{featName}")
-                .SetGuiPresentation(
-                    Gui.Localize("Feature/&CastSpellFeatMagicInitiateTitle"),
-                    description)
-                .SetSpellCastingOrigin(FeatureDefinitionCastSpell.CastingOrigin.Race)
-                .SetSpellKnowledge(SpellKnowledge.Selection)
-                .SetSpellReadyness(SpellReadyness.AllKnown)
-                .SetSlotsRecharge(RechargeRate.LongRest)
-                .SetSlotsPerLevel(SharedSpellsContext.InitiateCastingSlots)
-                .SetKnownCantrips(2, 1, FeatureDefinitionCastSpellBuilder.CasterProgression.Flat)
-                .SetKnownSpells(1, FeatureDefinitionCastSpellBuilder.CasterProgression.Flat)
-                .SetReplacedSpells(1, 0)
-                .SetUniqueLevelSlots(false)
-                .SetSpellList(spellList)
-                .AddCustomSubFeatures(new FeatHelpers.SpellTag(spellTag), classHolder)
-                .AddToDB();
+            var family = GetMagicInitiate2024FamilyTag(className);
+
+            string FormatTitle() => Gui.Format("Feat/&FeatMagicInitiateTitle", classHolder.Class.FormatTitle());
+            string FormatGroupTitle() => Gui.Format(
+                "Feat/&GeneralFeat2024VariantTitle",
+                Gui.Localize("Feat/&FeatGroupMagicInitiateTitle"), classHolder.Class.FormatTitle());
+            string FormatLegacyDescription() => Gui.Format(
+                "Feat/&FeatMagicInitiate2024LegacyDescription", classHolder.Class.FormatTitle());
+            string FormatGroupDescription() => Gui.Format(
+                "Feat/&FeatMagicInitiate2024Description", classHolder.Class.FormatTitle());
+
+            FeatureDefinitionCastSpell BuildCastingFeature(string name, string ability, Func<string> description)
+            {
+                return FeatureDefinitionCastSpellBuilder
+                    .Create(castSpell, $"CastSpell{name}")
+                    .SetGuiPresentation("Feature/&CastSpellFeatMagicInitiateTitle", description())
+                    .SetSpellCastingOrigin(FeatureDefinitionCastSpell.CastingOrigin.Race)
+                    .SetSpellCastingAbility(ability)
+                    .SetSpellKnowledge(SpellKnowledge.Selection)
+                    .SetSpellReadyness(SpellReadyness.AllKnown)
+                    .SetSlotsRecharge(RechargeRate.LongRest)
+                    .SetSlotsPerLevel(SharedSpellsContext.InitiateCastingSlots)
+                    .SetKnownCantrips(2, 1, FeatureDefinitionCastSpellBuilder.CasterProgression.Flat)
+                    .SetKnownSpells(1, FeatureDefinitionCastSpellBuilder.CasterProgression.Flat)
+                    .SetReplacedSpells(1, 0)
+                    .SetUniqueLevelSlots(false)
+                    .SetSpellList(spellList)
+                    .AddCustomSubFeatures(
+                        new FeatHelpers.SpellTag(spellTag),
+                        classHolder,
+                        new FormattedDefinitionText(description: description))
+                    .AddToDB();
+            }
+
             var cantripPool = FeatureDefinitionPointPoolBuilder
                 .Create($"PointPool{featName}Cantrip")
                 .SetGuiPresentationNoContent(true)
@@ -3645,34 +3697,226 @@ public static partial class Tabletop2024Context
                     1,
                     1)
                 .AddToDB();
-            var feat = FeatDefinitionBuilder
+
+            // Saved feats retain their casting definition and highest-ability behavior until retrained.
+            var legacyCasting = BuildCastingFeature(featName, castSpell.SpellcastingAbility, FormatLegacyDescription);
+            var legacyFeat = FeatDefinitionBuilder
                 .Create(featName)
-                .SetGuiPresentation(
-                    Gui.Format("Feat/&FeatMagicInitiateTitle", classTitle),
-                    description,
-                    hidden: false)
-                .SetFeatures(featureDefinitionCastSpell, cantripPool, spellPool)
-                .SetFeatFamily(GetMagicInitiate2024FamilyTag(className))
-                .AddCustomSubFeatures(FeatsContext.HideFromFeats.Marker)
+                .SetGuiPresentation(FormatTitle(), FormatLegacyDescription(), hidden: false)
+                .SetFeatures(legacyCasting, cantripPool, spellPool)
+                .SetFeatFamily(family)
+                .AddCustomSubFeatures(
+                    FeatsContext.HideFromFeats.Marker,
+                    new FormattedDefinitionText(FormatTitle, FormatLegacyDescription))
                 .AddToDB();
 
-            if (IsSelectableMagicInitiate2024Class(className))
+            legacyFeat.AddCustomSubFeatures(new FeatHelpers.SpellReplacementOnLevelUp(
+                () => Main.Settings.EnableTabletopFeatRules2024, legacyCasting));
+            MagicInitiate2024ByLegacyName[legacyFeatName] = legacyFeat;
+            LegacyMagicInitiate2024CastingFeatures.Add(legacyCasting);
+
+            if (!IsSelectableMagicInitiate2024Class(className))
             {
-                magicInitiateFeats.Add(feat);
+                continue;
             }
 
-            MagicInitiate2024ByLegacyName[legacyFeatName] = feat;
+            var abilityFeats = new List<FeatDefinition>();
+
+            foreach (var ability in MagicInitiate2024SpellcastingAbilities)
+            {
+                var abilityFeatName = $"{featName}{ability}";
+                string FormatAbilityTitle() => Gui.Format(
+                    "Feat/&GeneralFeat2024VariantTitle2",
+                    Gui.Localize("Feat/&FeatGroupMagicInitiateTitle"),
+                    classHolder.Class.FormatTitle(), GetAttributeTitle(ability));
+                string FormatAbilityDescription() => Gui.Format(
+                    "Feat/&FeatMagicInitiate2024AbilityDescription",
+                    classHolder.Class.FormatTitle(), GetAttributeTitle(ability));
+
+                var abilityCasting = BuildCastingFeature(abilityFeatName, ability, FormatAbilityDescription);
+                abilityFeats.Add(FeatDefinitionBuilder
+                    .Create(abilityFeatName)
+                    .SetGuiPresentation(FormatAbilityTitle(), FormatAbilityDescription(), hidden: false)
+                    .SetFeatures(
+                        abilityCasting,
+                        cantripPool,
+                        spellPool)
+                    .SetFeatFamily(family)
+                    .AddCustomSubFeatures(
+                        FeatsContext.HideFromFeats.Marker,
+                        new FormattedDefinitionText(FormatAbilityTitle, FormatAbilityDescription),
+                        new FeatHelpers.SpellReplacementOnLevelUp(
+                            () => Main.Settings.EnableTabletopFeatRules2024, abilityCasting))
+                    .AddToDB());
+            }
+
+            var group = BuildManagedGroup(
+                $"FeatGroupMagicInitiate{className}2024", family, FormatGroupTitle(), FormatGroupDescription(), abilityFeats,
+                registerForSettings: false);
+            group.AddCustomSubFeatures(new FormattedDefinitionText(FormatGroupTitle, FormatGroupDescription));
+            magicInitiateGroups.Add(group);
+            MagicInitiate2024GroupsByLegacyName[legacyFeatName] = group;
         }
 
         _featGroupMagicInitiate2024 = BuildManagedGroup(
             "FeatGroupMagicInitiate2024",
-            MagicInitiate2024Family,
-            groupTitle,
-            groupDescription,
-            magicInitiateFeats);
+            null,
+            "Feat/&FeatGroupMagicInitiateTitle",
+            "Feat/&FeatGroupMagicInitiate2024Description",
+            magicInitiateGroups);
 
         SetFeatVisibility(_featGroupMagicInitiate2024, false);
         RegisterManagedTabletopFeats(true, _featGroupMagicInitiate2024);
+    }
+
+    private static FeatureDefinitionCastSpell GetMagicInitiateCastingFeature(
+        RulesetCharacter character,
+        string className)
+    {
+        var owner = character.GetFeatureOwnerOrSelf() ?? character;
+        if (owner == null)
+        {
+            return null;
+        }
+
+        var tag = GetMagicInitiate2024SpellTag(className);
+        TryGetReservedHeroBuildingData(owner as RulesetCharacterHero, out var buildingData);
+        var feats = SimulacrumBehavior.EnumerateTrainedFeats(owner).Concat(
+            buildingData?.LevelupTrainedFeats.Values.SelectMany(x => x) ?? []);
+
+        return feats.SelectMany(feat => feat.Features)
+            .OfType<FeatureDefinitionCastSpell>()
+            .FirstOrDefault(feature =>
+            {
+                var spellTag = feature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.Name;
+                return spellTag == tag || spellTag == OtherFeats.FeatMagicInitiateTag &&
+                    feature.GetFirstSubFeatureOfType<ClassHolder>()?.Class.Name == className;
+            });
+    }
+
+    private static void BuildMagicConnoisseur2024()
+    {
+        var classGroups = new List<FeatDefinition>();
+        var classByFeat = new Dictionary<FeatDefinition, string>();
+        var attributes = new[]
+        {
+            (AttributeDefinitions.Intelligence, AttributeModifierCreed_Of_Pakri),
+            (AttributeDefinitions.Wisdom, AttributeModifierCreed_Of_Maraike),
+            (AttributeDefinitions.Charisma, AttributeModifierCreed_Of_Solasta)
+        };
+
+        // The selected Magic Initiate list identifies the casting source independently of the ability increase.
+        foreach (var profile in MagicInitiate2024ClassProfiles)
+        {
+            var spellList = GetDefinition<FeatureDefinitionCastSpell>(profile.CastSpellName).SpellListDefinition;
+            var feats = new List<FeatDefinition>();
+            var castingFeatures = new List<FeatureDefinitionCastSpell>();
+            var pools = new List<FeatureDefinitionPointPool>();
+            string FormatDescription() => Gui.Format(
+                "Feat/&FeatMagicConnoisseur2024Description", profile.ClassHolder.Class.FormatTitle());
+            string FormatGroupTitle() => Gui.Format(
+                "Feat/&GeneralFeat2024VariantTitle",
+                Gui.Localize("Feat/&FeatGroupMagicConnoisseur2024Title"), profile.ClassHolder.Class.FormatTitle());
+            string FormatGroupDescription() => Gui.Format(
+                "Feat/&FeatMagicConnoisseur2024GroupDescription", profile.ClassHolder.Class.FormatTitle());
+
+            foreach (var spellLevel in new[] { 1, 2 })
+            {
+                var tag = $"{MagicConnoisseur2024SpellTag}{profile.ClassName}Level{spellLevel}";
+                var selectionTag = $"{MagicConnoisseur2024SpellTag}Level{spellLevel}";
+                var castingFeature = FeatureDefinitionCastSpellBuilder
+                    .Create($"CastSpellFeat{tag}")
+                    .SetGuiPresentation("Feat/&FeatGroupMagicConnoisseur2024Title", FormatDescription())
+                    .SetSpellCastingOrigin(FeatureDefinitionCastSpell.CastingOrigin.Race)
+                    .SetSpellCastingAbility(AttributeDefinitions.Intelligence)
+                    .SetSpellKnowledge(SpellKnowledge.Selection)
+                    .SetSpellReadyness(SpellReadyness.AllKnown)
+                    .SetSlotsRecharge(RechargeRate.LongRest)
+                    .SetSlotsPerLevel(spellLevel == 1
+                        ? SharedSpellsContext.InitiateCastingSlots
+                        : Touched2024FixedCastingSlots)
+                    .SetKnownSpells(1, FeatureDefinitionCastSpellBuilder.CasterProgression.Flat)
+                    .SetReplacedSpells(1, 0)
+                    .SetUniqueLevelSlots(false)
+                    .SetSpellList(spellList)
+                    .AddCustomSubFeatures(
+                        new FeatHelpers.SpellTag(tag, allowSlotCasting: true),
+                        profile.ClassHolder,
+                        new FormattedDefinitionText(description: FormatDescription))
+                    .AddToDB();
+                castingFeatures.Add(castingFeature);
+                MagicConnoisseur2024CastingClasses[castingFeature] = profile.ClassName;
+                MagicConnoisseur2024SelectionTags[tag] = selectionTag;
+                pools.Add(FeatureDefinitionPointPoolBuilder
+                    .Create($"PointPoolFeat{tag}")
+                    .SetGuiPresentationNoContent(true)
+                    .SetSpellOrCantripPool(
+                        HeroDefinitions.PointsPoolType.Spell, 1, spellList, tag, spellLevel, spellLevel)
+                    .AddToDB());
+            }
+
+            foreach (var (attribute, modifier) in attributes)
+            {
+                var name = $"FeatMagicConnoisseur{profile.ClassName}2024{attribute}";
+                string FormatTitle() => Gui.Format(
+                    "Feat/&GeneralFeat2024VariantTitle2",
+                    Gui.Localize("Feat/&FeatGroupMagicConnoisseur2024Title"),
+                    profile.ClassHolder.Class.FormatTitle(), GetAttributeTitle(attribute));
+                string FormatVariantDescription() => BuildHalfFeatDescription(attribute, FormatDescription());
+
+                var feat = FeatDefinitionWithPrerequisitesBuilder
+                    .Create(name)
+                    .SetGuiPresentation(FormatTitle(), FormatVariantDescription(), hidden: false)
+                    .SetFeatures(new FeatureDefinition[] { modifier }
+                        .Concat(castingFeatures)
+                        .Concat(pools).ToArray())
+                    .SetFeatFamily(MagicConnoisseur2024SpellTag)
+                    .SetValidators((_, hero) => (
+                        GetMagicInitiateCastingFeature(hero, profile.ClassName) != null,
+                        Gui.Format("Tooltip/&PrerequisiteMagicInitiateList", profile.ClassHolder.Class.FormatTitle())))
+                    .AddCustomSubFeatures(
+                        FeatsContext.HideFromFeats.Marker,
+                        new FormattedDefinitionText(FormatTitle, FormatVariantDescription),
+                        new FeatHelpers.SpellReplacementOnLevelUp(
+                            () => Main.Settings.EnableTabletopFeatRules2024, castingFeatures.ToArray()))
+                    .AddToDB();
+                ClearMinimalAbilityPrerequisite(feat);
+                feats.Add(feat);
+                classByFeat[feat] = profile.ClassName;
+                ModUi.TabletopDefinitionNames.Add(name);
+            }
+
+            var group = BuildManagedGroupWithValidator(
+                $"FeatGroupMagicConnoisseur{profile.ClassName}2024",
+                MagicConnoisseur2024SpellTag,
+                FormatGroupTitle(),
+                FormatGroupDescription(),
+                (_, hero) => (
+                    GetMagicInitiateCastingFeature(hero, profile.ClassName) != null,
+                    Gui.Format("Tooltip/&PrerequisiteMagicInitiateList", profile.ClassHolder.Class.FormatTitle())),
+                feats,
+                registerForSettings: false);
+            group.AddCustomSubFeatures(new FormattedDefinitionText(FormatGroupTitle, FormatGroupDescription));
+            classGroups.Add(group);
+            ModUi.TabletopDefinitionNames.Add(group.Name);
+        }
+
+        _featGroupMagicConnoisseur2024 = BuildManagedGroupWithValidator(
+            MagicConnoisseur2024GroupFeatName,
+            MagicConnoisseur2024SpellTag,
+            "Feat/&FeatGroupMagicConnoisseur2024Title",
+            "Feat/&FeatGroupMagicConnoisseur2024Description",
+            (_, hero) => (
+                MagicInitiate2024ClassProfiles.Any(profile =>
+                    GetMagicInitiateCastingFeature(hero, profile.ClassName) != null),
+                Gui.Localize("Tooltip/&PrerequisiteMagicInitiate")),
+            classGroups);
+        _featGroupMagicConnoisseur2024.GetFirstSubFeatureOfType<GroupedFeat>().IsChildVisible =
+            (hero, feat) => classByFeat.TryGetValue(feat, out var className) &&
+                            GetMagicInitiateCastingFeature(hero, className) != null;
+        ModUi.TabletopDefinitionNames.Add(MagicConnoisseur2024GroupFeatName);
+        SetFeatVisibility(_featGroupMagicConnoisseur2024, false);
+        RegisterManagedTabletopFeats(true, _featGroupMagicConnoisseur2024);
     }
 
     private static FeatDefinition BuildRitualCaster2024Variant(
@@ -3882,6 +4126,21 @@ public static partial class Tabletop2024Context
         RegisterManagedCanonicalAlias("FeatGrapplerStr", _featGrappler2024Str);
         RegisterManagedCanonicalAlias("FeatGrapplerStr", _featGrappler2024Dex);
         RegisterManagedCatalogEntry("FeatGroupElementalAdept", _featGroupElementalAdept2024, true);
+        RegisterManagedCatalogEntry(
+            GiftOfTheMetallicDragonGroupFeatName,
+            _featGroupGiftOfTheMetallicDragon2024,
+            true);
+
+        foreach (var sourceFeat in GetDefinition<FeatDefinition>(GiftOfTheMetallicDragonGroupFeatName)
+                     .GetFirstSubFeatureOfType<IGroupedFeat>().GetSubFeats(true))
+        {
+            RegisterManagedCatalogPair(
+                sourceFeat.Name,
+                GetDefinition<FeatDefinition>(BuildIndependentTabletopName(sourceFeat.Name)),
+                TabletopFeatCatalogKind.GroupedChild,
+                _featGroupGiftOfTheMetallicDragon2024);
+        }
+
         RegisterManagedCatalogEntry("FeatInspiringLeader", _featGroupInspiringLeader2024, true);
         RegisterManagedCatalogEntry("FeatLightlyArmored", _featGroupLightlyArmored2024, true);
         RegisterManagedCatalogEntry("FeatMageSlayer", _featGroupMageSlayer2024, true);
@@ -3915,20 +4174,28 @@ public static partial class Tabletop2024Context
         RegisterManagedCanonicalAlias(RitualCaster2024GroupFeatName, "FeatRitualCaster2024Intelligence");
         RegisterManagedCanonicalAlias(RitualCaster2024GroupFeatName, "FeatRitualCaster2024Wisdom");
         RegisterManagedCanonicalAlias(RitualCaster2024GroupFeatName, "FeatRitualCaster2024Charisma");
+        RegisterManagedCatalogEntry(MagicConnoisseur2024GroupFeatName, _featGroupMagicConnoisseur2024, true);
+        RegisterManagedCatalogTree(_featGroupMagicInitiate2024);
         RegisterManagedCatalogPair(
             "FeatGroupMagicInitiate",
             _featGroupMagicInitiate2024,
             TabletopFeatCatalogKind.GroupedRoot,
             null);
-        foreach (var magicInitiate2024 in MagicInitiate2024ByLegacyName)
+        foreach (var magicInitiateGroup in MagicInitiate2024GroupsByLegacyName)
         {
-            var selectable = IsSelectableMagicInitiate2024LegacyFeatName(magicInitiate2024.Key);
-
             RegisterManagedCatalogPair(
-                magicInitiate2024.Key,
-                magicInitiate2024.Value,
-                selectable ? TabletopFeatCatalogKind.GroupedChild : TabletopFeatCatalogKind.Helper,
-                selectable ? _featGroupMagicInitiate2024 : null);
+                magicInitiateGroup.Key,
+                magicInitiateGroup.Value,
+                TabletopFeatCatalogKind.GroupedChild,
+                _featGroupMagicInitiate2024);
+        }
+        foreach (var legacyMagicInitiate in MagicInitiate2024ByLegacyName)
+        {
+            var feat = legacyMagicInitiate.Value;
+            RegisterManagedTabletopFeats(true, feat);
+            RegisterManagedCanonicalAlias(legacyMagicInitiate.Key, feat);
+            ManagedTabletopFeatKinds[feat.Name] = TabletopFeatCatalogKind.Helper;
+            ClearManagedTabletopParent(feat.Name);
         }
         RegisterManagedCatalogEntry("FeatGroupShadowTouched", _featGroupShadowTouched2024, true);
         RegisterManagedCatalogEntry("FeatGroupSpellSniper", _featGroupSpellSniper2024, true);
@@ -4419,6 +4686,10 @@ public static partial class Tabletop2024Context
                 [],
                 [GroupFeats.FeatGroupSpellCombat]),
             new TabletopFeat2024Profile(
+                _featGroupMagicConnoisseur2024,
+                [],
+                [GroupFeats.FeatGroupSpellCombat]),
+            new TabletopFeat2024Profile(
                 _featGroupShadowTouched2024,
                 [featGroupTouchedMagic],
                 [featGroupPlaneMagic]),
@@ -4685,6 +4956,16 @@ public static partial class Tabletop2024Context
                (!IsTabletopContainerGroup(feat) || HasAllowedGameFeatDescendant(feat));
     }
 
+    internal static bool IsVisibleInGameFeatSelection(FeatDefinition feat, PointPool pointPool)
+    {
+        // Explicit grants must remain completable even when their optional catalog entry is hidden.
+        // The pool still fixes the allowed variants; level, family and other prerequisites are checked on selection.
+        return IsVisibleInGameFeatSelection(feat) ||
+               Main.Settings.EnableTabletopFeatRules2024 &&
+               IsSelectableManagedTabletopFeatLeaf(feat) &&
+               GetModeAwareRestrictedChoiceNames(pointPool).Contains(feat.Name);
+    }
+
     internal static bool IsAllowedInGameFeatSelectionByConfiguration(FeatDefinition feat)
     {
         return feat != null &&
@@ -4769,6 +5050,33 @@ public static partial class Tabletop2024Context
             .Concat(containerGroups.Where(group => activeContainerNames.Contains(group.Name)))
             .Where(feat => feat != null && !IsNonSelectableTabletopGroup(feat))
             .Distinct();
+    }
+
+    internal static IEnumerable<FeatDefinition> GetGameFeatSelectionCandidates(PointPool pointPool)
+    {
+        var restrictedChoices = GetModeAwareRestrictedChoiceNames(pointPool);
+
+        // A constrained pool already identifies its feats; show their choices directly.
+        return restrictedChoices.Count == 0
+            ? GetGameFeatSelectionCatalogRoots()
+            : restrictedChoices
+                .Select(name => TryGetDefinition<FeatDefinition>(name, out var feat) ? feat : null)
+                .SelectMany(EnumerateSelectableLeafFeats)
+                .Distinct();
+    }
+
+    internal static IEnumerable<FeatDefinition> GetGameFeatSelectionChildren(
+        FeatDefinition feat,
+        RulesetCharacterHero hero = null)
+    {
+        var isChildVisible = feat?.GetFirstSubFeatureOfType<GroupedFeat>()?.IsChildVisible;
+        // Keep catalog categories, but choose all variants of a feat in one panel.
+        return (IsTabletopContainerGroup(feat)
+                ? GetAllowedGameFeatChildren(feat)
+                : EnumerateFeatAndDescendantLeaves(feat))
+            .Where(child => hero == null || isChildVisible == null || isChildVisible(hero, child))
+            .Distinct()
+            .OrderBy(child => child.FormatTitle());
     }
 
     internal static IEnumerable<FeatDefinition> GetAllowedGameFeatChildren(FeatDefinition feat)
@@ -4912,6 +5220,29 @@ public static partial class Tabletop2024Context
 
         pointPool.RestrictedChoices.Clear();
         pointPool.RestrictedChoices.AddRange(normalizedChoices);
+    }
+
+    internal static bool HasEffectiveFeatFamily(FeatDefinition feat)
+    {
+        return !string.IsNullOrEmpty(GetEffectiveFeatFamily(feat));
+    }
+
+    internal static string GetEffectiveFeatFamily(FeatDefinition feat)
+    {
+        if (feat == null)
+        {
+            return null;
+        }
+
+        // A saved legacy choice uses the exclusion family of its current catalog equivalent.
+        // This keeps repeatable lists independent without mutating saved definitions.
+        if (Main.Settings.EnableTabletopFeatRules2024 &&
+            TryResolveModeAwareFeatDefinition(feat.Name, out var currentDefinition))
+        {
+            feat = currentDefinition;
+        }
+
+        return feat.HasFamilyTag ? feat.FamilyTag : null;
     }
 
     internal static bool IsFeatMatchingPrerequisites(
@@ -5081,8 +5412,7 @@ public static partial class Tabletop2024Context
             service?.GetPointPoolOfTypeAndTag(heroBuildingData, HeroDefinitions.PointsPoolType.Feat, tag)
             is not { } pointPool ||
             feat == null ||
-            !IsAllowedInGameFeatSelectionByConfiguration(feat) ||
-            !IsVisibleInGameFeatSelection(feat))
+            !IsVisibleInGameFeatSelection(feat, pointPool))
         {
             return false;
         }
@@ -5449,7 +5779,9 @@ public static partial class Tabletop2024Context
             }
         }
 
-        return false;
+        return feat.GetFirstSubFeatureOfType<IGroupedFeat>() != null &&
+               EnumerateFeatAndDescendantLeaves(feat).Any(leaf =>
+                   EnumerateRestrictionAliasesForFeat(leaf, null).Any(restrictedChoices.Contains));
     }
 
     private static IEnumerable<string> EnumerateRestrictionAliasesForFeat(
@@ -6329,8 +6661,8 @@ public static partial class Tabletop2024Context
 
             var canonicalParentName = GetCanonicalTabletopFeatName(parentDefinition.Name);
 
-            if (ManagedHalfFeatCustomVariantTitleCanonicalRoots.Contains(canonicalName) ||
-                ManagedHalfFeatCustomVariantTitleCanonicalRoots.Contains(canonicalParentName))
+            if (ManagedHalfFeatCustomVariantPresentationCanonicalRoots.Contains(canonicalName) ||
+                ManagedHalfFeatCustomVariantPresentationCanonicalRoots.Contains(canonicalParentName))
             {
                 continue;
             }
@@ -6938,7 +7270,8 @@ public static partial class Tabletop2024Context
         string family,
         string title,
         string description,
-        IEnumerable<FeatDefinition> feats)
+        IEnumerable<FeatDefinition> feats,
+        bool registerForSettings = true)
     {
         var group = FeatDefinitionBuilder
             .Create(name)
@@ -6948,7 +7281,10 @@ public static partial class Tabletop2024Context
             .SetFeatures()
             .AddToDB();
 
-        GroupFeats.Groups.Add(group);
+        if (registerForSettings)
+        {
+            GroupFeats.Groups.Add(group);
+        }
 
         return group;
     }
@@ -7024,7 +7360,8 @@ public static partial class Tabletop2024Context
         string title,
         string description,
         Func<FeatDefinitionWithPrerequisites, RulesetCharacterHero, (bool result, string output)> validator,
-        IEnumerable<FeatDefinition> feats)
+        IEnumerable<FeatDefinition> feats,
+        bool registerForSettings = true)
     {
         var group = FeatDefinitionWithPrerequisitesBuilder
             .Create(name)
@@ -7035,7 +7372,10 @@ public static partial class Tabletop2024Context
             .SetValidators(validator)
             .AddToDB();
 
-        GroupFeats.Groups.Add(group);
+        if (registerForSettings)
+        {
+            GroupFeats.Groups.Add(group);
+        }
 
         return group;
     }
@@ -7205,7 +7545,8 @@ public static partial class Tabletop2024Context
 
     internal static bool IsDisplayableManagedTabletopLeaf(FeatDefinition feat)
     {
-        return IsSelectableManagedTabletopFeatLeaf(feat);
+        return IsSelectableManagedTabletopFeatLeaf(feat) ||
+               feat != null && MagicInitiate2024ByLegacyName.Values.Contains(feat);
     }
 
     private static bool RequiresManagedTabletopFeatLevel4Prerequisite(FeatDefinition feat)

@@ -9,16 +9,18 @@ using static RuleDefinitions;
 
 namespace SolastaUnfinishedBusiness.Models;
 
-// A casting choice identifies both its casting level and its resource owner.
+// A casting choice keeps the spell's origin separate from the repertoire paying for it.
 // Native reactions synchronize the ordinal choice, so order by definitions, never localized text.
 internal static class SpellCastingResourceContext
 {
     private static readonly ConditionalWeakTable<ReactionRequest, RequestResources> Requests = new();
     private static readonly ConditionalWeakTable<RulesetEffectSpell, ResourceOption> Selections = new();
 
-    // CastSpell does not use IntParameter2. Store the kind in this serialized action field;
-    // the repertoire and actual level already have native serialization and clone support.
+    // CastSpell does not use IntParameter2. Existing markers encode only the resource kind.
+    // Higher groups identify a payment repertoire by stable definition order. The native
+    // repertoire field remains the spell's origin, including after an effect is saved/reloaded.
     private const int SelectionMarker = -202400;
+    private const int ResourceKindCount = (int)ResourceKind.SignatureSpell + 1;
     [ThreadStatic] private static ResourceOption _currentSelection;
 
     internal static ResourceOption CurrentSelection => _currentSelection;
@@ -57,9 +59,11 @@ internal static class SpellCastingResourceContext
         RulesetSpellRepertoire repertoire,
         SpellDefinition spell,
         int slotLevel,
-        ResourceKind kind)
+        ResourceKind kind,
+        RulesetSpellRepertoire castingRepertoire = null)
     {
         internal RulesetSpellRepertoire Repertoire { get; } = repertoire;
+        internal RulesetSpellRepertoire CastingRepertoire { get; } = castingRepertoire ?? repertoire;
         internal SpellDefinition Spell { get; } = spell;
         internal int SlotLevel { get; } = slotLevel;
         internal ResourceKind Kind { get; } = kind;
@@ -68,14 +72,21 @@ internal static class SpellCastingResourceContext
         {
             ResourceKind.SpellMastery => Level20Context.WizardSpellMastery.FeatureSpellMastery.FormatTitle(),
             ResourceKind.SignatureSpell => Level20Context.WizardSignatureSpells.PowerSignatureSpells.FormatTitle(),
-            _ => Repertoire.FormatHeader()
+            _ => CastingRepertoire == Repertoire
+                ? Repertoire.FormatHeader()
+                : $"{CastingRepertoire.FormatHeader()} · {Repertoire.FormatHeader()}"
         };
+
+        internal ResourceOption AtLevel(int level) =>
+            new(Repertoire, Spell, level, Kind, CastingRepertoire);
 
         internal string FormatChoiceTitle(RulesetCharacter caster)
         {
             if (!IsFree)
             {
-                return Gui.ToRoman(SlotLevel);
+                return CastingRepertoire == Repertoire
+                    ? Gui.ToRoman(SlotLevel)
+                    : $"{SourceTitle} {Gui.ToRoman(SlotLevel)}";
             }
 
             GetUses(caster, out var remaining, out var maximum);
@@ -93,15 +104,33 @@ internal static class SpellCastingResourceContext
                         remaining.ToString(), maximum.ToString());
             }
 
-            return caster.IsSpellPointsEnabled() && Repertoire.UsesSharedSpellSlots()
-                ? Gui.Format("Reaction/&SpellResourcePointsFormat", SourceTitle, SlotLevel.ToString(),
-                    SpellPointsContext.SpellCostByLevel[SlotLevel].ToString())
-                : Gui.Format("Reaction/&SpellResourceSlotFormat", SourceTitle, SlotLevel.ToString(),
-                    remaining.ToString(), maximum.ToString());
+            var usesPactSlot = Repertoire.WouldSpendPactSlot(caster, SlotLevel);
+            if (caster.IsSpellPointsEnabled() && Repertoire.UsesSharedSpellSlots() && !usesPactSlot)
+            {
+                return Gui.Format("Reaction/&SpellResourcePointsFormat", SourceTitle, SlotLevel.ToString(),
+                    SpellPointsContext.SpellCostByLevel[SlotLevel].ToString());
+            }
+
+            if (SharedSpellsContext.IsMulticaster(caster))
+            {
+                Repertoire.GetSharedAndPactSlotNumbers(caster, SlotLevel, out var sharedRemaining, out var sharedMax,
+                    out var pactRemaining, out var pactMax);
+                remaining = usesPactSlot ? pactRemaining : sharedRemaining;
+                maximum = usesPactSlot ? pactMax : sharedMax;
+            }
+
+            return Gui.Format("Reaction/&SpellResourceSlotFormat", SourceTitle, SlotLevel.ToString(),
+                remaining.ToString(), maximum.ToString());
         }
 
         internal void GetUses(RulesetCharacter caster, out int remaining, out int maximum)
         {
+            if (Repertoire == null)
+            {
+                remaining = maximum = 0;
+                return;
+            }
+
             switch (Kind)
             {
                 case ResourceKind.SpellMastery:
@@ -121,7 +150,13 @@ internal static class SpellCastingResourceContext
         internal bool IsAvailable(RulesetCharacter caster)
         {
             if (caster == null || !caster.SpellRepertoires.Contains(Repertoire) ||
-                !CanUseRepertoire(caster, Repertoire, Spell) || !IsSupportedLevel(caster, Repertoire, Spell, SlotLevel))
+                !caster.SpellRepertoires.Contains(CastingRepertoire) ||
+                !CanUseRepertoire(caster, CastingRepertoire, Spell) ||
+                !IsSupportedLevel(caster, Repertoire, Spell, SlotLevel) ||
+                Kind == ResourceKind.SpellSlot && SpellSlotCastingLimit2024Context.IsFreeUseRepertoire(Repertoire) ||
+                CastingRepertoire != Repertoire &&
+                (Kind != ResourceKind.SpellSlot || !Repertoire.UsesSharedSpellSlots() ||
+                 !IsSlotCastableFeatSpell(caster, CastingRepertoire, Spell)))
             {
                 return false;
             }
@@ -202,12 +237,13 @@ internal static class SpellCastingResourceContext
             return;
         }
 
-        effect.spellRepertoire = option.Repertoire;
+        effect.spellRepertoire = option.CastingRepertoire;
         effect.SlotLevel = option.SlotLevel;
-        SpellCastingValidation.BindEffectRepertoire(effect, option.Repertoire);
+        SpellCastingValidation.BindEffectRepertoire(effect, option.CastingRepertoire);
         Selections.Remove(effect);
         // Use the actual child spell so validation and consumption see the same definition.
-        Selections.Add(effect, new ResourceOption(option.Repertoire, effect.SpellDefinition, option.SlotLevel, option.Kind));
+        Selections.Add(effect, new ResourceOption(option.Repertoire, effect.SpellDefinition, option.SlotLevel,
+            option.Kind, option.CastingRepertoire));
     }
 
     internal static void ApplySelection(CharacterActionParams parameters, ResourceOption option)
@@ -217,16 +253,36 @@ internal static class SpellCastingResourceContext
             return;
         }
 
-        parameters.SpellRepertoire = option.Repertoire;
+        parameters.SpellRepertoire = option.CastingRepertoire;
         parameters.IntParameter = option.SlotLevel;
-        parameters.IntParameter2 = SelectionMarker - (int)option.Kind;
+        var resourceIndex = -1;
+        if (option.Repertoire != option.CastingRepertoire)
+        {
+            var repertoires = GetOrderedRepertoires(parameters.ActingCharacter?.RulesetCharacter);
+            resourceIndex = Array.IndexOf(repertoires, option.Repertoire);
+            if (resourceIndex < 0)
+            {
+                resourceIndex = repertoires.Length;
+            }
+        }
+
+        parameters.IntParameter2 = SelectionMarker - (int)option.Kind - ResourceKindCount * (resourceIndex + 1);
         BindEffectSelection(parameters.RulesetEffect as RulesetEffectSpell, option);
+    }
+
+    private static RulesetSpellRepertoire[] GetOrderedRepertoires(RulesetCharacter caster)
+    {
+        return caster?.SpellRepertoires
+            .OrderBy(repertoire => repertoire.SpellCastingFeature.Name, StringComparer.Ordinal)
+            .ThenBy(repertoire => repertoire.SpellCastingClass?.Name, StringComparer.Ordinal)
+            .ThenBy(repertoire => repertoire.SpellCastingSubclass?.Name, StringComparer.Ordinal)
+            .ThenBy(repertoire => repertoire.SpellCastingRace?.Name, StringComparer.Ordinal)
+            .ToArray() ?? [];
     }
 
     internal static void ClearSelectionMarker(CharacterActionParams parameters)
     {
-        if (parameters.IntParameter2 <= SelectionMarker &&
-            parameters.IntParameter2 >= SelectionMarker - (int)ResourceKind.SignatureSpell)
+        if (parameters.IntParameter2 <= SelectionMarker)
         {
             parameters.IntParameter2 = 0;
         }
@@ -234,19 +290,138 @@ internal static class SpellCastingResourceContext
 
     internal static void RestoreSelection(CharacterActionParams parameters)
     {
-        if (parameters?.RulesetEffect is not RulesetEffectSpell effect || !SupportsSelection(effect) ||
-            parameters.IntParameter2 > SelectionMarker ||
-            parameters.IntParameter2 < SelectionMarker - (int)ResourceKind.SignatureSpell)
+        if (parameters?.RulesetEffect is not RulesetEffectSpell effect || !SupportsSelection(effect))
         {
             return;
         }
 
-        var kind = (ResourceKind)(SelectionMarker - parameters.IntParameter2);
-        var repertoire = parameters.SpellRepertoire ?? effect.SpellRepertoire;
-        if (repertoire != null && !Selections.TryGetValue(effect, out _))
+        if (parameters.IntParameter2 > SelectionMarker)
         {
-            BindEffectSelection(effect, new ResourceOption(repertoire, effect.SpellDefinition, effect.SlotLevel, kind));
+            BindImplicitFeatSelection(effect);
+            if (Selections.TryGetValue(effect, out var implicitSelection))
+            {
+                ApplySelection(parameters, implicitSelection);
+            }
+
+            return;
         }
+
+        var selection = (long)SelectionMarker - parameters.IntParameter2;
+        var kind = (ResourceKind)(selection % ResourceKindCount);
+        var resourceIndex = selection / ResourceKindCount - 1;
+        var castingRepertoire = parameters.SpellRepertoire ?? effect.SpellRepertoire;
+        var repertoires = GetOrderedRepertoires(parameters.ActingCharacter?.RulesetCharacter);
+        var resourceRepertoire = resourceIndex < 0
+            ? castingRepertoire
+            : resourceIndex < repertoires.Length ? repertoires[(int)resourceIndex] : null;
+        if (castingRepertoire != null)
+        {
+            // An invalid synchronized owner must fail validation, never become a free feat use.
+            BindEffectSelection(effect, new ResourceOption(resourceRepertoire, effect.SpellDefinition,
+                effect.SlotLevel, kind, castingRepertoire));
+        }
+    }
+
+    internal static RulesetSpellRepertoire GetResourceRepertoire(RulesetEffectSpell effect)
+    {
+        return effect != null && Selections.TryGetValue(effect, out var option)
+            ? option.Repertoire
+            : effect?.SpellRepertoire;
+    }
+
+    internal static RulesetSpellRepertoire ResolveCastingRepertoire(
+        RulesetSpellRepertoire repertoire, SpellDefinition spell, RulesetCharacter caster = null)
+    {
+        if (SpellSelectionContext.TryGetOption(repertoire, out var view))
+        {
+            return view.CastingRepertoire;
+        }
+
+        var selected = CurrentSelection;
+        return selected != null && IsSameSpell(selected.Spell, spell) &&
+               (selected.Repertoire == repertoire || selected.CastingRepertoire == repertoire)
+            ? selected.CastingRepertoire
+            : ResolveSlotCastingRepertoire(repertoire, spell, caster);
+    }
+
+    internal static ResourceOption GetSlotSelection(
+        RulesetSpellRepertoire repertoire, SpellDefinition spell, int slotLevel, RulesetCharacter caster = null)
+    {
+        return new ResourceOption(repertoire, spell, slotLevel, ResourceKind.SpellSlot,
+            ResolveSlotCastingRepertoire(repertoire, spell, caster));
+    }
+
+    private static RulesetSpellRepertoire ResolveSlotCastingRepertoire(
+        RulesetSpellRepertoire repertoire, SpellDefinition spell, RulesetCharacter caster)
+    {
+        if (spell == null || !repertoire.UsesSharedSpellSlots())
+        {
+            return repertoire;
+        }
+
+        caster ??= repertoire.GetCaster();
+        if (caster == null)
+        {
+            return repertoire;
+        }
+
+        var rootSpell = SpellsContext.SpellsChildMaster.TryGetValue(spell, out var master) ? master : spell;
+        var grants = LevelUpHelper.EnumerateSlotCastableFeatSpells(caster)
+            .Where(entry => IsSameSpell(entry.Spell, rootSpell)).ToArray();
+        if (grants.Length == 0 || HasIndependentClassSpell(caster, repertoire, rootSpell,
+                grants.Select(entry => entry.DisplayTag)))
+        {
+            return repertoire;
+        }
+
+        // Several feats can grant the same spell. Keep the effective ability first, then
+        // preserve useful repertoire bonuses and use definition names for a stable tie.
+        return grants.Select(entry => entry.Repertoire).Distinct()
+            .OrderByDescending(source => AttributeDefinitions.ComputeAbilityScoreModifier(
+                caster.TryGetAttributeValue(Tabletop2024Context.TryGetTabletop2024FeatSpellcastingAbility(
+                    source, out var ability, caster) ? ability : source.SpellCastingAbility)))
+            .ThenByDescending(source => source.SaveDC)
+            .ThenByDescending(source => source.SpellAttackBonus)
+            .ThenBy(source => source.SpellCastingFeature.Name, StringComparer.Ordinal)
+            .First();
+    }
+
+    private static bool HasIndependentClassSpell(
+        RulesetCharacter caster, RulesetSpellRepertoire repertoire, SpellDefinition spell,
+        IEnumerable<string> featTags)
+    {
+        var feature = repertoire.SpellCastingFeature;
+        var prepared = feature.SpellReadyness == SpellReadyness.Prepared;
+        if (prepared ? repertoire.PreparedSpells.Contains(spell) :
+            repertoire.KnownSpells.Contains(spell) ||
+            feature.SpellKnowledge is SpellKnowledge.FixedList or SpellKnowledge.WholeList &&
+            feature.SpellListDefinition?.SpellsByLevel.Any(level => level.Spells.Contains(spell)) == true)
+        {
+            return true;
+        }
+
+        // AutoPreparedSpells also contains projected feat grants. Check their actual feature
+        // owners instead; HasKnowledgeOfSpell would recurse through the same projection.
+        if (caster.FeaturesByType<FeatureDefinitionAutoPreparedSpells>()
+                .Any(source => SpellPreparationContext.EnumerateFeatureSpells(caster, repertoire, source)
+                    .Contains(spell)) ||
+            caster.GetSubFeaturesByType<IModifyAutoPreparedSpells>()
+                .Any(source => source.SourceFeature != null &&
+                               source.GetAutoPreparedSpells(caster, repertoire).Contains(spell)))
+        {
+            return true;
+        }
+
+        var projectedTags = new HashSet<string>(featTags, StringComparer.Ordinal);
+        return repertoire.ExtraSpellsByTag.Any(entry => !projectedTags.Contains(entry.Key) &&
+                                                        entry.Value.Contains(spell));
+    }
+
+    private static bool IsSlotCastableFeatSpell(
+        RulesetCharacter caster, RulesetSpellRepertoire repertoire, SpellDefinition spell)
+    {
+        return repertoire != null && LevelUpHelper.EnumerateSlotCastableFeatSpells(caster)
+            .Any(entry => entry.Repertoire == repertoire && IsSameSpell(entry.Spell, spell));
     }
 
     internal static bool IsManaged(ReactionRequest request)
@@ -338,13 +513,37 @@ internal static class SpellCastingResourceContext
         return true;
     }
 
+    private static void BindImplicitFeatSelection(RulesetEffectSpell effect)
+    {
+        if (!SupportsSelection(effect) || Selections.TryGetValue(effect, out _) ||
+            !IsSlotCastableFeatSpell(effect.Caster, effect.SpellRepertoire, effect.SpellDefinition))
+        {
+            return;
+        }
+
+        // Native automatic casting finds a spell origin and level before it creates the action.
+        // Freeze its payment choice too, rather than treating an exhausted feat counter as a slot.
+        var options = EnumerateResources(effect.Caster, effect.SpellDefinition, effect.SpellRepertoire)
+            .Where(option => option.SlotLevel == effect.SlotLevel).ToArray();
+        var originOptions = options.Where(option => option.CastingRepertoire == effect.SpellRepertoire).ToArray();
+        // An automatic cast can fall back to another learned origin after its free use is
+        // exhausted. Explicit selections returned above must retain their chosen payment.
+        var option = originOptions.FirstOrDefault(candidate => candidate.IsAvailable(effect.Caster)) ??
+                     options.FirstOrDefault(candidate => candidate.IsAvailable(effect.Caster)) ??
+                     originOptions.FirstOrDefault() ?? new ResourceOption(effect.SpellRepertoire,
+                         effect.SpellDefinition, effect.SlotLevel, ResourceKind.FreeRepertoire);
+        BindEffectSelection(effect, option);
+    }
+
     internal static bool HasExplicitSelection(RulesetEffectSpell effect)
     {
+        BindImplicitFeatSelection(effect);
         return effect != null && Selections.TryGetValue(effect, out _);
     }
 
     internal static bool TryGetSelectionKind(RulesetEffectSpell effect, out ResourceKind kind)
     {
+        BindImplicitFeatSelection(effect);
         if (effect != null && Selections.TryGetValue(effect, out var option))
         {
             kind = option.Kind;
@@ -357,13 +556,15 @@ internal static class SpellCastingResourceContext
 
     internal static bool IsExplicitSlotSelection(RulesetEffectSpell effect)
     {
+        BindImplicitFeatSelection(effect);
         return effect != null && Selections.TryGetValue(effect, out var option) && !option.IsFree;
     }
 
     internal static bool IsSelectionAvailable(RulesetCharacter caster, RulesetEffectSpell effect)
     {
+        BindImplicitFeatSelection(effect);
         return effect == null || !Selections.TryGetValue(effect, out var option) ||
-               option.Repertoire == effect.SpellRepertoire && option.SlotLevel == effect.SlotLevel &&
+               option.CastingRepertoire == effect.SpellRepertoire && option.SlotLevel == effect.SlotLevel &&
                option.IsAvailable(caster);
     }
 
@@ -376,7 +577,7 @@ internal static class SpellCastingResourceContext
     {
         var selected = EnumerateResources(caster, spell, preferredRepertoire)
             .FirstOrDefault(option => option.IsAvailable(caster));
-        repertoire = selected?.Repertoire;
+        repertoire = selected?.CastingRepertoire;
         slotLevel = selected?.SlotLevel ?? 0;
         return selected != null;
     }
@@ -401,6 +602,9 @@ internal static class SpellCastingResourceContext
         foreach (var repertoire in repertoires)
         {
             var freeRepertoire = SpellSlotCastingLimit2024Context.IsFreeUseRepertoire(repertoire);
+            var baseSelection = freeRepertoire
+                ? new ResourceOption(repertoire, spell, spell.SpellLevel, ResourceKind.FreeRepertoire)
+                : GetSlotSelection(repertoire, spell, spell.SpellLevel, caster);
             var maximumLevel = 9;
             for (var level = spell.SpellLevel; level <= maximumLevel; level++)
             {
@@ -417,8 +621,7 @@ internal static class SpellCastingResourceContext
                     maximumLevel = level;
                 }
 
-                var option = new ResourceOption(repertoire, spell, level,
-                    freeRepertoire ? ResourceKind.FreeRepertoire : ResourceKind.SpellSlot);
+                var option = baseSelection.AtLevel(level);
                 if (freeRepertoire)
                 {
                     options.Add(option);
@@ -459,6 +662,7 @@ internal static class SpellCastingResourceContext
         return options.OrderByDescending(option => option.IsFree)
             .ThenBy(option => option.SlotLevel)
             .ThenBy(option => option.Repertoire.SpellCastingFeature.Name, StringComparer.Ordinal)
+            .ThenBy(option => option.CastingRepertoire.SpellCastingFeature.Name, StringComparer.Ordinal)
             .ThenBy(option => option.Kind)
             .ToList();
     }
@@ -497,7 +701,7 @@ internal static class SpellCastingResourceContext
 
         var rootSpell = SpellsContext.SpellsChildMaster.TryGetValue(spell, out var master) ? master : spell;
         var prepared = repertoire.SpellCastingFeature.SpellReadyness == SpellReadyness.Prepared;
-        return (prepared
+        return IsSlotCastableFeatSpell(caster, repertoire, rootSpell) || (prepared
                    ? repertoire.PreparedSpells.Contains(rootSpell) || repertoire.AutoPreparedSpells.Contains(rootSpell) ||
                      repertoire.ExtraSpellsByTag.Values.Any(spells => spells.Contains(rootSpell))
                    : SpellCastingValidation.KnowsSpell(repertoire, rootSpell)) ||
@@ -505,8 +709,48 @@ internal static class SpellCastingResourceContext
                LevelUpHelper.IsSlotCastableExtraSpellForRepertoire(caster, repertoire, rootSpell);
     }
 
-    internal static void AddFreeWizardUsableSpells(RulesetCharacter caster)
+    internal static bool CanCastFeatSpellOfActionType(
+        RulesetCharacter caster, ActionDefinitions.ActionType actionType, bool canOnlyUseCantrips)
     {
+        if (canOnlyUseCantrips)
+        {
+            return false;
+        }
+
+        foreach (var (repertoire, spell, _) in LevelUpHelper.EnumerateSlotCastableFeatSpells(caster))
+        {
+            if (!SpellActionTypeContext.MatchesCastingActionType(spell, actionType) &&
+                !caster.GetSubFeaturesByType<IAllowSpellActionType>()
+                    .Any(provider => provider.IsAllowed(caster, repertoire, spell, actionType)))
+            {
+                continue;
+            }
+
+            using var scope = SpellCastingValidation.EnterSelectedRepertoire(repertoire);
+            if (caster.AreSpellComponentsValid(spell) &&
+                SpellCastingValidation.IsValid(caster, repertoire, spell, null, out _) &&
+                EnumerateResources(caster, spell).Any(option => option.CastingRepertoire == repertoire &&
+                                                              option.IsAvailable(caster)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static void AddAdditionalUsableSpells(RulesetCharacter caster)
+    {
+        foreach (var spell in LevelUpHelper.EnumerateSlotCastableFeatSpells(caster)
+                     .Select(entry => entry.Spell).Distinct())
+        {
+            if (!caster.UsableSpells.Contains(spell) &&
+                EnumerateResources(caster, spell).Any(option => option.IsAvailable(caster)))
+            {
+                caster.UsableSpells.Add(spell);
+            }
+        }
+
         // Native enumeration only counts remaining slots. Wizard free uses have their own availability.
         foreach (var repertoire in caster.SpellRepertoires)
         {

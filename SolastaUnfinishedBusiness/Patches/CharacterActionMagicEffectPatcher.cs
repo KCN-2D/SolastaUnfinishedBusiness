@@ -480,6 +480,13 @@ public static class CharacterActionMagicEffectPatcher
 
             using var interruptionScope = SpellInterruptionContext.Track(__instance);
 
+            if (!EffectHelpers.ValidateFamiliarTouchDelivery(actionParams, false))
+            {
+                __instance.ExecutionFailed = true;
+                rulesetEffect.Terminate(false);
+                yield break;
+            }
+
             // Recheck after a queued choice, before spending resources or starting effects.
             // Automatic powers have their own observer/target rules; this guard is for spells.
             if (rulesetEffect is RulesetEffectSpell && baseDefinition is SpellDefinition magicEffect)
@@ -889,6 +896,15 @@ public static class CharacterActionMagicEffectPatcher
             }
 
             // END PATCH
+
+            // Queued casts and reactions can change the familiar after target selection.
+            // Pay its reaction once, immediately before the caster pays for the spell.
+            if (!EffectHelpers.ValidateFamiliarTouchDelivery(actionParams, true))
+            {
+                __instance.ExecutionFailed = true;
+                rulesetEffect.Terminate(false);
+                yield break;
+            }
 
             __instance.SpendMagicEffectUses();
             MetamagicContext.MarkSpellCast2024(__instance);

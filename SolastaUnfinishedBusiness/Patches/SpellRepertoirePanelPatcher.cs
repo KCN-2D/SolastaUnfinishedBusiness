@@ -24,6 +24,18 @@ public static class SpellRepertoirePanelPatcher
     public static class Bind_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            return instructions.ReplaceCalls(
+                AccessTools.PropertyGetter(typeof(RulesetSpellRepertoire), nameof(RulesetSpellRepertoire.MaxSpellLevelOfSpellCastingLevel)),
+                "SpellRepertoirePanel.Bind.InspectionSpellLevel",
+                new CodeInstruction(OpCodes.Ldarg_1),
+                new CodeInstruction(OpCodes.Ldarg_S, 4),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(CharacterInspectionScreenEnhancement),
+                    nameof(CharacterInspectionScreenEnhancement.GetInspectionSpellLevelMaximum))));
+        }
+
+        [UsedImplicitly]
         public static void Postfix(SpellRepertoirePanel __instance)
         {
             //PATCH: filters how spells and slots are displayed on inspection (MULTICLASS)
@@ -31,6 +43,14 @@ public static class SpellRepertoirePanelPatcher
 
             RefreshSpellcastingLabels(__instance);
             RefreshPreparedSpellsLabel(__instance);
+
+            var sources = CharacterInspectionScreenEnhancement.GetInspectionSpellRepertoires(
+                __instance.GuiCharacter.RulesetCharacter, __instance.SpellRepertoire, __instance.BindMode);
+            if (sources.Length > 1 && __instance.knownSpellsBox.gameObject.activeSelf)
+            {
+                __instance.knownSpellsLabel.Text = sources.SelectMany(CharacterInspectionScreenEnhancement.GetInspectionLearnedSpells)
+                    .Where(spell => spell.SpellLevel > 0).Distinct().Count().ToString();
+            }
 
             //PATCH: displays sorcery point box for sorcerers only
             if (!Main.Settings.EnableDisplaySorceryPointBoxSorcererOnly)
@@ -54,13 +74,15 @@ public static class SpellRepertoirePanelPatcher
             return;
         }
 
-        // Native Bind reads the shared casting definition. The repertoire owns the effective ability and stats.
-        var ability = DatabaseRepository.GetDatabase<SmartAttributeDefinition>()
-            .GetElement(repertoire.SpellCastingAbility);
-
-        SetLabelText(panel.abilityLabel, ability.FormatTitle());
-        SetLabelText(panel.saveDCLabel, repertoire.SaveDC.ToString());
-        SetLabelText(panel.spellAttackBonusLabel, repertoire.SpellAttackBonus.ToString("+0;-#"));
+        // Inspection can present several grants from one feat; each spell retains its own casting source.
+        var sources = CharacterInspectionScreenEnhancement.GetInspectionSpellRepertoires(
+            panel.GuiCharacter.RulesetCharacter, repertoire, panel.BindMode);
+        var attributes = DatabaseRepository.GetDatabase<SmartAttributeDefinition>();
+        SetLabelText(panel.abilityLabel, string.Join(" / ", sources.Select(source =>
+            attributes.GetElement(source.SpellCastingAbility).FormatTitle()).Distinct()));
+        SetLabelText(panel.saveDCLabel, string.Join(" / ", sources.Select(source => source.SaveDC.ToString()).Distinct()));
+        SetLabelText(panel.spellAttackBonusLabel, string.Join(" / ", sources.Select(source =>
+            source.SpellAttackBonus.ToString("+0;-#")).Distinct()));
     }
 
     private static void SetLabelText(GuiLabel label, string text)

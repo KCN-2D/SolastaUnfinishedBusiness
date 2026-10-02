@@ -10,6 +10,7 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Classes;
+using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Spells;
 using SolastaUnfinishedBusiness.Subclasses;
@@ -31,6 +32,7 @@ public static partial class Tabletop2024Context
 {
     private const int KnownSpellsTableLength = 20;
     private const string RitualCastingFeatureOriginMarker = "Tabletop2024RitualCasting";
+    private const string FeatRitualCastingFeatureTag = RitualCastingFeatureOriginMarker + "Feats";
 
     private static FeatureDefinition[] _arcaneSwordMoveFeatures;
     private static int _arcaneSwordRange;
@@ -255,6 +257,49 @@ public static partial class Tabletop2024Context
         {
             SetRitualCastingFeature(subclass.FeatureUnlocks, 3, enabled);
         }
+
+        var characters = ServiceRepository.GetService<IGameLocationCharacterService>()?.ValidCharacters;
+
+        if (characters == null)
+        {
+            return;
+        }
+
+        foreach (var hero in characters.Select(character => character.RulesetCharacter)
+                     .OfType<RulesetCharacterHero>().Distinct())
+        {
+            SynchronizeRitualCastingFeatures(hero);
+            hero.CharacterRefreshed?.Invoke(hero);
+        }
+    }
+
+    internal static IEnumerable<SpellDefinition> EnumeratePreparedRitualSpells(RulesetSpellRepertoire repertoire)
+    {
+        var feature = repertoire?.SpellCastingFeature;
+
+        if (feature == null)
+        {
+            return Enumerable.Empty<SpellDefinition>();
+        }
+
+        var spellTag = feature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>();
+        var fixedSpells = spellTag != null &&
+                          (spellTag.ForceFixedList || feature.SpellKnowledge == SpellKnowledge.FixedList) &&
+                          feature.SpellListDefinition != null
+            ? feature.SpellListDefinition.SpellsByLevel.SelectMany(level => level.Spells)
+            : Enumerable.Empty<SpellDefinition>();
+        var spells = feature.SpellReadyness == SpellReadyness.Prepared
+            ? repertoire.PreparedSpells
+            : repertoire.KnownSpells;
+        var maxSpellLevel = SharedSpellsContext.MaxSpellLevelOfSpellCastingLevel(repertoire);
+
+        // Fixed feat grants and always-prepared spells are learned even when the native
+        // known/prepared list is empty. Their free daily uses do not limit ritual casting.
+        return (spells ?? []).Concat(repertoire.AutoPreparedSpells ?? [])
+            .Concat(repertoire.ExtraSpellsByTag?.Values.SelectMany(extraSpells => extraSpells ?? []) ?? [])
+            .Concat(fixedSpells)
+            .Where(spell => spell.Ritual && spell.SpellLevel <= maxSpellLevel)
+            .Distinct();
     }
 
     internal static void SynchronizeRitualCastingFeatures(RulesetCharacterHero hero)
@@ -268,6 +313,7 @@ public static partial class Tabletop2024Context
 
         var managedTags = new HashSet<string>
         {
+            FeatRitualCastingFeatureTag,
             AttributeDefinitions.GetClassTag(Paladin, 1),
             AttributeDefinitions.GetClassTag(Paladin, 2),
             AttributeDefinitions.GetClassTag(Ranger, 1),
@@ -292,6 +338,13 @@ public static partial class Tabletop2024Context
                 activeTags);
             AddEligibleClassTag(hero, Sorcerer, 1, activeTags);
             AddEligibleClassTag(hero, Warlock, 1, activeTags);
+
+            if (hero.SpellRepertoires.Any(repertoire =>
+                    repertoire.SpellCastingFeature?.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>() != null &&
+                    EnumeratePreparedRitualSpells(repertoire).Any()))
+            {
+                activeTags.Add(FeatRitualCastingFeatureTag);
+            }
         }
 
         foreach (var classAndSubclass in hero.ClassesAndSubclasses)
@@ -318,7 +371,7 @@ public static partial class Tabletop2024Context
         }
 
         // Feature origins are rebuilt by native feature browsing and are not a durable save
-        // boundary. Restrict stale cleanup to the class/subclass tags exclusively managed by
+        // boundary. Restrict stale cleanup to the class/subclass/feat tags exclusively managed by
         // this option so an existing Cleric (or any other native ritual source) is never altered.
         foreach (var tag in managedTags.Where(tag => !activeTags.Contains(tag)))
         {

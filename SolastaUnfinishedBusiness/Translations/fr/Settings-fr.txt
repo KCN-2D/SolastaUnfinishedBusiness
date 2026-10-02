@@ -541,7 +541,7 @@ ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
 ModUi/&EnableTabletopFeatRules2024=Use the independent 2024 tabletop feat catalog
 ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses only the independent 2024 feat catalog. Background feats and Human origin feats resolve to the same catalog]</color></i>
-ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[While enabled, only the independent 2024 feats below can be toggled. Legacy feat toggles are locked]</color></i>
+ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[Lorsque cette option est activée, seuls les dons indépendants de 2024 ci-dessous peuvent être activés ou désactivés. Les réglages des anciens dons sont verrouillés.]</color></i>\nLes choix de dons explicitement accordés par une espèce, un historique ou une autre capacité restent disponibles même si le don est désactivé dans cette liste.
 ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
 ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
 ModUi/&EnableWizardSpellMastery2024=Activer <color=#D89555>Maîtrise des sorts</color> 2024 <i><color=#F0DAA0>[sorts d'une action ; remplacer un sort après un repos long]</color></i>

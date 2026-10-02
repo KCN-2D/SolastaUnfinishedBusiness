@@ -561,6 +561,14 @@ public static class FeatureDescriptionItemPatcher
     public static class Bind_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(FeatureDescriptionItem __instance)
+        {
+            // Active pooled items can be rebound without Unbind. The native default selection
+            // must not call the previous owner's handler before Bind installs the new one.
+            __instance.ValueChanged = null;
+        }
+
+        [UsedImplicitly]
         public static void Postfix([NotNull] FeatureDescriptionItem __instance)
         {
             var hero = Global.LevelUpHero;

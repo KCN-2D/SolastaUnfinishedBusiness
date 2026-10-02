@@ -23,6 +23,8 @@ public static class CharacterInspectionScreenPatcher
             InventoryPanel.ItemSelectedHandler itemSelected,
             out bool __state)
         {
+            CharacterInspectionScreenEnhancement.ReleaseInspectionTabsScroll(__instance);
+
             __state = SimulacrumEquipmentPanel.TryBind(
                 __instance,
                 heroCharacter,
@@ -67,24 +69,8 @@ public static class CharacterInspectionScreenPatcher
             //PATCH: support display max spell points on inspection screen (SPELL_POINTS)
             SpellPointsContext.DisplayMaxSpellPointsOnInspectionScreen(__instance, heroCharacter);
 
-            //PATCH: hide repertoires that have hidden spell casting feature
-            for (var index = __instance.staticTogglesNumber; index < __instance.toggleGroup.transform.childCount; ++index)
-            {
-                var child = __instance.toggleGroup.transform.GetChild(index);
-                var repertoireIndex = index - __instance.staticTogglesNumber;
-
-                if (repertoireIndex < 0 || repertoireIndex >= heroCharacter.SpellRepertoires.Count)
-                {
-                    continue;
-                }
-
-                var repertoire = heroCharacter.SpellRepertoires[repertoireIndex];
-
-                if (repertoire.SpellCastingFeature.GuiPresentation.Hidden)
-                {
-                    child.gameObject.SetActive(false);
-                }
-            }
+            CharacterInspectionScreenEnhancement.RefreshInspectionSpellTabs(__instance, heroCharacter);
+            CharacterInspectionScreenEnhancement.ConfigureInspectionTabsScroll(__instance);
 
         }
 
@@ -110,6 +96,8 @@ public static class CharacterInspectionScreenPatcher
         [UsedImplicitly]
         public static bool Prefix(CharacterInspectionScreen __instance)
         {
+            CharacterInspectionScreenEnhancement.ReleaseInspectionTabsScroll(__instance);
+
             //PATCH: disable custom models renderer
             CustomModels.SwitchRenderer(false);
 
@@ -130,7 +118,29 @@ public static class CharacterInspectionScreenPatcher
         public static void Postfix(CharacterInspectionScreen __instance)
         {
             SimulacrumEquipmentPanel.AfterBeginShow(__instance);
+            CharacterInspectionScreenEnhancement.EnsureInspectionTabVisible(__instance);
+        }
+    }
 
+    [HarmonyPatch(typeof(CharacterInspectionScreen), nameof(CharacterInspectionScreen.ToggleValueChanged))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ToggleValueChanged_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterInspectionScreen __instance, ref int rank)
+        {
+            if (!__instance.ignoreToggleCallback &&
+                !SimulacrumEquipmentPanel.TryGetActiveCharacter(__instance, out _))
+            {
+                rank = CharacterInspectionScreenEnhancement.NormalizeInspectionToggle(__instance, rank);
+            }
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(CharacterInspectionScreen __instance)
+        {
+            CharacterInspectionScreenEnhancement.EnsureInspectionTabVisible(__instance);
         }
     }
 

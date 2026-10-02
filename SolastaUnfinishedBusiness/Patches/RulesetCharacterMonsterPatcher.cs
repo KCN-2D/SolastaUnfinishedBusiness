@@ -12,6 +12,7 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
+using SolastaUnfinishedBusiness.Spells;
 using static RuleDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -24,6 +25,12 @@ public static class RulesetCharacterMonsterPatcher
     [UsedImplicitly]
     public static class PostLoad_Patch
     {
+        [UsedImplicitly]
+        public static void Prefix(RulesetCharacterMonster __instance)
+        {
+            SpellBuilders.RestoreFamiliar(__instance);
+        }
+
         [UsedImplicitly]
         public static void Postfix(RulesetCharacterMonster __instance)
         {

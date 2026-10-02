@@ -1962,7 +1962,8 @@ public static class RulesetCharacterPatcher
                 __result = SimulacrumBehavior.CanCastSpellOfActionType(
                     duplicate,
                     actionType,
-                    canOnlyUseCantrips) || SpellActionTypeContext.CanCastSpellOfActionType(
+                    canOnlyUseCantrips) || SpellCastingResourceContext.CanCastFeatSpellOfActionType(
+                    duplicate, actionType, canOnlyUseCantrips) || SpellActionTypeContext.CanCastSpellOfActionType(
                     duplicate,
                     actionType,
                     canOnlyUseCantrips);
@@ -1972,7 +1973,8 @@ public static class RulesetCharacterPatcher
 
             if (__result) { return; }
 
-            if (SpellActionTypeContext.CanCastSpellOfActionType(__instance, actionType, canOnlyUseCantrips))
+            if (SpellCastingResourceContext.CanCastFeatSpellOfActionType(__instance, actionType, canOnlyUseCantrips) ||
+                SpellActionTypeContext.CanCastSpellOfActionType(__instance, actionType, canOnlyUseCantrips))
             {
                 __result = true;
                 return;
@@ -2546,7 +2548,7 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static bool Prefix(RulesetCharacter __instance, RulesetSpellRepertoire spellRepertoire, ref int __result)
         {
-            if (Tabletop2024Context.TryGetMagicInitiate2024SaveDC(spellRepertoire, out __result))
+            if (Tabletop2024Context.TryGetTabletop2024FeatSaveDC(spellRepertoire, out __result))
             {
                 return false;
             }
@@ -3361,7 +3363,7 @@ public static class RulesetCharacterPatcher
                 }
 
                 var spellRepertoire = SpellCastingResourceContext.HasExplicitSelection(activeSpell)
-                    ? activeSpell.SpellRepertoire
+                    ? SpellCastingResourceContext.GetResourceRepertoire(activeSpell)
                     : TryRedirectFeatGrantedReactionSpellSlot(__instance, activeSpell) ?? activeSpell.SpellRepertoire;
                 FeatureDefinition preserveSlotThresholdFeature = null;
                 var preserveSlotThreshold = int.MaxValue;
@@ -3493,7 +3495,7 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance)
         {
-            SpellCastingResourceContext.AddFreeWizardUsableSpells(__instance);
+            SpellCastingResourceContext.AddAdditionalUsableSpells(__instance);
         }
     }
 

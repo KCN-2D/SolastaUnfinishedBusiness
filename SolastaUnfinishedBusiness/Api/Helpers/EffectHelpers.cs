@@ -1,8 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Models;
+using SolastaUnfinishedBusiness.Spells;
 
 namespace SolastaUnfinishedBusiness.Api.Helpers;
 
@@ -110,6 +114,159 @@ internal static class EffectHelpers
                 out var activeConditionWildShapeSubstituteForm)
                 ? GetCharacterByGuid(activeConditionWildShapeSubstituteForm.SourceGuid)
                 : null;
+    }
+
+    internal static bool IsFamiliarTouchSpell(
+        SpellDefinition spellDefinition, EffectDescription effectDescription)
+    {
+        return spellDefinition != null && effectDescription != null &&
+               effectDescription.TargetType is RuleDefinitions.TargetType.Individuals or RuleDefinitions.TargetType.IndividualsUnique &&
+               !spellDefinition.HasSubFeatureOfType<FixesContext.NoDistanced>() &&
+               (effectDescription.RangeType == RuleDefinitions.RangeType.Touch ||
+                effectDescription.RangeType == RuleDefinitions.RangeType.MeleeHit &&
+                effectDescription.RangeParameter <= 1);
+    }
+
+    private const string FamiliarTouchDeliveryPrefix = "FamiliarTouchDelivery:";
+
+    private sealed class FamiliarTouchDeliveryState(ulong familiarGuid)
+    {
+        internal ulong FamiliarGuid { get; } = familiarGuid;
+        internal bool ReactionSpent { get; set; }
+        internal EffectDescription SourceDescription { get; set; }
+        internal EffectDescription DeliveryDescription { get; set; }
+    }
+
+    private static readonly ConditionalWeakTable<RulesetEffectSpell, FamiliarTouchDeliveryState>
+        FamiliarTouchEffects = new();
+    private static readonly ConditionalWeakTable<EffectDescription, FamiliarTouchDeliveryState>
+        FamiliarTouchDescriptions = new();
+
+    internal static void SelectFamiliarTouchDelivery(
+        CharacterActionParams actionParams, GameLocationCharacter familiar)
+    {
+        // Action parameters survive native cloning and network serialization.
+        actionParams.StringParameter2 = FamiliarTouchDeliveryPrefix + familiar.Guid;
+    }
+
+    internal static void BindFamiliarTouchDelivery(CharacterActionParams actionParams)
+    {
+        var selection = actionParams?.StringParameter2;
+        if (actionParams?.RulesetEffect is not RulesetEffectSpell spell ||
+            selection == null || !selection.StartsWith(FamiliarTouchDeliveryPrefix, StringComparison.Ordinal) ||
+            !ulong.TryParse(selection.Substring(FamiliarTouchDeliveryPrefix.Length), out var familiarGuid) ||
+            FamiliarTouchEffects.TryGetValue(spell, out _))
+        {
+            return;
+        }
+
+        FamiliarTouchEffects.Add(spell, new FamiliarTouchDeliveryState(familiarGuid));
+    }
+
+    internal static EffectDescription GetFamiliarTouchDescription(
+        RulesetEffectSpell spell, EffectDescription description)
+    {
+        if (!FamiliarTouchEffects.TryGetValue(spell, out var state))
+        {
+            return description;
+        }
+
+        if (state.SourceDescription != description)
+        {
+            state.SourceDescription = description;
+            state.DeliveryDescription = new EffectDescription();
+            state.DeliveryDescription.Copy(description);
+            FamiliarTouchDescriptions.Add(state.DeliveryDescription, state);
+        }
+
+        // Battle targeting only receives an effect description. Give this cast its own identity,
+        // without marking the shared spell definition or other simultaneous casts.
+        return state.DeliveryDescription;
+    }
+
+    internal static bool IsFamiliarTouchDelivery(EffectDescription description)
+    {
+        return description != null && FamiliarTouchDescriptions.TryGetValue(description, out _);
+    }
+
+    internal static GameLocationCharacter GetFamiliarTouchDelivery(
+        GameLocationCharacter caster,
+        SpellDefinition spellDefinition,
+        EffectDescription effectDescription,
+        GameLocationCharacter target,
+        MetamagicOptionDefinition metamagicOption = null)
+    {
+        if (caster?.RulesetCharacter == null || target?.RulesetCharacter == null ||
+            !IsFamiliarTouchSpell(spellDefinition, effectDescription) ||
+            !FamiliarTouchDescriptions.TryGetValue(effectDescription, out var state))
+        {
+            return null;
+        }
+
+        var familiar = SpellBuilders.GetFamiliars(caster.RulesetCharacter)
+            .FirstOrDefault(character => character.Guid == state.FamiliarGuid);
+
+        return familiar != null && caster.IsWithinRange(familiar, 20) &&
+               (state.ReactionSpent || familiar.CanReact()) && familiar.IsWithinRange(target, 1)
+            ? familiar
+            : null;
+    }
+
+    internal static bool ValidateFamiliarTouchDelivery(CharacterActionParams actionParams, bool spendReaction)
+    {
+        BindFamiliarTouchDelivery(actionParams);
+        if (actionParams?.RulesetEffect is not RulesetEffectSpell spell ||
+            !FamiliarTouchEffects.TryGetValue(spell, out var state))
+        {
+            return true;
+        }
+
+        // Native action ranks are spent after Execute completes. Recheck the selected
+        // action before starting a queued delivery or paying either character's resources.
+        if (!state.ReactionSpent && !ActionPanelContext.IsFamiliarTouchActionAvailable(
+                actionParams.ActingCharacter, actionParams.ActionDefinition.Id))
+        {
+            foreach (var modifier in actionParams.ActionModifiers)
+            {
+                modifier.FailureFlags.Add("Failure/&FailureFlagFamiliarTouchCasterActionUnavailable");
+            }
+
+            return false;
+        }
+
+        GameLocationCharacter deliveryFamiliar = null;
+        for (var index = 0; index < actionParams.TargetCharacters.Count; index++)
+        {
+            var familiar = GetFamiliarTouchDelivery(actionParams.ActingCharacter, spell.SpellDefinition,
+                spell.EffectDescription, actionParams.TargetCharacters[index]);
+
+            if (familiar == null)
+            {
+                if (index < actionParams.ActionModifiers.Count)
+                {
+                    actionParams.ActionModifiers[index].FailureFlags.Add("Failure/&FailureFlagNoReachForTargetDescription");
+                }
+
+                return false;
+            }
+
+            deliveryFamiliar = familiar;
+        }
+
+        if (deliveryFamiliar == null)
+        {
+            return false;
+        }
+
+        // Validate every target before paying once. Later attack checks retain this cast's origin
+        // even after its reaction has been spent.
+        if (spendReaction && !state.ReactionSpent)
+        {
+            deliveryFamiliar.SpendActionType(ActionDefinitions.ActionType.Reaction);
+            state.ReactionSpent = true;
+        }
+
+        return true;
     }
 
     internal static RulesetCharacter GetCharacterByGuid(ulong guid)

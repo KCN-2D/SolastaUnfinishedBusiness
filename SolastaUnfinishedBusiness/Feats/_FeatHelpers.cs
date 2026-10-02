@@ -1,4 +1,5 @@
-﻿using System.Linq;
+using System;
+using System.Linq;
 using SolastaUnfinishedBusiness.Interfaces;
 using static RuleDefinitions;
 
@@ -6,6 +7,14 @@ namespace SolastaUnfinishedBusiness.Feats;
 
 internal static class FeatHelpers
 {
+    internal sealed class SpellReplacementOnLevelUp(
+        Func<bool> isEnabled,
+        params FeatureDefinitionCastSpell[] castingFeatures)
+    {
+        internal bool IsEnabled => isEnabled();
+        internal FeatureDefinitionCastSpell[] CastingFeatures { get; } = castingFeatures;
+    }
+
     internal sealed class ModifyWeaponAttackModeTypeFilter(
         FeatDefinition source,
         params WeaponTypeDefinition[] weaponTypeDefinition) : IModifyWeaponAttackMode
@@ -31,13 +40,15 @@ internal static class FeatHelpers
 
     internal sealed class SpellTag
     {
-        internal SpellTag(string spellTag, bool forceFixedList = false)
+        internal SpellTag(string spellTag, bool forceFixedList = false, bool allowSlotCasting = false)
         {
             Name = spellTag;
             ForceFixedList = forceFixedList;
+            AllowSlotCasting = allowSlotCasting;
         }
 
         internal string Name { get; }
         internal bool ForceFixedList { get; }
+        internal bool AllowSlotCasting { get; }
     }
 }

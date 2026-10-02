@@ -24,6 +24,7 @@ internal static class FightingStyleContext
         LoadStyle(new Interception());
         LoadStyle(new Lunger());
         LoadStyle(new RemarkableTechnique());
+        LoadStyle(new ThrownWeaponFighting());
         LoadStyle(new Torchbearer());
 
         // sorting

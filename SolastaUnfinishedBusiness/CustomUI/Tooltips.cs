@@ -266,27 +266,60 @@ internal static class Tooltips
 
     private static string FormatUses(FeatureDefinitionPower power, RulesetCharacter character, string def)
     {
-        if (power.UsesDetermination != RuleDefinitions.UsesDetermination.Fixed)
-        {
-            return def;
-        }
-
         if (power.RechargeRate == RuleDefinitions.RechargeRate.AtWill)
         {
             return def;
         }
 
-        if (power.CostPerUse == 0)
+        if (power.RechargeRate == RuleDefinitions.RechargeRate.HealingPool)
+        {
+            var maxPoints = Math.Max(0, character.TryGetAttributeValue(AttributeDefinitions.HealingPool));
+            var remainingPoints = Math.Max(0, maxPoints - character.UsedHealingPool);
+
+            // Variable healing spends a selected number of points rather than a fixed use.
+            return power.CostPerUse <= 0
+                ? Gui.Format("Tooltip/&PowerPointsRemainingFormat", remainingPoints.ToString(), maxPoints.ToString())
+                : FormatAvailablePowerUses(remainingPoints / power.CostPerUse, maxPoints / power.CostPerUse);
+        }
+
+        if (power.CostPerUse <= 0)
         {
             return def;
         }
 
-        var usablePower = PowerProvider.Get(power, character);
-        var maxUses = PowerProvider.GetEffectiveMaxUses(character, usablePower);
-        // must use GetRemainingPowerUses as power could be a Shared Pool
-        var remainingUses = character.GetRemainingPowerUses(power);
+        var attributeName = power.RechargeRate switch
+        {
+            RuleDefinitions.RechargeRate.BardicInspiration => AttributeDefinitions.BardicInspirationNumber,
+            RuleDefinitions.RechargeRate.BindChain => AttributeDefinitions.BindChainNumber,
+            RuleDefinitions.RechargeRate.ChannelDivinity => AttributeDefinitions.ChannelDivinityNumber,
+            RuleDefinitions.RechargeRate.MaxHitPoints => AttributeDefinitions.HitPoints,
+            RuleDefinitions.RechargeRate.RagePoints => AttributeDefinitions.RagePoints,
+            RuleDefinitions.RechargeRate.SorceryPoints => AttributeDefinitions.SorceryPoints,
+            RuleDefinitions.RechargeRate.KiPoints => AttributeDefinitions.KiPoints,
+            _ => null
+        };
+        int maxUses;
 
-        return $"{remainingUses}/{maxUses}";
+        if (attributeName != null)
+        {
+            maxUses = Math.Max(0, character.TryGetAttributeValue(attributeName)) / power.CostPerUse;
+        }
+        else
+        {
+            var usablePower = PowerProvider.Get(power, character);
+            var maxCharges = PowerProvider.GetEffectiveMaxUses(character, usablePower);
+
+            // Shared powers already expose their root pool in this power's use units.
+            maxUses = power is FeatureDefinitionPowerSharedPool ? maxCharges : maxCharges / power.CostPerUse;
+        }
+
+        // Remaining uses also resolves shared pools and divides their charge cost.
+        return FormatAvailablePowerUses(Math.Max(0, character.GetRemainingPowerUses(power)), maxUses);
+    }
+
+    private static string FormatAvailablePowerUses(int remainingUses, int maxUses)
+    {
+        return Gui.Format("Tooltip/&PowerUsesRemainingFormat", remainingUses.ToString(), maxUses.ToString());
     }
 
     internal static void UpdateContextualDescription(TooltipFeatureDescription description, ITooltip tooltip)
@@ -605,22 +638,23 @@ internal static class Tooltips
 
     internal static void RefreshAdaptiveSpellParameterTopRow(TooltipFeatureSpellParameters parent)
     {
-        RefreshAdaptiveParameterTopRow(parent?.verticalLayout);
+        RefreshAdaptiveParameterRow(parent?.verticalLayout, "TopTable");
     }
 
     internal static void RefreshAdaptivePowerParameterTopRow(TooltipFeaturePowerParameters parent)
     {
-        RefreshAdaptiveParameterTopRow(parent?.verticalLayout);
+        RefreshAdaptiveParameterRow(parent?.verticalLayout, "TopTable");
+        RefreshAdaptiveParameterRow(parent?.verticalLayout, "MediumTable");
     }
 
-    private static void RefreshAdaptiveParameterTopRow(Transform verticalLayout)
+    private static void RefreshAdaptiveParameterRow(Transform verticalLayout, string rowName)
     {
         if (!verticalLayout)
         {
             return;
         }
 
-        if (verticalLayout.Find("TopTable") is not RectTransform topTable ||
+        if (verticalLayout.Find(rowName) is not RectTransform topTable ||
             !topTable.gameObject.activeInHierarchy ||
             !TryGetTwoActiveParameterGroups(topTable, out var leftGroup, out var rightGroup))
         {
@@ -631,10 +665,18 @@ internal static class Tooltips
 
         topState.Restore(topTable);
 
+        // Native labels can be wider than the space between the two column origins.
+        var leftStart = GetParameterGroupLeft(topTable, leftGroup);
+        var rightStart = GetParameterGroupLeft(topTable, rightGroup);
+        var rowLayout = topTable.GetComponent<HorizontalLayoutGroup>();
+        var columnSpacing = rowLayout ? rowLayout.spacing : leftGroup.GetComponentsInChildren<TMP_Text>(false)
+            .Select(text => text.fontSize / 2f).DefaultIfEmpty(0f).Max();
+        var leftWidth = Mathf.Min(leftGroup.rect.width, rightStart - leftStart - columnSpacing);
+        var rightWidth = Mathf.Min(rightGroup.rect.width, topTable.rect.xMax - rightStart);
         var requiredHeight = Mathf.Max(
             topState.OriginalHeight,
-            RefreshAdaptiveParameterGroup(leftGroup),
-            RefreshAdaptiveParameterGroup(rightGroup));
+            RefreshAdaptiveParameterGroup(leftGroup, leftWidth),
+            RefreshAdaptiveParameterGroup(rightGroup, rightWidth));
 
         requiredHeight = Mathf.Ceil(requiredHeight);
         topTable.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, requiredHeight);
@@ -649,6 +691,11 @@ internal static class Tooltips
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(verticalRect);
         }
+    }
+
+    private static float GetParameterGroupLeft(RectTransform row, RectTransform group)
+    {
+        return row.InverseTransformPoint(group.TransformPoint(new Vector3(group.rect.xMin, 0f, 0f))).x;
     }
 
     private static bool TryGetTwoActiveParameterGroups(
@@ -680,7 +727,7 @@ internal static class Tooltips
         return leftGroup && rightGroup;
     }
 
-    private static float RefreshAdaptiveParameterGroup(RectTransform group)
+    private static float RefreshAdaptiveParameterGroup(RectTransform group, float width)
     {
         if (!group)
         {
@@ -691,16 +738,17 @@ internal static class Tooltips
 
         groupState.Restore(group);
 
-        var width = group.rect.width;
-
         if (width <= 1f)
         {
             return groupState.OriginalHeight;
         }
 
         var requiredHeight = groupState.OriginalHeight;
+        var addedHeight = 0f;
 
-        foreach (var text in group.GetComponentsInChildren<TMP_Text>(false))
+        foreach (var text in group.GetComponentsInChildren<TMP_Text>(false)
+                     .Where(text => text && text.rectTransform && text.gameObject.activeInHierarchy)
+                     .OrderByDescending(text => TooltipParameterLayoutState.Get(text.rectTransform).OriginalPositionY))
         {
             if (!text || text.rectTransform == null || !text.gameObject.activeInHierarchy)
             {
@@ -711,6 +759,8 @@ internal static class Tooltips
             var textState = TooltipParameterLayoutState.Get(rectTransform);
 
             textState.Restore(rectTransform);
+            rectTransform.anchoredPosition = new Vector2(rectTransform.anchoredPosition.x,
+                textState.OriginalPositionY - addedHeight);
 
             rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
             text.enableWordWrapping = true;
@@ -722,6 +772,7 @@ internal static class Tooltips
 
             rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
             requiredHeight = Mathf.Max(requiredHeight, -rectTransform.anchoredPosition.y + height + 2f);
+            addedHeight += height - textState.OriginalHeight;
         }
 
         requiredHeight = Mathf.Ceil(requiredHeight);
@@ -740,6 +791,7 @@ internal sealed class TooltipParameterLayoutState : MonoBehaviour
     private float _originalFlexibleHeight;
 
     internal float OriginalHeight { get; private set; }
+    internal float OriginalPositionY { get; private set; }
 
     internal static TooltipParameterLayoutState Get(RectTransform rectTransform)
     {
@@ -793,6 +845,7 @@ internal sealed class TooltipParameterLayoutState : MonoBehaviour
         }
 
         OriginalHeight = rectTransform.rect.height;
+        OriginalPositionY = rectTransform.anchoredPosition.y;
         _hadLayoutElement = rectTransform.TryGetComponent<LayoutElement>(out var layout);
 
         if (_hadLayoutElement)

@@ -120,6 +120,7 @@ public static class RulesetEffectSpellPatcher
         {
             // allowing to pick and/or tweak spell effect depending on some caster properties
             __result = PowerBundle.ModifySpellEffect(__result, __instance);
+            __result = EffectHelpers.GetFamiliarTouchDescription(__instance, __result);
         }
     }
 

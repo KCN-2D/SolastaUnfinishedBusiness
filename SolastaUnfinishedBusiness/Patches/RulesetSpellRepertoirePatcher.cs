@@ -67,8 +67,14 @@ public static class RulesetSpellRepertoirePatcher
 
     private static bool TryGetSpellcastingAbilityOverride(RulesetSpellRepertoire repertoire, out string ability)
     {
+        if (SpellSelectionContext.TryGetOption(repertoire, out var option))
+        {
+            ability = option.CastingRepertoire.SpellCastingAbility;
+            return true;
+        }
+
         return SpeciesSpellcastingContext.TryGetSpellcastingAbility(repertoire, out ability) ||
-               Tabletop2024Context.TryGetMagicInitiate2024SpellcastingAbility(repertoire, out ability);
+               Tabletop2024Context.TryGetTabletop2024FeatSpellcastingAbility(repertoire, out ability);
     }
 
     private static readonly string[] SpellSourceTitleFormats =
@@ -140,6 +146,12 @@ public static class RulesetSpellRepertoirePatcher
 
     private static bool FormatHeaderTitle(RulesetSpellRepertoire __instance, ref string __result)
     {
+        if (SpellSelectionContext.TryGetOption(__instance, out var option))
+        {
+            __result = option.SourceTitle;
+            return false;
+        }
+
         if (TryFormatSpellTagSourceTitle(__instance, false, out var title, out _))
         {
             __result = title;
@@ -197,7 +209,7 @@ public static class RulesetSpellRepertoirePatcher
 
         if (shortTitle)
         {
-            if (Tabletop2024Context.TryGetMagicInitiate2024SpellSourceShortTitle(spellTag, out title) ||
+            if (Tabletop2024Context.TryGetTabletop2024FeatSpellSourceShortTitle(spellTag, out title) ||
                 TryFormatClassHolderTitle(spellCastingFeature, out title))
             {
                 source = "shortClass";
@@ -343,7 +355,7 @@ public static class RulesetSpellRepertoirePatcher
         [UsedImplicitly]
         public static void Postfix(RulesetSpellRepertoire __instance, ref int __result)
         {
-            if (Tabletop2024Context.TryGetMagicInitiate2024SaveDC(__instance, out var saveDC))
+            if (Tabletop2024Context.TryGetTabletop2024FeatSaveDC(__instance, out var saveDC))
             {
                 __result = saveDC;
             }
@@ -358,7 +370,7 @@ public static class RulesetSpellRepertoirePatcher
         [UsedImplicitly]
         public static void Postfix(RulesetSpellRepertoire __instance, ref int __result)
         {
-            if (Tabletop2024Context.TryGetMagicInitiate2024SpellAttackBonus(
+            if (Tabletop2024Context.TryGetTabletop2024FeatSpellAttackBonus(
                     __instance,
                     out var spellAttackBonus))
             {
@@ -661,25 +673,8 @@ public static class RulesetSpellRepertoirePatcher
 
             var gameLocationCharacter = GameLocationCharacter.GetFromActor(character);
             var wasShiftPressed = gameLocationCharacter.GetAndClearShiftState();
-            var consumePactSlot = false;
-
-            if (slotLevel >= pactSpellLevel && pactRemaining > 0)
-            {
-                if (slotLevel > pactSpellLevel || sharedRemaining == 0)
-                {
-                    consumePactSlot = true;
-                }
-                else if (slotLevel == pactSpellLevel)
-                {
-                    consumePactSlot = Main.Settings.AlwaysSpendPactSlotsFirst ||
-                                      (activeRepertoire.SpellCastingClass !=
-                                          DatabaseHelper.CharacterClassDefinitions.Warlock && wasShiftPressed) ||
-                                      (activeRepertoire.SpellCastingClass ==
-                                          DatabaseHelper.CharacterClassDefinitions.Warlock && !wasShiftPressed);
-                }
-            }
-
-            if (consumePactSlot)
+            if (activeRepertoire.ShouldSpendPactSlot(slotLevel, pactSpellLevel, sharedRemaining,
+                    pactRemaining, wasShiftPressed))
             {
                 SpendIndependentPactSlot(sharedRepertoires, pactSpellLevel);
 
@@ -914,26 +909,9 @@ public static class RulesetSpellRepertoirePatcher
 
             var glc = GameLocationCharacter.GetFromActor(character);
             var wasShiftPressed = glc.GetAndClearShiftState();
-            var consumePactSlot = false;
-
-            if (slotLevel >= warlockSpellLevel && pactRemainingSlots > 0)
-            {
-                if (slotLevel > warlockSpellLevel || sharedRemainingSlots == 0)
-                {
-                    consumePactSlot = true;
-                }
-                else if (slotLevel == warlockSpellLevel)
-                {
-                    consumePactSlot = Main.Settings.AlwaysSpendPactSlotsFirst ||
-                                      (__instance.SpellCastingClass !=
-                                          DatabaseHelper.CharacterClassDefinitions.Warlock && wasShiftPressed) ||
-                                      (__instance.SpellCastingClass ==
-                                          DatabaseHelper.CharacterClassDefinitions.Warlock && !wasShiftPressed);
-                }
-            }
-
-            // uses short rest slots across all non race repertoires
-            if (consumePactSlot)
+            // Uses short-rest slots across all shared repertoires when the selected pool prefers pact.
+            if (__instance.ShouldSpendPactSlot(slotLevel, warlockSpellLevel, sharedRemainingSlots,
+                    pactRemainingSlots, wasShiftPressed))
             {
                 foreach (var spellRepertoire in EnumerateSharedSlotRepertoires(character))
                 {
@@ -981,7 +959,7 @@ public static class RulesetSpellRepertoirePatcher
         {
             if (SpellSelectionContext.TryGetOption(__instance, out var option))
             {
-                __result = option.SlotLevel;
+                __result = option.IsFree ? option.SlotLevel : option.Repertoire.MaxSpellLevelOfSpellCastingLevel;
                 return false;
             }
 

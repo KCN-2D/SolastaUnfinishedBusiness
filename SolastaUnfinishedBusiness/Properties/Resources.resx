@@ -3042,4 +3042,34 @@
         PublicKeyToken=b77a5c561934e089
     </value>
   </data>
+  <data name="FamiliarCat" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\FamiliarCat.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="FamiliarOwl" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\FamiliarOwl.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="FamiliarSpider" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\FamiliarSpider.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="FamiliarTouchDelivery" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\FamiliarTouchDelivery.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="FamiliarSharedSenses" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\FamiliarSharedSenses.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ConditionFamiliarSharedSenses" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Conditions\ConditionFamiliarSharedSenses.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
 </root>

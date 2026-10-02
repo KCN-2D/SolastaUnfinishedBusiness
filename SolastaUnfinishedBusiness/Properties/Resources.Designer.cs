@@ -62,6 +62,16 @@ namespace SolastaUnfinishedBusiness.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
+        public static byte[] FamiliarCat {
+            get {
+                object obj = ResourceManager.GetObject("FamiliarCat", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
         public static byte[] ProficiencyChoices {
             get {
                 object obj = ResourceManager.GetObject("ProficiencyChoices", resourceCulture);
@@ -5658,6 +5668,56 @@ namespace SolastaUnfinishedBusiness.Properties {
         public static byte[] Wish {
             get {
                 object obj = ResourceManager.GetObject("Wish", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] FamiliarOwl {
+            get {
+                object obj = ResourceManager.GetObject("FamiliarOwl", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] FamiliarSpider {
+            get {
+                object obj = ResourceManager.GetObject("FamiliarSpider", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] FamiliarTouchDelivery {
+            get {
+                object obj = ResourceManager.GetObject("FamiliarTouchDelivery", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionFamiliarSharedSenses {
+            get {
+                object obj = ResourceManager.GetObject("ConditionFamiliarSharedSenses", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] FamiliarSharedSenses {
+            get {
+                object obj = ResourceManager.GetObject("FamiliarSharedSenses", resourceCulture);
                 return ((byte[])(obj));
             }
         }

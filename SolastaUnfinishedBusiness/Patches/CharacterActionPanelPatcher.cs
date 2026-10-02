@@ -616,6 +616,16 @@ public static class CharacterActionPanelPatcher
         }
     }
 
+    [HarmonyPatch(typeof(CharacterActionPanel), nameof(CharacterActionPanel.RitualCastEngaged))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RitualCastEngaged_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterActionPanel __instance, SpellDefinition __0) =>
+            !ActionPanelContext.TrySelectRitualSubspell(__instance, __0);
+    }
+
     [HarmonyPatch(typeof(CharacterActionPanel), nameof(CharacterActionPanel.SelectSpell))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -641,7 +651,7 @@ public static class CharacterActionPanelPatcher
         {
             return panel.actionId == (Id)ExtraActionId.CastQuickened
                 ? ActionType.Main
-                : panel.ActionType;
+                : ActionPanelContext.GetSpellSelectionActionType(panel);
         }
     }
 
@@ -651,7 +661,7 @@ public static class CharacterActionPanelPatcher
     public static class SpellcastEngaged_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(
+        public static bool Prefix(
             CharacterActionPanel __instance,
             ref RulesetSpellRepertoire __0,
             SpellDefinition __1,
@@ -664,13 +674,18 @@ public static class CharacterActionPanelPatcher
                 __2 = option.SlotLevel;
             }
 
+            if (!ActionPanelContext.PrepareFamiliarTouchSpell(__instance, __0, __1))
+            {
+                return false;
+            }
+
             var spellDefinition = __1;
 
             if (__instance?.GuiCharacter?.RulesetCharacter is not
                     RulesetCharacterSimulacrum ||
                 spellDefinition == null)
             {
-                return;
+                return true;
             }
 
             var actingCharacter = __instance.GuiCharacter.GameLocationCharacter;
@@ -687,16 +702,17 @@ public static class CharacterActionPanelPatcher
 
             if (!needsFreshParams)
             {
-                return;
+                return true;
             }
 
             if (actingCharacter == null || actionStatus != ActionStatus.Available)
             {
-                return;
+                return true;
             }
 
             __instance.actionId = candidateAction;
             __instance.actionParams = new CharacterActionParams(actingCharacter, candidateAction);
+            return true;
         }
 
         [UsedImplicitly]
@@ -707,8 +723,13 @@ public static class CharacterActionPanelPatcher
                 AccessTools.PropertySetter(typeof(CharacterActionParams), nameof(CharacterActionParams.RulesetEffect)),
                 1, "CharacterActionPanel.SpellcastEngaged.CastingSelection",
                 new CodeInstruction(OpCodes.Call,
-                    AccessTools.Method(typeof(SpellCastingResourceContext),
-                        nameof(SpellCastingResourceContext.SetSelectedEffect))));
+                    AccessTools.Method(typeof(SpellcastEngaged_Patch), nameof(SetSelectedEffect))));
+        }
+
+        private static void SetSelectedEffect(CharacterActionParams parameters, RulesetEffect effect)
+        {
+            SpellCastingResourceContext.SetSelectedEffect(parameters, effect);
+            EffectHelpers.BindFamiliarTouchDelivery(parameters);
         }
 
         private static Id ResolveSpellAction(
@@ -1181,7 +1202,7 @@ public static class CharacterActionPanelPatcher
                 return caster.CanCastSpell(spell, checkAvailableSlot, out repertoire);
             }
 
-            repertoire = selection.Repertoire;
+            repertoire = selection.CastingRepertoire;
 
             // Retain knowledge, preparation, and existing casting validation without requiring a
             // conventional slot when the selected resource is a Wizard or repertoire free use.
@@ -1192,7 +1213,7 @@ public static class CharacterActionPanelPatcher
         {
             var selection = SpellCastingResourceContext.CurrentSelection;
 
-            return selection?.Repertoire == repertoire
+            return selection?.CastingRepertoire == repertoire
                 ? selection.SlotLevel
                 : repertoire.GetLowestAvailableSlotLevel();
         }
@@ -1223,6 +1244,7 @@ public static class CharacterActionPanelPatcher
     {
         [UsedImplicitly]
         public static bool Prefix(CharacterActionPanel __instance, RulesetUsablePower usablePower) =>
+            !ActionPanelContext.TrySelectFamiliarTouchSpell(__instance, usablePower) &&
             !Tabletop2024Context.TrySelectDivineIntervention(__instance, usablePower);
     }
 }

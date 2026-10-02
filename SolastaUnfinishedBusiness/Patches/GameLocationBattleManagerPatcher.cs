@@ -569,8 +569,29 @@ public static class GameLocationBattleManagerPatcher
             "MagicAffinityInfusionEnhanceArcaneFocusUpgraded";
 
         [UsedImplicitly]
-        public static bool Prefix(AttackEvaluationParams attackParams)
+        public static bool Prefix(ref AttackEvaluationParams attackParams)
         {
+            // Keep the caster's spell attack and features; only the touch delivery origin changes.
+            if (attackParams.effectDescription != null && !string.IsNullOrEmpty(attackParams.effectName) &&
+                DatabaseHelper.TryGetDefinition<SpellDefinition>(attackParams.effectName, out var spellDefinition))
+            {
+                var familiar = EffectHelpers.GetFamiliarTouchDelivery(
+                    attackParams.attacker, spellDefinition, attackParams.effectDescription,
+                    attackParams.defender, attackParams.metamagicOption);
+
+                if (familiar == null && EffectHelpers.IsFamiliarTouchDelivery(attackParams.effectDescription))
+                {
+                    attackParams.attackModifier.FailureFlags.Add("Failure/&FailureFlagNoReachForTargetDescription");
+                    return false;
+                }
+
+                if (familiar != null)
+                {
+                    attackParams.attackPosition = familiar.LocationPosition;
+                    attackParams.ComputeDistance();
+                }
+            }
+
             if (Main.Settings.ModifyThrowingRulesForStrength)
             {
                 var attacker = attackParams.attacker;
@@ -662,10 +683,45 @@ public static class GameLocationBattleManagerPatcher
                 bool>(CustomIsProjectileBlocked).Method;
 
             //PATCH: allow `Way of Shadows` monk to shoot projectiles through own darkness
-            return instructions.ReplaceCalls(oldIsProjBlocked,
+            instructions = instructions.ReplaceCalls(oldIsProjBlocked,
                 "GameLocationBattleManager.CanAttack.IsProjectileBlocked",
                 new CodeInstruction(OpCodes.Ldarg_1),
                 new CodeInstruction(OpCodes.Call, newIsProjBlocked));
+
+            var canSee = AccessTools.Method(typeof(GameLocationBattleManager),
+                nameof(GameLocationBattleManager.CanAttackerSeeCharacterFromPosition));
+            var canSeeFromDeliveryOrigin = new Func<GameLocationBattleManager, int3, int3,
+                GameLocationCharacter, GameLocationCharacter, AttackEvaluationParams, bool>(
+                CanSeeFromTouchDeliveryOrigin).Method;
+
+            return instructions.ReplaceCalls(canSee,
+                "GameLocationBattleManager.CanAttack.FamiliarTouchDelivery",
+                new CodeInstruction(OpCodes.Ldarg_1),
+                new CodeInstruction(OpCodes.Call, canSeeFromDeliveryOrigin));
+        }
+
+        private static bool CanSeeFromTouchDeliveryOrigin(
+            GameLocationBattleManager battleManager,
+            int3 defenderPosition,
+            int3 attackerPosition,
+            GameLocationCharacter defender,
+            GameLocationCharacter attacker,
+            AttackEvaluationParams attackParams)
+        {
+            if (attackParams.effectDescription != null && !string.IsNullOrEmpty(attackParams.effectName) &&
+                DatabaseHelper.TryGetDefinition<SpellDefinition>(attackParams.effectName, out var spellDefinition))
+            {
+                var familiar = EffectHelpers.GetFamiliarTouchDelivery(
+                    attacker, spellDefinition, attackParams.effectDescription, defender, attackParams.metamagicOption);
+
+                if (familiar != null && attackerPosition == familiar.LocationPosition)
+                {
+                    attacker = familiar;
+                }
+            }
+
+            return battleManager.CanAttackerSeeCharacterFromPosition(
+                defenderPosition, attackerPosition, defender, attacker);
         }
 
         private static bool CustomIsProjectileBlocked(IGameLocationPositioningService service, int3 origin,

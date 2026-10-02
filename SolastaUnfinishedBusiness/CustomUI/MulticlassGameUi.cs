@@ -1,14 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Patches;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using static RuleDefinitions;
@@ -100,8 +103,18 @@ internal static class MulticlassGameUi
 
         SharedSpellsContext.FactorMysticArcanum(character, spellRepertoire, ref classSpellLevel);
 
+        if (spellRepertoire.SpellCastingFeature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>() != null)
+        {
+            classSpellLevel = Math.Max(classSpellLevel,
+                CharacterInspectionScreenEnhancement.GetInspectionSpellLevelMaximum(spellRepertoire, character, __instance.BindMode));
+        }
+
+        var sources = CharacterInspectionScreenEnhancement.GetInspectionSpellRepertoires(character, spellRepertoire, __instance.BindMode);
+        var hasKnownCantrips = sources.Any(source => source.KnownCantrips.Count > 0 ||
+            source.SpellCastingFeature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>() != null &&
+            CharacterInspectionScreenEnhancement.GetInspectionLearnedSpells(source).Any(spell => spell.SpellLevel == 0));
         var slotLevel = !isMulticaster ? classSpellLevel : Math.Max(sharedSpellLevel, warlockSpellLevel);
-        var accountForCantrips = spellRepertoire.KnownCantrips.Count > 0 ? 1 : 0;
+        var accountForCantrips = spellRepertoire.SpellCastingFeature.SpellListDefinition.HasCantrips ? 1 : 0;
 
         while (__instance.levelButtonsTable.childCount < classSpellLevel + accountForCantrips)
         {
@@ -110,13 +123,18 @@ internal static class MulticlassGameUi
             var index = __instance.levelButtonsTable.childCount - 1;
             var child = __instance.levelButtonsTable.GetChild(index);
 
-            child.GetComponent<SpellLevelButton>().Bind(index, __instance.LevelSelected);
+            child.GetComponent<SpellLevelButton>().Bind(index + (accountForCantrips == 0 ? 1 : 0), __instance.LevelSelected);
         }
 
         while (__instance.levelButtonsTable.childCount > classSpellLevel + accountForCantrips)
         {
             Gui.ReleaseInstanceToPool(
                 __instance.levelButtonsTable.GetChild(__instance.levelButtonsTable.childCount - 1).gameObject);
+        }
+
+        for (var index = 0; index < __instance.levelButtonsTable.childCount; index++)
+        {
+            __instance.levelButtonsTable.GetChild(index).gameObject.SetActive(accountForCantrips == 0 || index > 0 || hasKnownCantrips);
         }
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.levelButtonsTable);
@@ -126,6 +144,18 @@ internal static class MulticlassGameUi
         for (var i = 0; i < __instance.spellsByLevelTable.childCount; i++)
         {
             var spellsByLevel = __instance.spellsByLevelTable.GetChild(i);
+            var group = spellsByLevel.GetComponent<SpellsByLevelGroup>();
+            if (!group || !spellsByLevel.gameObject.activeSelf)
+            {
+                continue;
+            }
+
+            var spellLevel = group.SpellLevel;
+            if (spellLevel == 0 && !hasKnownCantrips)
+            {
+                spellsByLevel.gameObject.SetActive(false);
+                continue;
+            }
 
             for (var j = 0; j < spellsByLevel.childCount; j++)
             {
@@ -133,11 +163,11 @@ internal static class MulticlassGameUi
 
                 if (transform.TryGetComponent(typeof(SlotStatusTable), out _))
                 {
-                    transform.gameObject.SetActive(i < slotLevel + accountForCantrips); // table header (with slots)
+                    transform.gameObject.SetActive(spellLevel <= slotLevel); // table header (with slots)
                 }
                 else
                 {
-                    transform.gameObject.SetActive(i < classSpellLevel + accountForCantrips); // table content
+                    transform.gameObject.SetActive(spellLevel <= classSpellLevel); // table content
                 }
             }
         }
@@ -546,6 +576,331 @@ internal static class MulticlassGameUi
         return builder.Remove(builder.Length - 1, 1).ToString();
     }
 
+    private static readonly ConditionalWeakTable<LearnStepItem, LearnStepButtonPresentation> AutoButtonPresentations = new();
+    private static readonly ConditionalWeakTable<LearnStepItem, SpellLearnStepLayout> SpellLearnStepLayouts = new();
+
+    private sealed class LearnStepButtonPresentation
+    {
+        private readonly Dictionary<GuiLabel, string> _labels;
+        private readonly List<Action> _restoreTooltips = [];
+        private readonly GuiTooltip[] _tooltips;
+
+        internal LearnStepButtonPresentation(LearnStepItem item)
+        {
+            _labels = item.autoButton.GetComponentsInChildren<GuiLabel>(true)
+                .ToDictionary(label => label, label => label.Text);
+            _tooltips = item.autoButton.GetComponentsInChildren<GuiTooltip>(true);
+            foreach (var tooltip in _tooltips)
+            {
+                var content = tooltip.Content;
+                var tooltipClass = tooltip.TooltipClass;
+                var disabled = tooltip.Disabled;
+                var context = tooltip.Context;
+                var provider = tooltip.DataProvider;
+                _restoreTooltips.Add(() =>
+                {
+                    if (!tooltip) { return; }
+                    tooltip.Content = content;
+                    tooltip.TooltipClass = tooltipClass;
+                    tooltip.Disabled = disabled;
+                    tooltip.Context = context;
+                    tooltip.DataProvider = provider;
+                });
+            }
+        }
+
+        internal void Restore()
+        {
+            foreach (var entry in _labels.Where(entry => entry.Key))
+            {
+                entry.Key.Text = entry.Value;
+            }
+            foreach (var restore in _restoreTooltips)
+            {
+                restore();
+            }
+        }
+
+        internal void ShowKeepChoices()
+        {
+            foreach (var label in _labels.Keys.Where(label => label))
+            {
+                label.Text = Gui.Localize("Screen/&FeatSpellReplacementKeepTitle");
+            }
+            foreach (var tooltip in _tooltips.Where(tooltip => tooltip))
+            {
+                tooltip.TooltipClass = GuiManager.DefaultTooltipClass;
+                tooltip.Content = "Screen/&FeatSpellReplacementKeepDescription";
+                tooltip.Disabled = false;
+                tooltip.Context = null;
+                tooltip.DataProvider = null;
+            }
+        }
+    }
+    private sealed class SpellLearnStepLayout
+    {
+        private readonly Dictionary<RectTransform, (Vector2 Position, Vector2 Size)> _rectangles;
+        private readonly Dictionary<TMP_Text, (bool AutoSize, bool Wrap, float FontSize, int MaxLines, float LineSpacing)> _headers;
+        private readonly RectTransform _buttonBar;
+        private readonly float _activeHeaderHeight;
+        private readonly float _inactiveHeaderHeight;
+        private readonly float _inactiveHeight;
+
+        internal SpellLearnStepLayout(LearnStepItem item)
+        {
+            _buttonBar = (RectTransform)item.resetButton.transform.parent;
+            _rectangles = new[]
+                {
+                    item.headerLabelActive.RectTransform, item.headerLabelInactive.RectTransform,
+                    item.choicesLabel.RectTransform, item.inactiveGroup, _buttonBar
+                }
+                .ToDictionary(rect => rect, rect => (rect.anchoredPosition, rect.sizeDelta));
+            _headers = new[] { item.headerLabelActive.TMP_Text, item.headerLabelInactive.TMP_Text }
+                .ToDictionary(text => text, text => (text.enableAutoSizing, text.enableWordWrapping,
+                    text.enableAutoSizing ? text.fontSizeMax : text.fontSize, text.maxVisibleLines, text.lineSpacing));
+            _activeHeaderHeight = item.headerLabelActive.RectTransform.rect.height;
+            _inactiveHeaderHeight = item.headerLabelInactive.RectTransform.rect.height;
+            _inactiveHeight = item.inactiveGroup.rect.height;
+        }
+
+        internal void Restore()
+        {
+            foreach (var entry in _rectangles)
+            {
+                var rect = entry.Key;
+                var state = entry.Value;
+                rect.anchoredPosition = state.Position;
+                rect.sizeDelta = state.Size;
+            }
+
+            foreach (var entry in _headers)
+            {
+                var text = entry.Key;
+                var state = entry.Value;
+                text.enableAutoSizing = state.AutoSize;
+                text.enableWordWrapping = state.Wrap;
+                text.fontSize = state.FontSize;
+                text.maxVisibleLines = state.MaxLines;
+                text.lineSpacing = state.LineSpacing;
+            }
+        }
+
+        internal void Apply(LearnStepItem item, bool active)
+        {
+            // Keep the native font sizes. Give wrapped titles their measured height instead of shrinking them.
+            foreach (var entry in _headers)
+            {
+                var text = entry.Key;
+                var state = entry.Value;
+                text.enableAutoSizing = false;
+                text.enableWordWrapping = true;
+                text.fontSize = state.FontSize;
+                text.maxVisibleLines = int.MaxValue;
+                // Native single-line headers use negative spacing that overlaps glyphs when wrapped.
+                text.lineSpacing = Mathf.Max(0f, state.LineSpacing);
+            }
+
+            var inactiveHeader = item.headerLabelInactive.RectTransform;
+            if (!item.backOneStepButton.gameObject.activeSelf)
+            {
+                // Locked rows need no space for the previous-step button.
+                inactiveHeader.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,
+                    item.inactiveGroup.rect.width - inactiveHeader.anchoredPosition.x - 12f);
+            }
+
+            var activeHeight = FitHeaderHeight(item.headerLabelActive.TMP_Text, _activeHeaderHeight);
+            var inactiveHeight = FitHeaderHeight(item.headerLabelInactive.TMP_Text, _inactiveHeaderHeight);
+            var addedHeight = activeHeight - _activeHeaderHeight;
+            _buttonBar.anchoredPosition = _rectangles[_buttonBar].Position + Vector2.down * addedHeight;
+            item.choicesLabel.RectTransform.anchoredPosition =
+                _rectangles[item.choicesLabel.RectTransform].Position + Vector2.down * addedHeight;
+            item.inactiveGroup.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+                _inactiveHeight + inactiveHeight - _inactiveHeaderHeight);
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(item.choicesLabel.RectTransform);
+            item.activeGroup.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+                item.choicesLabel.RectTransform.rect.height - item.choicesLabel.RectTransform.anchoredPosition.y + 12f);
+            item.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+                active ? item.activeGroup.rect.height : item.inactiveGroup.rect.height);
+        }
+
+        private static float FitHeaderHeight(TMP_Text text, float minimumHeight)
+        {
+            var height = Mathf.Max(minimumHeight,
+                Mathf.Ceil(text.GetPreferredValues(text.text, text.rectTransform.rect.width, float.PositiveInfinity).y) + 2f);
+            text.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            text.ForceMeshUpdate(true);
+            return height;
+        }
+    }
+
+    internal static void RefreshSpellLearnStepTitles(CharacterStageSpellSelectionPanel panel)
+    {
+        if (panel?.learnStepsTable == null)
+        {
+            return;
+        }
+
+        for (var index = 0; index < panel.learnStepsTable.childCount; ++index)
+        {
+            var item = panel.learnStepsTable.GetChild(index).GetComponent<LearnStepItem>();
+
+            if (!item)
+            {
+                continue;
+            }
+
+            if (AutoButtonPresentations.TryGetValue(item, out var buttonPresentation))
+            {
+                buttonPresentation.Restore();
+            }
+
+            var replacement = LevelUpHelper.GetFeatSpellReplacement(panel.currentHero.GetHeroBuildingData(), item.Tag);
+            if (replacement != null)
+            {
+                SetLearnStepTitle(item, Gui.Format("Screen/&FeatSpellReplacementTitle", replacement.FormatSourceTitle()));
+                item.choicesLabel.Text = Gui.Localize("Screen/&FeatSpellReplacementDescription");
+                if (index == panel.currentLearnStep)
+                {
+                    item.autoButton.gameObject.SetActive(true);
+                    item.autoButton.interactable = true;
+                    if (buttonPresentation == null)
+                    {
+                        buttonPresentation = new LearnStepButtonPresentation(item);
+                        AutoButtonPresentations.Add(item, buttonPresentation);
+                    }
+                    buttonPresentation.ShowKeepChoices();
+                }
+
+                ApplySpellLearnStepLayout(item, index == panel.currentLearnStep);
+                continue;
+            }
+
+            if (!Tabletop2024Context.TryGetTabletop2024FeatSpellLearnStepTitle(
+                    item.PoolType,
+                    item.Tag,
+                    out var title))
+            {
+                continue;
+            }
+
+            SetLearnStepTitle(item, title);
+            ApplySpellLearnStepLayout(item, index == panel.currentLearnStep);
+        }
+
+        LayoutRebuilder.ForceRebuildLayoutImmediate(panel.learnStepsTable);
+    }
+
+    private static void ApplySpellLearnStepLayout(LearnStepItem item, bool active)
+    {
+        if (!SpellLearnStepLayouts.TryGetValue(item, out var layout))
+        {
+            layout = new SpellLearnStepLayout(item);
+            SpellLearnStepLayouts.Add(item, layout);
+        }
+
+        layout.Apply(item, active);
+    }
+
+    private static void SetLearnStepTitle(LearnStepItem item, string title)
+    {
+        if (!item || string.IsNullOrEmpty(title))
+        {
+            return;
+        }
+
+        SetLearnStepLabel(item.headerLabelActive, title);
+        SetLearnStepLabel(item.headerLabelInactive, title);
+    }
+
+    private static void SetLearnStepLabel(GuiLabel label, string title)
+    {
+        if (!label || label.Text == title)
+        {
+            return;
+        }
+
+        label.Text = title;
+    }
+
+    internal static void RestoreSpellLearnStepLayouts(CharacterStageSpellSelectionPanel panel)
+    {
+        if (panel.learnStepsTable == null)
+        {
+            return;
+        }
+
+        foreach (Transform child in panel.learnStepsTable)
+        {
+            var item = child.GetComponent<LearnStepItem>();
+            if (item && SpellLearnStepLayouts.TryGetValue(item, out var layout))
+            {
+                layout.Restore();
+            }
+            if (item && AutoButtonPresentations.TryGetValue(item, out var presentation))
+            {
+                presentation.Restore();
+                AutoButtonPresentations.Remove(item);
+            }
+        }
+    }
+
+    private static bool TryBindFeatSpellReplacement(
+        SpellsByLevelGroup group,
+        SpellListDefinition spellListDefinition,
+        int spellLevel,
+        SpellBox.SpellBoxChangedHandler spellBoxChanged,
+        string spellTag,
+        bool canAcquireSpells,
+        RectTransform tooltipAnchor,
+        TooltipDefinitions.AnchorMode anchorMode,
+        CharacterStageSpellSelectionPanel panel)
+    {
+        var data = panel.currentHero.GetHeroBuildingData();
+        var replacement = LevelUpHelper.GetFeatSpellReplacement(data, spellTag);
+        if (replacement == null)
+        {
+            return false;
+        }
+
+        var content = ServiceRepository.GetService<IGamingPlatformService>();
+        var spells = spellListDefinition.SpellsByLevel.Where(level => level.Level == spellLevel)
+            .SelectMany(level => level.Spells).Where(replacement.IsEligible)
+            .Where(spell => content.IsContentPackAvailable(spell.ContentPack))
+            .Concat(replacement.PreviousSpells.Where(spell => spell.SpellLevel == spellLevel)).Distinct().ToList();
+        group.SpellLevel = spellLevel;
+        group.extraSpellsMap.Clear();
+        group.autoPreparedSpells.Clear();
+        group.spellsTable.gameObject.SetActive(true);
+        group.slotStatusTable.gameObject.SetActive(true);
+        group.CommonBind(null, SpellBox.BindMode.Learning, spellBoxChanged, spells, null, null,
+            group.autoPreparedSpells, null, new Dictionary<SpellDefinition, string>(), group.extraSpellsMap,
+            tooltipAnchor, anchorMode);
+
+        var selected = replacement.GetSelected(data);
+        foreach (Transform child in group.spellsTable)
+        {
+            if (!child.gameObject.activeSelf)
+            {
+                continue;
+            }
+
+            var box = child.GetComponent<SpellBox>();
+            if (canAcquireSpells)
+            {
+                box.RefreshLearningInProgress(replacement.CanSelect(data, box.SpellDefinition),
+                    selected.Contains(box.SpellDefinition));
+            }
+            else
+            {
+                box.RefreshLearningInactive(selected.Contains(box.SpellDefinition));
+            }
+        }
+
+        group.slotStatusTable.Bind(null, spellLevel, false, null, false);
+        return true;
+    }
+
     internal static void SpellsByLevelGroupBindLearning(
         [NotNull] SpellsByLevelGroup group,
         [NotNull] ICharacterBuildingService characterBuildingService,
@@ -564,15 +919,24 @@ internal static class MulticlassGameUi
         TooltipDefinitions.AnchorMode anchorMode,
         CharacterStageSpellSelectionPanel panel)
     {
+        if (TryBindFeatSpellReplacement(group, spellListDefinition, spellLevel, spellBoxChanged,
+                spellTag, canAcquireSpells, tooltipAnchor, anchorMode, panel))
+        {
+            return;
+        }
+
         var localHeroCharacter = panel.currentHero;
         var heroBuildingData = localHeroCharacter.GetHeroBuildingData();
         var selectionRepertoire = localHeroCharacter.SpellRepertoires
             .Find(repertoire => repertoire.SpellCastingFeature == spellFeature);
         var pointPool = GetCurrentPool(panel, characterBuildingService, heroBuildingData, spellFeature);
+        canAcquireSpells &= pointPool == null ||
+                            (spellLevel >= pointPool.MinSpellLevel &&
+                             (pointPool.MaxSpellLevel <= 0 || spellLevel <= pointPool.MaxSpellLevel));
         var effectiveSpellListDefinition = pointPool?.spellListOverride ?? spellListDefinition;
         var effectiveRitualOnly = ritualOnly || pointPool?.ritualOnly == true;
-        var useDedicatedTouchedSpellList =
-            Tabletop2024Context.UsesDedicatedTouchedSpellSelectionList2024(
+        var useDedicatedFeatSpellList =
+            Tabletop2024Context.UsesDedicatedFeatSpellSelectionList2024(
                 spellFeature,
                 effectiveSpellListDefinition,
                 spellTag);
@@ -591,7 +955,7 @@ internal static class MulticlassGameUi
             .Where(spell => !effectiveRitualOnly || spell.Ritual)
             .ToList();
 
-        if (!useDedicatedTouchedSpellList)
+        if (!useDedicatedFeatSpellList)
         {
             allSpells.AddRange(characterBuildingService
                 .EnumerateKnownAndAcquiredSpells(heroBuildingData, string.Empty)
@@ -621,7 +985,7 @@ internal static class MulticlassGameUi
 
         group.autoPreparedSpells.Clear();
 
-        if (!useDedicatedTouchedSpellList && group.SpellLevel > 0)
+        if (!useDedicatedFeatSpellList && group.SpellLevel > 0)
         {
             LevelUpHelper.EnumerateExtraSpells(group.extraSpellsMap, localHeroCharacter, selectionRepertoire);
 
@@ -649,7 +1013,7 @@ internal static class MulticlassGameUi
             }
         }
 
-        if (!useDedicatedTouchedSpellList &&
+        if (!useDedicatedFeatSpellList &&
             !spellTag.Contains(AttributeDefinitions.TagRace)) // this is a patch over original TA code
         {
             FilterMulticlassBleeding(group, localHeroCharacter, allSpells, group.autoPreparedSpells, pointPool,

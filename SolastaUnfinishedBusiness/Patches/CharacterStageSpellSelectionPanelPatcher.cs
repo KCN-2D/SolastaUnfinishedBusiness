@@ -6,7 +6,6 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -15,49 +14,32 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterStageSpellSelectionPanelPatcher
 {
-    private static void RefreshLearnStepTitles(CharacterStageSpellSelectionPanel panel)
+    [HarmonyPatch(typeof(CharacterStageSpellSelectionPanel), nameof(CharacterStageSpellSelectionPanel.UpdateRelevance))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class UpdateRelevance_Patch
     {
-        if (panel?.learnStepsTable == null)
+        [UsedImplicitly]
+        public static void Prefix(CharacterStageSpellSelectionPanel __instance)
         {
-            return;
-        }
-
-        for (var index = 0; index < panel.learnStepsTable.childCount; ++index)
-        {
-            var item = panel.learnStepsTable.GetChild(index).GetComponent<LearnStepItem>();
-
-            if (!item ||
-                !Tabletop2024Context.TryGetTabletop2024FeatSpellLearnStepTitle(
-                    item.PoolType,
-                    item.Tag,
-                    out var title))
+            if (__instance.currentHero != null &&
+                __instance.CharacterBuildingService is CharacterBuildingManager manager)
             {
-                continue;
+                LevelUpHelper.EnsureFeatSpellReplacementPools(manager, __instance.currentHero.GetHeroBuildingData());
             }
-
-            SetLearnStepTitle(item, title);
         }
     }
 
-    private static void SetLearnStepTitle(LearnStepItem item, string title)
+    [HarmonyPatch(typeof(CharacterStageSpellSelectionPanel), nameof(CharacterStageSpellSelectionPanel.CanProceedToNextStage))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CanProceedToNextStage_Patch
     {
-        if (!item || string.IsNullOrEmpty(title))
+        [UsedImplicitly]
+        public static void Postfix(CharacterStageSpellSelectionPanel __instance, ref bool __result)
         {
-            return;
+            __result &= LevelUpHelper.AreFeatSpellReplacementsValid(__instance.currentHero.GetHeroBuildingData());
         }
-
-        SetLearnStepLabel(item.headerLabelActive, title);
-        SetLearnStepLabel(item.headerLabelInactive, title);
-    }
-
-    private static void SetLearnStepLabel(GuiLabel label, string title)
-    {
-        if (!label || label.Text == title)
-        {
-            return;
-        }
-
-        label.Text = title;
     }
 
     [HarmonyPatch(typeof(CharacterStageSpellSelectionPanel), nameof(CharacterStageSpellSelectionPanel.Refresh))]
@@ -65,6 +47,12 @@ public static class CharacterStageSpellSelectionPanelPatcher
     [UsedImplicitly]
     public static class Refresh_Patch
     {
+        [UsedImplicitly]
+        private static void Prefix(CharacterStageSpellSelectionPanel __instance)
+        {
+            MulticlassGameUi.RestoreSpellLearnStepLayouts(__instance);
+        }
+
         [NotNull]
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
@@ -98,7 +86,7 @@ public static class CharacterStageSpellSelectionPanelPatcher
         [UsedImplicitly]
         private static void Postfix(CharacterStageSpellSelectionPanel __instance)
         {
-            RefreshLearnStepTitles(__instance);
+            MulticlassGameUi.RefreshSpellLearnStepTitles(__instance);
 
             var levelTable = __instance.spellsByLevelTable;
             var viewWidth = __instance.spellsScrollRect.GetComponent<RectTransform>().rect.width;

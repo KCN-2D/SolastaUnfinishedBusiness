@@ -157,15 +157,25 @@ public static class RulesetImplementationManagerLocationPatcher
     public static class InstantiateEffectSpell_Patch
     {
         [UsedImplicitly]
-        public static bool Prefix(
+        internal static bool Prefix(
             RulesetImplementationManagerLocation __instance,
             ref RulesetEffectSpell __result,
             RulesetCharacter caster,
-            RulesetSpellRepertoire spellRepertoire,
+            ref RulesetSpellRepertoire spellRepertoire,
             SpellDefinition spellDefinition,
             int slotLevel,
-            bool delayRegistration)
+            bool delayRegistration,
+            out SpellCastingResourceContext.ResourceOption __state)
         {
+            var source = RulesetEffectSpellWithOrigin.IsPendingOrigin(caster, spellDefinition, false)
+                ? spellRepertoire
+                : SpellCastingResourceContext.ResolveCastingRepertoire(spellRepertoire, spellDefinition, caster);
+            __state = source != spellRepertoire && slotLevel >= 0 &&
+                      spellRepertoire.UsesSharedSpellSlots() &&
+                      !SpellSelectionContext.TryGetOption(spellRepertoire, out _)
+                ? SpellCastingResourceContext.GetSlotSelection(spellRepertoire, spellDefinition, slotLevel, caster)
+                : null;
+            spellRepertoire = source;
             return RulesetEffectSpellWithOrigin.TryInstantiate(
                 __instance,
                 ref __result,
@@ -174,6 +184,13 @@ public static class RulesetImplementationManagerLocationPatcher
                 spellDefinition,
                 slotLevel,
                 delayRegistration);
+        }
+
+        [UsedImplicitly]
+        internal static void Postfix(
+            RulesetEffectSpell __result, SpellCastingResourceContext.ResourceOption __state)
+        {
+            SpellCastingResourceContext.BindEffectSelection(__result, __state);
         }
     }
 

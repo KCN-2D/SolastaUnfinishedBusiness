@@ -5,6 +5,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Classes;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Feats;
@@ -49,7 +50,9 @@ internal static class LevelUpHelper
                 Hero = rulesetCharacterHero,
                 SelectedClass = lastClass,
                 SelectedSubclass = lastSubclass,
-                IsLevelingUp = levelingUp
+                IsLevelingUp = levelingUp,
+                InitialCharacterLevel = rulesetCharacterHero.ClassesHistory.Count,
+                FeatSpellReplacements = levelingUp ? CaptureFeatSpellReplacements(rulesetCharacterHero) : []
             });
 
         // fixes max level and exp in case level 20 gets enabled after a campaign starts
@@ -468,18 +471,58 @@ internal static class LevelUpHelper
         }
 
         var maxSpellLevel = repertoire.MaxSpellLevelOfSpellCastingLevel;
-
         if (maxSpellLevel <= 0)
         {
             yield break;
         }
 
-        foreach (var entry in Tabletop2024Context.EnumerateSlotCastableTabletop2024FeatSpellsWithTags(character)
-                     .Where(entry => IsSpellCastableWithRepertoireSlots(entry.Spell, maxSpellLevel, spellLevel))
-                     .OrderBy(entry => entry.DisplayTag, StringComparer.Ordinal)
-                     .ThenBy(entry => entry.Spell.Name, StringComparer.Ordinal))
+        HashSet<SpellDefinition> yielded = [];
+        foreach (var entry in EnumerateSlotCastableFeatSpells(character)
+                     .Where(entry => IsSpellCastableWithRepertoireSlots(entry.Spell, maxSpellLevel, spellLevel)))
         {
-            yield return entry;
+            // A class's independently learned copy keeps its own source. Only project the
+            // selected feat grant here, using the same origin as tooltips and actual casting.
+            if (SpellCastingResourceContext.ResolveCastingRepertoire(repertoire, entry.Spell, character) == entry.Repertoire &&
+                yielded.Add(entry.Spell))
+            {
+                yield return (entry.Spell, entry.DisplayTag);
+            }
+        }
+    }
+
+    internal static IEnumerable<(RulesetSpellRepertoire Repertoire, SpellDefinition Spell, string DisplayTag)>
+        EnumerateSlotCastableFeatSpells(RulesetCharacter character)
+    {
+        if (character == null)
+        {
+            yield break;
+        }
+
+        foreach (var repertoire in character.SpellRepertoires
+                     .Where(repertoire => repertoire.SpellCastingFeature != null)
+                     .OrderBy(repertoire => repertoire.SpellCastingFeature.Name, StringComparer.Ordinal))
+        {
+            var feature = repertoire.SpellCastingFeature;
+            var tag = feature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>();
+            if (tag == null ||
+                !tag.AllowSlotCasting && !Tabletop2024Context.IsSlotCastableTabletop2024FeatSpellTag(tag))
+            {
+                continue;
+            }
+
+            var displayTag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(tag.Name);
+            var fixedSpells = (tag.ForceFixedList || feature.SpellKnowledge == SpellKnowledge.FixedList) &&
+                              feature.SpellListDefinition != null
+                ? feature.SpellListDefinition.SpellsByLevel.SelectMany(level => level.Spells)
+                : Enumerable.Empty<SpellDefinition>();
+            foreach (var spell in repertoire.KnownSpells.Concat(repertoire.PreparedSpells).Concat(fixedSpells)
+                         .Concat(repertoire.AutoPreparedSpells)
+                         .Concat(repertoire.ExtraSpellsByTag.Values.SelectMany(spells => spells))
+                         .Distinct().Where(spell => IsSpellCastableWithRepertoireSlots(spell, 9, AnySpellLevel))
+                         .OrderBy(spell => spell.Name, StringComparer.Ordinal))
+            {
+                yield return (repertoire, spell, displayTag);
+            }
         }
     }
 
@@ -754,63 +797,244 @@ internal static class LevelUpHelper
     }
 
 
-    internal static void SortHeroRepertoires(RulesetCharacterHero hero)
+    private static List<FeatSpellReplacement> CaptureFeatSpellReplacements(RulesetCharacterHero hero)
     {
-        if (hero.SpellRepertoires.Count <= 2)
+        var replacements = new List<FeatSpellReplacement>();
+        var handledFeatures = new HashSet<FeatureDefinitionCastSpell>();
+
+        foreach (var feat in hero.TrainedFeats)
+        {
+            var replacement = feat.GetFirstSubFeatureOfType<FeatHelpers.SpellReplacementOnLevelUp>();
+            if (replacement is not { IsEnabled: true } ||
+                replacement.CastingFeatures.Any(handledFeatures.Contains))
+            {
+                continue;
+            }
+
+            var repertoires = replacement.CastingFeatures.Select(feature =>
+                hero.SpellRepertoires.FirstOrDefault(repertoire => repertoire.SpellCastingFeature == feature)).ToArray();
+            if (repertoires.Any(repertoire => repertoire == null))
+            {
+                continue;
+            }
+
+            var selection = new FeatSpellReplacement(feat, repertoires);
+            if (selection.PreviousSpells.Length == 0)
+            {
+                continue;
+            }
+
+            replacements.Add(selection);
+            handledFeatures.UnionWith(replacement.CastingFeatures);
+        }
+
+        return replacements;
+    }
+
+    internal static void EnsureFeatSpellReplacementPools(
+        CharacterBuildingManager manager,
+        CharacterHeroBuildingData data)
+    {
+        if (data?.HeroCharacter == null ||
+            !LevelUpTab.TryGetValue(data.HeroCharacter, out var levelUpData) ||
+            !levelUpData.IsLevelingUp || data.HeroCharacter.ClassesHistory.Count <= levelUpData.InitialCharacterLevel)
         {
             return;
         }
 
-        static bool IsFeatSpellRepertoire(RulesetSpellRepertoire repertoire)
+        foreach (var replacement in levelUpData.FeatSpellReplacements)
         {
-            var castSpell = repertoire?.SpellCastingFeature;
+            var pools = data.PointPoolStacks[HeroDefinitions.PointsPoolType.CantripOrSpell].ActivePools;
+            if (pools.ContainsKey(replacement.Tag))
+            {
+                continue;
+            }
 
-            return castSpell != null &&
-                   (castSpell.Name.Contains(OtherFeats.FeatMagicInitiateTag) ||
-                    castSpell.Name.Contains(OtherFeats.FeatSpellSniperTag));
+            manager.SetPointPool(data, HeroDefinitions.PointsPoolType.CantripOrSpell,
+                replacement.Tag, replacement.PreviousSpells.Length);
+            var pool = pools[replacement.Tag];
+            pool.spellListOverride = replacement.DisplayFeature.SpellListDefinition;
+            pool.minSpellLevel = replacement.PreviousSpells.Min(spell => spell.SpellLevel);
+            pool.maxSpellLevel = replacement.PreviousSpells.Max(spell => spell.SpellLevel);
+            replacement.Reset(data);
+        }
+    }
+
+    internal static FeatSpellReplacement GetFeatSpellReplacement(CharacterHeroBuildingData data, string tag)
+    {
+        return data?.HeroCharacter != null && tag != null &&
+               LevelUpTab.TryGetValue(data.HeroCharacter, out var levelUpData) && levelUpData.IsLevelingUp &&
+               data.HeroCharacter.ClassesHistory.Count > levelUpData.InitialCharacterLevel
+            ? levelUpData.FeatSpellReplacements.FirstOrDefault(replacement => replacement.Tag == tag)
+            : null;
+    }
+
+    internal static bool AreFeatSpellReplacementsValid(CharacterHeroBuildingData data)
+    {
+        return data?.HeroCharacter == null || !LevelUpTab.TryGetValue(data.HeroCharacter, out var levelUpData) ||
+               levelUpData.FeatSpellReplacements.All(replacement =>
+                   !data.PointPoolStacks[HeroDefinitions.PointsPoolType.CantripOrSpell].ActivePools
+                       .ContainsKey(replacement.Tag) || replacement.IsValid(data));
+    }
+
+    internal static void FinalizeFeatSpellReplacements(RulesetCharacterHero hero)
+    {
+        if (!LevelUpTab.TryGetValue(hero, out var levelUpData) || !levelUpData.IsLevelingUp ||
+            hero.ClassesHistory.Count <= levelUpData.InitialCharacterLevel)
+        {
+            return;
+        }
+
+        var data = hero.GetHeroBuildingData();
+        foreach (var replacement in levelUpData.FeatSpellReplacements.Where(replacement => replacement.IsValid(data)))
+        {
+            replacement.Apply(hero, data);
+        }
+    }
+
+    internal sealed class FeatSpellReplacement
+    {
+        private readonly Dictionary<FeatureDefinitionCastSpell, SpellDefinition[]> _previousByFeature;
+        private readonly SpellSelectionByLevel _selection;
+
+        internal FeatSpellReplacement(FeatDefinition feat, RulesetSpellRepertoire[] repertoires)
+        {
+            Feat = feat;
+            Tag = $"{AttributeDefinitions.TagClass}FeatSpellReplacement{feat.Name}";
+            _previousByFeature = repertoires.ToDictionary(repertoire => repertoire.SpellCastingFeature,
+                repertoire => repertoire.KnownCantrips.Concat(repertoire.KnownSpells).Distinct().ToArray());
+            PreviousSpells = _previousByFeature.Values.SelectMany(spells => spells).ToArray();
+            DisplayFeature = repertoires.OrderByDescending(repertoire =>
+                repertoire.KnownSpells.Select(spell => spell.SpellLevel).DefaultIfEmpty(0).Max())
+                .First().SpellCastingFeature;
+            _selection = new SpellSelectionByLevel(IsEligible, PreviousSpells, 1,
+                PreviousSpells.Select(spell => spell.SpellLevel).ToArray());
+        }
+
+        internal FeatDefinition Feat { get; }
+        internal string Tag { get; }
+        internal FeatureDefinitionCastSpell DisplayFeature { get; }
+        internal SpellDefinition[] PreviousSpells { get; }
+
+        internal string FormatSourceTitle()
+        {
+            var sourceClass = DisplayFeature.GetFirstSubFeatureOfType<ClassHolder>()?.Class;
+            return sourceClass
+                ? Gui.Format("Feat/&GeneralFeat2024VariantTitle", DisplayFeature.FormatTitle(), sourceClass.FormatTitle())
+                : Feat.FormatTitle();
+        }
+
+        internal SpellDefinition[] GetSelected(CharacterHeroBuildingData data)
+        {
+            data.AcquiredCantrips.TryGetValue(Tag, out var cantrips);
+            data.AcquiredSpells.TryGetValue(Tag, out var spells);
+            return (cantrips ?? []).Concat(spells ?? []).ToArray();
+        }
+
+        internal bool IsEligible(SpellDefinition spell)
+        {
+            // Preserve saved choices when a content list is disabled; new choices must belong to the original list.
+            return PreviousSpells.Contains(spell) || spell != null && _previousByFeature.Any(pair =>
+                pair.Value.Any(previous => previous.SpellLevel == spell.SpellLevel) &&
+                pair.Key.SpellListDefinition.SpellsByLevel.Any(level =>
+                    level.Level == spell.SpellLevel && level.Spells.Contains(spell)));
+        }
+
+        internal bool CanSelect(CharacterHeroBuildingData data, SpellDefinition spell)
+        {
+            return _selection.CanSelectSpell(GetSelected(data), spell);
+        }
+
+        internal bool IsValid(CharacterHeroBuildingData data)
+        {
+            return _selection.IsValidSelection(GetSelected(data));
+        }
+
+        internal void Reset(CharacterHeroBuildingData data)
+        {
+            data.AcquiredCantrips[Tag] = PreviousSpells.Where(spell => spell.SpellLevel == 0).ToList();
+            data.AcquiredSpells[Tag] = PreviousSpells.Where(spell => spell.SpellLevel > 0).ToList();
+            if (data.PointPoolStacks[HeroDefinitions.PointsPoolType.CantripOrSpell].ActivePools
+                .TryGetValue(Tag, out var pool))
+            {
+                pool.remainingPoints = 0;
+            }
+        }
+
+        internal void Apply(RulesetCharacterHero hero, CharacterHeroBuildingData data)
+        {
+            var selected = GetSelected(data);
+            var removed = PreviousSpells.Except(selected).ToArray();
+            var added = selected.Except(PreviousSpells).ToArray();
+            if (removed.Length != 1 || added.Length != 1)
+            {
+                return;
+            }
+
+            var feature = _previousByFeature.First(pair => pair.Value.Contains(removed[0])).Key;
+            var repertoire = hero.SpellRepertoires.FirstOrDefault(entry => entry.SpellCastingFeature == feature);
+            if (repertoire == null)
+            {
+                return;
+            }
+
+            // Only selected spell identities change. Slot usage and the other feat repertoires stay intact.
+            repertoire.KnownCantrips.Remove(removed[0]);
+            repertoire.KnownSpells.Remove(removed[0]);
+            if (repertoire.PreparedSpells.Remove(removed[0]))
+            {
+                repertoire.PreparedSpells.TryAdd(added[0]);
+            }
+
+            if (added[0].SpellLevel == 0)
+            {
+                hero.GrantCantrip(added[0], feature);
+            }
+            else
+            {
+                hero.GrantSpell(added[0], feature);
+            }
+        }
+    }
+
+
+    internal static void SortHeroRepertoires(RulesetCharacterHero hero)
+    {
+        if (hero.SpellRepertoires.Count <= 1)
+        {
+            return;
+        }
+
+        static int GetGroup(RulesetSpellRepertoire repertoire)
+        {
+            var feature = repertoire?.SpellCastingFeature;
+            if (feature?.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>() != null)
+            {
+                return 2;
+            }
+
+            return feature?.SpellCastingOrigin is FeatureDefinitionCastSpell.CastingOrigin.Race
+                or FeatureDefinitionCastSpell.CastingOrigin.Monster ? 0 : 1;
         }
 
         hero.SpellRepertoires.Sort((a, b) =>
         {
-            if (a.SpellCastingFeature.SpellCastingOrigin is FeatureDefinitionCastSpell.CastingOrigin.Race
-                or FeatureDefinitionCastSpell.CastingOrigin.Monster)
+            var comparison = GetGroup(a).CompareTo(GetGroup(b));
+            if (comparison != 0)
             {
-                // we want repertoires from feats to always come after others
-                if (IsFeatSpellRepertoire(a))
-                {
-                    return 1;
-                }
-
-                return -1;
+                return comparison;
             }
 
-            if (b.SpellCastingFeature.SpellCastingOrigin is FeatureDefinitionCastSpell.CastingOrigin.Race
-                or FeatureDefinitionCastSpell.CastingOrigin.Monster)
+            comparison = a.SaveDC.CompareTo(b.SaveDC);
+            if (comparison != 0)
             {
-                // we want repertoires from feats to always come after others
-                if (IsFeatSpellRepertoire(b))
-                {
-                    return -1;
-                }
-
-                return 1;
+                return comparison;
             }
 
-            var title1 = a.SpellCastingClass
-                ? a.SpellCastingClass.FormatTitle()
-                : a.SpellCastingSubclass
-                    ? a.SpellCastingSubclass.FormatTitle()
-                    : a.SpellCastingRace.FormatTitle();
-
-            var title2 = b.SpellCastingClass
-                ? b.SpellCastingClass.FormatTitle()
-                : b.SpellCastingSubclass
-                    ? b.SpellCastingSubclass.FormatTitle()
-                    : b.SpellCastingRace.FormatTitle();
-
-            return a.SaveDC == b.SaveDC
-                ? string.Compare(title1, title2, StringComparison.CurrentCultureIgnoreCase)
-                : a.SaveDC.CompareTo(b.SaveDC);
+            comparison = string.Compare(a.FormatHeader(), b.FormatHeader(), StringComparison.CurrentCultureIgnoreCase);
+            return comparison != 0
+                ? comparison
+                : string.Compare(a.SpellCastingFeature?.Name, b.SpellCastingFeature?.Name, StringComparison.Ordinal);
         });
     }
 
@@ -1050,6 +1274,8 @@ internal static class LevelUpHelper
         internal RulesetCharacterHero Hero;
         internal CharacterClassDefinition SelectedClass;
         internal CharacterSubclassDefinition SelectedSubclass;
+        internal int InitialCharacterLevel;
+        internal List<FeatSpellReplacement> FeatSpellReplacements = [];
 
         // ReSharper disable once MemberHidesStaticFromOuterClass
         internal bool IsClassSelectionStage { get; set; }

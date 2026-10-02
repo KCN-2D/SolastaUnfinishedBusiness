@@ -18,7 +18,7 @@ internal static class UiTextHelpers
     private const float CjkTwoLineSpacing = -6f;
     private const int DeferredSpellBoxFitFrames = 2;
     private const int DeferredActionItemCaptionFitFrames = 2;
-    private const int DeferredConstrainedLabelFitFrames = 2;
+    private const int DeferredSingleLineFitFrames = 2;
     private const float PreferredSizeTolerance = 0.5f;
     private const float TitleMinFontScale = 0.72f;
     private const float TitleAbsoluteMinFontSize = 8f;
@@ -161,10 +161,7 @@ internal static class UiTextHelpers
 
         ApplyConstrainedSingleLineFit(text, minFontScale, absoluteMin);
 
-        var deferredFit = text.GetComponent<DeferredConstrainedLabelFit>() ??
-                          text.gameObject.AddComponent<DeferredConstrainedLabelFit>();
-
-        deferredFit.Schedule(text, minFontScale, absoluteMin);
+        ScheduleSingleLineFit(text, minFontScale, absoluteMin, false);
     }
 
     internal static Rect GetWorldRect(RectTransform rectTransform)
@@ -220,14 +217,14 @@ internal static class UiTextHelpers
     }
 
     internal static void FitCardTitle(GuiLabel label, float minFontScale = TitleMinFontScale,
-        float absoluteMin = TitleAbsoluteMinFontSize)
+        float absoluteMin = TitleAbsoluteMinFontSize, int maxVisibleLines = 2)
     {
         if (!label)
         {
             return;
         }
 
-        FitCardTitle(label.TMP_Text, minFontScale, absoluteMin);
+        FitCardTitle(label.TMP_Text, minFontScale, absoluteMin, maxVisibleLines);
     }
 
     internal static void FitSingleLine(TMP_Text text, float minFontScale = TitleMinFontScale,
@@ -238,12 +235,45 @@ internal static class UiTextHelpers
             return;
         }
 
-        if (!TryGetFontSizeBounds(text, null, minFontScale, absoluteMin, out var maxFontSize, out var minFontSize))
+        ApplySingleLineFit(text, minFontScale, absoluteMin);
+        ScheduleSingleLineFit(text, minFontScale, absoluteMin, true);
+    }
+
+    private static void ApplySingleLineFit(TMP_Text text, float minFontScale, float absoluteMin)
+    {
+        if (!text)
         {
             return;
         }
 
-        ApplyAutoTextFit(text, 1, false, maxFontSize, minFontSize);
+        var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+
+        state.Capture(text);
+
+        if (!TryGetFontSizeBounds(text, state, minFontScale, absoluteMin, out var maxFontSize, out var minFontSize))
+        {
+            return;
+        }
+
+        // Native TMP preferred-height autosizing can leave fallback-font submeshes uninitialized.
+        // Measure explicitly and keep the chosen size fixed, as the card-title fitter does.
+        var fontSize = TryGetTextContentSize(text, out var availableSize)
+            ? Mathf.Clamp(GetSingleLineFontSize(text, availableSize, maxFontSize), minFontSize, maxFontSize)
+            : maxFontSize;
+
+        ApplyCardTextFit(text, 1, false, fontSize, state);
+    }
+
+    private static void ScheduleSingleLineFit(
+        TMP_Text text,
+        float minFontScale,
+        float absoluteMin,
+        bool constrainHeight)
+    {
+        var deferredFit = text.GetComponent<DeferredSingleLineFit>() ??
+                          text.gameObject.AddComponent<DeferredSingleLineFit>();
+
+        deferredFit.Schedule(text, minFontScale, absoluteMin, constrainHeight);
     }
 
     private static void FitSideLabel(TMP_Text text)
@@ -324,7 +354,7 @@ internal static class UiTextHelpers
     }
 
     internal static void FitCardTitle(TMP_Text text, float minFontScale = TitleMinFontScale,
-        float absoluteMin = TitleAbsoluteMinFontSize)
+        float absoluteMin = TitleAbsoluteMinFontSize, int maxVisibleLines = 2)
     {
         if (!text)
         {
@@ -347,9 +377,11 @@ internal static class UiTextHelpers
         }
 
         var useCjkCompactSpacing = ShouldUseCjkCompactLineSpacing(text);
+        maxVisibleLines = Math.Max(1, maxVisibleLines);
+        var fitKind = maxVisibleLines == 2 ? nameof(FitCardTitle) : $"{nameof(FitCardTitle)}:{maxVisibleLines}";
 
         if (state.HasFitSignature(
-                nameof(FitCardTitle),
+                fitKind,
                 text,
                 availableSize,
                 minFontScale,
@@ -365,7 +397,7 @@ internal static class UiTextHelpers
         {
             ApplyCardTextFit(text, 1, false, Mathf.Min(maxFontSize, singleLineFontSize), state);
             state.RememberFitSignature(
-                nameof(FitCardTitle),
+                fitKind,
                 text,
                 availableSize,
                 minFontScale,
@@ -374,9 +406,10 @@ internal static class UiTextHelpers
             return;
         }
 
-        ApplyCardTextFit(text, 2, true, GetTwoLineFontSize(text, availableSize, maxFontSize, minFontSize, state), state);
+        ApplyCardTextFit(text, maxVisibleLines, true,
+            GetWrappedFontSize(text, availableSize, maxFontSize, minFontSize, maxVisibleLines, state), state);
         state.RememberFitSignature(
-            nameof(FitCardTitle),
+            fitKind,
             text,
             availableSize,
             minFontScale,
@@ -711,25 +744,6 @@ internal static class UiTextHelpers
         return true;
     }
 
-    private static void ApplyAutoTextFit(
-        TMP_Text text,
-        int maxVisibleLines,
-        bool enableWordWrapping,
-        float maxFontSize,
-        float minFontSize)
-    {
-        text.enableAutoSizing = true;
-        text.enableWordWrapping = enableWordWrapping;
-        text.maxVisibleLines = maxVisibleLines;
-        text.overflowMode = TextOverflowModes.Ellipsis;
-        text.autoSizeTextContainer = false;
-        text.fontSizeMax = maxFontSize;
-        text.fontSizeMin = minFontSize;
-        ApplyCjkLineSpacing(text, maxVisibleLines > 1 && enableWordWrapping, text.GetComponent<TextFitState>());
-        text.SetLayoutDirty();
-        text.SetVerticesDirty();
-    }
-
     private static void ApplyCardTextFit(
         TMP_Text text,
         int maxVisibleLines,
@@ -867,14 +881,15 @@ internal static class UiTextHelpers
         text.SetVerticesDirty();
     }
 
-    private static float GetTwoLineFontSize(
+    private static float GetWrappedFontSize(
         TMP_Text text,
         Vector2 availableSize,
         float maxFontSize,
         float minFontSize,
+        int maxVisibleLines,
         TextFitState state)
     {
-        if (!DoesWrappedTextFit(text, availableSize, minFontSize, state))
+        if (!DoesWrappedTextFit(text, availableSize, minFontSize, maxVisibleLines, state))
         {
             return minFontSize;
         }
@@ -886,7 +901,7 @@ internal static class UiTextHelpers
         {
             var mid = (low + high) * 0.5f;
 
-            if (DoesWrappedTextFit(text, availableSize, mid, state))
+            if (DoesWrappedTextFit(text, availableSize, mid, maxVisibleLines, state))
             {
                 low = mid;
             }
@@ -899,13 +914,14 @@ internal static class UiTextHelpers
         return low;
     }
 
-    private static bool DoesWrappedTextFit(TMP_Text text, Vector2 availableSize, float fontSize, TextFitState state)
+    private static bool DoesWrappedTextFit(
+        TMP_Text text, Vector2 availableSize, float fontSize, int maxVisibleLines, TextFitState state)
     {
         var preferredSize = GetPreferredSize(
             text,
             fontSize,
             true,
-            2,
+            maxVisibleLines,
             ShouldUseCjkCompactLineSpacing(text) ? CjkTwoLineSpacing : state.OriginalLineSpacing,
             availableSize.x);
 
@@ -1371,9 +1387,11 @@ internal static class UiTextHelpers
         }
     }
 
-    private sealed class DeferredConstrainedLabelFit : MonoBehaviour
+    private sealed class DeferredSingleLineFit : MonoBehaviour
     {
         private float AbsoluteMin { get; set; }
+
+        private bool ConstrainHeight { get; set; }
 
         private Coroutine Coroutine { get; set; }
 
@@ -1381,27 +1399,45 @@ internal static class UiTextHelpers
 
         private float MinFontScale { get; set; }
 
-        internal void Schedule(TMP_Text text, float minFontScale, float absoluteMin)
+        internal void Schedule(TMP_Text text, float minFontScale, float absoluteMin, bool constrainHeight)
         {
             Text = text;
             MinFontScale = minFontScale;
             AbsoluteMin = absoluteMin;
-
-            if (Coroutine == null)
-            {
-                Coroutine = StartCoroutine(ApplyLater());
-            }
+            ConstrainHeight = constrainHeight;
+            OnEnable();
         }
 
         private IEnumerator ApplyLater()
         {
-            for (var i = 0; i < DeferredConstrainedLabelFitFrames; i++)
+            for (var i = 0; i < DeferredSingleLineFitFrames; i++)
             {
                 yield return null;
-                ApplyConstrainedSingleLineFit(Text, MinFontScale, AbsoluteMin);
+
+                if (!Text || !Text.enabled)
+                {
+                    continue;
+                }
+
+                if (ConstrainHeight)
+                {
+                    ApplySingleLineFit(Text, MinFontScale, AbsoluteMin);
+                }
+                else
+                {
+                    ApplyConstrainedSingleLineFit(Text, MinFontScale, AbsoluteMin);
+                }
             }
 
             Coroutine = null;
+        }
+
+        private void OnEnable()
+        {
+            if (Text && gameObject.activeInHierarchy && Coroutine == null)
+            {
+                Coroutine = StartCoroutine(ApplyLater());
+            }
         }
 
         private void OnDisable()

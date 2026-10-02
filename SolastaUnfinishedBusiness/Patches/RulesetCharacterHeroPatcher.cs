@@ -1221,6 +1221,14 @@ public static class RulesetCharacterHeroPatcher
 
                         case RitualCasting.Prepared:
                         {
+                            if (Main.Settings.EnableRitualOnAllCasters2024)
+                            {
+                                allRitualSpells.AddRange(
+                                    Tabletop2024Context.EnumeratePreparedRitualSpells(spellRepertoire));
+
+                                break;
+                            }
+
                             var maxSpellLevel = SharedSpellsContext.MaxSpellLevelOfSpellCastingLevel(spellRepertoire);
                             var spells = (spellRepertoire.SpellCastingFeature.SpellReadyness switch
                                 {

@@ -218,6 +218,47 @@ public static class RulesetSpellRepertoireExtensions
         return baseMax > 0 || isAvailable;
     }
 
+    internal static bool ShouldSpendPactSlot(
+        this RulesetSpellRepertoire repertoire,
+        int slotLevel,
+        int pactLevel,
+        int sharedRemaining,
+        int pactRemaining,
+        bool shiftPressed)
+    {
+        // Preserve native priority: usable pact level, then depleted shared slots or the same
+        // class/Shift preference. Display queries observe Shift; spending consumes it once.
+        return slotLevel >= pactLevel && pactRemaining > 0 &&
+               (slotLevel > pactLevel || sharedRemaining == 0 || repertoire.PrefersPactSlots(shiftPressed));
+    }
+
+    internal static bool WouldSpendPactSlot(
+        this RulesetSpellRepertoire repertoire, RulesetCharacter character, int slotLevel)
+    {
+        if (!repertoire.UsesSharedSpellSlots() || SharedSpellsContext.GetWarlockSpellRepertoire(character) == null)
+        {
+            return false;
+        }
+
+        // A single pact caster never spends points, including while its slots are depleted.
+        if (!SharedSpellsContext.IsMulticaster(character))
+        {
+            return true;
+        }
+
+        repertoire.GetSharedAndPactSlotNumbers(character, slotLevel, out var sharedRemaining, out _,
+            out var pactRemaining, out _);
+        return repertoire.ShouldSpendPactSlot(slotLevel, SharedSpellsContext.GetWarlockSpellLevel(character),
+            sharedRemaining, pactRemaining, GameLocationCharacter.GetFromActor(character)?.GetShiftState() == true);
+    }
+
+    private static bool PrefersPactSlots(this RulesetSpellRepertoire repertoire, bool shiftPressed)
+    {
+        return Main.Settings.AlwaysSpendPactSlotsFirst ||
+               (repertoire.SpellCastingClass != Warlock && shiftPressed) ||
+               (repertoire.SpellCastingClass == Warlock && !shiftPressed);
+    }
+
     internal static int GetPreferredSlotLevel(
         this RulesetSpellRepertoire repertoire,
         RulesetCharacter character,
@@ -243,11 +284,7 @@ public static class RulesetSpellRepertoireExtensions
         }
 
         var shiftPressed = GameLocationCharacter.GetFromActor(character)?.GetShiftState() == true;
-        var preferPact = Main.Settings.AlwaysSpendPactSlotsFirst ||
-                         (repertoire.SpellCastingClass != Warlock && shiftPressed) ||
-                         (repertoire.SpellCastingClass == Warlock && !shiftPressed);
-
-        if (preferPact)
+        if (repertoire.PrefersPactSlots(shiftPressed))
         {
             for (var i = 0; i < availableSlotLevels.Count; i++)
             {

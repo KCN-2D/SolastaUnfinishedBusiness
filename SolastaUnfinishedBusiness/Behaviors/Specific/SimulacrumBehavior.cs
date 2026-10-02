@@ -877,11 +877,7 @@ internal sealed partial class SimulacrumBehavior :
 
         static bool HasCastingActionType(SpellDefinition spell, ActionType expectedActionType)
         {
-            return spell != null &&
-                   CastingTimeToActionDefinition.TryGetValue(
-                       spell.ActivationTime,
-                       out var spellActionType) &&
-                   spellActionType == expectedActionType;
+            return SpellActionTypeContext.MatchesCastingActionType(spell, expectedActionType);
         }
     }
 
@@ -1074,6 +1070,12 @@ internal sealed partial class SimulacrumBehavior :
                         .SelectMany(x => x.Value);
                     break;
                 case RitualCasting.Prepared:
+                    if (Main.Settings.EnableRitualOnAllCasters2024)
+                    {
+                        candidates = Tabletop2024Context.EnumeratePreparedRitualSpells(repertoire);
+                        break;
+                    }
+
                     candidates = repertoire.SpellCastingFeature.SpellReadyness ==
                                  SpellReadyness.Prepared
                         ? repertoire.PreparedSpells

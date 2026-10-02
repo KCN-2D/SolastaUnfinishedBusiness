@@ -6,8 +6,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
-using SolastaUnfinishedBusiness.Behaviors;
-using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -22,25 +21,15 @@ public static class SpellSelectionPanelPatcher
     {
         [UsedImplicitly]
         public static void Prefix(
+            SpellSelectionPanel __instance,
             GuiCharacter caster,
             ref bool cantripOnly,
             ActionDefinitions.ActionType actionType)
         {
+            ActionPanelContext.BindFamiliarTouchSelection(__instance, caster.RulesetCharacter);
             var gameLocationCaster = caster.GameLocationCharacter;
 
-            // CharacterActionPanel passes the vanilla UsedMainSpell/UsedBonusSpell restriction to Bind.
-            // Rebuild the panel restriction when the 2024 slot-expenditure rule replaces that legacy rule.
-            SpellSlotCastingLimit2024Context.RemoveLegacyBonusActionSpellRestriction(ref cantripOnly);
-
-            //PATCH: supports `IReplaceAttackWithCantrip`
-            if (gameLocationCaster.RulesetCharacter.HasSubFeatureOfType<IAttackReplaceWithCantrip>()
-                && gameLocationCaster.UsedMainAttacks > 0 && actionType == ActionDefinitions.ActionType.Main)
-            {
-                cantripOnly = true;
-            }
-
-            ActionSwitching.CheckSpellcastingCantrips(gameLocationCaster, actionType, ref cantripOnly);
-            MetamagicContext.RestrictToCantripsAfterQuickenedSpell2024(gameLocationCaster, ref cantripOnly);
+            SpellActionTypeContext.ApplyCantripOnlyRestrictions(gameLocationCaster, actionType, ref cantripOnly);
         }
 
         [UsedImplicitly]
@@ -79,8 +68,9 @@ public static class SpellSelectionPanelPatcher
     public static class Unbind_Patch
     {
         [UsedImplicitly]
-        public static void Postfix()
+        public static void Postfix(SpellSelectionPanel __instance)
         {
+            ActionPanelContext.UnbindFamiliarTouchSelection(__instance);
             CampaignsContext.SpellSelectionPanelMultilineUnbind();
         }
     }
@@ -119,7 +109,7 @@ public static class SpellSelectionPanelPatcher
             __state = null;
             return !__instance.spellsByIndex.TryGetValue(index, out var spell) ||
                    SpellSelectionContext.TryBeginSelection(__instance.caster,
-                       SpellSelectionContext.GetSelection(__instance.spellRepertoire, spell, slotLevel),
+                       SpellSelectionContext.GetSelection(__instance.spellRepertoire, spell, slotLevel, __instance.caster),
                        out __state);
         }
 

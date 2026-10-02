@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using HarmonyLib;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
@@ -3188,17 +3189,239 @@ internal static partial class SpellBuilders
 
     #endregion
 
-    #region Owl Familiar
+    #region Find Familiar
 
     private const string OwlFamiliar = "OwlFamiliar";
+    private const string FamiliarSharedSenses = "ConditionFamiliarSharedSenses";
+    private static ConditionDefinition _conditionFamiliarConnection;
+    private static readonly AccessTools.FieldRef<RulesetCharacterMonster, MonsterPresentationDefinition>
+        FamiliarMonsterPresentation = AccessTools.FieldRefAccess<RulesetCharacterMonster, MonsterPresentationDefinition>(
+            "monsterPresentationDefinition");
+    private static readonly Dictionary<(MonsterDefinition Monster, MonsterPresentationDefinition Source),
+        MonsterPresentationDefinition> FamiliarPresentationReplacements = [];
+    internal static FeatureDefinitionPower FamiliarTouchDeliveryPower { get; private set; }
+
+    internal static bool IsFamiliar(RulesetCharacter character)
+    {
+        return character is RulesetCharacterMonster monster &&
+               monster.MonsterDefinition.Features.Any(feature =>
+                   feature.GetFirstSubFeatureOfType<FamiliarConnectionBehavior>() != null);
+    }
+
+    internal static IEnumerable<GameLocationCharacter> GetFamiliars(RulesetCharacter owner)
+    {
+        var characters = ServiceRepository.GetService<IGameLocationCharacterService>()?.ValidCharacters;
+
+        if (owner == null || GameLocationCharacter.GetFromActor(owner) == null ||
+            characters == null || owner.IsDeadOrDyingOrUnconscious)
+        {
+            return [];
+        }
+
+        return characters.Where(character =>
+            character.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } familiar &&
+            IsFamiliar(familiar) && EffectHelpers.GetSummoner(familiar) == owner);
+    }
+
+    internal static GameLocationCharacter GetFamiliar(RulesetCharacter owner, bool withinTelepathyRange = true)
+    {
+        var locationOwner = owner == null ? null : GameLocationCharacter.GetFromActor(owner);
+
+        return GetFamiliars(owner).FirstOrDefault(character =>
+            !withinTelepathyRange || locationOwner.IsWithinRange(character, 20));
+    }
+
+    internal static GameLocationCharacter GetSharedSensesFamiliar(RulesetCharacter owner)
+    {
+        return owner?.HasConditionOfType(FamiliarSharedSenses) == true ? GetFamiliar(owner) : null;
+    }
+
+    private static void RemoveLegacyFamiliarTouchDelivery(RulesetCharacterMonster character)
+    {
+        // Delivery is initiated by the caster. Old saves can still contain the former
+        // familiar shortcut independently of the current monster definition.
+        character.ActiveFeatures.RemoveAll(feature => feature == FamiliarTouchDeliveryPower);
+        character.UsablePowers.RemoveAll(usable => usable.PowerDefinition == FamiliarTouchDeliveryPower);
+    }
+
+    internal static void RestoreFamiliar(RulesetCharacterMonster character)
+    {
+        if (!IsFamiliar(character))
+        {
+            return;
+        }
+
+        // Older summons saved the source model variant, whose scale takes precedence
+        // over the familiar definition. Keep its prefab and material choice when restoring.
+        if (character.MonsterPresentationDefinition != null &&
+            FamiliarPresentationReplacements.TryGetValue(
+                (character.MonsterDefinition, character.MonsterPresentationDefinition), out var presentation))
+        {
+            FamiliarMonsterPresentation(character) = presentation;
+        }
+
+        RemoveLegacyFamiliarTouchDelivery(character);
+
+        // Monster features and usable powers are saved independently of their definition.
+        // Add missing entries without recreating existing powers or replenishing their uses.
+        foreach (var feature in character.MonsterDefinition.Features)
+        {
+            character.ActiveFeatures.TryAdd(feature);
+
+            if (feature is FeatureDefinitionPower power &&
+                character.UsablePowers.All(usable => usable.PowerDefinition != power))
+            {
+                character.UsablePowers.Add(PowerProvider.Get(power, character));
+            }
+        }
+
+        if (!character.TryGetAttribute(AttributeDefinitions.HitPoints, out var hitPoints) ||
+            hitPoints.BaseValue == character.MonsterDefinition.StandardHitPoints)
+        {
+            return;
+        }
+
+        // Run before native PostLoad/RefreshAll replaces the saved maximum. Preserve
+        // damage already taken and never bring a dead or dying familiar back to life.
+        var currentHitPoints = character.CurrentHitPoints;
+        var missingHitPoints = Math.Max(0, hitPoints.CurrentValue - currentHitPoints);
+        hitPoints.BaseValue = character.MonsterDefinition.StandardHitPoints;
+        hitPoints.Refresh();
+        if (currentHitPoints > 0)
+        {
+            character.CurrentHitPoints = Math.Max(0, hitPoints.CurrentValue - missingHitPoints);
+        }
+    }
 
     internal static SpellDefinition BuildFindFamiliar()
     {
-        var familiarMonster = MonsterDefinitionBuilder
-            .Create(MonsterDefinitions.Eagle_Matriarch, OwlFamiliar)
-            .SetOrUpdateGuiPresentation(Category.Monster)
-            .SetFeatures(
-                FeatureDefinitionSenses.SenseNormalVision,
+        var sharedSensesSprite = Sprites.GetSprite("FamiliarSharedSenses", Resources.FamiliarSharedSenses, 128);
+
+        var sharedSenses = ConditionDefinitionBuilder
+            .Create(FamiliarSharedSenses)
+            .SetGuiPresentation("FamiliarSharedSenses", Category.Condition,
+                Sprites.GetSprite("ConditionFamiliarSharedSenses", Resources.ConditionFamiliarSharedSenses, 32))
+            .SetPossessive()
+            .SetConditionType(ConditionType.Beneficial)
+            .SetSpecialInterruptions(ConditionInterruption.ShortRest, ConditionInterruption.LongRest)
+            .AddToDB();
+
+        var connectionBehavior = new FamiliarConnectionBehavior();
+        var powerSharedSenses = FeatureDefinitionPowerBuilder
+            .Create("PowerFamiliarSharedSenses")
+            .SetGuiPresentation("FamiliarSharedSenses", Category.Feature, sharedSensesSprite)
+            .SetUsesFixed(ActivationTime.BonusAction)
+            .SetEffectDescription(EffectDescriptionBuilder
+                .Create()
+                .SetDurationData(DurationType.Round, 1, TurnOccurenceType.StartOfTurn)
+                .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
+                .SetEffectForms(EffectFormBuilder.ConditionForm(sharedSenses))
+                .UseQuickAnimations()
+                .Build())
+            .AddCustomSubFeatures(
+                new ValidatorsValidatePowerUse(character => GetFamiliar(character) != null),
+                connectionBehavior)
+            .AddToDB();
+
+        FamiliarTouchDeliveryPower = FeatureDefinitionPowerBuilder
+            .Create("PowerFamiliarTouchDelivery")
+            .SetGuiPresentation("FamiliarTouchDelivery", Category.Feature,
+                Sprites.GetSprite("FamiliarTouchDelivery", Resources.FamiliarTouchDelivery, 128))
+            .SetUsesFixed(ActivationTime.NoCost)
+            .SetEffectDescription(EffectDescriptionBuilder.Create()
+                .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
+                .Build())
+            .AddCustomSubFeatures(
+                new ActionPanelContext.ValidateFamiliarTouchDelivery(),
+                new ModifyPowerVisibility((character, power, actionType) =>
+                    !IsFamiliar(character) && ModifyPowerVisibility.Default.IsVisible(character, power, actionType), true))
+            .AddToDB();
+
+        _conditionFamiliarConnection = ConditionDefinitionBuilder
+            .Create("ConditionFamiliarConnection")
+            .SetGuiPresentationNoContent(true)
+            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetFeatures(powerSharedSenses, FamiliarTouchDeliveryPower)
+            .AddCustomSubFeatures(AddUsablePowersFromCondition.Marker)
+            .AddToDB();
+
+        var familiarFeature = FeatureDefinitionBuilder
+            .Create("FeatureFamiliarConnection")
+            .SetGuiPresentationNoContent(true)
+            .AddCustomSubFeatures(connectionBehavior)
+            .AddToDB();
+
+        var familiarForms = new List<(MonsterDefinition Monster, AssetReferenceSprite SpellSprite, bool IsSelectable)>();
+        FeatureDefinition[] commonFeatures =
+        [
+            FeatureDefinitionSenses.SenseNormalVision,
+            MovementAffinityNoSpecialMoves,
+            familiarFeature,
+            Tabletop2014Context.FeatureDefinitionPowerHelpAction,
+            RulesContext.PowerTeleportSummon,
+            RulesContext.PowerVanishSummon
+        ];
+
+        MonsterDefinition BuildFamiliarForm(
+            string name, MonsterDefinition model, float scale, AssetReferenceSprite spellSprite,
+            int armorClass, int[] abilityScores, (string skillName, int bonus)[] skills,
+            FeatureDefinition[] features, bool isSelectable = true)
+        {
+            var presentation = new MonsterPresentation(model.MonsterPresentation);
+            presentation.hasPhantomDistortion = true;
+            presentation.hasPhantomFadingFeet = true;
+            presentation.femaleModelScale = scale;
+            presentation.maleModelScale = scale;
+            presentation.hasMonsterPortraitBackground = true;
+            presentation.canGeneratePortrait = true;
+
+            var monster = MonsterDefinitionBuilder.Create(model, name)
+                .SetGuiPresentation(Category.Monster, model.GuiPresentation.SpriteReference)
+                .SetFeatures([..commonFeatures, ..features])
+                .SetMonsterPresentation(presentation)
+                .ClearAttackIterations()
+                .SetSkillScores(skills)
+                .SetArmorClass(armorClass)
+                .SetAbilityScores(abilityScores)
+                .SetHitDice(DieType.D4, 1)
+                .SetStandardHitPoints(5)
+                .SetSizeDefinition(CharacterSizeDefinitions.Tiny)
+                .SetAlignment("Neutral")
+                .SetCharacterFamily("Fey")
+                .SetChallengeRating(0)
+                .SetDroppedLootDefinition(null)
+                .SetFullyControlledWhenAllied(true)
+                .SetDefaultFaction(FactionDefinitions.Party)
+                .SetBestiaryEntry(BestiaryDefinitions.BestiaryEntry.None)
+                .SetDungeonMakerPresence(MonsterDefinition.DungeonMaker.None)
+                .AddToDB();
+
+            if (presentation.hasPrefabVariants)
+            {
+                // Native monsters take their scale from the selected variant before
+                // considering maleModelScale or femaleModelScale.
+                presentation.monsterPresentationDefinitions = presentation.monsterPresentationDefinitions
+                    .Select((source, index) =>
+                    {
+                        var variant = MonsterPresentationDefinitionBuilder
+                            .Create(source, $"{name}Presentation{index}_{source.Name}")
+                            .SetModelScale(scale)
+                            .AddToDB();
+                        FamiliarPresentationReplacements[(monster, source)] = variant;
+
+                        return variant;
+                    }).ToArray();
+            }
+
+            familiarForms.Add((monster, spellSprite, isSelectable));
+            return monster;
+        }
+
+        var familiarMonster = BuildFamiliarForm(
+            OwlFamiliar, MonsterDefinitions.Eagle_Matriarch, 0.5f,
+            Sprites.GetSprite("FamiliarOwl", Resources.FamiliarOwl, 128),
+            11, [3, 13, 8, 2, 12, 7], [(SkillDefinitions.Perception, 3), (SkillDefinitions.Stealth, 3)],
+            [
                 FeatureDefinitionSenses.SenseDarkvision24,
                 FeatureDefinitionMoveModes.MoveModeMove2,
                 FeatureDefinitionMoveModes.MoveModeFly12,
@@ -3206,36 +3429,51 @@ internal static partial class SpellBuilders
                 FeatureDefinitionAbilityCheckAffinitys.AbilityCheckAffinityKeenHearing,
                 FeatureDefinitionCombatAffinitys.CombatAffinityFlyby,
                 MovementAffinityNoClimb,
-                MovementAffinityNoSpecialMoves,
-                FeatureDefinitionConditionAffinitys.ConditionAffinityProneImmunity,
-                Tabletop2014Context.FeatureDefinitionPowerHelpAction,
-                RulesContext.PowerTeleportSummon,
-                RulesContext.PowerVanishSummon)
-            .SetMonsterPresentation(
-                MonsterPresentationBuilder
-                    .Create()
-                    .SetAllPrefab(MonsterDefinitions.Eagle_Matriarch.MonsterPresentation)
-                    .SetPhantom()
-                    .SetModelScale(0.5f)
-                    .SetHasMonsterPortraitBackground(true)
-                    .SetCanGeneratePortrait(true)
-                    .Build())
-            .ClearAttackIterations()
-            .SetSkillScores((SkillDefinitions.Perception, 3), (SkillDefinitions.Stealth, 3))
-            .SetArmorClass(11)
-            .SetAbilityScores(3, 13, 8, 2, 12, 7)
-            .SetHitDice(DieType.D4, 1)
-            .SetStandardHitPoints(5)
-            .SetSizeDefinition(CharacterSizeDefinitions.Tiny)
-            .SetAlignment("Neutral")
-            .SetCharacterFamily("Fey")
-            .SetChallengeRating(0)
-            .SetDroppedLootDefinition(null)
-            .SetFullyControlledWhenAllied(true)
-            .SetDefaultFaction(FactionDefinitions.Party)
-            .SetBestiaryEntry(BestiaryDefinitions.BestiaryEntry.None)
-            .SetDungeonMakerPresence(MonsterDefinition.DungeonMaker.None)
+                FeatureDefinitionConditionAffinitys.ConditionAffinityProneImmunity
+            ]);
+
+        // Retired forms still register their original definitions and spells for saved summons.
+        BuildFamiliarForm(
+            "HawkFamiliar", MonsterDefinitions.Eagle_Matriarch, 0.5f,
+            MonsterDefinitions.Eagle_Matriarch.GuiPresentation.SpriteReference,
+            13, [5, 16, 8, 2, 14, 6], [(SkillDefinitions.Perception, 6)],
+            [
+                FeatureDefinitionMoveModes.MoveModeMove2,
+                FeatureDefinitionMoveModes.MoveModeFly12,
+                MovementAffinityNoClimb,
+                FeatureDefinitionConditionAffinitys.ConditionAffinityProneImmunity
+            ], false);
+
+        var beetleModel = GetDefinition<MonsterDefinition>("Small_Beetle");
+        BuildFamiliarForm(
+            "BeetleFamiliar", beetleModel, 0.15f, beetleModel.GuiPresentation.SpriteReference,
+            13, [3, 10, 8, 1, 10, 3], [(SkillDefinitions.Perception, 2)],
+            [FeatureDefinitionSenses.SenseDarkvision, FeatureDefinitionMoveModes.MoveModeMove6], false);
+
+        var spiderDarkvision = FeatureDefinitionSenseBuilder
+            .Create("SenseSpiderFamiliarDarkvision")
+            .SetGuiPresentationNoContent(true)
+            .SetSense(SenseMode.Type.Darkvision, 6)
             .AddToDB();
+        BuildFamiliarForm(
+            "SpiderFamiliar", GetDefinition<MonsterDefinition>("BadlandsSpider"), 0.1f,
+            Sprites.GetSprite("FamiliarSpider", Resources.FamiliarSpider, 128),
+            12, [2, 14, 8, 1, 10, 2], [(SkillDefinitions.Stealth, 4)],
+            [
+                spiderDarkvision,
+                FeatureDefinitionMoveModes.MoveModeMove4,
+                MovementAffinitySpiderClimb,
+                FeatureDefinitionConditionAffinitys.ConditionAffinityProneImmunity
+            ]);
+
+        BuildFamiliarForm(
+            "CatFamiliar", GetDefinition<MonsterDefinition>("TundraTiger_MonsterDefinition"), 0.2f,
+            Sprites.GetSprite("FamiliarCat", Resources.FamiliarCat, 128),
+            12, [3, 15, 8, 3, 12, 7], [(SkillDefinitions.Perception, 3), (SkillDefinitions.Stealth, 5)],
+            [
+                FeatureDefinitionMoveModes.MoveModeMove8,
+                GetDefinition<FeatureDefinitionAbilityCheckAffinity>("AbilityCheckAffinityKeenSmell")
+            ]);
 
         var spell = SpellDefinitionBuilder.Create(Fireball, "FindFamiliar")
             .SetGuiPresentation(
@@ -3260,14 +3498,108 @@ internal static partial class SpellBuilders
                         EffectFormBuilder
                             .Create()
                             .SetSummonCreatureForm(1, familiarMonster.Name)
-                            .Build())
+                            .Build(),
+                        EffectFormBuilder.ConditionForm(_conditionFamiliarConnection, applyToSelf: true,
+                            forceOnSelf: true))
                     .Build())
-            .AddCustomSubFeatures(SkipEffectRemovalOnLocationChange.Always)
+            .AddCustomSubFeatures(SkipEffectRemovalOnLocationChange.Always, connectionBehavior)
             .AddToDB();
 
-        ForceGlobalUniqueEffects.AddToGroup(ForceGlobalUniqueEffects.Group.Familiar, spell);
+        // Keep the original spell and owl identifiers so active effects in existing saves remain valid.
+        var forms = familiarForms.ToDictionary(form => form.Monster, form =>
+            SpellDefinitionBuilder
+                .Create(spell, $"FindFamiliar{form.Monster.Name}")
+                .SetGuiPresentation(form.Monster.GuiPresentation.Title, form.Monster.GuiPresentation.Description,
+                    form.SpellSprite)
+                .SetEffectDescription(EffectDescriptionBuilder
+                    .Create(spell.EffectDescription)
+                    .SetEffectForms(
+                        EffectFormBuilder.Create().SetSummonCreatureForm(1, form.Monster.Name).Build(),
+                        EffectFormBuilder.ConditionForm(_conditionFamiliarConnection, applyToSelf: true,
+                            forceOnSelf: true))
+                    .Build())
+                .AddCustomSubFeatures(SkipEffectRemovalOnLocationChange.Always, connectionBehavior)
+                .AddToDB());
+
+        spell.spellsBundle = true;
+        spell.SubspellsList.SetRange(familiarForms.Where(form => form.IsSelectable)
+            .Select(form => forms[form.Monster]));
+        ForceGlobalUniqueEffects.AddToGroup(ForceGlobalUniqueEffects.Group.Familiar,
+            new BaseDefinition[] { spell }.Concat(forms.Values).ToArray());
 
         return spell;
+    }
+
+    private sealed class FamiliarConnectionBehavior :
+        IOnLocationCharacterRestored, IPowerOrSpellFinishedByMe, IEffectCharacterChange
+    {
+        public int Priority => 0;
+
+        public void OnCharacterChanged(RulesetEffect effect, RulesetCharacter character)
+        {
+            if (character.CurrentHitPoints <= 0 && IsFamiliar(character) &&
+                EffectHelpers.GetSummonedCreatures(effect).Contains(character))
+            {
+                // The caster condition must not keep a dead familiar's permanent
+                // summoning effect and granted powers alive after the summon disappears.
+                effect.DoTerminate(EffectHelpers.GetCharacterByGuid(effect.SourceGuid));
+            }
+        }
+
+        public void OnLocationCharacterRestored(RulesetCharacter character)
+        {
+            if (character is not RulesetCharacterMonster familiar || !IsFamiliar(familiar))
+            {
+                return;
+            }
+
+            // Inactive guests are reconnected without another native PostLoad.
+            RemoveLegacyFamiliarTouchDelivery(familiar);
+            var owner = EffectHelpers.GetSummoner(character);
+            if (owner == null ||
+                !character.TryGetConditionOfCategoryAndType(AttributeDefinitions.TagConjure,
+                    ConditionDefinitions.ConditionConjuredCreature.Name, out var conjuredCondition) ||
+                owner.FindEffectTrackingCondition(conjuredCondition) is not { } effect)
+            {
+                return;
+            }
+
+            if (!owner.TryGetConditionOfCategoryAndType(AttributeDefinitions.TagEffect,
+                    _conditionFamiliarConnection.Name, out var connection))
+            {
+                // Older saves predate the caster condition. Track the replacement with
+                // the existing summoning effect so dismissal removes its granted power.
+                connection = owner.InflictCondition(_conditionFamiliarConnection.Name, DurationType.Permanent, 0,
+                    TurnOccurenceType.EndOfTurn, AttributeDefinitions.TagEffect, owner.Guid,
+                    owner.CurrentFaction.Name, effect.EffectLevel, effect.SourceDefinition.Name, 0, 0, 0);
+                effect.TrackCondition(owner, owner.Guid, owner, owner.Guid, connection, AttributeDefinitions.TagEffect);
+            }
+
+            AddUsablePowersFromCondition.Marker.OnConditionAdded(owner, connection);
+        }
+
+        public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
+        {
+            var attacker = action.ActingCharacter;
+            var familiar = GetSharedSensesFamiliar(attacker.RulesetCharacter);
+            var controller = ServiceRepository.GetService<IPlayerControllerService>()?.ActivePlayerController;
+
+            if (familiar == null || controller?.ControlledCharacters.Contains(attacker) != true ||
+                ServiceRepository.GetService<ICameraService>()?.CurrentCameraController is not
+                    CameraControllerLocation camera)
+            {
+                yield break;
+            }
+
+            if (Gui.Battle == null)
+            {
+                camera.FocusCharacterOnMap(familiar, false);
+            }
+            else
+            {
+                camera.FocusCharacterToManualBattle(familiar, false);
+            }
+        }
     }
 
     #endregion

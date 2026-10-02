@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -7,6 +8,7 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Races;
+using SolastaUnfinishedBusiness.Spells;
 using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -71,6 +73,19 @@ public static class GameLocationVisibilityManagerPatcher
             RulesetCharacter rulesetCharacter,
             List<SenseMode.Type> optionalRequiredSense = null)
         {
+            var familiar = SpellBuilders.GetSharedSensesFamiliar(rulesetCharacter);
+            if (familiar != null)
+            {
+                var familiarOrigin = Vector3.zero;
+                __instance.gameLocationPositioningService.ComputeVisionCenterPosition(familiar, ref familiarOrigin);
+                if (__instance.IsPositionPerceivedByCharacter(
+                        position, familiarOrigin, familiar.RulesetCharacter, optionalRequiredSense))
+                {
+                    __result = true;
+                    return false;
+                }
+            }
+
             var fromWorldPosition1 =
                 __instance.gameLocationPositioningService.GetGridPositionFromWorldPosition(origin);
             var fromWorldPosition2 =
@@ -129,6 +144,23 @@ public static class GameLocationVisibilityManagerPatcher
         }
     }
 
+    [HarmonyPatch(typeof(GameLocationVisibilityManager),
+        nameof(GameLocationVisibilityManager.IsCharacterPerceivedByCharacter))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class IsCharacterPerceivedByCharacter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GameLocationVisibilityManager __instance,
+            GameLocationCharacter __0, GameLocationCharacter __1, ref bool __result)
+        {
+            if (!__result && SpellBuilders.GetSharedSensesFamiliar(__1?.RulesetCharacter) is { } familiar)
+            {
+                __result = __instance.IsCharacterPerceivedByCharacter(__0, familiar);
+            }
+        }
+    }
+
     //PATH: supports Stealthy Feat behavior
     //vanilla code except for the BEGIN/END patch block
     [HarmonyPatch(typeof(GameLocationVisibilityManager), nameof(GameLocationVisibilityManager.UpdatePerception))]
@@ -173,7 +205,12 @@ public static class GameLocationVisibilityManagerPatcher
                 validCharacter.PerceivedFoes.Clear();
                 validCharacter.PerceivedAllies.Clear();
 
-                foreach (var key in validCharacter.LineOfSightRatio.Keys)
+                var familiar = SpellBuilders.GetSharedSensesFamiliar(validCharacter.RulesetCharacter);
+                var perceptionTargets = familiar == null
+                    ? validCharacter.LineOfSightRatio.Keys.AsEnumerable()
+                    : validCharacter.LineOfSightRatio.Keys.Union(familiar.LineOfSightRatio.Keys);
+
+                foreach (var key in perceptionTargets)
                 {
                     if (validCharacter.IsOppositeSide(key.Side))
                     {

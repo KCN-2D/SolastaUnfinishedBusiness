@@ -612,6 +612,8 @@ internal static class FixesContext
 
         // fix Vampiric Touch
         VampiricTouch.EffectDescription.rangeParameter = 1;
+        // Its spell range is Self; the melee hit range only selects the target.
+        VampiricTouch.AddCustomSubFeatures(NoDistanced.Mark);
 
         // fix Banishment
         var conditionBanishedByBanishment = ConditionDefinitionBuilder

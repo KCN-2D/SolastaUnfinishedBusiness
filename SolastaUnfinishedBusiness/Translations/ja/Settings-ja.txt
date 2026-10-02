@@ -541,7 +541,7 @@ ModUi/&EnableGeneralFeats2024=特技を2024年版のルールに合わせて再�
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>（2024年版の特技は、下の一覧で個別に有効・無効を切り替えられます。有効中は、上位互換の特技が追加された旧版の特技を選択できません）</color></i>
 ModUi/&EnableTabletopFeatRules2024=特技の一覧を2024年版のテーブルトップルールに限定します
 ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>（背景やヒューマンから得る起源特技も、2024年版の一覧から選択します）</color></i>
-ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>（有効中は、下の2024年版の特技のみ個別に切り替えられます。旧版の特技の設定は変更できません）</color></i>
+ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>（有効中は、下の2024年版の特技のみ個別に切り替えられます。旧版の特技の設定は変更できません）</color></i>\n種族、背景、その他の能力で指定された特技の選択肢は、この一覧で無効にしていても選択できます。
 ModUi/&EnableStrictTabletopClassSelection=クラスとサブクラスの選択をテーブルトップ由来のものに限定します
 ModUi/&EnableStrictTabletopClassSelectionHelp=テーブルトップ由来のクラスと、そのタグが付いたサブクラスのみ選択できます。対象外のサブクラスは自動的に無効になります。また、クレリックの領域は神格による制限を受けなくなります
 ModUi/&EnableWizardSpellMastery2024=<color=#D89555>呪文体得</color>を2024年版に変更します<i><color=#F0DAA0>（発動時間がアクションの呪文のみ選択でき、大休憩後に1つ変更可能）</color></i>

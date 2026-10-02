@@ -472,24 +472,19 @@ internal static class FeatsContext
             return;
         }
 
-        var modeAwareRestrictedChoices = Tabletop2024Context.GetModeAwareRestrictedChoiceNames(pointPool)
-            .Where(choice => !string.IsNullOrEmpty(choice))
-            .Distinct()
-            .ToHashSet();
-
-        var relevantFeats = Tabletop2024Context.GetGameFeatSelectionCatalogRoots()
-            .Where(feat => feat != null &&
-                           Tabletop2024Context.IsVisibleInGameFeatSelection(feat) &&
-                           HasAllowedSelectionDescendant(
-                               feat,
-                               null,
-                               service,
-                               buildingData,
-                               stageTag))
+        var relevantFeats = Tabletop2024Context.GetGameFeatSelectionCandidates(pointPool)
+            .Where(feat => HasAllowedSelectionDescendant(
+                feat,
+                service,
+                buildingData,
+                stageTag,
+                pointPool))
             .ToList();
 
         panel.relevantFeats.SetRange(relevantFeats);
-        restrictedChoices = [.. modeAwareRestrictedChoices];
+        // The native panel compares displayed names directly. Restrictions were already
+        // checked above; pass the admitted candidates so their buttons remain interactive.
+        restrictedChoices = [.. relevantFeats.Select(feat => feat.Name)];
 
         SortFeats(panel);
         UpdatePanelChildren(panel);
@@ -521,14 +516,7 @@ internal static class FeatsContext
                     return false;
                 }
 
-                var allowedChildren = Tabletop2024Context.GetAllowedGameFeatChildren(f).ToArray();
-
-                if (Tabletop2024Context.IsTabletopContainerGroup(f))
-                {
-                    return allowedChildren.Length > 0;
-                }
-
-                return allowedChildren.Length > 0;
+                return Tabletop2024Context.GetAllowedGameFeatChildren(f).Any();
             })
         );
     }
@@ -744,6 +732,11 @@ internal static class FeatsContext
         }
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(table);
+
+        foreach (var featItem in table.GetComponentsInChildren<FeatItem>())
+        {
+            UiTextHelpers.FitCardTitle(featItem.itemName.TMP_Text);
+        }
     }
 
     private static bool TryGetBoundFeatDefinition(
@@ -848,15 +841,13 @@ internal static class FeatsContext
 
     private static bool HasAllowedSelectionDescendant(
         FeatDefinition feat,
-        FeatDefinition parentGroupedFeat,
         ICharacterBuildingService service,
         CharacterHeroBuildingData buildingData,
-        string tag)
+        string tag,
+        PointPool pointPool)
     {
         if (feat == null ||
-            !Tabletop2024Context.IsAllowedInGameFeatSelectionByConfiguration(feat) ||
-            !Tabletop2024Context.IsVisibleInGameFeatSelection(feat) ||
-            Tabletop2024Context.IsNonSelectableTabletopGroup(feat))
+            !Tabletop2024Context.IsVisibleInGameFeatSelection(feat, pointPool))
         {
             return false;
         }
@@ -872,28 +863,8 @@ internal static class FeatsContext
                 service);
         }
 
-        var nextParentGroupedFeat = Tabletop2024Context.IsTabletopContainerGroup(feat)
-            ? parentGroupedFeat
-            : feat;
-
-        var childFeats = Tabletop2024Context.GetAllowedGameFeatChildren(feat)
-            .Where(child => child != null)
-            .ToArray();
-
-        if (childFeats.Length == 0 && !Tabletop2024Context.IsTabletopContainerGroup(feat))
-        {
-            childFeats = groupedFeat.GetSubFeats(true)
-                ?.Where(child => child != null && Tabletop2024Context.IsVisibleInGameFeatSelection(child))
-                .ToArray() ?? [];
-        }
-
-        return childFeats.Any(childFeat =>
-            HasAllowedSelectionDescendant(
-                childFeat,
-                nextParentGroupedFeat,
-                service,
-                buildingData,
-                tag));
+        return Tabletop2024Context.GetGameFeatSelectionChildren(feat, buildingData?.HeroCharacter)
+            .Any(childFeat => HasAllowedSelectionDescendant(childFeat, service, buildingData, tag, pointPool));
     }
 
     internal static List<FeatDefinition> BuildActualDisplayFeats(
@@ -1081,9 +1052,7 @@ internal static class FeatsContext
 
         if (Main.Settings.EnableTabletopFeatRules2024)
         {
-            return Tabletop2024Context.GetAllowedGameFeatChildren(feat)
-                .Where(child => child != null)
-                .Distinct();
+            return Tabletop2024Context.GetGameFeatSelectionChildren(feat);
         }
 
         if (feat.GetFirstSubFeatureOfType<IGroupedFeat>() is not { } groupedFeat)

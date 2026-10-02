@@ -1,9 +1,12 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.CustomUI;
@@ -17,16 +20,90 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CursorLocationSelectTargetPatcher
 {
+    private static IEnumerable<CodeInstruction> ReplaceSelectedActor(
+        IEnumerable<CodeInstruction> instructions, string patchContext)
+    {
+        var selectedCharacter = AccessTools.PropertyGetter(typeof(List<GameLocationCharacter>), "Item");
+        var actionActor = new Func<List<GameLocationCharacter>, int, CursorLocationSelectTarget,
+            GameLocationCharacter>(ResolveActionActor).Method;
+
+        return instructions.ReplaceCalls(selectedCharacter, 1, patchContext,
+            new CodeInstruction(OpCodes.Ldarg_0),
+            new CodeInstruction(OpCodes.Call, actionActor));
+    }
+
+    private static GameLocationCharacter ResolveActionActor(
+        List<GameLocationCharacter> selectedCharacters, int index, CursorLocationSelectTarget cursor)
+    {
+        // The command owns its actor even when a different character remains selected in the UI.
+        return cursor.ActionParams?.ActingCharacter ?? selectedCharacters[index];
+    }
+
+    [HarmonyPatch(typeof(CursorLocationSelectTarget), nameof(CursorLocationSelectTarget.IsValidAttack))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class IsValidAttack_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            return ReplaceSelectedActor(instructions, "CursorLocationSelectTarget.IsValidAttack");
+        }
+    }
+
     [HarmonyPatch(typeof(CursorLocationSelectTarget), nameof(CursorLocationSelectTarget.IsValidMagicTarget))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
     public static class IsValidMagicTarget_Patch
     {
         [UsedImplicitly]
-        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
-            CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.DistantSpell, "CursorLocationSelectTarget.IsValidMagicTarget");
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            instructions = ReplaceSelectedActor(instructions, "CursorLocationSelectTarget.IsValidMagicTarget");
+            return CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.DistantSpell,
+                "CursorLocationSelectTarget.IsValidMagicTarget");
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(CursorLocationSelectTarget __instance, ref bool __result)
+        {
+            ValidateFamiliarTouchTarget(__instance, ref __result);
+        }
     }
 
+    [HarmonyPatch(typeof(CursorLocationSelectTarget), nameof(CursorLocationSelectTarget.IsValidMagicAttack))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class IsValidMagicAttack_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            return ReplaceSelectedActor(instructions, "CursorLocationSelectTarget.IsValidMagicAttack");
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(CursorLocationSelectTarget __instance, ref bool __result)
+        {
+            ValidateFamiliarTouchTarget(__instance, ref __result);
+        }
+    }
+
+    private static void ValidateFamiliarTouchTarget(CursorLocationSelectTarget cursor, ref bool valid)
+    {
+        if (cursor.ActionParams.RulesetEffect is not RulesetEffectSpell spell ||
+            !EffectHelpers.IsFamiliarTouchDelivery(spell.EffectDescription))
+        {
+            return;
+        }
+
+        valid &= EffectHelpers.GetFamiliarTouchDelivery(cursor.ActionParams.ActingCharacter,
+            spell.SpellDefinition, spell.EffectDescription, cursor.targetedCharacter) != null;
+
+        // A selected familiar cast never falls back to walking the caster into touch range.
+        cursor.hasPredictivePosition = false;
+        cursor.predictivePosition = cursor.ActionParams.ActingCharacter.LocationPosition;
+    }
 
     private static bool TryGetModifyTeleportEffectBehavior(
         CharacterActionParams actionParams, out IModifyTeleportEffectBehavior modifyTeleportEffectBehavior)
@@ -53,9 +130,6 @@ public static class CursorLocationSelectTargetPatcher
             var definition = __instance.ActionParams.activeEffect.SourceDefinition;
             var actingCharacter = __instance.actionParams.actingCharacter;
 
-            // required for familiar attack
-            // actingCharacter.UsedSpecialFeatures.Remove("FamiliarAttack");
-
             //PATCH: supports `UseOfficialLightingObscurementAndVisionRules`
             if (__result &&
                 definition is IMagicEffect magicEffect &&
@@ -78,45 +152,6 @@ public static class CursorLocationSelectTargetPatcher
             {
                 __result = filterTargetingMagicEffect.IsValid(__instance, target);
             }
-
-#if false
-            //TODO: need to review below. sounds fishy
-            //PATCH: supports Find Familiar specific case for any caster as spell can be granted to other classes
-            if (Gui.Battle == null ||
-                actingCharacter.RulesetCharacter is not { IsDeadOrDyingOrUnconscious: false } ||
-                __instance.ActionParams.activeEffect is not RulesetEffectSpell rulesetEffectSpell ||
-                rulesetEffectSpell.EffectDescription.RangeType is not (RangeType.Touch or RangeType.MeleeHit))
-            {
-                return;
-            }
-
-            var familiar = Gui.Battle.AllContenders
-                .FirstOrDefault(x =>
-                    x.RulesetCharacter is RulesetCharacterMonster rulesetCharacterMonster &&
-                    rulesetCharacterMonster.MonsterDefinition.Name == OwlFamiliar &&
-                    rulesetCharacterMonster.ConditionsByCategory
-                        .SelectMany(x => x.Value)
-                        .Exists(y =>
-                            y.ConditionDefinition == ConditionDefinitions.ConditionConjuredCreature &&
-                            y.SourceGuid == actingCharacter.Guid));
-
-            var canAttack = familiar != null && familiar.IsWithinRange(target, 1);
-
-            if (canAttack)
-            {
-                var effectDescription = new EffectDescription();
-
-                effectDescription.Copy(__instance.effectDescription);
-                effectDescription.rangeParameter = 24;
-
-                __instance.effectDescription = effectDescription;
-                actingCharacter.UsedSpecialFeatures.Add("FamiliarAttack", 0);
-            }
-            else
-            {
-                __instance.effectDescription = __instance.ActionParams.RulesetEffect.EffectDescription;
-            }
-#endif
         }
     }
 

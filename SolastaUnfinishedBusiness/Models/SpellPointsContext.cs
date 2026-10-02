@@ -105,6 +105,31 @@ internal static class SpellPointsContext
         RulesetSpellRepertoire spellRepertoire,
         int level)
     {
+        if (spellRepertoire?.UsesSharedSpellSlots() == true)
+        {
+            var pactLevel = SharedSpellsContext.GetWarlockSpellLevel(rulesetCharacter);
+            if (pactLevel > 0)
+            {
+                var multicaster = SharedSpellsContext.IsMulticaster(rulesetCharacter);
+                if (level == pactLevel)
+                {
+                    spellRepertoire.GetSlotsNumber(level, out var remaining, out _);
+                    if (multicaster
+                            ? SharedSpellsContext.GetWarlockUsedSlots(rulesetCharacter) <
+                              SharedSpellsContext.GetWarlockMaxSlots(rulesetCharacter)
+                            : remaining > 0)
+                    {
+                        return true;
+                    }
+                }
+
+                if (!multicaster)
+                {
+                    return false;
+                }
+            }
+        }
+
         if (spellRepertoire != null &&
             level is > 5 and <= 9 &&
             spellRepertoire.usedSpellsSlots.TryGetValue(level, out var used) &&

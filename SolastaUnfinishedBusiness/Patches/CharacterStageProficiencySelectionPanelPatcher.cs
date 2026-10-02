@@ -333,6 +333,8 @@ public static class CharacterStageProficiencySelectionPanelPatcher
 
             item.headerLabelActive.Text = title;
             item.headerLabelInactive.Text = title;
+            UiTextHelpers.FitCardTitle(item.headerLabelActive.TMP_Text, 0.5f, maxVisibleLines: 3);
+            UiTextHelpers.FitCardTitle(item.headerLabelInactive.TMP_Text, 0.5f, maxVisibleLines: 3);
         }
     }
 
@@ -704,8 +706,6 @@ public static class CharacterStageProficiencySelectionPanelPatcher
     private static void CollectAutoSelectableFeats(
         HashSet<FeatDefinition> candidates,
         FeatDefinition feat,
-        FeatDefinition parentGroupedFeat,
-        HashSet<string> restrictedChoices,
         ICharacterBuildingService service,
         CharacterHeroBuildingData buildingData,
         string tag)
@@ -720,28 +720,19 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             }
 
             var subFeats = Main.Settings.EnableTabletopFeatRules2024
-                ? Tabletop2024Context.GetAllowedGameFeatChildren(feat)
+                ? Tabletop2024Context.GetGameFeatSelectionChildren(feat, buildingData?.HeroCharacter)
                 : groupedFeat.GetSubFeats(true);
 
             foreach (var subFeat in subFeats)
             {
-                CollectAutoSelectableFeats(candidates, subFeat, feat, restrictedChoices, service, buildingData, tag);
+                CollectAutoSelectableFeats(candidates, subFeat, service, buildingData, tag);
             }
 
             return;
         }
 
-        if (!Tabletop2024Context.IsAllowedInGameFeatSelectionByConfiguration(feat))
-        {
-            return;
-        }
-
-        if (!Tabletop2024Context.MatchesRestrictedChoice(feat, parentGroupedFeat, restrictedChoices))
-        {
-            return;
-        }
-
-        if (!Tabletop2024Context.IsFeatMatchingPrerequisites(service, buildingData, feat, out _) ||
+        if (!Tabletop2024Context.CanSelectFeatForCurrentPointPool(
+                buildingData.HeroCharacter, tag, feat, service) ||
             service.IsFeatKnownOrTrained(buildingData, feat) ||
             (!SkillFeats.IsRepeatable(feat) && service.IsFeatSelectedForTraining(buildingData, feat, tag)))
         {
@@ -771,12 +762,11 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             return [];
         }
 
-        var restrictedChoices = Tabletop2024Context.GetModeAwareRestrictedChoiceNames(pointPool).ToHashSet();
         var candidates = new HashSet<FeatDefinition>();
 
-        foreach (var feat in Tabletop2024Context.GetGameFeatSelectionCatalogRoots())
+        foreach (var feat in Tabletop2024Context.GetGameFeatSelectionCandidates(pointPool))
         {
-            CollectAutoSelectableFeats(candidates, feat, null, restrictedChoices, service, buildingData, item.Tag);
+            CollectAutoSelectableFeats(candidates, feat, service, buildingData, item.Tag);
         }
 
         return [.. candidates.OrderBy(feat => feat.FormatTitle())];
@@ -1044,17 +1034,10 @@ public static class CharacterStageProficiencySelectionPanelPatcher
 
             if (item.PoolType == Feat)
             {
-                if (IsHumanOriginFeatStep(item))
+                if ((IsHumanOriginFeatStep(item) && TryTrainHumanOriginFeat(__instance, item, false)) ||
+                    (IsSingleOriginFeatStep(__instance, item, out _) &&
+                     TryTrainSingleOriginFeat(__instance, item, false)))
                 {
-                    TryTrainHumanOriginFeat(__instance, item, false);
-
-                    return false;
-                }
-
-                if (IsSingleOriginFeatStep(__instance, item, out _))
-                {
-                    TryTrainSingleOriginFeat(__instance, item, false);
-
                     return false;
                 }
 

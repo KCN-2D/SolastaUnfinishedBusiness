@@ -274,16 +274,11 @@ internal static class CampaignsContext
 
     internal static void SpellSelectionPanelMultilineUnbind()
     {
-        if (Main.Settings.DisableMultilineSpellOffering)
-        {
-            return;
-        }
-
-        foreach (var spellTable in SpellLineTables
-                     .Where(spellTable => spellTable && spellTable.childCount > 0))
+        foreach (var spellTable in SpellLineTables.Where(spellTable => spellTable))
         {
             SetSpellSelectionLineTableVisible(spellTable, true);
             Gui.ReleaseChildrenToPool(spellTable);
+            spellTable.gameObject.SetActive(false);
             spellTable.SetParent(null);
             Object.Destroy(spellTable.gameObject);
         }
@@ -314,11 +309,16 @@ internal static class CampaignsContext
         }
 
         spellRepertoireLines.Clear();
+        SpellSelectionPanelMultilineUnbind();
         Gui.ReleaseChildrenToPool(spellRepertoireLinesTable);
-        spellRepertoireSecondaryLine.Unbind();
-        spellRepertoireSecondaryLine.gameObject.SetActive(false);
 
         var spellLineHolder = EnsureSpellSelectionLineHolder(spellRepertoireLinesTable) ?? spellRepertoireLinesTable;
+
+        // Restoring the initial holder can reactivate the native secondary line along with the tables.
+        spellRepertoireSecondaryLine.Unbind();
+        spellRepertoireSecondaryLine.gameObject.SetActive(false);
+        SetSpellSelectionLineTableVisible(spellRepertoireLinesTable, true);
+        using var lineTableTemplate = new SpellSelectionLineTableTemplate(spellRepertoireLinesTable);
         var spellRepertoires = SpellSelectionContext.GetRepertoires(__instance.Caster.RulesetCharacter).ToArray();
 
         var needNewLine = true;
@@ -357,6 +357,7 @@ internal static class CampaignsContext
                     cantripOnly,
                     spellRepertoireLines,
                     curTable,
+                    lineTableTemplate.Table,
                     slotAdvancementPanel,
                     spellRepertoires,
                     needNewLine,
@@ -385,6 +386,7 @@ internal static class CampaignsContext
                 cantripOnly,
                 spellRepertoireLines,
                 curTable,
+                lineTableTemplate.Table,
                 slotAdvancementPanel,
                 spellRepertoires,
                 needNewLine,
@@ -1152,6 +1154,7 @@ internal static class CampaignsContext
         bool cantripOnly,
         ICollection<SpellRepertoireLine> spellRepertoireLines,
         RectTransform spellRepertoireLinesTable,
+        RectTransform lineTableTemplate,
         SlotAdvancementPanel slotAdvancementPanel,
         RulesetSpellRepertoire[] spellRepertoires,
         bool needNewLine,
@@ -1169,15 +1172,13 @@ internal static class CampaignsContext
 
             if (lineIndex > 0)
             {
-                // instantiate new table
+                // Keep the native table layout without cloning bound spell lines or their TMP meshes.
                 spellRepertoireLinesTable =
-                    Object.Instantiate(spellRepertoireLinesTable, previousTable.parent.transform);
-                // clear it of children
-                spellRepertoireLinesTable.DetachChildren();
-                //spellRepertoireLinesTable.SetParent(previousTable.parent.transform, true);
+                    Object.Instantiate(lineTableTemplate, previousTable.parent.transform);
+                SpellLineTables.Add(spellRepertoireLinesTable);
                 spellRepertoireLinesTable.localScale = previousTable.localScale;
                 spellRepertoireLinesTable.transform.SetAsFirstSibling();
-                SpellLineTables.Add(spellRepertoireLinesTable);
+                spellRepertoireLinesTable.gameObject.SetActive(true);
             }
         }
 
@@ -1196,6 +1197,26 @@ internal static class CampaignsContext
             false);
 
         return spellRepertoireLinesTable;
+    }
+
+    private sealed class SpellSelectionLineTableTemplate : IDisposable
+    {
+        internal SpellSelectionLineTableTemplate(RectTransform emptyTable)
+        {
+            Table = Object.Instantiate(emptyTable, emptyTable.parent);
+            Table.gameObject.SetActive(false);
+            Table.SetParent(null, false);
+        }
+
+        internal RectTransform Table { get; }
+
+        public void Dispose()
+        {
+            if (Table)
+            {
+                Object.Destroy(Table.gameObject);
+            }
+        }
     }
 
     private static SpellRepertoireLine SetUpNewLine(

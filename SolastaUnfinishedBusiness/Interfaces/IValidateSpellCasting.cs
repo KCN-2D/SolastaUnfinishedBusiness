@@ -168,12 +168,16 @@ internal static class SpellCastingValidation
         RulesetCharacter caster,
         RulesetSpellRepertoire repertoire,
         SpellDefinition spellDefinition,
-        RulesetEffectSpell activeSpell = null)
+        RulesetEffectSpell activeSpell = null,
+        bool preserveSource = false)
     {
         if (caster == null)
         {
             return null;
         }
+
+        preserveSource |= activeSpell is RulesetEffectSpellWithOrigin || activeSpell?.SlotLevel < 0 ||
+                          RulesetEffectSpellWithOrigin.IsPendingOrigin(caster, spellDefinition, false);
 
         if (repertoire == null &&
             activeSpell != null &&
@@ -182,6 +186,9 @@ internal static class SpellCastingValidation
             repertoire = effectBinding.Repertoire;
         }
 
+        repertoire = preserveSource
+            ? SpellSelectionContext.Resolve(repertoire)
+            : SpellCastingResourceContext.ResolveCastingRepertoire(repertoire, spellDefinition, caster);
         if (repertoire != null && caster.SpellRepertoires.Contains(repertoire))
         {
             return repertoire;
@@ -190,7 +197,9 @@ internal static class SpellCastingValidation
         if (TryGetSelectedRepertoire(caster, out var selectedRepertoire) &&
             (spellDefinition == null || KnowsSpell(selectedRepertoire, spellDefinition)))
         {
-            return selectedRepertoire;
+            return preserveSource
+                ? SpellSelectionContext.Resolve(selectedRepertoire)
+                : SpellCastingResourceContext.ResolveCastingRepertoire(selectedRepertoire, spellDefinition, caster);
         }
 
         if (spellDefinition == null)
@@ -198,12 +207,16 @@ internal static class SpellCastingValidation
             return null;
         }
 
-        return caster.SpellRepertoires
+        var fallback = caster.SpellRepertoires
             .Where(candidate => candidate?.SpellCastingFeature != null &&
                                 KnowsSpell(candidate, spellDefinition))
             .OrderBy(GetRepertoirePriority)
             .ThenBy(candidate => candidate.SpellCastingFeature.Name, StringComparer.Ordinal)
             .FirstOrDefault();
+
+        return preserveSource
+            ? SpellSelectionContext.Resolve(fallback)
+            : SpellCastingResourceContext.ResolveCastingRepertoire(fallback, spellDefinition, caster);
     }
 
     internal static bool IsValid(
@@ -241,7 +254,9 @@ internal static class SpellCastingValidation
             caster,
             repertoire ?? activeSpell?.SpellRepertoire,
             spellDefinition,
-            activeSpell);
+            activeSpell,
+            // Wish and Divine Intervention validate their candidates before a pending origin exists.
+            bypassSpellSlotLimit && (bypassComponentsAndCastingTime || bypassMaterialComponent));
         var context = new SpellCastingValidationContext(
             caster,
             repertoire,

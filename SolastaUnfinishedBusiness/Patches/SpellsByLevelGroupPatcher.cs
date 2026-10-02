@@ -3,12 +3,31 @@ using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.CustomUI;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class SpellsByLevelGroupPatcher
 {
+    [HarmonyPatch(typeof(SpellsByLevelGroup), nameof(SpellsByLevelGroup.BindInspectionOrPreparation))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class BindInspectionOrPreparation_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(
+            RulesetCharacter caster,
+            ref RulesetSpellRepertoire spellRepertoire,
+            ref FeatureDefinitionCastSpell spellcastingFeature,
+            int spellLevel,
+            SpellBox.BindMode bindMode)
+        {
+            CharacterInspectionScreenEnhancement.SelectInspectionLevelSource(
+                caster, spellLevel, bindMode, ref spellRepertoire, ref spellcastingFeature);
+        }
+    }
+
     [HarmonyPatch(typeof(SpellsByLevelGroup), nameof(SpellsByLevelGroup.CommonBind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -18,7 +37,9 @@ public static class SpellsByLevelGroupPatcher
         public static void Prefix(
             SpellsByLevelGroup __instance,
             RulesetCharacter caster,
+            SpellBox.BindMode bindMode,
             List<SpellDefinition> allSpells,
+            ref List<SpellDefinition> trainedSpells,
             ref List<SpellDefinition> autoPreparedSpells,
             ref Dictionary<SpellDefinition, string> tagBySpell,
             ref Dictionary<SpellDefinition, string> extraSpellsMap)
@@ -41,6 +62,9 @@ public static class SpellsByLevelGroupPatcher
                 autoPreparedSpells,
                 tagBySpell,
                 extraSpellsMap);
+
+            CharacterInspectionScreenEnhancement.AddInspectionLearnedSpells(
+                __instance, caster, bindMode, allSpells, ref trainedSpells, tagBySpell);
         }
     }
 }

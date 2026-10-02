@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
@@ -26,6 +27,8 @@ public class GroupedFeat : IGroupedFeat
     }
 
     internal List<FeatDefinition> Feats { get; } = [];
+
+    internal Func<RulesetCharacterHero, FeatDefinition, bool> IsChildVisible { get; set; }
 
     public List<FeatDefinition> GetSubFeats(bool includeHidden = false, bool onlyModded = false)
     {
@@ -122,16 +125,7 @@ internal class SubFeatSelectionModal : GuiGameScreen
 
         if (Main.Settings.EnableTabletopFeatRules2024)
         {
-            subFeats = Tabletop2024Context.GetAllowedGameFeatChildren(feat)
-                .ToList();
-
-            if (subFeats.Count == 0 &&
-                !Tabletop2024Context.IsTabletopContainerGroup(feat))
-            {
-                subFeats = group.GetSubFeats(true)
-                    .Where(Tabletop2024Context.IsVisibleInGameFeatSelection)
-                    .ToList();
-            }
+            subFeats = Tabletop2024Context.GetGameFeatSelectionChildren(feat, inspectedCharacter).ToList();
         }
         else
         {
@@ -320,6 +314,7 @@ internal class SubFeatSelectionModal : GuiGameScreen
         component.Tooltip.AnchorMode = _baseItem.Tooltip.AnchorMode;
 
         component.RectTransform.sizeDelta = new Vector2(FeatsContext.Width, FeatsContext.Height);
+        UiTextHelpers.FitCardTitle(component.itemName.TMP_Text);
     }
 
     private static void UpdateFeatState(

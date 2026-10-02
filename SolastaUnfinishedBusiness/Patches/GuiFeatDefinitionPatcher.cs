@@ -73,6 +73,16 @@ public static class GuiFeatDefinitionPatcher
             //PATCH: Replace call to RulesetCharacterHero.SpellRepertoires.Count with Count list of FeatureCastSpell
             //which are registered before feat selection at lvl 1
             return instructions
+                .ReplaceCalls(
+                    typeof(FeatDefinition).GetMethod("get_HasFamilyTag"),
+                    "GuiFeatDefinition.IsFeatMatchingPrerequisites.HasFamilyTag",
+                    new CodeInstruction(OpCodes.Call,
+                        new Func<FeatDefinition, bool>(Tabletop2024Context.HasEffectiveFeatFamily).Method))
+                .ReplaceCalls(
+                    typeof(FeatDefinition).GetMethod("get_FamilyTag"),
+                    "GuiFeatDefinition.IsFeatMatchingPrerequisites.FamilyTag",
+                    new CodeInstruction(OpCodes.Call,
+                        new Func<FeatDefinition, string>(Tabletop2024Context.GetEffectiveFeatFamily).Method))
                 .ReplaceCall(typeof(RulesetCharacter).GetMethod("get_SpellRepertoires"),
                     1,
                     1, "GuiFeatDefinition.IsFeatMatchingPrerequisites",

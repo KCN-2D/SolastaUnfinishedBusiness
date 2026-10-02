@@ -76,7 +76,12 @@ public static class SlotStatusTablePatcher
                     __instance.infinitySymbol.gameObject.SetActive(true);
                 }
 
-                return;
+                if (option.IsFree)
+                {
+                    return;
+                }
+
+                spellRepertoire = option.Repertoire;
             }
 
             var character = spellRepertoire?.GetCaster();

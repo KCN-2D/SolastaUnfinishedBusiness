@@ -595,6 +595,7 @@ internal static partial class SpellBuilders
                     .SetCasterEffectParameters(AcidSplash)
                     .SetImpactEffectParameters(AcidArrow)
                     .Build())
+            .AddCustomSubFeatures(FixesContext.NoDistanced.Mark)
             .AddToDB();
 
         return spell;

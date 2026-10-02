@@ -18,7 +18,8 @@ public static class FeatureDefinitionPatcher
         public static void Postfix(FeatureDefinition __instance, ref bool __result)
         {
             // The native race stage grants its displayed choices only when the chosen feature requests a refresh.
-            if (Main.Settings.EnableSpeciesSpellcastingAbility2024 &&
+            if (Tabletop2024Context.IsHumanOriginFeatChoiceFeature(__instance) ||
+                Main.Settings.EnableSpeciesSpellcastingAbility2024 &&
                 SpeciesSpellcastingContext.IsAbilityChoice(__instance))
             {
                 __result = true;

@@ -87,6 +87,7 @@ internal static class OtherFeats
         var elementalAdeptGroup = BuildElementalAdept(feats);
         var elementalMasterGroup = BuildElementalMaster(feats);
         var giftOfTheGemDragonGroup = BuildGiftOfTheGemDragon(feats);
+        var giftOfTheMetallicDragonGroup = BuildGiftOfTheMetallicDragon(feats);
         var weaponMasterGroup = BuildWeaponMaster(feats);
         var weaponMasteryGroup = BuildWeaponMastery(feats);
 
@@ -142,6 +143,7 @@ internal static class OtherFeats
             featMobile);
 
         GroupFeats.FeatGroupDefenseCombat.AddFeats(
+            giftOfTheMetallicDragonGroup,
             featShieldExpert);
 
         GroupFeats.FeatGroupMeleeCombat.AddFeats(
@@ -173,6 +175,7 @@ internal static class OtherFeats
             featRopeIpUp,
             featSentinel,
             giftOfTheGemDragonGroup,
+            giftOfTheMetallicDragonGroup,
             weaponMasterGroup,
             weaponMasteryGroup);
 
@@ -642,6 +645,135 @@ internal static class OtherFeats
                         new AddPolearmFollowUpAttack(LongMaceWeaponType))
                     .AddToDB())
             .AddToDB();
+    }
+
+    #endregion
+
+    #region Gift of the Metallic Dragon
+
+    private static FeatDefinition BuildGiftOfTheMetallicDragon(List<FeatDefinition> feats)
+    {
+        const string Name = "FeatGiftOfTheMetallicDragon";
+        const string Wings = "GiftOfTheMetallicDragonProtectiveWings";
+
+        var condition = ConditionDefinitionBuilder
+            .Create($"Condition{Wings}")
+            .SetGuiPresentation(Wings, Category.Feature)
+            .SetPossessive()
+            .SetAmountOrigin(ExtraOriginOfAmount.SourceProficiencyBonus)
+            .SetFeatures(FeatureDefinitionAttributeModifierBuilder
+                .Create($"AttributeModifier{Wings}")
+                .SetGuiPresentationNoContent(true)
+                .SetAddConditionAmount(AttributeDefinitions.ArmorClass)
+                .AddToDB())
+            .SetSpecialInterruptions(ExtraConditionInterruption.AfterWasAttacked)
+            .AddToDB();
+        var power = FeatureDefinitionPowerBuilder
+            .Create($"Power{Wings}")
+            .SetGuiPresentation(Wings, Category.Feature)
+            .SetUsesProficiencyBonus(ActivationTime.Reaction)
+            .SetEffectDescription(EffectDescriptionBuilder.Create()
+                .SetDurationData(DurationType.Round, 0, TurnOccurenceType.StartOfTurn)
+                .SetTargetingData(Side.All, RangeType.Distance, 1, TargetType.IndividualsUnique)
+                .SetEffectForms(EffectFormBuilder.ConditionForm(condition))
+                .SetParticleEffectParameters(Shield)
+                .Build())
+            .AddToDB();
+        power.AddCustomSubFeatures(ModifyPowerVisibility.Hidden, new ProtectiveWings(power));
+
+        var spellList = SpellListDefinitionBuilder
+            .Create($"SpellList{Name}")
+            .SetGuiPresentationNoContent(true)
+            .ClearSpells()
+            .SetSpellsAtLevel(1, CureWounds)
+            .FinalizeSpells(false, 1)
+            .AddToDB();
+        var slots = Enumerable.Range(1, 20)
+            .Select(level => new FeatureDefinitionCastSpell.SlotsByLevelDuplet { Level = level, Slots = [1] })
+            .ToList();
+        var variants = new List<FeatDefinition>();
+
+        foreach (var (suffix, ability) in new[]
+                 {
+                     ("Int", AttributeDefinitions.Intelligence),
+                     ("Wis", AttributeDefinitions.Wisdom),
+                     ("Cha", AttributeDefinitions.Charisma)
+                 })
+        {
+            var casting = FeatureDefinitionCastSpellBuilder
+                .Create($"CastSpell{Name}{suffix}")
+                .SetGuiPresentationNoContent(true)
+                .SetSpellCastingOrigin(FeatureDefinitionCastSpell.CastingOrigin.Race)
+                .SetSpellKnowledge(SpellKnowledge.FixedList)
+                .SetSpellReadyness(SpellReadyness.AllKnown)
+                .SetSlotsRecharge(RechargeRate.LongRest)
+                .SetSlotsPerLevel(slots)
+                .SetUniqueLevelSlots(false)
+                .SetSpellList(spellList)
+                .SetSpellCastingAbility(ability)
+                .AddCustomSubFeatures(new FeatHelpers.SpellTag("GiftOfTheMetallicDragon",
+                    forceFixedList: true, allowSlotCasting: true))
+                .AddToDB();
+            variants.Add(FeatDefinitionBuilder
+                .Create($"{Name}{suffix}")
+                .SetGuiPresentation(Category.Feat)
+                .SetFeatures(casting, power)
+                .SetFeatFamily(Name)
+                .AddToDB());
+        }
+
+        feats.AddRange(variants);
+
+        return GroupFeats.MakeGroup("FeatGroupGiftOfTheMetallicDragon", Name, variants);
+    }
+
+    private sealed class ProtectiveWings(FeatureDefinitionPower power) : ITryAlterOutcomeAttack
+    {
+        public int HandlerPriority => -10;
+
+        public IEnumerator OnTryAlterOutcomeAttack(
+            GameLocationBattleManager battleManager,
+            CharacterAction action,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            GameLocationCharacter helper,
+            ActionModifier actionModifier,
+            RulesetAttackMode attackMode,
+            RulesetEffect rulesetEffect)
+        {
+            if (action.AttackRollOutcome is not (RollOutcome.Success or RollOutcome.CriticalSuccess) ||
+                action.AttackRoll is <= 1 or >= 20 || attackMode is { AutomaticHit: true } ||
+                !helper.CanReact() ||
+                helper != defender && (!helper.IsWithinRange(defender, 1) || !helper.CanSeeTarget(defender)))
+            {
+                yield break;
+            }
+
+            var rulesetHelper = helper.RulesetCharacter;
+            var proficiency = rulesetHelper.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+            var armorClass = defender.RulesetCharacter.TryGetAttributeValue(AttributeDefinitions.ArmorClass);
+            var totalAttack = action.AttackRoll + (attackMode?.ToHitBonus ?? rulesetEffect?.MagicAttackBonus ?? 0) +
+                              actionModifier.AttackRollModifier;
+
+            if (totalAttack < armorClass || totalAttack >= armorClass + proficiency)
+            {
+                yield break;
+            }
+
+            var usablePower = PowerProvider.Get(power, rulesetHelper);
+
+            if (rulesetHelper.GetRemainingUsesOfPower(usablePower) <= 0)
+            {
+                yield break;
+            }
+
+            yield return helper.MyReactToUsePower(
+                Id.PowerReaction, usablePower, [defender], attacker,
+                "GiftOfTheMetallicDragonProtectiveWings",
+                Gui.Format("Reaction/&GiftOfTheMetallicDragonProtectiveWingsDescription",
+                    defender.Name, proficiency.ToString()),
+                battleManager: battleManager);
+        }
     }
 
     #endregion

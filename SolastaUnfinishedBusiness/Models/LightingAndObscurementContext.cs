@@ -445,6 +445,16 @@ internal static class LightingAndObscurementContext
             sensor = locationController;
         }
 
+        // Shared senses add the familiar's actual perspective and senses. Keep the
+        // caster's position unchanged for range, cover, movement and spell origins.
+        var familiar = GetSharedSensesFamiliar(sensor.RulesetCharacter);
+        if (familiar != null && instance.MyIsCellPerceivedByCharacter(
+                cellPosition, familiar, target, additionalBlockedLightingState,
+                requireLineOfSight, useCellPos, requireSight))
+        {
+            return true;
+        }
+
         // A hidden creature must have been discovered by this observer, not just by an ally.
         if (requireSight && target != null && sensor.IsOppositeSide(target.Side) &&
             ((target.Stealthy &&

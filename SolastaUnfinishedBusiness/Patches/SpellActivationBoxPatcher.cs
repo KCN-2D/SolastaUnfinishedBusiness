@@ -16,7 +16,7 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class SpellActivationBoxPatcher
 {
-    private static readonly ConditionalWeakTable<SpellActivationBox, SpellCastingResourceContext.ResourceOption> FreeBindings = new();
+    private static readonly ConditionalWeakTable<SpellActivationBox, SpellCastingResourceContext.ResourceOption> ResourceBindings = new();
 
     [HarmonyPatch(typeof(SpellActivationBox), nameof(SpellActivationBox.BindSpell))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
@@ -26,18 +26,29 @@ public static class SpellActivationBoxPatcher
         [UsedImplicitly]
         public static void Prefix(
             SpellActivationBox __instance,
+            RulesetCharacter __0,
             ref RulesetSpellRepertoire __1,
+            SpellDefinition __2,
             out IDisposable __state)
         {
-            FreeBindings.Remove(__instance);
+            ResourceBindings.Remove(__instance);
+            var source = SpellCastingResourceContext.ResolveCastingRepertoire(__1, __2, __0);
             if (SpellSelectionContext.TryGetOption(__1, out var option))
             {
-                FreeBindings.Add(__instance, option);
-                __1 = option.Repertoire;
+                ResourceBindings.Add(__instance, option);
+                if (option.IsFree)
+                {
+                    __1 = option.CastingRepertoire;
+                }
+            }
+            else if (__1 != null && source != __1)
+            {
+                // The native class column owns the slots; the feat remains the spell's casting source.
+                ResourceBindings.Add(__instance, SpellSelectionContext.GetBaseSelection(__0, __1, __2));
             }
 
-            SpellCastingValidation.BindTooltipRepertoire(__instance.tooltip, __1);
-            __state = SpellCastingValidation.EnterSelectedRepertoire(__1);
+            SpellCastingValidation.BindTooltipRepertoire(__instance.tooltip, source);
+            __state = SpellCastingValidation.EnterSelectedRepertoire(source);
         }
 
         [UsedImplicitly]
@@ -47,15 +58,22 @@ public static class SpellActivationBoxPatcher
             RulesetSpellRepertoire __1,
             SpellDefinition __2)
         {
-            if (FreeBindings.TryGetValue(__instance, out _))
+            if (ResourceBindings.TryGetValue(__instance, out var option) && option.IsFree)
             {
                 __instance.hasUpcast = false;
                 __instance.upcastButton.gameObject.SetActive(false);
                 __instance.closeAdvancementButton.gameObject.SetActive(false);
             }
 
-            if (!__instance.globalValid ||
-                SpellCastingValidation.IsValid(__0, __1, __2, null, out _))
+            var line = SpellActionTypeContext.GetRepertoireLine(__instance);
+            var hasAvailableAction = Gui.Battle == null || line?.actionType != ActionDefinitions.ActionType.None ||
+                                     SpellActionTypeContext.TryGetAvailableSpellAction(
+                                         GameLocationCharacter.GetFromActor(__0), __1, __2,
+                                         ActionDefinitions.ActionScope.Battle, out _);
+
+            if (hasAvailableAction && (!__instance.globalValid ||
+                SpellCastingValidation.IsValid(__0,
+                    SpellCastingResourceContext.ResolveCastingRepertoire(__1, __2, __0), __2, null, out _)))
             {
                 return;
             }
@@ -95,14 +113,9 @@ public static class SpellActivationBoxPatcher
             RulesetCharacter caster,
             SpellActivationBox spellActivationBox)
         {
-            if (FreeBindings.TryGetValue(spellActivationBox, out var free))
+            if (ResourceBindings.TryGetValue(spellActivationBox, out var option))
             {
-                SpellSelectionContext.GetViewSlots(free, spellLevel, out remaining, out max);
-                if (!free.IsAvailable(caster))
-                {
-                    remaining = 0;
-                }
-
+                SpellSelectionContext.GetViewSlots(option, spellLevel, out remaining, out max);
                 return;
             }
 
@@ -144,7 +157,7 @@ public static class SpellActivationBoxPatcher
                 return repertoire.GetLowestAvailableSlotLevel();
             }
 
-            var option = FreeBindings.TryGetValue(box, out var free)
+            var option = ResourceBindings.TryGetValue(box, out var free)
                 ? free
                 : SpellSelectionContext.GetBaseSelection(caster, repertoire, spell);
             return option.IsAvailable(caster) ? option.SlotLevel : 0;
@@ -219,7 +232,8 @@ public static class SpellActivationBoxPatcher
         [UsedImplicitly]
         public static void Prefix(SpellActivationBox __instance)
         {
-            FreeBindings.Remove(__instance);
+            ResourceBindings.Remove(__instance);
+            SpellCastingValidation.BindTooltipRepertoire(__instance.tooltip, null);
         }
     }
 }
