@@ -30,3 +30,5 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceDescription={0} kann die
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=Schadensart ändern
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=Verwende die gewählte Schadensart für diesen Treffer.
 Failure/&InvocationRequiresWarlockCantrip=Du musst {0} als Hexenmeister-Zaubertrick kennen.
+Screen/&SubspellSelectionBackTitle=Zurück
+Screen/&SubspellSelectionBackDescription=Zur vorherigen Auswahl zurückkehren.

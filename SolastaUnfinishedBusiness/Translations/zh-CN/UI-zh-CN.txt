@@ -30,3 +30,5 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceDescription={0}可以改
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=改变伤害类型
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=本次命中使用所选的伤害类型。
 Failure/&InvocationRequiresWarlockCantrip=你必须将{0}作为邪术士戏法习得。
+Screen/&SubspellSelectionBackTitle=返回
+Screen/&SubspellSelectionBackDescription=返回上一级选项。

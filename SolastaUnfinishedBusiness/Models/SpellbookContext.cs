@@ -24,7 +24,7 @@ internal static class SpellbookContext
                 if (!WizardSubspellParent.ContainsKey(spell.Name))
                 {
                     WizardSubspellParent[spell.Name] = spell;
-                    foreach (var subspell in spell.SubspellsList)
+                    foreach (var subspell in SpellsContext.GetSubspellLeaves(spell))
                     {
                         WizardSubspellParent[subspell.Name] = spell;
                     }

@@ -1,7 +1,12 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 
@@ -10,6 +15,40 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class FeatItemPatcher
 {
+    [HarmonyPatch(typeof(ProficiencySingleItem), nameof(ProficiencySingleItem.Bind),
+        typeof(RulesetCharacterHero), typeof(BaseDefinition), typeof(ProficiencyBaseItem.OnItemClickedHandler),
+        typeof(bool))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ProficiencySingleItemBind_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            // Native rows read raw presentation text before calculating their preferred width.
+            return instructions
+                .ReplaceCalls(typeof(GuiPresentation).GetProperty(nameof(GuiPresentation.Title))?.GetMethod,
+                    1,
+                    "ProficiencySingleItem.Bind.Title",
+                    new CodeInstruction(OpCodes.Ldarg_2),
+                    new CodeInstruction(OpCodes.Call, new Func<GuiPresentation, BaseDefinition, string>(FormatTitle).Method))
+                .ReplaceCalls(typeof(GuiPresentation).GetProperty(nameof(GuiPresentation.Description))?.GetMethod,
+                    1,
+                    "ProficiencySingleItem.Bind.Description",
+                    new CodeInstruction(OpCodes.Ldarg_2),
+                    new CodeInstruction(OpCodes.Call,
+                        new Func<GuiPresentation, BaseDefinition, string>(FormatDescription).Method));
+        }
+
+        private static string FormatTitle(GuiPresentation presentation, BaseDefinition definition) =>
+            definition.GetFirstSubFeatureOfType<FormattedDefinitionText>()?.FormatTitle(presentation.Title) ??
+            presentation.Title;
+
+        private static string FormatDescription(GuiPresentation presentation, BaseDefinition definition) =>
+            definition.GetFirstSubFeatureOfType<FormattedDefinitionText>()?.FormatDescription(presentation.Description) ??
+            presentation.Description;
+    }
+
     [HarmonyPatch(typeof(FeatItem), nameof(FeatItem.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

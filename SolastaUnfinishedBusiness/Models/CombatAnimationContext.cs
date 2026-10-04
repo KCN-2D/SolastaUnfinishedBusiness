@@ -78,6 +78,41 @@ internal static class CombatAnimationContext
         AnimatorStates.Clear();
     }
 
+    internal static void RefreshMovementState(RulesetCharacter character)
+    {
+        if (GameLocationCharacter.GetFromActor(character) is { } location &&
+            !character.MoveModes.ContainsKey((int)location.CurrentMoveMode))
+        {
+            location.CurrentMoveMode = location.DefaultMoveMode;
+        }
+
+        var graphicsCharacters = ServiceRepository.GetService<IGraphicsCharacterFactoryService>()?.GraphicsCharacters;
+
+        if (graphicsCharacters == null)
+        {
+            return;
+        }
+
+        var flying = character.MoveModes.ContainsKey((int)RuleDefinitions.MoveMode.Fly) ||
+                     character.HasConditionOfTypeOrSubType("ConditionFlying") ||
+                     character.HasConditionOfTypeOrSubType("ConditionLevitate");
+
+        foreach (var graphicsCharacter in graphicsCharacters)
+        {
+            if (!graphicsCharacter || graphicsCharacter.RulesetCharacter != character ||
+                !graphicsCharacter.IsBoundToGameCharacter || !graphicsCharacter.Animator ||
+                !graphicsCharacter.Animator.runtimeAnimatorController ||
+                graphicsCharacter.flyingStatus == flying)
+            {
+                continue;
+            }
+
+            // Native condition animations only handle Flying/Levitate. Intrinsic movement can
+            // also change on the same body, and must not leave its old flying pose active.
+            graphicsCharacter.SetFlyingStatus(flying, false);
+        }
+    }
+
     private static void TryAddRulesetCharacter(ISet<RulesetCharacter> characters, GameLocationCharacter character)
     {
         var rulesetCharacter = character?.RulesetCharacter;

@@ -30,3 +30,5 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceDescription={0} pode mud
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=Mudar tipo de dano
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=Use o tipo de dano selecionado para este acerto.
 Failure/&InvocationRequiresWarlockCantrip=Você deve conhecer {0} como truque de bruxo.
+Screen/&SubspellSelectionBackTitle=Voltar
+Screen/&SubspellSelectionBackDescription=Volte à seleção anterior.

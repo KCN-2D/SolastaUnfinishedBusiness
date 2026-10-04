@@ -28,6 +28,53 @@ internal static class SpellsContext
     internal static readonly Dictionary<SpellDefinition, SpellDefinition> SpellsChildMaster = [];
     internal static readonly Dictionary<SpellListDefinition, SpellListContext> SpellListContextTab = [];
     private static readonly HashSet<SpellDefinition> SpellsAvailableWithSpellLists2024Only = [];
+    private static readonly HashSet<SpellDefinition> SpellsRequiredWithSpellLists2024Only = [];
+
+    internal static SpellDefinition BattleFamiliar { get; private set; }
+
+    internal static List<SpellDefinition> GetSubspellLeaves(SpellDefinition spell)
+    {
+        if (spell == null)
+        {
+            return [];
+        }
+        var children = spell.SubspellsList;
+        if (!children.Any(child => child?.SpellsBundle == true))
+        {
+            // Preserve native list identity and indices for ordinary, flat bundles.
+            return children;
+        }
+
+        List<SpellDefinition> leaves = [];
+        HashSet<SpellDefinition> visited = [spell];
+        foreach (var child in children)
+        {
+            AddLeaves(child);
+        }
+        return leaves;
+
+        void AddLeaves(SpellDefinition child)
+        {
+            if (child == null || !visited.Add(child))
+            {
+                return;
+            }
+            if (!child.SpellsBundle)
+            {
+                leaves.Add(child);
+                return;
+            }
+            foreach (var descendant in child.SubspellsList)
+            {
+                AddLeaves(descendant);
+            }
+        }
+    }
+
+    internal static bool IsSubspellOf(SpellDefinition spell, SpellDefinition masterSpell)
+    {
+        return spell != null && masterSpell?.SpellsBundle == true && GetSubspellLeaves(masterSpell).Contains(spell);
+    }
 
     internal static readonly SpellListDefinition EmptySpellList = SpellListDefinitionBuilder
         .Create("SpellListEmpty")
@@ -385,6 +432,10 @@ internal static class SpellsContext
         RegisterSpell(WrathfulSmite, 0, SpellListPaladin);
 
         // 2nd level
+        BattleFamiliar = BuildBattleFamiliar();
+        SpellsAvailableWithSpellLists2024Only.Add(BattleFamiliar);
+        SpellsRequiredWithSpellLists2024Only.Add(BattleFamiliar);
+        RegisterSpell(BattleFamiliar);
         RegisterSpell(BuildAganazzarScorcher(), 0, SpellListSorcerer, SpellListWizard);
         RegisterSpell(BindingIce, 0, SpellListSorcerer, SpellListWizard);
         RegisterSpell(BuildBorrowedKnowledge(), 0, SpellListBard, SpellListCleric, SpellListWarlock, SpellListWizard);
@@ -529,6 +580,19 @@ internal static class SpellsContext
                 // tryAdd to avoid AtWill spells to mess up this collection
                 SpellsChildMaster.TryAdd(child, parent);
             }
+        }
+
+        // A leaf can belong to several selection pages. Its casting source remains the
+        // outer spell, independently of the database's registration order.
+        foreach (var child in SpellsChildMaster.Keys.ToArray())
+        {
+            var master = SpellsChildMaster[child];
+            HashSet<SpellDefinition> visited = [child];
+            while (visited.Add(master) && SpellsChildMaster.TryGetValue(master, out var parent))
+            {
+                master = parent;
+            }
+            SpellsChildMaster[child] = master;
         }
 
         // bootstrap
@@ -1164,7 +1228,8 @@ internal static class SpellsContext
                 SetCollectionMembership(MinimumSpells, spellDefinition, state.Minimum);
                 SetCollectionMembership(SuggestedSpells, spellDefinition, state.Suggested);
 
-                if (spellDefinition.ContentPack != CeContentPackContext.CeContentPack || wasExcluded)
+                if (spellDefinition.ContentPack != CeContentPackContext.CeContentPack || wasExcluded ||
+                    SpellsRequiredWithSpellLists2024Only.Contains(spellDefinition))
                 {
                     SetSpellPresence(spellDefinition, state.Active, false);
                 }
@@ -1184,7 +1249,8 @@ internal static class SpellsContext
 
             SetCollectionMembership(SpellList2024ExcludedSpells, spellDefinition, !included);
 
-            if (spellDefinition.ContentPack == CeContentPackContext.CeContentPack)
+            if (spellDefinition.ContentPack == CeContentPackContext.CeContentPack &&
+                !SpellsRequiredWithSpellLists2024Only.Contains(spellDefinition))
             {
                 SetCollectionMembership(SuggestedSpells, spellDefinition, included);
 
@@ -1196,6 +1262,12 @@ internal static class SpellsContext
             else
             {
                 SetCollectionMembership(MinimumSpells, spellDefinition, included);
+
+                if (SpellsRequiredWithSpellLists2024Only.Contains(spellDefinition))
+                {
+                    SetCollectionMembership(SuggestedSpells, spellDefinition, included);
+                }
+
                 SetSpellPresence(spellDefinition, included, false);
             }
         }
@@ -1211,7 +1283,7 @@ internal static class SpellsContext
                 spellDefinition,
                 enabled &&
                 !IsSpellList2024RestrictedSpell(spellDefinition) &&
-                SelectedSpells.Contains(spellDefinition.Name),
+                (IsRequiredSpellList2024Spell(spellDefinition) || SelectedSpells.Contains(spellDefinition.Name)),
                 false);
         }
 

@@ -3194,6 +3194,7 @@ internal static partial class SpellBuilders
     private const string OwlFamiliar = "OwlFamiliar";
     private const string FamiliarSharedSenses = "ConditionFamiliarSharedSenses";
     private static ConditionDefinition _conditionFamiliarConnection;
+    private static readonly HashSet<FeatureDefinition> FamiliarSpellFeatures = [];
     private static readonly AccessTools.FieldRef<RulesetCharacterMonster, MonsterPresentationDefinition>
         FamiliarMonsterPresentation = AccessTools.FieldRefAccess<RulesetCharacterMonster, MonsterPresentationDefinition>(
             "monsterPresentationDefinition");
@@ -3253,9 +3254,11 @@ internal static partial class SpellBuilders
 
         // Older summons saved the source model variant, whose scale takes precedence
         // over the familiar definition. Keep its prefab and material choice when restoring.
+        var originalDefinition = BattleFamiliarOriginals.TryGetValue(character.MonsterDefinition, out var original)
+            ? original : character.MonsterDefinition;
         if (character.MonsterPresentationDefinition != null &&
             FamiliarPresentationReplacements.TryGetValue(
-                (character.MonsterDefinition, character.MonsterPresentationDefinition), out var presentation))
+                (originalDefinition, character.MonsterPresentationDefinition), out var presentation))
         {
             FamiliarMonsterPresentation(character) = presentation;
         }
@@ -3361,6 +3364,9 @@ internal static partial class SpellBuilders
             RulesContext.PowerTeleportSummon,
             RulesContext.PowerVanishSummon
         ];
+
+        FamiliarSpellFeatures.UnionWith(commonFeatures.Where(feature =>
+            feature != FeatureDefinitionSenses.SenseNormalVision && feature != MovementAffinityNoSpecialMoves));
 
         MonsterDefinition BuildFamiliarForm(
             string name, MonsterDefinition model, float scale, AssetReferenceSprite spellSprite,
@@ -3505,27 +3511,55 @@ internal static partial class SpellBuilders
             .AddCustomSubFeatures(SkipEffectRemovalOnLocationChange.Always, connectionBehavior)
             .AddToDB();
 
-        // Keep the original spell and owl identifiers so active effects in existing saves remain valid.
-        var forms = familiarForms.ToDictionary(form => form.Monster, form =>
-            SpellDefinitionBuilder
-                .Create(spell, $"FindFamiliar{form.Monster.Name}")
-                .SetGuiPresentation(form.Monster.GuiPresentation.Title, form.Monster.GuiPresentation.Description,
-                    form.SpellSprite)
-                .SetEffectDescription(EffectDescriptionBuilder
-                    .Create(spell.EffectDescription)
-                    .SetEffectForms(
-                        EffectFormBuilder.Create().SetSummonCreatureForm(1, form.Monster.Name).Build(),
-                        EffectFormBuilder.ConditionForm(_conditionFamiliarConnection, applyToSelf: true,
-                            forceOnSelf: true))
-                    .Build())
-                .AddCustomSubFeatures(SkipEffectRemovalOnLocationChange.Always, connectionBehavior)
-                .AddToDB());
+        List<SpellDefinition> selections = [];
+        List<SpellDefinition> forms = [];
+        foreach (var family in new[] { "Celestial", "Fey", "Fiend" })
+        {
+            foreach (var form in familiarForms.Where(form => family == "Fey" || form.IsSelectable))
+            {
+                // Fey retains the original definitions, including retired forms used by saved effects.
+                var monster = form.Monster;
+                if (family != "Fey")
+                {
+                    monster = MonsterDefinitionBuilder.Create(form.Monster, $"{form.Monster.Name}{family}")
+                        .SetMonsterPresentation(new MonsterPresentation(form.Monster.MonsterPresentation))
+                        .SetCharacterFamily(family)
+                        .AddToDB();
+                    // Family variants share the same immutable scaled model variants. Also retain the
+                    // source-model mapping used to restore a separately serialized presentation.
+                    foreach (var replacement in FamiliarPresentationReplacements
+                                 .Where(replacement => replacement.Key.Monster == form.Monster).ToArray())
+                    {
+                        FamiliarPresentationReplacements[(monster, replacement.Key.Source)] = replacement.Value;
+                    }
+                }
+
+                var leaf = SpellDefinitionBuilder.Create(spell, $"FindFamiliar{monster.Name}")
+                    .SetGuiPresentation(form.IsSelectable
+                            ? $"Spell/&FindFamiliar{form.Monster.Name.Replace("Familiar", family + "Selection")}Title"
+                            : form.Monster.GuiPresentation.Title,
+                        form.Monster.GuiPresentation.Description, form.SpellSprite)
+                    .SetEffectDescription(EffectDescriptionBuilder.Create(spell.EffectDescription)
+                        .SetEffectForms(
+                            EffectFormBuilder.Create().SetSummonCreatureForm(1, monster.Name).Build(),
+                            EffectFormBuilder.ConditionForm(_conditionFamiliarConnection, applyToSelf: true,
+                                forceOnSelf: true))
+                        .Build())
+                    .AddCustomSubFeatures(SkipEffectRemovalOnLocationChange.Always, connectionBehavior)
+                    .AddToDB();
+                forms.Add(leaf);
+                if (form.IsSelectable)
+                {
+                    selections.Add(leaf);
+                }
+            }
+        }
 
         spell.spellsBundle = true;
-        spell.SubspellsList.SetRange(familiarForms.Where(form => form.IsSelectable)
-            .Select(form => forms[form.Monster]));
+        spell.SubspellsList.SetRange(selections);
+        spell.EffectDescription.specialFormsDescription = spell.GuiPresentation.Description;
         ForceGlobalUniqueEffects.AddToGroup(ForceGlobalUniqueEffects.Group.Familiar,
-            new BaseDefinition[] { spell }.Concat(forms.Values).ToArray());
+            new BaseDefinition[] { spell }.Concat(forms).ToArray());
 
         return spell;
     }

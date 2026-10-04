@@ -67,7 +67,7 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
 
         BuildStressDefinitions();
         _stressOnFinished = new AlternateEffectFinished(this);
-        _back = BuildNavigationSpell("WishBack");
+        _back = SubspellSelectionModalPatcher.BuildBackNavigationSpell("WishBack");
 
         for (var level = 0; level <= 8; level++)
         {
@@ -256,6 +256,7 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
                     .Create()
                     .SetTargetingData(Side.All, RangeType.Self, 0, TargetType.Self)
                     .Build())
+            .AddCustomSubFeatures(new SubspellSelectionModalPatcher.NavigationChoice())
             .AddToDB();
     }
 

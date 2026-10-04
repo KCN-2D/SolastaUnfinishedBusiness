@@ -61,6 +61,18 @@ internal static class Tooltips
         };
     }
 
+    internal static List<FeatureDefinition> GetConditionFeaturesForTooltip(ConditionDefinition condition)
+    {
+        var noContent = Gui.Localize(Gui.NoLocalization);
+
+        // Hidden affinities can still generate useful descriptions (saves, checks, immunities).
+        // Omit only the empty presentation placeholder, keeping their generated rules text.
+        return condition.Features.Where(feature => feature == null ||
+            !feature.GuiPresentation.Hidden ||
+            feature.GuiPresentation.Description != Gui.NoLocalization ||
+            feature.FormatDescription() != noContent).ToList();
+    }
+
     internal static bool TrySetupLiveFriendlyMonsterTooltip(
         ITooltip tooltip,
         RulesetCharacterMonster character)

@@ -68,8 +68,8 @@ public static class ElvenPrecision
 
     private static bool ValidAbility(string ability)
     {
-        return ability != AttributeDefinitions.Strength &&
-               ability != AttributeDefinitions.Constitution;
+        return ability is AttributeDefinitions.Dexterity or AttributeDefinitions.Intelligence or
+            AttributeDefinitions.Wisdom or AttributeDefinitions.Charisma;
     }
 
     private static bool HasPrecision(RulesetActor character)

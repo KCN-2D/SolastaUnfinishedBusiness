@@ -30,3 +30,5 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceDescription={0}は、今
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=ダメージ種別を変更
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=今回の攻撃に選択したダメージ種別を使用します。
 Failure/&InvocationRequiresWarlockCantrip=ウォーロックの初級呪文として{0}を修得している必要があります。
+Screen/&SubspellSelectionBackTitle=戻る
+Screen/&SubspellSelectionBackDescription=前の選択に戻ります。

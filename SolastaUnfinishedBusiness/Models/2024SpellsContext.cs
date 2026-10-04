@@ -76,6 +76,7 @@ public static partial class Tabletop2024Context
         }
 
         SpellsContext.SwitchSpellAvailabilityWithSpellLists2024(SpellsContext.SorcerousBurst, enabled);
+        SpellsContext.SwitchSpellAvailabilityWithSpellLists2024(SpellsContext.BattleFamiliar, enabled);
         SpellsContext.ApplySpellList2024Restrictions(enabled);
         SpellsContext.RecalculateAllSpells();
         WizardAbjuration.RefreshSpellList();
@@ -101,6 +102,7 @@ public static partial class Tabletop2024Context
         yield return (SpellListCleric, Sunburst, true);
 
         // Druid
+        yield return (SpellListDruid, SpellsContext.BattleFamiliar, true);
         yield return (SpellListDruid, SpareTheDying, true);
         yield return (SpellListDruid, Aid, true);
         yield return (SpellListDruid, ProtectionFromEvilGood, true);
@@ -138,12 +140,14 @@ public static partial class Tabletop2024Context
         yield return (SpellListSorcerer, SpellsContext.SorcerousBurst, true);
 
         // Warlock
+        yield return (SpellListWarlock, SpellsContext.BattleFamiliar, true);
         yield return (SpellListWarlock, Bane, true);
         yield return (SpellListWarlock, DetectMagic, true);
         yield return (SpellListWarlock, HideousLaughter, true);
         yield return (SpellListWarlock, Shatter, false);
         yield return (SpellListWarlock, ConjureFey, false);
         // Wizard
+        yield return (SpellListWizard, SpellsContext.BattleFamiliar, true);
         yield return (SpellListWizard, EnhanceAbility, true);
         yield return (SpellListWizard, GetDefinition<SpellDefinition>("CircleOfMagicalNegation"), true);
 

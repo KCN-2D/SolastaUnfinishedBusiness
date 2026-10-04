@@ -8,6 +8,27 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class InvocationSelectionPanelPatcher
 {
+    [HarmonyPatch(typeof(InvocationSelectionPanel), nameof(InvocationSelectionPanel.SpellCastEngaged))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class SpellCastEngaged_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(InvocationSelectionPanel __instance, SpellDefinition subspell)
+        {
+            if (!SubspellSelectionModalPatcher.TryGetHierarchicalInvocationSelection(
+                    __instance, subspell, out var invocation, out var index))
+            {
+                return true;
+            }
+
+            // The leaf may be shared by several invocations. Keep the source that opened this picker.
+            __instance.InvocationSelected?.Invoke(invocation, index);
+            __instance.Hide();
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(InvocationSelectionPanel), nameof(InvocationSelectionPanel.OnInvocationSelected))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

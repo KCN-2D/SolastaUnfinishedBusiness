@@ -10,7 +10,7 @@ internal static class EffectCharacterChange
 {
     internal static List<RulesetEffect> EnumerateEffectsInvolving(RulesetCharacter character)
     {
-        if (character == null)
+        if (character == null || ServiceRepository.GetService<IGameSerializationService>()?.Loading == true)
         {
             return [];
         }
@@ -33,15 +33,23 @@ internal static class EffectCharacterChange
             .ToList();
     }
 
-    internal static void Notify(RulesetCharacter character)
+    internal static void Notify(RulesetCharacter character, IReadOnlyList<RulesetEffect> affectedEffects = null)
     {
         if (character == null || ServiceRepository.GetService<IGameSerializationService>()?.Loading == true)
         {
             return;
         }
 
+        var effects = EnumerateEffectsInvolving(character);
+
+        if (affectedEffects != null)
+        {
+            // A removed condition may have carried the last link to its source's effect.
+            effects = effects.Concat(affectedEffects).Distinct().ToList();
+        }
+
         // A handler may terminate an effect and remove its conditions while it runs.
-        foreach (var effect in EnumerateEffectsInvolving(character))
+        foreach (var effect in effects)
         {
             if (effect.Terminated)
             {

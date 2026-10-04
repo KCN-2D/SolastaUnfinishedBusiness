@@ -1046,48 +1046,53 @@ public static partial class Tabletop2024Context
         string name,
         string family,
         string prerequisiteProfileKey,
-        string groupTitle,
-        string baseDescription,
+        string groupTitleKey,
+        string baseDescriptionKey,
         string attribute,
         FeatureDefinitionAttributeModifier attributeModifier,
         string skill,
         string skillAbilityScore)
     {
-        var skillTitle = GetSkillTitle(skill);
         var proficiency = BuildSkillOrExpertiseProficiency2024($"Proficiency{name}", skill);
         var checkDie = BuildSkillCheckDie2024($"AbilityCheckAffinity{name}", skillAbilityScore, skill);
-        var title = Gui.Format(
-            "Feat/&GeneralFeat2024VariantTitle2",
-            groupTitle,
-            GetAttributeTitle(attribute),
-            skillTitle);
+        var hasSingleAbilityChoice =
+            AlternativeAbilityPrerequisiteProfilesByProfileKey.TryGetValue(prerequisiteProfileKey, out var profile) &&
+            profile.AbilityScoreNames.Length == 1 && profile.AbilityScoreNames[0] == attribute;
+
+        string FormatTitle() => hasSingleAbilityChoice
+            ? Gui.Format("Feat/&GeneralFeat2024VariantTitle", Gui.Localize(groupTitleKey), GetSkillTitle(skill))
+            : Gui.Format("Feat/&GeneralFeat2024VariantTitle2",
+                Gui.Localize(groupTitleKey), GetAttributeTitle(attribute), GetSkillTitle(skill));
+
+        string FormatBaseDescription() => Gui.Format(baseDescriptionKey, GetSkillTitle(skill));
+        string FormatDescription() => BuildHalfFeatDescription(attribute, FormatBaseDescription());
 
         var feat = BuildAlternativeAbilityPrerequisiteStandaloneHalfFeatVariant(
             name,
             attributeModifier,
             family,
             attribute,
-            groupTitle,
-            baseDescription,
+            Gui.Localize(groupTitleKey),
+            FormatBaseDescription(),
             prerequisiteProfileKey,
-            title,
+            FormatTitle(),
             proficiency,
             checkDie);
 
-        feat.GuiPresentation.title = title;
+        feat.AddCustomSubFeatures(new FormattedDefinitionText(FormatTitle, FormatDescription));
 
         return feat;
     }
 
     private static void BuildObservant2024()
     {
-        var groupTitle = Gui.Localize("Feat/&FeatGroupObservant2024Title");
+        const string groupTitleKey = "Feat/&FeatGroupObservant2024Title";
         var featObservant2024IntelligenceInsight = BuildSkillHalfFeat2024Variant(
             "FeatObservant2024IntelligenceInsight",
             Observant2024Family,
             Observant2024GroupFeatName,
-            groupTitle,
-            Gui.Format("Feat/&FeatObservant2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Insight)),
+            groupTitleKey,
+            "Feat/&FeatObservant2024SkillBaseDescription",
             AttributeDefinitions.Intelligence,
             AttributeModifierCreed_Of_Pakri,
             SkillDefinitions.Insight,
@@ -1096,8 +1101,8 @@ public static partial class Tabletop2024Context
             "FeatObservant2024IntelligenceInvestigation",
             Observant2024Family,
             Observant2024GroupFeatName,
-            groupTitle,
-            Gui.Format("Feat/&FeatObservant2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Investigation)),
+            groupTitleKey,
+            "Feat/&FeatObservant2024SkillBaseDescription",
             AttributeDefinitions.Intelligence,
             AttributeModifierCreed_Of_Pakri,
             SkillDefinitions.Investigation,
@@ -1106,8 +1111,8 @@ public static partial class Tabletop2024Context
             "FeatObservant2024IntelligencePerception",
             Observant2024Family,
             Observant2024GroupFeatName,
-            groupTitle,
-            Gui.Format("Feat/&FeatObservant2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Perception)),
+            groupTitleKey,
+            "Feat/&FeatObservant2024SkillBaseDescription",
             AttributeDefinitions.Intelligence,
             AttributeModifierCreed_Of_Pakri,
             SkillDefinitions.Perception,
@@ -1116,8 +1121,8 @@ public static partial class Tabletop2024Context
             "FeatObservant2024WisdomInsight",
             Observant2024Family,
             Observant2024GroupFeatName,
-            groupTitle,
-            Gui.Format("Feat/&FeatObservant2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Insight)),
+            groupTitleKey,
+            "Feat/&FeatObservant2024SkillBaseDescription",
             AttributeDefinitions.Wisdom,
             AttributeModifierCreed_Of_Maraike,
             SkillDefinitions.Insight,
@@ -1126,8 +1131,8 @@ public static partial class Tabletop2024Context
             "FeatObservant2024WisdomInvestigation",
             Observant2024Family,
             Observant2024GroupFeatName,
-            groupTitle,
-            Gui.Format("Feat/&FeatObservant2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Investigation)),
+            groupTitleKey,
+            "Feat/&FeatObservant2024SkillBaseDescription",
             AttributeDefinitions.Wisdom,
             AttributeModifierCreed_Of_Maraike,
             SkillDefinitions.Investigation,
@@ -1136,8 +1141,8 @@ public static partial class Tabletop2024Context
             "FeatObservant2024WisdomPerception",
             Observant2024Family,
             Observant2024GroupFeatName,
-            groupTitle,
-            Gui.Format("Feat/&FeatObservant2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Perception)),
+            groupTitleKey,
+            "Feat/&FeatObservant2024SkillBaseDescription",
             AttributeDefinitions.Wisdom,
             AttributeModifierCreed_Of_Maraike,
             SkillDefinitions.Perception,
@@ -1159,13 +1164,13 @@ public static partial class Tabletop2024Context
 
     private static void BuildKeenMind2024()
     {
-        var groupTitle = Gui.Localize("Feat/&FeatGroupKeenMind2024Title");
+        const string groupTitleKey = "Feat/&FeatGroupKeenMind2024Title";
         var featKeenMind2024Arcana = BuildSkillHalfFeat2024Variant(
             "FeatKeenMind2024Arcana",
             KeenMind2024Family,
             KeenMind2024GroupFeatName,
-            groupTitle,
-            Gui.Format("Feat/&FeatKeenMind2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Arcana)),
+            groupTitleKey,
+            "Feat/&FeatKeenMind2024SkillBaseDescription",
             AttributeDefinitions.Intelligence,
             AttributeModifierCreed_Of_Pakri,
             SkillDefinitions.Arcana,
@@ -1174,8 +1179,8 @@ public static partial class Tabletop2024Context
             "FeatKeenMind2024History",
             KeenMind2024Family,
             KeenMind2024GroupFeatName,
-            groupTitle,
-            Gui.Format("Feat/&FeatKeenMind2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.History)),
+            groupTitleKey,
+            "Feat/&FeatKeenMind2024SkillBaseDescription",
             AttributeDefinitions.Intelligence,
             AttributeModifierCreed_Of_Pakri,
             SkillDefinitions.History,
@@ -1184,8 +1189,8 @@ public static partial class Tabletop2024Context
             "FeatKeenMind2024Investigation",
             KeenMind2024Family,
             KeenMind2024GroupFeatName,
-            groupTitle,
-            Gui.Format("Feat/&FeatKeenMind2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Investigation)),
+            groupTitleKey,
+            "Feat/&FeatKeenMind2024SkillBaseDescription",
             AttributeDefinitions.Intelligence,
             AttributeModifierCreed_Of_Pakri,
             SkillDefinitions.Investigation,
@@ -1194,8 +1199,8 @@ public static partial class Tabletop2024Context
             "FeatKeenMind2024Nature",
             KeenMind2024Family,
             KeenMind2024GroupFeatName,
-            groupTitle,
-            Gui.Format("Feat/&FeatKeenMind2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Nature)),
+            groupTitleKey,
+            "Feat/&FeatKeenMind2024SkillBaseDescription",
             AttributeDefinitions.Intelligence,
             AttributeModifierCreed_Of_Pakri,
             SkillDefinitions.Nature,
@@ -1204,8 +1209,8 @@ public static partial class Tabletop2024Context
             "FeatKeenMind2024Religion",
             KeenMind2024Family,
             KeenMind2024GroupFeatName,
-            groupTitle,
-            Gui.Format("Feat/&FeatKeenMind2024SkillBaseDescription", GetSkillTitle(SkillDefinitions.Religion)),
+            groupTitleKey,
+            "Feat/&FeatKeenMind2024SkillBaseDescription",
             AttributeDefinitions.Intelligence,
             AttributeModifierCreed_Of_Pakri,
             SkillDefinitions.Religion,

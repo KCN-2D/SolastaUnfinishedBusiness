@@ -1,12 +1,12 @@
-Feat/&FeatElvenAccuracyCharismaDescription=力任せではなく精密さを要する攻撃では、並外れた正確さで狙いを定められます。魅力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
+Feat/&FeatElvenAccuracyCharismaDescription=魅力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、魅力のいずれかを使う攻撃ロールで有利を得ているなら、d20を3個振り、最も高い出目を使います。
 Feat/&FeatElvenAccuracyCharismaTitle=エルフの正確さ［魅力］
-Feat/&FeatElvenAccuracyDexterityDescription=力任せではなく精密さを要する攻撃では、並外れた正確さで狙いを定められます。敏捷力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
+Feat/&FeatElvenAccuracyDexterityDescription=敏捷力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、魅力のいずれかを使う攻撃ロールで有利を得ているなら、d20を3個振り、最も高い出目を使います。
 Feat/&FeatElvenAccuracyDexterityTitle=エルフの正確さ［敏捷力］
-Feat/&FeatElvenAccuracyIntelligenceDescription=力任せではなく精密さを要する攻撃では、並外れた正確さで狙いを定められます。知力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
+Feat/&FeatElvenAccuracyIntelligenceDescription=知力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、魅力のいずれかを使う攻撃ロールで有利を得ているなら、d20を3個振り、最も高い出目を使います。
 Feat/&FeatElvenAccuracyIntelligenceTitle=エルフの正確さ［知力］
-Feat/&FeatElvenAccuracyWisdomDescription=力任せではなく精密さを要する攻撃では、並外れた正確さで狙いを定められます。判断力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
+Feat/&FeatElvenAccuracyWisdomDescription=判断力を1増加させ、最大20まで高めます。敏捷力、知力、判断力、魅力のいずれかを使う攻撃ロールで有利を得ているなら、d20を3個振り、最も高い出目を使います。
 Feat/&FeatElvenAccuracyWisdomTitle=エルフの正確さ［判断力］
-Feedback/&ElvenAccuracyTriggered={0}は{1}を使って{2}を保持し、{3}を{4}に振り直します。
-Tooltip/&FeatElvenAccuracyBaseDescription=敏捷力、知力、判断力、または魅力を使う攻撃ロールで有利を得ているなら、サイコロ1個を1回振り直せます。
+Feedback/&ElvenAccuracyTriggered={0}は{1}により、d20の出目{2}を残し、出目{3}のd20を振り直して{4}を出します。
+Tooltip/&FeatElvenAccuracyBaseDescription=敏捷力、知力、判断力、魅力のいずれかを使う攻撃ロールで有利を得ているなら、d20を3個振り、最も高い出目を使います。
 Tooltip/&FeatElvenAccuracyBaseTitle=エルフの正確さ
 

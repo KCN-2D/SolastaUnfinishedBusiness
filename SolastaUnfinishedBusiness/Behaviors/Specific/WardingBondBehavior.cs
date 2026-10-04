@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -14,6 +15,8 @@ namespace SolastaUnfinishedBusiness.Behaviors.Specific;
 internal sealed class WardingBondBehavior(ConditionDefinition sourceCondition) :
     IDamageReceived, IEffectCharacterChange, IOnEffectConditionTracked, IOnLocationCharacterRestored
 {
+    private readonly HashSet<RulesetEffect> _creatingSourceConditions = [];
+
     public int Priority => 0;
 
     internal static void Load()
@@ -178,24 +181,33 @@ internal sealed class WardingBondBehavior(ConditionDefinition sourceCondition) :
         // already exists during that transition, even while it is still on the old form.
         if (source == null || effect.TrackedConditionGuids.Any(guid =>
                 RulesetEntity.TryGetEntity<RulesetCondition>(guid, out var tracked) &&
-                tracked.ConditionDefinition == sourceCondition))
+                tracked.ConditionDefinition == sourceCondition) || !_creatingSourceConditions.Add(effect))
         {
             return;
         }
 
-        var condition = source.InflictCondition(
-            sourceCondition.Name,
-            DurationType.Round,
-            effect.RemainingRounds,
-            TurnOccurenceType.EndOfTurnNoPerceptionOfSource,
-            AttributeDefinitions.TagEffect,
-            source.Guid,
-            source.CurrentFaction.Name,
-            effect.EffectLevel,
-            effect.SourceDefinition.Name,
-            0,
-            0,
-            0);
-        effect.TrackCondition(source, source.Guid, source, source.Guid, condition, AttributeDefinitions.TagEffect);
+        // Inflicting the marker notifies active effects before TrackCondition completes.
+        // Keep that notification from starting a second creation of the same marker.
+        try
+        {
+            var condition = source.InflictCondition(
+                sourceCondition.Name,
+                DurationType.Round,
+                effect.RemainingRounds,
+                TurnOccurenceType.EndOfTurnNoPerceptionOfSource,
+                AttributeDefinitions.TagEffect,
+                source.Guid,
+                source.CurrentFaction.Name,
+                effect.EffectLevel,
+                effect.SourceDefinition.Name,
+                0,
+                0,
+                0);
+            effect.TrackCondition(source, source.Guid, source, source.Guid, condition, AttributeDefinitions.TagEffect);
+        }
+        finally
+        {
+            _creatingSourceConditions.Remove(effect);
+        }
     }
 }

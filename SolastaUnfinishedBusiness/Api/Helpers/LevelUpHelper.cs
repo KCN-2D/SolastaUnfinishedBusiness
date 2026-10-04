@@ -217,6 +217,12 @@ internal static class LevelUpHelper
                && levelUpData.RequiresDeity;
     }
 
+    internal static bool IsClericDomainSelectionSeparate(RulesetCharacterHero hero)
+    {
+        return hero != null && GetSelectedClass(hero) == Cleric &&
+               (StrictTabletopSelectionContext.IsEnabled || Main.Settings.EnableClericToLearnDomainAtLevel3);
+    }
+
     internal static int GetSelectedClassLevel([NotNull] RulesetCharacterHero rulesetCharacterHero)
     {
         var selectedClass = GetSelectedClass(rulesetCharacterHero);
@@ -343,7 +349,11 @@ internal static class LevelUpHelper
             var castingFeature = spellRepertoire.SpellCastingFeature;
             var tag = "Multiclass";
 
-            if (spellRepertoire.spellCastingClass)
+            if (castingFeature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>() is { } spellTag)
+            {
+                tag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(spellTag.Name);
+            }
+            else if (spellRepertoire.spellCastingClass)
             {
                 tag = $"{ExtraClassTag}|{spellRepertoire.spellCastingClass.Name}";
             }
@@ -476,17 +486,17 @@ internal static class LevelUpHelper
             yield break;
         }
 
-        HashSet<SpellDefinition> yielded = [];
-        foreach (var entry in EnumerateSlotCastableFeatSpells(character)
-                     .Where(entry => IsSpellCastableWithRepertoireSlots(entry.Spell, maxSpellLevel, spellLevel)))
+        foreach (var grants in EnumerateSlotCastableFeatSpells(character)
+                     .Where(entry => IsSpellCastableWithRepertoireSlots(entry.Spell, maxSpellLevel, spellLevel))
+                     .GroupBy(entry => entry.Spell))
         {
-            // A class's independently learned copy keeps its own source. Only project the
-            // selected feat grant here, using the same origin as tooltips and actual casting.
-            if (SpellCastingResourceContext.ResolveCastingRepertoire(repertoire, entry.Spell, character) == entry.Repertoire &&
-                yielded.Add(entry.Spell))
-            {
-                yield return (entry.Spell, entry.DisplayTag);
-            }
+            // The feat keeps its preparation grant even when the class independently
+            // knows or prepares the spell. Casting origin remains a separate choice.
+            var source = SpellCastingResourceContext.SelectFeatCastingRepertoire(
+                character, grants.Select(entry => entry.Repertoire));
+            var grant = grants.First(entry => entry.Repertoire == source);
+
+            yield return (grant.Spell, grant.DisplayTag);
         }
     }
 

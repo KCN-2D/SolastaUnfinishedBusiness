@@ -182,6 +182,11 @@ public static class FeatureDescriptionItemPatcher
             return;
         }
 
+        var state = item.GetComponent<SelectionFeatureItemLayoutState>() ??
+                    item.gameObject.AddComponent<SelectionFeatureItemLayoutState>();
+
+        state.Restore(item);
+
         var cursor = 0f;
 
         PlaceBackgroundFeatText(titleLabel, ref cursor);
@@ -563,6 +568,9 @@ public static class FeatureDescriptionItemPatcher
         [UsedImplicitly]
         public static void Prefix(FeatureDescriptionItem __instance)
         {
+            // Restore geometry before native Bind reuses a row for a different feature.
+            __instance.GetComponent<SelectionFeatureItemLayoutState>()?.Restore(__instance);
+
             // Active pooled items can be rebound without Unbind. The native default selection
             // must not call the previous owner's handler before Bind installs the new one.
             __instance.ValueChanged = null;

@@ -30,3 +30,5 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceDescription={0} peut cha
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=Changer le type de dégâts
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=Utiliser le type de dégâts choisi pour ce coup.
 Failure/&InvocationRequiresWarlockCantrip=Vous devez connaître {0} comme sort mineur de sorcier.
+Screen/&SubspellSelectionBackTitle=Retour
+Screen/&SubspellSelectionBackDescription=Revenir au choix précédent.

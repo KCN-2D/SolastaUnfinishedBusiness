@@ -30,3 +30,5 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceDescription={0} può cam
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=Cambia tipo di danno
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=Usa il tipo di danno selezionato per questo colpo.
 Failure/&InvocationRequiresWarlockCantrip=Devi conoscere {0} come trucchetto da warlock.
+Screen/&SubspellSelectionBackTitle=Indietro
+Screen/&SubspellSelectionBackDescription=Torna alla selezione precedente.

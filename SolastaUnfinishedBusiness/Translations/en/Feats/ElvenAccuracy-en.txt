@@ -1,11 +1,11 @@
-Feat/&FeatElvenAccuracyCharismaDescription=You have uncanny aim with attacks that rely on precision rather than brute force. Increase your Charisma by 1, to a maximum of 20. Whenever you have advantage on an attack roll using Dexterity, Intelligence, Wisdom, or Charisma, you can reroll one of the dice once.
+Feat/&FeatElvenAccuracyCharismaDescription=Increase your Charisma by 1, to a maximum of 20. Whenever you have advantage on an attack roll using Dexterity, Intelligence, Wisdom, or Charisma, roll 3d20 and use the highest result.
 Feat/&FeatElvenAccuracyCharismaTitle=Elven Accuracy [Cha]
-Feat/&FeatElvenAccuracyDexterityDescription=You have uncanny aim with attacks that rely on precision rather than brute force. Increase your Dexterity by 1, to a maximum of 20. Whenever you have advantage on an attack roll using Dexterity, Intelligence, Wisdom, or Charisma, you can reroll one of the dice once.
+Feat/&FeatElvenAccuracyDexterityDescription=Increase your Dexterity by 1, to a maximum of 20. Whenever you have advantage on an attack roll using Dexterity, Intelligence, Wisdom, or Charisma, roll 3d20 and use the highest result.
 Feat/&FeatElvenAccuracyDexterityTitle=Elven Accuracy [Dex]
-Feat/&FeatElvenAccuracyIntelligenceDescription=You have uncanny aim with attacks that rely on precision rather than brute force. Increase your Intelligence by 1, to a maximum of 20. Whenever you have advantage on an attack roll using Dexterity, Intelligence, Wisdom, or Charisma, you can reroll one of the dice once.
+Feat/&FeatElvenAccuracyIntelligenceDescription=Increase your Intelligence by 1, to a maximum of 20. Whenever you have advantage on an attack roll using Dexterity, Intelligence, Wisdom, or Charisma, roll 3d20 and use the highest result.
 Feat/&FeatElvenAccuracyIntelligenceTitle=Elven Accuracy [Int]
-Feat/&FeatElvenAccuracyWisdomDescription=You have uncanny aim with attacks that rely on precision rather than brute force. Increase your Wisdom by 1, to a maximum of 20. Whenever you have advantage on an attack roll using Dexterity, Intelligence, Wisdom, or Charisma, you can reroll one of the dice once.
+Feat/&FeatElvenAccuracyWisdomDescription=Increase your Wisdom by 1, to a maximum of 20. Whenever you have advantage on an attack roll using Dexterity, Intelligence, Wisdom, or Charisma, roll 3d20 and use the highest result.
 Feat/&FeatElvenAccuracyWisdomTitle=Elven Accuracy [Wis]
-Feedback/&ElvenAccuracyTriggered={0} uses {1} to keep {2} and re-roll {3} to {4}.
-Tooltip/&FeatElvenAccuracyBaseDescription=Whenever you have advantage on an attack roll using Dexterity, Intelligence, Wisdom, or Charisma, you can reroll one of the dice once.
+Feedback/&ElvenAccuracyTriggered={0} uses {1} to keep the d20 result {2} and reroll the d20 showing {3}, getting {4}.
+Tooltip/&FeatElvenAccuracyBaseDescription=Whenever you have advantage on an attack roll using Dexterity, Intelligence, Wisdom, or Charisma, roll 3d20 and use the highest result.
 Tooltip/&FeatElvenAccuracyBaseTitle=Elven Accuracy

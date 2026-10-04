@@ -5725,6 +5725,56 @@ namespace SolastaUnfinishedBusiness.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
+        public static byte[] BattleFamiliar {
+            get {
+                object obj = ResourceManager.GetObject("BattleFamiliar", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ActionBattleFamiliarRend {
+            get {
+                object obj = ResourceManager.GetObject("ActionBattleFamiliarRend", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionBattleFamiliarEmpowered {
+            get {
+                object obj = ResourceManager.GetObject("ConditionBattleFamiliarEmpowered", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionBattleFamiliarSummoned {
+            get {
+                object obj = ResourceManager.GetObject("ConditionBattleFamiliarSummoned", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionBattleFamiliarProwl {
+            get {
+                object obj = ResourceManager.GetObject("ConditionBattleFamiliarProwl", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
         public static byte[] FindFamiliar {
             get {
                 object obj = ResourceManager.GetObject("FindFamiliar", resourceCulture);

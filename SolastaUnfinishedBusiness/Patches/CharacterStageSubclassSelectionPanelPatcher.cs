@@ -396,6 +396,12 @@ public static class CharacterStageSubclassSelectionPanelPatcher
         [UsedImplicitly]
         public static void Postfix([NotNull] CharacterStageSubclassSelectionPanel __instance)
         {
+            if (LevelUpHelper.IsClericDomainSelectionSeparate(__instance.currentHero))
+            {
+                __instance.isRelevant = __instance.TryGetSubclassChoiceFeature(out _);
+                return;
+            }
+
             //PATCH: updates this panel relevance (MULTICLASS)
             if (LevelUpHelper.IsLevelingUp(__instance.currentHero)
                 && LevelUpHelper.RequiresDeity(__instance.currentHero))

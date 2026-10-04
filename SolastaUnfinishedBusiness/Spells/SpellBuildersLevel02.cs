@@ -69,6 +69,641 @@ internal static partial class SpellBuilders
 
     #endregion
 
+    #region Battle Familiar
+
+    private static readonly Dictionary<MonsterDefinition, MonsterDefinition> BattleFamiliarOriginals = [];
+    private static readonly Dictionary<(MonsterDefinition Original, string Form), MonsterDefinition>
+        BattleFamiliarEmpoweredForms = [];
+    private static readonly HarmonyLib.AccessTools.FieldRef<RulesetCharacterMonster, MonsterDefinition>
+        BattleFamiliarMonsterDefinition = HarmonyLib.AccessTools.FieldRefAccess<RulesetCharacterMonster,
+            MonsterDefinition>("monsterDefinition");
+    private static MonsterAttackDefinition _battleFamiliarRend;
+    private static FeatureDefinitionMoveMode _battleFamiliarLegacySwim;
+    private static readonly HashSet<RulesetEffect> BattleFamiliarTerminatingEffects = [];
+    private static ConditionDefinition _battleFamiliarProwl;
+    private static ConditionDefinition _battleFamiliarRetainedTemporaryHitPoints;
+
+    internal static SpellDefinition BuildBattleFamiliar()
+    {
+        var sprite = Sprites.GetSprite("BattleFamiliar", Resources.BattleFamiliar, 1254);
+        var empoweredSprite = Sprites.GetSprite("ConditionBattleFamiliarEmpowered",
+            Resources.ConditionBattleFamiliarEmpowered, 128);
+        var summonedSprite = Sprites.GetSprite("ConditionBattleFamiliarSummoned",
+            Resources.ConditionBattleFamiliarSummoned, 128);
+        _battleFamiliarRend = MonsterAttackDefinitionBuilder
+            .Create(MonsterDefinitions.Eagle_Matriarch.AttackIterations[0].MonsterAttackDefinition,
+                "AttackBattleFamiliarRend")
+            .SetGuiPresentation("Feature/&BattleFamiliarRendTitle", "Feature/&BattleFamiliarRendDescription",
+                Sprites.GetSprite("ActionBattleFamiliarRend", Resources.ActionBattleFamiliarRend, 128))
+            .SetToHitBonus(0)
+            .SetEffectDescription(EffectDescriptionBuilder.Create()
+                .SetEffectForms(EffectFormBuilder.DamageForm(DamageTypeForce, 1, DieType.D8, 5))
+                .Build())
+            .AddToDB();
+        _battleFamiliarRend.magical = true;
+
+        _battleFamiliarRetainedTemporaryHitPoints = ConditionDefinitionBuilder
+            .Create("ConditionBattleFamiliarRetainedTemporaryHitPoints")
+            .SetGuiPresentationNoContent(true)
+            .SetSilent(Silent.WhenAddedOrRemoved)
+            .AddToDB();
+
+        _battleFamiliarProwl = ConditionDefinitionBuilder.Create("ConditionBattleFamiliarProwl")
+            .SetGuiPresentation("Feature/&BattleFamiliarProwlTitle", "Feature/&BattleFamiliarProwlDescription",
+                Sprites.GetSprite("ConditionBattleFamiliarProwl", Resources.ConditionBattleFamiliarProwl, 128))
+            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetFeatures(
+                FeatureDefinitionMovementAffinityBuilder.Create("MovementAffinityBattleFamiliarProwl")
+                    .SetGuiPresentationNoContent(true)
+                    .SetBaseSpeedMultiplicativeModifier(0.5f)
+                    .AddToDB(),
+                FeatureDefinitionActionAffinityBuilder.Create("ActionAffinityBattleFamiliarProwl")
+                    .SetGuiPresentationNoContent(true)
+                    .SetAuthorizedActions(ActionDefinitions.Id.HideBonus)
+                    .AddToDB())
+            .AddToDB();
+
+        var originals = DatabaseRepository.GetDatabase<MonsterDefinition>()
+            .Where(monster => monster.Features.Any(feature =>
+                feature.GetFirstSubFeatureOfType<FamiliarConnectionBehavior>() != null)).ToArray();
+        var normalVision = FeatureDefinitionSenses.SenseNormalVision;
+        var walk = FeatureDefinitionMoveModeBuilder.Create("MoveModeBattleFamiliarWalk")
+            .SetGuiPresentationNoContent(true).SetMode(MoveMode.Walk, 8).AddToDB();
+        // Native swimming also grants airborne placement and paths. Retain the saved
+        // definition name as an inert walking mode, without granting unsupported swimming.
+        _battleFamiliarLegacySwim = FeatureDefinitionMoveModeBuilder.Create("MoveModeBattleFamiliarSwim")
+            .SetGuiPresentationNoContent(true).SetMode(MoveMode.Walk, 0).AddToDB();
+        var fly = FeatureDefinitionMoveModeBuilder.Create("MoveModeBattleFamiliarFly")
+            .SetGuiPresentationNoContent(true).SetMode(MoveMode.Fly, 6).AddToDB();
+        var summons = new List<SpellDefinition>();
+        var empowerments = new List<SpellDefinition>();
+
+        var spell = SpellDefinitionBuilder.Create("BattleFamiliar")
+            .SetGuiPresentation(Category.Spell, sprite)
+            .SetSpellLevel(2)
+            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolConjuration)
+            .SetCastingTime(ActivationTime.Action)
+            .SetSpecificMaterialComponent(TagsDefinitions.ItemTagIngredient, 25, false)
+            .SetSomaticComponent(true)
+            .SetVerboseComponent(true)
+            .SetVocalSpellSameType(VocalSpellSemeType.Buff)
+            .SetUniqueInstance()
+            .SetEffectDescription(EffectDescriptionBuilder.Create()
+                .SetDurationData(DurationType.Hour, 1)
+                .SetTargetingData(Side.Ally, RangeType.Distance, 2, TargetType.Position)
+                .SetParticleEffectParameters(ConjureAnimalsOneBeast)
+                .Build())
+            .AddToDB();
+
+        foreach (var form in new[] { "Brute", "Flyer", "Stalker" })
+        {
+            var behavior = new CustomBehaviorBattleFamiliar(form);
+            var model = form switch
+            {
+                "Brute" => GetDefinition<MonsterDefinition>("TundraTiger_MonsterDefinition"),
+                "Flyer" => MonsterDefinitions.Eagle_Matriarch,
+                _ => GetDefinition<MonsterDefinition>("BadlandsSpider")
+            };
+            var modelScale = form switch
+            {
+                "Brute" => 0.4f,
+                "Flyer" => 0.7f,
+                _ => 0.2f
+            };
+            FeatureDefinition[] movement = form == "Flyer" ? [normalVision, walk, fly] :
+                [normalVision, walk];
+            behavior.BuildConditions(empoweredSprite, summonedSprite);
+
+            foreach (var original in originals)
+            {
+                // Preserve the original body, HP and spell-granted abilities, replacing its intrinsic
+                // movement and senses with the combat form without changing a shared definition.
+                var empowered = MonsterDefinitionBuilder.Create(original, $"BattleFamiliar{form}{original.Name}")
+                    .SetFeatures(movement.Concat(original.Features.Where(FamiliarSpellFeatures.Contains))
+                        .ToArray())
+                    .SetSkillScores()
+                    .SetSavingThrowScores()
+                    .SetAttackIterations((1, _battleFamiliarRend))
+                    .AddToDB();
+                BattleFamiliarOriginals[empowered] = original;
+                BattleFamiliarEmpoweredForms[(original, form)] = empowered;
+            }
+
+            foreach (var family in new[] { "Celestial", "Fey", "Fiend" })
+            {
+                var presentation = new MonsterPresentation(model.MonsterPresentation)
+                {
+                    hasPhantomDistortion = true,
+                    hasPhantomFadingFeet = true,
+                    hasPrefabVariants = false,
+                    maleModelScale = modelScale,
+                    femaleModelScale = modelScale,
+                    hasMonsterPortraitBackground = true,
+                    canGeneratePortrait = true
+                };
+                var monster = MonsterDefinitionBuilder
+                    .Create(model, $"MonsterBattleFamiliar{form}{family}")
+                    .SetGuiPresentation($"Monster/&BattleFamiliar{form}Title",
+                        $"Spell/&BattleFamiliar{form}Description", model.GuiPresentation.SpriteReference)
+                    .SetMonsterPresentation(presentation)
+                    .SetAbilityScores(16, 16, 12, 8, 13, 10)
+                    .SetArmorClass(form == "Brute" ? 15 : 13)
+                    .SetHitDice(DieType.D8, 4)
+                    .SetStandardHitPoints(GetBattleFamiliarHitPoints(form))
+                    .SetSkillScores()
+                    .SetSavingThrowScores()
+                    .SetFeatures(movement)
+                    .SetAttackIterations((1, _battleFamiliarRend))
+                    .SetSizeDefinition(CharacterSizeDefinitions.Medium)
+                    .SetAlignment("Neutral")
+                    .SetCharacterFamily(family)
+                    .SetChallengeRating(0)
+                    .SetDroppedLootDefinition(null)
+                    .NoExperienceGain()
+                    .SetFullyControlledWhenAllied(true)
+                    .SetDefaultFaction(FactionDefinitions.Party)
+                    .SetBestiaryEntry(BestiaryDefinitions.BestiaryEntry.None)
+                    .SetDungeonMakerPresence(MonsterDefinition.DungeonMaker.None)
+                    .AddToDB();
+                var variant = SpellDefinitionBuilder.Create(spell, $"BattleFamiliar{form}{family}")
+                    .SetGuiPresentation($"Spell/&BattleFamiliar{form}{family}Title",
+                        $"Spell/&BattleFamiliar{form}Description", sprite)
+                    .SetEffectDescription(EffectDescriptionBuilder.Create(spell.EffectDescription)
+                        .SetEffectForms(EffectFormBuilder.Create().SetSummonCreatureForm(1, monster.Name).Build())
+                        .Build())
+                    .AddCustomSubFeatures(behavior)
+                    .AddToDB();
+                summons.Add(variant);
+            }
+
+            var empowerment = SpellDefinitionBuilder.Create(spell, $"BattleFamiliarEmpower{form}")
+                .SetGuiPresentation($"Spell/&BattleFamiliarEmpower{form}Title",
+                    $"Spell/&BattleFamiliarEmpower{form}Description", sprite)
+                .SetEffectDescription(EffectDescriptionBuilder.Create(spell.EffectDescription)
+                    .SetTargetingData(Side.Ally, RangeType.Distance, 2, TargetType.Individuals, 1)
+                    .SetEffectForms(EffectFormBuilder.Create()
+                        .SetSummonCreatureForm(0, $"MonsterBattleFamiliar{form}Fey").Build())
+                    .Build())
+                .AddCustomSubFeatures(behavior.ForEmpowerment(), new FilterTargetingBattleFamiliar(),
+                    SkipEffectRemovalOnLocationChange.Always)
+                .AddToDB();
+            empowerment.EffectDescription.specialFormsDescription = empowerment.GuiPresentation.Description;
+            empowerments.Add(empowerment);
+        }
+
+        var summonSelection = SpellDefinitionBuilder.Create(spell, "BattleFamiliarSummon")
+            .SetGuiPresentation("Spell/&BattleFamiliarSummonTitle", "Spell/&BattleFamiliarSummonDescription", sprite)
+            .SetEffectDescription(EffectDescriptionBuilder.Create(summons[1].EffectDescription).Build())
+            .SetSubSpells(summons.ToArray())
+            .AddToDB();
+        summonSelection.EffectDescription.specialFormsDescription = summonSelection.GuiPresentation.Description;
+
+        var empowerSelection = SpellDefinitionBuilder.Create(spell, "BattleFamiliarEmpower")
+            .SetGuiPresentation("Spell/&BattleFamiliarEmpowerTitle", "Spell/&BattleFamiliarEmpowerDescription", sprite)
+            .SetEffectDescription(EffectDescriptionBuilder.Create(empowerments[0].EffectDescription).Build())
+            .SetSubSpells(empowerments.ToArray())
+            .AddToDB();
+        empowerSelection.EffectDescription.specialFormsDescription = empowerSelection.GuiPresentation.Description;
+
+        spell.spellsBundle = true;
+        spell.SubspellsList.SetRange([summonSelection, empowerSelection]);
+        spell.EffectDescription.EffectForms.SetRange(summons[1].EffectDescription.EffectForms);
+        spell.EffectDescription.specialFormsDescription = spell.GuiPresentation.Description;
+        spell.AddCustomSubFeatures(summons[1].GetFirstSubFeatureOfType<CustomBehaviorBattleFamiliar>());
+        ForceGlobalUniqueEffects.AddToGroup(ForceGlobalUniqueEffects.Group.Familiar,
+            new BaseDefinition[] { spell, summonSelection, empowerSelection }
+                .Concat(summons).Concat(empowerments).ToArray());
+        return spell;
+    }
+
+    private static int GetBattleFamiliarHitPoints(string form)
+    {
+        return form == "Brute" ? 30 : 20;
+    }
+
+    private static RulesetCondition GetBattleFamiliarCondition(RulesetCharacter character)
+    {
+        return character.ConditionsByCategory.Values.SelectMany(conditions => conditions)
+            .FirstOrDefault(condition => condition.ConditionDefinition
+                .GetFirstSubFeatureOfType<CustomBehaviorBattleFamiliar>() != null);
+    }
+
+    private static void SetBattleFamiliarDefinition(RulesetCharacterMonster character, MonsterDefinition definition)
+    {
+        if (!definition.MonsterPresentation.HasPrefabVariants)
+        {
+            // A saved source-model variant otherwise overrides the current body's scale.
+            FamiliarMonsterPresentation(character) = null;
+        }
+
+        var previous = character.MonsterDefinition;
+        var intrinsicFeatures = previous.Features.Append(_battleFamiliarLegacySwim);
+        if (BattleFamiliarOriginals.TryGetValue(definition, out var original))
+        {
+            // Old saves can already name the empowered definition while retaining the original
+            // active feature list. Reconcile those intrinsic features without refilling resources.
+            intrinsicFeatures = intrinsicFeatures.Concat(original.Features);
+        }
+        var obsoleteFeatures = intrinsicFeatures.Where(feature => !definition.Features.Contains(feature)).ToArray();
+        var skills = definition.SkillScores.ToDictionary(score => score.SkillName, score => score.Bonus);
+        var saves = definition.SavingThrowScores.ToDictionary(score => score.AbilityScoreName, score => score.Bonus);
+        if (previous != definition || character.ActiveFeatures.Any(obsoleteFeatures.Contains) ||
+            definition.Features.Any(feature => !character.ActiveFeatures.Contains(feature)) ||
+            NeedsSynchronization(character.SkillProficiencies, skills) ||
+            NeedsSynchronization(character.SavingThrowProficiencies, saves))
+        {
+            var hitPoints = character.CurrentHitPoints;
+            BattleFamiliarMonsterDefinition(character) = definition;
+            character.ActiveFeatures.RemoveAll(obsoleteFeatures.Contains);
+            foreach (var feature in definition.Features)
+            {
+                if (!character.ActiveFeatures.Contains(feature))
+                {
+                    character.ActiveFeatures.Add(feature);
+                }
+            }
+            character.SkillProficiencies.Clear();
+            foreach (var skill in skills)
+            {
+                character.SkillProficiencies[skill.Key] = skill.Value;
+            }
+            character.SavingThrowProficiencies.Clear();
+            foreach (var save in saves)
+            {
+                character.SavingThrowProficiencies[save.Key] = save.Value;
+            }
+            if (previous != definition)
+            {
+                character.remainingAttackUses.Clear();
+                character.InitializeAttackUses();
+            }
+            character.RefreshAll();
+            character.CurrentHitPoints = System.Math.Min(hitPoints,
+                character.TryGetAttributeValue(AttributeDefinitions.HitPoints));
+        }
+        else
+        {
+            CombatAnimationContext.RefreshMovementState(character);
+        }
+
+        static bool NeedsSynchronization(Dictionary<string, int> current, Dictionary<string, int> expected)
+        {
+            return current.Count != expected.Count ||
+                   expected.Any(pair => !current.TryGetValue(pair.Key, out var value) || value != pair.Value);
+        }
+    }
+
+    private sealed class BattleFamiliarInvocationContext(
+        RulesetEffectSpell effect, RulesetCharacterMonster familiar) : ICustomSummonInvocationContext
+    {
+        internal readonly RulesetEffectSpell Effect = effect;
+        internal readonly RulesetCharacterMonster Familiar = familiar;
+        internal RulesetCharacterMonster Summoned;
+    }
+
+    private sealed class FilterTargetingBattleFamiliar : IFilterTargetingCharacter
+    {
+        public bool EnforceFullSelection => true;
+
+        public bool IsValid(CursorLocationSelectTarget cursor, GameLocationCharacter target)
+        {
+            var character = target.RulesetCharacter;
+            var isValid = character is RulesetCharacterMonster && IsFamiliar(character) &&
+                          character.CurrentHitPoints > 0 &&
+                          EffectHelpers.GetSummoner(character) == cursor.ActionParams.ActingCharacter.RulesetCharacter;
+            if (!isValid)
+            {
+                cursor.actionModifier.FailureFlags.Add("Failure/&BattleFamiliarRequiresOwnFamiliar");
+            }
+            return isValid;
+        }
+    }
+
+    private sealed class CustomBehaviorBattleFamiliar(string form, bool empowerExisting = false) :
+        ICustomSummonFormHandler, IUniqueEffectTerminationFilter, IModifyWeaponAttackMode,
+        IOnConditionAddedOrRemoved, IOnLocationCharacterRestored, IEffectCharacterChange,
+        IOnBeforeEffectTerminated, IActionFinishedByMe, ICharacterTurnStartListener, IIgnoreAoOOnMe
+    {
+        private ConditionDefinition _condition;
+        private ConditionDefinition _summonedCondition;
+        public int Priority => 0;
+
+        internal CustomBehaviorBattleFamiliar ForEmpowerment()
+        {
+            return new CustomBehaviorBattleFamiliar(form, true) { _condition = _condition };
+        }
+
+        internal void BuildConditions(AssetReferenceSprite empoweredSprite, AssetReferenceSprite summonedSprite)
+        {
+            var abilities = new[] { AttributeDefinitions.Strength, AttributeDefinitions.Dexterity,
+                AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence,
+                AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma };
+            var scores = new[] { 16, 16, 12, 8, 13, 10 };
+            var features = abilities.Select((ability, index) => (FeatureDefinition)FeatureDefinitionAttributeModifierBuilder
+                .Create($"AttributeModifierBattleFamiliar{form}{ability}")
+                .SetGuiPresentationNoContent(true)
+                .SetModifier(FeatureDefinitionAttributeModifier.AttributeModifierOperation.ForceAnyway,
+                    ability, scores[index]).AddToDB()).ToList();
+            var name = $"BattleFamiliar{form}";
+            features.AddRange(new FeatureDefinition[]
+            {
+                FeatureDefinitionAttributeModifierBuilder.Create($"AttributeModifier{name}ArmorClass")
+                    .SetGuiPresentationNoContent(true)
+                    .SetModifier(FeatureDefinitionAttributeModifier.AttributeModifierOperation.Set,
+                        AttributeDefinitions.ArmorClass, form == "Brute" ? 15 : 13).AddToDB(),
+                FeatureDefinitionAbilityCheckAffinityBuilder.Create($"AbilityCheckAffinity{name}Talented")
+                    .SetGuiPresentationNoContent(true)
+                    .BuildAndSetAffinityGroups(CharacterAbilityCheckAffinity.None, DieType.D1, 1,
+                        AbilityCheckGroupOperation.AddDie,
+                        abilities.Select(ability => (ability, string.Empty)).ToArray()).AddToDB(),
+                FeatureDefinitionSavingThrowAffinityBuilder.Create($"SavingThrowAffinity{name}Talented")
+                    .SetGuiPresentationNoContent(true)
+                    .SetModifiers(FeatureDefinitionSavingThrowAffinity.ModifierType.AddDice,
+                        DieType.D1, 1, false, abilities).AddToDB(),
+                GetDefinition<FeatureDefinitionConditionAffinity>("ConditionAffinityCharmImmunity"),
+                FeatureDefinitionConditionAffinitys.ConditionAffinityFrightenedImmunity
+            });
+            if (form == "Flyer")
+            {
+                features.Add(FeatureDefinitionConditionAffinitys.ConditionAffinityProneImmunity);
+            }
+            _condition = ConditionDefinitionBuilder.Create($"Condition{name}")
+                .SetGuiPresentation("Condition/&BattleFamiliarEmpoweredTitle",
+                    "Condition/&BattleFamiliarEmpoweredDescription", empoweredSprite)
+                .SetConditionType(ConditionType.Beneficial)
+                .SetAmountOrigin(ConditionDefinition.OriginOfAmount.None)
+                .SetPossessive()
+                .SetFeatures(features.ToArray())
+                .AddCustomSubFeatures(this)
+                .AddToDB();
+            _condition.terminateWhenRemoved = true;
+            _summonedCondition = ConditionDefinitionBuilder.Create($"Condition{name}Summoned")
+                .SetGuiPresentation($"Monster/&BattleFamiliar{form}Title",
+                    "Condition/&BattleFamiliarSummonedDescription", summonedSprite)
+                .SetConditionType(ConditionType.Beneficial)
+                .SetPossessive()
+                .SetFeatures(features.Where(feature => feature is not FeatureDefinitionAttributeModifier).ToArray())
+                .AddCustomSubFeatures(this)
+                .AddToDB();
+            _summonedCondition.terminateWhenRemoved = true;
+        }
+        public bool ShouldTerminateExistingEffect(
+            RulesetCharacter character, RulesetEffect incoming, RulesetEffect existing)
+        {
+            // Only the explicitly selected empowerment preserves its permanent familiar's effect.
+            return !empowerExisting || !EffectHelpers.GetSummonedCreatures(existing).Any(IsFamiliar);
+        }
+
+        public bool TryPrepare(EffectForm effectForm,
+            ref RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            out ICustomSummonInvocationContext invocationContext, out string failureFeedback)
+        {
+            failureFeedback = null;
+            var effect = formsParams.activeEffect as RulesetEffectSpell;
+            if (effect == null)
+            {
+                invocationContext = null;
+                return false;
+            }
+            var familiar = empowerExisting ? formsParams.targetCharacter as RulesetCharacterMonster : null;
+            if (empowerExisting && (familiar == null || !IsFamiliar(familiar) ||
+                                    familiar.CurrentHitPoints <= 0 ||
+                                    EffectHelpers.GetSummoner(familiar)?.Guid != effect.SourceGuid))
+            {
+                invocationContext = null;
+                failureFeedback = "Failure/&BattleFamiliarRequiresOwnFamiliar";
+                return false;
+            }
+            invocationContext = new BattleFamiliarInvocationContext(effect, familiar);
+            if (familiar != null)
+            {
+                effectForm.SummonForm.number = 0;
+            }
+            return true;
+        }
+
+        public string GetMonsterDefinitionName(EffectForm effectForm,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            ICustomSummonInvocationContext invocationContext)
+        {
+            return effectForm.SummonForm.MonsterDefinitionName;
+        }
+
+        public void InitializeSummonedCharacter(RulesetCharacterMonster character,
+            ICustomSummonInvocationContext invocationContext)
+        {
+            if (invocationContext is BattleFamiliarInvocationContext context)
+            {
+                context.Summoned = character;
+            }
+        }
+
+        public void AfterApply(EffectForm effectForm, RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            ICustomSummonInvocationContext invocationContext)
+        {
+            if (invocationContext is not BattleFamiliarInvocationContext context ||
+                (context.Familiar ?? context.Summoned) is not { } target)
+            {
+                return;
+            }
+            var effect = context.Effect;
+            var source = EffectHelpers.GetCharacterByGuid(effect.SourceGuid);
+            var conditionDefinition = context.Familiar != null ? _condition : _summonedCondition;
+            var condition = target.InflictCondition(conditionDefinition.Name, DurationType.Hour, 1,
+                TurnOccurenceType.EndOfTurn, AttributeDefinitions.TagEffect, source.Guid,
+                source.CurrentFaction.Name, 2, effect.SourceDefinition.Name,
+                0, 0, 0);
+            condition.Amount = effect.MagicAttackBonus;
+            if (context.Familiar != null)
+            {
+                target.TryGetConditionOfCategoryAndType(AttributeDefinitions.TagEffect,
+                    ConditionTemporaryHitPoints, out var previousTemporaryHitPoints);
+                var previousTemporaryHitPointsGuid = previousTemporaryHitPoints?.Guid ?? 0;
+                target.ReceiveTemporaryHitPoints(GetBattleFamiliarHitPoints(form),
+                    DurationType.Hour, 1, TurnOccurenceType.EndOfTurn, source.Guid);
+                if (target.TryGetConditionOfCategoryAndType(AttributeDefinitions.TagEffect,
+                        ConditionTemporaryHitPoints, out var temporaryHitPoints))
+                {
+                    if (temporaryHitPoints.Guid == previousTemporaryHitPointsGuid)
+                    {
+                        // Native temporary HP keeps the larger pool. Persist ownership so ending this
+                        // empowerment cannot delete temporary HP granted by an unrelated effect.
+                        var retained = target.InflictCondition(_battleFamiliarRetainedTemporaryHitPoints.Name,
+                            DurationType.Permanent, 0, TurnOccurenceType.EndOfTurn, AttributeDefinitions.TagEffect,
+                            source.Guid, source.CurrentFaction.Name, 2, effect.SourceDefinition.Name, 0, 0, 0);
+                        effect.TrackCondition(source, source.Guid, target, target.Guid,
+                            retained, AttributeDefinitions.TagEffect);
+                    }
+                    else
+                    {
+                        effect.TrackCondition(source, source.Guid, target, target.Guid,
+                            temporaryHitPoints, AttributeDefinitions.TagEffect);
+                    }
+                }
+            }
+            effect.TrackCondition(source, source.Guid, target, target.Guid, condition, AttributeDefinitions.TagEffect);
+            target.RefreshAll();
+        }
+
+        public void OnConditionAdded(RulesetCharacter target, RulesetCondition condition)
+        {
+            if (target is not RulesetCharacterMonster familiar)
+            {
+                return;
+            }
+            if (IsFamiliar(familiar))
+            {
+                var original = BattleFamiliarOriginals.TryGetValue(familiar.MonsterDefinition, out var restored)
+                    ? restored : familiar.MonsterDefinition;
+                if (BattleFamiliarEmpoweredForms.TryGetValue((original, form), out var definition))
+                {
+                    SetBattleFamiliarDefinition(familiar, definition);
+                }
+            }
+            else
+            {
+                SetBattleFamiliarDefinition(familiar, familiar.MonsterDefinition);
+            }
+        }
+
+        public void OnConditionRemoved(RulesetCharacter target, RulesetCondition condition)
+        {
+            if (target is RulesetCharacterMonster familiar &&
+                BattleFamiliarOriginals.TryGetValue(familiar.MonsterDefinition, out var original))
+            {
+                SetBattleFamiliarDefinition(familiar, original);
+            }
+            if (target.TryGetConditionOfCategoryAndType(AttributeDefinitions.TagEffect,
+                    _battleFamiliarProwl.Name, out var prowl))
+            {
+                target.RemoveCondition(prowl);
+            }
+        }
+
+        public void ModifyWeaponAttackMode(RulesetCharacter character, RulesetAttackMode attackMode,
+            RulesetItem weapon, bool canAddAbilityDamageBonus)
+        {
+            var condition = GetBattleFamiliarCondition(character);
+            if (condition == null || attackMode.SourceDefinition != _battleFamiliarRend)
+            {
+                return;
+            }
+            attackMode.AttacksNumber = 1;
+            attackMode.ToHitBonus = condition.Amount;
+            attackMode.EffectDescription.FindFirstDamageForm().bonusDamage = 5;
+        }
+
+        public bool CanIgnoreAoOOnSelf(RulesetCharacter defender, RulesetCharacter attacker)
+        {
+            return form == "Flyer" &&
+                   GameLocationCharacter.GetFromActor(defender)?.CurrentMoveMode == MoveMode.Fly;
+        }
+
+        public IEnumerator OnActionFinishedByMe(CharacterAction action)
+        {
+            if (form == "Stalker" && action.ActionId == ActionDefinitions.Id.DisengageMain)
+            {
+                var character = action.ActingCharacter.RulesetCharacter;
+                character.InflictCondition(_battleFamiliarProwl.Name, DurationType.Round, 0,
+                    TurnOccurenceType.EndOfTurn, AttributeDefinitions.TagEffect, character.Guid,
+                    character.CurrentFaction.Name, 1, _battleFamiliarProwl.Name, 0, 0, 0);
+            }
+            yield break;
+        }
+
+        public void OnCharacterChanged(RulesetEffect effect, RulesetCharacter character)
+        {
+            Validate(effect);
+        }
+
+        public void OnCharacterTurnStarted(GameLocationCharacter locationCharacter)
+        {
+            OnLocationCharacterRestored(locationCharacter.RulesetCharacter);
+        }
+
+        public void OnLocationCharacterRestored(RulesetCharacter character)
+        {
+            var condition = GetBattleFamiliarCondition(character);
+            if (condition != null)
+            {
+                OnConditionAdded(character, condition);
+            }
+            foreach (var effect in EffectCharacterChange.EnumerateEffectsInvolving(character)
+                         .Where(effect => effect.GetSourceDefinitionSafe()
+                             .GetFirstSubFeatureOfType<CustomBehaviorBattleFamiliar>() != null).ToArray())
+            {
+                Validate(effect);
+            }
+        }
+
+        private static void Validate(RulesetEffect effect)
+        {
+            if (effect.Terminated || BattleFamiliarTerminatingEffects.Contains(effect) ||
+                ServiceRepository.GetService<IGameSerializationService>()?.Loading == true)
+            {
+                return;
+            }
+            var caster = EffectHelpers.GetCharacterByGuid(effect.SourceGuid);
+            if (caster?.IsDead == true)
+            {
+                effect.DoTerminate(caster);
+                return;
+            }
+            foreach (var guid in effect.TrackedConditionGuids.ToArray())
+            {
+                if (!RulesetEntity.TryGetEntity<RulesetCondition>(guid, out var condition) ||
+                    condition.ConditionDefinition.GetFirstSubFeatureOfType<CustomBehaviorBattleFamiliar>() == null ||
+                    EffectHelpers.GetCharacterByGuid(condition.TargetGuid) is not { } target)
+                {
+                    continue;
+                }
+                if (target.CurrentHitPoints <= 0 || target is RulesetCharacterMonster familiar &&
+                    BattleFamiliarOriginals.ContainsKey(familiar.MonsterDefinition) &&
+                    (target.TemporaryHitPoints <= 0 ||
+                     !target.TryGetConditionOfCategoryAndType(AttributeDefinitions.TagEffect,
+                         ConditionTemporaryHitPoints, out var temporaryHitPoints) ||
+                     !effect.TrackedConditionGuids.Contains(temporaryHitPoints.Guid) &&
+                     (!target.TryGetConditionOfCategoryAndType(AttributeDefinitions.TagEffect,
+                          _battleFamiliarRetainedTemporaryHitPoints.Name, out var retained) ||
+                      !effect.TrackedConditionGuids.Contains(retained.Guid))))
+                {
+                    effect.DoTerminate(caster);
+                    return;
+                }
+            }
+        }
+
+        public void OnBeforeEffectTerminated(RulesetEffect effect)
+        {
+            if (!BattleFamiliarTerminatingEffects.Add(effect))
+            {
+                return;
+            }
+            try
+            {
+                foreach (var guid in effect.TrackedConditionGuids.ToArray())
+                {
+                    if (!RulesetEntity.TryGetEntity<RulesetCondition>(guid, out var condition) ||
+                        condition.ConditionDefinition.GetFirstSubFeatureOfType<CustomBehaviorBattleFamiliar>() == null ||
+                        EffectHelpers.GetCharacterByGuid(condition.TargetGuid) is not { } target ||
+                        !target.TryGetConditionOfCategoryAndType(AttributeDefinitions.TagEffect,
+                            ConditionTemporaryHitPoints, out var temporaryHitPoints) ||
+                        !effect.TrackedConditionGuids.Contains(temporaryHitPoints.Guid))
+                    {
+                        continue;
+                    }
+                    target.RemoveCondition(temporaryHitPoints);
+                    target.TemporaryHitPoints = 0;
+                }
+            }
+            finally
+            {
+                BattleFamiliarTerminatingEffects.Remove(effect);
+            }
+        }
+    }
+
+    #endregion
     #region Binding Ice
 
     internal static SpellDefinition BuildBindingIce()

@@ -95,6 +95,22 @@ internal static class FloatingPanelBounds
         controller.Configure(tooltipPanel, margin);
     }
 
+    internal static void ShowTooltipBounds(TooltipPanel tooltipPanel, ITooltip tooltip)
+    {
+        if (tooltipPanel)
+        {
+            tooltipPanel.GetComponent<TooltipPanelBoundsController>()?.Show(tooltip);
+        }
+    }
+
+    internal static void UpdateTooltipBounds(TooltipPanel tooltipPanel, ITooltip tooltip)
+    {
+        if (tooltipPanel)
+        {
+            tooltipPanel.GetComponent<TooltipPanelBoundsController>()?.OnNativeLayoutUpdated(tooltip);
+        }
+    }
+
     internal static void RestoreTooltipBounds(TooltipPanel tooltipPanel)
     {
         if (!tooltipPanel)
@@ -116,7 +132,21 @@ internal static class FloatingPanelBounds
     {
         var controller = ActiveTooltipWheelCapture;
 
-        return controller && controller.CanCaptureWheel(source);
+        if (controller && controller.CanCaptureWheel(source))
+        {
+            return true;
+        }
+
+        // A comparison tooltip can close while its scrollable primary remains visible.
+        foreach (var entry in ActiveTooltipPanelBounds)
+        {
+            if (entry.Controller && entry.Controller != controller && entry.Controller.CanCaptureWheel(source))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static IEnumerator ClampToScreenForNextFramesCoroutine(
@@ -189,6 +219,16 @@ internal static class FloatingPanelBounds
         var itemHeight = GetPreferredHeight(firstActiveChild);
         var itemWidth = GetPreferredWidth(firstActiveChild);
 
+        // Navigation text can be shorter than the other choices. Preserve every row's readable preferred width.
+        for (var i = 0; i < table.childCount; i++)
+        {
+            if (table.GetChild(i) is RectTransform child && child.gameObject.activeSelf)
+            {
+                itemHeight = Mathf.Max(itemHeight, GetPreferredHeight(child));
+                itemWidth = Mathf.Max(itemWidth, GetPreferredWidth(child));
+            }
+        }
+
         if (itemHeight <= 0f || itemWidth <= 0f)
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(panel);
@@ -197,12 +237,16 @@ internal static class FloatingPanelBounds
 
         var spacing = GetVerticalSpacing(table);
         var padding = table.GetComponent<LayoutGroup>()?.padding ?? new RectOffset();
+        var horizontalOverhead = Mathf.Max(0f, panel.rect.width - table.rect.width);
+        var maximumItemWidth = Mathf.Max(1f, availableSize.x - horizontalOverhead - padding.horizontal);
+        var widthConstrained = itemWidth > maximumItemWidth;
+        itemWidth = Mathf.Min(itemWidth, maximumItemWidth);
         var overhead = panel ? Mathf.Max(0f, panel.rect.height - table.rect.height) : 0f;
         var listHeight = Mathf.Max(itemHeight, availableSize.y - overhead - padding.vertical);
         var rowHeight = itemHeight + spacing;
         var maxRows = Mathf.Max(1, Mathf.FloorToInt((listHeight + spacing) / rowHeight));
 
-        if (activeCount <= maxRows)
+        if (activeCount <= maxRows && !widthConstrained)
         {
             RestoreListLayout(table);
             LayoutRebuilder.ForceRebuildLayoutImmediate(table);
@@ -210,7 +254,6 @@ internal static class FloatingPanelBounds
             return;
         }
 
-        var horizontalOverhead = Mathf.Max(0f, panel.rect.width - table.rect.width);
         var maximumColumns = Mathf.Max(1, Mathf.FloorToInt(
             (availableSize.x - horizontalOverhead - padding.horizontal + DefaultColumnSpacing) /
             (itemWidth + DefaultColumnSpacing)));
@@ -221,11 +264,13 @@ internal static class FloatingPanelBounds
         // Reserve a visible scrollbar before deciding how many full-width buttons fit.
         if (scrolls)
         {
+            itemWidth = Mathf.Min(itemWidth, Mathf.Max(1f, maximumItemWidth - FloatingPanelLayoutState.ScrollbarWidth));
             maximumColumns = Mathf.Max(1, Mathf.FloorToInt(
                 (availableSize.x - horizontalOverhead - padding.horizontal - FloatingPanelLayoutState.ScrollbarWidth +
                  DefaultColumnSpacing) / (itemWidth + DefaultColumnSpacing)));
-            columns = Mathf.Min(columns, maximumColumns);
+            columns = Mathf.Min(maximumColumns, Mathf.CeilToInt(activeCount / (float)maxRows));
             rows = Mathf.CeilToInt(activeCount / (float)columns);
+            scrolls = rows > maxRows;
         }
 
         ApplyColumnLayout(table, activeCount, rows, itemWidth, itemHeight, spacing);
@@ -340,14 +385,14 @@ internal static class FloatingPanelBounds
             : null;
     }
 
-    private static bool TryGetMouseCanvasPosition(RectTransform canvasRect, out Vector2 position)
+    private static bool TryGetPointerCanvasPosition(RectTransform canvasRect, out Vector2 position)
     {
         position = default;
 
         return canvasRect &&
                RectTransformUtility.ScreenPointToLocalPointInRectangle(
                    canvasRect,
-                   Input.mousePosition,
+                   Gui.InputPointerPosition,
                    GetCanvasCamera(canvasRect),
                    out position);
     }
@@ -586,7 +631,26 @@ internal static class FloatingPanelBounds
 
     private static float GetPreferredWidth(RectTransform rectTransform)
     {
-        return Mathf.Max(rectTransform.rect.width, rectTransform.sizeDelta.x, LayoutUtility.GetPreferredWidth(rectTransform));
+        var width = Mathf.Max(rectTransform.rect.width, rectTransform.sizeDelta.x, LayoutUtility.GetPreferredWidth(rectTransform));
+        var title = rectTransform.GetComponent<SubspellItem>()?.spellTitle ??
+                    rectTransform.GetComponent<SubpowerItem>()?.powerTitle;
+
+        if (!title)
+        {
+            return width;
+        }
+
+        // Native MinSize/column layouts may already have compressed a short choice's rectangle.
+        // Only the choice title contributes intrinsic text width; descriptive body text still wraps normally.
+        var padding = rectTransform.GetComponent<LayoutGroup>()?.padding.horizontal ?? 0;
+        var titleRect = title.RectTransform;
+        var offsets = titleRect.anchorMin.x == 0f && titleRect.anchorMax.x == 1f
+            ? Mathf.Max(0f, titleRect.offsetMin.x) + Mathf.Max(0f, -titleRect.offsetMax.x)
+            : 0f;
+        var textWidth = Mathf.Ceil(title.TMP_Text.GetPreferredValues(title.Text,
+            float.PositiveInfinity, float.PositiveInfinity).x);
+
+        return Mathf.Max(width, textWidth + padding + offsets);
     }
 
     private static float GetVerticalSpacing(RectTransform table)
@@ -965,10 +1029,17 @@ internal static class FloatingPanelBounds
         private bool _hasOriginalState;
         private bool _hasLockedBounds;
         private bool _hasTooltipAnchor;
+        private ITooltip _tooltip;
+        private int _nativeLayoutUpdates;
+        private Rect _lastSourceBounds;
+        private bool _hasSourceBounds;
+        private bool _hasPreferredBounds;
+        private Rect _preferredPanelBounds;
         private Vector2 _lastCanvasSize;
         private Vector2 _lastContentRectSize;
         private Vector2 _lastContentSizeDelta;
         private bool _lastPanelActive;
+        private Vector3 _lastPanelScale;
         private Vector2 _lastPanelRectSize;
         private Vector2 _lastPanelSizeDelta;
         private Vector2 _lockedCanvasSize;
@@ -1000,20 +1071,49 @@ internal static class FloatingPanelBounds
             _content = tooltipPanel.featuresTable;
             _margin = margin;
             _hasLockedBounds = false;
-            _hasTooltipAnchor = TryGetRootCanvasRect(_panel, out var canvasRect) &&
-                                TryGetMouseCanvasPosition(canvasRect, out _tooltipAnchorCanvasPosition);
+            _tooltip = null;
+            _hasTooltipAnchor = false;
+            _hasSourceBounds = false;
+            _hasPreferredBounds = false;
             _scrollOffset = 0f;
             _scrollRange = 0f;
             _layoutDirty = true;
             _hasLayoutSignature = false;
 
             CaptureOriginalState();
-            Apply();
             enabled = true;
+        }
+
+        internal void Show(ITooltip tooltip)
+        {
+            _tooltip = tooltip;
+            _nativeLayoutUpdates = 0;
+            _hasTooltipAnchor = !PreservesNativeAnchor() && TryGetRootCanvasRect(_panel, out var canvasRect) &&
+                                TryGetPointerCanvasPosition(canvasRect, out _tooltipAnchorCanvasPosition);
+            _hasLockedBounds = false;
+            _hasPreferredBounds = false;
+            _hasSourceBounds = false;
+            _layoutDirty = true;
+        }
+
+        internal void OnNativeLayoutUpdated(ITooltip tooltip)
+        {
+            if (ReferenceEquals(_tooltip, tooltip) && _nativeLayoutUpdates < 2)
+            {
+                _nativeLayoutUpdates++;
+            }
         }
 
         private void LateUpdate()
         {
+            // The first native update yields; the second binds, sizes and positions the current content.
+            if (_tooltip == null || _nativeLayoutUpdates < 2)
+            {
+                return;
+            }
+
+            RefreshSourceBounds();
+
             if (!_layoutDirty && !HasLayoutSignatureChanged())
             {
                 ApplyLockedBoundsWithoutRebuild();
@@ -1106,24 +1206,26 @@ internal static class FloatingPanelBounds
                 return;
             }
 
-            var maxHeight = Mathf.Max(1f, GetInsetCanvasRect(canvasRect, _margin).height);
-            var naturalHeight = Mathf.Max(
-                panelBounds.height,
-                contentHeight,
-                GetPreferredHeight(_panel),
-                _panel.rect.height,
-                _panel.sizeDelta.y);
+            var canvasScaleY = panelBounds.height / Mathf.Max(1f, _panel.rect.height);
+            var maxHeight = GetAvailableTooltipHeight(panelBounds, canvasRect) / Mathf.Max(0.01f, canvasScaleY);
+            var naturalHeight = Mathf.Max(contentHeight, GetPreferredHeight(_panel));
             var isLong = naturalHeight > maxHeight;
 
             if (!isLong)
             {
                 ReleaseWheelCapture();
 
-                if (_mask && (_addedMask || _mask.enabled != _wasMaskEnabled))
+                if (_scrollRange > 0f || (_mask && (_addedMask || _mask.enabled != _wasMaskEnabled)))
                 {
                     RestoreScrollState();
                     _scrollOffset = 0f;
                     _scrollRange = 0f;
+
+                    // Native content has already been bound; retain its current height when it fits again.
+                    SetHeight(_content, contentHeight);
+                    SetHeight(_panel, naturalHeight);
+                    SetHeight(_backgroundBlur, naturalHeight);
+                    SetHeight(_frame, naturalHeight);
                     LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
                     LayoutRebuilder.ForceRebuildLayoutImmediate(_panel);
                     TryGetCanvasLocalBounds(_panel, canvasRect, out panelBounds);
@@ -1222,88 +1324,215 @@ internal static class FloatingPanelBounds
             RegisterTooltipBounds(this, canvasRect, _lockedPanelBounds);
         }
 
+        private bool PreservesNativeAnchor()
+        {
+            return Gui.GamepadActive || (_tooltip?.Anchor && Gui.GuiService is GuiManager guiManager &&
+                                        _tooltip.Anchor == guiManager.TooltipDock);
+        }
+
+        private RectTransform GetSourceRect()
+        {
+            // Explicit docks and comparison tooltips are anchored independently of the hovered control.
+            if (PreservesNativeAnchor() || (_tooltip?.Anchor && _tooltip.Anchor.GetComponent<TooltipPanel>()))
+            {
+                return _tooltip?.Anchor;
+            }
+
+            return _tooltip is GuiTooltip guiTooltip && guiTooltip.RectTransform
+                ? guiTooltip.RectTransform
+                : _tooltip?.Anchor;
+        }
+
+        private bool TryGetSourceBounds(RectTransform canvasRect, out Rect bounds)
+        {
+            return TryGetCanvasLocalBounds(GetSourceRect(), canvasRect, out bounds);
+        }
+
+        private void RefreshSourceBounds()
+        {
+            if (!TryGetRootCanvasRect(_panel, out var canvasRect))
+            {
+                return;
+            }
+
+            var hasSource = TryGetSourceBounds(canvasRect, out var sourceBounds);
+            var moved = hasSource != _hasSourceBounds || (hasSource &&
+                ((sourceBounds.min - _lastSourceBounds.min).sqrMagnitude > 1f ||
+                 (sourceBounds.size - _lastSourceBounds.size).sqrMagnitude > 1f));
+
+            if (moved)
+            {
+                if (_hasPreferredBounds && hasSource && _hasSourceBounds)
+                {
+                    _preferredPanelBounds.position += sourceBounds.center - _lastSourceBounds.center;
+                }
+
+                _hasLockedBounds = false;
+                _layoutDirty = true;
+            }
+
+            _hasSourceBounds = hasSource;
+            _lastSourceBounds = sourceBounds;
+        }
+
+        private Rect GetCursorBounds()
+        {
+            return _hasTooltipAnchor
+                ? new Rect(_tooltipAnchorCanvasPosition - Vector2.one * TooltipCursorPadding,
+                    Vector2.one * (TooltipCursorPadding * 2f))
+                : default;
+        }
+
+        private float GetAvailableTooltipHeight(Rect panelBounds, RectTransform canvasRect)
+        {
+            var canvasBounds = GetInsetCanvasRect(canvasRect, _margin);
+
+            if (PreservesNativeAnchor() || !TryGetSourceBounds(canvasRect, out var sourceBounds))
+            {
+                return Mathf.Max(1f, canvasBounds.height);
+            }
+
+            var cursorBounds = GetCursorBounds();
+
+            if (GetOverlapArea(sourceBounds, cursorBounds) > 0f)
+            {
+                sourceBounds = Rect.MinMaxRect(
+                    Mathf.Min(sourceBounds.xMin, cursorBounds.xMin), Mathf.Min(sourceBounds.yMin, cursorBounds.yMin),
+                    Mathf.Max(sourceBounds.xMax, cursorBounds.xMax), Mathf.Max(sourceBounds.yMax, cursorBounds.yMax));
+            }
+
+            var horizontalSpace = Mathf.Max(sourceBounds.xMin - canvasBounds.xMin,
+                canvasBounds.xMax - sourceBounds.xMax) - _margin;
+
+            if (panelBounds.width <= horizontalSpace)
+            {
+                return Mathf.Max(1f, canvasBounds.height);
+            }
+
+            // When neither side fits, retain readable content by scrolling in the free area above or below.
+            return Mathf.Max(1f, Mathf.Min(canvasBounds.height,
+                Mathf.Max(sourceBounds.yMin - canvasBounds.yMin, canvasBounds.yMax - sourceBounds.yMax) - _margin));
+        }
+
         private Rect GetPreferredTooltipBounds(Rect panelBounds, RectTransform canvasRect)
         {
             var canvasBounds = GetInsetCanvasRect(canvasRect, _margin);
 
-            if (!TryGetMouseCanvasPosition(canvasRect, out var mousePosition))
+            if (!_hasPreferredBounds)
             {
-                if (!_hasTooltipAnchor)
-                {
-                    return ClampRectToRect(panelBounds, canvasBounds);
-                }
-
-                mousePosition = _tooltipAnchorCanvasPosition;
-            }
-            else if (_hasTooltipAnchor)
-            {
-                mousePosition = _tooltipAnchorCanvasPosition;
+                _preferredPanelBounds = panelBounds;
+                _hasPreferredBounds = true;
             }
 
+            var preferred = new Rect(_preferredPanelBounds.position, panelBounds.size);
+            var bestBounds = ClampRectToRect(preferred, canvasBounds);
+
+            if (PreservesNativeAnchor())
+            {
+                return bestBounds;
+            }
+
+            var cursorBounds = GetCursorBounds();
+            var hasSource = TryGetSourceBounds(canvasRect, out var sourceBounds);
+            var bestOverlap = float.PositiveInfinity;
+            var bestDistance = float.PositiveInfinity;
+            EvaluateTooltipCandidate(preferred, preferred, canvasBounds, sourceBounds, cursorBounds, canvasRect,
+                ref bestOverlap, ref bestDistance, ref bestBounds);
+
+            if (bestOverlap <= 0.01f)
+            {
+                return bestBounds;
+            }
+
+            var reference = hasSource ? sourceBounds : cursorBounds;
             var width = panelBounds.width;
             var height = panelBounds.height;
-            var cursorBounds = Rect.MinMaxRect(
-                mousePosition.x - TooltipCursorPadding,
-                mousePosition.y - TooltipCursorPadding,
-                mousePosition.x + TooltipCursorPadding,
-                mousePosition.y + TooltipCursorPadding);
-            var bestScore = float.NegativeInfinity;
-            var bestBounds = ClampRectToRect(panelBounds, canvasBounds);
 
-            EvaluateTooltipCandidate(
-                new Rect(mousePosition.x + TooltipCursorPadding, mousePosition.y - height * 0.5f, width, height),
-                canvasBounds,
-                cursorBounds,
-                canvasRect,
-                ref bestScore,
-                ref bestBounds);
-            EvaluateTooltipCandidate(
-                new Rect(mousePosition.x - TooltipCursorPadding - width, mousePosition.y - height * 0.5f, width, height),
-                canvasBounds,
-                cursorBounds,
-                canvasRect,
-                ref bestScore,
-                ref bestBounds);
-            EvaluateTooltipCandidate(
-                new Rect(mousePosition.x - width * 0.5f, mousePosition.y - TooltipCursorPadding - height, width, height),
-                canvasBounds,
-                cursorBounds,
-                canvasRect,
-                ref bestScore,
-                ref bestBounds);
-            EvaluateTooltipCandidate(
-                new Rect(mousePosition.x - width * 0.5f, mousePosition.y + TooltipCursorPadding, width, height),
-                canvasBounds,
-                cursorBounds,
-                canvasRect,
-                ref bestScore,
-                ref bestBounds);
+            // Try the native anchor axis before moving to another side of the source control.
+            var horizontalAnchor = _tooltip.AnchorMode is TooltipDefinitions.AnchorMode.FREE or
+                TooltipDefinitions.AnchorMode.LEFT_FREE or TooltipDefinitions.AnchorMode.LEFT_TOP or
+                TooltipDefinitions.AnchorMode.LEFT_CENTER or TooltipDefinitions.AnchorMode.LEFT_BOTTOM or
+                TooltipDefinitions.AnchorMode.RIGHT_FREE or TooltipDefinitions.AnchorMode.RIGHT_TOP or
+                TooltipDefinitions.AnchorMode.RIGHT_CENTER or TooltipDefinitions.AnchorMode.RIGHT_BOTTOM;
+
+            for (var axis = 0; axis < 2; axis++)
+            {
+                var horizontal = axis == 0 ? horizontalAnchor : !horizontalAnchor;
+                var first = horizontal
+                    ? new Rect(reference.xMax + _margin, preferred.yMin, width, height)
+                    : new Rect(preferred.xMin, reference.yMax + _margin, width, height);
+                var second = horizontal
+                    ? new Rect(reference.xMin - _margin - width, preferred.yMin, width, height)
+                    : new Rect(preferred.xMin, reference.yMin - _margin - height, width, height);
+
+                EvaluateTooltipCandidate(first, preferred, canvasBounds, sourceBounds, cursorBounds, canvasRect,
+                    ref bestOverlap, ref bestDistance, ref bestBounds);
+                EvaluateTooltipCandidate(second, preferred, canvasBounds, sourceBounds, cursorBounds, canvasRect,
+                    ref bestOverlap, ref bestDistance, ref bestBounds);
+
+                if (bestOverlap <= 0.01f)
+                {
+                    return bestBounds;
+                }
+            }
+
+            // A cursor close to an edge of a wide control can require a larger gap than the control itself.
+            reference = Rect.MinMaxRect(
+                Mathf.Min(reference.xMin, cursorBounds.xMin), Mathf.Min(reference.yMin, cursorBounds.yMin),
+                Mathf.Max(reference.xMax, cursorBounds.xMax), Mathf.Max(reference.yMax, cursorBounds.yMax));
+            EvaluateTooltipCandidate(new Rect(reference.xMax + _margin, reference.center.y - height * 0.5f, width, height),
+                preferred, canvasBounds, sourceBounds, cursorBounds, canvasRect,
+                ref bestOverlap, ref bestDistance, ref bestBounds);
+            EvaluateTooltipCandidate(new Rect(reference.xMin - _margin - width, reference.center.y - height * 0.5f, width, height),
+                preferred, canvasBounds, sourceBounds, cursorBounds, canvasRect,
+                ref bestOverlap, ref bestDistance, ref bestBounds);
+            EvaluateTooltipCandidate(new Rect(reference.center.x - width * 0.5f, reference.yMin - _margin - height, width, height),
+                preferred, canvasBounds, sourceBounds, cursorBounds, canvasRect,
+                ref bestOverlap, ref bestDistance, ref bestBounds);
+            EvaluateTooltipCandidate(new Rect(reference.center.x - width * 0.5f, reference.yMax + _margin, width, height),
+                preferred, canvasBounds, sourceBounds, cursorBounds, canvasRect,
+                ref bestOverlap, ref bestDistance, ref bestBounds);
 
             return bestBounds;
         }
 
         private void EvaluateTooltipCandidate(
             Rect candidate,
+            Rect preferred,
             Rect canvasBounds,
+            Rect sourceBounds,
             Rect cursorBounds,
             RectTransform canvasRect,
-            ref float bestScore,
+            ref float bestOverlap,
+            ref float bestDistance,
             ref Rect bestBounds)
         {
             var clamped = ClampRectToRect(candidate, canvasBounds);
-            var visibleArea = GetOverlapArea(candidate, canvasBounds);
-            var cursorOverlap = GetOverlapArea(clamped, cursorBounds);
-            var otherTooltipOverlap = GetOtherTooltipOverlapArea(this, canvasRect, clamped);
-            var movePenalty = (clamped.center - candidate.center).sqrMagnitude * 0.001f;
-            var score = visibleArea - cursorOverlap * 8f - otherTooltipOverlap * 12f - movePenalty;
+            var overlap = GetOverlapArea(clamped, sourceBounds) + GetOverlapArea(clamped, cursorBounds) +
+                          GetOtherTooltipOverlapArea(this, canvasRect, clamped);
+            var distance = (clamped.center - preferred.center).sqrMagnitude;
 
-            if (score <= bestScore)
+            if (overlap > bestOverlap + 0.01f ||
+                (Mathf.Abs(overlap - bestOverlap) <= 0.01f && distance >= bestDistance))
             {
                 return;
             }
 
-            bestScore = score;
+            bestOverlap = overlap;
+            bestDistance = distance;
             bestBounds = clamped;
+        }
+
+        private bool IsPointerOverTooltipOrSource()
+        {
+            if (Gui.GamepadActive || !TryGetCanvasLocalBounds(_panel, out var bounds, out var canvasRect) ||
+                !TryGetPointerCanvasPosition(canvasRect, out var pointer))
+            {
+                return false;
+            }
+
+            return bounds.Contains(pointer) ||
+                   (TryGetSourceBounds(canvasRect, out var sourceBounds) && sourceBounds.Contains(pointer));
         }
 
         private bool HasLayoutSignatureChanged()
@@ -1318,6 +1547,7 @@ internal static class FloatingPanelBounds
             return !_hasLayoutSignature ||
                    _lastPanelActive != panelActive ||
                    (_lastCanvasSize - canvasRect.rect.size).sqrMagnitude > 1f ||
+                   (_lastPanelScale - _panel.lossyScale).sqrMagnitude > 0.0001f ||
                    (_lastPanelRectSize - _panel.rect.size).sqrMagnitude > 1f ||
                    (_lastPanelSizeDelta - _panel.sizeDelta).sqrMagnitude > 1f ||
                    (_lastContentRectSize - _content.rect.size).sqrMagnitude > 1f ||
@@ -1333,6 +1563,7 @@ internal static class FloatingPanelBounds
 
             _lastPanelActive = _panel.gameObject.activeInHierarchy;
             _lastCanvasSize = canvasRect.rect.size;
+            _lastPanelScale = _panel.lossyScale;
             _lastPanelRectSize = _panel.rect.size;
             _lastPanelSizeDelta = _panel.sizeDelta;
             _lastContentRectSize = _content.rect.size;
@@ -1343,7 +1574,7 @@ internal static class FloatingPanelBounds
 
         private bool HandleScrollInput()
         {
-            if (!_content || _scrollRange <= 0f)
+            if (!_content || _scrollRange <= 0f || !IsPointerOverTooltipOrSource())
             {
                 return false;
             }
@@ -1455,7 +1686,8 @@ internal static class FloatingPanelBounds
 
         internal bool CanCaptureWheel(Component source)
         {
-            if (!enabled || !_panel || !_panel.gameObject.activeInHierarchy || _scrollRange <= 0f)
+            if (!enabled || !_panel || !_panel.gameObject.activeInHierarchy || _scrollRange <= 0f ||
+                !IsPointerOverTooltipOrSource())
             {
                 return false;
             }

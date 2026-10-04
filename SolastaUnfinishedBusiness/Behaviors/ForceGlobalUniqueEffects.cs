@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Behaviors;
 
@@ -167,12 +169,17 @@ internal static class ForceGlobalUniqueEffects
                 {
                     foreach (var allElement in DatabaseRepository.GetDatabase<SpellDefinition>())
                     {
-                        if (!spell.IsSubSpellOf(allElement))
+                        if (!allElement.SpellsBundle)
+                        {
+                            continue;
+                        }
+                        var subspells = SpellsContext.GetSubspellLeaves(allElement);
+                        if (!subspells.Contains(spell))
                         {
                             continue;
                         }
 
-                        foreach (var subSpell in allElement.SubspellsList)
+                        foreach (var subSpell in subspells)
                         {
                             allSubDefinitions.Add(subSpell);
                         }
@@ -194,6 +201,12 @@ internal static class ForceGlobalUniqueEffects
 
             if (!effectSourceDefinition ||
                 !allSubDefinitions.Contains(effectSourceDefinition))
+            {
+                continue;
+            }
+
+            if (sourceDefinition.GetAllSubFeaturesOfType<IUniqueEffectTerminationFilter>()
+                .Any(filter => !filter.ShouldTerminateExistingEffect(character, uniqueEffect, effect)))
             {
                 continue;
             }

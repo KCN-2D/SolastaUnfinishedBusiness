@@ -538,7 +538,8 @@ public static partial class Tabletop2024Context
                    spell.ActivationTime is ActivationTime.Action or ActivationTime.BonusAction or
                        ActivationTime.Minute1 or ActivationTime.Minute10 or ActivationTime.Hours1 or ActivationTime.Hours24 &&
                    (spell.ContentPack == CeContentPackContext.CeContentPack || platform == null ||
-                    platform.IsContentPackAvailable(spell.ContentPack));
+                    platform.IsContentPackAvailable(spell.ContentPack)) &&
+                   (!spell.SpellsBundle || SpellsContext.GetSubspellLeaves(spell).Any(IsEligible));
         }
     }
 }

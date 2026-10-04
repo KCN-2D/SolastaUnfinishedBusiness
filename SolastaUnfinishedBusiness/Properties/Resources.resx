@@ -2967,6 +2967,10 @@
         PublicKeyToken=b77a5c561934e089
     </value>
   </data>
+  <data name="BattleFamiliar" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\BattleFamiliar.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+      PublicKeyToken=b77a5c561934e089</value>
+  </data>
   <data name="FindFamiliar" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Spells\FindFamiliar.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
         PublicKeyToken=b77a5c561934e089
@@ -3069,6 +3073,26 @@
   </data>
   <data name="ConditionFamiliarSharedSenses" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Conditions\ConditionFamiliarSharedSenses.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionBattleFamiliarRend" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionBattleFamiliarRend.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ConditionBattleFamiliarEmpowered" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Conditions\ConditionBattleFamiliarEmpowered.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ConditionBattleFamiliarSummoned" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Conditions\ConditionBattleFamiliarSummoned.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ConditionBattleFamiliarProwl" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Conditions\ConditionBattleFamiliarProwl.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
         PublicKeyToken=b77a5c561934e089
     </value>
   </data>

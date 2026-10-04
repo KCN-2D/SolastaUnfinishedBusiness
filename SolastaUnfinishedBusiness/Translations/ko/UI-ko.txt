@@ -30,3 +30,5 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceDescription={0}이 이�
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=피해 유형 변경
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=이번 명중에 선택한 피해 유형을 사용합니다.
 Failure/&InvocationRequiresWarlockCantrip={0}을 흑마법사 소마법으로 알고 있어야 합니다.
+Screen/&SubspellSelectionBackTitle=뒤로
+Screen/&SubspellSelectionBackDescription=이전 선택으로 돌아갑니다.

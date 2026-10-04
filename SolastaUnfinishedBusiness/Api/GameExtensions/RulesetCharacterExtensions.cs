@@ -290,7 +290,7 @@ internal static class RulesetCharacterExtensions
         bool Matches(SpellDefinition knownCantrip)
         {
             return knownCantrip == cantrip ||
-                   (knownCantrip.SpellsBundle && knownCantrip.SubspellsList.Contains(cantrip));
+                   (knownCantrip.SpellsBundle && SpellsContext.GetSubspellLeaves(knownCantrip).Contains(cantrip));
         }
     }
 

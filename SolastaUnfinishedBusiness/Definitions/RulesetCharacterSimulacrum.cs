@@ -6,6 +6,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Validators;
 using static FeatureDefinitionFeatureSet;
 using static RuleDefinitions;
@@ -990,7 +991,7 @@ internal sealed class RulesetCharacterSimulacrum :
         }
 
         IEnumerable<SpellDefinition> candidateSpells = spell.SpellsBundle
-            ? spell.SubspellsList
+            ? SpellsContext.GetSubspellLeaves(spell)
             : [spell];
 
         foreach (var candidateSpell in candidateSpells)
@@ -1020,8 +1021,9 @@ internal sealed class RulesetCharacterSimulacrum :
             spell == null ||
             invocation.Used ||
             !invocation.IsAvailable(this) ||
-            (spell != grantedSpell &&
-             (!grantedSpell.SpellsBundle || !grantedSpell.SubspellsList.Contains(spell))))
+            (grantedSpell.SpellsBundle
+                ? !SpellsContext.GetSubspellLeaves(grantedSpell).Contains(spell)
+                : spell != grantedSpell))
         {
             return false;
         }

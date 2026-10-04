@@ -297,24 +297,39 @@ internal sealed class LiveFriendlyMonsterTooltipProvider(
     IMonsterAttacksProvider,
     ILiveMonsterAttacksProvider
 {
-    private readonly IImageProvider _imageProvider = imageProvider ?? definition;
+    private readonly IImageProvider _imageProvider = imageProvider is GuiMonsterDefinition ? null : imageProvider;
+    private GuiMonsterDefinition _definition = definition;
 
     internal RulesetCharacterMonster Character { get; } = character;
+
+    private GuiMonsterDefinition Definition
+    {
+        get
+        {
+            if (_definition.MonsterDefinition != Character.MonsterDefinition)
+            {
+                _definition = ServiceRepository.GetService<IGuiWrapperService>()
+                                  ?.GetGuiMonsterDefinition(Character.MonsterDefinition.Name) ?? _definition;
+            }
+
+            return _definition;
+        }
+    }
 
     public string Title =>
         Character is RulesetCharacterSimulacrum duplicate &&
         SimulacrumBehavior.TryGetDisplayName(duplicate, out var displayName)
             ? displayName
-            : definition.Title;
-    public string Subtitle => definition.Subtitle;
-    public string Description => definition.Description;
+            : Definition.Title;
+    public string Subtitle => Definition.Subtitle;
+    public string Description => Definition.Description;
     public int ArmorClass => Character.TryGetAttributeValue(AttributeDefinitions.ArmorClass);
     public int HitPoints => Character.TryGetAttributeValue(AttributeDefinitions.HitPoints);
     public int HitPointsUnaltered => HitPoints;
     public string MoveModesString => FormatLiveMoveModes();
-    public float ChallengeRating => definition.ChallengeRating;
+    public float ChallengeRating => Definition.ChallengeRating;
     public int KnowledgeLevel => 4;
-    public List<MonsterAttackIteration> AttackIterations => definition.AttackIterations;
+    public List<MonsterAttackIteration> AttackIterations => Definition.AttackIterations;
     public IReadOnlyList<RulesetAttackMode> LiveAttackModes => Character.AttackModes;
 
     public string GetDisplayName(object context)
@@ -324,35 +339,22 @@ internal sealed class LiveFriendlyMonsterTooltipProvider(
 
     private string FormatLiveMoveModes()
     {
-        var orderedMoveModes = new Dictionary<int, int>();
-
-        foreach (var moveMode in definition.MonsterDefinition.Features
-                     .OfType<FeatureDefinitionMoveMode>())
-        {
-            var key = (int)moveMode.MoveMode;
-
-            if (Character.MoveModes.TryGetValue(key, out var speed))
-            {
-                orderedMoveModes[key] = speed;
-            }
-        }
-
-        foreach (var pair in Character.MoveModes)
-        {
-            orderedMoveModes[pair.Key] = pair.Value;
-        }
+        // Feature-name sorting and definition swaps must not put swimming before walking.
+        // Display every live mode in the same stable order, including condition-granted modes.
+        var orderedMoveModes = Character.MoveModes.OrderBy(pair => pair.Key)
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
 
         return Gui.FormatMoveModes(orderedMoveModes, Character, false, -1);
     }
 
     public void SetupSprite(Image image, object context)
     {
-        _imageProvider.SetupSprite(image, context);
+        (_imageProvider ?? Definition).SetupSprite(image, context);
     }
 
     public void ReleaseSprite(Image image)
     {
-        _imageProvider.ReleaseSprite(image);
+        (_imageProvider ?? Definition).ReleaseSprite(image);
     }
 
     public bool CanAccess(BestiaryDefinitions.BestiaryAccess access)

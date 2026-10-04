@@ -30,3 +30,5 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceDescription={0} може
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=Изменить тип урона
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=Использовать выбранный тип урона для этого попадания.
 Failure/&InvocationRequiresWarlockCantrip=Вы должны знать {0} как заговор колдуна.
+Screen/&SubspellSelectionBackTitle=Назад
+Screen/&SubspellSelectionBackDescription=Вернуться к предыдущему выбору.

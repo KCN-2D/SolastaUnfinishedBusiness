@@ -30,3 +30,5 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceDescription={0} puede ca
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=Cambiar tipo de daño
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=Usa el tipo de daño seleccionado para este impacto.
 Failure/&InvocationRequiresWarlockCantrip=Debes conocer {0} como truco de brujo.
+Screen/&SubspellSelectionBackTitle=Atrás
+Screen/&SubspellSelectionBackDescription=Vuelve a la selección anterior.

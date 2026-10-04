@@ -93,7 +93,15 @@ public static class ItemMenuModalPatcher
                 new Func<EffectDescription, TargetType>(
                     RulesetEffectSpellWithOrigin.GetPendingDeviceTargetType).Method;
 
+            var subspellsGetter = typeof(SpellDefinition)
+                .GetProperty(nameof(SpellDefinition.SubspellsList))
+                ?.GetGetMethod();
+            var subspellLeaves =
+                new Func<SpellDefinition, List<SpellDefinition>>(SpellsContext.GetSubspellLeaves).Method;
+
             return instructions
+                .ReplaceCalls(subspellsGetter, 3, "ItemMenuModal.ActivateFunction.Subspells",
+                    new CodeInstruction(OpCodes.Call, subspellLeaves))
                 .ReplaceCalls(oldMethod, "ItemMenuModal.ActivateFunction.Action",
                     new CodeInstruction(OpCodes.Ldarg_2),
                     new CodeInstruction(OpCodes.Ldarg_3),

@@ -220,11 +220,35 @@ public static class GameLocationCharacterPatcher
     public static class CheckMotionValidity_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            return instructions.ReplaceCalls(
+                AccessTools.Method(typeof(GameLocationCharacter), nameof(GameLocationCharacter.CanMoveInSituation)),
+                "GameLocationCharacter.CheckMotionValidity.DropProne",
+                new CodeInstruction(OpCodes.Call,
+                    AccessTools.Method(typeof(GameLocationCharacterPatcher), nameof(CanMoveInSituationForProne))));
+        }
+
+        [UsedImplicitly]
         public static bool Prefix(GameLocationCharacter __instance)
         {
             //PATCH: always allow prone when grappled
             return !__instance.Prone || !__instance.IsGrappled();
         }
+    }
+
+    private static bool CanMoveInSituationForProne(
+        GameLocationCharacter character, RulesetCharacter.MotionRange range)
+    {
+        if (range != RulesetCharacter.MotionRange.AboveGround)
+        {
+            return character.CanMoveInSituation(range);
+        }
+
+        // Native AboveGround describes available swim/flight modes, even while walking.
+        // Posture depends on the current mode and actual immunity, including after refresh.
+        return character.CurrentMoveMode is MoveMode.Fly or MoveMode.Swim ||
+               character.RulesetCharacter.IsImmuneToCondition(ConditionProne, 0, out _);
     }
 
     //PATCH: supports `UseOfficialLightingObscurementAndVisionRules`
@@ -662,7 +686,13 @@ public static class GameLocationCharacterPatcher
 
             return instructions.ReplaceCalls(isWearingShieldMethod,
                 "GameLocationCharacter.GetActionStatus",
-                new CodeInstruction(OpCodes.Call, trueMethod));
+                new CodeInstruction(OpCodes.Call, trueMethod))
+                .ReplaceCalls(
+                    AccessTools.Method(typeof(GameLocationCharacter), nameof(GameLocationCharacter.CanMoveInSituation)),
+                    "GameLocationCharacter.GetActionStatus.DropProne",
+                    new CodeInstruction(OpCodes.Ldarg_1),
+                    new CodeInstruction(OpCodes.Call,
+                        AccessTools.Method(typeof(GetActionStatus_Patch), nameof(CanMoveInSituation))));
 
             //PATCH: Support for Pugilist Fighting Style
             // Removes check that makes `ShoveBonus` action unavailable if character has no shield
@@ -670,6 +700,17 @@ public static class GameLocationCharacterPatcher
             {
                 return true;
             }
+        }
+
+        private static bool CanMoveInSituation(
+            GameLocationCharacter character, RulesetCharacter.MotionRange range, Id actionId)
+        {
+            if (actionId != Id.DropProne || range != RulesetCharacter.MotionRange.AboveGround)
+            {
+                return character.CanMoveInSituation(range);
+            }
+
+            return CanMoveInSituationForProne(character, range);
         }
 
         [UsedImplicitly]

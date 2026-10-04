@@ -29,6 +29,39 @@ public static class TooltipPanelPatcher
     private static readonly List<TooltipPanel> TooltipForegroundPanels = new();
     private static readonly Dictionary<TooltipPanel, TooltipForegroundState> TooltipForegroundStates = new();
 
+    [HarmonyPatch(typeof(ConditionDefinition), nameof(ConditionDefinition.FormatFeaturesDescription))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class FormatConditionFeaturesDescription_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var code = instructions.ToList();
+            var features = AccessTools.Field(typeof(ConditionDefinition), "features");
+
+            if (code.Count(instruction => instruction.LoadsField(features)) != 1)
+            {
+                Main.Error("Failed to apply transpiler patch [ConditionDefinition.FormatFeaturesDescription]: " +
+                           "expected one condition feature enumeration.");
+
+                return code;
+            }
+
+            foreach (var instruction in code)
+            {
+                if (instruction.LoadsField(features))
+                {
+                    instruction.opcode = OpCodes.Call;
+                    instruction.operand = AccessTools.Method(typeof(Tooltips),
+                        nameof(Tooltips.GetConditionFeaturesForTooltip));
+                }
+            }
+
+            return code;
+        }
+    }
+
     [HarmonyPatch(
         typeof(TooltipFeatureMonsterAttacksEnumerator),
         nameof(TooltipFeatureMonsterAttacksEnumerator.Bind))]
@@ -202,10 +235,28 @@ public static class TooltipPanelPatcher
     public static class ShowContent_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(TooltipPanel __instance)
+        public static void Postfix(TooltipPanel __instance, ITooltip __0, ITooltip ___tooltip)
         {
+            if (!ReferenceEquals(__0, ___tooltip))
+            {
+                return;
+            }
+
             ActiveTooltipPanel = __instance;
             ApplyTooltipForeground(__instance);
+            FloatingPanelBounds.ShowTooltipBounds(__instance, __0);
+        }
+    }
+
+    [HarmonyPatch(typeof(TooltipPanel), nameof(TooltipPanel.UpdateCoroutine))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class UpdateCoroutine_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(TooltipPanel __instance, ITooltip ___tooltip)
+        {
+            FloatingPanelBounds.UpdateTooltipBounds(__instance, ___tooltip);
         }
     }
 

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -101,6 +102,26 @@ public static class GuiCharacterPatcher
                     __result = characterLevel;
                 }
             }
+        }
+    }
+
+    [HarmonyPatch]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class DisplayClassResourcePoints_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(GuiCharacter), nameof(GuiCharacter.DisplaySorceryPoints));
+            yield return AccessTools.Method(typeof(GuiCharacter), nameof(GuiCharacter.DisplayKiPoints));
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(GuiLabel __1)
+        {
+            // Inspection and the active-character HUD share these shallow current/max plates.
+            UiTextHelpers.FitResourceCounter(__1);
         }
     }
 

@@ -188,18 +188,24 @@ internal static class ValidatorsFeat
                 return (true, string.Empty);
             }
 
-            var guiFormat = filteredAbilityScoreNames.Length == 2
-                ? Gui.Format(
+            var guiFormat = filteredAbilityScoreNames.Length switch
+            {
+                1 => Gui.Format(
+                    "Tooltip/&FeatPrerequisiteAbilityScoreFormat",
+                    LocalizePrerequisiteAbilityScoreTitle(filteredAbilityScoreNames[0]),
+                    minValue.ToString()),
+                2 => Gui.Format(
                     "Tooltip/&PreReqAnyAbilityScore",
                     LocalizePrerequisiteAbilityScoreTitle(filteredAbilityScoreNames[0]),
                     LocalizePrerequisiteAbilityScoreTitle(filteredAbilityScoreNames[1]),
-                    minValue.ToString())
-                : Gui.Format(
+                    minValue.ToString()),
+                _ => Gui.Format(
                     "Tooltip/&PreReqAnyAbilityScoreList",
                     string.Join(
                         Gui.ListSeparator(),
                         filteredAbilityScoreNames.Select(LocalizePrerequisiteAbilityScoreTitle)),
-                    minValue.ToString());
+                    minValue.ToString())
+            };
             var hasRequiredAbilityScore = filteredAbilityScoreNames.Any(
                 abilityScoreName => hero.TryGetAttributeValue(abilityScoreName) >= minValue);
 
@@ -296,7 +302,12 @@ internal static class ValidatorsFeat
 
     internal static string LocalizePrerequisiteAbilityScoreTitle(string abilityScoreName)
     {
-        var title = Gui.Localize($"Attribute/&{abilityScoreName}Title");
+        var title = Gui.Localize($"Attribute/&{abilityScoreName}TitleLong");
+
+        if (string.IsNullOrEmpty(title) || title.Contains("/&"))
+        {
+            title = Gui.Localize($"Attribute/&{abilityScoreName}Title");
+        }
 
         return string.IsNullOrEmpty(title) || title.Contains("/&")
             ? abilityScoreName

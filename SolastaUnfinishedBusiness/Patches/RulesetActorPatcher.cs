@@ -213,6 +213,8 @@ public static class RulesetActorPatcher
             definition.Features
                 .SelectMany(f => f.GetAllSubFeaturesOfType<IOnConditionAddedOrRemoved>())
                 .Do(c => c.OnConditionAdded(rulesetCharacter, newCondition));
+
+            EffectCharacterChange.Notify(rulesetCharacter);
         }
     }
 
@@ -839,8 +841,14 @@ public static class RulesetActorPatcher
     public static class RemoveConditionOfCategory_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(RulesetActor __instance, string category, RulesetCondition rulesetCondition)
+        public static void Prefix(
+            RulesetActor __instance,
+            string category,
+            RulesetCondition rulesetCondition,
+            out List<RulesetEffect> __state)
         {
+            __state = EffectCharacterChange.EnumerateEffectsInvolving(__instance as RulesetCharacter);
+
             //PATCH: support for action switching
             if (!Main.Settings.EnableActionSwitching)
             {
@@ -859,6 +867,12 @@ public static class RulesetActorPatcher
 
             ActionSwitching.AccountRemovedCondition(character, rulesetCondition);
         }
+
+        [UsedImplicitly]
+        public static void Postfix(RulesetActor __instance, List<RulesetEffect> __state)
+        {
+            EffectCharacterChange.Notify(__instance as RulesetCharacter, __state);
+        }
     }
 
     [HarmonyPatch(typeof(RulesetActor), nameof(RulesetActor.RemoveAllConditionsOfCategory))]
@@ -867,8 +881,10 @@ public static class RulesetActorPatcher
     public static class RemoveAllConditionsOfCategory_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(RulesetActor __instance, string category)
+        public static void Prefix(RulesetActor __instance, string category, out List<RulesetEffect> __state)
         {
+            __state = EffectCharacterChange.EnumerateEffectsInvolving(__instance as RulesetCharacter);
+
             //PATCH: support for action switching
             if (!Main.Settings.EnableActionSwitching)
             {
@@ -890,6 +906,12 @@ public static class RulesetActorPatcher
                 ActionSwitching.AccountRemovedCondition(character, rulesetCondition);
             }
         }
+
+        [UsedImplicitly]
+        public static void Postfix(RulesetActor __instance, List<RulesetEffect> __state)
+        {
+            EffectCharacterChange.Notify(__instance as RulesetCharacter, __state);
+        }
     }
 
     [HarmonyPatch(typeof(RulesetActor), nameof(RulesetActor.RemoveAllConditionsOfCategoryExcludingSources))]
@@ -898,8 +920,14 @@ public static class RulesetActorPatcher
     public static class RemoveAllConditionsOfCategoryExcludingSources_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(RulesetActor __instance, string category, List<ulong> sources)
+        public static void Prefix(
+            RulesetActor __instance,
+            string category,
+            List<ulong> sources,
+            out List<RulesetEffect> __state)
         {
+            __state = EffectCharacterChange.EnumerateEffectsInvolving(__instance as RulesetCharacter);
+
             //PATCH: support for action switching
             if (!Main.Settings.EnableActionSwitching)
             {
@@ -921,6 +949,12 @@ public static class RulesetActorPatcher
             {
                 ActionSwitching.AccountRemovedCondition(character, rulesetCondition);
             }
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(RulesetActor __instance, List<RulesetEffect> __state)
+        {
+            EffectCharacterChange.Notify(__instance as RulesetCharacter, __state);
         }
     }
 
@@ -961,8 +995,14 @@ public static class RulesetActorPatcher
     public static class RemoveAllConditionsOfCategoryAndType_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(RulesetActor __instance, string category, string type)
+        public static void Prefix(
+            RulesetActor __instance,
+            string category,
+            string type,
+            out List<RulesetEffect> __state)
         {
+            __state = EffectCharacterChange.EnumerateEffectsInvolving(__instance as RulesetCharacter);
+
             //PATCH: support for action switching
             if (!Main.Settings.EnableActionSwitching)
             {
@@ -985,6 +1025,14 @@ public static class RulesetActorPatcher
             {
                 ActionSwitching.AccountRemovedCondition(character, rulesetCondition);
             }
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(RulesetActor __instance, List<RulesetEffect> __state)
+        {
+            // Native type-based removal calls OnConditionRemoved before updating the list.
+            // Notify only after every removal has settled, as with the other deletion paths.
+            EffectCharacterChange.Notify(__instance as RulesetCharacter, __state);
         }
     }
 

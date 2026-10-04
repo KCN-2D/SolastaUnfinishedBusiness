@@ -1,11 +1,11 @@
-Feat/&FeatElvenAccuracyCharismaDescription=당신은 무차별적인 힘보다는 정확성에 의존하는 공격으로 놀라운 목표를 가지고 있습니다. 카리스마를 1씩 최대 20까지 높입니다. 민첩, 지능, 지혜 또는 카리스마를 사용하는 공격 굴림에서 이점을 얻을 때마다 주사위 중 하나를 한 번 다시 굴릴 수 있습니다.
+Feat/&FeatElvenAccuracyCharismaDescription=카리스마가 1 증가합니다. 최대치는 20입니다. 민첩성, 지능, 지혜 또는 카리스마를 사용하는 공격 굴림에 이점이 있으면 d20 3개를 굴려 가장 높은 결과를 사용합니다.
 Feat/&FeatElvenAccuracyCharismaTitle=엘프 정확도 [차]
-Feat/&FeatElvenAccuracyDexterityDescription=당신은 무차별적인 힘보다는 정확성에 의존하는 공격으로 놀라운 목표를 가지고 있습니다. 민첩성을 1 증가시켜 최대 20까지 증가시킵니다. 민첩성, 지능, 지혜 또는 카리스마를 사용하는 공격 굴림에서 이점을 얻을 때마다 주사위 중 하나를 한 번 다시 굴릴 수 있습니다.
+Feat/&FeatElvenAccuracyDexterityDescription=민첩성이 1 증가합니다. 최대치는 20입니다. 민첩성, 지능, 지혜 또는 카리스마를 사용하는 공격 굴림에 이점이 있으면 d20 3개를 굴려 가장 높은 결과를 사용합니다.
 Feat/&FeatElvenAccuracyDexterityTitle=엘프 정확도 [덱스]
-Feat/&FeatElvenAccuracyIntelligenceDescription=당신은 무차별적인 힘보다는 정확성에 의존하는 공격으로 놀라운 목표를 가지고 있습니다. 지능을 1 증가시켜 최대 20까지 증가시킵니다. 민첩, 지능, 지혜 또는 카리스마를 사용하는 공격 굴림에서 이점을 얻을 때마다 주사위 중 하나를 한 번 다시 굴릴 수 있습니다.
+Feat/&FeatElvenAccuracyIntelligenceDescription=지능이 1 증가합니다. 최대치는 20입니다. 민첩성, 지능, 지혜 또는 카리스마를 사용하는 공격 굴림에 이점이 있으면 d20 3개를 굴려 가장 높은 결과를 사용합니다.
 Feat/&FeatElvenAccuracyIntelligenceTitle=엘프 정확도 [Int]
-Feat/&FeatElvenAccuracyWisdomDescription=당신은 무차별적인 힘보다는 정확성에 의존하는 공격으로 놀라운 목표를 가지고 있습니다. 지혜를 1 증가시켜 최대 20까지 증가시킵니다. 민첩, 지능, 지혜 또는 카리스마를 사용하는 공격 굴림에서 이점을 얻을 때마다 주사위 중 하나를 한 번 다시 굴릴 수 있습니다.
+Feat/&FeatElvenAccuracyWisdomDescription=지혜가 1 증가합니다. 최대치는 20입니다. 민첩성, 지능, 지혜 또는 카리스마를 사용하는 공격 굴림에 이점이 있으면 d20 3개를 굴려 가장 높은 결과를 사용합니다.
 Feat/&FeatElvenAccuracyWisdomTitle=엘프 정확도 [Wis]
-Feedback/&ElvenAccuracyTriggered={0}는 {1}을 사용하여 {2}를 유지하고 {3}를 {4}로 다시 굴립니다.
-Tooltip/&FeatElvenAccuracyBaseDescription=민첩, 지능, 지혜 또는 카리스마를 사용하여 공격 굴림에서 이점을 얻을 때마다 주사위 중 하나를 한 번 다시 굴릴 수 있습니다.
+Feedback/&ElvenAccuracyTriggered={0}는 {1}을 사용하여 d20 결과 {2}를 유지하고 {3}이 나온 d20을 다시 굴려 {4}를 얻습니다.
+Tooltip/&FeatElvenAccuracyBaseDescription=민첩성, 지능, 지혜 또는 카리스마를 사용하는 공격 굴림에 이점이 있으면 d20 3개를 굴려 가장 높은 결과를 사용합니다.
 Tooltip/&FeatElvenAccuracyBaseTitle=엘프 정확도

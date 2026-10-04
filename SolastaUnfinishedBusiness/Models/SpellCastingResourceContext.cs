@@ -374,9 +374,15 @@ internal static class SpellCastingResourceContext
             return repertoire;
         }
 
+        return SelectFeatCastingRepertoire(caster, grants.Select(entry => entry.Repertoire));
+    }
+
+    internal static RulesetSpellRepertoire SelectFeatCastingRepertoire(
+        RulesetCharacter caster, IEnumerable<RulesetSpellRepertoire> repertoires)
+    {
         // Several feats can grant the same spell. Keep the effective ability first, then
         // preserve useful repertoire bonuses and use definition names for a stable tie.
-        return grants.Select(entry => entry.Repertoire).Distinct()
+        return repertoires.Distinct()
             .OrderByDescending(source => AttributeDefinitions.ComputeAbilityScoreModifier(
                 caster.TryGetAttributeValue(Tabletop2024Context.TryGetTabletop2024FeatSpellcastingAbility(
                     source, out var ability, caster) ? ability : source.SpellCastingAbility)))

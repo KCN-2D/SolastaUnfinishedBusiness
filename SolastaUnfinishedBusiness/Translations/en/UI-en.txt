@@ -29,4 +29,6 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceDescription={0} can chan
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=Change damage type
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=Use the selected damage type for this hit.
 Failure/&InvocationRequiresWarlockCantrip=You must know {0} as a Warlock cantrip.
+Screen/&SubspellSelectionBackTitle=Back
+Screen/&SubspellSelectionBackDescription=Return to the previous selection.
 Feature/&ListSeparatorTitle=, 

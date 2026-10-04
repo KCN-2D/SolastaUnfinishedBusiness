@@ -34,6 +34,75 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetCharacterPatcher
 {
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.GetSpellRepertoireFromDefinition))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class GetSpellRepertoireFromDefinition_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetCharacter __instance,
+            SpellDefinition __0,
+            bool __1,
+            List<RulesetSpellRepertoire> __2,
+            ref RulesetSpellRepertoire __result)
+        {
+            // Keep a repertoire that knows the leaf directly. Native leveled-spell
+            // lookup otherwise needs the learned outer spell, not a selection page.
+            if (__result == null && SpellsContext.SpellsChildMaster.TryGetValue(__0, out var master) && master != __0)
+            {
+                __result = __instance.GetSpellRepertoireFromDefinition(master, __1, __2);
+            }
+        }
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var getter = typeof(SpellDefinition).GetProperty(nameof(SpellDefinition.SubspellsList))?.GetGetMethod();
+            var leaves = new Func<SpellDefinition, List<SpellDefinition>>(SpellsContext.GetSubspellLeaves).Method;
+
+            return instructions.ReplaceCalls(getter, 2, "RulesetCharacter.GetSpellRepertoireFromDefinition.Subspells",
+                new CodeInstruction(OpCodes.Call, leaves));
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.TerminateMatchingUniqueSpell))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class TerminateMatchingUniqueSpell_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var getter = typeof(SpellDefinition).GetProperty(nameof(SpellDefinition.SubspellsList))?.GetGetMethod();
+            var leaves = new Func<SpellDefinition, List<SpellDefinition>>(SpellsContext.GetSubspellLeaves).Method;
+            var original = AccessTools.Method(typeof(SpellDefinition), nameof(SpellDefinition.IsSubSpellOf));
+            var isSubspell = new Func<SpellDefinition, SpellDefinition, bool>(SpellsContext.IsSubspellOf).Method;
+
+            return instructions
+                .ReplaceCalls(getter, 1, "RulesetCharacter.TerminateMatchingUniqueSpell.Subspells",
+                    new CodeInstruction(OpCodes.Call, leaves))
+                .ReplaceCalls(original, 1, "RulesetCharacter.TerminateMatchingUniqueSpell.Ownership",
+                    new CodeInstruction(OpCodes.Call, isSubspell));
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.UseDeviceSpell))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class UseDeviceSpell_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var original = AccessTools.Method(typeof(SpellDefinition), nameof(SpellDefinition.IsSubSpellOf));
+            var isSubspell = new Func<SpellDefinition, SpellDefinition, bool>(SpellsContext.IsSubspellOf).Method;
+
+            return instructions.ReplaceCalls(original, 1, "RulesetCharacter.UseDeviceSpell.Ownership",
+                new CodeInstruction(OpCodes.Call, isSubspell));
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetCharacterEffectProxy), nameof(RulesetCharacterEffectProxy.RefreshAttackModes))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -663,7 +732,6 @@ public static class RulesetCharacterPatcher
             definition.Features
                 .SelectMany(f => f.GetAllSubFeaturesOfType<IOnConditionAddedOrRemoved>())
                 .Do(c => c.OnConditionRemoved(__instance, activeCondition));
-
         }
 
         // ReSharper disable once SuggestBaseTypeForParameter
@@ -2658,6 +2726,7 @@ public static class RulesetCharacterPatcher
         public static void Postfix(RulesetCharacter __instance)
         {
             RacesContext.ApplySpeciesBaseWalkSpeed(__instance);
+            CombatAnimationContext.RefreshMovementState(__instance);
         }
     }
 
@@ -2751,6 +2820,18 @@ public static class RulesetCharacterPatcher
         }
     }
 
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.ReceiveTemporaryHitPoints))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ReceiveTemporaryHitPoints_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(RulesetCharacter __instance)
+        {
+            EffectCharacterChange.Notify(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.SustainDamage))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -2764,9 +2845,10 @@ public static class RulesetCharacterPatcher
             bool criticalSuccess,
             ulong sourceGuid,
             RollInfo rollInfo,
-            out bool __state)
+            out (bool DamageScope, int HitPoints, int TemporaryHitPoints) __state)
         {
-            __state = DamageReceivedContext.BeginSustainedDamage(__instance);
+            __state = (DamageReceivedContext.BeginSustainedDamage(__instance),
+                __instance.CurrentHitPoints, __instance.TemporaryHitPoints);
 
             if (WishBehavior.IsApplyingIrreducibleDamage)
             {
@@ -2779,9 +2861,22 @@ public static class RulesetCharacterPatcher
         }
 
         [UsedImplicitly]
-        public static void Finalizer(bool __state)
+        public static void Finalizer((bool DamageScope, int HitPoints, int TemporaryHitPoints) __state)
         {
-            DamageReceivedContext.EndSustainedDamage(__state);
+            DamageReceivedContext.EndSustainedDamage(__state.DamageScope);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            RulesetCharacter __instance,
+            (bool DamageScope, int HitPoints, int TemporaryHitPoints) __state)
+        {
+            // Native damage can exhaust temporary HP without going through the current-HP setter.
+            if (__instance.CurrentHitPoints == __state.HitPoints &&
+                __instance.TemporaryHitPoints != __state.TemporaryHitPoints)
+            {
+                EffectCharacterChange.Notify(__instance);
+            }
         }
 
         [UsedImplicitly]

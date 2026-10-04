@@ -373,6 +373,17 @@ public static class RulesetEffectSpellPatcher
     public static class RulesetEffectSpell_Constructor3_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            // Select the final spell before the native constructor computes the effect and invocation metadata.
+            var getter = typeof(SpellDefinition).GetProperty(nameof(SpellDefinition.SubspellsList))?.GetGetMethod();
+            var method = new Func<SpellDefinition, List<SpellDefinition>>(SpellsContext.GetSubspellLeaves).Method;
+
+            return instructions.ReplaceCalls(getter, 1, "RulesetEffectSpell.Constructor.InvocationSubspells",
+                new CodeInstruction(OpCodes.Call, method));
+        }
+
+        [UsedImplicitly]
         public static void Postfix(RulesetEffectSpell __instance)
         {
             __instance.RemainingRounds = __instance.EffectDescription.ComputeRoundsDuration(__instance.EffectLevel);

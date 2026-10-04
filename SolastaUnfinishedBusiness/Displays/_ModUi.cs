@@ -41,6 +41,7 @@ internal static class ModUi
         "AuraOfPerseverance",
         "AuraOfVitality",
         "BanishingSmite",
+        "BattleFamiliar",
         "BindingIce",
         "BladeWard",
         "BlessedWarrior",

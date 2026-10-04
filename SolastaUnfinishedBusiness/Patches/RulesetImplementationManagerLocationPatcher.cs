@@ -628,6 +628,18 @@ public static class RulesetImplementationManagerLocationPatcher
     public static class InstantiateActiveDeviceFunction_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            // Resolve the selected final spell while retaining native device registration and charge handling.
+            var getter = typeof(SpellDefinition).GetProperty(nameof(SpellDefinition.SubspellsList))?.GetGetMethod();
+            var method = new Func<SpellDefinition, List<SpellDefinition>>(SpellsContext.GetSubspellLeaves).Method;
+
+            return instructions.ReplaceCalls(getter, 3,
+                "RulesetImplementationManagerLocation.InstantiateActiveDeviceFunction.Subspells",
+                new CodeInstruction(OpCodes.Call, method));
+        }
+
+        [UsedImplicitly]
         public static bool Prefix(
             RulesetImplementationManagerLocation __instance,
             ref RulesetEffect __result,

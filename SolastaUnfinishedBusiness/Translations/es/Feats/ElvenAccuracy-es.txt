@@ -1,11 +1,11 @@
-Feat/&FeatElvenAccuracyCharismaDescription=Tienes una puntería extraordinaria y ataques que se basan en la precisión en lugar de la fuerza bruta. Aumenta tu Carisma en 1, hasta un máximo de 20. Siempre que tengas ventaja en una tirada de ataque usando Destreza, Inteligencia, Sabiduría o Carisma, puedes volver a tirar uno de los dados una vez.
+Feat/&FeatElvenAccuracyCharismaDescription=Aumenta tu Carisma en 1, hasta un máximo de 20. Siempre que tengas ventaja en una tirada de ataque que use Destreza, Inteligencia, Sabiduría o Carisma, tira 3d20 y usa el resultado más alto.
 Feat/&FeatElvenAccuracyCharismaTitle=Precisión élfica [Car]
-Feat/&FeatElvenAccuracyDexterityDescription=Tienes una puntería extraordinaria y ataques que dependen de la precisión en lugar de la fuerza bruta. Aumenta tu Destreza en 1, hasta un máximo de 20. Siempre que tengas ventaja en una tirada de ataque usando Destreza, Inteligencia, Sabiduría o Carisma, puedes volver a tirar uno de los dados una vez.
+Feat/&FeatElvenAccuracyDexterityDescription=Aumenta tu Destreza en 1, hasta un máximo de 20. Siempre que tengas ventaja en una tirada de ataque que use Destreza, Inteligencia, Sabiduría o Carisma, tira 3d20 y usa el resultado más alto.
 Feat/&FeatElvenAccuracyDexterityTitle=Precisión élfica [Dex]
-Feat/&FeatElvenAccuracyIntelligenceDescription=Tienes una puntería extraordinaria y ataques que se basan en la precisión en lugar de la fuerza bruta. Aumenta tu Inteligencia en 1, hasta un máximo de 20. Siempre que tengas ventaja en una tirada de ataque usando Destreza, Inteligencia, Sabiduría o Carisma, puedes volver a tirar uno de los dados una vez.
+Feat/&FeatElvenAccuracyIntelligenceDescription=Aumenta tu Inteligencia en 1, hasta un máximo de 20. Siempre que tengas ventaja en una tirada de ataque que use Destreza, Inteligencia, Sabiduría o Carisma, tira 3d20 y usa el resultado más alto.
 Feat/&FeatElvenAccuracyIntelligenceTitle=Precisión élfica [Int]
-Feat/&FeatElvenAccuracyWisdomDescription=Tienes una puntería extraordinaria y ataques que dependen de la precisión en lugar de la fuerza bruta. Aumenta tu Sabiduría en 1, hasta un máximo de 20. Siempre que tengas ventaja en una tirada de ataque usando Destreza, Inteligencia, Sabiduría o Carisma, puedes volver a tirar uno de los dados una vez.
+Feat/&FeatElvenAccuracyWisdomDescription=Aumenta tu Sabiduría en 1, hasta un máximo de 20. Siempre que tengas ventaja en una tirada de ataque que use Destreza, Inteligencia, Sabiduría o Carisma, tira 3d20 y usa el resultado más alto.
 Feat/&FeatElvenAccuracyWisdomTitle=Precisión élfica [Sab]
-Feedback/&ElvenAccuracyTriggered={0} usa {1} para conservar {2} y volver a lanzar {3} para obtener {4}.
-Tooltip/&FeatElvenAccuracyBaseDescription=Siempre que tengas ventaja en una tirada de ataque usando Destreza, Inteligencia, Sabiduría o Carisma, puedes volver a tirar uno de los dados una vez.
+Feedback/&ElvenAccuracyTriggered={0} usa {1} para conservar el resultado {2} del d20 y volver a tirar el d20 que mostró {3}, obteniendo {4}.
+Tooltip/&FeatElvenAccuracyBaseDescription=Siempre que tengas ventaja en una tirada de ataque que use Destreza, Inteligencia, Sabiduría o Carisma, tira 3d20 y usa el resultado más alto.
 Tooltip/&FeatElvenAccuracyBaseTitle=Precisión élfica

@@ -1,11 +1,11 @@
-Feat/&FeatElvenAccuracyCharismaDescription=你有不可思议的攻击手段，依靠精确而不是蛮力。你的魅力 +1，上限为 20。每当你在使用敏捷、智力、感知或魅力的攻击掷骰上有优势时，你可以重掷其中一个骰子一次。
+Feat/&FeatElvenAccuracyCharismaDescription=你的魅力提高1点，上限为20。当你使用敏捷、智力、感知或魅力进行攻击检定且具有优势时，掷3个d20并使用最高的结果。
 Feat/&FeatElvenAccuracyCharismaTitle=精灵之准【魅力】
-Feat/&FeatElvenAccuracyDexterityDescription=你有不可思议的攻击手段，依靠精确而不是蛮力。你的敏捷 +1，上限为 20。每当你在使用敏捷、智力、感知或魅力的攻击掷骰上有优势时，你可以重掷其中一个骰子一次。
+Feat/&FeatElvenAccuracyDexterityDescription=你的敏捷提高1点，上限为20。当你使用敏捷、智力、感知或魅力进行攻击检定且具有优势时，掷3个d20并使用最高的结果。
 Feat/&FeatElvenAccuracyDexterityTitle=精灵之准【敏捷】
-Feat/&FeatElvenAccuracyIntelligenceDescription=你有不可思议的攻击手段，依靠精确而不是蛮力。你的智力 +1，上限为 20。每当你在使用敏捷、智力、感知或魅力的攻击掷骰上有优势时，你可以重掷其中一个骰子一次。
+Feat/&FeatElvenAccuracyIntelligenceDescription=你的智力提高1点，上限为20。当你使用敏捷、智力、感知或魅力进行攻击检定且具有优势时，掷3个d20并使用最高的结果。
 Feat/&FeatElvenAccuracyIntelligenceTitle=精灵之准【智力】
-Feat/&FeatElvenAccuracyWisdomDescription=你有不可思议的攻击手段，依靠精确而不是蛮力。你的感知 +1，上限为 20。每当你在使用敏捷、智力、感知或魅力的攻击掷骰上有优势时，你可以重掷其中一个骰子一次。
+Feat/&FeatElvenAccuracyWisdomDescription=你的感知提高1点，上限为20。当你使用敏捷、智力、感知或魅力进行攻击检定且具有优势时，掷3个d20并使用最高的结果。
 Feat/&FeatElvenAccuracyWisdomTitle=精灵之准【感知】
-Feedback/&ElvenAccuracyTriggered={0} 使用 {1} 保留 {2} 并将 {3} 重新投掷为 {4}。
-Tooltip/&FeatElvenAccuracyBaseDescription=每当你在使用敏捷、智力、感知或魅力的攻击掷骰上有优势时，你可以重掷其中一个骰子一次。
+Feedback/&ElvenAccuracyTriggered={0}使用{1}保留d20的结果{2}，并重掷结果为{3}的d20，得到{4}。
+Tooltip/&FeatElvenAccuracyBaseDescription=当你使用敏捷、智力、感知或魅力进行攻击检定且具有优势时，掷3个d20并使用最高的结果。
 Tooltip/&FeatElvenAccuracyBaseTitle=精灵之准

@@ -144,6 +144,20 @@ internal static class UiTextHelpers
         FitSingleLine(label.TMP_Text, minFontScale, absoluteMin);
     }
 
+    internal static void FitResourceCounter(GuiLabel label)
+    {
+        var text = label?.TMP_Text;
+
+        if (!text)
+        {
+            return;
+        }
+
+        // Bind can populate a hidden panel; refit once its native layout becomes active.
+        ApplyConstrainedSingleLineFit(text, StatValueMinFontScale, StatValueAbsoluteMinFontSize);
+        ScheduleSingleLineFit(text, StatValueMinFontScale, StatValueAbsoluteMinFontSize, false);
+    }
+
     internal static void FitConstrainedSingleLine(GuiLabel label, float minFontScale = TitleMinFontScale,
         float absoluteMin = TitleAbsoluteMinFontSize)
     {
@@ -1151,7 +1165,84 @@ internal static class UiTextHelpers
         }
 
         FitCardTitle(spellBox.titleLabel);
-        FitSingleLine(spellBox.autoPreparedTitle, TagMinFontScale, TagAbsoluteMinFontSize);
+        FitSpellBoxSourceTitle(spellBox);
+    }
+
+    private static void FitSpellBoxSourceTitle(SpellBox spellBox)
+    {
+        var label = spellBox.autoPreparedTitle;
+        var text = label?.TMP_Text;
+        var group = spellBox.autoPreparedGroup;
+        var card = spellBox.transform as RectTransform;
+
+        if (!text || !group || !card)
+        {
+            FitSingleLine(label, TagMinFontScale, TagAbsoluteMinFontSize);
+            return;
+        }
+
+        var layout = group.GetComponent<HorizontalLayoutGroup>();
+        var extraWidth = layout ? layout.padding.horizontal :
+            Mathf.Max(0f, group.rect.width - text.rectTransform.rect.width);
+
+        if (layout)
+        {
+            var childCount = 0;
+
+            foreach (Transform child in group)
+            {
+                if (!child.gameObject.activeSelf || child is not RectTransform childRect ||
+                    child.GetComponent<LayoutElement>() is { ignoreLayout: true })
+                {
+                    continue;
+                }
+
+                childCount++;
+
+                if (childRect != text.rectTransform)
+                {
+                    extraWidth += Mathf.Max(0f, LayoutUtility.GetPreferredWidth(childRect));
+                }
+            }
+
+            extraWidth += Mathf.Max(0, childCount - 1) * layout.spacing;
+        }
+        var availableWidth = card.rect.width - extraWidth;
+
+        if (availableWidth <= 0f)
+        {
+            return;
+        }
+
+        var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+        state.Capture(text);
+
+        var preferredSize = GetPreferredSize(text, state.OriginalFontSizeMax, false, 1,
+            state.OriginalLineSpacing, float.PositiveInfinity);
+        var layoutElement = text.GetComponent<LayoutElement>() ?? text.gameObject.AddComponent<LayoutElement>();
+
+        // Bound the native content-size fitter before fitting text; otherwise long source names grow past the card.
+        layoutElement.minWidth = Mathf.Min(layoutElement.minWidth, availableWidth);
+        layoutElement.preferredWidth = Mathf.Min(preferredSize.x + text.margin.x + text.margin.z, availableWidth);
+
+        var wrappedSize = GetPreferredSize(text, state.OriginalFontSizeMax, true, 2,
+            state.OriginalLineSpacing, availableWidth);
+        var originalHeight = Mathf.Max(state.OriginalRectHeight, state.OriginalFontSizeMax);
+        layoutElement.preferredHeight = Mathf.Clamp(wrappedSize.y + text.margin.y + text.margin.w,
+            originalHeight, originalHeight * 2f);
+
+        if (layout)
+        {
+            layout.childControlHeight = true;
+        }
+
+        if (group.GetComponent<ContentSizeFitter>() is { } fitter)
+        {
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        }
+
+        LayoutRebuilder.ForceRebuildLayoutImmediate(group);
+        FitCardTitle(label, TagMinFontScale, TagAbsoluteMinFontSize);
     }
 
     private static void ScheduleSpellBoxTextFit(SpellBox spellBox)
@@ -1218,6 +1309,7 @@ internal static class UiTextHelpers
     {
         internal float OriginalFontSizeMax { get; private set; }
         internal float OriginalLineSpacing { get; private set; }
+        internal float OriginalRectHeight { get; private set; }
         internal int OriginalMaxVisibleLines { get; private set; }
         internal TextOverflowModes OriginalOverflowMode { get; private set; }
         internal Quaternion OriginalLocalRotation { get; private set; }
@@ -1248,6 +1340,7 @@ internal static class UiTextHelpers
                 ? text.fontSizeMax
                 : text.fontSize;
             OriginalLineSpacing = text.lineSpacing;
+            OriginalRectHeight = text.rectTransform ? text.rectTransform.rect.height : 0f;
             OriginalMaxVisibleLines = text.maxVisibleLines;
             OriginalOverflowMode = text.overflowMode;
             OriginalLocalRotation = text.rectTransform
