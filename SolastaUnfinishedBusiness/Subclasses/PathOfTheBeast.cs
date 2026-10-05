@@ -341,7 +341,8 @@ public sealed class PathOfTheBeast : AbstractSubclass
                 "CustomReactionExtraClawAttackDescription".Localized(Category.Reaction),
                 ReactionValidated,
                 () => attackMode.Return(),
-                battleManager);
+                battleManager,
+                target: defender);
 
             yield break;
 

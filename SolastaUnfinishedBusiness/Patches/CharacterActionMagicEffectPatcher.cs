@@ -479,6 +479,21 @@ public static class CharacterActionMagicEffectPatcher
             var actionModifiers = actionParams.ActionModifiers;
 
             using var interruptionScope = SpellInterruptionContext.Track(__instance);
+            using var onHitEffectScope = OnHitEffectContext.Track(__instance);
+
+            if (actionParams.ActionDefinition?.Id is ActionDefinitions.Id.CastReaction or ActionDefinitions.Id.CastReadied &&
+                rulesetEffect is RulesetEffectSpell reactionSpell &&
+                !MetamagicContext.AreReactionTargetsInRange(actionParams, reactionSpell, reactionSpell.MetamagicOption))
+            {
+                __instance.ExecutionFailed = true;
+                foreach (var modifier in actionModifiers)
+                {
+                    modifier.FailureFlags.Add("Failure/&FailureFlagTargetOutOfRange");
+                }
+
+                rulesetEffect.Terminate(false);
+                yield break;
+            }
 
             if (!EffectHelpers.ValidateFamiliarTouchDelivery(actionParams, false))
             {
@@ -897,8 +912,21 @@ public static class CharacterActionMagicEffectPatcher
 
             // END PATCH
 
+            if (!SpellActionTypeContext.TryGetCastingActionProvider(
+                    __instance, out var castingActionProvider, out var actionFailure))
+            {
+                __instance.ExecutionFailed = true;
+                if (actionModifiers.Count > 0)
+                {
+                    actionModifiers[0].FailureFlags.Add(actionFailure);
+                }
+
+                rulesetEffect.Terminate(false);
+                yield break;
+            }
+
             // Queued casts and reactions can change the familiar after target selection.
-            // Pay its reaction once, immediately before the caster pays for the spell.
+            // Check the casting-time grant before paying any delivery or spell cost.
             if (!EffectHelpers.ValidateFamiliarTouchDelivery(actionParams, true))
             {
                 __instance.ExecutionFailed = true;
@@ -907,6 +935,11 @@ public static class CharacterActionMagicEffectPatcher
             }
 
             __instance.SpendMagicEffectUses();
+            if (rulesetEffect is RulesetEffectSpell committedSpell)
+            {
+                castingActionProvider?.OnSpellCastCommitted(__instance, committedSpell);
+            }
+
             MetamagicContext.MarkSpellCast2024(__instance);
 
             // This is used to remove invisibility (for example) when casting a spell
@@ -995,9 +1028,6 @@ public static class CharacterActionMagicEffectPatcher
                 target.WillBePushedByMagicalEffect = false;
             }
 
-            // Is the magic effect on going ?
-            __instance.PersistantEffectAction();
-
             // Apply environmental damage
             var applyDamage =
                 effectDescription.EffectForms.Any(effectForm =>
@@ -1026,6 +1056,18 @@ public static class CharacterActionMagicEffectPatcher
 
                     __instance.hitTargets.Remove(target);
                 }
+            }
+
+            // Resolve chosen effects while the original effect is still valid.
+            // Instantaneous effects are terminated by PersistantEffectAction,
+            // and native ApplyEffectForm rejects every form after termination.
+            yield return onHitEffectScope.Resolve(battleManager);
+
+            // A reaction can terminate an ongoing effect while target selection is pending.
+            // Native persistent processing would otherwise register that ended effect again.
+            if (!rulesetEffect.Terminated)
+            {
+                __instance.PersistantEffectAction();
             }
 
             for (var i = 0; i < targets.Count; i++)
@@ -1144,8 +1186,11 @@ public static class CharacterActionMagicEffectPatcher
                     GameLocationCharacterEventSystem.Event.RotationEnd);
             }
 
-            // Concentrate on the new spell
-            __instance.StartConcentrationAsNeeded();
+            // Concentrate on the new spell if it survived target selection and reactions.
+            if (!rulesetEffect.Terminated)
+            {
+                __instance.StartConcentrationAsNeeded();
+            }
 
             rulesetService.ClearDamageFormsByIndex();
 
@@ -1716,7 +1761,7 @@ public static class CharacterActionMagicEffectPatcher
             List<EffectFormFilter> filters,
             CharacterActionMagicEffect action)
         {
-            return ForcePushOrDragFromEffectPoint.SetPositionAndApplyForms(
+            var damageReceived = ForcePushOrDragFromEffectPoint.SetPositionAndApplyForms(
                 service,
                 MetamagicContext.FilterCarefulSpell2024EffectForms(effectForms, formsParams),
                 formsParams,
@@ -1729,6 +1774,10 @@ public static class CharacterActionMagicEffectPatcher
                 effectApplication,
                 filters,
                 action);
+
+            OnHitEffectContext.RecordApplication(
+                action, formsParams, damageReceived, damageAbsorbedByTemporaryHitPoints);
+            return damageReceived;
         }
     }
 

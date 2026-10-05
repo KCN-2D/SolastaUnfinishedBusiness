@@ -15,6 +15,23 @@ internal interface IValidateSpellCasting
         out string failure);
 }
 
+// Active conditions can restrict spell levels independently of action economy.
+// The same metadata drives both execution validation and the native picker.
+internal sealed class SpellCastingLevelRestriction(int maximumSpellLevel, string failureFlag) : IValidateSpellCasting
+{
+    internal int MaximumSpellLevel { get; } = maximumSpellLevel;
+
+    public bool CanCastSpell(SpellCastingValidationContext context, out string failure)
+    {
+        var spell = context.ActiveSpell == null
+            ? context.SpellDefinition
+            : RulesetEffectSpellWithOrigin.GetOriginSpell(context.ActiveSpell);
+
+        failure = spell?.SpellLevel > MaximumSpellLevel ? failureFlag : string.Empty;
+        return string.IsNullOrEmpty(failure);
+    }
+}
+
 internal readonly struct SpellCastingValidationContext(
     RulesetCharacter caster,
     RulesetSpellRepertoire repertoire,
@@ -35,6 +52,15 @@ internal readonly struct SpellCastingValidationContext(
 
 internal static class SpellCastingValidation
 {
+    internal static void ApplyCantripOnlyRestrictions(RulesetCharacter caster, ref bool cantripOnly)
+    {
+        if (caster != null && caster.GetSubFeaturesByType<SpellCastingLevelRestriction>()
+                .Any(restriction => restriction.MaximumSpellLevel == 0))
+        {
+            cantripOnly = true;
+        }
+    }
+
     [ThreadStatic]
     private static RulesetSpellRepertoire _selectedRepertoire;
 

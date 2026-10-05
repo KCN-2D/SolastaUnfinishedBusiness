@@ -80,7 +80,7 @@ public static class TextBreakerPatcher
                        num++ < 1000)
                 {
                     fragmentInfo2.contentValue =
-                        fragmentInfo2.contentValue.Substring(fragmentInfo2.contentValue.LastIndexOf('\n'));
+                        fragmentInfo2.contentValue.Substring(0, fragmentInfo2.contentValue.Length - 1);
 
                     if (j >= textBreaker.fragments.Count - 1)
                     {

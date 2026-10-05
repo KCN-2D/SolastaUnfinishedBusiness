@@ -119,6 +119,11 @@ internal sealed class ReactionRequestSpendSpellSlotExtended : ReactionRequest
 
     public override string FormatDescription()
     {
+        if (!string.IsNullOrEmpty(ReactionParams.StringParameter2))
+        {
+            return ReactionParams.StringParameter2;
+        }
+
         return Gui.Format(
             string.Format(
                 DatabaseHelper.GetDefinition<ReactionDefinition>(DefinitionName).GuiPresentation

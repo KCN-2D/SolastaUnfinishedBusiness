@@ -96,6 +96,11 @@ public class CustomInvocationSubPanel : MonoBehaviour
 
     public static void UpdateRelevantInvocations(InvocationSubPanel panel)
     {
+        PrepareRelevantInvocations(panel, null);
+    }
+
+    internal static void PrepareRelevantInvocations(InvocationSubPanel panel, RulesetCharacterHero hero)
+    {
         var all = DatabaseRepository.GetDatabase<InvocationDefinition>()
             .Where(x => !x.GuiPresentation.Hidden)
             .Except(InvocationsContext.DisabledInvocations);
@@ -112,6 +117,16 @@ public class CustomInvocationSubPanel : MonoBehaviour
         else
         {
             invocations = all.Where(x => x is not InvocationDefinitionCustom);
+        }
+
+        // Selection panels need the full candidate catalog. Inspection needs only the
+        // acquired invocations; native SetState still applies its normal visibility rules.
+        if (hero != null && panel.GetComponentInParent<CharacterStageProficiencySelectionPanel>() == null &&
+            !LevelUpHelper.IsLevelingUp(hero) &&
+            ServiceRepository.GetService<ICharacterBuildingService>()?.CurrentLocalHeroCharacter == null)
+        {
+            var acquired = new HashSet<string>(hero.InvocationProficiencies);
+            invocations = invocations.Where(invocation => acquired.Contains(invocation.Name));
         }
 
         var table = panel.Table;

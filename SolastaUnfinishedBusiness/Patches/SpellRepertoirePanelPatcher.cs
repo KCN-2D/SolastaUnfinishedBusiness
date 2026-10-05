@@ -24,6 +24,12 @@ public static class SpellRepertoirePanelPatcher
     public static class Bind_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(SpellRepertoirePanel __instance)
+        {
+            MulticlassGameUi.RestoreSpellPreparationLayout(__instance);
+        }
+
+        [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             return instructions.ReplaceCalls(
@@ -305,6 +311,7 @@ public static class SpellRepertoirePanelPatcher
             string title,
             bool showDesc, bool showAutoButton, bool showClearRevertButtons, string byPassInstruction = null)
         {
+            MulticlassGameUi.CaptureSpellPreparationLayout(__instance);
             var preparationPanelTransform = __instance.PreparationPanel.transform;
             var titleTransform = preparationPanelTransform.FindChildRecursive("Title");
             var descriptionTransform = preparationPanelTransform.FindChildRecursive("Description");
@@ -317,13 +324,9 @@ public static class SpellRepertoirePanelPatcher
 
             descriptionTransform!.gameObject.SetActive(showDesc);
 
-            // not the best solution but this object is getting re-activated somewhere else so moving off-screen
-            automateButtonTransform!.localPosition = showAutoButton
-                ? new Vector3(-12.5f, -61)
-                : new Vector3(-1000, -1000);
-
             var gamepadActive = Gui.GamepadActive;
 
+            automateButtonTransform!.gameObject.SetActive(showAutoButton && !gamepadActive);
             __instance.automatePreparationButtonGamepad.gameObject.SetActive(showAutoButton && gamepadActive);
             clearButtonTransform!.gameObject.SetActive(showClearRevertButtons && !gamepadActive);
             revertButtonTransform!.gameObject.SetActive(showClearRevertButtons && !gamepadActive);
@@ -333,6 +336,8 @@ public static class SpellRepertoirePanelPatcher
             {
                 instructionTransform!.GetComponentInChildren<TextMeshProUGUI>().text = byPassInstruction;
             }
+
+            MulticlassGameUi.RefreshSpellPreparationLayout(__instance);
         }
 
         private static void RefreshInteractivePreparation(
@@ -372,6 +377,18 @@ public static class SpellRepertoirePanelPatcher
                     spellBox.RefreshPreparation(false, preparedSpells.Contains(spellBox.SpellDefinition), false);
                 }
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(SpellRepertoirePanel), nameof(SpellRepertoirePanel.Unbind))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Unbind_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(SpellRepertoirePanel __instance)
+        {
+            MulticlassGameUi.RestoreSpellPreparationLayout(__instance);
         }
     }
 

@@ -650,7 +650,8 @@ internal static class RaceFeats
                 "CustomReactionBountifulLuckAttackDescription".Formatted(Category.Reaction, attacker.Name,
                     defender.Name, helper.Name),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: attacker);
 
             yield break;
 
@@ -736,7 +737,8 @@ internal static class RaceFeats
                 "BountifulLuckCheck",
                 "CustomReactionBountifulLuckCheckDescription".Formatted(Category.Reaction, defender.Name, helper.Name),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender);
 
             yield break;
 
@@ -837,7 +839,8 @@ internal static class RaceFeats
                     Category.Reaction, defender.Name, attacker?.Name ?? ReactionRequestCustom.EnvTitle,
                     savingThrowData.Title),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender);
 
             yield break;
 
@@ -1150,7 +1153,8 @@ internal static class RaceFeats
                 attacker,
                 "DwarvenFortitude",
                 "CustomReactionDwarvenFortitudeDescription".Localized(Category.Reaction),
-                ReactionValidated);
+                ReactionValidated,
+                target: attacker, effectDefinition: feature);
 
             yield break;
 
@@ -1838,13 +1842,14 @@ internal static class RaceFeats
             }
 
             // any reaction within an attack flow must use the attacker as waiter
-            yield return attacker.MyReactToDoNothing(
+            yield return helper.MyReactToDoNothing(
                 ExtraActionId.DoNothingReaction,
                 attacker,
                 "SecondChance",
                 "CustomReactionSecondChanceDescription".Localized(Category.Reaction),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: attacker, effectDefinition: featureSecondChance);
 
             yield break;
 

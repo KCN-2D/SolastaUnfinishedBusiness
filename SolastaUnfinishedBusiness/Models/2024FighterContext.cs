@@ -258,7 +258,8 @@ public static partial class Tabletop2024Context
                 "TacticalMindCheck",
                 "CustomReactionTacticalMindCheckDescription".Localized(Category.Reaction),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender);
 
             yield break;
 

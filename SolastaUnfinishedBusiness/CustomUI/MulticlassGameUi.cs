@@ -20,6 +20,354 @@ namespace SolastaUnfinishedBusiness.CustomUI;
 
 internal static class MulticlassGameUi
 {
+    internal static void CaptureSpellPreparationLayout(SpellRepertoirePanel panel)
+    {
+        if (!panel.TryGetComponent<SpellPreparationLayoutState>(out _))
+        {
+            panel.gameObject.AddComponent<SpellPreparationLayoutState>().Capture(panel);
+        }
+    }
+
+    internal static void RefreshSpellPreparationLayout(SpellRepertoirePanel panel)
+    {
+        if (panel.TryGetComponent<SpellPreparationLayoutState>(out var state))
+        {
+            state.Apply();
+        }
+    }
+
+    internal static void RestoreSpellPreparationLayout(SpellRepertoirePanel panel)
+    {
+        if (panel.TryGetComponent<SpellPreparationLayoutState>(out var state))
+        {
+            state.Restore();
+            UnityEngine.Object.DestroyImmediate(state);
+        }
+    }
+
+    private sealed class SpellPreparationLayoutState : MonoBehaviour
+    {
+        private const float Padding = 12f;
+        private readonly Dictionary<RectTransform, RectState> _rectangles = new();
+        private readonly Dictionary<TMP_Text, TextState> _texts = new();
+        private readonly Dictionary<ContentSizeFitter, bool> _fitters = new();
+        private SpellRepertoirePanel _panel;
+        private RectTransform _root;
+        private RectTransform _viewport;
+        private TMP_Text _title;
+        private TMP_Text _description;
+        private TMP_Text _instruction;
+        private string _language;
+        private string _content;
+        private float _width;
+        private bool _applied;
+        private bool _applying;
+
+        private readonly struct RectState
+        {
+            internal readonly Vector2 AnchorMin, AnchorMax, Pivot, Position, Size;
+            internal readonly Bounds Bounds;
+
+            internal RectState(RectTransform rect, RectTransform root)
+            {
+                AnchorMin = rect.anchorMin;
+                AnchorMax = rect.anchorMax;
+                Pivot = rect.pivot;
+                Position = rect.anchoredPosition;
+                Size = rect.sizeDelta;
+                Bounds = RectTransformUtility.CalculateRelativeRectTransformBounds(root, rect);
+            }
+
+            internal void Restore(RectTransform rect)
+            {
+                rect.anchorMin = AnchorMin;
+                rect.anchorMax = AnchorMax;
+                rect.pivot = Pivot;
+                rect.anchoredPosition = Position;
+                rect.sizeDelta = Size;
+            }
+        }
+
+        private readonly struct TextState
+        {
+            internal readonly bool AutoSize, Wrap, SizeContainer;
+            internal readonly float FontSize, LineSpacing;
+            internal readonly int MaxLines;
+            internal readonly TextOverflowModes Overflow;
+
+            internal TextState(TMP_Text text)
+            {
+                AutoSize = text.enableAutoSizing;
+                Wrap = text.enableWordWrapping;
+                SizeContainer = text.autoSizeTextContainer;
+                FontSize = text.fontSize;
+                LineSpacing = text.lineSpacing;
+                MaxLines = text.maxVisibleLines;
+                Overflow = text.overflowMode;
+            }
+
+            internal void Restore(TMP_Text text)
+            {
+                text.enableAutoSizing = AutoSize;
+                text.enableWordWrapping = Wrap;
+                text.autoSizeTextContainer = SizeContainer;
+                text.fontSize = FontSize;
+                text.lineSpacing = LineSpacing;
+                text.maxVisibleLines = MaxLines;
+                text.overflowMode = Overflow;
+            }
+        }
+
+        internal void Capture(SpellRepertoirePanel panel)
+        {
+            _panel = panel;
+            _root = panel.PreparationPanel.RectTransform;
+            _viewport = panel.spellsScrollRect.viewport;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_root);
+            _title = _root.FindChildRecursive("Title")?.GetComponentInChildren<TMP_Text>(true);
+            _description = _root.FindChildRecursive("Description")?.GetComponentInChildren<TMP_Text>(true);
+            _instruction = panel.preparedSpellsInstructions.TMP_Text;
+
+            foreach (var rect in _root.GetComponentsInChildren<RectTransform>(true))
+            {
+                _rectangles[rect] = new RectState(rect, _root);
+            }
+
+            if (_viewport)
+            {
+                _rectangles[_viewport] = new RectState(_viewport, panel.RectTransform);
+            }
+
+            foreach (var text in new[] { _title, _description, _instruction }.Where(text => text).Distinct())
+            {
+                _texts[text] = new TextState(text);
+                if (text.TryGetComponent<ContentSizeFitter>(out var fitter))
+                {
+                    _fitters[fitter] = fitter.enabled;
+                }
+            }
+
+            _language = I2.Loc.LocalizationManager.CurrentLanguageCode;
+        }
+
+        internal void Apply()
+        {
+            if (_applying || !_root || !_title || !_instruction)
+            {
+                return;
+            }
+
+            _applying = true;
+            try
+            {
+                RestoreGeometry();
+                foreach (var fitter in _fitters.Keys.Where(fitter => fitter))
+                {
+                    fitter.enabled = false;
+                }
+
+                var titleGrowth = FitText(_title, true);
+                var instructionGrowth = FitText(_instruction, false);
+                var descriptionGrowth = _description && _description.gameObject.activeSelf
+                    ? FitText(_description, false)
+                    : 0f;
+                var gauge = DirectChild(_panel.preparedSpellsGauge.transform);
+
+                MoveBelow(_rectangles[_title.rectTransform].Bounds.min.y + 1f, titleGrowth,
+                    DirectChild(_title.transform));
+                MoveBelow(_rectangles[_instruction.rectTransform].Bounds.min.y + 1f, instructionGrowth,
+                    DirectChild(_title.transform), DirectChild(_instruction.transform), gauge);
+                if (_description)
+                {
+                    MoveBelow(_rectangles[_description.rectTransform].Bounds.min.y + 1f, descriptionGrowth,
+                        DirectChild(_title.transform), DirectChild(_instruction.transform),
+                        DirectChild(_description.transform), gauge);
+                }
+
+                var growth = titleGrowth + instructionGrowth + descriptionGrowth;
+                SetHeightKeepingTop(_root, _root.rect.height + growth);
+                foreach (var child in _root.Cast<Transform>().OfType<RectTransform>()
+                             .Where(child => Mathf.Approximately(child.anchorMin.y, child.anchorMax.y)))
+                {
+                    // Fixed anchors otherwise follow the enlarged parent as well as the flow movement.
+                    // Stretch anchors keep the native background and containers growing with the panel.
+                    child.anchoredPosition += Vector2.up * (growth * (1f - child.anchorMin.y));
+                }
+
+                if (_viewport)
+                {
+                    var popup = RectTransformUtility.CalculateRelativeRectTransformBounds(_panel.RectTransform, _root);
+                    var overlap = Mathf.Max(0f, _rectangles[_viewport].Bounds.max.y - popup.min.y + Padding);
+                    if (overlap > 0f)
+                    {
+                        var world = _panel.RectTransform.TransformVector(Vector3.up * overlap);
+                        var local = _viewport.parent.InverseTransformVector(world).y;
+                        _viewport.offsetMax += Vector2.down * local;
+                    }
+                }
+
+                foreach (var text in _texts.Keys.Where(text => text))
+                {
+                    text.ForceMeshUpdate(true);
+                }
+
+                _applied = true;
+                _width = _root.rect.width;
+                _content = CurrentContent();
+                _language = I2.Loc.LocalizationManager.CurrentLanguageCode;
+            }
+            finally
+            {
+                _applying = false;
+            }
+        }
+
+        private float FitText(TMP_Text text, bool reserveCloseButton)
+        {
+            var state = _texts[text];
+            var rect = text.rectTransform;
+            var bounds = _rectangles[rect].Bounds;
+            var right = _root.rect.xMax - Padding;
+            if (reserveCloseButton && _panel.cancelPreparationButton)
+            {
+                right = Mathf.Min(right, RectTransformUtility.CalculateRelativeRectTransformBounds(
+                    _root, _panel.cancelPreparationButton.transform).min.x - Padding);
+            }
+
+            var width = Mathf.Max(1f, right - bounds.min.x);
+            text.enableAutoSizing = false;
+            text.enableWordWrapping = true;
+            text.autoSizeTextContainer = false;
+            text.fontSize = state.FontSize;
+            text.lineSpacing = Mathf.Max(0f, state.LineSpacing);
+            text.maxVisibleLines = int.MaxValue;
+            text.overflowMode = TextOverflowModes.Overflow;
+            var widthGrowth = width - rect.rect.width;
+            rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+            rect.anchoredPosition += Vector2.right * (widthGrowth * rect.pivot.x);
+            var initial = rect.rect.height;
+            var height = Mathf.Max(initial, Mathf.Ceil(text.GetPreferredValues(text.text, width,
+                float.PositiveInfinity).y) + 2f);
+            SetHeightKeepingTop(rect, height);
+            return height - initial;
+        }
+
+        private Transform DirectChild(Transform current)
+        {
+            while (current && current.parent != _root && current != _root)
+            {
+                current = current.parent;
+            }
+
+            return current;
+        }
+
+        private void MoveBelow(float top, float distance, params Transform[] excluded)
+        {
+            if (distance <= 0f)
+            {
+                return;
+            }
+
+            var moved = new List<RectTransform>();
+            foreach (var entry in _rectangles.OrderBy(entry => ParentDepth(entry.Key)))
+            {
+                var rect = entry.Key;
+                if (!rect || rect == _root || rect == _viewport || entry.Value.Bounds.max.y > top ||
+                    excluded.Any(parent => parent && (rect == parent || rect.IsChildOf(parent))) ||
+                    moved.Any(parent => rect.IsChildOf(parent)))
+                {
+                    continue;
+                }
+
+                rect.anchoredPosition += Vector2.down * distance;
+                moved.Add(rect);
+            }
+        }
+
+        private static int ParentDepth(Transform current)
+        {
+            var depth = 0;
+            while (current && current.parent)
+            {
+                depth++;
+                current = current.parent;
+            }
+
+            return depth;
+        }
+
+        private static void SetHeightKeepingTop(RectTransform rect, float height)
+        {
+            var growth = height - rect.rect.height;
+            rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            rect.anchoredPosition += Vector2.down * (growth * (1f - rect.pivot.y));
+        }
+
+        private string CurrentContent()
+        {
+            return string.Join("\n", _texts.Keys.Where(text => text).Select(text => text.text)) +
+                   (_description && _description.gameObject.activeSelf);
+        }
+
+        private void RestoreGeometry()
+        {
+            foreach (var entry in _rectangles.Where(entry => entry.Key))
+            {
+                entry.Value.Restore(entry.Key);
+            }
+        }
+
+        internal void Restore()
+        {
+            RestoreGeometry();
+            foreach (var entry in _texts.Where(entry => entry.Key))
+            {
+                entry.Value.Restore(entry.Key);
+            }
+
+            foreach (var entry in _fitters.Where(entry => entry.Key))
+            {
+                entry.Key.enabled = entry.Value;
+            }
+
+            _applied = false;
+        }
+
+        private void LateUpdate()
+        {
+            if (!_panel || !_root)
+            {
+                return;
+            }
+
+            if (!_root.gameObject.activeInHierarchy)
+            {
+                if (_applied)
+                {
+                    Restore();
+                }
+
+                return;
+            }
+
+            if (_language != I2.Loc.LocalizationManager.CurrentLanguageCode)
+            {
+                _language = I2.Loc.LocalizationManager.CurrentLanguageCode;
+                _panel.RefreshPreparation(false);
+            }
+            else if (!_applied || _width != _root.rect.width || _content != CurrentContent())
+            {
+                Apply();
+            }
+        }
+
+        private void OnDisable()
+        {
+            Restore();
+        }
+    }
+
     private static readonly float[] FontSizes = [17f, 17f, 16f, 14.75f, 13.5f, 13.5f, 13.5f];
 
     private static Sprite _regularSlotSprite;

@@ -27,7 +27,11 @@ public static class CharacterReactionItemPatcher
             [NotNull] CharacterReactionItem __instance,
             [NotNull] ReactionRequest reactionRequest)
         {
-            if (reactionRequest is ReactionRequestSelectTarget || SpellCastingResourceContext.IsManaged(reactionRequest))
+            __instance.ClearReactionTargetPreview();
+
+            if (reactionRequest is ReactionRequestSelectTarget or ReactionRequestWarcaster
+                or ReactionRequestSpendBundlePower or ReactionRequestSelectSmiteSpell ||
+                SpellCastingResourceContext.IsManaged(reactionRequest))
             {
                 __instance.CaptureReactionChoiceContainerLayout();
 
@@ -66,6 +70,7 @@ public static class CharacterReactionItemPatcher
         public static void Postfix([NotNull] CharacterReactionItem __instance)
         {
             var request = __instance.ReactionRequest;
+            __instance.BindReactionTargetPreview();
 
             if (request?.Character != null)
             {
@@ -81,9 +86,11 @@ public static class CharacterReactionItemPatcher
             __instance.GetComponent<RectTransform>()
                 .SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size);
 
-            if (request is ReactionRequestSelectTarget || SpellCastingResourceContext.IsManaged(request))
+            if (request is ReactionRequestSelectTarget or ReactionRequestWarcaster
+                or ReactionRequestSpendBundlePower or ReactionRequestSelectSmiteSpell ||
+                SpellCastingResourceContext.IsManaged(request))
             {
-                __instance.ApplyReactionChoiceContainerLayout(SpellCastingResourceContext.IsManaged(request));
+                __instance.ApplyReactionChoiceContainerLayout(true);
             }
 
             if (SpellCastingResourceContext.IsManaged(request))
@@ -241,6 +248,12 @@ public static class CharacterReactionItemPatcher
     public static class Unbind_Patch
     {
         [UsedImplicitly]
+        public static void Prefix([NotNull] CharacterReactionItem __instance)
+        {
+            __instance.ClearReactionTargetPreview();
+        }
+
+        [UsedImplicitly]
         public static void Postfix([NotNull] CharacterReactionItem __instance)
         {
             __instance.RestoreReactionChoiceContainerLayout();
@@ -277,6 +290,54 @@ public static class CharacterReactionItemPatcher
             }
 
             return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterReactionItem), nameof(CharacterReactionItem.GamepadSelect))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class GamepadSelect_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix([NotNull] CharacterReactionItem __instance, bool __0)
+        {
+            __instance.GamepadSelectReactionTargetPreview(__0);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterReactionItem), nameof(CharacterReactionItem.CheckRelevance))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CheckRelevance_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix([NotNull] CharacterReactionItem __instance)
+        {
+            __instance.ValidateReactionTargetPreview();
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterReactionItem), nameof(CharacterReactionItem.OnReactCb))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnReactCb_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix([NotNull] CharacterReactionItem __instance)
+        {
+            __instance.SuspendReactionTargetPreview();
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterReactionItem), nameof(CharacterReactionItem.OnPassCb))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnPassCb_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix([NotNull] CharacterReactionItem __instance)
+        {
+            __instance.SuspendReactionTargetPreview();
         }
     }
 
@@ -320,6 +381,7 @@ public static class CharacterReactionItemPatcher
         {
             SetupSpellPoints(__instance);
             __instance.EnsureReactionChoiceVisible();
+            __instance.RefreshReactionTargetPreview();
         }
     }
 }

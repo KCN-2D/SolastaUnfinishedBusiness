@@ -20,16 +20,33 @@ public static class SpellSelectionPanelPatcher
     public static class Bind_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(
+        public static bool Prefix(
             SpellSelectionPanel __instance,
             GuiCharacter caster,
+            SpellSelectionPanel.SpellcastCancelledHandler spellcastCancelled,
             ref bool cantripOnly,
             ActionDefinitions.ActionType actionType)
         {
+            if (Main.Settings.DisableMultilineSpellOffering)
+            {
+                CampaignsContext.PrepareNativeSpellSelectionBind(__instance);
+            }
+
             ActionPanelContext.BindFamiliarTouchSelection(__instance, caster.RulesetCharacter);
             var gameLocationCaster = caster.GameLocationCharacter;
 
             SpellActionTypeContext.ApplyCantripOnlyRestrictions(gameLocationCaster, actionType, ref cantripOnly);
+
+            if (Main.Settings.DisableMultilineSpellOffering)
+            {
+                return true;
+            }
+
+            // The multiline layout binds these same native columns in the postfix. Keep the
+            // panel's native callbacks/state without first constructing and discarding a full picker.
+            __instance.Caster = caster;
+            __instance.SpellcastCancelled = spellcastCancelled;
+            return false;
         }
 
         [UsedImplicitly]
@@ -71,7 +88,7 @@ public static class SpellSelectionPanelPatcher
         public static void Postfix(SpellSelectionPanel __instance)
         {
             ActionPanelContext.UnbindFamiliarTouchSelection(__instance);
-            CampaignsContext.SpellSelectionPanelMultilineUnbind();
+            CampaignsContext.SpellSelectionPanelMultilineUnbind(__instance);
         }
     }
 

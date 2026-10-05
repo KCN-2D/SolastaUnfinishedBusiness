@@ -4,6 +4,15 @@ using static RuleDefinitions;
 
 namespace SolastaUnfinishedBusiness.Interfaces;
 
+// Read-only bonuses can be shared by actual saving throws and character-sheet
+// values without invoking roll hooks, reactions, or resource consumption.
+internal interface IConditionalSavingThrowBonusProvider
+{
+    BaseDefinition SourceDefinition { get; }
+
+    int GetSavingThrowBonus(RulesetCharacter character, string abilityScoreName);
+}
+
 public interface IRollSavingThrowInitiated
 {
     [UsedImplicitly]

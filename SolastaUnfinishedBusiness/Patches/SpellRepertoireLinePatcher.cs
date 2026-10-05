@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
@@ -12,6 +13,33 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class SpellRepertoireLinePatcher
 {
+    [HarmonyPatch(typeof(SpellRepertoireLine), nameof(SpellRepertoireLine.Refresh))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Refresh_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(SpellRepertoireLine __instance, out IDisposable __state)
+        {
+            __state = CampaignsContext.BeginMultilineSpellSelectionLineRefresh(__instance);
+        }
+
+        [UsedImplicitly]
+        public static void Finalizer(IDisposable __state) => __state?.Dispose();
+    }
+
+    [HarmonyPatch(typeof(SpellRepertoireLine), nameof(SpellRepertoireLine.Unbind))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Unbind_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(SpellRepertoireLine __instance)
+        {
+            CampaignsContext.RestoreMultilineSpellSelectionLine(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(SpellRepertoireLine), nameof(SpellRepertoireLine.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -29,6 +57,8 @@ public static class SpellRepertoireLinePatcher
 
                 UiTextHelpers.FitSideLabel(__instance.headerLabel);
             }
+
+            CampaignsContext.RebindMultilineSpellSelectionLine(__instance);
         }
     }
 
@@ -42,7 +72,7 @@ public static class SpellRepertoireLinePatcher
         {
             SpellActionTypeContext.QualifySpells(
                 __instance.caster?.RulesetCharacter,
-                SpellSelectionContext.Resolve(__instance.spellRepertoire),
+                __instance.spellRepertoire,
                 __instance.actionType,
                 spellDefinitions,
                 __instance.relevantSpells);
@@ -53,4 +83,5 @@ public static class SpellRepertoireLinePatcher
             __instance.relevantSpells.Sort(__instance);
         }
     }
+
 }

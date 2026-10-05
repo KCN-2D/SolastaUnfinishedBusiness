@@ -12,6 +12,7 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
 using UnityEngine.AddressableAssets;
@@ -772,8 +773,11 @@ public sealed class CircleOfTheWildfire : AbstractSubclass
                 yield break;
             }
 
-            if (rulesetEffect.EffectDescription.TargetType is TargetType.Individuals or TargetType.IndividualsUnique &&
-                !firstTarget)
+            var individualTargets = rulesetEffect.EffectDescription.TargetType is
+                TargetType.Individuals or TargetType.IndividualsUnique;
+            var chooseTarget = individualTargets && OnHitEffectContext.CanSelectTarget(rulesetEffect, attacker);
+
+            if (individualTargets && !firstTarget && !chooseTarget)
             {
                 yield break;
             }
@@ -787,17 +791,31 @@ public sealed class CircleOfTheWildfire : AbstractSubclass
                 yield break;
             }
 
-            var index = actualEffectForms.IndexOf(fireDamageForm);
-            var newDamageForm = EffectFormBuilder
-                .Create()
-                .HasSavingThrow(EffectSavingThrowType.Negates)
-                .SetDamageForm(DamageTypeFire, 1, DieType.D8)
-                .Build();
+            if (chooseTarget && OnHitEffectContext.TryDeferEffect(
+                    rulesetEffect, attacker, defender, featureEnhancedBond, actualEffectForms,
+                    () => HasSpirit(attacker.RulesetCharacter), AddFireDamage, AdditionalEffectTrigger.Hit))
+            {
+                yield break;
+            }
 
-            newDamageForm.DamageForm.IgnoreCriticalDoubleDice = true;
-            newDamageForm.DamageForm.IgnoreSpellAdvancementDamageDice = true;
+            AddFireDamage(actualEffectForms);
+            yield break;
 
-            actualEffectForms.Insert(index + 1, newDamageForm);
+            static void AddFireDamage(List<EffectForm> forms)
+            {
+                var index = forms.FindIndex(form => form.FormType == EffectForm.EffectFormType.Damage &&
+                                                   form.DamageForm.DamageType == DamageTypeFire);
+                var newDamageForm = EffectFormBuilder
+                    .Create()
+                    .HasSavingThrow(EffectSavingThrowType.Negates)
+                    .SetDamageForm(DamageTypeFire, 1, DieType.D8)
+                    .Build();
+
+                newDamageForm.DamageForm.IgnoreCriticalDoubleDice = true;
+                newDamageForm.DamageForm.IgnoreSpellAdvancementDamageDice = true;
+
+                forms.Insert(index + 1, newDamageForm);
+            }
         }
 
         public IEnumerator OnMagicEffectFinishedByMe(

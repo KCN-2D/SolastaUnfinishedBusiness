@@ -37,7 +37,42 @@ public static class GameLocationBattleManagerPatcher
 
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
-            CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.SubtleSpell, "GameLocationBattleManager.HandleSpellCast.MoveNext");
+            MetamagicContext.PatchReactionSpellRangeChecks(
+                CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.SubtleSpell,
+                    "GameLocationBattleManager.HandleSpellCast.MoveNext"), TargetMethod());
+    }
+
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class HandleDefenderOnDamageReceived_MoveNext_Patch
+    {
+        [UsedImplicitly]
+        public static MethodBase TargetMethod() =>
+            CombinedMetamagic.GetIteratorMoveNext(typeof(GameLocationBattleManager),
+                nameof(GameLocationBattleManager.HandleDefenderOnDamageReceived));
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            MetamagicContext.PatchReactionSpellRangeChecks(instructions, TargetMethod(), "damagedCharacter");
+    }
+
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class HandleSpellTargeted_MoveNext_Patch
+    {
+        [UsedImplicitly]
+        public static MethodBase TargetMethod() =>
+            CombinedMetamagic.GetIteratorMoveNext(typeof(GameLocationBattleManager),
+                nameof(GameLocationBattleManager.HandleSpellTargeted));
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(
+                AccessTools.Method(typeof(GameLocationBattleManager), nameof(GameLocationBattleManager.CanAttack),
+                    [typeof(AttackEvaluationParams), typeof(bool)]),
+                "GameLocationBattleManager.HandleSpellTargeted.ReactionRange",
+                new CodeInstruction(OpCodes.Call,
+                    AccessTools.Method(typeof(MetamagicContext), nameof(MetamagicContext.CanAttackWithReactionMetamagic))));
     }
 
 
@@ -428,6 +463,15 @@ public static class GameLocationBattleManagerPatcher
             //                           || defender.PerceivedFoes.Contains(attacker)
             //                           || defender.PerceivedAllies.Contains(attacker);
 
+            var applyingForms = OnHitEffectContext.GetApplyingForms(rulesetEffect, attacker, defender);
+            EffectDescription additionalDescription = null;
+
+            if (applyingForms != null)
+            {
+                additionalDescription = new EffectDescription();
+                additionalDescription.EffectForms.AddRange(applyingForms);
+            }
+
             foreach (var feature in defenderCharacter
                          .FeaturesByType<FeatureDefinitionReduceDamage>())
             {
@@ -457,7 +501,8 @@ public static class GameLocationBattleManagerPatcher
 
                 //TODO: add ability to specify whether this feature can reduce magic damage
                 var damageTypes = feature.DamageTypes;
-                var damage = attackMode?.EffectDescription?.FindFirstDamageFormOfType(damageTypes);
+                var damage = (additionalDescription ?? attackMode?.EffectDescription)
+                    ?.FindFirstDamageFormOfType(damageTypes);
 
                 // In case of a ruleset effect, check that it shall apply damage forms, otherwise don't proceed (e.g. CounterSpell)
                 if (rulesetEffect?.EffectDescription != null)
@@ -469,7 +514,7 @@ public static class GameLocationBattleManagerPatcher
                         canForceHalfDamage = attacker.RulesetCharacter.CanForceHalfDamage(activeSpell.SpellDefinition);
                     }
 
-                    var effectDescription = rulesetEffect.EffectDescription;
+                    var effectDescription = additionalDescription ?? rulesetEffect.EffectDescription;
 
                     if (rolledSavingThrow)
                     {
@@ -483,7 +528,8 @@ public static class GameLocationBattleManagerPatcher
                     }
                 }
 
-                if (damage == null)
+                if (damage == null ||
+                    !OnHitEffectContext.TryPrepareDamageReduction(rulesetEffect, attacker, defender, feature))
                 {
                     continue;
                 }

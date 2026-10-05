@@ -101,7 +101,8 @@ internal sealed class Interception : AbstractFightingStyle
                 Name,
                 "CustomReactionInterceptionDescription".Formatted(Category.Reaction, defender.Name, attacker.Name),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender);
 
             yield break;
 

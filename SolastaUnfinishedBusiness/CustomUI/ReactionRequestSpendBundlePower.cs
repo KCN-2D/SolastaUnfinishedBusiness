@@ -62,6 +62,16 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
 
     public ICustomReactionResource Resource { get; set; }
 
+    internal GameLocationCharacter GetTargetForPower(FeatureDefinitionPower power)
+    {
+        var effectDescription = power?.EffectDescription;
+
+        return effectDescription != null &&
+               (effectDescription.RangeType == RangeType.Self || effectDescription.TargetType == TargetType.Self)
+            ? ReactionParams.ActingCharacter
+            : _target;
+    }
+
     private void BuildSuboptions()
     {
         SubOptionsAvailability.Clear();

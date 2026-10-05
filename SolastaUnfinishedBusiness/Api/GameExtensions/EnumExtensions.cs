@@ -103,6 +103,7 @@ internal enum ExtraActionId
     SharpEye2024Toggle,
     LevitateSuspend,
     LevitateResume,
+    EmbodimentOfLawToggle,
     PrioritizeAction = 10000
 }
 

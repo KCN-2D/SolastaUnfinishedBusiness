@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -16,6 +17,125 @@ namespace SolastaUnfinishedBusiness.Behaviors.Specific;
 
 internal static class GLBM
 {
+    internal static IEnumerator QueueLinkedAutoPowersAfterProvider(
+        GameLocationBattleManager battleManager,
+        CharacterAction action,
+        GameLocationCharacter attacker,
+        GameLocationCharacter defender,
+        IAdditionalDamageProvider provider)
+    {
+        // This tag is the native OnSneakAttackHitAuto trigger, rather than a feature name.
+        // The original auto-power pass ran before the selected provider was applied.
+        if (provider?.NotificationTag != "SneakAttack" || battleManager == null || action == null ||
+            attacker?.RulesetCharacter == null || defender?.RulesetActor == null)
+        {
+            yield break;
+        }
+
+        var rulesetAttacker = attacker.RulesetCharacter;
+        var linkedPowers = rulesetAttacker.UsablePowers.Where(power =>
+            power.PowerDefinition.ActivationTime == RuleDefinitions.ActivationTime.OnSneakAttackHitAuto).ToArray();
+
+        foreach (var usablePower in linkedPowers)
+        {
+            if (defender.RulesetCharacter is { IsRemovedFromTheGame: true })
+            {
+                yield break;
+            }
+
+            if (!CanQueueLinkedAutoPower(battleManager, action, attacker, defender, usablePower) ||
+                !battleManager.TryComputePowerFinalTarget(attacker, defender, usablePower, out var finalTarget))
+            {
+                continue;
+            }
+
+            // A family can expose more than one provider. An already queued native power
+            // for the same target must retain its original initialization and execute once.
+            if (action.ResultingActions.Any(resulting =>
+                    resulting.ActionParams.RulesetEffect is RulesetEffectPower effect &&
+                    effect.PowerDefinition == usablePower.PowerDefinition &&
+                    resulting.ActionParams.TargetCharacters.Contains(finalTarget)))
+            {
+                continue;
+            }
+
+            var previousCount = action.ResultingActions.Count;
+            battleManager.PrepareAndAddSpendPowerResultingAction(action, attacker, defender, usablePower);
+
+            // Physical attacks snapshot condition-backed provenance before interruptions.
+            // These powers were added after that pass, so initialize only the new actions.
+            foreach (var resultingAction in action.ResultingActions.Skip(previousCount)
+                         .OfType<CharacterActionSpendPower>().ToArray())
+            {
+                var resultingParams = resultingAction.ActionParams;
+
+                if (resultingParams.RulesetEffect == null)
+                {
+                    continue;
+                }
+
+                foreach (var handler in rulesetAttacker.GetSubFeaturesByType<IMagicEffectBeforeInitiatedByMe>().ToArray())
+                {
+                    yield return handler.OnMagicEffectBeforeInitiatedByMe(
+                        resultingAction, resultingParams.RulesetEffect, attacker, resultingParams.TargetCharacters);
+                }
+            }
+        }
+    }
+
+    private static bool CanQueueLinkedAutoPower(
+        GameLocationBattleManager battleManager,
+        CharacterAction action,
+        GameLocationCharacter attacker,
+        GameLocationCharacter defender,
+        RulesetUsablePower usablePower)
+    {
+        var previousContext = RestrictReactionAttackMode.ReactionContext;
+        bool canUse;
+
+        // The existing native-power validator also checks the current attack context.
+        // Restore it before any coroutine yields or another reaction can run.
+        try
+        {
+            RestrictReactionAttackMode.ReactionContext =
+                (action, attacker, defender, action.ActionParams.AttackMode, action.ActionParams.RulesetEffect);
+            canUse = battleManager.CanCharacterUsePower(attacker.RulesetCharacter, defender, usablePower);
+        }
+        finally
+        {
+            RestrictReactionAttackMode.ReactionContext = previousContext;
+        }
+
+        if (!canUse)
+        {
+            return false;
+        }
+
+        var power = usablePower.PowerDefinition;
+        var rulesetDefender = defender.RulesetCharacter;
+        var senseValid = rulesetDefender == null || power.AutoActivationRequiredTargetSenseType == SenseMode.Type.None ||
+                         rulesetDefender.HasSenseType(power.AutoActivationRequiredTargetSenseType);
+        var tagValid = rulesetDefender == null || string.IsNullOrEmpty(power.AutoActivationRequiredTargetCreatureTag) ||
+                       power.AutoActivationRequiredTargetCreatureTag == "None" ||
+                       rulesetDefender.HasTag(power.AutoActivationRequiredTargetCreatureTag);
+
+        // Preserve the native auto-power filter's sense-or-tag semantics.
+        if (!senseValid && !tagValid)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrEmpty(power.AutoActivationPowerTag))
+        {
+            return true;
+        }
+
+        SpellAndPowersDefinitions.GetTogglePowerStatus(
+            usablePower, attacker.RulesetCharacter, out var hasToggle, out var enabled);
+
+        return !hasToggle || enabled;
+    }
+
     // ReSharper disable once InconsistentNaming
     private static int ComputeSavingThrowDC(GameLocationCharacter glc, IAdditionalDamageProvider provider)
     {
@@ -102,6 +222,100 @@ internal static class GLBM
         return rawRoll + modifier >= defenderArmorClass
             ? RuleDefinitions.RollOutcome.Success
             : RuleDefinitions.RollOutcome.Failure;
+    }
+
+    internal static IEnumerator RollAdditionalEffectSavingThrow(
+        GameLocationBattleManager battleManager,
+        CharacterAction action,
+        GameLocationCharacter attacker,
+        GameLocationCharacter target,
+        List<EffectForm> forms,
+        RulesetImplementationDefinitions.ApplyFormsParams parameters,
+        Action<RulesetImplementationDefinitions.ApplyFormsParams> saveParameters)
+    {
+        var savingThrow = forms.Select(form => form.OverrideSavingThrowInfo).FirstOrDefault(info => info != null);
+
+        if (savingThrow == null)
+        {
+            saveParameters(parameters);
+            yield break;
+        }
+
+        var modifier = parameters.actionModifier?.Clone() ?? new ActionModifier();
+        var description = new EffectDescription();
+        var originalDescription = parameters.activeEffect?.EffectDescription ?? parameters.attackMode?.EffectDescription;
+
+        if (originalDescription != null)
+        {
+            description.Copy(originalDescription);
+        }
+
+        description.hasSavingThrow = true;
+        description.savingThrowAbility = savingThrow.SavingThrowAbility;
+        description.effectForms.SetRange(forms);
+        var hasBorrowedLuck = target.RulesetActor.HasConditionOfTypeOrSubType(RuleDefinitions.ConditionBorrowedLuck);
+
+        using var rollContext = new D20RollContext(
+            target.RulesetCharacter, RuleDefinitions.RollContext.SavingThrow, savingThrow.SavingThrowAbility,
+            advantageTrends: modifier.SavingThrowAdvantageTrends);
+
+        yield return rollContext.Prompt(attacker);
+
+        RuleDefinitions.RollOutcome outcome;
+        int outcomeDelta;
+
+        using (rollContext.Activate())
+        {
+            parameters.rolledSaveThrow = Roll(modifier, out outcome, out outcomeDelta);
+        }
+
+        parameters.actionModifier = modifier;
+        parameters.savingThrowAbility = savingThrow.SavingThrowAbility;
+
+        if (parameters.rolledSaveThrow)
+        {
+            DatabaseHelper.TryGetDefinition(savingThrow.SourceDefinitionName, out FeatureDefinition sourceDefinition);
+
+            var data = new SavingThrowData
+            {
+                SaveActionModifier = modifier,
+                SaveOutcome = outcome,
+                SaveOutcomeDelta = outcomeDelta,
+                SaveDC = RulesetActorExtensions.SaveDC,
+                CurrentRoll = RulesetActorExtensions.SaveRoll,
+                MinimumResult = RulesetActorExtensions.SaveMinimumResult,
+                SaveBonusAndRollModifier = RulesetActorExtensions.SaveBonusAndRollModifier,
+                SavingThrowAbility = RulesetActorExtensions.SavingThrowAbility,
+                SourceDefinition = sourceDefinition,
+                EffectDescription = description,
+                Title = sourceDefinition?.FormatTitle() ?? action.FormatTitle(),
+                RerollSavingThrow = Roll
+            };
+
+            // This is the additional feature's save. Its reroll must use these forms,
+            // and its reactions must not overwrite the original action's saving throw.
+            yield return TryAlterOutcomeSavingThrow.Handler(
+                battleManager, attacker, target, data, hasBorrowedLuck, description);
+
+            parameters.saveOutcome = data.SaveOutcome;
+            parameters.saveOutcomeDelta = data.SaveOutcomeDelta;
+        }
+
+        saveParameters(parameters);
+        yield break;
+
+        bool Roll(ActionModifier savingModifier, out RuleDefinitions.RollOutcome result, out int delta)
+        {
+            if (parameters.activeEffect != null)
+            {
+                return parameters.activeEffect.TryRollSavingThrow(
+                    attacker.RulesetCharacter, attacker.Side, target.RulesetActor,
+                    savingModifier, forms, false, out result, out delta);
+            }
+
+            return parameters.attackMode.TryRollSavingThrow(
+                attacker.RulesetCharacter, target.RulesetActor, savingModifier, forms, out result, out delta);
+        }
     }
 
     private static CharacterClassDefinition GetClassForFeatureSubclass(
@@ -1348,18 +1562,21 @@ internal static class GLBM
                         validTrigger = criticalHit;
                         break;
                     case RuleDefinitions.AdditionalDamageTriggerCondition.EvocationSpellDamage
-                        when (firstTarget || !provider.FirstTargetOnly) &&
+                        when (firstTarget || !provider.FirstTargetOnly ||
+                              OnHitEffectContext.CanSelectTarget(rulesetEffect, attacker, provider)) &&
                              rulesetEffect is RulesetEffectSpell spell &&
                              spell.SpellDefinition.SchoolOfMagic ==
                              RuleDefinitions.SchoolEvocation:
                     case RuleDefinitions.AdditionalDamageTriggerCondition.EvocationSpellDamage
-                        when (firstTarget || !provider.FirstTargetOnly) &&
+                        when (firstTarget || !provider.FirstTargetOnly ||
+                              OnHitEffectContext.CanSelectTarget(rulesetEffect, attacker, provider)) &&
                              rulesetEffect is RulesetEffectPower power &&
                              power.PowerDefinition.SurrogateToSpell &&
                              power.PowerDefinition.SurrogateToSpell.SchoolOfMagic ==
                              RuleDefinitions.SchoolEvocation:
                     case RuleDefinitions.AdditionalDamageTriggerCondition.SpellDamageMatchesSourceAncestry
-                        when (firstTarget || !provider.FirstTargetOnly) &&
+                        when (firstTarget || !provider.FirstTargetOnly ||
+                              OnHitEffectContext.CanSelectTarget(rulesetEffect, attacker, provider)) &&
                              rulesetEffect is RulesetEffectSpell &&
                              attacker.RulesetCharacter.HasAncestryMatchingDamageType(
                                  provider.RequiredAncestryType,
@@ -1368,7 +1585,8 @@ internal static class GLBM
                         break;
 
                     case RuleDefinitions.AdditionalDamageTriggerCondition.SpellDamagesTarget
-                        when (firstTarget || !provider.FirstTargetOnly) &&
+                        when (firstTarget || !provider.FirstTargetOnly ||
+                              OnHitEffectContext.CanSelectTarget(rulesetEffect, attacker, provider)) &&
                              rulesetEffect is RulesetEffectSpell spell:
                     {
                         // This check is for Warlock / invocation / agonizing blast
@@ -1445,6 +1663,13 @@ internal static class GLBM
             // ReSharper disable once InvertIf
             if (validTrigger && validProperty)
             {
+                if (OnHitEffectContext.TryDeferProvider(
+                        instance, attacker, defender, provider, actualEffectForms,
+                        reactionParams, attackMode, rulesetEffect, criticalHit))
+                {
+                    continue;
+                }
+
                 instance.ComputeAndNotifyAdditionalDamage(attacker, defender, provider, actualEffectForms,
                     reactionParams, attackMode, criticalHit);
                 instance.triggeredAdditionalDamageTags.Add(provider.NotificationTag);
@@ -1509,6 +1734,13 @@ internal static class GLBM
                     instance, attacker, defender, attackModifier, attackMode, rangedAttack,
                     advantageType,
                     actualEffectForms, rulesetEffect, criticalHit, firstTarget, out var reactionParams))
+            {
+                continue;
+            }
+
+            if (OnHitEffectContext.TryDeferProvider(
+                    instance, attacker, defender, provider, actualEffectForms,
+                    reactionParams, attackMode, rulesetEffect, criticalHit))
             {
                 continue;
             }

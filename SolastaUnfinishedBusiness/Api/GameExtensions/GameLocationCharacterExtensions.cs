@@ -364,7 +364,8 @@ public static class GameLocationCharacterExtensions
         GameLocationCharacter target,
         GameLocationCharacter waiter,
         Action<CharacterActionParams> reactionValidated = null,
-        GameLocationBattleManager battleManager = null)
+        GameLocationBattleManager battleManager = null,
+        string reactionDescription = null)
     {
         if (!TryGetReactionServices(out var actionService, out var implementationService, out battleManager,
                 battleManager))
@@ -376,6 +377,7 @@ public static class GameLocationCharacterExtensions
         var slotLevel = ruleCaster.GetLowestSlotLevelAndRepertoireToCastSpell(spell, out var repertoire);
 
         if (slotLevel < spell.SpellLevel || repertoire == null ||
+            !MetamagicContext.CanReachReactionSpellTarget(caster, spell, target) ||
             !LightingAndObscurementContext.IsMagicEffectValidIfHeavilyObscuredOrInNaturalDarkness(caster, spell, target))
         {
             yield break;
@@ -386,6 +388,7 @@ public static class GameLocationCharacterExtensions
             ActionModifiers = { new ActionModifier() },
             IntParameter = slotLevel,
             StringParameter = spell.Name,
+            StringParameter2 = reactionDescription,
             RulesetEffect = implementationService.InstantiateEffectSpell(ruleCaster, repertoire, spell, slotLevel, false),
             SpellRepertoire = repertoire,
             TargetCharacters = { target },
@@ -412,7 +415,9 @@ public static class GameLocationCharacterExtensions
         Action reactionValidated = null,
         Action reactionNotValidated = null,
         GameLocationBattleManager battleManager = null,
-        ICustomReactionResource resource = null)
+        ICustomReactionResource resource = null,
+        GameLocationCharacter target = null,
+        BaseDefinition effectDefinition = null)
     {
         if (!TryGetReactionManagers(out var actionManager, out battleManager, battleManager))
         {
@@ -423,7 +428,10 @@ public static class GameLocationCharacterExtensions
         {
             StringParameter = stringParameter, IsReactionEffect = actionId == ExtraActionId.DoNothingReaction
         };
-        var reactionRequest = new ReactionRequestCustom(type, reactionParams) { Resource = resource };
+        var reactionRequest = new ReactionRequestCustom(type, reactionParams, target, effectDefinition)
+        {
+            Resource = resource
+        };
         var count = actionManager.PendingReactionRequestGroups.Count;
 
         actionManager.AddInterruptRequest(reactionRequest);
@@ -448,7 +456,8 @@ public static class GameLocationCharacterExtensions
         string stringParameter,
         Action<GameLocationCharacter> reactionValidated = null,
         Action reactionNotValidated = null,
-        GameLocationBattleManager battleManager = null)
+        GameLocationBattleManager battleManager = null,
+        BaseDefinition effectDefinition = null)
     {
         if (!TryGetReactionManagers(out var actionManager, out battleManager, battleManager))
         {
@@ -467,7 +476,7 @@ public static class GameLocationCharacterExtensions
         {
             StringParameter = stringParameter
         };
-        var reactionRequest = new ReactionRequestSelectTarget(reactionParams, candidateList, type);
+        var reactionRequest = new ReactionRequestSelectTarget(reactionParams, candidateList, type, effectDefinition);
         var count = actionManager.PendingReactionRequestGroups.Count;
 
         actionManager.AddInterruptRequest(reactionRequest);

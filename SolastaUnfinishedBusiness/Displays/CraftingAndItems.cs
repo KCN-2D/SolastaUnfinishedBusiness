@@ -14,63 +14,91 @@ internal static class CraftingAndItems
 {
     private static readonly (string, Func<ItemDefinition, bool>)[] ItemsFilters =
     [
-        (Gui.Localize("MainMenu/&CharacterSourceToggleAllTitle"), _ => true),
-        (Gui.Localize("Equipment/&ItemTypeAmmunitionTitle"), a => a.IsAmmunition),
-        (Gui.Localize("MerchantCategory/&ArmorTitle"), a => a.IsArmor),
-        (Gui.Localize("MerchantCategory/&DocumentTitle"), a => a.IsDocument),
-        (Gui.Localize("Equipment/&ItemTypeSpellFocusTitle"), a => a.IsFocusItem),
-        (Gui.Localize("Screen/&TravelFoodTitle"), a => a.IsFood),
-        (Gui.Localize("Equipment/&ItemTypeLightSourceTitle"), a => a.IsLightSourceItem),
-        (Gui.Localize("Equipment/&SpellbookTitle"), a => a.IsSpellbook),
-        (Gui.Localize("Equipment/&ItemTypeStarterPackTitle"), a => a.IsStarterPack),
-        (Gui.Localize("Screen/&ProficiencyToggleToolTitle"), a => a.IsTool),
-        (Gui.Localize("Merchant/&DungeonMakerMagicalDevicesTitle"), a => a.IsUsableDevice),
-        (Gui.Localize("MerchantCategory/&WeaponTitle"), a => a.IsWeapon),
-        (Gui.Localize("Tooltip/&TagFactionRelicTitle"), a => a.IsFactionRelic)
+        ("MainMenu/&CharacterSourceToggleAllTitle", _ => true),
+        ("Equipment/&ItemTypeAmmunitionTitle", a => a.IsAmmunition),
+        ("MerchantCategory/&ArmorTitle", a => a.IsArmor),
+        ("MerchantCategory/&DocumentTitle", a => a.IsDocument),
+        ("Equipment/&ItemTypeSpellFocusTitle", a => a.IsFocusItem),
+        ("Screen/&TravelFoodTitle", a => a.IsFood),
+        ("Equipment/&ItemTypeLightSourceTitle", a => a.IsLightSourceItem),
+        ("Equipment/&SpellbookTitle", a => a.IsSpellbook),
+        ("Equipment/&ItemTypeStarterPackTitle", a => a.IsStarterPack),
+        ("Screen/&ProficiencyToggleToolTitle", a => a.IsTool),
+        ("Merchant/&DungeonMakerMagicalDevicesTitle", a => a.IsUsableDevice),
+        ("MerchantCategory/&WeaponTitle", a => a.IsWeapon),
+        ("Tooltip/&TagFactionRelicTitle", a => a.IsFactionRelic)
     ];
 
-    private static readonly string[] ItemsFiltersLabels = ItemsFilters.Select(x => x.Item1).ToArray();
+    private static string[] ItemsFiltersLabels = ItemsFilters.Select(x => Gui.Localize(x.Item1)).ToArray();
 
     private static readonly (string, Func<ItemDefinition, bool>)[] ItemsItemTagsFilters =
     [
         .. TagsDefinitions.AllItemTags
             .Select<string, (string, Func<ItemDefinition, bool>)>(x =>
-                (Gui.Localize($"Tooltip/&Tag{x}Title"), a => a.ItemTags.Contains(x)))
-            .AddItem((Gui.Localize("MainMenu/&CharacterSourceToggleAllTitle"), _ => true))
-            .OrderBy(x => x.Item1)
+                ($"Tooltip/&Tag{x}Title", a => a.ItemTags.Contains(x)))
+            .AddItem(("MainMenu/&CharacterSourceToggleAllTitle", _ => true))
+            .OrderBy(x => Gui.Localize(x.Item1))
     ];
 
     private static readonly int WeaponIndexItemFilters =
-        Array.FindIndex(ItemsFilters, x => x.Item1 == Gui.Localize("MerchantCategory/&WeaponTitle"));
+        Array.FindIndex(ItemsFilters, x => x.Item1 == "MerchantCategory/&WeaponTitle");
 
-    private static readonly string[] ItemsItemTagsFiltersLabels = ItemsItemTagsFilters.Select(x => x.Item1).ToArray();
+    private static readonly int AllTitleIndexItemTagsFilters =
+        Array.FindIndex(ItemsItemTagsFilters, x => x.Item1 == "MainMenu/&CharacterSourceToggleAllTitle");
+
+    private static string[] ItemsItemTagsFiltersLabels =
+        ItemsItemTagsFilters.Select(x => Gui.Localize(x.Item1)).ToArray();
 
     private static readonly (string, Func<ItemDefinition, bool>)[] ItemsWeaponTagsFilters =
     [
         .. TagsDefinitions.AllWeaponTags
             .Select<string, (string, Func<ItemDefinition, bool>)>(x =>
-                (Gui.Localize($"Tooltip/&Tag{x}Title"),
+                ($"Tooltip/&Tag{x}Title",
                     a => a.IsWeapon && a.WeaponDescription.WeaponTags.Contains(x)))
-            .AddItem((Gui.Localize("MainMenu/&CharacterSourceToggleAllTitle"), _ => true))
-            .AddItem((Gui.Localize("Tooltip/&TagRangeTitle"),
+            .AddItem(("MainMenu/&CharacterSourceToggleAllTitle", _ => true))
+            .AddItem(("Tooltip/&TagRangeTitle",
                 a => a.IsWeapon && a.WeaponDescription.WeaponTags.Contains("Range")))
-            .OrderBy(x => x.Item1)
+            .OrderBy(x => Gui.Localize(x.Item1))
     ];
 
     private static readonly int AllTitleIndexWeaponTagsFilters =
         Array.FindIndex(ItemsWeaponTagsFilters,
-            x => x.Item1 == Gui.Localize("MainMenu/&CharacterSourceToggleAllTitle"));
+            x => x.Item1 == "MainMenu/&CharacterSourceToggleAllTitle");
 
-    private static readonly string[] ItemsWeaponTagsFiltersLabels =
-        ItemsWeaponTagsFilters.Select(x => x.Item1).ToArray();
+    private static string[] ItemsWeaponTagsFiltersLabels =
+        ItemsWeaponTagsFilters.Select(x => Gui.Localize(x.Item1)).ToArray();
+
+    private static readonly GamingPlatformDefinitions.ContentPack[] ContentPacks =
+        Enum.GetValues(typeof(GamingPlatformDefinitions.ContentPack))
+            .Cast<GamingPlatformDefinitions.ContentPack>()
+            .Where(pack => pack != GamingPlatformDefinitions.ContentPack.Length)
+            .ToArray();
+
+    private static readonly bool[] AvailableContentPacks = new bool[ContentPacks.Length];
+    private static readonly GUIContent AddItemButton = new("+".Bold().Red());
+    private static ItemBrowserEntry[] _itemsCatalog;
+    private static ItemBrowserEntry[] _visibleItems;
+    private static object _itemsDatabase;
+    private static IGamingPlatformService _itemsPlatform;
+    private static int _itemsDefinitionCount;
+    private static string _itemsLanguage;
+    private static string _itemsFilterLanguage;
+    private static string _itemsSearchText;
+    private static (int category, int itemTag, int weaponTag) _itemsFilters;
+    private static int _itemsLastFrame = -1;
+    private static GUISkin _itemsSkin;
+    private static (int label, int button) _itemsFontSizes;
+    private static ItemBrowserEntry[] _itemsMeasured;
+    private static float _itemsContentWidth;
+    private static float _itemsRowHeight;
 
     private static Vector2 ItemPosition { get; set; } = Vector2.zero;
 
     private static int CurrentItemsFilterIndex { get; set; }
 
-    private static int CurrentItemsItemTagsFilterIndex { get; set; }
+    private static int CurrentItemsItemTagsFilterIndex { get; set; } = AllTitleIndexItemTagsFilters;
 
-    private static int CurrentItemsWeaponTagsFilterIndex { get; set; }
+    private static int CurrentItemsWeaponTagsFilterIndex { get; set; } = AllTitleIndexWeaponTagsFilters;
 
     private static string CurrentItemsSearchText = "";
 
@@ -82,6 +110,14 @@ internal static class CraftingAndItems
         DisplayGeneral();
         DisplayCrafting();
         DisplayLegendaryTweaks();
+
+        if (GUI.changed)
+        {
+            // Item settings can change titles, visibility or tags. Search and filter controls
+            // below only rebuild the matching rows, without localizing/sorting the catalog again.
+            _itemsCatalog = null;
+        }
+
         DisplayItems();
 
         UI.Label();
@@ -494,6 +530,7 @@ internal static class CraftingAndItems
 
         if (!Main.Settings.DisplayItemsToggle)
         {
+            _itemsCatalog = null;
             return;
         }
 
@@ -503,10 +540,13 @@ internal static class CraftingAndItems
 
         if (!characterInspectionScreen.Visible || characterInspectionScreen.externalContainer == null)
         {
+            _itemsCatalog = null;
             UI.Label(Gui.Localize("ModUi/&ItemsHelp1"));
 
             return;
         }
+
+        RefreshItemFilterLabels();
 
         using (UI.HorizontalScope())
         {
@@ -582,41 +622,139 @@ internal static class CraftingAndItems
 
     private static void DisplayItemsBox()
     {
-        var service = ServiceRepository.GetService<IGamingPlatformService>();
         var characterInspectionScreen = Gui.GuiService.GetScreen<CharacterInspectionScreen>();
         var rulesetItemFactoryService = ServiceRepository.GetService<IRulesetItemFactoryService>();
         var characterName = characterInspectionScreen.InspectedCharacter.Name;
 
-        var filter = CurrentItemsSearchText.ToLower();
-
-        var items = DatabaseRepository.GetDatabase<ItemDefinition>()
-            .Where(x => !x.guiPresentation.Hidden)
-            .Where(x => ItemsFilters[CurrentItemsFilterIndex].Item2(x))
-            .Where(x => ItemsItemTagsFilters[CurrentItemsItemTagsFilterIndex].Item2(x))
-            .Where(x => ItemsWeaponTagsFilters[CurrentItemsWeaponTagsFilterIndex].Item2(x))
-            .Where(x => service.IsContentPackAvailable(x.ContentPack))
-            .Where(x => string.IsNullOrEmpty(filter) || GuiItemTweaks.FormatTitle(x).ToLower().Contains(filter))
-            .OrderBy(GuiItemTweaks.FormatTitle);
-
-        using var scrollView =
-            new GUILayout.ScrollViewScope(ItemPosition, UI.AutoWidth(), UI.AutoHeight());
-
-        ItemPosition = scrollView.scrollPosition;
-
-        foreach (var item in items)
+        DrawItemsBox(item =>
         {
-            using (UI.HorizontalScope())
-            {
-                UI.ActionButton("+".Bold().Red(), () =>
-                    {
-                        var rulesetItem = rulesetItemFactoryService.CreateStandardItem(item, true, characterName);
+            var rulesetItem = rulesetItemFactoryService.CreateStandardItem(item, true, characterName);
 
-                        characterInspectionScreen.externalContainer.AddSubItem(rulesetItem);
-                    },
-                    UI.Width(30f));
+            characterInspectionScreen.externalContainer.AddSubItem(rulesetItem);
+        });
+    }
 
-                UI.Label(GuiItemTweaks.FormatTitle(item), UI.AutoWidth());
-            }
+    private static void RefreshItemFilterLabels()
+    {
+        var language = I2.Loc.LocalizationManager.CurrentLanguageCode;
+
+        if (_itemsFilterLanguage == language)
+        {
+            return;
         }
+
+        // Keep semantic indices stable when translated labels change their alphabetical order.
+        _itemsFilterLanguage = language;
+        ItemsFiltersLabels = ItemsFilters.Select(x => Gui.Localize(x.Item1)).ToArray();
+        ItemsItemTagsFiltersLabels = ItemsItemTagsFilters.Select(x => Gui.Localize(x.Item1)).ToArray();
+        ItemsWeaponTagsFiltersLabels = ItemsWeaponTagsFilters.Select(x => Gui.Localize(x.Item1)).ToArray();
+    }
+
+    private static ItemBrowserEntry[] RefreshItemBrowserCache(bool invalidate)
+    {
+        var database = DatabaseRepository.GetDatabase<ItemDefinition>();
+        var service = ServiceRepository.GetService<IGamingPlatformService>();
+        var language = I2.Loc.LocalizationManager.CurrentLanguageCode;
+        var definitionCount = database.ElementsCount;
+
+        for (var index = 0; index < ContentPacks.Length; index++)
+        {
+            var available = service.IsContentPackAvailable(ContentPacks[index]);
+
+            if (AvailableContentPacks[index] == available)
+            {
+                continue;
+            }
+
+            AvailableContentPacks[index] = available;
+            invalidate = true;
+        }
+
+        if (invalidate || _itemsCatalog == null || !ReferenceEquals(database, _itemsDatabase) ||
+            !ReferenceEquals(service, _itemsPlatform) || definitionCount != _itemsDefinitionCount ||
+            language != _itemsLanguage || Time.frameCount > _itemsLastFrame + 1)
+        {
+            // Localize and sort once, rather than for every Layout/Repaint/input event.
+            _itemsCatalog = database
+                .Where(x => !x.GuiPresentation.Hidden && service.IsContentPackAvailable(x.ContentPack))
+                .Select(x => new ItemBrowserEntry(x, GuiItemTweaks.FormatTitle(x)))
+                .OrderBy(x => x.Title.text)
+                .ToArray();
+            _itemsDatabase = database;
+            _itemsPlatform = service;
+            _itemsDefinitionCount = definitionCount;
+            _itemsLanguage = language;
+            _visibleItems = null;
+        }
+
+        _itemsLastFrame = Time.frameCount;
+
+        var filters = (CurrentItemsFilterIndex, CurrentItemsItemTagsFilterIndex, CurrentItemsWeaponTagsFilterIndex);
+
+        if (_visibleItems != null && filters == _itemsFilters && CurrentItemsSearchText == _itemsSearchText)
+        {
+            return _visibleItems;
+        }
+
+        _itemsFilters = filters;
+        _itemsSearchText = CurrentItemsSearchText;
+        _visibleItems = _itemsCatalog
+            .Where(x => ItemsFilters[CurrentItemsFilterIndex].Item2(x.Item))
+            .Where(x => ItemsItemTagsFilters[CurrentItemsItemTagsFilterIndex].Item2(x.Item))
+            .Where(x => CurrentItemsFilterIndex != WeaponIndexItemFilters ||
+                        ItemsWeaponTagsFilters[CurrentItemsWeaponTagsFilterIndex].Item2(x.Item))
+            .Where(x => string.IsNullOrEmpty(CurrentItemsSearchText) ||
+                        x.Title.text.IndexOf(CurrentItemsSearchText, StringComparison.CurrentCultureIgnoreCase) >= 0)
+            .ToArray();
+        ItemPosition = Vector2.zero;
+
+        return _visibleItems;
+    }
+
+    private static void DrawItemsBox(Action<ItemDefinition> addItem)
+    {
+        var items = RefreshItemBrowserCache(false);
+        var fontSizes = (GUI.skin.label.fontSize, GUI.skin.button.fontSize);
+
+        if (!ReferenceEquals(_itemsMeasured, items) || _itemsSkin != GUI.skin || _itemsFontSizes != fontSizes)
+        {
+            _itemsMeasured = items;
+            _itemsSkin = GUI.skin;
+            _itemsFontSizes = fontSizes;
+            _itemsContentWidth = 34f;
+            _itemsRowHeight = GUI.skin.button.CalcSize(AddItemButton).y;
+
+            foreach (var item in items)
+            {
+                var size = GUI.skin.label.CalcSize(item.Title);
+                _itemsContentWidth = Mathf.Max(_itemsContentWidth, size.x + 34f);
+                _itemsRowHeight = Mathf.Max(_itemsRowHeight, size.y);
+            }
+
+            _itemsRowHeight += 4f;
+        }
+
+        var position = ItemPosition;
+
+        UI.VirtualScrollList(ref position, items.Length, _itemsRowHeight, _itemsContentWidth,
+            (index, row) =>
+            {
+                var entry = items[index];
+
+                if (GUI.Button(new Rect(row.x, row.y, 30f, row.height - 4f), AddItemButton))
+                {
+                    addItem(entry.Item);
+                }
+
+                GUI.Label(new Rect(row.x + 34f, row.y, row.width - 34f, row.height - 4f), entry.Title);
+            }, UI.ExpandWidth(true), UI.Height(400f));
+
+        ItemPosition = position;
+    }
+
+    private sealed class ItemBrowserEntry(ItemDefinition item, string title)
+    {
+        internal readonly ItemDefinition Item = item;
+        internal readonly GUIContent Title = new(title);
     }
 }

@@ -18,6 +18,12 @@ public static class CharacterReactionSubitemPatcher
     public static class Bind_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(CharacterReactionSubitem __instance)
+        {
+            __instance.ClearReactionTargetChoice();
+        }
+
+        [UsedImplicitly]
         public static void Postfix(
             CharacterReactionSubitem __instance,
             RulesetSpellRepertoire spellRepertoire,

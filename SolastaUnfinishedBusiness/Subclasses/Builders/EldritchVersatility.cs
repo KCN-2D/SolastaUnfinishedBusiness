@@ -1168,7 +1168,8 @@ internal static class EldritchVersatilityBuilders
                 "CustomReactionEldritchAegis".Formatted(Category.Reaction, defender.Name),
                 ReactionValidated,
                 battleManager: battleManager,
-                resource: new ReactionResourceEldritchVersatilityPoints(requiredACAddition));
+                resource: new ReactionResourceEldritchVersatilityPoints(requiredACAddition),
+                target: defender);
 
             yield break;
 
@@ -1358,7 +1359,8 @@ internal static class EldritchVersatilityBuilders
                 "CustomReactionEldritchWard".Formatted(Category.Reaction, defender.Name),
                 ReactionValidated,
                 battleManager: battleManager,
-                resource: new ReactionResourceEldritchVersatilityPoints(requiredSaveAddition));
+                resource: new ReactionResourceEldritchVersatilityPoints(requiredSaveAddition),
+                target: defender);
 
             yield break;
 

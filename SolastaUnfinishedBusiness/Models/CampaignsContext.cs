@@ -11,9 +11,11 @@ using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Patches;
 using TA;
+using TMPro;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.EventSystems;
@@ -115,8 +117,13 @@ internal static class CampaignsContext
     private const float SpellSelectionBottomFallbackCanvasRatio = 0.22f;
     private const float SpellSelectionDragThresholdRatio = 0.35f;
     private const float SpellSelectionMargin = 12f;
+    private const float SpellSelectionControlsWidth = 40f;
+    private const float SpellSelectionBodyPadding = 16f;
+    private const float SpellSelectionCardGap = 10f;
+    private const int SpellSelectionPreferredCardColumns = 3;
 
     private static readonly List<RectTransform> SpellLineTables = [];
+    private static readonly HashSet<SpellSelectionPanelLayoutState> SpellSelectionPanelLayouts = [];
     private static readonly string[] LegacySpellSelectionRuntimeContainerNames =
     [
         "SpellSelection" + "Viewport",
@@ -125,11 +132,51 @@ internal static class CampaignsContext
     ];
     private static readonly Vector3[] SpellSelectionWorldCorners = new Vector3[4];
     private static SpellSelectionLinePager ActiveSpellSelectionLinePager { get; set; }
+    private static SpellSelectionLineRefreshScope ActiveSpellSelectionLineRefresh { get; set; }
     private static ItemPresentation EmpressGarbOriginalItemPresentation { get; set; }
 
     internal static bool ShouldSuppressSpellSelectionBackgroundWheel()
     {
         return ActiveSpellSelectionLinePager && ActiveSpellSelectionLinePager.ShouldSuppressBackgroundWheel();
+    }
+
+    internal static bool ShouldSuppressSpellSelectionBackgroundScroll(Component source)
+    {
+        return ActiveSpellSelectionLinePager &&
+               ActiveSpellSelectionLinePager.ShouldSuppressBackgroundWheel() &&
+               !ActiveSpellSelectionLinePager.IsForegroundControl(source);
+    }
+
+    internal static bool TryRouteSpellSelectionWheel(float delta)
+    {
+        return ActiveSpellSelectionLinePager && ActiveSpellSelectionLinePager.RouteWheel(delta);
+    }
+
+    private static bool TryRouteSpellSelectionWheelAt(float delta, Vector2 position)
+    {
+        return ActiveSpellSelectionLinePager && ActiveSpellSelectionLinePager.RouteWheelAt(delta, position);
+    }
+
+    internal static void CancelPendingSpellSelectionBind(SpellSelectionPanel panel)
+    {
+        var state = panel.GetComponent<SpellSelectionPanelLayoutState>();
+        if (state && state.HasPendingBind)
+        {
+            // Native Hide can return immediately for an already hidden panel. Its pending
+            // callback and ordinary bound state must still be released through native Unbind.
+            panel.Unbind();
+        }
+    }
+
+    internal static void PrepareNativeSpellSelectionBind(SpellSelectionPanel panel)
+    {
+        var state = panel.GetComponent<SpellSelectionPanelLayoutState>();
+        if (state && (state.IsApplied || state.HasPendingBind))
+        {
+            // The option can change while a custom picker is still bound. Return its native
+            // columns once and restore the holder/fitters before the ordinary Bind runs.
+            panel.Unbind();
+        }
     }
 
     internal static void ToggleVttCamera()
@@ -272,18 +319,29 @@ internal static class CampaignsContext
         }
     }
 
-    internal static void SpellSelectionPanelMultilineUnbind()
+    internal static void SpellSelectionPanelMultilineUnbind(SpellSelectionPanel panel)
     {
-        foreach (var spellTable in SpellLineTables.Where(spellTable => spellTable))
+        foreach (var pager in panel.GetComponentsInChildren<SpellSelectionLinePager>(true))
+        {
+            pager.DisablePager();
+        }
+
+        foreach (var spellTable in SpellLineTables.Where(table => table && table.IsChildOf(panel.transform)).ToArray())
         {
             SetSpellSelectionLineTableVisible(spellTable, true);
-            Gui.ReleaseChildrenToPool(spellTable);
+            ReleaseSpellSelectionRowLines(spellTable);
+            SpellLineTables.Remove(spellTable);
             spellTable.gameObject.SetActive(false);
             spellTable.SetParent(null);
             Object.Destroy(spellTable.gameObject);
         }
 
-        SpellLineTables.Clear();
+        SpellLineTables.RemoveAll(table => !table);
+        // An empty native row can be excluded from custom layout. The next native Bind must
+        // inherit an ordinary, visible table even when the multiline option is disabled.
+        SetSpellSelectionLineTableVisible(panel.spellRepertoireLinesTable, true);
+        panel.spellRepertoireLinesTable.parent.GetComponent<SpellSelectionHolderLayoutState>()?.Restore();
+        panel.GetComponent<SpellSelectionPanelLayoutState>()?.Restore();
     }
 
     internal static void SpellSelectionPanelMultilineBind(
@@ -295,8 +353,21 @@ internal static class CampaignsContext
     {
         if (Main.Settings.DisableMultilineSpellOffering)
         {
+            __instance.GetComponent<SpellSelectionPanelLayoutState>()?.CancelPendingBind();
             return;
         }
+
+        var panelLayout = __instance.GetComponent<SpellSelectionPanelLayoutState>() ??
+                          __instance.gameObject.AddComponent<SpellSelectionPanelLayoutState>();
+        if (!__instance.gameObject.activeInHierarchy)
+        {
+            // Native panels can bind while hidden. Inactive fitters and ancestor-component
+            // lookup cannot produce valid geometry; build once when native Show activates it.
+            panelLayout.DeferBind(__instance, spellCastEngaged, actionType, cantripOnly);
+            return;
+        }
+
+        panelLayout.CancelPendingBind();
 
         var spellRepertoireLines = __instance.spellRepertoireLines;
         var spellRepertoireSecondaryLine = __instance.spellRepertoireSecondaryLine;
@@ -309,7 +380,7 @@ internal static class CampaignsContext
         }
 
         spellRepertoireLines.Clear();
-        SpellSelectionPanelMultilineUnbind();
+        SpellSelectionPanelMultilineUnbind(__instance);
         Gui.ReleaseChildrenToPool(spellRepertoireLinesTable);
 
         var spellLineHolder = EnsureSpellSelectionLineHolder(spellRepertoireLinesTable) ?? spellRepertoireLinesTable;
@@ -318,38 +389,39 @@ internal static class CampaignsContext
         spellRepertoireSecondaryLine.Unbind();
         spellRepertoireSecondaryLine.gameObject.SetActive(false);
         SetSpellSelectionLineTableVisible(spellRepertoireLinesTable, true);
-        using var lineTableTemplate = new SpellSelectionLineTableTemplate(spellRepertoireLinesTable);
+        panelLayout.Apply(__instance);
         var spellRepertoires = SpellSelectionContext.GetRepertoires(__instance.Caster.RulesetCharacter).ToArray();
 
-        var needNewLine = true;
-        var lineIndex = 0;
-        var indexOfLine = 0;
-        var spellLevelsOnLine = 0;
         var curTable = spellRepertoireLinesTable;
+        Canvas.ForceUpdateCanvases();
+        var navigation = __instance.transform.Find("SpellSelectionNavigation");
+        var hasCanvas = TryGetCanvasLocalBounds(__instance.RectTransform, out _, out var canvasRect);
+        var safeCanvasBounds = hasCanvas ? GetSpellSelectionSafeCanvasBounds(__instance, canvasRect) : Rect.zero;
+        var maximumWidth = hasCanvas
+            ? safeCanvasBounds.width - SpellSelectionControlsWidth -
+              __instance.GetComponentsInChildren<Button>(true)
+                  .Where(button => !button.GetComponentInParent<SpellRepertoireLine>() &&
+                                   (!navigation || !button.transform.IsChildOf(navigation)))
+                  .Select(button => ((RectTransform)button.transform).rect.width)
+                  .DefaultIfEmpty(0f).Max() - SpellSelectionMargin - 2f * SpellSelectionBodyPadding
+            : float.MaxValue;
+        var maximumHeight = canvasRect
+            ? safeCanvasBounds.height - 2f * SpellSelectionBodyPadding
+            : float.MaxValue;
 
         foreach (var rulesetSpellRepertoire in spellRepertoires)
         {
-            var startLevel = 0;
             var maxLevel = rulesetSpellRepertoire.MaxSpellLevelOfSpellCastingLevel;
 
             SharedSpellsContext.FactorMysticArcanum(caster.RulesetCharacter, rulesetSpellRepertoire,
                 ref maxLevel);
 
-            for (var level = startLevel; level <= maxLevel; level++)
+            var levels = Enumerable.Range(0, cantripOnly ? 1 : maxLevel + 1)
+                .Where(level => SpellActionTypeContext.HasSpellOfLevelAndActionType(
+                    caster.RulesetCharacter, rulesetSpellRepertoire, level, actionType)).ToArray();
+
+            foreach (var level in levels)
             {
-                if (!SpellActionTypeContext.HasSpellOfLevelAndActionType(
-                        caster.RulesetCharacter, rulesetSpellRepertoire, level, actionType))
-                {
-                    continue;
-                }
-
-                spellLevelsOnLine++;
-
-                if (spellLevelsOnLine < 4) // Main.Settings.MaxSpellLevelsPerLine)
-                {
-                    continue;
-                }
-
                 curTable = AddActiveSpellsToLine(
                     __instance,
                     spellCastEngaged,
@@ -357,63 +429,44 @@ internal static class CampaignsContext
                     cantripOnly,
                     spellRepertoireLines,
                     curTable,
-                    lineTableTemplate.Table,
                     slotAdvancementPanel,
-                    spellRepertoires,
-                    needNewLine,
-                    lineIndex,
-                    indexOfLine,
                     rulesetSpellRepertoire,
-                    startLevel,
+                    level,
                     level);
 
-                startLevel = level + 1;
-                lineIndex++;
-                spellLevelsOnLine = 0;
-                needNewLine = true;
-                indexOfLine = 0;
+                // Keep each native level and its resource owner intact. Source grouping below
+                // packs its actual card widths beneath a single acquisition heading.
+                ConfigureMultilineSpellSelectionLine(
+                    curTable.GetComponentInChildren<SpellRepertoireLine>(), maximumWidth, maximumHeight);
             }
-
-            if (spellLevelsOnLine == 0)
-            {
-                continue;
-            }
-
-            curTable = AddActiveSpellsToLine(
-                __instance,
-                spellCastEngaged,
-                actionType,
-                cantripOnly,
-                spellRepertoireLines,
-                curTable,
-                lineTableTemplate.Table,
-                slotAdvancementPanel,
-                spellRepertoires,
-                needNewLine,
-                lineIndex,
-                indexOfLine,
-                rulesetSpellRepertoire,
-                startLevel,
-                maxLevel);
-
-            needNewLine = false;
-            indexOfLine++;
         }
 
-        LayoutRebuilder.ForceRebuildLayoutImmediate(curTable);
+        // The native qualifier can exclude a source whose initial readiness estimate included it.
+        // Retain the reusable native table, but omit empty source headings from the final layout.
+        foreach (var emptyLine in spellRepertoireLines.Where(line => line.SpellsByLevelBoxes.Count == 0).ToArray())
+        {
+            var emptyTable = emptyLine.transform.parent as RectTransform;
+            spellRepertoireLines.Remove(emptyLine);
+            emptyLine.Unbind();
+            Gui.ReleaseChildrenToPool(emptyTable);
+            SetSpellSelectionLineTableVisible(emptyTable, false);
+            if (emptyTable != spellRepertoireLinesTable)
+            {
+                SpellLineTables.Remove(emptyTable);
+                emptyTable.gameObject.SetActive(false);
+                emptyTable.SetParent(null);
+                Object.Destroy(emptyTable.gameObject);
+            }
+        }
+
+        GroupSpellSelectionSourceRows(__instance, spellLineHolder, maximumWidth);
+        SetSpellSelectionLineTableVisible(spellRepertoireLinesTable, false);
+        LayoutRebuilder.ForceRebuildLayoutImmediate(spellLineHolder);
         __instance.RectTransform.SetSizeWithCurrentAnchors(
             RectTransform.Axis.Horizontal,
             spellRepertoireLinesTable.rect.width);
 
-        var pagerMetrics = ConfigureSpellSelectionLinePager(__instance, spellLineHolder);
-
-        __instance.RectTransform.SetSizeWithCurrentAnchors(
-            RectTransform.Axis.Horizontal,
-            Mathf.Max(pagerMetrics.VisibleWidth, spellRepertoireLinesTable.rect.width, spellLineHolder.rect.width));
-        __instance.RectTransform.SetSizeWithCurrentAnchors(
-            RectTransform.Axis.Vertical,
-            Mathf.Max(pagerMetrics.VisibleHeight, spellLineHolder.rect.height));
-        LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.RectTransform);
+        ConfigureSpellSelectionLinePager(__instance, spellLineHolder);
 
         FloatingPanelBounds.ClampToScreen(__instance.RectTransform);
         FloatingPanelBounds.ClampToScreenForNextFrames(__instance, __instance.RectTransform);
@@ -425,27 +478,117 @@ internal static class CampaignsContext
 
         var holder = spellRepertoireLinesTable.parent as RectTransform;
 
-        if (holder && holder.GetComponent<VerticalLayoutGroup>())
+        var panelRoot = spellRepertoireLinesTable.GetComponentInParent<SpellSelectionPanel>().RectTransform;
+        if (holder && holder != panelRoot && holder.GetComponent<VerticalLayoutGroup>())
         {
             RestoreSpellSelectionHolderLayout(holder);
+            ConfigureSpellSelectionHolder(holder);
             return holder;
         }
 
         holder = new GameObject("SpellSelectionLineHolder", typeof(RectTransform)).GetComponent<RectTransform>();
+        holder.gameObject.layer = spellRepertoireLinesTable.gameObject.layer;
 
         var verticalLayoutGroup = holder.gameObject.AddComponent<VerticalLayoutGroup>();
 
         verticalLayoutGroup.spacing = 10;
-        holder.gameObject.AddComponent<ContentSizeFitter>();
+        verticalLayoutGroup.childAlignment = TextAnchor.UpperLeft;
+        verticalLayoutGroup.childForceExpandWidth = false;
+        verticalLayoutGroup.childForceExpandHeight = false;
+        verticalLayoutGroup.childControlWidth = true;
+        verticalLayoutGroup.childControlHeight = true;
+        var fitter = holder.gameObject.AddComponent<ContentSizeFitter>();
+        fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         holder.SetParent(spellRepertoireLinesTable.parent, true);
         holder.SetAsFirstSibling();
         holder.localScale = Vector3.one;
+        ConfigureSpellSelectionHolder(holder);
         spellRepertoireLinesTable.SetParent(holder, true);
 
         return holder;
     }
 
-    private static SpellSelectionPagerMetrics ConfigureSpellSelectionLinePager(
+    private static void ConfigureSpellSelectionHolder(RectTransform holder)
+    {
+        // Native holders center their children. Fix both the holder origin and its layout
+        // so short feat rows and subsequent pages share the first class row's left edge.
+        (holder.GetComponent<SpellSelectionHolderLayoutState>() ??
+         holder.gameObject.AddComponent<SpellSelectionHolderLayoutState>()).Capture(holder);
+        var layout = holder.GetComponent<VerticalLayoutGroup>();
+        layout.childAlignment = TextAnchor.UpperLeft;
+        layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+        layout.childControlWidth = layout.childControlHeight = true;
+        holder.anchorMin = holder.anchorMax = new Vector2(0f, 1f);
+        holder.pivot = new Vector2(0f, 1f);
+        holder.anchoredPosition = new Vector2(SpellSelectionBodyPadding, -SpellSelectionBodyPadding);
+    }
+
+    private sealed class SpellSelectionHolderLayoutState : MonoBehaviour
+    {
+        private RectTransform _holder;
+        private VerticalLayoutGroup _layout;
+        private Vector2 _anchorMin, _anchorMax, _pivot, _position;
+        private TextAnchor _alignment;
+        private bool _expandWidth, _expandHeight, _controlWidth, _controlHeight;
+
+        internal void Capture(RectTransform holder)
+        {
+            if (_holder)
+            {
+                return;
+            }
+
+            _holder = holder;
+            _anchorMin = holder.anchorMin;
+            _anchorMax = holder.anchorMax;
+            _pivot = holder.pivot;
+            _position = holder.anchoredPosition;
+            var layout = holder.GetComponent<VerticalLayoutGroup>();
+            _layout = layout;
+            _alignment = layout.childAlignment;
+            _expandWidth = layout.childForceExpandWidth;
+            _expandHeight = layout.childForceExpandHeight;
+            _controlWidth = layout.childControlWidth;
+            _controlHeight = layout.childControlHeight;
+        }
+
+        internal void EnsureApplied()
+        {
+            var origin = new Vector2(0f, 1f);
+            var position = new Vector2(SpellSelectionBodyPadding, -SpellSelectionBodyPadding);
+            if (_holder && (_holder.anchorMin != origin || _holder.anchorMax != origin ||
+                            _holder.pivot != origin || _holder.anchoredPosition != position ||
+                            _layout.childAlignment != TextAnchor.UpperLeft || _layout.childForceExpandWidth ||
+                            _layout.childForceExpandHeight || !_layout.childControlWidth || !_layout.childControlHeight))
+            {
+                ConfigureSpellSelectionHolder(_holder);
+            }
+        }
+
+        internal void Restore()
+        {
+            if (!_holder)
+            {
+                return;
+            }
+
+            _holder.anchorMin = _anchorMin;
+            _holder.anchorMax = _anchorMax;
+            _holder.pivot = _pivot;
+            _holder.anchoredPosition = _position;
+            var layout = _holder.GetComponent<VerticalLayoutGroup>();
+            layout.childAlignment = _alignment;
+            layout.childForceExpandWidth = _expandWidth;
+            layout.childForceExpandHeight = _expandHeight;
+            layout.childControlWidth = _controlWidth;
+            layout.childControlHeight = _controlHeight;
+            _holder = null;
+            _layout = null;
+        }
+    }
+
+    private static void ConfigureSpellSelectionLinePager(
         SpellSelectionPanel panel,
         RectTransform holder)
     {
@@ -492,31 +635,14 @@ internal static class CampaignsContext
         {
             DisableSpellSelectionLinePager(holder);
 
-            return new SpellSelectionPagerMetrics(
-                0f,
-                0f);
+            return;
         }
 
-        var visibleRows = CalculateVisibleSpellSelectionRows(rowHeights, spacing, availableHeight);
-        var pagerEnabled = visibleRows < lineTables.Length;
-        var visibleHeight = GetVisibleSpellSelectionRowsHeight(rowHeights, spacing, 0, visibleRows);
+        var visibleRows = CalculateVisibleSpellSelectionRows(rowHeights, spacing,
+            Mathf.Max(1f, availableHeight - 2f * SpellSelectionBodyPadding));
         var pager = holder.GetComponent<SpellSelectionLinePager>() ?? holder.gameObject.AddComponent<SpellSelectionLinePager>();
 
-        if (pagerEnabled)
-        {
-            pager.Configure(panel, holder, lineTables, rowHeights, spacing, visibleRows, safeCanvasBounds, canvasRect);
-        }
-        else
-        {
-            pager.DisablePager();
-            SetAllSpellSelectionLineTablesVisible(holder, true);
-        }
-
-        RefreshSpellSelectionPanelSize(panel, holder, contentWidth, visibleHeight, safeCanvasBounds, canvasRect);
-
-        return new SpellSelectionPagerMetrics(
-            contentWidth,
-            visibleHeight);
+        pager.Configure(panel, holder, lineTables, rowHeights, spacing, visibleRows, safeCanvasBounds, canvasRect);
     }
 
     private static void RestoreSpellSelectionLineTableHierarchy(RectTransform spellRepertoireLinesTable)
@@ -576,17 +702,82 @@ internal static class CampaignsContext
     private static Rect GetSpellSelectionSafeCanvasBounds(SpellSelectionPanel panel, RectTransform canvasRect)
     {
         var canvasBounds = GetInsetCanvasRect(canvasRect, SpellSelectionMargin);
-        var safeBottom = canvasBounds.yMin + canvasBounds.height * SpellSelectionBottomFallbackCanvasRatio;
-        var actionPanel = panel.GetComponentInParent<CharacterActionPanel>();
-
-        if (actionPanel &&
-            TryGetCanvasLocalBounds(actionPanel.RectTransform, canvasRect, out var actionPanelBounds) &&
-            actionPanelBounds.height > 1f)
+        var state = panel.GetComponent<SpellSelectionPanelLayoutState>();
+        var bounds = new List<Rect>();
+        foreach (var blocker in state.GetHudBlocks(canvasRect))
         {
-            safeBottom = Mathf.Max(canvasBounds.yMin, actionPanelBounds.yMax + SpellSelectionMargin);
+            if (!blocker.Visible || !blocker.Rect || blocker.Rect.IsChildOf(panel.transform) ||
+                !TryGetCanvasLocalBounds(blocker.Rect, canvasRect, out var blocked) || blocked.width <= 1f ||
+                blocked.height <= 1f || !canvasBounds.Overlaps(blocked))
+            {
+                continue;
+            }
+
+            bounds.Add(Rect.MinMaxRect(blocked.xMin - SpellSelectionMargin, blocked.yMin - SpellSelectionMargin,
+                blocked.xMax + SpellSelectionMargin, blocked.yMax + SpellSelectionMargin));
         }
 
-        return Rect.MinMaxRect(canvasBounds.xMin, safeBottom, canvasBounds.xMax, canvasBounds.yMax);
+        if (bounds.Count == 0)
+        {
+            // Standalone previews do not instantiate the action bar. Reserve its usual region.
+            canvasBounds.yMin += canvasBounds.height * SpellSelectionBottomFallbackCanvasRatio;
+            return canvasBounds;
+        }
+
+        // Pick the largest rectangle which contains no visible HUD block. Measuring actual tables
+        // avoids treating the action panel (which also owns this picker) as one giant obstruction.
+        var candidates = new List<Rect> { canvasBounds };
+        foreach (var blocked in bounds)
+        {
+            var next = new List<Rect>();
+            foreach (var available in candidates)
+            {
+                if (!available.Overlaps(blocked))
+                {
+                    next.Add(available);
+                    continue;
+                }
+
+                if (blocked.xMin > available.xMin)
+                {
+                    next.Add(Rect.MinMaxRect(available.xMin, available.yMin,
+                        Mathf.Min(blocked.xMin, available.xMax), available.yMax));
+                }
+                if (blocked.xMax < available.xMax)
+                {
+                    next.Add(Rect.MinMaxRect(Mathf.Max(blocked.xMax, available.xMin), available.yMin,
+                        available.xMax, available.yMax));
+                }
+                if (blocked.yMin > available.yMin)
+                {
+                    next.Add(Rect.MinMaxRect(available.xMin, available.yMin, available.xMax,
+                        Mathf.Min(blocked.yMin, available.yMax)));
+                }
+                if (blocked.yMax < available.yMax)
+                {
+                    next.Add(Rect.MinMaxRect(available.xMin, Mathf.Max(blocked.yMax, available.yMin),
+                        available.xMax, available.yMax));
+                }
+            }
+
+            candidates = next.Where(rect => rect.width > 1f && rect.height > 1f).Distinct().ToList();
+        }
+
+        return candidates.OrderByDescending(rect => rect.width * rect.height).FirstOrDefault();
+    }
+
+    internal static void InvalidateSpellSelectionHud(Component shownPanel)
+    {
+        // Screen Show is not a geometry event for unrelated spell/resource popups or
+        // tooltips. Only a newly shown HUD owner can introduce uncached HUD rectangles.
+        if (shownPanel is CharacterActionPanel or CharacterControlPanel or BattleInitiativeTable or
+            PartyControlPanel or TimeAndNavigationPanel or GuiConsoleScreen)
+        {
+            foreach (var state in SpellSelectionPanelLayouts)
+            {
+                state.InvalidateHud(shownPanel);
+            }
+        }
     }
 
     private static void RestoreSpellSelectionHolderLayout(RectTransform holder)
@@ -639,11 +830,20 @@ internal static class CampaignsContext
         var canvasGroup = lineTable.GetComponent<CanvasGroup>() ?? lineTable.gameObject.AddComponent<CanvasGroup>();
         var layoutElement = lineTable.GetComponent<LayoutElement>() ?? lineTable.gameObject.AddComponent<LayoutElement>();
 
-        canvasGroup.alpha = visible ? 1f : 0f;
+        if (canvasGroup.alpha != (visible ? 1f : 0f))
+        {
+            canvasGroup.alpha = visible ? 1f : 0f;
+        }
         canvasGroup.blocksRaycasts = visible;
         canvasGroup.interactable = visible;
-        layoutElement.ignoreLayout = !visible;
-        lineTable.gameObject.SetActive(true);
+        if (layoutElement.ignoreLayout == visible)
+        {
+            layoutElement.ignoreLayout = !visible;
+        }
+        if (!lineTable.gameObject.activeSelf)
+        {
+            lineTable.gameObject.SetActive(true);
+        }
     }
 
     private static void DisableSpellSelectionLinePager(RectTransform holder)
@@ -722,6 +922,11 @@ internal static class CampaignsContext
 
     private static float GetSpellSelectionLineTableHeight(RectTransform lineTable)
     {
+        if (lineTable.name == "SpellSelectionSourceRow")
+        {
+            return LayoutUtility.GetPreferredHeight(lineTable);
+        }
+
         var bounds = GetChildrenLocalBounds(lineTable);
 
         return Mathf.Max(GetPreferredHeight(lineTable), bounds.height, lineTable.rect.height);
@@ -729,6 +934,11 @@ internal static class CampaignsContext
 
     private static float GetSpellSelectionLineTableWidth(RectTransform lineTable)
     {
+        if (lineTable.name == "SpellSelectionSourceRow")
+        {
+            return LayoutUtility.GetPreferredWidth(lineTable);
+        }
+
         var bounds = GetChildrenLocalBounds(lineTable);
 
         return Mathf.Max(GetPreferredWidth(lineTable), bounds.width, lineTable.rect.width);
@@ -747,8 +957,8 @@ internal static class CampaignsContext
             return;
         }
 
-        var panelWidth = Mathf.Max(1f, width);
-        var panelHeight = Mathf.Max(1f, height);
+        var panelWidth = Mathf.Max(1f, width + 2f * SpellSelectionBodyPadding);
+        var panelHeight = Mathf.Max(1f, height + 2f * SpellSelectionBodyPadding);
 
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(holder);
@@ -844,12 +1054,12 @@ internal static class CampaignsContext
         bounds = default;
         canvasRect = null;
 
-        if (!rectTransform || !rectTransform.gameObject.activeInHierarchy)
+        if (!rectTransform)
         {
             return false;
         }
 
-        var canvas = rectTransform.GetComponentInParent<Canvas>();
+        var canvas = rectTransform.GetComponentsInParent<Canvas>(true).FirstOrDefault();
 
         if (!canvas)
         {
@@ -865,7 +1075,7 @@ internal static class CampaignsContext
     {
         bounds = default;
 
-        if (!rectTransform || !canvasRect || !rectTransform.gameObject.activeInHierarchy)
+        if (!rectTransform || !canvasRect)
         {
             return false;
         }
@@ -885,6 +1095,34 @@ internal static class CampaignsContext
         bounds = Rect.MinMaxRect(min.x, min.y, max.x, max.y);
 
         return true;
+    }
+
+    private static bool IsActiveWithin(Transform child, Transform root)
+    {
+        while (child && child != root)
+        {
+            if (!child.gameObject.activeSelf)
+            {
+                return false;
+            }
+
+            child = child.parent;
+        }
+
+        return child == root;
+    }
+
+    private static TextMeshProUGUI CreateSpellSelectionText(RectTransform rect)
+    {
+        // TMP's native Awake replaces sizeDelta with its default text-container size.
+        // Keep the geometry assigned by this layout, including stretched footer/button labels.
+        var size = rect.sizeDelta;
+        var position = rect.anchoredPosition;
+        var text = rect.gameObject.AddComponent<TextMeshProUGUI>();
+        text.autoSizeTextContainer = false;
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
+        return text;
     }
 
     private static Rect GetInsetCanvasRect(RectTransform canvasRect, float margin)
@@ -914,12 +1152,459 @@ internal static class CampaignsContext
             : 0f;
     }
 
-    private readonly struct SpellSelectionPagerMetrics(
-        float visibleWidth,
-        float visibleHeight)
+    private sealed class SpellSelectionHudBlock
     {
-        internal readonly float VisibleWidth = visibleWidth;
-        internal readonly float VisibleHeight = visibleHeight;
+        private readonly Behaviour _owner;
+        private readonly Func<RectTransform> _rectangle;
+        private readonly Func<bool> _ownerVisible;
+        private Transform _parent;
+        private Transform[] _ancestors = [];
+        private Transform[] _ancestorParents = [];
+        private CanvasGroup[] _groups = [];
+        private Rect _bounds;
+        private Matrix4x4 _matrix;
+
+        internal RectTransform Rect { get; private set; }
+        internal bool Visible { get; private set; }
+
+        internal bool HasOwner(Component owner) => _owner == owner;
+
+        internal SpellSelectionHudBlock(Behaviour owner, Func<RectTransform> rectangle, Func<bool> ownerVisible = null)
+        {
+            _owner = owner;
+            _rectangle = rectangle;
+            _ownerVisible = ownerVisible;
+        }
+
+        internal bool Update()
+        {
+            var rectangle = _owner ? _rectangle() : null;
+            var changed = rectangle != Rect;
+            var hierarchyChanged = rectangle && rectangle.parent != _parent;
+            for (var index = 0; !hierarchyChanged && index < _ancestors.Length; index++)
+            {
+                hierarchyChanged = !_ancestors[index] || _ancestors[index].parent != _ancestorParents[index];
+            }
+            if (changed || hierarchyChanged)
+            {
+                Rect = rectangle;
+                _parent = rectangle ? rectangle.parent : null;
+                _groups = rectangle ? rectangle.GetComponentsInParent<CanvasGroup>(true) : [];
+                var ancestors = new List<Transform>();
+                for (var ancestor = rectangle ? rectangle.parent : null; ancestor; ancestor = ancestor.parent)
+                {
+                    ancestors.Add(ancestor);
+                }
+                _ancestors = ancestors.ToArray();
+                _ancestorParents = _ancestors.Select(ancestor => ancestor.parent).ToArray();
+                changed = true;
+            }
+
+            var visible = _owner && _owner.isActiveAndEnabled && (_ownerVisible == null || _ownerVisible()) &&
+                          rectangle && rectangle.gameObject.scene.IsValid() && rectangle.gameObject.activeInHierarchy;
+            if (visible)
+            {
+                foreach (var group in _groups)
+                {
+                    if (group && group.alpha <= 0.001f)
+                    {
+                        visible = false;
+                        break;
+                    }
+                }
+            }
+
+            changed |= visible != Visible;
+            Visible = visible;
+            if (visible)
+            {
+                var matrix = rectangle.localToWorldMatrix;
+                var bounds = rectangle.rect;
+                changed |= !_matrix.Equals(matrix) || _bounds != bounds;
+                _matrix = matrix;
+                _bounds = bounds;
+            }
+
+            return changed;
+        }
+    }
+
+    private sealed class SpellSelectionPanelLayoutState : MonoBehaviour
+    {
+        private SpellSelectionPanel _panel;
+        private SpellSelectionPanel _pendingPanel;
+        private SpellsByLevelBox.SpellCastEngagedHandler _pendingCallback;
+        private ActionDefinitions.ActionType _pendingActionType;
+        private bool _pendingCantripOnly;
+        private RectTransform _backdrop;
+        private RectTransform _body;
+        private Vector2 _size;
+        private Vector2 _position;
+        private RectTransform _canvasRect;
+        private SpellSelectionHolderLayoutState _holderState;
+        private bool _backdropDirty;
+        private Matrix4x4 _panelMatrix, _canvasMatrix;
+        private Rect _panelRect, _canvasBounds;
+        private readonly List<SpellSelectionHudBlock> _hudBlocks = new();
+        private bool _hudDiscoveryDirty = true;
+        private RectTransform _hudCanvas;
+        private Matrix4x4 _hudCanvasMatrix;
+        private Rect _hudCanvasBounds;
+        private int _hudCanvasChildren;
+        private readonly Dictionary<LayoutGroup, bool> _layouts = new();
+
+        internal bool HasPendingBind => _pendingPanel;
+        internal bool IsApplied => _panel;
+
+        internal void DeferBind(SpellSelectionPanel panel,
+            SpellsByLevelBox.SpellCastEngagedHandler callback, ActionDefinitions.ActionType actionType,
+            bool cantripOnly)
+        {
+            // A second Bind replaces the pending choice rather than constructing hidden UI.
+            _pendingPanel = panel;
+            _pendingCallback = callback;
+            _pendingActionType = actionType;
+            _pendingCantripOnly = cantripOnly;
+            enabled = true;
+        }
+
+        internal void CancelPendingBind()
+        {
+            _pendingPanel = null;
+            _pendingCallback = null;
+            _pendingActionType = default;
+            _pendingCantripOnly = false;
+            if (!_panel)
+            {
+                enabled = false;
+            }
+        }
+
+        private void OnEnable()
+        {
+            if (!_pendingPanel || !_pendingPanel.gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            var panel = _pendingPanel;
+            var callback = _pendingCallback;
+            var actionType = _pendingActionType;
+            var cantripOnly = _pendingCantripOnly;
+            CancelPendingBind();
+            if (Main.Settings.DisableMultilineSpellOffering)
+            {
+                // The option may change between hidden Bind and Show. Re-enter the existing
+                // native Bind path with the current caster/cancel callback and latest arguments.
+                panel.Bind(panel.Caster, panel.SpellcastCancelled, callback, actionType, cantripOnly);
+            }
+            else
+            {
+                SpellSelectionPanelMultilineBind(panel, panel.Caster, callback, actionType, cantripOnly);
+            }
+        }
+
+        internal void Apply(SpellSelectionPanel panel)
+        {
+            Restore();
+            _panel = panel;
+            SpellSelectionPanelLayouts.Add(this);
+            _size = panel.RectTransform.sizeDelta;
+            _position = panel.RectTransform.anchoredPosition;
+            var canvas = panel.GetComponentsInParent<Canvas>(true).FirstOrDefault();
+            _canvasRect = canvas ? (canvas.rootCanvas ? canvas.rootCanvas : canvas).transform as RectTransform : null;
+            _holderState = panel.spellRepertoireLinesTable.parent.GetComponent<SpellSelectionHolderLayoutState>();
+            _backdropDirty = true;
+            enabled = true;
+            foreach (var layout in panel.GetComponents<LayoutGroup>())
+            {
+                _layouts[layout] = layout.enabled;
+                layout.enabled = false;
+            }
+
+            // Native screens share their parent canvas and raycaster. Adding a nested canvas
+            // makes its graphics compete in a separate depth domain with later native popups.
+
+            if (!_backdrop)
+            {
+                _backdrop = CreateBackground("SpellSelectionBackdrop", panel, new Color(0f, 0f, 0f, 0.18f));
+                _backdrop.GetComponent<Image>().raycastTarget = false;
+                _body = CreateBackground("SpellSelectionBody", panel, Color.white);
+                ApplyNativePanelAppearance(_body.GetComponent<Image>(), panel);
+                _body.gameObject.AddComponent<SpellSelectionWheelSurface>();
+                _body.anchorMin = Vector2.zero;
+                _body.anchorMax = Vector2.one;
+                _body.offsetMin = _body.offsetMax = Vector2.zero;
+            }
+
+            _body.SetAsFirstSibling();
+            _backdrop.SetAsFirstSibling();
+            _body.gameObject.SetActive(true);
+            _backdrop.gameObject.SetActive(true);
+            UpdateBackdrop();
+        }
+
+        internal void InvalidateHud(Component owner)
+        {
+            if (_hudCanvas && !owner.transform.IsChildOf(_hudCanvas))
+            {
+                return;
+            }
+
+            if (!_hudBlocks.Any(block => block.HasOwner(owner)))
+            {
+                _hudDiscoveryDirty = true;
+            }
+        }
+
+        internal bool HudBoundsChanged(RectTransform canvas)
+        {
+            var changed = _hudDiscoveryDirty || canvas != _hudCanvas ||
+                          canvas && canvas.childCount != _hudCanvasChildren;
+            if (changed)
+            {
+                DiscoverHudBlocks();
+            }
+
+            foreach (var block in _hudBlocks)
+            {
+                changed |= block.Update();
+            }
+
+            if (canvas)
+            {
+                var matrix = canvas.localToWorldMatrix;
+                var bounds = canvas.rect;
+                changed |= !_hudCanvasMatrix.Equals(matrix) || _hudCanvasBounds != bounds;
+                _hudCanvas = canvas;
+                _hudCanvasMatrix = matrix;
+                _hudCanvasBounds = bounds;
+                _hudCanvasChildren = canvas.childCount;
+            }
+
+            return changed;
+        }
+
+        internal IEnumerable<SpellSelectionHudBlock> GetHudBlocks(RectTransform canvas)
+        {
+            HudBoundsChanged(canvas);
+            return _hudBlocks;
+        }
+
+        private void DiscoverHudBlocks()
+        {
+            _hudDiscoveryDirty = false;
+            _hudBlocks.Clear();
+            if (!_canvasRect)
+            {
+                return;
+            }
+
+            // Resolve HUD owners in the picker's native presentation tree. One local traversal
+            // includes inactive HUD screens without six scans of all loaded objects/prefabs.
+            foreach (var component in _canvasRect.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                switch (component)
+                {
+                    case CharacterActionPanel action:
+                        _hudBlocks.Add(new SpellSelectionHudBlock(action,
+                            () => action.characterActionsTable ? action.characterActionsTable.RectTransform : null,
+                            () => action.Visible));
+                        _hudBlocks.Add(new SpellSelectionHudBlock(action, () => action.actionPerformanceTable,
+                            () => action.Visible));
+                        break;
+                    case CharacterControlPanel control:
+                        _hudBlocks.Add(new SpellSelectionHudBlock(control,
+                            () => control.activeCharacterPanel ? control.activeCharacterPanel.RectTransform : null));
+                        break;
+                    case BattleInitiativeTable table:
+                        _hudBlocks.Add(new SpellSelectionHudBlock(table, () => table.characterPlatesTable));
+                        break;
+                    case PartyControlPanel party:
+                        _hudBlocks.Add(new SpellSelectionHudBlock(party, () => party.partyPlatesTable));
+                        _hudBlocks.Add(new SpellSelectionHudBlock(party, () => party.guestPlatesTable));
+                        break;
+                    case TimeAndNavigationPanel navigation:
+                        _hudBlocks.Add(new SpellSelectionHudBlock(navigation, () => navigation.RectTransform));
+                        break;
+                    case GuiConsoleScreen console:
+                        _hudBlocks.Add(new SpellSelectionHudBlock(console, () => console.viewport, () => console.Visible));
+                        break;
+                }
+            }
+        }
+
+        private static RectTransform CreateBackground(string name, SpellSelectionPanel panel, Color color)
+        {
+            var rect = (RectTransform)new GameObject(name, typeof(RectTransform)).transform;
+            rect.gameObject.layer = panel.gameObject.layer;
+            rect.SetParent(panel.transform, false);
+            rect.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            rect.gameObject.AddComponent<Image>().color = color;
+            return rect;
+        }
+
+        private static void ApplyNativePanelAppearance(Image body, SpellSelectionPanel panel)
+        {
+            // This native spell column owns the same blur, background and frame used by the
+            // picker. Copy that stack in its native order, keeping the assets and palette.
+            var nativeLine = panel.spellRepertoireSecondaryLine;
+            var metamagicPanel = Gui.GuiService?.GetScreen<MetamagicSelectionPanel>();
+            var owners = new[]
+            {
+                nativeLine ? nativeLine.uniqueLevelSlotsGroup : null,
+                metamagicPanel ? metamagicPanel.RectTransform : null
+            };
+            foreach (var owner in owners.Where(owner => owner))
+            {
+                var images = owner.GetComponentsInChildren<Image>(true)
+                    .Where(image => image.sprite && image.color.a > 0f &&
+                                    !image.GetComponentInParent<Selectable>() &&
+                                    !image.GetComponentInParent<MetamagicOptionItem>() &&
+                                    TryGetCanvasLocalBounds(image.rectTransform, owner, out var bounds) &&
+                                    bounds.width >= owner.rect.width * 0.5f &&
+                                    bounds.height >= owner.rect.height * 0.5f)
+                    .ToArray();
+                if (images.Length == 0)
+                {
+                    continue;
+                }
+
+                CopyNativePanelImage(body, images[0]);
+                // The native blur is white at full alpha. Tint it with this same panel's
+                // charcoal fill so a missing scene texture cannot become an opaque gray sheet.
+                var fill = images.FirstOrDefault(image => image.name == "Background");
+                var palette = fill ? fill.color : new Color(0.157f, 0.157f, 0.157f, 0.588f);
+                body.color = new Color(palette.r, palette.g, palette.b, Mathf.Min(palette.a, 0.48f));
+                body.raycastTarget = true;
+                foreach (var decoration in images.Skip(1))
+                {
+                    var rect = (RectTransform)new GameObject("SpellSelectionNativeFrame", typeof(RectTransform)).transform;
+                    rect.gameObject.layer = panel.gameObject.layer;
+                    rect.SetParent(body.transform, false);
+                    rect.anchorMin = Vector2.zero;
+                    rect.anchorMax = Vector2.one;
+                    rect.offsetMin = rect.offsetMax = Vector2.zero;
+                    rect.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+                    var image = rect.gameObject.AddComponent<Image>();
+                    CopyNativePanelImage(image, decoration);
+                    if (decoration.name == "Background")
+                    {
+                        var color = image.color;
+                        color.a = Mathf.Min(color.a, 0.58f);
+                        image.color = color;
+                    }
+
+                    image.raycastTarget = false;
+                }
+
+                return;
+            }
+        }
+
+        internal static void CopyNativePanelImage(Image destination, Image source)
+        {
+            destination.sprite = source.sprite;
+            destination.material = source.material;
+            destination.type = source.type;
+            destination.pixelsPerUnitMultiplier = source.pixelsPerUnitMultiplier;
+            destination.preserveAspect = source.preserveAspect;
+            destination.fillCenter = source.fillCenter;
+            destination.color = source.color;
+            destination.raycastTarget = source.raycastTarget;
+        }
+
+        private void LateUpdate()
+        {
+            if (_panel)
+            {
+                foreach (var layout in _layouts.Keys)
+                {
+                    if (layout && layout.enabled)
+                    {
+                        layout.enabled = false;
+                    }
+                }
+                _holderState?.EnsureApplied();
+            }
+            if (!_panel || !_canvasRect || !_backdrop)
+            {
+                return;
+            }
+
+            if (_backdropDirty || !_panelMatrix.Equals(_panel.RectTransform.localToWorldMatrix) ||
+                !_canvasMatrix.Equals(_canvasRect.localToWorldMatrix) || _panelRect != _panel.RectTransform.rect ||
+                _canvasBounds != _canvasRect.rect)
+            {
+                UpdateBackdrop();
+            }
+        }
+
+        private void UpdateBackdrop()
+        {
+            if (!_panel || !_backdrop || !_canvasRect ||
+                !TryGetCanvasLocalBounds(_canvasRect, _panel.RectTransform, out var bounds))
+            {
+                return;
+            }
+
+            _backdrop.anchorMin = _backdrop.anchorMax = Vector2.zero;
+            _backdrop.pivot = Vector2.zero;
+            _backdrop.sizeDelta = bounds.size;
+            _backdrop.anchoredPosition = bounds.min - _panel.RectTransform.rect.min;
+            _backdropDirty = false;
+            _panelMatrix = _panel.RectTransform.localToWorldMatrix;
+            _canvasMatrix = _canvasRect.localToWorldMatrix;
+            _panelRect = _panel.RectTransform.rect;
+            _canvasBounds = _canvasRect.rect;
+        }
+
+        internal void Restore()
+        {
+            CancelPendingBind();
+            if (!_panel)
+            {
+                return;
+            }
+
+            if (_backdrop)
+            {
+                _backdrop.gameObject.SetActive(false);
+                _body.gameObject.SetActive(false);
+            }
+
+            foreach (var entry in _layouts.Where(entry => entry.Key))
+            {
+                entry.Key.enabled = entry.Value;
+            }
+
+            _layouts.Clear();
+            // HUD owners survive native Hide/Unbind. Retain their cache until the canvas or
+            // native HUD hierarchy changes, including a new owner shown while the picker is closed.
+            _canvasRect = null;
+            _holderState = null;
+            _panel.RectTransform.sizeDelta = _size;
+            _panel.RectTransform.anchoredPosition = _position;
+            _panel = null;
+            enabled = false;
+        }
+
+        private void OnDestroy()
+        {
+            SpellSelectionPanelLayouts.Remove(this);
+            _hudBlocks.Clear();
+        }
+    }
+
+    private sealed class SpellSelectionWheelSurface : MonoBehaviour, IScrollHandler
+    {
+        public void OnScroll(PointerEventData eventData)
+        {
+            if (TryRouteSpellSelectionWheelAt(eventData.scrollDelta.y, eventData.position))
+            {
+                eventData.Use();
+            }
+        }
     }
 
     private sealed class SpellSelectionLinePager : MonoBehaviour, IScrollHandler, IBeginDragHandler, IDragHandler
@@ -936,6 +1621,37 @@ internal static class CampaignsContext
         private int _firstVisibleRow;
         private int _lastWheelInputFrame = -1;
         private int _visibleRows;
+        private RectTransform _controls;
+        private Scrollbar _scrollbar;
+        private Scrollbar _nativeScrollbar;
+        private Button _previous;
+        private Button _next;
+        private float _contentWidth;
+        private bool _updatingControls;
+        private GameObject _lastSelection;
+        private ContentSizeFitter _panelFitter;
+        private bool _panelFitterEnabled;
+        private SpellSelectionPanelLayoutState _panelLayout;
+        private string _language;
+        private readonly List<RaycastResult> _pointerHits = new();
+        private PointerEventData _pointerEvent;
+        private EventSystem _pointerEventSystem;
+        private RectTransform[] _pointerControls;
+        private Camera _pointerCamera;
+        private bool _dragStartedInside;
+
+        internal int FirstVisibleRow => _firstVisibleRow;
+
+        internal void SetFirstVisibleRow(int firstVisibleRow)
+        {
+            var first = Mathf.Clamp(firstVisibleRow, 0, GetMaxFirstVisibleRow());
+            if (first == _firstVisibleRow)
+            {
+                return;
+            }
+            _firstVisibleRow = first;
+            ApplyVisibleRows();
+        }
 
         internal void Configure(
             SpellSelectionPanel panel,
@@ -948,18 +1664,39 @@ internal static class CampaignsContext
             RectTransform canvasRect)
         {
             _panel = panel;
+            _panelLayout = panel.GetComponent<SpellSelectionPanelLayoutState>();
+            if (!_panelFitter)
+            {
+                _panelFitter = panel.GetComponent<ContentSizeFitter>();
+                _panelFitterEnabled = _panelFitter && _panelFitter.enabled;
+            }
+            if (_panelFitter)
+            {
+                _panelFitter.enabled = false;
+            }
+
             _holder = holder;
             _lineTables = lineTables;
             _rowHeights = rowHeights;
             _spacing = spacing;
             _visibleRows = Mathf.Clamp(visibleRows, 1, lineTables.Length);
-            _firstVisibleRow = Mathf.Clamp(_firstVisibleRow, 0, GetMaxFirstVisibleRow());
+            _firstVisibleRow = 0;
             _safeCanvasBounds = safeCanvasBounds;
             _canvasRect = canvasRect;
             _rowDragThreshold = Mathf.Max(24f, GetAverageRowHeight() * SpellSelectionDragThresholdRatio);
+            _contentWidth = lineTables.Max(GetSpellSelectionLineTableWidth);
+            _lastSelection = null;
+            _language = I2.Loc.LocalizationManager.CurrentLanguageCode;
             enabled = true;
             ActiveSpellSelectionLinePager = this;
 
+            EnsureControls();
+            _pointerControls = panel.GetComponentsInChildren<Button>(true)
+                .Where(button => !panel.spellRepertoireLines.Any(line => button.transform.IsChildOf(line.transform)))
+                .Select(button => (RectTransform)button.transform).ToArray();
+            var canvas = canvasRect ? canvasRect.GetComponent<Canvas>() : null;
+            _pointerCamera = canvas && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            _controls.gameObject.SetActive(_visibleRows < _lineTables.Length);
             ApplyVisibleRows();
         }
 
@@ -973,8 +1710,31 @@ internal static class CampaignsContext
                 }
             }
 
+            _refreshPending = false;
+            _refreshCallback = null;
+            _refreshSelectedSpell = null;
+            _refreshSelectedRepertoire = null;
+            _refreshSelectedControl = null;
             _dragAccumulator = 0f;
+            _dragStartedInside = false;
             _firstVisibleRow = 0;
+            _lastSelection = null;
+            _panelLayout = null;
+            _pointerHits.Clear();
+            _pointerEvent = null;
+            _pointerEventSystem = null;
+            _pointerControls = null;
+            _pointerCamera = null;
+            if (_panelFitter)
+            {
+                _panelFitter.enabled = _panelFitterEnabled;
+                _panelFitter = null;
+            }
+
+            if (_controls)
+            {
+                _controls.gameObject.SetActive(false);
+            }
 
             if (ActiveSpellSelectionLinePager == this)
             {
@@ -987,11 +1747,13 @@ internal static class CampaignsContext
         public void OnBeginDrag(PointerEventData eventData)
         {
             _dragAccumulator = 0f;
+            _dragStartedInside = CanPage() && ContainsPointer(eventData.position) &&
+                                 OwnsForegroundInputAt(eventData.position);
         }
 
         public void OnDrag(PointerEventData eventData)
         {
-            if (!CanPage())
+            if (!_dragStartedInside || !CanPage())
             {
                 return;
             }
@@ -1013,22 +1775,404 @@ internal static class CampaignsContext
 
         public void OnScroll(PointerEventData eventData)
         {
+            if (RouteWheelAt(eventData.scrollDelta.y, eventData.position))
+            {
+                eventData.Use();
+            }
+        }
+
+        private bool _refreshPending;
+        private SpellsByLevelBox.SpellCastEngagedHandler _refreshCallback;
+        private SpellDefinition _refreshSelectedSpell;
+        private RulesetSpellRepertoire _refreshSelectedRepertoire;
+        private GameObject _refreshSelectedControl;
+        private ActionDefinitions.ActionType _refreshActionType;
+        private bool _refreshCantripOnly;
+        private int _refreshFirstRow;
+
+        internal void RequestRebind(SpellSelectionPanel panel,
+            SpellsByLevelBox.SpellCastEngagedHandler callback, ActionDefinitions.ActionType actionType, bool cantripOnly,
+            SpellDefinition selectedSpell, RulesetSpellRepertoire selectedRepertoire, GameObject selectedControl)
+        {
+            if (_refreshPending)
+            {
+                return;
+            }
+
+            _panel = panel;
+            _refreshCallback = callback;
+            _refreshSelectedSpell = selectedSpell;
+            _refreshSelectedRepertoire = selectedRepertoire;
+            _refreshSelectedControl = selectedControl;
+            _refreshActionType = actionType;
+            _refreshCantripOnly = cantripOnly;
+            _refreshFirstRow = _firstVisibleRow;
+            _refreshPending = true;
+            enabled = true;
+        }
+
+        private void LateUpdate()
+        {
+            if (!_refreshPending && CanInteract() && _canvasRect && _panelLayout &&
+                _panelLayout.HudBoundsChanged(_canvasRect))
+            {
+                var bounds = GetSpellSelectionSafeCanvasBounds(_panel, _canvasRect);
+                if (Vector2.Distance(bounds.min, _safeCanvasBounds.min) > 1f ||
+                    Vector2.Distance(bounds.max, _safeCanvasBounds.max) > 1f)
+                {
+                    var line = _panel.spellRepertoireLines.FirstOrDefault();
+                    var resizedSelection = EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
+                    var box = resizedSelection && resizedSelection.transform.IsChildOf(_panel.transform)
+                        ? resizedSelection.GetComponentInParent<SpellActivationBox>() : null;
+                    if (line)
+                    {
+                        // A changed canvas or visible HUD can invalidate the grid's native
+                        // wrapping too. Reuse the existing source-aware refresh path once.
+                        RequestRebind(_panel, line.spellCastEngaged, line.actionType, line.cantripOnly,
+                            box ? box.GuiSpellDefinition?.SpellDefinition : null,
+                            box ? SpellActionTypeContext.GetRepertoireLine(box)?.spellRepertoire ?? box.spellRepertoire : null,
+                            box ? resizedSelection : null);
+                    }
+                }
+            }
+
+            if (!_refreshPending)
+            {
+                if (CanInteract() && _language != I2.Loc.LocalizationManager.CurrentLanguageCode)
+                {
+                    RefreshLocalizedHeadings();
+                }
+
+                return;
+            }
+
+            var callback = _refreshCallback;
+            var actionType = _refreshActionType;
+            var cantripOnly = _refreshCantripOnly;
+            var firstRow = _refreshFirstRow;
+            var selectedSpell = _refreshSelectedSpell;
+            var selectedRepertoire = _refreshSelectedRepertoire;
+            var selectedControl = _refreshSelectedControl;
+            _refreshPending = false;
+            _refreshCallback = null;
+            _refreshSelectedSpell = null;
+            _refreshSelectedRepertoire = null;
+            _refreshSelectedControl = null;
+            if (!_panel || _panel.Caster?.RulesetCharacter == null || callback == null ||
+                Main.Settings.DisableMultilineSpellOffering)
+            {
+                DisablePager();
+                return;
+            }
+
+            var eventSystem = EventSystem.current;
+            var selection = eventSystem ? eventSystem.currentSelectedGameObject : null;
+            if (selectedSpell != null && selection && selection != selectedControl &&
+                !selection.transform.IsChildOf(_panel.transform))
+            {
+                selectedSpell = null;
+            }
+            if (eventSystem && selectedSpell != null)
+            {
+                // Pooled buttons may be rebound to a different spell. Preserve the selection by
+                // its spell and resource source, rather than keeping that reused GameObject.
+                eventSystem.SetSelectedGameObject(null);
+            }
+
+            SpellSelectionPanelMultilineBind(_panel, _panel.Caster, callback, actionType, cantripOnly);
+            if (enabled && _lineTables is { Length: > 0 })
+            {
+                SetFirstVisibleRow(firstRow);
+            }
+
+            if (eventSystem && selectedSpell != null)
+            {
+                var reboundBox = _panel.GetComponentsInChildren<SpellActivationBox>(true).FirstOrDefault(box =>
+                    box.GuiSpellDefinition?.SpellDefinition == selectedSpell &&
+                    IsSameSelectionSource(selectedRepertoire,
+                        SpellActionTypeContext.GetRepertoireLine(box)?.spellRepertoire ?? box.spellRepertoire));
+                if (reboundBox)
+                {
+                    _lastSelection = reboundBox.button.gameObject;
+                    eventSystem.SetSelectedGameObject(_lastSelection);
+                    if (enabled)
+                    {
+                        RevealSelection(_lastSelection);
+                    }
+                }
+            }
+        }
+
+        private void RefreshLocalizedHeadings()
+        {
+            _language = I2.Loc.LocalizationManager.CurrentLanguageCode;
+            foreach (var row in _lineTables)
+            {
+                foreach (var section in GetSpellSelectionSourceSections(row))
+                {
+                    var line = section.GetComponentsInChildren<SpellRepertoireLine>(true).FirstOrDefault();
+                    var heading = GetSpellSelectionSourceHeading(section);
+                    if (line && heading)
+                    {
+                        foreach (var boundLine in section.GetComponentsInChildren<SpellRepertoireLine>(true))
+                        {
+                            foreach (var level in boundLine.SpellsByLevelBoxes)
+                            {
+                                SlotStatusTablePatcher.RefreshCantripCaption(
+                                    level.GetComponentInChildren<SlotStatusTable>(true), boundLine.minSpellLevel);
+                            }
+                        }
+
+                        RefreshSpellSelectionRowHeading(section, heading, line,
+                            line.GetComponent<SpellSelectionLineLayoutState>().MaximumWidth);
+                    }
+                }
+
+                foreach (var box in row.GetComponentsInChildren<SpellActivationBox>(true))
+                {
+                    SpellActivationBoxPatcher.RefreshUpcastTooltip(box);
+                }
+            }
+
+            // Repack display sections when translated titles require a different number of
+            // card columns. Native cards, source owners and selected controls remain intact.
+            var selection = EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
+            var firstSection = GetSpellSelectionSourceSections(_lineTables[_firstVisibleRow]).FirstOrDefault();
+            var maximumWidth = _lineTables.SelectMany(row => row.GetComponentsInChildren<SpellRepertoireLine>(true))
+                .Select(line => line.GetComponent<SpellSelectionLineLayoutState>().MaximumWidth).First();
+            PackSpellSelectionSourceSections(_holder, maximumWidth);
+            _lineTables = GetSpellSelectionLineTables(_holder);
+            var firstIndex = Array.FindIndex(_lineTables, row => firstSection && firstSection.IsChildOf(row));
+            _firstVisibleRow = Mathf.Max(0, firstIndex);
+            SetAllSpellSelectionLineTablesVisible(_holder, true);
+            Canvas.ForceUpdateCanvases();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_holder);
+            _rowHeights = _lineTables.Select(GetSpellSelectionLineTableHeight).ToArray();
+            _contentWidth = _lineTables.Max(GetSpellSelectionLineTableWidth);
+            EnsureControls();
+            // Translate and remeasure the display only. The same native columns, spell callbacks,
+            // resource owners, focused GameObject and first row remain in place.
+            ApplyVisibleRows();
+            RevealSelection(selection);
+        }
+
+        private static bool IsSameSelectionSource(RulesetSpellRepertoire original, RulesetSpellRepertoire rebound)
+        {
+            return original == rebound ||
+                   SpellSelectionContext.TryGetOption(original, out var originalOption) &&
+                   SpellSelectionContext.TryGetOption(rebound, out var reboundOption) &&
+                   originalOption.Kind == reboundOption.Kind && originalOption.Repertoire == reboundOption.Repertoire &&
+                   originalOption.CastingRepertoire == reboundOption.CastingRepertoire &&
+                   originalOption.SlotLevel == reboundOption.SlotLevel && originalOption.Spell == reboundOption.Spell;
+        }
+
+        private void Update()
+        {
             if (!CanPage())
             {
                 return;
             }
 
-            if (FloatingPanelBounds.ShouldSuppressBackgroundWheel(this))
+            // Native keyboard/gamepad navigation can select an off-page spell. Keep that selected
+            // control visible without replacing native navigation or invoking a spell callback.
+            var selection = EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
+            if (selection != _lastSelection)
+            {
+                _lastSelection = selection;
+                RevealSelection(selection);
+            }
+
+            var keyboard = Keyboard.current;
+            if (keyboard == null || !keyboard.pageDownKey.wasPressedThisFrame && !keyboard.pageUpKey.wasPressedThisFrame ||
+                !(IsPointerInsidePanel() || selection && selection.transform.IsChildOf(_panel.transform)))
             {
                 return;
             }
 
-            CaptureWheelInput();
+            if (keyboard.pageDownKey.wasPressedThisFrame)
+            {
+                MoveRows(Mathf.Max(1, _visibleRows));
+            }
+            else if (keyboard.pageUpKey.wasPressedThisFrame)
+            {
+                MoveRows(-Mathf.Max(1, _visibleRows));
+            }
+        }
 
-            var deltaRows = eventData.scrollDelta.y < 0f ? 1 : -1;
+        private void RevealSelection(GameObject selection)
+        {
+            if (!selection)
+            {
+                return;
+            }
 
-            MoveRows(deltaRows);
-            eventData.Use();
+            for (var index = 0; index < _lineTables.Length; index++)
+            {
+                if (!selection.transform.IsChildOf(_lineTables[index]))
+                {
+                    continue;
+                }
+
+                if (index < _firstVisibleRow || index >= _firstVisibleRow + _visibleRows)
+                {
+                    _firstVisibleRow = index;
+                    ApplyVisibleRows();
+                }
+
+                return;
+            }
+        }
+
+        private void EnsureControls()
+        {
+            if (_controls)
+            {
+                var source = _lineTables.SelectMany(table => table.GetComponentsInChildren<GuiLabel>(true))
+                    .FirstOrDefault(label => label.TMP_Text && label.TMP_Text.font);
+                if (source)
+                {
+                    foreach (var text in _controls.GetComponentsInChildren<TMP_Text>(true))
+                    {
+                        text.font = source.TMP_Text.font;
+                        text.fontSharedMaterial = source.TMP_Text.fontSharedMaterial;
+                    }
+                }
+
+                return;
+            }
+
+            // Use the character screen's game-art scrollbar, never an arbitrary loaded
+            // Unity/UMM settings control. Native scrollbars do not have a root Image.
+            var inspection = Gui.GuiService?.GetScreen<CharacterInspectionScreen>();
+            _nativeScrollbar = inspection ? inspection.GetComponentsInChildren<Scrollbar>(true)
+                .FirstOrDefault(scrollbar => scrollbar.handleRect &&
+                    scrollbar.handleRect.GetComponent<Image>()?.sprite?.name == "ScrollThumbVertical") : null;
+            _controls = CreateControlRect("SpellSelectionNavigation", _panel.transform);
+            _controls.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            _controls.anchorMin = Vector2.zero;
+            _controls.anchorMax = Vector2.one;
+            _controls.offsetMin = _controls.offsetMax = Vector2.zero;
+            _previous = CreatePageButton("PreviousSpellRows", "▲", true);
+            _next = CreatePageButton("NextSpellRows", "▼", false);
+            _previous.onClick.AddListener(() => MoveRows(-1));
+            _next.onClick.AddListener(() => MoveRows(1));
+
+            var bar = CreateControlRect("SpellSelectionScrollbar", _controls);
+            bar.anchorMin = new Vector2(1f, 0f);
+            bar.anchorMax = Vector2.one;
+            bar.offsetMin = new Vector2(-SpellSelectionControlsWidth + 12f, 36f);
+            bar.offsetMax = new Vector2(-12f, -36f);
+            var background = bar.gameObject.AddComponent<Image>();
+            background.color = new Color(0.196f, 0.200f, 0.204f, 0.75f);
+            if (_nativeScrollbar)
+            {
+                var nativeFill = _panel.spellRepertoireSecondaryLine.repertoireHeader.GetComponent<Image>();
+                if (nativeFill)
+                {
+                    SpellSelectionPanelLayoutState.CopyNativePanelImage(background, nativeFill);
+                }
+            }
+            background.raycastTarget = true;
+            var handle = CreateControlRect("Handle", bar);
+            handle.anchorMin = Vector2.zero;
+            handle.anchorMax = Vector2.one;
+            handle.offsetMin = handle.offsetMax = Vector2.zero;
+            var image = handle.gameObject.AddComponent<Image>();
+            image.color = new Color(0.8f, 0.64f, 0.48f, 1f);
+            if (_nativeScrollbar)
+            {
+                SpellSelectionPanelLayoutState.CopyNativePanelImage(image, _nativeScrollbar.handleRect.GetComponent<Image>());
+            }
+
+            _scrollbar = bar.gameObject.AddComponent<Scrollbar>();
+            _scrollbar.direction = Scrollbar.Direction.TopToBottom;
+            _scrollbar.handleRect = handle;
+            _scrollbar.targetGraphic = image;
+            if (_nativeScrollbar)
+            {
+                _scrollbar.transition = _nativeScrollbar.transition;
+                _scrollbar.colors = _nativeScrollbar.colors;
+                _scrollbar.spriteState = _nativeScrollbar.spriteState;
+            }
+
+            _scrollbar.onValueChanged.AddListener(value =>
+            {
+                if (_updatingControls)
+                {
+                    return;
+                }
+
+                SetFirstVisibleRow(Mathf.RoundToInt(value * GetMaxFirstVisibleRow()));
+            });
+
+
+        }
+
+        private RectTransform CreateControlRect(string name, Transform parent)
+        {
+            var rect = (RectTransform)new GameObject(name, typeof(RectTransform)).transform;
+            rect.gameObject.layer = _holder.gameObject.layer;
+            rect.SetParent(parent, false);
+            rect.localScale = Vector3.one;
+            return rect;
+        }
+
+        private TMP_Text CreateControlText(RectTransform rect, string value)
+        {
+            var text = CreateSpellSelectionText(rect);
+            var source = _lineTables.SelectMany(table => table.GetComponentsInChildren<GuiLabel>(true))
+                .FirstOrDefault(label => label.TMP_Text && label.TMP_Text.font);
+            if (source)
+            {
+                text.font = source.TMP_Text.font;
+                text.fontSharedMaterial = source.TMP_Text.fontSharedMaterial;
+            }
+
+            text.text = value;
+            text.fontSize = 16f;
+            text.enableAutoSizing = true;
+            text.fontSizeMin = 11f;
+            text.fontSizeMax = 16f;
+            text.enableWordWrapping = false;
+            text.alignment = TextAlignmentOptions.Center;
+            text.color = Color.white;
+            text.raycastTarget = false;
+            return text;
+        }
+
+        private Button CreatePageButton(string name, string label, bool top)
+        {
+            var rect = CreateControlRect(name, _controls);
+            rect.anchorMin = rect.anchorMax = new Vector2(1f, top ? 1f : 0f);
+            rect.pivot = new Vector2(1f, top ? 1f : 0f);
+            rect.sizeDelta = new Vector2(SpellSelectionControlsWidth - 4f, 32f);
+            rect.anchoredPosition = new Vector2(-2f, top ? -2f : 2f);
+            var image = rect.gameObject.AddComponent<Image>();
+            image.color = new Color(0.196f, 0.200f, 0.204f, 0.75f);
+            if (_nativeScrollbar)
+            {
+                var nativeFill = _panel.spellRepertoireSecondaryLine.repertoireHeader.GetComponent<Image>();
+                if (nativeFill)
+                {
+                    SpellSelectionPanelLayoutState.CopyNativePanelImage(image, nativeFill);
+                }
+            }
+
+            image.raycastTarget = true;
+            var button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            var colors = button.colors;
+            colors.normalColor = image.color;
+            colors.highlightedColor = colors.selectedColor = image.color * 1.25f;
+            colors.pressedColor = image.color * 0.8f;
+            colors.disabledColor = new Color(image.color.r, image.color.g, image.color.b, image.color.a * 0.4f);
+            button.colors = colors;
+            var text = CreateControlRect("Label", rect);
+            text.anchorMin = Vector2.zero;
+            text.anchorMax = Vector2.one;
+            text.offsetMin = text.offsetMax = Vector2.zero;
+            CreateControlText(text, label);
+            return button;
         }
 
         private void OnDisable()
@@ -1036,6 +2180,16 @@ internal static class CampaignsContext
             if (ActiveSpellSelectionLinePager == this)
             {
                 ActiveSpellSelectionLinePager = null;
+            }
+        }
+
+        private void OnEnable()
+        {
+            if (_panel && _lineTables is { Length: > 0 })
+            {
+                // Native callers briefly deactivate the bound panel before showing it. Restore
+                // ownership immediately; the wheel guard independently checks current visibility.
+                ActiveSpellSelectionLinePager = this;
             }
         }
 
@@ -1049,17 +2203,140 @@ internal static class CampaignsContext
 
         internal bool ShouldSuppressBackgroundWheel()
         {
-            return CanPage() && (IsPointerInsidePanel() || Time.frameCount == _lastWheelInputFrame);
+            return IsPointerInsidePanel() &&
+                   !FloatingPanelBounds.ShouldSuppressBackgroundWheel(null);
+        }
+
+        internal bool IsForegroundControl(Component source)
+        {
+            if (!source)
+            {
+                return false;
+            }
+
+            if (source.transform.IsChildOf(_panel.transform))
+            {
+                return true;
+            }
+
+            var sourceCanvas = source.GetComponentsInParent<Canvas>(true)
+                .FirstOrDefault(canvas => canvas.isRootCanvas || canvas.overrideSorting);
+            var pickerCanvas = _panel.GetComponentsInParent<Canvas>(true)
+                .FirstOrDefault(canvas => canvas.isRootCanvas || canvas.overrideSorting);
+            if (!sourceCanvas || !pickerCanvas)
+            {
+                return false;
+            }
+
+            var sourceLayer = SortingLayer.GetLayerValueFromID(sourceCanvas.sortingLayerID);
+            var pickerLayer = SortingLayer.GetLayerValueFromID(pickerCanvas.sortingLayerID);
+            if (sourceLayer != pickerLayer)
+            {
+                return sourceLayer > pickerLayer;
+            }
+
+            if (sourceCanvas.sortingOrder != pickerCanvas.sortingOrder)
+            {
+                return sourceCanvas.sortingOrder > pickerCanvas.sortingOrder;
+            }
+
+            if (sourceCanvas != pickerCanvas)
+            {
+                return sourceCanvas.renderOrder > pickerCanvas.renderOrder;
+            }
+
+            // Screens in the same native canvas follow transform order, rather than the
+            // GuiService's registry enumeration. Compare the branches below their common parent.
+            var sourceBranch = source.transform;
+            while (sourceBranch && sourceBranch.parent)
+            {
+                var pickerBranch = _panel.transform;
+                while (pickerBranch && pickerBranch.parent)
+                {
+                    if (sourceBranch.parent == pickerBranch.parent)
+                    {
+                        return sourceBranch.GetSiblingIndex() > pickerBranch.GetSiblingIndex();
+                    }
+
+                    pickerBranch = pickerBranch.parent;
+                }
+
+                sourceBranch = sourceBranch.parent;
+            }
+
+            return false;
+        }
+
+        internal bool RouteWheel(float delta)
+        {
+            return RouteWheelAt(delta, GetPointerPosition());
+        }
+
+        internal bool RouteWheelAt(float delta, Vector2 position)
+        {
+            if (!CanInteract() || !ContainsPointer(position) || !OwnsForegroundInputAt(position) ||
+                FloatingPanelBounds.ShouldSuppressBackgroundWheel(null))
+            {
+                return false;
+            }
+
+            if (Mathf.Abs(delta) > 0.001f && _lastWheelInputFrame != Time.frameCount)
+            {
+                CaptureWheelInput();
+                if (CanPage())
+                {
+                    MoveRows(delta < 0f ? 1 : -1);
+                }
+            }
+
+            return true;
+        }
+
+        private bool CanInteract()
+        {
+            return isActiveAndEnabled &&
+                   _panel && _panel.isActiveAndEnabled && _panel.Visible && !_panel.Hiding &&
+                   _holder && _holder.gameObject.activeInHierarchy &&
+                   _lineTables is { Length: > 0 } && _visibleRows > 0;
         }
 
         private bool CanPage()
         {
-            return isActiveAndEnabled &&
-                   _panel && _panel.isActiveAndEnabled &&
-                   _holder && _holder.gameObject.activeInHierarchy &&
-                   _lineTables is { Length: > 0 } &&
-                   _visibleRows > 0 &&
-                   _lineTables.Length > _visibleRows;
+            return CanInteract() && !_refreshPending && _lineTables.Length > _visibleRows;
+        }
+
+        private bool OwnsForegroundInput()
+        {
+            return OwnsForegroundInputAt(GetPointerPosition());
+        }
+
+        private bool OwnsForegroundInputAt(Vector2 position)
+        {
+            var eventSystem = EventSystem.current;
+            if (!eventSystem)
+            {
+                return true;
+            }
+
+            if (_pointerEventSystem != eventSystem)
+            {
+                _pointerEventSystem = eventSystem;
+                _pointerEvent = new PointerEventData(eventSystem);
+            }
+            _pointerEvent.position = position;
+            _pointerHits.Clear();
+            eventSystem.RaycastAll(_pointerEvent, _pointerHits);
+            var hit = _pointerHits.FirstOrDefault(result => result.gameObject);
+            // A modal or a scrollable tooltip above the picker retains ownership of its input.
+            return !hit.gameObject || hit.gameObject.transform.IsChildOf(_panel.transform);
+        }
+
+        internal void InvalidateHud(Component owner)
+        {
+            if (_panelLayout)
+            {
+                _panelLayout.InvalidateHud(owner);
+            }
         }
 
         private void CaptureWheelInput()
@@ -1070,25 +2347,53 @@ internal static class CampaignsContext
 
         private bool IsPointerInsidePanel()
         {
-            var target = _panel ? _panel.RectTransform : _holder;
+            return CanInteract() && ContainsPointer(GetPointerPosition()) && OwnsForegroundInput();
+        }
 
-            if (!target)
+        private bool ContainsPointer(Vector2 position)
+        {
+            if (RectTransformUtility.RectangleContainsScreenPoint(_panel.RectTransform, position, _pointerCamera))
             {
-                return false;
+                return true;
             }
 
-            var canvas = target.GetComponentInParent<Canvas>();
-            var camera = canvas && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            // Native close/abort buttons can extend beyond the card body's rectangle.
+            return _pointerControls != null && _pointerControls.Any(control => control &&
+                control.gameObject.activeInHierarchy &&
+                RectTransformUtility.RectangleContainsScreenPoint(control, position, _pointerCamera));
+        }
 
-            return RectTransformUtility.RectangleContainsScreenPoint(
-                target,
-                UnityEngine.Input.mousePosition,
-                camera);
+        private static Vector2 GetPointerPosition()
+        {
+            // Keep native gamepad cursor/focus semantics. Mouse input uses the same existing
+            // Input System device as our keyboard paging, with the native legacy fallback.
+            if (Gui.GamepadActive && Gui.InputService != null)
+            {
+                return Gui.InputService.InputPointerPosition;
+            }
+
+            return Mouse.current != null ? Mouse.current.position.ReadValue() : (Vector2)UnityEngine.Input.mousePosition;
         }
 
         private int GetMaxFirstVisibleRow()
         {
-            return _lineTables == null ? 0 : Mathf.Max(0, _lineTables.Length - _visibleRows);
+            if (_lineTables == null)
+            {
+                return 0;
+            }
+
+            // The final page uses the actual row heights too, so its scrollbar endpoint never
+            // leaves a blank page or hides the last source behind a taller preceding row.
+            var first = _lineTables.Length - 1;
+            var height = _rowHeights[first];
+            var available = Mathf.Max(1f, _safeCanvasBounds.height - 2f * SpellSelectionBodyPadding);
+            while (first > 0 && height + _spacing + _rowHeights[first - 1] <= available)
+            {
+                first--;
+                height += _spacing + _rowHeights[first];
+            }
+
+            return first;
         }
 
         private float GetAverageRowHeight()
@@ -1116,7 +2421,13 @@ internal static class CampaignsContext
                 return;
             }
 
+            _firstVisibleRow = Mathf.Clamp(_firstVisibleRow, 0, GetMaxFirstVisibleRow());
+            RefreshVisibleSourceHeadings();
+            var availableHeight = Mathf.Max(1f, _safeCanvasBounds.height - 2f * SpellSelectionBodyPadding);
+            _visibleRows = CalculateVisibleSpellSelectionRows(_rowHeights.Skip(_firstVisibleRow).ToArray(),
+                _spacing, availableHeight);
             var lastVisibleRow = Mathf.Min(_lineTables.Length, _firstVisibleRow + _visibleRows);
+            _controls.gameObject.SetActive(_lineTables.Length > _visibleRows);
 
             for (var index = 0; index < _lineTables.Length; index++)
             {
@@ -1130,20 +2441,142 @@ internal static class CampaignsContext
                 _spacing,
                 _firstVisibleRow,
                 _visibleRows);
-            var visibleWidth = 0f;
-
-            for (var index = _firstVisibleRow; index < lastVisibleRow; index++)
-            {
-                visibleWidth = Mathf.Max(visibleWidth, GetSpellSelectionLineTableWidth(_lineTables[index]));
-            }
-
+            // Sparse feat pages need only their own cards and titles, not the widest class
+            // on another page. The navigation frame follows the visible content's right edge.
+            _contentWidth = _lineTables.Skip(_firstVisibleRow).Take(_visibleRows)
+                .Max(GetSpellSelectionLineTableWidth);
             RefreshSpellSelectionPanelSize(
                 _panel,
                 _holder,
-                visibleWidth,
+                _contentWidth + (_controls.gameObject.activeSelf ? SpellSelectionControlsWidth : 0f),
                 visibleHeight,
                 _safeCanvasBounds,
                 _canvasRect);
+            ArrangeControls(lastVisibleRow);
+            _previous.interactable = _firstVisibleRow > 0;
+            _next.interactable = _firstVisibleRow < GetMaxFirstVisibleRow();
+            _updatingControls = true;
+            _scrollbar.size = (float)_visibleRows / _lineTables.Length;
+            _scrollbar.value = GetMaxFirstVisibleRow() > 0 ? (float)_firstVisibleRow / GetMaxFirstVisibleRow() : 0f;
+            _updatingControls = false;
+        }
+
+        private void RefreshVisibleSourceHeadings()
+        {
+            var seenSources = new HashSet<object>();
+            for (var index = 0; index < _lineTables.Length; index++)
+            {
+                if (index == _firstVisibleRow)
+                {
+                    // The first visible continuation identifies its source even when its
+                    // previous section is on another page.
+                    seenSources.Clear();
+                }
+
+                var row = _lineTables[index];
+                var changed = false;
+                foreach (var section in GetSpellSelectionSourceSections(row))
+                {
+                    var line = section.GetComponentsInChildren<SpellRepertoireLine>(true).First();
+                    var heading = GetSpellSelectionSourceHeading(section);
+                    var visible = seenSources.Add(GetSpellSelectionSourceKey(line.spellRepertoire));
+                    if (heading.gameObject.activeSelf != visible)
+                    {
+                        heading.gameObject.SetActive(visible);
+                        changed = true;
+                    }
+                }
+
+                if (changed)
+                {
+                    ArrangeSpellSelectionRow(row);
+                    _rowHeights[index] = GetSpellSelectionLineTableHeight(row);
+                }
+            }
+        }
+
+        private void ArrangeControls(int lastVisibleRow)
+        {
+            var panelRect = _panel.RectTransform;
+            var hasContent = false;
+            var contentBounds = Rect.zero;
+            for (var index = _firstVisibleRow; index < lastVisibleRow; index++)
+            {
+                var rectangles = _lineTables[index].GetComponentsInChildren<SpellsByLevelBox>(true)
+                    .Where(level => IsActiveWithin(level.transform, _panel.transform))
+                    .Select(level => level.RectTransform)
+                    .Concat(_lineTables[index].GetComponentsInChildren<TMP_Text>(true)
+                        .Where(text => text.name == "SpellSourceHeading" &&
+                                       IsActiveWithin(text.transform, _panel.transform))
+                        .Select(text => text.rectTransform));
+                foreach (var rectangle in rectangles)
+                {
+                    if (TryGetCanvasLocalBounds(rectangle, panelRect, out var bounds))
+                    {
+                        contentBounds = hasContent ? UnionBounds(contentBounds, bounds) : bounds;
+                        hasContent = true;
+                    }
+                }
+            }
+
+            if (!hasContent)
+            {
+                return;
+            }
+
+            _controls.anchorMin = _controls.anchorMax = Vector2.zero;
+            _controls.pivot = Vector2.zero;
+            _controls.sizeDelta = new Vector2(Mathf.Max(contentBounds.width, _contentWidth) + SpellSelectionControlsWidth,
+                contentBounds.height);
+            _controls.anchoredPosition = new Vector2(contentBounds.xMin - panelRect.rect.xMin,
+                contentBounds.yMin - panelRect.rect.yMin);
+
+            if (!_canvasRect || _safeCanvasBounds.width <= 1f || _safeCanvasBounds.height <= 1f ||
+                !TryGetCanvasLocalBounds(panelRect, _canvasRect, out var totalBounds))
+            {
+                return;
+            }
+
+            if (TryGetCanvasLocalBounds(_controls, _canvasRect, out var controlsBounds))
+            {
+                totalBounds = UnionBounds(totalBounds, controlsBounds);
+            }
+
+            // Native cancel/close controls can intentionally extend outside the panel rectangle.
+            // Keep that whole popup visible, including the new navigation frame.
+            foreach (var button in _panel.GetComponentsInChildren<Button>(true))
+            {
+                if (!IsActiveWithin(button.transform, _panel.transform) ||
+                    _lineTables.Any(table => button.transform.IsChildOf(table) &&
+                                             table.GetComponent<CanvasGroup>().alpha <= 0f) ||
+                    !TryGetCanvasLocalBounds((RectTransform)button.transform, _canvasRect, out var buttonBounds))
+                {
+                    continue;
+                }
+
+                totalBounds = UnionBounds(totalBounds, buttonBounds);
+            }
+
+            var delta = new Vector2(
+                totalBounds.xMin < _safeCanvasBounds.xMin ? _safeCanvasBounds.xMin - totalBounds.xMin :
+                totalBounds.xMax > _safeCanvasBounds.xMax ? _safeCanvasBounds.xMax - totalBounds.xMax : 0f,
+                totalBounds.yMin < _safeCanvasBounds.yMin ? _safeCanvasBounds.yMin - totalBounds.yMin :
+                totalBounds.yMax > _safeCanvasBounds.yMax ? _safeCanvasBounds.yMax - totalBounds.yMax : 0f);
+            panelRect.position += _canvasRect.TransformVector(new Vector3(delta.x, delta.y, 0f));
+        }
+
+        private static Rect UnionBounds(Rect left, Rect right)
+        {
+            return Rect.MinMaxRect(Mathf.Min(left.xMin, right.xMin), Mathf.Min(left.yMin, right.yMin),
+                Mathf.Max(left.xMax, right.xMax), Mathf.Max(left.yMax, right.yMax));
+        }
+    }
+
+    private static void ReleaseSpellSelectionRowLines(RectTransform row)
+    {
+        foreach (var line in row.GetComponentsInChildren<SpellRepertoireLine>(true))
+        {
+            Gui.GuiService.PrefabPoolManager.ReturnElement(line.gameObject);
         }
     }
 
@@ -1154,40 +2587,32 @@ internal static class CampaignsContext
         bool cantripOnly,
         ICollection<SpellRepertoireLine> spellRepertoireLines,
         RectTransform spellRepertoireLinesTable,
-        RectTransform lineTableTemplate,
         SlotAdvancementPanel slotAdvancementPanel,
-        RulesetSpellRepertoire[] spellRepertoires,
-        bool needNewLine,
-        int lineIndex,
-        int indexOfLine,
         RulesetSpellRepertoire rulesetSpellRepertoire,
         int startLevel,
         int level)
     {
-        if (needNewLine)
-        {
-            var previousTable = spellRepertoireLinesTable;
+        var parent = spellRepertoireLinesTable.parent;
+        spellRepertoireLinesTable = new GameObject("SpellSelectionSourceSection", typeof(RectTransform))
+            .GetComponent<RectTransform>();
+        spellRepertoireLinesTable.gameObject.layer = __instance.gameObject.layer;
+        spellRepertoireLinesTable.SetParent(parent, false);
+        spellRepertoireLinesTable.localScale = Vector3.one;
+        var rowLayout = spellRepertoireLinesTable.gameObject.AddComponent<HorizontalLayoutGroup>();
+        rowLayout.childAlignment = TextAnchor.UpperLeft;
+        rowLayout.childForceExpandWidth = rowLayout.childForceExpandHeight = false;
+        rowLayout.childControlWidth = rowLayout.childControlHeight = true;
+        rowLayout.spacing = SpellSelectionCardGap;
+        var fitter = spellRepertoireLinesTable.gameObject.AddComponent<ContentSizeFitter>();
+        fitter.horizontalFit = fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        SpellLineTables.Add(spellRepertoireLinesTable);
 
-            LayoutRebuilder.ForceRebuildLayoutImmediate(previousTable);
-
-            if (lineIndex > 0)
-            {
-                // Keep the native table layout without cloning bound spell lines or their TMP meshes.
-                spellRepertoireLinesTable =
-                    Object.Instantiate(lineTableTemplate, previousTable.parent.transform);
-                SpellLineTables.Add(spellRepertoireLinesTable);
-                spellRepertoireLinesTable.localScale = previousTable.localScale;
-                spellRepertoireLinesTable.transform.SetAsFirstSibling();
-                spellRepertoireLinesTable.gameObject.SetActive(true);
-            }
-        }
-
-        var curLine = SetUpNewLine(indexOfLine, spellRepertoireLinesTable, spellRepertoireLines, __instance);
+        var curLine = SetUpNewLine(0, spellRepertoireLinesTable, spellRepertoireLines, __instance);
 
         curLine.Bind(
             __instance.Caster,
             rulesetSpellRepertoire,
-            spellRepertoires.Length > 1,
+            true,
             spellCastEngaged,
             slotAdvancementPanel,
             actionType,
@@ -1199,23 +2624,686 @@ internal static class CampaignsContext
         return spellRepertoireLinesTable;
     }
 
-    private sealed class SpellSelectionLineTableTemplate : IDisposable
+    private static (object Source, object Owner, string Ability, SpellCastingResourceContext.ResourceKind? Kind)
+        GetSpellSelectionSourceKey(RulesetSpellRepertoire repertoire)
     {
-        internal SpellSelectionLineTableTemplate(RectTransform emptyTable)
+        if (SpellSelectionContext.TryGetOption(repertoire, out var option))
         {
-            Table = Object.Instantiate(emptyTable, emptyTable.parent);
-            Table.gameObject.SetActive(false);
-            Table.SetParent(null, false);
+            return (option.Repertoire, option.CastingRepertoire,
+                repertoire.SpellCastingAbility, option.Kind);
         }
 
-        internal RectTransform Table { get; }
+        var feature = repertoire.SpellCastingFeature;
+        var tag = feature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.Name;
+        if (!string.IsNullOrEmpty(tag))
+        {
+            return (Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(tag),
+                repertoire.GetCastingClass(), repertoire.SpellCastingAbility, null);
+        }
+
+        return ((object)repertoire.SpellCastingSubclass ?? repertoire.SpellCastingClass ??
+                (object)repertoire.SpellCastingRace ?? feature,
+            null, repertoire.SpellCastingAbility, null);
+    }
+
+    private static string GetSpellSelectionSourceTitle(RulesetSpellRepertoire repertoire)
+    {
+        if (SpellSelectionContext.TryGetOption(repertoire, out var option))
+        {
+            return option.SourceTitle;
+        }
+
+        var tag = repertoire.SpellCastingFeature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.Name;
+        if (!string.IsNullOrEmpty(tag))
+        {
+            var sourceTag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(tag);
+            var owner = repertoire.GetCastingClass();
+            if (owner && RulesetSpellRepertoirePatcher.TryLocalizeSpellSourceTitle(
+                    sourceTag + owner.Name, out var variantTitle, out _))
+            {
+                return variantTitle;
+            }
+
+            if (RulesetSpellRepertoirePatcher.TryLocalizeSpellSourceTitle(sourceTag, out var title, out _))
+            {
+                return owner
+                    ? Gui.Format("Feat/&GeneralFeat2024VariantTitle", title, owner.FormatTitle())
+                    : title;
+            }
+        }
+
+        return repertoire.FormatHeader();
+    }
+
+    private static void GroupSpellSelectionSourceRows(SpellSelectionPanel panel, RectTransform holder,
+        float maximumWidth)
+    {
+        var columns = panel.spellRepertoireLines.ToArray();
+        foreach (var line in columns)
+        {
+            line.GetComponent<SpellSelectionLineLayoutState>()?.HideColumnHeading();
+        }
+
+        Canvas.ForceUpdateCanvases();
+        LayoutRebuilder.ForceRebuildLayoutImmediate(holder);
+        foreach (var source in columns.GroupBy(line => GetSpellSelectionSourceKey(line.spellRepertoire)))
+        {
+            var sourceLevels = source.GroupBy(line => line.minSpellLevel)
+                .ToDictionary(group => group.Key, group => group.ToArray());
+            // Distinct native repertoires can share a title and level while owning different uses.
+            // Keep those columns on separate rows without inserting other sources' empty levels.
+            for (var sourceIndex = 0; sourceIndex < sourceLevels.Values.Max(lines => lines.Length); sourceIndex++)
+            {
+                var sourceColumns = sourceLevels.OrderBy(entry => entry.Key)
+                    .Select(entry => entry.Value.ElementAtOrDefault(sourceIndex)).Where(line => line).ToArray();
+                var ranges = new List<List<SpellRepertoireLine>>();
+                var width = 0f;
+                foreach (var line in sourceColumns)
+                {
+                    var columnWidth = Mathf.Min(maximumWidth, line.layoutGroup.preferredWidth);
+                    line.GetComponent<SpellSelectionLineLayoutState>()?.SetColumnWidth(columnWidth);
+                    if (ranges.Count == 0 || width + SpellSelectionCardGap + columnWidth > maximumWidth)
+                    {
+                        ranges.Add([]);
+                        width = 0f;
+                    }
+
+                    width += (ranges[ranges.Count - 1].Count > 0 ? SpellSelectionCardGap : 0f) + columnWidth;
+                    ranges[ranges.Count - 1].Add(line);
+                }
+
+                foreach (var range in ranges)
+                {
+                    var firstLine = range[0];
+                    var row = (RectTransform)firstLine.transform.parent;
+                    row.SetAsLastSibling();
+                    foreach (var line in range)
+                    {
+                        var candidate = (RectTransform)line.transform.parent;
+                        line.transform.SetParent(row, false);
+                        line.transform.SetAsLastSibling();
+                        if (candidate != row)
+                        {
+                            SpellLineTables.Remove(candidate);
+                            candidate.gameObject.SetActive(false);
+                            candidate.SetParent(null);
+                            Object.Destroy(candidate.gameObject);
+                        }
+                    }
+
+                    foreach (var line in range)
+                    {
+                        line.GetComponent<SpellSelectionLineLayoutState>().SourceWraps = ranges.Count > 1;
+                    }
+
+                    SetSpellSelectionRowHeading(row, firstLine, maximumWidth);
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(row);
+                }
+            }
+        }
+        PackSpellSelectionSourceSections(holder, maximumWidth);
+    }
+
+    private static RectTransform[] GetSpellSelectionSourceSections(RectTransform row)
+    {
+        return row.name == "SpellSelectionSourceSection" ? [row] : row.Cast<Transform>()
+            .OfType<RectTransform>().Where(child => child.name == "SpellSelectionSourceSection").ToArray();
+    }
+
+    private static TMP_Text GetSpellSelectionSourceHeading(RectTransform section)
+    {
+        return section.GetComponentsInChildren<TMP_Text>(true)
+            .FirstOrDefault(text => text.transform.parent == section && text.name == "SpellSourceHeading");
+    }
+
+    private static void PackSpellSelectionSourceSections(RectTransform holder, float maximumWidth)
+    {
+        var oldRows = GetSpellSelectionLineTables(holder);
+        var sections = oldRows.SelectMany(GetSpellSelectionSourceSections).ToArray();
+        foreach (var section in sections)
+        {
+            section.SetParent(holder, false);
+            SpellLineTables.Remove(section);
+        }
+
+        foreach (var oldRow in oldRows.Where(row => row.name == "SpellSelectionSourceRow"))
+        {
+            SpellLineTables.Remove(oldRow);
+            oldRow.gameObject.SetActive(false);
+            oldRow.SetParent(null);
+            Object.Destroy(oldRow.gameObject);
+        }
+
+        RectTransform physicalRow = null;
+        var rowWidth = 0f;
+        var acceptsSections = false;
+        foreach (var section in sections)
+        {
+            var lines = section.GetComponentsInChildren<SpellRepertoireLine>(true);
+            var singleCardRow = lines.SelectMany(line => line.SpellsByLevelBoxes)
+                .All(level =>
+                {
+                    var cards = level.GetComponentsInChildren<SpellActivationBox>(true)
+                        .Count(box => box.gameObject.activeSelf && box.GuiSpellDefinition != null);
+                    var grid = level.spellsTable.GetComponent<GridLayoutGroup>();
+                    return grid && cards <= grid.constraintCount;
+                });
+            // Keep a wrapped or tall source together. Every compact acquisition, including
+            // racial and class-granted spells, otherwise participates in the same flow.
+            var compact = !lines.Any(line => line.GetComponent<SpellSelectionLineLayoutState>().SourceWraps) && singleCardRow;
+            var heading = GetSpellSelectionSourceHeading(section);
+            heading.gameObject.SetActive(true);
+            ArrangeSpellSelectionSourceSection(section, heading.rectTransform.rect.height);
+            var width = LayoutUtility.GetPreferredWidth(section);
+            if (!physicalRow || !acceptsSections || !compact ||
+                rowWidth + SpellSelectionCardGap + width > maximumWidth)
+            {
+                physicalRow = (RectTransform)new GameObject("SpellSelectionSourceRow", typeof(RectTransform)).transform;
+                physicalRow.gameObject.layer = holder.gameObject.layer;
+                physicalRow.SetParent(holder, false);
+                physicalRow.localScale = Vector3.one;
+                physicalRow.gameObject.AddComponent<LayoutElement>();
+                SpellLineTables.Add(physicalRow);
+                rowWidth = 0f;
+                acceptsSections = compact;
+            }
+
+            section.SetParent(physicalRow, false);
+            rowWidth += (rowWidth > 0f ? SpellSelectionCardGap : 0f) + width;
+            ArrangeSpellSelectionRow(physicalRow);
+        }
+    }
+
+    private static void ArrangeSpellSelectionRow(RectTransform row)
+    {
+        var sections = GetSpellSelectionSourceSections(row);
+        var lines = sections.SelectMany(section => section.GetComponentsInChildren<SpellRepertoireLine>(true)).ToArray();
+        var gridHeight = lines.Select(line => line.GetComponent<SpellSelectionLineLayoutState>().ResetRowGridHeight())
+            .DefaultIfEmpty(0f).Max();
+        var headingHeight = sections.Select(GetSpellSelectionSourceHeading)
+            .Where(heading => heading && heading.gameObject.activeSelf)
+            .Select(heading => heading.rectTransform.rect.height).DefaultIfEmpty(0f).Max();
+        row.anchorMin = row.anchorMax = row.pivot = new Vector2(0f, 1f);
+        var left = 0f;
+        var height = 0f;
+        foreach (var section in sections)
+        {
+            ArrangeSpellSelectionSourceSection(section, headingHeight, gridHeight);
+            section.anchorMin = section.anchorMax = section.pivot = new Vector2(0f, 1f);
+            section.anchoredPosition = new Vector2(left, 0f);
+            left += LayoutUtility.GetPreferredWidth(section) + SpellSelectionCardGap;
+            height = Mathf.Max(height, LayoutUtility.GetPreferredHeight(section));
+        }
+
+        var layout = row.GetComponent<LayoutElement>();
+        layout.preferredWidth = Mathf.Max(0f, left - SpellSelectionCardGap);
+        layout.preferredHeight = height;
+        row.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, layout.preferredWidth);
+        row.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, layout.preferredHeight);
+    }
+
+    private static void SetSpellSelectionRowHeading(RectTransform row, SpellRepertoireLine line, float maximumWidth)
+    {
+        var headingRect = (RectTransform)new GameObject("SpellSourceHeading", typeof(RectTransform)).transform;
+        headingRect.gameObject.layer = row.gameObject.layer;
+        headingRect.SetParent(row, false);
+        headingRect.anchorMin = new Vector2(0f, 1f);
+        headingRect.anchorMax = Vector2.one;
+        headingRect.pivot = new Vector2(0f, 1f);
+        headingRect.offsetMin = new Vector2(0f, -26f);
+        headingRect.offsetMax = new Vector2(0f, -2f);
+        headingRect.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+        var heading = CreateSpellSelectionText(headingRect);
+        RefreshSpellSelectionRowHeading(row, heading, line, maximumWidth);
+    }
+
+    private static void RefreshSpellSelectionRowHeading(RectTransform row, TMP_Text heading,
+        SpellRepertoireLine line, float maximumWidth)
+    {
+        heading.font = line.headerLabel.TMP_Text.font;
+        heading.fontSharedMaterial = line.headerLabel.TMP_Text.fontSharedMaterial;
+        heading.text = GetSpellSelectionSourceTitle(line.spellRepertoire);
+        heading.fontSize = heading.fontSizeMin = heading.fontSizeMax = 18f;
+        heading.enableAutoSizing = false;
+        heading.alignment = TextAlignmentOptions.Left;
+        heading.enableWordWrapping = true;
+        heading.raycastTarget = false;
+        heading.color = new Color(0.95f, 0.77f, 0.60f, 1f);
+        var layout = row.GetComponent<LayoutElement>() ?? row.gameObject.AddComponent<LayoutElement>();
+        // Allocate a whole number of native card columns for the natural title width.
+        // Wrapping at an arbitrary small-card cap breaks localized class/source names.
+        layout.minWidth = Mathf.Min(maximumWidth, heading.GetPreferredValues(heading.text).x);
+        var headingHeight = Mathf.Max(28f, heading.GetPreferredValues(heading.text,
+            Mathf.Max(1f, layout.minWidth), float.PositiveInfinity).y + 4f);
+        heading.rectTransform.offsetMin = new Vector2(0f, -headingHeight + 2f);
+        ArrangeSpellSelectionSourceSection(row, heading.rectTransform.rect.height);
+    }
+
+    private static Rect GetSpellSelectionLocalRectBounds(RectTransform rect, RectTransform relativeTo)
+    {
+        TryGetCanvasLocalBounds(rect, relativeTo, out var bounds);
+        return bounds;
+    }
+
+    private static void ArrangeSpellSelectionSourceSection(RectTransform row, float headingHeight,
+        float sharedGridHeight = -1f)
+    {
+        // Native repertoire roots contain anchored inner tables and empty side-header space.
+        // Place their actual level/card bounds, rather than trusting the root's fitted rectangle.
+        row.GetComponent<HorizontalLayoutGroup>().enabled = false;
+        row.GetComponent<ContentSizeFitter>().enabled = false;
+        row.pivot = new Vector2(0f, 1f);
+        var children = row.Cast<Transform>().OfType<RectTransform>()
+            .Where(child => child.GetComponent<SpellRepertoireLine>()).ToArray();
+        var lines = children.Select(child => child.GetComponent<SpellRepertoireLine>()).ToArray();
+        var gridHeight = sharedGridHeight >= 0f ? sharedGridHeight : lines
+            .Select(line => line.GetComponent<SpellSelectionLineLayoutState>().ResetRowGridHeight()).DefaultIfEmpty(0f).Max();
+        foreach (var line in lines)
+        {
+            line.GetComponent<SpellSelectionLineLayoutState>().AlignRowGridHeight(gridHeight);
+        }
+
+        var width = children.Sum(LayoutUtility.GetPreferredWidth) +
+                    SpellSelectionCardGap * Mathf.Max(0, children.Length - 1);
+        var layout = row.GetComponent<LayoutElement>();
+        var grid = lines.SelectMany(line => line.SpellsByLevelBoxes)
+            .Select(level => level.spellsTable.GetComponent<GridLayoutGroup>()).FirstOrDefault(value => value);
+        var stride = grid ? grid.cellSize.x + SpellSelectionCardGap : 1f;
+        var maximumWidth = lines.Select(line => line.GetComponent<SpellSelectionLineLayoutState>().MaximumWidth)
+            .DefaultIfEmpty(float.MaxValue).Min();
+        var sectionWidth = Mathf.Min(maximumWidth,
+            Mathf.Ceil((Mathf.Max(width, layout.minWidth) + SpellSelectionCardGap) / stride) * stride - SpellSelectionCardGap);
+        row.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, sectionWidth);
+        var heights = new Dictionary<SpellRepertoireLine, float>();
+        foreach (var line in children.Select(child => child.GetComponent<SpellRepertoireLine>()).Where(line => line))
+        {
+            line.RectTransform.anchorMin = line.RectTransform.anchorMax = new Vector2(0f, 1f);
+            line.RectTransform.pivot = new Vector2(0f, 1f);
+            line.RectTransform.anchoredPosition = Vector2.zero;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(line.RectTransform);
+            var cards = line.GetComponentsInChildren<SpellActivationBox>(true)
+                .Where(box => box.gameObject.activeSelf && box.GuiSpellDefinition != null).ToArray();
+            // A native refresh can temporarily empty one level. The deferred panel rebind
+            // removes it; keep that synchronous transition measurable without losing other sources.
+            var top = cards.Select(box => GetSpellSelectionLocalRectBounds((RectTransform)box.transform, row).yMax)
+                .DefaultIfEmpty(0f).Max();
+            var bottom = line.SpellsByLevelBoxes.Select(level =>
+                GetSpellSelectionLocalRectBounds(level.RectTransform, row).yMin).DefaultIfEmpty(top).Min();
+            heights[line] = top - bottom;
+        }
+
+        layout.preferredWidth = sectionWidth;
+        layout.preferredHeight = (headingHeight > 0f ? headingHeight + 4f : 0f) + heights.Values.DefaultIfEmpty(0f).Max();
+        row.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, layout.preferredHeight);
+        var left = row.rect.xMin;
+        var desiredTop = row.rect.yMax - (headingHeight > 0f ? headingHeight + 4f : 0f);
+        foreach (var child in children)
+        {
+            var line = child.GetComponent<SpellRepertoireLine>();
+            if (line && line.SpellsByLevelBoxes.Count > 0)
+            {
+                var bounds = line.SpellsByLevelBoxes.Select(level =>
+                    GetSpellSelectionLocalRectBounds(level.RectTransform, row)).ToArray();
+                var top = line.GetComponentsInChildren<SpellActivationBox>(true).Where(box => box.gameObject.activeSelf && box.GuiSpellDefinition != null)
+                    .Select(box => GetSpellSelectionLocalRectBounds((RectTransform)box.transform, row).yMax)
+                    .DefaultIfEmpty(bounds.Max(bound => bound.yMax)).Max();
+                line.RectTransform.anchoredPosition += new Vector2(left - bounds.Min(bound => bound.xMin), desiredTop - top);
+            }
+
+            left += LayoutUtility.GetPreferredWidth(child) + SpellSelectionCardGap;
+        }
+    }
+
+    internal static void ConfigureMultilineSpellSelectionLine(
+        SpellRepertoireLine line, float maximumWidth, float maximumHeight)
+    {
+        var state = line.GetComponent<SpellSelectionLineLayoutState>() ??
+                    line.gameObject.AddComponent<SpellSelectionLineLayoutState>();
+        state.Apply(line, maximumWidth, maximumHeight);
+    }
+
+    internal static void RestoreMultilineSpellSelectionLine(SpellRepertoireLine line)
+    {
+        line.GetComponent<SpellSelectionLineLayoutState>()?.Restore();
+    }
+
+    internal static IDisposable BeginMultilineSpellSelectionLineRefresh(SpellRepertoireLine line)
+    {
+        var state = line.GetComponent<SpellSelectionLineLayoutState>();
+        var panel = line.GetComponentInParent<SpellSelectionPanel>();
+        return !Main.Settings.DisableMultilineSpellOffering && state && state.IsApplied && panel &&
+               panel.spellRepertoireLines.Contains(line)
+            ? new SpellSelectionLineRefreshScope(line, state, panel)
+            : null;
+    }
+
+    internal static void RebindMultilineSpellSelectionLine(SpellRepertoireLine line)
+    {
+        var refresh = ActiveSpellSelectionLineRefresh;
+        if (refresh != null && refresh.Line == line && !Main.Settings.DisableMultilineSpellOffering)
+        {
+            ConfigureMultilineSpellSelectionLine(line, refresh.MaximumWidth, refresh.MaximumHeight);
+            var row = line.transform.parent as RectTransform;
+            var heading = row ? row.GetComponentsInChildren<TMP_Text>(true)
+                .FirstOrDefault(text => text.transform.parent == row && text.name == "SpellSourceHeading") : null;
+            if (heading)
+            {
+                // Refresh reuses the native column synchronously, before the source rows are
+                // rebuilt in LateUpdate. Keep its shared heading throughout that transition.
+                var state = line.GetComponent<SpellSelectionLineLayoutState>();
+                state.HideColumnHeading();
+                ArrangeSpellSelectionSourceSection(row, heading.gameObject.activeSelf ? heading.rectTransform.rect.height : 0f);
+                if (row.parent is RectTransform physicalRow && physicalRow.name == "SpellSelectionSourceRow")
+                {
+                    ArrangeSpellSelectionRow(physicalRow);
+                }
+            }
+
+            refresh.Applied = true;
+        }
+    }
+
+    private sealed class SpellSelectionLineRefreshScope : IDisposable
+    {
+        private readonly SpellSelectionLineRefreshScope _previous;
+        private readonly SpellSelectionPanel _panel;
+        private readonly SpellDefinition _selectedSpell;
+        private readonly RulesetSpellRepertoire _selectedRepertoire;
+        private readonly GameObject _selectedControl;
+
+        internal SpellSelectionLineRefreshScope(
+            SpellRepertoireLine line, SpellSelectionLineLayoutState state, SpellSelectionPanel panel)
+        {
+            _previous = ActiveSpellSelectionLineRefresh;
+            _panel = panel;
+            Line = line;
+            MaximumWidth = state.MaximumWidth;
+            MaximumHeight = state.MaximumHeight;
+            // Capture before native Refresh releases and reuses any selected button.
+            var selection = EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
+            var selectedBox = selection && selection.transform.IsChildOf(panel.transform)
+                ? selection.GetComponentInParent<SpellActivationBox>()
+                : null;
+            _selectedSpell = selectedBox ? selectedBox.GuiSpellDefinition?.SpellDefinition : null;
+            _selectedRepertoire = selectedBox
+                ? SpellActionTypeContext.GetRepertoireLine(selectedBox)?.spellRepertoire ?? selectedBox.spellRepertoire
+                : null;
+            _selectedControl = selectedBox ? selection : null;
+            ActiveSpellSelectionLineRefresh = this;
+        }
+
+        internal SpellRepertoireLine Line { get; }
+        internal float MaximumWidth { get; }
+        internal float MaximumHeight { get; }
+        internal bool Applied { get; set; }
 
         public void Dispose()
         {
-            if (Table)
+            ActiveSpellSelectionLineRefresh = _previous;
+            if (!Applied || !_panel)
             {
-                Object.Destroy(Table.gameObject);
+                return;
             }
+
+            var holder = _panel.spellRepertoireLinesTable.parent as RectTransform;
+            if (!holder)
+            {
+                return;
+            }
+
+            var pager = holder.GetComponent<SpellSelectionLinePager>() ??
+                        holder.gameObject.AddComponent<SpellSelectionLinePager>();
+            // Native multicast refresh is still invoking the old rows. Rebuild once after that
+            // invocation completes, so removed rows are never rebound with a cleared repertoire.
+            pager.RequestRebind(_panel, Line.spellCastEngaged, Line.actionType, Line.cantripOnly,
+                _selectedSpell, _selectedRepertoire, _selectedControl);
+        }
+    }
+
+    private sealed class SpellSelectionLineLayoutState : MonoBehaviour
+    {
+        private SpellRepertoireLine _line;
+        private TMP_Text _heading;
+        private int _leftPadding;
+        private int _topPadding;
+        private TextAnchor _levelAlignment;
+        private Vector2 _rootAnchorMin, _rootAnchorMax, _rootPivot, _rootPosition;
+        private bool _headerActive;
+        private LayoutElement _layout;
+        private bool _createdLayout;
+        private float _minimumWidth;
+        private float _preferredWidth;
+        private readonly List<(GridLayoutGroup Grid, GridLayoutGroup.Constraint Constraint, int Count,
+            TextAnchor Alignment, GridLayoutGroup.Corner Corner, GridLayoutGroup.Axis Axis, int BottomPadding,
+            Vector2 Spacing)> _grids = [];
+
+        internal bool IsApplied => _line;
+        internal float MaximumWidth { get; private set; }
+        internal float MaximumHeight { get; private set; }
+        internal bool SourceWraps { get; set; }
+
+        internal void Apply(SpellRepertoireLine line, float maximumWidth, float maximumHeight)
+        {
+            Restore();
+            _line = line;
+            MaximumWidth = maximumWidth;
+            MaximumHeight = maximumHeight;
+            _leftPadding = line.layoutGroup.padding.left;
+            _topPadding = line.layoutGroup.padding.top;
+            _levelAlignment = line.layoutGroup.childAlignment;
+            _rootAnchorMin = line.RectTransform.anchorMin;
+            _rootAnchorMax = line.RectTransform.anchorMax;
+            _rootPivot = line.RectTransform.pivot;
+            _rootPosition = line.RectTransform.anchoredPosition;
+            line.layoutGroup.childAlignment = TextAnchor.UpperLeft;
+            _headerActive = line.repertoireHeader.gameObject.activeSelf;
+            // The native side header contains the source title only. Level headings, spell slot
+            // indicators and free-use counters remain on their native level boxes.
+            line.repertoireHeader.gameObject.SetActive(false);
+            line.layoutGroup.padding.left = 0;
+            if (!_heading)
+            {
+                var rect = (RectTransform)new GameObject("SpellSourceHeading", typeof(RectTransform)).transform;
+                rect.gameObject.layer = line.gameObject.layer;
+                rect.SetParent(line.transform, false);
+                rect.anchorMin = new Vector2(0f, 1f);
+                rect.anchorMax = Vector2.one;
+                rect.pivot = new Vector2(0f, 1f);
+                rect.offsetMin = new Vector2(4f, -26f);
+                rect.offsetMax = new Vector2(-4f, -2f);
+                rect.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+                _heading = CreateSpellSelectionText(rect);
+                _heading.alignment = TextAlignmentOptions.Left;
+                _heading.enableWordWrapping = true;
+                _heading.enableAutoSizing = false;
+                _heading.fontSize = _heading.fontSizeMax = 18f;
+                _heading.fontSizeMin = 12f;
+                _heading.raycastTarget = false;
+                _heading.color = new Color(0.95f, 0.77f, 0.60f, 1f);
+            }
+
+            _heading.font = line.headerLabel.TMP_Text.font;
+            _heading.fontSharedMaterial = line.headerLabel.TMP_Text.fontSharedMaterial;
+            // The compact native side label can abbreviate a feat to its spell-list class.
+            // Horizontal headings have room for the actual class, race or feat source title.
+            _heading.text = GetSpellSelectionSourceTitle(line.spellRepertoire);
+            _heading.gameObject.SetActive(true);
+            _layout = line.GetComponent<LayoutElement>();
+            _createdLayout = !_layout;
+            if (!_layout)
+            {
+                _layout = line.gameObject.AddComponent<LayoutElement>();
+            }
+
+            _minimumWidth = _layout.minWidth;
+            _preferredWidth = _layout.preferredWidth;
+            var titleWidth = Mathf.Min(maximumWidth, _heading.GetPreferredValues(_heading.text).x + 8f);
+            _layout.minWidth = Mathf.Max(_minimumWidth, titleWidth);
+            var headingHeight = Mathf.Max(28f, _heading.GetPreferredValues(_heading.text,
+                Mathf.Max(1f, titleWidth - 8f), float.PositiveInfinity).y + 4f);
+            line.layoutGroup.padding.top += Mathf.CeilToInt(headingHeight);
+            _heading.rectTransform.offsetMin = new Vector2(4f, -headingHeight + 2f);
+
+            // Native grid binding already rebuilds its own layout. Settle only this column's
+            // fitters; one final canvas pass handles the completed picker after all columns bind.
+            LayoutRebuilder.ForceRebuildLayoutImmediate(line.levelsTable);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(line.RectTransform);
+
+            // Reflow a single crowded level's native grid without changing its spell/source list.
+            foreach (var level in line.SpellsByLevelBoxes)
+            {
+                var grid = level.spellsTable.GetComponent<GridLayoutGroup>();
+                if (!grid || grid.cellSize.x <= 0f || grid.cellSize.y <= 0f)
+                {
+                    continue;
+                }
+
+                _grids.Add((grid, grid.constraint, grid.constraintCount, grid.childAlignment, grid.startCorner,
+                    grid.startAxis, grid.padding.bottom, grid.spacing));
+                grid.childAlignment = TextAnchor.UpperLeft;
+                grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+                grid.startAxis = GridLayoutGroup.Axis.Horizontal;
+                grid.spacing = new Vector2(SpellSelectionCardGap, SpellSelectionCardGap);
+                grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                var spellCount = level.spellsTable.GetComponentsInChildren<SpellActivationBox>()
+                    .Count(box => box.gameObject.activeSelf);
+                grid.constraintCount = Mathf.Clamp(spellCount, 1, SpellSelectionPreferredCardColumns);
+                LayoutRebuilder.ForceRebuildLayoutImmediate(level.spellsTable);
+                level.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, level.spellsTable.rect.width);
+                LayoutRebuilder.ForceRebuildLayoutImmediate(level.RectTransform);
+                var availableGridHeight = Mathf.Max(1f, maximumHeight - headingHeight -
+                    Mathf.Max(0f, level.RectTransform.rect.height - level.spellsTable.rect.height));
+                if (level.RectTransform.rect.width <= maximumWidth && level.spellsTable.rect.height <= availableGridHeight)
+                {
+                    continue;
+                }
+
+                grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                var maximumColumns = Mathf.Max(1, Mathf.FloorToInt(
+                    (maximumWidth - grid.padding.horizontal + grid.spacing.x) / (grid.cellSize.x + grid.spacing.x)));
+                var maximumRows = Mathf.Max(1, Mathf.FloorToInt(
+                    (availableGridHeight - grid.padding.vertical + grid.spacing.y) / (grid.cellSize.y + grid.spacing.y)));
+                grid.constraintCount = Mathf.Min(maximumColumns,
+                    Mathf.Max(1, Mathf.CeilToInt((float)spellCount / maximumRows)));
+                LayoutRebuilder.ForceRebuildLayoutImmediate(level.spellsTable);
+                level.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, level.spellsTable.rect.width);
+                LayoutRebuilder.ForceRebuildLayoutImmediate(level.RectTransform);
+            }
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)line.layoutGroup.transform);
+            // The repertoire's layout group is on its inner level table. The root fitter cannot
+            // infer that nested preferred width once a title LayoutElement is present.
+            _layout.preferredWidth = Mathf.Max(_preferredWidth, titleWidth, line.layoutGroup.preferredWidth);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(line.RectTransform);
+        }
+
+        internal float ResetRowGridHeight()
+        {
+            foreach (var (grid, _, _, _, _, _, bottomPadding, _) in _grids)
+            {
+                grid.padding.bottom = bottomPadding;
+                LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)grid.transform);
+            }
+
+            return _grids.Select(entry => entry.Grid.preferredHeight).DefaultIfEmpty(0f).Max();
+        }
+
+        internal void AlignRowGridHeight(float height)
+        {
+            // Equal card areas put all level/slot footers on the same row while short levels
+            // keep their cards at the top. No empty columns are added to sparse acquisitions.
+            foreach (var (grid, _, _, _, _, _, bottomPadding, _) in _grids)
+            {
+                grid.padding.bottom = bottomPadding + Mathf.CeilToInt(Mathf.Max(0f, height - grid.preferredHeight));
+                LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)grid.transform);
+            }
+
+            foreach (var level in _line.SpellsByLevelBoxes)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(level.RectTransform);
+            }
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_line.levelsTable);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_line.RectTransform);
+        }
+
+        internal void SetColumnWidth(float width)
+        {
+            if (!_line || !_layout)
+            {
+                return;
+            }
+
+            _layout.minWidth = _layout.preferredWidth = Mathf.Max(1f, width);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_line.RectTransform);
+        }
+
+        internal void HideColumnHeading()
+        {
+            if (!_line || !_heading || !_layout)
+            {
+                return;
+            }
+
+            _heading.gameObject.SetActive(false);
+            _line.layoutGroup.padding.top = _topPadding;
+            _layout.minWidth = _minimumWidth;
+            _layout.preferredWidth = Mathf.Max(_preferredWidth, _line.layoutGroup.preferredWidth);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_line.RectTransform);
+        }
+
+        internal void Restore()
+        {
+            if (!_line)
+            {
+                return;
+            }
+
+            _line.layoutGroup.padding.left = _leftPadding;
+            _line.layoutGroup.padding.top = _topPadding;
+            _line.layoutGroup.childAlignment = _levelAlignment;
+            _line.RectTransform.anchorMin = _rootAnchorMin;
+            _line.RectTransform.anchorMax = _rootAnchorMax;
+            _line.RectTransform.pivot = _rootPivot;
+            _line.RectTransform.anchoredPosition = _rootPosition;
+            _line.repertoireHeader.gameObject.SetActive(_headerActive);
+            if (_layout)
+            {
+                if (_createdLayout)
+                {
+                    // Pooled lines can be bound again during the same frame.
+                    UnityEngine.Object.DestroyImmediate(_layout);
+                }
+                else
+                {
+                    _layout.minWidth = _minimumWidth;
+                    _layout.preferredWidth = _preferredWidth;
+                }
+            }
+
+            _layout = null;
+            foreach (var (grid, constraint, count, alignment, corner, axis, bottomPadding, spacing) in _grids)
+            {
+                if (grid)
+                {
+                    grid.constraint = constraint;
+                    grid.constraintCount = count;
+                    grid.childAlignment = alignment;
+                    grid.startCorner = corner;
+                    grid.startAxis = axis;
+                    grid.padding.bottom = bottomPadding;
+                    grid.spacing = spacing;
+                }
+            }
+
+            _grids.Clear();
+            if (_heading)
+            {
+                _heading.gameObject.SetActive(false);
+            }
+
+            _line = null;
+            SourceWraps = false;
         }
     }
 

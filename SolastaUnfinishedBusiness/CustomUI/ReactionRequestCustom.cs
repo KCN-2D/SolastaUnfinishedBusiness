@@ -33,10 +33,24 @@ public class ReactionRequestCustom : ReactionRequest, IReactionRequestWithResour
     private readonly string _type;
 
     internal ReactionRequestCustom(string type, CharacterActionParams reactionParams)
+        : this(type, reactionParams, null, null)
+    {
+    }
+
+    internal ReactionRequestCustom(string type, CharacterActionParams reactionParams,
+        GameLocationCharacter target, BaseDefinition effectDefinition)
         : base(Name(type), reactionParams)
     {
         _type = type;
+        Target = target;
+        EffectDefinition = effectDefinition;
     }
+
+    // UI context is independent of action targets, which a confirmation-only
+    // request must not populate or change on behalf of its gameplay callback.
+    internal GameLocationCharacter Target { get; }
+
+    internal BaseDefinition EffectDefinition { get; }
 
     public ICustomReactionResource Resource { get; set; }
 

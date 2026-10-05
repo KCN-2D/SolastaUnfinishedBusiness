@@ -1,5 +1,6 @@
 ﻿// Copyright < 2021 > Narria (github user Cabarius) - License: MIT
 
+using System;
 using JetBrains.Annotations;
 using UnityEngine;
 using GL = UnityEngine.GUILayout;
@@ -202,6 +203,35 @@ internal static partial class UI
     {
         // ReSharper disable once UseSymbolAlias
         return new GUILayout.ScrollViewScope(scrollPosition, style, options);
+    }
+
+    internal static void VirtualScrollList(
+        ref Vector2 scrollPosition, int count, float rowHeight, float contentWidth,
+        Action<int, Rect> drawRow, params GUILayoutOption[] options)
+    {
+        var viewport = GUILayoutUtility.GetRect(0f, 0f, options);
+        var scrollbarWidth = GUI.skin.verticalScrollbar.fixedWidth + GUI.skin.verticalScrollbar.margin.left;
+        var width = Mathf.Max(contentWidth, viewport.width - scrollbarWidth);
+        var content = new Rect(0f, 0f, width, count * rowHeight);
+
+        scrollPosition = GUI.BeginScrollView(viewport, scrollPosition, content);
+
+        try
+        {
+            // Raw GUI controls do not add layout entries. The visible range can change between
+            // Layout, Repaint and scroll input without invalidating the GUILayout tree.
+            var first = Mathf.Clamp(Mathf.FloorToInt(scrollPosition.y / rowHeight), 0, count);
+            var last = Mathf.Min(count, first + Mathf.CeilToInt(viewport.height / rowHeight) + 1);
+
+            for (var index = first; index < last; index++)
+            {
+                drawRow(index, new Rect(0f, index * rowHeight, width, rowHeight));
+            }
+        }
+        finally
+        {
+            GUI.EndScrollView();
+        }
     }
 
     [UsedImplicitly]

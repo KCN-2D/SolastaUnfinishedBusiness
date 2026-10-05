@@ -3345,7 +3345,18 @@ public static partial class Tabletop2024Context
 
         var titleKey = $"Tag/&{selectionTag}{poolTag}SpecialTagTitle";
 
-        return TryLocalizeTabletop2024Title(titleKey, out title);
+        if (!TryLocalizeTabletop2024Title(titleKey, out title))
+        {
+            return false;
+        }
+
+        if (TryGetTabletop2024FeatSpellSourceClass(spellTagName, out var sourceClass) &&
+            !TryGetTabletop2024FeatSpellSourceClass(selectionTag, out _))
+        {
+            title = Gui.Format("Feat/&GeneralFeat2024VariantTitle", title, sourceClass.FormatTitle());
+        }
+
+        return true;
     }
 
     internal static bool TryGetTabletop2024FeatSpellSourceShortTitle(
@@ -3353,6 +3364,22 @@ public static partial class Tabletop2024Context
         out string title)
     {
         title = null;
+
+        if (!TryGetTabletop2024FeatSpellSourceClass(spellTagName, out var sourceClass))
+        {
+            return false;
+        }
+
+        title = sourceClass.FormatTitle();
+
+        return !string.IsNullOrEmpty(title);
+    }
+
+    private static bool TryGetTabletop2024FeatSpellSourceClass(
+        string spellTagName,
+        out CharacterClassDefinition sourceClass)
+    {
+        sourceClass = null;
 
         var selectionTag = GetTabletop2024FeatSpellSelectionTag(spellTagName);
 
@@ -3369,9 +3396,9 @@ public static partial class Tabletop2024Context
                     $"{MagicConnoisseur2024SpellTag}{candidate.ClassName}Level", StringComparison.Ordinal));
         }
 
-        title = profile?.ClassHolder.Class.FormatTitle();
+        sourceClass = profile?.ClassHolder.Class;
 
-        return !string.IsNullOrEmpty(title);
+        return sourceClass != null;
     }
 
     private static bool TryGetMagicInitiate2024ClassProfile(
@@ -8608,7 +8635,8 @@ public static partial class Tabletop2024Context
             promptName,
             Gui.Localize($"Reaction/&CustomReaction{promptName}Description"),
             () => context.Approve(power.Name),
-            resource: new ReactionResourcePowerPool(power, power.GuiPresentation.SpriteReference));
+            resource: new ReactionResourcePowerPool(power, power.GuiPresentation.SpriteReference),
+            target: actingCharacter, effectDefinition: power);
     }
 
     private static bool CanUseD20AdvantagePower(
@@ -8869,7 +8897,8 @@ public static partial class Tabletop2024Context
                 "SavageAttacker2024",
                 "CustomReactionSavageAttacker2024Description".Formatted(Category.Reaction, defender.Name),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender);
 
             yield break;
 
@@ -9183,7 +9212,8 @@ public static partial class Tabletop2024Context
                 "Musician2024HeroicInspiration",
                 "CustomReactionMusician2024HeroicInspirationDescription".Localized(Category.Reaction),
                 Reroll,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: attacker);
 
             yield break;
 
@@ -9232,7 +9262,8 @@ public static partial class Tabletop2024Context
                 "Musician2024HeroicInspiration",
                 "CustomReactionMusician2024HeroicInspirationDescription".Localized(Category.Reaction),
                 Reroll,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender);
 
             yield break;
 
@@ -9274,7 +9305,8 @@ public static partial class Tabletop2024Context
                 "Musician2024HeroicInspiration",
                 "CustomReactionMusician2024HeroicInspirationDescription".Localized(Category.Reaction),
                 Reroll,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender);
 
             yield break;
 
@@ -9604,7 +9636,8 @@ public static partial class Tabletop2024Context
                 locationCharacter,
                 "Survivor2024Hypervigilance",
                 "CustomReactionSurvivor2024HypervigilanceDescription".Localized(Category.Reaction),
-                RerollInitiative);
+                RerollInitiative,
+                target: locationCharacter);
 
             yield break;
 

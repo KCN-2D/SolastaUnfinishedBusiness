@@ -279,7 +279,8 @@ public sealed class OathOfHatred : AbstractSubclass
                 "CustomReactionHatredArdentHateDescription".Formatted(
                     Category.Reaction, guiAttacker.Name, guiDefender.Name),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: attacker, effectDefinition: power);
 
             yield break;
 

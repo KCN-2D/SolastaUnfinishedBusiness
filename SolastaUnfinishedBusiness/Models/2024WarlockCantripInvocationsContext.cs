@@ -147,7 +147,8 @@ public static partial class Tabletop2024Context
             yield return attacker.MyReactToDoNothing(ExtraActionId.DoNothingFree, attacker, "RepellingBlast2024",
                 Gui.Format("Reaction/&CustomReactionRepellingBlast2024Description", defender.Name),
                 () => actualEffectForms.Add(EffectFormBuilder.Create()
-                    .SetMotionForm(MotionForm.MotionType.PushFromOrigin, 2).Build()), battleManager: battleManager);
+                    .SetMotionForm(MotionForm.MotionType.PushFromOrigin, 2).Build()), battleManager: battleManager,
+                target: defender);
         }
     }
 }

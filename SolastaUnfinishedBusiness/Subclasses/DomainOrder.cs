@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -45,8 +46,19 @@ public sealed class DomainOrder : AbstractSubclass
         .SetUsesAbilityBonus(
             ActivationTime.NoCost, RechargeRate.LongRest, AttributeDefinitions.Wisdom)
         .SetShowCasting(false)
+        .DelegatedToAction()
         .AddToDB();
 
+    private static readonly FeatureDefinitionActionAffinity EmbodimentActionAffinity =
+        FeatureDefinitionActionAffinityBuilder
+            .Create(FeatureDefinitionActionAffinitys.ActionAffinitySorcererMetamagicToggle,
+                $"ActionAffinity{Name}EmbodimentOfLaw")
+            .SetGuiPresentationNoContent(true)
+            .SetAuthorizedActions((ActionDefinitions.Id)ExtraActionId.EmbodimentOfLawToggle)
+            .AddToDB();
+
+    // Retain serialized definition identities for older characters. Neither
+    // definition is granted or used by the independent casting-time ability.
     private static readonly MetamagicOptionDefinition EmbodimentMetamagic = MetamagicOptionDefinitionBuilder
         .Create(MetamagicOptionDefinitions.MetamagicQuickenedSpell, "MetamagicEmbodimentOfTheLaw")
         .SetGuiPresentation(Category.Feature, hidden: true)
@@ -60,19 +72,19 @@ public sealed class DomainOrder : AbstractSubclass
                     ref bool result,
                     ref string failure) =>
                 {
-                    if (spell.ActionType == ActionDefinitions.ActionType.Main &&
-                        spell.SchoolOfMagic == SchoolOfMagicDefinitions.SchoolEnchantment.Name &&
-                        rulesetCharacter.CanUsePower(EmbodimentOfLaw))
-                    {
-                        return;
-                    }
-
-                    failure = spell.SchoolOfMagic == SchoolOfMagicDefinitions.SchoolEnchantment.Name
-                        ? "Failure/&FailureFlagNoPowerUses"
-                        : Gui.Format("Failure/&FailureFlagInvalidSpellSchool", spell.SchoolOfMagic.Remove(0, 6));
+                    failure = "Failure/&FailureFlagNoPowerUses";
                     result = false;
                 }))
         .AddToDB();
+
+    private static readonly FeatureDefinitionAttributeModifier LegacySorceryPoints =
+        FeatureDefinitionAttributeModifierBuilder
+            .Create(FeatureDefinitionAttributeModifiers.AttributeModifierSorcererSorceryPointsBase,
+                $"AttributeModifier{Name}SorceryPointsMinimum")
+            .SetGuiPresentationNoContent(true)
+            .SetModifier(FeatureDefinitionAttributeModifier.AttributeModifierOperation.Additive,
+                AttributeDefinitions.SorceryPoints, 0)
+            .AddToDB();
 
     public DomainOrder()
     {
@@ -204,20 +216,16 @@ public sealed class DomainOrder : AbstractSubclass
 
 
         // LEVEL 06 Embodiment of the Law
-        // P.B./day cast Enchantment spell as a B.A.
         EmbodimentOfLaw.AddCustomSubFeatures(
-            new EmbodimentOfLawCustomBehaviour(EmbodimentOfLaw, EmbodimentMetamagic));
+            new EmbodimentOfLawCustomBehaviour(EmbodimentOfLaw));
 
-        var metamagicToggle = FeatureDefinitionActionAffinitys.ActionAffinitySorcererMetamagicToggle;
-
-        // Feature required to get the Metamagic panel to show up for EmbodimentMetamagic
-        var sorceryPoints = FeatureDefinitionAttributeModifierBuilder
-            .Create(FeatureDefinitionAttributeModifiers.AttributeModifierSorcererSorceryPointsBase,
-                $"AttributeModifier{Name}SorceryPointsMinimum")
-            .SetGuiPresentationNoContent(true)
-            .SetModifier(
-                FeatureDefinitionAttributeModifier.AttributeModifierOperation.ForceIfBetter,
-                AttributeDefinitions.SorceryPoints, 1)
+        _ = ActionDefinitionBuilder
+            .Create(DatabaseHelper.ActionDefinitions.MetamagicToggle, "EmbodimentOfLawToggle")
+            .SetOrUpdateGuiPresentation(EmbodimentOfLaw.Name, Category.Feature)
+            .RequiresAuthorization()
+            .SetActionId(ExtraActionId.EmbodimentOfLawToggle)
+            .SetActivatedPower(EmbodimentOfLaw)
+            .OverrideClassName("Toggle")
             .AddToDB();
 
         // LEVEL 08 Divine Strike
@@ -290,7 +298,7 @@ public sealed class DomainOrder : AbstractSubclass
                 powerVoiceOfAuthority,
                 powerVoiceOfAuthorityCompelAttack)
             .AddFeaturesAtLevel(2, featureSetOrdersDemand)
-            .AddFeaturesAtLevel(6, EmbodimentOfLaw, metamagicToggle, sorceryPoints)
+            .AddFeaturesAtLevel(6, EmbodimentOfLaw, EmbodimentActionAffinity)
             .AddFeaturesAtLevel(8, DivineStrike)
             .AddFeaturesAtLevel(17, powerOrdersWrath)
             .AddFeaturesAtLevel(20, Level20SubclassesContext.PowerClericDivineInterventionImprovementPaladin)
@@ -448,55 +456,115 @@ public sealed class DomainOrder : AbstractSubclass
         }
     }
 
-    private sealed class EmbodimentOfLawCustomBehaviour(
-        FeatureDefinitionPower power,
-        MetamagicOptionDefinition metamagic
-    ) : ICustomLevelUpLogic, IMagicEffectInitiatedByMe, IPowerOrSpellFinishedByMe
+    internal static void SynchronizeEmbodimentOfLaw(RulesetCharacterHero hero)
+    {
+        // Remove only this subclass's obsolete state. Genuine sorcerer features
+        // and metamagic choices in other feature origins remain intact.
+        if (hero.TrainedMetamagicOptions.Remove(EmbodimentMetamagic) && hero.TrainedMetamagicOptions.Count == 0)
+        {
+            hero.DisableToggle(ActionDefinitions.Id.MetamagicToggle);
+        }
+
+        foreach (var origin in hero.ActiveFeatures)
+        {
+            var features = origin.Value;
+            features.Remove(LegacySorceryPoints);
+            if (!features.Contains(EmbodimentOfLaw))
+            {
+                continue;
+            }
+
+            // Class modifiers are stored on the character and RefreshAll only
+            // rebuilds feat/item/condition modifiers. Remove the obsolete minimum
+            // from this feature origin without touching other sorcery resources.
+            var sorceryPoints = hero.GetAttribute(AttributeDefinitions.SorceryPoints);
+            foreach (var modifier in sorceryPoints.ActiveModifiers.Where(modifier =>
+                         modifier.Tags.Contains(origin.Key) &&
+                         modifier.Operation == FeatureDefinitionAttributeModifier.AttributeModifierOperation.ForceIfBetter &&
+                         modifier.Value == 1))
+            {
+                modifier.Tags.Add(LegacySorceryPoints.Name);
+            }
+
+            if (sorceryPoints.ActiveModifiers.Any(modifier => modifier.Tags.Contains(LegacySorceryPoints.Name)))
+            {
+                sorceryPoints.RemoveModifiersByTags(LegacySorceryPoints.Name);
+            }
+
+            features.Remove(FeatureDefinitionActionAffinitys.ActionAffinitySorcererMetamagicToggle);
+            if (!features.Contains(EmbodimentActionAffinity))
+            {
+                features.Add(EmbodimentActionAffinity);
+            }
+        }
+    }
+
+    private sealed class EmbodimentOfLawCustomBehaviour(FeatureDefinitionPower power)
+        : ICustomLevelUpLogic, ISpellCastingActionProvider
     {
         public void ApplyFeature(RulesetCharacterHero hero, [UsedImplicitly] string tag)
         {
-            if (hero == null ||
-                metamagic == null ||
-                hero.trainedMetamagicOptions.Contains(metamagic))
+            if (hero != null)
             {
-                return;
+                SynchronizeEmbodimentOfLaw(hero);
             }
-
-            hero.trainedMetamagicOptions.Add(metamagic);
-            hero.trainedMetamagicOptions.Sort((x, y) => string.Compare(x.Name, y.Name, StringComparison.Ordinal));
         }
 
         public void RemoveFeature(RulesetCharacterHero hero, [UsedImplicitly] string tag)
         {
-            hero.trainedMetamagicOptions.Remove(metamagic);
+            hero.TrainedMetamagicOptions.Remove(EmbodimentMetamagic);
         }
 
-        public IEnumerator OnMagicEffectInitiatedByMe(
-            CharacterAction action,
-            RulesetEffect activeEffect,
-            GameLocationCharacter attacker,
-            List<GameLocationCharacter> targets)
+        public bool IsAllowed(
+            RulesetCharacter character,
+            RulesetSpellRepertoire repertoire,
+            SpellDefinition spell,
+            ActionDefinitions.ActionType actionType)
         {
-            if (activeEffect.MetamagicOption == metamagic)
+            if (SpellSelectionContext.TryGetOption(repertoire, out var option))
             {
-                // Expend if you used it for a spell
-                attacker.RulesetCharacter.UpdateUsageForPower(power, 1);
+                if (option.IsFree || option.SlotLevel < 1)
+                {
+                    return false;
+                }
+
+                repertoire = option.Repertoire;
             }
 
-            yield break;
+            return actionType == ActionDefinitions.ActionType.Bonus &&
+                   spell is { SpellLevel: > 0, ActivationTime: ActivationTime.Action } &&
+                   spell.SchoolOfMagic == SchoolOfMagicDefinitions.SchoolEnchantment.Name &&
+                   repertoire != null && !SpellSlotCastingLimit2024Context.IsFreeUseRepertoire(repertoire) &&
+                   character.IsToggleEnabled((ActionDefinitions.Id)ExtraActionId.EmbodimentOfLawToggle) &&
+                   character.CanUsePower(power);
         }
 
-        public IEnumerator OnPowerOrSpellFinishedByMe(
+        public bool CanCastSpellAsAction(
             CharacterActionMagicEffect action,
-            BaseDefinition baseDefinition)
+            RulesetEffectSpell spell,
+            out string failure)
         {
-            if (baseDefinition.Name == power.Name)
+            if (spell.SlotLevel < 1 || spell.OriginItem != null ||
+                spell.RulesetInvocation?.InvocationDefinition is { ConsumesSpellSlot: false } ||
+                SpellCastingResourceContext.TryGetSelectionKind(spell, out var kind) &&
+                kind != SpellCastingResourceContext.ResourceKind.SpellSlot)
             {
-                // Refund if you activated it through the power menu
-                action.ActingCharacter.RulesetCharacter.UpdateUsageForPower(power, -1);
+                failure = "Failure/&FailureFlagEmbodimentOfLawRequiresSpellSlot";
+                return false;
             }
 
-            yield break;
+            var repertoire = SpellCastingResourceContext.GetResourceRepertoire(spell) ?? spell.SpellRepertoire;
+            var allowed = IsAllowed(action.ActingCharacter.RulesetCharacter, repertoire,
+                RulesetEffectSpellWithOrigin.GetOriginSpell(spell), action.ActionType);
+            failure = allowed ? string.Empty : "Failure/&FailureFlagNoPowerUses";
+            return allowed;
+        }
+
+        public void OnSpellCastCommitted(CharacterActionMagicEffect action, RulesetEffectSpell spell)
+        {
+            var character = action.ActingCharacter.RulesetCharacter;
+            character.UsePower(PowerProvider.Get(power, character));
+            character.LogCharacterUsedFeature(power);
         }
     }
 

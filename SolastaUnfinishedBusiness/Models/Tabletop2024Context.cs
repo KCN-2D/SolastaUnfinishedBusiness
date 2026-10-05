@@ -397,7 +397,8 @@ public static partial class Tabletop2024Context
                 "CustomReactionHeroicWarriorAttackDescription".Formatted(Category.Reaction, attacker.Name,
                     defender.Name, helper.Name),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: attacker);
 
             yield break;
 
@@ -468,7 +469,8 @@ public static partial class Tabletop2024Context
                 "HeroicWarriorCheck",
                 "CustomReactionHeroicWarriorCheckDescription".Formatted(Category.Reaction, defender.Name, helper.Name),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender);
 
             yield break;
 
@@ -549,7 +551,8 @@ public static partial class Tabletop2024Context
                     Category.Reaction, defender.Name, attacker?.Name ?? ReactionRequestCustom.EnvTitle,
                     savingThrowData.Title),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender);
 
             yield break;
 

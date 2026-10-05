@@ -474,7 +474,8 @@ public class PatronArchfey : AbstractSubclass
                 TagMistyEscape,
                 $"CustomReaction{TagMistyEscape}Description".Localized(Category.Reaction),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender, effectDefinition: powerMistyEscape);
 
             yield break;
 

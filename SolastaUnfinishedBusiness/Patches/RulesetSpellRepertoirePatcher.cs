@@ -253,7 +253,7 @@ public static class RulesetSpellRepertoirePatcher
             .Distinct(StringComparer.Ordinal);
     }
 
-    private static bool TryLocalizeSpellSourceTitle(string spellTag, out string title, out string source)
+    internal static bool TryLocalizeSpellSourceTitle(string spellTag, out string title, out string source)
     {
         title = null;
         source = null;

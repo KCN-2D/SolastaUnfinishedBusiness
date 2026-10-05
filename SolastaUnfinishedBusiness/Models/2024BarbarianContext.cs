@@ -771,7 +771,8 @@ public static partial class Tabletop2024Context
                 "PersistentRegainRagePoints",
                 "CustomReactionPersistentRegainRagePointsDescription"
                     .Formatted(Category.Reaction, rulesetCharacter.UsedRagePoints),
-                ReactionValidated);
+                ReactionValidated,
+                effectDefinition: powerBarbarianPersistentRegainRagePoints);
 
             yield break;
 

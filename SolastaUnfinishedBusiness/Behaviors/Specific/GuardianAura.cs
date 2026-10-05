@@ -81,7 +81,8 @@ internal static class GuardianAura
             "CustomReactionGuardianAuraDescription".Formatted(Category.Reaction, defender.Name, damageAmount),
             ReactionValidated,
             battleManager: battleManager,
-            resource: ReactionResourceChannelDivinity.Instance);
+            resource: ReactionResourceChannelDivinity.Instance,
+            target: defender);
 
         yield break;
 

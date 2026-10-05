@@ -445,9 +445,12 @@ internal static class FeatsContext
         _ = stageTag;
         _ = currentPoolType;
 
-        var hero = panel?.InspectedCharacter;
+        return IsPassiveFeatDisplayContext(panel, panel?.InspectedCharacter);
+    }
 
-        return hero != null &&
+    private static bool IsPassiveFeatDisplayContext(FeatSubPanel panel, RulesetCharacterHero hero)
+    {
+        return panel && hero != null &&
                panel.GetComponentInParent<CharacterStageProficiencySelectionPanel>() == null &&
                !LevelUpHelper.IsLevelingUp(hero);
     }
@@ -605,6 +608,55 @@ internal static class FeatsContext
             string.Empty,
               HeroDefinitions.PointsPoolType.Feat,
               false);
+    }
+
+    internal static bool PreparePassiveFeatDisplayPanel(FeatSubPanel panel, RulesetCharacterHero hero)
+    {
+        if (panel?.table == null || panel.relevantFeats == null || !IsPassiveFeatDisplayContext(panel, hero))
+        {
+            return false;
+        }
+
+        // Resolve the new actor before native Bind so it never binds the entire catalog
+        // on first display or the previous actor's feats when switching characters.
+        panel.relevantFeats.SetRange(BuildActualDisplayFeats(hero, false));
+        SortFeats(panel);
+        UpdatePanelChildren(panel);
+
+        return true;
+    }
+
+    internal static void RefreshPassiveFeatDisplayItems(FeatSubPanel panel)
+    {
+        if (panel?.table == null || panel.relevantFeats == null ||
+            !IsPassiveFeatDisplayContext(panel, panel.InspectedCharacter))
+        {
+            return;
+        }
+
+        // Native Bind already assigned each definition and tooltip. SetState may reset
+        // interaction flags, so restore only passive state without repeating those bindings.
+        for (var index = 0; index < panel.relevantFeats.Count && index < panel.table.childCount; index++)
+        {
+            var item = panel.table.GetChild(index).GetComponent<FeatItem>();
+            if (!item)
+            {
+                continue;
+            }
+
+            item.StageTag = string.Empty;
+            item.PreviousStageTag = string.Empty;
+            item.CurrentPoolType = HeroDefinitions.PointsPoolType.Feat;
+            item.Refresh(ProficiencyBaseItem.InteractiveMode.Static, HeroDefinitions.PointsPoolType.Feat);
+            item.OnItemClicked = null;
+            item.OnItemHoverChanged = null;
+
+            if (item.Tooltip != null)
+            {
+                item.Tooltip.Anchor = panel.table;
+                item.Tooltip.AnchorMode = TooltipDefinitions.AnchorMode.LEFT_CENTER;
+            }
+        }
     }
 
     internal static bool TryBuildFeatGroupContentsDescription(FeatDefinition feat, out string description)

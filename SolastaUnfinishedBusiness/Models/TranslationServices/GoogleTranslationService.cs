@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -21,9 +21,10 @@ internal sealed class GoogleTranslationService : ITranslationService
     private const string BaseUrl = "https://translate.googleapis.com/translate_a/single";
 
     private static readonly HttpClient HttpClient;
-    private static readonly ConcurrentBag<WebClient> WebClients = [];
-    private static readonly ConcurrentDictionary<WebClient, byte> ActiveWebClients = new();
-    private static readonly ConcurrentDictionary<WebClient, byte> DisposedWebClients = new();
+    private static readonly object WebClientsLock = new();
+    private static readonly Queue<WebClient> WebClients = new();
+    private static readonly HashSet<WebClient> ActiveWebClients = [];
+    private static int WebClientsGeneration;
 
     static GoogleTranslationService()
     {
@@ -93,64 +94,88 @@ internal sealed class GoogleTranslationService : ITranslationService
     {
         if (Main.Settings.GoogleLegacyMode)
         {
-            return await GetPayloadWebClient(url);
+            return await GetPayloadWebClient(url, cancellationToken);
         }
 
         return await GetPayloadHttpClient(url, cancellationToken);
     }
 
     [NotNull]
-    private static async Task<string> GetPayloadWebClient([NotNull] string url)
+    private static async Task<string> GetPayloadWebClient([NotNull] string url, CancellationToken cancellationToken)
     {
-        var client = GetWebClient();
-
-        ActiveWebClients.TryAdd(client, 0);
+        cancellationToken.ThrowIfCancellationRequested();
+        var client = GetWebClient(cancellationToken, out var generation);
+        using var requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        requestCancellation.CancelAfter(HttpClient.Timeout);
 
         try
         {
-            return await client.DownloadStringTaskAsync(new Uri(url));
+            requestCancellation.Token.ThrowIfCancellationRequested();
+            var payloadTask = client.DownloadStringTaskAsync(new Uri(url));
+            using var cancellationRegistration = requestCancellation.Token.Register(() => CancelWebClient(client));
+            var payload = await payloadTask;
+            requestCancellation.Token.ThrowIfCancellationRequested();
+            return payload;
+        }
+        catch (Exception) when (requestCancellation.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(requestCancellation.Token);
         }
         finally
         {
-            ActiveWebClients.TryRemove(client, out _);
-            ReturnWebClient(client);
+            ReturnWebClient(client, generation, requestCancellation.IsCancellationRequested);
         }
     }
 
-    private static WebClient GetWebClient()
+    private static WebClient GetWebClient(CancellationToken cancellationToken, out int generation)
     {
-        if (WebClients.TryTake(out var client))
+        lock (WebClientsLock)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            generation = WebClientsGeneration;
+            var client = WebClients.Count > 0 ? WebClients.Dequeue() : new WebClient();
+
+            if (client.Headers["user-agent"] == null)
+            {
+                client.Headers.Add("user-agent",
+                    "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36");
+                client.Encoding = Encoding.UTF8;
+            }
+
+            ActiveWebClients.Add(client);
             return client;
         }
-
-        client = new WebClient();
-
-        client.Headers.Add("user-agent",
-            "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36");
-        client.Encoding = Encoding.UTF8;
-
-        return client;
     }
 
-    private static void ReturnWebClient(WebClient client)
+    private static void ReturnWebClient(WebClient client, int generation, bool cancelled)
     {
-        if (DisposedWebClients.TryRemove(client, out _))
+        lock (WebClientsLock)
         {
-            return;
+            ActiveWebClients.Remove(client);
+
+            if (!cancelled && generation == WebClientsGeneration)
+            {
+                WebClients.Enqueue(client);
+                return;
+            }
         }
 
-        WebClients.Add(client);
+        DisposeWebClient(client);
     }
 
     internal static void Unload()
     {
-        while (WebClients.TryTake(out var client))
+        WebClient[] clients;
+
+        lock (WebClientsLock)
         {
-            DisposeWebClient(client);
+            WebClientsGeneration++;
+            clients = WebClients.Concat(ActiveWebClients).ToArray();
+            WebClients.Clear();
+            ActiveWebClients.Clear();
         }
 
-        foreach (var client in ActiveWebClients.Keys)
+        foreach (var client in clients)
         {
             DisposeWebClient(client);
         }
@@ -158,20 +183,23 @@ internal sealed class GoogleTranslationService : ITranslationService
 
     private static void DisposeWebClient(WebClient client)
     {
-        DisposedWebClients.TryAdd(client, 0);
+        CancelWebClient(client);
 
         try
         {
-            client.CancelAsync();
+            client.Dispose();
         }
         catch
         {
             // best effort cleanup
         }
+    }
 
+    private static void CancelWebClient(WebClient client)
+    {
         try
         {
-            client.Dispose();
+            client.CancelAsync();
         }
         catch
         {
@@ -185,7 +213,7 @@ internal sealed class GoogleTranslationService : ITranslationService
         request.Headers.Add("User-Agent",
             "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36");
 
-        var response = await HttpClient.SendAsync(request, cancellationToken);
+        using var response = await HttpClient.SendAsync(request, cancellationToken);
         return await response.Content.ReadAsStringAsync();
     }
 

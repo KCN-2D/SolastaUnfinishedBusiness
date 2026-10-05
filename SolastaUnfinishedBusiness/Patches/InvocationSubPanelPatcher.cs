@@ -16,17 +16,36 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class InvocationSubPanelPatcher
 {
+    [HarmonyPatch(typeof(InvocationSubPanel), nameof(InvocationSubPanel.RuntimeLoaded))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RuntimeLoaded_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var count = typeof(List<InvocationDefinition>).GetProperty(nameof(List<InvocationDefinition>.Count))?.GetMethod;
+            var initialCount = new Func<int, ProficienciesSubPanel, int>(
+                CharacterInspectionScreenEnhancement.GetInitialProficiencyItemCount).Method;
+
+            return instructions.ReplaceCalls(count, 1, "InvocationSubPanel.RuntimeLoaded",
+                new CodeInstruction(OpCodes.Callvirt, count),
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Call, initialCount));
+        }
+    }
+
     [HarmonyPatch(typeof(InvocationSubPanel), nameof(InvocationSubPanel.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
     public static class Bind_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(InvocationSubPanel __instance)
+        public static void Prefix(InvocationSubPanel __instance, RulesetCharacterHero __0)
         {
             //PATCH: support for custom invocations and separate sub-panels for them
             //filters only invocations that fit this sub-panel
-            CustomInvocationSubPanel.UpdateRelevantInvocations(__instance);
+            CustomInvocationSubPanel.PrepareRelevantInvocations(__instance, __0);
 
             // //PATCH: sorts the invocations panel by Title
             InvocationsContext.SortInvocations(__instance);

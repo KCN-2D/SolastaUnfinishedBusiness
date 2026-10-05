@@ -290,7 +290,8 @@ public sealed class CollegeOfElegance : AbstractSubclass
                 "EvasiveFootwork",
                 "CustomReactionEvasiveFootworkDescription".Localized(Category.Reaction),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender, effectDefinition: featureEvasiveFootwork);
 
             yield break;
 

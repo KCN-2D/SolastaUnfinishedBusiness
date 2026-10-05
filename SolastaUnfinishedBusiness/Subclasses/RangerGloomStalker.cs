@@ -392,7 +392,8 @@ public sealed class RangerGloomStalker : AbstractSubclass
                 "ShadowyDodge",
                 "CustomReactionShadowyDodgeDescription".Localized(Category.Reaction),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender, effectDefinition: featureShadowyDodge);
 
             yield break;
 

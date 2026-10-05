@@ -397,7 +397,7 @@ internal static class FloatingPanelBounds
                    out position);
     }
 
-    private static bool TryGetCanvasLocalBounds(
+    internal static bool TryGetCanvasLocalBounds(
         RectTransform rectTransform,
         out Rect bounds,
         out RectTransform canvasRect)
@@ -594,7 +594,7 @@ internal static class FloatingPanelBounds
         return delta;
     }
 
-    private static void ApplyCanvasLocalDelta(RectTransform rectTransform, RectTransform canvasRect, Vector2 delta)
+    internal static void ApplyCanvasLocalDelta(RectTransform rectTransform, RectTransform canvasRect, Vector2 delta)
     {
         if (delta == Vector2.zero || !canvasRect)
         {

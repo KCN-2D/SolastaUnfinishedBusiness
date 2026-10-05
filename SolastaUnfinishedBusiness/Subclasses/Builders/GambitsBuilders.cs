@@ -1487,7 +1487,8 @@ internal static class GambitsBuilders
                 "GambitSwitch",
                 "CustomReactionGambitSwitchDescription".Localized(Category.Reaction),
                 ReactionValidated,
-                ReactionNotValidated);
+                ReactionNotValidated,
+                target: action.ActionParams.TargetCharacters[0], effectDefinition: powerSwitchActivate);
 
             yield break;
 
@@ -1663,7 +1664,8 @@ internal static class GambitsBuilders
                         guiAttacker.Name, guiDefender.Name, delta.ToString(), Gui.FormatDieTitle(dieType)),
                 ReactionValidated,
                 battleManager: battleManager,
-                resource: new ReactionResourcePowerPool(pool, Sprites.GambitResourceIcon));
+                resource: new ReactionResourcePowerPool(pool, Sprites.GambitResourceIcon),
+                target: attacker, effectDefinition: feature);
 
             yield break;
 
@@ -1751,7 +1753,8 @@ internal static class GambitsBuilders
                     .Formatted(Category.Reaction, guiMe.Name, guiTarget.Name, Gui.FormatDieTitle(dieType)),
                 ReactionValidated,
                 battleManager: battleManager,
-                resource: new ReactionResourcePowerPool(pool, Sprites.GambitResourceIcon));
+                resource: new ReactionResourcePowerPool(pool, Sprites.GambitResourceIcon),
+                target: defender, effectDefinition: feature);
 
             yield break;
 

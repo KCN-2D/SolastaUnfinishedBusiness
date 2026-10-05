@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -11,6 +13,32 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterControlPanelPatcher
 {
+    [HarmonyPatch]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ActionPanelRefreshed_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(CharacterControlPanelBattle),
+                nameof(CharacterControlPanelBattle.ActionPanelRefreshed));
+            yield return AccessTools.Method(typeof(CharacterControlPanelExploration),
+                nameof(CharacterControlPanelExploration.ActionPanelRefreshed));
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(CharacterControlPanel __instance)
+        {
+            // Native callbacks finalize the gamepad shortcut visibility after each
+            // action panel's RefreshActions. Refit against that final reserved area.
+            foreach (var panel in __instance.GetComponentsInChildren<CharacterActionPanel>(true))
+            {
+                GuiLabelPatcher.FitActionPanelTitles(panel);
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(CharacterControlPanel), nameof(CharacterControlPanel.OnInspectCb))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

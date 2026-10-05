@@ -485,7 +485,8 @@ internal static class MetamagicBuilders
                 attacker,
                 "MetamagicSeekingSpell",
                 MetamagicContext.GetSeekingSpellReactionDescription(defender.Name),
-                ReactionValidated);
+                ReactionValidated,
+                target: helper);
 
             yield break;
 

@@ -431,6 +431,133 @@ internal static class UiTextHelpers
             useCjkCompactSpacing);
     }
 
+    internal static Vector2 GetReadableTitleMinimumSize(TMP_Text text, float minFontScale, float absoluteMin,
+        out float singleLineWidth)
+    {
+        singleLineWidth = 0f;
+        var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+        state.Capture(text);
+        if (!TryGetFontSizeBounds(text, state, minFontScale, absoluteMin, out var maximum, out var minimum))
+        {
+            return Vector2.zero;
+        }
+
+        var minimumLine = MeasureTitleGlyphs(text, minimum, false, 0f, state, out _);
+        var maximumLine = MeasureTitleGlyphs(text, maximum, false, 0f, state, out _);
+        singleLineWidth = minimumLine.x + 4f;
+        var low = minimumLine.x * 0.5f;
+        var high = singleLineWidth;
+
+        // Long words may need more than half the one-line width. Measure the actual
+        // localized wrapping rather than assuming that a two-line limit preserves every glyph.
+        for (var iteration = 0; iteration < CardFitSearchIterations; iteration++)
+        {
+            var width = (low + high) * 0.5f;
+            var glyphs = MeasureTitleGlyphs(text, minimum, true, width, state, out var lines);
+            if (lines <= 2 && glyphs.x + 4f <= width)
+            {
+                high = width;
+            }
+            else
+            {
+                low = width;
+            }
+        }
+
+        // Fallback-font glyphs and their outline can exceed TMP's preferred line
+        // height. Reserve padding around both rows instead of clipping their ink.
+        return new Vector2(Mathf.Ceil(high + 2f), Mathf.Ceil(maximumLine.y * 2.5f + 8f));
+    }
+
+    internal static void FitReadableTitle(TMP_Text text, float minFontScale, float absoluteMin)
+    {
+        var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+        state.Capture(text);
+        if (!TryGetFontSizeBounds(text, state, minFontScale, absoluteMin, out var maximum, out var minimum) ||
+            !TryGetTextContentSize(text, out var available))
+        {
+            return;
+        }
+
+        var compactSpacing = ShouldUseCjkCompactLineSpacing(text);
+        if (state.HasFitSignature(nameof(FitReadableTitle), text, available, minFontScale, absoluteMin, compactSpacing))
+        {
+            return;
+        }
+
+        var singleLine = MeasureTitleGlyphs(text, maximum, false, 0f, state, out _);
+        var wrap = singleLine.x + 4f > available.x || singleLine.y + 4f > available.y;
+        var fontSize = maximum;
+        if (wrap)
+        {
+            var low = minimum;
+            var high = maximum;
+            for (var iteration = 0; iteration < CardFitSearchIterations; iteration++)
+            {
+                var candidate = (low + high) * 0.5f;
+                var glyphs = MeasureTitleGlyphs(text, candidate, true, available.x, state, out var lines);
+                if (lines <= 2 && glyphs.x + 4f <= available.x && glyphs.y + 4f <= available.y)
+                {
+                    low = candidate;
+                }
+                else
+                {
+                    high = candidate;
+                }
+            }
+
+            fontSize = low;
+        }
+
+        ApplyCardTextFit(text, wrap ? 2 : 1, wrap, fontSize, state);
+        text.overflowMode = TextOverflowModes.Overflow;
+        text.ForceMeshUpdate(true);
+        state.RememberFitSignature(nameof(FitReadableTitle), text, available, minFontScale, absoluteMin, compactSpacing);
+    }
+
+    private static Vector2 MeasureTitleGlyphs(TMP_Text text, float fontSize, bool wrap, float width,
+        TextFitState state, out int lines)
+    {
+        var rect = text.rectTransform;
+        var size = rect.sizeDelta;
+        var previousFontSize = text.fontSize;
+        var autoSizing = text.enableAutoSizing;
+        var wrapping = text.enableWordWrapping;
+        var visibleLines = text.maxVisibleLines;
+        var overflow = text.overflowMode;
+        var spacing = text.lineSpacing;
+        var container = text.autoSizeTextContainer;
+        try
+        {
+            text.enableAutoSizing = false;
+            text.autoSizeTextContainer = false;
+            text.enableWordWrapping = wrap;
+            text.maxVisibleLines = int.MaxValue;
+            text.overflowMode = TextOverflowModes.Overflow;
+            text.fontSize = fontSize;
+            ApplyCjkLineSpacing(text, wrap, state);
+            var margin = text.margin;
+            rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,
+                (wrap ? width : Mathf.Max(1f, text.preferredWidth) * 2f) + margin.x + margin.z);
+            rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+                Mathf.Max(rect.rect.height, fontSize * Math.Max(1, text.text.Length) * 3f));
+            text.ForceMeshUpdate(true);
+            lines = text.textInfo.lineCount;
+            return text.textBounds.size;
+        }
+        finally
+        {
+            rect.sizeDelta = size;
+            text.fontSize = previousFontSize;
+            text.enableAutoSizing = autoSizing;
+            text.enableWordWrapping = wrapping;
+            text.maxVisibleLines = visibleLines;
+            text.overflowMode = overflow;
+            text.lineSpacing = spacing;
+            text.autoSizeTextContainer = container;
+        }
+    }
+
     internal static void FitActionItemCaption(CharacterActionItemForm form)
     {
         if (!CanFitActionItemCaption(form))
@@ -939,8 +1066,10 @@ internal static class UiTextHelpers
             ShouldUseCjkCompactLineSpacing(text) ? CjkTwoLineSpacing : state.OriginalLineSpacing,
             availableSize.x);
 
-        return preferredSize.x <= availableSize.x + PreferredSizeTolerance &&
-               preferredSize.y <= availableSize.y + PreferredSizeTolerance;
+        // This TMP version sums automatic wrapped-line widths in preferred.x.
+        // The wrapping width is already supplied to its layout calculation; use
+        // the complete wrapped height to choose the font size.
+        return preferredSize.y <= availableSize.y + PreferredSizeTolerance;
     }
 
     private static Vector2 GetPreferredSize(
@@ -1181,6 +1310,13 @@ internal static class UiTextHelpers
             return;
         }
 
+        // Ordinary spells have no acquisition-source badge. Native Bind/Refresh
+        // still calls this helper, but hidden or empty badges need no layout pass.
+        if (!group.gameObject.activeSelf || string.IsNullOrEmpty(text.text))
+        {
+            return;
+        }
+
         var layout = group.GetComponent<HorizontalLayoutGroup>();
         var extraWidth = layout ? layout.padding.horizontal :
             Mathf.Max(0f, group.rect.width - text.rectTransform.rect.width);
@@ -1323,6 +1459,11 @@ internal static class UiTextHelpers
         private TMP_FontAsset LastFont { get; set; }
         private float LastMaxFontSize { get; set; }
         private float LastMinFontScale { get; set; }
+        private float LastRenderedFontSize { get; set; }
+        private int LastRenderedLines { get; set; }
+        private bool LastRenderedWrapping { get; set; }
+        private TextOverflowModes LastRenderedOverflow { get; set; }
+        private float LastRenderedSpacing { get; set; }
         private string LastMode { get; set; }
         private string LastText { get; set; }
         private string LastSideLabelFormattedText { get; set; }
@@ -1417,6 +1558,12 @@ internal static class UiTextHelpers
                    Mathf.Abs(LastMinFontScale - minFontScale) <= 0.001f &&
                    Mathf.Abs(LastAbsoluteMin - absoluteMin) <= 0.01f &&
                    LastCjkCompactSpacing == cjkCompactSpacing &&
+                   !text.enableAutoSizing &&
+                   Mathf.Abs(text.fontSize - LastRenderedFontSize) <= 0.01f &&
+                   text.maxVisibleLines == LastRenderedLines &&
+                   text.enableWordWrapping == LastRenderedWrapping &&
+                   text.overflowMode == LastRenderedOverflow &&
+                   Mathf.Abs(text.lineSpacing - LastRenderedSpacing) <= 0.01f &&
                    (LastAvailableSize - availableSize).sqrMagnitude <= 1f;
         }
 
@@ -1436,6 +1583,11 @@ internal static class UiTextHelpers
             LastAbsoluteMin = absoluteMin;
             LastCjkCompactSpacing = cjkCompactSpacing;
             LastAvailableSize = availableSize;
+            LastRenderedFontSize = text.fontSize;
+            LastRenderedLines = text.maxVisibleLines;
+            LastRenderedWrapping = text.enableWordWrapping;
+            LastRenderedOverflow = text.overflowMode;
+            LastRenderedSpacing = text.lineSpacing;
         }
     }
 

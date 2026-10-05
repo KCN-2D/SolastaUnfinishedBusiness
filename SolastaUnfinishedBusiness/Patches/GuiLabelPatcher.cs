@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -25,6 +26,8 @@ public static class GuiLabelPatcher
         [UsedImplicitly]
         public static void Postfix(GuiLabel __instance)
         {
+            FitActionPanelTitle(__instance);
+
             if (__instance.GetComponentInParent<CharacterActionItemForm>() is { } actionForm &&
                 actionForm.captionLabel?.tmpText == __instance.TMP_Text)
             {
@@ -33,6 +36,216 @@ public static class GuiLabelPatcher
                 // using stale layout measurements.
                 UiTextHelpers.FitActionItemCaption(actionForm);
             }
+        }
+    }
+
+    internal static void FitActionPanelTitles(CharacterActionPanel panel)
+    {
+        foreach (var label in panel.GetComponentsInChildren<GuiLabel>(true))
+        {
+            FitActionPanelTitle(label);
+        }
+    }
+
+    private static void FitActionPanelTitle(GuiLabel label)
+    {
+        if (!label || !label.TMP_Text || string.IsNullOrEmpty(label.TMP_Text.text) ||
+            label.GetComponentInParent<CharacterActionPanel>() is not { } panel)
+        {
+            return;
+        }
+
+        // The native category title retains its prefab width when the action
+        // table shrinks. Follow the title bar's current width before fitting.
+        var rect = label.TMP_Text.rectTransform;
+        var gamepadImage = panel.GamepadActionImage;
+        if (!gamepadImage || rect.parent is not RectTransform titleBar ||
+            !gamepadImage.transform.IsChildOf(titleBar) ||
+            panel.characterActionsTable.RectTransform.IsChildOf(titleBar))
+        {
+            return;
+        }
+
+        // Category captions share their header with the serialized shortcut. Use
+        // that structure so exploration and future categories need no key exceptions.
+        var padding = 8f;
+        var hasGamepadIcon = gamepadImage.isActiveAndEnabled;
+        if (hasGamepadIcon)
+        {
+            var corners = new Vector3[4];
+            gamepadImage.rectTransform.GetWorldCorners(corners);
+            foreach (var corner in corners)
+            {
+                padding = Mathf.Max(padding, titleBar.InverseTransformPoint(corner).x - titleBar.rect.xMin + 8f);
+            }
+        }
+
+        rect.anchorMin = new Vector2(0f, rect.anchorMin.y);
+        rect.anchorMax = new Vector2(1f, rect.anchorMax.y);
+        rect.offsetMin = new Vector2(padding, rect.offsetMin.y);
+        rect.offsetMax = new Vector2(-8f, rect.offsetMax.y);
+        var layout = panel.GetComponent<ActionPanelTitleLayoutState>() ??
+                     panel.gameObject.AddComponent<ActionPanelTitleLayoutState>();
+        layout.Fit(panel, label.TMP_Text, padding + 8f);
+    }
+
+    private sealed class ActionPanelTitleLayoutState : MonoBehaviour
+    {
+        private CharacterActionPanel _panel;
+        private RectTransform _titleBar;
+        private RectTransform _table;
+        private LayoutElement _element;
+        private ActionPanelTitleViewportLayoutState _viewportLayout;
+        private float _titleHeight;
+        private float _panelHeight;
+        private Vector2 _tablePosition;
+        private float _tableBottom;
+        private float _minimumWidth;
+        private float _preferredWidth;
+        private float _minimumHeight;
+        private float _preferredHeight;
+        private string _measuredText;
+        private TMP_FontAsset _font;
+        private bool _compactSpacing;
+        private Vector2 _minimumSize;
+        private float _singleLineWidth;
+
+        internal void Fit(CharacterActionPanel panel, TMP_Text text, float horizontalPadding)
+        {
+            if (!_panel)
+            {
+                _panel = panel;
+                _titleBar = text.rectTransform.parent as RectTransform;
+                _table = panel.characterActionsTable.RectTransform;
+                _titleHeight = _titleBar.rect.height;
+                _panelHeight = panel.RectTransform.rect.height;
+                _tablePosition = _table.anchoredPosition;
+                _tableBottom = GetTableBottom();
+                _element = panel.GetComponent<LayoutElement>() ?? panel.gameObject.AddComponent<LayoutElement>();
+                _minimumWidth = _element.minWidth;
+                _preferredWidth = _element.preferredWidth;
+                _minimumHeight = _element.minHeight;
+                _preferredHeight = _element.preferredHeight;
+                if (panel.GetComponentInParent<ScrollRect>() is { } scrollRect && scrollRect.viewport &&
+                    panel.transform.IsChildOf(scrollRect.viewport))
+                {
+                    _viewportLayout = scrollRect.GetComponent<ActionPanelTitleViewportLayoutState>() ??
+                                      scrollRect.gameObject.AddComponent<ActionPanelTitleViewportLayoutState>();
+                }
+            }
+
+            var compactSpacing = Main.Settings.FixAsianLanguagesTextWrap;
+            if (_measuredText != text.text || _font != text.font || _compactSpacing != compactSpacing)
+            {
+                _minimumSize = UiTextHelpers.GetReadableTitleMinimumSize(text, 0.85f, 12f, out _singleLineWidth);
+                _measuredText = text.text;
+                _font = text.font;
+                _compactSpacing = compactSpacing;
+            }
+
+            var size = _minimumSize;
+            var minimumWidth = size.x + horizontalPadding;
+            var width = Mathf.Max(_table.rect.width, minimumWidth);
+            _element.minWidth = Mathf.Max(_minimumWidth, minimumWidth);
+            _element.preferredWidth = Mathf.Max(_preferredWidth, width);
+            panel.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+            SetHeight(_singleLineWidth > width - horizontalPadding + 0.5f ? Mathf.Max(_titleHeight, size.y) : _titleHeight);
+            UiTextHelpers.FitReadableTitle(text, 0.85f, 12f);
+            LayoutRebuilder.MarkLayoutForRebuild(panel.RectTransform);
+        }
+
+        private void SetHeight(float height)
+        {
+            var extraHeight = height - _titleHeight;
+            _titleBar.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            // Keep action tiles above the caption and preserve their original dimensions.
+            _panel.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _panelHeight + extraHeight);
+            _table.anchoredPosition = _tablePosition;
+            var movement = _tableBottom + extraHeight - GetTableBottom();
+            _table.anchoredPosition += (Vector2)_table.parent.InverseTransformVector(
+                _panel.RectTransform.TransformVector(0f, movement, 0f));
+            _element.minHeight = Mathf.Max(_minimumHeight, _panelHeight + extraHeight);
+            _element.preferredHeight = Mathf.Max(_preferredHeight, _panelHeight + extraHeight);
+            _viewportLayout?.SetExtraHeight(this, extraHeight);
+        }
+
+        private float GetTableBottom()
+        {
+            return _panel.RectTransform.InverseTransformPoint(
+                _table.TransformPoint(_table.rect.xMin, _table.rect.yMin, 0f)).y;
+        }
+
+        private void OnDisable()
+        {
+            if (!_panel || !_titleBar || !_table || !_element)
+            {
+                return;
+            }
+
+            SetHeight(_titleHeight);
+            _element.minWidth = _minimumWidth;
+            _element.preferredWidth = _preferredWidth;
+            _element.minHeight = _minimumHeight;
+            _element.preferredHeight = _preferredHeight;
+            _panel.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _table.rect.width);
+        }
+    }
+
+    private sealed class ActionPanelTitleViewportLayoutState : MonoBehaviour
+    {
+        private readonly Dictionary<ActionPanelTitleLayoutState, float> _extraHeights = new();
+        private RectTransform _rect;
+        private float _nativeHeight;
+        private bool _initialized;
+
+        internal void SetExtraHeight(ActionPanelTitleLayoutState owner, float extraHeight)
+        {
+            if (extraHeight > 0f && owner.gameObject.activeInHierarchy)
+            {
+                if (!_initialized)
+                {
+                    _rect = transform as RectTransform;
+                    _nativeHeight = _rect.sizeDelta.y;
+                    _initialized = true;
+                }
+
+                _extraHeights[owner] = extraHeight;
+            }
+            else
+            {
+                _extraHeights.Remove(owner);
+            }
+
+            if (!_initialized)
+            {
+                return;
+            }
+
+            // Categories share a horizontal scroll viewport. Grow it by the tallest
+            // caption, preserving its anchors, mask, and reserved scrollbar space.
+            var maximum = 0f;
+            foreach (var height in _extraHeights.Values)
+            {
+                maximum = Mathf.Max(maximum, height);
+            }
+
+            var size = _rect.sizeDelta;
+            size.y = _nativeHeight + maximum;
+            _rect.sizeDelta = size;
+            LayoutRebuilder.MarkLayoutForRebuild(_rect);
+        }
+
+        private void OnDisable()
+        {
+            if (_initialized && _rect)
+            {
+                var size = _rect.sizeDelta;
+                size.y = _nativeHeight;
+                _rect.sizeDelta = size;
+            }
+
+            _extraHeights.Clear();
+            _initialized = false;
         }
     }
 

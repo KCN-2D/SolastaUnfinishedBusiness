@@ -1244,14 +1244,26 @@ internal static class MeleeCombatFeats
                 actualEffectForms.Add(criticalEffectForm);
             }
 
-            if (!attacker.OnceInMyTurnIsValid(SpecialFeatureName) ||
-                !rulesetAttacker.IsToggleEnabled((Id)ExtraActionId.FeatCrusherToggle))
+            if (!IsAvailable())
+            {
+                yield break;
+            }
+
+            if (OnHitEffectContext.TryQueueEffect(
+                    null, attacker, defender, FeatureFeatCrusher, IsAvailable,
+                    _ => [EffectForm.GetCopy(pushEffectForm)], AdditionalEffectTrigger.Hit,
+                    () => attacker.UsedSpecialFeatures.TryAdd(SpecialFeatureName, 1), confirmReaction: true))
             {
                 yield break;
             }
 
             attacker.UsedSpecialFeatures.TryAdd(SpecialFeatureName, 1);
             actualEffectForms.Add(pushEffectForm);
+            yield break;
+
+            bool IsAvailable() => rulesetAttacker is { IsDeadOrDyingOrUnconscious: false } &&
+                                  attacker.OncePerTurnIsValid(SpecialFeatureName) &&
+                                  rulesetAttacker.IsToggleEnabled((Id)ExtraActionId.FeatCrusherToggle);
         }
     }
 

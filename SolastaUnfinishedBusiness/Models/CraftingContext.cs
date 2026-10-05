@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.ItemCrafting;
 using TMPro;
@@ -10,6 +11,12 @@ namespace SolastaUnfinishedBusiness.Models;
 
 internal static class CraftingContext
 {
+    [ThreadStatic]
+    private static RefreshScope _refreshScope;
+
+    [ThreadStatic]
+    private static RecipeLineScope _recipeLineScope;
+
     internal static readonly Dictionary<string, string> RecipeTitles = new()
     {
         { "BarbarianClothes", Gui.Localize("Equipment/&Barbarian_Clothes_Title") },
@@ -164,7 +171,7 @@ internal static class CraftingContext
 
     internal static void FilterRecipes(ref List<RecipeDefinition> knownRecipes)
     {
-        switch (FilterGuiDropdown.value)
+        switch (FilterGuiDropdown ? FilterGuiDropdown.value : 0)
         {
             case 0: // all
                 break;
@@ -194,10 +201,105 @@ internal static class CraftingContext
                 break;
         }
 
-        var characterInspectionScreen = Gui.GuiService.GetScreen<CharacterInspectionScreen>();
-        var craftingPanel = characterInspectionScreen.craftingPanel;
+    }
 
-        LayoutRebuilder.ForceRebuildLayoutImmediate(craftingPanel.craftingOptionLinesTable);
+    internal static IDisposable BeginRefresh()
+    {
+        return new RefreshScope();
+    }
+
+    internal static IDisposable BeginRecipeLineRefresh(List<RecipeDefinition> knownRecipes)
+    {
+        return new RecipeLineScope(knownRecipes);
+    }
+
+    internal static int CountItemsOfTypeInParty(Game game, ItemDefinition itemDefinition)
+    {
+        // Inventory and party membership remain unchanged during this synchronous UI refresh.
+        // Never keep the count across refreshes, where crafting or inventory changes can occur.
+        if (_refreshScope == null)
+        {
+            return game.CountItemsOfTypeInParty(itemDefinition);
+        }
+
+        var key = (game, itemDefinition);
+
+        if (!_refreshScope.ItemCounts.TryGetValue(key, out var count))
+        {
+            count = game.CountItemsOfTypeInParty(itemDefinition);
+            _refreshScope.ItemCounts.Add(key, count);
+        }
+
+        return count;
+    }
+
+    internal static bool IsKnownRecipe(List<RecipeDefinition> knownRecipes, RecipeDefinition recipe)
+    {
+        return _recipeLineScope != null && ReferenceEquals(_recipeLineScope.KnownRecipes, knownRecipes)
+            ? _recipeLineScope.RecipeSet.Contains(recipe)
+            : knownRecipes.Contains(recipe);
+    }
+
+    internal static bool CompleteRecipeLayout(CraftingPanel panel)
+    {
+        // Each native tool row first rebuilds its own grid to measure the row height.
+        // Rebuild their parent once with the final heights, before gamepad navigation is computed.
+        LayoutRebuilder.ForceRebuildLayoutImmediate(panel.craftingOptionLinesTable);
+
+        return Gui.GamepadActive;
+    }
+
+    private sealed class RefreshScope : IDisposable
+    {
+        private readonly RefreshScope _previous;
+        private bool _disposed;
+
+        internal readonly Dictionary<(Game game, ItemDefinition itemDefinition), int> ItemCounts = new();
+
+        internal RefreshScope()
+        {
+            _previous = _refreshScope;
+            _refreshScope = this;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _refreshScope = _previous;
+        }
+    }
+
+    private sealed class RecipeLineScope : IDisposable
+    {
+        private readonly RecipeLineScope _previous;
+        private bool _disposed;
+
+        internal readonly List<RecipeDefinition> KnownRecipes;
+        internal readonly HashSet<RecipeDefinition> RecipeSet;
+
+        internal RecipeLineScope(List<RecipeDefinition> knownRecipes)
+        {
+            KnownRecipes = knownRecipes;
+            RecipeSet = new HashSet<RecipeDefinition>(knownRecipes);
+            _previous = _recipeLineScope;
+            _recipeLineScope = this;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _recipeLineScope = _previous;
+        }
     }
 
     internal sealed class ItemCollection

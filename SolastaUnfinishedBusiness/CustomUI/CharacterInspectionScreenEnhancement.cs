@@ -24,6 +24,33 @@ internal static class CharacterInspectionScreenEnhancement
 
     private static int SelectedClassIndex { get; set; }
 
+    internal static int GetInitialProficiencyItemCount(int catalogCount, ProficienciesSubPanel panel)
+    {
+        return IsInspectionProficiencyPanel(panel) ? 0 : catalogCount;
+    }
+
+    private static bool IsInspectionProficiencyPanel(ProficienciesSubPanel panel)
+    {
+        // RuntimeLoaded fills hidden panels too. A selection ancestor takes precedence
+        // even when an inspection screen is nested inside it.
+        var inspection = false;
+
+        for (var parent = panel ? panel.transform : null; parent; parent = parent.parent)
+        {
+            if (parent.GetComponent<CharacterStageProficiencySelectionPanel>())
+            {
+                return false;
+            }
+
+            if (parent.GetComponent<CharacterInspectionScreen>())
+            {
+                inspection = true;
+            }
+        }
+
+        return inspection;
+    }
+
     private static void HideClassBadge([NotNull] Transform child)
     {
         child.GetComponent<CharacterInformationBadge>().Unbind();

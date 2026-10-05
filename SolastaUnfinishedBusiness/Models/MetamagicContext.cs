@@ -2,7 +2,10 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -10,6 +13,7 @@ using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders.Features;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Validators;
 using TA;
@@ -90,6 +94,518 @@ internal static class MetamagicContext
     }
 
     private static readonly ConditionalWeakTable<MetamagicSelectionPanel, SelectionFlow> Selections = new();
+    private static readonly ConditionalWeakTable<RulesetEffectSpell, ReactionSelection> ReactionSelections = new();
+    private static readonly ConditionalWeakTable<ReactionModal, ReactionSelection> ReactionModals = new();
+
+    // The native reaction RPC already transports a suboption integer on every peer.
+    // Keep its original choice in the low bits and encode a stable definition index above it.
+    private const int ReactionMetamagicMarker = 1 << 30;
+    private const int ReactionSuboptionBits = 12;
+    private const int ReactionSuboptionMask = (1 << ReactionSuboptionBits) - 1;
+
+    private sealed class ReactionSelection(
+        ReactionRequest request, CharacterActionParams preview, ReactionModal modal,
+        MetamagicSelectionPanel panel, int suboption, Action confirmed)
+    {
+        internal ReactionRequest Request { get; } = request;
+        internal ReactionModal Modal { get; } = modal;
+        internal MetamagicSelectionPanel Panel { get; } = panel;
+        internal Action Confirmed { get; } = confirmed;
+        internal int Suboption { get; } = suboption;
+        internal CharacterActionParams Preview { get; } = preview;
+    }
+
+    private static bool IsReactionSpell(CharacterActionParams actionParams) =>
+        actionParams?.RulesetEffect is RulesetEffectSpell &&
+        actionParams.ActionDefinition?.Id is ActionDefinitions.Id.CastReaction or ActionDefinitions.Id.CastReadied;
+
+    internal static bool TrySelectReactionMetamagic(
+        ReactionRequest request, ReactionModal modal, int suboption, Action confirmed = null)
+    {
+        if (request == null || request.Processed || request.Automated ||
+            request.Character?.RulesetCharacter is not { } caster ||
+            ReplaceMetamagicOption.GetSelectionOptions(caster).Count == 0)
+        {
+            return false;
+        }
+
+        if (!TryBuildReactionPreview(request, suboption, out var preview) ||
+            preview.RulesetEffect is not RulesetEffectSpell { MetamagicOption: null } spell)
+        {
+            return false;
+        }
+
+        var panel = Gui.GuiService.GetScreen<MetamagicSelectionPanel>();
+        if (!panel || panel.Visible || ReactionModals.TryGetValue(modal, out _))
+        {
+            return false;
+        }
+
+        var selection = new ReactionSelection(request, preview, modal, panel, suboption, confirmed);
+        ReactionSelections.Remove(spell);
+        ReactionSelections.Add(spell, selection);
+        var service = ServiceRepository.GetService<IRulesetImplementationService>();
+        if (!ReplaceMetamagicOption.GetSelectionOptions(caster)
+                .Any(option => IsSelectionOptionAvailable(service, spell, caster, option, out _, out _)))
+        {
+            ReactionSelections.Remove(spell);
+            return false;
+        }
+
+        panel.Unbind();
+        ReactionModals.Add(modal, selection);
+        panel.Bind(request.Character, spell,
+            (_, _, option) => CompleteReactionSelection(selection, option),
+            () => CompleteReactionSelection(selection, null));
+        // Keep the native modal alive: hiding it would release its requests and resume game time.
+        modal.mainPanel.Hide(true);
+        panel.Show(true);
+        return true;
+    }
+
+    private static void CompleteReactionSelection(ReactionSelection selection, MetamagicOptionDefinition option)
+    {
+        var request = selection.Request;
+        var modal = selection.Modal;
+        ClearReactionSelection(selection);
+        if (modal && modal.Visible)
+        {
+            modal.mainPanel.Show(true);
+        }
+
+        if (!request.Processed && request.IsStillValid &&
+            selection.Preview.RulesetEffect is RulesetEffectSpell spell &&
+            IsReactionOptionAvailable(request, spell, option, out _, selection.Preview))
+        {
+            var encoded = EncodeReactionSelection(selection.Suboption, option);
+            if (encoded != int.MinValue)
+            {
+                selection.Confirmed?.Invoke();
+                ServiceRepository.GetService<ICommandService>().ProcessReactionRequest(request, true, encoded);
+            }
+        }
+
+        // Ignoring metamagic while outside the normal range returns to the pending reaction.
+        modal?.CheckPanelRelevance();
+    }
+
+    private static void ClearReactionSelection(ReactionSelection selection)
+    {
+        if (selection.Preview.RulesetEffect is RulesetEffectSpell spell)
+        {
+            ReactionSelections.Remove(spell);
+        }
+        ReactionModals.Remove(selection.Modal);
+    }
+
+    private static bool TryBuildReactionPreview(
+        ReactionRequest request, int suboption, out CharacterActionParams preview)
+    {
+        preview = null;
+        var parameters = request.ReactionParams;
+        var caster = request.Character.RulesetCharacter;
+        var choice = suboption >= 0 ? suboption : request.SelectedSubOption;
+        if (suboption < -1 || suboption >= request.SubOptionsAvailability.Count ||
+            choice >= 0 && request.SubOptionsAvailability.Count > 0 &&
+            (choice >= request.SubOptionsAvailability.Count || !request.SubOptionsAvailability.ElementAt(choice).Value))
+        {
+            return false;
+        }
+
+        SpellDefinition definition;
+        RulesetSpellRepertoire repertoire;
+        int level;
+        if (request is ReactionRequestWarcaster warcaster)
+        {
+            if (!warcaster.TryGetSpellChoice(choice, out definition, out repertoire))
+            {
+                return false;
+            }
+            level = definition.SpellLevel;
+        }
+        else if (IsReactionSpell(parameters) && parameters.RulesetEffect is RulesetEffectSpell original)
+        {
+            if (original.MetamagicOption != null)
+            {
+                return false;
+            }
+            definition = original.SpellDefinition;
+            repertoire = original.SpellRepertoire;
+            level = original.SlotLevel;
+            if (SpellCastingResourceContext.TryGetOption(request, choice, out var resource))
+            {
+                if (!resource.IsAvailable(caster))
+                {
+                    return false;
+                }
+                definition = resource.Spell;
+                repertoire = resource.CastingRepertoire;
+                level = resource.SlotLevel;
+            }
+            else if (suboption >= 0)
+            {
+                level = request is ReactionRequestSpendSpellSlotExtended
+                    ? request.SubOptionsAvailability.ElementAt(choice).Key
+                    : definition.SpellLevel + choice;
+            }
+        }
+        else
+        {
+            return false;
+        }
+
+        var effect = new RulesetEffectSpell(caster, repertoire, definition, level);
+        preview = new CharacterActionParams(parameters.ActingCharacter, ActionDefinitions.Id.CastReaction)
+        {
+            RulesetEffect = effect,
+            SpellRepertoire = repertoire,
+            IntParameter = level,
+            StringParameter = definition.Name,
+            IsReactionEffect = true,
+            TargetAction = parameters.TargetAction
+        };
+        preview.TargetCharacters.AddRange(parameters.TargetCharacters);
+        preview.ActionModifiers.AddRange(parameters.ActionModifiers.Select(modifier => modifier.Clone()));
+        if (request is ReactionRequestWarcaster)
+        {
+            // Match native cantrip repetition while retaining the real request's weapon/effect unchanged.
+            var targets = effect.ComputeTargetParameter();
+            if (effect.EffectDescription.IsSingleTarget && targets > 0 && preview.TargetCharacters.Count > 0)
+            {
+                var target = preview.TargetCharacters[0];
+                var modifier = preview.ActionModifiers.FirstOrDefault() ?? new ActionModifier();
+                preview.TargetCharacters.Clear();
+                preview.ActionModifiers.Clear();
+                for (var index = 0; index < targets; index++)
+                {
+                    preview.TargetCharacters.Add(target);
+                    preview.ActionModifiers.Add(modifier.Clone());
+                }
+            }
+        }
+        return true;
+    }
+
+    internal static void CancelReactionSelection(ReactionModal modal)
+    {
+        if (!ReactionModals.TryGetValue(modal, out var selection))
+        {
+            return;
+        }
+        ClearReactionSelection(selection);
+        selection.Panel.Unbind();
+        selection.Panel.Hide(true);
+    }
+
+    internal static IEnumerator PauseReactionTimer(IEnumerator values, ReactionModal modal)
+    {
+        try
+        {
+            while (true)
+            {
+                while (ReactionModals.TryGetValue(modal, out _))
+                {
+                    yield return null;
+                }
+                if (!values.MoveNext())
+                {
+                    yield break;
+                }
+                yield return values.Current;
+            }
+        }
+        finally
+        {
+            (values as IDisposable)?.Dispose();
+        }
+    }
+
+    private static MetamagicOptionDefinition[] GetReactionCommandOptions() =>
+        DatabaseRepository.GetDatabase<MetamagicOptionDefinition>()
+            .OrderBy(option => option.Name, StringComparer.Ordinal).ToArray();
+
+    internal static int EncodeReactionSelection(int suboption, MetamagicOptionDefinition option)
+    {
+        if (option == null)
+        {
+            return suboption;
+        }
+        var index = Array.IndexOf(GetReactionCommandOptions(), option);
+        if (suboption < -1 || suboption >= ReactionSuboptionMask || index < 0 ||
+            index >= (ReactionMetamagicMarker >> ReactionSuboptionBits))
+        {
+            return int.MinValue;
+        }
+        return ReactionMetamagicMarker | (index << ReactionSuboptionBits) | (suboption + 1);
+    }
+
+    internal static void RestoreReactionSelection(ReactionRequest request, ref bool validated, ref int suboption)
+    {
+        if (suboption < -1)
+        {
+            validated = false;
+            suboption = -1;
+            return;
+        }
+        if (suboption >= 0 && (suboption & ReactionMetamagicMarker) != 0)
+        {
+            var index = (suboption & ~ReactionMetamagicMarker) >> ReactionSuboptionBits;
+            var choice = (suboption & ReactionSuboptionMask) - 1;
+            var options = GetReactionCommandOptions();
+            suboption = -1;
+            if (!validated || !IsReactionSpell(request.ReactionParams) && request is not ReactionRequestWarcaster ||
+                index < 0 || index >= options.Length ||
+                choice >= request.SubOptionsAvailability.Count ||
+                choice >= 0 && !request.SubOptionsAvailability.ElementAt(choice).Value)
+            {
+                validated = false;
+                return;
+            }
+            if (!TryBuildReactionPreview(request, choice, out var preview) ||
+                preview.RulesetEffect is not RulesetEffectSpell previewSpell ||
+                !IsReactionOptionAvailable(request, previewSpell, options[index], out _, preview))
+            {
+                validated = false;
+                return;
+            }
+            if (choice >= 0)
+            {
+                request.SelectSubOption(choice);
+            }
+            else if (request.SubOptionsAvailability.Count > 0 &&
+                     (request.SelectedSubOption < 0 ||
+                      request.SelectedSubOption >= request.SubOptionsAvailability.Count ||
+                      !request.SubOptionsAvailability.ElementAt(request.SelectedSubOption).Value))
+            {
+                validated = false;
+                return;
+            }
+            if (request.ReactionParams.RulesetEffect is not RulesetEffectSpell spell ||
+                !IsReactionOptionAvailable(request, spell, options[index], out _))
+            {
+                validated = false;
+                return;
+            }
+            spell.MetamagicOption = options[index];
+        }
+        else if (validated && (IsReactionSpell(request.ReactionParams) || request is ReactionRequestWarcaster))
+        {
+            var parameters = TryBuildReactionPreview(request, suboption, out var preview)
+                ? preview
+                : request.ReactionParams;
+            if (parameters.RulesetEffect is RulesetEffectSpell spell &&
+                !AreReactionTargetsInRange(parameters, spell, spell.MetamagicOption))
+            {
+                validated = false;
+                suboption = -1;
+            }
+        }
+    }
+
+    private static bool IsReactionOptionAvailable(
+        ReactionRequest request, RulesetEffectSpell spell, MetamagicOptionDefinition option, out string failure,
+        CharacterActionParams preview = null)
+    {
+        failure = string.Empty;
+        if (option != null)
+        {
+            var caster = request.Character.RulesetCharacter;
+            var known = ReplaceMetamagicOption.GetOptions(caster);
+            if (CombinedMetamagic.HasType(option, MetamagicType.QuickenedSpell) ||
+                CombinedMetamagic.Enumerate(option).Any(component => !known.Contains(component)) ||
+                !ServiceRepository.GetService<IRulesetImplementationService>()
+                    .IsMetamagicOptionAvailable(spell, caster, option, out failure, out _))
+            {
+                failure = string.IsNullOrEmpty(failure) ? "Failure/&FailureFlagInvalidSpellActionType" : failure;
+                return false;
+            }
+
+            var previous = spell.MetamagicOption;
+            var original = spell.EffectDescription;
+            try
+            {
+                spell.MetamagicOption = option;
+                var modified = spell.EffectDescription;
+                if (modified.TargetType != original.TargetType || modified.TargetSide != original.TargetSide ||
+                    modified.TargetExcludeCaster != original.TargetExcludeCaster ||
+                    spell.ComputeTargetParameter() > (preview ?? request.ReactionParams).TargetCharacters.Count &&
+                    CombinedMetamagic.HasType(option, MetamagicType.TwinnedSpell))
+                {
+                    failure = "Failure/&FailureFlagInvalidSingleTarget";
+                    return false;
+                }
+            }
+            finally
+            {
+                spell.MetamagicOption = previous;
+            }
+        }
+        if (AreReactionTargetsInRange(preview ?? request.ReactionParams, spell, option))
+        {
+            return true;
+        }
+        failure = "Failure/&FailureFlagTargetOutOfRange";
+        return false;
+    }
+
+    internal static int GetSpellRange(EffectDescription effect, MetamagicOptionDefinition option = null)
+    {
+        if (effect.RangeType == RangeType.Self)
+        {
+            return 0;
+        }
+        var touch = effect.RangeType is RangeType.Touch or RangeType.MeleeHit;
+        if (CombinedMetamagic.HasType(option, MetamagicType.DistantSpell))
+        {
+            return touch ? CombinedMetamagic.GetDistantRange(option) : effect.RangeParameter * 2;
+        }
+        return touch ? Math.Max(1, effect.RangeParameter) : effect.RangeParameter;
+    }
+
+    internal static bool AreReactionTargetsInRange(
+        CharacterActionParams actionParams, RulesetEffectSpell spell, MetamagicOptionDefinition option)
+    {
+        var caster = actionParams.ActingCharacter;
+        var previous = spell.MetamagicOption;
+        try
+        {
+            spell.MetamagicOption = option;
+            var description = spell.EffectDescription;
+            if (description.RangeType == RangeType.Self)
+            {
+                return true;
+            }
+            var range = GetSpellRange(description, option);
+            return actionParams.TargetCharacters.All(target => target != null && caster.IsWithinRange(target, range));
+        }
+        finally
+        {
+            spell.MetamagicOption = previous;
+        }
+    }
+
+    internal static int GetReactionSpellRange(SpellDefinition spell, GameLocationCharacter caster)
+    {
+        var range = GetSpellRange(spell.EffectDescription);
+        var ruleCaster = caster?.RulesetCharacter;
+        if (ruleCaster == null)
+        {
+            return range;
+        }
+        var slotLevel = ruleCaster.GetLowestSlotLevelAndRepertoireToCastSpell(spell, out var repertoire);
+        if (repertoire == null || slotLevel < spell.SpellLevel)
+        {
+            return range;
+        }
+        // Construct a preview without registering an active effect or spending a resource.
+        var effect = new RulesetEffectSpell(ruleCaster, repertoire, spell, slotLevel);
+        range = GetSpellRange(effect.EffectDescription);
+        var service = ServiceRepository.GetService<IRulesetImplementationService>();
+        foreach (var option in ReplaceMetamagicOption.GetOptions(ruleCaster)
+                     .Where(option => CombinedMetamagic.HasType(option, MetamagicType.DistantSpell)))
+        {
+            if (service.IsMetamagicOptionAvailable(effect, ruleCaster, option, out _, out _))
+            {
+                range = Math.Max(range, GetSpellRange(effect.EffectDescription, option));
+            }
+        }
+        return range;
+    }
+
+    internal static bool CanReachReactionSpellTarget(
+        GameLocationCharacter caster, SpellDefinition spell, GameLocationCharacter target) =>
+        target != null && caster.IsWithinRange(target, GetReactionSpellRange(spell, caster));
+
+    internal static bool CanAttackWithReactionMetamagic(
+        GameLocationBattleManager battle, BattleDefinitions.AttackEvaluationParams attackParams, bool readiedAttack)
+    {
+        if (readiedAttack
+                ? battle.IsValidAttackForReadiedAction(attackParams, false, CoverType.ThreeQuarter)
+                : battle.CanAttack(attackParams, false))
+        {
+            return true;
+        }
+        if (attackParams.attacker?.RulesetCharacter is not { } caster ||
+            !DatabaseRepository.GetDatabase<SpellDefinition>().TryGetElement(attackParams.effectName, out var spell))
+        {
+            return false;
+        }
+        var slotLevel = caster.GetLowestSlotLevelAndRepertoireToCastSpell(spell, out var repertoire);
+        if (repertoire == null || slotLevel < spell.SpellLevel)
+        {
+            return false;
+        }
+        var effect = new RulesetEffectSpell(caster, repertoire, spell, slotLevel);
+        var service = ServiceRepository.GetService<IRulesetImplementationService>();
+        foreach (var option in ReplaceMetamagicOption.GetOptions(caster)
+                     .Where(option => CombinedMetamagic.HasType(option, MetamagicType.DistantSpell)))
+        {
+            if (!service.IsMetamagicOptionAvailable(effect, caster, option, out _, out _))
+            {
+                continue;
+            }
+            var preview = attackParams;
+            preview.attackModifier = attackParams.attackModifier.Clone();
+            preview.metamagicOption = option;
+            preview.maxRange = GetSpellRange(effect.EffectDescription, option) + 0.1f;
+            if (readiedAttack
+                    ? battle.IsValidAttackForReadiedAction(preview, false, CoverType.ThreeQuarter)
+                    : battle.CanAttack(preview, false))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    internal static IEnumerable<CodeInstruction> PatchReactionSpellRangeChecks(
+        IEnumerable<CodeInstruction> instructions, MethodBase iterator, string casterFieldName = null)
+    {
+        var code = instructions.ToList();
+        var spellDescription = AccessTools.PropertyGetter(typeof(SpellDefinition), nameof(SpellDefinition.EffectDescription));
+        var rangeParameter = AccessTools.PropertyGetter(typeof(EffectDescription), nameof(EffectDescription.RangeParameter));
+        var getCharacter = AccessTools.PropertyGetter(typeof(GameLocationCharacter), nameof(GameLocationCharacter.RulesetCharacter));
+        var replacement = AccessTools.Method(typeof(MetamagicContext), nameof(GetReactionSpellRange));
+        CodeInstruction casterLoad = null;
+        var casterField = casterFieldName == null ? null : AccessTools.Field(iterator.DeclaringType, casterFieldName);
+        var patched = 0;
+        for (var index = 0; index < code.Count; index++)
+        {
+            if (casterField == null && code[index].operand is MethodInfo { Name: nameof(RulesetCharacter.CanCastCounterSpell) })
+            {
+                for (var previous = index - 1; previous >= Math.Max(1, index - 8); previous--)
+                {
+                    if (Equals(code[previous].operand, getCharacter))
+                    {
+                        casterLoad = code[previous - 1];
+                        break;
+                    }
+                }
+            }
+            if (index == 0 || !Equals(code[index].operand, rangeParameter) ||
+                !Equals(code[index - 1].operand, spellDescription) || casterLoad == null && casterField == null)
+            {
+                continue;
+            }
+
+            // Only spell ranges are replaced; power counters and spell identification keep their native rules.
+            code[index - 1].opcode = casterField == null ? casterLoad.opcode : OpCodes.Ldarg_0;
+            code[index - 1].operand = casterField == null ? casterLoad.operand : null;
+            if (casterField != null)
+            {
+                code.Insert(index, new CodeInstruction(OpCodes.Ldfld, casterField));
+                index++;
+            }
+            code[index].opcode = OpCodes.Call;
+            code[index].operand = replacement;
+            patched++;
+        }
+        if (patched != 1)
+        {
+            Main.Error($"Expected one reaction spell range check in {iterator.DeclaringType?.FullName}, found {patched}.");
+        }
+        return code;
+    }
 
     private sealed class SelectionFlow(RulesetEffectSpell spell, Action back = null)
     {
@@ -161,7 +677,9 @@ internal static class MetamagicContext
         var parent = GetPendingReplacement(option);
         if (parent == null)
         {
-            return service.IsMetamagicOptionAvailable(spell, caster, option, out failure, out cost);
+            var available = service.IsMetamagicOptionAvailable(spell, caster, option, out failure, out cost);
+            return available && (!ReactionSelections.TryGetValue(spell, out var reaction) ||
+                                 IsReactionOptionAvailable(reaction.Request, spell, option, out failure, reaction.Preview));
         }
 
         var first = CombinedMetamagic.Enumerate(option).FirstOrDefault(component => component != parent);
@@ -170,7 +688,9 @@ internal static class MetamagicContext
         foreach (var child in parent.GetFirstSubFeatureOfType<ReplaceMetamagicOption>().Options)
         {
             var candidate = first == null ? child : SorceryIncarnateContext.GetCombinedOption(first, child);
-            if (candidate != null && service.IsMetamagicOptionAvailable(spell, caster, candidate, out failure, out cost))
+            if (candidate != null && service.IsMetamagicOptionAvailable(spell, caster, candidate, out failure, out cost) &&
+                (!ReactionSelections.TryGetValue(spell, out var reaction) ||
+                 IsReactionOptionAvailable(reaction.Request, spell, candidate, out failure, reaction.Preview)))
             {
                 return true;
             }
@@ -231,7 +751,7 @@ internal static class MetamagicContext
         var service = ServiceRepository.GetService<IRulesetImplementationService>();
         if (!ReplaceMetamagicOption.GetOptions(caster.RulesetCharacter)
                 .Select(candidate => SorceryIncarnateContext.GetCombinedOption(first, candidate))
-                .Any(pair => pair != null && service.IsMetamagicOptionAvailable(
+                .Any(pair => pair != null && IsSelectionOptionAvailable(service,
                     spell, caster.RulesetCharacter, pair, out _, out _)))
         {
             return false;
@@ -257,7 +777,7 @@ internal static class MetamagicContext
         }
 
         var service = ServiceRepository.GetService<IRulesetImplementationService>();
-        if (!service.IsMetamagicOptionAvailable(panel.SpellEffect, panel.Caster.RulesetCharacter, first, out _, out _))
+        if (!IsSelectionOptionAvailable(service, panel.SpellEffect, panel.Caster.RulesetCharacter, first, out _, out _))
         {
             return;
         }

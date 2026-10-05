@@ -286,7 +286,8 @@ public static class TooltipPanelPatcher
         [UsedImplicitly]
         public static bool Prefix(ScrollRect __instance)
         {
-            return !FloatingPanelBounds.ShouldSuppressBackgroundWheel(__instance);
+            return !FloatingPanelBounds.ShouldSuppressBackgroundWheel(__instance) &&
+                   !CampaignsContext.ShouldSuppressSpellSelectionBackgroundScroll(__instance);
         }
     }
 
@@ -310,7 +311,8 @@ public static class TooltipPanelPatcher
         [UsedImplicitly]
         public static bool Prefix(GuiManualScroll __instance)
         {
-            return !FloatingPanelBounds.ShouldSuppressBackgroundWheel(__instance);
+            return !FloatingPanelBounds.ShouldSuppressBackgroundWheel(__instance) &&
+                   !CampaignsContext.ShouldSuppressSpellSelectionBackgroundScroll(__instance);
         }
     }
 
@@ -322,7 +324,8 @@ public static class TooltipPanelPatcher
         [UsedImplicitly]
         public static bool Prefix(ScrollRectAutoScroll __instance)
         {
-            return !FloatingPanelBounds.ShouldSuppressBackgroundWheel(__instance);
+            return !FloatingPanelBounds.ShouldSuppressBackgroundWheel(__instance) &&
+                   !CampaignsContext.ShouldSuppressSpellSelectionBackgroundScroll(__instance);
         }
     }
 

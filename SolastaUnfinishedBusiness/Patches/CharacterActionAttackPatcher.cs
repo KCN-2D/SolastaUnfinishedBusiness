@@ -47,6 +47,7 @@ public static class CharacterActionAttackPatcher
             }
 
             var actingCharacter = __instance.ActingCharacter;
+            using var onHitEffectScope = OnHitEffectContext.TrackAttack(__instance);
             var rulesetCharacter = actingCharacter.RulesetCharacter;
             var locationPositioningService = ServiceRepository.GetService<IGameLocationPositioningService>();
             var locationEntityFactoryService = ServiceRepository.GetService<IWorldLocationEntityFactoryService>();
@@ -674,6 +675,9 @@ public static class CharacterActionAttackPatcher
                         damageAbsorbedByTemporaryHitPoints: out var damageAbsorbedByTemporaryHitPoints,
                         terminateEffectOnTarget: out _);
 
+                    OnHitEffectContext.RecordAttackApplication(
+                        __instance, formParams, damageReceived, damageAbsorbedByTemporaryHitPoints);
+
                     actingCharacter.AttackImpactOn(
                         target, __instance.AttackRollOutcome, actionParams, attackMode, attackModifier);
 
@@ -722,6 +726,8 @@ public static class CharacterActionAttackPatcher
                 actingCharacter.AttackImpactOn(
                     target, __instance.AttackRollOutcome, actionParams, attackMode, attackModifier);
             }
+
+            yield return onHitEffectScope.Resolve(battleManager, additionalDamage => damageReceived += additionalDamage);
 
             var multiAttackInProgress =
                 actingCharacter.ControllerId == PlayerControllerManager.DmControllerId &&

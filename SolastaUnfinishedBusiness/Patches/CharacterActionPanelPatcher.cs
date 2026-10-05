@@ -144,6 +144,8 @@ public static class CharacterActionPanelPatcher
         [UsedImplicitly]
         public static void Postfix(CharacterActionPanel __instance)
         {
+            GuiLabelPatcher.FitActionPanelTitles(__instance);
+
             // Bind and Refresh can run while pooled forms are inactive and before
             // RefreshActions dispatches its final widths. Refit only the active
             // captions after that layout step; FitActionItemCaption also repeats

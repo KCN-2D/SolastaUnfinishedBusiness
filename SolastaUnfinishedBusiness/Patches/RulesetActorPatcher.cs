@@ -29,6 +29,16 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetActorPatcher
 {
+    private static TurnOccurenceType ResolveSelfTurnOccurence(
+        RulesetActor actor, ulong sourceGuid, TurnOccurenceType occurence)
+    {
+        // Native EndOfSourceTurn is dispatched by EndBattleTurnOtherContender,
+        // which does not run on the source itself. Its own effects use EndOfTurn.
+        return sourceGuid != 0 && sourceGuid == actor.Guid && occurence == TurnOccurenceType.EndOfSourceTurn
+            ? TurnOccurenceType.EndOfTurn
+            : occurence;
+    }
+
     [HarmonyPatch(typeof(RulesetActor), nameof(RulesetActor.CurrentHitPoints), MethodType.Setter)]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -303,8 +313,11 @@ public static class RulesetActorPatcher
             RulesetActor __instance,
             string conditionDefinitionName,
             ulong sourceGuid,
+            ref TurnOccurenceType endOccurence,
             ref int sourceAmount)
         {
+            endOccurence = ResolveSelfTurnOccurence(__instance, sourceGuid, endOccurence);
+
             //PATCH: Implements `ExtraOriginOfAmount`
             var sourceCharacter = EffectHelpers.GetCharacterByGuid(sourceGuid);
 
@@ -380,6 +393,26 @@ public static class RulesetActorPatcher
     [UsedImplicitly]
     public static class ProcessConditionsMatchingOccurenceType_Patch
     {
+        [UsedImplicitly]
+        public static void Prefix(RulesetActor __instance, TurnOccurenceType occurenceType)
+        {
+            if (occurenceType != TurnOccurenceType.EndOfTurn)
+            {
+                return;
+            }
+
+            // Also repair conditions loaded from saves made before self-source
+            // occurrences were normalized. Keep their remaining duration intact.
+            foreach (var conditions in __instance.ConditionsByCategory.Values)
+            {
+                foreach (var condition in conditions)
+                {
+                    condition.EndOccurence = ResolveSelfTurnOccurence(
+                        __instance, condition.SourceGuid, condition.EndOccurence);
+                }
+            }
+        }
+
         [UsedImplicitly]
         public static void Postfix(RulesetActor __instance, TurnOccurenceType occurenceType)
         {

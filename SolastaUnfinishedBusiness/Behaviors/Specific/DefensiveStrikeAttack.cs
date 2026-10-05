@@ -102,7 +102,8 @@ internal static class DefensiveStrikeAttack
                 .Formatted(Category.Reaction, defender.Name, attacker.Name, bonus),
             ReactionValidated,
             battleManager: battleManager,
-            resource: ReactionResourceChannelDivinity.Instance);
+            resource: ReactionResourceChannelDivinity.Instance,
+            target: attacker);
 
         yield break;
 

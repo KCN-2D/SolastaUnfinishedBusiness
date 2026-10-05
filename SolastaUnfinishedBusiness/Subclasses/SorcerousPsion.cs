@@ -298,8 +298,11 @@ public sealed class SorcerousPsion : AbstractSubclass
 
             attacker.UsedSpecialFeatures[MindSculptTag] = hasDamageChanged ? 1 : 0;
 
-            if (rulesetEffect.EffectDescription.TargetType is TargetType.Individuals or TargetType.IndividualsUnique &&
-                !firstTarget)
+            var individualTargets = rulesetEffect.EffectDescription.TargetType is
+                TargetType.Individuals or TargetType.IndividualsUnique;
+            var chooseTarget = individualTargets && OnHitEffectContext.CanSelectTarget(rulesetEffect, attacker);
+
+            if (individualTargets && !firstTarget && !chooseTarget)
             {
                 yield break;
             }
@@ -307,12 +310,32 @@ public sealed class SorcerousPsion : AbstractSubclass
             var charismaModifier = AttributeDefinitions.ComputeAbilityScoreModifier(
                 rulesetCharacter.TryGetAttributeValue(AttributeDefinitions.Charisma));
 
-            foreach (var effectForm in actualEffectForms
-                         .Where(x =>
-                             x.FormType == EffectForm.EffectFormType.Damage
-                             && x.DamageForm.DamageType is DamageTypePsychic))
+            if (chooseTarget && charismaModifier > 0 && actualEffectForms.Any(form =>
+                    form.FormType == EffectForm.EffectFormType.Damage && form.DamageForm.DamageType == DamageTypePsychic) &&
+                OnHitEffectContext.TryDeferEffect(
+                    rulesetEffect, attacker, defender,
+                    GetDefinition<FeatureDefinitionActionAffinity>($"ActionAffinity{Name}MindSculpt"), actualEffectForms,
+                    () => rulesetCharacter is { IsDeadOrDyingOrUnconscious: false },
+                    AddPsychicBonus, AdditionalEffectTrigger.Hit))
             {
-                effectForm.DamageForm.BonusDamage += charismaModifier;
+                yield break;
+            }
+
+            if (!individualTargets || firstTarget)
+            {
+                AddPsychicBonus(actualEffectForms);
+            }
+
+            yield break;
+
+            void AddPsychicBonus(List<EffectForm> forms)
+            {
+                foreach (var effectForm in forms.Where(form =>
+                             form.FormType == EffectForm.EffectFormType.Damage &&
+                             form.DamageForm.DamageType == DamageTypePsychic))
+                {
+                    effectForm.DamageForm.BonusDamage += charismaModifier;
+                }
             }
         }
 

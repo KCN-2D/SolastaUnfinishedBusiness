@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -16,6 +18,21 @@ public static class ReactionModalPatcher
     [UsedImplicitly]
     public static class ReactionTriggered_Patch
     {
+        [UsedImplicitly]
+        public static void Postfix(ReactionModal __instance, ReactionRequest request)
+        {
+            // Native ReactionTriggered writes its full description after binding the new item.
+            // Apply the interruption context after that final native write too.
+            foreach (var item in __instance.reactionItems)
+            {
+                if (item && item.ReactionRequest == request)
+                {
+                    item.RefreshReactionDescription();
+                    break;
+                }
+            }
+        }
+
         [UsedImplicitly]
         public static bool Prefix(ReactionRequest request)
         {
@@ -43,10 +60,24 @@ public static class ReactionModalPatcher
             GameLocationActionManagerPatcher.ExecuteReactionRequestGroupAsync_Patch.ReactionTimestamp;
 
         [UsedImplicitly]
-        public static void Prefix(CharacterReactionItem item)
+        public static bool Prefix(ReactionModal __instance, CharacterReactionItem item)
         {
-            var caster = item.ReactionRequest.Character;
+            var request = item.ReactionRequest;
+            var suboption = request.SubOptionsAvailability.Count > 1 ? item.GetSelectedSubItem() : -1;
 
+            if (MetamagicContext.TrySelectReactionMetamagic(
+                    request, __instance, suboption, () => RegisterReactionConfirmation(request.Character)))
+            {
+                __instance.ClearReactionTargetPreview();
+                return false;
+            }
+
+            RegisterReactionConfirmation(request.Character);
+            return true;
+        }
+
+        private static void RegisterReactionConfirmation(GameLocationCharacter caster)
+        {
             //PATCH: register on acting character if SHIFT is pressed on reaction confirmations
             caster.RegisterShiftState();
 
@@ -63,5 +94,33 @@ public static class ReactionModalPatcher
                 caster.UsedSpecialFeatures[ReactionTimestamp] = timestamp;
             }
         }
+    }
+
+    [HarmonyPatch(typeof(ReactionModal), nameof(ReactionModal.GaugeCoroutine))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class GaugeCoroutine_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerator Postfix(IEnumerator values, ReactionModal __instance) =>
+            MetamagicContext.PauseReactionTimer(values, __instance);
+    }
+
+    [HarmonyPatch(typeof(ReactionModal), nameof(ReactionModal.OnBeginHide))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnBeginHide_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(ReactionModal __instance) => __instance.ClearReactionTargetPreview();
+    }
+
+    [HarmonyPatch(typeof(ReactionModal), nameof(ReactionModal.OnEndHide))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnEndHide_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(ReactionModal __instance) => MetamagicContext.CancelReactionSelection(__instance);
     }
 }

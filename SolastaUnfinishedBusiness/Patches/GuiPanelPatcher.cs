@@ -2,12 +2,28 @@
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class GuiPanelPatcher
 {
+    [HarmonyPatch(typeof(GuiPanel), nameof(GuiPanel.Hide))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Hide_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GuiPanel __instance)
+        {
+            if (__instance is SpellSelectionPanel panel)
+            {
+                CampaignsContext.CancelPendingSpellSelectionBind(panel);
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(GuiPanel), nameof(GuiPanel.Show))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -16,6 +32,7 @@ public static class GuiPanelPatcher
         [UsedImplicitly]
         public static void Postfix(GuiPanel __instance)
         {
+            CampaignsContext.InvalidateSpellSelectionHud(__instance);
             //PATCH: Keeps last level up hero selected
             if (__instance is not MainMenuScreen mainMenuScreen || Global.LastLevelUpHeroName == null)
             {

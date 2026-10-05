@@ -29,6 +29,7 @@ public static class SlotAdvancementBoxPatcher
         public static void Prefix(SlotAdvancementBox __instance)
         {
             SpellResourceSelectionPanel.RestoreRow(__instance);
+            __instance.OnActivate = null;
         }
     }
 }

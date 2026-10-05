@@ -4,6 +4,7 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
 using static RuleDefinitions;
@@ -104,6 +105,7 @@ public sealed class SorcerousSorrAkkath : AbstractSubclass
                     hasSavingThrow = true,
                     saveAffinity = EffectSavingThrowType.Negates
                 })
+            .AddCustomSubFeatures(new OnHitEffectContext.FollowUpEffect(additionalDamageSpellSneakAttack))
             .AddToDB();
 
         var featureSetBloodOfSorrAkkath = FeatureDefinitionFeatureSetBuilder

@@ -673,6 +673,31 @@ internal static class SpellCastingResourceContext
             .ToList();
     }
 
+    internal static List<ResourceOption> EnumerateUpcastSlots(
+        RulesetCharacter caster, RulesetSpellRepertoire repertoire, SpellDefinition spell)
+    {
+        List<ResourceOption> options = [];
+        if (caster == null || repertoire?.SpellCastingFeature is not { CannotUpcast: false } ||
+            spell is not { SpellLevel: > 0 } ||
+            SpellSlotCastingLimit2024Context.IsFreeUseRepertoire(repertoire))
+        {
+            return options;
+        }
+
+        // A class column chooses its own payment pool. Scaling changes the effect,
+        // not whether that pool may pay a higher-level slot for the spell.
+        for (var level = spell.SpellLevel + 1; level <= 9; level++)
+        {
+            var option = GetSlotSelection(repertoire, spell, level, caster);
+            if (option.IsAvailable(caster))
+            {
+                options.Add(option);
+            }
+        }
+
+        return options;
+    }
+
     private static bool IsSupportedLevel(RulesetCharacter caster, RulesetSpellRepertoire repertoire,
         SpellDefinition spell, int slotLevel)
     {

@@ -750,7 +750,8 @@ public sealed class MartialArcaneArcher : AbstractSubclass
                 "MartialArcaneArcherGuidedShot",
                 "CustomReactionMartialArcaneArcherGuidedShotDescription".Localized(Category.Reaction),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: attacker, effectDefinition: featureDefinition);
 
             yield break;
 

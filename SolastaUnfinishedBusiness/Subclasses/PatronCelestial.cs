@@ -272,8 +272,11 @@ public class PatronCelestial : AbstractSubclass
             bool firstTarget,
             bool criticalHit)
         {
-            if (rulesetEffect.EffectDescription.TargetType is TargetType.Individuals or TargetType.IndividualsUnique &&
-                !firstTarget)
+            var individualTargets = rulesetEffect.EffectDescription.TargetType is
+                TargetType.Individuals or TargetType.IndividualsUnique;
+            var chooseTarget = individualTargets && OnHitEffectContext.CanSelectTarget(rulesetEffect, attacker);
+
+            if (individualTargets && !firstTarget && !chooseTarget)
             {
                 yield break;
             }
@@ -291,7 +294,21 @@ public class PatronCelestial : AbstractSubclass
             var charismaModifier = AttributeDefinitions.ComputeAbilityScoreModifier(
                 attacker.RulesetCharacter.TryGetAttributeValue(AttributeDefinitions.Charisma));
 
-            effectForm.DamageForm.BonusDamage += charismaModifier;
+            if (chooseTarget && charismaModifier > 0 && OnHitEffectContext.TryDeferEffect(
+                    rulesetEffect, attacker, defender,
+                    GetDefinition<FeatureDefinitionFeatureSet>($"FeatureSet{Name}RadiantSoul"), actualEffectForms,
+                    () => attacker.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false },
+                    forms => forms.First(form => form.FormType == EffectForm.EffectFormType.Damage &&
+                                                form.DamageForm.DamageType is DamageTypeFire or DamageTypeRadiant)
+                        .DamageForm.BonusDamage += charismaModifier, AdditionalEffectTrigger.Hit))
+            {
+                yield break;
+            }
+
+            if (!individualTargets || firstTarget)
+            {
+                effectForm.DamageForm.BonusDamage += charismaModifier;
+            }
         }
     }
 

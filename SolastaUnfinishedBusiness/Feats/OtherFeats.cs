@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -1167,7 +1167,8 @@ internal static class OtherFeats
                 attacker,
                 "Grappler",
                 "CustomReactionGrapplerDescription".Formatted(Category.Reaction, defender.Name),
-                () => accepted = true);
+                () => accepted = true,
+                target: defender, effectDefinition: FeatGrappler);
 
             if (!accepted)
             {
@@ -1522,13 +1523,14 @@ internal static class OtherFeats
                 yield break;
             }
 
+            var healAmount = activeCondition.Amount;
+
             rulesetCharacter.RemoveCondition(activeCondition);
 
-            var roll = rulesetCharacter.RollDiceAndSum(DieType.D6, RollContext.HealValueRoll, 1,
-                maximumDamage: rulesetCharacter.ReceivesMaximizedHealing());
-            var healAmount = roll + rulesetCharacter.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
-
-            rulesetCharacter.ReceiveHealing(healAmount, true, rulesetCharacter.Guid);
+            if (healAmount > 0)
+            {
+                rulesetCharacter.ReceiveHealing(healAmount, true, rulesetCharacter.Guid);
+            }
         }
     }
 
@@ -1553,7 +1555,8 @@ internal static class OtherFeats
                 yield break;
             }
 
-            yield return HandleBalefulScion(attacker, defender, actualEffectForms);
+            HandleBalefulScion(attacker, defender, actualEffectForms, rulesetEffect);
+            yield break;
         }
 
         public IEnumerator OnPhysicalAttackBeforeHitConfirmedOnEnemy(
@@ -1573,43 +1576,86 @@ internal static class OtherFeats
                 yield break;
             }
 
-            yield return HandleBalefulScion(attacker, defender, actualEffectForms);
+            HandleBalefulScion(attacker, defender, actualEffectForms);
+            yield break;
         }
 
-        private IEnumerator HandleBalefulScion(
-            GameLocationCharacter attacker, GameLocationCharacter defender, List<EffectForm> actualEffectForms)
+        private void HandleBalefulScion(
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            List<EffectForm> actualEffectForms,
+            RulesetEffect rulesetEffect = null)
         {
             var rulesetAttacker = attacker.RulesetCharacter;
             var usablePower = PowerProvider.Get(powerBalefulScion, rulesetAttacker);
 
-            if (!attacker.IsWithinRange(defender, 12) ||
-                !attacker.OncePerTurnIsValid(powerBalefulScion.Name) ||
-                !rulesetAttacker.IsToggleEnabled((Id)ExtraActionId.BalefulScionToggle) ||
-                rulesetAttacker.GetRemainingUsesOfPower(usablePower) == 0)
+            if (!IsAvailable())
             {
-                yield break;
+                return;
             }
 
-            var pb = rulesetAttacker.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
-            var damageForm = EffectFormBuilder.DamageForm(DamageTypeNecrotic, 1, DieType.D6, pb);
+            if (!OnHitEffectContext.TryQueueEffect(
+                    rulesetEffect, attacker, defender, powerBalefulScion, IsAvailable,
+                    _ => CreateEffects(), AdditionalEffectTrigger.Damage, Consume,
+                    confirmReaction: true))
+            {
+                Consume();
+                actualEffectForms.AddRange(CreateEffects());
+            }
 
-            actualEffectForms.Add(damageForm);
-            attacker.UsedSpecialFeatures.TryAdd(powerBalefulScion.Name, 0);
-            usablePower.Consume();
-            rulesetAttacker.LogCharacterUsedPower(powerBalefulScion);
-            rulesetAttacker.InflictCondition(
-                conditionBalefulScion.Name,
-                DurationType.Round,
-                0,
-                TurnOccurenceType.EndOfTurn,
-                AttributeDefinitions.TagEffect,
-                rulesetAttacker.guid,
-                rulesetAttacker.CurrentFaction.Name,
-                1,
-                conditionBalefulScion.Name,
-                0,
-                0,
-                0);
+            return;
+
+            bool IsAvailable()
+            {
+                return rulesetAttacker is { IsDeadOrDyingOrUnconscious: false } &&
+                       attacker.IsWithinRange(defender, 12) &&
+                       attacker.CanSeeTarget(defender) &&
+                       attacker.OncePerTurnIsValid(powerBalefulScion.Name) &&
+                       rulesetAttacker.IsToggleEnabled((Id)ExtraActionId.BalefulScionToggle) &&
+                       rulesetAttacker.GetRemainingUsesOfPower(usablePower) > 0;
+            }
+
+            List<EffectForm> CreateEffects()
+            {
+                var pb = rulesetAttacker.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+                var effectForm = EffectFormBuilder.DamageForm(DamageTypeNecrotic, 1, DieType.D6, pb);
+                effectForm.DamageForm.IgnoreSpellAdvancementDamageDice = true;
+
+                // Healing follows this form's received damage, after resistance
+                // and immunity, without borrowing another form or reaction's damage.
+                OnHitEffectContext.ObserveReceivedDamage(effectForm.DamageForm, damage =>
+                {
+                    if (damage == 0)
+                    {
+                        return;
+                    }
+
+                    var healingCondition = rulesetAttacker.InflictCondition(
+                        conditionBalefulScion.Name,
+                        DurationType.Round,
+                        0,
+                        TurnOccurenceType.EndOfTurn,
+                        AttributeDefinitions.TagEffect,
+                        rulesetAttacker.guid,
+                        rulesetAttacker.CurrentFaction.Name,
+                        1,
+                        conditionBalefulScion.Name,
+                        damage,
+                        0,
+                        0);
+
+                    healingCondition.Amount = damage;
+                });
+
+                return [effectForm];
+            }
+
+            void Consume()
+            {
+                attacker.UsedSpecialFeatures.TryAdd(powerBalefulScion.Name, 0);
+                usablePower.Consume();
+                rulesetAttacker.LogCharacterUsedPower(powerBalefulScion);
+            }
         }
     }
 

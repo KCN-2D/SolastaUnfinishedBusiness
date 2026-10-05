@@ -2,12 +2,34 @@
 using HarmonyLib;
 using JetBrains.Annotations;
 using UnityEngine;
+using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class CameraModeManualPatcher
 {
+    [HarmonyPatch(typeof(CameraModeManual), nameof(CameraModeManual.OnPointerScroll))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnPointerScroll_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CameraModeManual __instance, float __0)
+        {
+            if (!FloatingPanelBounds.ShouldSuppressBackgroundWheel(null) &&
+                !CampaignsContext.TryRouteSpellSelectionWheel(__0))
+            {
+                return true;
+            }
+
+            __instance.zoomVelocity = 0f;
+            __instance.scrollDirection = 0f;
+            return false;
+        }
+    }
+
     //PATCH: supports camera settings in Mod UI
     [HarmonyPatch(typeof(CameraModeManual), nameof(CameraModeManual.Parameters), MethodType.Getter)]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]

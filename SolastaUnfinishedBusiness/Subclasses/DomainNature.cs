@@ -435,7 +435,8 @@ public sealed class DomainNature : AbstractSubclass
                 "DampenElements",
                 "CustomReactionDampenElementsDescription".Formatted(Category.Reaction, defender.Name),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender);
 
             yield break;
 

@@ -65,6 +65,18 @@ public static class RulesetImplementationManagerPatcher
     [UsedImplicitly]
     public static class ApplyDamageForm_Patch
     {
+        [UsedImplicitly]
+        public static void Prefix(
+            EffectForm effectForm,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            out IDisposable __state)
+        {
+            __state = OnHitEffectContext.BeginDamageForm(effectForm.DamageForm, formsParams);
+        }
+
+        [UsedImplicitly]
+        public static void Finalizer(IDisposable __state) => __state?.Dispose();
+
         // add the sum of the max damage dice of your attack to your total bonus
         private static int RollDamageOption1(
             RulesetActor rulesetActor,

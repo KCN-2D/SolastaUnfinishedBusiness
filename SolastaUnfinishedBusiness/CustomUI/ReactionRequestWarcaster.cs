@@ -2,6 +2,7 @@
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+using SolastaUnfinishedBusiness.Models;
 using static SolastaUnfinishedBusiness.Feats.OtherFeats;
 
 namespace SolastaUnfinishedBusiness.CustomUI;
@@ -58,6 +59,19 @@ internal class ReactionRequestWarcaster : ReactionRequest
             return ServiceRepository.GetService<IGameLocationCharacterService>().ValidCharacters
                 .Contains(targetCharacter) && targetCharacter.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false };
         }
+    }
+
+    internal bool TryGetSpellChoice(int option, out SpellDefinition spell, out RulesetSpellRepertoire repertoire)
+    {
+        spell = null;
+        repertoire = null;
+        var choices = ReactionParams.SpellRepertoire?.KnownSpells;
+        if (option <= 0 || choices == null || option > choices.Count)
+        {
+            return false;
+        }
+        spell = choices[option - 1];
+        return ReactionParams.ActingCharacter.RulesetCharacter.CanCastCantrip(spell, out repertoire);
     }
 
     private void BuildSuboptions()
@@ -143,7 +157,7 @@ internal class ReactionRequestWarcaster : ReactionRequest
                 target.LocationPosition,
                 actionModifier);
 
-            return !battle.IsValidAttackForReadiedAction(attackParams, false, RuleDefinitions.CoverType.ThreeQuarter);
+            return !MetamagicContext.CanAttackWithReactionMetamagic(battle, attackParams, true);
         });
 
         return cantrips;

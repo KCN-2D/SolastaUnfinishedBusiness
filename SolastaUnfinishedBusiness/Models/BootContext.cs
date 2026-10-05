@@ -13,6 +13,7 @@ using SolastaUnfinishedBusiness.Classes;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Displays;
 using SolastaUnfinishedBusiness.ItemCrafting;
+using UnityEngine;
 #if DEBUG
 using SolastaUnfinishedBusiness.DataMiner;
 #endif
@@ -27,6 +28,7 @@ internal static class BootContext
     private static IRuntimeService RuntimeService { get; set; }
     private static Runtime.RuntimeLoadedHandler RuntimeLoadedHandler { get; set; }
     private static CancellationTokenSource UserCampaignAuditCancellation { get; set; }
+    private static Coroutine DocumentationCoroutine { get; set; }
 
     internal static void Startup(GameManager gameManager)
     {
@@ -124,11 +126,19 @@ internal static class BootContext
         DetachRuntimeLoadedHandler();
 
         var cancellation = UserCampaignAuditCancellation;
+        var coroutineHost = CoroutineHost;
+        var documentationCoroutine = DocumentationCoroutine;
 
         UserCampaignAuditCancellation = null;
+        DocumentationCoroutine = null;
         CoroutineHost = null;
         cancellation?.Cancel();
         cancellation?.Dispose();
+
+        if (coroutineHost && documentationCoroutine != null)
+        {
+            coroutineHost.StopCoroutine(documentationCoroutine);
+        }
     }
 
     private static void DetachRuntimeLoadedHandler()
@@ -213,8 +223,6 @@ internal static class BootContext
         // Cache CE definitions for diagnostics and export
         DiagnosticsContext.CacheCeDefinitions();
 
-        // Dump documentations to mod folder when version or files changed
-        DocumentationContext.DumpDocumentationIfNeeded();
         ModUi.LoadTabletopDefinitions();
 
         // Manages update or welcome messages
@@ -225,6 +233,12 @@ internal static class BootContext
 
         // Enable mod before optional diagnostics parse user-authored data.
         enable();
+
+        if (CoroutineHost)
+        {
+            DocumentationCoroutine = CoroutineHost.StartCoroutine(DocumentationContext.DumpDocumentationIfNeeded());
+        }
+
         StartMissingReferencesAudit();
     }
 

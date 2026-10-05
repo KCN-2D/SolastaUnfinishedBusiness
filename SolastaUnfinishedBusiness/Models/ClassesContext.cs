@@ -303,7 +303,8 @@ internal static class ClassesContext
                     .Formatted(Category.Reaction, defender.Name, helper.Name),
                 ReactionValidated,
                 battleManager: battleManager,
-                resource: ReactionResourceSorceryPoints.Instance);
+                resource: ReactionResourceSorceryPoints.Instance,
+                target: defender);
 
             yield break;
 

@@ -19,8 +19,91 @@ internal interface IAllowSpellActionType
         ActionType actionType);
 }
 
+// Optional costs and execution checks for a casting-time grant. Native casting
+// and grants without a resource cost retain their existing behavior.
+internal interface ISpellCastingActionProvider : IAllowSpellActionType
+{
+    bool CanCastSpellAsAction(CharacterActionMagicEffect action, RulesetEffectSpell spell, out string failure);
+
+    void OnSpellCastCommitted(CharacterActionMagicEffect action, RulesetEffectSpell spell);
+}
+
 internal static class SpellActionTypeContext
 {
+    private static bool IsAllowedByProvider(
+        IAllowSpellActionType provider,
+        RulesetCharacter character,
+        RulesetSpellRepertoire repertoire,
+        SpellDefinition spell,
+        ActionType actionType)
+    {
+        // Resource-dependent grants need the selected display view, including
+        // free-use vs spell-slot choices, rather than just its casting origin.
+        return provider.IsAllowed(character,
+            provider is ISpellCastingActionProvider
+                ? repertoire
+                : SpellCastingResourceContext.ResolveCastingRepertoire(repertoire, spell, character),
+            spell, actionType);
+    }
+
+    internal static bool TryGetCastingActionProvider(
+        CharacterActionMagicEffect action,
+        out ISpellCastingActionProvider provider,
+        out string failure)
+    {
+        provider = null;
+        failure = string.Empty;
+
+        if (Gui.Battle == null ||
+            action.ActionId is not Id.CastMain and not Id.CastBonus ||
+            action.ActionParams.RulesetEffect is not RulesetEffectSpell spell ||
+            action.ActionType == spell.ActionType ||
+            action.ActionId == Id.CastBonus &&
+            CombinedMetamagic.HasType(spell.MetamagicOption, MetamagicType.QuickenedSpell))
+        {
+            return true;
+        }
+
+        var character = action.ActingCharacter.RulesetCharacter;
+        var definition = RulesetEffectSpellWithOrigin.GetOriginSpell(spell);
+        var repertoire = spell.SpellRepertoire ?? action.ActionParams.SpellRepertoire;
+        var providers = character.GetSubFeaturesByType<IAllowSpellActionType>();
+
+        // A free alternative such as Blast Reload does not spend another
+        // feature's limited uses merely because both grant the same action.
+        if (providers.Any(candidate => candidate is not ISpellCastingActionProvider &&
+                IsAllowedByProvider(candidate, character, repertoire, definition, action.ActionType)))
+        {
+            return true;
+        }
+
+        foreach (var candidate in providers.OfType<ISpellCastingActionProvider>())
+        {
+            var selectedRepertoire = SpellCastingResourceContext.IsExplicitSlotSelection(spell)
+                ? SpellCastingResourceContext.GetResourceRepertoire(spell)
+                : repertoire;
+            if (!IsAllowedByProvider(candidate, character, selectedRepertoire, definition, action.ActionType))
+            {
+                continue;
+            }
+
+            if (!candidate.CanCastSpellAsAction(action, spell, out failure))
+            {
+                continue;
+            }
+
+            provider = candidate;
+            return true;
+        }
+
+        if (string.IsNullOrEmpty(failure))
+        {
+            failure = "Failure/&FailureFlagNoPowerUses";
+        }
+
+        return false;
+    }
+
     internal static void QualifySpells(
         RulesetCharacter character,
         RulesetSpellRepertoire repertoire,
@@ -48,8 +131,8 @@ internal static class SpellActionTypeContext
         foreach (var spell in candidates.Where(spell => spell != null && IsCastingTimeAvailable(spell)))
         {
             if (!relevantSpells.Contains(spell) &&
-                (MatchesCastingActionType(spell, actionType) || providers.Any(provider => provider.IsAllowed(character,
-                    SpellCastingResourceContext.ResolveCastingRepertoire(repertoire, spell, character), spell, actionType))))
+                (MatchesCastingActionType(spell, actionType) || providers.Any(provider =>
+                    IsAllowedByProvider(provider, character, repertoire, spell, actionType))))
             {
                 relevantSpells.Add(spell);
             }
@@ -78,13 +161,12 @@ internal static class SpellActionTypeContext
 
         // A mixed-action picker must retain the same alternative casting actions as the normal panels.
         var character = caster.RulesetCharacter;
-        var castingRepertoire = SpellCastingResourceContext.ResolveCastingRepertoire(repertoire, spell, character);
         var providers = character.GetSubFeaturesByType<IAllowSpellActionType>();
         foreach (var actionType in new[] { ActionType.Main, ActionType.Bonus })
         {
             var alternative = actionType == ActionType.Main ? Id.CastMain : Id.CastBonus;
             if (alternative != actionId && IsSpellActionAvailable(caster, spell, scope, alternative) &&
-                providers.Any(provider => provider.IsAllowed(character, castingRepertoire, spell, actionType)))
+                providers.Any(provider => IsAllowedByProvider(provider, character, repertoire, spell, actionType)))
             {
                 actionId = alternative;
                 return true;
@@ -110,6 +192,7 @@ internal static class SpellActionTypeContext
 
         ActionSwitching.CheckSpellcastingCantrips(character, actionType, ref cantripOnly);
         MetamagicContext.RestrictToCantripsAfterQuickenedSpell2024(character, ref cantripOnly);
+        SpellCastingValidation.ApplyCantripOnlyRestrictions(character.RulesetCharacter, ref cantripOnly);
     }
 
     private static bool IsSpellActionAvailable(
@@ -167,8 +250,7 @@ internal static class SpellActionTypeContext
             foreach (var spell in candidates)
             {
                 if (!(allowExplorationCasting && IsExplorationCastingTime(spell, actionType)) &&
-                    !providers.Any(provider => provider.IsAllowed(character,
-                        SpellCastingResourceContext.ResolveCastingRepertoire(repertoire, spell, character), spell, actionType)))
+                    !providers.Any(provider => IsAllowedByProvider(provider, character, repertoire, spell, actionType)))
                 {
                     continue;
                 }
@@ -205,8 +287,7 @@ internal static class SpellActionTypeContext
             spell.SpellLevel == spellLevel && IsCastingTimeAvailable(spell) &&
             spell.ActivationTime is not ActivationTime.Reaction and not ActivationTime.OnAttackHit &&
             (MatchesCastingActionType(spell, actionType) ||
-             providers.Any(provider => provider.IsAllowed(character,
-                 SpellCastingResourceContext.ResolveCastingRepertoire(repertoire, spell, character), spell, actionType))));
+             providers.Any(provider => IsAllowedByProvider(provider, character, repertoire, spell, actionType))));
     }
 
     internal static SpellRepertoireLine GetRepertoireLine(SpellActivationBox spellBox)
@@ -239,9 +320,10 @@ internal static class SpellActionTypeContext
         var line = GetRepertoireLine(spellBox);
         var character = line?.caster?.RulesetCharacter;
         var repertoire = spellBox.spellRepertoire;
+        var castingRepertoire = SpellSelectionContext.Resolve(repertoire);
 
-        if (character == null || SpellSelectionContext.Resolve(line.spellRepertoire) != repertoire ||
-            !character.SpellRepertoires.Contains(repertoire))
+        if (character == null || SpellSelectionContext.Resolve(line.spellRepertoire) != castingRepertoire ||
+            !character.SpellRepertoires.Contains(castingRepertoire))
         {
             return activationTime;
         }
@@ -250,7 +332,7 @@ internal static class SpellActionTypeContext
         if (actionType == ActionType.None)
         {
             // Use the action that this mixed picker will actually execute, including bonus-action grants.
-            if (!TryGetAvailableSpellAction(line.caster.GameLocationCharacter, repertoire, spell,
+            if (!TryGetAvailableSpellAction(line.caster.GameLocationCharacter, line.spellRepertoire, spell,
                     ActionScope.Battle, out var actionId))
             {
                 return activationTime;
@@ -264,9 +346,7 @@ internal static class SpellActionTypeContext
             };
         }
         else if (!character.GetSubFeaturesByType<IAllowSpellActionType>().Any(provider =>
-                     provider.IsAllowed(character,
-                         SpellCastingResourceContext.ResolveCastingRepertoire(repertoire, spell, character),
-                         spell, actionType)))
+                     IsAllowedByProvider(provider, character, line.spellRepertoire, spell, actionType)))
         {
             return activationTime;
         }
@@ -301,10 +381,11 @@ internal static class SpellActionTypeContext
 
     private static bool IsExplorationCastingTime(SpellDefinition spell, ActionType actionType)
     {
-        // Native long casting times have no battle action type, but use CastMain in exploration.
+        // Native exploration CastMain includes bonus, no-cost and long casting times.
+        // Keep the level/source estimate consistent with the native repertoire's visible spell list.
         return Gui.Battle == null && actionType == ActionType.Main &&
-               CastingTimeToActionDefinition.TryGetValue(spell.ActivationTime, out var nativeActionType) &&
-               nativeActionType == ActionType.None;
+               spell.ActivationTime is not ActivationTime.Reaction and not ActivationTime.OnAttackHit &&
+               CastingTimeToActionDefinition.ContainsKey(spell.ActivationTime);
     }
 
     private static bool IsCastingTimeAvailable(SpellDefinition spell)
@@ -316,6 +397,12 @@ internal static class SpellActionTypeContext
     private static IEnumerable<SpellDefinition> EnumerateReadySpells(
         RulesetCharacter character, RulesetSpellRepertoire repertoire)
     {
+        if (SpellSelectionContext.TryGetOption(repertoire, out var option))
+        {
+            // A display view owns one selected resource, not its class's other extra spells.
+            return new[] { option.Spell };
+        }
+
         var readySpells = repertoire.SpellCastingFeature?.SpellReadyness == SpellReadyness.Prepared
             ? repertoire.PreparedSpells
             : repertoire.KnownSpells;

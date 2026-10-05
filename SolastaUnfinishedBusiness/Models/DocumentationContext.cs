@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -45,16 +46,57 @@ internal static class DocumentationContext
         Main.EnsureFolderExists(Path.Combine(Main.ModFolder, DocumentationFolder, MonstersFolder));
     }
 
-    internal static void DumpDocumentationIfNeeded()
+    internal static IEnumerator DumpDocumentationIfNeeded()
     {
-        EnsureFolderExists();
+        // Give runtime activation and the loading screen a frame before doing optional file work.
+        yield return null;
 
-        if (!ShouldDumpDocumentation(out var version))
+        string version;
+        bool shouldDump;
+
+        try
         {
-            return;
+            EnsureFolderExists();
+            shouldDump = ShouldDumpDocumentation(out version);
+        }
+        catch (Exception ex)
+        {
+            Main.Error($"Cannot prepare mod documentation: {ex}");
+            yield break;
         }
 
-        DumpDocumentation();
+        if (!shouldDump)
+        {
+            yield break;
+        }
+
+        using var stages = GetDocumentationStages().GetEnumerator();
+
+        while (true)
+        {
+            if (Main.IsApplicationQuitting)
+            {
+                yield break;
+            }
+
+            try
+            {
+                if (!stages.MoveNext())
+                {
+                    break;
+                }
+
+                stages.Current();
+            }
+            catch (Exception ex)
+            {
+                Main.Error($"Cannot generate mod documentation: {ex}");
+                yield break;
+            }
+
+            // All localization and definition access stays on the Unity thread.
+            yield return null;
+        }
 
         if (!string.IsNullOrWhiteSpace(version))
         {
@@ -128,28 +170,28 @@ internal static class DocumentationContext
         return Path.Combine(Main.ModFolder, DocumentationFolder, filename);
     }
 
-    internal static void DumpDocumentation()
+    private static IEnumerable<Action> GetDocumentationStages()
     {
-        EnsureFolderExists();
         foreach (var characterFamilyDefinition in DatabaseRepository.GetDatabase<CharacterFamilyDefinition>()
                      .Where(x =>
                          x.Name is not ("Giant_Rugan" or "Ooze") &&
                          x.ContentPack != CeContentPackContext.CeContentPack))
         {
-            DumpMonsters($"SolastaMonsters{characterFamilyDefinition.Name}",
+            yield return () => DumpMonsters($"SolastaMonsters{characterFamilyDefinition.Name}",
                 x => x.CharacterFamily == characterFamilyDefinition.Name && x.DefaultFaction == "HostileMonsters");
         }
 
         var vanillaRaces = DatabaseRepository.GetDatabase<CharacterRaceDefinition>()
-            .Where(x => x.ContentPack != CeContentPackContext.CeContentPack && x.SubRaces.Count != 0);
+            .Where(x => x.ContentPack != CeContentPackContext.CeContentPack && x.SubRaces.Count != 0)
+            .ToHashSet();
 
-        DumpRaces("Races", x => vanillaRaces.Contains(x) || RacesContext.Races.Contains(x));
-        DumpRaces("Subraces", x => !vanillaRaces.Contains(x) && !RacesContext.Races.Contains(x));
+        yield return () => DumpRaces("Races", x => vanillaRaces.Contains(x) || RacesContext.Races.Contains(x));
+        yield return () => DumpRaces("Subraces", x => !vanillaRaces.Contains(x) && !RacesContext.Races.Contains(x));
 
-        DumpClasses(string.Empty, _ => true);
-        DumpSubclasses(string.Empty, GetModdedSubclasses().Union(GetVanillaSubclasses()));
+        yield return () => DumpClasses(string.Empty, _ => true);
+        yield return () => DumpSubclasses(string.Empty, GetModdedSubclasses().Union(GetVanillaSubclasses()));
 
-        DumpOthers<SpellDefinition>("Spells",
+        yield return () => DumpOthers<SpellDefinition>("Spells",
             x =>
                 (x.ContentPack == CeContentPackContext.CeContentPack &&
                  SpellsContext.Spells.Contains(x)) ||
@@ -160,38 +202,38 @@ internal static class DocumentationContext
                  !x.Name.EndsWith("NoFocus") &&
                  !x.Name.EndsWith("_B")));
 
-        DumpOthers<CharacterBackgroundDefinition>("Backgrounds",
+        yield return () => DumpOthers<CharacterBackgroundDefinition>("Backgrounds",
             x => x.ContentPack == CeContentPackContext.CeContentPack || !x.GuiPresentation.Hidden);
-        DumpOthers<FeatDefinition>("Feats",
+        yield return () => DumpOthers<FeatDefinition>("Feats",
             x => FeatsContext.Feats.Contains(x) ||
                  x.ContentPack != CeContentPackContext.CeContentPack);
-        DumpOthers<FightingStyleDefinition>("FightingStyles",
+        yield return () => DumpOthers<FightingStyleDefinition>("FightingStyles",
             x =>
                 FightingStyleContext.FightingStyles.Contains(x) ||
                 x.ContentPack != CeContentPackContext.CeContentPack);
-        DumpOthers<InvocationDefinition>("Invocations",
+        yield return () => DumpOthers<InvocationDefinition>("Invocations",
             x =>
                 InvocationsContext.Invocations.Contains(x) ||
                 x.ContentPack != CeContentPackContext.CeContentPack);
-        DumpOthers<ItemDefinition>("Items",
+        yield return () => DumpOthers<ItemDefinition>("Items",
             x => x.IsArmor || x.IsWeapon);
-        DumpOthers<MetamagicOptionDefinition>("Metamagic",
+        yield return () => DumpOthers<MetamagicOptionDefinition>("Metamagic",
             x =>
                 MetamagicContext.Metamagic.Contains(x) ||
                 x.ContentPack != CeContentPackContext.CeContentPack);
-        DumpOthers<InvocationDefinition>("Maneuvers",
+        yield return () => DumpOthers<InvocationDefinition>("Maneuvers",
             x =>
                 x is InvocationDefinitionCustom y &&
                 y.PoolType == InvocationPoolTypeCustom.Pools.Gambit);
-        DumpOthers<InvocationDefinition>("ArcaneShots",
+        yield return () => DumpOthers<InvocationDefinition>("ArcaneShots",
             x =>
                 x is InvocationDefinitionCustom y &&
                 y.PoolType == InvocationPoolTypeCustom.Pools.ArcaneShotChoice);
-        DumpOthers<InvocationDefinition>("Infusions",
+        yield return () => DumpOthers<InvocationDefinition>("Infusions",
             x =>
                 x is InvocationDefinitionCustom y &&
                 y.PoolType == InvocationPoolTypeCustom.Pools.Infusion);
-        DumpOthers<InvocationDefinition>("Versatilities",
+        yield return () => DumpOthers<InvocationDefinition>("Versatilities",
             x =>
                 x is InvocationDefinitionCustom y &&
                 y.PoolType == InvocationPoolTypeCustom.Pools.EldritchVersatilityPool);
@@ -391,20 +433,42 @@ internal static class DocumentationContext
             { SpellListWizard, Wizard }
         };
 
-    private static string GetClassesWhichCanCastSpell(SpellDefinition spell)
+    private static Dictionary<SpellDefinition, string> GetSpellClassTitles()
     {
-        var result = SpellListClassMap
-            .OrderBy(kvp => kvp.Value.FormatTitle())
-            .Where(kvp =>
-                kvp.Key.SpellsByLevel
-                    .SelectMany(x => x.Spells)
-                    .Contains(spell) ||
-                SpellsContext.SpellListContextTab[kvp.Key].SuggestedSpells.Contains(spell))
-            .Aggregate(string.Empty, (current, kvp) => current + kvp.Value.FormatTitle() + ", ");
+        var titlesBySpell = new Dictionary<SpellDefinition, List<string>>();
 
-        return result == string.Empty
-            ? string.Empty
-            : "**[" + result.Substring(0, result.Length - 2) + "]**" + Environment.NewLine;
+        foreach (var pair in SpellListClassMap.OrderBy(kvp => kvp.Value.FormatTitle()))
+        {
+            var spellList = pair.Key;
+            var klass = pair.Value;
+            var title = klass.FormatTitle();
+            var spells = spellList.SpellsByLevel.SelectMany(level => level.Spells).ToHashSet();
+
+            if (SpellsContext.SpellListContextTab.TryGetValue(spellList, out var context))
+            {
+                spells.UnionWith(context.SuggestedSpells);
+            }
+
+            foreach (var spell in spells)
+            {
+                if (!spell)
+                {
+                    continue;
+                }
+
+                if (!titlesBySpell.TryGetValue(spell, out var titles))
+                {
+                    titles = [];
+                    titlesBySpell.Add(spell, titles);
+                }
+
+                titles.Add(title);
+            }
+        }
+
+        return titlesBySpell.ToDictionary(
+            kvp => kvp.Key,
+            kvp => "**[" + string.Join(", ", kvp.Value) + "]**" + Environment.NewLine);
     }
 
     private static void DumpOthers<T>(string groupName, Func<T, bool> filter) where T : BaseDefinition
@@ -412,6 +476,7 @@ internal static class DocumentationContext
         var outString = new StringBuilder();
         var db = DatabaseRepository.GetDatabase<T>();
         var counter = 1;
+        var spellClassTitles = typeof(T) == typeof(SpellDefinition) ? GetSpellClassTitles() : null;
 
         foreach (var definition in db
                      .Where(filter)
@@ -458,7 +523,11 @@ internal static class DocumentationContext
                     title += " [" + Gui.Format("Tooltip/&TagConcentrationTitle") + "]";
                 }
 
-                description = GetClassesWhichCanCastSpell(spellDefinition) + Environment.NewLine + description;
+                var classTitles = spellClassTitles != null && spellClassTitles.TryGetValue(spellDefinition, out var titles)
+                    ? titles
+                    : string.Empty;
+
+                description = classTitles + Environment.NewLine + description;
             }
 
             outString.AppendLine($"# {counter++}. - {title} {GetTag(definition)}");

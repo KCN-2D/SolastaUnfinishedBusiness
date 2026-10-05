@@ -5,6 +5,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -726,6 +727,12 @@ public static class LocalCommandManagerPatcher
     [UsedImplicitly]
     public static class ProcessReactionRequest_Patch
     {
+        [UsedImplicitly]
+        public static void Prefix(ReactionRequest reactionRequest, ref bool validated, ref int __2)
+        {
+            MetamagicContext.RestoreReactionSelection(reactionRequest, ref validated, ref __2);
+        }
+
         [UsedImplicitly]
         public static void Postfix(ReactionRequest reactionRequest, bool validated)
         {

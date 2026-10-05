@@ -6,6 +6,7 @@ using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityEngine.UI;
@@ -16,21 +17,45 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class FeatSubPanelPatcher
 {
+    [HarmonyPatch(typeof(FeatSubPanel), nameof(FeatSubPanel.RuntimeLoaded))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RuntimeLoaded_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var count = typeof(List<FeatDefinition>).GetProperty(nameof(List<FeatDefinition>.Count))?.GetMethod;
+            var initialCount = new Func<int, ProficienciesSubPanel, int>(
+                CharacterInspectionScreenEnhancement.GetInitialProficiencyItemCount).Method;
+
+            return instructions.ReplaceCalls(count, 1, "FeatSubPanel.RuntimeLoaded",
+                new CodeInstruction(OpCodes.Callvirt, count),
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Call, initialCount));
+        }
+    }
+
     [HarmonyPatch(typeof(FeatSubPanel), nameof(FeatSubPanel.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
     public static class Bind_Patch
     {
         [UsedImplicitly]
-        public static void Prefix([NotNull] FeatSubPanel __instance)
+        public static void Prefix([NotNull] FeatSubPanel __instance, RulesetCharacterHero __0)
         {
-            _ = __instance;
+            if (!FeatsContext.PreparePassiveFeatDisplayPanel(__instance, __0))
+            {
+                // A reused inspection panel may be bound in a selection/level-up context.
+                // Keep its native catalog and ensure its rows without rebuilding choices.
+                FeatsContext.UpdatePanelChildren(__instance);
+            }
         }
 
         [UsedImplicitly]
         public static void Postfix([NotNull] FeatSubPanel __instance)
         {
-            FeatsContext.RefreshPassiveFeatDisplayPanel(__instance);
+            FeatsContext.RefreshPassiveFeatDisplayItems(__instance);
         }
     }
 
@@ -109,7 +134,7 @@ public static class FeatSubPanelPatcher
             _ = previousStageTag;
             _ = currentPoolType;
 
-            FeatsContext.RefreshPassiveFeatDisplayPanel(__instance);
+            FeatsContext.RefreshPassiveFeatDisplayItems(__instance);
         }
 
         [NotNull]

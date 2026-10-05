@@ -1092,6 +1092,16 @@ namespace SolastaUnfinishedBusiness.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
+        public static byte[] ConditionArcaneDeflectionCantripsOnly {
+            get {
+                object obj = ResourceManager.GetObject("ConditionArcaneDeflectionCantripsOnly", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
         public static byte[] ConditionFlightSuspended {
             get {
                 object obj = ResourceManager.GetObject("ConditionFlightSuspended", resourceCulture);

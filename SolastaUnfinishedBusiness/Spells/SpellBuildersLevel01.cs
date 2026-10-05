@@ -2865,6 +2865,10 @@ internal static partial class SpellBuilders
                 attacker,
                 attacker,
                 battleManager,
+                "SpendSpellSlotSilveryBarbsAttackDescription".Formatted(
+                    Category.Reaction,
+                    ReactionCharacterNameFormatter.Format(attacker),
+                    ReactionCharacterNameFormatter.Format(defender)),
                 () => ApplyLowerAttackRoll(
                     action, attacker.RulesetCharacter, helper.RulesetCharacter,
                     defender.RulesetActor, actionModifier, attackMode, rulesetEffect));
@@ -2890,6 +2894,9 @@ internal static partial class SpellBuilders
                 defender,
                 helper,
                 battleManager,
+                "SpendSpellSlotSilveryBarbsAbilityCheckDescription".Formatted(
+                    Category.Reaction,
+                    ReactionCharacterNameFormatter.Format(defender)),
                 () => ApplyLowerAbilityCheckRoll(
                     abilityCheckData,
                     defender.RulesetCharacter,
@@ -2915,6 +2922,9 @@ internal static partial class SpellBuilders
                 defender,
                 helper,
                 battleManager,
+                "SpendSpellSlotSilveryBarbsSavingThrowDescription".Formatted(
+                    Category.Reaction,
+                    ReactionCharacterNameFormatter.Format(defender)),
                 () => ApplyLowerSavingThrowRoll(
                     savingThrowData,
                     defender.RulesetCharacter,
@@ -2937,6 +2947,8 @@ internal static partial class SpellBuilders
             }
 
             pending.CastCompleted = true;
+            pending.Range = MetamagicContext.GetSpellRange(action.ActionParams.RulesetEffect.EffectDescription,
+                action.ActionParams.RulesetEffect.MetamagicOption);
 
             yield break;
         }
@@ -2953,7 +2965,7 @@ internal static partial class SpellBuilders
                 !helper.CanReact() ||
                 !rulesetHelper.UsableSpells.Contains(spell) ||
                 !rulesetHelper.AreSpellComponentsValid(spell) ||
-                !helper.IsWithinRange(triggeringCreature, 12) ||
+                !MetamagicContext.CanReachReactionSpellTarget(helper, spell, triggeringCreature) ||
                 !helper.CanSeeTarget(triggeringCreature))
             {
                 return false;
@@ -2969,6 +2981,7 @@ internal static partial class SpellBuilders
             GameLocationCharacter triggeringCreature,
             GameLocationCharacter waiter,
             GameLocationBattleManager battleManager,
+            string reactionDescription,
             Action applyLowerRoll)
         {
             var pending = new PendingSilveryBarbs(applyLowerRoll);
@@ -2981,7 +2994,8 @@ internal static partial class SpellBuilders
                     spell,
                     triggeringCreature,
                     waiter,
-                    battleManager: battleManager);
+                    battleManager: battleManager,
+                    reactionDescription: reactionDescription);
 
                 if (!pending.CastCompleted)
                 {
@@ -2991,7 +3005,7 @@ internal static partial class SpellBuilders
                 pending.ApplyLowerRoll();
 
                 GameLocationCharacter empoweredCreature = null;
-                var candidates = GetEmpowermentCandidates(helper, triggeringCreature);
+                var candidates = GetEmpowermentCandidates(helper, triggeringCreature, pending.Range);
 
                 if (candidates.Length == 0)
                 {
@@ -3002,13 +3016,11 @@ internal static partial class SpellBuilders
                     candidates,
                     waiter,
                     "SilveryBarbsTarget",
-                    "CustomReactionSilveryBarbsTargetDescription".Formatted(
-                        Category.Reaction,
-                        triggeringCreature.Name),
+                    Gui.Localize("Reaction/&CustomReactionSilveryBarbsTargetDescription"),
                     target => empoweredCreature = target,
                     battleManager: battleManager);
 
-                ApplyEmpowerment(helper, empoweredCreature);
+                ApplyEmpowerment(helper, empoweredCreature, pending.Range);
             }
             finally
             {
@@ -3023,7 +3035,8 @@ internal static partial class SpellBuilders
 
         private static GameLocationCharacter[] GetEmpowermentCandidates(
             GameLocationCharacter helper,
-            GameLocationCharacter triggeringCreature)
+            GameLocationCharacter triggeringCreature,
+            int range)
         {
             var locationCharacterService = ServiceRepository.GetService<IGameLocationCharacterService>();
 
@@ -3039,20 +3052,21 @@ internal static partial class SpellBuilders
                     candidate.Side == helper.Side &&
                     candidate.RulesetCharacter is
                         { IsDeadOrDyingOrUnconscious: false } and not RulesetCharacterEffectProxy &&
-                    helper.IsWithinRange(candidate, 12) &&
-                    (candidate == helper || helper.CanSeeTarget(candidate)))
+                    helper.IsWithinRange(candidate, range) &&
+                    helper.CanSeeTarget(candidate))
                 .OrderBy(candidate => candidate.Guid)
                 .ToArray();
         }
 
         private void ApplyEmpowerment(
             GameLocationCharacter caster,
-            GameLocationCharacter empoweredCreature)
+            GameLocationCharacter empoweredCreature,
+            int range)
         {
             var rulesetEmpowered = empoweredCreature?.RulesetCharacter;
 
             if (rulesetEmpowered is not { IsDeadOrDyingOrUnconscious: false } ||
-                !caster.IsWithinRange(empoweredCreature, 12) || !caster.CanSeeTarget(empoweredCreature))
+                !caster.IsWithinRange(empoweredCreature, range) || !caster.CanSeeTarget(empoweredCreature))
             {
                 return;
             }
@@ -3183,6 +3197,7 @@ internal static partial class SpellBuilders
         private sealed class PendingSilveryBarbs(Action applyLowerRoll)
         {
             internal bool CastCompleted { get; set; }
+            internal int Range { get; set; }
             internal Action ApplyLowerRoll { get; } = applyLowerRoll;
         }
     }

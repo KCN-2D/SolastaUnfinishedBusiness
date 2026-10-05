@@ -2928,6 +2928,7 @@ public static class RulesetCharacterPatcher
 
             if (actor is RulesetCharacter character)
             {
+                OnHitEffectContext.NotifyDamageReceived(character, damage, damageType, sourceGuid);
                 DamageReceivedContext.Notify(character, damage, damageType, sourceGuid);
             }
         }

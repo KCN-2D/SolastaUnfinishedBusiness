@@ -752,7 +752,8 @@ public sealed class RoguishSwashbuckler : AbstractSubclass
                 "MasterDuelist",
                 "UseRoguishSwashbucklerMasterDuelistDescription".Localized(Category.Reaction),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: attacker, effectDefinition: powerMasterDuelist);
 
             yield break;
 

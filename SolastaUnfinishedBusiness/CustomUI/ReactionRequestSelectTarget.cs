@@ -14,9 +14,19 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
         CharacterActionParams reactionParams,
         IEnumerable<GameLocationCharacter> candidates,
         string type)
+        : this(reactionParams, candidates, type, null)
+    {
+    }
+
+    internal ReactionRequestSelectTarget(
+        CharacterActionParams reactionParams,
+        IEnumerable<GameLocationCharacter> candidates,
+        string type,
+        BaseDefinition effectDefinition)
         : base(Name, reactionParams)
     {
         _type = type;
+        EffectDefinition = effectDefinition;
         Candidates = candidates
             .Where(candidate => candidate != null)
             .GroupBy(candidate => candidate.Guid)
@@ -28,6 +38,8 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
     }
 
     internal IReadOnlyList<GameLocationCharacter> Candidates { get; }
+
+    internal BaseDefinition EffectDefinition { get; }
 
     internal GameLocationCharacter SelectedTarget =>
         _selectedOption >= 0 &&
@@ -73,7 +85,11 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
 
     public override string FormatTitle()
     {
-        return Gui.Localize($"Reaction/&CustomReaction{_type}Title");
+        var effectTitle = CustomTooltipProvider.FormatTitle(EffectDefinition);
+
+        return CustomTooltipProvider.IsUnavailableContent(effectTitle)
+            ? Gui.Localize($"Reaction/&CustomReaction{_type}Title")
+            : effectTitle;
     }
 
     public override string FormatDescription()

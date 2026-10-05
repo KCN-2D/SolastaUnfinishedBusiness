@@ -58,6 +58,7 @@ public static class GameLocationCharacterPatcher
         {
             SpellSlotCastingLimit2024Context.RemoveLegacyBonusActionSpellRestriction(ref __result);
             MetamagicContext.RestrictToCantripsAfterQuickenedSpell2024(__instance, ref __result);
+            SpellCastingValidation.ApplyCantripOnlyRestrictions(__instance.RulesetCharacter, ref __result);
         }
     }
 

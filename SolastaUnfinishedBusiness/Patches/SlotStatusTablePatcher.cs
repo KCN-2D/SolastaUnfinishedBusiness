@@ -15,6 +15,27 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class SlotStatusTablePatcher
 {
+    internal static void RefreshCantripCaption(SlotStatusTable table, int spellLevel)
+    {
+        if (!table || spellLevel != 0)
+        {
+            return;
+        }
+
+        // Native alternate footers use different serialized labels. A single cantrip
+        // deliberately hides its caption; update displayed labels without reactivating it.
+        var caption = Gui.LocalizeSpellLevel(spellLevel);
+        if (table.cantripLabel && table.cantripLabel.gameObject.activeSelf)
+        {
+            table.cantripLabel.Text = caption;
+        }
+
+        if (table.levelLabel && table.levelLabel.gameObject.activeSelf)
+        {
+            table.levelLabel.Text = caption;
+        }
+    }
+
     [HarmonyPatch(typeof(SlotStatusTable), nameof(SlotStatusTable.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -85,10 +106,7 @@ public static class SlotStatusTablePatcher
             }
 
             var character = spellRepertoire?.GetCaster();
-            if (spellLevel == 0 && __instance.cantripLabel != null) // Missing cantrip localization
-            {
-                __instance.cantripLabel.Text = Gui.LocalizeSpellLevel(spellLevel);
-            }
+            RefreshCantripCaption(__instance, spellLevel);
 
             // spellRepertoire is null during level up...
             if (spellLevel == 0 || character == null)

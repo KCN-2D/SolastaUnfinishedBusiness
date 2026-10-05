@@ -86,8 +86,8 @@ public static class ActiveCharacterPanelPatcher
             GuiLabel classAndLevelLabel)
         {
             // Japanese class/subclass combinations can exceed the fixed one-line HUD plate.
-            // Width fitting remains conditional. Resolve the separate vertical collision
-            // only after TMP and the native layout have completed their deferred updates.
+            // Keep the current identity readable during Refresh itself, then recheck
+            // after the native layout's deferred updates without exposing a reset frame.
             UiTextHelpers.FitConstrainedSingleLine(classAndLevelLabel, 0.58f, 7f);
 
             if (!panel ||
@@ -182,21 +182,17 @@ public static class ActiveCharacterPanelPatcher
                 _classRect = classRect;
                 CaptureBaselines();
             }
-            else
-            {
-                RestoreOrCaptureBaselines();
-            }
 
             _panel = panel;
             _nameLabel = nameLabel;
             _classAndLevelLabel = classAndLevelLabel;
 
-            if (_correction != null)
-            {
-                StopCoroutine(_correction);
-            }
+            CorrectOverlap();
 
-            _correction = StartCoroutine(CorrectAfterLayout());
+            if (_correction == null)
+            {
+                _correction = StartCoroutine(CorrectAfterLayout());
+            }
         }
 
         private IEnumerator CorrectAfterLayout()
@@ -204,11 +200,8 @@ public static class ActiveCharacterPanelPatcher
             for (var frame = 0; frame < IdentityLayoutDelayFrames; frame++)
             {
                 yield return null;
+                CorrectOverlap();
             }
-
-            yield return new WaitForEndOfFrame();
-
-            CorrectOverlap();
             _correction = null;
         }
 
@@ -231,15 +224,9 @@ public static class ActiveCharacterPanelPatcher
                 return;
             }
 
-            if (!Approximately(_nameRect.anchoredPosition, _baselineNamePosition))
-            {
-                _baselineNamePosition = _nameRect.anchoredPosition;
-            }
-
-            if (!Approximately(_classRect.anchoredPosition, _baselineClassPosition))
-            {
-                _baselineClassPosition = _classRect.anchoredPosition;
-            }
+            // Restore and measure in the same call. Restoring in Schedule and waiting
+            // several frames made every refresh visibly undo the previous correction.
+            RestoreOrCaptureBaselines();
 
             var nameBounds = UiTextHelpers.GetWorldTextBounds(nameText);
             var classBounds = UiTextHelpers.GetWorldTextBounds(classText);
@@ -324,6 +311,8 @@ public static class ActiveCharacterPanelPatcher
         {
             _baselineNamePosition = _nameRect.anchoredPosition;
             _baselineClassPosition = _classRect.anchoredPosition;
+            _appliedNamePosition = _baselineNamePosition;
+            _appliedClassPosition = _baselineClassPosition;
             _hasAppliedPosition = false;
         }
 

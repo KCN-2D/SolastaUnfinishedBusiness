@@ -38,6 +38,29 @@ public sealed class WizardWarMagic : AbstractSubclass
             .SetGuiPresentation(Category.Feature)
             .AddToDB();
 
+        var conditionArcaneDeflectionArmor = ConditionDefinitionBuilder
+            .Create($"Condition{Name}ArcaneDeflectionArmor")
+            .SetGuiPresentationNoContent(true)
+            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetSpecialInterruptions(ExtraConditionInterruption.AfterWasAttacked)
+            .SetFeatures(FeatureDefinitionAttributeModifierBuilder
+                .Create($"AttributeModifier{Name}ArcaneDeflectionArmor")
+                .SetGuiPresentationNoContent(true)
+                .SetModifier(AttributeModifierOperation.Additive, AttributeDefinitions.ArmorClass, 2)
+                .AddToDB())
+            .AddToDB();
+
+        var conditionArcaneDeflectionRestriction = ConditionDefinitionBuilder
+            .Create($"Condition{Name}ArcaneDeflectionRestriction")
+            .SetGuiPresentation(Category.Condition,
+                Sprites.GetSprite("ConditionArcaneDeflectionCantripsOnly", Resources.ConditionArcaneDeflectionCantripsOnly, 128))
+            .SetConditionType(ConditionType.Detrimental)
+            .SetSpecialDuration()
+            .AddToDB();
+
+        conditionArcaneDeflectionRestriction.AddCustomSubFeatures(
+            new SpellCastingLevelRestriction(0, "Failure/&FailureFlagWarMagicArcaneDeflectionCantripsOnly"));
+
         // Tactical Wit
 
         var attributeModifierTacticalWit = FeatureDefinitionAttributeModifierBuilder
@@ -128,7 +151,8 @@ public sealed class WizardWarMagic : AbstractSubclass
             new UpgradeEffectDamageBonusBasedOnClassLevel(
                 powerDeflectionShroud, CharacterClassDefinitions.Wizard, 0.5));
         featureArcaneDeflection.AddCustomSubFeatures(
-            new CustomBehaviorArcaneDeflection(featureArcaneDeflection, powerDeflectionShroud));
+            new CustomBehaviorArcaneDeflection(featureArcaneDeflection, powerDeflectionShroud,
+                conditionArcaneDeflectionArmor, conditionArcaneDeflectionRestriction));
 
         Subclass = CharacterSubclassDefinitionBuilder
             .Create($"Wizard{Name}")
@@ -152,7 +176,9 @@ public sealed class WizardWarMagic : AbstractSubclass
 
     private sealed class CustomBehaviorArcaneDeflection(
         FeatureDefinition featureArcaneDeflection,
-        FeatureDefinitionPower powerDeflectionShroud) : ITryAlterOutcomeAttack, ITryAlterOutcomeSavingThrow
+        FeatureDefinitionPower powerDeflectionShroud,
+        ConditionDefinition conditionArcaneDeflectionArmor,
+        ConditionDefinition conditionArcaneDeflectionRestriction) : ITryAlterOutcomeAttack, ITryAlterOutcomeSavingThrow
     {
         public int HandlerPriority => -10;
 
@@ -166,9 +192,7 @@ public sealed class WizardWarMagic : AbstractSubclass
             RulesetAttackMode attackMode,
             RulesetEffect rulesetEffect)
         {
-            var rulesetHelper = helper.RulesetCharacter;
-            var intelligence = rulesetHelper.TryGetAttributeValue(AttributeDefinitions.Intelligence);
-            var bonus = Math.Max(AttributeDefinitions.ComputeAbilityScoreModifier(intelligence), 1);
+            const int bonus = 2;
 
             if (action.AttackRollOutcome != RollOutcome.Success ||
                 action.AttackSuccessDelta - bonus >= 0 ||
@@ -186,7 +210,8 @@ public sealed class WizardWarMagic : AbstractSubclass
                 "ArcaneDeflectionAttack",
                 "CustomReactionArcaneDeflectionAttackDescription".Localized(Category.Reaction),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: helper, effectDefinition: featureArcaneDeflection);
 
             yield break;
 
@@ -195,10 +220,10 @@ public sealed class WizardWarMagic : AbstractSubclass
                 EffectHelpers.StartVisualEffect(
                     helper, helper, SpellDefinitions.Shield, EffectHelpers.EffectType.QuickCaster);
 
-                attackModifier.AttackRollModifier -= bonus;
-                attackModifier.AttacktoHitTrends.Add(
-                    new TrendInfo(-bonus, FeatureSourceType.CharacterFeature, featureArcaneDeflection.Name,
-                        featureArcaneDeflection));
+                helper.RulesetCharacter.InflictCondition(
+                    conditionArcaneDeflectionArmor.Name, DurationType.Round, 0, TurnOccurenceType.EndOfTurn,
+                    AttributeDefinitions.TagEffect, helper.Guid, helper.RulesetCharacter.CurrentFaction.Name,
+                    1, featureArcaneDeflection.Name, 0, 0, 0);
                 action.AttackSuccessDelta -= bonus;
                 action.AttackRollOutcome = RollOutcome.Failure;
                 helper.RulesetCharacter.LogCharacterUsedFeature(
@@ -210,6 +235,7 @@ public sealed class WizardWarMagic : AbstractSubclass
                         (ConsoleStyleDuplet.ParameterType.Negative, "Feedback/&RollAttackFailureTitle")
                     ]);
 
+                ApplySpellRestriction(helper);
                 HandleDeflectionShroud(helper);
             }
         }
@@ -222,11 +248,9 @@ public sealed class WizardWarMagic : AbstractSubclass
             SavingThrowData savingThrowData,
             bool hasHitVisual)
         {
-            var rulesetHelper = helper.RulesetCharacter;
-            var intelligence = rulesetHelper.TryGetAttributeValue(AttributeDefinitions.Intelligence);
-            var bonus = Math.Max(AttributeDefinitions.ComputeAbilityScoreModifier(intelligence), 1);
+            const int bonus = 4;
 
-            if (savingThrowData.SaveOutcome != RollOutcome.Failure ||
+            if (!savingThrowData.IsFailedSavingThrowOutcome() ||
                 savingThrowData.SaveOutcomeDelta + bonus < 0 ||
                 helper != defender ||
                 !helper.CanReact() ||
@@ -243,7 +267,8 @@ public sealed class WizardWarMagic : AbstractSubclass
                 "CustomReactionArcaneDeflectionSavingDescription".Formatted(
                     Category.Reaction, attacker?.Name ?? ReactionRequestCustom.EnvTitle, savingThrowData.Title),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: helper, effectDefinition: featureArcaneDeflection);
 
             yield break;
 
@@ -264,8 +289,21 @@ public sealed class WizardWarMagic : AbstractSubclass
                         (ConsoleStyleDuplet.ParameterType.Positive, "Feedback/&RollCheckSuccessTitle")
                     ]);
 
+                ApplySpellRestriction(helper);
                 HandleDeflectionShroud(helper);
             }
+        }
+
+        private void ApplySpellRestriction(GameLocationCharacter helper)
+        {
+            // A reaction on one's own turn must also survive that turn's end.
+            var duration = Gui.Battle?.ActiveContender == helper ? 1 : 0;
+            var rulesetHelper = helper.RulesetCharacter;
+
+            rulesetHelper.InflictCondition(
+                conditionArcaneDeflectionRestriction.Name, DurationType.Round, duration,
+                TurnOccurenceType.EndOfTurn, AttributeDefinitions.TagEffect, helper.Guid,
+                rulesetHelper.CurrentFaction.Name, 1, featureArcaneDeflection.Name, 0, 0, 0);
         }
 
         private void HandleDeflectionShroud(GameLocationCharacter helper)
@@ -304,14 +342,17 @@ public sealed class WizardWarMagic : AbstractSubclass
             bool firstTarget,
             bool criticalHit)
         {
-            if (rulesetEffect is not RulesetEffectSpell
+            if (rulesetEffect is not RulesetEffectSpell spellEffect ||
+                !attacker.RulesetCharacter.IsSpellCastAsClassOrSubclassSpell(
+                    spellEffect.SpellRepertoire, RulesetEffectSpellWithOrigin.GetOriginSpell(spellEffect),
+                    CharacterClassDefinitions.Wizard, false)
                 || defender.RulesetActor is not RulesetCharacter
                 || !defender.IsOppositeSide(attacker.Side))
             {
                 yield break;
             }
 
-            HandlePowerSurge(attacker, actualEffectForms);
+            HandlePowerSurge(attacker, defender, rulesetEffect, actualEffectForms);
         }
 
         public IEnumerator OnMagicEffectFinishedByMe(
@@ -332,7 +373,11 @@ public sealed class WizardWarMagic : AbstractSubclass
             usablePower.RepayUse();
         }
 
-        private void HandlePowerSurge(GameLocationCharacter attacker, List<EffectForm> actualEffectForms)
+        private void HandlePowerSurge(
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            RulesetEffect rulesetEffect,
+            List<EffectForm> actualEffectForms)
         {
             var damageForm =
                 actualEffectForms.FirstOrDefault(x => x.FormType == EffectForm.EffectFormType.Damage);
@@ -344,43 +389,73 @@ public sealed class WizardWarMagic : AbstractSubclass
 
             var rulesetAttacker = attacker.RulesetCharacter;
             var usablePower = PowerProvider.Get(powerSurge, rulesetAttacker);
-            var alreadyTriggered = rulesetAttacker.HasConditionOfCategoryAndType(
-                AttributeDefinitions.TagEffect, conditionSurgeMark.Name);
-            var shouldTrigger =
-                attacker.OncePerTurnIsValid(powerSurge.Name) &&
-                rulesetAttacker.IsToggleEnabled((Id)ExtraActionId.PowerSurgeToggle) &&
-                rulesetAttacker.GetRemainingUsesOfPower(usablePower) > 0;
+            if (!IsAvailable())
+            {
+                return;
+            }
 
-            if (!shouldTrigger || alreadyTriggered) { return; }
+            // Payment and target choice depend on the spell's actual received
+            // damage, including damage remaining after a successful saving throw.
+            OnHitEffectContext.TryQueueEffect(
+                rulesetEffect, attacker, defender, powerSurge, IsAvailable,
+                _ => CreateEffects(), AdditionalEffectTrigger.Damage, Consume,
+                confirmReaction: true);
 
-            attacker.UsedSpecialFeatures.TryAdd(powerSurge.Name, 0);
-            rulesetAttacker.UsePower(usablePower);
-            rulesetAttacker.InflictCondition(
-                conditionSurgeMark.Name,
-                DurationType.Round,
-                0,
-                TurnOccurenceType.EndOfSourceTurn,
-                AttributeDefinitions.TagEffect,
-                rulesetAttacker.guid,
-                rulesetAttacker.CurrentFaction.Name,
-                1,
-                conditionSurgeMark.Name,
-                0,
-                0,
-                0);
+            return;
 
-            var index = actualEffectForms.IndexOf(damageForm);
-            var classLevel = rulesetAttacker.GetClassLevel(CharacterClassDefinitions.Wizard);
-            var effectForm = EffectFormBuilder.DamageForm(DamageTypeForce, bonusDamage: classLevel)
-                .WithSavingThrow(EffectSavingThrowType.Negates);
+            bool IsAvailable()
+            {
+                return rulesetAttacker is { IsDeadOrDyingOrUnconscious: false } &&
+                       attacker.OncePerTurnIsValid(powerSurge.Name) &&
+                       rulesetAttacker.IsToggleEnabled((Id)ExtraActionId.PowerSurgeToggle) &&
+                       rulesetAttacker.GetRemainingUsesOfPower(usablePower) > 0 &&
+                       !rulesetAttacker.HasConditionOfCategoryAndType(
+                           AttributeDefinitions.TagEffect, conditionSurgeMark.Name);
+            }
 
-            actualEffectForms.Insert(index + 1, effectForm);
+            void Consume()
+            {
+                attacker.UsedSpecialFeatures.TryAdd(powerSurge.Name, 0);
+                rulesetAttacker.UsePower(usablePower);
+                rulesetAttacker.InflictCondition(
+                    conditionSurgeMark.Name,
+                    DurationType.Round,
+                    0,
+                    TurnOccurenceType.EndOfSourceTurn,
+                    AttributeDefinitions.TagEffect,
+                    rulesetAttacker.guid,
+                    rulesetAttacker.CurrentFaction.Name,
+                    1,
+                    conditionSurgeMark.Name,
+                    0,
+                    0,
+                    0);
+
+            }
+
+            List<EffectForm> CreateEffects()
+            {
+                var classLevel = rulesetAttacker.GetClassLevel(CharacterClassDefinitions.Wizard);
+                var effectForm = EffectFormBuilder.DamageForm(DamageTypeForce, bonusDamage: classLevel / 2);
+
+                effectForm.DamageForm.IgnoreSpellAdvancementDamageDice = true;
+
+                return [effectForm];
+            }
         }
     }
 
     private sealed class CustomBehaviorDurableMagic(
-        FeatureDefinition featureDurableMagic) : IRollSavingThrowInitiated, IRollSavingCheckInitiated
+        FeatureDefinition featureDurableMagic) :
+        IRollSavingThrowInitiated, IRollSavingCheckInitiated, IConditionalSavingThrowBonusProvider
     {
+        public BaseDefinition SourceDefinition => featureDurableMagic;
+
+        public int GetSavingThrowBonus(RulesetCharacter character, string abilityScoreName)
+        {
+            return character?.ConcentratedSpell != null ? 2 : 0;
+        }
+
         public void OnRollSavingCheckInitiated(
             RulesetCharacter defender,
             int saveDC,
@@ -388,14 +463,16 @@ public sealed class WizardWarMagic : AbstractSubclass
             ref ActionModifier actionModifier,
             ref int modifier)
         {
-            if (defender.ConcentratedSpell == null)
+            var bonus = GetSavingThrowBonus(defender, AttributeDefinitions.Constitution);
+
+            if (bonus == 0)
             {
                 return;
             }
 
-            modifier += 2;
+            modifier += bonus;
             actionModifier.SavingThrowModifierTrends.Add(
-                new TrendInfo(2, FeatureSourceType.CharacterFeature, featureDurableMagic.Name, featureDurableMagic));
+                new TrendInfo(bonus, FeatureSourceType.CharacterFeature, featureDurableMagic.Name, featureDurableMagic));
         }
 
         public void OnSavingThrowInitiated(
@@ -413,14 +490,16 @@ public sealed class WizardWarMagic : AbstractSubclass
             int outcomeDelta,
             List<EffectForm> effectForms)
         {
-            if (rulesetActorDefender is RulesetCharacter { ConcentratedSpell: null })
+            var bonus = GetSavingThrowBonus(rulesetActorDefender as RulesetCharacter, abilityScoreName);
+
+            if (bonus == 0)
             {
                 return;
             }
 
-            rollModifier += 2;
+            rollModifier += bonus;
             modifierTrends.Add(
-                new TrendInfo(2, FeatureSourceType.CharacterFeature, featureDurableMagic.Name, featureDurableMagic));
+                new TrendInfo(bonus, FeatureSourceType.CharacterFeature, featureDurableMagic.Name, featureDurableMagic));
         }
     }
 }

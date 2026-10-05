@@ -685,7 +685,8 @@ public static partial class Tabletop2024Context
                 "DeflectAttacks",
                 "CustomReactionDeflectAttacksDescription".Formatted(Category.Reaction, attacker.Name, defender.Name),
                 ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                target: defender);
 
             yield break;
 
@@ -1006,7 +1007,8 @@ public static partial class Tabletop2024Context
                 "CustomReactionUncannyMetabolismDescription"
                     .Formatted(Category.Reaction, rulesetCharacter.UsedKiPoints),
                 ReactionValidated,
-                HandlePerfectFocus);
+                HandlePerfectFocus,
+                target: character, effectDefinition: PowerMonkUncannyMetabolism);
 
             yield break;
 

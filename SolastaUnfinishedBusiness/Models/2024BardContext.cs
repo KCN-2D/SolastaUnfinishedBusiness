@@ -290,7 +290,8 @@ public static partial class Tabletop2024Context
                     defender,
                     "BardCounterCharm",
                     FormatReactionDescription(savingThrowData.Title, attacker, defender, helper),
-                    ReactionValidated);
+                    ReactionValidated,
+                    target: defender);
             }
 
             yield break;

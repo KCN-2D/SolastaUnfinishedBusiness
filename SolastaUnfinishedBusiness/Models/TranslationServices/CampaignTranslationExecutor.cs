@@ -24,6 +24,8 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
     private static readonly ConcurrentDictionary<string, CampaignTranslationTask> ActiveTasks = new();
 
     private readonly ConcurrentQueue<Action> _mainThreadActions = new();
+    private readonly object _mainThreadActionsLock = new();
+    private bool _acceptingMainThreadActions = true;
 
     [NotNull]
     internal static CampaignTranslationExecutor Instance
@@ -58,9 +60,14 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
             return;
         }
 
-        while (_instance._mainThreadActions.TryDequeue(out _))
+        lock (_instance._mainThreadActionsLock)
         {
-            // discard queued work owned by this executor
+            _instance._acceptingMainThreadActions = false;
+
+            while (_instance._mainThreadActions.TryDequeue(out _))
+            {
+                // discard queued work owned by this executor
+            }
         }
 
         _instance.StopAllCoroutines();
@@ -69,6 +76,27 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
         {
             Destroy(_instance.gameObject);
             _instance = null;
+        }
+    }
+
+    private bool EnqueueMainThreadAction(Action action, CancellationToken cancellationToken)
+    {
+        lock (_mainThreadActionsLock)
+        {
+            if (!_acceptingMainThreadActions || cancellationToken.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            _mainThreadActions.Enqueue(() =>
+            {
+                if (_acceptingMainThreadActions && !cancellationToken.IsCancellationRequested)
+                {
+                    action();
+                }
+            });
+
+            return true;
         }
     }
 
@@ -609,6 +637,9 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
         UserCampaign userCampaign,
         bool retryFailedOnly = false)
     {
+        // Capture the Unity owner before awaiting. Late continuations must never
+        // create another executor while the original instance is unloading.
+        var executor = Instance;
         task.Status = CampaignTranslationStatus.Running;
         var translationService = TranslationServiceFactory.GetCurrentService();
 
@@ -633,39 +664,39 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
             // Create tasks for concurrent execution
             var translationTasks = new List<Task>();
 
-            foreach (var item in itemsToProcess)
+            try
             {
-                if (cancellationToken.IsCancellationRequested)
+                foreach (var item in itemsToProcess)
                 {
-                    break;
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    while (!task.PauseEvent.IsSet)
+                    {
+                        await Task.Delay(100, cancellationToken);
+                    }
+
+                    // Wait for semaphore slot
+                    await semaphore.WaitAsync(cancellationToken);
+
+                    // Start translation task
+                    var translationTask = executor.TranslateItemAsync(
+                        task,
+                        item,
+                        translationService,
+                        semaphore,
+                        cancellationToken);
+
+                    translationTasks.Add(translationTask);
                 }
-
-                while (!task.PauseEvent.IsSet && !cancellationToken.IsCancellationRequested)
-                {
-                    await Task.Delay(100, cancellationToken);
-                }
-
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    break;
-                }
-
-                // Wait for semaphore slot
-                await semaphore.WaitAsync(cancellationToken);
-
-                // Start translation task
-                var translationTask = TranslateItemAsync(
-                    task,
-                    item,
-                    translationService,
-                    semaphore,
-                    cancellationToken);
-
-                translationTasks.Add(translationTask);
+            }
+            finally
+            {
+                // In-flight items still own their semaphore slots when scheduling
+                // is cancelled. Drain them before disposing the semaphore.
+                await Task.WhenAll(translationTasks);
             }
 
-            // Wait for all ongoing translations to complete
-            await Task.WhenAll(translationTasks);
+            cancellationToken.ThrowIfCancellationRequested();
 
             // All items processed
             if (task.FailedItems > 0)
@@ -679,7 +710,7 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
             }
 
             // Save the campaign on main thread
-            Instance._mainThreadActions.Enqueue(() =>
+            executor.EnqueueMainThreadAction(() =>
             {
                 try
                 {
@@ -691,9 +722,9 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
                 {
                     Main.Error($"Failed to save translated campaign: {ex.Message}");
                 }
-            });
+            }, cancellationToken);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             task.Status = CampaignTranslationStatus.Cancelled;
             Main.Info($"Campaign '{task.CampaignTitle}' translation cancelled.");
@@ -715,7 +746,7 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
     /// <summary>
     ///     Translates a single item with semaphore control.
     /// </summary>
-    private static async Task TranslateItemAsync(
+    private async Task TranslateItemAsync(
         CampaignTranslationTask task,
         TranslationItem item,
         ITranslationService translationService,
@@ -729,7 +760,7 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
             task.CurrentItem = item;
 
             // Check cache first
-            var cacheKey = GetCacheKey(item.SourceText);
+            var cacheKey = GetCacheKey(item.SourceText, task.TargetLanguageCode, translationService);
             if (TranslationsCache.TryGetValue(cacheKey, out var cachedTranslation))
             {
                 item.TranslatedText = cachedTranslation;
@@ -746,30 +777,21 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
                 TranslationsCache.TryAdd(cacheKey, translated);
             }
 
-            // Apply translation on main thread
-            Instance._mainThreadActions.Enqueue(() =>
-            {
-                try
-                {
-                    item.ApplyTranslation(item.TranslatedText);
-                }
-                catch (Exception ex)
-                {
-                    Main.Error($"Failed to apply translation: {ex.Message}");
-                    throw;
-                }
-            });
-
-            task.MarkItemCompleted(item);
-
-            // Small delay to prevent rate limiting
+            // Keep the rate-limit delay before completion so cancellation cannot
+            // reset an already-counted item to Pending.
             await Task.Delay(50, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // An item is complete only after its queued application succeeds.
+            // Waiting here also keeps campaign saving behind all applications.
+            await ApplyTranslationAsync(task, item, cancellationToken);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // On cancellation, mark item as pending so it can be retried
             item.Status = TranslationItemStatus.Pending;
             task.RemoveFromInProgress(item);
+            throw;
         }
         catch (AccessViolationException ex)
         {
@@ -788,10 +810,79 @@ internal sealed class CampaignTranslationExecutor : MonoBehaviour
         }
     }
 
-    private static string GetCacheKey(string sourceText)
+    private async Task ApplyTranslationAsync(
+        CampaignTranslationTask task,
+        TranslationItem item,
+        CancellationToken cancellationToken)
     {
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var applicationLock = new object();
+        var applying = false;
+        using var cancellationRegistration = cancellationToken.Register(() =>
+        {
+            lock (applicationLock)
+            {
+                if (!applying)
+                {
+                    completion.TrySetCanceled();
+                }
+            }
+        });
+
+        if (!EnqueueMainThreadAction(() =>
+            {
+                lock (applicationLock)
+                {
+                    if (completion.Task.IsCompleted)
+                    {
+                        return;
+                    }
+
+                    // Cancellation can discard queued work, but an application
+                    // already running must report its actual result.
+                    applying = true;
+
+                    try
+                    {
+                        item.ApplyTranslation(item.TranslatedText);
+                        task.MarkItemCompleted(item);
+                        completion.TrySetResult(true);
+                    }
+                    catch (Exception ex)
+                    {
+                        completion.TrySetException(ex);
+                    }
+                    finally
+                    {
+                        applying = false;
+                    }
+                }
+            }, cancellationToken))
+        {
+            completion.TrySetCanceled();
+        }
+
+        await completion.Task;
+    }
+
+    private static string GetCacheKey(
+        string sourceText,
+        string targetLanguageCode,
+        ITranslationService translationService)
+    {
+        var key = new StringBuilder();
+
+        // Length prefixes distinguish null, empty values, and embedded separators.
+        foreach (var value in new[]
+                 {
+                     translationService.GetType().FullName, translationService.Name, targetLanguageCode, sourceText
+                 })
+        {
+            key.Append(value?.Length ?? -1).Append(':').Append(value);
+        }
+
         using var md5 = MD5.Create();
-        var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(sourceText));
+        var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(key.ToString()));
         var builder = new StringBuilder();
         foreach (var b in hash)
         {

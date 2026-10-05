@@ -1780,7 +1780,8 @@ internal static partial class SpellBuilders
                         remainingHitPoints.ToString(), maxHitPoints.ToString(), attacker.Name,
                         _spellCastingAbilityModifier.ToString()),
                     ReactionValidated,
-                    ReactionNotValidated);
+                    ReactionNotValidated,
+                    target: _target, effectDefinition: spellWitherAndBloom);
 
                 if (passed)
                 {
