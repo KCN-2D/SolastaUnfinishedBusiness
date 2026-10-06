@@ -105,7 +105,19 @@ internal static class SpellPointsContext
         RulesetSpellRepertoire spellRepertoire,
         int level)
     {
-        if (spellRepertoire?.UsesSharedSpellSlots() == true)
+        var selection = SpellCastingResourceContext.CurrentSelection;
+        var explicitPaymentOwner = selection?.HasExplicitPaymentOwner == true &&
+                                   selection.Repertoire == spellRepertoire && selection.SlotLevel == level;
+        if (explicitPaymentOwner &&
+            spellRepertoire.SpellCastingClass == Api.DatabaseHelper.CharacterClassDefinitions.Warlock)
+        {
+            return level == SharedSpellsContext.GetWarlockSpellLevel(rulesetCharacter) &&
+                   SharedSpellsContext.GetWarlockUsedSlots(rulesetCharacter) <
+                   SharedSpellsContext.GetWarlockMaxSlots(rulesetCharacter);
+        }
+
+        // A selected shared payment must afford its point cost, even while Pact slots remain.
+        if (!explicitPaymentOwner && spellRepertoire?.UsesSharedSpellSlots() == true)
         {
             var pactLevel = SharedSpellsContext.GetWarlockSpellLevel(rulesetCharacter);
             if (pactLevel > 0)

@@ -7,7 +7,7 @@ namespace SolastaUnfinishedBusiness;
 internal static class Global
 {
     // true if in a multiplayer game to prevent
-    // SFX, default party, alternate voting system, multi-heroes reaction order, PCG random, formation, encounters
+    // SFX, default party, alternate voting system, PCG random, formation, encounters
     internal static bool IsMultiplayer =>
         IsSettingUpMultiplayer || ServiceRepository.GetService<INetworkingService>()?.IsMultiplayerGame == true;
 

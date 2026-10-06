@@ -18,6 +18,49 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationManagerPatcher
 {
+    [HarmonyPatch(typeof(GameLocationManager), nameof(GameLocationManager.Update))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Update_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GameLocationManager __instance)
+        {
+            LoadingContext.UpdateLoadingState(
+                __instance, __instance.locationLoadingCoroutine, __instance.locationUnloadingCoroutine);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(GameLocationManager __instance)
+        {
+            LoadingContext.UpdateLoadingState(
+                __instance, __instance.locationLoadingCoroutine, __instance.locationUnloadingCoroutine);
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(GameLocationManager __instance, Exception __exception)
+        {
+            if (__exception != null)
+            {
+                LoadingContext.Release(__instance);
+            }
+
+            return __exception;
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationManager), nameof(GameLocationManager.UnbindServices))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class UnbindServices_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GameLocationManager __instance)
+        {
+            LoadingContext.Release(__instance);
+        }
+    }
+
     //PATCH: CampaignTranslationRuntimeRepair
     [HarmonyPatch(typeof(GameLocationManager), nameof(GameLocationManager.EnterLocation))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]

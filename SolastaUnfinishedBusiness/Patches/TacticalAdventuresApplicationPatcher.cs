@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using HarmonyLib;
@@ -12,6 +13,47 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class TacticalAdventuresApplicationPatcher
 {
+    [HarmonyPatch(typeof(TacticalAdventuresApplication), nameof(TacticalAdventuresApplication.Update))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Update_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(TacticalAdventuresApplication __instance)
+        {
+            LoadingContext.UpdateLoadingState(__instance, __instance.coroutine);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(TacticalAdventuresApplication __instance)
+        {
+            LoadingContext.UpdateLoadingState(__instance, __instance.coroutine);
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(TacticalAdventuresApplication __instance, Exception __exception)
+        {
+            if (__exception != null)
+            {
+                LoadingContext.Release(__instance);
+            }
+
+            return __exception;
+        }
+    }
+
+    [HarmonyPatch(typeof(TacticalAdventuresApplication), nameof(TacticalAdventuresApplication.Shutdown))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Shutdown_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix()
+        {
+            LoadingContext.Unload();
+        }
+    }
+
     private static bool EnableSaveByLocation(ref string __result)
     {
         //PATCH: EnableSaveByLocation

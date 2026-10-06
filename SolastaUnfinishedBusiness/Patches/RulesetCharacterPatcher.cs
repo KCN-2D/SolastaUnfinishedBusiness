@@ -1332,12 +1332,28 @@ public static class RulesetCharacterPatcher
     public static class CreateSorceryPoints_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(RulesetCharacter __instance, int slotLevel, RulesetSpellRepertoire repertoire)
+        public static bool Prefix(
+            RulesetCharacter __instance, int slotLevel, RulesetSpellRepertoire repertoire,
+            out IDisposable __state)
         {
-            if (__instance.TryGetShapeChangeOriginalHero(out var hero))
+            __state = SpellCastingResourceContext.BeginSlotPaymentSelection(__instance, repertoire, slotLevel);
+            return SpellCastingResourceContext.CanSpendSlotPayment(__instance, repertoire, slotLevel);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(RulesetCharacter __instance, int slotLevel, bool __runOriginal)
+        {
+            if (__runOriginal && __instance.TryGetShapeChangeOriginalHero(out var hero))
             {
-                hero.CreateSorceryPoints(slotLevel, repertoire);
+                // The substitute has already paid through the original hero's repertoire.
+                hero.GainSorceryPoints(slotLevel);
             }
+        }
+
+        [UsedImplicitly]
+        public static void Finalizer(IDisposable __state)
+        {
+            __state?.Dispose();
         }
     }
 
@@ -3506,7 +3522,10 @@ public static class RulesetCharacterPatcher
                         activeSpell,
                         spellRepertoire);
 
-                    spellRepertoire.SpendSpellSlot(resourceSlotLevel);
+                    using (SpellCastingResourceContext.BeginEffectSelection(activeSpell))
+                    {
+                        spellRepertoire.SpendSpellSlot(resourceSlotLevel);
+                    }
                     payment?.Complete();
                 }
             }

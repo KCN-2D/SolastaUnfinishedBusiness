@@ -226,8 +226,15 @@ public static class RulesetSpellRepertoireExtensions
         int pactRemaining,
         bool shiftPressed)
     {
-        // Preserve native priority: usable pact level, then depleted shared slots or the same
-        // class/Shift preference. Display queries observe Shift; spending consumes it once.
+        var selected = SpellCastingResourceContext.CurrentSelection;
+        if (selected?.Repertoire == repertoire && selected.SlotLevel == slotLevel &&
+            selected.HasExplicitPaymentOwner)
+        {
+            return repertoire.SpellCastingClass == Warlock && slotLevel == pactLevel && pactRemaining > 0;
+        }
+
+        // Display queries retain the class/Shift preference. Accepted casts use their payment
+        // owner instead of another player's local input or slot-priority preference.
         return slotLevel >= pactLevel && pactRemaining > 0 &&
                (slotLevel > pactLevel || sharedRemaining == 0 || repertoire.PrefersPactSlots(shiftPressed));
     }

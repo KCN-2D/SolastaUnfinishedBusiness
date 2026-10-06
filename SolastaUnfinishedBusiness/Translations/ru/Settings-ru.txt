@@ -230,7 +230,10 @@ ModUi/&EnablePaladinRestoreLevel20Feature=Включить возможност�
 ModUi/&EnablePaladinRestoringTouch2024=Включить <color=#D89555>Восстанавливающее касание</color> вместо <color=#D89555>Очищающего касания</color> на уровне 14
 ModUi/&EnablePaladinSmite2024=Заменить <color=#D89555>Божественную кару</color> на версию из 5e 2024 <i><color=#F0DAA0>[бонусным действием]</color></i>
 ModUi/&EnablePaladinSpellCastingAtLevel1=Включить возможность <color=#D89555>наложения заклинаний</color> на 1-м уровне вместо 2-го
+ModUi/&EnableFastLocationLoads=Ускорить загрузку
+ModUi/&EnableFastLocationLoadsHelp=Когда игра находится на переднем плане, загрузка ресурсов получает приоритет, а ограничение FPS в игре и вертикальная синхронизация временно отключаются. После загрузки прежние настройки восстанавливаются. Это может сократить время загрузки при ограниченных FPS.
 ModUi/&EnablePcgRandom=Включить улучшенный алгоритм генерации случайных чисел <i><color=#F0DAA0>[https://www.pcg-random.org]</color></i>
+ModUi/&PcgRandomMultiplayerHelp=В сетевой игре используется синхронизированный генератор случайных чисел игры. Настройка PCG сохраняется, но действует только в одиночной игре, поскольку его случайное состояние не синхронизируется.
 ModUi/&EnablePoisonsBonusAction2024=Включить нанесение <color=#D89555>Ядов</color> на оружие бонусным действием
 ModUi/&EnablePotionsBonusAction2024=Включить использование <color=#D89555>Зелий</color> бонусным действием
 ModUi/&EnableHalfOrcAdrenalineRush2024=<color=#D89555>{0}</color>: заменить особенность <color=#D89555>{1}</color> на <color=#D89555>{2}</color> (2024)

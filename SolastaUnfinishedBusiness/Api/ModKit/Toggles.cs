@@ -23,7 +23,7 @@ internal static partial class UI
         return LabelContent;
     }
 
-    private static bool Toggle(
+    internal static bool Toggle(
         Rect rect,
         GUIContent label,
         bool value,
@@ -97,11 +97,11 @@ internal static partial class UI
 
                 Rect stateRect = new(x, rect.y, stateSize.x, stateSize.y);
 
-                // layout state before or after following alignment
-                var labelSize = labelStyle.CalcSize(label);
-
-                x = rightAlign ? stateRect.x - stateSize.x - 5 : stateRect.xMax + 5;
-                Rect labelRect = new(x, rect.y, labelSize.x, labelSize.y);
+                // Use the assigned space for every line, including the clickable area.
+                // A natural one-line width can otherwise expand the whole settings page.
+                x = rightAlign ? rect.x : stateRect.xMax + 5;
+                var labelRight = rightAlign ? stateRect.x - 5 : rect.xMax;
+                Rect labelRect = new(x, rect.y, Mathf.Max(0f, labelRight - x), rect.height);
 
                 stateStyle.Draw(stateRect, state, controlID);
                 labelStyle.Draw(labelRect, label, controlID);
@@ -113,7 +113,7 @@ internal static partial class UI
     }
 
     // Button Control
-    private static bool Toggle(
+    internal static bool Toggle(
         GUIContent label,
         bool value,
         GUIContent on,
@@ -124,19 +124,25 @@ internal static partial class UI
         params GUILayoutOption[] options)
     {
         var state = value ? on : off;
-        var sStyle = new GUIStyle(stateStyle);
-        var lStyle = new GUIStyle(labelStyle) { wordWrap = false };
-        var stateSize = sStyle.CalcSize(state);
+        var stateSize = stateStyle.CalcSize(state);
+        var drawStyle = new GUIStyle(labelStyle) { wordWrap = true, fixedHeight = 0f };
+        var layoutStyle = new GUIStyle(drawStyle);
+        var padding = labelStyle.padding;
+        var stateWidth = Mathf.CeilToInt(stateSize.x) + 5;
+        var stateHeightPadding = Mathf.CeilToInt(
+            Mathf.Max(0f, stateSize.y - drawStyle.CalcHeight(GUIContent.none, float.MaxValue)));
+        var rightAlign = stateStyle.alignment is
+            TextAnchor.MiddleRight or TextAnchor.UpperRight or TextAnchor.LowerRight;
+        layoutStyle.padding = new RectOffset(
+            padding.left + (rightAlign ? 0 : stateWidth),
+            padding.right + (rightAlign ? stateWidth : 0), padding.top, padding.bottom + stateHeightPadding);
 
-        lStyle.fixedHeight = stateSize.y - 2;
+        // GUILayout calculates the wrapped height after assigning the available width.
+        // Keep its style separate from painting: GUILayout retains it until CalcHeight.
+        // MinHeight can force GUIWordWrapSizer's max height too, disabling word wrapping.
+        var rect = GUILayoutUtility.GetRect(label, layoutStyle, options);
 
-        var padding = new RectOffset(0, (int)stateSize.x + 5, 0, 0);
-
-        lStyle.padding = padding;
-
-        var rect = GUILayoutUtility.GetRect(label, lStyle, options);
-
-        return Toggle(rect, label, value, isEmpty, on, off, stateStyle, labelStyle);
+        return Toggle(rect, label, value, isEmpty, on, off, stateStyle, drawStyle);
     }
 
     // Disclosure Toggles

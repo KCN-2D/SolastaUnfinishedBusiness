@@ -230,7 +230,10 @@ ModUi/&EnablePaladinRestoreLevel20Feature=<color=#D89555>레벨 20</color> 하�
 ModUi/&EnablePaladinRestoringTouch2024=레벨 14에서 <color=#D89555>클렌징 터치</color>를 대체하기 위해 <color=#D89555>터치 복원</color>을 활성화합니다.
 ModUi/&EnablePaladinSmite2024=<color=#D89555>Divine Smite</color>를 5e 2024 버전으로 교체 <i><color=#F0DAA0>[보너스 액션]</color></i>
 ModUi/&EnablePaladinSpellCastingAtLevel1=레벨 2 대신 레벨 1에서 <color=#D89555>주문 시전</color>을 활성화합니다.
+ModUi/&EnableFastLocationLoads=로딩 속도 향상
+ModUi/&EnableFastLocationLoadsHelp=게임이 전면에 있는 동안 리소스 로딩을 우선하고 게임 내 FPS 제한과 수직 동기화를 일시적으로 해제합니다. 로딩이 끝나면 이전 설정을 복원합니다. FPS가 제한된 경우 로딩 시간을 줄일 수 있습니다.
 ModUi/&EnablePcgRandom=더 나은 난수 생성 알고리즘을 활성화하세요 <i><color=#F0DAA0>[https://www.pcg-random.org]</color></i>
+ModUi/&PcgRandomMultiplayerHelp=멀티플레이에서는 게임의 동기화된 난수 생성기를 사용합니다. PCG 설정은 저장되지만 난수 상태가 동기화되지 않으므로 싱글플레이에서만 적용됩니다.
 ModUi/&EnablePoisonsBonusAction2024=보너스 액션으로 무기에 <color=#D89555>독</color>을 적용하도록 활성화합니다.
 ModUi/&EnablePotionsBonusAction2024=보너스 액션으로 <color=#D89555>물약</color> 마시기를 활성화합니다.
 ModUi/&EnableHalfOrcAdrenalineRush2024=<color=#D89555>{0}</color>: <color=#D89555>{1}</color> 특성을 <color=#D89555>{2}</color> 특성으로 교체합니다 (2024)

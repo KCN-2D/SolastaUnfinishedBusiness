@@ -230,7 +230,10 @@ ModUi/&EnablePaladinRestoreLevel20Feature=启用 <color=#D89555>20 级</color> �
 ModUi/&EnablePaladinRestoringTouch2024=在第 14 级启用<color=#D89555>复原之触</color>来替换<color=#D89555>净化之触</color>
 ModUi/&EnablePaladinSmite2024=启用 5e 2024 版本<color=#D89555>至圣斩</color><i><color=#F0DAA0>[附赠动作]</color></i>
 ModUi/&EnablePaladinSpellCastingAtLevel1=在第 1 级（而非 2 级）启用<color=#D89555>施法</color>
+ModUi/&EnableFastLocationLoads=加快加载
+ModUi/&EnableFastLocationLoadsHelp=当游戏位于前台时，优先加载资源，并暂时取消游戏内的帧率限制和垂直同步。加载完成后恢复原有设置。在帧率受限时，这可能缩短加载时间。
 ModUi/&EnablePcgRandom=启用更好的随机生成器算法<i><color=#F0DAA0>[https://www.pcg-random.org]</color></i>
+ModUi/&PcgRandomMultiplayerHelp=多人游戏使用游戏原有的同步随机数生成器。PCG设置会被保存，但由于其随机状态未同步，仅在单人游戏中生效。
 ModUi/&EnablePoisonsBonusAction2024=启用涂抹<color=#D89555>毒药</color>作为附赠动作
 ModUi/&EnablePotionsBonusAction2024=启用饮用<color=#D89555>药水</color>作为附赠动作
 ModUi/&EnableHalfOrcAdrenalineRush2024=<color=#D89555>{0}</color>：将<color=#D89555>{1}</color>替换为<color=#D89555>{2}</color>（2024）

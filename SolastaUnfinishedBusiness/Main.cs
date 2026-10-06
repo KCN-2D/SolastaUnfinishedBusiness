@@ -103,6 +103,7 @@ internal static class Main
         {
             Mod = new ModManager<Core, Settings>();
             Mod.Enable(modEntry, assembly);
+            LoadingContext.Initialize();
 
             modEntry.OnUnload = OnUnload;
             modEntry.OnShowGUI = _ =>
@@ -129,6 +130,7 @@ internal static class Main
         }
         catch (Exception ex)
         {
+            TryCleanup(LoadingContext.Unload);
             Error(ex);
             throw;
         }
@@ -149,6 +151,7 @@ internal static class Main
 
         // Stop managed work before UMM starts tearing down Unity objects. These
         // cleanup paths are intentionally safe to invoke again from OnUnload.
+        TryCleanup(LoadingContext.Unload);
         TryCleanup(BootContext.Unload);
         TryCleanup(() => SpeechContext.Unload(false));
         TryCleanup(UpdateContext.Unload);
@@ -160,6 +163,7 @@ internal static class Main
     {
         var applicationQuitting = IsApplicationQuitting;
 
+        TryCleanup(LoadingContext.Unload);
         TryCleanup(BootContext.Unload);
         TryCleanup(() =>
         {
@@ -284,6 +288,7 @@ internal static class Main
         try
         {
             Mod.Settings = UnityModManager.ModSettings.Load<Settings>(ModEntry);
+            LoadingContext.ApplySettings();
         }
         finally
         {

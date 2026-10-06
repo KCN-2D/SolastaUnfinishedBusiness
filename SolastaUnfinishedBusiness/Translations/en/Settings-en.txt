@@ -222,7 +222,10 @@ ModUi/&EnablePaladinSmite2024=Swap <color=#D89555>Divine Smite</color> with 5e 2
 ModUi/&EnableSmiteSpells2024=Swap Smite Spells with 5e 2024 version <i><color=#F0DAA0>[trigger on hit and not require concentration]</color></i>
 ModUi/&EnablePaladinSpellCastingAtLevel1=Enable <color=#D89555>spellcasting</color> at level 1 instead of 2
 ModUi/&EnablePaladinAnyFightingStyle2024=Enable <color=#D89555>Paladin</color> to choose any fighting style <i><color=#F0DAA0>[adds Archery and Two-Weapon Fighting]</color></i>
+ModUi/&EnableFastLocationLoads=Speed up loading
+ModUi/&EnableFastLocationLoadsHelp=While the game is in the foreground, prioritize asset loading and temporarily remove the in-game FPS limit and vertical sync. Restore the previous settings when loading finishes. This may shorten loading when FPS is capped.
 ModUi/&EnablePcgRandom=Enable a better random generator algorithm <i><color=#F0DAA0>[https://www.pcg-random.org]</color></i>
+ModUi/&PcgRandomMultiplayerHelp=Multiplayer uses the game's synchronized random generator. The PCG setting is saved, but takes effect only in single-player because its random state is not synchronized.
 ModUi/&EnablePoisonsBonusAction2024=Enable applying <color=#D89555>Poisons</color> to weapons as a bonus action
 ModUi/&EnablePotionsBonusAction2024=Enable drinking <color=#D89555>Potions</color> as a bonus action
 ModUi/&EnableHalfOrcAdrenalineRush2024=For <color=#D89555>{0}</color>, replace <color=#D89555>{1}</color> with <color=#D89555>{2}</color> (2024)

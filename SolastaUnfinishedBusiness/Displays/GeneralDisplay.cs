@@ -194,6 +194,23 @@ internal static class ToolsDisplay
             Main.Settings.EnablePcgRandom = toggle;
         }
 
+        if (Global.IsMultiplayer)
+        {
+            UI.Label(Gui.Localize("ModUi/&PcgRandomMultiplayerHelp"),
+                new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
+        }
+
+        toggle = Main.Settings.EnableFastLocationLoads;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableFastLocationLoads"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableFastLocationLoads = toggle;
+            LoadingContext.ApplySettings();
+        }
+
+        UI.Label(Gui.Localize("ModUi/&EnableFastLocationLoadsHelp"),
+            new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
+        UI.Label();
+
         toggle = Main.Settings.EnableCustomPortraits;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableCustomPortraits"), ref toggle))
         {

@@ -222,7 +222,10 @@ ModUi/&EnablePaladinSmite2024=<color=#D89555>神聖なる一撃</color>を2024�
 ModUi/&EnableSmiteSpells2024=一撃系呪文を2024年版に置き換えます<i><color=#F0DAA0>（命中時に発動し、精神集中を必要としない）</color></i>
 ModUi/&EnablePaladinSpellCastingAtLevel1=<color=#D89555>呪文発動</color>をレベル2ではなくレベル1で有効にします
 ModUi/&EnablePaladinAnyFightingStyle2024=<color=#D89555>パラディン</color>が任意の戦闘スタイルを選択できるようにします<i><color=#F0DAA0>（アーチェリーと二刀流を追加）</color></i>
+ModUi/&EnableFastLocationLoads=ロードを高速化する
+ModUi/&EnableFastLocationLoadsHelp=ゲームが前面にある間、リソースの読み込みを優先し、ゲーム内のFPS制限と垂直同期を一時的に解除します。ロード完了後に元の設定へ戻します。FPS制限下でのロード時間を短縮できる場合があります。
 ModUi/&EnablePcgRandom=PCG方式の乱数生成を使用します<i><color=#F0DAA0>（https://www.pcg-random.org）</color></i>
+ModUi/&PcgRandomMultiplayerHelp=マルチプレイでは、ゲーム標準の同期された乱数生成を使用します。PCGの設定は保存されますが、乱数の状態が同期されないため、シングルプレイでのみ有効になります。
 ModUi/&EnablePoisonsBonusAction2024=ボーナス・アクションとして武器に<color=#D89555>毒</color>を塗布できるようにします
 ModUi/&EnablePotionsBonusAction2024=ボーナス・アクションとして<color=#D89555>ポーション</color>を飲めるようにします
 ModUi/&EnableHalfOrcAdrenalineRush2024=<color=#D89555>{0}</color>の<color=#D89555>{1}</color>を2024年版の<color=#D89555>{2}</color>に置き換えます

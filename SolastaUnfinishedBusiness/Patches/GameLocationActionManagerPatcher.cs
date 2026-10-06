@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -17,6 +18,52 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationActionManagerPatcher
 {
+    private static readonly ConditionalWeakTable<ReactionRequestGroup, Dictionary<ReactionRequest, int>>
+        ReactionConfirmationOrder = new();
+
+    [HarmonyPatch(typeof(GameLocationActionManager), nameof(GameLocationActionManager.ProcessReactionRequest))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ProcessReactionRequest_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(
+            GameLocationActionManager __instance,
+            ReactionRequest reactionRequest,
+            bool validated,
+            out ReactionRequestGroup __state)
+        {
+            __state = null;
+            if (!validated || reactionRequest.Processed || __instance.pendingReactionRequestGroups.Count == 0)
+            {
+                return;
+            }
+
+            var group = __instance.pendingReactionRequestGroups.Peek();
+            if (group.Requests.Contains(reactionRequest))
+            {
+                __state = group;
+            }
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(ReactionRequest reactionRequest, ReactionRequestGroup __state)
+        {
+            if (__state == null || !reactionRequest.Processed || !reactionRequest.Validated)
+            {
+                return;
+            }
+
+            // Native multiplayer confirmations arrive here through the ordered reaction RPC.
+            // Record accepted requests, rather than a local UI clock or a character's last reaction.
+            var order = ReactionConfirmationOrder.GetOrCreateValue(__state);
+            if (!order.ContainsKey(reactionRequest))
+            {
+                order.Add(reactionRequest, order.Count);
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(GameLocationActionManager), nameof(GameLocationActionManager.ReactToSpendSpellSlot))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -180,15 +227,12 @@ public static class GameLocationActionManagerPatcher
     [UsedImplicitly]
     public static class ExecuteReactionRequestGroupAsync_Patch
     {
-        public const string ReactionTimestamp = "ReactionTimestamp";
-
         [UsedImplicitly]
         public static IEnumerator Postfix(
             [NotNull] IEnumerator values,
             ReactionRequestGroup reactionRequestGroup)
         {
-            //PATCH: ensure whoever reacts first will get the reaction handled first by game
-            if (!Global.IsMultiplayer)
+            if (ReactionConfirmationOrder.TryGetValue(reactionRequestGroup, out var order))
             {
                 var originalOrder = new Dictionary<ReactionRequest, int>(reactionRequestGroup.Requests.Count);
 
@@ -199,20 +243,27 @@ public static class GameLocationActionManagerPatcher
 
                 reactionRequestGroup.Requests.Sort((a, b) =>
                 {
-                    a.Character.UsedSpecialFeatures.TryGetValue(ReactionTimestamp, out var aTimestamp);
-                    b.Character.UsedSpecialFeatures.TryGetValue(ReactionTimestamp, out var bTimestamp);
+                    var aOrder = order.TryGetValue(a, out var confirmedA) ? confirmedA : int.MaxValue;
+                    var bOrder = order.TryGetValue(b, out var confirmedB) ? confirmedB : int.MaxValue;
+                    var comparison = aOrder.CompareTo(bOrder);
 
-                    var timestampComparison = aTimestamp.CompareTo(bTimestamp);
-
-                    return timestampComparison != 0
-                        ? timestampComparison
+                    return comparison != 0
+                        ? comparison
                         : originalOrder[a].CompareTo(originalOrder[b]);
                 });
             }
 
-            while (values.MoveNext())
+            try
             {
-                yield return values.Current;
+                while (values.MoveNext())
+                {
+                    yield return values.Current;
+                }
+            }
+            finally
+            {
+                ReactionConfirmationOrder.Remove(reactionRequestGroup);
+                (values as System.IDisposable)?.Dispose();
             }
         }
     }

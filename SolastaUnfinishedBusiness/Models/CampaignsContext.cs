@@ -2775,6 +2775,7 @@ internal static class CampaignsContext
         }
 
         RectTransform physicalRow = null;
+        var physicalRows = new List<RectTransform>();
         var rowWidth = 0f;
         var acceptsSections = false;
         foreach (var section in sections)
@@ -2804,13 +2805,20 @@ internal static class CampaignsContext
                 physicalRow.localScale = Vector3.one;
                 physicalRow.gameObject.AddComponent<LayoutElement>();
                 SpellLineTables.Add(physicalRow);
+                physicalRows.Add(physicalRow);
                 rowWidth = 0f;
                 acceptsSections = compact;
             }
 
             section.SetParent(physicalRow, false);
             rowWidth += (rowWidth > 0f ? SpellSelectionCardGap : 0f) + width;
-            ArrangeSpellSelectionRow(physicalRow);
+        }
+
+        // Appending another source changes the shared height of its whole row.
+        // Arrange each completed row once instead of revisiting its earlier sources.
+        foreach (var row in physicalRows)
+        {
+            ArrangeSpellSelectionRow(row);
         }
     }
 
@@ -2900,6 +2908,9 @@ internal static class CampaignsContext
             .Select(line => line.GetComponent<SpellSelectionLineLayoutState>().ResetRowGridHeight()).DefaultIfEmpty(0f).Max();
         foreach (var line in lines)
         {
+            line.RectTransform.anchorMin = line.RectTransform.anchorMax = new Vector2(0f, 1f);
+            line.RectTransform.pivot = new Vector2(0f, 1f);
+            line.RectTransform.anchoredPosition = Vector2.zero;
             line.GetComponent<SpellSelectionLineLayoutState>().AlignRowGridHeight(gridHeight);
         }
 
@@ -2917,10 +2928,6 @@ internal static class CampaignsContext
         var heights = new Dictionary<SpellRepertoireLine, float>();
         foreach (var line in children.Select(child => child.GetComponent<SpellRepertoireLine>()).Where(line => line))
         {
-            line.RectTransform.anchorMin = line.RectTransform.anchorMax = new Vector2(0f, 1f);
-            line.RectTransform.pivot = new Vector2(0f, 1f);
-            line.RectTransform.anchoredPosition = Vector2.zero;
-            LayoutRebuilder.ForceRebuildLayoutImmediate(line.RectTransform);
             var cards = line.GetComponentsInChildren<SpellActivationBox>(true)
                 .Where(box => box.gameObject.activeSelf && box.GuiSpellDefinition != null).ToArray();
             // A native refresh can temporarily empty one level. The deferred panel rebind
@@ -3147,7 +3154,6 @@ internal static class CampaignsContext
             // Native grid binding already rebuilds its own layout. Settle only this column's
             // fitters; one final canvas pass handles the completed picker after all columns bind.
             LayoutRebuilder.ForceRebuildLayoutImmediate(line.levelsTable);
-            LayoutRebuilder.ForceRebuildLayoutImmediate(line.RectTransform);
 
             // Reflow a single crowded level's native grid without changing its spell/source list.
             foreach (var level in line.SpellsByLevelBoxes)
@@ -3168,29 +3174,28 @@ internal static class CampaignsContext
                 var spellCount = level.spellsTable.GetComponentsInChildren<SpellActivationBox>()
                     .Count(box => box.gameObject.activeSelf);
                 grid.constraintCount = Mathf.Clamp(spellCount, 1, SpellSelectionPreferredCardColumns);
-                LayoutRebuilder.ForceRebuildLayoutImmediate(level.spellsTable);
-                level.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, level.spellsTable.rect.width);
-                LayoutRebuilder.ForceRebuildLayoutImmediate(level.RectTransform);
+                // Preferred dimensions determine the final column count without laying out
+                // the same cards twice. Native binding supplied the level's footer height.
+                grid.CalculateLayoutInputHorizontal();
+                grid.CalculateLayoutInputVertical();
                 var availableGridHeight = Mathf.Max(1f, maximumHeight - headingHeight -
                     Mathf.Max(0f, level.RectTransform.rect.height - level.spellsTable.rect.height));
-                if (level.RectTransform.rect.width <= maximumWidth && level.spellsTable.rect.height <= availableGridHeight)
+                if (grid.preferredWidth > maximumWidth || grid.preferredHeight > availableGridHeight)
                 {
-                    continue;
+                    var maximumColumns = Mathf.Max(1, Mathf.FloorToInt(
+                        (maximumWidth - grid.padding.horizontal + grid.spacing.x) / (grid.cellSize.x + grid.spacing.x)));
+                    var maximumRows = Mathf.Max(1, Mathf.FloorToInt(
+                        (availableGridHeight - grid.padding.vertical + grid.spacing.y) / (grid.cellSize.y + grid.spacing.y)));
+                    grid.constraintCount = Mathf.Min(maximumColumns,
+                        Mathf.Max(1, Mathf.CeilToInt((float)spellCount / maximumRows)));
+                    grid.CalculateLayoutInputHorizontal();
                 }
 
-                grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-                var maximumColumns = Mathf.Max(1, Mathf.FloorToInt(
-                    (maximumWidth - grid.padding.horizontal + grid.spacing.x) / (grid.cellSize.x + grid.spacing.x)));
-                var maximumRows = Mathf.Max(1, Mathf.FloorToInt(
-                    (availableGridHeight - grid.padding.vertical + grid.spacing.y) / (grid.cellSize.y + grid.spacing.y)));
-                grid.constraintCount = Mathf.Min(maximumColumns,
-                    Mathf.Max(1, Mathf.CeilToInt((float)spellCount / maximumRows)));
-                LayoutRebuilder.ForceRebuildLayoutImmediate(level.spellsTable);
-                level.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, level.spellsTable.rect.width);
+                level.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, grid.preferredWidth);
                 LayoutRebuilder.ForceRebuildLayoutImmediate(level.RectTransform);
             }
 
-            LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)line.layoutGroup.transform);
+            line.layoutGroup.CalculateLayoutInputHorizontal();
             // The repertoire's layout group is on its inner level table. The root fitter cannot
             // infer that nested preferred width once a title LayoutElement is present.
             _layout.preferredWidth = Mathf.Max(_preferredWidth, titleWidth, line.layoutGroup.preferredWidth);
@@ -3202,7 +3207,7 @@ internal static class CampaignsContext
             foreach (var (grid, _, _, _, _, _, bottomPadding, _) in _grids)
             {
                 grid.padding.bottom = bottomPadding;
-                LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)grid.transform);
+                grid.CalculateLayoutInputVertical();
             }
 
             return _grids.Select(entry => entry.Grid.preferredHeight).DefaultIfEmpty(0f).Max();
@@ -3215,15 +3220,9 @@ internal static class CampaignsContext
             foreach (var (grid, _, _, _, _, _, bottomPadding, _) in _grids)
             {
                 grid.padding.bottom = bottomPadding + Mathf.CeilToInt(Mathf.Max(0f, height - grid.preferredHeight));
-                LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)grid.transform);
             }
 
-            foreach (var level in _line.SpellsByLevelBoxes)
-            {
-                LayoutRebuilder.ForceRebuildLayoutImmediate(level.RectTransform);
-            }
-
-            LayoutRebuilder.ForceRebuildLayoutImmediate(_line.levelsTable);
+            // Rebuild from the common owner so every grid and native footer settles together.
             LayoutRebuilder.ForceRebuildLayoutImmediate(_line.RectTransform);
         }
 

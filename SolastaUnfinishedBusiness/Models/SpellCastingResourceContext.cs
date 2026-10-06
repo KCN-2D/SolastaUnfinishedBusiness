@@ -60,13 +60,15 @@ internal static class SpellCastingResourceContext
         SpellDefinition spell,
         int slotLevel,
         ResourceKind kind,
-        RulesetSpellRepertoire castingRepertoire = null)
+        RulesetSpellRepertoire castingRepertoire = null,
+        bool hasExplicitPaymentOwner = false)
     {
         internal RulesetSpellRepertoire Repertoire { get; } = repertoire;
         internal RulesetSpellRepertoire CastingRepertoire { get; } = castingRepertoire ?? repertoire;
         internal SpellDefinition Spell { get; } = spell;
         internal int SlotLevel { get; } = slotLevel;
         internal ResourceKind Kind { get; } = kind;
+        internal bool HasExplicitPaymentOwner { get; } = hasExplicitPaymentOwner;
         internal bool IsFree => Kind != ResourceKind.SpellSlot;
         internal string SourceTitle => Kind switch
         {
@@ -78,7 +80,10 @@ internal static class SpellCastingResourceContext
         };
 
         internal ResourceOption AtLevel(int level) =>
-            new(Repertoire, Spell, level, Kind, CastingRepertoire);
+            new(Repertoire, Spell, level, Kind, CastingRepertoire, HasExplicitPaymentOwner);
+
+        internal ResourceOption WithPaymentOwner(RulesetSpellRepertoire repertoire) =>
+            new(repertoire, Spell, SlotLevel, Kind, CastingRepertoire, true);
 
         internal string FormatChoiceTitle(RulesetCharacter caster)
         {
@@ -95,6 +100,8 @@ internal static class SpellCastingResourceContext
 
         internal string FormatDescription(RulesetCharacter caster)
         {
+            caster = GetResourceOwner(caster);
+            using var selection = BeginSelection(this);
             GetUses(caster, out var remaining, out var maximum);
             if (IsFree)
             {
@@ -125,6 +132,8 @@ internal static class SpellCastingResourceContext
 
         internal void GetUses(RulesetCharacter caster, out int remaining, out int maximum)
         {
+            caster = GetResourceOwner(caster);
+            using var selection = BeginSelection(this);
             if (Repertoire == null)
             {
                 remaining = maximum = 0;
@@ -149,6 +158,8 @@ internal static class SpellCastingResourceContext
 
         internal bool IsAvailable(RulesetCharacter caster)
         {
+            caster = GetResourceOwner(caster);
+            using var selection = BeginSelection(this);
             if (caster == null || !caster.SpellRepertoires.Contains(Repertoire) ||
                 !caster.SpellRepertoires.Contains(CastingRepertoire) ||
                 !CanUseRepertoire(caster, CastingRepertoire, Spell) ||
@@ -156,9 +167,22 @@ internal static class SpellCastingResourceContext
                 Kind == ResourceKind.SpellSlot && SpellSlotCastingLimit2024Context.IsFreeUseRepertoire(Repertoire) ||
                 CastingRepertoire != Repertoire &&
                 (Kind != ResourceKind.SpellSlot || !Repertoire.UsesSharedSpellSlots() ||
+                 !CastingRepertoire.UsesSharedSpellSlots() &&
                  !IsSlotCastableFeatSpell(caster, CastingRepertoire, Spell)))
             {
                 return false;
+            }
+
+            if (HasExplicitPaymentOwner)
+            {
+                Repertoire.GetSharedAndPactSlotNumbers(caster, SlotLevel,
+                    out var sharedRemaining, out _, out var pactRemaining, out _);
+                if (Repertoire.SpellCastingClass == Api.DatabaseHelper.CharacterClassDefinitions.Warlock
+                        ? SlotLevel != SharedSpellsContext.GetWarlockSpellLevel(caster) || pactRemaining <= 0
+                        : !caster.IsSpellPointsEnabled() && sharedRemaining <= 0)
+                {
+                    return false;
+                }
             }
 
             switch (Kind)
@@ -211,6 +235,87 @@ internal static class SpellCastingResourceContext
         return new SelectionScope(option);
     }
 
+    internal static IDisposable BeginEffectSelection(RulesetEffectSpell effect) =>
+        BeginSelection(effect != null && Selections.TryGetValue(effect, out var option) ? option : null);
+
+    private static RulesetCharacter GetResourceOwner(RulesetCharacter caster) =>
+        caster.GetFeatureOwnerOrSelf() ?? caster;
+
+    internal static RulesetSpellRepertoire SelectSlotPaymentRepertoire(
+        RulesetCharacter caster, RulesetSpellRepertoire repertoire, int slotLevel) =>
+        repertoire == null ? null : CapturePaymentOwner(
+            new ResourceOption(repertoire, null, slotLevel, ResourceKind.SpellSlot),
+            caster).Repertoire;
+
+    internal static IDisposable BeginSlotPaymentSelection(
+        RulesetCharacter caster, RulesetSpellRepertoire repertoire, int slotLevel)
+    {
+        caster = GetResourceOwner(caster);
+        var explicitOwner = repertoire.UsesSharedSpellSlots() && SharedSpellsContext.IsMulticaster(caster) &&
+                            SharedSpellsContext.GetWarlockSpellRepertoire(caster) != null;
+        return BeginSelection(new ResourceOption(repertoire, null, slotLevel, ResourceKind.SpellSlot,
+            hasExplicitPaymentOwner: explicitOwner));
+    }
+
+    internal static bool CanSpendSlotPayment(
+        RulesetCharacter caster, RulesetSpellRepertoire repertoire, int slotLevel)
+    {
+        caster = GetResourceOwner(caster);
+        if (caster == null || repertoire == null || slotLevel is < 1 or > 9 ||
+            !caster.SpellRepertoires.Contains(repertoire))
+        {
+            return false;
+        }
+
+        repertoire.GetSharedAndPactSlotNumbers(caster, slotLevel,
+            out var sharedRemaining, out _, out var pactRemaining, out _);
+        if (CurrentSelection?.HasExplicitPaymentOwner == true &&
+            repertoire.SpellCastingClass == Api.DatabaseHelper.CharacterClassDefinitions.Warlock)
+        {
+            return slotLevel == SharedSpellsContext.GetWarlockSpellLevel(caster) && pactRemaining > 0;
+        }
+
+        return repertoire.UsesSharedSpellSlots() && caster.IsSpellPointsEnabled()
+            ? SpellPointsContext.CanCastSpellOfLevel(caster, repertoire, slotLevel)
+            : sharedRemaining > 0;
+    }
+
+    private static ResourceOption CapturePaymentOwner(ResourceOption option, RulesetCharacter caster)
+    {
+        if (option.HasExplicitPaymentOwner || option.IsFree || caster == null)
+        {
+            return option;
+        }
+
+        // The acting substitute owns the input; its feature owner owns the resource pool.
+        var shiftPressed = GameLocationCharacter.GetFromActor(caster)?.GetShiftState() == true;
+        caster = GetResourceOwner(caster);
+        if (!option.Repertoire.UsesSharedSpellSlots() || !SharedSpellsContext.IsMulticaster(caster))
+        {
+            return option;
+        }
+
+        var pact = SharedSpellsContext.GetWarlockSpellRepertoire(caster);
+        if (pact == null)
+        {
+            return option;
+        }
+
+        var shared = GetSharedPaymentRepertoire(caster, pact);
+        option.Repertoire.GetSharedAndPactSlotNumbers(caster, option.SlotLevel,
+            out var sharedRemaining, out _, out var pactRemaining, out _);
+        var usesPact = option.SlotLevel == SharedSpellsContext.GetWarlockSpellLevel(caster) &&
+                       option.Repertoire.ShouldSpendPactSlot(option.SlotLevel,
+                           SharedSpellsContext.GetWarlockSpellLevel(caster),
+                           sharedRemaining, pactRemaining, shiftPressed);
+        return shared == null ? option : option.WithPaymentOwner(usesPact ? pact : shared);
+    }
+
+    private static RulesetSpellRepertoire GetSharedPaymentRepertoire(
+        RulesetCharacter caster, RulesetSpellRepertoire pact) =>
+        GetOrderedRepertoires(caster).FirstOrDefault(repertoire =>
+            repertoire.UsesSharedSpellSlots() && repertoire != pact);
+
     internal static bool IsSameSpell(SpellDefinition first, SpellDefinition second)
     {
         if (first == null || second == null)
@@ -237,13 +342,15 @@ internal static class SpellCastingResourceContext
             return;
         }
 
+        option = CapturePaymentOwner(option, effect.Caster);
+
         effect.spellRepertoire = option.CastingRepertoire;
         effect.SlotLevel = option.SlotLevel;
         SpellCastingValidation.BindEffectRepertoire(effect, option.CastingRepertoire);
         Selections.Remove(effect);
         // Use the actual child spell so validation and consumption see the same definition.
         Selections.Add(effect, new ResourceOption(option.Repertoire, effect.SpellDefinition, option.SlotLevel,
-            option.Kind, option.CastingRepertoire));
+            option.Kind, option.CastingRepertoire, option.HasExplicitPaymentOwner));
     }
 
     internal static void ApplySelection(CharacterActionParams parameters, ResourceOption option)
@@ -252,6 +359,8 @@ internal static class SpellCastingResourceContext
         {
             return;
         }
+
+        option = CapturePaymentOwner(option, parameters.ActingCharacter?.RulesetCharacter);
 
         parameters.SpellRepertoire = option.CastingRepertoire;
         parameters.IntParameter = option.SlotLevel;
@@ -272,7 +381,7 @@ internal static class SpellCastingResourceContext
 
     private static RulesetSpellRepertoire[] GetOrderedRepertoires(RulesetCharacter caster)
     {
-        return caster?.SpellRepertoires
+        return GetResourceOwner(caster)?.SpellRepertoires
             .OrderBy(repertoire => repertoire.SpellCastingFeature.Name, StringComparer.Ordinal)
             .ThenBy(repertoire => repertoire.SpellCastingClass?.Name, StringComparer.Ordinal)
             .ThenBy(repertoire => repertoire.SpellCastingSubclass?.Name, StringComparer.Ordinal)
@@ -310,6 +419,7 @@ internal static class SpellCastingResourceContext
         var kind = (ResourceKind)(selection % ResourceKindCount);
         var resourceIndex = selection / ResourceKindCount - 1;
         var castingRepertoire = parameters.SpellRepertoire ?? effect.SpellRepertoire;
+        var resourceOwner = GetResourceOwner(parameters.ActingCharacter?.RulesetCharacter ?? effect.Caster);
         var repertoires = GetOrderedRepertoires(parameters.ActingCharacter?.RulesetCharacter);
         var resourceRepertoire = resourceIndex < 0
             ? castingRepertoire
@@ -318,8 +428,28 @@ internal static class SpellCastingResourceContext
         {
             // An invalid synchronized owner must fail validation, never become a free feat use.
             BindEffectSelection(effect, new ResourceOption(resourceRepertoire, effect.SpellDefinition,
-                effect.SlotLevel, kind, castingRepertoire));
+                effect.SlotLevel, kind, castingRepertoire,
+                kind == ResourceKind.SpellSlot && resourceRepertoire != null &&
+                resourceRepertoire.UsesSharedSpellSlots() &&
+                SharedSpellsContext.IsMulticaster(resourceOwner) &&
+                SharedSpellsContext.GetWarlockSpellRepertoire(resourceOwner) != null));
         }
+    }
+
+    internal static void PrepareNetworkAction(CharacterActionParams parameters)
+    {
+        if (parameters?.RulesetEffect is not RulesetEffectSpell effect || !SupportsSelection(effect))
+        {
+            return;
+        }
+
+        BindImplicitFeatSelection(effect);
+        var option = Selections.TryGetValue(effect, out var selected)
+            ? selected
+            : GetSlotSelection(effect.SpellRepertoire, effect.SpellDefinition, effect.SlotLevel, effect.Caster);
+        // Existing action serialization already carries the casting repertoire and a separate
+        // payment-repertoire index. Freeze the initiating player's choice in those same fields.
+        ApplySelection(parameters, option);
     }
 
     internal static RulesetSpellRepertoire GetResourceRepertoire(RulesetEffectSpell effect)
@@ -599,6 +729,7 @@ internal static class SpellCastingResourceContext
             return options;
         }
 
+        caster = GetResourceOwner(caster);
         var repertoires = caster.SpellRepertoires
             .Where(repertoire => CanUseRepertoire(caster, repertoire, spell))
             .OrderBy(repertoire => repertoire.SpellCastingFeature.Name, StringComparer.Ordinal)
@@ -634,14 +765,21 @@ internal static class SpellCastingResourceContext
                     continue;
                 }
 
-                // Class repertoires share a pool. Preserve the native casting source when it is eligible.
-                var pool = repertoire.UsesSharedSpellSlots() ? "Shared" : repertoire.SpellCastingFeature.Name;
-                var key = (pool, level);
-                if (!paid.TryGetValue(key, out var previous) ||
-                    repertoire == preferredRepertoire ||
-                    !previous.IsAvailable(caster) && option.IsAvailable(caster))
+                foreach (var payment in EnumeratePaymentOwners(caster, option))
                 {
-                    paid[key] = option;
+                    // Preserve casting source while giving Pact and shared slots stable,
+                    // independent native suboptions. Availability never changes their order.
+                    var pool = repertoire.UsesSharedSpellSlots()
+                        ? payment.Repertoire.SpellCastingClass == Api.DatabaseHelper.CharacterClassDefinitions.Warlock &&
+                          payment.HasExplicitPaymentOwner ? "Pact" : "Shared"
+                        : repertoire.SpellCastingFeature.Name;
+                    var key = (pool, level);
+                    if (!paid.TryGetValue(key, out var previous) ||
+                        repertoire == preferredRepertoire ||
+                        !previous.IsAvailable(caster) && payment.IsAvailable(caster))
+                    {
+                        paid[key] = payment;
+                    }
                 }
             }
 
@@ -671,6 +809,27 @@ internal static class SpellCastingResourceContext
             .ThenBy(option => option.CastingRepertoire.SpellCastingFeature.Name, StringComparer.Ordinal)
             .ThenBy(option => option.Kind)
             .ToList();
+    }
+
+    private static IEnumerable<ResourceOption> EnumeratePaymentOwners(RulesetCharacter caster, ResourceOption option)
+    {
+        var pact = SharedSpellsContext.GetWarlockSpellRepertoire(caster);
+        if (!option.Repertoire.UsesSharedSpellSlots() || !SharedSpellsContext.IsMulticaster(caster) || pact == null)
+        {
+            yield return option;
+            yield break;
+        }
+
+        var shared = GetSharedPaymentRepertoire(caster, pact);
+        if (shared != null)
+        {
+            yield return option.WithPaymentOwner(shared);
+        }
+
+        if (option.SlotLevel == SharedSpellsContext.GetWarlockSpellLevel(caster))
+        {
+            yield return option.WithPaymentOwner(pact);
+        }
     }
 
     internal static List<ResourceOption> EnumerateUpcastSlots(

@@ -10,6 +10,29 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class NetworkingManagerPatcher
 {
+    [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.ExecuteAction))]
+    [UsedImplicitly]
+    public static class ExecuteAction_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterActionParams __0) =>
+            SpellCastingResourceContext.PrepareNetworkAction(__0);
+    }
+
+    [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.ExecuteActionChain))]
+    [UsedImplicitly]
+    public static class ExecuteActionChain_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterActionChainParams __0)
+        {
+            foreach (var parameters in __0.actionsParams)
+            {
+                SpellCastingResourceContext.PrepareNetworkAction(parameters);
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.CreateRoom))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

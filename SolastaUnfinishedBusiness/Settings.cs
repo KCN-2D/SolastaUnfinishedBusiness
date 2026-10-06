@@ -90,6 +90,7 @@ public class Settings : UnityModManager.ModSettings
     //
 
     public bool EnablePcgRandom { get; set; }
+    public bool EnableFastLocationLoads { get; set; }
     public bool EnableCustomPortraits { get; set; } = true;
     public bool DisableMultilineSpellOffering { get; set; }
     public bool DisableUnofficialTranslations { get; set; } = true;

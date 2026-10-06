@@ -1404,11 +1404,8 @@ internal static class UiTextHelpers
         private float _backgroundParentHeight;
         private bool _preserveAspect;
         private string _text;
-        private TMP_FontAsset _font;
-        private float _width;
-        private float _fontSize;
         private float _height;
-        private bool _cjkSpacing;
+        private bool _activeSelf;
         private SpellBox _box;
         private SpellBoxGridLayoutState _grid;
         private float _nativeCardHeight;
@@ -1439,7 +1436,11 @@ internal static class UiTextHelpers
 
             var imageRect = image.rectTransform;
             _box = box;
-            _grid = GetSpellBoxGridLayout(box.transform.parent);
+            _activeSelf = box.gameObject.activeSelf;
+            if (!_grid)
+            {
+                _grid = GetSpellBoxGridLayout(box.transform.parent);
+            }
             if (!_captured)
             {
                 _titleHeight = SpellBox.TitleGroupMinHeight;
@@ -1470,29 +1471,26 @@ internal static class UiTextHelpers
             // Native Refresh keeps the non-hovered title background at one row,
             // while allowing its text to grow over the icon. Reserve the complete
             // title at its native font size, then move the icon with the background.
+            var fitState = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+            fitState.Capture(text);
+            var availableSize = new Vector2(text.rectTransform.rect.width, 0f);
             var cjkSpacing = ShouldUseCjkCompactLineSpacing(text);
-            if (_text != text.text || _font != text.font ||
-                Mathf.Abs(_width - text.rectTransform.rect.width) > PreferredSizeTolerance ||
-                Mathf.Abs(_fontSize - text.fontSize) > 0.01f || _cjkSpacing != cjkSpacing ||
-                text.enableAutoSizing || !text.enableWordWrapping ||
-                text.maxVisibleLines != int.MaxValue || text.overflowMode != TextOverflowModes.Overflow)
+            var measurementChanged = _text == null || !fitState.HasFitSignature(nameof(KeepSpellBoxTextInside),
+                text, availableSize, 1f, 0f, cjkSpacing);
+            if (measurementChanged)
             {
-                var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
-                state.Capture(text);
-                ApplyCardTextFit(text, int.MaxValue, true, state.OriginalFontSizeMax, state);
+                ApplyCardTextFit(text, int.MaxValue, true, fitState.OriginalFontSizeMax, fitState);
                 text.overflowMode = TextOverflowModes.Overflow;
                 text.ForceMeshUpdate(true);
                 _height = Mathf.Max(Mathf.Ceil(text.textBounds.size.y) + 8f, _titleHeight);
                 RequiredHeight = _nativeCardHeight + _height - _titleHeight +
                                  _minimumImageHeight - _nativeImageHeight;
                 _text = text.text;
-                _font = text.font;
-                _width = text.rectTransform.rect.width;
-                _fontSize = text.fontSize;
-                _cjkSpacing = cjkSpacing;
+                fitState.RememberFitSignature(nameof(KeepSpellBoxTextInside), text, availableSize, 1f, 0f,
+                    cjkSpacing);
             }
 
-            if (_grid)
+            if (_grid && measurementChanged)
             {
                 _grid.Refresh();
             }
@@ -1664,16 +1662,29 @@ internal static class UiTextHelpers
 
         private void OnEnable()
         {
+            var membershipChanged = _activeSelf != gameObject.activeSelf;
+            _activeSelf = gameObject.activeSelf;
             if (_captured && _box && _text != null)
             {
                 KeepSpellBoxTextInside(_box);
+            }
+
+            if (membershipChanged)
+            {
+                _grid?.Refresh();
             }
         }
 
         private void OnDisable()
         {
-            // Hiding a bound card keeps its measured title. Unbind and reparenting
-            // restore the native geometry when the card actually leaves its list.
+            // A hidden parent retains the same cards; its grid refreshes once on Show.
+            // Only individually hidden cards change membership in the shared layout.
+            if (_activeSelf == gameObject.activeSelf)
+            {
+                return;
+            }
+
+            _activeSelf = gameObject.activeSelf;
             _grid?.Refresh();
         }
 
@@ -1929,6 +1940,14 @@ internal static class UiTextHelpers
         var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
         state.Capture(text);
 
+        var compactSpacing = ShouldUseCjkCompactLineSpacing(text);
+        if (state.HasFitSignature(nameof(FitSpellBoxSourceTitle), text,
+                new Vector2(availableWidth, group.rect.height), TagMinFontScale, TagAbsoluteMinFontSize,
+                compactSpacing))
+        {
+            return;
+        }
+
         var preferredSize = GetPreferredSize(text, state.OriginalFontSizeMax, false, 1,
             state.OriginalLineSpacing, float.PositiveInfinity);
         var layoutElement = text.GetComponent<LayoutElement>() ?? text.gameObject.AddComponent<LayoutElement>();
@@ -1955,6 +1974,9 @@ internal static class UiTextHelpers
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(group);
         FitCardTitle(label, TagMinFontScale, TagAbsoluteMinFontSize);
+        state.RememberFitSignature(nameof(FitSpellBoxSourceTitle), text,
+            new Vector2(availableWidth, group.rect.height), TagMinFontScale, TagAbsoluteMinFontSize,
+            compactSpacing);
     }
 
     private static void ScheduleSpellBoxTextFit(SpellBox spellBox)
@@ -2537,6 +2559,11 @@ internal static class UiTextHelpers
         private float LastAbsoluteMin { get; set; }
         private bool LastCjkCompactSpacing { get; set; }
         private TMP_FontAsset LastFont { get; set; }
+        private Vector4 LastMargin { get; set; }
+        private FontStyles LastFontStyle { get; set; }
+        private TextAlignmentOptions LastAlignment { get; set; }
+        private float LastCharacterSpacing { get; set; }
+        private float LastWordSpacing { get; set; }
         private float LastMaxFontSize { get; set; }
         private float LastMinFontScale { get; set; }
         private float LastRenderedFontSize { get; set; }
@@ -2634,6 +2661,10 @@ internal static class UiTextHelpers
             return string.Equals(LastMode, mode, StringComparison.Ordinal) &&
                    string.Equals(LastText, text.text, StringComparison.Ordinal) &&
                    LastFont == text.font &&
+                   (LastMargin - text.margin).sqrMagnitude <= 0.01f &&
+                   LastFontStyle == text.fontStyle && LastAlignment == text.alignment &&
+                   Mathf.Abs(LastCharacterSpacing - text.characterSpacing) <= 0.01f &&
+                   Mathf.Abs(LastWordSpacing - text.wordSpacing) <= 0.01f &&
                    Mathf.Abs(LastMaxFontSize - OriginalFontSizeMax) <= 0.01f &&
                    Mathf.Abs(LastMinFontScale - minFontScale) <= 0.001f &&
                    Mathf.Abs(LastAbsoluteMin - absoluteMin) <= 0.01f &&
@@ -2644,7 +2675,7 @@ internal static class UiTextHelpers
                    text.enableWordWrapping == LastRenderedWrapping &&
                    text.overflowMode == LastRenderedOverflow &&
                    Mathf.Abs(text.lineSpacing - LastRenderedSpacing) <= 0.01f &&
-                   (LastAvailableSize - availableSize).sqrMagnitude <= 1f;
+                   (LastAvailableSize - availableSize).sqrMagnitude <= PreferredSizeTolerance * PreferredSizeTolerance;
         }
 
         internal void RememberFitSignature(
@@ -2658,6 +2689,11 @@ internal static class UiTextHelpers
             LastMode = mode;
             LastText = text.text;
             LastFont = text.font;
+            LastMargin = text.margin;
+            LastFontStyle = text.fontStyle;
+            LastAlignment = text.alignment;
+            LastCharacterSpacing = text.characterSpacing;
+            LastWordSpacing = text.wordSpacing;
             LastMaxFontSize = OriginalFontSizeMax;
             LastMinFontScale = minFontScale;
             LastAbsoluteMin = absoluteMin;

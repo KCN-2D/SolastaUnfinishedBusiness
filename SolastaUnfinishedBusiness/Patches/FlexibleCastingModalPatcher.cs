@@ -2,6 +2,7 @@
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -15,7 +16,7 @@ public static class FlexibleCastingModalPatcher
     public static class OnConvertCb_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(FlexibleCastingModal __instance)
+        public static void Prefix(FlexibleCastingModal __instance)
         {
             if (__instance.selectedSlotLevel < 0 || __instance.createSlotMode)
             {
@@ -26,6 +27,28 @@ public static class FlexibleCastingModalPatcher
             var caster = GameLocationCharacter.GetFromActor(rulesetCaster);
 
             caster?.RegisterShiftState();
+        }
+    }
+
+    [HarmonyPatch(typeof(FlexibleCastingModal), nameof(FlexibleCastingModal.CreateSorceryPoints))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CreateSorceryPoints_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(FlexibleCastingModal __instance, out RulesetSpellRepertoire __state)
+        {
+            __state = __instance.repertoire;
+            // Native multiplayer transports this repertoire's definition name. Select the
+            // payment owner before sending it, while keeping the modal's casting source.
+            __instance.repertoire = SpellCastingResourceContext.SelectSlotPaymentRepertoire(
+                __instance.caster, __state, __instance.selectedSlotLevel);
+        }
+
+        [UsedImplicitly]
+        public static void Finalizer(FlexibleCastingModal __instance, RulesetSpellRepertoire __state)
+        {
+            __instance.repertoire = __state;
         }
     }
 }

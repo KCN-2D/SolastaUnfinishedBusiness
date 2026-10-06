@@ -230,7 +230,10 @@ ModUi/&EnablePaladinRestoreLevel20Feature=Aktiviere <color=#D89555>Level 20</col
 ModUi/&EnablePaladinRestoringTouch2024=Aktiviere <color=#D89555>Restoring Touch</color>, um <color=#D89555>Cleansing Touch</color> auf Level 14 zu ersetzen.
 ModUi/&EnablePaladinSmite2024=Tauschen Sie <color=#D89555>Divine Smite</color> gegen die 5e 2024-Version aus <i><color=#F0DAA0>[Bonusaktion]</color></i>
 ModUi/&EnablePaladinSpellCastingAtLevel1=Aktiviere <color=#D89555>Zauberwirken</color> auf Stufe 1 statt 2.
+ModUi/&EnableFastLocationLoads=Ladevorgänge beschleunigen
+ModUi/&EnableFastLocationLoadsHelp=Solange das Spiel im Vordergrund ist, wird das Laden von Ressourcen priorisiert und die FPS-Begrenzung im Spiel sowie die vertikale Synchronisation werden vorübergehend aufgehoben. Nach dem Laden werden die vorherigen Einstellungen wiederhergestellt. Dies kann die Ladezeit bei begrenzten FPS verkürzen.
 ModUi/&EnablePcgRandom=Aktivieren Sie einen besseren Zufallsgenerator-Algorithmus <i><color=#F0DAA0>[https://www.pcg-random.org]</color></i>
+ModUi/&PcgRandomMultiplayerHelp=Im Mehrspielermodus wird der synchronisierte Zufallsgenerator des Spiels verwendet. Die PCG-Einstellung wird gespeichert, gilt aber nur im Einzelspielermodus, da ihr Zufallszustand nicht synchronisiert wird.
 ModUi/&EnablePoisonsBonusAction2024=Aktivieren Sie das Auftragen von <color=#D89555>Giften</color> auf Waffen als Bonusaktion.
 ModUi/&EnablePotionsBonusAction2024=Aktivieren Sie das Trinken von <color=#D89555>Tränken</color> als Bonusaktion
 ModUi/&EnableHalfOrcAdrenalineRush2024=Bei <color=#D89555>{0}</color> das Merkmal <color=#D89555>{1}</color> durch <color=#D89555>{2}</color> ersetzen (2024)

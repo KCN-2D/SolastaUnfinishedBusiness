@@ -230,7 +230,10 @@ ModUi/&EnablePaladinRestoreLevel20Feature=Abilita i poteri della sottoclasse di 
 ModUi/&EnablePaladinRestoringTouch2024=Abilita <color=#D89555>Ripristino del tocco</color> per sostituire <color=#D89555>Tocco purificatore</color> al livello 14
 ModUi/&EnablePaladinSmite2024=Sostituisci <color=#D89555>Colpo divino</color> con la versione 5e 2024 <i><color=#F0DAA0>[azione bonus]</color></i>
 ModUi/&EnablePaladinSpellCastingAtLevel1=Abilita <color=#D89555>lancio di incantesimi</color> al livello 1 invece che 2
+ModUi/&EnableFastLocationLoads=Accelerare il caricamento
+ModUi/&EnableFastLocationLoadsHelp=Quando il gioco è in primo piano, il caricamento delle risorse ha la priorità e il limite di FPS del gioco e la sincronizzazione verticale vengono disattivati temporaneamente. Al termine del caricamento vengono ripristinate le impostazioni precedenti. Questo può ridurre i tempi di caricamento quando gli FPS sono limitati.
 ModUi/&EnablePcgRandom=Abilita un algoritmo di generazione casuale migliore <i><color=#F0DAA0>[https://www.pcg-random.org]</color></i>
+ModUi/&PcgRandomMultiplayerHelp=Il multigiocatore usa il generatore casuale sincronizzato del gioco. L'impostazione PCG viene salvata, ma si applica solo in giocatore singolo perché il suo stato casuale non è sincronizzato.
 ModUi/&EnablePoisonsBonusAction2024=Abilita l'applicazione di <color=#D89555>veleni</color> alle armi come azione bonus
 ModUi/&EnablePotionsBonusAction2024=Abilita bere <color=#D89555>Pozioni</color> come azione bonus
 ModUi/&EnableHalfOrcAdrenalineRush2024=Per <color=#D89555>{0}</color>, sostituisci il tratto <color=#D89555>{1}</color> con <color=#D89555>{2}</color> (2024)

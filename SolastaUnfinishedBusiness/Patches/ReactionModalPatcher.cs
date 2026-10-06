@@ -56,9 +56,6 @@ public static class ReactionModalPatcher
     [UsedImplicitly]
     public static class OnReact_Patch
     {
-        private const string ReactionTimestamp =
-            GameLocationActionManagerPatcher.ExecuteReactionRequestGroupAsync_Patch.ReactionTimestamp;
-
         [UsedImplicitly]
         public static bool Prefix(ReactionModal __instance, CharacterReactionItem item)
         {
@@ -80,19 +77,6 @@ public static class ReactionModalPatcher
         {
             //PATCH: register on acting character if SHIFT is pressed on reaction confirmations
             caster.RegisterShiftState();
-
-            if (Global.IsMultiplayer)
-            {
-                return;
-            }
-
-            //PATCH: ensure whoever reacts first will get the reaction handled first by game
-            var timestamp = (int)DateTime.Now.ToFileTimeUtc();
-
-            if (!caster.UsedSpecialFeatures.TryAdd(ReactionTimestamp, timestamp))
-            {
-                caster.UsedSpecialFeatures[ReactionTimestamp] = timestamp;
-            }
         }
     }
 
