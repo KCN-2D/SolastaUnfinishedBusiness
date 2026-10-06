@@ -474,6 +474,7 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnableSorcererSorcerousRestoration2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSorcererMetamagic2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSorcererDraconicBloodlineAC2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableSorcererDraconicBloodlineElementalAffinity2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSorcererDraconicBloodlineResistance2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSorcererOrigin2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableWarlockInvocationProgression2024 { get; set; }

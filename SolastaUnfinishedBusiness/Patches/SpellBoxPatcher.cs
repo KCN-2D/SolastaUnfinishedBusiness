@@ -416,6 +416,7 @@ public static class SpellBoxPatcher
         public static void Postfix(SpellBox __instance)
         {
             ClearSpellSource(__instance);
+            UiTextHelpers.RestoreSpellBoxLayout(__instance);
         }
     }
 

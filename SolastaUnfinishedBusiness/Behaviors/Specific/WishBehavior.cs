@@ -618,8 +618,11 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
 
     private sealed class InstantHealthTargeting :
         IFilterTargetingCharacter,
-        IPowerOrSpellInitiatedByMe
+        IPowerOrSpellInitiatedByMe, IPowerOrSpellTargetProvider
     {
+        public List<GameLocationCharacter> GetTargetCharacters(CharacterActionMagicEffect action) =>
+            action.ActionParams.TargetCharacters.Where(target => target != action.ActingCharacter).ToList();
+
         public bool EnforceFullSelection => false;
 
         public bool IsValid(CursorLocationSelectTarget cursor, GameLocationCharacter target)
@@ -634,13 +637,13 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
             CharacterActionMagicEffect action,
             BaseDefinition baseDefinition)
         {
-            var caster = action.ActingCharacter;
+            var preparedTargets = GetTargetCharacters(action);
             var targets = action.ActionParams.TargetCharacters;
             var actionModifiers = action.ActionParams.ActionModifiers;
 
             for (var i = targets.Count - 1; i >= 0; i--)
             {
-                if (targets[i] != caster)
+                if (preparedTargets.Contains(targets[i]))
                 {
                     continue;
                 }

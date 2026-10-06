@@ -3,6 +3,7 @@ using System.Collections;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.ConditionDefinitions;
@@ -37,6 +38,8 @@ public sealed class SavingThrowData
     public int SaveDC { get; set; }
     public int SaveBonusAndRollModifier { get; set; }
     public BaseDefinition SourceDefinition { get; set; }
+    [CanBeNull] internal RulesetEffect SourceEffect { get; set; }
+    [CanBeNull] internal System.Collections.Generic.List<EffectForm> SavingThrowForms { get; set; }
     public EffectDescription EffectDescription { get; set; }
     public string Title { get; set; }
     public bool LegendaryResistanceUsed { get; set; }
@@ -106,6 +109,9 @@ internal static class TryAlterOutcomeSavingThrow
         }
 
         defender.RulesetActor.GrantConditionOnSavingThrowOutcome(effectDescription, savingThrowData.SaveOutcome, true);
+        MetamagicContext.CompleteHeightenedSavingThrow(MetamagicContext.GetSavingThrowSpell(
+            attacker?.RulesetCharacter, savingThrowData.SourceDefinition, savingThrowData.SavingThrowForms ?? effectDescription?.EffectForms,
+            savingThrowData.SourceEffect ?? savingThrowData.Action?.ActionParams.RulesetEffect), defender.RulesetActor);
     }
 
     private static IEnumerable TryAlterOutcomeSavingThrowHandler(

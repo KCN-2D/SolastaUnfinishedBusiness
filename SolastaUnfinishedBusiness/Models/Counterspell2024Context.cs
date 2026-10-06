@@ -14,14 +14,20 @@ internal static class Counterspell2024Context
         CharacterActionMagicEffect counterAction,
         CharacterAction targetAction)
     {
-        return Main.Settings.EnableOneDndCounterspellSpell &&
-               counterAction?.ActionParams?.RulesetEffect is RulesetEffectSpell counterspell &&
-               RulesetEffectSpellWithOrigin.GetOriginSpell(counterspell) == Counterspell &&
-               counterspell.EffectDescription.EffectForms.Any(
+        return counterAction?.ActionParams?.RulesetEffect is RulesetEffectSpell counterspell &&
+               RequiresSavingThrow(counterspell) &&
+               targetAction?.ActionParams?.RulesetEffect is RulesetEffectSpell;
+    }
+
+    internal static bool RequiresSavingThrow(RulesetEffectSpell spellEffect)
+    {
+        return spellEffect != null &&
+               Main.Settings.EnableOneDndCounterspellSpell &&
+               RulesetEffectSpellWithOrigin.GetOriginSpell(spellEffect) == Counterspell &&
+               spellEffect.EffectDescription.EffectForms.Any(
                    effectForm =>
                        effectForm.FormType == EffectForm.EffectFormType.Counter &&
-                       effectForm.CounterForm.Type == CounterForm.CounterType.InterruptSpellcasting) &&
-               targetAction?.ActionParams?.RulesetEffect is RulesetEffectSpell;
+                       effectForm.CounterForm.Type == CounterForm.CounterType.InterruptSpellcasting);
     }
 
     internal static IEnumerator Resolve(
@@ -54,7 +60,9 @@ internal static class Counterspell2024Context
         var schoolOfMagic = sourceDefinition is SpellDefinition spellDefinition
             ? spellDefinition.SchoolOfMagic
             : string.Empty;
-        var metamagic = (counterEffect as RulesetEffectSpell)?.MetamagicOption;
+        using var heightenedSaveScope = MetamagicContext.DelayHeightenedConsumption(counterEffect, originalCaster.RulesetCharacter);
+        var metamagic = MetamagicContext.PrepareSavingThrowMetamagic(counterEffect, originalCaster.RulesetCharacter,
+            true, counterspeller.Side, false, effectDescription.EffectForms);
 
         bool RollSavingThrow(
             ActionModifier modifier,
@@ -121,6 +129,8 @@ internal static class Counterspell2024Context
             SaveBonusAndRollModifier = RulesetActorExtensions.SaveBonusAndRollModifier,
             SavingThrowAbility = RulesetActorExtensions.SavingThrowAbility,
             SourceDefinition = sourceDefinition,
+            SourceEffect = counterEffect,
+            SavingThrowForms = effectDescription.EffectForms,
             EffectDescription = effectDescription,
             Title = counterAction.FormatTitle(),
             Action = null,

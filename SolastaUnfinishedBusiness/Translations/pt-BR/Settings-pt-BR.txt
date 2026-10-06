@@ -271,7 +271,8 @@ ModUi/&EnableSignatureSpellsRelearn=Habilitar <color=#D89555>Feitiços de Assina
 ModUi/&EnableSmiteSpells2024=Swap smite feitiços com 5e 2024 versão <i> <color=#f0daa0> [gatilho no acerto e não requer concentração] </color> </i>
 ModUi/&EnableSorcererArcaneApotheosis2024=Habilitar <color=#D89555>Apoteose Arcana</color> para substituir <color=#D89555>Restauração Feiticeira</color> no nível 20
 ModUi/&EnableSorcererDraconicBloodlineAC2024=Ative a versão 2024 da <color=#D89555>Resiliência Dracônica</color> de <color=#D89555>Linhagem Dracônica</color> <i><color=#F0DAA0>[10+DEX+CHA em vez de 13+DEX]</color></i>
-ModUi/&EnableSorcererDraconicBloodlineResistance2024=Ative a resistência de 2024 da <color=#D89555>Linhagem Dracônica</color> <i><color=#F0DAA0>(resistência permanente ao tipo de dano da sua ancestralidade)</color></i>
+ModUi/&EnableSorcererDraconicBloodlineElementalAffinity2024=Escolha a ancestralidade dracônica da <color=#D89555>Linhagem Dracônica</color> no nível 6 de feiticeiro
+ModUi/&EnableSorcererDraconicBloodlineResistance2024=Ative a resistência de 2024 da <color=#D89555>Linhagem Dracônica</color> <i><color=#F0DAA0>(resistência permanente ao tipo de dano da sua ancestralidade dracônica)</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=Habilitar <color=#D89555>Feitiçaria Inata</color> e <color=#D89555>Feitiçaria Encarnada</color> nos níveis 1 e 7
 ModUi/&EnableSorcererMagicalGuidance=Habilitar <color=#D89555>Orientação Mágica</color> no nível 5
 ModUi/&EnableSorcererMetamagic2024=Usar as regras de 2024 de <color=#D89555>Metamagia</color>: obter Metamagia no nível 2, opções adicionais nos níveis 10 e 17 e aplicar as regras atualizadas das opções

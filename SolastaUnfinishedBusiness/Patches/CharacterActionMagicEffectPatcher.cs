@@ -10,6 +10,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Interfaces;
@@ -862,6 +863,28 @@ public static class CharacterActionMagicEffectPatcher
                 yield break;
             }
 
+            List<GameLocationCharacter> heightenedTargets = null;
+            if (MetamagicContext.RequiresHeightenedTargetSelection(rulesetEffect))
+            {
+                // Prepare retargeting spells without committing their conditions or animations.
+                heightenedTargets = baseDefinition.GetFirstSubFeatureOfType<IPowerOrSpellTargetProvider>()
+                    ?.GetTargetCharacters(__instance) ?? new List<GameLocationCharacter>(targets);
+                heightenedTargets.RemoveAll(target => !filters.All(filter => filter.CanAffectTarget(rulesetEffect, actingCharacter, target)));
+                __instance.GetAdvancementData();
+                __instance.ApplyTargetFiltering(effectDescription, heightenedTargets, baseDefinition);
+                if (effectDescription.TargetType == TargetType.ClosestWithinDistance)
+                {
+                    targetingService.FilterClosestTargets((Vector3Int)actingCharacter.LocationPosition, heightenedTargets);
+                }
+
+                var selected = false;
+                yield return MetamagicContext.SelectHeightenedTarget(__instance, heightenedTargets, battleManager, valid => selected = valid);
+                if (!selected)
+                {
+                    rulesetEffect.Terminate(false);
+                    yield break;
+                }
+            }
             //PATCH: supports `IMagicEffectBeforeInitiatedByMe`
             foreach (var magicEffectBeforeInitiatedByMe in actingCharacter.RulesetCharacter
                          .GetSubFeaturesByType<IMagicEffectBeforeInitiatedByMe>())
@@ -879,6 +902,18 @@ public static class CharacterActionMagicEffectPatcher
             if (powerOrSpellInitiatedByMe != null)
             {
                 yield return powerOrSpellInitiatedByMe.OnPowerOrSpellInitiatedByMe(__instance, baseDefinition);
+            }
+
+            if (heightenedTargets != null)
+            {
+                // Keep native target modifiers attached to their creature when a provider retargets.
+                var modifiersByTarget = targets.Select((target, index) => (target, index))
+                    .Where(entry => entry.index < actionModifiers.Count)
+                    .GroupBy(entry => entry.target.Guid)
+                    .ToDictionary(group => group.Key, group => actionModifiers[group.First().index]);
+                targets.SetRange(heightenedTargets);
+                actionModifiers.SetRange(targets.Select(target =>
+                    modifiersByTarget.TryGetValue(target.Guid, out var modifier) ? modifier : new ActionModifier()));
             }
 
             //PATCH: supports `IMagicEffectInitiatedByMe`
@@ -978,18 +1013,22 @@ public static class CharacterActionMagicEffectPatcher
             __instance.HandleEffectUniqueness();
 
             // Has the magic effect been cast with a higher level ?
-            __instance.GetAdvancementData();
+            if (heightenedTargets == null)
+            {
+                __instance.GetAdvancementData();
+            }
 
             // Is the magic effect countering something ?
             yield return __instance.CounterEffectAction(__instance);
 
-            // Targets sub filtering
-            __instance.ApplyTargetFiltering(effectDescription, targets, __instance.GetBaseDefinition());
-
-            // Get the closest targets only: used for bard Thundering voice for example
-            if (effectDescription.TargetType == TargetType.ClosestWithinDistance)
+            if (heightenedTargets == null)
             {
-                targetingService.FilterClosestTargets((Vector3Int)actingCharacter.LocationPosition, targets);
+                // Targets sub filtering; Heightened already prepared this once before its choice.
+                __instance.ApplyTargetFiltering(effectDescription, targets, __instance.GetBaseDefinition());
+                if (effectDescription.TargetType == TargetType.ClosestWithinDistance)
+                {
+                    targetingService.FilterClosestTargets((Vector3Int)actingCharacter.LocationPosition, targets);
+                }
             }
 
             if (effectDescription.TargetType == TargetType.Position ||
@@ -1594,24 +1633,29 @@ public static class CharacterActionMagicEffectPatcher
                 {
                     // Saving throw?
                     var hasBorrowedLuck = rulesetTarget.HasConditionOfTypeOrSubType(ConditionBorrowedLuck);
+                    var savingThrow = actualEffectForms.Select(form => form.OverrideSavingThrowInfo)
+                        .FirstOrDefault(info => info != null);
+                    var savingThrowSource = MetamagicContext.GetSavingThrowSpell(
+                        actingCharacter.RulesetCharacter, rulesetEffect.SourceDefinition, actualEffectForms, rulesetEffect);
 
+                    using var heightenedSaveScope = MetamagicContext.DelayHeightenedConsumption(savingThrowSource, rulesetTarget);
                     using var savingRollContext = new D20RollContext(rulesetTarget as RulesetCharacter, RollContext.SavingThrow,
-                        effectDescription.SavingThrowAbility, advantageTrends: actionModifier.SavingThrowAdvantageTrends,
-                        canGainAdvantage: effectDescription.HasSavingThrow);
+                        savingThrow?.SavingThrowAbility ?? effectDescription.SavingThrowAbility,
+                        advantageTrends: actionModifier.SavingThrowAdvantageTrends,
+                        canGainAdvantage: savingThrow != null || effectDescription.HasSavingThrow);
 
                     yield return savingRollContext.Prompt(actingCharacter);
 
+                    bool RollSavingThrow(ActionModifier modifier, out RollOutcome result, out int delta)
+                    {
+                        return rulesetEffect.TryRollSavingThrow(
+                            actingCharacter.RulesetCharacter, actingCharacter.Side, rulesetTarget,
+                            modifier, actualEffectForms, hasSavingThrowAnimation, out result, out delta);
+                    }
+
                     using (savingRollContext.Activate())
                     {
-                        __instance.RolledSaveThrow = rulesetEffect.TryRollSavingThrow(
-                            actingCharacter.RulesetCharacter,
-                            actingCharacter.Side,
-                            rulesetTarget,
-                            actionModifier,
-                            actualEffectForms,
-                            hasSavingThrowAnimation,
-                            out var saveOutcome,
-                            out var saveOutcomeDelta);
+                        __instance.RolledSaveThrow = RollSavingThrow(actionModifier, out var saveOutcome, out var saveOutcomeDelta);
 
                         __instance.SaveOutcome = saveOutcome;
                         __instance.SaveOutcomeDelta = saveOutcomeDelta;
@@ -1630,9 +1674,12 @@ public static class CharacterActionMagicEffectPatcher
                             SaveBonusAndRollModifier = RulesetActorExtensions.SaveBonusAndRollModifier,
                             SavingThrowAbility = RulesetActorExtensions.SavingThrowAbility,
                             SourceDefinition = null,
+                            SourceEffect = savingThrowSource != null ? rulesetEffect : null,
+                            SavingThrowForms = actualEffectForms,
                             EffectDescription = rulesetEffect.EffectDescription,
                             Title = __instance.FormatTitle(),
-                            Action = __instance
+                            Action = __instance,
+                            RerollSavingThrow = RollSavingThrow
                         };
 
                         yield return TryAlterOutcomeSavingThrow.Handler(

@@ -1382,8 +1382,20 @@ public static class RulesetImplementationManagerPatcher
         public static bool Prefix(
             RulesetCharacter caster,
             RulesetActor target,
-            BaseDefinition sourceDefinition)
+            BaseDefinition sourceDefinition,
+            List<EffectForm> effectForms,
+            bool hasSavingThrow,
+            Side sourceSide,
+            bool disableSavingThrowOnAllies,
+            ref MetamagicOptionDefinition metamagicOption)
         {
+            if (metamagicOption == null && MetamagicContext.GetSavingThrowSpell(
+                    caster, sourceDefinition, effectForms) is { } spell)
+            {
+                metamagicOption = MetamagicContext.PrepareSavingThrowMetamagic(spell, target,
+                    hasSavingThrow, sourceSide, disableSavingThrowOnAllies, effectForms);
+            }
+
             //PATCH: illusionary spells against creatures with True Sight should automatically save
             if (!Main.Settings.IllusionSpellsAutomaticallyFailAgainstTrueSightInRange ||
                 target is not RulesetCharacter targetCharacter ||

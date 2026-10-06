@@ -868,7 +868,7 @@ internal static class CampaignTranslationRuntimeRepairContext
             var length = fileInfo.Length;
             var lastWriteTimeUtc = fileInfo.LastWriteTimeUtc;
 
-            if (!TryReadTopLevelString(path, "title", out var title) ||
+            if (!DungeonMakerContext.TryReadTopLevelString(path, "title", out var title) ||
                 !string.Equals(title, campaignTitle, StringComparison.Ordinal))
             {
                 return false;
@@ -905,70 +905,6 @@ internal static class CampaignTranslationRuntimeRepairContext
         {
             return false;
         }
-    }
-
-    private static bool TryReadTopLevelString(
-        [NotNull] string path,
-        [NotNull] string propertyName,
-        [CanBeNull] out string value)
-    {
-        value = null;
-
-        using var stream = File.OpenRead(path);
-        using var textReader = new StreamReader(stream);
-        using var jsonReader = new JsonTextReader(textReader);
-
-        if (!ReadNextNonComment(jsonReader) ||
-            jsonReader.TokenType != JsonToken.StartObject)
-        {
-            return false;
-        }
-
-        while (ReadNextNonComment(jsonReader))
-        {
-            if (jsonReader.TokenType == JsonToken.EndObject)
-            {
-                return false;
-            }
-
-            if (jsonReader.TokenType != JsonToken.PropertyName)
-            {
-                return false;
-            }
-
-            var currentPropertyName = jsonReader.Value as string;
-
-            if (!ReadNextNonComment(jsonReader))
-            {
-                return false;
-            }
-
-            if (string.Equals(currentPropertyName, propertyName, StringComparison.Ordinal))
-            {
-                value = jsonReader.TokenType == JsonToken.String
-                    ? jsonReader.Value as string
-                    : null;
-
-                return !string.IsNullOrWhiteSpace(value);
-            }
-
-            jsonReader.Skip();
-        }
-
-        return false;
-    }
-
-    private static bool ReadNextNonComment([NotNull] JsonReader reader)
-    {
-        while (reader.Read())
-        {
-            if (reader.TokenType != JsonToken.Comment)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     [NotNull]

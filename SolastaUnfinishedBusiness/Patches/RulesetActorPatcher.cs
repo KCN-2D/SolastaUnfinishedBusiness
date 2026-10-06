@@ -568,6 +568,51 @@ public static class RulesetActorPatcher
         }
     }
 
+    [HarmonyPatch(typeof(RulesetActor), nameof(RulesetActor.SaveToCancelCondition))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class SaveToCancelCondition_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var codes = instructions.ReplaceCalls(
+                AccessTools.PropertyGetter(typeof(RulesetCondition), nameof(RulesetCondition.SaveOverrideDC)),
+                "RulesetActor.SaveToCancelCondition.SaveDC",
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(SmiteSpells2024Context),
+                    nameof(SmiteSpells2024Context.GetConditionSavingThrowDc)))).ToList();
+            var save = AccessTools.Method(typeof(IRulesetImplementationService), nameof(IRulesetImplementationService.TryRollSavingThrow));
+            var origin = AccessTools.Method(typeof(MetamagicContext), nameof(MetamagicContext.GetConditionSavingThrowMetamagic));
+            var completed = AccessTools.Method(typeof(MetamagicContext), nameof(MetamagicContext.CompleteConditionSavingThrow));
+            var replaced = 0;
+            for (var index = 0; index < codes.Count; index++)
+            {
+                if (index + 3 < codes.Count && codes[index].opcode == OpCodes.Ldnull &&
+                    codes[index + 1].opcode == OpCodes.Ldloca_S && codes[index + 2].opcode == OpCodes.Ldloca_S &&
+                    codes[index + 3].Calls(save))
+                {
+                    codes[index].opcode = OpCodes.Ldarg_1;
+                    yield return codes[index];
+                    yield return new CodeInstruction(OpCodes.Call, origin);
+                    replaced++;
+                    continue;
+                }
+
+                yield return codes[index];
+                if (codes[index].Calls(save))
+                {
+                    yield return new CodeInstruction(OpCodes.Ldarg_1);
+                    yield return new CodeInstruction(OpCodes.Call, completed);
+                }
+            }
+
+            if (replaced != 1)
+            {
+                throw new InvalidOperationException($"SaveToCancelCondition expected 1 metamagic argument, found {replaced}.");
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetActor), nameof(RulesetActor.RemoveCondition))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -605,6 +650,8 @@ public static class RulesetActorPatcher
             var caster = EffectHelpers.GetCharacterByGuid(rulesetCondition.SourceGuid);
             var effectForms = new List<EffectForm>();
 
+            var savingThrowSource = MetamagicContext.GetConditionSavingThrowSpell(rulesetCondition);
+            MetamagicContext.ApplyHeightenedSavingThrow(savingThrowSource, __instance, advantageTrends);
             rulesetCondition.BuildDummyEffectForms(effectForms);
             __instance.MyRollSavingThrow(
                 caster,
@@ -619,6 +666,7 @@ public static class RulesetActorPatcher
                 ref outcome,
                 ref outcomeDelta,
                 effectForms);
+            MetamagicContext.CompleteHeightenedSavingThrow(savingThrowSource, __instance);
         }
     }
 
@@ -660,6 +708,8 @@ public static class RulesetActorPatcher
             var caster = EffectHelpers.GetCharacterByGuid(rulesetCondition.SourceGuid);
             var effectForms = new List<EffectForm>();
 
+            var savingThrowSource = MetamagicContext.GetConditionSavingThrowSpell(rulesetCondition);
+            MetamagicContext.ApplyHeightenedSavingThrow(savingThrowSource, __instance, advantageTrends);
             rulesetCondition.BuildDummyEffectForms(effectForms);
             __instance.MyRollSavingThrow(
                 caster,
@@ -808,6 +858,10 @@ public static class RulesetActorPatcher
                     var outcomeDelta = 0;
                     var outcome = RollOutcome.Failure;
 
+                    var savingThrowSource = rulesetCondition.ConditionDefinition.InterruptionSavingThrowComputationMethod ==
+                        InterruptionSavingThrowComputationMethod.SaveOverride
+                        ? MetamagicContext.GetConditionSavingThrowSpell(rulesetCondition) : null;
+                    MetamagicContext.ApplyHeightenedSavingThrow(savingThrowSource, __instance, effectModifier.SavingThrowAdvantageTrends);
                     rulesetCondition.BuildDummyEffectForms(effectForms);
                     __instance.MyRollSavingThrow(
                         caster,
@@ -822,6 +876,7 @@ public static class RulesetActorPatcher
                         ref outcome,
                         ref outcomeDelta,
                         effectForms);
+                    MetamagicContext.CompleteHeightenedSavingThrow(savingThrowSource, __instance);
                     //END PATCH
 
                     if (outcome == RollOutcome.Success ==

@@ -324,18 +324,19 @@ public static class CharacterStageProficiencySelectionPanelPatcher
 
     private static void RefreshLearnStepTitles(CharacterStageProficiencySelectionPanel __instance)
     {
+        UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.learnStepsTable);
         foreach (var item in EnumerateLearnStepItems(__instance))
         {
-            if (!TryGetLearnStepTitleOverride(__instance, item, out var title))
+            if (TryGetLearnStepTitleOverride(__instance, item, out var title))
             {
-                continue;
+                item.headerLabelActive.Text = title;
+                item.headerLabelInactive.Text = title;
             }
 
-            item.headerLabelActive.Text = title;
-            item.headerLabelInactive.Text = title;
-            UiTextHelpers.FitCardTitle(item.headerLabelActive.TMP_Text, 0.5f, maxVisibleLines: 3);
-            UiTextHelpers.FitCardTitle(item.headerLabelInactive.TMP_Text, 0.5f, maxVisibleLines: 3);
+            MulticlassGameUi.ApplyLearnStepLayout(item, item.activeGroup.gameObject.activeSelf);
         }
+
+        UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.learnStepsTable);
     }
 
     private static bool HasTrainedFeat(CharacterHeroBuildingData buildingData, string tag, FeatDefinition feat = null)
@@ -880,6 +881,15 @@ public static class CharacterStageProficiencySelectionPanelPatcher
     public static class Refresh_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(CharacterStageProficiencySelectionPanel __instance)
+        {
+            foreach (var item in EnumerateLearnStepItems(__instance))
+            {
+                MulticlassGameUi.RestoreLearnStepLayout(item);
+            }
+        }
+
+        [UsedImplicitly]
         public static void Postfix(CharacterStageProficiencySelectionPanel __instance)
         {
             //PATCH: support for skipping skill and tool proficiency picking if you picked all available, but still have points remaining
@@ -907,6 +917,7 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             {
                 item.autoLearnAvailable = true;
                 item.Refresh(LearnStepItem.Status.InProgress);
+                RefreshLearnStepTitles(__instance);
             }
 
             var needSkip = false;
@@ -962,6 +973,7 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             {
                 item.ignoreAvailable = true;
                 item.Refresh(LearnStepItem.Status.InProgress);
+                RefreshLearnStepTitles(__instance);
 
                 return;
             }

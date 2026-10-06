@@ -149,6 +149,11 @@ internal static class GLBM
 
             case RuleDefinitions.EffectDifficultyClassComputation.SpellCastingFeature:
             {
+                if (SmiteSpells2024Context.GetSavingThrowSpell(character, provider as BaseDefinition, null) is { } spell)
+                {
+                    return spell.SaveDC;
+                }
+
                 //BUGFIX: original game code considers first repertoire
                 var saveDc = 10;
 
@@ -253,8 +258,12 @@ internal static class GLBM
         description.hasSavingThrow = true;
         description.savingThrowAbility = savingThrow.SavingThrowAbility;
         description.effectForms.SetRange(forms);
+        DatabaseHelper.TryGetDefinition(savingThrow.SourceDefinitionName, out FeatureDefinition sourceDefinition);
+        var sourceEffect = MetamagicContext.GetSavingThrowSpell(
+            attacker.RulesetCharacter, sourceDefinition, forms, parameters.activeEffect);
         var hasBorrowedLuck = target.RulesetActor.HasConditionOfTypeOrSubType(RuleDefinitions.ConditionBorrowedLuck);
 
+        using var heightenedSaveScope = MetamagicContext.DelayHeightenedConsumption(sourceEffect, target.RulesetActor);
         using var rollContext = new D20RollContext(
             target.RulesetCharacter, RuleDefinitions.RollContext.SavingThrow, savingThrow.SavingThrowAbility,
             advantageTrends: modifier.SavingThrowAdvantageTrends);
@@ -274,8 +283,6 @@ internal static class GLBM
 
         if (parameters.rolledSaveThrow)
         {
-            DatabaseHelper.TryGetDefinition(savingThrow.SourceDefinitionName, out FeatureDefinition sourceDefinition);
-
             var data = new SavingThrowData
             {
                 SaveActionModifier = modifier,
@@ -287,6 +294,8 @@ internal static class GLBM
                 SaveBonusAndRollModifier = RulesetActorExtensions.SaveBonusAndRollModifier,
                 SavingThrowAbility = RulesetActorExtensions.SavingThrowAbility,
                 SourceDefinition = sourceDefinition,
+                SourceEffect = sourceEffect != null ? parameters.activeEffect ?? sourceEffect : null,
+                SavingThrowForms = forms,
                 EffectDescription = description,
                 Title = sourceDefinition?.FormatTitle() ?? action.FormatTitle(),
                 RerollSavingThrow = Roll
@@ -309,6 +318,13 @@ internal static class GLBM
             if (parameters.activeEffect != null)
             {
                 return parameters.activeEffect.TryRollSavingThrow(
+                    attacker.RulesetCharacter, attacker.Side, target.RulesetActor,
+                    savingModifier, forms, false, out result, out delta);
+            }
+
+            if (sourceEffect != null)
+            {
+                return sourceEffect.TryRollSavingThrow(
                     attacker.RulesetCharacter, attacker.Side, target.RulesetActor,
                     savingModifier, forms, false, out result, out delta);
             }

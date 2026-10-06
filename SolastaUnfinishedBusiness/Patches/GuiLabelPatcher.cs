@@ -28,6 +28,30 @@ public static class GuiLabelPatcher
         {
             FitActionPanelTitle(__instance);
 
+            if (__instance.GetComponentInParent<SettingKeyMappingItem>() is { } keyMapping)
+            {
+                UiTextHelpers.FitSettingKeyMapping(keyMapping);
+            }
+
+            if (__instance.GetComponentInParent<SettingItem>() is { } settingItem &&
+                settingItem.TitleLabel == __instance)
+            {
+                UiTextHelpers.FitSettingItemCaption(settingItem);
+            }
+
+            if (__instance.GetComponentInParent<SettingRadioChoice>() is { } settingChoice &&
+                settingChoice.titleLabel == __instance)
+            {
+                UiTextHelpers.FitSettingChoiceCaption(settingChoice);
+            }
+
+            if (__instance.GetComponentInParent<SettingsTabToggle>() is { } settingsTab &&
+                settingsTab.title == __instance &&
+                settingsTab.GetComponentInParent<SettingsPanel>() is { } settingsPanel)
+            {
+                UiTextHelpers.FitSettingsTabs(settingsPanel);
+            }
+
             if (__instance.GetComponentInParent<CharacterActionItemForm>() is { } actionForm &&
                 actionForm.captionLabel?.tmpText == __instance.TMP_Text)
             {

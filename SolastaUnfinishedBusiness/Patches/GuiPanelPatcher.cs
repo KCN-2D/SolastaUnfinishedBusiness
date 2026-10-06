@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Models;
 
@@ -33,6 +34,12 @@ public static class GuiPanelPatcher
         public static void Postfix(GuiPanel __instance)
         {
             CampaignsContext.InvalidateSpellSelectionHud(__instance);
+
+            if (__instance is SettingsPanel settingsPanel)
+            {
+                UiTextHelpers.FitSettingsTabs(settingsPanel);
+            }
+
             //PATCH: Keeps last level up hero selected
             if (__instance is not MainMenuScreen mainMenuScreen || Global.LastLevelUpHeroName == null)
             {

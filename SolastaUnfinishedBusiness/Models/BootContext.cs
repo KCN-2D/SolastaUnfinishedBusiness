@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -422,24 +423,80 @@ internal static class BootContext
         {
             using var stream = File.OpenRead(userCampaign);
             using var textReader = new StreamReader(stream);
-            using var jsonReader = new JsonTextReader(textReader);
-            var infoJson = JObject.Load(jsonReader);
-
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return null;
-            }
+            using var jsonReader = new CampaignAuditJsonReader(textReader, cancellationToken);
+            var references = ReadReferenceCollections(jsonReader);
+            cancellationToken.ThrowIfCancellationRequested();
 
             return new UserCampaignReferenceAudit(
                 campaignName,
-                GetReferenceDefinitions(infoJson, "userItems"),
-                GetReferenceDefinitions(infoJson, "userMonsters"),
+                GetReferenceDefinitions(references, "userItems"),
+                GetReferenceDefinitions(references, "userMonsters"),
                 false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return null;
         }
         catch
         {
             return new UserCampaignReferenceAudit(campaignName, [], [], true);
         }
+    }
+
+    private static JObject ReadReferenceCollections(JsonReader reader)
+    {
+        if (!ReadJsonContent(reader) || reader.TokenType != JsonToken.StartObject)
+        {
+            throw new JsonReaderException("A user campaign must be a JSON object.");
+        }
+
+        var references = new JObject();
+        var depth = reader.Depth;
+
+        while (ReadJsonContent(reader))
+        {
+            if (reader.TokenType == JsonToken.EndObject && reader.Depth == depth)
+            {
+                return references;
+            }
+
+            if (reader.TokenType != JsonToken.PropertyName)
+            {
+                throw new JsonReaderException("Expected a campaign property.");
+            }
+
+            var property = (string)reader.Value;
+
+            if (!ReadJsonContent(reader))
+            {
+                throw new JsonReaderException("Expected a campaign property value.");
+            }
+
+            if (property is "userItems" or "userMonsters")
+            {
+                references[property] = JToken.ReadFrom(reader);
+            }
+            else
+            {
+                // Locations, dialogs and other campaign data are not needed by the reference audit.
+                reader.Skip();
+            }
+        }
+
+        throw new JsonReaderException("The campaign JSON object is incomplete.");
+    }
+
+    private static bool ReadJsonContent(JsonReader reader)
+    {
+        while (reader.Read())
+        {
+            if (reader.TokenType != JsonToken.Comment)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string[] GetReferenceDefinitions(JObject infoJson, string collectionName)
@@ -450,6 +507,24 @@ internal static class BootContext
                 .Where(reference => !string.IsNullOrWhiteSpace(reference))
                 .ToArray()
             : [];
+    }
+
+    private sealed class CampaignAuditJsonReader : JsonTextReader
+    {
+        private readonly CancellationToken _cancellationToken;
+
+        internal CampaignAuditJsonReader(TextReader reader, CancellationToken cancellationToken)
+            : base(reader)
+        {
+            _cancellationToken = cancellationToken;
+        }
+
+        public override bool Read()
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+
+            return base.Read();
+        }
     }
 
     private static void CompleteMissingReferencesAudit(CancellationToken cancellationToken)

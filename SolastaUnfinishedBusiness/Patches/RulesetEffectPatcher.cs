@@ -104,6 +104,11 @@ public static class RulesetEffectPatcher
                 typeof(ConditionSaveRerollRequested_Patch).GetMethod("RollSavingThrow");
             //PATCH: make ISpellCastingAffinityProvider from dynamic item properties apply to repertoires
             return instructions
+                .ReplaceCalls(AccessTools.Method(typeof(RulesetActor), nameof(RulesetActor.IsAutomaticallyFailingSavingThrow)),
+                    1, "RulesetEffect.ConditionSaveRerollRequested.IsAutomaticallyFailingSavingThrow",
+                    new CodeInstruction(OpCodes.Ldarg_0),
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(MetamagicContext),
+                        nameof(MetamagicContext.IsAutomaticallyFailingSpellSavingThrow))))
                 .ReplaceCalls(rollSavingThrowMethod,
                     "RulesetEffect.ConditionSaveRerollRequested",
                     new CodeInstruction(OpCodes.Ldarg, 0),
@@ -134,6 +139,7 @@ public static class RulesetEffectPatcher
                 return;
             }
 
+            MetamagicContext.ApplyHeightenedSavingThrow(rulesetEffect, __instance, advantageTrends);
             __instance.MyRollSavingThrow(
                 caster,
                 saveBonus,
@@ -147,6 +153,7 @@ public static class RulesetEffectPatcher
                 ref outcome,
                 ref outcomeDelta,
                 effectForms);
+            MetamagicContext.CompleteHeightenedSavingThrow(MetamagicContext.GetOriginatingSpell(rulesetEffect), __instance);
         }
     }
 
@@ -155,8 +162,23 @@ public static class RulesetEffectPatcher
     public static class TryRollSavingThrow_Patch
     {
         [UsedImplicitly]
-        private static void Postfix(RulesetCharacter caster, RulesetActor target, bool __result)
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
+            return instructions.ReplaceCalls(
+                AccessTools.PropertyGetter(typeof(RulesetEffect), nameof(RulesetEffect.MetamagicOption)),
+                1, "RulesetEffect.TryRollSavingThrow",
+                new CodeInstruction(OpCodes.Ldarg_2),
+                new CodeInstruction(OpCodes.Ldarg_3),
+                new CodeInstruction(OpCodes.Ldarg, 5),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(MetamagicContext),
+                    nameof(MetamagicContext.GetEffectSavingThrowMetamagic))));
+        }
+
+        [UsedImplicitly]
+        private static void Postfix(RulesetEffect __instance, RulesetCharacter caster, RulesetActor target,
+            List<EffectForm> actualEffectForms, bool __result)
+        {
+            MetamagicContext.CompleteNativeHeightenedSavingThrow(__instance, caster, target, actualEffectForms, __result);
             if (__result && caster != null && target != caster &&
                 GameLocationCharacter.GetFromActor(caster) is { } source &&
                 GameLocationCharacter.GetFromActor(target) is { } defender && source.Side != defender.Side)

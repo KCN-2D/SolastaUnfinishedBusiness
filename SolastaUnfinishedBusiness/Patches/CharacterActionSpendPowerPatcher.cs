@@ -5,10 +5,12 @@ using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -148,23 +150,22 @@ public static class CharacterActionSpendPowerPatcher
 
                 if (activePower != null)
                 {
+                    var savingThrowForms = activePower.EffectDescription.EffectForms;
+                    var savingThrowSource = MetamagicContext.GetSavingThrowSpell(actingCharacter.RulesetCharacter,
+                        activePower.GetSourceDefinitionSafe(), savingThrowForms, activePower);
+                    using var heightenedSaveScope = MetamagicContext.DelayHeightenedConsumption(savingThrowSource, target.RulesetActor);
                     using var savingRollContext = new D20RollContext(target.RulesetCharacter, RuleDefinitions.RollContext.SavingThrow,
                         activePower.EffectDescription.SavingThrowAbility, advantageTrends: actionModifier.SavingThrowAdvantageTrends,
                         canGainAdvantage: activePower.EffectDescription.HasSavingThrow);
 
                     yield return savingRollContext.Prompt(actingCharacter);
 
+                    bool RollSavingThrow(ActionModifier modifier, out RuleDefinitions.RollOutcome outcome, out int delta) =>
+                        activePower.TryRollSavingThrow(actingCharacter.RulesetCharacter, actingCharacter.Side,
+                            target.RulesetActor, modifier, savingThrowForms, false, out outcome, out delta);
                     using (savingRollContext.Activate())
                     {
-                        __instance.RolledSaveThrow = activePower.TryRollSavingThrow(
-                            actingCharacter.RulesetCharacter,
-                            actingCharacter.Side,
-                            target.RulesetActor,
-                            actionModifier,
-                            activePower.EffectDescription.EffectForms,
-                            false,
-                            out var saveOutcome,
-                            out var saveOutcomeDelta);
+                        __instance.RolledSaveThrow = RollSavingThrow(actionModifier, out var saveOutcome, out var saveOutcomeDelta);
 
                         __instance.SaveOutcome = saveOutcome;
                         __instance.SaveOutcomeDelta = saveOutcomeDelta;
@@ -183,9 +184,12 @@ public static class CharacterActionSpendPowerPatcher
                             SaveBonusAndRollModifier = RulesetActorExtensions.SaveBonusAndRollModifier,
                             SavingThrowAbility = RulesetActorExtensions.SavingThrowAbility,
                             SourceDefinition = null,
+                            SourceEffect = savingThrowSource != null ? activePower : null,
+                            SavingThrowForms = savingThrowForms,
                             EffectDescription = rulesetEffect.EffectDescription,
                             Title = __instance.FormatTitle(),
-                            Action = __instance
+                            Action = __instance,
+                            RerollSavingThrow = RollSavingThrow
                         };
 
                         yield return TryAlterOutcomeSavingThrow.Handler(

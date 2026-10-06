@@ -271,7 +271,8 @@ ModUi/&EnableSignatureSpellsRelearn=Activer les <color=#D89555>sorts signatures<
 ModUi/&EnableSmiteSpells2024=Échangez des sorts Smite avec la version 5e 2024 <i> <color=#f0daa0> [Déclencher sur le coup et ne nécessite pas de concentration] </color> </i>
 ModUi/&EnableSorcererArcaneApotheosis2024=Activez <color=#D89555>Apothéose arcanique</color> pour remplacer <color=#D89555>Restauration magique</color> au niveau 20
 ModUi/&EnableSorcererDraconicBloodlineAC2024=Activer la version 2024 de la <color=#D89555>Résilience draconique</color> à partir de la <color=#D89555>Lignée draconique</color> <i><color=#F0DAA0>[10+DEX+CHA au lieu de 13+DEX]</color></i>
-ModUi/&EnableSorcererDraconicBloodlineResistance2024=Activer la résistance de la <color=#D89555>Lignée draconique</color> de 2024 <i><color=#F0DAA0>(résistance permanente au type de dégâts de votre ascendance)</color></i>
+ModUi/&EnableSorcererDraconicBloodlineElementalAffinity2024=Choisissez l'ascendance draconique de la <color=#D89555>Lignée draconique</color> au niveau 6 d'ensorceleur
+ModUi/&EnableSorcererDraconicBloodlineResistance2024=Activer la résistance de la <color=#D89555>Lignée draconique</color> de 2024 <i><color=#F0DAA0>(résistance permanente au type de dégâts de votre ascendance draconique)</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=Activez la <color=#D89555>Sorcellerie innée</color> et la <color=#D89555>Sorcellerie incarnée</color> aux niveaux 1 et 7
 ModUi/&EnableSorcererMagicalGuidance=Activer la <color=#D89555>guidance magique</color> au niveau 5
 ModUi/&EnableSorcererMetamagic2024=Utiliser les règles 2024 de <color=#D89555>Métamagie</color> : obtenir la Métamagie au niveau 2, des options supplémentaires aux niveaux 10 et 17, et appliquer les règles d'options mises à jour

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -8,6 +9,7 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
     internal const string Name = "ReactionSelectTarget";
 
     private readonly string _type;
+    private readonly Func<GameLocationCharacter, bool> _candidateValidator;
     private int _selectedOption = -1;
 
     internal ReactionRequestSelectTarget(
@@ -22,10 +24,12 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
         CharacterActionParams reactionParams,
         IEnumerable<GameLocationCharacter> candidates,
         string type,
-        BaseDefinition effectDefinition)
+        BaseDefinition effectDefinition,
+        Func<GameLocationCharacter, bool> candidateValidator = null)
         : base(Name, reactionParams)
     {
         _type = type;
+        _candidateValidator = candidateValidator ?? IsCandidateValid;
         EffectDefinition = effectDefinition;
         Candidates = candidates
             .Where(candidate => candidate != null)
@@ -44,7 +48,7 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
     internal GameLocationCharacter SelectedTarget =>
         _selectedOption >= 0 &&
         _selectedOption < Candidates.Count &&
-        IsCandidateValid(Candidates[_selectedOption])
+        IsCandidateAvailable(Candidates[_selectedOption])
             ? Candidates[_selectedOption]
             : null;
 
@@ -52,7 +56,9 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
 
     public override string SuboptionTag => _type;
 
-    public override bool IsStillValid => Candidates.Any(IsCandidateValid);
+    public override bool IsStillValid => Candidates.Any(IsCandidateAvailable);
+
+    internal bool IsCandidateAvailable(GameLocationCharacter candidate) => _candidateValidator(candidate);
 
     internal static bool IsCandidateValid(GameLocationCharacter candidate)
     {
@@ -72,7 +78,7 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
         actionModifiers.Clear();
         _selectedOption = -1;
 
-        if (option < 0 || option >= Candidates.Count || !IsCandidateValid(Candidates[option]))
+        if (option < 0 || option >= Candidates.Count || !IsCandidateAvailable(Candidates[option]))
         {
             return;
         }
@@ -114,7 +120,7 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
 
         for (var index = 0; index < Candidates.Count; index++)
         {
-            SubOptionsAvailability.Add(index, IsCandidateValid(Candidates[index]));
+            SubOptionsAvailability.Add(index, IsCandidateAvailable(Candidates[index]));
         }
 
         foreach (var option in SubOptionsAvailability.Where(option => option.Value))

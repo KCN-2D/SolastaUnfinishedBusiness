@@ -44,6 +44,8 @@ public static class SpellsByLevelGroupPatcher
             ref Dictionary<SpellDefinition, string> tagBySpell,
             ref Dictionary<SpellDefinition, string> extraSpellsMap)
         {
+            UiTextHelpers.BeginSpellBoxGridLayout(__instance);
+
             if (caster == null || __instance.SpellRepertoire == null || allSpells == null)
             {
                 return;
@@ -65,6 +67,12 @@ public static class SpellsByLevelGroupPatcher
 
             CharacterInspectionScreenEnhancement.AddInspectionLearnedSpells(
                 __instance, caster, bindMode, allSpells, ref trainedSpells, tagBySpell);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(SpellsByLevelGroup __instance)
+        {
+            UiTextHelpers.EndSpellBoxGridLayout(__instance);
         }
     }
 }

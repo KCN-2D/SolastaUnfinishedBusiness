@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 
@@ -9,6 +10,18 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class SettingKeyMappingItemPatcher
 {
+    [HarmonyPatch(typeof(SettingKeyMappingItem), nameof(SettingKeyMappingItem.Refresh))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Refresh_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(SettingKeyMappingItem __instance)
+        {
+            UiTextHelpers.FitSettingKeyMapping(__instance);
+        }
+    }
+
     //PATCH: extend mod keybinding settings into vanilla settings screen
     [HarmonyPatch(typeof(SettingKeyMappingItem), nameof(SettingKeyMappingItem.OnValidateKeyCode))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]

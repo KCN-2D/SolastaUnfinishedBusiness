@@ -13,6 +13,18 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class UserLocationPoolManagerPatcher
 {
+    [HarmonyPatch(typeof(UserLocationPoolManager), "ReadLocationFromDisk")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ReadLocationFromDisk_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(string __0)
+        {
+            return DungeonMakerContext.ShouldReadUserContentFile(__0, nameof(UserLocation));
+        }
+    }
+
     //PATCH: allows the last X campaign files to be backed up in the mod folder
     [HarmonyPatch(typeof(UserLocationPoolManager), nameof(UserLocationPoolManager.SaveUserLocation))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]

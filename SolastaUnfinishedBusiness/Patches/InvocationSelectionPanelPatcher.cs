@@ -1,6 +1,10 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Collections.Generic;
+using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -8,6 +12,24 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class InvocationSelectionPanelPatcher
 {
+    [HarmonyPatch(typeof(InvocationSelectionPanel), nameof(InvocationSelectionPanel.OnBeginShow))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnBeginShow_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            return instructions.ReplaceCalls(
+                AccessTools.Method(typeof(IGuiService), nameof(IGuiService.ShowTutorial),
+                    [typeof(TutorialStepDefinition)]),
+                1, "InvocationSelectionPanel.OnBeginShow",
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(InvocationSelectionPanelExtensions),
+                    nameof(InvocationSelectionPanelExtensions.ShowTutorialIfRelevant))));
+        }
+    }
+
     [HarmonyPatch(typeof(InvocationSelectionPanel), nameof(InvocationSelectionPanel.SpellCastEngaged))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

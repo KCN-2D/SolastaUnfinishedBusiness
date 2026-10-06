@@ -1113,6 +1113,7 @@ internal static class LearnStepItemExtension
         LearnStepItem.Status status,
         CustomInvocationSelectionPanel.FeaturePool pool)
     {
+        MulticlassGameUi.RestoreLearnStepLayout(instance);
         var usedPoints = pool.Used;
         var maxPoints = pool.Max;
         var ignoreAvailable = instance.ignoreAvailable;
@@ -1153,6 +1154,8 @@ internal static class LearnStepItemExtension
             instance.RectTransform.sizeDelta = inactiveGroup.sizeDelta;
             instance.backOneStepButton.interactable = true;
         }
+
+        MulticlassGameUi.ApplyLearnStepLayout(instance, status == LearnStepItem.Status.InProgress);
     }
 }
 
@@ -1183,6 +1186,7 @@ internal static class SpellsByLevelGroupExtensions
     {
         instance.name = $"Feature[{pool.Name}]";
         instance.SpellLevel = featureLevel;
+        UiTextHelpers.BeginSpellBoxGridLayout(instance);
 
         var allFeatures = pool.GetLevelFeatures(featureLevel);
 
@@ -1235,6 +1239,8 @@ internal static class SpellsByLevelGroupExtensions
         {
             instance.RefreshLearning(hero, pool, learned, unlearned, canAcquireFeatures);
         }
+
+        UiTextHelpers.EndSpellBoxGridLayout(instance);
     }
 
     private static void RefreshLearning(this SpellsByLevelGroup instance,

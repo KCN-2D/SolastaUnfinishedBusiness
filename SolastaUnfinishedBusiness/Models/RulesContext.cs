@@ -71,7 +71,7 @@ internal static class RulesContext
             .Setup(InvocationPoolTypeCustom.Pools.PathOfTheElementsElementalFuryChoiceChoice)
             .AddToDB();
 
-    private static readonly FeatureDefinitionCustomInvocationPool InvocationPoolSorcererDraconicChoice =
+    internal static readonly FeatureDefinitionCustomInvocationPool InvocationPoolSorcererDraconicChoice =
         CustomInvocationPoolDefinitionBuilder
             .Create("InvocationPoolSorcererDraconicChoice")
             .SetGuiPresentation(FeatureSetSorcererDraconicChoice.GuiPresentation)

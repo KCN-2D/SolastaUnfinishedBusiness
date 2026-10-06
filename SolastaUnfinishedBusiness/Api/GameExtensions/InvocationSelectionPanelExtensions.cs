@@ -21,6 +21,33 @@ public static class InvocationSelectionPanelExtensions
             "OnPermanentInvocationToggled",
             [typeof(InvocationActivationBox)]);
 
+    internal static void ShowTutorialIfRelevant(
+        IGuiService guiService,
+        TutorialStepDefinition tutorial,
+        InvocationSelectionPanel panel)
+    {
+        // Custom pools share this panel. Only the displayed Warlock invocations explain this tutorial.
+        var table = panel.invocationsTable;
+
+        for (var index = 0; index < table.childCount; index++)
+        {
+            var box = table.GetChild(index).GetComponent<InvocationActivationBox>();
+
+            if (!box || !box.gameObject.activeSelf)
+            {
+                continue;
+            }
+
+            var definition = box.Invocation?.InvocationDefinition;
+
+            if (definition && definition is not InvocationDefinitionCustom)
+            {
+                guiService.ShowTutorial(tutorial);
+                return;
+            }
+        }
+    }
+
     //Custom bind that acknowledges bonus action invocations
     public static void CustomBind(
         this InvocationSelectionPanel invocationPanel,

@@ -262,7 +262,8 @@ ModUi/&EnableScimitarSpecialization=Grant Scimitar <color=#D89555>Weapon Special
 ModUi/&EnableSignatureSpellsRelearn=Enable <color=#D89555>Signature Spells</color> to be prepared every long rest <i><color=#F0DAA0>[instead of once at level 20]</color></i>
 ModUi/&EnableSorcererArcaneApotheosis2024=Enable <color=#D89555>Arcane Apotheosis</color> to replace <color=#D89555>Sorcerous Restoration</color> at level 20
 ModUi/&EnableSorcererDraconicBloodlineAC2024=Enable 2024 version of <color=#D89555>Draconic Resilience</color> from <color=#D89555>Draconic Bloodline</color>  <i><color=#F0DAA0>[10+DEX+CHA instead of 13+DEX]</color></i>
-ModUi/&EnableSorcererDraconicBloodlineResistance2024=Enable 2024 <color=#D89555>Draconic Bloodline</color> resistance <i><color=#F0DAA0>(permanent resistance to your ancestry’s damage type)</color></i>
+ModUi/&EnableSorcererDraconicBloodlineElementalAffinity2024=Choose the draconic ancestry of <color=#D89555>Draconic Bloodline</color> at Sorcerer level 6
+ModUi/&EnableSorcererDraconicBloodlineResistance2024=Enable 2024 <color=#D89555>Draconic Bloodline</color> resistance <i><color=#F0DAA0>(permanent resistance to the damage type of your draconic ancestry)</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=Enable <color=#D89555>Innate Sorcery</color> and <color=#D89555>Sorcery Incarnate</color> at levels 1 and 7
 ModUi/&EnableSorcererMagicalGuidance=Enable <color=#D89555>Magical Guidance</color> at level 5
 ModUi/&EnableSorcererMetamagic2024=Use 2024 <color=#D89555>Metamagic</color> rules: gain Metamagic at level 2, gain extra options at levels 10 and 17, and apply updated option rules

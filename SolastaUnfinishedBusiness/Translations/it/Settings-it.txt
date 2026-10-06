@@ -271,7 +271,8 @@ ModUi/&EnableSignatureSpellsRelearn=Abilita la preparazione degli <color=#D89555
 ModUi/&EnableSmiteSpells2024=Scambia gli incantesimi con la versione 5E 2024 <i> <color=#f0daa0> [trigger su hit e non richiedono concentrazione] </color> </i>
 ModUi/&EnableSorcererArcaneApotheosis2024=Abilita <color=#D89555>Apoteosi Arcana</color> per sostituire <color=#D89555>Restauro Stregonesco</color> al livello 20
 ModUi/&EnableSorcererDraconicBloodlineAC2024=Abilita la versione 2024 di <color=#D89555> Resilienza Draconica</color> da <color=#D89555> Stirpe Draconica</color> <i><color=#F0DAA0>[10+DEX+CHA invece di 13+DEX]</color></i>
-ModUi/&EnableSorcererDraconicBloodlineResistance2024=Abilita la resistenza della <color=#D89555>Stirpe Draconica</color> del 2024 <i><color=#F0DAA0>(resistenza permanente al tipo di danno della tua discendenza)</color></i>
+ModUi/&EnableSorcererDraconicBloodlineElementalAffinity2024=Scegli l'ascendenza draconica della <color=#D89555>Stirpe Draconica</color> al livello 6 da stregone
+ModUi/&EnableSorcererDraconicBloodlineResistance2024=Abilita la resistenza della <color=#D89555>Stirpe Draconica</color> del 2024 <i><color=#F0DAA0>(resistenza permanente al tipo di danno della tua ascendenza draconica)</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=Abilita <color=#D89555>Stregoneria Innata</color> e <color=#D89555>Stregoneria Incarnata</color> al livello 1 e 7
 ModUi/&EnableSorcererMagicalGuidance=Abilita <color=#D89555>Guida magica</color> al livello 5
 ModUi/&EnableSorcererMetamagic2024=Usa le regole 2024 di <color=#D89555>Metamagia</color>: ottieni Metamagia al livello 2, opzioni aggiuntive ai livelli 10 e 17 e applica le regole aggiornate delle opzioni

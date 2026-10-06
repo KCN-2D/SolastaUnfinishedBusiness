@@ -925,7 +925,7 @@ internal static class MulticlassGameUi
     }
 
     private static readonly ConditionalWeakTable<LearnStepItem, LearnStepButtonPresentation> AutoButtonPresentations = new();
-    private static readonly ConditionalWeakTable<LearnStepItem, SpellLearnStepLayout> SpellLearnStepLayouts = new();
+    private static readonly ConditionalWeakTable<LearnStepItem, LearnStepLayout> LearnStepLayouts = new();
 
     private sealed class LearnStepButtonPresentation
     {
@@ -985,27 +985,36 @@ internal static class MulticlassGameUi
             }
         }
     }
-    private sealed class SpellLearnStepLayout
+    private sealed class LearnStepLayout
     {
         private readonly Dictionary<RectTransform, (Vector2 Position, Vector2 Size)> _rectangles;
-        private readonly Dictionary<TMP_Text, (bool AutoSize, bool Wrap, float FontSize, int MaxLines, float LineSpacing)> _headers;
+        private readonly Dictionary<TMP_Text, (bool AutoSize, bool Wrap, float FontSize, int MaxLines, float LineSpacing, TextOverflowModes Overflow)> _headers;
         private readonly RectTransform _buttonBar;
         private readonly float _activeHeaderHeight;
         private readonly float _inactiveHeaderHeight;
         private readonly float _inactiveHeight;
+        private readonly LayoutElement _layoutElement;
+        private readonly (bool Enabled, float Minimum, float Preferred, float Flexible) _layoutHeight;
 
-        internal SpellLearnStepLayout(LearnStepItem item)
+        internal LearnStepLayout(LearnStepItem item)
         {
+            _layoutElement = item.GetComponent<LayoutElement>();
+            var hadLayoutElement = _layoutElement;
+            _layoutElement ??= item.gameObject.AddComponent<LayoutElement>();
+            _layoutHeight = (hadLayoutElement && _layoutElement.enabled,
+                _layoutElement.minHeight, _layoutElement.preferredHeight, _layoutElement.flexibleHeight);
             _buttonBar = (RectTransform)item.resetButton.transform.parent;
             _rectangles = new[]
                 {
                     item.headerLabelActive.RectTransform, item.headerLabelInactive.RectTransform,
-                    item.choicesLabel.RectTransform, item.inactiveGroup, _buttonBar
+                    item.choicesLabel.RectTransform, item.activeGroup, item.inactiveGroup,
+                    item.RectTransform, _buttonBar
                 }
+                .Distinct()
                 .ToDictionary(rect => rect, rect => (rect.anchoredPosition, rect.sizeDelta));
             _headers = new[] { item.headerLabelActive.TMP_Text, item.headerLabelInactive.TMP_Text }
                 .ToDictionary(text => text, text => (text.enableAutoSizing, text.enableWordWrapping,
-                    text.enableAutoSizing ? text.fontSizeMax : text.fontSize, text.maxVisibleLines, text.lineSpacing));
+                    text.enableAutoSizing ? text.fontSizeMax : text.fontSize, text.maxVisibleLines, text.lineSpacing, text.overflowMode));
             _activeHeaderHeight = item.headerLabelActive.RectTransform.rect.height;
             _inactiveHeaderHeight = item.headerLabelInactive.RectTransform.rect.height;
             _inactiveHeight = item.inactiveGroup.rect.height;
@@ -1013,6 +1022,10 @@ internal static class MulticlassGameUi
 
         internal void Restore()
         {
+            _layoutElement.enabled = _layoutHeight.Enabled;
+            _layoutElement.minHeight = _layoutHeight.Minimum;
+            _layoutElement.preferredHeight = _layoutHeight.Preferred;
+            _layoutElement.flexibleHeight = _layoutHeight.Flexible;
             foreach (var entry in _rectangles)
             {
                 var rect = entry.Key;
@@ -1030,6 +1043,7 @@ internal static class MulticlassGameUi
                 text.fontSize = state.FontSize;
                 text.maxVisibleLines = state.MaxLines;
                 text.lineSpacing = state.LineSpacing;
+                text.overflowMode = state.Overflow;
             }
         }
 
@@ -1046,6 +1060,7 @@ internal static class MulticlassGameUi
                 text.maxVisibleLines = int.MaxValue;
                 // Native single-line headers use negative spacing that overlaps glyphs when wrapped.
                 text.lineSpacing = Mathf.Max(0f, state.LineSpacing);
+                text.overflowMode = TextOverflowModes.Overflow;
             }
 
             var inactiveHeader = item.headerLabelInactive.RectTransform;
@@ -1070,6 +1085,13 @@ internal static class MulticlassGameUi
                 item.choicesLabel.RectTransform.rect.height - item.choicesLabel.RectTransform.anchoredPosition.y + 12f);
             item.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
                 active ? item.activeGroup.rect.height : item.inactiveGroup.rect.height);
+            // A native parent layout/content fitter also reads LayoutElement.
+            // Updating only the rectangle leaves it dispatching the next row at
+            // the original single-line height, even when the header has grown.
+            _layoutElement.enabled = true;
+            _layoutElement.minHeight = item.RectTransform.rect.height;
+            _layoutElement.preferredHeight = item.RectTransform.rect.height;
+            _layoutElement.flexibleHeight = 0f;
         }
 
         private static float FitHeaderHeight(TMP_Text text, float minimumHeight)
@@ -1078,6 +1100,8 @@ internal static class MulticlassGameUi
                 Mathf.Ceil(text.GetPreferredValues(text.text, text.rectTransform.rect.width, float.PositiveInfinity).y) + 2f);
             text.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
             text.ForceMeshUpdate(true);
+            height = Mathf.Max(minimumHeight, Mathf.Ceil(text.textBounds.size.y) + 2f);
+            text.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
             return height;
         }
     }
@@ -1088,6 +1112,8 @@ internal static class MulticlassGameUi
         {
             return;
         }
+
+        LayoutRebuilder.ForceRebuildLayoutImmediate(panel.learnStepsTable);
 
         for (var index = 0; index < panel.learnStepsTable.childCount; ++index)
         {
@@ -1120,34 +1146,40 @@ internal static class MulticlassGameUi
                     buttonPresentation.ShowKeepChoices();
                 }
 
-                ApplySpellLearnStepLayout(item, index == panel.currentLearnStep);
+                ApplyLearnStepLayout(item, index == panel.currentLearnStep);
                 continue;
             }
 
-            if (!Tabletop2024Context.TryGetTabletop2024FeatSpellLearnStepTitle(
+            if (Tabletop2024Context.TryGetTabletop2024FeatSpellLearnStepTitle(
                     item.PoolType,
                     item.Tag,
                     out var title))
             {
-                continue;
+                SetLearnStepTitle(item, title);
             }
-
-            SetLearnStepTitle(item, title);
-            ApplySpellLearnStepLayout(item, index == panel.currentLearnStep);
+            ApplyLearnStepLayout(item, index == panel.currentLearnStep);
         }
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(panel.learnStepsTable);
     }
 
-    private static void ApplySpellLearnStepLayout(LearnStepItem item, bool active)
+    internal static void ApplyLearnStepLayout(LearnStepItem item, bool active)
     {
-        if (!SpellLearnStepLayouts.TryGetValue(item, out var layout))
+        if (!LearnStepLayouts.TryGetValue(item, out var layout))
         {
-            layout = new SpellLearnStepLayout(item);
-            SpellLearnStepLayouts.Add(item, layout);
+            layout = new LearnStepLayout(item);
+            LearnStepLayouts.Add(item, layout);
         }
 
         layout.Apply(item, active);
+    }
+
+    internal static void RestoreLearnStepLayout(LearnStepItem item)
+    {
+        if (item && LearnStepLayouts.TryGetValue(item, out var layout))
+        {
+            layout.Restore();
+        }
     }
 
     private static void SetLearnStepTitle(LearnStepItem item, string title)
@@ -1181,7 +1213,7 @@ internal static class MulticlassGameUi
         foreach (Transform child in panel.learnStepsTable)
         {
             var item = child.GetComponent<LearnStepItem>();
-            if (item && SpellLearnStepLayouts.TryGetValue(item, out var layout))
+            if (item && LearnStepLayouts.TryGetValue(item, out var layout))
             {
                 layout.Restore();
             }

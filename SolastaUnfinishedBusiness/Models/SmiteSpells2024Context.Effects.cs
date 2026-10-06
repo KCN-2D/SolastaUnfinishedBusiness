@@ -44,29 +44,31 @@ public static partial class SmiteSpells2024Context
         }
 
         var searing = SpellsContext.SearingSmite;
+        var searingSaveAbility = AttributeDefinitions.Constitution;
         var burning = ConditionDefinitionBuilder
             .Create(ConditionDefinitions.ConditionOnFire, "ConditionSearingSmiteBurning2024")
             .SetGuiPresentation(searing.GuiPresentation)
             .SetFeatures()
             .ClearSpecialInterruptions()
             .SetSpecialDuration(DurationType.Minute, 1, TurnOccurenceType.StartOfTurn)
-            .AddCustomSubFeatures(new TrackSmiteCondition(searing, AttributeDefinitions.Constitution))
+            .AddCustomSubFeatures(new TrackSmiteCondition(searing, searingSaveAbility))
             .AddToDB();
 
         var searingDamage = CloneDamage(searing, "AdditionalDamageSearingSmite");
         burning.GuiPresentation.Description = "Spell/&SearingSmite2024Description";
         searingDamage.hasSavingThrow = false;
         searingDamage.ConditionOperations.SetRange(ConditionOperation(burning));
-        AddRevisedSmite(searing, searingDamage);
+        AddRevisedSmite(searing, searingDamage, searingSaveAbility);
 
         var blinding = SpellsContext.BlindingSmite;
+        var blindingSaveAbility = AttributeDefinitions.Constitution;
         var blinded = ConditionDefinitionBuilder
             .Create(ConditionDefinitions.ConditionBlinded, "ConditionBlindingSmite2024")
             .SetParentCondition(ConditionDefinitions.ConditionBlinded)
             .SetGuiPresentation(blinding.GuiPresentation)
             .SetFeatures()
             .SetSpecialDuration(DurationType.Minute, 1, TurnOccurenceType.EndOfTurn)
-            .AddCustomSubFeatures(new TrackSmiteCondition(blinding, AttributeDefinitions.Constitution))
+            .AddCustomSubFeatures(new TrackSmiteCondition(blinding, blindingSaveAbility))
             .AddToDB();
 
         var blindingDamage = CloneDamage(blinding, "AdditionalDamageBlindingSmite");
@@ -74,7 +76,7 @@ public static partial class SmiteSpells2024Context
         blindingDamage.hasSavingThrow = false;
         blindingDamage.ConditionOperations.SetRange(ConditionOperation(blinded));
         SetSlotAdvancement(blindingDamage, 3, 3);
-        AddRevisedSmite(blinding, blindingDamage);
+        AddRevisedSmite(blinding, blindingDamage, blindingSaveAbility);
 
         var staggering = SpellsContext.StaggeringSmite;
         MarkInstantaneousSmite(staggering);
@@ -96,10 +98,10 @@ public static partial class SmiteSpells2024Context
         staggeringDamage.AddCustomSubFeatures(new AdditionalEffectFormOnDamageHandler((attacker, _, _) =>
         {
             var form = EffectFormBuilder.ConditionForm(stunned);
-            SetSavingThrow(form, attacker.RulesetCharacter, staggering, AttributeDefinitions.Wisdom);
+            SetSavingThrow(form, attacker.RulesetCharacter, staggering);
             return [form];
         }));
-        AddRevisedSmite(staggering, staggeringDamage);
+        AddRevisedSmite(staggering, staggeringDamage, AttributeDefinitions.Wisdom);
 
         var thunderous = SpellsContext.ThunderousSmite;
         MarkInstantaneousSmite(thunderous);
@@ -116,11 +118,11 @@ public static partial class SmiteSpells2024Context
         {
             var push = EffectFormBuilder.Create().SetMotionForm(MotionForm.MotionType.PushFromOrigin, 2).Build();
             var prone = EffectFormBuilder.Create().SetMotionForm(MotionForm.MotionType.FallProne).Build();
-            SetSavingThrow(push, attacker.RulesetCharacter, thunderous, AttributeDefinitions.Strength);
-            SetSavingThrow(prone, attacker.RulesetCharacter, thunderous, AttributeDefinitions.Strength);
+            SetSavingThrow(push, attacker.RulesetCharacter, thunderous);
+            SetSavingThrow(prone, attacker.RulesetCharacter, thunderous);
             return [push, prone];
         }));
-        AddRevisedSmite(thunderous, thunderousDamage);
+        AddRevisedSmite(thunderous, thunderousDamage, AttributeDefinitions.Strength);
 
         var branding = SpellDefinitions.BrandingSmite;
         var branded = ConditionDefinitionBuilder
@@ -156,7 +158,7 @@ public static partial class SmiteSpells2024Context
             .AddToDB();
         BanishingSmiteCondition2024.permanentlyRemovedIfExtraPlanar = false;
         BanishingSmiteCondition2024.GuiPresentation.Description = "Spell/&BanishingSmite2024Description";
-        AddRevisedSmite(banishing, null);
+        AddRevisedSmite(banishing, null, AttributeDefinitions.Charisma);
     }
 
     private static FeatureDefinitionAdditionalDamage CloneDamage(SpellDefinition spell, string name)
@@ -195,11 +197,12 @@ public static partial class SmiteSpells2024Context
         damage.DiceByRankTable.SetRange(DiceByRankBuilder.BuildDiceByRankTable(dice, begin: level));
     }
 
-    private static void AddRevisedSmite(SpellDefinition spell, FeatureDefinitionAdditionalDamage damage)
+    private static void AddRevisedSmite(
+        SpellDefinition spell, FeatureDefinitionAdditionalDamage damage, string savingThrowAbility = null)
     {
         var carrier = spell.EffectDescription.EffectForms
             .First(form => form.FormType == EffectForm.EffectFormType.Condition).ConditionForm.ConditionDefinition;
-        RevisedSmites.Add(new RevisedSmite(spell, carrier, damage));
+        RevisedSmites.Add(new RevisedSmite(spell, carrier, damage, savingThrowAbility));
     }
 
     private static void SwitchRevisedSmiteEffects()
@@ -246,11 +249,111 @@ public static partial class SmiteSpells2024Context
         return caster.SpellsCastByMe.LastOrDefault(effect => effect.SpellDefinition == spell);
     }
 
-    private static void SetSavingThrow(EffectForm form, RulesetCharacter caster, SpellDefinition spell, string ability)
+    internal static bool RequiresSavingThrow(RulesetEffectSpell effect)
+    {
+        if (effect == null || !AlLSmiteSpells.Contains(effect.SpellDefinition))
+        {
+            return false;
+        }
+
+        var revised = RevisedSmites.FirstOrDefault(entry => entry.Spell == effect.SpellDefinition);
+        if (Main.Settings.EnableSmiteSpells2024 && revised != null)
+        {
+            return revised.SavingThrowAbility != null;
+        }
+
+        return effect.EffectDescription.EffectForms
+            .Where(form => form.FormType == EffectForm.EffectFormType.Condition)
+            .SelectMany(form => form.ConditionForm.ConditionDefinition.Features)
+            .Any(feature => feature is FeatureDefinitionAdditionalDamage { HasSavingThrow: true } ||
+                            feature is FeatureDefinitionPower { EffectDescription.HasSavingThrow: true });
+    }
+
+    // Smite saves are deferred to an additional-damage form, a granted power, or a tracked condition.
+    // Resolve their native definition ownership rather than relying on the weapon action's repertoire.
+    internal static RulesetEffectSpell GetSavingThrowSpell(
+        RulesetCharacter caster, BaseDefinition sourceDefinition, IEnumerable<EffectForm> forms,
+        RulesetEffect activeEffect = null)
+    {
+        if (caster == null)
+        {
+            return null;
+        }
+
+        var spellEffect = activeEffect switch
+        {
+            RulesetEffectSpell spell => spell,
+            RulesetEffectPower power => Tabletop2024Context.GetSpellDerivedPowerSpell(power),
+            _ => null
+        };
+        var savingThrow = forms?.Select(form => form.OverrideSavingThrowInfo).FirstOrDefault(info => info != null);
+        if (savingThrow == null && IsOwnedSmiteEffect(caster, spellEffect))
+        {
+            return spellEffect;
+        }
+
+        // The native roll uses the first override only. Other forms and the original action's
+        // definition must not lend their metamagic to an unrelated additional feature's save.
+        var sourceName = savingThrow?.SourceDefinitionName ?? sourceDefinition?.Name;
+
+        var sourceSpell = AlLSmiteSpells.FirstOrDefault(spell =>
+            spell.Name == sourceName ||
+            spell.EffectDescription.EffectForms
+                .Where(form => form.FormType == EffectForm.EffectFormType.Condition)
+                .SelectMany(form => form.ConditionForm.ConditionDefinition.Features)
+                .Concat(RevisedSmites.FirstOrDefault(entry => entry.Spell == spell)?.Features ?? [])
+                .Any(feature => feature.Name == sourceName));
+        if (sourceSpell == null)
+        {
+            return null;
+        }
+
+        if (IsOwnedSmiteEffect(caster, spellEffect) && spellEffect.SpellDefinition == sourceSpell)
+        {
+            return spellEffect;
+        }
+
+        var carrier = sourceSpell.EffectDescription.EffectForms
+            .First(form => form.FormType == EffectForm.EffectFormType.Condition).ConditionForm.ConditionDefinition;
+        if (!caster.TryGetConditionOfCategoryAndType(AttributeDefinitions.TagEffect, carrier.Name, out var condition) ||
+            condition.SourceGuid != caster.Guid)
+        {
+            return null;
+        }
+
+        spellEffect = Tabletop2024Context.GetSpellDerivedConditionSpell(condition);
+        return IsOwnedSmiteEffect(caster, spellEffect) && spellEffect.SpellDefinition == sourceSpell
+            ? spellEffect : null;
+    }
+
+    private static bool IsOwnedSmiteEffect(RulesetCharacter caster, RulesetEffectSpell effect)
+    {
+        return effect != null && effect.Caster == caster && caster.SpellsCastByMe.Contains(effect) &&
+               AlLSmiteSpells.Contains(effect.SpellDefinition);
+    }
+
+    internal static RulesetEffectSpell GetConditionSavingThrowSpell(RulesetCondition condition)
+    {
+        var caster = EffectHelpers.GetCharacterByGuid(condition.SourceGuid);
+        var effect = Tabletop2024Context.GetSpellDerivedConditionSpell(condition);
+        return caster != null && IsOwnedSmiteEffect(caster, effect) ? effect : null;
+    }
+
+    internal static int GetConditionSavingThrowDc(RulesetCondition condition)
+    {
+        return GetConditionSavingThrowSpell(condition)?.SaveDC ?? condition.SaveOverrideDC;
+    }
+
+    private static string GetRevisedSavingThrowAbility(SpellDefinition spell)
+    {
+        return RevisedSmites.First(entry => entry.Spell == spell).SavingThrowAbility;
+    }
+
+    private static void SetSavingThrow(EffectForm form, RulesetCharacter caster, SpellDefinition spell)
     {
         var effect = GetSmiteEffect(caster, spell);
         form.SavingThrowAffinity = EffectSavingThrowType.Negates;
-        form.OverrideSavingThrowInfo = new OverrideSavingThrowInfo(ability,
+        form.OverrideSavingThrowInfo = new OverrideSavingThrowInfo(GetRevisedSavingThrowAbility(spell),
             effect?.SaveDC ?? 10, spell.Name, FeatureSourceType.Spell);
     }
 
@@ -259,7 +362,6 @@ public static partial class SmiteSpells2024Context
         GameLocationCharacter caster,
         GameLocationCharacter target,
         SpellDefinition spell,
-        string ability,
         ConditionDefinition appliedCondition,
         Action<bool> completed)
     {
@@ -270,6 +372,7 @@ public static partial class SmiteSpells2024Context
             yield break;
         }
 
+        var ability = GetRevisedSavingThrowAbility(spell);
         var implementationService = ServiceRepository.GetService<IRulesetImplementationService>();
         var effectDescription = EffectDescriptionBuilder.Create(effect.EffectDescription)
             .SetEffectForms(EffectFormBuilder.ConditionForm(appliedCondition))
@@ -281,11 +384,13 @@ public static partial class SmiteSpells2024Context
                 caster.RulesetCharacter, caster.Side, target.RulesetCharacter, actionModifier,
                 false, true, ability, effect.SaveDC, false, false, false,
                 FeatureSourceType.Spell, effectDescription.EffectForms, null, null,
-                spell.Name, spell, spell.SchoolOfMagic, effect.MetamagicOption,
+                spell.Name, spell, spell.SchoolOfMagic, MetamagicContext.PrepareSavingThrowMetamagic(effect, target.RulesetCharacter,
+                    true, caster.Side, false, effectDescription.EffectForms),
                 out outcome, out delta);
         }
 
         var modifier = new ActionModifier();
+        using var heightenedSaveScope = MetamagicContext.DelayHeightenedConsumption(effect, target.RulesetCharacter);
         using var savingRollContext = new D20RollContext(target.RulesetCharacter, RollContext.SavingThrow,
             ability, advantageTrends: modifier.SavingThrowAdvantageTrends);
 
@@ -317,6 +422,8 @@ public static partial class SmiteSpells2024Context
             SaveBonusAndRollModifier = RulesetActorExtensions.SaveBonusAndRollModifier,
             SavingThrowAbility = RulesetActorExtensions.SavingThrowAbility,
             SourceDefinition = spell,
+            SourceEffect = effect,
+            SavingThrowForms = effectDescription.EffectForms,
             EffectDescription = effectDescription,
             Title = spell.FormatTitle(),
             Action = null,
@@ -348,6 +455,29 @@ public static partial class SmiteSpells2024Context
             formsParams.targetCharacter is not { } target || formsParams.sourceCharacter is not { } source)
         {
             return;
+        }
+
+        var effect = Main.Settings.EnableSmiteSpells2024
+            ? GetSavingThrowSpell(source, null, [form], formsParams.activeEffect) : null;
+        if (effect != null)
+        {
+            foreach (var condition in target.AllConditions.Where(condition =>
+                         condition.ConditionDefinition == conditionForm.ConditionDefinition &&
+                         condition.SourceGuid == source.Guid))
+            {
+                var tracked = Tabletop2024Context.GetSpellDerivedConditionSpell(condition);
+                if (tracked != null && tracked != effect)
+                {
+                    continue;
+                }
+
+                if (!effect.TrackedConditionGuids.Contains(condition.Guid))
+                {
+                    effect.TrackCondition(source, source.Guid, target, target.Guid, condition, AttributeDefinitions.TagEffect);
+                }
+                condition.saveOverrideDC = Tabletop2024Context.GetSpellBaseSaveDc(effect);
+                Tabletop2024Context.BindSpellDerivedConditionOrigin(condition, effect);
+            }
         }
 
         var behavior = conditionForm.ConditionDefinition?.GetFirstSubFeatureOfType<TrackSmiteCondition>();
@@ -399,6 +529,7 @@ public static partial class SmiteSpells2024Context
             condition.effectLevel = effect.EffectLevel;
             condition.effectDefinitionName = spell.Name;
             effect.TrackCondition(caster, caster.Guid, target, target.Guid, condition, AttributeDefinitions.TagEffect);
+            Tabletop2024Context.BindSpellDerivedConditionOrigin(condition, effect);
             if (RepeatSaveAbility == null)
             {
                 return;
@@ -409,7 +540,7 @@ public static partial class SmiteSpells2024Context
             condition.canSaveToCancel = true;
             condition.hasSaveOverride = true;
             condition.saveOverrideAbilityScoreName = RepeatSaveAbility;
-            condition.saveOverrideDC = effect.SaveDC;
+            condition.saveOverrideDC = Tabletop2024Context.GetSpellBaseSaveDc(effect);
             condition.saveOverrideSourceName = spell.Name;
             condition.saveOverrideSourceType = FeatureSourceType.Spell;
         }
@@ -418,11 +549,13 @@ public static partial class SmiteSpells2024Context
     }
 
     private sealed class RevisedSmite(
-        SpellDefinition spell, ConditionDefinition carrier, FeatureDefinitionAdditionalDamage damage)
+        SpellDefinition spell, ConditionDefinition carrier, FeatureDefinitionAdditionalDamage damage,
+        string savingThrowAbility)
     {
         internal SpellDefinition Spell { get; } = spell;
         internal ConditionDefinition Carrier { get; } = carrier;
         internal FeatureDefinitionAdditionalDamage Damage { get; } = damage;
+        internal string SavingThrowAbility { get; } = savingThrowAbility;
         internal FeatureDefinition[] Features { get; } = carrier.Features.ToArray();
         internal EffectDescription Effect { get; } = EffectDescriptionBuilder.Create(spell.EffectDescription).Build();
         internal string Description { get; } = spell.GuiPresentation.Description;

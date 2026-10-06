@@ -800,6 +800,14 @@ internal static class ClassesDisplay
             Tabletop2024Context.SwitchSorcererDraconicBloodlineAC();
         }
 
+        toggle = Main.Settings.EnableSorcererDraconicBloodlineElementalAffinity2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableSorcererDraconicBloodlineElementalAffinity2024"), ref toggle,
+                UI.AutoWidth()))
+        {
+            Main.Settings.EnableSorcererDraconicBloodlineElementalAffinity2024 = toggle;
+            Tabletop2024Context.SwitchSorcererDraconicBloodlineElementalAffinity();
+        }
+
         toggle = Main.Settings.EnableSorcererDraconicBloodlineResistance2024;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableSorcererDraconicBloodlineResistance2024"), ref toggle, UI.AutoWidth()))
         {

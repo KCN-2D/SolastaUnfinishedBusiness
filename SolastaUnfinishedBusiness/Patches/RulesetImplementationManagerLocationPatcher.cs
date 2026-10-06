@@ -557,9 +557,14 @@ public static class RulesetImplementationManagerLocationPatcher
                 new Func<RulesetCharacter, RulesetEffectSpell, int>(RemainingSorceryPoints).Method;
 
             return instructions.ReplaceCalls(remainingSorceryPointsMethod,
-                "CharacterActionCastSpell.RemoveConcentrationAsNeeded",
+                "RulesetImplementationManagerLocation.IsMetamagicOptionAvailable.SorceryPoints",
                 new CodeInstruction(OpCodes.Ldarg_1),
-                new CodeInstruction(OpCodes.Call, myRemainingSorceryPointsMethod));
+                new CodeInstruction(OpCodes.Call, myRemainingSorceryPointsMethod))
+                .ReplaceCalls(AccessTools.PropertyGetter(typeof(EffectDescription), nameof(EffectDescription.HasSavingThrow)),
+                    "RulesetImplementationManagerLocation.IsMetamagicOptionAvailable.SavingThrow",
+                    new CodeInstruction(OpCodes.Ldarg_1),
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(MetamagicContext),
+                        nameof(MetamagicContext.HasSavingThrow))));
         }
 
         [UsedImplicitly]

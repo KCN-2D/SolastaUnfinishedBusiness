@@ -9,6 +9,50 @@ namespace SolastaUnfinishedBusiness.Api.Helpers;
 
 internal static class TranspileHelper
 {
+    public static IEnumerable<CodeInstruction> ReplaceDatabaseLookups(
+        this IEnumerable<CodeInstruction> instructions)
+    {
+        var fastLookup = typeof(DatabaseHelper).GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
+            .Single(method => method.Name == nameof(DatabaseHelper.TryGetDefinition) &&
+                              method.IsGenericMethodDefinition && method.GetParameters().Length == 4);
+        var fastContains = AccessTools.Method(typeof(DatabaseHelper), nameof(DatabaseHelper.HasDefinition));
+
+        foreach (var instruction in instructions)
+        {
+            if ((instruction.opcode != OpCodes.Call && instruction.opcode != OpCodes.Callvirt) ||
+                instruction.operand is not MethodInfo method || method.ReturnType != typeof(bool) ||
+                method.DeclaringType == null || !method.DeclaringType.IsGenericType ||
+                method.DeclaringType.GetGenericTypeDefinition() != typeof(Database<>))
+            {
+                yield return instruction;
+                continue;
+            }
+
+            var definitionType = method.DeclaringType.GetGenericArguments()[0];
+            var parameters = method.GetParameters();
+            MethodInfo replacement = null;
+
+            if (method.Name == nameof(Database<BaseDefinition>.TryGetElement) && parameters.Length == 3 &&
+                parameters[0].ParameterType == typeof(string) &&
+                parameters[1].ParameterType == definitionType.MakeByRefType() &&
+                parameters[2].ParameterType == typeof(bool))
+            {
+                replacement = fastLookup;
+            }
+            else if (method.Name == nameof(Database<BaseDefinition>.HasElement) && parameters.Length == 2 &&
+                     parameters[0].ParameterType == typeof(string) && parameters[1].ParameterType == typeof(bool))
+            {
+                replacement = fastContains;
+            }
+
+            // Replacing callers avoids patching Mono's shared generic method bodies.
+            yield return replacement == null
+                ? instruction
+                : new CodeInstruction(OpCodes.Call, replacement.MakeGenericMethod(definitionType))
+                    .MoveLabelsFrom(instruction).MoveBlocksFrom(instruction);
+        }
+    }
+
     // 42 replace calls
     public static IEnumerable<CodeInstruction> ReplaceCalls(
         this IEnumerable<CodeInstruction> instructions,

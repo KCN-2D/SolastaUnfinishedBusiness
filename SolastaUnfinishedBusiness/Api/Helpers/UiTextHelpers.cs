@@ -164,6 +164,63 @@ internal static class UiTextHelpers
         FitConstrainedSingleLine(label?.TMP_Text, minFontScale, absoluteMin);
     }
 
+    internal static void FitSettingsTabs(SettingsPanel panel)
+    {
+        if (!panel || !panel.tabTogglesContainer)
+        {
+            return;
+        }
+
+        var layout = panel.GetComponent<SettingsTabsLayoutState>() ??
+                     panel.gameObject.AddComponent<SettingsTabsLayoutState>();
+        layout.Schedule(panel);
+    }
+
+    internal static void FitSettingItemCaption(SettingItem item)
+    {
+        if (item is SettingKeyMappingItem keyMapping)
+        {
+            FitSettingKeyMapping(keyMapping);
+            return;
+        }
+
+        ScheduleSettingCaption(item, item?.TitleLabel);
+    }
+
+    internal static void FitSettingKeyMapping(SettingKeyMappingItem item)
+    {
+        if (!item || !item.TitleLabel?.TMP_Text || item.bindingBoxes.Length == 0 || !item.orSeparator)
+        {
+            return;
+        }
+
+        var layout = item.GetComponent<SettingKeyMappingLayoutState>() ??
+                     item.gameObject.AddComponent<SettingKeyMappingLayoutState>();
+        layout.Schedule(item);
+    }
+
+    internal static void FitSettingChoiceCaption(SettingRadioChoice choice)
+    {
+        ScheduleSettingCaption(choice, choice?.titleLabel);
+
+        if (choice && choice.GetComponentInParent<SettingRadioListItem>() is { } owner)
+        {
+            FitSettingItemCaption(owner);
+        }
+    }
+
+    private static void ScheduleSettingCaption(GuiBehaviour row, GuiLabel label)
+    {
+        if (!row || !label || !label.TMP_Text)
+        {
+            return;
+        }
+
+        var layout = row.GetComponent<SettingCaptionLayoutState>() ??
+                     row.gameObject.AddComponent<SettingCaptionLayoutState>();
+        layout.Schedule(row, label.TMP_Text);
+    }
+
     internal static void FitConstrainedSingleLine(TMP_Text text, float minFontScale = TitleMinFontScale,
         float absoluteMin = TitleAbsoluteMinFontSize)
     {
@@ -469,7 +526,8 @@ internal static class UiTextHelpers
         return new Vector2(Mathf.Ceil(high + 2f), Mathf.Ceil(maximumLine.y * 2.5f + 8f));
     }
 
-    internal static void FitReadableTitle(TMP_Text text, float minFontScale, float absoluteMin)
+    internal static void FitReadableTitle(TMP_Text text, float minFontScale, float absoluteMin,
+        int maxVisibleLines = 2)
     {
         var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
         state.Capture(text);
@@ -480,7 +538,9 @@ internal static class UiTextHelpers
         }
 
         var compactSpacing = ShouldUseCjkCompactLineSpacing(text);
-        if (state.HasFitSignature(nameof(FitReadableTitle), text, available, minFontScale, absoluteMin, compactSpacing))
+        maxVisibleLines = Math.Max(1, maxVisibleLines);
+        var fitKind = $"{nameof(FitReadableTitle)}:{maxVisibleLines}";
+        if (state.HasFitSignature(fitKind, text, available, minFontScale, absoluteMin, compactSpacing))
         {
             return;
         }
@@ -496,7 +556,7 @@ internal static class UiTextHelpers
             {
                 var candidate = (low + high) * 0.5f;
                 var glyphs = MeasureTitleGlyphs(text, candidate, true, available.x, state, out var lines);
-                if (lines <= 2 && glyphs.x + 4f <= available.x && glyphs.y + 4f <= available.y)
+                if (lines <= maxVisibleLines && glyphs.x + 4f <= available.x && glyphs.y + 4f <= available.y)
                 {
                     low = candidate;
                 }
@@ -509,10 +569,10 @@ internal static class UiTextHelpers
             fontSize = low;
         }
 
-        ApplyCardTextFit(text, wrap ? 2 : 1, wrap, fontSize, state);
+        ApplyCardTextFit(text, wrap ? maxVisibleLines : 1, wrap, fontSize, state);
         text.overflowMode = TextOverflowModes.Overflow;
         text.ForceMeshUpdate(true);
-        state.RememberFitSignature(nameof(FitReadableTitle), text, available, minFontScale, absoluteMin, compactSpacing);
+        state.RememberFitSignature(fitKind, text, available, minFontScale, absoluteMin, compactSpacing);
     }
 
     private static Vector2 MeasureTitleGlyphs(TMP_Text text, float fontSize, bool wrap, float width,
@@ -1293,8 +1353,524 @@ internal static class UiTextHelpers
             return;
         }
 
-        FitCardTitle(spellBox.titleLabel);
+        var layout = spellBox.GetComponent<SpellBoxLayoutState>() ??
+                     spellBox.gameObject.AddComponent<SpellBoxLayoutState>();
+        layout.Apply(spellBox);
         FitSpellBoxSourceTitle(spellBox);
+    }
+
+    internal static void BeginSpellBoxGridLayout(SpellsByLevelGroup group)
+    {
+        GetSpellBoxGridLayout(group.spellsTable, group)?.Begin();
+    }
+
+    internal static void EndSpellBoxGridLayout(SpellsByLevelGroup group)
+    {
+        GetSpellBoxGridLayout(group.spellsTable, group)?.End();
+    }
+
+    internal static void RestoreSpellBoxLayout(SpellBox box)
+    {
+        box.GetComponent<SpellBoxLayoutState>()?.Restore();
+    }
+
+    private static SpellBoxGridLayoutState GetSpellBoxGridLayout(Transform parent, SpellsByLevelGroup group = null)
+    {
+        var grid = parent ? parent.GetComponent<GridLayoutGroup>() : null;
+        if (!grid)
+        {
+            return null;
+        }
+
+        var state = grid.GetComponent<SpellBoxGridLayoutState>() ??
+                    grid.gameObject.AddComponent<SpellBoxGridLayoutState>();
+        for (var ancestor = parent; ancestor && !group; ancestor = ancestor.parent)
+        {
+            group = ancestor.GetComponent<SpellsByLevelGroup>();
+        }
+
+        state.Capture(grid, group);
+        return state;
+    }
+
+    private sealed class SpellBoxLayoutState : MonoBehaviour
+    {
+        private bool _captured;
+        private float _titleHeight;
+        private Vector2 _imageOffsetMin;
+        private Vector2 _imageOffsetMax;
+        private Vector2 _backgroundOffsetMin;
+        private Vector2 _backgroundOffsetMax;
+        private float _backgroundParentHeight;
+        private bool _preserveAspect;
+        private string _text;
+        private TMP_FontAsset _font;
+        private float _width;
+        private float _fontSize;
+        private float _height;
+        private bool _cjkSpacing;
+        private SpellBox _box;
+        private SpellBoxGridLayoutState _grid;
+        private float _nativeCardHeight;
+        private float _nativeImageHeight;
+        private float _minimumImageHeight;
+        private readonly List<(RectTransform Transform, Vector2 Position, Graphic[] Graphics)> _statusGroups = [];
+        private readonly Vector3[] _corners = new Vector3[4];
+
+        internal float RequiredHeight { get; private set; }
+
+        internal void Apply(SpellBox box)
+        {
+            var text = box.titleLabel?.TMP_Text;
+            var image = box.spellImage;
+            if (!text)
+            {
+                return;
+            }
+
+            if (!box.titleGroup || !box.titleTransform || !image)
+            {
+                var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+                state.Capture(text);
+                ApplyCardTextFit(text, int.MaxValue, true, state.OriginalFontSizeMax, state);
+                text.overflowMode = TextOverflowModes.Overflow;
+                return;
+            }
+
+            var imageRect = image.rectTransform;
+            _box = box;
+            _grid = GetSpellBoxGridLayout(box.transform.parent);
+            if (!_captured)
+            {
+                _titleHeight = SpellBox.TitleGroupMinHeight;
+                _imageOffsetMin = imageRect.offsetMin;
+                _imageOffsetMax = imageRect.offsetMax;
+                _preserveAspect = image.preserveAspect;
+                if (box.titleBackground)
+                {
+                    var background = box.titleBackground.rectTransform;
+                    _backgroundOffsetMin = background.offsetMin;
+                    _backgroundOffsetMax = background.offsetMax;
+                    _backgroundParentHeight = ((RectTransform)background.parent).rect.height;
+                }
+
+                _nativeCardHeight = _grid ? _grid.NativeCellHeight : box.RectTransform.rect.height;
+                _nativeImageHeight = Mathf.Max(1f, _imageOffsetMax.y - _imageOffsetMin.y +
+                    imageRect.parent.GetComponent<RectTransform>().rect.height *
+                    (imageRect.anchorMax.y - imageRect.anchorMin.y));
+                CaptureStatusGroup(box.preparationGroup);
+                CaptureStatusGroup(box.selectecToLearnGroup);
+                CaptureStatusGroup(box.availableToLearnGroup);
+                CaptureStatusGroup(box.ritualGroup);
+                CaptureStatusGroup(box.unlearnedGroup);
+                _minimumImageHeight = Mathf.Max(_minimumImageHeight, _nativeImageHeight);
+                _captured = true;
+            }
+
+            // Native Refresh keeps the non-hovered title background at one row,
+            // while allowing its text to grow over the icon. Reserve the complete
+            // title at its native font size, then move the icon with the background.
+            var cjkSpacing = ShouldUseCjkCompactLineSpacing(text);
+            if (_text != text.text || _font != text.font ||
+                Mathf.Abs(_width - text.rectTransform.rect.width) > PreferredSizeTolerance ||
+                Mathf.Abs(_fontSize - text.fontSize) > 0.01f || _cjkSpacing != cjkSpacing ||
+                text.enableAutoSizing || !text.enableWordWrapping ||
+                text.maxVisibleLines != int.MaxValue || text.overflowMode != TextOverflowModes.Overflow)
+            {
+                var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+                state.Capture(text);
+                ApplyCardTextFit(text, int.MaxValue, true, state.OriginalFontSizeMax, state);
+                text.overflowMode = TextOverflowModes.Overflow;
+                text.ForceMeshUpdate(true);
+                _height = Mathf.Max(Mathf.Ceil(text.textBounds.size.y) + 8f, _titleHeight);
+                RequiredHeight = _nativeCardHeight + _height - _titleHeight +
+                                 _minimumImageHeight - _nativeImageHeight;
+                _text = text.text;
+                _font = text.font;
+                _width = text.rectTransform.rect.width;
+                _fontSize = text.fontSize;
+                _cjkSpacing = cjkSpacing;
+            }
+
+            if (_grid)
+            {
+                _grid.Refresh();
+            }
+
+            ApplyGeometry(_grid ? _grid.CellHeight : RequiredHeight);
+        }
+
+        internal void ApplyGeometry(float cardHeight)
+        {
+            if (!_captured || !_box)
+            {
+                return;
+            }
+
+            _box.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, cardHeight);
+            var image = _box.spellImage;
+            var imageRect = image.rectTransform;
+            var cardGrowth = cardHeight - _nativeCardHeight;
+            // A grid row shares one cell height. Align its artwork without stretching
+            // short-title images or shrinking long-title images to fit that cell.
+            var headerHeight = Mathf.Max(_height,
+                _titleHeight + cardGrowth - (_minimumImageHeight - _nativeImageHeight));
+            _box.titleGroup.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, headerHeight);
+            _box.titleTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, headerHeight);
+            var titleGrowth = headerHeight - _titleHeight;
+            if (_box.titleBackground)
+            {
+                var background = _box.titleBackground.rectTransform;
+                var parentGrowth = ((RectTransform)background.parent).rect.height - _backgroundParentHeight;
+                // Keep the native background's overscan inside the title mask while
+                // extending its visible plate with the complete shared header.
+                background.offsetMin = _backgroundOffsetMin + Vector2.up *
+                    (parentGrowth * (1f - background.anchorMin.y) - titleGrowth);
+                background.offsetMax = _backgroundOffsetMax + Vector2.up *
+                    (parentGrowth * (1f - background.anchorMax.y));
+            }
+
+            imageRect.offsetMin = _imageOffsetMin + Vector2.down * (cardGrowth * imageRect.anchorMin.y);
+            imageRect.offsetMax = _imageOffsetMax + Vector2.up *
+                (cardGrowth * (1f - imageRect.anchorMax.y) - titleGrowth);
+            image.preserveAspect = _preserveAspect;
+            FitStatusGroups(imageRect, Mathf.Abs(cardGrowth) <= PreferredSizeTolerance &&
+                Mathf.Abs(titleGrowth) <= PreferredSizeTolerance);
+        }
+
+        private void CaptureStatusGroup(RectTransform group)
+        {
+            if (!group)
+            {
+                return;
+            }
+
+            var graphics = group.GetComponentsInChildren<Graphic>(true);
+            _statusGroups.Add((group, group.anchoredPosition, graphics));
+            var minimum = float.PositiveInfinity;
+            var maximum = float.NegativeInfinity;
+            foreach (var graphic in graphics)
+            {
+                if (!graphic)
+                {
+                    continue;
+                }
+
+                GetVerticalBounds(graphic.rectTransform, out var low, out var high);
+                minimum = Mathf.Min(minimum, low);
+                maximum = Mathf.Max(maximum, high);
+            }
+
+            if (!float.IsPositiveInfinity(minimum))
+            {
+                // Reserve every native status state before binding, including states
+                // that become visible after the inactive card is first shown.
+                _minimumImageHeight = Mathf.Max(_minimumImageHeight, maximum - minimum);
+            }
+        }
+
+        private void FitStatusGroups(RectTransform image, bool restoreOnly)
+        {
+            GetVerticalBounds(image, out var imageMin, out var imageMax);
+            foreach (var (transform, position, graphics) in _statusGroups)
+            {
+                if (!transform)
+                {
+                    continue;
+                }
+
+                transform.anchoredPosition = position;
+                if (restoreOnly || !transform.gameObject.activeSelf)
+                {
+                    continue;
+                }
+
+                var minimum = float.PositiveInfinity;
+                var maximum = float.NegativeInfinity;
+                foreach (var graphic in graphics)
+                {
+                    if (!graphic || !graphic.enabled)
+                    {
+                        continue;
+                    }
+
+                    var active = true;
+                    for (var ancestor = graphic.transform; ancestor && ancestor != transform; ancestor = ancestor.parent)
+                    {
+                        if (!ancestor.gameObject.activeSelf)
+                        {
+                            active = false;
+                            break;
+                        }
+                    }
+
+                    if (!active)
+                    {
+                        continue;
+                    }
+
+                    GetVerticalBounds(graphic.rectTransform, out var low, out var high);
+                    minimum = Mathf.Min(minimum, low);
+                    maximum = Mathf.Max(maximum, high);
+                }
+
+                if (float.IsPositiveInfinity(minimum))
+                {
+                    continue;
+                }
+
+                // Native status icons are siblings of the artwork. Keep their original size,
+                // but move any icon that the expanded title would otherwise cover into the artwork.
+                var lowerOffset = imageMin - minimum;
+                var upperOffset = imageMax - maximum;
+                var offset = lowerOffset <= upperOffset ? Mathf.Clamp(0f, lowerOffset, upperOffset) : upperOffset;
+                if (Mathf.Abs(offset) <= PreferredSizeTolerance)
+                {
+                    continue;
+                }
+
+                var movement = _box.RectTransform.TransformVector(new Vector3(0f, offset, 0f));
+                var shift = transform.parent.InverseTransformVector(movement);
+                transform.anchoredPosition = position + new Vector2(shift.x, shift.y);
+            }
+        }
+
+        private void GetVerticalBounds(RectTransform rect, out float minimum, out float maximum)
+        {
+            rect.GetWorldCorners(_corners);
+            minimum = float.PositiveInfinity;
+            maximum = float.NegativeInfinity;
+            foreach (var corner in _corners)
+            {
+                var height = _box.RectTransform.InverseTransformPoint(corner).y;
+                minimum = Mathf.Min(minimum, height);
+                maximum = Mathf.Max(maximum, height);
+            }
+        }
+
+        internal void Restore()
+        {
+            if (!_captured)
+            {
+                return;
+            }
+
+            _height = _titleHeight;
+            RequiredHeight = _nativeCardHeight;
+            _text = null;
+            ApplyGeometry(_nativeCardHeight);
+            _grid?.Refresh();
+        }
+
+        private void OnEnable()
+        {
+            if (_captured && _box && _text != null)
+            {
+                KeepSpellBoxTextInside(_box);
+            }
+        }
+
+        private void OnDisable()
+        {
+            // Hiding a bound card keeps its measured title. Unbind and reparenting
+            // restore the native geometry when the card actually leaves its list.
+            _grid?.Refresh();
+        }
+
+        private void OnTransformParentChanged()
+        {
+            Restore();
+            _grid = null;
+        }
+    }
+
+    private sealed class SpellBoxGridLayoutState : MonoBehaviour
+    {
+        private GridLayoutGroup _grid;
+        private SpellsByLevelGroup _group;
+        private Vector2 _nativeCellSize;
+        private int _nativeColumns;
+        private float _nativeTableWidth;
+        private float _nativeGroupWidth;
+        private bool _binding;
+        private bool _refreshing;
+
+        internal float NativeCellHeight => _nativeCellSize.y;
+        internal float CellHeight => _grid.cellSize.y;
+
+        internal void Capture(GridLayoutGroup grid, SpellsByLevelGroup group)
+        {
+            if (_grid)
+            {
+                if (!_group && group)
+                {
+                    _group = group;
+                    _nativeGroupWidth = group.RectTransform.rect.width;
+                }
+
+                return;
+            }
+
+            _grid = grid;
+            _group = group;
+            _nativeCellSize = grid.cellSize;
+            CaptureBoundSize();
+        }
+
+        private void CaptureBoundSize()
+        {
+            _nativeColumns = _grid.constraintCount;
+            _nativeTableWidth = ((RectTransform)_grid.transform).rect.width;
+            _nativeGroupWidth = _group ? _group.RectTransform.rect.width : _nativeTableWidth;
+        }
+
+        internal void Begin()
+        {
+            RestoreNativeSize();
+            _binding = true;
+        }
+
+        internal void End()
+        {
+            CaptureBoundSize();
+            _binding = false;
+            Refresh();
+        }
+
+        internal void Refresh()
+        {
+            if (_binding || _refreshing || !_grid || !_grid.gameObject.activeSelf)
+            {
+                return;
+            }
+
+            var height = _nativeCellSize.y;
+            var count = 0;
+            foreach (Transform child in _grid.transform)
+            {
+                if (!child.gameObject.activeSelf || !child.GetComponent<SpellBox>())
+                {
+                    continue;
+                }
+
+                count++;
+                var layout = child.GetComponent<SpellBoxLayoutState>();
+                if (layout)
+                {
+                    height = Mathf.Max(height, layout.RequiredHeight);
+                }
+            }
+
+            var columns = _nativeColumns;
+            // These native tables have a fixed height and scroll horizontally.
+            // Fit rows to that height instead of letting taller cards escape the viewport.
+            if (_group && _grid.constraint == GridLayoutGroup.Constraint.FixedColumnCount &&
+                height > _nativeCellSize.y + PreferredSizeTolerance)
+            {
+                var available = ((RectTransform)_grid.transform).rect.height - _grid.padding.vertical;
+                var rows = Mathf.Max(1, Mathf.FloorToInt((available + _grid.spacing.y) / (height + _grid.spacing.y)));
+                columns = Mathf.Max(columns, Mathf.CeilToInt(count / (float)rows));
+            }
+
+            if (Mathf.Abs(_grid.cellSize.y - height) <= PreferredSizeTolerance &&
+                _grid.constraintCount == columns)
+            {
+                return;
+            }
+
+            _refreshing = true;
+            try
+            {
+                _grid.cellSize = new Vector2(_nativeCellSize.x, height);
+                _grid.constraintCount = columns;
+                var table = (RectTransform)_grid.transform;
+                var expanded = height > _nativeCellSize.y + PreferredSizeTolerance;
+                var width = expanded ? Mathf.Max(_nativeTableWidth,
+                    _grid.padding.horizontal + columns * _grid.cellSize.x +
+                    Mathf.Max(0, columns - 1) * _grid.spacing.x) : _nativeTableWidth;
+                table.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+                if (_group)
+                {
+                    _group.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,
+                        expanded ? Mathf.Max(_nativeGroupWidth, width) : _nativeGroupWidth);
+                }
+
+                foreach (Transform child in _grid.transform)
+                {
+                    if (child.gameObject.activeSelf)
+                    {
+                        child.GetComponent<SpellBoxLayoutState>()?.ApplyGeometry(height);
+                    }
+                }
+
+                LayoutRebuilder.ForceRebuildLayoutImmediate(table);
+                RefreshScrollWidth();
+            }
+            finally
+            {
+                _refreshing = false;
+            }
+        }
+
+        private void RefreshScrollWidth()
+        {
+            var table = _group ? _group.transform.parent as RectTransform : null;
+            var layout = table ? table.GetComponent<HorizontalLayoutGroup>() : null;
+            if (!layout || !table.gameObject.activeSelf)
+            {
+                return;
+            }
+
+            var fitter = table.GetComponent<ContentSizeFitter>();
+            if (!fitter || fitter.horizontalFit == ContentSizeFitter.FitMode.Unconstrained)
+            {
+                var totalWidth = 0f;
+                var lastWidth = 0f;
+                foreach (Transform child in table)
+                {
+                    if (!child.gameObject.activeSelf || !child.GetComponent<SpellsByLevelGroup>())
+                    {
+                        continue;
+                    }
+
+                    lastWidth = ((RectTransform)child).rect.width + layout.spacing;
+                    totalWidth += lastWidth;
+                }
+
+                var scroll = table.GetComponentInParent<ScrollRect>();
+                totalWidth += scroll ? ((RectTransform)scroll.transform).rect.width - lastWidth :
+                    layout.padding.horizontal - layout.spacing;
+                table.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, Mathf.Max(0f, totalWidth));
+            }
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(table);
+        }
+
+        private void RestoreNativeSize()
+        {
+            if (!_grid)
+            {
+                return;
+            }
+
+            _grid.cellSize = _nativeCellSize;
+            _grid.constraintCount = _nativeColumns;
+            ((RectTransform)_grid.transform).SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _nativeTableWidth);
+            if (_group)
+            {
+                _group.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _nativeGroupWidth);
+            }
+        }
+
+        private void OnEnable()
+        {
+            Refresh();
+        }
+
+        private void OnDisable()
+        {
+            _binding = false;
+        }
     }
 
     private static void FitSpellBoxSourceTitle(SpellBox spellBox)
@@ -1439,6 +2015,510 @@ internal static class UiTextHelpers
         internal string ForcedFallback { get; }
 
         internal string[] PreferredCandidates { get; }
+    }
+
+    private sealed class SettingKeyMappingLayoutState : MonoBehaviour
+    {
+        private readonly List<(TMP_Text Text, string Value, TMP_FontAsset Font, bool Active)> _texts = [];
+        private SettingKeyMappingItem _row;
+        private RectTransform _table;
+        private TMP_Text _separator;
+        private LayoutElement _element;
+        private float _rowHeight;
+        private float _boxHeight;
+        private float _captionHeight;
+        private float _boxWidth;
+        private float _leftInset;
+        private float _rightInset;
+        private float _verticalInset;
+        private float _gap;
+        private float _minimumHeight;
+        private float _preferredHeight;
+        private float _lastWidth = -1f;
+        private bool _lastSecondary;
+        private bool _dirty;
+        private int _deferredFrames;
+
+        internal void Schedule(SettingKeyMappingItem row)
+        {
+            _row = row;
+            _dirty = true;
+            _deferredFrames = DeferredSingleLineFitFrames;
+        }
+
+        private void LateUpdate()
+        {
+            if (!_row || !_row.gameObject.activeInHierarchy || IsCanvasRebuildInProgress())
+            {
+                return;
+            }
+
+            if (_deferredFrames > 0)
+            {
+                _deferredFrames--;
+                return;
+            }
+
+            var rect = _row.RectTransform;
+            var width = rect.rect.width;
+            var secondary = _row.bindingBoxes.Length > 1 && _row.bindingBoxes[1].gameObject.activeSelf;
+            if (width <= 0f || !_dirty && !HasChanged(width, secondary))
+            {
+                return;
+            }
+
+            if (!_table)
+            {
+                var caption = _row.TitleLabel.RectTransform;
+                _table = _row.bindingBoxes[0].parent as RectTransform;
+                _separator = _row.orSeparator.GetComponent<TMP_Text>();
+                if (!_table || !_separator)
+                {
+                    return;
+                }
+
+                _rowHeight = rect.rect.height;
+                _boxHeight = _row.bindingBoxes[0].rect.height;
+                _boxWidth = _row.bindingBoxes[0].rect.width;
+                _captionHeight = caption.rect.height;
+                var captionLeft = rect.InverseTransformPoint(caption.TransformPoint(caption.rect.min)).x;
+                var tableRight = rect.InverseTransformPoint(_table.TransformPoint(_table.rect.max)).x;
+                _leftInset = Mathf.Max(0f, captionLeft - rect.rect.xMin);
+                _rightInset = Mathf.Max(0f, rect.rect.xMax - tableRight);
+                _verticalInset = Mathf.Max(0f, (_rowHeight - Mathf.Max(_captionHeight, _boxHeight)) / 2f);
+                var group = _table.GetComponent<HorizontalLayoutGroup>();
+                _gap = group ? Mathf.Max(0f, group.spacing) : 10f;
+                if (group)
+                {
+                    group.enabled = false;
+                }
+
+                if (_table.GetComponent<ContentSizeFitter>() is { } fitter)
+                {
+                    fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+                    fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
+                }
+
+                _element = _row.GetComponent<LayoutElement>() ?? _row.gameObject.AddComponent<LayoutElement>();
+                _minimumHeight = _element.minHeight;
+                _preferredHeight = _element.preferredHeight;
+                AddText(_row.TitleLabel.TMP_Text);
+                AddText(_separator);
+                foreach (var label in _row.bindingLabels)
+                {
+                    AddText(label.TMP_Text);
+                }
+
+                foreach (var label in _row.unboundLabels)
+                {
+                    AddText(label.TMP_Text);
+                }
+            }
+
+            var title = _row.TitleLabel.TMP_Text;
+            Prepare(title, true);
+            Prepare(_separator, false);
+            var separatorWidth = Mathf.Ceil(_separator.GetPreferredValues(_separator.text).x + 2f);
+            var count = secondary ? 2 : 1;
+            var widths = new float[count];
+            var controlsWidth = secondary ? separatorWidth + _gap * 2f : 0f;
+            for (var i = 0; i < count; i++)
+            {
+                var text = BindingText(i);
+                Prepare(text, false);
+                widths[i] = Mathf.Max(_boxWidth, Mathf.Ceil(text.GetPreferredValues(text.text).x + 12f));
+                controlsWidth += widths[i];
+            }
+
+            var innerWidth = Mathf.Max(1f, width - _leftInset - _rightInset);
+            var captionWidth = innerWidth - controlsWidth - _gap * 2f;
+            // Reserve a readable caption column. Long chords get the full row below
+            // it instead of spilling into the separator or shrinking the font.
+            var nativeControlsWidth = _boxWidth * count + (secondary ? separatorWidth + _gap * 2f : 0f);
+            var stacked = captionWidth < innerWidth * 0.3f ||
+                          controlsWidth > nativeControlsWidth + PreferredSizeTolerance &&
+                          title.GetPreferredValues(title.text).x > captionWidth;
+            if (stacked)
+            {
+                captionWidth = innerWidth;
+            }
+
+            if (controlsWidth > innerWidth)
+            {
+                var available = Mathf.Max(1f, innerWidth - (secondary ? separatorWidth + _gap * 2f : 0f));
+                var total = controlsWidth - (secondary ? separatorWidth + _gap * 2f : 0f);
+                for (var i = 0; i < count; i++)
+                {
+                    widths[i] *= available / total;
+                }
+
+                controlsWidth = innerWidth;
+            }
+
+            var controlsHeight = _boxHeight;
+            for (var i = 0; i < count; i++)
+            {
+                var text = BindingText(i);
+                Prepare(text, true);
+                var preferred = GetPreferredSize(text, text.fontSize, true, int.MaxValue, text.lineSpacing,
+                    Mathf.Max(1f, widths[i] - 12f));
+                controlsHeight = Mathf.Max(controlsHeight, Mathf.Ceil(preferred.y + 4f));
+            }
+
+            controlsHeight = Mathf.Max(controlsHeight, _separator.GetPreferredValues(_separator.text).y);
+            var captionSize = GetPreferredSize(title, title.fontSize, true, int.MaxValue, title.lineSpacing,
+                captionWidth);
+            var captionHeight = Mathf.Max(_captionHeight, Mathf.Ceil(captionSize.y));
+            var contentHeight = stacked ? captionHeight + _gap + controlsHeight :
+                Mathf.Max(captionHeight, controlsHeight);
+            var height = Mathf.Max(_rowHeight, contentHeight + _verticalInset * 2f);
+            _element.minHeight = Mathf.Max(_minimumHeight, height);
+            _element.preferredHeight = Mathf.Max(_preferredHeight, height);
+            rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            Place(title.rectTransform, _leftInset,
+                stacked ? _verticalInset + controlsHeight + _gap : (height - captionHeight) / 2f,
+                captionWidth, captionHeight);
+            Place(_table, stacked ? _leftInset : width - _rightInset - controlsWidth,
+                stacked ? _verticalInset : (height - controlsHeight) / 2f, controlsWidth, controlsHeight);
+            Place(_row.bindingBoxes[0], 0f, 0f, widths[0], controlsHeight);
+            if (secondary)
+            {
+                Place(_row.orSeparator, widths[0] + _gap, 0f, separatorWidth, controlsHeight);
+                Place(_row.bindingBoxes[1], widths[0] + separatorWidth + _gap * 2f, 0f,
+                    widths[1], controlsHeight);
+            }
+
+            _lastWidth = width;
+            _lastSecondary = secondary;
+            for (var i = 0; i < _texts.Count; i++)
+            {
+                var text = _texts[i].Text;
+                _texts[i] = (text, text.text, text.font, text.isActiveAndEnabled);
+            }
+
+            _dirty = false;
+            if (rect.parent is RectTransform settingsTable)
+            {
+                LayoutRebuilder.MarkLayoutForRebuild(settingsTable);
+            }
+        }
+
+        private TMP_Text BindingText(int index)
+        {
+            return _row.bindingLabels[index].gameObject.activeSelf
+                ? _row.bindingLabels[index].TMP_Text
+                : _row.unboundLabels[index].TMP_Text;
+        }
+
+        private void AddText(TMP_Text text)
+        {
+            Prepare(text, true);
+            _texts.Add((text, null, null, false));
+        }
+
+        private bool HasChanged(float width, bool secondary)
+        {
+            if (Mathf.Abs(width - _lastWidth) >= PreferredSizeTolerance || secondary != _lastSecondary)
+            {
+                return true;
+            }
+
+            foreach (var (text, value, font, active) in _texts)
+            {
+                if (text.text != value || text.font != font || text.isActiveAndEnabled != active)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static void Prepare(TMP_Text text, bool wrap)
+        {
+            var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+            state.Capture(text);
+            text.enableAutoSizing = false;
+            text.fontSize = state.OriginalFontSizeMax;
+            text.enableWordWrapping = wrap;
+            text.maxVisibleCharacters = int.MaxValue;
+            text.maxVisibleLines = int.MaxValue;
+            text.overflowMode = TextOverflowModes.Overflow;
+            text.lineSpacing = state.OriginalLineSpacing;
+        }
+
+        private static void Place(RectTransform rect, float x, float y, float width, float height)
+        {
+            rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.zero;
+            rect.anchoredPosition = new Vector2(x, y);
+            rect.sizeDelta = new Vector2(width, height);
+        }
+    }
+
+    private sealed class SettingCaptionLayoutState : MonoBehaviour
+    {
+        private GuiBehaviour _row;
+        private TMP_Text _text;
+        private TextFitState _textState;
+        private LayoutElement _element;
+        private float _rowHeight;
+        private float _captionHeight;
+        private float _minimumHeight;
+        private float _preferredHeight;
+        private RectTransform _radioTable;
+        private float _radioTableHeight;
+        private float _extraHeight;
+        private float _lastWidth = -1f;
+        private string _lastText;
+        private TMP_FontAsset _lastFont;
+        private bool _dirty;
+        private int _deferredFrames;
+
+        internal void Schedule(GuiBehaviour row, TMP_Text text)
+        {
+            _row = row;
+            _text = text;
+            _dirty = true;
+            // Native derived Bind methods and the parent layout finish after ApplyText.
+            _deferredFrames = DeferredSingleLineFitFrames;
+        }
+
+        private void Invalidate()
+        {
+            _dirty = true;
+        }
+
+        private void LateUpdate()
+        {
+            if (!_row || !_text || !_row.gameObject.activeInHierarchy ||
+                (!_text.isActiveAndEnabled && _row is not SettingRadioListItem) || IsCanvasRebuildInProgress())
+            {
+                return;
+            }
+
+            if (_deferredFrames > 0)
+            {
+                _deferredFrames--;
+                return;
+            }
+
+            var caption = _text.rectTransform;
+            var width = caption.rect.width;
+            if (width <= 0f || string.IsNullOrEmpty(_text.text) ||
+                !_dirty && Mathf.Abs(width - _lastWidth) < PreferredSizeTolerance &&
+                _lastText == _text.text && _lastFont == _text.font)
+            {
+                return;
+            }
+
+            if (!_textState)
+            {
+                _textState = _text.GetComponent<TextFitState>() ?? _text.gameObject.AddComponent<TextFitState>();
+                _textState.Capture(_text);
+                _rowHeight = _row.RectTransform.rect.height;
+                _captionHeight = caption.rect.height;
+                _element = _row.GetComponent<LayoutElement>() ?? _row.gameObject.AddComponent<LayoutElement>();
+                _minimumHeight = _element.minHeight;
+                _preferredHeight = _element.preferredHeight;
+                if (_row is SettingRadioListItem owner)
+                {
+                    _radioTable = owner.togglesTable;
+                    _radioTableHeight = _radioTable ? _radioTable.rect.height : 0f;
+                }
+            }
+
+            _text.enableAutoSizing = false;
+            _text.fontSize = _textState.OriginalFontSizeMax;
+            _text.enableWordWrapping = true;
+            _text.maxVisibleLines = int.MaxValue;
+            _text.maxVisibleCharacters = int.MaxValue;
+            _text.overflowMode = TextOverflowModes.Overflow;
+            _text.lineSpacing = _textState.OriginalLineSpacing;
+
+            var preferred = _text.isActiveAndEnabled
+                ? GetPreferredSize(_text, _text.fontSize, true, int.MaxValue, _text.lineSpacing, width)
+                : Vector2.zero;
+            var captionHeight = Mathf.Max(_captionHeight,
+                Mathf.Ceil(preferred.y + _text.margin.y + _text.margin.w));
+            var rowHeight = _rowHeight;
+            var radioTableHeight = _radioTableHeight;
+            var extraHeight = captionHeight - _captionHeight;
+            var choicesExtraHeight = 0f;
+            if (_row is SettingRadioListItem radio && radio.settingTypeRadioListAttribute != null)
+            {
+                rowHeight = radio.settingTypeRadioListAttribute.DisplayHeader
+                    ? radio.expandedHeight
+                    : radio.regularHeight;
+
+                if (_radioTable)
+                {
+                    // A pooled radio can change its native header mode on Bind.
+                    // Stretched tables follow that base height; fixed tables do not.
+                    radioTableHeight += (rowHeight - _rowHeight) *
+                                        (_radioTable.anchorMax.y - _radioTable.anchorMin.y);
+                }
+
+                if (_radioTable)
+                {
+                    foreach (Transform child in _radioTable)
+                    {
+                        if (child.gameObject.activeSelf &&
+                            child.GetComponent<SettingCaptionLayoutState>() is { } choiceLayout &&
+                            choiceLayout._text && choiceLayout._text.isActiveAndEnabled)
+                        {
+                            choicesExtraHeight = Mathf.Max(choicesExtraHeight, choiceLayout._extraHeight);
+                        }
+                    }
+                }
+
+                // Captions and radio choices occupy parallel columns. Preserve their
+                // native insets and reserve the height required by the taller column.
+                extraHeight = Mathf.Max(extraHeight, choicesExtraHeight);
+            }
+
+            rowHeight += extraHeight;
+            _element.minHeight = Mathf.Max(_minimumHeight, rowHeight);
+            _element.preferredHeight = Mathf.Max(_preferredHeight, rowHeight);
+            _row.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, rowHeight);
+            if (_radioTable)
+            {
+                // Resize the parent first: a vertically stretched table must not
+                // receive the same extra height twice when the row subsequently grows.
+                _radioTable.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+                    radioTableHeight + choicesExtraHeight);
+                LayoutRebuilder.MarkLayoutForRebuild(_radioTable);
+            }
+
+            // Keep the native caption width: controls already occupy the remaining column.
+            caption.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, captionHeight);
+            LayoutRebuilder.MarkLayoutForRebuild(_row.RectTransform);
+            if (_row.RectTransform.parent is RectTransform table)
+            {
+                LayoutRebuilder.MarkLayoutForRebuild(table);
+            }
+
+            _lastWidth = width;
+            _lastText = _text.text;
+            _lastFont = _text.font;
+            _extraHeight = extraHeight;
+            _dirty = false;
+
+            if (_row is SettingRadioChoice &&
+                _row.GetComponentInParent<SettingRadioListItem>() is { } radioOwner)
+            {
+                radioOwner.GetComponent<SettingCaptionLayoutState>()?.Invalidate();
+            }
+        }
+    }
+
+    private sealed class SettingsTabsLayoutState : MonoBehaviour
+    {
+        private readonly List<(SettingsTabToggle Tab, float Width)> _tabs = [];
+        private SettingsPanel _panel;
+        private ScrollRect _scroll;
+        private HorizontalLayoutGroup _layout;
+        private float _originalSpacing;
+        private float _lastWidth;
+        private int _lastPadding;
+        private string _lastLanguage;
+        private bool _lastGamepad;
+        private bool _dirty;
+
+        internal void Schedule(SettingsPanel panel)
+        {
+            if (!_panel)
+            {
+                _panel = panel;
+                _scroll = panel.tabTogglesContainer.GetComponentInParent<ScrollRect>();
+                _layout = panel.tabTogglesContainer.GetComponent<HorizontalLayoutGroup>();
+                _originalSpacing = _layout ? _layout.spacing : 0f;
+            }
+
+            _dirty = true;
+        }
+
+        private void LateUpdate()
+        {
+            if (!_panel || !_panel.Visible || !_scroll || !_layout)
+            {
+                return;
+            }
+
+            // The native viewport follows the content fitter. The scroll view itself
+            // retains the panel's available width, including after a language change.
+            var viewport = (RectTransform)_scroll.transform;
+            var wrapper = _layout.transform.parent.GetComponent<HorizontalLayoutGroup>();
+            var padding = _layout.padding.horizontal + (wrapper ? wrapper.padding.horizontal : 0);
+            var width = viewport.rect.width - padding;
+            var language = LocalizationManager.CurrentLanguageCode;
+
+            if (width <= 0f || (!_dirty && Mathf.Abs(width - _lastWidth) < PreferredSizeTolerance &&
+                                padding == _lastPadding && _lastLanguage == language &&
+                                _lastGamepad == Gui.GamepadActive))
+            {
+                return;
+            }
+
+            _dirty = false;
+            _lastWidth = width;
+            _lastPadding = padding;
+            _lastLanguage = language;
+            _lastGamepad = Gui.GamepadActive;
+            _tabs.Clear();
+            var totalWidth = 0f;
+
+            foreach (var tab in _panel.tabToggles.Values)
+            {
+                if (!tab || !tab.gameObject.activeSelf || !tab.title?.TMP_Text)
+                {
+                    continue;
+                }
+
+                var text = tab.title.TMP_Text;
+                var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+                state.Capture(text);
+                text.enableAutoSizing = false;
+                text.fontSize = state.OriginalFontSizeMax;
+                var preferredWidth = Mathf.Max(1f, text.GetPreferredValues(text.text).x);
+                _tabs.Add((tab, preferredWidth));
+                totalWidth += preferredWidth;
+            }
+
+            if (_tabs.Count == 0)
+            {
+                return;
+            }
+
+            // The native content fitter sizes the strip from all localized titles, but
+            // leaves its fixed gaps unchanged when that strip exceeds the scroll viewport.
+            var gaps = _tabs.Count - 1;
+            _layout.spacing = gaps > 0
+                ? Mathf.Clamp((width - totalWidth) / gaps, Mathf.Max(0f, _originalSpacing * 0.25f),
+                    Mathf.Max(0f, _originalSpacing))
+                : _originalSpacing;
+            var scale = Mathf.Min(1f, Mathf.Max(0f, width - gaps * _layout.spacing) / totalWidth);
+
+            foreach (var (tab, preferredWidth) in _tabs)
+            {
+                var tabWidth = preferredWidth * scale;
+                tab.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, tabWidth);
+                tab.selectionBar.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, tabWidth);
+            }
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_panel.tabTogglesContainer);
+
+            foreach (var (tab, _) in _tabs)
+            {
+                ApplyConstrainedSingleLineFit(tab.title.TMP_Text, TagMinFontScale, TagAbsoluteMinFontSize);
+            }
+
+            if (_scroll.content)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(_scroll.content);
+            }
+
+            _scroll.horizontalNormalizedPosition = 0f;
+        }
     }
 
     private sealed class TextFitState : MonoBehaviour

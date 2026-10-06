@@ -457,7 +457,8 @@ public static class GameLocationCharacterExtensions
         Action<GameLocationCharacter> reactionValidated = null,
         Action reactionNotValidated = null,
         GameLocationBattleManager battleManager = null,
-        BaseDefinition effectDefinition = null)
+        BaseDefinition effectDefinition = null,
+        Func<GameLocationCharacter, bool> candidateValidator = null)
     {
         if (!TryGetReactionManagers(out var actionManager, out battleManager, battleManager))
         {
@@ -466,7 +467,7 @@ public static class GameLocationCharacterExtensions
 
         var candidateList = candidates?.ToArray() ?? [];
 
-        if (!candidateList.Any(ReactionRequestSelectTarget.IsCandidateValid))
+        if (!candidateList.Any(candidateValidator ?? ReactionRequestSelectTarget.IsCandidateValid))
         {
             reactionNotValidated?.Invoke();
             yield break;
@@ -476,7 +477,7 @@ public static class GameLocationCharacterExtensions
         {
             StringParameter = stringParameter
         };
-        var reactionRequest = new ReactionRequestSelectTarget(reactionParams, candidateList, type, effectDefinition);
+        var reactionRequest = new ReactionRequestSelectTarget(reactionParams, candidateList, type, effectDefinition, candidateValidator);
         var count = actionManager.PendingReactionRequestGroups.Count;
 
         actionManager.AddInterruptRequest(reactionRequest);

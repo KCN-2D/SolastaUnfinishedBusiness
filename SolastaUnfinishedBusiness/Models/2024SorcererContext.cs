@@ -65,6 +65,23 @@ public static partial class Tabletop2024Context
         DamageAffinitySorcererDraconicElementalResistance2024,
         () => Main.Settings.EnableSorcererDraconicBloodlineResistance2024);
 
+    internal static void SwitchSorcererDraconicBloodlineElementalAffinity()
+    {
+        var unlocks = CharacterSubclassDefinitions.SorcerousDraconicBloodline.FeatureUnlocks;
+        var level = Main.Settings.EnableSorcererDraconicBloodlineElementalAffinity2024
+            ? 6
+            : Main.Settings.EnableSorcererOrigin2024 ? 3 : 1;
+
+        foreach (var unlock in unlocks.Where(x =>
+                     x.FeatureDefinition == FeatureDefinitionFeatureSets.FeatureSetSorcererDraconicChoice ||
+                     x.FeatureDefinition == RulesContext.InvocationPoolSorcererDraconicChoice))
+        {
+            unlock.level = level;
+        }
+
+        unlocks.Sort(Sorting.CompareFeatureUnlock);
+    }
+
     internal static void SwitchSorcererDraconicBloodlineResistance()
     {
         DraconicResistanceReplacement.Apply();
@@ -208,6 +225,7 @@ public static partial class Tabletop2024Context
         }
 
         SwitchSubclassLearningLevel(origins, Sorcerer, SubclassChoiceSorcerousOrigin, fromLevel, toLevel);
+        SwitchSorcererDraconicBloodlineElementalAffinity();
     }
 
     internal static bool IsArcaneApotheosisValid(RulesetCharacter rulesetCharacter, RulesetEffect rulesetEffect)
@@ -252,8 +270,9 @@ public static partial class Tabletop2024Context
         RulesetEffectSpell spellEffect,
         ref int saveDc)
     {
-        if (spellEffect?.EffectDescription?.HasSavingThrow == true &&
-            IsInnateSorceryValid(spellEffect))
+        // Some spells resolve saving throws outside their effect forms. The DC belongs
+        // to the sorcerer spell even when its description has no native saving throw.
+        if (IsInnateSorceryValid(spellEffect))
         {
             saveDc++;
         }
@@ -281,8 +300,7 @@ public static partial class Tabletop2024Context
             saveDc = spellRepertoire?.SaveDC ?? spellOrigin.BaseSaveDc;
         }
 
-        if (powerEffect.EffectDescription.HasSavingThrow &&
-            IsInnateSorceryValid(spellOrigin))
+        if (IsInnateSorceryValid(spellOrigin))
         {
             saveDc++;
         }
@@ -304,6 +322,42 @@ public static partial class Tabletop2024Context
         return TryGetSpellDerivedPowerOrigin(powerEffect, out var spellOrigin)
             ? spellOrigin.SpellEffect
             : null;
+    }
+
+    internal static RulesetEffectSpell GetSpellDerivedConditionSpell(RulesetCondition condition)
+    {
+        return GetSpellDerivedConditionOrigin(condition)?.SpellEffect;
+    }
+
+    internal static RulesetEffectSpell GetSpellDerivedProxySpell(RulesetCharacterEffectProxy proxy)
+    {
+        var resolving = new HashSet<ulong>();
+        while (proxy != null && resolving.Add(proxy.EffectGuid))
+        {
+            switch (EffectHelpers.GetEffectByGuid(proxy.EffectGuid))
+            {
+                case RulesetEffectSpell spell:
+                    return spell;
+                case RulesetEffectPower power:
+                    if (power.OriginItem != null || power.User == null || power.PowerDefinition == null)
+                    {
+                        return null;
+                    }
+                    if (SpellDerivedPowerOrigins.TryGetValue(power, out var origin))
+                    {
+                        return origin.SpellEffect;
+                    }
+                    if (power.User is RulesetCharacterEffectProxy owner)
+                    {
+                        proxy = owner;
+                        break;
+                    }
+                    return GetSpellDerivedPowerSpell(power);
+                default:
+                    return null;
+            }
+        }
+        return null;
     }
 
     internal static void BindSpellDerivedPowerOrigin(RulesetEffectPower powerEffect)
@@ -475,6 +529,14 @@ public static partial class Tabletop2024Context
 
         try
         {
+            // Recurrent proxy powers retain the precise parent spell's native EffectGuid.
+            if (powerEffect.User is RulesetCharacterEffectProxy proxy &&
+                GetSpellDerivedProxySpell(proxy) is { } parent)
+            {
+                spellOrigin = CreateSpellEffectOrigin(parent);
+                return spellOrigin != null;
+            }
+
             foreach (var condition in powerEffect.User.AllConditions.Where(x =>
                          x.ConditionDefinition.Features.Contains(powerEffect.PowerDefinition)))
             {
@@ -615,8 +677,7 @@ public static partial class Tabletop2024Context
     {
         var saveDc = spellEffect.SaveDC;
 
-        if (spellEffect.EffectDescription?.HasSavingThrow == true &&
-            IsInnateSorceryValid(spellEffect))
+        if (IsInnateSorceryValid(spellEffect))
         {
             saveDc--;
         }

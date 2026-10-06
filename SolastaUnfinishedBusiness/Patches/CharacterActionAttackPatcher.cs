@@ -549,23 +549,32 @@ public static class CharacterActionAttackPatcher
 
                     // Saving throw?
                     var hasBorrowedLuck = rulesetDefender.HasConditionOfTypeOrSubType(ConditionBorrowedLuck);
+                    var savingThrow = __instance.actualEffectForms.Select(form => form.OverrideSavingThrowInfo)
+                        .FirstOrDefault(info => info != null);
+                    var savingThrowSource = MetamagicContext.GetSavingThrowSpell(
+                        rulesetCharacter, attackMode.SourceDefinition, __instance.actualEffectForms);
 
                     // These bool information must be store as a class member, as it is passed to HandleFailedSavingThrow
+                    using var heightenedSaveScope = MetamagicContext.DelayHeightenedConsumption(savingThrowSource, rulesetDefender);
                     using var savingRollContext = new D20RollContext(rulesetDefender as RulesetCharacter, RollContext.SavingThrow,
-                        attackMode.EffectDescription.SavingThrowAbility, advantageTrends: attackModifier.SavingThrowAdvantageTrends,
-                        canGainAdvantage: attackMode.EffectDescription.HasSavingThrow);
+                        savingThrow?.SavingThrowAbility ?? attackMode.EffectDescription.SavingThrowAbility,
+                        advantageTrends: attackModifier.SavingThrowAdvantageTrends,
+                        canGainAdvantage: savingThrow != null || attackMode.EffectDescription.HasSavingThrow);
 
                     yield return savingRollContext.Prompt(actingCharacter);
 
+                    bool RollSavingThrow(ActionModifier modifier, out RollOutcome result, out int delta)
+                    {
+                        return savingThrowSource != null && rulesetCharacter is not RulesetCharacterEffectProxy
+                            ? savingThrowSource.TryRollSavingThrow(rulesetCharacter, actingCharacter.Side,
+                                rulesetDefender, modifier, __instance.actualEffectForms, false, out result, out delta)
+                            : attackMode.TryRollSavingThrow(rulesetCharacter, rulesetDefender, modifier,
+                                __instance.actualEffectForms, out result, out delta);
+                    }
+
                     using (savingRollContext.Activate())
                     {
-                        __instance.RolledSaveThrow = attackMode.TryRollSavingThrow(
-                            rulesetCharacter,
-                            rulesetDefender,
-                            attackModifier,
-                            __instance.actualEffectForms,
-                            out var saveOutcome,
-                            out var saveOutcomeDelta);
+                        __instance.RolledSaveThrow = RollSavingThrow(attackModifier, out var saveOutcome, out var saveOutcomeDelta);
 
                         __instance.SaveOutcome = saveOutcome;
                         __instance.SaveOutcomeDelta = saveOutcomeDelta;
@@ -583,10 +592,13 @@ public static class CharacterActionAttackPatcher
                             MinimumResult = RulesetActorExtensions.SaveMinimumResult,
                             SaveBonusAndRollModifier = RulesetActorExtensions.SaveBonusAndRollModifier,
                             SavingThrowAbility = RulesetActorExtensions.SavingThrowAbility,
-                            SourceDefinition = null,
+                            SourceDefinition = attackMode.SourceDefinition,
+                            SourceEffect = savingThrowSource,
+                            SavingThrowForms = __instance.actualEffectForms,
                             EffectDescription = attackMode.EffectDescription,
                             Title = __instance.FormatTitle(),
-                            Action = __instance
+                            Action = __instance,
+                            RerollSavingThrow = RollSavingThrow
                         };
 
                         yield return TryAlterOutcomeSavingThrow.Handler(

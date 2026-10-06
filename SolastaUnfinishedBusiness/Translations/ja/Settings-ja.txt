@@ -262,6 +262,7 @@ ModUi/&EnableScimitarSpecialization=シミターに<color=#D89555>武器特化</
 ModUi/&EnableSignatureSpellsRelearn=<color=#D89555>愛用呪文</color>を大休憩ごとに選び直せるようにします<i><color=#F0DAA0>（レベル20で1回ではなく）</color></i>
 ModUi/&EnableSorcererArcaneApotheosis2024=レベル20で<color=#D89555>魔力点高速回復</color>の代わりに<color=#D89555>秘術による神格化</color>を有効にします
 ModUi/&EnableSorcererDraconicBloodlineAC2024=<color=#D89555>竜の血脈</color>の<color=#D89555>竜の防御力</color>を2024年版にします<i><color=#F0DAA0>（13+敏捷力修正値ではなく、10+敏捷力修正値+魅力修正値）</color></i>
+ModUi/&EnableSorcererDraconicBloodlineElementalAffinity2024=<color=#D89555>竜の血脈</color>の祖先の竜をソーサラー6レベルで選択します
 ModUi/&EnableSorcererDraconicBloodlineResistance2024=<color=#D89555>竜の血脈</color>の<color=#D89555>竜の抵抗</color>を2024年版にします<i><color=#F0DAA0>（祖先の竜に対応するダメージ種別への抵抗を常に得ます）</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=レベル1と7で<color=#D89555>生来の魔術</color>と<color=#D89555>魔術の化身</color>を有効にします
 ModUi/&EnableSorcererMagicalGuidance=レベル5で<color=#D89555>魔法の導き</color>を有効にします

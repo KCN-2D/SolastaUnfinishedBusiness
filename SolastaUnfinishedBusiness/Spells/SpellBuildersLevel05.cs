@@ -509,7 +509,7 @@ internal static partial class SpellBuilders
             {
                 var saved = true;
                 yield return SmiteSpells2024Context.SaveAgainstSmite(battleManager, attacker, defender,
-                    SpellsContext.BanishingSmite, AttributeDefinitions.Charisma,
+                    SpellsContext.BanishingSmite,
                     SmiteSpells2024Context.BanishingSmiteCondition2024, outcome => saved = outcome);
                 if (saved || rulesetDefender.IsDeadOrDyingOrUnconscious)
                 {
@@ -928,7 +928,7 @@ internal static partial class SpellBuilders
     }
 
     private sealed class CustomBehaviorHolyWeapon(FeatureDefinitionAdditionalDamage additionalDamage)
-        : IPowerOrSpellInitiatedByMe, IFilterTargetingCharacter
+        : IPowerOrSpellInitiatedByMe, IFilterTargetingCharacter, IPowerOrSpellTargetProvider
     {
         public bool EnforceFullSelection => false;
 
@@ -951,13 +951,18 @@ internal static partial class SpellBuilders
             return hasHolyWeapon;
         }
 
+        public List<GameLocationCharacter> GetTargetCharacters(CharacterActionMagicEffect action)
+        {
+            var center = action.ActionParams.TargetCharacters.FirstOrDefault();
+            return center == null ? [] : Gui.Battle?.GetContenders(center, withinRange: 6).ToList() ?? [];
+        }
         public IEnumerator OnPowerOrSpellInitiatedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
         {
             var ally = action.ActionParams.TargetCharacters[0];
 
             EffectHelpers.StartVisualEffect(ally, ally, PowerOathOfDevotionTurnUnholy, EffectHelpers.EffectType.Caster);
 
-            var targets = Gui.Battle?.GetContenders(ally, withinRange: 6) ?? [];
+            var targets = GetTargetCharacters(action);
 
             action.ActionParams.TargetCharacters.SetRange(targets);
             action.ActionParams.ActionModifiers.SetRange(GetActionModifiers(targets.Count));

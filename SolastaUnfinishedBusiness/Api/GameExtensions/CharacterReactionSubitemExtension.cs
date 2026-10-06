@@ -1500,7 +1500,7 @@ internal static class CharacterReactionSubitemExtension
                    _row.canvasGroup.interactable && Item == item && _request == request &&
                    request.SubOptionsAvailability.TryGetValue(_option, out var available) && available &&
                    _option >= 0 && _option < request.Candidates.Count &&
-                   request.Candidates[_option] == _target && ReactionRequestSelectTarget.IsCandidateValid(_target);
+                   request.Candidates[_option] == _target && request.IsCandidateAvailable(_target);
         }
 
         public void OnPointerEnter(PointerEventData eventData)

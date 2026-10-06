@@ -1733,7 +1733,7 @@ internal static partial class SpellBuilders
 
     private sealed class CustomBehaviorWitherAndBloom(
         SpellDefinition spellWitherAndBloom,
-        ConditionDefinition conditionWitherAndBloom) : IPowerOrSpellInitiatedByMe, IPowerOrSpellFinishedByMe
+        ConditionDefinition conditionWitherAndBloom) : IPowerOrSpellInitiatedByMe, IPowerOrSpellFinishedByMe, IPowerOrSpellTargetProvider
     {
         private int _spellCastingAbilityModifier;
         private GameLocationCharacter _target;
@@ -1822,11 +1822,7 @@ internal static partial class SpellBuilders
 
             _target = action.ActionParams.TargetCharacters[0];
 
-            action.ActionParams.TargetCharacters.SetRange(
-                (Gui.Battle?.AllContenders ?? [])
-                .Where(x =>
-                    _target.IsWithinRange(x, 2) &&
-                    _target.IsOppositeSide(x.Side)));
+            action.ActionParams.TargetCharacters.SetRange(GetTargetCharacters(action));
 
             action.ActionParams.ActionModifiers.Clear();
 
@@ -1856,6 +1852,12 @@ internal static partial class SpellBuilders
                 0);
         }
 
+        public List<GameLocationCharacter> GetTargetCharacters(CharacterActionMagicEffect action)
+        {
+            var center = action.ActionParams.TargetCharacters.FirstOrDefault();
+            return center == null ? [] : (Gui.Battle?.AllContenders ?? [])
+                .Where(target => center.IsWithinRange(target, 2) && center.IsOppositeSide(target.Side)).ToList();
+        }
         private void HitDieRolled(
             RulesetCharacter character,
             DieType dieType,

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
+using Newtonsoft.Json;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
@@ -20,6 +21,83 @@ internal static class DungeonMakerContext
     private const string FlatRoomsCategoryName = "FlatRooms";
     private const string ModdedSuffix = "~MOD";
     internal static readonly HashSet<string> OutdoorRooms = new(StringComparer.Ordinal);
+
+    internal static bool ShouldReadUserContentFile(string path, string contentType)
+    {
+        try
+        {
+            return !TryReadTopLevelString(path, "contentType", out var fileContentType, true) ||
+                   string.Equals(fileContentType, contentType, StringComparison.Ordinal);
+        }
+        catch
+        {
+            // Preserve native handling for legacy, unreadable or malformed content.
+            return true;
+        }
+    }
+
+    internal static bool TryReadTopLevelString(
+        [NotNull] string path,
+        [NotNull] string propertyName,
+        [CanBeNull] out string value,
+        bool headerOnly = false)
+    {
+        value = null;
+
+        using var stream = File.OpenRead(path);
+        using var textReader = new StreamReader(stream);
+        using var jsonReader = new JsonTextReader(textReader);
+
+        if (!ReadNextNonComment(jsonReader) || jsonReader.TokenType != JsonToken.StartObject)
+        {
+            return false;
+        }
+
+        while (ReadNextNonComment(jsonReader))
+        {
+            if (jsonReader.TokenType != JsonToken.PropertyName)
+            {
+                return false;
+            }
+
+            var currentPropertyName = jsonReader.Value as string;
+
+            if (!ReadNextNonComment(jsonReader))
+            {
+                return false;
+            }
+
+            if (string.Equals(currentPropertyName, propertyName, StringComparison.Ordinal))
+            {
+                value = jsonReader.TokenType == JsonToken.String ? jsonReader.Value as string : null;
+
+                return !string.IsNullOrWhiteSpace(value);
+            }
+
+            // Do not scan a campaign's rooms just to decide which pool should read it.
+            if (headerOnly && jsonReader.TokenType is JsonToken.StartObject or JsonToken.StartArray)
+            {
+                return false;
+            }
+
+            jsonReader.Skip();
+        }
+
+        return false;
+    }
+
+    private static bool ReadNextNonComment([NotNull] JsonReader reader)
+    {
+        while (reader.Read())
+        {
+            if (reader.TokenType != JsonToken.Comment)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     internal static void Load()
     {

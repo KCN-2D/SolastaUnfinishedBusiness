@@ -12,6 +12,40 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class LocalCommandManagerPatcher
 {
+    [HarmonyPatch(
+        typeof(LocalCommandManager),
+        nameof(LocalCommandManager.GrantItem),
+        typeof(RulesetCharacterHero),
+        typeof(RulesetItem),
+        typeof(bool))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class GrantItem_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(RulesetCharacterHero __0, RulesetItem __1)
+        {
+            if (__1?.ItemDefinition?.IsWealthPile != true ||
+                Gui.GameCampaign?.Party != null ||
+                __0?.Treasury == null)
+            {
+                return true;
+            }
+
+            // Character equipment can be edited from the title screen. Native GrantItem
+            // consumes wealth piles before assuming there is a campaign party treasury.
+            // TreasuryPanel binds the inspected Hero's treasury in this mode instead.
+            if (__1.Guid != 0)
+            {
+                __1.Unregister();
+            }
+
+            __0.GainAmounts(__1.Gains);
+
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(LocalCommandManager), nameof(LocalCommandManager.OpenMerchant))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

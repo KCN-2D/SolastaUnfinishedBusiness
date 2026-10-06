@@ -9,6 +9,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -42,12 +43,20 @@ internal static class MetamagicContext
         "Rules/&MetamagicOptionCarefulSpell2024Description";
     private const string MetamagicExtendedSpell2024Description =
         "Rules/&MetamagicOptionExtendedSpell2024Description";
+    private const string MetamagicHeightenedSpell2024Description =
+        "Rules/&MetamagicOptionHeightenedSpell2024Description";
     private const string MetamagicQuickenedSpell2024Description =
         "Rules/&MetamagicOptionQuickenedSpell2024Description";
     private const string MetamagicTwinnedSpell2024Description =
         "Rules/&MetamagicOptionTwinnedSpell2024Description";
     private const string LeveledSpellCastThisTurn = "Metamagic2024LeveledSpellCastThisTurn";
     private const string QuickenedSpellCastThisTurn = "Metamagic2024QuickenedSpellCastThisTurn";
+    private const string HeightenedTargetLow = "MetamagicHeightenedTargetGuidLow";
+    private const string HeightenedTargetHigh = "MetamagicHeightenedTargetGuidHigh";
+    private static SmartAttributeDefinition _heightenedTargetLow;
+    private static SmartAttributeDefinition _heightenedTargetHigh;
+    private static readonly ConditionalWeakTable<RulesetEffectSpell, HeightenedSaveSequence> HeightenedSaveSequences = new();
+
     private const string ConditionCarefulSpell2024 = "ConditionMetamagicCarefulSpell2024Protected";
     private const string ConditionExtendedSpell2024 = "ConditionMetamagicExtendedSpell2024Concentration";
     internal const string FailureFlagTwinnedSpell2024InvalidTargetAdvancement =
@@ -669,6 +678,13 @@ internal static class MetamagicContext
         CombinedMetamagic.Enumerate(option).FirstOrDefault(component =>
             component.GetFirstSubFeatureOfType<ReplaceMetamagicOption>()?.RequiresSelection == true);
 
+    internal static bool HasSavingThrow(EffectDescription effectDescription, RulesetEffectSpell spellEffect)
+    {
+        return (spellEffect?.EffectDescription ?? effectDescription)?.HasSavingThrow == true ||
+               Counterspell2024Context.RequiresSavingThrow(spellEffect) ||
+               SmiteSpells2024Context.RequiresSavingThrow(spellEffect);
+    }
+
     // Family tiles preview concrete choices; only a resolved option reaches the casting action.
     internal static bool IsSelectionOptionAvailable(
         IRulesetImplementationService service, RulesetEffectSpell spell, RulesetCharacter caster,
@@ -823,6 +839,299 @@ internal static class MetamagicContext
 
     internal static void Unbind(MetamagicSelectionPanel panel) => Selections.Remove(panel);
 
+    internal static RulesetEffectSpell GetOriginatingSpell(RulesetEffect effect)
+    {
+        return effect switch
+        {
+            RulesetEffectSpell spell => spell,
+            RulesetEffectPower power => Tabletop2024Context.GetSpellDerivedPowerSpell(power),
+            _ => null
+        };
+    }
+
+    internal static RulesetEffectSpell GetSavingThrowSpell(
+        RulesetCharacter caster, BaseDefinition sourceDefinition, IEnumerable<EffectForm> forms,
+        RulesetEffect activeEffect = null)
+    {
+        var smite = SmiteSpells2024Context.GetSavingThrowSpell(caster, sourceDefinition, forms, activeEffect);
+        if (smite != null)
+        {
+            return smite;
+        }
+
+        var proxySpell = caster is RulesetCharacterEffectProxy proxy && sourceDefinition == proxy.EffectProxyDefinition
+            ? Tabletop2024Context.GetSpellDerivedProxySpell(proxy) : null;
+        var spell = GetOriginatingSpell(activeEffect) ?? proxySpell;
+        var savingThrow = forms?.Select(form => form.OverrideSavingThrowInfo).FirstOrDefault(info => info != null);
+        var isOwnedDerivedPower = activeEffect is RulesetEffectPower power && power.User == caster &&
+                                  GetOriginatingSpell(power) == spell;
+        var isOwnedProxy = proxySpell != null && proxySpell == spell;
+        return spell != null && caster != null && (spell.Caster == caster || isOwnedDerivedPower || isOwnedProxy) &&
+               (savingThrow == null || savingThrow.SourceDefinitionName == spell.SpellDefinition.Name ||
+                savingThrow.SourceDefinitionName == activeEffect.GetSourceDefinitionSafe()?.Name)
+            ? spell : null;
+    }
+
+    internal static ulong GetHeightenedTarget(RulesetEffectSpell spell)
+    {
+        return spell != null && spell.TryGetAttribute(HeightenedTargetLow, out var low) &&
+               spell.TryGetAttribute(HeightenedTargetHigh, out var high)
+            ? unchecked((ulong)(uint)low.BaseValue | ((ulong)(uint)high.BaseValue << 32)) : 0;
+    }
+
+    internal static void SetHeightenedTarget(RulesetEffectSpell spell, ulong targetGuid)
+    {
+        EnsureRules2024SubFeatures();
+        // Native effect attributes are already serialized for saves and peer synchronization.
+        // Preserve all Guid bits in BaseValue; CurrentValue can apply numeric-stat modifiers.
+        spell.Attributes[HeightenedTargetLow] = CreateGuidAttribute(_heightenedTargetLow, unchecked((int)targetGuid));
+        spell.Attributes[HeightenedTargetHigh] = CreateGuidAttribute(_heightenedTargetHigh, unchecked((int)(targetGuid >> 32)));
+    }
+
+    private static RulesetAttribute CreateGuidAttribute(SmartAttributeDefinition definition, int value) => new()
+    {
+        AttributeDefinition = definition,
+        BaseValue = value,
+        MinValue = int.MinValue,
+        MaxValue = int.MaxValue,
+        MaxEditableValue = int.MaxValue
+    };
+
+    internal static bool RequiresHeightenedTargetSelection(RulesetEffect effect)
+    {
+        return effect is RulesetEffectSpell spell &&
+               CombinedMetamagic.HasType(spell.MetamagicOption, MetamagicType.HeightenedSpell) &&
+               GetHeightenedTarget(spell) == 0 &&
+               (HasNativeSavingThrow(spell.EffectDescription, spell.EffectDescription.EffectForms) ||
+                Counterspell2024Context.RequiresSavingThrow(spell));
+    }
+
+    internal static bool IsHeightenedTargetCandidate(GameLocationCharacter target) =>
+        target?.RulesetCharacter is { IsDeadOrDying: false } and not RulesetCharacterEffectProxy &&
+        ServiceRepository.GetService<IGameLocationCharacterService>()?.ValidCharacters?.Contains(target) == true;
+
+    internal static IEnumerator SelectHeightenedTarget(
+        CharacterActionMagicEffect action, List<GameLocationCharacter> targets,
+        GameLocationBattleManager battleManager, Action<bool> completed)
+    {
+        var spell = (RulesetEffectSpell)action.ActionParams.RulesetEffect;
+        var candidates = targets.Where(IsHeightenedTargetCandidate).Distinct().OrderBy(target => target.Guid).ToArray();
+        var selected = candidates.FirstOrDefault();
+        if (candidates.Length > 1 && action.ActingCharacter.ControllerId != PlayerControllerManager.DmControllerId)
+        {
+            selected = null;
+            var heightened = CombinedMetamagic.Enumerate(spell.MetamagicOption)
+                .First(option => option.Type == MetamagicType.HeightenedSpell);
+            yield return action.ActingCharacter.MyReactToSelectTarget(
+                candidates, action.ActingCharacter, "AdditionalEffectTarget",
+                Gui.Format("Reaction/&CustomReactionAdditionalEffectTargetDescription", heightened.FormatTitle()),
+                target => selected = target, battleManager: battleManager, effectDefinition: heightened,
+                candidateValidator: IsHeightenedTargetCandidate);
+        }
+
+        if (selected == null || !targets.Contains(selected) || !IsHeightenedTargetCandidate(selected))
+        {
+            completed(false);
+            yield break;
+        }
+
+        SetHeightenedTarget(spell, selected.RulesetCharacter.Guid);
+        completed(true);
+    }
+
+    private static MetamagicOptionDefinition WithoutHeightened(MetamagicOptionDefinition option) =>
+        CombinedMetamagic.Enumerate(option).SingleOrDefault(component => component.Type != MetamagicType.HeightenedSpell);
+
+    internal static MetamagicOptionDefinition GetSavingThrowMetamagic(
+        RulesetEffect effect, RulesetActor target, List<EffectForm> forms = null)
+    {
+        if (effect == null)
+        {
+            return null;
+        }
+        var source = effect switch
+        {
+            RulesetEffectSpell spell => spell.Caster,
+            RulesetEffectPower power => power.User,
+            _ => null
+        };
+        var spellEffect = GetSavingThrowSpell(source, effect.GetSourceDefinitionSafe(), forms, effect);
+        if (spellEffect == null)
+        {
+            return CombinedMetamagic.HasType(effect.MetamagicOption, MetamagicType.HeightenedSpell)
+                ? WithoutHeightened(effect.MetamagicOption) : effect.MetamagicOption;
+        }
+
+        var option = spellEffect.MetamagicOption;
+        if (!CombinedMetamagic.HasType(option, MetamagicType.HeightenedSpell))
+        {
+            return option;
+        }
+
+        return target?.Guid > 0 && target.Guid == GetHeightenedTarget(spellEffect)
+            ? option : WithoutHeightened(option);
+    }
+
+    private static bool HasNativeSavingThrow(EffectDescription description, IEnumerable<EffectForm> forms) =>
+        description.HasSavingThrow && (!description.RollSaveOnlyIfRelevantForms ||
+            forms?.Any(form => form.SavingThrowAffinity != EffectSavingThrowType.None) == true);
+
+    internal static MetamagicOptionDefinition GetEffectSavingThrowMetamagic(
+        RulesetEffect effect, Side casterSide, RulesetActor target, List<EffectForm> forms)
+    {
+        var description = effect.EffectDescription;
+        return PrepareSavingThrowMetamagic(effect, target, HasNativeSavingThrow(description, forms),
+            casterSide, description.DisableSavingThrowOnAllies, forms);
+    }
+
+    internal static MetamagicOptionDefinition PrepareSavingThrowMetamagic(
+        RulesetEffect effect, RulesetActor target, bool hasSavingThrow, Side casterSide,
+        bool disableSavingThrowOnAllies, List<EffectForm> forms = null)
+    {
+        // Native effect getters run even when the manager will reject this save.
+        // Deferred carriers and old saves bind only once an actual save can occur.
+        if (target != null && (hasSavingThrow || forms?.Any(form => form.OverrideSavingThrowInfo != null) == true) &&
+            (!disableSavingThrowOnAllies || casterSide != target.Side))
+        {
+            BindHeightenedTarget(effect, target, forms);
+        }
+        return GetSavingThrowMetamagic(effect, target, forms);
+    }
+
+    private static void BindHeightenedTarget(RulesetEffect effect, RulesetActor target, List<EffectForm> forms = null)
+    {
+        var caster = effect switch
+        {
+            RulesetEffectSpell spell => spell.Caster,
+            RulesetEffectPower power => power.User,
+            _ => null
+        };
+        var spellEffect = effect == null ? null : GetSavingThrowSpell(caster, effect.GetSourceDefinitionSafe(), forms, effect);
+        if (spellEffect != null && target?.Guid > 0 && GetHeightenedTarget(spellEffect) == 0 &&
+            CombinedMetamagic.HasType(spellEffect.MetamagicOption, MetamagicType.HeightenedSpell))
+        {
+            SetHeightenedTarget(spellEffect, target.Guid);
+        }
+    }
+
+    internal static RulesetEffectSpell GetConditionSavingThrowSpell(RulesetCondition condition)
+    {
+        return Tabletop2024Context.GetSpellDerivedConditionSpell(condition);
+    }
+
+    internal static MetamagicOptionDefinition GetConditionSavingThrowMetamagic(RulesetCondition condition)
+    {
+        var effect = GetConditionSavingThrowSpell(condition);
+        if (effect == null || !RulesetEntity.TryGetEntity<RulesetActor>(condition.TargetGuid, out var target))
+        {
+            return null;
+        }
+        BindHeightenedTarget(effect, target);
+        return GetSavingThrowMetamagic(effect, target);
+    }
+
+    internal static bool CompleteConditionSavingThrow(bool rolled, RulesetCondition condition)
+    {
+        if (rolled && RulesetEntity.TryGetEntity<RulesetActor>(condition.TargetGuid, out var target))
+        {
+            CompleteHeightenedSavingThrow(GetConditionSavingThrowSpell(condition), target);
+        }
+        return rolled;
+    }
+
+    internal static void CompleteHeightenedSavingThrow(RulesetEffectSpell spell, RulesetActor target)
+    {
+        if (!Main.Settings.EnableSorcererMetamagic2024 && spell != null && target != null &&
+            GetHeightenedTarget(spell) == target.Guid &&
+            CombinedMetamagic.HasType(spell.MetamagicOption, MetamagicType.HeightenedSpell))
+        {
+            spell.metamagicOption = WithoutHeightened(spell.MetamagicOption);
+        }
+    }
+
+    internal static IDisposable DelayHeightenedConsumption(RulesetEffect effect, RulesetActor target)
+    {
+        var spell = GetOriginatingSpell(effect);
+        return spell == null || target == null ? null : new HeightenedSaveScope(spell, target.Guid);
+    }
+
+    internal static void CompleteNativeHeightenedSavingThrow(
+        RulesetEffect effect, RulesetCharacter caster, RulesetActor target, List<EffectForm> forms, bool rolled)
+    {
+        var spell = GetSavingThrowSpell(caster, effect.GetSourceDefinitionSafe(), forms, effect);
+        if (rolled && spell != null && target != null &&
+            (!HeightenedSaveSequences.TryGetValue(spell, out var sequence) || !sequence.Depths.ContainsKey(target.Guid)))
+        {
+            CompleteHeightenedSavingThrow(spell, target);
+        }
+    }
+    internal static bool IsAutomaticallyFailingSpellSavingThrow(
+        RulesetActor target, string ability, RulesetEffect effect)
+    {
+        var failed = target.IsAutomaticallyFailingSavingThrow(ability);
+        if (failed)
+        {
+            // Native tracked-condition saves skip the roll on automatic failure.
+            // They still use the selected creature's first save in the legacy rules.
+            BindHeightenedTarget(effect, target);
+            var caster = effect switch
+            {
+                RulesetEffectSpell spell => spell.Caster,
+                RulesetEffectPower power => power.User,
+                _ => null
+            };
+            CompleteNativeHeightenedSavingThrow(effect, caster, target, null, true);
+        }
+        return failed;
+    }
+
+    internal static void ApplyHeightenedSavingThrow(
+        RulesetEffect effect, RulesetActor target, List<TrendInfo> advantageTrends)
+    {
+        BindHeightenedTarget(effect, target);
+        var option = GetSavingThrowMetamagic(effect, target);
+        var heightened = CombinedMetamagic.Enumerate(option).FirstOrDefault(component => component.Type == MetamagicType.HeightenedSpell);
+        if (heightened != null)
+        {
+            advantageTrends.Add(new TrendInfo(-1, FeatureSourceType.Metamagic, heightened.Name, heightened));
+        }
+    }
+
+    private sealed class HeightenedSaveSequence
+    {
+        internal readonly Dictionary<ulong, int> Depths = [];
+    }
+
+    private sealed class HeightenedSaveScope : IDisposable
+    {
+        private RulesetEffectSpell _spell;
+        private readonly ulong _targetGuid;
+        internal HeightenedSaveScope(RulesetEffectSpell spell, ulong targetGuid)
+        {
+            _spell = spell;
+            _targetGuid = targetGuid;
+            var sequence = HeightenedSaveSequences.GetValue(spell, _ => new HeightenedSaveSequence());
+            sequence.Depths.TryGetValue(targetGuid, out var depth);
+            sequence.Depths[targetGuid] = depth + 1;
+        }
+
+        public void Dispose()
+        {
+            if (_spell != null)
+            {
+                var sequence = HeightenedSaveSequences.GetValue(_spell, _ => new HeightenedSaveSequence());
+                if (--sequence.Depths[_targetGuid] == 0)
+                {
+                    sequence.Depths.Remove(_targetGuid);
+                }
+                if (sequence.Depths.Count == 0)
+                {
+                    HeightenedSaveSequences.Remove(_spell);
+                }
+            }
+            _spell = null;
+        }
+    }
     internal static void SwitchSorcererMetamagicRules2024()
     {
         EnsureRules2024SubFeatures();
@@ -847,6 +1156,7 @@ internal static class MetamagicContext
                 : MetamagicSeekingSpellDescription;
         }
 
+        SetOrRestoreDescription(MetamagicHeightenedSpell, MetamagicHeightenedSpell2024Description, enabled);
         SetOrRestoreDescription(MetamagicCarefulSpell, MetamagicCarefulSpell2024Description, enabled);
         SetOrRestoreDescription(MetamagicExtendedSpell, MetamagicExtendedSpell2024Description, enabled);
         SetOrRestoreDescription(MetamagicQuickenedSpell, MetamagicQuickenedSpell2024Description, enabled);
@@ -1135,6 +1445,8 @@ internal static class MetamagicContext
         }
 
         _rules2024SubFeaturesInstalled = true;
+        _heightenedTargetLow = SmartAttributeDefinitionBuilder.Create(HeightenedTargetLow).SetGuiPresentationNoContent(true).AddToDB();
+        _heightenedTargetHigh = SmartAttributeDefinitionBuilder.Create(HeightenedTargetHigh).SetGuiPresentationNoContent(true).AddToDB();
         _conditionCarefulSpell2024 = BuildCarefulSpell2024Condition();
         _conditionExtendedSpell2024 = BuildExtendedSpell2024Condition();
 
