@@ -7,6 +7,8 @@ ModUI/&EnableBonusActionFreeJump=Active le saut en action bonus
 ModUI/&ModifyThrowingRulesForStrength=Appliquer des pénalités de lancer à une gamme par manque de force
 ModUI/&RoleplaySettings=Jeu de rôle
 ModUI/&RoleplaySettingsDescription=Ces paramètres modifient l'équilibre du jeu en faveur de la simulation de vie ou du jeu de rôle en ajoutant la complexité et une augmentation des chances de succès et d'échec
+ModUI/&EnableCivilianBattleReactions=Activer les réactions au combat des PNJ non combattants
+ModUI/&EnableCivilianBattleReactionsDescription=Les PNJ proches qui ne participent pas au combat se recroquevillent de peur pendant les batailles. Leurs positions et les voies de passage restent inchangées.
 ModUI/&SwapShineCantrip=Activer Shine DC 15
 ModUi/&AccountForAllDiceOnFollowUpStrike=Ajoutez tous les effets supplémentaires de l'arme de base à l'exploit <color=#D89555>Frappe de suivi</color>
 ModUi/&AccountForAllDiceOnSavageAttack=Ajoutez tous les dés des dégâts de l'arme de base aux fonctionnalités qui ajoutent des dégâts de l'arme de base au lieu d'un seul dé <i><color=#F0DAA0>[Attaque sauvage, armes à 2 mains, etc.]</color></i>

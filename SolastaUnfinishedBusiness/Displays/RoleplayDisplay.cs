@@ -1,5 +1,6 @@
 using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.Models;
+using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Displays;
 internal static class RoleplayDisplay
@@ -10,6 +11,18 @@ internal static class RoleplayDisplay
         UI.Label();
         UI.Label(Gui.Localize("ModUI/&RoleplaySettingsDescription"));
         UI.Label();
+        toggle = Main.Settings.EnableCivilianBattleReactions;
+        if (UI.Toggle(Gui.Localize("ModUI/&EnableCivilianBattleReactions"), ref toggle,
+                UI.AutoWidth()))
+        {
+            Main.Settings.EnableCivilianBattleReactions = toggle;
+            CombatAnimationContext.RefreshCivilianReactions();
+        }
+
+        UI.Label(Gui.Localize("ModUI/&EnableCivilianBattleReactionsDescription"),
+            new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
+        UI.Label();
+
         toggle = Main.Settings.EnableCriticalHitsMissesAt10;
         if (UI.Toggle(Gui.Localize("ModUI/&EnableCriticalHitsMissesAt10"), ref toggle,
                 UI.AutoWidth()))

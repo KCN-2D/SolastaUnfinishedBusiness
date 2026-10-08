@@ -7,6 +7,8 @@ ModUI/&EnableBonusActionFreeJump=Activa el salto como acción adicional
 ModUI/&ModifyThrowingRulesForStrength=Aplicar las sanciones de lanzamiento a la falta de fuerza
 ModUI/&RoleplaySettings=Juego de roles
 ModUI/&RoleplaySettingsDescription=Estas configuraciones ajustan el equilibrio del juego a favor de la simulación o el juego de roles al agregar complejidad y mayores posibilidades de éxito y fracaso
+ModUI/&EnableCivilianBattleReactions=Activar las reacciones al combate de los PNJ no combatientes
+ModUI/&EnableCivilianBattleReactionsDescription=Los PNJ cercanos que no participan en el combate se encogen de miedo durante las batallas. Sus posiciones y las vías de paso no cambian.
 ModUI/&SwapShineCantrip=Habilitar Shine DC 15
 ModUi/&AccountForAllDiceOnFollowUpStrike=Añade todos los efectos adicionales del arma base a la dote <color=#D89555>Golpe de seguimiento</color>
 ModUi/&AccountForAllDiceOnSavageAttack=Agrega todos los dados del daño del arma base a las características que agregan daño del arma base en lugar de solo 1 dado. <i><color=#F0DAA0>[Ataque salvaje, armas a 2 manos, etc.]</color></i>

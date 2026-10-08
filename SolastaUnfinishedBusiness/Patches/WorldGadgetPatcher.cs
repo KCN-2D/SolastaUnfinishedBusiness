@@ -8,6 +8,18 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class WorldGadgetPatcher
 {
+    [HarmonyPatch(typeof(WorldGadget), nameof(WorldGadget.RegisterSimpleGraphicsCharacter))]
+    [UsedImplicitly]
+    public static class RegisterSimpleGraphicsCharacter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix()
+        {
+            // The native spawn callback enables the model after registering it.
+            CombatAnimationContext.RequestCivilianRefresh();
+        }
+    }
+
     [HarmonyPatch(typeof(WorldGadget), nameof(WorldGadget.SetHighlightVisibility))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

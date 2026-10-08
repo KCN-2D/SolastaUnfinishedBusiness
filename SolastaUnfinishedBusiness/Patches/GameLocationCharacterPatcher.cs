@@ -30,6 +30,30 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationCharacterPatcher
 {
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class CivilianMovementStarted_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            foreach (var name in new[]
+                     {
+                         nameof(GameLocationCharacter.StartMoveTo), nameof(GameLocationCharacter.StartChargeTo),
+                         nameof(GameLocationCharacter.StartTeleportTo)
+                     })
+            {
+                yield return AccessTools.Method(typeof(GameLocationCharacter), name);
+            }
+        }
+
+        [UsedImplicitly]
+        public static void Prefix(GameLocationCharacter __instance)
+        {
+            CombatAnimationContext.InterruptCivilianReaction(__instance.RulesetCharacter);
+        }
+    }
+
     [HarmonyPatch(typeof(GameLocationCharacter), nameof(GameLocationCharacter.FallReactionHandled), MethodType.Setter)]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

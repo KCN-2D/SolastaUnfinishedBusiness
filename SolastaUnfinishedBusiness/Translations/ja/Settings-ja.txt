@@ -531,6 +531,8 @@ ModUI/&ModifyThrowingRulesForStrength=筋力が不足している場合、投擲
 ModUI/&ModVersionControl=Unfinished Businessのバージョン設定
 ModUI/&RoleplaySettings=ロールプレイ
 ModUI/&RoleplaySettingsDescription=荷重や跳躍などの判定と制限を加え、冒険生活やロールプレイを重視したバランスに調整する設定です
+ModUI/&EnableCivilianBattleReactions=非戦闘NPCが戦闘に怯える演出を有効にする
+ModUI/&EnableCivilianBattleReactionsDescription=戦闘中、近くの非戦闘NPCが怯える姿勢を取ります。NPCの位置や通行経路は変わりません。
 ModUI/&EnableDamageOnFailedJumpCheck=跳躍判定に失敗した場合、1d4ダメージを受けるようにします
 ModUi/&LegendaryTweaksTitle=<color=#F0DAA0>伝説級の調整：</color>
 ModUi/&LegendaryTweaksDetails=伝説級武器の武器種別を変更できます。変更する前に、対象の武器の装備を外してください

@@ -136,6 +136,12 @@ public static class GameLocationBattlePatcher
     public static class StartContenders_Patch
     {
         [UsedImplicitly]
+        public static void Postfix(GameLocationBattle __instance)
+        {
+            CombatAnimationContext.StartCivilianReactions(__instance);
+        }
+
+        [UsedImplicitly]
         public static void Prefix()
         {
             if (!Main.Settings.OfficialObscurementRulesInvisibleCreaturesCanBeTarget)
@@ -153,6 +159,12 @@ public static class GameLocationBattlePatcher
     [UsedImplicitly]
     public static class SignalEndToContenders_Patch
     {
+        [UsedImplicitly]
+        public static void Prefix()
+        {
+            CombatAnimationContext.StopCivilianReactions();
+        }
+
         [UsedImplicitly]
         public static void Postfix()
         {
@@ -256,6 +268,12 @@ public static class GameLocationBattlePatcher
     public static class GameLocationBattle_StartFirstTurnOfRound
     {
         [UsedImplicitly]
+        public static void Postfix()
+        {
+            CombatAnimationContext.RequestCivilianRefresh();
+        }
+
+        [UsedImplicitly]
         public static void Prefix()
         {
             Global.RolledPerceptionThisTurn.Clear();
@@ -307,9 +325,49 @@ public static class GameLocationBattlePatcher
     public static class IntroduceNewContender_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(GameLocationCharacter character)
+        {
+            CombatAnimationContext.InterruptCivilianReaction(character.RulesetCharacter);
+        }
+
+        [UsedImplicitly]
         public static void Postfix(GameLocationCharacter character)
         {
+            CombatAnimationContext.RequestCivilianRefresh();
             AddSenseNormalVisionConditionWithoutRefresh(character);
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationBattle), nameof(GameLocationBattle.Update))]
+    [UsedImplicitly]
+    public static class Update_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GameLocationBattle __instance)
+        {
+            CombatAnimationContext.UpdateCivilianReactions(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationBattle), "CharacterMoved")]
+    [UsedImplicitly]
+    public static class CharacterMoved_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix()
+        {
+            CombatAnimationContext.RequestCivilianRefresh();
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationBattle), nameof(GameLocationBattle.Shutdown))]
+    [UsedImplicitly]
+    public static class Shutdown_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix()
+        {
+            CombatAnimationContext.StopCivilianReactions();
         }
     }
 }

@@ -7,6 +7,8 @@ ModUI/&EnableBonusActionFreeJump=Ativa o salto como ação bônus
 ModUI/&ModifyThrowingRulesForStrength=Aplique penalidades de arremesso ao alcance por falta de força
 ModUI/&RoleplaySettings=Roleplay
 ModUI/&RoleplaySettingsDescription=Essas configurações ajustam o equilíbrio do jogo em favor da simulação ou interpretação da vida, adicionando complexidade e maior chance de sucesso e fracasso
+ModUI/&EnableCivilianBattleReactions=Ativar reações ao combate de NPCs não combatentes
+ModUI/&EnableCivilianBattleReactionsDescription=NPCs próximos que não participam do combate se encolhem de medo durante as batalhas. Suas posições e as vias de passagem permanecem inalteradas.
 ModUI/&SwapShineCantrip=Ativar brilho DC 15
 ModUi/&AccountForAllDiceOnFollowUpStrike=Adicione todos os efeitos adicionais da arma base ao talento <color=#D89555>Ataque de Acompanhamento</color>
 ModUi/&AccountForAllDiceOnSavageAttack=Adicione todos os dados do dano base da arma aos recursos que adicionam dano base da arma em vez de apenas 1 dado <i><color=#F0DAA0>[Ataque Selvagem, armas 2H, etc.]</color></i>

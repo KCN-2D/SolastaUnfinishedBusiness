@@ -7,6 +7,8 @@ ModUI/&EnableBonusActionFreeJump=보너스 액션 도약을 활성화합니다
 ModUI/&ModifyThrowingRulesForStrength=힘이 부족하여 범위에 처벌을 적용하십시오
 ModUI/&RoleplaySettings=롤 플레인
 ModUI/&RoleplaySettingsDescription=이러한 설정은 복잡성과 성공 및 실패 가능성을 높이면서 삶의 시뮬레이션 또는 역할극에 유리하게 게임의 균형을 조정합니다.
+ModUI/&EnableCivilianBattleReactions=비전투 NPC의 전투 반응 활성화
+ModUI/&EnableCivilianBattleReactionsDescription=전투 중에는 근처의 비전투 NPC가 겁에 질려 몸을 웅크립니다. NPC의 위치와 통행 경로는 바뀌지 않습니다.
 ModUI/&SwapShineCantrip=Shine DC 15 활성화
 ModUi/&AccountForAllDiceOnFollowUpStrike=기본 무기의 모든 추가 효과를 <color=#D89555>추적 공격</color> 특기에 추가합니다.
 ModUi/&AccountForAllDiceOnSavageAttack=기본 무기 데미지를 추가하는 기능에는 1개의 주사위만 추가하는 대신 기본 무기 데미지를 추가하는 모든 주사위를 추가합니다. <i><color=#F0DAA0>[야만적 공격, 2H 무기 등]</color></i>

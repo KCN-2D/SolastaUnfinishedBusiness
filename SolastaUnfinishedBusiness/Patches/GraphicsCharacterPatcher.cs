@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection.Emit;
+using System.Reflection;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
@@ -12,6 +13,54 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GraphicsCharacterPatcher
 {
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class CivilianPresentationInterrupted_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            foreach (var name in new[]
+                     {
+                         "HandleBodyAnimation", "SpeechStarted", "DialogStarted", "ListenStarted",
+                         "ConditionAdded_Animation", "BattleStarted_Animation", "NarrativeSequenceStarted",
+                         nameof(GraphicsCharacter.TriggerHit), "ProneStatusChanged",
+                         "RebindAnimator", "ResetAnimatorState"
+                     })
+            {
+                yield return AccessTools.Method(typeof(GraphicsCharacter), name);
+            }
+        }
+
+        [UsedImplicitly]
+        public static void Prefix(GraphicsCharacter __instance)
+        {
+            CombatAnimationContext.InterruptCivilianReaction(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(GraphicsCharacter), nameof(GraphicsCharacter.Shutdown))]
+    [UsedImplicitly]
+    public static class Shutdown_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GraphicsCharacter __instance)
+        {
+            CombatAnimationContext.ForgetCivilianReaction(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(GraphicsCharacter), nameof(GraphicsCharacter.SetupAfterAnimator))]
+    [UsedImplicitly]
+    public static class SetupAfterAnimator_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix()
+        {
+            CombatAnimationContext.RequestCivilianRefresh();
+        }
+    }
+
     [HarmonyPatch(typeof(GraphicsCharacter), "LateUpdate")]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

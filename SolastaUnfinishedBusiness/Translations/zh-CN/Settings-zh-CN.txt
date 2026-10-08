@@ -7,6 +7,8 @@ ModUI/&EnableBonusActionFreeJump=启用附赠动作跳跃
 ModUI/&ModifyThrowingRulesForStrength=根据力量值不足对投掷距离施加惩罚
 ModUI/&RoleplaySettings=角色扮演
 ModUI/&RoleplaySettingsDescription=这些设置通过增加复杂性与提升成功及失败的概率，调整游戏平衡以偏向生活模拟或角色扮演体验
+ModUI/&EnableCivilianBattleReactions=启用非战斗NPC的战斗反应
+ModUI/&EnableCivilianBattleReactionsDescription=战斗期间，附近未参战的NPC会因害怕而蜷缩。NPC的位置和通行路径保持不变。
 ModUI/&SwapShineCantrip=启用 <color=#D89555>光芒四射</color> 戏法 DC 15 版本
 ModUi/&AccountForAllDiceOnFollowUpStrike=将基础武器的所有附加效果添加到<color=#D89555>后续打击</color>专长中
 ModUi/&AccountForAllDiceOnSavageAttack=将基础武器伤害中的所有骰子添加到添加基础武器伤害的功能中，而不仅仅是 1 个骰子<i><color=#F0DAA0>[野蛮攻击、双手武器等]</color></i>

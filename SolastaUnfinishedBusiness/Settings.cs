@@ -182,6 +182,7 @@ public class Settings : UnityModManager.ModSettings
 
     #region "Roleplay Settings"
 
+    [Tag(Type = TagType.Roleplay)] public bool EnableCivilianBattleReactions { get; set; }
     [Tag(Type = TagType.Roleplay)] public bool ModifyJumpRulesForArmorAndEncumberance { get; set; }
     [Tag(Type = TagType.Roleplay)] public bool EnableBonusActionFreeJump { get; set; }
     [Tag(Type = TagType.Roleplay)] public bool ModifyThrowingRulesForStrength { get; set; }

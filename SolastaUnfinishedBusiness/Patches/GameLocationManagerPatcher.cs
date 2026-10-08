@@ -58,6 +58,18 @@ public static class GameLocationManagerPatcher
         public static void Prefix(GameLocationManager __instance)
         {
             LoadingContext.Release(__instance);
+            CombatAnimationContext.SuspendCivilianReactions();
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationManager), "UnloadLocationAsync")]
+    [UsedImplicitly]
+    public static class UnloadLocationAsync_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix()
+        {
+            CombatAnimationContext.SuspendCivilianReactions();
         }
     }
 
@@ -146,6 +158,7 @@ public static class GameLocationManagerPatcher
         [UsedImplicitly]
         public static void Postfix(GameLocationManager __instance)
         {
+            CombatAnimationContext.ResumeCivilianReactions();
             CampaignTranslationRuntimeRepairContext.RepairWorldLocationGadgets(
                 __instance.WorldLocation,
                 Gui.GameLocation?.UserLocation);

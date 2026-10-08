@@ -7,6 +7,8 @@ ModUI/&EnableBonusActionFreeJump=Abilita il salto come azione bonus
 ModUI/&ModifyThrowingRulesForStrength=Applicare sanzioni per il lancio per variare per mancanza di forza
 ModUI/&RoleplaySettings=Gioco di ruolo
 ModUI/&RoleplaySettingsDescription=Queste impostazioni modificano l'equilibrio del gioco a favore della simulazione della vita o del gioco di ruolo aggiungendo complessità e maggiori possibilità di successo e fallimento
+ModUI/&EnableCivilianBattleReactions=Abilita le reazioni al combattimento dei PNG non combattenti
+ModUI/&EnableCivilianBattleReactionsDescription=I PNG vicini che non partecipano al combattimento si rannicchiano per la paura durante le battaglie. Le loro posizioni e le vie di passaggio restano invariate.
 ModUI/&SwapShineCantrip=Abilita Shine DC 15
 ModUi/&AccountForAllDiceOnFollowUpStrike=Aggiungi tutti gli effetti aggiuntivi dell'arma base al talento <color=#D89555>Colpo successivo</color>
 ModUi/&AccountForAllDiceOnSavageAttack=Aggiungi tutti i dadi del danno base dell'arma alle caratteristiche che aggiungono danno base dell'arma invece di 1 solo dado <i><color=#F0DAA0>[Attacco selvaggio, armi a 2 mani, ecc.]</color></i>
