@@ -224,12 +224,12 @@ internal static class InventoryManagementContext
             return;
         }
 
-        FilterGuiDropdown.value = 0;
-        SortGuiDropdown.value = 0;
+        FilterGuiDropdown.SetValueWithoutNotify(0);
+        SortGuiDropdown.SetValueWithoutNotify(0);
         BySortGroup.Inverted = false;
         BySortGroup.Refresh();
-        TaggedGuiDropdown.value = 0;
-        UnidentifiedToggle.isOn = false;
+        TaggedGuiDropdown.SetValueWithoutNotify(0);
+        UnidentifiedToggle.SetIsOnWithoutNotify(false);
     }
 
     internal static void RefreshControlsVisibility()

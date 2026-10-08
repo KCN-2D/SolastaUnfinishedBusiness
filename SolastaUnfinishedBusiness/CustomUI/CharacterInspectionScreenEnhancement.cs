@@ -398,6 +398,7 @@ internal static class CharacterInspectionScreenEnhancement
         private float _tableCenterY;
         private ContentSizeFitter _fitter;
         private bool _fitterEnabled;
+        private HorizontalLayoutGroup _layout;
         private int _lastToggle = -1;
         private GameObject _lastFocus;
         private float _lastWidth = -1f;
@@ -409,6 +410,7 @@ internal static class CharacterInspectionScreenEnhancement
         {
             _screen = screen;
             _table = (RectTransform)screen.toggleGroup.transform;
+            _layout = _table.GetComponent<HorizontalLayoutGroup>();
             foreach (var tab in screen.inspectionToggles)
             {
                 _originalNavigation[tab.Toggle] = tab.Toggle.navigation;
@@ -493,10 +495,24 @@ internal static class CharacterInspectionScreenEnhancement
 
         private bool RefreshLayout()
         {
-            var layout = _table.GetComponent<HorizontalLayoutGroup>();
-            var tabs = _table.Cast<Transform>().Where(tab => tab.gameObject.activeSelf).ToArray();
-            var width = tabs.Sum(tab => ((RectTransform)tab).rect.width) +
-                        (layout ? layout.padding.horizontal + layout.spacing * Math.Max(0, tabs.Length - 1) : 0f);
+            var count = 0;
+            var width = 0f;
+            for (var index = 0; index < _table.childCount; index++)
+            {
+                var tab = _table.GetChild(index);
+                if (!tab.gameObject.activeSelf)
+                {
+                    continue;
+                }
+
+                width += ((RectTransform)tab).rect.width;
+                count++;
+            }
+
+            if (_layout)
+            {
+                width += _layout.padding.horizontal + _layout.spacing * Math.Max(0, count - 1);
+            }
             var bounds = _availableBounds.rect;
             var left = _originalParent.InverseTransformPoint(_availableBounds.TransformPoint(new Vector3(bounds.xMin, bounds.center.y, 0f)));
             var right = _originalParent.InverseTransformPoint(_availableBounds.TransformPoint(new Vector3(bounds.xMax, bounds.center.y, 0f)));

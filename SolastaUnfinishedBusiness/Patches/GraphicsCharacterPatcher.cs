@@ -12,6 +12,90 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GraphicsCharacterPatcher
 {
+    [HarmonyPatch(typeof(GraphicsCharacter), "LateUpdate")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class LateUpdate_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var codes = new List<CodeInstruction>(instructions);
+            var keysGetter = AccessTools.PropertyGetter(typeof(AnimationCurve), nameof(AnimationCurve.keys));
+            var lengthGetter = AccessTools.PropertyGetter(typeof(AnimationCurve), nameof(AnimationCurve.length));
+            var timeGetter = AccessTools.PropertyGetter(typeof(Keyframe), nameof(Keyframe.time));
+            var replacement = AccessTools.Method(typeof(LateUpdate_Patch), nameof(GetLastKeyframeTime));
+            var match = -1;
+            var matches = 0;
+            var keysCalls = 0;
+
+            for (var i = 0; i < codes.Count; i++)
+            {
+                if (codes[i].Calls(keysGetter))
+                {
+                    keysCalls++;
+                }
+
+                if (i + 7 >= codes.Count || codes[i].opcode != OpCodes.Ldloc_0 ||
+                    !codes[i + 1].Calls(keysGetter) || codes[i + 2].opcode != OpCodes.Ldloc_0 ||
+                    !codes[i + 3].Calls(lengthGetter) || codes[i + 4].opcode != OpCodes.Ldc_I4_1 ||
+                    codes[i + 5].opcode != OpCodes.Sub || codes[i + 6].opcode != OpCodes.Ldelema ||
+                    !Equals(codes[i + 6].operand, typeof(Keyframe)) || !codes[i + 7].Calls(timeGetter))
+                {
+                    continue;
+                }
+
+                match = i;
+                matches++;
+            }
+
+            if (matches != 1 || keysCalls != 1)
+            {
+                Main.Error("Failed to apply GraphicsCharacter.LateUpdate curve key allocation patch.");
+                return codes;
+            }
+
+            for (var i = match + 1; i <= match + 7; i++)
+            {
+                if (codes[i].labels.Count != 0 || codes[i].blocks.Count != 0)
+                {
+                    Main.Error("Unexpected control flow in GraphicsCharacter.LateUpdate curve keys.");
+                    return codes;
+                }
+            }
+
+            // Retain the original curve load and its control-flow metadata. The native keys
+            // getter copies every Keyframe even though this frame only reads the final time.
+            codes.RemoveRange(match + 1, 7);
+            codes.Insert(match + 1, new CodeInstruction(OpCodes.Call, replacement));
+            return codes;
+        }
+
+        private static float GetLastKeyframeTime(AnimationCurve curve)
+        {
+            var index = curve.length - 1;
+
+            // Preserve native null/empty failures while avoiding the normal keys array copy.
+            return index < 0 ? curve.keys[index].time : curve[index].time;
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(
+            GraphicsCharacter __instance,
+            Transform ___ikRightHand,
+            Transform ___ikLeftHand,
+            int ___rightHandClosedLayerIndex,
+            int ___leftHandClosedLayerIndex)
+        {
+            PortraitsContext.StabilizeInventoryHands(
+                __instance,
+                ___ikRightHand,
+                ___ikLeftHand,
+                ___rightHandClosedLayerIndex,
+                ___leftHandClosedLayerIndex);
+        }
+    }
+
     private static bool UseInstrumentAnimation(GraphicsCharacter graphics, ActionDefinitions.Id actionId)
     {
         if (!graphics.CanUseMusicalInstrumentWhenCasting) { return false; }

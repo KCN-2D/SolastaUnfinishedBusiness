@@ -10,6 +10,284 @@ namespace SolastaUnfinishedBusiness.Models;
 
 public static class PortraitsContext
 {
+    private const float SeamAngleThresholdDegrees = 5;
+    private const float StablePoseToleranceDegrees = 0.1f;
+    private const float SeamSampleFrames = 3;
+    private const float MaximumFrameGapSeconds = 0.25f;
+    private const float LayerWeightTolerance = 0.0001f;
+    private const float SingleClipWeightTolerance = 0.999f;
+
+    private static readonly ConditionalWeakTable<GraphicsCharacter, InventoryHandPose> InventoryHandPoses = new();
+
+    internal static void StabilizeInventoryHands(
+        GraphicsCharacter character,
+        Transform rightIk,
+        Transform leftIk,
+        int rightClosedLayer,
+        int leftClosedLayer)
+    {
+        // Inventory uses the portrait controller. Its looping idle can briefly emit a different
+        // finger pose at the clip boundary before returning to the same relaxed pose.
+        if (character.CharacterType != GraphicsCharacterDefinitions.CharacterType.Inventory)
+        {
+            return;
+        }
+
+        var animator = character.Animator;
+
+        if (!character.gameObject.activeInHierarchy || !animator || !animator.enabled ||
+            !animator.isHuman || !animator.avatar || !animator.avatar.isValid ||
+            !animator.runtimeAnimatorController || animator.layerCount == 0 || animator.speed <= 0)
+        {
+            InventoryHandPoses.Remove(character);
+            return;
+        }
+
+        var items = character.WieldedRulesetItems;
+
+        if (items == null)
+        {
+            InventoryHandPoses.Remove(character);
+            return;
+        }
+
+        items.TryGetValue(EquipmentDefinitions.SlotTypeMainHand, out var mainHand);
+        items.TryGetValue(EquipmentDefinitions.SlotTypeOffHand, out var offHand);
+        var twoHanded = UsesBothHands(mainHand) || UsesBothHands(offHand);
+        var rightFree = mainHand == null && !twoHanded && !rightIk &&
+                        !HasWeightedLayer(animator, rightClosedLayer) &&
+                        !HasWeightedLayer(animator, character.TorchRightLayerIndex);
+        var leftFree = offHand == null && !twoHanded && !leftIk &&
+                       !HasWeightedLayer(animator, leftClosedLayer) &&
+                       !HasWeightedLayer(animator, character.TorchLeftLayerIndex);
+
+        if (!rightFree && !leftFree)
+        {
+            InventoryHandPoses.Remove(character);
+            return;
+        }
+
+        InventoryHandPoses.GetValue(character, _ => new InventoryHandPose())
+            .Update(character, animator, rightFree, leftFree);
+    }
+
+    private static bool HasWeightedLayer(Animator animator, int index)
+    {
+        return index >= 0 && index < animator.layerCount && animator.GetLayerWeight(index) > LayerWeightTolerance;
+    }
+
+    private static bool UsesBothHands(RulesetItem item)
+    {
+        return item?.ItemDefinition is { IsWeapon: true } definition &&
+               definition.WeaponDescription.WeaponTags.Contains(TagsDefinitions.WeaponTagTwoHanded);
+    }
+
+    private sealed class InventoryHandPose
+    {
+        private readonly List<AnimatorClipInfo> _clips = new(1);
+        private readonly InventoryFingerPose _right = new(
+        [
+            HumanBodyBones.RightThumbProximal, HumanBodyBones.RightThumbIntermediate, HumanBodyBones.RightThumbDistal,
+            HumanBodyBones.RightIndexProximal, HumanBodyBones.RightIndexIntermediate, HumanBodyBones.RightIndexDistal,
+            HumanBodyBones.RightMiddleProximal, HumanBodyBones.RightMiddleIntermediate, HumanBodyBones.RightMiddleDistal,
+            HumanBodyBones.RightRingProximal, HumanBodyBones.RightRingIntermediate, HumanBodyBones.RightRingDistal,
+            HumanBodyBones.RightLittleProximal, HumanBodyBones.RightLittleIntermediate, HumanBodyBones.RightLittleDistal
+        ]);
+        private readonly InventoryFingerPose _left = new(
+        [
+            HumanBodyBones.LeftThumbProximal, HumanBodyBones.LeftThumbIntermediate, HumanBodyBones.LeftThumbDistal,
+            HumanBodyBones.LeftIndexProximal, HumanBodyBones.LeftIndexIntermediate, HumanBodyBones.LeftIndexDistal,
+            HumanBodyBones.LeftMiddleProximal, HumanBodyBones.LeftMiddleIntermediate, HumanBodyBones.LeftMiddleDistal,
+            HumanBodyBones.LeftRingProximal, HumanBodyBones.LeftRingIntermediate, HumanBodyBones.LeftRingDistal,
+            HumanBodyBones.LeftLittleProximal, HumanBodyBones.LeftLittleIntermediate, HumanBodyBones.LeftLittleDistal
+        ]);
+        private Animator _animator;
+        private Avatar _avatar;
+        private RuntimeAnimatorController _controller;
+        private RulesetCharacter _character;
+        private AnimationClip _clip;
+        private int _state;
+        private int _frame = -1;
+        private float _normalized;
+        private float _time;
+        private float _length;
+        private float _speed;
+        private float _multiplier;
+        private float _animatorSpeed;
+        private bool _initialized;
+
+        internal void Update(GraphicsCharacter character, Animator animator, bool rightFree, bool leftFree)
+        {
+            if (_frame == Time.frameCount)
+            {
+                return;
+            }
+
+            var state = animator.GetCurrentAnimatorStateInfo(0);
+            animator.GetCurrentAnimatorClipInfo(0, _clips);
+            var valid = state.loop && state.length > 0 && state.speed > 0 && state.speedMultiplier > 0 &&
+                        !float.IsNaN(state.normalizedTime) && !float.IsInfinity(state.normalizedTime) &&
+                        !animator.IsInTransition(0) && _clips.Count == 1 &&
+                        _clips[0].weight >= SingleClipWeightTolerance &&
+                        _clips[0].clip && _clips[0].clip.isLooping && _clips[0].clip.frameRate > 0;
+            var sameRig = _animator == animator && _avatar == animator.avatar &&
+                          _controller == animator.runtimeAnimatorController &&
+                          ReferenceEquals(_character, character.RulesetCharacter);
+
+            if (!sameRig || (rightFree && _right.HasDestroyedBone) || (leftFree && _left.HasDestroyedBone))
+            {
+                _animator = animator;
+                _avatar = animator.avatar;
+                _controller = animator.runtimeAnimatorController;
+                _character = character.RulesetCharacter;
+                _right.Bind(animator);
+                _left.Bind(animator);
+                _initialized = false;
+            }
+
+            var clip = valid ? _clips[0].clip : null;
+            var delta = state.normalizedTime - _normalized;
+            var continuous = _initialized && sameRig && valid && _clip == clip &&
+                             _state == state.fullPathHash && _length == state.length &&
+                             _speed == state.speed && _multiplier == state.speedMultiplier &&
+                             _animatorSpeed == animator.speed && _frame + 1 == Time.frameCount &&
+                             Time.unscaledTime - _time <= MaximumFrameGapSeconds && delta > 0 &&
+                             delta * state.length <= MaximumFrameGapSeconds;
+            var loopBoundary = continuous && Mathf.Floor(state.normalizedTime) > Mathf.Floor(_normalized);
+            var clipDelta = continuous ? delta * clip.length : 0;
+            var window = valid ? SeamSampleFrames / clip.frameRate : 0;
+
+            _right.Update(rightFree && valid, continuous, loopBoundary, clipDelta, window);
+            _left.Update(leftFree && valid, continuous, loopBoundary, clipDelta, window);
+            _initialized = valid;
+            _clip = clip;
+            _state = state.fullPathHash;
+            _normalized = state.normalizedTime;
+            _length = state.length;
+            _speed = state.speed;
+            _multiplier = state.speedMultiplier;
+            _animatorSpeed = animator.speed;
+            _frame = Time.frameCount;
+            _time = Time.unscaledTime;
+        }
+    }
+
+    private sealed class InventoryFingerPose(HumanBodyBones[] boneTypes)
+    {
+        private readonly Transform[] _bones = new Transform[boneTypes.Length];
+        private readonly Quaternion[] _raw = new Quaternion[boneTypes.Length];
+        private readonly Quaternion[] _stable = new Quaternion[boneTypes.Length];
+        private readonly bool[] _affected = new bool[boneTypes.Length];
+        private bool _initialized;
+        private float _elapsed;
+
+        internal bool HasDestroyedBone
+        {
+            get
+            {
+                for (var i = 0; i < _bones.Length; i++)
+                {
+                    if (!ReferenceEquals(_bones[i], null) && !_bones[i])
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+
+        internal void Bind(Animator animator)
+        {
+            for (var i = 0; i < _bones.Length; i++)
+            {
+                _bones[i] = animator.GetBoneTransform(boneTypes[i]);
+            }
+
+            _initialized = false;
+        }
+
+        internal void Update(bool free, bool continuous, bool loopBoundary, float delta, float window)
+        {
+            if (!free)
+            {
+                if (_initialized)
+                {
+                    Array.Clear(_affected, 0, _affected.Length);
+                }
+
+                _initialized = false;
+                _elapsed = 0;
+                return;
+            }
+
+            if (!continuous || !_initialized)
+            {
+                for (var i = 0; i < _bones.Length; i++)
+                {
+                    _affected[i] = false;
+
+                    if (_bones[i])
+                    {
+                        _raw[i] = _bones[i].localRotation;
+                    }
+                }
+
+                _initialized = true;
+                _elapsed = 0;
+                return;
+            }
+
+            _elapsed += delta;
+
+            if (loopBoundary)
+            {
+                _elapsed = 0;
+            }
+
+            for (var i = 0; i < _bones.Length; i++)
+            {
+                var bone = _bones[i];
+
+                if (!bone)
+                {
+                    _affected[i] = false;
+                    continue;
+                }
+
+                var raw = bone.localRotation;
+
+                if (loopBoundary && Quaternion.Angle(_raw[i], raw) > SeamAngleThresholdDegrees)
+                {
+                    _stable[i] = _raw[i];
+                    _affected[i] = true;
+                }
+
+                // Keep the native sample separate from the displayed correction. A later seam
+                // must be detected from animation output, not from our previous corrected pose.
+                _raw[i] = raw;
+
+                if (!_affected[i])
+                {
+                    continue;
+                }
+
+                // Seam samples can briefly cross the stable pose before settling.
+                if ((_elapsed >= window &&
+                     Quaternion.Angle(_stable[i], raw) <= StablePoseToleranceDegrees) || _elapsed >= window * 2)
+                {
+                    _affected[i] = false;
+                    continue;
+                }
+
+                // Defective opening samples normally return within two clip frames. If another
+                // clip keeps moving, release smoothly to its live pose rather than snap at timeout.
+                var blend = Mathf.Clamp01((_elapsed - window) / window);
+                bone.localRotation = Quaternion.Slerp(_stable[i], raw, blend);
+            }
+        }
+    }
+
     private static readonly ConditionalWeakTable<RawImage, PortraitRequest> Requests = new();
 
     internal static void BeginBinding(GuiCharacter character, RawImage image)

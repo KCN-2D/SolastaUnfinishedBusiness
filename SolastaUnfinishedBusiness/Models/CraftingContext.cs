@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.ItemCrafting;
 using TMPro;
 using UnityEngine;
@@ -203,6 +204,26 @@ internal static class CraftingContext
 
     }
 
+    internal static bool IsProficientWithTool(
+        List<string> toolProficiencies,
+        string toolTypeName,
+        RulesetCharacterHero hero)
+    {
+        var tool = string.IsNullOrEmpty(toolTypeName)
+            ? null
+            : DatabaseRepository.GetDatabase<ToolTypeDefinition>().GetElement(toolTypeName, true);
+
+        if (tool == null || !tool.IsCraftingTool)
+        {
+            return toolProficiencies.Contains(toolTypeName);
+        }
+
+        // Use the crafting check itself, including alternative skill proficiencies and affinities.
+        hero.ComputeBestAbilityScoreAndProficiencyForCrafting(tool, null, out var proficiency, out _);
+
+        return !string.IsNullOrEmpty(proficiency);
+    }
+
     internal static IDisposable BeginRefresh()
     {
         return new RefreshScope();
@@ -252,6 +273,7 @@ internal static class CraftingContext
     private sealed class RefreshScope : IDisposable
     {
         private readonly RefreshScope _previous;
+        private readonly IDisposable _extraSpellLookup;
         private bool _disposed;
 
         internal readonly Dictionary<(Game game, ItemDefinition itemDefinition), int> ItemCounts = new();
@@ -259,6 +281,7 @@ internal static class CraftingContext
         internal RefreshScope()
         {
             _previous = _refreshScope;
+            _extraSpellLookup = LevelUpHelper.BeginExtraSpellLookup();
             _refreshScope = this;
         }
 
@@ -271,6 +294,7 @@ internal static class CraftingContext
 
             _disposed = true;
             _refreshScope = _previous;
+            _extraSpellLookup.Dispose();
         }
     }
 

@@ -1062,6 +1062,38 @@ public static class RulesetCharacterHeroPatcher
     public static class IsProficientWithItem_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var codes = instructions.ToList();
+            var getToolType = AccessTools.PropertyGetter(typeof(ToolDescription), nameof(ToolDescription.ToolType));
+            var contains = AccessTools.Method(typeof(List<string>), nameof(List<string>.Contains));
+            var matches = Enumerable.Range(1, Math.Max(0, codes.Count - 1))
+                .Where(i => codes[i - 1].Calls(getToolType) && codes[i].Calls(contains))
+                .ToArray();
+
+            if (matches.Length != 1)
+            {
+                Main.Error("Couldn't patch RulesetCharacterHero.IsProficientWithItem tool proficiency");
+
+                return codes;
+            }
+
+            // Replace only the tool check, preserving weapon, armor and forbidden-tag checks.
+            var index = matches[0];
+            var loadHero = new CodeInstruction(OpCodes.Ldarg_0);
+            loadHero.labels.AddRange(codes[index].labels);
+            loadHero.blocks.AddRange(codes[index].blocks);
+            codes[index].labels.Clear();
+            codes[index].blocks.Clear();
+            codes[index].opcode = OpCodes.Call;
+            codes[index].operand = new Func<List<string>, string, RulesetCharacterHero, bool>(
+                CraftingContext.IsProficientWithTool).Method;
+            codes.Insert(index, loadHero);
+
+            return codes;
+        }
+
+        [UsedImplicitly]
         public static bool Prefix(RulesetCharacterHero __instance, ref bool __result, ItemDefinition itemDefinition)
         {
             if (!itemDefinition.IsWeapon ||

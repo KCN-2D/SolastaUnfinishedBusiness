@@ -25,6 +25,9 @@ internal static class LevelUpHelper
     internal const string ExtraSubclassTag = "@Subclass";
     private const int AnySpellLevel = -1;
 
+    [ThreadStatic]
+    private static ExtraSpellLookupScope _extraSpellLookupScope;
+
     // keeps a tab on all heroes leveling up
     private static readonly Dictionary<RulesetCharacterHero, LevelUpData> LevelUpTab = new();
 
@@ -606,9 +609,20 @@ internal static class LevelUpHelper
         RulesetSpellRepertoire repertoire,
         SpellDefinition spell)
     {
-        return spell != null &&
-               EnumerateSlotCastableExtraSpellsForRepertoire(character, repertoire, spell.SpellLevel)
-                   .Any(entry => entry.Spell == spell);
+        if (spell == null)
+        {
+            return false;
+        }
+
+        return _extraSpellLookupScope != null
+            ? _extraSpellLookupScope.Contains(character, repertoire, spell)
+            : EnumerateSlotCastableExtraSpellsForRepertoire(character, repertoire, spell.SpellLevel)
+                .Any(entry => entry.Spell == spell);
+    }
+
+    internal static IDisposable BeginExtraSpellLookup()
+    {
+        return new ExtraSpellLookupScope();
     }
 
     internal static bool IsPreparedOrSlotCastableExtraSpellForRepertoire(
@@ -1276,6 +1290,52 @@ internal static class LevelUpHelper
         Gui.ReleaseChildrenToPool(characterStageProficiencySelectionPanel.learnStepsTable);
         characterStageProficiencySelectionPanel.CollectTags();
         characterStageProficiencySelectionPanel.BuildLearnSteps();
+    }
+
+    // Extra spell grants are stable during a synchronous display refresh. Keep their
+    // enumeration local to that refresh; native knowledge and prepared-spell checks stay live.
+    private sealed class ExtraSpellLookupScope : IDisposable
+    {
+        private readonly ExtraSpellLookupScope _previous;
+        private readonly Dictionary<
+            (RulesetCharacter Character, RulesetSpellRepertoire Repertoire, int SpellLevel),
+            HashSet<SpellDefinition>> _spells = new();
+        private bool _disposed;
+
+        internal ExtraSpellLookupScope()
+        {
+            _previous = _extraSpellLookupScope;
+            _extraSpellLookupScope = this;
+        }
+
+        internal bool Contains(
+            RulesetCharacter character,
+            RulesetSpellRepertoire repertoire,
+            SpellDefinition spell)
+        {
+            var key = (character, repertoire, spell.SpellLevel);
+
+            if (!_spells.TryGetValue(key, out var spells))
+            {
+                spells = new HashSet<SpellDefinition>(
+                    EnumerateSlotCastableExtraSpellsForRepertoire(character, repertoire, spell.SpellLevel)
+                        .Select(entry => entry.Spell));
+                _spells.Add(key, spells);
+            }
+
+            return spells.Contains(spell);
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _extraSpellLookupScope = _previous;
+        }
     }
 
     // keeps the multiclass level up context
