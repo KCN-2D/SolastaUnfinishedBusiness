@@ -400,10 +400,18 @@ internal static class RulesetActorExtensions
 
     internal static int TryGetProficiencyBonus(this RulesetActor actor)
     {
-        if (actor == null ||
-            !actor.TryGetAttribute(AttributeDefinitions.ProficiencyBonus, out var proficiencyBonusAttribute))
+        if (actor == null)
         {
             return 0;
+        }
+
+        if (!actor.TryGetAttribute(AttributeDefinitions.ProficiencyBonus, out var proficiencyBonusAttribute))
+        {
+            // Native monsters do not carry the hero's proficiency attribute. Derive
+            // their bonus from CR without adding an attribute or altering native stats.
+            return actor is RulesetCharacterMonster monster
+                ? 2 + (int)Math.Floor(Math.Max(0, monster.MonsterDefinition.ChallengeRating - 1) / 4)
+                : 0;
         }
 
         if (!proficiencyBonusAttribute.upToDate)

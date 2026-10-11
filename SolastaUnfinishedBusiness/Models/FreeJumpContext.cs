@@ -24,11 +24,12 @@ internal static class FreeJumpContext
     private const string BonusActionMoveMarker = "UB:BonusActionFreeJump";
 
     private static readonly Dictionary<ulong, ScopeData> ActiveScopes = [];
-    private static readonly HashSet<ulong> SuppressedAiPathfindingGuids = [];
+    private static readonly Dictionary<ulong, int> AiPathfindingSuppressionDepths = [];
     private static readonly Dictionary<ulong, int3> SuppressedAiMoveTargets = [];
     private static readonly Dictionary<ulong, int3> ForcedAiFreeJumpTargets = [];
     private static readonly Dictionary<ulong, PendingAiFreeJumpCompletion> PendingAiFreeJumpCompletions = [];
     private static readonly HashSet<CursorLocationBattleFriendlyTurn> CursorDestinationComputations = [];
+    private static object ScopeOwnershipToken = new();
     private static readonly FieldInfo ChainEvaluatedField =
         AccessTools.Field(typeof(CharacterActionChainParams), "<Evaluated>k__BackingField");
     private static readonly FieldInfo ChainTotalCostField =
@@ -142,20 +143,21 @@ internal static class FreeJumpContext
         internal bool JumpLandingFailed { get; set; }
         internal int3 JumpSignalStart { get; set; }
         internal int3 JumpSignalFinish { get; set; }
+        internal ScopeData PreviousScope { get; set; }
+        internal bool IsDisposed { get; set; }
     }
 
     private sealed class Scope : IDisposable
     {
         private readonly ulong _guid;
         private readonly ScopeData _current;
-        private readonly ScopeData _previous;
         private bool _disposed;
 
         internal Scope(ulong guid, ScopeData current, ScopeData previous)
         {
             _guid = guid;
             _current = current;
-            _previous = previous;
+            _current.PreviousScope = previous;
         }
 
         public void Dispose()
@@ -165,33 +167,49 @@ internal static class FreeJumpContext
                 return;
             }
 
-            if (_previous == null)
+            _disposed = true;
+            _current.IsDisposed = true;
+
+            if (!ActiveScopes.TryGetValue(_guid, out var active) || !ReferenceEquals(active, _current))
+            {
+                return;
+            }
+
+            // Cancellation can dispose an outer iterator while a nested move is still active.
+            // Restore only live predecessors, and never replace a newer scope's state.
+            var previous = _current.PreviousScope;
+            while (previous?.IsDisposed == true)
+            {
+                previous = previous.PreviousScope;
+            }
+
+            if (previous == null)
             {
                 ActiveScopes.Remove(_guid);
             }
             else
             {
-                ActiveScopes[_guid] = _previous;
+                ActiveScopes[_guid] = previous;
             }
 
             if (_current.Kind is ScopeKind.AiMove or ScopeKind.AiTurn)
             {
                 ForcedAiFreeJumpTargets.Remove(_guid);
             }
-
-            _disposed = true;
         }
     }
 
     private sealed class SuppressAiPathfindingScope : IDisposable
     {
         private readonly ulong _guid;
+        private readonly object _ownershipToken = ScopeOwnershipToken;
         private bool _disposed;
 
         internal SuppressAiPathfindingScope(ulong guid)
         {
             _guid = guid;
-            SuppressedAiPathfindingGuids.Add(_guid);
+            AiPathfindingSuppressionDepths.TryGetValue(_guid, out var depth);
+            AiPathfindingSuppressionDepths[_guid] = depth + 1;
         }
 
         public void Dispose()
@@ -201,8 +219,22 @@ internal static class FreeJumpContext
                 return;
             }
 
-            SuppressedAiPathfindingGuids.Remove(_guid);
             _disposed = true;
+
+            if (!ReferenceEquals(_ownershipToken, ScopeOwnershipToken) ||
+                !AiPathfindingSuppressionDepths.TryGetValue(_guid, out var depth))
+            {
+                return;
+            }
+
+            if (depth <= 1)
+            {
+                AiPathfindingSuppressionDepths.Remove(_guid);
+            }
+            else
+            {
+                AiPathfindingSuppressionDepths[_guid] = depth - 1;
+            }
         }
     }
 
@@ -210,14 +242,17 @@ internal static class FreeJumpContext
     {
         private readonly CursorLocationBattleFriendlyTurn _cursor;
         private readonly IDisposable _pathfindingScope;
+        private readonly object _ownershipToken;
         private bool _disposed;
 
         internal CursorDestinationComputationScope(
             CursorLocationBattleFriendlyTurn cursor,
-            IDisposable pathfindingScope)
+            IDisposable pathfindingScope,
+            object ownershipToken)
         {
             _cursor = cursor;
             _pathfindingScope = pathfindingScope;
+            _ownershipToken = ownershipToken;
         }
 
         public void Dispose()
@@ -227,9 +262,19 @@ internal static class FreeJumpContext
                 return;
             }
 
-            _pathfindingScope?.Dispose();
-            CursorDestinationComputations.Remove(_cursor);
             _disposed = true;
+
+            try
+            {
+                _pathfindingScope?.Dispose();
+            }
+            finally
+            {
+                if (ReferenceEquals(_ownershipToken, ScopeOwnershipToken))
+                {
+                    CursorDestinationComputations.Remove(_cursor);
+                }
+            }
         }
     }
 
@@ -282,6 +327,18 @@ internal static class FreeJumpContext
     internal static void ClearPendingAiFreeJumpCompletions()
     {
         PendingAiFreeJumpCompletions.Clear();
+    }
+
+    internal static void Unload()
+    {
+        // Suspended iterators may dispose after a reload has acquired new guards.
+        ScopeOwnershipToken = new object();
+        ActiveScopes.Clear();
+        AiPathfindingSuppressionDepths.Clear();
+        SuppressedAiMoveTargets.Clear();
+        ForcedAiFreeJumpTargets.Clear();
+        PendingAiFreeJumpCompletions.Clear();
+        CursorDestinationComputations.Clear();
     }
 
     internal static ActionStatus GetActionStatus(GameLocationCharacter character, ActionScope scope,
@@ -746,15 +803,30 @@ internal static class FreeJumpContext
             return null;
         }
 
+        var ownershipToken = ScopeOwnershipToken;
+
         if (!CursorDestinationComputations.Add(cursor))
         {
             cursor.dirty = true;
             return null;
         }
 
-        return new CursorDestinationComputationScope(
-            cursor,
-            BeginBonusActionPathfinding(cursor.actingCharacter, cursor.constrainedMovementMode));
+        try
+        {
+            return new CursorDestinationComputationScope(
+                cursor,
+                BeginBonusActionPathfinding(cursor.actingCharacter, cursor.constrainedMovementMode),
+                ownershipToken);
+        }
+        catch
+        {
+            if (ReferenceEquals(ownershipToken, ScopeOwnershipToken))
+            {
+                CursorDestinationComputations.Remove(cursor);
+            }
+
+            throw;
+        }
     }
 
     internal static bool TryComputeValidDestinations(
@@ -851,52 +923,7 @@ internal static class FreeJumpContext
 
     internal static bool HasUsefulAiFreeJumpDestination(GameLocationCharacter character)
     {
-        if (!Main.Settings.EnableBonusActionFreeJump)
-        {
-            return false;
-        }
-
-        if (!CanUseAiFreeJump(character) ||
-            !TryComputeProfile(character, out var profile))
-        {
-            return false;
-        }
-
-        var start = character.LocationPosition;
-        var hasAcceptedCandidate = false;
-
-        EnumerateCandidatePositions(start, profile, destination =>
-        {
-            if (CombatAiContext.IsFailedAiMoveTarget(character, start, destination))
-            {
-                return true;
-            }
-
-            if (CombatAiContext.IsRejectedAiMoveTarget(character, start, destination))
-            {
-                return true;
-            }
-
-            if (!CanAffordFreeJumpMove(character, start, destination) ||
-                !TryGetAiCandidateInfo(character, start, destination, profile, out var candidateInfo) ||
-                !CombatAiContext.TryEvaluateFreeJumpDestination(
-                    character,
-                    start,
-                    destination,
-                    candidateInfo.Preview,
-                    candidateInfo.BypassesObstacle,
-                    CombatAiFreeJumpEvaluationSource.JumpCandidateEnumeration,
-                    out _))
-            {
-                return true;
-            }
-
-            hasAcceptedCandidate = true;
-
-            return false;
-        });
-
-        return hasAcceptedCandidate;
+        return TryEnumerateUsefulAiFreeJumpDestinations(character, (_, _) => false);
     }
 
     internal static bool TryEnumerateUsefulAiFreeJumpDestinations(
@@ -920,18 +947,7 @@ internal static class FreeJumpContext
 
         EnumerateCandidatePositions(start, profile, destination =>
         {
-            if (CombatAiContext.IsFailedAiMoveTarget(character, start, destination))
-            {
-                return true;
-            }
-
-            if (CombatAiContext.IsRejectedAiMoveTarget(character, start, destination))
-            {
-                return true;
-            }
-
-            if (!CanAffordFreeJumpMove(character, start, destination) ||
-                !TryGetAiCandidateInfo(character, start, destination, profile, out var candidateInfo) ||
+            if (!TryGetEligibleAiFreeJumpCandidate(character, start, destination, profile, null, out var candidateInfo) ||
                 !CombatAiContext.TryEvaluateFreeJumpDestination(
                     character,
                     start,
@@ -952,9 +968,10 @@ internal static class FreeJumpContext
         return hasAcceptedCandidate;
     }
 
-    internal static bool TryEnumerateImmediateAttackAiFreeJumpDestinations(
+    internal static bool TryEnumerateAiFreeJumpDestinations(
         GameLocationCharacter character,
-        Func<int3, float, bool> handle)
+        int minimumSuccessChance,
+        Func<int3, FreeJumpCandidateInfo, float, bool> handle)
     {
         if (!Main.Settings.EnableBonusActionFreeJump)
         {
@@ -973,23 +990,8 @@ internal static class FreeJumpContext
 
         EnumerateCandidatePositions(start, profile, destination =>
         {
-            if (CombatAiContext.IsFailedAiMoveTarget(character, start, destination))
-            {
-                return true;
-            }
-
-            if (CombatAiContext.IsRejectedAiMoveTarget(character, start, destination))
-            {
-                return true;
-            }
-
-            if (!CanAffordFreeJumpMove(character, start, destination) ||
-                !TryGetAiCandidateInfo(character, start, destination, profile, out var candidateInfo))
-            {
-                return true;
-            }
-
-            if (candidateInfo.Preview.IsAutomaticFailure)
+            if (!TryGetEligibleAiFreeJumpCandidate(
+                    character, start, destination, profile, minimumSuccessChance, out var candidateInfo))
             {
                 return true;
             }
@@ -998,11 +1000,11 @@ internal static class FreeJumpContext
 
             var score =
                 1.0f +
-                candidateInfo.Preview.SuccessChance / 1000f -
+                GetEffectiveAiFreeJumpSuccessChance(candidateInfo.Preview) / 1000f -
                 candidateInfo.Preview.MoveCost * 0.01f +
                 (candidateInfo.BypassesObstacle ? 0.05f : 0f);
 
-            return handle(destination, score);
+            return handle(destination, candidateInfo, score);
         });
 
         return hasAcceptedCandidate;
@@ -1062,29 +1064,8 @@ internal static class FreeJumpContext
                             continue;
                         }
 
-                        if (CombatAiContext.IsFailedAiMoveTarget(character, start, destination))
-                        {
-                            continue;
-                        }
-
-                        if (CombatAiContext.IsRejectedAiMoveTarget(character, start, destination))
-                        {
-                            continue;
-                        }
-
-                        if (!CanAffordFreeJumpMove(character, start, destination) ||
-                            !TryGetAiCandidateInfo(character, start, destination, profile, out var candidateInfo))
-                        {
-                            continue;
-                        }
-
-                        if (candidateInfo.Preview.IsAutomaticFailure)
-                        {
-                            continue;
-                        }
-
-                        if (candidateInfo.Preview.RequiresAthleticsCheck &&
-                            candidateInfo.Preview.SuccessChance < minimumSuccessChance)
+                        if (!TryGetEligibleAiFreeJumpCandidate(
+                                character, start, destination, profile, minimumSuccessChance, out var candidateInfo))
                         {
                             continue;
                         }
@@ -1093,7 +1074,7 @@ internal static class FreeJumpContext
 
                         var score =
                             2.0f +
-                            candidateInfo.Preview.SuccessChance / 1000f -
+                            GetEffectiveAiFreeJumpSuccessChance(candidateInfo.Preview) / 1000f -
                             candidateInfo.Preview.MoveCost * 0.01f -
                             ring * 0.02f +
                             (candidateInfo.BypassesObstacle ? 0.05f : 0f);
@@ -1109,6 +1090,40 @@ internal static class FreeJumpContext
         }
 
         return hasAcceptedCandidate;
+    }
+
+    private static bool TryGetEligibleAiFreeJumpCandidate(
+        GameLocationCharacter character,
+        int3 start,
+        int3 destination,
+        FreeJumpProfile profile,
+        int? minimumSuccessChance,
+        out FreeJumpCandidateInfo candidateInfo)
+    {
+        candidateInfo = default;
+
+        return !CombatAiContext.IsFailedAiMoveTarget(character, start, destination) &&
+               !CombatAiContext.IsRejectedAiMoveTarget(character, start, destination) &&
+               CanAffordFreeJumpMove(character, start, destination) &&
+               TryGetAiCandidateInfo(character, start, destination, profile, out candidateInfo) &&
+               (!minimumSuccessChance.HasValue ||
+                HasSufficientAiFreeJumpSuccessChance(candidateInfo.Preview, minimumSuccessChance.Value));
+    }
+
+    private static bool HasSufficientAiFreeJumpSuccessChance(
+        FreeJumpCheckPreview preview,
+        int minimumSuccessChance)
+    {
+        return !preview.IsAutomaticFailure &&
+               (!preview.RequiresAthleticsCheck ||
+                GetEffectiveAiFreeJumpSuccessChance(preview) >= minimumSuccessChance);
+    }
+
+    private static int GetEffectiveAiFreeJumpSuccessChance(FreeJumpCheckPreview preview)
+    {
+        // A check-free jump stores zero as its chance. Both eligibility and ranking
+        // must treat it as certain, instead of preferring a jump that can fail.
+        return preview.IsAutomaticFailure ? 0 : preview.RequiresAthleticsCheck ? preview.SuccessChance : 100;
     }
 
     internal static IDisposable BeginMovePathfinding(CharacterActionMove action)
@@ -1148,16 +1163,22 @@ internal static class FreeJumpContext
 
     internal static IEnumerator WithMovePathfindingScope(IEnumerator values, CharacterActionMove action)
     {
-        var disableExplorationToggle = ShouldDisableExplorationFreeJumpAfterMove(action);
-        var scope = BeginMovePathfinding(action);
-
-        if (IsMarkedBonusActionMove(action) && scope == null)
-        {
-            yield break;
-        }
+        var disableExplorationToggle = false;
+        var executeMove = false;
+        IDisposable scope = null;
 
         try
         {
+            disableExplorationToggle = ShouldDisableExplorationFreeJumpAfterMove(action);
+            scope = BeginMovePathfinding(action);
+
+            if (IsMarkedBonusActionMove(action) && scope == null)
+            {
+                yield break;
+            }
+
+            executeMove = true;
+
             while (values.MoveNext())
             {
                 yield return values.Current;
@@ -1165,12 +1186,34 @@ internal static class FreeJumpContext
         }
         finally
         {
-            TrySpendBonusActionAfterMove(action);
-            if (disableExplorationToggle)
+            try
             {
-                DisableExplorationFreeJump(action?.ActingCharacter);
+                (values as IDisposable)?.Dispose();
             }
-            scope?.Dispose();
+            finally
+            {
+                try
+                {
+                    if (executeMove)
+                    {
+                        TrySpendBonusActionAfterMove(action);
+                    }
+                }
+                finally
+                {
+                    try
+                    {
+                        if (executeMove && disableExplorationToggle)
+                        {
+                            DisableExplorationFreeJump(action?.ActingCharacter);
+                        }
+                    }
+                    finally
+                    {
+                        scope?.Dispose();
+                    }
+                }
+            }
         }
     }
 
@@ -1188,7 +1231,8 @@ internal static class FreeJumpContext
 
         foreach (var scope in ActiveScopes.Values)
         {
-            if (scope.StartPosition != currentPosition)
+            if (scope.StartPosition != currentPosition ||
+                AiPathfindingSuppressionDepths.ContainsKey(scope.Character.Guid))
             {
                 continue;
             }
@@ -1347,6 +1391,14 @@ internal static class FreeJumpContext
             expectedStart,
             bonusStatus);
 
+        if (skipReason == AiFreeJumpBonusSpendSkipReason.None &&
+            (hasPending ? finish != pending.TargetPosition : !IsScopeDestination(scope, finish)))
+        {
+            // Native walking steps can complete before a prepared jump's landing.
+            // A completed intermediate step must not spend the jump's bonus action.
+            skipReason = AiFreeJumpBonusSpendSkipReason.NotAtFinish;
+        }
+
         if (skipReason != AiFreeJumpBonusSpendSkipReason.None)
         {
             if (hasPending && skipReason != AiFreeJumpBonusSpendSkipReason.NotAtFinish)
@@ -1477,12 +1529,6 @@ internal static class FreeJumpContext
 
         if (!atTarget)
         {
-            return;
-        }
-
-        if (!scope.JumpSignalReceived)
-        {
-            SpendBonusAction(character, scope);
             return;
         }
 
@@ -2490,7 +2536,7 @@ internal static class FreeJumpContext
 
         foreach (var scope in ActiveScopes.Values)
         {
-            if (!SuppressedAiPathfindingGuids.Contains(scope.Character.Guid))
+            if (!AiPathfindingSuppressionDepths.ContainsKey(scope.Character.Guid))
             {
                 hasUnsuppressedScope = true;
                 break;

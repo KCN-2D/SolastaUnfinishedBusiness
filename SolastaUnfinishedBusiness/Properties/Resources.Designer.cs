@@ -5921,5 +5921,1368 @@ namespace SolastaUnfinishedBusiness.Properties {
                 return ((byte[])(obj));
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleArcaneWard {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleArcaneWard", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleSpellbreaker {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleSpellbreaker", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleParry {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleParry", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleBodyguard {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleBodyguard", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleReprisal {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleReprisal", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleWithdrawal {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleWithdrawal", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleHuntingRush {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleHuntingRush", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleResolve {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleResolve", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleFeint {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleFeint", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleDread {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleDread", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleCommand {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleCommand", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleRestoration {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleRestoration", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleElementalRebuke {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleElementalRebuke", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleArcaneHindrance {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleArcaneHindrance", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattlePhaseStep {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattlePhaseStep", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleDrivingShove {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleDrivingShove", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattlePackCall {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattlePackCall", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattlePredatoryLunge {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattlePredatoryLunge", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleFeyVeil {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleFeyVeil", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleFiendMiasma {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleFiendMiasma", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleThoughtLock {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleThoughtLock", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleConstructBrace {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleConstructBrace", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleWingBuffet {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleWingBuffet", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattlePrimordialRepulsion {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattlePrimordialRepulsion", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleViscousSnare {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleViscousSnare", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleRootSnare {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleRootSnare", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleWitheringMark {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleWitheringMark", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattlePurifyingTouch {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattlePurifyingTouch", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattlePsychicBacklash {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattlePsychicBacklash", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleBlindingEmbers {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleBlindingEmbers", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleStoneTremor {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleStoneTremor", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleCausticRetort {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleCausticRetort", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleLightningSurge {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleLightningSurge", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleThunderousRoar {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleThunderousRoar", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleForcePulse {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleForcePulse", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleFocusedVolley {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleFocusedVolley", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleElementalLance {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleElementalLance", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleGraveLeech {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleGraveLeech", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleRadiantSmite {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleRadiantSmite", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleArcaneWardEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleArcaneWardEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleParryEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleParryEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleBodyguardEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleBodyguardEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleFeintEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleFeintEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleCommandEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleCommandEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattlePackCallEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattlePackCallEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleFeyVeilEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleFeyVeilEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleConstructBraceEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleConstructBraceEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleDreadEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleDreadEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleArcaneHindranceEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleArcaneHindranceEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleFiendMiasmaEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleFiendMiasmaEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleThoughtLockEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleThoughtLockEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleViscousSnareEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleViscousSnareEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleRootSnareEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleRootSnareEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleWitheringMarkEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleWitheringMarkEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattlePsychicBacklashEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattlePsychicBacklashEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleBlindingEmbersEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleBlindingEmbersEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleCausticRetortEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleCausticRetortEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleLightningSurgeEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleLightningSurgeEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleGuardedStance {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleGuardedStance", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleSecondWind {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleSecondWind", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleRally {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleRally", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleSteadyingWord {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleSteadyingWord", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattlePressingAttack {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattlePressingAttack", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleUnsettlingCry {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleUnsettlingCry", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleGuardedStanceEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleGuardedStanceEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleSteadyingWordEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleSteadyingWordEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattlePressingAttackEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattlePressingAttackEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleUnsettlingCryEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleUnsettlingCryEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleLegendaryResolve {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleLegendaryResolve", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleHeroicRally {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleHeroicRally", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleCrushingBlow {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleCrushingBlow", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleHeroicRallyEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleHeroicRallyEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleRadiantBolt {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleRadiantBolt", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleArcaneRetort {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleArcaneRetort", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleImprovisedThrow {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleImprovisedThrow", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattlePiercingJab {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattlePiercingJab", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleLastingSurge {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleLastingSurge", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleRadiantBoltEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleRadiantBoltEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleArcaneRetortEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleArcaneRetortEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattlePiercingJabEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattlePiercingJabEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleLastingSurgeEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleLastingSurgeEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleQuickenedCantrip {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleQuickenedCantrip", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleQuickenedCantripEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleQuickenedCantripEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleChargingRush {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleChargingRush", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleChargingRushEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleChargingRushEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleElementalAbsorption {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleElementalAbsorption", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleElementalAbsorptionEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleElementalAbsorptionEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleReachIntercept {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleReachIntercept", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleWeaponCoating {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleWeaponCoating", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleSpellFlight {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleSpellFlight", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattlePoisonCoatingEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattlePoisonCoatingEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleAcidCoatingEffect {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleAcidCoatingEffect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleArmorRend {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleArmorRend", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleSweepingVolley {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleSweepingVolley", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEnemyBattleCoordinatedAdvance {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEnemyBattleCoordinatedAdvance", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionFeatAlert2024ReadyStep {
+            get {
+                object obj = ResourceManager.GetObject("ConditionFeatAlert2024ReadyStep", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionFeatMageSlayer2024ConcentrationBreaker {
+            get {
+                object obj = ResourceManager.GetObject("ConditionFeatMageSlayer2024ConcentrationBreaker", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionFeatMageSlayer {
+            get {
+                object obj = ResourceManager.GetObject("ConditionFeatMageSlayer", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] AfterRestIdentify {
+            get {
+                object obj = ResourceManager.GetObject("AfterRestIdentify", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionAncientForestPhotosynthesis {
+            get {
+                object obj = ResourceManager.GetObject("ConditionAncientForestPhotosynthesis", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionAncientForestRooted {
+            get {
+                object obj = ResourceManager.GetObject("ConditionAncientForestRooted", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionCasterFightingWarMagic {
+            get {
+                object obj = ResourceManager.GetObject("ConditionCasterFightingWarMagic", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionChaosBoltLeap {
+            get {
+                object obj = ResourceManager.GetObject("ConditionChaosBoltLeap", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionCircleOfTheWildfireSpiritAttackRoll {
+            get {
+                object obj = ResourceManager.GetObject("ConditionCircleOfTheWildfireSpiritAttackRoll", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionCircleOfTheWildfireSpiritDamageRoll {
+            get {
+                object obj = ResourceManager.GetObject("ConditionCircleOfTheWildfireSpiritDamageRoll", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionCircleOfTheWildfireSpiritHitPoints {
+            get {
+                object obj = ResourceManager.GetObject("ConditionCircleOfTheWildfireSpiritHitPoints", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionDeadMasterUndeadChainsLevel {
+            get {
+                object obj = ResourceManager.GetObject("ConditionDeadMasterUndeadChainsLevel", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionDeadMasterUndeadChainsProficiency {
+            get {
+                object obj = ResourceManager.GetObject("ConditionDeadMasterUndeadChainsProficiency", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionDivineSmiteSpell {
+            get {
+                object obj = ResourceManager.GetObject("ConditionDivineSmiteSpell", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionOathOfJugementWeightOfJustice {
+            get {
+                object obj = ResourceManager.GetObject("ConditionOathOfJugementWeightOfJustice", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionFeatCharger2024AfterDash {
+            get {
+                object obj = ResourceManager.GetObject("ConditionFeatCharger2024AfterDash", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionRangerSkyWarriorGiftOfTheWind {
+            get {
+                object obj = ResourceManager.GetObject("ConditionRangerSkyWarriorGiftOfTheWind", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionFeatCleavingAttackFinish {
+            get {
+                object obj = ResourceManager.GetObject("ConditionFeatCleavingAttackFinish", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionFeatGreatWeaponMaster2024Finish {
+            get {
+                object obj = ResourceManager.GetObject("ConditionFeatGreatWeaponMaster2024Finish", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionFeatDefensiveDuelist {
+            get {
+                object obj = ResourceManager.GetObject("ConditionFeatDefensiveDuelist", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionFeatDefensiveDuelist2024Parry {
+            get {
+                object obj = ResourceManager.GetObject("ConditionFeatDefensiveDuelist2024Parry", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionGiftOfTheMetallicDragonProtectiveWings {
+            get {
+                object obj = ResourceManager.GetObject("ConditionGiftOfTheMetallicDragonProtectiveWings", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionMartialMountaineerPositionOfStrengthAura {
+            get {
+                object obj = ResourceManager.GetObject("ConditionMartialMountaineerPositionOfStrengthAura", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionPathOfTheBeastTailSwipe {
+            get {
+                object obj = ResourceManager.GetObject("ConditionPathOfTheBeastTailSwipe", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionSpellbladeArcaneEscape {
+            get {
+                object obj = ResourceManager.GetObject("ConditionSpellbladeArcaneEscape", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionFeatDungeonDelver {
+            get {
+                object obj = ResourceManager.GetObject("ConditionFeatDungeonDelver", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionFeatSlasherCriticalHit {
+            get {
+                object obj = ResourceManager.GetObject("ConditionFeatSlasherCriticalHit", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionFeatSteadyAimRestrained {
+            get {
+                object obj = ResourceManager.GetObject("ConditionFeatSteadyAimRestrained", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionFortuneFavorTheBoldMirrorImage {
+            get {
+                object obj = ResourceManager.GetObject("ConditionFortuneFavorTheBoldMirrorImage", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionMirrorImageMark {
+            get {
+                object obj = ResourceManager.GetObject("ConditionMirrorImageMark", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionInnovationArtilleristFlamethrower {
+            get {
+                object obj = ResourceManager.GetObject("ConditionInnovationArtilleristFlamethrower", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionInnovationArtilleristFlamethrowerTiny {
+            get {
+                object obj = ResourceManager.GetObject("ConditionInnovationArtilleristFlamethrowerTiny", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionInnovationArtilleristFlamethrowerTiny15 {
+            get {
+                object obj = ResourceManager.GetObject("ConditionInnovationArtilleristFlamethrowerTiny15", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionInnovationArtilleristForceBallista {
+            get {
+                object obj = ResourceManager.GetObject("ConditionInnovationArtilleristForceBallista", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionInnovationArtilleristForceBallistaTiny {
+            get {
+                object obj = ResourceManager.GetObject("ConditionInnovationArtilleristForceBallistaTiny", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionInnovationArtilleristForceBallistaTiny15 {
+            get {
+                object obj = ResourceManager.GetObject("ConditionInnovationArtilleristForceBallistaTiny15", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionInnovationArtilleristProtector {
+            get {
+                object obj = ResourceManager.GetObject("ConditionInnovationArtilleristProtector", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionInnovationArtilleristProtectorTiny {
+            get {
+                object obj = ResourceManager.GetObject("ConditionInnovationArtilleristProtectorTiny", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionInnovationArtilleristProtectorTiny15 {
+            get {
+                object obj = ResourceManager.GetObject("ConditionInnovationArtilleristProtectorTiny15", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionInnovationWeaponSummonSteelDefenderProficiencyBonus {
+            get {
+                object obj = ResourceManager.GetObject("ConditionInnovationWeaponSummonSteelDefenderProficiencyBonus", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionInnovationWeaponSummonSteelDefenderSpellAttack {
+            get {
+                object obj = ResourceManager.GetObject("ConditionInnovationWeaponSummonSteelDefenderSpellAttack", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionMaledictionSource {
+            get {
+                object obj = ResourceManager.GetObject("ConditionMaledictionSource", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionOathOfAncientsElderChampionEnemy {
+            get {
+                object obj = ResourceManager.GetObject("ConditionOathOfAncientsElderChampionEnemy", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionOathOfDreadAspectOfDreadEnemy {
+            get {
+                object obj = ResourceManager.GetObject("ConditionOathOfDreadAspectOfDreadEnemy", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionSoulExpulsionSavingThrowAffinity {
+            get {
+                object obj = ResourceManager.GetObject("ConditionSoulExpulsionSavingThrowAffinity", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionPathOfTheSpiritsHonedAnimalAspectsWolf {
+            get {
+                object obj = ResourceManager.GetObject("ConditionPathOfTheSpiritsHonedAnimalAspectsWolf", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionPathOfTheWildMagicBolsteringMagicSpell1 {
+            get {
+                object obj = ResourceManager.GetObject("ConditionPathOfTheWildMagicBolsteringMagicSpell1", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionPathOfTheWildMagicBolsteringMagicSpell2 {
+            get {
+                object obj = ResourceManager.GetObject("ConditionPathOfTheWildMagicBolsteringMagicSpell2", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionPathOfTheWildMagicBolsteringMagicSpell3 {
+            get {
+                object obj = ResourceManager.GetObject("ConditionPathOfTheWildMagicBolsteringMagicSpell3", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionRangerWildMasterBeastCompanionArmorClass {
+            get {
+                object obj = ResourceManager.GetObject("ConditionRangerWildMasterBeastCompanionArmorClass", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionRangerWildMasterBeastCompanionAttackRoll {
+            get {
+                object obj = ResourceManager.GetObject("ConditionRangerWildMasterBeastCompanionAttackRoll", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionRangerWildMasterBeastCompanionDamageRoll {
+            get {
+                object obj = ResourceManager.GetObject("ConditionRangerWildMasterBeastCompanionDamageRoll", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionRangerWildMasterBeastCompanionHitPoints {
+            get {
+                object obj = ResourceManager.GetObject("ConditionRangerWildMasterBeastCompanionHitPoints", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionRangerWildMasterTrueExpertise {
+            get {
+                object obj = ResourceManager.GetObject("ConditionRangerWildMasterTrueExpertise", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionWayOfTheDragonReactiveHide {
+            get {
+                object obj = ResourceManager.GetObject("ConditionWayOfTheDragonReactiveHide", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
     }
 }

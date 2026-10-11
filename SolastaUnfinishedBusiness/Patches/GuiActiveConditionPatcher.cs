@@ -14,15 +14,20 @@ public static class GuiActiveConditionPatcher
     public static class Description_Getter_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(GuiActiveCondition __instance, ref string __result)
+        public static bool Prefix(GuiActiveCondition __instance, ref string __result)
         {
             var condition = __instance.ActiveCondition;
-            var formattedText = condition.ConditionDefinition.GetFirstSubFeatureOfType<FormattedDefinitionText>();
+            var formattedText = condition?.ConditionDefinition.GetFirstSubFeatureOfType<FormattedDefinitionText>();
 
-            if (formattedText != null)
+            // Contextual descriptions supply the complete body. Resolve them before
+            // the native getter formats its single amount slot against a multi-slot template.
+            if (formattedText?.FormatConditionDescription(null, condition) is not { } description)
             {
-                __result = formattedText.FormatConditionDescription(__result, condition);
+                return true;
             }
+
+            __result = description;
+            return false;
         }
     }
 }

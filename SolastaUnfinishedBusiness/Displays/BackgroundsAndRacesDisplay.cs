@@ -25,31 +25,22 @@ internal static class BackgroundsAndRacesDisplay
         UI.Label();
 
         toggle = Main.Settings.EnableFlexibleBackgrounds;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableFlexibleBackgrounds"), ref toggle, UI.AutoWidth()))
+        if (DisplayDependentBackgroundOption(
+                "ModUi/&EnableFlexibleBackgrounds", ref toggle,
+                !Tabletop2024Context.IsBackgroundBonusFeatsEnabled(),
+                "ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats"))
         {
             Main.Settings.EnableFlexibleBackgrounds = toggle;
-
-            if (toggle)
-            {
-                Main.Settings.EnableBackgroundBonusFeats = false;
-            }
-
-            FlexibleBackgroundsContext.SwitchFlexibleBackgrounds();
             Tabletop2024Context.ApplyBackgroundOptions();
         }
 
         toggle = Main.Settings.EnableFlexibleRaces;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableFlexibleRaces"), ref toggle, UI.AutoWidth()))
+        if (DisplayDependentBackgroundOption(
+                "ModUi/&EnableFlexibleRaces", ref toggle,
+                !Main.Settings.EnableBackgroundASI,
+                "ModUi/&FlexibleRacesDisabledByBackgroundASI"))
         {
             Main.Settings.EnableFlexibleRaces = toggle;
-
-            if (toggle)
-            {
-                Main.Settings.EnableBackgroundASI = false;
-                Main.Settings.EnableBackgroundBonusFeats = false;
-            }
-
-            FlexibleRacesContext.SwitchFlexibleRaces();
             Tabletop2024Context.ApplyBackgroundOptions();
         }
 
@@ -57,39 +48,15 @@ internal static class BackgroundsAndRacesDisplay
         if (UI.Toggle(Gui.Localize("ModUi/&EnableBackgroundAbilityScoreIncreases"), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.EnableBackgroundASI = toggle;
-
-            if (toggle)
-            {
-                Main.Settings.EnableFlexibleRaces = false;
-            }
-            else
-            {
-                Main.Settings.EnableBackgroundBonusFeats = false;
-            }
-
-            FlexibleRacesContext.SwitchFlexibleRaces();
             Tabletop2024Context.ApplyBackgroundOptions();
         }
 
-        if (!Main.Settings.EnableBackgroundASI)
+        toggle = Main.Settings.EnableBackgroundBonusFeats;
+        if (DisplayDependentBackgroundOption(
+                "ModUi/&EnableBackgroundBonusFeats", ref toggle, Main.Settings.EnableBackgroundASI))
         {
-            Main.Settings.EnableBackgroundBonusFeats = false;
-        }
-        else
-        {
-            toggle = Main.Settings.EnableBackgroundBonusFeats;
-            if (UI.Toggle(Gui.Localize("ModUi/&EnableBackgroundBonusFeats"), ref toggle, UI.AutoWidth()))
-            {
-                Main.Settings.EnableBackgroundBonusFeats = toggle;
-
-                if (toggle)
-                {
-                    Main.Settings.EnableFlexibleBackgrounds = false;
-                }
-
-                FlexibleBackgroundsContext.SwitchFlexibleBackgrounds();
-                Tabletop2024Context.ApplyBackgroundOptions();
-            }
+            Main.Settings.EnableBackgroundBonusFeats = toggle;
+            Tabletop2024Context.ApplyBackgroundOptions();
         }
 
         UI.Label();
@@ -101,20 +68,7 @@ internal static class BackgroundsAndRacesDisplay
             RacesContext.SwitchDragonbornElementalBreathUsages();
         }
 
-        if (Main.Settings.EnableBackgroundASI)
-        {
-            Main.Settings.EnableAlternateHuman = false;
-        }
-
-        toggle = Main.Settings.EnableAlternateHuman;
-        var guiEnabled = GUI.enabled;
-        GUI.enabled = guiEnabled && !Main.Settings.EnableBackgroundASI;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableAlternateHuman"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableAlternateHuman = toggle;
-            Tabletop2024Context.ApplyBackgroundOptions();
-        }
-        GUI.enabled = guiEnabled;
+        DisplayAlternateHumanOption();
 
         toggle = Main.Settings.UseOfficialSmallRacesDisWithHeavyWeapons;
         if (UI.Toggle(Gui.Localize("ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons"), ref toggle, UI.AutoWidth()))
@@ -154,6 +108,43 @@ internal static class BackgroundsAndRacesDisplay
         }
 
         UI.Label();
+    }
+
+    internal static void DisplayAlternateHumanOption()
+    {
+        var toggle = Main.Settings.EnableAlternateHuman;
+
+        if (DisplayDependentBackgroundOption(
+                "ModUi/&EnableAlternateHuman", ref toggle, !Main.Settings.EnableBackgroundASI,
+                "ModUi/&EnableAlternateHumanForcedByBackgroundASI"))
+        {
+            Main.Settings.EnableAlternateHuman = toggle;
+            Tabletop2024Context.ApplyBackgroundOptions();
+        }
+    }
+
+    private static bool DisplayDependentBackgroundOption(
+        string titleKey, ref bool toggle, bool available, string dependencyKey = null)
+    {
+        var guiEnabled = GUI.enabled;
+        bool changed;
+
+        try
+        {
+            GUI.enabled = guiEnabled && available;
+            changed = UI.Toggle(Gui.Localize(titleKey), ref toggle, UI.AutoWidth());
+        }
+        finally
+        {
+            GUI.enabled = guiEnabled;
+        }
+
+        if (!available && dependencyKey != null)
+        {
+            UI.Label(Gui.Localize(dependencyKey), UI.AutoWidth());
+        }
+
+        return changed;
     }
 
     internal static void DisplayBackgroundsAndRaces()

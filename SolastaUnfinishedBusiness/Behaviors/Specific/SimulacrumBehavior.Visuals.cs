@@ -32,8 +32,7 @@ internal sealed partial class SimulacrumBehavior
             {
                 LifecycleState: SimulacrumLifecycleState.Ready
             } duplicate ||
-            !TryGetSnapshot(duplicate, out var snapshot) ||
-            !snapshot.IsCurrentSchema)
+            !TryGetCurrentSnapshot(duplicate, out var snapshot))
         {
             return null;
         }
@@ -206,6 +205,7 @@ internal sealed partial class SimulacrumBehavior
         internal SimulacrumAppearanceSeed(
             string displayName,
             bool usesInventoryAppearance,
+            AnimationDefinitions.ClassAnimationId? classAnimationId,
             CreatureSex sex,
             string voiceId,
             string bodyAssetPrefix,
@@ -223,6 +223,7 @@ internal sealed partial class SimulacrumBehavior
         {
             DisplayName = displayName;
             UsesInventoryAppearance = usesInventoryAppearance;
+            ClassAnimationId = classAnimationId;
             Sex = sex;
             VoiceId = voiceId;
             BodyAssetPrefix = bodyAssetPrefix;
@@ -245,6 +246,7 @@ internal sealed partial class SimulacrumBehavior
 
         internal string DisplayName { get; }
         internal bool UsesInventoryAppearance { get; }
+        internal AnimationDefinitions.ClassAnimationId? ClassAnimationId { get; }
         internal CreatureSex Sex { get; }
         internal string VoiceId { get; }
         internal string BodyAssetPrefix { get; }
@@ -263,6 +265,8 @@ internal sealed partial class SimulacrumBehavior
         internal void ApplyTo(RulesetCharacterSimulacrum duplicate)
         {
             duplicate.SetCreationAppearanceMode(UsesInventoryAppearance);
+            VisualRefreshStates.GetValue(duplicate, _ => new VisualRefreshState())
+                .ClassAnimationId = ClassAnimationId;
             duplicate.ForcedName = DisplayName;
             duplicate.Sex = Sex;
             duplicate.VoiceID = VoiceId;
@@ -289,8 +293,7 @@ internal sealed partial class SimulacrumBehavior
     internal static bool UsesInventoryAppearance(RulesetCharacterSimulacrum character)
     {
         return character != null &&
-               ((TryGetSnapshot(character, out var snapshot) &&
-                 snapshot.IsCurrentSchema &&
+               ((TryGetCurrentSnapshot(character, out var snapshot) &&
                  snapshot.UsesInventoryAppearance) ||
                 character.UsesInventoryAppearanceSeed);
     }
@@ -308,18 +311,51 @@ internal sealed partial class SimulacrumBehavior
             seed.Appearance.ApplyTo(character);
         }
         else if (character.LifecycleState == SimulacrumLifecycleState.Ready &&
-                 TryGetSnapshot(character, out var snapshot) &&
-                 snapshot.IsCurrentSchema)
+                 TryGetCurrentSnapshot(character, out var snapshot))
         {
             snapshot.PrepareAppearance(character);
         }
     }
 
+    internal static void ApplyInventoryAppearanceClassAnimation(GraphicsCharacter graphicsCharacter)
+    {
+        if (graphicsCharacter?.RulesetCharacter is not RulesetCharacterSimulacrum duplicate ||
+            !UsesInventoryAppearance(duplicate) ||
+            !graphicsCharacter.Animator ||
+            !graphicsCharacter.Animator.runtimeAnimatorController)
+        {
+            return;
+        }
+
+        var classAnimationId = AnimationDefinitions.ClassAnimationId.None;
+
+        // Match native hero presentation: Photo suppresses the class pose, while
+        // world and inventory models retain the character's class animation.
+        if (graphicsCharacter.CharacterType != GraphicsCharacterDefinitions.CharacterType.Photo)
+        {
+            if (VisualRefreshStates.TryGetValue(duplicate, out var refreshState) &&
+                refreshState.ClassAnimationId is { } capturedClassAnimationId)
+            {
+                classAnimationId = capturedClassAnimationId;
+            }
+            else if (TryGetClassLevels(duplicate, out var classes))
+            {
+                // Existing snapshots retain class definitions but not the source's
+                // primary-class order. This is exact for a single class and provides
+                // a stable fallback after load without changing serialized rules data.
+                classAnimationId = classes[0].ClassDefinition.ClassAnimationId;
+            }
+        }
+
+        graphicsCharacter.Animator.SetFloat(
+            AnimationDefinitions.CharacterClassId,
+            (float)classAnimationId);
+    }
+
     internal static void RefreshEquipment(RulesetCharacterSimulacrum character)
     {
         if (character?.LifecycleState != SimulacrumLifecycleState.Ready ||
-            !TryGetSnapshot(character, out var snapshot) ||
-            !snapshot.IsCurrentSchema)
+            !TryGetCurrentSnapshot(character, out var snapshot))
         {
             return;
         }
@@ -1012,6 +1048,7 @@ internal sealed partial class SimulacrumBehavior
 
     private sealed class VisualRefreshState
     {
+        internal AnimationDefinitions.ClassAnimationId? ClassAnimationId { get; set; }
         internal int ActiveAttempt { get; set; }
         internal int ConsecutiveFailures { get; set; }
         internal GraphicsCharacterMonster CompletedGraphicsCharacter { get; set; }

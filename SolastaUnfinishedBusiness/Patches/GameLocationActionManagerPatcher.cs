@@ -30,11 +30,11 @@ public static class GameLocationActionManagerPatcher
         public static void Prefix(
             GameLocationActionManager __instance,
             ReactionRequest reactionRequest,
-            bool validated,
-            out ReactionRequestGroup __state)
+            ref bool validated,
+            out (ReactionRequestGroup Group, bool ProcessCallbacks) __state)
         {
-            __state = null;
-            if (!validated || reactionRequest.Processed || __instance.pendingReactionRequestGroups.Count == 0)
+            __state = (null, false);
+            if (reactionRequest.Processed || __instance.pendingReactionRequestGroups.Count == 0)
             {
                 return;
             }
@@ -42,24 +42,46 @@ public static class GameLocationActionManagerPatcher
             var group = __instance.pendingReactionRequestGroups.Peek();
             if (group.Requests.Contains(reactionRequest))
             {
-                __state = group;
+                __state = (group, reactionRequest is IReactionRequestWithCallbacks);
+            }
+
+            // Native AI enters directly; local and network commands have already selected
+            // their suboption before this shared final validation.
+            if (validated && __state.Group != null && !reactionRequest.IsStillValid)
+            {
+                validated = false;
             }
         }
 
         [UsedImplicitly]
-        public static void Postfix(ReactionRequest reactionRequest, ReactionRequestGroup __state)
+        public static void Postfix(ReactionRequest reactionRequest,
+            (ReactionRequestGroup Group, bool ProcessCallbacks) __state)
         {
-            if (__state == null || !reactionRequest.Processed || !reactionRequest.Validated)
+            if (__state.Group != null && reactionRequest.Processed && reactionRequest.Validated)
+            {
+                // Native multiplayer confirmations arrive here through the ordered reaction RPC.
+                // Record accepted requests, rather than a local UI clock or a character's last reaction.
+                var order = ReactionConfirmationOrder.GetOrCreateValue(__state.Group);
+                if (!order.ContainsKey(reactionRequest))
+                {
+                    order.Add(reactionRequest, order.Count);
+                }
+            }
+
+            // Only an unprocessed request in the pending group owns this callback.
+            // Accepted repeats are processed; declined requests have been removed.
+            if (!__state.ProcessCallbacks || reactionRequest is not IReactionRequestWithCallbacks callbacks)
             {
                 return;
             }
 
-            // Native multiplayer confirmations arrive here through the ordered reaction RPC.
-            // Record accepted requests, rather than a local UI clock or a character's last reaction.
-            var order = ReactionConfirmationOrder.GetOrCreateValue(__state);
-            if (!order.ContainsKey(reactionRequest))
+            if (reactionRequest.Validated && reactionRequest.ReactionParams.ReactionValidated)
             {
-                order.Add(reactionRequest, order.Count);
+                callbacks.ReactionValidated?.Invoke(reactionRequest);
+            }
+            else
+            {
+                callbacks.ReactionNotValidated?.Invoke(reactionRequest);
             }
         }
     }
@@ -158,6 +180,11 @@ public static class GameLocationActionManagerPatcher
             string reactionName = "",
             GameLocationCharacter attacker = null)
         {
+            if (CombatAiContext.TryConvertEnemyBattleSpellAction(reactionParams))
+            {
+                __instance.AddInterruptRequest(new ReactionRequestSpendSpellSlotExtended(reactionParams));
+                return false;
+            }
             //PATCH: replace `UsePower` reaction for customized one that allows better descriptions
             if (reactionParams.RulesetEffect is not RulesetEffectPower)
             {

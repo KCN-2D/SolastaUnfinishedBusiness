@@ -751,6 +751,7 @@ internal static class FeatsContext
 
                 if (!child.gameObject.activeSelf ||
                     !TryGetBoundFeatDefinition(child, out _, out var featDefinition) ||
+                    !SkillFeats.IsRepeatable(featDefinition) &&
                     trainedFeats.Any(trainedFeat =>
                         Tabletop2024Context.AreEquivalentTabletopFeatNames(trainedFeat.Name, featDefinition.Name)))
                 {

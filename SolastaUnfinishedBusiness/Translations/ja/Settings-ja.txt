@@ -540,8 +540,8 @@ ModUi/&WeaponMasterySystemCustomizeToggle=武器マスタリーの割り当て�
 ModUi/&WeaponMasterySystemCustomizeResetAll=すべてリセット
 ModUi/&WeaponMasterySystemCustomizeResetAllWarning=すべての武器マスタリーの割り当てを既定値に戻します
 ModUi/&WideScreenBattleUI=ワイドスクリーン用の戦闘UIを有効にします<i><color=#F0DAA0>（アスペクト比が16:9より横長の場合）</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=能力値上昇を種族ではなく背景から得るようにし、ヒューマンの特徴も調整します<i><color=#F0DAA0>（ヒューマンの全能力値+1を削除し、種族の能力値上昇を自由に割り振る設定を自動的に無効化）</color></i>
-ModUi/&EnableBackgroundBonusFeats=背景から得る特徴を、2024年版の起源特技1つ、技能習熟2つ、道具習熟1つに変更します<i><color=#F0DAA0>（背景による能力値上昇が必要です。背景の習熟を自由に選ぶ設定を自動的に無効化）</color></i>
+ModUi/&EnableBackgroundAbilityScoreIncreases=能力値上昇を種族ではなく背景から得るようにし、ヒューマンの特徴も調整します<i><color=#F0DAA0>（有効な間は、種族の能力値上昇を自由に選ぶ設定は適用されません）</color></i>
+ModUi/&EnableBackgroundBonusFeats=背景から得る特徴を、2024年版の起源特技1つ、技能習熟2つ、道具習熟1つに変更します<i><color=#F0DAA0>（背景による能力値上昇が必要です。有効な間は、背景の習熟を自由に選ぶ設定は適用されません）</color></i>
 ModUi/&AddOriginFeatsToAutoLearn=+起源特技を自動習得の候補に追加します
 ModUi/&EnableGeneralFeats2024=特技を2024年版のルールに合わせて再編します<i><color=#F0DAA0>（2024年版の特技を別に追加）</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>（2024年版の特技は、下の一覧で個別に有効・無効を切り替えられます。有効中は、上位互換の特技が追加された旧版の特技を選択できません）</color></i>
@@ -565,3 +565,8 @@ ModUi/&EnableMonkWeaponProficiency2024=<color=#D89555>モンクの武器習熟</
 ModUi/&EnableRogueWeaponProficiency2024=<color=#D89555>ローグの武器習熟</color>を2024年版に変更します<i><color=#F0DAA0>（単純武器と、妙技または軽武器の特性を持つ軍用武器）</color></i>
 ModUi/&EnableSorcererWeaponProficiency2024=<color=#D89555>ソーサラーの武器習熟</color>を2024年版に変更します<i><color=#F0DAA0>（すべての単純武器）</color></i>
 ModUi/&EnableWizardWeaponProficiency2024=<color=#D89555>ウィザードの武器習熟</color>を2024年版に変更します<i><color=#F0DAA0>（すべての単純武器）</color></i>
+ModUI/&EnableEnemyBattleTactics=敵の種別と戦闘役割に応じた追加能力を有効にする
+ModUI/&EnableEnemyBattleTacticsDescription=敵の種別と戦い方に合う能力を付与します。枠数は脅威度1〜4：1、5〜8：2、9〜12：3、13〜16：4、17以上：5。ティア1〜3は同数の枠を使い、ティア2は脅威度5、ティア3は11から。枠内の重み付き抽選で選ぶため、最高ティアは保証されません。脅威度1未満は、その値と同じ確率でティア1を1つ得ます。
+ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=マルチプレイでは、参加者全員が同じ設定にしてからセッションを開始してください。マルチプレイのセッション中は変更できません。
+ModUi/&FlexibleRacesDisabledByBackgroundASI=背景による能力値上昇が有効なため、種族の能力値上昇を自由に選ぶ設定は適用されません。背景による能力値上昇を無効にすると、元の選択が適用されます。
+ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats=背景による起源特技が有効なため、背景の習熟を自由に選ぶ設定は適用されません。背景による起源特技を無効にすると、元の選択が適用されます。

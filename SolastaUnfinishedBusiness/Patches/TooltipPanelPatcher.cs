@@ -139,8 +139,9 @@ public static class TooltipPanelPatcher
     public static class TooltipFeatureHeaderBind_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(Image ___image)
+        public static void Prefix(TooltipFeatureHeader __instance, Image ___image)
         {
+            Tooltips.RestoreHeaderImageLayout(__instance);
             Tooltips.ResetHeaderImage(___image);
         }
 
@@ -151,6 +152,11 @@ public static class TooltipPanelPatcher
             Image ___image,
             RectTransform ___mask)
         {
+            if (Tooltips.ApplyHeaderImagePolicy(__instance, tooltip))
+            {
+                return;
+            }
+
             Tooltips.FitConditionHeaderImage(__instance, tooltip);
             Tooltips.UpdateHeaderPortrait(tooltip, ___image, ___mask);
         }
@@ -191,8 +197,9 @@ public static class TooltipPanelPatcher
     public static class TooltipFeatureHeaderUnbind_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(Image ___image)
+        public static void Prefix(TooltipFeatureHeader __instance, Image ___image)
         {
+            Tooltips.RestoreHeaderImageLayout(__instance);
             Tooltips.ResetHeaderImage(___image);
         }
     }
@@ -206,6 +213,7 @@ public static class TooltipPanelPatcher
         public static void Prefix(TooltipPanel __instance, ref TooltipDefinitions.Scope scope)
         {
             FloatingPanelBounds.RestoreTooltipBounds(__instance);
+            Tooltips.ResetAdaptiveTooltipLayout(__instance);
 
             //PATCH: swaps holding ALT behavior for tooltips
             if (!SettingsContext.GuiModManagerInstance.InvertTooltipBehavior)
@@ -235,6 +243,12 @@ public static class TooltipPanelPatcher
     public static class ShowContent_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(TooltipPanel __instance)
+        {
+            Tooltips.ResetAdaptiveTooltipLayout(__instance);
+        }
+
+        [UsedImplicitly]
         public static void Postfix(TooltipPanel __instance, ITooltip __0, ITooltip ___tooltip)
         {
             if (!ReferenceEquals(__0, ___tooltip))
@@ -256,6 +270,7 @@ public static class TooltipPanelPatcher
         [UsedImplicitly]
         public static void Postfix(TooltipPanel __instance, ITooltip ___tooltip)
         {
+            Tooltips.RefreshAdaptiveTooltipLayout(__instance);
             FloatingPanelBounds.UpdateTooltipBounds(__instance, ___tooltip);
         }
     }
@@ -275,6 +290,7 @@ public static class TooltipPanelPatcher
 
             RestoreTooltipForeground(__instance);
             FloatingPanelBounds.RestoreTooltipBounds(__instance);
+            Tooltips.ResetAdaptiveTooltipLayout(__instance);
         }
     }
 
@@ -580,6 +596,7 @@ public static class TooltipPanelPatcher
         {
             Tooltips.ModifyWidth<TooltipFeatureBaseMagicParamsWidthModifier, TooltipFeatureBaseMagicParameters>(
                 __instance);
+            Tooltips.RefreshAdaptiveBaseMagicParameters(__instance);
         }
     }
 

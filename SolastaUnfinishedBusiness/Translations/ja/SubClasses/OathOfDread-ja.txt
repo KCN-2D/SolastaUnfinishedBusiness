@@ -1,4 +1,5 @@
 Condition/&ConditionOathOfDreadAspectOfDreadDescription=あなたはすべてのダメージへの抵抗を得ます。\n• あなたのすべての武器攻撃は追加で1d8の精神ダメージを与えます。\n• 自分から2マス以内にいる敵クリーチャーは、あなたのパラディン呪文と〈恐るべき存在感〉に対するセーヴィング・スローに不利を受けます。
+Condition/&ConditionOathOfDreadAspectOfDreadEnemyDescription=次のセーヴィング・スローに不利を受けます。セーヴィング・スローを行うと、この効果は終了します。
 Condition/&ConditionOathOfDreadAspectOfDreadTitle=恐怖の相
 Condition/&ConditionOathOfDreadAuraOfDominationDescription=発生源によって恐怖状態にされているなら、移動速度は0になり、さらに発生源のパラディン・レベルの半分に等しい精神ダメージを受けます。
 Condition/&ConditionOathOfDreadAuraOfDominationTitle=支配のオーラ

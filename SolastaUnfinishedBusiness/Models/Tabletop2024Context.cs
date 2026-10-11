@@ -29,7 +29,6 @@ public static partial class Tabletop2024Context
             .Create("CombatAffinityConditionSurprised")
             .SetGuiPresentation("Surprised","Surprised")
             .SetInitiativeAffinity(AdvantageType.Disadvantage)
-            .SetAttackOnMeAdvantage(AdvantageType.Advantage)
             .AddToDB();
 
     private static readonly FeatureDefinition AbilityCheckAffinityChampionRemarkableAthlete2024 =

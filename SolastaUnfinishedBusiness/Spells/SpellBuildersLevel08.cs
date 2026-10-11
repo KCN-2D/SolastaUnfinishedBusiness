@@ -246,6 +246,7 @@ internal static partial class SpellBuilders
         var conditionSavingThrowAffinity = ConditionDefinitionBuilder
             .Create($"Condition{NAME}SavingThrowAffinity")
             .SetGuiPresentation(NAME, Category.Spell, Gui.EmptyContent)
+            .SetConditionType(ConditionType.Detrimental)
             .SetSilent(Silent.WhenAddedOrRemoved)
             .SetFeatures(
                 FeatureDefinitionSavingThrowAffinityBuilder

@@ -203,6 +203,8 @@ internal static class BootContext
         Tabletop2014Context.LateLoad();
         Tabletop2024Context.LateLoad();
 
+        CombatAiContext.LoadEnemyBattleTactics();
+
         SubclassesContext.LateLoad();
         InventorClass.LateLoadSpellStoringItem();
         LightingAndObscurementContext.LateLoad();

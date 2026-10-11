@@ -194,6 +194,10 @@ internal class CanMakeAoOOnReachEntered : CustomReactionAttack
 
     public bool AllowRange { get; set; }
 
+    protected virtual bool IsValidAttackerForOpportunityAttack(GameLocationCharacter attacker,
+        GameLocationCharacter mover, GameLocationBattleManager battleManager) =>
+        !AccountAoOImmunity || battleManager.IsValidAttackerForOpportunityAttackOnCharacter(attacker, mover);
+
     protected override bool CanPerformReactionAttack(
         GameLocationCharacter attacker,
         GameLocationCharacter mover,
@@ -203,7 +207,7 @@ internal class CanMakeAoOOnReachEntered : CustomReactionAttack
         out RulesetAttackMode mode,
         out ActionModifier attackModifier)
     {
-        if (!movement.HasValue)
+        if (!movement.HasValue || !IsValidAttackerForOpportunityAttack(attacker, mover, battleManager))
         {
             mode = null;
             attackModifier = null;
@@ -216,7 +220,7 @@ internal class CanMakeAoOOnReachEntered : CustomReactionAttack
             movement.Value.to,
             out mode,
             out attackModifier,
-            AccountAoOImmunity,
+            false,
             battleManager,
             WeaponValidator,
             allowRange);
@@ -274,29 +278,37 @@ internal class CustomReactionAttack
             yield break;
         }
 
-        var attackMode = RulesetAttackMode.AttackModesPool.Get();
-        attackMode.Copy(mode);
-        attackMode.actionType = ActionType.Reaction;
-
-        var reactionRequest = MakeReactionRequest(attacker, mover, attackMode, attackModifier);
-
-        if (BeforeReaction != null)
+        // A melee cantrip can provide the entire attack without a physical mode.
+        var attackMode = mode == null ? null : RulesetAttackMode.AttackModesPool.Get();
+        if (attackMode != null)
         {
-            yield return BeforeReaction(attacker, mover, battleManager, actionManager, reactionRequest);
+            attackMode.Copy(mode);
+            attackMode.actionType = ActionType.Reaction;
         }
-
-        var count = actionManager.PendingReactionRequestGroups.Count;
-
-        actionManager.AddInterruptRequest(reactionRequest);
-
-        yield return battleManager.WaitForReactions(mover, actionManager, count);
-
-        if (AfterReaction != null)
+        try
         {
-            yield return AfterReaction(attacker, mover, battleManager, actionManager, reactionRequest);
-        }
+            var reactionRequest = MakeReactionRequest(attacker, mover, attackMode, attackModifier);
+            if (BeforeReaction != null)
+            {
+                yield return BeforeReaction(attacker, mover, battleManager, actionManager, reactionRequest);
+            }
 
-        RulesetAttackMode.AttackModesPool.Return(attackMode);
+            var count = actionManager.PendingReactionRequestGroups.Count;
+            actionManager.AddInterruptRequest(reactionRequest);
+            yield return battleManager.WaitForReactions(mover, actionManager, count);
+
+            if (AfterReaction != null)
+            {
+                yield return AfterReaction(attacker, mover, battleManager, actionManager, reactionRequest);
+            }
+        }
+        finally
+        {
+            if (attackMode != null)
+            {
+                RulesetAttackMode.AttackModesPool.Return(attackMode);
+            }
+        }
     }
 
     protected virtual bool CanPerformReactionAttack(

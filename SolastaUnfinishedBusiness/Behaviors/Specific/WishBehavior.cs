@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Interfaces;
@@ -24,6 +25,7 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
     public bool BypassMaterialComponent => true;
 
     private const int WishSlotLevel = 9;
+    private const int MaximumReplicatedSpellLevel = WishSlotLevel - 1;
 
     [ThreadStatic]
     private static bool _isApplyingIrreducibleDamage;
@@ -69,7 +71,7 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
         _stressOnFinished = new AlternateEffectFinished(this);
         _back = SubspellSelectionModalPatcher.BuildBackNavigationSpell("WishBack");
 
-        for (var level = 0; level <= 8; level++)
+        for (var level = 0; level <= MaximumReplicatedSpellLevel; level++)
         {
             _duplicateLevels[level] = BuildNavigationSpell($"WishDuplicateLevel{level}");
             _immunityLevels[level] = BuildNavigationSpell($"WishSpellImmunityLevel{level}");
@@ -131,6 +133,32 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
         return new WishBehavior(wishSprite);
     }
 
+    internal static void RefreshSpellImmunityOptions(SpellDefinition changedRoot = null)
+    {
+        if (!TryGetDefinition<SpellDefinition>("Wish", out var wish))
+        {
+            return;
+        }
+
+        var behavior = wish.GetFirstSubFeatureOfType<WishBehavior>();
+
+        if (behavior == null)
+        {
+            return;
+        }
+
+        foreach (var option in behavior._immunityOptions.Where(option =>
+                     changedRoot == null || option.Key == changedRoot))
+        {
+            var condition = option.Value.EffectDescription
+                .GetFirstFormOfType(EffectForm.EffectFormType.Condition).ConditionForm.ConditionDefinition;
+            var affinity = condition.Features.OfType<FeatureDefinitionMagicAffinity>().Single();
+
+            affinity.SpellImmunities.SetRange(FlattenSpellTree(option.Key)
+                .Select(spell => spell.Name).OrderBy(name => name, StringComparer.Ordinal));
+        }
+    }
+
     public ICustomSubspellSelectionSession CreateSession(
         SpellDefinition masterSpell,
         RulesetCharacter caster,
@@ -138,7 +166,7 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
         int slotLevel)
     {
         var activeRoots = SpellsContext
-            .GetActiveSpells(8)
+            .GetActiveSpells(MaximumReplicatedSpellLevel)
             .Where(_safeRoots.Contains)
             .OrderBy(spell => spell.SpellLevel)
             .ThenBy(spell => spell.Name, StringComparer.Ordinal)
@@ -163,7 +191,11 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
 
         return publicSpells
             .Where(spell =>
-                spell is { Implemented: true, GuiPresentation.hidden: false, SpellLevel: >= 0 and <= 8 } &&
+                spell is
+                {
+                    Implemented: true, GuiPresentation.hidden: false,
+                    SpellLevel: >= 0 and <= MaximumReplicatedSpellLevel
+                } &&
                 spell.Name != Counterspell.Name &&
                 spell.Name != "Wish" &&
                 !bundleChildren.Contains(spell) &&
@@ -189,7 +221,7 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
         }
 
         if (!spell.Implemented ||
-            spell.SpellLevel is < 0 or > 8 ||
+            spell.SpellLevel is < 0 or > MaximumReplicatedSpellLevel ||
             !IsReplicableCastingTime(spell.ActivationTime) ||
             !IsContentPackAvailable(spell, gamingPlatformService) ||
             spell.Name == "Wish")
@@ -240,7 +272,7 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
         Unsafe
     }
 
-    private SpellDefinition BuildNavigationSpell(string name)
+    private SpellDefinitionBuilder CreateWishSpellBuilder(string name)
     {
         return SpellDefinitionBuilder
             .Create(name)
@@ -250,7 +282,12 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
             .SetCastingTime(ActivationTime.Action)
             .SetMaterialComponent(MaterialComponentType.None)
             .SetSomaticComponent(false)
-            .SetVerboseComponent(true)
+            .SetVerboseComponent(true);
+    }
+
+    private SpellDefinition BuildNavigationSpell(string name)
+    {
+        return CreateWishSpellBuilder(name)
             .SetEffectDescription(
                 EffectDescriptionBuilder
                     .Create()
@@ -297,15 +334,7 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
             GreaterRestoration.EffectDescription.GetFirstFormOfType(EffectForm.EffectFormType.Condition);
         var targeting = new InstantHealthTargeting();
 
-        return SpellDefinitionBuilder
-            .Create("WishInstantHealth")
-            .SetGuiPresentation(Category.Spell, _wishSprite)
-            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolConjuration)
-            .SetSpellLevel(WishSlotLevel)
-            .SetCastingTime(ActivationTime.Action)
-            .SetMaterialComponent(MaterialComponentType.None)
-            .SetSomaticComponent(false)
-            .SetVerboseComponent(true)
+        return CreateWishSpellBuilder("WishInstantHealth")
             .SetEffectDescription(
                 EffectDescriptionBuilder
                     .Create()
@@ -374,15 +403,7 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
 
     private SpellDefinition BuildAlternateSpell(string name, EffectDescription effectDescription)
     {
-        return SpellDefinitionBuilder
-            .Create(name)
-            .SetGuiPresentation(Category.Spell, _wishSprite)
-            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolConjuration)
-            .SetSpellLevel(WishSlotLevel)
-            .SetCastingTime(ActivationTime.Action)
-            .SetMaterialComponent(MaterialComponentType.None)
-            .SetSomaticComponent(false)
-            .SetVerboseComponent(true)
+        return CreateWishSpellBuilder(name)
             .SetEffectDescription(effectDescription)
             .AddCustomSubFeatures(_stressOnFinished)
             .AddToDB();
@@ -443,18 +464,11 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
                 .SetPossessive()
                 .SetFeatures(affinity)
                 .AddToDB();
-            var option = SpellDefinitionBuilder
-                .Create($"WishSpellImmunity{root.Name}")
+            var option = CreateWishSpellBuilder($"WishSpellImmunity{root.Name}")
                 .SetGuiPresentation(
                     root.GuiPresentation.Title,
                     "Spell/&WishSpellImmunityChoiceDescription",
                     _wishSprite)
-                .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolConjuration)
-                .SetSpellLevel(WishSlotLevel)
-                .SetCastingTime(ActivationTime.Action)
-                .SetMaterialComponent(MaterialComponentType.None)
-                .SetSomaticComponent(false)
-                .SetVerboseComponent(true)
                 .SetEffectDescription(
                     EffectDescriptionBuilder
                         .Create()
@@ -874,7 +888,8 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
     private sealed class SelectionSession : ICustomSubspellSelectionSession
     {
         private readonly WishBehavior _behavior;
-        private readonly List<SpellDefinition>[] _activeRootsByLevel = new List<SpellDefinition>[9];
+        private readonly List<SpellDefinition>[] _activeRootsByLevel =
+            new List<SpellDefinition>[MaximumReplicatedSpellLevel + 1];
         private readonly RulesetCharacter _caster;
         private readonly SpellDefinition _masterSpell;
         private readonly Stack<List<Choice>> _previousPages = [];
@@ -893,11 +908,14 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
             _caster = caster;
             _repertoire = repertoire;
 
-            for (var level = 0; level <= 8; level++)
+            for (var level = 0; level <= MaximumReplicatedSpellLevel; level++)
             {
-                _activeRootsByLevel[level] = activeRoots
-                    .Where(spell => spell.SpellLevel == level)
-                    .ToList();
+                _activeRootsByLevel[level] = [];
+            }
+
+            foreach (var root in activeRoots)
+            {
+                _activeRootsByLevel[root.SpellLevel].Add(root);
             }
 
             _choices =
@@ -932,83 +950,87 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
 
         private static void ShowDuplicateLevels(SelectionSession session, SubspellSelectionModal modal)
         {
-            session.PushPage(
+            session.ShowSpellLevels(
                 modal,
-                session._behavior._duplicateLevels
-                    .Where(pair => session._activeRootsByLevel[pair.Key]
-                        .Any(root => SpellCastingValidation.IsValid(
-                            session._caster,
-                            session._repertoire,
-                            root,
-                            null,
-                            out _,
-                            true,
-                            bypassSpellSlotLimit: true)))
-                    .OrderBy(pair => pair.Key)
-                    .Select(pair => new Choice(
-                        pair.Value,
-                        (current, currentModal) => current.ShowDuplicateRoots(currentModal, pair.Key)))
-                    .ToList());
+                session._behavior._duplicateLevels,
+                session.CanReplicateSpell,
+                (current, currentModal, level) => current.ShowDuplicateRoots(currentModal, level));
         }
 
         private static void ShowResistanceOptions(SelectionSession session, SubspellSelectionModal modal)
         {
-            session.PushPage(
+            session.ShowSpellOptions(
                 modal,
-                session._behavior._resistanceOptions
-                    .Select(option => new Choice(
-                        option,
-                        (current, currentModal) => current.CastAlternate(currentModal, option)))
-                    .ToList());
+                session._behavior._resistanceOptions,
+                (current, currentModal, spell) => current.CastAlternate(currentModal, spell));
         }
 
         private static void ShowImmunityLevels(SelectionSession session, SubspellSelectionModal modal)
         {
-            session.PushPage(
+            session.ShowSpellLevels(
                 modal,
-                session._behavior._immunityLevels
-                    .Where(pair => session._activeRootsByLevel[pair.Key]
-                        .Any(session._behavior._immunityOptions.ContainsKey))
-                    .OrderBy(pair => pair.Key)
-                    .Select(pair => new Choice(
-                        pair.Value,
-                        (current, currentModal) => current.ShowImmunityOptions(currentModal, pair.Key)))
-                    .ToList());
+                session._behavior._immunityLevels,
+                session._behavior._immunityOptions.ContainsKey,
+                (current, currentModal, level) => current.ShowImmunityOptions(currentModal, level));
         }
 
         private static void ShowRealityRevisionOptions(SelectionSession session, SubspellSelectionModal modal)
         {
-            session.PushPage(
+            session.ShowSpellOptions(
                 modal,
-                session._behavior._realityRevisionOptions
-                    .Select(option => new Choice(
-                        option,
-                        (current, currentModal) => current.CastAlternate(currentModal, option)))
+                session._behavior._realityRevisionOptions,
+                (current, currentModal, spell) => current.CastAlternate(currentModal, spell));
+        }
+
+        private bool CanReplicateSpell(SpellDefinition spell)
+        {
+            return SpellCastingValidation.IsValid(
+                _caster,
+                _repertoire,
+                spell,
+                null,
+                out _,
+                true,
+                bypassSpellSlotLimit: true);
+        }
+
+        private void ShowSpellLevels(
+            SubspellSelectionModal modal,
+            Dictionary<int, SpellDefinition> levels,
+            Func<SpellDefinition, bool> isEligible,
+            Action<SelectionSession, SubspellSelectionModal, int> activate)
+        {
+            PushPage(
+                modal,
+                levels
+                    .Where(pair => _activeRootsByLevel[pair.Key].Any(isEligible))
+                    .OrderBy(pair => pair.Key)
+                    .Select(pair => new Choice(
+                        pair.Value,
+                        (session, currentModal) => activate(session, currentModal, pair.Key)))
+                    .ToList());
+        }
+
+        private void ShowSpellOptions(
+            SubspellSelectionModal modal,
+            IEnumerable<SpellDefinition> spells,
+            Action<SelectionSession, SubspellSelectionModal, SpellDefinition> activate)
+        {
+            PushPage(
+                modal,
+                spells
+                    .Select(spell => new Choice(
+                        spell,
+                        (session, currentModal) => activate(session, currentModal, spell)))
                     .ToList());
         }
 
         private void ShowDuplicateRoots(SubspellSelectionModal modal, int level)
         {
-            PushPage(
+            ShowSpellOptions(
                 modal,
-                _activeRootsByLevel[level]
-                    .Where(root => SpellCastingValidation.IsValid(
-                        _caster,
-                        _repertoire,
-                        root,
-                        null,
-                        out _,
-                        true,
-                        bypassSpellSlotLimit: true))
-                    .Select(root => new Choice(
-                        root,
-                        (session, currentModal) => session.SelectDuplicateRoot(currentModal, root)))
-                    .ToList());
-        }
-
-        private void SelectDuplicateRoot(SubspellSelectionModal modal, SpellDefinition root)
-        {
-            SelectDuplicateSpell(modal, root);
+                _activeRootsByLevel[level].Where(CanReplicateSpell),
+                (session, currentModal, spell) => session.SelectDuplicateSpell(currentModal, spell));
         }
 
         private void SelectDuplicateSpell(
@@ -1029,14 +1051,10 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
                 return;
             }
 
-            PushPage(
+            ShowSpellOptions(
                 modal,
-                children
-                    .Select(child => new Choice(
-                        child,
-                        (session, currentModal) =>
-                            session.SelectDuplicateSpell(currentModal, child)))
-                    .ToList());
+                children,
+                (session, currentModal, child) => session.SelectDuplicateSpell(currentModal, child));
         }
 
         private List<SpellDefinition> GetSubspellsForReplication(SpellDefinition spell)
@@ -1050,14 +1068,7 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
             return children?
                        .Where(child =>
                            IsSafeSpellTree(child, gamingPlatformService, states) &&
-                           SpellCastingValidation.IsValid(
-                               _caster,
-                               _repertoire,
-                               child,
-                               null,
-                               out _,
-                               true,
-                               bypassSpellSlotLimit: true))
+                           CanReplicateSpell(child))
                        .Distinct()
                        .OrderBy(child => child.Name, StringComparer.Ordinal)
                        .ToList()
@@ -1066,38 +1077,30 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
 
         private void ShowImmunityOptions(SubspellSelectionModal modal, int level)
         {
-            PushPage(
+            ShowSpellOptions(
                 modal,
                 _activeRootsByLevel[level]
                     .Where(_behavior._immunityOptions.ContainsKey)
-                    .Select(root => _behavior._immunityOptions[root])
-                    .Select(option => new Choice(
-                        option,
-                        (session, currentModal) => session.CastAlternate(currentModal, option)))
-                    .ToList());
+                    .Select(root => _behavior._immunityOptions[root]),
+                (session, currentModal, spell) => session.CastAlternate(currentModal, spell));
         }
 
         private void CastReplication(
             SubspellSelectionModal modal,
             SpellDefinition spell)
         {
-            using (RulesetEffectSpellWithOrigin.UseOrigin(
-                       _caster,
-                       _repertoire,
-                       spell,
-                       WishSlotLevel,
-                       _masterSpell,
-                       WishSlotLevel,
-                       true,
-                       RulesetEffectSpellWithOrigin.OriginMode.WishSpellReplication))
-            {
-                modal.spellCastEngaged?.Invoke(_repertoire, spell, WishSlotLevel);
-            }
-
-            modal.Hide();
+            CastChosenSpell(modal, spell, RulesetEffectSpellWithOrigin.OriginMode.WishSpellReplication);
         }
 
         private void CastAlternate(SubspellSelectionModal modal, SpellDefinition spell)
+        {
+            CastChosenSpell(modal, spell, RulesetEffectSpellWithOrigin.OriginMode.WishAlternateEffect);
+        }
+
+        private void CastChosenSpell(
+            SubspellSelectionModal modal,
+            SpellDefinition spell,
+            RulesetEffectSpellWithOrigin.OriginMode originMode)
         {
             using (RulesetEffectSpellWithOrigin.UseOrigin(
                        _caster,
@@ -1107,7 +1110,7 @@ internal sealed class WishBehavior : ICustomSubspellSelectionProvider
                        _masterSpell,
                        WishSlotLevel,
                        true,
-                       RulesetEffectSpellWithOrigin.OriginMode.WishAlternateEffect))
+                       originMode))
             {
                 modal.spellCastEngaged?.Invoke(_repertoire, spell, WishSlotLevel);
             }

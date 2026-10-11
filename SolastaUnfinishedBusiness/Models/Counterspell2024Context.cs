@@ -10,28 +10,58 @@ namespace SolastaUnfinishedBusiness.Models;
 
 internal static class Counterspell2024Context
 {
+    // A spell-like power can share Counterspell's current rules without being cast from a spell slot.
+    internal sealed class CounterspellPowerOrigin
+    {
+        internal static readonly CounterspellPowerOrigin Instance = new();
+    }
+
     internal static bool ShouldResolve(
-        CharacterActionMagicEffect counterAction,
+        CharacterAction counterAction,
         CharacterAction targetAction)
     {
-        return counterAction?.ActionParams?.RulesetEffect is RulesetEffectSpell counterspell &&
-               RequiresSavingThrow(counterspell) &&
+        return RequiresSavingThrow(counterAction?.ActionParams?.RulesetEffect) &&
                targetAction?.ActionParams?.RulesetEffect is RulesetEffectSpell;
     }
 
-    internal static bool RequiresSavingThrow(RulesetEffectSpell spellEffect)
+    internal static bool RequiresSavingThrow(RulesetEffect counterEffect)
     {
-        return spellEffect != null &&
+        return counterEffect != null &&
                Main.Settings.EnableOneDndCounterspellSpell &&
-               RulesetEffectSpellWithOrigin.GetOriginSpell(spellEffect) == Counterspell &&
-               spellEffect.EffectDescription.EffectForms.Any(
+               (counterEffect is RulesetEffectSpell spellEffect &&
+                RulesetEffectSpellWithOrigin.GetOriginSpell(spellEffect) == Counterspell ||
+                counterEffect is RulesetEffectPower powerEffect &&
+                powerEffect.PowerDefinition.HasSubFeatureOfType<CounterspellPowerOrigin>()) &&
+               counterEffect.EffectDescription.EffectForms.Any(
                    effectForm =>
                        effectForm.FormType == EffectForm.EffectFormType.Counter &&
                        effectForm.CounterForm.Type == CounterForm.CounterType.InterruptSpellcasting);
     }
 
+    internal static RulesetSpellRepertoire GetCounterspellPowerRepertoire(RulesetCharacter character)
+    {
+        // Monsters can have racial or innate repertoires, without a class or subclass association.
+        return character?.SpellRepertoires
+            .Where(repertoire => repertoire?.SpellCastingFeature != null)
+            .OrderByDescending(repertoire => repertoire.SaveDC)
+            .FirstOrDefault();
+    }
+
+    internal static string GetCounterspellPowerAbility(RulesetCharacter character)
+    {
+        return GetCounterspellPowerRepertoire(character)?.SpellCastingAbility ?? AttributeDefinitions.Charisma;
+    }
+
+    private static int GetCounterspellSaveDc(RulesetEffect effect, RulesetCharacter character)
+    {
+        return effect is RulesetEffectPower power &&
+               power.PowerDefinition.HasSubFeatureOfType<CounterspellPowerOrigin>()
+            ? GetCounterspellPowerRepertoire(character)?.SaveDC ?? effect.SaveDC
+            : effect.SaveDC;
+    }
+
     internal static IEnumerator Resolve(
-        CharacterActionMagicEffect counterAction,
+        CharacterAction counterAction,
         CharacterAction targetAction)
     {
         var counterEffect = counterAction.ActionParams.RulesetEffect;
@@ -54,6 +84,7 @@ internal static class Counterspell2024Context
             ? RulesetEffectSpellWithOrigin.GetOriginSpell(counterspell)
             : counterEffect.GetSourceDefinitionSafe();
         var effectDescription = counterEffect.EffectDescription;
+        var saveDc = GetCounterspellSaveDc(counterEffect, counterspeller.RulesetCharacter);
         var sourceType = sourceDefinition is SpellDefinition
             ? FeatureSourceType.Spell
             : FeatureSourceType.Power;
@@ -81,7 +112,7 @@ internal static class Counterspell2024Context
                 false,
                 true,
                 AttributeDefinitions.Constitution,
-                counterEffect.SaveDC,
+                saveDc,
                 false,
                 false,
                 false,

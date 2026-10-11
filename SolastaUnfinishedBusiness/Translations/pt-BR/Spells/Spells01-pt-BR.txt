@@ -183,3 +183,4 @@ Spell/&FindFamiliarCatFiendSelectionTitle=Gato · Corruptor
 Reaction/&SpendSpellSlotSilveryBarbsAttackDescription={0} obteve sucesso em uma jogada de ataque contra {1}. Faça {0} rolar novamente o d20 e usar o resultado mais baixo.
 Reaction/&SpendSpellSlotSilveryBarbsAbilityCheckDescription={0} obteve sucesso em um teste de atributo. Faça {0} rolar novamente o d20 e usar o resultado mais baixo.
 Reaction/&SpendSpellSlotSilveryBarbsSavingThrowDescription={0} obteve sucesso em uma salvaguarda. Faça {0} rolar novamente o d20 e usar o resultado mais baixo.
+Spell/&MagicMissileTitle=Mísseis Mágicos

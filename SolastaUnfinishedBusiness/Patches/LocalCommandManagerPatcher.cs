@@ -766,21 +766,6 @@ public static class LocalCommandManagerPatcher
         {
             MetamagicContext.RestoreReactionSelection(reactionRequest, ref validated, ref __2);
         }
-
-        [UsedImplicitly]
-        public static void Postfix(ReactionRequest reactionRequest, bool validated)
-        {
-            if (reactionRequest is not IReactionRequestWithCallbacks callbacks) { return; }
-
-            if (validated)
-            {
-                callbacks.ReactionValidated?.Invoke(reactionRequest);
-            }
-            else
-            {
-                callbacks.ReactionNotValidated?.Invoke(reactionRequest);
-            }
-        }
     }
 
     [HarmonyPatch(typeof(LocalCommandManager), nameof(LocalCommandManager.TogglePermanentInvocation))]

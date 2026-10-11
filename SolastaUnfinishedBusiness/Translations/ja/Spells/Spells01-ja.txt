@@ -183,3 +183,4 @@ Spell/&FindFamiliarCatFiendSelectionTitle=ネコ・フィーンド
 Reaction/&SpendSpellSlotSilveryBarbsAttackDescription={0}の{1}に対する攻撃ロールが成功しました。{0}にd20を振り直させ、低い方の出目を使わせます。
 Reaction/&SpendSpellSlotSilveryBarbsAbilityCheckDescription={0}の能力値判定が成功しました。{0}にd20を振り直させ、低い方の出目を使わせます。
 Reaction/&SpendSpellSlotSilveryBarbsSavingThrowDescription={0}のセーヴィング・スローが成功しました。{0}にd20を振り直させ、低い方の出目を使わせます。
+Spell/&MagicMissileTitle=魔法の矢

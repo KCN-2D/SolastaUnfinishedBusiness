@@ -8,6 +8,7 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
+using SolastaUnfinishedBusiness.Patches;
 using UnityEngine;
 using static RuleDefinitions;
 
@@ -15,6 +16,12 @@ namespace SolastaUnfinishedBusiness.Behaviors.Specific;
 
 internal static class PowerBundle
 {
+    // Positional or target-dependent effects cannot reuse another execution's cached description.
+    internal sealed class UncachedEffectDescription
+    {
+        internal static readonly UncachedEffectDescription Marker = new();
+    }
+
     private static readonly Dictionary<SpellDefinition, FeatureDefinitionPower> Spells2Powers = [];
     private static readonly Dictionary<FeatureDefinitionPower, SpellDefinition> Powers2Spells = [];
     private static readonly Dictionary<FeatureDefinitionPower, Bundle> Bundles = [];
@@ -188,6 +195,7 @@ internal static class PowerBundle
 
         usablePower.remainingUses = remainingUses;
         AssignUsesToSharedPowersForPool(character, usablePower, remainingUses, maxUses);
+        CombatAiContext.RecordEnemyBattlePowerUse(character, usablePower);
 
         // refresh character control panel after power pool usage is updated
         // needed for custom point pools on portrait to update properly in some cases
@@ -409,7 +417,8 @@ internal static class PowerBundle
         }
 
         var metamagic = GetEffectMetamagic(effect);
-        var cached = GetCachedEffect(caster, definition, metamagic, effect);
+        var cacheable = definition.GetFirstSubFeatureOfType<UncachedEffectDescription>() == null;
+        var cached = cacheable ? GetCachedEffect(caster, definition, metamagic, effect) : null;
 
         if (cached != null)
         {
@@ -448,7 +457,10 @@ internal static class PowerBundle
                 (current, f) => f.GetEffectDescription(definition, current, caster, effect));
         }
 
-        CacheEffect(caster, definition, metamagic, effect, result);
+        if (cacheable)
+        {
+            CacheEffect(caster, definition, metamagic, effect, result);
+        }
 
         return result;
     }
@@ -496,7 +508,8 @@ internal static class PowerBundle
         EffectDescription original,
         [NotNull] BaseDefinition definition)
     {
-        return ModifyMagicEffect(original, definition, Global.CurrentCharacter, null);
+        return ModifyMagicEffect(original, definition,
+            TooltipPanelPatcher.EffectFormattingCharacter ?? Global.CurrentCharacter, null);
     }
 
     internal static bool ValidatePrerequisites(

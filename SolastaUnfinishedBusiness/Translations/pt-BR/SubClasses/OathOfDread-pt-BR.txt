@@ -1,4 +1,5 @@
 Condition/&ConditionOathOfDreadAspectOfDreadDescription=Você tem resistência a todo dano.\n• Todos os seus ataques de arma causam 1d8 de dano psíquico adicional.\n• Criaturas inimigas a até 3 metros de você têm desvantagem em testes de resistência contra suas magias de paladino e Presença Terrível.
+Condition/&ConditionOathOfDreadAspectOfDreadEnemyDescription=Você tem desvantagem no seu próximo teste de resistência. Este efeito termina depois que você realiza um teste de resistência.
 Condition/&ConditionOathOfDreadAspectOfDreadTitle=Aspecto do Medo
 Condition/&ConditionOathOfDreadAuraOfDominationDescription=Se você estiver assustado ou com medo, sua velocidade será reduzida a 0 e você receberá dano psíquico igual à metade do nível de paladino do emanador.
 Condition/&ConditionOathOfDreadAuraOfDominationTitle=Aura de Dominação

@@ -29,7 +29,9 @@ public sealed class OathOfDread : AbstractSubclass
 
     internal static readonly ConditionDefinition ConditionAspectOfDreadEnemy = ConditionDefinitionBuilder
         .Create($"Condition{Name}AspectOfDreadEnemy")
-        .SetGuiPresentation(ConditionAspectOfDreadName, Category.Condition)
+        .SetGuiPresentation(ConditionAspectOfDreadName, Category.Condition,
+            $"Condition/&Condition{Name}AspectOfDreadEnemyDescription")
+        .SetConditionType(ConditionType.Detrimental)
         .SetSilent(Silent.WhenAddedOrRemoved)
         .SetPossessive()
         .SetSpecialInterruptions(ConditionInterruption.SavingThrow)

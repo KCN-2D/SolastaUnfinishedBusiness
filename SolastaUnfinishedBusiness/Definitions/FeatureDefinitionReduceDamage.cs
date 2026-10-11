@@ -20,6 +20,9 @@ internal sealed class FeatureDefinitionReduceDamage : FeatureDefinition
     // for powers that reduce based on a point count
     public FeatureDefinitionPower FeedbackPower { get; set; }
 
+    public Action<RulesetImplementationDefinitions.ApplyFormsParams, int, string> DamageReduced { get; set; }
+    public Func<RulesetImplementationDefinitions.ApplyFormsParams, string, bool> CanReduceDamage { get; set; }
+
     // for feedback powers caused by an external effect
     public ConditionDefinition SourceCondition { get; set; }
 
@@ -31,7 +34,9 @@ internal sealed class FeatureDefinitionReduceDamage : FeatureDefinition
         var defender = formsParams.targetCharacter;
         var reduction = 0;
 
-        if (defender is not { Side: RuleDefinitions.Side.Ally })
+        // The feature and this attack's defender-specific tags own eligibility,
+        // including protection granted to an enemy by another enemy.
+        if (defender == null)
         {
             return reduction;
         }
@@ -45,6 +50,11 @@ internal sealed class FeatureDefinitionReduceDamage : FeatureDefinition
                 continue;
             }
 
+            if (feature.CanReduceDamage?.Invoke(formsParams, damageType) == false)
+            {
+                continue;
+            }
+
             var prefix = $"{feature.Name}:{defender.Guid}:";
             var k = formsParams.sourceTags?.FindIndex(x => x.StartsWith(prefix)) ?? -1;
 
@@ -54,6 +64,7 @@ internal sealed class FeatureDefinitionReduceDamage : FeatureDefinition
             }
 
             var tag = formsParams.sourceTags[k];
+            var damageReduced = 0;
 
             formsParams.sourceTags.RemoveAt(k);
 
@@ -74,6 +85,8 @@ internal sealed class FeatureDefinitionReduceDamage : FeatureDefinition
                     tmp = 0;
                 }
 
+                damageReduced = tmp2 - tmp;
+
                 // need double if check here to avoid issues with unity objects lifecycle
                 if (feature.FeedbackPower)
                 {
@@ -93,6 +106,11 @@ internal sealed class FeatureDefinitionReduceDamage : FeatureDefinition
             catch (Exception)
             {
                 // ignored
+            }
+
+            if (damageReduced > 0)
+            {
+                feature.DamageReduced?.Invoke(formsParams, damageReduced, damageType);
             }
         }
 

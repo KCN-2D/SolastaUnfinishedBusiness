@@ -1185,6 +1185,8 @@ public static class CharacterActionMagicEffectPatcher
             // This is used for Force of Law (Law Domain), so that the condition which imposes save disadvantage to the target is removed after the spell is cast
             __instance.CheckInterruptionAfter();
 
+            CharacterActionPatcher.ApplyStealthBreakerBehavior_Patch.ApplyBeforeFinishedReactions(__instance);
+
             // Replace character
             if (castingPoint != impactPoint)
             {
@@ -1395,6 +1397,9 @@ public static class CharacterActionMagicEffectPatcher
 
             if (activeEffect.EffectDescription.NeedsToRollDie())
             {
+                // Retaliation uses this target's final roll, including reactions that changed the outcome.
+                CombatAiContext.RecordEnemyBattleMagicAttackOutcome(action, target, action.AttackRollOutcome);
+
                 foreach (var handler in action.ActingCharacter.RulesetCharacter
                              .GetSubFeaturesByType<IMagicAttackFinishedByMe>())
                 {
@@ -1808,6 +1813,8 @@ public static class CharacterActionMagicEffectPatcher
             List<EffectFormFilter> filters,
             CharacterActionMagicEffect action)
         {
+            var target = formsParams.targetCharacter as RulesetCharacter;
+            var temporaryHitPointsBefore = target?.TemporaryHitPoints ?? 0;
             var damageReceived = ForcePushOrDragFromEffectPoint.SetPositionAndApplyForms(
                 service,
                 MetamagicContext.FilterCarefulSpell2024EffectForms(effectForms, formsParams),
@@ -1824,6 +1831,11 @@ public static class CharacterActionMagicEffectPatcher
 
             OnHitEffectContext.RecordApplication(
                 action, formsParams, damageReceived, damageAbsorbedByTemporaryHitPoints);
+            if (target != null)
+            {
+                CombatAiContext.RecordEnemyBattleAttackDamage(action, target,
+                    damageReceived + Math.Max(0, temporaryHitPointsBefore - target.TemporaryHitPoints));
+            }
             return damageReceived;
         }
     }

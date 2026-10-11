@@ -4055,7 +4055,30 @@ public static partial class Tabletop2024Context
         SpellListDefinition choiceSpellList,
         SpellListDefinition invisibilitySpellList)
     {
-        var name = $"FeatShadowTouched2024{attribute}";
+        return BuildTouched2024Variant(
+            ShadowTouched2024Family,
+            ShadowTouched2024FixedTag,
+            ShadowTouched2024ChoiceTag,
+            attribute,
+            attributeModifier,
+            groupTitle,
+            baseDescription,
+            choiceSpellList,
+            invisibilitySpellList);
+    }
+
+    private static FeatDefinition BuildTouched2024Variant(
+        string family,
+        string fixedSpellTag,
+        string choiceSpellTag,
+        string attribute,
+        FeatureDefinitionAttributeModifier attributeModifier,
+        string groupTitle,
+        string baseDescription,
+        SpellListDefinition choiceSpellList,
+        SpellListDefinition fixedSpellList)
+    {
+        var name = $"Feat{family}{attribute}";
         var title = Gui.Format("Feat/&GeneralFeat2024VariantTitle", groupTitle, GetAttributeTitle(attribute));
         var description = BuildHalfFeatDescription(attribute, baseDescription);
         var fixedCastSpell = FeatureDefinitionCastSpellBuilder
@@ -4067,9 +4090,9 @@ public static partial class Tabletop2024Context
             .SetSlotsRecharge(RechargeRate.LongRest)
             .SetSlotsPerLevel(Touched2024FixedCastingSlots)
             .SetUniqueLevelSlots(false)
-            .SetSpellList(invisibilitySpellList)
+            .SetSpellList(fixedSpellList)
             .SetSpellCastingAbility(attribute)
-            .AddCustomSubFeatures(new FeatHelpers.SpellTag(ShadowTouched2024FixedTag, forceFixedList: true))
+            .AddCustomSubFeatures(new FeatHelpers.SpellTag(fixedSpellTag, forceFixedList: true))
             .AddToDB();
         var choiceCastSpell = FeatureDefinitionCastSpellBuilder
             .Create($"CastSpell{name}Choice")
@@ -4084,7 +4107,7 @@ public static partial class Tabletop2024Context
             .SetUniqueLevelSlots(false)
             .SetSpellList(choiceSpellList)
             .SetSpellCastingAbility(attribute)
-            .AddCustomSubFeatures(new FeatHelpers.SpellTag(ShadowTouched2024ChoiceTag))
+            .AddCustomSubFeatures(new FeatHelpers.SpellTag(choiceSpellTag))
             .AddToDB();
         var pointPool = FeatureDefinitionPointPoolBuilder
             .Create($"PointPool{name}Spell")
@@ -4093,7 +4116,7 @@ public static partial class Tabletop2024Context
                 HeroDefinitions.PointsPoolType.Spell,
                 1,
                 choiceSpellList,
-                ShadowTouched2024ChoiceTag,
+                choiceSpellTag,
                 1,
                 1)
             .AddToDB();
@@ -4101,7 +4124,7 @@ public static partial class Tabletop2024Context
             .Create(name)
             .SetGuiPresentation(title, description, hidden: false)
             .SetFeatures(attributeModifier, fixedCastSpell, choiceCastSpell, pointPool)
-            .SetFeatFamily(ShadowTouched2024Family)
+            .SetFeatFamily(family)
             .AddCustomSubFeatures(FeatsContext.HideFromFeats.Marker)
             .AddToDB();
 
@@ -5128,37 +5151,13 @@ public static partial class Tabletop2024Context
             if (IsTabletopContainerGroup(feat))
             {
                 return ManagedSelectableRootNamesByContainerName.TryGetValue(feat.Name, out var rootNames)
-                    ? rootNames
-                        .Select(rootName => TryGetDefinition<FeatDefinition>(rootName, out var rootDefinition)
-                            ? rootDefinition
-                            : null)
-                        .Where(child => child != null && IsVisibleInGameFeatSelection(child))
-                        .Distinct()
-                        .OrderBy(child => child.FormatTitle())
-                        .ToArray()
+                    ? ResolveAllowedManagedFeatChildren(rootNames, false)
                     : [];
             }
 
-            var managedChildren = ManagedTabletopChildNamesByParentName.TryGetValue(feat.Name, out var childNames)
-                ? childNames
-                    .Select(childName => TryGetDefinition<FeatDefinition>(childName, out var childDefinition)
-                        ? childDefinition
-                        : null)
-                    .Where(child => child != null &&
-                                    !IsNonSelectableTabletopGroup(child) &&
-                                    !IsTabletopContainerGroup(child) &&
-                                    IsVisibleInGameFeatSelection(child))
-                    .Distinct()
-                    .OrderBy(child => child.FormatTitle())
-                    .ToArray()
+            return ManagedTabletopChildNamesByParentName.TryGetValue(feat.Name, out var childNames)
+                ? ResolveAllowedManagedFeatChildren(childNames, true)
                 : [];
-
-            if (managedChildren.Length > 0)
-            {
-                return managedChildren;
-            }
-
-            return [];
         }
 
         if (feat.GetFirstSubFeatureOfType<IGroupedFeat>() is not { } groupedFeatLegacy)
@@ -5171,25 +5170,26 @@ public static partial class Tabletop2024Context
             .Distinct();
     }
 
+    private static FeatDefinition[] ResolveAllowedManagedFeatChildren(
+        IEnumerable<string> definitionNames,
+        bool excludeContainers)
+    {
+        return definitionNames
+            .Select(name => TryGetDefinition<FeatDefinition>(name, out var definition) ? definition : null)
+            .Where(child => child != null &&
+                            (!excludeContainers || !IsTabletopContainerGroup(child)) &&
+                            IsVisibleInGameFeatSelection(child))
+            .Distinct()
+            .OrderBy(child => child.FormatTitle())
+            .ToArray();
+    }
+
     private static IEnumerable<FeatDefinition> EnumerateSelectableLeafFeats(FeatDefinition feat)
     {
-        if (feat == null || IsNonSelectableTabletopGroup(feat))
+        // Explicit grants use the group's choices even when the optional catalog entry is hidden.
+        foreach (var leaf in EnumerateFeatLeaves(feat, false, new HashSet<string>()))
         {
-            yield break;
-        }
-
-        if (feat.GetFirstSubFeatureOfType<IGroupedFeat>() is not { } groupedFeat)
-        {
-            yield return feat;
-            yield break;
-        }
-
-        foreach (var subFeat in groupedFeat.GetSubFeats(true))
-        {
-            foreach (var leafFeat in EnumerateSelectableLeafFeats(subFeat))
-            {
-                yield return leafFeat;
-            }
+            yield return leaf;
         }
     }
 
@@ -5901,11 +5901,15 @@ public static partial class Tabletop2024Context
 
     private static IEnumerable<FeatDefinition> EnumerateFeatAndDescendantLeaves(FeatDefinition feat)
     {
-        return EnumerateFeatAndDescendantLeaves(feat, new HashSet<string>());
+        foreach (var leaf in EnumerateFeatLeaves(feat, true, new HashSet<string>()))
+        {
+            yield return leaf;
+        }
     }
 
-    private static IEnumerable<FeatDefinition> EnumerateFeatAndDescendantLeaves(
+    private static IEnumerable<FeatDefinition> EnumerateFeatLeaves(
         FeatDefinition feat,
+        bool requireCatalogVisibility,
         HashSet<string> visitedNames)
     {
         if (feat == null ||
@@ -5915,11 +5919,14 @@ public static partial class Tabletop2024Context
             yield break;
         }
 
-        var children = GetAllowedGameFeatChildren(feat)
-            .ToArray();
+        var groupedFeat = feat.GetFirstSubFeatureOfType<IGroupedFeat>();
+        var children = requireCatalogVisibility
+            ? GetAllowedGameFeatChildren(feat).ToArray()
+            : groupedFeat?.GetSubFeats(true).ToArray() ?? [];
 
-        if (children.Length == 0 &&
-            feat.GetFirstSubFeatureOfType<IGroupedFeat>() is { } groupedFeat &&
+        if (requireCatalogVisibility &&
+            children.Length == 0 &&
+            groupedFeat != null &&
             !IsTabletopContainerGroup(feat))
         {
             children = groupedFeat.GetSubFeats(true)
@@ -5929,8 +5936,7 @@ public static partial class Tabletop2024Context
 
         if (children.Length == 0)
         {
-            if (!IsTabletopContainerGroup(feat) &&
-                feat.GetFirstSubFeatureOfType<IGroupedFeat>() == null)
+            if ((!requireCatalogVisibility || !IsTabletopContainerGroup(feat)) && groupedFeat == null)
             {
                 yield return feat;
             }
@@ -5940,7 +5946,7 @@ public static partial class Tabletop2024Context
 
         foreach (var child in children)
         {
-            foreach (var leaf in EnumerateFeatAndDescendantLeaves(child, visitedNames))
+            foreach (var leaf in EnumerateFeatLeaves(child, requireCatalogVisibility, visitedNames))
             {
                 yield return leaf;
             }
@@ -6498,60 +6504,16 @@ public static partial class Tabletop2024Context
         SpellListDefinition choiceSpellList,
         SpellListDefinition mistyStepSpellList)
     {
-        var name = $"FeatFeyTouched2024{attribute}";
-        var title = Gui.Format("Feat/&GeneralFeat2024VariantTitle", groupTitle, GetAttributeTitle(attribute));
-        var description = BuildHalfFeatDescription(attribute, baseDescription);
-        var fixedCastSpell = FeatureDefinitionCastSpellBuilder
-            .Create($"CastSpell{name}Fixed")
-            .SetGuiPresentationNoContent(true)
-            .SetSpellCastingOrigin(FeatureDefinitionCastSpell.CastingOrigin.Race)
-            .SetSpellKnowledge(SpellKnowledge.FixedList)
-            .SetSpellReadyness(SpellReadyness.AllKnown)
-            .SetSlotsRecharge(RechargeRate.LongRest)
-            .SetSlotsPerLevel(Touched2024FixedCastingSlots)
-            .SetUniqueLevelSlots(false)
-            .SetSpellList(mistyStepSpellList)
-            .SetSpellCastingAbility(attribute)
-            .AddCustomSubFeatures(new FeatHelpers.SpellTag(FeyTouched2024FixedTag, forceFixedList: true))
-            .AddToDB();
-        var choiceCastSpell = FeatureDefinitionCastSpellBuilder
-            .Create($"CastSpell{name}Choice")
-            .SetGuiPresentationNoContent(true)
-            .SetSpellCastingOrigin(FeatureDefinitionCastSpell.CastingOrigin.Race)
-            .SetSpellKnowledge(SpellKnowledge.Selection)
-            .SetSpellReadyness(SpellReadyness.AllKnown)
-            .SetSlotsRecharge(RechargeRate.LongRest)
-            .SetSlotsPerLevel(SharedSpellsContext.InitiateCastingSlots)
-            .SetKnownSpells(1, FeatureDefinitionCastSpellBuilder.CasterProgression.Flat)
-            .SetReplacedSpells(1, 0)
-            .SetUniqueLevelSlots(false)
-            .SetSpellList(choiceSpellList)
-            .SetSpellCastingAbility(attribute)
-            .AddCustomSubFeatures(new FeatHelpers.SpellTag(FeyTouched2024ChoiceTag))
-            .AddToDB();
-        var pointPool = FeatureDefinitionPointPoolBuilder
-            .Create($"PointPool{name}Spell")
-            .SetGuiPresentationNoContent(true)
-            .SetSpellOrCantripPool(
-                HeroDefinitions.PointsPoolType.Spell,
-                1,
-                choiceSpellList,
-                FeyTouched2024ChoiceTag,
-                1,
-                1)
-            .AddToDB();
-        var feat = FeatDefinitionBuilder
-            .Create(name)
-            .SetGuiPresentation(title, description, hidden: false)
-            .SetFeatures(attributeModifier, fixedCastSpell, choiceCastSpell, pointPool)
-            .SetFeatFamily(FeyTouched2024Family)
-            .AddCustomSubFeatures(FeatsContext.HideFromFeats.Marker)
-            .AddToDB();
-
-        feat.mustCastSpellsPrerequisite = false;
-        ClearMinimalAbilityPrerequisite(feat);
-
-        return feat;
+        return BuildTouched2024Variant(
+            FeyTouched2024Family,
+            FeyTouched2024FixedTag,
+            FeyTouched2024ChoiceTag,
+            attribute,
+            attributeModifier,
+            groupTitle,
+            baseDescription,
+            choiceSpellList,
+            mistyStepSpellList);
     }
 
     private static FeatDefinition BuildDedicated2024SingleHalfFeat(
@@ -8119,17 +8081,22 @@ public static partial class Tabletop2024Context
                 restoreShove = true;
             }
 
-            yield return attacker.MyReactToSpendPowerBundle(
-                usablePower,
-                [defender],
-                attacker,
-                "PowerFeatCharger",
-                reactionValidated: ReactionValidated,
-                battleManager: battleManager);
-
-            if (restoreShove && !rulesetAttacker.UsablePowers.Contains(usableShove))
+            try
             {
-                rulesetAttacker.UsablePowers.Add(usableShove);
+                yield return attacker.MyReactToSpendPowerBundle(
+                    usablePower,
+                    [defender],
+                    attacker,
+                    "PowerFeatCharger",
+                    reactionValidated: ReactionValidated,
+                    battleManager: battleManager);
+            }
+            finally
+            {
+                if (restoreShove && !rulesetAttacker.UsablePowers.Contains(usableShove))
+                {
+                    rulesetAttacker.UsablePowers.Add(usableShove);
+                }
             }
 
             yield break;

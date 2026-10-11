@@ -28,8 +28,24 @@ internal interface ISpellCastingActionProvider : IAllowSpellActionType
     void OnSpellCastCommitted(CharacterActionMagicEffect action, RulesetEffectSpell spell);
 }
 
+// A grant-only spell variant must pass its provider even when a forged or restored
+// action uses the definition's original casting time.
+internal sealed class RequireSpellCastingActionProvider
+{
+    internal static readonly RequireSpellCastingActionProvider Marker = new();
+
+    private RequireSpellCastingActionProvider()
+    {
+    }
+}
+
 internal static class SpellActionTypeContext
 {
+    internal static bool RequiresCastingActionProvider(SpellDefinition spell, RulesetSpellRepertoire repertoire) =>
+        spell?.HasSubFeatureOfType<RequireSpellCastingActionProvider>() == true ||
+        SpellSelectionContext.Resolve(repertoire)?.SpellCastingFeature
+            ?.HasSubFeatureOfType<RequireSpellCastingActionProvider>() == true;
+
     private static bool IsAllowedByProvider(
         IAllowSpellActionType provider,
         RulesetCharacter character,
@@ -37,6 +53,12 @@ internal static class SpellActionTypeContext
         SpellDefinition spell,
         ActionType actionType)
     {
+        if (actionType == ActionType.None && RequiresCastingActionProvider(spell, repertoire))
+        {
+            return IsAllowedByProvider(provider, character, repertoire, spell, ActionType.Main) ||
+                   IsAllowedByProvider(provider, character, repertoire, spell, ActionType.Bonus);
+        }
+
         // Resource-dependent grants need the selected display view, including
         // free-use vs spell-slot choices, rather than just its casting origin.
         return provider.IsAllowed(character,
@@ -54,24 +76,31 @@ internal static class SpellActionTypeContext
         provider = null;
         failure = string.Empty;
 
-        if (Gui.Battle == null ||
+        if (action.ActionParams.RulesetEffect is not RulesetEffectSpell spell)
+        {
+            return true;
+        }
+
+        var definition = RulesetEffectSpellWithOrigin.GetOriginSpell(spell);
+        var repertoire = spell.SpellRepertoire ?? action.ActionParams.SpellRepertoire;
+        var requiresProvider = RequiresCastingActionProvider(spell.SpellDefinition, repertoire);
+        requiresProvider |= action.ActionId == Id.CastReaction && action.ActionParams.UsablePower?.PowerDefinition
+            .HasSubFeatureOfType<ISpellCastingActionProvider>() == true;
+        if (!requiresProvider && (Gui.Battle == null ||
             action.ActionId is not Id.CastMain and not Id.CastBonus ||
-            action.ActionParams.RulesetEffect is not RulesetEffectSpell spell ||
             action.ActionType == spell.ActionType ||
             action.ActionId == Id.CastBonus &&
-            CombinedMetamagic.HasType(spell.MetamagicOption, MetamagicType.QuickenedSpell))
+            CombinedMetamagic.HasType(spell.MetamagicOption, MetamagicType.QuickenedSpell)))
         {
             return true;
         }
 
         var character = action.ActingCharacter.RulesetCharacter;
-        var definition = RulesetEffectSpellWithOrigin.GetOriginSpell(spell);
-        var repertoire = spell.SpellRepertoire ?? action.ActionParams.SpellRepertoire;
         var providers = character.GetSubFeaturesByType<IAllowSpellActionType>();
 
         // A free alternative such as Blast Reload does not spend another
         // feature's limited uses merely because both grant the same action.
-        if (providers.Any(candidate => candidate is not ISpellCastingActionProvider &&
+        if (!requiresProvider && providers.Any(candidate => candidate is not ISpellCastingActionProvider &&
                 IsAllowedByProvider(candidate, character, repertoire, definition, action.ActionType)))
         {
             return true;
@@ -116,9 +145,10 @@ internal static class SpellActionTypeContext
             return;
         }
 
-        relevantSpells.RemoveAll(spell => !IsCastingTimeAvailable(spell));
-
         var providers = character.GetSubFeaturesByType<IAllowSpellActionType>();
+        relevantSpells.RemoveAll(spell => !IsCastingTimeAvailable(spell) ||
+            RequiresCastingActionProvider(spell, repertoire) &&
+            !providers.Any(provider => IsAllowedByProvider(provider, character, repertoire, spell, actionType)));
 
         // None is the all-actions picker, matching HasSpellOfLevelAndActionType.
         // Native repertoire lines only implement that meaning outside battle.
@@ -131,7 +161,7 @@ internal static class SpellActionTypeContext
         foreach (var spell in candidates.Where(spell => spell != null && IsCastingTimeAvailable(spell)))
         {
             if (!relevantSpells.Contains(spell) &&
-                (MatchesCastingActionType(spell, actionType) || providers.Any(provider =>
+                (!RequiresCastingActionProvider(spell, repertoire) && MatchesCastingActionType(spell, actionType) || providers.Any(provider =>
                     IsAllowedByProvider(provider, character, repertoire, spell, actionType))))
             {
                 relevantSpells.Add(spell);
@@ -154,14 +184,18 @@ internal static class SpellActionTypeContext
             return false;
         }
 
-        if (IsSpellActionAvailable(caster, spell, scope, actionId))
+        var character = caster.RulesetCharacter;
+        var providers = character.GetSubFeaturesByType<IAllowSpellActionType>();
+        var nativeActionType = actionId == Id.CastBonus ? ActionType.Bonus : ActionType.Main;
+        if (IsSpellActionAvailable(caster, spell, scope, actionId) &&
+            (!RequiresCastingActionProvider(spell, repertoire) ||
+             providers.Any(provider => IsAllowedByProvider(provider, character, repertoire, spell,
+                 nativeActionType))))
         {
             return true;
         }
 
         // A mixed-action picker must retain the same alternative casting actions as the normal panels.
-        var character = caster.RulesetCharacter;
-        var providers = character.GetSubFeaturesByType<IAllowSpellActionType>();
         foreach (var actionType in new[] { ActionType.Main, ActionType.Bonus })
         {
             var alternative = actionType == ActionType.Main ? Id.CastMain : Id.CastBonus;
@@ -365,6 +399,11 @@ internal static class SpellActionTypeContext
     internal static bool MatchesCastingActionType(SpellDefinition spell, ActionType actionType)
     {
         if (spell == null)
+        {
+            return false;
+        }
+
+        if (spell.HasSubFeatureOfType<RequireSpellCastingActionProvider>())
         {
             return false;
         }

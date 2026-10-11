@@ -1,4 +1,5 @@
 Condition/&ConditionOathOfDreadAspectOfDreadDescription=You have resistance to all damage.\n• All your weapon attacks deal an additional 1d8 psychic damage.\n• Enemy creatures within 10 feet of you have disadvantage on saving throws against your paladin spells and Dreadful Presence.
+Condition/&ConditionOathOfDreadAspectOfDreadEnemyDescription=You have disadvantage on your next saving throw. This effect ends after you make a saving throw.
 Condition/&ConditionOathOfDreadAspectOfDreadTitle=Aspect of Dread
 Condition/&ConditionOathOfDreadAuraOfDominationDescription=If you are frightened or feared, your speed is reduced to 0, and you take psychic damage equal to half the emanator's paladin level.
 Condition/&ConditionOathOfDreadAuraOfDominationTitle=Aura of Domination

@@ -29,6 +29,12 @@ public static class CharacterActionShovePatcher
 
         private static IEnumerator Execute(CharacterActionShove characterActionShove)
         {
+            if (!CombatAiContext.TryBeginEnemyBattleShove(characterActionShove))
+            {
+                characterActionShove.Abort(CharacterAction.InterruptionType.Invalid);
+                yield break;
+            }
+
             var actingCharacter = characterActionShove.ActingCharacter;
             var target = characterActionShove.ActionParams.TargetCharacters[0];
             var isTopple = characterActionShove.ActionParams.BoolParameter;

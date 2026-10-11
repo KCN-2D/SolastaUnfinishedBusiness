@@ -1,4 +1,5 @@
 Condition/&ConditionOathOfDreadAspectOfDreadDescription=你对所有伤害具有抗性。\n• 你的所有武器攻击造成额外的 1d8 心灵伤害。\n• 在你 10 尺范围内的敌方生物在对抗你的圣武士法术和恐惧之势的豁免检定上具有劣势。
+Condition/&ConditionOathOfDreadAspectOfDreadEnemyDescription=你的下一次豁免检定具有劣势。进行豁免检定后，此效果结束。
 Condition/&ConditionOathOfDreadAspectOfDreadTitle=恐惧之相
 Condition/&ConditionOathOfDreadAuraOfDominationDescription=如果你感到害怕或恐惧，你的速度会降低到 0，并且你会受到等同于发射者圣武士等级一半的心灵伤害。
 Condition/&ConditionOathOfDreadAuraOfDominationTitle=支配灵光

@@ -57,8 +57,7 @@ internal sealed partial class SimulacrumBehavior
 
             // Monster PostLoad refreshes the 1 HP construction shell before the loaded
             // snapshot is reapplied. Preserve the CurrentHitPoints read by RulesetActor.
-            if (TryGetSnapshot(duplicate, out var loadedSnapshot) &&
-                loadedSnapshot.IsCurrentSchema &&
+            if (TryGetCurrentSnapshot(duplicate, out var loadedSnapshot) &&
                 loadedSnapshot.HalfMaximumHitPoints > 0)
             {
                 loadedSnapshot.RestoreHitPointsAfterCompute(
@@ -70,8 +69,7 @@ internal sealed partial class SimulacrumBehavior
         }
 
         if (duplicate.LifecycleState != SimulacrumLifecycleState.Ready ||
-            !TryGetSnapshot(duplicate, out var snapshot) ||
-            !snapshot.IsCurrentSchema)
+            !TryGetCurrentSnapshot(duplicate, out var snapshot))
         {
             return;
         }
@@ -370,6 +368,13 @@ internal sealed partial class SimulacrumBehavior
         return SimulacrumSnapshotRulesetCondition.GetCustomConditionFromCharacter(character, out snapshot);
     }
 
+    private static bool TryGetCurrentSnapshot(
+        RulesetActor character,
+        out SimulacrumSnapshotRulesetCondition snapshot)
+    {
+        return TryGetSnapshot(character, out snapshot) && snapshot.IsCurrentSchema;
+    }
+
     internal static bool TryReplaceInvocation(
         RulesetCharacterSimulacrum character,
         InvocationDefinition invocationToRemove,
@@ -379,8 +384,7 @@ internal sealed partial class SimulacrumBehavior
             invocationToRemove == null ||
             invocationToAdd == null ||
             invocationToRemove == invocationToAdd ||
-            !TryGetSnapshot(character, out var snapshot) ||
-            !snapshot.IsCurrentSchema ||
+            !TryGetCurrentSnapshot(character, out var snapshot) ||
             !snapshot.TryReplaceInvocation(
                 character,
                 invocationToRemove,
@@ -400,8 +404,7 @@ internal sealed partial class SimulacrumBehavior
     {
         if (character == null ||
             featuresOrigin == null ||
-            !TryGetSnapshot(character, out var snapshot) ||
-            !snapshot.IsCurrentSchema)
+            !TryGetCurrentSnapshot(character, out var snapshot))
         {
             return;
         }
@@ -468,8 +471,7 @@ internal sealed partial class SimulacrumBehavior
             return [];
         }
 
-        if (!TryGetSnapshot(character, out var snapshot) ||
-            !snapshot.IsCurrentSchema)
+        if (!TryGetCurrentSnapshot(character, out var snapshot))
         {
             return character.ActiveFeatures.ToList();
         }
@@ -488,8 +490,7 @@ internal sealed partial class SimulacrumBehavior
             return false;
         }
 
-        return !TryGetSnapshot(character, out var snapshot) ||
-               !snapshot.IsCurrentSchema ||
+        return !TryGetCurrentSnapshot(character, out var snapshot) ||
                snapshot.IsFeatureCurrentlyActive(character, power);
     }
 
@@ -499,8 +500,7 @@ internal sealed partial class SimulacrumBehavior
     {
         displayName = string.Empty;
 
-        if (!TryGetSnapshot(character, out var snapshot) ||
-            !snapshot.IsCurrentSchema ||
+        if (!TryGetCurrentSnapshot(character, out var snapshot) ||
             string.IsNullOrWhiteSpace(snapshot.DisplayName))
         {
             return false;
@@ -519,8 +519,7 @@ internal sealed partial class SimulacrumBehavior
         race = null;
         subRace = null;
 
-        if (!TryGetSnapshot(character, out var snapshot) ||
-            !snapshot.IsCurrentSchema ||
+        if (!TryGetCurrentSnapshot(character, out var snapshot) ||
             snapshot.HumanoidRace == null)
         {
             return false;
@@ -538,8 +537,7 @@ internal sealed partial class SimulacrumBehavior
     {
         classLevels = null;
 
-        if (!TryGetSnapshot(character, out var snapshot) ||
-            !snapshot.IsCurrentSchema)
+        if (!TryGetCurrentSnapshot(character, out var snapshot))
         {
             return false;
         }
@@ -552,7 +550,7 @@ internal sealed partial class SimulacrumBehavior
     internal static IEnumerable<BaseDefinition> EnumerateBehaviorCarriers(
         RulesetCharacterSimulacrum character)
     {
-        return TryGetSnapshot(character, out var snapshot) && snapshot.IsCurrentSchema
+        return TryGetCurrentSnapshot(character, out var snapshot)
             ? snapshot.BehaviorCarriers
             : [];
     }
@@ -740,8 +738,7 @@ internal sealed partial class SimulacrumBehavior
                          character?.OriginalFormCharacter as RulesetCharacterSimulacrum;
 
         return simulacrum != null &&
-               TryGetSnapshot(simulacrum, out snapshot) &&
-               snapshot.IsCurrentSchema;
+               TryGetCurrentSnapshot(simulacrum, out snapshot);
     }
 
     internal static bool TryGetPrimaryClass(
@@ -776,8 +773,7 @@ internal sealed partial class SimulacrumBehavior
             return false;
         }
 
-        if (TryGetSnapshot(character, out var snapshot) &&
-            snapshot.IsCurrentSchema &&
+        if (TryGetCurrentSnapshot(character, out var snapshot) &&
             (subclassDefinition = snapshot.GetSubclass(classDefinition)) != null)
         {
             return true;
@@ -797,8 +793,7 @@ internal sealed partial class SimulacrumBehavior
         List<string> languages)
     {
         if (languages == null ||
-            !TryGetSnapshot(character, out var snapshot) ||
-            !snapshot.IsCurrentSchema)
+            !TryGetCurrentSnapshot(character, out var snapshot))
         {
             return false;
         }
@@ -814,8 +809,7 @@ internal sealed partial class SimulacrumBehavior
         RulesetCharacterSimulacrum character,
         ItemDefinition itemDefinition)
     {
-        return TryGetSnapshot(character, out var snapshot) &&
-               snapshot.IsCurrentSchema &&
+        return TryGetCurrentSnapshot(character, out var snapshot) &&
                snapshot.IsProficientWithItem(itemDefinition);
     }
 
@@ -5311,7 +5305,6 @@ internal sealed partial class SimulacrumBehavior
                 IReadOnlyDictionary<FeatureDefinition, FeatureOrigin> featuresOrigin)
         {
             var pending = new Stack<FeatureOriginCandidate>();
-            var visited = new HashSet<FeatureDefinition>();
             var activeFeatures = source switch
             {
                 RulesetCharacterHero hero => hero.ActiveFeatures.Values.SelectMany(x => x),
@@ -5329,36 +5322,9 @@ internal sealed partial class SimulacrumBehavior
                 pending.Push(new FeatureOriginCandidate(root, origin));
             }
 
-            while (pending.Count > 0)
+            foreach (var candidate in WalkFeatureGraph(pending, featuresOrigin))
             {
-                var candidate = pending.Pop();
-                var feature = candidate.Feature;
-
-                if (feature == null || !visited.Add(feature))
-                {
-                    continue;
-                }
-
                 yield return candidate;
-
-                if (feature is not FeatureDefinitionFeatureSet featureSet)
-                {
-                    continue;
-                }
-
-                foreach (var child in featureSet.FeatureSet
-                             .Where(x => x != null)
-                             .Reverse())
-                {
-                    var origin = featuresOrigin.TryGetValue(child, out var existingOrigin)
-                        ? existingOrigin
-                        : candidate.Origin;
-
-                    if (!IsSnapshotExcludedOrigin(origin.sourceType))
-                    {
-                        pending.Push(new FeatureOriginCandidate(child, origin));
-                    }
-                }
             }
         }
 
@@ -5367,9 +5333,20 @@ internal sealed partial class SimulacrumBehavior
             FeatureOrigin origin)
         {
             var pending = new Stack<FeatureOriginCandidate>();
-            var visited = new HashSet<FeatureDefinition>();
 
             pending.Push(new FeatureOriginCandidate(root, origin));
+
+            foreach (var candidate in WalkFeatureGraph(pending))
+            {
+                yield return candidate;
+            }
+        }
+
+        private static IEnumerable<FeatureOriginCandidate> WalkFeatureGraph(
+            Stack<FeatureOriginCandidate> pending,
+            IReadOnlyDictionary<FeatureDefinition, FeatureOrigin> persistentOrigins = null)
+        {
+            var visited = new HashSet<FeatureDefinition>();
 
             while (pending.Count > 0)
             {
@@ -5389,7 +5366,17 @@ internal sealed partial class SimulacrumBehavior
 
                 foreach (var child in featureSet.FeatureSet.Where(x => x != null).Reverse())
                 {
-                    pending.Push(new FeatureOriginCandidate(child, candidate.Origin));
+                    var origin = persistentOrigins != null &&
+                                 persistentOrigins.TryGetValue(child, out var existingOrigin)
+                        ? existingOrigin
+                        : candidate.Origin;
+
+                    // Persistent capture filters runtime origins; an invocation's independent
+                    // graph keeps its own inherited origin even when native browsing differs.
+                    if (persistentOrigins == null || !IsSnapshotExcludedOrigin(origin.sourceType))
+                    {
+                        pending.Push(new FeatureOriginCandidate(child, origin));
+                    }
                 }
             }
         }
@@ -6552,15 +6539,7 @@ internal sealed partial class SimulacrumBehavior
         internal sealed class DuplicateRuntimeState
         {
             private readonly int _currentHitPoints;
-            private readonly int _usedBardicInspiration;
-            private readonly int _usedBindChain;
-            private readonly int _usedChannelDivinity;
-            private readonly int _usedHealingPool;
-            private readonly int _usedIndomitableResistances;
-            private readonly int _usedKiPoints;
-            private readonly int _usedKnockOutImmunityPerLongRest;
-            private readonly int _usedRagePoints;
-            private readonly int _usedSorceryPoints;
+            private readonly PersistentResourceSeed _persistentResources;
             private readonly InvocationRuntimeState[] _invocationStates;
             private readonly SpellResourceState[] _spellResources;
             private readonly PowerResourceState[] _powerResources;
@@ -6569,15 +6548,7 @@ internal sealed partial class SimulacrumBehavior
             internal DuplicateRuntimeState(RulesetCharacter duplicate, int currentHitPoints)
             {
                 _currentHitPoints = currentHitPoints;
-                _usedBardicInspiration = duplicate.UsedBardicInspiration;
-                _usedBindChain = duplicate.UsedBindChain;
-                _usedChannelDivinity = duplicate.UsedChannelDivinity;
-                _usedHealingPool = duplicate.UsedHealingPool;
-                _usedIndomitableResistances = duplicate.UsedIndomitableResistances;
-                _usedKiPoints = duplicate.UsedKiPoints;
-                _usedKnockOutImmunityPerLongRest = duplicate.UsedKnockOutImmunityPerLongRest;
-                _usedRagePoints = duplicate.UsedRagePoints;
-                _usedSorceryPoints = duplicate.UsedSorceryPoints;
+                _persistentResources = new PersistentResourceSeed(duplicate);
                 _invocationStates = duplicate.Invocations
                     .Where(invocation => invocation?.InvocationDefinition != null)
                     .Select(invocation => new InvocationRuntimeState(
@@ -6624,15 +6595,7 @@ internal sealed partial class SimulacrumBehavior
                 duplicate.ToggledPowersOn.Clear();
                 duplicate.ToggledPowersOn.AddRange(_toggledPowersOn);
 
-                duplicate.UsedBardicInspiration = _usedBardicInspiration;
-                duplicate.UsedBindChain = _usedBindChain;
-                duplicate.UsedChannelDivinity = _usedChannelDivinity;
-                duplicate.UsedHealingPool = _usedHealingPool;
-                duplicate.UsedIndomitableResistances = _usedIndomitableResistances;
-                duplicate.UsedKiPoints = _usedKiPoints;
-                duplicate.UsedKnockOutImmunityPerLongRest = _usedKnockOutImmunityPerLongRest;
-                duplicate.UsedRagePoints = _usedRagePoints;
-                duplicate.UsedSorceryPoints = _usedSorceryPoints;
+                _persistentResources.Apply(duplicate);
 
                 var maximumHitPoints = duplicate.TryGetAttributeValue(AttributeDefinitions.HitPoints);
 

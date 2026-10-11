@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
@@ -321,7 +322,67 @@ public static class CharacterActionPatcher
     [UsedImplicitly]
     public static class ApplyStealthBreakerBehavior_Patch
     {
+        private static readonly ConditionalWeakTable<CharacterAction, object> EarlyStealthBreaks = new();
+
         internal static bool ShouldBanter;
+
+        [UsedImplicitly]
+        public static bool Prefix(CharacterAction __instance)
+        {
+            return !EarlyStealthBreaks.TryGetValue(__instance, out _);
+        }
+
+        internal static void ApplyBeforeFinishedReactions(CharacterAction action)
+        {
+            var visibilityManager = ServiceRepository.GetService<IGameLocationVisibilityService>()
+                as GameLocationVisibilityManager;
+
+            if (!EarlyStealthBreaks.TryGetValue(action, out _))
+            {
+                if (action.ActingCharacter.Stealthy)
+                {
+                    // Native stealth-break detectors use cached line-of-sight ratios.
+                    // Resolve invisibility removal before choosing those detectors.
+                    visibilityManager?.UpdateImpl();
+                }
+
+                var modifiers = action.ActionParams.ActionModifiers;
+                var hadModifier = modifiers.Count > 0;
+                var originalModifier = hadModifier ? modifiers[0] : null;
+                var temporaryModifier = originalModifier?.Clone() ?? new ActionModifier();
+
+                if (hadModifier)
+                {
+                    modifiers[0] = temporaryModifier;
+                }
+                else
+                {
+                    modifiers.Add(temporaryModifier);
+                }
+
+                try
+                {
+                    // Keep the native reveal rules and existing Skulker/Subtle/settings handling.
+                    // Its ability-check resets must not erase modifiers needed by finished reactions.
+                    action.ApplyStealthBreakerBehavior();
+                    EarlyStealthBreaks.Add(action, new object());
+                }
+                finally
+                {
+                    if (hadModifier)
+                    {
+                        modifiers[0] = originalModifier;
+                    }
+                    else
+                    {
+                        modifiers.Remove(temporaryModifier);
+                    }
+                }
+            }
+
+            // Condition removal only marks native visibility dirty. Resolve it before sight checks.
+            visibilityManager?.UpdateImpl();
+        }
 
         [NotNull]
         [UsedImplicitly]

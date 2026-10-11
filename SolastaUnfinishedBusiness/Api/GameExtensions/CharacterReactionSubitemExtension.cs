@@ -1088,6 +1088,7 @@ internal static class CharacterReactionSubitemExtension
         private Vector2 _visibleOffset;
         private Vector2 _visibleSize;
         private string _lastPrompt;
+        private readonly Dictionary<TMP_Text, Vector4> _headerMargins = [];
 
         internal void Bind(ReactionTargetPreviewState owner, ReactionModal modal)
         {
@@ -1104,6 +1105,9 @@ internal static class CharacterReactionSubitemExtension
             _panel.Capture(modal.mainPanel.RectTransform);
             _layout.Capture(_panel.RectTransform);
             _hourglass.Capture(modal.hourglassGroup);
+            _headerMargins.Clear();
+            _headerMargins.Add(modal.title.TMP_Text, modal.title.TMP_Text.margin);
+            _headerMargins.Add(modal.description.TMP_Text, modal.description.TMP_Text.margin);
             _panelLayoutGroup = _panel.RectTransform.GetComponent<VerticalLayoutGroup>();
             if (_panelLayoutGroup)
             {
@@ -1161,6 +1165,12 @@ internal static class CharacterReactionSubitemExtension
 
             var title = _modal.title.TMP_Text.text;
             var description = _modal.description.TMP_Text.text;
+            if (_lastTitle != title || _lastDescription != description ||
+                (_lastCanvasSize - canvas.rect.size).sqrMagnitude > 1f)
+            {
+                RestoreHeaderMargins();
+            }
+
             if ((_lastCanvasSize - canvas.rect.size).sqrMagnitude > 1f ||
                 (_lastPanelSize - panel.rect.size).sqrMagnitude > 1f ||
                 _lastTitle != title || _lastDescription != description || _lastActiveItemCount != activeItemCount ||
@@ -1190,6 +1200,10 @@ internal static class CharacterReactionSubitemExtension
                 panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
                 _layout.ApplyWidthIfPresent(width);
                 LayoutRebuilder.ForceRebuildLayoutImmediate(panel);
+                if (FitHeaderGlyphs())
+                {
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(panel);
+                }
                 bounds = MeasureVisibleBounds(panel);
                 var excessHeight = bounds.height - (canvas.rect.height - 24f);
                 if (excessHeight > 0.5f)
@@ -1251,6 +1265,63 @@ internal static class CharacterReactionSubitemExtension
                 foreach (var geometry in _geometry)
                 {
                     geometry.Capture(canvas);
+                }
+            }
+        }
+
+        private bool FitHeaderGlyphs()
+        {
+            var changed = false;
+            foreach (var text in _headerMargins.Keys)
+            {
+                if (!text || !text.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+
+                text.ForceMeshUpdate();
+                var rectangle = text.rectTransform.rect;
+                var top = rectangle.yMax;
+                var bottom = rectangle.yMin;
+                var visible = false;
+                for (var index = 0; index < text.textInfo.characterCount; index++)
+                {
+                    var glyph = text.textInfo.characterInfo[index];
+                    if (!glyph.isVisible)
+                    {
+                        continue;
+                    }
+
+                    visible = true;
+                    top = Mathf.Max(top, glyph.topLeft.y + 2f);
+                    bottom = Mathf.Min(bottom, glyph.bottomLeft.y - 2f);
+                }
+
+                var extraTop = top - rectangle.yMax;
+                var extraBottom = rectangle.yMin - bottom;
+                if (!visible || extraTop <= 0.5f && extraBottom <= 0.5f)
+                {
+                    continue;
+                }
+
+                // Native title styles can render below their preferred rectangle.
+                // Margins enter TMP's preferred height, so the ordinary vertical
+                // layout reserves the actual glyphs without reducing the font size.
+                var margin = text.margin;
+                text.margin = new Vector4(margin.x, margin.y + extraTop, margin.z, margin.w + extraBottom);
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        private void RestoreHeaderMargins()
+        {
+            foreach (var entry in _headerMargins)
+            {
+                if (entry.Key)
+                {
+                    entry.Key.margin = entry.Value;
                 }
             }
         }
@@ -1428,6 +1499,8 @@ internal static class CharacterReactionSubitemExtension
             }
 
             _layout.Restore();
+            RestoreHeaderMargins();
+            _headerMargins.Clear();
             if (_modal && _modal.reactionPromptLabel)
             {
                 _modal.reactionPromptLabel.Text = _reactionPromptText;

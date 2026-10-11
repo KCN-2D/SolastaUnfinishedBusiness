@@ -201,6 +201,12 @@ internal class FeatureDefinitionCastSpellBuilder
         return this;
     }
 
+    internal FeatureDefinitionCastSpellBuilder SetSpellCastingLevel(int level)
+    {
+        Definition.spellCastingLevel = level;
+        return this;
+    }
+
     internal FeatureDefinitionCastSpellBuilder SetSpellCastingAbility(string attribute)
     {
         Definition.spellcastingAbility = attribute;

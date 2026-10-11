@@ -540,8 +540,8 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Redefinirá todas as propried
 ModUi/&WeaponMasterySystemCustomizeToggle=Personalize propriedades de domínio das armas
 ModUi/&WideScreenBattleUI=Ativar interface de batalha wide-screen <i><color=#F0DAA0>(Para resoluções com proporção superior à 16:9)</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white>Definir limite de dado de chance de <color=#D89555>Magia Selvagem do Feiticeiro</color>:</color>\n<i><color=#F0DAA0>[onda selvagem é acionada se a rolagem for menor ou igual ao limite]</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race; Human is adjusted because the default all +1 is removed <i><color=#F0DAA0>[Flexible Races is incompatible and will be toggled off]</color></i>
-ModUi/&EnableBackgroundBonusFeats=Change background grants to 2024-style origin feat, two skills, and one tool <i><color=#F0DAA0>[Requires Background ASI; Flexible Backgrounds is incompatible and will be toggled off]</color></i>
+ModUi/&EnableBackgroundAbilityScoreIncreases=Os aumentos de atributo vêm do antecedente em vez da raça; as características humanas são ajustadas de acordo <i><color=#F0DAA0>(Raças flexíveis não se aplica enquanto esta opção estiver ativada)</color></i>
+ModUi/&EnableBackgroundBonusFeats=Substitui as características do antecedente por um talento de origem, duas proficiências em perícias e uma em ferramentas conforme as regras de 2024 <i><color=#F0DAA0>(Requer aumentos de atributo do antecedente; Antecedentes flexíveis não se aplica enquanto esta opção estiver ativada)</color></i>
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
@@ -565,3 +565,8 @@ ModUi/&EnableMonkWeaponProficiency2024=Ativa as <color=#D89555>proficiências em
 ModUi/&EnableRogueWeaponProficiency2024=Ativa as <color=#D89555>proficiências em armas</color> de 2024 do ladino <i><color=#F0DAA0>[armas simples e armas marciais com a propriedade Acuidade ou Leve]</color></i>
 ModUi/&EnableSorcererWeaponProficiency2024=Ativa as <color=#D89555>proficiências em armas</color> de 2024 do feiticeiro <i><color=#F0DAA0>[todas as armas simples]</color></i>
 ModUi/&EnableWizardWeaponProficiency2024=Ativa as <color=#D89555>proficiências em armas</color> de 2024 do mago <i><color=#F0DAA0>[todas as armas simples]</color></i>
+ModUI/&EnableEnemyBattleTactics=Ativar habilidades inimigas adicionais conforme o tipo e o papel em combate
+ModUI/&EnableEnemyBattleTacticsDescription=Os inimigos recebem habilidades adequadas ao tipo e papel em combate. Espaços por nível de desafio: 1–4: 1; 5–8: 2; 9–12: 3; 13–16: 4; 17 ou mais: 5. Graus 1–3 custam essa quantidade de espaços; graus 2/3 exigem ND 5/11. A seleção ponderada dentro do limite não garante o maior grau. Abaixo de ND 1, a chance de uma habilidade de grau 1 equivale ao ND.
+ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=No multijogador, todos os participantes devem escolher a mesma configuração antes de iniciar a sessão. Esta configuração não pode ser alterada durante uma sessão multijogador.
+ModUi/&FlexibleRacesDisabledByBackgroundASI=Os aumentos de atributo do antecedente estão ativados, portanto os aumentos raciais flexíveis não se aplicam. Sua escolha volta a ser aplicada quando você desativa os aumentos de atributo do antecedente.
+ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats=Os talentos de origem do antecedente estão ativados, portanto as proficiências de antecedente flexíveis não se aplicam. Sua escolha volta a ser aplicada quando você desativa os talentos de origem do antecedente.

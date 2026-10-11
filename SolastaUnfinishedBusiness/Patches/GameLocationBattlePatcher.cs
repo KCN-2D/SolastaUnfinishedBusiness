@@ -142,8 +142,12 @@ public static class GameLocationBattlePatcher
         }
 
         [UsedImplicitly]
-        public static void Prefix()
+        public static void Prefix(GameLocationBattle __instance)
         {
+            // Contenders are registered before this method. Grant before their battle-start
+            // listeners and the initiating attack, without changing native surprise handling.
+            CombatAiContext.StartEnemyBattleTactics(__instance);
+
             if (!Main.Settings.OfficialObscurementRulesInvisibleCreaturesCanBeTarget)
             {
                 return;
@@ -163,6 +167,7 @@ public static class GameLocationBattlePatcher
         public static void Prefix()
         {
             CombatAnimationContext.StopCivilianReactions();
+            CombatAiContext.StopEnemyBattleTactics();
         }
 
         [UsedImplicitly]
@@ -271,6 +276,7 @@ public static class GameLocationBattlePatcher
         public static void Postfix()
         {
             CombatAnimationContext.RequestCivilianRefresh();
+            CombatAiContext.RefreshEnemyBattleTactics();
         }
 
         [UsedImplicitly]
@@ -335,6 +341,7 @@ public static class GameLocationBattlePatcher
         {
             CombatAnimationContext.RequestCivilianRefresh();
             AddSenseNormalVisionConditionWithoutRefresh(character);
+            CombatAiContext.RefreshEnemyBattleTactics();
         }
     }
 
@@ -368,6 +375,7 @@ public static class GameLocationBattlePatcher
         public static void Prefix()
         {
             CombatAnimationContext.StopCivilianReactions();
+            CombatAiContext.StopEnemyBattleTactics();
         }
     }
 }

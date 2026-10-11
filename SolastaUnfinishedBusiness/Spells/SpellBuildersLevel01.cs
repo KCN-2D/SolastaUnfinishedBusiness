@@ -2105,7 +2105,8 @@ internal static partial class SpellBuilders
             RollOutcome rollOutcome,
             int damageAmount)
         {
-            if (rollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
+            if (attackMode is { Ranged: false, Thrown: false } &&
+                rollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
             {
                 attacker.RulesetCharacter.RemoveAllConditionsOfCategoryAndType(AttributeDefinitions.TagEffect,
                     conditionElementalInfusion.Name);
@@ -2126,7 +2127,7 @@ internal static partial class SpellBuilders
         {
             var glc = GameLocationCharacter.GetFromActor(target);
 
-            if (glc == null || !glc.IsMyTurn())
+            if ((!rulesetCondition.EndOfDurationReached && !rulesetCondition.HasFinished) || glc == null || !glc.IsMyTurn())
             {
                 return;
             }

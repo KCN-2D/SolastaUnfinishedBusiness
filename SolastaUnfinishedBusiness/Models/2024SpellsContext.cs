@@ -547,6 +547,13 @@ public static partial class Tabletop2024Context
 
         PowerBundle.ClearSpellEffectCacheForDefinition(Counterspell);
 
+        // Spell-like Counterspell powers copy this summary through the same effect cache.
+        foreach (var power in DatabaseRepository.GetDatabase<FeatureDefinitionPower>().Where(power =>
+                     power.HasSubFeatureOfType<Counterspell2024Context.CounterspellPowerOrigin>()))
+        {
+            PowerBundle.ClearSpellEffectCacheForDefinition(power);
+        }
+
         var mastery = GetDefinition<FeatureDefinitionMagicAffinity>("MagicAffinityCourtMageCounterspellMastery");
         _courtMageCounterspellMasteryDescription ??= mastery.GuiPresentation.description;
         mastery.GuiPresentation.description = enabled
@@ -731,6 +738,8 @@ public static partial class Tabletop2024Context
             Guidance.EffectDescription.EffectForms.SetRange(EffectFormBuilder.ConditionForm(ConditionGuided));
             Guidance.GuiPresentation.description = "Spell/&GuidanceDescription";
         }
+
+        WishBehavior.RefreshSpellImmunityOptions(Guidance);
     }
 
     internal static void SwitchOneDndSpellHideousLaughter()

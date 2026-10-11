@@ -1,6 +1,7 @@
 Condition/&ConditionOathOfAncientsAuraWardingDescription=Gain resistance to spell damage.
 Condition/&ConditionOathOfAncientsAuraWardingTitle=Warded
 Condition/&ConditionOathOfAncientsElderChampionDescription=• At the start of each of your turns, you regain 10 hit points.\n• Whenever you cast a paladin spell that has a casting time of 1 action, you can make two weapon attacks as a part of the same action.\n• Enemy creatures within 10 feet of you have disadvantage on saving throws against your paladin spells and Channel Divinity options.
+Condition/&ConditionOathOfAncientsElderChampionEnemyDescription=You have disadvantage on your next saving throw. This effect ends after you make a saving throw.
 Condition/&ConditionOathOfAncientsElderChampionTitle=Elder Champion
 Feature/&DamageAffinityOathOfAncientsUndyingSentinelDescription=When you are reduced to 0 hit points but not killed outright, you drop to 1 hit point instead. You can't benefit from this feature again until you finish a long rest.
 Feature/&DamageAffinityOathOfAncientsUndyingSentinelTitle=Undying Sentinel

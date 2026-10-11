@@ -165,6 +165,18 @@ public static class RulesetEffectPowerPatcher
     public static class MagicAttackBonus_Getter_Patch
     {
         [UsedImplicitly]
+        public static bool Prefix(RulesetEffectPower __instance, ref int __result)
+        {
+            // Resolve the native source before the default getter accesses class-only attributes.
+            if (!CombatAiContext.TryGetEnemyBattleMagicAttackInfo(__instance, out var bonus, out _))
+            {
+                return true;
+            }
+            __result = bonus;
+            return false;
+        }
+
+        [UsedImplicitly]
         public static void Postfix(RulesetEffectPower __instance, ref int __result)
         {
             //PATCH: allow devices have magic attack bonus based on spell attack
@@ -194,6 +206,17 @@ public static class RulesetEffectPowerPatcher
     [UsedImplicitly]
     public static class MagicAttackTrends_Getter_Patch
     {
+        [UsedImplicitly]
+        public static bool Prefix(RulesetEffectPower __instance, ref List<TrendInfo> __result)
+        {
+            if (!CombatAiContext.TryGetEnemyBattleMagicAttackInfo(__instance, out _, out var trends))
+            {
+                return true;
+            }
+            __result = trends;
+            return false;
+        }
+
         [UsedImplicitly]
         public static void Postfix(RulesetEffectPower __instance, ref List<TrendInfo> __result)
         {

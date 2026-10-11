@@ -1,4 +1,5 @@
 Condition/&ConditionOathOfDreadAspectOfDreadDescription=Sie sind resistent gegen jeglichen Schaden.\n• Alle Ihre Waffenangriffe verursachen zusätzlichen 1W8 psychischen Schaden.\n• Feindliche Kreaturen im Umkreis von 10 Fuß um Sie herum sind bei Rettungswürfen gegen Ihre Paladinzauber und Schreckliche Präsenz im Nachteil.
+Condition/&ConditionOathOfDreadAspectOfDreadEnemyDescription=Du hast Nachteil auf deinen nächsten Rettungswurf. Dieser Effekt endet, nachdem du einen Rettungswurf abgelegt hast.
 Condition/&ConditionOathOfDreadAspectOfDreadTitle=Aspekt des Schreckens
 Condition/&ConditionOathOfDreadAuraOfDominationDescription=Wenn Sie Angst haben oder in Furcht geraten, wird Ihre Geschwindigkeit auf 0 reduziert und Sie erleiden psychischen Schaden in Höhe der Hälfte der Paladinstufe des Ausströmers.
 Condition/&ConditionOathOfDreadAuraOfDominationTitle=Aura der Herrschaft

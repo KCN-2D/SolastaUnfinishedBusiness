@@ -31,6 +31,7 @@ public class ReactionRequestCustom : ReactionRequest, IReactionRequestWithResour
 {
     internal static readonly string EnvTitle = Gui.Localize("Screen/&EditorLocationEnvironmentTitle");
     private readonly string _type;
+    private readonly Func<bool> _reactionStillValid;
 
     internal ReactionRequestCustom(string type, CharacterActionParams reactionParams)
         : this(type, reactionParams, null, null)
@@ -38,12 +39,13 @@ public class ReactionRequestCustom : ReactionRequest, IReactionRequestWithResour
     }
 
     internal ReactionRequestCustom(string type, CharacterActionParams reactionParams,
-        GameLocationCharacter target, BaseDefinition effectDefinition)
+        GameLocationCharacter target, BaseDefinition effectDefinition, Func<bool> reactionStillValid = null)
         : base(Name(type), reactionParams)
     {
         _type = type;
         Target = target;
         EffectDefinition = effectDefinition;
+        _reactionStillValid = reactionStillValid;
     }
 
     // UI context is independent of action targets, which a confirmation-only
@@ -51,6 +53,8 @@ public class ReactionRequestCustom : ReactionRequest, IReactionRequestWithResour
     internal GameLocationCharacter Target { get; }
 
     internal BaseDefinition EffectDefinition { get; }
+
+    public override bool IsStillValid => base.IsStillValid && (_reactionStillValid?.Invoke() ?? true);
 
     public ICustomReactionResource Resource { get; set; }
 

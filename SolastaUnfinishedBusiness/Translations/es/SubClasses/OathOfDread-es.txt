@@ -1,4 +1,5 @@
 Condition/&ConditionOathOfDreadAspectOfDreadDescription=Tienes resistencia a todo daño.\n• Todos tus ataques con armas infligen 1d8 de daño psíquico adicional.\n• Las criaturas enemigas a 10 pies o menos de ti tienen desventaja en las tiradas de salvación contra tus hechizos de paladín y Presencia pavorosa.
+Condition/&ConditionOathOfDreadAspectOfDreadEnemyDescription=Tienes desventaja en tu próxima tirada de salvación. Este efecto termina después de que realices una tirada de salvación.
 Condition/&ConditionOathOfDreadAspectOfDreadTitle=Aspecto del pavor
 Condition/&ConditionOathOfDreadAuraOfDominationDescription=Si tienes miedo o estás asustado, tu velocidad se reduce a 0 y recibes daño psíquico igual a la mitad del nivel de paladín del emanador.
 Condition/&ConditionOathOfDreadAuraOfDominationTitle=Aura de dominación

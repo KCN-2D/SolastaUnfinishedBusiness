@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
@@ -175,9 +176,14 @@ internal static class FlexibleBackgroundsContext
             .AddToDB();
     }
 
+    internal static bool IsFlexibleBackgroundFeature(FeatureDefinition feature)
+    {
+        return AddedFeatures.Values.Any(features => features.Contains(feature));
+    }
+
     internal static void SwitchFlexibleBackgrounds()
     {
-        var enabled = Main.Settings.EnableFlexibleBackgrounds;
+        var enabled = Tabletop2024Context.IsFlexibleBackgroundsEffectivelyEnabled();
 
         foreach (var keyValuePair in AddedFeatures)
         {

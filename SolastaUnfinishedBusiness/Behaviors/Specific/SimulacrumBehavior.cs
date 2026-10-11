@@ -300,6 +300,7 @@ internal sealed partial class SimulacrumBehavior :
 
         var displayName = GetSourceDisplayName(source);
         var usesInventoryAppearance = source is RulesetCharacterHero;
+        AnimationDefinitions.ClassAnimationId? classAnimationId = null;
         HumanoidMonsterPresentationDefinition humanoidPresentation;
         MonsterPresentationDefinition monsterPresentation;
         string bodyAssetPrefix;
@@ -312,6 +313,12 @@ internal sealed partial class SimulacrumBehavior :
 
         if (source is RulesetCharacterHero hero)
         {
+            // Native hero presentation uses the first class, independently of the
+            // repertoire that supplies the spell. Keep this runtime presentation value
+            // separate from the snapshot's deterministically ordered rules data.
+            classAnimationId = hero.ClassesAndLevels.Keys.FirstOrDefault()?.ClassAnimationId ??
+                               AnimationDefinitions.ClassAnimationId.None;
+
             // Existing saves receive 2024 ritual features at runtime. Reconcile immediately
             // before snapshot capture as well, so a Simulacrum cannot copy a stale feature graph
             // merely because its source has not opened an action panel since loading.
@@ -384,6 +391,7 @@ internal sealed partial class SimulacrumBehavior :
         var appearance = new SimulacrumAppearanceSeed(
             displayName,
             usesInventoryAppearance,
+            classAnimationId,
             source.Sex,
             source.VoiceID,
             bodyAssetPrefix,
@@ -738,8 +746,7 @@ internal sealed partial class SimulacrumBehavior :
 
     internal static bool CanUseHumanoidEquipment(RulesetCharacterSimulacrum character)
     {
-        return TryGetSnapshot(character, out var snapshot) &&
-               snapshot.IsCurrentSchema &&
+        return TryGetCurrentSnapshot(character, out var snapshot) &&
                snapshot.CanEquipHumanoidItems;
     }
 

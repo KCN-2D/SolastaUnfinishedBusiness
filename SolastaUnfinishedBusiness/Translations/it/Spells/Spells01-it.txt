@@ -183,3 +183,4 @@ Spell/&FindFamiliarCatFiendSelectionTitle=Gatto · Diavolo
 Reaction/&SpendSpellSlotSilveryBarbsAttackDescription={0} ha superato un tiro per colpire contro {1}. Fai ripetere a {0} il tiro del d20 e usare il risultato più basso.
 Reaction/&SpendSpellSlotSilveryBarbsAbilityCheckDescription={0} ha superato una prova di caratteristica. Fai ripetere a {0} il tiro del d20 e usare il risultato più basso.
 Reaction/&SpendSpellSlotSilveryBarbsSavingThrowDescription={0} ha superato un tiro salvezza. Fai ripetere a {0} il tiro del d20 e usare il risultato più basso.
+Spell/&MagicMissileTitle=Dardo incantato

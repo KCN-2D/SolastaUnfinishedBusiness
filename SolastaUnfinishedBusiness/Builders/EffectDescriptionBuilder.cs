@@ -178,7 +178,7 @@ internal class EffectDescriptionBuilder
         _effect.speedParameter = -1;
         var particles = _effect.effectParticleParameters;
         if (particles.casterQuickSpellParticleReference == null
-            || !particles.casterQuickSpellParticleReference.IsValid())
+            || !particles.casterQuickSpellParticleReference.RuntimeKeyIsValid())
         {
             particles.casterQuickSpellParticleReference = particles.casterParticleReference;
         }

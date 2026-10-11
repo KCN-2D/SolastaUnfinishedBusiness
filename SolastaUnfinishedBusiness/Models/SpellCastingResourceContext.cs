@@ -732,6 +732,10 @@ internal static class SpellCastingResourceContext
         caster = GetResourceOwner(caster);
         var repertoires = caster.SpellRepertoires
             .Where(repertoire => CanUseRepertoire(caster, repertoire, spell))
+            .Where(repertoire => preferredRepertoire?.SpellCastingFeature
+                ?.HasSubFeatureOfType<RequireSpellCastingActionProvider>() != true ||
+                !SpellSlotCastingLimit2024Context.IsFreeUseRepertoire(preferredRepertoire) ||
+                repertoire == preferredRepertoire)
             .OrderBy(repertoire => repertoire.SpellCastingFeature.Name, StringComparer.Ordinal)
             .ToArray();
         var paid = new Dictionary<(string Pool, int Level), ResourceOption>();

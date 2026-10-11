@@ -540,8 +540,8 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=모든 무기 숙달 속성�
 ModUi/&WeaponMasterySystemCustomizeToggle=무기 숙달 속성을 사용자 정의하십시오
 ModUi/&WideScreenBattleUI=와이드 스크린 전투 UI 활성화 <i><color=#F0DAA0>(가로세로 비율이 16:9보다 큰 해상도의 경우)</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white><color=#D89555>마법사 야생 마법</color> 확률 주사위 임계값 설정:</color>\n<i><color=#F0DAA0>[임계값 이하로 굴리면 야생 급증이 발동]</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race; Human is adjusted because the default all +1 is removed <i><color=#F0DAA0>[Flexible Races is incompatible and will be toggled off]</color></i>
-ModUi/&EnableBackgroundBonusFeats=Change background grants to 2024-style origin feat, two skills, and one tool <i><color=#F0DAA0>[Requires Background ASI; Flexible Backgrounds is incompatible and will be toggled off]</color></i>
+ModUi/&EnableBackgroundAbilityScoreIncreases=능력치 증가를 종족 대신 배경에서 얻으며 인간의 특성도 이에 맞게 조정합니다 <i><color=#F0DAA0>(이 옵션이 활성화된 동안 유연한 종족은 적용되지 않습니다)</color></i>
+ModUi/&EnableBackgroundBonusFeats=배경 특성을 2024년 규칙에 따라 기원 재주 하나, 기술 숙련 두 개, 도구 숙련 하나로 변경합니다 <i><color=#F0DAA0>(배경 능력치 증가가 필요합니다. 이 옵션이 활성화된 동안 유연한 배경은 적용되지 않습니다)</color></i>
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
@@ -565,3 +565,8 @@ ModUi/&EnableMonkWeaponProficiency2024=몽크의 2024년 <color=#D89555>무기 �
 ModUi/&EnableRogueWeaponProficiency2024=로그의 2024년 <color=#D89555>무기 숙련</color>을 적용합니다 <i><color=#F0DAA0>[단순 무기와 기교 또는 경량 속성을 가진 군용 무기]</color></i>
 ModUi/&EnableSorcererWeaponProficiency2024=소서러의 2024년 <color=#D89555>무기 숙련</color>을 적용합니다 <i><color=#F0DAA0>[모든 단순 무기]</color></i>
 ModUi/&EnableWizardWeaponProficiency2024=위저드의 2024년 <color=#D89555>무기 숙련</color>을 적용합니다 <i><color=#F0DAA0>[모든 단순 무기]</color></i>
+ModUI/&EnableEnemyBattleTactics=적의 유형과 전투 역할에 따른 추가 능력 활성화
+ModUI/&EnableEnemyBattleTacticsDescription=적의 유형과 전투 역할에 맞는 능력을 부여합니다. 도전 지수별 슬롯: 1~4는 1개, 5~8은 2개, 9~12는 3개, 13~16은 4개, 17 이상은 5개입니다. 1~3단계는 같은 수의 슬롯을 쓰며, 2/3단계에는 도전 지수 5/11이 필요합니다. 슬롯 내 가중 추첨이므로 최고 단계는 보장되지 않습니다. 도전 지수 1 미만이면 그 값과 같은 확률로 1단계 능력 하나를 얻습니다.
+ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=멀티플레이에서는 세션을 시작하기 전에 모든 참가자가 같은 설정을 선택해야 합니다. 멀티플레이 세션 중에는 이 설정을 변경할 수 없습니다.
+ModUi/&FlexibleRacesDisabledByBackgroundASI=배경 능력치 증가가 활성화되어 있어 유연한 종족 능력치 증가는 적용되지 않습니다. 배경 능력치 증가를 비활성화하면 기존 선택이 다시 적용됩니다.
+ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats=배경 기원 재주가 활성화되어 있어 유연한 배경 숙련은 적용되지 않습니다. 배경 기원 재주를 비활성화하면 기존 선택이 다시 적용됩니다.

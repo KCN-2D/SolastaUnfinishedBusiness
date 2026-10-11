@@ -1,6 +1,9 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Models;
 using TA.AI;
 
 namespace SolastaUnfinishedBusiness.Patches.Activities;
@@ -19,6 +22,24 @@ public static class ActivityBasePatcher
             //PATCH: Fix for UB-introduced cases when enemy with multi-attack loses ability to attack between chained attacks
             //For example - having Topple mastery and using Sentinel's reaction attack when enemy with multi-attack attacks your ally
             return actionParams != null;
+        }
+
+        [UsedImplicitly]
+        public static IEnumerator Postfix(IEnumerator values, CharacterActionParams actionParams)
+        {
+            try
+            {
+                yield return CombatAiContext.RunEnemyBattlePreparationBeforeAttack(actionParams);
+
+                while (values?.MoveNext() == true)
+                {
+                    yield return values.Current;
+                }
+            }
+            finally
+            {
+                (values as IDisposable)?.Dispose();
+            }
         }
     }
 }

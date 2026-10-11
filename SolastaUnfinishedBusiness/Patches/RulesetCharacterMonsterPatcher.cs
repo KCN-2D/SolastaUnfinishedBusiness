@@ -344,6 +344,15 @@ public static class RulesetCharacterMonsterPatcher
                 return;
             }
 
+            // Recharge limits innate follow-up attacks; a real weapon volley also retains native ammunition.
+            if (CombatAiContext.TryGetEnemyBattleRechargingAttackAvailability(__instance, mode, out var remainingAttacks))
+            {
+                __result = CombatAiContext.UsesEnemyBattleNativeAttackAmmunition(mode) && __result >= 0
+                    ? System.Math.Min(__result, remainingAttacks) : remainingAttacks;
+
+                return;
+            }
+
             //PATCH: allow monk bonus unarmed attacks on wild-shaped characters
             if (mode == null || !__instance.TryGetShapeChangeOriginalHero(out _))
             {
@@ -375,6 +384,17 @@ public static class RulesetCharacterMonsterPatcher
             out bool __state)
         {
             __state = false;
+
+            // An actual tagged capability attack already spent its own charge.
+            // Its native source is shared with Main modes only for attack statistics.
+            if (!CombatAiContext.UsesEnemyBattleNativeAttackAmmunition(mode) &&
+                CombatAiContext.TryGetEnemyBattleRechargingAttackAvailability(__instance, mode, out _,
+                    allowUntaggedSource: false))
+            {
+                droppedItem = null;
+                needToRefreshAttackModes = false;
+                return false;
+            }
 
             if (__instance is not RulesetCharacterSimulacrum duplicate ||
                 mode == null)

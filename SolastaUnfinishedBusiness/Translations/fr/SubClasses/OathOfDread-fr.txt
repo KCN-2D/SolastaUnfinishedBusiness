@@ -1,4 +1,5 @@
 Condition/&ConditionOathOfDreadAspectOfDreadDescription=Vous avez une résistance à tous les dégâts.\n• Toutes vos attaques d'armes infligent 1d8 dégâts psychiques supplémentaires.\n• Les créatures ennemies à 3 mètres de vous ont un désavantage aux jets de sauvegarde contre vos sorts de paladin et Présence Effroyable.
+Condition/&ConditionOathOfDreadAspectOfDreadEnemyDescription=Vous avez un désavantage à votre prochain jet de sauvegarde. Cet effet prend fin après que vous avez effectué un jet de sauvegarde.
 Condition/&ConditionOathOfDreadAspectOfDreadTitle=Aspect de la terreur
 Condition/&ConditionOathOfDreadAuraOfDominationDescription=Si vous êtes effrayé ou craint, votre vitesse est réduite à 0 et vous subissez des dégâts psychiques égaux à la moitié du niveau de paladin de l'émanateur.
 Condition/&ConditionOathOfDreadAuraOfDominationTitle=Aura de domination

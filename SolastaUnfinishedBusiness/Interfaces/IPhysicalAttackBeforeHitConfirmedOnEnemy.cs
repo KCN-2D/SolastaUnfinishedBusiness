@@ -21,3 +21,9 @@ public interface IPhysicalAttackBeforeHitConfirmedOnEnemy
         bool firstTarget,
         bool criticalHit);
 }
+
+// A bonus to an existing damage roll also applies to attacks with predefined
+// damage forms. These handlers must neither add damage forms nor spend resources.
+public interface IPhysicalAttackDamageBonus : IPhysicalAttackBeforeHitConfirmedOnEnemy
+{
+}

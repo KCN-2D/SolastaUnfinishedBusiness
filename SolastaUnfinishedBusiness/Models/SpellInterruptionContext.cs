@@ -1,8 +1,12 @@
 using System;
+using System.Collections;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Interfaces;
+using static RuleDefinitions;
 
 namespace SolastaUnfinishedBusiness.Models;
 
@@ -41,6 +45,111 @@ internal static class SpellInterruptionContext
                action is not CharacterActionMagicEffect { ExecutionFailed: true } &&
                CounterspellResults.TryGetValue(action, out var result) &&
                result.Succeeded;
+    }
+
+    // Power-based counters share the current Counterspell rules and per-action result tracking.
+    internal static IEnumerator ResolvePowerCounterspell(CharacterAction counterAction, CharacterAction targetAction)
+    {
+        if (targetAction?.ActionParams?.RulesetEffect is not RulesetEffectSpell counteredSpell ||
+            targetAction.Countered || counterAction?.ActionParams?.RulesetEffect is not RulesetEffectPower)
+        {
+            yield break;
+        }
+
+        if (Counterspell2024Context.ShouldResolve(counterAction, targetAction))
+        {
+            yield return Counterspell2024Context.Resolve(counterAction, targetAction);
+            yield break;
+        }
+
+        var actingCharacter = counterAction.ActingCharacter;
+        var rulesetCharacter = actingCharacter.RulesetCharacter;
+        var actionParams = counterAction.ActionParams;
+        var actionModifier = actionParams.ActionModifiers.FirstOrDefault() ?? new ActionModifier();
+        var counteredSpellDefinition = RulesetEffectSpellWithOrigin.GetOriginSpell(counteredSpell);
+        var slotLevel = RulesetEffectSpellWithOrigin.GetResourceSlotLevel(counteredSpell);
+
+        foreach (var effectForm in actionParams.RulesetEffect.EffectDescription.EffectForms)
+        {
+            if (effectForm.FormType != EffectForm.EffectFormType.Counter ||
+                effectForm.CounterForm.Type != CounterForm.CounterType.InterruptSpellcasting)
+            {
+                continue;
+            }
+
+            var counterForm = effectForm.CounterForm;
+            if (counterForm.AutomaticSpellLevel >= slotLevel)
+            {
+                TryCounterSpell(counterAction, targetAction);
+            }
+            else if (counterForm.CheckBaseDC != 0)
+            {
+                var checkDC = counterForm.CheckBaseDC + slotLevel;
+
+                rulesetCharacter
+                    .EnumerateFeaturesToBrowse<FeatureDefinitionMagicAffinity>(rulesetCharacter.FeaturesToBrowse);
+
+                foreach (var featureDefinition in rulesetCharacter.FeaturesToBrowse)
+                {
+                    var magicAffinity = (FeatureDefinitionMagicAffinity)featureDefinition;
+                    if (magicAffinity.CounterspellAffinity == AdvantageType.None)
+                    {
+                        continue;
+                    }
+
+                    var trend = magicAffinity.CounterspellAffinity == AdvantageType.Advantage ? 1 : -1;
+                    actionModifier.AbilityCheckAdvantageTrends.Add(new TrendInfo(
+                        trend, FeatureSourceType.CharacterFeature, magicAffinity.Name, null));
+                }
+
+                if (counteredSpell.CounterAffinity != AdvantageType.None)
+                {
+                    var trend = counteredSpell.CounterAffinity == AdvantageType.Advantage ? 1 : -1;
+                    actionModifier.AbilityCheckAdvantageTrends.Add(new TrendInfo(
+                        trend, FeatureSourceType.CharacterFeature, counteredSpell.CounterAffinityOrigin, null));
+                }
+
+                var powerDefinition = actionParams.RulesetEffect.GetSourceDefinitionSafe();
+                var classHolder = powerDefinition.GetFirstSubFeatureOfType<ClassHolder>();
+                var repertoire = classHolder != null
+                    ? rulesetCharacter.GetClassSpellRepertoire(classHolder.Class)
+                    : rulesetCharacter.SpellRepertoires.FirstOrDefault(candidate =>
+                        candidate.SpellCastingFeature?.SpellCastingOrigin
+                            is FeatureDefinitionCastSpell.CastingOrigin.Class
+                            or FeatureDefinitionCastSpell.CastingOrigin.Subclass);
+                var castingAbility = powerDefinition
+                    .HasSubFeatureOfType<Counterspell2024Context.CounterspellPowerOrigin>()
+                    ? Counterspell2024Context.GetCounterspellPowerAbility(rulesetCharacter)
+                    : repertoire?.SpellCastingAbility ?? AttributeDefinitions.Charisma;
+                var proficiencyName = counterForm.AddProficiencyBonus ? "ForcedProficiency" : string.Empty;
+                var abilityCheckData = new AbilityCheckData { Action = counterAction };
+
+                yield return actingCharacter.RollAbilityCheckWithPrompt(
+                    castingAbility, proficiencyName, checkDC, AdvantageType.None, actionModifier,
+                    false, 0, abilityCheckData, true);
+                yield return TryAlterOutcomeAttributeCheck.HandleITryAlterOutcomeAttributeCheck(
+                    actingCharacter, abilityCheckData, abilityCheckData.CurrentRoll);
+
+                counterAction.AbilityCheckRoll = abilityCheckData.AbilityCheckRoll;
+                counterAction.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckRollOutcome;
+                counterAction.AbilityCheckSuccessDelta = abilityCheckData.AbilityCheckSuccessDelta;
+
+                if (counterAction.AbilityCheckRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
+                {
+                    TryCounterSpell(counterAction, targetAction);
+                }
+            }
+
+            if (!HasCounteredSpell(counterAction))
+            {
+                continue;
+            }
+
+            rulesetCharacter.SpellCounter?.Invoke(
+                rulesetCharacter, targetAction.ActingCharacter.RulesetCharacter,
+                counteredSpellDefinition, targetAction.Countered, string.IsNullOrEmpty(counteredSpell.IdentifiedBy));
+            yield break;
+        }
     }
 
     internal static bool HasDispelledSpell(RulesetEffect effect)

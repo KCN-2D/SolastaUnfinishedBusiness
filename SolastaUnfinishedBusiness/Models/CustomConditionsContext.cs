@@ -54,6 +54,12 @@ internal static class CustomConditionsContext
             .AddToDB();
 
         BuildTaunted();
+
+        // Native conditions are already registered; later custom conditions use the same builder validation.
+        foreach (var condition in DatabaseRepository.GetDatabase<ConditionDefinition>())
+        {
+            ConditionDefinitionBuilder.EnsurePresentationSprite(condition);
+        }
     }
 
     private static ConditionDefinition BuildLightSensitivity()

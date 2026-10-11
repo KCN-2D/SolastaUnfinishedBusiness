@@ -100,17 +100,16 @@ internal static class CombatAnimationContext
 
     internal static void InterruptCivilianReaction(GraphicsCharacter graphicsCharacter)
     {
-        if (ReferenceEquals(graphicsCharacter, _applyingCivilianPose))
+        if (ReferenceEquals(graphicsCharacter, null) ||
+            ReferenceEquals(graphicsCharacter, _applyingCivilianPose))
         {
             return;
         }
 
         var pending = PendingCivilianPoses.Remove(graphicsCharacter);
 
-        if (CivilianPoses.TryGetValue(graphicsCharacter, out var pose))
+        if (ReleaseCivilianPose(graphicsCharacter))
         {
-            CivilianPoses.Remove(graphicsCharacter);
-            pose.Restore(graphicsCharacter);
             pending = true;
         }
 
@@ -134,7 +133,10 @@ internal static class CombatAnimationContext
             return;
         }
 
-        foreach (var graphicsCharacter in CivilianPoses.Keys.ToArray())
+        foreach (var graphicsCharacter in CivilianPoses.Keys
+                     .Concat(PendingCivilianPoses)
+                     .Distinct()
+                     .ToArray())
         {
             if (graphicsCharacter && graphicsCharacter.RulesetCharacter == character)
             {
@@ -231,8 +233,7 @@ internal static class CombatAnimationContext
         {
             if (!nearby.Contains(entry.Key) || !entry.Value.IsCurrent(entry.Key))
             {
-                CivilianPoses.Remove(entry.Key);
-                entry.Value.Restore(entry.Key);
+                ReleaseCivilianPose(entry.Key);
             }
         }
 
@@ -272,6 +273,7 @@ internal static class CombatAnimationContext
 
         var pose = new CivilianPose(animator);
         CivilianPoses.Add(graphicsCharacter, pose);
+        var previousApplyingPose = _applyingCivilianPose;
         _applyingCivilianPose = graphicsCharacter;
 
         try
@@ -288,14 +290,15 @@ internal static class CombatAnimationContext
         }
         catch (Exception exception)
         {
-            CivilianPoses.Remove(graphicsCharacter);
-            pose.Restore(graphicsCharacter);
-            CivilianControllers[animator.runtimeAnimatorController] = false;
+            ReleaseCivilianPose(graphicsCharacter);
+            // A single model's execution failure does not invalidate the shared controller's
+            // proven clip/parameter support. Let the next presentation boundary retry this NPC.
+            InterruptedCivilians.Add(graphicsCharacter);
             Main.Error(exception);
         }
         finally
         {
-            _applyingCivilianPose = null;
+            _applyingCivilianPose = previousApplyingPose;
         }
     }
 
@@ -370,13 +373,26 @@ internal static class CombatAnimationContext
 
     private static void ClearCivilianPoses()
     {
-        foreach (var entry in CivilianPoses)
+        foreach (var graphicsCharacter in CivilianPoses.Keys.ToArray())
         {
-            entry.Value.Restore(entry.Key);
+            ReleaseCivilianPose(graphicsCharacter);
         }
 
         CivilianPoses.Clear();
         PendingCivilianPoses.Clear();
+    }
+
+    private static bool ReleaseCivilianPose(GraphicsCharacter graphicsCharacter)
+    {
+        if (!CivilianPoses.TryGetValue(graphicsCharacter, out var pose))
+        {
+            return false;
+        }
+
+        CivilianPoses.Remove(graphicsCharacter);
+        pose.Restore(graphicsCharacter);
+
+        return true;
     }
 
     private sealed class CivilianPose(Animator animator)
@@ -428,7 +444,7 @@ internal static class CombatAnimationContext
 
     internal static IDisposable BeginActionScope(CharacterAction action)
     {
-        if (CivilianPoses.Count != 0)
+        if (CivilianPoses.Count != 0 || PendingCivilianPoses.Count != 0)
         {
             InterruptCivilianReaction(action?.ActingCharacter?.RulesetCharacter);
         }
@@ -533,10 +549,10 @@ internal static class CombatAnimationContext
         }
     }
 
-    private static List<Animator> Apply(ISet<RulesetCharacter> characters, float speedMultiplier)
+    private static List<AnimatorLease> Apply(ISet<RulesetCharacter> characters, float speedMultiplier)
     {
         var graphicsCharacters = ServiceRepository.GetService<IGraphicsCharacterFactoryService>()?.GraphicsCharacters;
-        var animators = new List<Animator>();
+        var animators = new List<AnimatorLease>();
         var appliedAnimators = new HashSet<Animator>();
 
         if (graphicsCharacters == null || characters.Count == 0)
@@ -544,15 +560,27 @@ internal static class CombatAnimationContext
             return animators;
         }
 
-        foreach (var graphicsCharacter in graphicsCharacters)
+        try
         {
-            if (!graphicsCharacter || !characters.Contains(graphicsCharacter.RulesetCharacter))
+            foreach (var graphicsCharacter in graphicsCharacters)
             {
-                continue;
+                if (!graphicsCharacter || !characters.Contains(graphicsCharacter.RulesetCharacter))
+                {
+                    continue;
+                }
+
+                TryApply(graphicsCharacter.Animator, speedMultiplier, animators, appliedAnimators);
+                TryApply(graphicsCharacter.WeaponAnimator, speedMultiplier, animators, appliedAnimators);
+            }
+        }
+        catch
+        {
+            foreach (var lease in animators)
+            {
+                Release(lease);
             }
 
-            TryApply(graphicsCharacter.Animator, speedMultiplier, animators, appliedAnimators);
-            TryApply(graphicsCharacter.WeaponAnimator, speedMultiplier, animators, appliedAnimators);
+            throw;
         }
 
         return animators;
@@ -561,7 +589,7 @@ internal static class CombatAnimationContext
     private static void TryApply(
         Animator animator,
         float speedMultiplier,
-        List<Animator> animators,
+        List<AnimatorLease> animators,
         ISet<Animator> appliedAnimators)
     {
         if (!animator || !appliedAnimators.Add(animator))
@@ -580,13 +608,18 @@ internal static class CombatAnimationContext
             animator.speed = state.OriginalSpeed * speedMultiplier;
         }
 
-        animators.Add(animator);
+        animators.Add(new AnimatorLease(animator, state));
     }
 
-    private static void Release(Animator animator)
+    private static void Release(AnimatorLease lease)
     {
-        if (!AnimatorStates.TryGetValue(animator, out var state))
+        var animator = lease.Animator;
+
+        if (!AnimatorStates.TryGetValue(animator, out var state) ||
+            !ReferenceEquals(state, lease.State))
         {
+            // Unload ends the previous ownership generation. A late action disposal must
+            // not release a new action using the same pooled Animator afterwards.
             return;
         }
 
@@ -611,9 +644,15 @@ internal static class CombatAnimationContext
         internal int ReferenceCount = 1;
     }
 
-    private sealed class ActionScope(List<Animator> animators) : IDisposable
+    private readonly struct AnimatorLease(Animator animator, AnimatorState state)
     {
-        private List<Animator> _animators = animators;
+        internal Animator Animator { get; } = animator;
+        internal AnimatorState State { get; } = state;
+    }
+
+    private sealed class ActionScope(List<AnimatorLease> animators) : IDisposable
+    {
+        private List<AnimatorLease> _animators = animators;
 
         public void Dispose()
         {
@@ -622,12 +661,13 @@ internal static class CombatAnimationContext
                 return;
             }
 
-            foreach (var animator in _animators)
-            {
-                Release(animator);
-            }
-
+            var ownedAnimators = _animators;
             _animators = null;
+
+            foreach (var lease in ownedAnimators)
+            {
+                Release(lease);
+            }
         }
     }
 

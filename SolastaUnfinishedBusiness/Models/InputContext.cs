@@ -39,7 +39,6 @@ public static class InputContext
         inputManager.RegisterCommand((InputCommands.Id)InputCommandsExtra.FormationSet3, -1);
         inputManager.RegisterCommand((InputCommands.Id)InputCommandsExtra.FormationSet4, -1);
         inputManager.RegisterCommand((InputCommands.Id)InputCommandsExtra.FormationSet5, -1);
-        inputManager.RegisterCommand((InputCommands.Id)InputCommandsExtra.FormationSet5, -1);
         inputManager.RegisterCommand((InputCommands.Id)InputCommandsExtra.SelectCharacter5, -1);
         inputManager.RegisterCommand((InputCommands.Id)InputCommandsExtra.SelectCharacter6, -1);
         inputManager.RegisterCommand((InputCommands.Id)InputCommandsExtra.Hide, -1);

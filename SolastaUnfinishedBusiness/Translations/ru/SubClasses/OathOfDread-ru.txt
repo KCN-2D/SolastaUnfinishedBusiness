@@ -1,4 +1,5 @@
 Condition/&ConditionOathOfDreadAspectOfDreadDescription=Вы обладаете сопротивлением ко всем видам урона.\n• Все ваши атаки оружием наносят дополнительно 1d8 психического урона.\n• Вражеские существа в радиусе 10 футов от вас совершают с помехой спасброски от ваших заклинаний паладина и Ужасающего присутствия.
+Condition/&ConditionOathOfDreadAspectOfDreadEnemyDescription=Вы совершаете следующий спасбросок с помехой. Этот эффект заканчивается после того, как вы совершите спасбросок.
 Condition/&ConditionOathOfDreadAspectOfDreadTitle=Аспект ужаса
 Condition/&ConditionOathOfDreadAuraOfDominationDescription=Если вы напуганы, ваша скорость снижается до 0, и вы получаете психический урон, равный половине уровня паладина, распространяющего ауру.
 Condition/&ConditionOathOfDreadAuraOfDominationTitle=Аура господства

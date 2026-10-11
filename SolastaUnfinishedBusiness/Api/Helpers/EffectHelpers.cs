@@ -74,6 +74,11 @@ internal static class EffectHelpers
         {
             case RuleDefinitions.EffectDifficultyClassComputation.SpellCastingFeature:
             {
+                if (!classDefinition && character is RulesetCharacterMonster && character.SpellRepertoires.Count > 0)
+                {
+                    return character.SpellRepertoires.Max(repertoire => repertoire.SaveDC);
+                }
+
                 var rulesetSpellRepertoire = character.GetClassSpellRepertoire(classDefinition);
 
                 if (rulesetSpellRepertoire != null)
@@ -85,7 +90,7 @@ internal static class EffectHelpers
             }
             case RuleDefinitions.EffectDifficultyClassComputation.AbilityScoreAndProficiency:
                 var attributeValue = character.TryGetAttributeValue(effectDescription.SavingThrowDifficultyAbility);
-                var proficiencyBonus = character.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+                var proficiencyBonus = character.TryGetProficiencyBonus();
 
                 return RuleDefinitions.ComputeAbilityScoreBasedDC(attributeValue, proficiencyBonus);
 

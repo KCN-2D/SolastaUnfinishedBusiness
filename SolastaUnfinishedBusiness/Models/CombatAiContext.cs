@@ -96,7 +96,8 @@ internal enum CombatAiResidualHostileActionResultKind
     Unavailable,
     Blocked,
     Executed,
-    PolicyHeld
+    PolicyHeld,
+    Selected
 }
 
 internal enum MeleeThreatSourceKind
@@ -281,57 +282,168 @@ internal static partial class CombatAiContext
     private static readonly string[] DisciplinedFlags = ["Authority", "Lawfulness", "Helpfulness", "Friendliness"];
     private static readonly string[] OpportunisticFlags = ["Greed", "Selfishness"];
 
-    private static readonly Dictionary<ulong, CombatAiProfile> ProfileCache = [];
-    private static readonly Dictionary<ulong, string[]> PersonalityFlagsCache = [];
-    private static readonly Dictionary<ulong, ObservedCombatMemory> ObservedCombatMemoryCache = [];
-    private static readonly Dictionary<ulong, HashSet<AiMoveFailureKey>> AiMoveFailureCache = [];
-    private static readonly Dictionary<ulong, AiMoveAttempt> PendingAiMoveAttemptCache = [];
+    // Cache declarations own their invalidation scopes; runtime reset covers every registered cache.
+    private static readonly List<CombatAiRuntimeCache> RuntimeCaches = [];
+
+    private static readonly Dictionary<ulong, CombatAiProfile> ProfileCache =
+        CreateActorRuntimeCache<CombatAiProfile>(CacheScope.Planning);
+    private static readonly Dictionary<ulong, string[]> PersonalityFlagsCache = CreateRuntimeCache<ulong, string[]>();
+    private static readonly Dictionary<ulong, ObservedCombatMemory> ObservedCombatMemoryCache =
+        CreateRuntimeCache<ulong, ObservedCombatMemory>();
+    private static readonly Dictionary<ulong, HashSet<AiMoveFailureKey>> AiMoveFailureCache =
+        CreateActorRuntimeCache<HashSet<AiMoveFailureKey>>(CacheScope.Turn);
+    private static readonly Dictionary<ulong, AiMoveAttempt> PendingAiMoveAttemptCache =
+        CreateActorRuntimeCache<AiMoveAttempt>(CacheScope.Turn | CacheScope.ForcedMotion);
     private static readonly Dictionary<ulong, PostMainClearAllyCorridorAttemptMemory>
-        PostMainClearAllyCorridorAttemptCache = [];
+        PostMainClearAllyCorridorAttemptCache =
+        CreateActorRuntimeCache<PostMainClearAllyCorridorAttemptMemory>(CacheScope.Turn);
     private static int ActionLinkedMoveTokenSeed;
-    private static readonly Dictionary<ulong, ActionLinkedMoveMemory> ActionLinkedMoveCache = [];
-    private static readonly Dictionary<ulong, ActionLinkedMoveSettlingMemory> ActionLinkedMoveSettlingCache = [];
-    private static readonly Dictionary<ulong, CompletedAiMoveStepMemory> CompletedAiMoveStepCache = [];
-    private static readonly Dictionary<ulong, RouteMoveCompletionClosedMemory> RouteMoveCompletionClosedCache = [];
-    private static readonly Dictionary<ulong, LostTargetSearchAttemptMemory> LostTargetSearchAttemptCache = [];
-    private static readonly Dictionary<ulong, PendingRouteMovementLockMemory> PendingRouteMovementLockCache = [];
-    private static readonly Dictionary<ulong, PreMainRouteMoveAttempt> PreMainRouteMoveAttemptCache = [];
-    private static readonly Dictionary<ulong, DisconnectedPositioningSealMemory> DisconnectedPositioningSealCache = [];
+    private static readonly Dictionary<ulong, ActionLinkedMoveMemory> ActionLinkedMoveCache =
+        CreateActorRuntimeCache<ActionLinkedMoveMemory>(CacheScope.Turn | CacheScope.ForcedMotion);
+    private static readonly Dictionary<ulong, ActionLinkedMoveSettlingMemory> ActionLinkedMoveSettlingCache =
+        CreateActorRuntimeCache<ActionLinkedMoveSettlingMemory>(CacheScope.Turn | CacheScope.ForcedMotion);
+    private static readonly Dictionary<ulong, CompletedAiMoveStepMemory> CompletedAiMoveStepCache =
+        CreateActorRuntimeCache<CompletedAiMoveStepMemory>(CacheScope.Turn);
+    private static readonly Dictionary<ulong, RouteMoveCompletionClosedMemory> RouteMoveCompletionClosedCache =
+        CreateActorRuntimeCache<RouteMoveCompletionClosedMemory>(CacheScope.Turn | CacheScope.ForcedMotion);
+    private static readonly Dictionary<ulong, LostTargetSearchAttemptMemory> LostTargetSearchAttemptCache =
+        CreateActorRuntimeCache<LostTargetSearchAttemptMemory>(CacheScope.Turn);
+    private static readonly Dictionary<ulong, PendingRouteMovementLockMemory> PendingRouteMovementLockCache =
+        CreateActorRuntimeCache<PendingRouteMovementLockMemory>(CacheScope.Turn | CacheScope.ForcedMotion);
+    private static readonly Dictionary<ulong, PreMainRouteMoveAttempt> PreMainRouteMoveAttemptCache =
+        CreateActorRuntimeCache<PreMainRouteMoveAttempt>(CacheScope.Turn | CacheScope.ForcedMotion);
+    private static readonly Dictionary<ulong, DisconnectedPositioningSealMemory> DisconnectedPositioningSealCache =
+        CreateActorRuntimeCache<DisconnectedPositioningSealMemory>(CacheScope.Turn);
     private static readonly Dictionary<ulong, DisconnectedPositioningMovementLockMemory>
-        DisconnectedPositioningMovementLockCache = [];
-    private static readonly Dictionary<ulong, TerminalSealMemory> DisconnectedSearchMoveCompletionSealCache = [];
-    private static readonly Dictionary<ulong, TerminalSealMemory> DisconnectedSearchNoRouteMovementSealCache = [];
-    private static readonly Dictionary<ulong, HashSet<ulong>> PendingFallbackDodgeConditionCache = [];
-    private static readonly Dictionary<ulong, FallbackDodgeConditionMemory> FallbackDodgeConditionCache = [];
-    private static readonly Dictionary<ulong, RepeatedAttackActionMemory> RepeatAttackActionCache = [];
-    private static readonly Dictionary<ulong, AiTurnMovementProgress> TurnMovementProgressCache = [];
-    private static readonly Dictionary<ulong, CombatAiActionExecutionMemory> LastActionExecutionCache = [];
-    private static readonly Dictionary<ulong, CombatAiActionExecutionMemory> LastMainActionExecutionCache = [];
-    private static readonly Dictionary<ulong, int> TurnMainActionUseCountCache = [];
-    private static readonly Dictionary<ulong, int> TurnBonusActionUseCountCache = [];
-    private static readonly Dictionary<ulong, RecentMeleeThreatMemory> RecentMeleeThreatMemoryCache = [];
-    private static readonly Dictionary<ulong, ThreatAvoidanceMemory> ThreatAvoidanceMemoryCache = [];
-    private static readonly Dictionary<ulong, PendingResidualMainAction> PendingResidualMainActionCache = [];
-    private static readonly Dictionary<ulong, BaselineFreeJumpAttemptMemory> BaselineFreeJumpAttemptCache = [];
-    private static readonly Dictionary<AttackPositionKey, bool> MeleeAttackPositionCache = [];
-    private static readonly Dictionary<RouteCandidateCacheKey, bool> ActionKindPositionCache = [];
-    private static readonly Dictionary<RouteCandidateCacheKey, CoverEvaluationMemory> CoverEvaluationCache = [];
-    private static readonly HashSet<ulong> JumpImmediateAttackReachableCache = [];
-    private static readonly HashSet<ulong> GroundMeleeJumpRouteAvailableCache = [];
-    private static readonly Dictionary<ulong, CurrentStateRouteBlockKind> CurrentStateRouteBlockCache = [];
-    private static readonly Dictionary<ulong, GroundMeleeTargetContactRouteQuery> TargetContactRouteQueryCache = [];
-    private static readonly Dictionary<ulong, GroundMeleeRouteFailureMemory> GroundMeleeRouteFailureCache = [];
-    private static readonly Dictionary<ulong, GroundMeleeMoveSettlingMemory> GroundMeleeMoveSettlingCache = [];
-    private static readonly Dictionary<ulong, GroundMeleePartialRouteMemory> GroundMeleePartialRouteCache = [];
-    private static readonly Dictionary<ulong, ProxyThreatRouteAttemptMemory> ProxyThreatRouteAttemptCache = [];
+        DisconnectedPositioningMovementLockCache =
+        CreateActorRuntimeCache<DisconnectedPositioningMovementLockMemory>(CacheScope.Turn | CacheScope.ForcedMotion);
+    private static readonly Dictionary<ulong, TerminalSealMemory> DisconnectedSearchMoveCompletionSealCache =
+        CreateActorRuntimeCache<TerminalSealMemory>(CacheScope.Turn | CacheScope.ForcedMotion);
+    private static readonly Dictionary<ulong, TerminalSealMemory> DisconnectedSearchNoRouteMovementSealCache =
+        CreateActorRuntimeCache<TerminalSealMemory>(CacheScope.Turn);
+    private static readonly Dictionary<ulong, HashSet<ulong>> PendingFallbackDodgeConditionCache =
+        CreateActorRuntimeCache<HashSet<ulong>>(CacheScope.Turn);
+    private static readonly Dictionary<ulong, FallbackDodgeConditionMemory> FallbackDodgeConditionCache =
+        CreateRuntimeCache<ulong, FallbackDodgeConditionMemory>();
+    private static readonly Dictionary<ulong, RepeatedAttackActionMemory> RepeatAttackActionCache =
+        CreateActorRuntimeCache<RepeatedAttackActionMemory>(CacheScope.Turn);
+    private static readonly Dictionary<ulong, AiTurnMovementProgress> TurnMovementProgressCache =
+        CreateActorRuntimeCache<AiTurnMovementProgress>(CacheScope.Turn | CacheScope.Planning | CacheScope.ForcedMotion);
+    private static readonly Dictionary<ulong, CombatAiActionExecutionMemory> LastActionExecutionCache =
+        CreateActorRuntimeCache<CombatAiActionExecutionMemory>(CacheScope.Turn);
+    private static readonly Dictionary<ulong, CombatAiActionExecutionMemory> LastMainActionExecutionCache =
+        CreateActorRuntimeCache<CombatAiActionExecutionMemory>(CacheScope.Turn);
+    private static readonly Dictionary<ulong, int> TurnMainActionUseCountCache =
+        CreateActorRuntimeCache<int>(CacheScope.Turn);
+    private static readonly Dictionary<ulong, int> TurnBonusActionUseCountCache =
+        CreateActorRuntimeCache<int>(CacheScope.Turn);
+    private static readonly Dictionary<ulong, (int Rank, int Count)> MainAttackUseCountByRankCache =
+        CreateActorRuntimeCache<(int Rank, int Count)>(CacheScope.Turn);
+    private static readonly Dictionary<ulong, RecentMeleeThreatMemory> RecentMeleeThreatMemoryCache =
+        CreateRuntimeCache<ulong, RecentMeleeThreatMemory>();
+    private static readonly Dictionary<ulong, ThreatAvoidanceMemory> ThreatAvoidanceMemoryCache =
+        CreateRuntimeCache<ulong, ThreatAvoidanceMemory>();
+    private static readonly Dictionary<ulong, PendingResidualMainAction> PendingResidualMainActionCache =
+        CreateActorRuntimeCache<PendingResidualMainAction>(CacheScope.Turn);
+    private static readonly Dictionary<ulong, BaselineFreeJumpAttemptMemory> BaselineFreeJumpAttemptCache =
+        CreateActorRuntimeCache<BaselineFreeJumpAttemptMemory>(CacheScope.Turn);
+    private static readonly Dictionary<AttackPositionKey, bool> MeleeAttackPositionCache =
+        CreateRuntimeCache<AttackPositionKey, bool>(CacheScope.Planning);
+    private static readonly Dictionary<RouteCandidateCacheKey, bool> ActionKindPositionCache =
+        CreateRuntimeCache<RouteCandidateCacheKey, bool>(CacheScope.Planning);
+    private static readonly Dictionary<RouteCandidateCacheKey, CoverEvaluationMemory> CoverEvaluationCache =
+        CreateRuntimeCache<RouteCandidateCacheKey, CoverEvaluationMemory>(CacheScope.Planning);
+    private static readonly HashSet<ulong> JumpImmediateAttackReachableCache =
+        CreateActorRuntimeSet(CacheScope.Turn | CacheScope.Planning | CacheScope.ForcedMotion);
+    private static readonly HashSet<ulong> GroundMeleeJumpRouteAvailableCache =
+        CreateActorRuntimeSet(CacheScope.Turn | CacheScope.Planning | CacheScope.ForcedMotion);
+    private static readonly Dictionary<ulong, CurrentStateRouteBlockKind> CurrentStateRouteBlockCache =
+        CreateActorRuntimeCache<CurrentStateRouteBlockKind>(CacheScope.Turn | CacheScope.Planning | CacheScope.ForcedMotion);
+    private static readonly Dictionary<ulong, GroundMeleeTargetContactRouteQuery> TargetContactRouteQueryCache =
+        CreateActorRuntimeCache<GroundMeleeTargetContactRouteQuery>(CacheScope.Turn | CacheScope.Planning | CacheScope.ForcedMotion);
+    private static readonly Dictionary<ulong, GroundMeleeRouteFailureMemory> GroundMeleeRouteFailureCache =
+        CreateRuntimeCache<ulong, GroundMeleeRouteFailureMemory>();
+    private static readonly Dictionary<ulong, GroundMeleeMoveSettlingMemory> GroundMeleeMoveSettlingCache =
+        CreateActorRuntimeCache<GroundMeleeMoveSettlingMemory>(CacheScope.Turn | CacheScope.ForcedMotion);
+    private static readonly Dictionary<ulong, GroundMeleePartialRouteMemory> GroundMeleePartialRouteCache =
+        CreateActorRuntimeCache<GroundMeleePartialRouteMemory>(CacheScope.Turn | CacheScope.ForcedMotion);
+    private static readonly Dictionary<ulong, ProxyThreatRouteAttemptMemory> ProxyThreatRouteAttemptCache =
+        CreateActorRuntimeCache<ProxyThreatRouteAttemptMemory>(CacheScope.Turn | CacheScope.ForcedMotion);
     private static readonly Dictionary<ReachableRouteCacheKey, ReachableRouteDestinationMemory>
-        ReachableRouteDestinationCache = [];
-    private static readonly Dictionary<ActorTurnKey, int> ReachableRoutePathfindingCountCache = [];
+        ReachableRouteDestinationCache = CreateRuntimeCache<ReachableRouteCacheKey, ReachableRouteDestinationMemory>();
+    private static readonly Dictionary<ActorTurnKey, int> ReachableRoutePathfindingCountCache =
+        CreateRuntimeCache<ActorTurnKey, int>();
     private static object CurrentBattleCacheKey;
     private static int CurrentBattleCacheRound = -1;
     private static bool? CurrentAdvancedCombatAiSetting;
     private static bool? CurrentBonusActionFreeJumpSetting;
     private static int ObservedCombatMemoryTurnStamp;
+
+    [Flags]
+    private enum CacheScope
+    {
+        None = 0,
+        Turn = 1,
+        Planning = 2,
+        ForcedMotion = 4
+    }
+
+    private readonly struct CombatAiRuntimeCache(
+        Action clear,
+        CacheScope scope,
+        Func<ulong, bool> removeActor = null)
+    {
+        internal void Clear() => clear();
+
+        internal bool Invalidate(CacheScope requestedScope, ulong actorGuid)
+        {
+            if ((scope & requestedScope) == 0)
+            {
+                return false;
+            }
+
+            if (removeActor != null)
+            {
+                return removeActor(actorGuid);
+            }
+
+            // Positional evaluation keys contain both actors. Preserve their shared invalidation.
+            clear();
+            return true;
+        }
+    }
+
+    private static Dictionary<TKey, TValue> CreateRuntimeCache<TKey, TValue>(
+        CacheScope scope = CacheScope.None)
+    {
+        var cache = new Dictionary<TKey, TValue>();
+        RuntimeCaches.Add(new CombatAiRuntimeCache(cache.Clear, scope));
+        return cache;
+    }
+
+    private static Dictionary<ulong, TValue> CreateActorRuntimeCache<TValue>(CacheScope scope)
+    {
+        var cache = new Dictionary<ulong, TValue>();
+        RuntimeCaches.Add(new CombatAiRuntimeCache(cache.Clear, scope, cache.Remove));
+        return cache;
+    }
+
+    private static HashSet<ulong> CreateActorRuntimeSet(CacheScope scope)
+    {
+        var cache = new HashSet<ulong>();
+        RuntimeCaches.Add(new CombatAiRuntimeCache(cache.Clear, scope, cache.Remove));
+        return cache;
+    }
+
+    private static bool InvalidateRuntimeCaches(CacheScope scope, ulong actorGuid)
+    {
+        var removed = false;
+        foreach (var cache in RuntimeCaches)
+        {
+            removed |= cache.Invalidate(scope, actorGuid);
+        }
+        return removed;
+    }
 
     private enum CombatAiMovementPlanReasonKind
     {
@@ -1662,10 +1774,12 @@ internal static partial class CombatAiContext
     }
 
     private readonly struct CombatAiResidualHostileActionResult(
-        CombatAiResidualHostileActionResultKind kind)
+        CombatAiResidualHostileActionResultKind kind,
+        CharacterActionParams actionParams = null)
     {
         private CombatAiResidualHostileActionResultKind Kind { get; } = kind;
-        internal bool Executed => Kind == CombatAiResidualHostileActionResultKind.Executed;
+        internal CharacterActionParams ActionParams { get; } = actionParams;
+        internal bool Selected => Kind == CombatAiResidualHostileActionResultKind.Selected && ActionParams != null;
         internal bool PolicyHeld => Kind == CombatAiResidualHostileActionResultKind.PolicyHeld;
         internal bool IsBlocked => Kind == CombatAiResidualHostileActionResultKind.Blocked;
     }
@@ -1925,9 +2039,13 @@ internal static partial class CombatAiContext
 
         EnsureCombatAiRuntimeCache();
 
-        if (IsAdvancedCombatAiEnabled)
+        if (IsAdvancedCombatAiEnabled || Main.Settings.EnableEnemyBattleTactics)
         {
             ObservedCombatMemoryTurnStamp++;
+        }
+
+        if (IsAdvancedCombatAiEnabled)
+        {
             InvalidateTurnPlanningCache(character);
 
             if (!IsAiControlledForCombat(character) ||
@@ -1977,15 +2095,7 @@ internal static partial class CombatAiContext
         }
 
         PendingContactRouteQueries.Remove(character);
-        ProfileCache.Remove(character.Guid);
-        MeleeAttackPositionCache.Clear();
-        ActionKindPositionCache.Clear();
-        CoverEvaluationCache.Clear();
-        JumpImmediateAttackReachableCache.Remove(character.Guid);
-        GroundMeleeJumpRouteAvailableCache.Remove(character.Guid);
-        CurrentStateRouteBlockCache.Remove(character.Guid);
-        TargetContactRouteQueryCache.Remove(character.Guid);
-        TurnMovementProgressCache.Remove(character.Guid);
+        InvalidateRuntimeCaches(CacheScope.Planning, character.Guid);
         ClearReachableRouteDestinationCache(character);
     }
 
@@ -2065,53 +2175,10 @@ internal static partial class CombatAiContext
         AiWorkBudget.Reset();
         // Invalidate suspended searches without letting their finally blocks remove a newer request.
         PendingContactRouteQueries = new();
-        ProfileCache.Clear();
-        PersonalityFlagsCache.Clear();
-        ObservedCombatMemoryCache.Clear();
-        AiMoveFailureCache.Clear();
-        PendingAiMoveAttemptCache.Clear();
-        PostMainClearAllyCorridorAttemptCache.Clear();
-        ActionLinkedMoveCache.Clear();
-        ActionLinkedMoveSettlingCache.Clear();
-        CompletedAiMoveStepCache.Clear();
-        RouteMoveCompletionClosedCache.Clear();
-
-        LostTargetSearchAttemptCache.Clear();
-        PendingRouteMovementLockCache.Clear();
-        ProxyThreatRouteAttemptCache.Clear();
-        PreMainRouteMoveAttemptCache.Clear();
-        DisconnectedPositioningSealCache.Clear();
-        DisconnectedPositioningMovementLockCache.Clear();
-        DisconnectedSearchMoveCompletionSealCache.Clear();
-        DisconnectedSearchNoRouteMovementSealCache.Clear();
-        PendingFallbackDodgeConditionCache.Clear();
-
-        FallbackDodgeConditionCache.Clear();
-        RepeatAttackActionCache.Clear();
-        TurnMovementProgressCache.Clear();
-        LastActionExecutionCache.Clear();
-        LastMainActionExecutionCache.Clear();
-        TurnMainActionUseCountCache.Clear();
-        TurnBonusActionUseCountCache.Clear();
-
-        RecentMeleeThreatMemoryCache.Clear();
-        ThreatAvoidanceMemoryCache.Clear();
-        PendingResidualMainActionCache.Clear();
-
-        BaselineFreeJumpAttemptCache.Clear();
-        MeleeAttackPositionCache.Clear();
-        ActionKindPositionCache.Clear();
-        CoverEvaluationCache.Clear();
-        JumpImmediateAttackReachableCache.Clear();
-        GroundMeleeJumpRouteAvailableCache.Clear();
-        CurrentStateRouteBlockCache.Clear();
-        TargetContactRouteQueryCache.Clear();
-        GroundMeleeRouteFailureCache.Clear();
-        GroundMeleeMoveSettlingCache.Clear();
-        GroundMeleePartialRouteCache.Clear();
-
-        ReachableRouteDestinationCache.Clear();
-        ReachableRoutePathfindingCountCache.Clear();
+        foreach (var cache in RuntimeCaches)
+        {
+            cache.Clear();
+        }
         FreeJumpContext.ClearPendingAiFreeJumpCompletions();
         ObservedCombatMemoryTurnStamp = 0;
     }
@@ -2138,27 +2205,8 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        var guid = character.Guid;
         var groundMeleeRouteKey = GetGroundMeleeRouteMemoryKey(character);
-        var removed = false;
-
-        removed |= PendingAiMoveAttemptCache.Remove(guid);
-        removed |= ActionLinkedMoveCache.Remove(guid);
-        removed |= ActionLinkedMoveSettlingCache.Remove(guid);
-
-        removed |= PendingRouteMovementLockCache.Remove(guid);
-        removed |= RouteMoveCompletionClosedCache.Remove(guid);
-        removed |= TurnMovementProgressCache.Remove(guid);
-        removed |= ProxyThreatRouteAttemptCache.Remove(guid);
-        removed |= PreMainRouteMoveAttemptCache.Remove(guid);
-        removed |= DisconnectedPositioningMovementLockCache.Remove(guid);
-        removed |= DisconnectedSearchMoveCompletionSealCache.Remove(guid);
-        removed |= JumpImmediateAttackReachableCache.Remove(guid);
-        removed |= GroundMeleeJumpRouteAvailableCache.Remove(guid);
-        removed |= CurrentStateRouteBlockCache.Remove(guid);
-        removed |= TargetContactRouteQueryCache.Remove(guid);
-        removed |= GroundMeleeMoveSettlingCache.Remove(guid);
-        removed |= GroundMeleePartialRouteCache.Remove(guid);
+        var removed = InvalidateRuntimeCaches(CacheScope.ForcedMotion, character.Guid);
 
         removed |= GroundMeleeRouteFailureCache.Remove(groundMeleeRouteKey);
         removed |= FreeJumpContext.ClearAiMoveTargetState(character);
@@ -2194,13 +2242,11 @@ internal static partial class CombatAiContext
             return HasAvailableAttackModeForMainAction(character);
         }
 
-        if (TryGetCurrentTurnActionMemory(character, LastMainActionExecutionCache, out var lastMainAction) &&
-            lastMainAction.ActionId == Id.AttackMain &&
-            lastMainAction.ActionRank == rank)
+        if (MainAttackUseCountByRankCache.TryGetValue(character.Guid, out var attacks) && attacks.Rank == rank)
         {
-            usedMainAttacks = Math.Max(
-                usedMainAttacks,
-                GetActionUseCount(TurnMainActionUseCountCache, character));
+            // An extra main action owns a fresh attack budget. The turn-wide action
+            // count includes earlier ranks and cannot measure this rank's attacks.
+            usedMainAttacks = Math.Max(usedMainAttacks, attacks.Count);
         }
 
         return (allowedMainAttacks <= 0 || usedMainAttacks < allowedMainAttacks) &&
@@ -2277,39 +2323,8 @@ internal static partial class CombatAiContext
             return;
         }
 
-        var guid = character.Guid;
-
-        AiMoveFailureCache.Remove(guid);
-        PendingAiMoveAttemptCache.Remove(guid);
-        PostMainClearAllyCorridorAttemptCache.Remove(guid);
-        ActionLinkedMoveCache.Remove(guid);
-        ActionLinkedMoveSettlingCache.Remove(guid);
-        CompletedAiMoveStepCache.Remove(guid);
-        RouteMoveCompletionClosedCache.Remove(guid);
-        LostTargetSearchAttemptCache.Remove(guid);
-        PendingRouteMovementLockCache.Remove(guid);
-        ProxyThreatRouteAttemptCache.Remove(guid);
-        PreMainRouteMoveAttemptCache.Remove(guid);
-        DisconnectedPositioningSealCache.Remove(guid);
-        DisconnectedPositioningMovementLockCache.Remove(guid);
-        DisconnectedSearchMoveCompletionSealCache.Remove(guid);
-        DisconnectedSearchNoRouteMovementSealCache.Remove(guid);
-        PendingFallbackDodgeConditionCache.Remove(guid);
-        RepeatAttackActionCache.Remove(guid);
-        TurnMovementProgressCache.Remove(guid);
-        LastActionExecutionCache.Remove(guid);
-        LastMainActionExecutionCache.Remove(guid);
-        TurnMainActionUseCountCache.Remove(guid);
-        TurnBonusActionUseCountCache.Remove(guid);
-        PendingResidualMainActionCache.Remove(guid);
-        BaselineFreeJumpAttemptCache.Remove(guid);
-        JumpImmediateAttackReachableCache.Remove(guid);
-        GroundMeleeJumpRouteAvailableCache.Remove(guid);
-        CurrentStateRouteBlockCache.Remove(guid);
-        TargetContactRouteQueryCache.Remove(guid);
+        InvalidateRuntimeCaches(CacheScope.Turn, character.Guid);
         GroundMeleeRouteFailureCache.Remove(GetGroundMeleeRouteMemoryKey(character));
-        GroundMeleeMoveSettlingCache.Remove(guid);
-        GroundMeleePartialRouteCache.Remove(guid);
         ClearReachableRouteDestinationCache(character);
         FreeJumpContext.ClearAiMoveTargetState(character);
         MovementTracker.ClearMovement(character);
@@ -4029,7 +4044,9 @@ internal static partial class CombatAiContext
 
     internal static void Unload()
     {
+        StopEnemyBattleTactics();
         ClearRuntimeCaches();
+        FreeJumpContext.Unload();
         CurrentBattleCacheKey = null;
         CurrentBattleCacheRound = -1;
         CurrentAdvancedCombatAiSetting = null;
@@ -4053,6 +4070,21 @@ internal static partial class CombatAiContext
         return networkingService?.IsMultiplayerGame != true || networkingService.IsMasterClient;
     }
 
+    private static bool IsAutomaticCombatActorReady(GameLocationCharacter character)
+    {
+        return character?.RulesetCharacter is
+                   { IsIncapacitated: false, IsDeadOrDyingOrUnconscious: false } &&
+               CanExecuteAutomaticCombatAction(character) && IsAiControlledByGame(character);
+    }
+
+    private static bool CanIssueAutomaticTurnAction(GameLocationCharacter character)
+    {
+        // Queued reactions have a different readiness boundary: their own request
+        // must remain valid while the reaction queue is occupied.
+        return IsAutomaticCombatActorReady(character) && IsActiveBattleContender(character) &&
+               !HasAnyQueuedActionChain() && !HasPendingReactionRequests() && !character.MoveStepInProgress;
+    }
+
     internal static void RecordCombatAiActionExecution(
         GameLocationCharacter character,
         CharacterActionParams actionParams,
@@ -4065,7 +4097,8 @@ internal static partial class CombatAiContext
         if (scope != ActionScope.Battle ||
             character?.RulesetCharacter == null ||
             actionDefinition == null ||
-            !IsAiControlledForCombat(character))
+            !(IsAiControlledForCombat(character) ||
+              Main.Settings.EnableEnemyBattleTactics && IsAiControlledByGame(character)))
         {
             return;
         }
@@ -4098,6 +4131,12 @@ internal static partial class CombatAiContext
         {
             LastMainActionExecutionCache[character.Guid] = memory;
             IncrementActionUseCount(TurnMainActionUseCountCache, character);
+            if (actionId == Id.AttackMain)
+            {
+                var previous = MainAttackUseCountByRankCache.TryGetValue(character.Guid, out var attacks) &&
+                               attacks.Rank == actionRank ? attacks.Count : 0;
+                MainAttackUseCountByRankCache[character.Guid] = (actionRank, previous + 1);
+            }
 
             RecordRepeatedAttackActionExecution(character, actionParams, memory);
         }
@@ -4605,7 +4644,7 @@ internal static partial class CombatAiContext
     {
         actionStatus = ActionStatus.Unavailable;
 
-        if (character?.RulesetCharacter == null || mode == null)
+        if (character?.RulesetCharacter == null || mode is not { ActionType: ActionType.Main })
         {
             return false;
         }
@@ -5164,6 +5203,50 @@ internal static partial class CombatAiContext
         return profile;
     }
 
+    private static bool TryGetPhysicalAttackModifierFromPosition(
+        GameLocationCharacter attacker,
+        int3 attackerPosition,
+        GameLocationCharacter defender,
+        int3 defenderPosition,
+        RulesetAttackMode mode,
+        IGameLocationBattleService battleService,
+        out ActionModifier modifier)
+    {
+        modifier = new ActionModifier();
+        var evaluation = new BattleDefinitions.AttackEvaluationParams();
+
+        if (IsRangedAttackMode(mode))
+        {
+            evaluation.FillForPhysicalRangeAttack(
+                attacker, attackerPosition, mode, defender, defenderPosition, modifier);
+        }
+        else
+        {
+            evaluation.FillForPhysicalReachAttack(
+                attacker, attackerPosition, mode, defender, defenderPosition, modifier);
+        }
+
+        return battleService.CanAttack(evaluation);
+    }
+
+    private static bool TryGetMagicAttackModifierFromPosition(
+        GameLocationCharacter attacker,
+        int3 attackerPosition,
+        GameLocationCharacter defender,
+        int3 defenderPosition,
+        EffectDescription description,
+        string effectName,
+        IGameLocationBattleService battleService,
+        out ActionModifier modifier)
+    {
+        modifier = new ActionModifier();
+        var evaluation = new BattleDefinitions.AttackEvaluationParams();
+        evaluation.FillForMagic(
+            attacker, attackerPosition, description, effectName, defender, defenderPosition, modifier);
+
+        return battleService.CanAttack(evaluation);
+    }
+
     internal static bool CanAttackInMeleeFromPosition(
         GameLocationCharacter attacker,
         int3 attackerPosition,
@@ -5319,6 +5402,7 @@ internal static partial class CombatAiContext
             character.RemainingTacticalMoves <= 0 ||
             !character.CanDecideToMoveByItself ||
             HasActiveDisconnectedSearchMoveCompletionSeal(character) ||
+            ShouldReserveEnemyBattleOnHitBonus(character) ||
             HasCommittedBonusActionThisTurn(character) ||
             character.GetActionTypeStatus(ActionType.Bonus) != ActionStatus.Available ||
             character.GetActionStatus(Id.TacticalMove, ActionScope.Battle) != ActionStatus.Available)
@@ -5511,8 +5595,16 @@ internal static partial class CombatAiContext
                 var bypassesWithoutRegression = bypassesObstacle &&
                                                 destinationDistance <=
                                                 startDistance + MovementGoalRegressionTolerance;
+                var improvesContactRoute =
+                    TryGetCachedGroundMeleeTargetContactRouteQuery(actor, turnPlan, out var contactQuery) &&
+                    contactQuery.Complete &&
+                    contactQuery.TryGetContactCost(destination, out var destinationContactCost, out _) &&
+                    (contactQuery.TryGetContactCost(start, out var startContactCost, out _)
+                        ? startContactCost
+                        : contactQuery.BestGoalMoveCost) >
+                    preview.MoveCost + destinationContactCost;
 
-                if (!advancesTowardContact && !bypassesWithoutRegression)
+                if (!advancesTowardContact && !bypassesWithoutRegression && !improvesContactRoute)
                 {
                     return false;
                 }
@@ -5883,6 +5975,8 @@ internal static partial class CombatAiContext
         GameLocationCharacter character,
         IEnumerator vanillaTurn)
     {
+        yield return RunEnemyBattleBonusActionBeforeVanilla(character);
+
         yield return PrepareAdvancedCombatAiTurnBeforeVanilla(character);
 
         if (TryTerminateIncapacitatedAiTurn(character) ||
@@ -5906,6 +6000,8 @@ internal static partial class CombatAiContext
         {
             yield break;
         }
+
+        yield return RunEnemyBattleBonusActionAfterVanilla(character);
 
         yield return CompleteAdvancedCombatAiTurnAtProcessBoundary(character);
     }
@@ -6054,7 +6150,9 @@ internal static partial class CombatAiContext
         GameLocationCharacter character,
         CombatAiProfile profile,
         CombatAiTurnPlan turnPlan,
-        IGameLocationBattleService battleService)
+        IGameLocationBattleService battleService,
+        bool requireDashAction = true,
+        IReadOnlyList<GameLocationCharacter> eligibleTargets = null)
     {
         if (character?.RulesetCharacter == null ||
             battleService == null ||
@@ -6071,7 +6169,8 @@ internal static partial class CombatAiContext
 
         if (!BuildActionEconomySnapshot(character).MainAvailable ||
             character.GetActionTypeStatus(ActionType.Bonus) != ActionStatus.Available ||
-            character.GetActionStatus(Id.DashBonus, ActionScope.Battle) != ActionStatus.Available ||
+            (requireDashAction &&
+             character.GetActionStatus(Id.DashBonus, ActionScope.Battle) != ActionStatus.Available) ||
             HasCommittedBonusActionThisTurn(character))
         {
             return default;
@@ -6102,7 +6201,7 @@ internal static partial class CombatAiContext
             return default;
         }
 
-        var enemies = GetKnownEnemyTargets(character)
+        var enemies = (eligibleTargets ?? GetKnownEnemyTargets(character))
             .Where(enemy => enemy?.RulesetCharacter != null && enemy.Side != character.Side)
             .OrderByDescending(enemy => enemy == turnPlan.ActionProbe.Target)
             .ThenBy(enemy => ComputeGridDistance(start, enemy.LocationPosition))
@@ -6269,51 +6368,11 @@ internal static partial class CombatAiContext
             yield break;
         }
 
-        var hostileAttemptsRemaining = GetResidualHostileActionAttemptLimit(character);
-
-        while (hostileAttemptsRemaining > 0 && IsActiveBattleContender(character))
+        var hostileActions = new ResidualHostileActionExecutionState(GetResidualHostileActionAttemptLimit(character));
+        yield return RunResidualHostileMainActionsAtProcessBoundary(character, battleService, hostileActions);
+        if (hostileActions.TurnEnded)
         {
-            var actionEconomy = BuildActionEconomySnapshot(character);
-
-            if (!actionEconomy.MainAvailable)
-            {
-                break;
-            }
-
-            var mainUseCountBefore = GetActionUseCount(TurnMainActionUseCountCache, character);
-            var availableIterationsBefore = character.GetActionAvailableIterations(Id.AttackMain);
-            var usedMainAttacksBefore = character.UsedMainAttacks;
-            var mainStatusBefore = character.GetActionTypeStatus(ActionType.Main);
-
-            var hostileAction = TryUseCurrentPositionHostileMainAction(
-                character,
-                battleService);
-
-            if (!hostileAction.Executed)
-            {
-                break;
-            }
-
-            hostileAttemptsRemaining--;
-            yield return WaitForCombatAiProcessAction(character);
-
-            if (!IsActiveBattleContender(character))
-            {
-                yield break;
-            }
-
-            if (HasResidualHostileActionProgress(
-                    character,
-                    mainUseCountBefore,
-                    availableIterationsBefore,
-                    usedMainAttacksBefore,
-                    mainStatusBefore))
-            {
-                continue;
-            }
-
-            PendingResidualMainActionCache.Remove(character.Guid);
-            break;
+            yield break;
         }
 
         var movement = new RouteMoveResult();
@@ -6401,48 +6460,10 @@ internal static partial class CombatAiContext
 
         }
 
-        while (hostileAttemptsRemaining > 0 && IsActiveBattleContender(character))
+        yield return RunResidualHostileMainActionsAtProcessBoundary(character, battleService, hostileActions);
+        if (hostileActions.TurnEnded)
         {
-            var actionEconomy = BuildActionEconomySnapshot(character);
-
-            if (!actionEconomy.MainAvailable)
-            {
-                break;
-            }
-
-            var mainUseCountBefore = GetActionUseCount(TurnMainActionUseCountCache, character);
-            var availableIterationsBefore = character.GetActionAvailableIterations(Id.AttackMain);
-            var usedMainAttacksBefore = character.UsedMainAttacks;
-            var mainStatusBefore = character.GetActionTypeStatus(ActionType.Main);
-            var hostileAction = TryUseCurrentPositionHostileMainAction(
-                character,
-                battleService);
-
-            if (!hostileAction.Executed)
-            {
-                break;
-            }
-
-            hostileAttemptsRemaining--;
-            yield return WaitForCombatAiProcessAction(character);
-
-            if (!IsActiveBattleContender(character))
-            {
-                yield break;
-            }
-
-            if (HasResidualHostileActionProgress(
-                    character,
-                    mainUseCountBefore,
-                    availableIterationsBefore,
-                    usedMainAttacksBefore,
-                    mainStatusBefore))
-            {
-                continue;
-            }
-
-            PendingResidualMainActionCache.Remove(character.Guid);
-            break;
+            yield break;
         }
 
         var terminalEconomy = BuildActionEconomySnapshot(character);
@@ -6488,6 +6509,76 @@ internal static partial class CombatAiContext
         }
 
         yield return WaitForCombatAiProcessAction(character);
+    }
+
+    private sealed class ResidualHostileActionExecutionState(int attemptsRemaining)
+    {
+        internal int AttemptsRemaining = attemptsRemaining;
+        internal bool TurnEnded;
+    }
+
+    private readonly struct CombatAiActionProgressSnapshot(
+        int mainUseCount,
+        int availableIterations,
+        int usedMainAttacks,
+        ActionStatus mainStatus)
+    {
+        internal static CombatAiActionProgressSnapshot Capture(GameLocationCharacter character)
+        {
+            return new CombatAiActionProgressSnapshot(
+                GetActionUseCount(TurnMainActionUseCountCache, character),
+                character.GetActionAvailableIterations(Id.AttackMain),
+                character.UsedMainAttacks,
+                character.GetActionTypeStatus(ActionType.Main));
+        }
+
+        internal bool HasProgress(GameLocationCharacter character) => HasResidualHostileActionProgress(
+            character, mainUseCount, availableIterations, usedMainAttacks, mainStatus);
+    }
+
+    private static IEnumerator RunResidualHostileMainActionsAtProcessBoundary(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService,
+        ResidualHostileActionExecutionState execution)
+    {
+        // Both phases share this budget. Movement and utility actions between them
+        // can expose another attack without granting another set of attempts.
+        while (execution.AttemptsRemaining > 0 && IsActiveBattleContender(character))
+        {
+            if (!BuildActionEconomySnapshot(character).MainAvailable)
+            {
+                yield break;
+            }
+
+            var progress = CombatAiActionProgressSnapshot.Capture(character);
+            var hostileAction = TryUseCurrentPositionHostileMainAction(character, battleService);
+            if (!hostileAction.Selected)
+            {
+                yield break;
+            }
+
+            var dispatched = false;
+            yield return ExecuteSelectedResidualHostileActionAtProcessBoundary(
+                hostileAction.ActionParams, battleService, value => dispatched = value);
+            if (!dispatched)
+            {
+                yield break;
+            }
+
+            execution.AttemptsRemaining--;
+            yield return WaitForCombatAiProcessAction(character);
+            if (!IsActiveBattleContender(character))
+            {
+                execution.TurnEnded = true;
+                yield break;
+            }
+
+            if (!progress.HasProgress(character))
+            {
+                PendingResidualMainActionCache.Remove(character.Guid);
+                yield break;
+            }
+        }
     }
 
     private static bool HasResidualHostileActionProgress(
@@ -6666,11 +6757,37 @@ internal static partial class CombatAiContext
                 }
 
                 result.Started = true;
+                result.Destination = destination;
                 yield break;
             }
         }
 
         JumpImmediateAttackReachableCache.Remove(character.Guid);
+
+        if (TryFindGroundMeleeApproachJumpCandidate(
+                character,
+                profile,
+                turnPlan,
+                battleService,
+                out var approachJumpDestination) &&
+            TryExecuteAiFreeJumpTacticalMove(
+                character,
+                approachJumpDestination,
+                CombatAiRouteMoveSourceKind.FreeJump,
+                observeActionLinkedCompletion: false))
+        {
+            TurnMovementProgressCache.TryGetValue(character.Guid, out var jumpProgress);
+            jumpProgress?.MarkFreeJumpMovementCandidate();
+            RecordPreMainRouteMoveIfRequired(
+                character,
+                turnPlan,
+                requireMainAction,
+                CombatAiPreMainRouteMoveStatus.Executed,
+                approachJumpDestination);
+            result.Started = true;
+            result.Destination = approachJumpDestination;
+            yield break;
+        }
 
         yield return ComputeReachableRouteDestinations(character, start, remainingMoves, validateTurn: true);
         if (!IsCurrent())
@@ -6973,7 +7090,7 @@ internal static partial class CombatAiContext
             turnPlan.ActionProbe,
             battleService);
 
-        if (result.Executed || result.PolicyHeld)
+        if (result.Selected || result.PolicyHeld)
         {
             return result;
         }
@@ -7005,20 +7122,17 @@ internal static partial class CombatAiContext
                 continue;
             }
 
-            if (TryUseCurrentHostilePowerMainAction(
-                    character,
-                    target,
-                    battleService))
+            var powerAction = TryUseCurrentHostilePowerMainAction(character, target, battleService);
+            if (powerAction.Selected)
             {
-                return new CombatAiResidualHostileActionResult(
-                    CombatAiResidualHostileActionResultKind.Executed);
+                return powerAction;
             }
         }
 
         return result;
     }
 
-    private static bool TryUseCurrentHostilePowerMainAction(
+    private static CombatAiResidualHostileActionResult TryUseCurrentHostilePowerMainAction(
         GameLocationCharacter character,
         GameLocationCharacter target,
         IGameLocationBattleService battleService)
@@ -7037,7 +7151,7 @@ internal static partial class CombatAiContext
                 committedMainAction,
                 character.GetActionTypeStatus(ActionType.Main)))
         {
-            return false;
+            return new CombatAiResidualHostileActionResult(CombatAiResidualHostileActionResultKind.Unavailable);
         }
 
         var actionService = ServiceRepository.GetService<IGameLocationActionService>();
@@ -7045,7 +7159,7 @@ internal static partial class CombatAiContext
 
         if (actionService == null || implementationService == null)
         {
-            return false;
+            return new CombatAiResidualHostileActionResult(CombatAiResidualHostileActionResultKind.Blocked);
         }
 
         var distance = ComputeGridDistance(character.LocationPosition, target.LocationPosition);
@@ -7066,19 +7180,9 @@ internal static partial class CombatAiContext
                 continue;
             }
 
-            var attackParams = new BattleDefinitions.AttackEvaluationParams();
-            var modifier = new ActionModifier();
-
-            attackParams.FillForMagic(
-                character,
-                character.LocationPosition,
-                effectDescription,
-                power.Name,
-                target,
-                target.LocationPosition,
-                modifier);
-
-            if (!battleService.CanAttack(attackParams))
+            if (!TryGetMagicAttackModifierFromPosition(
+                    character, character.LocationPosition, target, target.LocationPosition,
+                    effectDescription, power.Name, battleService, out var modifier))
             {
                 continue;
             }
@@ -7094,13 +7198,12 @@ internal static partial class CombatAiContext
                 TargetCharacters = { target }
             };
 
-            MarkPendingResidualMainAction(character, Id.PowerMain);
-            return TryExecuteResidualHostileAction(
+            return SelectResidualHostileAction(
                 actionService,
                 actionParams);
         }
 
-        return false;
+        return new CombatAiResidualHostileActionResult(CombatAiResidualHostileActionResultKind.Unavailable);
     }
 
     private static CombatAiTurnPlan BuildTerminalActionPlan(
@@ -8598,19 +8701,9 @@ internal static partial class CombatAiContext
             }
 
             hasInRangePower = true;
-            var attackParams = new BattleDefinitions.AttackEvaluationParams();
-            var modifier = new ActionModifier();
-
-            attackParams.FillForMagic(
-                character,
-                position,
-                effectDescription,
-                power.Name,
-                target,
-                target.LocationPosition,
-                modifier);
-
-            if (battleService.CanAttack(attackParams))
+            if (TryGetMagicAttackModifierFromPosition(
+                    character, position, target, target.LocationPosition,
+                    effectDescription, power.Name, battleService, out _))
             {
                 return new RouteActionConnection(true, false, false, false);
             }
@@ -11016,19 +11109,9 @@ internal static partial class CombatAiContext
             }
 
             seenSpells.Add(candidate.Name);
-            var attackParams = new BattleDefinitions.AttackEvaluationParams();
-            var actionModifier = new ActionModifier();
-
-            attackParams.FillForMagic(
-                character,
-                character.LocationPosition,
-                effectDescription,
-                candidate.Name,
-                target,
-                target.LocationPosition,
-                actionModifier);
-
-            if (!battleService.CanAttack(attackParams))
+            if (!TryGetMagicAttackModifierFromPosition(
+                    character, character.LocationPosition, target, target.LocationPosition,
+                    effectDescription, candidate.Name, battleService, out var actionModifier))
             {
                 continue;
             }
@@ -11119,22 +11202,11 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        var actionParams = new CharacterActionParams(character, Id.CastBonus)
-        {
-            ActionModifiers = { modifier ?? new ActionModifier() },
-            IntParameter = spell.SpellLevel,
-            StringParameter = spell.Name,
-            RulesetEffect = implementationService.InstantiateEffectSpell(
-                character.RulesetCharacter,
-                spellRepertoire,
-                spell,
-                spell.SpellLevel,
-                false),
-            SpellRepertoire = spellRepertoire,
-            TargetCharacters = { target }
-        };
+        var actionParams = BuildCombatAiSpellActionParams(
+            character, target, Id.CastBonus, spell, spellRepertoire,
+            modifier ?? new ActionModifier(), implementationService);
 
-        actionService.ExecuteAction(actionParams, null, true);
+        DispatchCombatAiAction(actionService, actionParams, true);
         return true;
     }
 
@@ -11192,6 +11264,9 @@ internal static partial class CombatAiContext
 
             if (power == null ||
                 power.ActivationTime != ActivationTime.BonusAction ||
+                // These limited powers have dedicated handlers that validate their
+                // attack, route, affliction or ally context before spending them.
+                IsEnemyBattleTacticsPower(power) ||
                 !character.RulesetCharacter.CanUsePower(power, true, true) ||
                 !IsLeftoverBonusEffectCandidate(character, target, effectDescription, distance, hostile))
             {
@@ -11233,7 +11308,7 @@ internal static partial class CombatAiContext
             TargetCharacters = { target }
         };
 
-        actionService.ExecuteAction(actionParams, null, true);
+        DispatchCombatAiAction(actionService, actionParams, true);
         return true;
     }
 
@@ -12552,13 +12627,8 @@ internal static partial class CombatAiContext
                 continue;
             }
 
-            var attackParams = new BattleDefinitions.AttackEvaluationParams();
-            var modifier = new ActionModifier();
-
-            attackParams.FillForPhysicalRangeAttack(
-                attacker, attackerPosition, mode, target, targetPosition, modifier);
-
-            if (!battleService.CanAttack(attackParams))
+            if (!TryGetPhysicalAttackModifierFromPosition(
+                    attacker, attackerPosition, target, targetPosition, mode, battleService, out var modifier))
             {
                 continue;
             }
@@ -12584,7 +12654,8 @@ internal static partial class CombatAiContext
         GameLocationCharacter target,
         int3 targetPosition,
         IGameLocationBattleService battleService,
-        out ActionModifier bestModifier)
+        out ActionModifier bestModifier,
+        bool requireAttackRoll = false)
     {
         return TryGetAtWillSpellAttackFromPosition(
             attacker,
@@ -12594,7 +12665,8 @@ internal static partial class CombatAiContext
             battleService,
             out _,
             out _,
-            out bestModifier);
+            out bestModifier,
+            requireAttackRoll);
     }
 
     private static bool TryGetAtWillSpellAttackFromPosition(
@@ -12605,7 +12677,8 @@ internal static partial class CombatAiContext
         IGameLocationBattleService battleService,
         out SpellDefinition spell,
         out RulesetSpellRepertoire spellRepertoire,
-        out ActionModifier bestModifier)
+        out ActionModifier bestModifier,
+        bool requireAttackRoll = false)
     {
         bestModifier = null;
         spell = null;
@@ -12635,27 +12708,19 @@ internal static partial class CombatAiContext
                 continue;
             }
 
-            var attackParams = new BattleDefinitions.AttackEvaluationParams();
-            var modifier = new ActionModifier();
             var effectDescription = PowerBundle.ModifySpellEffect(cantrip, rulesetAttacker);
 
             if (effectDescription == null ||
+                requireAttackRoll && !effectDescription.NeedsToRollDie() ||
                 effectDescription.RangeParameter > 0 &&
                 distance > effectDescription.RangeParameter + 0.5f)
             {
                 continue;
             }
 
-            attackParams.FillForMagic(
-                attacker,
-                attackerPosition,
-                effectDescription,
-                cantrip.Name,
-                target,
-                targetPosition,
-                modifier);
-
-            if (!battleService.CanAttack(attackParams))
+            if (!TryGetMagicAttackModifierFromPosition(
+                    attacker, attackerPosition, target, targetPosition,
+                    effectDescription, cantrip.Name, battleService, out var modifier))
             {
                 continue;
             }
@@ -16901,9 +16966,10 @@ internal static partial class CombatAiContext
 
     private static CombatAiTemperament GetTemperament(
         RulesetCharacter rulesetCharacter,
-        CombatAiFamily family)
+        CombatAiFamily family,
+        bool independentOfAiSetting = false)
     {
-        if (!IsAdvancedCombatAiProfilesEnabled)
+        if (!independentOfAiSetting && !IsAdvancedCombatAiProfilesEnabled)
         {
             return CombatAiTemperament.Neutral;
         }
@@ -16984,7 +17050,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        if (rulesetCharacter.CanCastSpells() || rulesetCharacter.SpellRepertoires.Count > 0)
+        if (rulesetCharacter.SpellRepertoires.Any(repertoire => !IsEnemyBattleGrantedSpellRepertoire(repertoire)))
         {
             return true;
         }
@@ -17177,7 +17243,7 @@ internal static partial class CombatAiContext
 
             var reach = attackMode?.ReachRange ?? 1;
 
-            if (CanAttackInMeleeFromPosition(enemy, enemy.LocationPosition, actor, destination, battleService))
+            if (CanThreatenOpportunityAttackAtPosition(enemy, actor, destination, battleService))
             {
                 continue;
             }
@@ -17230,14 +17296,26 @@ internal static partial class CombatAiContext
                 continue;
             }
 
-            if (CanAttackInMeleeFromPosition(enemy, enemy.LocationPosition, actor, start, battleService) &&
-                !CanAttackInMeleeFromPosition(enemy, enemy.LocationPosition, actor, destination, battleService))
+            if (CanThreatenOpportunityAttackAtPosition(enemy, actor, start, battleService) &&
+                !CanThreatenOpportunityAttackAtPosition(enemy, actor, destination, battleService))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static bool CanThreatenOpportunityAttackAtPosition(
+        GameLocationCharacter attacker,
+        GameLocationCharacter target,
+        int3 targetPosition,
+        IGameLocationBattleService battleService)
+    {
+        // Main attacks already spent on an earlier turn do not remove a remaining
+        // opportunity attack. Keep sight and immunity checks with its native rules.
+        return attacker.CanPerformOpportunityAttackOnCharacter(
+            target, targetPosition, null, out _, out _, true, battleService);
     }
 
     private static bool HasForcedRouteOpportunityExposure(
@@ -17270,15 +17348,15 @@ internal static partial class CombatAiContext
                 continue;
             }
 
-            if (CanAttackInMeleeFromPosition(enemy, enemy.LocationPosition, actor, start, battleService) ||
-                CanAttackInMeleeFromPosition(enemy, enemy.LocationPosition, actor, destination, battleService))
+            if (CanThreatenOpportunityAttackAtPosition(enemy, actor, start, battleService) ||
+                CanThreatenOpportunityAttackAtPosition(enemy, actor, destination, battleService))
             {
                 continue;
             }
 
             foreach (var sample in EnumerateRouteExposureSamples(start, destination))
             {
-                if (CanAttackInMeleeFromPosition(enemy, enemy.LocationPosition, actor, sample, battleService))
+                if (CanThreatenOpportunityAttackAtPosition(enemy, actor, sample, battleService))
                 {
                     return true;
                 }
@@ -17991,6 +18069,79 @@ internal static partial class CombatAiContext
         return walkCost < int.MaxValue;
     }
 
+    private static bool TryFindGroundMeleeApproachJumpCandidate(
+        GameLocationCharacter character,
+        CombatAiProfile profile,
+        CombatAiTurnPlan turnPlan,
+        IGameLocationBattleService battleService,
+        out int3 bestDestination)
+    {
+        bestDestination = default;
+
+        if (character?.RulesetCharacter == null ||
+            battleService == null ||
+            !BuildActionEconomySnapshot(character).MainAvailable ||
+            !IsGroundMeleePursuitPlan(turnPlan) ||
+            !CanUseFreeJumpForAi(character) ||
+            !TryGetCachedGroundMeleeTargetContactRouteQuery(character, turnPlan, out var query) ||
+            !query.Complete)
+        {
+            return false;
+        }
+
+        var start = character.LocationPosition;
+        var walkContactCost = query.TryGetContactCost(start, out var startContactCost, out _)
+            ? startContactCost
+            : query.BestGoalMoveCost;
+        var selectedDestination = default(int3);
+        var selectedTotalCost = int.MaxValue;
+        var selectedContactCost = int.MaxValue;
+        var selectedScore = float.MinValue;
+        var found = false;
+
+        // Compare complete routes, including the walk after landing. A useful shortcut
+        // need not land within attack reach, and straight-line distance misses detours.
+        // The reverse contact map is already primed; never nest native pathfinding here.
+        FreeJumpContext.TryEnumerateAiFreeJumpDestinations(
+            character,
+            FreeJumpDefaultMinimumSuccessChance,
+            (destination, candidateInfo, score) =>
+            {
+                if (!query.TryGetContactCost(destination, out var contactCost, out _) ||
+                    walkContactCost - (candidateInfo.Preview.MoveCost + contactCost) <
+                    FreeJumpMinimumContactRouteSavings ||
+                    !IsLegalAiRouteDestination(character, destination) ||
+                    ShouldRejectGroundMeleeRouteFailureCandidate(character, turnPlan, start, destination) ||
+                    HasOpportunityAttackRisk(character, start, destination, battleService) ||
+                    ShouldRejectTrafficBlockingMove(character, destination, battleService, profile, turnPlan) ||
+                    ShouldRejectThreatAvoidanceReturnMove(character, profile, turnPlan, destination))
+                {
+                    return true;
+                }
+
+                var totalCost = candidateInfo.Preview.MoveCost + contactCost;
+                if (found &&
+                    (totalCost > selectedTotalCost ||
+                     totalCost == selectedTotalCost && contactCost > selectedContactCost ||
+                     totalCost == selectedTotalCost && contactCost == selectedContactCost &&
+                     !ShouldReplaceJumpImmediateAttackCandidate(
+                         true, score, selectedScore, destination, selectedDestination)))
+                {
+                    return true;
+                }
+
+                found = true;
+                selectedDestination = destination;
+                selectedTotalCost = totalCost;
+                selectedContactCost = contactCost;
+                selectedScore = score;
+                return true;
+            });
+
+        bestDestination = selectedDestination;
+        return found;
+    }
+
     private static bool TryFindJumpImmediateAttackCandidate(
         GameLocationCharacter character,
         CombatAiTurnPlan turnPlan,
@@ -18090,9 +18241,10 @@ internal static partial class CombatAiContext
 
         if (!found)
         {
-            FreeJumpContext.TryEnumerateImmediateAttackAiFreeJumpDestinations(
+            FreeJumpContext.TryEnumerateAiFreeJumpDestinations(
                 character,
-                ConsiderDestination);
+                FreeJumpDefaultMinimumSuccessChance,
+                (destination, _, score) => ConsiderDestination(destination, score));
         }
 
         if (!found)
@@ -18315,26 +18467,6 @@ internal static partial class CombatAiContext
         }
 
         ApplyRouteMovementLockAfterArrival(character, pendingAction);
-
-        if (pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.ImmediateResidualAction)
-        {
-            InvalidateTurnPlanningCache(character);
-            return;
-        }
-
-        if (pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.ReturnToVanillaDecision)
-        {
-
-            InvalidateTurnPlanningCache(character);
-            return;
-        }
-
-        if (pendingAction.Continuation == CombatAiActionLinkedMoveContinuation.ReturnToCoordinatorAfterRouteMove)
-        {
-
-            InvalidateTurnPlanningCache(character);
-            return;
-        }
 
         InvalidateTurnPlanningCache(character);
     }
@@ -18939,21 +19071,177 @@ internal static partial class CombatAiContext
         return IsThreatRouteMovementLockGoal(movementGoal) && actualDestination != startPosition;
     }
 
-    private static bool TryExecuteResidualHostileAction(
+    private static CombatAiResidualHostileActionResult SelectResidualHostileAction(
         IGameLocationActionService actionService,
         CharacterActionParams actionParams)
     {
         if (actionService == null || actionParams == null)
         {
+            return new CombatAiResidualHostileActionResult(CombatAiResidualHostileActionResultKind.Blocked);
+        }
+
+        // Selection must finish before preparation can enqueue a bonus action. The
+        // owning turn coroutine dispatches this same action after preparation settles.
+        return new CombatAiResidualHostileActionResult(
+            CombatAiResidualHostileActionResultKind.Selected, actionParams);
+    }
+
+    private static CharacterActionParams BuildCombatAiSpellActionParams(
+        GameLocationCharacter character,
+        GameLocationCharacter target,
+        Id actionId,
+        SpellDefinition spell,
+        RulesetSpellRepertoire spellRepertoire,
+        ActionModifier modifier,
+        IRulesetImplementationService implementationService)
+    {
+        return new CharacterActionParams(character, actionId)
+        {
+            ActionModifiers = { modifier },
+            IntParameter = spell.SpellLevel,
+            StringParameter = spell.Name,
+            RulesetEffect = implementationService.InstantiateEffectSpell(
+                character.RulesetCharacter, spellRepertoire, spell, spell.SpellLevel, false),
+            SpellRepertoire = spellRepertoire,
+            TargetCharacters = { target }
+        };
+    }
+
+    private static void ReleaseUndispatchedCombatAiAction(CharacterActionParams actionParams)
+    {
+        if (actionParams == null)
+        {
+            return;
+        }
+
+        // These effects and mode copies have not entered an action chain.
+        actionParams.RulesetEffect?.Terminate(false);
+        actionParams.AttackMode = null;
+    }
+
+    private static void DispatchCombatAiAction(
+        IGameLocationActionService actionService,
+        CharacterActionParams actionParams,
+        bool force)
+    {
+        var dispatched = false;
+        try
+        {
+            actionService.ExecuteAction(actionParams, null, force);
+            dispatched = true;
+        }
+        finally
+        {
+            if (!dispatched)
+            {
+                ReleaseUndispatchedCombatAiAction(actionParams);
+            }
+        }
+    }
+
+    private static IEnumerator ExecuteSelectedResidualHostileActionAtProcessBoundary(
+        CharacterActionParams actionParams,
+        IGameLocationBattleService battleService,
+        Action<bool> completed)
+    {
+        var character = actionParams?.ActingCharacter;
+        var battle = Gui.Battle;
+        var round = GetCurrentBattleRound();
+        var turn = Math.Max(1, ObservedCombatMemoryTurnStamp);
+        var rank = character?.CurrentActionRankByType[ActionType.Main] ?? -1;
+        var dispatched = false;
+
+        try
+        {
+            if (!CanDispatchSelectedResidualHostileAction(actionParams, battleService))
+            {
+                yield break;
+            }
+
+            yield return RunEnemyBattlePreparationBeforeAttack(actionParams);
+
+            if (!ReferenceEquals(battle, Gui.Battle) || round != GetCurrentBattleRound() ||
+                turn != Math.Max(1, ObservedCombatMemoryTurnStamp) ||
+                rank != character.CurrentActionRankByType[ActionType.Main] ||
+                !CanDispatchSelectedResidualHostileAction(actionParams, battleService) ||
+                ServiceRepository.GetService<IGameLocationActionService>() is not { } actionService)
+            {
+                yield break;
+            }
+
+            MarkPendingResidualMainAction(character, actionParams.ActionDefinition.Id);
+            actionService.ExecuteAction(actionParams, null, false);
+            dispatched = true;
+        }
+        finally
+        {
+            if (!dispatched)
+            {
+                ReleaseUndispatchedCombatAiAction(actionParams);
+            }
+            completed?.Invoke(dispatched);
+        }
+    }
+
+    private static bool CanDispatchSelectedResidualHostileAction(
+        CharacterActionParams actionParams,
+        IGameLocationBattleService battleService)
+    {
+        var character = actionParams?.ActingCharacter;
+        var target = actionParams?.TargetCharacters.FirstOrDefault();
+        if (!CanIssueAutomaticTurnAction(character) ||
+            target?.RulesetCharacter is not { IsDeadOrDying: false, IsRemovedFromTheGame: false } ||
+            !character.IsOppositeSide(target.Side) || !IsAiControlledForCombat(character) ||
+            battleService == null)
+        {
             return false;
         }
 
-        actionService.ExecuteAction(
-            actionParams,
-            null,
-            false);
+        switch (actionParams.ActionDefinition?.Id)
+        {
+            case Id.AttackMain:
+                var mode = actionParams.AttackMode;
+                var ranged = IsRangedAttackMode(mode);
+                if (mode?.ActionType != ActionType.Main || !HasAvailableAttackMainContinuation(character) ||
+                    !ValidateResidualMainAction(character, target,
+                        ranged ? CombatAiActionKind.Ranged : CombatAiActionKind.Melee, battleService) ||
+                    !IsAttackModeAvailableForMainAction(character, mode, out _) ||
+                    character.GetActionStatus(Id.AttackMain, ActionScope.Battle, optionalAttackMode: mode) != ActionStatus.Available ||
+                    character.RulesetCharacter is RulesetCharacterMonster monster && monster.GetRemainingAttackUses(mode) == 0)
+                {
+                    return false;
+                }
+                return TryGetPhysicalAttackModifierFromPosition(
+                    character, character.LocationPosition, target, target.LocationPosition, mode, battleService, out _);
 
-        return true;
+            case Id.CastMain:
+                if (actionParams.RulesetEffect is not RulesetEffectSpell spell ||
+                    !CanUseMainSpellActionForAi(character) ||
+                    !IsSpellReadyForLeftoverBonus(character.RulesetCharacter, actionParams.SpellRepertoire, spell.SpellDefinition))
+                {
+                    return false;
+                }
+                return TryGetMagicAttackModifierFromPosition(
+                    character, character.LocationPosition, target, target.LocationPosition,
+                    spell.EffectDescription, spell.SourceDefinition.Name, battleService, out _);
+
+            case Id.PowerMain:
+                if (actionParams.RulesetEffect is not RulesetEffectPower power ||
+                    character.GetActionStatus(Id.PowerMain, ActionScope.Battle) != ActionStatus.Available ||
+                    character.GetActionTypeStatus(ActionType.Main) != ActionStatus.Available ||
+                    TryGetCommittedNonTerminalMainActionThisTurn(character, out var committed) &&
+                    !HasUnspentMainActionRank(character, committed, character.GetActionTypeStatus(ActionType.Main)) ||
+                    !character.RulesetCharacter.CanUsePower(power.PowerDefinition, true, true))
+                {
+                    return false;
+                }
+                return TryGetMagicAttackModifierFromPosition(
+                    character, character.LocationPosition, target, target.LocationPosition,
+                    power.EffectDescription, power.SourceDefinition.Name, battleService, out _);
+
+            default:
+                return false;
+        }
     }
 
     private static CombatAiResidualHostileActionResult TryUseResidualSafeHostileAction(
@@ -18981,15 +19269,17 @@ internal static partial class CombatAiContext
             return new CombatAiResidualHostileActionResult(CombatAiResidualHostileActionResultKind.Unavailable);
         }
 
-        if (ShouldPreferCurrentMeleeResidualAction(character, actionProbe, battleService) &&
-            TryUseResidualSafeHostileAction(
+        if (ShouldPreferCurrentMeleeResidualAction(character, actionProbe, battleService))
+        {
+            var meleeResult = TryUseResidualSafeHostileAction(
                 character,
                 actionProbe.Target,
                 CombatAiActionKind.Melee,
-                battleService).Executed)
-        {
-            return new CombatAiResidualHostileActionResult(
-                CombatAiResidualHostileActionResultKind.Executed);
+                battleService);
+            if (meleeResult.Selected)
+            {
+                return meleeResult;
+            }
         }
 
         if (ShouldSuppressRangedBackupForMeleeRoute(character, actionProbe, battleService))
@@ -19008,20 +19298,22 @@ internal static partial class CombatAiContext
                 preferredFirst,
                 battleService);
 
-        if (preferredResult.Executed)
+        if (preferredResult.Selected)
         {
             return preferredResult;
         }
 
-        if (preferredFirst != actionProbe.BackupAction &&
-            TryUseResidualSafeHostileAction(
+        if (preferredFirst != actionProbe.BackupAction)
+        {
+            var backupResult = TryUseResidualSafeHostileAction(
                 character,
                 actionProbe.Target,
                 actionProbe.BackupAction,
-                battleService).Executed)
-        {
-            return new CombatAiResidualHostileActionResult(
-                CombatAiResidualHostileActionResultKind.Executed);
+                battleService);
+            if (backupResult.Selected)
+            {
+                return backupResult;
+            }
         }
 
         return preferredResult.IsBlocked
@@ -19283,13 +19575,9 @@ internal static partial class CombatAiContext
                 continue;
             }
 
-            MarkPendingResidualMainAction(character, Id.AttackMain);
-            TryExecuteResidualHostileAction(
+            return SelectResidualHostileAction(
                 actionService,
                 new CharacterActionParams(character, Id.AttackMain, mode, target, modifier));
-
-            return new CombatAiResidualHostileActionResult(
-                CombatAiResidualHostileActionResultKind.Executed);
         }
 
         return new CombatAiResidualHostileActionResult(
@@ -19326,7 +19614,7 @@ internal static partial class CombatAiContext
     {
         var cantripResult = TryUseResidualCantripAttack(character, target, battleService);
 
-        if (cantripResult.Executed)
+        if (cantripResult.Selected)
         {
             return cantripResult;
         }
@@ -19372,26 +19660,10 @@ internal static partial class CombatAiContext
                 CombatAiResidualHostileActionResultKind.Blocked);
         }
 
-        var actionParams = new CharacterActionParams(character, Id.CastMain)
-        {
-            ActionModifiers = { modifier },
-            IntParameter = spell.SpellLevel,
-            StringParameter = spell.Name,
-            RulesetEffect = implementationService.InstantiateEffectSpell(
-                character.RulesetCharacter,
-                spellRepertoire,
-                spell,
-                spell.SpellLevel,
-                false),
-            SpellRepertoire = spellRepertoire,
-            TargetCharacters = { target }
-        };
+        var actionParams = BuildCombatAiSpellActionParams(
+            character, target, Id.CastMain, spell, spellRepertoire, modifier, implementationService);
 
-        MarkPendingResidualMainAction(character, Id.CastMain);
-        TryExecuteResidualHostileAction(actionService, actionParams);
-
-        return new CombatAiResidualHostileActionResult(
-            CombatAiResidualHostileActionResultKind.Executed);
+        return SelectResidualHostileAction(actionService, actionParams);
     }
 
     private static bool TryGetResidualHostileSpellFromPosition(
@@ -19534,19 +19806,9 @@ internal static partial class CombatAiContext
                 continue;
             }
 
-            var attackParams = new BattleDefinitions.AttackEvaluationParams();
-            var modifier = new ActionModifier();
-
-            attackParams.FillForMagic(
-                character,
-                characterPosition,
-                effectDescription,
-                candidate.Name,
-                target,
-                target.LocationPosition,
-                modifier);
-
-            if (!battleService.CanAttack(attackParams))
+            if (!TryGetMagicAttackModifierFromPosition(
+                    character, characterPosition, target, target.LocationPosition,
+                    effectDescription, candidate.Name, battleService, out var modifier))
             {
                 continue;
             }
@@ -19640,26 +19902,10 @@ internal static partial class CombatAiContext
                 CombatAiResidualHostileActionResultKind.Blocked);
         }
 
-        var actionParams = new CharacterActionParams(character, Id.CastMain)
-        {
-            ActionModifiers = { modifier },
-            IntParameter = spell.SpellLevel,
-            StringParameter = spell.Name,
-            RulesetEffect = implementationService.InstantiateEffectSpell(
-                character.RulesetCharacter,
-                spellRepertoire,
-                spell,
-                spell.SpellLevel,
-                false),
-            SpellRepertoire = spellRepertoire,
-            TargetCharacters = { target }
-        };
+        var actionParams = BuildCombatAiSpellActionParams(
+            character, target, Id.CastMain, spell, spellRepertoire, modifier, implementationService);
 
-        MarkPendingResidualMainAction(character, Id.CastMain);
-        TryExecuteResidualHostileAction(actionService, actionParams);
-
-        return new CombatAiResidualHostileActionResult(
-            CombatAiResidualHostileActionResultKind.Executed);
+        return SelectResidualHostileAction(actionService, actionParams);
     }
 
     private static bool HasVisibleFlightContext(GameLocationCharacter actor)

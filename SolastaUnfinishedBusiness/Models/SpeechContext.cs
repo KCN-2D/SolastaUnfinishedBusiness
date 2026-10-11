@@ -1023,33 +1023,56 @@ internal static class SpeechContext
         try
         {
             speechAudio = await SynthesizeSpeechAsync(request.VoiceInfo, request.Scale, request.CleanedText);
+
+            lock (SpeechLock)
+            {
+                if (Unloading || CurrentSpeechRequest != request)
+                {
+                    speechAudio?.Dispose();
+                    return;
+                }
+
+                if (request.Generation != SpeechGeneration || speechAudio == null)
+                {
+                    speechAudio?.Dispose();
+                    CompleteSpeechRequestNoLock(request);
+                    return;
+                }
+
+                PlaySpeechNoLock(speechAudio);
+            }
         }
         catch (Exception e)
         {
+            lock (SpeechLock)
+            {
+                // A failed old synthesis must not dispose a newer request's playback.
+                if (CurrentSpeechRequest == request)
+                {
+                    DisposeSpeechStreamsNoLock();
+                    speechAudio?.Dispose();
+                    CompleteSpeechRequestNoLock(request);
+                }
+                else
+                {
+                    speechAudio?.Dispose();
+                }
+            }
+
             Main.Error(e);
         }
+    }
 
-        lock (SpeechLock)
+    private static void CompleteSpeechRequestNoLock(SpeechRequest request)
+    {
+        if (CurrentSpeechRequest != request)
         {
-            if (Unloading ||
-                CurrentSpeechRequest != request)
-            {
-                speechAudio?.Dispose();
-                return;
-            }
-
-            if (request.Generation != SpeechGeneration ||
-                speechAudio == null)
-            {
-                speechAudio?.Dispose();
-                CurrentSpeechRequest = null;
-                SpeechPlaybackActive = false;
-                StartNextSpeechNoLock();
-                return;
-            }
-
-            PlaySpeechNoLock(speechAudio);
+            return;
         }
+
+        CurrentSpeechRequest = null;
+        SpeechPlaybackActive = false;
+        StartNextSpeechNoLock();
     }
 
     private static void OnSpeechPlaybackStopped(object sender, StoppedEventArgs e)
@@ -1063,9 +1086,7 @@ internal static class SpeechContext
                 return;
             }
 
-            CurrentSpeechRequest = null;
-            SpeechPlaybackActive = false;
-            StartNextSpeechNoLock();
+            CompleteSpeechRequestNoLock(CurrentSpeechRequest);
         }
     }
 

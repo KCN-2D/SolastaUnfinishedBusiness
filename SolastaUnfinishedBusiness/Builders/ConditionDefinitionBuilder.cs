@@ -5,9 +5,11 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+using SolastaUnfinishedBusiness.CustomUI;
 using TA.AI;
 using UnityEngine.AddressableAssets;
 using static RuleDefinitions;
+using Resources = SolastaUnfinishedBusiness.Properties.Resources;
 
 namespace SolastaUnfinishedBusiness.Builders;
 
@@ -40,6 +42,66 @@ internal class ConditionDefinitionBuilder
         base.Initialise();
         SetEmptyParticleReferencesWhereNull(Definition);
     }
+
+    internal override void Validate()
+    {
+        base.Validate();
+        EnsurePresentationSprite(Definition);
+    }
+
+    internal static void EnsurePresentationSprite(ConditionDefinition definition)
+    {
+        var presentation = definition.GuiPresentation;
+
+        // A visible condition can generate its description from its features, but still needs an authored title.
+        if (presentation == null || presentation.Hidden || !HasPresentationText(presentation.Title) ||
+            (!HasPresentationText(presentation.Description) && definition.Features.Count == 0) ||
+            presentation.SpriteReference?.RuntimeKeyIsValid() == true)
+        {
+            return;
+        }
+
+        // Dedicated status bitmaps share the definition's resource name and are authored at the native 32px size.
+        if (Resources.ResourceManager.GetObject(definition.Name) is byte[] bitmap)
+        {
+            presentation.spriteReference = Sprites.GetSprite(definition.Name, bitmap, 32);
+            return;
+        }
+
+        var visited = new HashSet<ConditionDefinition> { definition };
+        var parent = definition.parentCondition;
+
+        while (parent && visited.Add(parent))
+        {
+            var sprite = parent.GuiPresentation?.SpriteReference;
+
+            if (sprite?.RuntimeKeyIsValid() == true)
+            {
+                presentation.spriteReference = sprite;
+                return;
+            }
+
+            parent = parent.parentCondition;
+        }
+
+        // These native sprites are the generic positive/negative status symbols, not spell illustrations.
+        var fallback = definition.ConditionType switch
+        {
+            ConditionType.Beneficial => DatabaseHelper.ConditionDefinitions.ConditionBlessed,
+            ConditionType.Detrimental => DatabaseHelper.ConditionDefinitions.ConditionBaned,
+            _ => null
+        };
+        var fallbackSprite = fallback?.GuiPresentation?.SpriteReference;
+
+        if (fallbackSprite?.RuntimeKeyIsValid() == true)
+        {
+            presentation.spriteReference = fallbackSprite;
+        }
+    }
+
+    private static bool HasPresentationText(string text) =>
+        !string.IsNullOrWhiteSpace(text) && text != Gui.NoLocalization &&
+        text is not (Gui.EmptyContent or GuiPresentationBuilder.EmptyString);
 
     internal ConditionDefinitionBuilder AllowMultipleInstances()
     {

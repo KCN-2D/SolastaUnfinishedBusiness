@@ -540,8 +540,8 @@ ModUi/&WeaponMasterySystemCustomizeToggle=Customize weapon mastery properties
 ModUi/&WeaponMasterySystemCustomizeResetAll=Reset All
 ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Will reset all weapon mastery properties to default
 ModUi/&WideScreenBattleUI=Enable Wide Screen Battle UI <i><color=#F0DAA0>(For resolutions with an Aspect Ratio greater than 16:9)</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race; Human is adjusted because the default all +1 is removed <i><color=#F0DAA0>[Flexible Races is incompatible and will be toggled off]</color></i>
-ModUi/&EnableBackgroundBonusFeats=Change background grants to 2024-style origin feat, two skills, and one tool <i><color=#F0DAA0>[Requires Background ASI; Flexible Backgrounds is incompatible and will be toggled off]</color></i>
+ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race; Human's features are adjusted accordingly <i><color=#F0DAA0>(Flexible Races does not apply while this option is enabled)</color></i>
+ModUi/&EnableBackgroundBonusFeats=Change background grants to a 2024 origin feat, two skill proficiencies and one tool proficiency <i><color=#F0DAA0>(Requires Background ASI; Flexible Backgrounds does not apply while this option is enabled)</color></i>
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
@@ -565,3 +565,8 @@ ModUi/&EnableMonkWeaponProficiency2024=Enable 2024 <color=#D89555>Monk Weapon Pr
 ModUi/&EnableRogueWeaponProficiency2024=Enable 2024 <color=#D89555>Rogue Weapon Proficiencies</color> <i><color=#F0DAA0>[simple weapons and martial weapons with the Finesse or Light property]</color></i>
 ModUi/&EnableSorcererWeaponProficiency2024=Enable 2024 <color=#D89555>Sorcerer weapon proficiencies</color> <i><color=#F0DAA0>[all simple weapons]</color></i>
 ModUi/&EnableWizardWeaponProficiency2024=Enable 2024 <color=#D89555>Wizard weapon proficiencies</color> <i><color=#F0DAA0>[all simple weapons]</color></i>
+ModUI/&EnableEnemyBattleTactics=Enable additional enemy abilities based on creature type and combat role
+ModUI/&EnableEnemyBattleTacticsDescription=Enemies gain abilities suited to their type and combat role. Ability slots by CR: 1–4: 1; 5–8: 2; 9–12: 3; 13–16: 4; 17+: 5. Tiers 1–3 cost that many slots; tiers 2/3 require CR 5/11. Weighted selection within this budget does not guarantee the highest tier. Below CR 1, the chance to gain one tier 1 ability equals the CR.
+ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=For multiplayer, all participants must select the same setting before starting the session. This setting cannot be changed during a multiplayer session.
+ModUi/&FlexibleRacesDisabledByBackgroundASI=Background ability score increases are enabled, so flexible racial ability score increases do not apply. Your selection applies again when background ability score increases are disabled.
+ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats=Background origin feats are enabled, so flexible background proficiencies do not apply. Your selection applies again when background origin feats are disabled.

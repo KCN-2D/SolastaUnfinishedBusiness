@@ -183,3 +183,4 @@ Spell/&FindFamiliarCatFiendSelectionTitle=Chat · Fiélon
 Reaction/&SpendSpellSlotSilveryBarbsAttackDescription={0} a réussi un jet d'attaque contre {1}. Faites relancer le d20 à {0}, qui doit utiliser le résultat le plus faible.
 Reaction/&SpendSpellSlotSilveryBarbsAbilityCheckDescription={0} a réussi un test de caractéristique. Faites relancer le d20 à {0}, qui doit utiliser le résultat le plus faible.
 Reaction/&SpendSpellSlotSilveryBarbsSavingThrowDescription={0} a réussi un jet de sauvegarde. Faites relancer le d20 à {0}, qui doit utiliser le résultat le plus faible.
+Spell/&MagicMissileTitle=Projectile magique

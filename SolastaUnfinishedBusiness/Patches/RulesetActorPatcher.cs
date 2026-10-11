@@ -337,8 +337,7 @@ public static class RulesetActorPatcher
             switch (addedCondition.AmountOrigin)
             {
                 case (ConditionDefinition.OriginOfAmount)ExtraOriginOfAmount.SourceProficiencyBonus:
-                    sourceAmount =
-                        sourceCharacter.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+                    sourceAmount = sourceCharacter.TryGetProficiencyBonus();
                     break;
 
                 case (ConditionDefinition.OriginOfAmount)ExtraOriginOfAmount.SourceClassLevel:
@@ -360,7 +359,7 @@ public static class RulesetActorPatcher
 
                 case (ConditionDefinition.OriginOfAmount)ExtraOriginOfAmount.SourceProficiencyAndAbilityBonus:
                     sourceAmount =
-                        sourceCharacter.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus) +
+                        sourceCharacter.TryGetProficiencyBonus() +
                         AttributeDefinitions.ComputeAbilityScoreModifier(sourceCharacter.TryGetAttributeValue(source));
                     break;
 

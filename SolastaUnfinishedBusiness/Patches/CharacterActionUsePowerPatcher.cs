@@ -1,6 +1,5 @@
 ﻿using System.Collections;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -8,7 +7,6 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
-using static RuleDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -196,136 +194,9 @@ public static class CharacterActionUsePowerPatcher
         public static bool Prefix(
             ref IEnumerator __result, CharacterActionUsePower __instance)
         {
-            __result = Process(__instance);
+            __result = SpellInterruptionContext.ResolvePowerCounterspell(__instance, __instance.ActionParams.TargetAction);
 
             return false;
-        }
-
-        private static IEnumerator Process(CharacterActionUsePower actionUsePower)
-        {
-            var targetAction = actionUsePower.ActionParams.TargetAction;
-
-            if (targetAction?.ActionParams?.RulesetEffect is not RulesetEffectSpell counteredSpell ||
-                targetAction.Countered)
-            {
-                yield break;
-            }
-
-            var actingCharacter = actionUsePower.ActingCharacter;
-            var rulesetCharacter = actingCharacter.RulesetCharacter;
-            var actionParams = actionUsePower.ActionParams;
-            var actionModifier = actionParams.ActionModifiers[0];
-            var counteredSpellDefinition = RulesetEffectSpellWithOrigin.GetOriginSpell(counteredSpell);
-            var slotLevel = RulesetEffectSpellWithOrigin.GetResourceSlotLevel(counteredSpell);
-
-            foreach (var effectForm in actionParams.RulesetEffect.EffectDescription.EffectForms)
-            {
-                if (effectForm.FormType != EffectForm.EffectFormType.Counter ||
-                    effectForm.CounterForm.Type != CounterForm.CounterType.InterruptSpellcasting)
-                {
-                    continue;
-                }
-
-                var counterForm = effectForm.CounterForm;
-                if (counterForm.AutomaticSpellLevel >= slotLevel)
-                {
-                    SpellInterruptionContext.TryCounterSpell(actionUsePower, targetAction);
-                }
-                else if (counterForm.CheckBaseDC != 0)
-                {
-                    var checkDC = counterForm.CheckBaseDC + slotLevel;
-
-                    rulesetCharacter
-                        .EnumerateFeaturesToBrowse<FeatureDefinitionMagicAffinity>(rulesetCharacter.FeaturesToBrowse);
-
-                    foreach (var featureDefinition in rulesetCharacter.FeaturesToBrowse)
-                    {
-                        var definitionMagicAffinity = (FeatureDefinitionMagicAffinity)featureDefinition;
-
-                        if (definitionMagicAffinity.CounterspellAffinity == AdvantageType.None)
-                        {
-                            continue;
-                        }
-
-                        var advTrend = definitionMagicAffinity.CounterspellAffinity == AdvantageType.Advantage
-                            ? 1
-                            : -1;
-
-                        actionModifier.AbilityCheckAdvantageTrends.Add(new TrendInfo(
-                            advTrend, FeatureSourceType.CharacterFeature, definitionMagicAffinity.Name, null));
-                    }
-
-                    if (counteredSpell.CounterAffinity != AdvantageType.None)
-                    {
-                        var advTrend = counteredSpell.CounterAffinity == AdvantageType.Advantage
-                            ? 1
-                            : -1;
-
-                        actionModifier.AbilityCheckAdvantageTrends
-                            .Add(new TrendInfo(advTrend,
-                                FeatureSourceType.CharacterFeature,
-                                counteredSpell.CounterAffinityOrigin, null));
-                    }
-
-                    var classHolder = actionParams.RulesetEffect.GetSourceDefinitionSafe()
-                        .GetFirstSubFeatureOfType<ClassHolder>();
-                    var castingRepertoire = classHolder != null
-                        ? rulesetCharacter.GetClassSpellRepertoire(classHolder.Class)
-                        : rulesetCharacter.SpellRepertoires.FirstOrDefault(repertoire =>
-                            repertoire.SpellCastingFeature.SpellCastingOrigin
-                                is FeatureDefinitionCastSpell.CastingOrigin.Class
-                                or FeatureDefinitionCastSpell.CastingOrigin.Subclass);
-                    var abilityScoreName = castingRepertoire?.SpellCastingAbility ?? AttributeDefinitions.Charisma;
-
-                    var proficiencyName = string.Empty;
-
-                    if (counterForm.AddProficiencyBonus)
-                    {
-                        proficiencyName = "ForcedProficiency";
-                    }
-
-                    var abilityCheckData = new AbilityCheckData { Action = actionUsePower };
-
-                    yield return actingCharacter.RollAbilityCheckWithPrompt(
-                        abilityScoreName,
-                        proficiencyName,
-                        checkDC,
-                        AdvantageType.None,
-                        actionModifier,
-                        false,
-                        0,
-                        abilityCheckData,
-                        true);
-
-                    yield return TryAlterOutcomeAttributeCheck
-                        .HandleITryAlterOutcomeAttributeCheck(actingCharacter, abilityCheckData, abilityCheckData.CurrentRoll);
-
-                    actionUsePower.AbilityCheckRoll = abilityCheckData.AbilityCheckRoll;
-                    actionUsePower.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckRollOutcome;
-                    actionUsePower.AbilityCheckSuccessDelta = abilityCheckData.AbilityCheckSuccessDelta;
-
-                    if (actionUsePower.AbilityCheckRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
-                    {
-                        SpellInterruptionContext.TryCounterSpell(actionUsePower, targetAction);
-                    }
-                }
-
-                if (!SpellInterruptionContext.HasCounteredSpell(actionUsePower))
-                {
-                    continue;
-                }
-
-                var unknown = string.IsNullOrEmpty(counteredSpell.IdentifiedBy);
-
-                rulesetCharacter.SpellCounter?.Invoke(
-                    rulesetCharacter,
-                    targetAction.ActingCharacter.RulesetCharacter,
-                    counteredSpellDefinition,
-                    targetAction.Countered,
-                    unknown);
-
-                yield break;
-            }
         }
     }
 }

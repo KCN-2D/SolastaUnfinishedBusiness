@@ -1,9 +1,9 @@
-﻿using JetBrains.Annotations;
-using SolastaUnfinishedBusiness.Api.Helpers;
-using SolastaUnfinishedBusiness.Behaviors;
-
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Models;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
 
@@ -11,6 +11,26 @@ namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
 public static class RulesetSpellRepertoireExtensions
 {
+    internal static IEnumerable<SpellDefinition> EnumerateReadyCantrips(this RulesetSpellRepertoire repertoire)
+    {
+        if (repertoire == null)
+        {
+            return [];
+        }
+
+        var readySpells = repertoire.SpellCastingFeature?.SpellReadyness == RuleDefinitions.SpellReadyness.Prepared
+            ? repertoire.PreparedSpells
+            : repertoire.KnownSpells;
+        return repertoire.KnownCantrips.Concat(readySpells).Concat(repertoire.AutoPreparedSpells)
+            .Concat(repertoire.ExtraSpellsByTag.Values.SelectMany(spells => spells))
+            .Where(spell => spell != null)
+            .SelectMany(spell => spell.SpellsBundle
+                ? (IEnumerable<SpellDefinition>)SpellsContext.GetSubspellLeaves(spell)
+                : [spell])
+            .Where(spell => spell.SpellLevel == 0)
+            .Distinct();
+    }
+
     private static bool TryGetMulticasterWarlockSpellLevel(
         RulesetSpellRepertoire repertoire,
         [CanBeNull] RulesetCharacter character,

@@ -8,16 +8,19 @@ internal class ReactionRequestReactionAttack : ReactionRequest, IReactionRequest
     private readonly string _ally;
     private readonly GuiCharacter _target;
     private readonly string _type;
+    private readonly System.Func<bool> _reactionStillValid;
 
     internal ReactionRequestReactionAttack(
         string type,
         CharacterActionParams reactionParams,
         System.Action<ReactionRequestReactionAttack> reactionValidated = null,
-        System.Action<ReactionRequestReactionAttack> reactionNotValidated = null)
+        System.Action<ReactionRequestReactionAttack> reactionNotValidated = null,
+        System.Func<bool> reactionStillValid = null)
         : base(Name(type), reactionParams)
     {
         ReactionValidated = ReactionRequestCallback.Transform(reactionValidated);
         ReactionNotValidated = ReactionRequestCallback.Transform(reactionNotValidated);
+        _reactionStillValid = reactionStillValid;
 
         _type = type;
         _target = new GuiCharacter(reactionParams.TargetCharacters[0]);
@@ -32,7 +35,7 @@ internal class ReactionRequestReactionAttack : ReactionRequest, IReactionRequest
 
             return targetCharacter.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } &&
                    ServiceRepository.GetService<IGameLocationCharacterService>().ValidCharacters
-                       .Contains(targetCharacter);
+                       .Contains(targetCharacter) && (_reactionStillValid?.Invoke() ?? true);
         }
     }
 

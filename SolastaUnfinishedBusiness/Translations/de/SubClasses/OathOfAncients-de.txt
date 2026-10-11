@@ -1,6 +1,7 @@
 Condition/&ConditionOathOfAncientsAuraWardingDescription=Erlangen Sie Widerstand gegen Zauberschäden.
 Condition/&ConditionOathOfAncientsAuraWardingTitle=Bewacht
 Condition/&ConditionOathOfAncientsElderChampionDescription=• Zu Beginn jedes deiner Züge erhältst du 10 Trefferpunkte zurück.\n• Immer wenn du einen Paladinzauber mit einer Zauberzeit von 1 Aktion wirkst, kannst du als Teil derselben Aktion zwei Waffenangriffe ausführen.\n• Feindliche Kreaturen im Umkreis von 10 Fuß um dich herum sind bei Rettungswürfen gegen deine Paladinzauber und Channel Divinity-Optionen im Nachteil.
+Condition/&ConditionOathOfAncientsElderChampionEnemyDescription=Du hast Nachteil auf deinen nächsten Rettungswurf. Dieser Effekt endet, nachdem du einen Rettungswurf abgelegt hast.
 Condition/&ConditionOathOfAncientsElderChampionTitle=Älterer Champion
 Feature/&DamageAffinityOathOfAncientsUndyingSentinelDescription=Wenn Ihre Trefferpunkte auf 0 sinken, aber nicht sofort getötet werden, sinken Ihre Trefferpunkte stattdessen auf 1. Sie können von dieser Funktion erst wieder profitieren, wenn Sie eine lange Pause beendet haben.
 Feature/&DamageAffinityOathOfAncientsUndyingSentinelTitle=Unsterblicher Wächter

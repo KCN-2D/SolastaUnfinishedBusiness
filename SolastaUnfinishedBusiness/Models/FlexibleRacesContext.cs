@@ -164,7 +164,7 @@ internal static class FlexibleRacesContext
 
     internal static void SwitchFlexibleRaces()
     {
-        var enabled = Main.Settings.EnableFlexibleRaces;
+        var enabled = Tabletop2024Context.IsFlexibleRacesEffectivelyEnabled();
         var dbCharacterRaceDefinition = DatabaseRepository.GetDatabase<CharacterRaceDefinition>();
 
         foreach (var keyValuePair in AddedFeatures)

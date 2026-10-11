@@ -1,4 +1,7 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using HarmonyLib;
 using SolastaUnfinishedBusiness.Interfaces;
 
 namespace SolastaUnfinishedBusiness.Behaviors;
@@ -9,12 +12,19 @@ namespace SolastaUnfinishedBusiness.Behaviors;
  */
 public class AddUsablePowersFromCondition : IOnConditionAddedOrRemoved
 {
+    private static readonly FieldInfo UsablePowersField = AccessTools.Field(typeof(RulesetCharacter), "usablePowers");
     internal static AddUsablePowersFromCondition Marker { get; } = new();
+
+    // Monster.UsablePowers exposes the legendary collection while resolving a
+    // legendary action. A condition grants ordinary powers even at that time.
+    internal static List<RulesetUsablePower> GetGrantedUsablePowers(RulesetCharacter target) =>
+        (List<RulesetUsablePower>)UsablePowersField.GetValue(target);
 
     public void OnConditionAdded(RulesetCharacter target, RulesetCondition rulesetCondition)
     {
         //assuming mod won't have any case where same power is added twice to a condition
-        var powers = target.UsablePowers
+        var grantedPowers = GetGrantedUsablePowers(target);
+        var powers = grantedPowers
             .Select(x => x.PowerDefinition)
             .ToArray(); // avoid changing enumerator
 
@@ -22,7 +32,7 @@ public class AddUsablePowersFromCondition : IOnConditionAddedOrRemoved
                      .OfType<FeatureDefinitionPower>()
                      .Where(x => !powers.Contains(x)))
         {
-            target.UsablePowers.Add(PowerProvider.Get(power, target));
+            grantedPowers.Add(PowerProvider.Get(power, target));
         }
     }
 
@@ -31,7 +41,8 @@ public class AddUsablePowersFromCondition : IOnConditionAddedOrRemoved
         var powers = rulesetCondition.ConditionDefinition.Features
             .OfType<FeatureDefinitionPower>();
 
-        foreach (var usablePower in target.UsablePowers
+        var grantedPowers = GetGrantedUsablePowers(target);
+        foreach (var usablePower in grantedPowers
                      .Where(x => powers.Contains(x.PowerDefinition))
                      .ToArray())
         {
@@ -43,7 +54,7 @@ public class AddUsablePowersFromCondition : IOnConditionAddedOrRemoved
                 target.TerminatePower(effectPower);
             }
 
-            target.UsablePowers.Remove(usablePower);
+            grantedPowers.Remove(usablePower);
         }
     }
 }

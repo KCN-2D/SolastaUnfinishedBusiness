@@ -89,20 +89,20 @@ public static class CursorLocationBattleFriendlyTurnPatcher
                 return;
             }
 
-            try
+            if (FreeJumpContext.ApplyBonusActionDestinations(
+                    __instance.actingCharacter,
+                    __instance.constrainedMovementMode,
+                    __instance.validDestinations))
             {
-                if (FreeJumpContext.ApplyBonusActionDestinations(
-                        __instance.actingCharacter,
-                        __instance.constrainedMovementMode,
-                        __instance.validDestinations))
-                {
-                    __instance.RefreshVisibleDestinationsGrid();
-                }
+                __instance.RefreshVisibleDestinationsGrid();
             }
-            finally
-            {
-                __state.Dispose();
-            }
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(Exception __exception, IDisposable __state)
+        {
+            __state?.Dispose();
+            return __exception;
         }
     }
 

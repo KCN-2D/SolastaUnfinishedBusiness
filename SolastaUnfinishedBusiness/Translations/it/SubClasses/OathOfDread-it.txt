@@ -1,4 +1,5 @@
 Condition/&ConditionOathOfDreadAspectOfDreadDescription=Hai resistenza a tutti i danni.\n• Tutti i tuoi attacchi con le armi infliggono 1d8 danni psichici aggiuntivi.\n• Le creature nemiche entro 10 piedi da te hanno svantaggio ai tiri salvezza contro i tuoi incantesimi da paladino e Presenza Terribile.
+Condition/&ConditionOathOfDreadAspectOfDreadEnemyDescription=Hai svantaggio al tuo prossimo tiro salvezza. Questo effetto termina dopo che effettui un tiro salvezza.
 Condition/&ConditionOathOfDreadAspectOfDreadTitle=Aspetto del terrore
 Condition/&ConditionOathOfDreadAuraOfDominationDescription=Se sei spaventato o temuto, la tua velocità si riduce a 0 e subisci danni psichici pari alla metà del livello da paladino dell'emanatore.
 Condition/&ConditionOathOfDreadAuraOfDominationTitle=Aura di dominio

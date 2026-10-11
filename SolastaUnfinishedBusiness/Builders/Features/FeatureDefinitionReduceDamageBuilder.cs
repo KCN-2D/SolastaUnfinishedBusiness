@@ -57,6 +57,22 @@ internal class FeatureDefinitionReduceDamageBuilder
         return this;
     }
 
+    [NotNull]
+    internal FeatureDefinitionReduceDamageBuilder SetDamageReducedFeedback(
+        Action<RulesetImplementationDefinitions.ApplyFormsParams, int, string> damageReduced)
+    {
+        Definition.DamageReduced = damageReduced;
+        return this;
+    }
+
+    [NotNull]
+    internal FeatureDefinitionReduceDamageBuilder SetDamageReductionFilter(
+        Func<RulesetImplementationDefinitions.ApplyFormsParams, string, bool> canReduceDamage)
+    {
+        Definition.CanReduceDamage = canReduceDamage;
+        return this;
+    }
+
     #region Constructors
 
     protected FeatureDefinitionReduceDamageBuilder(string name, Guid namespaceGuid) : base(name,

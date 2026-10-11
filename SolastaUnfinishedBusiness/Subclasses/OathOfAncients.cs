@@ -28,7 +28,9 @@ public sealed class OathOfAncients : AbstractSubclass
 
     internal static readonly ConditionDefinition ConditionElderChampionEnemy = ConditionDefinitionBuilder
         .Create($"Condition{Name}ElderChampionEnemy")
-        .SetGuiPresentation(ConditionElderChampionName, Category.Condition)
+        .SetGuiPresentation(ConditionElderChampionName, Category.Condition,
+            $"Condition/&Condition{Name}ElderChampionEnemyDescription")
+        .SetConditionType(ConditionType.Detrimental)
         .SetSilent(Silent.WhenAddedOrRemoved)
         .SetPossessive()
         .SetSpecialInterruptions(ConditionInterruption.SavingThrow)

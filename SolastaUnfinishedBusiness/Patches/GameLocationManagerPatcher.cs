@@ -59,6 +59,7 @@ public static class GameLocationManagerPatcher
         {
             LoadingContext.Release(__instance);
             CombatAnimationContext.SuspendCivilianReactions();
+            CombatAiContext.StopEnemyBattleTactics();
         }
     }
 
@@ -70,6 +71,7 @@ public static class GameLocationManagerPatcher
         public static void Prefix()
         {
             CombatAnimationContext.SuspendCivilianReactions();
+            CombatAiContext.StopEnemyBattleTactics();
         }
     }
 
@@ -159,6 +161,7 @@ public static class GameLocationManagerPatcher
         public static void Postfix(GameLocationManager __instance)
         {
             CombatAnimationContext.ResumeCivilianReactions();
+            CombatAiContext.RestoreEnemyBattleTactics();
             CampaignTranslationRuntimeRepairContext.RepairWorldLocationGadgets(
                 __instance.WorldLocation,
                 Gui.GameLocation?.UserLocation);

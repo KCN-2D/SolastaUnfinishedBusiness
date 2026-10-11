@@ -1,6 +1,7 @@
 Condition/&ConditionOathOfAncientsAuraWardingDescription=Ganhe resistência a dano mágico.
 Condition/&ConditionOathOfAncientsAuraWardingTitle=Protegido
 Condition/&ConditionOathOfAncientsElderChampionDescription=• No início de cada um dos seus turnos, você recupera 10 pontos de vida.\n• Sempre que você conjurar uma magia de paladino que tenha um tempo de conjuração de 1 ação, você pode fazer dois ataques de arma como parte da mesma ação.\n• Criaturas inimigas a até 3 metros de você têm desvantagem em testes de resistência contra suas magias de paladino e opções de Canalizar Divindade.
+Condition/&ConditionOathOfAncientsElderChampionEnemyDescription=Você tem desvantagem no seu próximo teste de resistência. Este efeito termina depois que você realiza um teste de resistência.
 Condition/&ConditionOathOfAncientsElderChampionTitle=Campeão Ancião
 Feature/&DamageAffinityOathOfAncientsUndyingSentinelDescription=Quando você é reduzido a 0 pontos de vida, mas não é morto imediatamente, você cai para 1 ponto de vida em vez disso. Você não pode se beneficiar dessa característica novamente até terminar um descanso longo.
 Feature/&DamageAffinityOathOfAncientsUndyingSentinelTitle=Sentinela Imortal

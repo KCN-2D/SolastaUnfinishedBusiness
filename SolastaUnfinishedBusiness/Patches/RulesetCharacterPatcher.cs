@@ -846,6 +846,11 @@ public static class RulesetCharacterPatcher
             FeatureDefinitionPower featureDefinitionPower)
         {
             //PATCH: allow powers have magic attack bonus based on spell attack
+            if (CombatAiContext.TryGetEnemyBattleMagicAttackAbility(__instance, featureDefinitionPower, out var ability))
+            {
+                __result = ability;
+                return;
+            }
             if (featureDefinitionPower.AttackHitComputation !=
                 (PowerAttackHitComputation)ExtraPowerAttackHitComputation.SpellAttack)
             {
@@ -1412,7 +1417,7 @@ public static class RulesetCharacterPatcher
             if (character.Guid == 0UL || character.autoActivatingPower) { return; }
 
             //PATCH: fixes aura powers breaking on location change - root cause is UB changes that make auto-powers refresh on RefreshAll to allow for validation on those powers 
-            if (!ServiceRepository.GetService<IGameLocationService>().LocationIsReady) { return; }
+            if (ServiceRepository.GetService<IGameLocationService>()?.LocationIsReady != true) { return; }
 
             foreach (var usablePower in character.UsablePowers)
             {
@@ -1454,6 +1459,7 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance, RulesetUsablePower usablePower)
         {
+            CombatAiContext.RecordEnemyBattlePowerUse(__instance, usablePower);
             if (__instance.TryGetShapeChangeOriginalHero(out var hero))
             {
                 // ReSharper disable once SwitchStatementMissingSomeEnumCasesNoDefault
@@ -1556,8 +1562,6 @@ public static class RulesetCharacterPatcher
                     new CodeInstruction(OpCodes.Ldarg_3),
                     new CodeInstruction(OpCodes.Call, tryModifyCritThresholdMethod));
         }
-#endif
-
         private static int TryModifyCritThreshold(
             RulesetAttribute attribute, RulesetCharacter me, RulesetCharacter target, BaseDefinition attackMethod)
         {
@@ -1571,6 +1575,7 @@ public static class RulesetCharacterPatcher
 
             return current;
         }
+#endif
 
         [UsedImplicitly]
         public static bool Prefix(
@@ -1611,66 +1616,11 @@ public static class RulesetCharacterPatcher
                     out firstRoll, out secondRoll)
                 : predefinedRoll;
 
-            successDelta = 0;
-
-            var service = ServiceRepository.GetService<IGameSettingsService>();
-            var disableEnemyCrits = __instance.Side == Side.Enemy && service is { DisableEnemyCrits: true };
-            int attackRoll;
-
-            if (rawRoll == DiceMaxValue[8] && !disableEnemyCrits)
-            {
-                attackRoll = rawRoll;
-                outcome = RollOutcome.CriticalSuccess;
-            }
-            else if (rawRoll == DiceMinValue[8])
-            {
-                attackRoll = rawRoll;
-                outcome = RollOutcome.CriticalFailure;
-            }
-            else
-            {
-                attackRoll = rawRoll + toHitBonus + rollModifier;
-                successDelta = attackRoll - target.GetAttribute(AttributeDefinitions.ArmorClass).CurrentValue;
-
-                if (successDelta >= 0)
-                {
-                    var currentValue = DiceMaxValue[8];
-
-                    if (__instance.TryGetAttribute("CriticalThreshold", out var rulesetAttribute))
-                    {
-                        //PATCH: support `IModifyAttackCriticalThreshold`
-                        // currentValue = rulesetAttribute.CurrentValue;
-                        currentValue = TryModifyCritThreshold(
-                            rulesetAttribute, __instance, target as RulesetCharacter, attackMethod);
-                        // END PATCH
-                    }
-
-                    outcome = rawRoll < currentValue || disableEnemyCrits
-                        ? RollOutcome.Success
-                        : RollOutcome.CriticalSuccess;
-                }
-                else
-                {
-                    outcome = RollOutcome.Failure;
-                }
-            }
-
-            var isCriticalAutomaticOnMe = false;
-
-            if (target is RulesetCharacter character
-                && outcome == RollOutcome.Success
-                && character.IsCriticalAutomaticOnMe(__instance))
-            {
-                outcome = RollOutcome.CriticalSuccess;
-                isCriticalAutomaticOnMe = true;
-            }
-
-            if (outcome == RollOutcome.CriticalSuccess
-                && target is RulesetCharacter rulesetCharacter
-                && rulesetCharacter.IsImmuneToCriticalHits())
-            {
-                outcome = RollOutcome.Success;
-            }
+            var evaluation = __instance.ComputeAttackOutcome(target, attackMethod, rawRoll, toHitBonus, rollModifier);
+            outcome = evaluation.Outcome;
+            successDelta = evaluation.SuccessDelta;
+            var attackRoll = evaluation.Total;
+            var isCriticalAutomaticOnMe = evaluation.IsAutomaticCritical;
 
             switch (testMode)
             {
@@ -2084,6 +2034,7 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance, RulesetUsablePower usablePower)
         {
+            CombatAiContext.RecordEnemyBattlePowerUse(__instance, usablePower);
             if (__instance.TryGetShapeChangeOriginalHero(out var hero))
             {
                 // ReSharper disable once SwitchStatementMissingSomeEnumCasesNoDefault
@@ -2114,6 +2065,95 @@ public static class RulesetCharacterPatcher
 
             //PATCH: update usage for power pools
             __instance.UpdateUsageForPower(usablePower, -usablePower.PowerDefinition.CostPerUse);
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.RechargePowersForTurnStart))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class RechargePowersForTurnStart_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var code = instructions.ToList();
+            var powerGetter = AccessTools.PropertyGetter(typeof(RulesetUsablePower), nameof(RulesetUsablePower.PowerDefinition));
+            var rechargeGetter = AccessTools.PropertyGetter(typeof(FeatureDefinitionPower), nameof(FeatureDefinitionPower.RechargeRate));
+            var recharge = AccessTools.Method(typeof(RulesetUsablePower), nameof(RulesetUsablePower.Recharge));
+            var matches = new List<int>();
+            for (var index = 0; index + 12 < code.Count; index++)
+            {
+                // Native IL compares the one d6 result with6, then with5 for D6_56.
+                // Replace that predicate while preserving its roll, charge and notification paths.
+                if (IsLocalLoad(code[index]) && code[index + 1].opcode == OpCodes.Ldc_I4_6 &&
+                    IsEqualBranch(code[index + 2]) && IsLocalLoad(code[index + 3]) &&
+                    code[index + 4].Calls(powerGetter) && code[index + 5].Calls(rechargeGetter) &&
+                    LoadsRechargeFiveSix(code[index + 6]) && IsNotEqualBranch(code[index + 7]) &&
+                    SameLocalLoad(code[index], code[index + 8]) && code[index + 9].opcode == OpCodes.Ldc_I4_5 &&
+                    IsNotEqualBranch(code[index + 10]) && SameBranchTarget(code, code[index + 7], code[index + 10]) &&
+                    SameLocalLoad(code[index + 3], code[index + 11]) && code[index + 12].Calls(recharge) &&
+                    code[index + 2].operand is Label ready && code[index + 11].labels.Contains(ready))
+                {
+                    matches.Add(index);
+                }
+            }
+            if (matches.Count != 1 || code.Skip(matches[0] + 1).Take(10)
+                    .Any(instruction => instruction.labels.Count != 0 || instruction.blocks.Count != 0))
+            {
+                Main.Error("Failed to apply RulesetCharacter.RechargePowersForTurnStart: expected exactly one native d6 success predicate without internal branch boundaries.");
+                return code;
+            }
+            var start = matches[0];
+            var powerLoad = new CodeInstruction(code[start + 3]);
+            var failure = code[start + 10].operand;
+            code.RemoveRange(start + 1, 10);
+            code.InsertRange(start + 1,
+            [
+                powerLoad,
+                new CodeInstruction(OpCodes.Call, new Func<int, RulesetUsablePower, bool>(IsSuccessfulRechargeRoll).Method),
+                new CodeInstruction(OpCodes.Brfalse, failure)
+            ]);
+            return code;
+        }
+
+        private static bool IsLocalLoad(CodeInstruction instruction) =>
+            instruction.opcode == OpCodes.Ldloc || instruction.opcode == OpCodes.Ldloc_S ||
+            instruction.opcode == OpCodes.Ldloc_0 || instruction.opcode == OpCodes.Ldloc_1 ||
+            instruction.opcode == OpCodes.Ldloc_2 || instruction.opcode == OpCodes.Ldloc_3;
+
+        private static bool SameLocalLoad(CodeInstruction first, CodeInstruction second) =>
+            first.opcode == second.opcode && Equals(first.operand, second.operand);
+
+        private static bool IsEqualBranch(CodeInstruction instruction) =>
+            instruction.opcode == OpCodes.Beq || instruction.opcode == OpCodes.Beq_S;
+
+        private static bool IsNotEqualBranch(CodeInstruction instruction) =>
+            instruction.opcode == OpCodes.Bne_Un || instruction.opcode == OpCodes.Bne_Un_S;
+
+        private static bool SameBranchTarget(List<CodeInstruction> code, CodeInstruction first, CodeInstruction second)
+        {
+            if (first.operand is not Label firstLabel || second.operand is not Label secondLabel)
+            {
+                return false;
+            }
+            // Harmony can give two branches distinct labels on the same native instruction.
+            var firstTarget = code.FindIndex(instruction => instruction.labels.Contains(firstLabel));
+            var secondTarget = code.FindIndex(instruction => instruction.labels.Contains(secondLabel));
+            return firstTarget >= 0 && firstTarget == secondTarget;
+        }
+
+        private static bool LoadsRechargeFiveSix(CodeInstruction instruction) =>
+            (instruction.opcode == OpCodes.Ldc_I4 || instruction.opcode == OpCodes.Ldc_I4_S) &&
+            Convert.ToInt32(instruction.operand) == (int)RechargeRate.D6_56;
+
+        private static bool IsSuccessfulRechargeRoll(int roll, RulesetUsablePower usablePower)
+        {
+            var threshold = CombatAiContext.GetEnemyBattleRechargeMinimumRoll(usablePower.PowerDefinition);
+            if (threshold != 0)
+            {
+                return roll >= threshold && roll <= 6;
+            }
+            return usablePower.PowerDefinition.RechargeRate == RechargeRate.D6_6 ? roll == 6 : roll is 5 or 6;
         }
     }
 
@@ -3517,7 +3557,7 @@ public static class RulesetCharacterPatcher
                 }
                 else
                 {
-                    var payment = SpellSlotCastingLimit2024Context.BeginPayment(
+                    using var payment = SpellSlotCastingLimit2024Context.BeginPayment(
                         __instance,
                         activeSpell,
                         spellRepertoire);
@@ -3526,7 +3566,6 @@ public static class RulesetCharacterPatcher
                     {
                         spellRepertoire.SpendSpellSlot(resourceSlotLevel);
                     }
-                    payment?.Complete();
                 }
             }
 

@@ -36,6 +36,7 @@ public static class CharacterActionAttackPatcher
 
         internal static IEnumerator ExecuteImpl(CharacterActionAttack __instance)
         {
+            CombatAiContext.PrepareEnemyBattleNativeAttackAction(__instance);
             var actionParams = __instance.ActionParams;
             var attackMode = actionParams.AttackMode;
             var originatingMagicEffect = AttackAfterMagicEffect.ConsumeOriginatingEffect(attackMode);
@@ -137,6 +138,13 @@ public static class CharacterActionAttackPatcher
             attackParams.readiedAttack = __instance.ActionId == ActionDefinitions.Id.AttackReadied;
 
             var canAttack = battleManager.CanAttack(attackParams);
+
+            // Limited enemy attacks must still fit their dispatched target before spending the capability.
+            if (!CombatAiContext.IsValidEnemyBattleNativeAttackAction(__instance))
+            {
+                __instance.Abort(CharacterAction.InterruptionType.Invalid);
+                yield break;
+            }
 
             if (!canAttack)
             {
@@ -500,6 +508,9 @@ public static class CharacterActionAttackPatcher
                     __instance.actualEffectForms.Clear();
                     __instance.actualEffectForms.AddRange(attackMode.EffectDescription.EffectForms);
 
+                    CombatAiContext.RestrictEnemyBattleNativeAttackEffects(
+                        rulesetCharacter, attackMode, __instance.actualEffectForms);
+
                     if (attackMode.HasOneDamageForm)
                     {
                         // Handle special modification of damages (sneak attack, smite, uncanny dodge)
@@ -678,6 +689,8 @@ public static class CharacterActionAttackPatcher
                         attackModifier,
                         __instance.RolledSaveThrow,
                         saveOutcomeSuccess);
+                    var rulesetDamageTarget = rulesetDefender as RulesetCharacter;
+                    var temporaryHitPointsBefore = rulesetDamageTarget?.TemporaryHitPoints ?? 0;
                     damageReceived = implementationService.ApplyEffectForms(
                         __instance.actualEffectForms,
                         formParams,
@@ -689,6 +702,11 @@ public static class CharacterActionAttackPatcher
 
                     OnHitEffectContext.RecordAttackApplication(
                         __instance, formParams, damageReceived, damageAbsorbedByTemporaryHitPoints);
+                    if (rulesetDamageTarget != null)
+                    {
+                        CombatAiContext.RecordEnemyBattleAttackDamage(__instance, rulesetDamageTarget,
+                            damageReceived + System.Math.Max(0, temporaryHitPointsBefore - rulesetDamageTarget.TemporaryHitPoints));
+                    }
 
                     actingCharacter.AttackImpactOn(
                         target, __instance.AttackRollOutcome, actionParams, attackMode, attackModifier);
@@ -805,6 +823,8 @@ public static class CharacterActionAttackPatcher
 
             rulesetCharacter.ProcessConditionsMatchingInterruption(
                 (ConditionInterruption)ExtraConditionInterruption.AttacksWithWeaponOrUnarmed);
+
+            CharacterActionPatcher.ApplyStealthBreakerBehavior_Patch.ApplyBeforeFinishedReactions(__instance);
 
             // Handle specific reactions after the attack has been executed
             yield return battleManager.HandleCharacterPhysicalAttackFinished(

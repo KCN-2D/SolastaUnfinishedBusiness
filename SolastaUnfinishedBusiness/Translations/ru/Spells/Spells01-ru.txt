@@ -183,3 +183,4 @@ Spell/&FindFamiliarCatFiendSelectionTitle=Кошка · Исчадие
 Reaction/&SpendSpellSlotSilveryBarbsAttackDescription={0} преуспел в броске атаки против {1}. Заставьте {0} перебросить d20 и использовать меньший результат.
 Reaction/&SpendSpellSlotSilveryBarbsAbilityCheckDescription={0} преуспел в проверке характеристики. Заставьте {0} перебросить d20 и использовать меньший результат.
 Reaction/&SpendSpellSlotSilveryBarbsSavingThrowDescription={0} преуспел в спасброске. Заставьте {0} перебросить d20 и использовать меньший результат.
+Spell/&MagicMissileTitle=Волшебная стрела

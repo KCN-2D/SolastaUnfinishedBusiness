@@ -213,13 +213,18 @@ public static partial class Tabletop2024Context
         return Main.Settings.EnableBackgroundASI && Main.Settings.EnableBackgroundBonusFeats;
     }
 
+    internal static bool IsFlexibleBackgroundsEffectivelyEnabled()
+    {
+        return Main.Settings.EnableFlexibleBackgrounds && !IsBackgroundBonusFeatsEnabled();
+    }
+
+    internal static bool IsFlexibleRacesEffectivelyEnabled()
+    {
+        return Main.Settings.EnableFlexibleRaces && !Main.Settings.EnableBackgroundASI;
+    }
+
     internal static void ApplyBackgroundOptions()
     {
-        if (NormalizeBackgroundOptionSettings())
-        {
-            FlexibleBackgroundsContext.SwitchFlexibleBackgrounds();
-        }
-
         RefreshModeAwareOriginFeatDefinitions();
         FeatsContext.SwitchFirstLevelTotalFeats();
 
@@ -228,8 +233,26 @@ public static partial class Tabletop2024Context
             return;
         }
 
+        FlexibleRacesContext.SwitchFlexibleRaces();
+
+        var backgroundBonusFeatsEnabled = IsBackgroundBonusFeatsEnabled();
+
+        if (backgroundBonusFeatsEnabled)
+        {
+            // Restore ordinary grants before the 2024 package replaces them.
+            FlexibleBackgroundsContext.SwitchFlexibleBackgrounds();
+        }
+
         SwitchBackgroundASI();
         SwitchBackgroundBonusFeats();
+
+        if (!backgroundBonusFeatsEnabled)
+        {
+            // The original snapshot can contain flexible grants from an earlier setting.
+            // Reconcile the current preference after that snapshot has been restored.
+            FlexibleBackgroundsContext.SwitchFlexibleBackgrounds();
+        }
+
         FeatsContext.ClearFeatSubPanel2024UiState();
 
         if (Main.Settings.EnableTabletopFeatRules2024)
@@ -1079,7 +1102,6 @@ public static partial class Tabletop2024Context
 
         var enableBackgroundAsi = Main.Settings.EnableBackgroundASI;
 
-        DisableAlternateHumanWhenBackgroundAsiEnabled();
         SwitchBackgroundAsiFeatures(enableBackgroundAsi);
         SwitchRacialAsiFeaturesForBackgroundAsi(enableBackgroundAsi);
         SwitchHumanBackgroundAsiFeatures(enableBackgroundAsi);
@@ -1138,7 +1160,7 @@ public static partial class Tabletop2024Context
                         RemoveMatchingFeature(raceDefinition.FeatureUnlocks, featureDefinition);
                     }
                 }
-                else if (!Main.Settings.EnableFlexibleRaces && !hasFeature)
+                else if (!IsFlexibleRacesEffectivelyEnabled() && !hasFeature)
                 {
                     raceDefinition.FeatureUnlocks.Add(new FeatureUnlockByLevel(featureDefinition, 1));
                 }
@@ -1172,7 +1194,7 @@ public static partial class Tabletop2024Context
         {
             HumanOriginFeatSelections.Clear();
 
-            if (!Main.Settings.EnableAlternateHuman)
+            if (!IsAlternateHumanEffectivelyEnabled())
             {
                 RemoveMatchingFeature(human.FeatureUnlocks, PointPoolHumanSkillPool);
             }
@@ -2240,7 +2262,10 @@ public static partial class Tabletop2024Context
             return;
         }
 
-        foreach (var feature in originalFeatures.Where(feature => !background.Features.Contains(feature)))
+        var flexibleBackgroundsEnabled = IsFlexibleBackgroundsEffectivelyEnabled();
+
+        foreach (var feature in originalFeatures.Where(feature => !background.Features.Contains(feature) &&
+                     (flexibleBackgroundsEnabled || !FlexibleBackgroundsContext.IsFlexibleBackgroundFeature(feature))))
         {
             background.Features.Add(feature);
         }
@@ -2328,33 +2353,6 @@ public static partial class Tabletop2024Context
         }
 
         unlocks.Add(new FeatureUnlockByLevel(feature, 1));
-    }
-
-    private static void DisableAlternateHumanWhenBackgroundAsiEnabled()
-    {
-        if (Main.Settings.EnableBackgroundASI)
-        {
-            Main.Settings.EnableAlternateHuman = false;
-        }
-    }
-
-    private static bool NormalizeBackgroundOptionSettings()
-    {
-        var flexibleBackgroundsChanged = false;
-
-        if (!Main.Settings.EnableBackgroundASI)
-        {
-            Main.Settings.EnableBackgroundBonusFeats = false;
-        }
-        else if (Main.Settings.EnableBackgroundBonusFeats)
-        {
-            flexibleBackgroundsChanged = Main.Settings.EnableFlexibleBackgrounds;
-            Main.Settings.EnableFlexibleBackgrounds = false;
-        }
-
-        DisableAlternateHumanWhenBackgroundAsiEnabled();
-
-        return flexibleBackgroundsChanged;
     }
 
     private static string GetAbilityAbbreviation(string attribute)

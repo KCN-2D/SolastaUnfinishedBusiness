@@ -95,6 +95,7 @@ public static partial class Tabletop2024Context
                             ConditionDefinitionBuilder
                                 .Create($"Condition{FeatSteadyAim}Restrained")
                                 .SetGuiPresentation(Category.Condition)
+                                .SetConditionType(ConditionType.Detrimental)
                                 .SetSilent(Silent.WhenAddedOrRemoved)
                                 .AddFeatures(MovementAffinityConditionRestrained)
                                 .AddToDB(),

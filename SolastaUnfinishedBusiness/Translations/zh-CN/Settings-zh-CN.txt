@@ -540,8 +540,8 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=将把所有武器精通属�
 ModUi/&WeaponMasterySystemCustomizeToggle=自定义武器精通属性
 ModUi/&WideScreenBattleUI=启用宽屏战斗 UI<i><color=#F0DAA0>（适用于宽高比大于 16:9 的分辨率）</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white>设置<color=#D89555>术士狂野魔法</color>几率骰子阈值：</color>\n<i><color=#F0DAA0>[如果掷出的骰子小于或等于阈值，则触发狂野魔法浪涌]</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race; Human is adjusted because the default all +1 is removed <i><color=#F0DAA0>[Flexible Races is incompatible and will be toggled off]</color></i>
-ModUi/&EnableBackgroundBonusFeats=Change background grants to 2024-style origin feat, two skills, and one tool <i><color=#F0DAA0>[Requires Background ASI; Flexible Backgrounds is incompatible and will be toggled off]</color></i>
+ModUi/&EnableBackgroundAbilityScoreIncreases=改为从背景而非种族获得属性值提升，并相应调整人类特性<i><color=#F0DAA0>（启用此选项时，不应用灵活种族）</color></i>
+ModUi/&EnableBackgroundBonusFeats=将背景特性改为2024年版的一个起源专长、两项技能熟练和一项工具熟练<i><color=#F0DAA0>（需要背景属性值提升；启用此选项时，不应用灵活背景）</color></i>
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
@@ -565,3 +565,8 @@ ModUi/&EnableMonkWeaponProficiency2024=启用2024版<color=#D89555>武僧的武�
 ModUi/&EnableRogueWeaponProficiency2024=启用2024版<color=#D89555>游荡者的武器熟练</color><i><color=#F0DAA0>[简易武器和具有灵巧或轻型属性的军用武器]</color></i>
 ModUi/&EnableSorcererWeaponProficiency2024=启用2024版<color=#D89555>术士的武器熟练</color><i><color=#F0DAA0>[所有简易武器]</color></i>
 ModUi/&EnableWizardWeaponProficiency2024=启用2024版<color=#D89555>法师的武器熟练</color><i><color=#F0DAA0>[所有简易武器]</color></i>
+ModUI/&EnableEnemyBattleTactics=根据敌人的类型和战斗定位启用额外能力
+ModUI/&EnableEnemyBattleTacticsDescription=敌人获得符合其类型与战斗定位的能力。挑战等级对应栏位：1–4为1，5–8为2，9–12为3，13–16为4，17以上为5。1–3阶能力占用同等数量的栏位；2/3阶要求挑战等级5/11。栏位内加权随机选择，不保证最高阶。挑战等级低于1时，以等于该等级的概率获得一个1阶能力。
+ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=多人游戏中，所有参与者必须在开始会话前选择相同的设置。多人游戏会话期间无法更改此设置。
+ModUi/&FlexibleRacesDisabledByBackgroundASI=背景属性值提升已启用，因此不应用灵活种族属性值提升。禁用背景属性值提升后，将重新应用原来的选择。
+ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats=背景起源专长已启用，因此不应用灵活背景熟练项。禁用背景起源专长后，将重新应用原来的选择。

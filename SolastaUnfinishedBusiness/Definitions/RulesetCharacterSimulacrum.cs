@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
@@ -303,9 +303,9 @@ internal sealed class RulesetCharacterSimulacrum :
         featuresOrigin?.Clear();
 
         // RulesetCharacterMonster normally appends OriginalFormCharacter's live
-        // features for substitutes. A Simulacrum uses OriginalFormCharacter only
-        // as its lifecycle owner, so its copied snapshot must remain the sole
-        // source of character features.
+        // features for substitutes. A Simulacrum's copied snapshot must remain
+        // its sole source of character features; the native transformation link
+        // does not identify the copied character.
         EnumerateFeaturesToBrowseHierarchicaly<T>(
             SimulacrumBehavior.GetCurrentlyActiveFeatures(this),
             featuresToBrowse,

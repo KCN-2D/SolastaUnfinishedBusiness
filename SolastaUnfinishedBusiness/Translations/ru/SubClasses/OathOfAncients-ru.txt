@@ -1,6 +1,7 @@
 Condition/&ConditionOathOfAncientsAuraWardingDescription=Вы получаете сопротивление урону от заклинаний.
 Condition/&ConditionOathOfAncientsAuraWardingTitle=Под опекой
 Condition/&ConditionOathOfAncientsElderChampionDescription=• В начале каждого своего хода вы восстанавливаете 10 хитов.\n• Когда вы накладываете заклинание паладина с временем накладывания в 1 действие, вы можете совершить две атаки оружием частью того же действия.\n• Вражеские существа в пределах 10 футов от вас совершают с помехой спасброски от ваших заклинаний паладина и умений Божественного канала.
+Condition/&ConditionOathOfAncientsElderChampionEnemyDescription=Вы совершаете следующий спасбросок с помехой. Этот эффект заканчивается после того, как вы совершите спасбросок.
 Condition/&ConditionOathOfAncientsElderChampionTitle=Древний чемпион
 Feature/&DamageAffinityOathOfAncientsUndyingSentinelDescription=Если ваши хиты опускаются до 0, но вы не были убиты, вы можете решить, чтобы вы вместо этого остались с 1 хитом. Использовав это умение, вы не можете повторно его использовать, пока не окончите продолжительный отдых.
 Feature/&DamageAffinityOathOfAncientsUndyingSentinelTitle=Бессмертный страж

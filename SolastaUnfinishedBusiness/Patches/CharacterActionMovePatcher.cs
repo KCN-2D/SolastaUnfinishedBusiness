@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
@@ -30,6 +31,7 @@ public static class CharacterActionMovePatcher
 
             if (CombatAiContext.ShouldCancelAiTacticalMove(action, start, target))
             {
+                (values as IDisposable)?.Dispose();
                 yield break;
             }
 
@@ -48,10 +50,23 @@ public static class CharacterActionMovePatcher
             }
             finally
             {
-                if (!completed && trackMoveResult)
+                try
                 {
-                    CombatAiContext.RecordAiMoveResult(action, start, target);
-                    MovementTracker.ClearMovement(character);
+                    (wrapped as IDisposable)?.Dispose();
+                }
+                finally
+                {
+                    if (!completed && trackMoveResult)
+                    {
+                        try
+                        {
+                            CombatAiContext.RecordAiMoveResult(action, start, target);
+                        }
+                        finally
+                        {
+                            MovementTracker.ClearMovement(character);
+                        }
+                    }
                 }
             }
 
@@ -91,6 +106,7 @@ public static class CharacterActionMovePatcher
                 forceCloseNoMoveAfterSettling);
 
             var extraAoOEvents = AttacksOfOpportunity.ProcessOnCharacterMoveEnd(character);
+            using var extraAoOIterator = extraAoOEvents as IDisposable;
 
             while (extraAoOEvents.MoveNext())
             {

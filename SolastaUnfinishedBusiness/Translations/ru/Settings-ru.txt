@@ -540,8 +540,8 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Сбросит все сво�
 ModUi/&WeaponMasterySystemCustomizeToggle=Настроить свойства мастерства оружия
 ModUi/&WideScreenBattleUI=Включить широкоэкранный пользовательский интерфейс боя <i><color=#F0DAA0>(Для разрешений с соотношением сторон более 16:9)</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white>Установить пороговое значение вероятности срабатывания <color=#D89555>Дикой магии Чародея</color>:</color>\n<i><color=#F0DAA0>[Волна дикой магии срабатывает, если бросок меньше или равен пороговому значению]</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race; Human is adjusted because the default all +1 is removed <i><color=#F0DAA0>[Flexible Races is incompatible and will be toggled off]</color></i>
-ModUi/&EnableBackgroundBonusFeats=Change background grants to 2024-style origin feat, two skills, and one tool <i><color=#F0DAA0>[Requires Background ASI; Flexible Backgrounds is incompatible and will be toggled off]</color></i>
+ModUi/&EnableBackgroundAbilityScoreIncreases=Увеличение характеристик определяется предысторией вместо расы; особенности людей изменяются соответствующим образом <i><color=#F0DAA0>(Гибкие расы не применяются, пока эта настройка включена)</color></i>
+ModUi/&EnableBackgroundBonusFeats=Заменяет особенности предыстории чертой происхождения, владением двумя навыками и одним инструментом по правилам 2024 года <i><color=#F0DAA0>(Требуется увеличение характеристик от предыстории; Гибкие предыстории не применяются, пока эта настройка включена)</color></i>
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
@@ -565,3 +565,8 @@ ModUi/&EnableMonkWeaponProficiency2024=Включить <color=#D89555>влад�
 ModUi/&EnableRogueWeaponProficiency2024=Включить <color=#D89555>владение оружием</color> плута по правилам 2024 года <i><color=#F0DAA0>[простое оружие и воинское оружие со свойством «фехтовальное» или «лёгкое»]</color></i>
 ModUi/&EnableSorcererWeaponProficiency2024=Включить <color=#D89555>владение оружием</color> чародея по правилам 2024 года <i><color=#F0DAA0>[всё простое оружие]</color></i>
 ModUi/&EnableWizardWeaponProficiency2024=Включить <color=#D89555>владение оружием</color> волшебника по правилам 2024 года <i><color=#F0DAA0>[всё простое оружие]</color></i>
+ModUI/&EnableEnemyBattleTactics=Дополнительные способности врагов по типу существа и роли в бою
+ModUI/&EnableEnemyBattleTacticsDescription=Враги получают способности по типу и роли в бою. Ячейки по опасности: 1–4: 1; 5–8: 2; 9–12: 3; 13–16: 4; от 17: 5. Ранги 1–3 занимают столько же ячеек; ранги 2/3 требуют опасность 5/11. Взвешенный выбор в этих пределах не гарантирует высший ранг. При опасности ниже 1 шанс одной способности ранга 1 равен опасности.
+ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=В сетевой игре все участники должны выбрать одинаковую настройку до начала сеанса. Во время сетевого сеанса эту настройку изменить нельзя.
+ModUi/&FlexibleRacesDisabledByBackgroundASI=Увеличение характеристик от предыстории включено, поэтому гибкое расовое увеличение характеристик не применяется. Ваш выбор снова применяется после отключения увеличения характеристик от предыстории.
+ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats=Черты происхождения от предыстории включены, поэтому гибкие владения от предыстории не применяются. Ваш выбор снова применяется после отключения черт происхождения от предыстории.

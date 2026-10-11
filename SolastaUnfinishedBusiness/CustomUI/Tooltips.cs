@@ -23,6 +23,7 @@ internal static class Tooltips
     private const string DistanceTextAnchorObjectName = "DistanceTextAnchorObject";
 
     private static readonly ConditionalWeakTable<Image, RawImage> HeaderPortraits = new();
+    private static readonly ConditionalWeakTable<TooltipPanel, AdaptiveTooltipLayoutState> AdaptiveTooltipLayouts = new();
 
     private static GameObject _tooltipInfoCharacterDescription;
     private static GameObject _distanceTextObject;
@@ -30,6 +31,15 @@ internal static class Tooltips
 
     internal static void Unload(bool destroyUnityObjects)
     {
+        if (destroyUnityObjects)
+        {
+            foreach (var state in Resources.FindObjectsOfTypeAll<TooltipHeaderImageLayoutState>())
+            {
+                state.Restore();
+                Object.DestroyImmediate(state);
+            }
+        }
+
         if (destroyUnityObjects && _distanceTextObject)
         {
             var parent = _distanceTextObject.transform.parent;
@@ -64,13 +74,19 @@ internal static class Tooltips
     internal static List<FeatureDefinition> GetConditionFeaturesForTooltip(ConditionDefinition condition)
     {
         var noContent = Gui.Localize(Gui.NoLocalization);
+        var formattedText = condition.GetFirstSubFeatureOfType<FormattedDefinitionText>();
+        var ownDescription = formattedText?.FormatDescription(string.Empty);
+        var hasOwnDescription = !string.IsNullOrWhiteSpace(ownDescription) && ownDescription != noContent;
 
         // Hidden affinities can still generate useful descriptions (saves, checks, immunities).
-        // Omit only the empty presentation placeholder, keeping their generated rules text.
+        // A shared formatter gives the condition its contextual body; do not print the same feature body again.
+        // All other native features retain their generated rules text and the gameplay feature list is untouched.
         return condition.Features.Where(feature => feature == null ||
-            !feature.GuiPresentation.Hidden ||
-            feature.GuiPresentation.Description != Gui.NoLocalization ||
-            feature.FormatDescription() != noContent).ToList();
+            !(hasOwnDescription && formattedText.SharesDescriptionWith(
+                feature.GetFirstSubFeatureOfType<FormattedDefinitionText>())) &&
+            (!feature.GuiPresentation.Hidden ||
+             feature.GuiPresentation.Description != Gui.NoLocalization ||
+             feature.FormatDescription() != noContent)).ToList();
     }
 
     internal static bool TrySetupLiveFriendlyMonsterTooltip(
@@ -119,6 +135,51 @@ internal static class Tooltips
 
         return true;
     }
+
+    internal sealed class HideHeaderImage
+    {
+        internal static readonly HideHeaderImage Instance = new();
+
+        private HideHeaderImage()
+        {
+        }
+    }
+
+    internal static void RestoreHeaderImageLayout(TooltipFeatureHeader header)
+    {
+        if (header && header.TryGetComponent<TooltipHeaderImageLayoutState>(out var state))
+        {
+            state.Restore();
+        }
+    }
+
+    internal static bool ApplyHeaderImagePolicy(TooltipFeatureHeader header, ITooltip tooltip)
+    {
+        var definition = GetHeaderDefinition(tooltip);
+
+        // Conditions expose the effect's status symbol, including when their granted
+        // power uses a text-only header. The same pooled header still honors that
+        // presentation policy for powers and other illustrated definitions.
+        if (!header || definition is ConditionDefinition ||
+            definition?.HasSubFeatureOfType<HideHeaderImage>() != true)
+        {
+            return false;
+        }
+
+        var state = header.GetComponent<TooltipHeaderImageLayoutState>() ??
+                    header.gameObject.AddComponent<TooltipHeaderImageLayoutState>();
+
+        state.Apply(header);
+
+        return true;
+    }
+
+    private static BaseDefinition GetHeaderDefinition(ITooltip tooltip) => tooltip?.DataProvider switch
+    {
+        GuiActiveCondition condition => condition.ConditionDefinition,
+        GuiBaseDefinitionWrapper wrapper => wrapper.BaseDefinition,
+        _ => null
+    };
 
     internal static void ResetHeaderImage(Image image)
     {
@@ -193,16 +254,16 @@ internal static class Tooltips
 
     internal static void FitConditionHeaderImage(TooltipFeatureHeader header, ITooltip tooltip)
     {
-        if (tooltip.DataProvider is not GuiActiveCondition || !header.image || !header.mask ||
+        if (!header || GetHeaderDefinition(tooltip) is not ConditionDefinition || !header.image ||
             !header.image.sprite)
         {
             return;
         }
 
-        // A status symbol must fit completely inside its slot. The native cover sizing is
-        // still appropriate for illustrated power, spell and character headers.
+        // Fit the complete sprite within its slot without stretching a small status
+        // glyph. Sprite dimensions, rather than its atlas texture, preserve its aspect.
         var spriteRect = header.image.sprite.rect;
-        var maskRect = header.mask.rect;
+        var maskRect = header.mask ? header.mask.rect : header.image.rectTransform.rect;
 
         if (spriteRect.width <= 0f || spriteRect.height <= 0f ||
             maskRect.width <= 0f || maskRect.height <= 0f)
@@ -210,10 +271,15 @@ internal static class Tooltips
             return;
         }
 
-        var scale = Mathf.Min(maskRect.width / spriteRect.width, maskRect.height / spriteRect.height);
+        var scale = Mathf.Min(1f, Mathf.Min(maskRect.width / spriteRect.width, maskRect.height / spriteRect.height));
         var imageRect = header.image.rectTransform;
         imageRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, spriteRect.width * scale);
         imageRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, spriteRect.height * scale);
+
+        var state = header.GetComponent<TooltipHeaderImageLayoutState>() ??
+                    header.gameObject.AddComponent<TooltipHeaderImageLayoutState>();
+
+        state.ReserveVisibleImageSpace(header);
     }
 
     internal static float GetHeaderSpriteWidth(Texture texture, TooltipFeatureHeader header)
@@ -657,6 +723,131 @@ internal static class Tooltips
     {
         RefreshAdaptiveParameterRow(parent?.verticalLayout, "TopTable");
         RefreshAdaptiveParameterRow(parent?.verticalLayout, "MediumTable");
+
+        if (parent && parent.GetComponentInParent<TooltipPanel>() is { } panel)
+        {
+            // Power modifiers can change the range after the common magic feature was bound.
+            foreach (var magicParameters in panel.GetComponentsInChildren<TooltipFeatureBaseMagicParameters>(true))
+            {
+                RefreshAdaptiveBaseMagicParameters(magicParameters);
+            }
+        }
+    }
+
+    internal static void RefreshAdaptiveBaseMagicParameters(TooltipFeatureBaseMagicParameters parent)
+    {
+        if (!parent || parent.transform.Find("Table") is not RectTransform table)
+        {
+            return;
+        }
+
+        var feature = parent.RectTransform;
+        var previousHeight = feature.rect.height;
+        // Keep the native stack position when restoring the feature's size.
+        var featureState = TooltipParameterLayoutState.Get(feature, restorePlacement: false);
+        var tableState = TooltipParameterLayoutState.Get(table);
+
+        featureState.Restore(feature);
+        tableState.Restore(table);
+
+        var top = feature.rect.yMax - GetParameterTop(feature, table);
+        var bottomPadding = Mathf.Max(0f, featureState.OriginalHeight - top - tableState.OriginalHeight);
+        var height = RefreshAdaptiveParameterRow(table);
+
+        if (!table.gameObject.activeInHierarchy)
+        {
+            MarkAdaptiveTooltipLayoutDirty(parent, previousHeight);
+            return;
+        }
+
+        SetParameterTop(table, top);
+
+        var requiredHeight = Mathf.Ceil(Mathf.Max(featureState.OriginalHeight, top + height + bottomPadding));
+
+        feature.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, requiredHeight);
+        var layout = featureState.EnsureLayoutElement(feature);
+        layout.preferredHeight = requiredHeight;
+        layout.minHeight = Mathf.Max(layout.minHeight, requiredHeight);
+        MarkAdaptiveTooltipLayoutDirty(parent, previousHeight);
+
+        if (feature.parent is RectTransform featureTable)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(featureTable);
+        }
+    }
+
+    private static void MarkAdaptiveTooltipLayoutDirty(TooltipFeature feature, float previousHeight)
+    {
+        if (!Mathf.Approximately(previousHeight, feature.RectTransform.rect.height) &&
+            feature.GetComponentInParent<TooltipPanel>() is { } panel)
+        {
+            AdaptiveTooltipLayouts.GetValue(panel, _ => new AdaptiveTooltipLayoutState()).Dirty = true;
+        }
+    }
+
+    internal static void ResetAdaptiveTooltipLayout(TooltipPanel panel)
+    {
+        if (panel)
+        {
+            AdaptiveTooltipLayouts.Remove(panel);
+        }
+    }
+
+    internal static void RefreshAdaptiveTooltipLayout(TooltipPanel panel)
+    {
+        if (!panel || !AdaptiveTooltipLayouts.TryGetValue(panel, out var state) || !state.Dirty)
+        {
+            return;
+        }
+
+        state.Dirty = false;
+
+        if (!panel.featuresTable)
+        {
+            return;
+        }
+
+        // Native DelayedShow stacks each feature immediately after binding it. A later
+        // modifier can resize an earlier feature, so stack their final heights once
+        // UpdateCoroutine has finished the current binding pass. Do not bind them again.
+        LayoutRebuilder.ForceRebuildLayoutImmediate(panel.featuresTable);
+        var height = 0f;
+
+        for (var i = 0; i < panel.featuresTable.childCount; i++)
+        {
+            var feature = panel.featuresTable.GetChild(i).GetComponent<TooltipFeature>();
+
+            if (!feature || !feature.gameObject.activeSelf || !panel.activeFeatures.Contains(feature))
+            {
+                continue;
+            }
+
+            var rectTransform = feature.RectTransform;
+            var position = rectTransform.anchoredPosition;
+
+            switch (feature.VerticalLayout)
+            {
+                case TooltipDefinitions.VerticalLayout.Continuous:
+                    position.y = -height;
+                    height += rectTransform.rect.height;
+                    break;
+                case TooltipDefinitions.VerticalLayout.FixedY:
+                    position.y = -feature.FixedY;
+                    break;
+                default:
+                    position.y = 0f;
+                    break;
+            }
+
+            rectTransform.anchoredPosition = position;
+        }
+
+        panel.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+    }
+
+    private sealed class AdaptiveTooltipLayoutState
+    {
+        internal bool Dirty;
     }
 
     private static void RefreshAdaptiveParameterRow(Transform verticalLayout, string rowName)
@@ -666,38 +857,12 @@ internal static class Tooltips
             return;
         }
 
-        if (verticalLayout.Find(rowName) is not RectTransform topTable ||
-            !topTable.gameObject.activeInHierarchy ||
-            !TryGetTwoActiveParameterGroups(topTable, out var leftGroup, out var rightGroup))
+        if (verticalLayout.Find(rowName) is not RectTransform row)
         {
             return;
         }
 
-        var topState = TooltipParameterLayoutState.Get(topTable);
-
-        topState.Restore(topTable);
-
-        // Native labels can be wider than the space between the two column origins.
-        var leftStart = GetParameterGroupLeft(topTable, leftGroup);
-        var rightStart = GetParameterGroupLeft(topTable, rightGroup);
-        var rowLayout = topTable.GetComponent<HorizontalLayoutGroup>();
-        var columnSpacing = rowLayout ? rowLayout.spacing : leftGroup.GetComponentsInChildren<TMP_Text>(false)
-            .Select(text => text.fontSize / 2f).DefaultIfEmpty(0f).Max();
-        var leftWidth = Mathf.Min(leftGroup.rect.width, rightStart - leftStart - columnSpacing);
-        var rightWidth = Mathf.Min(rightGroup.rect.width, topTable.rect.xMax - rightStart);
-        var requiredHeight = Mathf.Max(
-            topState.OriginalHeight,
-            RefreshAdaptiveParameterGroup(leftGroup, leftWidth),
-            RefreshAdaptiveParameterGroup(rightGroup, rightWidth));
-
-        requiredHeight = Mathf.Ceil(requiredHeight);
-        topTable.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, requiredHeight);
-
-        var layout = topState.EnsureLayoutElement(topTable);
-        layout.preferredHeight = requiredHeight;
-        layout.minHeight = Mathf.Max(layout.minHeight, requiredHeight);
-
-        LayoutRebuilder.ForceRebuildLayoutImmediate(topTable);
+        RefreshAdaptiveParameterRow(row);
 
         if (verticalLayout is RectTransform verticalRect)
         {
@@ -705,38 +870,79 @@ internal static class Tooltips
         }
     }
 
+    private static float RefreshAdaptiveParameterRow(RectTransform row)
+    {
+        var rowState = TooltipParameterLayoutState.Get(row);
+
+        foreach (var state in row.GetComponentsInChildren<TooltipParameterLayoutState>(true))
+        {
+            state.Restore(state.transform as RectTransform);
+        }
+
+        if (!row.gameObject.activeInHierarchy)
+        {
+            return rowState.OriginalHeight;
+        }
+
+        var groups = new List<RectTransform>();
+
+        for (var i = 0; i < row.childCount; i++)
+        {
+            if (row.GetChild(i) is RectTransform child && child.gameObject.activeInHierarchy)
+            {
+                groups.Add(child);
+            }
+        }
+
+        groups.Sort((left, right) => GetParameterGroupLeft(row, left).CompareTo(GetParameterGroupLeft(row, right)));
+
+        var requiredHeight = rowState.OriginalHeight;
+
+        // Native labels can be wider than the space between the two column origins.
+        var rowLayout = row.GetComponent<HorizontalLayoutGroup>();
+
+        for (var i = 0; i < groups.Count; i++)
+        {
+            var group = groups[i];
+            var start = GetParameterGroupLeft(row, group);
+            var spacing = rowLayout ? rowLayout.spacing : group.GetComponentsInChildren<TMP_Text>(false)
+                .Select(text => text.fontSize / 2f).DefaultIfEmpty(0f).Max();
+            var end = i + 1 < groups.Count ? GetParameterGroupLeft(row, groups[i + 1]) - spacing : row.rect.xMax;
+            var width = Mathf.Min(group.rect.width, end - start);
+
+            requiredHeight = Mathf.Max(requiredHeight, RefreshAdaptiveParameterGroup(group, width));
+        }
+
+        requiredHeight = Mathf.Ceil(requiredHeight);
+        row.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, requiredHeight);
+
+        var layout = rowState.EnsureLayoutElement(row);
+        layout.preferredHeight = requiredHeight;
+        layout.minHeight = Mathf.Max(layout.minHeight, requiredHeight);
+
+        LayoutRebuilder.ForceRebuildLayoutImmediate(row);
+        return requiredHeight;
+    }
+
     private static float GetParameterGroupLeft(RectTransform row, RectTransform group)
     {
         return row.InverseTransformPoint(group.TransformPoint(new Vector3(group.rect.xMin, 0f, 0f))).x;
     }
 
-    private static bool TryGetTwoActiveParameterGroups(
-        RectTransform row,
-        out RectTransform leftGroup,
-        out RectTransform rightGroup)
+    private static float GetParameterTop(RectTransform parent, RectTransform child)
     {
-        leftGroup = null;
-        rightGroup = null;
+        return parent.InverseTransformPoint(child.TransformPoint(new Vector3(0f, child.rect.yMax, 0f))).y;
+    }
 
-        for (var i = 0; i < row.childCount; i++)
-        {
-            if (row.GetChild(i) is not RectTransform child || !child.gameObject.activeInHierarchy)
-            {
-                continue;
-            }
+    private static void SetParameterTop(RectTransform rectTransform, float top)
+    {
+        var height = rectTransform.rect.height;
 
-            if (leftGroup == null)
-            {
-                leftGroup = child;
-            }
-            else
-            {
-                rightGroup = child;
-                break;
-            }
-        }
-
-        return leftGroup && rightGroup;
+        rectTransform.anchorMin = new Vector2(rectTransform.anchorMin.x, 1f);
+        rectTransform.anchorMax = new Vector2(rectTransform.anchorMax.x, 1f);
+        rectTransform.pivot = new Vector2(rectTransform.pivot.x, 1f);
+        rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+        rectTransform.anchoredPosition = new Vector2(rectTransform.anchoredPosition.x, -top);
     }
 
     private static float RefreshAdaptiveParameterGroup(RectTransform group, float width)
@@ -757,10 +963,19 @@ internal static class Tooltips
 
         var requiredHeight = groupState.OriginalHeight;
         var addedHeight = 0f;
+        var top = group.parent is RectTransform row ? row.rect.yMax - GetParameterTop(row, group) : 0f;
 
-        foreach (var text in group.GetComponentsInChildren<TMP_Text>(false)
-                     .Where(text => text && text.rectTransform && text.gameObject.activeInHierarchy)
-                     .OrderByDescending(text => TooltipParameterLayoutState.Get(text.rectTransform).OriginalPositionY))
+        SetParameterTop(group, top);
+
+        var texts = group.GetComponentsInChildren<TMP_Text>(false)
+            .Where(text => text && text.rectTransform && text.gameObject.activeInHierarchy)
+            .OrderByDescending(text => GetParameterTop(group, text.rectTransform)).ToArray();
+        var originalBottom = texts.Select(text => group.rect.yMax - GetParameterTop(group, text.rectTransform) +
+                                                TooltipParameterLayoutState.Get(text.rectTransform).OriginalHeight)
+            .DefaultIfEmpty(groupState.OriginalHeight).Max();
+        var bottomPadding = Mathf.Max(0f, groupState.OriginalHeight - originalBottom);
+
+        foreach (var text in texts)
         {
             if (!text || text.rectTransform == null || !text.gameObject.activeInHierarchy)
             {
@@ -771,10 +986,12 @@ internal static class Tooltips
             var textState = TooltipParameterLayoutState.Get(rectTransform);
 
             textState.Restore(rectTransform);
-            rectTransform.anchoredPosition = new Vector2(rectTransform.anchoredPosition.x,
-                textState.OriginalPositionY - addedHeight);
+            var labelTop = group.rect.yMax - GetParameterTop(group, rectTransform);
+
+            SetParameterTop(rectTransform, rectTransform == group ? top : labelTop + addedHeight);
 
             rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+            text.enableAutoSizing = false;
             text.enableWordWrapping = true;
             text.overflowMode = TextOverflowModes.Overflow;
             text.maxVisibleLines = 99999;
@@ -783,7 +1000,7 @@ internal static class Tooltips
             var height = Mathf.Ceil(Mathf.Max(textState.OriginalHeight, preferred.y));
 
             rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
-            requiredHeight = Mathf.Max(requiredHeight, -rectTransform.anchoredPosition.y + height + 2f);
+            requiredHeight = Mathf.Max(requiredHeight, labelTop + addedHeight + height + bottomPadding);
             addedHeight += height - textState.OriginalHeight;
         }
 
@@ -794,22 +1011,441 @@ internal static class Tooltips
     }
 }
 
+internal sealed class TooltipHeaderImageLayoutState : MonoBehaviour
+{
+    private readonly List<TextLayoutState> _textStates = [];
+    private readonly Vector3[] _corners = new Vector3[4];
+    private TooltipFeatureHeader _visibleHeader;
+    private (Rect Header, Rect Image, Rect Title, Rect Subtitle, string TitleText, string SubtitleText,
+        float TitleFont, float SubtitleFont, bool ImageVisible, bool OwnedSlot) _visibleInputs;
+    private bool _hasVisibleInputs;
+    private GameObject _imageRoot;
+    private Image _image;
+    private bool _imageRootActive;
+    private bool _imageEnabled;
+    private bool _applied;
+
+    internal void ReserveVisibleImageSpace(TooltipFeatureHeader header)
+    {
+        Restore();
+        _visibleHeader = header;
+        _applied = true;
+        RefreshVisibleImageSpace();
+    }
+
+    private void LateUpdate()
+    {
+        if (_visibleHeader)
+        {
+            RefreshVisibleImageSpace();
+        }
+    }
+
+    private void RefreshVisibleImageSpace()
+    {
+        var inputs = GetVisibleInputs();
+
+        if (_hasVisibleInputs && _visibleInputs == inputs)
+        {
+            return;
+        }
+
+        foreach (var state in _textStates)
+        {
+            state.Restore();
+        }
+
+        _textStates.Clear();
+        var header = _visibleHeader;
+
+        // A mask or a native layout group owns its image slot. For the small
+        // unmasked header, use spare outside padding before changing any text.
+        if (inputs.ImageVisible && !inputs.OwnedSlot)
+        {
+            inputs = GetVisibleInputs();
+            var title = header.titleLabel ? header.titleLabel.TMP_Text : null;
+            var subtitle = header.subTitleLabel ? header.subTitleLabel.TMP_Text : null;
+
+            if (OverlapsGlyphs(title, header.RectTransform, inputs.Image) ||
+                OverlapsGlyphs(subtitle, header.RectTransform, inputs.Image))
+            {
+                var textBounds = inputs.Title.width > 0f ? inputs.Title : inputs.Subtitle;
+
+                if (inputs.Subtitle.width > 0f)
+                {
+                    textBounds = Rect.MinMaxRect(Mathf.Min(textBounds.xMin, inputs.Subtitle.xMin),
+                        Mathf.Min(textBounds.yMin, inputs.Subtitle.yMin),
+                        Mathf.Max(textBounds.xMax, inputs.Subtitle.xMax),
+                        Mathf.Max(textBounds.yMax, inputs.Subtitle.yMax));
+                }
+
+                const float spacing = 4f;
+                var left = textBounds.xMin - spacing - inputs.Image.xMax;
+                var right = textBounds.xMax + spacing - inputs.Image.xMin;
+                var fitsHeight = inputs.Image.yMin >= inputs.Header.yMin &&
+                                 inputs.Image.yMax <= inputs.Header.yMax;
+                var fitsLeft = fitsHeight && inputs.Image.xMin + left >= inputs.Header.xMin &&
+                               inputs.Image.xMax + left <= inputs.Header.xMax;
+                var fitsRight = fitsHeight && inputs.Image.xMin + right >= inputs.Header.xMin &&
+                                inputs.Image.xMax + right <= inputs.Header.xMax;
+
+                if (textBounds.width > 0f && (fitsLeft || fitsRight))
+                {
+                    var offset = fitsLeft && (!fitsRight || Mathf.Abs(left) <= Mathf.Abs(right)) ? left : right;
+                    var imageRect = header.image.rectTransform;
+                    var state = new TextLayoutState(imageRect);
+
+                    _textStates.Add(state);
+                    var worldOffset = header.transform.TransformVector(new Vector3(offset, 0f, 0f));
+                    imageRect.position += worldOffset;
+                }
+            }
+        }
+
+        _visibleInputs = GetVisibleInputs();
+        _hasVisibleInputs = true;
+    }
+
+    private (Rect Header, Rect Image, Rect Title, Rect Subtitle, string TitleText, string SubtitleText,
+        float TitleFont, float SubtitleFont, bool ImageVisible, bool OwnedSlot) GetVisibleInputs()
+    {
+        var header = _visibleHeader;
+        var title = header.titleLabel ? header.titleLabel.TMP_Text : null;
+        var subtitle = header.subTitleLabel ? header.subTitleLabel.TMP_Text : null;
+
+        return (header.RectTransform.rect, BoundsInHeader(header.image.rectTransform),
+            title && title.isActiveAndEnabled && !string.IsNullOrWhiteSpace(title.text)
+                ? BoundsInHeader(title.rectTransform) : default,
+            subtitle && subtitle.isActiveAndEnabled && !string.IsNullOrWhiteSpace(subtitle.text)
+                ? BoundsInHeader(subtitle.rectTransform) : default,
+            title ? title.text : null, subtitle ? subtitle.text : null,
+            title ? title.fontSize : 0f, subtitle ? subtitle.fontSize : 0f,
+            header.image.isActiveAndEnabled && header.image.sprite,
+            header.mask || HasLayoutGroup(header.image.transform, header.transform) ||
+            HasLayoutGroup(title ? title.transform : null, header.transform) ||
+            HasLayoutGroup(subtitle ? subtitle.transform : null, header.transform));
+    }
+
+    private Rect BoundsInHeader(RectTransform rectTransform)
+    {
+        rectTransform.GetWorldCorners(_corners);
+        var first = _visibleHeader.transform.InverseTransformPoint(_corners[0]);
+        var min = (Vector2)first;
+        var max = min;
+
+        for (var index = 1; index < _corners.Length; index++)
+        {
+            var point = (Vector2)_visibleHeader.transform.InverseTransformPoint(_corners[index]);
+            min = Vector2.Min(min, point);
+            max = Vector2.Max(max, point);
+        }
+
+        return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+    }
+
+    private static bool HasLayoutGroup(Transform transform, Transform header)
+    {
+        for (var parent = transform ? transform.parent : null; parent; parent = parent.parent)
+        {
+            if (parent.TryGetComponent<LayoutGroup>(out var group) && group.isActiveAndEnabled)
+            {
+                return true;
+            }
+
+            if (parent == header)
+            {
+                break;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool OverlapsGlyphs(TMP_Text text, RectTransform header, Rect imageBounds)
+    {
+        if (!text || !text.isActiveAndEnabled)
+        {
+            return false;
+        }
+
+        text.ForceMeshUpdate();
+
+        for (var index = 0; index < text.textInfo.characterCount; index++)
+        {
+            var glyph = text.textInfo.characterInfo[index];
+
+            if (!glyph.isVisible)
+            {
+                continue;
+            }
+
+            var bottomLeft = header.InverseTransformPoint(text.transform.TransformPoint(glyph.bottomLeft));
+            var bottomRight = header.InverseTransformPoint(text.transform.TransformPoint(glyph.bottomRight));
+            var topLeft = header.InverseTransformPoint(text.transform.TransformPoint(glyph.topLeft));
+            var topRight = header.InverseTransformPoint(text.transform.TransformPoint(glyph.topRight));
+            var min = Vector2.Min(Vector2.Min(bottomLeft, bottomRight), Vector2.Min(topLeft, topRight));
+            var max = Vector2.Max(Vector2.Max(bottomLeft, bottomRight), Vector2.Max(topLeft, topRight));
+            var glyphBounds = Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+
+            if (glyphBounds.Overlaps(imageBounds))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal void Apply(TooltipFeatureHeader header)
+    {
+        Restore();
+
+        if (!header.image)
+        {
+            return;
+        }
+
+        _image = header.image;
+        _imageRoot = header.mask && header.mask != header.RectTransform &&
+                     header.image.transform.IsChildOf(header.mask) &&
+                     (!header.titleLabel || !header.titleLabel.transform.IsChildOf(header.mask)) &&
+                     (!header.subTitleLabel || !header.subTitleLabel.transform.IsChildOf(header.mask))
+            ? header.mask.gameObject
+            : header.image.gameObject;
+        // Some text-only header variants put Image on the feature itself. Hiding
+        // that object would also hide its labels, so disable only its renderer there.
+        if (_imageRoot == header.gameObject ||
+            (header.titleLabel && header.titleLabel.transform.IsChildOf(_imageRoot.transform)) ||
+            (header.subTitleLabel && header.subTitleLabel.transform.IsChildOf(_imageRoot.transform)))
+        {
+            _imageRoot = null;
+        }
+
+        _imageRootActive = _imageRoot && _imageRoot.activeSelf;
+        _imageEnabled = _image.enabled;
+        _applied = true;
+
+        // Keep text branches and native font settings intact. Reclaim only the image
+        // column; a shared layout group can then size the remaining content normally.
+        foreach (var label in new[] { header.titleLabel, header.subTitleLabel })
+        {
+            if (!label || !_imageRoot)
+            {
+                continue;
+            }
+
+            var branch = label.RectTransform;
+
+            while (branch.parent && branch.parent != header.transform &&
+                   !header.image.transform.IsChildOf(branch.parent))
+            {
+                if (branch.parent is not RectTransform parent)
+                {
+                    break;
+                }
+
+                branch = parent;
+            }
+
+            if (branch == header.RectTransform ||
+                _textStates.Exists(state => state.RectTransform == branch))
+            {
+                continue;
+            }
+
+            var state = new TextLayoutState(branch);
+
+            _textStates.Add(state);
+            state.Expand((RectTransform)_imageRoot.transform);
+        }
+
+        _image.enabled = false;
+
+        if (_imageRoot)
+        {
+            _imageRoot.SetActive(false);
+        }
+    }
+
+    internal void Restore()
+    {
+        if (!_applied)
+        {
+            return;
+        }
+
+        _applied = false;
+
+        foreach (var state in _textStates)
+        {
+            state.Restore();
+        }
+
+        _textStates.Clear();
+
+        if (_image)
+        {
+            _image.enabled = _imageEnabled;
+        }
+
+        if (_imageRoot)
+        {
+            _imageRoot.SetActive(_imageRootActive);
+        }
+
+        _image = null;
+        _imageRoot = null;
+        _visibleHeader = null;
+        _hasVisibleInputs = false;
+    }
+
+    private void OnDisable()
+    {
+        Restore();
+    }
+
+    private sealed class TextLayoutState
+    {
+        private readonly Vector2 _anchorMin;
+        private readonly Vector2 _anchorMax;
+        private readonly Vector2 _pivot;
+        private readonly Vector2 _sizeDelta;
+        private readonly Vector3 _anchoredPosition;
+        private readonly bool _hadLayoutElement;
+        private readonly bool _layoutElementEnabled;
+        private readonly float _minWidth;
+        private readonly float _preferredWidth;
+        private readonly float _flexibleWidth;
+        private LayoutElement _layoutElement;
+
+        internal TextLayoutState(RectTransform rectTransform)
+        {
+            RectTransform = rectTransform;
+            _anchorMin = rectTransform.anchorMin;
+            _anchorMax = rectTransform.anchorMax;
+            _pivot = rectTransform.pivot;
+            _sizeDelta = rectTransform.sizeDelta;
+            _anchoredPosition = rectTransform.anchoredPosition3D;
+            _hadLayoutElement = rectTransform.TryGetComponent(out _layoutElement);
+
+            if (_hadLayoutElement)
+            {
+                _layoutElementEnabled = _layoutElement.enabled;
+                _minWidth = _layoutElement.minWidth;
+                _preferredWidth = _layoutElement.preferredWidth;
+                _flexibleWidth = _layoutElement.flexibleWidth;
+            }
+        }
+
+        internal RectTransform RectTransform { get; }
+
+        internal void Expand(RectTransform imageRoot)
+        {
+            if (RectTransform.parent is not RectTransform parent)
+            {
+                return;
+            }
+
+            if (parent.TryGetComponent<HorizontalLayoutGroup>(out var group) && group.isActiveAndEnabled)
+            {
+                _layoutElement ??= RectTransform.gameObject.AddComponent<LayoutElement>();
+                _layoutElement.enabled = true;
+                _layoutElement.minWidth = 0f;
+                _layoutElement.preferredWidth = -1f;
+                _layoutElement.flexibleWidth = 1f;
+
+                return;
+            }
+
+            var imageBounds = BoundsInParent(parent, imageRoot);
+            var textBounds = BoundsInParent(parent, RectTransform);
+            var left = Mathf.Max(0f, Mathf.Min(imageBounds.xMin, textBounds.xMin) - parent.rect.xMin);
+            var right = Mathf.Max(0f, parent.rect.xMax - textBounds.xMax);
+            var anchorMin = RectTransform.anchorMin;
+            var anchorMax = RectTransform.anchorMax;
+
+            anchorMin.x = 0f;
+            anchorMax.x = 1f;
+            RectTransform.anchorMin = anchorMin;
+            RectTransform.anchorMax = anchorMax;
+            var offsetMin = RectTransform.offsetMin;
+            var offsetMax = RectTransform.offsetMax;
+
+            offsetMin.x = left;
+            offsetMax.x = -right;
+            RectTransform.offsetMin = offsetMin;
+            RectTransform.offsetMax = offsetMax;
+        }
+
+        internal void Restore()
+        {
+            if (!RectTransform)
+            {
+                return;
+            }
+
+            if (_layoutElement)
+            {
+                if (_hadLayoutElement)
+                {
+                    _layoutElement.enabled = _layoutElementEnabled;
+                    _layoutElement.minWidth = _minWidth;
+                    _layoutElement.preferredWidth = _preferredWidth;
+                    _layoutElement.flexibleWidth = _flexibleWidth;
+                }
+                else
+                {
+                    UnityEngine.Object.DestroyImmediate(_layoutElement);
+                }
+            }
+
+            RectTransform.anchorMin = _anchorMin;
+            RectTransform.anchorMax = _anchorMax;
+            RectTransform.pivot = _pivot;
+            RectTransform.sizeDelta = _sizeDelta;
+            RectTransform.anchoredPosition3D = _anchoredPosition;
+        }
+
+        private static Rect BoundsInParent(RectTransform parent, RectTransform rectTransform)
+        {
+            var corners = new Vector3[4];
+
+            rectTransform.GetWorldCorners(corners);
+            var points = corners.Select(parent.InverseTransformPoint).ToArray();
+
+            return Rect.MinMaxRect(points.Min(point => point.x), points.Min(point => point.y),
+                points.Max(point => point.x), points.Max(point => point.y));
+        }
+    }
+}
+
 internal sealed class TooltipParameterLayoutState : MonoBehaviour
 {
     private bool _captured;
+    private bool _restorePlacement = true;
     private bool _hadLayoutElement;
     private float _originalMinHeight;
     private float _originalPreferredHeight;
     private float _originalFlexibleHeight;
+    private float _originalAnchorMinY;
+    private float _originalAnchorMaxY;
+    private float _originalPivotY;
+    private TMP_Text _text;
+    private float _originalTextWidth;
+    private bool _originalAutoSizing;
+    private bool _originalWordWrapping;
+    private TextOverflowModes _originalOverflowMode;
+    private int _originalMaxVisibleLines;
 
     internal float OriginalHeight { get; private set; }
     internal float OriginalPositionY { get; private set; }
 
-    internal static TooltipParameterLayoutState Get(RectTransform rectTransform)
+    internal static TooltipParameterLayoutState Get(RectTransform rectTransform, bool restorePlacement = true)
     {
         var state = rectTransform.GetComponent<TooltipParameterLayoutState>() ??
                     rectTransform.gameObject.AddComponent<TooltipParameterLayoutState>();
 
+        state._restorePlacement = restorePlacement;
         state.Capture(rectTransform);
 
         return state;
@@ -828,7 +1464,28 @@ internal sealed class TooltipParameterLayoutState : MonoBehaviour
             return;
         }
 
+        if (_restorePlacement)
+        {
+            rectTransform.anchorMin = new Vector2(rectTransform.anchorMin.x, _originalAnchorMinY);
+            rectTransform.anchorMax = new Vector2(rectTransform.anchorMax.x, _originalAnchorMaxY);
+            rectTransform.pivot = new Vector2(rectTransform.pivot.x, _originalPivotY);
+        }
+
         rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, OriginalHeight);
+
+        if (_restorePlacement)
+        {
+            rectTransform.anchoredPosition = new Vector2(rectTransform.anchoredPosition.x, OriginalPositionY);
+        }
+
+        if (_text)
+        {
+            rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _originalTextWidth);
+            _text.enableAutoSizing = _originalAutoSizing;
+            _text.enableWordWrapping = _originalWordWrapping;
+            _text.overflowMode = _originalOverflowMode;
+            _text.maxVisibleLines = _originalMaxVisibleLines;
+        }
 
         if (!rectTransform.TryGetComponent<LayoutElement>(out var layout))
         {
@@ -858,6 +1515,20 @@ internal sealed class TooltipParameterLayoutState : MonoBehaviour
 
         OriginalHeight = rectTransform.rect.height;
         OriginalPositionY = rectTransform.anchoredPosition.y;
+        _originalAnchorMinY = rectTransform.anchorMin.y;
+        _originalAnchorMaxY = rectTransform.anchorMax.y;
+        _originalPivotY = rectTransform.pivot.y;
+        _text = rectTransform.GetComponent<TMP_Text>();
+
+        if (_text)
+        {
+            _originalTextWidth = rectTransform.rect.width;
+            _originalAutoSizing = _text.enableAutoSizing;
+            _originalWordWrapping = _text.enableWordWrapping;
+            _originalOverflowMode = _text.overflowMode;
+            _originalMaxVisibleLines = _text.maxVisibleLines;
+        }
+
         _hadLayoutElement = rectTransform.TryGetComponent<LayoutElement>(out var layout);
 
         if (_hadLayoutElement)
@@ -868,6 +1539,11 @@ internal sealed class TooltipParameterLayoutState : MonoBehaviour
         }
 
         _captured = true;
+    }
+
+    private void OnDisable()
+    {
+        Restore(transform as RectTransform);
     }
 }
 

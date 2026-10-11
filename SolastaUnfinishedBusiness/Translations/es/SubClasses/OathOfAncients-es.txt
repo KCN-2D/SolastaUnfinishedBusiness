@@ -1,6 +1,7 @@
 Condition/&ConditionOathOfAncientsAuraWardingDescription=Gana resistencia al daño de hechizos.
 Condition/&ConditionOathOfAncientsAuraWardingTitle=Protegido
 Condition/&ConditionOathOfAncientsElderChampionDescription=• Al comienzo de cada uno de tus turnos, recuperas 10 puntos de golpe.\n• Siempre que lances un hechizo de paladín que tenga un tiempo de lanzamiento de 1 acción, puedes realizar dos ataques con armas como parte de la misma acción.\n• Las criaturas enemigas a 10 pies o menos de ti tienen desventaja en las tiradas de salvación contra tus hechizos de paladín y las opciones de Canalizar divinidad.
+Condition/&ConditionOathOfAncientsElderChampionEnemyDescription=Tienes desventaja en tu próxima tirada de salvación. Este efecto termina después de que realices una tirada de salvación.
 Condition/&ConditionOathOfAncientsElderChampionTitle=Campeón anciano
 Feature/&DamageAffinityOathOfAncientsUndyingSentinelDescription=Cuando te queden 0 puntos de vida pero no mueras directamente, tu punto de vida disminuirá a 1. No podrás volver a beneficiarte de esta característica hasta que termines un descanso prolongado.
 Feature/&DamageAffinityOathOfAncientsUndyingSentinelTitle=Centinela inmortal

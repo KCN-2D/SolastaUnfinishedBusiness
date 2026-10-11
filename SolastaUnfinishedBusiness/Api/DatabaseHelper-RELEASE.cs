@@ -4294,28 +4294,28 @@ internal static partial class DatabaseHelper
             GetDefinition<DecisionPackageDefinition>("IdleGuard_Default");
 
         internal static DecisionPackageDefinition ClericCombatDecisions { get; } =
-            GetDefinition<DecisionPackageDefinition>("IdleGuard_Default");
+            GetDefinition<DecisionPackageDefinition>("ClericCombatDecisions");
 
         internal static DecisionPackageDefinition FighterCombatDecisions { get; } =
-            GetDefinition<DecisionPackageDefinition>("IdleGuard_Default");
+            GetDefinition<DecisionPackageDefinition>("FighterCombatDecisions");
 
         internal static DecisionPackageDefinition PaladinCombatDecisions { get; } =
-            GetDefinition<DecisionPackageDefinition>("IdleGuard_Default");
+            GetDefinition<DecisionPackageDefinition>("PaladinCombatDecisions");
 
         internal static DecisionPackageDefinition RogueCombatDecisions { get; } =
-            GetDefinition<DecisionPackageDefinition>("IdleGuard_Default");
+            GetDefinition<DecisionPackageDefinition>("RogueCombatDecisions");
 
         internal static DecisionPackageDefinition CasterCombatDecisions { get; } =
-            GetDefinition<DecisionPackageDefinition>("IdleGuard_Default");
+            GetDefinition<DecisionPackageDefinition>("CasterCombatDecisions");
 
         internal static DecisionPackageDefinition OffensiveCasterCombatDecisions { get; } =
-            GetDefinition<DecisionPackageDefinition>("IdleGuard_Default");
+            GetDefinition<DecisionPackageDefinition>("OffensiveCasterCombatDecisions");
 
         internal static DecisionPackageDefinition DefaultSupportCasterWithBackupAttacksDecisions { get; } =
-            GetDefinition<DecisionPackageDefinition>("IdleGuard_Default");
+            GetDefinition<DecisionPackageDefinition>("DefaultSupportCasterWithBackupAttacksDecisions");
 
         internal static DecisionPackageDefinition DefaultRangeWithBackupMeleeDecisions { get; } =
-            GetDefinition<DecisionPackageDefinition>("IdleGuard_Default");
+            GetDefinition<DecisionPackageDefinition>("DefaultRangeWithBackupMeleeDecisions");
     }
 
     internal static class ToolTypeDefinitions

@@ -769,6 +769,12 @@ public static class GameLocationCharacterPatcher
             //PATCH: support grapple
             GrappleContext.ValidateActionAvailability(__instance, ref __result, actionId);
 
+            if (actionId == Id.ShoveBonus && __result == ActionStatus.Available &&
+                !CombatAiContext.CanUseEnemyBattleShove(__instance))
+            {
+                __result = ActionStatus.Unavailable;
+            }
+
             //PATCH: support blinded don't allow AoO
             if (Main.Settings.BlindedConditionDontAllowAttackOfOpportunity &&
                 actionId == Id.AttackOpportunity &&

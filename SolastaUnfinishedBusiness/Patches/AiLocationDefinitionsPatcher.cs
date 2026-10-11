@@ -26,6 +26,14 @@ public static class AiLocationDefinitionsPatcher
             IMagicEffect magicEffect,
             GameLocationCharacter optionalTarget)
         {
+            // Dedicated tactical and reaction handlers own these limited powers. The
+            // general buff chooser lacks the useful-route, affliction or attack context.
+            if (__result && CombatAiContext.IsEnemyBattleTacticsPower(magicEffect))
+            {
+                __result = false;
+                return;
+            }
+
             var locationCharacter = aiCharacter.GameLocationCharacter;
 
             if (__result &&

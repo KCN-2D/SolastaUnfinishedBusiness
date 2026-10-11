@@ -183,3 +183,4 @@ Spell/&FindFamiliarCatFiendSelectionTitle=Katze · Unhold
 Reaction/&SpendSpellSlotSilveryBarbsAttackDescription={0} hat einen Angriffswurf gegen {1} bestanden. Lass {0} den W20 erneut würfeln und das niedrigere Ergebnis verwenden.
 Reaction/&SpendSpellSlotSilveryBarbsAbilityCheckDescription={0} hat einen Attributswurf bestanden. Lass {0} den W20 erneut würfeln und das niedrigere Ergebnis verwenden.
 Reaction/&SpendSpellSlotSilveryBarbsSavingThrowDescription={0} hat einen Rettungswurf bestanden. Lass {0} den W20 erneut würfeln und das niedrigere Ergebnis verwenden.
+Spell/&MagicMissileTitle=Magisches Geschoss

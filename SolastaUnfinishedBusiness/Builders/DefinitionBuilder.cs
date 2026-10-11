@@ -333,6 +333,7 @@ internal abstract class DefinitionBuilder<TDefinition> : DefinitionBuilder, IDef
                 foreach (var field in type
                              .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
                              .Where(f => f.FieldType.IsGenericType)
+                             .Where(f => !typeof(Delegate).IsAssignableFrom(f.FieldType))
                              .Where(f => f.GetValue(Definition) == null))
                 {
                     try

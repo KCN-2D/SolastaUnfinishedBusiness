@@ -2,25 +2,46 @@
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using static SolastaUnfinishedBusiness.Feats.OtherFeats;
 
 namespace SolastaUnfinishedBusiness.CustomUI;
 
-internal class ReactionRequestWarcaster : ReactionRequest
+internal class ReactionRequestWarcaster : ReactionRequest, IReactionRequestWithResource,
+    IReactionRequestWithCallbacks
 {
     internal const string Name = "ReactionWarcaster";
     private readonly ActionDefinition _attackAction;
     private readonly List<ActionModifier> _attackModifiers = [];
     private readonly GuiCharacter _guiTarget;
     private readonly string _type;
+    private readonly System.Func<ReactionRequestWarcaster, int, bool> _validateChoice;
+    private bool _callbackCommitted;
 
-    internal ReactionRequestWarcaster(string name, CharacterActionParams reactionParams)
+    internal ReactionRequestWarcaster(string name, CharacterActionParams reactionParams,
+        IEnumerable<SpellDefinition> cantrips = null,
+        System.Action<ReactionRequestWarcaster> reactionValidated = null,
+        System.Func<ReactionRequestWarcaster, int, bool> validateChoice = null)
         : base(name, reactionParams)
     {
+        _validateChoice = validateChoice;
+        if (reactionValidated != null)
+        {
+            ReactionValidated = request =>
+            {
+                if (_callbackCommitted || !request.Validated || !request.Processed ||
+                    !request.ReactionParams.ReactionValidated)
+                {
+                    return;
+                }
+                _callbackCommitted = true;
+                reactionValidated((ReactionRequestWarcaster)request);
+            };
+        }
         _attackAction = reactionParams.ActionDefinition;
         _attackModifiers.SetRange(reactionParams.ActionModifiers);
-        BuildSuboptions();
+        BuildSuboptions(cantrips);
         _type = string.IsNullOrEmpty(ReactionParams.StringParameter2)
             ? name
             : ReactionParams.StringParameter2;
@@ -47,6 +68,12 @@ internal class ReactionRequestWarcaster : ReactionRequest
         }
     }
 
+    public ICustomReactionResource Resource { get; set; }
+    public System.Action<ReactionRequest> ReactionValidated { get; }
+    public System.Action<ReactionRequest> ReactionNotValidated => null;
+
+    internal bool IsChoiceStillValid(int choice) => _validateChoice?.Invoke(this, choice) ?? true;
+
 
     public override string SuboptionTag => _type;
 
@@ -57,7 +84,9 @@ internal class ReactionRequestWarcaster : ReactionRequest
             var targetCharacter = ReactionParams.TargetCharacters[0];
 
             return ServiceRepository.GetService<IGameLocationCharacterService>().ValidCharacters
-                .Contains(targetCharacter) && targetCharacter.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false };
+                .Contains(targetCharacter) && targetCharacter.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } &&
+                // Accepted requests may already have committed their callback resource.
+                (Processed && Validated || IsChoiceStillValid(SelectedSubOption));
         }
     }
 
@@ -74,14 +103,15 @@ internal class ReactionRequestWarcaster : ReactionRequest
         return ReactionParams.ActingCharacter.RulesetCharacter.CanCastCantrip(spell, out repertoire);
     }
 
-    private void BuildSuboptions()
+    private void BuildSuboptions(IEnumerable<SpellDefinition> suppliedCantrips)
     {
         SubOptionsAvailability.Clear();
         SubOptionsAvailability.Add(0, !reactionParams.BoolParameter4);
 
         var battleManager = ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
         var actingCharacter = reactionParams.ActingCharacter;
-        var cantrips = GetValidCantrips(battleManager, actingCharacter, reactionParams.targetCharacters[0]);
+        var cantrips = suppliedCantrips?.Distinct().ToList() ??
+                       GetValidCantrips(battleManager, actingCharacter, reactionParams.targetCharacters[0]);
 
         if (cantrips != null && cantrips.Count != 0)
         {

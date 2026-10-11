@@ -73,7 +73,8 @@ public static class RulesetSpellRepertoirePatcher
             return true;
         }
 
-        return SpeciesSpellcastingContext.TryGetSpellcastingAbility(repertoire, out ability) ||
+        return CombatAiContext.TryGetEnemyBattleSpellCastingAbility(repertoire, out ability) ||
+               SpeciesSpellcastingContext.TryGetSpellcastingAbility(repertoire, out ability) ||
                Tabletop2024Context.TryGetTabletop2024FeatSpellcastingAbility(repertoire, out ability);
     }
 
@@ -520,6 +521,7 @@ public static class RulesetSpellRepertoirePatcher
         [UsedImplicitly]
         public static bool Prefix(RulesetSpellRepertoire __instance, int slotLevel)
         {
+            SpellSlotCastingLimit2024Context.RecordSpellSlotExpenditure(__instance, slotLevel);
             SpendSpellSlot(__instance, slotLevel);
 
             return false;

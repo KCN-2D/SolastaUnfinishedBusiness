@@ -326,7 +326,9 @@ public static class GameLocationCharacterExtensions
         string stringParameter2,
         Action reactionValidated = null,
         GameLocationBattleManager battleManager = null,
-        ReactionResourcePowerPool resource = null)
+        ReactionResourcePowerPool resource = null,
+        Func<bool> reactionStillValid = null,
+        Action<RulesetAttackMode> attackModePrepared = null)
     {
         if (!TryGetReactionManagers(out var actionManager, out battleManager, battleManager))
         {
@@ -339,6 +341,8 @@ public static class GameLocationCharacterExtensions
             attackMode,
             defender,
             actionModifier) { StringParameter2 = stringParameter2 };
+        // The native constructor copies the mode; bind request-specific state to that actual copy.
+        attackModePrepared?.Invoke(reactionParams.AttackMode);
         Action<ReactionRequestReactionAttack> reactionCallback = null;
 
         if (reactionValidated != null)
@@ -347,7 +351,8 @@ public static class GameLocationCharacterExtensions
         }
 
         var reactionRequest =
-            new ReactionRequestReactionAttack(stringParameter2, reactionParams, reactionCallback)
+            new ReactionRequestReactionAttack(stringParameter2, reactionParams, reactionCallback,
+                reactionStillValid: reactionStillValid)
             {
                 Resource = resource
             };
@@ -417,7 +422,8 @@ public static class GameLocationCharacterExtensions
         GameLocationBattleManager battleManager = null,
         ICustomReactionResource resource = null,
         GameLocationCharacter target = null,
-        BaseDefinition effectDefinition = null)
+        BaseDefinition effectDefinition = null,
+        Func<bool> reactionStillValid = null)
     {
         if (!TryGetReactionManagers(out var actionManager, out battleManager, battleManager))
         {
@@ -428,7 +434,7 @@ public static class GameLocationCharacterExtensions
         {
             StringParameter = stringParameter, IsReactionEffect = actionId == ExtraActionId.DoNothingReaction
         };
-        var reactionRequest = new ReactionRequestCustom(type, reactionParams, target, effectDefinition)
+        var reactionRequest = new ReactionRequestCustom(type, reactionParams, target, effectDefinition, reactionStillValid)
         {
             Resource = resource
         };
@@ -1031,7 +1037,12 @@ public static class GameLocationCharacterExtensions
 
     internal static bool CanReact(this GameLocationCharacter instance, bool ignoreReactionUses = false)
     {
-        return instance.CanAct() && IsReactionAvailable(instance, ignoreReactionUses);
+        // Threat and flanking checks use CanAct's stricter condition filters.
+        // Reaction availability instead follows incapacity and the native action restrictions.
+        return instance.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false, IsIncapacitated: false } &&
+               !instance.IsCharging &&
+               !instance.MoveStepInProgress &&
+               IsReactionAvailable(instance, ignoreReactionUses);
     }
 
     internal static bool OnceInMyTurnIsValid(this GameLocationCharacter instance, string key)

@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection.Emit;
 using System.Reflection;
+using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
@@ -37,6 +37,15 @@ public static class GraphicsCharacterPatcher
         {
             CombatAnimationContext.InterruptCivilianReaction(__instance);
         }
+
+        [UsedImplicitly]
+        public static void Postfix(GraphicsCharacter __instance, MethodBase __originalMethod)
+        {
+            if (__originalMethod.Name == nameof(GraphicsCharacter.RebindAnimator))
+            {
+                SimulacrumBehavior.ApplyInventoryAppearanceClassAnimation(__instance);
+            }
+        }
     }
 
     [HarmonyPatch(typeof(GraphicsCharacter), nameof(GraphicsCharacter.Shutdown))]
@@ -55,8 +64,9 @@ public static class GraphicsCharacterPatcher
     public static class SetupAfterAnimator_Patch
     {
         [UsedImplicitly]
-        public static void Postfix()
+        public static void Postfix(GraphicsCharacter __instance)
         {
+            SimulacrumBehavior.ApplyInventoryAppearanceClassAnimation(__instance);
             CombatAnimationContext.RequestCivilianRefresh();
         }
     }

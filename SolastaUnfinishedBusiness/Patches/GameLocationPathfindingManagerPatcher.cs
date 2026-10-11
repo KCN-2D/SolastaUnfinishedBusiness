@@ -29,9 +29,10 @@ public static class GameLocationPathfindingManagerPatcher
         }
 
         [UsedImplicitly]
-        public static void Postfix(IDisposable __state)
+        public static Exception Finalizer(Exception __exception, IDisposable __state)
         {
             __state?.Dispose();
+            return __exception;
         }
     }
 
@@ -47,6 +48,8 @@ public static class GameLocationPathfindingManagerPatcher
         {
             using (FreeJumpContext.BeginExplorationPathfinding(character))
             {
+                using var iterator = values as IDisposable;
+
                 while (values.MoveNext())
                 {
                     yield return values.Current;

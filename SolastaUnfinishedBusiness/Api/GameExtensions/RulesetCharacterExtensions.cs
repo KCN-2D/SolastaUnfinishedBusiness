@@ -21,6 +21,76 @@ internal static class RulesetCharacterExtensions
         AccessTools.MethodDelegate<Action<RulesetCharacter>>(
             AccessTools.Method(typeof(RulesetCharacter), "EnumerateUsableSpells"));
 
+    // Evaluate an existing roll without rolling dice, raising combat events or consuming conditions.
+    internal static (RollOutcome Outcome, int Total, int SuccessDelta,
+        bool IsAutomaticCritical, bool IsAutomaticHit) ComputeAttackOutcome(
+        this RulesetCharacter attacker, RulesetActor target, BaseDefinition attackMethod,
+        int rawRoll, int toHitBonus, int rollModifier)
+    {
+        var service = ServiceRepository.GetService<IGameSettingsService>();
+        var disableEnemyCrits = attacker.Side == Side.Enemy && service is { DisableEnemyCrits: true };
+        var automaticHit = rawRoll == DiceMaxValue[8] && !disableEnemyCrits;
+        var successDelta = 0;
+        int total;
+        RollOutcome outcome;
+
+        if (automaticHit)
+        {
+            total = rawRoll;
+            outcome = RollOutcome.CriticalSuccess;
+        }
+        else if (rawRoll == DiceMinValue[8])
+        {
+            total = rawRoll;
+            outcome = RollOutcome.CriticalFailure;
+        }
+        else
+        {
+            total = rawRoll + toHitBonus + rollModifier;
+            successDelta = total - target.GetAttribute(AttributeDefinitions.ArmorClass).CurrentValue;
+
+            if (successDelta >= 0)
+            {
+                var threshold = DiceMaxValue[8];
+                if (attacker.TryGetAttribute("CriticalThreshold", out var attribute))
+                {
+                    threshold = attribute.CurrentValue;
+                    if (target is RulesetCharacter defender)
+                    {
+                        foreach (var modifier in attacker.GetSubFeaturesByType<IModifyAttackCriticalThreshold>())
+                        {
+                            threshold = modifier.GetCriticalThreshold(threshold, attacker, defender, attackMethod);
+                        }
+                    }
+                }
+
+                outcome = rawRoll < threshold || disableEnemyCrits
+                    ? RollOutcome.Success
+                    : RollOutcome.CriticalSuccess;
+            }
+            else
+            {
+                outcome = RollOutcome.Failure;
+            }
+        }
+
+        var automaticCritical = false;
+        if (target is RulesetCharacter character && outcome == RollOutcome.Success &&
+            character.IsCriticalAutomaticOnMe(attacker))
+        {
+            outcome = RollOutcome.CriticalSuccess;
+            automaticCritical = true;
+        }
+
+        if (outcome == RollOutcome.CriticalSuccess && target is RulesetCharacter rulesetCharacter &&
+            rulesetCharacter.IsImmuneToCriticalHits())
+        {
+            outcome = RollOutcome.Success;
+        }
+
+        return (outcome, total, successDelta, automaticCritical, automaticHit);
+    }
+
 #if false
     internal static bool IsWearingLightArmor([NotNull] this RulesetCharacter _)
     {
@@ -277,8 +347,14 @@ internal static class RulesetCharacterExtensions
     {
         spellRepertoire = null;
 
-        foreach (var repertoire in character.spellRepertoires.Where(repertoire => repertoire.KnownCantrips.Any(Matches)
-                     || repertoire.ExtraSpellsByTag.SelectMany(x => x.Value).Any(Matches)))
+        if (character == null || cantrip?.SpellLevel != 0)
+        {
+            return false;
+        }
+
+        foreach (var repertoire in character.spellRepertoires.Where(repertoire =>
+                     repertoire.EnumerateReadyCantrips().Any(known => known == cantrip ||
+                         cantrip.SpellsBundle && SpellsContext.GetSubspellLeaves(cantrip).Contains(known))))
         {
             spellRepertoire = repertoire;
 
@@ -286,12 +362,6 @@ internal static class RulesetCharacterExtensions
         }
 
         return false;
-
-        bool Matches(SpellDefinition knownCantrip)
-        {
-            return knownCantrip == cantrip ||
-                   (knownCantrip.SpellsBundle && SpellsContext.GetSubspellLeaves(knownCantrip).Contains(cantrip));
-        }
     }
 
 #if false

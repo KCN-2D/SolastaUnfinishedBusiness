@@ -660,7 +660,13 @@ public static class GraphicsCharacterFactoryManagerPatcher
         // inventory body-part substitution above needs the same tail so newly created
         // hands and forearms receive the Simulacrum's morphotype colors.
         TryFinalize("update-lods", graphicsCharacter.UpdateLods);
-        TryFinalize("setup-after-equipment", graphicsCharacter.SetupAfterEquipment);
+        TryFinalize(
+            "setup-after-equipment",
+            () =>
+            {
+                graphicsCharacter.SetupAfterEquipment();
+                SimulacrumBehavior.ApplyInventoryAppearanceClassAnimation(graphicsCharacter);
+            });
         TryFinalize(
             "refresh-morphotypes",
             () =>

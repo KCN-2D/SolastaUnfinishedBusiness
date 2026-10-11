@@ -183,3 +183,4 @@ Spell/&FindFamiliarCatFiendSelectionTitle=Gato · Demonio
 Reaction/&SpendSpellSlotSilveryBarbsAttackDescription={0} ha tenido éxito en una tirada de ataque contra {1}. Haz que {0} vuelva a tirar el d20 y use el resultado más bajo.
 Reaction/&SpendSpellSlotSilveryBarbsAbilityCheckDescription={0} ha tenido éxito en una prueba de característica. Haz que {0} vuelva a tirar el d20 y use el resultado más bajo.
 Reaction/&SpendSpellSlotSilveryBarbsSavingThrowDescription={0} ha tenido éxito en una tirada de salvación. Haz que {0} vuelva a tirar el d20 y use el resultado más bajo.
+Spell/&MagicMissileTitle=Proyectil mágico

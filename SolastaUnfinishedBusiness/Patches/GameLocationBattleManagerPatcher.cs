@@ -56,6 +56,30 @@ public static class GameLocationBattleManagerPatcher
             MetamagicContext.PatchReactionSpellRangeChecks(instructions, TargetMethod(), "damagedCharacter");
     }
 
+    [HarmonyPatch(typeof(GameLocationBattleManager), nameof(GameLocationBattleManager.HandleSpellTargeted))]
+    [UsedImplicitly]
+    public static class HandleSpellTargeted_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerator Postfix(IEnumerator values, GameLocationBattleManager __instance,
+            GameLocationCharacter caster, RulesetEffectSpell hostileSpell, GameLocationCharacter defender)
+        {
+            try
+            {
+                yield return CombatAiContext.HandleEnemyBattleSpellTargeted(__instance, caster, hostileSpell, defender);
+
+                while (values.MoveNext())
+                {
+                    yield return values.Current;
+                }
+            }
+            finally
+            {
+                (values as IDisposable)?.Dispose();
+            }
+        }
+    }
+
     [HarmonyPatch]
     [UsedImplicitly]
     public static class HandleSpellTargeted_MoveNext_Patch
@@ -343,7 +367,15 @@ public static class GameLocationBattleManagerPatcher
             var attackBeforeHitHandlers = attacker.RulesetCharacter
                 .GetSubFeaturesByType<IPhysicalAttackBeforeHitConfirmedOnEnemy>();
 
-            if (attackMode?.SourceObject is RulesetItem weapon)
+            if (CombatAiContext.IsLimitedEnemyBattleNativeAttack(attackMode))
+            {
+                // Keep bonuses to the existing roll; additional damage forms and
+                // resource-spending on-hit features retain their uses on limited attacks.
+                attackBeforeHitHandlers.RemoveAll(handler => handler is not IPhysicalAttackDamageBonus);
+            }
+
+            if (!CombatAiContext.IsLimitedEnemyBattleNativeAttack(attackMode) &&
+                attackMode?.SourceObject is RulesetItem weapon)
             {
                 attackBeforeHitHandlers.AddRange(weapon.GetSubFeaturesByType<IPhysicalAttackBeforeHitConfirmedOnEnemy>());
             }
@@ -407,11 +439,17 @@ public static class GameLocationBattleManagerPatcher
 
         [UsedImplicitly]
         public static IEnumerator Postfix(
-            IEnumerator values)
+            IEnumerator values,
+            RulesetAttackMode attackMode)
         {
             //PATCH: support for `IReactionAttackModeRestriction`
             try
             {
+                if (CombatAiContext.IsLimitedEnemyBattleNativeAttack(attackMode))
+                {
+                    yield break;
+                }
+
                 while (values.MoveNext())
                 {
                     yield return values.Current;
@@ -617,6 +655,11 @@ public static class GameLocationBattleManagerPatcher
         [UsedImplicitly]
         public static bool Prefix(ref AttackEvaluationParams attackParams)
         {
+            if (!CombatAiContext.IsValidEnemyBattleAttackTarget(attackParams))
+            {
+                attackParams.attackModifier?.FailureFlags.Add("Failure/&EnemyBattleTargetNotUseful");
+                return false;
+            }
             // Keep the caster's spell attack and features; only the touch delivery origin changes.
             if (attackParams.effectDescription != null && !string.IsNullOrEmpty(attackParams.effectName) &&
                 DatabaseHelper.TryGetDefinition<SpellDefinition>(attackParams.effectName, out var spellDefinition))
@@ -830,6 +873,11 @@ public static class GameLocationBattleManagerPatcher
     [UsedImplicitly]
     public static class HandleAdditionalDamageOnCharacterAttackHitConfirmed_Patch
     {
+        private static IEnumerator NoAdditionalDamage()
+        {
+            yield break;
+        }
+
         [UsedImplicitly]
         public static bool Prefix(
             GameLocationBattleManager __instance,
@@ -846,7 +894,9 @@ public static class GameLocationBattleManagerPatcher
             bool firstTarget)
         {
             //PATCH: Completely replace this method to support several features. Modified method based on TA provided sources.
-            __result = GLBM.HandleAdditionalDamageOnCharacterAttackHitConfirmed(
+            __result = CombatAiContext.IsLimitedEnemyBattleNativeAttack(attackMode)
+                ? NoAdditionalDamage()
+                : GLBM.HandleAdditionalDamageOnCharacterAttackHitConfirmed(
                 __instance, attacker, defender, attackModifier, attackMode, rangedAttack, advantageType,
                 actualEffectForms, rulesetEffect, criticalHit, firstTarget);
 

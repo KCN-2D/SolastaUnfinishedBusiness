@@ -2876,6 +2876,7 @@ internal static class OtherFeats
                     ConditionDefinitionBuilder
                         .Create($"Condition{FeatMageSlayerName}")
                         .SetGuiPresentation(FeatMageSlayerName, Category.Feat, Gui.EmptyContent)
+                        .SetConditionType(ConditionType.Detrimental)
                         .SetSilent(Silent.WhenAddedOrRemoved)
                         .AddFeatures(
                             FeatureDefinitionMagicAffinityBuilder

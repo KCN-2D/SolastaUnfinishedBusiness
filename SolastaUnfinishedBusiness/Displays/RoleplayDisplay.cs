@@ -23,6 +23,24 @@ internal static class RoleplayDisplay
             new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
         UI.Label();
 
+        var networkingService = ServiceRepository.GetService<INetworkingService>();
+        var guiEnabled = GUI.enabled;
+        GUI.enabled = guiEnabled && networkingService?.IsMultiplayerGame != true;
+        toggle = Main.Settings.EnableEnemyBattleTactics;
+        if (UI.Toggle(Gui.Localize("ModUI/&EnableEnemyBattleTactics"), ref toggle,
+                UI.AutoWidth()))
+        {
+            Main.Settings.EnableEnemyBattleTactics = toggle;
+            CombatAiContext.RefreshEnemyBattleTactics();
+        }
+
+        GUI.enabled = guiEnabled;
+        UI.Label(Gui.Localize("ModUI/&EnableEnemyBattleTacticsDescription"),
+            new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
+        UI.Label(Gui.Localize("ModUI/&EnableEnemyBattleTacticsMultiplayerDescription"),
+            new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
+        UI.Label();
+
         toggle = Main.Settings.EnableCriticalHitsMissesAt10;
         if (UI.Toggle(Gui.Localize("ModUI/&EnableCriticalHitsMissesAt10"), ref toggle,
                 UI.AutoWidth()))
