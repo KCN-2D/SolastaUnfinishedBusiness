@@ -573,6 +573,7 @@ Rules/&ActivationTypeOnSneakAttackHitAutoTitle=Automatischer Schleichangriff
 Rules/&ConditionMarkedByHunterExtendedDescription=Erhält +1W6 Kraftschaden, wenn der Zauberer mit einem Waffenangriff getroffen wird.
 Rules/&ConditionOneDndBarkskinDescription=Die Rüstungsklasse der Kreatur beträgt mindestens 17.
 Rules/&ConditionStoneskinExtendedDescription=Widerstandsfähig gegen Schlag-, Schnitt- und Stichschäden.
+Rules/&ConditionSurprisedExtendedDescription=Sie haben einen Nachteil bei Initiativewürfen.
 Rules/&CounterFormDismissCreatureFormat=Entlässt eine gewünschte heraufbeschworene Kreatur
 Rules/&MotionFormPullOnTop=Ziehen Sie es oben an
 Rules/&MotionFormPushDownFormat=Drücken Sie {0} nach unten

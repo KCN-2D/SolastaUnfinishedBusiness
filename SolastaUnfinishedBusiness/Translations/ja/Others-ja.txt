@@ -566,6 +566,7 @@ Rules/&ActivationTypeOnSneakAttackHitAutoTitle=急所攻撃命中時（自動）
 Rules/&ConditionMarkedByHunterExtendedDescription=術者が武器攻撃で命中させると、+1d6の力場ダメージを受けます。
 Rules/&ConditionOneDndBarkskinDescription=クリーチャーのACは少なくとも17になります。
 Rules/&ConditionStoneskinExtendedDescription=殴打、斬撃、刺突ダメージへの抵抗。
+Rules/&ConditionSurprisedExtendedDescription=イニシアチブ・ロールに不利を受けます。
 Rules/&CounterFormDismissCreatureFormat=対象の召喚されたクリーチャーを退ける
 Rules/&MotionFormPullOnTop=上へ引き寄せ
 Rules/&MotionFormPushDownFormat={0}を押し下げる

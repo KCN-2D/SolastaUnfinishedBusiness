@@ -1,8 +1,11 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Collections.Generic;
+using System.Reflection;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Models;
+using Hashtable = ExitGames.Client.Photon.Hashtable;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.SpellDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -10,6 +13,86 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class NetworkingManagerPatcher
 {
+    [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.Update))]
+    [UsedImplicitly]
+    public static class Update_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix() => MultiplayerSettingsContext.Refresh();
+    }
+
+    [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.OnJoinedRoom))]
+    [UsedImplicitly]
+    public static class OnJoinedRoom_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix()
+        {
+            MultiplayerSettingsContext.Invalidate();
+            MultiplayerSettingsContext.Refresh(true);
+        }
+    }
+
+    [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.OnPlayerEnteredRoom))]
+    [UsedImplicitly]
+    public static class OnPlayerEnteredRoom_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix() => MultiplayerSettingsContext.Refresh(true);
+    }
+
+    [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.OnPlayerLeftRoom))]
+    [UsedImplicitly]
+    public static class OnPlayerLeftRoom_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix() => MultiplayerSettingsContext.Refresh(true);
+    }
+
+    [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.OnMasterClientSwitched))]
+    [UsedImplicitly]
+    public static class OnMasterClientSwitched_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix()
+        {
+            MultiplayerSettingsContext.Invalidate();
+            MultiplayerSettingsContext.Refresh(true);
+        }
+    }
+
+    [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.OnRoomPropertiesUpdate))]
+    [UsedImplicitly]
+    public static class OnRoomPropertiesUpdate_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(Hashtable __0) => MultiplayerSettingsContext.OnRoomPropertiesChanged(__0);
+    }
+
+    [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.OnPlayerPropertiesUpdate))]
+    [UsedImplicitly]
+    public static class OnPlayerPropertiesUpdate_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(Hashtable __1) => MultiplayerSettingsContext.OnPlayerPropertiesChanged(__1);
+    }
+
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class ClearRoom_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(NetworkingManager), nameof(NetworkingManager.OnLeftRoom));
+            yield return AccessTools.Method(typeof(NetworkingManager), nameof(NetworkingManager.OnDisconnected));
+            yield return AccessTools.Method(typeof(NetworkingManager), nameof(NetworkingManager.Shutdown));
+        }
+
+        [UsedImplicitly]
+        public static void Postfix() => MultiplayerSettingsContext.Invalidate();
+    }
+
     [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.ExecuteAction))]
     [UsedImplicitly]
     public static class ExecuteAction_Patch

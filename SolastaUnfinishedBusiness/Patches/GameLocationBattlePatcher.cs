@@ -8,6 +8,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
+using static RuleDefinitions;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -168,6 +169,7 @@ public static class GameLocationBattlePatcher
         {
             CombatAnimationContext.StopCivilianReactions();
             CombatAiContext.StopEnemyBattleTactics();
+            PlayerControllerContext.Stop();
         }
 
         [UsedImplicitly]
@@ -191,22 +193,15 @@ public static class GameLocationBattlePatcher
     public static class GetMyContenders_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(GameLocationBattle __instance, ref List<GameLocationCharacter> __result)
+        public static void Postfix(GameLocationBattle __instance, Side side, ref List<GameLocationCharacter> __result)
         {
-            if (!Main.Settings.EnableEnemiesControlledByPlayer ||
-                Global.IsMultiplayer ||
+            if (!PlayerControllerContext.AreEnemySidesFlipped ||
                 __instance == null)
             {
                 return;
             }
 
-            var characterService = ServiceRepository.GetService<IGameLocationCharacterService>();
-
-            if (!characterService.PartyCharacters.Contains(__instance.ActiveContender)
-                && !characterService.GuestCharacters.Contains(__instance.ActiveContender))
-            {
-                __result = __instance.EnemyContenders;
-            }
+            __result = side == Side.Ally ? __instance.EnemyContenders : __instance.PlayerContenders;
         }
     }
 
@@ -217,22 +212,15 @@ public static class GameLocationBattlePatcher
     public static class GetOpposingContenders_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(GameLocationBattle __instance, ref List<GameLocationCharacter> __result)
+        public static void Postfix(GameLocationBattle __instance, Side side, ref List<GameLocationCharacter> __result)
         {
-            if (!Main.Settings.EnableEnemiesControlledByPlayer ||
-                Global.IsMultiplayer ||
+            if (!PlayerControllerContext.AreEnemySidesFlipped ||
                 __instance == null)
             {
                 return;
             }
 
-            var characterService = ServiceRepository.GetService<IGameLocationCharacterService>();
-
-            if (!characterService.PartyCharacters.Contains(__instance.ActiveContender)
-                && !characterService.GuestCharacters.Contains(__instance.ActiveContender))
-            {
-                __result = __instance.PlayerContenders;
-            }
+            __result = side == Side.Ally ? __instance.PlayerContenders : __instance.EnemyContenders;
         }
     }
 
@@ -376,6 +364,7 @@ public static class GameLocationBattlePatcher
         {
             CombatAnimationContext.StopCivilianReactions();
             CombatAiContext.StopEnemyBattleTactics();
+            PlayerControllerContext.Stop();
         }
     }
 }

@@ -17,8 +17,17 @@ internal static class EncountersContext
     internal const int MaxEncounterCharacters = 16;
 
     private static readonly List<RulesetCharacterHero> Heroes = [];
+    private static ICharacterPoolService _heroPoolService;
+    private static object _heroPool;
+    private static string[] _heroPoolKeys = [];
+    private static RulesetCharacterHero.Snapshot[] _heroPoolSnapshots = [];
+    private static string _heroLanguage;
+    private static bool _heroesInitialized;
+    internal static int HeroCatalogRevision { get; private set; }
+    internal static int UnavailableHeroCount { get; private set; }
 
     private static readonly List<MonsterDefinition> Monsters = [];
+    private static string _monsterLanguage;
 
     internal static readonly List<RulesetCharacter> EncounterCharacters = [];
 
@@ -43,7 +52,7 @@ internal static class EncountersContext
 
     internal static void RemoveFromEncounter(int index)
     {
-        if (index < EncounterCharacters.Count)
+        if (index >= 0 && index < EncounterCharacters.Count)
         {
             EncounterCharacters.RemoveAt(index);
         }
@@ -52,18 +61,23 @@ internal static class EncountersContext
     [NotNull]
     internal static List<MonsterDefinition> GetMonsters()
     {
-        if (Monsters.Count != 0)
+        if (Monsters.Count == 0)
         {
-            return Monsters;
+            var monsterDefinitionDatabase = DatabaseRepository.GetDatabase<MonsterDefinition>();
+            Monsters.AddRange(monsterDefinitionDatabase.Where(x =>
+                x.DungeonMakerPresence == MonsterDefinition.DungeonMaker.Monster));
+            _monsterLanguage = null;
         }
-
-        var monsterDefinitionDatabase = DatabaseRepository.GetDatabase<MonsterDefinition>();
-
-        Monsters.AddRange(monsterDefinitionDatabase.Where(x =>
-            x.DungeonMakerPresence == MonsterDefinition.DungeonMaker.Monster));
-        Monsters.Sort((a, b) => Math.Abs(a.ChallengeRating - b.ChallengeRating) < 0.001f
-            ? string.Compare(a.FormatTitle(), b.FormatTitle(), StringComparison.CurrentCultureIgnoreCase)
-            : a.ChallengeRating.CompareTo(b.ChallengeRating));
+        var language = I2.Loc.LocalizationManager.CurrentLanguageCode;
+        if (_monsterLanguage != language)
+        {
+            // Translate once per catalog/language change instead of inside the sort comparer.
+            var titles = Monsters.ToDictionary(monster => monster, monster => monster.FormatTitle());
+            Monsters.Sort((a, b) => Math.Abs(a.ChallengeRating - b.ChallengeRating) < 0.001f
+                ? string.Compare(titles[a], titles[b], StringComparison.CurrentCultureIgnoreCase)
+                : a.ChallengeRating.CompareTo(b.ChallengeRating));
+            _monsterLanguage = language;
+        }
 
         return Monsters;
     }
@@ -71,38 +85,107 @@ internal static class EncountersContext
     [NotNull]
     internal static List<RulesetCharacterHero> GetHeroes()
     {
-        if (Heroes.Count != 0)
-        {
-            return Heroes;
-        }
-
         var characterPoolService = ServiceRepository.GetService<ICharacterPoolService>();
 
-        if (characterPoolService == null)
+        if (!IsHeroCatalogCurrent(characterPoolService))
         {
-            return Heroes;
+            LoadHeroCatalog(characterPoolService);
         }
 
-        foreach (var filename in characterPoolService.Pool.Keys.Select(name =>
-                     characterPoolService.BuildCharacterFilename(name.Substring(0, name.Length - 4))))
-        {
-            characterPoolService.LoadCharacter(filename, out var hero, out _);
-            Heroes.Add(hero);
-        }
+        var language = I2.Loc.LocalizationManager.CurrentLanguageCode ?? string.Empty;
 
-        Heroes.Sort((a, b) =>
+        if (_heroLanguage != language)
         {
-            var compareName = string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase);
-
-            if (compareName == 0)
+            Heroes.Sort((a, b) =>
             {
-                compareName = string.Compare(a.SurName, b.SurName, StringComparison.CurrentCultureIgnoreCase);
-            }
-
-            return compareName;
-        });
+                var compareName = string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase);
+                return compareName == 0
+                    ? string.Compare(a.SurName, b.SurName, StringComparison.CurrentCultureIgnoreCase)
+                    : compareName;
+            });
+            _heroLanguage = language;
+        }
 
         return Heroes;
+    }
+
+    private static bool IsHeroCatalogCurrent(ICharacterPoolService characterPoolService)
+    {
+        var pool = characterPoolService?.Pool;
+
+        if (!_heroesInitialized || !ReferenceEquals(characterPoolService, _heroPoolService) ||
+            !ReferenceEquals(pool, _heroPool) || (pool?.Count ?? 0) != _heroPoolKeys.Length)
+        {
+            return false;
+        }
+
+        if (pool == null)
+        {
+            return true;
+        }
+
+        var index = 0;
+
+        foreach (var entry in pool)
+        {
+            if (!string.Equals(entry.Key, _heroPoolKeys[index], StringComparison.Ordinal) ||
+                !ReferenceEquals(entry.Value, _heroPoolSnapshots[index]))
+            {
+                return false;
+            }
+
+            index++;
+        }
+
+        return true;
+    }
+
+    private static void LoadHeroCatalog(ICharacterPoolService characterPoolService)
+    {
+        var pool = characterPoolService?.Pool;
+        _heroesInitialized = true;
+        _heroPoolService = characterPoolService;
+        _heroPool = pool;
+        _heroPoolKeys = pool?.Keys.ToArray() ?? [];
+        _heroPoolSnapshots = pool?.Values.ToArray() ?? [];
+        Heroes.Clear();
+        UnavailableHeroCount = 0;
+        HeroCatalogRevision++;
+        _heroLanguage = null;
+
+        foreach (var filename in _heroPoolKeys)
+        {
+            // Pool keys already identify built-in and user files. Rebuilding a path
+            // from the hero name incorrectly redirects built-in heroes to Characters.
+            try
+            {
+                characterPoolService.LoadCharacter(filename, out var hero, out _);
+
+                if (hero != null)
+                {
+                    Heroes.Add(hero);
+                    continue;
+                }
+
+                Main.Info($"Cannot load encounter hero from '{filename}': no character was returned.");
+            }
+            catch (Exception ex)
+            {
+                // Native binary deserialization wraps failures in Exception, so an
+                // IOException filter would miss corrupt files. Isolate each optional
+                // catalog entry, as the native pool enumerator does, and cache failures.
+                Main.Info($"Cannot load encounter hero from '{filename}': {ex}");
+            }
+
+            UnavailableHeroCount++;
+        }
+    }
+
+    internal static void RefreshHeroes()
+    {
+        // Retry failed files only on demand or when the native pool changes, never
+        // during every IMGUI event. The native pool and character files stay untouched.
+        _heroesInitialized = false;
     }
 
     internal static void ConfirmStageEncounter()
@@ -137,7 +220,7 @@ internal static class EncountersContext
             MessageModal.Severity.Attention2,
             "Message/&SpawnCustomEncounterTitle",
             Gui.Format("Message/&SpawnCustomEncounterDescription", position.x.ToString(),
-                position.x.ToString()),
+                position.z.ToString()),
             "Message/&MessageYesTitle", "Message/&MessageNoTitle",
             () => StageEncounter(position),
             null);
@@ -255,6 +338,7 @@ internal static class EncountersContext
         }
 
         Heroes.Clear();
+        _heroesInitialized = false;
         Monsters.Clear();
         EncounterCharacters.Clear();
     }

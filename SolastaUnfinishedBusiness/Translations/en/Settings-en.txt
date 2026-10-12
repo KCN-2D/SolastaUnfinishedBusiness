@@ -47,6 +47,8 @@ ModUi/&BlindedConditionDontAllowAttackOfOpportunity=Prevent attacks of opportuni
 ModUi/&Blueprints=Blueprints
 ModUi/&Campaigns=Campaigns
 ModUi/&Category=Category
+ModUi/&ItemTag=Item tag
+ModUi/&WeaponTag=Weapon tag
 ModUi/&ChangeDragonbornElementalBreathUsages=Change <color=#D89555>Dragonborn</color> elemental breath usages to CON modifier per short rest
 ModUi/&ChangeSleetStormToCube=Change <color=#D89555>Sleet Storm</color> to use a cube instead of a cylinder
 ModUi/&Changelog=<b><color=#D89555>Change Log</color></b>
@@ -101,10 +103,16 @@ ModUi/&DownloadVoiceOngoing=Downloading at {0}
 ModUi/&DownloadSpeechLanguageVoices=Download {0}
 ModUi/&DownloadSpeechLanguageVoicesOngoing=Downloading {0} at {1}
 ModUi/&SpeechLanguageJapanese=Japanese voices
-ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>After a matching language voice is downloaded, text in that language is read with it. Other text continues to use the existing English Piper voices.</color></i>
+ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>Voices that support the current language are selected. Installed Windows voices and locally added Piper models are also available.</color></i>
 ModUi/&DungeonMaker=Dungeon Maker
 ModUi/&DungeonMakerBasicHelp=• These settings won't require the player to have this mod installed
 ModUi/&Effects=Effects
+ModUi/&EffectsCaster=Caster:
+ModUi/&EffectsCondition=Condition:
+ModUi/&EffectsEffect=Effect:
+ModUi/&EffectsImpact=Impact:
+ModUi/&EffectsRequiresParty=<color=#C04040E0>Load a game with at least two heroes in the party to view effects.</color>
+ModUi/&EffectsZone=Zone:
 ModUi/&EnableActionSwitching=Enable the action switching bar <i><color=#F0DAA0>[useful to have full control over your actions sequence]</color></i>
 ModUi/&EnableAdditionalBackstoryDisplay=Enable additional backstory display on background inspection
 ModUi/&EnableAdditionalIconsOnLevelMap=Enable additional icons for camps, exits and teleporters on level map
@@ -276,7 +284,7 @@ ModUi/&EnableSorcererSorcerousRestoration2024=Enable <color=#D89555>Sorcerous Re
 ModUi/&EnableSortingDungeonMakerAssets=Enable assets sorting on Dungeon Maker editor
 ModUi/&EnableSpeech=Enable speech on custom campaigns <i><color=#F0DAA0>[narration and heroes only]</color></i>
 ModUi/&EnableSpeechActorHelp=• Select an actor
-ModUi/&EnableSpeechOnNpcs=<i>+ Enable speech on NPCs <color=#F0DAA0>[either from campaign mapping or auto assignment]</color></i>
+ModUi/&EnableSpeechOnNpcs=Enable NPC speech
 ModUi/&EnableSpeechVoiceHelp=• Select a voice and narration speed
 ModUi/&EnableStackableArtItems=Enable stacking <color=#D89555>Art Items</color> <i><color=#F0DAA0>[cannot be split while this setting is disabled]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Enable stacking <color=#D89555>Daggers</color> and <color=#D89555>Hand Axes</color> <i><color=#F0DAA0>[cannot be split while this setting is disabled]</color></i>
@@ -303,8 +311,25 @@ ModUi/&EnableWizardToLearnSchoolAtLevel3=Enable <color=#D89555>School of Magic</
 ModUi/&EnablesAsiAndFeat=Enable both attribute scores increase and <color=#D89555>feats</color> selection <i><color=#F0DAA0>[instead of an exclusive choice]</color></i>
 ModUi/&EncounterPercentageChance=<color=white>Set random encounters percentage chances</color>
 ModUi/&Encounters=Encounters
+ModUi/&EncounterAddCharactersHelp=• Click + to add up to {0} characters to the encounter list.
+ModUi/&EncounterCountFormat={0} ({1})
+ModUi/&EncounterListEmpty=The encounter list is empty.
+ModUi/&EncounterUnavailableHeroes=Could not load {0} character file(s). Available heroes are shown. Check the affected files in the log, then refresh to try again.
+ModUi/&EncounterMaximumUsesFormat=Maximum uses: {0}
+ModUi/&EncountersHelp=• Encounters are available in single-player custom campaigns or locations\n• Use the Bestiary tab to add monsters to the encounter\n• Use the Characters Pool tab to add heroes as enemies\n• Click <i>-</i> to remove a character from the encounter\n• Move the camera to the desired location and use <color=#1E81B0>{0}</color> to spawn the enemies. Assign its key in the game's input settings
+ModUi/&EncounterStatistics=Stats
+ModUi/&EncounterUnlimited=Unlimited
+ModUi/&EncounterValueFormat={0}: {1}
 ModUi/&EnableEnemiesControlledByPlayer=Enable enemies controlled by players
 ModUi/&EnableHeroesControlledByComputer=Enable heroes controlled by computer
+ModUi/&AdvancedCombatAiManualNpcHelp=<i><color=#F0DAA0>Advanced combat AI remains active for AI-controlled heroes. Enemies under manual player control do not use its automatic decisions.</color></i>
+ModUi/&ControllerHuman=Player
+ModUi/&ControllerMelee=Melee
+ModUi/&ControllerRanged=Ranged
+ModUi/&ControllerSupportCaster=Support caster
+ModUi/&HeroesControllerLoadGameHelp=<color=#C04040E0>Load a single-player game to choose each hero's controller.</color>
+ModUi/&PlayerControllers=<color=#F0DAA0>Controllers:</color>
+ModUi/&PlayerControllersSinglePlayerOnly=<color=#C04040E0>Hero AI and manual enemy control are available in single-player games. Your preferences are retained while preparing or playing multiplayer.</color>
 ModUi/&EnableAdvancedCombatAI=Enable advanced combat AI <i><color=#F0DAA0>[opt-in tactical improvements for enemies and AI-controlled heroes]</color></i>
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ Enemies always roll initiative instead of a forced value <color=#F0DAA0>[i.e: Sorak Assassin]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Make <b>Evoker</b> <color=#D89555>Sculpt Spells</color> not require perceiving allies
@@ -321,7 +346,7 @@ ModUi/&FixEldritchBlastRange=Use 24 cells range with <color=#D89555>Eldritch Bla
 ModUi/&Use24CellsRangeWithDimensionDoor=Use 24 cells range with <color=#D89555>Dimension Door</color> <i><color=#F0DAA0>[instead of 12]</color></i>
 ModUi/&FixRingOfRegenerationHealRate=Set <color=#D89555>Ring of Regeneration</color> heal rate to 1 HP per 3 minutes
 ModUi/&FlightSuspendWingedBoots=<i>+ Use Winged Boots official rules <color=#F0DAA0>[remaining duration not counted when flight suspended]</color></i>
-ModUi/&ForceModSpeechOnNpcs=<i>+ Force voice auto assignment on all NPCs instead of campaign mapping</i>
+ModUi/&ForceModSpeechOnNpcs=Ignore campaign NPC voice assignments and use automatic assignments unless an individual voice is chosen
 ModUi/&Formation=<color=#F0DAA0>Formation:</color>
 ModUi/&FormationError=<color=#C04040E0>You cannot change your formation during a multiplayer game...</color>
 ModUi/&FormationHelp1=• Use the numeric buttons to edit a given set <i><color=#F0DAA0>[consider enabling hotkeys under input]</color></i>
@@ -347,6 +372,7 @@ ModUi/&IdentifyAfterRest=Add a power to <color=#D89555>identify magic items</col
 ModUi/&IgnoreHandXbowFreeHandRequirements=Do not require free hand to use <color=#D89555>Hand Crossbows</color>
 ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=Illusion spells automatically fail against targets with <color=#D89555>TrueSight</color> in range
 ModUi/&IncreaseGameTimeBy=Increase game time by
+ModUi/&GameTimeHours={0} h
 ModUi/&IncreaseMaxAttunedItems=Increase max <color=#D89555>Attuned Items</color> to 4 at level 10th and 5 at level 18th
 ModUi/&Invocations=<color=#F0DAA0>Invocations</color>
 ModUi/&Items=<color=#F0DAA0>Items:</color>
@@ -363,6 +389,22 @@ ModUi/&ModifyGravitySlam=Modify <color=#D89555>Gravity Slam</color> spell to pul
 ModUi/&MovementGridWidthModifier=<color=white>Multiply the movement grid width by</color> <color=#C04040E0>[%]</color>
 ModUi/&MulticlassKeyHelp=<color=#1E81B0>SHIFT</color> click on a spell inverts the default repertoire slot type consumed\n<i><color=#F0DAA0>[<color=#D89555>Warlock</color> spends white spell slots and others spend pact green ones]</color></i>
 ModUi/&Multiplayer=<color=#F0DAA0>Multiplayer:</color>
+ModUi/&MultiplayerSettingsError=<color=#C04040E0>Unable to compare UB settings. See the game log for details.</color>
+ModUi/&MultiplayerSettingsHelp=• The lobby shares gameplay settings and checks the UB build\n• Interface, language, camera, speech, and translation preferences stay local\n• This check does not prevent the game from starting
+ModUi/&MultiplayerSettingsHost=Your gameplay settings are shared with this lobby.
+ModUi/&MultiplayerSettingsInvalid=<color=#C04040E0>The host's shared settings are invalid or exceed the size limit.</color>
+ModUi/&MultiplayerSettingsMatch=UB build and gameplay settings match the host.
+ModUi/&MultiplayerSettingsMismatch=<color=#C04040E0>Gameplay settings differ from the host. Save the host profile, leave the lobby, load it in the settings menu, restart the game, and rejoin.</color>
+ModUi/&MultiplayerSettingsOffline=Join an online multiplayer lobby to compare UB settings.
+ModUi/&MultiplayerSettingsPeerMatch={0}: UB build and gameplay settings match.
+ModUi/&MultiplayerSettingsPeerMismatch=<color=#C04040E0>{0}: different gameplay settings.</color>
+ModUi/&MultiplayerSettingsPeerVersionMismatch=<color=#C04040E0>{0}: different UB build.</color>
+ModUi/&MultiplayerSettingsPeerWaiting=<color=#C04040E0>{0}: no compatible UB settings report received.</color>
+ModUi/&MultiplayerSettingsSaveHost=Save host settings profile
+ModUi/&MultiplayerSettingsSaved=Host settings saved as MultiplayerHost. Leave the lobby, load this profile below, then restart the game.
+ModUi/&MultiplayerSettingsUnsupported=<color=#C04040E0>The host is not sharing compatible UB settings.</color>
+ModUi/&MultiplayerSettingsVersionMismatch=<color=#C04040E0>The UB build differs from the host. Install the same build before joining.</color>
+ModUi/&MultiplayerSettingsWaiting=Waiting for the host's UB settings.
 ModUi/&MultiplyTheExperienceGainedBy=<color=white>Multiply the experience gained by</color> <color=#C04040E0>[%]</color>
 ModUi/&NeverMoveCameraOnEnemyTurn=<i>+ Camera never moves during enemy turns</i>
 ModUi/&NoExperienceOnLevelUp=No experience is required to level up
@@ -413,8 +455,12 @@ ModUi/&SenseNormalVisionRangeMultiplier=Modify <color=#D89555>Normal Vision</col
 ModUi/&Services=Services
 ModUi/&SetBeltOfDwarvenKindBeardChances=<color=#D89555>Belt of Dwarvenkind</color> <color=white>beard appearing chances</color>
 ModUi/&SettingsExport=Export
-ModUi/&SettingsHelp=• As a host you can export your current configuration, open the exports folder and easily share with your peers\n• As a guest you can open the exports folder, paste the shared file from the host and load it over <b><i><color=#C04040E0>[Requires Restart]</color></i></b>
-ModUi/&SettingsLoad=• Load an exported setting
+ModUi/&SettingsHelp=• As a host, share gameplay settings directly in the online lobby or share exported XML files manually\n• As a guest, save the host profile, leave the lobby, load it here, restart the game, and rejoin <b><i><color=#C04040E0>[Requires Restart]</color></i></b>
+ModUi/&SettingsImportCancel=Cancel settings import
+ModUi/&SettingsImportFailed=<color=#C04040E0>Unable to complete this settings operation. Current settings are unchanged. See the game log for details.</color>
+ModUi/&SettingsImportPending=<b><i><color=#C04040E0>Settings will be applied after restarting the game</color></i></b>\nCurrent settings have been backed up as Settings.before-import.xml
+ModUi/&SettingsImportUnavailable=<color=#C04040E0>Leave the multiplayer lobby and return to the main menu before loading a settings profile.</color>
+ModUi/&SettingsLoad=• Load a settings profile <b><i><color=#C04040E0>[Requires Restart]</color></i></b>
 ModUi/&SettingsOpenFolder=Open exported settings folder
 ModUi/&SettingsRefresh=Refresh
 ModUi/&SettingsRemove=Remove
@@ -429,6 +475,7 @@ ModUi/&BattleActionAnimationSpeedMultiplier=Battle animation speed
 ModUi/&BattleActionAnimationSpeedMultiplierHelp=Slightly speeds up combat character action animations without skipping casting, projectile, impact, or hit phases.
 ModUi/&SpeechScale=<color=white>Narration speed modifier</color>  <i><color=#F0DAA0>[lower is faster]</color></i>
 ModUi/&SpeechVolume=<color=white>Narration volume</color>
+ModUi/&SpeechShowAllLanguages=Show voices in all languages
 ModUi/&SpellLevelFilter=<b><i><color=white>spell level filter</color> <color=#F0DAA0>[-1 displays all]</color></i></b>
 ModUi/&SpellsMenu=Spells
 ModUi/&StealthBreaksWhenAttackHits=Enable stealth loss when weapon or spell attack hits
@@ -487,6 +534,8 @@ ModUi/&TranslationCompleted=Completed
 ModUi/&TranslationCompletedWithErrors=Completed (with errors)
 ModUi/&TranslationCancelled=Cancelled
 ModUi/&TranslationFailed=Failed
+ModUi/&TranslationFailedCount=({0} failed)
+ModUi/&TranslationMoreItems=… +{0} more items
 ModUi/&TranslationGoogleSettings=Google API Settings
 ModUi/&TranslationGoogleLegacyMode=Use Legacy Mode to request translations from Google Translate API
 ModUi/&ShowCategoryProgress=Show Category Progress
@@ -570,3 +619,70 @@ ModUI/&EnableEnemyBattleTacticsDescription=Enemies gain abilities suited to thei
 ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=For multiplayer, all participants must select the same setting before starting the session. This setting cannot be changed during a multiplayer session.
 ModUi/&FlexibleRacesDisabledByBackgroundASI=Background ability score increases are enabled, so flexible racial ability score increases do not apply. Your selection applies again when background ability score increases are disabled.
 ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats=Background origin feats are enabled, so flexible background proficiencies do not apply. Your selection applies again when background origin feats are disabled.
+ModUi/&SpeechNarrator=Narrator
+ModUi/&SpeechHero=Hero {0}
+ModUi/&SpeechNoVoice=No voice
+ModUi/&SpeechVoiceTsukuyomi=Tsukuyomi-chan
+ModUi/&SpeechVoiceCss10=CSS10
+ModUi/&SpeechVoiceSpeaker={0} — speaker {1}
+ModUi/&SpeechPitch=<color=white>Voice pitch (semitones)</color>
+ModUi/&EnableSpeechPitchHelp=<i><color=#F0DAA0>Adjust the selected voice from -6 to +6 semitones without changing its speed.</color></i>
+ModUi/&EnableSpeechAvailableVoiceHelp=• Installed Windows speech voices are detected automatically\n• Download Japanese voices to add Tsukuyomi-chan and CSS10\n• Additional local Piper models and their configured speakers are also available
+ModUi/&SpeechVoiceUnavailable={0} (unavailable)
+ModUi/&TranslationCategoryCampaign=Campaign
+ModUi/&TranslationCategoryLocations=Locations
+ModUi/&TranslationCategoryGadgets=Gadgets
+ModUi/&TranslationCategoryDialogs=Dialogs
+ModUi/&TranslationCategoryItems=Items
+ModUi/&TranslationCategoryQuests=Quests
+ModUi/&TranslationCategoryMonsters=Monsters
+ModUi/&TranslationCategoryNPCs=NPCs
+ModUi/&TranslationCategoryMerchants=Merchants
+ModUi/&TranslationCategoryLootPacks=Loot packs
+ModUi/&TranslationCategoryBiomes=Biomes
+ModUi/&TranslationCategoryEncounterTables=Encounter tables
+ModUi/&TranslationCategoryEncounters=Encounters
+ModUi/&TranslationCategoryMapNodes=Map nodes
+ModUi/&ConfirmAction=Confirm this action?
+ModUi/&Minimum=Min
+ModUi/&Maximum=Max
+ModUi/&EnableVoiceVoxSpeech=Use VOICEVOX for Japanese speech
+ModUi/&SpeechVoiceVoxHelp=Use the download and setup button in UB to add VOICEVOX. After setup, it starts automatically when needed. UB can also connect to VOICEVOX that is already running. Speech is generated on this PC.
+ModUi/&SpeechVoiceVoxConnecting=Connecting to VOICEVOX…
+ModUi/&SpeechVoiceVoxConnected=VOICEVOX connected: {0} voice styles available
+ModUi/&SpeechVoiceVoxUnavailable=VOICEVOX is unavailable. Complete setup or check VOICEVOX that is already running, then refresh the voice list.
+ModUi/&SpeechVoiceVoxInstall=Download and set up VOICEVOX
+ModUi/&SpeechVoiceVoxInstallHelp=The first download is about 1.9 GB. After setup, Solasta starts and stops VOICEVOX as needed. The download can be cancelled and resumed. Voice use is subject to each speaker's terms.
+ModUi/&SpeechVoiceVoxDownloadProgress=Downloading VOICEVOX: {0}
+ModUi/&SpeechVoiceVoxVerifying=Checking the VOICEVOX download
+ModUi/&SpeechVoiceVoxExtracting=Setting up VOICEVOX
+ModUi/&SpeechVoiceVoxStarting=Starting VOICEVOX
+ModUi/&SpeechVoiceVoxInstallFailed=VOICEVOX setup failed. Check the available disk space and internet connection, then retry.
+ModUi/&SpeechVoiceVoxCancel=Cancel download
+ModUi/&SpeechVoiceVoxTerms=VOICEVOX voice terms
+ModUi/&SpeechVoiceVoxInstalled=VOICEVOX is installed and will start automatically.
+ModUi/&SpeechVoiceVoxUnsupported=Automatic VOICEVOX setup requires 64-bit Windows.
+ModUi/&SpeechVoiceVoxRetry=Retry VOICEVOX setup
+ModUi/&SpeechIntonation=Intonation
+ModUi/&SpeechIntonationHelp=Adjust the expression of a VOICEVOX voice. 1 uses its normal intonation; 0 makes it flat.
+ModUi/&SpeechIntonationUnavailable=Intonation adjustment requires a VOICEVOX voice. Other voices retain their own intonation.
+ModUi/&SpeechPreview=Preview voice
+ModUi/&SpeechNpcHelp=Choose a voice for each NPC in this campaign. Individual choices take priority over campaign assignments and are saved for this campaign. Choose the default assignment to remove an individual choice. Choose an individual voice to adjust its speed and pitch.
+ModUi/&SpeechNpcLoadCampaign=Load a custom campaign to choose voices for its NPCs.
+ModUi/&SpeechNpcAutomatic=Use default assignment
+ModUi/&SpeechVoiceGender=Voice gender for automatic casting
+ModUi/&SpeechVoiceGenderDefault=Use the default classification
+ModUi/&SpeechVoiceGenderMale=Male
+ModUi/&SpeechVoiceGenderFemale=Female
+ModUi/&SpeechVoiceGenderUnknown=Unclassified
+ModUi/&SpeechVoiceGenderHelp=This classifies the voice used for automatic hero and NPC casting. All VOICEVOX styles of the same speaker share this setting. Individual voice choices take priority.
+ModUi/&SpeechAutomatic=Automatic assignment
+ModUi/&SpeechAutomaticHelp=Automatically assign voices for the current language. Hero assignments follow their gender and the voice selected on the character screen. Individual UB voice choices take priority.
+ModUi/&SettingsListSearch=Search
+ModUi/&SettingsListPrevious=Previous
+ModUi/&SettingsListNext=Next
+ModUi/&SettingsListPage=Page {0} of {1} ({2} results)
+ModUi/&SettingsListNoResults=No matching entries.
+ModUi/&SettingsListSelected=Selected: {0}
+ModUi/&SpeechAssignAllAutomatic=Assign voices automatically to the narrator and all heroes
+ModUi/&SpeechAutomaticResolved=Automatic assignment: {0}

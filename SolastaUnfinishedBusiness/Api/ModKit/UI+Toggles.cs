@@ -52,13 +52,10 @@ internal static partial class UI
     {
         options = options.AddDefaults();
 
-        if (width == 0 && !disclosureStyle)
+        if (width > 0f)
         {
-            width = ToggleStyle.CalcSize(new GUIContent(title.Bold())).x +
-                    GUI.skin.box.CalcSize(CheckOn).x + 10;
+            options = options.AddItem(Width(width)).ToArray();
         }
-
-        options = options.AddItem(width == 0 ? AutoWidth() : Width(width)).ToArray();
 
         if (!disclosureStyle)
         {
@@ -162,14 +159,13 @@ internal static partial class UI
 
         labelStyle ??= GUI.skin.box;
 
-        if (width == 0)
+        options = options.AddDefaults();
+
+        if (width > 0f)
         {
-            width = ToggleStyle.CalcSize(new GUIContent(title.Bold())).x +
-                    GUI.skin.box.CalcSize(Utility.Private.UI.CheckOn).x +
-                    10;
+            options = options.AddItem(Width(width)).ToArray();
         }
 
-        options = options.AddItem(width == 0 ? AutoWidth() : Width(width)).ToArray();
         title = value ? title.Bold() : title.MedGrey().Bold();
 
         if (!Utility.Private.UI.Toggle(title, value, on, off, stateStyle, labelStyle, options))

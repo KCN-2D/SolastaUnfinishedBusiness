@@ -18,6 +18,102 @@ public static class GuiLabelPatcher
     private const string GameMenuTitleTerm = "Screen/&GameMenuTitle";
     private const float WidthTolerance = 0.5f;
 
+    [HarmonyPatch(typeof(CharacterLabel), nameof(CharacterLabel.DoUpdate))]
+    [UsedImplicitly]
+    public static class CharacterBanterLabelUpdate_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterLabel __instance)
+        {
+            GameLocationBanterManagerPatcher.HoldCharacterBanterLabel(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterLabel), nameof(CharacterLabel.InGameDialogLineRequested))]
+    [UsedImplicitly]
+    public static class CharacterBanterLabelLine_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GameLocationCharacter character, bool spoken)
+        {
+            // A new subtitle replaces only this speaker's previous forced line.
+            // Narrative state speech has a different owner and remains untouched.
+            if (spoken)
+            {
+                GameLocationBanterManagerPatcher.EndCharacterBanterSpeech(character);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterLabel), nameof(CharacterLabel.Unbind))]
+    [UsedImplicitly]
+    public static class CharacterBanterLabelUnbind_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterLabel __instance)
+        {
+            GameLocationBanterManagerPatcher.EndCharacterBanterSpeech(__instance.GuiCharacter?.GameLocationCharacter);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterLabel), nameof(CharacterLabel.SetCharacterDialogLineGroupEnabled))]
+    [UsedImplicitly]
+    public static class CharacterBanterLabelHide_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterLabel __instance, bool value)
+        {
+            if (!value)
+            {
+                GameLocationBanterManagerPatcher.EndCharacterBanterSpeech(__instance.GuiCharacter?.GameLocationCharacter);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(FeedbackLabel), nameof(FeedbackLabel.Show))]
+    [UsedImplicitly]
+    public static class BanterFeedbackLabelShow_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(FeedbackLabel __instance)
+        {
+            GameLocationBanterManagerPatcher.RegisterBanterFeedback(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiModifier), nameof(GuiModifier.Update))]
+    [UsedImplicitly]
+    public static class BanterFeedbackModifierUpdate_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(GuiModifier __instance)
+        {
+            return !GameLocationBanterManagerPatcher.HoldBanterFeedbackModifier(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationLabelScreen), nameof(GameLocationLabelScreen.OnEndHide))]
+    [UsedImplicitly]
+    public static class BanterLabelScreenHide_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix()
+        {
+            GameLocationBanterManagerPatcher.EndCurrentBanterSpeech();
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationLabelScreen), nameof(GameLocationLabelScreen.OnBeginShow))]
+    [UsedImplicitly]
+    public static class BanterLabelScreenShow_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix()
+        {
+            GameLocationBanterManagerPatcher.OpenCurrentBanterSpeech();
+        }
+    }
+
     [HarmonyPatch(typeof(GuiLabel), nameof(GuiLabel.ApplyText))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -27,6 +123,11 @@ public static class GuiLabelPatcher
         public static void Postfix(GuiLabel __instance)
         {
             FitActionPanelTitle(__instance);
+
+            if (__instance.GetComponentInParent<JoinGameSubpanel>() is { } joinGame)
+            {
+                UiTextHelpers.FitMultiplayerRoomColumns(joinGame);
+            }
 
             if (__instance.GetComponentInParent<SettingKeyMappingItem>() is { } keyMapping)
             {

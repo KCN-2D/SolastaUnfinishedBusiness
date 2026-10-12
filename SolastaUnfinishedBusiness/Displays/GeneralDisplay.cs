@@ -16,7 +16,7 @@ namespace SolastaUnfinishedBusiness.Displays;
 internal static class ToolsDisplay
 {
     private static string ExportFileName { get; set; } =
-        ServiceRepository.GetService<INetworkingService>().GetUserName();
+        ServiceRepository.GetService<INetworkingService>()?.GetUserName() ?? "Multiplayer";
 
 #if DEBUG
     private static bool IsUnityExplorerEnabled { get; set; }
@@ -291,10 +291,11 @@ internal static class ToolsDisplay
         using (UI.HorizontalScope())
         {
             UI.Label(Gui.Localize("ModUi/&IncreaseGameTimeBy"), UI.Width(300f));
-            UI.ActionButton("1 hour", () => gameCampaign.UpdateTime(60 * 60), UI.Width(100f));
-            UI.ActionButton("6 hours", () => gameCampaign.UpdateTime(60 * 60 * 6), UI.Width(100f));
-            UI.ActionButton("12 hours", () => gameCampaign.UpdateTime(60 * 60 * 12), UI.Width(100f));
-            UI.ActionButton("24 hours", () => gameCampaign.UpdateTime(60 * 60 * 24), UI.Width(100f));
+            foreach (var hours in new[] { 1, 6, 12, 24 })
+            {
+                UI.ActionButton(Gui.Format("ModUi/&GameTimeHours", hours.ToString()),
+                    () => gameCampaign.UpdateTime(60 * 60 * hours), UI.AutoWidth());
+            }
         }
     }
 
@@ -352,12 +353,26 @@ internal static class ToolsDisplay
             Main.Settings.DisplayMultiplayerToggle = toggle;
         }
 
-        if (!Main.Settings.DisplayMultiplayerToggle)
+        if (!Main.Settings.DisplayMultiplayerToggle && !MultiplayerSettingsContext.IsOnlineRoom)
         {
             return;
         }
 
-        UI.Label(Gui.Localize("ModUi/&SettingsHelp"));
+        MultiplayerSettingsContext.Refresh();
+        var descriptionStyle = new GUIStyle(GUI.skin.label) { wordWrap = true };
+        UI.Label(Gui.Localize("ModUi/&MultiplayerSettingsHelp"), descriptionStyle, UI.ExpandWidth(true));
+        UI.Label(MultiplayerSettingsContext.GetStatus(), descriptionStyle, UI.ExpandWidth(true));
+        var guiEnabled = GUI.enabled;
+        GUI.enabled = guiEnabled && MultiplayerSettingsContext.HasHostProfile;
+        UI.ActionButton(Gui.Localize("ModUi/&MultiplayerSettingsSaveHost"),
+            () => { MultiplayerSettingsContext.TrySaveHostSettings(); });
+        GUI.enabled = guiEnabled;
+        UI.Label();
+        UI.Label(Gui.Localize("ModUi/&SettingsHelp"), descriptionStyle, UI.ExpandWidth(true));
+        if (!string.IsNullOrEmpty(Main.SettingsOperationMessage))
+        {
+            UI.Label(Gui.Localize(Main.SettingsOperationMessage), descriptionStyle, UI.ExpandWidth(true));
+        }
         UI.Label();
 
         using (UI.HorizontalScope())
@@ -396,14 +411,20 @@ internal static class ToolsDisplay
 
         UI.Label();
         UI.Label(Gui.Localize("ModUi/&SettingsLoad"));
+        if (!Main.CanImportSettings)
+        {
+            UI.Label(Gui.Localize("ModUi/&SettingsImportUnavailable"), descriptionStyle, UI.ExpandWidth(true));
+        }
         UI.Label();
 
+        GUI.enabled = guiEnabled && Main.CanImportSettings;
         var intValue = -1;
-        if (UI.SelectionGrid(ref intValue, Main.SettingsFiles, Main.SettingsFiles.Length, 4, UI.Width(440f)))
+        var profileStyle = new GUIStyle(GUI.skin.button) { wordWrap = true };
+        if (UI.SelectionGrid(ref intValue, Main.SettingsFiles, 1, profileStyle, UI.ExpandWidth(true)))
         {
             Main.LoadSettings(Main.SettingsFiles[intValue]);
-            ApplyTabletop2024RuntimeSettings();
         }
+        GUI.enabled = guiEnabled;
     }
 
     private static void DisplayTabletop2024()

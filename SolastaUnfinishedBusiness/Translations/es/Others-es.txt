@@ -573,6 +573,7 @@ Rules/&ActivationTypeOnSneakAttackHitAutoTitle=Ataque furtivo automático
 Rules/&ConditionMarkedByHunterExtendedDescription=Recibe +1d6 de daño de fuerza cuando el lanzador lo golpea con un ataque de arma.
 Rules/&ConditionOneDndBarkskinDescription=La clase de armadura de la criatura pasa a ser al menos 17.
 Rules/&ConditionStoneskinExtendedDescription=Resistencia a daños contundentes, cortantes y perforantes.
+Rules/&ConditionSurprisedExtendedDescription=Tienes desventaja en las tiradas de iniciativa.
 Rules/&CounterFormDismissCreatureFormat=Despierta a una criatura conjurada objetivo.
 Rules/&MotionFormPullOnTop=Tirar de la parte superior
 Rules/&MotionFormPushDownFormat=Empuja hacia abajo {0}

@@ -5,6 +5,7 @@ using System.Linq;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.DataViewer;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using static SolastaUnfinishedBusiness.Api.ModKit.UI;
 
@@ -16,10 +17,6 @@ public static class PartyEditor
     private static int _selectedCharacterIndex;
     private static RulesetCharacter _selectedCharacter;
     private static (string, string) _nameEditState = (null, null);
-
-#if DEBUG
-    private static ICharacterPoolService PoolService => ServiceRepository.GetService<ICharacterPoolService>();
-#endif
 
     internal static void OnGUI()
     {
@@ -470,25 +467,9 @@ public static class PartyEditor
 #if DEBUG
     private static void RefreshPool()
     {
-        _characterPool = [];
-        PoolService.EnumeratePool();
-
-        foreach (var filename in PoolService.Pool.Select(item => item.Key))
-        {
-            // ReSharper disable once InvocationIsSkipped
-            Main.Log("Loading: " + filename);
-            PoolService.LoadCharacter(filename, out var h, out _);
-#if false
-                        Mod.Debug(h.Name + " " + h);
-                        PropertyInfo[] infos = h.GetType().GetProperties();
-                        Mod.Debug("" +  infos);
-                        foreach (PropertyInfo info in infos)
-                        {
-                            Mod.Debug(String.Format("    {0} : {1}", info.Name, info.GetValue(h, null)?.ToString()) ?? "null");
-                        }
-#endif
-            _characterPool.Add(h);
-        }
+        ServiceRepository.GetService<ICharacterPoolService>().EnumeratePool();
+        EncountersContext.RefreshHeroes();
+        _characterPool = EncountersContext.GetHeroes().Cast<RulesetCharacter>().ToList();
 
         // ReSharper disable once InvocationIsSkipped
         Main.Log($"{_characterPool.Count} Characters Loaded");

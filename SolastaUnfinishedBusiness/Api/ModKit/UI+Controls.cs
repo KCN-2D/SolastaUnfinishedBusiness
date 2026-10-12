@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using UnityEngine;
@@ -17,12 +18,18 @@ internal static partial class UI
     public static bool UserHasHitReturn = false;
     public static string FocusedControlName = null;
 
-    private static readonly HashSet<Type> WidthTypes =
-        [Width(0f).GetType(), MinWidth(0).GetType(), MaxWidth(0).GetType(), AutoWidth().GetType()];
+    private static readonly FieldInfo LayoutOptionType = typeof(GUILayoutOption).GetField("type",
+        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+    private static readonly HashSet<object> WidthTypes =
+    [
+        LayoutOptionType.GetValue(Width(0f)), LayoutOptionType.GetValue(MinWidth(0f)),
+        LayoutOptionType.GetValue(MaxWidth(0f)), LayoutOptionType.GetValue(AutoWidth())
+    ];
 
     private static GUILayoutOption[] AddDefaults(this GUILayoutOption[] options, params GUILayoutOption[] desired)
     {
-        if (options.Any(option => WidthTypes.Contains(option.GetType())))
+        if (options.Any(option => WidthTypes.Contains(LayoutOptionType.GetValue(option))))
         {
             return options;
         }
@@ -293,15 +300,15 @@ internal static partial class UI
             if (areYouSureState)
             {
                 Space(25f);
-                Label("Are you sure?".Yellow());
+                Label(Gui.Localize("ModUi/&ConfirmAction").Yellow());
                 Space(25f);
-                ActionButton("YES".Yellow().Bold(), () =>
+                ActionButton(Gui.Localize("Message/&MessageYesTitle").Yellow().Bold(), () =>
                 {
                     areYouSure = false;
                     action.Invoke();
                 });
                 Space(10f);
-                ActionButton("NO".Green(), () => areYouSure = false);
+                ActionButton(Gui.Localize("Message/&MessageNoTitle").Green(), () => areYouSure = false);
                 if (warning != null)
                 {
                     Space(25f);
@@ -326,7 +333,7 @@ internal static partial class UI
         else
         {
             Space((float)-21);
-            ActionButton("min ".Cyan(), () => { }, TextBoxStyle, AutoWidth());
+            ActionButton(Gui.Localize("ModUi/&Minimum").Cyan(), () => { }, TextBoxStyle, AutoWidth());
         }
 
         Space((float)-8);
@@ -339,7 +346,7 @@ internal static partial class UI
         }
         else
         {
-            ActionButton(" max".Cyan(), () => { }, TextBoxStyle, AutoWidth());
+            ActionButton(Gui.Localize("ModUi/&Maximum").Cyan(), () => { }, TextBoxStyle, AutoWidth());
             Space((float)-27);
         }
 
@@ -450,79 +457,121 @@ internal static partial class UI
 
     // Sliders
 
+    private static float ClampSliderValue(float value, float min, float max, float defaultValue)
+    {
+        if (float.IsNaN(value))
+        {
+            value = float.IsNaN(defaultValue) ? min : defaultValue;
+        }
+
+        return Math.Max(min, Math.Min(max, value));
+    }
+
+    private static bool CommitSliderValue(ref float value, float previousValue, float newValue,
+        float min, float max, float defaultValue)
+    {
+        value = ClampSliderValue(newValue, min, max, defaultValue);
+        return float.IsNaN(previousValue) || Math.Abs(previousValue - value) > 0.00001;
+    }
+
     [UsedImplicitly]
     public static bool Slider(ref float value, float min, float max, float defaultValue = 1.0f, int decimals = 0,
         string units = "", params GUILayoutOption[] options)
     {
-        value = Math.Max(min, Math.Min(max, value)); // clamp it
-        var newValue = (float)Math.Round(GL.HorizontalSlider(value, min, max, Width(200f)), decimals);
-        using (HorizontalScope(options))
-        {
-            Space(25f);
-            FloatTextField(ref newValue, null, Width(75f));
-            if (units.Length > 0)
-            {
-                Label($"{units}", Width(25 + GUI.skin.label.CalcSize(new GUIContent(units)).x));
-            }
-
-            Space(25f);
-            ActionButton("Reset", () => { newValue = defaultValue; }, AutoWidth());
-        }
-
-        var changed = Math.Abs(value - newValue) > 0.00001;
-        value = newValue;
-        return changed;
+        return DrawSlider(null, ref value, min, max, defaultValue, decimals, units, false, options);
     }
 
     [UsedImplicitly]
     public static bool Slider(string title, ref float value, float min, float max, float defaultValue = 1.0f,
         int decimals = 0, string units = "", params GUILayoutOption[] options)
     {
-        value = Math.Max(min, Math.Min(max, value)); // clamp it
-        float newValue;
-        using (HorizontalScope(options))
+        return DrawSlider(title, ref value, min, max, defaultValue, decimals, units, false, options);
+    }
+
+    private static bool DrawSlider(string title, ref float value, float min, float max, float defaultValue,
+        int decimals, string units, bool logarithmic, params GUILayoutOption[] options)
+    {
+        var previousValue = value;
+        value = ClampSliderValue(value, min, max, defaultValue);
+        var newValue = value;
+        var resetTitle = Gui.Localize("ModUi/&Reset");
+        var titleStyle = new GUIStyle(GUI.skin.label) { wordWrap = true };
+        var resetStyle = new GUIStyle(GUI.skin.button) { wordWrap = true };
+        var unitWidth = units.Length == 0 ? 0f : 25f + GUI.skin.label.CalcSize(new GUIContent(units)).x;
+        var resetWidth = resetStyle.CalcSize(new GUIContent(resetTitle)).x;
+        var margin = Math.Max(GUI.skin.textField.margin.left, resetStyle.margin.left);
+        var controlsWidth = 200f + 75f + 50f + resetWidth + 3 * margin + unitWidth;
+        var maximumTitleWidth = 300.Point();
+        var minimumTitleWidth = Math.Min(maximumTitleWidth, 120.Point());
+
+        using (VerticalScope(new[] { MinWidth(0f), ExpandWidth(true) }.Concat(options).ToArray()))
         {
-            using (VerticalScope(Width(300f)))
+            var layout = MeasureResponsiveLayout([], 1, titleStyle);
+            var inlineTitle = title != null && layout.LayoutWidth >= minimumTitleWidth + 25f + controlsWidth;
+
+            if (title != null && !inlineTitle)
             {
-                Space((float)(SliderTop - 1).Point());
-                Label(title.Cyan(), Width(300f));
-                Space((float)SliderBottom.Point());
+                Label(title.Cyan(), titleStyle, MinWidth(0f), ExpandWidth(true));
             }
 
-            Space(25f);
-            using (VerticalScope(Width(200f)))
+            using (HorizontalScope(ExpandWidth(true)))
             {
-                Space((float)(SliderTop + 4).Point());
-                newValue = (float)Math.Round(GL.HorizontalSlider(value, min, max, Width(200f)), decimals);
-                Space((float)SliderBottom.Point());
-            }
+                if (inlineTitle)
+                {
+                    using (VerticalScope(MinWidth(minimumTitleWidth), MaxWidth(maximumTitleWidth), ExpandWidth(true)))
+                    {
+                        Space((float)(SliderTop - 1).Point());
+                        Label(title.Cyan(), titleStyle, MinWidth(0f), ExpandWidth(true));
+                    }
 
-            Space(25f);
-            using (VerticalScope(Width(75f)))
-            {
-                Space((float)(SliderTop + 2).Point());
-                FloatTextField(ref newValue, null, Width(75f));
-                Space((float)SliderBottom.Point());
-            }
+                    Space(25f);
+                }
 
-            if (units.Length > 0)
-            {
-                Label($"{units}".Bold(), Width(25 + GUI.skin.label.CalcSize(new GUIContent(units)).x));
-            }
+                using (VerticalScope(Width(200f)))
+                {
+                    Space((float)(SliderTop + 4).Point());
+                    if (logarithmic)
+                    {
+                        const int offset = 1;
+                        var places = (int)Math.Max(0, Math.Min(15, decimals + 1.01 - Math.Log10(value + offset)));
+                        var logMin = 100f * (float)Math.Log10(min + offset);
+                        var logMax = 100f * (float)Math.Log10(max + offset);
+                        var logValue = 100f * (float)Math.Log10(value + offset);
+                        var logNewValue = GL.HorizontalSlider(logValue, logMin, logMax, Width(200f));
+                        newValue = (float)Math.Round(Math.Pow(10, logNewValue / 100f) - offset, places);
+                    }
+                    else
+                    {
+                        newValue = (float)Math.Round(GL.HorizontalSlider(value, min, max, Width(200f)), decimals);
+                    }
 
-            Space(25f);
-            using (VerticalScope(AutoWidth()))
-            {
-                Space((float)(SliderTop - 0).Point());
-                ActionButton(Gui.Localize("ModUi/&Reset"), () => { newValue = defaultValue; }, AutoWidth());
-                Space((float)SliderBottom.Point());
+                    Space((float)SliderBottom.Point());
+                }
+
+                Space(25f);
+                using (VerticalScope(Width(75f)))
+                {
+                    Space((float)(SliderTop + 2).Point());
+                    FloatTextField(ref newValue, null, Width(75f));
+                    Space((float)SliderBottom.Point());
+                }
+
+                if (units.Length > 0)
+                {
+                    Label(units.Bold(), Width(unitWidth));
+                }
+
+                Space(25f);
+                using (VerticalScope(AutoWidth()))
+                {
+                    Space((float)SliderTop.Point());
+                    ActionButton(resetTitle, () => { newValue = defaultValue; }, resetStyle, AutoWidth());
+                    Space((float)SliderBottom.Point());
+                }
             }
         }
 
-        var changed = Math.Abs(value - newValue) > 0.00001;
-        value = Math.Min(max, Math.Max(min, newValue));
-        value = newValue;
-        return changed;
+        return CommitSliderValue(ref value, previousValue, newValue, min, max, defaultValue);
     }
 
     [UsedImplicitly]
@@ -579,58 +628,10 @@ internal static partial class UI
     {
         if (min < 0)
         {
-            throw new Exception("LogSlider - min value: {min} must be >= 0");
+            throw new ArgumentOutOfRangeException(nameof(min), min, "LogSlider minimum must be >= 0");
         }
 
-        BeginHorizontal(options);
-        using (VerticalScope(Width(300f)))
-        {
-            Space((float)(SliderTop - 1).Point());
-            Label(title.Cyan(), Width(300f));
-            Space((float)SliderBottom.Point());
-        }
-
-        Space(25f);
-        value = Math.Max(min, Math.Min(max, value)); // clamp it
-        const int OFFSET = 1;
-        var places = (int)Math.Max(0, Math.Min(15, decimals + 1.01 - Math.Log10(value + OFFSET)));
-        var logMin = 100f * (float)Math.Log10(min + OFFSET);
-        var logMax = 100f * (float)Math.Log10(max + OFFSET);
-        var logValue = 100f * (float)Math.Log10(value + OFFSET);
-        float logNewValue;
-        using (VerticalScope(Width(200f)))
-        {
-            Space((float)(SliderTop + 4).Point());
-            logNewValue = GL.HorizontalSlider(logValue, logMin, logMax, Width(200f));
-            Space((float)SliderBottom.Point());
-        }
-
-        var newValue = (float)Math.Round(Math.Pow(10, logNewValue / 100f) - OFFSET, places);
-        Space(25f);
-        using (VerticalScope(Width(75f)))
-        {
-            Space((float)(SliderTop + 2).Point());
-            FloatTextField(ref newValue, null, Width(75f));
-            Space((float)SliderBottom.Point());
-        }
-
-        if (units.Length > 0)
-        {
-            Label($"{units}".Bold(), Width(25 + GUI.skin.label.CalcSize(new GUIContent(units)).x));
-        }
-
-        Space(25f);
-        using (VerticalScope(AutoWidth()))
-        {
-            Space((float)(SliderTop + 0).Point());
-            ActionButton("Reset", () => { newValue = defaultValue; }, AutoWidth());
-            Space((float)SliderBottom.Point());
-        }
-
-        EndHorizontal();
-        var changed = Math.Abs(value - newValue) > 0.00001;
-        value = Math.Min(max, Math.Max(min, newValue));
-        return changed;
+        return DrawSlider(title, ref value, min, max, defaultValue, decimals, units, true, options);
     }
 
     [UsedImplicitly]

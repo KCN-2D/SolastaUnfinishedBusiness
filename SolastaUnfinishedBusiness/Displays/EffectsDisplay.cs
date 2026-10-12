@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using System.Collections.Generic;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Api.ModKit;
@@ -16,7 +17,10 @@ internal static class EffectsDisplay
         .SetSpecialDuration(RuleDefinitions.DurationType.Round, 1)
         .AddToDB();
 
-    private static Vector2 EffectPosition { get; set; } = Vector2.zero;
+    private static readonly Dictionary<EffectHelpers.EffectType, string[]> EffectKeys = [];
+    private static readonly Dictionary<EffectHelpers.EffectType, UI.PagedList<string>> EffectLists = [];
+    private static readonly UI.PagedList<string> ConditionList = new("ConditionEffectSearch", 32);
+    private static string[] _conditionKeys = [];
 
     private static bool ToggleCaster { get; set; }
     private static bool ToggleCondition { get; set; }
@@ -29,13 +33,15 @@ internal static class EffectsDisplay
         if (EffectsContext.Dirty)
         {
             EffectsContext.DumpEffects();
+            EffectKeys.Clear();
+            _conditionKeys = [];
         }
 
         UI.Label();
 
         if (!Gui.GameCampaign || Gui.GameCampaign.Party.CharactersList.Count < 2)
         {
-            UI.Label("You must have a game open with at least 2 heroes in the party...".Red().Bold());
+            UI.Label(Gui.Localize("ModUi/&EffectsRequiresParty"));
             UI.Label();
 
             return;
@@ -43,7 +49,7 @@ internal static class EffectsDisplay
 
         var toggle = ToggleCaster;
 
-        if (UI.DisclosureToggle(Gui.Localize("Caster:"), ref toggle))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&EffectsCaster"), ref toggle))
         {
             ToggleCaster = toggle;
         }
@@ -57,7 +63,7 @@ internal static class EffectsDisplay
 
         toggle = ToggleCondition;
 
-        if (UI.DisclosureToggle(Gui.Localize("Condition:"), ref toggle))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&EffectsCondition"), ref toggle))
         {
             ToggleCondition = toggle;
         }
@@ -71,7 +77,7 @@ internal static class EffectsDisplay
 
         toggle = ToggleEffect;
 
-        if (UI.DisclosureToggle(Gui.Localize("Effect:"), ref toggle))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&EffectsEffect"), ref toggle))
         {
             ToggleEffect = toggle;
         }
@@ -85,7 +91,7 @@ internal static class EffectsDisplay
 
         toggle = ToggleImpact;
 
-        if (UI.DisclosureToggle(Gui.Localize("Impact:"), ref toggle))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&EffectsImpact"), ref toggle))
         {
             ToggleImpact = toggle;
         }
@@ -99,7 +105,7 @@ internal static class EffectsDisplay
 
         toggle = ToggleZone;
 
-        if (UI.DisclosureToggle(Gui.Localize("Zone:"), ref toggle))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&EffectsZone"), ref toggle))
         {
             ToggleZone = toggle;
         }
@@ -118,13 +124,24 @@ internal static class EffectsDisplay
 
         UI.Label();
 
-        using var scrollView =
-            new GUILayout.ScrollViewScope(EffectPosition, UI.AutoWidth(), UI.AutoHeight());
-
-        EffectPosition = scrollView.scrollPosition;
-
-        foreach (var effect in EffectsContext.Effects[effectType])
+        var effects = EffectsContext.Effects[effectType];
+        if (!EffectLists.TryGetValue(effectType, out var list))
         {
+            list = new UI.PagedList<string>($"EffectSearch{effectType}", 32);
+            EffectLists.Add(effectType, list);
+        }
+        if (!EffectKeys.TryGetValue(effectType, out var keys) || keys.Length != effects.Count)
+        {
+            keys = effects.Keys.ToArray();
+            EffectKeys[effectType] = keys;
+        }
+        var labelStyle = new GUIStyle(GUI.skin.label) { wordWrap = true };
+        list.Refresh(keys, key => key + " - " + effects[key][0].Item1);
+        list.DrawControls(labelStyle);
+        for (var index = 0; index < list.VisibleCount; index++)
+        {
+            var key = list.GetVisibleItem(index);
+            var effect = effects[key][0];
             using (UI.HorizontalScope())
             {
                 UI.ActionButton("+".Bold().Red(), () =>
@@ -132,13 +149,13 @@ internal static class EffectsDisplay
                         var source = characterService.PartyCharacters[0];
                         var target = characterService.PartyCharacters[1];
 
-                        EffectHelpers.StartVisualEffect(source, target, effect.Value.First().Item2, effectType);
+                        EffectHelpers.StartVisualEffect(source, target, effect.Item2, effectType);
                     },
                     UI.Width(30f));
 
-                var label = effect.Key + " - " + effect.Value.First().Item1;
+                var label = key + " - " + effect.Item1;
 
-                UI.Label(label, UI.AutoWidth());
+                UI.Label(label, labelStyle, UI.ExpandWidth(true));
             }
         }
     }
@@ -149,20 +166,25 @@ internal static class EffectsDisplay
 
         UI.Label();
 
-        using var scrollView =
-            new GUILayout.ScrollViewScope(EffectPosition, UI.AutoWidth(), UI.AutoHeight());
-
-        EffectPosition = scrollView.scrollPosition;
-
-        foreach (var conditionEffect in EffectsContext.ConditionEffects)
+        var effects = EffectsContext.ConditionEffects;
+        if (_conditionKeys.Length != effects.Count)
         {
+            _conditionKeys = effects.Keys.ToArray();
+        }
+        var labelStyle = new GUIStyle(GUI.skin.label) { wordWrap = true };
+        ConditionList.Refresh(_conditionKeys, key => key + " - " + effects[key][0].Item1);
+        ConditionList.DrawControls(labelStyle);
+        for (var index = 0; index < ConditionList.VisibleCount; index++)
+        {
+            var key = ConditionList.GetVisibleItem(index);
+            var conditionEffect = effects[key][0];
             using (UI.HorizontalScope())
             {
                 UI.ActionButton("+".Bold().Red(), () =>
                     {
                         var source = characterService.PartyCharacters[0];
                         var rulesetCharacter = source.RulesetCharacter;
-                        var baseDefinition = conditionEffect.Value.First().Item2;
+                        var baseDefinition = conditionEffect.Item2;
 
                         switch (baseDefinition)
                         {
@@ -222,9 +244,9 @@ internal static class EffectsDisplay
                     },
                     UI.Width(30f));
 
-                var label = conditionEffect.Key + " - " + conditionEffect.Value.First().Item1;
+                var label = key + " - " + conditionEffect.Item1;
 
-                UI.Label(label, UI.AutoWidth());
+                UI.Label(label, labelStyle, UI.ExpandWidth(true));
             }
         }
     }

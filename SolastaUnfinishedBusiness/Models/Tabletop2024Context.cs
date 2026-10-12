@@ -27,7 +27,8 @@ public static partial class Tabletop2024Context
     private static readonly FeatureDefinitionCombatAffinity CombatAffinityConditionSurprised =
         FeatureDefinitionCombatAffinityBuilder
             .Create("CombatAffinityConditionSurprised")
-            .SetGuiPresentation("Surprised","Surprised")
+            .SetGuiPresentation(
+                "Rules/&ConditionSurprisedTitle", "Rules/&ConditionSurprisedExtendedDescription")
             .SetInitiativeAffinity(AdvantageType.Disadvantage)
             .AddToDB();
 

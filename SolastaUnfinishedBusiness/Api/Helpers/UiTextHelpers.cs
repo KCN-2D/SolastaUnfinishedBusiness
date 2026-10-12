@@ -176,6 +176,18 @@ internal static class UiTextHelpers
         layout.Schedule(panel);
     }
 
+    internal static void FitMultiplayerRoomColumns(JoinGameSubpanel panel)
+    {
+        if (!panel || !panel.onlineRoomsScrollview || !panel.onlineRoomsTable)
+        {
+            return;
+        }
+
+        var layout = panel.GetComponent<MultiplayerRoomColumnsLayoutState>() ??
+                     panel.gameObject.AddComponent<MultiplayerRoomColumnsLayoutState>();
+        layout.Schedule(panel);
+    }
+
     internal static void FitSettingItemCaption(SettingItem item)
     {
         if (item is SettingKeyMappingItem keyMapping)
@@ -2430,6 +2442,230 @@ internal static class UiTextHelpers
             {
                 radioOwner.GetComponent<SettingCaptionLayoutState>()?.Invalidate();
             }
+        }
+    }
+
+    private sealed class MultiplayerRoomColumnsLayoutState : MonoBehaviour
+    {
+        private const float ColumnGap = 12f;
+        private readonly List<RoomHeaderColumn> _columns = [];
+        private JoinGameSubpanel _panel;
+        private RectTransform _header;
+        private HorizontalLayoutGroup _headerLayout;
+        private RectOffset _headerPadding;
+        private RectTransform _scroll;
+        private float _nativeWidth;
+        private float _nativeHeight;
+        private Vector2 _scrollOffsetMax;
+        private float _lastWidth;
+        private int _lastRows;
+        private string _lastLanguage;
+        private bool _dirty;
+
+        internal void Schedule(JoinGameSubpanel panel)
+        {
+            _panel = panel;
+            _dirty = true;
+        }
+
+        private bool Initialize()
+        {
+            _scroll = (RectTransform)_panel.onlineRoomsScrollview.transform;
+
+            // ApplyText can run before the native hierarchy has a usable size.
+            // Capture its baseline only after layout, and retry while it is incomplete.
+            foreach (Transform child in _scroll.parent)
+            {
+                if (child == _scroll || child is not RectTransform candidate || candidate.rect.width <= 0f)
+                {
+                    continue;
+                }
+
+                var labels = new List<GuiLabel>();
+                foreach (Transform title in candidate)
+                {
+                    if (title.GetComponent<GuiLabel>() is { TMP_Text: { } text } label && text)
+                    {
+                        labels.Add(label);
+                    }
+                }
+
+                if (labels.Count < 3)
+                {
+                    continue;
+                }
+
+                _header = candidate;
+                _headerLayout = candidate.GetComponent<HorizontalLayoutGroup>();
+                if (_headerLayout)
+                {
+                    _headerPadding = new RectOffset(_headerLayout.padding.left, _headerLayout.padding.right,
+                        _headerLayout.padding.top, _headerLayout.padding.bottom);
+                }
+                var roomPrefab = _panel.onlineRoomPrefab
+                    ? _panel.onlineRoomPrefab.GetComponent<RectTransform>()
+                    : null;
+                var tablePadding = _panel.onlineRoomsTable.GetComponent<LayoutGroup>()?.padding.horizontal ?? 0;
+                // Fixed row cells keep their prefab width even when the menu initially
+                // opens at a narrower size. Use the same baseline for header and rows.
+                _nativeWidth = Mathf.Max(candidate.rect.width, roomPrefab ? roomPrefab.rect.width + tablePadding : 0f);
+                _nativeHeight = candidate.rect.height;
+                _scrollOffsetMax = _scroll.offsetMax;
+                foreach (var label in labels)
+                {
+                    _columns.Add(new RoomHeaderColumn(label.TMP_Text));
+                }
+
+                _columns.Sort((left, right) => left.NativeLeft.CompareTo(right.NativeLeft));
+                return true;
+            }
+
+            return false;
+        }
+
+        private void OnEnable()
+        {
+            _dirty = true;
+        }
+
+        private void LateUpdate()
+        {
+            if (!_panel || !gameObject.activeInHierarchy || (!_header && !Initialize()))
+            {
+                return;
+            }
+
+            var width = _header.rect.width;
+            var language = LocalizationManager.CurrentLanguageCode;
+            var rows = _panel.onlineRoomsTable.childCount;
+            var changed = _dirty || Mathf.Abs(width - _lastWidth) >= PreferredSizeTolerance ||
+                          _lastLanguage != language || _lastRows != rows;
+            foreach (var column in _columns)
+            {
+                changed |= column.Text.text != column.LastText || column.Text.font != column.LastFont;
+            }
+
+            if (!changed || width <= 0f)
+            {
+                return;
+            }
+
+            var scale = Mathf.Min(1f, width / _nativeWidth);
+            if (_headerLayout)
+            {
+                // The native layout runs again after the captions are resized. Its gap
+                // must match the gap used below, or every subsequent column drifts right.
+                _headerLayout.spacing = ColumnGap * scale;
+                _headerLayout.padding.left = Mathf.RoundToInt(_headerPadding.left * scale);
+                _headerLayout.padding.right = Mathf.RoundToInt(_headerPadding.right * scale);
+            }
+            var height = _nativeHeight;
+            for (var index = 0; index < _columns.Count; index++)
+            {
+                var column = _columns[index];
+                var left = column.NativeLeft * scale;
+                var right = index + 1 < _columns.Count
+                    ? _columns[index + 1].NativeLeft * scale - ColumnGap * scale
+                    : width - ColumnGap * scale;
+                column.Rect.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, left,
+                    Mathf.Max(1f, right - left));
+                var text = column.Text;
+                text.enableAutoSizing = false;
+                text.autoSizeTextContainer = false;
+                text.enableWordWrapping = true;
+                text.maxVisibleLines = int.MaxValue;
+                text.overflowMode = TextOverflowModes.Truncate;
+                text.alignment = TextAlignmentOptions.TopLeft;
+                text.fontSize = column.NativeFontSize;
+                var contentWidth = Mathf.Max(1f, column.Rect.rect.width - text.margin.x - text.margin.z);
+                var preferred = GetPreferredSize(text, column.NativeFontSize, true, int.MaxValue,
+                    column.NativeLineSpacing, contentWidth);
+                height = Mathf.Max(height, Mathf.Ceil(preferred.y + text.margin.y + text.margin.w + 2f));
+                column.LastText = text.text;
+                column.LastFont = text.font;
+            }
+
+            _header.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            foreach (var column in _columns)
+            {
+                column.Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+                column.Text.SetLayoutDirty();
+                column.Text.SetVerticesDirty();
+            }
+
+            // Reserve the complete wrapped header without moving the search controls
+            // or reducing row hit areas. Always derive this from the native offset.
+            _scroll.offsetMax = _scrollOffsetMax - new Vector2(0f, height - _nativeHeight);
+            foreach (var line in _panel.onlineRoomsTable.GetComponentsInChildren<OnlineRoomLine>(true))
+            {
+                var row = line.GetComponent<MultiplayerRoomRowLayoutState>() ??
+                          line.gameObject.AddComponent<MultiplayerRoomRowLayoutState>();
+                row.Apply(line, scale);
+            }
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_panel.onlineRoomsTable);
+            _lastWidth = width;
+            _lastRows = rows;
+            _lastLanguage = language;
+            _dirty = false;
+        }
+
+        private sealed class RoomHeaderColumn(TMP_Text text)
+        {
+            internal TMP_Text Text { get; } = text;
+            internal RectTransform Rect { get; } = text.rectTransform;
+            internal float NativeLeft { get; } =
+                ((RectTransform)text.rectTransform.parent).InverseTransformPoint(
+                    text.rectTransform.TransformPoint(text.rectTransform.rect.min)).x -
+                ((RectTransform)text.rectTransform.parent).rect.xMin;
+            internal float NativeFontSize { get; } = text.fontSize;
+            internal float NativeLineSpacing { get; } = text.lineSpacing;
+            internal string LastText { get; set; }
+            internal TMP_FontAsset LastFont { get; set; }
+        }
+    }
+
+    private sealed class MultiplayerRoomRowLayoutState : MonoBehaviour
+    {
+        private readonly List<(RectTransform Rect, float Width)> _columns = [];
+        private HorizontalLayoutGroup _layout;
+        private float _spacing;
+        private RectOffset _padding;
+
+        internal void Apply(OnlineRoomLine line, float scale)
+        {
+            if (_columns.Count == 0)
+            {
+                _layout = line.GetComponent<HorizontalLayoutGroup>();
+                if (!_layout)
+                {
+                    return;
+                }
+
+                _spacing = _layout.spacing;
+                _padding = new RectOffset(_layout.padding.left, _layout.padding.right,
+                    _layout.padding.top, _layout.padding.bottom);
+                foreach (Transform child in line.transform)
+                {
+                    if (child is RectTransform rect && child.GetComponent<LayoutElement>()?.ignoreLayout != true)
+                    {
+                        _columns.Add((rect, rect.rect.width));
+                    }
+                }
+            }
+
+            _layout.spacing = _spacing * scale;
+            _layout.padding.left = Mathf.RoundToInt(_padding.left * scale);
+            _layout.padding.right = Mathf.RoundToInt(_padding.right * scale);
+            foreach (var (rect, width) in _columns)
+            {
+                rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width * scale);
+            }
+
+            FitConstrainedSingleLine(line.sessionNameLabel, TagMinFontScale, TagAbsoluteMinFontSize);
+            FitConstrainedSingleLine(line.playersLabel, StatValueMinFontScale, StatValueAbsoluteMinFontSize);
+            FitConstrainedSingleLine(line.campaignLabel, TagMinFontScale, TagAbsoluteMinFontSize);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(line.RectTransform);
         }
     }
 

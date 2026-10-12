@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -9,6 +10,25 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameSerializationManagerPatcher
 {
+    [HarmonyPatch(typeof(GameSerializationManager), nameof(GameSerializationManager.SaveGame))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class SaveGame_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(out IDisposable __state)
+        {
+            __state = PlayerControllerContext.SuspendControlForSerialization();
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(Exception __exception, IDisposable __state)
+        {
+            __state?.Dispose();
+            return __exception;
+        }
+    }
+
     private static void UpdateHasSavedGames(GameSerializationManager manager)
     {
         //PATCH: update state of load buttons for SaveByLocation

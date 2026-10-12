@@ -57,6 +57,8 @@ ModUi/&Blueprints=청사진
 ModUi/&Campaigns=캠페인
 ModUi/&Cancel=취소
 ModUi/&Category=범주
+ModUi/&ItemTag=아이템 태그
+ModUi/&WeaponTag=무기 태그
 ModUi/&ChangeDragonbornElementalBreathUsages=<color=#D89555>드래곤본</color> 원소 숨결 사용을 짧은 휴식당 CON 수정치로 변경
 ModUi/&ChangeSleetStormToCube=<color=#D89555>눈보라 폭풍</color>을 실린더 대신 큐브를 사용하도록 변경합니다.
 ModUi/&Changelog=<b><color=#D89555>변경 로그</color></b>
@@ -110,10 +112,16 @@ ModUi/&DownloadVoiceOngoing={0}에서 다운로드 중
 ModUi/&DownloadSpeechLanguageVoices={0} 다운로드
 ModUi/&DownloadSpeechLanguageVoicesOngoing={0} 다운로드 중 ({1})
 ModUi/&SpeechLanguageJapanese=일본어 음성
-ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>대응하는 언어 음성을 다운로드하면 해당 언어의 텍스트는 그 음성으로 읽습니다. 그 밖의 텍스트는 기존 영어 Piper 음성을 계속 사용합니다.</color></i>
+ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>현재 언어를 지원하는 음성을 선택합니다. 설치된 Windows 음성과 로컬에 추가한 Piper 모델도 사용할 수 있습니다.</color></i>
 ModUi/&DungeonMaker=던전메이커
 ModUi/&DungeonMakerBasicHelp=• 이러한 설정은 플레이어가 이 모드를 설치하도록 요구하지 않습니다.
 ModUi/&Effects=효과
+ModUi/&EffectsCaster=시전자:
+ModUi/&EffectsCondition=상태:
+ModUi/&EffectsEffect=효과:
+ModUi/&EffectsImpact=적중:
+ModUi/&EffectsRequiresParty=<color=#C04040E0>효과를 보려면 영웅이 두 명 이상인 파티의 게임을 불러오세요.</color>
+ModUi/&EffectsZone=영역:
 ModUi/&EnableActionSwitching=동작 전환 막대 활성화 <i><color=#F0DAA0>[동작 순서를 완벽하게 제어하는 데 유용함]</color></i>
 ModUi/&EnableAdditionalBackstoryDisplay=배경 검사에서 추가 배경 스토리 표시 활성화
 ModUi/&EnableAdditionalIconsOnLevelMap=레벨 맵에서 캠프, 출구 및 텔레포터에 대한 추가 아이콘 활성화
@@ -287,7 +295,7 @@ ModUi/&EnableSorcererSorcerousRestoration2024=레벨 5에서 <color=#D89555>마�
 ModUi/&EnableSortingDungeonMakerAssets=Dungeon Maker 편집기에서 자산 정렬 활성화
 ModUi/&EnableSpeech=사용자 정의 캠페인에서 음성 활성화 <i><color=#F0DAA0>[내레이션 및 영웅만]</color></i>
 ModUi/&EnableSpeechActorHelp=• 배우를 선택하세요
-ModUi/&EnableSpeechOnNpcs=<i>+ NPC의 음성 활성화 <color=#F0DAA0>[캠페인 매핑 또는 자동 할당에서]</color></i>
+ModUi/&EnableSpeechOnNpcs=NPC 음성 읽기 활성화
 ModUi/&EnableSpeechVoiceHelp=• 음성 및 내레이션 속도를 선택하세요
 ModUi/&EnableStackableArtItems=<color=#D89555>아트 아이템</color> 스택 활성화 <i><color=#F0DAA0>[이 설정이 비활성화된 동안에는 분할할 수 없음]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=<color=#D89555>단검</color>과 <color=#D89555>손도끼</color>를 중첩할 수 있습니다. <i><color=#F0DAA0>[이 설정이 비활성화된 동안에는 분할할 수 없습니다]</color></i>
@@ -314,9 +322,26 @@ ModUi/&EnableWizardToLearnSchoolAtLevel3=<color=#D89555>마법 학교</color>를
 ModUi/&EnablesAsiAndFeat=속성 점수 증가와 <color=#D89555>특기</color> 선택을 모두 활성화합니다. <i><color=#F0DAA0>[독점 선택 대신]</color></i>
 ModUi/&EncounterPercentageChance=<color=white>무작위 만남 확률 설정</color>
 ModUi/&Encounters=만남
+ModUi/&EncounterAddCharactersHelp=• +를 누르면 조우 목록에 최대 {0}명의 캐릭터를 추가할 수 있습니다.
+ModUi/&EncounterCountFormat={0} ({1})
+ModUi/&EncounterListEmpty=조우 목록이 비어 있습니다.
+ModUi/&EncounterUnavailableHeroes=캐릭터 파일 {0}개를 불러오지 못했습니다. 사용 가능한 영웅은 표시됩니다. 로그에서 해당 파일을 확인한 뒤 새로 고침하여 다시 시도하세요.
+ModUi/&EncounterMaximumUsesFormat=최대 사용 횟수: {0}
+ModUi/&EncountersHelp=• 조우 생성은 싱글 플레이 사용자 제작 캠페인이나 장소에서 사용할 수 있습니다\n• 도감 탭에서 조우에 몬스터를 추가합니다\n• 캐릭터 보관함 탭에서 영웅을 적으로 추가합니다\n• <i>-</i>를 누르면 조우에서 캐릭터를 제거합니다\n• 원하는 장소로 카메라를 이동하고 <color=#1E81B0>{0}</color>을 실행하면 적이 나타납니다. 게임 입력 설정에서 해당 키를 지정하세요
+ModUi/&EncounterStatistics=전투 정보
+ModUi/&EncounterUnlimited=무제한
+ModUi/&EncounterValueFormat={0}: {1}
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ 적은 항상 강제된 값 대신 주도권을 굴립니다. <color=#F0DAA0>[예: 소락 암살자]</color></i>
 ModUi/&EnableEnemiesControlledByPlayer=플레이어가 조작하는 적 활성화
 ModUi/&EnableHeroesControlledByComputer=컴퓨터가 조작하는 영웅 활성화
+ModUi/&AdvancedCombatAiManualNpcHelp=<i><color=#F0DAA0>고급 전투 AI는 AI가 조작하는 영웅에게 계속 적용됩니다. 플레이어가 수동으로 조작하는 적에게는 자동 행동 판단을 적용하지 않습니다.</color></i>
+ModUi/&ControllerHuman=플레이어
+ModUi/&ControllerMelee=근접 전투
+ModUi/&ControllerRanged=원거리 전투
+ModUi/&ControllerSupportCaster=지원 주문 시전자
+ModUi/&HeroesControllerLoadGameHelp=<color=#C04040E0>싱글 플레이 저장을 불러오면 각 영웅의 조작 방식을 선택할 수 있습니다.</color>
+ModUi/&PlayerControllers=<color=#F0DAA0>캐릭터 제어:</color>
+ModUi/&PlayerControllersSinglePlayerOnly=<color=#C04040E0>영웅 AI와 적 수동 조작은 싱글 플레이에서 사용할 수 있습니다. 멀티플레이 준비 중이나 플레이 중에도 저장된 설정은 유지됩니다.</color>
 ModUi/&EnableAdvancedCombatAI=고급 전투 AI 활성화 <i><color=#F0DAA0>[적과 AI가 조작하는 영웅을 위한 선택형 전술 개선]</color></i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=적 주문 시전자는 새겨진 주문서를 떨어뜨립니다. <i><color=#F0DAA0>[마법사 목록에 알려진 주문이 포함되어 있음]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=<b>Evoker</b> <color=#D89555>조각 주문</color>에 아군 인식이 필요하지 않도록 설정
@@ -333,7 +358,7 @@ ModUi/&FixEldritchBlastRange=<color=#D89555>Eldritch Blast</color>에 24개 셀 
 ModUi/&Use24CellsRangeWithDimensionDoor=<color=#D89555>차원문</color>에 24칸 사거리를 사용합니다. <i><color=#F0DAA0>[12칸 대신]</color></i>
 ModUi/&FixRingOfRegenerationHealRate=<color=#D89555>재생의 반지</color> 회복 속도를 3분당 1HP로 설정합니다.
 ModUi/&FlightSuspendWingedBoots=<i>+ Winged Boots 공식 규칙 사용 <color=#F0DAA0>[비행 중단 시 남은 시간은 계산되지 않음]</color></i>
-ModUi/&ForceModSpeechOnNpcs=<i>+캠페인 매핑 대신 모든 NPC에 음성 자동 할당 강제 적용</i>
+ModUi/&ForceModSpeechOnNpcs=캠페인의 NPC 음성 지정을 무시하고 개별 선택이 없는 NPC에 음성을 자동 할당
 ModUi/&Formation=<color=#F0DAA0>포메이션:</color>
 ModUi/&FormationError=<color=#C04040E0>멀티플레이어 게임 중에는 포메이션을 변경할 수 없습니다...</color>
 ModUi/&FormationHelp1=• 숫자 버튼을 사용하여 주어진 세트를 편집합니다. <i><color=#F0DAA0>[입력 아래에 단축키를 활성화하는 것을 고려하세요]</color></i>
@@ -356,6 +381,7 @@ ModUi/&IdentifyAfterRest=짧은 휴식이나 긴 휴식 동안 <color=#D89555>�
 ModUi/&IgnoreHandXbowFreeHandRequirements=<color=#D89555>손 석궁</color>을 사용할 때 자유로운 손이 필요하지 않습니다.
 ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=환상 주문은 범위 내에 <color=#D89555>TrueSight</color>가 있는 대상에 대해 자동으로 실패합니다.
 ModUi/&IncreaseGameTimeBy=게임 시간을 늘리세요
+ModUi/&GameTimeHours={0}시간
 ModUi/&IncreaseMaxAttunedItems=레벨 10에서 최대 <color=#D89555>조정 아이템</color>을 4개로, 레벨 18에서 5개로 증가시킵니다.
 ModUi/&Invocations=<color=#F0DAA0>호출</color>
 ModUi/&Items=<color=#F0DAA0>아이템:</color>
@@ -375,6 +401,22 @@ ModUi/&ModifyGravitySlam=<color=#D89555>Gravity Slam</color> 주문을 수정하
 ModUi/&MovementGridWidthModifier=<color=white>이동 그리드 너비를 </color> <color=#C04040E0>[%]</color>로 곱합니다.
 ModUi/&MulticlassKeyHelp=<color=#1E81B0>SHIFT</color>로 주문을 클릭하면 소모된 기본 레퍼토리 슬롯 유형이 반전됩니다.\n<i><color=#F0DAA0>[<color=#D89555>워록</color>은 흰색 주문 슬롯을 소모하고 다른 이들은 계약 녹색 주문 슬롯을 소모합니다]</color></i>
 ModUi/&Multiplayer=<color=#F0DAA0>멀티플레이어:</color>
+ModUi/&MultiplayerSettingsError=<color=#C04040E0>UB 설정을 비교할 수 없습니다. 자세한 내용은 게임 로그를 확인하세요.</color>
+ModUi/&MultiplayerSettingsHelp=• 로비에서 게임 설정을 공유하고 UB 빌드를 확인합니다\n• 인터페이스, 언어, 카메라, 음성, 번역 설정은 각자의 설정을 유지합니다\n• 이 확인은 게임 시작을 막지 않습니다
+ModUi/&MultiplayerSettingsHost=현재 게임 설정을 이 로비에 공유하고 있습니다.
+ModUi/&MultiplayerSettingsInvalid=<color=#C04040E0>호스트가 공유한 설정이 유효하지 않거나 크기 제한을 초과했습니다.</color>
+ModUi/&MultiplayerSettingsMatch=UB 빌드와 게임 설정이 호스트와 일치합니다.
+ModUi/&MultiplayerSettingsMismatch=<color=#C04040E0>게임 설정이 호스트와 다릅니다. 호스트 프로필을 저장하고 로비를 나간 뒤 설정 메뉴에서 불러오세요. 게임을 재시작한 후 다시 참가하세요.</color>
+ModUi/&MultiplayerSettingsOffline=UB 설정을 비교하려면 온라인 멀티플레이어 로비에 참가하세요.
+ModUi/&MultiplayerSettingsPeerMatch={0}: UB 빌드와 게임 설정이 일치합니다.
+ModUi/&MultiplayerSettingsPeerMismatch=<color=#C04040E0>{0}: 게임 설정이 다릅니다.</color>
+ModUi/&MultiplayerSettingsPeerVersionMismatch=<color=#C04040E0>{0}: UB 빌드가 다릅니다.</color>
+ModUi/&MultiplayerSettingsPeerWaiting=<color=#C04040E0>{0}: 호환되는 UB 설정 보고를 받지 못했습니다.</color>
+ModUi/&MultiplayerSettingsSaveHost=호스트 설정 프로필 저장
+ModUi/&MultiplayerSettingsSaved=호스트 설정을 MultiplayerHost로 저장했습니다. 로비를 나가 아래에서 이 프로필을 불러온 뒤 게임을 재시작하세요.
+ModUi/&MultiplayerSettingsUnsupported=<color=#C04040E0>호스트가 호환되는 UB 설정을 공유하고 있지 않습니다.</color>
+ModUi/&MultiplayerSettingsVersionMismatch=<color=#C04040E0>UB 빌드가 호스트와 다릅니다. 참가하기 전에 같은 빌드를 설치하세요.</color>
+ModUi/&MultiplayerSettingsWaiting=호스트의 UB 설정을 기다리는 중입니다.
 ModUi/&MultiplyTheExperienceGainedBy=<color=white>획득한 경험치를 </color> <color=#C04040E0>[%]</color> 곱합니다.
 ModUi/&NeverMoveCameraOnEnemyTurn=<i>+ 적의 턴 동안 카메라는 절대 움직이지 않습니다.</i>
 ModUi/&NewWeaponsAndRecipesBaseInsteadOfPrimed=<i>+ 프라임 버전 대신 기본 무기와 방어구를 재료로 사용</i> <b><i><color=#C04040E0>[재시작 필요]</color></i></b>
@@ -441,8 +483,12 @@ ModUi/&SenseNormalVisionRangeMultiplier=<color=#D89555>일반 시야</color> 범
 ModUi/&Services=서비스
 ModUi/&SetBeltOfDwarvenKindBeardChances=<color=#D89555>드워프족의 벨트</color> <color=white>수염이 나타날 확률</color>
 ModUi/&SettingsExport=내보내다
-ModUi/&SettingsHelp=• 호스트로서 현재 구성을 내보내고, 내보내기 폴더를 열고, 동료와 쉽게 공유할 수 있습니다.\n• 게스트로서 내보내기 폴더를 열고, 호스트에서 공유된 파일을 붙여넣고 로드할 수 있습니다. <b><i><color=#C04040E0>[재시작 필요]</color></i></b>
-ModUi/&SettingsLoad=• 내보낸 설정 로드
+ModUi/&SettingsHelp=• 호스트는 온라인 로비에서 게임 설정을 바로 공유하거나 내보낸 XML 파일을 수동으로 공유할 수 있습니다\n• 게스트는 호스트 프로필을 저장하고 로비를 나간 뒤 여기서 불러오세요. 게임을 재시작한 후 다시 참가하세요 <b><i><color=#C04040E0>[재시작 필요]</color></i></b>
+ModUi/&SettingsImportCancel=설정 가져오기 취소
+ModUi/&SettingsImportFailed=<color=#C04040E0>이 설정 작업을 완료할 수 없습니다. 현재 설정은 변경되지 않았습니다. 자세한 내용은 게임 로그를 확인하세요.</color>
+ModUi/&SettingsImportPending=<b><i><color=#C04040E0>설정은 게임을 재시작하면 적용됩니다</color></i></b>\n현재 설정은 Settings.before-import.xml로 백업했습니다
+ModUi/&SettingsImportUnavailable=<color=#C04040E0>설정 프로필을 불러오기 전에 멀티플레이어 로비를 나가 메인 메뉴로 돌아가세요.</color>
+ModUi/&SettingsLoad=• 설정 프로필 불러오기 <b><i><color=#C04040E0>[재시작 필요]</color></i></b>
 ModUi/&SettingsOpenFolder=내보낸 설정 폴더 열기
 ModUi/&SettingsRefresh=새로 고치다
 ModUi/&SettingsRemove=제거하다
@@ -459,6 +505,7 @@ ModUi/&BattleActionAnimationSpeedMultiplierHelp=시전, 투사체, 충돌 또는
 ModUi/&ShowTranslationPreview=최근 번역 보기
 ModUi/&SpeechScale=<color=white>내레이션 속도 수정자</color> <i><color=#F0DAA0>[낮을수록 빠름]</color></i>
 ModUi/&SpeechVolume=<color=white>내레이션 볼륨</color>
+ModUi/&SpeechShowAllLanguages=모든 언어의 음성 표시
 ModUi/&SpellLevelFilter=<b><i><color=white>주문 레벨 필터</color> <color=#F0DAA0>[-1은 모두 표시]</color></i></b>
 ModUi/&SpellsMenu=주문
 ModUi/&StealthBreaksWhenAttackHits=무기 또는 주문 공격이 적중하면 은신 해제를 활성화합니다.
@@ -497,6 +544,8 @@ ModUi/&TranslationCompleted=완료됨
 ModUi/&TranslationCompletedWithErrors=완료됨 (오류 있음)
 ModUi/&TranslationConcurrency=동시 실행
 ModUi/&TranslationFailed=실패함
+ModUi/&TranslationFailedCount=({0}개 실패)
+ModUi/&TranslationMoreItems=… 외 {0}개 항목
 ModUi/&TranslationGoogleLegacyMode=레거시 모드를 사용하여 Google Translate API에서 번역을 요청하세요.
 ModUi/&TranslationGoogleSettings=구글 API 설정
 ModUi/&TranslationPaused=일시 정지됨
@@ -570,3 +619,70 @@ ModUI/&EnableEnemyBattleTacticsDescription=적의 유형과 전투 역할에 맞
 ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=멀티플레이에서는 세션을 시작하기 전에 모든 참가자가 같은 설정을 선택해야 합니다. 멀티플레이 세션 중에는 이 설정을 변경할 수 없습니다.
 ModUi/&FlexibleRacesDisabledByBackgroundASI=배경 능력치 증가가 활성화되어 있어 유연한 종족 능력치 증가는 적용되지 않습니다. 배경 능력치 증가를 비활성화하면 기존 선택이 다시 적용됩니다.
 ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats=배경 기원 재주가 활성화되어 있어 유연한 배경 숙련은 적용되지 않습니다. 배경 기원 재주를 비활성화하면 기존 선택이 다시 적용됩니다.
+ModUi/&SpeechNarrator=내레이터
+ModUi/&SpeechHero=영웅 {0}
+ModUi/&SpeechNoVoice=음성 없음
+ModUi/&SpeechVoiceTsukuyomi=츠쿠요미짱
+ModUi/&SpeechVoiceCss10=CSS10
+ModUi/&SpeechVoiceSpeaker={0} — 화자 {1}
+ModUi/&SpeechPitch=<color=white>음성 높낮이 (반음)</color>
+ModUi/&EnableSpeechPitchHelp=<i><color=#F0DAA0>읽기 속도를 바꾸지 않고 선택한 음성의 높낮이를 -6에서 +6반음까지 조정합니다.</color></i>
+ModUi/&EnableSpeechAvailableVoiceHelp=• 설치된 Windows 음성을 자동으로 감지합니다\n• 일본어 음성을 다운로드하면 츠쿠요미짱과 CSS10을 추가할 수 있습니다\n• 추가한 로컬 Piper 모델과 모델에 설정된 화자도 사용할 수 있습니다
+ModUi/&SpeechVoiceUnavailable={0} (사용 불가)
+ModUi/&TranslationCategoryCampaign=캠페인
+ModUi/&TranslationCategoryLocations=지역
+ModUi/&TranslationCategoryGadgets=장치
+ModUi/&TranslationCategoryDialogs=대화
+ModUi/&TranslationCategoryItems=아이템
+ModUi/&TranslationCategoryQuests=퀘스트
+ModUi/&TranslationCategoryMonsters=몬스터
+ModUi/&TranslationCategoryNPCs=NPC
+ModUi/&TranslationCategoryMerchants=상인
+ModUi/&TranslationCategoryLootPacks=전리품 묶음
+ModUi/&TranslationCategoryBiomes=생물 군계
+ModUi/&TranslationCategoryEncounterTables=조우 표
+ModUi/&TranslationCategoryEncounters=조우
+ModUi/&TranslationCategoryMapNodes=지도 지점
+ModUi/&ConfirmAction=이 작업을 실행하시겠습니까?
+ModUi/&Minimum=최소
+ModUi/&Maximum=최대
+ModUi/&EnableVoiceVoxSpeech=일본어 읽기에 VOICEVOX 사용
+ModUi/&SpeechVoiceVoxHelp=UB의 다운로드 및 설정 버튼으로 VOICEVOX를 추가할 수 있습니다. 설정 후에는 필요할 때 자동으로 실행됩니다. UB는 이미 실행 중인 VOICEVOX에도 연결할 수 있습니다. 음성은 이 PC에서 생성됩니다.
+ModUi/&SpeechVoiceVoxConnecting=VOICEVOX에 연결 중…
+ModUi/&SpeechVoiceVoxConnected=VOICEVOX 연결됨: 음성 스타일 {0}개 사용 가능
+ModUi/&SpeechVoiceVoxUnavailable=VOICEVOX에 연결할 수 없습니다. 설정을 완료하거나 이미 실행 중인 VOICEVOX를 확인한 뒤 음성 목록을 새로 고치세요.
+ModUi/&SpeechVoiceVoxInstall=VOICEVOX 다운로드 및 설정
+ModUi/&SpeechVoiceVoxInstallHelp=첫 다운로드는 약 1.9GB입니다. 설정 후에는 Solasta가 필요에 따라 VOICEVOX를 실행하고 종료합니다. 다운로드는 취소하고 이어받을 수 있습니다. 음성 사용에는 각 화자의 이용 약관이 적용됩니다.
+ModUi/&SpeechVoiceVoxDownloadProgress=VOICEVOX 다운로드 중: {0}
+ModUi/&SpeechVoiceVoxVerifying=VOICEVOX 다운로드 확인 중
+ModUi/&SpeechVoiceVoxExtracting=VOICEVOX 설정 중
+ModUi/&SpeechVoiceVoxStarting=VOICEVOX 실행 중
+ModUi/&SpeechVoiceVoxInstallFailed=VOICEVOX 설정에 실패했습니다. 디스크의 여유 공간과 인터넷 연결을 확인한 뒤 다시 시도하세요.
+ModUi/&SpeechVoiceVoxCancel=다운로드 취소
+ModUi/&SpeechVoiceVoxTerms=VOICEVOX 음성 이용 약관
+ModUi/&SpeechVoiceVoxInstalled=VOICEVOX 설정이 완료되었으며 자동으로 실행됩니다.
+ModUi/&SpeechVoiceVoxUnsupported=VOICEVOX 자동 설정에는 64비트 Windows가 필요합니다.
+ModUi/&SpeechVoiceVoxRetry=VOICEVOX 설정 다시 시도
+ModUi/&SpeechIntonation=억양
+ModUi/&SpeechIntonationHelp=VOICEVOX 음성의 표현을 조절합니다. 1은 기본 억양이며, 0은 평탄한 읽기입니다.
+ModUi/&SpeechIntonationUnavailable=억양 조절에는 VOICEVOX 음성이 필요합니다. 다른 음성은 원래 억양을 유지합니다.
+ModUi/&SpeechPreview=음성 미리 듣기
+ModUi/&SpeechNpcHelp=이 캠페인의 NPC마다 음성을 선택합니다. 개별 선택은 캠페인 음성 지정보다 우선하며 이 캠페인용으로 저장됩니다. 기본 할당을 선택하면 개별 선택이 해제됩니다. 속도와 음높이를 개별적으로 조절하려면 음성을 선택하세요.
+ModUi/&SpeechNpcLoadCampaign=사용자 지정 캠페인을 불러오면 NPC별 음성을 선택할 수 있습니다.
+ModUi/&SpeechNpcAutomatic=기본 할당 사용
+ModUi/&SpeechVoiceGender=자동 배역 할당에 사용할 음성 성별
+ModUi/&SpeechVoiceGenderDefault=기본 분류 사용
+ModUi/&SpeechVoiceGenderMale=남성
+ModUi/&SpeechVoiceGenderFemale=여성
+ModUi/&SpeechVoiceGenderUnknown=미분류
+ModUi/&SpeechVoiceGenderHelp=영웅과 NPC의 자동 배역 할당에 사용할 음성 성별을 지정합니다. 같은 VOICEVOX 화자의 모든 연기 스타일에 이 설정이 적용됩니다. 개별적으로 선택한 음성이 우선합니다.
+ModUi/&SpeechAutomatic=자동 할당
+ModUi/&SpeechAutomaticHelp=현재 언어에 맞는 음성을 자동으로 배정합니다. 영웅은 성별과 캐릭터 화면에서 선택한 음성에 맞춰 배정됩니다. UB에서 개별적으로 선택한 음성이 우선합니다.
+ModUi/&SettingsListSearch=검색
+ModUi/&SettingsListPrevious=이전
+ModUi/&SettingsListNext=다음
+ModUi/&SettingsListPage={0}/{1}페이지 ({2}개 결과)
+ModUi/&SettingsListNoResults=일치하는 항목이 없습니다.
+ModUi/&SettingsListSelected=선택됨: {0}
+ModUi/&SpeechAssignAllAutomatic=내레이터와 모든 영웅의 음성을 자동으로 할당
+ModUi/&SpeechAutomaticResolved=자동 할당: {0}

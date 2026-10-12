@@ -58,6 +58,7 @@ public static class GameLocationManagerPatcher
         public static void Prefix(GameLocationManager __instance)
         {
             LoadingContext.Release(__instance);
+            PlayerControllerContext.Stop();
             CombatAnimationContext.SuspendCivilianReactions();
             CombatAiContext.StopEnemyBattleTactics();
         }
@@ -70,6 +71,7 @@ public static class GameLocationManagerPatcher
         [UsedImplicitly]
         public static void Prefix()
         {
+            PlayerControllerContext.Stop();
             CombatAnimationContext.SuspendCivilianReactions();
             CombatAiContext.StopEnemyBattleTactics();
         }

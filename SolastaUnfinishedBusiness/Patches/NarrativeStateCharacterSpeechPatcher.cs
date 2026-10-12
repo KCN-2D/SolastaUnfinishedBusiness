@@ -18,7 +18,10 @@ public static class NarrativeStateCharacterSpeechPatcher
         public static void Postfix(NarrativeStateCharacterSpeech __instance, string speakerName, string textLine)
         {
             //PATCH: supports speech feature
-            SpeechContext.Speak(textLine, __instance.speaker);
+            if (NarrativeDirectionManagerPatcher.RegisterSpeechState(__instance))
+            {
+                SpeechContext.Speak(textLine, __instance.speaker, owner: __instance);
+            }
 
             //PATCH: EnableLogDialoguesToConsole
             if (Main.Settings.EnableLogDialoguesToConsole)

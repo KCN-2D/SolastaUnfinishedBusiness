@@ -47,6 +47,8 @@ ModUi/&BlindedConditionDontAllowAttackOfOpportunity=対象を認識していな�
 ModUi/&Blueprints=設計図
 ModUi/&Campaigns=キャンペーン
 ModUi/&Category=カテゴリ
+ModUi/&ItemTag=アイテムのタグ
+ModUi/&WeaponTag=武器のタグ
 ModUi/&ChangeDragonbornElementalBreathUsages=<color=#D89555>ドラゴンボーン</color>の元素ブレスの使用回数を耐久力修正値に等しい回数に変更し、小休憩で回復するようにします
 ModUi/&ChangeSleetStormToCube=<color=#D89555>みぞれ混じりの嵐</color>の効果範囲を円柱から立方体に変更します
 ModUi/&Changelog=<b><color=#D89555>変更ログ</color></b>
@@ -101,10 +103,16 @@ ModUi/&DownloadVoiceOngoing={0}でダウンロード中
 ModUi/&DownloadSpeechLanguageVoices={0}をダウンロード
 ModUi/&DownloadSpeechLanguageVoicesOngoing={0}をダウンロード中（{1}）
 ModUi/&SpeechLanguageJapanese=日本語音声
-ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>言語別の音声をダウンロードすると、その言語のテキストを対応する音声で読み上げます。それ以外のテキストには英語のPiper音声を使用します</color></i>
+ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>現在の言語に対応する音声を選びます。インストール済みのWindows音声とローカルに追加したPiperモデルも利用できます。</color></i>
 ModUi/&DungeonMaker=ダンジョンメーカー
 ModUi/&DungeonMakerBasicHelp=• これらの設定を使ったダンジョンは、プレイヤー側にこのMODがなくても遊べます
 ModUi/&Effects=効果
+ModUi/&EffectsCaster=発動者：
+ModUi/&EffectsCondition=状態：
+ModUi/&EffectsEffect=効果：
+ModUi/&EffectsImpact=命中時の効果：
+ModUi/&EffectsRequiresParty=<color=#C04040E0>効果を表示するには、ヒーローが2人以上いるパーティでゲームを読み込んでください。</color>
+ModUi/&EffectsZone=範囲の効果：
 ModUi/&EnableActionSwitching=アクションの使用順を選べる切り替えバーを表示します<i><color=#F0DAA0>（追加アクションを使う順序を調整できます）</color></i>
 ModUi/&EnableAdditionalBackstoryDisplay=背景の詳細画面に追加の来歴を表示します
 ModUi/&EnableAdditionalIconsOnLevelMap=レベルマップにキャンプ、出口、瞬間移動装置の追加アイコンを表示します
@@ -276,7 +284,7 @@ ModUi/&EnableSorcererSorcerousRestoration2024=レベル5で<color=#D89555>魔力
 ModUi/&EnableSortingDungeonMakerAssets=ダンジョンメーカー・エディターでアセットの並べ替えを有効にします
 ModUi/&EnableSpeech=カスタムキャンペーンで音声読み上げを有効にします<i><color=#F0DAA0>（ナレーションとヒーローのみ）</color></i>
 ModUi/&EnableSpeechActorHelp=• 話者を選択します
-ModUi/&EnableSpeechOnNpcs=<i>+NPCの音声読み上げを有効にします<color=#F0DAA0>（キャンペーンの音声設定または自動割り当てを使用）</color></i>
+ModUi/&EnableSpeechOnNpcs=NPCの音声読み上げを有効にします
 ModUi/&EnableSpeechVoiceHelp=• 音声とナレーションの速度を選択します
 ModUi/&EnableStackableArtItems=<color=#D89555>芸術品</color>のスタックを有効にします<i><color=#F0DAA0>（この設定が無効になっている間は分割できません）</color></i>
 ModUi/&EnableStackableAxesAndDaggers=<color=#D89555>ダガー</color>と<color=#D89555>ハンドアックス</color>のスタックを有効にします<i><color=#F0DAA0>（この設定が無効になっている間は分割できません）</color></i>
@@ -303,8 +311,25 @@ ModUi/&EnableWizardToLearnSchoolAtLevel3=レベル2ではなくレベル3で<col
 ModUi/&EnablesAsiAndFeat=能力値上昇と<color=#D89555>特技</color>の両方を選択できるようにします<i><color=#F0DAA0>（どちらか一方を選ぶ代わりに）</color></i>
 ModUi/&EncounterPercentageChance=<color=white>ランダム遭遇の発生確率</color>
 ModUi/&Encounters=遭遇
+ModUi/&EncounterAddCharactersHelp=• +を押すと、遭遇リストに最大{0}体までキャラクターを追加できます。
+ModUi/&EncounterCountFormat={0}（{1}）
+ModUi/&EncounterListEmpty=遭遇リストは空です。
+ModUi/&EncounterUnavailableHeroes=キャラクターファイルを{0}件読み込めませんでした。正常な英雄は表示しています。ログで対象のファイルを確認し、復旧後に更新して再試行してください。
+ModUi/&EncounterMaximumUsesFormat=最大使用回数：{0}
+ModUi/&EncountersHelp=• 遭遇の生成は、シングルプレイヤーのカスタムキャンペーンまたはロケーションで利用できます\n• モンスター図鑑タブから、遭遇にモンスターを追加できます\n• キャラクタープールタブから、ヒーローを敵として追加できます\n• <i>-</i>を押すと、遭遇からキャラクターを取り除きます\n• 敵を出現させたい場所にカメラを移動し、<color=#1E81B0>{0}</color>を実行してください。キーはゲームの入力設定で割り当てます
+ModUi/&EncounterStatistics=戦闘データ
+ModUi/&EncounterUnlimited=無制限
+ModUi/&EncounterValueFormat={0}：{1}
 ModUi/&EnableEnemiesControlledByPlayer=敵をプレイヤーが操作できるようにします
 ModUi/&EnableHeroesControlledByComputer=ヒーローをコンピューターが操作できるようにします
+ModUi/&AdvancedCombatAiManualNpcHelp=<i><color=#F0DAA0>高度な戦闘AIは、AI操作のヒーローに引き続き適用されます。プレイヤーが手動で操作している敵には、自動の行動判断を適用しません。</color></i>
+ModUi/&ControllerHuman=プレイヤー操作
+ModUi/&ControllerMelee=近接戦闘
+ModUi/&ControllerRanged=遠隔戦闘
+ModUi/&ControllerSupportCaster=支援型の呪文使い
+ModUi/&HeroesControllerLoadGameHelp=<color=#C04040E0>シングルプレイヤーのセーブを読み込むと、各ヒーローの操作方法を選べます。</color>
+ModUi/&PlayerControllers=<color=#F0DAA0>キャラクターの操作：</color>
+ModUi/&PlayerControllersSinglePlayerOnly=<color=#C04040E0>ヒーローのAI操作と敵の手動操作はシングルプレイヤーで利用できます。マルチプレイヤーの準備中やプレイ中も、保存した設定は保持されます。</color>
 ModUi/&EnableAdvancedCombatAI=高度な戦闘AIを有効にします<i><color=#F0DAA0>（敵とAI操作ヒーローの戦術判断を改善します）</color></i>
 ModUi/&EnemiesAlwaysRollInitiative=<i>+敵が固定値を使わず、常にイニシアチブをロールするようにします<color=#F0DAA0>（例：ソル・アッカスの暗殺者）</color></i>
 ModUi/&EvocationSculptSpellNoPerception=<b>力術士</b>の<color=#D89555>呪文効果範囲操作</color>で、味方が見えていなくても効果範囲から除外できるようにします
@@ -321,7 +346,7 @@ ModUi/&FixEldritchBlastRange=<color=#D89555>怪光線</color>の射程を24マ�
 ModUi/&Use24CellsRangeWithDimensionDoor=<color=#D89555>次元扉</color>の射程を24マスに変更します<i><color=#F0DAA0>（通常は12マス）</color></i>
 ModUi/&FixRingOfRegenerationHealRate=<color=#D89555>再生の指輪</color>によるヒット・ポイントの回復量を、3分ごとに1点に変更します
 ModUi/&FlightSuspendWingedBoots=<i>+飛行のブーツに公式ルールを適用します<color=#F0DAA0>（飛行を中断している間は残り時間を消費しない）</color></i>
-ModUi/&ForceModSpeechOnNpcs=<i>+キャンペーンマッピングの代わりに、すべてのNPCに音声の自動割り当てを適用します</i>
+ModUi/&ForceModSpeechOnNpcs=キャンペーンのNPC音声指定を無視し、個別設定のないNPCに音声を自動割り当てします
 ModUi/&Formation=<color=#F0DAA0>フォーメーション：</color>
 ModUi/&FormationError=<color=#C04040E0>マルチプレイヤーゲーム中はフォーメーションを変更できません</color>
 ModUi/&FormationHelp1=• 数字ボタンで各セットを編集します<i><color=#F0DAA0>（入力設定でホットキーを有効にすることを推奨）</color></i>
@@ -347,6 +372,7 @@ ModUi/&IdentifyAfterRest=小休憩または大休憩中に<color=#D89555>魔法�
 ModUi/&IgnoreHandXbowFreeHandRequirements=<color=#D89555>ハンド・クロスボウ</color>の使用時に空いている手を必要としないようにします
 ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=幻術呪文は範囲内で<color=#D89555>超視覚</color>を持つ対象に対して自動的に失敗するようにします
 ModUi/&IncreaseGameTimeBy=ゲーム時間を増やす
+ModUi/&GameTimeHours={0}時間
 ModUi/&IncreaseMaxAttunedItems=<color=#D89555>同調できるアイテム数</color>の上限を、レベル10で4個、レベル18で5個に増やします
 ModUi/&Invocations=<color=#F0DAA0>妖術</color>
 ModUi/&Items=<color=#F0DAA0>アイテム：</color>
@@ -363,6 +389,22 @@ ModUi/&ModifyGravitySlam=<color=#D89555>重力撃</color>を変更し、対象�
 ModUi/&MovementGridWidthModifier=<color=white>移動グリッドの線幅の倍率</color><color=#C04040E0>（%）</color>
 ModUi/&MulticlassKeyHelp=<color=#1E81B0>SHIFT</color>キーを押しながら呪文をクリックすると、消費する呪文スロットの種類を切り替えられます\n<i><color=#F0DAA0>（<color=#D89555>ウォーロック</color>の呪文は白い呪文スロットを、それ以外のクラスの呪文は緑の契約スロットを使用）</color></i>
 ModUi/&Multiplayer=<color=#F0DAA0>マルチプレイヤー：</color>
+ModUi/&MultiplayerSettingsError=<color=#C04040E0>UBの設定を比較できません。詳細はゲームのログを確認してください。</color>
+ModUi/&MultiplayerSettingsHelp=• ロビーでゲーム設定を共有し、UBのビルドを確認します\n• 画面表示、言語、カメラ、音声、翻訳の設定は各自の設定を保持します\n• この確認によってゲームの開始が制限されることはありません
+ModUi/&MultiplayerSettingsHost=あなたのゲーム設定をこのロビーで共有しています。
+ModUi/&MultiplayerSettingsInvalid=<color=#C04040E0>ホストが共有した設定が無効か、サイズの上限を超えています。</color>
+ModUi/&MultiplayerSettingsMatch=UBのビルドとゲーム設定がホストと一致しています。
+ModUi/&MultiplayerSettingsMismatch=<color=#C04040E0>ゲーム設定がホストと異なります。ホストの設定プロファイルを保存し、ロビーを退出して設定メニューで読み込み、ゲームを再起動してから再参加してください。</color>
+ModUi/&MultiplayerSettingsOffline=UBの設定を比較するには、オンラインのマルチプレイヤーロビーに参加してください。
+ModUi/&MultiplayerSettingsPeerMatch={0}：UBのビルドとゲーム設定が一致しています。
+ModUi/&MultiplayerSettingsPeerMismatch=<color=#C04040E0>{0}：ゲーム設定が異なります。</color>
+ModUi/&MultiplayerSettingsPeerVersionMismatch=<color=#C04040E0>{0}：UBのビルドが異なります。</color>
+ModUi/&MultiplayerSettingsPeerWaiting=<color=#C04040E0>{0}：比較できるUBの設定情報を受信していません。</color>
+ModUi/&MultiplayerSettingsSaveHost=ホストの設定を保存
+ModUi/&MultiplayerSettingsSaved=ホストの設定をMultiplayerHostとして保存しました。ロビーを退出し、下でこのプロファイルを読み込んでからゲームを再起動してください。
+ModUi/&MultiplayerSettingsUnsupported=<color=#C04040E0>ホストは比較できるUBの設定情報を共有していません。</color>
+ModUi/&MultiplayerSettingsVersionMismatch=<color=#C04040E0>UBのビルドがホストと異なります。同じビルドを導入してから参加してください。</color>
+ModUi/&MultiplayerSettingsWaiting=ホストのUB設定を待っています。
 ModUi/&MultiplyTheExperienceGainedBy=<color=white>獲得経験値の倍率</color><color=#C04040E0>（%）</color>
 ModUi/&NeverMoveCameraOnEnemyTurn=<i>+敵のターン中はカメラを自動で動かさないようにします</i>
 ModUi/&NoExperienceOnLevelUp=経験値が不足していてもレベルアップできるようにします
@@ -413,8 +455,12 @@ ModUi/&SenseNormalVisionRangeMultiplier=<color=#D89555>通常視界</color>の�
 ModUi/&Services=サービス
 ModUi/&SetBeltOfDwarvenKindBeardChances=<color=#D89555>ドワーフ族のベルト</color><color=white>によってひげが生える確率</color>
 ModUi/&SettingsExport=エクスポート
-ModUi/&SettingsHelp=• ホストは現在の設定をエクスポートし、エクスポート先のフォルダーから他のプレイヤーに共有できます\n• ゲストはホストから受け取ったファイルを同じフォルダーに配置し、読み込めます<b><i><color=#C04040E0>（再起動が必要）</color></i></b>
-ModUi/&SettingsLoad=• エクスポートした設定を読み込む
+ModUi/&SettingsHelp=• ホストはオンラインロビーでゲーム設定を共有できます。エクスポートしたXMLファイルを手動で共有することもできます\n• ゲストはホストの設定プロファイルを保存し、ロビーを退出してここで読み込み、ゲームを再起動してから再参加してください<b><i><color=#C04040E0>（再起動が必要）</color></i></b>
+ModUi/&SettingsImportCancel=設定の読み込みを取り消す
+ModUi/&SettingsImportFailed=<color=#C04040E0>設定の操作に失敗しました。現在の設定は変更されていません。詳細はゲームのログを確認してください。</color>
+ModUi/&SettingsImportPending=<b><i><color=#C04040E0>設定はゲームの再起動後に適用されます</color></i></b>\n現在の設定はSettings.before-import.xmlにバックアップしました
+ModUi/&SettingsImportUnavailable=<color=#C04040E0>設定プロファイルを読み込む前に、マルチプレイヤーロビーを退出してメインメニューに戻ってください。</color>
+ModUi/&SettingsLoad=• 設定プロファイルを読み込む<b><i><color=#C04040E0>（再起動が必要）</color></i></b>
 ModUi/&SettingsOpenFolder=エクスポート先のフォルダーを開く
 ModUi/&SettingsRefresh=更新
 ModUi/&SettingsRemove=削除
@@ -429,6 +475,7 @@ ModUi/&BattleActionAnimationSpeedMultiplier=戦闘アニメーション速度
 ModUi/&BattleActionAnimationSpeedMultiplierHelp=呪文の発動、投射物、着弾、命中時の演出を省略せず、戦闘中のキャラクターの動作を少し速くします
 ModUi/&SpeechScale=<color=white>ナレーション速度倍率</color><i><color=#F0DAA0>（低いほど速くなります）</color></i>
 ModUi/&SpeechVolume=<color=white>ナレーションの音量</color>
+ModUi/&SpeechShowAllLanguages=すべての言語の音声を表示します
 ModUi/&SpellLevelFilter=<b><i><color=white>呪文レベル・フィルター</color><color=#F0DAA0>（-1はすべて表示）</color></i></b>
 ModUi/&SpellsMenu=呪文
 ModUi/&StealthBreaksWhenAttackHits=武器攻撃または呪文攻撃が命中したときに、隠密が解除されるようにします
@@ -487,6 +534,8 @@ ModUi/&TranslationCompleted=完了
 ModUi/&TranslationCompletedWithErrors=完了（エラーあり）
 ModUi/&TranslationCancelled=キャンセル
 ModUi/&TranslationFailed=失敗
+ModUi/&TranslationFailedCount=（失敗{0}件）
+ModUi/&TranslationMoreItems=…ほか{0}件
 ModUi/&TranslationGoogleSettings=Google API設定
 ModUi/&TranslationGoogleLegacyMode=旧方式でGoogle Translate APIに翻訳をリクエストします
 ModUi/&ShowCategoryProgress=カテゴリ別の進捗を表示します
@@ -570,3 +619,70 @@ ModUI/&EnableEnemyBattleTacticsDescription=敵の種別と戦い方に合う能�
 ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=マルチプレイでは、参加者全員が同じ設定にしてからセッションを開始してください。マルチプレイのセッション中は変更できません。
 ModUi/&FlexibleRacesDisabledByBackgroundASI=背景による能力値上昇が有効なため、種族の能力値上昇を自由に選ぶ設定は適用されません。背景による能力値上昇を無効にすると、元の選択が適用されます。
 ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats=背景による起源特技が有効なため、背景の習熟を自由に選ぶ設定は適用されません。背景による起源特技を無効にすると、元の選択が適用されます。
+ModUi/&SpeechNarrator=ナレーター
+ModUi/&SpeechHero=ヒーロー{0}
+ModUi/&SpeechNoVoice=読み上げなし
+ModUi/&SpeechVoiceTsukuyomi=つくよみちゃん
+ModUi/&SpeechVoiceCss10=CSS10
+ModUi/&SpeechVoiceSpeaker={0}・話者{1}
+ModUi/&SpeechPitch=<color=white>声の高さ（半音）</color>
+ModUi/&EnableSpeechPitchHelp=<i><color=#F0DAA0>選択した声の高さを-6から+6半音まで調整します。読み上げ速度は変わりません</color></i>
+ModUi/&EnableSpeechAvailableVoiceHelp=• インストール済みのWindows音声を自動検出します\n• 日本語音声をダウンロードすると、つくよみちゃんとCSS10を追加できます\n• ローカルに追加したPiperモデルと、そのモデルに含まれる話者も選べます
+ModUi/&SpeechVoiceUnavailable={0}（利用不可）
+ModUi/&TranslationCategoryCampaign=キャンペーン
+ModUi/&TranslationCategoryLocations=ロケーション
+ModUi/&TranslationCategoryGadgets=仕掛け
+ModUi/&TranslationCategoryDialogs=ダイアログ
+ModUi/&TranslationCategoryItems=アイテム
+ModUi/&TranslationCategoryQuests=クエスト
+ModUi/&TranslationCategoryMonsters=モンスター
+ModUi/&TranslationCategoryNPCs=NPC
+ModUi/&TranslationCategoryMerchants=商人
+ModUi/&TranslationCategoryLootPacks=戦利品セット
+ModUi/&TranslationCategoryBiomes=バイオーム
+ModUi/&TranslationCategoryEncounterTables=遭遇表
+ModUi/&TranslationCategoryEncounters=遭遇
+ModUi/&TranslationCategoryMapNodes=マップ上の地点
+ModUi/&ConfirmAction=この操作を実行しますか？
+ModUi/&Minimum=最小
+ModUi/&Maximum=最大
+ModUi/&EnableVoiceVoxSpeech=日本語の読み上げにVOICEVOXを使います
+ModUi/&SpeechVoiceVoxHelp=UBのダウンロード・セットアップボタンでVOICEVOXを導入できます。導入後は必要に応じて自動起動します。起動済みのVOICEVOXにも接続できます。読み上げはこのPC内で処理されます。
+ModUi/&SpeechVoiceVoxConnecting=VOICEVOXに接続しています…
+ModUi/&SpeechVoiceVoxConnected=VOICEVOXに接続しました。{0}種類の音声・演技スタイルを利用できます。
+ModUi/&SpeechVoiceVoxUnavailable=VOICEVOXに接続できません。セットアップを完了するか、起動済みのVOICEVOXを確認してから音声リストを更新してください。
+ModUi/&SpeechVoiceVoxInstall=VOICEVOXをダウンロードしてセットアップ
+ModUi/&SpeechVoiceVoxInstallHelp=初回ダウンロードは約1.9GBです。導入後はSolastaが必要に応じてVOICEVOXを起動・終了します。ダウンロードは中止・再開できます。音声の利用には各話者の利用規約が適用されます。
+ModUi/&SpeechVoiceVoxDownloadProgress=VOICEVOXをダウンロードしています：{0}
+ModUi/&SpeechVoiceVoxVerifying=VOICEVOXのダウンロード内容を確認しています
+ModUi/&SpeechVoiceVoxExtracting=VOICEVOXをセットアップしています
+ModUi/&SpeechVoiceVoxStarting=VOICEVOXを起動しています
+ModUi/&SpeechVoiceVoxInstallFailed=VOICEVOXのセットアップに失敗しました。ディスクの空き容量とインターネット接続を確認してから、再試行してください。
+ModUi/&SpeechVoiceVoxCancel=ダウンロードを中止
+ModUi/&SpeechVoiceVoxTerms=VOICEVOX音声の利用規約
+ModUi/&SpeechVoiceVoxInstalled=VOICEVOXは導入済みです。必要に応じて自動起動します。
+ModUi/&SpeechVoiceVoxUnsupported=VOICEVOXの自動セットアップには64ビット版Windowsが必要です。
+ModUi/&SpeechVoiceVoxRetry=VOICEVOXのセットアップを再試行
+ModUi/&SpeechIntonation=抑揚
+ModUi/&SpeechIntonationHelp=VOICEVOX音声の抑揚を調整します。1が標準で、0にすると平坦な読み上げになります。
+ModUi/&SpeechIntonationUnavailable=抑揚の調整にはVOICEVOX音声が必要です。他の音声は元の抑揚で読み上げます。
+ModUi/&SpeechPreview=音声を試聴します
+ModUi/&SpeechNpcHelp=このキャンペーンのNPCごとに音声を選択します。個別設定はキャンペーンの音声指定より優先され、このキャンペーン用に保存されます。既定の割り当てを選ぶと個別設定を解除します。速度や声の高さを個別に調整するには、音声を選択してください。
+ModUi/&SpeechNpcLoadCampaign=カスタムキャンペーンを読み込むと、NPCごとの音声を選べます。
+ModUi/&SpeechNpcAutomatic=既定の割り当てを使います
+ModUi/&SpeechVoiceGender=自動配役に使う声の性別
+ModUi/&SpeechVoiceGenderDefault=既定の分類を使います
+ModUi/&SpeechVoiceGenderMale=男性
+ModUi/&SpeechVoiceGenderFemale=女性
+ModUi/&SpeechVoiceGenderUnknown=未分類
+ModUi/&SpeechVoiceGenderHelp=ヒーローとNPCの自動配役に使う声の性別を指定します。同じVOICEVOX話者の演技スタイルすべてに適用されます。個別に選んだ音声が優先されます。
+ModUi/&SpeechAutomatic=自動割り当て
+ModUi/&SpeechAutomaticHelp=現在の言語に合った声を自動割り当てします。ヒーローは性別とキャラクター画面で選んだ声に合わせます。UBで個別に選んだ声が優先されます。
+ModUi/&SettingsListSearch=検索
+ModUi/&SettingsListPrevious=前へ
+ModUi/&SettingsListNext=次へ
+ModUi/&SettingsListPage={0}/{1}ページ（{2}件）
+ModUi/&SettingsListNoResults=一致する項目がありません。
+ModUi/&SettingsListSelected=選択中：{0}
+ModUi/&SpeechAssignAllAutomatic=ナレーターと全ヒーローを自動割り当てにする
+ModUi/&SpeechAutomaticResolved=自動割り当て：{0}

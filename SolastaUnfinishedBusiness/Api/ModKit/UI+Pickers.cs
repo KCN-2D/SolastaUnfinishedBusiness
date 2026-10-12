@@ -1,4 +1,4 @@
-﻿// Copyright < 2021 > Narria (github user Cabarius) - License: MIT
+// Copyright < 2021 > Narria (github user Cabarius) - License: MIT
 
 using System;
 using System.Collections.Generic;
@@ -13,6 +13,59 @@ namespace SolastaUnfinishedBusiness.Api.ModKit;
 
 internal static partial class UI
 {
+    private static float _lastSelectionLayoutWidth;
+
+    private static bool DrawSelectionGrid(ref int selected, string[] texts, int maximumColumns,
+        GUIStyle style, int maximumColumnsWhenWrapped, params GUILayoutOption[] options)
+    {
+        if (texts.Length == 0)
+        {
+            return false;
+        }
+
+        var previousSelection = selected;
+        var titles = texts.Select((text, index) => index == previousSelection ? text.Orange().Bold() : text).ToArray();
+        var drawStyle = new GUIStyle(style ?? GUI.skin.button) { wordWrap = true };
+
+        using (VerticalScope(new[] { MinWidth(0f), ExpandWidth(true) }.Concat(options).ToArray()))
+        {
+            var horizontalMargins = drawStyle.margin.horizontal;
+            var layout = MeasureResponsiveLayout(titles, maximumColumns, drawStyle,
+                reservedWidth: horizontalMargins,
+                maximumColumnsWhenWrapped: maximumColumnsWhenWrapped);
+            _lastSelectionLayoutWidth = layout.LayoutWidth;
+            // GUIGridSizer treats a zero minimum as unspecified and replaces it with the
+            // unwrapped labels' width. A positive minimum lets the parent shrink after a
+            // resize instead of feeding the previous column count back into its own width.
+            var gridOptions = new[] { MinWidth(1f) }.Concat(options).ToArray();
+
+            if (layout.LayoutWidth > 0f)
+            {
+                if (Event.current.type == EventType.Layout || layout.SelectionHeight <= 0f)
+                {
+                    var columns = layout.Columns;
+                    var horizontalGap = Math.Max(drawStyle.margin.left, drawStyle.margin.right);
+                    var gridWidth = layout.LayoutWidth - horizontalMargins;
+                    var cellWidth = Mathf.Max(1f, (gridWidth - (columns - 1) * horizontalGap) / columns);
+                    var rowHeight = titles.Max(title => drawStyle.CalcHeight(new GUIContent(title), cellWidth));
+                    var rows = (texts.Length + columns - 1) / columns;
+                    layout.SelectionHeight = rows * rowHeight +
+                                             (rows - 1) * Math.Max(drawStyle.margin.top, drawStyle.margin.bottom);
+                }
+
+                // Unity's GUIGridSizer uses CalcSize even when wordWrap is enabled. Supply
+                // the height measured for this Layout so every subsequent event uses the
+                // same bounds and long titles remain visible.
+                gridOptions = gridOptions.Concat(new[]
+                    { MaxWidth(layout.LayoutWidth), Height(layout.SelectionHeight) }).ToArray();
+            }
+
+            selected = GL.SelectionGrid(selected, titles, layout.Columns, drawStyle, gridOptions);
+        }
+
+        return previousSelection != selected;
+    }
+
     // UI for picking items from a collection
     [UsedImplicitly]
     public static void Toolbar(ref int value, string[] texts, params GUILayoutOption[] options)
@@ -29,36 +82,32 @@ internal static partial class UI
     [UsedImplicitly]
     public static bool SelectionGrid(ref int selected, string[] texts, int xCols, params GUILayoutOption[] options)
     {
-        if (xCols <= 0)
-        {
-            xCols = texts.Length;
-        }
-
-        if (IsNarrow)
-        {
-            xCols = Math.Min(4, xCols);
-        }
-
-        var sel = selected;
-        var titles = texts.Select((a, i) => i == sel ? a.Orange().Bold() : a);
-        if (xCols <= 0)
-        {
-            xCols = texts.Length;
-        }
-
-        selected = GL.SelectionGrid(selected, titles.ToArray(), xCols, options);
-        return sel != selected;
+        return DrawSelectionGrid(ref selected, texts, xCols, GUI.skin.button, 4, options);
     }
 
     [UsedImplicitly]
     public static bool SelectionGrid(string title, ref int selected, string[] texts, int xCols,
         params GUILayoutOption[] options)
     {
-        using (HorizontalScope())
+        var titleStyle = new GUIStyle(GUI.skin.label) { wordWrap = true };
+        var formattedTitle = title.Cyan();
+        var titleWidth = Mathf.Min(300.Point(), titleStyle.CalcSize(new GUIContent(formattedTitle)).x);
+
+        using (VerticalScope(MinWidth(0f), ExpandWidth(true)))
         {
-            Label(title.Cyan(), Width(300f));
-            Space(25f);
-            return SelectionGrid(ref selected, texts, xCols, options);
+            var layout = MeasureResponsiveLayout([], 1, titleStyle);
+            if (layout.LayoutWidth < titleWidth + 25f + 200.Point())
+            {
+                Label(formattedTitle, titleStyle, MinWidth(0f), ExpandWidth(true));
+                return SelectionGrid(ref selected, texts, xCols, options);
+            }
+
+            using (HorizontalScope())
+            {
+                Label(formattedTitle, titleStyle, Width(titleWidth));
+                Space(25f);
+                return SelectionGrid(ref selected, texts, xCols, options);
+            }
         }
     }
 
@@ -66,146 +115,56 @@ internal static partial class UI
     public static bool SelectionGrid(ref int selected, string[] texts, int xCols, GUIStyle style,
         params GUILayoutOption[] options)
     {
-        if (xCols <= 0)
-        {
-            xCols = texts.Length;
-        }
+        return SelectionGrid(ref selected, texts, xCols, style, 5, options);
+    }
 
-        if (IsNarrow)
-        {
-            xCols = Math.Min(5, xCols);
-        }
-
-        var sel = selected;
-        var titles = texts.Select((a, i) => i == sel ? a.Orange().Bold() : a);
-        if (xCols <= 0)
-        {
-            xCols = texts.Length;
-        }
-
-        selected = GL.SelectionGrid(selected, titles.ToArray(), xCols, style, options);
-        return sel != selected;
+    [UsedImplicitly]
+    public static bool SelectionGrid(ref int selected, string[] texts, int xCols, GUIStyle style,
+        int maxColsIfNarrow, params GUILayoutOption[] options)
+    {
+        return DrawSelectionGrid(ref selected, texts, xCols, style, maxColsIfNarrow, options);
     }
 
     [UsedImplicitly]
     public static bool SelectionGrid<T>(ref int selected, T[] items, int xCols, params GUILayoutOption[] options)
     {
-        if (xCols <= 0)
-        {
-            xCols = items.Length;
-        }
-
-        if (IsNarrow)
-        {
-            xCols = Math.Min(4, xCols);
-        }
-
-        var sel = selected;
-        var titles = items.Select((a, i) => i == sel ? $"{a}".Orange().Bold() : $"{a}");
-        if (xCols <= 0)
-        {
-            xCols = items.Length;
-        }
-
-        selected = GL.SelectionGrid(selected, titles.ToArray(), xCols, options);
-        return sel != selected;
+        return DrawSelectionGrid(ref selected, items.Select(item => $"{item}").ToArray(), xCols,
+            GUI.skin.button, 4, options);
     }
 
     [UsedImplicitly]
     public static bool SelectionGrid<T>(ref int selected, T[] items, int xCols, GUIStyle style,
         params GUILayoutOption[] options)
     {
-        if (xCols <= 0)
-        {
-            xCols = items.Length;
-        }
-
-        if (IsNarrow)
-        {
-            xCols = Math.Min(4, xCols);
-        }
-
-        var sel = selected;
-        var titles = items.Select((a, i) => i == sel ? $"{a}".Orange().Bold() : $"{a}");
-        if (xCols <= 0)
-        {
-            xCols = items.Length;
-        }
-
-        selected = GL.SelectionGrid(selected, titles.ToArray(), xCols, style, options);
-        return sel != selected;
+        return DrawSelectionGrid(ref selected, items.Select(item => $"{item}").ToArray(), xCols,
+            style, 4, options);
     }
 
     [UsedImplicitly]
     public static bool SelectionGrid(ref int selected, [NotNull] string[] texts, int xCols, int maxColsIfNarrow = 4,
         params GUILayoutOption[] options)
     {
-        if (xCols <= 0)
-        {
-            xCols = texts.Length;
-        }
-
-        if (IsNarrow)
-        {
-            xCols = Math.Min(maxColsIfNarrow, xCols);
-        }
-
-        var sel = selected;
-        var titles = texts.Select((a, i) =>
-            i == sel ? a.Orange().Bold() : a);
-
-        if (xCols <= 0)
-        {
-            xCols = texts.Length;
-        }
-
-        selected = GL.SelectionGrid(selected, titles.ToArray(), xCols, options);
-
-        return sel != selected;
+        return DrawSelectionGrid(ref selected, texts, xCols, GUI.skin.button, maxColsIfNarrow, options);
     }
 
     [UsedImplicitly]
     public static void ActionSelectionGrid(ref int selected, string[] texts, int xCols, Action<int> action,
         params GUILayoutOption[] options)
     {
-        var sel = selected;
-        var titles = texts.Select((a, i) => i == sel ? a.Orange().Bold() : a);
-        if (xCols <= 0)
+        if (SelectionGrid(ref selected, texts, xCols, options))
         {
-            xCols = texts.Length;
+            action?.Invoke(selected);
         }
-
-        // don't reuse sel to avoid warnings on lambda sel variable capture above
-        var sel2 = GL.SelectionGrid(selected, titles.ToArray(), xCols, options);
-        if (selected == sel2)
-        {
-            return;
-        }
-
-        selected = sel2;
-        action(selected);
     }
 
     [UsedImplicitly]
     public static void ActionSelectionGrid(ref int selected, string[] texts, int xCols, Action<int> action,
         GUIStyle style, params GUILayoutOption[] options)
     {
-        var sel = selected;
-        var titles = texts.Select((a, i) => i == sel ? a.Orange().Bold() : a);
-        if (xCols <= 0)
+        if (SelectionGrid(ref selected, texts, xCols, style, options))
         {
-            xCols = texts.Length;
+            action?.Invoke(selected);
         }
-
-        // don't reuse sel to avoid warnings on lambda sel variable capture above
-        var sel2 = GL.SelectionGrid(selected, titles.ToArray(), xCols, style, options);
-        if (selected == sel2)
-        {
-            return;
-        }
-
-        selected = sel2;
-        action(selected);
     }
 
     // EnumGrids
@@ -396,36 +355,29 @@ internal static partial class UI
         titleFormatter ??= a => $"{a}";
 
         var enumerable = range as T[] ?? range.ToArray();
-        if (selected > enumerable.Length)
+        if (enumerable.Length > 0 && (selected < 0 || selected >= enumerable.Length))
         {
             selected = 0;
         }
 
-        var sel = selected;
-        var titles = enumerable.Select((a, i) => i == sel ? titleFormatter(a).Orange().Bold() : titleFormatter(a));
-        if (xCols > enumerable.Length)
-        {
-            xCols = enumerable.Length;
-        }
-
-        if (xCols <= 0)
-        {
-            xCols = enumerable.Length;
-        }
-
         Label(title, AutoWidth());
         Space(25f);
-        selected = GL.SelectionGrid(selected, titles.ToArray(), xCols, options);
+        SelectionGrid(ref selected, enumerable.Select(titleFormatter).ToArray(), xCols, options);
     }
 
     [UsedImplicitly]
     public static NamedFunc<T> TypePicker<T>(string title, ref int selectedIndex, NamedFunc<T>[] items) where T : class
     {
-        var sel = selectedIndex;
-        var titles = items.Select((item, i) => i == sel ? item.Name.Orange().Bold() : item.Name).ToArray();
+        if (items.Length == 0)
+        {
+            return null;
+        }
+
+        selectedIndex = Mathf.Clamp(selectedIndex, 0, items.Length - 1);
+        var titles = items.Select(item => item.Name).ToArray();
         if (title?.Length > 0) { Label(title); }
 
-        selectedIndex = GL.SelectionGrid(selectedIndex, titles, 6);
+        SelectionGrid(ref selectedIndex, titles, 6);
         return items[selectedIndex];
     }
 

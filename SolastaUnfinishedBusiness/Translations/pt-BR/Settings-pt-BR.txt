@@ -57,6 +57,8 @@ ModUi/&Blueprints=Projetos
 ModUi/&Campaigns=Campanhas
 ModUi/&Cancel=Cancelar
 ModUi/&Category=Categoria
+ModUi/&ItemTag=Etiqueta de item
+ModUi/&WeaponTag=Etiqueta de arma
 ModUi/&ChangeDragonbornElementalBreathUsages=Alterar usos de sopro elemental de <color=#D89555>Dragonborn</color> para modificador CON por descanso curto
 ModUi/&ChangeSleetStormToCube=Alterar <color=#D89555>Sleet Storm</color> para usar um cubo em vez de um cilindro
 ModUi/&Changelog=<b><color=#D89555>Registro de alterações</color></b>
@@ -110,10 +112,16 @@ ModUi/&DownloadVoiceOngoing=Baixando em {0}
 ModUi/&DownloadSpeechLanguageVoices=Baixar {0}
 ModUi/&DownloadSpeechLanguageVoicesOngoing=Baixando {0} ({1})
 ModUi/&SpeechLanguageJapanese=Vozes japonesas
-ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>Depois que uma voz compatível com o idioma for baixada, textos nesse idioma serão lidos com ela. Outros textos continuarão usando as vozes inglesas existentes do Piper.</color></i>
+ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>São selecionadas vozes compatíveis com o idioma atual. As vozes do Windows instaladas e os modelos Piper adicionados localmente também estão disponíveis.</color></i>
 ModUi/&DungeonMaker=Criador de Masmorras
 ModUi/&DungeonMakerBasicHelp=• Essas configurações não exigirão que o jogador tenha esse mod instalado
 ModUi/&Effects=Efeitos
+ModUi/&EffectsCaster=Conjurador:
+ModUi/&EffectsCondition=Condição:
+ModUi/&EffectsEffect=Efeito:
+ModUi/&EffectsImpact=Impacto:
+ModUi/&EffectsRequiresParty=<color=#C04040E0>Carregue uma partida com pelo menos dois heróis no grupo para visualizar os efeitos.</color>
+ModUi/&EffectsZone=Zona:
 ModUi/&EnableActionSwitching=Habilitar a barra de alternância de ações <i><color=#F0DAA0>[útil para ter controle total sobre sua sequência de ações]</color></i>
 ModUi/&EnableAdditionalBackstoryDisplay=Habilitar exibição de história de fundo adicional na inspeção de fundo
 ModUi/&EnableAdditionalIconsOnLevelMap=Habilitar ícones adicionais para acampamentos, saídas e teletransportadores no mapa de nível
@@ -287,7 +295,7 @@ ModUi/&EnableSorcererSorcerousRestoration2024=Habilitar <color=#D89555>Restaura�
 ModUi/&EnableSortingDungeonMakerAssets=Habilitar classificação de ativos no editor do Dungeon Maker
 ModUi/&EnableSpeech=Habilitar fala em campanhas personalizadas <i><color=#F0DAA0>[somente narração e heróis]</color></i>
 ModUi/&EnableSpeechActorHelp=• Selecione um ator
-ModUi/&EnableSpeechOnNpcs=<i>+ Habilitar fala em NPCs <color=#F0DAA0>[por mapeamento de campanha ou atribuição automática]</color></i>
+ModUi/&EnableSpeechOnNpcs=Habilitar leitura em voz alta dos NPCs
 ModUi/&EnableSpeechVoiceHelp=• Selecione uma voz e velocidade de narração
 ModUi/&EnableStackableArtItems=Habilitar empilhamento <color=#D89555>Itens de arte</color> <i><color=#F0DAA0>[não pode ser dividido enquanto esta configuração estiver desabilitada]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Habilitar empilhamento de <color=#D89555>Adagas</color> e <color=#D89555>Machados de Mão</color> <i><color=#F0DAA0>[não pode ser dividido enquanto esta configuração estiver desabilitada]</color></i>
@@ -314,9 +322,26 @@ ModUi/&EnableWizardToLearnSchoolAtLevel3=Habilitar <color=#D89555>Escola de Magi
 ModUi/&EnablesAsiAndFeat=Habilitar aumento de pontuação de atributos e seleção de <color=#D89555>talentos</color> <i><color=#F0DAA0>[em vez de uma escolha exclusiva]</color></i>
 ModUi/&EncounterPercentageChance=<color=white>Defina chances percentuais de encontros aleatórios</color>
 ModUi/&Encounters=Encontros
+ModUi/&EncounterAddCharactersHelp=• Clique em + para adicionar até {0} personagens à lista de encontros.
+ModUi/&EncounterCountFormat={0} ({1})
+ModUi/&EncounterListEmpty=A lista de encontros está vazia.
+ModUi/&EncounterUnavailableHeroes=Não foi possível carregar {0} arquivo(s) de personagem. Os heróis disponíveis são exibidos. Confira os arquivos afetados no registro e atualize para tentar novamente.
+ModUi/&EncounterMaximumUsesFormat=Usos máximos: {0}
+ModUi/&EncountersHelp=• Os encontros estão disponíveis em campanhas ou locais personalizados para um jogador\n• Use a aba Bestiário para adicionar monstros ao encontro\n• Use a aba Reserva de personagens para adicionar heróis como inimigos\n• Clique em <i>-</i> para remover um personagem do encontro\n• Mova a câmera para o local desejado e use <color=#1E81B0>{0}</color> para gerar os inimigos. Atribua a tecla nas configurações de entrada do jogo
+ModUi/&EncounterStatistics=Estatísticas
+ModUi/&EncounterUnlimited=Ilimitados
+ModUi/&EncounterValueFormat={0}: {1}
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ Os inimigos sempre rolam a iniciativa em vez de um valor forçado <color=#F0DAA0>[por exemplo: Sorak Assassin]</color></i>
 ModUi/&EnableEnemiesControlledByPlayer=Permitir inimigos controlados pelos jogadores
 ModUi/&EnableHeroesControlledByComputer=Permitir heróis controlados pelo computador
+ModUi/&AdvancedCombatAiManualNpcHelp=<i><color=#F0DAA0>A IA de combate avançada continua ativa para os heróis controlados pela IA. Inimigos controlados manualmente não usam suas decisões automáticas.</color></i>
+ModUi/&ControllerHuman=Jogador
+ModUi/&ControllerMelee=Corpo a corpo
+ModUi/&ControllerRanged=À distância
+ModUi/&ControllerSupportCaster=Conjurador de apoio
+ModUi/&HeroesControllerLoadGameHelp=<color=#C04040E0>Carregue um jogo para um jogador para escolher quem controla cada herói.</color>
+ModUi/&PlayerControllers=<color=#F0DAA0>Controladores:</color>
+ModUi/&PlayerControllersSinglePlayerOnly=<color=#C04040E0>A IA dos heróis e o controle manual dos inimigos estão disponíveis em jogos para um jogador. Suas preferências são mantidas durante a preparação e as partidas multijogador.</color>
 ModUi/&EnableAdvancedCombatAI=Ativar IA de combate avançada <i><color=#F0DAA0>[melhorias táticas opcionais para inimigos e heróis controlados pela IA]</color></i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=Conjuradores inimigos deixam cair livros de feitiços escritos <i><color=#F0DAA0>[contém seus feitiços conhecidos da lista de magos]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Faça com que <b>Evoker</b> <color=#D89555>Esculpir Feitiços</color> não exija a percepção de aliados
@@ -333,7 +358,7 @@ ModUi/&FixEldritchBlastRange=Use o intervalo de 24 células com <color=#D89555>E
 ModUi/&Use24CellsRangeWithDimensionDoor=Use o alcance de 24 células com <color=#D89555>Porta Dimensional</color> <i><color=#F0DAA0>[em vez de 12]</color></i>
 ModUi/&FixRingOfRegenerationHealRate=Defina a taxa de cura do <color=#D89555>Anel de Regeneração</color> para 1 HP a cada 3 minutos
 ModUi/&FlightSuspendWingedBoots=<i>+ Use as regras oficiais das Botas Aladas <color=#F0DAA0>[duração restante não contada quando o voo é suspenso]</color></i>
-ModUi/&ForceModSpeechOnNpcs=<i>+Forçar atribuição automática de voz em todos os NPCs em vez de mapeamento de campanha</i>
+ModUi/&ForceModSpeechOnNpcs=Ignorar as vozes de NPCs atribuídas pela campanha e usar atribuição automática quando não houver escolha individual
 ModUi/&Formation=<color=#F0DAA0>Formação:</color>
 ModUi/&FormationError=<color=#C04040E0>Você não pode mudar sua formação durante um jogo multijogador...</color>
 ModUi/&FormationHelp1=• Use os botões numéricos para editar um determinado conjunto <i><color=#F0DAA0>[considere habilitar teclas de atalho na entrada]</color></i>
@@ -356,6 +381,7 @@ ModUi/&IdentifyAfterRest=Adicione um poder para <color=#D89555>identificar itens
 ModUi/&IgnoreHandXbowFreeHandRequirements=Não requer mão livre para usar <color=#D89555>Bestas de Mão</color>
 ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=Os feitiços de ilusão falham automaticamente contra alvos com <color=#D89555>TrueSight</color> ao alcance
 ModUi/&IncreaseGameTimeBy=Aumentar o tempo de jogo em
+ModUi/&GameTimeHours={0} h
 ModUi/&IncreaseMaxAttunedItems=Aumentar o máximo de <color=#D89555>Itens Sintonizados</color> para 4 no nível 10 e 5 no nível 18
 ModUi/&Invocations=<color=#F0DAA0>Invocações</color>
 ModUi/&Items=<color=#F0DAA0>Itens:</color>
@@ -375,6 +401,22 @@ ModUi/&ModifyGravitySlam=Modifique o feitiço <color=#D89555>Gravity Slam</color
 ModUi/&MovementGridWidthModifier=<color=white>Multiplique a largura da grade de movimento por</color> <color=#C04040E0>[%]</color>
 ModUi/&MulticlassKeyHelp=<color=#1E81B0>SHIFT</color> clicar em uma magia inverte o tipo de slot de repertório padrão consumido\n<i><color=#F0DAA0>[<color=#D89555>Warlock</color> gasta slots de magia brancos e outros gastam slots de pacto verdes]</color></i>
 ModUi/&Multiplayer=<color=#F0DAA0>Multijogador:</color>
+ModUi/&MultiplayerSettingsError=<color=#C04040E0>Não foi possível comparar as configurações do UB. Consulte o log do jogo para obter detalhes.</color>
+ModUi/&MultiplayerSettingsHelp=• O lobby compartilha as configurações de jogo e verifica a compilação do UB\n• As preferências de interface, idioma, câmera, voz e tradução permanecem locais\n• Esta verificação não impede o início do jogo
+ModUi/&MultiplayerSettingsHost=Suas configurações de jogo são compartilhadas com este lobby.
+ModUi/&MultiplayerSettingsInvalid=<color=#C04040E0>As configurações compartilhadas pelo anfitrião são inválidas ou excedem o limite de tamanho.</color>
+ModUi/&MultiplayerSettingsMatch=A compilação do UB e as configurações de jogo correspondem às do anfitrião.
+ModUi/&MultiplayerSettingsMismatch=<color=#C04040E0>As configurações de jogo são diferentes das do anfitrião. Salve o perfil do anfitrião, saia do lobby, carregue-o no menu de configurações, reinicie o jogo e entre novamente.</color>
+ModUi/&MultiplayerSettingsOffline=Entre em um lobby multijogador online para comparar as configurações do UB.
+ModUi/&MultiplayerSettingsPeerMatch={0}: a compilação do UB e as configurações de jogo correspondem.
+ModUi/&MultiplayerSettingsPeerMismatch=<color=#C04040E0>{0}: configurações de jogo diferentes.</color>
+ModUi/&MultiplayerSettingsPeerVersionMismatch=<color=#C04040E0>{0}: compilação do UB diferente.</color>
+ModUi/&MultiplayerSettingsPeerWaiting=<color=#C04040E0>{0}: nenhum relatório compatível de configurações do UB foi recebido.</color>
+ModUi/&MultiplayerSettingsSaveHost=Salvar o perfil de configurações do anfitrião
+ModUi/&MultiplayerSettingsSaved=Configurações do anfitrião salvas como MultiplayerHost. Saia do lobby, carregue este perfil abaixo e reinicie o jogo.
+ModUi/&MultiplayerSettingsUnsupported=<color=#C04040E0>O anfitrião não está compartilhando configurações compatíveis do UB.</color>
+ModUi/&MultiplayerSettingsVersionMismatch=<color=#C04040E0>A compilação do UB é diferente da do anfitrião. Instale a mesma compilação antes de entrar.</color>
+ModUi/&MultiplayerSettingsWaiting=Aguardando as configurações do UB do anfitrião.
 ModUi/&MultiplyTheExperienceGainedBy=<color=white>Multiplique a experiência adquirida por</color> <color=#C04040E0>[%]</color>
 ModUi/&NeverMoveCameraOnEnemyTurn=<i>+ A câmera nunca se move durante os turnos do inimigo</i>
 ModUi/&NewWeaponsAndRecipesBaseInsteadOfPrimed=<i>+ Usar armas e armaduras básicas como ingredientes em vez das versões Primed</i> <b><i><color=#C04040E0>[Requer Reinício]</color></i></b>
@@ -441,8 +483,12 @@ ModUi/&SenseNormalVisionRangeMultiplier=Modificar alcance da <color=#D89555>Vis�
 ModUi/&Services=Serviços
 ModUi/&SetBeltOfDwarvenKindBeardChances=<color=#D89555>Cinturão da Espécie Anã</color> <color=white>chance de aparecimento de barba</color>
 ModUi/&SettingsExport=Exportar
-ModUi/&SettingsHelp=• Como host, você pode exportar sua configuração atual, abrir a pasta de exportações e compartilhar facilmente com seus colegas\n• Como convidado, você pode abrir a pasta de exportações, colar o arquivo compartilhado do host e carregá-lo <b><i><color=#C04040E0>[Requer reinicialização]</color></i></b>
-ModUi/&SettingsLoad=• Carregar uma configuração exportada
+ModUi/&SettingsHelp=• Como anfitrião, compartilhe as configurações de jogo diretamente no lobby online ou compartilhe manualmente os arquivos XML exportados\n• Como convidado, salve o perfil do anfitrião, saia do lobby, carregue-o aqui, reinicie o jogo e entre novamente <b><i><color=#C04040E0>[Requer reinicialização]</color></i></b>
+ModUi/&SettingsImportCancel=Cancelar a importação de configurações
+ModUi/&SettingsImportFailed=<color=#C04040E0>Não foi possível concluir esta operação de configurações. As configurações atuais não foram alteradas. Consulte o log do jogo para obter detalhes.</color>
+ModUi/&SettingsImportPending=<b><i><color=#C04040E0>As configurações serão aplicadas após reiniciar o jogo</color></i></b>\nFoi feito um backup das configurações atuais em Settings.before-import.xml
+ModUi/&SettingsImportUnavailable=<color=#C04040E0>Saia do lobby multijogador e volte ao menu principal antes de carregar um perfil de configurações.</color>
+ModUi/&SettingsLoad=• Carregar um perfil de configurações <b><i><color=#C04040E0>[Requer reinicialização]</color></i></b>
 ModUi/&SettingsOpenFolder=Abrir pasta de configurações exportadas
 ModUi/&SettingsRefresh=Atualizar
 ModUi/&SettingsRemove=Remover
@@ -459,6 +505,7 @@ ModUi/&BattleActionAnimationSpeedMultiplierHelp=Acelera levemente as animações
 ModUi/&ShowTranslationPreview=Mostrar Traduções Recentes
 ModUi/&SpeechScale=<color=white>Modificador de velocidade de narração</color> <i><color=#F0DAA0>[menor é mais rápido]</color></i>
 ModUi/&SpeechVolume=<color=white>Volume da narração</color>
+ModUi/&SpeechShowAllLanguages=Mostrar vozes de todos os idiomas
 ModUi/&SpellLevelFilter=<b><i><color=white>filtro de nível de magia</color> <color=#F0DAA0>[-1 exibe tudo]</color></i></b>
 ModUi/&SpellsMenu=Feitiços
 ModUi/&StealthBreaksWhenAttackHits=Habilitar perda de furtividade quando ataque de arma ou magia acerta
@@ -497,6 +544,8 @@ ModUi/&TranslationCompleted=Concluído
 ModUi/&TranslationCompletedWithErrors=Concluído (com erros)
 ModUi/&TranslationConcurrency=Concorrência
 ModUi/&TranslationFailed=Falhou
+ModUi/&TranslationFailedCount=({0} falhas)
+ModUi/&TranslationMoreItems=… +{0} outros itens
 ModUi/&TranslationGoogleLegacyMode=Use o modo legado para solicitar traduções da API do Google Tradutor
 ModUi/&TranslationGoogleSettings=Configurações da API do Google
 ModUi/&TranslationPaused=Pausado
@@ -570,3 +619,70 @@ ModUI/&EnableEnemyBattleTacticsDescription=Os inimigos recebem habilidades adequ
 ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=No multijogador, todos os participantes devem escolher a mesma configuração antes de iniciar a sessão. Esta configuração não pode ser alterada durante uma sessão multijogador.
 ModUi/&FlexibleRacesDisabledByBackgroundASI=Os aumentos de atributo do antecedente estão ativados, portanto os aumentos raciais flexíveis não se aplicam. Sua escolha volta a ser aplicada quando você desativa os aumentos de atributo do antecedente.
 ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats=Os talentos de origem do antecedente estão ativados, portanto as proficiências de antecedente flexíveis não se aplicam. Sua escolha volta a ser aplicada quando você desativa os talentos de origem do antecedente.
+ModUi/&SpeechNarrator=Narrador
+ModUi/&SpeechHero=Herói {0}
+ModUi/&SpeechNoVoice=Sem voz
+ModUi/&SpeechVoiceTsukuyomi=Tsukuyomi-chan
+ModUi/&SpeechVoiceCss10=CSS10
+ModUi/&SpeechVoiceSpeaker={0} — falante {1}
+ModUi/&SpeechPitch=<color=white>Tom da voz (semitons)</color>
+ModUi/&EnableSpeechPitchHelp=<i><color=#F0DAA0>Ajuste a voz selecionada de -6 a +6 semitons sem alterar a velocidade.</color></i>
+ModUi/&EnableSpeechAvailableVoiceHelp=• As vozes do Windows instaladas são detectadas automaticamente\n• Baixe as vozes japonesas para adicionar Tsukuyomi-chan e CSS10\n• Outros modelos Piper locais e seus falantes configurados também estão disponíveis
+ModUi/&SpeechVoiceUnavailable={0} (indisponível)
+ModUi/&TranslationCategoryCampaign=Campanha
+ModUi/&TranslationCategoryLocations=Locais
+ModUi/&TranslationCategoryGadgets=Dispositivos
+ModUi/&TranslationCategoryDialogs=Diálogos
+ModUi/&TranslationCategoryItems=Itens
+ModUi/&TranslationCategoryQuests=Missões
+ModUi/&TranslationCategoryMonsters=Monstros
+ModUi/&TranslationCategoryNPCs=PNJs
+ModUi/&TranslationCategoryMerchants=Comerciantes
+ModUi/&TranslationCategoryLootPacks=Conjuntos de saque
+ModUi/&TranslationCategoryBiomes=Biomas
+ModUi/&TranslationCategoryEncounterTables=Tabelas de encontros
+ModUi/&TranslationCategoryEncounters=Encontros
+ModUi/&TranslationCategoryMapNodes=Pontos do mapa
+ModUi/&ConfirmAction=Confirmar esta ação?
+ModUi/&Minimum=Mín.
+ModUi/&Maximum=Máx.
+ModUi/&EnableVoiceVoxSpeech=Usar VOICEVOX para fala em japonês
+ModUi/&SpeechVoiceVoxHelp=Use o botão de download e configuração no UB para adicionar o VOICEVOX. Após a configuração, ele inicia automaticamente quando necessário. O UB também pode se conectar ao VOICEVOX se ele já estiver em execução. A fala é gerada neste PC.
+ModUi/&SpeechVoiceVoxConnecting=Conectando ao VOICEVOX…
+ModUi/&SpeechVoiceVoxConnected=VOICEVOX conectado: {0} estilos de voz disponíveis
+ModUi/&SpeechVoiceVoxUnavailable=O VOICEVOX não está disponível. Conclua a configuração ou verifique o VOICEVOX se ele já estiver em execução e atualize a lista de vozes.
+ModUi/&SpeechVoiceVoxInstall=Baixar e configurar o VOICEVOX
+ModUi/&SpeechVoiceVoxInstallHelp=O primeiro download tem cerca de 1,9 GB. Após a configuração, o Solasta inicia e encerra o VOICEVOX conforme necessário. O download pode ser cancelado e retomado. O uso das vozes está sujeito aos termos de cada falante.
+ModUi/&SpeechVoiceVoxDownloadProgress=Baixando o VOICEVOX: {0}
+ModUi/&SpeechVoiceVoxVerifying=Verificando o download do VOICEVOX
+ModUi/&SpeechVoiceVoxExtracting=Configurando o VOICEVOX
+ModUi/&SpeechVoiceVoxStarting=Iniciando o VOICEVOX
+ModUi/&SpeechVoiceVoxInstallFailed=A configuração do VOICEVOX falhou. Verifique o espaço disponível em disco e a conexão com a Internet e tente novamente.
+ModUi/&SpeechVoiceVoxCancel=Cancelar download
+ModUi/&SpeechVoiceVoxTerms=Termos de uso das vozes do VOICEVOX
+ModUi/&SpeechVoiceVoxInstalled=O VOICEVOX está instalado e iniciará automaticamente.
+ModUi/&SpeechVoiceVoxUnsupported=A configuração automática do VOICEVOX requer Windows de 64 bits.
+ModUi/&SpeechVoiceVoxRetry=Tentar configurar o VOICEVOX novamente
+ModUi/&SpeechIntonation=Entonação
+ModUi/&SpeechIntonationHelp=Ajuste a expressividade de uma voz do VOICEVOX. 1 usa a entonação normal; 0 deixa a fala monótona.
+ModUi/&SpeechIntonationUnavailable=O ajuste de entonação requer uma voz do VOICEVOX. As outras vozes mantêm sua própria entonação.
+ModUi/&SpeechPreview=Ouvir voz
+ModUi/&SpeechNpcHelp=Escolha uma voz para cada NPC desta campanha. Escolhas individuais têm prioridade sobre as atribuições da campanha e são salvas para esta campanha. Escolha a atribuição padrão para remover uma escolha individual. Escolha uma voz individual para ajustar sua velocidade e altura.
+ModUi/&SpeechNpcLoadCampaign=Carregue uma campanha personalizada para escolher as vozes dos seus NPCs.
+ModUi/&SpeechNpcAutomatic=Usar atribuição padrão
+ModUi/&SpeechVoiceGender=Gênero da voz para atribuição automática
+ModUi/&SpeechVoiceGenderDefault=Usar a classificação padrão
+ModUi/&SpeechVoiceGenderMale=Masculina
+ModUi/&SpeechVoiceGenderFemale=Feminina
+ModUi/&SpeechVoiceGenderUnknown=Não classificada
+ModUi/&SpeechVoiceGenderHelp=Classifica a voz usada na atribuição automática a heróis e NPCs. Todos os estilos VOICEVOX do mesmo falante compartilham esta configuração. As vozes escolhidas individualmente têm prioridade.
+ModUi/&SpeechAutomatic=Atribuição automática
+ModUi/&SpeechAutomaticHelp=Atribui vozes automaticamente para o idioma atual. Para os heróis, considera o gênero e a voz selecionada na tela do personagem. As vozes escolhidas individualmente no UB têm prioridade.
+ModUi/&SettingsListSearch=Buscar
+ModUi/&SettingsListPrevious=Anterior
+ModUi/&SettingsListNext=Próxima
+ModUi/&SettingsListPage=Página {0} de {1} ({2} resultados)
+ModUi/&SettingsListNoResults=Nenhuma entrada correspondente.
+ModUi/&SettingsListSelected=Selecionado: {0}
+ModUi/&SpeechAssignAllAutomatic=Atribuir vozes automaticamente ao narrador e a todos os heróis
+ModUi/&SpeechAutomaticResolved=Atribuição automática: {0}

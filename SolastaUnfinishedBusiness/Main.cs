@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Xml;
+using System.Xml.Serialization;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.CustomUI;
@@ -26,11 +28,14 @@ internal static class Main
 
     internal static Action Enable { get; private set; }
 
-    internal static string SettingsFolder => Path.Combine(ModFolder, "Settings");
+    internal static string SettingsFolder => Path.Combine(ModEntry?.Path ?? ModFolder, "Settings");
     internal static string Version => ModEntry?.Info?.Version?.ToString() ?? "<unavailable>";
     internal static string[] SettingsFiles { get; private set; }
-    internal static string SettingsFilename { get; private set; } = string.Empty;
     internal static Settings Settings => Mod.Settings;
+    internal static bool SettingsRestartRequired => Mod?.SettingsForSave != null;
+    internal static string SettingsOperationMessage { get; private set; }
+    internal static bool CanImportSettings => !Gui.GameCampaign &&
+        ServiceRepository.GetService<INetworkingService>()?.InOnlineRoom != true;
 
     [Conditional("DEBUG")]
     internal static void Log(string msg, bool console = false)
@@ -176,7 +181,9 @@ internal static class Main
         TryCleanup(UpdateContext.Unload);
         TryCleanup(() => SaveByLocationContext.Unload(!applicationQuitting));
         TryCleanup(CombatAiContext.Unload);
+        TryCleanup(PlayerControllerContext.Unload);
         TryCleanup(CombatAnimationContext.Unload);
+        TryCleanup(MultiplayerSettingsContext.Invalidate);
         TryCleanup(GuiWrapperContext.Unload);
         TryCleanup(() => Tooltips.Unload(!applicationQuitting));
         TryCleanup(() => CampaignTranslationExecutor.Unload(!applicationQuitting));
@@ -220,6 +227,7 @@ internal static class Main
         SettingsFiles = Directory.EnumerateFiles(SettingsFolder, "*.xml", SearchOption.TopDirectoryOnly)
             .Select(Path.GetFileNameWithoutExtension)
             .Where(x => !string.IsNullOrEmpty(x))
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
@@ -260,39 +268,128 @@ internal static class Main
             return;
         }
 
-        EnsureFolderExists(SettingsFolder);
-        SettingsFilename = Path.Combine(SettingsFolder, normalizedFilename);
-
         try
         {
-            UnityModManager.ModSettings.Save(Settings, ModEntry);
+            EnsureFolderExists(SettingsFolder);
+            WriteSettingsFile(Path.Combine(SettingsFolder, normalizedFilename), Settings);
+            LoadSettingFilenames();
         }
-        finally
+        catch (Exception ex)
         {
-            SettingsFilename = string.Empty;
+            Error(ex);
         }
+    }
 
-        LoadSettingFilenames();
+    internal static bool SaveSharedSettingsProfile(string xml)
+    {
+        try
+        {
+            if (!MultiplayerSettingsContext.TryValidateSharedSettingsXml(xml, out var normalizedXml))
+            {
+                SettingsOperationMessage = "ModUi/&SettingsImportFailed";
+                return false;
+            }
+
+            var profile = MultiplayerSettingsContext.ReadSettingsProfile(normalizedXml, Settings);
+            EnsureFolderExists(SettingsFolder);
+            WriteSettingsFile(Path.Combine(SettingsFolder, "MultiplayerHost.xml"), profile);
+            LoadSettingFilenames();
+            SettingsOperationMessage = "ModUi/&MultiplayerSettingsSaved";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Error(ex);
+            SettingsOperationMessage = "ModUi/&SettingsImportFailed";
+            return false;
+        }
     }
 
     internal static void LoadSettings(string filename)
     {
-        if (!TryNormalizeSettingsFilename(filename, out var normalizedFilename))
+        if (!CanImportSettings)
+        {
+            SettingsOperationMessage = "ModUi/&SettingsImportUnavailable";
+            return;
+        }
+
+        if (SettingsRestartRequired ||
+            !TryNormalizeSettingsFilename(filename, out var normalizedFilename))
         {
             return;
         }
 
-        EnsureFolderExists(SettingsFolder);
-        SettingsFilename = Path.Combine(SettingsFolder, normalizedFilename);
+        try
+        {
+            var path = Path.Combine(SettingsFolder, normalizedFilename);
+            var file = new FileInfo(path);
+            if (!file.Exists || file.Length > MultiplayerSettingsContext.MaxXmlBytes)
+            {
+                throw new InvalidDataException("Missing or oversized settings profile.");
+            }
+
+            var profile = MultiplayerSettingsContext.ReadSettingsProfile(File.ReadAllText(path), Settings);
+            var settingsPath = Path.Combine(ModEntry.Path, "Settings.xml");
+            var backupPath = Path.Combine(ModEntry.Path, "Settings.before-import.xml");
+
+            // Back up the settings actually in use, including changes made since the last UMM save.
+            WriteSettingsFile(backupPath, Settings);
+            WriteSettingsFile(settingsPath, profile);
+            Mod.SettingsForSave = profile;
+            SettingsOperationMessage = null;
+        }
+        catch (Exception ex)
+        {
+            Error(ex);
+            SettingsOperationMessage = "ModUi/&SettingsImportFailed";
+        }
+    }
+
+    internal static void CancelSettingsImport()
+    {
+        if (!SettingsRestartRequired)
+        {
+            return;
+        }
 
         try
         {
-            Mod.Settings = UnityModManager.ModSettings.Load<Settings>(ModEntry);
-            LoadingContext.ApplySettings();
+            WriteSettingsFile(Path.Combine(ModEntry.Path, "Settings.xml"), Settings);
+            Mod.SettingsForSave = null;
+            SettingsOperationMessage = null;
+        }
+        catch (Exception ex)
+        {
+            Error(ex);
+            SettingsOperationMessage = "ModUi/&SettingsImportFailed";
+        }
+    }
+
+    private static void WriteSettingsFile(string path, Settings settings)
+    {
+        var temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            using (var writer = XmlWriter.Create(temporaryPath, new XmlWriterSettings { Indent = true }))
+            {
+                new XmlSerializer(typeof(Settings)).Serialize(writer, settings);
+            }
+
+            if (File.Exists(path))
+            {
+                File.Replace(temporaryPath, path, null);
+            }
+            else
+            {
+                File.Move(temporaryPath, path);
+            }
         }
         finally
         {
-            SettingsFilename = string.Empty;
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
         }
     }
 

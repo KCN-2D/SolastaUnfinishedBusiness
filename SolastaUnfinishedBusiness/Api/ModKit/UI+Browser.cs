@@ -4,11 +4,149 @@ using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Api.ModKit.Utility;
+using I2.Loc;
+using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Api.ModKit;
 
 internal static partial class UI
 {
+    // Keep catalog preparation outside the hot IMGUI path and bound the number of controls.
+    // Source changes are applied on Layout so input events retain that Layout's control tree.
+    internal sealed class PagedList<T>(string controlName, int pageSize)
+    {
+        private IReadOnlyList<T> _source;
+        private int _sourceCount = -1;
+        private int _revision;
+        private string _language;
+        private T[] _items = [];
+        private string[] _labels = [];
+        private int[] _matches = [];
+        private string _appliedSearch;
+        private int _requestedPage;
+        private int _appliedPage = -1;
+        private string[] _pageLabels = [];
+
+        internal string SearchText = string.Empty;
+        internal int PageSize { get; } = Math.Max(1, pageSize);
+        internal int MatchCount => _matches.Length;
+        internal int PageCount => Math.Max(1, (MatchCount + PageSize - 1) / PageSize);
+        internal int Page { get; private set; }
+        internal int VisibleCount => _pageLabels.Length;
+
+        internal void Refresh(IReadOnlyList<T> source, Func<T, string> title, int revision = 0)
+        {
+            var language = LocalizationManager.CurrentLanguageCode;
+            if (ReferenceEquals(source, _source) && source.Count == _sourceCount &&
+                revision == _revision && language == _language)
+            {
+                return;
+            }
+
+            if (_sourceCount >= 0 && Event.current?.type != EventType.Layout)
+            {
+                return;
+            }
+
+            _source = source;
+            _sourceCount = source.Count;
+            _revision = revision;
+            _language = language;
+            _items = source.ToArray();
+            _labels = _items.Select(item => title(item) ?? string.Empty).ToArray();
+            _appliedSearch = null;
+            _requestedPage = 0;
+        }
+
+        private void PreparePage()
+        {
+            if (Event.current?.type != EventType.Layout && _appliedPage >= 0)
+            {
+                return;
+            }
+
+            var search = SearchText ?? string.Empty;
+            if (_appliedSearch != search)
+            {
+                _appliedSearch = search;
+                var terms = search.Split((char[])null,
+                    StringSplitOptions.RemoveEmptyEntries);
+                _matches = Enumerable.Range(0, _labels.Length).Where(index => terms.All(term =>
+                    _labels[index].IndexOf(term, StringComparison.CurrentCultureIgnoreCase) >= 0)).ToArray();
+                _requestedPage = 0;
+                _appliedPage = -1;
+            }
+
+            Page = Math.Max(0, Math.Min(_requestedPage, PageCount - 1));
+            if (_appliedPage == Page)
+            {
+                return;
+            }
+
+            _appliedPage = Page;
+            _pageLabels = _matches.Skip(Page * PageSize).Take(PageSize).Select(index => _labels[index]).ToArray();
+        }
+
+        internal void DrawControls(GUIStyle labelStyle = null)
+        {
+            PreparePage();
+            Label(Gui.Localize("ModUi/&SettingsListSearch"), labelStyle ?? GUI.skin.label, ExpandWidth(true));
+            TextField(ref SearchText, controlName, MinWidth(0f), ExpandWidth(true));
+            if (MatchCount == 0)
+            {
+                Label(Gui.Localize("ModUi/&SettingsListNoResults"), labelStyle ?? GUI.skin.label, ExpandWidth(true));
+            }
+
+            var enabled = GUI.enabled;
+            using (HorizontalScope())
+            {
+                try
+                {
+                    GUI.enabled = enabled && Page > 0;
+                    ActionButton(Gui.Localize("ModUi/&SettingsListPrevious"), () => _requestedPage = Page - 1,
+                        AutoWidth());
+                    GUI.enabled = enabled;
+                    Label(Gui.Format("ModUi/&SettingsListPage", (Page + 1).ToString(), PageCount.ToString(),
+                        MatchCount.ToString()), labelStyle ?? GUI.skin.label, MinWidth(0f), ExpandWidth(true));
+                    GUI.enabled = enabled && Page + 1 < PageCount;
+                    ActionButton(Gui.Localize("ModUi/&SettingsListNext"), () => _requestedPage = Page + 1,
+                        AutoWidth());
+                }
+                finally
+                {
+                    GUI.enabled = enabled;
+                }
+            }
+        }
+
+        internal T GetVisibleItem(int index)
+        {
+            return _items[_matches[Page * PageSize + index]];
+        }
+
+        internal bool DrawSelection(ref T selected, GUIStyle style, int maximumColumns = 4)
+        {
+            var selection = -1;
+            for (var index = 0; index < VisibleCount; index++)
+            {
+                if (EqualityComparer<T>.Default.Equals(GetVisibleItem(index), selected))
+                {
+                    selection = index;
+                    break;
+                }
+            }
+
+            if (!SelectionGrid(ref selection, _pageLabels, maximumColumns, style, maximumColumns,
+                    ExpandWidth(true)))
+            {
+                return false;
+            }
+
+            selected = GetVisibleItem(selection);
+            return true;
+        }
+    }
+
     public static class Browser<T, TItem, TDef> // for many things the item will be the definition
     {
         // ReSharper disable file StaticMemberInGenericType
@@ -133,7 +271,7 @@ internal static partial class UI
             {
                 Space(100);
                 // remWidth -= 100;
-                var titleWidth = ((int)(UMMWidth / (IsWide ? 3.0f : 4.0f))).Point();
+                var titleWidth = Mathf.Floor(UMMWidth / (IsWide ? 3f : 4f));
                 var text = title(definition);
                 var titleKey = $"{callerKey}-{text}";
                 if (item != null)

@@ -1,8 +1,10 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -10,6 +12,7 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using TA;
+using UnityEngine;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
 
@@ -18,6 +21,230 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationBanterManagerPatcher
 {
+    private sealed class BanterSpeechLifecycle
+    {
+        internal bool Closed;
+        internal readonly HashSet<BanterSpeechOwner> Owners = [];
+    }
+
+    private sealed class BanterSpeechOwner(BanterSpeechLifecycle lifecycle, GameLocationCharacter speaker = null)
+    {
+        internal readonly BanterSpeechLifecycle Lifecycle = lifecycle;
+        internal readonly GameLocationCharacter Speaker = speaker;
+        internal readonly List<FeedbackLabel> FeedbackLabels = [];
+        internal readonly List<GuiModifier> Modifiers = [];
+        internal bool Ended;
+    }
+
+    private static readonly ConditionalWeakTable<GameLocationBanterManager, BanterSpeechLifecycle> BanterSpeech = new();
+    private static readonly Dictionary<GameLocationCharacter, BanterSpeechOwner> CharacterSpeech = [];
+    private static readonly Dictionary<FeedbackLabel, BanterSpeechOwner> FeedbackSpeech = [];
+    private static readonly Dictionary<GuiModifier, BanterSpeechOwner> FeedbackModifiers = [];
+    private static BanterSpeechOwner _displayingConversation;
+
+    private static void EndBanterSpeech(BanterSpeechOwner owner, bool closeFeedback = true)
+    {
+        if (owner == null || owner.Ended)
+        {
+            return;
+        }
+
+        owner.Ended = true;
+        SpeechContext.CancelSpeech(owner);
+        owner.Lifecycle.Owners.Remove(owner);
+        if (owner.Speaker != null && CharacterSpeech.TryGetValue(owner.Speaker, out var current) && current == owner)
+        {
+            CharacterSpeech.Remove(owner.Speaker);
+        }
+
+        foreach (var label in owner.FeedbackLabels)
+        {
+            if (!FeedbackSpeech.TryGetValue(label, out var currentFeedback) || currentFeedback != owner)
+            {
+                continue;
+            }
+
+            FeedbackSpeech.Remove(label);
+            if (!label || !label.textLabel)
+            {
+                continue;
+            }
+
+            if (closeFeedback)
+            {
+                label.textLabel.StopAllModifiers();
+            }
+        }
+
+        foreach (var modifier in owner.Modifiers)
+        {
+            if (FeedbackModifiers.TryGetValue(modifier, out var currentModifier) && currentModifier == owner)
+            {
+                FeedbackModifiers.Remove(modifier);
+            }
+        }
+
+        owner.FeedbackLabels.Clear();
+        owner.Modifiers.Clear();
+    }
+
+    internal static void EndCharacterBanterSpeech(GameLocationCharacter character)
+    {
+        if (character != null && CharacterSpeech.TryGetValue(character, out var owner))
+        {
+            EndBanterSpeech(owner);
+        }
+    }
+
+    internal static void HoldCharacterBanterLabel(CharacterLabel label)
+    {
+        var character = label.GuiCharacter?.GameLocationCharacter;
+        if (character == null || !CharacterSpeech.TryGetValue(character, out var owner))
+        {
+            return;
+        }
+
+        if (!SpeechContext.HasPendingSpeech(owner))
+        {
+            EndBanterSpeech(owner);
+            return;
+        }
+
+        // Keep a finite native timer and let its normal fade resume after speech.
+        label.remainingDialogLineTime = Mathf.Max(label.remainingDialogLineTime, Gui.SystemDeltaTime + 0.1f);
+    }
+
+    internal static void RegisterBanterFeedback(FeedbackLabel label)
+    {
+        var owner = _displayingConversation;
+        if (FeedbackSpeech.TryGetValue(label, out var previous))
+        {
+            // The pooled label has already been rebound; do not stop its new modifiers.
+            EndBanterSpeech(previous, false);
+        }
+
+        if (owner == null || owner.Ended || !label.textLabel)
+        {
+            return;
+        }
+
+        owner.FeedbackLabels.Add(label);
+        FeedbackSpeech[label] = owner;
+        foreach (var modifier in label.textLabel.GuiModifiers)
+        {
+            if (modifier)
+            {
+                owner.Modifiers.Add(modifier);
+                FeedbackModifiers[modifier] = owner;
+            }
+        }
+    }
+
+    internal static bool HoldBanterFeedbackModifier(GuiModifier modifier)
+    {
+        // Allow the native fade-in first. Freeze only owned dialogue labels, never
+        // combat feedback, and preserve finite animation durations for pool reuse.
+        return FeedbackModifiers.TryGetValue(modifier, out var owner) && !owner.Ended &&
+               modifier.Running && modifier.CurrentTime >= modifier.Duration * 0.5f &&
+               SpeechContext.HasPendingSpeech(owner);
+    }
+
+    internal static void EndCurrentBanterSpeech()
+    {
+        if (ServiceRepository.GetService<IGameLocationBanterService>() is GameLocationBanterManager manager)
+        {
+            EndManagerBanterSpeech(manager);
+        }
+    }
+
+    internal static void OpenCurrentBanterSpeech()
+    {
+        if (ServiceRepository.GetService<IGameLocationBanterService>() is GameLocationBanterManager manager)
+        {
+            ResetManagerBanterSpeech(manager);
+        }
+    }
+
+    private static void ResetManagerBanterSpeech(GameLocationBanterManager manager)
+    {
+        // Rebinding a manager or reopening its screen starts a new lifecycle.
+        // Suspended old iterators retain the closed lifecycle and cannot revive it.
+        EndManagerBanterSpeech(manager);
+        BanterSpeech.Remove(manager);
+    }
+
+    private static void EndManagerBanterSpeech(GameLocationBanterManager manager)
+    {
+        if (!BanterSpeech.TryGetValue(manager, out var lifecycle))
+        {
+            return;
+        }
+
+        lifecycle.Closed = true;
+        foreach (var owner in lifecycle.Owners.ToArray())
+        {
+            EndBanterSpeech(owner);
+        }
+    }
+
+    private static IEnumerator TrackBanterConversation(GameLocationBanterManager manager,
+        List<ComputedBanterLine> lines, IEnumerator native)
+    {
+        var lifecycle = BanterSpeech.GetValue(manager, _ => new BanterSpeechLifecycle());
+        BanterSpeechOwner owner = null;
+        var index = 0;
+        try
+        {
+            while (!lifecycle.Closed)
+            {
+                owner = new BanterSpeechOwner(lifecycle);
+                lifecycle.Owners.Add(owner);
+                var previous = _displayingConversation;
+                _displayingConversation = owner;
+                bool moved;
+                try
+                {
+                    moved = native.MoveNext();
+                }
+                finally
+                {
+                    _displayingConversation = previous;
+                }
+
+                if (!moved)
+                {
+                    break;
+                }
+
+                // The native iterator displays exactly one ComputedBanterLine per yield.
+                var submitted = !owner.Ended && !lifecycle.Closed && index < lines.Count &&
+                                SpeechContext.SpeakBanterConversationLine(
+                    lines[index].line, lines[index].speaker, owner);
+                index++;
+                if (!submitted)
+                {
+                    EndBanterSpeech(owner, false);
+                }
+
+                yield return native.Current;
+                while (!lifecycle.Closed && !owner.Ended && SpeechContext.HasPendingSpeech(owner))
+                {
+                    yield return null;
+                }
+
+                // Release the native finite fade after normal playback. Explicit
+                // cancellation/disposal closes its feedback immediately instead.
+                EndBanterSpeech(owner, false);
+                owner = null;
+            }
+        }
+        finally
+        {
+            EndBanterSpeech(owner);
+            (native as IDisposable)?.Dispose();
+        }
+    }
+
     [HarmonyPatch]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -424,9 +651,74 @@ public static class GameLocationBanterManagerPatcher
     public static class ForceBanterLine_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(string line, GameLocationCharacter speaker)
+        public static void Postfix(GameLocationBanterManager __instance, string line, GameLocationCharacter speaker)
         {
-            SpeechContext.Speak(line, speaker);
+            if (!__instance.IsValidSpeaker(speaker))
+            {
+                return;
+            }
+
+            EndCharacterBanterSpeech(speaker);
+            var lifecycle = BanterSpeech.GetValue(__instance, _ => new BanterSpeechLifecycle());
+            if (lifecycle.Closed)
+            {
+                return;
+            }
+
+            var owner = new BanterSpeechOwner(lifecycle, speaker);
+            if (SpeechContext.SpeakBanter(line, speaker, owner))
+            {
+                lifecycle.Owners.Add(owner);
+                CharacterSpeech[speaker] = owner;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationBanterManager), nameof(GameLocationBanterManager.PlayBanterConversation))]
+    [UsedImplicitly]
+    public static class PlayBanterConversation_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GameLocationBanterManager __instance, List<ComputedBanterLine> banterLines,
+            ref IEnumerator __result)
+        {
+            if (__result != null && banterLines != null && Gui.Game?.CampaignDefinition?.IsUserCampaign == true)
+            {
+                __result = TrackBanterConversation(__instance, banterLines, __result);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationBanterManager), nameof(GameLocationBanterManager.UnbindCharacter))]
+    [UsedImplicitly]
+    public static class UnbindCharacterSpeech_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GameLocationCharacter character)
+        {
+            EndCharacterBanterSpeech(character);
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationBanterManager), nameof(GameLocationBanterManager.UnbindServices))]
+    [UsedImplicitly]
+    public static class UnbindBanterSpeech_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GameLocationBanterManager __instance)
+        {
+            EndManagerBanterSpeech(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationBanterManager), nameof(GameLocationBanterManager.BindServices))]
+    [UsedImplicitly]
+    public static class BindBanterSpeech_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GameLocationBanterManager __instance)
+        {
+            ResetManagerBanterSpeech(__instance);
         }
     }
 }

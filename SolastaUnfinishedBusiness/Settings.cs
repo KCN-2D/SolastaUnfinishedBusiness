@@ -25,78 +25,75 @@ public class Tag : Attribute
     public TagType Type { get; set; }
 }
 
+// Gameplay settings are shared by default; mark personal preferences at their declaration.
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class MultiplayerLocalAttribute : Attribute;
+
 [Serializable]
 [XmlRoot(ElementName = "Settings")]
 public class Settings : UnityModManager.ModSettings
 {
-    public override string GetPath(UnityModManager.ModEntry modEntry)
-    {
-        return string.IsNullOrEmpty(Main.SettingsFilename)
-            ? base.GetPath(modEntry)
-            : Main.SettingsFilename;
-    }
-
     //
     // UI Saved State
     //
 
-    public int DisplayModMessage { get; set; }
-    public int EnableDiagsDump { get; set; }
-    public int SelectedTab { get; set; }
+    [MultiplayerLocal] public int DisplayModMessage { get; set; }
+    [MultiplayerLocal] public int EnableDiagsDump { get; set; }
+    [MultiplayerLocal] public int SelectedTab { get; set; }
 
     //
     // SETTINGS UI TOGGLES
     //
 
-    public bool DisplayMultiplayerToggle { get; set; }
-    public bool DisplayTabletop2024 { get; set; }
-    public bool DisplayTabletopToggle { get; set; }
-    public bool DisplayRacesToggle { get; set; }
-    public bool DisplaySubracesToggle { get; set; }
-    public bool DisplayBackgroundsToggle { get; set; }
-    public bool DisplayFeatsToggle { get; set; }
-    public bool DisplayFeatGroupsToggle { get; set; }
-    public bool DisplayFightingStylesToggle { get; set; }
-    public bool DisplayInvocationsToggle { get; set; }
-    public bool DisplayMetamagicToggle { get; set; }
-    public bool DisplayItemsGeneralToggle { get; set; }
-    public bool DisplayCraftingToggle { get; set; }
-    public bool DisplayItemsToggle { get; set; }
-    public bool DisplayBackgroundsAndRacesGeneralToggle { get; set; }
-    public bool DisplayProficienciesGeneralToggle { get; set; }
-    public bool DisplaySpellsGeneralToggle { get; set; }
-    public bool DisplaySubClassesGeneralToggle { get; set; }
-    public SerializableDictionary<string, bool> DisplayKlassToggle { get; set; } = [];
-    public SerializableDictionary<string, bool> DisplaySpellListsToggle { get; set; } = [];
+    [MultiplayerLocal] public bool DisplayMultiplayerToggle { get; set; }
+    [MultiplayerLocal] public bool DisplayTabletop2024 { get; set; }
+    [MultiplayerLocal] public bool DisplayTabletopToggle { get; set; }
+    [MultiplayerLocal] public bool DisplayRacesToggle { get; set; }
+    [MultiplayerLocal] public bool DisplaySubracesToggle { get; set; }
+    [MultiplayerLocal] public bool DisplayBackgroundsToggle { get; set; }
+    [MultiplayerLocal] public bool DisplayFeatsToggle { get; set; }
+    [MultiplayerLocal] public bool DisplayFeatGroupsToggle { get; set; }
+    [MultiplayerLocal] public bool DisplayFightingStylesToggle { get; set; }
+    [MultiplayerLocal] public bool DisplayInvocationsToggle { get; set; }
+    [MultiplayerLocal] public bool DisplayMetamagicToggle { get; set; }
+    [MultiplayerLocal] public bool DisplayItemsGeneralToggle { get; set; }
+    [MultiplayerLocal] public bool DisplayCraftingToggle { get; set; }
+    [MultiplayerLocal] public bool DisplayItemsToggle { get; set; }
+    [MultiplayerLocal] public bool DisplayBackgroundsAndRacesGeneralToggle { get; set; }
+    [MultiplayerLocal] public bool DisplayProficienciesGeneralToggle { get; set; }
+    [MultiplayerLocal] public bool DisplaySpellsGeneralToggle { get; set; }
+    [MultiplayerLocal] public bool DisplaySubClassesGeneralToggle { get; set; }
+    [MultiplayerLocal] public SerializableDictionary<string, bool> DisplayKlassToggle { get; set; } = [];
+    [MultiplayerLocal] public SerializableDictionary<string, bool> DisplaySpellListsToggle { get; set; } = [];
 
     //
     // SETTINGS HIDDEN ON UI
     //
 
-    public List<string> DefaultPartyHeroes { get; } = [];
-    public bool EnableCtrlClickOnlySwapsMainHand { get; set; } = true;
-    public bool EnableDisplaySorceryPointBoxSorcererOnly { get; set; } = true;
-    public bool EnableLevelUpFeaturesSelection { get; set; } = true;
-    public bool EnableSameWidthFeatSelection { get; set; } = true;
-    public bool EnableSameWidthInvocationSelection { get; set; } = true;
-    public bool EnableSortingFightingStyles { get; set; } = true;
-    public bool EnableSortingSubclasses { get; set; } = true;
-    public bool FixAsianLanguagesTextWrap { get; set; } = true;
-    public bool KeepCharactersPanelOpenAndHeroSelectedAfterLevelUp { get; set; } = true;
-    public bool DisableStreamlinedMultiLevelUp { get; set; } = true;
+    [MultiplayerLocal] public List<string> DefaultPartyHeroes { get; } = [];
+    [MultiplayerLocal] public bool EnableCtrlClickOnlySwapsMainHand { get; set; } = true;
+    [MultiplayerLocal] public bool EnableDisplaySorceryPointBoxSorcererOnly { get; set; } = true;
+    [MultiplayerLocal] public bool EnableLevelUpFeaturesSelection { get; set; } = true;
+    [MultiplayerLocal] public bool EnableSameWidthFeatSelection { get; set; } = true;
+    [MultiplayerLocal] public bool EnableSameWidthInvocationSelection { get; set; } = true;
+    [MultiplayerLocal] public bool EnableSortingFightingStyles { get; set; } = true;
+    [MultiplayerLocal] public bool EnableSortingSubclasses { get; set; } = true;
+    [MultiplayerLocal] public bool FixAsianLanguagesTextWrap { get; set; } = true;
+    [MultiplayerLocal] public bool KeepCharactersPanelOpenAndHeroSelectedAfterLevelUp { get; set; } = true;
+    [MultiplayerLocal] public bool DisableStreamlinedMultiLevelUp { get; set; } = true;
 
     //
     // Gameplay - General
     //
 
-    public bool EnablePcgRandom { get; set; }
-    public bool EnableFastLocationLoads { get; set; }
-    public bool EnableCustomPortraits { get; set; } = true;
-    public bool DisableMultilineSpellOffering { get; set; }
-    public bool DisableUnofficialTranslations { get; set; } = true;
-    public bool FilterUnofficialTranslationsByLanguage { get; set; }
-    public List<string> EnabledUnofficialTranslationLanguages { get; } = [];
-    public bool WideScreenBattleUI { get; set; } = true;
+    [MultiplayerLocal] public bool EnablePcgRandom { get; set; }
+    [MultiplayerLocal] public bool EnableFastLocationLoads { get; set; }
+    [MultiplayerLocal] public bool EnableCustomPortraits { get; set; } = true;
+    [MultiplayerLocal] public bool DisableMultilineSpellOffering { get; set; }
+    [MultiplayerLocal] public bool DisableUnofficialTranslations { get; set; } = true;
+    [MultiplayerLocal] public bool FilterUnofficialTranslationsByLanguage { get; set; }
+    [MultiplayerLocal] public List<string> EnabledUnofficialTranslationLanguages { get; } = [];
+    [MultiplayerLocal] public bool WideScreenBattleUI { get; set; } = true;
 
     //
     // Gameplay - Rules
@@ -107,10 +104,10 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2014)] public bool EnableLevel20 { get; set; }
     [Tag(Type = TagType.T2014)] public bool EnableMulticlass { get; set; }
     public int MaxAllowedClasses { get; set; } = MulticlassContext.DefaultClasses;
-    public bool DisplayAllKnownSpellsDuringLevelUp { get; set; }
-    public bool DisplayPactSlotsOnSpellSelectionPanel { get; set; }
+    [MultiplayerLocal] public bool DisplayAllKnownSpellsDuringLevelUp { get; set; }
+    [MultiplayerLocal] public bool DisplayPactSlotsOnSpellSelectionPanel { get; set; }
     public bool EnableMinInOutAttributes { get; set; }
-    public bool AlwaysSpendPactSlotsFirst { get; set; }
+    [MultiplayerLocal] public bool AlwaysSpendPactSlotsFirst { get; set; }
     [Tag(Type = TagType.QoL)] public bool EnableActionSwitching { get; set; }
     [Tag(Type = TagType.T2014)] public bool DontEndTurnAfterReady { get; set; }
     [Tag(Type = TagType.T2014)] public bool EnableProneAction { get; set; }
@@ -135,7 +132,7 @@ public class Settings : UnityModManager.ModSettings
     public bool UseWeaponMasterySystemNickExtraAttackTriggersMastery { get; set; }
     public bool UseWeaponMasterySystemNickDualFlurry { get; set; }
     public bool UseWeaponMasterySystemPushSave { get; set; }
-    public bool WeaponMasterySystemCustomizeToggle { get; set; }
+    [MultiplayerLocal] public bool WeaponMasterySystemCustomizeToggle { get; set; }
     public SerializableDictionary<string, Tabletop2024Context.MasteryProperty> WeaponMasteryCustom { get; set; } = [];
     public bool UseOfficialFlankingRules { get; set; }
     public bool UseMathFlankingRules { get; set; }
@@ -206,54 +203,63 @@ public class Settings : UnityModManager.ModSettings
     public bool AddPickPocketableLoot { get; set; }
     public bool PickPocketNonHostiles { get; set; }
     public bool EnemySpellcastersDropScribedSpellbooks { get; set; }
-    public bool AltOnlyHighlightItemsInPartyFieldOfView { get; set; }
-    [Tag(Type = TagType.QoL)] public bool EnableAdditionalIconsOnLevelMap { get; set; }
-    public bool HideExitsAndTeleportersGizmosIfNotDiscovered { get; set; }
-    public bool EnableOutOfCombatTargetingSightLines { get; set; }
-    public bool EnableLogDialoguesToConsole { get; set; }
-    public bool EnableSpeech { get; set; }
-    public bool EnableSpeechOnNpcs { get; set; }
-    public bool ForceModSpeechOnNpcs { get; set; }
-    public int SpeechChoice { get; set; }
-    public SerializableDictionary<int, (string, float)> SpeechVoices { get; set; } = [];
-    public float SpeechVolume { get; set; }
-    public bool FixGameVolume { get; set; }
+    [MultiplayerLocal] public bool AltOnlyHighlightItemsInPartyFieldOfView { get; set; }
+    [MultiplayerLocal] [Tag(Type = TagType.QoL)] public bool EnableAdditionalIconsOnLevelMap { get; set; }
+    [MultiplayerLocal] public bool HideExitsAndTeleportersGizmosIfNotDiscovered { get; set; }
+    [MultiplayerLocal] public bool EnableOutOfCombatTargetingSightLines { get; set; }
+    [MultiplayerLocal] public bool EnableLogDialoguesToConsole { get; set; }
+    [MultiplayerLocal] public bool EnableSpeech { get; set; }
+    [MultiplayerLocal] public bool EnableSpeechOnNpcs { get; set; }
+    [MultiplayerLocal] public bool EnableVoiceVoxSpeech { get; set; }
+    [MultiplayerLocal] public bool ForceModSpeechOnNpcs { get; set; }
+    [MultiplayerLocal] public int SpeechChoice { get; set; }
+    [MultiplayerLocal] public SerializableDictionary<int, (string, float)> SpeechVoices { get; set; } = [];
+    [MultiplayerLocal] public SerializableDictionary<int, float> SpeechVoicePitches { get; set; } = [];
+    [MultiplayerLocal] public SerializableDictionary<int, float> SpeechVoiceIntonations { get; set; } = [];
+    [MultiplayerLocal] public SerializableDictionary<string, int> SpeechVoiceGenderOverrides { get; set; } = [];
+    [MultiplayerLocal] public SerializableDictionary<string, (string, float, float, float)> SpeechNpcVoiceOverrides
+    {
+        get;
+        set;
+    } = [];
+    [MultiplayerLocal] public float SpeechVolume { get; set; }
+    [MultiplayerLocal] public bool FixGameVolume { get; set; }
     public bool EnableHeroWithBestProficiencyToRollChoice { get; set; }
-    public bool MarkInvisibleTeleportersOnLevelMap { get; set; }
+    [MultiplayerLocal] public bool MarkInvisibleTeleportersOnLevelMap { get; set; }
     public bool EnableAlternateVotingSystem { get; set; }
     public bool EnableSumD20OnAlternateVotingSystem { get; set; }
-    [Tag(Type = TagType.QoL)] public bool AllowMoreRealStateOnRestPanel { get; set; }
-    [Tag(Type = TagType.QoL)] public bool EnableStatsOnHeroTooltip { get; set; }
-    public bool EnableAdditionalBackstoryDisplay { get; set; }
-    public bool EnableExtendedProficienciesPanelDisplay { get; set; }
-    public bool HideMonsterHitPoints { get; set; }
-    public bool RemoveBugVisualModels { get; set; }
-    [Tag(Type = TagType.QoL)] public bool ShowButtonWithControlledMonsterInfo { get; set; }
+    [MultiplayerLocal] [Tag(Type = TagType.QoL)] public bool AllowMoreRealStateOnRestPanel { get; set; }
+    [MultiplayerLocal] [Tag(Type = TagType.QoL)] public bool EnableStatsOnHeroTooltip { get; set; }
+    [MultiplayerLocal] public bool EnableAdditionalBackstoryDisplay { get; set; }
+    [MultiplayerLocal] public bool EnableExtendedProficienciesPanelDisplay { get; set; }
+    [MultiplayerLocal] public bool HideMonsterHitPoints { get; set; }
+    [MultiplayerLocal] public bool RemoveBugVisualModels { get; set; }
+    [MultiplayerLocal] [Tag(Type = TagType.QoL)] public bool ShowButtonWithControlledMonsterInfo { get; set; }
 
     // Battle
-    public bool DontFollowCharacterInBattle { get; set; }
-    public bool EnableElevationCameraToStayAtPosition { get; set; }
-    public bool NeverMoveCameraOnEnemyTurn { get; set; }
+    [MultiplayerLocal] public bool DontFollowCharacterInBattle { get; set; }
+    [MultiplayerLocal] public bool EnableElevationCameraToStayAtPosition { get; set; }
+    [MultiplayerLocal] public bool NeverMoveCameraOnEnemyTurn { get; set; }
     public bool EnableForceAllyMovementAllowsFlight { get; set; }
     public bool EnableTeleportAllowsMidAirPositions { get; set; }
-    public bool EnableCancelEditOnRightMouseClick { get; set; }
-    public int DontFollowMargin { get; set; } = 5;
-    public int GridSelectedColor { get; set; } = 1;
-    public int MovementGridWidthModifier { get; set; } = 100;
-    public int OutlineGridWidthModifier { get; set; } = 100;
-    public int OutlineGridWidthSpeed { get; set; } = 100;
-    [Tag(Type = TagType.QoL)] public bool EnableDistanceOnTooltip { get; set; }
-    [Tag(Type = TagType.QoL)] public bool ShowMotionFormPreview { get; set; }
-    [Tag(Type = TagType.QoL)] public bool EnableSmootherBattleAnimations { get; set; }
-    public float BattleActionAnimationSpeedMultiplier { get; set; } =
+    [MultiplayerLocal] public bool EnableCancelEditOnRightMouseClick { get; set; }
+    [MultiplayerLocal] public int DontFollowMargin { get; set; } = 5;
+    [MultiplayerLocal] public int GridSelectedColor { get; set; } = 1;
+    [MultiplayerLocal] public int MovementGridWidthModifier { get; set; } = 100;
+    [MultiplayerLocal] public int OutlineGridWidthModifier { get; set; } = 100;
+    [MultiplayerLocal] public int OutlineGridWidthSpeed { get; set; } = 100;
+    [MultiplayerLocal] [Tag(Type = TagType.QoL)] public bool EnableDistanceOnTooltip { get; set; }
+    [MultiplayerLocal] [Tag(Type = TagType.QoL)] public bool ShowMotionFormPreview { get; set; }
+    [MultiplayerLocal] [Tag(Type = TagType.QoL)] public bool EnableSmootherBattleAnimations { get; set; }
+    [MultiplayerLocal] public float BattleActionAnimationSpeedMultiplier { get; set; } =
         CombatAnimationContext.DefaultSpeedMultiplier;
-    public int HighContrastTargetingAoeSelectedColor { get; set; }
-    public int HighContrastTargetingSingleSelectedColor { get; set; }
+    [MultiplayerLocal] public int HighContrastTargetingAoeSelectedColor { get; set; }
+    [MultiplayerLocal] public int HighContrastTargetingSingleSelectedColor { get; set; }
 
     // Formation
-    public int FormationGridSelectedSet { get; set; } = -1;
+    [MultiplayerLocal] public int FormationGridSelectedSet { get; set; } = -1;
 
-    public int[][][] FormationGridSets { get; set; } =
+    [MultiplayerLocal] public int[][][] FormationGridSets { get; set; } =
     [
         [
             new int[CampaignsContext.GridSize], new int[CampaignsContext.GridSize], new int[CampaignsContext.GridSize],
@@ -305,18 +311,18 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2014)] public bool FixRingOfRegenerationHealRate { get; set; }
     public bool IgnoreHandXbowFreeHandRequirements { get; set; }
 
-    public bool LegendaryTweaksToggle { get; set; }
+    [MultiplayerLocal] public bool LegendaryTweaksToggle { get; set; }
     public SerializableDictionary<string, int> WeaponTweakedTypes { get; set; } = [];
 
     [Tag(Type = TagType.T2024)] public bool EnablePotionsBonusAction2024 { get; set; }
 
     [Tag(Type = TagType.T2024)] public bool EnablePoisonsBonusAction2024 { get; set; }
     public bool KeepInvisibilityWhenUsingItems { get; set; }
-    public bool AddCustomIconsToOfficialItems { get; set; }
-    public bool DisableAutoEquip { get; set; }
-    [Tag(Type = TagType.QoL)] public bool EnableInventoryFilteringAndSorting { get; set; }
-    [Tag(Type = TagType.QoL)] public bool EnableInventoryTaintNonProficientItemsRed { get; set; }
-    [Tag(Type = TagType.QoL)] public bool EnableInventoryTintKnownRecipesRed { get; set; }
+    [MultiplayerLocal] public bool AddCustomIconsToOfficialItems { get; set; }
+    [MultiplayerLocal] public bool DisableAutoEquip { get; set; }
+    [MultiplayerLocal] [Tag(Type = TagType.QoL)] public bool EnableInventoryFilteringAndSorting { get; set; }
+    [MultiplayerLocal] [Tag(Type = TagType.QoL)] public bool EnableInventoryTaintNonProficientItemsRed { get; set; }
+    [MultiplayerLocal] [Tag(Type = TagType.QoL)] public bool EnableInventoryTintKnownRecipesRed { get; set; }
     public bool EnableStackableAxesAndDaggers { get; set; }
     public bool EnableStackableArtItems { get; set; }
     public bool EnableVersatileAmmunitionSlots { get; set; }
@@ -324,9 +330,9 @@ public class Settings : UnityModManager.ModSettings
     public int SetBeltOfDwarvenKindBeardChances { get; set; } = 50;
 
     // Crafting
-    public bool ShowCraftingRecipeInDetailedTooltips { get; set; }
-    public bool ShowCraftedItemOnRecipeIcon { get; set; }
-    public bool SwapCraftedItemAndRecipeIcons { get; set; }
+    [MultiplayerLocal] public bool ShowCraftingRecipeInDetailedTooltips { get; set; }
+    [MultiplayerLocal] public bool ShowCraftedItemOnRecipeIcon { get; set; }
+    [MultiplayerLocal] public bool SwapCraftedItemAndRecipeIcons { get; set; }
     public bool LearnAllScrollRecipes { get; set; }
     public int RecipeCost { get; set; } = 200;
     public int TotalCraftingTimeModifier { get; set; }
@@ -341,37 +347,37 @@ public class Settings : UnityModManager.ModSettings
     // Interface - Dungeon Maker
     //
 
-    public bool EnableLoggingInvalidReferencesInUserCampaigns { get; set; }
-    public bool EnableSortingDungeonMakerAssets { get; set; }
-    public bool AllowGadgetsAndPropsToBePlacedAnywhere { get; set; }
-    public bool UnleashEnemyAsNpc { get; set; }
-    public bool AddNewWeaponsAndRecipesToEditor { get; set; }
-    public bool UnleashNpcAsEnemy { get; set; }
-    public bool EnableVariablePlaceholdersOnTexts { get; set; }
-    public bool EnableDungeonMakerModdedContent { get; set; }
-    public string SelectedLanguageCode { get; set; } = TranslatorContext.English;
+    [MultiplayerLocal] public bool EnableLoggingInvalidReferencesInUserCampaigns { get; set; }
+    [MultiplayerLocal] public bool EnableSortingDungeonMakerAssets { get; set; }
+    [MultiplayerLocal] public bool AllowGadgetsAndPropsToBePlacedAnywhere { get; set; }
+    [MultiplayerLocal] public bool UnleashEnemyAsNpc { get; set; }
+    [MultiplayerLocal] public bool AddNewWeaponsAndRecipesToEditor { get; set; }
+    [MultiplayerLocal] public bool UnleashNpcAsEnemy { get; set; }
+    [MultiplayerLocal] public bool EnableVariablePlaceholdersOnTexts { get; set; }
+    [MultiplayerLocal] public bool EnableDungeonMakerModdedContent { get; set; }
+    [MultiplayerLocal] public string SelectedLanguageCode { get; set; } = TranslatorContext.English;
 
     //
     // Translation Service Settings
     //
-    public TranslationServiceType SelectedTranslationService { get; set; } =
+    [MultiplayerLocal] public TranslationServiceType SelectedTranslationService { get; set; } =
         TranslationServiceType.Google;
 
-    public bool GoogleLegacyMode { get; set; }
+    [MultiplayerLocal] public bool GoogleLegacyMode { get; set; }
 
-    public string OpenAIEndpoint { get; set; } = OpenAITranslationService.DefaultEndpoint;
-    public string OpenAIModel { get; set; } = OpenAITranslationService.DefaultModel;
-    public float OpenAITemperature { get; set; } = OpenAITranslationService.DefaultTemperature;
-    public float OpenAITopP { get; set; } = OpenAITranslationService.DefaultTopP;
-    public int OpenAITopK { get; set; } = OpenAITranslationService.DefaultTopK;
+    [MultiplayerLocal] public string OpenAIEndpoint { get; set; } = OpenAITranslationService.DefaultEndpoint;
+    [MultiplayerLocal] public string OpenAIModel { get; set; } = OpenAITranslationService.DefaultModel;
+    [MultiplayerLocal] public float OpenAITemperature { get; set; } = OpenAITranslationService.DefaultTemperature;
+    [MultiplayerLocal] public float OpenAITopP { get; set; } = OpenAITranslationService.DefaultTopP;
+    [MultiplayerLocal] public int OpenAITopK { get; set; } = OpenAITranslationService.DefaultTopK;
 
-    public string OpenAISystemPrompt { get; set; } =
+    [MultiplayerLocal] public string OpenAISystemPrompt { get; set; } =
         OpenAITranslationService.FallbackSystemPrompt;
 
     /// <summary>
     ///     Number of concurrent translation tasks (1-10).
     /// </summary>
-    public int TranslationConcurrency { get; set; } = 1;
+    [MultiplayerLocal] public int TranslationConcurrency { get; set; } = 1;
 
     //
     // Characters - Classes
@@ -442,7 +448,7 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnablePaladinSmite2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnablePaladinSpellCastingAtLevel1 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnablePaladinAnyFightingStyle2024 { get; set; }
-    public bool ShowChannelDivinityOnPortrait { get; set; }
+    [MultiplayerLocal] public bool ShowChannelDivinityOnPortrait { get; set; }
     public bool AddHumanoidFavoredEnemyToRanger { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableRangerDeftExplorer2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableRangerExpertise2024 { get; set; }
@@ -507,11 +513,11 @@ public class Settings : UnityModManager.ModSettings
     public bool DisableSenseSuperiorDarkVisionFromAllRaces { get; set; }
     public bool AddDarknessPerceptiveToDarkRaces { get; set; }
     [Tag(Type = TagType.T2014)] public bool RaceLightSensitivityApplyOutdoorsOnly { get; set; }
-    public int RaceSliderPosition { get; set; } = ModUi.DontDisplayDescription;
+    [MultiplayerLocal] public int RaceSliderPosition { get; set; } = ModUi.DontDisplayDescription;
     public List<string> RaceEnabled { get; } = [];
-    public int SubraceSliderPosition { get; set; } = ModUi.DontDisplayDescription;
+    [MultiplayerLocal] public int SubraceSliderPosition { get; set; } = ModUi.DontDisplayDescription;
     public List<string> SubraceEnabled { get; } = [];
-    public int BackgroundSliderPosition { get; set; } = ModUi.DontDisplayDescription;
+    [MultiplayerLocal] public int BackgroundSliderPosition { get; set; } = ModUi.DontDisplayDescription;
     public List<string> BackgroundEnabled { get; } = [];
 
     //
@@ -526,25 +532,25 @@ public class Settings : UnityModManager.ModSettings
     [XmlElement("EnableGeneralFeats2024")]
     [Tag(Type = TagType.T2024)] public bool EnableTabletopFeatRules2024 { get; set; }
     [Obsolete("No longer used. Retained for backward compatibility only.")]
-    public bool HideCompletelyOriginalSolastaFeats { get; set; }
+    [MultiplayerLocal] public bool HideCompletelyOriginalSolastaFeats { get; set; }
     public bool EnableFeatsAtEveryFourLevels { get; set; }
     public bool EnableFeatsAtEveryFourLevelsMiddle { get; set; }
     [Tag(Type = TagType.T2014)] public bool AccountForAllDiceOnFollowUpStrike { get; set; }
     public bool AllowCantripsTriggeringOnWarMagic { get; set; }
-    public int FeatSliderPosition { get; set; } = ModUi.DontDisplayDescription;
+    [MultiplayerLocal] public int FeatSliderPosition { get; set; } = ModUi.DontDisplayDescription;
     public List<string> FeatEnabled { get; } = [];
     [XmlArray("GeneralFeats2024Initialized")]
     public List<string> TabletopFeats2024Initialized { get; } = [];
-    public int FeatGroupSliderPosition { get; set; } = ModUi.DontDisplayDescription;
+    [MultiplayerLocal] public int FeatGroupSliderPosition { get; set; } = ModUi.DontDisplayDescription;
     public List<string> FeatGroupEnabled { get; } = [];
     [Obsolete("No longer used. Retained for backward compatibility only.")]
-    public bool RepairedLegacyFeatGroupEnabledAfter2024ContainerBug { get; set; }
+    [MultiplayerLocal] public bool RepairedLegacyFeatGroupEnabledAfter2024ContainerBug { get; set; }
     public bool RepairedLegacyFeatGroupEnabledAfter2024ContainerBugV2 { get; set; }
-    public int FightingStyleSliderPosition { get; set; } = ModUi.DontDisplayDescription;
+    [MultiplayerLocal] public int FightingStyleSliderPosition { get; set; } = ModUi.DontDisplayDescription;
     public List<string> FightingStyleEnabled { get; } = [];
-    public int InvocationSliderPosition { get; set; } = ModUi.DontDisplayDescription;
+    [MultiplayerLocal] public int InvocationSliderPosition { get; set; } = ModUi.DontDisplayDescription;
     public List<string> InvocationEnabled { get; } = [];
-    public int MetamagicSliderPosition { get; set; } = ModUi.DontDisplayDescription;
+    [MultiplayerLocal] public int MetamagicSliderPosition { get; set; } = ModUi.DontDisplayDescription;
     public List<string> MetamagicEnabled { get; } = [];
 
     //
@@ -593,10 +599,10 @@ public class Settings : UnityModManager.ModSettings
     public bool AllowHasteCasting { get; set; }
     public bool AllowStackedMaterialComponent { get; set; }
     public bool EnableRelearnSpells { get; set; }
-    public bool AllowDisplayingOfficialSpells { get; set; }
-    public bool AllowDisplayingNonSuggestedSpells { get; set; }
+    [MultiplayerLocal] public bool AllowDisplayingOfficialSpells { get; set; }
+    [MultiplayerLocal] public bool AllowDisplayingNonSuggestedSpells { get; set; }
 
-    public SerializableDictionary<string, int> SpellListSliderPosition { get; set; } = [];
+    [MultiplayerLocal] public SerializableDictionary<string, int> SpellListSliderPosition { get; set; } = [];
     public SerializableDictionary<string, List<string>> SpellListSpellEnabled { get; set; } = [];
 
     //
@@ -618,7 +624,7 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnableEvocationPotentCantrip2024 { get; set; }
     public bool EvocationSculptSpellNoPerception { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableMartialChampion2024 { get; set; }
-    public SerializableDictionary<string, int> KlassListSliderPosition { get; set; } = [];
+    [MultiplayerLocal] public SerializableDictionary<string, int> KlassListSliderPosition { get; set; } = [];
     public SerializableDictionary<string, List<string>> KlassListSubclassEnabled { get; set; } = [];
 
     //
@@ -633,12 +639,12 @@ public class Settings : UnityModManager.ModSettings
     // Debug
     //
 
-    public bool DebugDisableVerifyDefinitionNameIsNotInUse { get; set; }
+    [MultiplayerLocal] public bool DebugDisableVerifyDefinitionNameIsNotInUse { get; set; }
 
 #if DEBUG
     public int WildSurgeEffectDie { get; set; }
-    public bool DebugLogDefinitionCreation { get; set; }
-    public bool DebugLogFieldInitialization { get; set; }
-    public bool DebugLogVariantMisuse { get; set; }
+    [MultiplayerLocal] public bool DebugLogDefinitionCreation { get; set; }
+    [MultiplayerLocal] public bool DebugLogFieldInitialization { get; set; }
+    [MultiplayerLocal] public bool DebugLogVariantMisuse { get; set; }
 #endif
 }

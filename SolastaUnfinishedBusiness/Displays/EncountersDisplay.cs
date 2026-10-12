@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Api.ModKit;
@@ -10,324 +12,273 @@ namespace SolastaUnfinishedBusiness.Displays;
 
 internal static class EncountersDisplay
 {
-    private static bool _showStats;
+    private sealed class CharacterDetails
+    {
+        internal bool Attributes;
+        internal bool Statistics;
+        internal bool Attacks;
+        internal bool Features;
+        internal bool Inventory;
+    }
 
-    private static bool _showAttributes;
+    private static readonly Dictionary<MonsterDefinition, CharacterDetails> MonsterDetails = [];
+    private static readonly ConditionalWeakTable<RulesetCharacterHero, CharacterDetails> HeroDetails = new();
+    private static readonly UI.PagedList<MonsterDefinition> Bestiary = new("EncounterMonsterSearch", 8);
+    private static readonly UI.PagedList<RulesetCharacterHero> Heroes = new("EncounterHeroSearch", 8);
+    private static readonly string[] AbilityScores =
+    [
+        AttributeDefinitions.Strength, AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution,
+        AttributeDefinitions.Intelligence, AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma
+    ];
 
-    private static readonly Dictionary<MonsterDefinition, bool> CurrentFeaturesMonster = [];
+    private static void DisplayText(string text)
+    {
+        UI.Label(text, new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
+    }
 
-    private static readonly Dictionary<MonsterDefinition, bool> CurrentAttacksMonster = [];
+    private static string FormatValue(string titleKey, object value)
+    {
+        return Gui.Format("ModUi/&EncounterValueFormat", Gui.Localize(titleKey), value?.ToString() ?? string.Empty);
+    }
 
-    private static readonly Dictionary<RulesetCharacterHero, bool> CurrentItemsHeroes = [];
+    private static void DisplayCharacterHeader(string title, string subtitle, string actionText, Action action)
+    {
+        var formattedAction = actionText.Bold().Red();
+        var actionWidth = Mathf.Max(30f, GUI.skin.button.CalcSize(new GUIContent(formattedAction)).x);
+        using (UI.HorizontalScope())
+        {
+            UI.ActionButton(formattedAction, action, UI.Width(actionWidth));
+            DisplayText(title.Orange().Bold());
+        }
+
+        DisplayText(subtitle);
+    }
+
+    private static CharacterDetails GetDetails<T>(Dictionary<T, CharacterDetails> details, T character)
+    {
+        if (!details.TryGetValue(character, out var state))
+        {
+            state = new CharacterDetails();
+            details.Add(character, state);
+        }
+
+        return state;
+    }
+
+    private static CharacterDetails GetDetails(
+        ConditionalWeakTable<RulesetCharacterHero, CharacterDetails> details, RulesetCharacterHero hero)
+    {
+        return details.GetValue(hero, _ => new CharacterDetails());
+    }
+
+    private static void DisplayAttributes(Func<int, int> getScore)
+    {
+        DisplayText(string.Join(" • ", AbilityScores.Select((attribute, index) =>
+            FormatValue($"Attribute/&{attribute}Title", getScore(index)))));
+    }
+
+    private static void DisplayDetailButtons(CharacterDetails state, params NamedAction[] additional)
+    {
+        var attributes = Gui.Localize("Modal/&ContentPropertyAbilityScoresTitle");
+        var statistics = Gui.Localize("ModUi/&EncounterStatistics");
+        NamedAction[] common =
+        [
+            new(attributes, () => UI.DisclosureToggle(attributes, ref state.Attributes, 0)),
+            new(statistics, () => UI.DisclosureToggle(statistics, ref state.Statistics, 0))
+        ];
+
+        var actions = common.Concat(additional).ToArray();
+        UI.HStack(null, actions.Length, actions);
+    }
 
     private static void DisplayHeroStats([NotNull] RulesetCharacterHero hero, string actionText, Action action)
     {
-        bool flip;
-        var inventory = hero.CharacterInventory.EnumerateAllSlots(false, true);
+        DisplayCharacterHeader($"{hero.Name} {hero.SurName}",
+            $"{hero.RaceDefinition.FormatTitle()} {hero.ClassesHistory[0].FormatTitle()}", actionText, action);
+        var state = GetDetails(HeroDetails, hero);
+        var inventory = Gui.Localize("Screen/&InventoryTitle");
+        DisplayDetailButtons(state,
+            new NamedAction(inventory, () => UI.DisclosureToggle(inventory, ref state.Inventory, 0)));
 
-        using (UI.HorizontalScope())
+        if (state.Attributes)
         {
-            UI.ActionButton(actionText.Bold().Red(), action, UI.Width(30f));
-            UI.Label($"{hero.Name} {hero.SurName}".Orange().Bold(), UI.Width(240f));
-            UI.Label($"{hero.RaceDefinition.FormatTitle()} {hero.ClassesHistory[0].FormatTitle()}".White(),
-                UI.Width(120f));
-
-            var attributesLabel = _showAttributes ? "" : "Attributes";
-
-            UI.DisclosureToggle(attributesLabel, ref _showAttributes, attributesLabel.Length * 12);
-
-            if (_showAttributes)
-            {
-                UI.Label($"Str: {hero.TryGetAttributeValue(AttributeDefinitions.Strength):0#}".White(),
-                    UI.Width(48f));
-                UI.Label($"Dex: {hero.TryGetAttributeValue(AttributeDefinitions.Dexterity):0#}".White(),
-                    UI.Width(48f));
-                UI.Label($"Con: {hero.TryGetAttributeValue(AttributeDefinitions.Constitution):0#}".Khaki(),
-                    UI.Width(48f));
-                UI.Label($"Int: {hero.TryGetAttributeValue(AttributeDefinitions.Intelligence):0#}".Khaki(),
-                    UI.Width(48f));
-                UI.Label($"Wis: {hero.TryGetAttributeValue(AttributeDefinitions.Wisdom):0#}".White(),
-                    UI.Width(48f));
-                UI.Label($"Cha: {hero.TryGetAttributeValue(AttributeDefinitions.Charisma):0#}".Khaki(),
-                    UI.Width(48f));
-            }
-
-            var statsLabel = _showStats ? "" : "Stats";
-
-            UI.DisclosureToggle(statsLabel, ref _showStats, statsLabel.Length * 12);
-
-            if (_showStats)
-            {
-                UI.Label($"AC: {hero.TryGetAttributeValue(AttributeDefinitions.ArmorClass):0#}".White(),
-                    UI.Width(48f));
-                UI.Label($"HD: {hero.MaxHitDiceCount():0#}{hero.MainHitDie}".Khaki(), UI.Width(72f));
-                UI.Label($"XP: {hero.TryGetAttributeValue(AttributeDefinitions.Experience)}".White(),
-                    UI.Width(72f));
-                UI.Label(
-                    $"LV: {hero.TryGetAttributeValue(AttributeDefinitions.CharacterLevel):0#}".White(),
-                    UI.Width(48f));
-            }
-
-            CurrentItemsHeroes.TryGetValue(hero, out flip);
-
-            if (UI.DisclosureToggle("Inventory", ref flip, 132))
-            {
-                CurrentItemsHeroes.AddOrReplace(hero, flip);
-            }
+            DisplayAttributes(index => hero.TryGetAttributeValue(AbilityScores[index]));
         }
 
-        CurrentItemsHeroes.TryGetValue(hero, out flip);
+        if (state.Statistics)
+        {
+            DisplayText(string.Join(" • ",
+                FormatValue("Attribute/&ArmorClassTitle", hero.TryGetAttributeValue(AttributeDefinitions.ArmorClass)),
+                FormatValue("Attribute/&HitDiceTitle", $"{hero.MaxHitDiceCount():0#}{hero.MainHitDie}"),
+                FormatValue("Attribute/&ExperienceTitle", hero.TryGetAttributeValue(AttributeDefinitions.Experience)),
+                FormatValue("Attribute/&CharacterLevelTitle", hero.TryGetAttributeValue(AttributeDefinitions.CharacterLevel))));
+        }
 
-        if (!flip)
+        if (!state.Inventory)
         {
             return;
         }
 
-        using (UI.VerticalScope())
+        foreach (var slot in hero.CharacterInventory.EnumerateAllSlots(false, true))
         {
-            using (UI.HorizontalScope())
+            if (slot.EquipedItem != null)
             {
-                UI.Space(30f);
-                UI.Label("Inventory".Bold().Cyan());
-            }
-
-            foreach (var slot in inventory)
-            {
-                if (slot.EquipedItem == null)
-                {
-                    continue;
-                }
-
-                using (UI.HorizontalScope())
-                {
-                    UI.Space(60f);
-                    UI.Label(slot.EquipedItem.ItemDefinition.FormatTitle(), UI.Width(192f));
-                }
+                DisplayText(slot.EquipedItem.ItemDefinition.FormatTitle());
             }
         }
     }
 
-    private static void DisplayMonsterStats(
-        [NotNull] MonsterDefinition monsterDefinition,
-        string actionText,
-        Action action)
+    private static void DisplayMonsterStats([NotNull] MonsterDefinition monster, string actionText, Action action)
     {
-        bool flip;
+        DisplayCharacterHeader(monster.FormatTitle(), Gui.Localize($"Alignment/&{monster.Alignment}Title"),
+            actionText, action);
+        var state = GetDetails(MonsterDetails, monster);
+        var attacks = Gui.Format("ModUi/&EncounterCountFormat",
+            Gui.Localize("Screen/&JournalBestiaryAttacksTitle"), monster.AttackIterations.Count.ToString());
+        var features = Gui.Format("ModUi/&EncounterCountFormat",
+            Gui.Localize("Screen/&SubclassFeaturesTitle"), monster.Features.Count.ToString());
+        DisplayDetailButtons(state,
+            new NamedAction(attacks, () => UI.DisclosureToggle(attacks, ref state.Attacks, 0)),
+            new NamedAction(features, () => UI.DisclosureToggle(features, ref state.Features, 0)));
 
-        using (UI.HorizontalScope())
+        if (state.Attributes)
         {
-            UI.ActionButton(actionText.Bold().Red(), action, UI.Width(30f));
-            UI.Label($"{monsterDefinition.FormatTitle()}".Orange().Bold(), UI.Width(240f));
-            UI.Label($"{monsterDefinition.Alignment.SplitCamelCase()}".White(), UI.Width(120f));
+            DisplayAttributes(index => monster.AbilityScores[index]);
+        }
 
-            var attributesLabel = _showAttributes ? "" : "Attributes";
+        if (state.Statistics)
+        {
+            DisplayText(string.Join(" • ",
+                FormatValue("Attribute/&ArmorClassTitle", monster.ArmorClass),
+                FormatValue("Attribute/&HitDiceTitle", $"{monster.HitDice:0#}{monster.HitDiceType}"),
+                FormatValue("Modal/&ContentPropertyChallengeRatingTitle", monster.ChallengeRating)));
+        }
 
-            UI.DisclosureToggle(attributesLabel, ref _showAttributes, attributesLabel.Length * 12);
-
-            if (_showAttributes)
+        if (state.Features)
+        {
+            foreach (var feature in monster.Features)
             {
-                UI.Label($"Str: {monsterDefinition.AbilityScores[0]:0#}".White(), UI.Width(48f));
-                UI.Label($"Dex: {monsterDefinition.AbilityScores[1]:0#}".Khaki(), UI.Width(48f));
-                UI.Label($"Con: {monsterDefinition.AbilityScores[2]:0#}".White(), UI.Width(48f));
-                UI.Label($"Int: {monsterDefinition.AbilityScores[3]:0#}".Khaki(), UI.Width(48f));
-                UI.Label($"Wis: {monsterDefinition.AbilityScores[4]:0#}".White(), UI.Width(48f));
-                UI.Label($"Cha: {monsterDefinition.AbilityScores[5]:0#}".Khaki(), UI.Width(48f));
-            }
-
-            var statsLabel = _showStats ? "" : "Stats";
-
-            UI.DisclosureToggle(statsLabel, ref _showStats, statsLabel.Length * 12);
-
-            if (_showStats)
-            {
-                UI.Label($"AC: {monsterDefinition.ArmorClass}".White(), UI.Width(48f));
-                UI.Label($"HD: {monsterDefinition.HitDice:0#}{monsterDefinition.HitDiceType}".Khaki(),
-                    UI.Width(72f));
-                UI.Label($"CR: {monsterDefinition.ChallengeRating}".Khaki(), UI.Width(72f));
-            }
-
-            CurrentAttacksMonster.TryGetValue(monsterDefinition, out flip);
-
-            if (UI.DisclosureToggle($"Attacks ({monsterDefinition.AttackIterations.Count:0#})", ref flip, 132))
-            {
-                CurrentAttacksMonster.AddOrReplace(monsterDefinition, flip);
-            }
-
-            CurrentFeaturesMonster.TryGetValue(monsterDefinition, out flip);
-
-            if (UI.DisclosureToggle($"Features ({monsterDefinition.Features.Count:0#})", ref flip, 144))
-            {
-                CurrentFeaturesMonster.AddOrReplace(monsterDefinition, flip);
+                DisplayText(FormatDefinitionTitle(feature));
             }
         }
 
-        CurrentFeaturesMonster.TryGetValue(monsterDefinition, out flip);
-
-        if (flip)
-        {
-            using (UI.VerticalScope())
-            {
-                using (UI.HorizontalScope())
-                {
-                    UI.Space(30f);
-                    UI.Label("Features".Bold().Cyan());
-                }
-
-                foreach (var feature in monsterDefinition.Features)
-                {
-                    using (UI.HorizontalScope())
-                    {
-                        var title = feature.FormatTitle();
-
-                        if (title == "None")
-                        {
-                            title = feature.Name.SplitCamelCase();
-                        }
-
-                        UI.Space(60f);
-                        UI.Label(title, UI.Width(192f));
-                    }
-                }
-            }
-        }
-
-        CurrentAttacksMonster.TryGetValue(monsterDefinition, out flip);
-
-        if (!flip)
+        if (!state.Attacks)
         {
             return;
         }
 
-        using (UI.VerticalScope())
+        foreach (var iteration in monster.AttackIterations)
         {
-            using (UI.HorizontalScope())
+            var attack = iteration.MonsterAttackDefinition;
+            var maxUses = attack.MaxUses < 0 ? Gui.Localize("ModUi/&EncounterUnlimited") : attack.MaxUses.ToString();
+
+            DisplayText(FormatDefinitionTitle(attack).Cyan());
+            DisplayText(string.Join(" • ",
+                Gui.Localize($"Action/&ActionType{attack.ActionType}Title"),
+                FormatValue("Equipment/&ReachTitle", attack.ReachRange),
+                FormatValue("Screen/&AttackToHitTitle", attack.ToHitBonus),
+                Gui.Format("ModUi/&EncounterMaximumUsesFormat", maxUses)));
+
+            if (attack.Magical)
             {
-                UI.Space(30f);
-                UI.Label("Attacks".Bold().Cyan());
-            }
-
-            foreach (var attackIteration in monsterDefinition.AttackIterations)
-            {
-                using (UI.HorizontalScope())
-                {
-                    var title = attackIteration.MonsterAttackDefinition.FormatTitle();
-
-                    if (title == "None")
-                    {
-                        title = attackIteration.MonsterAttackDefinition.name.SplitCamelCase();
-                    }
-
-                    UI.Space(60f);
-                    UI.Label(title,
-                        UI.Width(192f));
-                    UI.Label($"action type: {attackIteration.MonsterAttackDefinition.ActionType}".Green(),
-                        UI.Width(120f));
-                    UI.Label($"reach: {attackIteration.MonsterAttackDefinition.ReachRange}".Green(),
-                        UI.Width(108f));
-                    UI.Label($"hit bonus: {attackIteration.MonsterAttackDefinition.ToHitBonus}".Green(),
-                        UI.Width(108f));
-                    UI.Label(
-                        attackIteration.MonsterAttackDefinition.MaxUses < 0
-                            ? "max uses: inf".Green()
-                            : $"max uses: {attackIteration.MonsterAttackDefinition.MaxUses}".Green(),
-                        UI.Width(108f));
-
-                    if (attackIteration.MonsterAttackDefinition.Magical)
-                    {
-                        UI.Label(TagsDefinitions.Magical.Green(), UI.Width(108f));
-                    }
-                }
+                DisplayText(Gui.Localize("Tooltip/&TagMagicalTitle"));
             }
         }
+    }
+
+    private static string FormatDefinitionTitle(BaseDefinition definition)
+    {
+        var title = definition.FormatTitle();
+
+        return title == "None" || title == Gui.Localize("Tooltip/&ValueNoneTitle")
+            ? definition.Name.SplitCamelCase()
+            : title;
     }
 
     internal static void DisplayEncountersGeneral()
     {
         UI.Label();
-        UI.Label("Controllers:".Khaki());
+        DisplayText(Gui.Localize("ModUi/&PlayerControllers"));
         UI.Label();
 
-        if (ServiceRepository.GetService<INetworkingService>().IsMasterClient)
+        var guiEnabled = GUI.enabled;
+
+        try
         {
+            GUI.enabled = guiEnabled && PlayerControllerContext.CanControlCharacters;
             var toggle = Main.Settings.EnableEnemiesControlledByPlayer;
 
-            if (UI.Toggle(Gui.Localize("ModUi/&EnableEnemiesControlledByPlayer"), ref toggle))
+            if (UI.Toggle(Gui.Localize("ModUi/&EnableEnemiesControlledByPlayer"), ref toggle, UI.AutoWidth()))
             {
                 Main.Settings.EnableEnemiesControlledByPlayer = toggle;
             }
+
+            DisplayHeroesControllerTable();
+        }
+        finally
+        {
+            GUI.enabled = guiEnabled;
+        }
+
+        if (!PlayerControllerContext.CanControlCharacters)
+        {
+            DisplayText(Gui.Localize("ModUi/&PlayerControllersSinglePlayerOnly"));
         }
 
         DisplayAdvancedCombatAiToggles();
-        DisplayHeroesControllerTable();
         DisplayEncountersTable();
     }
 
     private static void DisplayAdvancedCombatAiToggles()
     {
-        var manualNpcControl = Main.Settings.EnableEnemiesControlledByPlayer;
-        var toggle = !manualNpcControl && Main.Settings.EnableAdvancedCombatAI;
-        var guiEnabled = GUI.enabled;
+        var toggle = Main.Settings.EnableAdvancedCombatAI;
 
-        GUI.enabled = guiEnabled && !manualNpcControl;
-
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableAdvancedCombatAI"), ref toggle))
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableAdvancedCombatAI"), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.EnableAdvancedCombatAI = toggle;
         }
 
-        GUI.enabled = guiEnabled;
+        if (Main.Settings.EnableAdvancedCombatAI && PlayerControllerContext.AreEnemiesControlledByPlayer)
+        {
+            DisplayText(Gui.Localize("ModUi/&AdvancedCombatAiManualNpcHelp"));
+        }
     }
 
     private static void DisplayHeroesControllerTable()
     {
-        if (Global.IsMultiplayer)
-        {
-            return;
-        }
-
         var toggle = Main.Settings.EnableHeroesControlledByComputer;
 
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableHeroesControlledByComputer"), ref toggle))
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableHeroesControlledByComputer"), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.EnableHeroesControlledByComputer = toggle;
-
-            if (toggle)
-            {
-                PlayerControllerContext.RefreshGuiState();
-            }
         }
 
-        if (!Main.Settings.EnableHeroesControlledByComputer)
+        if (!Main.Settings.EnableHeroesControlledByComputer || !PlayerControllerContext.CanControlCharacters)
         {
             return;
         }
 
-        UI.Label();
-
-        if (!Gui.Game)
+        if (!Gui.GameCampaign)
         {
-            UI.Label("Load a game to modify heroes AI...".Bold().Red(), UI.AutoWidth());
+            DisplayText(Gui.Localize("ModUi/&HeroesControllerLoadGameHelp"));
+            return;
         }
-        else
+
+        PlayerControllerContext.RefreshGuiState();
+
+        var controllers = PlayerControllerContext.Controllers;
+        var characters = PlayerControllerContext.PlayerCharacters;
+        var choices = PlayerControllerContext.PlayerCharactersChoices;
+        var buttonStyle = new GUIStyle(GUI.skin.button) { wordWrap = true };
+
+        for (var index = 0; index < characters.Count; index++)
         {
-            var controllers = PlayerControllerContext.Controllers;
-            var playerCharacters = PlayerControllerContext.PlayerCharacters;
-            var playerCharactersChoices = PlayerControllerContext.PlayerCharactersChoices;
+            UI.Label();
+            DisplayText(characters[index].Name.Orange().Bold());
 
-            for (var i = 0; i < playerCharacters.Count; i++)
+            if (UI.SelectionGrid(ref choices[index], controllers, 4, buttonStyle, 2, UI.ExpandWidth(true)))
             {
-                // Prevent captured closure
-                var index = i;
-
-                UI.HStack(playerCharacters[index].Name, 1, () =>
-                {
-                    if (UI.SelectionGrid(ref playerCharactersChoices[index], controllers, controllers.Length, 4,
-                            UI.Width(300f)))
-                    {
-                        PlayerControllerContext.PlayerCharactersChoices = playerCharactersChoices;
-                    }
-                });
-                UI.Label();
+                PlayerControllerContext.PlayerCharactersChoices = choices;
             }
         }
     }
@@ -335,40 +286,30 @@ internal static class EncountersDisplay
     private static void DisplayEncountersTable()
     {
         UI.Label();
-        UI.Label("Encounters:".Khaki());
+        DisplayText(Gui.Localize("ModUi/&Encounters").Khaki());
         UI.Label();
-
-        UI.Label(". encounters only work in single player custom campaigns or locations");
-        UI.Label(". use the Bestiary tab to add monsters to the challenge", UI.AutoWidth());
-        UI.Label(". use the Characters Pool tab to add heroes as enemies to the challenge", UI.AutoWidth());
-        UI.Label(". click " + "minus".Italic() + " to remove participants from the group");
-        UI.Label(
-            ". pan the camera to the desired encounter location and press <color=#1E81B0>CTRL-SHIFT-(S)</color> to spawn the enemies",
-            UI.AutoWidth());
+        DisplayText(Gui.Format("ModUi/&EncountersHelp", Gui.Localize("Setting/&SpawnEncounterTitle")));
         UI.Label();
 
         if (EncountersContext.EncounterCharacters.Count == 0)
         {
-            UI.Label("Encounter table is empty...".Red().Bold());
+            DisplayText(Gui.Localize("ModUi/&EncounterListEmpty"));
         }
         else
         {
             for (var index = 0; index < EncountersContext.EncounterCharacters.Count; index++)
             {
-                // Prevent captured closure
-                var index2 = index;
+                // Prevent captured closure.
+                var currentIndex = index;
 
-                switch (EncountersContext.EncounterCharacters[index2])
+                switch (EncountersContext.EncounterCharacters[index])
                 {
-                    case RulesetCharacterMonster
-                        rulesetCharacterMonster:
-                        DisplayMonsterStats(rulesetCharacterMonster.MonsterDefinition, "-",
-                            () => EncountersContext.RemoveFromEncounter(index2));
+                    case RulesetCharacterMonster monster:
+                        DisplayMonsterStats(monster.MonsterDefinition, "-",
+                            () => EncountersContext.RemoveFromEncounter(currentIndex));
                         break;
-                    case RulesetCharacterHero
-                        rulesetCharacterHero:
-                        DisplayHeroStats(rulesetCharacterHero, "-",
-                            () => EncountersContext.RemoveFromEncounter(index2));
+                    case RulesetCharacterHero hero:
+                        DisplayHeroStats(hero, "-", () => EncountersContext.RemoveFromEncounter(currentIndex));
                         break;
                 }
             }
@@ -377,33 +318,41 @@ internal static class EncountersDisplay
         UI.Label();
     }
 
-    internal static void DisplayBestiary()
+    private static void DisplayAddToEncounterHelp()
     {
         UI.Label();
-        UI.Label(
-            $". Click + to add up to {EncountersContext.MaxEncounterCharacters} characters to the encounter list");
+        DisplayText(Gui.Format("ModUi/&EncounterAddCharactersHelp", EncountersContext.MaxEncounterCharacters.ToString()));
         UI.Label();
+    }
 
-        foreach (var monsterDefinition in EncountersContext.GetMonsters())
+    internal static void DisplayBestiary()
+    {
+        DisplayAddToEncounterHelp();
+        Bestiary.Refresh(EncountersContext.GetMonsters(), monster => monster.FormatTitle());
+        Bestiary.DrawControls(new GUIStyle(GUI.skin.label) { wordWrap = true });
+        for (var index = 0; index < Bestiary.VisibleCount; index++)
         {
-            DisplayMonsterStats(monsterDefinition, "+",
-                () => EncountersContext.AddToEncounter(monsterDefinition));
+            var monster = Bestiary.GetVisibleItem(index);
+            DisplayMonsterStats(monster, "+", () => EncountersContext.AddToEncounter(monster));
         }
     }
 
     internal static void DisplayNpcs()
     {
-        using (UI.VerticalScope(UI.AutoWidth(), UI.AutoHeight()))
+        DisplayAddToEncounterHelp();
+        var heroes = EncountersContext.GetHeroes();
+        UI.ActionButton(Gui.Localize("ModUi/&SettingsRefresh"), EncountersContext.RefreshHeroes, UI.AutoWidth());
+        if (EncountersContext.UnavailableHeroCount > 0)
         {
-            UI.Label();
-            UI.Label(
-                $". Click + to add up to {EncountersContext.MaxEncounterCharacters} characters to the encounter list");
-            UI.Label();
-
-            foreach (var hero in EncountersContext.GetHeroes())
-            {
-                DisplayHeroStats(hero, "+", () => EncountersContext.AddToEncounter(hero));
-            }
+            DisplayText(Gui.Format("ModUi/&EncounterUnavailableHeroes",
+                EncountersContext.UnavailableHeroCount.ToString()));
+        }
+        Heroes.Refresh(heroes, hero => $"{hero.Name} {hero.SurName}", EncountersContext.HeroCatalogRevision);
+        Heroes.DrawControls(new GUIStyle(GUI.skin.label) { wordWrap = true });
+        for (var index = 0; index < Heroes.VisibleCount; index++)
+        {
+            var hero = Heroes.GetVisibleItem(index);
+            DisplayHeroStats(hero, "+", () => EncountersContext.AddToEncounter(hero));
         }
     }
 }

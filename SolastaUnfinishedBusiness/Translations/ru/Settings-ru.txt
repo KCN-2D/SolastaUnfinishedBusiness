@@ -57,6 +57,8 @@ ModUi/&Blueprints=Чертежи
 ModUi/&Campaigns=Кампании
 ModUi/&Cancel=Отмена
 ModUi/&Category=Категория
+ModUi/&ItemTag=Метка предмета
+ModUi/&WeaponTag=Метка оружия
 ModUi/&ChangeDragonbornElementalBreathUsages=Изменить количество использований <color=#D89555>Драконорождёнными</color> стихийного дыхания на модификатор ТЕЛ до короткого отдыха
 ModUi/&ChangeSleetStormToCube=Использовать для <color=#D89555>Метели</color> куб вместо цилиндра
 ModUi/&Changelog=<b><color=#D89555>Список изменений</color></b>
@@ -110,10 +112,16 @@ ModUi/&DownloadVoiceOngoing=Скачивание на {0}
 ModUi/&DownloadSpeechLanguageVoices=Скачать {0}
 ModUi/&DownloadSpeechLanguageVoicesOngoing=Загрузка {0}: {1}
 ModUi/&SpeechLanguageJapanese=Японские голоса
-ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>После загрузки голоса для соответствующего языка текст на этом языке будет озвучиваться им. Остальной текст продолжит использовать существующие английские голоса Piper.</color></i>
+ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>Выбираются голоса, поддерживающие текущий язык. Также доступны установленные голоса Windows и локально добавленные модели Piper.</color></i>
 ModUi/&DungeonMaker=Создатель Подземелий
 ModUi/&DungeonMakerBasicHelp=• Эти настройки не потребуют от игрока установленного мода
 ModUi/&Effects=Эффекты
+ModUi/&EffectsCaster=Заклинатель:
+ModUi/&EffectsCondition=Состояние:
+ModUi/&EffectsEffect=Эффект:
+ModUi/&EffectsImpact=Попадание:
+ModUi/&EffectsRequiresParty=<color=#C04040E0>Для просмотра эффектов загрузите игру с отрядом из двух или более героев.</color>
+ModUi/&EffectsZone=Область:
 ModUi/&EnableActionSwitching=Включить панель переключения действий <i><color=#F0DAA0>[полезно для полного контроля над последовательностью действий]</color></i>
 ModUi/&EnableAdditionalBackstoryDisplay=Включить отображение дополнительной предыстории при просмотре происхождения
 ModUi/&EnableAdditionalIconsOnLevelMap=Включить дополнительные значки для лагерей, выходов и телепортов на карте уровня
@@ -287,7 +295,7 @@ ModUi/&EnableSorcererSorcerousRestoration2024=Включить <color=#D89555>Ч
 ModUi/&EnableSortingDungeonMakerAssets=Включить сортировку ассетов в редакторе Создателя Подземелий
 ModUi/&EnableSpeech=Включить речь в пользовательских кампаниях <i><color=#F0DAA0>[только повествование и герои]</color></i>
 ModUi/&EnableSpeechActorHelp=• Выберите актера
-ModUi/&EnableSpeechOnNpcs=<i>+ Включить речь для NPC <color=#F0DAA0>[из карты кампании, либо автоматически назначенные]</color></i>
+ModUi/&EnableSpeechOnNpcs=Включить озвучивание NPC
 ModUi/&EnableSpeechVoiceHelp=• Выберите голос и скорость повествования
 ModUi/&EnableStackableArtItems=Включить возможность стакать <color=#D89555>Художественные предметы</color> <i><color=#F0DAA0>[нельзя разделить, пока эта настройка отключена]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Включить возможность стакать <color=#D89555>Кинжалы</color> и <color=#D89555>Топорики</color> <i><color=#F0DAA0>[нельзя разделить, пока эта настройка отключена]</color></i>
@@ -314,9 +322,26 @@ ModUi/&EnableWizardToLearnSchoolAtLevel3=Включить изучение <colo
 ModUi/&EnablesAsiAndFeat=Включить возможность и повышать характеристики, и выбирать <color=#D89555>черту</color> одновременно <i><color=#F0DAA0>[вместо того, чтобы делать выбор между этими вариантами]</color></i>
 ModUi/&EncounterPercentageChance=<color=white>Вероятность случайных событий в процентах</color>
 ModUi/&Encounters=События
+ModUi/&EncounterAddCharactersHelp=• Нажмите +, чтобы добавить до {0} персонажей в список участников столкновения.
+ModUi/&EncounterCountFormat={0} ({1})
+ModUi/&EncounterListEmpty=Список участников столкновения пуст.
+ModUi/&EncounterUnavailableHeroes=Не удалось загрузить файлы персонажей: {0}. Доступные герои показаны. Проверьте затронутые файлы в журнале, затем обновите список, чтобы повторить попытку.
+ModUi/&EncounterMaximumUsesFormat=Максимум применений: {0}
+ModUi/&EncountersHelp=• Создание столкновений доступно в пользовательских кампаниях или локациях одиночной игры\n• Добавляйте монстров через вкладку Бестиарий\n• Добавляйте героев в качестве врагов через вкладку Набор персонажей\n• Нажмите <i>-</i>, чтобы убрать персонажа из столкновения\n• Переместите камеру в нужное место и используйте <color=#1E81B0>{0}</color>, чтобы создать врагов. Назначьте клавишу в настройках управления игры
+ModUi/&EncounterStatistics=Характеристики
+ModUi/&EncounterUnlimited=Без ограничений
+ModUi/&EncounterValueFormat={0}: {1}
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ Противники всегда совершают бросок инициативы вместо установки фиксированного значения <color=#F0DAA0>[например: Ассасин Сорр-Аккат]</color></i>
 ModUi/&EnableEnemiesControlledByPlayer=Включить врагов под управлением игроков
 ModUi/&EnableHeroesControlledByComputer=Включить героев под управлением компьютера
+ModUi/&AdvancedCombatAiManualNpcHelp=<i><color=#F0DAA0>Улучшенный боевой ИИ продолжает действовать для героев под управлением ИИ. К врагам под ручным управлением автоматический выбор действий не применяется.</color></i>
+ModUi/&ControllerHuman=Игрок
+ModUi/&ControllerMelee=Ближний бой
+ModUi/&ControllerRanged=Дальний бой
+ModUi/&ControllerSupportCaster=Заклинатель поддержки
+ModUi/&HeroesControllerLoadGameHelp=<color=#C04040E0>Загрузите одиночную игру, чтобы выбрать способ управления каждым героем.</color>
+ModUi/&PlayerControllers=<color=#F0DAA0>Управление:</color>
+ModUi/&PlayerControllersSinglePlayerOnly=<color=#C04040E0>ИИ героев и ручное управление врагами доступны в одиночной игре. Сохранённые настройки сохраняются при подготовке и во время многопользовательской игры.</color>
 ModUi/&EnableAdvancedCombatAI=Включить продвинутый боевой ИИ <i><color=#F0DAA0>[необязательные тактические улучшения для врагов и героев под управлением ИИ]</color></i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=Вражеские заклинатели бросают записанные книги заклинаний <i><color=#F0DAA0>[содержит их известные заклинания из списка волшебников]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=Сделать <b>Evoker</b> <color=#D89555>Sculpt Spells</color> не требующим восприятия союзников
@@ -333,7 +358,7 @@ ModUi/&FixEldritchBlastRange=Использовать дальность в 24 �
 ModUi/&Use24CellsRangeWithDimensionDoor=Использовать дальность в 24 клетки для <color=#D89555>Переносящей двери</color> <i><color=#F0DAA0>[вместо 12]</color></i>
 ModUi/&FixRingOfRegenerationHealRate=Установить скорость лечения от <color=#D89555>Кольца регенерации</color> на 1 ОЗ в 3 минуты
 ModUi/&FlightSuspendWingedBoots=<i>+ Использовать официальные правила Крылатых сапог <color=#F0DAA0>[оставшееся время использования не учитывается при приостановке полёта]</color></i>
-ModUi/&ForceModSpeechOnNpcs=<i>+ Принудительное автоматическое назначение голосов всем NPC вместо карт кампаний</i>
+ModUi/&ForceModSpeechOnNpcs=Игнорировать голоса NPC, назначенные кампанией, и назначать автоматически при отсутствии индивидуального выбора
 ModUi/&Formation=<color=#F0DAA0>Боевой порядок:</color>
 ModUi/&FormationError=<color=#C04040E0>Вы не можете изменить свой боевой порядок во время многопользовательской игры...</color>
 ModUi/&FormationHelp1=• Используйте клавиши цифр, чтобы изменить заданные условия <i><color=#F0DAA0>[удобнее будет включить и использовать нампад]</color></i>
@@ -356,6 +381,7 @@ ModUi/&IdentifyAfterRest=Добавить возможность <color=#D89555>
 ModUi/&IgnoreHandXbowFreeHandRequirements=Не требовать наличие свободной руки для использования <color=#D89555>ручных арбалетов</color>
 ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=Заклинания иллюзии автоматически проваливаются против целей с <color=#D89555>Истинным зрением</color> в области видимости
 ModUi/&IncreaseGameTimeBy=Увеличить время игры на
+ModUi/&GameTimeHours={0} ч
 ModUi/&IncreaseMaxAttunedItems=Увеличить максимальное возможное для <color=#D89555>Настройки</color> количество предметов до 4 на 10-м уровне и до 5 на 18-м уровне
 ModUi/&Invocations=<color=#F0DAA0>Воззвания</color>
 ModUi/&Items=<color=#F0DAA0>Предметы:</color>
@@ -375,6 +401,22 @@ ModUi/&ModifyGravitySlam=Изменить заклинание <color=#D89555>Г
 ModUi/&MovementGridWidthModifier=<color=white>Увеличить ширину сетки передвижения на множитель</color> <color=#C04040E0>[%]</color>
 ModUi/&MulticlassKeyHelp=Нажатие с <color=#1E81B0>SHIFT</color> по заклинанию переключает тип затрачиваемой ячейки по умолчанию\n<i><color=#F0DAA0>[<color=#D89555>Колдун</color> тратит белые ячейки заклинаний, а остальные - зелёные ячейки колдуна]</color></i>
 ModUi/&Multiplayer=<color=#F0DAA0>Мультиплеер:</color>
+ModUi/&MultiplayerSettingsError=<color=#C04040E0>Не удалось сравнить настройки UB. Подробности смотрите в журнале игры.</color>
+ModUi/&MultiplayerSettingsHelp=• Лобби передаёт игровые настройки и проверяет сборку UB\n• Настройки интерфейса, языка, камеры, речи и перевода остаются локальными\n• Эта проверка не препятствует запуску игры
+ModUi/&MultiplayerSettingsHost=Ваши игровые настройки передаются участникам этого лобби.
+ModUi/&MultiplayerSettingsInvalid=<color=#C04040E0>Настройки, переданные хостом, недопустимы или превышают ограничение размера.</color>
+ModUi/&MultiplayerSettingsMatch=Сборка UB и игровые настройки совпадают с настройками хоста.
+ModUi/&MultiplayerSettingsMismatch=<color=#C04040E0>Игровые настройки отличаются от настроек хоста. Сохраните профиль хоста, выйдите из лобби, загрузите его в меню настроек, перезапустите игру и войдите снова.</color>
+ModUi/&MultiplayerSettingsOffline=Войдите в сетевое лобби, чтобы сравнить настройки UB.
+ModUi/&MultiplayerSettingsPeerMatch={0}: сборка UB и игровые настройки совпадают.
+ModUi/&MultiplayerSettingsPeerMismatch=<color=#C04040E0>{0}: другие игровые настройки.</color>
+ModUi/&MultiplayerSettingsPeerVersionMismatch=<color=#C04040E0>{0}: другая сборка UB.</color>
+ModUi/&MultiplayerSettingsPeerWaiting=<color=#C04040E0>{0}: совместимый отчёт о настройках UB не получен.</color>
+ModUi/&MultiplayerSettingsSaveHost=Сохранить профиль настроек хоста
+ModUi/&MultiplayerSettingsSaved=Настройки хоста сохранены как MultiplayerHost. Выйдите из лобби, загрузите этот профиль ниже, затем перезапустите игру.
+ModUi/&MultiplayerSettingsUnsupported=<color=#C04040E0>Хост не передаёт совместимые настройки UB.</color>
+ModUi/&MultiplayerSettingsVersionMismatch=<color=#C04040E0>Сборка UB отличается от сборки хоста. Установите ту же сборку перед входом.</color>
+ModUi/&MultiplayerSettingsWaiting=Ожидание настроек UB от хоста.
 ModUi/&MultiplyTheExperienceGainedBy=<color=white>Множитель получаемого опыта</color> <color=#C04040E0>[в %]</color>
 ModUi/&NeverMoveCameraOnEnemyTurn=<i>+ Неподвижная камера во время хода противника</i>
 ModUi/&NewWeaponsAndRecipesBaseInsteadOfPrimed=<i>+ Использовать базовое оружие и броню в качестве ингредиентов вместо Прайм-версий</i> <b><i><color=#C04040E0>[Требуется перезапуск]</color></i></b>
@@ -441,8 +483,12 @@ ModUi/&SenseNormalVisionRangeMultiplier=Изменить множитель да
 ModUi/&Services=Сервисы
 ModUi/&SetBeltOfDwarvenKindBeardChances=<color=white>Шанс появления бороды при ношении</color> <color=#D89555>Пояса Дварфов</color>
 ModUi/&SettingsExport=Экспорт
-ModUi/&SettingsHelp=• В качестве хоста вы можете экспортировать вашу текущую конфигурацию, открыть папку экспорта и просто поделиться со своими игроками\n• В качестве гостя вы можете открыть папку экспорта, положить туда файл конфигурации от хоста и загрузить его <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>
-ModUi/&SettingsLoad=• Загрузить экспортированные настройки
+ModUi/&SettingsHelp=• Хост может передавать игровые настройки прямо в сетевом лобби или вручную обмениваться экспортированными XML-файлами\n• Гость должен сохранить профиль хоста, выйти из лобби, загрузить его здесь, перезапустить игру и войти снова <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>
+ModUi/&SettingsImportCancel=Отменить импорт настроек
+ModUi/&SettingsImportFailed=<color=#C04040E0>Не удалось выполнить эту операцию с настройками. Текущие настройки не изменены. Подробности смотрите в журнале игры.</color>
+ModUi/&SettingsImportPending=<b><i><color=#C04040E0>Настройки будут применены после перезапуска игры</color></i></b>\nТекущие настройки сохранены в резервной копии Settings.before-import.xml
+ModUi/&SettingsImportUnavailable=<color=#C04040E0>Перед загрузкой профиля настроек выйдите из сетевого лобби и вернитесь в главное меню.</color>
+ModUi/&SettingsLoad=• Загрузить профиль настроек <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>
 ModUi/&SettingsOpenFolder=Открыть папку экспортированных настроек
 ModUi/&SettingsRefresh=Обновить
 ModUi/&SettingsRemove=Удалить
@@ -459,6 +505,7 @@ ModUi/&BattleActionAnimationSpeedMultiplierHelp=Немного ускоряет 
 ModUi/&ShowTranslationPreview=Показать последние переводы
 ModUi/&SpeechScale=<color=white>Модификатор скорости повествования</color> <i><color=#F0DAA0>[чем ниже, тем быстрее]</color></i>
 ModUi/&SpeechVolume=<color=white>Громкость повествования</color>
+ModUi/&SpeechShowAllLanguages=Показывать голоса на всех языках
 ModUi/&SpellLevelFilter=<b><i><color=white>Уровень заклинаний</color> <color=#F0DAA0>[-1 отображает все]</color></i></b>
 ModUi/&SpellsMenu=Заклинания
 ModUi/&StealthBreaksWhenAttackHits=Включить потерю скрытности при попадании атаки оружием или заклинанием
@@ -497,6 +544,8 @@ ModUi/&TranslationCompleted=Завершено
 ModUi/&TranslationCompletedWithErrors=Завершено (с ошибками)
 ModUi/&TranslationConcurrency=Параллельность
 ModUi/&TranslationFailed=Не удалось
+ModUi/&TranslationFailedCount=(ошибок: {0})
+ModUi/&TranslationMoreItems=… ещё {0} элементов
 ModUi/&TranslationGoogleLegacyMode=Используйте устаревший режим для запроса переводов из API Google Translate.
 ModUi/&TranslationGoogleSettings=Настройки API Google
 ModUi/&TranslationPaused=Приостановлено
@@ -570,3 +619,70 @@ ModUI/&EnableEnemyBattleTacticsDescription=Враги получают спос�
 ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=В сетевой игре все участники должны выбрать одинаковую настройку до начала сеанса. Во время сетевого сеанса эту настройку изменить нельзя.
 ModUi/&FlexibleRacesDisabledByBackgroundASI=Увеличение характеристик от предыстории включено, поэтому гибкое расовое увеличение характеристик не применяется. Ваш выбор снова применяется после отключения увеличения характеристик от предыстории.
 ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats=Черты происхождения от предыстории включены, поэтому гибкие владения от предыстории не применяются. Ваш выбор снова применяется после отключения черт происхождения от предыстории.
+ModUi/&SpeechNarrator=Рассказчик
+ModUi/&SpeechHero=Герой {0}
+ModUi/&SpeechNoVoice=Без голоса
+ModUi/&SpeechVoiceTsukuyomi=Цукуёми-тян
+ModUi/&SpeechVoiceCss10=CSS10
+ModUi/&SpeechVoiceSpeaker={0} — голос {1}
+ModUi/&SpeechPitch=<color=white>Высота голоса (полутоны)</color>
+ModUi/&EnableSpeechPitchHelp=<i><color=#F0DAA0>Изменяет высоту выбранного голоса от -6 до +6 полутонов, сохраняя скорость речи.</color></i>
+ModUi/&EnableSpeechAvailableVoiceHelp=• Установленные голоса Windows обнаруживаются автоматически\n• Загрузка японских голосов добавляет Цукуёми-тян и CSS10\n• Также доступны дополнительные локальные модели Piper и настроенные в них голоса
+ModUi/&SpeechVoiceUnavailable={0} (недоступен)
+ModUi/&TranslationCategoryCampaign=Кампания
+ModUi/&TranslationCategoryLocations=Локации
+ModUi/&TranslationCategoryGadgets=Устройства
+ModUi/&TranslationCategoryDialogs=Диалоги
+ModUi/&TranslationCategoryItems=Предметы
+ModUi/&TranslationCategoryQuests=Задания
+ModUi/&TranslationCategoryMonsters=Монстры
+ModUi/&TranslationCategoryNPCs=НИП
+ModUi/&TranslationCategoryMerchants=Торговцы
+ModUi/&TranslationCategoryLootPacks=Наборы добычи
+ModUi/&TranslationCategoryBiomes=Биомы
+ModUi/&TranslationCategoryEncounterTables=Таблицы встреч
+ModUi/&TranslationCategoryEncounters=Встречи
+ModUi/&TranslationCategoryMapNodes=Точки карты
+ModUi/&ConfirmAction=Подтвердить это действие?
+ModUi/&Minimum=Мин.
+ModUi/&Maximum=Макс.
+ModUi/&EnableVoiceVoxSpeech=Использовать VOICEVOX для японской речи
+ModUi/&SpeechVoiceVoxHelp=Добавьте VOICEVOX с помощью кнопки загрузки и настройки в UB. После настройки он запускается автоматически по мере необходимости. UB также может подключиться к уже запущенному VOICEVOX. Речь создаётся на этом ПК.
+ModUi/&SpeechVoiceVoxConnecting=Подключение к VOICEVOX…
+ModUi/&SpeechVoiceVoxConnected=VOICEVOX подключён: доступно стилей голоса — {0}
+ModUi/&SpeechVoiceVoxUnavailable=VOICEVOX недоступен. Завершите настройку или проверьте уже запущенный VOICEVOX, затем обновите список голосов.
+ModUi/&SpeechVoiceVoxInstall=Загрузить и настроить VOICEVOX
+ModUi/&SpeechVoiceVoxInstallHelp=Первая загрузка занимает около 1,9 ГБ. После настройки Solasta запускает и останавливает VOICEVOX по мере необходимости. Загрузку можно отменить и возобновить. Использование голосов регулируется условиями каждого диктора.
+ModUi/&SpeechVoiceVoxDownloadProgress=Загрузка VOICEVOX: {0}
+ModUi/&SpeechVoiceVoxVerifying=Проверка загрузки VOICEVOX
+ModUi/&SpeechVoiceVoxExtracting=Настройка VOICEVOX
+ModUi/&SpeechVoiceVoxStarting=Запуск VOICEVOX
+ModUi/&SpeechVoiceVoxInstallFailed=Не удалось настроить VOICEVOX. Проверьте свободное место на диске и подключение к Интернету, затем повторите попытку.
+ModUi/&SpeechVoiceVoxCancel=Отменить загрузку
+ModUi/&SpeechVoiceVoxTerms=Условия использования голосов VOICEVOX
+ModUi/&SpeechVoiceVoxInstalled=VOICEVOX установлен и будет запускаться автоматически.
+ModUi/&SpeechVoiceVoxUnsupported=Для автоматической настройки VOICEVOX требуется 64-разрядная Windows.
+ModUi/&SpeechVoiceVoxRetry=Повторить настройку VOICEVOX
+ModUi/&SpeechIntonation=Интонация
+ModUi/&SpeechIntonationHelp=Настройте выразительность голоса VOICEVOX. 1 использует обычную интонацию; 0 делает речь монотонной.
+ModUi/&SpeechIntonationUnavailable=Для настройки интонации нужен голос VOICEVOX. Другие голоса сохраняют свою интонацию.
+ModUi/&SpeechPreview=Прослушать голос
+ModUi/&SpeechNpcHelp=Выберите голос для каждого NPC этой кампании. Индивидуальные настройки имеют приоритет над назначениями кампании и сохраняются для неё. Выберите назначение по умолчанию, чтобы удалить индивидуальную настройку. Выберите отдельный голос, чтобы настроить его скорость и высоту.
+ModUi/&SpeechNpcLoadCampaign=Загрузите пользовательскую кампанию, чтобы выбрать голоса её NPC.
+ModUi/&SpeechNpcAutomatic=Использовать назначение по умолчанию
+ModUi/&SpeechVoiceGender=Пол голоса для автоматического назначения
+ModUi/&SpeechVoiceGenderDefault=Использовать классификацию по умолчанию
+ModUi/&SpeechVoiceGenderMale=Мужской
+ModUi/&SpeechVoiceGenderFemale=Женский
+ModUi/&SpeechVoiceGenderUnknown=Не классифицирован
+ModUi/&SpeechVoiceGenderHelp=Задаёт пол голоса для автоматического назначения героям и НИП. Настройка применяется ко всем стилям одного диктора VOICEVOX. Индивидуально выбранные голоса имеют приоритет.
+ModUi/&SpeechAutomatic=Автоматическое назначение
+ModUi/&SpeechAutomaticHelp=Автоматически назначает голоса для текущего языка. Для героев учитываются их пол и голос, выбранный на экране персонажа. Голоса, выбранные индивидуально в UB, имеют приоритет.
+ModUi/&SettingsListSearch=Поиск
+ModUi/&SettingsListPrevious=Назад
+ModUi/&SettingsListNext=Далее
+ModUi/&SettingsListPage=Страница {0} из {1} ({2} результатов)
+ModUi/&SettingsListNoResults=Подходящих записей нет.
+ModUi/&SettingsListSelected=Выбрано: {0}
+ModUi/&SpeechAssignAllAutomatic=Автоматически назначить голоса рассказчику и всем героям
+ModUi/&SpeechAutomaticResolved=Автоматическое назначение: {0}

@@ -573,6 +573,7 @@ Rules/&ActivationTypeOnSneakAttackHitAutoTitle=Attacco furtivo automatico
 Rules/&ConditionMarkedByHunterExtendedDescription=Subisce +1d6 danni da forza quando viene colpito dall'incantatore con un attacco con arma.
 Rules/&ConditionOneDndBarkskinDescription=La Classe Armatura della creatura diventa almeno 17.
 Rules/&ConditionStoneskinExtendedDescription=Resistenza ai danni contundenti, taglienti e perforanti.
+Rules/&ConditionSurprisedExtendedDescription=Hai svantaggio ai tiri di iniziativa.
 Rules/&CounterFormDismissCreatureFormat=Congeda una creatura bersaglio evocata
 Rules/&MotionFormPullOnTop=Tirare in alto
 Rules/&MotionFormPushDownFormat=Spingere verso il basso {0}

@@ -566,6 +566,7 @@ Rules/&ActivationTypeOnSneakAttackHitAutoTitle=Auto Sneak Attack
 Rules/&ConditionMarkedByHunterExtendedDescription=Receives +1d6 force damage when hit by the caster with a weapon attack.
 Rules/&ConditionOneDndBarkskinDescription=The creature's Armor Class becomes at least 17.
 Rules/&ConditionStoneskinExtendedDescription=Resistance to bludgeoning, slashing, and piercing damage.
+Rules/&ConditionSurprisedExtendedDescription=You have disadvantage on initiative rolls.
 Rules/&CounterFormDismissCreatureFormat=Dismisses a target conjured creature
 Rules/&MotionFormPullOnTop=Pull on top
 Rules/&MotionFormPushDownFormat=Push down {0}

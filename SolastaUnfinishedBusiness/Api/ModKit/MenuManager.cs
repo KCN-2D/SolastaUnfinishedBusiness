@@ -112,6 +112,18 @@ internal sealed class MenuManager : INotifyPropertyChanged
 
     private void OnGUI(UnityModManager.ModEntry modEntry)
     {
+        if (Main.SettingsRestartRequired)
+        {
+            var descriptionStyle = new GUIStyle(GUI.skin.label) { wordWrap = true };
+            UI.Label(Gui.Localize("ModUi/&SettingsImportPending"), descriptionStyle, UI.ExpandWidth(true));
+            if (!string.IsNullOrEmpty(Main.SettingsOperationMessage))
+            {
+                UI.Label(Gui.Localize(Main.SettingsOperationMessage), descriptionStyle, UI.ExpandWidth(true));
+            }
+            UI.ActionButton(Gui.Localize("ModUi/&SettingsImportCancel"), Main.CancelSettingsImport);
+            return;
+        }
+
         var hasPriorPage = false;
 
         try

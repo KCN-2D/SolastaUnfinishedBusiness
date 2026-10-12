@@ -57,6 +57,8 @@ ModUi/&Blueprints=蓝图
 ModUi/&Campaigns=战役
 ModUi/&Cancel=取消
 ModUi/&Category=分类
+ModUi/&ItemTag=物品标签
+ModUi/&WeaponTag=武器标签
 ModUi/&ChangeDragonbornElementalBreathUsages=将<color=#D89555>龙裔</color>元素吐息用法更改为每次短后可用体质调整值次
 ModUi/&ChangeSleetStormToCube=将 <color=#D89555>雪雨暴</color> 改为使用立方体，而不是圆柱体
 ModUi/&Changelog=<b><color=#D89555>变更日志</color></b>
@@ -110,10 +112,16 @@ ModUi/&DownloadVoiceOngoing=正在下载（{0}）
 ModUi/&DownloadSpeechLanguageVoices=下载{0}
 ModUi/&DownloadSpeechLanguageVoicesOngoing=正在下载{0}（{1}）
 ModUi/&SpeechLanguageJapanese=日语语音
-ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>下载对应语言的语音后，该语言文本会使用该语音朗读。其他文本仍使用现有的英语 Piper 语音。</color></i>
+ModUi/&EnableSpeechLanguageVoiceHelp=<i><color=#F0DAA0>选择支持当前语言的声音。也可使用已安装的Windows语音和本地添加的Piper模型。</color></i>
 ModUi/&DungeonMaker=地下城制造者
 ModUi/&DungeonMakerBasicHelp=• 这些设置不需要玩家安装此模组
 ModUi/&Effects=效果
+ModUi/&EffectsCaster=施法者：
+ModUi/&EffectsCondition=状态：
+ModUi/&EffectsEffect=效果：
+ModUi/&EffectsImpact=命中效果：
+ModUi/&EffectsRequiresParty=<color=#C04040E0>请载入队伍中至少有两名英雄的游戏以查看效果。</color>
+ModUi/&EffectsZone=区域效果：
 ModUi/&EnableActionSwitching=启用动作切换功能<i><color=#F0DAA0>[允许切换当前是使用动作、动作如潮的动作还是的加速术动作，可以更精细的规划动作]</color></i>
 ModUi/&EnableAdditionalBackstoryDisplay=在背景检查中启用额外的背景故事显示
 ModUi/&EnableAdditionalIconsOnLevelMap=在关卡地图上启用营地、出口和传送器的附加图标
@@ -287,7 +295,7 @@ ModUi/&EnableSorcererSorcerousRestoration2024=在第 5 级启用<color=#D89555>�
 ModUi/&EnableSortingDungeonMakerAssets=在地城编辑器编辑器上启用资产排序
 ModUi/&EnableSpeech=在自定义战役中启用语音<i><color=#F0DAA0>[仅限旁白和英雄]</color></i>
 ModUi/&EnableSpeechActorHelp=• 选择演员
-ModUi/&EnableSpeechOnNpcs=<i>+ 启用 NPC 语音<color=#F0DAA0>[通过战役映射或自动分配]</color></i>
+ModUi/&EnableSpeechOnNpcs=启用NPC语音朗读
 ModUi/&EnableSpeechVoiceHelp=• 选择语音和叙述速度
 ModUi/&EnableStackableArtItems=启用堆叠<color=#D89555>艺术品</color> <i><color=#F0DAA0>[此设置禁用时无法拆分]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=启用堆叠<color=#D89555>匕首</color>和<color=#D89555>手斧</color> <i><color=#F0DAA0>[禁用此设置时无法拆分]</color></i>
@@ -314,9 +322,26 @@ ModUi/&EnableWizardToLearnSchoolAtLevel3=在 3 级（而非 2 级）启用<color
 ModUi/&EnablesAsiAndFeat=同时启用属性得分增加和<color=#D89555>专长</color>选择<i><color=#F0DAA0>[而不是独占选择]</color></i>
 ModUi/&EncounterPercentageChance=<color=white>设置随机遭遇的百分比几率</color>
 ModUi/&Encounters=遭遇
+ModUi/&EncounterAddCharactersHelp=• 点击+，可向遭遇列表添加最多{0}个角色。
+ModUi/&EncounterCountFormat={0}（{1}）
+ModUi/&EncounterListEmpty=遭遇列表为空。
+ModUi/&EncounterUnavailableHeroes=无法加载{0}个角色文件。已显示可用英雄。请在日志中检查相关文件，然后刷新重试。
+ModUi/&EncounterMaximumUsesFormat=最大使用次数：{0}
+ModUi/&EncountersHelp=• 遭遇生成适用于单人自定义战役或地点\n• 在怪物图鉴标签页向遭遇添加怪物\n• 在角色池标签页将英雄添加为敌人\n• 点击<i>-</i>，可从遭遇移除角色\n• 将镜头移到所需位置，执行<color=#1E81B0>{0}</color>生成敌人。请在游戏输入设置中分配按键
+ModUi/&EncounterStatistics=战斗数据
+ModUi/&EncounterUnlimited=不限
+ModUi/&EncounterValueFormat={0}：{1}
 ModUi/&EnemiesAlwaysRollInitiative=<i>+ 敌人总是会掷出主动权，而不是强制值<color=#F0DAA0>[例如：索拉克刺客]</color></i>
 ModUi/&EnableEnemiesControlledByPlayer=启用由玩家控制的敌人
 ModUi/&EnableHeroesControlledByComputer=启用由电脑控制的英雄
+ModUi/&AdvancedCombatAiManualNpcHelp=<i><color=#F0DAA0>高级战斗AI仍适用于AI控制的英雄。玩家手动控制的敌人不会使用自动行动决策。</color></i>
+ModUi/&ControllerHuman=玩家控制
+ModUi/&ControllerMelee=近战
+ModUi/&ControllerRanged=远程
+ModUi/&ControllerSupportCaster=支援施法者
+ModUi/&HeroesControllerLoadGameHelp=<color=#C04040E0>加载单人存档后，可选择每位英雄的控制方式。</color>
+ModUi/&PlayerControllers=<color=#F0DAA0>角色控制：</color>
+ModUi/&PlayerControllersSinglePlayerOnly=<color=#C04040E0>英雄AI和手动控制敌人仅在单人游戏中可用。准备或进行多人游戏时，已保存的设置会保留。</color>
 ModUi/&EnableAdvancedCombatAI=启用高级战斗AI <i><color=#F0DAA0>[为敌人和AI控制的英雄提供可选的战术增强]</color></i>
 ModUi/&EnemySpellcastersDropScribedSpellbooks=敌人施法者掉落书写法术书<i><color=#F0DAA0>[包含巫师列表中他们已知的法术]</color></i>
 ModUi/&EvocationSculptSpellNoPerception=使<b>唤魔者</b><color=#D89555>雕刻法术</color>不需要感知盟友
@@ -333,7 +358,7 @@ ModUi/&FixEldritchBlastRange=使用 24 个单元格范围与 <color=#D89555>Eldr
 ModUi/&Use24CellsRangeWithDimensionDoor=让 <color=#D89555>任意门</color> 使用 24 格射程 <i><color=#F0DAA0>[而不是 12 格]</color></i>
 ModUi/&FixRingOfRegenerationHealRate=将<color=#D89555>再生之环</color>的治疗率设置为每 3 分钟 1 点生命值
 ModUi/&FlightSuspendWingedBoots=<i>+ 使用 Winged Boots 官方规则<color=#F0DAA0>[暂停飞行时不计算剩余时长]</color></i>
-ModUi/&ForceModSpeechOnNpcs=<i>+强制所有 NPC 自动分配语音，而不是进行战役映射</i>
+ModUi/&ForceModSpeechOnNpcs=忽略战役的NPC语音设置，为未单独选择语音的NPC自动分配语音
 ModUi/&Formation=<color=#F0DAA0>阵型:</color>
 ModUi/&FormationError=<color=#C04040E0>您无法在多人游戏中改变阵型...</color>
 ModUi/&FormationHelp1=• 使用数字按钮编辑给定的集合<i><color=#F0DAA0>[考虑在输入下启用热键]</color></i>
@@ -356,6 +381,7 @@ ModUi/&IdentifyAfterRest=增加在短休或长休期间<color=#D89555>鉴定魔�
 ModUi/&IgnoreHandXbowFreeHandRequirements=不需要空手以装填<color=#D89555>手弩</color>
 ModUi/&IllusionSpellsAutomaticallyFailAgainstTrueSightInRange=幻术法术对范围内有 <color=#D89555>真知术</color>的目标自动失效
 ModUi/&IncreaseGameTimeBy=增加游戏时间
+ModUi/&GameTimeHours={0}小时
 ModUi/&IncreaseMaxAttunedItems=将最大<color=#D89555>同调物品</color>增加至 10 级时的 4 个和 18 级时的 5 个
 ModUi/&Invocations=<color=#F0DAA0>魔能祈唤</color>
 ModUi/&Items=<color=#F0DAA0>商品:</color>
@@ -375,6 +401,22 @@ ModUi/&ModifyGravitySlam=修改<color=#D89555>重力猛击</color>法术，将�
 ModUi/&MovementGridWidthModifier=<color=white>将移动网格宽度乘以</color> <color=#C04040E0>[%]</color>
 ModUi/&MulticlassKeyHelp=<color=#1E81B0>SHIFT</color> 点击一个法术会反转所消耗的默认法术槽类型\n<i><color=#F0DAA0>[<color=#D89555>术士</color> 消耗白色法术槽，其他人消耗契约绿色法术槽]</color></i>
 ModUi/&Multiplayer=<color=#F0DAA0>多人游戏：</color>
+ModUi/&MultiplayerSettingsError=<color=#C04040E0>无法比较UB设置。详情请查看游戏日志。</color>
+ModUi/&MultiplayerSettingsHelp=• 大厅会共享游戏设置并检查UB构建版本\n• 界面、语言、镜头、语音和翻译偏好保留各自的本地设置\n• 此检查不会阻止游戏开始
+ModUi/&MultiplayerSettingsHost=你的游戏设置正在与此大厅共享。
+ModUi/&MultiplayerSettingsInvalid=<color=#C04040E0>房主共享的设置无效或超过大小限制。</color>
+ModUi/&MultiplayerSettingsMatch=UB构建版本和游戏设置与房主一致。
+ModUi/&MultiplayerSettingsMismatch=<color=#C04040E0>游戏设置与房主不同。请保存房主的设置配置，退出大厅，在设置菜单中加载该配置，重启游戏，然后重新加入。</color>
+ModUi/&MultiplayerSettingsOffline=加入在线多人游戏大厅以比较UB设置。
+ModUi/&MultiplayerSettingsPeerMatch={0}：UB构建版本和游戏设置一致。
+ModUi/&MultiplayerSettingsPeerMismatch=<color=#C04040E0>{0}：游戏设置不同。</color>
+ModUi/&MultiplayerSettingsPeerVersionMismatch=<color=#C04040E0>{0}：UB构建版本不同。</color>
+ModUi/&MultiplayerSettingsPeerWaiting=<color=#C04040E0>{0}：尚未收到兼容的UB设置报告。</color>
+ModUi/&MultiplayerSettingsSaveHost=保存房主的设置配置
+ModUi/&MultiplayerSettingsSaved=房主设置已保存为MultiplayerHost。请退出大厅，在下方加载此配置，然后重启游戏。
+ModUi/&MultiplayerSettingsUnsupported=<color=#C04040E0>房主未共享兼容的UB设置。</color>
+ModUi/&MultiplayerSettingsVersionMismatch=<color=#C04040E0>UB构建版本与房主不同。请先安装相同的构建版本再加入。</color>
+ModUi/&MultiplayerSettingsWaiting=正在等待房主的UB设置。
 ModUi/&MultiplyTheExperienceGainedBy=<color=white>将获得的经验乘以</color> <color=#C04040E0>[%]</color>
 ModUi/&NeverMoveCameraOnEnemyTurn=<i>+ 敌人回合时镜头永不移动</i>
 ModUi/&NewWeaponsAndRecipesBaseInsteadOfPrimed=<i>+ 使用基础武器和护甲作为材料，而非强化版本</i> <b><i><color=#C04040E0>[需要重启游戏]</color></i></b>
@@ -441,8 +483,12 @@ ModUi/&SenseNormalVisionRangeMultiplier=修改<color=#D89555>正常视觉</color
 ModUi/&Services=服务
 ModUi/&SetBeltOfDwarvenKindBeardChances=<color=#D89555>矮人腰带</color> <color=white>胡须出现几率</color>
 ModUi/&SettingsExport=出口
-ModUi/&SettingsHelp=• 作为主持人，您可以导出当前配置，打开导出文件夹并轻松与同事共享\n• 作为来宾，您可以打开导出文件夹，从主持人粘贴共享文件并通过<b><i><color=#C04040E0>[需要重启]</color></i></b>加载它
-ModUi/&SettingsLoad=• 加载导出的设置
+ModUi/&SettingsHelp=• 房主可直接在在线大厅共享游戏设置，也可以手动共享导出的XML文件\n• 其他玩家需保存房主的设置配置，退出大厅，在此加载配置，重启游戏，然后重新加入 <b><i><color=#C04040E0>[需要重启]</color></i></b>
+ModUi/&SettingsImportCancel=取消导入设置
+ModUi/&SettingsImportFailed=<color=#C04040E0>无法完成此设置操作。当前设置未更改。详情请查看游戏日志。</color>
+ModUi/&SettingsImportPending=<b><i><color=#C04040E0>设置将在重启游戏后应用</color></i></b>\n当前设置已备份为Settings.before-import.xml
+ModUi/&SettingsImportUnavailable=<color=#C04040E0>加载设置配置前，请退出多人游戏大厅并返回主菜单。</color>
+ModUi/&SettingsLoad=• 加载设置配置 <b><i><color=#C04040E0>[需要重启]</color></i></b>
 ModUi/&SettingsOpenFolder=打开导出的设置文件夹
 ModUi/&SettingsRefresh=刷新
 ModUi/&SettingsRemove=消除
@@ -459,6 +505,7 @@ ModUi/&BattleActionAnimationSpeedMultiplierHelp=略微加快战斗中角色动�
 ModUi/&ShowTranslationPreview=显示最近翻译
 ModUi/&SpeechScale=<color=white>叙述速度调节器</color> <i><color=#F0DAA0>[速度越低越快]</color></i>
 ModUi/&SpeechVolume=<color=white>旁白音量</color>
+ModUi/&SpeechShowAllLanguages=显示所有语言的语音
 ModUi/&SpellLevelFilter=<b><i><color=white>法术等级过滤器</color> <color=#F0DAA0>[-1 显示全部]</color></i></b>
 ModUi/&SpellsMenu=法术
 ModUi/&StealthBreaksWhenAttackHits=当武器或法术攻击命中时，隐身效果消失
@@ -497,6 +544,8 @@ ModUi/&TranslationCompleted=已完成
 ModUi/&TranslationCompletedWithErrors=已完成（有错误）
 ModUi/&TranslationConcurrency=并发数
 ModUi/&TranslationFailed=失败
+ModUi/&TranslationFailedCount=（{0}项失败）
+ModUi/&TranslationMoreItems=…另有{0}项
 ModUi/&TranslationGoogleLegacyMode=使用传统模式从 Google Translate API 请求翻译
 ModUi/&TranslationGoogleSettings=谷歌 API 设置
 ModUi/&TranslationPaused=已暂停
@@ -570,3 +619,70 @@ ModUI/&EnableEnemyBattleTacticsDescription=敌人获得符合其类型与战斗�
 ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=多人游戏中，所有参与者必须在开始会话前选择相同的设置。多人游戏会话期间无法更改此设置。
 ModUi/&FlexibleRacesDisabledByBackgroundASI=背景属性值提升已启用，因此不应用灵活种族属性值提升。禁用背景属性值提升后，将重新应用原来的选择。
 ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats=背景起源专长已启用，因此不应用灵活背景熟练项。禁用背景起源专长后，将重新应用原来的选择。
+ModUi/&SpeechNarrator=旁白
+ModUi/&SpeechHero=英雄{0}
+ModUi/&SpeechNoVoice=不朗读
+ModUi/&SpeechVoiceTsukuyomi=月读酱
+ModUi/&SpeechVoiceCss10=CSS10
+ModUi/&SpeechVoiceSpeaker={0}·说话人{1}
+ModUi/&SpeechPitch=<color=white>声音音高（半音）</color>
+ModUi/&EnableSpeechPitchHelp=<i><color=#F0DAA0>将所选声音的音高调整-6至+6半音，朗读速度保持不变。</color></i>
+ModUi/&EnableSpeechAvailableVoiceHelp=• 自动检测已安装的Windows语音\n• 下载日语声音可添加月读酱和CSS10\n• 也可选择本地添加的Piper模型及其配置的说话人
+ModUi/&SpeechVoiceUnavailable={0}（不可用）
+ModUi/&TranslationCategoryCampaign=战役
+ModUi/&TranslationCategoryLocations=地点
+ModUi/&TranslationCategoryGadgets=机关
+ModUi/&TranslationCategoryDialogs=对话
+ModUi/&TranslationCategoryItems=物品
+ModUi/&TranslationCategoryQuests=任务
+ModUi/&TranslationCategoryMonsters=怪物
+ModUi/&TranslationCategoryNPCs=NPC
+ModUi/&TranslationCategoryMerchants=商人
+ModUi/&TranslationCategoryLootPacks=战利品包
+ModUi/&TranslationCategoryBiomes=生态区域
+ModUi/&TranslationCategoryEncounterTables=遭遇表
+ModUi/&TranslationCategoryEncounters=遭遇
+ModUi/&TranslationCategoryMapNodes=地图节点
+ModUi/&ConfirmAction=确认执行此操作？
+ModUi/&Minimum=最小
+ModUi/&Maximum=最大
+ModUi/&EnableVoiceVoxSpeech=使用VOICEVOX朗读日语
+ModUi/&SpeechVoiceVoxHelp=通过UB的下载与安装按钮添加VOICEVOX。安装完成后会按需自动启动。UB也可以连接已经运行的VOICEVOX。语音在这台电脑上生成。
+ModUi/&SpeechVoiceVoxConnecting=正在连接VOICEVOX…
+ModUi/&SpeechVoiceVoxConnected=已连接VOICEVOX：可使用{0}种语音风格
+ModUi/&SpeechVoiceVoxUnavailable=无法连接VOICEVOX。请完成安装，或检查已在运行的VOICEVOX，然后刷新语音列表。
+ModUi/&SpeechVoiceVoxInstall=下载并安装VOICEVOX
+ModUi/&SpeechVoiceVoxInstallHelp=首次下载约1.9GB。安装完成后，Solasta会按需启动和关闭VOICEVOX。下载可以取消后继续。使用语音须遵守各说话人的使用条款。
+ModUi/&SpeechVoiceVoxDownloadProgress=正在下载VOICEVOX：{0}
+ModUi/&SpeechVoiceVoxVerifying=正在检查VOICEVOX下载内容
+ModUi/&SpeechVoiceVoxExtracting=正在安装VOICEVOX
+ModUi/&SpeechVoiceVoxStarting=正在启动VOICEVOX
+ModUi/&SpeechVoiceVoxInstallFailed=VOICEVOX安装失败。请检查磁盘可用空间和互联网连接，然后重试。
+ModUi/&SpeechVoiceVoxCancel=取消下载
+ModUi/&SpeechVoiceVoxTerms=VOICEVOX语音使用条款
+ModUi/&SpeechVoiceVoxInstalled=VOICEVOX已安装，将按需自动启动。
+ModUi/&SpeechVoiceVoxUnsupported=自动安装VOICEVOX需要64位Windows。
+ModUi/&SpeechVoiceVoxRetry=重试VOICEVOX安装
+ModUi/&SpeechIntonation=语调
+ModUi/&SpeechIntonationHelp=调整VOICEVOX语音的表现力。1使用标准语调；0使朗读变得平淡。
+ModUi/&SpeechIntonationUnavailable=语调调整需要VOICEVOX语音。其他语音保留原有语调。
+ModUi/&SpeechPreview=试听语音
+ModUi/&SpeechNpcHelp=为当前战役的每个NPC选择语音。单独选择优先于战役语音设置，并为当前战役保存。选择默认分配可取消单独选择。要单独调整速度和音高，请选择具体语音。
+ModUi/&SpeechNpcLoadCampaign=载入自定义战役后，即可为其中的NPC选择语音。
+ModUi/&SpeechNpcAutomatic=使用默认分配
+ModUi/&SpeechVoiceGender=自动分配使用的声音性别
+ModUi/&SpeechVoiceGenderDefault=使用默认分类
+ModUi/&SpeechVoiceGenderMale=男性
+ModUi/&SpeechVoiceGenderFemale=女性
+ModUi/&SpeechVoiceGenderUnknown=未分类
+ModUi/&SpeechVoiceGenderHelp=指定英雄和NPC自动分配使用的声音性别。同一VOICEVOX说话人的所有演绎风格共用此设置。单独选择的声音优先。
+ModUi/&SpeechAutomatic=自动分配
+ModUi/&SpeechAutomaticHelp=自动分配符合当前语言的声音。英雄的声音会根据其性别和角色界面中选择的声音分配。在UB中单独选择的声音优先。
+ModUi/&SettingsListSearch=搜索
+ModUi/&SettingsListPrevious=上一页
+ModUi/&SettingsListNext=下一页
+ModUi/&SettingsListPage=第{0}/{1}页（{2}项结果）
+ModUi/&SettingsListNoResults=没有匹配项。
+ModUi/&SettingsListSelected=已选择：{0}
+ModUi/&SpeechAssignAllAutomatic=为旁白和所有英雄自动分配声音
+ModUi/&SpeechAutomaticResolved=自动分配：{0}

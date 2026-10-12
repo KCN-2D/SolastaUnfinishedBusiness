@@ -551,16 +551,16 @@ internal static class CraftingAndItems
         using (UI.HorizontalScope())
         {
             UI.Space(40f);
-            UI.Label("Category".Bold(), UI.Width(100f));
+            UI.Label(Gui.Localize("ModUi/&Category").Bold(), UI.Width(100f));
 
             if (CurrentItemsFilterIndex == WeaponIndexItemFilters /* Weapons */)
             {
                 UI.Space(40f);
-                UI.Label("Weapon Tag".Bold(), UI.Width(100f));
+                UI.Label(Gui.Localize("ModUi/&WeaponTag").Bold(), UI.Width(100f));
             }
 
             UI.Space(40f);
-            UI.Label("Item Tag".Bold(), UI.Width(100f));
+            UI.Label(Gui.Localize("ModUi/&ItemTag").Bold(), UI.Width(100f));
 
             UI.Space(40f);
             using (UI.VerticalScope())

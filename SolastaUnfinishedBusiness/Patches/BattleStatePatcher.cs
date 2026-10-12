@@ -26,10 +26,10 @@ public static class BattleState_TurnInitialize_Begin
 public static class BattleState_TurnEnd_Begin
 {
     [UsedImplicitly]
-    public static void Prefix(BattleState_TurnEnd __instance)
+    public static void Prefix()
     {
         //PATCH: EnableHeroesControlledByComputer and EnableEnemiesControlledByPlayer
-        PlayerControllerContext.Stop(__instance.Battle);
+        PlayerControllerContext.Stop();
     }
 }
 
@@ -39,10 +39,10 @@ public static class BattleState_TurnEnd_Begin
 public static class BattleState_Victory_Begin
 {
     [UsedImplicitly]
-    public static void Prefix(BattleState_Victory __instance)
+    public static void Prefix()
     {
         //PATCH: EnableHeroesControlledByComputer and EnableEnemiesControlledByPlayer
-        PlayerControllerContext.Stop(__instance.Battle);
+        PlayerControllerContext.Stop();
     }
 }
 

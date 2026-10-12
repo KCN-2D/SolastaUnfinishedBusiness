@@ -30,7 +30,7 @@ internal sealed class ModManager<TCore, TSettings>
 
     private void HandleSaveGUI(UnityModManager.ModEntry modEntry)
     {
-        UnityModManager.ModSettings.Save(Settings, modEntry);
+        UnityModManager.ModSettings.Save(SettingsForSave ?? Settings, modEntry);
     }
 
     #endregion
@@ -277,6 +277,8 @@ internal sealed class ModManager<TCore, TSettings>
     private TCore Core { get; set; }
 
     internal TSettings Settings { get; set; }
+
+    internal TSettings SettingsForSave { get; set; }
 
     private bool Enabled { get; set; }
 

@@ -5133,7 +5133,7 @@ internal static partial class CombatAiContext
 
     internal static bool IsAdvancedCombatAiSuppressedByManualNpcControl(GameLocationCharacter character)
     {
-        if (!Main.Settings.EnableEnemiesControlledByPlayer || character == null)
+        if (!PlayerControllerContext.AreEnemiesControlledByPlayer || character == null)
         {
             return false;
         }
@@ -5152,7 +5152,7 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        if (!Main.Settings.EnableEnemiesControlledByPlayer)
+        if (!PlayerControllerContext.AreEnemiesControlledByPlayer)
         {
             return true;
         }
