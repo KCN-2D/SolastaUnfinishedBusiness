@@ -1918,6 +1918,8 @@ public static class RulesetCharacterPatcher
         {
             var featureCharacter = __instance.GetFeatureOwnerOrSelf();
 
+            SpellCastingResourceContext.MigrateLegacyInvocationFreeCasts(featureCharacter);
+
             if (featureCharacter?.IsSpellPointsEnabled() == true)
             {
                 SpellPointsContext.ConvertAdditionalSlotsIntoSpellPointsBeforeRefreshSpellRepertoire(
@@ -2404,9 +2406,12 @@ public static class RulesetCharacterPatcher
             RestType restType)
         {
             if (restType == RestType.LongRest
+                || !__instance.UsesSharedSpellSlots()
                 || !SharedSpellsContext.IsMulticaster(rulesetCharacter))
             {
-                rulesetCharacter.RestoreAllSpellSlots();
+                // Native ApplyRest already selected this repertoire's recharge rate and
+                // skipped simulated recovery. Restoring the actor would recharge unrelated pools.
+                __instance.RestoreAllSpellSlots();
 
                 return;
             }
@@ -3095,6 +3100,7 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance)
         {
+            SpellCastingResourceContext.MigrateLegacyInvocationFreeCasts(__instance);
             RemoveUnboundActivePowers(__instance);
             PowerProvider.EnsureIndependentFixedPowerUseMinimums(__instance);
 

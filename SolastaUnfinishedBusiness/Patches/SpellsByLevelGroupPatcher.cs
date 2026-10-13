@@ -67,6 +67,14 @@ public static class SpellsByLevelGroupPatcher
 
             CharacterInspectionScreenEnhancement.AddInspectionLearnedSpells(
                 __instance, caster, bindMode, allSpells, ref trainedSpells, tagBySpell);
+
+            if (bindMode == SpellBox.BindMode.Inspection)
+            {
+                // A saved repertoire can contain repeated grants. Only normalize this display list,
+                // preserving the caller's reference and the preparation and source information.
+                var displayedSpells = new HashSet<SpellDefinition>();
+                allSpells.RemoveAll(spell => !displayedSpells.Add(spell));
+            }
         }
 
         [UsedImplicitly]

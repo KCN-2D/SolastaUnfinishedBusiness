@@ -3,16 +3,241 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Feats;
 using static SolastaUnfinishedBusiness.Models.SpellCastingResourceContext;
 
 namespace SolastaUnfinishedBusiness.Models;
 
-// Display-only repertoires expose independent free Wizard uses in native columns.
-// They are never attached to a character or serialized; casts resolve to real source and resource owners.
+// Native spell displays share source titles and independent free Wizard columns.
+// Display-only repertoires are never attached to a character or serialized;
+// casts resolve to real source and resource owners.
 internal static class SpellSelectionContext
 {
     private static readonly ConditionalWeakTable<RulesetSpellRepertoire, ResourceOption> Views = new();
+
+    private static readonly string[] SpellSourceTitleFormats =
+    [
+        "Screen/&{0}ExtraSpellTitle",
+        "Screen/&{0}SpellTitle",
+        "Tag/&{0}SpellSpecialTagTitle",
+        "Tag/&{0}CantripSpecialTagTitle",
+        "Tag/&{0}CantripOrSpellSpecialTagTitle",
+        "Feat/&Feat{0}Title",
+        "Feat/&{0}Title",
+        "FightingStyle/&{0}Title",
+        "Feature/&{0}Title"
+    ];
+
+    internal static bool TryFormatSpellTagSourceTitle(
+        RulesetSpellRepertoire repertoire,
+        bool shortTitle,
+        out string title,
+        out string source)
+    {
+        title = null;
+        source = null;
+
+        var spellCastingFeature = repertoire?.SpellCastingFeature;
+        var spellTag = spellCastingFeature?
+            .GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.Name;
+        if (string.IsNullOrEmpty(spellTag))
+        {
+            return false;
+        }
+
+        if (shortTitle)
+        {
+            if (Tabletop2024Context.TryGetTabletop2024FeatSpellSourceShortTitle(spellTag, out title) ||
+                TryFormatClassHolderTitle(spellCastingFeature, out title))
+            {
+                source = "shortClass";
+
+                return true;
+            }
+        }
+
+        if (TryLocalizeSpellSourceTitle(spellTag, out title, out source) ||
+            TryFormatGrantedSpellSourceTitle(repertoire, out title, out source))
+        {
+            return true;
+        }
+
+        if (TryFormatClassHolderTitle(spellCastingFeature, out title))
+        {
+            source = "classHolder";
+
+            return true;
+        }
+
+        if (TryFormatSpellCastingFeatureTitle(spellCastingFeature, out title))
+        {
+            source = "featureTitle";
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<string> EnumerateSpellSourceTitleTags(
+        string spellTag,
+        string selectionTag,
+        string sourceTag)
+    {
+        return new[] { spellTag, selectionTag, sourceTag }
+            .Where(x => !string.IsNullOrEmpty(x))
+            .Distinct(StringComparer.Ordinal);
+    }
+
+    internal static bool TryLocalizeSpellSourceTitle(string spellTag, out string title, out string source)
+    {
+        title = null;
+        source = null;
+
+        if (string.IsNullOrEmpty(spellTag))
+        {
+            return false;
+        }
+
+        var selectionTag = Tabletop2024Context.GetTabletop2024FeatSpellSelectionTag(spellTag);
+        var sourceTag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(spellTag);
+        var candidates = EnumerateSpellSourceTitleTags(spellTag, selectionTag, sourceTag).ToArray();
+
+        // A grouped feat already owns its complete localized name. Prefer that name
+        // to legacy source labels such as Fey or Flame before falling back to other grants.
+        foreach (var candidate in candidates.Reverse())
+        {
+            var titleTerm = $"Feat/&FeatGroup{candidate}Title";
+            if (TryLocalizeSpellSourceTitleTerm(titleTerm, out title))
+            {
+                source = titleTerm;
+                return true;
+            }
+        }
+
+        foreach (var candidate in candidates)
+        {
+            foreach (var format in SpellSourceTitleFormats)
+            {
+                var titleTerm = string.Format(format, candidate);
+                if (TryLocalizeSpellSourceTitleTerm(titleTerm, out title))
+                {
+                    source = titleTerm;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    internal static bool IsFeatSpellRepertoire(RulesetSpellRepertoire repertoire)
+    {
+        return repertoire?.SpellCastingFeature is { SpellReadyness: RuleDefinitions.SpellReadyness.AllKnown } feature &&
+               feature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>() != null &&
+               !repertoire.SpellCastingClass && !repertoire.SpellCastingSubclass && !repertoire.SpellCastingRace;
+    }
+
+    internal static FeatDefinition GetSpellSourceFeat(RulesetCharacter character, RulesetSpellRepertoire repertoire)
+    {
+        var feature = repertoire?.SpellCastingFeature;
+        return feature != null && character is RulesetCharacterHero hero
+            ? hero.TrainedFeats.FirstOrDefault(feat =>
+                RulesetActorExtensions.FlattenFeatureList(feat.Features).Contains(feature))
+            : null;
+    }
+
+    internal static BaseDefinition GetSpellSourceGrant(RulesetCharacter character, RulesetSpellRepertoire repertoire)
+    {
+        var feature = repertoire?.SpellCastingFeature;
+        if (feature == null || character is not RulesetCharacterHero hero)
+        {
+            return null;
+        }
+
+        return (BaseDefinition)GetSpellSourceFeat(hero, repertoire) ??
+               hero.TrainedFightingStyles.FirstOrDefault(style =>
+                   RulesetActorExtensions.FlattenFeatureList(style.Features).Contains(feature));
+    }
+
+    private static bool TryFormatGrantedSpellSourceTitle(
+        RulesetSpellRepertoire repertoire,
+        out string title,
+        out string source)
+    {
+        title = null;
+        source = null;
+        var hero = repertoire.GetCaster()?.GetOriginalHero();
+        var grant = GetSpellSourceGrant(hero, repertoire);
+        if (grant == null)
+        {
+            return false;
+        }
+
+        title = grant.FormatTitle();
+        source = grant.GuiPresentation.Title;
+        return IsUsableSpellSourceTitle(title);
+    }
+
+    private static bool TryLocalizeSpellSourceTitleTerm(string titleTerm, out string title)
+    {
+        title = null;
+
+        if (string.IsNullOrEmpty(titleTerm) ||
+            !TranslatorContext.HasTranslation(titleTerm))
+        {
+            return false;
+        }
+
+        var localizedTitle = Gui.Localize(titleTerm);
+
+        if (!IsUsableSpellSourceTitle(localizedTitle, titleTerm))
+        {
+            return false;
+        }
+
+        title = localizedTitle;
+
+        return true;
+    }
+
+    private static bool TryFormatClassHolderTitle(FeatureDefinitionCastSpell spellCastingFeature, out string title)
+    {
+        title = spellCastingFeature?
+            .GetFirstSubFeatureOfType<ClassHolder>()?.Class?
+            .FormatTitle();
+
+        return IsUsableSpellSourceTitle(title);
+    }
+
+    private static bool TryFormatSpellCastingFeatureTitle(
+        FeatureDefinitionCastSpell spellCastingFeature,
+        out string title)
+    {
+        title = null;
+
+        var titleTerm = spellCastingFeature?.GuiPresentation?.Title;
+
+        if (string.IsNullOrEmpty(titleTerm) ||
+            titleTerm == Gui.NoLocalization ||
+            titleTerm == Gui.EmptyContent)
+        {
+            return false;
+        }
+
+        title = spellCastingFeature.FormatTitle();
+
+        return IsUsableSpellSourceTitle(title, titleTerm);
+    }
+
+    private static bool IsUsableSpellSourceTitle(string title, string titleTerm = null)
+    {
+        return !string.IsNullOrWhiteSpace(title) &&
+               title != titleTerm &&
+               !title.Contains("/&") &&
+               !title.Contains("{0}");
+    }
 
     internal static bool TryBeginSelection(RulesetCharacter caster, ResourceOption option, out IDisposable state)
     {

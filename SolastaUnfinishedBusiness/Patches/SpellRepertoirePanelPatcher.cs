@@ -52,7 +52,10 @@ public static class SpellRepertoirePanelPatcher
 
             var sources = CharacterInspectionScreenEnhancement.GetInspectionSpellRepertoires(
                 __instance.GuiCharacter.RulesetCharacter, __instance.SpellRepertoire, __instance.BindMode);
-            if (sources.Length > 1 && __instance.knownSpellsBox.gameObject.activeSelf)
+            var repertoire = __instance.SpellRepertoire;
+            var isFeatInspection = __instance.BindMode == SpellBox.BindMode.Inspection &&
+                                   SpellSelectionContext.IsFeatSpellRepertoire(repertoire);
+            if ((sources.Length > 1 || isFeatInspection) && __instance.knownSpellsBox.gameObject.activeSelf)
             {
                 __instance.knownSpellsLabel.Text = sources.SelectMany(CharacterInspectionScreenEnhancement.GetInspectionLearnedSpells)
                     .Where(spell => spell.SpellLevel > 0).Distinct().Count().ToString();
@@ -64,7 +67,7 @@ public static class SpellRepertoirePanelPatcher
                 return;
             }
 
-            if (__instance.SpellRepertoire.SpellCastingClass != DatabaseHelper.CharacterClassDefinitions.Sorcerer)
+            if (repertoire.SpellCastingClass != DatabaseHelper.CharacterClassDefinitions.Sorcerer)
             {
                 __instance.sorceryPointsBox.gameObject.SetActive(false);
             }

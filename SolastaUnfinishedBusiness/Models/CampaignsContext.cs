@@ -2658,13 +2658,13 @@ internal static class CampaignsContext
         {
             var sourceTag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(tag);
             var owner = repertoire.GetCastingClass();
-            if (owner && RulesetSpellRepertoirePatcher.TryLocalizeSpellSourceTitle(
+            if (owner && SpellSelectionContext.TryLocalizeSpellSourceTitle(
                     sourceTag + owner.Name, out var variantTitle, out _))
             {
                 return variantTitle;
             }
 
-            if (RulesetSpellRepertoirePatcher.TryLocalizeSpellSourceTitle(sourceTag, out var title, out _))
+            if (SpellSelectionContext.TryLocalizeSpellSourceTitle(sourceTag, out var title, out _))
             {
                 return owner
                     ? Gui.Format("Feat/&GeneralFeat2024VariantTitle", title, owner.FormatTitle())

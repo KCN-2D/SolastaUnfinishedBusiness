@@ -71,9 +71,6 @@ public static class Sprites
 
     #region Actions
 
-    internal static AssetReferenceSprite ActionPlaneMagic =>
-        GetSprite("ActionPlaneMagic", Resources.ActionPlaneMagic, 80);
-
     internal static AssetReferenceSprite ActionInfuse =>
         GetSprite("ActionInfuse", Resources.ActionInfuse, 80);
 

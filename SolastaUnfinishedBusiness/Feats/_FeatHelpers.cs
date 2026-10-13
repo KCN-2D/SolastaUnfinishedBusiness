@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using SolastaUnfinishedBusiness.Builders;
+using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Interfaces;
 using static RuleDefinitions;
 
@@ -7,6 +10,53 @@ namespace SolastaUnfinishedBusiness.Feats;
 
 internal static class FeatHelpers
 {
+    internal static List<FeatureDefinitionCastSpell.SlotsByLevelDuplet> BuildFixedFreeCastingSlots(int spellLevel)
+    {
+        if (spellLevel is < 1 or > 9)
+        {
+            throw new ArgumentOutOfRangeException(nameof(spellLevel));
+        }
+
+        return Enumerable.Range(1, 20)
+            .Select(level => new FeatureDefinitionCastSpell.SlotsByLevelDuplet
+            {
+                Level = level,
+                Slots = Enumerable.Range(1, spellLevel).Select(slot => slot == spellLevel ? 1 : 0).ToList()
+            })
+            .ToList();
+    }
+
+    internal static FeatureDefinitionCastSpell BuildFixedFreeSpellCasting(
+        string name,
+        SpellListDefinition spellList,
+        string castingAttribute,
+        string spellTag,
+        int spellLevel,
+        RechargeRate rechargeRate,
+        bool allowSlotCasting = false)
+    {
+        return FeatureDefinitionCastSpellBuilder
+            .Create(name)
+            .SetGuiPresentationNoContent(true)
+            .SetFocusType(EquipmentDefinitions.FocusType.None)
+            .SetSpellCastingOrigin(FeatureDefinitionCastSpell.CastingOrigin.Race)
+            .SetSpellKnowledge(SpellKnowledge.FixedList)
+            .SetSpellReadyness(SpellReadyness.AllKnown)
+            .SetSlotsRecharge(rechargeRate)
+            .SetSlotsPerLevel(BuildFixedFreeCastingSlots(spellLevel))
+            .SetUniqueLevelSlots(false)
+            .SetSpellList(spellList)
+            .SetSpellCastingAbility(castingAttribute)
+            .AddCustomSubFeatures(new SpellTag(spellTag, forceFixedList: true, allowSlotCasting: allowSlotCasting))
+            .AddToDB();
+    }
+
+    internal sealed class LegacyInvocationFreeCast(string invocationName, int spellLevel)
+    {
+        internal string InvocationName { get; } = invocationName;
+        internal int SpellLevel { get; } = spellLevel;
+    }
+
     internal sealed class SpellReplacementOnLevelUp(
         Func<bool> isEnabled,
         params FeatureDefinitionCastSpell[] castingFeatures)

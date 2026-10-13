@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
@@ -12,7 +11,6 @@ using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
 using UnityEngine.AddressableAssets;
 using static RuleDefinitions;
-using static SolastaUnfinishedBusiness.Builders.Features.AutoPreparedSpellsGroupBuilder;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionPowers;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.SpellDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionAttributeModifiers;
@@ -79,13 +77,12 @@ internal static class CasterFeats
 
         const string FEY_TELEPORT = "FeyTeleport";
 
-        var spells = BuildSpellGroup(0, MistyStep);
+        SpellDefinition[] spells = [MistyStep];
 
         var autoPreparedSpells = FeatureDefinitionAutoPreparedSpellsBuilder
             .Create($"AutoPreparedSpells{FEY_TELEPORT}ation")
             .SetGuiPresentationNoContent(true)
             .AddCustomSubFeatures(ValidateRepertoireForAutoprepared.AnyClassOrSubclass)
-            .SetPreparedSpellGroups(spells)
             .SetSpellcastingClass(null)
             .SetAutoTag(FEY_TELEPORT)
             .AddToDB();
@@ -100,22 +97,24 @@ internal static class CasterFeats
             FeatDefinitionBuilder
                 .Create($"Feat{FEY_TELEPORT}ationInt")
                 .SetFeatures(autoPreparedSpells, AttributeModifierCreed_Of_Pakri, learnTirmarian)
-                .AddFeatures(MakeSpellFeatureAndInvocations(spells, FEY_TELEPORT, AttributeDefinitions.Intelligence,
-                    false))
+                .AddFeatures(BuildFreeSpellFeatures(spells, FEY_TELEPORT, AttributeDefinitions.Intelligence,
+                    RechargeRate.ShortRest))
                 .SetGuiPresentation(Category.Feat)
                 .SetFeatFamily(FEY_TELEPORT)
                 .AddToDB(),
             FeatDefinitionBuilder
                 .Create($"Feat{FEY_TELEPORT}ationCha")
                 .SetFeatures(autoPreparedSpells, AttributeModifierCreed_Of_Solasta, learnTirmarian)
-                .AddFeatures(MakeSpellFeatureAndInvocations(spells, FEY_TELEPORT, AttributeDefinitions.Charisma, false))
+                .AddFeatures(BuildFreeSpellFeatures(spells, FEY_TELEPORT, AttributeDefinitions.Charisma,
+                    RechargeRate.ShortRest))
                 .SetGuiPresentation(Category.Feat)
                 .SetFeatFamily(FEY_TELEPORT)
                 .AddToDB(),
             FeatDefinitionBuilder
                 .Create($"Feat{FEY_TELEPORT}ationWis")
                 .SetFeatures(autoPreparedSpells, AttributeModifierCreed_Of_Maraike, learnTirmarian)
-                .AddFeatures(MakeSpellFeatureAndInvocations(spells, FEY_TELEPORT, AttributeDefinitions.Wisdom, false))
+                .AddFeatures(BuildFreeSpellFeatures(spells, FEY_TELEPORT, AttributeDefinitions.Wisdom,
+                    RechargeRate.ShortRest))
                 .SetGuiPresentation(Category.Feat)
                 .SetFeatFamily(FEY_TELEPORT)
                 .AddToDB());
@@ -135,12 +134,11 @@ internal static class CasterFeats
         {
             var tag = kvp.Key;
 
-            spells = BuildSpellGroup(0, kvp.Value);
+            spells = kvp.Value;
             autoPreparedSpells = FeatureDefinitionAutoPreparedSpellsBuilder
                 .Create($"AutoPreparedSpellsFeat{tag}")
                 .SetGuiPresentationNoContent(true)
                 .AddCustomSubFeatures(ValidateRepertoireForAutoprepared.AnyClassOrSubclass)
-                .SetPreparedSpellGroups(spells)
                 .SetSpellcastingClass(null)
                 .SetAutoTag(tag)
                 .AddToDB();
@@ -149,7 +147,7 @@ internal static class CasterFeats
                 FeatDefinitionBuilder
                     .Create($"Feat{tag}Int")
                     .SetFeatures(autoPreparedSpells, AttributeModifierCreed_Of_Pakri)
-                    .AddFeatures(MakeSpellFeatureAndInvocations(spells, tag, AttributeDefinitions.Intelligence))
+                    .AddFeatures(BuildFreeSpellFeatures(spells, tag, AttributeDefinitions.Intelligence))
                     .SetGuiPresentation(Category.Feat)
                     .SetFeatFamily(TOUCHED_MAGIC)
                     .SetMustCastSpellsPrerequisite()
@@ -157,7 +155,7 @@ internal static class CasterFeats
                 FeatDefinitionBuilder
                     .Create($"Feat{tag}Wis")
                     .SetFeatures(autoPreparedSpells, AttributeModifierCreed_Of_Maraike)
-                    .AddFeatures(MakeSpellFeatureAndInvocations(spells, tag, AttributeDefinitions.Wisdom))
+                    .AddFeatures(BuildFreeSpellFeatures(spells, tag, AttributeDefinitions.Wisdom))
                     .SetGuiPresentation(Category.Feat)
                     .SetFeatFamily(TOUCHED_MAGIC)
                     .SetMustCastSpellsPrerequisite()
@@ -165,7 +163,7 @@ internal static class CasterFeats
                 FeatDefinitionBuilder
                     .Create($"Feat{tag}Cha")
                     .SetFeatures(autoPreparedSpells, AttributeModifierCreed_Of_Solasta)
-                    .AddFeatures(MakeSpellFeatureAndInvocations(spells, tag, AttributeDefinitions.Charisma))
+                    .AddFeatures(BuildFreeSpellFeatures(spells, tag, AttributeDefinitions.Charisma))
                     .SetGuiPresentation(Category.Feat)
                     .SetFeatFamily(TOUCHED_MAGIC)
                     .SetMustCastSpellsPrerequisite()
@@ -178,47 +176,61 @@ internal static class CasterFeats
 
         #endregion
 
-        GroupFeats.MakeGroup("FeatGroupPlaneMagic", null, groups);
+        GroupFeats.FeatGroupSpellCombat.AddFeats(groups.ToArray());
     }
 
     [NotNull]
-    private static FeatureDefinition[] MakeSpellFeatureAndInvocations(
-        FeatureDefinitionAutoPreparedSpells.AutoPreparedSpellsGroup spellGroup,
+    private static FeatureDefinition[] BuildFreeSpellFeatures(
+        IEnumerable<SpellDefinition> spells,
         string name,
-        string castingAttribute, bool longRest = true)
+        string castingAttribute, RechargeRate rechargeRate = RechargeRate.LongRest)
     {
-        var featureName = $"CastSpell{name}{castingAttribute}";
-        var spellFeature = FeatureDefinitionCastSpellBuilder
-            .Create(featureName)
-            .SetGuiPresentationNoContent(true)
-            .SetFocusType(EquipmentDefinitions.FocusType.None)
-            .SetSpellCastingOrigin(FeatureDefinitionCastSpell.CastingOrigin.Race)
-            .SetSpellReadyness(SpellReadyness.AllKnown)
-            .SetSlotsRecharge(RechargeRate.None)
-            .SetSlotsPerLevel(FeatureDefinitionCastSpellBuilder.CasterProgression.None)
-            .SetSpellList(SpellsContext.EmptySpellList)
-            .SetSpellCastingAbility(castingAttribute)
-            .AddToDB();
-
+        var features = new List<FeatureDefinition>();
         var invocations = new List<InvocationDefinition>();
-
-        foreach (var spell in spellGroup.SpellsList
-                     .Where(x => x.castingTime is not ActivationTime.Reaction))
+        foreach (var spell in spells)
         {
+            // Keep the original repertoire identity for the first spell. Each other
+            // spell owns its free use, including reactions unsupported by the old menu.
+            var featureName = features.Count == 0
+                ? $"CastSpell{name}{castingAttribute}"
+                : $"CastSpell{name}{spell.Name}{castingAttribute}";
+            var spellList = SpellListDefinitionBuilder
+                .Create($"SpellList{featureName}")
+                .SetGuiPresentationNoContent(true)
+                .ClearSpells()
+                .SetSpellsAtLevel(spell.SpellLevel, spell)
+                .FinalizeSpells(false, spell.SpellLevel)
+                .AddToDB();
+            var spellFeature = FeatHelpers.BuildFixedFreeSpellCasting(
+                featureName, spellList, castingAttribute, name, spell.SpellLevel, rechargeRate,
+                allowSlotCasting: true);
+            features.Add(spellFeature);
+
+            if (spell.castingTime == ActivationTime.Reaction)
+            {
+                spellFeature.AddCustomSubFeatures(new FeatHelpers.LegacyInvocationFreeCast(null, spell.SpellLevel));
+                continue;
+            }
+
+            // Hidden compatibility definitions resolve saved invocations. Casting
+            // and consumption now belong exclusively to the native spell repertoire.
             var invocation = CustomInvocationDefinitionBuilder
                 .Create($"CustomInvocation{name}{spell.Name}{castingAttribute}")
                 .SetGuiPresentation(spell.GuiPresentation)
-                .AddCustomSubFeatures(ValidateRepertoireForAutoprepared.HasSpellCastingFeature(featureName))
+                .AddCustomSubFeatures(ModifyInvocationVisibility.Marker,
+                    ValidateRepertoireForAutoprepared.HasSpellCastingFeature(featureName))
                 .SetPoolType(InvocationPoolTypeCustom.Pools.PlaneMagic)
-                .SetGrantedSpell(spell, longRestRecharge: longRest)
+                .SetGrantedSpell(spell, longRestRecharge: rechargeRate == RechargeRate.LongRest)
                 .AddToDB();
 
-            if (!longRest)
+            if (rechargeRate == RechargeRate.ShortRest)
             {
                 invocation.AddCustomSubFeatures(RechargeInvocationOnShortRest.Marker);
             }
 
             invocations.Add(invocation);
+            spellFeature.AddCustomSubFeatures(
+                new FeatHelpers.LegacyInvocationFreeCast(invocation.Name, spell.SpellLevel));
         }
 
         var grant = FeatureDefinitionGrantInvocationsBuilder
@@ -227,7 +239,8 @@ internal static class CasterFeats
             .SetInvocations(invocations)
             .AddToDB();
 
-        return [spellFeature, grant];
+        features.Add(grant);
+        return features.ToArray();
     }
 
     [NotNull]
@@ -254,7 +267,6 @@ internal static class CasterFeats
         var power = FeatureDefinitionPowerBuilder
             .Create($"Power{NAME}{savingThrowDifficultyAbility}{motionTypeName}")
             .SetGuiPresentation($"{NAME}{motionTypeName}", Category.Feature, sprite)
-            .AddCustomSubFeatures(ModifyPowerFromInvocation.Marker)
             .SetUsesFixed(ActivationTime.BonusAction)
             .SetEffectDescription(
                 EffectDescriptionBuilder
@@ -281,6 +293,7 @@ internal static class CasterFeats
             .SetGuiPresentation(power.GuiPresentation)
             .SetPoolType(InvocationPoolTypeCustom.Pools.PlaneMagic)
             .SetGrantedFeature(power)
+            .AddCustomSubFeatures(ModifyInvocationVisibility.Marker)
             .AddToDB();
 
         return FeatureDefinitionGrantInvocationsBuilder

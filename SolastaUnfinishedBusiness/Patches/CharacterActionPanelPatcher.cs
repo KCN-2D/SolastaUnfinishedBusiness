@@ -192,6 +192,7 @@ public static class CharacterActionPanelPatcher
 
             //PATCH: hide power button on action panel if no valid powers to use or see
             actions.RemoveAll(id =>
+                CustomActionIdContext.IsRetiredInvocationActionId(id) ||
                 ActionIsInvalid(
                     id,
                     character,

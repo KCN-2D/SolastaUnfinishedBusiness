@@ -188,9 +188,11 @@ public static class CustomActionIdContext
             .SetActionScope(ActionScope.Battle)
             .AddToDB();
 
+        // Keep the legacy identities for saved invocations; their spells and powers
+        // now use the native spell and power pickers instead of these actions.
         ActionDefinitionBuilder
             .Create(CastInvocation, "CastPlaneMagicMain")
-            .SetGuiPresentation("CastPlaneMagic", Category.Action, Sprites.ActionPlaneMagic)
+            .SetGuiPresentationNoContent(true)
             .SetSortOrder(CastMain.GuiPresentation.sortOrder + 1)
             .SetActionId(ExtraActionId.CastPlaneMagicMain)
             .SetActionType(ActionType.Main)
@@ -199,7 +201,7 @@ public static class CustomActionIdContext
 
         ActionDefinitionBuilder
             .Create(CastInvocation, "CastPlaneMagicBonus")
-            .SetGuiPresentation("CastPlaneMagic", Category.Action, Sprites.ActionPlaneMagic)
+            .SetGuiPresentationNoContent(true)
             .SetSortOrder(CastBonus.GuiPresentation.sortOrder + 1)
             .SetActionId(ExtraActionId.CastPlaneMagicBonus)
             .SetActionType(ActionType.Bonus)
@@ -622,6 +624,12 @@ public static class CustomActionIdContext
         ActionStatus actionTypeStatus,
         bool ignoreMovePoints)
     {
+        if (IsRetiredInvocationActionId(actionId))
+        {
+            result = ActionStatus.Unavailable;
+            return;
+        }
+
         var action = ServiceRepository.GetService<IGameLocationActionService>().AllActionDefinitions[actionId];
         var actionType = action.actionType;
         var character = locationCharacter.RulesetCharacter;
@@ -848,17 +856,20 @@ public static class CustomActionIdContext
             or ExtraActionId.TacticianGambitNoCost;
     }
 
+    internal static bool IsRetiredInvocationActionId(Id id)
+    {
+        return id is (Id)ExtraActionId.CastPlaneMagicMain or (Id)ExtraActionId.CastPlaneMagicBonus;
+    }
+
     internal static bool IsInvocationActionId(Id id)
     {
         var extra = (ExtraActionId)id;
 
-        return id is Id.CastInvocation ||
+        return id is Id.CastInvocation || IsRetiredInvocationActionId(id) ||
                extra
                    is ExtraActionId.CastInvocationBonus
                    or ExtraActionId.CastInvocationNoCost
-                   or ExtraActionId.InventorInfusion
-                   or ExtraActionId.CastPlaneMagicMain
-                   or ExtraActionId.CastPlaneMagicBonus ||
+                   or ExtraActionId.InventorInfusion ||
                IsGambitActionId(id) ||
                IsEldritchVersatilityId(id);
     }

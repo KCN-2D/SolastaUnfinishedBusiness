@@ -233,13 +233,7 @@ public static partial class Tabletop2024Context
         ShadowTouched2024FixedTag
     ];
     private static readonly List<FeatureDefinitionCastSpell.SlotsByLevelDuplet> Touched2024FixedCastingSlots =
-        Enumerable.Range(1, 20)
-            .Select(level => new FeatureDefinitionCastSpell.SlotsByLevelDuplet
-            {
-                Slots = [0, 1],
-                Level = level
-            })
-            .ToList();
+        FeatHelpers.BuildFixedFreeCastingSlots(2);
     private static readonly HashSet<string> Dedicated2024StandaloneOverrideCanonicalNames =
     [
         LegacyAlertFeatName,
@@ -340,7 +334,6 @@ public static partial class Tabletop2024Context
         "FeatGroupRaceBound",
         "FeatGroupSkills",
         "FeatGroupGeneralAdept",
-        "FeatGroupPlaneMagic",
         "FeatGroupSpellCombat",
         "FeatGroupMeleeCombat",
         "FeatGroupRangedCombat",
@@ -4081,19 +4074,8 @@ public static partial class Tabletop2024Context
         var name = $"Feat{family}{attribute}";
         var title = Gui.Format("Feat/&GeneralFeat2024VariantTitle", groupTitle, GetAttributeTitle(attribute));
         var description = BuildHalfFeatDescription(attribute, baseDescription);
-        var fixedCastSpell = FeatureDefinitionCastSpellBuilder
-            .Create($"CastSpell{name}Fixed")
-            .SetGuiPresentationNoContent(true)
-            .SetSpellCastingOrigin(FeatureDefinitionCastSpell.CastingOrigin.Race)
-            .SetSpellKnowledge(SpellKnowledge.FixedList)
-            .SetSpellReadyness(SpellReadyness.AllKnown)
-            .SetSlotsRecharge(RechargeRate.LongRest)
-            .SetSlotsPerLevel(Touched2024FixedCastingSlots)
-            .SetUniqueLevelSlots(false)
-            .SetSpellList(fixedSpellList)
-            .SetSpellCastingAbility(attribute)
-            .AddCustomSubFeatures(new FeatHelpers.SpellTag(fixedSpellTag, forceFixedList: true))
-            .AddToDB();
+        var fixedCastSpell = FeatHelpers.BuildFixedFreeSpellCasting(
+            $"CastSpell{name}Fixed", fixedSpellList, attribute, fixedSpellTag, 2, RechargeRate.LongRest);
         var choiceCastSpell = FeatureDefinitionCastSpellBuilder
             .Create($"CastSpell{name}Choice")
             .SetGuiPresentationNoContent(true)
@@ -4593,7 +4575,6 @@ public static partial class Tabletop2024Context
         var featGroupArmor = GetDefinition<FeatDefinition>("FeatGroupArmor");
         var featGroupCreed = GetDefinition<FeatDefinition>("FeatGroupCreed");
         var featGroupMediumArmor = GetDefinition<FeatDefinition>("FeatGroupMediumArmor");
-        var featGroupPlaneMagic = GetDefinition<FeatDefinition>("FeatGroupPlaneMagic");
         var featGroupRaceBound = GetDefinition<FeatDefinition>("FeatGroupRaceBound");
         var featGroupTouchedMagic = GetDefinition<FeatDefinition>("FeatGroupTouchedMagic");
         var featGroupElementalAdept = GetDefinition<FeatDefinition>("FeatGroupElementalAdept");
@@ -4731,11 +4712,11 @@ public static partial class Tabletop2024Context
             new TabletopFeat2024Profile(
                 _featGroupFeyTeleport2024,
                 [featGroupFeyTeleport],
-                [featGroupPlaneMagic, featGroupRaceBound]),
+                [GroupFeats.FeatGroupSpellCombat, featGroupRaceBound]),
             new TabletopFeat2024Profile(
                 _featGroupFeyTouched2024,
                 [],
-                [featGroupPlaneMagic]),
+                [GroupFeats.FeatGroupSpellCombat]),
             new TabletopFeat2024Profile(
                 _featGroupRitualCaster2024,
                 [],
@@ -4747,7 +4728,7 @@ public static partial class Tabletop2024Context
             new TabletopFeat2024Profile(
                 _featGroupShadowTouched2024,
                 [featGroupTouchedMagic],
-                [featGroupPlaneMagic]),
+                [GroupFeats.FeatGroupSpellCombat]),
             new TabletopFeat2024Profile(
                 _featShieldMaster2024,
                 [featShieldTechniques],

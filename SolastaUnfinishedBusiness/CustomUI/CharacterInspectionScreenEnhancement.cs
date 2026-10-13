@@ -117,23 +117,25 @@ internal static class CharacterInspectionScreenEnhancement
             return [];
         }
 
-        if (bindMode != SpellBox.BindMode.Inspection || character == null || !IsFeatSpellRepertoire(repertoire))
+        if (bindMode != SpellBox.BindMode.Inspection || character == null ||
+            !SpellSelectionContext.IsFeatSpellRepertoire(repertoire))
         {
             return [repertoire];
         }
 
-        var feat = GetSpellSourceFeat(character, repertoire);
+        var feat = SpellSelectionContext.GetSpellSourceFeat(character, repertoire);
         var sourceTag = GetSpellSourceTag(repertoire);
         var classHolder = repertoire.SpellCastingFeature.GetFirstSubFeatureOfType<ClassHolder>()?.Class;
 
         var sources = character.SpellRepertoires.Where(candidate =>
         {
-            if (!IsFeatSpellRepertoire(candidate) || !SpellSelectionContext.IsDisplayedRepertoire(candidate))
+            if (!SpellSelectionContext.IsFeatSpellRepertoire(candidate) ||
+                !SpellSelectionContext.IsDisplayedRepertoire(candidate))
             {
                 return false;
             }
 
-            var candidateFeat = GetSpellSourceFeat(character, candidate);
+            var candidateFeat = SpellSelectionContext.GetSpellSourceFeat(character, candidate);
             if (feat != null || candidateFeat != null)
             {
                 return feat == candidateFeat;
@@ -146,21 +148,6 @@ internal static class CharacterInspectionScreenEnhancement
         }).ToArray();
 
         return sources.Length == 0 ? [repertoire] : sources;
-    }
-
-    private static bool IsFeatSpellRepertoire(RulesetSpellRepertoire repertoire)
-    {
-        return repertoire?.SpellCastingFeature is { SpellReadyness: RuleDefinitions.SpellReadyness.AllKnown } feature &&
-               feature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>() != null &&
-               !repertoire.SpellCastingClass && !repertoire.SpellCastingSubclass && !repertoire.SpellCastingRace;
-    }
-
-    private static FeatDefinition GetSpellSourceFeat(RulesetCharacter character, RulesetSpellRepertoire repertoire)
-    {
-        return character is RulesetCharacterHero hero
-            ? hero.TrainedFeats.FirstOrDefault(feat => RulesetActorExtensions.FlattenFeatureList(feat.Features)
-                .Contains(repertoire.SpellCastingFeature))
-            : null;
     }
 
     private static string GetSpellSourceTag(RulesetSpellRepertoire repertoire)
@@ -177,7 +164,8 @@ internal static class CharacterInspectionScreenEnhancement
         SpellBox.BindMode bindMode)
     {
         return bindMode == SpellBox.BindMode.Inspection &&
-               IsFeatSpellRepertoire(displayedRepertoire) && IsFeatSpellRepertoire(castingSource) &&
+               SpellSelectionContext.IsFeatSpellRepertoire(displayedRepertoire) &&
+               SpellSelectionContext.IsFeatSpellRepertoire(castingSource) &&
                GetSpellSourceTag(castingSource) == sourceTag &&
                GetInspectionSpellRepertoires(character, displayedRepertoire, bindMode).Contains(castingSource);
     }
@@ -207,7 +195,8 @@ internal static class CharacterInspectionScreenEnhancement
     {
         return Math.Max(repertoire.MaxSpellLevelOfSpellCastingLevel,
             GetInspectionSpellRepertoires(character, repertoire, bindMode)
-                .Where(IsFeatSpellRepertoire).Select(GetRepertoireInspectionMaximum).DefaultIfEmpty(0).Max());
+                .Where(SpellSelectionContext.IsFeatSpellRepertoire).Select(GetRepertoireInspectionMaximum)
+                .DefaultIfEmpty(0).Max());
     }
 
     internal static void SelectInspectionLevelSource(
@@ -276,14 +265,20 @@ internal static class CharacterInspectionScreenEnhancement
             var toggle = screen.inspectionToggles[index];
             toggle.gameObject.SetActive(SpellSelectionContext.IsDisplayedRepertoire(repertoire) && repertoire == representative);
             var sourceClass = repertoire.SpellCastingFeature.GetFirstSubFeatureOfType<ClassHolder>()?.Class;
-            if (repertoire == representative && (sources.Length > 1 || IsFeatSpellRepertoire(repertoire) && sourceClass != null))
+            if (repertoire == representative &&
+                (sources.Length > 1 || SpellSelectionContext.IsFeatSpellRepertoire(repertoire)))
             {
-                var feat = GetSpellSourceFeat(hero, repertoire);
+                var feat = SpellSelectionContext.GetSpellSourceFeat(hero, repertoire);
                 var tag = GetSpellSourceTag(repertoire);
-                var titleKey = $"Screen/&{tag}ExtraSpellTitle";
-                var hasSourceTitle = TranslatorContext.HasTranslation(titleKey);
-                var title = hasSourceTitle ? Gui.Localize(titleKey)
-                    : feat != null ? feat.FormatTitle() : repertoire.SpellCastingFeature.FormatTitle();
+                string title;
+                var hasSourceTitle = sourceClass != null
+                    ? SpellSelectionContext.TryLocalizeSpellSourceTitle(tag, out title, out _)
+                    : SpellSelectionContext.TryFormatSpellTagSourceTitle(repertoire, false, out title, out _);
+                if (!hasSourceTitle)
+                {
+                    title = feat != null ? feat.FormatTitle() : repertoire.SpellCastingFeature.FormatTitle();
+                }
+
                 if (hasSourceTitle && sourceClass != null)
                 {
                     title = Gui.Format("Feat/&GeneralFeat2024VariantTitle", title, sourceClass.FormatTitle());

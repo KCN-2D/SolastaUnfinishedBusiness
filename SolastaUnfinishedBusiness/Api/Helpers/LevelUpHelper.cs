@@ -785,37 +785,52 @@ internal static class LevelUpHelper
             // grant cantrips from selection or fixed list
             if (heroBuildingData.AcquiredCantrips.TryGetValue(finalTag, out var cantrips))
             {
-                foreach (var cantrip in cantrips)
-                {
-                    hero.GrantCantrip(cantrip, featureDefinitionCastSpell);
-                }
+                GrantMissingSpells(hero, featureDefinitionCastSpell, cantrips, cantrips: true);
             }
             else if (featureDefinitionCastSpell.SpellKnowledge == SpellKnowledge.FixedList)
             {
-                foreach (var spell in featureDefinitionCastSpell.SpellListDefinition.SpellsByLevel
-                             .Where(x => x.Level == 0)
-                             .SelectMany(x => x.Spells))
-                {
-                    hero.GrantCantrip(spell, featureDefinitionCastSpell);
-                }
+                GrantMissingSpells(hero, featureDefinitionCastSpell,
+                    featureDefinitionCastSpell.SpellListDefinition.SpellsByLevel
+                        .Where(x => x.Level == 0).SelectMany(x => x.Spells), cantrips: true);
             }
 
             // grant spells from fixed list or selection
             if (spellTag.ForceFixedList || featureDefinitionCastSpell.SpellKnowledge == SpellKnowledge.FixedList)
             {
-                foreach (var spell in featureDefinitionCastSpell.SpellListDefinition.SpellsByLevel
-                             .Where(x => x.Level > 0)
-                             .SelectMany(x => x.Spells))
-                {
-                    hero.GrantSpell(spell, featureDefinitionCastSpell);
-                }
+                GrantMissingSpells(hero, featureDefinitionCastSpell,
+                    featureDefinitionCastSpell.SpellListDefinition.SpellsByLevel
+                        .Where(x => x.Level > 0).SelectMany(x => x.Spells));
             }
             else if (heroBuildingData.AcquiredSpells.TryGetValue(finalTag, out var spells))
             {
-                foreach (var spell in spells)
-                {
-                    hero.GrantSpell(spell, featureDefinitionCastSpell);
-                }
+                GrantMissingSpells(hero, featureDefinitionCastSpell, spells);
+            }
+        }
+    }
+
+    internal static void GrantMissingSpells(
+        RulesetCharacterHero hero,
+        FeatureDefinitionCastSpell castingFeature,
+        IEnumerable<SpellDefinition> spells,
+        bool cantrips = false)
+    {
+        var repertoire = hero.SpellRepertoires.FirstOrDefault(source => source.SpellCastingFeature == castingFeature);
+        var knownSpells = cantrips ? repertoire?.KnownCantrips : repertoire?.KnownSpells;
+
+        foreach (var spell in spells)
+        {
+            if (knownSpells?.Contains(spell) == true)
+            {
+                continue;
+            }
+
+            if (cantrips)
+            {
+                hero.GrantCantrip(spell, castingFeature);
+            }
+            else
+            {
+                hero.GrantSpell(spell, castingFeature);
             }
         }
     }

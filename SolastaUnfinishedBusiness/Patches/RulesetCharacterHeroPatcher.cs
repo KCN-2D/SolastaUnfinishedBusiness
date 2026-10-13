@@ -498,6 +498,12 @@ public static class RulesetCharacterHeroPatcher
     public static class GrantInvocations_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(RulesetCharacterHero __instance)
+        {
+            SpellCastingResourceContext.MigrateLegacyInvocationFreeCasts(__instance);
+        }
+
+        [UsedImplicitly]
         public static void Postfix(RulesetCharacterHero __instance)
         {
             foreach (var invocation in __instance.Invocations)

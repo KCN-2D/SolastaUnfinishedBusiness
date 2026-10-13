@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using static RuleDefinitions;
 
@@ -22,10 +23,86 @@ internal static class SpellCastingResourceContext
     private const int SelectionMarker = -202400;
     private const int ResourceKindCount = (int)ResourceKind.SignatureSpell + 1;
     [ThreadStatic] private static ResourceOption _currentSelection;
+    [ThreadStatic] private static HashSet<RulesetCharacter> _legacyFreeCastOwners;
 
     internal static ResourceOption CurrentSelection => _currentSelection;
 
     internal static bool SupportsItemResourceSelection { get; set; }
+
+    internal static void MigrateLegacyInvocationFreeCasts(RulesetCharacter caster)
+    {
+        caster = GetResourceOwner(caster);
+        if (caster == null)
+        {
+            return;
+        }
+
+        _legacyFreeCastOwners ??= [];
+        if (!_legacyFreeCastOwners.Add(caster))
+        {
+            return;
+        }
+
+        try
+        {
+            if (caster is RulesetCharacterHero hero)
+            {
+                // Saved feats keep their definitions, but native refresh only updates existing
+                // repertoires. Grant newly split free casts before transferring their saved uses.
+                foreach (var feature in hero.TrainedFeats.SelectMany(feat => feat.Features)
+                             .OfType<FeatureDefinitionCastSpell>()
+                             .Where(feature => feature.HasSubFeatureOfType<FeatHelpers.LegacyInvocationFreeCast>())
+                             .Distinct())
+                {
+                    var repertoire = hero.SpellRepertoires.FirstOrDefault(source => source.SpellCastingFeature == feature);
+                    if (repertoire == null)
+                    {
+                        // This native entry refreshes repertoires and reenters this method.
+                        hero.GrantSpellRepertoire(feature, null, null, null);
+                        repertoire = hero.SpellRepertoires.First(source => source.SpellCastingFeature == feature);
+                    }
+
+                    if (feature.SpellListDefinition == null ||
+                        feature.SpellKnowledge != SpellKnowledge.FixedList &&
+                        feature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.ForceFixedList != true)
+                    {
+                        continue;
+                    }
+
+                    // Fixed-list feats use native knowledge as well as resource enumeration.
+                    // Match the level-up grant path without changing any saved use or class spell.
+                    LevelUpHelper.GrantMissingSpells(hero, feature,
+                        feature.SpellListDefinition.SpellsByLevel
+                            .Where(level => level.Level > 0).SelectMany(level => level.Spells).Distinct());
+                }
+            }
+
+            foreach (var repertoire in caster.SpellRepertoires)
+            {
+                var legacy = repertoire.SpellCastingFeature
+                    ?.GetFirstSubFeatureOfType<FeatHelpers.LegacyInvocationFreeCast>();
+                if (string.IsNullOrEmpty(legacy?.InvocationName))
+                {
+                    continue;
+                }
+
+                foreach (var invocation in caster.Invocations.Where(invocation => invocation.Used &&
+                             invocation.InvocationDefinition?.Name == legacy.InvocationName))
+                {
+                    // Transfer the saved use before native GrantInvocations rebuilds its instances.
+                    // Clearing the old owner makes refreshes and save/reload idempotent, while a
+                    // newly spent repertoire counter must never be overwritten by an unused invocation.
+                    repertoire.usedSpellsSlots.TryGetValue(legacy.SpellLevel, out var used);
+                    repertoire.usedSpellsSlots[legacy.SpellLevel] = Math.Max(used, 1);
+                    invocation.used = false;
+                }
+            }
+        }
+        finally
+        {
+            _legacyFreeCastOwners.Remove(caster);
+        }
+    }
 
     internal static void SetSelectedEffect(CharacterActionParams parameters, RulesetEffect effect)
     {

@@ -93,6 +93,13 @@ public static class SpellBoxPatcher
                     out var title,
                     out var tooltipContent))
             {
+                // Source labels and repertoire headings share the actual localized grant name;
+                // the already resolved tooltip retains its preparation and resource rules.
+                if (SpellSelectionContext.TryLocalizeSpellSourceTitle(__state, out var sourceTitle, out _))
+                {
+                    title = sourceTitle;
+                }
+
                 __instance.autoPreparedTitle.Text = CharacterInspectionScreenEnhancement.IsInspectionSpellSourceRedundant(
                     __instance.Caster, displayedRepertoire, source, __state, __instance.bindMode) ? string.Empty : title;
                 __instance.autoPreparedTooltip.Content = tooltipContent;
@@ -178,11 +185,7 @@ public static class SpellBoxPatcher
                 continue;
             }
 
-            BaseDefinition grant = hero.TrainedFeats.FirstOrDefault(feat =>
-                RulesetActorExtensions.FlattenFeatureList(feat.Features).Contains(castingFeature));
-
-            grant ??= hero.TrainedFightingStyles.FirstOrDefault(style =>
-                RulesetActorExtensions.FlattenFeatureList(style.Features).Contains(castingFeature));
+            var grant = SpellSelectionContext.GetSpellSourceGrant(hero, repertoire);
 
             if (!grant)
             {

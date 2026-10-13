@@ -53,7 +53,6 @@ internal static class FeatsContext
         "FeatGroupRaceBound",
         "FeatGroupSkills",
         "FeatGroupGeneralAdept",
-        "FeatGroupPlaneMagic",
         "FeatGroupSpellCombat",
         "FeatGroupMeleeCombat",
         "FeatGroupRangedCombat",
@@ -74,6 +73,12 @@ internal static class FeatsContext
 
     internal static void LateLoad()
     {
+        // Migrate before the 2024 catalog captures category settings for later restoration.
+        if (Main.Settings.FeatGroupEnabled.Remove("FeatGroupPlaneMagic"))
+        {
+            Main.Settings.FeatGroupEnabled.TryAdd("FeatGroupSpellCombat");
+        }
+
         var feats = new List<FeatDefinition>();
 
         // generate feats here and fill the list
