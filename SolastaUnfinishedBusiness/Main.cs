@@ -182,6 +182,7 @@ internal static class Main
         TryCleanup(() => SaveByLocationContext.Unload(!applicationQuitting));
         TryCleanup(CombatAiContext.Unload);
         TryCleanup(PlayerControllerContext.Unload);
+        TryCleanup(CivilianAnimationContext.SuspendCivilianReactions);
         TryCleanup(CombatAnimationContext.Unload);
         TryCleanup(MultiplayerSettingsContext.Invalidate);
         TryCleanup(GuiWrapperContext.Unload);

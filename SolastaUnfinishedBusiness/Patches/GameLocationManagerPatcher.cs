@@ -35,6 +35,7 @@ public static class GameLocationManagerPatcher
         {
             LoadingContext.UpdateLoadingState(
                 __instance, __instance.locationLoadingCoroutine, __instance.locationUnloadingCoroutine);
+            CivilianAnimationContext.UpdateAmbientCivilianAnimations();
         }
 
         [UsedImplicitly]
@@ -59,7 +60,7 @@ public static class GameLocationManagerPatcher
         {
             LoadingContext.Release(__instance);
             PlayerControllerContext.Stop();
-            CombatAnimationContext.SuspendCivilianReactions();
+            CivilianAnimationContext.SuspendCivilianReactions();
             CombatAiContext.StopEnemyBattleTactics();
         }
     }
@@ -72,7 +73,7 @@ public static class GameLocationManagerPatcher
         public static void Prefix()
         {
             PlayerControllerContext.Stop();
-            CombatAnimationContext.SuspendCivilianReactions();
+            CivilianAnimationContext.SuspendCivilianReactions();
             CombatAiContext.StopEnemyBattleTactics();
         }
     }
@@ -162,7 +163,7 @@ public static class GameLocationManagerPatcher
         [UsedImplicitly]
         public static void Postfix(GameLocationManager __instance)
         {
-            CombatAnimationContext.ResumeCivilianReactions();
+            CivilianAnimationContext.ResumeCivilianReactions();
             CombatAiContext.RestoreEnemyBattleTactics();
             CampaignTranslationRuntimeRepairContext.RepairWorldLocationGadgets(
                 __instance.WorldLocation,

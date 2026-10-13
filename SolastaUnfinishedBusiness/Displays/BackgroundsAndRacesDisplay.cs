@@ -1,4 +1,5 @@
-﻿using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+﻿using System.Linq;
+using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
@@ -12,7 +13,7 @@ internal static class BackgroundsAndRacesDisplay
     private static void DisplayBackgroundsAndRacesGeneral()
     {
         var toggle = Main.Settings.DisplayBackgroundsAndRacesGeneralToggle;
-        if (UI.DisclosureToggle(Gui.Localize("ModUi/&General"), ref toggle, 200))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&General"), ref toggle))
         {
             Main.Settings.DisplayBackgroundsAndRacesGeneralToggle = toggle;
         }
@@ -151,76 +152,83 @@ internal static class BackgroundsAndRacesDisplay
     {
         UI.Label();
 
-        using (UI.HorizontalScope())
-        {
-            UI.ActionButton(Gui.Localize("ModUi/&DocsBackgrounds").Bold().Khaki(),
-                () => UpdateContext.OpenDocumentation("Backgrounds.md"), UI.Width(189f));
-            UI.ActionButton(Gui.Localize("ModUi/&DocsRaces").Bold().Khaki(),
-                () => UpdateContext.OpenDocumentation("Races.md"), UI.Width(189f));
-            UI.ActionButton(Gui.Localize("ModUi/&DocsSubraces").Bold().Khaki(),
-                () => UpdateContext.OpenDocumentation("Subraces.md"), UI.Width(189f));
-        }
+        ModUi.DisplayDocumentationLinks(
+            ("ModUi/&DocsBackgrounds", "Backgrounds.md"),
+            ("ModUi/&DocsRaces", "Races.md"),
+            ("ModUi/&DocsSubraces", "Subraces.md"));
 
         UI.Label();
         DisplayBackgroundsAndRacesGeneral();
         UI.Label();
 
-        using (UI.HorizontalScope())
-        {
-            var toggle =
-                Main.Settings.DisplayBackgroundsToggle &&
-                Main.Settings.DisplayRacesToggle &&
-                Main.Settings.DisplaySubracesToggle;
-
-            if (UI.Toggle(Gui.Localize("ModUi/&ExpandAll"), ref toggle, UI.Width(ModUi.PixelsPerColumn)))
+        var expandAllTitle = Gui.Localize("ModUi/&ExpandAll");
+        var selectAllTitle = Gui.Localize("ModUi/&SelectAll");
+        var tabletopTitle = Gui.Localize("ModUi/&SelectTabletop");
+        NamedAction[] bulkActions =
+        [
+            new(expandAllTitle, () =>
             {
-                Main.Settings.DisplayBackgroundsToggle = toggle;
-                Main.Settings.DisplayRacesToggle = toggle;
-                Main.Settings.DisplaySubracesToggle = toggle;
-            }
+                var toggle =
+                    Main.Settings.DisplayBackgroundsToggle &&
+                    Main.Settings.DisplayRacesToggle &&
+                    Main.Settings.DisplaySubracesToggle;
 
-            toggle =
-                BackgroundsContext.Backgrounds.Count == Main.Settings.BackgroundEnabled.Count &&
-                RacesContext.Races.Count == Main.Settings.RaceEnabled.Count &&
-                RacesContext.Subraces.Count == Main.Settings.SubraceEnabled.Count;
-
-            if (UI.Toggle(Gui.Localize("ModUi/&SelectAll"), ref toggle, UI.Width(ModUi.PixelsPerColumn)))
+                if (UI.Toggle(expandAllTitle, ref toggle, UI.AutoWidth()))
+                {
+                    Main.Settings.DisplayBackgroundsToggle = toggle;
+                    Main.Settings.DisplayRacesToggle = toggle;
+                    Main.Settings.DisplaySubracesToggle = toggle;
+                }
+            }),
+            new(selectAllTitle, () =>
             {
-                foreach (var background in BackgroundsContext.Backgrounds)
-                {
-                    BackgroundsContext.Switch(background, toggle);
-                }
+                var toggle =
+                    BackgroundsContext.Backgrounds.Count == Main.Settings.BackgroundEnabled.Count &&
+                    RacesContext.Races.Count == Main.Settings.RaceEnabled.Count &&
+                    RacesContext.Subraces.Count == Main.Settings.SubraceEnabled.Count;
 
-                foreach (var race in RacesContext.Races)
+                if (UI.Toggle(selectAllTitle, ref toggle, UI.AutoWidth()))
                 {
-                    RacesContext.Switch(race, toggle);
-                }
+                    foreach (var background in BackgroundsContext.Backgrounds)
+                    {
+                        BackgroundsContext.Switch(background, toggle);
+                    }
 
-                foreach (var subrace in RacesContext.Subraces)
-                {
-                    RacesContext.SwitchSubrace(subrace, toggle);
-                }
-            }
+                    foreach (var race in RacesContext.Races)
+                    {
+                        RacesContext.Switch(race, toggle);
+                    }
 
-            toggle = _displayTabletop;
-            if (UI.Toggle(Gui.Localize("ModUi/&SelectTabletop"), ref toggle, UI.Width(ModUi.PixelsPerColumn)))
+                    foreach (var subrace in RacesContext.Subraces)
+                    {
+                        RacesContext.SwitchSubrace(subrace, toggle);
+                    }
+                }
+            }),
+            new(tabletopTitle, () =>
             {
-                foreach (var background in BackgroundsContext.Backgrounds)
+                var toggle = _displayTabletop;
+                if (UI.Toggle(tabletopTitle, ref toggle, UI.AutoWidth()))
                 {
-                    BackgroundsContext.Switch(background, toggle && ModUi.IsTabletopDefinition(background));
-                }
+                    foreach (var background in BackgroundsContext.Backgrounds)
+                    {
+                        BackgroundsContext.Switch(background, toggle && ModUi.IsTabletopDefinition(background));
+                    }
 
-                foreach (var race in RacesContext.Races)
-                {
-                    RacesContext.Switch(race, toggle && ModUi.IsTabletopDefinition(race));
-                }
+                    foreach (var race in RacesContext.Races)
+                    {
+                        RacesContext.Switch(race, toggle && ModUi.IsTabletopDefinition(race));
+                    }
 
-                foreach (var subrace in RacesContext.Subraces)
-                {
-                    RacesContext.SwitchSubrace(subrace, toggle && ModUi.IsTabletopDefinition(subrace));
+                    foreach (var subrace in RacesContext.Subraces)
+                    {
+                        RacesContext.SwitchSubrace(subrace, toggle && ModUi.IsTabletopDefinition(subrace));
+                    }
                 }
-            }
-        }
+            })
+        ];
+        UI.HStack(null, bulkActions.Length, GUI.skin.label,
+            bulkActions.Select(action => UI.ToggleWidth(action.Name)).ToArray(), false, bulkActions);
 
         UI.Div();
 

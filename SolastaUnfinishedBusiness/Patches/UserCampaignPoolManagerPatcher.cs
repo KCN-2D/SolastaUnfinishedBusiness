@@ -20,6 +20,20 @@ public static class UserCampaignPoolManagerPatcher
     public static class EnumeratePool_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(UserCampaignPoolManager __instance, out List<UserCampaign> __state)
+        {
+            __state = DungeonMakerContext.RetainCampaignFilesForEnumeration(__instance);
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(Exception __exception, List<UserCampaign> __state)
+        {
+            __state?.Clear();
+
+            return __exception;
+        }
+
+        [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             var code = instructions.ToList();
@@ -72,9 +86,45 @@ public static class UserCampaignPoolManagerPatcher
     public static class ReadCampaignFromDisk_Patch
     {
         [UsedImplicitly]
-        public static bool Prefix(string __0)
+        internal static bool Prefix(
+            UserCampaignPoolManager __instance,
+            string __0,
+            bool __2,
+            bool __3,
+            List<string> __4,
+            Dictionary<string, UserCampaign> ___pool,
+            ref UserCampaign __result,
+            out DungeonMakerContext.CampaignFileRead __state)
         {
-            return DungeonMakerContext.ShouldReadUserContentFile(__0, nameof(UserCampaign));
+            __state = null;
+
+            if (!DungeonMakerContext.TryGetCachedCampaignFile(__instance, __0, __2, __3, __4, out var campaign, out __state))
+            {
+                return DungeonMakerContext.ShouldReadUserContentFile(__0, nameof(UserCampaign));
+            }
+
+            campaign.IsWorkshopItem = __2 || __3;
+
+            if (__3 || !___pool.ContainsKey(campaign.Title))
+            {
+                ___pool[campaign.Title] = campaign;
+            }
+
+            __result = campaign;
+
+            return false;
+        }
+
+        [UsedImplicitly]
+        internal static void Postfix(
+            UserCampaignPoolManager __instance,
+            bool __1,
+            List<string> __4,
+            Dictionary<string, UserCampaign> ___pool,
+            UserCampaign __result,
+            DungeonMakerContext.CampaignFileRead __state)
+        {
+            DungeonMakerContext.CacheCampaignFile(__instance, __state, __result, __1, __4, ___pool);
         }
     }
 
@@ -85,6 +135,12 @@ public static class UserCampaignPoolManagerPatcher
     public static class SaveUserCampaign_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(UserCampaignPoolManager __instance, UserCampaign __0)
+        {
+            DungeonMakerContext.InvalidateCampaignFile(__instance, __0);
+        }
+
+        [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
         {
             var deleteMethod = typeof(File).GetMethod("Delete");
@@ -93,6 +149,18 @@ public static class UserCampaignPoolManagerPatcher
             return instructions.ReplaceCalls(deleteMethod, "UserCampaignPoolManager.SaveUserCampaign",
                 new CodeInstruction(OpCodes.Ldarg_1),
                 new CodeInstruction(OpCodes.Call, backupAndDeleteMethod));
+        }
+    }
+
+    [HarmonyPatch(typeof(UserCampaignPoolManager), nameof(UserCampaignPoolManager.Shutdown))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Shutdown_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(UserCampaignPoolManager __instance)
+        {
+            DungeonMakerContext.ReleaseCampaignFiles(__instance);
         }
     }
 }

@@ -722,10 +722,12 @@ internal static class CampaignTranslationRuntimeRepairContext
             return _cachedRepairIndex;
         }
 
-        _cachedUserCampaign = userCampaign;
-        _cachedRepairIndex = BuildRepairIndex(userCampaign);
+        var repairIndex = BuildRepairIndex(userCampaign);
 
-        return _cachedRepairIndex;
+        _cachedUserCampaign = userCampaign;
+        _cachedRepairIndex = repairIndex;
+
+        return repairIndex;
     }
 
     [NotNull]
@@ -914,7 +916,154 @@ internal static class CampaignTranslationRuntimeRepairContext
         using var textReader = new StreamReader(stream);
         using var jsonReader = new JsonTextReader(textReader);
 
-        return JObject.Load(jsonReader);
+        if (!ReadNextJsonToken(jsonReader) || jsonReader.TokenType != JsonToken.StartObject)
+        {
+            throw new JsonReaderException("Expected a campaign JSON object.");
+        }
+
+        // Terrain, decoration and actor data are not repair inputs. Reading those
+        // tokens without retaining their JSON trees avoids a large main-thread GC
+        // pause when a saved custom campaign first initializes its map.
+        return ReadRepairJsonObject(jsonReader, RepairJsonObjectKind.Campaign);
+    }
+
+    [NotNull]
+    private static JObject ReadRepairJsonObject([NotNull] JsonTextReader reader, RepairJsonObjectKind kind)
+    {
+        var result = new JObject();
+
+        while (ReadNextJsonToken(reader))
+        {
+            if (reader.TokenType == JsonToken.EndObject)
+            {
+                return result;
+            }
+
+            if (reader.TokenType != JsonToken.PropertyName)
+            {
+                throw new JsonReaderException("Expected a campaign JSON property.");
+            }
+
+            var propertyName = reader.Value as string;
+
+            if (!ReadNextJsonToken(reader))
+            {
+                break;
+            }
+
+            if (IsRepairJsonValue(kind, propertyName))
+            {
+                result[propertyName] = JToken.ReadFrom(reader);
+                continue;
+            }
+
+            var childKind = GetRepairJsonArrayKind(kind, propertyName);
+
+            if (childKind != RepairJsonObjectKind.None)
+            {
+                result[propertyName] = ReadRepairJsonArray(reader, childKind);
+            }
+            else
+            {
+                reader.Skip();
+            }
+        }
+
+        throw new JsonReaderException("Unexpected end of a campaign JSON object.");
+    }
+
+    [NotNull]
+    private static JArray ReadRepairJsonArray([NotNull] JsonTextReader reader, RepairJsonObjectKind kind)
+    {
+        var result = new JArray();
+
+        if (reader.TokenType != JsonToken.StartArray)
+        {
+            reader.Skip();
+            return result;
+        }
+
+        while (ReadNextJsonToken(reader))
+        {
+            if (reader.TokenType == JsonToken.EndArray)
+            {
+                return result;
+            }
+
+            if (reader.TokenType == JsonToken.StartObject)
+            {
+                result.Add(ReadRepairJsonObject(reader, kind));
+            }
+            else
+            {
+                reader.Skip();
+            }
+        }
+
+        throw new JsonReaderException("Unexpected end of a campaign JSON array.");
+    }
+
+    private static bool ReadNextJsonToken([NotNull] JsonTextReader reader)
+    {
+        while (reader.Read())
+        {
+            if (reader.TokenType != JsonToken.Comment)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsRepairJsonValue(RepairJsonObjectKind kind, [CanBeNull] string propertyName)
+    {
+        return kind switch
+        {
+            RepairJsonObjectKind.Campaign => propertyName == "title",
+            RepairJsonObjectKind.CampaignMapNode => propertyName is "partyStart" or "userLocationName" or
+                "overriddenTitle" or "overriddenDescription" or "unchartedTitle" or "unchartedDescription",
+            RepairJsonObjectKind.Location => propertyName == "title",
+            RepairJsonObjectKind.Gadget => propertyName == "uniqueName",
+            RepairJsonObjectKind.Parameter => propertyName is "gadgetParameterDescriptionName" or "stringValue",
+            RepairJsonObjectKind.Destination => propertyName is "userLocationName" or "displayedTitle",
+            RepairJsonObjectKind.Biome => propertyName == "narrativeEventBasicLines",
+            _ => false
+        };
+    }
+
+    private static RepairJsonObjectKind GetRepairJsonArrayKind(
+        RepairJsonObjectKind kind,
+        [CanBeNull] string propertyName)
+    {
+        return kind switch
+        {
+            RepairJsonObjectKind.Campaign => propertyName switch
+            {
+                "campaignMapNodes" => RepairJsonObjectKind.CampaignMapNode,
+                "userLocations" => RepairJsonObjectKind.Location,
+                "userBiomes" => RepairJsonObjectKind.Biome,
+                _ => RepairJsonObjectKind.None
+            },
+            RepairJsonObjectKind.Location when propertyName == "userRooms" => RepairJsonObjectKind.Room,
+            RepairJsonObjectKind.Room when propertyName == "userGadgets" => RepairJsonObjectKind.Gadget,
+            RepairJsonObjectKind.Gadget when propertyName == "parameterValues" => RepairJsonObjectKind.Parameter,
+            RepairJsonObjectKind.Parameter when propertyName == "destinationsList" => RepairJsonObjectKind.Destination,
+            _ => RepairJsonObjectKind.None
+        };
+    }
+
+    private enum RepairJsonObjectKind
+    {
+        None,
+        Campaign,
+        CampaignMapNode,
+        Location,
+        Room,
+        Gadget,
+        Parameter,
+        Destination,
+        Biome
     }
 
     [NotNull]

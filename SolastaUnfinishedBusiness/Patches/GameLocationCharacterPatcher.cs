@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -50,7 +50,7 @@ public static class GameLocationCharacterPatcher
         [UsedImplicitly]
         public static void Prefix(GameLocationCharacter __instance)
         {
-            CombatAnimationContext.InterruptCivilianReaction(__instance.RulesetCharacter);
+            CivilianAnimationContext.InterruptCivilianReaction(__instance.RulesetCharacter);
         }
     }
 

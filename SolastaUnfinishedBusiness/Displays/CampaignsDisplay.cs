@@ -371,7 +371,7 @@ internal static class CampaignsDisplay
         color = CampaignsContext.GridColorStrings[Main.Settings.GridSelectedColor];
         var gridTitle = Gui.Localize("ModUi/&GridSelectedColor").Replace("$$$$$$", color);
 
-        UI.HStack(null, 3, colorButtonStyle,
+        UI.HStack(null, 3, colorButtonStyle, false,
             new NamedAction(targetingAoeTitle, () => UI.ActionButton(targetingAoeTitle, () =>
             {
                 Main.Settings.HighContrastTargetingAoeSelectedColor =
@@ -856,7 +856,8 @@ internal static class CampaignsDisplay
                 },
                 UI.Width(resetWidth));
 
-            if (UI.SelectionGrid(ref selectedSet, SetNames, SetNames.Length, SetNames.Length, UI.Width(165f)))
+            if (UI.SelectionGrid(ref selectedSet, SetNames, SetNames.Length, SetNames.Length,
+                    UI.Width(UnityModManagerNet.UnityModManager.UI.Scale(165))))
             {
                 _selectedForSwap = false;
                 Main.Settings.FormationGridSelectedSet = selectedSet;

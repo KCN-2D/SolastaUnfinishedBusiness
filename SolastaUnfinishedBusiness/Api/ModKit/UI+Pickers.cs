@@ -93,22 +93,59 @@ internal static partial class UI
         var formattedTitle = title.Cyan();
         var titleWidth = Mathf.Min(300.Point(), titleStyle.CalcSize(new GUIContent(formattedTitle)).x);
 
+        return SelectionGrid(formattedTitle, ref selected, texts, xCols, titleStyle, titleWidth, 0f, options);
+    }
+
+    [UsedImplicitly]
+    public static bool SelectionGrid(string title, ref int selected, string[] texts, int xCols,
+        GUIStyle titleStyle, float titleWidth, float gridWidth, params GUILayoutOption[] options)
+    {
+        titleStyle ??= GUI.skin.label;
+
         using (VerticalScope(MinWidth(0f), ExpandWidth(true)))
         {
             var layout = MeasureResponsiveLayout([], 1, titleStyle);
-            if (layout.LayoutWidth < titleWidth + 25f + 200.Point())
+            var requiredGridWidth = gridWidth > 0f
+                ? Mathf.Max(gridWidth, MeasureSelectionGridRowWidth(texts, xCols, GUI.skin.button))
+                : 200.Point();
+            var gridOptions = gridWidth > 0f
+                ? new[] { Width(Mathf.Min(requiredGridWidth, Mathf.Max(1f, layout.LayoutWidth))) }.Concat(options).ToArray()
+                : options;
+
+            if (layout.LayoutWidth < titleWidth + 25f + requiredGridWidth)
             {
-                Label(formattedTitle, titleStyle, MinWidth(0f), ExpandWidth(true));
-                return SelectionGrid(ref selected, texts, xCols, options);
+                Label(title, titleStyle, MinWidth(0f), ExpandWidth(true));
+                return SelectionGrid(ref selected, texts, xCols, gridOptions);
             }
 
             using (HorizontalScope())
             {
-                Label(formattedTitle, titleStyle, Width(titleWidth));
+                Label(title, titleStyle, Width(titleWidth));
                 Space(25f);
-                return SelectionGrid(ref selected, texts, xCols, options);
+                var changed = SelectionGrid(ref selected, texts, xCols, gridOptions);
+                if (gridWidth > 0f)
+                {
+                    GL.FlexibleSpace();
+                }
+
+                return changed;
             }
         }
+    }
+
+    private static float MeasureSelectionGridRowWidth(string[] texts, int maximumColumns, GUIStyle style)
+    {
+        if (texts.Length == 0)
+        {
+            return 0f;
+        }
+
+        var columns = Mathf.Clamp(maximumColumns <= 0 ? texts.Length : maximumColumns, 1, texts.Length);
+        // Any option can become selected. Reserve its emphasized caption and the same
+        // outer margins/inter-column gap used by DrawSelectionGrid's column calculation.
+        var captionWidth = texts.Max(text => style.CalcSize(new GUIContent(text.Orange().Bold())).x);
+        return Mathf.Ceil(columns * captionWidth +
+                          (columns - 1) * Math.Max(style.margin.left, style.margin.right) + style.margin.horizontal);
     }
 
     [UsedImplicitly]

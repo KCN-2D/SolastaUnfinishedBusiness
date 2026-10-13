@@ -179,6 +179,7 @@ public class Settings : UnityModManager.ModSettings
 
     #region "Roleplay Settings"
 
+    [Tag(Type = TagType.Roleplay)] public bool EnableCivilianAmbientAnimations { get; set; }
     [Tag(Type = TagType.Roleplay)] public bool EnableCivilianBattleReactions { get; set; }
     [Tag(Type = TagType.Roleplay)] public bool EnableEnemyBattleTactics { get; set; }
     [Tag(Type = TagType.Roleplay)] public bool ModifyJumpRulesForArmorAndEncumberance { get; set; }

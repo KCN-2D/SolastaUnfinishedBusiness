@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -200,6 +200,8 @@ public static class CharacterActionPatcher
             var actingCharacter = __instance.ActingCharacter;
             using var reactionEngagementScope =
                 new ExplorationReactionEngagementScope(__instance, actingCharacter);
+
+            CivilianAnimationContext.InterruptCivilianReaction(actingCharacter?.RulesetCharacter);
 
             using (CombatAnimationContext.BeginActionScope(__instance))
             {

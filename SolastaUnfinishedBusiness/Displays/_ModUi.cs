@@ -470,6 +470,18 @@ internal static class ModUi
         return title;
     }
 
+    internal static void DisplayDocumentationLinks(params (string TitleKey, string FileName)[] links)
+    {
+        var style = new GUIStyle(GUI.skin.button) { wordWrap = true };
+        var actions = links.Select(link =>
+        {
+            var title = Gui.Localize(link.TitleKey).Bold().Khaki();
+            return new NamedAction(title, () => UI.ActionButton(title,
+                () => UpdateContext.OpenDocumentation(link.FileName), style, UI.MinWidth(0f), UI.AutoWidth()));
+        }).ToArray();
+        UI.HStack(null, actions.Length, style, false, actions);
+    }
+
     internal static void DisplaySubMenu(ref int selectedPane, string title = null, params NamedAction[] actions)
     {
         if (!Main.Enabled)
@@ -496,7 +508,7 @@ internal static class ModUi
         ref int sliderPosition,
         bool useAlternateDescription = false,
         [CanBeNull] Action headerRendering = null,
-        [CanBeNull] Action additionalRendering = null,
+        [CanBeNull] NamedAction[] additionalActions = null,
         bool displaySelectTabletop = true,
         [CanBeNull] Func<T, bool> toggleEnabled = null,
         [CanBeNull] Func<T, bool?> toggleValueOverride = null) where T : BaseDefinition
@@ -524,7 +536,7 @@ internal static class ModUi
 
         var toggle = displayToggle;
 
-        if (UI.DisclosureToggle($"{label}:", ref toggle, 200))
+        if (UI.DisclosureToggle($"{label}:", ref toggle))
         {
             displayToggle = toggle;
         }
@@ -538,25 +550,30 @@ internal static class ModUi
 
         headerRendering?.Invoke();
 
-        using (UI.HorizontalScope())
+        var newSliderPosition = sliderPosition;
+        var descriptionsTitle = Gui.Localize("ModUi/&ShowDescriptions");
+        NamedAction[] bulkActions =
+        [
+            new(descriptionsTitle, () =>
+            {
+                var showDescriptions = newSliderPosition == 1;
+                if (UI.Toggle(descriptionsTitle, ref showDescriptions, UI.AutoWidth()))
+                {
+                    newSliderPosition = showDescriptions ? 1 : 4;
+                }
+            })
+        ];
+
+        if (additionalActions != null)
         {
-            toggle = sliderPosition == 1;
-
-            if (UI.Toggle(Gui.Localize("ModUi/&ShowDescriptions"), ref toggle, UI.Width(PixelsPerColumn)))
+            bulkActions = bulkActions.Concat(additionalActions).ToArray();
+        }
+        else
+        {
+            var selectAllTitle = Gui.Localize("ModUi/&SelectAll");
+            bulkActions = bulkActions.Append(new NamedAction(selectAllTitle, () =>
             {
-                sliderPosition = toggle ? 1 : 4;
-            }
-
-            if (additionalRendering != null)
-            {
-                additionalRendering.Invoke();
-            }
-            else
-            {
-                var guiEnabled = GUI.enabled;
-                GUI.enabled = guiEnabled && enabledDefinitions.Length > 0;
-
-                if (UI.Toggle(Gui.Localize("ModUi/&SelectAll"), ref selectAll, UI.Width(PixelsPerColumn)))
+                if (UI.Toggle(selectAllTitle, ref selectAll, UI.AutoWidth()))
                 {
                     foreach (var registeredDefinition in enabledDefinitions)
                     {
@@ -565,11 +582,14 @@ internal static class ModUi
 
                     selectedDefinitionNames = new HashSet<string>(selectedDefinitions);
                 }
+            }, () => enabledDefinitions.Length > 0)).ToArray();
 
-                if (displaySelectTabletop)
+            if (displaySelectTabletop)
+            {
+                var selectTabletopTitle = Gui.Localize("ModUi/&SelectTabletop");
+                bulkActions = bulkActions.Append(new NamedAction(selectTabletopTitle, () =>
                 {
-                    if (UI.Toggle(Gui.Localize("ModUi/&SelectTabletop"), ref selectTabletop,
-                            UI.Width(PixelsPerColumn)))
+                    if (UI.Toggle(selectTabletopTitle, ref selectTabletop, UI.AutoWidth()))
                     {
                         foreach (var registeredDefinition in enabledTabletopDefinitions)
                         {
@@ -578,83 +598,87 @@ internal static class ModUi
 
                         selectedDefinitionNames = new HashSet<string>(selectedDefinitions);
                     }
-                }
+                }, () => enabledDefinitions.Length > 0)).ToArray();
+            }
+        }
 
+        UI.HStack(null, bulkActions.Length, GUI.skin.label,
+            bulkActions.Select(action => UI.ToggleWidth(action.Name)).ToArray(), false, bulkActions);
+        sliderPosition = newSliderPosition;
+
+        UI.Label();
+
+        var definitions = registeredDefinitions.ToArray();
+        var showDefinitionDescriptions = sliderPosition == 1;
+        var maximumCaptionWidth = UnityModManager.UI.Scale(300);
+        var definitionTitles = definitions.Select((definition, index) =>
+        {
+            var title = FormatDefinitionOptionTitle(definition);
+            var alternateColor = showDefinitionDescriptions && index % 2 == 1;
+            if (alternateColor)
+            {
+                title = title.Khaki();
+            }
+            else if (showDefinitionDescriptions)
+            {
+                title = title.White();
+            }
+            else if (IsTabletopDefinition(definition))
+            {
+                title = title.Color("#D89555").Bold() + " \u00a9".Grey();
+            }
+            else if (definition.ContentPack != CeContentPackContext.CeContentPack)
+            {
+                title = title.Orange() + " \u263c".Grey();
+            }
+
+            return title;
+        }).ToArray();
+        var captionWidths = definitionTitles.Select(title =>
+            Mathf.Max(PixelsPerColumn, Mathf.Min(UI.ToggleWidth(title), maximumCaptionWidth))).ToArray();
+
+        void DrawDefinition(int index)
+        {
+            var definition = definitions[index];
+            var guiEnabled = GUI.enabled;
+            try
+            {
+                GUI.enabled = guiEnabled && (toggleEnabled?.Invoke(definition) ?? true);
+                var value = toggleValueOverride?.Invoke(definition) ?? selectedDefinitionNames.Contains(definition.Name);
+                if (UI.Toggle(definitionTitles[index], ref value, UI.MinWidth(0f), UI.ExpandWidth(true)))
+                {
+                    switchAction.Invoke(definition, value);
+                    selectedDefinitionNames = new HashSet<string>(selectedDefinitions);
+                }
+            }
+            finally
+            {
                 GUI.enabled = guiEnabled;
             }
         }
 
-        // UI.Slider("slide left for description / right to collapse".white().bold().italic(), ref sliderPosition, 1, maxColumns, 1, "");
-
-        UI.Label();
-
-        var flip = false;
-        var current = 0;
-        var definitions = registeredDefinitions.ToArray();
-        var count = definitions.Length;
-
-        using (UI.VerticalScope())
+        if (!showDefinitionDescriptions)
         {
-            while (current < count)
+            UI.AlignedGrid(sliderPosition, captionWidths.DefaultIfEmpty(PixelsPerColumn).Max(), definitions.Length,
+                DrawDefinition);
+        }
+        else
+        {
+            var descriptionStyle = new GUIStyle(GUI.skin.label) { wordWrap = true };
+            for (var index = 0; index < definitions.Length; index++)
             {
-                var columns = sliderPosition;
-
-                using (UI.HorizontalScope())
-                {
-                    while (current < count && columns-- > 0)
-                    {
-                        var definition = definitions[current];
-                        var title = FormatDefinitionOptionTitle(definition);
-                        var isTabletop = IsTabletopDefinition(definition);
-                        var isVanilla = definition.ContentPack != CeContentPackContext.CeContentPack;
-
-                        if (flip)
-                        {
-                            title = title.Khaki();
-                        }
-                        else if (sliderPosition == 1)
-                        {
-                            title = title.White();
-                        }
-                        else if (isTabletop)
-                        {
-                            title = title.Color("#D89555").Bold() + " \u00a9".Grey(); // copyright symbol
-                        }
-                        else if (isVanilla)
-                        {
-                            title = title.Orange() + " \u263c".Grey(); // sun symbol
-                        }
-
-                        var isEnabled = toggleEnabled?.Invoke(definition) ?? true;
-                        toggle = toggleValueOverride?.Invoke(definition) ?? selectedDefinitionNames.Contains(definition.Name);
-
-                        var guiEnabled = GUI.enabled;
-                        GUI.enabled = guiEnabled && isEnabled;
-
-                        if (UI.Toggle(title, ref toggle, UI.Width(PixelsPerColumn)))
-                        {
-                            switchAction.Invoke(definition, toggle);
-                            selectedDefinitionNames = new HashSet<string>(selectedDefinitions);
-                        }
-
-                        GUI.enabled = guiEnabled;
-
-                        if (sliderPosition == 1)
-                        {
-                            var description = useAlternateDescription
-                                ? Gui.Localize($"ModUi/&{definition.Name}Description")
-                                : definition.FormatDescription();
-
-                            description = flip ? description.Khaki() : description.White();
-
-                            UI.Label(description, UI.Width(PixelsPerColumn * 3));
-
-                            flip = !flip;
-                        }
-
-                        current++;
-                    }
-                }
+                var definition = definitions[index];
+                var description = useAlternateDescription
+                    ? Gui.Localize($"ModUi/&{definition.Name}Description")
+                    : definition.FormatDescription();
+                description = index % 2 == 1 ? description.Khaki() : description.White();
+                var titleWidth = captionWidths[index];
+                var definitionIndex = index;
+                UI.AlignedRow(1, [titleWidth, PixelsPerColumn * 3],
+                    [Mathf.Min(titleWidth, UnityModManager.UI.Scale(150)), UnityModManager.UI.Scale(200)],
+                    new NamedAction(definitionTitles[index], () => DrawDefinition(definitionIndex)),
+                    new NamedAction(description, () => UI.Label(description, descriptionStyle,
+                        UI.MinWidth(0f), UI.ExpandWidth(true))));
             }
         }
 

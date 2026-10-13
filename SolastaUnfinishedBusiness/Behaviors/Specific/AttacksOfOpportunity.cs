@@ -139,11 +139,12 @@ internal static class AttacksOfOpportunity
         bool def,
         float distance)
     {
-        return
-            attacker.GetSubFeaturesByType<IIgnoreAoOImmunity>()
-                .Any(f => f.CanIgnoreAoOImmunity(defender, attacker, distance)) ||
-            (!defender.GetSubFeaturesByType<IIgnoreAoOOnMe>()
-                .Any(f => f.CanIgnoreAoOOnSelf(defender, attacker)) && def);
+        // Disengage exceptions must not override independent immunity such as Flyby
+        // or Fancy Footwork, whose conditions are handled by custom subfeatures.
+        return !defender.GetSubFeaturesByType<IIgnoreAoOOnMe>()
+                   .Any(f => f.CanIgnoreAoOOnSelf(defender, attacker)) &&
+               (def || attacker.GetSubFeaturesByType<IIgnoreAoOImmunity>()
+                   .Any(f => f.CanIgnoreAoOImmunity(defender, attacker, distance)));
     }
 }
 

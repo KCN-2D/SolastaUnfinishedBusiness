@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -17,6 +18,54 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GraphicsCharacterFactoryManagerPatcher
 {
+    [HarmonyPatch(typeof(GraphicsCharacterFactoryManager), "CullingGroupEventChanged")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CullingGroupEventChanged_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions,
+            MethodBase __originalMethod)
+        {
+            var codes = instructions.ToList();
+            var lookup = AccessTools.Method(typeof(GraphicsCharacterFactoryManager), "TryGetGraphicsCharacter",
+                [typeof(int), typeof(int), typeof(GraphicsCharacter).MakeByRefType()]);
+            var calls = codes.Select((code, index) => (code, index)).Where(item => item.code.Calls(lookup)).ToArray();
+            var locals = __originalMethod.GetMethodBody()?.LocalVariables
+                .Where(local => local.LocalType == typeof(GraphicsCharacter)).ToArray();
+            if (calls.Length != 1 || locals?.Length != 1)
+            {
+                Main.Error("Unable to track native civilian culling: the character lookup has changed.");
+                return codes;
+            }
+
+            // Reuse the actor resolved by the native lookup; do not scan the factory again
+            // for every visibility event. The original result and culling behaviour are preserved.
+            codes.InsertRange(calls[0].index + 1,
+            [
+                new CodeInstruction(OpCodes.Ldloc, locals[0].LocalIndex),
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Ldarg_1),
+                new CodeInstruction(OpCodes.Call,
+                    AccessTools.Method(typeof(CullingGroupEventChanged_Patch), nameof(TrackCivilianVisibility)))
+            ]);
+            return codes;
+        }
+
+        private static bool TrackCivilianVisibility(bool found, GraphicsCharacter character,
+            GraphicsCharacterFactoryManager factory, CullingGroupEvent evt)
+        {
+            if (found && character.EnableShadowCulling && factory.HideSimpleCharactersWithCullingGroups &&
+                character.CharacterType == GraphicsCharacterDefinitions.CharacterType.Simple &&
+                (evt.hasBecomeVisible || evt.hasBecomeInvisible))
+            {
+                CivilianAnimationContext.SetCivilianCullingVisibility(character, evt.isVisible);
+            }
+
+            return found;
+        }
+    }
+
     private static readonly MethodInfo GetAttackAnimationFromWeaponDefinition =
         AccessTools.Method(
             typeof(GraphicsCharacter),

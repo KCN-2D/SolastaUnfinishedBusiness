@@ -2,6 +2,7 @@
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Builders;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -17,6 +18,8 @@ public static class UserCampaignEditorScreenPatcher
         [UsedImplicitly]
         public static void Prefix(UserCampaign campaign)
         {
+            DungeonMakerContext.InvalidateCampaignFileForEditing(campaign);
+
             if (!Main.Settings.EnableSortingDungeonMakerAssets)
             {
                 return;

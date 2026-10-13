@@ -126,7 +126,7 @@ internal static class CraftingAndItems
     private static void DisplayGeneral()
     {
         var toggle = Main.Settings.DisplayItemsGeneralToggle;
-        if (UI.DisclosureToggle(Gui.Localize("ModUi/&General"), ref toggle, 200))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&General"), ref toggle))
         {
             Main.Settings.DisplayItemsGeneralToggle = toggle;
         }
@@ -322,7 +322,7 @@ internal static class CraftingAndItems
 
         var intValue = Main.Settings.SetBeltOfDwarvenKindBeardChances;
         if (UI.Slider(Gui.Localize("ModUi/&SetBeltOfDwarvenKindBeardChances"), ref intValue,
-                0, 100, 50, "%", UI.Width(500f)))
+                0, 100, 50, "%", UI.ExpandWidth(true)))
         {
             Main.Settings.SetBeltOfDwarvenKindBeardChances = intValue;
             ItemCraftingMerchantContext.SwitchSetBeltOfDwarvenKindBeardChances();
@@ -334,7 +334,7 @@ internal static class CraftingAndItems
         UI.Label();
 
         var toggle = Main.Settings.DisplayCraftingToggle;
-        if (UI.DisclosureToggle(Gui.Localize("ModUi/&Crafting"), ref toggle, 200))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&Crafting"), ref toggle))
         {
             Main.Settings.DisplayCraftingToggle = toggle;
         }
@@ -412,7 +412,7 @@ internal static class CraftingAndItems
         }
 
         toggle = CraftingContext.RecipeBooks.Keys.Count == Main.Settings.CraftingInStore.Count;
-        if (UI.Toggle(Gui.Localize("ModUi/&AddAllToStore"), ref toggle, UI.Width(125f)))
+        if (UI.Toggle(Gui.Localize("ModUi/&AddAllToStore"), ref toggle, UI.ExpandWidth(true)))
         {
             Main.Settings.CraftingInStore.Clear();
 
@@ -424,64 +424,35 @@ internal static class CraftingAndItems
 
         UI.Label();
 
-        var keys = CraftingContext.RecipeBooks.Keys.ToArray();
-        var current = 0;
-        var count = keys.Length;
-
-        const int MAX_COLS = 4;
-        const float WIDTH = 220f;
-
-        while (current < count)
+        var actions = CraftingContext.RecipeBooks.Keys.Select(key =>
         {
-            var cols = 0;
-
-            using (UI.HorizontalScope())
+            var title = Gui.Format("ModUi/&AddToStore", CraftingContext.RecipeTitles[key]);
+            return new NamedAction(title, () =>
             {
-                while (current < count && cols < MAX_COLS)
+                var enabled = Main.Settings.CraftingInStore.Contains(key);
+                if (UI.Toggle(title, ref enabled, UI.ExpandWidth(true)))
                 {
-                    var key = keys[current];
-                    var category = CraftingContext.RecipeTitles[key];
-
-                    toggle = Main.Settings.CraftingInStore.Contains(key);
-                    // ReSharper disable once InvertIf
-                    if (UI.Toggle(Gui.Format("ModUi/&AddToStore", category), ref toggle, UI.Width(WIDTH)))
+                    if (enabled)
                     {
-                        if (toggle)
-                        {
-                            Main.Settings.CraftingInStore.Add(key);
-                        }
-                        else
-                        {
-                            Main.Settings.CraftingInStore.Remove(key);
-                        }
-
-                        CraftingContext.AddToStore(key);
+                        Main.Settings.CraftingInStore.Add(key);
+                    }
+                    else
+                    {
+                        Main.Settings.CraftingInStore.Remove(key);
                     }
 
-                    cols++;
-                    current++;
+                    CraftingContext.AddToStore(key);
                 }
-
-                if (current < count)
-                {
-                    continue;
-                }
-
-                while (cols < MAX_COLS)
-                {
-                    UI.Space(WIDTH);
-
-                    cols++;
-                }
-            }
-        }
+            });
+        }).ToArray();
+        UI.AlignedGrid(4, actions.Select(action => UI.ToggleWidth(action.Name)).ToArray(), actions);
     }
 
     private static void DisplayLegendaryTweaks()
     {
         UI.Label();
         var toggle = Main.Settings.LegendaryTweaksToggle;
-        if (UI.DisclosureToggle(Gui.Localize("ModUi/&LegendaryTweaksTitle"), ref toggle, 200))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&LegendaryTweaksTitle"), ref toggle))
         {
             Main.Settings.LegendaryTweaksToggle = toggle;
         }

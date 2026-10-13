@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using HarmonyLib;
-using TA;
 using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Models;
@@ -12,428 +9,12 @@ internal static class CombatAnimationContext
 {
     internal const float MinSpeedMultiplier = 1.0f;
     internal const float DefaultSpeedMultiplier = 1.08f;
-    internal const float MaxSpeedMultiplier = 1.20f;
+    internal const float MaxSpeedMultiplier = 1.50f;
 
     private const float MinEffectiveSpeedMultiplier = MinSpeedMultiplier + 0.0001f;
 
     private static readonly Dictionary<Animator, AnimatorState> AnimatorStates = [];
-
-    private const int CivilianReactionRange = 12;
-    private static readonly Dictionary<GraphicsCharacter, CivilianPose> CivilianPoses = [];
-    private static readonly HashSet<GraphicsCharacter> InterruptedCivilians = [];
-    private static readonly HashSet<GraphicsCharacter> PendingCivilianPoses = [];
-    private static readonly Dictionary<RuntimeAnimatorController, bool> CivilianControllers = [];
-    private static readonly MethodInfo HandleBodyAnimation =
-        AccessTools.Method(typeof(GraphicsCharacter), "HandleBodyAnimation");
-
-    private static readonly int[] CivilianBoolParameters =
-    [
-        AnimationDefinitions.IsInDialogId, AnimationDefinitions.DialogInterruptsId,
-        AnimationDefinitions.CutAnimationForDialogId, AnimationDefinitions.DialogIsLoopingId,
-        AnimationDefinitions.IsKeepingPostureId, AnimationDefinitions.IsInSpeakIn
-    ];
-
-    private static readonly int[] CivilianFloatParameters =
-    [
-        AnimationDefinitions.SpeakTypeId, AnimationDefinitions.SpeakVariationId,
-        AnimationDefinitions.NextPostureTypeId, AnimationDefinitions.CurrentSpeakTypeId,
-        AnimationDefinitions.CurrentSpeakVariationId, AnimationDefinitions.CurrentPostureId
-    ];
-
-    private static GameLocationBattle _civilianBattle;
-    private static GraphicsCharacter _applyingCivilianPose;
-    private static bool _civilianRefreshPending;
-    private static bool _civilianLocationSuspended;
-    private static bool _civilianPresentationBlocked;
-    private static float _civilianRetryTime;
-
-    internal static void StartCivilianReactions(GameLocationBattle battle)
-    {
-        StopCivilianReactions();
-        _civilianBattle = battle;
-        RequestCivilianRefresh();
-    }
-
-    internal static void StopCivilianReactions()
-    {
-        ClearCivilianPoses();
-        _civilianBattle = null;
-        _civilianRefreshPending = false;
-        _civilianPresentationBlocked = false;
-        InterruptedCivilians.Clear();
-    }
-
-    internal static void SuspendCivilianReactions()
-    {
-        StopCivilianReactions();
-        _civilianLocationSuspended = true;
-        CivilianControllers.Clear();
-    }
-
-    internal static void ResumeCivilianReactions()
-    {
-        _civilianLocationSuspended = false;
-        StartCivilianReactions(Gui.Battle);
-    }
-
-    internal static void RequestCivilianRefresh()
-    {
-        if (Main.Settings.EnableCivilianBattleReactions)
-        {
-            _civilianRefreshPending = true;
-        }
-    }
-
-    internal static void RefreshCivilianReactions()
-    {
-        if (!Main.Settings.EnableCivilianBattleReactions)
-        {
-            ClearCivilianPoses();
-            InterruptedCivilians.Clear();
-            return;
-        }
-
-        _civilianBattle ??= Gui.Battle;
-        RequestCivilianRefresh();
-        UpdateCivilianReactions(_civilianBattle);
-    }
-
-    internal static void InterruptCivilianReaction(GraphicsCharacter graphicsCharacter)
-    {
-        if (ReferenceEquals(graphicsCharacter, null) ||
-            ReferenceEquals(graphicsCharacter, _applyingCivilianPose))
-        {
-            return;
-        }
-
-        var pending = PendingCivilianPoses.Remove(graphicsCharacter);
-
-        if (ReleaseCivilianPose(graphicsCharacter))
-        {
-            pending = true;
-        }
-
-        if (pending)
-        {
-            // A scripted action owns this NPC until the presentation sequence or battle ends.
-            InterruptedCivilians.Add(graphicsCharacter);
-        }
-    }
-
-    internal static void ForgetCivilianReaction(GraphicsCharacter graphicsCharacter)
-    {
-        InterruptCivilianReaction(graphicsCharacter);
-        InterruptedCivilians.Remove(graphicsCharacter);
-    }
-
-    internal static void InterruptCivilianReaction(RulesetCharacter character)
-    {
-        if (character == null)
-        {
-            return;
-        }
-
-        foreach (var graphicsCharacter in CivilianPoses.Keys
-                     .Concat(PendingCivilianPoses)
-                     .Distinct()
-                     .ToArray())
-        {
-            if (graphicsCharacter && graphicsCharacter.RulesetCharacter == character)
-            {
-                InterruptCivilianReaction(graphicsCharacter);
-            }
-        }
-    }
-
-    internal static void UpdateCivilianReactions(GameLocationBattle battle)
-    {
-        if (_civilianLocationSuspended || battle == null || !ReferenceEquals(battle, _civilianBattle))
-        {
-            return;
-        }
-
-        if (!Main.Settings.EnableCivilianBattleReactions)
-        {
-            if (CivilianPoses.Count != 0 || PendingCivilianPoses.Count != 0 || InterruptedCivilians.Count != 0)
-            {
-                ClearCivilianPoses();
-                InterruptedCivilians.Clear();
-            }
-
-            return;
-        }
-
-        var blocked = ServiceRepository.GetService<INarrativeDirectionService>()?.IsSequenceInProgress == true ||
-                      ServiceRepository.GetService<IViewLocationContextualService>()?.IsActive == true;
-
-        if (blocked != _civilianPresentationBlocked)
-        {
-            _civilianPresentationBlocked = blocked;
-            ClearCivilianPoses();
-            InterruptedCivilians.Clear();
-            RequestCivilianRefresh();
-        }
-
-        if (blocked || !_civilianRefreshPending &&
-            (PendingCivilianPoses.Count == 0 || Time.unscaledTime < _civilianRetryTime))
-        {
-            return;
-        }
-
-        var factory = ServiceRepository.GetService<IGraphicsCharacterFactoryService>();
-        var positioning = ServiceRepository.GetService<IGameLocationPositioningService>();
-        var characters = ServiceRepository.GetService<IGameLocationCharacterService>();
-
-        if (factory == null || positioning == null || characters == null)
-        {
-            return;
-        }
-
-        // The native getter rebuilds a shared list; read it once per refresh, not once per NPC.
-        var contenders = battle.AllContenders;
-
-        if (!_civilianRefreshPending)
-        {
-            // Only queued, transitioning models retry; the world list is not rescanned each frame.
-            foreach (var graphicsCharacter in PendingCivilianPoses.ToArray())
-            {
-                PendingCivilianPoses.Remove(graphicsCharacter);
-
-                if (IsCivilianCandidate(graphicsCharacter, contenders, characters) &&
-                    IsNearBattle(graphicsCharacter, contenders, positioning))
-                {
-                    TryStartCivilianPose(graphicsCharacter);
-                }
-            }
-
-            _civilianRetryTime = Time.unscaledTime + 0.25f;
-            return;
-        }
-
-        _civilianRefreshPending = false;
-        PendingCivilianPoses.Clear();
-
-        // Refresh only after roster, movement, spawn, load, or option changes. No NPC AI runs here.
-        var nearby = new HashSet<GraphicsCharacter>();
-
-        foreach (var graphicsCharacter in factory.GraphicsCharacters)
-        {
-            if (!IsCivilianCandidate(graphicsCharacter, contenders, characters))
-            {
-                continue;
-            }
-
-            if (IsNearBattle(graphicsCharacter, contenders, positioning))
-            {
-                nearby.Add(graphicsCharacter);
-            }
-        }
-
-        foreach (var entry in CivilianPoses.ToArray())
-        {
-            if (!nearby.Contains(entry.Key) || !entry.Value.IsCurrent(entry.Key))
-            {
-                ReleaseCivilianPose(entry.Key);
-            }
-        }
-
-        foreach (var graphicsCharacter in nearby)
-        {
-            TryStartCivilianPose(graphicsCharacter);
-        }
-
-        _civilianRetryTime = Time.unscaledTime + 0.25f;
-    }
-
-    private static bool IsNearBattle(
-        GraphicsCharacter graphicsCharacter, IReadOnlyList<GameLocationCharacter> contenders,
-        IGameLocationPositioningService positioning)
-    {
-        var position = positioning.GetGridPositionFromWorldPosition(graphicsCharacter.transform);
-
-        return contenders.Any(contender =>
-            contender.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } &&
-            int3.Distance(position, contender.LocationPosition) <= CivilianReactionRange);
-    }
-
-    private static void TryStartCivilianPose(GraphicsCharacter graphicsCharacter)
-    {
-        if (CivilianPoses.ContainsKey(graphicsCharacter) || InterruptedCivilians.Contains(graphicsCharacter))
-        {
-            return;
-        }
-
-        var animator = graphicsCharacter.Animator;
-
-        if (animator.IsInTransition(0))
-        {
-            PendingCivilianPoses.Add(graphicsCharacter);
-            return;
-        }
-
-        var pose = new CivilianPose(animator);
-        CivilianPoses.Add(graphicsCharacter, pose);
-        var previousApplyingPose = _applyingCivilianPose;
-        _applyingCivilianPose = graphicsCharacter;
-
-        try
-        {
-            HandleBodyAnimation.Invoke(graphicsCharacter,
-            [
-                new GameLocationCharacterDefinitions.SpeechStartedParameters
-                {
-                    SpeakAnimationType = AnimationDefinitions.SpeakType.Fear_Idle,
-                    CutAnimation = true,
-                    LoopAnimation = true
-                }
-            ]);
-        }
-        catch (Exception exception)
-        {
-            ReleaseCivilianPose(graphicsCharacter);
-            // A single model's execution failure does not invalidate the shared controller's
-            // proven clip/parameter support. Let the next presentation boundary retry this NPC.
-            InterruptedCivilians.Add(graphicsCharacter);
-            Main.Error(exception);
-        }
-        finally
-        {
-            _applyingCivilianPose = previousApplyingPose;
-        }
-    }
-
-    private static bool IsCivilianCandidate(
-        GraphicsCharacter graphicsCharacter, IReadOnlyList<GameLocationCharacter> contenders,
-        IGameLocationCharacterService characters)
-    {
-        if (!graphicsCharacter || !graphicsCharacter.gameObject.activeInHierarchy ||
-            !graphicsCharacter.Animator || !graphicsCharacter.Animator.isActiveAndEnabled ||
-            !graphicsCharacter.Animator.runtimeAnimatorController || graphicsCharacter.Animator.layerCount == 0 ||
-            graphicsCharacter.IsInCombat ||
-            graphicsCharacter.RulesetCharacter is not RulesetCharacterMonster
-            {
-                IsDeadOrDyingOrUnconscious: false, IsRemovedFromTheGame: false, ConjuredByParty: false
-            } monster)
-        {
-            return false;
-        }
-
-        if (!SupportsCivilianPose(graphicsCharacter.Animator))
-        {
-            return false;
-        }
-
-        if (graphicsCharacter.CharacterType == GraphicsCharacterDefinitions.CharacterType.Simple)
-        {
-            // The native spawn callback sets this after positioning and its initial animation.
-            // SetupAfterAnimator can notify us while that asynchronous callback is still pending.
-            return graphicsCharacter.Animator.GetBool(AnimationDefinitions.IsInDialogId);
-        }
-
-        if (!graphicsCharacter.IsBoundToGameCharacter ||
-            GameLocationCharacter.GetFromActor(monster) is not { } character ||
-            character.IsSummonedCreature || character.MovingToDestination ||
-            ServiceRepository.GetService<IGameLocationActionService>()?.IsCharacterActing(character) == true ||
-            contenders.Contains(character) || characters.PartyCharacters.Contains(character) ||
-            characters.GuestCharacters.Contains(character) ||
-            graphicsCharacter.Animator.GetBool(AnimationDefinitions.IsInDialogId) &&
-            !CivilianPoses.ContainsKey(graphicsCharacter))
-        {
-            return false;
-        }
-
-        return monster.Side == RuleDefinitions.Side.Neutral ||
-               monster.Side == RuleDefinitions.Side.Ally && character.BoundGadgetId != 0 && !character.HasComplexActions;
-    }
-
-    private static bool SupportsCivilianPose(Animator animator)
-    {
-        var controller = animator.runtimeAnimatorController;
-
-        if (!controller || HandleBodyAnimation == null)
-        {
-            return false;
-        }
-
-        if (!CivilianControllers.TryGetValue(controller, out var supported))
-        {
-            var parameters = animator.parameters;
-            supported = controller.animationClips.Any(clip => clip && clip.name == "Fear_Idle") &&
-                        CivilianBoolParameters.All(id => parameters.Any(parameter =>
-                            parameter.nameHash == id && parameter.type == AnimatorControllerParameterType.Bool)) &&
-                        CivilianFloatParameters.All(id => parameters.Any(parameter =>
-                            parameter.nameHash == id && parameter.type == AnimatorControllerParameterType.Float)) &&
-                        parameters.Any(parameter => parameter.nameHash == AnimationDefinitions.SpeakAnimationStartId &&
-                                                    parameter.type == AnimatorControllerParameterType.Trigger);
-            CivilianControllers.Add(controller, supported);
-        }
-
-        return supported;
-    }
-
-    private static void ClearCivilianPoses()
-    {
-        foreach (var graphicsCharacter in CivilianPoses.Keys.ToArray())
-        {
-            ReleaseCivilianPose(graphicsCharacter);
-        }
-
-        CivilianPoses.Clear();
-        PendingCivilianPoses.Clear();
-    }
-
-    private static bool ReleaseCivilianPose(GraphicsCharacter graphicsCharacter)
-    {
-        if (!CivilianPoses.TryGetValue(graphicsCharacter, out var pose))
-        {
-            return false;
-        }
-
-        CivilianPoses.Remove(graphicsCharacter);
-        pose.Restore(graphicsCharacter);
-
-        return true;
-    }
-
-    private sealed class CivilianPose(Animator animator)
-    {
-        private readonly Animator _animator = animator;
-        private readonly RuntimeAnimatorController _controller = animator.runtimeAnimatorController;
-        private readonly bool[] _boolValues = CivilianBoolParameters.Select(animator.GetBool).ToArray();
-        private readonly float[] _floatValues = CivilianFloatParameters.Select(animator.GetFloat).ToArray();
-        private readonly AnimatorStateInfo _state = animator.GetCurrentAnimatorStateInfo(0);
-
-        internal bool IsCurrent(GraphicsCharacter graphicsCharacter)
-        {
-            return graphicsCharacter && graphicsCharacter.Animator == _animator && _animator &&
-                   _animator.runtimeAnimatorController == _controller;
-        }
-
-        internal void Restore(GraphicsCharacter graphicsCharacter)
-        {
-            if (!IsCurrent(graphicsCharacter))
-            {
-                return;
-            }
-
-            _animator.ResetTrigger(AnimationDefinitions.SpeakAnimationStartId);
-
-            for (var i = 0; i < CivilianBoolParameters.Length; i++)
-            {
-                _animator.SetBool(CivilianBoolParameters[i], _boolValues[i]);
-            }
-
-            for (var i = 0; i < CivilianFloatParameters.Length; i++)
-            {
-                _animator.SetFloat(CivilianFloatParameters[i], _floatValues[i]);
-            }
-
-            if (_animator.isActiveAndEnabled && _animator.HasState(0, _state.fullPathHash))
-            {
-                _animator.Play(_state.fullPathHash, 0, _state.normalizedTime % 1);
-            }
-        }
-    }
+    private static readonly Dictionary<Animator, MovementReactionState> MovementReactionStates = [];
 
     internal static float ClampSpeedMultiplier(float value)
     {
@@ -444,12 +25,7 @@ internal static class CombatAnimationContext
 
     internal static IDisposable BeginActionScope(CharacterAction action)
     {
-        if (CivilianPoses.Count != 0 || PendingCivilianPoses.Count != 0)
-        {
-            InterruptCivilianReaction(action?.ActingCharacter?.RulesetCharacter);
-        }
-
-        if (action?.ActingCharacter == null ||
+        if (action?.ActingCharacter == null || IsMovementAction(action) ||
             Gui.Battle == null ||
             !Main.Settings.EnableSmootherBattleAnimations)
         {
@@ -483,7 +59,7 @@ internal static class CombatAnimationContext
             }
         }
 
-        var animators = Apply(characters, speedMultiplier);
+        var animators = Apply(characters);
 
         return animators.Count == 0
             ? EmptyScope.Instance
@@ -492,16 +68,287 @@ internal static class CombatAnimationContext
 
     internal static void Unload()
     {
-        SuspendCivilianReactions();
         foreach (var entry in AnimatorStates.ToArray())
         {
-            if (entry.Key)
-            {
-                entry.Key.speed = entry.Value.OriginalSpeed;
-            }
+            RestoreAnimator(entry.Key, entry.Value);
         }
 
         AnimatorStates.Clear();
+
+        foreach (var entry in MovementReactionStates.ToArray())
+        {
+            RestoreMovementSpeed(entry.Key, entry.Value);
+        }
+
+        MovementReactionStates.Clear();
+    }
+
+    internal static void RefreshActionAnimation(GraphicsCharacter graphicsCharacter)
+    {
+        if (!graphicsCharacter)
+        {
+            return;
+        }
+
+        if (AnimatorStates.Count != 0)
+        {
+            RefreshAnimator(graphicsCharacter.Animator);
+            RefreshAnimator(graphicsCharacter.WeaponAnimator);
+        }
+
+        var animator = graphicsCharacter.Animator;
+
+        if (MovementReactionStates.Count != 0 && animator &&
+            MovementReactionStates.TryGetValue(animator, out var reaction) && reaction.IsCurrent(graphicsCharacter))
+        {
+            var speed = animator.GetFloat(AnimationDefinitions.CharacterSpeedId);
+
+            if (IsMovementReactionBoundary(reaction.Character))
+            {
+                if (speed != 0f)
+                {
+                    reaction.RequestedSpeed = speed;
+                }
+
+                animator.SetFloat(AnimationDefinitions.CharacterSpeedId, 0f);
+                reaction.IsPaused = true;
+            }
+            else
+            {
+                // A nested reaction may start a push, charge, jump, or other native
+                // motion while the outer wait remains alive. Let that motion finish.
+                RestoreMovementSpeed(animator, reaction);
+                reaction.IsPaused = false;
+
+                if (speed != 0f)
+                {
+                    reaction.RequestedSpeed = speed;
+                }
+            }
+        }
+    }
+
+    internal static void ForgetActionAnimation(GraphicsCharacter graphicsCharacter)
+    {
+        if (!graphicsCharacter)
+        {
+            return;
+        }
+
+        ForgetAnimator(graphicsCharacter.Animator);
+        ForgetAnimator(graphicsCharacter.WeaponAnimator);
+        ForgetMovementReaction(graphicsCharacter.Animator);
+    }
+
+    internal static IDisposable BeginMovementReactionScope(GameLocationCharacter character)
+    {
+        var graphicsCharacters = ServiceRepository.GetService<IGraphicsCharacterFactoryService>()?.GraphicsCharacters;
+        var leases = new List<MovementReactionLease>();
+        var applied = new HashSet<Animator>();
+
+        if (character?.RulesetCharacter == null || !IsMovementReactionBoundary(character) || graphicsCharacters == null)
+        {
+            return EmptyScope.Instance;
+        }
+
+        try
+        {
+            foreach (var graphicsCharacter in graphicsCharacters)
+            {
+                if (!graphicsCharacter || graphicsCharacter.RulesetCharacter != character.RulesetCharacter)
+                {
+                    continue;
+                }
+
+                var animator = graphicsCharacter.Animator;
+
+                if (!animator || !animator.runtimeAnimatorController || !applied.Add(animator) ||
+                    !animator.parameters.Any(parameter => parameter.nameHash == AnimationDefinitions.CharacterSpeedId &&
+                                                          parameter.type == AnimatorControllerParameterType.Float))
+                {
+                    continue;
+                }
+
+                if (MovementReactionStates.TryGetValue(animator, out var state) && !state.IsCurrent(graphicsCharacter))
+                {
+                    ForgetMovementReaction(animator);
+                    state = null;
+                }
+
+                if (state == null)
+                {
+                    state = new MovementReactionState(graphicsCharacter, animator, character);
+                    MovementReactionStates.Add(animator, state);
+                }
+                else
+                {
+                    state.ReferenceCount++;
+                }
+
+                leases.Add(new MovementReactionLease(animator, state));
+                animator.SetFloat(AnimationDefinitions.CharacterSpeedId, 0f);
+                state.IsPaused = true;
+            }
+        }
+        catch
+        {
+            foreach (var lease in leases)
+            {
+                ReleaseMovementReaction(lease);
+            }
+
+            throw;
+        }
+
+        return leases.Count == 0 ? EmptyScope.Instance : new MovementReactionScope(leases);
+    }
+
+    internal static float FilterMovementReactionSpeed(GraphicsCharacter graphicsCharacter, float requestedSpeed)
+    {
+        var animator = graphicsCharacter.Animator;
+
+        if (!animator || !MovementReactionStates.TryGetValue(animator, out var state) ||
+            !state.IsCurrent(graphicsCharacter))
+        {
+            return requestedSpeed;
+        }
+
+        // Preserve the latest native request: an interrupted move can request zero
+        // while the reaction waits, and must remain stopped when the wait ends.
+        state.RequestedSpeed = requestedSpeed;
+        state.IsPaused = IsMovementReactionBoundary(state.Character);
+        return state.IsPaused ? 0f : requestedSpeed;
+    }
+
+    private static bool IsMovementReactionBoundary(GameLocationCharacter character)
+    {
+        // Reactions between steps may pause the locomotion blend; an actual jump,
+        // climb, fall, charge or forced-motion step must finish its native motion.
+        return character is { MoveInProgress: true, MoveStepInProgress: false, Jumping: false, Climbing: false,
+            Falling: false, IsCharging: false, IgnoreForPlacementDuringPushAnimation: false };
+    }
+
+    private static void ForgetMovementReaction(Animator animator)
+    {
+        if (ReferenceEquals(animator, null) || !MovementReactionStates.TryGetValue(animator, out var state))
+        {
+            return;
+        }
+
+        RestoreMovementSpeed(animator, state);
+        MovementReactionStates.Remove(animator);
+    }
+
+    private static void RestoreMovementSpeed(Animator animator, MovementReactionState state)
+    {
+        if (animator && state.IsPaused && state.IsCurrent(state.GraphicsCharacter) &&
+            animator.GetFloat(AnimationDefinitions.CharacterSpeedId) == 0f)
+        {
+            animator.SetFloat(AnimationDefinitions.CharacterSpeedId, state.RequestedSpeed);
+        }
+    }
+
+    private static void ReleaseMovementReaction(MovementReactionLease lease)
+    {
+        if (!MovementReactionStates.TryGetValue(lease.Animator, out var state) || !ReferenceEquals(state, lease.State))
+        {
+            return;
+        }
+
+        if (--state.ReferenceCount > 0)
+        {
+            return;
+        }
+
+        RestoreMovementSpeed(lease.Animator, state);
+        MovementReactionStates.Remove(lease.Animator);
+    }
+
+    internal static System.Collections.IEnumerator WaitForActionWarmup(CharacterAction action)
+    {
+        var duration = GameConfiguration.CharacterAnimation.WaitingTimeAfterMove;
+        var elapsed = 0f;
+        var animationElapsed = 0f;
+
+        // This is only the settling interval before an attack trigger. Never shorten
+        // animation-event, projectile-flight, impact, or reaction waits.
+        while (animationElapsed < duration || elapsed < duration && IsActionAnimatorTransitioning(action))
+        {
+            yield return null;
+
+            var delta = Time.deltaTime;
+            elapsed += delta;
+            animationElapsed += delta * GetOwnedActionSpeedMultiplier(action);
+        }
+    }
+
+    private static bool IsMovementAction(CharacterAction action)
+    {
+        return action is CharacterActionMove or CharacterActionMoveStepBase or CharacterActionFreeFall or
+            CharacterActionCharge or CharacterActionPushed or CharacterActionPushedCustom or CharacterActionLevitate;
+    }
+
+    private static bool HasSynchronizedMotion(GameLocationCharacter character)
+    {
+        return character == null || character.MoveInProgress || character.MoveStepInProgress ||
+               character.MovingToDestination || character.Jumping || character.Climbing || character.Falling ||
+               character.IsCharging || character.IgnoreForPlacementDuringPushAnimation;
+    }
+
+    private static float GetActionSpeedMultiplier(GameLocationCharacter character)
+    {
+        return Gui.Battle == null || !Main.Settings.EnableSmootherBattleAnimations ||
+               HasSynchronizedMotion(character) ||
+               ServiceRepository.GetService<IGameLocationBattleService>() is not { IsBattleInProgress: true }
+            ? MinSpeedMultiplier
+            : ClampSpeedMultiplier(Main.Settings.BattleActionAnimationSpeedMultiplier);
+    }
+
+    private static bool IsActionAnimatorTransitioning(CharacterAction action)
+    {
+        var animator = GetActionAnimator(action);
+
+        return animator && animator.runtimeAnimatorController && animator.layerCount > 0 && animator.IsInTransition(0);
+    }
+
+    private static float GetOwnedActionSpeedMultiplier(CharacterAction action)
+    {
+        var animator = GetActionAnimator(action);
+
+        if (!animator || !AnimatorStates.TryGetValue(animator, out var state))
+        {
+            return MinSpeedMultiplier;
+        }
+
+        RefreshAnimator(animator);
+
+        return AnimatorStates.TryGetValue(animator, out var current) && ReferenceEquals(current, state) &&
+               animator.runtimeAnimatorController && animator.layerCount > 0 && state.OriginalSpeed > 0
+            ? Math.Max(MinSpeedMultiplier, state.AppliedSpeed / state.OriginalSpeed)
+            : MinSpeedMultiplier;
+    }
+
+    private static Animator GetActionAnimator(CharacterAction action)
+    {
+        var character = action?.ActingCharacter;
+
+        if (character == null)
+        {
+            return null;
+        }
+
+        foreach (var entry in AnimatorStates)
+        {
+            var state = entry.Value;
+
+            if (state.Character == character && state.GraphicsCharacter &&
+                entry.Key == state.GraphicsCharacter.Animator)
+            {
+                return entry.Key;
+            }
+        }
+
+        return null;
     }
 
     internal static void RefreshMovementState(RulesetCharacter character)
@@ -549,7 +396,7 @@ internal static class CombatAnimationContext
         }
     }
 
-    private static List<AnimatorLease> Apply(ISet<RulesetCharacter> characters, float speedMultiplier)
+    private static List<AnimatorLease> Apply(ISet<RulesetCharacter> characters)
     {
         var graphicsCharacters = ServiceRepository.GetService<IGraphicsCharacterFactoryService>()?.GraphicsCharacters;
         var animators = new List<AnimatorLease>();
@@ -569,8 +416,10 @@ internal static class CombatAnimationContext
                     continue;
                 }
 
-                TryApply(graphicsCharacter.Animator, speedMultiplier, animators, appliedAnimators);
-                TryApply(graphicsCharacter.WeaponAnimator, speedMultiplier, animators, appliedAnimators);
+                var character = GameLocationCharacter.GetFromActor(graphicsCharacter.RulesetCharacter);
+
+                TryApply(graphicsCharacter.Animator, graphicsCharacter, character, animators, appliedAnimators);
+                TryApply(graphicsCharacter.WeaponAnimator, graphicsCharacter, character, animators, appliedAnimators);
             }
         }
         catch
@@ -588,7 +437,8 @@ internal static class CombatAnimationContext
 
     private static void TryApply(
         Animator animator,
-        float speedMultiplier,
+        GraphicsCharacter graphicsCharacter,
+        GameLocationCharacter character,
         List<AnimatorLease> animators,
         ISet<Animator> appliedAnimators)
     {
@@ -597,18 +447,69 @@ internal static class CombatAnimationContext
             return;
         }
 
-        if (AnimatorStates.TryGetValue(animator, out var state))
+        if (AnimatorStates.TryGetValue(animator, out var state) && !state.IsCurrent(animator))
+        {
+            ForgetAnimator(animator);
+            state = null;
+        }
+
+        if (state != null)
         {
             state.ReferenceCount++;
         }
         else
         {
-            state = new AnimatorState(animator.speed);
+            state = new AnimatorState(animator.speed, graphicsCharacter, character, animator);
             AnimatorStates.Add(animator, state);
-            animator.speed = state.OriginalSpeed * speedMultiplier;
         }
 
         animators.Add(new AnimatorLease(animator, state));
+        RefreshAnimator(animator);
+    }
+
+    private static void RefreshAnimator(Animator animator)
+    {
+        if (!animator || !AnimatorStates.TryGetValue(animator, out var state))
+        {
+            return;
+        }
+
+        if (!state.IsCurrent(animator))
+        {
+            ForgetAnimator(animator);
+            return;
+        }
+
+        if (animator.speed != state.AppliedSpeed)
+        {
+            // The native owner may pause or resume this animator during a nested action.
+            // Treat that write as its new baseline instead of undoing the pause.
+            state.OriginalSpeed = animator.speed;
+        }
+
+        state.AppliedSpeed = state.OriginalSpeed * GetActionSpeedMultiplier(state.Character);
+        animator.speed = state.AppliedSpeed;
+    }
+
+    private static void ForgetAnimator(Animator animator)
+    {
+        if (ReferenceEquals(animator, null) || !AnimatorStates.TryGetValue(animator, out var state))
+        {
+            return;
+        }
+
+        RestoreAnimator(animator, state);
+        AnimatorStates.Remove(animator);
+    }
+
+    private static void RestoreAnimator(Animator animator, AnimatorState state)
+    {
+        // Speed belongs to the Animator component. A controller replacement can end
+        // the lease without changing the speed applied by it.
+        if (state.OwnsAnimator(animator) && animator.speed == state.AppliedSpeed)
+        {
+            animator.speed = state.OriginalSpeed;
+        }
     }
 
     private static void Release(AnimatorLease lease)
@@ -630,18 +531,32 @@ internal static class CombatAnimationContext
             return;
         }
 
-        if (animator)
-        {
-            animator.speed = state.OriginalSpeed;
-        }
-
+        RestoreAnimator(animator, state);
         AnimatorStates.Remove(animator);
     }
 
-    private sealed class AnimatorState(float originalSpeed)
+    private sealed class AnimatorState(
+        float originalSpeed, GraphicsCharacter graphicsCharacter, GameLocationCharacter character, Animator animator)
     {
-        internal readonly float OriginalSpeed = originalSpeed;
+        internal readonly GraphicsCharacter GraphicsCharacter = graphicsCharacter;
+        internal readonly GameLocationCharacter Character = character;
+        private readonly RuntimeAnimatorController _controller = animator.runtimeAnimatorController;
+        private readonly RulesetCharacter _character = graphicsCharacter.RulesetCharacter;
+        internal float OriginalSpeed = originalSpeed;
+        internal float AppliedSpeed = originalSpeed;
         internal int ReferenceCount = 1;
+
+        internal bool IsCurrent(Animator animator)
+        {
+            return OwnsAnimator(animator) && animator.runtimeAnimatorController == _controller;
+        }
+
+        internal bool OwnsAnimator(Animator animator)
+        {
+            return animator && GraphicsCharacter && GraphicsCharacter.RulesetCharacter == _character &&
+                   Character?.RulesetCharacter == _character &&
+                   (GraphicsCharacter.Animator == animator || GraphicsCharacter.WeaponAnimator == animator);
+        }
     }
 
     private readonly struct AnimatorLease(Animator animator, AnimatorState state)
@@ -667,6 +582,53 @@ internal static class CombatAnimationContext
             foreach (var lease in ownedAnimators)
             {
                 Release(lease);
+            }
+        }
+    }
+
+    private sealed class MovementReactionState(
+        GraphicsCharacter graphicsCharacter, Animator animator, GameLocationCharacter character)
+    {
+        internal readonly GraphicsCharacter GraphicsCharacter = graphicsCharacter;
+        internal readonly GameLocationCharacter Character = character;
+        private readonly Animator _animator = animator;
+        private readonly RuntimeAnimatorController _controller = animator.runtimeAnimatorController;
+        private readonly RulesetCharacter _character = graphicsCharacter.RulesetCharacter;
+        internal float RequestedSpeed = animator.GetFloat(AnimationDefinitions.CharacterSpeedId);
+        internal bool IsPaused;
+        internal int ReferenceCount = 1;
+
+        internal bool IsCurrent(GraphicsCharacter graphics)
+        {
+            return graphics && graphics == GraphicsCharacter && graphics.Animator == _animator && _animator &&
+                   Character?.RulesetCharacter == _character &&
+                   _animator.runtimeAnimatorController == _controller && graphics.RulesetCharacter == _character;
+        }
+    }
+
+    private readonly struct MovementReactionLease(Animator animator, MovementReactionState state)
+    {
+        internal Animator Animator { get; } = animator;
+        internal MovementReactionState State { get; } = state;
+    }
+
+    private sealed class MovementReactionScope(List<MovementReactionLease> leases) : IDisposable
+    {
+        private List<MovementReactionLease> _leases = leases;
+
+        public void Dispose()
+        {
+            if (_leases == null)
+            {
+                return;
+            }
+
+            var ownedLeases = _leases;
+            _leases = null;
+
+            foreach (var lease in ownedLeases)
+            {
+                ReleaseMovementReaction(lease);
             }
         }
     }

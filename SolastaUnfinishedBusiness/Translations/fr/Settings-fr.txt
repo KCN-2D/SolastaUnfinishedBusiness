@@ -6,9 +6,11 @@ ModUI/&ModifyJumpRulesForArmorAndEncumberance=Appliquer les pénalités d'enterr
 ModUI/&EnableBonusActionFreeJump=Active le saut en action bonus
 ModUI/&ModifyThrowingRulesForStrength=Appliquer des pénalités de lancer à une gamme par manque de force
 ModUI/&RoleplaySettings=Jeu de rôle
-ModUI/&RoleplaySettingsDescription=Ces paramètres modifient l'équilibre du jeu en faveur de la simulation de vie ou du jeu de rôle en ajoutant la complexité et une augmentation des chances de succès et d'échec
+ModUI/&RoleplaySettingsDescription=Ajustez le comportement des PNJ et les règles de l’aventure.
+ModUI/&EnableCivilianAmbientAnimations=Activer les animations de repos et de conversation des PNJ civils
+ModUI/&EnableCivilianAmbientAnimationsDescription=Les PNJ effectuent des mouvements au repos et des gestes de conversation adaptés à leur équipement et à leur environnement. Ils rangent leurs armes lorsqu’ils parlent ou se détendent. Si leur placement permet de s’asseoir, ils ajustent leur position et leur orientation aux chaises ou bancs proches.
 ModUI/&EnableCivilianBattleReactions=Activer les réactions au combat des PNJ non combattants
-ModUI/&EnableCivilianBattleReactionsDescription=Les PNJ proches qui ne participent pas au combat se recroquevillent de peur pendant les batailles. Leurs positions et les voies de passage restent inchangées.
+ModUI/&EnableCivilianBattleReactionsDescription=Les PNJ non combattants adoptent des postures de peur ou de défense adaptées à leur équipement et à leur rôle.
 ModUI/&SwapShineCantrip=Activer Shine DC 15
 ModUi/&AccountForAllDiceOnFollowUpStrike=Ajoutez tous les effets supplémentaires de l'arme de base à l'exploit <color=#D89555>Frappe de suivi</color>
 ModUi/&AccountForAllDiceOnSavageAttack=Ajoutez tous les dés des dégâts de l'arme de base aux fonctionnalités qui ajoutent des dégâts de l'arme de base au lieu d'un seul dé <i><color=#F0DAA0>[Attaque sauvage, armes à 2 mains, etc.]</color></i>
@@ -499,9 +501,9 @@ ModUi/&ShowCraftedItemOnRecipeIcon=Afficher l'icône de l'objet fabriqué à cô
 ModUi/&ShowCraftingRecipeInDetailedTooltips=Afficher la recette d'artisanat dans des infobulles détaillées
 ModUi/&ShowDescriptions=Afficher les descriptions
 ModUi/&ShowMotionFormPreview=Afficher l'aperçu des effets <b>Push</b> et <b>Pull</b>
-ModUi/&EnableSmootherBattleAnimations=Activer des animations de combat plus fluides et légèrement plus rapides
+ModUi/&EnableSmootherBattleAnimations=Activer des animations de combat plus rapides
 ModUi/&BattleActionAnimationSpeedMultiplier=Vitesse des animations de combat
-ModUi/&BattleActionAnimationSpeedMultiplierHelp=Accélère légèrement les animations d'action des personnages en combat sans ignorer les phases d'incantation, de projectile, d'impact ou de coup.
+ModUi/&BattleActionAnimationSpeedMultiplierHelp=Accélère les actions de combat et raccourcit l'attente avant les attaques.
 ModUi/&ShowTranslationPreview=Afficher les traductions récentes
 ModUi/&SpeechScale=<color=white>Modificateur de vitesse de narration</color> <i><color=#F0DAA0>[plus bas est plus rapide]</color></i>
 ModUi/&SpeechVolume=<color=white>Volume de narration</color>

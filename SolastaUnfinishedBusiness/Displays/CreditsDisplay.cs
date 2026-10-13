@@ -117,7 +117,7 @@ internal static class CreditsDisplay
 #if DEBUG
         DiagnosticsDisplay.DisplayDiagnostics();
 
-        UI.DisclosureToggle(Gui.Localize("ModUi/&Patches"), ref _displayPatches, 200);
+        UI.DisclosureToggle(Gui.Localize("ModUi/&Patches"), ref _displayPatches);
         UI.Label();
 
         if (_displayPatches)

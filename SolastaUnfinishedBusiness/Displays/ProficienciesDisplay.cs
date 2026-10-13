@@ -1,4 +1,5 @@
-﻿using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+﻿using System.Linq;
+using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
@@ -12,7 +13,7 @@ internal static class ProficienciesDisplay
     private static void DisplayProficienciesGeneral()
     {
         var toggle = Main.Settings.DisplayProficienciesGeneralToggle;
-        if (UI.DisclosureToggle(Gui.Localize("ModUi/&General"), ref toggle, 200))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&General"), ref toggle))
         {
             Main.Settings.DisplayProficienciesGeneralToggle = toggle;
         }
@@ -199,29 +200,15 @@ internal static class ProficienciesDisplay
 
     private static void OtherHeaders()
     {
-        using (UI.HorizontalScope())
-        {
-            UI.ActionButton(Gui.Localize("ModUi/&DocsFeats").Bold().Khaki(),
-                () => UpdateContext.OpenDocumentation("Feats.md"), UI.Width(189f));
-            UI.ActionButton(Gui.Localize("ModUi/&DocsFightingStyles").Bold().Khaki(),
-                () => UpdateContext.OpenDocumentation("FightingStyles.md"), UI.Width(189f));
-            UI.ActionButton(Gui.Localize("ModUi/&DocsInvocations").Bold().Khaki(),
-                () => UpdateContext.OpenDocumentation("Invocations.md"), UI.Width(189f));
-            UI.ActionButton(Gui.Localize("ModUi/&DocsMetamagic").Bold().Khaki(),
-                () => UpdateContext.OpenDocumentation("Metamagic.md"), UI.Width(189f));
-        }
-
-        using (UI.HorizontalScope())
-        {
-            UI.ActionButton(Gui.Localize("ModUi/&DocsArcaneShots").Bold().Khaki(),
-                () => UpdateContext.OpenDocumentation("ArcaneShots.md"), UI.Width(189f));
-            UI.ActionButton(Gui.Localize("ModUi/&DocsInfusions").Bold().Khaki(),
-                () => UpdateContext.OpenDocumentation("Infusions.md"), UI.Width(189f));
-            UI.ActionButton(Gui.Localize("ModUi/&DocsManeuvers").Bold().Khaki(),
-                () => UpdateContext.OpenDocumentation("Maneuvers.md"), UI.Width(189f));
-            UI.ActionButton(Gui.Localize("ModUi/&DocsVersatilities").Bold().Khaki(),
-                () => UpdateContext.OpenDocumentation("Versatilities.md"), UI.Width(189f));
-        }
+        ModUi.DisplayDocumentationLinks(
+            ("ModUi/&DocsFeats", "Feats.md"),
+            ("ModUi/&DocsFightingStyles", "FightingStyles.md"),
+            ("ModUi/&DocsInvocations", "Invocations.md"),
+            ("ModUi/&DocsMetamagic", "Metamagic.md"),
+            ("ModUi/&DocsArcaneShots", "ArcaneShots.md"),
+            ("ModUi/&DocsInfusions", "Infusions.md"),
+            ("ModUi/&DocsManeuvers", "Maneuvers.md"),
+            ("ModUi/&DocsVersatilities", "Versatilities.md"));
 
         UI.Label();
 
@@ -229,109 +216,121 @@ internal static class ProficienciesDisplay
 
         UI.Label();
 
-        using (UI.HorizontalScope())
-        {
-            var toggle =
-                Main.Settings.DisplayFeatsToggle &&
-                Main.Settings.DisplayFeatGroupsToggle &&
-                Main.Settings.DisplayFightingStylesToggle &&
-                Main.Settings.DisplayInvocationsToggle &&
-                Main.Settings.DisplayMetamagicToggle;
-
-            if (UI.Toggle(Gui.Localize("ModUi/&ExpandAll"), ref toggle, UI.Width(ModUi.PixelsPerColumn)))
+        var expandAllTitle = Gui.Localize("ModUi/&ExpandAll");
+        var selectAllTitle = Gui.Localize("ModUi/&SelectAll");
+        var tabletopTitle = Gui.Localize("ModUi/&SelectTabletop");
+        NamedAction[] bulkActions =
+        [
+            new(expandAllTitle, () =>
             {
-                Main.Settings.DisplayFeatsToggle = toggle;
-                Main.Settings.DisplayFeatGroupsToggle = toggle;
-                Main.Settings.DisplayFightingStylesToggle = toggle;
-                Main.Settings.DisplayInvocationsToggle = toggle;
-                Main.Settings.DisplayMetamagicToggle = toggle;
-            }
+                var toggle =
+                    Main.Settings.DisplayFeatsToggle &&
+                    Main.Settings.DisplayFeatGroupsToggle &&
+                    Main.Settings.DisplayFightingStylesToggle &&
+                    Main.Settings.DisplayInvocationsToggle &&
+                    Main.Settings.DisplayMetamagicToggle;
 
-            toggle =
-                FeatsContext.Feats.Count == Main.Settings.FeatEnabled.Count &&
-                FeatsContext.FeatGroups.Count == Main.Settings.FeatGroupEnabled.Count &&
-                FightingStyleContext.FightingStyles.Count == Main.Settings.FightingStyleEnabled.Count &&
-                InvocationsContext.Invocations.Count == Main.Settings.InvocationEnabled.Count &&
-                MetamagicContext.Metamagic.Count == Main.Settings.MetamagicEnabled.Count;
-
-            if (UI.Toggle(Gui.Localize("ModUi/&SelectAll"), ref toggle, UI.Width(ModUi.PixelsPerColumn)))
+                if (UI.Toggle(expandAllTitle, ref toggle, UI.AutoWidth()))
+                {
+                    Main.Settings.DisplayFeatsToggle = toggle;
+                    Main.Settings.DisplayFeatGroupsToggle = toggle;
+                    Main.Settings.DisplayFightingStylesToggle = toggle;
+                    Main.Settings.DisplayInvocationsToggle = toggle;
+                    Main.Settings.DisplayMetamagicToggle = toggle;
+                }
+            }),
+            new(selectAllTitle, () =>
             {
-                foreach (var feat in FeatsContext.Feats)
+                var toggle =
+                    FeatsContext.Feats.Count == Main.Settings.FeatEnabled.Count &&
+                    FeatsContext.FeatGroups.Count == Main.Settings.FeatGroupEnabled.Count &&
+                    FightingStyleContext.FightingStyles.Count == Main.Settings.FightingStyleEnabled.Count &&
+                    InvocationsContext.Invocations.Count == Main.Settings.InvocationEnabled.Count &&
+                    MetamagicContext.Metamagic.Count == Main.Settings.MetamagicEnabled.Count;
+
+                if (UI.Toggle(selectAllTitle, ref toggle, UI.AutoWidth()))
                 {
-                    if (!Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(feat))
+                    foreach (var feat in FeatsContext.Feats)
                     {
-                        continue;
-                    }
+                        if (!Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(feat))
+                        {
+                            continue;
+                        }
 
-                    FeatsContext.SwitchFeat(feat, toggle);
-                }
-
-                foreach (var featGroup in FeatsContext.FeatGroups)
-                {
-                    if (!Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(featGroup))
-                    {
-                        continue;
-                    }
-
-                    FeatsContext.SwitchFeatGroup(featGroup, toggle);
-                }
-
-                foreach (var fightingStyles in FightingStyleContext.FightingStyles)
-                {
-                    FightingStyleContext.Switch(fightingStyles, toggle);
-                }
-
-                foreach (var invocation in InvocationsContext.Invocations)
-                {
-                    InvocationsContext.SwitchInvocation(invocation, toggle);
-                }
-
-                foreach (var metamagic in MetamagicContext.Metamagic)
-                {
-                    MetamagicContext.SwitchMetamagic(metamagic, toggle);
-                }
-            }
-
-            toggle = _displayTabletop;
-            if (UI.Toggle(Gui.Localize("ModUi/&SelectTabletop"), ref toggle, UI.Width(ModUi.PixelsPerColumn)))
-            {
-                foreach (var feat in FeatsContext.Feats)
-                {
-                    if (ModUi.IsBulkSelectableTabletopDefinition(feat) &&
-                        Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(feat))
-                    {
                         FeatsContext.SwitchFeat(feat, toggle);
                     }
-                }
 
-                foreach (var featGroup in FeatsContext.FeatGroups)
-                {
-                    if (ModUi.IsBulkSelectableTabletopDefinition(featGroup) &&
-                        Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(featGroup))
+                    foreach (var featGroup in FeatsContext.FeatGroups)
                     {
+                        if (!Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(featGroup))
+                        {
+                            continue;
+                        }
+
                         FeatsContext.SwitchFeatGroup(featGroup, toggle);
                     }
-                }
 
-                foreach (var fightingStyles in FightingStyleContext.FightingStyles)
-                {
-                    FightingStyleContext.Switch(fightingStyles,
-                        toggle && ModUi.TabletopDefinitions.Contains(fightingStyles));
-                }
+                    foreach (var fightingStyles in FightingStyleContext.FightingStyles)
+                    {
+                        FightingStyleContext.Switch(fightingStyles, toggle);
+                    }
 
-                foreach (var invocation in InvocationsContext.Invocations)
-                {
-                    InvocationsContext.SwitchInvocation(invocation,
-                        toggle && ModUi.TabletopDefinitions.Contains(invocation));
-                }
+                    foreach (var invocation in InvocationsContext.Invocations)
+                    {
+                        InvocationsContext.SwitchInvocation(invocation, toggle);
+                    }
 
-                foreach (var metamagic in MetamagicContext.Metamagic)
-                {
-                    MetamagicContext.SwitchMetamagic(metamagic,
-                        toggle && ModUi.TabletopDefinitions.Contains(metamagic));
+                    foreach (var metamagic in MetamagicContext.Metamagic)
+                    {
+                        MetamagicContext.SwitchMetamagic(metamagic, toggle);
+                    }
                 }
-            }
-        }
+            }),
+            new(tabletopTitle, () =>
+            {
+                var toggle = _displayTabletop;
+                if (UI.Toggle(tabletopTitle, ref toggle, UI.AutoWidth()))
+                {
+                    foreach (var feat in FeatsContext.Feats)
+                    {
+                        if (ModUi.IsBulkSelectableTabletopDefinition(feat) &&
+                            Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(feat))
+                        {
+                            FeatsContext.SwitchFeat(feat, toggle);
+                        }
+                    }
+
+                    foreach (var featGroup in FeatsContext.FeatGroups)
+                    {
+                        if (ModUi.IsBulkSelectableTabletopDefinition(featGroup) &&
+                            Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(featGroup))
+                        {
+                            FeatsContext.SwitchFeatGroup(featGroup, toggle);
+                        }
+                    }
+
+                    foreach (var fightingStyles in FightingStyleContext.FightingStyles)
+                    {
+                        FightingStyleContext.Switch(fightingStyles,
+                            toggle && ModUi.TabletopDefinitions.Contains(fightingStyles));
+                    }
+
+                    foreach (var invocation in InvocationsContext.Invocations)
+                    {
+                        InvocationsContext.SwitchInvocation(invocation,
+                            toggle && ModUi.TabletopDefinitions.Contains(invocation));
+                    }
+
+                    foreach (var metamagic in MetamagicContext.Metamagic)
+                    {
+                        MetamagicContext.SwitchMetamagic(metamagic,
+                            toggle && ModUi.TabletopDefinitions.Contains(metamagic));
+                    }
+                }
+            })
+        ];
+        UI.HStack(null, bulkActions.Length, GUI.skin.label,
+            bulkActions.Select(action => UI.ToggleWidth(action.Name)).ToArray(), false, bulkActions);
 
         UI.Div();
     }

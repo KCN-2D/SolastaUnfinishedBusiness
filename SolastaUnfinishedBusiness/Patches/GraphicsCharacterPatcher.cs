@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -13,6 +13,22 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GraphicsCharacterPatcher
 {
+    [HarmonyPatch(typeof(GraphicsCharacter), nameof(GraphicsCharacter.CharacterSpeed), MethodType.Setter)]
+    [UsedImplicitly]
+    public static class CharacterSpeed_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GraphicsCharacter __instance, ref float value)
+        {
+            if (value > 0f)
+            {
+                CivilianAnimationContext.InterruptCivilianReaction(__instance);
+            }
+
+            value = CombatAnimationContext.FilterMovementReactionSpeed(__instance, value);
+        }
+    }
+
     [HarmonyPatch]
     [UsedImplicitly]
     public static class CivilianPresentationInterrupted_Patch
@@ -22,10 +38,10 @@ public static class GraphicsCharacterPatcher
         {
             foreach (var name in new[]
                      {
-                         "HandleBodyAnimation", "SpeechStarted", "DialogStarted", "ListenStarted",
-                         "ConditionAdded_Animation", "BattleStarted_Animation", "NarrativeSequenceStarted",
+                         "HandleBodyAnimation", "SpeechStarted", "SpeechEnded", "DialogStarted", "ListenStarted", "ListenEnded",
+                         "AdditionalAnimationStarted", "ConditionAdded_Animation", "BattleStarted_Animation", "NarrativeSequenceStarted",
                          nameof(GraphicsCharacter.TriggerHit), "ProneStatusChanged",
-                         "RebindAnimator", "ResetAnimatorState"
+                         "RebindAnimator", "ResetAnimatorState", nameof(GraphicsCharacter.SetupAfterEquipment)
                      })
             {
                 yield return AccessTools.Method(typeof(GraphicsCharacter), name);
@@ -33,14 +49,31 @@ public static class GraphicsCharacterPatcher
         }
 
         [UsedImplicitly]
-        public static void Prefix(GraphicsCharacter __instance)
+        public static void Prefix(GraphicsCharacter __instance, MethodBase __originalMethod, object[] __args)
         {
-            CombatAnimationContext.InterruptCivilianReaction(__instance);
+            if (__originalMethod.Name == nameof(GraphicsCharacter.SetupAfterEquipment))
+            {
+                CivilianAnimationContext.RefreshCivilianEquipment(__instance);
+                return;
+            }
+
+            CivilianAnimationContext.TrackCivilianConversation(__instance, __originalMethod.Name, __args);
+            CivilianAnimationContext.PrepareCivilianPresentation(__instance, __originalMethod.Name);
+
+            if (__originalMethod.Name is nameof(GraphicsCharacter.RebindAnimator) or "ResetAnimatorState")
+            {
+                CombatAnimationContext.ForgetActionAnimation(__instance);
+            }
         }
 
         [UsedImplicitly]
         public static void Postfix(GraphicsCharacter __instance, MethodBase __originalMethod)
         {
+            if (__originalMethod.Name is "SpeechStarted" or "SpeechEnded" or "ListenStarted" or "ListenEnded")
+            {
+                CivilianAnimationContext.RequestCivilianRefresh();
+            }
+
             if (__originalMethod.Name == nameof(GraphicsCharacter.RebindAnimator))
             {
                 SimulacrumBehavior.ApplyInventoryAppearanceClassAnimation(__instance);
@@ -55,7 +88,8 @@ public static class GraphicsCharacterPatcher
         [UsedImplicitly]
         public static void Prefix(GraphicsCharacter __instance)
         {
-            CombatAnimationContext.ForgetCivilianReaction(__instance);
+            CivilianAnimationContext.ForgetCivilianReaction(__instance);
+            CombatAnimationContext.ForgetActionAnimation(__instance);
         }
     }
 
@@ -67,7 +101,7 @@ public static class GraphicsCharacterPatcher
         public static void Postfix(GraphicsCharacter __instance)
         {
             SimulacrumBehavior.ApplyInventoryAppearanceClassAnimation(__instance);
-            CombatAnimationContext.RequestCivilianRefresh();
+            CivilianAnimationContext.RequestCivilianRefresh();
         }
     }
 
@@ -146,12 +180,25 @@ public static class GraphicsCharacterPatcher
             int ___rightHandClosedLayerIndex,
             int ___leftHandClosedLayerIndex)
         {
+            CombatAnimationContext.RefreshActionAnimation(__instance);
+            CivilianAnimationContext.UpdateCivilianSeating(__instance);
             PortraitsContext.StabilizeInventoryHands(
                 __instance,
                 ___ikRightHand,
                 ___ikLeftHand,
                 ___rightHandClosedLayerIndex,
                 ___leftHandClosedLayerIndex);
+        }
+    }
+
+    [HarmonyPatch(typeof(GraphicsCharacter), "OnAnimatorIK")]
+    [UsedImplicitly]
+    public static class OnAnimatorIK_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GraphicsCharacter __instance)
+        {
+            CivilianAnimationContext.ApplyCivilianSeatingFeet(__instance);
         }
     }
 

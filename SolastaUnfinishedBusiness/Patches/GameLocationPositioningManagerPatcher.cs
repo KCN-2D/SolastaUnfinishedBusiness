@@ -24,6 +24,16 @@ public static class GameLocationPositioningManagerPatcher
         public static void Postfix(GameLocationCharacter character)
         {
             EffectCharacterChange.Notify(character.RulesetCharacter);
+
+            if (Gui.Battle != null &&
+                ServiceRepository.GetService<IGameLocationBattleService>() is { IsBattleInProgress: true } &&
+                ServiceRepository.GetService<ICursorService>()?.CurrentCursor is
+                    CursorLocationBattleFriendlyTurn { Active: true } cursor)
+            {
+                // Occupation changes include forced movement of other contenders.
+                // Rebuild the active actor's destinations on the next native hover refresh.
+                cursor.dirty = true;
+            }
         }
     }
 

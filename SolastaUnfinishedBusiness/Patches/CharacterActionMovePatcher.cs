@@ -5,12 +5,46 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Models;
+using TA;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class CharacterActionMovePatcher
 {
+    [HarmonyPatch(typeof(CharacterActionMoveStepBase), nameof(CharacterActionMoveStepBase.WaitForCanMove))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class WaitForCanMove_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterActionMoveStepBase __instance, int3 position)
+        {
+            if (__instance is CharacterActionMoveStepWalk || __instance.ActingCharacter is not { } mover)
+            {
+                // Walk steps select their exact mode in the existing step-start patch.
+                return;
+            }
+
+            // Other steps can follow flight. Resolve the destination's path mode
+            // before reactions, rather than retaining the preceding step's mode.
+            var moveMode = mover.DefaultMoveMode;
+
+            foreach (var step in __instance.MovePath)
+            {
+                if (step.position != position)
+                {
+                    continue;
+                }
+
+                moveMode = step.moveMode;
+                break;
+            }
+
+            mover.CurrentMoveMode = moveMode;
+        }
+    }
+
     [HarmonyPatch(typeof(CharacterActionMove), nameof(CharacterActionMove.ExecuteImpl))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

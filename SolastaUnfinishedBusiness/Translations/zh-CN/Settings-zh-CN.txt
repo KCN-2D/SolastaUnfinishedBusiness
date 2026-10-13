@@ -6,9 +6,11 @@ ModUI/&ModifyJumpRulesForArmorAndEncumberance=将负重与护甲惩罚应用到�
 ModUI/&EnableBonusActionFreeJump=启用附赠动作跳跃
 ModUI/&ModifyThrowingRulesForStrength=根据力量值不足对投掷距离施加惩罚
 ModUI/&RoleplaySettings=角色扮演
-ModUI/&RoleplaySettingsDescription=这些设置通过增加复杂性与提升成功及失败的概率，调整游戏平衡以偏向生活模拟或角色扮演体验
+ModUI/&RoleplaySettingsDescription=调整NPC的行为和冒险中的判定规则。
+ModUI/&EnableCivilianAmbientAnimations=启用市民NPC的待机和交谈动画
+ModUI/&EnableCivilianAmbientAnimationsDescription=为NPC添加符合其装备与周围情况的待机动作和交谈手势。交谈或休息时会收起武器。所在位置适合坐下时，会调整位置与朝向，在附近的椅子或长凳上就坐。
 ModUI/&EnableCivilianBattleReactions=启用非战斗NPC的战斗反应
-ModUI/&EnableCivilianBattleReactionsDescription=战斗期间，附近未参战的NPC会因害怕而蜷缩。NPC的位置和通行路径保持不变。
+ModUI/&EnableCivilianBattleReactionsDescription=为非战斗NPC添加符合其装备与角色的恐惧或防御姿态。
 ModUI/&SwapShineCantrip=启用 <color=#D89555>光芒四射</color> 戏法 DC 15 版本
 ModUi/&AccountForAllDiceOnFollowUpStrike=将基础武器的所有附加效果添加到<color=#D89555>后续打击</color>专长中
 ModUi/&AccountForAllDiceOnSavageAttack=将基础武器伤害中的所有骰子添加到添加基础武器伤害的功能中，而不仅仅是 1 个骰子<i><color=#F0DAA0>[野蛮攻击、双手武器等]</color></i>
@@ -499,9 +501,9 @@ ModUi/&ShowCraftedItemOnRecipeIcon=在商店和库存中的配方物品附近显
 ModUi/&ShowCraftingRecipeInDetailedTooltips=在详细的工具提示中显示制作配方
 ModUi/&ShowDescriptions=显示描述
 ModUi/&ShowMotionFormPreview=显示<b>推</b>和<b>拉</b>效果的预览
-ModUi/&EnableSmootherBattleAnimations=启用更流畅、略微更快的战斗动画
+ModUi/&EnableSmootherBattleAnimations=启用更快的战斗动画
 ModUi/&BattleActionAnimationSpeedMultiplier=战斗动画速度
-ModUi/&BattleActionAnimationSpeedMultiplierHelp=略微加快战斗中角色动作动画，不跳过施法、投射物、冲击或命中阶段。
+ModUi/&BattleActionAnimationSpeedMultiplierHelp=加快战斗动作并缩短攻击前的等待时间。
 ModUi/&ShowTranslationPreview=显示最近翻译
 ModUi/&SpeechScale=<color=white>叙述速度调节器</color> <i><color=#F0DAA0>[速度越低越快]</color></i>
 ModUi/&SpeechVolume=<color=white>旁白音量</color>

@@ -1,5 +1,4 @@
-﻿using SolastaUnfinishedBusiness.Api.LanguageExtensions;
-using SolastaUnfinishedBusiness.Api.ModKit;
+﻿using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Displays;
@@ -10,8 +9,7 @@ internal static class ClassesDisplay
     {
         UI.Label();
 
-        UI.ActionButton(Gui.Localize("ModUi/&DocsClasses").Bold().Khaki(),
-            () => UpdateContext.OpenDocumentation("Classes.md"), UI.Width(189f));
+        ModUi.DisplayDocumentationLinks(("ModUi/&DocsClasses", "Classes.md"));
 
         UI.Label();
         UI.Label("<color=#F0DAA0>" + Gui.Localize("Class/&BardTitle") + ":</color>");

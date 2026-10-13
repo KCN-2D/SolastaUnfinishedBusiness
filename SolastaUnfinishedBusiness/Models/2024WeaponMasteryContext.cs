@@ -988,9 +988,13 @@ public static partial class Tabletop2024Context
 
         public IEnumerator OnActionFinishedByMe(CharacterAction action)
         {
-            var attacker = action.ActingCharacter;
+            if (action is not CharacterActionAttack ||
+                action is { Aborted: true, AbortReason: CharacterAction.InterruptionType.Invalid })
+            {
+                yield break;
+            }
 
-            if (action is not CharacterActionAttack) { yield break; }
+            var attacker = action.ActingCharacter;
 
             if (action.ActionId == Id.AttackMain)
             {
@@ -1106,8 +1110,9 @@ public static partial class Tabletop2024Context
     {
         public IEnumerator OnActionFinishedByMe(CharacterAction action)
         {
-            // ignore any non cost toggle usage
-            if (CustomActionIdContext.ExtraActionIdToggles.Contains(action.ActionId))
+            // Invalid actions and non-cost toggles do not advance the Cleave attack sequence.
+            if (action is { Aborted: true, AbortReason: CharacterAction.InterruptionType.Invalid } ||
+                CustomActionIdContext.ExtraActionIdToggles.Contains(action.ActionId))
             {
                 yield break;
             }
@@ -1443,7 +1448,7 @@ public static partial class Tabletop2024Context
     internal static void DisplayWeaponMasteryCustomization()
     {
         var toggle = Main.Settings.WeaponMasterySystemCustomizeToggle;
-        if (UI.DisclosureToggle(Gui.Localize("ModUi/&WeaponMasterySystemCustomizeToggle"), ref toggle, 200))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&WeaponMasterySystemCustomizeToggle"), ref toggle))
         {
             Main.Settings.WeaponMasterySystemCustomizeToggle = toggle;
         }

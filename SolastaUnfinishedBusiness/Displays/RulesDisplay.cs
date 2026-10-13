@@ -1,5 +1,6 @@
 ﻿using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.Models;
+using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Displays;
 
@@ -585,15 +586,13 @@ internal static class RulesDisplay
 
         intValue = Main.Settings.SenseNormalVisionRangeMultiplier;
 
-        using (UI.HorizontalScope())
+        var titleStyle = new GUIStyle(GUI.skin.label) { wordWrap = true };
+        var visionTitle = Gui.Localize("ModUi/&SenseNormalVisionRangeMultiplier");
+        var visionTitleWidth = titleStyle.CalcSize(new GUIContent(visionTitle)).x;
+        if (UI.SelectionGrid(visionTitle, ref intValue, SenseNormalVisionOptions, SenseNormalVisionOptions.Length,
+                titleStyle, visionTitleWidth, 165f))
         {
-            UI.Label(Gui.Localize("ModUi/&SenseNormalVisionRangeMultiplier"), UI.Width(275f));
-
-            if (UI.SelectionGrid(ref intValue, SenseNormalVisionOptions, SenseNormalVisionOptions.Length, 3,
-                    UI.Width(165f)))
-            {
-                Main.Settings.SenseNormalVisionRangeMultiplier = intValue;
-            }
+            Main.Settings.SenseNormalVisionRangeMultiplier = intValue;
         }
 
         UI.Label();
@@ -606,37 +605,31 @@ internal static class RulesDisplay
         UI.Label(Gui.Localize("ModUi/&CriticalOption3"));
         UI.Label();
 
-        using (UI.HorizontalScope())
-        {
-            UI.Label(Gui.Localize("Caption/&TargetFilteringAllyCreature"), UI.Width(100f));
+        var allyTitle = Gui.Localize("Caption/&TargetFilteringAllyCreature");
+        var enemyTitle = Gui.Localize("Caption/&TargetFilteringEnemyCreature");
+        var neutralTitle = Gui.Localize("Action/&NeutralCreatureTitle");
+        var sideTitleWidth = Mathf.Max(titleStyle.CalcSize(new GUIContent(allyTitle)).x,
+            titleStyle.CalcSize(new GUIContent(enemyTitle)).x, titleStyle.CalcSize(new GUIContent(neutralTitle)).x);
 
-            intValue = Main.Settings.CriticalHitModeAllies;
-            if (UI.SelectionGrid(ref intValue, CriticalHitOptions, CriticalHitOptions.Length, 4, UI.Width(220f)))
-            {
-                Main.Settings.CriticalHitModeAllies = intValue;
-            }
+        intValue = Main.Settings.CriticalHitModeAllies;
+        if (UI.SelectionGrid(allyTitle, ref intValue, CriticalHitOptions, CriticalHitOptions.Length,
+                titleStyle, sideTitleWidth, 220f))
+        {
+            Main.Settings.CriticalHitModeAllies = intValue;
         }
 
-        using (UI.HorizontalScope())
+        intValue = Main.Settings.CriticalHitModeEnemies;
+        if (UI.SelectionGrid(enemyTitle, ref intValue, CriticalHitOptions, CriticalHitOptions.Length,
+                titleStyle, sideTitleWidth, 220f))
         {
-            UI.Label(Gui.Localize("Caption/&TargetFilteringEnemyCreature"), UI.Width(100f));
-
-            intValue = Main.Settings.CriticalHitModeEnemies;
-            if (UI.SelectionGrid(ref intValue, CriticalHitOptions, CriticalHitOptions.Length, 4, UI.Width(220f)))
-            {
-                Main.Settings.CriticalHitModeEnemies = intValue;
-            }
+            Main.Settings.CriticalHitModeEnemies = intValue;
         }
 
-        using (UI.HorizontalScope())
+        intValue = Main.Settings.CriticalHitModeNeutral;
+        if (UI.SelectionGrid(neutralTitle, ref intValue, CriticalHitOptions, CriticalHitOptions.Length,
+                titleStyle, sideTitleWidth, 220f))
         {
-            UI.Label(Gui.Localize("Action/&NeutralCreatureTitle"), UI.Width(100f));
-
-            intValue = Main.Settings.CriticalHitModeNeutral;
-            if (UI.SelectionGrid(ref intValue, CriticalHitOptions, CriticalHitOptions.Length, 4, UI.Width(220f)))
-            {
-                Main.Settings.CriticalHitModeNeutral = intValue;
-            }
+            Main.Settings.CriticalHitModeNeutral = intValue;
         }
 
         UI.Label();

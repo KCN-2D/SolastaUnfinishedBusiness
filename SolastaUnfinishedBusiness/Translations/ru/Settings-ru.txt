@@ -6,9 +6,11 @@ ModUI/&ModifyJumpRulesForArmorAndEncumberance=Применить лепку и �
 ModUI/&EnableBonusActionFreeJump=Включает прыжок бонусным действием
 ModUI/&ModifyThrowingRulesForStrength=Применить штрафные штрафы на диапазон за отсутствие силы
 ModUI/&RoleplaySettings=Ролевые игры
-ModUI/&RoleplaySettingsDescription=Эти настройки настраивают баланс игры в пользу симуляции жизни или ролевой игры, добавив сложности и повышенную вероятность успеха и неудачи
-ModUI/&EnableCivilianBattleReactions=Включить реакцию не участвующих в бою НИП
-ModUI/&EnableCivilianBattleReactionsDescription=Находящиеся рядом НИП, которые не участвуют в бою, съёживаются от страха во время сражения. Их позиции и проходы остаются неизменными.
+ModUI/&RoleplaySettingsDescription=Настройте поведение НИП и правила приключений.
+ModUI/&EnableCivilianAmbientAnimations=Включить анимации ожидания и разговора мирных НИП
+ModUI/&EnableCivilianAmbientAnimationsDescription=Добавляет НИП движения в состоянии покоя и жесты во время разговора с учётом их снаряжения и окружения. Во время разговора или отдыха они убирают оружие. Если расположение позволяет сесть, они выравнивают положение и направление по ближайшим стульям или скамьям.
+ModUI/&EnableCivilianBattleReactions=Включить реакцию на бой для не участвующих в нём НИП
+ModUI/&EnableCivilianBattleReactionsDescription=НИП, не участвующие в бою, получают испуганные или защитные позы, подходящие для их снаряжения и роли.
 ModUI/&SwapShineCantrip=Включить Shine DC 15
 ModUi/&AccountForAllDiceOnFollowUpStrike=Добавлять все дополнительные эффекты от базового оружия к урону от черты <color=#D89555>Второй удар</color>
 ModUi/&AccountForAllDiceOnSavageAttack=Добавлять все кости от базового урона оружия к способностям, которые добавляют базовый урон оружия вместо только одной <i><color=#F0DAA0>[Свирепые атаки, Двуручное оружие и т.д.]</color></i>
@@ -499,9 +501,9 @@ ModUi/&ShowCraftedItemOnRecipeIcon=Показывать иконку созда�
 ModUi/&ShowCraftingRecipeInDetailedTooltips=Показывать рецепт создания в подробных подсказках
 ModUi/&ShowDescriptions=Показывать описания
 ModUi/&ShowMotionFormPreview=Показывать предпросмотр эффектов <b>Толкания</b> и <b>Притяжения</b>
-ModUi/&EnableSmootherBattleAnimations=Включить более плавные и немного ускоренные боевые анимации
+ModUi/&EnableSmootherBattleAnimations=Включить ускоренные боевые анимации
 ModUi/&BattleActionAnimationSpeedMultiplier=Скорость боевых анимаций
-ModUi/&BattleActionAnimationSpeedMultiplierHelp=Немного ускоряет анимации действий персонажей в бою, не пропуская фазы сотворения, снарядов, попадания или удара.
+ModUi/&BattleActionAnimationSpeedMultiplierHelp=Ускоряет действия в бою и сокращает ожидание перед атаками.
 ModUi/&ShowTranslationPreview=Показать последние переводы
 ModUi/&SpeechScale=<color=white>Модификатор скорости повествования</color> <i><color=#F0DAA0>[чем ниже, тем быстрее]</color></i>
 ModUi/&SpeechVolume=<color=white>Громкость повествования</color>

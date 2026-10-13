@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
 using Newtonsoft.Json;
@@ -21,6 +22,177 @@ internal static class DungeonMakerContext
     private const string FlatRoomsCategoryName = "FlatRooms";
     private const string ModdedSuffix = "~MOD";
     internal static readonly HashSet<string> OutdoorRooms = new(StringComparer.Ordinal);
+    private static readonly ConditionalWeakTable<UserCampaignPoolManager, CampaignFileCache> CampaignFiles = new();
+
+    // The native pool rebuilds whenever a Session exists. Keep its registration and
+    // saved-campaign supplementation, while reusing unchanged disk content it owns.
+    internal static List<UserCampaign> RetainCampaignFilesForEnumeration(UserCampaignPoolManager owner)
+    {
+        var retained = new List<UserCampaign>();
+
+        if (!CampaignFiles.TryGetValue(owner, out var cache))
+        {
+            return retained;
+        }
+
+        foreach (var pair in cache.Files.ToArray())
+        {
+            if (pair.Value.Campaign.TryGetTarget(out var campaign) &&
+                TryGetCampaignFileStamp(pair.Key, out var stamp) && stamp.Equals(pair.Value.Stamp))
+            {
+                retained.Add(campaign);
+            }
+            else
+            {
+                cache.Files.Remove(pair.Key);
+            }
+        }
+
+        return retained;
+    }
+
+    internal static bool TryGetCachedCampaignFile(
+        UserCampaignPoolManager owner,
+        string path,
+        bool workshop,
+        bool multiplayer,
+        List<string> removedContent,
+        out UserCampaign campaign,
+        out CampaignFileRead read)
+    {
+        campaign = null;
+        read = null;
+
+        if (!TryGetCampaignFileStamp(path, out var stamp))
+        {
+            return false;
+        }
+
+        var cache = CampaignFiles.GetValue(owner, _ => new CampaignFileCache());
+
+        if (cache.Files.TryGetValue(path, out var entry) && stamp.Equals(entry.Stamp) &&
+            entry.Workshop == workshop && entry.Multiplayer == multiplayer && entry.Campaign.TryGetTarget(out campaign))
+        {
+            removedContent?.AddRange(entry.RemovedContent);
+
+            return true;
+        }
+
+        cache.Files.Remove(path);
+        read = new CampaignFileRead(path, stamp, workshop, multiplayer, removedContent?.Count ?? 0);
+
+        return false;
+    }
+
+    internal static void CacheCampaignFile(
+        UserCampaignPoolManager owner,
+        CampaignFileRead read,
+        UserCampaign campaign,
+        bool someContentRemoved,
+        List<string> removedContent,
+        Dictionary<string, UserCampaign> pool)
+    {
+        // Native may return a partially read or unsupported campaign after failure.
+        // Cache only registered results with unchanged file metadata and no removed-content flag.
+        if (read == null || campaign == null || someContentRemoved ||
+            !pool.TryGetValue(campaign.Title, out var registered) || !ReferenceEquals(campaign, registered) ||
+            !TryGetCampaignFileStamp(read.Path, out var stamp) || !stamp.Equals(read.Stamp))
+        {
+            return;
+        }
+
+        var removed = removedContent != null && removedContent.Count > read.RemovedCount
+            ? removedContent.Skip(read.RemovedCount).ToArray()
+            : [];
+        CampaignFiles.GetValue(owner, _ => new CampaignFileCache()).Files[read.Path] = new CachedCampaignFile(
+            stamp, read.Workshop, read.Multiplayer, campaign, removed);
+    }
+
+    internal static void InvalidateCampaignFile(UserCampaignPoolManager owner, UserCampaign campaign)
+    {
+        if (owner == null || !CampaignFiles.TryGetValue(owner, out var cache))
+        {
+            return;
+        }
+
+        foreach (var pair in cache.Files.ToArray())
+        {
+            if (!pair.Value.Campaign.TryGetTarget(out var cached) || ReferenceEquals(campaign, cached))
+            {
+                cache.Files.Remove(pair.Key);
+            }
+        }
+    }
+
+    internal static void InvalidateCampaignFileForEditing(UserCampaign campaign)
+    {
+        InvalidateCampaignFile(ServiceRepository.GetService<IUserCampaignPoolService>() as UserCampaignPoolManager, campaign);
+    }
+
+    internal static void ReleaseCampaignFiles(UserCampaignPoolManager owner)
+    {
+        CampaignFiles.Remove(owner);
+    }
+
+    private static bool TryGetCampaignFileStamp(string path, out CampaignFileStamp stamp)
+    {
+        stamp = default;
+
+        try
+        {
+            var file = new FileInfo(path);
+
+            if (!file.Exists)
+            {
+                return false;
+            }
+
+            stamp = new CampaignFileStamp(file.Length, file.LastWriteTimeUtc);
+
+            return true;
+        }
+        catch
+        {
+            // Keep the native reader responsible for reporting inaccessible files.
+            return false;
+        }
+    }
+
+    internal readonly struct CampaignFileStamp(long length, DateTime lastWriteUtc) : IEquatable<CampaignFileStamp>
+    {
+        public bool Equals(CampaignFileStamp other)
+        {
+            return Length == other.Length && LastWriteUtc == other.LastWriteUtc;
+        }
+
+        private long Length { get; } = length;
+        private DateTime LastWriteUtc { get; } = lastWriteUtc;
+    }
+
+    internal sealed class CampaignFileRead(
+        string path, CampaignFileStamp stamp, bool workshop, bool multiplayer, int removedCount)
+    {
+        internal string Path { get; } = path;
+        internal CampaignFileStamp Stamp { get; } = stamp;
+        internal bool Workshop { get; } = workshop;
+        internal bool Multiplayer { get; } = multiplayer;
+        internal int RemovedCount { get; } = removedCount;
+    }
+
+    private sealed class CampaignFileCache
+    {
+        internal Dictionary<string, CachedCampaignFile> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed class CachedCampaignFile(
+        CampaignFileStamp stamp, bool workshop, bool multiplayer, UserCampaign campaign, string[] removedContent)
+    {
+        internal CampaignFileStamp Stamp { get; } = stamp;
+        internal bool Workshop { get; } = workshop;
+        internal bool Multiplayer { get; } = multiplayer;
+        internal WeakReference<UserCampaign> Campaign { get; } = new(campaign);
+        internal string[] RemovedContent { get; } = removedContent;
+    }
 
     internal static bool ShouldReadUserContentFile(string path, string contentType)
     {

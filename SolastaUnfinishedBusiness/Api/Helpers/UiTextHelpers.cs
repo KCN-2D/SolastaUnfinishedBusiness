@@ -2449,6 +2449,7 @@ internal static class UiTextHelpers
     {
         private const float ColumnGap = 12f;
         private readonly List<RoomHeaderColumn> _columns = [];
+        private readonly List<RectTransform> _columnRects = [];
         private JoinGameSubpanel _panel;
         private RectTransform _header;
         private HorizontalLayoutGroup _headerLayout;
@@ -2461,6 +2462,9 @@ internal static class UiTextHelpers
         private int _lastRows;
         private string _lastLanguage;
         private bool _dirty;
+        private float[] _columnWidths;
+        private float[] _minimumWidths;
+        private float[] _preferredWidths;
 
         internal void Schedule(JoinGameSubpanel panel)
         {
@@ -2517,6 +2521,16 @@ internal static class UiTextHelpers
                 }
 
                 _columns.Sort((left, right) => left.NativeLeft.CompareTo(right.NativeLeft));
+                var roomLine = _panel.onlineRoomPrefab ? _panel.onlineRoomPrefab.GetComponent<OnlineRoomLine>() : null;
+                for (var index = 0; index < _columns.Count; index++)
+                {
+                    var column = _columns[index];
+                    column.MinimumControlWidth = GetRoomControlWidth(roomLine, index);
+                    _columnRects.Add(column.Rect);
+                }
+                _columnWidths = new float[_columns.Count];
+                _minimumWidths = new float[_columns.Count];
+                _preferredWidths = new float[_columns.Count];
                 return true;
             }
 
@@ -2553,22 +2567,21 @@ internal static class UiTextHelpers
             var scale = Mathf.Min(1f, width / _nativeWidth);
             if (_headerLayout)
             {
-                // The native layout runs again after the captions are resized. Its gap
-                // must match the gap used below, or every subsequent column drifts right.
-                _headerLayout.spacing = ColumnGap * scale;
-                _headerLayout.padding.left = Mathf.RoundToInt(_headerPadding.left * scale);
-                _headerLayout.padding.right = Mathf.RoundToInt(_headerPadding.right * scale);
+                // Header and data cells share the measured column boundaries. Native
+                // fixed-width child placement must not overwrite those boundaries.
+                _headerLayout.enabled = false;
             }
+            var gap = ColumnGap * scale;
+            var left = _columns[0].NativeLeft * scale;
+            var rightPadding = _headerLayout ? _headerPadding.right * scale : gap;
+            FitColumnWidths(Mathf.Max(1f, width - left - rightPadding - gap * (_columns.Count - 1)), scale);
             var height = _nativeHeight;
             for (var index = 0; index < _columns.Count; index++)
             {
                 var column = _columns[index];
-                var left = column.NativeLeft * scale;
-                var right = index + 1 < _columns.Count
-                    ? _columns[index + 1].NativeLeft * scale - ColumnGap * scale
-                    : width - ColumnGap * scale;
                 column.Rect.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, left,
-                    Mathf.Max(1f, right - left));
+                    _columnWidths[index]);
+                left += _columnWidths[index] + gap;
                 var text = column.Text;
                 text.enableAutoSizing = false;
                 text.autoSizeTextContainer = false;
@@ -2600,7 +2613,7 @@ internal static class UiTextHelpers
             {
                 var row = line.GetComponent<MultiplayerRoomRowLayoutState>() ??
                           line.gameObject.AddComponent<MultiplayerRoomRowLayoutState>();
-                row.Apply(line, scale);
+                row.Apply(line, _columnRects);
             }
 
             LayoutRebuilder.ForceRebuildLayoutImmediate(_panel.onlineRoomsTable);
@@ -2608,6 +2621,81 @@ internal static class UiTextHelpers
             _lastRows = rows;
             _lastLanguage = language;
             _dirty = false;
+        }
+
+        private void FitColumnWidths(float available, float scale)
+        {
+            var minimum = 0f;
+            foreach (var column in _columns)
+            {
+                var preferred = GetPreferredSize(column.Text, column.NativeFontSize, false, 1,
+                    column.NativeLineSpacing, float.PositiveInfinity);
+                column.SingleLineWidth = preferred.x + column.Text.margin.x + column.Text.margin.z + 4f;
+                column.SingleLineHeight = preferred.y;
+                minimum += Mathf.Max(column.MinimumControlWidth, column.SingleLineWidth);
+            }
+
+            var wrap = minimum > available;
+            minimum = 0f;
+            var extra = 0f;
+            for (var index = 0; index < _columns.Count; index++)
+            {
+                var column = _columns[index];
+                var captionWidth = wrap ? GetTwoLineWidth(column) : column.SingleLineWidth;
+                _minimumWidths[index] = Mathf.Max(column.MinimumControlWidth, captionWidth);
+                _preferredWidths[index] = Mathf.Max(_minimumWidths[index], column.NativeWidth * scale);
+                minimum += _minimumWidths[index];
+                extra += _preferredWidths[index] - _minimumWidths[index];
+            }
+
+            for (var index = 0; index < _columns.Count; index++)
+            {
+                // Give each complete caption priority, then return surplus width to
+                // the native large text columns instead of leaving it unused there.
+                _columnWidths[index] = minimum > available
+                    ? Mathf.Max(1f, _minimumWidths[index] * available / minimum)
+                    : _minimumWidths[index] + (available - minimum) *
+                      (extra > 0f ? (_preferredWidths[index] - _minimumWidths[index]) / extra : 1f / _columns.Count);
+            }
+        }
+
+        private static float GetTwoLineWidth(RoomHeaderColumn column)
+        {
+            var margin = column.Text.margin.x + column.Text.margin.z;
+            var low = 1f;
+            var high = Mathf.Max(1f, column.SingleLineWidth - margin);
+            for (var iteration = 0; iteration < CardFitSearchIterations; iteration++)
+            {
+                var middle = (low + high) * 0.5f;
+                var size = GetPreferredSize(column.Text, column.NativeFontSize, true, int.MaxValue,
+                    column.NativeLineSpacing, middle);
+                if (size.y <= column.SingleLineHeight * 2f + 2f)
+                {
+                    high = middle;
+                }
+                else
+                {
+                    low = middle;
+                }
+            }
+
+            return high + margin + 4f;
+        }
+
+        private static float GetRoomControlWidth(OnlineRoomLine line, int index)
+        {
+            if (!line)
+            {
+                return 1f;
+            }
+
+            return index switch
+            {
+                1 => Mathf.Max(line.typeNewImage.rectTransform.rect.width, line.typeSavedImage.rectTransform.rect.width),
+                2 => ((RectTransform)line.crossplayToggle.transform).rect.width,
+                3 => Mathf.Max(line.lockedImage.rectTransform.rect.width, line.unlockedImage.rectTransform.rect.width),
+                _ => 1f
+            };
         }
 
         private sealed class RoomHeaderColumn(TMP_Text text)
@@ -2620,6 +2708,10 @@ internal static class UiTextHelpers
                 ((RectTransform)text.rectTransform.parent).rect.xMin;
             internal float NativeFontSize { get; } = text.fontSize;
             internal float NativeLineSpacing { get; } = text.lineSpacing;
+            internal float NativeWidth { get; } = text.rectTransform.rect.width;
+            internal float MinimumControlWidth { get; set; }
+            internal float SingleLineWidth { get; set; }
+            internal float SingleLineHeight { get; set; }
             internal string LastText { get; set; }
             internal TMP_FontAsset LastFont { get; set; }
         }
@@ -2627,12 +2719,11 @@ internal static class UiTextHelpers
 
     private sealed class MultiplayerRoomRowLayoutState : MonoBehaviour
     {
-        private readonly List<(RectTransform Rect, float Width)> _columns = [];
+        private readonly List<(RectTransform Rect, float Width, int Index, bool Stretch)> _columns = [];
+        private readonly List<(TMP_Text Text, Vector4 Margin)> _textMargins = [];
         private HorizontalLayoutGroup _layout;
-        private float _spacing;
-        private RectOffset _padding;
 
-        internal void Apply(OnlineRoomLine line, float scale)
+        internal void Apply(OnlineRoomLine line, IReadOnlyList<RectTransform> headers)
         {
             if (_columns.Count == 0)
             {
@@ -2642,30 +2733,54 @@ internal static class UiTextHelpers
                     return;
                 }
 
-                _spacing = _layout.spacing;
-                _padding = new RectOffset(_layout.padding.left, _layout.padding.right,
-                    _layout.padding.top, _layout.padding.bottom);
-                foreach (Transform child in line.transform)
-                {
-                    if (child is RectTransform rect && child.GetComponent<LayoutElement>()?.ignoreLayout != true)
-                    {
-                        _columns.Add((rect, rect.rect.width));
-                    }
-                }
+                AddColumn(line.sessionNameLabel.RectTransform, 0, true);
+                AddColumn(line.typeNewImage.rectTransform, 1, false);
+                AddColumn(line.typeSavedImage.rectTransform, 1, false);
+                AddColumn((RectTransform)line.crossplayToggle.transform, 2, false);
+                AddColumn(line.lockedImage.rectTransform, 3, false);
+                AddColumn(line.unlockedImage.rectTransform, 3, false);
+                AddColumn(line.playersLabel.RectTransform, 4, true);
+                AddColumn(line.campaignLabel.RectTransform, 5, true);
             }
 
-            _layout.spacing = _spacing * scale;
-            _layout.padding.left = Mathf.RoundToInt(_padding.left * scale);
-            _layout.padding.right = Mathf.RoundToInt(_padding.right * scale);
-            foreach (var (rect, width) in _columns)
+            _layout.enabled = false;
+            foreach (var (rect, width, index, stretch) in _columns)
             {
-                rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width * scale);
+                if (index >= headers.Count)
+                {
+                    continue;
+                }
+
+                var header = headers[index];
+                var parent = (RectTransform)rect.parent;
+                var left = parent.InverseTransformPoint(header.TransformPoint(header.rect.xMin, 0, 0)).x - parent.rect.xMin;
+                var right = parent.InverseTransformPoint(header.TransformPoint(header.rect.xMax, 0, 0)).x - parent.rect.xMin;
+                rect.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, left,
+                    stretch ? Mathf.Max(1f, right - left) : width);
+            }
+
+            // TMP measures glyph advances, but fallback glyphs can extend beyond
+            // them. Keep a small inset inside the shared data-column boundaries.
+            foreach (var (text, margin) in _textMargins)
+            {
+                text.margin = new Vector4(margin.x + 2f, margin.y, margin.z + 2f, margin.w);
             }
 
             FitConstrainedSingleLine(line.sessionNameLabel, TagMinFontScale, TagAbsoluteMinFontSize);
             FitConstrainedSingleLine(line.playersLabel, StatValueMinFontScale, StatValueAbsoluteMinFontSize);
             FitConstrainedSingleLine(line.campaignLabel, TagMinFontScale, TagAbsoluteMinFontSize);
             LayoutRebuilder.ForceRebuildLayoutImmediate(line.RectTransform);
+
+            return;
+
+            void AddColumn(RectTransform rect, int index, bool stretch)
+            {
+                _columns.Add((rect, rect.rect.width, index, stretch));
+                if (stretch && rect.GetComponent<TMP_Text>() is { } text)
+                {
+                    _textMargins.Add((text, text.margin));
+                }
+            }
         }
     }
 

@@ -4,6 +4,7 @@ using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
@@ -101,6 +102,17 @@ public static class CharacterActionAttackPatcher
             var target = targets[0];
             var rulesetDefender = target.RulesetActor;
             var defenderWasConscious = !rulesetDefender.IsDeadOrDyingOrUnconscious;
+            var validateCurrentPositions = __instance.ActionType != ActionDefinitions.ActionType.Reaction &&
+                                           __instance.ActionId != ActionDefinitions.Id.AttackReadied &&
+                                           !actionParams.IsReactionEffect && !attackMode.ReturnProjectileOnly &&
+                                           originatingMagicEffect?.ActionType != ActionDefinitions.ActionType.Reaction;
+
+            if (validateCurrentPositions &&
+                (!MotionContext.IsAttackPositionStable(actingCharacter) || !MotionContext.IsAttackPositionStable(target)))
+            {
+                AbortInvalidPosition(__instance);
+                yield break;
+            }
 
             //PATCH: handle target under Sanctuary spell
             if (!SpellBuilders.CheckSanctuary(actingCharacter.RulesetCharacter, target.RulesetCharacter))
@@ -148,6 +160,14 @@ public static class CharacterActionAttackPatcher
 
             if (!canAttack)
             {
+                // A queued target may already have finished moving before ExecuteImpl starts.
+                // Its new position must not fall back to the modifier selected in the old cell.
+                if (validateCurrentPositions && MotionContext.HasAttackPositionFailure(attackModifier))
+                {
+                    AbortInvalidPosition(__instance);
+                    yield break;
+                }
+
                 var attackModifiers = actionParams.ActionModifiers;
 
                 attackModifier = attackModifiers[0];
@@ -195,6 +215,12 @@ public static class CharacterActionAttackPatcher
             yield return battleManager.HandleCharacterPhysicalAttackInitiated(
                 __instance, actingCharacter, target, attackModifier, attackMode);
 
+            if (validateCurrentPositions && !MotionContext.CanAttackFromCurrentPositions(battleManager, attackParams))
+            {
+                AbortInvalidPosition(__instance);
+                yield break;
+            }
+
             foreach (var modifier in rulesetCharacter
                          .GetSubFeaturesByType<IModifyMagicEffectAttackModifier>())
             {
@@ -226,6 +252,12 @@ public static class CharacterActionAttackPatcher
                     advantageTrends: attackModifier.AttackAdvantageTrends, canGainAdvantage: !attackModifier.IgnoreAdvantage);
 
                 yield return attackRollContext.Prompt(actingCharacter);
+
+                if (validateCurrentPositions && !MotionContext.CanAttackFromCurrentPositions(battleManager, attackParams))
+                {
+                    AbortInvalidPosition(__instance);
+                    yield break;
+                }
 
                 using (attackRollContext.Activate())
                 {
@@ -295,7 +327,7 @@ public static class CharacterActionAttackPatcher
             if (!__instance.skipAnimationWarmup)
             {
                 // Ensure the character animation is idle, as a trigger is not considered if the animator is in a transition
-                yield return Coroutine.WaitForSeconds(GameConfiguration.CharacterAnimation.WaitingTimeAfterMove);
+                yield return CombatAnimationContext.WaitForActionWarmup(__instance);
             }
 
             // Wait for monster weapon swap ?
@@ -314,6 +346,12 @@ public static class CharacterActionAttackPatcher
 
             // Acting character could be trying to act during a hit animation
             yield return actingCharacter.WaitForHitAnimation();
+
+            if (validateCurrentPositions && !MotionContext.CanAttackFromCurrentPositions(battleManager, attackParams))
+            {
+                AbortInvalidPosition(__instance);
+                yield break;
+            }
 
             actingCharacter.AttackOn(
                 target, __instance.AttackRollOutcome, actionParams, attackMode, attackModifier);
@@ -1011,6 +1049,19 @@ public static class CharacterActionAttackPatcher
 
             yield return battleManager.HandleCharacterAttackOrMagicEffectFinishedLate(
                 __instance, actingCharacter);
+        }
+
+        private static void AbortInvalidPosition(CharacterActionAttack action)
+        {
+            action.Abort(CharacterAction.InterruptionType.Invalid);
+
+            if (!action.isChargeAttack)
+            {
+                return;
+            }
+
+            action.ActingCharacter.IsCharging = false;
+            action.ActingCharacter.MovingToDestination = false;
         }
 
         private static void RunTurnCoroutine(ref Coroutine coroutine)

@@ -23,6 +23,13 @@ internal static partial class UI
         return LabelContent;
     }
 
+    public static float ToggleWidth(string title)
+    {
+        // Match the caption's supplied rich text and the native icon's rounded width.
+        return ToggleStyle.CalcSize(new GUIContent(title)).x + ToggleStyle.margin.horizontal +
+               Mathf.Ceil(GUI.skin.box.CalcSize(CheckOn).x) + 5f;
+    }
+
     internal static bool Toggle(
         Rect rect,
         GUIContent label,

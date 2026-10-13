@@ -106,7 +106,7 @@ internal static partial class UI
     }
 
     [UsedImplicitly]
-    public static bool DisclosureToggle(string title, ref bool value, float width = 175, params Action[] actions)
+    public static bool DisclosureToggle(string title, ref bool value, float width = 0, params Action[] actions)
     {
         var changed = TogglePrivate(title, ref value, false, true, width);
 
@@ -273,7 +273,7 @@ internal static partial class UI
     [UsedImplicitly]
     public static bool DisclosureToggle(string title, ref bool value, params Action[] actions)
     {
-        var changed = TogglePrivate(title, ref value, false, true, 175);
+        var changed = TogglePrivate(title, ref value, false, true);
         If(value, actions);
         return changed;
     }

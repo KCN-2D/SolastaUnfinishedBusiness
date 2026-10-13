@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Models;
@@ -16,7 +16,7 @@ public static class WorldGadgetPatcher
         public static void Postfix()
         {
             // The native spawn callback enables the model after registering it.
-            CombatAnimationContext.RequestCivilianRefresh();
+            CivilianAnimationContext.RequestCivilianRefresh();
         }
     }
 

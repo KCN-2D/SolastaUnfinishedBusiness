@@ -27,6 +27,9 @@ public static class CharacterActionMoveStepWalkPatcher
             var source = mover.LocationPosition;
             var destination = currentStep.position;
 
+            // Native CurrentMoveMode is only saved/restored, not updated by path
+            // execution. Select the actual step before movement reactions run.
+            mover.CurrentMoveMode = currentStep.mode;
             MovementTracker.RecordMovement(mover, destination);
 
             foreach (var moveStepStarted in mover.RulesetCharacter.GetSubFeaturesByType<IMoveStepStarted>())

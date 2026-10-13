@@ -6,9 +6,11 @@ ModUI/&ModifyJumpRulesForArmorAndEncumberance=Applicare le penalità di encumber
 ModUI/&EnableBonusActionFreeJump=Abilita il salto come azione bonus
 ModUI/&ModifyThrowingRulesForStrength=Applicare sanzioni per il lancio per variare per mancanza di forza
 ModUI/&RoleplaySettings=Gioco di ruolo
-ModUI/&RoleplaySettingsDescription=Queste impostazioni modificano l'equilibrio del gioco a favore della simulazione della vita o del gioco di ruolo aggiungendo complessità e maggiori possibilità di successo e fallimento
+ModUI/&RoleplaySettingsDescription=Regola il comportamento dei PNG e le regole di avventura.
+ModUI/&EnableCivilianAmbientAnimations=Abilita le animazioni di riposo e conversazione dei PNG civili
+ModUI/&EnableCivilianAmbientAnimationsDescription=I PNG eseguono movimenti di riposo e gesti di conversazione adatti al loro equipaggiamento e all’ambiente. Ripongono le armi mentre parlano o si rilassano. Se la posizione consente di sedersi, si allineano alle sedie o alle panche vicine.
 ModUI/&EnableCivilianBattleReactions=Abilita le reazioni al combattimento dei PNG non combattenti
-ModUI/&EnableCivilianBattleReactionsDescription=I PNG vicini che non partecipano al combattimento si rannicchiano per la paura durante le battaglie. Le loro posizioni e le vie di passaggio restano invariate.
+ModUI/&EnableCivilianBattleReactionsDescription=I PNG non combattenti assumono posture di paura o di difesa adatte al loro equipaggiamento e al loro ruolo.
 ModUI/&SwapShineCantrip=Abilita Shine DC 15
 ModUi/&AccountForAllDiceOnFollowUpStrike=Aggiungi tutti gli effetti aggiuntivi dell'arma base al talento <color=#D89555>Colpo successivo</color>
 ModUi/&AccountForAllDiceOnSavageAttack=Aggiungi tutti i dadi del danno base dell'arma alle caratteristiche che aggiungono danno base dell'arma invece di 1 solo dado <i><color=#F0DAA0>[Attacco selvaggio, armi a 2 mani, ecc.]</color></i>
@@ -499,9 +501,9 @@ ModUi/&ShowCraftedItemOnRecipeIcon=Mostra l'icona dell'oggetto creato vicino all
 ModUi/&ShowCraftingRecipeInDetailedTooltips=Mostra la ricetta di creazione in tooltip dettagliati
 ModUi/&ShowDescriptions=Mostra descrizioni
 ModUi/&ShowMotionFormPreview=Mostra l'anteprima degli effetti <b>Push</b> e <b>Pull</b>
-ModUi/&EnableSmootherBattleAnimations=Abilita animazioni di combattimento più fluide e leggermente più rapide
+ModUi/&EnableSmootherBattleAnimations=Abilita animazioni di combattimento più rapide
 ModUi/&BattleActionAnimationSpeedMultiplier=Velocità animazioni di combattimento
-ModUi/&BattleActionAnimationSpeedMultiplierHelp=Velocizza leggermente le animazioni delle azioni dei personaggi in combattimento senza saltare lancio, proiettili, impatti o fasi di colpo.
+ModUi/&BattleActionAnimationSpeedMultiplierHelp=Velocizza le azioni di combattimento e riduce l'attesa prima degli attacchi.
 ModUi/&ShowTranslationPreview=Mostra Traduzioni Recenti
 ModUi/&SpeechScale=<color=white>Modificatore velocità narrazione</color> <i><color=#F0DAA0>[più basso è più veloce]</color></i>
 ModUi/&SpeechVolume=<color=white>Volume narrazione</color>

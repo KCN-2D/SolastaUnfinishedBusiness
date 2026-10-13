@@ -11,12 +11,23 @@ internal static class RoleplayDisplay
         UI.Label();
         UI.Label(Gui.Localize("ModUI/&RoleplaySettingsDescription"));
         UI.Label();
+        toggle = Main.Settings.EnableCivilianAmbientAnimations;
+        if (UI.Toggle(Gui.Localize("ModUI/&EnableCivilianAmbientAnimations"), ref toggle,
+                UI.AutoWidth()))
+        {
+            Main.Settings.EnableCivilianAmbientAnimations = toggle;
+            CivilianAnimationContext.RefreshCivilianReactions();
+        }
+
+        UI.Label(Gui.Localize("ModUI/&EnableCivilianAmbientAnimationsDescription"),
+            new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
+        UI.Label();
         toggle = Main.Settings.EnableCivilianBattleReactions;
         if (UI.Toggle(Gui.Localize("ModUI/&EnableCivilianBattleReactions"), ref toggle,
                 UI.AutoWidth()))
         {
             Main.Settings.EnableCivilianBattleReactions = toggle;
-            CombatAnimationContext.RefreshCivilianReactions();
+            CivilianAnimationContext.RefreshCivilianReactions();
         }
 
         UI.Label(Gui.Localize("ModUI/&EnableCivilianBattleReactionsDescription"),

@@ -1,6 +1,7 @@
 // Copyright < 2021 > Narria (github user Cabarius) - License: MIT
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using UnityEngine;
@@ -29,6 +30,7 @@ internal static partial class UI
         public float LayoutWidth;
         public float SelectionHeight;
         public int Columns = 1;
+        public int[] RowStarts = [0];
 
         public ResponsiveLayoutState()
         {
@@ -37,7 +39,7 @@ internal static partial class UI
 
     private static ResponsiveLayoutState MeasureResponsiveLayout(string[] labels, int maximumColumns,
         GUIStyle style, float reservedWidth = 0f, int maximumColumnsWhenWrapped = int.MaxValue,
-        float minimumCellWidth = 0f, float[] preferredCellWidths = null)
+        float minimumCellWidth = 0f, float[] preferredCellWidths = null, bool compact = false, float gap = 0f)
     {
         var controlId = GUIUtility.GetControlID(nameof(ResponsiveLayoutState).GetHashCode(), FocusType.Passive);
         var state = (ResponsiveLayoutState)GUIUtility.GetStateObject(typeof(ResponsiveLayoutState), controlId);
@@ -49,10 +51,17 @@ internal static partial class UI
         {
             state.LayoutWidth = state.MeasuredWidth;
             var availableWidth = Mathf.Max(0f, state.LayoutWidth - reservedWidth);
-            state.Columns = preferredCellWidths == null
-                ? CalculateResponsiveColumns(labels, maximumColumns, availableWidth, style,
-                    maximumColumnsWhenWrapped, minimumCellWidth)
-                : CalculateResponsiveColumns(preferredCellWidths, maximumColumns, availableWidth);
+            if (compact)
+            {
+                state.RowStarts = CalculateCompactRows(preferredCellWidths, maximumColumns, availableWidth, gap);
+            }
+            else
+            {
+                state.Columns = preferredCellWidths == null
+                    ? CalculateResponsiveColumns(labels, maximumColumns, availableWidth, style,
+                        maximumColumnsWhenWrapped, minimumCellWidth)
+                    : CalculateResponsiveColumns(preferredCellWidths, maximumColumns, availableWidth);
+            }
         }
         else if (Event.current.type == EventType.Repaint && rect.width > 0f)
         {
@@ -136,6 +145,30 @@ internal static partial class UI
         return 1;
     }
 
+    private static int[] CalculateCompactRows(float[] preferredWidths, int maximumColumns, float availableWidth,
+        float gap)
+    {
+        var starts = new List<int> { 0 };
+        var limit = maximumColumns <= 0 ? preferredWidths.Length : maximumColumns;
+        var rowWidth = 0f;
+        var rowCount = 0;
+        for (var index = 0; index < preferredWidths.Length; index++)
+        {
+            var width = Mathf.Max(1f, preferredWidths[index]);
+            if (rowCount > 0 && (rowCount >= limit || availableWidth <= 0f || rowWidth + gap + width > availableWidth))
+            {
+                starts.Add(index);
+                rowWidth = 0f;
+                rowCount = 0;
+            }
+
+            rowWidth += (rowCount > 0 ? gap : 0f) + width;
+            rowCount++;
+        }
+
+        return starts.ToArray();
+    }
+
     public static int ResponsiveColumns(string[] labels, int maximumColumns, GUIStyle style = null,
         float reservedWidth = 0f)
     {
@@ -210,6 +243,18 @@ internal static partial class UI
     public static void HStack(string title, int stride, GUIStyle style, float[] preferredWidths,
         params NamedAction[] actions)
     {
+        HStack(title, stride, style, preferredWidths, true, actions);
+    }
+
+    public static void HStack(string title, int stride, GUIStyle style, bool expandCells,
+        params NamedAction[] actions)
+    {
+        HStack(title, stride, style, null, expandCells, actions);
+    }
+
+    public static void HStack(string title, int stride, GUIStyle style, float[] preferredWidths, bool expandCells,
+        params NamedAction[] actions)
+    {
         if (actions.Length == 0)
         {
             return;
@@ -234,8 +279,60 @@ internal static partial class UI
                 ? 200.Point()
                 : Mathf.Max(1f, style.CalcSize(new GUIContent(label)).x + style.margin.horizontal);
         }
-        var layout = MeasureResponsiveLayout(labels, stride, style, reservedWidth, preferredCellWidths: widths);
+        var gap = 8.Point();
+        var layout = MeasureResponsiveLayout(labels, stride, style, reservedWidth, preferredCellWidths: widths,
+            compact: !expandCells, gap: gap);
+        if (!expandCells)
+        {
+            DrawCompactHStack(title, layout, reservedWidth, gap, widths, actions);
+            return;
+        }
+
         DrawHStack(title, layout.Columns, null, Mathf.Max(0f, layout.LayoutWidth - reservedWidth), widths, actions);
+    }
+
+    private static void DrawCompactHStack(string title, ResponsiveLayoutState layout, float reservedWidth, float gap,
+        float[] preferredWidths, NamedAction[] actions)
+    {
+        var availableWidth = Mathf.Max(1f, layout.LayoutWidth - reservedWidth);
+        for (var row = 0; row < layout.RowStarts.Length; row++)
+        {
+            var first = layout.RowStarts[row];
+            var end = row + 1 < layout.RowStarts.Length ? layout.RowStarts[row + 1] : actions.Length;
+            using (HorizontalScope(AlignedRowStyle, MinWidth(0f), ExpandWidth(true)))
+            {
+                if (title != null)
+                {
+                    if (row == 0)
+                    {
+                        Label(title.Bold(), Width(150f));
+                        Space(3f);
+                    }
+                    else
+                    {
+                        Space(reservedWidth);
+                    }
+                }
+
+                for (var index = first; index < end; index++)
+                {
+                    if (index > first)
+                    {
+                        Space(gap);
+                    }
+
+                    // Natural widths keep compact controls together. Only a caption wider
+                    // than its whole parent wraps; row starts stay fixed for this Layout.
+                    using (VerticalScope(AlignedRowStyle, MinWidth(0f),
+                               MaxWidth(Mathf.Min(availableWidth, preferredWidths[index])), AutoWidth()))
+                    {
+                        DrawNamedAction(actions[index]);
+                    }
+                }
+
+                GL.FlexibleSpace();
+            }
+        }
     }
 
     private static void DrawNamedAction(NamedAction action)
@@ -349,6 +446,50 @@ internal static partial class UI
         }
     }
 
+    public static void AlignedGrid(int maximumColumns, float[] preferredWidths, params NamedAction[] actions)
+    {
+        AlignedGrid(maximumColumns, preferredWidths.DefaultIfEmpty(0f).Max(), actions.Length,
+            index => DrawNamedAction(actions[index]));
+    }
+
+    public static void AlignedGrid(int maximumColumns, float preferredWidth, int count, Action<int> drawCell)
+    {
+        if (count == 0)
+        {
+            return;
+        }
+
+        var widths = Enumerable.Repeat(preferredWidth, count).ToArray();
+        var layout = MeasureResponsiveLayout([], maximumColumns, GUI.skin.label, preferredCellWidths: widths);
+        var cellWidth = Mathf.Max(1f, layout.LayoutWidth > 0f
+            ? layout.LayoutWidth / layout.Columns
+            : preferredWidth);
+
+        for (var first = 0; first < count; first += layout.Columns)
+        {
+            using (HorizontalScope(AlignedRowStyle, MinWidth(0f), ExpandWidth(true)))
+            {
+                for (var column = 0; column < layout.Columns; column++)
+                {
+                    // Keep the same cell budget on every row, including the last partial
+                    // row. A zero minimum lets the parent shrink before the next Layout.
+                    using (VerticalScope(AlignedRowStyle, Width(cellWidth), MinWidth(0f)))
+                    {
+                        var index = first + column;
+                        if (index < count)
+                        {
+                            drawCell(index);
+                        }
+                        else
+                        {
+                            Space(0f);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private static void DrawHStack(string title, int stride, Action[] actions, float availableWidth = 0f,
         float[] preferredWidths = null, NamedAction[] namedActions = null)
     {
@@ -390,17 +531,15 @@ internal static partial class UI
                         continue;
                     }
 
-                    // A nested group can otherwise claim the entire row's stretchable width,
-                    // squeezing sibling captions despite the chosen column count. Distribute
-                    // the row in proportion to its captions' natural widths so each fits on one
-                    // line whenever their total fits. A zero minimum lets the parent shrink.
                     var maximumCellWidth = Mathf.Max(1f,
                         Mathf.Floor(availableWidth * preferredWidths[index] / preferredRowWidth));
-                    using (VerticalScope(MinWidth(0f), MaxWidth(maximumCellWidth), ExpandWidth(true)))
+                    using (VerticalScope(AlignedRowStyle, MinWidth(0f), MaxWidth(maximumCellWidth),
+                               ExpandWidth(true)))
                     {
                         DrawHStackAction(index, actions, namedActions);
                     }
                 }
+
             }
         }
     }

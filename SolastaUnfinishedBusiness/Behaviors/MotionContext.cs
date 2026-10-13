@@ -15,6 +15,64 @@ internal static class MotionContext
     private const double StepHigh = 0.4 - Epsilon;
     private const double StepLow = 0.1 - Epsilon;
 
+    internal static bool IsAttackPositionStable(GameLocationCharacter character)
+    {
+        // Grid coordinates are committed by FinishMoveTo/FinishFallingTo, after the motion.
+        // A charge can keep IsCharging set after arrival, so it is not a pending position.
+        return character is { MoveStepInProgress: false, Falling: false, Pushed: false,
+            IgnoreForPlacementDuringPushAnimation: false, WillBePushedByMagicalEffect: false };
+    }
+
+    internal static bool CanEvaluateAttackPositions(BattleDefinitions.AttackEvaluationParams attackParams)
+    {
+        var attackMode = attackParams.attackMode;
+
+        // Triggered attacks retain their native evaluation at the reaction boundary.
+        return attackMode == null || attackParams.opportunityAttack || attackParams.readiedAttack ||
+               attackMode.ActionType == ActionType.Reaction || attackMode.ReturnProjectileOnly ||
+               (IsAttackPositionStable(attackParams.attacker) && IsAttackPositionStable(attackParams.defender));
+    }
+
+    internal static bool HasAttackPositionFailure(ActionModifier attackModifier)
+    {
+        return attackModifier?.FailureFlags.Any(failure => failure is
+            "Failure/&FailureFlagNoReachForTargetDescription" or
+            "Failure/&FailureFlagTargetOutOfRange" or
+            "Failure/&FailureFlagTargetOutOfRangeStrength") == true;
+    }
+
+    internal static bool IsWithinThrowingStrengthRange(BattleDefinitions.AttackEvaluationParams attackParams)
+    {
+        return !Main.Settings.ModifyThrowingRulesForStrength || attackParams.attackMode is not { Thrown: true } ||
+               (int)int3.Distance(attackParams.attacker.LocationPosition, attackParams.defender.LocationPosition) <=
+               attackParams.attacker.RulesetCharacter.GetAttribute(AttributeDefinitions.Strength).CurrentValue;
+    }
+
+    internal static bool CanAttackFromCurrentPositions(
+        IGameLocationBattleService battleService,
+        BattleDefinitions.AttackEvaluationParams attackParams)
+    {
+        if (!IsAttackPositionStable(attackParams.attacker) || !IsAttackPositionStable(attackParams.defender) ||
+            !IsWithinThrowingStrengthRange(attackParams))
+        {
+            return false;
+        }
+
+        attackParams.attackPosition = attackParams.attacker.LocationPosition;
+        attackParams.defensePosition = attackParams.defender.LocationPosition;
+
+        if (!attackParams.attackMode.Ranged)
+        {
+            return battleService.IsWithinXCells(attackParams.attacker, attackParams.attackPosition,
+                attackParams.defender, attackParams.defensePosition, (int)attackParams.maxRange);
+        }
+
+        // Reuse the native evaluation's range and the shared size-aware distance, without
+        // rerunning initiation callbacks or appending attack modifiers after the roll.
+        attackParams.ComputeDistance();
+        return attackParams.distance <= attackParams.maxRange + 0.01f;
+    }
+
     public static bool ComputePushDestination(
         Vector3 sourceCenter,
         GameLocationCharacter target,

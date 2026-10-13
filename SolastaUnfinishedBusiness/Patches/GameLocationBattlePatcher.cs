@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
@@ -139,7 +139,7 @@ public static class GameLocationBattlePatcher
         [UsedImplicitly]
         public static void Postfix(GameLocationBattle __instance)
         {
-            CombatAnimationContext.StartCivilianReactions(__instance);
+            CivilianAnimationContext.StartCivilianReactions(__instance);
         }
 
         [UsedImplicitly]
@@ -167,7 +167,7 @@ public static class GameLocationBattlePatcher
         [UsedImplicitly]
         public static void Prefix()
         {
-            CombatAnimationContext.StopCivilianReactions();
+            CivilianAnimationContext.StopCivilianReactions();
             CombatAiContext.StopEnemyBattleTactics();
             PlayerControllerContext.Stop();
         }
@@ -263,7 +263,7 @@ public static class GameLocationBattlePatcher
         [UsedImplicitly]
         public static void Postfix()
         {
-            CombatAnimationContext.RequestCivilianRefresh();
+            CivilianAnimationContext.RequestCivilianRefresh();
             CombatAiContext.RefreshEnemyBattleTactics();
         }
 
@@ -321,13 +321,13 @@ public static class GameLocationBattlePatcher
         [UsedImplicitly]
         public static void Prefix(GameLocationCharacter character)
         {
-            CombatAnimationContext.InterruptCivilianReaction(character.RulesetCharacter);
+            CivilianAnimationContext.InterruptCivilianReaction(character.RulesetCharacter);
         }
 
         [UsedImplicitly]
         public static void Postfix(GameLocationCharacter character)
         {
-            CombatAnimationContext.RequestCivilianRefresh();
+            CivilianAnimationContext.RequestCivilianRefresh();
             AddSenseNormalVisionConditionWithoutRefresh(character);
             CombatAiContext.RefreshEnemyBattleTactics();
         }
@@ -340,7 +340,7 @@ public static class GameLocationBattlePatcher
         [UsedImplicitly]
         public static void Postfix(GameLocationBattle __instance)
         {
-            CombatAnimationContext.UpdateCivilianReactions(__instance);
+            CivilianAnimationContext.UpdateCivilianReactions(__instance);
         }
     }
 
@@ -351,7 +351,7 @@ public static class GameLocationBattlePatcher
         [UsedImplicitly]
         public static void Postfix()
         {
-            CombatAnimationContext.RequestCivilianRefresh();
+            CivilianAnimationContext.RequestCivilianRefresh();
         }
     }
 
@@ -362,7 +362,7 @@ public static class GameLocationBattlePatcher
         [UsedImplicitly]
         public static void Prefix()
         {
-            CombatAnimationContext.StopCivilianReactions();
+            CivilianAnimationContext.StopCivilianReactions();
             CombatAiContext.StopEnemyBattleTactics();
             PlayerControllerContext.Stop();
         }

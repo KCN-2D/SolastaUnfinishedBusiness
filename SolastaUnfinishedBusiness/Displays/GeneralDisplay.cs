@@ -33,19 +33,18 @@ internal static class ToolsDisplay
         UI.Label(Gui.Localize("ModUi/&TableTopHelp2"));
         UI.Label();
 
-        var width = UI.Width(195f);
-
-        using (UI.HorizontalScope())
+        var buttonStyle = new GUIStyle(GUI.skin.button) { wordWrap = true, fixedHeight = 0f };
+        NamedAction Button(string key, Action action)
         {
-            UI.ActionButton(Gui.Localize("ModUi/&TableTopButton"), SelectTabletopSet, width);
-            UI.ActionButton(Gui.Localize("ModUi/&ModQoL"), () => SwitchTabletop(TagType.QoL), width);
+            var title = Gui.Localize(key);
+            return new NamedAction(title, () => UI.ActionButton(title, action, buttonStyle, UI.ExpandWidth(true)));
         }
 
-        using (UI.HorizontalScope())
-        {
-            UI.ActionButton(Gui.Localize("ModUi/&TableTop2014"), () => SwitchTabletop(TagType.T2014), width);
-            UI.ActionButton(Gui.Localize("ModUi/&TableTop2024"), () => SwitchTabletop(TagType.T2024), width);
-        }
+        UI.HStack(null, 4, buttonStyle,
+            Button("ModUi/&TableTopButton", SelectTabletopSet),
+            Button("ModUi/&ModQoL", () => SwitchTabletop(TagType.QoL)),
+            Button("ModUi/&TableTop2014", () => SwitchTabletop(TagType.T2014)),
+            Button("ModUi/&TableTop2024", () => SwitchTabletop(TagType.T2024)));
 
         UI.Label();
         DisplayTabletop2014();
@@ -348,7 +347,7 @@ internal static class ToolsDisplay
     private static void DisplayMultiplayer()
     {
         var toggle = Main.Settings.DisplayMultiplayerToggle;
-        if (UI.DisclosureToggle(Gui.Localize("ModUi/&Multiplayer"), ref toggle, 200))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&Multiplayer"), ref toggle))
         {
             Main.Settings.DisplayMultiplayerToggle = toggle;
         }
@@ -430,7 +429,7 @@ internal static class ToolsDisplay
     private static void DisplayTabletop2024()
     {
         var toggle = Main.Settings.DisplayTabletop2024;
-        if (UI.DisclosureToggle(Gui.Localize("ModUi/&OneDnd"), ref toggle, 200))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&OneDnd"), ref toggle))
         {
             Main.Settings.DisplayTabletop2024 = toggle;
         }
@@ -1388,7 +1387,7 @@ internal static class ToolsDisplay
     private static void DisplayTabletop2014()
     {
         var toggle = Main.Settings.DisplayTabletopToggle;
-        if (UI.DisclosureToggle(Gui.Localize("ModUi/&Tabletop"), ref toggle, 200))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&Tabletop"), ref toggle))
         {
             Main.Settings.DisplayTabletopToggle = toggle;
         }

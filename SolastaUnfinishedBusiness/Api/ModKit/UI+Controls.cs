@@ -562,10 +562,11 @@ internal static partial class UI
                 }
 
                 Space(25f);
-                using (VerticalScope(AutoWidth()))
+                using (VerticalScope(MinWidth(resetWidth), AutoWidth()))
                 {
                     Space((float)SliderTop.Point());
-                    ActionButton(resetTitle, () => { newValue = defaultValue; }, resetStyle, AutoWidth());
+                    ActionButton(resetTitle, () => { newValue = defaultValue; }, resetStyle,
+                        MinWidth(resetWidth), AutoWidth());
                     Space((float)SliderBottom.Point());
                 }
             }

@@ -470,9 +470,9 @@ ModUi/&ShowCraftedItemOnRecipeIcon=Show crafted item icon near recipe item in sh
 ModUi/&ShowCraftingRecipeInDetailedTooltips=Show crafting recipe in detailed tooltips
 ModUi/&ShowDescriptions=Show Descriptions
 ModUi/&ShowMotionFormPreview=Show preview of <b>Push</b> and <b>Pull</b> effects
-ModUi/&EnableSmootherBattleAnimations=Enable smoother, slightly faster battle animations
+ModUi/&EnableSmootherBattleAnimations=Enable faster combat animations
 ModUi/&BattleActionAnimationSpeedMultiplier=Battle animation speed
-ModUi/&BattleActionAnimationSpeedMultiplierHelp=Slightly speeds up combat character action animations without skipping casting, projectile, impact, or hit phases.
+ModUi/&BattleActionAnimationSpeedMultiplierHelp=Speeds up combat actions and shortens the wait before attacks.
 ModUi/&SpeechScale=<color=white>Narration speed modifier</color>  <i><color=#F0DAA0>[lower is faster]</color></i>
 ModUi/&SpeechVolume=<color=white>Narration volume</color>
 ModUi/&SpeechShowAllLanguages=Show voices in all languages
@@ -579,9 +579,11 @@ ModUI/&EnableBonusActionFreeJump=Enable bonus action jump
 ModUI/&ModifyThrowingRulesForStrength=Apply throwing penalties to range for lack of strength
 ModUI/&ModVersionControl=-Unfinished Business MOD Version Settings-
 ModUI/&RoleplaySettings=Roleplay
-ModUI/&RoleplaySettingsDescription=These settings tweak the balance of the game in favor of life simulation or roleplay by adding complexity and increased chance of success and failure
-ModUI/&EnableCivilianBattleReactions=Enable noncombat NPC battle reactions
-ModUI/&EnableCivilianBattleReactionsDescription=Nearby noncombat NPCs cower during battles. Their positions and paths stay unchanged.
+ModUI/&RoleplaySettingsDescription=Adjust NPC behavior and adventuring rules.
+ModUI/&EnableCivilianAmbientAnimations=Enable civilian idle and conversation animations
+ModUI/&EnableCivilianAmbientAnimationsDescription=NPCs gain idle movements and conversation gestures suited to their equipment and surroundings. They put away weapons while talking or relaxing. Where placement allows sitting, they align with nearby chairs and benches.
+ModUI/&EnableCivilianBattleReactions=Enable battle reactions for noncombat NPCs
+ModUI/&EnableCivilianBattleReactionsDescription=Noncombat NPCs gain frightened or defensive postures suited to their equipment and role.
 ModUI/&EnableDamageOnFailedJumpCheck=Applies 1d4 damage on failed jump checks
 ModUi/&LegendaryTweaksTitle=<color=#F0DAA0>Legendary tweaks:</color>
 ModUi/&LegendaryTweaksDetails=Here you can change weapon type of legendary weapons. For safety do this while weapon is unequipped.

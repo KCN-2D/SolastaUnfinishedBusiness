@@ -470,9 +470,9 @@ ModUi/&ShowCraftedItemOnRecipeIcon=店と所持品のレシピに、完成品の
 ModUi/&ShowCraftingRecipeInDetailedTooltips=詳細ツールチップに製作レシピを表示します
 ModUi/&ShowDescriptions=説明を表示します
 ModUi/&ShowMotionFormPreview=<b>押し出し</b>と<b>引き寄せ</b>の効果を事前に表示します
-ModUi/&EnableSmootherBattleAnimations=戦闘アニメーションを滑らかにし、少し速くします
+ModUi/&EnableSmootherBattleAnimations=戦闘中の動作を速くします
 ModUi/&BattleActionAnimationSpeedMultiplier=戦闘アニメーション速度
-ModUi/&BattleActionAnimationSpeedMultiplierHelp=呪文の発動、投射物、着弾、命中時の演出を省略せず、戦闘中のキャラクターの動作を少し速くします
+ModUi/&BattleActionAnimationSpeedMultiplierHelp=戦闘中の動作を速くし、攻撃前の待ち時間を短くします。
 ModUi/&SpeechScale=<color=white>ナレーション速度倍率</color><i><color=#F0DAA0>（低いほど速くなります）</color></i>
 ModUi/&SpeechVolume=<color=white>ナレーションの音量</color>
 ModUi/&SpeechShowAllLanguages=すべての言語の音声を表示します
@@ -579,9 +579,11 @@ ModUI/&EnableBonusActionFreeJump=ボーナス・アクションによる跳躍�
 ModUI/&ModifyThrowingRulesForStrength=筋力が不足している場合、投擲の射程にペナルティを適用します
 ModUI/&ModVersionControl=Unfinished Businessのバージョン設定
 ModUI/&RoleplaySettings=ロールプレイ
-ModUI/&RoleplaySettingsDescription=荷重や跳躍などの判定と制限を加え、冒険生活やロールプレイを重視したバランスに調整する設定です
-ModUI/&EnableCivilianBattleReactions=非戦闘NPCが戦闘に怯える演出を有効にする
-ModUI/&EnableCivilianBattleReactionsDescription=戦闘中、近くの非戦闘NPCが怯える姿勢を取ります。NPCの位置や通行経路は変わりません。
+ModUI/&RoleplaySettingsDescription=NPCの振る舞いや冒険中の判定を調整する設定です。
+ModUI/&EnableCivilianAmbientAnimations=市民NPCの待機と会話の動作を増やす
+ModUI/&EnableCivilianAmbientAnimationsDescription=NPCに、装備と周囲の状況に合った待機動作や会話の身振りを追加します。会話中や休息中は武器をしまいます。椅子やベンチに合う配置では、位置と向きを合わせて着席します。
+ModUI/&EnableCivilianBattleReactions=非戦闘NPCの戦闘への反応を追加する
+ModUI/&EnableCivilianBattleReactionsDescription=非戦闘NPCの装備や役割に応じて、怯える姿勢や身を守る姿勢を追加します。
 ModUI/&EnableDamageOnFailedJumpCheck=跳躍判定に失敗した場合、1d4ダメージを受けるようにします
 ModUi/&LegendaryTweaksTitle=<color=#F0DAA0>伝説級の調整：</color>
 ModUi/&LegendaryTweaksDetails=伝説級武器の武器種別を変更できます。変更する前に、対象の武器の装備を外してください

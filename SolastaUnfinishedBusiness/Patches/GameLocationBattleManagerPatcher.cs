@@ -27,6 +27,42 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationBattleManagerPatcher
 {
+    [HarmonyPatch(typeof(GameLocationBattleManager), nameof(GameLocationBattleManager.WaitForReactions))]
+    [UsedImplicitly]
+    public static class WaitForReactions_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerator Postfix(IEnumerator values, GameLocationCharacter character,
+            IGameLocationActionService actionService, int previousReactionCount)
+        {
+            IDisposable movementScope = null;
+
+            try
+            {
+                if (actionService?.PendingReactionRequestGroups?.Count > previousReactionCount)
+                {
+                    movementScope = CombatAnimationContext.BeginMovementReactionScope(character);
+                }
+
+                while (values.MoveNext())
+                {
+                    yield return values.Current;
+                }
+            }
+            finally
+            {
+                try
+                {
+                    (values as IDisposable)?.Dispose();
+                }
+                finally
+                {
+                    movementScope?.Dispose();
+                }
+            }
+        }
+    }
+
     [HarmonyPatch]
     [UsedImplicitly]
     public static class HandleSpellCast_MoveNext_Patch
@@ -655,6 +691,12 @@ public static class GameLocationBattleManagerPatcher
         [UsedImplicitly]
         public static bool Prefix(ref AttackEvaluationParams attackParams)
         {
+            if (!MotionContext.CanEvaluateAttackPositions(attackParams))
+            {
+                attackParams.attackModifier?.FailureFlags.Add("Failure/&FailureFlagNoReachForTargetDescription");
+                return false;
+            }
+
             if (!CombatAiContext.IsValidEnemyBattleAttackTarget(attackParams))
             {
                 attackParams.attackModifier?.FailureFlags.Add("Failure/&EnemyBattleTargetNotUseful");
@@ -681,22 +723,10 @@ public static class GameLocationBattleManagerPatcher
                 }
             }
 
-            if (Main.Settings.ModifyThrowingRulesForStrength)
+            if (!MotionContext.IsWithinThrowingStrengthRange(attackParams))
             {
-                var attacker = attackParams.attacker;
-                var target = attackParams.defender;
-                var attackMode = attackParams.attackMode;
-                if (attackMode == null) { return true; }
-
-                if (attackMode.Thrown) //adjust for strength
-                {
-                    int actualDistance = (int)int3.Distance(attacker.LocationPosition, target.LocationPosition);
-                    if (actualDistance > attacker.RulesetCharacter.GetAttribute(AttributeDefinitions.Strength).CurrentValue)
-                    {
-                        attackParams.attackModifier.FailureFlags.Add("Failure/&FailureFlagTargetOutOfRangeStrength");
-                        return false;
-                    }
-                }
+                attackParams.attackModifier.FailureFlags.Add("Failure/&FailureFlagTargetOutOfRangeStrength");
+                return false;
             }
             return true;
         }

@@ -3,6 +3,7 @@ using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
+using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Displays;
 
@@ -11,7 +12,7 @@ internal static class SubclassesDisplay
     private static void DisplaySubclassesGeneral()
     {
         var toggle = Main.Settings.DisplaySubClassesGeneralToggle;
-        if (UI.DisclosureToggle(Gui.Localize("ModUi/&General"), ref toggle, 200))
+        if (UI.DisclosureToggle(Gui.Localize("ModUi/&General"), ref toggle))
         {
             Main.Settings.DisplaySubClassesGeneralToggle = toggle;
         }
@@ -160,8 +161,7 @@ internal static class SubclassesDisplay
     {
         UI.Label();
 
-        UI.ActionButton(Gui.Localize("ModUi/&DocsSubclasses").Bold().Khaki(),
-            () => UpdateContext.OpenDocumentation("SubClasses.md"), UI.Width(189f));
+        ModUi.DisplayDocumentationLinks(("ModUi/&DocsSubclasses", "SubClasses.md"));
 
         UI.Label();
 
@@ -169,29 +169,41 @@ internal static class SubclassesDisplay
 
         UI.Label();
 
-        using (UI.HorizontalScope())
-        {
-            var toggle = Main.Settings.DisplayKlassToggle.All(x => x.Value);
-            if (UI.Toggle(Gui.Localize("ModUi/&ExpandAll"), ref toggle, UI.Width(ModUi.PixelsPerColumn)))
+        var expandAllTitle = Gui.Localize("ModUi/&ExpandAll");
+        var selectAllTitle = Gui.Localize("ModUi/&SelectAll");
+        var tabletopTitle = Gui.Localize("ModUi/&SelectTabletop");
+        NamedAction[] bulkActions =
+        [
+            new(expandAllTitle, () =>
             {
-                foreach (var key in Main.Settings.DisplayKlassToggle.Keys.ToHashSet())
+                var toggle = Main.Settings.DisplayKlassToggle.All(x => x.Value);
+                if (UI.Toggle(expandAllTitle, ref toggle, UI.AutoWidth()))
                 {
-                    Main.Settings.DisplayKlassToggle[key] = toggle;
+                    foreach (var key in Main.Settings.DisplayKlassToggle.Keys.ToHashSet())
+                    {
+                        Main.Settings.DisplayKlassToggle[key] = toggle;
+                    }
                 }
-            }
-
-            toggle = SubclassesContext.IsAllSetSelected();
-            if (UI.Toggle(Gui.Localize("ModUi/&SelectAll"), ref toggle, UI.Width(ModUi.PixelsPerColumn)))
+            }),
+            new(selectAllTitle, () =>
             {
-                SubclassesContext.SelectAllSet(toggle);
-            }
-
-            toggle = SubclassesContext.IsTabletopSetSelected();
-            if (UI.Toggle(Gui.Localize("ModUi/&SelectTabletop"), ref toggle, UI.Width(ModUi.PixelsPerColumn)))
+                var toggle = SubclassesContext.IsAllSetSelected();
+                if (UI.Toggle(selectAllTitle, ref toggle, UI.AutoWidth()))
+                {
+                    SubclassesContext.SelectAllSet(toggle);
+                }
+            }),
+            new(tabletopTitle, () =>
             {
-                SubclassesContext.SelectTabletopSet(toggle);
-            }
-        }
+                var toggle = SubclassesContext.IsTabletopSetSelected();
+                if (UI.Toggle(tabletopTitle, ref toggle, UI.AutoWidth()))
+                {
+                    SubclassesContext.SelectTabletopSet(toggle);
+                }
+            })
+        ];
+        UI.HStack(null, bulkActions.Length, GUI.skin.label,
+            bulkActions.Select(action => UI.ToggleWidth(action.Name)).ToArray(), false, bulkActions);
 
         UI.Div();
 

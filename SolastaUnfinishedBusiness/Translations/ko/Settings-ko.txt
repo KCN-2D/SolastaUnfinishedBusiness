@@ -6,9 +6,11 @@ ModUI/&ModifyJumpRulesForArmorAndEncumberance=점프 범위에 enbumberance 및 
 ModUI/&EnableBonusActionFreeJump=보너스 액션 도약을 활성화합니다
 ModUI/&ModifyThrowingRulesForStrength=힘이 부족하여 범위에 처벌을 적용하십시오
 ModUI/&RoleplaySettings=롤 플레인
-ModUI/&RoleplaySettingsDescription=이러한 설정은 복잡성과 성공 및 실패 가능성을 높이면서 삶의 시뮬레이션 또는 역할극에 유리하게 게임의 균형을 조정합니다.
+ModUI/&RoleplaySettingsDescription=NPC의 행동과 모험 중 적용되는 규칙을 조정합니다.
+ModUI/&EnableCivilianAmbientAnimations=시민 NPC의 대기 및 대화 애니메이션 활성화
+ModUI/&EnableCivilianAmbientAnimationsDescription=NPC에게 장비와 주변 상황에 맞는 대기 동작과 대화 중 몸짓을 추가합니다. 대화하거나 쉬는 동안에는 무기를 넣습니다. 앉을 수 있는 위치에 배치된 NPC는 가까운 의자나 벤치에 위치와 방향을 맞춰 앉습니다.
 ModUI/&EnableCivilianBattleReactions=비전투 NPC의 전투 반응 활성화
-ModUI/&EnableCivilianBattleReactionsDescription=전투 중에는 근처의 비전투 NPC가 겁에 질려 몸을 웅크립니다. NPC의 위치와 통행 경로는 바뀌지 않습니다.
+ModUI/&EnableCivilianBattleReactionsDescription=비전투 NPC에게 장비와 역할에 맞는 겁에 질린 자세나 방어 자세를 추가합니다.
 ModUI/&SwapShineCantrip=Shine DC 15 활성화
 ModUi/&AccountForAllDiceOnFollowUpStrike=기본 무기의 모든 추가 효과를 <color=#D89555>추적 공격</color> 특기에 추가합니다.
 ModUi/&AccountForAllDiceOnSavageAttack=기본 무기 데미지를 추가하는 기능에는 1개의 주사위만 추가하는 대신 기본 무기 데미지를 추가하는 모든 주사위를 추가합니다. <i><color=#F0DAA0>[야만적 공격, 2H 무기 등]</color></i>
@@ -499,9 +501,9 @@ ModUi/&ShowCraftedItemOnRecipeIcon=상점과 인벤토리의 레시피 아이템
 ModUi/&ShowCraftingRecipeInDetailedTooltips=자세한 툴팁으로 제작 레시피 표시
 ModUi/&ShowDescriptions=설명 보기
 ModUi/&ShowMotionFormPreview=<b>밀기</b> 및 <b>당기기</b> 효과의 미리보기 표시
-ModUi/&EnableSmootherBattleAnimations=더 부드럽고 약간 빠른 전투 애니메이션 사용
+ModUi/&EnableSmootherBattleAnimations=더 빠른 전투 애니메이션 사용
 ModUi/&BattleActionAnimationSpeedMultiplier=전투 애니메이션 속도
-ModUi/&BattleActionAnimationSpeedMultiplierHelp=시전, 투사체, 충돌 또는 적중 단계를 건너뛰지 않고 전투 중 캐릭터 액션 애니메이션을 약간 빠르게 합니다.
+ModUi/&BattleActionAnimationSpeedMultiplierHelp=전투 행동을 빠르게 하고 공격 전 대기 시간을 줄입니다.
 ModUi/&ShowTranslationPreview=최근 번역 보기
 ModUi/&SpeechScale=<color=white>내레이션 속도 수정자</color> <i><color=#F0DAA0>[낮을수록 빠름]</color></i>
 ModUi/&SpeechVolume=<color=white>내레이션 볼륨</color>
