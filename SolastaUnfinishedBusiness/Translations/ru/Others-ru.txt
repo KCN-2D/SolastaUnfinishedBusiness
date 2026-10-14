@@ -996,3 +996,4 @@ Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceTitle=Волновой на
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceDescription=Союзник призывает к совместной атаке против {0}. Вы можете реакцией совершить одну атаку оружием, безоружный удар или атаку природным оружием по этому врагу.
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactTitle=Атаковать
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactDescription=Потратьте реакцию, чтобы атаковать {0}.
+Failure/&FailureFlagMovementOnlyOnOwnTurn=Вы можете использовать эту способность только в свой ход.

@@ -1003,3 +1003,4 @@ Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceTitle=Asalto en oleadas
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceDescription=Un aliado llama a un ataque coordinado contra {0}. Puedes usar tu reacción para realizar un ataque con arma, un ataque sin armas o un ataque natural contra ese enemigo.
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactTitle=Atacar
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactDescription=Gasta tu reacción para atacar a {0}.
+Failure/&FailureFlagMovementOnlyOnOwnTurn=Solo puedes usar esta capacidad durante tu turno.

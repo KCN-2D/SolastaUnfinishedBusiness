@@ -2,11 +2,12 @@ using System.Collections.Generic;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
+using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
 using static RuleDefinitions;
-using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionFightingStyleChoices;
 
 namespace SolastaUnfinishedBusiness.FightingStyles;
@@ -17,7 +18,7 @@ internal sealed class ThrownWeaponFighting : AbstractFightingStyle
 
     internal override FightingStyleDefinition FightingStyle { get; } = FightingStyleBuilder
         .Create(Name)
-        .SetGuiPresentation(Category.FightingStyle, ItemDefinitions.Dagger.GuiPresentation.SpriteReference)
+        .SetGuiPresentation(Category.FightingStyle, Sprites.GetSprite(Name, Resources.ThrownWeaponFighting, 256))
         .SetFeatures(
             FeatureDefinitionAdditionalDamageBuilder
                 .Create($"AdditionalDamage{Name}")

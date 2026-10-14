@@ -1003,3 +1003,4 @@ Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceTitle=Wellenangriff
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceDescription=Ein Verbündeter ruft zu einem gemeinsamen Angriff auf {0} auf. Du kannst deine Reaktion nutzen, um diesen Feind mit einer Waffe, einem waffenlosen Angriff oder einem natürlichen Angriff einmal anzugreifen.
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactTitle=Angreifen
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactDescription=Verbrauche deine Reaktion, um {0} anzugreifen.
+Failure/&FailureFlagMovementOnlyOnOwnTurn=Du kannst diese Fähigkeit nur während deines eigenen Zuges einsetzen.

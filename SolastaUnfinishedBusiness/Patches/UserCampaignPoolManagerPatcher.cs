@@ -86,6 +86,14 @@ public static class UserCampaignPoolManagerPatcher
     public static class ReadCampaignFromDisk_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(
+            IEnumerable<CodeInstruction> instructions, ILGenerator generator)
+        {
+            return DungeonMakerContext.ReuseUserContentParsing<UserCampaign>(
+                instructions, generator, "UserCampaignPoolManager.ReadCampaignFromDisk");
+        }
+
+        [UsedImplicitly]
         internal static bool Prefix(
             UserCampaignPoolManager __instance,
             string __0,

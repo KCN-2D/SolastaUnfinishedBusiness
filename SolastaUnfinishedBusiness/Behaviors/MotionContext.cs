@@ -1,5 +1,11 @@
-﻿using System.Linq;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using TA;
 using UnityEngine;
 using static ActionDefinitions;
@@ -14,6 +20,188 @@ internal static class MotionContext
     private const double Epsilon = 0.015;
     private const double StepHigh = 0.4 - Epsilon;
     private const double StepLow = 0.1 - Epsilon;
+
+    internal sealed class TeleportMovementCost : IValidatePowerUseWithFailure, IValidateMagicEffectBeforeSpend
+    {
+        private readonly ConditionalWeakTable<RulesetEffect, TeleportUse> _uses = new();
+
+        internal TeleportMovementCost(int cost, bool oncePerTurn = false)
+        {
+            if (cost <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(cost));
+            }
+
+            Cost = cost;
+            OncePerTurn = oncePerTurn;
+        }
+
+        internal int Cost { get; }
+        internal bool OncePerTurn { get; }
+
+        public bool CanUsePower(RulesetCharacter character, FeatureDefinitionPower power)
+        {
+            return CanUsePower(character, power, out _);
+        }
+
+        public bool CanUsePower(RulesetCharacter character, FeatureDefinitionPower power, out string failure)
+        {
+            if (character == null || character.IsDeadOrDyingOrUnconscious || character.IsIncapacitated || power == null)
+            {
+                failure = "Failure/&FailureFlagCannotUseAnyPower";
+                return false;
+            }
+
+            var actor = GameLocationCharacter.GetFromActor(character);
+            if (actor == null)
+            {
+                failure = "Failure/&FailureFlagCannotUseAnyPower";
+                return false;
+            }
+
+            var inBattle = IsBattleInProgress();
+            if (inBattle && !actor.IsMyTurn())
+            {
+                failure = "Failure/&FailureFlagMovementOnlyOnOwnTurn";
+                return false;
+            }
+
+            if (inBattle && OncePerTurn && !actor.OncePerTurnIsValid(power.Name))
+            {
+                failure = "Failure/&FailureFlagOncePerTurnOnly";
+                return false;
+            }
+
+            // Exploration does not retain a tactical movement budget between actions.
+            if ((inBattle ? actor.RemainingTacticalMoves : actor.MaxTacticalMoves) < Cost)
+            {
+                failure = "Failure/&FailureFlagNotEnoughMove";
+                return false;
+            }
+
+            failure = string.Empty;
+            return true;
+        }
+
+        public bool IsValid(
+            CharacterActionMagicEffect action,
+            GameLocationCharacter actingCharacter,
+            IReadOnlyList<GameLocationCharacter> targets,
+            out string failure)
+        {
+            var effect = action?.ActionParams.RulesetEffect;
+            if (effect?.SourceDefinition is not FeatureDefinitionPower power)
+            {
+                failure = "Failure/&FailureFlagCannotUseAnyPower";
+                return false;
+            }
+
+            if (!CanUsePower(actingCharacter?.RulesetCharacter, power, out failure))
+            {
+                return false;
+            }
+
+            var description = effect.EffectDescription;
+            var positions = action.ActionParams.Positions;
+            var positioning = ServiceRepository.GetService<IGameLocationPositioningService>();
+            var visibility = ServiceRepository.GetService<IGameLocationVisibilityService>();
+            if (description.RangeType != RuleDefinitions.RangeType.Distance ||
+                description.TargetType != RuleDefinitions.TargetType.Position || positions.Count != 1 ||
+                positioning == null || visibility == null)
+            {
+                failure = "Failure/&FailureInvalidPosition";
+                return false;
+            }
+
+            var destination = positions[0];
+            var valid = destination != actingCharacter.LocationPosition &&
+                        int3.Distance(actingCharacter.LocationPosition, destination) <= description.RangeParameter &&
+                        positioning.CanPlaceCharacter(actingCharacter, destination, CellHelpers.PlacementMode.Station) &&
+                        positioning.CanCharacterStayAtPosition_Floor(actingCharacter, destination,
+                            onlyCheckCellsWithRealGround: !Main.Settings.EnableTeleportAllowsMidAirPositions) &&
+                        visibility.MyIsCellPerceivedByCharacter(destination, actingCharacter,
+                            requireLineOfSight: true, requireSight: true);
+            failure = valid ? string.Empty : "Failure/&FailureInvalidPosition";
+            return valid;
+        }
+
+        internal static PendingTeleport Capture(
+            EffectForm effectForm, RulesetImplementationDefinitions.ApplyFormsParams formsParams)
+        {
+            var effect = formsParams.activeEffect;
+            if (effectForm.MotionForm?.Type != MotionForm.MotionType.TeleportToDestination ||
+                effect?.SourceDefinition.GetFirstSubFeatureOfType<TeleportMovementCost>() is not { } cost)
+            {
+                return null;
+            }
+
+            var actor = GameLocationCharacter.GetFromActor(formsParams.sourceCharacter);
+            // This movement cost belongs to a personal teleport, not displacement of another creature.
+            if (actor == null || formsParams.targetCharacter != null &&
+                formsParams.targetCharacter != formsParams.sourceCharacter)
+            {
+                return null;
+            }
+
+            return new PendingTeleport(cost, cost._uses.GetValue(effect, _ => new TeleportUse()), actor,
+                actor.LocationPosition, formsParams.position, effect.SourceDefinition.Name, IsBattleInProgress());
+        }
+
+        private static bool IsBattleInProgress()
+        {
+            return ServiceRepository.GetService<IGameLocationBattleService>()?.IsBattleInProgress ?? Gui.Battle != null;
+        }
+
+        internal sealed class TeleportUse
+        {
+            internal bool Committed;
+        }
+
+        internal sealed class PendingTeleport
+        {
+            private readonly TeleportMovementCost _cost;
+            private readonly TeleportUse _use;
+            private readonly GameLocationCharacter _actor;
+            private readonly int3 _source;
+            private readonly int3 _destination;
+            private readonly string _powerName;
+            private readonly bool _inBattle;
+
+            internal PendingTeleport(TeleportMovementCost cost, TeleportUse use, GameLocationCharacter actor,
+                int3 source, int3 destination, string powerName, bool inBattle)
+            {
+                _cost = cost;
+                _use = use;
+                _actor = actor;
+                _source = source;
+                _destination = destination;
+                _powerName = powerName;
+                _inBattle = inBattle;
+            }
+
+            internal void Complete()
+            {
+                if (_use.Committed || _source == _destination || _actor.LocationPosition != _destination)
+                {
+                    return;
+                }
+
+                _use.Committed = true;
+                if (!_inBattle || !IsBattleInProgress())
+                {
+                    return;
+                }
+
+                if (_cost.OncePerTurn)
+                {
+                    _actor.UsedSpecialFeatures.TryAdd(_powerName, 1);
+                }
+
+                // The native setter sends UsedTacticalMovesChanged once and refreshes its consumers.
+                _actor.UsedTacticalMoves += _cost.Cost;
+            }
+        }
+    }
 
     internal static bool IsAttackPositionStable(GameLocationCharacter character)
     {
@@ -121,7 +309,7 @@ internal static class MotionContext
                 var canMoveThroughWalls = target.CanMoveInSituation(RulesetCharacter.MotionRange.ThroughWalls);
                 var size = target.SizeParameters;
 
-                var slide = Slide(sides, delta, position, canMoveThroughWalls, size, positioningService);
+                var slide = Slide(sides, position, canMoveThroughWalls, size, positioningService);
 
                 flag = slide != int3.zero;
                 position += slide;
@@ -157,7 +345,7 @@ internal static class MotionContext
         }, null, true);
     }
 
-    private static int3 Slide(int3 sides, Vector3 delta, int3 position, bool canMoveThroughWalls,
+    private static int3 Slide(int3 sides, int3 position, bool canMoveThroughWalls,
         RulesetActor.SizeParameters size, IGameLocationPositioningService positioningService)
     {
         if (CheckDirections(sides, position, canMoveThroughWalls, size, positioningService))
@@ -165,85 +353,59 @@ internal static class MotionContext
             return sides;
         }
 
-        //TODO: should this have a setting, or always allow sliding?
-        //Full motion didn't succeed, try sliding
-        //try zeroing each direction and pick passing one with shortest zeroed delta
-
-        var d = float.MaxValue;
-        var slide = int3.zero;
-        int3 tmp;
+        // Every candidate checks the same cell surfaces. If the full move fails,
+        // at most one single-axis omission can pass: two would cover all original sides.
+        // Try those before the existing horizontal-only fallbacks.
+        int3 slide;
 
         //Try zeroing X axis
-        if (sides.x != 0 && delta.x < d)
+        if (sides.x != 0)
         {
-            tmp = new int3(0, sides.y, sides.z);
-            if (tmp != int3.zero && CheckDirections(tmp, position, canMoveThroughWalls, size, positioningService))
+            slide = new int3(0, sides.y, sides.z);
+            if (slide != int3.zero && CheckDirections(slide, position, canMoveThroughWalls, size, positioningService))
             {
-                d = delta.x;
-                slide = tmp;
+                return slide;
             }
         }
 
         //Try zeroing Y axis
-        if (sides.y != 0 && delta.y < d)
+        if (sides.y != 0)
         {
-            tmp = new int3(sides.x, 0, sides.z);
-            if (tmp != int3.zero && CheckDirections(tmp, position, canMoveThroughWalls, size, positioningService))
+            slide = new int3(sides.x, 0, sides.z);
+            if (slide != int3.zero && CheckDirections(slide, position, canMoveThroughWalls, size, positioningService))
             {
-                d = delta.y;
-                slide = tmp;
+                return slide;
             }
         }
 
         //Try zeroing Z axis
-        if (sides.z != 0 && delta.z < d)
+        if (sides.z != 0)
         {
-            tmp = new int3(sides.x, sides.y, 0);
-            if (tmp != int3.zero && CheckDirections(tmp, position, canMoveThroughWalls, size, positioningService))
+            slide = new int3(sides.x, sides.y, 0);
+            if (slide != int3.zero && CheckDirections(slide, position, canMoveThroughWalls, size, positioningService))
             {
-                d = delta.z;
-                slide = tmp;
+                return slide;
             }
         }
 
-        //We either got successful slide, or no way to try double slide with Y=0
-        if (slide != int3.zero || sides.x == 0 || sides.z == 0)
+        // No way to try double slide with Y=0.
+        if (sides.x == 0 || sides.z == 0)
         {
-            return slide;
+            return int3.zero;
         }
 
         //Last attempt: zero on Y and one of X/Z axis
 
         //Try zeroing X and Y axis
-        if (delta.x < d)
+        slide = new int3(0, 0, sides.z);
+        if (CheckDirections(slide, position, canMoveThroughWalls, size, positioningService))
         {
-            tmp = new int3(0, 0, sides.z);
-            if (CheckDirections(tmp, position, canMoveThroughWalls, size, positioningService))
-            {
-                d = delta.x;
-                slide = tmp;
-            }
+            return slide;
         }
 
         //Try zeroing Y and Z axis
-        if (delta.z >= d)
-        {
-            return slide;
-        }
-
-        tmp = new int3(sides.x, 0, 0);
-        if (!CheckDirections(tmp, position, canMoveThroughWalls, size, positioningService))
-        {
-            return slide;
-        }
-
-#pragma warning disable IDE0059
-        // ReSharper disable once RedundantAssignment
-        d = delta.z;
-#pragma warning restore IDE0059
-        slide = tmp;
-
-        return slide;
+        slide = new int3(sides.x, 0, 0);
+        return CheckDirections(slide, position, canMoveThroughWalls, size, positioningService) ? slide : int3.zero;
     }
 
     private static bool CheckDirections(int3 sides, int3 position, bool canMoveThroughWalls,

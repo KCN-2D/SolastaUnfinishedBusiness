@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -54,8 +55,8 @@ internal static class DungeonMakerContext
     internal static bool TryGetCachedCampaignFile(
         UserCampaignPoolManager owner,
         string path,
-        bool workshop,
-        bool multiplayer,
+        bool fromGamingPlatform,
+        bool fromExternalSource,
         List<string> removedContent,
         out UserCampaign campaign,
         out CampaignFileRead read)
@@ -71,7 +72,8 @@ internal static class DungeonMakerContext
         var cache = CampaignFiles.GetValue(owner, _ => new CampaignFileCache());
 
         if (cache.Files.TryGetValue(path, out var entry) && stamp.Equals(entry.Stamp) &&
-            entry.Workshop == workshop && entry.Multiplayer == multiplayer && entry.Campaign.TryGetTarget(out campaign))
+            entry.FromGamingPlatform == fromGamingPlatform && entry.FromExternalSource == fromExternalSource &&
+            entry.Campaign.TryGetTarget(out campaign))
         {
             removedContent?.AddRange(entry.RemovedContent);
 
@@ -79,7 +81,7 @@ internal static class DungeonMakerContext
         }
 
         cache.Files.Remove(path);
-        read = new CampaignFileRead(path, stamp, workshop, multiplayer, removedContent?.Count ?? 0);
+        read = new CampaignFileRead(path, stamp, fromGamingPlatform, fromExternalSource, removedContent?.Count ?? 0);
 
         return false;
     }
@@ -105,7 +107,7 @@ internal static class DungeonMakerContext
             ? removedContent.Skip(read.RemovedCount).ToArray()
             : [];
         CampaignFiles.GetValue(owner, _ => new CampaignFileCache()).Files[read.Path] = new CachedCampaignFile(
-            stamp, read.Workshop, read.Multiplayer, campaign, removed);
+            stamp, read.FromGamingPlatform, read.FromExternalSource, campaign, removed);
     }
 
     internal static void InvalidateCampaignFile(UserCampaignPoolManager owner, UserCampaign campaign)
@@ -170,12 +172,12 @@ internal static class DungeonMakerContext
     }
 
     internal sealed class CampaignFileRead(
-        string path, CampaignFileStamp stamp, bool workshop, bool multiplayer, int removedCount)
+        string path, CampaignFileStamp stamp, bool fromGamingPlatform, bool fromExternalSource, int removedCount)
     {
         internal string Path { get; } = path;
         internal CampaignFileStamp Stamp { get; } = stamp;
-        internal bool Workshop { get; } = workshop;
-        internal bool Multiplayer { get; } = multiplayer;
+        internal bool FromGamingPlatform { get; } = fromGamingPlatform;
+        internal bool FromExternalSource { get; } = fromExternalSource;
         internal int RemovedCount { get; } = removedCount;
     }
 
@@ -185,13 +187,93 @@ internal static class DungeonMakerContext
     }
 
     private sealed class CachedCampaignFile(
-        CampaignFileStamp stamp, bool workshop, bool multiplayer, UserCampaign campaign, string[] removedContent)
+        CampaignFileStamp stamp, bool fromGamingPlatform, bool fromExternalSource,
+        UserCampaign campaign, string[] removedContent)
     {
         internal CampaignFileStamp Stamp { get; } = stamp;
-        internal bool Workshop { get; } = workshop;
-        internal bool Multiplayer { get; } = multiplayer;
+        internal bool FromGamingPlatform { get; } = fromGamingPlatform;
+        internal bool FromExternalSource { get; } = fromExternalSource;
         internal WeakReference<UserCampaign> Campaign { get; } = new(campaign);
         internal string[] RemovedContent { get; } = removedContent;
+    }
+
+    internal static UserContent TryParseUserContent<T>(string json, out T parsed) where T : UserContent
+    {
+        parsed = null;
+
+        try
+        {
+            parsed = JsonUtility.FromJson<T>(json);
+            return parsed;
+        }
+        catch (ArgumentException)
+        {
+            // An invalid typed payload must still pass the original common-header gate.
+            // If that gate accepts it, the native typed call reports its error at the original point.
+            return JsonUtility.FromJson<UserContent>(json);
+        }
+    }
+
+    internal static T GetParsedUserContent<T>(string json, T parsed) where T : UserContent
+    {
+        return parsed ?? JsonUtility.FromJson<T>(json);
+    }
+
+    internal static IEnumerable<CodeInstruction> ReuseUserContentParsing<T>(
+        IEnumerable<CodeInstruction> instructions, ILGenerator generator, string reader) where T : UserContent
+    {
+        var code = instructions.ToList();
+        var fromJson = typeof(JsonUtility).GetMethod(nameof(JsonUtility.FromJson), [typeof(string)]);
+
+        if (fromJson is not { IsGenericMethodDefinition: true })
+        {
+            Main.Error($"Failed to locate native JSON parsing in {reader}.");
+            return code;
+        }
+
+        var headerParser = fromJson.MakeGenericMethod(typeof(UserContent));
+        var typedParser = fromJson.MakeGenericMethod(typeof(T));
+        var headerIndex = code.FindIndex(instruction => instruction.Calls(headerParser));
+        var typedIndex = code.FindIndex(instruction => instruction.Calls(typedParser));
+
+        if (headerIndex <= 0 || typedIndex <= headerIndex || typedIndex + 1 >= code.Count ||
+            code.Count(instruction => instruction.Calls(headerParser)) != 1 ||
+            code.Count(instruction => instruction.Calls(typedParser)) != 1 ||
+            code[headerIndex].opcode != OpCodes.Call || code[typedIndex].opcode != OpCodes.Call ||
+            !code[headerIndex - 1].IsLdloc() || !code[typedIndex - 1].IsLdloc() ||
+            code[headerIndex - 1].opcode != code[typedIndex - 1].opcode ||
+            !Equals(code[headerIndex - 1].operand, code[typedIndex - 1].operand) ||
+            !code[headerIndex + 1].IsStloc() || !code[typedIndex + 1].IsStloc())
+        {
+            Main.Error($"Failed to locate native header and typed JSON reads in {reader}.");
+            return code;
+        }
+
+        var parsed = generator.DeclareLocal(typeof(T));
+        var parse = AccessTools.Method(typeof(DungeonMakerContext), nameof(TryParseUserContent))
+            .MakeGenericMethod(typeof(T));
+        var reuse = AccessTools.Method(typeof(DungeonMakerContext), nameof(GetParsedUserContent))
+            .MakeGenericMethod(typeof(T));
+        var result = new List<CodeInstruction>(code.Count + 2);
+
+        for (var index = 0; index < code.Count; index++)
+        {
+            var instruction = code[index];
+
+            if (index == headerIndex || index == typedIndex)
+            {
+                var load = new CodeInstruction(index == headerIndex ? OpCodes.Ldloca : OpCodes.Ldloc, parsed);
+                load.MoveLabelsFrom(instruction).MoveBlocksFrom(instruction);
+                result.Add(load);
+                result.Add(new CodeInstruction(OpCodes.Call, index == headerIndex ? parse : reuse));
+            }
+            else
+            {
+                result.Add(instruction);
+            }
+        }
+
+        return result;
     }
 
     internal static bool ShouldReadUserContentFile(string path, string contentType)

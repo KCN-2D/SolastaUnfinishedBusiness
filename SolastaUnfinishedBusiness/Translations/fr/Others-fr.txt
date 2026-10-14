@@ -1003,3 +1003,4 @@ Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceTitle=Assaut par vagues
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceDescription=Un allié appelle à une attaque coordonnée contre {0}. Vous pouvez utiliser votre réaction pour effectuer une attaque avec une arme, une attaque à mains nues ou une attaque naturelle contre cet ennemi.
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactTitle=Attaquer
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactDescription=Utilisez votre réaction pour attaquer {0}.
+Failure/&FailureFlagMovementOnlyOnOwnTurn=Vous ne pouvez utiliser cette capacité que pendant votre tour.

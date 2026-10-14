@@ -1003,3 +1003,4 @@ Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceTitle=연속 공세
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceDescription=아군이 {0}에 대한 협동 공격을 요청합니다. 반응행동을 사용해 그 적에게 무기 공격, 비무장 타격 또는 자연 무기 공격을 한 번 할 수 있습니다.
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactTitle=공격
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactDescription=반응행동을 사용해 {0}을 공격합니다.
+Failure/&FailureFlagMovementOnlyOnOwnTurn=이 능력은 자신의 턴에만 사용할 수 있습니다.

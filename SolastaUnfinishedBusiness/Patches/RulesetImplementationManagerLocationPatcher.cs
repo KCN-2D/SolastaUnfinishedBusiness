@@ -722,8 +722,13 @@ public static class RulesetImplementationManagerLocationPatcher
         }
 
         [UsedImplicitly]
-        public static bool Prefix(EffectForm effectForm, RulesetImplementationDefinitions.ApplyFormsParams formsParams)
+        internal static bool Prefix(
+            EffectForm effectForm,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            out MotionContext.TeleportMovementCost.PendingTeleport __state)
         {
+            __state = MotionContext.TeleportMovementCost.Capture(effectForm, formsParams);
+
             //PATCH: support for `PushesFromEffectPoint`
             // allows push/grab motion effects to work relative to casting point, instead of caster's position
             // used for Grenadier's force grenades
@@ -740,8 +745,11 @@ public static class RulesetImplementationManagerLocationPatcher
         }
 
         [UsedImplicitly]
-        public static void Postfix(RulesetImplementationDefinitions.ApplyFormsParams formsParams)
+        internal static void Postfix(
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            MotionContext.TeleportMovementCost.PendingTeleport __state)
         {
+            __state?.Complete();
             GrappleContext.ValidateGrappleAfterMotion(GameLocationCharacter.GetFromActor(formsParams.sourceCharacter));
             GrappleContext.ValidateGrappleAfterMotion(GameLocationCharacter.GetFromActor(formsParams.targetCharacter));
         }

@@ -19,6 +19,14 @@ public static class UserLocationPoolManagerPatcher
     public static class ReadLocationFromDisk_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(
+            IEnumerable<CodeInstruction> instructions, ILGenerator generator)
+        {
+            return DungeonMakerContext.ReuseUserContentParsing<UserLocation>(
+                instructions, generator, "UserLocationPoolManager.ReadLocationFromDisk");
+        }
+
+        [UsedImplicitly]
         public static bool Prefix(string __0)
         {
             return DungeonMakerContext.ShouldReadUserContentFile(__0, nameof(UserLocation));

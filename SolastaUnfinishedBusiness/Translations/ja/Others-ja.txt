@@ -996,3 +996,4 @@ Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceTitle=波状攻勢
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceDescription=味方が{0}への連携攻撃を呼びかけています。リアクションを使い、その敵に武器攻撃、素手打撃、または肉体武器による攻撃を1回行えます。
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactTitle=攻撃
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactDescription=リアクションを使って{0}を攻撃します。
+Failure/&FailureFlagMovementOnlyOnOwnTurn=この能力は自分のターン中にのみ使用できます。

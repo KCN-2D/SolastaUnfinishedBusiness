@@ -124,6 +124,8 @@ public static class GuiLabelPatcher
         {
             FitActionPanelTitle(__instance);
 
+            FitSelectionSlotTitle(__instance);
+
             if (__instance.GetComponentInParent<JoinGameSubpanel>() is { } joinGame)
             {
                 UiTextHelpers.FitMultiplayerRoomColumns(joinGame);
@@ -161,6 +163,30 @@ public static class GuiLabelPatcher
                 // using stale layout measurements.
                 UiTextHelpers.FitActionItemCaption(actionForm);
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiStyleEnforcer), nameof(GuiStyleEnforcer.ApplyStyles))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ApplyStyles_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GuiStyleEnforcer __instance)
+        {
+            if (__instance is GuiLabel label)
+            {
+                FitSelectionSlotTitle(label);
+            }
+        }
+    }
+
+    private static void FitSelectionSlotTitle(GuiLabel label)
+    {
+        if (label.GetComponentInParent<BaseSelectionSlot>() is { } slot && slot.SlotTitle == label)
+        {
+            // Native binding localizes first; style refreshes can restore the prefab font size later.
+            UiTextHelpers.FitCardTitle(label);
         }
     }
 

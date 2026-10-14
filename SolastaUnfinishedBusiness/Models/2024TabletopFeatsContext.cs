@@ -16,6 +16,7 @@ using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Validators;
 using TA;
+using Resources = SolastaUnfinishedBusiness.Properties.Resources;
 using static ActionDefinitions;
 using static EquipmentDefinitions;
 using static RuleDefinitions;
@@ -78,6 +79,8 @@ public static partial class Tabletop2024Context
     private const string Healer2024FeatName = "FeatHealer2024";
     private const string Lucky2024FeatName = "FeatLucky2024";
     private const string Musician2024FeatName = "FeatMusician2024";
+    private const string PortalJumper2024Family = "PortalJumper2024";
+    private const string PortalJumper2024GroupFeatName = "FeatGroupPortalJumper2024";
     private const string Lucky2024PoolPowerName = "PowerFeatLucky2024Pool";
     private const string Lucky2024AdvantagePowerName = "PowerFeatLucky2024Advantage";
     private const string Lucky2024AdvantageActionName = "Lucky2024AdvantageToggle";
@@ -494,6 +497,7 @@ public static partial class Tabletop2024Context
     private static FeatDefinition _featHealer2024;
     private static FeatDefinition _featLucky2024;
     private static FeatDefinition _featMusician2024;
+    private static FeatDefinition _featGroupPortalJumper2024;
     private static FeatDefinition _featSavageAttack2024;
     private static FeatDefinition _featSharpEye2024;
     private static FeatDefinition _featSurvivor2024;
@@ -767,6 +771,7 @@ public static partial class Tabletop2024Context
         _featHealer2024 = BuildHealer2024();
         _featLucky2024 = BuildLucky2024();
         _featMusician2024 = BuildMusician2024();
+        _featGroupPortalJumper2024 = BuildPortalJumper2024();
         _featSavageAttack2024 = BuildSavageAttack2024();
         _featSharpEye2024 = BuildSharpEye2024();
         _featSurvivor2024 = BuildSurvivor2024();
@@ -778,6 +783,7 @@ public static partial class Tabletop2024Context
                      _featHealer2024,
                      _featLucky2024,
                      _featMusician2024,
+                     _featGroupPortalJumper2024,
                      _featSavageAttack2024,
                      _featSharpEye2024,
                      _featSurvivor2024,
@@ -788,6 +794,37 @@ public static partial class Tabletop2024Context
             SetFeatVisibility(feat, false);
             RegisterManagedTabletopFeats(true, feat);
         }
+    }
+
+    private static FeatDefinition BuildPortalJumper2024()
+    {
+        var sprite = Sprites.GetSprite("PortalStep", Resources.PowerPortalStep, 256, 128);
+        var portalStep = FeatureDefinitionPowerBuilder
+            .Create("PowerFeatPortalJumper2024PortalStep")
+            .SetGuiPresentation(Category.Feature, sprite)
+            .SetUsesProficiencyBonus(ActivationTime.NoCost, RechargeRate.LongRest)
+            .SetEffectDescription(EffectDescriptionBuilder.Create()
+                .SetTargetingData(Side.Ally, RangeType.Distance, 3, TargetType.Position)
+                .SetEffectForms(EffectFormBuilder.MotionForm(MotionForm.MotionType.TeleportToDestination))
+                .UseQuickAnimations()
+                .SetParticleEffectParameters(FeatureDefinitionPowers.PowerMelekTeleport)
+                .Build())
+            .AddCustomSubFeatures(new MotionContext.TeleportMovementCost(3, oncePerTurn: true))
+            .AddToDB();
+
+        var variants = new[]
+        {
+            ("Necrotic", FeatureDefinitionDamageAffinitys.DamageAffinityNecroticResistance),
+            ("Psychic", FeatureDefinitionDamageAffinitys.DamageAffinityPsychicResistance),
+            ("Radiant", FeatureDefinitionDamageAffinitys.DamageAffinityRadiantResistance)
+        }.Select(choice => FeatDefinitionBuilder
+            .Create($"FeatPortalJumper2024{choice.Item1}")
+            .SetGuiPresentation(Category.Feat)
+            .SetFeatFamily(PortalJumper2024Family)
+            .SetFeatures(choice.Item2, portalStep)
+            .AddToDB()).ToArray();
+
+        return GroupFeats.MakeGroup(PortalJumper2024GroupFeatName, PortalJumper2024Family, variants);
     }
 
     private static FeatDefinition BuildMusician2024()
@@ -4148,6 +4185,7 @@ public static partial class Tabletop2024Context
         RegisterManagedCatalogEntry(LegacyHealerFeatName, _featHealer2024, true, true);
         RegisterManagedCatalogEntry(LegacyLuckyFeatName, _featLucky2024, true, true);
         RegisterManagedCatalogEntry(Musician2024FeatName, _featMusician2024, true, true);
+        RegisterManagedCatalogEntry(PortalJumper2024GroupFeatName, _featGroupPortalJumper2024, true);
         RegisterManagedCatalogEntry(LegacySavageAttackerFeatName, _featSavageAttack2024, true, true);
         RegisterManagedCatalogEntry(SharpEye2024FeatName, _featSharpEye2024, true, true);
         RegisterManagedCatalogEntry(Survivor2024FeatName, _featSurvivor2024, true, true);
@@ -4621,6 +4659,10 @@ public static partial class Tabletop2024Context
                 _featMusician2024,
                 [],
                 [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupSupportCombat, GroupFeats.FeatGroupTools]),
+            new TabletopFeat2024Profile(
+                _featGroupPortalJumper2024,
+                [],
+                [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupAgilityCombat, GroupFeats.FeatGroupBodyResilience]),
             new TabletopFeat2024Profile(
                 _featSavageAttack2024,
                 [GetDefinition<FeatDefinition>(LegacySavageAttackerFeatName)],

@@ -1003,3 +1003,4 @@ Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceTitle=轮番攻势
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceDescription=一名盟友号召对{0}进行协同攻击。你可以使用反应，对该敌人进行一次武器攻击、徒手打击或天生武器攻击。
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactTitle=攻击
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactDescription=消耗你的反应攻击{0}。
+Failure/&FailureFlagMovementOnlyOnOwnTurn=你只能在自己的回合中使用此能力。

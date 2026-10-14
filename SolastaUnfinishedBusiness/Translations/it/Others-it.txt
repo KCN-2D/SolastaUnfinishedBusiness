@@ -1003,3 +1003,4 @@ Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceTitle=Assalto a ondate
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceDescription=Un alleato richiede un attacco coordinato contro {0}. Puoi usare la tua reazione per effettuare un attacco con un’arma, un colpo senz’armi o un attacco naturale contro quel nemico.
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactTitle=Attacca
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactDescription=Usa la tua reazione per attaccare {0}.
+Failure/&FailureFlagMovementOnlyOnOwnTurn=Puoi usare questa capacità solo durante il tuo turno.

@@ -1003,3 +1003,4 @@ Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceTitle=Assalto em Ondas
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceDescription=Um aliado pede um ataque coordenado contra {0}. Você pode usar sua reação para realizar um ataque com arma, um ataque desarmado ou um ataque natural contra esse inimigo.
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactTitle=Atacar
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactDescription=Use sua reação para atacar {0}.
+Failure/&FailureFlagMovementOnlyOnOwnTurn=Você só pode usar esta habilidade durante o seu turno.

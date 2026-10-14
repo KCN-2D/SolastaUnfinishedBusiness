@@ -996,3 +996,4 @@ Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceTitle=Rolling Assault
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceDescription=An ally calls for a coordinated strike against {0}. You can use your reaction to make one weapon attack, unarmed strike, or natural attack against it.
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactTitle=Attack
 Reaction/&ReactionAttackEnemyBattleCoordinatedAdvanceReactDescription=Spend your reaction to attack {0}.
+Failure/&FailureFlagMovementOnlyOnOwnTurn=You can use this ability only on your turn.
