@@ -35,6 +35,13 @@ public static class SpellBoxPatcher
             return tag;
         }
 
+        // Structured tags identify a native feature or class; their payload is not a feat-selection suffix.
+        if (tag.StartsWith(AutoPreparedFeatureTag, StringComparison.OrdinalIgnoreCase) ||
+            IsMulticlassSpellSourceTag(tag))
+        {
+            return tag;
+        }
+
         tag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(tag);
 
         return tag == "DOMAIN" ? "Domain" : tag;

@@ -104,8 +104,15 @@ public static class CharactersPanelPatcher
         [UsedImplicitly]
         public static void Postfix(CharactersPanel __instance)
         {
-            __instance.characterCheckerButton.gameObject.SetActive(
+            var checkerButton = __instance.characterCheckerButton;
+            checkerButton.gameObject.SetActive(
                 SettingsContext.GuiModManagerInstance.EnableCharacterChecker);
+
+            checkerButton.transform.Find("Label").GetComponent<GuiLabel>().Text = "Screen/&CharacterCheckerTitle";
+            foreach (var tooltip in checkerButton.GetComponentsInChildren<GuiTooltip>(true))
+            {
+                tooltip.Content = "Screen/&CharacterCheckerDescription";
+            }
         }
     }
 }

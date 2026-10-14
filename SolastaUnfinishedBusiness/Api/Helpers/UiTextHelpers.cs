@@ -500,6 +500,256 @@ internal static class UiTextHelpers
             useCjkCompactSpacing);
     }
 
+    internal static T FindAncestorComponent<T>(Component owner) where T : Component
+    {
+        for (var ancestor = owner ? owner.transform : null; ancestor; ancestor = ancestor.parent)
+        {
+            if (ancestor.GetComponent<T>() is { } component)
+            {
+                return component;
+            }
+        }
+
+        return null;
+    }
+
+    internal static void FitCharacterEditionButton(GuiButtonSetup setup)
+    {
+        if (!setup || !setup.basicLabel?.TMP_Text || !setup.horizontalLayout ||
+            FindAncestorComponent<GuiPanel>(setup) is not CharacterEditionScreen)
+        {
+            return;
+        }
+
+        var text = setup.basicLabel.TMP_Text;
+        var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+        state.Capture(text);
+        var size = MeasureTitleGlyphs(text, state.OriginalFontSizeMax, false, 0f, state, out _);
+        var rect = setup.transform as RectTransform;
+        var captionWidth = Mathf.Ceil(size.x + 8f);
+        var captionElement = text.GetComponent<LayoutElement>() ?? text.gameObject.AddComponent<LayoutElement>();
+        captionElement.minWidth = captionWidth;
+        var width = Mathf.Max(setup.basicWidth, captionWidth + setup.horizontalLayout.padding.horizontal);
+        rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+        if (setup.GetComponent<LayoutElement>() is { } element)
+        {
+            element.minWidth = width;
+        }
+
+        // Native control-scheme changes restore basicWidth after applying the label style.
+        // Rebuild the same layout after reserving the localized caption's full width.
+        LayoutRebuilder.ForceRebuildLayoutImmediate(rect);
+        FitCardTitle(text, 0.9f, 12f, 1);
+    }
+
+    internal static void FitCharacterEditionProgressBar(CharacterEditionScreen screen)
+    {
+        if (!screen || !screen.stageDiskList)
+        {
+            return;
+        }
+
+        foreach (var disk in screen.stageDiskList.GetComponentsInChildren<StageDisk>(false))
+        {
+            FitCharacterEditionStageCaption(disk);
+        }
+    }
+
+    internal static void FitCharacterEditionStageCaption(StageDisk disk)
+    {
+        if (!disk || !disk.caption?.TMP_Text ||
+            disk.transform.parent is not RectTransform parent ||
+            FindAncestorComponent<CharacterEditionScreen>(disk) is not { } screen)
+        {
+            return;
+        }
+
+        var text = disk.caption.TMP_Text;
+        var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+        state.Capture(text);
+        var size = MeasureTitleGlyphs(text, state.OriginalFontSizeMax, false, 0f, state, out _);
+        var center = parent.InverseTransformPoint(disk.transform.position).x;
+        // The native list bounds contain only the small stage disks. Captions extend
+        // beyond those bounds, so reserve text space between disk centers and screen edges.
+        var corners = new Vector3[4];
+        screen.RectTransform.GetWorldCorners(corners);
+        var left = parent.InverseTransformPoint(corners[0]).x;
+        var right = parent.InverseTransformPoint(corners[2]).x;
+        foreach (var setup in screen.GetComponentsInChildren<GuiButtonSetup>(false))
+        {
+            if (!setup.basicLabel || FindAncestorComponent<GuiPanel>(setup) != screen)
+            {
+                continue;
+            }
+
+            ((RectTransform)setup.transform).GetWorldCorners(corners);
+            var buttonLeft = parent.InverseTransformPoint(corners[0]).x;
+            var buttonRight = parent.InverseTransformPoint(corners[2]).x;
+            if (buttonRight <= center)
+            {
+                left = Mathf.Max(left, buttonRight + 4f);
+            }
+            else if (buttonLeft >= center)
+            {
+                right = Mathf.Min(right, buttonLeft - 4f);
+            }
+        }
+
+        foreach (var sibling in parent.GetComponentsInChildren<StageDisk>(false))
+        {
+            if (sibling != disk && sibling.transform.parent == parent)
+            {
+                var siblingCenter = parent.InverseTransformPoint(sibling.transform.position).x;
+                var midpoint = (center + siblingCenter) * 0.5f;
+                if (siblingCenter < center)
+                {
+                    left = Mathf.Max(left, midpoint);
+                }
+                else if (siblingCenter > center)
+                {
+                    right = Mathf.Min(right, midpoint);
+                }
+            }
+        }
+
+        // Edge captions can have asymmetric room beside a footer button. Use the
+        // whole slot, shifting only when centering above the disk would leave it.
+        var width = Mathf.Min(Mathf.Ceil(size.x + 8f), Mathf.Max(1f, right - left - 8f));
+        var captionCenter = Mathf.Clamp(center, left + width * 0.5f + 4f, right - width * 0.5f - 4f);
+        var minimum = Mathf.Min(state.OriginalFontSizeMax, Mathf.Max(12f, state.OriginalFontSizeMax * 0.7f));
+        var minimumSize = MeasureTitleGlyphs(text, minimum, false, 0f, state, out _);
+        var lines = minimumSize.x + 4f <= width + PreferredSizeTolerance ? 1 : 2;
+        var height = size.y;
+        if (lines > 1)
+        {
+            height = Mathf.Max(height, MeasureTitleGlyphs(text, minimum, true, width, state, out _).y);
+        }
+
+        text.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+        var currentCenter = parent.InverseTransformPoint(
+            text.rectTransform.TransformPoint(text.rectTransform.rect.center)).x;
+        var movement = parent.TransformVector(new Vector3(captionCenter - currentCenter, 0f, 0f));
+        text.rectTransform.anchoredPosition +=
+            (Vector2)text.rectTransform.parent.InverseTransformVector(movement);
+        text.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+            Mathf.Max(state.OriginalRectHeight, Mathf.Ceil(height + 4f)));
+        FitCharacterCaption(text, lines, state);
+    }
+
+    internal static void FitCharacterStageToggleCaption(GuiLabel label)
+    {
+        if (!label?.TMP_Text || label.transform.parent is not RectTransform container ||
+            !FindAncestorComponent<CharacterStagePanel>(label))
+        {
+            return;
+        }
+
+        Toggle toggle = null;
+        foreach (var caption in container.GetComponentsInChildren<GuiLabel>(true))
+        {
+            if (caption != label && caption.transform.parent == container)
+            {
+                return;
+            }
+        }
+
+        foreach (var candidate in container.GetComponentsInChildren<Toggle>(true))
+        {
+            if (candidate.transform.parent != container)
+            {
+                continue;
+            }
+
+            if (toggle)
+            {
+                return;
+            }
+
+            toggle = candidate;
+        }
+
+        if (!toggle?.targetGraphic || label.TMP_Text.rectTransform.parent != container)
+        {
+            return;
+        }
+
+        // Native checkbox captions are siblings of the clickable graphic. Keep that
+        // target intact and use the remaining control width before fitting wrapped ink.
+        var text = label.TMP_Text;
+        var rect = text.rectTransform;
+        var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+        state.Capture(text);
+
+        if (container.parent is RectTransform allocation && allocation.childCount == 1 &&
+            Mathf.Approximately(container.pivot.x, 0.5f))
+        {
+            // A dedicated control group can be wider than its fixed-size native toggle.
+            // Its right-anchored checkbox follows the control without changing the hitbox.
+            var minimum = container.InverseTransformPoint(allocation.TransformPoint(allocation.rect.xMin, 0f, 0f)).x;
+            var maximum = container.InverseTransformPoint(allocation.TransformPoint(allocation.rect.xMax, 0f, 0f)).x;
+            var width = 2f * Mathf.Min(container.rect.center.x - minimum, maximum - container.rect.center.x);
+            if (width > 0f && !Mathf.Approximately(width, container.rect.width))
+            {
+                container.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+            }
+        }
+
+        var left = container.InverseTransformPoint(rect.TransformPoint(rect.rect.xMin, 0f, 0f)).x;
+        var right = container.rect.xMax - 4f;
+        var corners = new Vector3[4];
+        toggle.targetGraphic.rectTransform.GetWorldCorners(corners);
+        var checkboxLeft = container.InverseTransformPoint(corners[0]).x;
+        if (checkboxLeft > left)
+        {
+            right = Mathf.Min(right, checkboxLeft - 6f);
+        }
+
+        if (right > left)
+        {
+            rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, right - left);
+            if (!TryGetFontSizeBounds(text, state, 0.7f, 12f, out _, out var minimum) ||
+                !TryGetTextContentSize(text, out var available))
+            {
+                return;
+            }
+
+            var wrapped = MeasureTitleGlyphs(text, minimum, true, available.x, state, out var lines);
+            if ((lines > 2 || wrapped.x + 4f > available.x || wrapped.y + 4f > available.y) &&
+                left > container.rect.xMin + 4f)
+            {
+                // Reclaim excess caption inset only when two readable rows need it.
+                var inset = container.rect.xMin + 4f;
+                rect.anchoredPosition += new Vector2(inset - left, 0f);
+                rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, right - inset);
+                TryGetTextContentSize(text, out available);
+                wrapped = MeasureTitleGlyphs(text, minimum, true, available.x, state, out lines);
+            }
+
+            var singleLine = MeasureTitleGlyphs(text, minimum, false, 0f, state, out _);
+            var visibleLines = singleLine.x + 4f <= available.x && singleLine.y + 4f <= available.y
+                ? 1
+                : lines <= 2 && wrapped.x + 4f <= available.x && wrapped.y + 4f <= available.y ? 2 : 3;
+            FitCharacterCaption(text, visibleLines, state);
+        }
+    }
+
+    private static void FitCharacterCaption(TMP_Text text, int maxVisibleLines, TextFitState state)
+    {
+        // Midline uses glyph extents rather than font ascenders. Preserve horizontal alignment.
+        const int horizontalAlignmentMask = 0xff;
+        text.alignment = (TextAlignmentOptions)(((int)text.alignment & horizontalAlignmentMask) |
+                                               ((int)TextAlignmentOptions.MidlineLeft & ~horizontalAlignmentMask));
+        FitReadableTitle(text, 0.7f, 12f, maxVisibleLines);
+        // TMP silently hides later rows at maxVisibleLines without marking text as truncated.
+        text.maxVisibleLines = int.MaxValue;
+        text.ForceMeshUpdate(true);
+        if (TryGetTextContentSize(text, out var available))
+        {
+            state.RememberFitSignature($"{nameof(FitReadableTitle)}:{maxVisibleLines}", text, available, 0.7f, 12f,
+                ShouldUseCjkCompactLineSpacing(text));
+        }
+    }
+
     internal static Vector2 GetReadableTitleMinimumSize(TMP_Text text, float minFontScale, float absoluteMin,
         out float singleLineWidth)
     {

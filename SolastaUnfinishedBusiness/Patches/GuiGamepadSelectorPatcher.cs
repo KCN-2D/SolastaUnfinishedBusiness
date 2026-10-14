@@ -1,14 +1,34 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Object = UnityEngine.Object;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class GuiGamepadSelectorPatcher
 {
+    private static readonly Action<GuiGamepadValidationGroup, string, string> SynchronizeValidationGroupInput =
+        AccessTools.MethodDelegate<Action<GuiGamepadValidationGroup, string, string>>(
+            AccessTools.Method(typeof(GuiGamepadValidationGroup),
+                nameof(GuiGamepadValidationGroup.HandleInputControlSchemeChangedForEnable)));
+
+    [HarmonyPatch(typeof(GuiGamepadValidationGroup), nameof(GuiGamepadValidationGroup.OnEnable))]
+    [UsedImplicitly]
+    public static class ValidationGroupOnEnable_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GuiGamepadValidationGroup __instance)
+        {
+            // Dynamically bound groups are created after their panel's initial reset.
+            // Synchronize the native highlights and instructions before the first scheme change.
+            SynchronizeValidationGroupInput(__instance, null, null);
+        }
+    }
+
     //Is it better to use marker component instead of modifying name?
     private const string GlobalMarker = "|@Global";
 

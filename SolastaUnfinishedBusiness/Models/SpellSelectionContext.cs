@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Feats;
 using static SolastaUnfinishedBusiness.Models.SpellCastingResourceContext;
 
@@ -95,7 +97,9 @@ internal static class SpellSelectionContext
         title = null;
         source = null;
 
-        if (string.IsNullOrEmpty(spellTag))
+        // Encoded feature/class sources are resolved by SpellBox's native source lookup;
+        // their payload must not be interpreted as a plain feat-selection suffix.
+        if (string.IsNullOrEmpty(spellTag) || spellTag.IndexOf('|') >= 0)
         {
             return false;
         }
@@ -104,14 +108,29 @@ internal static class SpellSelectionContext
         var sourceTag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(spellTag);
         var candidates = EnumerateSpellSourceTitleTags(spellTag, selectionTag, sourceTag).ToArray();
 
-        // A grouped feat already owns its complete localized name. Prefer that name
-        // to legacy source labels such as Fey or Flame before falling back to other grants.
+        // A feat family owns its source name; a UI category is not a spell grant.
+        // Native tags such as Origin can share a category's translation suffix.
         foreach (var candidate in candidates.Reverse())
         {
+            if (!TryGetSpellSourceGroup(candidate, sourceTag, out var group))
+            {
+                continue;
+            }
+
+            // Managed groups can store a title localized at construction time.
+            // Keep their dedicated term live across language changes once ownership is proven.
             var titleTerm = $"Feat/&FeatGroup{candidate}Title";
             if (TryLocalizeSpellSourceTitleTerm(titleTerm, out title))
             {
                 source = titleTerm;
+                return true;
+            }
+
+            var groupTitle = group.FormatTitle();
+            if (IsUsableSpellSourceTitle(groupTitle))
+            {
+                title = groupTitle;
+                source = group.GuiPresentation.Title;
                 return true;
             }
         }
@@ -126,6 +145,65 @@ internal static class SpellSelectionContext
                     source = titleTerm;
                     return true;
                 }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryGetSpellSourceGroup(string tag, string sourceTag, out FeatDefinition group)
+    {
+        if (!DatabaseHelper.TryGetDefinition($"FeatGroup{tag}", out group) ||
+            group.GetFirstSubFeatureOfType<IGroupedFeat>() == null ||
+            Tabletop2024Context.IsTabletopContainerGroup(group))
+        {
+            return false;
+        }
+
+        var pending = new Stack<BaseDefinition>();
+        var visited = new HashSet<BaseDefinition>();
+        pending.Push(group);
+        while (pending.Count > 0)
+        {
+            var definition = pending.Pop();
+            if (definition == null || !visited.Add(definition))
+            {
+                continue;
+            }
+
+            switch (definition)
+            {
+                case FeatDefinition feat when !Tabletop2024Context.IsTabletopContainerGroup(feat):
+                    foreach (var feature in feat.Features)
+                    {
+                        pending.Push(feature);
+                    }
+
+                    if (feat.GetFirstSubFeatureOfType<IGroupedFeat>() is { } grouped)
+                    {
+                        foreach (var child in grouped.GetSubFeats(true))
+                        {
+                            pending.Push(child);
+                        }
+                    }
+
+                    break;
+                case FeatureDefinitionFeatureSet set:
+                    foreach (var feature in set.FeatureSet)
+                    {
+                        pending.Push(feature);
+                    }
+
+                    break;
+                case FeatureDefinitionCastSpell casting:
+                    var spellTag = casting.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>();
+                    if (spellTag != null &&
+                        Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(spellTag.Name) == sourceTag)
+                    {
+                        return true;
+                    }
+
+                    break;
             }
         }
 

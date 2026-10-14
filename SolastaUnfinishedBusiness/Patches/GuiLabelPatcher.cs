@@ -126,6 +126,8 @@ public static class GuiLabelPatcher
 
             FitSelectionSlotTitle(__instance);
 
+            FitCharacterEditionCaption(__instance);
+
             if (__instance.GetComponentInParent<JoinGameSubpanel>() is { } joinGame)
             {
                 UiTextHelpers.FitMultiplayerRoomColumns(joinGame);
@@ -177,6 +179,7 @@ public static class GuiLabelPatcher
             if (__instance is GuiLabel label)
             {
                 FitSelectionSlotTitle(label);
+                FitCharacterEditionCaption(label);
             }
         }
     }
@@ -187,6 +190,44 @@ public static class GuiLabelPatcher
         {
             // Native binding localizes first; style refreshes can restore the prefab font size later.
             UiTextHelpers.FitCardTitle(label);
+        }
+    }
+
+    private static void FitCharacterEditionCaption(GuiLabel label)
+    {
+        if (UiTextHelpers.FindAncestorComponent<GuiButtonSetup>(label) is { } setup && setup.basicLabel == label)
+        {
+            UiTextHelpers.FitCharacterEditionButton(setup);
+        }
+
+        if (UiTextHelpers.FindAncestorComponent<StageDisk>(label) is { } disk && disk.caption == label)
+        {
+            UiTextHelpers.FitCharacterEditionStageCaption(disk);
+        }
+
+        UiTextHelpers.FitCharacterStageToggleCaption(label);
+    }
+
+    [HarmonyPatch(typeof(GuiButtonSetup), "RefreshHorizontalLayout")]
+    [UsedImplicitly]
+    public static class RefreshHorizontalLayout_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GuiButtonSetup __instance)
+        {
+            UiTextHelpers.FitCharacterEditionButton(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.RefreshStageDisks))]
+    [UsedImplicitly]
+    public static class RefreshStageDisks_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(CharacterEditionScreen __instance)
+        {
+            // Stage binding precedes the native layout pass, so use its final disk spacing.
+            UiTextHelpers.FitCharacterEditionProgressBar(__instance);
         }
     }
 
