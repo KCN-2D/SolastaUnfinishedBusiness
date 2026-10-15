@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -29,6 +30,7 @@ internal static class UserCharacterPatcher
             var monster = ScriptableObject.CreateInstance<MonsterDefinition>();
             monster.ForceName(data.InternalName);
             monster.Copy(data.referenceMonsterDefinition);
+            DungeonMakerContext.RegisterUserMonsterDefinition(monster, data.referenceMonsterDefinition);
             monster.IsUserContent = true;
             monster.GuiPresentation.Title = data.DisplayTitle;
             monster.GuiPresentation.Description = data.DisplayDescription;

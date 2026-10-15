@@ -762,6 +762,7 @@ Screen/&SpellAdvancementOpenDescription=选择一个更高环阶的法术位来�
 Reaction/&CustomReactionTargetContextFormat=目标：{0}
 Reaction/&CustomReactionEffectContextFormat=效果：{0}
 Reaction/&CustomReactionCasterTitle=行动者
+Reaction/&CustomReactionChoiceTitle=选择行动
 Reaction/&CustomReactionChooseCasterTitle=选择行动者
 Feature/&EnemyBattleArcaneWardTitle=奥术护佑
 Feature/&EnemyBattleArcaneWardDescription=攻击命中你或魔法飞弹以你为目标时，你可以使用反应施放护盾术，无需消耗法术位。

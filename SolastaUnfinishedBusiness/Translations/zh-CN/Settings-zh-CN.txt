@@ -617,7 +617,7 @@ ModUi/&EnableRogueWeaponProficiency2024=启用2024版<color=#D89555>游荡者的
 ModUi/&EnableSorcererWeaponProficiency2024=启用2024版<color=#D89555>术士的武器熟练</color><i><color=#F0DAA0>[所有简易武器]</color></i>
 ModUi/&EnableWizardWeaponProficiency2024=启用2024版<color=#D89555>法师的武器熟练</color><i><color=#F0DAA0>[所有简易武器]</color></i>
 ModUI/&EnableEnemyBattleTactics=根据敌人的类型和战斗定位启用额外能力
-ModUI/&EnableEnemyBattleTacticsDescription=敌人获得符合其类型与战斗定位的能力。挑战等级对应栏位：1–4为1，5–8为2，9–12为3，13–16为4，17以上为5。1–3阶能力占用同等数量的栏位；2/3阶要求挑战等级5/11。栏位内加权随机选择，不保证最高阶。挑战等级低于1时，以等于该等级的概率获得一个1阶能力。
+ModUI/&EnableEnemyBattleTacticsDescription=敌人获得符合其类型与战斗定位的能力。挑战等级对应栏位：1–4为1，5–8为2，9–12为3，13–16为4，17以上为5。1–3阶能力占用同等数量的栏位；2/3阶要求挑战等级5/11。栏位内加权随机选择，不保证最高阶。挑战等级低于1时，以等于该等级的概率获得一个1阶能力。自定义敌人的挑战等级为0时，此选择使用原始怪物模板的挑战等级。
 ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=多人游戏中，所有参与者必须在开始会话前选择相同的设置。多人游戏会话期间无法更改此设置。
 ModUi/&FlexibleRacesDisabledByBackgroundASI=背景属性值提升已启用，因此不应用灵活种族属性值提升。禁用背景属性值提升后，将重新应用原来的选择。
 ModUi/&FlexibleBackgroundsDisabledByBackgroundBonusFeats=背景起源专长已启用，因此不应用灵活背景熟练项。禁用背景起源专长后，将重新应用原来的选择。

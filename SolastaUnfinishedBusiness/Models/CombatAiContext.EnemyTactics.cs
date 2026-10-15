@@ -272,8 +272,20 @@ internal static partial class CombatAiContext
         TryGetEnemyBattleCapabilityKind(GetEnemyBattleCapabilityPower(power), out var kind)
             ? GetEnemyBattleCapabilityMetadata(kind).RechargeMinimumRoll : 0;
 
-    private static float GetEnemyBattleChallengeRating(RulesetCharacter actor) =>
-        actor is RulesetCharacterMonster monster ? monster.MonsterDefinition.ChallengeRating : 0;
+    private static float GetEnemyBattleChallengeRating(RulesetCharacter actor)
+    {
+        if (actor is not RulesetCharacterMonster monster)
+        {
+            return 0;
+        }
+
+        var definition = monster.MonsterDefinition;
+        // Campaign authors can set CR to zero to suppress experience rewards.
+        // Use the native template only for capability selection; retain the campaign's CR and XP.
+        return definition.IsUserContent && definition.ChallengeRating == 0
+            ? DungeonMakerContext.GetUserMonsterReference(definition)?.ChallengeRating ?? 0
+            : definition.ChallengeRating;
+    }
 
     // Selection, power generation, charge restoration and UI share one fixed definition.
     private static readonly Dictionary<EnemyBattleAffix, EnemyBattleCapabilityAttribute> EnemyBattleCapabilityMetadata =
@@ -987,7 +999,7 @@ internal static partial class CombatAiContext
 
     private static bool IsEnemyBattleRecipient(GameLocationCharacter character, GameLocationBattle battle)
     {
-        if (battle == null || character == null || character.Side != Side.Enemy ||
+        if (battle == null || character == null || PlayerControllerContext.GetBattleSide(character) != Side.Enemy ||
             character.IsSummonedCreature || character.RulesetCharacter is not RulesetCharacterMonster
             { IsDeadOrDying: false, IsRemovedFromTheGame: false, ConjuredByParty: false } monster ||
             monster.OriginalFormCharacter != null || !battle.EnemyContenders.Contains(character))
@@ -1082,7 +1094,7 @@ internal static partial class CombatAiContext
     private static List<EnemyBattleAffix> SelectEnemyBattleAffixes(GameLocationCharacter character)
     {
         var monster = (RulesetCharacterMonster)character.RulesetCharacter;
-        var cr = monster.MonsterDefinition.ChallengeRating;
+        var cr = GetEnemyBattleChallengeRating(monster);
         var budget = cr < 1 && !HasEnemyBattleMinorCapabilityRoll(character.Guid, cr) ? 0 : GetEnemyBattleSlotBudget(monster);
 
         if (budget == 0)
@@ -1158,6 +1170,15 @@ internal static partial class CombatAiContext
         internal bool HasDamage(string damage) => NativeEffects.Any(effect => effect.EffectForms.Any(form =>
             form.FormType == EffectForm.EffectFormType.Damage && form.DamageForm.DamageType == damage));
 
+        // Read the effects this creature can cause. Conditions it has suffered,
+        // immunities and a high ability score are not an offensive mental gift.
+        internal bool HasMentalInfluence => HasDamage(DamageTypePsychic) || NativeEffects.Any(effect =>
+            HasEnemyBattleAddedCondition(effect, ConditionDefinitions.ConditionCharmed) ||
+            HasEnemyBattleAddedCondition(effect, ConditionDefinitions.ConditionFrightened) ||
+            HasEnemyBattleAddedCondition(effect, ConditionDefinitions.ConditionConfused) ||
+            HasEnemyBattleAddedCondition(effect, GetDefinition<ConditionDefinition>("ConditionMocked")) ||
+            HasEnemyBattleAddedCondition(effect, ConditionDefinitions.ConditionMindDominatedByCaster));
+
         internal bool HasLifeDrain => NativeEffects.Any(effect => effect.EffectForms.Any(form =>
                 form.FormType == EffectForm.EffectFormType.Damage && form.DamageForm.DamageType == DamageTypeNecrotic &&
                 form.DamageForm.HealFromInflictedDamage != HealFromInflictedDamage.Never) ||
@@ -1194,8 +1215,8 @@ internal static partial class CombatAiContext
     {
         var monster = (RulesetCharacterMonster)character.RulesetCharacter;
         var cr = GetEnemyBattleChallengeRating(monster);
-        profile = BuildEnemyBattleProfile(character);
         var facts = new EnemyBattleNativeFacts(monster);
+        profile = BuildEnemyBattleProfileFromFacts(character, facts);
         var features = facts.Features;
         var powers = facts.CandidatePowers;
         var spells = facts.KnownSpells;
@@ -1204,9 +1225,9 @@ internal static partial class CombatAiContext
         var intelligent = monster.TryGetAttributeValue(AttributeDefinitions.Intelligence) >= 8;
         var trained = intelligent && profile.Family is CombatAiFamily.Humanoid or CombatAiFamily.Giant or
             CombatAiFamily.Celestial or CombatAiFamily.Undead or CombatAiFamily.Fey or CombatAiFamily.Fiend;
-        var hasMelee = monster.AttackModes.Any(mode => !mode.Ranged && mode.ActionType == ActionType.Main);
-        var hasWeapon = monster.AttackModes.Any(IsEnemyBattleWeaponAttack);
-        var hasMeleeWeapon = monster.AttackModes.Any(mode => !mode.Ranged && IsEnemyBattleWeaponAttack(mode));
+        var hasMelee = facts.AttackModes.Any(mode => !mode.Ranged && mode.ActionType == ActionType.Main);
+        var hasWeapon = facts.AttackModes.Any(IsEnemyBattleWeaponAttack);
+        var hasMeleeWeapon = facts.AttackModes.Any(mode => !mode.Ranged && IsEnemyBattleWeaponAttack(mode));
         var caster = profile.HasSpellcasting && intelligent;
         var hasDefensiveReaction = HasExistingEnemyBattleDefense(powers);
 
@@ -1232,7 +1253,7 @@ internal static partial class CombatAiContext
         {
             candidates.Add(EnemyBattleAffix.SteadyingWord);
         }
-        if (monster.AttackModes.Any(mode => mode.ActionType == ActionType.Main &&
+        if (facts.AttackModes.Any(mode => mode.ActionType == ActionType.Main &&
                 !TryGetEnemyBattleNativeAttackKind(mode, out _)) && !hasWeapon)
         {
             candidates.Add(EnemyBattleAffix.PressingAttack);
@@ -1381,7 +1402,7 @@ internal static partial class CombatAiContext
             candidates.Add(EnemyBattleAffix.DrivingShove);
         }
 
-        var naturalMelee = monster.AttackModes.Any(mode => mode.ActionType == ActionType.Main && !mode.Ranged &&
+        var naturalMelee = facts.AttackModes.Any(mode => mode.ActionType == ActionType.Main && !mode.Ranged &&
             !IsEnemyBattleWeaponAttack(mode));
         var family = profile.Family;
         void AddIdentity(EnemyBattleAffix kind, bool eligible)
@@ -1423,7 +1444,7 @@ internal static partial class CombatAiContext
             !HasEnemyBattleAttackAdvantage(features, effects, Side.Ally));
         AddIdentity(EnemyBattleAffix.PredatoryLunge, naturalMelee && !caster && !ethereal && cr >= 3 &&
             family is CombatAiFamily.Beast or CombatAiFamily.Monstrosity or CombatAiFamily.Fiend or CombatAiFamily.Undead &&
-            !monster.AttackModes.Any(mode => mode.ActionType == ActionType.Bonus && !TryGetEnemyBattleNativeAttackKind(mode, out _)) &&
+            !facts.AttackModes.Any(mode => mode.ActionType == ActionType.Bonus) &&
             !features.OfType<FeatureDefinitionAdditionalAction>().Any() &&
             !features.OfType<FeatureDefinitionActionAffinity>().Any(affinity => affinity.AuthorizedActions.Contains(Id.AttackOff)));
         AddIdentity(EnemyBattleAffix.FeyVeil, !nativeInvisible && cr >= 3 &&
@@ -1509,7 +1530,7 @@ internal static partial class CombatAiContext
                  GetEnemyBattleAddedConditionFeatures(effect).OfType<FeatureDefinitionSavingThrowAffinity>().Any())));
         AddIdentity(EnemyBattleAffix.CrushingBlow, !caster &&
             monster.TryGetAttributeValue(AttributeDefinitions.Strength) >= 16 && !nativeProne &&
-            monster.AttackModes.Any(IsEnemyBattleCrushingAttack) &&
+            facts.AttackModes.Any(IsEnemyBattleCrushingAttack) &&
             GetEnemyBattleCapabilityDamageDiceNumber(monster, EnemyBattleAffix.CrushingBlow) > 0 &&
             !HasEnemyBattleNativeBonusMeleeSmite(monster));
         AddIdentity(EnemyBattleAffix.LastingSurge, IsEnemyBattleLastingSurgeCompatible(monster));
@@ -1546,7 +1567,8 @@ internal static partial class CombatAiContext
         // A support grant needs a body that can benefit, even when the source fights alone.
         return ((_enemyTacticsBattle ?? Gui.Battle)?.EnemyContenders ?? []).Concat(new[] { source }).Distinct().Any(target =>
             target?.RulesetCharacter is { IsDeadOrDying: false, IsRemovedFromTheGame: false } &&
-            target.Side == source.Side && (!(effect.TargetExcludeCaster || requiresAlly) || target != source) &&
+            PlayerControllerContext.GetBattleSide(target) == PlayerControllerContext.GetBattleSide(source) &&
+            (!(effect.TargetExcludeCaster || requiresAlly) || target != source) &&
             IsEnemyBattleSupportBodyEligible(source, kind, target));
     }
 
@@ -1864,14 +1886,17 @@ internal static partial class CombatAiContext
             EnemyBattleAffix.FeyVeil => family == CombatAiFamily.Fey ||
                 family == CombatAiFamily.Undead && ethereal && facts.HasDamage(DamageTypeNecrotic),
             EnemyBattleAffix.ThoughtLock or EnemyBattleAffix.PsychicBacklash => family == CombatAiFamily.Aberration &&
-                (actor.TryGetAttributeValue(AttributeDefinitions.Intelligence) >= 12 || facts.HasDamage(DamageTypePsychic)),
+                facts.HasMentalInfluence,
+            EnemyBattleAffix.UnsettlingCry => facts.HasMentalInfluence,
+            EnemyBattleAffix.ArcaneRetort => HasSpellcasting(actor) || facts.HasDamage(DamageTypeForce),
             EnemyBattleAffix.ConstructBrace => family == CombatAiFamily.Construct,
             EnemyBattleAffix.PrimordialRepulsion => family == CombatAiFamily.Elemental && flight,
             EnemyBattleAffix.PurifyingTouch => family == CombatAiFamily.Celestial,
             EnemyBattleAffix.StoneTremor => !flight && actor.TryGetAttributeValue(AttributeDefinitions.Strength) >= 18 &&
                 monster.SizeDefinition.WieldingSize >= GetDefinition<CharacterSizeDefinition>("Large").WieldingSize &&
                 family is CombatAiFamily.Giant or CombatAiFamily.Construct or CombatAiFamily.Elemental,
-            EnemyBattleAffix.ThunderousRoar => naturalMelee && !ethereal && !HasSpellcasting(actor) && GetEnemyBattleDamageDiceNumber(actor) > 0,
+            EnemyBattleAffix.ThunderousRoar => naturalMelee && !ethereal && !HasSpellcasting(actor) &&
+                facts.HasDamage(DamageTypeThunder) && GetEnemyBattleDamageDiceNumber(actor) > 0,
             EnemyBattleAffix.ForcePulse => GetEnemyBattleDamageDiceNumber(actor) > 0 &&
                 (facts.HasDamage(DamageTypeForce) || HasSpellcasting(actor) &&
                     actor.TryGetAttributeValue(AttributeDefinitions.Intelligence) >= 8 &&
@@ -1887,6 +1912,7 @@ internal static partial class CombatAiContext
             power.Name.IndexOf("LegendaryResistance", StringComparison.OrdinalIgnoreCase) >= 0);
 
     private static bool IsEnemyBattleLastingSurgeCompatible(RulesetCharacterMonster actor) =>
+        HasSpellcasting(actor) && HasEnemyBattleSpellLevel(actor, 3) &&
         actor.TryGetAttributeValue(AttributeDefinitions.Dexterity) >= 12 &&
         actor.AttackModes.Any(mode => mode.ActionType == ActionType.Main &&
             !TryGetEnemyBattleNativeAttackKind(mode, out _) && mode.EffectDescription.HasDamageForm()) &&
@@ -2244,17 +2270,21 @@ internal static partial class CombatAiContext
             repertoire.ExtraSpellsByTag.Values.Any(list => list.Contains(spell)));
     }
 
-    private static CombatAiProfile BuildEnemyBattleProfile(GameLocationCharacter character)
+    private static CombatAiProfile BuildEnemyBattleProfile(GameLocationCharacter character) =>
+        BuildEnemyBattleProfileFromFacts(character, new EnemyBattleNativeFacts(character.RulesetCharacter));
+
+    private static CombatAiProfile BuildEnemyBattleProfileFromFacts(GameLocationCharacter character,
+        EnemyBattleNativeFacts facts)
     {
         var actor = character.RulesetCharacter;
         var family = GetFamily(actor);
-        var ranged = HasRangedAttackModes(character);
+        var ranged = facts.AttackModes.Any(IsRangedAttackMode);
         var spellcasting = HasSpellcasting(actor);
         var temperament = actor is RulesetCharacterMonster monster &&
                           monster.MonsterDefinition.Alignment?.StartsWith("Lawful", StringComparison.OrdinalIgnoreCase) == true
             ? CombatAiTemperament.Disciplined
             : GetTemperament(actor, family, independentOfAiSetting: true);
-        return new CombatAiProfile(GetRole(character, ranged, spellcasting), family,
+        return new CombatAiProfile(GetRole(character, ranged, spellcasting, facts.AttackModes), family,
             temperament,
             !actor.IsTouchingGround() || actor.MoveModes.ContainsKey((int)MoveMode.Fly), ranged, spellcasting);
     }

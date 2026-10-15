@@ -2,7 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using HarmonyLib;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -1063,6 +1065,27 @@ internal static partial class CombatAiContext
         internal int TurnStamp { get; } = turnStamp;
         internal IReadOnlyList<int3> Positions { get; } = positions;
         internal bool WalkOnly { get; } = walkOnly;
+        internal HashSet<int3> HazardPositions { get; set; }
+        internal int HazardRevision { get; set; }
+        private AiHazardSnapshot _checkedHazards;
+        private bool _hazardsCurrent;
+
+        internal bool HasCurrentHazards(GameLocationCharacter character)
+        {
+            if (HazardPositions == null || !ShouldAvoidAiHazards(character))
+            {
+                return true;
+            }
+
+            var snapshot = GetAiHazardSnapshot(character);
+            if (!ReferenceEquals(_checkedHazards, snapshot))
+            {
+                _checkedHazards = snapshot;
+                _hazardsCurrent = HazardRevision == GetAiHazardRevision(character, HazardPositions);
+            }
+
+            return _hazardsCurrent;
+        }
 
         internal bool Matches(int3 start, int remaining, int round, int turnStamp, bool walkOnly)
         {
@@ -2097,6 +2120,7 @@ internal static partial class CombatAiContext
         PendingContactRouteQueries.Remove(character);
         InvalidateRuntimeCaches(CacheScope.Planning, character.Guid);
         ClearReachableRouteDestinationCache(character);
+        ClearAiHazardCache(character);
     }
 
     internal static void ClearBattleMemory(GameLocationCharacter character)
@@ -2180,6 +2204,7 @@ internal static partial class CombatAiContext
             cache.Clear();
         }
         FreeJumpContext.ClearPendingAiFreeJumpCompletions();
+        ClearAiHazardCache();
         ObservedCombatMemoryTurnStamp = 0;
     }
 
@@ -2890,8 +2915,18 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        // The vanilla AI owns ordinary movement. Combat AI may validate or reject only a
-        // movement action it explicitly submitted and still owns in the live move cache.
+        // Hazard protection also covers vanilla tactical moves selected after an AI
+        // fallback. Other positioning guards still require an explicitly owned move.
+        if (IsAiHazardMove(action))
+        {
+            ClearAiHazardCache(character);
+            if (!IsSafeAiHazardDestination(character, target))
+            {
+                RecordAiMoveFailure(character, start, target);
+                return true;
+            }
+        }
+
         if (!ActionLinkedMoveCache.ContainsKey(character.Guid))
         {
             return false;
@@ -6027,6 +6062,12 @@ internal static partial class CombatAiContext
             yield break;
         }
 
+        yield return EscapeAiHazardBeforeCombatActions(character, battleService);
+        if (!IsActiveBattleContender(character))
+        {
+            yield break;
+        }
+
         var profile = BuildProfile(character);
         var turnPlan = BuildCombatAiTurnPlan(character, profile, battleService);
 
@@ -6143,6 +6184,177 @@ internal static partial class CombatAiContext
             {
                 yield break;
             }
+        }
+    }
+
+    private static bool CanPlanAiHazardEscape(GameLocationCharacter character)
+    {
+        return ShouldAvoidAiHazards(character) && CanIssueAutomaticTurnAction(character) &&
+               character.CanDecideToMoveByItself &&
+               character.GetActionStatus(Id.TacticalMove, ActionScope.Battle, ignoreMovePoints: true) ==
+               ActionStatus.Available && !IsSafeAiHazardDestination(character, character.LocationPosition);
+    }
+
+    private static IEnumerator EscapeAiHazardBeforeCombatActions(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService)
+    {
+        ClearAiHazardCache(character);
+        if (battleService == null || !CanPlanAiHazardEscape(character))
+        {
+            yield break;
+        }
+
+        var escape = new RouteMoveResult();
+        yield return FindAiHazardEscapeDestination(character, battleService, character.RemainingTacticalMoves, escape);
+        if (!CanPlanAiHazardEscape(character))
+        {
+            yield break;
+        }
+
+        if (escape.Destination == escape.Start)
+        {
+            var dash = GetAiHazardEscapeDash(character);
+            if (dash == Id.NoAction ||
+                ServiceRepository.GetService<IGameLocationActionService>() is not { } actionService)
+            {
+                yield break;
+            }
+
+            // Prove that another speed allotment reaches safety before spending an
+            // action. BaseOnly excludes existing Dash additions from this prediction.
+            var remaining = character.RemainingTacticalMoves;
+            var dashBudget = remaining + Math.Max(0, character.RulesetCharacter.ComputeTacticalMoves(true));
+            if (dashBudget <= remaining)
+            {
+                yield break;
+            }
+
+            yield return FindAiHazardEscapeDestination(character, battleService, dashBudget, escape);
+            if (escape.Destination == escape.Start || !CanPlanAiHazardEscape(character) ||
+                GetAiHazardEscapeDash(character) != dash)
+            {
+                yield break;
+            }
+
+            actionService.ExecuteAction(new CharacterActionParams(character, dash), null, true);
+            yield return WaitForCombatAiProcessAction(character);
+            if (!CanPlanAiHazardEscape(character) || character.RemainingTacticalMoves <= remaining)
+            {
+                yield break;
+            }
+
+            // Conditions and reactions can alter the real speed or the zone while
+            // Dash resolves. Select again using the resulting native movement budget.
+            yield return FindAiHazardEscapeDestination(character, battleService, character.RemainingTacticalMoves, escape);
+        }
+
+        if (escape.Destination == escape.Start || !CanPlanAiHazardEscape(character) ||
+            !TryValidateAiTacticalMoveIssue(character, escape.Destination, requireCanDecide: true))
+        {
+            yield break;
+        }
+
+        FreeJumpContext.SuppressAiFreeJumpForNextMove(character, escape.Destination);
+        if (!character.MyExecuteActionTacticalMove(escape.Destination, null, null))
+        {
+            yield break;
+        }
+
+        yield return WaitForCombatAiProcessAction(character);
+        InvalidateTurnPlanningCache(character);
+    }
+
+    private static Id GetAiHazardEscapeDash(GameLocationCharacter character)
+    {
+        if (!HasCommittedBonusActionThisTurn(character) &&
+            character.GetActionStatus(Id.DashBonus, ActionScope.Battle) == ActionStatus.Available)
+        {
+            return Id.DashBonus;
+        }
+
+        return character.GetActionStatus(Id.DashMain, ActionScope.Battle) == ActionStatus.Available
+            ? Id.DashMain
+            : Id.NoAction;
+    }
+
+    private static IEnumerator FindAiHazardEscapeDestination(
+        GameLocationCharacter character,
+        IGameLocationBattleService battleService,
+        int movementBudget,
+        RouteMoveResult result)
+    {
+        var start = character.LocationPosition;
+        result.Start = result.Destination = start;
+        var remaining = character.RemainingTacticalMoves;
+        var round = GetCurrentBattleRound();
+        var stamp = Math.Max(1, ObservedCombatMemoryTurnStamp);
+        var battle = Gui.Battle;
+        var revision = GetAiHazardRevision(character);
+
+        bool IsCurrent() => ReferenceEquals(Gui.Battle, battle) && CanPlanAiHazardEscape(character) &&
+                            IsRoutePlanningStateCurrent(character, start, remaining, round, stamp) &&
+                            revision == GetAiHazardRevision(character);
+
+        // Survival does not require an attack target or a pursuit-progress score,
+        // and must not be starved by earlier ordinary route-query limits.
+        yield return ComputeReachableRouteDestinations(character, start, movementBudget,
+            ignoreTurnPathfindingLimit: true, validateTurn: true, queryIsCurrent: IsCurrent);
+        if (!IsCurrent() || !TryGetCachedReachableRouteDestinations(character, start, movementBudget, false, out var routes))
+        {
+            yield break;
+        }
+
+        var enemies = GetKnownEnemyTargets(character, sortByPriority: false);
+        var bestRisk = true;
+        var bestConnected = false;
+        var bestCost = int.MaxValue;
+        var bestDistance = float.MaxValue;
+        AiWorkBudget.Resume();
+        foreach (var destination in routes.Positions.OrderBy(position => position.x)
+                     .ThenBy(position => position.y).ThenBy(position => position.z))
+        {
+            if (AiWorkBudget.ShouldYield())
+            {
+                yield return null;
+                if (!IsCurrent())
+                {
+                    result.Destination = start;
+                    yield break;
+                }
+                AiWorkBudget.Resume();
+            }
+
+            if (IsFailedAiMoveTarget(character, start, destination) ||
+                !IsLegalAiRouteDestination(character, destination) ||
+                !routes.TryGetPath(destination, out _))
+            {
+                continue;
+            }
+
+            var risk = HasOpportunityAttackRisk(character, start, destination, battleService);
+            var connected = enemies.Any(enemy => CanAttackInMeleeFromPosition(
+                                  character, destination, enemy, enemy.LocationPosition, battleService) ||
+                              TryGetRangedAttackModifierFromPosition(character, destination, enemy,
+                                  enemy.LocationPosition, battleService, out _) ||
+                              TryGetAtWillSpellAttackModifierFromPosition(character, destination, enemy,
+                                  enemy.LocationPosition, battleService, out _));
+            var cost = routes.GetMoveCost(destination);
+            var distance = enemies.Length == 0 ? 0f : enemies.Min(enemy => ComputeGridDistance(destination, enemy.LocationPosition));
+            if (result.Destination != start && (risk && !bestRisk || risk == bestRisk &&
+                    (!connected && bestConnected || connected == bestConnected &&
+                        (cost > bestCost || cost == bestCost && distance >= bestDistance))))
+            {
+                continue;
+            }
+
+            // Keep a useful attack when safety permits. Opportunity exposure is a
+            // preference, not a veto that strands a creature in recurring damage.
+            result.Destination = destination;
+            bestRisk = risk;
+            bestConnected = connected;
+            bestCost = cost;
+            bestDistance = distance;
         }
     }
 
@@ -6364,6 +6576,12 @@ internal static partial class CombatAiContext
         var battleService = ServiceRepository.GetService<IGameLocationBattleService>();
 
         if (battleService == null)
+        {
+            yield break;
+        }
+
+        yield return EscapeAiHazardBeforeCombatActions(character, battleService);
+        if (!IsActiveBattleContender(character))
         {
             yield break;
         }
@@ -10651,8 +10869,10 @@ internal static partial class CombatAiContext
             yield break;
         }
 
+        ClearAiHazardCache(character);
+
         if (ReachableRouteDestinationCache.TryGetValue(cacheKey, out var cached) &&
-            cached.Matches(start, remainingMove, round, turnStamp, walkOnly))
+            cached.Matches(start, remainingMove, round, turnStamp, walkOnly) && cached.HasCurrentHazards(character))
         {
             yield break;
         }
@@ -10740,6 +10960,8 @@ internal static partial class CombatAiContext
                 groundOnly,
                 routeSnapshot.Parents,
                 routeSnapshot.Costs);
+            memory.HazardPositions = routeSnapshot.HazardPositions;
+            memory.HazardRevision = GetAiHazardRevision(character, memory.HazardPositions);
             var key = new ReachableRouteCacheKey(character.Guid, start, remainingMove, round, turnStamp, groundOnly);
             ReachableRouteDestinationCache[key] = memory;
 
@@ -10777,7 +10999,8 @@ internal static partial class CombatAiContext
             walkOnly);
 
         return ReachableRouteDestinationCache.TryGetValue(cacheKey, out reachableDestinations) &&
-               reachableDestinations.Matches(start, remainingMove, round, turnStamp, walkOnly);
+               reachableDestinations.Matches(start, remainingMove, round, turnStamp, walkOnly) &&
+               reachableDestinations.HasCurrentHazards(character);
     }
 
     private static void ClearReachableRouteDestinationCache(GameLocationCharacter character)
@@ -12390,6 +12613,11 @@ internal static partial class CombatAiContext
 
         var positioningService = ServiceRepository.GetService<IGameLocationPositioningService>();
 
+        if (!IsSafeAiHazardDestination(actor, destination))
+        {
+            return false;
+        }
+
         if (positioningService == null ||
             positioningService.CanPlaceCharacter(actor, destination, CellHelpers.PlacementMode.Station) ||
             (allowNonOccupyingCombatProxy &&
@@ -12400,6 +12628,282 @@ internal static partial class CombatAiContext
 
         return false;
     }
+
+    private static ConditionalWeakTable<GameLocationCharacter, AiHazardSnapshot> AiHazardSnapshots = new();
+    private static readonly FieldInfo AiTopologyTrackers =
+        AccessTools.Field(typeof(GameLocationEnvironmentManager), "topologyTrackersByEffect");
+    private static readonly Type AiTopologyTrackerType =
+        typeof(GameLocationEnvironmentManager).GetNestedType("TopologyChangeTracker", BindingFlags.NonPublic);
+    private static readonly FieldInfo AiTopologyCoveredCells = AccessTools.Field(AiTopologyTrackerType, "currentCoveredCells");
+    private static readonly FieldInfo AiTopologyTrackerRemoved = AccessTools.Field(AiTopologyTrackerType, "remove");
+    private static readonly FieldInfo AiTopologyTrackerReady = AccessTools.Field(AiTopologyTrackerType, "coveredCellsUpToDate");
+
+    private sealed class AiHazardSource(HashSet<int3> covered, bool harmless)
+    {
+        internal HashSet<int3> Covered { get; } = covered;
+        internal bool Harmless { get; } = harmless;
+    }
+
+    private sealed class AiHazardSnapshot(GameLocationCharacter actor, IGameLocationPositioningService positioning)
+    {
+        internal int Frame { get; } = Time.frameCount;
+        internal IGameLocationPositioningService Positioning { get; } = positioning;
+        internal IGameLocationEnvironmentService Environment { get; } = ServiceRepository.GetService<IGameLocationEnvironmentService>();
+        internal int EffectCount { get; } = ServiceRepository.GetService<IGameLocationEnvironmentService>()?.GlobalActiveEffects?.Count ?? 0;
+        internal List<AiHazardSource> Sources { get; } = [];
+        internal Dictionary<int3, bool> Dangerous { get; } = [];
+        internal int Revision { get; set; }
+        internal bool HasUnresolvedSource { get; set; }
+
+        internal bool Overlaps(HashSet<int3> cells, int3 position)
+        {
+            var size = actor.SizeParameters;
+            for (var x = size.minExtent.x; x <= size.maxExtent.x; x++)
+            for (var y = size.minExtent.y; y <= size.maxExtent.y; y++)
+            for (var z = size.minExtent.z; z <= size.maxExtent.z; z++)
+            {
+                if (cells.Contains(position + new int3(x, y, z)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        internal bool IsDangerous(int3 position)
+        {
+            if (Dangerous.TryGetValue(position, out var cached))
+            {
+                return cached;
+            }
+
+            if (Positioning?.IsDangerousPosition(actor, position) != true)
+            {
+                Dangerous[position] = false;
+                return false;
+            }
+
+            var dangerous = HasUnresolvedSource;
+            var foundDangerCell = false;
+            var accessor = new GridAccessor(position);
+            var size = actor.SizeParameters;
+            for (var x = size.minExtent.x; x <= size.maxExtent.x && !dangerous; x++)
+            for (var y = size.minExtent.y; y <= size.maxExtent.y && !dangerous; y++)
+            for (var z = size.minExtent.z; z <= size.maxExtent.z && !dangerous; z++)
+            {
+                var cell = position + new int3(x, y, z);
+                if ((accessor.RuntimeFlags(cell) & CellFlags.Runtime.DynamicDanger) == 0)
+                {
+                    continue;
+                }
+
+                foundDangerCell = true;
+                var known = false;
+                foreach (var source in Sources)
+                {
+                    if (!source.Covered.Contains(cell))
+                    {
+                        continue;
+                    }
+                    known = true;
+                    dangerous |= !source.Harmless;
+                }
+                dangerous |= !known;
+            }
+
+            dangerous |= !foundDangerCell;
+            Dangerous[position] = dangerous;
+            return dangerous;
+        }
+    }
+
+    internal static void ClearAiHazardCache(GameLocationCharacter actor = null)
+    {
+        if (actor == null)
+        {
+            AiHazardSnapshots = new ConditionalWeakTable<GameLocationCharacter, AiHazardSnapshot>();
+        }
+        else
+        {
+            AiHazardSnapshots.Remove(actor);
+        }
+    }
+
+    private static bool IsHarmlessAiHazard(RulesetCharacter actor, RulesetEffect effect)
+    {
+        var forms = effect.EffectDescription.EffectForms;
+        var damage = forms.Where(form => form.FormType == EffectForm.EffectFormType.Damage).ToArray();
+        // Unknown effects and harmful conditions remain dangerous. Only proven,
+        // unconditional immunity to every damage component makes a zone harmless.
+        if (damage.Length == 0 || forms.Any(form =>
+                form.FormType is not (EffectForm.EffectFormType.Damage or EffectForm.EffectFormType.Topology or
+                    EffectForm.EffectFormType.Summon or EffectForm.EffectFormType.LightSource or EffectForm.EffectFormType.Condition) ||
+                form.FormType == EffectForm.EffectFormType.Summon && form.SummonForm.SummonType != SummonForm.Type.EffectProxy ||
+                form.FormType == EffectForm.EffectFormType.Condition &&
+                (form.ConditionForm.Operation != ConditionForm.ConditionOperation.Add ||
+                 form.ConditionForm.ConditionDefinition?.ConditionType != ConditionType.Beneficial)))
+        {
+            return false;
+        }
+
+        var affinities = actor.FeaturesByType<IDamageAffinityProvider>().ToArray();
+        return damage.All(form => affinities.Any(affinity => affinity.DamageType == form.DamageForm.DamageType &&
+            affinity.DamageAffinityType == DamageAffinityType.Immunity && affinity.SituationalContext == SituationalContext.None &&
+            !affinity.AncestryDefinesDamageType && !affinity.TagsIgnoringAffinity.Any(effect.SourceTags.Contains)));
+    }
+
+    private static AiHazardSnapshot GetAiHazardSnapshot(GameLocationCharacter actor)
+    {
+        var positioning = ServiceRepository.GetService<IGameLocationPositioningService>();
+        var environment = ServiceRepository.GetService<IGameLocationEnvironmentService>();
+        if (AiHazardSnapshots.TryGetValue(actor, out var existing) && existing.Frame == Time.frameCount &&
+            ReferenceEquals(existing.Positioning, positioning) && ReferenceEquals(existing.Environment, environment) &&
+            existing.EffectCount == (environment?.GlobalActiveEffects?.Count ?? 0))
+        {
+            return existing;
+        }
+
+        var snapshot = new AiHazardSnapshot(actor, positioning);
+        if (environment is GameLocationEnvironmentManager manager && AiTopologyTrackers?.GetValue(manager) is IDictionary trackers)
+        {
+            foreach (DictionaryEntry entry in trackers)
+            {
+                if (entry.Key is not RulesetEffect effect || AiTopologyTrackerRemoved?.GetValue(entry.Value) is true)
+                {
+                    continue;
+                }
+
+                if (!effect.EffectDescription.EffectForms.Any(form => form.FormType == EffectForm.EffectFormType.Topology &&
+                        form.TopologyForm.ChangeType == TopologyForm.Type.DangerousZone))
+                {
+                    continue;
+                }
+
+                if (AiTopologyTrackerReady?.GetValue(entry.Value) is not true ||
+                    AiTopologyCoveredCells?.GetValue(entry.Value) is not HashSet<int3> covered)
+                {
+                    snapshot.HasUnresolvedSource = true;
+                    continue;
+                }
+
+                // The native covered set includes the emissive side. Native OnEnter
+                // and turn recurrence use that same union; do not shrink it to the wall body.
+                var harmless = IsHarmlessAiHazard(actor.RulesetCharacter, effect);
+                snapshot.Sources.Add(new AiHazardSource(covered, harmless));
+                unchecked
+                {
+                    snapshot.Revision = snapshot.Revision * 397 ^ effect.Guid.GetHashCode() ^ covered.Count ^ harmless.GetHashCode();
+                    if (effect.EntityImplementation is GameLocationEffect location)
+                    {
+                        snapshot.Revision = snapshot.Revision * 397 ^ location.Position.GetHashCode() ^ location.Position2.GetHashCode();
+                    }
+                }
+            }
+        }
+
+        snapshot.Revision ^= snapshot.HasUnresolvedSource.GetHashCode();
+
+        AiHazardSnapshots.Remove(actor);
+        AiHazardSnapshots.Add(actor, snapshot);
+        return snapshot;
+    }
+
+    internal static int GetAiHazardRevision(GameLocationCharacter actor) => GetAiHazardSnapshot(actor).Revision;
+
+    private static int GetAiHazardRevision(GameLocationCharacter actor, IEnumerable<int3> positions)
+    {
+        var snapshot = GetAiHazardSnapshot(actor);
+        var revision = snapshot.Revision;
+        unchecked
+        {
+            // Include the bounded query frontier, including rejected danger cells.
+            // A new or removed unmapped hazard must invalidate cached reachability too.
+            foreach (var position in positions)
+            {
+                revision = revision * 397 ^ position.GetHashCode() ^ snapshot.IsDangerous(position).GetHashCode();
+            }
+        }
+
+        return revision;
+    }
+
+    internal static bool ShouldAvoidAiHazards(GameLocationCharacter actor) =>
+        IsAiControlledForCombat(actor) && CanExecuteAutomaticCombatAction(actor) &&
+        PlayerControllerContext.GetBattleSide(actor) == Side.Enemy;
+
+    internal static bool IsSafeAiHazardDestination(GameLocationCharacter actor, int3 position) =>
+        actor?.RulesetCharacter == null || !ShouldAvoidAiHazards(actor) || !GetAiHazardSnapshot(actor).IsDangerous(position);
+
+    internal static bool IsSafeAiHazardTraversal(GameLocationCharacter actor, int3 origin,
+        PathfindingNode from, PathfindingNode to)
+    {
+        if (actor?.RulesetCharacter == null || !ShouldAvoidAiHazards(actor) || to == null)
+        {
+            return true;
+        }
+
+        var snapshot = GetAiHazardSnapshot(actor);
+        if (!snapshot.IsDangerous(to.AbsolutePosition))
+        {
+            return true;
+        }
+
+        // A creature already in a zone must be able to leave it. Only a continuous
+        // initial hazardous prefix is permitted; crossing safety and re-entering is rejected.
+        if (origin != actor.LocationPosition || !snapshot.IsDangerous(origin) || from == null)
+        {
+            return false;
+        }
+
+        var visited = new HashSet<PathfindingNode>();
+        for (var current = from; current != null && visited.Add(current); current = current.Parent)
+        {
+            if (!snapshot.IsDangerous(current.AbsolutePosition))
+            {
+                return false;
+            }
+            if (current.AbsolutePosition == origin)
+            {
+                return IsSafeAiHazardStep(snapshot, origin, to.AbsolutePosition, true);
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSafeAiHazardStep(AiHazardSnapshot snapshot, int3 origin, int3 destination,
+        bool initialHazardousPrefix) =>
+        !snapshot.IsDangerous(destination) || initialHazardousPrefix &&
+        !snapshot.Sources.Any(source => !source.Harmless && snapshot.Overlaps(source.Covered, destination) &&
+            !snapshot.Overlaps(source.Covered, origin));
+
+    internal static bool IsSafeAiHazardPath(GameLocationCharacter actor, int3 origin,
+        IEnumerable<GameLocationCharacterDefinitions.PathStep> path)
+    {
+        if (actor?.RulesetCharacter == null || !ShouldAvoidAiHazards(actor) || path == null ||
+            origin != actor.LocationPosition)
+        {
+            return true;
+        }
+
+        var snapshot = GetAiHazardSnapshot(actor);
+        var initialHazardousPrefix = snapshot.IsDangerous(origin);
+        foreach (var step in path)
+        {
+            if (!IsSafeAiHazardStep(snapshot, origin, step.position, initialHazardousPrefix))
+            {
+                return false;
+            }
+
+            initialHazardousPrefix &= snapshot.IsDangerous(step.position);
+        }
+
+        return true;
+    }
+
+    internal static bool IsAiHazardMove(CharacterActionMove action) =>
+        action?.ActionId == Id.TacticalMove && ShouldAvoidAiHazards(action.ActingCharacter);
 
     private static bool IsBlockingCombatantAtPosition(GameLocationCharacter actor, int3 position)
     {
@@ -16878,7 +17382,8 @@ internal static partial class CombatAiContext
     private static CombatAiRole GetRole(
         GameLocationCharacter character,
         bool hasRangedBackup,
-        bool hasSpellcasting)
+        bool hasSpellcasting,
+        IEnumerable<RulesetAttackMode> attackModes = null)
     {
         var package = character.BehaviourPackage?.DecisionPackageDefinition;
 
@@ -16919,7 +17424,7 @@ internal static partial class CombatAiContext
 
         var meleeModes = 0;
 
-        foreach (var mode in character.RulesetCharacter.AttackModes)
+        foreach (var mode in attackModes ?? character.RulesetCharacter.AttackModes)
         {
             if (IsMeleeAttackModeForAi(mode))
             {

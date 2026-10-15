@@ -1201,6 +1201,132 @@ internal sealed partial class SimulacrumBehavior :
         // travel time was applied above.
     }
 
+    internal static Dictionary<RulesetInventorySlot, RulesetCharacter> CollectPartyFoodSlots(
+        IEnumerable<RulesetCharacterHero> heroes,
+        GameCampaignParty party = null)
+    {
+        var carriers = heroes.Where(hero => !hero.IsDead).Cast<RulesetCharacter>().Distinct().ToList();
+
+        party ??= ServiceRepository.GetService<IGameService>()?.Game?.GameCampaign?.Party;
+
+        var guests = party != null
+            ? party.GuestCharactersList.Select(character => character.RulesetCharacter)
+            : ServiceRepository.GetService<IGameLocationCharacterService>()?.GuestCharacters
+                  .Select(character => character.RulesetCharacter) ?? [];
+
+        foreach (var character in guests)
+        {
+            var duplicate = character as RulesetCharacterSimulacrum ??
+                            character?.OriginalFormCharacter as RulesetCharacterSimulacrum;
+
+            if (duplicate is { LifecycleState: SimulacrumLifecycleState.Ready, IsDead: false })
+            {
+                if (!carriers.Contains(duplicate))
+                {
+                    carriers.Add(duplicate);
+                }
+            }
+        }
+
+        var foodSlots = new Dictionary<RulesetInventorySlot, RulesetCharacter>();
+
+        foreach (var carrier in carriers)
+        {
+            if (carrier.CharacterInventory == null)
+            {
+                continue;
+            }
+
+            foreach (var slot in carrier.CharacterInventory.EnumerateAllSlots(true, false, false))
+            {
+                if (slot.EquipedItem?.ItemDefinition.IsFood == true)
+                {
+                    foodSlots[slot] = carrier;
+                }
+            }
+        }
+
+        return foodSlots;
+    }
+
+    internal static int CountPartyFood(
+        IEnumerable<RulesetCharacterHero> heroes,
+        GameCampaignParty party = null)
+    {
+        return CollectPartyFoodSlots(heroes, party).Keys.Sum(slot => slot.EquipedItem.StackCount);
+    }
+
+    internal static bool CheckPartyFoodAvailability(
+        IEnumerable<RulesetCharacterHero> heroes,
+        out int missingFood)
+    {
+        missingFood = 0;
+
+        if (ServiceRepository.GetService<IGameSettingsService>()?.NoFoodNeeded == true)
+        {
+            return true;
+        }
+
+        var partyHeroes = heroes.Distinct().ToArray();
+        var requiredFood = partyHeroes.Count(hero => !hero.IsDead && hero.ConsumesFoodDuringRest());
+
+        // Food exemptions change who eats, not which living companion can carry the supplies.
+        missingFood = Math.Max(0, requiredFood - CountPartyFood(partyHeroes));
+
+        return missingFood == 0;
+    }
+
+    internal static int ConsumePartyFood(
+        IEnumerable<RulesetCharacterHero> heroes,
+        IComparer<RulesetInventorySlot> comparer)
+    {
+        if (ServiceRepository.GetService<IGameSettingsService>()?.NoFoodNeeded == true)
+        {
+            return 0;
+        }
+
+        var partyHeroes = heroes.Distinct().ToArray();
+        var remainingFood = partyHeroes.Count(hero => !hero.IsDead && hero.ConsumesFoodDuringRest());
+        var foodSources = CollectPartyFoodSlots(partyHeroes);
+        var foodSlots = foodSources.Keys.ToList();
+
+        // Keep the native policy of consuming perishable rations first.
+        foodSlots.Sort(comparer);
+
+        var consumedFood = 0;
+
+        foreach (var slot in foodSlots)
+        {
+            if (remainingFood == 0)
+            {
+                break;
+            }
+
+            var item = slot.EquipedItem;
+            var consumedFromStack = Math.Min(remainingFood, item.StackCount);
+
+            if (consumedFromStack == item.StackCount)
+            {
+                slot.UnequipItem(true, false);
+            }
+            else
+            {
+                for (var count = 0; count < consumedFromStack; count++)
+                {
+                    item.SpendStack(1);
+                }
+            }
+
+            var carrier = foodSources[slot];
+
+            carrier.ItemLost?.Invoke(carrier, item);
+            remainingFood -= consumedFromStack;
+            consumedFood += consumedFromStack;
+        }
+
+        return consumedFood;
+    }
+
     private bool CaptureAndApply(
         RulesetCharacter owner,
         RulesetCharacter copiedCharacter,

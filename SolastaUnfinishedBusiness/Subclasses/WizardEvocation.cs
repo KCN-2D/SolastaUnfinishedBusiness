@@ -620,9 +620,10 @@ public sealed class WizardEvocation : AbstractSubclass
             RulesetActor defender,
             RulesetAttackMode attackMode,
             RulesetEffect rulesetEffect,
-            ActionModifier actionModifier)
+            ActionModifier actionModifier,
+            bool isPreview)
         {
-            if (attackMode == null)
+            if (isPreview || attackMode == null)
             {
                 return;
             }

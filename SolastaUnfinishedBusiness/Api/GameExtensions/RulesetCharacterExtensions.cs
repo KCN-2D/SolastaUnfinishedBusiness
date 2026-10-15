@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -17,9 +18,83 @@ namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
 internal static class RulesetCharacterExtensions
 {
+    private static readonly ConditionalWeakTable<ActionModifier, List<TrendInfo>> MagicEffectAttackAdvantageTrends = new();
+
     private static readonly Action<RulesetCharacter> RefreshUsableSpells =
         AccessTools.MethodDelegate<Action<RulesetCharacter>>(
             AccessTools.Method(typeof(RulesetCharacter), "EnumerateUsableSpells"));
+
+    internal static void ApplyMagicEffectAttackModifiers(
+        this RulesetCharacter attacker,
+        RulesetActor defender,
+        RulesetAttackMode attackMode,
+        RulesetEffect rulesetEffect,
+        ActionModifier actionModifier,
+        bool isPreview = false)
+    {
+        if (actionModifier == null)
+        {
+            return;
+        }
+
+        // A selected preview may outlive the condition that supplied its subfeature.
+        // Remove only trends added by this dispatch before resolving the current feature set.
+        if (MagicEffectAttackAdvantageTrends.TryGetValue(actionModifier, out var previousTrends))
+        {
+            foreach (var trend in previousTrends)
+            {
+                var index = actionModifier.AttackAdvantageTrends.LastIndexOf(trend);
+
+                if (index >= 0)
+                {
+                    actionModifier.AttackAdvantageTrends.RemoveAt(index);
+                }
+            }
+
+            MagicEffectAttackAdvantageTrends.Remove(actionModifier);
+        }
+
+        if (attacker == null)
+        {
+            return;
+        }
+
+        var modifiers = attacker.GetSubFeaturesByType<IModifyMagicEffectAttackModifier>();
+
+        if (modifiers.Count == 0)
+        {
+            return;
+        }
+
+        var existingTrends = new List<TrendInfo>(actionModifier.AttackAdvantageTrends);
+
+        foreach (var modifier in modifiers)
+        {
+            modifier.ModifyMagicEffectAttackModifier(
+                attacker, defender, attackMode, rulesetEffect, actionModifier, isPreview);
+        }
+
+        var addedTrends = actionModifier.AttackAdvantageTrends
+            .Where(trend => !existingTrends.Remove(trend)).ToList();
+
+        if (addedTrends.Count > 0)
+        {
+            MagicEffectAttackAdvantageTrends.Add(actionModifier, addedTrends);
+        }
+    }
+
+    internal static void CopyMagicEffectAttackModifiers(ActionModifier source, ActionModifier clone)
+    {
+        if (MagicEffectAttackAdvantageTrends.TryGetValue(source, out var trends))
+        {
+            MagicEffectAttackAdvantageTrends.Add(clone, new List<TrendInfo>(trends));
+        }
+    }
+
+    internal static void ClearMagicEffectAttackModifiers(ActionModifier actionModifier)
+    {
+        MagicEffectAttackAdvantageTrends.Remove(actionModifier);
+    }
 
     // Evaluate an existing roll without rolling dice, raising combat events or consuming conditions.
     internal static (RollOutcome Outcome, int Total, int SuccessDelta,

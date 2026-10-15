@@ -192,9 +192,23 @@ internal static class FunctorInventoryLootPatcher
 
             SimulacrumEquipmentPanel.SetExternalContainer(duplicate, __1);
 
-            foreach (var slot in __1.InventorySlots
-                         .Where(slot => slot?.EquipedItem != null)
-                         .ToArray())
+            var slots = __1.InventorySlots
+                .Where(slot => slot?.EquipedItem != null)
+                .ToArray();
+
+            if (slots.Length == 0)
+            {
+                duplicate.ItemOwnershipChanged?.Invoke(
+                    duplicate,
+                    null,
+                    0,
+                    false,
+                    EquipmentDefinitions.ItemReceiveFailureType.Empty);
+
+                return false;
+            }
+
+            foreach (var slot in slots)
             {
                 var item = slot.EquipedItem;
 

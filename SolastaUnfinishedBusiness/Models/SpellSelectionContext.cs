@@ -59,9 +59,38 @@ internal static class SpellSelectionContext
             }
         }
 
-        if (TryLocalizeSpellSourceTitle(spellTag, out title, out source) ||
-            TryFormatGrantedSpellSourceTitle(repertoire, out title, out source))
+        var sourceTag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(spellTag);
+        var owner = repertoire.GetCastingClass();
+        if (owner && TryLocalizeSpellSourceVariantTitle(sourceTag + owner.Name, out title, out source) ||
+            TryLocalizeSpellSourceVariantTitle(spellTag, out title, out source))
         {
+            return true;
+        }
+
+        var titleTerm = $"Screen/&{sourceTag}ExtraSpellTitle";
+        if (TryLocalizeSpellSourceTitleTerm(titleTerm, out title))
+        {
+            source = titleTerm;
+            if (owner)
+            {
+                title = Gui.Format("Feat/&GeneralFeat2024VariantTitle", title, owner.FormatTitle());
+            }
+
+            return true;
+        }
+
+        if (TryFormatGrantedSpellSourceTitle(repertoire, out title, out source))
+        {
+            return true;
+        }
+
+        if (TryLocalizeSpellSourceTitle(sourceTag, out title, out source))
+        {
+            if (owner)
+            {
+                title = Gui.Format("Feat/&GeneralFeat2024VariantTitle", title, owner.FormatTitle());
+            }
+
             return true;
         }
 
@@ -108,6 +137,11 @@ internal static class SpellSelectionContext
         var sourceTag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(spellTag);
         var candidates = EnumerateSpellSourceTitleTags(spellTag, selectionTag, sourceTag).ToArray();
 
+        if (TryLocalizeSpellSourceVariantTitle(spellTag, out title, out source))
+        {
+            return true;
+        }
+
         // A feat family owns its source name; a UI category is not a spell grant.
         // Native tags such as Origin can share a category's translation suffix.
         foreach (var candidate in candidates.Reverse())
@@ -146,6 +180,35 @@ internal static class SpellSelectionContext
                     return true;
                 }
             }
+        }
+
+        return false;
+    }
+
+    private static bool TryLocalizeSpellSourceVariantTitle(string spellTag, out string title, out string source)
+    {
+        title = null;
+        source = null;
+        if (string.IsNullOrEmpty(spellTag) || spellTag.IndexOf('|') >= 0)
+        {
+            return false;
+        }
+
+        var selectionTag = Tabletop2024Context.GetTabletop2024FeatSpellSelectionTag(spellTag);
+        var sourceTag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(spellTag);
+        // An acquisition variant is more precise than its family's group title.
+        // Spell/cantrip labels and per-level tags do not name an acquisition row.
+        foreach (var candidate in EnumerateSpellSourceTitleTags(spellTag, selectionTag, sourceTag)
+                     .Where(candidate => candidate != sourceTag))
+        {
+            var term = $"Screen/&{candidate}ExtraSpellTitle";
+            if (!TryLocalizeSpellSourceTitleTerm(term, out title))
+            {
+                continue;
+            }
+
+            source = term;
+            return true;
         }
 
         return false;

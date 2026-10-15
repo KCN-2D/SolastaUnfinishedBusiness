@@ -9,6 +9,7 @@ UI/&DistanceFormat=Расстояние: {0}
 UI/&Experimental Preview:=Экспериментальное превью <i><color=Yellow>[сделайте бэкап сохранений перед использованием]</color></i>:
 UI/&Expert=Компетентность
 UI/&From=От
+Modal/&TravelFromTitle=Отправление
 UI/&LootAllGoldTitle=Золото
 UI/&LootAllGoldTooltip=Забирает все золото из этого контейнера.
 UI/&LootAllIngredientsTitle=Ингредиенты

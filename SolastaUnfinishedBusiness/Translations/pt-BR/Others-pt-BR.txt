@@ -762,6 +762,7 @@ Screen/&SpellAdvancementOpenDescription=Escolha um espaço de magia de nível su
 Reaction/&CustomReactionTargetContextFormat=Alvo: {0}
 Reaction/&CustomReactionEffectContextFormat=Efeito: {0}
 Reaction/&CustomReactionCasterTitle=Personagem que age
+Reaction/&CustomReactionChoiceTitle=Escolha uma ação
 Reaction/&CustomReactionChooseCasterTitle=Escolha o personagem que age
 Feature/&EnemyBattleArcaneWardTitle=Égide Arcana
 Feature/&EnemyBattleArcaneWardDescription=Quando um ataque acerta você ou Mísseis Mágicos tem você como alvo, você pode conjurar Escudo como reação sem gastar um espaço de magia.

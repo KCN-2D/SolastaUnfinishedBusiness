@@ -9,6 +9,7 @@ UI/&DistanceFormat=距离: {0}
 UI/&Experimental Preview:=实验预览<i><color=Yellow>[使用前备份存档]</color></i>：
 UI/&Expert=专家
 UI/&From=从
+Modal/&TravelFromTitle=出发地
 UI/&LootAllGoldTitle=金子
 UI/&LootAllGoldTooltip=掠夺该容器中的所有黄金。
 UI/&LootAllIngredientsTitle=原料

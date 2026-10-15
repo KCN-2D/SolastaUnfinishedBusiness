@@ -762,6 +762,7 @@ Screen/&SpellAdvancementOpenDescription=Scegli uno slot incantesimo di livello s
 Reaction/&CustomReactionTargetContextFormat=Bersaglio: {0}
 Reaction/&CustomReactionEffectContextFormat=Effetto: {0}
 Reaction/&CustomReactionCasterTitle=Personaggio che agisce
+Reaction/&CustomReactionChoiceTitle=Scegli un'azione
 Reaction/&CustomReactionChooseCasterTitle=Scegli il personaggio che agisce
 Feature/&EnemyBattleArcaneWardTitle=Egida arcana
 Feature/&EnemyBattleArcaneWardDescription=Quando un attacco ti colpisce o sei bersaglio di Dardo incantato, puoi lanciare Scudo come reazione senza consumare uno slot incantesimo.

@@ -762,6 +762,7 @@ Screen/&SpellAdvancementOpenDescription=Wähle einen Zauberplatz höheren Grades
 Reaction/&CustomReactionTargetContextFormat=Ziel: {0}
 Reaction/&CustomReactionEffectContextFormat=Effekt: {0}
 Reaction/&CustomReactionCasterTitle=Handelnder Charakter
+Reaction/&CustomReactionChoiceTitle=Aktion wählen
 Reaction/&CustomReactionChooseCasterTitle=Handelnden Charakter wählen
 Feature/&EnemyBattleArcaneWardTitle=Arkaner Schutzmantel
 Feature/&EnemyBattleArcaneWardDescription=Trifft dich ein Angriff oder zielt Magisches Geschoss auf dich, kannst du als Reaktion Schild wirken, ohne einen Zauberplatz zu verbrauchen.

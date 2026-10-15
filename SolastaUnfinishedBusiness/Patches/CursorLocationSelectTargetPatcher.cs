@@ -79,7 +79,37 @@ public static class CursorLocationSelectTargetPatcher
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            return ReplaceSelectedActor(instructions, "CursorLocationSelectTarget.IsValidMagicAttack");
+            instructions = ReplaceSelectedActor(instructions, "CursorLocationSelectTarget.IsValidMagicAttack");
+
+            var canAttack = AccessTools.Method(typeof(IGameLocationBattleService),
+                nameof(IGameLocationBattleService.CanAttack));
+            var canAttackWithMagicModifiers = new Func<IGameLocationBattleService,
+                BattleDefinitions.AttackEvaluationParams, bool, CursorLocationSelectTarget, bool>(
+                CanAttackWithMagicModifiers).Method;
+
+            // Apply the same effect-aware modifiers before native cursor and tooltip trend evaluation.
+            return instructions.ReplaceCalls(canAttack, "CursorLocationSelectTarget.IsValidMagicAttack.CanAttack",
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Call, canAttackWithMagicModifiers));
+        }
+
+        private static bool CanAttackWithMagicModifiers(
+            IGameLocationBattleService battleService,
+            BattleDefinitions.AttackEvaluationParams attackParams,
+            bool canTargetDead,
+            CursorLocationSelectTarget cursor)
+        {
+            var valid = battleService.CanAttack(attackParams, canTargetDead);
+
+            if (valid)
+            {
+                // The command's precise effect retains class, item and recurring-spell provenance.
+                attackParams.attacker.RulesetCharacter.ApplyMagicEffectAttackModifiers(
+                    attackParams.defender.RulesetActor, attackParams.attackMode,
+                    cursor.ActionParams.RulesetEffect, attackParams.attackModifier, true);
+            }
+
+            return valid;
         }
 
         [UsedImplicitly]

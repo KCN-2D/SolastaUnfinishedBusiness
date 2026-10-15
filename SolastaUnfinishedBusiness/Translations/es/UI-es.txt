@@ -9,6 +9,7 @@ UI/&DistanceFormat=Distancia: {0}
 UI/&Experimental Preview:=Vista previa experimental <i><color=Yellow>[guardar copia de seguridad antes de usar]</color></i>:
 UI/&Expert=Experto
 UI/&From=De
+Modal/&TravelFromTitle=Salida
 UI/&LootAllGoldTitle=Oro
 UI/&LootAllGoldTooltip=Saquea todo el oro de este contenedor.
 UI/&LootAllIngredientsTitle=Ingredientes

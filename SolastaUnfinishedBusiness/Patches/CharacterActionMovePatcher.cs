@@ -69,7 +69,8 @@ public static class CharacterActionMovePatcher
                 yield break;
             }
 
-            var wrapped = FreeJumpContext.WithMovePathfindingScope(values, action);
+            var wrapped = AiPathfindingRouteContext.WithMovePathfindingScope(
+                FreeJumpContext.WithMovePathfindingScope(values, action), action);
 
             var completed = false;
 

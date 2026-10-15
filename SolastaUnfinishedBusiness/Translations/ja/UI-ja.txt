@@ -7,6 +7,7 @@ UI/&DistanceFormat=距離：{0}
 UI/&Experimental Preview:=実験的プレビュー<i><color=Yellow>（使用前にセーブデータをバックアップ）</color></i>：
 UI/&Expert=習熟強化
 UI/&From=から
+Modal/&TravelFromTitle=出発地
 UI/&PartyEditor=パーティエディター
 UI/&PartyEditorMessage=このシンプルなパーティエディターでは、読み込んだゲームセッションのキャラクターを編集できます。問題を報告するには、次をクリックしてください。
 UI/&PartyEditorUnavailable=****** パーティエディターは使用できません。セーブデータを読み込んでください ******

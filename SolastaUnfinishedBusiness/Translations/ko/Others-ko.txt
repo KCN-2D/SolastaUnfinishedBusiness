@@ -762,6 +762,7 @@ Screen/&SpellAdvancementOpenDescription=이 주문을 시전할 더 높은 레�
 Reaction/&CustomReactionTargetContextFormat=대상: {0}
 Reaction/&CustomReactionEffectContextFormat=효과: {0}
 Reaction/&CustomReactionCasterTitle=행동하는 캐릭터
+Reaction/&CustomReactionChoiceTitle=행동 선택
 Reaction/&CustomReactionChooseCasterTitle=행동할 캐릭터 선택
 Feature/&EnemyBattleArcaneWardTitle=비전의 수호
 Feature/&EnemyBattleArcaneWardDescription=공격이 자신에게 적중하거나 마법 유도탄의 대상이 되었을 때, 반응 행동으로 주문 슬롯을 소비하지 않고 방패를 시전할 수 있습니다.

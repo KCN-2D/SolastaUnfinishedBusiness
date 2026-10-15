@@ -2653,23 +2653,9 @@ internal static class CampaignsContext
             return option.SourceTitle;
         }
 
-        var tag = repertoire.SpellCastingFeature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.Name;
-        if (!string.IsNullOrEmpty(tag))
+        if (SpellSelectionContext.TryFormatSpellTagSourceTitle(repertoire, false, out var title, out _))
         {
-            var sourceTag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(tag);
-            var owner = repertoire.GetCastingClass();
-            if (owner && SpellSelectionContext.TryLocalizeSpellSourceTitle(
-                    sourceTag + owner.Name, out var variantTitle, out _))
-            {
-                return variantTitle;
-            }
-
-            if (SpellSelectionContext.TryLocalizeSpellSourceTitle(sourceTag, out var title, out _))
-            {
-                return owner
-                    ? Gui.Format("Feat/&GeneralFeat2024VariantTitle", title, owner.FormatTitle())
-                    : title;
-            }
+            return title;
         }
 
         return repertoire.FormatHeader();

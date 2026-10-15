@@ -24,6 +24,13 @@ internal static class DungeonMakerContext
     private const string ModdedSuffix = "~MOD";
     internal static readonly HashSet<string> OutdoorRooms = new(StringComparer.Ordinal);
     private static readonly ConditionalWeakTable<UserCampaignPoolManager, CampaignFileCache> CampaignFiles = new();
+    private static readonly ConditionalWeakTable<MonsterDefinition, MonsterDefinition> UserMonsterReferences = new();
+
+    internal static void RegisterUserMonsterDefinition(MonsterDefinition definition, MonsterDefinition reference) =>
+        UserMonsterReferences.Add(definition, reference);
+
+    internal static MonsterDefinition GetUserMonsterReference(MonsterDefinition definition) =>
+        definition != null && UserMonsterReferences.TryGetValue(definition, out var reference) ? reference : null;
 
     // The native pool rebuilds whenever a Session exists. Keep its registration and
     // saved-campaign supplementation, while reusing unchanged disk content it owns.

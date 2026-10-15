@@ -13,10 +13,7 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GuiLabelPatcher
 {
-    private const float ConstrainedLabelMinFontScale = 0.58f;
-    private const float ConstrainedLabelAbsoluteMinFontSize = 7f;
     private const string GameMenuTitleTerm = "Screen/&GameMenuTitle";
-    private const float WidthTolerance = 0.5f;
 
     [HarmonyPatch(typeof(CharacterLabel), nameof(CharacterLabel.DoUpdate))]
     [UsedImplicitly]
@@ -127,6 +124,7 @@ public static class GuiLabelPatcher
             FitSelectionSlotTitle(__instance);
 
             FitCharacterEditionCaption(__instance);
+            FitCompactButtonCaption(__instance);
 
             if (__instance.GetComponentInParent<JoinGameSubpanel>() is { } joinGame)
             {
@@ -180,6 +178,7 @@ public static class GuiLabelPatcher
             {
                 FitSelectionSlotTitle(label);
                 FitCharacterEditionCaption(label);
+                FitCompactButtonCaption(label);
             }
         }
     }
@@ -208,6 +207,20 @@ public static class GuiLabelPatcher
         UiTextHelpers.FitCharacterStageToggleCaption(label);
     }
 
+    private static void FitCompactButtonCaption(GuiLabel label)
+    {
+        AttunementModalPatcher.FitButtonCaption(label);
+
+        if (label.Text == GameMenuTitleTerm &&
+            UiTextHelpers.FindAncestorComponent<Button>(label) is { } button &&
+            (UiTextHelpers.FindAncestorComponent<GameCampaignScreen>(label) ||
+             UiTextHelpers.FindAncestorComponent<GameLocationBaseScreen>(label) ||
+             UiTextHelpers.FindAncestorComponent<TimeAndNavigationPanel>(label)))
+        {
+            UiTextHelpers.FitButtonCaption(button, label.TMP_Text);
+        }
+    }
+
     [HarmonyPatch(typeof(GuiButtonSetup), "RefreshHorizontalLayout")]
     [UsedImplicitly]
     public static class RefreshHorizontalLayout_Patch
@@ -216,6 +229,10 @@ public static class GuiLabelPatcher
         public static void Postfix(GuiButtonSetup __instance)
         {
             UiTextHelpers.FitCharacterEditionButton(__instance);
+            if (__instance.basicLabel)
+            {
+                FitCompactButtonCaption(__instance.basicLabel);
+            }
         }
     }
 
@@ -506,6 +523,30 @@ public static class GuiLabelPatcher
         }
     }
 
+    [HarmonyPatch(typeof(GameCampaignScreen), nameof(GameCampaignScreen.OnBeginShow))]
+    [UsedImplicitly]
+    public static class GameCampaignScreenOnBeginShow_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GameCampaignScreen __instance)
+        {
+            RefreshGameMenuLayout(__instance,
+                Gui.GamepadActive ? __instance.gameMenuButtonGamepad : __instance.gameMenuButton, true);
+        }
+    }
+
+    [HarmonyPatch(typeof(GameCampaignScreen), nameof(GameCampaignScreen.HandleInputControlSchemeChangedForShow))]
+    [UsedImplicitly]
+    public static class GameCampaignScreenHandleInputControlSchemeChangedForShow_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GameCampaignScreen __instance)
+        {
+            RefreshGameMenuLayout(__instance,
+                Gui.GamepadActive ? __instance.gameMenuButtonGamepad : __instance.gameMenuButton, true);
+        }
+    }
+
     private static void RefreshGameMenuLayout(
         Component owner,
         Button menuButton,
@@ -571,97 +612,7 @@ public static class GuiLabelPatcher
         Button menuButton,
         TMP_Text label)
     {
-        if (!menuButton)
-        {
-            return;
-        }
-
-        if (label)
-        {
-            // One of the two control-scheme-specific buttons can still be inactive
-            // during OnBeginShow. Establish the fixed one-line contract independently
-            // of the shared fitter, which intentionally skips inactive text.
-            label.enableWordWrapping = false;
-            label.maxVisibleLines = 1;
-            label.autoSizeTextContainer = false;
-
-            if (menuButton.transform is RectTransform buttonRect &&
-                label.rectTransform is { } labelRect)
-            {
-                // The prefab uses the localized text's preferred width while active. Merely
-                // assigning sizeDelta in LateUpdate is undone again by the layout pass before
-                // rendering. Give this fixed-size button ownership of the horizontal layout.
-                if (label.GetComponent<ContentSizeFitter>() is { } fitter)
-                {
-                    fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-                }
-
-                var buttonWidth = GetWidthInParentSpace(buttonRect, labelRect.parent);
-
-                if (labelRect.parent == buttonRect)
-                {
-                    var layoutElement = label.GetComponent<LayoutElement>() ??
-                                        label.gameObject.AddComponent<LayoutElement>();
-
-                    layoutElement.ignoreLayout = true;
-                    // HandleBindGamepad runs before the first Canvas layout. Once the
-                    // label is excluded from the parent HorizontalLayoutGroup, establish
-                    // both axes explicitly instead of inheriting a zero-height serialized
-                    // RectTransform.
-                    labelRect.anchorMin = Vector2.zero;
-                    labelRect.anchorMax = Vector2.one;
-                    labelRect.offsetMin = Vector2.zero;
-                    labelRect.offsetMax = Vector2.zero;
-                }
-                else if (buttonWidth > 0f &&
-                         Mathf.Abs(labelRect.rect.width - buttonWidth) > WidthTolerance)
-                {
-                    labelRect.SetSizeWithCurrentAnchors(
-                        RectTransform.Axis.Horizontal,
-                        buttonWidth);
-                }
-            }
-
-            var margin = label.margin;
-
-            if (!Mathf.Approximately(margin.x, 0f) ||
-                !Mathf.Approximately(margin.z, 0f))
-            {
-                label.margin = new Vector4(0f, margin.y, 0f, margin.w);
-            }
-
-            UiTextHelpers.FitConstrainedSingleLine(
-                label,
-                ConstrainedLabelMinFontScale,
-                ConstrainedLabelAbsoluteMinFontSize);
-        }
-    }
-
-    private static float GetWidthInParentSpace(
-        RectTransform rectTransform,
-        Transform targetParent)
-    {
-        if (!targetParent)
-        {
-            return rectTransform.rect.width;
-        }
-
-        var corners = new Vector3[4];
-
-        rectTransform.GetWorldCorners(corners);
-
-        var minimumX = float.PositiveInfinity;
-        var maximumX = float.NegativeInfinity;
-
-        foreach (var corner in corners)
-        {
-            var localX = targetParent.InverseTransformPoint(corner).x;
-
-            minimumX = Mathf.Min(minimumX, localX);
-            maximumX = Mathf.Max(maximumX, localX);
-        }
-
-        return maximumX - minimumX;
+        UiTextHelpers.FitButtonCaption(menuButton, label);
     }
 
     private sealed class NavigationMenuLayoutWatcher : MonoBehaviour

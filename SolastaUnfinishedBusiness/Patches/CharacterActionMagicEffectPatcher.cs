@@ -1460,16 +1460,8 @@ public static class CharacterActionMagicEffectPatcher
 
             if (needToRollDie)
             {
-                foreach (var modifier in actingCharacter.RulesetCharacter
-                             .GetSubFeaturesByType<IModifyMagicEffectAttackModifier>())
-                {
-                    modifier.ModifyMagicEffectAttackModifier(
-                        actingCharacter.RulesetCharacter,
-                        rulesetTarget,
-                        null,
-                        rulesetEffect,
-                        actionModifier);
-                }
+                actingCharacter.RulesetCharacter.ApplyMagicEffectAttackModifiers(
+                    rulesetTarget, null, rulesetEffect, actionModifier);
 
                 // Roll dice + handle target reaction
                 using var attackRollContext = new D20RollContext(actingCharacter.RulesetCharacter, RollContext.AttackRoll,

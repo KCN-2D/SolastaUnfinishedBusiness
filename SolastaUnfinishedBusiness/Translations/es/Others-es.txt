@@ -762,6 +762,7 @@ Screen/&SpellAdvancementOpenDescription=Elige un espacio de conjuro de nivel sup
 Reaction/&CustomReactionTargetContextFormat=Objetivo: {0}
 Reaction/&CustomReactionEffectContextFormat=Efecto: {0}
 Reaction/&CustomReactionCasterTitle=Personaje que actúa
+Reaction/&CustomReactionChoiceTitle=Elige una acción
 Reaction/&CustomReactionChooseCasterTitle=Elige el personaje que actúa
 Feature/&EnemyBattleArcaneWardTitle=Égida arcana
 Feature/&EnemyBattleArcaneWardDescription=Cuando un ataque te impacte o seas objetivo de Proyectil mágico, puedes lanzar Escudo como reacción sin gastar un espacio de conjuro.

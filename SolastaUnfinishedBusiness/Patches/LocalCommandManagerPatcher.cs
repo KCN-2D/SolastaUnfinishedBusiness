@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -593,7 +594,14 @@ public static class LocalCommandManagerPatcher
 
             __state = new ContainerMutationState(
                 destination,
-                duplicate.BeginInventoryMutation());
+                duplicate.BeginInventoryMutation(),
+                destination is RulesetCharacterSimulacrum receivingDuplicate &&
+                __1.BearerGuid != receivingDuplicate.Guid &&
+                (ProximityLootModalPatcher.IsPendingGroundPickup(__1, receivingDuplicate) ||
+                 SimulacrumEquipmentPanel.IsExternalContainerItem(receivingDuplicate, __1))
+                    ? __1.ItemDefinition
+                    : null,
+                __1.StackCount);
 
             return true;
         }
@@ -608,18 +616,47 @@ public static class LocalCommandManagerPatcher
 
             __state = null;
 
-            if (state != null)
+            if (state == null)
             {
+                return;
+            }
+
+            try
+            {
+                var stored = __0.ItemHasBeenStacked(__1) ||
+                             __0.InventorySlots.Any(slot => slot?.EquipedItem == __1);
+
+                if (!stored)
+                {
+                    return;
+                }
+
                 __1.BearerGuid = state.Destination.Guid;
                 __1.AttunedToCharacter = string.Empty;
 
-                if (state.Destination is RulesetCharacterSimulacrum duplicate)
+                if (state.Destination is not RulesetCharacterSimulacrum duplicate)
                 {
-                    duplicate.AcceptItem(__1);
+                    return;
+                }
+
+                duplicate.AcceptItem(__1);
+
+                // AddContainerSubItem bypasses GrantItem, including its feedback event.
+                // Only external acquisitions produce a caption; moving owned equipment does not.
+                if (state.AcquiredItemDefinition != null)
+                {
+                    duplicate.ItemOwnershipChanged?.Invoke(
+                        duplicate,
+                        state.AcquiredItemDefinition,
+                        state.AcquiredStackCount,
+                        true,
+                        EquipmentDefinitions.ItemReceiveFailureType.None);
                 }
             }
-
-            state?.Dispose();
+            finally
+            {
+                state.Dispose();
+            }
         }
 
         [UsedImplicitly]
@@ -808,9 +845,13 @@ public static class LocalCommandManagerPatcher
 
     private sealed class ContainerMutationState(
         RulesetCharacter destination,
-        System.IDisposable mutationScope) : System.IDisposable
+        System.IDisposable mutationScope,
+        ItemDefinition acquiredItemDefinition,
+        int acquiredStackCount) : System.IDisposable
     {
         internal RulesetCharacter Destination { get; } = destination;
+        internal ItemDefinition AcquiredItemDefinition { get; } = acquiredItemDefinition;
+        internal int AcquiredStackCount { get; } = acquiredStackCount;
 
         public void Dispose()
         {

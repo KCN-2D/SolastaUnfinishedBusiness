@@ -21,6 +21,23 @@ public static class GameLocationActionManagerPatcher
     private static readonly ConditionalWeakTable<ReactionRequestGroup, Dictionary<ReactionRequest, int>>
         ReactionConfirmationOrder = new();
 
+    [HarmonyPatch(typeof(GameLocationActionManager), nameof(GameLocationActionManager.IsMovementWarmedUp))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class IsMovementWarmedUp_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GameLocationCharacter __0,
+            List<GameLocationCharacterDefinitions.PathStep> __1, TA.int3 __2, ref bool __result)
+        {
+            if (__result && !AiPathfindingRouteContext.IsSafeWarmedPath(__0, __1, __2))
+            {
+                // Preserve the evaluated chain; this move will request a fresh safe path.
+                __result = false;
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(GameLocationActionManager), nameof(GameLocationActionManager.ProcessReactionRequest))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

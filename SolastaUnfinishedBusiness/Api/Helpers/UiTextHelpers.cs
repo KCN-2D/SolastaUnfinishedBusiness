@@ -542,6 +542,86 @@ internal static class UiTextHelpers
         FitCardTitle(text, 0.9f, 12f, 1);
     }
 
+    internal static void FitButtonCaption(Button button, TMP_Text text)
+    {
+        if (!button || !text)
+        {
+            return;
+        }
+
+        text.enableWordWrapping = false;
+        text.maxVisibleLines = 1;
+        text.autoSizeTextContainer = false;
+
+        // Let native fitters size dynamic frames from their caption. Fixed frames
+        // instead share their existing space between the caption and input hints.
+        if (text.transform.parent == button.transform &&
+            button.GetComponent<HorizontalLayoutGroup>() is { } group)
+        {
+            var element = text.GetComponent<LayoutElement>() ?? text.gameObject.AddComponent<LayoutElement>();
+            if (button.GetComponent<ContentSizeFitter>() is { enabled: true } buttonFitter &&
+                buttonFitter.horizontalFit != ContentSizeFitter.FitMode.Unconstrained &&
+                (Gui.GamepadActive || button.GetComponent<GuiButtonSetup>() is not { basicWidth: > 0f }))
+            {
+                // Gamepad frames are sized by their native fitter. Excluding the caption
+                // makes the frame collapse to the input-hint padding alone. Keep its
+                // natural one-line width in both the minimum and preferred layout size.
+                element.ignoreLayout = false;
+                var width = Mathf.Ceil(text.GetPreferredValues(text.text, float.PositiveInfinity,
+                    float.PositiveInfinity).x + 4f);
+                element.minWidth = width;
+                element.preferredWidth = width;
+                LayoutRebuilder.MarkLayoutForRebuild(button.transform as RectTransform);
+                return;
+            }
+
+            var left = 0f;
+            var right = 0f;
+            var afterCaption = false;
+            foreach (Transform sibling in button.transform)
+            {
+                if (sibling == text.transform)
+                {
+                    afterCaption = true;
+                    continue;
+                }
+
+                if (!sibling.gameObject.activeSelf || sibling is not RectTransform siblingRect ||
+                    sibling.GetComponent<LayoutElement>() is { ignoreLayout: true })
+                {
+                    continue;
+                }
+
+                var width = Mathf.Max(siblingRect.rect.width, LayoutUtility.GetPreferredWidth(siblingRect));
+                if (afterCaption)
+                {
+                    right += width + group.spacing;
+                }
+                else
+                {
+                    left += width + group.spacing;
+                }
+            }
+
+            if (text.GetComponent<ContentSizeFitter>() is { } fitter)
+            {
+                fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            }
+
+            element.ignoreLayout = true;
+            element.minWidth = element.preferredWidth = -1f;
+            var rect = text.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = new Vector2(left + 2f, 0f);
+            rect.offsetMax = new Vector2(-right - 2f, 0f);
+        }
+
+        // Keep the native 14-point caption whenever it fits. A small horizontal fit
+        // can accommodate longer translations without reducing it to a HUD stat size.
+        FitConstrainedSingleLine(text, 0.85f, 12f);
+    }
+
     internal static void FitCharacterEditionProgressBar(CharacterEditionScreen screen)
     {
         if (!screen || !screen.stageDiskList)

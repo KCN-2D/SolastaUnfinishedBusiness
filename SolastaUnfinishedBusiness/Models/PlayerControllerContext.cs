@@ -38,6 +38,11 @@ internal static class PlayerControllerContext
 
     internal static bool AreEnemySidesFlipped => SerializationDepth == 0 && OriginalSides.Count > 0;
 
+    // Manual enemy turns change the displayed side. Battle-owned grants still belong
+    // to the contender's original side, including while that side is being serialized.
+    internal static Side GetBattleSide(GameLocationCharacter character) =>
+        character == null ? Side.Neutral : OriginalSides.TryGetValue(character, out var side) ? side : character.Side;
+
     // Index 0 is "Human"; it is never read because human control keeps the player controller id.
     private static readonly DecisionPackageDefinition[] AiDecisionPackages =
     [

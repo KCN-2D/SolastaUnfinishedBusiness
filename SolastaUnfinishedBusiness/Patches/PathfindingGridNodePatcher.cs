@@ -21,6 +21,7 @@ public static class PathfindingGridNodePatcher
             List<int> moveModes)
         {
             FreeJumpContext.AddPathfindingNeighbours(__instance, neighbours, moveModes);
+            AiPathfindingRouteContext.FilterNeighbours(__instance, neighbours);
         }
     }
 }

@@ -755,6 +755,7 @@ Screen/&SpellAdvancementOpenDescription=この呪文の発動に使う、より�
 Reaction/&CustomReactionTargetContextFormat=対象：{0}
 Reaction/&CustomReactionEffectContextFormat=効果：{0}
 Reaction/&CustomReactionCasterTitle=使用者
+Reaction/&CustomReactionChoiceTitle=行動を選択
 Reaction/&CustomReactionChooseCasterTitle=使用者を選択
 Feature/&EnemyBattleArcaneWardTitle=秘術の護り
 Feature/&EnemyBattleArcaneWardDescription=攻撃が自分に命中したとき、または〈魔法の矢〉の対象になったとき、リアクションで呪文スロットを消費せず〈盾〉を発動できます。

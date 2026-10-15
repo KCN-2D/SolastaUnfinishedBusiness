@@ -8,12 +8,35 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class AttunementModalPatcher
 {
+    internal static void FitButtonCaption(GuiLabel label)
+    {
+        var slot = UiTextHelpers.FindAncestorComponent<AttunementSlotBox>(label);
+        var button = UiTextHelpers.FindAncestorComponent<Button>(label);
+        if (slot && button && (button == slot.removeAttunementButton || button == slot.attunementButton))
+        {
+            UiTextHelpers.FitButtonCaption(button, label.TMP_Text);
+        }
+    }
+
+    private static void FitButtonCaptions(AttunementModal modal)
+    {
+        foreach (var label in modal.attunementSlotsTable.GetComponentsInChildren<GuiLabel>(true))
+        {
+            FitButtonCaption(label);
+        }
+        foreach (var label in modal.attunableItemsTable.GetComponentsInChildren<GuiLabel>(true))
+        {
+            FitButtonCaption(label);
+        }
+    }
+
     private static int GetLimit(AttunementModal modal)
     {
         return modal.AttuningCharacter.RulesetCharacterHero.GetAttunementLimit();
@@ -49,6 +72,7 @@ public static class AttunementModalPatcher
         public static void Postfix(AttunementModal __instance)
         {
             RefreshAttunementCountLabel(__instance);
+            FitButtonCaptions(__instance);
         }
     }
 

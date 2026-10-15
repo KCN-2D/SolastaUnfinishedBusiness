@@ -221,16 +221,8 @@ public static class CharacterActionAttackPatcher
                 yield break;
             }
 
-            foreach (var modifier in rulesetCharacter
-                         .GetSubFeaturesByType<IModifyMagicEffectAttackModifier>())
-            {
-                modifier.ModifyMagicEffectAttackModifier(
-                    rulesetCharacter,
-                    rulesetDefender,
-                    attackMode,
-                    originatingMagicEffect,
-                    attackModifier);
-            }
+            rulesetCharacter.ApplyMagicEffectAttackModifiers(
+                rulesetDefender, attackMode, originatingMagicEffect, attackModifier);
 
             // Determine the attack success
             __instance.AttackRollOutcome = RollOutcome.Failure;

@@ -9,6 +9,7 @@ UI/&DistanceFormat=거리: {0}
 UI/&Experimental Preview:=시험용 미리보기 <i><color=Yellow>[사용하기 전에 백업을 저장하십시오]</color></i>:
 UI/&Expert=전문가
 UI/&From=으로부터
+Modal/&TravelFromTitle=출발지
 UI/&LootAllGoldTitle=금
 UI/&LootAllGoldTooltip=이 컨테이너에서 모든 금을 약탈합니다.
 UI/&LootAllIngredientsTitle=재료

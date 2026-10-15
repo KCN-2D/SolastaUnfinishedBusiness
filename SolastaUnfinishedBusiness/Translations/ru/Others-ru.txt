@@ -755,6 +755,7 @@ Screen/&SpellAdvancementOpenDescription=Выберите ячейку более
 Reaction/&CustomReactionTargetContextFormat=Цель: {0}
 Reaction/&CustomReactionEffectContextFormat=Эффект: {0}
 Reaction/&CustomReactionCasterTitle=Действующий персонаж
+Reaction/&CustomReactionChoiceTitle=Выберите действие
 Reaction/&CustomReactionChooseCasterTitle=Выберите действующего персонажа
 Feature/&EnemyBattleArcaneWardTitle=Магическая эгида
 Feature/&EnemyBattleArcaneWardDescription=Когда атака попадает по вам или Волшебная стрела выбирает вас целью, вы можете реакцией сотворить Щит, не тратя ячейку заклинания.

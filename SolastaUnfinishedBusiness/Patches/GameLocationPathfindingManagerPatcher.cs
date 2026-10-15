@@ -16,6 +16,52 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationPathfindingManagerPatcher
 {
+    [HarmonyPatch]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class PathfindingJobConstructor_Patch
+    {
+        [UsedImplicitly]
+        private static MethodBase TargetMethod() =>
+            typeof(PathfindingJob).GetConstructors(BindingFlags.Instance | BindingFlags.Public).Single();
+
+        [UsedImplicitly]
+        public static void Postfix(PathfindingJob __instance)
+        {
+            AiPathfindingRouteContext.CaptureMoveJob(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(PathfindingJob), nameof(PathfindingJob.UpdateJob))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class PathfindingJobUpdateJob_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(PathfindingJob __instance, out IDisposable __state)
+        {
+            __state = AiPathfindingRouteContext.BeginMoveJobScope(__instance);
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(PathfindingJob __instance, Exception __exception, IDisposable __state)
+        {
+            return AiPathfindingRouteContext.EndMoveJobScope(__instance, __state, __exception);
+        }
+    }
+
+    [HarmonyPatch(typeof(PathfindingJob), nameof(PathfindingJob.AbortJob))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class PathfindingJobAbortJob_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(PathfindingJob __instance)
+        {
+            AiPathfindingRouteContext.ReleaseMoveJob(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(GameLocationPathfindingManager), nameof(GameLocationPathfindingManager.ComputeValidDestinations))]
     [HarmonyPatch([typeof(GameLocationCharacter), typeof(bool), typeof(int)])]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]

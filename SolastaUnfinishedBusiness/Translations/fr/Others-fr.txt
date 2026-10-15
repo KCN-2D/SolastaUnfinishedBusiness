@@ -762,6 +762,7 @@ Screen/&SpellAdvancementOpenDescription=Choisissez un emplacement de sort de niv
 Reaction/&CustomReactionTargetContextFormat=Cible : {0}
 Reaction/&CustomReactionEffectContextFormat=Effet : {0}
 Reaction/&CustomReactionCasterTitle=Personnage qui agit
+Reaction/&CustomReactionChoiceTitle=Choisir une action
 Reaction/&CustomReactionChooseCasterTitle=Choisir le personnage qui agit
 Feature/&EnemyBattleArcaneWardTitle=Égide arcanique
 Feature/&EnemyBattleArcaneWardDescription=Quand une attaque vous touche ou que Projectile magique vous cible, vous pouvez lancer Bouclier par une réaction sans dépenser d'emplacement de sort.

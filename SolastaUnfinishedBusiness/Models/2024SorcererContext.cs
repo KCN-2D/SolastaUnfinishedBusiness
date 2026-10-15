@@ -765,7 +765,8 @@ public static partial class Tabletop2024Context
             RulesetActor defender,
             RulesetAttackMode attackMode,
             RulesetEffect rulesetEffect,
-            ActionModifier actionModifier)
+            ActionModifier actionModifier,
+            bool isPreview)
         {
             if (IsInnateSorceryValid(rulesetEffect))
             {

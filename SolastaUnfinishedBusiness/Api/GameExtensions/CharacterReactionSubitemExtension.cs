@@ -1072,6 +1072,8 @@ internal static class CharacterReactionSubitemExtension
         private TextAnchor _panelChildAlignment;
         private bool _captured;
         private string _reactionPromptText;
+        private GuiLabel _reactionHeading;
+        private string _reactionHeadingText;
         private float _minimumWidth;
         private bool _seeded;
         private readonly RectTransformState _hourglass = new();
@@ -1088,6 +1090,7 @@ internal static class CharacterReactionSubitemExtension
         private Vector2 _visibleOffset;
         private Vector2 _visibleSize;
         private string _lastPrompt;
+        private string _lastHeading;
         private readonly Dictionary<TMP_Text, Vector4> _headerMargins = [];
 
         internal void Bind(ReactionTargetPreviewState owner, ReactionModal modal)
@@ -1101,6 +1104,9 @@ internal static class CharacterReactionSubitemExtension
 
             _modal = modal;
             _reactionPromptText = modal.reactionPromptLabel.Text;
+            _reactionHeading = modal.GetComponentsInChildren<GuiLabel>(true)
+                .FirstOrDefault(label => label.Text == "Reaction/&MainTitle");
+            _reactionHeadingText = _reactionHeading ? _reactionHeading.Text : null;
             _minimumWidth = 480f;
             _panel.Capture(modal.mainPanel.RectTransform);
             _layout.Capture(_panel.RectTransform);
@@ -1108,6 +1114,10 @@ internal static class CharacterReactionSubitemExtension
             _headerMargins.Clear();
             _headerMargins.Add(modal.title.TMP_Text, modal.title.TMP_Text.margin);
             _headerMargins.Add(modal.description.TMP_Text, modal.description.TMP_Text.margin);
+            if (_reactionHeading)
+            {
+                _headerMargins.Add(_reactionHeading.TMP_Text, _reactionHeading.TMP_Text.margin);
+            }
             _panelLayoutGroup = _panel.RectTransform.GetComponent<VerticalLayoutGroup>();
             if (_panelLayoutGroup)
             {
@@ -1139,6 +1149,8 @@ internal static class CharacterReactionSubitemExtension
             }
 
             var activeItemCount = 0;
+            var hasPendingChoice = false;
+            var allPendingChoicesUseReaction = true;
             _casterGuids.Clear();
             foreach (var item in _modal.reactionItems)
             {
@@ -1152,8 +1164,23 @@ internal static class CharacterReactionSubitemExtension
                     item.ReactionRequest?.Character is { } caster)
                 {
                     _casterGuids.Add(caster.Guid);
+                    hasPendingChoice = true;
+                    allPendingChoicesUseReaction &= item.ReactionRequest.ReactionParams.ActionDefinition.ActionType ==
+                                                   ActionDefinitions.ActionType.Reaction;
                 }
             }
+
+            // Follow the native request's action classification. Resource payments can
+            // accompany either kind of choice and do not make it a reaction action.
+            var headingTerm = hasPendingChoice && !allPendingChoicesUseReaction
+                ? "Reaction/&CustomReactionChoiceTitle"
+                : _reactionHeadingText;
+            if (_reactionHeading && (_reactionHeading.Text != headingTerm ||
+                                     _reactionHeading.TMP_Text.text != Gui.Localize(headingTerm)))
+            {
+                _reactionHeading.Text = headingTerm;
+            }
+            var heading = _reactionHeading ? _reactionHeading.TMP_Text.text : null;
 
             var prompt = Gui.Localize(_casterGuids.Count > 1
                 ? "Reaction/&CustomReactionChooseCasterTitle"
@@ -1165,7 +1192,7 @@ internal static class CharacterReactionSubitemExtension
 
             var title = _modal.title.TMP_Text.text;
             var description = _modal.description.TMP_Text.text;
-            if (_lastTitle != title || _lastDescription != description ||
+            if (_lastTitle != title || _lastDescription != description || _lastHeading != heading ||
                 (_lastCanvasSize - canvas.rect.size).sqrMagnitude > 1f)
             {
                 RestoreHeaderMargins();
@@ -1174,7 +1201,7 @@ internal static class CharacterReactionSubitemExtension
             if ((_lastCanvasSize - canvas.rect.size).sqrMagnitude > 1f ||
                 (_lastPanelSize - panel.rect.size).sqrMagnitude > 1f ||
                 _lastTitle != title || _lastDescription != description || _lastActiveItemCount != activeItemCount ||
-                _lastPrompt != prompt || GeometryChanged(canvas))
+                _lastPrompt != prompt || _lastHeading != heading || GeometryChanged(canvas))
             {
                 _layoutFrames = 3;
             }
@@ -1195,7 +1222,14 @@ internal static class CharacterReactionSubitemExtension
                 var padding = panel.TryGetComponent<LayoutGroup>(out var group) ? group.padding.horizontal : 80f;
                 // Native left anchors shift content when the width changes. Retain the
                 // required width while native layout settles, then stop rebuilding it.
-                _minimumWidth = Mathf.Max(_minimumWidth, MeasureContentExtent(panel) * 2f + padding);
+                // These are context fields (target/effect names), not the effect's
+                // rules body. Reserve their natural line width before wrapping so a
+                // long localized name does not leave its final character alone.
+                var contextWidth = Mathf.Max(
+                    _modal.title.TMP_Text.GetPreferredValues(title, float.PositiveInfinity, float.PositiveInfinity).x,
+                    _modal.description.TMP_Text.GetPreferredValues(description, float.PositiveInfinity, float.PositiveInfinity).x);
+                _minimumWidth = Mathf.Max(_minimumWidth, MeasureContentExtent(panel) * 2f + padding,
+                    contextWidth + padding);
                 var width = Mathf.Min(maximumWidth, _minimumWidth);
                 panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
                 _layout.ApplyWidthIfPresent(width);
@@ -1224,6 +1258,7 @@ internal static class CharacterReactionSubitemExtension
                 _lastDescription = description;
                 _lastActiveItemCount = activeItemCount;
                 _lastPrompt = prompt;
+                _lastHeading = heading;
 
                 FloatingPanelBounds.TryGetCanvasLocalBounds(panel, out var currentPanel, out _);
                 _visibleOffset = bounds.center - currentPanel.center;
@@ -1274,7 +1309,11 @@ internal static class CharacterReactionSubitemExtension
             var changed = false;
             foreach (var text in _headerMargins.Keys)
             {
-                if (!text || !text.gameObject.activeInHierarchy)
+                // The decorated native heading intentionally overflows its fixed-height
+                // rectangle. Its zero margins align it with the two ornaments; treating
+                // that overflow as flow-content height moves the heading above them.
+                if (!text || !text.gameObject.activeInHierarchy ||
+                    _reactionHeading && text == _reactionHeading.TMP_Text)
                 {
                     continue;
                 }
@@ -1505,6 +1544,12 @@ internal static class CharacterReactionSubitemExtension
             {
                 _modal.reactionPromptLabel.Text = _reactionPromptText;
             }
+            if (_reactionHeading)
+            {
+                _reactionHeading.Text = _reactionHeadingText;
+            }
+            _reactionHeading = null;
+            _reactionHeadingText = null;
 
             _hourglass.Restore();
             _panel.Restore();
@@ -1516,6 +1561,7 @@ internal static class CharacterReactionSubitemExtension
             _lastTitle = _lastDescription = null;
             _lastActiveItemCount = 0;
             _lastPrompt = null;
+            _lastHeading = null;
             _geometry.Clear();
             _geometryCanvas = null;
             _casterGuids.Clear();
