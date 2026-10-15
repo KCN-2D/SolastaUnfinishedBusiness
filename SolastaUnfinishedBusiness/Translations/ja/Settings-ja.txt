@@ -285,6 +285,7 @@ ModUi/&EnableSortingDungeonMakerAssets=ダンジョンメーカー・エディ�
 ModUi/&EnableSpeech=カスタムキャンペーンで音声読み上げを有効にします<i><color=#F0DAA0>（ナレーションとヒーローのみ）</color></i>
 ModUi/&EnableSpeechActorHelp=• 話者を選択します
 ModUi/&EnableSpeechOnNpcs=NPCの音声読み上げを有効にします
+ModUi/&EnableSpeechOnInteractions=調べたときの説明文をナレーションとして読み上げる
 ModUi/&EnableSpeechVoiceHelp=• 音声とナレーションの速度を選択します
 ModUi/&EnableStackableArtItems=<color=#D89555>芸術品</color>のスタックを有効にします<i><color=#F0DAA0>（この設定が無効になっている間は分割できません）</color></i>
 ModUi/&EnableStackableAxesAndDaggers=<color=#D89555>ダガー</color>と<color=#D89555>ハンドアックス</color>のスタックを有効にします<i><color=#F0DAA0>（この設定が無効になっている間は分割できません）</color></i>

@@ -299,6 +299,14 @@ internal static partial class SpeechContext
         }
     }
 
+    private enum SpeechSource
+    {
+        Actor,
+        Npc,
+        Interaction,
+        Preview
+    }
+
     private sealed class SpeechRequest(
         SpeechVoiceInfo voiceInfo, float scale, float pitch, string cleanedText, int generation)
     {
@@ -310,7 +318,7 @@ internal static partial class SpeechContext
         internal float Intonation { get; set; } = 1f;
         internal int VoiceVoxSession { get; } = VoiceVoxSessionVersion;
         internal object Owner { get; set; }
-        internal bool NpcSpeech { get; set; }
+        internal SpeechSource Source { get; set; }
         internal volatile bool Canceled;
     }
 
@@ -1530,7 +1538,8 @@ internal static partial class SpeechContext
         }
 
         if (!Main.Settings.EnableSpeech &&
-            !Main.Settings.EnableSpeechOnNpcs)
+            !Main.Settings.EnableSpeechOnNpcs &&
+            !Main.Settings.EnableSpeechOnInteractions)
         {
             return;
         }
@@ -1648,8 +1657,7 @@ internal static partial class SpeechContext
             }
 
             if (Unloading || IsSpeechRequestCanceled(request) ||
-                ServiceRepository.GetService<IAudioSettingsService>()?.MasterEnabled != true ||
-                !(request.NpcSpeech ? Main.Settings.EnableSpeechOnNpcs : Main.Settings.EnableSpeech))
+                ServiceRepository.GetService<IAudioSettingsService>()?.MasterEnabled != true)
             {
                 CancelSpeech(owner);
                 return false;
@@ -1759,8 +1767,18 @@ internal static partial class SpeechContext
         CollectCustomCampaignVoiceData();
     }
 
-    private static void QueueSpeechWithProsody(SpeechVoiceInfo voiceInfo, float scale, string cleanedText, float pitch,
-        float intonation, object owner = null, bool npcSpeech = false)
+    private static bool IsSpeechSourceEnabled(SpeechSource source) => source switch
+    {
+        SpeechSource.Actor => Main.Settings.EnableSpeech,
+        SpeechSource.Npc => Main.Settings.EnableSpeechOnNpcs,
+        SpeechSource.Interaction => Main.Settings.EnableSpeechOnInteractions,
+        SpeechSource.Preview => Main.Settings.EnableSpeech || Main.Settings.EnableSpeechOnNpcs ||
+                                Main.Settings.EnableSpeechOnInteractions,
+        _ => false
+    };
+
+    private static void QueueSpeechRequest(SpeechVoiceInfo voiceInfo, float scale, string cleanedText, float pitch,
+        float intonation, object owner, SpeechSource source)
     {
         if (voiceInfo == null ||
             string.IsNullOrWhiteSpace(cleanedText) ||
@@ -1780,7 +1798,7 @@ internal static partial class SpeechContext
             {
                 Intonation = ClampSpeechValue(intonation, 0f, 2f, 1f),
                 Owner = owner,
-                NpcSpeech = npcSpeech
+                Source = source
             });
             StartNextSpeechNoLock();
         }
@@ -1788,16 +1806,26 @@ internal static partial class SpeechContext
 
     private static void StartNextSpeechNoLock()
     {
-        if (Unloading ||
-            SpeechPlaybackActive ||
-            SpeechQueue.Count == 0)
+        if (Unloading || SpeechPlaybackActive)
         {
             return;
         }
 
-        CurrentSpeechRequest = SpeechQueue.Dequeue();
-        SpeechPlaybackActive = true;
-        _ = SynthesizeAndPlaySpeechAsync(CurrentSpeechRequest);
+        while (SpeechQueue.Count > 0)
+        {
+            var request = SpeechQueue.Dequeue();
+            if (IsSpeechRequestCanceled(request) ||
+                ServiceRepository.GetService<IAudioSettingsService>()?.MasterEnabled != true)
+            {
+                request.Canceled = true;
+                continue;
+            }
+
+            CurrentSpeechRequest = request;
+            SpeechPlaybackActive = true;
+            _ = SynthesizeAndPlaySpeechAsync(request);
+            break;
+        }
     }
 
     private static async Task SynthesizeAndPlaySpeechAsync(SpeechRequest request)
@@ -2186,6 +2214,24 @@ internal static partial class SpeechContext
     // heroId zero is the Narrator and 1-6 map to heroes in party
     internal static void Speak(string inputText, int heroId, bool forceUseCampaign = true, object owner = null)
     {
+        SpeakActor(inputText, heroId, forceUseCampaign, owner,
+            forceUseCampaign ? SpeechSource.Actor : SpeechSource.Preview);
+    }
+
+    internal static bool SpeakInteraction(string inputText, object owner)
+    {
+        if (owner == null || Gui.Game?.CampaignDefinition?.IsUserCampaign != true)
+        {
+            return false;
+        }
+
+        SpeakActor(inputText, 0, true, owner, SpeechSource.Interaction);
+        return HasPendingSpeech(owner);
+    }
+
+    private static void SpeakActor(string inputText, int heroId, bool forceUseCampaign, object owner,
+        SpeechSource source)
+    {
         if (string.IsNullOrWhiteSpace(inputText))
         {
             return;
@@ -2201,11 +2247,7 @@ internal static partial class SpeechContext
                 return;
             }
 
-            var speechEnabled = forceUseCampaign
-                ? Main.Settings.EnableSpeech
-                : Main.Settings.EnableSpeech || Main.Settings.EnableSpeechOnNpcs;
-
-            if (!speechEnabled || heroId < 0 || heroId > MaxHeroes)
+            if (!IsSpeechSourceEnabled(source) || heroId < 0 || heroId > MaxHeroes)
             {
                 return;
             }
@@ -2228,7 +2270,11 @@ internal static partial class SpeechContext
 
             var (voice, scale) = GetSpeechActorSettings(heroId, forceUseCampaign);
 
-            var cleanedText = StripXmlTagsAndNarration(inputText);
+            // Interaction prose includes stage directions and parenthetical descriptions.
+            // Remove display markup without removing those words as spoken dialogue does.
+            var cleanedText = source == SpeechSource.Interaction
+                ? RemoveSpeechNameTags.Replace(inputText, string.Empty)
+                : StripXmlTagsAndNarration(inputText);
             var language = DetectSpeechLanguage(cleanedText, voice);
             var hero = GetSpeechHero(heroId);
             var gender = hero == null ? (Gender?)null : GetNpcGender(hero.Sex);
@@ -2244,8 +2290,8 @@ internal static partial class SpeechContext
                 return;
             }
 
-            QueueSpeechWithProsody(voiceInfo, scale, cleanedText, Main.Settings.SpeechVoicePitches[heroId],
-                Main.Settings.SpeechVoiceIntonations[heroId], owner);
+            QueueSpeechRequest(voiceInfo, scale, cleanedText, Main.Settings.SpeechVoicePitches[heroId],
+                Main.Settings.SpeechVoiceIntonations[heroId], owner, source);
         }
         catch (Exception e)
         {
@@ -2309,8 +2355,8 @@ internal static partial class SpeechContext
                 return;
             }
 
-            QueueSpeechWithProsody(voiceInfo, settings.Scale, cleanedText, settings.Pitch, settings.Intonation,
-                owner, true);
+            QueueSpeechRequest(voiceInfo, settings.Scale, cleanedText, settings.Pitch, settings.Intonation,
+                owner, SpeechSource.Npc);
         }
         catch (Exception e)
         {
@@ -2480,7 +2526,8 @@ internal static partial class SpeechContext
         }
         var text = profile?.SampleText ?? "Hello. Let us begin our adventure.";
         var voiceInfo = ResolveVoiceForText(settings.Voice, text, false, preferredGender, internalName);
-        QueueSpeechWithProsody(voiceInfo, settings.Scale, text, settings.Pitch, settings.Intonation);
+        QueueSpeechRequest(voiceInfo, settings.Scale, text, settings.Pitch, settings.Intonation, null,
+            SpeechSource.Preview);
     }
 
     private static string GetAutomaticNpcVoice(
@@ -2932,6 +2979,7 @@ internal static partial class SpeechContext
     private static bool IsSpeechRequestCanceled(SpeechRequest request)
     {
         return request.Canceled || Unloading || request.Generation != SpeechGeneration ||
+               !IsSpeechSourceEnabled(request.Source) ||
                request.VoiceInfo.Engine == SpeechEngine.VoiceVox &&
                (!Main.Settings.EnableVoiceVoxSpeech || request.VoiceVoxSession != VoiceVoxSessionVersion);
     }

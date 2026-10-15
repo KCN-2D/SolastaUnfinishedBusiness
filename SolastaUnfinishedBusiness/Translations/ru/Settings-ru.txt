@@ -298,6 +298,7 @@ ModUi/&EnableSortingDungeonMakerAssets=Включить сортировку а�
 ModUi/&EnableSpeech=Включить речь в пользовательских кампаниях <i><color=#F0DAA0>[только повествование и герои]</color></i>
 ModUi/&EnableSpeechActorHelp=• Выберите актера
 ModUi/&EnableSpeechOnNpcs=Включить озвучивание NPC
+ModUi/&EnableSpeechOnInteractions=Читать описания осматриваемых объектов голосом рассказчика
 ModUi/&EnableSpeechVoiceHelp=• Выберите голос и скорость повествования
 ModUi/&EnableStackableArtItems=Включить возможность стакать <color=#D89555>Художественные предметы</color> <i><color=#F0DAA0>[нельзя разделить, пока эта настройка отключена]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Включить возможность стакать <color=#D89555>Кинжалы</color> и <color=#D89555>Топорики</color> <i><color=#F0DAA0>[нельзя разделить, пока эта настройка отключена]</color></i>

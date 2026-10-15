@@ -285,6 +285,7 @@ ModUi/&EnableSortingDungeonMakerAssets=Enable assets sorting on Dungeon Maker ed
 ModUi/&EnableSpeech=Enable speech on custom campaigns <i><color=#F0DAA0>[narration and heroes only]</color></i>
 ModUi/&EnableSpeechActorHelp=• Select an actor
 ModUi/&EnableSpeechOnNpcs=Enable NPC speech
+ModUi/&EnableSpeechOnInteractions=Read object interaction descriptions with the narrator voice
 ModUi/&EnableSpeechVoiceHelp=• Select a voice and narration speed
 ModUi/&EnableStackableArtItems=Enable stacking <color=#D89555>Art Items</color> <i><color=#F0DAA0>[cannot be split while this setting is disabled]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Enable stacking <color=#D89555>Daggers</color> and <color=#D89555>Hand Axes</color> <i><color=#F0DAA0>[cannot be split while this setting is disabled]</color></i>

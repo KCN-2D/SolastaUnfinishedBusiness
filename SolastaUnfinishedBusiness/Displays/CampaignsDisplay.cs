@@ -574,7 +574,14 @@ internal static class CampaignsDisplay
             Main.Settings.EnableSpeechOnNpcs = toggle;
         }
 
-        if (!Main.Settings.EnableSpeech && !Main.Settings.EnableSpeechOnNpcs)
+        toggle = Main.Settings.EnableSpeechOnInteractions;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableSpeechOnInteractions"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableSpeechOnInteractions = toggle;
+        }
+
+        if (!Main.Settings.EnableSpeech && !Main.Settings.EnableSpeechOnNpcs &&
+            !Main.Settings.EnableSpeechOnInteractions)
         {
             return;
         }

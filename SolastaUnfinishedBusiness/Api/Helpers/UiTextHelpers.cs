@@ -2,11 +2,14 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using I2.Loc;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace SolastaUnfinishedBusiness.Api.Helpers;
@@ -162,6 +165,30 @@ internal static class UiTextHelpers
         float absoluteMin = TitleAbsoluteMinFontSize)
     {
         FitConstrainedSingleLine(label?.TMP_Text, minFontScale, absoluteMin);
+    }
+
+    internal static void FitSubclassPreview(ArchetypesPreviewModal modal, bool resetScroll = false)
+    {
+        if (!modal)
+        {
+            return;
+        }
+
+        var layout = modal.GetComponent<SubclassPreviewLayoutState>() ??
+                     modal.gameObject.AddComponent<SubclassPreviewLayoutState>();
+        layout.Bind(modal);
+        if (resetScroll)
+        {
+            layout.ResetScroll();
+        }
+    }
+
+    internal static void RestoreSubclassPreview(ArchetypesPreviewModal modal)
+    {
+        if (modal)
+        {
+            modal.GetComponent<SubclassPreviewLayoutState>()?.Release();
+        }
     }
 
     internal static void FitSettingsTabs(SettingsPanel panel)
@@ -498,6 +525,98 @@ internal static class UiTextHelpers
             minFontScale,
             absoluteMin,
             useCjkCompactSpacing);
+    }
+
+    private static float GetSelectionPreviewTitleHeight(GuiLabel label, float width)
+    {
+        var text = label.TMP_Text;
+        var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+        state.Capture(text);
+        var preview = text.GetComponent<SelectionPreviewTitleState>() ?? text.gameObject.AddComponent<SelectionPreviewTitleState>();
+        preview.Capture(text);
+        var preferredFontSize = Mathf.Max(18f, state.OriginalFontSizeMax);
+        var size = MeasureTitleGlyphs(text, preferredFontSize, true, Mathf.Max(1f, width - 4f), state, out _);
+        return Mathf.Max(44f, Mathf.Ceil(size.y) + 12f);
+    }
+
+    private static void FitSelectionPreviewTitle(GuiLabel label, float width, float height, float maximumImageHeight)
+    {
+        var text = label.TMP_Text;
+        var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+        state.Capture(text);
+        var preview = text.GetComponent<SelectionPreviewTitleState>() ?? text.gameObject.AddComponent<SelectionPreviewTitleState>();
+        preview.Capture(text);
+        var preferredFontSize = Mathf.Max(18f, state.OriginalFontSizeMax);
+        var rect = text.rectTransform;
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        var slot = label.GetComponentInParent<BaseSelectionSlot>();
+        var parent = rect.parent as RectTransform;
+        if (slot && parent)
+        {
+            // Native disk cards can put the label and medallion in different
+            // containers. Position the title from the actual image bottom rather
+            // than assuming the label parent's lower anchor is the image edge.
+            var image = slot.SlotImage.rectTransform;
+            var card = slot.GetComponent<RectTransform>();
+            if (TryGetDescendantLocalMatrix(image, card, out var imageToCard) &&
+                TryGetDescendantLocalMatrix(parent, card, out var parentToCard) &&
+                Mathf.Abs(parentToCard.determinant) > 0.0001f)
+            {
+                var center = imageToCard.MultiplyPoint3x4(image.rect.center);
+                // The native Show animation starts with a zero-scale main panel.
+                // Exclude that shared ancestor from both coordinate conversions.
+                // Reserve the maximum focus extent to keep the name baseline stable.
+                var bottom = parentToCard.inverse.MultiplyPoint3x4(
+                    new Vector3(center.x, center.y - maximumImageHeight * 0.5f));
+                rect.anchoredPosition = new Vector2(bottom.x - parent.rect.center.x, bottom.y - parent.rect.yMin - 5f);
+            }
+        }
+        rect.sizeDelta = new Vector2(width, height);
+        // These preview cards reserve the complete localized title height. Keep the
+        // native typeface at a readable size rather than shrinking names to one line.
+        ApplyCardTextFit(text, int.MaxValue, true, preferredFontSize, state);
+        text.fontSizeMax = preferredFontSize;
+    }
+
+    private static void RestoreSelectionPreviewTitle(GuiLabel label)
+    {
+        label?.TMP_Text.GetComponent<SelectionPreviewTitleState>()?.Restore();
+    }
+
+    private static bool TryGetDescendantLocalMatrix(Transform descendant, Transform ancestor, out Matrix4x4 matrix)
+    {
+        matrix = Matrix4x4.identity;
+        for (var current = descendant; current; current = current.parent)
+        {
+            if (current == ancestor)
+            {
+                return true;
+            }
+            matrix = Matrix4x4.TRS(current.localPosition, current.localRotation, current.localScale) * matrix;
+        }
+        return false;
+    }
+
+    private static bool TryGetDescendantLocalBounds(RectTransform descendant, Transform ancestor, out Rect bounds)
+    {
+        bounds = default;
+        if (!TryGetDescendantLocalMatrix(descendant, ancestor, out var matrix))
+        {
+            return false;
+        }
+        var rect = descendant.rect;
+        var min = Vector2.positiveInfinity;
+        var max = Vector2.negativeInfinity;
+        for (var corner = 0; corner < 4; corner++)
+        {
+            var point = (Vector2)matrix.MultiplyPoint3x4(new Vector3(
+                (corner & 1) == 0 ? rect.xMin : rect.xMax, (corner & 2) == 0 ? rect.yMin : rect.yMax));
+            min = Vector2.Min(min, point);
+            max = Vector2.Max(max, point);
+        }
+        bounds = Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+        return true;
     }
 
     internal static T FindAncestorComponent<T>(Component owner) where T : Component
@@ -3221,6 +3340,437 @@ internal static class UiTextHelpers
             }
 
             _scroll.horizontalNormalizedPosition = 0f;
+        }
+    }
+
+    private sealed class SubclassPreviewLayoutState : MonoBehaviour
+    {
+        private ArchetypesPreviewModal _modal;
+        private GridLayoutGroup _grid;
+        private RectTransform _table;
+        private RectTransform _viewport;
+        private ScrollRect _scroll;
+        private RectTransform _features;
+        private RectTransform _panel;
+        private RectTransform _canvas;
+        private RectTransform[] _closeControls;
+        private LayoutElement _viewportLayout;
+        private LayoutElement _featuresLayout;
+        private float _nativeFeatureHeight;
+        private float _nativeContentHeight;
+        private float _panelOverhead;
+        private float _nativePanelWidth;
+        private Vector2 _nativePanelPosition;
+        private float _controlsAbovePanel;
+        private float _controlsBelowPanel;
+        private Vector2 _nativeCell;
+        private Vector2 _nativeSpacing;
+        private float _nativeHeight;
+        private int _lastSignature;
+        private int _frames;
+        private GameObject _lastSelected;
+        private bool _applying;
+        private BaseSelectionSlot[] _slots = [];
+        private Vector2 _focusExtent;
+
+        internal void Bind(ArchetypesPreviewModal modal)
+        {
+            if (!_modal)
+            {
+                _modal = modal;
+                _panel = modal.panel.RectTransform;
+                // Bind adds the cards before the native layout pass. An empty
+                // pooled grid can still report only its padding height at this point.
+                LayoutRebuilder.ForceRebuildLayoutImmediate(_panel);
+                _table = modal.subclassesTable;
+                _grid = _table.GetComponent<GridLayoutGroup>();
+                _nativeCell = _grid.cellSize;
+                _nativeSpacing = _grid.spacing;
+                var nativePadding = _grid.padding;
+                _grid.padding = new RectOffset(Mathf.Max(12, nativePadding.left), Mathf.Max(24, nativePadding.right),
+                    Mathf.Max(8, nativePadding.top), Mathf.Max(8, nativePadding.bottom));
+                var nativeTableHeight = _table.rect.height;
+                _nativeHeight = _nativeCell.y + nativePadding.vertical;
+                _features = modal.featuresScrollRect.GetComponent<RectTransform>();
+                _nativeFeatureHeight = _features.rect.height;
+                _nativeContentHeight = _nativeHeight + _nativeFeatureHeight;
+                _nativePanelWidth = _panel.rect.width;
+                _nativePanelPosition = _panel.anchoredPosition;
+                _panelOverhead = Mathf.Max(0f, _panel.rect.height - nativeTableHeight - _nativeFeatureHeight);
+                // The native close bar is anchored below the main panel and ignores
+                // its layout group. It still belongs to the modal's usable envelope.
+                _closeControls = modal.GetComponentsInChildren<Button>(true)
+                    .Where(button => Enumerable.Range(0, button.onClick.GetPersistentEventCount())
+                        .Any(index => button.onClick.GetPersistentMethodName(index) == "OnCloseCb"))
+                    .Select(button => button.GetComponent<RectTransform>()).ToArray();
+                foreach (var control in _closeControls)
+                {
+                    if (UiTextHelpers.TryGetDescendantLocalBounds(control, _panel, out var bounds))
+                    {
+                        _controlsAbovePanel = Mathf.Max(_controlsAbovePanel, bounds.yMax - _panel.rect.yMax);
+                        _controlsBelowPanel = Mathf.Max(_controlsBelowPanel, _panel.rect.yMin - bounds.yMin);
+                    }
+                }
+                _featuresLayout = _features.GetComponent<LayoutElement>() ?? _features.gameObject.AddComponent<LayoutElement>();
+                CreateViewport();
+            }
+
+            _slots = _table.GetComponentsInChildren<BaseSelectionSlot>(false);
+            var scale = _slots.SelectMany(slot => slot.GetComponentsInChildren<GuiModifierScale>(true))
+                .Select(modifier => Mathf.Max(1f, modifier.StartScale, modifier.EndScale)).DefaultIfEmpty(1f).Max();
+            _focusExtent = _nativeCell * ((scale - 1f) * 0.5f);
+            var padding = _grid.padding;
+            padding.left = Mathf.Max(padding.left, Mathf.CeilToInt(_focusExtent.x + 8f));
+            padding.right = Mathf.Max(padding.right, Mathf.CeilToInt(_focusExtent.x + 20f));
+            padding.top = Mathf.Max(padding.top, Mathf.CeilToInt(_focusExtent.y + 8f));
+            padding.bottom = Mathf.Max(padding.bottom, Mathf.CeilToInt(_focusExtent.y + 8f));
+            _grid.padding = padding;
+            // Additional title height belongs below each disk. A vertically centered
+            // native grid would move the disks down by half that reserved height.
+            _grid.childAlignment = (TextAnchor)((int)_grid.childAlignment % 3);
+            _frames = 3;
+            Apply();
+        }
+
+        internal void Release()
+        {
+            foreach (var slot in _table.GetComponentsInChildren<BaseSelectionSlot>(true))
+            {
+                if (slot)
+                {
+                    UiTextHelpers.RestoreSelectionPreviewTitle(slot.SlotTitle);
+                }
+            }
+            _slots = [];
+            _frames = 0;
+            _lastSignature = 0;
+            _lastSelected = null;
+            _panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _nativePanelWidth);
+            _panel.anchoredPosition = _nativePanelPosition;
+        }
+
+        internal void ResetScroll()
+        {
+            // Like the native feature pane, start at the top after Show. Bounds
+            // calculated during the zero-scale animation cannot define scroll state.
+            _scroll.StopMovement();
+            _scroll.normalizedPosition = new Vector2(0f, 1f);
+            _lastSelected = null;
+        }
+
+        private void CreateViewport()
+        {
+            _viewport = (RectTransform)new GameObject("SubclassesViewport", typeof(RectTransform), typeof(Image),
+                typeof(RectMask2D), typeof(ScrollRect), typeof(LayoutElement)).transform;
+            _viewport.SetParent(_table.parent, false);
+            _viewport.gameObject.layer = _table.gameObject.layer;
+            _viewport.SetSiblingIndex(_table.GetSiblingIndex());
+            _viewport.anchorMin = _table.anchorMin;
+            _viewport.anchorMax = _table.anchorMax;
+            _viewport.pivot = _table.pivot;
+            _viewport.sizeDelta = _table.sizeDelta;
+            _viewport.anchoredPosition = _table.anchoredPosition;
+            _viewport.GetComponent<Image>().color = Color.clear;
+            _viewportLayout = _viewport.GetComponent<LayoutElement>();
+            _scroll = _viewport.GetComponent<ScrollRect>();
+            _scroll.viewport = _viewport;
+            _scroll.content = _table;
+            _scroll.horizontal = false;
+            _scroll.vertical = true;
+            _scroll.inertia = false;
+            _scroll.movementType = ScrollRect.MovementType.Clamped;
+            _scroll.scrollSensitivity = 40f;
+            _table.SetParent(_viewport, false);
+            _table.anchorMin = new Vector2(0f, 1f);
+            _table.anchorMax = Vector2.one;
+            _table.pivot = new Vector2(0.5f, 1f);
+            _table.anchoredPosition = Vector2.zero;
+            _table.sizeDelta = new Vector2(0f, _nativeHeight);
+            _table.localScale = Vector3.one;
+            if (_table.GetComponent<ContentSizeFitter>() is { } fitter)
+            {
+                fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
+            }
+
+            // Reuse the modal's native scrolling control so dense previews have the
+            // same visible affordance as the feature list below them.
+            if (_modal.featuresScrollRect.verticalScrollbar is { } scrollbar)
+            {
+                var copy = Instantiate(scrollbar.gameObject, _viewport, false).GetComponent<Scrollbar>();
+                var rect = copy.GetComponent<RectTransform>();
+                rect.anchorMin = new Vector2(1f, 0f);
+                rect.anchorMax = Vector2.one;
+                rect.pivot = new Vector2(1f, 0.5f);
+                rect.offsetMin = new Vector2(-12f, 0f);
+                rect.offsetMax = Vector2.zero;
+                _scroll.verticalScrollbar = copy;
+                _scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+            }
+        }
+
+        private void LateUpdate()
+        {
+            if (!_modal || !_modal.gameObject.activeInHierarchy || _modal.Showing || _modal.Hiding || _applying)
+            {
+                return;
+            }
+            var signature = GetSignature();
+            if (_lastSignature != signature)
+            {
+                _frames = 3;
+            }
+            if (_frames > 0)
+            {
+                Apply();
+                _frames--;
+                _lastSignature = GetSignature();
+            }
+            KeepSelectedVisible();
+        }
+
+        private int GetSignature()
+        {
+            unchecked
+            {
+                var value = _viewport.rect.size.GetHashCode();
+                value = value * 31 + (_canvas ? _canvas.rect.size.GetHashCode() : 0);
+                foreach (var slot in _slots)
+                {
+                    var text = slot.SlotTitle.TMP_Text;
+                    value = value * 31 + (text.text?.GetHashCode() ?? 0);
+                    value = value * 31 + text.fontSize.GetHashCode();
+                    value = value * 31 + text.rectTransform.rect.size.GetHashCode();
+                    value = value * 31 + text.maxVisibleLines;
+                    value = value * 31 + text.enableWordWrapping.GetHashCode();
+                    value = value * 31 + (int)text.overflowMode;
+                    value = value * 31 + text.lineSpacing.GetHashCode();
+                    value = value * 31 + (text.font ? text.font.GetInstanceID() : 0);
+                }
+                return value;
+            }
+        }
+
+        private void Apply()
+        {
+            if (_applying || !_table || !_table.gameObject.activeInHierarchy)
+            {
+                return;
+            }
+            var slots = _slots;
+            if (slots.Length == 0)
+            {
+                return;
+            }
+            _applying = true;
+            try
+            {
+                var hasCanvas = FloatingPanelBounds.TryGetCanvasLocalBounds(_viewport, out _, out _canvas);
+                _panel.anchoredPosition = _nativePanelPosition;
+                if (hasCanvas)
+                {
+                    _panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,
+                        Mathf.Min(_nativePanelWidth, Mathf.Max(1f, _canvas.rect.width - 24f)));
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(_panel);
+                }
+                var width = _viewport.rect.width - _grid.padding.horizontal;
+                var columns = Mathf.Min(slots.Length > 10 ? 6 : 5,
+                    Mathf.Max(1, Mathf.FloorToInt((width + 12f) / (_nativeCell.x + 12f))));
+                var spacing = columns > 1 ? Mathf.Min(_nativeSpacing.x,
+                    Mathf.Max(12f, (width - columns * _nativeCell.x) / (columns - 1))) : _nativeSpacing.x;
+                // Titles extend beyond their medallion. Reserve both clip edges and
+                // the native scrollbar, including grids that fill their entire width.
+                var edgePadding = Mathf.Min(_grid.padding.left, _grid.padding.right - 12f);
+                var titleWidth = Mathf.Min(_nativeCell.x + spacing - 10f,
+                    _nativeCell.x + Mathf.Max(0f, edgePadding - 2f) * 2f);
+                var titleHeight = slots.Max(slot => UiTextHelpers.GetSelectionPreviewTitleHeight(slot.SlotTitle, titleWidth));
+                _grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                _grid.constraintCount = columns;
+                _grid.cellSize = _nativeCell;
+                _grid.spacing = new Vector2(spacing, Mathf.Max(_nativeSpacing.y, titleHeight + 10f + _focusExtent.y * 2f));
+                var rows = Mathf.CeilToInt(slots.Length / (float)columns);
+                var singleRowHeight = _grid.padding.vertical + _nativeCell.y + titleHeight + 5f + _focusExtent.y;
+                var height = singleRowHeight + Mathf.Max(0, rows - 1) * (_nativeCell.y + _grid.spacing.y);
+                // Reserve feature-reading space. Larger subclass catalogs scroll at
+                // their full card size instead of scaling every name and icon down.
+                var available = _nativeContentHeight;
+                if (hasCanvas)
+                {
+                    available = Mathf.Min(available, Mathf.Max(1f, _canvas.rect.height - 24f - _panelOverhead -
+                        _controlsAbovePanel - _controlsBelowPanel));
+                }
+                // Empty native grids can temporarily collapse to their padding height.
+                // Preserve the original total budget, but give a complete measured row
+                // priority over the preferred feature-reading height within that budget.
+                var featureReserve = Mathf.Min(180f, _nativeFeatureHeight,
+                    Mathf.Max(0f, available - singleRowHeight));
+                var viewportHeight = Mathf.Min(Mathf.Max(Mathf.Min(_nativeHeight, available), height),
+                    Mathf.Max(1f, available - featureReserve));
+                var featureHeight = Mathf.Min(_nativeFeatureHeight, available - viewportHeight);
+                _viewportLayout.minHeight = _viewportLayout.preferredHeight = viewportHeight;
+                _viewportLayout.flexibleHeight = 0f;
+                _featuresLayout.minHeight = _featuresLayout.preferredHeight = featureHeight;
+                _featuresLayout.flexibleHeight = 0f;
+                _viewport.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, viewportHeight);
+                _features.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, featureHeight);
+                _table.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+                foreach (var slot in slots)
+                {
+                    UiTextHelpers.FitSelectionPreviewTitle(slot.SlotTitle, titleWidth, titleHeight,
+                        _nativeCell.y + _focusExtent.y * 2f);
+                }
+                LayoutRebuilder.ForceRebuildLayoutImmediate(_modal.panel.RectTransform);
+                LayoutRebuilder.ForceRebuildLayoutImmediate(_table);
+                KeepPanelControlsVisible();
+                _scroll.vertical = height > viewportHeight + 0.5f;
+                if (!_scroll.vertical)
+                {
+                    _table.anchoredPosition = Vector2.zero;
+                }
+                _lastSelected = null;
+            }
+            finally
+            {
+                _applying = false;
+            }
+        }
+
+        private void KeepPanelControlsVisible()
+        {
+            // Screen-space bounds are meaningful only after the native scale animation.
+            // OnEndShow schedules the final layout even if early retry frames expired.
+            if (_modal.Showing || _modal.Hiding || Mathf.Abs(_panel.lossyScale.x) < 0.0001f ||
+                Mathf.Abs(_panel.lossyScale.y) < 0.0001f ||
+                !FloatingPanelBounds.TryGetCanvasLocalBounds(_panel, out var bounds, out var canvas))
+            {
+                return;
+            }
+            foreach (var control in _closeControls)
+            {
+                if (control.gameObject.activeInHierarchy &&
+                    FloatingPanelBounds.TryGetCanvasLocalBounds(control, out var controlBounds, out _))
+                {
+                    bounds = Rect.MinMaxRect(Mathf.Min(bounds.xMin, controlBounds.xMin),
+                        Mathf.Min(bounds.yMin, controlBounds.yMin), Mathf.Max(bounds.xMax, controlBounds.xMax),
+                        Mathf.Max(bounds.yMax, controlBounds.yMax));
+                }
+            }
+            var safe = canvas.rect;
+            var delta = new Vector2(
+                bounds.xMin < safe.xMin + 12f ? safe.xMin + 12f - bounds.xMin :
+                bounds.xMax > safe.xMax - 12f ? safe.xMax - 12f - bounds.xMax : 0f,
+                bounds.yMin < safe.yMin + 12f ? safe.yMin + 12f - bounds.yMin :
+                bounds.yMax > safe.yMax - 12f ? safe.yMax - 12f - bounds.yMax : 0f);
+            FloatingPanelBounds.ApplyCanvasLocalDelta(_panel, canvas, delta);
+        }
+
+        private void KeepSelectedVisible()
+        {
+            var selected = EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
+            if (_lastSelected == selected)
+            {
+                return;
+            }
+            _lastSelected = selected;
+            if (!selected || !selected.activeInHierarchy || !selected.transform.IsChildOf(_table))
+            {
+                return;
+            }
+            var slot = selected.GetComponentInParent<BaseSelectionSlot>();
+            if (!slot)
+            {
+                return;
+            }
+            var corners = new Vector3[4];
+            slot.SlotImage.rectTransform.GetWorldCorners(corners);
+            var top = _viewport.InverseTransformPoint(corners[1]).y;
+            slot.SlotTitle.TMP_Text.rectTransform.GetWorldCorners(corners);
+            var bottom = _viewport.InverseTransformPoint(corners[0]).y;
+            var delta = top > _viewport.rect.yMax ? _viewport.rect.yMax - top :
+                bottom < _viewport.rect.yMin ? _viewport.rect.yMin - bottom : 0f;
+            if (Mathf.Abs(delta) > 0.5f)
+            {
+                var position = _table.anchoredPosition;
+                position.y = Mathf.Clamp(position.y + delta, 0f, Mathf.Max(0f, _table.rect.height - _viewport.rect.height));
+                _table.anchoredPosition = position;
+            }
+        }
+
+        private void OnDisable()
+        {
+            _lastSelected = null;
+            if (_table)
+            {
+                _table.anchoredPosition = Vector2.zero;
+            }
+        }
+    }
+
+    private sealed class SelectionPreviewTitleState : MonoBehaviour
+    {
+        private TMP_Text _text;
+        private Vector2 _anchorMin;
+        private Vector2 _anchorMax;
+        private Vector2 _pivot;
+        private Vector2 _size;
+        private Vector3 _position;
+        private float _fontSize;
+        private float _fontMin;
+        private float _fontMax;
+        private float _spacing;
+        private int _lines;
+        private bool _auto;
+        private bool _wrap;
+        private bool _container;
+        private TextOverflowModes _overflow;
+
+        internal void Capture(TMP_Text text)
+        {
+            if (_text)
+            {
+                return;
+            }
+            _text = text;
+            var rect = text.rectTransform;
+            _anchorMin = rect.anchorMin;
+            _anchorMax = rect.anchorMax;
+            _pivot = rect.pivot;
+            _size = rect.sizeDelta;
+            _position = rect.anchoredPosition3D;
+            _fontSize = text.fontSize;
+            _fontMin = text.fontSizeMin;
+            _fontMax = text.fontSizeMax;
+            _spacing = text.lineSpacing;
+            _lines = text.maxVisibleLines;
+            _auto = text.enableAutoSizing;
+            _wrap = text.enableWordWrapping;
+            _container = text.autoSizeTextContainer;
+            _overflow = text.overflowMode;
+        }
+
+        internal void Restore()
+        {
+            if (!_text)
+            {
+                return;
+            }
+            var rect = _text.rectTransform;
+            rect.anchorMin = _anchorMin;
+            rect.anchorMax = _anchorMax;
+            rect.pivot = _pivot;
+            rect.sizeDelta = _size;
+            rect.anchoredPosition3D = _position;
+            _text.fontSize = _fontSize;
+            _text.fontSizeMin = _fontMin;
+            _text.fontSizeMax = _fontMax;
+            _text.lineSpacing = _spacing;
+            _text.maxVisibleLines = _lines;
+            _text.enableAutoSizing = _auto;
+            _text.enableWordWrapping = _wrap;
+            _text.autoSizeTextContainer = _container;
+            _text.overflowMode = _overflow;
+            _text.SetLayoutDirty();
+            _text.SetVerticesDirty();
+            _text = null;
         }
     }
 

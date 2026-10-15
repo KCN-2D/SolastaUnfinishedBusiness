@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection.Emit;
@@ -7,8 +7,6 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Models;
-using UnityEngine;
-using UnityEngine.UI;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -20,6 +18,9 @@ public static class ArchetypesPreviewModalPatcher
     [UsedImplicitly]
     public static class Refresh_Patch
     {
+        [UsedImplicitly]
+        public static void Postfix(ArchetypesPreviewModal __instance) => UiTextHelpers.FitSubclassPreview(__instance);
+
         //PATCH: filters out on subclass display features already taken (MULTICLASS)
         private static int Level([NotNull] FeatureUnlockByLevel featureUnlockByLevel)
         {
@@ -62,6 +63,8 @@ public static class ArchetypesPreviewModalPatcher
     public static class Show_Patch
     {
         [UsedImplicitly]
+        public static void Postfix(ArchetypesPreviewModal __instance) => UiTextHelpers.FitSubclassPreview(__instance);
+        [UsedImplicitly]
         public static void Prefix(ArchetypesPreviewModal __instance, ref List<string> subclasses)
         {
             //PATCH: only presents the subclass already taken if one was already selected for this class (MULTICLASS)
@@ -86,22 +89,29 @@ public static class ArchetypesPreviewModalPatcher
                     DatabaseHelper.GetDefinition<CharacterSubclassDefinition>(left).FormatTitle(),
                     DatabaseHelper.GetDefinition<CharacterSubclassDefinition>(right).FormatTitle(),
                     StringComparison.CurrentCultureIgnoreCase));
-
-            //PATCH: changes the layout to allow a better display if more than 10 subs
-            var gridLayoutGroup = __instance.subclassesTable.GetComponent<GridLayoutGroup>();
-            var rectTransform = __instance.subclassesTable.GetComponent<RectTransform>();
-            var count = subclasses.Count;
-
-            if (count > 10)
-            {
-                gridLayoutGroup.constraintCount = 6;
-                rectTransform.localScale = new Vector3(0.8f, 0.8f, 0.8f);
-            }
-            else
-            {
-                gridLayoutGroup.constraintCount = 5;
-                rectTransform.localScale = new Vector3(1f, 1f, 1f);
-            }
         }
     }
+
+    [HarmonyPatch(typeof(ArchetypesPreviewModal), "Unbind")]
+    [UsedImplicitly]
+    public static class Unbind_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(ArchetypesPreviewModal __instance)
+        {
+            UiTextHelpers.RestoreSubclassPreview(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(ArchetypesPreviewModal), nameof(ArchetypesPreviewModal.OnEndShow))]
+    [UsedImplicitly]
+    public static class OnEndShow_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(ArchetypesPreviewModal __instance)
+        {
+            UiTextHelpers.FitSubclassPreview(__instance, resetScroll: true);
+        }
+    }
+
 }

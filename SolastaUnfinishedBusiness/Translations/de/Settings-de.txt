@@ -298,6 +298,7 @@ ModUi/&EnableSortingDungeonMakerAssets=Aktivieren Sie die Sortierung von Assets 
 ModUi/&EnableSpeech=Aktivieren Sie die Sprachausgabe in benutzerdefinierten Kampagnen <i><color=#F0DAA0>[nur Erzählung und Helden]</color></i>
 ModUi/&EnableSpeechActorHelp=• Wählen Sie einen Schauspieler
 ModUi/&EnableSpeechOnNpcs=Sprachausgabe für NPCs aktivieren
+ModUi/&EnableSpeechOnInteractions=Beschreibungen beim Untersuchen von Objekten mit der Erzählerstimme vorlesen
 ModUi/&EnableSpeechVoiceHelp=• Wählen Sie eine Stimme und Erzählgeschwindigkeit
 ModUi/&EnableStackableArtItems=Stapeln aktivieren <color=#D89555>Kunstgegenstände</color> <i><color=#F0DAA0>[kann nicht geteilt werden, solange diese Einstellung deaktiviert ist]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Stapeln von <color=#D89555>Dolchen</color> und <color=#D89555>Handäxten</color> aktivieren <i><color=#F0DAA0>[kann nicht geteilt werden, solange diese Einstellung deaktiviert ist]</color></i>

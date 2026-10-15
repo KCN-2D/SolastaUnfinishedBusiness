@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using HarmonyLib;
@@ -10,6 +11,22 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class FunctorPatcher
 {
+    [HarmonyPatch(typeof(FunctorDisplayLore), nameof(FunctorDisplayLore.Execute))]
+    [UsedImplicitly]
+    public static class DisplayLoreSpeech_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(FunctorParametersDescription functorParameters, ref IEnumerator __result)
+        {
+            // Native LoreFormat: 0/1 = character dialogue, 2 = gadget feedback,
+            // 3 = location header, 4 = timed prose, 5 = modal prose.
+            if (__result != null && functorParameters.IntParameter is 2 or 4 or 5)
+            {
+                __result = GameLocationBanterManagerPatcher.TrackInteractionLore(__result);
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(Functor), nameof(Functor.SelectCharacters))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

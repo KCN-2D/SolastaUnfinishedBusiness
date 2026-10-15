@@ -211,6 +211,7 @@ public class Settings : UnityModManager.ModSettings
     [MultiplayerLocal] public bool EnableLogDialoguesToConsole { get; set; }
     [MultiplayerLocal] public bool EnableSpeech { get; set; }
     [MultiplayerLocal] public bool EnableSpeechOnNpcs { get; set; }
+    [MultiplayerLocal] public bool EnableSpeechOnInteractions { get; set; }
     [MultiplayerLocal] public bool EnableVoiceVoxSpeech { get; set; }
     [MultiplayerLocal] public bool ForceModSpeechOnNpcs { get; set; }
     [MultiplayerLocal] public int SpeechChoice { get; set; }

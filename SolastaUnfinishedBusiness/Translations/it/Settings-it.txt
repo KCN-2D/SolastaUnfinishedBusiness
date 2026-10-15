@@ -298,6 +298,7 @@ ModUi/&EnableSortingDungeonMakerAssets=Abilita l'ordinamento delle risorse nell'
 ModUi/&EnableSpeech=Abilita la voce nelle campagne personalizzate <i><color=#F0DAA0>[solo narrazione ed eroi]</color></i>
 ModUi/&EnableSpeechActorHelp=• Seleziona un attore
 ModUi/&EnableSpeechOnNpcs=Abilita la lettura vocale dei PNG
+ModUi/&EnableSpeechOnInteractions=Leggi le descrizioni degli oggetti esaminati con la voce del narratore
 ModUi/&EnableSpeechVoiceHelp=• Seleziona una voce e una velocità di narrazione
 ModUi/&EnableStackableArtItems=Abilita l'impilamento di <color=#D89555>Oggetti artistici</color> <i><color=#F0DAA0>[non può essere diviso mentre questa impostazione è disabilitata]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Abilita l'accumulo di <color=#D89555>Pugnali</color> e <color=#D89555>Asce a mano</color> <i><color=#F0DAA0>[non può essere diviso mentre questa impostazione è disabilitata]</color></i>

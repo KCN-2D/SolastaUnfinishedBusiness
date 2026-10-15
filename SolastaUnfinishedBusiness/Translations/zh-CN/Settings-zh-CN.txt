@@ -298,6 +298,7 @@ ModUi/&EnableSortingDungeonMakerAssets=在地城编辑器编辑器上启用资�
 ModUi/&EnableSpeech=在自定义战役中启用语音<i><color=#F0DAA0>[仅限旁白和英雄]</color></i>
 ModUi/&EnableSpeechActorHelp=• 选择演员
 ModUi/&EnableSpeechOnNpcs=启用NPC语音朗读
+ModUi/&EnableSpeechOnInteractions=使用旁白声音朗读调查物件时的描述
 ModUi/&EnableSpeechVoiceHelp=• 选择语音和叙述速度
 ModUi/&EnableStackableArtItems=启用堆叠<color=#D89555>艺术品</color> <i><color=#F0DAA0>[此设置禁用时无法拆分]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=启用堆叠<color=#D89555>匕首</color>和<color=#D89555>手斧</color> <i><color=#F0DAA0>[禁用此设置时无法拆分]</color></i>

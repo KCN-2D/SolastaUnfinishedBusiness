@@ -298,6 +298,7 @@ ModUi/&EnableSortingDungeonMakerAssets=Activer le tri des ressources sur l'édit
 ModUi/&EnableSpeech=Activer la parole dans les campagnes personnalisées <i><color=#F0DAA0>[narration et héros uniquement]</color></i>
 ModUi/&EnableSpeechActorHelp=• Sélectionnez un acteur
 ModUi/&EnableSpeechOnNpcs=Activer la lecture vocale des PNJ
+ModUi/&EnableSpeechOnInteractions=Lire les descriptions des objets examinés avec la voix du narrateur
 ModUi/&EnableSpeechVoiceHelp=• Sélectionnez une voix et une vitesse de narration
 ModUi/&EnableStackableArtItems=Activer l'empilement des <color=#D89555>éléments d'art</color> <i><color=#F0DAA0>[ne peut pas être divisé lorsque ce paramètre est désactivé]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Activer l'empilement des <color=#D89555>dagues</color> et des <color=#D89555>haches à main</color> <i><color=#F0DAA0>[ne peut pas être divisé tant que ce paramètre est désactivé]</color></i>

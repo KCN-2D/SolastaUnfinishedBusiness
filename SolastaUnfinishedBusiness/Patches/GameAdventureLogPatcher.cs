@@ -17,7 +17,12 @@ public static class GameAdventureLogPatcher
         [UsedImplicitly]
         public static void Prefix(string loreText)
         {
-            SpeechContext.Speak(loreText, 0);
+            // Interaction prose is read from its displayed text under its own option.
+            // Recording that same lore entry must not queue another narrator request.
+            if (!GameLocationBanterManagerPatcher.IsDisplayingInteractionLore)
+            {
+                SpeechContext.Speak(loreText, 0);
+            }
         }
     }
 }

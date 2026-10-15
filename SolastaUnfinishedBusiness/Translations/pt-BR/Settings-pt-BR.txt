@@ -298,6 +298,7 @@ ModUi/&EnableSortingDungeonMakerAssets=Habilitar classificação de ativos no ed
 ModUi/&EnableSpeech=Habilitar fala em campanhas personalizadas <i><color=#F0DAA0>[somente narração e heróis]</color></i>
 ModUi/&EnableSpeechActorHelp=• Selecione um ator
 ModUi/&EnableSpeechOnNpcs=Habilitar leitura em voz alta dos NPCs
+ModUi/&EnableSpeechOnInteractions=Ler as descrições dos objetos examinados com a voz do narrador
 ModUi/&EnableSpeechVoiceHelp=• Selecione uma voz e velocidade de narração
 ModUi/&EnableStackableArtItems=Habilitar empilhamento <color=#D89555>Itens de arte</color> <i><color=#F0DAA0>[não pode ser dividido enquanto esta configuração estiver desabilitada]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Habilitar empilhamento de <color=#D89555>Adagas</color> e <color=#D89555>Machados de Mão</color> <i><color=#F0DAA0>[não pode ser dividido enquanto esta configuração estiver desabilitada]</color></i>
