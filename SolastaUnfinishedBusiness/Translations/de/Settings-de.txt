@@ -695,3 +695,4 @@ ModUi/&EnableAssassinAssassinate2024=2024-<color=#D89555>Meucheln</color> für J
 ModUi/&EnableToolChecks2024=Übungsregeln für Werkzeugwürfe nach den Regeln von 2024 verwenden
 ModUi/&ToolChecks2024Description=Bei Würfen mit Diebeswerkzeug werden die Übung in Fingerfertigkeit und die für diese Fertigkeit geltenden Effekte angewendet. Der höhere Bonus aus Fertigkeits- oder Werkzeugübung wird einmal addiert; Übung in beidem gewährt Vorteil.
 ModUi/&EnableAssassinInfiltrationExpertise2024=2024-<color=#D89555>Infiltrationsexpertise</color> für Jägerinnen auf Stufe 9 verwenden <i><color=#F0DAA0>[Übung oder Expertise in Täuschen und Bewegung nach Zielsicher; gewährt diesen Jägerinnen Zielsicher auch bei deaktivierter Klassenoption]</color></i>
+Setting/&NoToolRequirementDescription=Charaktere können ohne Werkzeuge Gegenstände herstellen und Truhen oder Türen aufschließen.

@@ -695,3 +695,4 @@ ModUi/&EnableAssassinAssassinate2024=Usar <color=#D89555>Asesinar</color> de 202
 ModUi/&EnableToolChecks2024=Usar las reglas de competencia de 2024 para las pruebas con herramientas
 ModUi/&ToolChecks2024Description=En las pruebas con herramientas de ladrones, se aplican la competencia en Juego de manos y los efectos específicos de esa habilidad. Se suma una sola vez el mayor bonificador de competencia entre la habilidad y la herramienta; tener competencia en ambas otorga ventaja.
 ModUi/&EnableAssassinInfiltrationExpertise2024=Usar <color=#D89555>Pericia en infiltración</color> de 2024 para el Asesino de nivel 9 <i><color=#F0DAA0>[competencia o pericia en Engaño y movimiento tras Buena puntería; concede Buena puntería a estos Asesinos aunque la opción de clase esté desactivada]</color></i>
+Setting/&NoToolRequirementDescription=Los personajes pueden fabricar objetos y abrir las cerraduras de cofres o puertas sin herramientas.

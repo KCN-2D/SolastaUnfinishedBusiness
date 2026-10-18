@@ -1,5 +1,5 @@
 EnvironmentEffect/&CollapsingRoofDescription=複数の岩や巨石が地面へ落下します。
-EnvironmentEffect/&CollapsingRoofTitle=崩落する屋根
+EnvironmentEffect/&CollapsingRoofTitle=崩落する天井
 EnvironmentEffect/&DeathGlyphDescription=これを踏むと死霊ダメージを受け、恐怖状態に陥ります。
 EnvironmentEffect/&DeathGlyphTitle=死のグリフ
 EnvironmentEffect/&DisturbingRunesDescription=精神に作用するルーンが魂にダメージを与え、行動を乱します。

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Reflection.Emit;
 using HarmonyLib;
+using I2.Loc;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -20,6 +21,19 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GuiPatcher
 {
+    [HarmonyPatch(typeof(LocalizationManager), "LoadCurrentLanguage")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class LoadCurrentLanguage_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix()
+        {
+            // Apply the current packs after I2 loads its cache, before native labels are localized.
+            TranslatorContext.RefreshCurrentLanguage();
+        }
+    }
+
     [HarmonyPatch(typeof(Gui), nameof(Gui.FormatCommandMapping))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

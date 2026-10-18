@@ -695,3 +695,4 @@ ModUi/&EnableAssassinAssassinate2024=Usa <color=#D89555>Assassinio</color> del 2
 ModUi/&EnableToolChecks2024=Usa le regole di competenza del 2024 per le prove con strumenti
 ModUi/&ToolChecks2024Description=Le prove con strumenti dei ladri applicano la competenza in Gioco di prestigio e gli effetti specifici di quell'abilità. Si aggiunge una sola volta il bonus di competenza più alto tra quello dell'abilità e quello dello strumento; possedere competenza in entrambi conferisce vantaggio.
 ModUi/&EnableAssassinInfiltrationExpertise2024=Usa <color=#D89555>Esperienza nell'infiltrazione</color> del 2024 per il Cacciatore di livello 9 <i><color=#F0DAA0>[competenza o maestria in Inganno e movimento dopo Mira stabile; conferisce Mira stabile a questi Cacciatori anche se l'opzione di classe è disattivata]</color></i>
+Setting/&NoToolRequirementDescription=I personaggi possono fabbricare oggetti e aprire le serrature di forzieri o porte senza strumenti.

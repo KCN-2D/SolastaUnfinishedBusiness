@@ -1014,7 +1014,7 @@ internal static class EldritchVersatilityBuilders
                 // If success increase DC, otherwise decrease DC
                 var createSuccess = action.AbilityCheckRollOutcome <= RollOutcome.Success;
 
-                // Log to notify outcome and new DC
+                // Log the spell-slot recovery outcome.
                 var console = Gui.Game.GameConsole;
                 var entry = createSuccess
                     ? new GameConsoleEntry("Feedback/&BattlefieldConversionCreateSlotSuccess",

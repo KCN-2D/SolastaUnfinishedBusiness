@@ -41,6 +41,9 @@ internal static class TranslatorContext
         ["pt"] = "pt-BR"
     };
 
+    private static string LoadedLanguageCode { get; set; }
+    private static bool LoadingTranslations { get; set; }
+
     /// <summary>
     ///     Maps unofficial language codes to official language codes.
     /// </summary>
@@ -96,6 +99,7 @@ internal static class TranslatorContext
     {
         Languages.Clear();
         SourceCodeCache.Clear();
+        LoadedLanguageCode = null;
 
         if (Main.Settings.DisableUnofficialTranslations)
         {
@@ -276,6 +280,8 @@ internal static class TranslatorContext
 
     internal static void Unload()
     {
+        LoadedLanguageCode = null;
+
         foreach (var fontBundle in FontBundles.Where(x => x).Distinct())
         {
             fontBundle.Unload(false);
@@ -332,13 +338,18 @@ internal static class TranslatorContext
         return !string.IsNullOrEmpty(code) && code.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void LoadCustomTerms()
+    private static void LoadCustomTerms(string languageCode = null)
     {
         var languageSourceData = LocalizationManager.Sources[0];
 
         // load new language terms
         foreach (var language in Languages)
         {
+            if (languageCode != null && !IsLanguageCode(language.Code, languageCode))
+            {
+                continue;
+            }
+
             // add language
             languageSourceData.AddLanguage(language.Text, language.Code);
 
@@ -491,7 +502,39 @@ internal static class TranslatorContext
 
     internal static void Load()
     {
+        if (LoadingTranslations)
+        {
+            return;
+        }
+
+        LoadingTranslations = true;
+
+        try
+        {
+            LoadTranslations();
+        }
+        finally
+        {
+            LoadingTranslations = false;
+        }
+    }
+
+    internal static void RefreshCurrentLanguage()
+    {
+        if (Main.Enabled && !LoadingTranslations &&
+            !IsLanguageCode(LoadedLanguageCode, LocalizationManager.CurrentLanguageCode))
+        {
+            Load();
+        }
+    }
+
+    private static void LoadTranslations()
+    {
         var languageCode = LocalizationManager.CurrentLanguageCode;
+
+        // I2 can replace custom terms with its persisted language cache when switching languages.
+        // Restore the enabled unofficial pack first, then apply mod terms and official fixes.
+        LoadCustomTerms(languageCode);
 
         var englishTerms = GetTermsDict(English, IsModTerm);
         var currentLanguageTerms = languageCode != English ? GetTermsDict(languageCode, IsModTerm) : englishTerms;
@@ -532,6 +575,7 @@ internal static class TranslatorContext
         }
 
         Main.Info($"{lineCount} {languageCode} translation fixes loaded.");
+        LoadedLanguageCode = languageCode;
 
         // creates a report on missing terms
         if (languageCode == English)
@@ -551,16 +595,16 @@ internal static class TranslatorContext
             }
         }
 
-        var termsToDelete = currentLanguageTerms.Keys.Except(englishTerms.Keys);
+        var termsToDelete = currentLanguageTerms.Keys.Except(englishTerms.Keys).ToArray();
 
-        if (!termsToDelete.Any())
+        if (termsToDelete.Length == 0)
         {
             return;
         }
 
         Main.Info("DELETE THESE TERMS:");
 
-        foreach (var term in currentLanguageTerms.Keys.Except(englishTerms.Keys))
+        foreach (var term in termsToDelete)
         {
             Main.Info($"{term} must be deleted from {languageCode} translation assets");
         }

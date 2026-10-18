@@ -144,7 +144,7 @@ ModUi/&EnableBardicInspiration2024=<color=#D89555>バードの声援</color>を2
 ModUi/&EnableBetaContent=ベータ版コンテンツを有効にします<b><i><color=#C04040E0>（再起動が必要）</color></i></b>
 ModUi/&EnableCancelEditOnRightMouseClick=マウスの右クリックで操作を取り消せるようにします
 ModUi/&EnableCantripsTriggeringOnWarMagic=初級呪文の発動後に、<color=#D89555>魔法戦士</color>による追加攻撃をボーナス・アクションとして行えるようにします
-ModUi/&EnableCharactersOnFireToEmitLight=<color=#D89555>炎上中</color>のキャラクターが光を放つようにします<i><color=#F0DAA0>（光のキューブ、ファイア・エレメンタル、ファイア・ジェスター、ファイア・オスプレイ、ファイア・スパイダー、炎上とその派生状態が対象）</color></i>
+ModUi/&EnableCharactersOnFireToEmitLight=<color=#D89555>炎上中</color>のキャラクターが光を放つようにします<i><color=#F0DAA0>（光の立方体、ファイアー・エレメンタル、ファイアー・ジェスター、ファイアー・オスプレイ、ファイアー・スパイダー、炎上とその派生状態が対象）</color></i>
 ModUi/&EnableClericBlessedStrikes2024=レベル7で<color=#D89555>祝福された一撃</color>、レベル14で<color=#D89555>祝福された一撃強化</color>を取得できるようにします
 ModUi/&EnableClericChannelDivinity2024=<color=#D89555>神性伝導</color>を2024年版の効果に変更します<i><color=#F0DAA0>（使用回数を変更）</color></i>
 ModUi/&EnableClericDivineOrder2024=レベル1で<color=#D89555>神聖なる使命</color>を取得できるようにします<i><color=#F0DAA0>（重装鎧と軍用武器への習熟、または追加の初級呪文と一部の知力判定へのボーナスを選択）</color></i>
@@ -199,7 +199,7 @@ ModUi/&EnableMonkImprovedUnarmoredMovement=<color=#D89555>運足法強化</color
 ModUi/&EnableMonkKatanaSpecialization=刀に<color=#D89555>武器特化</color>を付与します
 ModUi/&EnableMonkMartialArts2024=<color=#D89555>武術</color>を2024年版と入れ替えます\n<i><color=#F0DAA0>（素手打撃ダイスの成長改善、組みつき/突き飛ばしでの敏捷力または筋力の使用、素手打撃ボーナス・アクションの条件撤廃）</color></i>
 ModUi/&EnableMonkSelfRestoration2024=10レベルで<color=#D89555>自己回復</color>を有効にし、7レベルの<color=#D89555>不動心</color>を置き換えます
-ModUi/&EnableMonkStunningStrike2024=<color=#D89555>朦朧撃</color>を2024年版と入れ替えます<i><color=#F0DAA0>（対象がセーヴに成功した場合の追加効果）</color></i>
+ModUi/&EnableMonkStunningStrike2024=<color=#D89555>朦朧撃</color>を2024年版と入れ替えます<i><color=#F0DAA0>（対象がセーヴィング・スローに成功した場合の追加効果）</color></i>
 ModUi/&EnableMonkSuperiorDefense2024=18レベルで<color=#D89555>虚身</color>の代わりに<color=#D89555>優れた防御</color>を有効にします<i><color=#F0DAA0>（ダメージ抵抗）</color></i>
 ModUi/&EnableMonkUncannyMetabolism2024=レベル2で<color=#D89555>超新陳代謝</color>を有効にします<i><color=#F0DAA0>（イニシアチブ・ロールで気ポイントとヒット・ポイントを回復）</color></i>
 ModUi/&EnableMulticlass=<color=#D89555>マルチクラス</color>を有効にします<b><i><color=#C04040E0>（再起動が必要）</color></i></b>
@@ -261,8 +261,8 @@ ModUi/&EnableRelearnSpells=他の方法ですでに修得した初級呪文や�
 ModUi/&EnableRespecAction=休憩後の行動に<color=#D89555>リスペック</color>を追加します<i><color=#F0DAA0>（マルチプレイヤーセッション中は使用しないでください）</color></i>
 ModUi/&EnableRitualOnAllCasters2024=すべての呪文発動者が、準備済みの<color=#D89555>儀式</color>呪文を儀式発動できるようにします
 ModUi/&EnableOneSpellSlotPerTurn2024=1ターン中、呪文を発動するために消費できる呪文スロットを1つに制限します<i><color=#F0DAA0>（初級呪文と、呪文スロットを消費せずに発動する呪文には影響しません）</color></i>
-ModUi/&EnableOneDndCounterspellSpell=<color=#D89555>{0}</color>の2024年版を有効にします<i><color=#F0DAA0>（耐久力セーヴ失敗で発動を妨害、妨害された呪文のスロットは非消費）</color></i>
-ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>（防御術士のレベル10能力である呪文破りも自動的に有効になります。宮廷魔術師の呪文妨害熟練は、自分の呪文妨害に対する対象のセーヴに不利を与え、他者の呪文妨害に対する自分のセーヴに有利を与えます）</color></i>
+ModUi/&EnableOneDndCounterspellSpell=<color=#D89555>{0}</color>の2024年版を有効にします<i><color=#F0DAA0>（耐久力セーヴィング・スロー失敗で発動を妨害、妨害された呪文のスロットは非消費）</color></i>
+ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>（防御術士のレベル10能力である呪文破りも自動的に有効になります。宮廷魔術師の呪文妨害熟練は、自分の呪文妨害に対する対象のセーヴィング・スローに不利を与え、他者の呪文妨害に対する自分のセーヴィング・スローに有利を与えます）</color></i>
 ModUi/&EnableRogueCunningStrike2024=レベル5、11、14で<color=#D89555>巧妙な一撃</color>、<color=#D89555>改良された巧妙な一撃</color>、<color=#D89555>悪巧みの一撃</color>を有効にします<i><color=#F0DAA0>（急所攻撃のダイス数を減らして、命中時に追加効果を与える）</color></i>
 ModUi/&EnableRogueFightingStyle=レベル2で<color=#D89555>戦闘スタイル</color>の選択を有効にします
 ModUi/&EnableRogueReliableTalent2024=<color=#D89555>信頼できる才能</color>をレベル11ではなくレベル7で有効にします
@@ -298,7 +298,7 @@ ModUi/&EnableUnarmedMainAttackAction=<color=#D89555>素手打撃</color>アク�
 ModUi/&EnableUnlimitedInventoryActions=1ターンに行える<color=#D89555>インベントリ・アクション</color>の回数を無制限にします
 ModUi/&EnableUpcastConjureElementalAndFey=<color=#D89555>エレメンタル召喚</color>と<color=#D89555>フェイ召喚</color>を高レベルの呪文スロットで発動できるようにします
 ModUi/&EnableVariablePlaceholdersOnTexts=説明文で変数プレースホルダーを使用できるようにします<i><color=#F0DAA0>（プレースホルダーには{VARIABLE_NAME}を使用）</color></i>
-ModUi/&EnableVersatileAmmunitionSlots=<color=#D89555>ポーション</color>と<color=#D89555>巻物</color>を弾薬スロットに入れて使用できるようにします
+ModUi/&EnableVersatileAmmunitionSlots=<color=#D89555>ポーション</color>と<color=#D89555>巻物</color>を矢弾スロットに入れて使用できるようにします
 ModUi/&EnableVersatileOffHandSlot=<color=#D89555>ポーション</color>と<color=#D89555>巻物</color>を非利き手武器スロットに入れて使用できるようにします
 ModUi/&EnableWarlockInvocationProgression2024=<color=#D89555>妖術</color>を2024年版に変更します<i><color=#F0DAA0>（習得数の増え方と一部の妖術の効果を変更）</color></i>
 ModUi/&EnableWarlockMagicalCunningAndImprovedEldritchMaster2024=レベル2で<color=#D89555>魔法の狡猾さ</color>を有効にし、レベル20で<color=#D89555>呪文復活</color>を強化します
@@ -440,9 +440,9 @@ ModUi/&RemoveRecurringEffectOnEntangle=<color=#D89555>からみつき</color>の
 ModUi/&RemoveRogueBlindSense2024=14レベルの<color=#D89555>非視覚的感知</color>を削除します
 ModUi/&RemoveSchoolRestrictionsFromShadowCaster=<b>シャドウキャスター</b>の呪文選択における系統の制限を取り除きます
 ModUi/&RemoveSchoolRestrictionsFromSpellBlade=<b>スペルブレード</b>の呪文選択における系統の制限を取り除きます
-ModUi/&RestockAntiquarians=古物商の在庫が補充されるようにします<i><color=#F0DAA0>（ハルマン・サマー）</color></i>
+ModUi/&RestockAntiquarians=アンティクアリアンの在庫が補充されるようにします<i><color=#F0DAA0>（ハルマン・サマー）</color></i>
 ModUi/&RestockArcaneum=アルケイナムの在庫が補充されるようにします<i><color=#F0DAA0>（ヘドロン・シュアスペル）</color></i>
-ModUi/&RestockCircleOfDanantar=ダナンターの円環の在庫が補充されるようにします<i><color=#F0DAA0>（ジョリエル・フォックスアイ）</color></i>
+ModUi/&RestockCircleOfDanantar=ダナンタールのサークルの在庫が補充されるようにします<i><color=#F0DAA0>（ジョリエル・フォックスアイ）</color></i>
 ModUi/&RestockHelp=• 通常の補充設定を変更し、商人の在庫を一定時間ごとに補充します<i><color=#F0DAA0>（能力値を上昇させる指南書と魔導書を除く）</color></i>\n• アイテムによっては、補充にゲーム内で最大7日かかります
 ModUi/&RestockTowerOfKnowledge=知識の塔の在庫が補充されるようにします<i><color=#F0DAA0>（マディ・グリーンアイル）</color></i>
 ModUi/&Rollback=<b><color=#D89555>ロールバック</color></b>
@@ -536,7 +536,7 @@ ModUi/&TranslationCompletedWithErrors=完了（エラーあり）
 ModUi/&TranslationCancelled=キャンセル
 ModUi/&TranslationFailed=失敗
 ModUi/&TranslationFailedCount=（失敗{0}件）
-ModUi/&TranslationMoreItems=…ほか{0}件
+ModUi/&TranslationMoreItems=……ほか{0}件
 ModUi/&TranslationGoogleSettings=Google API設定
 ModUi/&TranslationGoogleLegacyMode=旧方式でGoogle Translate APIに翻訳をリクエストします
 ModUi/&ShowCategoryProgress=カテゴリ別の進捗を表示します
@@ -653,7 +653,7 @@ ModUi/&Minimum=最小
 ModUi/&Maximum=最大
 ModUi/&EnableVoiceVoxSpeech=日本語の読み上げにVOICEVOXを使います
 ModUi/&SpeechVoiceVoxHelp=UBのダウンロード・セットアップボタンでVOICEVOXを導入できます。導入後は必要に応じて自動起動します。起動済みのVOICEVOXにも接続できます。読み上げはこのPC内で処理されます。
-ModUi/&SpeechVoiceVoxConnecting=VOICEVOXに接続しています…
+ModUi/&SpeechVoiceVoxConnecting=VOICEVOXに接続しています……
 ModUi/&SpeechVoiceVoxConnected=VOICEVOXに接続しました。{0}種類の音声・演技スタイルを利用できます。
 ModUi/&SpeechVoiceVoxUnavailable=VOICEVOXに接続できません。セットアップを完了するか、起動済みのVOICEVOXを確認してから音声リストを更新してください。
 ModUi/&SpeechVoiceVoxInstall=VOICEVOXをダウンロードしてセットアップ
@@ -695,3 +695,4 @@ ModUi/&EnableAssassinAssassinate2024=アサシンのレベル3の特徴を2024�
 ModUi/&EnableToolChecks2024=2024年版の道具判定の習熟ルールを適用します
 ModUi/&ToolChecks2024Description=盗賊道具を用いる判定に、〈手先の早業〉の習熟と、その技能に固有の効果を適用します。技能と道具の習熟によるボーナスのうち、高い方を1回だけ加えます。両方に習熟している場合は有利も得ます。
 ModUi/&EnableAssassinInfiltrationExpertise2024=アサシンのレベル9の特徴を2024年版の<color=#D89555>偽りの素性</color>に変更します。<i><color=#F0DAA0>〈ペテン〉の習熟または習熟強化を得て、着実な狙いの使用後に移動できるようになります。ローグ全体の着実な狙い設定が無効でも、このアサシンに着実な狙いを付与します。</color></i>
+Setting/&NoToolRequirementDescription=キャラクターは道具なしでアイテムを製作したり、宝箱や扉の錠前を開けたりできます。

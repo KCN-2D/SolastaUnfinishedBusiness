@@ -16,7 +16,7 @@ Validator/&ParameterMonsterQuantityTitle=Сколько?
 Validator/&ParameterMonsterTitle=Монстр
 Validator/&ParameterRestTypeDescription=Тип ожидаемого отдыха
 Validator/&ParameterRestTypeTitle=Короткий = 0; Длинный = 1
-Validator/&ParameterSpellNameDescription=Точное внутреннее название (на английском с соблюдением ограничений) заклинания для уточнения
+Validator/&ParameterSpellNameDescription=Точное внутреннее название заклинания. Введите его на английском языке, точно соблюдая регистр букв.
 Validator/&ParameterSpellNameTitle=Название заклинания
 Validator/&ParameterVariableDescription=Переменная для проверки
 Validator/&ParameterVariableTestTypeDescription=Тип проверки, применяемый к переменной

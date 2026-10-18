@@ -695,3 +695,4 @@ ModUi/&EnableAssassinAssassinate2024=Utiliser l'<color=#D89555>Assassinat</color
 ModUi/&EnableToolChecks2024=Utiliser les règles de maîtrise de 2024 pour les tests avec des outils
 ModUi/&ToolChecks2024Description=Les tests utilisant des outils de voleur bénéficient de la maîtrise d'Escamotage et des effets propres à cette compétence. Seul le plus élevé des bonus de maîtrise de la compétence ou de l'outil est ajouté, une seule fois ; maîtriser les deux confère l'avantage.
 ModUi/&EnableAssassinInfiltrationExpertise2024=Utiliser l'<color=#D89555>Expertise en infiltration</color> de 2024 pour le Tueur de niveau 9 <i><color=#F0DAA0>[maîtrise ou expertise en Tromperie et déplacement après Visez fermement ; accorde Visez fermement à ces Tueurs même si l'option de classe est désactivée]</color></i>
+Setting/&NoToolRequirementDescription=Les personnages peuvent fabriquer des objets et crocheter les serrures des coffres ou des portes sans outils.

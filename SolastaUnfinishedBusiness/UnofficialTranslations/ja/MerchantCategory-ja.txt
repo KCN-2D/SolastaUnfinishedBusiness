@@ -3,6 +3,6 @@ MerchantCategory/&AllTitle=すべてのアイテム
 MerchantCategory/&ArmorTitle=防具
 MerchantCategory/&CraftingTitle=製作
 MerchantCategory/&DocumentTitle=書類
-MerchantCategory/&IngredientTitle=材料
+MerchantCategory/&IngredientTitle=素材
 MerchantCategory/&MagicDeviceTitle=魔法の装置
 MerchantCategory/&WeaponTitle=武器

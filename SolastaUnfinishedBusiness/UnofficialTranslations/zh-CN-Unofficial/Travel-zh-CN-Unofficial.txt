@@ -1,4 +1,4 @@
-Travel/&DLC1_StandardRandomEvents10=小队经过一个空空如也的商队大篷车。
+Travel/&DLC1_StandardRandomEvents10=小队经过一支没有货物的商队。
 Travel/&DLC1_StandardRandomEvents11=小队经过一个被摧毁的自治领检查点。
 Travel/&DLC1_StandardRandomEvents12=小队经过挂着反抗军尸体的绞刑架。
 Travel/&DLC1_StandardRandomEvents13=小队经过一个挂着自治领破碎旗帜的哨所。
@@ -50,7 +50,7 @@ Travel/&DLC3_StandardRandomEvents31=一阵突如其来的冰雹迫使小队寻�
 Travel/&DLC3_StandardRandomEvents32=一个蓝色的光球出现在了小队的上方。噼啪数秒后，它又消失在了空中。
 Travel/&DLC3_StandardRandomEvents33=一只狗孤身从树林里冒了出来，看上去饥饿却不失机敏，结果被一个持弩的疯狂胡子男赶跑了。
 Travel/&DLC3_StandardRandomEvents34=小队经过了一座巨大的金属圆柱体遗迹。它看起来就像是从天上掉下来的！
-Travel/&DLC3_StandardRandomEvents35=一块雕刻着古怪符文的巨大岩石嵌在里面，摸起来感觉很邪门。
+Travel/&DLC3_StandardRandomEvents35=一块刻着古怪符文的巨大岩石。触摸时能感觉到邪恶的气息。
 Travel/&DLC3_StandardRandomEvents36={0}感觉有什么跟在身后，但搜索后却一无所获。
 Travel/&DLC3_StandardRandomEvents37={0}看见有个小姑娘在追一只巨大的兔子。他们双双钻进了巨大的兔子洞，然后消失了。
 Travel/&DLC3_StandardRandomEvents38={0}听到一段阴森诡谲的音乐，持续了几分钟。但其他人都没有听到。

@@ -11,6 +11,6 @@ Feature/&MagicAffinityRangerArcanistTitle=奥术战斗训练
 Feature/&PowerArcanistArcanePulseDescription=从第 7 级开始，你可以在 30 尺范围内引发奥术能量爆发。冲击点 15 尺内的敌对生物受到 4d8 伤害并获得奥术师印记。每次长休你可以使用此能力的次数等于你的感知调整值。在 15 级时，你的奥术脉冲伤害提升至 8d8。
 Feature/&PowerArcanistArcanePulseTitle=奥术脉冲
 Feedback/&AdditionalDamageArcanistMarkFormat=奥术师印记！
-Feedback/&AdditionalDamageArcanistMarkLine=奥术师印记引爆并对目标造成额外伤害！
+Feedback/&AdditionalDamageArcanistMarkLine=奥术师印记引爆，对{1}额外造成+{2}伤害！
 Subclass/&RangerArcanistDescription=奥术师将他们的游侠技能与奥术能力融合在一起。他们的武器可以用奥术师的印记折磨他们的对手，并且已经学会了如何施展一些法师法术作为他们游侠法术的一部分。
 Subclass/&RangerArcanistTitle=奥术师

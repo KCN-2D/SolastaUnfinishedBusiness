@@ -1,4 +1,3 @@
-Condition/&ConditionWizardAbjurationArcaneWardDescription=Sua Arcane Ward está ativa
 Condition/&ConditionWizardAbjurationArcaneWardTitle=Proteção Arcana
 Feature/&FeatureWizardAbjurationSpellBreakerDescription=Contramágica e Dissipar Magia estão sempre preparadas e não contam no número de magias que você pode preparar.\nVocê também pode conjurar Dissipar Magia como ação bônus. Adicione seu bônus de proficiência aos testes de atributo feitos para encerrar efeitos de magias com Dissipar Magia.\nSe conjurar Contramágica usando um espaço de magia e não conseguir interromper a conjuração da magia alvo, esse espaço não será gasto. Se conjurar Dissipar Magia usando um espaço de magia e não encerrar nenhum efeito de magia, esse espaço não será gasto.
 Feature/&FeatureWizardAbjurationSpellBreakerTitle=Quebra-magia
@@ -19,7 +18,7 @@ Feature/&PowerWizardAbjurationRechargeArcaneWardTitle=Recarregue a Proteção Ar
 Feature/&PowerWizardAbjurationSpellResistanceDescription=Ganhe vantagem em testes de resistência contra magias e resistência a dano mágico.
 Feature/&PowerWizardAbjurationSpellResistanceTitle=Resistência à magia
 Feedback/&ArcaneWard={0} tem {1} e reduz o dano em {2}
-Feedback/&ArcaneWardRecharge={0} recupera {1} Pontos de Vida.
+Feedback/&ArcaneWardRecharge=O {1} de {0} recupera {2} pontos de vida.
 Feedback/&ProjectedWard={0} usa {1} para reduzir o dano recebido por {2}
 Reaction/&SpendPowerProjectedWardDescription={0} está prestes a sofrer dano. {1} pode reagir e projetar sua Proteção Arcana para reduzir o dano.
 Reaction/&SpendPowerProjectedWardReactDescription=Absorva dano com sua Proteção Arcana.

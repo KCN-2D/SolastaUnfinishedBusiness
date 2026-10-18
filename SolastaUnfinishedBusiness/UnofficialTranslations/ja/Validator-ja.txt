@@ -16,7 +16,7 @@ Validator/&ParameterMonsterTitle=モンスター
 Validator/&ParameterMonsterorNPCTitle=モンスターまたはNPC
 Validator/&ParameterRestTypeDescription=想定される休憩種別です
 Validator/&ParameterRestTypeTitle=小休憩=0大休憩=1
-Validator/&ParameterSpellNameDescription=指定する呪文の正確な内部名です（英語・大文字固定）
+Validator/&ParameterSpellNameDescription=指定する呪文の正確な内部名です。英語で入力し、大文字と小文字を正確に合わせてください。
 Validator/&ParameterSpellNameTitle=呪文名
 Validator/&ParameterVariableDescription=テストする変数
 Validator/&ParameterVariableTestTypeDescription=変数に対して実行するテスト種別です

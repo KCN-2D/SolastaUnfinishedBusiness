@@ -695,3 +695,4 @@ ModUi/&EnableAssassinAssassinate2024=杀手3级时采用2024版<color=#D89555>�
 ModUi/&EnableToolChecks2024=使用2024版工具检定熟练规则
 ModUi/&ToolChecks2024Description=使用盗贼工具进行检定时，应用巧手熟练及该技能专属的效果。技能熟练和工具熟练提供的加值只取较高者，且仅加一次；两者均具有熟练时获得优势。
 ModUi/&EnableAssassinInfiltrationExpertise2024=杀手9级时采用2024版<color=#D89555>潜入专长</color><i><color=#F0DAA0>[获得欺瞒熟练或专精，并可在稳定瞄准后移动；即使职业设置关闭，仍向这些杀手授予稳定瞄准]</color></i>
+Setting/&NoToolRequirementDescription=角色无需工具即可制作物品，以及开启箱子或门上的锁。

@@ -16,7 +16,7 @@ Validator/&ParameterMonsterTitle=Mostro
 Validator/&ParameterMonsterorNPCTitle=Mostro o NPC
 Validator/&ParameterRestTypeDescription=Il tipo di riposo previsto
 Validator/&ParameterRestTypeTitle=Breve=0 Lungo=1
-Validator/&ParameterSpellNameDescription=Il nome interno esatto (in inglese e in maiuscolo) dell'incantesimo da specificare
+Validator/&ParameterSpellNameDescription=Il nome interno esatto dell'incantesimo. Inseriscilo in inglese, rispettando esattamente le lettere maiuscole e minuscole.
 Validator/&ParameterSpellNameTitle=Scrivi il nome
 Validator/&ParameterVariableDescription=La variabile da testare
 Validator/&ParameterVariableTestTypeDescription=Il tipo di test da eseguire sulla variabile

@@ -1,12 +1,12 @@
-Action/&CrystalDefenseOffDescription=〈結晶防御〉を解除します
+Action/&CrystalDefenseOffDescription=結晶防御を解除します
 Action/&CrystalDefenseOffTitle=結晶防御
-Action/&CrystalDefenseOnDescription=〈結晶防御〉を起動します
+Action/&CrystalDefenseOnDescription=結晶防御を起動します
 Action/&CrystalDefenseOnTitle=結晶防御
-Condition/&ConditionCrystalDefenseDescription=ACに+4のボーナスを得ます。伏せ状態になり、移動速度が0になります。〈結晶防御〉を解除するボーナス・アクション以外のアクションは行えません。
+Condition/&ConditionCrystalDefenseDescription=ACに+4のボーナスを得ます。伏せ状態になり、移動速度が0になります。結晶防御を解除するボーナス・アクション以外のアクションは行えません。
 Condition/&ConditionCrystalDefenseTitle=結晶防御
 Feature/&AbilityCheckAffinityCaveWyrmkinCaveSensesDescription=判断力〈生存〉判定に有利を得ます。
 Feature/&AbilityCheckAffinityCaveWyrmkinCaveSensesTitle=洞窟の感覚
-Feature/&ActionAffinityCrystalWyrmkinCrystalDefenseDescription=アクションとして〈結晶防御〉を起動します。〈結晶防御〉が有効な間、ACに+4のボーナスを得る一方、伏せ状態になり、移動速度が0になります。〈結晶防御〉を解除するボーナス・アクション以外のアクションは行えません。〈結晶防御〉を使用している間も、盾の利益は通常どおり適用されます。
+Feature/&ActionAffinityCrystalWyrmkinCrystalDefenseDescription=アクションとして結晶防御を起動します。結晶防御が有効な間、ACに+4のボーナスを得る一方、伏せ状態になり、移動速度が0になります。結晶防御を解除するボーナス・アクション以外のアクションは行えません。結晶防御を使用している間も、盾の利益は通常どおり適用されます。
 Feature/&ActionAffinityCrystalWyrmkinCrystalDefenseTitle=結晶防御
 Feature/&AttributeModifierCaveWyrmkinConstitutionAbilityScoreIncreaseDescription=耐久力+1
 Feature/&AttributeModifierCaveWyrmkinConstitutionAbilityScoreIncreaseTitle=能力値上昇

@@ -1,4 +1,3 @@
-Condition/&ConditionWizardAbjurationArcaneWardDescription=Votre garde arcanique est active
 Condition/&ConditionWizardAbjurationArcaneWardTitle=Protection arcanique
 Feature/&FeatureWizardAbjurationSpellBreakerDescription=Contresort et Dissipation de la magie sont toujours préparés et ne comptent pas dans le nombre de sorts que vous pouvez préparer.\nVous pouvez également lancer Dissipation de la magie par une action bonus. Ajoutez votre bonus de maîtrise aux tests de caractéristique visant à mettre fin à des effets de sorts avec Dissipation de la magie.\nSi vous lancez Contresort avec un emplacement de sort sans parvenir à interrompre l'incantation du sort ciblé, cet emplacement n'est pas dépensé. Si vous lancez Dissipation de la magie avec un emplacement de sort sans mettre fin à aucun effet de sort, cet emplacement n'est pas dépensé.
 Feature/&FeatureWizardAbjurationSpellBreakerTitle=Briseur de sorts

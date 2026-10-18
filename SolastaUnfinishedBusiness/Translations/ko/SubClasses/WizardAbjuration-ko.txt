@@ -1,4 +1,3 @@
-Condition/&ConditionWizardAbjurationArcaneWardDescription=비전 보호막이 활성화되었습니다.
 Condition/&ConditionWizardAbjurationArcaneWardTitle=비전 보호막
 Feature/&FeatureWizardAbjurationSpellBreakerDescription=카운터스펠과 마법 무효화가 항상 준비되며 준비할 수 있는 주문 수에 포함되지 않습니다.\n마법 무효화를 보너스 행동으로도 시전할 수 있습니다. 마법 무효화로 주문 효과를 끝내기 위한 능력치 판정에 숙련 보너스를 더합니다.\n주문 슬롯으로 카운터스펠을 시전했지만 대상의 주문 시전을 방해하지 못했다면 해당 슬롯을 소모하지 않습니다. 주문 슬롯으로 마법 무효화를 시전했지만 주문 효과를 하나도 끝내지 못했다면 해당 슬롯을 소모하지 않습니다.
 Feature/&FeatureWizardAbjurationSpellBreakerTitle=주문 파괴자

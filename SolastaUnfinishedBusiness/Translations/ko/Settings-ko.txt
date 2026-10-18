@@ -695,3 +695,4 @@ ModUi/&EnableAssassinAssassinate2024=살해자 3레벨에 2024년판 <color=#D89
 ModUi/&EnableToolChecks2024=2024년 도구 판정 숙련 규칙 적용
 ModUi/&ToolChecks2024Description=도둑 도구를 사용하는 판정에 손재주 숙련과 해당 기술에만 적용되는 효과를 적용합니다. 기술 숙련과 도구 숙련으로 얻는 보너스 중 높은 쪽을 한 번만 더하며, 둘 다 숙련되어 있으면 이점을 얻습니다.
 ModUi/&EnableAssassinInfiltrationExpertise2024=살해자 9레벨에 2024년판 <color=#D89555>잠입 전문성</color> 적용 <i><color=#F0DAA0>[기만 숙련 또는 전문화와 꾸준한 목표 사용 후 이동. 직업 설정이 꺼져 있어도 해당 살해자에게 꾸준한 목표 부여]</color></i>
+Setting/&NoToolRequirementDescription=캐릭터는 도구 없이 아이템을 제작하고 궤짝이나 문의 잠금을 해제할 수 있습니다.

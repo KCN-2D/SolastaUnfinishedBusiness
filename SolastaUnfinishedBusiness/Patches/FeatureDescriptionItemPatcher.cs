@@ -1,6 +1,7 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
+using I2.Loc;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Models;
@@ -249,7 +250,7 @@ public static class FeatureDescriptionItemPatcher
 
     internal static bool RefreshSelectionFeatureDisplayLayout(FeatureDescriptionItem item)
     {
-        if (!item || !IsSelectionFeatureItem(item))
+        if (!item)
         {
             return false;
         }
@@ -261,16 +262,41 @@ public static class FeatureDescriptionItemPatcher
             return false;
         }
 
-        var state = item.GetComponent<SelectionFeatureItemLayoutState>() ??
-                    item.gameObject.AddComponent<SelectionFeatureItemLayoutState>();
+        var selectionItem = IsSelectionFeatureItem(item);
+        var hasChoice = AvailableFeaturesRef(item) is { Count: > 0 } &&
+                        (item.choiceDropdown && item.choiceDropdown.gameObject.activeSelf ||
+                         item.choiceSelector && item.choiceSelector.gameObject.activeSelf);
+        var state = item.GetComponent<SelectionFeatureItemLayoutState>();
+
+        if (!selectionItem && !hasChoice)
+        {
+            state?.RecordLayout(item);
+
+            return false;
+        }
+
+        state ??= item.gameObject.AddComponent<SelectionFeatureItemLayoutState>();
+
+        if (!item.gameObject.activeInHierarchy)
+        {
+            // Native Bind can run before its panel is shown. Keep the intended control
+            // and native geometry; measure only once the real hierarchy has a width.
+            state.RecordLayout(item);
+
+            return false;
+        }
 
         state.Restore(item);
 
-        var cursor = 0f;
-        var changed = false;
+        // All choice rows share the same text/control structure. Reflow the entire row
+        // so current description wrapping and control height always agree, in any host.
+        var changed = RefreshFeatureChoiceControls(item, itemRect);
+        state.RecordLayout(item);
 
-        changed |= PlaceSelectionFeatureText(item.baseFeatureLabel, ref cursor);
-        changed |= PlaceSelectionFeatureText(item.featureDescription, ref cursor);
+        var cursor = 0f;
+
+        changed |= PlaceSelectionFeatureText(item.baseFeatureLabel, itemRect, ref cursor);
+        changed |= PlaceSelectionFeatureText(item.featureDescription, itemRect, ref cursor);
         changed |= PlaceSelectionFeatureControl(item.choiceDropdown ? item.choiceDropdown.transform as RectTransform : null,
             ref cursor);
         changed |= PlaceSelectionFeatureControl(item.choiceSelector ? item.choiceSelector.transform as RectTransform : null,
@@ -303,12 +329,397 @@ public static class FeatureDescriptionItemPatcher
         return changed;
     }
 
+    private static bool RefreshFeatureChoiceControls(FeatureDescriptionItem item, RectTransform itemRect)
+    {
+        var features = AvailableFeaturesRef(item);
+
+        if (features is not { Count: > 0 })
+        {
+            return false;
+        }
+
+        var titles = new List<string>(features.Count);
+
+        foreach (var feature in features)
+        {
+            titles.Add(feature.FormatTitle());
+        }
+
+        var changed = false;
+        var dropdown = item.choiceDropdown;
+
+        if (dropdown && dropdown.gameObject.activeInHierarchy && dropdown.captionText)
+        {
+            var control = dropdown.transform as RectTransform;
+            var caption = dropdown.captionText;
+            var template = dropdown.template;
+            var optionText = dropdown.itemText;
+            var option = GetChoiceOptionRect(optionText);
+            var content = option ? option.parent as RectTransform : null;
+            var oldWidth = control.rect.width;
+            var templateWidth = template ? template.rect.width : oldWidth;
+            var optionWidth = option ? option.rect.width : oldWidth;
+            var textWidth = optionText ? optionText.rectTransform.rect.width : oldWidth;
+            var optionHeight = option ? option.rect.height : 0f;
+            var textHeight = optionText ? optionText.rectTransform.rect.height : 0f;
+            var contentHeight = content ? content.rect.height : 0f;
+            var templateHeight = template ? template.rect.height : 0f;
+            var optionInset = option && content ? GetChoiceChildInset(option, content) : Vector2.zero;
+            var optionTextInset = option && optionText ? GetChoiceChildInset(optionText.rectTransform, option) : Vector2.zero;
+            var optionFrame = GetChoiceFrame(option);
+            var optionFrameSize = optionFrame ? optionFrame.rect.size : Vector2.zero;
+            var optionFrameInset = optionFrame ? GetChoiceChildInset(optionFrame, option) : Vector2.zero;
+
+            changed |= ResizeFeatureChoiceControl(control, caption, titles, itemRect);
+            dropdown.RefreshShownValue();
+
+            if (template && option && optionText)
+            {
+                var width = control.rect.width;
+                var labelWidth = Mathf.Max(1f, width + textWidth - oldWidth);
+                var height = Mathf.Max(optionHeight,
+                    GetChoiceTextHeight(optionText, titles, labelWidth) + optionHeight - textHeight);
+
+                changed |= ResizeChoiceRect(template, Mathf.Max(1f, width + templateWidth - oldWidth),
+                    Mathf.Max(templateHeight, height + templateHeight - optionHeight));
+
+                if (content)
+                {
+                    content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+                        Mathf.Max(height, contentHeight + height - optionHeight));
+                    changed |= ResizeChoiceChild(option, content,
+                        Mathf.Max(1f, width + optionWidth - oldWidth), height, optionInset);
+                }
+                else
+                {
+                    changed |= ResizeChoiceRect(option, Mathf.Max(1f, width + optionWidth - oldWidth), height);
+                }
+
+                if (optionFrame && optionFrame != option && optionFrame != optionText.rectTransform)
+                {
+                    changed |= ResizeChoiceChild(optionFrame, option,
+                        Mathf.Max(1f, optionFrameSize.x + option.rect.width - optionWidth),
+                        Mathf.Max(1f, optionFrameSize.y + height - optionHeight), optionFrameInset);
+                }
+
+                changed |= ResizeChoiceChild(optionText.rectTransform, option, labelWidth,
+                    Mathf.Max(1f, height + textHeight - optionHeight), optionTextInset);
+
+            }
+        }
+
+        var selector = item.choiceSelector;
+
+        if (selector && selector.gameObject.activeInHierarchy && selector.currentLabel?.TMP_Text)
+        {
+            changed |= ResizeFeatureChoiceControl(selector.transform as RectTransform,
+                selector.currentLabel.TMP_Text, titles, itemRect);
+        }
+
+        return changed;
+    }
+
+    private static RectTransform GetChoiceOptionRect(TMP_Text text)
+    {
+        if (!text)
+        {
+            return null;
+        }
+
+        foreach (var toggle in text.GetComponentsInParent<Toggle>(true))
+        {
+            return toggle.transform as RectTransform;
+        }
+
+        return null;
+    }
+
+    private static bool ResizeFeatureChoiceControl(
+        RectTransform control,
+        TMP_Text text,
+        List<string> titles,
+        RectTransform itemRect)
+    {
+        if (!control || !text || control.rect.width <= 1f || itemRect.rect.width <= 1f)
+        {
+            return false;
+        }
+
+        var frame = GetChoiceFrame(control);
+        var content = GetChoiceContentRect(control, text.rectTransform, frame);
+        var label = text.rectTransform;
+        var originalControlSize = control.rect.size;
+        var originalContentSize = content.rect.size;
+        var contentInset = GetChoiceChildInset(content, control);
+        var labelInset = GetChoiceChildInset(label, content);
+        var frameSize = frame ? frame.rect.size : Vector2.zero;
+        var frameInset = frame ? GetChoiceChildInset(frame, content) : Vector2.zero;
+        var widthInset = Mathf.Max(0f, content.rect.width - label.rect.width);
+        var heightInset = Mathf.Max(0f, content.rect.height - label.rect.height);
+        var contentLeft = itemRect.InverseTransformPoint(content.TransformPoint(content.rect.min)).x;
+        var oldContentRight = control.InverseTransformPoint(content.TransformPoint(content.rect.max)).x;
+        var selector = control.GetComponent<GuiGamepadSelector>();
+        var counter = selector ? selector.countLabel?.RectTransform : null;
+        var countBounds = counter ? GetChoiceCounterBounds(selector, control, titles.Count) : Vector2.zero;
+        var countGap = counter ? Mathf.Max(0f, countBounds.x - oldContentRight) : 0f;
+        var countWidth = counter ? countBounds.y - countBounds.x : 0f;
+        var group = content.parent ? content.parent.GetComponent<HorizontalLayoutGroup>() : null;
+        var managed = group && group.isActiveAndEnabled;
+        var managedCounter = managed && counter && counter.parent == content.parent;
+        var availableWidth = Mathf.Max(1f,
+            itemRect.rect.xMax - contentLeft - SelectionFeatureItemPadding - countGap - countWidth);
+
+        if (managed)
+        {
+            var otherWidth = (float)group.padding.horizontal;
+            var children = 0;
+
+            foreach (Transform childTransform in group.transform)
+            {
+                if (childTransform is not RectTransform child || !child.gameObject.activeInHierarchy ||
+                    child.GetComponent<LayoutElement>() is { ignoreLayout: true })
+                {
+                    continue;
+                }
+
+                children++;
+
+                if (child == content)
+                {
+                    continue;
+                }
+
+                otherWidth += child == counter ? Mathf.Ceil(countWidth) :
+                    group.childControlWidth ? LayoutUtility.GetPreferredWidth(child) : child.rect.width;
+            }
+
+            var groupLeft = itemRect.InverseTransformPoint(((RectTransform)group.transform).TransformPoint(
+                ((RectTransform)group.transform).rect.min)).x;
+            availableWidth = Mathf.Max(1f, itemRect.rect.xMax - groupLeft - SelectionFeatureItemPadding -
+                otherWidth - group.spacing * Mathf.Max(0, children - 1));
+        }
+
+        var naturalWidth = 0f;
+
+        PrepareChoiceText(text);
+
+        foreach (var title in titles)
+        {
+            naturalWidth = Mathf.Max(naturalWidth,
+                text.GetPreferredValues(title, float.PositiveInfinity, 0f).x);
+        }
+
+        var width = Mathf.Min(availableWidth,
+            Mathf.Max(originalContentSize.x, Mathf.Ceil(naturalWidth + widthInset + 2f)));
+        var labelWidth = Mathf.Max(1f, width - widthInset);
+        var height = Mathf.Max(originalContentSize.y,
+            Mathf.Ceil(GetChoiceTextHeight(text, titles, labelWidth) + heightInset));
+        var wrapperLeft = itemRect.InverseTransformPoint(control.TransformPoint(control.rect.min)).x;
+        var wrapperWidth = content == control ? width :
+            Mathf.Min(originalControlSize.x, Mathf.Max(1f, itemRect.rect.xMax - wrapperLeft - SelectionFeatureItemPadding));
+        var wrapperHeight = Mathf.Max(originalControlSize.y, height + originalControlSize.y - originalContentSize.y);
+        var layout = content.GetComponent<LayoutElement>() ?? content.gameObject.AddComponent<LayoutElement>();
+        layout.minWidth = width;
+        layout.preferredWidth = width;
+        layout.flexibleWidth = 0f;
+        layout.minHeight = height;
+        layout.preferredHeight = height;
+        layout.flexibleHeight = 0f;
+        var changed = ResizeChoiceRect(control, wrapperWidth, wrapperHeight);
+
+        if (content != control)
+        {
+            changed |= ResizeChoiceChild(content, control, width, height, contentInset);
+        }
+
+        if (managed)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(group.transform as RectTransform);
+            width = content.rect.width;
+            height = content.rect.height;
+            labelWidth = Mathf.Max(1f, width - widthInset);
+        }
+
+        // Resize ancestors first. A label can stretch through the frame or an intermediate
+        // container, so its final size must be assigned only after the complete frame branch.
+        if (frame && frame != content && frame != label)
+        {
+            changed |= ResizeChoiceChild(frame, content,
+                Mathf.Max(1f, frameSize.x + width - originalContentSize.x),
+                Mathf.Max(1f, frameSize.y + height - originalContentSize.y), frameInset);
+        }
+
+        if (label != content)
+        {
+            changed |= ResizeChoiceChild(label, content, labelWidth,
+                Mathf.Max(1f, height - heightInset), labelInset);
+        }
+
+        if (counter && !managedCounter)
+        {
+            // Some native selectors use a fixed sibling for the count. Preserve the actual
+            // glyph gap from the content box, whether its anchors already follow that box or not.
+            var contentRight = control.InverseTransformPoint(content.TransformPoint(content.rect.max)).x;
+            var currentBounds = GetChoiceCounterBounds(selector, control, titles.Count);
+            var delta = contentRight + countGap - currentBounds.x;
+
+            if (Mathf.Abs(delta) > 0.5f)
+            {
+                counter.position += control.TransformVector(new Vector3(delta, 0f, 0f));
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    private static RectTransform GetChoiceFrame(RectTransform control)
+    {
+        var graphic = control ? control.GetComponent<Selectable>()?.targetGraphic : null;
+        var frame = graphic ? graphic.rectTransform : null;
+
+        return frame && (frame == control || frame.IsChildOf(control)) ? frame : null;
+    }
+
+    private static RectTransform GetChoiceContentRect(RectTransform control, RectTransform label, RectTransform frame)
+    {
+        if (!frame)
+        {
+            return control;
+        }
+
+        var common = control;
+
+        for (var ancestor = label; ancestor && ancestor != control; ancestor = ancestor.parent as RectTransform)
+        {
+            if (frame == ancestor || frame.IsChildOf(ancestor))
+            {
+                common = ancestor;
+                break;
+            }
+        }
+
+        for (var ancestor = common; ancestor && ancestor != control; ancestor = ancestor.parent as RectTransform)
+        {
+            // Input controls can be hidden during the first snapshot. Their layout role
+            // must resolve to the same managed child before either input scheme is shown.
+            if (ancestor.parent && ancestor.parent.GetComponent<HorizontalOrVerticalLayoutGroup>() is { enabled: true })
+            {
+                return ancestor;
+            }
+        }
+
+        return common;
+    }
+
+    private static Vector2 GetChoiceCounterBounds(GuiGamepadSelector selector, RectTransform control, int count)
+    {
+        var text = selector.countLabel.TMP_Text;
+        var rect = text.rectTransform.rect;
+        var alignment = (int)text.alignment & 0xFF;
+        var minimum = float.PositiveInfinity;
+        var maximum = float.NegativeInfinity;
+
+        for (var index = 1; index <= count; index++)
+        {
+            var width = text.GetPreferredValues(
+                Gui.Format(GuiGamepadSelector.CountFormat, index.ToString(), count.ToString()),
+                float.PositiveInfinity, 0f).x;
+            var offset = alignment == 2 ? (rect.width - width) * 0.5f :
+                alignment == 4 ? rect.width - width : 0f;
+            var left = control.InverseTransformPoint(text.rectTransform.TransformPoint(
+                new Vector3(rect.xMin + offset, rect.yMin, 0f))).x;
+            var right = control.InverseTransformPoint(text.rectTransform.TransformPoint(
+                new Vector3(rect.xMin + offset + width, rect.yMin, 0f))).x;
+            minimum = Mathf.Min(minimum, left);
+            maximum = Mathf.Max(maximum, right);
+        }
+
+        return new Vector2(minimum, maximum);
+    }
+
+    private static Vector2 GetChoiceChildInset(RectTransform child, RectTransform control)
+    {
+        var corner = control.InverseTransformPoint(child.TransformPoint(
+            new Vector3(child.rect.xMin, child.rect.yMax, 0f)));
+
+        return new Vector2(corner.x - control.rect.xMin, control.rect.yMax - corner.y);
+    }
+
+    private static bool ResizeChoiceChild(
+        RectTransform child,
+        RectTransform control,
+        float width,
+        float height,
+        Vector2 inset)
+    {
+        var changed = ResizeChoiceRect(child, width, height);
+        var actualInset = GetChoiceChildInset(child, control);
+        var delta = new Vector3(inset.x - actualInset.x, actualInset.y - inset.y, 0f);
+
+        if (delta.sqrMagnitude > 0.25f)
+        {
+            child.position += control.TransformVector(delta);
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static float GetChoiceTextHeight(TMP_Text text, List<string> titles, float width)
+    {
+        PrepareChoiceText(text);
+        var height = 0f;
+
+        foreach (var title in titles)
+        {
+            height = Mathf.Max(height, text.GetPreferredValues(title, width, 0f).y);
+        }
+
+        return Mathf.Ceil(height + 2f);
+    }
+
+    private static void PrepareChoiceText(TMP_Text text)
+    {
+        // Measure the normal readable size, not the font left by a previous autosize pass.
+        if (text.enableAutoSizing)
+        {
+            text.fontSize = text.fontSizeMax;
+            text.enableAutoSizing = false;
+        }
+
+        text.enableWordWrapping = true;
+        text.overflowMode = TextOverflowModes.Overflow;
+        text.maxVisibleLines = 99999;
+        text.autoSizeTextContainer = false;
+    }
+
+    private static bool ResizeChoiceRect(RectTransform rectTransform, float width, float height)
+    {
+        var oldSize = rectTransform.rect.size;
+
+        if (Mathf.Abs(oldSize.x - width) <= 0.5f && Mathf.Abs(oldSize.y - height) <= 0.5f)
+        {
+            return false;
+        }
+
+        // Preserve the native left/top insets and leave arrows, counters and highlights anchored.
+        var position = rectTransform.anchoredPosition;
+        rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+        rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+        rectTransform.anchoredPosition = position + new Vector2(
+            (width - oldSize.x) * rectTransform.pivot.x,
+            -(height - oldSize.y) * (1f - rectTransform.pivot.y));
+
+        return true;
+    }
+
     internal static bool IsSelectionFeatureItem(FeatureDescriptionItem item)
     {
         return item &&
-               (item.GetComponentInParent<CharacterStageRaceSelectionPanel>() ||
-                item.GetComponentInParent<CharacterStageClassSelectionPanel>() ||
-                item.GetComponentInParent<CharacterStageSubclassSelectionPanel>());
+               (item.GetComponentsInParent<CharacterStageRaceSelectionPanel>(true).Length > 0 ||
+                item.GetComponentsInParent<CharacterStageClassSelectionPanel>(true).Length > 0 ||
+                item.GetComponentsInParent<CharacterStageSubclassSelectionPanel>(true).Length > 0);
     }
 
     internal static bool RefreshSpeciesBaseWalkSpeedDescription(FeatureDescriptionItem item)
@@ -333,14 +744,28 @@ public static class FeatureDescriptionItemPatcher
         return changed;
     }
 
-    private static bool PlaceSelectionFeatureText(GuiLabel label, ref float cursor)
+    private static bool PlaceSelectionFeatureText(GuiLabel label, RectTransform itemRect, ref float cursor)
     {
+        var widthChanged = false;
+
+        if (label && label.gameObject.activeInHierarchy)
+        {
+            var textRect = label.RectTransform;
+            var left = itemRect.InverseTransformPoint(textRect.TransformPoint(textRect.rect.min)).x;
+            var availableWidth = Mathf.Max(1f, itemRect.rect.xMax - left - SelectionFeatureItemPadding);
+
+            if (textRect.rect.width > availableWidth)
+            {
+                widthChanged = ResizeChoiceRect(textRect, availableWidth, textRect.rect.height);
+            }
+        }
+
         if (!TryPrepareWrappedFeatureText(label, false, out var rectTransform, out var height))
         {
             return false;
         }
 
-        var changed = false;
+        var changed = widthChanged;
         var position = rectTransform.anchoredPosition;
 
         if (Mathf.Abs(position.y + cursor) > 0.5f)
@@ -431,7 +856,12 @@ public static class FeatureDescriptionItemPatcher
         private readonly RectTransformState dropdownState = new();
         private readonly RectTransformState selectorState = new();
         private readonly RectTransformState levelState = new();
+        private readonly Dictionary<RectTransform, RectTransformState> choiceStates = new();
 
+        private FeatureDescriptionItem owner;
+        private float lastWidth;
+        private string lastLanguage;
+        private bool layoutPending;
         private bool saved;
         private Vector2 itemSizeDelta;
         private bool hadLayoutElement;
@@ -444,7 +874,8 @@ public static class FeatureDescriptionItemPatcher
 
             if (item.TryGetComponent<RectTransform>(out var itemRect))
             {
-                itemRect.sizeDelta = itemSizeDelta;
+                // This layout owns row height only; the host may have changed its width.
+                itemRect.sizeDelta = new Vector2(itemRect.sizeDelta.x, itemSizeDelta.y);
             }
 
             RestoreLayoutElement(item);
@@ -453,6 +884,54 @@ public static class FeatureDescriptionItemPatcher
             dropdownState.Restore(item.choiceDropdown ? item.choiceDropdown.transform as RectTransform : null);
             selectorState.Restore(item.choiceSelector ? item.choiceSelector.transform as RectTransform : null);
             levelState.Restore(item.levelGroup);
+
+            foreach (var pair in choiceStates)
+            {
+                pair.Value.Restore(pair.Key);
+            }
+        }
+
+        internal void RecordLayout(FeatureDescriptionItem item)
+        {
+            owner = item;
+            lastWidth = item.RectTransform.rect.width;
+            lastLanguage = LocalizationManager.CurrentLanguageCode;
+            layoutPending = !item.gameObject.activeInHierarchy;
+        }
+
+        private void OnEnable()
+        {
+            // Wait for the entire hierarchy to become active before measuring child controls.
+            layoutPending = true;
+        }
+
+        private void LateUpdate()
+        {
+            if (!owner || !owner.gameObject.activeInHierarchy || !FeatureRef(owner) ||
+                !layoutPending && Mathf.Abs(owner.RectTransform.rect.width - lastWidth) <= 0.5f &&
+                lastLanguage == LocalizationManager.CurrentLanguageCode)
+            {
+                return;
+            }
+
+            RefreshSelectionFeatureDisplayLayout(owner);
+
+            if (owner.RectTransform.parent is RectTransform parent)
+            {
+                LayoutRebuilder.MarkLayoutForRebuild(parent);
+            }
+        }
+
+        private void SaveChoiceRect(RectTransform rectTransform)
+        {
+            if (!rectTransform || choiceStates.ContainsKey(rectTransform))
+            {
+                return;
+            }
+
+            var state = new RectTransformState();
+            state.Save(rectTransform, true);
+            choiceStates.Add(rectTransform, state);
         }
 
         private void Save(FeatureDescriptionItem item)
@@ -481,6 +960,33 @@ public static class FeatureDescriptionItemPatcher
             dropdownState.Save(item.choiceDropdown ? item.choiceDropdown.transform as RectTransform : null);
             selectorState.Save(item.choiceSelector ? item.choiceSelector.transform as RectTransform : null);
             levelState.Save(item.levelGroup);
+
+            if (item.choiceDropdown)
+            {
+                SaveChoiceRect(item.choiceDropdown.captionText ? item.choiceDropdown.captionText.rectTransform : null);
+                SaveChoiceRect(item.choiceDropdown.template);
+                SaveChoiceRect(GetChoiceFrame(item.choiceDropdown.transform as RectTransform));
+                SaveChoiceRect(item.choiceDropdown.captionText
+                    ? GetChoiceContentRect(item.choiceDropdown.transform as RectTransform,
+                        item.choiceDropdown.captionText.rectTransform,
+                        GetChoiceFrame(item.choiceDropdown.transform as RectTransform))
+                    : null);
+                var option = GetChoiceOptionRect(item.choiceDropdown.itemText);
+                SaveChoiceRect(option);
+                SaveChoiceRect(GetChoiceFrame(option));
+                SaveChoiceRect(option ? option.parent as RectTransform : null);
+                SaveChoiceRect(item.choiceDropdown.itemText ? item.choiceDropdown.itemText.rectTransform : null);
+            }
+
+            if (item.choiceSelector && item.choiceSelector.currentLabel)
+            {
+                SaveChoiceRect(item.choiceSelector.currentLabel.RectTransform);
+                SaveChoiceRect(GetChoiceFrame(item.choiceSelector.transform as RectTransform));
+                SaveChoiceRect(GetChoiceContentRect(item.choiceSelector.transform as RectTransform,
+                    item.choiceSelector.currentLabel.RectTransform,
+                    GetChoiceFrame(item.choiceSelector.transform as RectTransform)));
+                SaveChoiceRect(item.choiceSelector.countLabel ? item.choiceSelector.countLabel.RectTransform : null);
+            }
         }
 
         private void RestoreLayoutElement(FeatureDescriptionItem item)
@@ -513,8 +1019,15 @@ public static class FeatureDescriptionItemPatcher
         private TextOverflowModes overflowMode;
         private int maxVisibleLines;
         private bool autoSizeTextContainer;
+        private bool autoSizing;
+        private float fontSize;
+        private bool ownsLayoutInput;
+        private bool hadLayoutElement;
+        private Vector2 minimumSize;
+        private Vector2 preferredSize;
+        private Vector2 flexibleSize;
 
-        internal void Save(RectTransform rectTransform)
+        internal void Save(RectTransform rectTransform, bool includeLayoutElement = false)
         {
             if (!rectTransform)
             {
@@ -524,6 +1037,15 @@ public static class FeatureDescriptionItemPatcher
             saved = true;
             anchoredPosition = rectTransform.anchoredPosition;
             sizeDelta = rectTransform.sizeDelta;
+            ownsLayoutInput = includeLayoutElement;
+            hadLayoutElement = rectTransform.TryGetComponent<LayoutElement>(out var layout);
+
+            if (hadLayoutElement)
+            {
+                minimumSize = new Vector2(layout.minWidth, layout.minHeight);
+                preferredSize = new Vector2(layout.preferredWidth, layout.preferredHeight);
+                flexibleSize = new Vector2(layout.flexibleWidth, layout.flexibleHeight);
+            }
 
             if (!rectTransform.TryGetComponent<TMP_Text>(out var text))
             {
@@ -535,6 +1057,8 @@ public static class FeatureDescriptionItemPatcher
             overflowMode = text.overflowMode;
             maxVisibleLines = text.maxVisibleLines;
             autoSizeTextContainer = text.autoSizeTextContainer;
+            autoSizing = text.enableAutoSizing;
+            fontSize = text.enableAutoSizing ? text.fontSizeMax : text.fontSize;
         }
 
         internal void Restore(RectTransform rectTransform)
@@ -547,6 +1071,16 @@ public static class FeatureDescriptionItemPatcher
             rectTransform.anchoredPosition = anchoredPosition;
             rectTransform.sizeDelta = sizeDelta;
 
+            if (ownsLayoutInput && rectTransform.TryGetComponent<LayoutElement>(out var layout))
+            {
+                layout.minWidth = hadLayoutElement ? minimumSize.x : -1f;
+                layout.minHeight = hadLayoutElement ? minimumSize.y : -1f;
+                layout.preferredWidth = hadLayoutElement ? preferredSize.x : -1f;
+                layout.preferredHeight = hadLayoutElement ? preferredSize.y : -1f;
+                layout.flexibleWidth = hadLayoutElement ? flexibleSize.x : -1f;
+                layout.flexibleHeight = hadLayoutElement ? flexibleSize.y : -1f;
+            }
+
             if (!hasText || !rectTransform.TryGetComponent<TMP_Text>(out var text))
             {
                 return;
@@ -556,6 +1090,8 @@ public static class FeatureDescriptionItemPatcher
             text.overflowMode = overflowMode;
             text.maxVisibleLines = maxVisibleLines;
             text.autoSizeTextContainer = autoSizeTextContainer;
+            text.enableAutoSizing = autoSizing;
+            text.fontSize = fontSize;
         }
     }
 

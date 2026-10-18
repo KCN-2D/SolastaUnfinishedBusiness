@@ -1,6 +1,6 @@
 Merchant/&CC_PriestArun=ロガー・アーデントファイア
 Merchant/&CC_PriestMaraike=マライケの司祭
-Merchant/&CC_PriestessPakri=パクリの巫女
+Merchant/&CC_PriestessPakri=パクリの女司祭
 Merchant/&CaerCyflenWeaponsmith2Description=未使用
 Merchant/&CaerCyflenWeaponsmith2Title=汎用武器鍛冶屋
 Merchant/&CaerCyflenWeaponsmithDescription=未使用
@@ -8,7 +8,7 @@ Merchant/&CaerCyflenWeaponsmithTitle=汎用武器鍛冶屋
 Merchant/&CaerCyflen_Annie_Bagmordah_Store_ScavengersTitle=スカベンジャーズ本部
 Merchant/&CaerCyflen_Dalon_Lark_Store_EinarTitle=エイナー神殿窓口
 Merchant/&CaerCyflen_Gorim_Ironsoot_StoreTitle=冒険者向け雑貨店
-Merchant/&CaerCyflen_Halman_Summer_Store_AntiquariansTitle=古遺物収集者窓口
+Merchant/&CaerCyflen_Halman_Summer_Store_AntiquariansTitle=アンティクアリアン窓口
 Merchant/&CaerCyflen_Heddlon_Surespell_Store_ArcaneumTitle=アルケイナム窓口
 Merchant/&CaerCyflen_Hugo_Requer_StoreTitle=魔法と珍品
 Merchant/&CaerCyflen_Joriel_Foxeye_Store_CircleOfDanantarTitle=ダナンタールのサークル窓口

@@ -3193,6 +3193,9 @@ internal static class UiTextHelpers
             // Reserve the complete wrapped header without moving the search controls
             // or reducing row hit areas. Always derive this from the native offset.
             _scroll.offsetMax = _scrollOffsetMax - new Vector2(0f, height - _nativeHeight);
+            // The table positions newly bound rows during the canvas layout pass.
+            // Resolve that placement before converting header edges into row coordinates.
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_panel.onlineRoomsTable);
             foreach (var line in _panel.onlineRoomsTable.GetComponentsInChildren<OnlineRoomLine>(true))
             {
                 var row = line.GetComponent<MultiplayerRoomRowLayoutState>() ??
@@ -3200,7 +3203,6 @@ internal static class UiTextHelpers
                 row.Apply(line, _columnRects);
             }
 
-            LayoutRebuilder.ForceRebuildLayoutImmediate(_panel.onlineRoomsTable);
             _lastWidth = width;
             _lastRows = rows;
             _lastLanguage = language;
@@ -3328,6 +3330,11 @@ internal static class UiTextHelpers
             }
 
             _layout.enabled = false;
+            // Only horizontal placement is custom. Preserve the native vertical
+            // alignment even when a row is fitted before its first canvas layout.
+            _layout.CalculateLayoutInputHorizontal();
+            _layout.CalculateLayoutInputVertical();
+            _layout.SetLayoutVertical();
             foreach (var (rect, width, index, stretch) in _columns)
             {
                 if (index >= headers.Count)

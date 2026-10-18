@@ -1,4 +1,3 @@
-Condition/&ConditionWizardAbjurationArcaneWardDescription=Tu Guardián Arcano está activo
 Condition/&ConditionWizardAbjurationArcaneWardTitle=Guardián arcano
 Feature/&FeatureWizardAbjurationSpellBreakerDescription=Siempre tienes preparados Contrahechizo y Disipar magia, sin que cuenten para el número de conjuros que puedes preparar.\nTambién puedes lanzar Disipar magia como acción adicional. Añade tu bonificador por competencia a las pruebas de característica que hagas para poner fin a efectos de conjuros con Disipar magia.\nSi lanzas Contrahechizo usando un espacio de conjuro y no logras interrumpir el lanzamiento del conjuro objetivo, ese espacio no se gasta. Si lanzas Disipar magia usando un espacio de conjuro y no logras poner fin a ningún efecto de conjuro, ese espacio no se gasta.
 Feature/&FeatureWizardAbjurationSpellBreakerTitle=Rompehechizos

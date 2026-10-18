@@ -1,6 +1,6 @@
-Action/&CleavingAttackToggleDescription=〈大業物の使い手〉の有効／無効を切り替えます。有効な間は、重武器による近接攻撃を行う前に、攻撃ロールに-5のペナルティを受ける代わりに、ダメージに+10のボーナスを得ることを選べます。
+Action/&CleavingAttackToggleDescription=大業物の使い手の有効／無効を切り替えます。有効な間は、重武器による近接攻撃を行う前に、攻撃ロールに-5のペナルティを受ける代わりに、ダメージに+10のボーナスを得ることを選べます。
 Action/&CleavingAttackToggleTitle=大業物の使い手
-Action/&PowerAttackToggleDescription=〈渾身撃〉の有効／無効を切り替えます。有効な間は、素手打撃または近接武器で攻撃するとき、攻撃ロールに-3のペナルティを受ける代わりに、3+習熟ボーナスに等しい追加ダメージを与えることを選べます。
+Action/&PowerAttackToggleDescription=渾身撃の有効／無効を切り替えます。有効な間は、素手打撃または近接武器で攻撃するとき、攻撃ロールに-3のペナルティを受ける代わりに、3+習熟ボーナスに等しい追加ダメージを与えることを選べます。
 Action/&PowerAttackToggleTitle=渾身撃
 Condition/&ConditionFeatCleavingAttackFinishDescription=次も来い！
 Condition/&ConditionFeatCleavingAttackFinishTitle=大業物の使い手

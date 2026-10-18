@@ -1,5 +1,5 @@
 Feature/&DamageAffinityShadarKaiDescription=死霊ダメージに対する抵抗を持ちます。
-Feature/&DamageAffinityShadarKaiTitle=死霊抵抗力
+Feature/&DamageAffinityShadarKaiTitle=死霊ダメージ抵抗
 Feature/&PowerShadarKaiTeleportDescription=ボーナス・アクションとして、6マス以内の、自分から見える何ものにも占められていない場所へ、魔法によって瞬間移動できます。この特徴は習熟ボーナスに等しい回数使用でき、大休憩を終えると消費した使用回数をすべて回復します。3レベル以降、この特徴で瞬間移動すると、次の自分のターン開始時まで、あらゆるダメージに対する抵抗を得ます。その間、自分の姿は幽霊のように半透明になります。
 Feature/&PowerShadarKaiTeleportTitle=レイヴン・クイーンの祝福
 Race/&RaceShadarKaiDescription=シャダーカイはシャドウフェルのエルフであり、もとはレイヴン・クイーンに導かれて、その恐るべき領域へ渡りました。幾世紀を経ても彼女に仕え続ける者がいる一方で、自らの運命を切り開こうと物質界へ旅立った者もいます。

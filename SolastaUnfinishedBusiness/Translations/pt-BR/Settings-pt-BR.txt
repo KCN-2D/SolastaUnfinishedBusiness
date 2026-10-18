@@ -695,3 +695,4 @@ ModUi/&EnableAssassinAssassinate2024=Usar <color=#D89555>Assassinar</color> de 2
 ModUi/&EnableToolChecks2024=Usar as regras de proficiência de 2024 para testes com ferramentas
 ModUi/&ToolChecks2024Description=Os testes com ferramentas de ladrão aplicam a proficiência em Prestidigitação e os efeitos específicos dessa perícia. Adiciona-se uma única vez o maior bônus de proficiência entre o da perícia e o da ferramenta; ter proficiência em ambas concede vantagem.
 ModUi/&EnableAssassinInfiltrationExpertise2024=Usar <color=#D89555>Especialização em infiltração</color> de 2024 para o Assassino de nível 9 <i><color=#F0DAA0>[proficiência ou especialização em Enganação e movimento após Mira firme; concede Mira firme a esses Assassinos mesmo com a opção de classe desativada]</color></i>
+Setting/&NoToolRequirementDescription=Os personagens podem fabricar itens e destrancar baús ou portas sem ferramentas.

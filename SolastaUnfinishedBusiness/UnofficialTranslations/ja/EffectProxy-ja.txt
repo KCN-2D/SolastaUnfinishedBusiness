@@ -1,7 +1,7 @@
 EffectProxy/&DelayedBlastFireballDefinition=あなたの命令で、あるいは呪文が終了または中断したときに爆発する遅発火球。
 EffectProxy/&DelayedBlastFireballTitle=遅発火球
 EffectProxy/&ProxyArcaneSwordDescription=武器を最大4マス移動させて敵を攻撃します。
-EffectProxy/&ProxyArcaneSwordTitle=秘術の剣
+EffectProxy/&ProxyArcaneSwordTitle=モルデンカイネンの剣
 EffectProxy/&ProxyCallLightningDescription=着弾点から1マス以内のすべての対象に電撃ダメージを与えます。
 EffectProxy/&ProxyCallLightningTitle=招雷
 EffectProxy/&ProxyCloudKillDescription=濃密で致命的な毒霧。

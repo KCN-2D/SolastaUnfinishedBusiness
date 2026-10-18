@@ -1,4 +1,3 @@
-Condition/&ConditionWizardAbjurationArcaneWardDescription=Dein Arkaner Schutz ist aktiv
 Condition/&ConditionWizardAbjurationArcaneWardTitle=Arkaner Schutz
 Feature/&FeatureWizardAbjurationSpellBreakerDescription=Gegenzauber und Magie bannen sind immer vorbereitet und zählen nicht gegen die Anzahl der Zauber, die du vorbereiten kannst.\nDu kannst Magie bannen auch als Bonusaktion wirken. Addiere deinen Übungsbonus auf Attributswürfe, mit denen du durch Magie bannen Zaubereffekte beendest.\nWirkst du Gegenzauber mit einem Zauberplatz und unterbrichst das Wirken des Zielzaubers nicht, wird dieser Zauberplatz nicht verbraucht. Wirkst du Magie bannen mit einem Zauberplatz und beendest keinen Zaubereffekt, wird dieser Zauberplatz nicht verbraucht.
 Feature/&FeatureWizardAbjurationSpellBreakerTitle=Zauberbrecher

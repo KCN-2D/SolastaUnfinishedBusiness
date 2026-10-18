@@ -16,7 +16,7 @@ Validator/&ParameterMonsterTitle=Monstruo
 Validator/&ParameterMonsterorNPCTitle=Monstruo o NPC
 Validator/&ParameterRestTypeDescription=El tipo de descanso esperado
 Validator/&ParameterRestTypeTitle=Corto=0 Largo=1
-Validator/&ParameterSpellNameDescription=El nombre interno exacto (en inglés y en mayúsculas) del hechizo para especificar
+Validator/&ParameterSpellNameDescription=El nombre interno exacto del conjuro. Escríbelo en inglés, respetando exactamente las mayúsculas y las minúsculas.
 Validator/&ParameterSpellNameTitle=Nombre de hechizo
 Validator/&ParameterVariableDescription=La variable a probar
 Validator/&ParameterVariableTestTypeDescription=El tipo de prueba a realizar en la variable.

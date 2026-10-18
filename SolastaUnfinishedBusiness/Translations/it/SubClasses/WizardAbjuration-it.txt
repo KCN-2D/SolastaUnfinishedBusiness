@@ -1,4 +1,3 @@
-Condition/&ConditionWizardAbjurationArcaneWardDescription=Il tuo Arcane Ward è attivo
 Condition/&ConditionWizardAbjurationArcaneWardTitle=Protezione Arcana
 Feature/&FeatureWizardAbjurationSpellBreakerDescription=Hai sempre preparati Controincantesimo e Dissolvi Magia, che non contano nel numero di incantesimi che puoi preparare.\nPuoi lanciare Dissolvi Magia anche come azione bonus. Aggiungi il tuo bonus di competenza alle prove di caratteristica effettuate per terminare effetti di incantesimi con Dissolvi Magia.\nSe lanci Controincantesimo usando uno slot incantesimo e non riesci a interrompere il lancio dell'incantesimo bersaglio, quello slot non viene speso. Se lanci Dissolvi Magia usando uno slot incantesimo e non termini alcun effetto di incantesimo, quello slot non viene speso.
 Feature/&FeatureWizardAbjurationSpellBreakerTitle=Spezzaincantesimi

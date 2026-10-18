@@ -16,7 +16,7 @@ Validator/&ParameterMonsterTitle=怪物
 Validator/&ParameterMonsterorNPCTitle=怪物或 NPC
 Validator/&ParameterRestTypeDescription=想要休整的类型
 Validator/&ParameterRestTypeTitle=短=0 长=1
-Validator/&ParameterSpellNameDescription=指定法术的确切内部名称（英文且强制大写）
+Validator/&ParameterSpellNameDescription=法术的准确内部名称。请使用英文，并严格匹配字母的大小写。
 Validator/&ParameterSpellNameTitle=法术名称
 Validator/&ParameterVariableDescription=测试变量
 Validator/&ParameterVariableTestTypeDescription=要对变量执行的测试类型

@@ -19,6 +19,8 @@ public static class InventorySlotBoxPatcher
         [UsedImplicitly]
         public static void Postfix(InventorySlotBox __instance, bool overrideItem, RulesetItem itemOverride)
         {
+            RefreshAmmunitionTitle(__instance);
+
             var equipmentItem = overrideItem ? itemOverride : __instance.InventorySlot?.EquipedItem;
             if (equipmentItem == null)
             {
@@ -30,6 +32,20 @@ public static class InventorySlotBoxPatcher
             //PATCH: Enable inventory taint non proficient items in red (paint them red)
             TintNonProficientItems(__instance, itemDefinition);
             ModifyCustomItemFlags(__instance, itemDefinition);
+        }
+
+        private static void RefreshAmmunitionTitle(InventorySlotBox box)
+        {
+            if (!box.ammunitionGroupInstance || !box.ammunitionTitle || !box.ammunitionToggle ||
+                box.InventorySlot?.SlotTypeDefinition?.Name != EquipmentDefinitions.SlotTypeAmmunition)
+            {
+                return;
+            }
+
+            // Ammunition priority is independent of the ordinal used for spell levels.
+            box.ammunitionTitle.Text = box.ammunitionToggle.isOn
+                ? "Tooltip/&AmmunitionSelectorPrimaryTitle"
+                : "Tooltip/&AmmunitionSelectorSecondaryTitle";
         }
 
         private static void ModifyCustomItemFlags(InventorySlotBox box, ItemDefinition definition)

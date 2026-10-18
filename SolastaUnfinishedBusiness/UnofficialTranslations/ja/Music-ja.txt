@@ -17,6 +17,6 @@ Music/&ShadowsTitle=影
 Music/&SwampTitle=沼地
 Music/&TavernTitle=酒場
 Music/&TheLightBringersTitle=ライトブリンガーズ
-Music/&TheNecromancerTitle=ネクロマンサー
+Music/&TheNecromancerTitle=死霊術士
 Music/&ValleyTitle=谷
 Music/&WizardsTowerTitle=ウィザードの塔

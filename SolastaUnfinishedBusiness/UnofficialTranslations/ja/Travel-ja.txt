@@ -1,4 +1,4 @@
-Travel/&DLC1_StandardRandomEvents10=パーティは商品を売り切った商人の隊商とすれ違う。
+Travel/&DLC1_StandardRandomEvents10=パーティは商品を積んでいない商人の隊商とすれ違う。
 Travel/&DLC1_StandardRandomEvents11=パーティは破壊されたドミニオンの検問所を通り過ぎる。
 Travel/&DLC1_StandardRandomEvents12=パーティは、「反逆者」の札を付けられた死体が吊るされている絞首台の前を通り過ぎる。
 Travel/&DLC1_StandardRandomEvents13=パーティは、ぼろぼろになったドミニオンの旗を掲げた柱の前を通り過ぎる。
@@ -50,7 +50,7 @@ Travel/&DLC3_StandardRandomEvents31=突然のひょう嵐に、パーティは�
 Travel/&DLC3_StandardRandomEvents32=パーティの頭上に青い光の球が現れる。数秒間パチパチと音を立てたあと、空に消える。
 Travel/&DLC3_StandardRandomEvents33=飢えてはいるが利口そうな目をした犬が1匹、木々の間から現れる。しかし、クロスボウを持った狂気じみた髭面の男に追い払われてしまう。
 Travel/&DLC3_StandardRandomEvents34=パーティは円筒形の金属物体の巨大な残骸を通り過ぎる。まるで空から落ちてきたようだ！
-Travel/&DLC3_StandardRandomEvents35=奇妙なルーン文字が刻まれた大岩がある。触れると嫌な感じがする。
+Travel/&DLC3_StandardRandomEvents35=奇妙なルーン文字が刻まれた大岩がある。触れると邪悪な気配を感じる。
 Travel/&DLC3_StandardRandomEvents36={0}は何者かにつけられている気配を感じる。探してみても何も見つからない。
 Travel/&DLC3_StandardRandomEvents37={0}は大きなウサギを追いかける少女を見かける。少女もウサギも大きな巣穴に飛び込み、そのまま姿を消す。
 Travel/&DLC3_StandardRandomEvents38={0}は数分間、どこから聞こえるとも知れない不気味な音楽を耳にする。ほかの誰にも聞こえていない。
