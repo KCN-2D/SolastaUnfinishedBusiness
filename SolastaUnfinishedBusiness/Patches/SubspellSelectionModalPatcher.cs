@@ -492,7 +492,7 @@ public static class SubspellSelectionModalPatcher
             var caster = guiCharacter?.RulesetCharacter;
             var provider = masterSpell?.GetFirstSubFeatureOfType<ICustomSubspellSelectionProvider>();
 
-            if (caster == null || provider is not WishBehavior && !HasNestedSubspells(masterSpell))
+            if (caster == null || provider == null && !HasNestedSubspells(masterSpell))
             {
                 return true;
             }

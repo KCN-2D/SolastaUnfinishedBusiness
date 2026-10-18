@@ -31,6 +31,8 @@ internal static class GuiWrapperContext
             return;
         }
 
+        CustomUI.Sprites.ApplyDefinitionSprites();
+
         PendingFullRecache = false;
 
 #if DEBUG

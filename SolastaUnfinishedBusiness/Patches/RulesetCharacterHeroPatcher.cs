@@ -362,6 +362,15 @@ public static class RulesetCharacterHeroPatcher
                 modifier = __instance.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
             }
 
+            if (Tabletop2024Context.TryGetToolCheckSkill(
+                    __instance, proficiencyName, out var skillName, checkInventory) &&
+                __instance.skillProficiencies.Contains(skillName))
+            {
+                var skillModifier = (__instance.expertiseProficiencies.Contains(skillName) || doubleProficiency ? 2 : 1) *
+                                    __instance.TryGetAttributeValue(AttributeDefinitions.ProficiencyBonus);
+                modifier = Math.Max(modifier, skillModifier);
+            }
+
             if (modifier > 0)
             {
                 modifierTrends?.Add(new TrendInfo(modifier, FeatureSourceType.Proficiency, string.Empty, null));
@@ -374,6 +383,18 @@ public static class RulesetCharacterHeroPatcher
             }
 
             return abilityCheckBonus;
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetCharacterHero), nameof(RulesetCharacterHero.IsProficient))]
+    [UsedImplicitly]
+    internal static class IsProficient_Patch
+    {
+        [UsedImplicitly]
+        private static void Postfix(
+            RulesetCharacterHero __instance, [HarmonyArgument(0)] string proficiencyName, ref bool __result)
+        {
+            __result |= Tabletop2024Context.IsProficientForToolCheck(__instance, proficiencyName);
         }
     }
 
@@ -867,6 +888,8 @@ public static class RulesetCharacterHeroPatcher
             //PATCH: modify attacks with Off-Hand weapon after Nick was used
             Tabletop2024Context.ModifyNickOffHandAttack(__instance, __instance.AttackModes);
 
+            Tabletop2024Context.AddDualWielder2024AttackModes(__instance);
+
             //refresh character if needed after postfix
             if (_callRefresh && __instance.CharacterRefreshed != null)
             {
@@ -961,6 +984,7 @@ public static class RulesetCharacterHeroPatcher
         {
             Tabletop2024Context.SynchronizeSpeciesFeatures(__instance);
             Tabletop2024Context.SynchronizeSorcererFeatures(__instance);
+            Tabletop2024Context.SynchronizeAssassinFeatures(__instance);
             DomainOrder.SynchronizeEmbodimentOfLaw(__instance);
 
             //PATCH: clears cached customized spell effects
@@ -1789,9 +1813,47 @@ public static class RulesetCharacterHeroPatcher
         [UsedImplicitly]
         public static void Prefix(RulesetCharacterHero __instance)
         {
+            // Native RefreshProficiencies rebuilds skills and tools but leaves this
+            // derived list intact; removed SkillOrExpertise features must not persist.
+            __instance.expertiseProficiencies.Clear();
+            Tabletop2024Context.SynchronizeAssassinFeatures(__instance);
             Tabletop2024Context.UpdateClassWeaponProficiencies(__instance);
             Tabletop2024Context.UpdateClericDomainProficiencies(__instance);
             Tabletop2024Context.UpdateClericBlessedStrikes(__instance);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(RulesetCharacterHero __instance)
+        {
+            var proficiencies = __instance.FeaturesToBrowse.OfType<FeatureDefinitionProficiency>().Distinct().ToArray();
+            var skillOrExpertise = proficiencies
+                .Where(feature => feature.ProficiencyType == ProficiencyType.SkillOrExpertise)
+                .ToArray();
+
+            // Native processing follows feature origin order, so a subclass can be
+            // visited before a feat which grants the same skill. Resolve these ranks
+            // from all their origins, rather than treating that order as acquisition order.
+            foreach (var skillName in skillOrExpertise.SelectMany(feature => feature.Proficiencies).Distinct())
+            {
+                if (!DatabaseRepository.GetDatabase<SkillDefinition>().HasElement(skillName))
+                {
+                    continue;
+                }
+
+                var alreadyProficient = __instance.TrainedSkills.Any(skill => skill.Name == skillName) ||
+                                        __instance.TrainedExpertises.Contains(skillName) ||
+                                        proficiencies.Any(feature =>
+                                            (feature.ProficiencyType is ProficiencyType.Skill or ProficiencyType.Expertise) &&
+                                            feature.Proficiencies.Contains(skillName));
+                var hasExpertise = alreadyProficient ||
+                                   skillOrExpertise.Count(feature => feature.Proficiencies.Contains(skillName)) > 1;
+
+                __instance.expertiseProficiencies.RemoveAll(skill => skill == skillName);
+                if (hasExpertise)
+                {
+                    __instance.expertiseProficiencies.Add(skillName);
+                }
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-Condition/&ConditionCollegeOfValianceDishearteningPerformanceDescription=Vous devez soustraire le nombre obtenu sur la source du dé d'Inspiration bardique lors de votre prochain jet de sauvegarde réussi.
+Condition/&ConditionCollegeOfValianceDishearteningPerformanceDescription=Soustrayez le résultat d'un dé d'Inspiration bardique du barde à l'origine de cet effet de votre prochain jet de sauvegarde qui aurait autrement réussi.
 Condition/&ConditionCollegeOfValianceDishearteningPerformanceTitle=Des performances décevantes
 Feature/&AutoPreparedSpellsCollegeOfValianceRecallLanguageDescription=Vous avez acquis des connaissances dans de nombreuses langues différentes en lisant des ouvrages écrits étrangers, et vous pouvez devenir magiquement bilingues dans ces langues, en ajoutant le sort Langues à la liste des sorts connus.
 Feature/&AutoPreparedSpellsCollegeOfValianceRecallLanguageTitle=Langue de rappel
@@ -6,7 +6,7 @@ Feature/&FeatureCollegeOfValianceCaptivatingPresenceDescription=Vous laissez une
 Feature/&FeatureCollegeOfValianceCaptivatingPresenceTitle=Langue d'argent
 Feature/&FeatureCollegeOfValianceSteadfastInspirationDescription=Vos paroles inspirantes sont si encourageantes que les autres se sentent poussés à réussir. Lorsqu'une créature amie ajoute l'un de vos dés d'Inspiration bardique à son jet de caractéristique, à son jet d'attaque ou à son jet de sauvegarde et que le jet échoue, la créature peut conserver le dé d'Inspiration bardique.
 Feature/&FeatureCollegeOfValianceSteadfastInspirationTitle=Une inspiration inébranlable
-Feature/&PowerCollegeOfValianceDishearteningPerformanceDescription=Votre vaillance au combat démoralise vos ennemis. En tant qu'action bonus, vous pouvez dépenser une utilisation de votre Inspiration bardique et choisir une créature hostile que vous pouvez voir à 18 mètres ou moins de vous. Lancez le dé Inspiration bardique. La créature doit soustraire le résultat du premier jet de sauvegarde qu'elle réussit avant la fin de votre prochain tour.
+Feature/&PowerCollegeOfValianceDishearteningPerformanceDescription=Par une action bonus, dépensez une utilisation de votre Inspiration bardique pour démoraliser une créature hostile que vous pouvez voir. Avant la fin de votre prochain tour, la cible soustrait le résultat d'un de vos dés d'Inspiration bardique du premier jet de sauvegarde qui aurait autrement réussi.
 Feature/&PowerCollegeOfValianceDishearteningPerformanceTitle=Des performances décevantes
 Feature/&PowerCollegeOfValianceHeroicInspirationDescription=Vous pouvez utiliser votre action bonus pour activer l'Inspiration Héroïque. Inspiration héroïque accorde tous les avantages de l'Inspiration bardique sans consommer aucune utilisation d'Inspiration bardique et peut cibler deux créatures amies dans un rayon de 60 pieds au lieu d'une seule. Vous pouvez utiliser cette fonctionnalité 2 fois par repos long.
 Feature/&PowerCollegeOfValianceHeroicInspirationTitle=Inspiration héroïque

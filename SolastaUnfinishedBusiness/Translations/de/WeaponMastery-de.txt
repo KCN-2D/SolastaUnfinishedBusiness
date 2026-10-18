@@ -29,7 +29,7 @@ Feature/&FeatureWeaponMasteryVexDescription=Wenn Sie eine Kreatur mit dieser Waf
 Feature/&FeatureWeaponMasteryVexTitle=Vex
 Feature/&InvocationPoolWeaponMasteryLearnDescription=Wählen Sie einen Waffentyp aus, um die zugehörige Meisterschaftseigenschaft zu erfahren.
 Feature/&InvocationPoolWeaponMasteryLearnTitle=Waffenbeherrschung
-Feature/&PowerWeaponMasteryRelearnDescription=Wählen Sie einen Waffentyp aus, um die zugehörige Meisterungseigenschaft erneut zu erlernen.
+Feature/&PowerWeaponMasteryRelearnDescription=Wähle eine bekannte Waffenmeisterschaft und ersetze sie durch eine andere.
 Feature/&PowerWeaponMasteryRelearnTitle=Waffenbeherrschung: Neu lernen
 Feedback/&WeaponMasteryDeadlyTriggered={0} ausgelöst {1}, Upgrade {2} auf {3} für {4} Schaden {5} + {4} = {6}
 Reaction/&ReactionSpendPowerBundleFeatureSetFighterTacticalMasterDescription=Sie können {0} bei diesem Angriff durch eine andere Meisterung ersetzen.
@@ -51,3 +51,7 @@ Tooltip/&TagSlowTitle=Langsam
 Tooltip/&TagToppleTitle=Stürzen
 Tooltip/&TagVexTitle=Vex
 UI/&CustomFeatureSelectionTooltipTypeWeaponMastery=Waffenbeherrschungseigenschaft
+UI/&WeaponMasteryRelearnSourceTitle=Zu ersetzende Waffenmeisterschaft
+UI/&WeaponMasteryRelearnReplacementTitle=Neue Waffenmeisterschaft
+UI/&WeaponMasteryRelearnChooseDescription=Wähle eine neue Waffenmeisterschaft.
+UI/&WeaponMasteryRelearnConfirmTitle=Erlernen

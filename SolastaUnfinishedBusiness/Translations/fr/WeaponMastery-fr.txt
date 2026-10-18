@@ -29,7 +29,7 @@ Feature/&FeatureWeaponMasteryVexDescription=Si vous frappez une créature avec c
 Feature/&FeatureWeaponMasteryVexTitle=Vex
 Feature/&InvocationPoolWeaponMasteryLearnDescription=Sélectionnez un type d’arme pour découvrir sa propriété de maîtrise associée.
 Feature/&InvocationPoolWeaponMasteryLearnTitle=Maîtrise des armes
-Feature/&PowerWeaponMasteryRelearnDescription=Sélectionnez un type d’arme pour réapprendre sa propriété de maîtrise associée.
+Feature/&PowerWeaponMasteryRelearnDescription=Choisissez une maîtrise d'arme connue et remplacez-la par une autre.
 Feature/&PowerWeaponMasteryRelearnTitle=Maîtrise des armes : réapprendre
 Feedback/&WeaponMasteryDeadlyTriggered={0} déclenché {1}, mise à niveau {2} à {3} pour {4} dommages {5} + {4} = {6}
 Reaction/&ReactionSpendPowerBundleFeatureSetFighterTacticalMasterDescription=Vous pouvez remplacer {0} par une autre maîtrise sur cette attaque.
@@ -51,3 +51,7 @@ Tooltip/&TagSlowTitle=Lent
 Tooltip/&TagToppleTitle=Renverser
 Tooltip/&TagVexTitle=Vex
 UI/&CustomFeatureSelectionTooltipTypeWeaponMastery=Propriété de maîtrise des armes
+UI/&WeaponMasteryRelearnSourceTitle=Maîtrise d'arme à remplacer
+UI/&WeaponMasteryRelearnReplacementTitle=Nouvelle maîtrise d'arme
+UI/&WeaponMasteryRelearnChooseDescription=Choisissez une nouvelle maîtrise d'arme.
+UI/&WeaponMasteryRelearnConfirmTitle=Apprendre

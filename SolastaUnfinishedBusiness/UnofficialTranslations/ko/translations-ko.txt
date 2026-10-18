@@ -4929,7 +4929,6 @@ Failure/&FailureFlagNoSuitableLightTarget=빛 캔트립에 적합한 아이템�
 Failure/&FailureFlagNotAreaOfEffect=이 주문은 대상 지정형이며, 범위 지정형이 아닙니다.
 Failure/&FailureFlagNotEnoughFood=음식 {0}단위가 부족합니다.
 Failure/&FailureFlagNotEnoughMove=움직임이 충분하지 않습니다.
-Failure/&FailureFlagNotInBattle=전투 중에는 불가능합니다.
 Failure/&FailureFlagNoTorchInInventory=인벤토리에 횃불이 없습니다.
 Failure/&FailureFlagNoValidRemainingPages=이 캐릭터의 주문서에는 {1} 주문에 필요한 {0} 페이지가 남아 있지 않습니다.
 Failure/&FailureFlagOncePerTurnOnly=한 턴에 한 번만 가능합니다.

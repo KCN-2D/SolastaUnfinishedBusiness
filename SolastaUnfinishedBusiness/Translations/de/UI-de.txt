@@ -32,4 +32,7 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=Schadensart �
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=Verwende die gew채hlte Schadensart f체r diesen Treffer.
 Failure/&InvocationRequiresWarlockCantrip=Du musst {0} als Hexenmeister-Zaubertrick kennen.
 Screen/&SubspellSelectionBackTitle=Zur체ck
+Tooltip/&ToolAndSkillProficiency2024Title=Werkzeug- und Fertigkeits체bung
 Screen/&SubspellSelectionBackDescription=Zur vorherigen Auswahl zur체ckkehren.
+Failure/&FailureFlagNotInBattle=Diese Aktion kann im Kampf nicht ausgef체hrt werden.
+Failure/&WeaponMasteryRelearnUnavailable=Du kannst deine Waffenmeisterschaft jetzt nicht 채ndern.

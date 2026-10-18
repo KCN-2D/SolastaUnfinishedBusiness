@@ -29,7 +29,7 @@ Feature/&FeatureWeaponMasteryVexDescription=Если вы попадаете п�
 Feature/&FeatureWeaponMasteryVexTitle=Раздражение
 Feature/&InvocationPoolWeaponMasteryLearnDescription=Выберите тип оружия, чтобы изучить связанное с ним умение мастерства.
 Feature/&InvocationPoolWeaponMasteryLearnTitle=Оружейное мастерство
-Feature/&PowerWeaponMasteryRelearnDescription=Выберите тип оружия, чтобы заново изучить связанное с ним умение мастерства.
+Feature/&PowerWeaponMasteryRelearnDescription=Выберите известное вам мастерство оружия и замените его другим.
 Feature/&PowerWeaponMasteryRelearnTitle=Оружейное мастерство: изучение заново
 Feedback/&WeaponMasteryDeadlyTriggered={0} запускаемое {1}, обновление {2} до {3} для {4} повреждения {5} + {4} = {6}
 Reaction/&ReactionSpendPowerBundleFeatureSetFighterTacticalMasterDescription=Вы можете заменить {0} другим мастерством для этой атаки.
@@ -51,3 +51,7 @@ Tooltip/&TagSlowTitle=Замедление
 Tooltip/&TagToppleTitle=Опрокидывание
 Tooltip/&TagVexTitle=Раздражение
 UI/&CustomFeatureSelectionTooltipTypeWeaponMastery=Умение оружейного мастерства
+UI/&WeaponMasteryRelearnSourceTitle=Заменяемое мастерство оружия
+UI/&WeaponMasteryRelearnReplacementTitle=Новое мастерство оружия
+UI/&WeaponMasteryRelearnChooseDescription=Выберите новое мастерство оружия.
+UI/&WeaponMasteryRelearnConfirmTitle=Изучить

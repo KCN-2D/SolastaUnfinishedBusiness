@@ -29,7 +29,7 @@ Feature/&FeatureWeaponMasteryVexDescription=Si golpeas a una criatura con esta a
 Feature/&FeatureWeaponMasteryVexTitle=Vex
 Feature/&InvocationPoolWeaponMasteryLearnDescription=Selecciona un tipo de arma para conocer su propiedad de maestría asociada.
 Feature/&InvocationPoolWeaponMasteryLearnTitle=Maestría en armas
-Feature/&PowerWeaponMasteryRelearnDescription=Selecciona un tipo de arma para volver a aprender su propiedad de maestría asociada.
+Feature/&PowerWeaponMasteryRelearnDescription=Elige una maestría con armas que conozcas y sustitúyela por otra.
 Feature/&PowerWeaponMasteryRelearnTitle=Maestría en armas: volver a aprender
 Feedback/&WeaponMasteryDeadlyTriggered={0} activado {1}, actualizando {2} a {3} para {4} daño {5} + {4} = {6}
 Reaction/&ReactionSpendPowerBundleFeatureSetFighterTacticalMasterDescription=Puedes reemplazar {0} con otra maestría en este ataque.
@@ -51,3 +51,7 @@ Tooltip/&TagSlowTitle=Lento
 Tooltip/&TagToppleTitle=Derrocar
 Tooltip/&TagVexTitle=Vex
 UI/&CustomFeatureSelectionTooltipTypeWeaponMastery=Propiedad de maestría en armas
+UI/&WeaponMasteryRelearnSourceTitle=Maestría con armas que reemplazar
+UI/&WeaponMasteryRelearnReplacementTitle=Nueva maestría con armas
+UI/&WeaponMasteryRelearnChooseDescription=Elige una nueva maestría con armas.
+UI/&WeaponMasteryRelearnConfirmTitle=Aprender

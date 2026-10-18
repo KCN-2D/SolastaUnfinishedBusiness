@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -904,10 +904,11 @@ internal static partial class SpellBuilders
     internal static SpellDefinition BuildElementalWeapon()
     {
         const string NAME = "ElementalWeapon";
+        var sprite = Sprites.GetSprite(NAME, Resources.ElementalWeapon, 128);
 
         var spell = SpellDefinitionBuilder
             .Create(NAME)
-            .SetGuiPresentation(Category.Spell, Sprites.GetSprite(NAME, Resources.ElementalWeapon, 128))
+            .SetGuiPresentation(Category.Spell, sprite)
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolTransmutation)
             .SetSpellLevel(3)
             .SetCastingTime(ActivationTime.Action)
@@ -925,13 +926,16 @@ internal static partial class SpellBuilders
                     .Build())
             .SetSubSpells(DamagesAndEffects
                 .Where(x => x.Item1 != DamageTypePoison)
-                .Select(x => BuildElementalWeaponSubspell(x.Item1, x.Item2)).ToArray())
+                .Select(x => BuildElementalWeaponSubspell(x.Item1, x.Item2, sprite)).ToArray())
             .AddToDB();
 
         return spell;
     }
 
-    private static SpellDefinition BuildElementalWeaponSubspell(string damageType, IMagicEffect magicEffect)
+    private static SpellDefinition BuildElementalWeaponSubspell(
+        string damageType,
+        IMagicEffect magicEffect,
+        AssetReferenceSprite sprite)
     {
         var effectParticleParameters = magicEffect.EffectDescription.EffectParticleParameters;
 
@@ -948,7 +952,7 @@ internal static partial class SpellBuilders
         var additionalDamageElementalWeapon = FeatureDefinitionAdditionalDamageBuilder
             .Create($"AdditionalDamage{damageType}ElementalWeapon")
             .SetGuiPresentation("AdditionalDamageElementalWeapon", Category.Feature,
-                AdditionalDamageElementalWeaponDescription(damageType), MagicWeapon.guiPresentation.SpriteReference)
+                AdditionalDamageElementalWeaponDescription(damageType), sprite)
             .SetAttackModeOnly()
             .SetDamageDice(DieType.D4, 1)
             .SetNotificationTag(NOTIFICATION_TAG)
@@ -958,7 +962,7 @@ internal static partial class SpellBuilders
         var additionalDamageElementalWeapon1 = FeatureDefinitionAdditionalDamageBuilder
             .Create($"AdditionalDamage{damageType}ElementalWeapon1")
             .SetGuiPresentation("AdditionalDamageElementalWeapon", Category.Feature,
-                AdditionalDamageElementalWeaponDescription1(damageType), MagicWeapon.guiPresentation.SpriteReference)
+                AdditionalDamageElementalWeaponDescription1(damageType), sprite)
             .SetAttackModeOnly()
             .SetDamageDice(DieType.D4, 2)
             .SetNotificationTag(NOTIFICATION_TAG)
@@ -968,7 +972,7 @@ internal static partial class SpellBuilders
         var additionalDamageElementalWeapon2 = FeatureDefinitionAdditionalDamageBuilder
             .Create($"AdditionalDamage{damageType}ElementalWeapon2")
             .SetGuiPresentation("AdditionalDamageElementalWeapon", Category.Feature,
-                AdditionalDamageElementalWeaponDescription2(damageType), MagicWeapon.guiPresentation.SpriteReference)
+                AdditionalDamageElementalWeaponDescription2(damageType), sprite)
             .SetSpecificDamageType(damageType)
             .SetAttackModeOnly()
             .SetDamageDice(DieType.D4, 3)
@@ -980,26 +984,26 @@ internal static partial class SpellBuilders
             .Create(FeatureDefinitionAttackModifiers.AttackModifierMagicWeapon,
                 $"AttackModifier{damageType}ElementalWeapon")
             .SetGuiPresentation("AttackModifierElementalWeapon", Category.Feature,
-                AttackModifierElementalWeaponDescription(1), MagicWeapon.guiPresentation.SpriteReference)
+                AttackModifierElementalWeaponDescription(1), sprite)
             .AddToDB();
 
         var attackModifierElementalWeapon1 = FeatureDefinitionAttackModifierBuilder
             .Create(FeatureDefinitionAttackModifiers.AttackModifierMagicWeapon2,
                 $"AttackModifier{damageType}ElementalWeapon1")
             .SetGuiPresentation("AttackModifierElementalWeapon", Category.Feature,
-                AttackModifierElementalWeaponDescription(2), MagicWeapon.guiPresentation.SpriteReference)
+                AttackModifierElementalWeaponDescription(2), sprite)
             .AddToDB();
 
         var attackModifierElementalWeapon2 = FeatureDefinitionAttackModifierBuilder
             .Create(FeatureDefinitionAttackModifiers.AttackModifierMagicWeapon3,
                 $"AttackModifier{damageType}ElementalWeapon2")
             .SetGuiPresentation("AttackModifierElementalWeapon", Category.Feature,
-                AttackModifierElementalWeaponDescription(3), MagicWeapon.guiPresentation.SpriteReference)
+                AttackModifierElementalWeaponDescription(3), sprite)
             .AddToDB();
 
         var spell = SpellDefinitionBuilder
             .Create($"ElementalWeapon{damageType}")
-            .SetGuiPresentation(Category.Spell, MagicWeapon)
+            .SetGuiPresentation(Category.Spell, sprite)
             .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolTransmutation)
             .SetSpellLevel(3)
             .SetCastingTime(ActivationTime.Action)

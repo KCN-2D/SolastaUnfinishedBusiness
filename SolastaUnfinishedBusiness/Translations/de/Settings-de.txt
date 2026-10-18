@@ -279,7 +279,7 @@ ModUi/&EnableRogueCunningStrike2024=Aktiviere <color=#D89555>Cunning Strike</col
 ModUi/&EnableRogueFightingStyle=Aktiviere die Auswahl <color=#D89555>Kampfstil</color> auf Stufe 2.
 ModUi/&EnableRogueReliableTalent2024=Aktiviere <color=#D89555>Zuverlässiges Talent</color> auf Stufe 7 statt 11.
 ModUi/&EnableRogueSlipperyMind2024=Tauschen Sie <color=#D89555>Slippery Mind</color> gegen die 5e 2024-Version aus <i><color=#F0DAA0>[Sie erhalten neben Weisheit auch Kenntnisse in Charismarettungswürfen]</color></i>
-ModUi/&EnableRogueSteadyAim2024=Aktivieren Sie <color=#D89555>Zielen ohne Unterbrechung</color> auf Stufe 3 <i><color=#F0DAA0>[Bonusaktion verschafft einen Vorteil bei Ihrem nächsten Angriffswurf in der aktuellen Runde, wenn Sie sich noch nicht bewegt haben]</color></i>
+ModUi/&EnableRogueSteadyAim2024=Aktivieren Sie <color=#D89555>Zielsicher</color> auf Stufe 3 <i><color=#F0DAA0>[Bonusaktion verschafft einen Vorteil bei Ihrem nächsten Angriffswurf im aktuellen Zug, wenn Sie sich noch nicht bewegt haben]</color></i>
 ModUi/&EnableRogueStrSaving=Aktivieren Sie <b>Hoodlum</b> DEX- oder STR-Modifikatoren bei <color=#D89555>Cunning/Devious Strike</color>
 ModUi/&EnableScimitarSpecialization=Gewähre Krummsäbel <color=#D89555>Waffenspezialisierung</color>
 ModUi/&EnableSignatureSpellsRelearn=Aktiviere, dass <color=#D89555>Signaturzauber</color> bei jeder langen Pause vorbereitet werden <i><color=#F0DAA0>[statt einmal auf Stufe 20]</color></i>
@@ -298,6 +298,7 @@ ModUi/&EnableSortingDungeonMakerAssets=Aktivieren Sie die Sortierung von Assets 
 ModUi/&EnableSpeech=Aktivieren Sie die Sprachausgabe in benutzerdefinierten Kampagnen <i><color=#F0DAA0>[nur Erzählung und Helden]</color></i>
 ModUi/&EnableSpeechActorHelp=• Wählen Sie einen Schauspieler
 ModUi/&EnableSpeechOnNpcs=Sprachausgabe für NPCs aktivieren
+ModUi/&EnableSpeechOnInteractions=Beschreibungen beim Untersuchen von Objekten mit der Erzählerstimme vorlesen
 ModUi/&EnableSpeechVoiceHelp=• Wählen Sie eine Stimme und Erzählgeschwindigkeit
 ModUi/&EnableStackableArtItems=Stapeln aktivieren <color=#D89555>Kunstgegenstände</color> <i><color=#F0DAA0>[kann nicht geteilt werden, solange diese Einstellung deaktiviert ist]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Stapeln von <color=#D89555>Dolchen</color> und <color=#D89555>Handäxten</color> aktivieren <i><color=#F0DAA0>[kann nicht geteilt werden, solange diese Einstellung deaktiviert ist]</color></i>
@@ -578,6 +579,7 @@ ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=Aktivieren <color=#D89555>Kleine
 ModUi/&EnableHeavyWeaponAbilityRequirement2024=2024-Regel für schwere Waffen aktivieren <i><color=#F0DAA0>[STÄ 13 im Nahkampf, GES 13 im Fernkampf; sonst Nachteil]</color></i>
 ModUi/&UseOldOfficialFlankingRules=<i> + Die alte flankierende Regel war nur +2, um die Rolle anzugreifen. Oben Flanking plus Modifikatorregel nehmen Sie Vorrang </i>
 ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Gewähre der Unterklasse „Way of Blade Monk“ 2 Waffenmeister-Picks</i>
+ModUi/&WayOfBladeWeaponMasteryRequiresSystemHelp=Aktivieren Sie die Waffenbeherrschung unter Spielablauf > Regeln, um diese Unterklassenoption zu nutzen. Ihre Auswahl bleibt erhalten, solange die Waffenbeherrschung deaktiviert ist.
 ModUi/&UseWeaponMasterySystem=Aktivieren Sie die Regeln für <color=#D89555>Waffenbeherrschung</color>
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ Cleave-Meisterung fügt Attributwertmodifikator zum Schaden des zweiten Angriffs hinzu</i>
 ModUi/&UseWeaponMasterySystemAddWeaponTag=<i>+ Meisterschafts-Tag zu allen Spielwaffen hinzufügen</i>
@@ -593,6 +595,7 @@ ModUi/&WideScreenBattleUI=Aktivieren Sie die Breitbild-Kampf-Benutzeroberfläche
 ModUi/&WildSurgeDieRollThreshold=<color=white>Setze den Schwellenwert für die Chance des <color=#D89555>Sorcerer Wild Magic</color>-Würfels:</color>\n<i><color=#F0DAA0>[Wild Surge wird ausgelöst, wenn der Würfel kleiner oder gleich dem Schwellenwert ist]</color></i>
 ModUi/&EnableBackgroundAbilityScoreIncreases=Attributswerterhöhungen stammen vom Hintergrund statt vom Volk; die Merkmale der Menschen werden entsprechend angepasst <i><color=#F0DAA0>(Flexible Völker wird nicht angewendet, solange diese Option aktiviert ist)</color></i>
 ModUi/&EnableBackgroundBonusFeats=Ändert Hintergrundmerkmale in ein Herkunftstalent, zwei Fertigkeitsübungen und eine Werkzeugübung nach den Regeln von 2024 <i><color=#F0DAA0>(Erfordert Attributserhöhungen durch Hintergründe; Flexible Hintergründe wird nicht angewendet, solange diese Option aktiviert ist)</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Aktivieren Sie Attributswerterhöhungen durch Hintergründe, um Herkunftstalente durch Hintergründe zu erhalten.
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
@@ -688,3 +691,7 @@ ModUi/&SettingsListNoResults=Keine passenden Einträge.
 ModUi/&SettingsListSelected=Ausgewählt: {0}
 ModUi/&SpeechAssignAllAutomatic=Stimmen für Erzähler und alle Helden automatisch zuweisen
 ModUi/&SpeechAutomaticResolved=Automatische Zuweisung: {0}
+ModUi/&EnableAssassinAssassinate2024=2024-<color=#D89555>Meucheln</color> für Jägerinnen auf Stufe 3 verwenden <i><color=#F0DAA0>[Vorteil auf Initiative und zusätzlicher Schaden durch Hinterhältigen Angriff in der ersten Kampfrunde]</color></i>
+ModUi/&EnableToolChecks2024=Übungsregeln für Werkzeugwürfe nach den Regeln von 2024 verwenden
+ModUi/&ToolChecks2024Description=Bei Würfen mit Diebeswerkzeug werden die Übung in Fingerfertigkeit und die für diese Fertigkeit geltenden Effekte angewendet. Der höhere Bonus aus Fertigkeits- oder Werkzeugübung wird einmal addiert; Übung in beidem gewährt Vorteil.
+ModUi/&EnableAssassinInfiltrationExpertise2024=2024-<color=#D89555>Infiltrationsexpertise</color> für Jägerinnen auf Stufe 9 verwenden <i><color=#F0DAA0>[Übung oder Expertise in Täuschen und Bewegung nach Zielsicher; gewährt diesen Jägerinnen Zielsicher auch bei deaktivierter Klassenoption]</color></i>

@@ -745,10 +745,17 @@ public static class GameLocationCharacterPatcher
             Id actionId,
             ActionScope scope,
             ActionStatus actionTypeStatus,
-            // RulesetAttackMode optionalAttackMode,
+            RulesetAttackMode optionalAttackMode,
             bool ignoreMovePoints)
         {
             var rulesetCharacter = __instance.RulesetCharacter;
+
+            if (__result == ActionStatus.Available && actionId == Id.AttackOff &&
+                !Tabletop2024Context.IsDualWielder2024AttackAvailable(__instance, optionalAttackMode))
+            {
+                __result = ActionStatus.CannotPerform;
+                return;
+            }
 
             if (actionId == Id.NoAction &&
                 ActionPanelContext.ShouldSuppressNoAction(__instance, scope))
@@ -1256,10 +1263,29 @@ public static class GameLocationCharacterPatcher
     {
         [UsedImplicitly]
         [HarmonyPriority(Priority.First)]
-        private static void Prefix(GameLocationCharacter __instance, ref string abilityScoreName, string proficiencyName)
+        private static void Prefix(
+            GameLocationCharacter __instance,
+            ref string abilityScoreName,
+            string proficiencyName,
+            out IDisposable __state)
         {
+            __state = Tabletop2024Context.BeginToolCheckScope(__instance.RulesetCharacter, proficiencyName);
             abilityScoreName = AbilityCheckAbilityReplacement.Resolve(
                 __instance.RulesetCharacter, abilityScoreName, proficiencyName);
+        }
+
+        [UsedImplicitly]
+        private static void Postfix(
+            GameLocationCharacter __instance, string proficiencyName, ActionModifier actionModifier)
+        {
+            Tabletop2024Context.AddToolCheckAdvantage(
+                __instance.RulesetCharacter, proficiencyName, actionModifier.AbilityCheckAdvantageTrends);
+        }
+
+        [UsedImplicitly]
+        private static void Finalizer(IDisposable __state)
+        {
+            __state?.Dispose();
         }
     }
 }

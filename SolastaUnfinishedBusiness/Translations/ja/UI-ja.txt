@@ -32,4 +32,7 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=ダメージ�
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=今回の攻撃に選択したダメージ種別を使用します。
 Failure/&InvocationRequiresWarlockCantrip=ウォーロックの初級呪文として{0}を修得している必要があります。
 Screen/&SubspellSelectionBackTitle=戻る
+Tooltip/&ToolAndSkillProficiency2024Title=道具と技能の習熟
 Screen/&SubspellSelectionBackDescription=前の選択に戻ります。
+Failure/&FailureFlagNotInBattle=戦闘中は行えません。
+Failure/&WeaponMasteryRelearnUnavailable=現在、武器マスタリーを変更できません。

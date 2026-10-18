@@ -1,11 +1,13 @@
 ﻿using System.Collections;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Properties;
+using SolastaUnfinishedBusiness.Validators;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionPowers;
@@ -36,6 +38,22 @@ public sealed class RoguishSlayer : AbstractSubclass
             .AddToDB();
 
         featureElimination.AddCustomSubFeatures(new CustomBehaviorElimination(featureElimination));
+        OriginalElimination = featureElimination;
+
+        var combatAffinityAssassinate2024 = FeatureDefinitionCombatAffinityBuilder
+            .Create($"CombatAffinity{Name}Assassinate2024")
+            .SetGuiPresentationNoContent(true)
+            .SetInitiativeAffinity(AdvantageType.Advantage)
+            .AddToDB();
+
+        var featureSetAssassinate2024 = FeatureDefinitionFeatureSetBuilder
+            .Create($"FeatureSet{Name}Assassinate2024")
+            .SetGuiPresentation(Category.Feature)
+            .SetFeatureSet(combatAffinityAssassinate2024)
+            .AddToDB();
+
+        combatAffinityAssassinate2024.AddCustomSubFeatures(new CustomBehaviorElimination(featureSetAssassinate2024, true));
+        Assassinate2024 = featureSetAssassinate2024;
 
         // LEVEL 09
 
@@ -68,7 +86,7 @@ public sealed class RoguishSlayer : AbstractSubclass
         var powerCloakOfShadows = FeatureDefinitionPowerBuilder
             .Create($"Power{Name}{CloakOfShadows}")
             .SetGuiPresentation(Category.Feature, SpellDefinitions.Invisibility)
-            .SetUsesAbilityBonus(ActivationTime.BonusAction, RechargeRate.ShortRest, AttributeDefinitions.Dexterity)
+            .SetUsesAbilityBonus(ActivationTime.BonusAction, RechargeRate.LongRest, AttributeDefinitions.Dexterity)
             .SetEffectDescription(
                 EffectDescriptionBuilder
                     .Create(SpellDefinitions.Invisibility.EffectDescription)
@@ -101,6 +119,10 @@ public sealed class RoguishSlayer : AbstractSubclass
             .AddToDB();
     }
 
+    internal static FeatureDefinition OriginalElimination { get; private set; }
+
+    internal static FeatureDefinition Assassinate2024 { get; private set; }
+
     internal override CharacterClassDefinition Klass => CharacterClassDefinitions.Rogue;
 
     internal override CharacterSubclassDefinition Subclass { get; }
@@ -111,10 +133,77 @@ public sealed class RoguishSlayer : AbstractSubclass
     // ReSharper disable once UnassignedGetOnlyAutoProperty
     internal override DeityDefinition DeityDefinition { get; }
 
+    internal static void ModifySneakAttackDamage(
+        GameLocationCharacter attacker,
+        GameLocationCharacter defender,
+        RulesetAttackMode attackMode,
+        ref DamageForm damageForm)
+    {
+        var rulesetAttacker = attacker.RulesetCharacter.GetFeatureOwnerOrSelf();
+        var slayerLevels = rulesetAttacker?.GetSubclassLevel(CharacterClassDefinitions.Rogue, Name) ?? 0;
+
+        if (slayerLevels < 3)
+        {
+            return;
+        }
+
+        // The caller has resolved an actual Sneak Attack provider. Its usage limit
+        // also covers attacks outside the rogue's turn, including reactions.
+        if (Main.Settings.EnableAssassinAssassinate2024 && Gui.Battle is { CurrentRound: 1 } battle &&
+            battle.initiativeSortedContenders.Contains(attacker) &&
+            battle.initiativeSortedContenders.Contains(defender) &&
+            attackMode?.SourceDefinition is ItemDefinition { IsWeapon: true } &&
+            !ValidatorsWeapon.IsUnarmed(attackMode))
+        {
+            damageForm.BonusDamage += slayerLevels;
+        }
+
+        if (Main.Settings.EnableAssassinInfiltrationExpertise2024 || slayerLevels < ChainOfExecutionLevel)
+        {
+            return;
+        }
+
+        InflictConditionChainOfExecution(rulesetAttacker, defender.RulesetCharacter);
+
+        if (!rulesetAttacker.TryGetConditionOfCategoryAndType(
+                AttributeDefinitions.TagEffect, ConditionChainOfExecutionBeneficialName, out var activeCondition) ||
+            activeCondition.SourceGuid != rulesetAttacker.Guid)
+        {
+            return;
+        }
+
+        var extraDice = slayerLevels switch
+        {
+            >= 17 => 5,
+            >= 13 => 4,
+            _ => 3
+        };
+        var newDiceNumber = damageForm.DiceNumber + extraDice;
+        var title = Gui.Format("Feature/&FeatureRoguishSlayerChainOfExecutionTitle");
+        var description = Gui.Format("Feature/&FeatureRoguishSlayerChainOfExecutionDescription");
+
+        rulesetAttacker.LogCharacterActivatesAbility(
+            title, "Feedback/&ChangeSneakDiceNumber",
+            tooltipContent: description, indent: true,
+            extra:
+            [
+                (ConsoleStyleDuplet.ParameterType.AbilityInfo, damageForm.DiceNumber.ToString()),
+                (ConsoleStyleDuplet.ParameterType.Positive, newDiceNumber.ToString())
+            ]);
+
+        damageForm.DiceNumber = newDiceNumber;
+        rulesetAttacker.RemoveCondition(activeCondition);
+    }
+
     internal static void InflictConditionChainOfExecution(
         RulesetCharacter rulesetAttacker,
         RulesetCharacter rulesetDefender = null)
     {
+        if (Main.Settings.EnableAssassinInfiltrationExpertise2024)
+        {
+            return;
+        }
+
         var isBeneficial = rulesetDefender == null;
 
         var conditionName = isBeneficial
@@ -153,7 +242,7 @@ public sealed class RoguishSlayer : AbstractSubclass
     // Elimination
     //
 
-    private sealed class CustomBehaviorElimination(FeatureDefinition featureDefinition)
+    private sealed class CustomBehaviorElimination(FeatureDefinition featureDefinition, bool use2024Rules = false)
         : IModifyAttackActionModifier, IModifyAttackCriticalThreshold
     {
         private readonly TrendInfo _trendInfo =
@@ -169,6 +258,33 @@ public sealed class RoguishSlayer : AbstractSubclass
             ref ActionModifier attackModifier)
         {
             var battle = Gui.Battle;
+
+            if (use2024Rules)
+            {
+                if (battle is not { CurrentRound: 1 })
+                {
+                    return;
+                }
+
+                var source = GameLocationCharacter.GetFromActor(myself);
+
+                if (source == null || !battle.initiativeSortedContenders.Contains(source))
+                {
+                    return;
+                }
+
+                var target = GameLocationCharacter.GetFromActor(defender);
+                var targetOrder = battle.initiativeSortedContenders.IndexOf(target);
+
+                // Compare against the current normal turn, not the attacker's own
+                // initiative: reactions can occur before or after either creature acts.
+                if (targetOrder > battle.activeContenderIndex)
+                {
+                    attackModifier.AttackAdvantageTrends.Add(_trendInfo);
+                }
+
+                return;
+            }
 
             // always grant advantage on battle round zero
             if (battle == null)
@@ -206,7 +322,7 @@ public sealed class RoguishSlayer : AbstractSubclass
         public int GetCriticalThreshold(
             int current, RulesetCharacter me, RulesetCharacter target, BaseDefinition attackMethod)
         {
-            return target.HasConditionOfType(ConditionSurprised) ? 1 : current;
+            return !use2024Rules && target.HasConditionOfType(ConditionSurprised) ? 1 : current;
         }
     }
 

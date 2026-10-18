@@ -9,6 +9,7 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using Random = UnityEngine.Random;
 
@@ -59,11 +60,49 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
     private int _gainedClassLevel;
     private CharacterSubclassDefinition _gainedSubclass;
     private bool _wasClicked;
+    private RulesetCharacter _selectionCharacter;
+    private InvocationPoolTypeCustom _selectionPool;
+    private string _selectionTitle;
+    private Func<InvocationDefinitionCustom, bool> _canSelectInvocation;
+    private Action<InvocationDefinitionCustom> _invocationSelected;
+    private bool _standaloneSelection;
+    private InvocationDefinitionCustom _pendingInvocation;
+    private InvocationReplacementPresentation _replacementPresentation;
+
+    internal static void SelectInvocation(RulesetCharacter character, InvocationPoolTypeCustom pool, string title,
+        InvocationReplacementPresentation presentation,
+        Func<InvocationDefinitionCustom, bool> canSelect, Action<InvocationDefinitionCustom> selected)
+    {
+        InvocationSelectionModal.Get().Bind(character, pool, title, presentation, canSelect, selected);
+    }
+
+    internal sealed class InvocationReplacementPresentation(
+        InvocationDefinitionCustom source, string sourceTitle, string replacementTitle, string description,
+        string confirmTitle, Func<InvocationDefinitionCustom, string> formatDetails)
+    {
+        internal InvocationDefinitionCustom Source => source;
+        internal string SourceTitle => sourceTitle;
+        internal string ReplacementTitle => replacementTitle;
+        internal string Description => description;
+        internal string ConfirmTitle => confirmTitle;
+        internal string FormatDetails(InvocationDefinitionCustom invocation) => formatDetails(invocation);
+    }
 
     private bool IsFinalStep => _currentLearnStep >= _allPools.Count;
 
     private void OnFeatureSelected(SpellBox spellBox)
     {
+        if (_selectionCharacter != null)
+        {
+            var selected = spellBox.GetFeature();
+            if (!_wasClicked && selected != null && _canSelectInvocation(selected))
+            {
+                _pendingInvocation = selected;
+                InvocationSelectionModal.Get().RefreshSelection();
+            }
+            return;
+        }
+
         if (_wasClicked || IsFinalStep)
         {
             return;
@@ -730,9 +769,18 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
     [NotNull]
     private static CustomInvocationSelectionPanel GetPanel([NotNull] CharacterEditionScreen screen)
     {
+        return GetPanel(screen.StagesPanelContainer);
+    }
+
+    private static CustomInvocationSelectionPanel GetPanel(Transform parent)
+    {
         var characterCreationScreen = Gui.GuiService.GetScreen<CharacterCreationScreen>();
         var stagePanelPrefabs = characterCreationScreen.stagePanelPrefabs;
-        var gameObject = Gui.GetPrefabFromPool(stagePanelPrefabs[8], screen.StagesPanelContainer);
+        var gameObject = Gui.GetPrefabFromPool(stagePanelPrefabs[8], parent);
+        // OnEnable applies the scroll settings, so copy the native controls before the
+        // replacement component can become enabled. Character stages and the in-game
+        // chooser both activate this panel through their normal Show lifecycle.
+        gameObject.SetActive(false);
         var customFeatureSelection = gameObject.AddComponent<CustomInvocationSelectionPanel>();
 
         customFeatureSelection.Setup();
@@ -776,7 +824,44 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
 
     public override void SetScrollSensitivity(float scrollSensitivity)
     {
-        _spellsScrollRect.scrollSensitivity = -scrollSensitivity;
+        if (_spellsScrollRect)
+        {
+            _spellsScrollRect.scrollSensitivity = -scrollSensitivity;
+        }
+    }
+
+    // A standalone chooser only borrows the stage's card presenter. Its containing
+    // screen owns input and navigation; there is no character-building parent to refresh.
+    public override void HandleInputControlSchemeChangedForShow(string previousScheme, string newScheme)
+    {
+        if (!_standaloneSelection)
+        {
+            base.HandleInputControlSchemeChangedForShow(previousScheme, newScheme);
+        }
+    }
+
+    public override void SelectDefaultControlImpl()
+    {
+        if (!_standaloneSelection)
+        {
+            base.SelectDefaultControlImpl();
+        }
+    }
+
+    public override void RegisterCommands()
+    {
+        if (!_standaloneSelection)
+        {
+            base.RegisterCommands();
+        }
+    }
+
+    public override void UnregisterCommands()
+    {
+        if (!_standaloneSelection)
+        {
+            base.UnregisterCommands();
+        }
     }
 
     public override void UpdateRelevance()
@@ -800,8 +885,20 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
     {
         base.OnBeginShow(instant);
 
-        _backdrop.SetAddressableSprite(_backdropReference);
+        if (_selectionCharacter != null)
+        {
+            _learnStepsTable.gameObject.SetActive(false);
+            _levelButtonsTable.gameObject.SetActive(false);
+            _stageTitleLabel.Text = _selectionTitle;
+            _rightFeaturesLabel.Text = _selectionPool.FormatTitle(false);
+            _rightFeaturesDescription.Text = _replacementPresentation.Description;
+            LayoutInvocationSelection();
+            _spellsScrollRect.normalizedPosition = Vector2.zero;
+            RefreshNow();
+            return;
+        }
 
+        _backdrop.SetAddressableSprite(_backdropReference);
         CommonData.CharacterStatsPanel.Show(CharacterStatsPanel.ArmorClassFlag |
                                             CharacterStatsPanel.InitiativeFlag | CharacterStatsPanel.MoveFlag |
                                             CharacterStatsPanel.ProficiencyFlag |
@@ -883,6 +980,12 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
 
     public override void Refresh()
     {
+        if (_selectionCharacter != null)
+        {
+            RefreshInvocationSelection();
+            return;
+        }
+
         if (_allPools.Count == 0)
         {
             base.Refresh();
@@ -1021,6 +1124,461 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
     }
 
     #endregion
+
+    private void RefreshInvocationSelection()
+    {
+        InvocationPoolTypeCustom.RefreshAll();
+        var levels = _selectionPool.AllLevels;
+        while (_spellsByLevelTable.childCount < levels.Count)
+        {
+            Gui.GetPrefabFromPool(_spellsByLevelPrefab, _spellsByLevelTable);
+        }
+
+        var width = 0f;
+        var layout = _spellsByLevelTable.GetComponent<HorizontalLayoutGroup>();
+        layout.padding.left = (int)SpellsByLevelMargin;
+        for (var i = 0; i < _spellsByLevelTable.childCount; i++)
+        {
+            var child = _spellsByLevelTable.GetChild(i);
+            child.gameObject.SetActive(i < levels.Count);
+            if (i >= levels.Count)
+            {
+                continue;
+            }
+
+            var group = child.GetComponent<SpellsByLevelGroup>();
+            group.Selected = true;
+            group.CustomFeatureBind(null, _selectionPool, [], levels[i], [], true, false,
+                OnFeatureSelected, _selectionCharacter, _canSelectInvocation);
+            group.slotStatusTable.gameObject.SetActive(false);
+            width += group.RectTransform.rect.width + layout.spacing;
+        }
+
+        _spellsByLevelTable.sizeDelta = new Vector2(width + SpellsByLevelMargin, _spellsByLevelTable.sizeDelta.y);
+        LayoutRebuilder.ForceRebuildLayoutImmediate(_spellsByLevelTable);
+    }
+
+    private void LayoutInvocationSelection()
+    {
+        Place(_stageTitleLabel.RectTransform, RectTransform, new Vector2(0.01f, 0.91f),
+            new Vector2(0.63f, 0.99f));
+        _stageTitleLabel.Text = _replacementPresentation.Description;
+        _stageTitleLabel.TMP_Text.alignment = TMPro.TextAlignmentOptions.MidlineLeft;
+        _stageTitleLabel.TMP_Text.fontSize = 22f;
+        Place(_spellsScrollRect.GetComponent<RectTransform>(), RectTransform, new Vector2(0.01f, 0.01f),
+            new Vector2(0.63f, 0.9f));
+
+        // Retain only the native card viewport; the modal supplies the header and comparison.
+        foreach (Transform child in RectTransform)
+        {
+            if (child == _stageTitleLabel.transform || child == _spellsScrollRect.transform)
+            {
+                continue;
+            }
+            foreach (var graphic in child.GetComponentsInChildren<Graphic>(true))
+            {
+                graphic.enabled = false;
+            }
+        }
+    }
+
+    private static RectTransform CreateRect(string name, Transform parent)
+    {
+        var rect = (RectTransform)new GameObject(name, typeof(RectTransform)).transform;
+        rect.gameObject.layer = parent.gameObject.layer;
+        rect.SetParent(parent, false);
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+        return rect;
+    }
+
+    private static void Place(RectTransform rect, Transform parent, Vector2 minimum, Vector2 maximum)
+    {
+        rect.SetParent(parent, false);
+        rect.anchorMin = minimum;
+        rect.anchorMax = maximum;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+        rect.localScale = Vector3.one;
+    }
+
+    private sealed class InvocationDescriptionLayout : MonoBehaviour, ILayoutElement
+    {
+        internal TMPro.TMP_Text Text;
+        public float minWidth => 0f;
+        public float preferredWidth => 0f;
+        public float flexibleWidth => 1f;
+        public float minHeight => preferredHeight;
+        public float preferredHeight => Text.GetPreferredValues(Text.text,
+            ((RectTransform)transform).rect.width, Mathf.Infinity).y;
+        public float flexibleHeight => -1f;
+        public int layoutPriority => 10;
+        public void CalculateLayoutInputHorizontal() { }
+        public void CalculateLayoutInputVertical() { }
+    }
+
+    // Only the native card presenter is shared with character creation. This screen owns
+    // the in-game selection, input, confirmation and lifetime independently of hero building.
+    private sealed class InvocationSelectionModal : GuiGameScreen
+    {
+        private static InvocationSelectionModal _instance;
+        private CustomInvocationSelectionPanel _panel;
+        private GuiLabel _title;
+        private Button _confirmButton;
+        private Button _cancelButton;
+        private GuiLabel _confirmLabel;
+        private InvocationComparisonEntry _sourceEntry;
+        private InvocationComparisonEntry _replacementEntry;
+        private IGameService _selectionGameService;
+
+        public override bool GrabsCameraControl => true;
+        public override string ActionMap => "UI";
+        public override bool AutoRecomputeNavigation => true;
+
+        internal static InvocationSelectionModal Get() =>
+            _instance ? _instance : _instance = new GameObject("InvocationSelectionModal")
+                .AddComponent<InvocationSelectionModal>();
+
+        public override void Awake()
+        {
+            gameObject.AddComponent<RectTransform>();
+            gameObject.AddComponent<CanvasRenderer>();
+            gameObject.AddComponent<CanvasGroup>();
+            base.Awake();
+        }
+
+        public override void Initialize()
+        {
+            if (Initialized)
+            {
+                return;
+            }
+
+            base.Initialize();
+            if (Gui.GuiService is GuiManager manager)
+            {
+                manager.screensByType[GetType()] = this;
+            }
+            loaded = true;
+            gameObject.layer = LayerMask.NameToLayer("UI");
+            var levelUp = Gui.GuiService.GetScreen<CharacterLevelUpScreen>();
+            transform.SetParent(levelUp.transform.parent, false);
+            SortIndex = levelUp.SortIndex + 1;
+            transform.SetSiblingIndex(levelUp.transform.GetSiblingIndex() + 1);
+            Place(RectTransform, transform.parent, Vector2.zero, Vector2.one);
+
+            var message = Gui.GuiService.GetScreen<MessageModal>();
+            var backdrop = Instantiate(message.transform.Find("Background"), transform, false);
+            backdrop.name = "InvocationSelectionBackdrop";
+            var frame = CreateRect("InvocationSelectionFrame", transform);
+            Place(frame, transform, new Vector2(0.03f, 0.09f), new Vector2(0.97f, 0.94f));
+            // Copy the actual modal shadow, inset frame and ornament instead of drawing substitutes.
+            foreach (var name in new[] { "Shadow", "CombinationBackgroundPanel", "PanelBackground" })
+            {
+                var decoration = Instantiate(message.panel.transform.Find(name), frame, false);
+                decoration.name = name;
+                decoration.gameObject.SetActive(true);
+            }
+            _title = Instantiate(message.titleLabel, frame, false);
+            _title.name = "InvocationSelectionTitle";
+            Place(_title.RectTransform, frame, new Vector2(0.05f, 0.9f), new Vector2(0.95f, 1f));
+            _title.gameObject.SetActive(true);
+            var ornament = (RectTransform)Instantiate(message.panel.transform.Find("SeparatorGroup"), frame, false);
+            ornament.name = "SeparatorGroup";
+            Place(ornament, frame, new Vector2(0.05f, 0.9f), new Vector2(0.95f, 0.9f));
+            ornament.gameObject.SetActive(true);
+
+            var body = CreateRect("InvocationSelectionBody", frame);
+            Place(body, frame, new Vector2(0.025f, 0.1f), new Vector2(0.975f, 0.88f));
+            _panel = GetPanel(body);
+            _panel._standaloneSelection = true;
+            _panel.Initialize();
+            Place(_panel.RectTransform, body, Vector2.zero, Vector2.one);
+
+            _sourceEntry = new InvocationComparisonEntry(body, message, _panel._spellsByLevelPrefab,
+                "InvocationSource", new Vector2(0.67f, 0.53f), new Vector2(0.99f, 0.99f));
+            _replacementEntry = new InvocationComparisonEntry(body, message, _panel._spellsByLevelPrefab,
+                "InvocationReplacement", new Vector2(0.67f, 0.02f), new Vector2(0.99f, 0.48f));
+
+            var buttons = (RectTransform)Instantiate(message.cancelButton.transform.parent, frame, false);
+            buttons.name = "InvocationSelectionButtons";
+            buttons.anchorMin = buttons.anchorMax = new Vector2(0.5f, 0.035f);
+            buttons.pivot = new Vector2(0.5f, 0.5f);
+            buttons.anchoredPosition = Vector2.zero;
+            buttons.GetComponent<HorizontalLayoutGroup>().spacing = 20f;
+            _cancelButton = buttons.Find(message.cancelButton.name).GetComponent<Button>();
+            _confirmButton = buttons.Find(message.validateButton.name).GetComponent<Button>();
+            ConfigureButton(_cancelButton, "CancelInvocationSelection", "Message/&MessageCancelTitle", Close);
+            ConfigureButton(_confirmButton, "ConfirmInvocationSelection", null, ConfirmSelection);
+            _confirmLabel = _confirmButton.GetComponentInChildren<GuiLabel>(true);
+            buttons.gameObject.SetActive(true);
+        }
+
+        private static void ConfigureButton(Button button, string name, string caption, UnityEngine.Events.UnityAction action)
+        {
+            button.name = name;
+            button.onClick = new Button.ButtonClickedEvent();
+            button.onClick.AddListener(action);
+            var layout = button.GetComponent<LayoutElement>();
+            layout.minWidth = 180f;
+            layout.preferredWidth = 220f;
+            layout.minHeight = 44f;
+            layout.preferredHeight = 44f;
+            button.GetComponent<RectTransform>().SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 44f);
+            if (caption != null)
+            {
+                button.GetComponentInChildren<GuiLabel>(true).Text = caption;
+            }
+            button.gameObject.SetActive(true);
+            button.GetComponentInChildren<GuiLabel>(true).TMP_Text.fontSize = 22f;
+        }
+
+        internal void Bind(RulesetCharacter character, InvocationPoolTypeCustom pool, string title,
+            InvocationReplacementPresentation presentation,
+            Func<InvocationDefinitionCustom, bool> canSelect, Action<InvocationDefinitionCustom> selected)
+        {
+            Initialize();
+            if (Visible)
+            {
+                Hide(true);
+            }
+            _panel._selectionCharacter = character;
+            _panel._selectionPool = pool;
+            _panel._selectionTitle = title;
+            _panel._replacementPresentation = presentation;
+            _panel._canSelectInvocation = canSelect;
+            _panel._invocationSelected = selected;
+            _panel._pendingInvocation = null;
+            _panel._wasClicked = false;
+            Show();
+        }
+
+        public override void OnBeginShow(bool instant = false)
+        {
+            base.OnBeginShow(instant);
+            _selectionGameService = ServiceRepository.GetService<IGameService>();
+            if (_selectionGameService != null)
+            {
+                _selectionGameService.GameDestroying += OnSelectionGameDestroying;
+            }
+            _title.Text = _panel._selectionTitle;
+            _confirmLabel.Text = _panel._replacementPresentation.ConfirmTitle;
+            ApplyActionButtonTextSize();
+            _panel.Show(instant);
+            RefreshSelection();
+            ServiceRepository.GetService<ITooltipService>()?.HideTooltip();
+        }
+
+        internal void RefreshSelection()
+        {
+            var presentation = _panel._replacementPresentation;
+            _sourceEntry.Bind(_panel, presentation.SourceTitle, presentation.Source);
+            _replacementEntry.Bind(_panel, presentation.ReplacementTitle, _panel._pendingInvocation);
+            foreach (var card in _panel._spellsByLevelTable.GetComponentsInChildren<SpellBox>(false))
+            {
+                var invocation = card.GetFeature();
+                card.CustomRefreshLearningInProgress(_panel._canSelectInvocation(invocation),
+                    invocation == _panel._pendingInvocation,
+                    _panel._selectionCharacter.Invocations.Any(known => known.InvocationDefinition == invocation));
+            }
+            _confirmButton.interactable = _panel._pendingInvocation != null &&
+                                          _panel._canSelectInvocation(_panel._pendingInvocation);
+        }
+
+        private void ConfirmSelection()
+        {
+            var selection = _panel._pendingInvocation;
+            if (_panel._wasClicked || selection == null || !_panel._canSelectInvocation(selection))
+            {
+                return;
+            }
+            _panel._wasClicked = true;
+            var handler = _panel._invocationSelected;
+            Hide(true);
+            handler?.Invoke(selection);
+        }
+
+        public override void OnBeginHide(bool instant = false)
+        {
+            if (_selectionGameService != null)
+            {
+                _selectionGameService.GameDestroying -= OnSelectionGameDestroying;
+                _selectionGameService = null;
+            }
+            _panel.Hide(instant);
+            base.OnBeginHide(instant);
+        }
+
+        public override void OnEndHide()
+        {
+            // A parent without its own transition may finish before the native stage fade.
+            // Complete the child lifecycle while it is still active so its cards and input
+            // subscriptions are released before the containing screen is deactivated.
+            _panel.Hide(true);
+            _sourceEntry.Unbind();
+            _replacementEntry.Unbind();
+            _panel._selectionCharacter = null;
+            _panel._selectionPool = null;
+            _panel._selectionTitle = null;
+            _panel._replacementPresentation = null;
+            _panel._pendingInvocation = null;
+            _panel._canSelectInvocation = null;
+            _panel._invocationSelected = null;
+            base.OnEndHide();
+        }
+
+        private void ApplyActionButtonTextSize()
+        {
+            _confirmLabel.TMP_Text.fontSize = 22f;
+            _cancelButton.GetComponentInChildren<GuiLabel>(true).TMP_Text.fontSize = 22f;
+        }
+
+        public override void HandleInputControlSchemeChangedForShow(string previousScheme, string newScheme)
+        {
+            base.HandleInputControlSchemeChangedForShow(previousScheme, newScheme);
+            ApplyActionButtonTextSize();
+        }
+
+        private void OnSelectionGameDestroying() => Hide(true);
+        private void Close() => Hide();
+
+        public override bool HandleInput(InputCommands.Id command)
+        {
+            if (command == InputCommands.Id.Cancel)
+            {
+                Close();
+                return true;
+            }
+            return false;
+        }
+
+        public override void SelectDefaultControlImpl()
+        {
+            if (!Gui.GamepadActive || Gui.InputService.CurrentSelectedGameObject)
+            {
+                return;
+            }
+            var card = _panel._spellsByLevelTable.GetComponentsInChildren<SpellBox>(false)
+                .FirstOrDefault(candidate => candidate.Interactive);
+            if (card)
+            {
+                Gui.InputService.SelectCurrentSelectable(card.Selectable);
+            }
+        }
+
+        private void CancelPerformed(InputAction.CallbackContext context) => Close();
+
+        public override void RegisterCommands() =>
+            Gui.InputService.InputActionAsset.FindActionMap(ActionMap).FindAction("Cancel").performed += CancelPerformed;
+
+        public override void UnregisterCommands() =>
+            Gui.InputService.InputActionAsset.FindActionMap(ActionMap).FindAction("Cancel").performed -= CancelPerformed;
+    }
+
+    private sealed class InvocationComparisonEntry
+    {
+        private readonly GuiLabel _heading;
+        private readonly SpellBox _card;
+        private readonly GuiLabel _details;
+        private readonly ScrollRect _scroll;
+
+        internal InvocationComparisonEntry(Transform parent, MessageModal message, GameObject groupPrefab,
+            string name, Vector2 minimum, Vector2 maximum)
+        {
+            var root = CreateRect(name, parent);
+            Place(root, parent, minimum, maximum);
+            _heading = Instantiate(message.titleLabel, root, false);
+            _heading.name = name + "Title";
+            Place(_heading.RectTransform, root, new Vector2(0f, 0.8f), Vector2.one);
+            _heading.TMP_Text.fontSize = 22f;
+            _heading.TMP_Text.alignment = TMPro.TextAlignmentOptions.MidlineLeft;
+            _heading.gameObject.SetActive(true);
+
+            var cardPrefab = groupPrefab.GetComponent<SpellsByLevelGroup>().spellPrefab;
+            _card = Instantiate(cardPrefab, root, false).GetComponent<SpellBox>();
+            _card.name = name + "Card";
+            _card.Initialize();
+            var cardRect = _card.RectTransform;
+            cardRect.anchorMin = cardRect.anchorMax = new Vector2(0f, 0.77f);
+            cardRect.pivot = new Vector2(0f, 1f);
+            cardRect.anchoredPosition = Vector2.zero;
+            cardRect.sizeDelta = new Vector2(112f, 164f);
+
+            var scrollRoot = CreateRect(name + "Details", root);
+            Place(scrollRoot, root, new Vector2(0f, 0f), new Vector2(1f, 0.76f));
+            scrollRoot.offsetMin = new Vector2(132f, 0f);
+            _scroll = scrollRoot.gameObject.AddComponent<ScrollRect>();
+            _scroll.horizontal = false;
+            _scroll.vertical = true;
+            _scroll.inertia = false;
+            _scroll.movementType = ScrollRect.MovementType.Clamped;
+            _scroll.scrollSensitivity = 36f;
+            var viewport = CreateRect("Viewport", scrollRoot);
+            viewport.offsetMax = new Vector2(-16f, 0f);
+            viewport.gameObject.AddComponent<Image>().color = Color.clear;
+            viewport.gameObject.AddComponent<RectMask2D>();
+            _scroll.viewport = viewport;
+            var content = CreateRect("Content", viewport);
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = Vector2.one;
+            content.pivot = new Vector2(0.5f, 1f);
+            var layout = content.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.childControlHeight = true;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            _scroll.content = content;
+            _details = Instantiate(message.contentLabel, content, false);
+            _details.name = name + "Description";
+            _details.TMP_Text.alignment = TMPro.TextAlignmentOptions.TopLeft;
+            _details.TMP_Text.enableWordWrapping = true;
+            _details.TMP_Text.overflowMode = TMPro.TextOverflowModes.Overflow;
+            _details.RectTransform.gameObject.AddComponent<InvocationDescriptionLayout>().Text = _details.TMP_Text;
+            _details.gameObject.SetActive(true);
+
+            var nativeBar = Gui.GuiService.GetScreen<CharacterInspectionScreen>()
+                .GetComponentsInChildren<Scrollbar>(true)
+                .First(bar => bar.direction == Scrollbar.Direction.BottomToTop);
+            var scrollbar = Instantiate(nativeBar, scrollRoot, false);
+            scrollbar.onValueChanged = new Scrollbar.ScrollEvent();
+            Place(scrollbar.GetComponent<RectTransform>(), scrollRoot, new Vector2(1f, 0f), Vector2.one);
+            scrollbar.GetComponent<RectTransform>().offsetMin = new Vector2(-12f, 0f);
+            _scroll.verticalScrollbar = scrollbar;
+            _scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+            scrollbar.gameObject.SetActive(true);
+        }
+
+        internal void Bind(CustomInvocationSelectionPanel panel, string heading, InvocationDefinitionCustom invocation)
+        {
+            _heading.Text = heading;
+            _card.gameObject.SetActive(invocation != null);
+            if (invocation != null)
+            {
+                _card.CustomFeatureBind(invocation, false, SpellBox.BindMode.Learning, null);
+                _card.SetupUI(panel._selectionCharacter, panel._selectionPool.Sprite, []);
+                _card.CustomRefreshLearningInProgress(false, false, true);
+                _card.availableToLearnGroup.gameObject.SetActive(false);
+                _details.Text = panel._replacementPresentation.FormatDetails(invocation);
+            }
+            else
+            {
+                _card.CustomUnbind();
+                _details.Text = panel._replacementPresentation.Description;
+            }
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_scroll.content);
+            _scroll.verticalNormalizedPosition = 1f;
+        }
+
+        internal void Unbind()
+        {
+            _card.CustomUnbind();
+            _details.Text = string.Empty;
+        }
+    }
 
     #region UI helpers
 
@@ -1182,7 +1740,9 @@ internal static class SpellsByLevelGroupExtensions
         List<InvocationDefinitionCustom> unlearned,
         bool canAcquireFeatures,
         bool unlearn,
-        SpellBox.SpellBoxChangedHandler spellBoxChanged)
+        SpellBox.SpellBoxChangedHandler spellBoxChanged,
+        RulesetCharacter selectionCharacter = null,
+        Func<InvocationDefinitionCustom, bool> canSelect = null)
     {
         instance.name = $"Feature[{pool.Name}]";
         instance.SpellLevel = featureLevel;
@@ -1231,7 +1791,22 @@ internal static class SpellsByLevelGroupExtensions
 
         instance.slotStatusTable.Bind(null, featureLevel, false, null, false);
 
-        if (unlearn)
+        if (selectionCharacter != null && canSelect != null)
+        {
+            foreach (Transform child in spellsTable)
+            {
+                if (!child.gameObject.activeSelf)
+                {
+                    continue;
+                }
+                var box = child.GetComponent<SpellBox>();
+                var feature = box.GetFeature();
+                box.SetupUI(selectionCharacter, pool.Sprite, []);
+                box.CustomRefreshLearningInProgress(canSelect(feature), false,
+                    selectionCharacter.Invocations.Any(known => known.InvocationDefinition == feature));
+            }
+        }
+        else if (unlearn)
         {
             instance.RefreshUnlearning(hero, pool, unlearned, canAcquireFeatures);
         }
@@ -1330,6 +1905,9 @@ internal static class SpellsByLevelGroupExtensions
 
         Gui.ReleaseChildrenToPool(spellsTable);
         instance.slotStatusTable.Unbind();
+        // The group also returns to native spell-learning and inspection screens,
+        // whose Bind methods do not reactivate this container themselves.
+        instance.slotStatusTable.gameObject.SetActive(true);
     }
 
     // ReSharper disable once SuggestBaseTypeForParameter
@@ -1393,7 +1971,7 @@ internal static class SpellBoxExtensions
     }
 
     internal static void SetupUI(
-        this SpellBox instance, RulesetCharacterHero hero, AssetReferenceSprite sprite, List<string> requirements)
+        this SpellBox instance, RulesetCharacter hero, AssetReferenceSprite sprite, List<string> requirements)
     {
         var title = instance.titleLabel;
         var image = instance.spellImage;

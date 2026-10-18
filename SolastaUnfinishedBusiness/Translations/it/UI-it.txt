@@ -32,4 +32,7 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=Cambia tipo d
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=Usa il tipo di danno selezionato per questo colpo.
 Failure/&InvocationRequiresWarlockCantrip=Devi conoscere {0} come trucchetto da warlock.
 Screen/&SubspellSelectionBackTitle=Indietro
+Tooltip/&ToolAndSkillProficiency2024Title=Competenza in strumenti e abilità
 Screen/&SubspellSelectionBackDescription=Torna alla selezione precedente.
+Failure/&FailureFlagNotInBattle=Questa azione non può essere eseguita durante il combattimento.
+Failure/&WeaponMasteryRelearnUnavailable=Non puoi cambiare la tua maestria nelle armi in questo momento.

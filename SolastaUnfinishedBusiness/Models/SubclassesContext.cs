@@ -16,8 +16,6 @@ namespace SolastaUnfinishedBusiness.Models;
 
 internal static class SubclassesContext
 {
-    internal static readonly SortedList<string, (string, CharacterClassDefinition)> Klasses = [];
-
     internal static readonly Dictionary<CharacterClassDefinition, KlassListContext> KlassListContextTab = [];
 
     private static Dictionary<CharacterSubclassDefinition, DeityDefinition> DeityChoiceList
@@ -86,9 +84,6 @@ internal static class SubclassesContext
         foreach (var klass in DatabaseRepository.GetDatabase<CharacterClassDefinition>())
         {
             var klassName = klass.Name;
-            var postfix = klassName == InventorClass.ClassName ? " \u00a9".Grey() : string.Empty;
-
-            Klasses.Add(klass.FormatTitle() + postfix, (klassName, klass));
             KlassListContextTab.Add(klass, new KlassListContext(klass));
             Main.Settings.DisplayKlassToggle.TryAdd(klassName, false);
             Main.Settings.KlassListSliderPosition.TryAdd(klassName, 4);

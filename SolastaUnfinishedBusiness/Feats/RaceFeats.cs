@@ -321,7 +321,7 @@ internal static class RaceFeats
             .SetSpellsAtLevel(0, detectMagicCantrip)
             .SetSpellsAtLevel(1, levitateSpell)
             .SetSpellsAtLevel(2, dispelMagicSpell)
-            .FinalizeSpells(true, 1)
+            .FinalizeSpells(true, 2)
             .AddToDB();
 
         var castSpell = FeatureDefinitionCastSpellBuilder
@@ -332,7 +332,7 @@ internal static class RaceFeats
             .SetSpellKnowledge(SpellKnowledge.FixedList)
             .SetSpellReadyness(SpellReadyness.AllKnown)
             .SetSlotsRecharge(RechargeRate.LongRest)
-            .SetSlotsPerLevel(SharedSpellsContext.RaceCastingSlots)
+            .SetSlotsPerLevel(FeatHelpers.BuildFixedFreeCastingSlots(1, 2))
             .SetReplacedSpells(1, 0)
             .SetKnownCantrips(1, 1, FeatureDefinitionCastSpellBuilder.CasterProgression.Flat)
             .AddCustomSubFeatures(new FeatHelpers.SpellTag("DarkElfMagic"))
@@ -363,7 +363,7 @@ internal static class RaceFeats
             .ClearSpells()
             .SetSpellsAtLevel(1, Longstrider)
             .SetSpellsAtLevel(2, PassWithoutTrace)
-            .FinalizeSpells(true, 1)
+            .FinalizeSpells(true, 2)
             .AddToDB();
 
         //explicitly re-use druid spell list, so custom cantrips selected for druid will show here 
@@ -377,7 +377,7 @@ internal static class RaceFeats
             .SetSpellKnowledge(SpellKnowledge.Selection)
             .SetSpellReadyness(SpellReadyness.AllKnown)
             .SetSlotsRecharge(RechargeRate.LongRest)
-            .SetSlotsPerLevel(SharedSpellsContext.RaceCastingSlots)
+            .SetSlotsPerLevel(FeatHelpers.BuildFixedFreeCastingSlots(1, 2))
             .SetReplacedSpells(1, 0)
             .SetKnownCantrips(1, 1, FeatureDefinitionCastSpellBuilder.CasterProgression.Flat)
             .AddCustomSubFeatures(new FeatHelpers.SpellTag("WoodElfMagic", true))

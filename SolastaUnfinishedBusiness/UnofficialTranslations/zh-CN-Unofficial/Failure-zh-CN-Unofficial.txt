@@ -93,7 +93,6 @@ Failure/&FailureFlagNoValidRemainingPages=该角色的法术书已经没有{1}�
 Failure/&FailureFlagNotAreaOfEffect=该法术已有目标, 且没有范围效果。
 Failure/&FailureFlagNotEnoughFood=你缺少{0}单位食物。
 Failure/&FailureFlagNotEnoughMove=移动不够。
-Failure/&FailureFlagNotInBattle=未处于战斗状态。
 Failure/&FailureFlagOncePerTurnOnly=一回合仅限一次。
 Failure/&FailureFlagOnlyAfterALongRest=你只能在一次长休后如此做。
 Failure/&FailureFlagOnlyInBattle=仅在战斗中

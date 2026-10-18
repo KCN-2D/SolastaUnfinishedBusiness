@@ -35,5 +35,5 @@ Reaction/&SpendSpellSlotRefundMixtureTitle=混合物回復
 Reaction/&SubitemSelectRefundMixtureTitle=アクションを選択
 Screen/&InnovationVitriolistSpellDescription=この酸蝕術士の呪文は常に準備済みとみなされます。\nこれは準備できる呪文数の上限には数えません。
 Screen/&InnovationVitriolistSpellTitle=酸蝕術士
-Subclass/&InnovationVitriolistDescription=魔法技師は、さまざまな酸や魔法的な手段を使い、材料や生物の部位、時には物体そのものを基本的な構成要素へと分解して実験に用います。中でも酸蝕術士は、その分解過程、特に酸の作用に着目し、攻撃と防御の両面でさらに強力に活用する方法を研究します。
+Subclass/&InnovationVitriolistDescription=アーティフィサーは、さまざまな酸や魔法的な手段を使い、材料や生物の部位、時には物体そのものを基本的な構成要素へと分解して実験に用います。中でも酸蝕術士は、その分解過程、特に酸の作用に着目し、攻撃と防御の両面でさらに強力に活用する方法を研究します。
 Subclass/&InnovationVitriolistTitle=酸蝕術士

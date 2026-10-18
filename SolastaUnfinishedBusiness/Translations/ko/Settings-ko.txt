@@ -279,7 +279,7 @@ ModUi/&EnableRogueCunningStrike2024=레벨 5, 11, 14에서 <color=#D89555>교활
 ModUi/&EnableRogueFightingStyle=레벨 2에서 <color=#D89555>격투 스타일</color> 선택 가능
 ModUi/&EnableRogueReliableTalent2024=레벨 11 대신 레벨 7에서 <color=#D89555>신뢰할 수 있는 재능</color>을 활성화합니다.
 ModUi/&EnableRogueSlipperyMind2024=<color=#D89555>Slippery Mind</color>를 5e 2024 버전과 교환하세요 <i><color=#F0DAA0>[지혜 외에도 카리스마 세이빙 스로우에 능숙해짐]</color></i>
-ModUi/&EnableRogueSteadyAim2024=레벨 3에서 <color=#D89555>안정적인 조준</color>을 활성화합니다. <i><color=#F0DAA0>[현재 턴에서 아직 이동하지 않았다면 다음 공격 굴림에 보너스 액션이 유리해집니다.]</color></i>
+ModUi/&EnableRogueSteadyAim2024=3레벨에 <color=#D89555>꾸준한 목표</color>를 활성화합니다<i><color=#F0DAA0>[이번 턴에 아직 이동하지 않았다면 보너스 행동으로 이번 턴의 다음 공격 굴림에 이점을 얻음]</color></i>
 ModUi/&EnableRogueStrSaving=<color=#D89555>교활한/사악한 일격</color>에 <b>후드럼</b> DEX 또는 STR 수정치를 활성화합니다.
 ModUi/&EnableScimitarSpecialization=그랜트 스키미터 <color=#D89555>무기 전문화</color>
 ModUi/&EnableSignatureSpellsRelearn=긴 휴식마다 <color=#D89555>특징 주문</color>을 준비할 수 있게 합니다. <i><color=#F0DAA0>[레벨 20에서 한 번만]</color></i>
@@ -298,6 +298,7 @@ ModUi/&EnableSortingDungeonMakerAssets=Dungeon Maker 편집기에서 자산 정�
 ModUi/&EnableSpeech=사용자 정의 캠페인에서 음성 활성화 <i><color=#F0DAA0>[내레이션 및 영웅만]</color></i>
 ModUi/&EnableSpeechActorHelp=• 배우를 선택하세요
 ModUi/&EnableSpeechOnNpcs=NPC 음성 읽기 활성화
+ModUi/&EnableSpeechOnInteractions=물체를 조사할 때 표시되는 설명을 내레이터의 목소리로 읽기
 ModUi/&EnableSpeechVoiceHelp=• 음성 및 내레이션 속도를 선택하세요
 ModUi/&EnableStackableArtItems=<color=#D89555>아트 아이템</color> 스택 활성화 <i><color=#F0DAA0>[이 설정이 비활성화된 동안에는 분할할 수 없음]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=<color=#D89555>단검</color>과 <color=#D89555>손도끼</color>를 중첩할 수 있습니다. <i><color=#F0DAA0>[이 설정이 비활성화된 동안에는 분할할 수 없습니다]</color></i>
@@ -578,6 +579,7 @@ ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=<color=#D89555>작은 종족</co
 ModUi/&EnableHeavyWeaponAbilityRequirement2024=2024 중량 무기 능력치 조건 활성화 <i><color=#F0DAA0>[근접은 근력 13, 원거리는 민첩 13 미만이면 공격 굴림에 불리점]</color></i>
 ModUi/&UseOldOfficialFlankingRules=<i> + 오래된 측면 규칙은 롤을 공격하기 위해 +2에 불과했습니다. 위의 측면 플러스 플러스 수정 자 규칙은 우선 순위 </i>를 취합니다
 ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Way of Blade Monk 하위 클래스에 2개의 무기 마스터리 선택 부여</i>
+ModUi/&WayOfBladeWeaponMasteryRequiresSystemHelp=이 하위 클래스 옵션을 사용하려면 게임 플레이 > 규칙에서 무기 마스터리를 활성화하세요. 무기 마스터리가 비활성화된 동안에도 선택 사항은 유지됩니다.
 ModUi/&UseWeaponMasterySystem=<color=#D89555>무기 마스터리</color> 규칙 활성화
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ 클리브 마스터리 2차 공격 데미지에 속성 점수 수정치 추가</i>
 ModUi/&UseWeaponMasterySystemAddWeaponTag=<i>+ 모든 게임 무기에 마스터리 태그 추가</i>
@@ -593,6 +595,7 @@ ModUi/&WideScreenBattleUI=와이드 스크린 전투 UI 활성화 <i><color=#F0D
 ModUi/&WildSurgeDieRollThreshold=<color=white><color=#D89555>마법사 야생 마법</color> 확률 주사위 임계값 설정:</color>\n<i><color=#F0DAA0>[임계값 이하로 굴리면 야생 급증이 발동]</color></i>
 ModUi/&EnableBackgroundAbilityScoreIncreases=능력치 증가를 종족 대신 배경에서 얻으며 인간의 특성도 이에 맞게 조정합니다 <i><color=#F0DAA0>(이 옵션이 활성화된 동안 유연한 종족은 적용되지 않습니다)</color></i>
 ModUi/&EnableBackgroundBonusFeats=배경 특성을 2024년 규칙에 따라 기원 재주 하나, 기술 숙련 두 개, 도구 숙련 하나로 변경합니다 <i><color=#F0DAA0>(배경 능력치 증가가 필요합니다. 이 옵션이 활성화된 동안 유연한 배경은 적용되지 않습니다)</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=배경에서 기원 재주를 얻으려면 배경에서 능력치 증가를 얻는 설정을 활성화하세요.
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
@@ -688,3 +691,7 @@ ModUi/&SettingsListNoResults=일치하는 항목이 없습니다.
 ModUi/&SettingsListSelected=선택됨: {0}
 ModUi/&SpeechAssignAllAutomatic=내레이터와 모든 영웅의 음성을 자동으로 할당
 ModUi/&SpeechAutomaticResolved=자동 할당: {0}
+ModUi/&EnableAssassinAssassinate2024=살해자 3레벨에 2024년판 <color=#D89555>암살</color> 적용 <i><color=#F0DAA0>[우선권 이점과 첫 라운드의 암습 추가 피해]</color></i>
+ModUi/&EnableToolChecks2024=2024년 도구 판정 숙련 규칙 적용
+ModUi/&ToolChecks2024Description=도둑 도구를 사용하는 판정에 손재주 숙련과 해당 기술에만 적용되는 효과를 적용합니다. 기술 숙련과 도구 숙련으로 얻는 보너스 중 높은 쪽을 한 번만 더하며, 둘 다 숙련되어 있으면 이점을 얻습니다.
+ModUi/&EnableAssassinInfiltrationExpertise2024=살해자 9레벨에 2024년판 <color=#D89555>잠입 전문성</color> 적용 <i><color=#F0DAA0>[기만 숙련 또는 전문화와 꾸준한 목표 사용 후 이동. 직업 설정이 꺼져 있어도 해당 살해자에게 꾸준한 목표 부여]</color></i>

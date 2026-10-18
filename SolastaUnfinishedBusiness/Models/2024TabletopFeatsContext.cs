@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -52,6 +52,7 @@ public static partial class Tabletop2024Context
     private const string AthleteGroupFeatName = "FeatGroupAthlete";
     private const string Charger2024GroupFeatName = "FeatGroupCharger2024";
     private const string DualWielder2024GroupFeatName = "FeatGroupDualWielder2024";
+    internal const string DualWielder2024ExtraAttack = "DualWielder2024ExtraAttack";
     private const string Grappler2024GroupFeatName = "FeatGroupGrappler2024";
     private const string InspiringLeader2024GroupFeatName = "FeatGroupInspiringLeader2024";
     private const string KeenMind2024GroupFeatName = "FeatGroupKeenMind2024";
@@ -74,6 +75,11 @@ public static partial class Tabletop2024Context
     private const string Observant2024GroupFeatName = "FeatGroupObservant2024";
     private const string Actor2024FeatName = "FeatActor2024";
     private const string Durable2024FeatName = "FeatDurable2024";
+    private const string ArcaneEloquence2024Family = "ArcaneEloquence2024";
+    private const string ArcaneEloquence2024GroupFeatName = "FeatGroupArcaneEloquence2024";
+    private const string ArcaneOmens2024Family = "ArcaneOmens2024";
+    private const string ArcaneOmens2024GroupFeatName = "FeatGroupArcaneOmens2024";
+    private const string ArcaneOmens2024PowerName = "PowerFeatArcaneOmens2024";
     private const string Alert2024FeatName = "FeatAlert2024";
     private const string Alert2024ReadyStepConditionName = "ConditionFeatAlert2024ReadyStep";
     private const string Healer2024FeatName = "FeatHealer2024";
@@ -486,6 +492,8 @@ public static partial class Tabletop2024Context
     ];
 
     private static bool _tabletopFeats2024Loaded;
+    private static FeatDefinition _featGroupArcaneEloquence2024;
+    private static FeatDefinition _featGroupArcaneOmens2024;
     private static FeatDefinition _featAlert2024;
     private static FeatDefinition _featGreatWeaponMaster2024;
     private static FeatDefinition _featCrossbowExpert2024;
@@ -641,8 +649,7 @@ public static partial class Tabletop2024Context
             SetFeatVisibility(legacyShadowTouched, false);
         }
 
-        RefreshModeAwareOriginFeatDefinitions();
-        SwitchBackgroundBonusFeats();
+        ApplyBackgroundDefinitionRules();
         ClearPendingFeatSelections();
         FeatsContext.ClearFeatSubPanel2024UiState();
 
@@ -767,6 +774,8 @@ public static partial class Tabletop2024Context
 
     private static void BuildOriginFeats2024()
     {
+        _featGroupArcaneEloquence2024 = BuildArcaneEloquence2024();
+        _featGroupArcaneOmens2024 = BuildArcaneOmens2024();
         _featAlert2024 = BuildAlert2024();
         _featHealer2024 = BuildHealer2024();
         _featLucky2024 = BuildLucky2024();
@@ -779,6 +788,8 @@ public static partial class Tabletop2024Context
 
         foreach (var feat in new[]
                  {
+                     _featGroupArcaneEloquence2024,
+                     _featGroupArcaneOmens2024,
                      _featAlert2024,
                      _featHealer2024,
                      _featLucky2024,
@@ -796,9 +807,94 @@ public static partial class Tabletop2024Context
         }
     }
 
+    private static FeatDefinition BuildArcaneEloquence2024()
+    {
+        var smoothTalker = FeatureDefinitionAbilityCheckAffinityBuilder
+            .Create("AbilityCheckAffinityFeatArcaneEloquence2024")
+            .SetGuiPresentation(Category.Feature)
+            .BuildAndSetAffinityGroups(
+                CharacterAbilityCheckAffinity.None,
+                DieType.D4,
+                1,
+                AbilityCheckGroupOperation.AddDie,
+                (AttributeDefinitions.Charisma, SkillDefinitions.Deception),
+                (AttributeDefinitions.Charisma, SkillDefinitions.Intimidation),
+                (AttributeDefinitions.Charisma, SkillDefinitions.Persuasion))
+            .AddCustomSubFeatures(RequireMatchingAbilityCheckProficiency.Instance)
+            .AddToDB();
+
+        return BuildOriginCantripGroup2024(
+            ArcaneEloquence2024GroupFeatName, ArcaneEloquence2024Family, ViciousMockery, smoothTalker);
+    }
+
+    private static FeatDefinition BuildArcaneOmens2024()
+    {
+        var power = FeatureDefinitionPowerBuilder
+            .Create(ArcaneOmens2024PowerName)
+            .SetGuiPresentation(Category.Feature, Guidance)
+            .SetUsesProficiencyBonus(ActivationTime.Reaction, RechargeRate.LongRest)
+            .SetShowCasting(false)
+            .AddCustomSubFeatures(ModifyPowerVisibility.Hidden)
+            .AddToDB();
+        power.AddCustomSubFeatures(new TryAlterOutcomeSavingThrowArcaneOmens2024(power));
+
+        return BuildOriginCantripGroup2024(
+            ArcaneOmens2024GroupFeatName, ArcaneOmens2024Family, Guidance, power);
+    }
+
+    private static FeatDefinition BuildOriginCantripGroup2024(
+        string groupFeatName,
+        string family,
+        SpellDefinition cantrip,
+        params FeatureDefinition[] features)
+    {
+        var title = $"Feat/&{groupFeatName}Title";
+        var description = $"Feat/&{groupFeatName}Description";
+        var spellList = SpellListDefinitionBuilder
+            .Create($"SpellListFeat{family}")
+            .SetGuiPresentationNoContent(true)
+            .ClearSpells()
+            .SetSpellsAtLevel(0, cantrip)
+            .FinalizeSpells()
+            .AddToDB();
+        var variants = new List<FeatDefinition>();
+        foreach (var ability in MagicInitiate2024SpellcastingAbilities)
+        {
+            var featName = $"Feat{family}{ability}";
+            string FormatTitle() => Gui.Format(
+                "Feat/&GeneralFeat2024VariantTitle", Gui.Localize(title), GetAttributeTitle(ability));
+            var casting = FeatureDefinitionCastSpellBuilder
+                .Create($"CastSpell{featName}")
+                .SetGuiPresentation(FormatTitle(), description)
+                .SetFocusType(FocusType.None)
+                .SetSpellCastingOrigin(FeatureDefinitionCastSpell.CastingOrigin.Race)
+                .SetSpellCastingAbility(ability)
+                .SetSpellKnowledge(SpellKnowledge.FixedList)
+                .SetSpellReadyness(SpellReadyness.AllKnown)
+                .SetKnownCantrips(1, 1, FeatureDefinitionCastSpellBuilder.CasterProgression.Flat)
+                .SetReplacedSpells(1, 0)
+                .SetSpellList(spellList)
+                .AddCustomSubFeatures(
+                    new FeatHelpers.SpellTag(family, forceFixedList: true),
+                    new FormattedDefinitionText(title: FormatTitle))
+                .AddToDB();
+            variants.Add(FeatDefinitionBuilder
+                .Create(featName)
+                .SetGuiPresentation(FormatTitle(), description, hidden: false)
+                .SetFeatFamily(family)
+                .SetFeatures(new FeatureDefinition[] { casting }.Concat(features).ToArray())
+                .AddCustomSubFeatures(
+                    FeatsContext.HideFromFeats.Marker,
+                    new FormattedDefinitionText(title: FormatTitle))
+                .AddToDB());
+        }
+
+        return BuildManagedGroup(groupFeatName, family, title, description, variants);
+    }
+
     private static FeatDefinition BuildPortalJumper2024()
     {
-        var sprite = Sprites.GetSprite("PortalStep", Resources.PowerPortalStep, 256, 128);
+        var sprite = Sprites.GetPowerSprite("PortalStep", Resources.PowerPortalStep);
         var portalStep = FeatureDefinitionPowerBuilder
             .Create("PowerFeatPortalJumper2024PortalStep")
             .SetGuiPresentation(Category.Feature, sprite)
@@ -2124,6 +2220,11 @@ public static partial class Tabletop2024Context
     private static void BuildDualWielder2024()
     {
         var featDualWeaponDefense = GetDefinition<FeatDefinition>("FeatDualWeaponDefense");
+        var feature = FeatureDefinitionBuilder
+            .Create("FeatureFeatDualWielder2024")
+            .SetGuiPresentationNoContent(true)
+            .AddCustomSubFeatures(new CustomBehaviorDualWielder2024())
+            .AddToDB();
         var groupTitle = Get2024HalfFeatGroupTitle("Feat/&FeatGroupDualWielder2024Title", featDualWeaponDefense);
         var baseDescription = Get2024HalfFeatBaseDescription(
             Get2024HalfFeatBaseDescriptionKey("FeatGroupDualWielder2024"),
@@ -2148,6 +2249,12 @@ public static partial class Tabletop2024Context
             groupTitle,
             baseDescription,
             "FeatGroupDualWielder2024");
+
+        foreach (var feat in new[] { featDualWielder2024Str, featDualWielder2024Dex })
+        {
+            feat.Features.RemoveAll(featDualWeaponDefense.Features.Contains);
+            feat.Features.TryAdd(feature);
+        }
 
         _featGroupDualWielder2024 = BuildAlternativeAbilityPrerequisiteGroup(
             "FeatGroupDualWielder2024",
@@ -4180,6 +4287,8 @@ public static partial class Tabletop2024Context
 
     private static void RegisterExplicitManagedCatalogEntries()
     {
+        RegisterManagedCatalogEntry(ArcaneEloquence2024GroupFeatName, _featGroupArcaneEloquence2024, true);
+        RegisterManagedCatalogEntry(ArcaneOmens2024GroupFeatName, _featGroupArcaneOmens2024, true);
         RegisterManagedCatalogEntry(Actor2024FeatName, _featActor2024, true, true);
         RegisterManagedCatalogEntry(LegacyAlertFeatName, _featAlert2024, true, true);
         RegisterManagedCatalogEntry(LegacyHealerFeatName, _featHealer2024, true, true);
@@ -4639,6 +4748,14 @@ public static partial class Tabletop2024Context
         TabletopFeat2024Profiles.Clear();
         TabletopFeat2024Profiles.AddRange(
         [
+            new TabletopFeat2024Profile(
+                _featGroupArcaneEloquence2024,
+                [],
+                [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupSkills]),
+            new TabletopFeat2024Profile(
+                _featGroupArcaneOmens2024,
+                [],
+                [GroupFeats.FeatGroupOrigin, GroupFeats.FeatGroupSupportCombat]),
             new TabletopFeat2024Profile(
                 _featActor2024,
                 [],
@@ -5349,19 +5466,13 @@ public static partial class Tabletop2024Context
 
         bool MatchesGroupedRootPrerequisites(FeatDefinition definition, ref bool sameFamily)
         {
-            var currentName = definition.Name;
-            var processedParents = new HashSet<string>();
-
-            while (ManagedTabletopParentNameByDefinitionName.TryGetValue(currentName, out var parentName) &&
-                   processedParents.Add(parentName))
+            foreach (var parentName in EnumerateManagedTabletopParentNames(definition.Name))
             {
                 if (TryGetDefinition<FeatDefinition>(parentName, out var parentDefinition) &&
                     !Evaluate(parentDefinition, ref sameFamily))
                 {
                     return false;
                 }
-
-                currentName = parentName;
             }
 
             return true;
@@ -5849,7 +5960,6 @@ public static partial class Tabletop2024Context
         }
 
         var processedAliases = new HashSet<string>();
-        var processedParentNames = new HashSet<string>();
 
         foreach (var featName in EnumerateRestrictionAliasesForName(feat.Name, processedAliases))
         {
@@ -5863,15 +5973,12 @@ public static partial class Tabletop2024Context
             ManagedTabletopParentNameByDefinitionName.TryGetValue(feat.Name, out currentName);
         }
 
-        while (!string.IsNullOrEmpty(currentName) &&
-               processedParentNames.Add(currentName))
+        foreach (var parentName in EnumerateManagedTabletopSelfAndParentNames(currentName))
         {
-            foreach (var featName in EnumerateRestrictionAliasesForName(currentName, processedAliases))
+            foreach (var featName in EnumerateRestrictionAliasesForName(parentName, processedAliases))
             {
                 yield return featName;
             }
-
-            ManagedTabletopParentNameByDefinitionName.TryGetValue(currentName, out currentName);
         }
     }
 
@@ -6122,7 +6229,7 @@ public static partial class Tabletop2024Context
         string title,
         string description)
     {
-        return BuildExplicitIndependentFeat(
+        var feat = BuildExplicitIndependentFeat(
             featDefinition,
             name,
             family,
@@ -6131,6 +6238,8 @@ public static partial class Tabletop2024Context
             hideFromFeats: true,
             hidden: false,
             extraFeatures: [attributeModifier]);
+        PreserveHalfFeatTranslationKeys(feat);
+        return feat;
     }
 
     private static FeatDefinition BuildAlternativeAbilityPrerequisiteHalfFeatVariant(
@@ -6344,6 +6453,7 @@ public static partial class Tabletop2024Context
             featDefinition.familyTag = family;
         }
 
+        PreserveHalfFeatTranslationKeys(featDefinition);
         return featDefinition;
     }
 
@@ -6381,6 +6491,48 @@ public static partial class Tabletop2024Context
         return string.IsNullOrWhiteSpace(baseDescription)
             ? increaseDescription
             : $"{increaseDescription}\n{baseDescription}";
+    }
+
+    private static void PreserveHalfFeatTranslationKeys(
+        FeatDefinition feat, FormattedDefinitionText generatedFormatter = null)
+    {
+        if (!feat)
+        {
+            return;
+        }
+
+        var titleKey = $"Feat/&{feat.Name}Title";
+        var descriptionKey = $"Feat/&{feat.Name}Description";
+        var hasTitle = TranslatorContext.HasTranslation(titleKey);
+        var hasDescription = TranslatorContext.HasTranslation(descriptionKey);
+
+        if (!hasTitle && !hasDescription)
+        {
+            return;
+        }
+
+        var presentation = feat.GuiPresentation;
+        var fallbackTitle = presentation.Title;
+        var fallbackDescription = presentation.Description;
+        var formatted = feat.GetFirstSubFeatureOfType<FormattedDefinitionText>();
+
+        if (hasTitle)
+        {
+            presentation.title = titleKey;
+        }
+
+        if (hasDescription)
+        {
+            presentation.description = descriptionKey;
+        }
+
+        if (formatted != null && ReferenceEquals(formatted, generatedFormatter))
+        {
+            feat.SetSubFeatureOfType<FormattedDefinitionText>(hasTitle && hasDescription ? null :
+                new FormattedDefinitionText(
+                    () => hasTitle ? Gui.Localize(titleKey) : formatted.FormatTitle(fallbackTitle),
+                    () => hasDescription ? Gui.Localize(descriptionKey) : formatted.FormatDescription(fallbackDescription)));
+        }
     }
 
     private static string Get2024HalfFeatBaseDescriptionKey(string definitionName)
@@ -6516,6 +6668,7 @@ public static partial class Tabletop2024Context
 
         ApplyHalfFeatAbilityPrerequisite(feat, attribute, prerequisiteValue, clearAbilityPrerequisite);
 
+        PreserveHalfFeatTranslationKeys(feat);
         return feat;
     }
 
@@ -6611,6 +6764,7 @@ public static partial class Tabletop2024Context
             featDefinition.familyTag = family;
         }
 
+        PreserveHalfFeatTranslationKeys(featDefinition);
         return featDefinition;
     }
 
@@ -6650,6 +6804,7 @@ public static partial class Tabletop2024Context
         featDefinition.hasFamilyTag = true;
         featDefinition.familyTag = family;
 
+        PreserveHalfFeatTranslationKeys(featDefinition);
         return featDefinition;
     }
 
@@ -6720,15 +6875,20 @@ public static partial class Tabletop2024Context
 
         TryGetDefinition<FeatDefinition>(fallbackCanonicalSourceName, out var fallbackSourceFeat);
 
-        var groupTitle = Get2024HalfFeatGroupTitle(groupTitleKey, fallbackSourceFeat, featDefinition.GuiPresentation?.Title);
-        var baseDescription = Get2024HalfFeatBaseDescription(
-            groupDescriptionKey,
-            fallbackSourceFeat,
-            featDefinition.GuiPresentation?.Description);
+        var fallbackTitle = featDefinition.GuiPresentation?.Title;
+        var fallbackDescription = featDefinition.GuiPresentation?.Description;
 
-        featDefinition.GuiPresentation.title =
-            Gui.Format("Feat/&GeneralFeat2024VariantTitle", groupTitle, GetAttributeTitle(attribute));
-        featDefinition.GuiPresentation.description = BuildHalfFeatDescription(attribute, baseDescription);
+        string FormatTitle() => Gui.Format("Feat/&GeneralFeat2024VariantTitle",
+            Get2024HalfFeatGroupTitle(groupTitleKey, fallbackSourceFeat, fallbackTitle), GetAttributeTitle(attribute));
+
+        string FormatDescription() => BuildHalfFeatDescription(attribute,
+            Get2024HalfFeatBaseDescription(groupDescriptionKey, fallbackSourceFeat, fallbackDescription));
+
+        featDefinition.GuiPresentation.title = FormatTitle();
+        featDefinition.GuiPresentation.description = FormatDescription();
+        var formatted = new FormattedDefinitionText(FormatTitle, FormatDescription);
+        featDefinition.SetSubFeatureOfType<FormattedDefinitionText>(formatted);
+        PreserveHalfFeatTranslationKeys(featDefinition, formatted);
         featDefinition.GuiPresentation.hidden = false;
         ApplyHalfFeatAbilityPrerequisite(featDefinition, attribute, prerequisiteValue, clearAbilityPrerequisite);
     }
@@ -6950,6 +7110,7 @@ public static partial class Tabletop2024Context
             featDefinition.familyTag = family;
         }
 
+        PreserveHalfFeatTranslationKeys(featDefinition);
         return featDefinition;
     }
 
@@ -7598,6 +7759,13 @@ public static partial class Tabletop2024Context
         return names.Any(IsManagedTabletopCanonicalNameInOriginContainer);
     }
 
+    private static IEnumerable<string> EnumerateManagedTabletopParentNames(string featName)
+    {
+        return ManagedTabletopParentNameByDefinitionName.TryGetValue(featName, out var parentName)
+            ? EnumerateManagedTabletopSelfAndParentNames(parentName)
+            : [];
+    }
+
     private static IEnumerable<string> EnumerateManagedTabletopSelfAndParentNames(string featName)
     {
         var currentName = featName;
@@ -7737,11 +7905,7 @@ public static partial class Tabletop2024Context
             return false;
         }
 
-        var currentName = feat.Name;
-        var processedParents = new HashSet<string>();
-
-        while (ManagedTabletopParentNameByDefinitionName.TryGetValue(currentName, out var parentName) &&
-               processedParents.Add(parentName))
+        foreach (var parentName in EnumerateManagedTabletopParentNames(feat.Name))
         {
             if (TryGetDefinition<FeatDefinition>(parentName, out var parentDefinition) &&
                 TryGetVisibilityFromSettings(parentDefinition, out visible) &&
@@ -7749,8 +7913,6 @@ public static partial class Tabletop2024Context
             {
                 return false;
             }
-
-            currentName = parentName;
         }
 
         if (Main.Settings.EnableTabletopFeatRules2024 &&
@@ -7981,6 +8143,328 @@ public static partial class Tabletop2024Context
             effectDescription.rangeParameter += SpellSniper2024RangeIncreaseCells;
 
             return effectDescription;
+        }
+    }
+
+    internal static void AddDualWielder2024AttackModes(RulesetCharacterHero hero)
+    {
+        foreach (var behavior in hero.GetSubFeaturesByType<CustomBehaviorDualWielder2024>())
+        {
+            behavior.AddAttackModes(hero);
+        }
+    }
+
+    internal static bool IsDualWielder2024AttackAvailable(
+        GameLocationCharacter character,
+        RulesetAttackMode attackMode)
+    {
+        return attackMode?.AttackTags.Contains(DualWielder2024ExtraAttack) != true ||
+               character?.RulesetCharacter.GetSubFeaturesByType<CustomBehaviorDualWielder2024>()
+                   .Any(behavior => behavior.IsAvailable(character, attackMode.SourceObject as RulesetItem)) == true;
+    }
+
+    internal static bool HasUsedDualWielder2024BonusAttack(GameLocationCharacter character)
+    {
+        return character?.RulesetCharacter.GetSubFeaturesByType<CustomBehaviorDualWielder2024>()
+            .Any(behavior => behavior.HasUsedBonusAttack(character)) == true;
+    }
+
+    internal static bool HasDualWielder2024QuickDraw(GameLocationCharacter character)
+    {
+        return character?.RulesetCharacter.GetSubFeaturesByType<CustomBehaviorDualWielder2024>().Any() == true;
+    }
+
+    internal static bool CanUseDualWielder2024QuickDraw(GameLocationCharacter character)
+    {
+        return !Main.Settings.EnableUnlimitedInventoryActions && character?.IsMyTurn() == true &&
+               !character.HasForcedActionOrManipulation() &&
+               character.GetActionTypeStatus(ActionType.FreeOnce) == ActionStatus.Spent &&
+               character.RulesetCharacter.GetSubFeaturesByType<CustomBehaviorDualWielder2024>()
+                   .Any(behavior => behavior.CanUseQuickDraw(character));
+    }
+
+    internal static bool TryBeginDualWielder2024QuickDraw(
+        GameLocationCharacter character, int configuration, out Action<bool> complete)
+    {
+        complete = null;
+
+        if (!CanUseDualWielder2024QuickDraw(character))
+        {
+            return false;
+        }
+
+        var behavior = character.RulesetCharacter.GetSubFeaturesByType<CustomBehaviorDualWielder2024>().First();
+        return behavior.TryBeginQuickDraw(character, configuration, out complete);
+    }
+
+    internal static void RefreshDualWielder2024AttackModesAfterAction(CharacterAction action)
+    {
+        var character = action.ActingCharacter;
+
+        if (character?.RulesetCharacter is RulesetCharacterHero hero &&
+            hero.GetSubFeaturesByType<CustomBehaviorDualWielder2024>()
+                .Any(behavior => behavior.TakePendingRefresh(character)))
+        {
+            hero.RefreshAttackModes();
+        }
+    }
+
+    private sealed class CustomBehaviorDualWielder2024 : IActionFinishedByMe,
+        ICharacterBeforeTurnStartListener, ICharacterBeforeTurnEndListener, ICharacterBattleEndedListener
+    {
+        private sealed class TurnState(GameLocationBattle battle)
+        {
+            internal readonly GameLocationBattle Battle = battle;
+            internal readonly int Round = battle.CurrentRound;
+            internal readonly List<RulesetItem> LightWeapons = [];
+            internal bool Used;
+            internal bool RefreshPending;
+            internal bool QuickDrawUsed;
+            internal bool QuickDrawPending;
+        }
+
+        private readonly ConditionalWeakTable<RulesetCharacter, TurnState> _turns = new();
+
+        public IEnumerator OnActionFinishedByMe(CharacterAction action)
+        {
+            if (action is not CharacterActionAttack || action.Aborted ||
+                action.ActingCharacter is not { } character || !character.IsMyTurn())
+            {
+                yield break;
+            }
+
+            var attackMode = action.ActionParams.AttackMode;
+            var weapon = attackMode?.SourceObject as RulesetItem;
+
+            if (action.ActionType == ActionType.Bonus &&
+                attackMode?.AttackTags.Contains(DualWielder2024ExtraAttack) == true)
+            {
+                if (TryGetTurn(character, out var turn))
+                {
+                    turn.Used = true;
+                    turn.RefreshPending = true;
+                }
+
+                yield break;
+            }
+
+            if (action.ActionId != Id.AttackMain || action.ActionType != ActionType.Main ||
+                weapon?.ItemDefinition is not { IsWeapon: true } item ||
+                !item.WeaponDescription.WeaponTags.Contains(TagsDefinitions.WeaponTagLight))
+            {
+                yield break;
+            }
+
+            var state = GetOrCreateTurn(character);
+
+            if (!state.LightWeapons.Any(previous => SameWeapon(previous, weapon)))
+            {
+                state.LightWeapons.Add(weapon);
+            }
+
+            state.RefreshPending = true;
+        }
+
+        internal bool TakePendingRefresh(GameLocationCharacter character)
+        {
+            if (!TryGetTurn(character, out var state) || !state.RefreshPending)
+            {
+                return false;
+            }
+
+            state.RefreshPending = false;
+            return true;
+        }
+
+        internal bool HasUsedBonusAttack(GameLocationCharacter character)
+        {
+            return TryGetTurn(character, out var state) && state.Used;
+        }
+
+        internal bool CanUseQuickDraw(GameLocationCharacter character)
+        {
+            return !TryGetTurn(character, out var state) || !state.QuickDrawUsed && !state.QuickDrawPending;
+        }
+
+        internal bool TryBeginQuickDraw(GameLocationCharacter character, int configuration, out Action<bool> complete)
+        {
+            complete = null;
+            var inventory = character.RulesetCharacter.CharacterInventory;
+            var previousConfiguration = inventory.CurrentConfiguration;
+
+            if (configuration < 0 || configuration >= inventory.WieldedItemsConfigurations.Count ||
+                configuration == previousConfiguration || !CanUseQuickDraw(character))
+            {
+                return false;
+            }
+
+            var state = GetOrCreateTurn(character);
+
+            state.QuickDrawPending = true;
+            var finished = false;
+            complete = succeeded =>
+            {
+                if (finished)
+                {
+                    return;
+                }
+
+                finished = true;
+                state.QuickDrawPending = false;
+
+                if (succeeded && TryGetTurn(character, out var current) && ReferenceEquals(current, state) &&
+                    inventory.CurrentConfiguration == configuration &&
+                    inventory.CurrentConfiguration != previousConfiguration)
+                {
+                    state.QuickDrawUsed = true;
+                }
+            };
+            return true;
+        }
+
+        internal bool IsAvailable(GameLocationCharacter character, RulesetItem weapon)
+        {
+            return IsEligibleWeapon(weapon) && TryGetTurn(character, out var state) && !state.Used &&
+                   (SameWeapon(weapon, character.RulesetCharacter.GetMainWeapon()) ||
+                    SameWeapon(weapon, character.RulesetCharacter.GetOffhandWeapon())) &&
+                   state.LightWeapons.Any(trigger => !SameWeapon(trigger, weapon));
+        }
+
+        internal void AddAttackModes(RulesetCharacterHero hero)
+        {
+            var character = GameLocationCharacter.GetFromActor(hero);
+
+            if (hero.CharacterInventory?.InventorySlotsByName == null)
+            {
+                return;
+            }
+
+            foreach (var slotName in new[] { SlotTypeMainHand, SlotTypeOffHand })
+            {
+                if (!hero.CharacterInventory.InventorySlotsByName.TryGetValue(slotName, out var slot) ||
+                    slot.EquipedItem is not { } weapon || !IsAvailable(character, weapon))
+                {
+                    continue;
+                }
+
+                var item = weapon.ItemDefinition;
+                var canAddAbilityDamageBonus =
+                    hero.attackModifiers.Any(provider => provider.CanAddAbilityBonusToSecondary);
+                var attackMode = hero.RefreshAttackMode(
+                    ActionType.Bonus,
+                    item,
+                    item.WeaponDescription,
+                    hero.GetOffhandWeapon() == null,
+                    canAddAbilityDamageBonus,
+                    slotName,
+                    hero.attackModifiers,
+                    hero.FeaturesOrigin,
+                    weapon);
+                attackMode.AttacksNumber = 1;
+
+                var abilityModifier = AttributeDefinitions.ComputeAbilityScoreModifier(
+                    hero.TryGetAttributeValue(attackMode.AbilityScore));
+                var damage = attackMode.EffectDescription.FindFirstDamageForm();
+
+                if (!canAddAbilityDamageBonus && abilityModifier < 0 && damage != null)
+                {
+                    damage.BonusDamage += abilityModifier;
+                    damage.DamageBonusTrends.Add(new TrendInfo(
+                        abilityModifier, FeatureSourceType.AbilityScore, attackMode.AbilityScore, null));
+                }
+
+                if (item.WeaponDescription.WeaponTags.Contains(TagsDefinitions.WeaponTagThrown))
+                {
+                    var thrownMode = RulesetAttackMode.AttackModesPool.Get();
+                    thrownMode.Copy(attackMode);
+                    thrownMode.Ranged = true;
+                    thrownMode.Thrown = true;
+                    thrownMode.Reach = false;
+                    thrownMode.AttackTags.Remove(TagsDefinitions.WeaponTagMelee);
+                    AddMode(hero, thrownMode);
+                }
+
+                AddMode(hero, attackMode);
+            }
+        }
+
+        private static void AddMode(RulesetCharacterHero hero, RulesetAttackMode attackMode)
+        {
+            var damage = attackMode.EffectDescription.FindFirstDamageForm();
+            var existing = hero.AttackModes.FirstOrDefault(mode =>
+            {
+                var otherDamage = mode.EffectDescription.FindFirstDamageForm();
+
+                return mode.IsComparableForNetwork(attackMode) &&
+                       mode.AttackTags.SequenceEqual(attackMode.AttackTags) &&
+                       mode.EffectDescription.EffectForms.Count == attackMode.EffectDescription.EffectForms.Count &&
+                       damage != null && otherDamage != null &&
+                       damage.DamageType == otherDamage.DamageType && damage.DieType == otherDamage.DieType &&
+                       damage.DiceNumber == otherDamage.DiceNumber && damage.BonusDamage == otherDamage.BonusDamage &&
+                       damage.VersatileDieType == otherDamage.VersatileDieType;
+            });
+
+            if (existing != null)
+            {
+                existing.AddAttackTagAsNeeded(DualWielder2024ExtraAttack);
+                RulesetAttackMode.AttackModesPool.Return(attackMode);
+            }
+            else
+            {
+                attackMode.AddAttackTagAsNeeded(DualWielder2024ExtraAttack);
+                hero.AttackModes.Add(attackMode);
+            }
+        }
+
+        private TurnState GetOrCreateTurn(GameLocationCharacter character)
+        {
+            if (TryGetTurn(character, out var state))
+            {
+                return state;
+            }
+
+            state = new TurnState(Gui.Battle);
+            _turns.Remove(character.RulesetCharacter);
+            _turns.Add(character.RulesetCharacter, state);
+            return state;
+        }
+
+        private bool TryGetTurn(GameLocationCharacter character, out TurnState state)
+        {
+            state = null;
+
+            return character?.IsMyTurn() == true &&
+                   _turns.TryGetValue(character.RulesetCharacter, out state) &&
+                   state.Battle == Gui.Battle && state.Round == Gui.Battle.CurrentRound;
+        }
+
+        private static bool SameWeapon(RulesetItem first, RulesetItem second)
+        {
+            return first != null && second != null &&
+                   (ReferenceEquals(first, second) || first.Guid != 0 && first.Guid == second.Guid);
+        }
+
+        private static bool IsEligibleWeapon(RulesetItem weapon)
+        {
+            return weapon?.ItemDefinition is { IsWeapon: true } item &&
+                   ValidatorsWeapon.IsMelee(item) &&
+                   !item.WeaponDescription.WeaponTags.Contains(TagsDefinitions.WeaponTagTwoHanded);
+        }
+
+        public void OnCharacterBeforeTurnStarted(GameLocationCharacter character)
+        {
+            _turns.Remove(character.RulesetCharacter);
+        }
+
+        public void OnCharacterBeforeTurnEnded(GameLocationCharacter character)
+        {
+            _turns.Remove(character.RulesetCharacter);
+            character.RulesetCharacter.RefreshAttackModes();
+        }
+
+        public void OnCharacterBattleEnded(GameLocationCharacter character)
+        {
+            _turns.Remove(character.RulesetCharacter);
         }
     }
 
@@ -9685,6 +10169,102 @@ public static partial class Tabletop2024Context
                     locationCharacter, GameLocationBattle.ContenderModificationMode.Add, false, false);
 
                 rulesetCharacter.LogCharacterUsedFeature(_featSurvivor2024);
+            }
+        }
+    }
+
+    private sealed class RequireMatchingAbilityCheckProficiency : IRequireMatchingAbilityCheckProficiency
+    {
+        internal static readonly RequireMatchingAbilityCheckProficiency Instance = new();
+
+        private RequireMatchingAbilityCheckProficiency()
+        {
+        }
+    }
+
+    private sealed class TryAlterOutcomeSavingThrowArcaneOmens2024(FeatureDefinitionPower power)
+        : ITryAlterOutcomeSavingThrow
+    {
+        public IEnumerator OnTryAlterOutcomeSavingThrow(
+            GameLocationBattleManager battleManager,
+            GameLocationCharacter attacker,
+            GameLocationCharacter defender,
+            GameLocationCharacter helper,
+            SavingThrowData savingThrowData,
+            bool hasHitVisual)
+        {
+            if (helper?.CanReact() != true ||
+                !CanAlterSavingThrow(requireReaction: true) ||
+                !TryGetUsablePower(helper.RulesetCharacter, power, out var usablePower))
+            {
+                yield break;
+            }
+
+            // Saving-throw reactions wait on the handler's unit, including saves
+            // made outside that unit's turn or without a character attacker.
+            yield return helper.MyReactToDoNothing(
+                ExtraActionId.DoNothingReaction,
+                helper,
+                ArcaneOmens2024Family,
+                "CustomReactionArcaneOmens2024Description".Formatted(
+                    Category.Reaction, defender.Name, savingThrowData.Title),
+                ReactionValidated,
+                battleManager: battleManager,
+                resource: new ReactionResourcePowerPool(power, power.GuiPresentation.SpriteReference),
+                target: defender,
+                effectDefinition: power,
+                reactionStillValid: () => CanAlterSavingThrow(requireReaction: true));
+
+            yield break;
+
+            bool CanAlterSavingThrow(bool requireReaction)
+            {
+                return savingThrowData?.IsFailedSavingThrowOutcome() == true &&
+                       helper?.RulesetCharacter is
+                           { IsDeadOrDyingOrUnconscious: false, IsIncapacitated: false } rulesetHelper &&
+                       defender?.RulesetCharacter != null &&
+                       (!requireReaction ||
+                        helper.GetActionTypeStatus(ActionType.Reaction) == ActionStatus.Available) &&
+                       (helper == defender ||
+                        (helper.IsWithinRange(defender, 6) && helper.CanSeeTarget(defender))) &&
+                       rulesetHelper.CanUsePower(power, considerHaving: true);
+            }
+
+            void ReactionValidated()
+            {
+                // The native DoNothingReaction action has already paid the
+                // reaction. Recheck the pending save and resource before spending.
+                if (!CanAlterSavingThrow(requireReaction: false) ||
+                    !TryGetUsablePower(helper.RulesetCharacter, power, out var currentPower) ||
+                    currentPower != usablePower)
+                {
+                    return;
+                }
+
+                var rulesetHelper = helper.RulesetCharacter;
+                rulesetHelper.UsePower(usablePower);
+                var bonus = rulesetHelper.RollDie(
+                    DieType.D4, RollContext.None, false, AdvantageType.None, out _, out _);
+                savingThrowData.SaveOutcomeDelta += bonus;
+                savingThrowData.SaveBonusAndRollModifier += bonus;
+                savingThrowData.SaveOutcome = savingThrowData.SaveOutcomeDelta >= 0
+                    ? RollOutcome.Success
+                    : RollOutcome.Failure;
+
+                var modifier = savingThrowData.SaveActionModifier;
+                if (modifier != null)
+                {
+                    modifier.SavingThrowModifier += bonus;
+                    modifier.SavingThrowModifierTrends.Add(
+                        new TrendInfo(bonus, FeatureSourceType.Power, power.Name, power)
+                        {
+                            dieType = DieType.D4,
+                            dieFlag = TrendInfoDieFlag.None
+                        });
+                }
+
+                savingThrowData.UpdateActionSaveOutcome();
+                rulesetHelper.LogCharacterUsedPower(power);
             }
         }
     }

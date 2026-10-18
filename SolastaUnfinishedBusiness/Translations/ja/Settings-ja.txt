@@ -267,7 +267,7 @@ ModUi/&EnableRogueCunningStrike2024=レベル5、11、14で<color=#D89555>巧妙
 ModUi/&EnableRogueFightingStyle=レベル2で<color=#D89555>戦闘スタイル</color>の選択を有効にします
 ModUi/&EnableRogueReliableTalent2024=<color=#D89555>信頼できる才能</color>をレベル11ではなくレベル7で有効にします
 ModUi/&EnableRogueSlipperyMind2024=<color=#D89555>囚われぬ心</color>を2024年版と入れ替えます<i><color=#F0DAA0>（判断力に加えて、魅力セーヴィング・スローへの習熟も得られます）</color></i>
-ModUi/&EnableRogueSteadyAim2024=レベル3で<color=#D89555>不動の狙い</color>を有効にします<i><color=#F0DAA0>（そのターンにまだ移動していない場合、ボーナス・アクションでそのターンの次の攻撃ロールに有利を得る）</color></i>
+ModUi/&EnableRogueSteadyAim2024=レベル3で<color=#D89555>着実な狙い</color>を有効にします<i><color=#F0DAA0>（そのターンにまだ移動していない場合、ボーナス・アクションでそのターンの次の攻撃ロールに有利を得る）</color></i>
 ModUi/&EnableRogueStrSaving=<color=#D89555>巧妙な一撃/悪巧みの一撃</color>に<b>フッドラム</b>の敏捷力または筋力修正値を適用できるようにします
 ModUi/&EnableScimitarSpecialization=シミターに<color=#D89555>武器特化</color>を付与します
 ModUi/&EnableSignatureSpellsRelearn=<color=#D89555>愛用呪文</color>を大休憩ごとに選び直せるようにします<i><color=#F0DAA0>（レベル20で1回ではなく）</color></i>
@@ -285,6 +285,7 @@ ModUi/&EnableSortingDungeonMakerAssets=ダンジョンメーカー・エディ�
 ModUi/&EnableSpeech=カスタムキャンペーンで音声読み上げを有効にします<i><color=#F0DAA0>（ナレーションとヒーローのみ）</color></i>
 ModUi/&EnableSpeechActorHelp=• 話者を選択します
 ModUi/&EnableSpeechOnNpcs=NPCの音声読み上げを有効にします
+ModUi/&EnableSpeechOnInteractions=調べたときの説明文をナレーションとして読み上げる
 ModUi/&EnableSpeechVoiceHelp=• 音声とナレーションの速度を選択します
 ModUi/&EnableStackableArtItems=<color=#D89555>芸術品</color>のスタックを有効にします<i><color=#F0DAA0>（この設定が無効になっている間は分割できません）</color></i>
 ModUi/&EnableStackableAxesAndDaggers=<color=#D89555>ダガー</color>と<color=#D89555>ハンドアックス</color>のスタックを有効にします<i><color=#F0DAA0>（この設定が無効になっている間は分割できません）</color></i>
@@ -566,6 +567,7 @@ ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=<color=#D89555>小型の種族</
 ModUi/&EnableHeavyWeaponAbilityRequirement2024=2024年版の重武器の能力値条件を有効にします<i><color=#F0DAA0>（近接武器は筋力13未満、遠隔武器は敏捷力13未満の場合、攻撃ロールに不利）</color></i>
 ModUi/&UseWeaponMasterySystem=<color=#D89555>武器マスタリー</color>のルールを有効にします
 ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+モンクのサブクラスである刃の道に、武器マスタリーを2つ選択する機会を追加します</i>
+ModUi/&WayOfBladeWeaponMasteryRequiresSystemHelp=このサブクラスの設定を使うには、ゲームプレイ > ルールで武器マスタリーを有効にしてください。無効な間も、この設定の選択内容は保持されます。
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+薙ぎ払いマスタリーによる2回目の攻撃のダメージに、能力修正値を加えます</i>
 ModUi/&UseWeaponMasterySystemAddWeaponTag=<i>+ゲーム内のすべての武器に武器マスタリーのタグを追加します</i>
 ModUi/&UseWeaponMasterySystemFlurryTriggersMastery=<i>+二連猛攻の追加攻撃で別の武器マスタリーを発動できます</i>
@@ -593,6 +595,7 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=すべての武器マスタ�
 ModUi/&WideScreenBattleUI=ワイドスクリーン用の戦闘UIを有効にします<i><color=#F0DAA0>（アスペクト比が16:9より横長の場合）</color></i>
 ModUi/&EnableBackgroundAbilityScoreIncreases=能力値上昇を種族ではなく背景から得るようにし、ヒューマンの特徴も調整します<i><color=#F0DAA0>（有効な間は、種族の能力値上昇を自由に選ぶ設定は適用されません）</color></i>
 ModUi/&EnableBackgroundBonusFeats=背景から得る特徴を、2024年版の起源特技1つ、技能習熟2つ、道具習熟1つに変更します<i><color=#F0DAA0>（背景による能力値上昇が必要です。有効な間は、背景の習熟を自由に選ぶ設定は適用されません）</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=背景から起源特技を得るには、能力値上昇を背景から得る設定を有効にしてください。
 ModUi/&AddOriginFeatsToAutoLearn=+起源特技を自動習得の候補に追加します
 ModUi/&EnableGeneralFeats2024=特技を2024年版のルールに合わせて再編します<i><color=#F0DAA0>（2024年版の特技を別に追加）</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>（2024年版の特技は、下の一覧で個別に有効・無効を切り替えられます。有効中は、上位互換の特技が追加された旧版の特技を選択できません）</color></i>
@@ -688,3 +691,7 @@ ModUi/&SettingsListNoResults=一致する項目がありません。
 ModUi/&SettingsListSelected=選択中：{0}
 ModUi/&SpeechAssignAllAutomatic=ナレーターと全ヒーローを自動割り当てにする
 ModUi/&SpeechAutomaticResolved=自動割り当て：{0}
+ModUi/&EnableAssassinAssassinate2024=アサシンのレベル3の特徴を2024年版の<color=#D89555>暗殺術</color>に変更します<i><color=#F0DAA0>（イニシアチブに有利を得て、第1ラウンドの急所攻撃にダメージを追加）</color></i>
+ModUi/&EnableToolChecks2024=2024年版の道具判定の習熟ルールを適用します
+ModUi/&ToolChecks2024Description=盗賊道具を用いる判定に、〈手先の早業〉の習熟と、その技能に固有の効果を適用します。技能と道具の習熟によるボーナスのうち、高い方を1回だけ加えます。両方に習熟している場合は有利も得ます。
+ModUi/&EnableAssassinInfiltrationExpertise2024=アサシンのレベル9の特徴を2024年版の<color=#D89555>偽りの素性</color>に変更します。<i><color=#F0DAA0>〈ペテン〉の習熟または習熟強化を得て、着実な狙いの使用後に移動できるようになります。ローグ全体の着実な狙い設定が無効でも、このアサシンに着実な狙いを付与します。</color></i>

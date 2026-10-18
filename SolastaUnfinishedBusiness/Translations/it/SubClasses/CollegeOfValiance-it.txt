@@ -1,4 +1,4 @@
-Condition/&ConditionCollegeOfValianceDishearteningPerformanceDescription=Devi sottrarre il numero ottenuto dalla fonte del dado Ispirazione Bardica al tuo prossimo tiro salvezza riuscito.
+Condition/&ConditionCollegeOfValianceDishearteningPerformanceDescription=Sottrai il risultato di un dado di Ispirazione Bardica del bardo che ha causato questo effetto dal tuo prossimo tiro salvezza che altrimenti avrebbe successo.
 Condition/&ConditionCollegeOfValianceDishearteningPerformanceTitle=Prestazione scoraggiante
 Feature/&AutoPreparedSpellsCollegeOfValianceRecallLanguageDescription=Hai acquisito la conoscenza di molte lingue diverse leggendo opere scritte in altri paesi e puoi magicamente diventare fluente in quelle lingue, aggiungendo l'incantesimo Lingue alla lista degli incantesimi conosciuti.
 Feature/&AutoPreparedSpellsCollegeOfValianceRecallLanguageTitle=Ricorda la lingua
@@ -6,7 +6,7 @@ Feature/&FeatureCollegeOfValianceCaptivatingPresenceDescription=Lasci un'impress
 Feature/&FeatureCollegeOfValianceCaptivatingPresenceTitle=Lingua d'argento
 Feature/&FeatureCollegeOfValianceSteadfastInspirationDescription=Le tue parole ispiratrici sono così incoraggianti che gli altri si sentono spinti a riuscire. Quando una creatura amica aggiunge uno dei tuoi dadi di Ispirazione Bardica al suo controllo di abilità, tiro per colpire o tiro salvezza e il tiro fallisce, la creatura può tenere il dado di Ispirazione Bardica.
 Feature/&FeatureCollegeOfValianceSteadfastInspirationTitle=Ispirazione costante
-Feature/&PowerCollegeOfValianceDishearteningPerformanceDescription=Il tuo valore in battaglia demoralizza i tuoi nemici. Come azione bonus, puoi spendere un uso della tua Ispirazione Bardica e scegliere una creatura ostile che puoi vedere entro 60 piedi da te. Tira il dado Ispirazione Bardica. La creatura deve sottrarre il numero ottenuto dal primo tiro salvezza che supera prima della fine del tuo turno successivo.
+Feature/&PowerCollegeOfValianceDishearteningPerformanceDescription=Come azione bonus, spendi un uso della tua Ispirazione Bardica per demoralizzare una creatura ostile che puoi vedere. Prima della fine del tuo prossimo turno, il bersaglio sottrae il risultato di uno dei tuoi dadi di Ispirazione Bardica dal primo tiro salvezza che altrimenti avrebbe successo.
 Feature/&PowerCollegeOfValianceDishearteningPerformanceTitle=Prestazioni scoraggianti
 Feature/&PowerCollegeOfValianceHeroicInspirationDescription=Puoi usare la tua azione bonus per attivare Heroic Inspiration. Heroic Inspiration garantisce tutti i benefici di Bardic Inspiration senza consumare alcun utilizzo di Bardic Inspiration e può prendere di mira due creature amiche entro 60 piedi invece di una sola. Puoi usare questa caratteristica 2 volte per riposo lungo.
 Feature/&PowerCollegeOfValianceHeroicInspirationTitle=Ispirazione eroica

@@ -93,7 +93,6 @@ Failure/&FailureFlagNoValidRemainingPages=Ninguno de los libros de hechizos de e
 Failure/&FailureFlagNotAreaOfEffect=El hechizo tiene como objetivo y no afecta un área.
 Failure/&FailureFlagNotEnoughFood=Te faltan {0} unidad(es) de comida.
 Failure/&FailureFlagNotEnoughMove=No hay suficiente movimiento.
-Failure/&FailureFlagNotInBattle=No en la batalla.
 Failure/&FailureFlagOncePerTurnOnly=Una vez por turno solamente.
 Failure/&FailureFlagOnlyAfterALongRest=Solo puedes hacer esto después de un largo descanso.
 Failure/&FailureFlagOnlyInBattle=Solo en la batalla

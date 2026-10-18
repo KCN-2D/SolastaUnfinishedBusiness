@@ -1202,41 +1202,7 @@ internal static class FixesContext
                 RoguishArcaneScoundrel.InflictConditionDistractingAmbush(rulesetAttacker, defender.RulesetCharacter);
             }
 
-            // handle slayer chain of execution features
-            var slayerLevels = rulesetAttacker.GetSubclassLevel(Rogue, RoguishSlayer.Name);
-
-            if (slayerLevels >= RoguishSlayer.ChainOfExecutionLevel)
-            {
-                RoguishSlayer.InflictConditionChainOfExecution(rulesetAttacker, defender.RulesetCharacter);
-
-                if (rulesetAttacker.TryGetConditionOfCategoryAndType(
-                        TagEffect, RoguishSlayer.ConditionChainOfExecutionBeneficialName,
-                        out var activeCondition) &&
-                    activeCondition.SourceGuid == rulesetAttacker.Guid)
-                {
-                    var newDiceNumber = damageForm.DiceNumber + slayerLevels switch
-                    {
-                        >= 17 => 5,
-                        >= 13 => 4,
-                        _ => 3
-                    };
-
-                    var title = Gui.Format("Feature/&FeatureRoguishSlayerChainOfExecutionTitle");
-                    var description = Gui.Format("Feature/&FeatureRoguishSlayerChainOfExecutionDescription");
-
-                    rulesetAttacker.LogCharacterActivatesAbility(
-                        title, "Feedback/&ChangeSneakDiceNumber",
-                        tooltipContent: description, indent: true,
-                        extra:
-                        [
-                            (ConsoleStyleDuplet.ParameterType.AbilityInfo, damageForm.diceNumber.ToString()),
-                            (ConsoleStyleDuplet.ParameterType.Positive, newDiceNumber.ToString())
-                        ]);
-
-                    damageForm.DiceNumber = newDiceNumber;
-                    rulesetAttacker.RemoveCondition(activeCondition);
-                }
-            }
+            RoguishSlayer.ModifySneakAttackDamage(attacker, defender, attackMode, ref damageForm);
 
             // ReSharper disable once InvertIf
             // handle umbral stalker gloomblade feature

@@ -21,36 +21,57 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameLocationBanterManagerPatcher
 {
-    private sealed class BanterSpeechLifecycle
+    private sealed class DisplayedSpeechLifecycle
     {
         internal bool Closed;
-        internal readonly HashSet<BanterSpeechOwner> Owners = [];
+        internal readonly HashSet<DisplayedSpeechOwner> Owners = [];
     }
 
-    private sealed class BanterSpeechOwner(BanterSpeechLifecycle lifecycle, GameLocationCharacter speaker = null)
+    private sealed class DisplayedSpeechOwner(DisplayedSpeechLifecycle lifecycle, GameLocationCharacter speaker = null)
     {
-        internal readonly BanterSpeechLifecycle Lifecycle = lifecycle;
+        internal readonly DisplayedSpeechLifecycle Lifecycle = lifecycle;
         internal readonly GameLocationCharacter Speaker = speaker;
         internal readonly List<FeedbackLabel> FeedbackLabels = [];
+        internal readonly List<GuiBehaviour> Panels = [];
         internal readonly List<GuiModifier> Modifiers = [];
         internal bool Ended;
     }
 
-    private static readonly ConditionalWeakTable<GameLocationBanterManager, BanterSpeechLifecycle> BanterSpeech = new();
-    private static readonly Dictionary<GameLocationCharacter, BanterSpeechOwner> CharacterSpeech = [];
-    private static readonly Dictionary<FeedbackLabel, BanterSpeechOwner> FeedbackSpeech = [];
-    private static readonly Dictionary<GuiModifier, BanterSpeechOwner> FeedbackModifiers = [];
-    private static BanterSpeechOwner _displayingConversation;
-
-    private static void EndBanterSpeech(BanterSpeechOwner owner, bool closeFeedback = true)
+    private sealed class InteractionLoreScope(DisplayedSpeechLifecycle lifecycle)
     {
-        if (owner == null || owner.Ended)
+        internal readonly DisplayedSpeechLifecycle Lifecycle = lifecycle;
+        internal DisplayedSpeechOwner Owner;
+    }
+
+    private static readonly ConditionalWeakTable<GameLocationBanterManager, DisplayedSpeechLifecycle> BanterSpeech = new();
+    private static readonly ConditionalWeakTable<GameLocationBanterManager, DisplayedSpeechLifecycle> InteractionSpeech =
+        new();
+    private static readonly Dictionary<GameLocationCharacter, DisplayedSpeechOwner> CharacterSpeech = [];
+    private static readonly Dictionary<FeedbackLabel, DisplayedSpeechOwner> FeedbackSpeech = [];
+    private static readonly Dictionary<GuiModifier, DisplayedSpeechOwner> FeedbackModifiers = [];
+    private static readonly Dictionary<GuiBehaviour, DisplayedSpeechOwner> PanelSpeech = [];
+    private static DisplayedSpeechOwner _displayingConversation;
+    private static InteractionLoreScope _displayingInteraction;
+
+    internal static bool IsDisplayingInteractionLore => _displayingInteraction != null;
+
+    private static void EndDisplayedSpeech(DisplayedSpeechOwner owner, bool closeFeedback = true)
+    {
+        if (owner == null)
         {
             return;
         }
 
+        var alreadyEnded = owner.Ended;
         owner.Ended = true;
+        // Acceptance can enqueue after a reentrant close already ended this owner.
+        // Always cancel its requests; release its display registrations only once.
         SpeechContext.CancelSpeech(owner);
+        if (alreadyEnded)
+        {
+            return;
+        }
+
         owner.Lifecycle.Owners.Remove(owner);
         if (owner.Speaker != null && CharacterSpeech.TryGetValue(owner.Speaker, out var current) && current == owner)
         {
@@ -84,7 +105,16 @@ public static class GameLocationBanterManagerPatcher
             }
         }
 
+        foreach (var panel in owner.Panels)
+        {
+            if (PanelSpeech.TryGetValue(panel, out var currentPanel) && currentPanel == owner)
+            {
+                PanelSpeech.Remove(panel);
+            }
+        }
+
         owner.FeedbackLabels.Clear();
+        owner.Panels.Clear();
         owner.Modifiers.Clear();
     }
 
@@ -92,7 +122,7 @@ public static class GameLocationBanterManagerPatcher
     {
         if (character != null && CharacterSpeech.TryGetValue(character, out var owner))
         {
-            EndBanterSpeech(owner);
+            EndDisplayedSpeech(owner);
         }
     }
 
@@ -106,7 +136,7 @@ public static class GameLocationBanterManagerPatcher
 
         if (!SpeechContext.HasPendingSpeech(owner))
         {
-            EndBanterSpeech(owner);
+            EndDisplayedSpeech(owner);
             return;
         }
 
@@ -116,14 +146,19 @@ public static class GameLocationBanterManagerPatcher
 
     internal static void RegisterBanterFeedback(FeedbackLabel label)
     {
-        var owner = _displayingConversation;
         if (FeedbackSpeech.TryGetValue(label, out var previous))
         {
             // The pooled label has already been rebound; do not stop its new modifiers.
-            EndBanterSpeech(previous, false);
+            EndDisplayedSpeech(previous, false);
         }
 
-        if (owner == null || owner.Ended || !label.textLabel)
+        if (!label.textLabel)
+        {
+            return;
+        }
+
+        var owner = _displayingConversation ?? StartInteractionSpeech(label.textLabel.Text);
+        if (owner == null || owner.Ended)
         {
             return;
         }
@@ -149,11 +184,176 @@ public static class GameLocationBanterManagerPatcher
                SpeechContext.HasPendingSpeech(owner);
     }
 
+    private static DisplayedSpeechOwner StartInteractionSpeech(string displayedText)
+    {
+        var scope = _displayingInteraction;
+        if (scope == null || scope.Lifecycle.Closed || scope.Owner != null)
+        {
+            return null;
+        }
+
+        var owner = new DisplayedSpeechOwner(scope.Lifecycle);
+        scope.Owner = owner;
+        return TrySubmitDisplayedSpeech(owner, () => SpeechContext.SpeakInteraction(displayedText, owner))
+            ? owner
+            : null;
+    }
+
+    private static bool TrySubmitDisplayedSpeech(DisplayedSpeechOwner owner, Func<bool> submit)
+    {
+        var accepted = false;
+        try
+        {
+            if (owner.Ended || owner.Lifecycle.Closed)
+            {
+                return false;
+            }
+
+            owner.Lifecycle.Owners.Add(owner);
+            accepted = submit() && !owner.Ended && !owner.Lifecycle.Closed;
+            return accepted;
+        }
+        finally
+        {
+            if (!accepted)
+            {
+                EndDisplayedSpeech(owner, false);
+            }
+        }
+    }
+
+    private static void RegisterInteractionPanel(GuiBehaviour panel, string displayedText)
+    {
+        EndInteractionPanelSpeech(panel);
+        if (!panel)
+        {
+            return;
+        }
+
+        var owner = StartInteractionSpeech(displayedText);
+        if (owner == null)
+        {
+            return;
+        }
+
+        owner.Panels.Add(panel);
+        PanelSpeech[panel] = owner;
+    }
+
+    internal static void RegisterInteractionPopup(GamePartyStatusScreen screen)
+    {
+        RegisterInteractionPanel(screen.bottomPopupGroup, screen.bottomPopupLabel?.Text);
+    }
+
+    internal static void HoldInteractionPopup(GamePartyStatusScreen screen)
+    {
+        var group = screen.bottomPopupGroup;
+        if (!group || !PanelSpeech.TryGetValue(group, out var owner))
+        {
+            return;
+        }
+
+        if (!group.gameObject.activeSelf || !SpeechContext.HasPendingSpeech(owner))
+        {
+            EndDisplayedSpeech(owner, false);
+            return;
+        }
+
+        // Preserve the native fade-in/out and finite timer while this caption is read.
+        screen.remainingBottomPopupDuration = Mathf.Max(screen.remainingBottomPopupDuration,
+            Gui.SystemDeltaTime + 0.1f);
+    }
+
+    internal static void RegisterInteractionPoster(PosterScreen screen)
+    {
+        var labels = Enumerable.Range(0, screen.captionsTable.childCount)
+            .Select(index => screen.captionsTable.GetChild(index).GetComponent<GuiLabel>())
+            .Where(label => label && label.gameObject.activeSelf).ToArray();
+        RegisterInteractionPanel(screen, string.Join("\n\n", labels.Select(label => label.Text)));
+    }
+
+    internal static void EndInteractionPanelSpeech(GuiBehaviour panel)
+    {
+        if (panel && PanelSpeech.TryGetValue(panel, out var owner))
+        {
+            EndDisplayedSpeech(owner, false);
+        }
+    }
+
+    internal static void UpdateInteractionPanelSpeech(GuiBehaviour panel)
+    {
+        if (panel && PanelSpeech.TryGetValue(panel, out var owner) && !SpeechContext.HasPendingSpeech(owner))
+        {
+            EndDisplayedSpeech(owner, false);
+        }
+    }
+
+    internal static IEnumerator TrackInteractionLore(IEnumerator native)
+    {
+        var manager = ServiceRepository.GetService<IGameLocationBanterService>() as GameLocationBanterManager;
+        var lifecycle = manager
+            ? InteractionSpeech.GetValue(manager, _ => new DisplayedSpeechLifecycle())
+            : new DisplayedSpeechLifecycle { Closed = true };
+        var scope = new InteractionLoreScope(lifecycle);
+        var completed = false;
+        try
+        {
+            while (true)
+            {
+                var previous = _displayingInteraction;
+                _displayingInteraction = scope;
+                bool moved;
+                try
+                {
+                    moved = native.MoveNext();
+                }
+                finally
+                {
+                    _displayingInteraction = previous;
+                }
+
+                if (!moved)
+                {
+                    completed = true;
+                    break;
+                }
+
+                yield return native.Current;
+            }
+        }
+        finally
+        {
+            if (!completed)
+            {
+                EndDisplayedSpeech(scope.Owner);
+            }
+
+            try
+            {
+                (native as IDisposable)?.Dispose();
+            }
+            catch
+            {
+                // A successfully displayed caption outlives normal completion,
+                // but an aborted native cleanup must not retain its speech.
+                EndDisplayedSpeech(scope.Owner);
+                throw;
+            }
+        }
+    }
+
     internal static void EndCurrentBanterSpeech()
     {
         if (ServiceRepository.GetService<IGameLocationBanterService>() is GameLocationBanterManager manager)
         {
-            EndManagerBanterSpeech(manager);
+            EndManagerSpeech(manager, BanterSpeech);
+        }
+
+        // This screen owns world feedback labels, not timed prose or poster panels.
+        // Closing it must cancel its captions without closing another screen's owner.
+        foreach (var owner in FeedbackSpeech.Values.Distinct().ToArray())
+        {
+            EndDisplayedSpeech(owner);
         }
     }
 
@@ -161,43 +361,50 @@ public static class GameLocationBanterManagerPatcher
     {
         if (ServiceRepository.GetService<IGameLocationBanterService>() is GameLocationBanterManager manager)
         {
-            ResetManagerBanterSpeech(manager);
+            ResetManagerSpeech(manager, BanterSpeech);
         }
     }
 
-    private static void ResetManagerBanterSpeech(GameLocationBanterManager manager)
+    private static void ResetManagerSpeech(GameLocationBanterManager manager,
+        ConditionalWeakTable<GameLocationBanterManager, DisplayedSpeechLifecycle> lifecycles)
     {
         // Rebinding a manager or reopening its screen starts a new lifecycle.
         // Suspended old iterators retain the closed lifecycle and cannot revive it.
-        EndManagerBanterSpeech(manager);
-        BanterSpeech.Remove(manager);
+        EndManagerSpeech(manager, lifecycles);
+        lifecycles.Remove(manager);
     }
 
-    private static void EndManagerBanterSpeech(GameLocationBanterManager manager)
+    private static void EndManagerSpeech(GameLocationBanterManager manager,
+        ConditionalWeakTable<GameLocationBanterManager, DisplayedSpeechLifecycle> lifecycles)
     {
-        if (!BanterSpeech.TryGetValue(manager, out var lifecycle))
+        if (!lifecycles.TryGetValue(manager, out var lifecycle))
         {
             return;
         }
 
+        EndSpeechLifecycle(lifecycle);
+    }
+
+    private static void EndSpeechLifecycle(DisplayedSpeechLifecycle lifecycle)
+    {
         lifecycle.Closed = true;
         foreach (var owner in lifecycle.Owners.ToArray())
         {
-            EndBanterSpeech(owner);
+            EndDisplayedSpeech(owner);
         }
     }
 
     private static IEnumerator TrackBanterConversation(GameLocationBanterManager manager,
         List<ComputedBanterLine> lines, IEnumerator native)
     {
-        var lifecycle = BanterSpeech.GetValue(manager, _ => new BanterSpeechLifecycle());
-        BanterSpeechOwner owner = null;
+        var lifecycle = BanterSpeech.GetValue(manager, _ => new DisplayedSpeechLifecycle());
+        DisplayedSpeechOwner owner = null;
         var index = 0;
         try
         {
             while (!lifecycle.Closed)
             {
-                owner = new BanterSpeechOwner(lifecycle);
+                owner = new DisplayedSpeechOwner(lifecycle);
                 lifecycle.Owners.Add(owner);
                 var previous = _displayingConversation;
                 _displayingConversation = owner;
@@ -217,13 +424,12 @@ public static class GameLocationBanterManagerPatcher
                 }
 
                 // The native iterator displays exactly one ComputedBanterLine per yield.
-                var submitted = !owner.Ended && !lifecycle.Closed && index < lines.Count &&
-                                SpeechContext.SpeakBanterConversationLine(
-                    lines[index].line, lines[index].speaker, owner);
+                var submitted = index < lines.Count && TrySubmitDisplayedSpeech(owner,
+                    () => SpeechContext.SpeakBanterConversationLine(lines[index].line, lines[index].speaker, owner));
                 index++;
                 if (!submitted)
                 {
-                    EndBanterSpeech(owner, false);
+                    EndDisplayedSpeech(owner, false);
                 }
 
                 yield return native.Current;
@@ -234,13 +440,13 @@ public static class GameLocationBanterManagerPatcher
 
                 // Release the native finite fade after normal playback. Explicit
                 // cancellation/disposal closes its feedback immediately instead.
-                EndBanterSpeech(owner, false);
+                EndDisplayedSpeech(owner, false);
                 owner = null;
             }
         }
         finally
         {
-            EndBanterSpeech(owner);
+            EndDisplayedSpeech(owner);
             (native as IDisposable)?.Dispose();
         }
     }
@@ -659,16 +865,15 @@ public static class GameLocationBanterManagerPatcher
             }
 
             EndCharacterBanterSpeech(speaker);
-            var lifecycle = BanterSpeech.GetValue(__instance, _ => new BanterSpeechLifecycle());
+            var lifecycle = BanterSpeech.GetValue(__instance, _ => new DisplayedSpeechLifecycle());
             if (lifecycle.Closed)
             {
                 return;
             }
 
-            var owner = new BanterSpeechOwner(lifecycle, speaker);
-            if (SpeechContext.SpeakBanter(line, speaker, owner))
+            var owner = new DisplayedSpeechOwner(lifecycle, speaker);
+            if (TrySubmitDisplayedSpeech(owner, () => SpeechContext.SpeakBanter(line, speaker, owner)))
             {
-                lifecycle.Owners.Add(owner);
                 CharacterSpeech[speaker] = owner;
             }
         }
@@ -707,7 +912,8 @@ public static class GameLocationBanterManagerPatcher
         [UsedImplicitly]
         public static void Prefix(GameLocationBanterManager __instance)
         {
-            EndManagerBanterSpeech(__instance);
+            EndManagerSpeech(__instance, BanterSpeech);
+            EndManagerSpeech(__instance, InteractionSpeech);
         }
     }
 
@@ -718,7 +924,8 @@ public static class GameLocationBanterManagerPatcher
         [UsedImplicitly]
         public static void Prefix(GameLocationBanterManager __instance)
         {
-            ResetManagerBanterSpeech(__instance);
+            ResetManagerSpeech(__instance, BanterSpeech);
+            ResetManagerSpeech(__instance, InteractionSpeech);
         }
     }
 }

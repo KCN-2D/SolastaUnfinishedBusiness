@@ -1,10 +1,10 @@
-Background/&BackgroundDevotedDescription=수년간의 목적 없는 방황과 결실 없는 탐색 끝에 당신은 원인을 찾았습니다. 그것이 신이든 종교이든, 정치적 캠페인이든, 철학적 운동이든, 아니면 단순히 Master Tuckin의 고급 에일과 미드의 홍보이든, 당신은 빛을 보았고 당신이 선택한 대의를 발전시키는 데 온 마음을 다해 헌신하고 있습니다.
-Background/&BackgroundDevotedTitle=저주 받은
+Background/&BackgroundDevotedDescription=수년간의 목적 없는 방황과 결실 없는 탐색 끝에 당신은 헌신할 대의를 찾았습니다. 그것이 신이든 종교이든, 정치적 캠페인이든, 철학적 운동이든, 아니면 단순히 Master Tuckin의 고급 에일과 미드의 홍보이든, 당신은 빛을 보았고 당신이 선택한 대의를 발전시키는 데 온 마음을 다해 헌신하고 있습니다.
+Background/&BackgroundDevotedTitle=헌신자
 Background/&BackgroundFarmerDescription=당신은 많은 사람들의 입을 먹여주기 위해 땅을 일구고 태어날 때부터 가축을 손으로 키웠습니다. 농부로서 당신은 해가 뜨기 전에 일어나고 해가 진 후에 밭에서 일을 마치고 돌아옵니다. 당신은 스릴이나 명성, 부를 위해 모험을 추구하기 위해 평범한 삶을 떠났습니다.
 Background/&BackgroundFarmerTitle=농장주
-Background/&BackgroundMilitiaDescription=당신은 정착지 보호를 전담하는 마을 경비대나 민병대의 일원이었습니다.
+Background/&BackgroundMilitiaDescription=당신은 마을 경비대나 시민군의 일원으로서, 위험이 마을을 위협할 때 이웃들과 어깨를 나란히 하고 마을을 지켰습니다. 긴 순찰과 갑작스러운 경보를 겪으며, 용기란 종종 누군가가 필요로 할 때 그 곁에 있어 주는 것임을 배웠습니다. 사람들의 축복을 받으며 떠났든, 끝내지 못한 의무를 남겨 두었든, 익숙한 길 너머를 보고 싶었든, 한때 공동체를 지키는 데 힘을 보탰던 이의 마음가짐은 지금도 당신과 함께합니다.
 Background/&BackgroundMilitiaTitle=시민군
-Background/&BackgroundTroublemakerDescription=도시 거리와 귀족 궁정의 낭비.
+Background/&BackgroundTroublemakerDescription=북적이는 선술집에서도, 좁은 골목에서도, 귀족의 응접실에서도 말썽은 어김없이 당신을 찾아옵니다. 날카로운 말 한마디, 대담한 내기, 고개를 숙여야 할 때 굽히지 않은 고집은 길을 막기도 하고 뜻밖의 문을 열어 주기도 했습니다. 당신을 웃으며 떠올리는 사람도 있고, 주먹을 쥐며 떠올리는 사람도 있습니다. 여행길에는 새로운 동료와 기회가 기다립니다. 어제의 오해에서 조금 멀어질 수도 있을 것입니다.
 Background/&BackgroundTroublemakerTitle=말썽 꾸러기
 Feature/&BonusCantripsBackgroundDevotedDescription=캔트립 <b>신성한 불꽃</b>을 획득하세요.
 Feature/&BonusCantripsBackgroundDevotedTitle=헌신적인 마법

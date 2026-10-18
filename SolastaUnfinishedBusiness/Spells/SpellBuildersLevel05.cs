@@ -719,8 +719,10 @@ internal static partial class SpellBuilders
                     .SetCasterEffectParameters(TrueSeeing)
                     .SetEffectEffectParameters(PowerPaladinCleansingTouch)
                     .Build())
-            .AddCustomSubFeatures(new PowerOrSpellFinishedByMeEmpoweredKnowledge(powerPool, [.. powers]))
             .AddToDB();
+
+        AddSkillKnowledgeSubspells(spell, powerPool, powers, expertise: true,
+            ForceGlobalUniqueEffects.Group.EmpoweredKnowledge);
 
         return spell;
     }
@@ -744,106 +746,6 @@ internal static partial class SpellBuilders
             // Native refresh retains cached expertise. Rebuild this skill from the remaining sources.
             hero.ExpertiseProficiencies.RemoveAll(x => x == skillName);
             hero.RefreshProficiencies();
-        }
-    }
-
-    private sealed class PowerOrSpellFinishedByMeEmpoweredKnowledge(
-        FeatureDefinitionPower powerPool,
-        params FeatureDefinitionPower[] powers) : IPowerOrSpellFinishedByMe
-    {
-        public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
-        {
-            if (action.Countered || action.ExecutionFailed ||
-                action is not CharacterActionCastSpell castSpell ||
-                action.ActionParams.TargetCharacters.Count == 0)
-            {
-                yield break;
-            }
-
-            var actingCharacter = action.ActingCharacter;
-            var rulesetCharacter = actingCharacter.RulesetCharacter;
-            var target = action.ActionParams.TargetCharacters[0];
-            var rulesetTarget = target.RulesetCharacter;
-
-            var usablePowers = new List<RulesetUsablePower>();
-            var skillsDb = DatabaseRepository.GetDatabase<SkillDefinition>();
-
-            foreach (var power in powers)
-            {
-                var skillName = power.Name.Replace("PowerEmpoweredKnowledge", string.Empty);
-
-                if (!skillsDb.TryGetElement(skillName, out var skill))
-                {
-                    continue;
-                }
-
-                if (!HasSkillProficiency(rulesetTarget, skill) ||
-                    HasSkillExpertise(rulesetTarget, skill))
-                {
-                    continue;
-                }
-
-                var up = PowerProvider.Get(power, rulesetCharacter);
-
-                usablePowers.Add(up);
-                rulesetCharacter.UsablePowers.Add(up);
-            }
-
-            if (usablePowers.Count == 0)
-            {
-                yield break;
-            }
-
-            var usablePower = PowerProvider.Get(powerPool, rulesetCharacter);
-            RulesetEffectPower selectedEffect = null;
-
-            try
-            {
-                yield return actingCharacter.MyReactToSpendPowerBundle(
-                    usablePower,
-                    [target],
-                    actingCharacter,
-                    "EmpoweredKnowledge",
-                    reactionValidated: ReactionValidated);
-            }
-            finally
-            {
-                usablePowers.ForEach(x => rulesetCharacter.UsablePowers.Remove(x));
-            }
-
-            if (selectedEffect == null ||
-                !rulesetTarget.ConditionsByCategory.TryGetValue(AttributeDefinitions.TagEffect, out var conditions))
-            {
-                yield break;
-            }
-
-            // The bundle applies the chosen skill after the spell's normal concentration check.
-            // Track its actual condition on the spell so ending concentration also removes the expertise.
-            foreach (var condition in conditions
-                         .Where(x => selectedEffect.TrackedConditionGuids.Contains(x.Guid))
-                         .ToArray())
-            {
-                castSpell.ActiveSpell.TrackCondition(
-                    rulesetCharacter,
-                    rulesetCharacter.Guid,
-                    rulesetTarget,
-                    rulesetTarget.Guid,
-                    condition,
-                    AttributeDefinitions.TagEffect);
-            }
-
-            castSpell.StartConcentrationAsNeeded();
-
-            yield break;
-
-            void ReactionValidated(ReactionRequestSpendBundlePower reactionRequest)
-            {
-                if (reactionRequest.ReactionParams.RulesetEffect is RulesetEffectPower effect &&
-                    usablePowers.Any(x => x.PowerDefinition == effect.PowerDefinition))
-                {
-                    selectedEffect = effect;
-                }
-            }
         }
     }
 

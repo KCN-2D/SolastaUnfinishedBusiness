@@ -85,7 +85,7 @@ internal static partial class SpellBuilders
 
     internal static SpellDefinition BuildBattleFamiliar()
     {
-        var sprite = Sprites.GetSprite("BattleFamiliar", Resources.BattleFamiliar, 1254);
+        var sprite = Sprites.GetSprite("BattleFamiliar", Resources.BattleFamiliar, 128);
         var empoweredSprite = Sprites.GetSprite("ConditionBattleFamiliarEmpowered",
             Resources.ConditionBattleFamiliarEmpowered, 128);
         var summonedSprite = Sprites.GetSprite("ConditionBattleFamiliarSummoned",
@@ -1237,20 +1237,6 @@ internal static partial class SpellBuilders
 
     #region Borrowed Knowledge
 
-    private static bool HasSkillProficiency(
-        RulesetCharacter character,
-        SkillDefinition skill)
-    {
-        return GetSkillProficiencyRank(character, skill) > 0;
-    }
-
-    private static bool HasSkillExpertise(
-        RulesetCharacter character,
-        SkillDefinition skill)
-    {
-        return GetSkillProficiencyRank(character, skill) >= 2;
-    }
-
     private static int GetSkillProficiencyRank(
         RulesetCharacter character,
         SkillDefinition skill)
@@ -1378,87 +1364,208 @@ internal static partial class SpellBuilders
                     .SetCasterEffectParameters(TrueSeeing)
                     .SetEffectEffectParameters(PowerPaladinCleansingTouch)
                     .Build())
-            .AddCustomSubFeatures(new PowerOrSpellFinishedByMeBorrowedKnowledge(powerPool, [.. powers]))
+            .AddCustomSubFeatures(new ValidateBorrowedKnowledgeCasting(), new BorrowedKnowledgeSelectionProvider())
             .AddToDB();
+
+        AddSkillKnowledgeSubspells(spell, powerPool, powers, expertise: false,
+            ForceGlobalUniqueEffects.Group.BorrowedKnowledge);
 
         return spell;
     }
 
-    private sealed class PowerOrSpellFinishedByMeBorrowedKnowledge(
-        FeatureDefinitionPower powerPool,
-        params FeatureDefinitionPower[] powers) : IPowerOrSpellFinishedByMe
+    private static void AddSkillKnowledgeSubspells(
+        SpellDefinition spell,
+        FeatureDefinitionPower legacyPowerPool,
+        IReadOnlyList<FeatureDefinitionPower> legacyPowers,
+        bool expertise,
+        ForceGlobalUniqueEffects.Group effectGroup)
     {
-        public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
+        var subspells = new List<SpellDefinition>();
+        var prefix = $"Power{spell.Name}";
+
+        // Retain the legacy power/condition/proficiency definitions for saved effects.
+        // New casts apply the same condition directly from a native skill subspell.
+        foreach (var power in legacyPowers)
         {
-            if (action.Countered || action.ExecutionFailed)
+            var skill = DatabaseRepository.GetDatabase<SkillDefinition>().GetElement(power.Name.Substring(prefix.Length));
+            var condition = power.EffectDescription.EffectForms.Single().ConditionForm.ConditionDefinition;
+            string FormatTitle() => Gui.Format(
+                "Spell/&SkillKnowledgeSelectionTitle", spell.FormatTitle(), skill.FormatTitle());
+            string FormatDescription() => Gui.Format(
+                $"Spell/&{spell.Name}SkillDescription", skill.FormatTitle(), spell.FormatTitle());
+            var builder = SpellDefinitionBuilder
+                .Create(spell, $"{spell.Name}{skill.Name}")
+                .SetGuiPresentation(FormatTitle(), FormatDescription(), spell.GuiPresentation.SpriteReference)
+                .SetEffectDescription(EffectDescriptionBuilder.Create(spell.EffectDescription)
+                    .SetEffectForms(EffectFormBuilder.ConditionForm(condition))
+                    .Build())
+                .SetUniqueInstance()
+                .AddCustomSubFeatures(
+                    new SkillKnowledgeTarget(skill, expertise),
+                    new FormattedDefinitionText(FormatTitle, FormatDescription));
+
+            if (!expertise)
             {
-                yield break;
+                builder.AddCustomSubFeatures(new ValidateBorrowedKnowledgeCasting(skill));
             }
 
-            var actingCharacter = action.ActingCharacter;
-            var rulesetCharacter = actingCharacter.RulesetCharacter;
+            var subspell = builder.AddToDB();
+            subspell.implemented = false;
+            subspells.Add(subspell);
+        }
 
-            var usablePowers = new List<RulesetUsablePower>();
-            var skillsDb = DatabaseRepository.GetDatabase<SkillDefinition>();
+        spell.spellsBundle = true;
+        spell.uniqueInstance = true;
+        spell.compactSubspellsTooltip = true;
+        spell.SubspellsList.SetRange(subspells);
+        ForceGlobalUniqueEffects.AddToGroup(effectGroup,
+            new BaseDefinition[] { spell, legacyPowerPool }.Concat(legacyPowers).Concat(subspells).ToArray());
+    }
 
-            foreach (var power in powers)
+    private static bool IsSkillKnowledgeTargetValid(
+        RulesetCharacter target,
+        SkillDefinition skill,
+        bool expertise,
+        out string failure)
+    {
+        failure = string.Empty;
+
+        if (target == null)
+        {
+            return false;
+        }
+
+        var rank = GetSkillProficiencyRank(target, skill);
+
+        if (!expertise)
+        {
+            failure = rank > 0 ? "Failure/&BorrowedKnowledgeAlreadyProficient" : string.Empty;
+        }
+        else if (rank == 0)
+        {
+            failure = "Failure/&EmpoweredKnowledgeRequiresProficiency";
+        }
+        else if (rank >= 2)
+        {
+            failure = "Failure/&EmpoweredKnowledgeAlreadyExpert";
+        }
+
+        return string.IsNullOrEmpty(failure);
+    }
+
+    private sealed class ValidateBorrowedKnowledgeCasting(SkillDefinition skill = null) : IValidateSpellCasting
+    {
+        public bool CanCastSpell(SpellCastingValidationContext context, out string failure)
+        {
+            return IsValid(context.Caster, out failure);
+        }
+
+        internal bool IsValid(RulesetCharacter caster, out string failure)
+        {
+            if (skill != null)
             {
-                var skillName = power.Name.Replace("PowerBorrowedKnowledge", string.Empty);
-
-                if (!skillsDb.TryGetElement(skillName, out var skill))
-                {
-                    continue;
-                }
-
-                if (HasSkillProficiency(rulesetCharacter, skill))
-                {
-                    continue;
-                }
-
-                var up = PowerProvider.Get(power, rulesetCharacter);
-
-                usablePowers.Add(up);
-                rulesetCharacter.UsablePowers.Add(up);
+                return IsSkillKnowledgeTargetValid(caster, skill, expertise: false, out failure);
             }
 
-            var usablePower = PowerProvider.Get(powerPool, rulesetCharacter);
+            var hasUnknownSkill = DatabaseRepository.GetDatabase<SkillDefinition>().Any(candidate =>
+                IsSkillKnowledgeTargetValid(caster, candidate, expertise: false, out _));
+            failure = hasUnknownSkill ? string.Empty : "Failure/&BorrowedKnowledgeNoUnknownSkill";
+            return hasUnknownSkill;
+        }
+    }
 
-            yield return actingCharacter.MyReactToSpendPowerBundle(
-                usablePower,
-                [actingCharacter],
-                actingCharacter,
-                "BorrowedKnowledge",
-                reactionValidated: ReactionValidated);
+    private sealed class BorrowedKnowledgeSelectionProvider : ICustomSubspellSelectionProvider
+    {
+        public bool BypassComponentsAndCastingTime => false;
 
-            rulesetCharacter.UsablePowers.Remove(usablePower);
-            usablePowers.ForEach(x => rulesetCharacter.UsablePowers.Remove(x));
+        public bool BypassMaterialComponent => false;
 
-            yield break;
+        public ICustomSubspellSelectionSession CreateSession(
+            SpellDefinition masterSpell,
+            RulesetCharacter caster,
+            RulesetSpellRepertoire repertoire,
+            int slotLevel)
+        {
+            return new BorrowedKnowledgeSelectionSession(masterSpell, caster, repertoire == null);
+        }
+    }
 
-            void ReactionValidated(ReactionRequestSpendBundlePower reactionRequest)
+    private sealed class BorrowedKnowledgeSelectionSession(
+        SpellDefinition masterSpell,
+        RulesetCharacter caster,
+        bool deviceSelection) : ICustomSubspellSelectionSession, ICustomSubspellSelectionAvailability
+    {
+        public bool BypassComponentsAndCastingTime => deviceSelection;
+
+        public List<SpellDefinition> GetSubspells() => masterSpell.SubspellsList;
+
+        public bool IsAvailable(SpellDefinition spell, out string failure)
+        {
+            failure = string.Empty;
+            return spell?.GetFirstSubFeatureOfType<ValidateBorrowedKnowledgeCasting>() is { } validator &&
+                   validator.IsValid(caster, out failure);
+        }
+
+        public bool OnActivate(SubspellSelectionModal modal, int index)
+        {
+            var subspells = GetSubspells();
+
+            if (index >= 0 && index < subspells.Count && IsAvailable(subspells[index], out _))
             {
-                var selectedPower =
-                    (reactionRequest.ReactionParams.RulesetEffect as RulesetEffectPower)?.PowerDefinition;
+                modal.spellCastEngaged?.Invoke(modal.spellRepertoire, subspells[index], modal.slotLevel);
+                modal.Hide();
+            }
 
-                if (!selectedPower ||
-                    usablePowers.All(x => x.PowerDefinition != selectedPower))
+            return false;
+        }
+    }
+
+    private sealed class SkillKnowledgeTarget(SkillDefinition skill, bool expertise)
+        : IFilterTargetingCharacter, IValidateMagicEffectBeforeSpend
+    {
+        public bool EnforceFullSelection => true;
+
+        public bool IsValid(CursorLocationSelectTarget cursor, GameLocationCharacter target)
+        {
+            var valid = IsSkillKnowledgeTargetValid(target?.RulesetCharacter, skill, expertise, out var failure);
+
+            if (!valid && !string.IsNullOrEmpty(failure))
+            {
+                cursor.actionModifier.FailureFlags.Add(failure);
+            }
+
+            return valid;
+        }
+
+        public bool IsValid(
+            CharacterActionMagicEffect action,
+            GameLocationCharacter actingCharacter,
+            IReadOnlyList<GameLocationCharacter> targets,
+            out string failure)
+        {
+            // Self spells have no target-picking step. Touch spells revalidate every
+            // synchronized target, including additional targets from metamagic.
+            if (!expertise)
+            {
+                return IsSkillKnowledgeTargetValid(actingCharacter?.RulesetCharacter, skill, false, out failure);
+            }
+
+            failure = string.Empty;
+
+            if (targets.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var target in targets)
+            {
+                if (!IsSkillKnowledgeTargetValid(target?.RulesetCharacter, skill, true, out failure))
                 {
-                    return;
-                }
-
-                foreach (var skill in skillsDb)
-                {
-                    var conditionName = $"ConditionBorrowedKnowledge{skill.Name}";
-
-                    if (rulesetCharacter.TryGetConditionOfCategoryAndType(
-                            AttributeDefinitions.TagEffect, conditionName, out var activeCondition) &&
-                        activeCondition.SourceGuid == actingCharacter.Guid &&
-                        !selectedPower.Name.Contains(skill.Name))
-                    {
-                        rulesetCharacter.RemoveCondition(activeCondition);
-                    }
+                    return false;
                 }
             }
+
+            return true;
         }
     }
 

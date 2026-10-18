@@ -108,6 +108,137 @@ public static partial class Tabletop2024Context
             new ValidatorsValidatePowerUse(c => GameLocationCharacter.GetFromActor(c) is { UsedTacticalMoves: 0 }))
         .AddToDB();
 
+    private static CharacterFeatureReplacement _assassinAssassinateReplacement;
+    private static CharacterFeatureReplacement _assassinInfiltrationExpertiseReplacement;
+    private static FeatureDefinitionFeatureSet _assassinInfiltrationExpertise2024;
+
+    private static void LoadAssassinFeatures()
+    {
+        var assassin = GetDefinition<CharacterSubclassDefinition>(RoguishSlayer.Name);
+        var masterfulMimicry = FeatureDefinitionProficiencyBuilder
+            .Create($"Proficiency{RoguishSlayer.Name}MasterfulMimicry2024")
+            .SetGuiPresentation(Category.Feature)
+            .SetProficiencies(ProficiencyType.SkillOrExpertise, SkillDefinitions.Deception)
+            .AddToDB();
+        var rovingAim = FeatureDefinitionBuilder
+            .Create($"Feature{RoguishSlayer.Name}RovingAim2024")
+            .SetGuiPresentation(Category.Feature)
+            .AddToDB();
+
+        _assassinInfiltrationExpertise2024 = FeatureDefinitionFeatureSetBuilder
+            .Create($"FeatureSet{RoguishSlayer.Name}InfiltrationExpertise2024")
+            .SetGuiPresentation(Category.Feature)
+            .SetFeatureSet(masterfulMimicry, rovingAim, PowerFeatSteadyAim)
+            .AddToDB();
+
+        _assassinAssassinateReplacement = new CharacterFeatureReplacement(
+            Rogue, assassin, 3, RoguishSlayer.OriginalElimination, RoguishSlayer.Assassinate2024,
+            () => Main.Settings.EnableAssassinAssassinate2024);
+        _assassinInfiltrationExpertiseReplacement = new CharacterFeatureReplacement(
+            Rogue, assassin, 9,
+            GetDefinition<FeatureDefinition>($"Feature{RoguishSlayer.Name}ChainOfExecution"),
+            _assassinInfiltrationExpertise2024,
+            () => Main.Settings.EnableAssassinInfiltrationExpertise2024);
+
+        PowerFeatSteadyAim.AddCustomSubFeatures(
+            PowerBundle.UncachedEffectDescription.Marker,
+            new ModifyEffectDescriptionRovingAim(),
+            new FormattedDefinitionText(characterDescription: character => IsAssassinRovingAimEnabled(character)
+                ? Gui.Localize("Feature/&PowerFeatSteadyAimRovingAimDescription")
+                : null));
+        UpdateAssassinSteadyAimSupply();
+    }
+
+    internal static void SwitchAssassinAssassinate()
+    {
+        _assassinAssassinateReplacement?.Apply();
+    }
+
+    internal static void SwitchAssassinInfiltrationExpertise()
+    {
+        UpdateAssassinSteadyAimSupply();
+        _assassinInfiltrationExpertiseReplacement?.Apply();
+    }
+
+    private static void UpdateAssassinSteadyAimSupply()
+    {
+        if (_assassinInfiltrationExpertise2024 == null)
+        {
+            return;
+        }
+
+        // Supply the same power from one origin: the class at level 3, or this
+        // subclass at level 9 when the optional class feature is disabled.
+        var features = _assassinInfiltrationExpertise2024.FeatureSet;
+        features.RemoveAll(feature => feature == PowerFeatSteadyAim);
+        if (Main.Settings.EnableAssassinInfiltrationExpertise2024 && !Main.Settings.EnableRogueSteadyAim2024)
+        {
+            features.Add(PowerFeatSteadyAim);
+        }
+    }
+
+    internal static void SynchronizeAssassinFeatures(RulesetCharacterHero hero)
+    {
+        if (hero == null)
+        {
+            return;
+        }
+
+        if (hero.ClassesAndLevels.TryGetValue(Rogue, out var rogueLevel) && rogueLevel >= 3)
+        {
+            var tag = AttributeDefinitions.GetClassTag(Rogue, 3);
+            if (!hero.ActiveFeatures.TryGetValue(tag, out var features) && Main.Settings.EnableRogueSteadyAim2024)
+            {
+                features = [];
+                hero.ActiveFeatures[tag] = features;
+            }
+
+            if (features != null)
+            {
+                features.RemoveAll(feature => feature == PowerFeatSteadyAim);
+                if (Main.Settings.EnableRogueSteadyAim2024)
+                {
+                    features.Add(PowerFeatSteadyAim);
+                }
+            }
+        }
+
+        _assassinAssassinateReplacement?.Synchronize(hero);
+        _assassinInfiltrationExpertiseReplacement?.Synchronize(hero);
+
+        if (rogueLevel >= 3)
+        {
+            CharacterFeatureReplacement.SynchronizePower(hero, PowerFeatSteadyAim, Rogue);
+        }
+    }
+
+    private static bool IsAssassinRovingAimEnabled(RulesetCharacter character)
+    {
+        return character != null && Main.Settings.EnableAssassinInfiltrationExpertise2024 &&
+               character.GetSubclassLevel(Rogue, RoguishSlayer.Name) >= 9;
+    }
+
+    private sealed class ModifyEffectDescriptionRovingAim : IModifyEffectDescription
+    {
+        public bool IsValid(BaseDefinition definition, RulesetCharacter character, EffectDescription effectDescription)
+        {
+            return definition == PowerFeatSteadyAim && IsAssassinRovingAimEnabled(character);
+        }
+
+        public EffectDescription GetEffectDescription(
+            BaseDefinition definition,
+            EffectDescription effectDescription,
+            RulesetCharacter character,
+            RulesetEffect rulesetEffect)
+        {
+            var restrained = GetDefinition<ConditionDefinition>($"Condition{FeatSteadyAim}Restrained");
+            effectDescription.EffectForms.RemoveAll(form =>
+                form.FormType == EffectForm.EffectFormType.Condition &&
+                form.ConditionForm.ConditionDefinition == restrained);
+            return effectDescription;
+        }
+    }
+
     internal static readonly ConditionDefinition ConditionReduceSneakDice = ConditionDefinitionBuilder
         .Create("ConditionReduceSneakDice")
         .SetGuiPresentationNoContent(true)
@@ -442,6 +573,19 @@ public static partial class Tabletop2024Context
         }
 
         Rogue.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
+        UpdateAssassinSteadyAimSupply();
+
+        var heroes = ServiceRepository.GetService<IRulesetEntityService>()?.RulesetEntities.Values
+            .OfType<RulesetCharacterHero>()
+            .Where(hero => hero.ClassesAndLevels.TryGetValue(Rogue, out var level) && level >= 3)
+            .ToArray();
+        if (heroes != null)
+        {
+            foreach (var hero in heroes)
+            {
+                hero.RefreshAll();
+            }
+        }
     }
 
     internal static void SwitchRogueBlindSense()

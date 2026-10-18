@@ -40,6 +40,8 @@ internal static class ModUi
         "AuraOfLife",
         "AuraOfPerseverance",
         "AuraOfVitality",
+        "BackgroundFarmer",
+        "BackgroundMilitia",
         "BanishingSmite",
         "BattleFamiliar",
         "BindingIce",
@@ -363,6 +365,7 @@ internal static class ModUi
     {
         TabletopDefinitions.Clear();
 
+        var backgroundDb = DatabaseRepository.GetDatabase<CharacterBackgroundDefinition>();
         var raceDb = DatabaseRepository.GetDatabase<CharacterRaceDefinition>();
         var subclassDb = DatabaseRepository.GetDatabase<CharacterSubclassDefinition>();
         var featDb = DatabaseRepository.GetDatabase<FeatDefinition>();
@@ -373,7 +376,11 @@ internal static class ModUi
 
         foreach (var definitionName in TabletopDefinitionNames)
         {
-            if (raceDb.TryGetElement(definitionName, out var race))
+            if (backgroundDb.TryGetElement(definitionName, out var background))
+            {
+                TabletopDefinitions.Add(background);
+            }
+            else if (raceDb.TryGetElement(definitionName, out var race))
             {
                 TabletopDefinitions.Add(race);
             }
@@ -716,6 +723,20 @@ internal sealed class CharacterViewer : IMenuSelectablePage
 
     public void OnGUI(UnityModManager.ModEntry modEntry)
     {
+        var toggle = Main.Settings.EnableStrictTabletopClassSelection;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableStrictTabletopClassSelection"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableStrictTabletopClassSelection = toggle;
+            SubclassesContext.RefreshSubclassVisibility();
+        }
+
+        if (Main.Settings.EnableStrictTabletopClassSelection)
+        {
+            UI.Label(Gui.Localize("ModUi/&EnableStrictTabletopClassSelectionHelp"),
+                new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
+        }
+
+        UI.Label();
         ModUi.DisplaySubMenu(ref _characterSelectedPane, Name,
             new NamedAction(Gui.Localize("ModUi/&BackgroundsAndRaces"),
                 DisplayBackgroundsAndRaces),

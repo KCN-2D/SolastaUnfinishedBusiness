@@ -32,4 +32,7 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=Mudar tipo de
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=Use o tipo de dano selecionado para este acerto.
 Failure/&InvocationRequiresWarlockCantrip=Você deve conhecer {0} como truque de bruxo.
 Screen/&SubspellSelectionBackTitle=Voltar
+Tooltip/&ToolAndSkillProficiency2024Title=Proficiência em ferramentas e perícias
 Screen/&SubspellSelectionBackDescription=Volte à seleção anterior.
+Failure/&FailureFlagNotInBattle=Esta ação não pode ser realizada durante o combate.
+Failure/&WeaponMasteryRelearnUnavailable=Você não pode alterar sua maestria em armas agora.

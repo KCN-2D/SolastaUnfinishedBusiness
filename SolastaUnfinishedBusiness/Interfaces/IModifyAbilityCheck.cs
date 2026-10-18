@@ -24,3 +24,9 @@ public interface IModifyAbilityCheck
 public interface IRequireAbilityCheckRoll
 {
 }
+
+// The queried skill must match the affinity group's skill; the character does
+// not need to be proficient in it. Groups without a skill remain ability-wide.
+public interface IRequireMatchingAbilityCheckProficiency
+{
+}

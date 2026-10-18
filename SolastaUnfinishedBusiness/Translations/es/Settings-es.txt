@@ -279,7 +279,7 @@ ModUi/&EnableRogueCunningStrike2024=Habilita <color=#D89555>Golpe astuto</color>
 ModUi/&EnableRogueFightingStyle=Habilitar la opción <color=#D89555>Estilo de lucha</color> en el nivel 2
 ModUi/&EnableRogueReliableTalent2024=Habilitar <color=#D89555>Talento confiable</color> en el nivel 7 en lugar del 11
 ModUi/&EnableRogueSlipperyMind2024=Intercambia <color=#D89555>Mente resbaladiza</color> con la versión 5e 2024 <i><color=#F0DAA0>[además de sabiduría, también obtienes competencia en tiradas de salvación de carisma]</color></i>
-ModUi/&EnableRogueSteadyAim2024=Habilita <color=#D89555>Apunta firme</color> en el nivel 3 <i><color=#F0DAA0>[la acción adicional otorga ventaja en tu próxima tirada de ataque en el turno actual si aún no te has movido]</color></i>
+ModUi/&EnableRogueSteadyAim2024=Habilita <color=#D89555>Buena puntería</color> en el nivel 3 <i><color=#F0DAA0>[la acción adicional otorga ventaja en tu próxima tirada de ataque en el turno actual si aún no te has movido]</color></i>
 ModUi/&EnableRogueStrSaving=Habilitar los modificadores DEX o STR de <b>Hoodlum</b> en <color=#D89555>Golpe astuto/desviado</color>
 ModUi/&EnableScimitarSpecialization=Cimitarra de concesión <color=#D89555>Especialización en armas</color>
 ModUi/&EnableSignatureSpellsRelearn=Permite que los <color=#D89555>hechizos exclusivos</color> se preparen cada descanso prolongado <i><color=#F0DAA0>[en lugar de una vez en el nivel 20]</color></i>
@@ -298,6 +298,7 @@ ModUi/&EnableSortingDungeonMakerAssets=Habilitar la clasificación de activos en
 ModUi/&EnableSpeech=Habilitar el habla en campañas personalizadas <i><color=#F0DAA0>[solo narración y héroes]</color></i>
 ModUi/&EnableSpeechActorHelp=• Seleccione un actor
 ModUi/&EnableSpeechOnNpcs=Habilitar la lectura en voz alta de los PNJ
+ModUi/&EnableSpeechOnInteractions=Leer las descripciones al examinar objetos con la voz del narrador
 ModUi/&EnableSpeechVoiceHelp=• Seleccione una voz y velocidad de narración
 ModUi/&EnableStackableArtItems=Habilitar apilamiento de <color=#D89555>Elementos de arte</color> <i><color=#F0DAA0>[no se puede dividir mientras esta configuración esté deshabilitada]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Habilitar la acumulación de <color=#D89555>Dagas</color> y <color=#D89555>Hachas de mano</color> <i><color=#F0DAA0>[no se puede dividir mientras esta configuración esté deshabilitada]</color></i>
@@ -578,6 +579,7 @@ ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=Permitir que las <color=#D89555>
 ModUi/&EnableHeavyWeaponAbilityRequirement2024=Activar el requisito de característica de Armas pesadas 2024 <i><color=#F0DAA0>[Fue 13 en cuerpo a cuerpo, Des 13 a distancia; si no, desventaja]</color></i>
 ModUi/&UseOldOfficialFlankingRules=<i> + La antigua regla de flanqueo fue solo +2 para atacar el rollo. Arriba de la regla modificador de flanqueo más tiene prioridad </i>
 ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Otorga 2 selecciones de dominio de armas a la subclase Way of Blade Monk</i>
+ModUi/&WayOfBladeWeaponMasteryRequiresSystemHelp=Activa la Maestría en armas en Jugabilidad > Normas para usar esta opción de subclase. Tu selección se conserva mientras la Maestría en armas está desactivada.
 ModUi/&UseWeaponMasterySystem=Habilitar las reglas de <color=#D89555>Maestría en armas</color>
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ Maestría en hendidura: añade un modificador de puntuación de atributo al daño del segundo ataque</i>
 ModUi/&UseWeaponMasterySystemAddWeaponTag=<i>+ Añadir etiqueta de maestría a todas las armas del juego</i>
@@ -593,6 +595,7 @@ ModUi/&WideScreenBattleUI=Habilite la interfaz de usuario de batalla en pantalla
 ModUi/&WildSurgeDieRollThreshold=<color=white>Establecer umbral de dados de probabilidad de <color=#D89555>Magia salvaje de hechicero</color>:</color>\n<i><color=#F0DAA0>[la oleada salvaje se activa si los resultados son menores o iguales al umbral]</color></i>
 ModUi/&EnableBackgroundAbilityScoreIncreases=Los aumentos de característica provienen del trasfondo en lugar de la raza; los rasgos humanos se ajustan en consecuencia <i><color=#F0DAA0>(Razas flexibles no se aplica mientras esta opción está activada)</color></i>
 ModUi/&EnableBackgroundBonusFeats=Cambia los rasgos del trasfondo a una dote de origen, dos competencias en habilidades y una competencia con herramientas según las reglas de 2024 <i><color=#F0DAA0>(Requiere aumentos de característica del trasfondo; Trasfondos flexibles no se aplica mientras esta opción está activada)</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Activa los aumentos de característica del trasfondo para obtener dotes de origen de los trasfondos.
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
@@ -688,3 +691,7 @@ ModUi/&SettingsListNoResults=No hay entradas coincidentes.
 ModUi/&SettingsListSelected=Seleccionado: {0}
 ModUi/&SpeechAssignAllAutomatic=Asignar voces automáticamente al narrador y a todos los héroes
 ModUi/&SpeechAutomaticResolved=Asignación automática: {0}
+ModUi/&EnableAssassinAssassinate2024=Usar <color=#D89555>Asesinar</color> de 2024 para el Asesino de nivel 3 <i><color=#F0DAA0>[ventaja en iniciativa y daño adicional de Ataque furtivo en la primera ronda]</color></i>
+ModUi/&EnableToolChecks2024=Usar las reglas de competencia de 2024 para las pruebas con herramientas
+ModUi/&ToolChecks2024Description=En las pruebas con herramientas de ladrones, se aplican la competencia en Juego de manos y los efectos específicos de esa habilidad. Se suma una sola vez el mayor bonificador de competencia entre la habilidad y la herramienta; tener competencia en ambas otorga ventaja.
+ModUi/&EnableAssassinInfiltrationExpertise2024=Usar <color=#D89555>Pericia en infiltración</color> de 2024 para el Asesino de nivel 9 <i><color=#F0DAA0>[competencia o pericia en Engaño y movimiento tras Buena puntería; concede Buena puntería a estos Asesinos aunque la opción de clase esté desactivada]</color></i>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Validators;
@@ -14,6 +15,7 @@ internal sealed class CharacterFeatureReplacement
     private readonly FeatureDefinition _originalFeature;
     private readonly FeatureDefinition _replacementFeature;
     private readonly Func<bool> _isEnabled;
+    private readonly HashSet<FeatureDefinitionPower> _powers = [];
 
     internal CharacterFeatureReplacement(
         CharacterRaceDefinition race,
@@ -48,8 +50,8 @@ internal sealed class CharacterFeatureReplacement
         _replacementFeature = replacementFeature;
         _isEnabled = isEnabled;
 
-        ConfigurePower(originalFeature);
-        ConfigurePower(replacementFeature);
+        ConfigurePowers(originalFeature);
+        ConfigurePowers(replacementFeature);
     }
 
     internal void Apply()
@@ -132,8 +134,10 @@ internal sealed class CharacterFeatureReplacement
             return duplicate;
         });
 
-        SynchronizePower(hero, _originalFeature, activeFeature);
-        SynchronizePower(hero, _replacementFeature, activeFeature);
+        foreach (var power in _powers)
+        {
+            SynchronizePower(hero, power, _characterClass, _race);
+        }
     }
 
     internal static bool IsInactiveReplacement(RulesetCharacter character, FeatureDefinition feature)
@@ -143,41 +147,69 @@ internal sealed class CharacterFeatureReplacement
         return replacement != null && !replacement.IsFeatureActive(character, feature);
     }
 
-    private void ConfigurePower(FeatureDefinition feature)
+    private void ConfigurePowers(FeatureDefinition feature)
     {
-        if (feature is not FeatureDefinitionPower power)
+        var pending = new Stack<FeatureDefinition>();
+        var visited = new HashSet<FeatureDefinition>();
+        pending.Push(feature);
+
+        while (pending.Count > 0)
         {
-            return;
+            feature = pending.Pop();
+            if (feature == null || !visited.Add(feature))
+            {
+                continue;
+            }
+
+            if (feature is FeatureDefinitionFeatureSet { Mode: FeatureDefinitionFeatureSet.FeatureSetMode.Union } set)
+            {
+                foreach (var child in set.FeatureSet)
+                {
+                    pending.Push(child);
+                }
+            }
+
+            if (feature is not FeatureDefinitionPower power || !_powers.Add(power))
+            {
+                continue;
+            }
+
+            var visibility = power.GetFirstSubFeatureOfType<ModifyPowerVisibility>() ?? ModifyPowerVisibility.Default;
+
+            power.AddCustomSubFeatures(this,
+                new ValidatorsValidatePowerUse(character => IsFeatureActive(character, power)));
+            power.SetSubFeatureOfType<ModifyPowerVisibility>(new ModifyPowerVisibility(
+                (character, definition, actionType) =>
+                    IsFeatureActive(character, power) && visibility.IsVisible(character, definition, actionType),
+                visibility.KeepsVisibleWhenUnavailable));
         }
-
-        var visibility = power.GetFirstSubFeatureOfType<ModifyPowerVisibility>() ?? ModifyPowerVisibility.Default;
-
-        power.AddCustomSubFeatures(this,
-            new ValidatorsValidatePowerUse(character => IsFeatureActive(character, power)));
-        power.SetSubFeatureOfType<ModifyPowerVisibility>(new ModifyPowerVisibility(
-            (character, definition, actionType) =>
-                IsFeatureActive(character, power) && visibility.IsVisible(character, definition, actionType),
-            visibility.KeepsVisibleWhenUnavailable));
     }
 
-    private void SynchronizePower(
+    internal static void SynchronizePower(
         RulesetCharacterHero hero,
-        FeatureDefinition feature,
-        FeatureDefinition activeFeature)
+        FeatureDefinitionPower power,
+        CharacterClassDefinition originClass = null,
+        CharacterRaceDefinition originRace = null)
     {
-        if (feature is not FeatureDefinitionPower power)
+        var active = hero.HasAnyFeature(power);
+        if (!active && power.RechargeRate == RuleDefinitions.RechargeRate.AtWill)
         {
+            // At-will powers have no spent resource to retain when their last origin disappears.
+            hero.UsablePowers.RemoveAll(usable => usable.PowerDefinition == power);
             return;
         }
 
-        var usablePower = hero.GetPowerFromDefinition(power);
+        // Keep the same matching instance as native lookup, without discarding
+        // consumption recorded on another serialized copy of the same power.
+        var duplicates = hero.UsablePowers.Where(usable => usable.PowerDefinition == power).ToArray();
+        var usablePower = duplicates.LastOrDefault() ?? hero.GetPowerFromDefinition(power);
 
-        if (usablePower == null && feature == activeFeature)
+        if (usablePower == null && active)
         {
             // GrantPowers clears and recharges every power; create only the missing active power.
             usablePower = PowerProvider.Get(power, hero);
-            usablePower.OriginRace = _race;
-            usablePower.originClass = _characterClass;
+            usablePower.OriginRace = originRace;
+            usablePower.originClass = originClass;
             hero.UsablePowers.Add(usablePower);
         }
         else if (usablePower != null)
@@ -185,7 +217,31 @@ internal sealed class CharacterFeatureReplacement
             PowerProvider.BindUsesAttribute(hero, usablePower);
         }
 
-        // Keep disabled instances serialized so toggling or saving cannot restore spent uses.
+        if (usablePower != null)
+        {
+            // Shared definitions can have more than one feature origin, but only one usable entry.
+            hero.UsablePowers.RemoveAll(usable => usable.PowerDefinition == power && usable != usablePower);
+
+            if (power.RechargeRate != RuleDefinitions.RechargeRate.AtWill && duplicates.Length > 0)
+            {
+                // Shared wrappers are recalculated from their root; their saved counts
+                // are not independent consumption and can use different cost units.
+                PowerProvider.RestoreRemainingUses(hero, usablePower,
+                    PowerProvider.GetEffectiveMaxUses(hero, usablePower),
+                    duplicates.Min(usable => usable.RemainingUses));
+            }
+
+            // A repaired root must also update already granted wrappers, without
+            // spending/refunding a use or invoking the gameplay/HUD refresh path.
+            foreach (var shared in hero.UsablePowers.Where(usable =>
+                         usable.PowerDefinition is FeatureDefinitionPowerSharedPool pool &&
+                         pool.GetUsagePoolPower() == power))
+            {
+                PowerProvider.RestoreRemainingUses(hero, shared, 0, 0);
+            }
+        }
+
+        // Keep disabled resource-bearing instances serialized so toggling cannot restore spent uses.
         // Their visibility and use validators require the corresponding feature to remain active.
     }
 
@@ -201,7 +257,10 @@ internal sealed class CharacterFeatureReplacement
 
     private bool IsFeatureActive(RulesetCharacter character, FeatureDefinition feature)
     {
-        return feature == (_isEnabled() ? _replacementFeature : _originalFeature) &&
-               character != null && character.HasAnyFeature(feature);
+        // A nested power may also come from another class, feat or feature set.
+        // Only direct replacement roots are exclusively controlled by this option.
+        return character != null && character.HasAnyFeature(feature) &&
+               (feature != _originalFeature && feature != _replacementFeature ||
+                feature == (_isEnabled() ? _replacementFeature : _originalFeature));
     }
 }

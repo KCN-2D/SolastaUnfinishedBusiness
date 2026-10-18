@@ -90,10 +90,13 @@ public static partial class Tabletop2024Context
 
     private static readonly Dictionary<string, string> BackgroundFeatSets2024 = new()
     {
+        { BackgroundAcademicName, "FeatSharpEye2024" },
         { BackgroundArtistName, "FeatMusician2024" },
-        { BackgroundDevotedName, "FeatSurvivor2024" },
+        { BackgroundDevotedName, "FeatGroupArcaneOmens2024" },
+        { BackgroundLawkeeperName, "FeatSurvivor2024" },
         { BackgroundLowlifeName, "FeatTavernBrawler2024" },
         { BackgroundOccultistName, "FeatGroupPortalJumper2024" },
+        { BackgroundSpyName, "FeatGroupArcaneEloquence2024" },
         { BackgroundTroublemakerName, "FeatLucky" }
     };
 
@@ -137,6 +140,8 @@ public static partial class Tabletop2024Context
     private static readonly string[] Tabletop2024OriginFeatNames =
     [
         "FeatAlert",
+        "FeatGroupArcaneEloquence2024",
+        "FeatGroupArcaneOmens2024",
         "FeatHealer",
         "FeatLucky",
         "FeatMagicInitiateCleric",
@@ -218,12 +223,33 @@ public static partial class Tabletop2024Context
 
     internal static void ApplyBackgroundOptions()
     {
+        if (!ApplyBackgroundDefinitionRules())
+        {
+            return;
+        }
+
+        FeatsContext.ClearFeatSubPanel2024UiState();
+
+        if (Main.Settings.EnableTabletopFeatRules2024)
+        {
+            RefreshManagedTabletopContainerMappings();
+        }
+        else
+        {
+            ClearManagedTabletopContainerMappingsForInactiveMode();
+            FeatsContext.RefreshFeatVisibilityFromSettings();
+            GuiWrapperContext.RecacheFeats();
+        }
+    }
+
+    private static bool ApplyBackgroundDefinitionRules()
+    {
         RefreshModeAwareOriginFeatDefinitions();
         FeatsContext.SwitchFirstLevelTotalFeats();
 
         if (!_backgroundOptionsLoaded)
         {
-            return;
+            return false;
         }
 
         FlexibleRacesContext.SwitchFlexibleRaces();
@@ -246,18 +272,7 @@ public static partial class Tabletop2024Context
             FlexibleBackgroundsContext.SwitchFlexibleBackgrounds();
         }
 
-        FeatsContext.ClearFeatSubPanel2024UiState();
-
-        if (Main.Settings.EnableTabletopFeatRules2024)
-        {
-            RefreshManagedTabletopContainerMappings();
-        }
-        else
-        {
-            ClearManagedTabletopContainerMappingsForInactiveMode();
-            FeatsContext.RefreshFeatVisibilityFromSettings();
-            GuiWrapperContext.RecacheFeats();
-        }
+        return true;
     }
 
     internal static void Load2024BackgroundsASIAndFeats()
@@ -1094,11 +1109,7 @@ public static partial class Tabletop2024Context
     {
         featName = null;
 
-        if (!_backgroundOptionsLoaded ||
-            !IsBackgroundBonusFeatsEnabled() ||
-            hero?.RaceDefinition?.Name != "Human" ||
-            hero.BackgroundDefinition == null ||
-            !TryGetEffectiveBackgroundFeatName(hero, null, out var backgroundFeatName))
+        if (!TryGetBackgroundFeatForHumanOriginValidation(hero, out var backgroundFeatName))
         {
             return false;
         }
@@ -1109,9 +1120,7 @@ public static partial class Tabletop2024Context
             return false;
         }
 
-        if (!AreEquivalentOriginFeatNames(humanFeatName, backgroundFeatName) ||
-            TryResolveModeAwareFeatDefinition(humanFeatName, out var featDefinition) &&
-            SkillFeats.IsRepeatable(featDefinition))
+        if (!IsNonRepeatableOriginFeatDuplicate(humanFeatName, backgroundFeatName))
         {
             return false;
         }
@@ -1126,13 +1135,27 @@ public static partial class Tabletop2024Context
         string tag,
         string featName)
     {
+        return IsHumanOriginFeatTag(tag) &&
+               TryGetBackgroundFeatForHumanOriginValidation(hero, out var backgroundFeatName) &&
+               IsNonRepeatableOriginFeatDuplicate(featName, backgroundFeatName);
+    }
+
+    private static bool TryGetBackgroundFeatForHumanOriginValidation(
+        RulesetCharacterHero hero,
+        out string featName)
+    {
+        featName = null;
+
         return _backgroundOptionsLoaded &&
                IsBackgroundBonusFeatsEnabled() &&
-               IsHumanOriginFeatTag(tag) &&
                hero?.RaceDefinition?.Name == "Human" &&
                hero.BackgroundDefinition != null &&
-               TryGetEffectiveBackgroundFeatName(hero, null, out var backgroundFeatName) &&
-               AreEquivalentOriginFeatNames(featName, backgroundFeatName) &&
+               TryGetEffectiveBackgroundFeatName(hero, null, out featName);
+    }
+
+    private static bool IsNonRepeatableOriginFeatDuplicate(string featName, string backgroundFeatName)
+    {
+        return AreEquivalentOriginFeatNames(featName, backgroundFeatName) &&
                (!TryResolveModeAwareFeatDefinition(featName, out var featDefinition) ||
                 !SkillFeats.IsRepeatable(featDefinition));
     }
@@ -1486,10 +1509,7 @@ public static partial class Tabletop2024Context
 
     internal static bool ShouldUseHumanOriginFeat(CharacterHeroBuildingData heroBuildingData)
     {
-        return _backgroundOptionsLoaded &&
-               Main.Settings.EnableBackgroundASI &&
-               heroBuildingData?.HeroCharacter?.RaceDefinition?.Name == "Human" &&
-               !LevelUpHelper.IsLevelingUp(heroBuildingData.HeroCharacter);
+        return IsValidHumanOriginFeatSelectionHero(heroBuildingData?.HeroCharacter);
     }
 
     internal static bool SyncHumanOriginFeatPools(CharacterHeroBuildingData heroBuildingData)
@@ -2110,11 +2130,27 @@ public static partial class Tabletop2024Context
         }
 
         var flexibleBackgroundsEnabled = IsFlexibleBackgroundsEffectivelyEnabled();
+        var insertIndex = GetBackgroundFeatureInsertIndex(backgroundName, background);
 
-        foreach (var feature in originalFeatures.Where(feature => !background.Features.Contains(feature) &&
-                     (flexibleBackgroundsEnabled || !FlexibleBackgroundsContext.IsFlexibleBackgroundFeature(feature))))
+        foreach (var feature in originalFeatures.Where(feature =>
+                     flexibleBackgroundsEnabled || !FlexibleBackgroundsContext.IsFlexibleBackgroundFeature(feature)))
         {
-            background.Features.Add(feature);
+            var featureIndex = background.Features.IndexOf(feature);
+
+            if (featureIndex >= insertIndex)
+            {
+                insertIndex = featureIndex + 1;
+                continue;
+            }
+
+            if (featureIndex >= 0)
+            {
+                background.Features.RemoveAt(featureIndex);
+                insertIndex--;
+            }
+
+            // Restore the original display order before flexible grants are reconciled.
+            background.Features.Insert(insertIndex++, feature);
         }
     }
 

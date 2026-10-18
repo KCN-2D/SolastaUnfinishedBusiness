@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
@@ -9,7 +9,6 @@ using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
-using UnityEngine.AddressableAssets;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionPowers;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.SpellDefinitions;
@@ -251,17 +250,13 @@ internal static class CasterFeats
 
         var motionTypeName = motionType.ToString();
 
-        AssetReferenceSprite sprite;
+        var isPull = motionType == MotionForm.MotionType.DragToOrigin;
+        var sprite = Sprites.GetPowerSprite(motionTypeName,
+            isPull ? Resources.TelekinesisPull : Resources.TelekinesisPush);
 
-        if (motionTypeName == "DragToOrigin")
+        if (isPull)
         {
-            sprite = Sprites.GetSprite(motionTypeName, Resources.TelekinesisPull, 128);
-
             motionTypeName = string.Empty;
-        }
-        else
-        {
-            sprite = Sprites.GetSprite(motionTypeName, Resources.TelekinesisPush, 128);
         }
 
         var power = FeatureDefinitionPowerBuilder

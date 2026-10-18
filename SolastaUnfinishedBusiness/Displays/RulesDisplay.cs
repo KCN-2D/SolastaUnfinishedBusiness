@@ -9,6 +9,72 @@ internal static class RulesDisplay
     private static readonly string[] CriticalHitOptions = ["0", "1", "2", "3"];
     private static readonly string[] SenseNormalVisionOptions = ["12", "24", "48"];
 
+    internal static void DisplayToolCheckRules2024()
+    {
+        var toggle = Main.Settings.EnableToolChecks2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableToolChecks2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableToolChecks2024 = toggle;
+        }
+
+        UI.Label(Gui.Localize("ModUi/&ToolChecks2024Description"),
+            new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.AutoWidth());
+    }
+
+    internal static void DisplayWeaponMasteryRules2024()
+    {
+        var toggle = Main.Settings.UseWeaponMasterySystem;
+        if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystem"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.UseWeaponMasterySystem = toggle;
+            Tabletop2024Context.SwitchWeaponMastery();
+        }
+
+        if (Main.Settings.UseWeaponMasterySystem)
+        {
+            toggle = Main.Settings.UseWeaponMasterySystemAddWeaponTag;
+            if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystemAddWeaponTag"), ref toggle, UI.AutoWidth()))
+            {
+                Main.Settings.UseWeaponMasterySystemAddWeaponTag = toggle;
+            }
+
+            toggle = Main.Settings.UseWeaponMasterySystemAddCleaveDamage;
+            if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystemAddCleaveDamage"), ref toggle, UI.AutoWidth()))
+            {
+                Main.Settings.UseWeaponMasterySystemAddCleaveDamage = toggle;
+            }
+
+            toggle = Main.Settings.UseWeaponMasterySystemFlurryTriggersMastery;
+            if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystemFlurryTriggersMastery"), ref toggle,
+                    UI.AutoWidth()))
+            {
+                Main.Settings.UseWeaponMasterySystemFlurryTriggersMastery = toggle;
+            }
+
+            toggle = Main.Settings.UseWeaponMasterySystemNickExtraAttackTriggersMastery;
+            if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystemNickExtraAttackTriggersMastery"), ref toggle,
+                    UI.AutoWidth()))
+            {
+                Main.Settings.UseWeaponMasterySystemNickExtraAttackTriggersMastery = toggle;
+            }
+
+            toggle = Main.Settings.UseWeaponMasterySystemNickDualFlurry;
+            if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystemNickDualFlurry"), ref toggle,
+                    UI.AutoWidth()))
+            {
+                Main.Settings.UseWeaponMasterySystemNickDualFlurry = toggle;
+            }
+
+            toggle = Main.Settings.UseWeaponMasterySystemPushSave;
+            if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystemPushSave"), ref toggle, UI.AutoWidth()))
+            {
+                Main.Settings.UseWeaponMasterySystemPushSave = toggle;
+            }
+
+            Tabletop2024Context.DisplayWeaponMasteryCustomization();
+        }
+    }
+
     internal static void DisplayRules()
     {
         int intValue;
@@ -171,23 +237,6 @@ internal static class RulesDisplay
             Main.Settings.PreventSavingThrowReactionsAfterLegendaryResistance = toggle;
         }
 
-        toggle = Main.Settings.EnableSmiteSpells2024;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableSmiteSpells2024"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableSmiteSpells2024 = toggle;
-            SmiteSpells2024Context.SwitchSmiteSpells();
-        }
-
-        if (Main.Settings.EnableSmiteSpells2024)
-        {
-            toggle = Main.Settings.AddPaladinSmiteToggle;
-            if (UI.Toggle(" + " + Gui.Localize("ModUi/&AddPaladinSmiteToggle"), ref toggle, UI.AutoWidth()))
-            {
-                Main.Settings.AddPaladinSmiteToggle = toggle;
-                Global.RefreshControlledCharacter();
-            }
-        }
-
         toggle = Main.Settings.UseAlternateSpellPointsSystem;
         if (UI.Toggle(Gui.Localize("ModUi/&UseAlternateSpellPointsSystem"), ref toggle, UI.AutoWidth()))
         {
@@ -206,63 +255,9 @@ internal static class RulesDisplay
             Main.Settings.EnableHeavyWeaponAbilityRequirement2024 = toggle;
         }
 
-        toggle = Main.Settings.UseWeaponMasterySystem;
-        if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystem"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.UseWeaponMasterySystem = toggle;
-            Tabletop2024Context.SwitchWeaponMastery();
-        }
+        DisplayToolCheckRules2024();
 
-        if (Main.Settings.UseWeaponMasterySystem)
-        {
-            toggle = Main.Settings.UseWeaponMasteryMonkWayOfBlade;
-            if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasteryMonkWayOfBlade"), ref toggle, UI.AutoWidth()))
-            {
-                Main.Settings.UseWeaponMasteryMonkWayOfBlade = toggle;
-                Tabletop2024Context.SwitchWayOfBladeWeaponMastery();
-            }
-
-            toggle = Main.Settings.UseWeaponMasterySystemAddWeaponTag;
-            if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystemAddWeaponTag"), ref toggle, UI.AutoWidth()))
-            {
-                Main.Settings.UseWeaponMasterySystemAddWeaponTag = toggle;
-            }
-
-            toggle = Main.Settings.UseWeaponMasterySystemAddCleaveDamage;
-            if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystemAddCleaveDamage"), ref toggle, UI.AutoWidth()))
-            {
-                Main.Settings.UseWeaponMasterySystemAddCleaveDamage = toggle;
-            }
-
-            toggle = Main.Settings.UseWeaponMasterySystemFlurryTriggersMastery;
-            if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystemFlurryTriggersMastery"), ref toggle,
-                    UI.AutoWidth()))
-            {
-                Main.Settings.UseWeaponMasterySystemFlurryTriggersMastery = toggle;
-            }
-
-            toggle = Main.Settings.UseWeaponMasterySystemNickExtraAttackTriggersMastery;
-            if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystemNickExtraAttackTriggersMastery"), ref toggle,
-                    UI.AutoWidth()))
-            {
-                Main.Settings.UseWeaponMasterySystemNickExtraAttackTriggersMastery = toggle;
-            }
-
-            toggle = Main.Settings.UseWeaponMasterySystemNickDualFlurry;
-            if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystemNickDualFlurry"), ref toggle,
-                    UI.AutoWidth()))
-            {
-                Main.Settings.UseWeaponMasterySystemNickDualFlurry = toggle;
-            }
-
-            toggle = Main.Settings.UseWeaponMasterySystemPushSave;
-            if (UI.Toggle(Gui.Localize("ModUi/&UseWeaponMasterySystemPushSave"), ref toggle, UI.AutoWidth()))
-            {
-                Main.Settings.UseWeaponMasterySystemPushSave = toggle;
-            }
-
-            Tabletop2024Context.DisplayWeaponMasteryCustomization();
-        }
+        DisplayWeaponMasteryRules2024();
 
         toggle = Main.Settings.UseOfficialFlankingRules;
         if (UI.Toggle(Gui.Localize("ModUi/&UseOfficialFlankingRules"), ref toggle, UI.AutoWidth()))

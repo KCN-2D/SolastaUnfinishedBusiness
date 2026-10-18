@@ -124,6 +124,7 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnableSpeciesSpellcastingAbility2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableHalfOrcAdrenalineRush2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableHeavyWeaponAbilityRequirement2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableToolChecks2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool UseWeaponMasterySystem { get; set; }
     [Tag(Type = TagType.T2024)] public bool UseWeaponMasterySystemAddWeaponTag { get; set; }
     public bool UseWeaponMasteryMonkWayOfBlade { get; set; }
@@ -211,6 +212,7 @@ public class Settings : UnityModManager.ModSettings
     [MultiplayerLocal] public bool EnableLogDialoguesToConsole { get; set; }
     [MultiplayerLocal] public bool EnableSpeech { get; set; }
     [MultiplayerLocal] public bool EnableSpeechOnNpcs { get; set; }
+    [MultiplayerLocal] public bool EnableSpeechOnInteractions { get; set; }
     [MultiplayerLocal] public bool EnableVoiceVoxSpeech { get; set; }
     [MultiplayerLocal] public bool ForceModSpeechOnNpcs { get; set; }
     [MultiplayerLocal] public int SpeechChoice { get; set; }
@@ -474,6 +476,8 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnableRogueSteadyAim2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableRogueStrokeOfLuck2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableThiefUseMagicDevice2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableAssassinAssassinate2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableAssassinInfiltrationExpertise2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool RemoveRogueBlindSense2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSorcererWeaponProficiency2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSorcererArcaneApotheosis2024 { get; set; }

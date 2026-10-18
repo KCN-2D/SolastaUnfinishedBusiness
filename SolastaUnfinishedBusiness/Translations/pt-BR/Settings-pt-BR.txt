@@ -279,7 +279,7 @@ ModUi/&EnableRogueCunningStrike2024=Habilite <color=#D89555>Golpe Astuto</color>
 ModUi/&EnableRogueFightingStyle=Habilitar a escolha <color=#D89555>Estilo de luta</color> no nível 2
 ModUi/&EnableRogueReliableTalent2024=Habilite <color=#D89555>Talento Confiável</color> no nível 7 em vez de 11
 ModUi/&EnableRogueSlipperyMind2024=Troque <color=#D89555>Mente Escorregadia</color> pela versão 5e 2024 <i><color=#F0DAA0>[você também ganha proficiência em testes de resistência de carisma, além de sabedoria]</color></i>
-ModUi/&EnableRogueSteadyAim2024=Habilite <color=#D89555>Miração Firme</color> no nível 3 <i><color=#F0DAA0>[ação bônus dá vantagem na sua próxima jogada de ataque no turno atual se você ainda não se moveu]</color></i>
+ModUi/&EnableRogueSteadyAim2024=Habilite <color=#D89555>Mira firme</color> no nível 3 <i><color=#F0DAA0>[ação bônus dá vantagem na sua próxima jogada de ataque no turno atual se você ainda não se moveu]</color></i>
 ModUi/&EnableRogueStrSaving=Habilitar modificadores de DEX ou FOR de <b>Hoodlum</b> em <color=#D89555>Cunning/Devious Strike</color>
 ModUi/&EnableScimitarSpecialization=Conceder Cimitarra <color=#D89555>Especialização em Armas</color>
 ModUi/&EnableSignatureSpellsRelearn=Habilitar <color=#D89555>Feitiços de Assinatura</color> para serem preparados a cada descanso longo <i><color=#F0DAA0>[em vez de uma vez no nível 20]</color></i>
@@ -298,6 +298,7 @@ ModUi/&EnableSortingDungeonMakerAssets=Habilitar classificação de ativos no ed
 ModUi/&EnableSpeech=Habilitar fala em campanhas personalizadas <i><color=#F0DAA0>[somente narração e heróis]</color></i>
 ModUi/&EnableSpeechActorHelp=• Selecione um ator
 ModUi/&EnableSpeechOnNpcs=Habilitar leitura em voz alta dos NPCs
+ModUi/&EnableSpeechOnInteractions=Ler as descrições dos objetos examinados com a voz do narrador
 ModUi/&EnableSpeechVoiceHelp=• Selecione uma voz e velocidade de narração
 ModUi/&EnableStackableArtItems=Habilitar empilhamento <color=#D89555>Itens de arte</color> <i><color=#F0DAA0>[não pode ser dividido enquanto esta configuração estiver desabilitada]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Habilitar empilhamento de <color=#D89555>Adagas</color> e <color=#D89555>Machados de Mão</color> <i><color=#F0DAA0>[não pode ser dividido enquanto esta configuração estiver desabilitada]</color></i>
@@ -578,6 +579,7 @@ ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=Habilitar <color=#D89555>pequena
 ModUi/&EnableHeavyWeaponAbilityRequirement2024=Ativar requisito de atributo de armas Pesadas de 2024 <i><color=#F0DAA0>[For 13 em corpo a corpo, Des 13 à distância; caso contrário, desvantagem]</color></i>
 ModUi/&UseOldOfficialFlankingRules=<i> + A antiga regra de flanqueamento era apenas +2 para atacar o rolo. Acima do flanqueamento mais regra do modificador, tenha precedência </i>
 ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Conceda 2 escolhas de domínio de armas para a subclasse Way of Blade Monk</i>
+ModUi/&WayOfBladeWeaponMasteryRequiresSystemHelp=Habilite a Maestria em Armas em Jogabilidade > Regras para usar esta opção de subclasse. Sua seleção é mantida enquanto a Maestria em Armas estiver desabilitada.
 ModUi/&UseWeaponMasterySystem=Habilitar regras de <color=#D89555>Maestria em Armas</color>
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ Domínio de Fenda adiciona modificador de pontuação de atributo ao dano do segundo ataque</i>
 ModUi/&UseWeaponMasterySystemAddWeaponTag=<i>+ Adicionar tag de maestria a todas as armas do jogo</i>
@@ -593,6 +595,7 @@ ModUi/&WideScreenBattleUI=Ativar interface de batalha wide-screen <i><color=#F0D
 ModUi/&WildSurgeDieRollThreshold=<color=white>Definir limite de dado de chance de <color=#D89555>Magia Selvagem do Feiticeiro</color>:</color>\n<i><color=#F0DAA0>[onda selvagem é acionada se a rolagem for menor ou igual ao limite]</color></i>
 ModUi/&EnableBackgroundAbilityScoreIncreases=Os aumentos de atributo vêm do antecedente em vez da raça; as características humanas são ajustadas de acordo <i><color=#F0DAA0>(Raças flexíveis não se aplica enquanto esta opção estiver ativada)</color></i>
 ModUi/&EnableBackgroundBonusFeats=Substitui as características do antecedente por um talento de origem, duas proficiências em perícias e uma em ferramentas conforme as regras de 2024 <i><color=#F0DAA0>(Requer aumentos de atributo do antecedente; Antecedentes flexíveis não se aplica enquanto esta opção estiver ativada)</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Ative os aumentos de atributo do antecedente para receber talentos de origem dos antecedentes.
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
@@ -688,3 +691,7 @@ ModUi/&SettingsListNoResults=Nenhuma entrada correspondente.
 ModUi/&SettingsListSelected=Selecionado: {0}
 ModUi/&SpeechAssignAllAutomatic=Atribuir vozes automaticamente ao narrador e a todos os heróis
 ModUi/&SpeechAutomaticResolved=Atribuição automática: {0}
+ModUi/&EnableAssassinAssassinate2024=Usar <color=#D89555>Assassinar</color> de 2024 para o Assassino de nível 3 <i><color=#F0DAA0>[vantagem na iniciativa e dano extra de Ataque Furtivo na primeira rodada]</color></i>
+ModUi/&EnableToolChecks2024=Usar as regras de proficiência de 2024 para testes com ferramentas
+ModUi/&ToolChecks2024Description=Os testes com ferramentas de ladrão aplicam a proficiência em Prestidigitação e os efeitos específicos dessa perícia. Adiciona-se uma única vez o maior bônus de proficiência entre o da perícia e o da ferramenta; ter proficiência em ambas concede vantagem.
+ModUi/&EnableAssassinInfiltrationExpertise2024=Usar <color=#D89555>Especialização em infiltração</color> de 2024 para o Assassino de nível 9 <i><color=#F0DAA0>[proficiência ou especialização em Enganação e movimento após Mira firme; concede Mira firme a esses Assassinos mesmo com a opção de classe desativada]</color></i>

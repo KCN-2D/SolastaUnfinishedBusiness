@@ -298,6 +298,7 @@ ModUi/&EnableSortingDungeonMakerAssets=在地城编辑器编辑器上启用资�
 ModUi/&EnableSpeech=在自定义战役中启用语音<i><color=#F0DAA0>[仅限旁白和英雄]</color></i>
 ModUi/&EnableSpeechActorHelp=• 选择演员
 ModUi/&EnableSpeechOnNpcs=启用NPC语音朗读
+ModUi/&EnableSpeechOnInteractions=使用旁白声音朗读调查物件时的描述
 ModUi/&EnableSpeechVoiceHelp=• 选择语音和叙述速度
 ModUi/&EnableStackableArtItems=启用堆叠<color=#D89555>艺术品</color> <i><color=#F0DAA0>[此设置禁用时无法拆分]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=启用堆叠<color=#D89555>匕首</color>和<color=#D89555>手斧</color> <i><color=#F0DAA0>[禁用此设置时无法拆分]</color></i>
@@ -578,6 +579,7 @@ ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=使<color=#D89555>小型种族</
 ModUi/&EnableHeavyWeaponAbilityRequirement2024=启用2024重型武器属性要求<i><color=#F0DAA0>［近战需力量13，远程需敏捷13；否则攻击掷骰劣势］</color></i>
 ModUi/&UseOldOfficialFlankingRules=<i> +旧的侧翼规则仅为+2攻击掷骰。上方侧翼加修饰符规则优先</i>
 ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ 为刀锋武僧子类别授予 2 个武器精通选择</i>
+ModUi/&WayOfBladeWeaponMasteryRequiresSystemHelp=要使用此子职业选项，请在游戏玩法 > 规则中启用武器精通。武器精通禁用期间也会保留你的选择。
 ModUi/&UseWeaponMasterySystem=启用<color=#D89555>武器精通</color>规则
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ 顺劈斩精通为第二次攻击伤害添加属性分数修正</i>
 ModUi/&UseWeaponMasterySystemAddWeaponTag=<i>+ 为所有游戏武器添加精通标签</i>
@@ -593,6 +595,7 @@ ModUi/&WideScreenBattleUI=启用宽屏战斗 UI<i><color=#F0DAA0>（适用于宽
 ModUi/&WildSurgeDieRollThreshold=<color=white>设置<color=#D89555>术士狂野魔法</color>几率骰子阈值：</color>\n<i><color=#F0DAA0>[如果掷出的骰子小于或等于阈值，则触发狂野魔法浪涌]</color></i>
 ModUi/&EnableBackgroundAbilityScoreIncreases=改为从背景而非种族获得属性值提升，并相应调整人类特性<i><color=#F0DAA0>（启用此选项时，不应用灵活种族）</color></i>
 ModUi/&EnableBackgroundBonusFeats=将背景特性改为2024年版的一个起源专长、两项技能熟练和一项工具熟练<i><color=#F0DAA0>（需要背景属性值提升；启用此选项时，不应用灵活背景）</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=要从背景获得起源专长，请启用从背景获得属性值提升的设置。
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
@@ -688,3 +691,7 @@ ModUi/&SettingsListNoResults=没有匹配项。
 ModUi/&SettingsListSelected=已选择：{0}
 ModUi/&SpeechAssignAllAutomatic=为旁白和所有英雄自动分配声音
 ModUi/&SpeechAutomaticResolved=自动分配：{0}
+ModUi/&EnableAssassinAssassinate2024=杀手3级时采用2024版<color=#D89555>暗杀</color><i><color=#F0DAA0>[先攻优势，以及首轮的偷袭额外伤害]</color></i>
+ModUi/&EnableToolChecks2024=使用2024版工具检定熟练规则
+ModUi/&ToolChecks2024Description=使用盗贼工具进行检定时，应用巧手熟练及该技能专属的效果。技能熟练和工具熟练提供的加值只取较高者，且仅加一次；两者均具有熟练时获得优势。
+ModUi/&EnableAssassinInfiltrationExpertise2024=杀手9级时采用2024版<color=#D89555>潜入专长</color><i><color=#F0DAA0>[获得欺瞒熟练或专精，并可在稳定瞄准后移动；即使职业设置关闭，仍向这些杀手授予稳定瞄准]</color></i>

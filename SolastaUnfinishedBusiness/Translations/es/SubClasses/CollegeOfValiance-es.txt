@@ -1,4 +1,4 @@
-Condition/&ConditionCollegeOfValianceDishearteningPerformanceDescription=Debes restar el número obtenido en la fuente del dado de Inspiración Bárdica en tu próxima tirada de salvación exitosa.
+Condition/&ConditionCollegeOfValianceDishearteningPerformanceDescription=Resta el resultado de un dado de Inspiración Bárdica del bardo que causó este efecto de tu próxima tirada de salvación que, de otro modo, tendría éxito.
 Condition/&ConditionCollegeOfValianceDishearteningPerformanceTitle=Actuación desalentadora
 Feature/&AutoPreparedSpellsCollegeOfValianceRecallLanguageDescription=Adquiriste conocimientos de muchos idiomas diferentes a través de la lectura de obras escritas en el extranjero y, mágicamente, puedes volverte fluido en esos idiomas, agregando el hechizo de Lenguas a la lista de hechizos conocidos.
 Feature/&AutoPreparedSpellsCollegeOfValianceRecallLanguageTitle=Recordar idioma
@@ -6,7 +6,7 @@ Feature/&FeatureCollegeOfValianceCaptivatingPresenceDescription=Dejas una impres
 Feature/&FeatureCollegeOfValianceCaptivatingPresenceTitle=Lengua de plata
 Feature/&FeatureCollegeOfValianceSteadfastInspirationDescription=Tus palabras inspiradoras son tan alentadoras que otros se sienten impulsados a triunfar. Cuando una criatura amistosa suma uno de tus dados de Inspiración bárdica a su prueba de característica, tirada de ataque o tirada de salvación y la tirada falla, la criatura puede quedarse con el dado de Inspiración bárdica.
 Feature/&FeatureCollegeOfValianceSteadfastInspirationTitle=Inspiración firme
-Feature/&PowerCollegeOfValianceDishearteningPerformanceDescription=Tu valentía en la batalla desmoraliza a tus enemigos. Como acción adicional, puedes gastar un uso de tu Inspiración Bárdica y elegir una criatura hostil que puedas ver a 60 pies o menos de ti. Tira el dado de Inspiración Bárdica. La criatura debe restar el número obtenido de la primera tirada de salvación que tenga éxito antes del final de tu siguiente turno.
+Feature/&PowerCollegeOfValianceDishearteningPerformanceDescription=Como acción adicional, gasta un uso de tu Inspiración Bárdica para desmoralizar a una criatura hostil que puedas ver. Antes del final de tu siguiente turno, el objetivo resta el resultado de uno de tus dados de Inspiración Bárdica de la primera tirada de salvación que, de otro modo, tendría éxito.
 Feature/&PowerCollegeOfValianceDishearteningPerformanceTitle=Actuación desalentadora
 Feature/&PowerCollegeOfValianceHeroicInspirationDescription=Puedes usar tu acción adicional para activar Inspiración heroica. Inspiración heroica otorga todos los beneficios de Inspiración bárdica sin consumir ningún uso de Inspiración bárdica y puede seleccionar como objetivo a dos criaturas amistosas que estén a 60 pies o menos en lugar de solo una. Puedes usar esta característica 2 veces por descanso prolongado.
 Feature/&PowerCollegeOfValianceHeroicInspirationTitle=Inspiración heroica

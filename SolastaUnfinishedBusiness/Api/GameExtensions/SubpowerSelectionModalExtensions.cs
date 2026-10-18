@@ -2,29 +2,91 @@
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.CustomUI;
 using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.UI;
 
 namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
 internal static class SubpowerSelectionModalExtensions
 {
-    //Re-implements native method, but uses lust of powers instead of feature set
+    private static readonly Dictionary<SubpowerSelectionModal, (Button.ButtonClickedEvent Event, UnityAction Close)>
+        BackgroundDismissals = [];
+
+    internal static void BindBackgroundDismissal(this SubpowerSelectionModal instance)
+    {
+        instance.UnbindBackgroundDismissal();
+
+        var background = instance.transform.Find("Background")?.GetComponent<Button>();
+        if (!background)
+        {
+            return;
+        }
+
+        var clicked = background.onClick;
+        var missingCloseTarget = false;
+        for (var i = 0; i < clicked.GetPersistentEventCount(); i++)
+        {
+            if (clicked.GetPersistentMethodName(i) != nameof(SubpowerSelectionModal.OnCloseCb))
+            {
+                continue;
+            }
+
+            var target = clicked.GetPersistentTarget(i);
+            if (target == instance)
+            {
+                return;
+            }
+
+            missingCloseTarget |= !target;
+        }
+
+        if (!missingCloseTarget)
+        {
+            return;
+        }
+
+        // The native prefab's background has an OnCloseCb event with no target. Bind
+        // only that missing connection, retaining native and other listeners unchanged.
+        UnityAction close = () =>
+        {
+            if (instance && instance.Visible)
+            {
+                instance.OnCloseCb();
+            }
+        };
+        clicked.AddListener(close);
+        BackgroundDismissals.Add(instance, (clicked, close));
+    }
+
+    internal static void UnbindBackgroundDismissal(this SubpowerSelectionModal instance)
+    {
+        if (BackgroundDismissals.TryGetValue(instance, out var binding))
+        {
+            binding.Event.RemoveListener(binding.Close);
+            BackgroundDismissals.Remove(instance);
+        }
+    }
+
+    // Uses the native selector with a list of powers instead of a feature set.
     internal static void Bind(
         this SubpowerSelectionModal instance,
         List<FeatureDefinitionPower> powers,
         RulesetCharacter caster,
         SubpowerSelectionModal.SubpowerEngagedHandler subpowerEngaged,
-        RectTransform attachment)
+        RectTransform attachment,
+        SubpowerSelectionModal.SubpowerCanceledHandler subpowerCanceled = null)
     {
         var wasActive = instance.gameObject.activeSelf;
         var mainPanel = instance.mainPanel;
+        var wasMainPanelActive = mainPanel.gameObject.activeSelf;
         FloatingPanelBounds.RestoreAttachmentList(mainPanel.RectTransform);
 
         instance.gameObject.SetActive(true);
         mainPanel.gameObject.SetActive(true);
         instance.caster = caster;
-        instance.containerFeature = null; //Can lead to potential crash if TA suddenly starts using this
+        instance.containerFeature = null;
         instance.subpowerEngaged = subpowerEngaged;
-        instance.subpowerCanceled = null;
+        instance.subpowerCanceled = subpowerCanceled;
         instance.powerDefinitions.Clear();
         instance.powerDefinitions.AddRange(powers);
 
@@ -47,16 +109,22 @@ internal static class SubpowerSelectionModalExtensions
 
                 component.Bind(caster, power, i, index =>
                 {
-                    if (instance.subpowerEngaged != null)
+                    // The handler may open another selector or hide the owning panel. Finish this
+                    // selector first so its Unbind cannot clear the new selection's state.
+                    var engaged = instance.subpowerEngaged;
+                    if (engaged == null || instance.caster == null || index < 0 ||
+                        index >= instance.powerDefinitions.Count)
                     {
-                        var usablePower = PowerProvider.Get(instance.powerDefinitions[index], instance.caster);
-                        instance.subpowerEngaged(usablePower, index);
+                        return;
                     }
 
-                    instance.Hide();
+                    var usablePower = PowerProvider.Get(instance.powerDefinitions[index], instance.caster);
+                    instance.Hide(true);
+                    engaged(usablePower, index);
                 });
 
-                component.Button.enabled = valid;
+                component.Button.enabled = true;
+                component.Button.interactable = valid;
                 component.GetComponent<GuiLabelHighlighter>().enabled = valid;
                 component.powerTitle.TMP_Text.color = Color.gray;
             }
@@ -72,8 +140,9 @@ internal static class SubpowerSelectionModalExtensions
             attachment,
             instance.subpowersTable,
             new Vector3(70, -400, 0));
+        instance.BindBackgroundDismissal();
 
         instance.gameObject.SetActive(wasActive);
-        mainPanel.gameObject.SetActive(wasActive);
+        mainPanel.gameObject.SetActive(wasMainPanelActive);
     }
 }

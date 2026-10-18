@@ -93,7 +93,6 @@ Failure/&FailureFlagNoValidRemainingPages=Nessuno dei libri degli incantesimi di
 Failure/&FailureFlagNotAreaOfEffect=L'incantesimo ha come bersaglio e non ha effetto su un'area.
 Failure/&FailureFlagNotEnoughFood=Ti mancano {0} unità di cibo.
 Failure/&FailureFlagNotEnoughMove=Movimento insufficiente.
-Failure/&FailureFlagNotInBattle=Non in battaglia.
 Failure/&FailureFlagOncePerTurnOnly=Solo una volta per turno.
 Failure/&FailureFlagOnlyAfterALongRest=Puoi farlo solo dopo un lungo riposo.
 Failure/&FailureFlagOnlyInBattle=Solo in battaglia

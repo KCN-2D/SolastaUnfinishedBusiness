@@ -568,7 +568,7 @@ internal static class FloatingPanelBounds
         return overlapArea;
     }
 
-    private static Vector2 GetCanvasLocalDelta(Rect bounds, RectTransform canvasRect, float margin)
+    internal static Vector2 GetCanvasLocalDelta(Rect bounds, RectTransform canvasRect, float margin)
     {
         var delta = Vector2.zero;
         var canvasBounds = GetInsetCanvasRect(canvasRect, margin);

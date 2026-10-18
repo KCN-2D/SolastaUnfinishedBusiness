@@ -263,6 +263,12 @@ internal static class CampaignsDisplay
             Main.Settings.RemoveBugVisualModels = toggle;
         }
 
+        toggle = Main.Settings.ShowChannelDivinityOnPortrait;
+        if (UI.Toggle(Gui.Localize("ModUi/&ShowChannelDivinityOnPortrait"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.ShowChannelDivinityOnPortrait = toggle;
+        }
+
         toggle = Main.Settings.ShowButtonWithControlledMonsterInfo;
         if (UI.Toggle(Gui.Localize("ModUi/&ShowButtonWithControlledMonsterInfo"), ref toggle, UI.AutoWidth()))
         {
@@ -574,7 +580,14 @@ internal static class CampaignsDisplay
             Main.Settings.EnableSpeechOnNpcs = toggle;
         }
 
-        if (!Main.Settings.EnableSpeech && !Main.Settings.EnableSpeechOnNpcs)
+        toggle = Main.Settings.EnableSpeechOnInteractions;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableSpeechOnInteractions"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableSpeechOnInteractions = toggle;
+        }
+
+        if (!Main.Settings.EnableSpeech && !Main.Settings.EnableSpeechOnNpcs &&
+            !Main.Settings.EnableSpeechOnInteractions)
         {
             return;
         }

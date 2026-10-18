@@ -20,7 +20,17 @@ public static class NarrativeStateNpcSpeechPatcher
             //PATCH: supports speech feature
             if (NarrativeDirectionManagerPatcher.RegisterSpeechState(__instance))
             {
-                SpeechContext.SpeakNpc(textLine, __instance.speaker, owner: __instance);
+                // User dialogs also use NpcSpeech for object descriptions without
+                // an actor. Native BuildHook/RecordAdventureLog preserve that prose
+                // with a null speaker; it belongs to the narrator, not an NPC voice.
+                if (__instance.speaker == null)
+                {
+                    SpeechContext.SpeakInteraction(textLine, __instance);
+                }
+                else
+                {
+                    SpeechContext.SpeakNpc(textLine, __instance.speaker, owner: __instance);
+                }
             }
 
             //PATCH: EnableLogDialoguesToConsole

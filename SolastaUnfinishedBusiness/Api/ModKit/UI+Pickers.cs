@@ -120,7 +120,9 @@ internal static partial class UI
 
             using (HorizontalScope())
             {
-                Label(title, titleStyle, Width(titleWidth));
+                // A fixed title minimum feeds the wide row back into its own width
+                // measurement after a resize, preventing the stacked layout below it.
+                Label(title, titleStyle, MinWidth(0f), MaxWidth(titleWidth), ExpandWidth(true));
                 Space(25f);
                 var changed = SelectionGrid(ref selected, texts, xCols, gridOptions);
                 if (gridWidth > 0f)

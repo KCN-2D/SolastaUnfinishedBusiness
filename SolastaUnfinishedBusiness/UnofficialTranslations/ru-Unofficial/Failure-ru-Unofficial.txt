@@ -91,7 +91,6 @@ Failure/&FailureFlagNoSuitableLightTarget=У вас нет предметов, �
 Failure/&FailureFlagNotAreaOfEffect=Это заклинание поражает только цель, но не область
 Failure/&FailureFlagNotEnoughFood=У вас не хватает {0} ед. еды.
 Failure/&FailureFlagNotEnoughMove=Недостаточный запас хода.
-Failure/&FailureFlagNotInBattle=Не в бою.
 Failure/&FailureFlagNoTorchInInventory=У вас нет факелов.
 Failure/&FailureFlagNoValidRemainingPages=В книгах заклинаний этого персонажа не хватает {0} стр. для заклинания «{1}».
 Failure/&FailureFlagOncePerTurnOnly=Только один раз за ход.

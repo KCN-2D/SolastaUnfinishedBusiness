@@ -1,4 +1,4 @@
-Condition/&ConditionCollegeOfValianceDishearteningPerformanceDescription=При следующем успешном спасброске вы должны вычесть число, выпавшее на кости Бардовского вдохновения.
+Condition/&ConditionCollegeOfValianceDishearteningPerformanceDescription=Вычтите результат броска кости Бардовского вдохновения барда, наложившего этот эффект, из вашего следующего спасброска, который иначе был бы успешным.
 Condition/&ConditionCollegeOfValianceDishearteningPerformanceTitle=Удручающее выступление
 Feature/&AutoPreparedSpellsCollegeOfValianceRecallLanguageDescription=Вы получили знания многих языков, читая иностранные произведения, и вы можете магически овладеть этими языками, добавив заклинание Языки к списку известных заклинаний.
 Feature/&AutoPreparedSpellsCollegeOfValianceRecallLanguageTitle=Вспомнить язык
@@ -6,7 +6,7 @@ Feature/&FeatureCollegeOfValianceCaptivatingPresenceDescription=Вы масте�
 Feature/&FeatureCollegeOfValianceCaptivatingPresenceTitle=Златоуст
 Feature/&FeatureCollegeOfValianceSteadfastInspirationDescription=Ваши ободряющие слова настолько вдохновляют, что окружающие чувствуют стремление к успеху. Когда дружественное существо добавляет одну из ваших костей Бардовского вдохновения к своей проверке навыков, броску атаки или спасброску и бросок оказывается неудачным, существо может оставить себе кость Бардовского вдохновения.
 Feature/&FeatureCollegeOfValianceSteadfastInspirationTitle=Непоколебимое вдохновение
-Feature/&PowerCollegeOfValianceDishearteningPerformanceDescription=Ваши храбрые поступки деморализуют ваших противников. В качестве бонусного действия вы можете потратить одно использование своего Бардовского вдохновения и выбрать одно враждебное существо, которое вы видите в пределах 60 футов от себя. Бросьте кость Бардовского вдохновения. Существо должно вычесть выпавшее число из первого успешного спасброска, который оно совершит до конца вашего следующего хода.
+Feature/&PowerCollegeOfValianceDishearteningPerformanceDescription=Бонусным действием потратьте одно использование Бардовского вдохновения, чтобы деморализовать видимое вам враждебное существо. До конца вашего следующего хода цель вычитает результат броска одной из ваших костей Бардовского вдохновения из первого спасброска, который иначе был бы успешным.
 Feature/&PowerCollegeOfValianceDishearteningPerformanceTitle=Удручающее выступление
 Feature/&PowerCollegeOfValianceHeroicInspirationDescription=Бонусным действием вы можете активировать Героическое вдохновение. Героическое вдохновение даёт все преимущества Бардовского вдохновения без затрат на использование Бардовского вдохновения и может выбрать целью двух дружественных существ в пределах 60 футов вместо одного. Вы можете использовать эту способность 2 раза до продолжительного отдыха.
 Feature/&PowerCollegeOfValianceHeroicInspirationTitle=Героическое вдохновение

@@ -48,7 +48,7 @@ public sealed class WayOfTheStormSoul : AbstractSubclass
         var powerLightningLure = FeatureDefinitionPowerBuilder
             .Create($"Power{Name}LightningLure")
             .SetGuiPresentation(Category.Feature,
-                Sprites.GetSprite("PowerLightningLure", Resources.PowerLightningLure, 128))
+                Sprites.GetPowerSprite("PowerLightningLure", Resources.PowerLightningLure))
             .SetUsesFixed(ActivationTime.NoCost)
             .SetEffectDescription(
                 EffectDescriptionBuilder

@@ -1248,6 +1248,7 @@ public static class CharacterActionPanelPatcher
         [UsedImplicitly]
         public static bool Prefix(CharacterActionPanel __instance, RulesetUsablePower usablePower) =>
             !ActionPanelContext.TrySelectFamiliarTouchSpell(__instance, usablePower) &&
-            !Tabletop2024Context.TrySelectDivineIntervention(__instance, usablePower);
+            !Tabletop2024Context.TrySelectDivineIntervention(__instance, usablePower) &&
+            !Tabletop2024Context.TrySelectWeaponMastery(__instance, usablePower);
     }
 }

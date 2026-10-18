@@ -285,6 +285,7 @@ ModUi/&EnableSortingDungeonMakerAssets=Enable assets sorting on Dungeon Maker ed
 ModUi/&EnableSpeech=Enable speech on custom campaigns <i><color=#F0DAA0>[narration and heroes only]</color></i>
 ModUi/&EnableSpeechActorHelp=• Select an actor
 ModUi/&EnableSpeechOnNpcs=Enable NPC speech
+ModUi/&EnableSpeechOnInteractions=Read object interaction descriptions with the narrator voice
 ModUi/&EnableSpeechVoiceHelp=• Select a voice and narration speed
 ModUi/&EnableStackableArtItems=Enable stacking <color=#D89555>Art Items</color> <i><color=#F0DAA0>[cannot be split while this setting is disabled]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Enable stacking <color=#D89555>Daggers</color> and <color=#D89555>Hand Axes</color> <i><color=#F0DAA0>[cannot be split while this setting is disabled]</color></i>
@@ -566,6 +567,7 @@ ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=Enable <color=#D89555>small race
 ModUi/&EnableHeavyWeaponAbilityRequirement2024=Enable 2024 Heavy weapon ability requirement <i><color=#F0DAA0>[STR 13 for melee, DEX 13 for ranged; otherwise disadvantage]</color></i>
 ModUi/&UseWeaponMasterySystem=Enable <color=#D89555>Weapon Mastery</color> rules
 ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Grant 2 weapon mastery picks to Way of Blade Monk subclass</i>
+ModUi/&WayOfBladeWeaponMasteryRequiresSystemHelp=Enable Weapon Mastery under Gameplay > Rules to use this subclass option. Your selection is retained while Weapon Mastery is disabled.
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ Cleave mastery add attribute score modifier to second attack damage</i>
 ModUi/&UseWeaponMasterySystemAddWeaponTag=<i>+ Add mastery tag to all game weapons</i>
 ModUi/&UseWeaponMasterySystemFlurryTriggersMastery=<i>+ Dual Flurry extra attack can trigger another mastery</i>
@@ -593,6 +595,7 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Will reset all weapon mastery
 ModUi/&WideScreenBattleUI=Enable Wide Screen Battle UI <i><color=#F0DAA0>(For resolutions with an Aspect Ratio greater than 16:9)</color></i>
 ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race; Human's features are adjusted accordingly <i><color=#F0DAA0>(Flexible Races does not apply while this option is enabled)</color></i>
 ModUi/&EnableBackgroundBonusFeats=Change background grants to a 2024 origin feat, two skill proficiencies and one tool proficiency <i><color=#F0DAA0>(Requires Background ASI; Flexible Backgrounds does not apply while this option is enabled)</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Enable background ability score increases to grant origin feats from backgrounds.
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
@@ -688,3 +691,7 @@ ModUi/&SettingsListNoResults=No matching entries.
 ModUi/&SettingsListSelected=Selected: {0}
 ModUi/&SpeechAssignAllAutomatic=Assign voices automatically to the narrator and all heroes
 ModUi/&SpeechAutomaticResolved=Automatic assignment: {0}
+ModUi/&EnableAssassinAssassinate2024=Use 2024 <color=#D89555>Assassinate</color> at Slayer level 3 <i><color=#F0DAA0>[initiative advantage and extra first-round Sneak Attack damage]</color></i>
+ModUi/&EnableToolChecks2024=Use 2024 tool-check proficiency rules
+ModUi/&ToolChecks2024Description=For checks using thieves' tools, apply Sleight of Hand proficiency and skill-specific effects. Add the higher skill or tool proficiency bonus once; proficiency in both grants advantage.
+ModUi/&EnableAssassinInfiltrationExpertise2024=Use 2024 <color=#D89555>Infiltration Expertise</color> at Slayer level 9 <i><color=#F0DAA0>[Deception proficiency or expertise and movement after Steady Aim; grants Steady Aim to these Slayers even when its class option is disabled]</color></i>

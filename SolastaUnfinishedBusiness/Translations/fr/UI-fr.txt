@@ -32,4 +32,7 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=Changer le ty
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=Utiliser le type de dégâts choisi pour ce coup.
 Failure/&InvocationRequiresWarlockCantrip=Vous devez connaître {0} comme sort mineur de sorcier.
 Screen/&SubspellSelectionBackTitle=Retour
+Tooltip/&ToolAndSkillProficiency2024Title=Maîtrise d'un outil et d'une compétence
 Screen/&SubspellSelectionBackDescription=Revenir au choix précédent.
+Failure/&FailureFlagNotInBattle=Cette action ne peut pas être effectuée en combat.
+Failure/&WeaponMasteryRelearnUnavailable=Vous ne pouvez pas modifier votre maîtrise d'arme pour le moment.

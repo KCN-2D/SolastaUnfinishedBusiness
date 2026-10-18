@@ -28,7 +28,7 @@ Feature/&FeatureWeaponMasteryVexDescription=この武器でクリーチャーに
 Feature/&FeatureWeaponMasteryVexTitle=崩し
 Feature/&InvocationPoolWeaponMasteryLearnDescription=武器種別を選び、その武器に対応する武器マスタリー特性を修得します。
 Feature/&InvocationPoolWeaponMasteryLearnTitle=武器マスタリー
-Feature/&PowerWeaponMasteryRelearnDescription=武器種別を選び、その武器に対応する武器マスタリー特性を再修得します。
+Feature/&PowerWeaponMasteryRelearnDescription=修得済みの武器マスタリーを1つ選び、別の武器マスタリーに入れ替えます。
 Feature/&PowerWeaponMasteryRelearnTitle=武器マスタリー：再修得
 Reaction/&ReactionSpendPowerBundleFeatureSetFighterTacticalMasterDescription=この攻撃では、{0}を別のマスタリーに置き換えることができます。
 Reaction/&ReactionSpendPowerBundleFeatureSetFighterTacticalMasterReactDescription=新しいマスタリーを選択してください。
@@ -51,3 +51,7 @@ Tooltip/&TagDeadlyTitle=致命的
 Feature/&FeatureWeaponMasteryDeadlyDescription=クリティカル・ヒット時、追加ダメージ・ダイスは次に大きいダイス種別へ強化されます。
 Feedback/&WeaponMasteryDeadlyTriggered={0}が{1}を発動し、{4}ダメージに対して{2}を{3}へ強化します：{5}+{4}={6}
 UI/&CustomFeatureSelectionTooltipTypeWeaponMastery=武器マスタリー特性
+UI/&WeaponMasteryRelearnSourceTitle=入れ替える武器マスタリー
+UI/&WeaponMasteryRelearnReplacementTitle=新たに修得する武器マスタリー
+UI/&WeaponMasteryRelearnChooseDescription=新たに修得する武器マスタリーを選んでください。
+UI/&WeaponMasteryRelearnConfirmTitle=修得

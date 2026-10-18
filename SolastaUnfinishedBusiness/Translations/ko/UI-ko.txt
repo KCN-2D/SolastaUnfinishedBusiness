@@ -32,4 +32,7 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=피해 유형
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=이번 명중에 선택한 피해 유형을 사용합니다.
 Failure/&InvocationRequiresWarlockCantrip={0}을 흑마법사 소마법으로 알고 있어야 합니다.
 Screen/&SubspellSelectionBackTitle=뒤로
+Tooltip/&ToolAndSkillProficiency2024Title=도구 및 기술 숙련
 Screen/&SubspellSelectionBackDescription=이전 선택으로 돌아갑니다.
+Failure/&FailureFlagNotInBattle=전투 중에는 이 행동을 할 수 없습니다.
+Failure/&WeaponMasteryRelearnUnavailable=지금은 무기 숙련을 변경할 수 없습니다.

@@ -28,17 +28,15 @@ namespace SolastaUnfinishedBusiness.Models;
 
 public static partial class Tabletop2024Context
 {
-    private const string Stage = "WeaponMasteryRelearn";
-    private const string IndexUnlearn = "WeaponMasteryUnlearn";
-    private const string IndexLearn = "WeaponMasteryLearn";
-    private const int StageNotLearned = -1;
-    private const int StageLearned = 1;
+    private const string WeaponMasteryInvocationNamePrefix = "CustomInvocationWeaponMastery";
     private const string PowerWeaponMasteryRelearnNamePrefix = "PowerWeaponMasteryRelearn";
 
     private const string WeaponMasteryCleave = "WeaponMasteryCleave";
     internal const string WeaponMasteryNick = "WeaponMasteryNick";
     private const string WeaponMasteryTopple = "WeaponMasteryTopple";
     private static readonly Dictionary<MasteryProperty, FeatureDefinition> MasteryFeatures = [];
+    private static readonly Dictionary<WeaponTypeDefinition,
+        (InvocationDefinitionCustom Invocation, FeatureDefinitionPower RelearnPower)> WeaponMasteryDefinitions = [];
 
     internal static readonly FeatureDefinition FeatureWeaponMasteryBehavior = FeatureDefinitionBuilder
         .Create("FeatureWeaponMasteryBehavior")
@@ -56,13 +54,12 @@ public static partial class Tabletop2024Context
                 .Create()
                 .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
                 .Build())
-        .AddCustomSubFeatures(new MagicEffectFinishedByMeRelearn())
         .AddToDB();
 
     internal static readonly FeatureDefinitionPower PowerWeaponMasteryRelearn = FeatureDefinitionPowerBuilder
         .Create("PowerWeaponMasteryRelearn")
         .SetGuiPresentation(Category.Feature,
-            Sprites.GetSprite("PowerWeaponMasteryRelearn", Resources.PowerWeaponMasteryRelearn, 256, 128))
+            Sprites.GetPowerSprite("PowerWeaponMasteryRelearn", Resources.PowerWeaponMasteryRelearn))
         .SetShowCasting(false)
         .SetUsesFixed(ActivationTime.NoCost, RechargeRate.LongRest)
         .SetEffectDescription(
@@ -71,9 +68,7 @@ public static partial class Tabletop2024Context
                 .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
                 .Build())
         .AddCustomSubFeatures(
-            ValidatorsValidatePowerUse.NotInCombat,
-            new ValidatorsValidatePowerUse(c => c.GetRemainingPowerUses(PowerWeaponMasteryRelearnPool) > 0),
-            new PowerOrSpellFinishedByMeRelearn())
+            new ValidatorsValidatePowerUse(CanRelearnWeaponMastery))
         .AddToDB();
 
     private static readonly FeatureDefinitionFeatureSet FeatureSetWeaponMasteryLearn1 =
@@ -281,42 +276,6 @@ public static partial class Tabletop2024Context
         { WeaponTypeDefinitions.WarhammerType, MasteryProperty.Push }
     };
 
-    private static readonly WeaponTypeDefinition[] WeaponMasteryWeapons = WeaponMasteryTable.Keys.ToArray();
-
-    private static bool TryGetWeaponMasteryWeaponName(int index, out string weaponTypeName)
-    {
-        if (index < 0 || index >= WeaponMasteryWeapons.Length)
-        {
-            weaponTypeName = null;
-            return false;
-        }
-
-        weaponTypeName = WeaponMasteryWeapons[index].Name;
-        return true;
-    }
-
-    private static void SetSelectedWeaponMasteryIndex(
-        GameLocationCharacter character,
-        string key,
-        ReactionRequestSpendBundlePower reactionRequest)
-    {
-        var sourceDefinitionName = reactionRequest.ReactionParams.RulesetEffect?.SourceDefinition?.Name;
-
-        if (sourceDefinitionName == null ||
-            !sourceDefinitionName.StartsWith(PowerWeaponMasteryRelearnNamePrefix, StringComparison.Ordinal))
-        {
-            character.SetSpecialFeatureUses(key, -1);
-            return;
-        }
-
-        var selectedWeaponTypeName = sourceDefinitionName.Substring(PowerWeaponMasteryRelearnNamePrefix.Length);
-        var selectedIndex = Array.FindIndex(
-            WeaponMasteryWeapons,
-            weapon => string.Equals(weapon.Name, selectedWeaponTypeName, StringComparison.Ordinal));
-
-        character.SetSpecialFeatureUses(key, selectedIndex);
-    }
-
     private static void LoadWeaponMastery()
     {
         // Cleave
@@ -372,8 +331,6 @@ public static partial class Tabletop2024Context
 
         // level up custom invocations and re-learn powers
 
-        var powers = new List<FeatureDefinitionPower>();
-
         foreach (var kvp in WeaponMasteryTable)
         {
             var weaponTypeDefinition = kvp.Key;
@@ -386,8 +343,8 @@ public static partial class Tabletop2024Context
                 .SetFeatureSet(actionAffinityToggle, featureSpecialization)
                 .AddToDB();
 
-            _ = CustomInvocationDefinitionBuilder
-                .Create($"CustomInvocationWeaponMastery{weaponTypeName}")
+            var invocation = CustomInvocationDefinitionBuilder
+                .Create($"{WeaponMasteryInvocationNamePrefix}{weaponTypeName}")
                 .SetGuiPresentation(
                     weaponTypeDefinition.GuiPresentation.Title,
                     featureSpecialization.GuiPresentation.Description,
@@ -398,23 +355,25 @@ public static partial class Tabletop2024Context
                 .AddToDB();
 
             var powerRelearnWeapon = FeatureDefinitionPowerSharedPoolBuilder
-                .Create($"PowerWeaponMasteryRelearn{weaponTypeName}")
+                .Create($"{PowerWeaponMasteryRelearnNamePrefix}{weaponTypeName}")
                 .SetGuiPresentation(
-                    weaponTypeDefinition.FormatTitle(), featureSpecialization.GuiPresentation.Description)
+                    weaponTypeDefinition.GuiPresentation.Title, featureSpecialization.GuiPresentation.Description)
                 .SetShowCasting(false)
-                .SetSharedPool(ActivationTime.NoCost, PowerWeaponMasteryRelearnPool)
+                .SetSharedPool(ActivationTime.NoCost, PowerWeaponMasteryRelearn)
                 .SetEffectDescription(
                     EffectDescriptionBuilder
                         .Create()
                         .SetTargetingData(Side.Ally, RangeType.Self, 0, TargetType.Self)
                         .Build())
+                .AddCustomSubFeatures(new RelearnWeaponMastery(weaponTypeDefinition))
                 .AddToDB();
 
             powerRelearnWeapon.GuiPresentation.hidden = true;
-            powers.Add(powerRelearnWeapon);
+            WeaponMasteryDefinitions.Add(weaponTypeDefinition, (invocation, powerRelearnWeapon));
         }
 
-        PowerBundle.RegisterPowerBundle(PowerWeaponMasteryRelearnPool, false, powers);
+        PowerBundle.RegisterPowerBundle(PowerWeaponMasteryRelearnPool, false,
+            WeaponMasteryDefinitions.Values.Select(definition => definition.RelearnPower));
 
         foreach (var pair in WeaponMasteryTable)
         {
@@ -424,7 +383,7 @@ public static partial class Tabletop2024Context
 
             if (def == current) { continue; }
 
-            UpdateWeaponMasteryDescriptions(weapon.Name, current);
+            UpdateWeaponMasteryDescriptions(weapon);
         }
     }
 
@@ -461,6 +420,8 @@ public static partial class Tabletop2024Context
             RemoveWeaponMasteryUnlocks(klass.FeatureUnlocks);
         }
 
+        SwitchWayOfBladeWeaponMastery();
+
         if (!Main.Settings.UseWeaponMasterySystem)
         {
             return;
@@ -485,8 +446,6 @@ public static partial class Tabletop2024Context
         Paladin.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
         Ranger.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
         Rogue.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
-
-        SwitchWayOfBladeWeaponMastery();
     }
 
     public static void SwitchWayOfBladeWeaponMastery()
@@ -496,8 +455,8 @@ public static partial class Tabletop2024Context
 
         if (!Main.Settings.UseWeaponMasterySystem || !Main.Settings.UseWeaponMasteryMonkWayOfBlade) { return; }
 
-        wayOfTheBlade.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
         wayOfTheBlade.FeatureUnlocks.Add(new FeatureUnlockByLevel(FeatureSetWeaponMasteryLearn2, 3));
+        wayOfTheBlade.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
     }
 
     private static void RemoveWeaponMasteryUnlocks(List<FeatureUnlockByLevel> unlocks)
@@ -1003,7 +962,11 @@ public static partial class Tabletop2024Context
                 if (attacker.GetSpecialFeatureUses(WeaponMasteryNick) >= 1) { yield break; }
 
                 var rulesetAttacker = attacker.RulesetCharacter;
-                if (rulesetAttacker.ExecutedBonusAttacks != 0) { yield break; }
+                if (rulesetAttacker.ExecutedBonusAttacks >
+                    (HasUsedDualWielder2024BonusAttack(attacker) ? 1 : 0))
+                {
+                    yield break;
+                }
 
 
                 var attackMode = action.ActionParams.AttackMode;
@@ -1015,7 +978,11 @@ public static partial class Tabletop2024Context
                 }
 
                 var weapon = rulesetAttacker.GetOffhandWeapon();
-                if (weapon == null) { yield break; }
+                if (weapon?.ItemDefinition.WeaponDescription?.WeaponTags
+                        .Contains(TagsDefinitions.WeaponTagLight) != true)
+                {
+                    yield break;
+                }
 
                 if (!ValidatorsCharacter.HasMeleeWeaponInMainAndOffhand(rulesetAttacker)) { yield break; }
 
@@ -1148,13 +1115,15 @@ public static partial class Tabletop2024Context
         if (locationCharacter == null || locationCharacter.GetSpecialFeatureUses(WeaponMasteryNick) < 1) { return; }
 
         var offHand = character.GetOffhandWeapon();
-        var nickAttack = offHand != null
+        var nickAttack = offHand?.ItemDefinition.WeaponDescription?.WeaponTags
+                .Contains(TagsDefinitions.WeaponTagLight) == true
             ? modes.FirstOrDefault(m => m.ActionType == ActionType.Bonus && m.SourceObject == offHand)
             : null;
 
         if (nickAttack != null)
         {
             nickAttack.actionType = ActionType.None; //hopefully this hides this attack from the action panel
+            nickAttack.AttackTags.Remove(DualWielder2024ExtraAttack);
             nickAttack.AddAttackTagAsNeeded(WeaponMasteryNick);
             if (Main.Settings.UseWeaponMasterySystemNickDualFlurry)
             {
@@ -1252,157 +1221,158 @@ public static partial class Tabletop2024Context
     // Relearn
     //
 
-    private sealed class PowerOrSpellFinishedByMeRelearn : IPowerOrSpellFinishedByMe
+    private static InvocationDefinitionCustom GetWeaponMasteryInvocation(WeaponTypeDefinition weapon) =>
+        WeaponMasteryDefinitions[weapon].Invocation;
+
+    private static bool HasWeaponMasteryInvocation(RulesetCharacter character, InvocationDefinition invocation) =>
+        character.Invocations.Any(known => known.InvocationDefinition == invocation);
+
+    private static bool CanChangeWeaponMastery(RulesetCharacter character) =>
+        Main.Settings.UseWeaponMasterySystem && Gui.Battle == null &&
+        character is RulesetCharacterHero or RulesetCharacterSimulacrum;
+
+    private static bool CanRelearnWeaponMastery(RulesetCharacter character) =>
+        CanChangeWeaponMastery(character) &&
+        character.GetPowerFromDefinition(PowerWeaponMasteryRelearn) is { RemainingUses: > 0 } &&
+        WeaponMasteryDefinitions.Values.Any(definition => HasWeaponMasteryInvocation(character, definition.Invocation)) &&
+        WeaponMasteryDefinitions.Values.Any(definition => !HasWeaponMasteryInvocation(character, definition.Invocation));
+
+    internal static bool TrySelectWeaponMastery(CharacterActionPanel panel, RulesetUsablePower usablePower)
     {
-        public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
+        var definition = usablePower.PowerDefinition;
+        if (definition != PowerWeaponMasteryRelearn)
         {
-            const string InvocationNamePrefix = "CustomInvocationWeaponMastery";
-            var character = action.ActingCharacter;
-            var rulesetCharacter = character.RulesetCharacter;
-            var aborted = false;
-            var usablePowers = new List<RulesetUsablePower>();
-            var usablePower = PowerProvider.Get(PowerWeaponMasteryRelearnPool, rulesetCharacter);
-
-            //
-            // UNLEARN
-            //
-
-            // ReSharper disable once LoopCanBeConvertedToQuery
-            foreach (var invocation in rulesetCharacter.Invocations
-                         .Where(x => x.InvocationDefinition.Name.StartsWith(InvocationNamePrefix)))
-            {
-                var weaponTypeName = invocation.InvocationDefinition.Name.Replace(InvocationNamePrefix, string.Empty);
-                var power = GetDefinition<FeatureDefinitionPower>($"PowerWeaponMasteryRelearn{weaponTypeName}");
-
-                usablePowers.Add(PowerProvider.Get(power, rulesetCharacter));
-            }
-
-            rulesetCharacter.UsablePowers.AddRange(usablePowers);
-            character.SetSpecialFeatureUses(Stage, StageNotLearned);
-
-            yield return character.MyReactToSpendPowerBundle(
-                usablePower,
-                [character],
-                character,
-                "WeaponMasteryRelearn",
-                "ReactionSpendPowerBundleWeaponMasteryUnlearnDescription".Localized(Category.Reaction),
-                ReactionValidatedUnlearn,
-                ReactionNotValidated);
-
-            usablePowers.Do(x => rulesetCharacter.UsablePowers.Remove(x));
-
-            if (aborted)
-            {
-                yield break;
-            }
-
-            //
-            // LEARN
-            //
-
-            usablePowers.Clear();
-
-            var weaponTypes = rulesetCharacter.Invocations.Where(x =>
-                    x.InvocationDefinition.Name.StartsWith(InvocationNamePrefix)).Select(x =>
-                    x.InvocationDefinition.Name.Replace(InvocationNamePrefix, string.Empty))
-                .ToList();
-
-            // ReSharper disable once LoopCanBeConvertedToQuery
-            foreach (var weaponTypeDefinition in WeaponMasteryTable.Keys
-                         .Where(x => !weaponTypes.Contains(x.Name)))
-            {
-                var weaponTypeName = weaponTypeDefinition.Name;
-                var power = GetDefinition<FeatureDefinitionPower>($"PowerWeaponMasteryRelearn{weaponTypeName}");
-
-                usablePowers.Add(PowerProvider.Get(power, rulesetCharacter));
-            }
-
-            rulesetCharacter.UsablePowers.AddRange(usablePowers);
-
-            yield return character.MyReactToSpendPowerBundle(
-                usablePower,
-                [character],
-                character,
-                "WeaponMasteryRelearn",
-                "ReactionSpendPowerBundleWeaponMasteryLearnDescription".Localized(Category.Reaction),
-                ReactionValidatedLearn,
-                ReactionNotValidated);
-
-            usablePowers.Do(x => rulesetCharacter.UsablePowers.Remove(x));
-
-            if (!aborted)
-            {
-                character.SetSpecialFeatureUses(Stage, StageLearned);
-            }
-
-            yield break;
-
-            void ReactionValidatedUnlearn(ReactionRequestSpendBundlePower reactionRequest)
-            {
-                SetSelectedWeaponMasteryIndex(character, IndexUnlearn, reactionRequest);
-            }
-
-            void ReactionValidatedLearn(ReactionRequestSpendBundlePower reactionRequest)
-            {
-                SetSelectedWeaponMasteryIndex(character, IndexLearn, reactionRequest);
-            }
-
-            void ReactionNotValidated(ReactionRequestSpendBundlePower reactionRequest)
-            {
-                aborted = true;
-                usablePower.remainingUses++;
-            }
+            return false;
         }
+
+        var character = panel.GuiCharacter?.RulesetCharacter;
+        var parameters = panel.actionParams;
+        if (character == null || parameters == null || !CanRelearnWeaponMastery(character))
+        {
+            return true;
+        }
+
+        var powers = WeaponMasteryDefinitions.Values
+            .Where(mastery => HasWeaponMasteryInvocation(character, mastery.Invocation))
+            .Select(mastery => mastery.RelearnPower)
+            .OrderBy(power => power.FormatTitle()).ToList();
+        var powerPanel = panel.PowerSelectionPanel;
+        var sourceBox = powerPanel.usablePowerBoxes.FirstOrDefault(box =>
+            box && box.gameObject.activeInHierarchy && box.usablePower?.PowerDefinition == definition);
+        var dropdown = Gui.GuiService.GetScreen<SubpowerSelectionModal>();
+        dropdown.Bind(powers, character, (selectedPower, _) =>
+        {
+            if (!IsCurrentSelection() ||
+                selectedPower.PowerDefinition.GetFirstSubFeatureOfType<RelearnWeaponMastery>() is not { } relearn)
+            {
+                return;
+            }
+
+            panel.PowerSelectionPanel.Hide(true);
+            CustomInvocationSelectionPanel.SelectInvocation(
+                character,
+                InvocationPoolTypeCustom.Pools.WeaponMasterySpecialization,
+                PowerWeaponMasteryRelearn.GuiPresentation.Title,
+                new CustomInvocationSelectionPanel.InvocationReplacementPresentation(
+                    GetWeaponMasteryInvocation(relearn.Weapon),
+                    "UI/&WeaponMasteryRelearnSourceTitle",
+                    "UI/&WeaponMasteryRelearnReplacementTitle",
+                    "UI/&WeaponMasteryRelearnChooseDescription",
+                    "UI/&WeaponMasteryRelearnConfirmTitle",
+                    invocation =>
+                    {
+                        var weapon = WeaponMasteryDefinitions.First(pair => pair.Value.Invocation == invocation).Key;
+                        var feature = MasteryFeatures[weapon.GetMastery()];
+                        return $"{feature.FormatTitle()}\n\n{feature.FormatDescription()}";
+                    }),
+                invocation => IsCurrentSelection() && relearn.CanReplace(character, invocation),
+                invocation =>
+                {
+                    if (!IsCurrentSelection() ||
+                        !relearn.CanReplace(character, invocation))
+                    {
+                        return;
+                    }
+
+                    // Native PowerEngaged preserves these parameters when it instantiates and dispatches
+                    // the effect, so the replacement is carried by the synchronized action itself.
+                    parameters.StringParameter2 = invocation.Name;
+                    panel.PowerEngaged(selectedPower);
+                });
+        }, sourceBox ? sourceBox.RectTransform : powerPanel.RectTransform, () =>
+        {
+            if (IsCurrentSelection())
+            {
+                panel.PowerCancelled();
+            }
+        });
+        dropdown.Show();
+        return true;
+
+        bool IsCurrentSelection() => panel && panel.GuiCharacter?.RulesetCharacter == character &&
+                                     panel.actionParams == parameters && CanRelearnWeaponMastery(character);
     }
 
-    private sealed class MagicEffectFinishedByMeRelearn : IMagicEffectFinishedByMe
+    private sealed class RelearnWeaponMastery(WeaponTypeDefinition weapon) : IValidatePowerUse,
+        IValidateMagicEffectBeforeSpend, IPowerOrSpellFinishedByMe
     {
-        public IEnumerator OnMagicEffectFinishedByMe(
-            CharacterAction action, GameLocationCharacter attacker, List<GameLocationCharacter> targets)
+        internal WeaponTypeDefinition Weapon => weapon;
+
+        public bool CanUsePower(RulesetCharacter character, FeatureDefinitionPower power) =>
+            CanRelearnWeaponMastery(character) && HasWeaponMasteryInvocation(character, GetWeaponMasteryInvocation(weapon));
+
+        internal bool CanReplace(RulesetCharacter character, InvocationDefinition replacement) =>
+            IsValidReplacement(character, replacement) &&
+            character.GetPowerFromDefinition(PowerWeaponMasteryRelearn) is { RemainingUses: > 0 };
+
+        // The same replacement must remain valid after the action has spent its use.
+        private bool IsValidReplacement(RulesetCharacter character, InvocationDefinition replacement) =>
+            CanChangeWeaponMastery(character) &&
+            HasWeaponMasteryInvocation(character, GetWeaponMasteryInvocation(weapon)) &&
+            replacement is InvocationDefinitionCustom custom &&
+            custom.PoolType == InvocationPoolTypeCustom.Pools.WeaponMasterySpecialization &&
+            !HasWeaponMasteryInvocation(character, replacement) &&
+            WeaponMasteryDefinitions.Values.Any(definition => definition.Invocation == replacement);
+
+        public bool IsValid(CharacterActionMagicEffect action, GameLocationCharacter actingCharacter,
+            IReadOnlyList<GameLocationCharacter> targets, out string failure)
         {
-            var sourceDefinitionName = action.ActionParams.RulesetEffect?.SourceDefinition?.Name;
+            failure = "Failure/&WeaponMasteryRelearnUnavailable";
+            return TryGetDefinition<InvocationDefinition>(action.ActionParams.StringParameter2, out var replacement) &&
+                   CanReplace(actingCharacter.RulesetCharacter, replacement);
+        }
 
-            if (sourceDefinitionName == null ||
-                !sourceDefinitionName.StartsWith(PowerWeaponMasteryRelearnNamePrefix, StringComparison.Ordinal))
+        public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
+        {
+            var character = action.ActingCharacter.RulesetCharacter;
+            var usablePower = ((RulesetEffectPower)action.ActionParams.RulesetEffect).UsablePower;
+            var previous = GetWeaponMasteryInvocation(weapon);
+            if (!TryGetDefinition<InvocationDefinition>(action.ActionParams.StringParameter2, out var replacement) ||
+                !IsValidReplacement(character, replacement))
             {
+                character.RepayPowerUse(usablePower);
                 yield break;
             }
 
-            if (attacker.GetSpecialFeatureUses(Stage) < 0)
-            {
-                yield break;
-            }
-
-            var indexUnlearn = attacker.GetSpecialFeatureUses(IndexUnlearn);
-            if (!TryGetWeaponMasteryWeaponName(indexUnlearn, out var weaponTypeUnlearnName))
-            {
-                yield break;
-            }
-
-            var invocationToUnlearn =
-                GetDefinition<InvocationDefinition>($"CustomInvocationWeaponMastery{weaponTypeUnlearnName}");
-
-            var indexLearn = attacker.GetSpecialFeatureUses(IndexLearn);
-            if (!TryGetWeaponMasteryWeaponName(indexLearn, out var weaponTypeLearnName))
-            {
-                yield break;
-            }
-
-            var invocationToLearn =
-                GetDefinition<InvocationDefinition>($"CustomInvocationWeaponMastery{weaponTypeLearnName}");
-
-            switch (attacker.RulesetCharacter)
+            switch (character)
             {
                 case RulesetCharacterHero hero:
-                    hero.TrainedInvocations.Remove(invocationToUnlearn);
-                    hero.TrainedInvocations.Add(invocationToLearn);
+                    var index = hero.TrainedInvocations.IndexOf(previous);
+                    if (index < 0)
+                    {
+                        character.RepayPowerUse(usablePower);
+                        yield break;
+                    }
+
+                    hero.TrainedInvocations[index] = replacement;
                     hero.GrantInvocations();
+                    hero.RefreshAll();
                     break;
                 case RulesetCharacterSimulacrum duplicate:
-                    SimulacrumBehavior.TryReplaceInvocation(
-                        duplicate,
-                        invocationToUnlearn,
-                        invocationToLearn);
+                    if (!SimulacrumBehavior.TryReplaceInvocation(duplicate, previous, replacement))
+                    {
+                        character.RepayPowerUse(usablePower);
+                    }
                     break;
             }
         }
@@ -1429,18 +1399,25 @@ public static partial class Tabletop2024Context
             Main.Settings.WeaponMasteryCustom[weaponTypeName] = mastery;
         }
 
-        UpdateWeaponMasteryDescriptions(weaponTypeName, mastery);
+        UpdateWeaponMasteryDescriptions(weapon);
     }
 
-    private static void UpdateWeaponMasteryDescriptions(string weaponTypeName, MasteryProperty mastery)
+    private static void ResetWeaponMasteries()
     {
-        var description = MasteryFeatures[mastery].GuiPresentation.Description;
+        Main.Settings.WeaponMasteryCustom.Clear();
+        foreach (var weapon in WeaponMasteryDefinitions.Keys)
+        {
+            UpdateWeaponMasteryDescriptions(weapon);
+        }
+    }
 
-        GetDefinition<InvocationDefinition>($"CustomInvocationWeaponMastery{weaponTypeName}")
-            .GuiPresentation.Description = description;
+    private static void UpdateWeaponMasteryDescriptions(WeaponTypeDefinition weapon)
+    {
+        var description = MasteryFeatures[weapon.GetMastery()].GuiPresentation.Description;
+        var definitions = WeaponMasteryDefinitions[weapon];
 
-        GetDefinition<FeatureDefinitionPower>($"PowerWeaponMasteryRelearn{weaponTypeName}")
-            .GuiPresentation.Description = description;
+        definitions.Invocation.GuiPresentation.Description = description;
+        definitions.RelearnPower.GuiPresentation.Description = description;
     }
 
     private static bool _resetState;
@@ -1460,7 +1437,7 @@ public static partial class Tabletop2024Context
 
         UI.DangerousActionButton(Gui.Localize("ModUi/&WeaponMasterySystemCustomizeResetAll"),
             Gui.Localize("ModUi/&WeaponMasterySystemCustomizeResetAllWarning"),
-            ref _resetState, () => Main.Settings.WeaponMasteryCustom.Clear());
+            ref _resetState, ResetWeaponMasteries);
 
         using (UI.VerticalScope())
         {

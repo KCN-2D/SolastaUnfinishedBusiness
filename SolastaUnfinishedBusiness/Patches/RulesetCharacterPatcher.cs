@@ -1773,9 +1773,13 @@ public static class RulesetCharacterPatcher
             ref int rollModifier,
             ref int minRoll,
             [HarmonyArgument(7)] bool passive,
-            [HarmonyArgument(14)] bool rollDie)
+            [HarmonyArgument(14)] bool rollDie,
+            out IDisposable __state)
         {
+            __state = Tabletop2024Context.BeginToolCheckScope(__instance, proficiencyName);
+            Tabletop2024Context.AddToolCheckAdvantage(__instance, proficiencyName, advantageTrends);
             abilityScoreName = AbilityCheckAbilityReplacement.Resolve(__instance, abilityScoreName, proficiencyName);
+            var applicableProficiency = Tabletop2024Context.GetToolCheckProficiency(__instance, proficiencyName);
 
             foreach (var modifyAbilityCheck in __instance.GetSubFeaturesByType<IModifyAbilityCheck>())
             {
@@ -1786,9 +1790,15 @@ public static class RulesetCharacterPatcher
                 }
 
                 modifyAbilityCheck.MinRoll(
-                    __instance, baseBonus, abilityScoreName, proficiencyName,
+                    __instance, baseBonus, abilityScoreName, applicableProficiency,
                     advantageTrends, modifierTrends, ref rollModifier, ref minRoll);
             }
+        }
+
+        [UsedImplicitly]
+        private static void Finalizer(IDisposable __state)
+        {
+            __state?.Dispose();
         }
 
         [UsedImplicitly]
@@ -3673,9 +3683,45 @@ public static class RulesetCharacterPatcher
 
         [UsedImplicitly]
         [HarmonyPriority(Priority.First)]
-        private static void Prefix(RulesetCharacter __instance, ref string abilityScoreName, string proficiencyName)
+        private static void Prefix(
+            RulesetCharacter __instance,
+            ref string abilityScoreName,
+            string proficiencyName,
+            out IDisposable __state)
         {
+            __state = Tabletop2024Context.BeginToolCheckScope(__instance, proficiencyName);
             abilityScoreName = AbilityCheckAbilityReplacement.Resolve(__instance, abilityScoreName, proficiencyName);
+        }
+
+        [UsedImplicitly]
+        private static IEnumerable<CodeInstruction> Transpiler(
+            IEnumerable<CodeInstruction> instructions, MethodBase original, ILGenerator generator)
+        {
+            if (original.Name != nameof(RulesetCharacter.RollBasicAbilityCheck) ||
+                original.GetParameters().Length != 8)
+            {
+                return instructions;
+            }
+
+            var code = instructions.ToList();
+            var nativePath = generator.DefineLabel();
+            code[0].labels.Add(nativePath);
+            var toolPath = Enumerable.Range(0, 9)
+                .Select(index => new CodeInstruction(OpCodes.Ldarg, index)).ToList();
+
+            toolPath.Add(new CodeInstruction(OpCodes.Call,
+                AccessTools.Method(typeof(Tabletop2024Context), nameof(Tabletop2024Context.TryRollBasicToolCheck))));
+            toolPath.Add(new CodeInstruction(OpCodes.Brfalse, nativePath));
+            toolPath.Add(new CodeInstruction(OpCodes.Ret));
+            toolPath.AddRange(code);
+
+            return toolPath;
+        }
+
+        [UsedImplicitly]
+        private static void Finalizer(IDisposable __state)
+        {
+            __state?.Dispose();
         }
     }
 }

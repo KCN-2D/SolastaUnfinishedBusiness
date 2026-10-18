@@ -32,4 +32,7 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=Use the
 Failure/&InvocationRequiresWarlockCantrip=You must know {0} as a Warlock cantrip.
 Screen/&SubspellSelectionBackTitle=Back
 Screen/&SubspellSelectionBackDescription=Return to the previous selection.
+Tooltip/&ToolAndSkillProficiency2024Title=Tool and skill proficiency
+Failure/&FailureFlagNotInBattle=This action cannot be performed during combat.
+Failure/&WeaponMasteryRelearnUnavailable=You cannot change your weapon mastery now.
 Feature/&ListSeparatorTitle=, 

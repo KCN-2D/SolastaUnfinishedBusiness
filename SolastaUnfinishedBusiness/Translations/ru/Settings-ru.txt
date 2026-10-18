@@ -298,6 +298,7 @@ ModUi/&EnableSortingDungeonMakerAssets=Включить сортировку а�
 ModUi/&EnableSpeech=Включить речь в пользовательских кампаниях <i><color=#F0DAA0>[только повествование и герои]</color></i>
 ModUi/&EnableSpeechActorHelp=• Выберите актера
 ModUi/&EnableSpeechOnNpcs=Включить озвучивание NPC
+ModUi/&EnableSpeechOnInteractions=Читать описания осматриваемых объектов голосом рассказчика
 ModUi/&EnableSpeechVoiceHelp=• Выберите голос и скорость повествования
 ModUi/&EnableStackableArtItems=Включить возможность стакать <color=#D89555>Художественные предметы</color> <i><color=#F0DAA0>[нельзя разделить, пока эта настройка отключена]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Включить возможность стакать <color=#D89555>Кинжалы</color> и <color=#D89555>Топорики</color> <i><color=#F0DAA0>[нельзя разделить, пока эта настройка отключена]</color></i>
@@ -578,6 +579,7 @@ ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=Включить помеху <c
 ModUi/&EnableHeavyWeaponAbilityRequirement2024=Включить требование характеристик 2024 для тяжёлого оружия <i><color=#F0DAA0>[СИЛ 13 для ближнего боя, ЛВК 13 для дальнего; иначе помеха]</color></i>
 ModUi/&UseOldOfficialFlankingRules=<i> + Старое правило фланкирования было просто +2 для атаки. Выше правило модификатора выше, превышает приоритет </i>
 ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Дайте 2 выбора мастерства владения оружием подклассу монаха Пути Клинка</i>
+ModUi/&WayOfBladeWeaponMasteryRequiresSystemHelp=Чтобы использовать эту настройку подкласса, включите Оружейное мастерство в разделе Игровой процесс > Правила. Ваш выбор сохраняется, пока Оружейное мастерство отключено.
 ModUi/&UseWeaponMasterySystem=Включить правила <color=#D89555>Оружейного мастерства</color>
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ Мастерство рассекающего удара добавляет модификатор характеристики к урону второй атаки</i>
 ModUi/&UseWeaponMasterySystemAddWeaponTag=<i>+ Добавить метку мастерства ко всему оружию в игре</i>
@@ -593,6 +595,7 @@ ModUi/&WideScreenBattleUI=Включить широкоэкранный поль
 ModUi/&WildSurgeDieRollThreshold=<color=white>Установить пороговое значение вероятности срабатывания <color=#D89555>Дикой магии Чародея</color>:</color>\n<i><color=#F0DAA0>[Волна дикой магии срабатывает, если бросок меньше или равен пороговому значению]</color></i>
 ModUi/&EnableBackgroundAbilityScoreIncreases=Увеличение характеристик определяется предысторией вместо расы; особенности людей изменяются соответствующим образом <i><color=#F0DAA0>(Гибкие расы не применяются, пока эта настройка включена)</color></i>
 ModUi/&EnableBackgroundBonusFeats=Заменяет особенности предыстории чертой происхождения, владением двумя навыками и одним инструментом по правилам 2024 года <i><color=#F0DAA0>(Требуется увеличение характеристик от предыстории; Гибкие предыстории не применяются, пока эта настройка включена)</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Включите увеличение характеристик от предыстории, чтобы получать от предысторий черты происхождения.
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
@@ -688,3 +691,7 @@ ModUi/&SettingsListNoResults=Подходящих записей нет.
 ModUi/&SettingsListSelected=Выбрано: {0}
 ModUi/&SpeechAssignAllAutomatic=Автоматически назначить голоса рассказчику и всем героям
 ModUi/&SpeechAutomaticResolved=Автоматическое назначение: {0}
+ModUi/&EnableAssassinAssassinate2024=Использовать <color=#D89555>Убийство</color> 2024 года для Убийцы 3-го уровня <i><color=#F0DAA0>[преимущество на инициативу и дополнительный урон Скрытой атаки в первом раунде]</color></i>
+ModUi/&EnableToolChecks2024=Использовать правила владения инструментами 2024 года для проверок
+ModUi/&ToolChecks2024Description=При проверках с воровскими инструментами применяются владение навыком Ловкость рук и эффекты, относящиеся к этому навыку. Больший из бонусов за владение навыком или инструментом добавляется один раз; владение обоими даёт преимущество.
+ModUi/&EnableAssassinInfiltrationExpertise2024=Использовать <color=#D89555>Мастерство проникновения</color> 2024 года для Убийцы 9-го уровня <i><color=#F0DAA0>[владение или компетенция в Обмане и перемещение после Точного прицеливания; даёт этим Убийцам Точное прицеливание даже при отключённой опции класса]</color></i>

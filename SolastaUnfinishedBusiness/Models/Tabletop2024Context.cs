@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -24,6 +25,182 @@ namespace SolastaUnfinishedBusiness.Models;
 
 public static partial class Tabletop2024Context
 {
+    private const string ToolAndSkillProficiency2024Title = "Tooltip/&ToolAndSkillProficiency2024Title";
+    private static readonly Dictionary<string, string> ToolCheckSkills2024 = new()
+    {
+        { ToolDefinitions.ThievesToolsType, SkillDefinitions.SleightOfHand }
+    };
+
+    [ThreadStatic] private static ToolCheckScope _toolCheckScope;
+
+    internal static bool TryGetToolCheckSkill(
+        RulesetCharacter character,
+        string proficiencyName,
+        out string skillName,
+        bool checkInventory = true)
+    {
+        skillName = null;
+
+        if (!Main.Settings.EnableToolChecks2024 ||
+            character is not RulesetCharacterHero hero ||
+            string.IsNullOrEmpty(proficiencyName) ||
+            !ToolCheckSkills2024.TryGetValue(proficiencyName, out var associatedSkill))
+        {
+            return false;
+        }
+
+        if (checkInventory &&
+            (!TryGetDefinition<ToolTypeDefinition>(proficiencyName, out var tool) ||
+             hero.CharacterInventory == null || hero.CharacterInventory.CountToolsOfType(tool) == 0))
+        {
+            return false;
+        }
+
+        skillName = associatedSkill;
+        return true;
+    }
+
+    internal static IDisposable BeginToolCheckScope(RulesetCharacter character, string proficiencyName)
+    {
+        return _toolCheckScope != null ||
+               Main.Settings.EnableToolChecks2024 && !string.IsNullOrEmpty(proficiencyName) &&
+               ToolCheckSkills2024.ContainsKey(proficiencyName)
+            ? new ToolCheckScope(character, proficiencyName)
+            : null;
+    }
+
+    internal static string GetToolCheckProficiency(RulesetCharacter character, string proficiencyName)
+    {
+        return TryGetToolCheckSkill(character, proficiencyName, out var skillName)
+            ? skillName
+            : proficiencyName;
+    }
+
+    internal static bool IsMatchingToolCheckSkill(string proficiencyName, string skillName)
+    {
+        return _toolCheckScope != null &&
+               _toolCheckScope.ProficiencyName == proficiencyName &&
+               TryGetToolCheckSkill(_toolCheckScope.Character, proficiencyName, out var associatedSkill) &&
+               associatedSkill == skillName;
+    }
+
+    internal static bool ContainsToolCheckProficiency(List<string> proficiencies, string proficiencyName)
+    {
+        return proficiencies.Contains(proficiencyName) ||
+               proficiencies.Any(skillName => IsMatchingToolCheckSkill(proficiencyName, skillName));
+    }
+
+    internal static bool IsProficientForToolCheck(RulesetCharacterHero hero, string proficiencyName)
+    {
+        return _toolCheckScope?.Character == hero &&
+               _toolCheckScope.ProficiencyName == proficiencyName &&
+               TryGetToolCheckSkill(hero, proficiencyName, out var skillName) &&
+               hero.SkillProficiencies.Contains(skillName);
+    }
+
+    internal static void AddToolCheckAdvantage(
+        RulesetCharacter character,
+        string proficiencyName,
+        List<TrendInfo> advantageTrends)
+    {
+        if (advantageTrends == null ||
+            !TryGetToolCheckSkill(character, proficiencyName, out var skillName) ||
+            character is not RulesetCharacterHero hero ||
+            !hero.ToolTypeProficiencies.Contains(proficiencyName) ||
+            !hero.SkillProficiencies.Contains(skillName) ||
+            advantageTrends.Any(trend => trend.sourceType == FeatureSourceType.Unknown &&
+                                         trend.sourceName == ToolAndSkillProficiency2024Title))
+        {
+            return;
+        }
+
+        advantageTrends.Add(new TrendInfo(1, FeatureSourceType.Unknown, ToolAndSkillProficiency2024Title, null));
+    }
+
+    internal static bool TryRollBasicToolCheck(
+        RulesetCharacter character,
+        int baseBonus,
+        List<TrendInfo> modifierTrends,
+        string abilityScoreName,
+        string proficiencyName,
+        int checkDC,
+        out RollOutcome outcome,
+        out int successDelta,
+        bool notify)
+    {
+        outcome = RollOutcome.Neutral;
+        successDelta = 0;
+
+        if (!TryGetToolCheckSkill(character, proficiencyName, out var skillName))
+        {
+            return false;
+        }
+
+        var actionModifier = new ActionModifier();
+        actionModifier.AbilityCheckModifierTrends.AddRange(modifierTrends);
+        character.EnumerateFeaturesToBrowse<FeatureDefinitionAbilityCheckAffinity>(
+            character.FeaturesToBrowse, character.FeaturesOrigin);
+
+        foreach (var feature in character.FeaturesToBrowse.Cast<FeatureDefinitionAbilityCheckAffinity>())
+        {
+            // Retain the basic check's automatic outcomes, then use the same single
+            // affinity calculation as location checks for its numerical modifiers.
+            var group = feature.AffinityGroups.FirstOrDefault(group =>
+                group.abilityScoreName == abilityScoreName && group.abilityCheckContext == AbilityCheckContext.None &&
+                (string.IsNullOrEmpty(group.proficiencyName) || group.proficiencyName == proficiencyName ||
+                 group.proficiencyName == skillName) &&
+                group.affinity is CharacterAbilityCheckAffinity.AutomaticFail or
+                    CharacterAbilityCheckAffinity.AutomaticSuccess);
+
+            if (group != null)
+            {
+                outcome = group.affinity == CharacterAbilityCheckAffinity.AutomaticFail
+                    ? RollOutcome.Failure
+                    : RollOutcome.Success;
+                return true;
+            }
+
+            feature.ComputeAbilityCheckModifier(
+                abilityScoreName, proficiencyName, actionModifier, character.FeaturesOrigin[feature], 0,
+                GameLocationCharacter.GetFromActor(character)?.LightingState ?? LocationDefinitions.LightingState.Bright,
+                0, false);
+        }
+
+        character.RollAbilityCheck(
+            baseBonus, abilityScoreName, proficiencyName,
+            actionModifier.AbilityCheckModifierTrends, actionModifier.AbilityCheckAdvantageTrends,
+            actionModifier.AbilityCheckModifier, checkDC, false, -1,
+            out _, out _, out _, out outcome, out successDelta, false, notify, true);
+
+        return true;
+    }
+
+    // Affinity providers do not receive the acting character. Keep their skill alias
+    // local to the synchronous calculation, including nested checks and exceptions.
+    private sealed class ToolCheckScope : IDisposable
+    {
+        private readonly ToolCheckScope _previous;
+
+        internal ToolCheckScope(RulesetCharacter character, string proficiencyName)
+        {
+            Character = character;
+            ProficiencyName = proficiencyName;
+            _previous = _toolCheckScope;
+            _toolCheckScope = this;
+        }
+
+        internal RulesetCharacter Character { get; }
+        internal string ProficiencyName { get; }
+
+        public void Dispose()
+        {
+            if (_toolCheckScope == this)
+            {
+                _toolCheckScope = _previous;
+            }
+        }
+    }
+
     private static readonly FeatureDefinitionCombatAffinity CombatAffinityConditionSurprised =
         FeatureDefinitionCombatAffinityBuilder
             .Create("CombatAffinityConditionSurprised")
@@ -116,6 +293,7 @@ public static partial class Tabletop2024Context
         LoadPaladinRestoringTouch();
         LoadPaladinRestoreLevel20Features();
         LoadRogueCunningStrike();
+        LoadAssassinFeatures();
         LoadSorcererSorcerousRestoration();
         LoadWizardMemorizeSpell();
         LoadWeaponMastery();
@@ -221,6 +399,8 @@ public static partial class Tabletop2024Context
         SwitchRogueSteadyAim();
         SwitchRogueStrokeOfLuck();
         SwitchThiefUseMagicDevice();
+        SwitchAssassinAssassinate();
+        SwitchAssassinInfiltrationExpertise();
         SwitchSorcererWeaponProficiency();
         SwitchSorcererArcaneApotheosis();
         SwitchSorcererInnateSorcery();

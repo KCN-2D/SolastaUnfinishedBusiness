@@ -955,7 +955,7 @@ internal static class Level20SubclassesContext
             .SetEffectDescription(
                 EffectDescriptionBuilder
                     .Create()
-                    .SetEffectForms(EffectFormBuilder.DamageForm(DamageTypePiercing, 0, DieType.D1, 10))
+                    .SetEffectForms(EffectFormBuilder.DamageForm(DamageTypeFire, 0, DieType.D1, 10))
                     .SetParticleEffectParameters(FireBolt)
                     .Build())
             .AddToDB();

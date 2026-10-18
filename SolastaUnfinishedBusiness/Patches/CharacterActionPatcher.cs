@@ -223,6 +223,8 @@ public static class CharacterActionPatcher
                 yield return actionFinished.OnActionFinishedByMe(__instance);
             }
 
+            Tabletop2024Context.RefreshDualWielder2024AttackModesAfterAction(__instance);
+
             switch (__instance)
             {
                 case CharacterActionMoveStepBase:

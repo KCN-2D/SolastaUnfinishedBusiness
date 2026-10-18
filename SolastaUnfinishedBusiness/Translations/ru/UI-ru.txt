@@ -32,4 +32,7 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=Измени�
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=Использовать выбранный тип урона для этого попадания.
 Failure/&InvocationRequiresWarlockCantrip=Вы должны знать {0} как заговор колдуна.
 Screen/&SubspellSelectionBackTitle=Назад
+Tooltip/&ToolAndSkillProficiency2024Title=Владение инструментом и навыком
 Screen/&SubspellSelectionBackDescription=Вернуться к предыдущему выбору.
+Failure/&FailureFlagNotInBattle=Это действие нельзя выполнить во время боя.
+Failure/&WeaponMasteryRelearnUnavailable=Сейчас нельзя изменить мастерство оружия.

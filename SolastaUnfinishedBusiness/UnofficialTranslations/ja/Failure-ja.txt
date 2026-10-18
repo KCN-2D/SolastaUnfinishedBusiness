@@ -93,7 +93,6 @@ Failure/&FailureFlagNoValidRemainingPages=このキャラクターの呪文書�
 Failure/&FailureFlagNotAreaOfEffect=この呪文は対象を指定し、範囲には影響を与えません。
 Failure/&FailureFlagNotEnoughFood={0}単位の食料が不足しています。
 Failure/&FailureFlagNotEnoughMove=移動力が足りません。
-Failure/&FailureFlagNotInBattle=戦闘中ではありません。
 Failure/&FailureFlagOncePerTurnOnly=1ターンに1回のみ。
 Failure/&FailureFlagOnlyAfterALongRest=これは大休憩を終えた後にのみ行えます。
 Failure/&FailureFlagOnlyInBattle=戦闘中のみです。

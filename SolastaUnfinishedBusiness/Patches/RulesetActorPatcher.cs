@@ -1237,7 +1237,10 @@ public static class RulesetActorPatcher
                     new CodeInstruction(OpCodes.Ldarg_2),
                     new CodeInstruction(OpCodes.Call, myRollDieMethod))
                 .ReplaceEnumerateFeaturesToBrowse<IDieRollModificationProvider>("RulesetCharacter.RollDie.2",
-                    EnumerateIDieRollModificationProvider);
+                    EnumerateIDieRollModificationProvider)
+                .ReplaceCalls(typeof(List<string>).GetMethod(nameof(List<string>.Contains)), 1, "RulesetActor.RollDie.3",
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(Tabletop2024Context),
+                        nameof(Tabletop2024Context.ContainsToolCheckProficiency))));
         }
 
         [UsedImplicitly]

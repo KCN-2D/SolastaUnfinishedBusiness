@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.CustomUI;
 using UnityEngine;
 
@@ -26,6 +27,7 @@ public static class SubpowerSelectionModalPatcher
             FloatingPanelBounds.ConfigureNearAttachmentList(
                 __instance.mainPanel.RectTransform, attachment, __instance.subpowersTable,
                 new Vector3(70, -400, 0));
+            __instance.BindBackgroundDismissal();
         }
     }
 
@@ -39,6 +41,7 @@ public static class SubpowerSelectionModalPatcher
         {
             // Restore pooled controls while they still belong to this selection.
             FloatingPanelBounds.RestoreAttachmentList(__instance.mainPanel.RectTransform);
+            __instance.UnbindBackgroundDismissal();
         }
     }
 }

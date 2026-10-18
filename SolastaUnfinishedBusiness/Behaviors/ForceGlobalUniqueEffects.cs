@@ -222,6 +222,8 @@ internal static class ForceGlobalUniqueEffects
         GrenadierGrenadeMode,
         InventorSpellStoringItem,
         MoonlitNewAndFullMoon,
-        ConstellationForm
+        ConstellationForm,
+        BorrowedKnowledge,
+        EmpoweredKnowledge
     }
 }

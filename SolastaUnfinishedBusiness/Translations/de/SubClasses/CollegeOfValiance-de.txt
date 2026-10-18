@@ -1,4 +1,4 @@
-Condition/&ConditionCollegeOfValianceDishearteningPerformanceDescription=Sie müssen bei Ihrem nächsten erfolgreichen Rettungswurf die gewürfelte Zahl auf dem Würfel für die Bardische Inspiration abziehen.
+Condition/&ConditionCollegeOfValianceDishearteningPerformanceDescription=Ziehe das Ergebnis eines bardischen Inspirationswürfels des Barden, der diesen Effekt verursacht hat, von deinem nächsten ansonsten erfolgreichen Rettungswurf ab.
 Condition/&ConditionCollegeOfValianceDishearteningPerformanceTitle=Entmutigende Leistung
 Feature/&AutoPreparedSpellsCollegeOfValianceRecallLanguageDescription=Durch die Lektüre fremdsprachiger Texte haben Sie sich Kenntnisse in vielen verschiedenen Sprachen angeeignet und können diese Sprachen auf magische Weise fließend beherrschen, indem Sie den Zungenzauber zur Liste der bekannten Zaubersprüche hinzufügen.
 Feature/&AutoPreparedSpellsCollegeOfValianceRecallLanguageTitle=Sprache abrufen
@@ -6,7 +6,7 @@ Feature/&FeatureCollegeOfValianceCaptivatingPresenceDescription=Sie hinterlassen
 Feature/&FeatureCollegeOfValianceCaptivatingPresenceTitle=Sprachgewandt
 Feature/&FeatureCollegeOfValianceSteadfastInspirationDescription=Ihre inspirierenden Worte sind so ermutigend, dass sich andere zum Erfolg getrieben fühlen. Wenn eine befreundete Kreatur einen Ihrer Bardic Inspiration-Würfel zu ihrem Fähigkeitscheck, Angriffswurf oder Rettungswurf hinzufügt und der Wurf fehlschlägt, kann die Kreatur den Bardic Inspiration-Würfel behalten.
 Feature/&FeatureCollegeOfValianceSteadfastInspirationTitle=Unerschütterliche Inspiration
-Feature/&PowerCollegeOfValianceDishearteningPerformanceDescription=Ihre Tapferkeit im Kampf demoralisiert Ihre Feinde. Als Bonusaktion können Sie eine Anwendung Ihrer Bardic Inspiration aufwenden und eine feindliche Kreatur auswählen, die Sie in einem Umkreis von 60 Fuß sehen können. Wirf den Bardic Inspiration-Würfel. Die Kreatur muss die gewürfelte Zahl vom ersten Rettungswurf abziehen, den sie vor dem Ende deines nächsten Zuges erfolgreich durchführt.
+Feature/&PowerCollegeOfValianceDishearteningPerformanceDescription=Verbrauche als Bonusaktion eine Anwendung deiner Bardischen Inspiration, um eine feindliche Kreatur zu entmutigen, die du sehen kannst. Vor dem Ende deines nächsten Zuges zieht das Ziel das Ergebnis eines deiner bardischen Inspirationswürfel vom ersten Rettungswurf ab, der ansonsten erfolgreich wäre.
 Feature/&PowerCollegeOfValianceDishearteningPerformanceTitle=Entmutigende Leistung
 Feature/&PowerCollegeOfValianceHeroicInspirationDescription=Sie können Ihre Bonusaktion verwenden, um Heroische Inspiration zu aktivieren. Heroische Inspiration gewährt alle Vorteile der Bardischen Inspiration, ohne dass Bardische Inspiration verbraucht wird, und kann zwei befreundete Kreaturen innerhalb von 60 Fuß anvisieren, anstatt nur eine. Sie können diese Funktion 2 Mal pro langer Pause verwenden.
 Feature/&PowerCollegeOfValianceHeroicInspirationTitle=Heroische Inspiration

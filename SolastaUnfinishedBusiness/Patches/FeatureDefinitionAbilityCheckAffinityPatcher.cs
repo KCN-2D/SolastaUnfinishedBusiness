@@ -2,6 +2,9 @@
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using static LocationDefinitions;
 using static RuleDefinitions;
 
@@ -135,7 +138,7 @@ public static class FeatureDefinitionAbilityCheckAffinityPatcher
             return false;
         }
 
-        /** This is copied as-is from vanilla, with a small tweak to add the `strictContext` flag to fix a bug */
+        // Native affinity calculation with strict context and opt-in skill matching.
         private static void ComputeAbilityCheckAdvantageTrendAndModifier(
             FeatureDefinitionAbilityCheckAffinity feature,
             string abilityScoreName,
@@ -154,6 +157,7 @@ public static class FeatureDefinitionAbilityCheckAffinityPatcher
             //Unfortunately, this means that ALL WIS (PER) bonuses (like Owl's Wisdom) are also applied in this context to enemies
             //This flag enforces that only buffs that exactly match `EscapingPerception` context are valid
             var strictContext = contextField == (int)AbilityCheckContext.EscapingPerception;
+            var requireMatchingProficiency = feature.HasSubFeatureOfType<IRequireMatchingAbilityCheckProficiency>();
 
             checkModifier = 0;
             foreach (var group in feature.affinityGroups)
@@ -161,11 +165,13 @@ public static class FeatureDefinitionAbilityCheckAffinityPatcher
                 if (group.abilityScoreName == abilityScoreName)
                 {
                     var flag = false;
-                    if (string.IsNullOrEmpty(proficiencyName) || string.IsNullOrEmpty(group.proficiencyName))
+                    if (string.IsNullOrEmpty(group.proficiencyName) ||
+                        (!requireMatchingProficiency && string.IsNullOrEmpty(proficiencyName)))
                     {
                         flag = true;
                     }
-                    else if (proficiencyName == group.proficiencyName)
+                    else if (proficiencyName == group.proficiencyName ||
+                             Tabletop2024Context.IsMatchingToolCheckSkill(proficiencyName, group.proficiencyName))
                     {
                         flag = true;
                     }

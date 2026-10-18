@@ -138,6 +138,19 @@ public static class ItemMenuModalPatcher
         }
     }
 
+    [HarmonyPatch(typeof(ItemMenuModal), "OnBeginShow")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnBeginShow_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(ItemMenuModal __instance)
+        {
+            // Reserve the full captions before native layout sizes the table and modal.
+            UiTextHelpers.FitItemMenuButtons(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(ItemMenuModal), nameof(ItemMenuModal.SetupFromItem))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -147,25 +160,6 @@ public static class ItemMenuModalPatcher
             typeof(ItemMenuModal),
             "RegisterButton",
             [typeof(ItemMenuButton.ItemButtonInfo)]);
-
-#if false
-        private static bool IsSpellDefinitionOnRepertoire(
-            RulesetActor rulesetActor,
-            RulesetSpellRepertoire spellRepertoire,
-            SpellDefinition spellDefinition)
-        {
-            if (spellRepertoire.SpellCastingFeature.HasAccessToSpell(spellDefinition) ||
-                spellRepertoire.AutoPreparedSpells.Contains(spellDefinition) ||
-                spellRepertoire.IsSpellDefinitionInExtraSpells(spellDefinition))
-            {
-                return true;
-            }
-
-            // only exceptional case a Wizard in game can get additional spells
-            return rulesetActor.HasAnyFeature(MagicAffinityGreenmageGreenMagicList) &&
-                   MagicAffinityGreenmageGreenMagicList.ExtendedSpellList.ContainsSpell(spellDefinition);
-        }
-#endif
 
         //PATCH: allows mark deity to work with MC heroes (Multiclass)
         private static bool RequiresDeity(ItemMenuModal itemMenuModal)

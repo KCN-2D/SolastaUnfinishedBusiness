@@ -690,20 +690,6 @@ public static class CharacterActionMagicEffectPatcher
             var direction = new Vector3();
             var shapeType = effectDescription.ShapeType;
 
-            // Spend inventory action as needed
-            if (actingCharacter is { RulesetActor: RulesetCharacterHero } &&
-                actionParams.RulesetEffect.OriginItem != null)
-            {
-                var slot = actingCharacter.RulesetCharacter.CharacterInventory
-                    .FindSlotHoldingItem(actionParams.RulesetEffect.OriginItem);
-
-                if (slot != null && !slot.SlotTypeDefinition.BodySlot &&
-                    !Main.Settings.EnableUnlimitedInventoryActions) //don't spend if unlimited enabled
-                {
-                    actingCharacter.SpendActionType(ActionDefinitions.ActionType.FreeOnce);
-                }
-            }
-
             targetingService.ComputeTargetingParameters(
                 impactPoint,
                 actingCharacter,
@@ -967,6 +953,20 @@ public static class CharacterActionMagicEffectPatcher
                 __instance.ExecutionFailed = true;
                 rulesetEffect.Terminate(false);
                 yield break;
+            }
+
+            // Spend inventory action as needed
+            if (actingCharacter is { RulesetActor: RulesetCharacterHero } &&
+                actionParams.RulesetEffect.OriginItem != null)
+            {
+                var slot = actingCharacter.RulesetCharacter.CharacterInventory
+                    .FindSlotHoldingItem(actionParams.RulesetEffect.OriginItem);
+
+                if (slot != null && !slot.SlotTypeDefinition.BodySlot &&
+                    !Main.Settings.EnableUnlimitedInventoryActions) //don't spend if unlimited enabled
+                {
+                    actingCharacter.SpendActionType(ActionDefinitions.ActionType.FreeOnce);
+                }
             }
 
             __instance.SpendMagicEffectUses();

@@ -2,9 +2,9 @@
 Background/&BackgroundDevotedTitle=献身者
 Background/&BackgroundFarmerDescription=あなたは土地を耕し、生まれたばかりの家畜を手ずから育て、多くの人々の糧を支えてきました。農民として、夜明け前に起き、日が沈んでから畑仕事を終える暮らしを送ってきたのです。いまやその平凡な生活を離れ、刺激や名声、あるいは富を求めて冒険へと踏み出しました。
 Background/&BackgroundFarmerTitle=農民
-Background/&BackgroundMilitiaDescription=あなたは、集落を守る町の衛兵または民兵の一員でした。
+Background/&BackgroundMilitiaDescription=あなたは町の衛兵や民兵の一員として、危険が迫れば近隣の人々と肩を並べ、集落を守ってきました。長い巡回と不意の警報を経験し、勇気とは、誰かに必要とされたときに駆けつけることでもあると学んだのです。人々の祝福を受けて旅立ったのか、果たせぬ務めを残したのか、それとも見慣れた道の先を知りたくなったのか。故郷を離れたいまも、暮らしを守る者としての心構えは失われていません。
 Background/&BackgroundMilitiaTitle=民兵
-Background/&BackgroundTroublemakerDescription=街路にも貴族の宮廷にも、厄介者はいるものです。
+Background/&BackgroundTroublemakerDescription=にぎやかな酒場でも、狭い路地でも、貴族の客間でも、あなたの行く先にはどういうわけか騒ぎがつきまといます。遠慮のないひと言、大胆な賭け、頭を下げるべき場面での意地。そのせいで道が閉ざされたこともあれば、思いがけず開けたこともありました。あなたを笑顔で思い出す人も、拳を握りしめて思い出す人もいます。旅の先には、新たな仲間と好機が待っています。昨日の行き違いから少し離れられるのも、悪くないかもしれません。
 Background/&BackgroundTroublemakerTitle=厄介者
 Feature/&BonusCantripsBackgroundDevotedDescription=初級呪文<b>〈聖なる炎〉</b>を修得します。
 Feature/&BonusCantripsBackgroundDevotedTitle=献身者の魔法

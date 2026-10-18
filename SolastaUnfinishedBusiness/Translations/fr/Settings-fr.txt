@@ -279,7 +279,7 @@ ModUi/&EnableRogueCunningStrike2024=Activez <color=#D89555>Cunning Strike</color
 ModUi/&EnableRogueFightingStyle=Activer le choix du <color=#D89555>Style de combat</color> au niveau 2
 ModUi/&EnableRogueReliableTalent2024=Activer le <color=#D89555>talent fiable</color> au niveau 7 au lieu de 11
 ModUi/&EnableRogueSlipperyMind2024=Échangez <color=#D89555>Slippery Mind</color> avec la version 5e 2024 <i><color=#F0DAA0>[vous obtenez également la maîtrise des jets de sauvegarde de charisme en plus de la sagesse]</color></i>
-ModUi/&EnableRogueSteadyAim2024=Activez la <color=#D89555>Visée constante</color> au niveau 3 <i><color=#F0DAA0>[l'action bonus donne un avantage sur votre prochain jet d'attaque dans le tour en cours si vous n'avez pas encore bougé]</color></i>
+ModUi/&EnableRogueSteadyAim2024=Activez la <color=#D89555>Visez fermement</color> au niveau 3 <i><color=#F0DAA0>[l'action bonus donne un avantage sur votre prochain jet d'attaque dans le tour en cours si vous n'avez pas encore bougé]</color></i>
 ModUi/&EnableRogueStrSaving=Activer les modificateurs DEX ou STR de <b>Hoodlum</b> sur <color=#D89555>Cunning/Devious Strike</color>
 ModUi/&EnableScimitarSpecialization=Grant Scimitar <color=#D89555>Spécialisation en arme</color>
 ModUi/&EnableSignatureSpellsRelearn=Activer les <color=#D89555>sorts signatures</color> pour qu'ils soient préparés à chaque repos long <i><color=#F0DAA0>[au lieu d'une fois au niveau 20]</color></i>
@@ -298,6 +298,7 @@ ModUi/&EnableSortingDungeonMakerAssets=Activer le tri des ressources sur l'édit
 ModUi/&EnableSpeech=Activer la parole dans les campagnes personnalisées <i><color=#F0DAA0>[narration et héros uniquement]</color></i>
 ModUi/&EnableSpeechActorHelp=• Sélectionnez un acteur
 ModUi/&EnableSpeechOnNpcs=Activer la lecture vocale des PNJ
+ModUi/&EnableSpeechOnInteractions=Lire les descriptions des objets examinés avec la voix du narrateur
 ModUi/&EnableSpeechVoiceHelp=• Sélectionnez une voix et une vitesse de narration
 ModUi/&EnableStackableArtItems=Activer l'empilement des <color=#D89555>éléments d'art</color> <i><color=#F0DAA0>[ne peut pas être divisé lorsque ce paramètre est désactivé]</color></i>
 ModUi/&EnableStackableAxesAndDaggers=Activer l'empilement des <color=#D89555>dagues</color> et des <color=#D89555>haches à main</color> <i><color=#F0DAA0>[ne peut pas être divisé tant que ce paramètre est désactivé]</color></i>
@@ -578,6 +579,7 @@ ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=Les <color=#D89555>petites races
 ModUi/&EnableHeavyWeaponAbilityRequirement2024=Activer la règle 2024 des armes lourdes <i><color=#F0DAA0>[FOR 13 au corps à corps, DEX 13 à distance ; sinon désavantage]</color></i>
 ModUi/&UseOldOfficialFlankingRules=<i> + La vieille règle de flanquant était juste +2 pour attaquer le rouleau. Au-dessus de la règle de modificateur Flanking Plus de prendre priorité </i>
 ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Accordez 2 choix de maîtrise des armes à la sous-classe Way of Blade Monk</i>
+ModUi/&WayOfBladeWeaponMasteryRequiresSystemHelp=Activez la Maîtrise des armes dans Gameplay > Règles pour utiliser cette option de sous-classe. Votre choix est conservé lorsque la Maîtrise des armes est désactivée.
 ModUi/&UseWeaponMasterySystem=Activer les règles de <color=#D89555>Maîtrise des armes</color>
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ La maîtrise de Cleave ajoute un modificateur de score d'attribut aux dégâts de la deuxième attaque</i>
 ModUi/&UseWeaponMasterySystemAddWeaponTag=<i>+ Ajouter une balise de maîtrise à toutes les armes du jeu</i>
@@ -593,6 +595,7 @@ ModUi/&WideScreenBattleUI=Activer l'interface utilisateur de combat sur écran l
 ModUi/&WildSurgeDieRollThreshold=<color=white>Définissez le seuil de chances de dé de <color=#D89555>Magie sauvage du sorcier</color> :</color>\n<i><color=#F0DAA0>[la poussée sauvage se déclenche si le résultat est inférieur ou égal au seuil]</color></i>
 ModUi/&EnableBackgroundAbilityScoreIncreases=Les augmentations de caractéristiques proviennent de l'historique plutôt que de la race ; les traits des humains sont ajustés en conséquence <i><color=#F0DAA0>(Races flexibles ne s'applique pas tant que cette option est activée)</color></i>
 ModUi/&EnableBackgroundBonusFeats=Remplace les traits d'historique par un don d'origine, deux maîtrises de compétences et une maîtrise d'outil selon les règles de 2024 <i><color=#F0DAA0>(Nécessite les augmentations de caractéristiques d'historique ; Historiques flexibles ne s'applique pas tant que cette option est activée)</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Activez les augmentations de caractéristiques d'historique pour obtenir des dons d'origine grâce aux historiques.
 ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
@@ -688,3 +691,7 @@ ModUi/&SettingsListNoResults=Aucune entrée correspondante.
 ModUi/&SettingsListSelected=Sélection : {0}
 ModUi/&SpeechAssignAllAutomatic=Attribuer automatiquement les voix au narrateur et à tous les héros
 ModUi/&SpeechAutomaticResolved=Attribution automatique : {0}
+ModUi/&EnableAssassinAssassinate2024=Utiliser l'<color=#D89555>Assassinat</color> de 2024 pour le Tueur de niveau 3 <i><color=#F0DAA0>[avantage à l'initiative et dégâts supplémentaires d'Attaque sournoise au premier round]</color></i>
+ModUi/&EnableToolChecks2024=Utiliser les règles de maîtrise de 2024 pour les tests avec des outils
+ModUi/&ToolChecks2024Description=Les tests utilisant des outils de voleur bénéficient de la maîtrise d'Escamotage et des effets propres à cette compétence. Seul le plus élevé des bonus de maîtrise de la compétence ou de l'outil est ajouté, une seule fois ; maîtriser les deux confère l'avantage.
+ModUi/&EnableAssassinInfiltrationExpertise2024=Utiliser l'<color=#D89555>Expertise en infiltration</color> de 2024 pour le Tueur de niveau 9 <i><color=#F0DAA0>[maîtrise ou expertise en Tromperie et déplacement après Visez fermement ; accorde Visez fermement à ces Tueurs même si l'option de classe est désactivée]</color></i>

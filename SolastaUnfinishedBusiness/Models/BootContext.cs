@@ -220,6 +220,8 @@ internal static class BootContext
 
         MovementSuspensionContext.LateLoad();
 
+        CustomUI.Sprites.ApplyDefinitionSprites();
+
         // Recache all gui collections
         GuiWrapperContext.Recache();
 

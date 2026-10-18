@@ -32,4 +32,7 @@ Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactTitle=改变伤害�
 Reaction/&ReactionSpendPowerBundleWeaponDamageTypeChoiceReactDescription=本次命中使用所选的伤害类型。
 Failure/&InvocationRequiresWarlockCantrip=你必须将{0}作为邪术士戏法习得。
 Screen/&SubspellSelectionBackTitle=返回
+Tooltip/&ToolAndSkillProficiency2024Title=工具与技能熟练
 Screen/&SubspellSelectionBackDescription=返回上一级选项。
+Failure/&FailureFlagNotInBattle=战斗中无法执行此操作。
+Failure/&WeaponMasteryRelearnUnavailable=现在无法更换武器精通。

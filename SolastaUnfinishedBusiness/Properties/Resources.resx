@@ -3857,4 +3857,754 @@
         PublicKeyToken=b77a5c561934e089
     </value>
   </data>
+  <data name="CapabilityPowerRoguishSlayerCloakOfShadows" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRoguishSlayerCloakOfShadows.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRangerNatureShroud" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRangerNatureShroud.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerHalfOrcAdrenalineRush" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerHalfOrcAdrenalineRush.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSorcererInnateSorcery" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSorcererInnateSorcery.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWarlockMagicalCunning" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWarlockMagicalCunning.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerFeatArcaneOmens2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerFeatArcaneOmens2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerFeatSharpEye2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerFeatSharpEye2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWayOfTheShadowCloakOfShadows" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWayOfTheShadowCloakOfShadows.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerHatredHatefulGaze" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerHatredHatefulGaze.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfAncientsAuraWarding" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfAncientsAuraWarding.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerClericImprovedBlessedStrikes" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerClericImprovedBlessedStrikes.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerFeatMusician2024Performance" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerFeatMusician2024Performance.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerFeatDurable2024SpeedyRecovery" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerFeatDurable2024SpeedyRecovery.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfTirmarInquisitorZeal" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfTirmarInquisitorZeal.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerArcanistArcanePulse" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerArcanistArcanePulse.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWayOfTheDiscordanceChaosChanneling" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWayOfTheDiscordanceChaosChanneling.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerDivineHeartEmpoweredHealing" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerDivineHeartEmpoweredHealing.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRoyalKnightInspiringSurge" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRoyalKnightInspiringSurge.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWizardGraviturgistDensityIncrease" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWizardGraviturgistDensityIncrease.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWizardGraviturgistDensityDecrease" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWizardGraviturgistDensityDecrease.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerCollegeOfValianceDishearteningPerformance" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerCollegeOfValianceDishearteningPerformance.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfThunderStormHerald" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfThunderStormHerald.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfAltruismAuraOfTheGuardian" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfAltruismAuraOfTheGuardian.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfAltruismExaltedProtector" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfAltruismExaltedProtector.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerGiftOfTheChromaticDragonChromaticInfusion" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerGiftOfTheChromaticDragonChromaticInfusion.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerPathOfTheElementsElementalBurstStorm" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerPathOfTheElementsElementalBurstStorm.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerPathOfTheElementsElementalBurstBlizzard" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerPathOfTheElementsElementalBurstBlizzard.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerPathOfTheElementsElementalBurstWildfire" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerPathOfTheElementsElementalBurstWildfire.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInnovationAlchemyRefundPool" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInnovationAlchemyRefundPool.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInnovationVitriolistRefundMixture" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInnovationVitriolistRefundMixture.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWayOfTheStormSoulTempestFury" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWayOfTheStormSoulTempestFury.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerArcanePrecision" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerArcanePrecision.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInnovationArtilleristEldritchCannonRefund" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInnovationArtilleristEldritchCannonRefund.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWayOfTheDragonDragonFuryLightning" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWayOfTheDragonDragonFuryLightning.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWayOfTheDragonDragonFuryPoison" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWayOfTheDragonDragonFuryPoison.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWayOfTheDragonDragonFuryFire" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWayOfTheDragonDragonFuryFire.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWayOfTheDragonDragonFuryAcid" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWayOfTheDragonDragonFuryAcid.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWayOfTheDragonDragonFuryCold" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWayOfTheDragonDragonFuryCold.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfAncientsTurnFaithless" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfAncientsTurnFaithless.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerMoonlitScionMidnightBlessing" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerMoonlitScionMidnightBlessing.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityFeatureOathOfAltruismSpiritualShielding" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityFeatureOathOfAltruismSpiritualShielding.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerDomainSmithReinforceArmor1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerDomainSmithReinforceArmor1.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRiftWalkerRiftStrike" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRiftWalkerRiftStrike.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInfusionMajorElemental" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInfusionMajorElemental.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInnovationVivisectionistEmergencyCure" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInnovationVivisectionistEmergencyCure.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerDomainSmithAdamantBenediction" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerDomainSmithAdamantBenediction.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerCollegeOfValianceHeroicInspiration" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerCollegeOfValianceHeroicInspiration.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerFeatDragonFear" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerFeatDragonFear.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSorcererHauntedSoulPossession" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSorcererHauntedSoulPossession.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerPathOfTheWildMagicSummon" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerPathOfTheWildMagicSummon.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRiftWalkerRiftCloak" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRiftWalkerRiftCloak.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInvocationBurningHex" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInvocationBurningHex.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInvocationVexingHex" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInvocationVexingHex.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerCircleOfTheNightWildShapeHealing" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerCircleOfTheNightWildShapeHealing.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerAncientForestRegrowth" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerAncientForestRegrowth.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInvocationOneWithShadows" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInvocationOneWithShadows.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfAncientsNaturesWrath" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfAncientsNaturesWrath.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerPathOfTheWildMagicBolt" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerPathOfTheWildMagicBolt.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerDomainColdSummonBlizzard" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerDomainColdSummonBlizzard.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerDomainFireSummonInferno" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerDomainFireSummonInferno.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfThunderDivineBolt" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfThunderDivineBolt.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSorcererDraconicBloodlineFearPresence" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSorcererDraconicBloodlineFearPresence.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSorcererDraconicBloodlineAwePresence" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSorcererDraconicBloodlineAwePresence.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerMalakhAngelicVisage" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerMalakhAngelicVisage.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerMalakhAngelicRadiance" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerMalakhAngelicRadiance.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWizardGraviturgistViolentAttraction" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWizardGraviturgistViolentAttraction.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityActionAffinitySpellShieldRangedDefense" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityActionAffinitySpellShieldRangedDefense.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfJugementFinalJudgement" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfJugementFinalJudgement.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWizardAbjurationRechargeArcaneWard" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWizardAbjurationRechargeArcaneWard.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWizardAbjurationArcaneWard" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWizardAbjurationArcaneWard.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerCircleOfTheWildfireCommandSpirit" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerCircleOfTheWildfireCommandSpirit.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInnovationArtilleristEldritchCannonCommand" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInnovationArtilleristEldritchCannonCommand.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInventorWeaponSteelDefenderCommand" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInventorWeaponSteelDefenderCommand.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSorcerousSorrAkkathTouchOfDarknessFixed" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSorcerousSorrAkkathTouchOfDarknessFixed.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerCelestialHealingLight" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerCelestialHealingLight.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerBolgrifInvisibility" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerBolgrifInvisibility.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerVanishSummon" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerVanishSummon.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerArchfeyMistyEscape" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerArchfeyMistyEscape.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRangerFeyWandererMistyWanderer" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRangerFeyWandererMistyWanderer.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSorcerousFieldManipulatorDisplacement" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSorcerousFieldManipulatorDisplacement.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerCircleOfTheLifeSeedOfLife" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerCircleOfTheLifeSeedOfLife.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerShadarKaiTeleport" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerShadarKaiTeleport.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerTeleportSummon" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerTeleportSummon.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRangerWildMasterBeastCompanionPool" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRangerWildMasterBeastCompanionPool.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSharedPoolForestGuardianBarkWard" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSharedPoolForestGuardianBarkWard.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerDomainOrderOrdersDemand" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerDomainOrderOrdersDemand.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerHatredScornfulPrayer" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerHatredScornfulPrayer.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInnovationVitriolistMixture" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInnovationVitriolistMixture.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerAncientForestRooted" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerAncientForestRooted.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRavenScionHeartSeekingShot" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRavenScionHeartSeekingShot.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRangerSkyWarriorGiftOfTheWind" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRangerSkyWarriorGiftOfTheWind.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSoulBladeSoulShield" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSoulBladeSoulShield.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWizardGraviturgistEventHorizon" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWizardGraviturgistEventHorizon.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfDevotionHolyNimbus" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfDevotionHolyNimbus.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerMartialWarlordStrategicReposition" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerMartialWarlordStrategicReposition.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRoguishArcaneScoundrelEssenceTheft" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRoguishArcaneScoundrelEssenceTheft.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfMotherlandFlamesOfMotherland" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfMotherlandFlamesOfMotherland.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerDivineHeartFavoredByTheGods" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerDivineHeartFavoredByTheGods.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInfusionBloody" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInfusionBloody.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerCollegeOfThespianCombatInspiration" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerCollegeOfThespianCombatInspiration.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerDomainOrderEmbodimentOfLaw" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerDomainOrderEmbodimentOfLaw.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSoulBladeSummonPactWeapon" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSoulBladeSummonPactWeapon.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSorcerousFieldManipulatorForcefulStepFixed" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSorcerousFieldManipulatorForcefulStepFixed.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSorcerousPsionPsychokinesisFixed" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSorcerousPsionPsychokinesisFixed.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfThunderBifrost" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfThunderBifrost.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSorcerousWildMagicLightningStrike" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSorcerousWildMagicLightningStrike.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerCircleOfTheCosmosChalice" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerCircleOfTheCosmosChalice.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSharedPoolCollegeOfLifeHealingPool" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSharedPoolCollegeOfLifeHealingPool.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerBladeDancerBladeDance" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerBladeDancerBladeDance.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInvocationChillingHex" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInvocationChillingHex.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerGrayDwarfStoneStrength" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerGrayDwarfStoneStrength.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRangerWildMasterKillCommand" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRangerWildMasterKillCommand.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSorcerousRestoration" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSorcerousRestoration.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerFeatDragonWings" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerFeatDragonWings.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRoguishSwashbucklerPanache" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRoguishSwashbucklerPanache.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRoguishSwashbucklerElegantManeuver" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRoguishSwashbucklerElegantManeuver.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerDomainOrderVoiceOfAuthorityCompelAttack" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerDomainOrderVoiceOfAuthorityCompelAttack.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfDreadAspectOfDread" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfDreadAspectOfDread.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInnovationArtilleristEldritchCannonDetonate" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInnovationArtilleristEldritchCannonDetonate.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerPathOfTheLightIlluminatingBurst" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerPathOfTheLightIlluminatingBurst.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerFeatOrcishAggression" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerFeatOrcishAggression.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerCollegeOfGutsArcaneDeflection" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerCollegeOfGutsArcaneDeflection.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerSpellShieldArcaneDeflection" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerSpellShieldArcaneDeflection.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerWizardAbjurationSpellResistance" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerWizardAbjurationSpellResistance.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerDarkKoboldGrovelCowerAndBeg" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerDarkKoboldGrovelCowerAndBeg.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerFeatChefCookMeal" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerFeatChefCookMeal.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerMalakhHealingTouch" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerMalakhHealingTouch.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerDivineHeartDivineRecovery" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerDivineHeartDivineRecovery.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerFeatChefCookTreat" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerFeatChefCookTreat.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRiftWalkerBlink" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRiftWalkerBlink.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerDivineHeartDivineFount" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerDivineHeartDivineFount.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfAltruismTakeThePain" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfAltruismTakeThePain.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPaladinCapstoneRecharge" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPaladinCapstoneRecharge.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerFeatAcrobat" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerFeatAcrobat.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInvocationInexorableHex" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInvocationInexorableHex.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerRoguishShadowcasterShadowForm" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerRoguishShadowcasterShadowForm.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerOathOfDemonHunterRemasterHunterStep" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerOathOfDemonHunterRemasterHunterStep.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInnovationArtilleristFlamethrower" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInnovationArtilleristFlamethrower.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInnovationArtilleristForceBallista" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInnovationArtilleristForceBallista.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInnovationArtilleristProtector" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInnovationArtilleristProtector.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerInvocationBondOfTheTalisman" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerInvocationBondOfTheTalisman.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerPathOfTheWildMagicTeleport" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerPathOfTheWildMagicTeleport.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerMartialArcaneArcherBanishingArrow" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerMartialArcaneArcherBanishingArrow.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerMartialArcaneArcherBeguilingArrow" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerMartialArcaneArcherBeguilingArrow.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerMartialArcaneArcherBurstingArrow" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerMartialArcaneArcherBurstingArrow.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerMartialArcaneArcherEnfeeblingArrow" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerMartialArcaneArcherEnfeeblingArrow.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerMartialArcaneArcherGraspingArrow" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerMartialArcaneArcherGraspingArrow.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerMartialArcaneArcherInsightArrow" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerMartialArcaneArcherInsightArrow.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerMartialArcaneArcherShadowArrow" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerMartialArcaneArcherShadowArrow.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityPowerMartialArcaneArcherSlowingArrow" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityPowerMartialArcaneArcherSlowingArrow.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
 </root>

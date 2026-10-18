@@ -111,6 +111,39 @@ public static class GuiLabelPatcher
         }
     }
 
+    [HarmonyPatch(typeof(GamePartyStatusScreen), nameof(GamePartyStatusScreen.ShowBottomPopup))]
+    [UsedImplicitly]
+    public static class InteractionPopupShow_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GamePartyStatusScreen __instance)
+        {
+            GameLocationBanterManagerPatcher.RegisterInteractionPopup(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(GamePartyStatusScreen), nameof(GamePartyStatusScreen.OnUpdateHook))]
+    [UsedImplicitly]
+    public static class InteractionPopupUpdate_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GamePartyStatusScreen __instance)
+        {
+            GameLocationBanterManagerPatcher.HoldInteractionPopup(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(GamePartyStatusScreen), nameof(GamePartyStatusScreen.OnEndHide))]
+    [UsedImplicitly]
+    public static class InteractionPopupHide_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GamePartyStatusScreen __instance)
+        {
+            GameLocationBanterManagerPatcher.EndInteractionPanelSpeech(__instance.bottomPopupGroup);
+        }
+    }
+
     [HarmonyPatch(typeof(GuiLabel), nameof(GuiLabel.ApplyText))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

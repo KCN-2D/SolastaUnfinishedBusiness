@@ -68,14 +68,14 @@ internal static class MulticlassGameUi
             internal readonly Vector2 AnchorMin, AnchorMax, Pivot, Position, Size;
             internal readonly Bounds Bounds;
 
-            internal RectState(RectTransform rect, RectTransform root)
+            internal RectState(RectTransform rect, Rect bounds)
             {
                 AnchorMin = rect.anchorMin;
                 AnchorMax = rect.anchorMax;
                 Pivot = rect.pivot;
                 Position = rect.anchoredPosition;
                 Size = rect.sizeDelta;
-                Bounds = RectTransformUtility.CalculateRelativeRectTransformBounds(root, rect);
+                Bounds = new Bounds(bounds.center, bounds.size);
             }
 
             internal void Restore(RectTransform rect)
@@ -130,12 +130,21 @@ internal static class MulticlassGameUi
 
             foreach (var rect in _root.GetComponentsInChildren<RectTransform>(true))
             {
-                _rectangles[rect] = new RectState(rect, _root);
+                // Use each control's own rectangle and exclude shared ancestors that may be hidden at zero scale.
+                if (UiTextHelpers.TryGetDescendantLocalBounds(rect, _root, out var bounds))
+                {
+                    _rectangles[rect] = new RectState(rect, bounds);
+                }
             }
 
-            if (_viewport)
+            if (_viewport && UiTextHelpers.TryGetDescendantLocalBounds(
+                    _viewport, panel.RectTransform, out var viewportBounds))
             {
-                _rectangles[_viewport] = new RectState(_viewport, panel.RectTransform);
+                _rectangles[_viewport] = new RectState(_viewport, viewportBounds);
+            }
+            else
+            {
+                _viewport = null;
             }
 
             foreach (var text in new[] { _title, _description, _instruction }.Where(text => text).Distinct())
@@ -152,7 +161,9 @@ internal static class MulticlassGameUi
 
         internal void Apply()
         {
-            if (_applying || !_root || !_title || !_instruction)
+            if (_applying || !_root || !_title || !_instruction ||
+                !_rectangles.ContainsKey(_title.rectTransform) ||
+                !_rectangles.ContainsKey(_instruction.rectTransform))
             {
                 return;
             }
@@ -194,14 +205,16 @@ internal static class MulticlassGameUi
                     child.anchoredPosition += Vector2.up * (growth * (1f - child.anchorMin.y));
                 }
 
-                if (_viewport)
+                if (_viewport &&
+                    UiTextHelpers.TryGetDescendantLocalBounds(_root, _panel.RectTransform, out var popup) &&
+                    UiTextHelpers.TryGetDescendantLocalMatrix(
+                        _viewport.parent, _panel.RectTransform, out var viewportParentToPanel) &&
+                    Mathf.Abs(viewportParentToPanel.determinant) > 0.0001f)
                 {
-                    var popup = RectTransformUtility.CalculateRelativeRectTransformBounds(_panel.RectTransform, _root);
-                    var overlap = Mathf.Max(0f, _rectangles[_viewport].Bounds.max.y - popup.min.y + Padding);
+                    var overlap = Mathf.Max(0f, _rectangles[_viewport].Bounds.max.y - popup.yMin + Padding);
                     if (overlap > 0f)
                     {
-                        var world = _panel.RectTransform.TransformVector(Vector3.up * overlap);
-                        var local = _viewport.parent.InverseTransformVector(world).y;
+                        var local = viewportParentToPanel.inverse.MultiplyVector(Vector3.up * overlap).y;
                         _viewport.offsetMax += Vector2.down * local;
                     }
                 }
@@ -228,10 +241,11 @@ internal static class MulticlassGameUi
             var rect = text.rectTransform;
             var bounds = _rectangles[rect].Bounds;
             var right = _root.rect.xMax - Padding;
-            if (reserveCloseButton && _panel.cancelPreparationButton)
+            if (reserveCloseButton && _panel.cancelPreparationButton &&
+                UiTextHelpers.TryGetDescendantLocalBounds(
+                    _panel.cancelPreparationButton.GetComponent<RectTransform>(), _root, out var closeButtonBounds))
             {
-                right = Mathf.Min(right, RectTransformUtility.CalculateRelativeRectTransformBounds(
-                    _root, _panel.cancelPreparationButton.transform).min.x - Padding);
+                right = Mathf.Min(right, closeButtonBounds.xMin - Padding);
             }
 
             var width = Mathf.Max(1f, right - bounds.min.x);
@@ -269,32 +283,19 @@ internal static class MulticlassGameUi
                 return;
             }
 
-            var moved = new List<RectTransform>();
-            foreach (var entry in _rectangles.OrderBy(entry => ParentDepth(entry.Key)))
+            // A preparation row is a single layout unit. Selecting descendants by their individual
+            // bounds can move only one part of a composite control, such as the circular counter.
+            foreach (var entry in _rectangles)
             {
                 var rect = entry.Key;
-                if (!rect || rect == _root || rect == _viewport || entry.Value.Bounds.max.y > top ||
-                    excluded.Any(parent => parent && (rect == parent || rect.IsChildOf(parent))) ||
-                    moved.Any(parent => rect.IsChildOf(parent)))
+                if (!rect || rect == _viewport || rect.parent != _root || entry.Value.Bounds.max.y > top ||
+                    excluded.Contains(rect))
                 {
                     continue;
                 }
 
                 rect.anchoredPosition += Vector2.down * distance;
-                moved.Add(rect);
             }
-        }
-
-        private static int ParentDepth(Transform current)
-        {
-            var depth = 0;
-            while (current && current.parent)
-            {
-                depth++;
-                current = current.parent;
-            }
-
-            return depth;
         }
 
         private static void SetHeightKeepingTop(RectTransform rect, float height)

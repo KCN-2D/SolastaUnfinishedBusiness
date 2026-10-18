@@ -1,4 +1,4 @@
-Condition/&ConditionCollegeOfValianceDishearteningPerformanceDescription=다음 번 내성 굴림에 성공할 때 Bardic Inspiration 주사위 소스에서 굴린 숫자를 빼야 합니다.
+Condition/&ConditionCollegeOfValianceDishearteningPerformanceDescription=그대로라면 성공할 다음 내성 굴림의 결과에서 이 효과를 부여한 바드의 격려 주사위 하나를 굴린 값을 뺍니다.
 Condition/&ConditionCollegeOfValianceDishearteningPerformanceTitle=실망스러운 성능
 Feature/&AutoPreparedSpellsCollegeOfValianceRecallLanguageDescription=당신은 외국의 저작물을 읽음으로써 다양한 언어에 대한 지식을 얻었고, 알려진 주문 목록에 방언 주문을 추가하여 마술처럼 해당 언어에 유창해질 수 있습니다.
 Feature/&AutoPreparedSpellsCollegeOfValianceRecallLanguageTitle=리콜 언어
@@ -6,7 +6,7 @@ Feature/&FeatureCollegeOfValianceCaptivatingPresenceDescription=당신은 주변
 Feature/&FeatureCollegeOfValianceCaptivatingPresenceTitle=은혀
 Feature/&FeatureCollegeOfValianceSteadfastInspirationDescription=당신의 감동적인 말은 너무나 격려적이어서 다른 사람들도 성공하려는 의지를 느끼게 됩니다. 아군 생물이 당신의 음유시인 영감 주사위 중 하나를 능력 검사, 공격 굴림 또는 내성 굴림에 추가하고 굴림이 실패하면 생물은 음유시인 영감 주사위를 유지할 수 있습니다.
 Feature/&FeatureCollegeOfValianceSteadfastInspirationTitle=확고한 영감
-Feature/&PowerCollegeOfValianceDishearteningPerformanceDescription=전투에서의 당신의 용감함은 적의 사기를 저하시킵니다. 보너스 행동으로 Bardic Inspiration을 한 번 사용하고 60피트 이내에서 볼 수 있는 적대적인 생물 하나를 선택할 수 있습니다. 바르딕 영감 주사위를 굴립니다. 생물은 다음 턴이 끝나기 전에 성공한 첫 번째 내성 굴림에서 굴린 숫자를 빼야 합니다.
+Feature/&PowerCollegeOfValianceDishearteningPerformanceDescription=보너스 행동으로 바드의 격려 사용 횟수를 1회 소모하여 눈에 보이는 적대적인 생물 하나의 사기를 꺾습니다. 당신의 다음 턴이 끝나기 전에 대상이 그대로라면 처음으로 성공할 내성 굴림의 결과에서 당신의 격려 주사위 하나를 굴린 값을 뺍니다.
 Feature/&PowerCollegeOfValianceDishearteningPerformanceTitle=실망스러운 성능
 Feature/&PowerCollegeOfValianceHeroicInspirationDescription=보너스 액션을 사용하여 영웅적 영감을 활성화할 수 있습니다. Heroic Inspiration은 Bardic Inspiration 사용량을 소모하지 않고도 Bardic Inspiration의 모든 이점을 부여하며 단 한 마리가 아닌 60피트 내의 아군 생물 두 마리를 대상으로 삼을 수 있습니다. 이 기능은 긴 휴식마다 2번씩 사용할 수 있습니다.
 Feature/&PowerCollegeOfValianceHeroicInspirationTitle=영웅적인 영감

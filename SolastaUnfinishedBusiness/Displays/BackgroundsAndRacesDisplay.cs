@@ -25,7 +25,7 @@ internal static class BackgroundsAndRacesDisplay
 
         UI.Label();
 
-        toggle = Main.Settings.EnableFlexibleBackgrounds;
+        toggle = Tabletop2024Context.IsFlexibleBackgroundsEffectivelyEnabled();
         if (DisplayDependentBackgroundOption(
                 "ModUi/&EnableFlexibleBackgrounds", ref toggle,
                 !Tabletop2024Context.IsBackgroundBonusFeatsEnabled(),
@@ -35,7 +35,7 @@ internal static class BackgroundsAndRacesDisplay
             Tabletop2024Context.ApplyBackgroundOptions();
         }
 
-        toggle = Main.Settings.EnableFlexibleRaces;
+        toggle = Tabletop2024Context.IsFlexibleRacesEffectivelyEnabled();
         if (DisplayDependentBackgroundOption(
                 "ModUi/&EnableFlexibleRaces", ref toggle,
                 !Main.Settings.EnableBackgroundASI,
@@ -52,9 +52,10 @@ internal static class BackgroundsAndRacesDisplay
             Tabletop2024Context.ApplyBackgroundOptions();
         }
 
-        toggle = Main.Settings.EnableBackgroundBonusFeats;
+        toggle = Tabletop2024Context.IsBackgroundBonusFeatsEnabled();
         if (DisplayDependentBackgroundOption(
-                "ModUi/&EnableBackgroundBonusFeats", ref toggle, Main.Settings.EnableBackgroundASI))
+                "ModUi/&EnableBackgroundBonusFeats", ref toggle, Main.Settings.EnableBackgroundASI,
+                "ModUi/&BackgroundBonusFeatsRequiresBackgroundASI"))
         {
             Main.Settings.EnableBackgroundBonusFeats = toggle;
             Tabletop2024Context.ApplyBackgroundOptions();
@@ -113,7 +114,7 @@ internal static class BackgroundsAndRacesDisplay
 
     internal static void DisplayAlternateHumanOption()
     {
-        var toggle = Main.Settings.EnableAlternateHuman;
+        var toggle = Tabletop2024Context.IsAlternateHumanEffectivelyEnabled();
 
         if (DisplayDependentBackgroundOption(
                 "ModUi/&EnableAlternateHuman", ref toggle, !Main.Settings.EnableBackgroundASI,
@@ -142,7 +143,7 @@ internal static class BackgroundsAndRacesDisplay
 
         if (!available && dependencyKey != null)
         {
-            UI.Label(Gui.Localize(dependencyKey), UI.AutoWidth());
+            UI.Label(Gui.Localize(dependencyKey), new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.AutoWidth());
         }
 
         return changed;

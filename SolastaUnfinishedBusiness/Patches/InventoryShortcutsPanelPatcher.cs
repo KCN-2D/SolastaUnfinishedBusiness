@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection.Emit;
 using HarmonyLib;
@@ -6,6 +7,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using static ActionDefinitions;
 
@@ -14,6 +16,45 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class InventoryShortcutsPanelPatcher
 {
+    private static RulesetCharacterSimulacrum GetInventoryDuplicate(InventoryShortcutsPanel panel) =>
+        panel.GuiCharacter?.RulesetCharacter as RulesetCharacterSimulacrum ??
+        (SimulacrumEquipmentPanel.TryGetActiveCharacter(out var duplicate) ? duplicate : null);
+
+    private static GameLocationCharacter GetInventoryLocationCharacter(
+        InventoryShortcutsPanel panel, RulesetCharacterSimulacrum duplicate) =>
+        duplicate == null ? panel.GuiCharacter?.GameLocationCharacter : GameLocationCharacter.GetFromActor(duplicate);
+
+    private static bool PrepareConfigurationSwitch(GameLocationCharacter character, int configuration,
+        ICommandService commands, out Action<bool> complete)
+    {
+        complete = null;
+
+        if (Gui.Battle == null || Main.Settings.EnableUnlimitedInventoryActions ||
+            !Tabletop2024Context.HasDualWielder2024QuickDraw(character) ||
+            character.GetActionTypeStatus(ActionType.FreeOnce) == ActionStatus.Available)
+        {
+            return true;
+        }
+
+        if (commands == null ||
+            !Tabletop2024Context.TryBeginDualWielder2024QuickDraw(character, configuration, out var finish))
+        {
+            return false;
+        }
+
+        // Keep the real inventory actor, including a Simulacrum, through acknowledgement.
+        complete = succeeded =>
+        {
+            finish(succeeded);
+
+            if (succeeded)
+            {
+                character.ActionsRefreshed?.Invoke(character);
+            }
+        };
+        return true;
+    }
+
     private static List<WieldedConfigurationSelector> GetDirectSelectors(
         RectTransform configurationsTable)
     {
@@ -71,34 +112,47 @@ public static class InventoryShortcutsPanelPatcher
         public static bool Prefix(
             InventoryShortcutsPanel __instance,
             ref int rank,
-            bool force)
+            bool force,
+            out Action<bool> __state)
         {
-            var duplicate = __instance.GuiCharacter?.RulesetCharacter as
-                                RulesetCharacterSimulacrum ??
-                            (SimulacrumEquipmentPanel.TryGetActiveCharacter(out var activeDuplicate)
-                                ? activeDuplicate
-                                : null);
+            __state = null;
+            var duplicate = GetInventoryDuplicate(__instance);
+            var inventory = duplicate?.CharacterInventory ??
+                            __instance.GuiCharacter?.RulesetCharacterHero?.CharacterInventory;
+            var configuration = rank >= 100 ? rank - 100 : rank;
+
+            if (duplicate is { LifecycleState: not SimulacrumLifecycleState.Ready } || inventory == null ||
+                configuration < 0 || configuration >= inventory.WieldedItemsConfigurations.Count)
+            {
+                return false;
+            }
+
+            var locationCharacter = GetInventoryLocationCharacter(__instance, duplicate);
+            var commands = ServiceRepository.GetService<ICommandService>();
+
+            if (Gui.Battle != null &&
+                (duplicate != null && (locationCharacter == null || commands == null) ||
+                 locationCharacter != null &&
+                 (locationCharacter.HasForcedActionOrManipulation() ||
+                  ServiceRepository.GetService<IPlayerControllerService>()?.ActivePlayerController
+                      ?.IsCharacterControlled(locationCharacter) == false)))
+            {
+                return false;
+            }
+
+            if (!PrepareConfigurationSwitch(locationCharacter, configuration, commands, out __state))
+            {
+                return false;
+            }
 
             if (duplicate != null)
             {
-                if (duplicate.LifecycleState != SimulacrumLifecycleState.Ready)
-                {
-                    return false;
-                }
-
-                var inventory = duplicate.CharacterInventory;
-
-                if (rank < 0 || rank >= inventory.WieldedItemsConfigurations.Count)
-                {
-                    return false;
-                }
-
+                rank = configuration;
                 if (rank != inventory.CurrentConfiguration || force)
                 {
-                    if (GameLocationCharacter.GetFromActor(duplicate) is { } location &&
-                        ServiceRepository.GetService<ICommandService>() is { } commandService)
+                    if (locationCharacter != null && commands != null)
                     {
-                        commandService.SwitchWeaponConfiguration(location, rank);
+                        commands.SwitchWeaponConfiguration(locationCharacter, rank);
                     }
                     else
                     {
@@ -126,7 +180,7 @@ public static class InventoryShortcutsPanelPatcher
 
             var isCtrlPressed = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
 
-            if (Main.Settings.EnableCtrlClickOnlySwapsMainHand && isCtrlPressed)
+            if (Main.Settings.EnableCtrlClickOnlySwapsMainHand && isCtrlPressed && rank < 100)
             {
                 rank += 100;
             }
@@ -135,8 +189,24 @@ public static class InventoryShortcutsPanelPatcher
         }
 
         [UsedImplicitly]
-        public static void Postfix(InventoryShortcutsPanel __instance, int rank)
+        public static void Postfix(InventoryShortcutsPanel __instance, int rank, Action<bool> __state)
         {
+            if (__state != null)
+            {
+                // The ordinary FreeOnce is already spent: native SpendActionType cannot advance
+                // its exhausted rank. Reserve the feat's separate use until the command is acknowledged.
+                var commands = ServiceRepository.GetService<ICommandService>();
+
+                if (commands == null)
+                {
+                    __state(false);
+                }
+                else
+                {
+                    commands.AcknowledgePreviousCommandLocally(() => __state(true));
+                }
+            }
+
             if (rank < 100)
             {
                 return;
@@ -156,6 +226,17 @@ public static class InventoryShortcutsPanelPatcher
                     selectors[index].Selected = index == rank;
                 }
             }
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(Exception __exception, Action<bool> __state)
+        {
+            if (__exception != null)
+            {
+                __state?.Invoke(false);
+            }
+
+            return __exception;
         }
     }
 
@@ -212,11 +293,7 @@ public static class InventoryShortcutsPanelPatcher
         [UsedImplicitly]
         public static bool Prefix(InventoryShortcutsPanel __instance)
         {
-            var duplicate = __instance.GuiCharacter?.RulesetCharacter as
-                                RulesetCharacterSimulacrum ??
-                            (SimulacrumEquipmentPanel.TryGetActiveCharacter(out var activeDuplicate)
-                                ? activeDuplicate
-                                : null);
+            var duplicate = GetInventoryDuplicate(__instance);
             var owner = SimulacrumEquipmentPanel.GetTransportHero(__instance.GuiCharacter);
 
             if (duplicate == null && owner == null)
@@ -231,9 +308,7 @@ public static class InventoryShortcutsPanelPatcher
 
             var inventory = duplicate?.CharacterInventory ?? owner.CharacterInventory;
             var wieldedItemsConfigurations = inventory.WieldedItemsConfigurations;
-            var locationCharacter = duplicate == null
-                ? __instance.GuiCharacter.GameLocationCharacter
-                : GameLocationCharacter.GetFromActor(duplicate);
+            var locationCharacter = GetInventoryLocationCharacter(__instance, duplicate);
             var selectors = EnsureDirectSelectors(
                 __instance,
                 wieldedItemsConfigurations.Count);
@@ -291,7 +366,8 @@ public static class InventoryShortcutsPanelPatcher
                             Gui.Battle != null &&
                             locationCharacter != null &&
                             locationCharacter.GetActionTypeStatus(ActionType.FreeOnce) ==
-                            ActionStatus.Spent && !__instance.ItemSelectionInProgress:
+                            ActionStatus.Spent && !__instance.ItemSelectionInProgress &&
+                            !Tabletop2024Context.CanUseDualWielder2024QuickDraw(locationCharacter):
                             component.Tooltip.Content = Gui.FormatFailure(component.TooltipContent,
                                 "Failure/&FailureFlagFreeOnceActionSpent");
                             component.Interactable = false;

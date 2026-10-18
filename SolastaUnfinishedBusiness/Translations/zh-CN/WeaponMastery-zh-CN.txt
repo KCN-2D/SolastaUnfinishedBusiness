@@ -29,7 +29,7 @@ Feature/&FeatureWeaponMasteryVexDescription=当你以此武器命中一个生物
 Feature/&FeatureWeaponMasteryVexTitle=侵扰
 Feature/&InvocationPoolWeaponMasteryLearnDescription=选择一种武器类型，学习其对应的精通词条。
 Feature/&InvocationPoolWeaponMasteryLearnTitle=武器精通
-Feature/&PowerWeaponMasteryRelearnDescription=选择一种武器类型，重新学习其对应的精通词条。
+Feature/&PowerWeaponMasteryRelearnDescription=选择一种已掌握的武器精通，将其替换为另一种武器精通。
 Feature/&PowerWeaponMasteryRelearnTitle=武器精通：重新学习
 Feedback/&WeaponMasteryDeadlyTriggered={0} 触发了 {1}，将 {2} 升级为 {3}，造成 {4} 伤害，{5} + {4} = {6}
 Reaction/&ReactionSpendPowerBundleFeatureSetFighterTacticalMasterDescription=你可以将本次攻击上的 {0} 替换为另一种精通词条。
@@ -51,3 +51,7 @@ Tooltip/&TagSlowTitle=缓速
 Tooltip/&TagToppleTitle=失衡
 Tooltip/&TagVexTitle=侵扰
 UI/&CustomFeatureSelectionTooltipTypeWeaponMastery=武器精通词条
+UI/&WeaponMasteryRelearnSourceTitle=替换的武器精通
+UI/&WeaponMasteryRelearnReplacementTitle=新掌握的武器精通
+UI/&WeaponMasteryRelearnChooseDescription=选择一项新的武器精通。
+UI/&WeaponMasteryRelearnConfirmTitle=掌握

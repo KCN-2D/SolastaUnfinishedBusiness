@@ -10,18 +10,19 @@ namespace SolastaUnfinishedBusiness.Feats;
 
 internal static class FeatHelpers
 {
-    internal static List<FeatureDefinitionCastSpell.SlotsByLevelDuplet> BuildFixedFreeCastingSlots(int spellLevel)
+    internal static List<FeatureDefinitionCastSpell.SlotsByLevelDuplet> BuildFixedFreeCastingSlots(params int[] spellLevels)
     {
-        if (spellLevel is < 1 or > 9)
+        if (spellLevels == null || spellLevels.Length == 0 || spellLevels.Any(level => level is < 1 or > 9))
         {
-            throw new ArgumentOutOfRangeException(nameof(spellLevel));
+            throw new ArgumentOutOfRangeException(nameof(spellLevels));
         }
 
         return Enumerable.Range(1, 20)
             .Select(level => new FeatureDefinitionCastSpell.SlotsByLevelDuplet
             {
                 Level = level,
-                Slots = Enumerable.Range(1, spellLevel).Select(slot => slot == spellLevel ? 1 : 0).ToList()
+                Slots = Enumerable.Range(1, spellLevels.Max())
+                    .Select(slot => spellLevels.Contains(slot) ? 1 : 0).ToList()
             })
             .ToList();
     }
