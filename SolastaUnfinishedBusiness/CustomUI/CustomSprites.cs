@@ -370,7 +370,6 @@ public static class Sprites
         const int width = 256;
         const int height = 128;
 
-        // Reject a mismatched PNG before the legacy loader can create a cropped Sprite rect.
         if (bitmap == null || bitmap.Length < 24 ||
             bitmap[0] != 137 || bitmap[1] != 80 || bitmap[2] != 78 || bitmap[3] != 71 ||
             bitmap[4] != 13 || bitmap[5] != 10 || bitmap[6] != 26 || bitmap[7] != 10 ||
@@ -440,7 +439,8 @@ public static class Sprites
             return sprite;
         }
 
-        var texture = new Texture2D(sizeX, sizeY, TextureFormat.DXT5, false);
+        // LoadImage recompresses PNGs when the destination starts in DXT5, damaging small glyphs and alpha edges.
+        var texture = new Texture2D(sizeX, sizeY, TextureFormat.RGBA32, false);
 
         try
         {
@@ -449,7 +449,9 @@ public static class Sprites
                 throw new System.InvalidOperationException($"Cannot decode sprite artwork: {name}");
             }
 
-            sprite = Sprite.Create(texture, new Rect(0, 0, sizeX, sizeY), new Vector2(0, 0));
+            // LoadImage replaces the texture dimensions. Use the complete artwork rather than cropping it
+            // to the legacy cache dimensions; intentional regions are handled by GetSpriteFromAtlas.
+            sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0, 0));
         }
         catch
         {

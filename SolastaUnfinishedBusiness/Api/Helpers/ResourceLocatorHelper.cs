@@ -90,10 +90,10 @@ internal sealed class SpriteResourceLocator : IResourceLocator
 
         if (sprite)
         {
-            if (!LocationsCache.TryGetValue(id, out var location))
+            if (!LocationsCache.TryGetValue(id, out var location) || location.Sprite != sprite)
             {
                 location = new SpriteResourceLocation(sprite, sprite.name, id);
-                LocationsCache.Add(id, location);
+                LocationsCache[id] = location;
             }
 
             locations = [location];
@@ -101,6 +101,7 @@ internal sealed class SpriteResourceLocator : IResourceLocator
             return true;
         }
 
+        LocationsCache.Remove(id);
         locations = EmptyList;
 
         return false;
@@ -170,10 +171,10 @@ internal sealed class PrefabResourceLocator : IResourceLocator
 
         if (prefab)
         {
-            if (!LocationsCache.TryGetValue(id, out var location))
+            if (!LocationsCache.TryGetValue(id, out var location) || location.Prefab != prefab)
             {
                 location = new PrefabResourceLocation(prefab, prefab.name, id);
-                LocationsCache.Add(id, location);
+                LocationsCache[id] = location;
             }
 
             locations = [location];
@@ -181,6 +182,7 @@ internal sealed class PrefabResourceLocator : IResourceLocator
             return true;
         }
 
+        LocationsCache.Remove(id);
         locations = EmptyList;
 
         return false;
@@ -250,10 +252,10 @@ internal sealed class MaterialResourceLocator : IResourceLocator
 
         if (material)
         {
-            if (!LocationsCache.TryGetValue(id, out var location))
+            if (!LocationsCache.TryGetValue(id, out var location) || location.Material != material)
             {
                 location = new MaterialResourceLocation(material, material.name, id);
-                LocationsCache.Add(id, location);
+                LocationsCache[id] = location;
             }
 
             locations = [location];
@@ -261,6 +263,7 @@ internal sealed class MaterialResourceLocator : IResourceLocator
             return true;
         }
 
+        LocationsCache.Remove(id);
         locations = EmptyList;
 
         return false;

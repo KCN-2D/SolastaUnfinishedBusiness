@@ -260,8 +260,8 @@ internal static class Tooltips
             return;
         }
 
-        // Fit the complete sprite within its slot without stretching a small status
-        // glyph. Sprite dimensions, rather than its atlas texture, preserve its aspect.
+        // Fit the complete sprite to the native slot, including small status glyphs.
+        // Sprite dimensions, rather than its atlas texture, preserve its aspect.
         var spriteRect = header.image.sprite.rect;
         var maskRect = header.mask ? header.mask.rect : header.image.rectTransform.rect;
 
@@ -271,15 +271,12 @@ internal static class Tooltips
             return;
         }
 
-        var scale = Mathf.Min(1f, Mathf.Min(maskRect.width / spriteRect.width, maskRect.height / spriteRect.height));
-        var imageRect = header.image.rectTransform;
-        imageRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, spriteRect.width * scale);
-        imageRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, spriteRect.height * scale);
+        var scale = Mathf.Min(maskRect.width / spriteRect.width, maskRect.height / spriteRect.height);
 
         var state = header.GetComponent<TooltipHeaderImageLayoutState>() ??
                     header.gameObject.AddComponent<TooltipHeaderImageLayoutState>();
 
-        state.ReserveVisibleImageSpace(header);
+        state.ReserveVisibleImageSpace(header, spriteRect.size * scale);
     }
 
     internal static float GetHeaderSpriteWidth(Texture texture, TooltipFeatureHeader header)
@@ -1021,13 +1018,18 @@ internal sealed class TooltipHeaderImageLayoutState : MonoBehaviour
     private bool _hasVisibleInputs;
     private GameObject _imageRoot;
     private Image _image;
+    private TextLayoutState _imageLayout;
     private bool _imageRootActive;
     private bool _imageEnabled;
     private bool _applied;
 
-    internal void ReserveVisibleImageSpace(TooltipFeatureHeader header)
+    internal void ReserveVisibleImageSpace(TooltipFeatureHeader header, Vector2 imageSize)
     {
         Restore();
+        var imageRect = header.image.rectTransform;
+        _imageLayout = new TextLayoutState(imageRect);
+        imageRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, imageSize.x);
+        imageRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, imageSize.y);
         _visibleHeader = header;
         _applied = true;
         RefreshVisibleImageSpace();
@@ -1282,6 +1284,8 @@ internal sealed class TooltipHeaderImageLayoutState : MonoBehaviour
         }
 
         _textStates.Clear();
+        _imageLayout?.Restore();
+        _imageLayout = null;
 
         if (_image)
         {
