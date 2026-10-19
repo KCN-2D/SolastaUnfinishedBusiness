@@ -56,6 +56,11 @@ public static class RulesetEffectSpellPatcher
             var source = GameLocationCharacter.GetFromActor(rulesetSource);
             var locationTarget = GameLocationCharacter.GetFromActor(targetCharacter);
 
+            if (!TargetingContext.CanAffectExpandedTarget(__instance, source, locationTarget))
+            {
+                return false;
+            }
+
             //PATCH: support for `IFilterRulesetEffectTargets` (Evocation wizard)
             var filters = rulesetSource.GetSubFeaturesByType<IFilterRulesetEffectTargets>();
             if (!filters.All(f => f.CanAffectTarget(__instance, source, locationTarget)))
@@ -120,7 +125,10 @@ public static class RulesetEffectSpellPatcher
         {
             // allowing to pick and/or tweak spell effect depending on some caster properties
             __result = PowerBundle.ModifySpellEffect(__result, __instance);
+            __result = TargetingContext.GetEffectDescription(__instance, __result);
+            var targetingDescription = __result;
             __result = EffectHelpers.GetFamiliarTouchDescription(__instance, __result);
+            TargetingContext.TrackDerivedDescription(targetingDescription, __result);
         }
     }
 

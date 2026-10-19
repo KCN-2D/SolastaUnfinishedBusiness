@@ -185,14 +185,17 @@ internal static class RulesetCharacterExtensions
 
     internal static RulesetCharacter GetEffectControllerOrSelf(this RulesetCharacter rulesetCharacter)
     {
-        if (rulesetCharacter is not RulesetCharacterEffectProxy effectProxy)
+        if (rulesetCharacter is not RulesetCharacterEffectProxy) return rulesetCharacter;
+        var current = rulesetCharacter;
+        var visited = new HashSet<RulesetCharacter>();
+        while (current is RulesetCharacterEffectProxy effectProxy && visited.Add(current))
         {
-            return rulesetCharacter;
+            var controller = EffectHelpers.GetCharacterByGuid(effectProxy.ControllerGuid) ??
+                             EffectHelpers.GetCharacterByEffectGuid(effectProxy.EffectGuid);
+            if (controller == null) return current;
+            current = controller;
         }
-
-        var controllerCharacter = EffectHelpers.GetCharacterByGuid(effectProxy.ControllerGuid);
-
-        return controllerCharacter ?? rulesetCharacter;
+        return current is RulesetCharacterEffectProxy ? rulesetCharacter : current;
     }
 
     internal static IEnumerable<T> GetUsableSpellSubFeaturesByType<T>(this RulesetCharacter rulesetCharacter)

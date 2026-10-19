@@ -3,6 +3,8 @@
 public class ReactionRequestSpendPowerCustom(CharacterActionParams reactionParams, string name = "SpendPower")
     : ReactionRequestSpendPower(reactionParams, name)
 {
+    public override bool IsStillValid => base.IsStillValid && ReactionRequestCallback.IsValid(ReactionParams);
+
     public override string FormatDescription()
     {
         return string.IsNullOrEmpty(reactionParams.StringParameter2)

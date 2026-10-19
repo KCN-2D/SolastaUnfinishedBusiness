@@ -160,6 +160,10 @@ internal static partial class SpellBuilders
                 .Build())
             .AddToDB();
 
+        spell.AddCustomSubFeatures(TargetingContext.SelectiveTargets.Marker);
+        spellRadiant.AddCustomSubFeatures(TargetingContext.SelectiveTargets.Marker);
+        spellNecrotic.AddCustomSubFeatures(TargetingContext.SelectiveTargets.Marker);
+
         return spell;
     }
 

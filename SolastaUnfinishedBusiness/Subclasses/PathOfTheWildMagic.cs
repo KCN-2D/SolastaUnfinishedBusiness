@@ -278,6 +278,8 @@ public sealed class PathOfTheWildMagic : AbstractSubclass
                         .Build())
                 .AddToDB();
 
+            powerDrain.AddCustomSubFeatures(TargetingContext.SelectiveTargets.VisibleTargets);
+
             return new WildSurgeEffect { EffectName = "Drain", Power = powerDrain };
         }
 
@@ -1099,7 +1101,8 @@ public sealed class PathOfTheWildMagic : AbstractSubclass
                 bool firstTarget,
                 bool criticalHit)
             {
-                if (!attacker.IsOppositeSide(defender.Side) ||
+                if (!TargetingContext.IsValidOffensiveTarget(defender, attacker, retaliatePower) ||
+                    !rulesetEffect.EffectDescription.NeedsToRollDie() ||
                     attacker.RulesetActor.IsDeadOrDying ||
                     defender.RulesetActor.IsDeadOrDying)
                 {

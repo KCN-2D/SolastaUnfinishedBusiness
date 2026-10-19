@@ -193,16 +193,18 @@ public sealed class WizardWarMagic : AbstractSubclass
             RulesetEffect rulesetEffect)
         {
             const int bonus = 2;
+            bool ReactionStillValid() => action.AttackRollOutcome == RollOutcome.Success &&
+                action.AttackSuccessDelta - bonus < 0 && helper == defender && defender.CanReact() &&
+                defender.RulesetCharacter.HasAnyFeature(featureArcaneDeflection) &&
+                defender.CanPerceiveTarget(attacker) &&
+                (defender.IsOppositeSide(attacker.Side) || TargetingContext.CanReactToAllyAction(defender, attacker));
 
-            if (action.AttackRollOutcome != RollOutcome.Success ||
-                action.AttackSuccessDelta - bonus >= 0 ||
-                helper != defender ||
-                !defender.CanReact() ||
-                !defender.CanPerceiveTarget(attacker))
+            if (!ReactionStillValid())
             {
                 yield break;
             }
 
+            var deflected = false;
             // any reaction within an attack flow must use the attacker as waiter
             yield return helper.MyReactToDoNothing(
                 ExtraActionId.DoNothingReaction,
@@ -211,7 +213,12 @@ public sealed class WizardWarMagic : AbstractSubclass
                 "CustomReactionArcaneDeflectionAttackDescription".Localized(Category.Reaction),
                 ReactionValidated,
                 battleManager: battleManager,
-                target: helper, effectDefinition: featureArcaneDeflection);
+                target: helper, effectDefinition: featureArcaneDeflection, reactionStillValid: ReactionStillValid);
+
+            if (deflected)
+            {
+                yield return HandleDeflectionShroud(helper, attacker);
+            }
 
             yield break;
 
@@ -236,7 +243,7 @@ public sealed class WizardWarMagic : AbstractSubclass
                     ]);
 
                 ApplySpellRestriction(helper);
-                HandleDeflectionShroud(helper);
+                deflected = true;
             }
         }
 
@@ -249,16 +256,18 @@ public sealed class WizardWarMagic : AbstractSubclass
             bool hasHitVisual)
         {
             const int bonus = 4;
+            bool ReactionStillValid() => savingThrowData.IsFailedSavingThrowOutcome() &&
+                savingThrowData.SaveOutcomeDelta + bonus >= 0 && helper == defender && helper.CanReact() &&
+                helper.RulesetCharacter.HasAnyFeature(featureArcaneDeflection) &&
+                (attacker == null || helper.CanPerceiveTarget(attacker) &&
+                    (helper.IsOppositeSide(attacker.Side) || TargetingContext.CanReactToAllyAction(helper, attacker)));
 
-            if (!savingThrowData.IsFailedSavingThrowOutcome() ||
-                savingThrowData.SaveOutcomeDelta + bonus < 0 ||
-                helper != defender ||
-                !helper.CanReact() ||
-                (attacker != null && !helper.CanPerceiveTarget(attacker)))
+            if (!ReactionStillValid())
             {
                 yield break;
             }
 
+            var deflected = false;
             // any reaction within a saving flow must use the yielder as waiter
             yield return helper.MyReactToDoNothing(
                 ExtraActionId.DoNothingReaction,
@@ -268,7 +277,12 @@ public sealed class WizardWarMagic : AbstractSubclass
                     Category.Reaction, attacker?.Name ?? ReactionRequestCustom.EnvTitle, savingThrowData.Title),
                 ReactionValidated,
                 battleManager: battleManager,
-                target: helper, effectDefinition: featureArcaneDeflection);
+                target: helper, effectDefinition: featureArcaneDeflection, reactionStillValid: ReactionStillValid);
+
+            if (deflected)
+            {
+                yield return HandleDeflectionShroud(helper, helper);
+            }
 
             yield break;
 
@@ -290,7 +304,7 @@ public sealed class WizardWarMagic : AbstractSubclass
                     ]);
 
                 ApplySpellRestriction(helper);
-                HandleDeflectionShroud(helper);
+                deflected = true;
             }
         }
 
@@ -306,25 +320,38 @@ public sealed class WizardWarMagic : AbstractSubclass
                 rulesetHelper.CurrentFaction.Name, 1, featureArcaneDeflection.Name, 0, 0, 0);
         }
 
-        private void HandleDeflectionShroud(GameLocationCharacter helper)
+        private IEnumerator HandleDeflectionShroud(GameLocationCharacter helper, GameLocationCharacter waiter)
         {
             var rulesetHelper = helper.RulesetCharacter;
-            var classLevel = rulesetHelper.GetClassLevel(CharacterClassDefinitions.Wizard);
+            var battle = Gui.Battle;
+            bool SourceStillValid() => Gui.Battle == battle && battle != null &&
+                rulesetHelper.GetClassLevel(CharacterClassDefinitions.Wizard) >= 14 &&
+                rulesetHelper is { IsDeadOrDyingOrUnconscious: false, IsIncapacitated: false } &&
+                rulesetHelper.CanUsePower(powerDeflectionShroud, considerHaving: true);
 
-            if (classLevel < 14 || Gui.Battle == null)
+            if (!SourceStillValid())
             {
-                return;
+                yield break;
             }
 
             var usablePower = PowerProvider.Get(powerDeflectionShroud, rulesetHelper);
-            var targets = Gui.Battle
-                .GetContenders(helper, withinRange: 12)
-                .OrderBy(x => DistanceCalculation.GetDistanceFromCharacters(helper, x))
-                .Take(3)
-                .ToArray();
+            bool CandidateValid(GameLocationCharacter target) => SourceStillValid() &&
+                ReactionRequestSelectTarget.IsCandidateValid(helper, target) && battle.AllContenders.Contains(target) &&
+                helper.IsWithinRange(target, 12);
+            var candidates = battle.AllContenders.Where(CandidateValid)
+                .OrderBy(target => DistanceCalculation.GetDistanceFromCharacters(helper, target)).ToArray();
+            List<GameLocationCharacter> targets = null;
+            yield return TargetingContext.SelectOffensiveTargets(helper, candidates, waiter, powerDeflectionShroud,
+                CandidateValid, 3, selected => targets = selected);
 
-            // deflection shroud is a use at will power
-            helper.MyExecuteActionSpendPower(usablePower, targets);
+            if (SourceStillValid() && targets is { Count: > 0 })
+            {
+                // Deflecting Shroud is at will; the triggering Arcane Deflection already used the reaction.
+                helper.MyExecuteActionSpendPower(usablePower, targets, () => SourceStillValid() &&
+                    targets.All(target => CandidateValid(target) &&
+                        TargetingContext.IsValidOffensiveTarget(helper, target, powerDeflectionShroud,
+                            powerDeflectionShroud.EffectDescription)));
+            }
         }
     }
 
@@ -347,7 +374,7 @@ public sealed class WizardWarMagic : AbstractSubclass
                     spellEffect.SpellRepertoire, RulesetEffectSpellWithOrigin.GetOriginSpell(spellEffect),
                     CharacterClassDefinitions.Wizard, false)
                 || defender.RulesetActor is not RulesetCharacter
-                || !defender.IsOppositeSide(attacker.Side))
+                || !TargetingContext.IsValidOffensiveTarget(attacker, defender, powerSurge))
             {
                 yield break;
             }

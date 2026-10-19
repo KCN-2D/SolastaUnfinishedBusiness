@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -64,7 +65,8 @@ public static class GameLocationActionManagerPatcher
 
             // Native AI enters directly; local and network commands have already selected
             // their suboption before this shared final validation.
-            if (validated && __state.Group != null && !reactionRequest.IsStillValid)
+            if (validated && __state.Group != null &&
+                (!reactionRequest.IsStillValid || !IsFriendlyReactionValid(reactionRequest.ReactionParams)))
             {
                 validated = false;
             }
@@ -326,7 +328,8 @@ public static class GameLocationActionManagerPatcher
         {
             // Apply the 2024 casting restrictions at the common queue boundary. This prevents blocked
             // reaction spells from opening a menu regardless of which request type created them.
-            if (!MetamagicContext.CanQueueReactionSpell2024(reactionRequest.ReactionParams) ||
+            if (!IsFriendlyReactionValid(reactionRequest.ReactionParams) ||
+                !MetamagicContext.CanQueueReactionSpell2024(reactionRequest.ReactionParams) ||
                 !SpellSlotCastingLimit2024Context.CanQueueReactionSpell(reactionRequest.ReactionParams))
             {
                 reactionRequest.ReactionParams.RulesetEffect?.Terminate(false);
@@ -400,5 +403,72 @@ public static class GameLocationActionManagerPatcher
                     __instance.DelayedProcessAutomatedReactionRequest(reactionRequest));
             }
         }
+    }
+
+    internal static bool IsFriendlyReactionValid(CharacterActionParams parameters)
+    {
+        if (!ReactionRequestCallback.IsValid(parameters))
+        {
+            return false;
+        }
+
+        var effect = parameters?.RulesetEffect;
+        var reactor = parameters?.ActingCharacter;
+        GameLocationCharacter triggeringCharacter;
+
+        if (parameters?.ActionDefinition?.Id == ActionDefinitions.Id.BlockAttack &&
+            parameters.TargetCharacters.Count >= 2)
+        {
+            triggeringCharacter = parameters.TargetCharacters[0];
+            var protectedCharacter = parameters.TargetCharacters[1];
+
+            return reactor != null && triggeringCharacter != null && protectedCharacter != null &&
+                   !reactor.IsOppositeSide(protectedCharacter.Side) &&
+                   (reactor.IsOppositeSide(triggeringCharacter.Side) ||
+                    TargetingContext.CanReactToAllyAction(reactor, triggeringCharacter.GetEffectControllerOrSelf()));
+        }
+
+        if (effect?.EffectDescription?.EffectForms.Any(form =>
+                form.FormType == EffectForm.EffectFormType.Counter &&
+                form.CounterForm?.Type == CounterForm.CounterType.InterruptSpellcasting) == true)
+        {
+            triggeringCharacter = parameters.TargetAction?.ActingCharacter;
+
+            if (reactor != null && reactor == triggeringCharacter &&
+                (effect.EffectDescription.TargetExcludeCaster ||
+                 !TargetingContext.CanReactToAllyAction(reactor, triggeringCharacter, effect) ||
+                 !reactor.CanSeeTarget(triggeringCharacter)))
+            {
+                return false;
+            }
+
+            // Powers with an explicitly friendly or unrestricted native counter target
+            // keep that rule. Only newly widened enemy-side counters use the option.
+            var nativeDescription = effect.SourceDefinition switch
+            {
+                SpellDefinition spell => spell.EffectDescription,
+                FeatureDefinitionPower power => power.EffectDescription,
+                _ => null
+            };
+            if (nativeDescription?.TargetSide != Side.Enemy)
+            {
+                return true;
+            }
+        }
+        else if (effect is RulesetEffectSpell spellEffect &&
+                 RulesetEffectSpellWithOrigin.GetOriginSpell(spellEffect) == SpellsContext.SilveryBarbs)
+        {
+            triggeringCharacter = parameters.TargetCharacters.FirstOrDefault();
+        }
+        else
+        {
+            // Damage reactions and ordinary delivery actions use the same final
+            // target policy, including ongoing proxy effects and native All/Ally rules.
+            return parameters == null || TargetingContext.ValidateActionTargets(parameters);
+        }
+
+        return triggeringCharacter == null || reactor == null ||
+               reactor.IsOppositeSide(triggeringCharacter.Side) ||
+               TargetingContext.CanReactToAllyAction(reactor, triggeringCharacter, effect);
     }
 }

@@ -116,6 +116,7 @@ public class Settings : UnityModManager.ModSettings
     public bool EnableRespecAction { get; set; }
     [Tag(Type = TagType.T2014)] public bool EnableUnarmedMainAttackAction { get; set; }
     public bool EnableUnlimitedInventoryActions { get; set; }
+    public bool AllowPartyFriendlyFire { get; set; }
     [Tag(Type = TagType.T2014)] public bool UseOfficialAdvantageDisadvantageRules { get; set; }
     [Tag(Type = TagType.T2014)] public bool PreventSavingThrowReactionsAfterLegendaryResistance { get; set; }
     public bool UseAlternateSpellPointsSystem { get; set; }

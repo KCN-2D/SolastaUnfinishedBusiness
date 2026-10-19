@@ -1108,7 +1108,7 @@ internal static class GLBM
 
             // Some additional damage works on enemies only
             if ((provider.TargetSide == RuleDefinitions.Side.Enemy &&
-                 !attacker.RulesetCharacter.IsOppositeSide(defender.RulesetCharacter.Side))
+                 !TargetingContext.IsValidOffensiveTarget(attacker, defender, featureDefinition))
                 || (provider.TargetSide == RuleDefinitions.Side.Ally &&
                     attacker.RulesetCharacter.IsOppositeSide(defender.RulesetCharacter.Side)))
             {

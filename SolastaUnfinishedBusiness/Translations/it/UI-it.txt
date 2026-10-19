@@ -1,4 +1,12 @@
 Failure/&FailureFlagTargetOutOfRangeStrength=Target fuori portata (forza)
+Reaction/&CustomReactionFriendlyAreaTargetTitle=Alleati coinvolti
+Reaction/&CustomReactionFriendlyAreaTargetDescription=Scegli gli alleati coinvolti da questo effetto. Gli alleati non scelti non ne subiscono gli effetti. Scegli Salta per terminare la selezione.
+Reaction/&CustomReactionFriendlyAreaTargetReactTitle=Includi alleato
+Reaction/&CustomReactionFriendlyAreaTargetReactDescription=Includi l'alleato scelto tra i bersagli di questo effetto.
+Reaction/&CustomReactionSearingVengeanceTitle=Vendetta bruciante
+Reaction/&CustomReactionSearingVengeanceDescription=Recuperi punti ferita pari alla metà dei tuoi punti ferita massimi e ti rialzi.
+Reaction/&CustomReactionSearingVengeanceReactTitle=Rialzati
+Reaction/&CustomReactionSearingVengeanceReactDescription=Rialzati con un’esplosione di energia radiosa.
 Feature/&ListSeparatorTitle=, 
 Tutorial/&TutorialActionSwitchingDescription=Quando hai più di un'azione principale o bonus disponibile, puoi cliccare sul simbolo di stato dell'azione per renderla la tua azione attiva. Ciò consente di attaccare usando l'azione Haste o Horde Breaker e poi lanciare un incantesimo con l'azione predefinita. O qualsiasi altra combinazione di cui potresti aver bisogno.\nPassando il mouse sul simbolo di stato dell'azione viene visualizzato un suggerimento con il nome della caratteristica o condizione che ha concesso l'azione.
 Tutorial/&TutorialActionSwitchingTitle=Azioni multiple
@@ -40,3 +48,4 @@ Screen/&OpenGamingLicenseDescription=The following text is the property of Wizar
 Rules/&ConditionHinderedTitle=Ostacolato
 Validator/&ParameterSpellNameDescription=Il nome interno esatto dell'incantesimo. Inseriscilo in inglese, rispettando esattamente le lettere maiuscole e minuscole.
 Feedback/&SpellSlotPreservedLine={0} conserva lo slot incantesimo grazie a {1} (tiro: {2}).
+Caption/&FriendlyFireWarning=Attenzione: questa azione danneggia un membro del gruppo.

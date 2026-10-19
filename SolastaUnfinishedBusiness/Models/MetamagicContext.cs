@@ -916,7 +916,8 @@ internal static class MetamagicContext
     {
         var spell = (RulesetEffectSpell)action.ActionParams.RulesetEffect;
         bool CandidateValid(GameLocationCharacter target) => IsHeightenedTargetCandidate(target) &&
-            action.ActingCharacter.IsOppositeSide(target.Side) && targets.Contains(target);
+            TargetingContext.IsValidOffensiveTarget(action.ActingCharacter, target, spell.SpellDefinition,
+                spell.EffectDescription) && targets.Contains(target);
         var candidates = targets.Where(CandidateValid).Distinct().OrderBy(target => target.Guid).ToArray();
         var selected = candidates.FirstOrDefault();
         if (candidates.Length > 1 && action.ActingCharacter.ControllerId != PlayerControllerManager.DmControllerId)
@@ -928,7 +929,7 @@ internal static class MetamagicContext
                 candidates, action.ActingCharacter, "AdditionalEffectTarget",
                 Gui.Format("Reaction/&CustomReactionAdditionalEffectTargetDescription", heightened.FormatTitle()),
                 target => selected = target, battleManager: battleManager, effectDefinition: heightened,
-                candidateValidator: CandidateValid);
+                candidateValidator: CandidateValid, isOffensive: true);
         }
 
         if (selected == null || !CandidateValid(selected))

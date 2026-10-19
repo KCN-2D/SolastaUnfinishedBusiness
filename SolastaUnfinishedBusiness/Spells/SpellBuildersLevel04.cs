@@ -96,6 +96,7 @@ internal static partial class SpellBuilders
             .SetAttackMethod(ProxyAttackMethod.CasterSpellAbility, DamageTypePiercing, DieType.D8, 4)
             .SetAdditionalFeatures(FeatureDefinitionSenses.SenseDarkvision, FeatureDefinitionSenses.SenseTruesight16)
             .SetCanMove(false, false)
+            .AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker)
             .AddToDB();
 
         proxyFaithfulHound.attackParticle = new AssetReference();
@@ -124,6 +125,8 @@ internal static partial class SpellBuilders
                     .SetParticleEffectParameters(DispelMagic)
                     .Build())
             .AddToDB();
+
+        spell.AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker);
 
         return spell;
     }
@@ -1394,6 +1397,7 @@ internal static partial class SpellBuilders
                             .Build())
                     .SetParticleEffectParameters(AnimalShapes)
                     .Build())
+            .AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker)
             .AddToDB();
 
         var spell = SpellDefinitionBuilder

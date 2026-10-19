@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -42,7 +43,7 @@ internal static class AttacksOfOpportunity
                 unit == attacker ||
                 unit == defender ||
                 defender.Side != unit.Side ||
-                !attacker.IsOppositeSide(unit.Side) ||
+                !TargetingContext.IsValidOffensiveTarget(unit, attacker) ||
                 !unit.IsWithinRange(attacker, 1))
             {
                 continue;
@@ -55,7 +56,13 @@ internal static class AttacksOfOpportunity
                     continue;
                 }
 
-                yield return reaction.Process(unit, attacker, null, battleManager, actionManager, false);
+                yield return reaction.Process(unit, attacker, null, battleManager, actionManager, false,
+                    () => unit.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false, IsIncapacitated: false } &&
+                          !unit.IsCharging && !unit.MoveStepInProgress &&
+                          unit.CanReact() &&
+                          defender.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } &&
+                          defender.Side == unit.Side && unit.IsWithinRange(attacker, 1) &&
+                          TargetingContext.IsValidOffensiveTarget(unit, attacker));
             }
         }
     }
@@ -263,7 +270,8 @@ internal class CustomReactionAttack
         (int3 from, int3 to)? movement,
         GameLocationBattleManager battleManager,
         GameLocationActionManager actionManager,
-        bool allowRange)
+        bool allowRange,
+        Func<bool> reactionStillValid = null)
     {
         var canPerform = CanPerformReactionAttack(
             attacker,
@@ -286,9 +294,33 @@ internal class CustomReactionAttack
             attackMode.Copy(mode);
             attackMode.actionType = ActionType.Reaction;
         }
+        CharacterActionParams reactionParams = null;
         try
         {
             var reactionRequest = MakeReactionRequest(attacker, mover, attackMode, attackModifier);
+            reactionParams = reactionRequest.ReactionParams;
+            if (reactionStillValid != null)
+            {
+                ReactionRequestCallback.SetValidation(reactionParams, () =>
+                {
+                    if (!reactionStillValid())
+                    {
+                        return false;
+                    }
+
+                    // War Caster can replace the weapon choice with a cantrip. Recheck
+                    // the selected kind without forcing it back to the original weapon.
+                    if (reactionParams.RulesetEffect is RulesetEffectSpell selectedSpell)
+                    {
+                        var evaluation = new BattleDefinitions.AttackEvaluationParams();
+                        evaluation.FillForMagic(attacker, attacker.LocationPosition, selectedSpell.EffectDescription,
+                            selectedSpell.SpellDefinition.Name, mover, mover.LocationPosition, new ActionModifier());
+                        return MetamagicContext.CanAttackWithReactionMetamagic(battleManager, evaluation, true);
+                    }
+
+                    return CanPerformReactionAttack(attacker, mover, movement, battleManager, allowRange, out _, out _);
+                });
+            }
             if (BeforeReaction != null)
             {
                 yield return BeforeReaction(attacker, mover, battleManager, actionManager, reactionRequest);
@@ -305,6 +337,11 @@ internal class CustomReactionAttack
         }
         finally
         {
+            if (reactionParams != null)
+            {
+                ReactionRequestCallback.SetValidation(reactionParams, null);
+            }
+
             if (attackMode != null)
             {
                 RulesetAttackMode.AttackModesPool.Return(attackMode);

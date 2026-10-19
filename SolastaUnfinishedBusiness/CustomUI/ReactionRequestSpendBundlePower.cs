@@ -61,7 +61,7 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
     public override bool IsStillValid =>
         ReactionParams.RulesetEffect is RulesetEffectPower selected &&
         IsPowerAvailable(selected.PowerDefinition) &&
-        (_reactionStillValid?.Invoke() ??
+        (_reactionStillValid != null ? ReactionRequestCallback.Validate(ReactionParams, _reactionStillValid) :
          (ServiceRepository.GetService<IGameLocationCharacterService>()?.ValidCharacters.Contains(_target) == true &&
           _target?.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false }));
 

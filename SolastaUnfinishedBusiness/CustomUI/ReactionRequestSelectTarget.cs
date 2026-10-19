@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.CustomUI;
 
@@ -25,17 +26,22 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
         IEnumerable<GameLocationCharacter> candidates,
         string type,
         BaseDefinition effectDefinition,
-        Func<GameLocationCharacter, bool> candidateValidator = null)
+        Func<GameLocationCharacter, bool> candidateValidator = null,
+        bool isOffensive = false)
         : base(Name, reactionParams)
     {
         _type = type;
-        _candidateValidator = candidateValidator ?? IsCandidateValid;
+        _candidateValidator = candidateValidator ?? (isOffensive
+            ? candidate => IsCandidateValid(reactionParams.ActingCharacter, candidate)
+            : IsCandidateValid);
         EffectDefinition = effectDefinition;
+        IsOffensive = isOffensive;
         Candidates = candidates
             .Where(candidate => candidate != null)
             .GroupBy(candidate => candidate.Guid)
             .Select(group => group.First())
-            .OrderBy(candidate => candidate.Guid)
+            .OrderBy(candidate => isOffensive && !reactionParams.ActingCharacter.IsOppositeSide(candidate.Side))
+            .ThenBy(candidate => candidate.Guid)
             .ToList();
 
         BuildSuboptions();
@@ -44,6 +50,8 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
     internal IReadOnlyList<GameLocationCharacter> Candidates { get; }
 
     internal BaseDefinition EffectDefinition { get; }
+
+    internal bool IsOffensive { get; }
 
     internal GameLocationCharacter SelectedTarget =>
         _selectedOption >= 0 &&
@@ -58,7 +66,8 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
 
     public override bool IsStillValid => SelectedTarget != null;
 
-    internal bool IsCandidateAvailable(GameLocationCharacter candidate) => _candidateValidator(candidate);
+    internal bool IsCandidateAvailable(GameLocationCharacter candidate) =>
+        ReactionRequestCallback.Validate(ReactionParams, () => _candidateValidator(candidate));
 
     internal static bool IsCandidateValid(GameLocationCharacter candidate)
     {
@@ -68,6 +77,11 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
                    { IsDeadOrDyingOrUnconscious: false } and not RulesetCharacterEffectProxy &&
                characterService?.ValidCharacters?.Contains(candidate) == true;
     }
+
+    internal static bool IsCandidateValid(GameLocationCharacter actor, GameLocationCharacter candidate) =>
+        candidate?.RulesetCharacter is { IsDead: false } and not RulesetCharacterEffectProxy &&
+        (TargetingContext.IsManualPartyActor(actor) || !candidate.RulesetCharacter.IsDeadOrDyingOrUnconscious) &&
+        ServiceRepository.GetService<IGameLocationCharacterService>()?.ValidCharacters?.Contains(candidate) == true;
 
     public override void SelectSubOption(int option)
     {

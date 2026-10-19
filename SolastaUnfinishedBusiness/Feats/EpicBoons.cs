@@ -579,6 +579,7 @@ internal static class EpicBoons
                 .SetUsesFixed(ActivationTime.Reaction).SetExplicitAbilityScore(AttributeDefinitions.Constitution)
                 .SetEffectDescription(EffectDescriptionBuilder.Create()
                     .SetTargetingData(Side.Enemy, RangeType.Distance, 12, TargetType.IndividualsUnique)
+                    .ExcludeCaster()
                     .SetSavingThrowData(false, AttributeDefinitions.Dexterity, false,
                         EffectDifficultyClassComputation.AbilityScoreAndProficiency, AttributeDefinitions.Constitution)
                     .SetEffectForms(EffectFormBuilder.Create().SetDamageForm(type, 2, DieType.D12)
@@ -669,7 +670,8 @@ internal static class EpicBoons
             var attacker = source == null ? null : GameLocationCharacter.GetFromActor(source);
             yield return defender.MyReactToSelectTarget(candidates, attacker ?? defender, "AdditionalEffectTarget",
                 Gui.Localize("Reaction/&UseBoonOfEnergyRedirection2024Description"),
-                effectDefinition: power, candidateValidator: CandidateValid, actionParams: parameters);
+                effectDefinition: power, candidateValidator: CandidateValid, actionParams: parameters,
+                isOffensive: true);
             if (!parameters.ReactionValidated) parameters.RulesetEffect.Terminate(false);
             yield break;
 
@@ -677,9 +679,9 @@ internal static class EpicBoons
                 character is { IsDeadOrDyingOrUnconscious: false, IsIncapacitated: false } &&
                 PromptEnabled(character, ExtraActionId.BoonOfEnergyRedirection2024Toggle) &&
                 Has(character, attunement) &&
-                defender.GetActionTypeStatus(ActionType.Reaction) == ActionStatus.Available &&
+                defender.IsReactionAvailable() &&
                 character.CanUsePower(power, considerHaving: true) &&
-                IsEnergyRedirectionTarget(defender, candidate);
+                IsEnergyRedirectionTarget(defender, candidate, power);
         }
     }
     private sealed class EnergyRedirectionPermission(ConditionDefinition attunement) : IValidateMagicEffectBeforeSpend
@@ -690,13 +692,16 @@ internal static class EpicBoons
             failure = string.Empty;
             return PromptEnabled(actingCharacter.RulesetCharacter, ExtraActionId.BoonOfEnergyRedirection2024Toggle) &&
                    Has(actingCharacter.RulesetCharacter, attunement) && targets.Count == 1 &&
-                   IsEnergyRedirectionTarget(actingCharacter, targets[0]);
+                   IsEnergyRedirectionTarget(actingCharacter, targets[0],
+                       action.ActionParams.RulesetEffect.SourceDefinition);
         }
     }
 
-    private static bool IsEnergyRedirectionTarget(GameLocationCharacter defender, GameLocationCharacter candidate)
+    private static bool IsEnergyRedirectionTarget(GameLocationCharacter defender, GameLocationCharacter candidate,
+        BaseDefinition definition = null)
     {
-        if (candidate == null || candidate == defender || !defender.IsOppositeSide(candidate.Side) ||
+        if (candidate == null || candidate == defender ||
+            !TargetingContext.IsValidOffensiveTarget(defender, candidate, definition) ||
             candidate.RulesetCharacter is not { IsDead: false } || candidate.RulesetCharacter is RulesetCharacterEffectProxy ||
             ServiceRepository.GetService<IGameLocationCharacterService>()?.ValidCharacters.Contains(candidate) != true ||
             !defender.IsWithinRange(candidate, 12) || !defender.CanSeeTarget(candidate)) return false;

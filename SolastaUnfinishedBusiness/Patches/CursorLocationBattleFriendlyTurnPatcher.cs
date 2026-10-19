@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -51,7 +52,20 @@ public static class CursorLocationBattleFriendlyTurnPatcher
             //BUGFIX: do not allow attacking effect proxies
             __result = targetCharacter is { RulesetActor: not RulesetCharacterEffectProxy }
                        && __instance is { Battle: not null, actingCharacter: not null }
-                       && targetCharacter.Side == RuleDefinitions.GetOpposingSide(__instance.actingCharacter.Side);
+                       && (targetCharacter.Side == RuleDefinitions.GetOpposingSide(__instance.actingCharacter.Side) ||
+                           TargetingContext.CanTargetAlly(__instance.actingCharacter, targetCharacter, null, null));
+        }
+    }
+
+    [HarmonyPatch(typeof(CursorLocationBattleFriendlyTurn), nameof(CursorLocationBattleFriendlyTurn.Deactivate))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Deactivate_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CursorLocationBattleFriendlyTurn __instance)
+        {
+            CursorLocationSelectTargetPatcher.ClearFriendlyFireWarning(__instance);
         }
     }
 
@@ -139,6 +153,11 @@ public static class CursorLocationBattleFriendlyTurnPatcher
         public static void Postfix(CursorLocationBattleFriendlyTurn __instance)
         {
             FreeJumpContext.RefreshBattleSelectionCaption(__instance);
+            var harmful = __instance.isClickValid && __instance.actionChainParams is { Evaluated: true } chain &&
+                          chain.GetActionsParams().Any(action =>
+                              ActionDefinitions.IsAttackAction(action.ActionDefinition.Id));
+            CursorLocationSelectTargetPatcher.RefreshFriendlyFireWarning(__instance, __instance.actingCharacter,
+                new[] { __instance.lastHoveredCharacter }, harmful, true);
         }
     }
 }

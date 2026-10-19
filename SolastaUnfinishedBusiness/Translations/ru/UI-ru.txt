@@ -1,4 +1,12 @@
 Failure/&FailureFlagTargetOutOfRangeStrength=Цель вне диапазона (сила)
+Reaction/&CustomReactionFriendlyAreaTargetTitle=Затронутые союзники
+Reaction/&CustomReactionFriendlyAreaTargetDescription=Выберите союзников, на которых подействует этот эффект. Невыбранные союзники не затрагиваются. Выберите «Пропустить», чтобы завершить выбор.
+Reaction/&CustomReactionFriendlyAreaTargetReactTitle=Включить цель
+Reaction/&CustomReactionFriendlyAreaTargetReactDescription=Включить выбранного союзника в число целей этого эффекта.
+Reaction/&CustomReactionSearingVengeanceTitle=Жгучее возмездие
+Reaction/&CustomReactionSearingVengeanceDescription=Вы восстанавливаете хиты, равные половине максимума ваших хитов, и встаёте на ноги.
+Reaction/&CustomReactionSearingVengeanceReactTitle=Встать
+Reaction/&CustomReactionSearingVengeanceReactDescription=Поднимитесь на ноги во вспышке сияющей энергии.
 Feature/&ListSeparatorTitle=, 
 Tutorial/&TutorialActionSwitchingDescription=Когда вам доступно более одного основного или бонусного действия, вы можете нажать на символ статуса действия, чтобы сделать его активным в данный момент. Это позволяет атаковать, используя Ускорение или Сокрушитель Орды, а затем произнести заклинание, используя действие по умолчанию. Или любую другую комбинацию, которая вам может понадобиться.\nПри наведении на символ статуса действия появляется всплывающая подсказка с названием свойства или условия, которое даёт действие.
 Tutorial/&TutorialActionSwitchingTitle=Несколько действий
@@ -40,3 +48,4 @@ Screen/&OpenGamingLicenseDescription=Следующий текст являет�
 Rules/&ConditionHinderedTitle=Затруднённое передвижение
 Validator/&ParameterSpellNameDescription=Точное внутреннее название заклинания. Введите его на английском языке, точно соблюдая регистр букв.
 Feedback/&SpellSlotPreservedLine={0} сохраняет ячейку заклинания. Источник: {1}. Результат броска: {2}.
+Caption/&FriendlyFireWarning=Внимание: это действие навредит участнику группы.

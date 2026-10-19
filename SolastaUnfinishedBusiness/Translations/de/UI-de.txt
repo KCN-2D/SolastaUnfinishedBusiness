@@ -1,4 +1,12 @@
 Failure/&FailureFlagTargetOutOfRangeStrength=Ziel außerhalb des Bereichs (Stärke)
+Reaction/&CustomReactionFriendlyAreaTargetTitle=Betroffene Verbündete
+Reaction/&CustomReactionFriendlyAreaTargetDescription=Wählen Sie die Verbündeten, die von diesem Effekt betroffen sein sollen. Nicht gewählte Verbündete bleiben unbeeinflusst. Wählen Sie Überspringen, um die Auswahl zu beenden.
+Reaction/&CustomReactionFriendlyAreaTargetReactTitle=Ziel hinzufügen
+Reaction/&CustomReactionFriendlyAreaTargetReactDescription=Den gewählten Verbündeten in die Ziele dieses Effekts aufnehmen.
+Reaction/&CustomReactionSearingVengeanceTitle=Sengende Rache
+Reaction/&CustomReactionSearingVengeanceDescription=Sie gewinnen Trefferpunkte in Höhe der Hälfte Ihrer maximalen Trefferpunkte zurück und stehen auf.
+Reaction/&CustomReactionSearingVengeanceReactTitle=Aufstehen
+Reaction/&CustomReactionSearingVengeanceReactDescription=Mit einem Ausbruch strahlender Energie wieder auf die Füße springen.
 Feature/&ListSeparatorTitle=, 
 Tutorial/&TutorialActionSwitchingDescription=Wenn Ihnen mehr als eine Haupt- oder Bonusaktion zur Verfügung steht, können Sie auf das Aktionsstatussymbol klicken, um es zu Ihrer aktuell aktiven Aktion zu machen. Dadurch können Sie mit der Aktion Haste oder Horde Breaker angreifen und dann mit der Standardaktion einen Zauber wirken. Oder jede andere Kombination, die Sie benötigen.\nWenn Sie mit der Maus über das Aktionsstatussymbol fahren, wird ein Tooltip mit dem Namen der Funktion oder Bedingung angezeigt, die die Aktion gewährt hat.
 Tutorial/&TutorialActionSwitchingTitle=Mehrere Aktionen
@@ -40,3 +48,4 @@ Screen/&OpenGamingLicenseDescription=The following text is the property of Wizar
 Rules/&ConditionHinderedTitle=Behindert
 Validator/&ParameterSpellNameDescription=Der exakte interne Name des Zaubers. Gib ihn auf Englisch ein und beachte die genaue Groß- und Kleinschreibung.
 Feedback/&SpellSlotPreservedLine={0} verbraucht durch {1} keinen Zauberplatz (Wurf: {2}).
+Caption/&FriendlyFireWarning=Warnung: Diese Aktion schadet einem Gruppenmitglied.

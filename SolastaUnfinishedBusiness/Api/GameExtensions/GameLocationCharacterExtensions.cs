@@ -240,9 +240,34 @@ public static class GameLocationCharacterExtensions
         this GameLocationCharacter character, RulesetUsablePower usablePower, params GameLocationCharacter[] targets)
     {
         var actionService = ServiceRepository.GetService<IGameLocationActionService>();
+        actionService.ExecuteInstantSingleAction(CreateSpendPowerParameters(character, usablePower, targets));
+    }
+
+    internal static void MyExecuteActionSpendPower(this GameLocationCharacter character,
+        RulesetUsablePower usablePower, IEnumerable<GameLocationCharacter> targets, Func<bool> stillValid)
+    {
+        var actionService = ServiceRepository.GetService<IGameLocationActionService>();
+        var parameters = CreateSpendPowerParameters(character, usablePower, targets);
+        ReactionRequestCallback.SetValidation(parameters, stillValid);
+        try
+        {
+            actionService.ExecuteAction(parameters,
+                _ => ReactionRequestCallback.SetValidation(parameters, null), true);
+        }
+        catch
+        {
+            ReactionRequestCallback.SetValidation(parameters, null);
+            parameters.RulesetEffect.Terminate(false);
+            throw;
+        }
+    }
+
+    private static CharacterActionParams CreateSpendPowerParameters(GameLocationCharacter character,
+        RulesetUsablePower usablePower, IEnumerable<GameLocationCharacter> targets)
+    {
         var implementationService = ServiceRepository.GetService<IRulesetImplementationService>();
         var rulesetCharacter = character.RulesetCharacter;
-        var actionParams = new CharacterActionParams(character, Id.SpendPower)
+        return new CharacterActionParams(character, Id.SpendPower)
         {
             StringParameter = usablePower.PowerDefinition.Name,
             RulesetEffect = implementationService.InstantiateEffectPower(rulesetCharacter, usablePower, false),
@@ -250,7 +275,6 @@ public static class GameLocationCharacterExtensions
             targetCharacters = [.. targets]
         };
 
-        actionService.ExecuteInstantSingleAction(actionParams);
     }
 
     internal static void MyExecuteActionStabilizeAndStandUp(this GameLocationCharacter character, int hitPoints,
@@ -555,7 +579,8 @@ public static class GameLocationCharacterExtensions
         GameLocationBattleManager battleManager = null,
         BaseDefinition effectDefinition = null,
         Func<GameLocationCharacter, bool> candidateValidator = null,
-        CharacterActionParams actionParams = null)
+        CharacterActionParams actionParams = null,
+        bool isOffensive = false)
     {
         if (!TryGetReactionManagers(out var actionManager, out battleManager, battleManager))
         {
@@ -564,7 +589,9 @@ public static class GameLocationCharacterExtensions
 
         var candidateList = candidates?.ToArray() ?? [];
 
-        if (!candidateList.Any(candidateValidator ?? ReactionRequestSelectTarget.IsCandidateValid))
+        if (!candidateList.Any(candidateValidator ?? (isOffensive
+                ? candidate => ReactionRequestSelectTarget.IsCandidateValid(character, candidate)
+                : ReactionRequestSelectTarget.IsCandidateValid)))
         {
             reactionNotValidated?.Invoke();
             yield break;
@@ -574,12 +601,23 @@ public static class GameLocationCharacterExtensions
         // action commits its normal cost only after a valid target is accepted.
         var reactionParams = actionParams ?? new CharacterActionParams(character, (Id)ExtraActionId.DoNothingFree);
         reactionParams.StringParameter = stringParameter;
-        var reactionRequest = new ReactionRequestSelectTarget(reactionParams, candidateList, type, effectDefinition, candidateValidator);
+        var reactionRequest = new ReactionRequestSelectTarget(reactionParams, candidateList, type, effectDefinition,
+            candidateValidator, isOffensive);
         var count = actionManager.PendingReactionRequestGroups.Count;
 
-        actionManager.AddInterruptRequest(reactionRequest);
-
-        yield return battleManager.WaitForReactions(waiter, actionManager, count);
+        if (actionParams != null)
+        {
+            ReactionRequestCallback.SetValidation(reactionParams, () => reactionRequest.SelectedTarget != null);
+        }
+        try
+        {
+            actionManager.AddInterruptRequest(reactionRequest);
+            yield return battleManager.WaitForReactions(waiter, actionManager, count);
+        }
+        finally
+        {
+            if (actionParams != null) ReactionRequestCallback.SetValidation(reactionParams, null);
+        }
 
         // A committed native reaction may already have spent its reaction or
         // defeated the target. Report its accepted choice without revalidating
@@ -605,7 +643,8 @@ public static class GameLocationCharacterExtensions
         string stringParameter,
         string stringParameter2 = "",
         Action reactionValidated = null,
-        GameLocationBattleManager battleManager = null)
+        GameLocationBattleManager battleManager = null,
+        Func<bool> reactionStillValid = null)
     {
         if (!TryGetReactionServices(out var actionService, out var implementationService, out battleManager,
                 battleManager))
@@ -623,9 +662,20 @@ public static class GameLocationCharacterExtensions
         };
         var count = actionService.PendingReactionRequestGroups.Count;
 
-        actionService.ReactToSpendPower(reactionParams);
-
-        yield return battleManager.WaitForReactions(waiter, actionService, count);
+        ReactionRequestCallback.SetValidation(reactionParams, reactionStillValid);
+        try
+        {
+            actionService.ReactToSpendPower(reactionParams);
+            yield return battleManager.WaitForReactions(waiter, actionService, count);
+        }
+        finally
+        {
+            ReactionRequestCallback.SetValidation(reactionParams, null);
+            if (!reactionParams.ReactionValidated)
+            {
+                reactionParams.RulesetEffect.Terminate(false);
+            }
+        }
 
         if (reactionParams.ReactionValidated)
         {
@@ -683,7 +733,8 @@ public static class GameLocationCharacterExtensions
         string stringParameter2 = "",
         Action reactionValidated = null,
         Action reactionNotValidated = null,
-        GameLocationBattleManager battleManager = null)
+        GameLocationBattleManager battleManager = null,
+        Func<bool> reactionStillValid = null)
     {
         if (!TryGetReactionServices(out var actionService, out var implementationService, out battleManager,
                 battleManager))
@@ -704,9 +755,20 @@ public static class GameLocationCharacterExtensions
         };
         var count = actionService.PendingReactionRequestGroups.Count;
 
-        actionService.ReactToUsePower(actionParams, "UsePower", character);
-
-        yield return battleManager.WaitForReactions(waiter, actionService, count);
+        ReactionRequestCallback.SetValidation(actionParams, reactionStillValid);
+        try
+        {
+            actionService.ReactToUsePower(actionParams, "UsePower", character);
+            yield return battleManager.WaitForReactions(waiter, actionService, count);
+        }
+        finally
+        {
+            ReactionRequestCallback.SetValidation(actionParams, null);
+            if (!actionParams.ReactionValidated)
+            {
+                actionParams.RulesetEffect.Terminate(false);
+            }
+        }
 
         if (actionParams.ReactionValidated)
         {
@@ -757,7 +819,7 @@ public static class GameLocationCharacterExtensions
             return character;
         }
 
-        var controllerCharacter = EffectHelpers.GetCharacterByGuid(effectProxy.ControllerGuid);
+        var controllerCharacter = effectProxy.GetEffectControllerOrSelf();
 
         if (controllerCharacter == null)
         {
@@ -803,14 +865,14 @@ public static class GameLocationCharacterExtensions
             return false;
         }
 
-        if (sensor == target)
+        if (sensor == target && !requireSight)
         {
             return true;
         }
 
-        var knownTarget = sensor.Side == target.Side
+        var knownTarget = sensor == target || (sensor.Side == target.Side
             ? sensor.PerceivedAllies.Contains(target)
-            : sensor.PerceivedFoes.Contains(target);
+            : sensor.PerceivedFoes.Contains(target));
         if (!requireSight && !Main.Settings.UseOfficialLightingObscurementAndVisionRules)
         {
             return knownTarget;
@@ -1106,11 +1168,16 @@ public static class GameLocationCharacterExtensions
 
         var hasReactionInQueue = actionService.PendingReactionRequestGroups
             .SelectMany(x => x.Requests)
-            .Any(x => x.Character == instance);
+            .Any(x => x.Character == instance && x.ReactionParams != ReactionRequestCallback.Validating);
 
         if (hasReactionInQueue)
         {
             return false;
+        }
+
+        if (ReactionRequestCallback.IsReactionAvailableDuringExecution(instance, out var available))
+        {
+            return available;
         }
 
         if (!ignoreReactionUses)

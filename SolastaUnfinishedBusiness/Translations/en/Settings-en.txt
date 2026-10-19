@@ -552,6 +552,8 @@ ModUi/&UseAlternateSpellPointsSystemHelp=<i><color=#F0DAA0>[L01: <color=white>04
 ModUi/&UseElfFaceModelsOnTieflings=Use <color=#D89555>Elf</color> face models on <color=#D89555>Tieflings</color>
 ModUi/&UseHeightOneCylinderEffect=Use a height 1 cylinder effect when casting <color=#D89555>Black Tentacles, Entangle, Grease</color> <i><color=#F0DAA0>[square]</color></i> or <color=#D89555>Spike Growth</color> <i><color=#F0DAA0>[round]</color></i>
 ModUi/&UseMathFlankingRules=<i>+ Use precise math to determine flanking <color=#F0DAA0>[may have a performance impact on slow machines]</color></i>
+ModUi/&AllowPartyFriendlyFire=Allow attacks against party members
+ModUi/&AllowPartyFriendlyFireHelp=Manually controlled weapon attacks, spells, and powers that deal damage or cause harmful effects can also target party members, including yourself when the action allows it, unless their rules specify enemies only. Defensive abilities can be used against party members' actions when their activation conditions are met. NPCs keep their normal automatic targeting.
 ModUi/&UseOfficialAdvantageDisadvantageRules=Enable <color=#D89555>advantage / disadvantage</color> rules <i><color=#F0DAA0>[if circumstances cause a roll to have both, you are considered to have neither of them]</color></i>
 ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
 ModUi/&UseOfficialFlankingRules=Enable <color=#D89555>flanking</color> rules <i><color=#F0DAA0>[an attacker has advantage if an ally is on target's opposite side]</color></i>

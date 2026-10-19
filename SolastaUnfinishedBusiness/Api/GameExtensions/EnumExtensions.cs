@@ -260,7 +260,9 @@ internal enum ExtraTurnOccurenceType
     // EndOfTurn = RuleDefinitions.TurnOccurenceType.EndOfTurn,
     // EndOfTurnNoPerceptionOfSource = RuleDefinitions.TurnOccurenceType.EndOfTurnNoPerceptionOfSource,
     // EndOfSourceTurn = RuleDefinitions.TurnOccurenceType.EndOfSourceTurn,
-    StartOfSourceTurn = 9000
+    StartOfSourceTurn = 9000,
+    // A zero-round condition ends when the current combat turn ends, regardless of its recipient or source.
+    EndOfAnyTurn = 9001
 }
 public static class Extensions
 {

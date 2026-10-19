@@ -7,6 +7,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Spells;
 using SolastaUnfinishedBusiness.Subclasses;
@@ -100,6 +101,14 @@ public static class CharacterActionAttackPatcher
 
             var targets = actionParams.TargetCharacters;
             var target = targets[0];
+            if (!ReactionRequestCallback.IsValid(actionParams) ||
+                TargetingContext.IsPartyAllyTarget(actingCharacter, target, true) &&
+                !TargetingContext.IsValidOffensiveTarget(actingCharacter, target))
+            {
+                __instance.Abort(CharacterAction.InterruptionType.Invalid);
+                yield break;
+            }
+
             var rulesetDefender = target.RulesetActor;
             var defenderWasConscious = !rulesetDefender.IsDeadOrDyingOrUnconscious;
             var validateCurrentPositions = __instance.ActionType != ActionDefinitions.ActionType.Reaction &&
@@ -244,6 +253,13 @@ public static class CharacterActionAttackPatcher
                     advantageTrends: attackModifier.AttackAdvantageTrends, canGainAdvantage: !attackModifier.IgnoreAdvantage);
 
                 yield return attackRollContext.Prompt(actingCharacter);
+
+                if (!ReactionRequestCallback.IsValid(actionParams))
+                {
+                    actionParams.ReactionValidated = false;
+                    __instance.Abort(CharacterAction.InterruptionType.Invalid);
+                    yield break;
+                }
 
                 if (validateCurrentPositions && !MotionContext.CanAttackFromCurrentPositions(battleManager, attackParams))
                 {
@@ -1019,7 +1035,7 @@ public static class CharacterActionAttackPatcher
 
             //PATCH: support for Defensive Strike Power - allows adding Charisma modifier and chain reactions
             yield return DefensiveStrikeAttack.ProcessOnCharacterAttackFinished(
-                battleManager, actingCharacter, target);
+                battleManager, actingCharacter, target, __instance);
 
             //PATCH: support for Aura of the Guardian power - allows swapping hp on enemy attacking ally
             yield return GuardianAura.ProcessOnCharacterAttackHitFinished(

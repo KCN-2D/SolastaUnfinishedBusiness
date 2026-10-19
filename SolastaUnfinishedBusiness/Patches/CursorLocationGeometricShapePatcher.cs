@@ -123,6 +123,7 @@ public static class CursorLocationGeometricShapePatcher
         [UsedImplicitly]
         public static void Prefix(CursorLocationGeometricShape __instance)
         {
+            CursorLocationSelectTargetPatcher.ClearFriendlyFireWarning(__instance);
             CursorMotionHelper.Deactivate(__instance);
         }
     }
@@ -137,6 +138,10 @@ public static class CursorLocationGeometricShapePatcher
         public static void Postfix(CursorLocationGeometricShape __instance)
         {
             CursorMotionHelper.RefreshHover(__instance);
+            CursorLocationSelectTargetPatcher.RefreshFriendlyFireWarning(__instance,
+                __instance.ActionParams?.ActingCharacter, __instance.affectedCharacters,
+                __instance.isValidClick && TargetingContext.IsHarmfulEffect(
+                    __instance.ActionParams?.RulesetEffect?.SourceDefinition, __instance.effectDescription));
         }
 
         [UsedImplicitly]

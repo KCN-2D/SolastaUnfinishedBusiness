@@ -8,6 +8,7 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
 using static RuleDefinitions;
@@ -117,6 +118,7 @@ public sealed class PathOfTheSpirits : AbstractSubclass
         PowerSpiritGuardians.effectDescription.EffectForms[2].ConditionForm.ConditionDefinition =
             ConditionSpiritGuardiansSelf;
         PowerSpiritGuardians.AddCustomSubFeatures(
+            TargetingContext.SelectiveTargets.Marker,
             new ModifyEffectDescriptionSpiritGuardians(PowerSpiritGuardians));
 
         PowerSpiritGuardiansRageCost.effectDescription.EffectForms[1].ConditionForm.ConditionDefinition =
@@ -124,6 +126,7 @@ public sealed class PathOfTheSpirits : AbstractSubclass
         PowerSpiritGuardiansRageCost.effectDescription.EffectForms[2].ConditionForm.ConditionDefinition =
             ConditionSpiritGuardiansSelf;
         PowerSpiritGuardiansRageCost.AddCustomSubFeatures(
+            TargetingContext.SelectiveTargets.Marker,
             new ModifyEffectDescriptionSpiritGuardians(PowerSpiritGuardiansRageCost));
 
         #endregion
@@ -328,6 +331,7 @@ public sealed class PathOfTheSpirits : AbstractSubclass
                 .SetEffectForms(EffectFormBuilder.ConditionForm(conditionHonedAnimalAspectsBear))
                 .Build())
             .AddCustomSubFeatures(ValidatorsValidatePowerUse.IsRaging)
+            .AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker)
             .AddToDB();
 
         return powerHonedAnimalAspectsBear;

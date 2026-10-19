@@ -481,6 +481,25 @@ public static class GameLocationCharacterPatcher
 
             return true;
         }
+
+        [UsedImplicitly]
+        public static void Postfix(GameLocationCharacter __instance)
+        {
+            var battle = Gui.Battle;
+            if (!__instance.Valid || battle?.ActiveContender != __instance)
+            {
+                return;
+            }
+
+            // NextTurn invokes EndBattleTurn once on its active contender, then sends
+            // EndOfSourceTurn to the others. This distinct occurrence must be dispatched only here.
+            foreach (var actor in battle.AllContenders.Where(contender => contender is
+                         { destroying: false, destroyedBody: false, RulesetActor: not null })
+                         .Select(contender => contender.RulesetActor).Distinct().ToArray())
+            {
+                actor.ProcessConditionsMatchingOccurenceType((TurnOccurenceType)ExtraTurnOccurenceType.EndOfAnyTurn, 0);
+            }
+        }
     }
 
     [HarmonyPatch(typeof(GameLocationCharacter), nameof(GameLocationCharacter.StartBattle))]
@@ -506,6 +525,10 @@ public static class GameLocationCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(GameLocationCharacter __instance)
         {
+            // Combat can finish before NextTurn dispatches the active contender's turn end.
+            __instance.RulesetActor?.ProcessConditionsMatchingOccurenceType(
+                (TurnOccurenceType)ExtraTurnOccurenceType.EndOfAnyTurn, 0);
+
             //PATCH: acts as a callback for the character's combat ended event
             //while there already is callback for this event it doesn't have character argument
             CharacterBattleListenersPatch.OnCharacterBattleEnded(__instance);

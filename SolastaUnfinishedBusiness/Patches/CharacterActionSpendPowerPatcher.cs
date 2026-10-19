@@ -77,6 +77,15 @@ public static class CharacterActionSpendPowerPatcher
             var implementationService = ServiceRepository.GetService<IRulesetImplementationService>();
             var activePower = __instance.ActionParams.RulesetEffect as RulesetEffectPower;
 
+            if (!GameLocationActionManagerPatcher.IsFriendlyReactionValid(actionParams) ||
+                !TargetingContext.ValidateActionTargets(actionParams))
+            {
+                actionParams.ReactionValidated = false;
+                __instance.Abort(CharacterAction.InterruptionType.Invalid);
+                rulesetEffect.Terminate(false);
+                yield break;
+            }
+
             // Retrieve the target
             __instance.targets.SetRange(targets);
 
@@ -103,6 +112,15 @@ public static class CharacterActionSpendPowerPatcher
             }
 
             var actionModifier = new ActionModifier();
+
+            if (!GameLocationActionManagerPatcher.IsFriendlyReactionValid(actionParams) ||
+                !TargetingContext.ValidateActionTargets(actionParams))
+            {
+                actionParams.ReactionValidated = false;
+                __instance.Abort(CharacterAction.InterruptionType.Invalid);
+                rulesetEffect.Terminate(false);
+                yield break;
+            }
 
             // BEGIN PATCH
             PowerBundle.SpendBundledPowerIfNeeded(__instance);

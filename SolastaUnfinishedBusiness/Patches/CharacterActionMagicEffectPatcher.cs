@@ -479,6 +479,15 @@ public static class CharacterActionMagicEffectPatcher
             var targetPositions = actionParams.Positions;
             var actionModifiers = actionParams.ActionModifiers;
 
+            if (!TargetingContext.ValidateActionTargets(actionParams) ||
+                !GameLocationActionManagerPatcher.IsFriendlyReactionValid(actionParams))
+            {
+                actionParams.ReactionValidated = false;
+                __instance.ExecutionFailed = true;
+                rulesetEffect.Terminate(false);
+                yield break;
+            }
+
             using var interruptionScope = SpellInterruptionContext.Track(__instance);
             using var onHitEffectScope = OnHitEffectContext.Track(__instance);
 
@@ -824,6 +833,17 @@ public static class CharacterActionMagicEffectPatcher
             // Revalidate the final synchronized targets immediately before spell slots,
             // power uses, or material components are consumed. Custom summon preparation
             // performs a second validation after special casting time.
+            yield return TargetingContext.SelectPartyAreaTargets(__instance);
+
+            if (!TargetingContext.ValidateActionTargets(actionParams) ||
+                !GameLocationActionManagerPatcher.IsFriendlyReactionValid(actionParams))
+            {
+                actionParams.ReactionValidated = false;
+                __instance.ExecutionFailed = true;
+                rulesetEffect.Terminate(false);
+                yield break;
+            }
+
             foreach (var validator in
                      baseDefinition.GetAllSubFeaturesOfType<IValidateMagicEffectBeforeSpend>())
             {
@@ -1144,7 +1164,7 @@ public static class CharacterActionMagicEffectPatcher
                 //PATCH: support for Defensive Strike Power - allows adding Charisma modifier and chain reactions
                 var extraDefensiveStrikeAttackEvents =
                     DefensiveStrikeAttack.ProcessOnCharacterAttackFinished(battleManager,
-                        actingCharacter, target);
+                        actingCharacter, target, __instance);
 
                 while (extraDefensiveStrikeAttackEvents.MoveNext())
                 {

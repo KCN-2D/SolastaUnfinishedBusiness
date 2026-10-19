@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
@@ -200,6 +201,7 @@ public class PatronCelestial : AbstractSubclass
             .Create(ConditionDefinitions.ConditionBlinded, "ConditionBlindedBySearingVengeance")
             .SetOrUpdateGuiPresentation(Category.Condition)
             .SetParentCondition(ConditionDefinitions.ConditionBlinded)
+            .SetSpecialDuration(DurationType.Round, 0, (TurnOccurenceType)ExtraTurnOccurenceType.EndOfAnyTurn)
             .SetFeatures()
             .AddToDB();
 
@@ -213,8 +215,8 @@ public class PatronCelestial : AbstractSubclass
             .SetEffectDescription(
                 EffectDescriptionBuilder
                     .Create()
-                    .SetDurationData(DurationType.Round)
-                    .SetTargetingData(Side.Enemy, RangeType.Distance, 0, TargetType.IndividualsUnique)
+                    .SetDurationData(DurationType.Instantaneous)
+                    .SetTargetingData(Side.Enemy, RangeType.Distance, 6, TargetType.IndividualsUnique)
                     .SetEffectForms(
                         EffectFormBuilder
                             .Create()
@@ -228,9 +230,18 @@ public class PatronCelestial : AbstractSubclass
                     .Build())
             .AddToDB();
 
+        // Recovering and standing up commits the rest use before choosing the burst's targets.
+        // The hidden delivery power applies that same accepted burst without consuming the use again.
+        var powerSearingVengeanceBurst = FeatureDefinitionPowerBuilder
+            .Create(powerSearingVengeance, $"Power{Name}SearingVengeanceBurst")
+            .SetGuiPresentation(powerSearingVengeance.GuiPresentation)
+            .SetUsesFixed(ActivationTime.NoCost)
+            .AddCustomSubFeatures(ModifyPowerVisibility.Hidden)
+            .AddToDB();
+
         powerSearingVengeance.AddCustomSubFeatures(
             ModifyPowerVisibility.Hidden,
-            new OnReducedToZeroHpByEnemySearingVengeance(powerSearingVengeance));
+            new OnReducedToZeroHpByEnemySearingVengeance(powerSearingVengeance, powerSearingVengeanceBurst));
 
         //
         // Main
@@ -346,7 +357,8 @@ public class PatronCelestial : AbstractSubclass
     // Searing Vengeance
     //
 
-    private sealed class OnReducedToZeroHpByEnemySearingVengeance(FeatureDefinitionPower powerSearingVengeance)
+    private sealed class OnReducedToZeroHpByEnemySearingVengeance(
+        FeatureDefinitionPower powerSearingVengeance, FeatureDefinitionPower powerSearingVengeanceBurst)
         : IOnReducedToZeroHpByEnemy
     {
         public IEnumerator HandleReducedToZeroHpByEnemy(
@@ -357,30 +369,57 @@ public class PatronCelestial : AbstractSubclass
         {
             var rulesetCharacter = defender.RulesetCharacter;
             var usablePower = PowerProvider.Get(powerSearingVengeance, rulesetCharacter);
+            var battle = Gui.Battle;
+            bool ConfirmationStillValid() => Gui.Battle == battle && battle != null &&
+                !rulesetCharacter.IsDead && rulesetCharacter.CurrentHitPoints == 0 &&
+                rulesetCharacter.CanUsePower(powerSearingVengeance, considerHaving: true);
 
-            if (Gui.Battle == null ||
-                rulesetCharacter.GetRemainingUsesOfPower(usablePower) == 0)
+            if (!ConfirmationStillValid())
             {
                 yield break;
             }
 
-            var targets = Gui.Battle.GetContenders(defender, withinRange: 5);
+            var accepted = false;
+            yield return defender.MyReactToDoNothing(ExtraActionId.DoNothingFree, attacker ?? defender,
+                "SearingVengeance", Gui.Localize("Reaction/&CustomReactionSearingVengeanceDescription"),
+                ReactionValidated, resource: new ReactionResourcePowerPool(powerSearingVengeance),
+                target: defender, effectDefinition: powerSearingVengeance,
+                reactionStillValid: ConfirmationStillValid);
 
-            yield return defender.MyReactToUsePower(
-                ActionDefinitions.Id.PowerNoCost,
-                usablePower,
-                targets,
-                attacker,
-                "SearingVengeance",
-                reactionValidated: ReactionValidated);
+            if (!accepted)
+            {
+                yield break;
+            }
+
+            bool SourceStillValid() => accepted && Gui.Battle == battle &&
+                rulesetCharacter is { IsDeadOrDyingOrUnconscious: false, IsIncapacitated: false } &&
+                rulesetCharacter.HasAnyFeature(powerSearingVengeance);
+            bool CandidateValid(GameLocationCharacter target) => SourceStillValid() &&
+                ReactionRequestSelectTarget.IsCandidateValid(defender, target) && battle.AllContenders.Contains(target) &&
+                defender.IsWithinRange(target, 6);
+            var candidates = battle.AllContenders.Where(CandidateValid).ToArray();
+            List<GameLocationCharacter> targets = null;
+            yield return TargetingContext.SelectOffensiveTargets(defender, candidates, attacker ?? defender,
+                powerSearingVengeance, CandidateValid, -1, selected => targets = selected);
+
+            if (SourceStillValid() && targets is { Count: > 0 })
+            {
+                defender.MyExecuteActionSpendPower(PowerProvider.Get(powerSearingVengeanceBurst, rulesetCharacter),
+                    targets, () => SourceStillValid() && targets.All(target => CandidateValid(target) &&
+                        TargetingContext.IsValidOffensiveTarget(defender, target, powerSearingVengeance,
+                            powerSearingVengeance.EffectDescription)));
+            }
 
             yield break;
 
             void ReactionValidated()
             {
-                var hitPoints = rulesetCharacter.MissingHitPoints / 2;
-
-                defender.MyExecuteActionStabilizeAndStandUp(hitPoints);
+                // This is the one rest-use commitment, including when the player selects no burst targets.
+                rulesetCharacter.UsePower(usablePower);
+                rulesetCharacter.LogCharacterUsedPower(powerSearingVengeance);
+                defender.MyExecuteActionStabilizeAndStandUp(
+                    rulesetCharacter.TryGetAttributeValue(AttributeDefinitions.HitPoints) / 2);
+                accepted = true;
             }
         }
     }

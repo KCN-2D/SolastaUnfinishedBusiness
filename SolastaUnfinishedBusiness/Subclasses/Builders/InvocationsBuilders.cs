@@ -1141,6 +1141,7 @@ internal static class InvocationsBuilders
                             .Build())
                     .SetImpactEffectParameters(PowerDomainElementalIceLance)
                     .Build())
+            .AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker)
             .AddToDB();
 
         var powerInvocationChillingHex = FeatureDefinitionPowerBuilder

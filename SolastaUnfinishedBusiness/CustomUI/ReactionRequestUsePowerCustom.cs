@@ -2,6 +2,8 @@
 
 public class ReactionRequestUsePowerCustom : ReactionRequestUsePower
 {
+    public override bool IsStillValid => base.IsStillValid && ReactionRequestCallback.IsValid(ReactionParams);
+
     public ReactionRequestUsePowerCustom(
         CharacterActionParams reactionParams,
         string name = "UsePower")

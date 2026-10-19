@@ -23,6 +23,44 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetImplementationManagerLocationPatcher
 {
+    [HarmonyPatch(typeof(RulesetImplementationManagerLocation),
+        nameof(RulesetImplementationManagerLocation.AutoTriggerProxy))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class AutoTriggerProxy_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions,
+            System.Reflection.MethodBase __originalMethod)
+        {
+            var parameters = __originalMethod.GetMethodBody()?.LocalVariables
+                .Where(local => local.LocalType == typeof(CharacterActionParams)).ToArray();
+            if (parameters is not { Length: 1 })
+            {
+                Main.Error("Expected one action parameters local in RulesetImplementationManagerLocation.AutoTriggerProxy.");
+                return instructions;
+            }
+
+            return instructions.ReplaceCalls(
+                AccessTools.PropertyGetter(typeof(FeatureDefinitionPower), nameof(FeatureDefinitionPower.EffectDescription)),
+                1, "RulesetImplementationManagerLocation.AutoTriggerProxy.FriendlyFire",
+                new CodeInstruction(OpCodes.Ldloc, parameters[0].LocalIndex),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(
+                    typeof(AutoTriggerProxy_Patch), nameof(GetProxyEffectDescription))));
+        }
+
+        private static EffectDescription GetProxyEffectDescription(FeatureDefinitionPower power,
+            CharacterActionParams parameters)
+        {
+            // Native proxy collection reads the shared power before its action runs.
+            // Only widened party casts need the instance description at this boundary.
+            var description = parameters.RulesetEffect?.EffectDescription;
+            return TargetingContext.IsExpandedFriendlyFireDescription(description)
+                ? description
+                : power.EffectDescription;
+        }
+    }
+
     [HarmonyPatch(
         typeof(RulesetImplementationManagerLocation),
         nameof(RulesetImplementationManagerLocation.ApplyItemPropertyForm),

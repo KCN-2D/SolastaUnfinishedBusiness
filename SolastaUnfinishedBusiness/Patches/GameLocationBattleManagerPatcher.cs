@@ -72,10 +72,230 @@ public static class GameLocationBattleManagerPatcher
             CombinedMetamagic.GetIteratorMoveNext(typeof(GameLocationBattleManager), nameof(GameLocationBattleManager.HandleSpellCast));
 
         [UsedImplicitly]
-        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
-            MetamagicContext.PatchReactionSpellRangeChecks(
-                CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.SubtleSpell,
-                    "GameLocationBattleManager.HandleSpellCast.MoveNext"), TargetMethod());
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var iterator = TargetMethod();
+            var code = CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.SubtleSpell,
+                "GameLocationBattleManager.HandleSpellCast.MoveNext");
+
+            code = PatchCounterspellSelfTargeting(code, iterator);
+            return MetamagicContext.PatchReactionSpellRangeChecks(PatchCounterspellTargetSides(code, iterator), iterator);
+        }
+
+        private static IEnumerable<CodeInstruction> PatchCounterspellSelfTargeting(
+            IEnumerable<CodeInstruction> instructions, MethodBase iterator)
+        {
+            var code = instructions.ToList();
+            var casterField = AccessTools.Field(iterator.DeclaringType, "caster");
+            var effectField = AccessTools.Field(iterator.DeclaringType, "selectEffectSpell");
+            var perceivedAllies = AccessTools.PropertyGetter(typeof(GameLocationCharacter),
+                nameof(GameLocationCharacter.PerceivedAllies));
+            var skipSelf = AccessTools.Method(typeof(HandleSpellCast_MoveNext_Patch),
+                nameof(ShouldSkipCounterspellSelf));
+            var perceiveSelf = AccessTools.Method(typeof(HandleSpellCast_MoveNext_Patch),
+                nameof(GetCounterspellPerceivedAllies));
+            var identityChecks = new List<int>();
+            var perceptionChecks = new List<int>();
+
+            if (casterField == null || effectField == null)
+            {
+                Main.Error($"Missing counterspell caster/effect fields in {iterator.DeclaringType?.FullName}.");
+                return code;
+            }
+
+            for (var index = 3; index < code.Count; index++)
+            {
+                if ((code[index].opcode == OpCodes.Beq || code[index].opcode == OpCodes.Beq_S) &&
+                    code[index - 1].LoadsField(casterField) && code[index - 2].opcode == OpCodes.Ldarg_0 &&
+                    code[index - 3].IsLdloc())
+                {
+                    identityChecks.Add(index);
+                }
+
+                if (code[index].Calls(perceivedAllies))
+                {
+                    perceptionChecks.Add(index);
+                }
+            }
+
+            if (identityChecks.Count != 2 || perceptionChecks.Count != 4)
+            {
+                Main.Error($"Expected two counterspell self checks and four allied perception checks in {iterator.DeclaringType?.FullName}, found {identityChecks.Count}/{perceptionChecks.Count}.");
+                return code;
+            }
+
+            foreach (var index in identityChecks.Concat(perceptionChecks).OrderByDescending(index => index))
+            {
+                if (identityChecks.Contains(index))
+                {
+                    // Keep the native skip, except for a visible manually controlled party caster.
+                    var destination = code[index].operand;
+                    code[index].opcode = OpCodes.Ldarg_0;
+                    code[index].operand = null;
+                    code.InsertRange(index + 1,
+                    [
+                        new CodeInstruction(OpCodes.Ldfld, effectField),
+                        new CodeInstruction(OpCodes.Call, skipSelf),
+                        new CodeInstruction(OpCodes.Brtrue, destination)
+                    ]);
+                }
+                else
+                {
+                    code[index].opcode = OpCodes.Ldarg_0;
+                    code[index].operand = null;
+                    code.InsertRange(index + 1,
+                    [
+                        new CodeInstruction(OpCodes.Ldfld, casterField),
+                        new CodeInstruction(OpCodes.Ldarg_0),
+                        new CodeInstruction(OpCodes.Ldfld, effectField),
+                        new CodeInstruction(OpCodes.Call, perceiveSelf)
+                    ]);
+                }
+            }
+
+            return code;
+        }
+
+        private static bool ShouldSkipCounterspellSelf(GameLocationCharacter reactor,
+            GameLocationCharacter caster, RulesetEffectSpell effect)
+        {
+            return reactor == caster && !CanCounterspellSelf(reactor, caster, effect);
+        }
+
+        private static bool CanCounterspellSelf(GameLocationCharacter reactor,
+            GameLocationCharacter caster, RulesetEffectSpell effect)
+        {
+            return reactor == caster && TargetingContext.CanReactToAllyAction(reactor, caster, effect) &&
+                   reactor.CanSeeTarget(caster);
+        }
+
+        private static List<GameLocationCharacter> GetCounterspellPerceivedAllies(GameLocationCharacter reactor,
+            GameLocationCharacter caster, RulesetEffectSpell effect)
+        {
+            var allies = reactor.PerceivedAllies;
+            if (!CanCounterspellSelf(reactor, caster, effect) || allies.Contains(caster))
+            {
+                return allies;
+            }
+
+            // Perception collections belong to the game; add self only to this candidate check.
+            return new List<GameLocationCharacter>(allies) { caster };
+        }
+
+        private static IEnumerable<CodeInstruction> PatchCounterspellTargetSides(
+            IEnumerable<CodeInstruction> instructions, MethodBase iterator)
+        {
+            var code = instructions.ToList();
+            var targetSide = AccessTools.PropertyGetter(typeof(EffectDescription), nameof(EffectDescription.TargetSide));
+            var characterSide = AccessTools.PropertyGetter(typeof(GameLocationCharacter), nameof(GameLocationCharacter.Side));
+            var oppositeSide = AccessTools.Method(typeof(GameLocationCharacter), nameof(GameLocationCharacter.IsOppositeSide));
+            var casterField = AccessTools.Field(iterator.DeclaringType, "caster");
+            var effectField = AccessTools.Field(iterator.DeclaringType, "selectEffectSpell");
+            var replacement = AccessTools.Method(typeof(HandleSpellCast_MoveNext_Patch), nameof(GetCounterspellTargetSide));
+            var matches = new List<(int Index, CodeInstruction Reactor)>();
+
+            for (var index = 0; index < code.Count; index++)
+            {
+                if (!code[index].Calls(targetSide))
+                {
+                    continue;
+                }
+
+                // Both native counter powers and counter spells keep their own local reactor.
+                // Match its typed side check, rather than depending on compiler-local numbers.
+                for (var next = index + 1; next < Math.Min(code.Count, index + 12); next++)
+                {
+                    if (next >= 2 && code[next].Calls(oppositeSide) && code[next - 1].Calls(characterSide) &&
+                        code[next - 2].IsLdloc())
+                    {
+                        matches.Add((index, code[next - 2]));
+                        break;
+                    }
+                }
+            }
+
+            if (matches.Count != 2 || casterField == null || effectField == null)
+            {
+                Main.Error($"Expected two counterspell target-side checks in {iterator.DeclaringType?.FullName}, found {matches.Count}.");
+                return code;
+            }
+
+            foreach (var (index, reactor) in matches.OrderByDescending(match => match.Index))
+            {
+                // All also checks PerceivedAllies in the native coroutine. Merely changing
+                // IsOppositeSide would still discard a visible allied caster as a non-foe.
+                code[index].opcode = OpCodes.Ldarg_0;
+                code[index].operand = null;
+                code.InsertRange(index + 1,
+                [
+                    new CodeInstruction(OpCodes.Ldfld, casterField),
+                    new CodeInstruction(reactor.opcode, reactor.operand),
+                    new CodeInstruction(OpCodes.Ldarg_0),
+                    new CodeInstruction(OpCodes.Ldfld, effectField),
+                    new CodeInstruction(OpCodes.Call, replacement)
+                ]);
+            }
+
+            return code;
+        }
+
+        private static Side GetCounterspellTargetSide(EffectDescription description,
+            GameLocationCharacter caster, GameLocationCharacter reactor, RulesetEffectSpell effect)
+        {
+            if (reactor == caster && description.TargetExcludeCaster)
+            {
+                return Side.Enemy;
+            }
+
+            return description.TargetSide == Side.Enemy &&
+                   TargetingContext.CanReactToAllyAction(reactor, caster, effect)
+                ? Side.All
+                : description.TargetSide;
+        }
+    }
+
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class HandleCharacterPhysicalAttackInitiated_MoveNext_Patch
+    {
+        [UsedImplicitly]
+        public static MethodBase TargetMethod() => CombinedMetamagic.GetIteratorMoveNext(
+            typeof(GameLocationBattleManager), nameof(GameLocationBattleManager.HandleCharacterPhysicalAttackInitiated));
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var iterator = TargetMethod();
+            return instructions.ReplaceCalls(
+                AccessTools.Method(typeof(GameLocationBattle), nameof(GameLocationBattle.GetOpposingContenders)),
+                1,
+                "GameLocationBattleManager.HandleCharacterPhysicalAttackInitiated.FriendlyProtection",
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Ldfld, AccessTools.Field(iterator.DeclaringType, "attacker")),
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Ldfld, AccessTools.Field(iterator.DeclaringType, "defender")),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(
+                    typeof(HandleCharacterPhysicalAttackInitiated_MoveNext_Patch), nameof(GetProtectionCandidates))));
+        }
+
+        private static List<GameLocationCharacter> GetProtectionCandidates(GameLocationBattle battle, Side attackerSide,
+            GameLocationCharacter attacker, GameLocationCharacter defender)
+        {
+            var nativeCandidates = battle.GetOpposingContenders(attackerSide);
+            if (!TargetingContext.CanTargetAlly(attacker, defender, null, null))
+            {
+                return nativeCandidates;
+            }
+
+            // The native list opposes the attacker. During friendly fire those creatures
+            // oppose the defender too, and must not spend Protection on the other side.
+            return nativeCandidates.Where(candidate => !candidate.IsOppositeSide(defender.Side))
+                .Concat(battle.AllContenders.Where(candidate =>
+                    !candidate.IsOppositeSide(defender.Side) &&
+                    TargetingContext.CanReactToAllyAction(candidate, attacker.GetEffectControllerOrSelf())))
+                .Distinct()
+                .ToList();
+        }
     }
 
     [HarmonyPatch]
@@ -88,8 +308,46 @@ public static class GameLocationBattleManagerPatcher
                 nameof(GameLocationBattleManager.HandleDefenderOnDamageReceived));
 
         [UsedImplicitly]
-        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
-            MetamagicContext.PatchReactionSpellRangeChecks(instructions, TargetMethod(), "damagedCharacter");
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var iterator = TargetMethod();
+            var code = MetamagicContext.PatchReactionSpellRangeChecks(instructions, iterator, "damagedCharacter").ToList();
+            var targetSide = AccessTools.PropertyGetter(typeof(EffectDescription), nameof(EffectDescription.TargetSide));
+            var spellDescription = AccessTools.PropertyGetter(typeof(SpellDefinition), nameof(SpellDefinition.EffectDescription));
+            var indices = Enumerable.Range(2, Math.Max(0, code.Count - 2))
+                .Where(index => code[index].Calls(targetSide) && code[index - 1].Calls(spellDescription) &&
+                                code[index - 2].IsLdloc())
+                .ToArray();
+            if (indices.Length != 1)
+            {
+                Main.Error($"Expected one counterattack spell target-side check in {iterator.DeclaringType?.FullName}, found {indices.Length}.");
+                return code;
+            }
+
+            var sideIndex = indices[0];
+            var spellLoad = code[sideIndex - 2];
+            code[sideIndex].opcode = OpCodes.Ldarg_0;
+            code[sideIndex].operand = null;
+            code.InsertRange(sideIndex + 1,
+            [
+                new CodeInstruction(OpCodes.Ldfld, AccessTools.Field(iterator.DeclaringType, "damagedCharacter")),
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Ldfld, AccessTools.Field(iterator.DeclaringType, "attacker")),
+                new CodeInstruction(spellLoad.opcode, spellLoad.operand),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(
+                    typeof(HandleDefenderOnDamageReceived_MoveNext_Patch), nameof(GetCounterattackTargetSide)))
+            ]);
+            return code;
+        }
+
+        private static Side GetCounterattackTargetSide(EffectDescription description,
+            GameLocationCharacter defender, GameLocationCharacter attacker, SpellDefinition spell)
+        {
+            return description.TargetSide == Side.Enemy &&
+                   TargetingContext.CanTargetAlly(defender, attacker, spell, description)
+                ? Side.All
+                : description.TargetSide;
+        }
     }
 
     [HarmonyPatch(typeof(GameLocationBattleManager), nameof(GameLocationBattleManager.HandleSpellTargeted))]
@@ -259,6 +517,17 @@ public static class GameLocationBattleManagerPatcher
 
             if (attackAfterMagicEffect != null)
             {
+                // The physical follow-up can reach an ally even when this enemy-side
+                // spell cannot select it. Preserve native All/Ally spell targeting.
+                if (cantrip.EffectDescription.TargetSide == Side.Enemy &&
+                    TargetingContext.IsPartyAllyTarget(attackParams.attacker, attackParams.defender, true) &&
+                    !TargetingContext.IsValidOffensiveTarget(attackParams.attacker, attackParams.defender,
+                        cantrip, cantrip.EffectDescription))
+                {
+                    __result = false;
+                    return;
+                }
+
                 __result = AttackAfterMagicEffect.CanAttack(
                     attackParams.attacker,
                     attackParams.defender,
@@ -691,6 +960,16 @@ public static class GameLocationBattleManagerPatcher
         [UsedImplicitly]
         public static bool Prefix(ref AttackEvaluationParams attackParams)
         {
+            var definition = GetAttackDefinition(attackParams);
+            if (TargetingContext.IsExpandedFriendlyFireDescription(attackParams.effectDescription) &&
+                attackParams.attacker != null && attackParams.defender != null &&
+                !attackParams.attacker.IsOppositeSide(attackParams.defender.Side) &&
+                !TargetingContext.CanTargetAlly(attackParams.attacker, attackParams.defender,
+                    definition, attackParams.effectDescription))
+            {
+                return false;
+            }
+
             if (!MotionContext.CanEvaluateAttackPositions(attackParams))
             {
                 attackParams.attackModifier?.FailureFlags.Add("Failure/&FailureFlagNoReachForTargetDescription");
@@ -795,6 +1074,12 @@ public static class GameLocationBattleManagerPatcher
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
         {
             instructions = CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.DistantSpell, "GameLocationBattleManager.CanAttack");
+            instructions = instructions.ReplaceCalls(
+                AccessTools.PropertyGetter(typeof(EffectDescription), nameof(EffectDescription.TargetSide)),
+                3,
+                "GameLocationBattleManager.CanAttack.FriendlyFireTargetSide",
+                new CodeInstruction(OpCodes.Ldarg_1),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(CanAttack_Patch), nameof(GetAttackTargetSide))));
 
             var oldIsProjBlocked = typeof(IGameLocationPositioningService)
                 .GetMethod(nameof(IGameLocationPositioningService.IsProjectileBlocked));
@@ -817,6 +1102,36 @@ public static class GameLocationBattleManagerPatcher
                 "GameLocationBattleManager.CanAttack.FamiliarTouchDelivery",
                 new CodeInstruction(OpCodes.Ldarg_1),
                 new CodeInstruction(OpCodes.Call, canSeeFromDeliveryOrigin));
+        }
+
+        private static Side GetAttackTargetSide(EffectDescription description, AttackEvaluationParams attackParams)
+        {
+            return description.TargetSide == Side.Enemy &&
+                   TargetingContext.CanTargetAlly(attackParams.attacker, attackParams.defender,
+                       GetAttackDefinition(attackParams), description)
+                ? Side.All
+                : description.TargetSide;
+        }
+
+        private static BaseDefinition GetAttackDefinition(AttackEvaluationParams attackParams)
+        {
+            if (attackParams.attackMode?.SourceDefinition is { } source)
+            {
+                return source;
+            }
+            if (string.IsNullOrEmpty(attackParams.effectName))
+            {
+                return null;
+            }
+
+            if (DatabaseHelper.TryGetDefinition<SpellDefinition>(attackParams.effectName, out var spell))
+            {
+                return spell;
+            }
+
+            return DatabaseHelper.TryGetDefinition<FeatureDefinitionPower>(attackParams.effectName, out var power)
+                ? power
+                : null;
         }
 
         private static bool CanSeeFromTouchDeliveryOrigin(
@@ -894,6 +1209,34 @@ public static class GameLocationBattleManagerPatcher
                 out attackMode, out __instance.actionModifierBefore, true, __instance);
 
             return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(GameLocationBattleManager),
+        nameof(GameLocationBattleManager.HandleAdditionalDamageOnCharacterMagicalAttackHitConfirmed))]
+    [UsedImplicitly]
+    public static class HandleAdditionalDamageOnCharacterMagicalAttackHitConfirmed_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            return instructions.ReplaceCalls(
+                AccessTools.PropertyGetter(typeof(IAdditionalDamageProvider), nameof(IAdditionalDamageProvider.TargetSide)),
+                2,
+                "GameLocationBattleManager.HandleAdditionalDamageOnCharacterMagicalAttackHitConfirmed.FriendlyFire",
+                new CodeInstruction(OpCodes.Ldarg_1),
+                new CodeInstruction(OpCodes.Ldarg_2),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(
+                    typeof(HandleAdditionalDamageOnCharacterMagicalAttackHitConfirmed_Patch), nameof(GetAdditionalDamageTargetSide))));
+        }
+
+        private static Side GetAdditionalDamageTargetSide(IAdditionalDamageProvider provider,
+            GameLocationCharacter attacker, GameLocationCharacter defender)
+        {
+            return provider.TargetSide == Side.Enemy && TargetingContext.IsValidOffensiveTarget(
+                attacker, defender, provider as BaseDefinition, null)
+                ? Side.All
+                : provider.TargetSide;
         }
     }
 

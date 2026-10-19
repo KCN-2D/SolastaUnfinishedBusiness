@@ -118,6 +118,15 @@ internal static class FixesContext
         // fix condition UI
         FeatureDefinitionCombatAffinitys.CombatAffinityForeknowledge.GuiPresentation.Description = Gui.NoLocalization;
 
+        // Native removal categories stay unchanged; targeting also needs the harmful
+        // meaning of neutral control conditions and their descendants.
+        ConditionDefinitions.ConditionIncapacitated.AddCustomSubFeatures(TargetingContext.HarmfulCondition.Marker);
+        GetDefinition<ConditionDefinition>("ConditionUnconscious")
+            .AddCustomSubFeatures(TargetingContext.HarmfulCondition.Marker);
+        ConditionDefinitions.ConditionEyebiteSickened.AddCustomSubFeatures(TargetingContext.HarmfulCondition.Marker);
+        GetDefinition<ConditionDefinition>("ConditionHitByDirtyFighting")
+            .AddCustomSubFeatures(TargetingContext.HarmfulCondition.Marker);
+
         // Native demon grease conditions contain literal English instead of their existing localized terms.
         var attackDisadvantage =
             GetDefinition<ConditionDefinition>("ConditionDemonGreasePseudoLifeDisadvAttacks").GuiPresentation;
@@ -607,6 +616,12 @@ internal static class FixesContext
 
     private static void FixMinorMagicEffectsIssues()
     {
+        SpiritGuardians.AddCustomSubFeatures(TargetingContext.SelectiveTargets.Marker);
+
+        // The guardian explicitly damages hostile creatures, including its proxy delivery.
+        GuardianOfFaith.AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker);
+        EffectProxyDefinitions.ProxyGuardianOfFaith.AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker);
+
         // fix Resurrection
         Resurrection.EffectDescription.EffectForms[0].ReviveForm.maxSecondsSinceDeath = 864000;
 

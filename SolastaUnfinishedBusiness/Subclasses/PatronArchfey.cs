@@ -1,8 +1,10 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
@@ -132,7 +134,8 @@ public class PatronArchfey : AbstractSubclass
 
         // Misty Escape
 
-        var conditionMistyEscape = ConditionDefinitionBuilder
+        // Existing saved turns can still reference this short-lived condition.
+        ConditionDefinitionBuilder
             .Create($"Condition{Name}MistyEscape")
             .SetGuiPresentationNoContent(true)
             .SetSilent(Silent.WhenAddedOrRemoved)
@@ -172,7 +175,7 @@ public class PatronArchfey : AbstractSubclass
 
         powerMistyEscape.AddCustomSubFeatures(
             ModifyPowerVisibility.Hidden,
-            new CustomBehaviorMistyEscape(powerMistyEscape, conditionMistyEscape));
+            new CustomBehaviorMistyEscape(powerMistyEscape));
 
         // LEVEL 10
 
@@ -339,167 +342,100 @@ public class PatronArchfey : AbstractSubclass
     // Misty Escape
     //
 
-    private sealed class CustomBehaviorMistyEscape(
-        FeatureDefinitionPower powerMistyEscape,
-        ConditionDefinition conditionMistyEscape)
-        : IMagicEffectBeforeHitConfirmedOnMe, IPhysicalAttackBeforeHitConfirmedOnMe,
-            IMagicEffectFinishedOnMe, IPhysicalAttackFinishedOnMe,
-            IIgnoreInvisibilityInterruptionCheck
+    private sealed class CustomBehaviorMistyEscape(FeatureDefinitionPower powerMistyEscape)
+        : IReactToDamageReceived, IIgnoreInvisibilityInterruptionCheck
     {
         private const string TagMistyEscape = "MistyEscape";
 
-        public IEnumerator OnMagicEffectBeforeHitConfirmedOnMe(
-            GameLocationBattleManager battleManager,
-            GameLocationCharacter attacker,
-            GameLocationCharacter defender,
-            ActionModifier actionModifier,
-            RulesetEffect rulesetEffect,
-            List<EffectForm> actualEffectForms,
-            bool firstTarget,
-            bool criticalHit)
+        public IEnumerator ReactToDamageReceived(RulesetCharacter character, int damage, string damageType,
+            ulong sourceGuid, int hitPointsBefore, int hitPointsAfter)
         {
-            if (attacker.IsOppositeSide(defender.Side))
-            {
-                yield return HandleReaction(battleManager, attacker, defender);
-            }
-        }
+            var defender = GameLocationCharacter.GetFromActor(character);
+            var source = EffectHelpers.GetCharacterByGuid(sourceGuid);
+            var attacker = source == null ? null : GameLocationCharacter.GetFromActor(source);
+            var battleManager = ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
+            bool ReactionStillValid() => TargetingContext.IsManualPartyActor(defender) && defender.CanReact() &&
+                character.CanUsePower(powerMistyEscape, considerHaving: true) &&
+                (attacker == null || defender.IsOppositeSide(attacker.Side) ||
+                 TargetingContext.CanReactToAllyAction(defender, attacker));
 
-        public IEnumerator OnMagicEffectFinishedOnMe(CharacterAction action,
-            GameLocationCharacter attacker,
-            GameLocationCharacter defender,
-            List<GameLocationCharacter> targets)
-        {
-            if (!defender.UsedSpecialFeatures.ContainsKey(TagMistyEscape))
+            if (damage <= 0 || !battleManager || !ReactionStillValid())
             {
                 yield break;
             }
 
-            defender.UsedSpecialFeatures.Remove(TagMistyEscape);
+            var confirmed = false;
+            yield return defender.MyReactToDoNothing(ExtraActionId.DoNothingFree, attacker ?? defender, TagMistyEscape,
+                $"CustomReaction{TagMistyEscape}Description".Localized(Category.Reaction), () => confirmed = true,
+                battleManager: battleManager, target: defender, effectDefinition: powerMistyEscape,
+                reactionStillValid: ReactionStillValid);
 
-            yield return SelectPositionAndExecutePower(defender);
-        }
-
-        public IEnumerator OnPhysicalAttackBeforeHitConfirmedOnMe(
-            GameLocationBattleManager battleManager,
-            GameLocationCharacter attacker,
-            GameLocationCharacter defender,
-            ActionModifier actionModifier,
-            RulesetAttackMode attackMode,
-            bool rangedAttack,
-            AdvantageType advantageType,
-            List<EffectForm> actualEffectForms,
-            bool firstTarget,
-            bool criticalHit)
-        {
-            yield return HandleReaction(battleManager, attacker, defender);
-        }
-
-        public IEnumerator OnPhysicalAttackFinishedOnMe(
-            GameLocationBattleManager battleManager,
-            CharacterAction action,
-            GameLocationCharacter attacker,
-            GameLocationCharacter defender,
-            RulesetAttackMode attackMode,
-            RollOutcome rollOutcome,
-            int damageAmount)
-        {
-            if (!defender.UsedSpecialFeatures.ContainsKey(TagMistyEscape))
+            if (confirmed && ReactionStillValid())
             {
-                yield break;
+                yield return SelectPositionAndExecutePower(defender, ReactionStillValid);
             }
-
-            defender.UsedSpecialFeatures.Remove(TagMistyEscape);
-
-            yield return SelectPositionAndExecutePower(defender);
         }
 
-        private IEnumerator SelectPositionAndExecutePower(GameLocationCharacter defender)
+        private IEnumerator SelectPositionAndExecutePower(GameLocationCharacter defender, Func<bool> reactionStillValid)
         {
-            CampaignsContext.ResetCamera();
-
-            var rulesetDefender = defender.RulesetCharacter;
             var cursorManager = ServiceRepository.GetService<ICursorService>() as CursorManager;
             var implementationService = ServiceRepository.GetService<IRulesetImplementationService>();
-            var usablePower = PowerProvider.Get(powerMistyEscape, rulesetDefender);
-            var rulesetEffect = implementationService
-                .InstantiateEffectPower(defender.RulesetCharacter, usablePower, false);
-
-            var actionParams = new CharacterActionParams(defender, (ActionDefinitions.Id)ExtraActionId.DoNothingFree)
+            var actionService = ServiceRepository.GetService<IGameLocationActionService>();
+            if (!cursorManager || implementationService == null || actionService == null ||
+                !cursorManager.cursorsByType.TryGetValue(typeof(CursorLocationSelectPosition), out var selection) ||
+                selection is not CursorLocationSelectPosition cursor)
             {
-                RulesetEffect = rulesetEffect, UsablePower = usablePower
+                yield break;
+            }
+
+            CampaignsContext.ResetCamera();
+            var usablePower = PowerProvider.Get(powerMistyEscape, defender.RulesetCharacter);
+            var effect = implementationService.InstantiateEffectPower(defender.RulesetCharacter, usablePower, false);
+            var parameters = new CharacterActionParams(defender, (ActionDefinitions.Id)ExtraActionId.DoNothingFree)
+            {
+                RulesetEffect = effect, UsablePower = usablePower
             };
+            var dispatched = false;
+            CharacterActionParams command = null;
 
-            var cursorLocationSelectPosition =
-                cursorManager!.cursorsByType[typeof(CursorLocationSelectPosition)] as CursorLocationSelectPosition;
-
-            cursorLocationSelectPosition!.selectedPositions.Clear();
-
-            // need this outer loop to ensure we re-activate cursor if game cancels it
-            while (cursorLocationSelectPosition.selectedPositions.Count == 0)
+            try
             {
-                cursorManager!.ActivateCursor<CursorLocationSelectPosition>(actionParams);
-
-                while (cursorManager.CurrentCursor is CursorLocationSelectPosition)
+                cursor.selectedPositions.Clear();
+                cursorManager.ActivateCursor<CursorLocationSelectPosition>(parameters);
+                while (cursorManager.CurrentCursor == cursor && reactionStillValid())
                 {
                     yield return null;
                 }
+
+                if (cursor.selectedPositions.Count == 0 || !reactionStillValid())
+                {
+                    yield break;
+                }
+
+                command = new CharacterActionParams(defender, ActionDefinitions.Id.PowerReaction)
+                {
+                    ActionModifiers = { new ActionModifier() },
+                    RulesetEffect = effect, UsablePower = usablePower,
+                    TargetCharacters = { defender }, positions = [.. cursor.selectedPositions], IsReactionEffect = true
+                };
+                ReactionRequestCallback.SetValidation(command, reactionStillValid);
+                actionService.ExecuteAction(command, _ => ReactionRequestCallback.SetValidation(command, null), true);
+                dispatched = true;
             }
-
-            actionParams = new CharacterActionParams(defender, ActionDefinitions.Id.PowerNoCost)
+            finally
             {
-                ActionModifiers = { new ActionModifier() },
-                RulesetEffect = rulesetEffect,
-                UsablePower = usablePower,
-                TargetCharacters = { defender },
-                positions = [.. cursorLocationSelectPosition!.selectedPositions]
-            };
-
-            ServiceRepository.GetService<IGameLocationActionService>().ExecuteAction(actionParams, null, true);
-        }
-
-        private IEnumerator HandleReaction(
-            GameLocationBattleManager battleManager,
-            GameLocationCharacter attacker,
-            GameLocationCharacter defender)
-        {
-            if (defender.RulesetCharacter.GetRemainingPowerUses(powerMistyEscape) == 0 ||
-                defender.IsMyTurn())
-            {
-                yield break;
-            }
-
-            yield return defender.MyReactToDoNothing(
-                ExtraActionId.DoNothingFree,
-                attacker,
-                TagMistyEscape,
-                $"CustomReaction{TagMistyEscape}Description".Localized(Category.Reaction),
-                ReactionValidated,
-                battleManager: battleManager,
-                target: defender, effectDefinition: powerMistyEscape);
-
-            yield break;
-
-            void ReactionValidated()
-            {
-                defender.UsedSpecialFeatures.TryAdd(TagMistyEscape, 0);
-
-                // trick to ensure enemy won't execute any more attack or shove action after teleport
-                var rulesetAttacker = attacker.RulesetCharacter;
-                var rulesetDefender = defender.RulesetCharacter;
-
-                rulesetAttacker.InflictCondition(
-                    conditionMistyEscape.Name,
-                    DurationType.Round,
-                    0,
-                    TurnOccurenceType.EndOfTurn,
-                    AttributeDefinitions.TagEffect,
-                    rulesetDefender.guid,
-                    rulesetDefender.CurrentFaction.Name,
-                    1,
-                    conditionMistyEscape.Name,
-                    0,
-                    0,
-                    0);
+                if (!dispatched)
+                {
+                    if (command != null)
+                    {
+                        ReactionRequestCallback.SetValidation(command, null);
+                    }
+                    if (cursorManager.CurrentCursor == cursor)
+                    {
+                        cursorManager.DeactivateCursor();
+                    }
+                    effect.Terminate(false);
+                }
             }
         }
     }
@@ -545,10 +481,13 @@ public class PatronArchfey : AbstractSubclass
             GameLocationCharacter defender,
             List<EffectForm> actualEffectForms)
         {
-            if (!defender.CanReact() ||
-                !defender.CanPerceiveTarget(attacker) ||
-                !actualEffectForms.GetAppliedConditionDefinitions().Any(condition =>
-                    condition.IsSubtypeOf(ConditionDefinitions.ConditionCharmed.Name)))
+            bool ReactionStillValid() => defender.CanReact() && defender.CanPerceiveTarget(attacker) &&
+                TargetingContext.IsValidOffensiveTarget(defender, attacker, powerBeguilingDefenses) &&
+                defender.RulesetCharacter.CanUsePower(powerBeguilingDefenses, considerHaving: true) &&
+                actualEffectForms.GetAppliedConditionDefinitions().Any(condition =>
+                    condition.IsSubtypeOf(ConditionDefinitions.ConditionCharmed.Name));
+
+            if (!ReactionStillValid())
             {
                 yield break;
             }
@@ -562,7 +501,8 @@ public class PatronArchfey : AbstractSubclass
                 [attacker],
                 attacker,
                 "BeguilingDefenses",
-                battleManager: battleManager);
+                battleManager: battleManager,
+                reactionStillValid: ReactionStillValid);
         }
     }
 }

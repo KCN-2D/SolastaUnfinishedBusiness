@@ -5,6 +5,7 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
 using static RuleDefinitions;
@@ -280,6 +281,7 @@ public sealed class WizardGraviturgist : AbstractSubclass
                             .Build())
                     .SetCasterEffectParameters(PowerGreen_Hag_Invisibility)
                     .Build())
+            .AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker)
             .AddToDB();
 
         powerEventHorizon.AddCustomSubFeatures(new PowerOrSpellInitiatedByMeEventHorizon(conditionEventHorizonSelf));

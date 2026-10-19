@@ -11,6 +11,7 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
 using UnityEngine.AddressableAssets;
@@ -925,7 +926,7 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
                 abilityCheckModifier.AbilityCheckModifierTrends.Add(
                     new TrendInfo(dieRoll, FeatureSourceType.Power, powerWeal.Name, powerWeal)
                     {
-                        dieType = DieType.D4, dieFlag = TrendInfoDieFlag.None
+                        dieType = DieType, dieFlag = TrendInfoDieFlag.None
                     });
                 abilityCheckModifier.AbilityCheckModifier += dieRoll;
                 abilityCheckData.AbilityCheckSuccessDelta += dieRoll;
@@ -1035,6 +1036,13 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
 
         public int HandlerPriority => -10;
 
+        private bool CanUseWoe(GameLocationCharacter helper, GameLocationCharacter target,
+            RulesetUsablePower usablePower) =>
+            helper.CanReact() && TargetingContext.IsValidOffensiveTarget(helper, target, powerWoe) &&
+            helper.IsWithinRange(target, 6) && helper.CanSeeTarget(target) &&
+            helper.RulesetCharacter.CanUsePower(powerWoe, considerHaving: true) &&
+            helper.RulesetCharacter.GetRemainingUsesOfPower(usablePower) > 0;
+
         public IEnumerator OnTryAlterOutcomeAttack(
             GameLocationBattleManager battleManager,
             CharacterAction action,
@@ -1048,13 +1056,10 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
             var rulesetHelper = helper.RulesetCharacter;
             var usablePower = PowerProvider.Get(powerPool, rulesetHelper);
 
-            if (action.AttackRollOutcome != RollOutcome.Success ||
-                action.AttackSuccessDelta - MaxDieTypeValue >= 0 ||
-                !helper.CanReact() ||
-                !helper.IsOppositeSide(attacker.Side) ||
-                !helper.IsWithinRange(attacker, 6) ||
-                !helper.CanSeeTarget(attacker) ||
-                rulesetHelper.GetRemainingUsesOfPower(usablePower) == 0)
+            bool ReactionStillValid() => action.AttackRollOutcome == RollOutcome.Success &&
+                action.AttackSuccessDelta < MaxDieTypeValue && CanUseWoe(helper, attacker, usablePower);
+
+            if (!ReactionStillValid())
             {
                 yield break;
             }
@@ -1067,7 +1072,8 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
                 "SpendPowerWoeCosmosOmenAttackDescription".Formatted(
                     Category.Reaction, attacker.Name, defender.Name, helper.Name),
                 ReactionValidated,
-                battleManager);
+                battleManager,
+                reactionStillValid: ReactionStillValid);
 
             yield break;
 
@@ -1114,14 +1120,11 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
             var rulesetHelper = helper.RulesetCharacter;
             var usablePower = PowerProvider.Get(powerPool, rulesetHelper);
 
-            if (rawRoll == 0 ||
-                abilityCheckData.AbilityCheckRollOutcome is not (RollOutcome.Success or RollOutcome.CriticalSuccess) ||
-                abilityCheckData.AbilityCheckSuccessDelta - MaxDieTypeValue >= 0 ||
-                !helper.CanReact() ||
-                !helper.IsOppositeSide(defender.Side) ||
-                !helper.IsWithinRange(defender, 6) ||
-                !helper.CanSeeTarget(defender) ||
-                rulesetHelper.GetRemainingUsesOfPower(usablePower) == 0)
+            bool ReactionStillValid() => rawRoll != 0 &&
+                (abilityCheckData.AbilityCheckRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess) &&
+                abilityCheckData.AbilityCheckSuccessDelta < MaxDieTypeValue && CanUseWoe(helper, defender, usablePower);
+
+            if (!ReactionStillValid())
             {
                 yield break;
             }
@@ -1134,7 +1137,8 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
                 "SpendPowerWoeCosmosOmenCheckDescription".Formatted(
                     Category.Reaction, defender.Name, helper.Name),
                 ReactionValidated,
-                battleManager);
+                battleManager,
+                reactionStillValid: ReactionStillValid);
 
             yield break;
 
@@ -1149,7 +1153,7 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
                 abilityCheckModifier.AbilityCheckModifierTrends.Add(
                     new TrendInfo(dieRoll, FeatureSourceType.Power, powerWoe.Name, powerWoe)
                     {
-                        dieType = DieType.D4, dieFlag = TrendInfoDieFlag.None
+                        dieType = DieType, dieFlag = TrendInfoDieFlag.None
                     });
                 abilityCheckModifier.AbilityCheckModifier += dieRoll;
                 abilityCheckData.AbilityCheckSuccessDelta += dieRoll;
@@ -1189,13 +1193,10 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
             var rulesetHelper = helper.RulesetCharacter;
             var usablePower = PowerProvider.Get(powerPool, rulesetHelper);
 
-            if (savingThrowData.SaveOutcome != RollOutcome.Success ||
-                savingThrowData.SaveOutcomeDelta - MaxDieTypeValue >= 0 ||
-                !helper.CanReact() ||
-                !helper.IsOppositeSide(defender.Side) ||
-                !helper.IsWithinRange(defender, 6) ||
-                !helper.CanSeeTarget(defender) ||
-                rulesetHelper.GetRemainingUsesOfPower(usablePower) == 0)
+            bool ReactionStillValid() => savingThrowData.SaveOutcome == RollOutcome.Success &&
+                savingThrowData.SaveOutcomeDelta < MaxDieTypeValue && CanUseWoe(helper, defender, usablePower);
+
+            if (!ReactionStillValid())
             {
                 yield break;
             }
@@ -1209,7 +1210,8 @@ public sealed class CircleOfTheCosmos : AbstractSubclass
                     Category.Reaction, defender.Name, attacker?.Name ?? ReactionRequestCustom.EnvTitle,
                     savingThrowData.Title),
                 ReactionValidated,
-                battleManager);
+                battleManager,
+                reactionStillValid: ReactionStillValid);
 
             yield break;
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Interfaces;
 
@@ -18,6 +19,99 @@ public interface IReactionRequestWithCallbacks //<T> where T : ReactionRequest
 
 public static class ReactionRequestCallback
 {
+    private static readonly ConditionalWeakTable<CharacterActionParams, Func<bool>> Validations = new();
+    private static readonly ConditionalWeakTable<CharacterActionParams, ExecutionScope> Executions = new();
+
+    [ThreadStatic] private static CharacterActionParams _validating;
+
+    internal static CharacterActionParams Validating => _validating;
+
+    internal static bool Validate(CharacterActionParams parameters, Func<bool> validation)
+    {
+        var previous = _validating;
+        try
+        {
+            _validating = parameters;
+            return validation?.Invoke() ?? true;
+        }
+        finally
+        {
+            _validating = previous;
+        }
+    }
+
+    internal static IDisposable BeginExecution(CharacterAction action) => new ExecutionScope(action);
+
+    internal static bool IsExecuting(CharacterActionParams parameters) =>
+        parameters != null && Executions.TryGetValue(parameters, out _);
+
+    // Native Execute engages the reaction before its implementation validates targets.
+    // Read availability with only this action's own engagement/rank changes removed.
+    internal static bool IsReactionAvailableDuringExecution(GameLocationCharacter actor, out bool available)
+    {
+        available = false;
+        if (_validating?.ActingCharacter != actor ||
+            !Executions.TryGetValue(_validating, out var execution) ||
+            _validating.ActionDefinition.ActionType != ActionDefinitions.ActionType.Reaction)
+        {
+            return false;
+        }
+
+        var engaged = actor.ReactionEngaged;
+        var rank = actor.currentActionRankByType[ActionDefinitions.ActionType.Reaction];
+        try
+        {
+            actor.ReactionEngaged = execution.Engaged;
+            actor.currentActionRankByType[ActionDefinitions.ActionType.Reaction] = execution.Rank;
+            available = actor.GetActionTypeStatus(ActionDefinitions.ActionType.Reaction) ==
+                        ActionDefinitions.ActionStatus.Available;
+            return true;
+        }
+        finally
+        {
+            actor.ReactionEngaged = engaged;
+            actor.currentActionRankByType[ActionDefinitions.ActionType.Reaction] = rank;
+        }
+    }
+
+    private sealed class ExecutionScope : IDisposable
+    {
+        private readonly CharacterActionParams _parameters;
+        private readonly ExecutionScope _previous;
+        internal readonly bool Engaged;
+        internal readonly int Rank;
+
+        internal ExecutionScope(CharacterAction action)
+        {
+            _parameters = action.ActionParams;
+            var actor = action.ActingCharacter;
+            Engaged = actor.ReactionEngaged;
+            Rank = actor.currentActionRankByType[ActionDefinitions.ActionType.Reaction];
+            Executions.TryGetValue(_parameters, out _previous);
+            Executions.Remove(_parameters);
+            Executions.Add(_parameters, this);
+        }
+
+        public void Dispose()
+        {
+            Executions.Remove(_parameters);
+            if (_previous != null) Executions.Add(_parameters, _previous);
+        }
+    }
+
+    internal static void SetValidation(CharacterActionParams parameters, Func<bool> validation)
+    {
+        Validations.Remove(parameters);
+        if (validation != null)
+        {
+            Validations.Add(parameters, validation);
+        }
+    }
+
+    internal static bool IsValid(CharacterActionParams parameters) =>
+        parameters == null || !Validations.TryGetValue(parameters, out var validation) ||
+        Validate(parameters, validation);
+
     [CanBeNull]
     public static Action<ReactionRequest> Transform<T>([CanBeNull] Action<T> callback) where T : ReactionRequest
     {
@@ -54,7 +148,8 @@ public class ReactionRequestCustom : ReactionRequest, IReactionRequestWithResour
 
     internal BaseDefinition EffectDefinition { get; }
 
-    public override bool IsStillValid => base.IsStillValid && (_reactionStillValid?.Invoke() ?? true);
+    public override bool IsStillValid => base.IsStillValid &&
+                                        ReactionRequestCallback.Validate(ReactionParams, _reactionStillValid);
 
     public ICustomReactionResource Resource { get; set; }
 

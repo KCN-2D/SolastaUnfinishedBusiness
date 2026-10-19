@@ -19,6 +19,17 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetEffectPowerPatcher
 {
+    [HarmonyPatch(typeof(RulesetEffectPower), nameof(RulesetEffectPower.ApplyEffectOnCharacter))]
+    [UsedImplicitly]
+    public static class ApplyEffectOnCharacter_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(RulesetEffectPower __instance, RulesetActor targetCharacter) =>
+            TargetingContext.CanAffectExpandedTarget(__instance,
+                GameLocationCharacter.GetFromActor(__instance.User),
+                GameLocationCharacter.GetFromActor(targetCharacter));
+    }
+
     [HarmonyPatch(typeof(RulesetEffectPower), ".ctor", MethodType.Constructor)]
     [HarmonyPatch([
         typeof(RulesetCharacter), // user
@@ -156,6 +167,7 @@ public static class RulesetEffectPowerPatcher
             //PATCH: support for `ICustomMagicEffectBasedOnCaster` and `IModifySpellEffect` 
             // allowing to pick and/or tweak power effect depending on some properties of the user
             __result = PowerBundle.ModifyPowerEffect(__result, __instance);
+            __result = TargetingContext.GetEffectDescription(__instance, __result);
         }
     }
 

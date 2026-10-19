@@ -229,6 +229,7 @@ internal static class BootContext
         DiagnosticsContext.CacheCeDefinitions();
 
         ModUi.LoadTabletopDefinitions();
+        TargetingContext.LateLoad();
 
         // Manages update or welcome messages
         UpdateContext.Load();

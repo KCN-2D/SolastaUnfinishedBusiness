@@ -1,10 +1,12 @@
 ﻿using System.Collections;
+using System;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
 using static RuleDefinitions;
 using static ActionDefinitions;
@@ -17,7 +19,8 @@ internal static class DefensiveStrikeAttack
     internal static IEnumerator ProcessOnCharacterAttackFinished(
         GameLocationBattleManager battleManager,
         GameLocationCharacter attacker,
-        GameLocationCharacter defender)
+        GameLocationCharacter defender,
+        CharacterAction sourceAction = null)
     {
         if (Gui.Battle == null)
         {
@@ -36,7 +39,7 @@ internal static class DefensiveStrikeAttack
                 continue;
             }
 
-            yield return ActiveDefensiveStrike(unit, attacker, defender, battleManager);
+            yield return ActiveDefensiveStrike(unit, attacker, defender, battleManager, sourceAction);
         }
     }
 
@@ -44,11 +47,14 @@ internal static class DefensiveStrikeAttack
         [NotNull] GameLocationCharacter unit,
         [NotNull] GameLocationCharacter attacker,
         GameLocationCharacter defender,
-        GameLocationBattleManager battleManager)
+        GameLocationBattleManager battleManager,
+        CharacterAction sourceAction)
     {
         var unitCharacter = unit.RulesetCharacter;
 
-        if (!attacker.IsOppositeSide(unit.Side) ||
+        if (!TargetingContext.IsValidOffensiveTarget(unit, attacker) ||
+            !TargetingContext.IsValidOffensiveTarget(defender, attacker) ||
+            sourceAction is { AttackRollOutcome: not (RollOutcome.Success or RollOutcome.CriticalSuccess) } ||
             defender.IsOppositeSide(unit.Side) ||
             unit == defender ||
             !unitCharacter.HasSubFeatureOfType<DefensiveStrikeMarker>())
@@ -85,17 +91,17 @@ internal static class DefensiveStrikeAttack
         //Find defender's attack mode
         var (opportunityAttackMode, actionModifier) = defender.GetFirstMeleeModeThatCanAttack(attacker, battleManager);
 
-        if (opportunityAttackMode == null || actionModifier == null)
+        if (opportunityAttackMode?.EffectDescription.FindFirstDamageForm() == null || actionModifier == null)
         {
             yield break;
         }
 
         //Calculate bonus
         var charisma = unitCharacter.TryGetAttributeValue(AttributeDefinitions.Charisma);
-        var bonus = AttributeDefinitions.ComputeAbilityScoreModifier(charisma);
+        var bonus = Math.Max(1, AttributeDefinitions.ComputeAbilityScoreModifier(charisma));
 
         yield return unit.MyReactToDoNothing(
-            ExtraActionId.DoNothingReaction,
+            ExtraActionId.DoNothingFree,
             attacker,
             OathOfAltruism.DefensiveStrike,
             $"CustomReaction{OathOfAltruism.DefensiveStrike}Description"
@@ -103,12 +109,29 @@ internal static class DefensiveStrikeAttack
             ReactionValidated,
             battleManager: battleManager,
             resource: ReactionResourceChannelDivinity.Instance,
-            target: attacker);
+            target: attacker,
+            reactionStillValid: () => ReactionStillValid(false));
 
         yield break;
 
         void ReactionValidated()
         {
+            if (!ReactionStillValid(false))
+            {
+                return;
+            }
+
+            // Recompute the chosen mode's modifier after the prompt instead of
+            // retaining conditions or cover from the initial candidate check.
+            var evaluation = new BattleDefinitions.AttackEvaluationParams();
+            actionModifier = new ActionModifier();
+            evaluation.FillForPhysicalReachAttack(defender, defender.LocationPosition, opportunityAttackMode,
+                attacker, attacker.LocationPosition, actionModifier);
+            if (!battleManager.CanAttack(evaluation))
+            {
+                return;
+            }
+
             //spend resources
             unitCharacter.UsedChannelDivinity++;
 
@@ -116,6 +139,7 @@ internal static class DefensiveStrikeAttack
             var attackMode = RulesetAttackMode.AttackModesPool.Get();
 
             attackMode.Copy(opportunityAttackMode);
+            attackMode.actionType = ActionType.Reaction;
             attackMode.AddAttackTagAsNeeded(AttacksOfOpportunity.NotAoOTag);
 
             //Apply bonus to hit and damage of the attack mode
@@ -125,7 +149,69 @@ internal static class DefensiveStrikeAttack
                 new TrendInfo(bonus, FeatureSourceType.CharacterFeature, OathOfAltruism.DefensiveStrike, unit));
 
             //Execute attack
-            defender.MyExecuteActionAttack(Id.AttackOpportunity, attacker, attackMode, actionModifier);
+            var parameters = new CharacterActionParams(defender, Id.AttackOpportunity, attackMode,
+                attacker, actionModifier);
+            // The channel use has committed, while the granted attack still owns its
+            // normal native reaction cost and must remain legal until execution.
+            ReactionRequestCallback.SetValidation(parameters, () => ReactionStillValid(true));
+            var returned = false;
+            try
+            {
+                ServiceRepository.GetService<IGameLocationActionService>()
+                    .ExecuteAction(parameters, ReleaseAttack, true);
+            }
+            catch
+            {
+                ReleaseAttack(null);
+                throw;
+            }
+
+            return;
+
+            void ReleaseAttack(CharacterAction _)
+            {
+                if (returned)
+                {
+                    return;
+                }
+
+                returned = true;
+                ReactionRequestCallback.SetValidation(parameters, null);
+                RulesetAttackMode.AttackModesPool.Return(attackMode);
+            }
+        }
+
+        bool ReactionStillValid(bool channelCommitted)
+        {
+            if (unitCharacter is not { IsDeadOrDyingOrUnconscious: false, IsIncapacitated: false } ||
+                unit.IsCharging || unit.MoveStepInProgress ||
+                defender.RulesetCharacter is not { IsDeadOrDyingOrUnconscious: false, IsIncapacitated: false } ||
+                attacker.RulesetCharacter is not { IsDeadOrDyingOrUnconscious: false } ||
+                sourceAction is { Aborted: true } ||
+                sourceAction is CharacterActionMagicEffect { ExecutionFailed: true } or
+                    CharacterActionMagicEffect { Countered: true } ||
+                sourceAction is { AttackRollOutcome: not (RollOutcome.Success or RollOutcome.CriticalSuccess) } ||
+                defender.IsCharging || defender.MoveStepInProgress ||
+                !defender.CanReact() ||
+                !unit.CanSeeTarget(defender) || defender.IsOppositeSide(unit.Side) ||
+                !TargetingContext.IsValidOffensiveTarget(unit, attacker) ||
+                !TargetingContext.IsValidOffensiveTarget(defender, attacker) ||
+                !unitCharacter.HasSubFeatureOfType<DefensiveStrikeMarker>() ||
+                !channelCommitted && unitCharacter.UsedChannelDivinity >=
+                unitCharacter.TryGetAttributeValue(AttributeDefinitions.ChannelDivinityNumber))
+            {
+                return false;
+            }
+
+            if (!defender.RulesetCharacter.AttackModes.Contains(opportunityAttackMode))
+            {
+                return false;
+            }
+
+            var evaluation = new BattleDefinitions.AttackEvaluationParams();
+            evaluation.FillForPhysicalReachAttack(defender, defender.LocationPosition, opportunityAttackMode,
+                attacker, attacker.LocationPosition, new ActionModifier());
+            return battleManager.CanAttack(evaluation);
         }
     }
 }

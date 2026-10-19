@@ -864,6 +864,7 @@ internal static class Level20SubclassesContext
                     .SetParticleEffectParameters(PowerTraditionLightBlindingFlash)
                     .Build())
             .AddCustomSubFeatures(new PowerOrSpellFinishedByMeHolyNimbus(powerOathOfDevotionHolyNimbusLight))
+            .AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker)
             .AddToDB();
 
         OathOfDevotion.FeatureUnlocks.Add(new FeatureUnlockByLevel(powerOathOfDevotionHolyNimbus, 20));
@@ -1212,6 +1213,7 @@ internal static class Level20SubclassesContext
                     .SetSavingThrowData(false, AttributeDefinitions.Wisdom, true,
                         EffectDifficultyClassComputation.SpellCastingFeature)
                     .Build())
+            .AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker)
             .AddToDB();
 
         var powerSorcererDraconicBloodlineAwePresence = FeatureDefinitionPowerSharedPoolBuilder
@@ -1236,6 +1238,7 @@ internal static class Level20SubclassesContext
                     .SetParticleEffectParameters(PowerTraditionLightBlindingFlash)
                     .Build())
             .SetShowCasting(true)
+            .AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker)
             .AddToDB();
 
         var powerSorcererDraconicBloodlineFearPresence = FeatureDefinitionPowerSharedPoolBuilder
@@ -1261,6 +1264,7 @@ internal static class Level20SubclassesContext
                     .SetImpactEffectParameters(new AssetReference())
                     .Build())
             .SetShowCasting(true)
+            .AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker)
             .AddToDB();
 
         var featureSetSorcererDraconicBloodlinePresence = FeatureDefinitionFeatureSetBuilder

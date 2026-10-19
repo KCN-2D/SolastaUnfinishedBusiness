@@ -99,6 +99,7 @@ internal static class RaceKoboldBuilder
             .SetUsesFixed(ActivationTime.Action, RechargeRate.ShortRest)
             .SetEffectDescription(effectDescription)
             .SetUniqueInstance()
+            .AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker)
             .AddToDB();
 
         var raceDarkKobold = CharacterRaceDefinitionBuilder
@@ -133,6 +134,7 @@ internal static class RaceKoboldBuilder
                 .SetEffectForms(EffectFormBuilder.ConditionForm(distracted))
                 .Build())
             .SetUniqueInstance()
+            .AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker)
             .AddToDB();
 
         var spellListDraconicKobold = SpellListDefinitionBuilder

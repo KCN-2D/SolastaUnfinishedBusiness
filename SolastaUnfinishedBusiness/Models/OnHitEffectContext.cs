@@ -445,7 +445,10 @@ internal static class OnHitEffectContext
             }
 
             candidates.Add(new Candidate(
-                attacker, defender, forms, isAvailable, addEffects, trigger, negatedBySpellSave, confirmReaction));
+                attacker, defender, forms, isAvailable, addEffects, trigger, negatedBySpellSave, confirmReaction)
+            {
+                FeatureDefinition = feature
+            });
         }
 
         internal void Add(
@@ -466,7 +469,7 @@ internal static class OnHitEffectContext
             }
 
             candidates.Add(new Candidate(attacker, target, isAvailable, createEffects, trigger, effectApplied, isEligible,
-                confirmReaction));
+                confirmReaction) { FeatureDefinition = feature });
         }
 
         internal void RecordApplication(
@@ -557,7 +560,8 @@ internal static class OnHitEffectContext
                     target => selected = candidates.FirstOrDefault(candidate => candidate.Target == target),
                     battleManager: battleManager,
                     effectDefinition: feature,
-                    candidateValidator: target => candidates.Any(candidate => candidate.Target == target && candidate.IsValid));
+                    candidateValidator: target => candidates.Any(candidate => candidate.Target == target && candidate.IsValid),
+                    isOffensive: true);
             }
 
             // Availability is rechecked after the suspended request. Cancelling,
@@ -773,6 +777,8 @@ internal static class OnHitEffectContext
 
         internal GameLocationCharacter Target { get; }
 
+        internal BaseDefinition FeatureDefinition { get; set; }
+
         internal List<EffectForm> EffectForms { get; }
 
         internal Action<List<EffectForm>> AddEffects { get; }
@@ -789,9 +795,10 @@ internal static class OnHitEffectContext
 
         internal bool CanApply => Application is { } application &&
                                   application.activeEffect is not { Terminated: true } &&
-                                  ReactionRequestSelectTarget.IsCandidateValid(Target);
+                                  ReactionRequestSelectTarget.IsCandidateValid(Attacker, Target);
 
-        internal bool IsValid => CanApply && Attacker.IsOppositeSide(Target.Side) &&
+        internal bool IsValid => CanApply &&
+                                 TargetingContext.IsValidOffensiveTarget(Attacker, Target, FeatureDefinition) &&
                                  (_trigger == AdditionalEffectTrigger.Damage
                                      ? DealtDamage
                                      : Application.Value.attackOutcome is not

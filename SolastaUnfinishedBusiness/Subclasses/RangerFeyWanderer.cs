@@ -156,7 +156,8 @@ public sealed class RangerFeyWanderer : AbstractSubclass
 
         powerBeguilingTwist.AddCustomSubFeatures(
             ModifyPowerVisibility.Hidden,
-            new CustomBehaviorBeguilingTwist(powerBeguilingTwist));
+            new CustomBehaviorBeguilingTwist(powerBeguilingTwist,
+                powerBeguilingTwistCharmed, powerBeguilingTwistFrightened));
 
         PowerBundle.RegisterPowerBundle(powerBeguilingTwist, false,
             powerBeguilingTwistCharmed, powerBeguilingTwistFrightened);
@@ -252,16 +253,11 @@ public sealed class RangerFeyWanderer : AbstractSubclass
     }
 
     private sealed class CustomBehaviorBeguilingTwist(
-        FeatureDefinitionPower powerBeguilingTwist)
-        : IRollSavingThrowInitiated, ITryAlterOutcomeSavingThrow, IPowerOrSpellInitiatedByMe
+        FeatureDefinitionPower powerBeguilingTwist,
+        FeatureDefinitionPower powerCharmed,
+        FeatureDefinitionPower powerFrightened)
+        : IRollSavingThrowInitiated, ITryAlterOutcomeSavingThrow
     {
-        public IEnumerator OnPowerOrSpellInitiatedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
-        {
-            action.ActingCharacter.UsedMainSpell = true;
-
-            yield break;
-        }
-
         public void OnSavingThrowInitiated(
             RulesetActor rulesetActorCaster,
             RulesetActor rulesetActorDefender,
@@ -292,12 +288,47 @@ public sealed class RangerFeyWanderer : AbstractSubclass
             SavingThrowData savingThrowData,
             bool hasHitVisual)
         {
-            if (savingThrowData.SaveOutcome != RollOutcome.Success ||
-                !HasCharmedOrFrightened(savingThrowData.EffectDescription.EffectForms) ||
-                !helper.CanReact() ||
-                (attacker != null && !helper.IsOppositeSide(attacker.Side)) ||
-                !helper.IsWithinRange(defender, 24) ||
-                !helper.CanSeeTarget(defender))
+            bool TriggerStillValid() =>
+                (savingThrowData.SaveOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess) &&
+                HasCharmedOrFrightened(savingThrowData.EffectDescription.EffectForms) && helper.CanReact() &&
+                helper.RulesetCharacter.CanUsePower(powerBeguilingTwist, considerHaving: true) &&
+                helper.IsWithinRange(defender, 24) && helper.CanSeeTarget(defender);
+
+            bool CandidateValid(GameLocationCharacter target) => TriggerStillValid() && target != defender &&
+                ReactionRequestSelectTarget.IsCandidateValid(helper, target) &&
+                TargetingContext.IsValidOffensiveTarget(helper, target, powerBeguilingTwist) &&
+                helper.IsWithinRange(target, 24) && helper.CanSeeTarget(target) &&
+                (CanApplyCondition(target, ConditionDefinitions.ConditionCharmed) ||
+                 CanApplyCondition(target, ConditionDefinitions.ConditionFrightened));
+
+            if (!TriggerStillValid())
+            {
+                yield break;
+            }
+
+            var candidates = ServiceRepository.GetService<IGameLocationCharacterService>()?.ValidCharacters
+                .Where(CandidateValid).Distinct().OrderBy(target => target.Guid).ToArray() ?? [];
+            if (candidates.Length == 0)
+            {
+                yield break;
+            }
+
+            GameLocationCharacter selected;
+            if (TargetingContext.IsManualPartyActor(helper))
+            {
+                selected = null;
+                yield return helper.MyReactToSelectTarget(candidates, helper, "AdditionalEffectTarget",
+                    Gui.Format("Reaction/&CustomReactionAdditionalEffectTargetDescription", powerBeguilingTwist.FormatTitle()),
+                    target => selected = target, battleManager: battleManager, effectDefinition: powerBeguilingTwist,
+                    candidateValidator: CandidateValid, isOffensive: true);
+            }
+            else
+            {
+                // Automated reactions keep hostile targets and prefer the original source when it is still useful.
+                selected = candidates.FirstOrDefault(target => target == attacker) ?? candidates[0];
+            }
+
+            if (selected == null || !CandidateValid(selected))
             {
                 yield break;
             }
@@ -305,14 +336,28 @@ public sealed class RangerFeyWanderer : AbstractSubclass
             var rulesetHelper = helper.RulesetCharacter;
             var usablePower = PowerProvider.Get(powerBeguilingTwist, rulesetHelper);
 
+            if (!TargetingContext.IsManualPartyActor(helper))
+            {
+                var power = CanApplyCondition(selected, ConditionDefinitions.ConditionCharmed)
+                    ? powerCharmed : powerFrightened;
+                var condition = power == powerCharmed
+                    ? ConditionDefinitions.ConditionCharmed : ConditionDefinitions.ConditionFrightened;
+                yield return helper.MyReactToUsePower(ActionDefinitions.Id.PowerReaction,
+                    PowerProvider.Get(power, rulesetHelper), [selected], helper, powerBeguilingTwist.Name,
+                    battleManager: battleManager,
+                    reactionStillValid: () => CandidateValid(selected) && CanApplyCondition(selected, condition));
+                yield break;
+            }
+
             // any reaction within a saving flow must use the yielder as waiter
             yield return helper.MyReactToSpendPowerBundle(
                 usablePower,
-                [attacker],
+                [selected],
                 helper,
                 powerBeguilingTwist.Name,
                 reactionValidated: ReactionValidated,
-                battleManager: battleManager);
+                battleManager: battleManager,
+                reactionStillValid: () => CandidateValid(selected));
 
             yield break;
 
@@ -320,6 +365,9 @@ public sealed class RangerFeyWanderer : AbstractSubclass
             {
                 helper.SpendActionType(ActionDefinitions.ActionType.Reaction);
             }
+
+            bool CanApplyCondition(GameLocationCharacter target, ConditionDefinition condition) =>
+                !target.RulesetCharacter.IsImmuneToCondition(condition.Name, helper.Guid, out _);
         }
 
         private static bool HasCharmedOrFrightened(List<EffectForm> effectForms)

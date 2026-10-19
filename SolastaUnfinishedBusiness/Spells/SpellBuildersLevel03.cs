@@ -1742,6 +1742,7 @@ internal static partial class SpellBuilders
                 BuildSpiritShroudSubSpell(DamageTypeRadiant, hinder, noHeal, sprite),
                 BuildSpiritShroudSubSpell(DamageTypeNecrotic, hinder, noHeal, sprite),
                 BuildSpiritShroudSubSpell(DamageTypeCold, hinder, noHeal, sprite))
+            .AddCustomSubFeatures(TargetingContext.SelectiveTargets.VisibleTargets)
             .AddToDB();
     }
 
@@ -1800,6 +1801,7 @@ internal static partial class SpellBuilders
                             .SetTopologyForm(TopologyForm.Type.DangerousZone, true)
                             .Build())
                     .Build())
+            .AddCustomSubFeatures(TargetingContext.SelectiveTargets.VisibleTargets)
             .AddToDB();
     }
 

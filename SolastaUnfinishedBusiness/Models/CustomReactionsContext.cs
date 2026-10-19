@@ -60,6 +60,15 @@ internal static class CustomReactionsContext
             sections.Add(Gui.Format("Reaction/&CustomReactionTargetContextFormat", string.Join(", ", targets)));
         }
 
+        var harmful = request is ReactionRequestSelectTarget { IsOffensive: true } ||
+                      TargetingContext.IsHarmfulEffect(request.ReactionParams.RulesetEffect?.SourceDefinition,
+                          request.ReactionParams.RulesetEffect?.EffectDescription);
+        if (harmful && targetCharacters.Any(target =>
+                TargetingContext.IsPartyAllyTarget(request.Character, target, true)))
+        {
+            sections.Add(Gui.Localize("Caption/&FriendlyFireWarning"));
+        }
+
         // Action names already shown in the heading or selection list need no second label.
         if (request is not (ReactionRequestWarcaster or ReactionRequestSpendBundlePower))
         {

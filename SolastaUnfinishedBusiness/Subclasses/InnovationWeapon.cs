@@ -621,10 +621,12 @@ public sealed class InnovationWeapon : AbstractSubclass
         {
             var rulesetAttacker = attacker.RulesetCharacter;
 
-            if (Gui.Battle == null ||
-                !attacker.IsOppositeSide(defender.Side) ||
-                defender.RulesetCharacter is not { IsDeadOrDyingOrUnconscious: false } ||
-                !rulesetAttacker.CanUsePower(powerArcaneJolt, true, true))
+            bool ReactionStillValid() => Gui.Battle != null &&
+                TargetingContext.IsValidOffensiveTarget(attacker, defender, powerArcaneJolt) &&
+                defender.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } &&
+                rulesetAttacker.CanUsePower(powerArcaneJolt, true, true);
+
+            if (!ReactionStillValid())
             {
                 yield break;
             }
@@ -636,7 +638,8 @@ public sealed class InnovationWeapon : AbstractSubclass
                 attacker,
                 ArcaneJoltPower,
                 reactionValidated: () => actualEffectForms.Add(BuildArcaneJoltDamageForm()),
-                battleManager: battleManager);
+                battleManager: battleManager,
+                reactionStillValid: ReactionStillValid);
         }
     }
 

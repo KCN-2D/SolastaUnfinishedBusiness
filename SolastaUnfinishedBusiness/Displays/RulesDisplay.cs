@@ -221,6 +221,15 @@ internal static class RulesDisplay
 
         UI.Label();
 
+        toggle = Main.Settings.AllowPartyFriendlyFire;
+        if (UI.Toggle(Gui.Localize("ModUi/&AllowPartyFriendlyFire"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.AllowPartyFriendlyFire = toggle;
+        }
+
+        UI.Label(Gui.Localize("ModUi/&AllowPartyFriendlyFireHelp"),
+            new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
+
         toggle = Main.Settings.UseOfficialAdvantageDisadvantageRules;
         if (UI.Toggle(Gui.Localize("ModUi/&UseOfficialAdvantageDisadvantageRules"), ref toggle, UI.AutoWidth()))
         {

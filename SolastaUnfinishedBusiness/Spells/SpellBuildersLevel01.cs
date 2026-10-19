@@ -2674,8 +2674,12 @@ internal static partial class SpellBuilders
     {
         if (attacker == null || target == null) { return true; }
 
-        //Sanctuary does not affect same-side actions
-        if (!attacker.IsOppositeSide(target.Side)) { return true; }
+        if (!attacker.IsOppositeSide(target.Side) &&
+            !TargetingContext.CanTargetAlly(GameLocationCharacter.GetFromActor(attacker),
+                GameLocationCharacter.GetFromActor(target), null, null))
+        {
+            return true;
+        }
 
         if (!target.TryGetConditionOfCategoryAndType(AttributeDefinitions.TagEffect, ConditionSanctuary.Name,
                 out var condition))
@@ -2706,6 +2710,9 @@ internal static partial class SpellBuilders
         };
 
         if (effect == null) { return true; }
+
+        // A ward against harmful targeting never blocks a friendly heal or enhancement.
+        if (!TargetingContext.IsHarmfulEffect(effect.SourceDefinition, effect.EffectDescription)) { return true; }
 
         if (effect.EffectDescription.TargetType is not TargetType.Individuals and not TargetType.IndividualsUnique)
         {
@@ -2962,7 +2969,8 @@ internal static partial class SpellBuilders
 
             if (rulesetHelper is not { IsDeadOrDyingOrUnconscious: false } ||
                 triggeringCreature?.RulesetCharacter == null ||
-                !helper.IsOppositeSide(triggeringCreature.Side) ||
+                !(helper.IsOppositeSide(triggeringCreature.Side) ||
+                  TargetingContext.CanReactToAllyAction(helper, triggeringCreature)) ||
                 !helper.CanReact() ||
                 !rulesetHelper.UsableSpells.Contains(spell) ||
                 !rulesetHelper.AreSpellComponentsValid(spell) ||

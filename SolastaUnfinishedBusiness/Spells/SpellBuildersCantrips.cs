@@ -173,6 +173,8 @@ internal static partial class SpellBuilders
                 .Build())
             .AddToDB();
 
+        spell.AddCustomSubFeatures(TargetingContext.SelectiveTargets.VisibleTargets);
+
         return spell;
     }
 

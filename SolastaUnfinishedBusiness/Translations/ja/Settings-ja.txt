@@ -552,6 +552,8 @@ ModUi/&UseAlternateSpellPointsSystemHelp=<i><color=#F0DAA0>（L01：<color=white
 ModUi/&UseElfFaceModelsOnTieflings=<color=#D89555>ティフリング</color>に<color=#D89555>エルフ</color>の顔モデルを使用します
 ModUi/&UseHeightOneCylinderEffect=<color=#D89555>エヴァードの黒い触手、からみつき、脂</color><i><color=#F0DAA0>（正方形）</color></i>と<color=#D89555>トゲ密生</color><i><color=#F0DAA0>（円形）</color></i>の効果範囲を、高さ1マスにします
 ModUi/&UseMathFlankingRules=<i>+挟撃の判定に厳密な位置計算を使用します<color=#F0DAA0>（処理性能の低い環境では動作が遅くなる場合があります）</color></i>
+ModUi/&AllowPartyFriendlyFire=パーティーの仲間への攻撃を許可します
+ModUi/&AllowPartyFriendlyFireHelp=手動操作する武器攻撃、呪文、能力で、対象条件に従い、自分を含むパーティーのメンバーにもダメージや不利な効果を与えられます。敵だけを対象とする行動は除きます。発動条件を満たす防御能力は、仲間の行動に対しても使用できます。NPCの自動対象選択は変わりません。
 ModUi/&UseOfficialAdvantageDisadvantageRules=<color=#D89555>有利と不利</color>の公式ルールを有効にします<i><color=#F0DAA0>（同じロールに有利と不利が両方ある場合、どちらもないものとして扱います）</color></i>
 ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=<color=#D89555>伝説的抵抗力</color>の使用後に、セーヴィング・スローの結果を変えるリアクションを行えないようにします<i><color=#F0DAA0>（そのセーヴィング・スローは成功で確定）</color></i>
 ModUi/&UseOfficialFlankingRules=<color=#D89555>挟撃</color>のルールを有効にします<i><color=#F0DAA0>（味方と対象を挟んだ反対側にいる場合、攻撃ロールに有利を得ます）</color></i>

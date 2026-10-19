@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -20,6 +21,134 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CursorLocationSelectTargetPatcher
 {
+    private sealed class FriendlyFireCaption
+    {
+        internal string Original { get; set; }
+        internal string Rendered { get; set; }
+        internal string Composed { get; set; }
+        internal bool Standalone { get; set; }
+    }
+
+    private static readonly ConditionalWeakTable<CursorLocation, FriendlyFireCaption> FriendlyFireCaptions = new();
+
+    internal static void RefreshFriendlyFireWarning(
+        CursorLocation cursor, GameLocationCharacter actor, IEnumerable<GameLocationCharacter> targets,
+        bool harmful, bool standalone = false)
+    {
+        var show = Main.Settings.AllowPartyFriendlyFire && harmful && TargetingContext.IsManualPartyActor(actor) &&
+                   targets.Any(target => TargetingContext.IsPartyAllyTarget(actor, target, true));
+
+        if (!show)
+        {
+            ClearFriendlyFireWarning(cursor);
+            return;
+        }
+
+        var screen = Gui.GuiService?.GetScreen<CursorCaptionScreen>();
+        if (!screen || !screen.captionContent)
+        {
+            return;
+        }
+
+        var caption = FriendlyFireCaptions.GetValue(cursor, _ => new FriendlyFireCaption());
+        var warning = Gui.Localize("Caption/&FriendlyFireWarning");
+
+        if (standalone)
+        {
+            if (!caption.Standalone || caption.Composed != warning ||
+                screen.captionContent.Text != warning || !screen.Visible)
+            {
+                // The normal battle cursor has no selection caption or confirmation buttons.
+                CursorLocation.CaptionLineChanged?.Invoke(string.Empty, warning, string.Empty, string.Empty,
+                    string.Empty, string.Empty, false, false);
+            }
+
+            caption.Standalone = true;
+            caption.Composed = warning;
+            return;
+        }
+
+        if (!screen.Visible)
+        {
+            return;
+        }
+
+        if (screen.captionContent.Text != caption.Composed)
+        {
+            caption.Original = screen.captionContent.Text;
+            caption.Rendered = screen.captionContent.TMP_Text.text;
+        }
+
+        caption.Composed = string.IsNullOrEmpty(caption.Rendered)
+            ? warning
+            : caption.Rendered + "\n" + warning;
+
+        if (screen.captionContent.Text != caption.Composed)
+        {
+            screen.captionContent.Text = caption.Composed;
+        }
+    }
+
+    internal static void ClearFriendlyFireWarning(CursorLocation cursor)
+    {
+        if (!FriendlyFireCaptions.TryGetValue(cursor, out var caption))
+        {
+            return;
+        }
+
+        var screen = Gui.GuiService?.GetScreen<CursorCaptionScreen>();
+
+        // A newer cursor or native caption owns its own text and visibility.
+        if (screen && screen.captionContent && screen.captionContent.Text == caption.Composed)
+        {
+            if (caption.Standalone)
+            {
+                CursorLocation.CaptionLineDismissed?.Invoke();
+            }
+            else
+            {
+                screen.captionContent.Text = caption.Original;
+            }
+        }
+
+        FriendlyFireCaptions.Remove(cursor);
+    }
+
+    [HarmonyPatch(typeof(CursorLocationSelectTarget), nameof(CursorLocationSelectTarget.IsValidTarget))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class IsValidTarget_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            return instructions.ReplaceCalls(
+                AccessTools.PropertyGetter(typeof(CursorLocationSelectTarget), nameof(CursorLocationSelectTarget.TargetSide)),
+                "CursorLocationSelectTarget.IsValidTarget.FriendlyFire",
+                new CodeInstruction(OpCodes.Ldarg_1),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(IsValidTarget_Patch), nameof(GetTargetSide))));
+        }
+
+        private static Side GetTargetSide(CursorLocationSelectTarget cursor, GameLocationCharacter target)
+        {
+            var actor = cursor.ActionParams?.ActingCharacter;
+            var description = cursor.effectDescription;
+
+            if (TargetingContext.IsExpandedFriendlyFireDescription(description))
+            {
+                return TargetingContext.CanTargetAlly(actor, target,
+                    cursor.ActionParams?.RulesetEffect?.SourceDefinition, description)
+                    ? Side.All
+                    : TargetingContext.GetOriginalDescription(description).TargetSide;
+            }
+
+            return cursor.TargetSide == Side.Enemy && TargetingContext.CanTargetAlly(actor, target,
+                cursor.ActionParams?.RulesetEffect?.SourceDefinition, description)
+                ? Side.All
+                : cursor.TargetSide;
+        }
+    }
+
     private static IEnumerable<CodeInstruction> ReplaceSelectedActor(
         IEnumerable<CodeInstruction> instructions, string patchContext)
     {
@@ -243,6 +372,7 @@ public static class CursorLocationSelectTargetPatcher
         [UsedImplicitly]
         public static void Prefix(CursorLocationSelectTarget __instance)
         {
+            ClearFriendlyFireWarning(__instance);
             CursorMotionHelper.Deactivate(__instance);
             if (!TryGetModifyTeleportEffectBehavior(__instance.ActionParams, out _))
             {
@@ -653,6 +783,15 @@ public static class CursorLocationSelectTargetPatcher
         {
             __instance.affectedCharacterColor =
                 CampaignsContext.HighContrastColors[Main.Settings.HighContrastTargetingSingleSelectedColor];
+
+            var parameters = __instance.ActionParams;
+            var harmful = parameters?.ActionDefinition != null &&
+                          (ActionDefinitions.IsAttackAction(parameters.ActionDefinition.Id) ||
+                           TargetingContext.IsHarmfulEffect(parameters.RulesetEffect?.SourceDefinition,
+                               __instance.effectDescription));
+            RefreshFriendlyFireWarning(__instance, parameters?.ActingCharacter,
+                (__instance.SelectionService?.SelectedTargets ?? []).Concat(__instance.subTargets)
+                    .Append(__instance.targetedCharacter), harmful);
         }
     }
 }

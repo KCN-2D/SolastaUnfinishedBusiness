@@ -1,4 +1,12 @@
 Failure/&FailureFlagTargetOutOfRangeStrength=Objetivo fuera de rango (fuerza)
+Reaction/&CustomReactionFriendlyAreaTargetTitle=Aliados afectados
+Reaction/&CustomReactionFriendlyAreaTargetDescription=Elige a los aliados afectados por este efecto. Los aliados que no elijas no se verán afectados. Elige Omitir para terminar la selección.
+Reaction/&CustomReactionFriendlyAreaTargetReactTitle=Incluir aliado
+Reaction/&CustomReactionFriendlyAreaTargetReactDescription=Incluye al aliado elegido entre los objetivos de este efecto.
+Reaction/&CustomReactionSearingVengeanceTitle=Venganza abrasadora
+Reaction/&CustomReactionSearingVengeanceDescription=Recuperas puntos de golpe equivalentes a la mitad de tu máximo de puntos de golpe y te pones en pie.
+Reaction/&CustomReactionSearingVengeanceReactTitle=Levantarse
+Reaction/&CustomReactionSearingVengeanceReactDescription=Ponte en pie con una explosión de energía radiante.
 Feature/&ListSeparatorTitle=, 
 Tutorial/&TutorialActionSwitchingDescription=Cuando tienes más de una acción principal o adicional disponible, puedes hacer clic en el símbolo de estado de acción para convertirla en tu acción activa actual. Esto te permite atacar con la acción Prisa o Destructor de hordas y luego lanzar un hechizo con la acción predeterminada o cualquier otra combinación que necesites.\nAl pasar el cursor sobre el símbolo de estado de acción, se muestra una descripción emergente con el nombre de la característica o condición que otorgó la acción.
 Tutorial/&TutorialActionSwitchingTitle=Acciones múltiples
@@ -40,3 +48,4 @@ Screen/&OpenGamingLicenseDescription=The following text is the property of Wizar
 Rules/&ConditionHinderedTitle=Obstaculizado
 Validator/&ParameterSpellNameDescription=El nombre interno exacto del conjuro. Escríbelo en inglés, respetando exactamente las mayúsculas y las minúsculas.
 Feedback/&SpellSlotPreservedLine={0} conserva el espacio de conjuro gracias a {1} (tirada: {2}).
+Caption/&FriendlyFireWarning=Advertencia: esta acción perjudica a un miembro del grupo.

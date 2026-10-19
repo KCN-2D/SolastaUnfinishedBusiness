@@ -213,6 +213,14 @@ internal static class TryAlterOutcomeAttack
                      .Where(x => x.Item1.HandlerPriority >= 0)
                      .OrderBy(x => x.Item1.HandlerPriority))
         {
+            // A preceding hit reaction can still replace the roll (for example,
+            // Silvery Barbs). Damage defenses must not spend resources on its miss.
+            if (action.AttackRollOutcome is not (RuleDefinitions.RollOutcome.Success or
+                    RuleDefinitions.RollOutcome.CriticalSuccess))
+            {
+                yield break;
+            }
+
             yield return handler.OnTryAlterOutcomeAttack(
                 battleManager, action, attacker, defender, unit, actionModifier, attackMode, rulesetEffect);
         }

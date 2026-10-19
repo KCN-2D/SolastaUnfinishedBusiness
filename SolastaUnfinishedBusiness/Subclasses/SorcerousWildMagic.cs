@@ -834,6 +834,15 @@ public sealed class SorcerousWildMagic : AbstractSubclass
     {
         public int HandlerPriority => -10;
 
+        private bool CanUseBendLuck(GameLocationCharacter helper, GameLocationCharacter target,
+            RulesetUsablePower usablePower) =>
+            helper != target && helper.CanReact() && helper.CanSeeTarget(target) &&
+            helper.RulesetCharacter.CanUsePower(powerBendLuck, considerHaving: true) &&
+            helper.RulesetCharacter.GetRemainingUsesOfPower(usablePower) > 0;
+
+        private bool CanModifyRoll(GameLocationCharacter helper, GameLocationCharacter target, bool addBonus) =>
+            addBonus ? helper.Side == target.Side : TargetingContext.IsValidOffensiveTarget(helper, target, powerBendLuck);
+
         public IEnumerator OnTryAlterOutcomeAttack(
             GameLocationBattleManager battleManager,
             CharacterAction action,
@@ -847,30 +856,20 @@ public sealed class SorcerousWildMagic : AbstractSubclass
             var rulesetHelper = helper.RulesetCharacter;
             var usablePower = PowerProvider.Get(powerBendLuck, rulesetHelper);
 
-            if (helper == attacker ||
-                !helper.CanReact() ||
-                rulesetHelper.GetRemainingUsesOfPower(usablePower) <= 0 ||
-                Math.Abs(action.AttackSuccessDelta) > 4)
+            // The chosen sign belongs to this pending roll, not to a side that may change during another reaction.
+            var addBonus = action.AttackRollOutcome == RollOutcome.Failure;
+            bool ReactionStillValid() => CanUseBendLuck(helper, attacker, usablePower) &&
+                CanModifyRoll(helper, attacker, addBonus) &&
+                (addBonus
+                    ? action.AttackRollOutcome == RollOutcome.Failure && action.AttackSuccessDelta >= -4
+                    : action.AttackRollOutcome == RollOutcome.Success && action.AttackSuccessDelta < 4);
+
+            if (!ReactionStillValid())
             {
                 yield break;
             }
 
-            string stringParameter;
-
-            if (helper.Side == attacker.Side &&
-                action.AttackRollOutcome is RollOutcome.Failure)
-            {
-                stringParameter = "BendLuckAttack";
-            }
-            else if (helper.Side != attacker.Side &&
-                     action.AttackRollOutcome is RollOutcome.Success)
-            {
-                stringParameter = "BendLuckEnemyAttack";
-            }
-            else
-            {
-                yield break;
-            }
+            var stringParameter = addBonus ? "BendLuckAttack" : "BendLuckEnemyAttack";
 
             // any reaction within an attack flow must use the attacker as waiter
             yield return helper.MyReactToSpendPower(
@@ -879,7 +878,8 @@ public sealed class SorcerousWildMagic : AbstractSubclass
                 stringParameter,
                 $"SpendPower{stringParameter}Description".Formatted(Category.Reaction, defender.Name),
                 ReactionValidated,
-                battleManager);
+                battleManager,
+                reactionStillValid: ReactionStillValid);
 
             yield break;
 
@@ -893,7 +893,7 @@ public sealed class SorcerousWildMagic : AbstractSubclass
                 var dieRoll = rulesetHelper.RollDie(
                     DieType.D4, RollContext.None, false, AdvantageType.None, out _, out _);
 
-                if (helper.Side == attacker.Side)
+                if (addBonus)
                 {
                     attackModifier.AttacktoHitTrends.Add(
                         new TrendInfo(dieRoll, FeatureSourceType.Power, powerBendLuck.Name, powerBendLuck)
@@ -958,32 +958,21 @@ public sealed class SorcerousWildMagic : AbstractSubclass
             var rulesetHelper = helper.RulesetCharacter;
             var usablePower = PowerProvider.Get(powerBendLuck, rulesetHelper);
 
-            if (helper == defender ||
-                !helper.CanReact() ||
-                rulesetHelper.GetRemainingUsesOfPower(usablePower) <= 0 ||
-                Math.Abs(abilityCheckData.AbilityCheckSuccessDelta) > 4)
+            var addBonus = abilityCheckData.AbilityCheckRollOutcome is RollOutcome.Failure or RollOutcome.CriticalFailure;
+            bool ReactionStillValid() => CanUseBendLuck(helper, defender, usablePower) &&
+                CanModifyRoll(helper, defender, addBonus) && abilityCheckData.AbilityCheckRoll > 0 &&
+                (addBonus
+                    ? (abilityCheckData.AbilityCheckRollOutcome is RollOutcome.Failure or RollOutcome.CriticalFailure) &&
+                      abilityCheckData.AbilityCheckSuccessDelta >= -4
+                    : (abilityCheckData.AbilityCheckRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess) &&
+                      abilityCheckData.AbilityCheckSuccessDelta < 4);
+
+            if (!ReactionStillValid())
             {
                 yield break;
             }
 
-            string stringParameter;
-
-            if (helper.Side == defender.Side &&
-                abilityCheckData.AbilityCheckRoll > 0 &&
-                abilityCheckData.AbilityCheckRollOutcome is RollOutcome.Failure or RollOutcome.CriticalFailure)
-            {
-                stringParameter = "BendLuckCheck";
-            }
-            else if (helper.Side != defender.Side &&
-                     abilityCheckData.AbilityCheckRoll > 0 &&
-                     abilityCheckData.AbilityCheckRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
-            {
-                stringParameter = "BendLuckEnemyCheck";
-            }
-            else
-            {
-                yield break;
-            }
+            var stringParameter = addBonus ? "BendLuckCheck" : "BendLuckEnemyCheck";
 
             // any reaction within an attribute check flow must use the yielder as waiter
             yield return helper.MyReactToSpendPower(
@@ -992,7 +981,8 @@ public sealed class SorcerousWildMagic : AbstractSubclass
                 stringParameter,
                 $"SpendPower{stringParameter}Description".Formatted(Category.Reaction, defender.Name),
                 ReactionValidated,
-                battleManager);
+                battleManager,
+                reactionStillValid: ReactionStillValid);
 
             yield break;
 
@@ -1007,7 +997,7 @@ public sealed class SorcerousWildMagic : AbstractSubclass
                     DieType.D4, RollContext.None, false, AdvantageType.None, out _, out _);
                 var abilityCheckModifier = abilityCheckData.AbilityCheckActionModifier;
 
-                if (helper.Side == defender.Side)
+                if (addBonus)
                 {
                     abilityCheckModifier.AbilityCheckModifierTrends.Add(
                         new TrendInfo(dieRoll, FeatureSourceType.Power, powerBendLuck.Name, powerBendLuck)
@@ -1075,31 +1065,19 @@ public sealed class SorcerousWildMagic : AbstractSubclass
             var rulesetHelper = helper.RulesetCharacter;
             var usablePower = PowerProvider.Get(powerBendLuck, rulesetHelper);
 
-            if (helper == defender ||
-                !helper.CanReact() ||
-                rulesetHelper.GetRemainingUsesOfPower(usablePower) <= 0 ||
-                Math.Abs(savingThrowData.SaveOutcomeDelta) > 4)
+            var addBonus = savingThrowData.SaveOutcome == RollOutcome.Failure;
+            bool ReactionStillValid() => CanUseBendLuck(helper, defender, usablePower) &&
+                CanModifyRoll(helper, defender, addBonus) &&
+                (addBonus
+                    ? savingThrowData.SaveOutcome == RollOutcome.Failure && savingThrowData.SaveOutcomeDelta >= -4
+                    : savingThrowData.SaveOutcome == RollOutcome.Success && savingThrowData.SaveOutcomeDelta < 4);
+
+            if (!ReactionStillValid())
             {
                 yield break;
             }
 
-            string stringParameter;
-
-            if (helper.Side == defender.Side &&
-                savingThrowData.SaveOutcome == RollOutcome.Failure)
-            {
-                stringParameter = "BendLuckSaving";
-            }
-            else if (helper.Side != defender.Side &&
-                     savingThrowData.SaveOutcome == RollOutcome.Success)
-            {
-                stringParameter = "BendLuckEnemySaving";
-            }
-            else
-            {
-                yield break;
-            }
-
+            var stringParameter = addBonus ? "BendLuckSaving" : "BendLuckEnemySaving";
 
             // any reaction within a saving flow must use the yielder as waiter
             yield return helper.MyReactToSpendPower(
@@ -1109,7 +1087,8 @@ public sealed class SorcerousWildMagic : AbstractSubclass
                 $"SpendPower{stringParameter}Description".Formatted(Category.Reaction,
                     defender.Name, attacker?.Name ?? ReactionRequestCustom.EnvTitle, savingThrowData.Title),
                 ReactionValidated,
-                battleManager);
+                battleManager,
+                reactionStillValid: ReactionStillValid);
 
             yield break;
 
@@ -1123,7 +1102,7 @@ public sealed class SorcerousWildMagic : AbstractSubclass
                 var dieRoll = rulesetHelper.RollDie(
                     DieType.D4, RollContext.None, false, AdvantageType.None, out _, out _);
 
-                if (helper.Side == defender.Side)
+                if (addBonus)
                 {
                     savingThrowData.SaveOutcomeDelta += dieRoll;
                     savingThrowData.SaveOutcome =

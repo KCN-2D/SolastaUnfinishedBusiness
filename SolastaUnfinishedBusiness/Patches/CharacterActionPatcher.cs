@@ -12,6 +12,7 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Feats;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
@@ -203,6 +204,7 @@ public static class CharacterActionPatcher
 
             CivilianAnimationContext.InterruptCivilianReaction(actingCharacter?.RulesetCharacter);
 
+            using (ReactionRequestCallback.BeginExecution(__instance))
             using (CombatAnimationContext.BeginActionScope(__instance))
             {
                 while (values.MoveNext())

@@ -1,4 +1,12 @@
 Failure/&FailureFlagTargetOutOfRangeStrength=Cible hors de portée (force)
+Reaction/&CustomReactionFriendlyAreaTargetTitle=Alliés affectés
+Reaction/&CustomReactionFriendlyAreaTargetDescription=Choisissez les alliés affectés par cet effet. Les alliés non choisis ne sont pas affectés. Choisissez Passer pour terminer la sélection.
+Reaction/&CustomReactionFriendlyAreaTargetReactTitle=Inclure cet allié
+Reaction/&CustomReactionFriendlyAreaTargetReactDescription=Inclure l'allié choisi parmi les cibles de cet effet.
+Reaction/&CustomReactionSearingVengeanceTitle=Vengeance fulgurante
+Reaction/&CustomReactionSearingVengeanceDescription=Vous récupérez des points de vie égaux à la moitié de votre maximum de points de vie et vous vous relevez.
+Reaction/&CustomReactionSearingVengeanceReactTitle=Se relever
+Reaction/&CustomReactionSearingVengeanceReactDescription=Vous relever dans une explosion d’énergie radiante.
 Feature/&ListSeparatorTitle=, 
 Tutorial/&TutorialActionSwitchingDescription=Lorsque vous avez plusieurs actions principales ou bonus disponibles, vous pouvez cliquer sur le symbole d'état de l'action pour en faire votre action actuellement active. Cela permet d'attaquer en utilisant l'action Hâte ou Briseur de Horde, puis de lancer un sort avec l'action par défaut. Ou toute autre combinaison dont vous pourriez avoir besoin.\nLe survol du symbole d'état de l'action affiche une info-bulle avec le nom de la fonctionnalité ou de la condition qui a accordé l'action.
 Tutorial/&TutorialActionSwitchingTitle=Actions multiples
@@ -40,3 +48,4 @@ Screen/&OpenGamingLicenseDescription=Le texte suivant est la propriété de Wiza
 Rules/&ConditionHinderedTitle=Déplacement gêné
 Validator/&ParameterSpellNameDescription=Le nom interne exact du sort. Saisissez-le en anglais en respectant exactement les majuscules et les minuscules.
 Feedback/&SpellSlotPreservedLine={0} conserve son emplacement de sort grâce à {1} (jet : {2}).
+Caption/&FriendlyFireWarning=Attention : cette action nuit à un membre du groupe.
