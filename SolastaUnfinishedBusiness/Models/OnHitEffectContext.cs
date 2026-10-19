@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Interfaces;
 using static RuleDefinitions;
 
 namespace SolastaUnfinishedBusiness.Models;
@@ -29,14 +30,50 @@ internal static class OnHitEffectContext
 
     internal static void ObserveReceivedDamage(DamageForm form, Action<int> damageReceived)
     {
-        DamageObservers.Remove(form);
-        DamageObservers.Add(form, new DamageObserver(damageReceived));
+        if (DamageObservers.TryGetValue(form, out var observer))
+        {
+            observer.DamageReceived += damageReceived;
+        }
+        else
+        {
+            DamageObservers.Add(form, new DamageObserver(damageReceived));
+        }
     }
 
     internal static IDisposable BeginDamageForm(
         DamageForm form, RulesetImplementationDefinitions.ApplyFormsParams formsParams)
     {
         return new DamageFormScope(form, formsParams);
+    }
+
+    internal static bool TryGetCurrentDamageApplication(
+        RulesetActor source, RulesetActor target, out DamageForm form, out RulesetEffect effect)
+    {
+        form = null;
+        effect = null;
+        return _damageFormScope?.TryGetApplication(source, target, out form, out effect) == true;
+    }
+
+    internal static void CompleteDamageForm(DamageForm form,
+        RulesetImplementationDefinitions.ApplyFormsParams formsParams, int damageReceived)
+    {
+        _damageFormScope?.Complete(form, formsParams, damageReceived);
+    }
+
+    internal static void EndDamageForm(IDisposable scope, bool completedWithoutException)
+    {
+        if (!completedWithoutException && scope is DamageFormScope damageScope)
+        {
+            damageScope.CancelApplication();
+        }
+
+        scope?.Dispose();
+    }
+
+    internal static bool ObserveCurrentDamage(DamageForm form,
+        RulesetImplementationDefinitions.ApplyFormsParams formsParams, Action<int> damageReceived)
+    {
+        return _damageFormScope?.Observe(form, formsParams, damageReceived) == true;
     }
 
     internal static void NotifyDamageReceived(
@@ -519,7 +556,8 @@ internal static class OnHitEffectContext
                         FormatFeatureTitle(feature)),
                     target => selected = candidates.FirstOrDefault(candidate => candidate.Target == target),
                     battleManager: battleManager,
-                    effectDefinition: feature);
+                    effectDefinition: feature,
+                    candidateValidator: target => candidates.Any(candidate => candidate.Target == target && candidate.IsValid));
             }
 
             // Availability is rechecked after the suspended request. Cancelling,
@@ -753,7 +791,7 @@ internal static class OnHitEffectContext
                                   application.activeEffect is not { Terminated: true } &&
                                   ReactionRequestSelectTarget.IsCandidateValid(Target);
 
-        internal bool IsValid => CanApply &&
+        internal bool IsValid => CanApply && Attacker.IsOppositeSide(Target.Side) &&
                                  (_trigger == AdditionalEffectTrigger.Damage
                                      ? DealtDamage
                                      : Application.Value.attackOutcome is not
@@ -765,17 +803,24 @@ internal static class OnHitEffectContext
 
     private sealed class DamageObserver(Action<int> damageReceived)
     {
-        internal Action<int> DamageReceived { get; } = damageReceived;
+        internal Action<int> DamageReceived { get; set; } = damageReceived;
     }
 
     private sealed class DamageFormScope : IDisposable
     {
         private readonly DamageFormScope _previous;
         private readonly DamageObserver _observer;
+        private readonly DamageForm _form;
+        private readonly RulesetEffect _effect;
         private readonly RulesetActor _target;
         private readonly ulong _sourceGuid;
         private readonly string _damageType;
+        private readonly RulesetImplementationDefinitions.ApplyFormsParams _parameters;
+        private readonly IOnMagicEffectDamageApplied[] _appliedHandlers;
+        private bool _applicationCompleted;
+        private int _appliedDamage;
         private int _damageReceived;
+        private Action<int> _currentDamageReceived;
         private bool _disposed;
 
         internal DamageFormScope(DamageForm form, RulesetImplementationDefinitions.ApplyFormsParams formsParams)
@@ -783,15 +828,70 @@ internal static class OnHitEffectContext
             _previous = _damageFormScope;
             _damageFormScope = this;
             _target = formsParams.targetCharacter;
+            _form = form;
+            _effect = formsParams.activeEffect;
             _sourceGuid = formsParams.sourceCharacter?.Guid ?? 0;
             _damageType = form.DamageType;
+            _parameters = formsParams;
+            _appliedHandlers = formsParams.sourceCharacter is { } source && _effect?.SourceDefinition is { } definition
+                ? definition.GetAllSubFeaturesOfType<IOnMagicEffectDamageApplied>()
+                    .Concat(source.GetSubFeaturesByType<IOnMagicEffectDamageApplied>()).Distinct().ToArray()
+                : [];
             DamageObservers.TryGetValue(form, out _observer);
             DamageObservers.Remove(form);
         }
 
+        internal bool TryGetApplication(
+            RulesetActor source, RulesetActor target, out DamageForm form, out RulesetEffect effect)
+        {
+            form = null;
+            effect = null;
+            if (_disposed || source == null || source.Guid != _sourceGuid ||
+                target != null && !ReferenceEquals(target, _target))
+            {
+                return false;
+            }
+
+            form = _form;
+            effect = _effect;
+            return true;
+        }
+
+        internal void Complete(DamageForm form, RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            int damageReceived)
+        {
+            if (_disposed || !ReferenceEquals(_form, form) || !ReferenceEquals(_effect, formsParams.activeEffect) ||
+                !ReferenceEquals(_target, formsParams.targetCharacter) ||
+                _sourceGuid != (formsParams.sourceCharacter?.Guid ?? 0))
+            {
+                return;
+            }
+
+            _applicationCompleted = true;
+            _appliedDamage = Math.Max(0, damageReceived);
+        }
+
+        internal void CancelApplication() => _applicationCompleted = false;
+
+        internal bool Observe(DamageForm form, RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            Action<int> damageReceived)
+        {
+            if (_disposed || !ReferenceEquals(_form, form) ||
+                !ReferenceEquals(_effect, formsParams.activeEffect) ||
+                !ReferenceEquals(_target, formsParams.targetCharacter) ||
+                _sourceGuid != (formsParams.sourceCharacter?.Guid ?? 0))
+            {
+                return false;
+            }
+
+            _currentDamageReceived += damageReceived;
+            return true;
+        }
+
         internal void Notify(RulesetCharacter target, int damage, string damageType, ulong sourceGuid)
         {
-            if (_observer != null && target == _target && sourceGuid == _sourceGuid && damageType == _damageType)
+            if ((_observer != null || _currentDamageReceived != null) && target == _target &&
+                sourceGuid == _sourceGuid && damageType == _damageType)
             {
                 _damageReceived += Math.Max(0, damage);
             }
@@ -807,6 +907,14 @@ internal static class OnHitEffectContext
             _disposed = true;
             _damageFormScope = _previous;
             _observer?.DamageReceived(_damageReceived);
+            _currentDamageReceived?.Invoke(_damageReceived);
+            if (_applicationCompleted)
+            {
+                foreach (var handler in _appliedHandlers)
+                {
+                    handler.OnDamageApplied(_parameters.sourceCharacter, _form, _parameters, _appliedDamage);
+                }
+            }
         }
     }
 }

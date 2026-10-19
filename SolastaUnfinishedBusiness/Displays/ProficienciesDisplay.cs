@@ -76,6 +76,34 @@ internal static class ProficienciesDisplay
             UI.Label(Gui.Localize("ModUi/&TabletopFeatRules2024Help"));
         }
 
+        using (UI.HorizontalScope())
+        {
+            UI.Space(25f);
+            using (UI.VerticalScope(UI.MinWidth(0f), UI.ExpandWidth(true)))
+            {
+                var guiEnabled = GUI.enabled;
+                toggle = Main.Settings.EnableEpicBoons2024;
+                try
+                {
+                    GUI.enabled = guiEnabled && Main.Settings.EnableTabletopFeatRules2024;
+                    if (UI.Toggle(Gui.Localize("ModUi/&EnableEpicBoons2024"), ref toggle, UI.AutoWidth()))
+                    {
+                        Main.Settings.EnableEpicBoons2024 = toggle;
+                        Tabletop2024Context.SwitchTabletopFeatRules2024();
+                    }
+                }
+                finally
+                {
+                    GUI.enabled = guiEnabled;
+                }
+
+                UI.Label(Gui.Localize(Main.Settings.EnableTabletopFeatRules2024
+                        ? "ModUi/&EpicBoons2024Help"
+                        : "ModUi/&EpicBoons2024RequiresTabletopHelp"),
+                    new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.AutoWidth());
+            }
+        }
+
         toggle = Main.Settings.EnableFeatsAtEveryFourLevels;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableFeatsAtEvenLevels"), ref toggle, UI.AutoWidth()))
         {
@@ -113,7 +141,7 @@ internal static class ProficienciesDisplay
 
         var displayToggle = Main.Settings.DisplayFeatGroupsToggle;
         var sliderPos = Main.Settings.FeatGroupSliderPosition;
-        ModUi.DisplayDefinitions(
+        var isFeatGroupTabletop = ModUi.DisplayDefinitions(
             Gui.Localize("ModUi/&FeatGroups"),
             FeatsContext.SwitchFeatGroup,
             FeatsContext.FeatGroups,
@@ -193,7 +221,8 @@ internal static class ProficienciesDisplay
         Main.Settings.DisplayMetamagicToggle = displayToggle;
         Main.Settings.MetamagicSliderPosition = sliderPos;
 
-        _displayTabletop = isFeatTabletop && isFightingStyleTabletop && isInvocationTabletop && isMetamagicTabletop;
+        _displayTabletop = isFeatGroupTabletop && isFeatTabletop && isFightingStyleTabletop &&
+                           isInvocationTabletop && isMetamagicTabletop;
 
         UI.Label();
     }
@@ -242,11 +271,13 @@ internal static class ProficienciesDisplay
             new(selectAllTitle, () =>
             {
                 var toggle =
-                    FeatsContext.Feats.Count == Main.Settings.FeatEnabled.Count &&
-                    FeatsContext.FeatGroups.Count == Main.Settings.FeatGroupEnabled.Count &&
-                    FightingStyleContext.FightingStyles.Count == Main.Settings.FightingStyleEnabled.Count &&
-                    InvocationsContext.Invocations.Count == Main.Settings.InvocationEnabled.Count &&
-                    MetamagicContext.Metamagic.Count == Main.Settings.MetamagicEnabled.Count;
+                    ModUi.IsSelectionComplete(FeatsContext.Feats, Main.Settings.FeatEnabled,
+                        Tabletop2024Context.IsFeatToggleAvailableInCurrentMode) &&
+                    ModUi.IsSelectionComplete(FeatsContext.FeatGroups, Main.Settings.FeatGroupEnabled,
+                        Tabletop2024Context.IsFeatToggleAvailableInCurrentMode) &&
+                    ModUi.IsSelectionComplete(FightingStyleContext.FightingStyles, Main.Settings.FightingStyleEnabled) &&
+                    ModUi.IsSelectionComplete(InvocationsContext.Invocations, Main.Settings.InvocationEnabled) &&
+                    ModUi.IsSelectionComplete(MetamagicContext.Metamagic, Main.Settings.MetamagicEnabled);
 
                 if (UI.Toggle(selectAllTitle, ref toggle, UI.AutoWidth()))
                 {
@@ -291,41 +322,15 @@ internal static class ProficienciesDisplay
                 var toggle = _displayTabletop;
                 if (UI.Toggle(tabletopTitle, ref toggle, UI.AutoWidth()))
                 {
-                    foreach (var feat in FeatsContext.Feats)
-                    {
-                        if (ModUi.IsBulkSelectableTabletopDefinition(feat) &&
-                            Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(feat))
-                        {
-                            FeatsContext.SwitchFeat(feat, toggle);
-                        }
-                    }
-
-                    foreach (var featGroup in FeatsContext.FeatGroups)
-                    {
-                        if (ModUi.IsBulkSelectableTabletopDefinition(featGroup) &&
-                            Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(featGroup))
-                        {
-                            FeatsContext.SwitchFeatGroup(featGroup, toggle);
-                        }
-                    }
-
-                    foreach (var fightingStyles in FightingStyleContext.FightingStyles)
-                    {
-                        FightingStyleContext.Switch(fightingStyles,
-                            toggle && ModUi.TabletopDefinitions.Contains(fightingStyles));
-                    }
-
-                    foreach (var invocation in InvocationsContext.Invocations)
-                    {
-                        InvocationsContext.SwitchInvocation(invocation,
-                            toggle && ModUi.TabletopDefinitions.Contains(invocation));
-                    }
-
-                    foreach (var metamagic in MetamagicContext.Metamagic)
-                    {
-                        MetamagicContext.SwitchMetamagic(metamagic,
-                            toggle && ModUi.TabletopDefinitions.Contains(metamagic));
-                    }
+                    ModUi.ApplyTabletopSelection(FeatsContext.Feats, FeatsContext.SwitchFeat, toggle,
+                        Tabletop2024Context.IsFeatToggleAvailableInCurrentMode);
+                    ModUi.ApplyTabletopSelection(FeatsContext.FeatGroups, FeatsContext.SwitchFeatGroup, toggle,
+                        Tabletop2024Context.IsFeatToggleAvailableInCurrentMode);
+                    ModUi.ApplyTabletopSelection(FightingStyleContext.FightingStyles, FightingStyleContext.Switch,
+                        toggle);
+                    ModUi.ApplyTabletopSelection(InvocationsContext.Invocations, InvocationsContext.SwitchInvocation,
+                        toggle);
+                    ModUi.ApplyTabletopSelection(MetamagicContext.Metamagic, MetamagicContext.SwitchMetamagic, toggle);
                 }
             })
         ];

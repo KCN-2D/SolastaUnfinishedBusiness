@@ -606,7 +606,6 @@ Rules/&DieD6Title=D6
 Rules/&DieD8Title=D8
 Rules/&DivinationFormFormatIdentifyItem=显示物品的所有属性。
 Rules/&DivinationFormFormatListCreatureFamilyInLocation=感知下列类型生物的存在：{0}。
-Rules/&DivinationFormFormatRevealEntitiesBearingTags=显示处于{0}的生物或物件。
 Rules/&DurationAnyRestFormat=直到休整
 Rules/&DurationDayPluralFormat={0}天
 Rules/&DurationDaySingleFormat={0}天

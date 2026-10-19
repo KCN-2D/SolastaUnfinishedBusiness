@@ -207,6 +207,24 @@ internal static class CharacterReactionSubitemExtension
         }
     }
 
+    internal static void FitReactionDecisionButtons([NotNull] this CharacterReactionItem instance)
+    {
+        var state = instance.GetComponent<ReactionDecisionButtonLayoutState>() ??
+                    instance.gameObject.AddComponent<ReactionDecisionButtonLayoutState>();
+        state.Bind(instance);
+    }
+
+    internal static void RestoreReactionDecisionButtonLayout([NotNull] this CharacterReactionItem instance)
+    {
+        if (!instance.TryGetComponent<ReactionDecisionButtonLayoutState>(out var state))
+        {
+            return;
+        }
+
+        state.Restore();
+        Object.DestroyImmediate(state);
+    }
+
     private static ReactionChoiceLayoutState CaptureReactionChoiceLayout(CharacterReactionSubitem instance)
     {
         var layoutState = instance.GetComponent<ReactionChoiceLayoutState>() ??
@@ -1665,6 +1683,443 @@ internal static class CharacterReactionSubitemExtension
         private void OnDestroy()
         {
             Unbind();
+        }
+    }
+
+    // Every reaction request uses the same authored decision buttons. Reserve
+    // their localized captions before the modal measures its content, including
+    // the native input hints and the resource-cost siblings inside each button.
+    private sealed class ReactionDecisionButtonLayoutState : MonoBehaviour
+    {
+        private readonly RectTransformState _itemRect = new();
+        private readonly LayoutElementState _itemLayout = new();
+        private readonly List<DecisionCaptionState> _captions = [];
+        private readonly List<CaptionPart> _rows = [];
+        private readonly Dictionary<HorizontalLayoutGroup, (bool Width, bool ExpandWidth)>
+            _groups = [];
+        private CharacterReactionItem _item;
+        private float _baseWidth;
+        private float _baseHeight;
+        private int _layoutFrames;
+        private string _signature;
+        private bool _applied;
+
+        internal void Bind(CharacterReactionItem item)
+        {
+            if (_item)
+            {
+                return;
+            }
+
+            _item = item;
+            var rect = item.GetComponent<RectTransform>();
+            _itemRect.Capture(rect);
+            _itemLayout.Capture(rect);
+            _baseWidth = rect.rect.width;
+            _baseHeight = rect.rect.height;
+            foreach (var button in new[] { item.ReactButton, item.PassButton }.Where(button => button))
+            {
+                var setup = button.GetComponent<GuiButtonSetup>();
+                var caption = (button == item.ReactButton ? item.reactLabel?.TMP_Text : setup?.basicLabel?.TMP_Text) ??
+                              button.GetComponentsInChildren<GuiLabel>(true)
+                    .Select(label => label.TMP_Text).FirstOrDefault(text => text);
+                if (!caption)
+                {
+                    continue;
+                }
+
+                _captions.Add(new DecisionCaptionState(button, caption,
+                    button == item.ReactButton ? item.resourceCostGroup : null));
+                if (button.transform.parent is RectTransform row && row != rect &&
+                    _rows.All(value => value.Rect != row))
+                {
+                    _rows.Add(new CaptionPart(row));
+                }
+                for (var part = caption.transform.parent; part && part != item.transform; part = part.parent)
+                {
+                    if (part.TryGetComponent<HorizontalLayoutGroup>(out var group) && !_groups.ContainsKey(group))
+                    {
+                        _groups.Add(group, (group.childControlWidth, group.childForceExpandWidth));
+                    }
+                }
+            }
+
+            _layoutFrames = 4;
+            Apply();
+        }
+
+        private void LateUpdate()
+        {
+            if (!_item || !_item.gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            var signature = Gui.GamepadActive + ":" + MaximumItemWidth() + ":" +
+                            string.Join("|", _captions.Select(caption => caption.Signature));
+            if (_signature != signature)
+            {
+                _signature = signature;
+                _layoutFrames = 4;
+            }
+
+            if (_layoutFrames-- > 0)
+            {
+                Apply();
+            }
+        }
+
+        private void Apply()
+        {
+            var active = _captions.Where(caption => caption.Visible).ToArray();
+            var baseButtonsWidth = active.Sum(caption => caption.BaseWidth);
+            var preferredButtonsWidth = active.Sum(caption => caption.PreferredWidth);
+            var availableWidth = Mathf.Max(1f, MaximumItemWidth() - _baseWidth + baseButtonsWidth);
+            var targetButtonsWidth = Mathf.Min(availableWidth, preferredButtonsWidth);
+            var extraWidth = targetButtonsWidth - baseButtonsWidth;
+            if (baseButtonsWidth <= availableWidth + 0.5f && active.All(caption => caption.FitsNative))
+            {
+                if (_applied)
+                {
+                    RestoreLayout();
+                }
+
+                return;
+            }
+
+            var extraHeight = 0f;
+            foreach (var caption in active)
+            {
+                var growth = preferredButtonsWidth - baseButtonsWidth;
+                var buttonWidth = extraWidth >= 0f
+                    ? caption.BaseWidth + (growth > 0f
+                        ? extraWidth * (caption.PreferredWidth - caption.BaseWidth) / growth : 0f)
+                    : targetButtonsWidth * caption.BaseWidth / baseButtonsWidth;
+                extraHeight = Mathf.Max(extraHeight, caption.Apply(buttonWidth));
+            }
+
+            foreach (var row in _rows)
+            {
+                row.ApplyHeight(extraHeight);
+            }
+
+            foreach (var group in _groups.Keys.Where(group => group))
+            {
+                group.childControlWidth = true;
+                group.childForceExpandWidth = false;
+            }
+
+            var width = _baseWidth + extraWidth;
+            _itemRect.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+            _itemRect.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _baseHeight + extraHeight);
+            var element = _itemLayout.GetOrCreate();
+            element.enabled = true;
+            element.ignoreLayout = false;
+            element.minWidth = element.preferredWidth = width;
+            element.minHeight = element.preferredHeight = _baseHeight + extraHeight;
+            _applied = true;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_itemRect.RectTransform);
+        }
+
+        private float MaximumItemWidth()
+        {
+            var canvas = _item.GetComponentInParent<Canvas>();
+            var canvasRect = canvas ? canvas.rootCanvas.GetComponent<RectTransform>() : null;
+            if (!canvasRect)
+            {
+                return float.PositiveInfinity;
+            }
+
+            var itemRect = _itemRect.RectTransform;
+            var unitWidth = Mathf.Abs(canvasRect.InverseTransformVector(itemRect.TransformVector(Vector3.right)).x);
+            var modal = _item.GetComponentInParent<ReactionModal>();
+            var padding = modal && modal.mainPanel.RectTransform.TryGetComponent<LayoutGroup>(out var layout)
+                ? layout.padding.horizontal : 80f;
+            return Mathf.Max(1f, (canvasRect.rect.width - 24f - padding) / Mathf.Max(0.001f, unitWidth));
+        }
+
+        internal void Restore()
+        {
+            RestoreLayout();
+            _item = null;
+        }
+
+        private void RestoreLayout()
+        {
+            foreach (var caption in _captions)
+            {
+                caption.Restore();
+            }
+
+            foreach (var row in _rows)
+            {
+                row.Restore();
+            }
+
+            foreach (var pair in _groups.Where(pair => pair.Key))
+            {
+                pair.Key.childControlWidth = pair.Value.Width;
+                pair.Key.childForceExpandWidth = pair.Value.ExpandWidth;
+            }
+
+            _itemLayout.Restore();
+            _itemRect.Restore();
+            _applied = false;
+        }
+
+        private sealed class DecisionCaptionState
+        {
+            private readonly Button _button;
+            private readonly TMP_Text _text;
+            private readonly RectTransform _resourceGroup;
+            private readonly Graphic[] _resourceGraphics;
+            private readonly GuiButtonSetup _setup;
+            private readonly float _basicWidth;
+            private readonly float _buttonWidth;
+            private readonly float _buttonHeight;
+            private readonly float _textWidth;
+            private readonly float _textHeight;
+            private readonly RectTransformState _buttonRect = new();
+            private readonly LayoutElementState _buttonLayout = new();
+            private readonly List<CaptionPart> _parts = [];
+            private readonly bool _wrapping, _autoSizing, _autoContainer;
+            private readonly int _maxLines;
+            private readonly float _fontSize;
+            private readonly TextOverflowModes _overflow;
+
+            internal DecisionCaptionState(Button button, TMP_Text text, RectTransform resourceGroup)
+            {
+                _button = button;
+                _text = text;
+                _resourceGroup = resourceGroup;
+                _resourceGraphics = resourceGroup ? resourceGroup.GetComponentsInChildren<Graphic>(true) : [];
+                _setup = button.GetComponent<GuiButtonSetup>();
+                _basicWidth = _setup ? _setup.basicWidth : 0f;
+                var rect = button.GetComponent<RectTransform>();
+                _buttonRect.Capture(rect);
+                _buttonLayout.Capture(rect);
+                _buttonWidth = rect.rect.width;
+                _buttonHeight = rect.rect.height;
+                _textWidth = text.rectTransform.rect.width;
+                _textHeight = text.rectTransform.rect.height;
+                _wrapping = text.enableWordWrapping;
+                _autoSizing = text.enableAutoSizing;
+                _autoContainer = text.autoSizeTextContainer;
+                _maxLines = text.maxVisibleLines;
+                _fontSize = text.fontSize;
+                _overflow = text.overflowMode;
+                for (var part = text.transform; part && part != button.transform; part = part.parent)
+                {
+                    if (part is RectTransform partRect)
+                    {
+                        _parts.Add(new CaptionPart(partRect));
+                    }
+                }
+            }
+
+            internal string Signature => _text.text + ":" + _text.fontSize + ":" +
+                Visible + ":" + MeasureChrome(_button.transform);
+
+            internal bool Visible => _button && _button.gameObject.activeSelf;
+            internal float BaseWidth => _buttonWidth;
+            internal bool FitsNative => FitsNativeCaption(PreferredCaption().x);
+            internal float PreferredWidth => Mathf.Max(_buttonWidth,
+                Mathf.Ceil(PreferredCaption().x) +
+                MeasureChrome(_button.transform) + 2f);
+
+            private Vector2 PreferredCaption()
+            {
+                var autoSizing = _text.enableAutoSizing;
+                _text.enableAutoSizing = false;
+                var preferred = _text.GetPreferredValues(_text.text, float.PositiveInfinity, float.PositiveInfinity);
+                _text.enableAutoSizing = autoSizing;
+                return preferred;
+            }
+
+            private bool FitsNativeCaption(float width)
+            {
+                var available = Mathf.Max(1f, _buttonWidth - MeasureChrome(_button.transform));
+                return width <= Mathf.Min(_textWidth, available) + 0.5f;
+            }
+
+            internal float Apply(float width)
+            {
+                if (!_button || !_text)
+                {
+                    return 0f;
+                }
+
+                var chromeWidth = MeasureChrome(_button.transform);
+                var captionWidth = Mathf.Max(1f, width - chromeWidth);
+                var preferred = PreferredCaption();
+                // Keep the authored font size. Only an overlong caption needs a different
+                // layout; the normal short decisions retain their native sizing and TMP state.
+                if (Mathf.Abs(width - _buttonWidth) < 0.5f && FitsNativeCaption(preferred.x))
+                {
+                    return 0f;
+                }
+
+                _text.enableAutoSizing = false;
+                _text.enableWordWrapping = preferred.x > captionWidth;
+                _text.autoSizeTextContainer = false;
+                _text.maxVisibleLines = int.MaxValue;
+                _text.overflowMode = TextOverflowModes.Overflow;
+                var captionHeight = Mathf.Ceil(_text.GetPreferredValues(_text.text,
+                    captionWidth, float.PositiveInfinity).y);
+                var extraHeight = Mathf.Max(0f,
+                    captionHeight + Mathf.Max(0f, _buttonHeight - _textHeight) - _buttonHeight);
+                if (_setup)
+                {
+                    _setup.basicWidth = width;
+                }
+
+                _buttonRect.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+                _buttonRect.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _buttonHeight + extraHeight);
+                var layout = _buttonLayout.GetOrCreate();
+                layout.enabled = true;
+                layout.ignoreLayout = false;
+                layout.minWidth = layout.preferredWidth = width;
+                layout.minHeight = layout.preferredHeight = _buttonHeight + extraHeight;
+                layout.flexibleWidth = 0f;
+                foreach (var part in _parts)
+                {
+                    part.Apply(captionWidth + MeasureChrome(part.Rect), extraHeight);
+                }
+
+                return extraHeight;
+            }
+
+            private float MeasureChrome(Transform ancestor)
+            {
+                var chrome = 0f;
+                for (var child = _text.transform; child && child != ancestor; child = child.parent)
+                {
+                    var parent = child.parent;
+                    if (!parent)
+                    {
+                        break;
+                    }
+
+                    if (parent.TryGetComponent<HorizontalLayoutGroup>(out var group) && group.enabled)
+                    {
+                        var siblings = parent.Cast<Transform>().Where(sibling => sibling != child &&
+                            sibling.gameObject.activeSelf &&
+                            sibling.GetComponent<LayoutElement>() is not { ignoreLayout: true })
+                            .OfType<RectTransform>().ToArray();
+                        chrome += group.padding.horizontal + siblings.Sum(sibling =>
+                            Mathf.Max(sibling.rect.width, LayoutUtility.GetPreferredWidth(sibling))) +
+                            group.spacing * siblings.Length + IgnoredResourceWidth(parent, child);
+                    }
+                    else
+                    {
+                        // The native label wrappers may use offsets rather than a layout
+                        // group. Use their captured inset, never our previous fitted width.
+                        var part = _parts.FirstOrDefault(value => value.Rect == parent);
+                        var childPart = _parts.FirstOrDefault(value => value.Rect == child);
+                        var parentWidth = parent == _button.transform ? _buttonWidth : part?.Width ?? 0f;
+                        var childWidth = childPart?.Width ?? _textWidth;
+                        chrome += Mathf.Max(Mathf.Max(0f, parentWidth - childWidth),
+                            IgnoredResourceWidth(parent, child));
+                    }
+                }
+
+                return chrome;
+            }
+
+            private float IgnoredResourceWidth(Transform parent, Transform captionPart)
+            {
+                if (!_resourceGroup || !_resourceGroup.gameObject.activeInHierarchy ||
+                    !_resourceGraphics.Any(graphic => graphic && graphic.enabled && graphic.gameObject.activeInHierarchy &&
+                        graphic.color.a > 0f && graphic.canvasRenderer.GetAlpha() > 0f))
+                {
+                    return 0f;
+                }
+
+                var branch = _resourceGroup.transform;
+                while (branch.parent && branch.parent != parent)
+                {
+                    branch = branch.parent;
+                }
+
+                if (branch.parent != parent || branch == captionPart ||
+                    branch.GetComponent<LayoutElement>() is not { ignoreLayout: true })
+                {
+                    return 0f;
+                }
+
+                // Native resource images and numeric costs are overlays excluded by
+                // Unity's layout group, but still need room beside the caption.
+                return Mathf.Abs(parent.InverseTransformVector(_resourceGroup.TransformVector(Vector3.right)).x) *
+                       _resourceGroup.rect.width;
+            }
+
+            internal void Restore()
+            {
+                if (_setup) _setup.basicWidth = _basicWidth;
+                if (_text)
+                {
+                    _text.enableWordWrapping = _wrapping;
+                    _text.enableAutoSizing = _autoSizing;
+                    _text.autoSizeTextContainer = _autoContainer;
+                    _text.maxVisibleLines = _maxLines;
+                    _text.fontSize = _fontSize;
+                    _text.overflowMode = _overflow;
+                }
+
+                foreach (var part in _parts) part.Restore();
+                _buttonLayout.Restore();
+                _buttonRect.Restore();
+            }
+        }
+
+        private sealed class CaptionPart
+        {
+            private readonly RectTransformState _rect = new();
+            private readonly LayoutElementState _layout = new();
+            private readonly ContentSizeFitter _fitter;
+            private readonly ContentSizeFitter.FitMode _horizontalFit;
+            private readonly float _height;
+            internal RectTransform Rect => _rect.RectTransform;
+            internal float Width { get; }
+
+            internal CaptionPart(RectTransform rect)
+            {
+                _rect.Capture(rect);
+                _layout.Capture(rect);
+                Width = rect.rect.width;
+                _height = rect.rect.height;
+                _fitter = rect.GetComponent<ContentSizeFitter>();
+                if (_fitter) _horizontalFit = _fitter.horizontalFit;
+            }
+
+            internal void Apply(float width, float extraHeight)
+            {
+                if (_fitter) _fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+                _rect.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+                _rect.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _height + extraHeight);
+                var layout = _layout.GetOrCreate();
+                layout.enabled = true;
+                layout.ignoreLayout = false;
+                layout.minWidth = layout.preferredWidth = width;
+                layout.minHeight = layout.preferredHeight = _height + extraHeight;
+                layout.flexibleWidth = 0f;
+            }
+
+            internal void ApplyHeight(float extraHeight)
+            {
+                _rect.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _height + extraHeight);
+                var layout = _layout.GetOrCreate();
+                layout.enabled = true;
+                layout.ignoreLayout = false;
+                layout.minHeight = layout.preferredHeight = _height + extraHeight;
+            }
+
+            internal void Restore()
+            {
+                if (_fitter) _fitter.horizontalFit = _horizontalFit;
+                _layout.Restore();
+                _rect.Restore();
+            }
         }
     }
 

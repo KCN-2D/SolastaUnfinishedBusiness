@@ -190,6 +190,7 @@ internal class InvocationPoolTypeCustom
 
         internal static readonly InvocationPoolTypeCustom FeatSkillExpertExpertise =
             Register("FeatSkillExpertExpertise", ProficiencyChoiceSprites.Get("SkillExpert"),
+                panelTitle: "Feature/&InvocationPoolFeatSkillExpertExpertiseLearnTitle",
                 selectionOrder: 1, allowExhaustedSelection: true);
 
         internal static readonly InvocationPoolTypeCustom ArcaneShotChoice =

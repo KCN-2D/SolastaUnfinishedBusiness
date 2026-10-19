@@ -1,5 +1,4 @@
-﻿using SolastaUnfinishedBusiness.Api;
-using SolastaUnfinishedBusiness.Behaviors;
+﻿using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Subclasses;
 using UnityEngine.AddressableAssets;
@@ -13,7 +12,7 @@ public class ReactionResourceWrathOfTheStorm : ICustomReactionResource
     }
 
     public static ICustomReactionResource Instance { get; } = new ReactionResourceWrathOfTheStorm();
-    public AssetReferenceSprite Icon => DatabaseHelper.ActionDefinitions.ActionSurge.GuiPresentation.SpriteReference;
+    public AssetReferenceSprite Icon => Sprites.PowerPoolResourceIcon;
 
     public string GetUses(RulesetCharacter character)
     {

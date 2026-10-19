@@ -4,9 +4,9 @@ using UnityEngine.AddressableAssets;
 
 namespace SolastaUnfinishedBusiness.CustomUI;
 
-public class ReactionResourcePowerPool(FeatureDefinitionPower pool, AssetReferenceSprite icon) : ICustomReactionResource
+public class ReactionResourcePowerPool(FeatureDefinitionPower pool, AssetReferenceSprite icon = null) : ICustomReactionResource
 {
-    public AssetReferenceSprite Icon { get; } = icon;
+    public AssetReferenceSprite Icon { get; } = icon ?? Sprites.PowerPoolResourceIcon;
 
     public string GetUses(RulesetCharacter character)
     {

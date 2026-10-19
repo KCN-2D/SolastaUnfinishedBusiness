@@ -25,6 +25,13 @@ public static class CustomActionIdContext
         (Id)ExtraActionId.AudaciousWhirlToggle,
         (Id)ExtraActionId.BalefulScionToggle,
         (Id)ExtraActionId.BlessedStrikesToggle,
+        (Id)ExtraActionId.BoonOfCombatProwess2024Toggle,
+        (Id)ExtraActionId.BoonOfFate2024Toggle,
+        (Id)ExtraActionId.BoonOfEnergyRedirection2024Toggle,
+        (Id)ExtraActionId.BoonOfRecoveryLastStand2024Toggle,
+        (Id)ExtraActionId.BoonOfEruptingSpellpower2024Toggle,
+        (Id)ExtraActionId.BoonOfFortitude2024Toggle,
+        (Id)ExtraActionId.BoonOfIrresistibleOffense2024Toggle,
         (Id)ExtraActionId.BrutalStrikeToggle,
         (Id)ExtraActionId.CleavingAttackToggle,
         (Id)ExtraActionId.CompellingStrikeToggle,
@@ -66,7 +73,14 @@ public static class CustomActionIdContext
 
     internal static readonly List<Id> ExtraActionIdReverseToggles =
     [
-        (Id)ExtraActionId.PaladinSmiteToggle
+        (Id)ExtraActionId.PaladinSmiteToggle,
+        (Id)ExtraActionId.BoonOfCombatProwess2024Toggle,
+        (Id)ExtraActionId.BoonOfFate2024Toggle,
+        (Id)ExtraActionId.BoonOfEnergyRedirection2024Toggle,
+        (Id)ExtraActionId.BoonOfRecoveryLastStand2024Toggle,
+        (Id)ExtraActionId.BoonOfEruptingSpellpower2024Toggle,
+        (Id)ExtraActionId.BoonOfFortitude2024Toggle,
+        (Id)ExtraActionId.BoonOfIrresistibleOffense2024Toggle
     ];
 
     private static readonly List<Id> ExtraActionIdPowers =

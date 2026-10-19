@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -12,6 +13,57 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class ReactionModalPatcher
 {
+    [HarmonyPatch(typeof(ReactionModal), nameof(ReactionModal.OnUpdateHook))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnUpdateHook_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(ReactionModal __instance)
+        {
+            if (!__instance.Visible || __instance.Showing || __instance.Hiding)
+            {
+                return;
+            }
+
+            List<ReactionRequest> expired = null;
+
+            foreach (var item in __instance.reactionItems)
+            {
+                if (!item || item.CurrentState != CharacterReactionItem.ReactionState.Pending ||
+                    item.ReactionRequest is not ReactionRequestSelectTarget { Processed: false } request)
+                {
+                    continue;
+                }
+
+                // The native modal checks relevance only on user decisions/timeouts.
+                // A target can change while another candidate remains selectable.
+                item.CheckRelevance();
+                if (item.CurrentState == CharacterReactionItem.ReactionState.Irrelevant)
+                {
+                    expired ??= [];
+                    expired.Add(request);
+                }
+            }
+
+            if (expired != null)
+            {
+                // Expiring an item only hides its buttons. Resolve the request through
+                // the normal local/network command too, so its waiting group can finish.
+                var commands = ServiceRepository.GetService<ICommandService>();
+                foreach (var request in expired)
+                {
+                    if (!request.Processed)
+                    {
+                        commands?.ProcessReactionRequest(request, false, -1);
+                    }
+                }
+
+                __instance.CheckPanelRelevance();
+            }
+        }
+    }
+
     //TODO: Create a FeatureBuilder with Validators to create a generic check here
     [HarmonyPatch(typeof(ReactionModal), nameof(ReactionModal.ReactionTriggered))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]

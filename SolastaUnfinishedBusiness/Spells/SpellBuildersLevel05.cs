@@ -836,14 +836,8 @@ internal static partial class SpellBuilders
 
         public bool IsValid(CursorLocationSelectTarget __instance, GameLocationCharacter target)
         {
-            var rulesetItem = target.RulesetCharacter.CharacterInventory?.EnumerateAllSlots()
-                .FirstOrDefault(x =>
-                    x.EquipedItem?.DynamicItemProperties.Any(y => y.FeatureDefinition == additionalDamage) == true)
-                ?.EquipedItem;
-            var sourceEffectGuid = rulesetItem?.DynamicItemProperties
-                .FirstOrDefault(x => x.FeatureDefinition == additionalDamage)?.SourceEffectGuid ?? 0;
-            var caster = EffectHelpers.GetCharacterByEffectGuid(sourceEffectGuid);
-            var hasHolyWeapon = caster != null && __instance.ActionParams.ActingCharacter.RulesetCharacter == caster;
+            var hasHolyWeapon = GetSourceSpell(target.RulesetCharacter,
+                __instance.ActionParams.ActingCharacter.RulesetCharacter) != null;
 
             if (!hasHolyWeapon)
             {
@@ -851,6 +845,16 @@ internal static partial class SpellBuilders
             }
 
             return hasHolyWeapon;
+        }
+
+        private RulesetEffectSpell GetSourceSpell(RulesetCharacter target, RulesetCharacter caster)
+        {
+            return target.CharacterInventory?.EnumerateAllSlots()
+                .SelectMany(slot => slot.EquipedItem?.DynamicItemProperties ?? [])
+                .Where(property => property.FeatureDefinition == additionalDamage)
+                .Select(property => EffectHelpers.GetEffectByGuid(property.SourceEffectGuid))
+                .OfType<RulesetEffectSpell>()
+                .FirstOrDefault(spell => spell.Caster == caster);
         }
 
         public List<GameLocationCharacter> GetTargetCharacters(CharacterActionMagicEffect action)
@@ -861,6 +865,13 @@ internal static partial class SpellBuilders
         public IEnumerator OnPowerOrSpellInitiatedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
         {
             var ally = action.ActionParams.TargetCharacters[0];
+            var caster = action.ActingCharacter.RulesetCharacter;
+            var sourceSpell = GetSourceSpell(ally.RulesetCharacter, caster);
+
+            if (sourceSpell == null)
+            {
+                yield break;
+            }
 
             EffectHelpers.StartVisualEffect(ally, ally, PowerOathOfDevotionTurnUnholy, EffectHelpers.EffectType.Caster);
 
@@ -868,7 +879,7 @@ internal static partial class SpellBuilders
 
             action.ActionParams.TargetCharacters.SetRange(targets);
             action.ActionParams.ActionModifiers.SetRange(GetActionModifiers(targets.Count));
-            action.ActingCharacter.RulesetCharacter.BreakConcentration();
+            caster.TerminateSpell(sourceSpell, true);
 
             yield break;
         }

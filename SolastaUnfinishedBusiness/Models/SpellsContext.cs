@@ -1307,6 +1307,7 @@ internal static class SpellsContext
         {
             var spellListName = SpellList.Name;
             var spellName = spellDefinition.Name;
+            var membershipChanged = SpellList.ContainsSpell(spellDefinition) != active;
 
             if (active)
             {
@@ -1346,9 +1347,9 @@ internal static class SpellsContext
 
             RefreshAuxiliarySpellLists(spellDefinition);
 
-            if (updateSettings && spellDefinition.SpellLevel <= 1)
+            if (updateSettings && membershipChanged && spellDefinition.SpellLevel <= 7)
             {
-                Tabletop2024Context.RefreshFeatSpellSelectionLists2024();
+                Tabletop2024Context.RefreshFeatSpellSelectionLists2024(spellDefinition.SpellLevel);
             }
         }
 

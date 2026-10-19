@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.ModKit.Utility;
@@ -46,6 +47,93 @@ public static class GameLocationCharacterExtensions
         }
 
         return actionModifiers;
+    }
+
+    private static readonly ConditionalWeakTable<RulesetCharacter, ReactionQueue> ReactionQueues = new();
+    private static readonly AccessTools.FieldRef<GameLocationActionManager, CoroutineList> ReactionCoroutines =
+        AccessTools.FieldRefAccess<GameLocationActionManager, CoroutineList>("unstoppableCoroutines");
+
+    private sealed class ReactionQueue
+    {
+        internal readonly Queue<IEnumerator> Notifications = new();
+        internal GameLocationActionManager Manager;
+        internal GameLocation Location;
+        internal bool Running;
+    }
+
+    internal static void QueueReactionsAfterApplication(RulesetCharacter character,
+        IReadOnlyCollection<IEnumerator> notifications)
+    {
+        if (notifications.Count == 0 || ServiceRepository.GetService<IGameSerializationService>()?.Loading == true ||
+            ServiceRepository.GetService<IGameLocationActionService>() is not GameLocationActionManager manager ||
+            ServiceRepository.GetService<IGameLocationService>()?.GameLocation is not { } location ||
+            GameLocationCharacter.GetFromActor(character) == null)
+        {
+            return;
+        }
+
+        var queue = ReactionQueues.GetValue(character, _ => new ReactionQueue());
+        if (queue.Manager != manager || queue.Location != location)
+        {
+            queue.Notifications.Clear();
+            queue.Manager = manager;
+            queue.Location = location;
+            queue.Running = false;
+        }
+
+        foreach (var notification in notifications)
+        {
+            queue.Notifications.Enqueue(notification);
+        }
+
+        if (queue.Running || queue.Notifications.Count == 0)
+        {
+            return;
+        }
+
+        queue.Running = true;
+        ReactionCoroutines(manager).Add(ResolveReactions(character, queue, manager, location));
+    }
+
+    private static IEnumerator ResolveReactions(RulesetCharacter character, ReactionQueue queue,
+        GameLocationActionManager manager, GameLocation location)
+    {
+        try
+        {
+            // Native HP, temporary-HP and effect updates must finish before a modal opens.
+            yield return null;
+            while (queue.Notifications.Count > 0 && queue.Manager == manager && queue.Location == location &&
+                   ReferenceEquals(ServiceRepository.GetService<IGameLocationActionService>(), manager) &&
+                   ServiceRepository.GetService<IGameLocationService>()?.GameLocation == location)
+            {
+                var actor = GameLocationCharacter.GetFromActor(character);
+                if (actor == null)
+                {
+                    yield break;
+                }
+
+                while (manager.PendingReactionRequestGroups.Any(group => group.Requests.Any(request =>
+                           !request.Processed && request.Character == actor)))
+                {
+                    yield return null;
+                    if (!ReferenceEquals(ServiceRepository.GetService<IGameLocationActionService>(), manager) ||
+                        ServiceRepository.GetService<IGameLocationService>()?.GameLocation != location)
+                    {
+                        yield break;
+                    }
+                }
+
+                yield return queue.Notifications.Dequeue();
+            }
+        }
+        finally
+        {
+            if (queue.Manager == manager && queue.Location == location)
+            {
+                queue.Notifications.Clear();
+                queue.Running = false;
+            }
+        }
     }
 
     private static bool TryGetReactionManagers(
@@ -165,12 +253,14 @@ public static class GameLocationCharacterExtensions
         actionService.ExecuteInstantSingleAction(actionParams);
     }
 
-    internal static void MyExecuteActionStabilizeAndStandUp(this GameLocationCharacter character, int hitPoints)
+    internal static void MyExecuteActionStabilizeAndStandUp(this GameLocationCharacter character, int hitPoints,
+        Action onStabilized = null)
     {
         var actionService = ServiceRepository.GetService<IGameLocationActionService>();
         var rulesetCharacter = character.RulesetCharacter;
 
         rulesetCharacter.StabilizeAndGainHitPoints(hitPoints);
+        onStabilized?.Invoke();
 
         actionService.ExecuteInstantSingleAction(new CharacterActionParams(character, Id.StandUp));
     }
@@ -464,7 +554,8 @@ public static class GameLocationCharacterExtensions
         Action reactionNotValidated = null,
         GameLocationBattleManager battleManager = null,
         BaseDefinition effectDefinition = null,
-        Func<GameLocationCharacter, bool> candidateValidator = null)
+        Func<GameLocationCharacter, bool> candidateValidator = null,
+        CharacterActionParams actionParams = null)
     {
         if (!TryGetReactionManagers(out var actionManager, out battleManager, battleManager))
         {
@@ -479,10 +570,10 @@ public static class GameLocationCharacterExtensions
             yield break;
         }
 
-        var reactionParams = new CharacterActionParams(character, (Id)ExtraActionId.DoNothingFree)
-        {
-            StringParameter = stringParameter
-        };
+        // Selection-only callers keep their free confirmation. A supplied native
+        // action commits its normal cost only after a valid target is accepted.
+        var reactionParams = actionParams ?? new CharacterActionParams(character, (Id)ExtraActionId.DoNothingFree);
+        reactionParams.StringParameter = stringParameter;
         var reactionRequest = new ReactionRequestSelectTarget(reactionParams, candidateList, type, effectDefinition, candidateValidator);
         var count = actionManager.PendingReactionRequestGroups.Count;
 
@@ -490,7 +581,12 @@ public static class GameLocationCharacterExtensions
 
         yield return battleManager.WaitForReactions(waiter, actionManager, count);
 
-        var selectedTarget = reactionRequest.SelectedTarget;
+        // A committed native reaction may already have spent its reaction or
+        // defeated the target. Report its accepted choice without revalidating
+        // pre-commit eligibility against the state produced by that same action.
+        var selectedTarget = actionParams != null && reactionParams.ReactionValidated
+            ? reactionRequest.Candidates.ElementAtOrDefault(reactionRequest.SelectedSubOption)
+            : reactionRequest.SelectedTarget;
 
         if (reactionParams.ReactionValidated && selectedTarget != null)
         {
@@ -546,7 +642,8 @@ public static class GameLocationCharacterExtensions
         string stringParameter2 = "",
         Action<ReactionRequestSpendBundlePower> reactionValidated = null,
         Action<ReactionRequestSpendBundlePower> reactionNotValidated = null,
-        GameLocationBattleManager battleManager = null)
+        GameLocationBattleManager battleManager = null,
+        Func<bool> reactionStillValid = null)
     {
         if (!TryGetReactionManagers(out var actionManager, out battleManager, battleManager))
         {
@@ -565,7 +662,10 @@ public static class GameLocationCharacterExtensions
             targetCharacters = targets
         };
         var reactionRequest =
-            new ReactionRequestSpendBundlePower(reactionParams, reactionValidated, reactionNotValidated);
+            new ReactionRequestSpendBundlePower(reactionParams, reactionValidated, reactionNotValidated, reactionStillValid)
+            {
+                Resource = usablePower.PowerDefinition.GetFirstSubFeatureOfType<ICustomReactionResource>()
+            };
         var count = actionManager.PendingReactionRequestGroups.Count;
 
         actionManager.AddInterruptRequest(reactionRequest);

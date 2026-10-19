@@ -223,7 +223,6 @@ Feature/&InvocationPoolFeatSkillExpertSkillLearnDescription=Choose one skill in 
 Feature/&InvocationPoolFeatSkillExpertSkillLearnTitle=Skill Proficiency
 Feature/&InvocationPoolFeatSkilledLearnDescription=Choose three skills or tools in which you are not already proficient.
 Feature/&InvocationPoolFeatSkilledLearnTitle=Skilled
-Screen/&InvocationPoolFeatSkillExpertExpertiseHeader=Skill Expert: Expertise
 Screen/&InvocationPoolFeatSkillExpertSkillHeader=Skill Expert: Skill Proficiency
 Screen/&InvocationPoolFeatSkilledHeader=Skilled
 Tooltip/&SkillFeatRequiresExpertise=Choose one skill in which you are proficient but do not already have expertise.

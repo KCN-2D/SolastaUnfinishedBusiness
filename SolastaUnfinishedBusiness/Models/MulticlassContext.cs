@@ -123,8 +123,6 @@ internal static class MulticlassContext
                 SkillDefinitions.Stealth)
             .AddToDB();
 
-    private static readonly MethodInfo NullMethod = null;
-
     // these features will be replaced to comply to SRD multiclass rules
     private static readonly Dictionary<FeatureDefinition, FeatureDefinition> FeaturesToReplace = new()
     {
@@ -159,8 +157,6 @@ internal static class MulticlassContext
         return (FeaturesToExclude.TryGetValue(characterClass, out var excluded) && excluded.Contains(feature)) ||
                Tabletop2024Context.IsClassWeaponProficiencyExcludedFromMulticlass(characterClass, feature);
     }
-
-    private static (MethodInfo, HeroContext) FeatureUnlocksContext { get; set; }
 
     internal static void LateLoad()
     {
@@ -349,109 +345,81 @@ internal static class MulticlassContext
 
     private static void PatchFeatureUnlocks()
     {
-        var patches = new[]
+        var methods = new (Type Type, string Name)[]
         {
-            // CharacterStageClassSelectionPanel
-            (
-                typeof(CharacterStageClassSelectionPanel).GetMethod("EnumerateActiveFeatures", PrivateBinding) ??
-                NullMethod, HeroContext.StagePanel
-            ),
-            (
-                typeof(CharacterStageClassSelectionPanel).GetMethod("FillClassFeatures", PrivateBinding) ??
-                NullMethod, HeroContext.StagePanel
-            ),
-            // CharacterStageLevelGainsPanel
-            (
-                typeof(CharacterStageLevelGainsPanel).GetMethod("OnHigherLevelClassCb") ??
-                NullMethod, HeroContext.StagePanel
-            ),
-            (
-                typeof(CharacterStageLevelGainsPanel).GetMethod("EnumerateActiveClassFeatures", PrivateBinding) ??
-                NullMethod, HeroContext.StagePanel
-            ),
-            (
-                typeof(CharacterStageLevelGainsPanel).GetMethod("FillUnlockedClassFeatures", PrivateBinding) ??
-                NullMethod, HeroContext.StagePanel
-            ),
-            (
-                typeof(CharacterStageLevelGainsPanel).GetMethod("Refresh", PrivateBinding) ??
-                NullMethod, HeroContext.StagePanel
-            ),
-
-            // CharacterBuildingManager
-            (
-                typeof(CharacterBuildingManager).GetMethod("FinalizeCharacter") ??
-                NullMethod, HeroContext.BuildingManager
-            ),
-
-            // CharacterInformationPanel
-            (
-                typeof(CharacterInformationPanel).GetMethod("TryFindChoiceFeature", PrivateBinding) ??
-                NullMethod, HeroContext.InformationPanel)
+            (typeof(CharacterStageClassSelectionPanel), "EnumerateActiveFeatures"),
+            (typeof(CharacterStageClassSelectionPanel), "FillClassFeatures"),
+            (typeof(CharacterStageLevelGainsPanel), "OnHigherLevelClassCb"),
+            (typeof(CharacterStageLevelGainsPanel), "EnumerateActiveClassFeatures"),
+            (typeof(CharacterStageLevelGainsPanel), "FillUnlockedClassFeatures"),
+            (typeof(CharacterStageLevelGainsPanel), "Refresh"),
+            (typeof(CharacterBuildingManager), "FinalizeCharacter"),
+            (typeof(CharacterInformationPanel), "TryFindChoiceFeature")
         };
-
         var harmony = new Harmony("SolastaUnfinishedBusiness");
-        var transpiler = new Func<IEnumerable<CodeInstruction>, IEnumerable<CodeInstruction>>
+        var transpiler = new Func<IEnumerable<CodeInstruction>, MethodBase, IEnumerable<CodeInstruction>>
             (FeatureUnlocksTranspiler).Method;
 
-        foreach (var patch in patches)
+        foreach (var (type, name) in methods)
         {
-            FeatureUnlocksContext = patch;
-            var method = FeatureUnlocksContext.Item1;
-
             try
             {
+                var method = AccessTools.Method(type, name) ?? throw new MissingMethodException(type.FullName, name);
                 harmony.Patch(method, transpiler: new HarmonyMethod(transpiler));
             }
             catch
             {
-                Main.Error($"Failed to apply FeatureUnlocksTranspiler patch to {method.DeclaringType}.{method.Name}");
+                Main.Error($"Failed to apply FeatureUnlocksTranspiler patch to {type}.{name}");
             }
         }
     }
 
     private static IEnumerable<CodeInstruction> FeatureUnlocksTranspiler(
-        [NotNull] IEnumerable<CodeInstruction> instructions)
+        [NotNull] IEnumerable<CodeInstruction> instructions,
+        [NotNull] MethodBase __originalMethod)
     {
         var classFeatureUnlocksMethod = typeof(CharacterClassDefinition).GetMethod("get_FeatureUnlocks");
         var classFilteredFeatureUnlocksMethod =
             new Func<CharacterClassDefinition, RulesetCharacterHero, IEnumerable<FeatureUnlockByLevel>>(
                 ClassFilteredFeatureUnlocks).Method;
+        var declaringType = __originalMethod.DeclaringType;
 
-        switch (FeatureUnlocksContext.Item2)
+        // Harmony reruns every existing transpiler whenever any patch is added or
+        // removed. Resolve this target's owner from its own method on every pass.
+        if (typeof(CharacterStagePanel).IsAssignableFrom(declaringType))
         {
-            case HeroContext.StagePanel:
-                var classType = FeatureUnlocksContext.Item1.DeclaringType;
-                var currentHeroField =
-                    classType!.GetField("currentHero", BindingFlags.Instance | BindingFlags.NonPublic);
+            var currentHeroField = AccessTools.Field(declaringType, "currentHero");
 
-                return instructions.ReplaceCalls(classFeatureUnlocksMethod,
-                    "MulticlassContext.FeatureUnlocksTranspiler.StagePanel",
-                    new CodeInstruction(OpCodes.Ldarg_0),
-                    new CodeInstruction(OpCodes.Ldfld, currentHeroField),
-                    new CodeInstruction(OpCodes.Call, classFilteredFeatureUnlocksMethod));
-
-            case HeroContext.BuildingManager:
-                return instructions.ReplaceCalls(classFeatureUnlocksMethod,
-                    "MulticlassContext.FeatureUnlocksTranspiler.BuildingManager",
-                    new CodeInstruction(OpCodes.Ldarg_1),
-                    new CodeInstruction(OpCodes.Call, classFilteredFeatureUnlocksMethod));
-
-            case HeroContext.InformationPanel:
-                var inspectedCharacterMethod =
-                    typeof(CharacterInformationPanel).GetMethod("get_InspectedCharacter");
-                var rulesetCharacterHeroMethod = typeof(GuiCharacter).GetMethod("get_RulesetCharacterHero");
-
-                return instructions.ReplaceCalls(classFeatureUnlocksMethod,
-                    "MulticlassContext.FeatureUnlocksTranspiler.InformationPanel",
-                    new CodeInstruction(OpCodes.Ldarg_0),
-                    new CodeInstruction(OpCodes.Call, inspectedCharacterMethod),
-                    new CodeInstruction(OpCodes.Call, rulesetCharacterHeroMethod),
-                    new CodeInstruction(OpCodes.Call, classFilteredFeatureUnlocksMethod));
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(instructions));
+            return instructions.ReplaceCalls(classFeatureUnlocksMethod,
+                "MulticlassContext.FeatureUnlocksTranspiler.StagePanel",
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Ldfld, currentHeroField),
+                new CodeInstruction(OpCodes.Call, classFilteredFeatureUnlocksMethod));
         }
+
+        if (typeof(CharacterBuildingManager).IsAssignableFrom(declaringType))
+        {
+            return instructions.ReplaceCalls(classFeatureUnlocksMethod,
+                "MulticlassContext.FeatureUnlocksTranspiler.BuildingManager",
+                new CodeInstruction(OpCodes.Ldarg_1),
+                new CodeInstruction(OpCodes.Call, classFilteredFeatureUnlocksMethod));
+        }
+
+        if (typeof(CharacterInformationPanel).IsAssignableFrom(declaringType))
+        {
+            var inspectedCharacterMethod =
+                typeof(CharacterInformationPanel).GetMethod("get_InspectedCharacter");
+            var rulesetCharacterHeroMethod = typeof(GuiCharacter).GetMethod("get_RulesetCharacterHero");
+
+            return instructions.ReplaceCalls(classFeatureUnlocksMethod,
+                "MulticlassContext.FeatureUnlocksTranspiler.InformationPanel",
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Call, inspectedCharacterMethod),
+                new CodeInstruction(OpCodes.Call, rulesetCharacterHeroMethod),
+                new CodeInstruction(OpCodes.Call, classFilteredFeatureUnlocksMethod));
+        }
+
+        throw new ArgumentException($"Unsupported feature unlock target: {__originalMethod}", nameof(__originalMethod));
     }
 
     // support class filtered feature unlocks
@@ -521,14 +489,4 @@ internal static class MulticlassContext
         return repertoire.SpellCastingLevel;
     }
 
-    //
-    // FeatureUnlocks patching support
-    //
-
-    private enum HeroContext
-    {
-        BuildingManager,
-        StagePanel,
-        InformationPanel
-    }
 }

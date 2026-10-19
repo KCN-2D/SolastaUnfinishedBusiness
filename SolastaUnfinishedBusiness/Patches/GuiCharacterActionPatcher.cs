@@ -2,7 +2,9 @@
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Models;
+using UnityEngine.UI;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -55,7 +57,7 @@ public static class GuiCharacterActionPatcher
         }
 
         [UsedImplicitly]
-        public static void Postfix(GuiCharacterAction __instance)
+        public static void Postfix(GuiCharacterAction __instance, Image icon, Image largeImage)
         {
             //PATCH: make CastQuickened action have larger icon, same as CastBonus or CastMain
             if (_wasCastQuickened)
@@ -68,6 +70,8 @@ public static class GuiCharacterActionPatcher
             {
                 __instance.actionId = (ActionDefinitions.Id)ExtraActionId.NickMasteryAttack;
             }
+
+            UiTextHelpers.FitActionItemIcon(icon, largeImage);
         }
     }
 

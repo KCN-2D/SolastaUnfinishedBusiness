@@ -418,14 +418,25 @@ internal static class ModUi
 
     private static bool HasTabletopFeatDescendants(
         [CanBeNull] FeatDefinition featDefinition,
-        [NotNull] HashSet<string> processedDefinitions)
+        [NotNull] HashSet<string> processedDefinitions,
+        bool bulkSelection = false)
     {
+        // Container groups retain legacy references; classify the active replacement's provenance.
+        if (bulkSelection && featDefinition != null &&
+            Tabletop2024Context.TryResolveModeAwareFeatDefinition(featDefinition.Name, out var currentDefinition))
+        {
+            featDefinition = currentDefinition;
+        }
+
         if (featDefinition == null || !processedDefinitions.Add(featDefinition.Name))
         {
             return false;
         }
 
-        if (Tabletop2024Context.IsNonSelectableTabletopGroup(featDefinition))
+        if (Tabletop2024Context.IsNonSelectableTabletopGroup(featDefinition) ||
+            bulkSelection && (Tabletop2024Context.IsOptInOnlyManagedTabletopFeat(featDefinition) ||
+                              Tabletop2024Context.IsEpicBoonDefinition(featDefinition) &&
+                              !Tabletop2024Context.AreEpicBoonsEffectivelyEnabled()))
         {
             return false;
         }
@@ -441,7 +452,8 @@ internal static class ModUi
             return false;
         }
 
-        return group.GetSubFeats(true).Any(subFeat => HasTabletopFeatDescendants(subFeat, processedDefinitions));
+        return group.GetSubFeats(true)
+            .Any(subFeat => HasTabletopFeatDescendants(subFeat, processedDefinitions, bulkSelection));
     }
 
     internal static bool IsTabletopDefinition(BaseDefinition definition)
@@ -458,11 +470,80 @@ internal static class ModUi
     {
         return definition switch
         {
-            FeatDefinition featDefinition => IsTabletopDefinition(featDefinition) &&
-                                            !Tabletop2024Context.IsOptInOnlyManagedTabletopFeat(featDefinition),
+            FeatDefinition featDefinition => HasTabletopFeatDescendants(featDefinition, [], bulkSelection: true),
             not null => IsTabletopDefinition(definition),
             _ => false
         };
+    }
+
+    private static bool IsManualOnlyTabletopDefinition(BaseDefinition definition)
+    {
+        if (definition is not FeatDefinition feat)
+        {
+            return false;
+        }
+
+        if (Tabletop2024Context.TryResolveModeAwareFeatDefinition(feat.Name, out var currentDefinition))
+        {
+            feat = currentDefinition;
+        }
+
+        return Tabletop2024Context.IsOptInOnlyManagedTabletopFeat(feat);
+    }
+
+    internal static bool IsSelectionComplete<T>(
+        IEnumerable<T> registeredDefinitions,
+        IEnumerable<string> selectedDefinitions,
+        Func<T, bool> toggleEnabled = null) where T : BaseDefinition
+    {
+        var enabledDefinitions = registeredDefinitions
+            .Where(definition => toggleEnabled?.Invoke(definition) ?? true)
+            .ToArray();
+        var selectedNames = new HashSet<string>(selectedDefinitions);
+
+        return enabledDefinitions.Length > 0 &&
+               enabledDefinitions.All(definition => selectedNames.Contains(definition.Name));
+    }
+
+    internal static bool IsTabletopSelectionComplete<T>(
+        IEnumerable<T> registeredDefinitions,
+        IEnumerable<string> selectedDefinitions,
+        Func<T, bool> toggleEnabled = null) where T : BaseDefinition
+    {
+        var enabledDefinitions = registeredDefinitions
+            .Where(definition => toggleEnabled?.Invoke(definition) ?? true)
+            .ToArray();
+        var selectedNames = new HashSet<string>(selectedDefinitions);
+        var tabletopDefinitions = enabledDefinitions.Where(IsBulkSelectableTabletopDefinition).ToArray();
+
+        return tabletopDefinitions.Length > 0 &&
+               tabletopDefinitions.All(definition => selectedNames.Contains(definition.Name)) &&
+               !enabledDefinitions.Any(definition => IsManualOnlyTabletopDefinition(definition) &&
+                                                     selectedNames.Contains(definition.Name));
+    }
+
+    internal static void ApplyTabletopSelection<T>(
+        IEnumerable<T> registeredDefinitions,
+        Action<T, bool> switchAction,
+        bool selected,
+        Func<T, bool> toggleEnabled = null,
+        bool preserveOtherChoices = true) where T : BaseDefinition
+    {
+        // Snapshot both eligibility and desired values before a switch refreshes the feat catalog.
+        // Checkboxes preserve unrelated choices; the general preset replaces the available set.
+        // Selecting either set clears saved manual-only choices; individual toggles remain available.
+        var changes = registeredDefinitions
+            .Where(definition => toggleEnabled?.Invoke(definition) ?? true)
+            .Select(definition => (Definition: definition,
+                Tabletop: IsBulkSelectableTabletopDefinition(definition),
+                ManualOnly: IsManualOnlyTabletopDefinition(definition)))
+            .Where(change => !preserveOtherChoices || change.Tabletop || selected && change.ManualOnly)
+            .ToArray();
+
+        foreach (var change in changes)
+        {
+            switchAction(change.Definition, selected && change.Tabletop);
+        }
     }
 
     private static string FormatDefinitionOptionTitle(BaseDefinition definition)
@@ -528,16 +609,9 @@ internal static class ModUi
         var enabledDefinitions = registeredDefinitions
             .Where(definition => toggleEnabled?.Invoke(definition) ?? true)
             .ToArray();
-        var enabledTabletopDefinitions = enabledDefinitions
-            .Where(IsBulkSelectableTabletopDefinition)
-            .ToArray();
         var selectedDefinitionNames = new HashSet<string>(selectedDefinitions);
-        var selectAll =
-            enabledDefinitions.Length > 0 &&
-            enabledDefinitions.All(definition => selectedDefinitionNames.Contains(definition.Name));
-        var selectTabletop =
-            enabledTabletopDefinitions.Length > 0 &&
-            enabledTabletopDefinitions.All(definition => selectedDefinitionNames.Contains(definition.Name));
+        var selectAll = IsSelectionComplete(enabledDefinitions, selectedDefinitionNames);
+        var selectTabletop = IsTabletopSelectionComplete(enabledDefinitions, selectedDefinitionNames);
 
         UI.Label();
 
@@ -598,10 +672,7 @@ internal static class ModUi
                 {
                     if (UI.Toggle(selectTabletopTitle, ref selectTabletop, UI.AutoWidth()))
                     {
-                        foreach (var registeredDefinition in enabledTabletopDefinitions)
-                        {
-                            switchAction.Invoke(registeredDefinition, selectTabletop);
-                        }
+                        ApplyTabletopSelection(enabledDefinitions, switchAction, selectTabletop);
 
                         selectedDefinitionNames = new HashSet<string>(selectedDefinitions);
                     }

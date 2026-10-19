@@ -131,7 +131,7 @@ ModUi/&EnableAdditionalItemsInDungeonMaker=Добавить предметы м�
 ModUi/&EnableAllyMovementAllowsFlight=Позволить умениям, перемещающим персонажа или союзника, учитывать положение в воздухе, если существо летает (например <color=#D89555>Атака с манёвром</color> или <color=#D89555>Инстинктивный бросок</color>)
 ModUi/&EnableTeleportAllowsMidAirPositions=Разрешить заклинаниям и умениям телепортации со свободным выбором точки назначать видимые незанятые клетки в воздухе
 ModUi/&EnableAlternateHuman=Включить альтернативное происхождение <color=#D89555>Человека</color> <i><color=#F0DAA0>[+1 черта / +2 очка характеристик / +1 навык]</color></i>
-ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
+ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Включено увеличение характеристик от предыстории, поэтому люди автоматически получают черту и навык альтернативного человека вместо расового увеличения характеристик.</color></i>
 ModUi/&EnableAlternateVotingSystem=Включить альтернативную систему голосования <i><color=#F0DAA0>[весомость выбора = сумма модификаторов Харизмы всех героев, голосующих за этот вариант]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=Включить реализацию <color=#D89555>Магической защиты</color> Волшебника школы <b>Ограждения</b> как в BG3
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[Уменьшать на 1 каждый раз при предотвращении урона вместо уменьшения на количество предотвращённого урона. Нет необходимости в накладывании заклинания школы Ограждения для активации,\nно максимальные хиты защиты равны двукратному уровню Волшебника без модификатора ИНТ, восстанавливается наполовину после долгого отдыха]</color></i>
@@ -147,7 +147,7 @@ ModUi/&EnableBardCounterCharm2024=Включить <color=#D89555>Контрча
 ModUi/&EnableBardExpertiseOneLevelBefore2024=Включить <color=#D89555>Компетентность</color> на уровнях 2 и 9 вместо 3 и 10
 ModUi/&EnableBardHealingBalladOnLongRest=Включить <b>Бардам коллегии надежды</b> работу умения <color=#D89555>Целительная баллада</color> при длительном отдыхе
 ModUi/&EnableDivineHeartTabletopFeatures=Включить настольные умения <b>Divine Soul</b>
-ModUi/&EnableDivineHeartTabletopFeaturesHelp=Заменяет начальное умение Divine Heart на Favored by the Gods, а умение 14-го уровня на Otherworldly Wings.
+ModUi/&EnableDivineHeartTabletopFeaturesHelp=Заменяет начальное умение Божественная душа на Благоволение богов, а умение 14-го уровня на Потусторонние крылья.
 ModUi/&EnableBardMagicalSecrets2024=Заменить <color=#D89555>Тайны магии</color> на версию из 5e 2024
 ModUi/&EnableBardSuperiorInspiration2024=Включить <color=#D89555>Превосходное вдохновение</color> на уровне 18 вместо 20, а также давать 2 использования вместо 1
 ModUi/&EnableBardWordsOfCreation2024=Включить <color=#D89555>Слова творения</color> на уровне 20
@@ -232,8 +232,8 @@ ModUi/&EnableOneDndStoneSkinSpell=Включить версию 2024 года д
 ModUi/&EnableOneDndTrueStrikeCantrip=Включить версию 2024 года для <color=#D89555>{0}</color> <b><i><color=#C04040E0>[Необходим перезапуск]</color></i></b>\n<i><color=#F0DAA0>[для бросков атаки и урона используется ваша заклинательная характеристика, а также дополнительный урон излучением с 5-го уровня]</color></i>
 ModUi/&EnableOneDndWitchBoltSpell=Включить версию 2024 года для <color=#D89555>{0}</color> <i><color=#F0DAA0>[Бонусное действие для повторного нанесения урона]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=Включить линии обзора в сторону видимых врагов при прицеливании вне боя.
-ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
-ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
+ModUi/&EnableCeilingAwareTargetPerception=Улучшить обнаружение целей при полёте возле потолка
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Повторно проверяет линию восприятия из чуть более низкой точки, только если направленная вниз линия обзора из точки у потолка кажется перекрытой границей потолка. Не игнорирует стены, укрытие, темноту, невидимость или дальность.</i>
 ModUi/&EnablePaladinAbjureFoes2024=Включить <color=#D89555>Отречение врагов</color> на уровне 9
 ModUi/&EnablePaladinAnyFightingStyle2024=Разрешить <color=#D89555>Паладину</color> выбирать любой боевой стиль <i><color=#F0DAA0>[добавляет Стрельба из лука и Бой двумя оружиями]</color></i>
 ModUi/&EnablePaladinChannelDivinity2024=Заменить <color=#D89555>Божественный канал</color> на версию из 5e 2024 <i><color=#F0DAA0>[различные варианты использования]</color></i>
@@ -481,7 +481,7 @@ ModUi/&ScaleMerchantPricesCorrectly=Масштабировать цены тор
 ModUi/&SelectAll=Выбрать все
 ModUi/&SelectDisplayed=Выбрать отображаемые
 ModUi/&SelectSuggested=Выбрать рекомендуемые
-ModUi/&SelectTabletop=Выбрать согласно настольной игре
+ModUi/&SelectTabletop=Выбрать контент настольной игры
 ModUi/&SenseNormalVisionRangeMultiplier=Изменить множитель дальности <color=#D89555>Нормального зрения</color> <i><color=#F0DAA0>[только в бою]</color></i>
 ModUi/&Services=Сервисы
 ModUi/&SetBeltOfDwarvenKindBeardChances=<color=white>Шанс появления бороды при ношении</color> <color=#D89555>Пояса Дварфов</color>
@@ -566,7 +566,7 @@ ModUi/&UseElfFaceModelsOnTieflings=Использовать <color=#D89555>Эл�
 ModUi/&UseHeightOneCylinderEffect=Ограничить высоту эффекта одним уровнем при накладывании <color=#D89555>Чёрных щупалец, Опутывания, Смазки</color> <i><color=#F0DAA0>[квадрат]</color></i> или <color=#D89555>Шипов</color> <i><color=#F0DAA0>[круг]</color></i>
 ModUi/&UseMathFlankingRules=<i>+ Использовать точную математику для определения окружения <color=#F0DAA0>[может повлиять на производительность на медленных компьютерах]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=Включить официальные правила для <color=#D89555>преимущества/помехи</color> <i><color=#F0DAA0>[если условия вызывают бросок одновременно с преимуществом и помехой, вы не получаете ни того, ни другого]</color></i>
-ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Запретить реакции после применения <color=#D89555>Легендарного сопротивления</color> <i><color=#F0DAA0>[спасбросок становится окончательно успешным]</color></i>
 ModUi/&UseOfficialFlankingRules=Включить правила <color=#D89555>положения</color> <i><color=#F0DAA0>[атакующий получает преимущество, если союзник находится на противоположной стороне от цели]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ Включить эти правила для дальнобойных атак <color=#F0DAA0>[отключить точную математику]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ Также включить для атак досягаемости <color=#F0DAA0>[отключить точную математику]</color></i>
@@ -596,14 +596,14 @@ ModUi/&WildSurgeDieRollThreshold=<color=white>Установить порого�
 ModUi/&EnableBackgroundAbilityScoreIncreases=Увеличение характеристик определяется предысторией вместо расы; особенности людей изменяются соответствующим образом <i><color=#F0DAA0>(Гибкие расы не применяются, пока эта настройка включена)</color></i>
 ModUi/&EnableBackgroundBonusFeats=Заменяет особенности предыстории чертой происхождения, владением двумя навыками и одним инструментом по правилам 2024 года <i><color=#F0DAA0>(Требуется увеличение характеристик от предыстории; Гибкие предыстории не применяются, пока эта настройка включена)</color></i>
 ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Включите увеличение характеристик от предыстории, чтобы получать от предысторий черты происхождения.
-ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
-ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
-ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
-ModUi/&EnableTabletopFeatRules2024=Use the independent 2024 tabletop feat catalog
-ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses only the independent 2024 feat catalog. Background feats and Human origin feats resolve to the same catalog]</color></i>
-ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[Когда эта опция включена, можно переключать только независимые черты редакции 2024 года из списка ниже. Настройки старых черт заблокированы.]</color></i>\nВарианты черт, явно предоставленные видом, предысторией или другой способностью, остаются доступными, даже если эта черта отключена в данном списке.
-ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
-ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
+ModUi/&AddOriginFeatsToAutoLearn= + Добавить черты происхождения к автоматическому изучению
+ModUi/&EnableGeneralFeats2024=Переработать общие черты по правилам 5.5e <i><color=#F0DAA0>[Черты 2024 года реализованы отдельно]</color></i>
+ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[Черты 2024 года включаются по отдельности ниже. Пока эта опция включена, полностью заменённые старые черты недоступны.]</color></i>
+ModUi/&EnableTabletopFeatRules2024=Использовать отдельный каталог настольных черт 2024 года
+ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[Пока эта опция включена, игра использует только отдельный каталог черт 2024 года. Черты предыстории и черты происхождения людей используют тот же каталог]</color></i>
+ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[Когда эта опция включена, можно переключать только независимые черты редакции 2024 года из списка ниже. Настройки старых черт заблокированы.]</color></i>\nВарианты черт, явно предоставленные видом, предысторией или другой способностью, остаются доступными, даже если эта черта отключена в данном списке.\nВыбор контента настольной игры не включает адаптации для совместимости с редакцией 2014 года, в которых добавлено повышение характеристики. Их по-прежнему можно включать по отдельности.
+ModUi/&EnableStrictTabletopClassSelection=Ограничить выбор настольными классами и подклассами
+ModUi/&EnableStrictTabletopClassSelectionHelp=Можно выбрать только настольные классы и подклассы, помеченные как настольные. Пока эта опция включена, остальные подклассы отключены, а домены жрецов игнорируют ограничения божеств.
 ModUi/&EnableWizardSpellMastery2024=Включить <color=#D89555>Мастерство заклинаний</color> 2024 <i><color=#F0DAA0>[заклинания за действие; замена одного после продолжительного отдыха]</color></i>
 ModUi/&EnableThiefUseMagicDevice2024=Включить <color=#D89555>Использование магических предметов</color> Вора 2024 <i><color=#F0DAA0>[четыре настройки, сохранение зарядов, свитки через Интеллект]</color></i>
 ModUi/&EnableBarbarianDangerSense2024=Включить <color=#D89555>Чувство опасности</color> 2024 <i><color=#F0DAA0>[преимущество к спасброскам Ловкости, если не недееспособны]</color></i>
@@ -696,3 +696,6 @@ ModUi/&EnableToolChecks2024=Использовать правила владен
 ModUi/&ToolChecks2024Description=При проверках с воровскими инструментами применяются владение навыком Ловкость рук и эффекты, относящиеся к этому навыку. Больший из бонусов за владение навыком или инструментом добавляется один раз; владение обоими даёт преимущество.
 ModUi/&EnableAssassinInfiltrationExpertise2024=Использовать <color=#D89555>Мастерство проникновения</color> 2024 года для Убийцы 9-го уровня <i><color=#F0DAA0>[владение или компетенция в Обмане и перемещение после Точного прицеливания; даёт этим Убийцам Точное прицеливание даже при отключённой опции класса]</color></i>
 Setting/&NoToolRequirementDescription=Персонажи могут изготавливать предметы и вскрывать замки сундуков или дверей без инструментов.
+ModUi/&EnableEpicBoons2024=Включить эпические дары
+ModUi/&EpicBoons2024Help=Когда включены черты настольных правил 2024 года, показывает категорию «Эпические дары» и черты, доступные с 19-го уровня персонажа.
+ModUi/&EpicBoons2024RequiresTabletopHelp=Включите черты настольных правил 2024 года, чтобы использовать эту опцию. Выбранное значение этой настройки сохраняется.

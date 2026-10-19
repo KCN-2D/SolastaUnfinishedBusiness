@@ -243,6 +243,12 @@ internal class FeatureDefinitionCastSpellBuilder
         return this;
     }
 
+    internal FeatureDefinitionCastSpellBuilder SetCannotUpcast(bool value = true)
+    {
+        Definition.cannotUpcast = value;
+        return this;
+    }
+
 #if false
     internal FeatureDefinitionCastSpellBuilder AddRestrictedSchools(params SchoolOfMagicDefinition[] schools)
     {

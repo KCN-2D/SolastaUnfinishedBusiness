@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection.Emit;
@@ -921,6 +921,26 @@ public static class RulesetCharacterPatcher
         }
     }
 
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.AreSpellComponentsValid))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class AreSpellComponentsValid_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(RulesetCharacter __instance, SpellDefinition spellDefinition,
+            out IDisposable __state)
+        {
+            __state = SpellCastingValidation.EnterAutomaticComponentSelection(__instance, spellDefinition);
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(Exception __exception, IDisposable __state)
+        {
+            __state?.Dispose();
+            return __exception;
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.IsComponentSomaticValid))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -930,7 +950,8 @@ public static class RulesetCharacterPatcher
         public static void Postfix(
             RulesetCharacter __instance, ref bool __result, SpellDefinition spellDefinition, ref string failure)
         {
-            if (RulesetEffectSpellWithOrigin.IsPendingOrigin(__instance, spellDefinition))
+            if (RulesetEffectSpellWithOrigin.IsPendingOrigin(__instance, spellDefinition) ||
+                SpellCastingValidation.BypassesSpellComponents(__instance, spellDefinition))
             {
                 __result = true;
                 failure = string.Empty;
@@ -1070,7 +1091,8 @@ public static class RulesetCharacterPatcher
             ref bool result,
             ref string failure)
         {
-            if (RulesetEffectSpellWithOrigin.IsPendingOriginWithMaterialBypass(character, spellDefinition))
+            if (RulesetEffectSpellWithOrigin.IsPendingOriginWithMaterialBypass(character, spellDefinition) ||
+                SpellCastingValidation.BypassesSpellComponents(character, spellDefinition))
             {
                 result = true;
                 failure = string.Empty;
@@ -1221,7 +1243,8 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static bool Prefix(RulesetCharacter __instance, RulesetEffectSpell activeSpell)
         {
-            if (activeSpell is RulesetEffectSpellWithOrigin { BypassMaterialComponent: true })
+            if (activeSpell is RulesetEffectSpellWithOrigin { BypassMaterialComponent: true } ||
+                SpellCastingResourceContext.EffectIgnoresComponents(activeSpell))
             {
                 return false;
             }
@@ -1616,7 +1639,10 @@ public static class RulesetCharacterPatcher
                     out firstRoll, out secondRoll)
                 : predefinedRoll;
 
-            var evaluation = __instance.ComputeAttackOutcome(target, attackMethod, rawRoll, toHitBonus, rollModifier);
+            var forceHit = TryAlterOutcomeAttack.ConsumeForcedHit(
+                __instance, target, toHitTrends, predefinedRoll, testMode);
+            var evaluation = __instance.ComputeAttackOutcome(
+                target, attackMethod, rawRoll, toHitBonus, rollModifier, forceHit);
             outcome = evaluation.Outcome;
             successDelta = evaluation.SuccessDelta;
             var attackRoll = evaluation.Total;
@@ -2459,7 +2485,8 @@ public static class RulesetCharacterPatcher
             SpellDefinition spellDefinition,
             ref string failure)
         {
-            if (!RulesetEffectSpellWithOrigin.IsPendingOrigin(__instance, spellDefinition))
+            if (!RulesetEffectSpellWithOrigin.IsPendingOrigin(__instance, spellDefinition) &&
+                !SpellCastingValidation.BypassesSpellComponents(__instance, spellDefinition))
             {
                 return;
             }
@@ -2903,6 +2930,36 @@ public static class RulesetCharacterPatcher
         }
     }
 
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.ReceiveHealing))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class ReceiveHealing_Patch
+    {
+        [UsedImplicitly]
+        internal static void Prefix(RulesetCharacter __instance,
+            out (int HitPoints, GameLocationBattle Battle) __state)
+        {
+            __state = (__instance.CurrentHitPoints, Gui.Battle);
+        }
+
+        [UsedImplicitly]
+        internal static void Postfix(RulesetCharacter __instance, ulong __2, HealingCap __3,
+            IHealingModificationProvider __4,
+            (int HitPoints, GameLocationBattle Battle) __state)
+        {
+            var healing = __instance.CurrentHitPoints - __state.HitPoints;
+            if (healing <= 0)
+            {
+                return;
+            }
+
+            GameLocationCharacterExtensions.QueueReactionsAfterApplication(__instance,
+                __instance.GetSubFeaturesByType<IReactToHealingReceived>().Distinct()
+                    .Select(handler => handler.ReactToHealingReceived(
+                        __instance, healing, __2, __3, __4, __state.Battle)).ToArray());
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.SustainDamage))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -2916,7 +2973,7 @@ public static class RulesetCharacterPatcher
             bool criticalSuccess,
             ulong sourceGuid,
             RollInfo rollInfo,
-            out (bool DamageScope, int HitPoints, int TemporaryHitPoints) __state)
+            out (IDisposable DamageScope, int HitPoints, int TemporaryHitPoints) __state)
         {
             __state = (DamageReceivedContext.BeginSustainedDamage(__instance),
                 __instance.CurrentHitPoints, __instance.TemporaryHitPoints);
@@ -2932,15 +2989,15 @@ public static class RulesetCharacterPatcher
         }
 
         [UsedImplicitly]
-        public static void Finalizer((bool DamageScope, int HitPoints, int TemporaryHitPoints) __state)
+        public static void Finalizer((IDisposable DamageScope, int HitPoints, int TemporaryHitPoints) __state)
         {
-            DamageReceivedContext.EndSustainedDamage(__state.DamageScope);
+            __state.DamageScope?.Dispose();
         }
 
         [UsedImplicitly]
         public static void Postfix(
             RulesetCharacter __instance,
-            (bool DamageScope, int HitPoints, int TemporaryHitPoints) __state)
+            (IDisposable DamageScope, int HitPoints, int TemporaryHitPoints) __state)
         {
             // Native damage can exhaust temporary HP without going through the current-HP setter.
             if (__instance.CurrentHitPoints == __state.HitPoints &&
@@ -2948,6 +3005,8 @@ public static class RulesetCharacterPatcher
             {
                 EffectCharacterChange.Notify(__instance);
             }
+
+            (__state.DamageScope as DamageReceivedContext.SustainedDamageScope)?.Complete();
         }
 
         [UsedImplicitly]
@@ -2965,7 +3024,7 @@ public static class RulesetCharacterPatcher
             var getDamageTakenAllyMultiplierMethod =
                 new Func<IGameSettingsService, float>(GetDamageTakenAllyMultiplier).Method;
             var mySetCurrentHitPointsMethod =
-                new Action<RulesetActor, int, bool>(MySetCurrentHitPoints).Method;
+                new Action<RulesetActor, int, bool, IDamageAffinityProvider>(MySetCurrentHitPoints).Method;
 
             return instructions
                 .ReplaceCalls(
@@ -2989,6 +3048,7 @@ public static class RulesetCharacterPatcher
                 .ReplaceCalls(setCurrentHitPointsMethod,
                     "RulesetCharacter.SustainDamage.set_CurrentHitPoints",
                     new CodeInstruction(OpCodes.Ldloc, 8), // success
+                    new CodeInstruction(OpCodes.Ldloc, 9), // provider that prevented the knockout
                     new CodeInstruction(OpCodes.Call, mySetCurrentHitPointsMethod));
         }
 
@@ -3030,11 +3090,14 @@ public static class RulesetCharacterPatcher
             character.EnumerateFeaturesToBrowse<IDamageAffinityProvider>(featuresToBrowse, featuresOrigin);
         }
 
-        //TODO: review this as I believe it'll bleed into other scenarios. if so should get outcome from RollSaving with another transpiler
-        private static void MySetCurrentHitPoints(RulesetActor actor, int currentHitPoints, bool success)
+        private static void MySetCurrentHitPoints(RulesetActor actor, int currentHitPoints, bool success,
+            IDamageAffinityProvider provider)
         {
             if (WishBehavior.IsApplyingIrreducibleDamage ||
                 !Main.Settings.EnableBarbarianRelentlessRage2024 ||
+                !success ||
+                !ReferenceEquals(provider,
+                    DatabaseHelper.FeatureDefinitionDamageAffinitys.DamageAffinityBarbarianRelentlessRage) ||
                 actor is not RulesetCharacter rulesetCharacter)
             {
                 actor.CurrentHitPoints = currentHitPoints;
@@ -3051,7 +3114,7 @@ public static class RulesetCharacterPatcher
                 return;
             }
 
-            actor.CurrentHitPoints = success ? rulesetCharacter.GetClassLevel(Barbarian) * 2 : currentHitPoints;
+            actor.CurrentHitPoints = barbarianLevels * 2;
         }
     }
 
@@ -3134,19 +3197,18 @@ public static class RulesetCharacterPatcher
             Tabletop2024Context.UpdatePaladinRechargeLv20Power(hero);
             Tabletop2024Context.UpdateClericDivineIntervention(hero);
 
-            //PATCH: fix scenarios where hero doesn't have an instance of a usable power
+            //PATCH: restore missing owned powers without recharging existing powers
+            if (PowerProvider.EnsureGrantedPowers(hero) > 0)
+            {
+                Main.Info($"Hero [{hero.Name}] had missing powers, restoring them");
+            }
+
+            //BUGFIX: fix Sorcerer Child of the Rift missing PowerSorcererChildRiftRiftwalkDamage at 14th
             var featureDefinitionPowers = hero.ActiveFeatures
                 .SelectMany(k => k.Value)
                 .OfType<FeatureDefinitionPower>()
                 .ToArray();
 
-            if (featureDefinitionPowers.Any(x => hero.GetPowerFromDefinition(x) == null))
-            {
-                Main.Info($"Hero [{hero.Name}] had missing powers, granting them");
-                hero.GrantPowers();
-            }
-
-            //BUGFIX: fix Sorcerer Child of the Rift missing PowerSorcererChildRiftRiftwalkDamage at 14th
             if (hero.ClassesHistory.Count >= 14 &&
                 featureDefinitionPowers.Any(x => x == PowerSorcererChildRiftRiftwalk) &&
                 hero.UsablePowers.All(x =>
@@ -3176,6 +3238,32 @@ public static class RulesetCharacterPatcher
         private static bool IsUnboundActivePower(RulesetEffectPower power)
         {
             return power?.UsablePower?.PowerDefinition == null;
+        }
+    }
+
+    [HarmonyPatch(typeof(RulesetCharacter), nameof(RulesetCharacter.BreakConcentration))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class BreakConcentration_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(RulesetCharacter __instance)
+        {
+            if (__instance.ConcentratedSpell == null || __instance.IsDeadOrUnconscious ||
+                __instance.HasConditionOfTypeOrSubType(ConditionDead) ||
+                __instance.HasConditionOfTypeOrSubType(ConditionUnconscious) ||
+                __instance.HasConditionOfTypeOrSubType(ConditionPetrified))
+            {
+                return true;
+            }
+
+            // A transformed actor uses its feature owner's policy, but its own
+            // current conditions determine whether concentration must end.
+            var featureCharacter = __instance.GetFeatureOwnerOrSelf();
+
+            return featureCharacter == null || !featureCharacter
+                .GetSubFeaturesByType<IPreventForcedConcentrationLoss>()
+                .Any(provider => provider.PreventForcedConcentrationLoss(__instance));
         }
     }
 
@@ -3546,20 +3634,27 @@ public static class RulesetCharacterPatcher
                                      featureDefinition.PreserveSlotRoll &&
                                      featureDefinition.PreserveSlotLevelCap >= resourceSlotLevel))
                     {
-                        preserveSlotThreshold =
-                            Math.Min(preserveSlotThreshold, featureDefinition.PreserveSlotThreshold);
-                        preserveSlotThresholdFeature = (FeatureDefinition)featureDefinition;
+                        if (featureDefinition.PreserveSlotThreshold < preserveSlotThreshold)
+                        {
+                            // Preserve the first source on ties and keep it aligned with the winning threshold.
+                            preserveSlotThreshold = featureDefinition.PreserveSlotThreshold;
+                            preserveSlotThresholdFeature = (FeatureDefinition)featureDefinition;
+                        }
                     }
                 }
 
                 var rolledValue = 0;
+                var preserved = false;
 
                 if (preserveSlotThreshold != int.MaxValue)
                 {
-                    rolledValue = RollDie(DieType.D20, AdvantageType.None, out _, out _);
+                    var roll = preserveSlotThresholdFeature
+                        .GetFirstSubFeatureOfType<SpellCastingResourceContext.SlotPreservationRoll>();
+                    rolledValue = RollDie(roll?.DieType ?? DieType.D20, AdvantageType.None, out _, out _);
+                    preserved = roll?.Preserves(rolledValue, resourceSlotLevel) ?? rolledValue >= preserveSlotThreshold;
                 }
 
-                if (rolledValue >= preserveSlotThreshold)
+                if (preserved)
                 {
                     var caster = GameLocationCharacter.GetFromActor(__instance);
 

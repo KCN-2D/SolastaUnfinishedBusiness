@@ -75,7 +75,13 @@ public static class RulesetImplementationManagerPatcher
         }
 
         [UsedImplicitly]
-        public static void Finalizer(IDisposable __state) => __state?.Dispose();
+        public static void Postfix(EffectForm effectForm,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams, int damageReceived) =>
+            OnHitEffectContext.CompleteDamageForm(effectForm.DamageForm, formsParams, damageReceived);
+
+        [UsedImplicitly]
+        public static void Finalizer(IDisposable __state, Exception __exception) =>
+            OnHitEffectContext.EndDamageForm(__state, __exception == null);
 
         // add the sum of the max damage dice of your attack to your total bonus
         private static int RollDamageOption1(
@@ -420,13 +426,34 @@ public static class RulesetImplementationManagerPatcher
             {
                 var criticalHitMode = GetCriticalHitMode(rulesetActor, criticalSuccess);
 
+                var originalDiceTotal = rolledValues.Sum();
+
+                foreach (var handler in sourceDefinition.GetAllSubFeaturesOfType<IModifyMagicEffectDamageDice>()
+                             .Concat(sourceCharacter.GetSubFeaturesByType<IModifyMagicEffectDamageDice>()).Distinct())
+                {
+                    handler.ModifyDamageDice(sourceCharacter, damageForm, formsParams, rolledValues);
+                }
+
+                var modifiedDiceTotal = rolledValues.Sum();
+
+                if (modifiedDiceTotal != originalDiceTotal)
+                {
+                    // Recompute both sides with the same native aggregation. Scaling only
+                    // the difference would lose a point when fractional multipliers round.
+                    damage += AggregateModifiedDice(modifiedDiceTotal, damageForm.BonusDamage,
+                                  damageRollReduction, additionalDamage, damageMultiplier, criticalHitMode) -
+                              AggregateModifiedDice(originalDiceTotal, damageForm.BonusDamage,
+                                  damageRollReduction, additionalDamage, damageMultiplier, criticalHitMode);
+                }
+
                 // Modes 1 and 3 append synthetic critical values for display; "roll" triggers use real rolls only.
                 IReadOnlyList<int> actualRolledValues =
                     criticalSuccess && criticalHitMode is 1 or 3
                         ? rolledValues.Take(rolledValues.Count / 2).ToList()
                         : [.. rolledValues];
 
-                foreach (var handler in sourceDefinition.GetAllSubFeaturesOfType<IModifyMagicEffectDamageRoll>())
+                foreach (var handler in sourceDefinition.GetAllSubFeaturesOfType<IModifyMagicEffectDamageRoll>()
+                             .Concat(sourceCharacter.GetSubFeaturesByType<IModifyMagicEffectDamageRoll>()).Distinct())
                 {
                     handler.ModifyDamageRoll(
                         sourceCharacter,
@@ -465,6 +492,16 @@ public static class RulesetImplementationManagerPatcher
             CollegeOfAudacity.HandleDefensiveWhirl(rulesetCharacter, damageForm, damage);
 
             return damage;
+        }
+
+        private static int AggregateModifiedDice(int dice, int bonus, int reduction, int additional,
+            float multiplier, int criticalHitMode)
+        {
+            var value = dice + bonus - reduction;
+
+            // The double-initial-roll critical mode follows its existing unclamped formula.
+            return Mathf.FloorToInt(multiplier *
+                                    ((criticalHitMode == 3 ? value : Mathf.Clamp(value, 0, int.MaxValue)) + additional));
         }
 
         [UsedImplicitly]

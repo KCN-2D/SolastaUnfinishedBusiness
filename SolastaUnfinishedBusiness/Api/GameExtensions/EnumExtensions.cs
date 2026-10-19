@@ -104,6 +104,13 @@ internal enum ExtraActionId
     LevitateSuspend,
     LevitateResume,
     EmbodimentOfLawToggle,
+    BoonOfCombatProwess2024Toggle,
+    BoonOfFate2024Toggle,
+    BoonOfEnergyRedirection2024Toggle,
+    BoonOfRecoveryLastStand2024Toggle,
+    BoonOfEruptingSpellpower2024Toggle,
+    BoonOfFortitude2024Toggle,
+    BoonOfIrresistibleOffense2024Toggle,
     PrioritizeAction = 10000
 }
 

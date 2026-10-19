@@ -244,6 +244,22 @@ internal static class LevelUpHelper
         return LevelUpTab.TryGetValue(rulesetCharacterHero, out var levelUpData) && levelUpData.IsLevelingUp;
     }
 
+    internal static int GetCurrentOrPendingCharacterLevel(RulesetCharacterHero hero)
+    {
+        if (hero == null)
+        {
+            return 0;
+        }
+
+        var level = Math.Max(hero.ClassesHistory.Count, hero.TryGetAttributeValue(AttributeDefinitions.CharacterLevel));
+
+        // The class history can be updated before or after prerequisites are displayed.
+        // Count the registered level-up once, including multiclass advancement.
+        return LevelUpTab.TryGetValue(hero, out var data) && data.IsLevelingUp
+            ? Math.Max(level, data.InitialCharacterLevel + 1)
+            : level;
+    }
+
     internal static bool IsMulticlass([NotNull] RulesetCharacterHero rulesetCharacterHero)
     {
         return LevelUpTab.TryGetValue(rulesetCharacterHero, out var levelUpData)

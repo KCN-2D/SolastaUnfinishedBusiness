@@ -48,6 +48,14 @@ internal static class SpellSelectionContext
             return false;
         }
 
+        var presentation = spellCastingFeature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()?.Presentation;
+        title = presentation?.FormatTitle(null);
+        if (IsUsableSpellSourceTitle(title))
+        {
+            source = spellTag;
+            return true;
+        }
+
         if (shortTitle)
         {
             if (Tabletop2024Context.TryGetTabletop2024FeatSpellSourceShortTitle(spellTag, out title) ||
@@ -131,6 +139,13 @@ internal static class SpellSelectionContext
         if (string.IsNullOrEmpty(spellTag) || spellTag.IndexOf('|') >= 0)
         {
             return false;
+        }
+
+        title = FeatHelpers.GetSpellSelectionPresentation(spellTag)?.FormatTitle(null);
+        if (IsUsableSpellSourceTitle(title))
+        {
+            source = spellTag;
+            return true;
         }
 
         var selectionTag = Tabletop2024Context.GetTabletop2024FeatSpellSelectionTag(spellTag);

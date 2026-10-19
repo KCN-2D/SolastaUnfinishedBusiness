@@ -16,6 +16,8 @@ internal static class SkillFeats
     internal const string SkilledName = "FeatSkilled";
     internal const string SkillExpertGroupName = "FeatGroupSkillExpert";
 
+    internal static FeatureDefinitionCustomInvocationPool ExpertisePool { get; private set; }
+
     internal static bool IsRepeatable(FeatDefinition feat)
     {
         return feat != null && feat.HasSubFeatureOfType<RepeatableFeat>();
@@ -46,7 +48,7 @@ internal static class SkillFeats
             .AddToDB();
 
         var skillPool = BuildPool(InvocationPoolTypeCustom.Pools.FeatSkillExpertSkill);
-        var expertisePool = BuildPool(InvocationPoolTypeCustom.Pools.FeatSkillExpertExpertise);
+        ExpertisePool = BuildPool(InvocationPoolTypeCustom.Pools.FeatSkillExpertExpertise);
         var abilityModifiers = new[]
         {
             AttributeModifierCreed_Of_Einar,
@@ -62,7 +64,7 @@ internal static class SkillFeats
                 .SetGuiPresentation($"Feat/&FeatSkillExpert{modifier.ModifiedAttribute}Title",
                     "Feat/&FeatSkillExpertDescription")
                 .SetFeatFamily("SkillExpert")
-                .SetFeatures(modifier, skillPool, expertisePool)
+                .SetFeatures(modifier, skillPool, ExpertisePool)
                 .SetValidators((feat, hero) => ValidateAbilityIncrease(feat, hero, modifier.ModifiedAttribute))
                 .AddToDB())
             .ToArray();
@@ -81,7 +83,7 @@ internal static class SkillFeats
         string attribute)
     {
         // A preview already includes the selected feat's +1. Do not invalidate that choice on refresh.
-        var selected = hero.GetHeroBuildingData()?.LevelupTrainedFeats.Values
+        var selected = GetBuildingData(hero)?.LevelupTrainedFeats.Values
             .SelectMany(feats => feats)
             .Any(trained => trained == feat) == true;
         var valid = selected || hero.TryGetAttributeValue(attribute) < 20;
@@ -168,42 +170,104 @@ internal static class SkillFeats
         }
 
         var name = proficiency.Proficiencies[0];
-        var buildingData = hero.GetHeroBuildingData();
+        var buildingData = GetBuildingData(hero);
         var selected = hero.TrainedInvocations.Contains(invocation) ||
                        buildingData?.LevelupTrainedInvocations.Values.Any(choices => choices.Contains(invocation)) == true;
-        var service = ServiceRepository.GetService<ICharacterBuildingService>();
         var skill = DatabaseRepository.GetDatabase<SkillDefinition>().GetElement(name, true);
+        var pending = GetPendingProficiencies(buildingData, invocation)
+            .Where(feature => feature.Proficiencies.Contains(name)).ToArray();
+        var features = new List<FeatureDefinition>();
+        hero.EnumerateFeaturesToBrowse<FeatureDefinitionProficiency>(features, null);
+        var allProficiencies = features.OfType<FeatureDefinitionProficiency>().Concat(pending)
+            .Where(feature => feature.Proficiencies.Contains(name)).Distinct().ToArray();
+        var trainedSkill = skill != null &&
+                           (hero.TrainedSkills.Contains(skill) ||
+                            buildingData?.LevelupTrainedSkills.Values.Any(skills => skills.Contains(skill)) == true);
+        var trainedExpertise = hero.TrainedExpertises.Contains(name) ||
+                               buildingData?.LevelupTrainedExpertises.Values.Any(names => names.Contains(name)) == true;
+        var mixedSkills = allProficiencies.Count(feature => feature.ProficiencyType == ProficiencyType.SkillOrExpertise);
         var proficient = skill != null &&
-                         (hero.SkillProficiencies.Contains(name) ||
-                          hero.TrainedSkills.Contains(skill) ||
-                          (buildingData != null && service?.IsSkillKnownOrTrained(buildingData, skill) == true));
+                         (hero.SkillProficiencies.Contains(name) || trainedSkill || trainedExpertise ||
+                          allProficiencies.Any(feature => feature.ProficiencyType is ProficiencyType.Skill or
+                              ProficiencyType.Expertise or ProficiencyType.SkillOrExpertise));
+        // Match RefreshProficiencies: SkillOrExpertise ranks depend on all their
+        // origins, including a skill gained during this same selection.
+        var expertise = hero.ExpertiseProficiencies.Contains(name) || trainedExpertise ||
+                        allProficiencies.Any(feature => feature.ProficiencyType == ProficiencyType.Expertise) ||
+                        mixedSkills > 1 ||
+                        (mixedSkills > 0 && (trainedSkill ||
+                            allProficiencies.Any(feature => feature.ProficiencyType == ProficiencyType.Skill)));
         bool valid;
 
         if (proficiency.ProficiencyType == ProficiencyType.Expertise)
         {
             // Keep a selected expertise valid after RefreshHero has applied its own granted feature.
-            valid = proficient && (selected ||
-                                    (!hero.ExpertiseProficiencies.Contains(name) &&
-                                     !hero.TrainedExpertises.Contains(name) &&
-                                     (buildingData == null ||
-                                      service?.IsExpertiseKnownOrTrained(buildingData, name) != true)));
+            valid = proficient && (selected || !expertise);
             requirement = valid ? null : Gui.Localize("Tooltip/&SkillFeatRequiresExpertise");
         }
         else
         {
             var tool = DatabaseRepository.GetDatabase<ToolTypeDefinition>().GetElement(name, true);
-            var known = proficiency.ProficiencyType == ProficiencyType.Skill
-                ? proficient
-                : hero.ToolTypeProficiencies.Contains(name) ||
-                  (tool != null && hero.TrainedToolTypes.Contains(tool)) ||
-                  (tool != null && buildingData != null &&
-                   service?.IsToolTypeKnownOrTrained(buildingData, tool) == true);
+            var knownTool = hero.ToolTypeProficiencies.Contains(name) ||
+                            (tool != null && (hero.TrainedToolTypes.Contains(tool) ||
+                                buildingData?.LevelupTrainedToolTypes.Values.Any(tools => tools.Contains(tool)) == true)) ||
+                            allProficiencies.Any(feature => feature.ProficiencyType is ProficiencyType.Tool or
+                                ProficiencyType.ToolOrExpertise);
+            var known = proficiency.ProficiencyType == ProficiencyType.Skill ? proficient : knownTool;
 
             valid = selected || !known;
             requirement = valid ? null : Gui.Localize("Tooltip/&SkillFeatRequiresUntrainedProficiency");
         }
 
         return valid;
+    }
+
+    private static CharacterHeroBuildingData GetBuildingData(RulesetCharacterHero hero)
+    {
+        return hero.TryGetHeroBuildingData(out var data) && ReferenceEquals(data.HeroCharacter, hero) ? data : null;
+    }
+
+    private static IEnumerable<FeatureDefinitionProficiency> GetPendingProficiencies(
+        CharacterHeroBuildingData data,
+        InvocationDefinition candidate)
+    {
+        if (data == null)
+        {
+            return [];
+        }
+
+        var features = data.LevelupTrainedFeats.Values.SelectMany(feats => feats).SelectMany(feat => feat.Features)
+            .Concat(data.LevelupTrainedInvocations.Values.SelectMany(invocations => invocations)
+                .Where(invocation => invocation != candidate).Select(invocation => invocation.GrantedFeature));
+        var visited = new HashSet<FeatureDefinition>();
+        var proficiencies = new List<FeatureDefinitionProficiency>();
+
+        foreach (var feature in features)
+        {
+            Collect(feature);
+        }
+
+        return proficiencies;
+
+        void Collect(FeatureDefinition feature)
+        {
+            if (feature == null || !visited.Add(feature))
+            {
+                return;
+            }
+
+            if (feature is FeatureDefinitionProficiency proficiency)
+            {
+                proficiencies.Add(proficiency);
+            }
+            else if (feature is FeatureDefinitionFeatureSet { Mode: FeatureDefinitionFeatureSet.FeatureSetMode.Union } set)
+            {
+                foreach (var child in set.FeatureSet)
+                {
+                    Collect(child);
+                }
+            }
+        }
     }
 
     internal sealed class RepeatableFeat

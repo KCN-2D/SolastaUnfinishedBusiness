@@ -1019,8 +1019,6 @@ internal static class FeatsContext
             return;
         }
 
-        feat.GuiPresentation.hidden = false;
-
         if (displayFeats.Any(existingFeat =>
                 existingFeat != null &&
                 existingFeat.Name == feat.Name))

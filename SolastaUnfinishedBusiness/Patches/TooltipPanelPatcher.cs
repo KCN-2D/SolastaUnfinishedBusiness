@@ -493,7 +493,7 @@ public static class TooltipPanelPatcher
             Tooltips.RefreshAdaptiveSpellParameterTopRow(__instance);
 
             var bypassAllComponents =
-                SpellCastingValidation.TooltipBypassesComponentsAndCastingTime(tooltip);
+                SpellCastingValidation.TooltipBypassesSpellComponents(tooltip);
             var bypassMaterialComponent =
                 SpellCastingValidation.TooltipBypassesMaterialComponent(tooltip);
 

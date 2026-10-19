@@ -6,9 +6,11 @@ using System.Linq;
 using System.Web.UI.WebControls;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Builders;
+using SolastaUnfinishedBusiness.Interfaces;
 using TA;
 using UnityEngine;
 using UnityEngine.UI;
@@ -212,13 +214,18 @@ internal static class ToolsContext
         {
             foreach (var ability in AttributeDefinitions.AbilityScoreNames)
             {
-                if (!oldHero.TryGetAttribute(ability, out var oldScore) ||
+                if (!oldHero.TryGetAttribute(ability, out _) ||
                     !newHero.TryGetAttribute(ability, out var newScore))
                 {
                     continue;
                 }
 
-                newScore.baseValue = oldScore.baseValue;
+                var preserved = GetRespecAbilityScore(oldHero, ability);
+                newScore.BaseValue = preserved.BaseValue;
+                newScore.MaxValue = Math.Max(newScore.MaxValue, preserved.MaxValue);
+                // Zero means the editable cap is not imposed by this attribute.
+                newScore.MaxEditableValue = newScore.MaxEditableValue <= 0 || preserved.MaxEditableValue <= 0
+                    ? 0 : Math.Max(newScore.MaxEditableValue, preserved.MaxEditableValue);
                 newScore.Refresh();
             }
         }
@@ -339,7 +346,7 @@ internal static class ToolsContext
                 if ( !IsRespecing ) return STOP_ROUTINE;
                 if ( ! panel.abilityScoresRolled ) return RETRY_ROUTINE;
                 var abilityCount = AttributeDefinitions.AbilityScoreNames.Length;
-                var sortedScores = AttributeDefinitions.AbilityScoreNames.Select( e => OldHero.GetAttribute( e, true )?.baseValue ?? 10 ).ToArray();
+                var sortedScores = AttributeDefinitions.AbilityScoreNames.Select( e => GetRespecBaseAbilityScore( OldHero, e ) ).ToArray();
                 Array.Sort( sortedScores );
                 Array.Reverse( sortedScores );
                 Main.Info( $"Respec [{OldHeroName}] Assign original ability scores {string.Join( ", ", sortedScores )}" );
@@ -350,7 +357,7 @@ internal static class ToolsContext
                         // Assign score
                         var assignedBox = panel.abilityScoresTable.GetChild( i ).GetComponent< AbilityRollBox >();
                         var abilityScore = assignedBox.AbilityScore;
-                        abilityScore.BaseValue = OldHero.Attributes[ abilityScore.Name ].BaseValue;
+                        abilityScore.BaseValue = GetRespecBaseAbilityScore( OldHero, abilityScore.Name );
                         abilityScore.Refresh( false );
                         var isImportant = mainClass.AbilityScoresPriority.IndexOf( abilityScore.Name ) < 3;
                         // Find index of roll and bind both boxes.
@@ -599,6 +606,26 @@ internal static class ToolsContext
             IsRespecing = false;
         }
 
+        private static int GetRespecBaseAbilityScore(RulesetCharacterHero hero, string ability) =>
+            GetRespecAbilityScore(hero, ability).BaseValue;
+
+        private static (int BaseValue, int MaxValue, int MaxEditableValue) GetRespecAbilityScore(
+            RulesetCharacterHero hero, string ability)
+        {
+            if (!hero.TryGetAttribute(ability, out var attribute))
+            {
+                return (10, 0, 0);
+            }
+
+            // Recreating a hero grants construction bonuses again. Keep external
+            // base and cap changes, but leave those construction increments behind.
+            var increases = hero.GetSubFeaturesByType<ICustomLevelUpState>().Distinct()
+                .Select(state => state.GetAttributeIncreases(hero, ability)).ToArray();
+            return (attribute.BaseValue - increases.Sum(value => value.BaseValue),
+                attribute.MaxValue - increases.Sum(value => value.MaxValue),
+                attribute.MaxEditableValue - increases.Sum(value => value.MaxEditableValue));
+        }
+
         private static void TransferConditionsOfCategory(RulesetActor oldHero, RulesetActor newHero, string category)
         {
             if (!oldHero.ConditionsByCategory.TryGetValue(category, out var conditions))
@@ -606,9 +633,17 @@ internal static class ToolsContext
                 return;
             }
 
+            // Construction markers belong to the old feature application. The
+            // new hero recreates them while learning its own features.
+            var rebuiltConditions = oldHero is RulesetCharacterHero hero
+                ? hero.GetSubFeaturesByType<ICustomLevelUpState>().Distinct()
+                    .SelectMany(state => state.GetStateConditions(hero)).ToHashSet()
+                : [];
+            var transferredConditions = conditions.Where(condition => !rebuiltConditions.Contains(condition)).ToArray();
+
             newHero.AddConditionCategoryAsNeeded(category);
-            newHero.AllConditions.AddRange(conditions);
-            newHero.ConditionsByCategory[category].AddRange(conditions);
+            newHero.AllConditions.AddRange(transferredConditions);
+            newHero.ConditionsByCategory[category].AddRange(transferredConditions);
         }
 
         private static void CleanupOldHeroConditions(RulesetCharacterHero oldHero, RulesetCharacterHero newHero)

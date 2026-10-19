@@ -103,33 +103,12 @@ internal static class SpellSlotCastingLimit2024Context
             return false;
         }
 
-        foreach (var candidate in caster.SpellRepertoires.Where(IsFreeUseRepertoire))
-        {
-            if (!SpellCastingValidation.KnowsSpell(candidate, spellDefinition))
-            {
-                continue;
-            }
-
-            for (var level = Math.Max(1, spellDefinition.SpellLevel); level <= 9; level++)
-            {
-                if (!candidate.TryGetAvailableSlotLevel(
-                        caster,
-                        level,
-                        spellDefinition,
-                        out var isAvailable) ||
-                    !isAvailable)
-                {
-                    continue;
-                }
-
-                repertoire = candidate;
-                slotLevel = level;
-
-                return true;
-            }
-        }
-
-        return false;
+        var option = SpellCastingResourceContext.EnumerateResources(caster, spellDefinition)
+            .FirstOrDefault(candidate => candidate.Kind == SpellCastingResourceContext.ResourceKind.FreeRepertoire &&
+                                         candidate.IsAvailable(caster));
+        repertoire = option?.CastingRepertoire;
+        slotLevel = option?.SlotLevel ?? 0;
+        return option != null;
     }
 
     internal static bool CanQueueReactionSpell(CharacterActionParams reactionParams)
@@ -360,7 +339,7 @@ internal static class SpellSlotCastingLimit2024Context
                usage.Generation == _turnGeneration ? usage.ExpenditureCount : 0;
     }
 
-    private static bool WouldExpendSpellSlot(
+    internal static bool WouldExpendSpellSlot(
         RulesetCharacter caster,
         RulesetSpellRepertoire repertoire,
         SpellDefinition spellDefinition,

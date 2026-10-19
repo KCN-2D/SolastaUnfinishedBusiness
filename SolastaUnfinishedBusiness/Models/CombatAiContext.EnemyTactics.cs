@@ -2,7 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using HarmonyLib;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -21,6 +23,7 @@ using UnityEngine.AddressableAssets;
 using static ActionDefinitions;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
+using static SolastaUnfinishedBusiness.Api.DatabaseHelper.DecisionPackageDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.SpellDefinitions;
 
 namespace SolastaUnfinishedBusiness.Models;
@@ -183,6 +186,12 @@ internal static partial class CombatAiContext
     private static readonly HashSet<FeatureDefinitionCastSpell> EnemyBattleCastingFeatures = [];
     private static readonly Dictionary<ulong, RulesetCharacter> EnemyBattleRecipients = [];
     private static readonly HashSet<FeatureDefinition> EnemyBattleGrantedFeatures = [];
+    private static readonly FieldInfo EnemyBattleOrdinaryAttackModesField =
+        AccessTools.Field(typeof(RulesetCharacter), "attackModes");
+    private static readonly FieldInfo EnemyBattleOrdinaryMoveModesField =
+        AccessTools.Field(typeof(RulesetCharacter), "moveModes");
+    private static readonly FieldInfo EnemyBattleOrdinarySpellRepertoiresField =
+        AccessTools.Field(typeof(RulesetCharacter), "spellRepertoires");
     private static ConditionDefinition _enemyBattleLedger;
     private static ConditionDefinition _enemyBattleUsageLedger;
     private static readonly List<(ConditionDefinition Selection, ConditionDefinition Usage)> EnemyBattleLedgerBanks = [];
@@ -322,6 +331,8 @@ internal static partial class CombatAiContext
         SpellCasting = 1 << 7,
         UtilityTargetFamily = 1 << 8,
         FamilyPower = 1 << 9,
+        MeleeCombatant = 1 << 10,
+        PhysicalCombatant = 1 << 11,
     }
 
     private sealed class EnemyBattleCapabilityDefinition(EnemyBattleAffix kind,
@@ -348,29 +359,29 @@ internal static partial class CombatAiContext
         [
             new(EnemyBattleAffix.ArcaneWard, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.SpellCasting),
             new(EnemyBattleAffix.Spellbreaker, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.SpellCasting),
-            new(EnemyBattleAffix.Parry, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.None),
-            new(EnemyBattleAffix.Bodyguard, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.None),
-            new(EnemyBattleAffix.Reprisal, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.None),
-            new(EnemyBattleAffix.Withdrawal, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.None),
-            new(EnemyBattleAffix.HuntingRush, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.None),
+            new(EnemyBattleAffix.Parry, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.MeleeCombatant),
+            new(EnemyBattleAffix.Bodyguard, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.MeleeCombatant),
+            new(EnemyBattleAffix.Reprisal, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.MeleeCombatant),
+            new(EnemyBattleAffix.Withdrawal, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.PhysicalCombatant),
+            new(EnemyBattleAffix.HuntingRush, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.MeleeCombatant),
             new(EnemyBattleAffix.Resolve, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.None),
-            new(EnemyBattleAffix.Feint, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.AttackPreparation, utilityOrder: 27),
+            new(EnemyBattleAffix.Feint, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.AttackPreparation | EnemyBattleCapabilityTraits.PhysicalCombatant, utilityOrder: 27),
             new(EnemyBattleAffix.Dread, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control, utilityOrder: 25),
             new(EnemyBattleAffix.Command, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.AttackPreparation, utilityOrder: 7),
             new(EnemyBattleAffix.Restoration, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.None, utilityOrder: 2),
             new(EnemyBattleAffix.ElementalRebuke, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.None),
             new(EnemyBattleAffix.ArcaneHindrance, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control, utilityOrder: 24),
             new(EnemyBattleAffix.PhaseStep, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.SpellCasting),
-            new(EnemyBattleAffix.DrivingShove, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control),
+            new(EnemyBattleAffix.DrivingShove, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.MeleeCombatant),
             new(EnemyBattleAffix.PackCall, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.AttackPreparation | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 6),
-            new(EnemyBattleAffix.PredatoryLunge, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.NativeBonusAttack | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, nativeAttackTag: EnemyBattlePredatoryTag, nativeAttackTagOrder: 0),
+            new(EnemyBattleAffix.PredatoryLunge, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.NativeBonusAttack | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.MeleeCombatant, nativeAttackTag: EnemyBattlePredatoryTag, nativeAttackTagOrder: 0),
             new(EnemyBattleAffix.FeyVeil, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 3),
             new(EnemyBattleAffix.FiendMiasma, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 11),
             new(EnemyBattleAffix.ThoughtLock, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 8),
-            new(EnemyBattleAffix.ConstructBrace, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 4),
+            new(EnemyBattleAffix.ConstructBrace, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.PhysicalCombatant, utilityOrder: 4),
             new(EnemyBattleAffix.WingBuffet, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 22),
             new(EnemyBattleAffix.PrimordialRepulsion, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 23),
-            new(EnemyBattleAffix.ViscousSnare, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.NativeBonusAttack | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 19, nativeAttackTag: EnemyBattleViscousTag, nativeAttackTagOrder: 1),
+            new(EnemyBattleAffix.ViscousSnare, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.NativeBonusAttack | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.MeleeCombatant, utilityOrder: 19, nativeAttackTag: EnemyBattleViscousTag, nativeAttackTagOrder: 1),
             new(EnemyBattleAffix.RootSnare, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 10),
             new(EnemyBattleAffix.WitheringMark, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 18),
             new(EnemyBattleAffix.PurifyingTouch, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 0),
@@ -379,34 +390,34 @@ internal static partial class CombatAiContext
             new(EnemyBattleAffix.StoneTremor, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 21),
             new(EnemyBattleAffix.CausticRetort, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower),
             new(EnemyBattleAffix.LightningSurge, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 9),
-            new(EnemyBattleAffix.ThunderousRoar, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.AreaDamage | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower),
+            new(EnemyBattleAffix.ThunderousRoar, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.AreaDamage | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.MeleeCombatant),
             new(EnemyBattleAffix.ForcePulse, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.AreaDamage | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower),
-            new(EnemyBattleAffix.FocusedVolley, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.NativeBonusAttack | EnemyBattleCapabilityTraits.RangedDamage | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 13, nativeAttackTag: EnemyBattleVolleyTag, nativeAttackTagOrder: 2),
+            new(EnemyBattleAffix.FocusedVolley, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.NativeBonusAttack | EnemyBattleCapabilityTraits.RangedDamage | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.PhysicalCombatant, utilityOrder: 13, nativeAttackTag: EnemyBattleVolleyTag, nativeAttackTagOrder: 2),
             new(EnemyBattleAffix.ElementalLance, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.RangedDamage | EnemyBattleCapabilityTraits.RangedSpellAttack | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 14),
             new(EnemyBattleAffix.GraveLeech, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower),
-            new(EnemyBattleAffix.RadiantSmite, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower),
+            new(EnemyBattleAffix.RadiantSmite, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.MeleeCombatant),
             new(EnemyBattleAffix.GuardedStance, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 32),
             new(EnemyBattleAffix.SecondWind, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 1),
             new(EnemyBattleAffix.Rally, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 29),
             new(EnemyBattleAffix.SteadyingWord, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 30),
-            new(EnemyBattleAffix.PressingAttack, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.AttackPreparation | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 28),
+            new(EnemyBattleAffix.PressingAttack, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.AttackPreparation | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.PhysicalCombatant, utilityOrder: 28),
             new(EnemyBattleAffix.UnsettlingCry, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 31),
             new(EnemyBattleAffix.LegendaryResolve, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower),
             new(EnemyBattleAffix.HeroicRally, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 5),
-            new(EnemyBattleAffix.CrushingBlow, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower),
+            new(EnemyBattleAffix.CrushingBlow, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.MeleeCombatant),
             new(EnemyBattleAffix.RadiantBolt, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.RangedDamage | EnemyBattleCapabilityTraits.RangedSpellAttack | EnemyBattleCapabilityTraits.SpellCasting | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 15),
             new(EnemyBattleAffix.ArcaneRetort, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower),
-            new(EnemyBattleAffix.ImprovisedThrow, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.NativeBonusAttack | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 16, nativeAttackTag: EnemyBattleImprovisedThrowTag, nativeAttackTagOrder: 3),
-            new(EnemyBattleAffix.PiercingJab, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.NativeBonusAttack | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 20, nativeAttackTag: EnemyBattlePiercingTag, nativeAttackTagOrder: 4),
+            new(EnemyBattleAffix.ImprovisedThrow, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.NativeBonusAttack | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.PhysicalCombatant, utilityOrder: 16, nativeAttackTag: EnemyBattleImprovisedThrowTag, nativeAttackTagOrder: 3),
+            new(EnemyBattleAffix.PiercingJab, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.NativeBonusAttack | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.MeleeCombatant, utilityOrder: 20, nativeAttackTag: EnemyBattlePiercingTag, nativeAttackTagOrder: 4),
             new(EnemyBattleAffix.LastingSurge, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower),
             new(EnemyBattleAffix.QuickenedCantrip, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.SpellCasting | EnemyBattleCapabilityTraits.FamilyPower),
-            new(EnemyBattleAffix.ChargingRush, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower),
+            new(EnemyBattleAffix.ChargingRush, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.Control | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.MeleeCombatant),
             new(EnemyBattleAffix.ElementalAbsorption, EnemyBattleCapabilityRole.Defense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.SpellCasting | EnemyBattleCapabilityTraits.FamilyPower),
-            new(EnemyBattleAffix.ReachIntercept, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower),
-            new(EnemyBattleAffix.WeaponCoating, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.AttackPreparation | EnemyBattleCapabilityTraits.WeaponCoating | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 26),
+            new(EnemyBattleAffix.ReachIntercept, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.MeleeCombatant),
+            new(EnemyBattleAffix.WeaponCoating, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.AttackPreparation | EnemyBattleCapabilityTraits.WeaponCoating | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.PhysicalCombatant, utilityOrder: 26),
             new(EnemyBattleAffix.SpellFlight, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.SpellCasting | EnemyBattleCapabilityTraits.FamilyPower),
-            new(EnemyBattleAffix.ArmorRend, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, nativeAttackTag: EnemyBattleWhirlwindTag, nativeAttackTagOrder: 6),
-            new(EnemyBattleAffix.SweepingVolley, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.NativeBonusAttack | EnemyBattleCapabilityTraits.RangedDamage | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower, utilityOrder: 12, nativeAttackTag: EnemyBattleSweepingVolleyTag, nativeAttackTagOrder: 5),
+            new(EnemyBattleAffix.ArmorRend, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.MeleeCombatant, nativeAttackTag: EnemyBattleWhirlwindTag, nativeAttackTagOrder: 6),
+            new(EnemyBattleAffix.SweepingVolley, EnemyBattleCapabilityRole.Offense, EnemyBattleCapabilityTraits.NativeBonusAttack | EnemyBattleCapabilityTraits.RangedDamage | EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower | EnemyBattleCapabilityTraits.PhysicalCombatant, utilityOrder: 12, nativeAttackTag: EnemyBattleSweepingVolleyTag, nativeAttackTagOrder: 5),
             new(EnemyBattleAffix.CoordinatedAdvance, EnemyBattleCapabilityRole.Support, EnemyBattleCapabilityTraits.UtilityTargetFamily | EnemyBattleCapabilityTraits.FamilyPower),
         ];
         var catalog = definitions.ToDictionary(definition => definition.Kind);
@@ -799,7 +810,7 @@ internal static partial class CombatAiContext
 
             if (usable == null)
             {
-                usable = PowerProvider.Get(entry.Value.Power, actor);
+                usable = GetEnemyBattleUsablePower(entry.Value.Power, actor);
                 normalPowers.Add(usable);
             }
 
@@ -903,7 +914,7 @@ internal static partial class CombatAiContext
             RemoveEnemyBattleOwnedRiders(actor, kind);
         }
         var hadNativeMode = EnemyBattleNativeAttackTargets.Remove(actor) ||
-                            actor.AttackModes.Any(mode => TryGetEnemyBattleNativeAttackKind(mode, out _));
+                            GetEnemyBattleOrdinaryAttackModes(actor).Any(mode => TryGetEnemyBattleNativeAttackKind(mode, out _));
         // End source-owned effects first, including conditions on other contenders.
         // Native termination follows tracked condition GUIDs and preserves unrelated effects.
         foreach (var effect in actor.PowersUsedByMe
@@ -1131,6 +1142,21 @@ internal static partial class CombatAiContext
             .Where(feature => !EnemyBattleGrantedFeatures.Contains(feature) || native.Contains(feature)).ToList();
     }
 
+    // Body identity and ordinary grants use the normal collections. Native getters
+    // expose separate legendary action data only while that action is executing.
+    private static List<RulesetAttackMode> GetEnemyBattleOrdinaryAttackModes(RulesetCharacter actor) =>
+        actor == null ? [] : (List<RulesetAttackMode>)EnemyBattleOrdinaryAttackModesField.GetValue(actor);
+
+    private static Dictionary<int, int> GetEnemyBattleOrdinaryMoveModes(RulesetCharacter actor) =>
+        actor == null ? [] : (Dictionary<int, int>)EnemyBattleOrdinaryMoveModesField.GetValue(actor);
+
+    private static List<RulesetSpellRepertoire> GetEnemyBattleOrdinarySpellRepertoires(RulesetCharacter actor) =>
+        actor == null ? [] : (List<RulesetSpellRepertoire>)EnemyBattleOrdinarySpellRepertoiresField.GetValue(actor);
+
+    private static RulesetUsablePower GetEnemyBattleUsablePower(FeatureDefinitionPower power, RulesetCharacter actor) =>
+        AddUsablePowersFromCondition.GetGrantedUsablePowers(actor).FirstOrDefault(usable => usable.PowerDefinition == power) ??
+        PowerProvider.Get(power, actor);
+
     // Facts belong to one synchronous eligibility evaluation. They never survive a
     // native refresh, an action dispatch or a yielded reaction.
     private sealed class EnemyBattleNativeFacts(RulesetCharacter actor)
@@ -1142,6 +1168,7 @@ internal static partial class CombatAiContext
         private RulesetAttackMode[] _attackModes;
         private EffectDescription[] _candidateEffects;
         private EffectDescription[] _nativeEffects;
+        private CombatAiRole? _nativeCombatRole;
         private readonly Dictionary<EnemyBattleAffix, EnemyBattleRangedSource> _rangedSources = [];
 
         internal RulesetCharacter Actor { get; } = actor;
@@ -1155,8 +1182,21 @@ internal static partial class CombatAiContext
                 .Concat(AddUsablePowersFromCondition.GetGrantedUsablePowers(Actor).Select(item => item.PowerDefinition))
                 .Where(power => !EnemyBattlePowerKinds.ContainsKey(power)).Distinct().ToArray();
         internal SpellDefinition[] KnownSpells => _spells ??= Actor == null ? [] : GetEnemyBattleKnownSpells(Actor).ToArray();
-        internal RulesetAttackMode[] AttackModes => _attackModes ??= Actor == null ? [] :
-            Actor.AttackModes.Where(mode => !TryGetEnemyBattleNativeAttackKind(mode, out _)).ToArray();
+        internal RulesetAttackMode[] AttackModes => _attackModes ??=
+            GetEnemyBattleOrdinaryAttackModes(Actor).Where(mode => !TryGetEnemyBattleNativeAttackKind(mode, out _)).ToArray();
+        internal CombatAiRole NativeCombatRole
+        {
+            get
+            {
+                _nativeCombatRole ??= GetEnemyBattleNativeCombatRole(this);
+                return _nativeCombatRole.Value;
+            }
+        }
+        internal bool IsMeleeCombatant => NativeCombatRole is CombatAiRole.Melee or CombatAiRole.Hybrid &&
+            (AttackModes.Any(IsEnemyBattleNativeMeleeAttack) || KnownSpells.Any(spell =>
+                spell.SpellLevel == 0 && spell.ActivationTime == ActivationTime.Action && IsEnemyBattleMeleeCantrip(spell)));
+        internal bool IsPhysicalCombatant => NativeCombatRole is CombatAiRole.Melee or CombatAiRole.Ranged or CombatAiRole.Hybrid &&
+            AttackModes.Any(mode => mode.ActionType == ActionType.Main && mode.EffectDescription.HasDamageForm());
 
         // Candidate and native queries historically use distinct feature sets and
         // effect orders. Keep both contracts while sharing the underlying snapshot.
@@ -1208,6 +1248,76 @@ internal static partial class CombatAiContext
             }
             return source;
         }
+    }
+
+    private static bool IsEnemyBattleNativeMeleeAttack(RulesetAttackMode mode) =>
+        mode is { ActionType: ActionType.Main, Ranged: false, Thrown: false } &&
+        !IsRangedAttackMode(mode) && !TryGetEnemyBattleNativeAttackKind(mode, out _);
+
+    private static CombatAiRole GetEnemyBattleNativeCombatRole(EnemyBattleNativeFacts facts)
+    {
+        var actor = facts.Actor;
+        var mainAttacks = facts.AttackModes.Where(mode => mode.ActionType == ActionType.Main &&
+            mode.SourceDefinition is not MonsterAttackDefinition { LimitedUse: true }).ToArray();
+        var melee = mainAttacks.Any(IsEnemyBattleNativeMeleeAttack);
+        var ranged = mainAttacks.Any(IsRangedAttackMode);
+        var casting = HasSpellcasting(actor);
+        var package = (actor as RulesetCharacterMonster)?.MonsterDefinition.DefaultBattleDecisionPackage;
+
+        // Use the same native decision-package categories as the tactical role
+        // profile. Their preferred action still requires a real native source.
+        // Native martial packages also preserve melee spellcasters; a backup
+        // dagger or touch cantrip cannot turn a caster package into a frontliner.
+        if (melee && (package == DefaultMeleeWithBackupRangeDecisions ||
+                      package == FighterCombatDecisions || package == PaladinCombatDecisions))
+        {
+            return CombatAiRole.Melee;
+        }
+        if (ranged && package == DefaultRangeWithBackupMeleeDecisions)
+        {
+            return CombatAiRole.Ranged;
+        }
+        if ((melee || ranged) && package == RogueCombatDecisions)
+        {
+            return CombatAiRole.Hybrid;
+        }
+        if (casting && (package == DefaultSupportCasterWithBackupAttacksDecisions || package == ClericCombatDecisions))
+        {
+            return CombatAiRole.SupportCaster;
+        }
+        if (casting && (package == OffensiveCasterCombatDecisions || package == CasterCombatDecisions))
+        {
+            return CombatAiRole.OffensiveCaster;
+        }
+
+        // Unknown/custom packages keep a source-based fallback. Compare complete
+        // native at-will routines, including attack counts and cantrip scaling,
+        // instead of inferring a role from an ability score or an arbitrary cutoff.
+        // Granted tactical attacks and free spells never establish this identity.
+        var meleeDamage = mainAttacks.Where(IsEnemyBattleNativeMeleeAttack).Select(mode =>
+            GetEnemyBattleEffectAverageDamage(mode.EffectDescription) * Math.Max(1, mode.AttacksNumber)).DefaultIfEmpty().Max();
+        var rangedDamage = mainAttacks.Where(IsRangedAttackMode).Select(mode =>
+            GetEnemyBattleEffectAverageDamage(mode.EffectDescription) * Math.Max(1, mode.AttacksNumber)).DefaultIfEmpty().Max();
+        var magicDamage = GetEnemyBattleOrdinarySpellRepertoires(actor).Where(repertoire => !IsEnemyBattleGrantedSpellRepertoire(repertoire))
+            .SelectMany(repertoire => GetEnemyBattleKnownSpells(repertoire)
+                .Where(spell => spell.SpellLevel == 0 && spell.ActivationTime == ActivationTime.Action)
+                .Select(spell => GetEnemyBattleEffectAverageDamage(spell.EffectDescription, repertoire.SpellCastingLevel)))
+            .Concat(facts.CandidatePowers.Where(power => power.ActivationTime == ActivationTime.Action &&
+                    power.RechargeRate == RechargeRate.AtWill)
+                .Select(power => GetEnemyBattleEffectAverageDamage(power.EffectDescription))).DefaultIfEmpty().Max();
+        if (casting && magicDamage > Math.Max(meleeDamage, rangedDamage))
+        {
+            return CombatAiRole.OffensiveCaster;
+        }
+        return (melee, ranged) switch
+        {
+            (true, false) => CombatAiRole.Melee,
+            (false, true) => CombatAiRole.Ranged,
+            (true, true) when meleeDamage > rangedDamage => CombatAiRole.Melee,
+            (true, true) when rangedDamage > meleeDamage => CombatAiRole.Ranged,
+            (true, true) => CombatAiRole.Hybrid,
+            _ => casting ? CombatAiRole.OffensiveCaster : CombatAiRole.Hybrid
+        };
     }
 
     private static List<EnemyBattleAffix> GetEnemyBattleCandidates(GameLocationCharacter character,
@@ -1269,8 +1379,7 @@ internal static partial class CombatAiContext
         {
             candidates.Add(EnemyBattleAffix.QuickenedCantrip);
         }
-        if (GetEnemyBattleNativeSpellRepertoires(monster).Any(repertoire =>
-                HasEnemyBattleSpellSlotCapacity(repertoire, 3)))
+        if (HasEnemyBattleSpellFlightSource(monster))
         {
             candidates.Add(EnemyBattleAffix.SpellFlight);
         }
@@ -1287,7 +1396,7 @@ internal static partial class CombatAiContext
             candidates.Add(EnemyBattleAffix.ArcaneWard);
         }
 
-        if (!caster && profile.PrefersDistance &&
+        if (profile.PrefersDistance &&
             monster.TryGetAttributeValue(AttributeDefinitions.Dexterity) >= 12 &&
             profile.Family is CombatAiFamily.Humanoid or CombatAiFamily.Fey or CombatAiFamily.Fiend or CombatAiFamily.Undead &&
             !HasEnemyBattleBonusAction(features, powers, Id.DisengageBonus, ConditionDefinitions.ConditionDisengaging))
@@ -1295,12 +1404,12 @@ internal static partial class CombatAiContext
             candidates.Add(EnemyBattleAffix.Withdrawal);
         }
 
-        if (!caster && trained && hasMeleeWeapon && !hasDefensiveReaction)
+        if (trained && hasMeleeWeapon && !hasDefensiveReaction)
         {
             candidates.Add(EnemyBattleAffix.Parry);
         }
 
-        if (hasMelee && !hasWeapon && !caster && cr >= 3 &&
+        if (hasMelee && !hasWeapon && cr >= 3 &&
             profile.Family is CombatAiFamily.Beast or CombatAiFamily.Monstrosity or CombatAiFamily.Dragon or
                 CombatAiFamily.Fiend or CombatAiFamily.Aberration or CombatAiFamily.Undead or CombatAiFamily.Fey or
                 CombatAiFamily.Plant &&
@@ -1309,7 +1418,7 @@ internal static partial class CombatAiContext
             candidates.Add(EnemyBattleAffix.Reprisal);
         }
 
-        if ((trained && intelligent && hasWeapon || profile.Family == CombatAiFamily.Construct && hasMelee && !caster) && cr >= 4 &&
+        if ((trained && intelligent && hasWeapon || profile.Family == CombatAiFamily.Construct && hasMelee) && cr >= 4 &&
             (monster.TryGetAttributeValue(AttributeDefinitions.ArmorClass) >= 16 ||
              profile.Family == CombatAiFamily.Celestial) &&
             !HasExistingEnemyBattleReprisal(features, powers, spells))
@@ -1317,7 +1426,7 @@ internal static partial class CombatAiContext
             candidates.Add(EnemyBattleAffix.Bodyguard);
         }
 
-        if (hasMelee && !caster && profile.PrefersAggressivePursuit &&
+        if (hasMelee && profile.PrefersAggressivePursuit &&
             profile.Family is CombatAiFamily.Beast or CombatAiFamily.Monstrosity or CombatAiFamily.Dragon or
                  CombatAiFamily.Giant or CombatAiFamily.Elemental or CombatAiFamily.Fey or CombatAiFamily.Undead or
                  CombatAiFamily.Plant &&
@@ -1335,7 +1444,7 @@ internal static partial class CombatAiContext
             candidates.Add(EnemyBattleAffix.Resolve);
         }
 
-        if (!caster && trained && hasWeapon &&
+        if (trained && hasWeapon &&
             !HasEnemyBattleAttackAdvantage(features, effects, Side.Ally))
         {
             candidates.Add(EnemyBattleAffix.Feint);
@@ -1358,7 +1467,7 @@ internal static partial class CombatAiContext
         }
 
         if (cr >= 3 && (profile.Family == CombatAiFamily.Celestial || caster &&
-                monster.SpellRepertoires.Any(repertoire => !IsEnemyBattleGrantedSpellRepertoire(repertoire) && repertoire.SpellCastingAbility == AttributeDefinitions.Wisdom)) &&
+                GetEnemyBattleOrdinarySpellRepertoires(monster).Any(repertoire => !IsEnemyBattleGrantedSpellRepertoire(repertoire) && repertoire.SpellCastingAbility == AttributeDefinitions.Wisdom)) &&
             !effects.Any(effect => effect.EffectForms.Any(form => form.FormType == EffectForm.EffectFormType.Healing)))
         {
             candidates.Add(EnemyBattleAffix.Restoration);
@@ -1389,7 +1498,7 @@ internal static partial class CombatAiContext
             candidates.Add(EnemyBattleAffix.PhaseStep);
         }
 
-        var strongWarrior = !caster && (trained || profile.Family == CombatAiFamily.Giant) && hasMeleeWeapon &&
+        var strongWarrior = (trained || profile.Family == CombatAiFamily.Giant) && hasMeleeWeapon &&
                             monster.TryGetAttributeValue(AttributeDefinitions.Strength) >= 16 &&
                             monster.TryGetAttributeValue(AttributeDefinitions.Strength) >
                             monster.TryGetAttributeValue(AttributeDefinitions.Dexterity);
@@ -1442,7 +1551,7 @@ internal static partial class CombatAiContext
 
         AddIdentity(EnemyBattleAffix.PackCall, naturalMelee && family is CombatAiFamily.Beast or CombatAiFamily.Monstrosity &&
             !HasEnemyBattleAttackAdvantage(features, effects, Side.Ally));
-        AddIdentity(EnemyBattleAffix.PredatoryLunge, naturalMelee && !caster && !ethereal && cr >= 3 &&
+        AddIdentity(EnemyBattleAffix.PredatoryLunge, naturalMelee && !ethereal && cr >= 3 &&
             family is CombatAiFamily.Beast or CombatAiFamily.Monstrosity or CombatAiFamily.Fiend or CombatAiFamily.Undead &&
             !facts.AttackModes.Any(mode => mode.ActionType == ActionType.Bonus) &&
             !features.OfType<FeatureDefinitionAdditionalAction>().Any() &&
@@ -1455,7 +1564,7 @@ internal static partial class CombatAiContext
              family == CombatAiFamily.Plant && poisonous));
         AddIdentity(EnemyBattleAffix.ThoughtLock, family == CombatAiFamily.Aberration && !nativeReactionDenial && cr >= 3 &&
             (monster.TryGetAttributeValue(AttributeDefinitions.Intelligence) >= 12 || psychic));
-        AddIdentity(EnemyBattleAffix.ConstructBrace, family == CombatAiFamily.Construct && !caster &&
+        AddIdentity(EnemyBattleAffix.ConstructBrace, family == CombatAiFamily.Construct &&
             monster.TryGetAttributeValue(AttributeDefinitions.ArmorClass) >= 16 &&
             !HasCondition(ConditionDefinitions.ConditionDodging));
         AddIdentity(EnemyBattleAffix.WingBuffet, hasFlight && HasEnemyBattleWingedBody(monster) && !nativePush && !nativeProne);
@@ -1466,7 +1575,7 @@ internal static partial class CombatAiContext
         AddIdentity(EnemyBattleAffix.RootSnare, cr >= 3 && !HasCondition(ConditionDefinitions.ConditionRestrained) &&
             !nativeConditions.OfType<FeatureDefinitionMovementAffinity>().Any(affinity => affinity.BaseSpeedMultiplicativeModifier <= 0) &&
             (family == CombatAiFamily.Plant || family == CombatAiFamily.Fey &&
-                monster.SpellRepertoires.Any(repertoire => !IsEnemyBattleGrantedSpellRepertoire(repertoire) && repertoire.SpellCastingAbility == AttributeDefinitions.Wisdom)));
+                GetEnemyBattleOrdinarySpellRepertoires(monster).Any(repertoire => !IsEnemyBattleGrantedSpellRepertoire(repertoire) && repertoire.SpellCastingAbility == AttributeDefinitions.Wisdom)));
         AddIdentity(EnemyBattleAffix.WitheringMark, family == CombatAiFamily.Undead && (necrotic || cold) && cr >= 3 &&
             !nativeConditions.OfType<FeatureDefinitionHealingModifier>().Any(modifier => modifier.CannotGainHitPoints));
         AddIdentity(EnemyBattleAffix.PurifyingTouch, family == CombatAiFamily.Celestial && cr >= 3 &&
@@ -1485,7 +1594,7 @@ internal static partial class CombatAiContext
                 effects.Any(effect => effect.EffectForms.Any(form => form.FormType == EffectForm.EffectFormType.Damage &&
                     form.DamageForm.DamageType == DamageTypeLightning))));
         var hasNativeRetaliation = HasExistingEnemyBattleReprisal(features, powers, spells);
-        AddIdentity(EnemyBattleAffix.ThunderousRoar, cr >= 3 && naturalMelee && !ethereal && !caster &&
+        AddIdentity(EnemyBattleAffix.ThunderousRoar, cr >= 3 && naturalMelee && !ethereal &&
             !hasNativeRetaliation && GetEnemyBattleDamageDiceNumber(monster) > 0 &&
             (family is CombatAiFamily.Beast or CombatAiFamily.Monstrosity or CombatAiFamily.Dragon or
                  CombatAiFamily.Giant or CombatAiFamily.Fiend or CombatAiFamily.Celestial ||
@@ -1528,7 +1637,7 @@ internal static partial class CombatAiContext
             !effects.Any(effect => effect.TargetSide == Side.Ally && effect.TargetType != TargetType.Self &&
                 (effect.EffectForms.Any(form => form.FormType == EffectForm.EffectFormType.TemporaryHitPoints) ||
                  GetEnemyBattleAddedConditionFeatures(effect).OfType<FeatureDefinitionSavingThrowAffinity>().Any())));
-        AddIdentity(EnemyBattleAffix.CrushingBlow, !caster &&
+        AddIdentity(EnemyBattleAffix.CrushingBlow,
             monster.TryGetAttributeValue(AttributeDefinitions.Strength) >= 16 && !nativeProne &&
             facts.AttackModes.Any(IsEnemyBattleCrushingAttack) &&
             GetEnemyBattleCapabilityDamageDiceNumber(monster, EnemyBattleAffix.CrushingBlow) > 0 &&
@@ -1589,7 +1698,7 @@ internal static partial class CombatAiContext
         if (kind == EnemyBattleAffix.PackCall)
         {
             return GetFamily(source.RulesetCharacter) == GetFamily(actor) &&
-                actor.AttackModes.Any(mode => mode.ActionType == ActionType.Main);
+                GetEnemyBattleOrdinaryAttackModes(actor).Any(mode => mode.ActionType == ActionType.Main);
         }
         if (kind == EnemyBattleAffix.DrivingShove)
         {
@@ -1597,12 +1706,12 @@ internal static partial class CombatAiContext
         }
         if (kind == EnemyBattleAffix.Command)
         {
-            return actor.AttackModes.Any(mode => mode.ActionType == ActionType.Main) ||
+            return GetEnemyBattleOrdinaryAttackModes(actor).Any(mode => mode.ActionType == ActionType.Main) ||
                 GetEnemyBattleKnownSpells(actor).Any(spell => spell.EffectDescription.RangeType is RangeType.MeleeHit or RangeType.RangeHit);
         }
         if (kind == EnemyBattleAffix.CoordinatedAdvance)
         {
-            return actor.AttackModes.Any(IsEnemyBattleCoordinatedAttackMode);
+            return GetEnemyBattleOrdinaryAttackModes(actor).Any(IsEnemyBattleCoordinatedAttackMode);
         }
         if (kind == EnemyBattleAffix.PurifyingTouch && actor is RulesetCharacterMonster monster)
         {
@@ -1730,17 +1839,17 @@ internal static partial class CombatAiContext
         new EnemyBattleNativeFacts(actor).HasRadiantSmite;
 
     private static bool HasEnemyBattleNativeBonusAttackSource(RulesetCharacter actor, RulesetAttackMode source) =>
-        actor.AttackModes.Any(mode => mode.ActionType == ActionType.Bonus && !TryGetEnemyBattleNativeAttackKind(mode, out _) &&
+        GetEnemyBattleOrdinaryAttackModes(actor).Any(mode => mode.ActionType == ActionType.Bonus && !TryGetEnemyBattleNativeAttackKind(mode, out _) &&
             mode.SourceDefinition == source.SourceDefinition && mode.Ranged == source.Ranged);
 
     private static bool IsEnemyBattleImprovisedThrowBody(RulesetCharacter actor)
     {
         if (actor is not RulesetCharacterMonster monster ||
-            !actor.AttackModes.Any(mode => mode.ActionType == ActionType.Main && !mode.Ranged &&
+            !GetEnemyBattleOrdinaryAttackModes(actor).Any(mode => mode.ActionType == ActionType.Main && !mode.Ranged &&
                 !TryGetEnemyBattleNativeAttackKind(mode, out _) && mode.EffectDescription.EffectForms.Any(form =>
                     form.FormType == EffectForm.EffectFormType.Damage && form.DamageForm.DamageType is
                         DamageTypeBludgeoning or DamageTypePiercing or DamageTypeSlashing)) ||
-            actor.AttackModes.Any(mode => mode.Ranged && !TryGetEnemyBattleNativeAttackKind(mode, out _)) ||
+            GetEnemyBattleOrdinaryAttackModes(actor).Any(mode => mode.Ranged && !TryGetEnemyBattleNativeAttackKind(mode, out _)) ||
             GetEnemyBattleNativeEffects(actor).Any(effect => effect.HasDamageForm() &&
                 (effect.RangeType == RangeType.RangeHit || effect.RangeType == RangeType.Distance && effect.RangeParameter > 1)))
         {
@@ -1758,7 +1867,7 @@ internal static partial class CombatAiContext
         // A construct needs a native hand/weapon posture, rather than merely a melee bite or collision.
         var slamTitle = GetDefinition<MonsterAttackDefinition>("Attack_Golem_Clay_Slam").GuiPresentation.Title;
         return monster.MonsterDefinition.MonsterPresentation.useHumanoidMonsterPresentationName ||
-            actor.AttackModes.Any(mode => mode.ActionType == ActionType.Main && !mode.Ranged &&
+            GetEnemyBattleOrdinaryAttackModes(actor).Any(mode => mode.ActionType == ActionType.Main && !mode.Ranged &&
                 !TryGetEnemyBattleNativeAttackKind(mode, out _) &&
                 (IsEnemyBattleWeaponAttack(mode) || mode.SourceDefinition is MonsterAttackDefinition attack &&
                     attack.GuiPresentation.Title == slamTitle));
@@ -1784,7 +1893,7 @@ internal static partial class CombatAiContext
         GetEnemyBattleNativeMeleeDamageMode(actor, DamageTypeSlashing);
 
     private static RulesetAttackMode GetEnemyBattleNativeMeleeDamageMode(RulesetCharacter actor, string damageType) =>
-        actor?.AttackModes.Where(mode => mode.ActionType == ActionType.Main && !mode.Ranged && !mode.Thrown &&
+        GetEnemyBattleOrdinaryAttackModes(actor).Where(mode => mode.ActionType == ActionType.Main && !mode.Ranged && !mode.Thrown &&
                 !HasEnemyBattleNativeBonusAttackSource(actor, mode) && mode.EffectDescription.EffectForms.Any(form => form.FormType == EffectForm.EffectFormType.Damage &&
                     form.DamageForm.DamageType == damageType))
             .OrderByDescending(mode => mode.ReachRange).FirstOrDefault();
@@ -1831,18 +1940,22 @@ internal static partial class CombatAiContext
         {
             return false;
         }
+        if (HasEnemyBattleCapabilityTrait(kind, EnemyBattleCapabilityTraits.MeleeCombatant) && !facts.IsMeleeCombatant ||
+            HasEnemyBattleCapabilityTrait(kind, EnemyBattleCapabilityTraits.PhysicalCombatant) && !facts.IsPhysicalCombatant)
+        {
+            return false;
+        }
         var family = GetFamily(actor);
-        var naturalMelee = actor.AttackModes.Any(mode => mode.ActionType == ActionType.Main && !mode.Ranged &&
+        var naturalMelee = facts.AttackModes.Any(mode => mode.ActionType == ActionType.Main && !mode.Ranged &&
             !IsEnemyBattleWeaponAttack(mode));
-        var flight = actor.MoveModes.ContainsKey((int)MoveMode.Fly);
+        var flight = GetEnemyBattleOrdinaryMoveModes(actor).ContainsKey((int)MoveMode.Fly);
         var ethereal = family == CombatAiFamily.Undead &&
             HasEnemyBattleConditionImmunity(actor.FeaturesByType<FeatureDefinition>(), ConditionDefinitions.ConditionProne) &&
             HasEnemyBattleConditionImmunity(actor.FeaturesByType<FeatureDefinition>(), ConditionDefinitions.ConditionRestrained);
         return kind switch
         {
             EnemyBattleAffix.QuickenedCantrip => HasEnemyBattleAiCantrip(actor),
-            EnemyBattleAffix.SpellFlight => GetEnemyBattleNativeSpellRepertoires(actor)
-                .Any(repertoire => HasEnemyBattleSpellSlotCapacity(repertoire, 3)),
+            EnemyBattleAffix.SpellFlight => HasEnemyBattleSpellFlightSource(actor),
             EnemyBattleAffix.ChargingRush => IsEnemyBattleChargingBody(monster),
             EnemyBattleAffix.WeaponCoating => IsEnemyBattleCoatingBody(monster),
             EnemyBattleAffix.ArmorRend => IsEnemyBattleArmorRendBody(monster),
@@ -1851,9 +1964,9 @@ internal static partial class CombatAiContext
             EnemyBattleAffix.CoordinatedAdvance => IsEnemyBattleCommandingBody(monster),
             EnemyBattleAffix.ElementalAbsorption => HasSpellcasting(actor) && HasEnemyBattleSpellLevel(actor, 1) &&
                 !HasEnemyBattleSpell(monster, SpellsContext.ElementalInfusion),
-            EnemyBattleAffix.ReachIntercept => (actor.AttackModes.Any(mode => mode.ActionType == ActionType.Main &&
-                !mode.Ranged && !TryGetEnemyBattleNativeAttackKind(mode, out _)) ||
-                GetEnemyBattleActionCantrips(actor).Any(IsEnemyBattleMeleeCantrip)) &&
+            EnemyBattleAffix.ReachIntercept => (facts.AttackModes.Any(IsEnemyBattleNativeMeleeAttack) ||
+                facts.KnownSpells.Any(spell => spell.SpellLevel == 0 && spell.ActivationTime == ActivationTime.Action &&
+                    IsEnemyBattleMeleeCantrip(spell))) &&
                 !facts.Features.Any(feature =>
                     feature.GetAllSubFeaturesOfType<CanMakeAoOOnReachEntered>().Count != 0),
             EnemyBattleAffix.LegendaryResolve => !HasEnemyBattleNativeLegendaryResistance(monster),
@@ -1869,7 +1982,7 @@ internal static partial class CombatAiContext
             EnemyBattleAffix.GraveLeech => family is CombatAiFamily.Undead or CombatAiFamily.Fiend or CombatAiFamily.Aberration &&
                 facts.HasDamage(DamageTypeNecrotic) && !facts.HasLifeDrain &&
                 GetEnemyBattleCapabilityDamageDiceNumber(actor, kind) > 0,
-            EnemyBattleAffix.RadiantSmite => actor.AttackModes.Any(mode => mode.ActionType == ActionType.Main && !mode.Ranged && !mode.Thrown) &&
+            EnemyBattleAffix.RadiantSmite => facts.AttackModes.Any(mode => mode.ActionType == ActionType.Main && !mode.Ranged && !mode.Thrown) &&
                 (family == CombatAiFamily.Celestial || facts.HasDamage(DamageTypeRadiant)) &&
                 !facts.HasRadiantSmite && GetEnemyBattleCapabilityDamageDiceNumber(actor, kind) > 0,
             EnemyBattleAffix.FiendMiasma => family is CombatAiFamily.Fiend or CombatAiFamily.Plant &&
@@ -1880,8 +1993,8 @@ internal static partial class CombatAiContext
             EnemyBattleAffix.CausticRetort => family == CombatAiFamily.Ooze && facts.HasDamage(DamageTypeAcid),
             EnemyBattleAffix.LightningSurge => family != CombatAiFamily.Humanoid && facts.HasDamage(DamageTypeLightning),
             EnemyBattleAffix.PackCall => naturalMelee && family is CombatAiFamily.Beast or CombatAiFamily.Monstrosity,
-            EnemyBattleAffix.PredatoryLunge => naturalMelee && !ethereal && !HasSpellcasting(actor) &&
-                !actor.AttackModes.Any(mode => mode.ActionType == ActionType.Bonus && !TryGetEnemyBattleNativeAttackKind(mode, out _)) &&
+            EnemyBattleAffix.PredatoryLunge => naturalMelee && !ethereal &&
+                !facts.AttackModes.Any(mode => mode.ActionType == ActionType.Bonus && !TryGetEnemyBattleNativeAttackKind(mode, out _)) &&
                 family is CombatAiFamily.Beast or CombatAiFamily.Monstrosity or CombatAiFamily.Fiend or CombatAiFamily.Undead,
             EnemyBattleAffix.FeyVeil => family == CombatAiFamily.Fey ||
                 family == CombatAiFamily.Undead && ethereal && facts.HasDamage(DamageTypeNecrotic),
@@ -1895,7 +2008,7 @@ internal static partial class CombatAiContext
             EnemyBattleAffix.StoneTremor => !flight && actor.TryGetAttributeValue(AttributeDefinitions.Strength) >= 18 &&
                 monster.SizeDefinition.WieldingSize >= GetDefinition<CharacterSizeDefinition>("Large").WieldingSize &&
                 family is CombatAiFamily.Giant or CombatAiFamily.Construct or CombatAiFamily.Elemental,
-            EnemyBattleAffix.ThunderousRoar => naturalMelee && !ethereal && !HasSpellcasting(actor) &&
+            EnemyBattleAffix.ThunderousRoar => naturalMelee && !ethereal &&
                 facts.HasDamage(DamageTypeThunder) && GetEnemyBattleDamageDiceNumber(actor) > 0,
             EnemyBattleAffix.ForcePulse => GetEnemyBattleDamageDiceNumber(actor) > 0 &&
                 (facts.HasDamage(DamageTypeForce) || HasSpellcasting(actor) &&
@@ -1914,7 +2027,7 @@ internal static partial class CombatAiContext
     private static bool IsEnemyBattleLastingSurgeCompatible(RulesetCharacterMonster actor) =>
         HasSpellcasting(actor) && HasEnemyBattleSpellLevel(actor, 3) &&
         actor.TryGetAttributeValue(AttributeDefinitions.Dexterity) >= 12 &&
-        actor.AttackModes.Any(mode => mode.ActionType == ActionType.Main &&
+        GetEnemyBattleOrdinaryAttackModes(actor).Any(mode => mode.ActionType == ActionType.Main &&
             !TryGetEnemyBattleNativeAttackKind(mode, out _) && mode.EffectDescription.HasDamageForm()) &&
         !GetEnemyBattleNativeFeatures(actor).OfType<FeatureDefinitionAdditionalAction>()
             .Concat(GetEnemyBattleNativeEffects(actor).SelectMany(GetEnemyBattleAddedConditionFeatures)
@@ -1947,7 +2060,7 @@ internal static partial class CombatAiContext
             (GetFamily(actor) == CombatAiFamily.Celestial || HasEnemyBattleNativeDamage(actor, DamageTypeRadiant))
             ? new HashSet<FeatureDefinitionCastSpell>(monster.MonsterDefinition.Features
                 .SelectMany(GetEnemyBattleNestedFeatures).OfType<FeatureDefinitionCastSpell>()) : [];
-        return actor.SpellRepertoires.Where(repertoire => repertoire.SpellCastingFeature != null &&
+        return GetEnemyBattleOrdinarySpellRepertoires(actor).Where(repertoire => repertoire.SpellCastingFeature != null &&
             !IsEnemyBattleGrantedSpellRepertoire(repertoire) &&
             (repertoire.SpellCastingClass == CharacterClassDefinitions.Cleric ||
              repertoire.SpellCastingClass == CharacterClassDefinitions.Paladin ||
@@ -1962,7 +2075,7 @@ internal static partial class CombatAiContext
 
     private static RulesetSpellRepertoire GetEnemyBattlePowerRepertoire(RulesetCharacter actor,
         FeatureDefinitionPower power) => actor.FindClassHoldingFeature(power) is { } sourceClass
-        ? actor.SpellRepertoires.FirstOrDefault(repertoire => repertoire.SpellCastingClass == sourceClass)
+        ? GetEnemyBattleOrdinarySpellRepertoires(actor).FirstOrDefault(repertoire => repertoire.SpellCastingClass == sourceClass)
         : null;
 
     private static bool IsEnemyBattleNativeRangedMagic(EffectDescription description, int minimumRange) =>
@@ -1976,7 +2089,7 @@ internal static partial class CombatAiContext
                   form.DamageForm.DamageType == DamageTypeRadiant) &&
               HasEnemyBattleAddedCondition(effect, GetDefinition<ConditionDefinition>("ConditionTargetedByGuidingBolt"))
             : IsEnemyBattleNativeRangedMagic(effect, 4) && effect.HasDamageForm();
-        return actor.AttackModes.Any(mode => mode.ActionType == ActionType.Bonus && mode.Ranged &&
+        return GetEnemyBattleOrdinaryAttackModes(actor).Any(mode => mode.ActionType == ActionType.Bonus && mode.Ranged &&
                 !TryGetEnemyBattleNativeAttackKind(mode, out _) &&
                 (kind != EnemyBattleAffix.RadiantBolt || MatchingEffect(mode.EffectDescription))) ||
             actor.FeaturesByType<FeatureDefinitionPower>()
@@ -2008,7 +2121,7 @@ internal static partial class CombatAiContext
         }
         if (kind == EnemyBattleAffix.SweepingVolley)
         {
-            var mode = actor.AttackModes.Where(mode => mode is { ActionType: ActionType.Main, Ranged: true, Thrown: false } &&
+            var mode = GetEnemyBattleOrdinaryAttackModes(actor).Where(mode => mode is { ActionType: ActionType.Main, Ranged: true, Thrown: false } &&
                     IsEnemyBattleWeaponAttack(mode) && !TryGetEnemyBattleNativeAttackKind(mode, out _) &&
                     ((RulesetCharacterMonster)actor).GetAttackModeRank(mode) >= 0 &&
                     mode.EffectDescription.FindFirstDamageForm()?.DamageType is DamageTypeBludgeoning or DamageTypePiercing or DamageTypeSlashing)
@@ -2059,7 +2172,7 @@ internal static partial class CombatAiContext
         var sources = new List<EnemyBattleRangedSource>();
         // Physical sources retain their native attack animation and projectile through FocusedVolley.
         // The lance uses an actual magic power or spell's casting and effect data.
-        foreach (var mode in actor.AttackModes.Where(mode => kind == EnemyBattleAffix.FocusedVolley &&
+        foreach (var mode in GetEnemyBattleOrdinaryAttackModes(actor).Where(mode => kind == EnemyBattleAffix.FocusedVolley &&
                      mode.ActionType == ActionType.Main && mode.Ranged && mode.MaxRange >= 8))
         {
             var damage = mode.EffectDescription.EffectForms.FirstOrDefault(form => form.FormType == EffectForm.EffectFormType.Damage &&
@@ -2087,7 +2200,7 @@ internal static partial class CombatAiContext
                     return (Description: power.EffectDescription, Power: power, Repertoire: repertoire,
                         Ability: repertoire?.SpellCastingFeature?.SpellcastingAbility ?? actor.GetAbilityScoreOfPower(power));
                 });
-            var nativeSpells = actor.SpellRepertoires.Where(rep => !IsEnemyBattleGrantedSpellRepertoire(rep))
+            var nativeSpells = GetEnemyBattleOrdinarySpellRepertoires(actor).Where(rep => !IsEnemyBattleGrantedSpellRepertoire(rep))
                 .SelectMany(repertoire => GetEnemyBattleKnownSpells(repertoire)
                 .Where(spell => spell.ActivationTime == ActivationTime.Action)
                 .Select(spell => (Description: spell.EffectDescription, Power: (FeatureDefinitionPower)null,
@@ -2184,7 +2297,7 @@ internal static partial class CombatAiContext
 
     private static IEnumerable<SpellDefinition> GetEnemyBattleKnownSpells(RulesetCharacter actor)
     {
-        return actor.SpellRepertoires.Where(rep => !IsEnemyBattleGrantedSpellRepertoire(rep))
+        return GetEnemyBattleOrdinarySpellRepertoires(actor).Where(rep => !IsEnemyBattleGrantedSpellRepertoire(rep))
             .SelectMany(GetEnemyBattleKnownSpells).Distinct();
     }
 
@@ -2263,7 +2376,7 @@ internal static partial class CombatAiContext
 
     private static bool HasEnemyBattleSpell(RulesetCharacter character, SpellDefinition spell)
     {
-        return character.SpellRepertoires.Where(rep => !IsEnemyBattleGrantedSpellRepertoire(rep))
+        return GetEnemyBattleOrdinarySpellRepertoires(character).Where(rep => !IsEnemyBattleGrantedSpellRepertoire(rep))
             .Any(repertoire => repertoire.HasKnowledgeOfSpell(spell) ||
             repertoire.KnownSpells.Contains(spell) || repertoire.PreparedSpells.Contains(spell) ||
             repertoire.AutoPreparedSpells.Contains(spell) ||
@@ -2284,9 +2397,9 @@ internal static partial class CombatAiContext
                           monster.MonsterDefinition.Alignment?.StartsWith("Lawful", StringComparison.OrdinalIgnoreCase) == true
             ? CombatAiTemperament.Disciplined
             : GetTemperament(actor, family, independentOfAiSetting: true);
-        return new CombatAiProfile(GetRole(character, ranged, spellcasting, facts.AttackModes), family,
+        return new CombatAiProfile(facts.NativeCombatRole, family,
             temperament,
-            !actor.IsTouchingGround() || actor.MoveModes.ContainsKey((int)MoveMode.Fly), ranged, spellcasting);
+            !actor.IsTouchingGround() || GetEnemyBattleOrdinaryMoveModes(actor).ContainsKey((int)MoveMode.Fly), ranged, spellcasting);
     }
 
     private static bool HasEnemyBattleThirdLevelSpells(RulesetCharacter character)
@@ -2294,7 +2407,7 @@ internal static partial class CombatAiContext
 
     private static bool HasEnemyBattleSpellLevel(RulesetCharacter character, int level)
     {
-        return character.SpellRepertoires.Where(rep => !IsEnemyBattleGrantedSpellRepertoire(rep))
+        return GetEnemyBattleOrdinarySpellRepertoires(character).Where(rep => !IsEnemyBattleGrantedSpellRepertoire(rep))
             .Any(repertoire => repertoire.MaxSpellLevelOfSpellCastingLevel >= level ||
             repertoire.KnownSpells.Concat(repertoire.PreparedSpells).Concat(repertoire.AutoPreparedSpells)
                 .Concat(repertoire.ExtraSpellsByTag.Values.SelectMany(list => list))
@@ -2363,9 +2476,9 @@ internal static partial class CombatAiContext
         GetEnemyBattleCapabilityDamageDiceNumber(actor, EnemyBattleAffix.WeaponCoating) > 0 &&
         GetFamily(actor) is CombatAiFamily.Humanoid or CombatAiFamily.Giant or CombatAiFamily.Fey or
             CombatAiFamily.Fiend or CombatAiFamily.Undead or CombatAiFamily.Celestial &&
-        actor.AttackModes.Any(mode => mode.ActionType == ActionType.Main && IsEnemyBattleWeaponAttack(mode) &&
+        GetEnemyBattleOrdinaryAttackModes(actor).Any(mode => mode.ActionType == ActionType.Main && IsEnemyBattleWeaponAttack(mode) &&
             mode.EffectDescription.HasDamageForm()) &&
-        !actor.AttackModes.Where(IsEnemyBattleWeaponAttack).Any(mode => mode.EffectDescription.EffectForms.Any(form =>
+        !GetEnemyBattleOrdinaryAttackModes(actor).Where(IsEnemyBattleWeaponAttack).Any(mode => mode.EffectDescription.EffectForms.Any(form =>
             form.FormType == EffectForm.EffectFormType.Damage && form.DamageForm.DamageType is DamageTypePoison or DamageTypeAcid)) &&
         !GetEnemyBattleNativeFeatures((RulesetCharacterMonster)actor).OfType<FeatureDefinitionAdditionalDamage>()
             .Any(damage => damage.SpecificDamageType is DamageTypePoison or DamageTypeAcid);
@@ -2485,12 +2598,12 @@ internal static partial class CombatAiContext
     }
 
     private static bool IsEnemyBattleChargingBody(RulesetCharacter actor) =>
-        !HasSpellcasting(actor) && !actor.MoveModes.ContainsKey((int)MoveMode.Fly) &&
+        !GetEnemyBattleOrdinaryMoveModes(actor).ContainsKey((int)MoveMode.Fly) &&
         actor.TryGetAttributeValue(AttributeDefinitions.Strength) >= 16 &&
-        actor.AttackModes.Any(mode => mode.ActionType == ActionType.Main && !mode.Ranged && !mode.Thrown &&
+        GetEnemyBattleOrdinaryAttackModes(actor).Any(mode => mode.ActionType == ActionType.Main && !mode.Ranged && !mode.Thrown &&
             mode.EffectDescription.HasDamageForm()) &&
         GetEnemyBattleCapabilityDamageDiceNumber(actor, EnemyBattleAffix.ChargingRush) > 0 &&
-        !actor.AttackModes.Any(mode => mode.SourceDefinition is MonsterAttackDefinition { AfterChargeOnly: true }) &&
+        !GetEnemyBattleOrdinaryAttackModes(actor).Any(mode => mode.SourceDefinition is MonsterAttackDefinition { AfterChargeOnly: true }) &&
         !GetEnemyBattleNativeFeatures((RulesetCharacterMonster)actor).OfType<FeatureDefinitionActionAffinity>()
             .Any(affinity => affinity.AuthorizedActions.Contains(Id.DashBonus));
 
@@ -2499,7 +2612,7 @@ internal static partial class CombatAiContext
         EnemyBattleWhirlwinds = new();
 
     private static RulesetAttackMode GetEnemyBattleArmorRendSource(RulesetCharacter actor) =>
-        actor?.AttackModes.Where(mode => IsEnemyBattleCrushingAttack(mode) &&
+        GetEnemyBattleOrdinaryAttackModes(actor).Where(mode => IsEnemyBattleCrushingAttack(mode) &&
                 mode.SourceDefinition is not MonsterAttackDefinition { AfterChargeOnly: true } &&
                 mode.EffectDescription.FindFirstDamageForm().DamageType is DamageTypeSlashing or DamageTypeBludgeoning)
             .OrderByDescending(mode => mode.ReachRange)
@@ -2749,7 +2862,7 @@ internal static partial class CombatAiContext
                 yield return defender.MyReactToDoNothing(ExtraActionId.DoNothingReaction, attacker,
                     "EnemyBattleArmorRend", FormatEnemyBattleDescription(EnemyBattleAffix.ArmorRend, defender.RulesetCharacter),
                     reactionValidated: () => context.Accepted = true, battleManager: battleManager,
-                    resource: new ReactionResourcePowerPool(power, power.GuiPresentation.SpriteReference),
+                    resource: new ReactionResourcePowerPool(power),
                     target: attacker, effectDefinition: power,
                     reactionStillValid: () => TryGetEnemyBattleWhirlwindModifier(context, 0, out _));
                 if (context.Accepted)
@@ -3079,7 +3192,7 @@ internal static partial class CombatAiContext
                 yield return defender.MyReactToDoNothing(ExtraActionId.DoNothingReaction, defender,
                     "EnemyBattleLegendaryResolve", FormatEnemyBattleDescription(EnemyBattleAffix.LegendaryResolve, character),
                     ReactionValidated, battleManager: battleManager,
-                    resource: new ReactionResourcePowerPool(power, power.GuiPresentation.SpriteReference),
+                    resource: new ReactionResourcePowerPool(power),
                     target: defender, effectDefinition: power);
             }
             finally
@@ -3265,7 +3378,7 @@ internal static partial class CombatAiContext
             }
             else
             {
-                effect.SetParticleEffectParameters(kind == EnemyBattleAffix.Dread ? Fear :
+                effect.SetParticleEffectParameters(kind == EnemyBattleAffix.Dread ? SpellDefinitions.Fear :
                     kind == EnemyBattleAffix.SteadyingWord ? Bless : kind == EnemyBattleAffix.UnsettlingCry ? ViciousMockery : Bane);
             }
         }
@@ -3688,7 +3801,7 @@ internal static partial class CombatAiContext
     {
         // Limited breaths, daily powers and leveled spells cannot establish the
         // budget for an extra attack repeated alongside the body's ordinary turn.
-        var attackDamage = actor.AttackModes.Where(mode => mode.ActionType == ActionType.Main &&
+        var attackDamage = GetEnemyBattleOrdinaryAttackModes(actor).Where(mode => mode.ActionType == ActionType.Main &&
                 mode.SourceDefinition is not MonsterAttackDefinition { LimitedUse: true })
             .Select(mode => GetEnemyBattleEffectAverageDamage(mode.EffectDescription) * System.Math.Max(1, mode.AttacksNumber))
             .DefaultIfEmpty().Max();
@@ -3697,7 +3810,7 @@ internal static partial class CombatAiContext
             .Where(power => power.ActivationTime == ActivationTime.Action && power.RechargeRate == RechargeRate.AtWill &&
                 !EnemyBattlePowerKinds.ContainsKey(power))
             .Select(power => GetEnemyBattleEffectAverageDamage(power.EffectDescription)).DefaultIfEmpty().Max();
-        var spellDamage = actor.SpellRepertoires.SelectMany(repertoire => repertoire.KnownCantrips.Concat(repertoire.KnownSpells)
+        var spellDamage = GetEnemyBattleOrdinarySpellRepertoires(actor).SelectMany(repertoire => repertoire.KnownCantrips.Concat(repertoire.KnownSpells)
                 .Concat(repertoire.PreparedSpells).Concat(repertoire.AutoPreparedSpells)
                 .Concat(repertoire.ExtraSpellsByTag.Values.SelectMany(spells => spells)).Distinct()
                 .Where(spell => spell.ActivationTime == ActivationTime.Action && spell.SpellLevel == 0)
@@ -3808,6 +3921,7 @@ internal static partial class CombatAiContext
             RulesetCharacter character, RulesetEffect rulesetEffect)
         {
             var builder = EffectDescriptionBuilder.Create(description);
+            var nativeAttacks = GetEnemyBattleOrdinaryAttackModes(character);
             if (kind is EnemyBattleAffix.Restoration or EnemyBattleAffix.SecondWind)
             {
                 builder.SetEffectForms(EffectFormBuilder.Create().SetHealingForm(HealingComputation.Dice,
@@ -3863,16 +3977,16 @@ internal static partial class CombatAiContext
                     .SetAnimationMagicEffect(rangedSource.Description.AnimationMagicEffect)
                     .SetParticleEffectParameters(rangedSource.Description.EffectParticleParameters);
             }
-            if (kind == EnemyBattleAffix.PackCall && character.AttackModes.Any(mode => !IsEnemyBattleWeaponAttack(mode)))
+            if (kind == EnemyBattleAffix.PackCall && nativeAttacks.Any(mode => !IsEnemyBattleWeaponAttack(mode)))
             {
-                builder.SetAnimationMagicEffect(character.AttackModes.First(mode => !IsEnemyBattleWeaponAttack(mode))
+                builder.SetAnimationMagicEffect(nativeAttacks.First(mode => !IsEnemyBattleWeaponAttack(mode))
                     .EffectDescription.AnimationMagicEffect);
             }
             if (kind is EnemyBattleAffix.LightningSurge or EnemyBattleAffix.ForcePulse)
             {
                 // Preserve the body's own matching elemental attack/cast pose while retaining the new particles.
                 var nativeDamageType = GetEnemyBattleDamageType(kind);
-                var nativeAttack = character.AttackModes.Select(mode => mode.EffectDescription)
+                var nativeAttack = nativeAttacks.Select(mode => mode.EffectDescription)
                     .Concat(character.FeaturesByType<FeatureDefinitionPower>()
                         .Where(native => !EnemyBattlePowerKinds.ContainsKey(native))
                         .Select(native => native.EffectDescription))
@@ -3891,7 +4005,7 @@ internal static partial class CombatAiContext
                     .Select(native => native.EffectDescription)
                     .FirstOrDefault(native => native.TargetType == TargetType.Sphere &&
                         HasEnemyBattleAddedCondition(native, ConditionDefinitions.ConditionFrightened));
-                var naturalAttack = character.AttackModes.FirstOrDefault(mode => !mode.Ranged && !IsEnemyBattleWeaponAttack(mode));
+                var naturalAttack = nativeAttacks.FirstOrDefault(mode => !mode.Ranged && !IsEnemyBattleWeaponAttack(mode));
                 if (nativeRoar != null || naturalAttack != null)
                 {
                     builder.SetAnimationMagicEffect((nativeRoar ?? naturalAttack.EffectDescription).AnimationMagicEffect);
@@ -4020,7 +4134,7 @@ internal static partial class CombatAiContext
         repertoire?.SpellCastingFeature != null && EnemyBattleCastingFeatures.Contains(repertoire.SpellCastingFeature);
 
     private static IEnumerable<SpellDefinition> GetEnemyBattleActionCantrips(RulesetCharacter actor) =>
-        actor.SpellRepertoires.SelectMany(repertoire => repertoire.EnumerateReadyCantrips())
+        GetEnemyBattleOrdinarySpellRepertoires(actor).SelectMany(repertoire => repertoire.EnumerateReadyCantrips())
             .Where(spell => spell.ActivationTime == ActivationTime.Action).Distinct();
 
     private static bool IsEnemyBattleAiCantripEffect(EffectDescription effect) =>
@@ -4039,11 +4153,19 @@ internal static partial class CombatAiContext
         }
         var nativeCasting = new HashSet<FeatureDefinitionCastSpell>(GetEnemyBattleNativeFeatures(monster)
             .OfType<FeatureDefinitionCastSpell>());
-        return actor.SpellRepertoires.Where(repertoire => repertoire?.SpellCastingFeature != null &&
+        return GetEnemyBattleOrdinarySpellRepertoires(actor).Where(repertoire => repertoire?.SpellCastingFeature != null &&
                 nativeCasting.Contains(repertoire.SpellCastingFeature) &&
                 !SpellSlotCastingLimit2024Context.IsFreeUseRepertoire(repertoire))
             .OrderBy(repertoire => repertoire.SpellCastingFeature.Name, StringComparer.Ordinal);
     }
+
+    private static bool HasEnemyBattleSpellFlightSource(RulesetCharacter actor) =>
+        actor is RulesetCharacterMonster monster &&
+        // Current MoveModes also contains temporary flight, including this
+        // capability's own spell. Only intrinsic flight makes the grant redundant.
+        !monster.MonsterDefinition.Features.SelectMany(GetEnemyBattleNestedFeatures)
+            .OfType<FeatureDefinitionMoveMode>().Any(feature => feature.MoveMode == MoveMode.Fly) &&
+        GetEnemyBattleNativeSpellRepertoires(actor).Any(repertoire => HasEnemyBattleSpellSlotCapacity(repertoire, 3));
 
     private static bool HasEnemyBattleSpellSlotCapacity(RulesetSpellRepertoire repertoire, int minimumLevel)
     {
@@ -4060,27 +4182,28 @@ internal static partial class CombatAiContext
 
     private static void RefreshEnemyBattleSpellGrants(RulesetCharacter actor)
     {
+        var repertoires = GetEnemyBattleOrdinarySpellRepertoires(actor);
         foreach (var grant in EnemyBattleFreeCasting)
         {
             var freeEntry = EnemyBattleAffixes[grant.Key];
-            var own = actor.SpellRepertoires.Where(rep => rep.SpellCastingFeature == grant.Value).ToArray();
+            var own = repertoires.Where(rep => rep.SpellCastingFeature == grant.Value).ToArray();
             if (!Main.Settings.EnableEnemyBattleTactics || FindEnemyBattleCondition(actor, freeEntry.Condition) == null)
             {
                 foreach (var repertoire in own)
                 {
-                    actor.SpellRepertoires.Remove(repertoire);
+                    repertoires.Remove(repertoire);
                 }
                 continue;
             }
             var source = (grant.Key == EnemyBattleAffix.RadiantBolt ? GetEnemyBattleRadiantRepertoire(actor) : null) ??
-                actor.SpellRepertoires.Where(rep => rep.SpellCastingFeature != null && !IsEnemyBattleGrantedSpellRepertoire(rep))
+                repertoires.Where(rep => rep.SpellCastingFeature != null && !IsEnemyBattleGrantedSpellRepertoire(rep))
                 .OrderByDescending(rep => rep.SaveDC).ThenBy(rep => rep.SpellCastingFeature.Name, StringComparer.Ordinal)
                 .FirstOrDefault();
             var repertoireToKeep = own.FirstOrDefault();
             var changed = repertoireToKeep == null || own.Length > 1;
             foreach (var duplicate in own.Skip(1))
             {
-                actor.SpellRepertoires.Remove(duplicate);
+                repertoires.Remove(duplicate);
             }
             if (repertoireToKeep == null)
             {
@@ -4089,7 +4212,7 @@ internal static partial class CombatAiContext
                     spellCastingFeature = grant.Value, CharacterInventory = actor.CharacterInventory,
                     CharacterName = actor.Name, spellCastingMonster = (actor as RulesetCharacterMonster)?.MonsterDefinition
                 };
-                actor.SpellRepertoires.Add(repertoireToKeep);
+                repertoires.Add(repertoireToKeep);
             }
             var level = EnemyBattleFreeSpells[grant.Key].SpellLevel;
             var innateAbility = grant.Key == EnemyBattleAffix.RadiantBolt
@@ -4122,7 +4245,7 @@ internal static partial class CombatAiContext
                 changed = true;
             }
             var capacity = GetEnemyBattleCapabilityMetadata(grant.Key).MaxCharges;
-            var used = PowerProvider.Get(freeEntry.Power, actor).RemainingUses > 0 ? 0 : capacity;
+            var used = GetEnemyBattleUsablePower(freeEntry.Power, actor).RemainingUses > 0 ? 0 : capacity;
             if (repertoireToKeep.spellsSlotCapacities.Count != 1 ||
                 !repertoireToKeep.spellsSlotCapacities.TryGetValue(level, out var oldCapacity) || oldCapacity != capacity ||
                 repertoireToKeep.usedSpellsSlots.Count != 1 ||
@@ -4146,7 +4269,7 @@ internal static partial class CombatAiContext
         }
         var hasGrant = Main.Settings.EnableEnemyBattleTactics && FindEnemyBattleCondition(actor, entry.Condition) != null;
         var nativeRepertoires = new HashSet<RulesetSpellRepertoire>(GetEnemyBattleNativeSpellRepertoires(actor));
-        foreach (var repertoire in actor.SpellRepertoires)
+        foreach (var repertoire in GetEnemyBattleOrdinarySpellRepertoires(actor))
         {
             var tag = entry.Power.Name;
             var shouldGrant = hasGrant && nativeRepertoires.Contains(repertoire) &&
@@ -4303,7 +4426,7 @@ internal static partial class CombatAiContext
         public void OnSpellCastCommitted(CharacterActionMagicEffect action, RulesetEffectSpell spell)
         {
             var character = action.ActingCharacter.RulesetCharacter;
-            character.UsePower(PowerProvider.Get(power, character));
+            character.UsePower(GetEnemyBattleUsablePower(power, character));
             character.LogCharacterUsedFeature(power);
         }
     }
@@ -4435,7 +4558,7 @@ internal static partial class CombatAiContext
         parameters.SpellRepertoire = repertoire;
         parameters.StringParameter = spell.Name;
         parameters.IntParameter = spell.SpellLevel;
-        parameters.UsablePower = PowerProvider.Get(power, character);
+        parameters.UsablePower = GetEnemyBattleUsablePower(power, character);
         parameters.RulesetEffect = implementation.InstantiateEffectSpell(character, repertoire, spell, spell.SpellLevel, false);
         SpellCastingResourceContext.ApplySelection(parameters,
             new SpellCastingResourceContext.ResourceOption(repertoire, spell, spell.SpellLevel,
@@ -4484,7 +4607,7 @@ internal static partial class CombatAiContext
             {
                 return false;
             }
-            usablePower = PowerProvider.Get(choice, actor.RulesetCharacter);
+            usablePower = GetEnemyBattleUsablePower(choice, actor.RulesetCharacter);
         }
         var actionParams = new CharacterActionParams(actor, Id.PowerBonus)
         {
@@ -5305,7 +5428,7 @@ internal static partial class CombatAiContext
                     continue;
                 }
                 var sources = kind == EnemyBattleAffix.PredatoryLunge
-                    ? character.AttackModes.Where(mode => mode.ActionType == ActionType.Main && !mode.Ranged && !IsEnemyBattleWeaponAttack(mode))
+                    ? GetEnemyBattleOrdinaryAttackModes(character).Where(mode => mode.ActionType == ActionType.Main && !mode.Ranged && !IsEnemyBattleWeaponAttack(mode))
                     : new[] { kind is EnemyBattleAffix.ViscousSnare or EnemyBattleAffix.PiercingJab ?
                         GetEnemyBattleNativeMeleeDamageMode(character, GetEnemyBattleDamageType(kind)) :
                         GetEnemyBattleRangedSource(character, kind)?.AttackMode };
@@ -5624,7 +5747,7 @@ internal static partial class CombatAiContext
 
             if (!allies.Any(ally => IsEnemyBattleMeleeThreatAt(ally, foe, ally.LocationPosition, battleService) &&
                     !battleService.IsWithinXCells(foe, position, ally, ally.LocationPosition,
-                        foe.RulesetCharacter.AttackModes.Where(IsMeleeAttackModeForAi)
+                        GetEnemyBattleOrdinaryAttackModes(foe.RulesetCharacter).Where(IsMeleeAttackModeForAi)
                             .Select(mode => mode.ReachRange).DefaultIfEmpty(1).Max())))
             {
                 continue;
@@ -5646,7 +5769,7 @@ internal static partial class CombatAiContext
         }
 
         // A foe's already-spent main action does not remove its reach or next-turn threat.
-        foreach (var mode in enemy.RulesetCharacter.AttackModes)
+        foreach (var mode in GetEnemyBattleOrdinaryAttackModes(enemy.RulesetCharacter))
         {
             if (mode == null || !IsMeleeAttackModeForAi(mode) ||
                 !battleService.IsWithinXCells(enemy, enemy.LocationPosition, actor, position, mode.ReachRange))
@@ -5970,7 +6093,7 @@ internal static partial class CombatAiContext
         }
         return kind == EnemyBattleAffix.Dread
             ? !target.RulesetCharacter.HasConditionOfTypeOrSubType(ConditionFrightened) &&
-              (!forAi || target.RulesetCharacter.AttackModes.Any(mode => mode.ActionType == ActionType.Main) ||
+              (!forAi || GetEnemyBattleOrdinaryAttackModes(target.RulesetCharacter).Any(mode => mode.ActionType == ActionType.Main) ||
                GetEnemyBattleKnownSpells(target.RulesetCharacter).Any(spell => spell.EffectDescription.HasDamageForm()))
             : kind == EnemyBattleAffix.ArcaneHindrance && target.RulesetCharacter.ConcentratedSpell != null &&
               !target.RulesetCharacter.FeaturesByType<ISpellCastingAffinityProvider>().Any(affinity =>
@@ -6035,7 +6158,10 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        foreach (var mode in actor.RulesetCharacter.AttackModes.Where(mode => mode.ActionType == ActionType.Main && (!meleeOnly || !IsRangedAttackMode(mode)) &&
+        var attackModes = requireAvailableAttack
+            ? actor.RulesetCharacter.AttackModes
+            : GetEnemyBattleOrdinaryAttackModes(actor.RulesetCharacter);
+        foreach (var mode in attackModes.Where(mode => mode.ActionType == ActionType.Main && (!meleeOnly || !IsRangedAttackMode(mode)) &&
                      (!weaponOnly || IsEnemyBattleWeaponAttack(mode)) &&
                      (!requireAvailableAttack ||
                       IsAttackModeAvailableForMainAction(actor, mode, out _) &&
@@ -6146,7 +6272,7 @@ internal static partial class CombatAiContext
     private static bool IsEnemyBattleMovementHindranceUseful(GameLocationCharacter target)
     {
         return target?.RulesetCharacter is { IsIncapacitated: false, IsDeadOrDyingOrUnconscious: false } actor &&
-               target.CanDecideToMoveByItself && actor.MoveModes.Values.Any(speed => speed > 0) &&
+               target.CanDecideToMoveByItself && GetEnemyBattleOrdinaryMoveModes(actor).Values.Any(speed => speed > 0) &&
                !actor.IsImmuneToCondition(ConditionDefinitions.ConditionSlowed.Name, 0, out _) &&
                !actor.FeaturesByType<FeatureDefinitionMovementAffinity>().Any(affinity =>
                    affinity.BaseSpeedMultiplicativeModifier < 1) &&
@@ -6161,7 +6287,7 @@ internal static partial class CombatAiContext
         {
             return false;
         }
-        foreach (var mode in attacker.RulesetCharacter.AttackModes.Where(mode => mode.ActionType == ActionType.Main))
+        foreach (var mode in GetEnemyBattleOrdinaryAttackModes(attacker.RulesetCharacter).Where(mode => mode.ActionType == ActionType.Main))
         {
             if (TryGetPhysicalAttackModifierFromPosition(attacker, attacker.LocationPosition, defender,
                     defender.LocationPosition, mode, battleService, out var modifier) && (affinityCondition == null
@@ -6715,8 +6841,7 @@ internal static partial class CombatAiContext
             Name = "EnemyBattleReachIntercept";
             AccountAoOImmunity = true;
             ValidateAttacker = actor => CanUseEnemyBattlePower(GameLocationCharacter.GetFromActor(actor), EnemyBattleAffix.ReachIntercept, out _);
-            WeaponValidator = (mode, _, _) => mode is { ActionType: ActionType.Main, Ranged: false, Thrown: false } &&
-                !TryGetEnemyBattleNativeAttackKind(mode, out _);
+            WeaponValidator = (mode, _, _) => IsEnemyBattleNativeMeleeAttack(mode);
         }
 
         public bool IsAllowed(RulesetCharacter actor, RulesetSpellRepertoire repertoire, SpellDefinition spell,
@@ -6843,7 +6968,7 @@ internal static partial class CombatAiContext
                     }
                 }, validateChoice: IsChoiceValid)
             {
-                Resource = new ReactionResourcePowerPool(_power, _power.GuiPresentation.SpriteReference)
+                Resource = new ReactionResourcePowerPool(_power)
             };
         }
     }
@@ -7058,7 +7183,7 @@ internal static partial class CombatAiContext
             yield return helper.MyReactToDoNothing(ExtraActionId.DoNothingReaction, attacker,
                 "EnemyBattleCoordinatedAdvance", Gui.Localize(power.GuiPresentation.Description),
                 reactionValidated: () => context.CommanderAccepted = true, battleManager: battleManager,
-                resource: new ReactionResourcePowerPool(power, power.GuiPresentation.SpriteReference),
+                resource: new ReactionResourcePowerPool(power),
                 target: defender, effectDefinition: power, reactionStillValid: CanCommand);
             if (!context.CommanderAccepted || !IsCurrentEnemyBattleCoordinatedCommand(context))
             {
@@ -7611,7 +7736,7 @@ internal static partial class CombatAiContext
                 yield return attacker.MyReactToDoNothing(ExtraActionId.DoNothingFree, attacker,
                     $"EnemyBattle{kind}", FormatEnemyBattleDescription(kind, attacker.RulesetCharacter),
                     ReactionValidated, battleManager: battleManager,
-                    resource: new ReactionResourcePowerPool(power, power.GuiPresentation.SpriteReference),
+                    resource: new ReactionResourcePowerPool(power),
                     target: defender, effectDefinition: power);
             }
             yield break;
@@ -7873,7 +7998,7 @@ internal static partial class CombatAiContext
                     Kind == EnemyBattleAffix.ArcaneWard && !helper.RulesetCharacter.AreSpellComponentsValid(Shield) ||
                     Kind == EnemyBattleAffix.Parry &&
                     (attackMode == null || attackMode.Ranged || effect != null ||
-                     !helper.RulesetCharacter.AttackModes.Any(mode => !mode.Ranged &&
+                     !GetEnemyBattleOrdinaryAttackModes(helper.RulesetCharacter).Any(mode => !mode.Ranged &&
                          IsEnemyBattleWeaponAttack(mode))))
                 {
                     yield break;
@@ -7959,7 +8084,7 @@ internal static partial class CombatAiContext
                     attacker, attacker, reactionMode, modifier, "EnemyBattleReprisal",
                     reactionValidated: () => defender.RulesetCharacter.UsePower(usablePower),
                     battleManager: battleManager,
-                    resource: new ReactionResourcePowerPool(power, power.GuiPresentation.SpriteReference));
+                    resource: new ReactionResourcePowerPool(power));
             }
             finally
             {

@@ -131,23 +131,23 @@ ModUi/&EnableAdditionalItemsInDungeonMaker=Ajouter des éléments modifiés à l
 ModUi/&EnableAllyMovementAllowsFlight=Autoriser les fonctionnalités qui déplacent soi-même ou ses alliés à inclure des positions dans les airs si cette créature vole (par exemple, <color=#D89555>Frappe manœuvrière</color>, <color=#D89555>Pont instinctif</color>)
 ModUi/&EnableTeleportAllowsMidAirPositions=Autoriser les sorts et pouvoirs de téléportation à destination libre à cibler des espaces aériens visibles et inoccupés
 ModUi/&EnableAlternateHuman=Activer l'<color=#D89555>Humain</color> alternatif <i><color=#F0DAA0>[+1 don / +2 choix d'attributs / +1 compétence]</color></i>
-ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
+ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Les augmentations de caractéristiques d'historique sont activées. Les humains reçoivent donc automatiquement le don et la compétence de la variante humaine à la place de leurs augmentations de caractéristiques raciales.</color></i>
 ModUi/&EnableAlternateVotingSystem=Activer un système de vote alternatif <i><color=#F0DAA0>[poids du choix = somme des modificateurs de Charisme des héros qui votent pour ce choix]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=Activer l'implémentation d'Abjurer <color=#D89555>Arcane Ward</color> pour qu'elle se comporte comme BG3
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[Diminue de 1 à chaque fois qu'il prévient les dégâts, au lieu de diminuer en fonction des dégâts prévenus. Pas besoin de lancer le sort d'abjuration pour être actif\nmais la valeur maximale est 2x niveau de sorcier au lieu de 2x niveau de sorcier + mod INT et ne se recharge qu'à moitié lors d'un repos long]</color></i>
 ModUi/&EnableBarbarianBrutalStrike2024=Activez <color=#D89555>Frappe brutale</color> et <color=#D89555>Amélioration de la frappe brutale</color> pour remplacer <color=#D89555>Critique brutale</color> aux niveaux 9, 13 et 17
 ModUi/&EnableBarbarianFightingStyle=Activer le choix du <color=#D89555>Style de combat</color> au niveau 2
 ModUi/&EnableBarbarianInstinctivePounce2024=Activez <color=#D89555>Pounce instinctif</color> au niveau 7
-ModUi/&EnableBarbarianPersistentRage2024=Échangez <color=#D89555>Persistent Rage</color> avec la version 5e 2024
+ModUi/&EnableBarbarianPersistentRage2024=Échangez <color=#D89555>Rage persistante</color> avec la version 5e 2024
 ModUi/&EnableBarbarianPrimalKnowledge2024=Activer la <color=#D89555>connaissance primordiale</color> au niveau 3
 ModUi/&EnableBarbarianRage2024=Échangez <color=#D89555>Rage</color> avec la version 5e 2024 <i><color=#F0DAA0>[récupérez une utilisation sur un repos court]</color></i>
 ModUi/&EnableBarbarianReckless2024=Remplacez <color=#D89555>Attaque imprudente</color> par la version 5e 2024 <i><color=#F0DAA0>[le buff et le debuff se terminent au début du prochain tour]</color></i>
 ModUi/&EnableBarbarianRelentlessRage2024=Remplacez <color=#D89555>Rage implacable</color> par la version 5e 2024 <i><color=#F0DAA0>[vos points de vie sont fixés à 2x votre niveau de classe au lieu de 1]</color></i>
 ModUi/&EnableBardCounterCharm2024=Activez <color=#D89555>Contre-charme</color> au niveau 7 en tant que réaction au lieu du niveau 6 en tant qu'action
 ModUi/&EnableBardExpertiseOneLevelBefore2024=Activer l'<color=#D89555>Expertise</color> aux niveaux 2 et 9 au lieu de 3 et 10
-ModUi/&EnableBardHealingBalladOnLongRest=Activez <b>College of Hope</b> <color=#D89555>Healing Ballad</color> en mode repos prolongé
+ModUi/&EnableBardHealingBalladOnLongRest=Activez <b>Collège de l'espoir</b> <color=#D89555>Ballade guérisseuse</color> en mode repos prolongé
 ModUi/&EnableDivineHeartTabletopFeatures=Activer les pouvoirs tabletop de <b>Divine Soul</b>
-ModUi/&EnableDivineHeartTabletopFeaturesHelp=Remplace le premier pouvoir de Divine Heart par Favored by the Gods et celui de niveau 14 par Otherworldly Wings.
+ModUi/&EnableDivineHeartTabletopFeaturesHelp=Remplace le premier trait d’Âme divine par Faveur des dieux et le trait de niveau 14 par Ailes surnaturelles.
 ModUi/&EnableBardMagicalSecrets2024=Échangez <color=#D89555>Secrets magiques</color> avec la version 5e 2024
 ModUi/&EnableBardSuperiorInspiration2024=Activez <color=#D89555>Inspiration supérieure</color> au niveau 18 au lieu de 20 et accordez également deux recharges au lieu d'une
 ModUi/&EnableBardWordsOfCreation2024=Activer les <color=#D89555>Paroles de création</color> au niveau 20
@@ -170,7 +170,7 @@ ModUi/&EnableDruidPrimalOrder2024=Activez <color=#D89555>Ordre primordial</color
 ModUi/&EnableDruidToLearnCircleAtLevel3=Activer <color=#D89555>Cercle</color> au niveau 3 au lieu de 2
 ModUi/&EnableDruidWeaponProficiency2024=Activer la maîtrise des <color=#D89555>armes simples</color> <i><color=#F0DAA0>[au lieu des types d'armes individuels, mais vous perdez la maîtrise du cimeterre]</color></i>
 ModUi/&EnableDruidWildResurgence2024=Activer <color=#D89555>Wild Resurgence</color> au niveau 5
-ModUi/&EnableDruidWildshape2024=Échangez <color=#D89555>Wild Shape</color> avec la version 2024 <i><color=#F0DAA0>[action bonus, utilisations différentes et points de vie temporaires]</color></i>
+ModUi/&EnableDruidWildshape2024=Échangez <color=#D89555>Forme sauvage</color> avec la version 2024 <i><color=#F0DAA0>[action bonus, utilisations différentes et points de vie temporaires]</color></i>
 ModUi/&EnableDungeonMakerModdedContent=Activer Dungeon Maker Pro\n<i><color=#F0DAA0>[inclure des salles plates, des tailles de donjon 150x150 et 200x200 et aucun fioriture mélangeant des ressources de tous les environnements]</color></i>
 ModUi/&EnableElevationCameraToStayAtPosition=<i>+ Activez la caméra d'élévation pendant la bataille pour rester en position après avoir été désactivée et tripler sa portée</i>
 ModUi/&EnableEpicPointsAndArray=Activer un système d'achat épique de 35 points et un tableau <i><color=#F0DAA0>[17,15,13,12,10,8]</color></i> <b><i><color=#C04040E0>[Nécessite un redémarrage]</color></i></b>
@@ -203,7 +203,7 @@ ModUi/&EnableMonkAbundantKi=Activez <color=#D89555>Ki abondant</color> au niveau
 ModUi/&EnableMonkBodyAndMind2024=Activez <color=#D89555>Corps et esprit</color> pour remplacer <color=#D89555>Soi parfait</color> au niveau 20
 ModUi/&EnableMonkDeflectAttacks2024=Activez <color=#D89555>Dévier les attaques</color> et <color=#D89555>Dévier l'énergie</color> pour remplacer <color=#D89555>Dévier les missiles</color> et <color=#D89555>Langue du soleil et de la lune</color> aux niveaux 3 et 13\n<i><color=#F0DAA0>[peut également dévier les attaques de mêlée au niveau 3 et tout type de dégâts au niveau 13]</color></i>
 ModUi/&EnableMonkFightingStyle=Activer le choix du <color=#D89555>Style de combat</color> au niveau 2
-ModUi/&EnableMonkFocus2024=Remplacez <color=#D89555>Flurry of Blows</color>, <color=#D89555>Patient Defense</color> et <color=#D89555>Step of the Wind</color> avec la version 5e 2024 <i><color=#F0DAA0>[à volonté, points de ki pour des effets supplémentaires]</color></i>
+ModUi/&EnableMonkFocus2024=Remplacez <color=#D89555>Déluge de coups</color>, <color=#D89555>Défense patiente</color> et <color=#D89555>Pas du vent</color> avec la version 5e 2024 <i><color=#F0DAA0>[à volonté, points de ki pour des effets supplémentaires]</color></i>
 ModUi/&EnableMonkHandwrapsOnGauntletSlot=Activer les <color=#D89555>bandages</color> et les <color=#D89555>gantelets</color> pour fonctionner dans l'emplacement du gantelet
 ModUi/&EnableMonkHeightenedFocus2024=Activez <color=#D89555>Concentration renforcée</color> et <color=#D89555>Concentration parfaite</color> pour remplacer <color=#D89555>Pureté du corps</color> et <color=#D89555>Corps intemporel</color> aux niveaux 10 et 15\n<i><color=#F0DAA0>[<b>Rafale de coups</b>, <b>Défense patiente</b> et <b>Pas du vent</b> gagnent des effets supplémentaires au niveau 10, et récupèrent des points de Ki au niveau 15]</color></i>
 ModUi/&EnableMonkImprovedUnarmoredMovement=Activez <color=#D89555>Mouvement sans armure amélioré</color> pour vous déplacer le long des surfaces verticales sans tomber
@@ -232,15 +232,15 @@ ModUi/&EnableOneDndStoneSkinSpell=Activer la version 2024 de <color=#D89555>{0}<
 ModUi/&EnableOneDndTrueStrikeCantrip=Activer la version 2024 de <color=#D89555>{0}</color> <b><i><color=#C04040E0>[Nécessite un redémarrage]</color></i></b>\n<i><color=#F0DAA0>[L'attaque utilise votre capacité de lancement de sorts pour le jet d'attaque et le bonus de dégâts, ainsi que des dégâts radiants supplémentaires à partir du niveau 5]</color></i>
 ModUi/&EnableOneDndWitchBoltSpell=Activer la version 2024 de <color=#D89555>{0}</color> <i><color=#F0DAA0>[Action bonus pour réappliquer les dégâts]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=Activer les lignes de vue vers les ennemis visibles lorsque vous ciblez hors combat
-ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
-ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
+ModUi/&EnableCeilingAwareTargetPerception=Améliorer la perception des cibles en vol près du plafond
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Vérifie à nouveau la ligne de vue depuis un point légèrement plus bas lorsque la vue vers le bas depuis la hauteur du plafond semble bloquée par son bord. Les murs, les abris, l'obscurité, l'invisibilité et la portée restent pris en compte.</i>
 ModUi/&EnablePaladinAbjureFoes2024=Activez <color=#D89555>Abjurer les ennemis</color> au niveau 9
 ModUi/&EnablePaladinAnyFightingStyle2024=Permettre au <color=#D89555>Paladin</color> de choisir n'importe quel style de combat <i><color=#F0DAA0>[ajoute Tir à l'arc et Combat à deux armes]</color></i>
 ModUi/&EnablePaladinChannelDivinity2024=Échangez <color=#D89555>Channel Divinity</color> avec la version 5e 2024 <i><color=#F0DAA0>[différentes utilisations]</color></i>
 ModUi/&EnablePaladinLayOnHands2024=Échangez <color=#D89555>Imposition des mains</color> avec la version 5e 2024 <i><color=#F0DAA0>[action bonus]</color></i>
 ModUi/&EnablePaladinRestoreLevel20Feature=Activez les pouvoirs de sous-classe de <color=#D89555>niveau 20</color> pour qu'ils se rechargent avec un emplacement de niveau 5
 ModUi/&EnablePaladinRestoringTouch2024=Activez <color=#D89555>Restauration du toucher</color> pour remplacer <color=#D89555>Nettoyage du toucher</color> au niveau 14
-ModUi/&EnablePaladinSmite2024=Échanger <color=#D89555>Divine Smite</color> avec la version 5e 2024 <i><color=#F0DAA0>[action bonus]</color></i>
+ModUi/&EnablePaladinSmite2024=Utiliser la version de 5e 2024 de <color=#D89555>Châtiment divin</color> <i><color=#F0DAA0>[sort en action bonus déclenché quand une attaque touche]</color></i>
 ModUi/&EnablePaladinSpellCastingAtLevel1=Activer <color=#D89555>l'incantation</color> au niveau 1 au lieu de 2
 ModUi/&EnableFastLocationLoads=Accélérer le chargement
 ModUi/&EnableFastLocationLoadsHelp=Lorsque le jeu est au premier plan, le chargement des ressources est prioritaire et la limite de FPS du jeu ainsi que la synchronisation verticale sont temporairement désactivées. Les paramètres précédents sont rétablis à la fin du chargement. Cela peut réduire le temps de chargement lorsque les FPS sont limités.
@@ -262,20 +262,20 @@ ModUi/&EnableRangerExpertise2024=Activer <color=#D89555>Expertise</color> au niv
 ModUi/&EnableRangerFavoredEnemy2024=Échangez <color=#D89555>Favored Enemy</color> et <color=#D89555>Favored Terrain</color> avec la version <color=#D89555>Favored Enemy</color> 5e 2024
 ModUi/&EnableRangerFeralSenses2024=Échangez <color=#D89555>Sens sauvages</color> avec la version 5e 2024 <i><color=#F0DAA0>[obtenez une vision aveugle de 30 pieds]</color></i>
 ModUi/&EnableRangerFoeSlayers2024=Remplacez <color=#D89555>Foe Slayer</color> par la version 5e 2024 <i><color=#F0DAA0>[augmentez le dé de marque du chasseur à d10]</color></i>
-ModUi/&EnableRangerNatureShroud2024=Activez la fonction <color=#D89555>Voile de la nature</color> au niveau 14 <i><color=#F0DAA0>[en tant qu'action bonus, vous pouvez devenir invisible par magie jusqu'au début du prochain tour]</color></i>
+ModUi/&EnableRangerNatureShroud2024=Activer <color=#D89555>Le voile de la nature</color> pour remplacer <color=#D89555>Disparition</color> au niveau 14 <i><color=#F0DAA0>[en action bonus, vous pouvez devenir magiquement invisible jusqu'au début de votre prochain tour]</color></i>
 ModUi/&EnableRangerPreciseHunter2024=Activer <color=#D89555>Chasseur précis</color> au niveau 17 <i><color=#F0DAA0>[avantage contre les créatures marquées par Chasseur]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024=Activer <color=#D89555>Chasseur implacable</color> au niveau 13 <i><color=#F0DAA0>[les dégâts ne brisent pas la concentration sur la marque du chasseur]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ Supprimez plutôt les exigences de concentration de la marque du chasseur</i>
 ModUi/&EnableRangerRoving2024=Activez <color=#D89555>Roving</color> au niveau 6 <i><color=#F0DAA0>[obtenez un mouvement de 10 pieds lorsque vous n'utilisez pas d'armure lourde et la même vitesse de montée]</color></i>
 ModUi/&EnableRangerSpellCastingAtLevel1=Activer le <color=#D89555>lancement de sorts</color> au niveau 1 au lieu de 2
-ModUi/&EnableRangerTireless2024=Activez <color=#D89555>Tireless</color> pour remplacer <color=#D89555>Hide in Plain Sight</color> au niveau 10 <i><color=#F0DAA0>[obtenir des points de vie temporaires]</color></i>
+ModUi/&EnableRangerTireless2024=Activez <color=#D89555>Infatigable</color> pour remplacer <color=#D89555>Camouflage naturel</color> au niveau 10 <i><color=#F0DAA0>[obtenir des points de vie temporaires]</color></i>
 ModUi/&EnableRelearnSpells=Activer la sélection de sorts ou de sorts déjà appris à partir d'autres sources
 ModUi/&EnableRespecAction=Activer l'action <color=#D89555>RESPEC</color> après le repos <i><color=#F0DAA0>[ne pas utiliser RESPEC pendant une session multijoueur]</color></i>
 ModUi/&EnableRitualOnAllCasters2024=Activer le lancement de <color=#D89555>rituel</color> sur tous les lanceurs de sorts
 ModUi/&EnableOneSpellSlotPerTurn2024=Applique la règle de 2024 qui ne permet de dépenser qu'un seul emplacement de sort pour lancer un sort à chaque tour <i><color=#F0DAA0>[les sorts mineurs et les sorts lancés sans emplacement ne sont pas concernés]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Activer la version 2024 de <color=#D89555>{0}</color> <i><color=#F0DAA0>[sauvegarde de Constitution ; en cas d'échec, l'incantation est interrompue sans dépenser l'emplacement du sort ciblé]</color></i>
 ModUi/&Counterspell2024CompatibilityDescription=<i><color=#F0DAA0>[Active aussi Briseur de sorts pour les Abjurateurs de niveau 10. La Maîtrise du contresort du Mage de cour désavantage les jets de sauvegarde des cibles de votre Contresort et vous avantage aux jets de sauvegarde contre Contresort.]</color></i>
-ModUi/&EnableRogueCunningStrike2024=Activez <color=#D89555>Cunning Strike</color>, <color=#D89555>Improved Cunning Strike</color> et <color=#D89555>Devious Strike</color> aux niveaux 5, 11 et 14 <i><color=#F0DAA0>[vous renoncez à des dés d'attaque sournoise pour obtenir des effets supplémentaires en cas de coup au but]</color></i>
+ModUi/&EnableRogueCunningStrike2024=Activez <color=#D89555>Frappe rusée</color>, <color=#D89555>Frappe rusée améliorée</color> et <color=#D89555>Frappe sournoise</color> aux niveaux 5, 11 et 14 <i><color=#F0DAA0>[vous renoncez à des dés d'attaque sournoise pour obtenir des effets supplémentaires en cas de coup au but]</color></i>
 ModUi/&EnableRogueFightingStyle=Activer le choix du <color=#D89555>Style de combat</color> au niveau 2
 ModUi/&EnableRogueReliableTalent2024=Activer le <color=#D89555>talent fiable</color> au niveau 7 au lieu de 11
 ModUi/&EnableRogueSlipperyMind2024=Échangez <color=#D89555>Slippery Mind</color> avec la version 5e 2024 <i><color=#F0DAA0>[vous obtenez également la maîtrise des jets de sauvegarde de charisme en plus de la sagesse]</color></i>
@@ -283,7 +283,7 @@ ModUi/&EnableRogueSteadyAim2024=Activez la <color=#D89555>Visez fermement</color
 ModUi/&EnableRogueStrSaving=Activer les modificateurs DEX ou STR de <b>Hoodlum</b> sur <color=#D89555>Cunning/Devious Strike</color>
 ModUi/&EnableScimitarSpecialization=Grant Scimitar <color=#D89555>Spécialisation en arme</color>
 ModUi/&EnableSignatureSpellsRelearn=Activer les <color=#D89555>sorts signatures</color> pour qu'ils soient préparés à chaque repos long <i><color=#F0DAA0>[au lieu d'une fois au niveau 20]</color></i>
-ModUi/&EnableSmiteSpells2024=Échangez des sorts Smite avec la version 5e 2024 <i> <color=#f0daa0> [Déclencher sur le coup et ne nécessite pas de concentration] </color> </i>
+ModUi/&EnableSmiteSpells2024=Utiliser les versions de 5e 2024 des sorts de châtiment <i><color=#f0daa0>[se déclenchent quand une attaque touche et ne nécessitent pas de concentration]</color></i>
 ModUi/&EnableSorcererArcaneApotheosis2024=Activez <color=#D89555>Apothéose arcanique</color> pour remplacer <color=#D89555>Restauration magique</color> au niveau 20
 ModUi/&EnableSorcererDraconicBloodlineAC2024=Activer la version 2024 de la <color=#D89555>Résilience draconique</color> à partir de la <color=#D89555>Lignée draconique</color> <i><color=#F0DAA0>[10+DEX+CHA au lieu de 13+DEX]</color></i>
 ModUi/&EnableSorcererDraconicBloodlineElementalAffinity2024=Choisissez l'ascendance draconique de la <color=#D89555>Lignée draconique</color> au niveau 6 d'ensorceleur
@@ -481,7 +481,7 @@ ModUi/&ScaleMerchantPricesCorrectly=Échelle des prix marchands correctement / e
 ModUi/&SelectAll=Sélectionner tout
 ModUi/&SelectDisplayed=Sélectionner Affiché
 ModUi/&SelectSuggested=Sélectionnez Suggéré
-ModUi/&SelectTabletop=Sélectionnez Tabletop
+ModUi/&SelectTabletop=Choisir le contenu sur table
 ModUi/&SenseNormalVisionRangeMultiplier=Modifier la portée de <color=#D89555>vision normale</color> <i><color=#F0DAA0>[uniquement dans les batailles]</color></i>
 ModUi/&Services=Services
 ModUi/&SetBeltOfDwarvenKindBeardChances=<color=#D89555>Ceinture de Nain</color> <color=white>chances d'apparition de la barbe</color>
@@ -516,7 +516,7 @@ ModUi/&StealthBreaksWhenAttackMisses=Activer la perte de furtivité lorsque l'at
 ModUi/&StealthBreaksWhenCastingMaterial=Activer la perte de furtivité lors du lancement de <color=#D89555>Matériel</color> <i><color=#F0DAA0>[tout sort non offensif avec pour cible TOUS ou ENNEMI]</color></i>
 ModUi/&StealthBreaksWhenCastingSomatic=Activer la perte de furtivité lors du lancement de <color=#D89555>Somatique</color> <i><color=#F0DAA0>[tout sort non offensif avec pour cible TOUS ou ENNEMI]</color></i>
 ModUi/&StealthBreaksWhenCastingVerbose=Activer la perte de furtivité lors du lancement de <color=#D89555>Verbal</color> <i><color=#F0DAA0>[tout sort non offensif avec pour cible TOUS ou ENNEMI]</color></i>
-ModUi/&StealthBreaksWhenMoving=Activer la perte de furtivité lors du déménagement. L'exploit furtif aura un avantage, les ennemis normaux ont un inconvénient <b> <i> <color=#c04040e0> [nécessite un redémarrage] </color> </i> </b>
+ModUi/&StealthBreaksWhenMoving=Perdre la furtivité lors des déplacements. Les personnages possédant le don Furtif ont l'avantage ; les ennemis ordinaires ont le désavantage <b><i><color=#c04040e0>[Redémarrage nécessaire]</color></i></b>
 ModUi/&StealthDoesNotBreakWithSubtle=Activer la furtivité sans lancer de dés si <color=#D89555>Métamagie subtile</color> et aucun composant <b>Matériel</b>
 ModUi/&StealthRollForBreak=Activer le roulement furtif pour la rupture (si la perte de furtivité est activée ci-dessus) <b> <i> <color=#c04040e0> [nécessite un redémarrage] </color> </i> </b>
 ModUi/&StockGorimStoreWithAllNonMagicalClothing=Remplissez la boutique de Gorim avec tous les vêtements non magiques <b><i><color=#C04040E0>[Nécessite un redémarrage]</color></i></b>
@@ -566,7 +566,7 @@ ModUi/&UseElfFaceModelsOnTieflings=Utilisez les modèles de visage <color=#D8955
 ModUi/&UseHeightOneCylinderEffect=Utilisez un effet de cylindre de hauteur 1 lorsque vous lancez <color=#D89555>Tentacules noirs, Enchevêtrement, Graisse</color> <i><color=#F0DAA0>[carré]</color></i> ou <color=#D89555>Croissance en pointes</color> <i><color=#F0DAA0>[rond]</color></i>
 ModUi/&UseMathFlankingRules=<i>+ Utilisez des mathématiques précises pour déterminer le flanquement <color=#F0DAA0>[peut avoir un impact sur les performances sur les machines lentes]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=Activer les règles <color=#D89555>avantage / désavantage</color> <i><color=#F0DAA0>[si les circonstances font qu'un jet a les deux, vous êtes considéré comme n'ayant aucun des deux]</color></i>
-ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Empêcher les réactions après l'utilisation de <color=#D89555>Résistance légendaire</color> <i><color=#F0DAA0>[le jet de sauvegarde devient une réussite définitive]</color></i>
 ModUi/&UseOfficialFlankingRules=Activer les règles de <color=#D89555>flanquement</color> <i><color=#F0DAA0>[un attaquant a l'avantage si un allié est du côté opposé à la cible]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ Activer également pour les attaques à distance <color=#F0DAA0>[désactiver les calculs précis]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ Activer également les attaques de portée <color=#F0DAA0>[désactiver les calculs précis]</color></i>
@@ -578,7 +578,7 @@ ModUi/&UseOfficialObscurementRulesHelp=<i><color=#F0DAA0>[l'attaquant qui perço
 ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=Les <color=#D89555>petites races</color> ont un désavantage lorsqu'elles manient des armes lourdes
 ModUi/&EnableHeavyWeaponAbilityRequirement2024=Activer la règle 2024 des armes lourdes <i><color=#F0DAA0>[FOR 13 au corps à corps, DEX 13 à distance ; sinon désavantage]</color></i>
 ModUi/&UseOldOfficialFlankingRules=<i> + La vieille règle de flanquant était juste +2 pour attaquer le rouleau. Au-dessus de la règle de modificateur Flanking Plus de prendre priorité </i>
-ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Accordez 2 choix de maîtrise des armes à la sous-classe Way of Blade Monk</i>
+ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Accordez 2 choix de maîtrise des armes à la sous-classe La voie de la lame</i>
 ModUi/&WayOfBladeWeaponMasteryRequiresSystemHelp=Activez la Maîtrise des armes dans Gameplay > Règles pour utiliser cette option de sous-classe. Votre choix est conservé lorsque la Maîtrise des armes est désactivée.
 ModUi/&UseWeaponMasterySystem=Activer les règles de <color=#D89555>Maîtrise des armes</color>
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ La maîtrise de Cleave ajoute un modificateur de score d'attribut aux dégâts de la deuxième attaque</i>
@@ -596,14 +596,14 @@ ModUi/&WildSurgeDieRollThreshold=<color=white>Définissez le seuil de chances de
 ModUi/&EnableBackgroundAbilityScoreIncreases=Les augmentations de caractéristiques proviennent de l'historique plutôt que de la race ; les traits des humains sont ajustés en conséquence <i><color=#F0DAA0>(Races flexibles ne s'applique pas tant que cette option est activée)</color></i>
 ModUi/&EnableBackgroundBonusFeats=Remplace les traits d'historique par un don d'origine, deux maîtrises de compétences et une maîtrise d'outil selon les règles de 2024 <i><color=#F0DAA0>(Nécessite les augmentations de caractéristiques d'historique ; Historiques flexibles ne s'applique pas tant que cette option est activée)</color></i>
 ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Activez les augmentations de caractéristiques d'historique pour obtenir des dons d'origine grâce aux historiques.
-ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
-ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
-ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
-ModUi/&EnableTabletopFeatRules2024=Use the independent 2024 tabletop feat catalog
-ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses only the independent 2024 feat catalog. Background feats and Human origin feats resolve to the same catalog]</color></i>
-ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[Lorsque cette option est activée, seuls les dons indépendants de 2024 ci-dessous peuvent être activés ou désactivés. Les réglages des anciens dons sont verrouillés.]</color></i>\nLes choix de dons explicitement accordés par une espèce, un historique ou une autre capacité restent disponibles même si le don est désactivé dans cette liste.
-ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
-ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
+ModUi/&AddOriginFeatsToAutoLearn= + Ajouter les dons d'origine à l'apprentissage automatique
+ModUi/&EnableGeneralFeats2024=Réorganiser les dons généraux selon les règles de 5.5e <i><color=#F0DAA0>[les dons de 2024 sont indépendants]</color></i>
+ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[Les dons de 2024 peuvent être activés séparément ci-dessous. Tant que cette option est activée, les anciens dons entièrement remplacés ne sont pas disponibles.]</color></i>
+ModUi/&EnableTabletopFeatRules2024=Utiliser le catalogue indépendant des dons du jeu sur table de 2024
+ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[Utilise uniquement le catalogue indépendant des dons de 2024. Les dons d'historique et les dons d'origine des humains proviennent du même catalogue]</color></i>
+ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[Lorsque cette option est activée, seuls les dons indépendants de 2024 ci-dessous peuvent être activés ou désactivés. Les réglages des anciens dons sont verrouillés.]</color></i>\nLes choix de dons explicitement accordés par une espèce, un historique ou une autre capacité restent disponibles même si le don est désactivé dans cette liste.\nChoisir le contenu sur table exclut les adaptations compatibles avec 2014 qui ajoutent une augmentation de caractéristique. Vous pouvez toujours les activer individuellement.
+ModUi/&EnableStrictTabletopClassSelection=Limiter les classes et sous-classes à celles du jeu sur table
+ModUi/&EnableStrictTabletopClassSelectionHelp=Seules les classes du jeu sur table et les sous-classes marquées comme telles peuvent être choisies. Tant que cette option est activée, les autres sous-classes sont désactivées et les domaines des clercs ne sont pas limités par leur divinité.
 ModUi/&EnableWizardSpellMastery2024=Activer <color=#D89555>Maîtrise des sorts</color> 2024 <i><color=#F0DAA0>[sorts d'une action ; remplacer un sort après un repos long]</color></i>
 ModUi/&EnableThiefUseMagicDevice2024=Activer <color=#D89555>Utilisation d'objets magiques</color> du Voleur 2024 <i><color=#F0DAA0>[quatre harmonisations, conservation des charges et parchemins avec Intelligence]</color></i>
 ModUi/&EnableBarbarianDangerSense2024=Activer <color=#D89555>Sens du danger</color> 2024 <i><color=#F0DAA0>[avantage aux sauvegardes de Dextérité sauf en état neutralisé]</color></i>
@@ -696,3 +696,6 @@ ModUi/&EnableToolChecks2024=Utiliser les règles de maîtrise de 2024 pour les t
 ModUi/&ToolChecks2024Description=Les tests utilisant des outils de voleur bénéficient de la maîtrise d'Escamotage et des effets propres à cette compétence. Seul le plus élevé des bonus de maîtrise de la compétence ou de l'outil est ajouté, une seule fois ; maîtriser les deux confère l'avantage.
 ModUi/&EnableAssassinInfiltrationExpertise2024=Utiliser l'<color=#D89555>Expertise en infiltration</color> de 2024 pour le Tueur de niveau 9 <i><color=#F0DAA0>[maîtrise ou expertise en Tromperie et déplacement après Visez fermement ; accorde Visez fermement à ces Tueurs même si l'option de classe est désactivée]</color></i>
 Setting/&NoToolRequirementDescription=Les personnages peuvent fabriquer des objets et crocheter les serrures des coffres ou des portes sans outils.
+ModUi/&EnableEpicBoons2024=Activer les dons épiques
+ModUi/&EpicBoons2024Help=Lorsque les dons du jeu sur table de 2024 sont activés, affiche la catégorie Dons épiques et les dons accessibles à partir du niveau de personnage 19.
+ModUi/&EpicBoons2024RequiresTabletopHelp=Activez les dons du jeu sur table de 2024 pour utiliser cette option. Votre choix pour ce réglage est conservé.

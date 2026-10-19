@@ -131,7 +131,7 @@ ModUi/&EnableAdditionalItemsInDungeonMaker=Agregar elementos modificados al edit
 ModUi/&EnableAllyMovementAllowsFlight=Permitir que las características que mueven a uno mismo o a sus aliados incluyan posiciones en el aire si esa criatura está volando (por ejemplo, <color=#D89555>Golpe maniobrable</color>, <color=#D89555>Salto instintivo</color>)
 ModUi/&EnableTeleportAllowsMidAirPositions=Permitir que los hechizos y poderes de teletransporte con destino libre apunten a espacios aéreos visibles y desocupados
 ModUi/&EnableAlternateHuman=Habilitar el <color=#D89555>Humano</color> alternativo <i><color=#F0DAA0>[+1 dote / +2 opciones de atributo / +1 habilidad]</color></i>
-ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
+ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Los aumentos de característica del trasfondo están activados. Por ello, los humanos reciben automáticamente la dote y la habilidad del humano alternativo en lugar de sus aumentos de característica raciales.</color></i>
 ModUi/&EnableAlternateVotingSystem=Habilitar sistema de votación alternativo <i><color=#F0DAA0>[peso de la elección = suma de los modificadores de Carisma de todos los héroes que votan por esa elección]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=Habilitar la implementación de <color=#D89555>Arcane Ward</color> de Abjurer para que se comporte como BG3
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[Disminuye en 1 cada vez que previene daño, en lugar de por el daño prevenido. No es necesario lanzar un hechizo de abjuración para estar activo\npero el valor máximo es 2 veces el nivel de mago en lugar de 2 veces el nivel de mago + mod de INT y solo se recarga a la mitad en un descanso prolongado]</color></i>
@@ -147,7 +147,7 @@ ModUi/&EnableBardCounterCharm2024=Habilitar <color=#D89555>Contraencantamiento</
 ModUi/&EnableBardExpertiseOneLevelBefore2024=Habilitar <color=#D89555>Experiencia</color> en los niveles 2 y 9 en lugar de 3 y 10
 ModUi/&EnableBardHealingBalladOnLongRest=Habilitar <b>College of Hope</b> <color=#D89555>Healing Ballad</color> en descanso largo
 ModUi/&EnableDivineHeartTabletopFeatures=Activar rasgos de mesa de <b>Divine Soul</b>
-ModUi/&EnableDivineHeartTabletopFeaturesHelp=Reemplaza el rasgo inicial de Divine Heart por Favored by the Gods y el rasgo de nivel 14 por Otherworldly Wings.
+ModUi/&EnableDivineHeartTabletopFeaturesHelp=Sustituye el rasgo inicial de Alma divina por Favor de los dioses y el de nivel 14 por Alas sobrenaturales.
 ModUi/&EnableBardMagicalSecrets2024=Intercambio de <color=#D89555>Secretos mágicos</color> con la versión 5e 2024
 ModUi/&EnableBardSuperiorInspiration2024=Habilita <color=#D89555>Inspiración superior</color> en el nivel 18 en lugar de 20 y también otorga dos recargas en lugar de 1.
 ModUi/&EnableBardWordsOfCreation2024=Habilita <color=#D89555>Palabras de creación</color> en el nivel 20
@@ -232,15 +232,15 @@ ModUi/&EnableOneDndStoneSkinSpell=Activar la versión de 2024 de <color=#D89555>
 ModUi/&EnableOneDndTrueStrikeCantrip=Activar la versión de 2024 de <color=#D89555>{0}</color> <b><i><color=#C04040E0>[Requiere reinicio]</color></i></b>\n<i><color=#F0DAA0>[el ataque usa tu capacidad de lanzamiento de conjuros para la tirada de ataque y la bonificación de daño, y daño radiante adicional a partir del nivel 5]</color></i>
 ModUi/&EnableOneDndWitchBoltSpell=Activar la versión de 2024 de <color=#D89555>{0}</color> <i><color=#F0DAA0>[Acción adicional para volver a aplicar daño]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=Habilite líneas de visión hacia enemigos visibles cuando apunte fuera de combate.
-ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
-ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
+ModUi/&EnableCeilingAwareTargetPerception=Mejorar la percepción de objetivos al volar cerca del techo
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Vuelve a comprobar la línea de visión desde un punto ligeramente más bajo cuando la visión hacia abajo desde la altura del techo parece bloqueada por su borde. No ignora paredes, cobertura, oscuridad, invisibilidad ni alcance.</i>
 ModUi/&EnablePaladinAbjureFoes2024=Habilita <color=#D89555>Abjurar enemigos</color> en el nivel 9
 ModUi/&EnablePaladinAnyFightingStyle2024=Permitir que <color=#D89555>Paladín</color> elija cualquier estilo de lucha <i><color=#F0DAA0>[añade Tiro con arco y Lucha con dos armas]</color></i>
 ModUi/&EnablePaladinChannelDivinity2024=Intercambia <color=#D89555>Divinidad canalizada</color> con la versión 5e 2024 <i><color=#F0DAA0>[usos diferentes]</color></i>
 ModUi/&EnablePaladinLayOnHands2024=Intercambia <color=#D89555>Imposición de manos</color> con la versión 5e 2024 <i><color=#F0DAA0>[acción adicional]</color></i>
 ModUi/&EnablePaladinRestoreLevel20Feature=Habilite los poderes de la subclase de <color=#D89555>Nivel 20</color> para recargarse con una ranura de nivel 5
 ModUi/&EnablePaladinRestoringTouch2024=Habilita <color=#D89555>Toque restaurador</color> para reemplazar <color=#D89555>Toque purificador</color> en el nivel 14
-ModUi/&EnablePaladinSmite2024=Intercambiar <color=#D89555>Divine Smite</color> con versión 5e 2024 <i><color=#F0DAA0>[acción adicional]</color></i>
+ModUi/&EnablePaladinSmite2024=Usar la versión de 5e 2024 de <color=#D89555>Castigo divino</color> <i><color=#F0DAA0>[conjuro de acción adicional que se desencadena al impactar]</color></i>
 ModUi/&EnablePaladinSpellCastingAtLevel1=Habilitar <color=#D89555>lanzamiento de hechizos</color> en el nivel 1 en lugar del 2
 ModUi/&EnableFastLocationLoads=Acelerar la carga
 ModUi/&EnableFastLocationLoadsHelp=Mientras el juego esté en primer plano, se prioriza la carga de recursos y se desactivan temporalmente el límite de FPS del juego y la sincronización vertical. Al terminar la carga, se restauran los ajustes anteriores. Esto puede reducir el tiempo de carga cuando los FPS están limitados.
@@ -262,7 +262,7 @@ ModUi/&EnableRangerExpertise2024=Habilita la <color=#D89555>Experiencia</color> 
 ModUi/&EnableRangerFavoredEnemy2024=Intercambia <color=#D89555>Enemigo Favorecido</color> y <color=#D89555>Terreno Favorecido</color> con <color=#D89555>Enemigo Favorecido</color> versión 5e 2024
 ModUi/&EnableRangerFeralSenses2024=Intercambia <color=#D89555>Sentidos salvajes</color> con la versión 5e 2024 <i><color=#F0DAA0>[obtén visión ciega de 30 pies]</color></i>
 ModUi/&EnableRangerFoeSlayers2024=Intercambia <color=#D89555>Asesino de enemigos</color> con la versión 5e 2024 <i><color=#F0DAA0>[aumenta el dado Marca del cazador a d10]</color></i>
-ModUi/&EnableRangerNatureShroud2024=Habilita la característica <color=#D89555>Velo de la Naturaleza</color> en el nivel 14 <i><color=#F0DAA0>[como acción adicional, puedes volverte invisible mágicamente hasta el comienzo del siguiente turno]</color></i>
+ModUi/&EnableRangerNatureShroud2024=Activar <color=#D89555>El velo de la naturaleza</color> en lugar de <color=#D89555>Desaparecer</color> en el nivel 14 <i><color=#F0DAA0>[como acción adicional, puedes volverte invisible mágicamente hasta el comienzo de tu siguiente turno]</color></i>
 ModUi/&EnableRangerPreciseHunter2024=Habilita <color=#D89555>Cazador preciso</color> en el nivel 17 <i><color=#F0DAA0>[ventaja contra criaturas marcadas por Cazador]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024=Habilita <color=#D89555>Cazador implacable</color> en el nivel 13 <i><color=#F0DAA0>[el daño no interrumpe la concentración en la Marca del cazador]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ Eliminar los requisitos de concentración de la Marca del Cazador en su lugar</i>
@@ -283,9 +283,9 @@ ModUi/&EnableRogueSteadyAim2024=Habilita <color=#D89555>Buena puntería</color> 
 ModUi/&EnableRogueStrSaving=Habilitar los modificadores DEX o STR de <b>Hoodlum</b> en <color=#D89555>Golpe astuto/desviado</color>
 ModUi/&EnableScimitarSpecialization=Cimitarra de concesión <color=#D89555>Especialización en armas</color>
 ModUi/&EnableSignatureSpellsRelearn=Permite que los <color=#D89555>hechizos exclusivos</color> se preparen cada descanso prolongado <i><color=#F0DAA0>[en lugar de una vez en el nivel 20]</color></i>
-ModUi/&EnableSmiteSpells2024=Intercambie los hechizos de Smite con la versión 5E 2024 <i> <color=#f0daa0> [disparar en el golpe y no requerir concentración] </color> </i>
+ModUi/&EnableSmiteSpells2024=Usar las versiones de 5e 2024 de los conjuros de castigo <i><color=#f0daa0>[se desencadenan al impactar y no requieren concentración]</color></i>
 ModUi/&EnableSorcererArcaneApotheosis2024=Habilita <color=#D89555>Apoteosis arcana</color> para reemplazar <color=#D89555>Restauración hechicera</color> en el nivel 20
-ModUi/&EnableSorcererDraconicBloodlineAC2024=Habilite la versión 2024 de <color=#D89555>Draconic Resilience</color> de <color=#D89555>Draconic Bloodline</color> <i><color=#F0DAA0>[10+DEX+CHA en lugar de 13+DEX]</color></i>
+ModUi/&EnableSorcererDraconicBloodlineAC2024=Habilite la versión 2024 de <color=#D89555>Resiliencia dracónica</color> de <color=#D89555>Línea de sangre dracónica</color> <i><color=#F0DAA0>[10+DEX+CHA en lugar de 13+DEX]</color></i>
 ModUi/&EnableSorcererDraconicBloodlineElementalAffinity2024=Elige la ascendencia dracónica del <color=#D89555>Linaje Dracónico</color> al nivel 6 de hechicero
 ModUi/&EnableSorcererDraconicBloodlineResistance2024=Habilita la resistencia del <color=#D89555>Linaje Dracónico</color> de 2024 <i><color=#F0DAA0>(resistencia permanente al tipo de daño de tu ascendencia dracónica)</color></i>
 ModUi/&EnableSorcererInnateSorcery2024=Habilita <color=#D89555>Hechicería innata</color> y <color=#D89555>Hechicería encarnada</color> en los niveles 1 y 7
@@ -481,7 +481,7 @@ ModUi/&ScaleMerchantPricesCorrectly=Escalar los precios de los comerciantes de f
 ModUi/&SelectAll=Seleccionar todo
 ModUi/&SelectDisplayed=Seleccionar Mostrado
 ModUi/&SelectSuggested=Seleccione Sugerido
-ModUi/&SelectTabletop=Seleccionar Mesa
+ModUi/&SelectTabletop=Seleccionar contenido de mesa
 ModUi/&SenseNormalVisionRangeMultiplier=Modificar el alcance de <color=#D89555>Visión normal</color> <i><color=#F0DAA0>[solo en batallas]</color></i>
 ModUi/&Services=Servicios
 ModUi/&SetBeltOfDwarvenKindBeardChances=<color=#D89555>Cinturón de los enanos</color> <color=white>Posibilidades de aparición de barba</color>
@@ -516,7 +516,7 @@ ModUi/&StealthBreaksWhenAttackMisses=Habilitar pérdida de sigilo cuando falla u
 ModUi/&StealthBreaksWhenCastingMaterial=Habilitar pérdida de sigilo al lanzar <color=#D89555>Material</color> <i><color=#F0DAA0>[cualquier hechizo que no sea de ataque con objetivo TODOS o ENEMIGO]</color></i>
 ModUi/&StealthBreaksWhenCastingSomatic=Habilita la pérdida de sigilo al lanzar <color=#D89555>Somático</color> <i><color=#F0DAA0>[cualquier hechizo que no sea de ataque con objetivo TODOS o ENEMIGO]</color></i>
 ModUi/&StealthBreaksWhenCastingVerbose=Habilita la pérdida de sigilo al lanzar <color=#D89555>Verbal</color> <i><color=#F0DAA0>[cualquier hechizo que no sea de ataque con objetivo TODOS o ENEMIGO]</color></i>
-ModUi/&StealthBreaksWhenMoving=Habilite la pérdida de sigilo cuando se mueva. La hazaña sigilosa tendrá ventaja, los enemigos normales tienen desventaja <b> <i> <color=#c04040e0> [requiere reiniciar] </color> </i> </b>
+ModUi/&StealthBreaksWhenMoving=Perder el sigilo al moverse. Los personajes con la dote Cauteloso tienen ventaja; los enemigos normales tienen desventaja <b><i><color=#c04040e0>[Requiere reiniciar]</color></i></b>
 ModUi/&StealthDoesNotBreakWithSubtle=Habilitar sigilo sin rodar si hay <color=#D89555>Metamagia sutil</color> y ningún componente <b>Material</b>
 ModUi/&StealthRollForBreak=Habilitar el rodamiento de sigilo para la ruptura (si la pérdida de sigilo está habilitado arriba) <b> <i> <color=#C04040E0> [Requiere reiniciar] </color> </i> </b>
 ModUi/&StockGorimStoreWithAllNonMagicalClothing=Llena la tienda de Gorim con toda la ropa no mágica. <b><i><color=#C04040E0>[Requiere reinicio]</color></i></b>
@@ -561,12 +561,12 @@ ModUi/&UnleashEnemyAsNpc=Permitir que se seleccionen monstruos en los dispositiv
 ModUi/&UnleashNpcAsEnemy=Desbloquea la selección de monstruos
 ModUi/&Update=<b><color=#D89555>Actualización</color></b>
 ModUi/&UseAlternateSpellPointsSystem=Habilitar las reglas de <color=#D89555>puntos de hechizo variantes</color> <i><color=#F0DAA0>[tienes un grupo de puntos de hechizo que aumenta con el nivel del lanzador]</color></i>
-ModUi/&UseAlternateSpellPointsSystemHelp=<i><color=#F0DAA0>[L01: <color=blanco>04</color> L02: <color=blanco>06</color> L03: <color=blanco>14</color> L04: <color=blanco>17</color> L05: <color=blanco>27</color> L06: <color=blanco>32</color> L07: <color=blanco>38</color> L08: <color=blanco>44</color> L09: <color=blanco>57</color> L10: <color=blanco>64</color>\nL11: <color=blanco>73</color> L12: <color=blanco>73</color> L13: <color=blanco>83</color> L14: <color=blanco>83</color> L15: <color=blanco>94</color> L16: <color=blanco>94</color> L17: <color=white>107</color> L18: <color=white>114</color> L19: <color=white>123</color> L20: <color=white>133</color>\nEl costo para lanzar hechizos es SL1: <color=white>2</color> SL2: <color=white>3</color> SL3: <color=white>5</color> SL4: <color=white>6</color> SL5: <color=white>7</color> SL6: <color=white>9</color> SL7: <color=white>10</color> SL8: <color=white>11</color> SL9: <color=white>13</color>\nLas funciones de recuperación de espacios de descanso cortos no se activarán con este sistema.]</color></i>
+ModUi/&UseAlternateSpellPointsSystemHelp=<i><color=#F0DAA0>[L01: <color=white>04</color> L02: <color=white>06</color> L03: <color=white>14</color> L04: <color=white>17</color> L05: <color=white>27</color> L06: <color=white>32</color> L07: <color=white>38</color> L08: <color=white>44</color> L09: <color=white>57</color> L10: <color=white>64</color>\nL11: <color=white>73</color> L12: <color=white>73</color> L13: <color=white>83</color> L14: <color=white>83</color> L15: <color=white>94</color> L16: <color=white>94</color> L17: <color=white>107</color> L18: <color=white>114</color> L19: <color=white>123</color> L20: <color=white>133</color>\nEl costo para lanzar hechizos es SL1: <color=white>2</color> SL2: <color=white>3</color> SL3: <color=white>5</color> SL4: <color=white>6</color> SL5: <color=white>7</color> SL6: <color=white>9</color> SL7: <color=white>10</color> SL8: <color=white>11</color> SL9: <color=white>13</color>\nLas funciones de recuperación de espacios de descanso cortos no se activarán con este sistema.]</color></i>
 ModUi/&UseElfFaceModelsOnTieflings=Utilice modelos de caras de <color=#D89555>Elfo</color> en <color=#D89555>Tieflings</color>
 ModUi/&UseHeightOneCylinderEffect=Usa un efecto de cilindro de 1 altura al lanzar <color=#D89555>Tentáculos negros, Enredar, Engrasar</color> <i><color=#F0DAA0>[cuadrado]</color></i> o <color=#D89555>Crecimiento de púas</color> <i><color=#F0DAA0>[redondo]</color></i>
 ModUi/&UseMathFlankingRules=<i>+ Use matemáticas precisas para determinar el flanqueo <color=#F0DAA0>[puede tener un impacto en el rendimiento en máquinas lentas]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=Habilitar las reglas de <color=#D89555>ventaja/desventaja</color> <i><color=#F0DAA0>[si las circunstancias hacen que una tirada tenga ambas, se considera que no tienes ninguna de ellas]</color></i>
-ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Impedir reacciones tras usar <color=#D89555>Resistencia legendaria</color> <i><color=#F0DAA0>[la tirada de salvación queda como un éxito definitivo]</color></i>
 ModUi/&UseOfficialFlankingRules=Habilitar reglas de <color=#D89555>flanqueo</color> <i><color=#F0DAA0>[un atacante tiene ventaja si un aliado está en el lado opuesto del objetivo]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ También habilitar ataques a distancia <color=#F0DAA0>[deshabilitar cálculo preciso]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ También habilitar ataques de alcance <color=#F0DAA0>[deshabilitar matemática precisa]</color></i>
@@ -578,7 +578,7 @@ ModUi/&UseOfficialObscurementRulesHelp=<i><color=#F0DAA0>[el atacante que percib
 ModUi/&UseOfficialSmallRacesDisWithHeavyWeapons=Permitir que las <color=#D89555>razas pequeñas</color> tengan desventaja al manejar armas pesadas
 ModUi/&EnableHeavyWeaponAbilityRequirement2024=Activar el requisito de característica de Armas pesadas 2024 <i><color=#F0DAA0>[Fue 13 en cuerpo a cuerpo, Des 13 a distancia; si no, desventaja]</color></i>
 ModUi/&UseOldOfficialFlankingRules=<i> + La antigua regla de flanqueo fue solo +2 para atacar el rollo. Arriba de la regla modificador de flanqueo más tiene prioridad </i>
-ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Otorga 2 selecciones de dominio de armas a la subclase Way of Blade Monk</i>
+ModUi/&UseWeaponMasteryMonkWayOfBlade=<i>+ Otorga 2 selecciones de dominio de armas a la subclase Camino de la Espada</i>
 ModUi/&WayOfBladeWeaponMasteryRequiresSystemHelp=Activa la Maestría en armas en Jugabilidad > Normas para usar esta opción de subclase. Tu selección se conserva mientras la Maestría en armas está desactivada.
 ModUi/&UseWeaponMasterySystem=Habilitar las reglas de <color=#D89555>Maestría en armas</color>
 ModUi/&UseWeaponMasterySystemAddCleaveDamage=<i>+ Maestría en hendidura: añade un modificador de puntuación de atributo al daño del segundo ataque</i>
@@ -596,14 +596,14 @@ ModUi/&WildSurgeDieRollThreshold=<color=white>Establecer umbral de dados de prob
 ModUi/&EnableBackgroundAbilityScoreIncreases=Los aumentos de característica provienen del trasfondo en lugar de la raza; los rasgos humanos se ajustan en consecuencia <i><color=#F0DAA0>(Razas flexibles no se aplica mientras esta opción está activada)</color></i>
 ModUi/&EnableBackgroundBonusFeats=Cambia los rasgos del trasfondo a una dote de origen, dos competencias en habilidades y una competencia con herramientas según las reglas de 2024 <i><color=#F0DAA0>(Requiere aumentos de característica del trasfondo; Trasfondos flexibles no se aplica mientras esta opción está activada)</color></i>
 ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Activa los aumentos de característica del trasfondo para obtener dotes de origen de los trasfondos.
-ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
-ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
-ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
-ModUi/&EnableTabletopFeatRules2024=Use the independent 2024 tabletop feat catalog
-ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses only the independent 2024 feat catalog. Background feats and Human origin feats resolve to the same catalog]</color></i>
-ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[Mientras esta opción esté activada, solo se pueden cambiar las dotes independientes de 2024 que aparecen abajo. Los ajustes de dotes antiguas están bloqueados.]</color></i>\nLas opciones de dotes otorgadas explícitamente por una especie, un trasfondo u otro rasgo siguen disponibles aunque la dote esté desactivada en esta lista.
-ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
-ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
+ModUi/&AddOriginFeatsToAutoLearn= + Añadir dotes de origen al aprendizaje automático
+ModUi/&EnableGeneralFeats2024=Reorganizar las dotes generales según las reglas de 5.5e <i><color=#F0DAA0>[las dotes de 2024 son independientes]</color></i>
+ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[Las dotes de 2024 se activan por separado a continuación. Mientras esta opción esté activada, las dotes antiguas totalmente sustituidas no estarán disponibles.]</color></i>
+ModUi/&EnableTabletopFeatRules2024=Usar el catálogo independiente de dotes de mesa de 2024
+ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[Utiliza únicamente el catálogo independiente de dotes de 2024. Las dotes de trasfondo y las dotes de origen de los humanos proceden del mismo catálogo]</color></i>
+ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[Mientras esta opción esté activada, solo se pueden cambiar las dotes independientes de 2024 que aparecen abajo. Los ajustes de dotes antiguas están bloqueados.]</color></i>\nLas opciones de dotes otorgadas explícitamente por una especie, un trasfondo u otro rasgo siguen disponibles aunque la dote esté desactivada en esta lista.\nSeleccionar contenido de mesa excluye las adaptaciones compatibles con 2014 que añaden un aumento de característica. Puedes seguir activándolas individualmente.
+ModUi/&EnableStrictTabletopClassSelection=Limitar la selección de clases y subclases a las de mesa
+ModUi/&EnableStrictTabletopClassSelectionHelp=Solo se pueden seleccionar clases de mesa y subclases marcadas como tales. Mientras esta opción esté activada, las demás subclases quedan desactivadas y los dominios de clérigo no están restringidos por la deidad.
 ModUi/&EnableWizardSpellMastery2024=Activar <color=#D89555>Maestría de conjuros</color> de 2024 <i><color=#F0DAA0>[conjuros de acción; sustituir uno tras un descanso largo]</color></i>
 ModUi/&EnableThiefUseMagicDevice2024=Activar <color=#D89555>Usar objetos mágicos</color> del Ladrón de 2024 <i><color=#F0DAA0>[cuatro vinculaciones, conservar cargas y pergaminos con Inteligencia]</color></i>
 ModUi/&EnableBarbarianDangerSense2024=Activar <color=#D89555>Sentido del peligro</color> de 2024 <i><color=#F0DAA0>[ventaja en salvaciones de Destreza salvo estando incapacitado]</color></i>
@@ -696,3 +696,6 @@ ModUi/&EnableToolChecks2024=Usar las reglas de competencia de 2024 para las prue
 ModUi/&ToolChecks2024Description=En las pruebas con herramientas de ladrones, se aplican la competencia en Juego de manos y los efectos específicos de esa habilidad. Se suma una sola vez el mayor bonificador de competencia entre la habilidad y la herramienta; tener competencia en ambas otorga ventaja.
 ModUi/&EnableAssassinInfiltrationExpertise2024=Usar <color=#D89555>Pericia en infiltración</color> de 2024 para el Asesino de nivel 9 <i><color=#F0DAA0>[competencia o pericia en Engaño y movimiento tras Buena puntería; concede Buena puntería a estos Asesinos aunque la opción de clase esté desactivada]</color></i>
 Setting/&NoToolRequirementDescription=Los personajes pueden fabricar objetos y abrir las cerraduras de cofres o puertas sin herramientas.
+ModUi/&EnableEpicBoons2024=Activar dones épicos
+ModUi/&EpicBoons2024Help=Cuando las dotes de mesa de 2024 están activadas, muestra la categoría Dones épicos y las dotes disponibles a partir del nivel 19 de personaje.
+ModUi/&EpicBoons2024RequiresTabletopHelp=Activa las dotes de mesa de 2024 para usar esta opción. Se conserva tu selección para este ajuste.

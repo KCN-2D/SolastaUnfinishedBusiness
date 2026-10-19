@@ -294,6 +294,13 @@ public static class RulesetCharacterMonsterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacterMonster __instance, bool __state)
         {
+            // Native refresh leaves the legendary execution collection untouched.
+            // Apply the same boundary to extra attacks and mode modifiers.
+            if (__instance.IsActingLegendarily)
+            {
+                return;
+            }
+
             //PATCH: allow monk bonus unarmed attacks on wild-shaped characters
             MulticlassWildshapeContext.HandleExtraUnarmedAttacks(__instance);
 

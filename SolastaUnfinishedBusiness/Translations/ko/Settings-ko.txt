@@ -131,7 +131,7 @@ ModUi/&EnableAdditionalItemsInDungeonMaker=편집기에 수정된 항목 추가
 ModUi/&EnableAllyMovementAllowsFlight=비행 중인 생물이 있는 경우 공중 위치를 포함하여 자신이나 아군을 움직이는 기능을 허용합니다(예: <color=#D89555>기동 타격</color>, <color=#D89555>본능적 습격</color>)
 ModUi/&EnableTeleportAllowsMidAirPositions=자유 지정 순간이동 주문과 능력이 보이고 비어 있는 공중 공간을 대상으로 할 수 있게 합니다
 ModUi/&EnableAlternateHuman=대체 <color=#D89555>인간</color> <i><color=#F0DAA0>[+1 특기 / +2 속성 선택 / +1 기술]</color></i>을 활성화합니다.
-ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
+ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>배경 능력치 증가가 활성화되어 있으므로, 인간은 종족 능력치 증가 대신 대체 인간의 재주 및 기술 숙련을 얻습니다.</color></i>
 ModUi/&EnableAlternateVotingSystem=대체 투표 시스템 활성화 <i><color=#F0DAA0>[선택 가중치 = 해당 선택지에 투표한 모든 영웅의 카리스마 수정치 합계]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=<b>Abjurer</b> <color=#D89555>Arcane Ward</color> 구현을 BG3처럼 동작하도록 활성화합니다.
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[피해를 방지할 때마다 1씩 감소, 방지한 피해에 따라 감소하는 것이 아님. 활성화하려면 금지 주문을 시전할 필요가 없음\n하지만 최대값은 위저드 레벨의 2배 + INT 수정치 대신 위저드 레벨의 2배이며 긴 휴식 시에만 절반으로 재충전됨]</color></i>
@@ -146,8 +146,8 @@ ModUi/&EnableBarbarianRelentlessRage2024=<color=#D89555>Relentless Rage</color>�
 ModUi/&EnableBardCounterCharm2024=레벨 6의 액션 대신 레벨 7의 반응으로 <color=#D89555>카운터챠밍</color>을 활성화합니다.
 ModUi/&EnableBardExpertiseOneLevelBefore2024=레벨 3과 10 대신 레벨 2와 9에서 <color=#D89555>전문성</color>을 활성화합니다.
 ModUi/&EnableBardHealingBalladOnLongRest=긴 휴식 시 <b>College of Hope</b> <color=#D89555>힐링 발라드</color> 활성화
-ModUi/&EnableDivineHeartTabletopFeatures=<b>Divine Soul</b> 탁상 규칙 특성 활성화
-ModUi/&EnableDivineHeartTabletopFeaturesHelp=Divine Heart의 첫 특성을 Favored by the Gods로, 14레벨 특성을 Otherworldly Wings로 교체합니다.
+ModUi/&EnableDivineHeartTabletopFeatures=<b>신성한 영혼</b>의 테이블탑 특성 활성화
+ModUi/&EnableDivineHeartTabletopFeaturesHelp=신성한 영혼의 첫 번째 특성을 신들의 은총으로, 14레벨 특성을 이계의 날개로 교체합니다.
 ModUi/&EnableBardMagicalSecrets2024=<color=#D89555>Magical Secrets</color>를 5e 2024 버전으로 바꾸세요
 ModUi/&EnableBardSuperiorInspiration2024=레벨 20 대신 레벨 18에서 <color=#D89555>우수한 영감</color>을 활성화하고 1회 대신 2회 충전을 허용합니다.
 ModUi/&EnableBardWordsOfCreation2024=레벨 20에서 <color=#D89555>창조의 말씀</color>을 활성화합니다.
@@ -232,8 +232,8 @@ ModUi/&EnableOneDndStoneSkinSpell=<color=#D89555>{0}</color>의 2024년판 활�
 ModUi/&EnableOneDndTrueStrikeCantrip=<color=#D89555>{0}</color>의 2024년판 활성화 <b><i><color=#C04040E0>[재시작 필요]</color></i></b>\n<i><color=#F0DAA0>[공격 시 공격 굴림과 피해 보너스에 주문 시전 능력을 사용하고, 레벨 5부터 추가 방사형 피해]</color></i>
 ModUi/&EnableOneDndWitchBoltSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[피해를 다시 적용하는 보너스 액션]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=비전투 대상을 지정할 때 눈에 보이는 적에 대한 시선 활성화
-ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
-ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
+ModUi/&EnableCeilingAwareTargetPerception=천장 가까이 비행할 때 대상 인식 개선
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>천장 높이에서 아래로 향하는 시야 광선이 천장 경계에 막힌 것으로 보일 때만 조금 낮은 지점에서 감지 시야를 다시 확인합니다. 벽, 엄폐, 어둠, 투명화 또는 거리 제한을 무시하지 않습니다.</i>
 ModUi/&EnablePaladinAbjureFoes2024=레벨 9에서 <color=#D89555>적을 배척</color>할 수 있습니다.
 ModUi/&EnablePaladinAnyFightingStyle2024=<color=#D89555>팔라딘</color>이 모든 전투 스타일을 선택할 수 있도록 허용 <i><color=#F0DAA0>[궁술 및 쌍수 무기 전투 추가]</color></i>
 ModUi/&EnablePaladinChannelDivinity2024=<color=#D89555>채널 디비니티</color>를 5e 2024 버전 <i><color=#F0DAA0>[다른 용도]</color></i>으로 바꾸세요
@@ -262,7 +262,7 @@ ModUi/&EnableRangerExpertise2024=레벨 9에서 <color=#D89555>전문성</color>
 ModUi/&EnableRangerFavoredEnemy2024=<color=#D89555>선호하는 적</color>과 <color=#D89555>선호하는 지형</color>을 <color=#D89555>선호하는 적</color> 5e 2024 버전으로 바꾸세요.
 ModUi/&EnableRangerFeralSenses2024=<color=#D89555>야생의 감각</color>을 5e 2024 버전으로 바꾸세요 <i><color=#F0DAA0>[30피트 실명 시야 확보]</color></i>
 ModUi/&EnableRangerFoeSlayers2024=<color=#D89555>적 처치자</color>를 5e 2024 버전으로 바꾸세요 <i><color=#F0DAA0>[사냥꾼의 표식 주사위를 d10으로 증가]</color></i>
-ModUi/&EnableRangerNatureShroud2024=레벨 14에서 <color=#D89555>자연의 베일</color> 기능을 활성화합니다. <i><color=#F0DAA0>[보너스 액션으로 다음 턴이 시작될 때까지 마법으로 투명해질 수 있습니다.]</color></i>
+ModUi/&EnableRangerNatureShroud2024=레벨 14에서 <color=#D89555>사라지기</color>를 <color=#D89555>자연의 베일</color>로 교체합니다. <i><color=#F0DAA0>[추가행동으로 다음 자신의 턴이 시작될 때까지 마법적으로 투명해질 수 있습니다.]</color></i>
 ModUi/&EnableRangerPreciseHunter2024=레벨 17에서 <color=#D89555>정밀 사냥꾼</color>을 활성화합니다. <i><color=#F0DAA0>[사냥꾼이 표시한 생물에 대한 이점]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024=레벨 13에서 <color=#D89555>끈질긴 사냥꾼</color> 활성화 <i><color=#F0DAA0>[피해를 받아도 사냥꾼의 표식에 대한 집중을 잃지 않음]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ 대신 사냥꾼의 표식에서 집중력 요구 사항을 제거합니다.</i>
@@ -481,7 +481,7 @@ ModUi/&ScaleMerchantPricesCorrectly=상인 가격을 올바르게/정확하게 �
 ModUi/&SelectAll=모두 선택
 ModUi/&SelectDisplayed=표시된 것을 선택하세요
 ModUi/&SelectSuggested=제안된 항목을 선택하세요
-ModUi/&SelectTabletop=테이블탑 선택
+ModUi/&SelectTabletop=테이블탑 콘텐츠 선택
 ModUi/&SenseNormalVisionRangeMultiplier=<color=#D89555>일반 시야</color> 범위 수정 <i><color=#F0DAA0>[전투에서만]</color></i>
 ModUi/&Services=서비스
 ModUi/&SetBeltOfDwarvenKindBeardChances=<color=#D89555>드워프족의 벨트</color> <color=white>수염이 나타날 확률</color>
@@ -566,7 +566,7 @@ ModUi/&UseElfFaceModelsOnTieflings=<color=#D89555>티플링</color>에 <color=#D
 ModUi/&UseHeightOneCylinderEffect=<color=#D89555>검은 촉수, 얽힘, 기름</color> <i><color=#F0DAA0>[사각형]</color></i> 또는 <color=#D89555>스파이크 성장</color> <i><color=#F0DAA0>[둥근 모양]</color></i>을 시전할 때 높이 1의 원통 효과를 사용하세요.
 ModUi/&UseMathFlankingRules=<i>+ 정확한 수학을 사용하여 플랭킹을 결정합니다. <color=#F0DAA0>[느린 컴퓨터의 경우 성능에 영향을 미칠 수 있음]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=<color=#D89555>이점/단점</color> 규칙을 활성화합니다. <i><color=#F0DAA0>[두 가지가 모두 나타나는 상황이 발생하면 두 가지 모두 없는 것으로 간주됩니다]</color></i>
-ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=<color=#D89555>전설적 저항</color> 사용 후 반응행동 방지 <i><color=#F0DAA0>[해당 내성 굴림의 성공이 확정됩니다]</color></i>
 ModUi/&UseOfficialFlankingRules=<color=#D89555>측면 공격</color> 규칙 활성화 <i><color=#F0DAA0>[아군이 타겟의 반대편에 있는 경우 공격자가 유리함]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ 원거리 공격에도 활성화 <color=#F0DAA0>[정밀한 수학 비활성화]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ 도달 공격도 활성화 <color=#F0DAA0>[정밀한 수학 비활성화]</color></i>
@@ -596,14 +596,14 @@ ModUi/&WildSurgeDieRollThreshold=<color=white><color=#D89555>마법사 야생 �
 ModUi/&EnableBackgroundAbilityScoreIncreases=능력치 증가를 종족 대신 배경에서 얻으며 인간의 특성도 이에 맞게 조정합니다 <i><color=#F0DAA0>(이 옵션이 활성화된 동안 유연한 종족은 적용되지 않습니다)</color></i>
 ModUi/&EnableBackgroundBonusFeats=배경 특성을 2024년 규칙에 따라 기원 재주 하나, 기술 숙련 두 개, 도구 숙련 하나로 변경합니다 <i><color=#F0DAA0>(배경 능력치 증가가 필요합니다. 이 옵션이 활성화된 동안 유연한 배경은 적용되지 않습니다)</color></i>
 ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=배경에서 기원 재주를 얻으려면 배경에서 능력치 증가를 얻는 설정을 활성화하세요.
-ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
-ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
-ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
-ModUi/&EnableTabletopFeatRules2024=Use the independent 2024 tabletop feat catalog
-ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses only the independent 2024 feat catalog. Background feats and Human origin feats resolve to the same catalog]</color></i>
-ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[이 옵션이 활성화된 동안에는 아래의 독립적인 2024년판 재주만 개별적으로 변경할 수 있습니다. 이전판 재주 설정은 잠깁니다.]</color></i>\n종족, 배경 또는 다른 특성이 명시적으로 부여하는 재주 선택지는 이 목록에서 해당 재주를 비활성화해도 선택할 수 있습니다.
-ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
-ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
+ModUi/&AddOriginFeatsToAutoLearn= + 기원 재주 자동 습득 추가
+ModUi/&EnableGeneralFeats2024=5.5판 규칙에 맞게 일반 재주 재구성 <i><color=#F0DAA0>[2024년판 재주는 독립적으로 구현됩니다]</color></i>
+ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[아래에서 2024년판 재주를 개별적으로 변경할 수 있습니다. 이 옵션이 활성화된 동안 완전히 대체된 이전판 재주는 사용할 수 없습니다.]</color></i>
+ModUi/&EnableTabletopFeatRules2024=독립적인 2024년판 테이블탑 재주 목록 사용
+ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[활성화하면 독립적인 2024년판 재주 목록만 사용합니다. 배경 재주와 인간의 기원 재주도 같은 목록을 사용합니다]</color></i>
+ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[이 옵션이 활성화된 동안에는 아래의 독립적인 2024년판 재주만 개별적으로 변경할 수 있습니다. 이전판 재주 설정은 잠깁니다.]</color></i>\n종족, 배경 또는 다른 특성이 명시적으로 부여하는 재주 선택지는 이 목록에서 해당 재주를 비활성화해도 선택할 수 있습니다.\n테이블탑 콘텐츠 선택은 2014년판 호환을 위해 원본에 없는 능력치 증가를 추가한 재주를 제외합니다. 해당 재주도 개별적으로 활성화할 수 있습니다.
+ModUi/&EnableStrictTabletopClassSelection=클래스 및 서브클래스 선택에 테이블탑 규칙 엄격 적용
+ModUi/&EnableStrictTabletopClassSelectionHelp=테이블탑 클래스와 테이블탑으로 표시된 서브클래스만 선택할 수 있습니다. 활성화된 동안 비테이블탑 서브클래스는 강제로 비활성화됩니다. 클레릭 권역은 신앙 제한을 받지 않습니다.
 ModUi/&EnableWizardSpellMastery2024=2024 <color=#D89555>주문 통달</color> 사용 <i><color=#F0DAA0>[행동 주문, 긴 휴식 후 주문 하나 교체]</color></i>
 ModUi/&EnableThiefUseMagicDevice2024=2024 도둑 <color=#D89555>마법 도구 사용</color> 적용 <i><color=#F0DAA0>[조율 4개, 충전 보존, 지능으로 두루마리 사용]</color></i>
 ModUi/&EnableBarbarianDangerSense2024=2024 <color=#D89555>위험 감지</color> 사용 <i><color=#F0DAA0>[행동불능이 아니면 민첩 내성에 이점]</color></i>
@@ -696,3 +696,6 @@ ModUi/&EnableToolChecks2024=2024년 도구 판정 숙련 규칙 적용
 ModUi/&ToolChecks2024Description=도둑 도구를 사용하는 판정에 손재주 숙련과 해당 기술에만 적용되는 효과를 적용합니다. 기술 숙련과 도구 숙련으로 얻는 보너스 중 높은 쪽을 한 번만 더하며, 둘 다 숙련되어 있으면 이점을 얻습니다.
 ModUi/&EnableAssassinInfiltrationExpertise2024=살해자 9레벨에 2024년판 <color=#D89555>잠입 전문성</color> 적용 <i><color=#F0DAA0>[기만 숙련 또는 전문화와 꾸준한 목표 사용 후 이동. 직업 설정이 꺼져 있어도 해당 살해자에게 꾸준한 목표 부여]</color></i>
 Setting/&NoToolRequirementDescription=캐릭터는 도구 없이 아이템을 제작하고 궤짝이나 문의 잠금을 해제할 수 있습니다.
+ModUi/&EnableEpicBoons2024=장대한 축복 활성화
+ModUi/&EpicBoons2024Help=2024년판 테이블탑 재주가 활성화되어 있으면 장대한 축복 분류와 캐릭터 레벨 19부터 습득할 수 있는 재주를 표시합니다.
+ModUi/&EpicBoons2024RequiresTabletopHelp=이 옵션을 사용하려면 2024년판 테이블탑 재주를 활성화하세요. 이 설정에서 선택한 값은 유지됩니다.

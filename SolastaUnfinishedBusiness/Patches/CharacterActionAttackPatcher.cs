@@ -478,7 +478,8 @@ public static class CharacterActionAttackPatcher
             if (__instance.AttackRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
             {
                 // No need to test this even if the hit was automatic (natural 20). Warning: Critical Success can occur without rolling a 20 (Champion fighter crits at 19)
-                if (__instance.AttackRoll != DiceMaxValue[(int)DieType.D20] && !attackMode.AutomaticHit)
+                if (__instance.AttackRoll != DiceMaxValue[(int)DieType.D20] && !attackMode.AutomaticHit &&
+                    !TryAlterOutcomeAttack.IsForcedHit(__instance, target, attackModifier))
                 {
                     yield return battleManager.HandleCharacterAttackHitPossible(
                         actingCharacter,
@@ -502,22 +503,25 @@ public static class CharacterActionAttackPatcher
                 // Execute the final step of the attack
                 if (!attackMode.AutomaticHit)
                 {
-                    rulesetCharacter.RollAttackMode(
-                        attackMode,
-                        rangeAttack,
-                        rulesetDefender,
-                        attackMode.SourceDefinition,
-                        attackModifier.AttacktoHitTrends,
-                        attackModifier.IgnoreAdvantage,
-                        attackModifier.AttackAdvantageTrends,
-                        opportunity,
-                        attackModifier.AttackRollModifier,
-                        out var attackRollOutcome2,
-                        out var successDelta2,
-                        __instance.AttackRoll,
-                        false);
-                    __instance.AttackRollOutcome = attackRollOutcome2;
-                    __instance.AttackSuccessDelta = successDelta2;
+                    using (TryAlterOutcomeAttack.BeginAttackResolution(__instance, target, attackModifier))
+                    {
+                        rulesetCharacter.RollAttackMode(
+                            attackMode,
+                            rangeAttack,
+                            rulesetDefender,
+                            attackMode.SourceDefinition,
+                            attackModifier.AttacktoHitTrends,
+                            attackModifier.IgnoreAdvantage,
+                            attackModifier.AttackAdvantageTrends,
+                            opportunity,
+                            attackModifier.AttackRollModifier,
+                            out var attackRollOutcome2,
+                            out var successDelta2,
+                            __instance.AttackRoll,
+                            false);
+                        __instance.AttackRollOutcome = attackRollOutcome2;
+                        __instance.AttackSuccessDelta = successDelta2;
+                    }
                 }
                 else
                 {
@@ -768,20 +772,23 @@ public static class CharacterActionAttackPatcher
             }
             else
             {
-                rulesetCharacter.RollAttackMode(
-                    attackMode, rangeAttack,
-                    rulesetDefender,
-                    attackMode.SourceDefinition,
-                    attackModifier.AttacktoHitTrends,
-                    attackModifier.IgnoreAdvantage,
-                    attackModifier.AttackAdvantageTrends,
-                    opportunity, attackModifier.AttackRollModifier,
-                    out var attackRollOutcome2,
-                    out var successDelta2,
-                    __instance.AttackRoll,
-                    false);
-                __instance.AttackRollOutcome = attackRollOutcome2;
-                __instance.AttackSuccessDelta = successDelta2;
+                using (TryAlterOutcomeAttack.BeginAttackResolution(__instance, target, attackModifier))
+                {
+                    rulesetCharacter.RollAttackMode(
+                        attackMode, rangeAttack,
+                        rulesetDefender,
+                        attackMode.SourceDefinition,
+                        attackModifier.AttacktoHitTrends,
+                        attackModifier.IgnoreAdvantage,
+                        attackModifier.AttackAdvantageTrends,
+                        opportunity, attackModifier.AttackRollModifier,
+                        out var attackRollOutcome2,
+                        out var successDelta2,
+                        __instance.AttackRoll,
+                        false);
+                    __instance.AttackRollOutcome = attackRollOutcome2;
+                    __instance.AttackSuccessDelta = successDelta2;
+                }
 
                 actingCharacter.AttackImpactOn(
                     target, __instance.AttackRollOutcome, actionParams, attackMode, attackModifier);

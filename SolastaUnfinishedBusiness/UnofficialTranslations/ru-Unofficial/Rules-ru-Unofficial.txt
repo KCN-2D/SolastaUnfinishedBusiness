@@ -606,7 +606,6 @@ Rules/&DieD6Title=к6
 Rules/&DieD8Title=к8
 Rules/&DivinationFormFormatIdentifyItem=Открывает все свойства предмета.
 Rules/&DivinationFormFormatListCreatureFamilyInLocation=Ощущает присутствие некоторых типов существ: {0}.
-Rules/&DivinationFormFormatRevealEntitiesBearingTags=Показывает существ или объекты по признаку: {0}.
 Rules/&DurationAnyRestFormat=До любого отдыха
 Rules/&DurationDayPluralFormat={0} д.
 Rules/&DurationDaySingleFormat={0} день

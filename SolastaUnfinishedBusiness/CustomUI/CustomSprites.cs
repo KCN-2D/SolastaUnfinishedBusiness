@@ -2,9 +2,11 @@ using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using Resources = SolastaUnfinishedBusiness.Properties.Resources;
@@ -42,6 +44,12 @@ public static class Sprites
     internal static AssetReferenceSprite SorceryPointsResourceIcon =>
         GetSprite("SorceryPointsResourceIcon", Resources.SorceryPoints, 64);
 
+    internal static AssetReferenceSprite FateResourceIcon =>
+        GetEmbeddedSprite("FateResourceIcon", 64, 64);
+
+    internal static AssetReferenceSprite PowerPoolResourceIcon =>
+        GetEmbeddedSprite("PowerPoolResourceIcon", 64, 64);
+
     internal static AssetReferenceSprite LightEnergyCrossbowBolt =>
         GetSprite("LightEnergyCrossbowBolt", Resources.LightEnergyCrossbowBolt, 64);
     
@@ -76,21 +84,41 @@ public static class Sprites
     internal static AssetReferenceSprite ActionInfuse =>
         GetSprite("ActionInfuse", Resources.ActionInfuse, 80);
 
-    internal static AssetReferenceSprite ActionCrystalDefenseOff =>
-        GetSprite("ActionCrystalDefenseOff", Resources.ActionCrystalDefenseOff, 80);
-
-    internal static AssetReferenceSprite ActionCrystalDefenseOn =>
-        GetSprite("ActionCrystalDefenseOn", Resources.ActionCrystalDefenseOn, 80);
-
     internal static AssetReferenceSprite ActionGambit =>
         GetSprite("ActionGambit", Resources.ActionGambit, 80);
 
     internal static AssetReferenceSprite ActionEldritchVersatility =>
         GetSprite("ActionEldritchVersatility", Resources.ActionEldritchVersatility, 80);
 
+    internal static AssetReferenceSprite GetActionSprite(string resourceName)
+    {
+        return GetEmbeddedSprite(resourceName, 128, 128, improveActionGlyphContrast: true);
+    }
+
+    internal static AssetReferenceSprite GetToggleActionSprite(ExtraActionId actionId)
+    {
+        var name = actionId.ToString();
+        return GetActionSprite("ActionToggle" + name.Substring(0, name.Length - "Toggle".Length));
+    }
+
+    internal static AssetReferenceSprite GetModeActionSprite(ExtraActionId actionId)
+    {
+        return GetActionSprite(ModeActionSprites[actionId]);
+    }
+
     #endregion
 
     #region Definition artwork
+
+    private static readonly Dictionary<ExtraActionId, string> ModeActionSprites = new()
+    {
+        [ExtraActionId.CrystalDefenseOn] = "ActionModeCrystalDefenseOn",
+        [ExtraActionId.CrystalDefenseOff] = "ActionModeCrystalDefenseOff",
+        [ExtraActionId.FlightSuspend] = "ActionModeFlightSuspend",
+        [ExtraActionId.FlightResume] = "ActionModeFlightResume",
+        [ExtraActionId.LevitateSuspend] = "ActionModeLevitateSuspend",
+        [ExtraActionId.LevitateResume] = "ActionModeLevitateResume"
+    };
 
     // Each entry is one authored identity. Its saved aliases, upgrades and alternate costs share that artwork.
     private static readonly Dictionary<string, string[]> DefinitionSpriteFamilies = new(System.StringComparer.Ordinal)
@@ -245,6 +273,7 @@ public static class Sprites
         ["CapabilityPowerHalfOrcAdrenalineRush"] = ["PowerHalfOrcAdrenalineRush"],
         ["CapabilityPowerRangerNatureShroud"] = ["PowerRangerNatureShroud"],
         ["CapabilityPowerRoguishSlayerCloakOfShadows"] = ["PowerRoguishSlayerCloakOfShadows"],
+        ["CapabilityEpicBoonEpicBoons2024"] = ["FeatGroupEpicBoons2024"],
     };
 
     // Continued actions retain the original artwork of the ability they belong to.
@@ -263,21 +292,56 @@ public static class Sprites
 
     internal static void ApplyDefinitionSprites()
     {
+        var actions = DatabaseRepository.GetDatabase<ActionDefinition>().ToArray();
         var assigned = new Dictionary<FeatureDefinitionPower, AssetReferenceSprite>();
+
+        // A toggle has its own glyph. A paired operation also owns its delegated tooltip power.
+        foreach (var action in actions)
+        {
+            if (CustomActionIdContext.ExtraActionIdToggles.Contains(action.Id))
+            {
+                SetDefinitionSprite(action, GetToggleActionSprite((ExtraActionId)action.Id));
+            }
+            else if (ModeActionSprites.TryGetValue((ExtraActionId)action.Id, out var resource))
+            {
+                var sprite = GetActionSprite(resource);
+                SetDefinitionSprite(action, sprite);
+
+                if (action.DisplayPowerTooltip && action.ActivatedPower is { DelegatedToAction: true } power &&
+                    actions.All(other => other.ActivatedPower != power ||
+                        ModeActionSprites.TryGetValue((ExtraActionId)other.Id, out var otherResource) &&
+                        otherResource == resource))
+                {
+                    assigned[power] = sprite;
+                }
+            }
+        }
 
         foreach (var family in DefinitionSpriteFamilies)
         {
             var resourceName = family.Key;
-            var bitmap = Resources.ResourceManager.GetObject(resourceName, Resources.Culture) as byte[] ??
-                         throw new System.InvalidOperationException($"Missing definition artwork: {resourceName}");
-            var sprite = GetPowerSprite(resourceName, bitmap);
+            var sprite = GetPowerSprite(resourceName);
 
-            foreach (var powerName in family.Value)
+            foreach (var definitionName in family.Value)
             {
-                if (DatabaseHelper.TryGetDefinition<FeatureDefinitionPower>(powerName, out var power))
+                if (DatabaseHelper.TryGetDefinition<FeatureDefinitionPower>(definitionName, out var power))
                 {
                     assigned[power] = sprite;
                 }
+                else if (DatabaseHelper.TryGetDefinition<FeatDefinition>(definitionName, out var feat))
+                {
+                    SetDefinitionSprite(feat, sprite);
+                }
+            }
+        }
+
+        // Artwork supplied at construction follows the same bundle/invocation path as declared families.
+        foreach (var power in DatabaseRepository.GetDatabase<FeatureDefinitionPower>())
+        {
+            var sprite = power.GuiPresentation.SpriteReference;
+            if (!assigned.ContainsKey(power) && sprite != null && GetSpriteByGuid(sprite.AssetGUID))
+            {
+                assigned[power] = sprite;
             }
         }
 
@@ -365,21 +429,49 @@ public static class Sprites
     }
 
     // New Power illustrations and their bundle mirrors share this wide format; glyphs keep their own views.
+    internal static AssetReferenceSprite GetPowerSprite(string resourceName)
+    {
+        return GetEmbeddedSprite(resourceName, 256, 128);
+    }
+
+    internal static AssetReferenceSprite GetConditionSprite(string resourceName)
+    {
+        return GetEmbeddedSprite(resourceName, 32, 32);
+    }
+
+    private static AssetReferenceSprite GetEmbeddedSprite(
+        string resourceName, int width, int height, bool improveActionGlyphContrast = false)
+    {
+        var (_, guid) = GetSpriteId(resourceName, width, height);
+        if (SpritesByGuid.ContainsKey(guid))
+        {
+            return new AssetReferenceSprite(guid);
+        }
+
+        var bitmap = Resources.ResourceManager.GetObject(resourceName, Resources.Culture) as byte[] ??
+                     throw new System.InvalidOperationException($"Missing definition artwork: {resourceName}");
+        return GetSizedSprite(resourceName, bitmap, width, height, improveActionGlyphContrast);
+    }
+
     internal static AssetReferenceSprite GetPowerSprite(string name, byte[] bitmap)
     {
-        const int width = 256;
-        const int height = 128;
+        return GetSizedSprite(name, bitmap, 256, 128);
+    }
 
+    private static AssetReferenceSprite GetSizedSprite(
+        string name, byte[] bitmap, int width, int height, bool improveActionGlyphContrast = false)
+    {
         if (bitmap == null || bitmap.Length < 24 ||
             bitmap[0] != 137 || bitmap[1] != 80 || bitmap[2] != 78 || bitmap[3] != 71 ||
             bitmap[4] != 13 || bitmap[5] != 10 || bitmap[6] != 26 || bitmap[7] != 10 ||
             bitmap[12] != 73 || bitmap[13] != 72 || bitmap[14] != 68 || bitmap[15] != 82 ||
             ReadPngDimension(bitmap, 16) != width || ReadPngDimension(bitmap, 20) != height)
         {
-            throw new System.InvalidOperationException($"Power artwork must be a {width}x{height} PNG: {name}");
+            throw new System.InvalidOperationException($"Definition artwork must be a {width}x{height} PNG: {name}");
         }
 
-        return GetSprite(name, bitmap, width, height);
+        var sprite = GetOrCreateSprite(name, bitmap, width, height, improveActionGlyphContrast);
+        return new AssetReferenceSprite(GetSpriteGuid(sprite.name));
     }
 
     private static int ReadPngDimension(byte[] bitmap, int offset)
@@ -412,6 +504,8 @@ public static class Sprites
     #region CustomSprites
 
     private static readonly Dictionary<string, Sprite> SpritesByGuid = new();
+    private static readonly byte[] ActionGlyphContrastCurve = Enumerable.Range(0, 256)
+        .Select(value => (byte)Mathf.RoundToInt(Mathf.LinearToGammaSpace(value / 255f) * 255f)).ToArray();
 
     /// <summary>
     ///     Convert a bitmap stored as an embedded resource to a Sprite.
@@ -430,7 +524,8 @@ public static class Sprites
         string name,
         byte[] bitmap,
         int sizeX,
-        int sizeY)
+        int sizeY,
+        bool improveActionGlyphContrast = false)
     {
         var (id, guid) = GetSpriteId(name, sizeX, sizeY);
 
@@ -449,6 +544,11 @@ public static class Sprites
                 throw new System.InvalidOperationException($"Cannot decode sprite artwork: {name}");
             }
 
+            if (improveActionGlyphContrast)
+            {
+                ImproveActionGlyphContrast(texture);
+            }
+
             // LoadImage replaces the texture dimensions. Use the complete artwork rather than cropping it
             // to the legacy cache dimensions; intentional regions are handled by GetSpriteFromAtlas.
             sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0, 0));
@@ -463,6 +563,25 @@ public static class Sprites
         sprite.name = id;
 
         return sprite;
+    }
+
+    private static void ImproveActionGlyphContrast(Texture2D texture)
+    {
+        // Both native and embedded glyphs use sRGB textures. Lift the authored dark-gray
+        // palette into the native action-glyph range without clipping highlights or changing alpha.
+        var pixels = texture.GetPixels32();
+
+        for (var index = 0; index < pixels.Length; index++)
+        {
+            var pixel = pixels[index];
+            pixel.r = ActionGlyphContrastCurve[pixel.r];
+            pixel.g = ActionGlyphContrastCurve[pixel.g];
+            pixel.b = ActionGlyphContrastCurve[pixel.b];
+            pixels[index] = pixel;
+        }
+
+        texture.SetPixels32(pixels);
+        texture.Apply(false, false);
     }
 
     [CanBeNull]

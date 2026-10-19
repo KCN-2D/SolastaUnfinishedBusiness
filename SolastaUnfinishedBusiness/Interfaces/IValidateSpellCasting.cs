@@ -64,20 +64,27 @@ internal static class SpellCastingValidation
     [ThreadStatic]
     private static RulesetSpellRepertoire _selectedRepertoire;
 
+    [ThreadStatic]
+    private static bool _componentSourceSpecified;
+
     private static readonly ConditionalWeakTable<object, RepertoireBinding>
         TooltipRepertoires = new();
     private static readonly ConditionalWeakTable<RulesetEffectSpell, RepertoireBinding>
         EffectRepertoires = new();
 
-    internal static IDisposable EnterSelectedRepertoire(RulesetSpellRepertoire repertoire)
+    internal static IDisposable EnterSelectedRepertoire(RulesetSpellRepertoire repertoire) =>
+        EnterSelectedResource(repertoire, null);
+
+    internal static IDisposable EnterSelectedResource(RulesetSpellRepertoire repertoire,
+        SpellCastingResourceContext.ResourceOption resource)
     {
-        return new RepertoireScope(repertoire);
+        return new RepertoireScope(repertoire, resource);
     }
 
     internal static IDisposable EnterTooltipRepertoire(ITooltip tooltip)
     {
         return tooltip != null && TooltipRepertoires.TryGetValue(tooltip, out var binding)
-            ? EnterSelectedRepertoire(binding.Repertoire)
+            ? EnterSelectedResource(binding.Repertoire, binding.Resource)
             : null;
     }
 
@@ -85,7 +92,16 @@ internal static class SpellCastingValidation
         object tooltip,
         RulesetSpellRepertoire repertoire,
         bool bypassComponentsAndCastingTime = false,
-        bool bypassMaterialComponent = false)
+        bool bypassMaterialComponent = false) =>
+        BindTooltipSource(tooltip, repertoire, bypassComponentsAndCastingTime, bypassMaterialComponent, null);
+
+    internal static void BindTooltipResource(object tooltip, RulesetSpellRepertoire repertoire,
+        SpellCastingResourceContext.ResourceOption resource) =>
+        BindTooltipSource(tooltip, repertoire, false, false, resource);
+
+    private static void BindTooltipSource(object tooltip, RulesetSpellRepertoire repertoire,
+        bool bypassComponentsAndCastingTime, bool bypassMaterialComponent,
+        SpellCastingResourceContext.ResourceOption resource)
     {
         if (tooltip == null)
         {
@@ -101,7 +117,8 @@ internal static class SpellCastingValidation
                 new RepertoireBinding(
                     repertoire,
                     bypassComponentsAndCastingTime,
-                    bypassMaterialComponent));
+                    bypassMaterialComponent,
+                    resource));
         }
     }
 
@@ -137,7 +154,7 @@ internal static class SpellCastingValidation
 
     internal static bool TooltipBypassesMissingComponents(ITooltip tooltip)
     {
-        if (TooltipBypassesComponentsAndCastingTime(tooltip))
+        if (TooltipBypassesSpellComponents(tooltip))
         {
             return true;
         }
@@ -160,6 +177,35 @@ internal static class SpellCastingValidation
         return caster != null &&
                caster.IsComponentVerbalValid(provider.SpellDefinition, out _) &&
                caster.IsComponentSomaticValid(provider.SpellDefinition, out _);
+    }
+
+    internal static bool TooltipBypassesSpellComponents(ITooltip tooltip) =>
+        TooltipBypassesComponentsAndCastingTime(tooltip) ||
+        tooltip?.DataProvider is ISpellParametersProvider provider &&
+        TooltipRepertoires.TryGetValue(tooltip, out var binding) &&
+        SpellCastingResourceContext.FreeSelectionIgnoresComponents(binding.Resource, provider.SpellDefinition);
+
+    internal static bool BypassesSpellComponents(RulesetCharacter caster, SpellDefinition spell)
+    {
+        var selected = SpellCastingResourceContext.CurrentSelection;
+        return SpellCastingResourceContext.FreeSelectionIgnoresComponents(selected, spell, caster);
+    }
+
+    internal static IDisposable EnterAutomaticComponentSelection(RulesetCharacter caster, SpellDefinition spell)
+    {
+        if (_componentSourceSpecified || SpellCastingResourceContext.CurrentSelection != null ||
+            !SpellCastingResourceContext.HasFreeComponentSource(caster, spell))
+        {
+            return null;
+        }
+
+        // Native reaction prechecks ask whether a spell can be cast before choosing
+        // its source. Scope only that combined check; direct component checks for
+        // items and explicitly selected paid/ritual sources retain their own rules.
+        var option = SpellCastingResourceContext.EnumerateResources(caster, spell).FirstOrDefault(candidate =>
+            SpellCastingResourceContext.FreeSelectionIgnoresComponents(candidate, spell, caster) &&
+            candidate.IsAvailable(caster));
+        return option == null ? null : SpellCastingResourceContext.BeginSelection(option);
     }
 
     internal static void BindEffectRepertoire(
@@ -359,22 +405,30 @@ internal static class SpellCastingValidation
     private sealed class RepertoireBinding(
         RulesetSpellRepertoire repertoire,
         bool bypassComponentsAndCastingTime = false,
-        bool bypassMaterialComponent = false)
+        bool bypassMaterialComponent = false,
+        SpellCastingResourceContext.ResourceOption resource = null)
     {
         internal RulesetSpellRepertoire Repertoire { get; } = repertoire;
         internal bool BypassComponentsAndCastingTime { get; } =
             bypassComponentsAndCastingTime;
         internal bool BypassMaterialComponent { get; } = bypassMaterialComponent;
+        internal SpellCastingResourceContext.ResourceOption Resource { get; } = resource;
     }
 
     private sealed class RepertoireScope : IDisposable
     {
         private readonly RulesetSpellRepertoire _previous = _selectedRepertoire;
+        private readonly bool _previousComponentSource = _componentSourceSpecified;
+        private readonly IDisposable _resourceScope;
         private bool _disposed;
 
-        internal RepertoireScope(RulesetSpellRepertoire repertoire)
+        internal RepertoireScope(RulesetSpellRepertoire repertoire, SpellCastingResourceContext.ResourceOption resource)
         {
+            resource ??= SpellCastingResourceContext.CurrentSelection?.CastingRepertoire == repertoire
+                ? SpellCastingResourceContext.CurrentSelection : null;
+            _resourceScope = SpellCastingResourceContext.BeginSelection(resource);
             _selectedRepertoire = repertoire;
+            _componentSourceSpecified = true;
         }
 
         public void Dispose()
@@ -385,7 +439,9 @@ internal static class SpellCastingValidation
             }
 
             _disposed = true;
+            _resourceScope.Dispose();
             _selectedRepertoire = _previous;
+            _componentSourceSpecified = _previousComponentSource;
         }
     }
 }

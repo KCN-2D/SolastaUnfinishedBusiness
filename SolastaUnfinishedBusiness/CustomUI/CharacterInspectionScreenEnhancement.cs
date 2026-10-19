@@ -124,6 +124,7 @@ internal static class CharacterInspectionScreenEnhancement
         }
 
         var feat = SpellSelectionContext.GetSpellSourceFeat(character, repertoire);
+        var spellTag = repertoire.SpellCastingFeature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>();
         var sourceTag = GetSpellSourceTag(repertoire);
         var classHolder = repertoire.SpellCastingFeature.GetFirstSubFeatureOfType<ClassHolder>()?.Class;
 
@@ -131,6 +132,15 @@ internal static class CharacterInspectionScreenEnhancement
         {
             if (!SpellSelectionContext.IsFeatSpellRepertoire(candidate) ||
                 !SpellSelectionContext.IsDisplayedRepertoire(candidate))
+            {
+                return false;
+            }
+
+            // Explicit presentations name independent grants within a feat. Their
+            // stable tag identity must survive before the common feat-owner grouping.
+            var candidateTag = candidate.SpellCastingFeature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>();
+            if ((spellTag.Presentation != null || candidateTag.Presentation != null) &&
+                !string.Equals(spellTag.Name, candidateTag.Name, StringComparison.Ordinal))
             {
                 return false;
             }

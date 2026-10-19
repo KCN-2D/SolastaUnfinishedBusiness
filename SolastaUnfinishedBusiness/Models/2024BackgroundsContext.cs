@@ -3,6 +3,7 @@ using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Feats;
@@ -1778,6 +1779,13 @@ public static partial class Tabletop2024Context
         string attrB,
         string attrC)
     {
+        string FormatTitle() => Gui.Format("Feature/&FeatureSetBackgroundASITitle",
+            GetAbilityAbbreviation(attrA), GetAbilityAbbreviation(attrB), GetAbilityAbbreviation(attrC));
+        string FormatPlusOneTitle() => Gui.Format("Feature/&FeatureSetBackgroundASI111Title",
+            GetAbilityAbbreviation(attrA), GetAbilityAbbreviation(attrB), GetAbilityAbbreviation(attrC));
+        string FormatPlusOneDescription() => Gui.Format("Feature/&FeatureSetBackgroundASI111Description",
+            GetAbilityAbbreviation(attrA), GetAbilityAbbreviation(attrB), GetAbilityAbbreviation(attrC));
+
         var plusOneA = BuildAttributeModifier(backgroundName, attrA, 1);
         var plusOneB = BuildAttributeModifier(backgroundName, attrB, 1);
         var plusOneC = BuildAttributeModifier(backgroundName, attrC, 1);
@@ -1787,13 +1795,10 @@ public static partial class Tabletop2024Context
 
         var plusOneSet = FeatureDefinitionFeatureSetBuilder
             .Create($"FeatureSetBackgroundASI_{backgroundName}_PlusOneEach")
-            .SetGuiPresentation(
-                Gui.Format("Feature/&FeatureSetBackgroundASI111Title",
-                    GetAbilityAbbreviation(attrA), GetAbilityAbbreviation(attrB), GetAbilityAbbreviation(attrC)),
-                Gui.Format("Feature/&FeatureSetBackgroundASI111Description",
-                    GetAbilityAbbreviation(attrA), GetAbilityAbbreviation(attrB), GetAbilityAbbreviation(attrC)))
+            .SetGuiPresentation(FormatPlusOneTitle(), FormatPlusOneDescription())
             .SetMode(FeatureDefinitionFeatureSet.FeatureSetMode.Union)
             .AddFeatureSet(plusOneA, plusOneB, plusOneC)
+            .AddCustomSubFeatures(new FormattedDefinitionText(FormatPlusOneTitle, FormatPlusOneDescription))
             .AddToDB();
 
         var plusTwoChoiceA = BuildBackgroundAsiChoiceSet(backgroundName, attrA, attrB, attrC, plusTwoA);
@@ -1802,12 +1807,10 @@ public static partial class Tabletop2024Context
 
         return FeatureDefinitionFeatureSetBuilder
             .Create($"FeatureSetBackgroundASI_{backgroundName}")
-            .SetGuiPresentation(
-                Gui.Format("Feature/&FeatureSetBackgroundASITitle",
-                    GetAbilityAbbreviation(attrA), GetAbilityAbbreviation(attrB), GetAbilityAbbreviation(attrC)),
-                "Feature/&FeatureSetBackgroundASIDescription")
+            .SetGuiPresentation(FormatTitle(), "Feature/&FeatureSetBackgroundASIDescription")
             .SetMode(FeatureDefinitionFeatureSet.FeatureSetMode.Exclusion)
             .AddFeatureSet(plusTwoChoiceA, plusTwoChoiceB, plusTwoChoiceC, plusOneSet)
+            .AddCustomSubFeatures(new FormattedDefinitionText(title: FormatTitle))
             .AddToDB();
     }
 
@@ -1818,6 +1821,11 @@ public static partial class Tabletop2024Context
         string optionB,
         FeatureDefinitionAttributeModifier plusTwoFeature)
     {
+        string FormatTitle() => Gui.Format("Feature/&FeatureSetBackgroundASI2Plus1Title",
+            GetAbilityAbbreviation(plusTwoAttribute), GetAbilityAbbreviation(optionA), GetAbilityAbbreviation(optionB));
+        string FormatDescription() => Gui.Format("Feature/&FeatureSetBackgroundASI2Plus1Description",
+            GetAbilityAbbreviation(plusTwoAttribute), GetAbilityAbbreviation(optionA), GetAbilityAbbreviation(optionB));
+
         var pointPool = FeatureDefinitionPointPoolBuilder
             .Create($"PointPoolBackgroundASI_{backgroundName}_{plusTwoAttribute}")
             .SetGuiPresentationNoContent(true)
@@ -1827,13 +1835,10 @@ public static partial class Tabletop2024Context
 
         return FeatureDefinitionFeatureSetBuilder
             .Create($"FeatureSetBackgroundASI_{backgroundName}_{plusTwoAttribute}")
-            .SetGuiPresentation(
-                Gui.Format("Feature/&FeatureSetBackgroundASI2Plus1Title",
-                    GetAbilityAbbreviation(plusTwoAttribute), GetAbilityAbbreviation(optionA), GetAbilityAbbreviation(optionB)),
-                Gui.Format("Feature/&FeatureSetBackgroundASI2Plus1Description",
-                    GetAbilityAbbreviation(plusTwoAttribute), GetAbilityAbbreviation(optionA), GetAbilityAbbreviation(optionB)))
+            .SetGuiPresentation(FormatTitle(), FormatDescription())
             .SetMode(FeatureDefinitionFeatureSet.FeatureSetMode.Union)
             .AddFeatureSet(plusTwoFeature, pointPool)
+            .AddCustomSubFeatures(new FormattedDefinitionText(FormatTitle, FormatDescription))
             .AddToDB();
     }
 
@@ -1997,6 +2002,9 @@ public static partial class Tabletop2024Context
                 featDefinition.GuiPresentation.Description,
                 featDefinition)
             .SetMode(FeatureDefinitionFeatureSet.FeatureSetMode.Union)
+            .AddCustomSubFeatures(new FormattedDefinitionText(
+                () => BuildHumanOriginFeatChoice(featName)?.FormatTitle(),
+                () => BuildHumanOriginFeatChoice(featName)?.FormatDescription()))
             .AddToDB();
 
         HumanOriginFeatChoiceFeatures[featName] = choiceFeature;
@@ -2056,12 +2064,20 @@ public static partial class Tabletop2024Context
     {
         TryGetBackgroundBonusFeatGuiDefinition(featName, out var featDefinition);
 
+        string FormatDescription()
+        {
+            TryGetBackgroundBonusFeatGuiDefinition(featName, out var currentFeatDefinition);
+
+            return FormatOriginFeatGainDescription(currentFeatDefinition);
+        }
+
         return FeatureDefinitionBuilder
             .Create($"{BackgroundFeatDisplayPrefix}{featName}")
             .SetGuiPresentation(
                 "Feature/&BackgroundBonusFeatTitle",
-                FormatOriginFeatGainDescription(featDefinition),
+                FormatDescription(),
                 featDefinition)
+            .AddCustomSubFeatures(new FormattedDefinitionText(description: FormatDescription))
             .AddToDB();
     }
 
@@ -2079,14 +2095,15 @@ public static partial class Tabletop2024Context
         string skillA,
         string skillB)
     {
+        string FormatDescription() => Gui.Format("Feature/&Background2024SkillsDescription",
+            GetDefinition<SkillDefinition>(skillA).FormatTitle(),
+            GetDefinition<SkillDefinition>(skillB).FormatTitle());
+
         return FeatureDefinitionProficiencyBuilder
             .Create($"ProficiencyBackground2024_{backgroundName}_Skills")
-            .SetGuiPresentation(
-                "Feature/&Background2024SkillsTitle",
-                Gui.Format("Feature/&Background2024SkillsDescription",
-                    GetDefinition<SkillDefinition>(skillA).FormatTitle(),
-                    GetDefinition<SkillDefinition>(skillB).FormatTitle()))
+            .SetGuiPresentation("Feature/&Background2024SkillsTitle", FormatDescription())
             .SetProficiencies(ProficiencyType.Skill, skillA, skillB)
+            .AddCustomSubFeatures(new FormattedDefinitionText(description: FormatDescription))
             .AddToDB();
     }
 

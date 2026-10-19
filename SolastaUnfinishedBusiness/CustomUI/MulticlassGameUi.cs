@@ -989,7 +989,10 @@ internal static class MulticlassGameUi
     private sealed class LearnStepLayout
     {
         private readonly Dictionary<RectTransform, (Vector2 Position, Vector2 Size)> _rectangles;
-        private readonly Dictionary<TMP_Text, (bool AutoSize, bool Wrap, float FontSize, int MaxLines, float LineSpacing, TextOverflowModes Overflow)> _headers;
+        private readonly Dictionary<TMP_Text, (bool AutoSize, bool Wrap, float FontSize, int MaxLines, float LineSpacing, TextOverflowModes Overflow)> _texts;
+        private readonly GuiLabel _choicesLabel;
+        private string _choicesText;
+        private bool _choicesOverridden;
         private readonly RectTransform _buttonBar;
         private readonly float _activeHeaderHeight;
         private readonly float _inactiveHeaderHeight;
@@ -1005,6 +1008,7 @@ internal static class MulticlassGameUi
             _layoutHeight = (hadLayoutElement && _layoutElement.enabled,
                 _layoutElement.minHeight, _layoutElement.preferredHeight, _layoutElement.flexibleHeight);
             _buttonBar = (RectTransform)item.resetButton.transform.parent;
+            _choicesLabel = item.choicesLabel;
             _rectangles = new[]
                 {
                     item.headerLabelActive.RectTransform, item.headerLabelInactive.RectTransform,
@@ -1013,7 +1017,7 @@ internal static class MulticlassGameUi
                 }
                 .Distinct()
                 .ToDictionary(rect => rect, rect => (rect.anchoredPosition, rect.sizeDelta));
-            _headers = new[] { item.headerLabelActive.TMP_Text, item.headerLabelInactive.TMP_Text }
+            _texts = new[] { item.headerLabelActive.TMP_Text, item.headerLabelInactive.TMP_Text, item.choicesLabel.TMP_Text }
                 .ToDictionary(text => text, text => (text.enableAutoSizing, text.enableWordWrapping,
                     text.enableAutoSizing ? text.fontSizeMax : text.fontSize, text.maxVisibleLines, text.lineSpacing, text.overflowMode));
             _activeHeaderHeight = item.headerLabelActive.RectTransform.rect.height;
@@ -1035,7 +1039,7 @@ internal static class MulticlassGameUi
                 rect.sizeDelta = state.Size;
             }
 
-            foreach (var entry in _headers)
+            foreach (var entry in _texts)
             {
                 var text = entry.Key;
                 var state = entry.Value;
@@ -1046,12 +1050,27 @@ internal static class MulticlassGameUi
                 text.lineSpacing = state.LineSpacing;
                 text.overflowMode = state.Overflow;
             }
+            if (_choicesOverridden)
+            {
+                _choicesLabel.Text = _choicesText;
+                _choicesOverridden = false;
+            }
+        }
+
+        internal void SetChoicesDescription(string description)
+        {
+            if (!_choicesOverridden)
+            {
+                _choicesText = _choicesLabel.Text;
+                _choicesOverridden = true;
+            }
+            _choicesLabel.Text = description;
         }
 
         internal void Apply(LearnStepItem item, bool active)
         {
-            // Keep the native font sizes. Give wrapped titles their measured height instead of shrinking them.
-            foreach (var entry in _headers)
+            // Keep native font sizes and measure wrapped titles and selection instructions.
+            foreach (var entry in _texts)
             {
                 var text = entry.Key;
                 var state = entry.Value;
@@ -1081,6 +1100,7 @@ internal static class MulticlassGameUi
             item.inactiveGroup.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
                 _inactiveHeight + inactiveHeight - _inactiveHeaderHeight);
 
+            FitHeaderHeight(item.choicesLabel.TMP_Text, _rectangles[item.choicesLabel.RectTransform].Size.y);
             LayoutRebuilder.ForceRebuildLayoutImmediate(item.choicesLabel.RectTransform);
             item.activeGroup.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
                 item.choicesLabel.RectTransform.rect.height - item.choicesLabel.RectTransform.anchoredPosition.y + 12f);
@@ -1104,6 +1124,47 @@ internal static class MulticlassGameUi
             height = Mathf.Max(minimumHeight, Mathf.Ceil(text.textBounds.size.y) + 2f);
             text.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
             return height;
+        }
+    }
+
+    internal static void OrderSpellLearnStepTags(CharacterStageSpellSelectionPanel panel)
+    {
+        var data = panel?.currentHero?.GetHeroBuildingData();
+
+        if (data == null || panel.allTags == null)
+        {
+            return;
+        }
+
+        panel.allTags.Clear();
+
+        // Native pool types occupy consecutive blocks. Reorder only related sources
+        // inside their original positions so the step index keeps its pool type.
+        foreach (var tags in new[]
+                 { panel.cantripTags, panel.spellUnlearnTags, panel.spellTags, panel.cantripOrSpellTags })
+        {
+            if (tags == null)
+            {
+                continue;
+            }
+
+            var groups = tags.Select((tag, index) =>
+                    (Tag: tag, Index: index, Policy: FeatHelpers.GetSpellSelectionTag(data, tag)))
+                .Where(entry => !string.IsNullOrEmpty(entry.Policy?.SelectionGroup))
+                .GroupBy(entry => entry.Policy.SelectionGroup, StringComparer.Ordinal);
+
+            foreach (var group in groups)
+            {
+                var entries = group.ToArray();
+                var ordered = entries.OrderBy(entry => entry.Policy.SelectionOrder).ToArray();
+
+                for (var index = 0; index < entries.Length; index++)
+                {
+                    tags[entries[index].Index] = ordered[index].Tag;
+                }
+            }
+
+            panel.allTags.AddRange(tags);
         }
     }
 
@@ -1134,7 +1195,7 @@ internal static class MulticlassGameUi
             if (replacement != null)
             {
                 SetLearnStepTitle(item, Gui.Format("Screen/&FeatSpellReplacementTitle", replacement.FormatSourceTitle()));
-                item.choicesLabel.Text = Gui.Localize("Screen/&FeatSpellReplacementDescription");
+                SetLearnStepDescription(item, Gui.Localize("Screen/&FeatSpellReplacementDescription"));
                 if (index == panel.currentLearnStep)
                 {
                     item.autoButton.gameObject.SetActive(true);
@@ -1151,7 +1212,18 @@ internal static class MulticlassGameUi
                 continue;
             }
 
-            if (Tabletop2024Context.TryGetTabletop2024FeatSpellLearnStepTitle(
+            var selectionPresentation = FeatHelpers.GetSpellSelectionTag(
+                panel.currentHero.GetHeroBuildingData(), item.Tag)?.Presentation;
+            if (selectionPresentation != null)
+            {
+                SetLearnStepTitle(item, selectionPresentation.FormatTitle(null));
+                var description = selectionPresentation.FormatDescription(null);
+                if (!string.IsNullOrEmpty(description))
+                {
+                    SetLearnStepDescription(item, description);
+                }
+            }
+            else if (Tabletop2024Context.TryGetTabletop2024FeatSpellLearnStepTitle(
                     item.PoolType,
                     item.Tag,
                     out var title))
@@ -1164,7 +1236,10 @@ internal static class MulticlassGameUi
         LayoutRebuilder.ForceRebuildLayoutImmediate(panel.learnStepsTable);
     }
 
-    internal static void ApplyLearnStepLayout(LearnStepItem item, bool active)
+    internal static void ApplyLearnStepLayout(LearnStepItem item, bool active) =>
+        GetLearnStepLayout(item).Apply(item, active);
+
+    private static LearnStepLayout GetLearnStepLayout(LearnStepItem item)
     {
         if (!LearnStepLayouts.TryGetValue(item, out var layout))
         {
@@ -1172,8 +1247,11 @@ internal static class MulticlassGameUi
             LearnStepLayouts.Add(item, layout);
         }
 
-        layout.Apply(item, active);
+        return layout;
     }
+
+    private static void SetLearnStepDescription(LearnStepItem item, string description) =>
+        GetLearnStepLayout(item).SetChoicesDescription(description);
 
     internal static void RestoreLearnStepLayout(LearnStepItem item)
     {
@@ -1316,7 +1394,9 @@ internal static class MulticlassGameUi
                              (pointPool.MaxSpellLevel <= 0 || spellLevel <= pointPool.MaxSpellLevel));
         var effectiveSpellListDefinition = pointPool?.spellListOverride ?? spellListDefinition;
         var effectiveRitualOnly = ritualOnly || pointPool?.ritualOnly == true;
+        var selectionPolicy = FeatHelpers.GetSpellSelectionTag(heroBuildingData, spellTag, spellFeature);
         var useDedicatedFeatSpellList =
+            selectionPolicy?.DedicatedSelectionList == true ||
             Tabletop2024Context.UsesDedicatedFeatSpellSelectionList2024(
                 spellFeature,
                 effectiveSpellListDefinition,
@@ -1381,6 +1461,19 @@ internal static class MulticlassGameUi
                 {
                     allSpells.TryAdd(spell);
                 }
+            }
+        }
+
+        // Apply the same source policy as AcquireSpell after every native/class extra
+        // has been collected, so unrelated known spells cannot reenter a restricted pool.
+        if (selectionPolicy != null)
+        {
+            allSpells.RemoveAll(spell => !selectionPolicy.CanSelectSpell(localHeroCharacter, spell));
+            if (selectionPolicy.DedicatedSelectionList)
+            {
+                // Learning a separate casting origin may choose a spell already known
+                // through a class or another origin; only this repertoire owns its choices.
+                knownSpells = selectionRepertoire?.KnownSpells ?? [];
             }
         }
 

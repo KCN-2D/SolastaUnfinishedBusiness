@@ -1,6 +1,8 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 
@@ -31,6 +33,103 @@ public interface ITryAlterOutcomeAttack
 
 internal static class TryAlterOutcomeAttack
 {
+    private static readonly ConditionalWeakTable<CharacterAction, ForcedHit> ForcedHits = new();
+
+    [ThreadStatic]
+    private static AttackResolutionScope _attackResolutionScope;
+
+    internal static void ForceHit(CharacterAction action, GameLocationCharacter defender, ActionModifier modifier)
+    {
+        ForcedHits.Remove(action);
+        ForcedHits.Add(action, new ForcedHit(defender.RulesetActor, modifier, action.AttackRoll));
+        action.AttackRollOutcome = RuleDefinitions.RollOutcome.Success;
+        action.AttackSuccessDelta = 0;
+    }
+
+    internal static bool IsForcedHit(CharacterAction action, GameLocationCharacter defender, ActionModifier modifier)
+    {
+        return action.AttackRollOutcome == RuleDefinitions.RollOutcome.Success &&
+               ForcedHits.TryGetValue(action, out var forcedHit) &&
+               forcedHit.Matches(defender.RulesetActor, modifier, action.AttackRoll);
+    }
+
+    internal static IDisposable BeginAttackResolution(
+        CharacterAction action, GameLocationCharacter defender, ActionModifier modifier)
+    {
+        var forceHit = IsForcedHit(action, defender, modifier);
+
+        // Each target/beam consumes its own authorization, even when the native action
+        // and modifier are reused for another attack against the same creature.
+        ForcedHits.Remove(action);
+
+        return new AttackResolutionScope(action.ActingCharacter.RulesetCharacter,
+            defender.RulesetActor, modifier, action.AttackRoll, forceHit);
+    }
+
+    internal static bool ConsumeForcedHit(RulesetCharacter attacker, RulesetActor target,
+        List<RuleDefinitions.TrendInfo> toHitTrends, int predefinedRoll, bool testMode)
+    {
+        return !testMode && _attackResolutionScope?.TryConsume(attacker, target, toHitTrends, predefinedRoll) == true;
+    }
+
+    private sealed class ForcedHit(RulesetActor target, ActionModifier modifier, int rawRoll)
+    {
+        internal bool Matches(RulesetActor candidateTarget, ActionModifier candidateModifier, int candidateRoll)
+        {
+            return ReferenceEquals(target, candidateTarget) && ReferenceEquals(modifier, candidateModifier) &&
+                   rawRoll == candidateRoll;
+        }
+    }
+
+    // The final native roll is synchronous. Do not keep this scope active across a yield:
+    // unrelated reactions must never inherit another action's forced outcome.
+    private sealed class AttackResolutionScope : IDisposable
+    {
+        private readonly AttackResolutionScope _previous = _attackResolutionScope;
+        private readonly RulesetCharacter _attacker;
+        private readonly RulesetActor _target;
+        private readonly ActionModifier _modifier;
+        private readonly int _rawRoll;
+        private bool _available;
+        private bool _disposed;
+
+        internal AttackResolutionScope(RulesetCharacter attacker, RulesetActor target,
+            ActionModifier modifier, int rawRoll, bool forceHit)
+        {
+            _attacker = attacker;
+            _target = target;
+            _modifier = modifier;
+            _rawRoll = rawRoll;
+            _available = forceHit;
+            _attackResolutionScope = this;
+        }
+
+        internal bool TryConsume(RulesetCharacter attacker, RulesetActor target,
+            List<RuleDefinitions.TrendInfo> toHitTrends, int rawRoll)
+        {
+            if (_disposed || !_available || !ReferenceEquals(_attacker, attacker) ||
+                !ReferenceEquals(_target, target) ||
+                !ReferenceEquals(_modifier.AttacktoHitTrends, toHitTrends) || _rawRoll != rawRoll)
+            {
+                return false;
+            }
+
+            _available = false;
+            return true;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _attackResolutionScope = _previous;
+            _disposed = true;
+        }
+    }
+
     internal static int GetReplacementRollSuccessDelta(
         CharacterAction action,
         int newRoll,

@@ -1181,8 +1181,14 @@ internal static class Level20Context
         }
     }
 
-    private sealed class CustomLevelUpLogicBarbarianPrimalChampion : ICustomLevelUpLogic
+    private sealed class CustomLevelUpLogicBarbarianPrimalChampion : ICustomLevelUpLogic, ICustomLevelUpState
     {
+        public IEnumerable<RulesetCondition> GetStateConditions(RulesetCharacterHero hero) => [];
+
+        public (int BaseValue, int MaxValue, int MaxEditableValue) GetAttributeIncreases(
+            RulesetCharacterHero hero, string attribute) =>
+            attribute is AttributeDefinitions.Strength or AttributeDefinitions.Constitution ? (4, 4, 4) : default;
+
         public void ApplyFeature([NotNull] RulesetCharacterHero hero, string tag)
         {
             hero.ModifyAttributeAndMax(AttributeDefinitions.Strength, 4);

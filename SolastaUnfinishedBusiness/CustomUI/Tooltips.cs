@@ -157,11 +157,10 @@ internal static class Tooltips
     {
         var definition = GetHeaderDefinition(tooltip);
 
-        // Conditions expose the effect's status symbol, including when their granted
-        // power uses a text-only header. The same pooled header still honors that
-        // presentation policy for powers and other illustrated definitions.
+        // Feat headers share a text-only presentation. Conditions still expose their
+        // status symbols, while other definitions may opt into the same image policy.
         if (!header || definition is ConditionDefinition ||
-            definition?.HasSubFeatureOfType<HideHeaderImage>() != true)
+            definition is not FeatDefinition && definition?.HasSubFeatureOfType<HideHeaderImage>() != true)
         {
             return false;
         }

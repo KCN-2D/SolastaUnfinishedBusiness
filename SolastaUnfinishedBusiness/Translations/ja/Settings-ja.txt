@@ -249,7 +249,7 @@ ModUi/&EnableRangerExpertise2024=9レベルで<color=#D89555>習熟強化</color
 ModUi/&EnableRangerFavoredEnemy2024=<color=#D89555>得意な敵</color>と<color=#D89555>得意な地形</color>を2024年版の<color=#D89555>得意な敵</color>に置き換えます
 ModUi/&EnableRangerFeralSenses2024=<color=#D89555>野生の感覚</color>を2024年版と入れ替えます<i><color=#F0DAA0>（6マスの擬似視覚を得る）</color></i>
 ModUi/&EnableRangerFoeSlayers2024=<color=#D89555>仇敵殺し</color>を2024年版に変更します<i><color=#F0DAA0>（狩人の印のダイスをd10に変更）</color></i>
-ModUi/&EnableRangerNatureShroud2024=14レベルで<color=#D89555>自然の覆い</color>を有効にし、<color=#D89555>消え身</color>を置き換えます<i><color=#F0DAA0>（ボーナス・アクションとして、次のターン開始時まで魔法的に不可視状態になる）</color></i>
+ModUi/&EnableRangerNatureShroud2024=14レベルで<color=#D89555>自然の覆い</color>を有効にし、<color=#D89555>雲隠れ</color>を置き換えます<i><color=#F0DAA0>（ボーナス・アクションとして、次のターン開始時まで魔法的に不可視状態になる）</color></i>
 ModUi/&EnableRangerPreciseHunter2024=レベル17で<color=#D89555>精密な狩人</color>を有効にします<i><color=#F0DAA0>（狩人の印を受けたクリーチャーへの攻撃に有利）</color></i>
 ModUi/&EnableRangerRelentlessHunter2024=レベル13で<color=#D89555>執拗な狩人</color>を有効にします<i><color=#F0DAA0>（ダメージによって狩人の印への精神集中を失わない）</color></i>
 ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+代わりに狩人の印の精神集中を不要にします</i>
@@ -601,7 +601,7 @@ ModUi/&EnableGeneralFeats2024=特技を2024年版のルールに合わせて再�
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>（2024年版の特技は、下の一覧で個別に有効・無効を切り替えられます。有効中は、上位互換の特技が追加された旧版の特技を選択できません）</color></i>
 ModUi/&EnableTabletopFeatRules2024=特技の一覧を2024年版のテーブルトップルールに限定します
 ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>（背景やヒューマンから得る起源特技も、2024年版の一覧から選択します）</color></i>
-ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>（有効中は、下の2024年版の特技のみ個別に切り替えられます。旧版の特技の設定は変更できません）</color></i>\n種族、背景、その他の能力で指定された特技の選択肢は、この一覧で無効にしていても選択できます。
+ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>（有効中は、下の2024年版の特技のみ個別に切り替えられます。旧版の特技の設定は変更できません）</color></i>\n種族、背景、その他の能力で指定された特技の選択肢は、この一覧で無効にしていても選択できます。\n2014年版との互換用に、原典にない能力値上昇を追加した特技は、一括選択の対象外です。これらも個別に有効にできます。
 ModUi/&EnableStrictTabletopClassSelection=クラスとサブクラスの選択をテーブルトップ由来のものに限定します
 ModUi/&EnableStrictTabletopClassSelectionHelp=テーブルトップ由来のクラスと、そのタグが付いたサブクラスのみ選択できます。対象外のサブクラスは自動的に無効になります。また、クレリックの領域は神格による制限を受けなくなります
 ModUi/&EnableWizardSpellMastery2024=<color=#D89555>呪文体得</color>を2024年版に変更します<i><color=#F0DAA0>（発動時間がアクションの呪文のみ選択でき、大休憩後に1つ変更可能）</color></i>
@@ -696,3 +696,6 @@ ModUi/&EnableToolChecks2024=2024年版の道具判定の習熟ルールを適用
 ModUi/&ToolChecks2024Description=盗賊道具を用いる判定に、〈手先の早業〉の習熟と、その技能に固有の効果を適用します。技能と道具の習熟によるボーナスのうち、高い方を1回だけ加えます。両方に習熟している場合は有利も得ます。
 ModUi/&EnableAssassinInfiltrationExpertise2024=アサシンのレベル9の特徴を2024年版の<color=#D89555>偽りの素性</color>に変更します。<i><color=#F0DAA0>〈ペテン〉の習熟または習熟強化を得て、着実な狙いの使用後に移動できるようになります。ローグ全体の着実な狙い設定が無効でも、このアサシンに着実な狙いを付与します。</color></i>
 Setting/&NoToolRequirementDescription=キャラクターは道具なしでアイテムを製作したり、宝箱や扉の錠前を開けたりできます。
+ModUi/&EnableEpicBoons2024=偉業の証を有効化
+ModUi/&EpicBoons2024Help=2024年版のテーブルトップ特技が有効な場合、偉業の証のカテゴリとキャラクター・レベル19以降で修得できる特技を表示します。
+ModUi/&EpicBoons2024RequiresTabletopHelp=2024年版のテーブルトップ特技を有効にすると利用できます。この設定の選択は保持されます。

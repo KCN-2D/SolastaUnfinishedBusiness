@@ -26,6 +26,9 @@ public static class FeatureDescriptionItemPatcher
     private static readonly AccessTools.FieldRef<FeatureDescriptionItem, List<FeatureDefinition>> AvailableFeaturesRef =
         AccessTools.FieldRefAccess<FeatureDescriptionItem, List<FeatureDefinition>>("availableFeatures");
 
+    private static readonly AccessTools.FieldRef<FeatureDescriptionItem, List<bool>> ContentValiditiesRef =
+        AccessTools.FieldRefAccess<FeatureDescriptionItem, List<bool>>("contentValidities");
+
     private static readonly AccessTools.FieldRef<FeatureDefinitionFeatureSet, int> DefaultSelectionRef =
         AccessTools.FieldRefAccess<FeatureDefinitionFeatureSet, int>("defaultSelection");
 
@@ -151,13 +154,13 @@ public static class FeatureDescriptionItemPatcher
         {
             item.choiceDropdown.SetValueWithoutNotify(index);
             item.choiceDropdown.RefreshShownValue();
+            item.choiceDropdown.UpdateTooltip();
         }
 
         if (item.choiceSelector && item.choiceSelector.gameObject.activeSelf)
         {
             item.choiceSelector.CurrentSelection = index;
             item.choiceSelector.RefreshCurrent();
-            item.choiceSelector.RefreshTooltip();
         }
     }
 
@@ -353,58 +356,64 @@ public static class FeatureDescriptionItemPatcher
             var control = dropdown.transform as RectTransform;
             var caption = dropdown.captionText;
             var template = dropdown.template;
+
+            if (template && template.TryGetComponent<ScrollRect>(out var scroll))
+            {
+                // ScrollRect owns its viewport geometry. Some native prefabs serialize
+                // a zero-sized viewport until the first layout, even though the popup
+                // already has a width. Resolve that layout without enabling the template.
+                scroll.Rebuild(CanvasUpdate.Prelayout);
+                scroll.SetLayoutHorizontal();
+                scroll.SetLayoutVertical();
+            }
+
             var optionText = dropdown.itemText;
             var option = GetChoiceOptionRect(optionText);
             var content = option ? option.parent as RectTransform : null;
             var oldWidth = control.rect.width;
-            var templateWidth = template ? template.rect.width : oldWidth;
-            var optionWidth = option ? option.rect.width : oldWidth;
-            var textWidth = optionText ? optionText.rectTransform.rect.width : oldWidth;
-            var optionHeight = option ? option.rect.height : 0f;
-            var textHeight = optionText ? optionText.rectTransform.rect.height : 0f;
-            var contentHeight = content ? content.rect.height : 0f;
-            var templateHeight = template ? template.rect.height : 0f;
-            var optionInset = option && content ? GetChoiceChildInset(option, content) : Vector2.zero;
-            var optionTextInset = option && optionText ? GetChoiceChildInset(optionText.rectTransform, option) : Vector2.zero;
+            var templateSize = template ? GetChoiceRectSize(template, control, control.rect.size) : Vector2.zero;
+            var optionSize = option ? GetChoiceRectSize(option, template, templateSize) : Vector2.zero;
+            var textSize = optionText
+                ? GetChoiceRectSize(optionText.rectTransform, template, templateSize) : Vector2.zero;
+            var contentSize = content ? GetChoiceRectSize(content, template, templateSize) : Vector2.zero;
             var optionFrame = GetChoiceFrame(option);
-            var optionFrameSize = optionFrame ? optionFrame.rect.size : Vector2.zero;
-            var optionFrameInset = optionFrame ? GetChoiceChildInset(optionFrame, option) : Vector2.zero;
+            var optionFrameSize = optionFrame
+                ? GetChoiceRectSize(optionFrame, template, templateSize) : Vector2.zero;
 
             changed |= ResizeFeatureChoiceControl(control, caption, titles, itemRect);
             dropdown.RefreshShownValue();
+            dropdown.UpdateTooltip();
 
             if (template && option && optionText)
             {
                 var width = control.rect.width;
-                var labelWidth = Mathf.Max(1f, width + textWidth - oldWidth);
-                var height = Mathf.Max(optionHeight,
-                    GetChoiceTextHeight(optionText, titles, labelWidth) + optionHeight - textHeight);
+                var optionWidth = Mathf.Max(1f, width + optionSize.x - oldWidth);
+                var labelWidth = Mathf.Max(1f, optionWidth + textSize.x - optionSize.x);
+                var height = Mathf.Max(optionSize.y,
+                    GetChoiceTextHeight(optionText, titles, labelWidth) + optionSize.y - textSize.y);
+                var popupSize = new Vector2(Mathf.Max(1f, width + templateSize.x - oldWidth),
+                    Mathf.Max(templateSize.y, height + templateSize.y - optionSize.y));
 
-                changed |= ResizeChoiceRect(template, Mathf.Max(1f, width + templateWidth - oldWidth),
-                    Mathf.Max(templateHeight, height + templateHeight - optionHeight));
+                changed |= ResizeChoicePopupRect(template, popupSize, control, control.rect.size);
 
                 if (content)
                 {
-                    content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
-                        Mathf.Max(height, contentHeight + height - optionHeight));
-                    changed |= ResizeChoiceChild(option, content,
-                        Mathf.Max(1f, width + optionWidth - oldWidth), height, optionInset);
+                    changed |= ResizeChoicePopupRect(content,
+                        new Vector2(Mathf.Max(1f, width + contentSize.x - oldWidth),
+                            Mathf.Max(height, contentSize.y + height - optionSize.y)), template, popupSize);
                 }
-                else
-                {
-                    changed |= ResizeChoiceRect(option, Mathf.Max(1f, width + optionWidth - oldWidth), height);
-                }
+
+                changed |= ResizeChoicePopupRect(option, new Vector2(optionWidth, height), template, popupSize);
 
                 if (optionFrame && optionFrame != option && optionFrame != optionText.rectTransform)
                 {
-                    changed |= ResizeChoiceChild(optionFrame, option,
-                        Mathf.Max(1f, optionFrameSize.x + option.rect.width - optionWidth),
-                        Mathf.Max(1f, optionFrameSize.y + height - optionHeight), optionFrameInset);
+                    changed |= ResizeChoicePopupRect(optionFrame,
+                        new Vector2(Mathf.Max(1f, optionFrameSize.x + optionWidth - optionSize.x),
+                            Mathf.Max(1f, optionFrameSize.y + height - optionSize.y)), template, popupSize);
                 }
 
-                changed |= ResizeChoiceChild(optionText.rectTransform, option, labelWidth,
-                    Mathf.Max(1f, height + textHeight - optionHeight), optionTextInset);
-
+                changed |= ResizeChoicePopupRect(optionText.rectTransform,
+                    new Vector2(labelWidth, Mathf.Max(1f, height + textSize.y - optionSize.y)), template, popupSize);
             }
         }
 
@@ -417,6 +426,42 @@ public static class FeatureDescriptionItemPatcher
         }
 
         return changed;
+    }
+
+    private static Vector2 GetChoiceRectSize(RectTransform rect, RectTransform root, Vector2 rootSize)
+    {
+        if (rect == root)
+        {
+            return rootSize;
+        }
+
+        if (!root || rect.parent is not RectTransform parent || !rect.IsChildOf(root))
+        {
+            return rect.rect.size;
+        }
+
+        // Inactive dropdown templates can report zero-sized descendants before the
+        // first canvas layout. Their authored anchors and sizeDelta still define the
+        // correct row geometry; transient zero widths must not become wrapping limits.
+        return Vector2.Scale(GetChoiceRectSize(parent, root, rootSize), rect.anchorMax - rect.anchorMin) + rect.sizeDelta;
+    }
+
+    private static bool ResizeChoicePopupRect(
+        RectTransform rect, Vector2 size, RectTransform root, Vector2 rootSize)
+    {
+        var parent = rect.parent as RectTransform;
+        var parentSize = parent ? GetChoiceRectSize(parent, root, rootSize) : Vector2.zero;
+        var delta = size - Vector2.Scale(parentSize, rect.anchorMax - rect.anchorMin);
+
+        if ((rect.sizeDelta - delta).sqrMagnitude <= 0.25f)
+        {
+            return false;
+        }
+
+        // Keep the authored anchors, pivot and position. Unlike live control layout,
+        // an inactive popup cannot supply reliable world-space insets for resizing.
+        rect.sizeDelta = delta;
+        return true;
     }
 
     private static RectTransform GetChoiceOptionRect(TMP_Text text)
@@ -1110,6 +1155,10 @@ public static class FeatureDescriptionItemPatcher
             // Active pooled items can be rebound without Unbind. The native default selection
             // must not call the previous owner's handler before Bind installs the new one.
             __instance.ValueChanged = null;
+
+            // Native Bind replaces the labels and descriptions but appends these flags.
+            // A pooled row must not inherit another feature's content-pack availability.
+            ContentValiditiesRef(__instance)?.Clear();
         }
 
         [UsedImplicitly]
@@ -1131,6 +1180,10 @@ public static class FeatureDescriptionItemPatcher
             SaveHumanOriginFeatSelection(__instance, false);
             RefreshSpeciesBaseWalkSpeedDescription(__instance);
             RefreshSelectionFeatureDisplayLayout(__instance);
+
+            // Assigning the same option index does not raise the native value-change event.
+            // Refresh the selected description even when this row has not been laid out yet.
+            __instance.choiceDropdown?.UpdateTooltip();
 
             if (TryGetBackgroundFeatDisplayPanel(__instance, out var backgroundPanel))
             {

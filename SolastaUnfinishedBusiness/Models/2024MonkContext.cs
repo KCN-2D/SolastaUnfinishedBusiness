@@ -948,8 +948,14 @@ public static partial class Tabletop2024Context
         }
     }
 
-    private sealed class CustomLevelUpLogicMonkBodyAndMind : ICustomLevelUpLogic
+    private sealed class CustomLevelUpLogicMonkBodyAndMind : ICustomLevelUpLogic, ICustomLevelUpState
     {
+        public IEnumerable<RulesetCondition> GetStateConditions(RulesetCharacterHero hero) => [];
+
+        public (int BaseValue, int MaxValue, int MaxEditableValue) GetAttributeIncreases(
+            RulesetCharacterHero hero, string attribute) =>
+            attribute is AttributeDefinitions.Dexterity or AttributeDefinitions.Wisdom ? (4, 4, 4) : default;
+
         public void ApplyFeature([NotNull] RulesetCharacterHero hero, string tag)
         {
             hero.ModifyAttributeAndMax(AttributeDefinitions.Dexterity, 4);

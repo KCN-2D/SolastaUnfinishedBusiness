@@ -131,7 +131,7 @@ ModUi/&EnableAdditionalItemsInDungeonMaker=Aggiungi elementi modificati all'edit
 ModUi/&EnableAllyMovementAllowsFlight=Consenti alle caratteristiche che muovono se stessi o gli alleati di includere posizioni a mezz'aria se la creatura sta volando (ad esempio <color=#D89555>Colpo di manovra</color>, <color=#D89555>Balzo istintivo</color>)
 ModUi/&EnableTeleportAllowsMidAirPositions=Consenti a incantesimi e poteri di teletrasporto con destinazione libera di bersagliare spazi aerei visibili e non occupati
 ModUi/&EnableAlternateHuman=Abilita l'alternativa <color=#D89555>Umano</color> <i><color=#F0DAA0>[+1 talento / +2 scelte attributo / +1 abilità]</color></i>
-ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
+ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Gli aumenti dei punteggi di caratteristica del background sono attivi, quindi gli umani usano automaticamente i talenti e le abilità dell'umano alternativo al posto degli aumenti razziali.</color></i>
 ModUi/&EnableAlternateVotingSystem=Abilita il sistema di voto alternativo <i><color=#F0DAA0>[peso della scelta = somma dei modificatori di Carisma degli eroi che votano per quella scelta]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=Abilita l'implementazione di <b>Abjurer</b> <color=#D89555>Arcane Ward</color> per comportarsi come BG3
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[Diminuisce di 1 ogni volta che previene danni, invece di per danni prevenuti. Non c'è bisogno di lanciare un incantesimo di abjurazione per essere attivo\nma il valore massimo è 2x livello mago invece di 2x livello mago + mod INT e si ricarica solo a metà con un riposo lungo]</color></i>
@@ -147,7 +147,7 @@ ModUi/&EnableBardCounterCharm2024=Abilita <color=#D89555>Contrafascino</color> a
 ModUi/&EnableBardExpertiseOneLevelBefore2024=Abilita <color=#D89555>Competenza</color> ai livelli 2 e 9 invece che 3 e 10
 ModUi/&EnableBardHealingBalladOnLongRest=Abilita <b>College of Hope</b> <color=#D89555>Ballata curativa</color> durante il riposo lungo
 ModUi/&EnableDivineHeartTabletopFeatures=Abilita i privilegi tabletop di <b>Divine Soul</b>
-ModUi/&EnableDivineHeartTabletopFeaturesHelp=Sostituisce il privilegio iniziale di Divine Heart con Favored by the Gods e quello di livello 14 con Otherworldly Wings.
+ModUi/&EnableDivineHeartTabletopFeaturesHelp=Sostituisce il privilegio iniziale di Anima Divina con Favorito dagli dei e quello di livello 14 con Ali ultraterrene.
 ModUi/&EnableBardMagicalSecrets2024=Sostituisci <color=#D89555>Segreti magici</color> con la versione 5e 2024
 ModUi/&EnableBardSuperiorInspiration2024=Abilita <color=#D89555>Ispirazione superiore</color> al livello 18 invece che 20 e concedi anche due ricariche invece di 1
 ModUi/&EnableBardWordsOfCreation2024=Abilita <color=#D89555>Parole di Creazione</color> al livello 20
@@ -232,8 +232,8 @@ ModUi/&EnableOneDndStoneSkinSpell=Abilita la versione 2024 di <color=#D89555>{0}
 ModUi/&EnableOneDndTrueStrikeCantrip=Abilita la versione 2024 di <color=#D89555>{0}</color> <b><i><color=#C04040E0>[Richiede riavvio]</color></i></b>\n<i><color=#F0DAA0>[l'attacco usa la tua capacità di lanciare incantesimi per il tiro di attacco e il bonus al danno, e danni radianti aggiuntivi dal livello 5]</color></i>
 ModUi/&EnableOneDndWitchBoltSpell=Abilita la versione 2024 di <color=#D89555>{0}</color> <i><color=#F0DAA0>[Azione bonus per riapplicare il danno]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=Abilita le linee di vista verso i nemici visibili quando si prende di mira fuori dal combattimento
-ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
-ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
+ModUi/&EnableCeilingAwareTargetPerception=Migliora la percezione dei bersagli quando voli vicino ai soffitti
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Riprova la linea di percezione da un punto leggermente più basso solo quando una linea di visuale verso il basso, tracciata da un punto vicino al soffitto, sembra bloccata dal bordo del soffitto. Non ignora pareti, copertura, oscurità, invisibilità o gittata.</i>
 ModUi/&EnablePaladinAbjureFoes2024=Abilita <color=#D89555>Abjura i nemici</color> al livello 9
 ModUi/&EnablePaladinAnyFightingStyle2024=Consenti al <color=#D89555>Paladino</color> di scegliere qualsiasi stile di combattimento <i><color=#F0DAA0>[aggiunge Tiro con l'arco e Combattimento a due armi]</color></i>
 ModUi/&EnablePaladinChannelDivinity2024=Sostituisci <color=#D89555>Canale Divinità</color> con la versione 5e 2024 <i><color=#F0DAA0>[usi diversi]</color></i>
@@ -262,7 +262,7 @@ ModUi/&EnableRangerExpertise2024=Abilita <color=#D89555>Competenza</color> al li
 ModUi/&EnableRangerFavoredEnemy2024=Sostituisci <color=#D89555>Nemico preferito</color> e <color=#D89555>Terreno preferito</color> con <color=#D89555>Nemico preferito</color> versione 5e 2024
 ModUi/&EnableRangerFeralSenses2024=Sostituisci <color=#D89555>Sensi selvaggi</color> con la versione 5e 2024 <i><color=#F0DAA0>[ottieni vista cieca a 30 piedi]</color></i>
 ModUi/&EnableRangerFoeSlayers2024=Sostituisci <color=#D89555>Foe Slayer</color> con la versione 5e 2024 <i><color=#F0DAA0>[aumenta il dado del Marchio del Cacciatore a d10]</color></i>
-ModUi/&EnableRangerNatureShroud2024=Abilita la funzione <color=#D89555>Velo della Natura</color> al livello 14 <i><color=#F0DAA0>[come azione bonus, puoi diventare magicamente invisibile fino all'inizio del turno successivo]</color></i>
+ModUi/&EnableRangerNatureShroud2024=Sostituisci <color=#D89555>Svanire</color> con <color=#D89555>Velo della natura</color> al livello 14 <i><color=#F0DAA0>[come azione bonus, puoi diventare magicamente invisibile fino all'inizio del turno successivo]</color></i>
 ModUi/&EnableRangerPreciseHunter2024=Abilita <color=#D89555>Cacciatore Preciso</color> al livello 17 <i><color=#F0DAA0>[vantaggio contro le creature contrassegnate dal Cacciatore]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024=Abilita <color=#D89555>Cacciatore implacabile</color> al livello 13 <i><color=#F0DAA0>[i danni non interrompono la concentrazione sul Marchio del cacciatore]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ Rimuovi invece i requisiti di concentrazione dal Marchio del cacciatore</i>
@@ -481,7 +481,7 @@ ModUi/&ScaleMerchantPricesCorrectly=Scala i prezzi dei commercianti correttament
 ModUi/&SelectAll=Seleziona tutto
 ModUi/&SelectDisplayed=Seleziona Visualizzato
 ModUi/&SelectSuggested=Seleziona suggerito
-ModUi/&SelectTabletop=Seleziona il tavolo
+ModUi/&SelectTabletop=Seleziona contenuti da tavolo
 ModUi/&SenseNormalVisionRangeMultiplier=Modifica la portata della <color=#D89555>Visione normale</color> <i><color=#F0DAA0>[solo in battaglia]</color></i>
 ModUi/&Services=Servizi
 ModUi/&SetBeltOfDwarvenKindBeardChances=<color=#D89555>Cintura dei nani</color> <color=white>Possibilità di comparsa della barba</color>
@@ -566,7 +566,7 @@ ModUi/&UseElfFaceModelsOnTieflings=Usa modelli di volti <color=#D89555>Elfo</col
 ModUi/&UseHeightOneCylinderEffect=Usa un effetto cilindro di altezza 1 quando lanci <color=#D89555>Tentacoli neri, Intrappolamento, Grasso</color> <i><color=#F0DAA0>[quadrato]</color></i> o <color=#D89555>Crescita di punte</color> <i><color=#F0DAA0>[rotondo]</color></i>
 ModUi/&UseMathFlankingRules=<i>+ Usa la matematica precisa per determinare il fiancheggiamento <color=#F0DAA0>[potrebbe avere un impatto sulle prestazioni su macchine lente]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=Abilita le regole <color=#D89555>vantaggio/svantaggio</color> <i><color=#F0DAA0>[se le circostanze fanno sì che un tiro abbia entrambi, si considera che non hai nessuno dei due]</color></i>
-ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Impedisci le reazioni dopo l’uso di <color=#D89555>Resistenza leggendaria</color> <i><color=#F0DAA0>[il tiro salvezza diventa un successo definitivo]</color></i>
 ModUi/&UseOfficialFlankingRules=Abilita le regole di <color=#D89555>fiancheggiamento</color> <i><color=#F0DAA0>[un attaccante ha vantaggio se un alleato si trova sul lato opposto del bersaglio]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ Abilita anche per gli attacchi a distanza <color=#F0DAA0>[disabilita matematica precisa]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ Abilita anche per gli attacchi di portata <color=#F0DAA0>[disabilita matematica precisa]</color></i>
@@ -596,14 +596,14 @@ ModUi/&WildSurgeDieRollThreshold=<color=white>Imposta la soglia di probabilità 
 ModUi/&EnableBackgroundAbilityScoreIncreases=Gli aumenti dei punteggi di caratteristica provengono dal background invece che dalla razza; i tratti umani vengono adeguati di conseguenza <i><color=#F0DAA0>(Razze flessibili non si applica mentre questa opzione è attiva)</color></i>
 ModUi/&EnableBackgroundBonusFeats=Sostituisce i tratti del background con un talento di origine, due competenze nelle abilità e una competenza negli strumenti secondo le regole del 2024 <i><color=#F0DAA0>(Richiede gli aumenti dei punteggi di caratteristica del background; Background flessibili non si applica mentre questa opzione è attiva)</color></i>
 ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Abilita gli aumenti dei punteggi di caratteristica del background per ottenere talenti di origine dai background.
-ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
-ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
-ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
-ModUi/&EnableTabletopFeatRules2024=Use the independent 2024 tabletop feat catalog
-ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses only the independent 2024 feat catalog. Background feats and Human origin feats resolve to the same catalog]</color></i>
-ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[Quando questa opzione è attiva, è possibile attivare o disattivare solo i talenti indipendenti del 2024 elencati sotto. Le impostazioni dei talenti precedenti sono bloccate.]</color></i>\nLe scelte di talenti concesse esplicitamente da una specie, un background o un altro privilegio restano disponibili anche se il talento è disattivato in questo elenco.
-ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
-ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
+ModUi/&AddOriginFeatsToAutoLearn= + Aggiungi talenti di origine all'apprendimento automatico
+ModUi/&EnableGeneralFeats2024=Riorganizza i talenti generali per le regole 5.5e <i><color=#F0DAA0>[I talenti del 2024 sono implementazioni indipendenti]</color></i>
+ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[I talenti del 2024 si attivano singolarmente qui sotto. Quando questa opzione è attiva, i talenti precedenti completamente sostituiti non sono disponibili.]</color></i>
+ModUi/&EnableTabletopFeatRules2024=Usa il catalogo indipendente dei talenti da tavolo del 2024
+ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[Quando questa opzione è attiva, il gioco usa solo il catalogo indipendente dei talenti del 2024. I talenti del background e i talenti di origine degli umani provengono dallo stesso catalogo]</color></i>
+ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[Quando questa opzione è attiva, è possibile attivare o disattivare solo i talenti indipendenti del 2024 elencati sotto. Le impostazioni dei talenti precedenti sono bloccate.]</color></i>\nLe scelte di talenti concesse esplicitamente da una specie, un background o un altro privilegio restano disponibili anche se il talento è disattivato in questo elenco.\nSeleziona contenuti da tavolo esclude gli adattamenti compatibili con il 2014 che aggiungono un aumento di caratteristica. Puoi comunque attivarli singolarmente.
+ModUi/&EnableStrictTabletopClassSelection=Limita la scelta a classi e sottoclassi da tavolo
+ModUi/&EnableStrictTabletopClassSelectionHelp=Puoi selezionare solo classi da tavolo e sottoclassi contrassegnate come tali. Finché questa opzione è attiva, le sottoclassi non da tavolo sono disattivate e i domini dei chierici ignorano le restrizioni della divinità.
 ModUi/&EnableWizardSpellMastery2024=Abilita <color=#D89555>Maestria negli incantesimi</color> 2024 <i><color=#F0DAA0>[incantesimi con un'azione; sostituiscine uno dopo un riposo lungo]</color></i>
 ModUi/&EnableThiefUseMagicDevice2024=Abilita <color=#D89555>Usare oggetti magici</color> del Furfante 2024 <i><color=#F0DAA0>[quattro sintonie, conservazione delle cariche e pergamene con Intelligenza]</color></i>
 ModUi/&EnableBarbarianDangerSense2024=Abilita <color=#D89555>Percezione del pericolo</color> 2024 <i><color=#F0DAA0>[vantaggio ai tiri salvezza di Destrezza salvo incapacità]</color></i>
@@ -696,3 +696,6 @@ ModUi/&EnableToolChecks2024=Usa le regole di competenza del 2024 per le prove co
 ModUi/&ToolChecks2024Description=Le prove con strumenti dei ladri applicano la competenza in Gioco di prestigio e gli effetti specifici di quell'abilità. Si aggiunge una sola volta il bonus di competenza più alto tra quello dell'abilità e quello dello strumento; possedere competenza in entrambi conferisce vantaggio.
 ModUi/&EnableAssassinInfiltrationExpertise2024=Usa <color=#D89555>Esperienza nell'infiltrazione</color> del 2024 per il Cacciatore di livello 9 <i><color=#F0DAA0>[competenza o maestria in Inganno e movimento dopo Mira stabile; conferisce Mira stabile a questi Cacciatori anche se l'opzione di classe è disattivata]</color></i>
 Setting/&NoToolRequirementDescription=I personaggi possono fabbricare oggetti e aprire le serrature di forzieri o porte senza strumenti.
+ModUi/&EnableEpicBoons2024=Abilita doni epici
+ModUi/&EpicBoons2024Help=Quando i talenti da tavolo del 2024 sono attivi, mostra la categoria Doni epici e i talenti disponibili dal 19° livello del personaggio.
+ModUi/&EpicBoons2024RequiresTabletopHelp=Abilita i talenti da tavolo del 2024 per usare questa opzione. La tua scelta per questa impostazione viene mantenuta.

@@ -601,7 +601,7 @@ ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
 ModUi/&EnableTabletopFeatRules2024=Use the independent 2024 tabletop feat catalog
 ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses only the independent 2024 feat catalog. Background feats and Human origin feats resolve to the same catalog]</color></i>
-ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[While enabled, only the independent 2024 feats below can be toggled. Legacy feat toggles are locked]</color></i>\nExplicit feat choices granted by a species, background, or another feature remain available even when that feat is disabled in this list.
+ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[While enabled, only the independent 2024 feats below can be toggled. Legacy feat toggles are locked]</color></i>\nExplicit feat choices granted by a species, background, or another feature remain available even when that feat is disabled in this list.\nSelect Tabletop excludes 2014 compatibility adaptations that add an ability-score increase. You can still enable them individually.
 ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
 ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
 ModUi/&EnableWizardSpellMastery2024=Enable 2024 <color=#D89555>Spell Mastery</color> <i><color=#F0DAA0>[action spells; replace one spell after a Long Rest]</color></i>
@@ -696,3 +696,6 @@ ModUi/&EnableToolChecks2024=Use 2024 tool-check proficiency rules
 ModUi/&ToolChecks2024Description=For checks using thieves' tools, apply Sleight of Hand proficiency and skill-specific effects. Add the higher skill or tool proficiency bonus once; proficiency in both grants advantage.
 ModUi/&EnableAssassinInfiltrationExpertise2024=Use 2024 <color=#D89555>Infiltration Expertise</color> at Slayer level 9 <i><color=#F0DAA0>[Deception proficiency or expertise and movement after Steady Aim; grants Steady Aim to these Slayers even when its class option is disabled]</color></i>
 Setting/&NoToolRequirementDescription=Characters can craft items and unlock chests or doors without tools.
+ModUi/&EnableEpicBoons2024=Enable Epic Boons
+ModUi/&EpicBoons2024Help=While 2024 tabletop feats are enabled, show the Epic Boons category and feats available at character level 19 or higher.
+ModUi/&EpicBoons2024RequiresTabletopHelp=Enable 2024 tabletop feats to use this option. Your choice for this setting is retained.

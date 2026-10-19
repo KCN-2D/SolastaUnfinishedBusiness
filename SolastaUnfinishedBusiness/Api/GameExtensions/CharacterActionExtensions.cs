@@ -1,8 +1,41 @@
-﻿namespace SolastaUnfinishedBusiness.Api.GameExtensions;
+﻿using SolastaUnfinishedBusiness.Behaviors;
+using static ActionDefinitions;
+
+namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
 internal static class CharacterActionExtensions
 {
     internal const string ShouldKeepConcentration = "ActionShouldKeepConcentration";
+
+    internal static bool CompletesAction(this CharacterAction action)
+    {
+        if (action?.ActingCharacter == null || action.Aborted)
+        {
+            return false;
+        }
+
+        var actor = action.ActingCharacter;
+        var replacesAttack = action.ActionId == Id.CastMain &&
+                             action.ActionParams.RulesetEffect is RulesetEffectSpell { SpellDefinition.SpellLevel: 0 } &&
+                             actor.RulesetCharacter.HasSubFeatureOfType<IAttackReplaceWithCantrip>();
+        if (Gui.Battle == null || action.ActionType != ActionType.Main ||
+            action.ActionId != Id.AttackMain && !replacesAttack)
+        {
+            return true;
+        }
+
+        // The finish hook precedes native action accounting. An AttackMain is
+        // one strike; the active performance's limit completes the Attack action.
+        var rank = actor.CurrentActionRankByType[ActionType.Main];
+        var performances = actor.ActionPerformancesByType[ActionType.Main];
+        var attacks = action.ActionParams.AttackMode?.AttacksNumber ?? actor.GetAllowedMainAttacksForRank(rank);
+        if (rank >= 0 && rank < performances.Count && performances[rank].MaxAttacksNumber >= 0)
+        {
+            attacks = System.Math.Min(attacks, performances[rank].MaxAttacksNumber);
+        }
+
+        return actor.UsedMainAttacks + 1 >= attacks;
+    }
 
     internal static string FormatTitle(this CharacterAction action)
     {

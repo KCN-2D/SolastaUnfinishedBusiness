@@ -131,7 +131,7 @@ ModUi/&EnableAdditionalItemsInDungeonMaker=将经过修改的物品添加到编�
 ModUi/&EnableAllyMovementAllowsFlight=若该生物处于飞行状态，允许使自身或盟友移动的特性将空中位置视为可用目标（例如<color=#D89555>机动打击</color>、<color=#D89555>本能猛扑</color>）
 ModUi/&EnableTeleportAllowsMidAirPositions=允许自由选点的传送法术和能力以可见且未被占据的空中空间为目标
 ModUi/&EnableAlternateHuman=启用<color=#D89555>变体人类</color> <i><color=#F0DAA0>[+1 专长 / +2 属性选择 / +1 技能]</color></i>
-ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>Background ASI is enabled, so Human automatically uses the alternate human feat and skill package while its racial ASI is removed.</color></i>
+ModUi/&EnableAlternateHumanForcedByBackgroundASI=<i><color=#F0DAA0>背景属性值提升已启用，因此人类自动采用变体人类的专长与技能组合，并移除种族属性值提升。</color></i>
 ModUi/&EnableAlternateVotingSystem=启用替代投票系统<i><color=#F0DAA0>[选择权重 = 投票给该选项的所有英雄的魅力调整值之和]</color></i>
 ModUi/&EnableBG3AbjurationArcaneWard=启用 <b>防护师</b> 的 <color=#D89555>奥术守御</color> 以博得之门3方式运行
 ModUi/&EnableBG3AbjurationArcaneWardHelp=<i><color=#F0DAA0>[每次防止伤害时固定减少1点强度，而非按抵消的伤害值减少。\n无需施展防护系法术即可维持激活状态，\n但最大值为法师等级的2倍（而非法师等级的2倍+智力调整值），且长休后仅恢复至一半]</color></i>
@@ -146,8 +146,8 @@ ModUi/&EnableBarbarianRelentlessRage2024=启用 5e 2024 版本<color=#D89555>坚
 ModUi/&EnableBardCounterCharm2024=在第 7 级启用 <color=#D89555>反迷惑</color>反应，以替代 6 级动作启动能力
 ModUi/&EnableBardExpertiseOneLevelBefore2024=在第 2 级和 9 级（而非 3 级和 10 级）启用<color=#D89555>专精</color>
 ModUi/&EnableBardHealingBalladOnLongRest=长休时启用<b>希望学院</b> <color=#D89555>治愈之歌</color>
-ModUi/&EnableDivineHeartTabletopFeatures=启用 <b>Divine Soul</b> 桌面规则特性
-ModUi/&EnableDivineHeartTabletopFeaturesHelp=将 Divine Heart 的初始特性替换为 Favored by the Gods，14 级特性替换为 Otherworldly Wings。
+ModUi/&EnableDivineHeartTabletopFeatures=启用<b>神圣之魂</b>的桌上规则特性
+ModUi/&EnableDivineHeartTabletopFeaturesHelp=将神圣之魂的初始特性替换为神恩眷顾，14级特性替换为异界之翼。
 ModUi/&EnableBardMagicalSecrets2024=启用 5e 2024 版本<color=#D89555>魔法奥秘</color>
 ModUi/&EnableBardSuperiorInspiration2024=在第 18 级（而非 20 级）启用<color=#D89555>先发激励</color>，并且重获 2 次次数（而非 1 次）
 ModUi/&EnableBardWordsOfCreation2024=在 20 级时启用<color=#D89555>创生圣言</color>
@@ -232,8 +232,8 @@ ModUi/&EnableOneDndStoneSkinSpell=启用<color=#D89555>{0}</color>的2024版<i><
 ModUi/&EnableOneDndTrueStrikeCantrip=启用<color=#D89555>{0}</color>的2024版<b><i><color=#C04040E0>[需要重启]</color></i></b>\n<i><color=#F0DAA0>[攻击时使用你的施法属性调整值进行攻击掷骰和伤害加值，并从 5 级开始造成额外的光耀伤害]</color></i>
 ModUi/&EnableOneDndWitchBoltSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[重新施加伤害的奖励动作]</color></i>
 ModUi/&EnableOutOfCombatTargetingSightLines=在非战斗状态下瞄准可见敌人时启用视线
-ModUi/&EnableCeilingAwareTargetPerception=Improve target perception when flying near ceilings
-ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>Retries the perception line from a slightly lower point only when a downward sight ray from a ceiling-height position appears to be blocked by the ceiling boundary. Does not ignore walls, cover, darkness, invisibility, or range.</i>
+ModUi/&EnableCeilingAwareTargetPerception=改善靠近天花板飞行时的目标感知
+ModUi/&EnableCeilingAwareTargetPerceptionHelp=<i>仅当靠近天花板时向下的视线似乎被天花板边界阻挡，才从略低的位置重新检查感知视线。不会忽略墙壁、掩护、黑暗、隐形或距离限制。</i>
 ModUi/&EnablePaladinAbjureFoes2024=在第 9 级时启用<color=#D89555>弃绝众敌</color>
 ModUi/&EnablePaladinAnyFightingStyle2024=允许<color=#D89555>圣武士</color>选择任意战斗风格<i><color=#F0DAA0>[增加箭术和双武器战斗]</color></i>
 ModUi/&EnablePaladinChannelDivinity2024=启用 5e 2024 版本<color=#D89555>引导神力</color><i><color=#F0DAA0>[不同用法]</color></i>
@@ -262,7 +262,7 @@ ModUi/&EnableRangerExpertise2024=在 9 级启用<color=#D89555>专业知识</col
 ModUi/&EnableRangerFavoredEnemy2024=启用 5e 2024 版本<color=#D89555>宿敌</color>以替代<color=#D89555>宿敌</color>与<color=#D89555>自然探索者</color>
 ModUi/&EnableRangerFeralSenses2024=启用 5e 2024 版本<color=#D89555>野性感官</color><i><color=#F0DAA0>[获得 30 尺盲视]</color></i>
 ModUi/&EnableRangerFoeSlayers2024=启用 5e 2024 版本<color=#D89555>屠灭众敌</color><i><color=#F0DAA0>[将猎人印记骰子增加至 d10]</color></i>
-ModUi/&EnableRangerNatureShroud2024=在第 14 级时启用<color=#D89555>自然面纱</color><i><color=#F0DAA0>[作为附赠动作，你可以神奇地隐身，直到下一回合开始]</color></i>
+ModUi/&EnableRangerNatureShroud2024=在14级时，用<color=#D89555>自然面纱</color>替换<color=#D89555>无踪步</color><i><color=#F0DAA0>[你可以以附赠动作施展魔法隐形，持续到你的下回合开始]</color></i>
 ModUi/&EnableRangerPreciseHunter2024=在第 17 级时启用<color=#D89555>致命猎杀</color> <i><color=#F0DAA0>[对抗被猎人标记的生物的优势]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024=在第 13 级时启用<color=#D89555>永恒追猎</color><i><color=#F0DAA0>[受到伤害不会打断猎人印记的专注]</color></i>
 ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ 移除猎人印记的专注要求</i>
@@ -481,7 +481,7 @@ ModUi/&ScaleMerchantPricesCorrectly=正确/精确地缩放商家价格<i><color=
 ModUi/&SelectAll=选择全部
 ModUi/&SelectDisplayed=选择显示
 ModUi/&SelectSuggested=选择建议
-ModUi/&SelectTabletop=选择桌面
+ModUi/&SelectTabletop=选择桌上规则内容
 ModUi/&SenseNormalVisionRangeMultiplier=修改<color=#D89555>正常视觉</color>范围<i><color=#F0DAA0>[仅在战斗中]</color></i>
 ModUi/&Services=服务
 ModUi/&SetBeltOfDwarvenKindBeardChances=<color=#D89555>矮人腰带</color> <color=white>胡须出现几率</color>
@@ -566,7 +566,7 @@ ModUi/&UseElfFaceModelsOnTieflings=在 <color=#D89555>Tieflings</color> 上使�
 ModUi/&UseHeightOneCylinderEffect=施放<color=#D89555>黑色触手、缠绕、油脂</color> <i><color=#F0DAA0>[square]</color></i>或<color=#D89555>尖刺生长</color> <i><color=#F0DAA0>[round]</color></i>时使用高度为 1 的圆柱体效果
 ModUi/&UseMathFlankingRules=<i>+ 使用精确的数学运算来确定侧翼进攻<color=#F0DAA0>[可能会对速度较慢的机器产生性能影响]</color></i>
 ModUi/&UseOfficialAdvantageDisadvantageRules=启用<color=#D89555>优势/劣势</color>规则<i><color=#F0DAA0>[如果情况导致掷骰结果同时存在两种情况，则视为你同时不存在这两种情况]</color></i>
-ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=Prevent reactions after <color=#D89555>Legendary Resistance</color> is used <i><color=#F0DAA0>[the saving throw becomes a final success]</color></i>
+ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=使用<color=#D89555>传奇抗性</color>后阻止反应<i><color=#F0DAA0>[该次豁免确定为成功]</color></i>
 ModUi/&UseOfficialFlankingRules=启用<color=#D89555>侧翼进攻</color>规则<i><color=#F0DAA0>[如果盟友位于目标的另一侧，则攻击者具有优势]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForRanged=<i>+ 还启用远程攻击<color=#F0DAA0>[禁用精确数学]</color></i>
 ModUi/&UseOfficialFlankingRulesAlsoForReach=<i>+ 还启用延伸攻击 <color=#F0DAA0>[禁用精确数学]</color></i>
@@ -596,14 +596,14 @@ ModUi/&WildSurgeDieRollThreshold=<color=white>设置<color=#D89555>术士狂野�
 ModUi/&EnableBackgroundAbilityScoreIncreases=改为从背景而非种族获得属性值提升，并相应调整人类特性<i><color=#F0DAA0>（启用此选项时，不应用灵活种族）</color></i>
 ModUi/&EnableBackgroundBonusFeats=将背景特性改为2024年版的一个起源专长、两项技能熟练和一项工具熟练<i><color=#F0DAA0>（需要背景属性值提升；启用此选项时，不应用灵活背景）</color></i>
 ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=要从背景获得起源专长，请启用从背景获得属性值提升的设置。
-ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
-ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
-ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
-ModUi/&EnableTabletopFeatRules2024=Use the independent 2024 tabletop feat catalog
-ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[While enabled, the game uses only the independent 2024 feat catalog. Background feats and Human origin feats resolve to the same catalog]</color></i>
-ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[启用时，只能单独切换下方独立实现的2024版专长。旧版专长的设置将被锁定。]</color></i>\n物种、背景或其他能力明确授予的专长选项，即使在此列表中被禁用，也仍可选择。
-ModUi/&EnableStrictTabletopClassSelection=Use strict tabletop class and subclass selection
-ModUi/&EnableStrictTabletopClassSelectionHelp=Only tabletop classes and tabletop-tagged subclasses can be selected. Non-tabletop subclass toggles are forced off while this option is enabled. Cleric domains ignore deity restrictions while enabled.
+ModUi/&AddOriginFeatsToAutoLearn= + 将起源专长加入自动习得
+ModUi/&EnableGeneralFeats2024=按5.5版规则重组通用专长<i><color=#F0DAA0>[2024版专长独立实现]</color></i>
+ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[下方可单独切换2024版专长。启用时，已完全被替代的旧版专长无法使用。]</color></i>
+ModUi/&EnableTabletopFeatRules2024=使用独立的2024版桌上规则专长目录
+ModUi/&TabletopFeatRules2024Help=<i><color=#F0DAA0>[启用时，游戏仅使用独立的2024版专长目录。背景专长与人类起源专长也使用同一目录]</color></i>
+ModUi/&TabletopFeatRules2024ListHelp=<i><color=#F0DAA0>[启用时，只能单独切换下方独立实现的2024版专长。旧版专长的设置将被锁定。]</color></i>\n物种、背景或其他能力明确授予的专长选项，即使在此列表中被禁用，也仍可选择。\n选择桌上规则内容时，不会自动勾选为了兼容2014版而额外添加属性值提升的专长。你仍可单独启用这些专长。
+ModUi/&EnableStrictTabletopClassSelection=严格按桌上规则选择职业与子职
+ModUi/&EnableStrictTabletopClassSelectionHelp=仅可选择桌上规则职业和标记为桌上规则的子职。启用时，其他子职将被强制关闭，牧师领域不受神祇限制。
 ModUi/&EnableWizardSpellMastery2024=启用2024<color=#D89555>法术精通</color><i><color=#F0DAA0>[动作施法；长休后可更换一个法术]</color></i>
 ModUi/&EnableThiefUseMagicDevice2024=启用2024盗贼<color=#D89555>使用魔法装置</color><i><color=#F0DAA0>[四件同调物品、保留充能、使用智力施放卷轴]</color></i>
 ModUi/&EnableBarbarianDangerSense2024=启用2024<color=#D89555>危机感应</color><i><color=#F0DAA0>[未失能时敏捷豁免具有优势]</color></i>
@@ -696,3 +696,6 @@ ModUi/&EnableToolChecks2024=使用2024版工具检定熟练规则
 ModUi/&ToolChecks2024Description=使用盗贼工具进行检定时，应用巧手熟练及该技能专属的效果。技能熟练和工具熟练提供的加值只取较高者，且仅加一次；两者均具有熟练时获得优势。
 ModUi/&EnableAssassinInfiltrationExpertise2024=杀手9级时采用2024版<color=#D89555>潜入专长</color><i><color=#F0DAA0>[获得欺瞒熟练或专精，并可在稳定瞄准后移动；即使职业设置关闭，仍向这些杀手授予稳定瞄准]</color></i>
 Setting/&NoToolRequirementDescription=角色无需工具即可制作物品，以及开启箱子或门上的锁。
+ModUi/&EnableEpicBoons2024=启用传奇恩惠
+ModUi/&EpicBoons2024Help=启用2024版桌上规则专长时，显示传奇恩惠分类，以及角色等级达到19级后可以习得的专长。
+ModUi/&EpicBoons2024RequiresTabletopHelp=启用2024版桌上规则专长后才能使用此选项。此设置的选择会被保留。

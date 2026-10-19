@@ -915,7 +915,9 @@ internal static class MetamagicContext
         GameLocationBattleManager battleManager, Action<bool> completed)
     {
         var spell = (RulesetEffectSpell)action.ActionParams.RulesetEffect;
-        var candidates = targets.Where(IsHeightenedTargetCandidate).Distinct().OrderBy(target => target.Guid).ToArray();
+        bool CandidateValid(GameLocationCharacter target) => IsHeightenedTargetCandidate(target) &&
+            action.ActingCharacter.IsOppositeSide(target.Side) && targets.Contains(target);
+        var candidates = targets.Where(CandidateValid).Distinct().OrderBy(target => target.Guid).ToArray();
         var selected = candidates.FirstOrDefault();
         if (candidates.Length > 1 && action.ActingCharacter.ControllerId != PlayerControllerManager.DmControllerId)
         {
@@ -926,10 +928,10 @@ internal static class MetamagicContext
                 candidates, action.ActingCharacter, "AdditionalEffectTarget",
                 Gui.Format("Reaction/&CustomReactionAdditionalEffectTargetDescription", heightened.FormatTitle()),
                 target => selected = target, battleManager: battleManager, effectDefinition: heightened,
-                candidateValidator: IsHeightenedTargetCandidate);
+                candidateValidator: CandidateValid);
         }
 
-        if (selected == null || !targets.Contains(selected) || !IsHeightenedTargetCandidate(selected))
+        if (selected == null || !CandidateValid(selected))
         {
             completed(false);
             yield break;

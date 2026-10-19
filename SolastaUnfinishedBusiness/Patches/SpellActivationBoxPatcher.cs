@@ -92,8 +92,10 @@ public static class SpellActivationBoxPatcher
                 ResourceBindings.Add(__instance, SpellSelectionContext.GetBaseSelection(__0, __1, __2));
             }
 
-            SpellCastingValidation.BindTooltipRepertoire(__instance.tooltip, source);
-            __state = SpellCastingValidation.EnterSelectedRepertoire(source);
+            var componentResource = ResourceBindings.TryGetValue(__instance, out var boundResource)
+                ? boundResource : SpellSelectionContext.GetBaseSelection(__0, __1, __2);
+            SpellCastingValidation.BindTooltipResource(__instance.tooltip, source, componentResource);
+            __state = SpellCastingValidation.EnterSelectedResource(source, componentResource);
             if (!__6 && __5 != null)
             {
                 __6 = Gui.GuiService?.GetScreen<SlotAdvancementPanel>();
@@ -173,7 +175,7 @@ public static class SpellActivationBoxPatcher
                 spellActivationBox.GuiSpellDefinition?.SpellDefinition is { } fixedSpell)
             {
                 var fixedUse = SpellSelectionContext.GetBaseSelection(caster, repertoire, fixedSpell);
-                fixedUse.GetUses(caster, out remaining, out max);
+                SpellSelectionContext.GetViewSlots(fixedUse, fixedUse.SlotLevel, out remaining, out max);
                 return;
             }
 

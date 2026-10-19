@@ -100,16 +100,21 @@ internal static class RulesetCharacterExtensions
     internal static (RollOutcome Outcome, int Total, int SuccessDelta,
         bool IsAutomaticCritical, bool IsAutomaticHit) ComputeAttackOutcome(
         this RulesetCharacter attacker, RulesetActor target, BaseDefinition attackMethod,
-        int rawRoll, int toHitBonus, int rollModifier)
+        int rawRoll, int toHitBonus, int rollModifier, bool forceHit = false)
     {
         var service = ServiceRepository.GetService<IGameSettingsService>();
         var disableEnemyCrits = attacker.Side == Side.Enemy && service is { DisableEnemyCrits: true };
-        var automaticHit = rawRoll == DiceMaxValue[8] && !disableEnemyCrits;
+        var automaticHit = forceHit || rawRoll == DiceMaxValue[8] && !disableEnemyCrits;
         var successDelta = 0;
         int total;
         RollOutcome outcome;
 
-        if (automaticHit)
+        if (forceHit)
+        {
+            total = rawRoll + toHitBonus + rollModifier;
+            outcome = RollOutcome.Success;
+        }
+        else if (automaticHit)
         {
             total = rawRoll;
             outcome = RollOutcome.CriticalSuccess;

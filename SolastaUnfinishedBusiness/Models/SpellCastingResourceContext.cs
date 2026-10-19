@@ -27,7 +27,38 @@ internal static class SpellCastingResourceContext
 
     internal static ResourceOption CurrentSelection => _currentSelection;
 
+    internal static bool IsUnlimitedFreeSpellRepertoire(RulesetSpellRepertoire repertoire, int slotLevel)
+    {
+        var feature = repertoire?.SpellCastingFeature;
+
+        return slotLevel > 0 &&
+               feature?.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>() is
+                   { UnlimitedFreeCasting: true } &&
+               feature.SpellListDefinition != null &&
+               feature.SpellListDefinition.SpellsByLevel.Any(level =>
+                   level.Level == slotLevel && level.Spells.Count > 0);
+    }
+
     internal static bool SupportsItemResourceSelection { get; set; }
+
+    internal static bool HasFreeComponentSource(RulesetCharacter caster, SpellDefinition spell) =>
+        GetResourceOwner(caster)?.SpellRepertoires.Any(repertoire =>
+            repertoire.SpellCastingFeature?.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()
+                ?.FreeCastingIgnoresComponents == true && SpellCastingValidation.KnowsSpell(repertoire, spell)) == true;
+
+    internal static bool FreeSelectionIgnoresComponents(ResourceOption option, SpellDefinition spell,
+        RulesetCharacter caster = null) =>
+        option is { Kind: ResourceKind.FreeRepertoire } && IsSameSpell(option.Spell, spell) &&
+        (caster == null || GetResourceOwner(caster)?.SpellRepertoires.Contains(option.CastingRepertoire) == true) &&
+        option.CastingRepertoire?.SpellCastingFeature?.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>()
+            ?.FreeCastingIgnoresComponents == true;
+
+    internal static bool EffectIgnoresComponents(RulesetEffectSpell effect)
+    {
+        BindImplicitFeatSelection(effect);
+        return effect != null && Selections.TryGetValue(effect, out var option) &&
+               FreeSelectionIgnoresComponents(option, effect.SpellDefinition, effect.Caster);
+    }
 
     internal static void MigrateLegacyInvocationFreeCasts(RulesetCharacter caster)
     {
@@ -124,6 +155,13 @@ internal static class SpellCastingResourceContext
         }
     }
 
+    internal sealed class SlotPreservationRoll(DieType dieType, Func<int, int, bool> preserves)
+    {
+        internal DieType DieType { get; } = dieType;
+
+        internal bool Preserves(int roll, int slotLevel) => preserves(roll, slotLevel);
+    }
+
     internal enum ResourceKind
     {
         SpellSlot,
@@ -217,6 +255,12 @@ internal static class SpellCastingResourceContext
                 return;
             }
 
+            if (Kind == ResourceKind.FreeRepertoire && IsUnlimitedFreeSpellRepertoire(Repertoire, SlotLevel))
+            {
+                remaining = maximum = -1;
+                return;
+            }
+
             switch (Kind)
             {
                 case ResourceKind.SpellMastery:
@@ -235,6 +279,7 @@ internal static class SpellCastingResourceContext
 
         internal bool IsAvailable(RulesetCharacter caster)
         {
+            var componentCaster = caster;
             caster = GetResourceOwner(caster);
             using var selection = BeginSelection(this);
             if (caster == null || !caster.SpellRepertoires.Contains(Repertoire) ||
@@ -246,6 +291,15 @@ internal static class SpellCastingResourceContext
                 (Kind != ResourceKind.SpellSlot || !Repertoire.UsesSharedSpellSlots() ||
                  !CastingRepertoire.UsesSharedSpellSlots() &&
                  !IsSlotCastableFeatSpell(caster, CastingRepertoire, Spell)))
+            {
+                return false;
+            }
+
+            // A component-free origin does not waive the requirements of a paid choice.
+            // Check under this precise selection so automatic reactions can choose the
+            // legitimate free origin instead of accepting an invalid paid repertoire.
+            if (HasFreeComponentSource(caster, Spell) &&
+                componentCaster?.AreSpellComponentsValid(Spell) != true)
             {
                 return false;
             }
@@ -264,6 +318,8 @@ internal static class SpellCastingResourceContext
 
             switch (Kind)
             {
+                case ResourceKind.FreeRepertoire when IsUnlimitedFreeSpellRepertoire(Repertoire, SlotLevel):
+                    return true;
                 case ResourceKind.SpellMastery:
                     return Level20Context.WizardSpellMastery.HasFreeCast(Repertoire, Spell, SlotLevel);
                 case ResourceKind.SignatureSpell:
@@ -997,13 +1053,15 @@ internal static class SpellCastingResourceContext
                 continue;
             }
 
-            using var scope = SpellCastingValidation.EnterSelectedRepertoire(repertoire);
-            if (caster.AreSpellComponentsValid(spell) &&
-                SpellCastingValidation.IsValid(caster, repertoire, spell, null, out _) &&
-                EnumerateResources(caster, spell).Any(option => option.CastingRepertoire == repertoire &&
-                                                              option.IsAvailable(caster)))
+            foreach (var option in EnumerateResources(caster, spell)
+                         .Where(option => option.CastingRepertoire == repertoire && option.IsAvailable(caster)))
             {
-                return true;
+                using var scope = SpellCastingValidation.EnterSelectedResource(repertoire, option);
+                if (caster.AreSpellComponentsValid(spell) &&
+                    SpellCastingValidation.IsValid(caster, repertoire, spell, null, out _))
+                {
+                    return true;
+                }
             }
         }
 

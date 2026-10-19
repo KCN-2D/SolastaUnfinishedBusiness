@@ -606,7 +606,6 @@ Rules/&DieD6Title=D6
 Rules/&DieD8Title=D8
 Rules/&DivinationFormFormatIdentifyItem=Revela todas las propiedades de un elemento.
 Rules/&DivinationFormFormatListCreatureFamilyInLocation=Detecta la presencia de tipos de criatura: {0}.
-Rules/&DivinationFormFormatRevealEntitiesBearingTags=Revela criaturas u objetos que son {0}.
 Rules/&DurationAnyRestFormat=Hasta cualquier descanso
 Rules/&DurationDayPluralFormat={0} días
 Rules/&DurationDaySingleFormat={0} día

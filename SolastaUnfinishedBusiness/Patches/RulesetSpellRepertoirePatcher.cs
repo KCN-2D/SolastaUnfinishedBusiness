@@ -357,6 +357,11 @@ public static class RulesetSpellRepertoirePatcher
         [UsedImplicitly]
         public static bool Prefix(RulesetSpellRepertoire __instance, int slotLevel)
         {
+            if (SpellCastingResourceContext.IsUnlimitedFreeSpellRepertoire(__instance, slotLevel))
+            {
+                return false;
+            }
+
             SpellSlotCastingLimit2024Context.RecordSpellSlotExpenditure(__instance, slotLevel);
             SpendSpellSlot(__instance, slotLevel);
 

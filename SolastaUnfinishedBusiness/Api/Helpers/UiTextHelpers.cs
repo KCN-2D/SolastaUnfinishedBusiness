@@ -1214,6 +1214,91 @@ internal static class UiTextHelpers
         }
     }
 
+    internal static void RestoreActionItemIcon(Image icon)
+    {
+        if (icon)
+        {
+            icon.GetComponent<ActionItemIconLayoutState>()?.Restore();
+        }
+    }
+
+    internal static void FitActionItemIcon(Image icon, Image largeImage)
+    {
+        RestoreActionItemIcon(icon);
+
+        if (!icon || !largeImage || !Sprites.IsCustomSprite(icon.sprite) ||
+            !icon.sprite.name.StartsWith("_CE_Action", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var form = icon.GetComponentInParent<CharacterActionItemForm>();
+        var item = form ? form.GetComponentInParent<CharacterActionItem>() : null;
+        var allocation = largeImage.rectTransform;
+
+        if (!item || item.smallItemForm != form || icon.transform.parent != allocation.parent ||
+            allocation.rect.width <= 0f || allocation.rect.height <= 0f)
+        {
+            return;
+        }
+
+        // Small forms already reserve a larger image area above their caption.
+        // Use that native allocation for detailed custom glyphs, preserving the
+        // original ordinary-icon layout for native sprites and pooled rebinds.
+        var state = icon.GetComponent<ActionItemIconLayoutState>() ??
+                    icon.gameObject.AddComponent<ActionItemIconLayoutState>();
+        state.Capture(icon.rectTransform);
+        state.Apply(allocation);
+    }
+
+    private sealed class ActionItemIconLayoutState : MonoBehaviour
+    {
+        private RectTransform _rect;
+        private Vector2 _anchorMin;
+        private Vector2 _anchorMax;
+        private Vector2 _pivot;
+        private Vector2 _size;
+        private Vector3 _position;
+
+        internal void Capture(RectTransform rect)
+        {
+            if (_rect)
+            {
+                return;
+            }
+
+            _rect = rect;
+            _anchorMin = rect.anchorMin;
+            _anchorMax = rect.anchorMax;
+            _pivot = rect.pivot;
+            _size = rect.sizeDelta;
+            _position = rect.anchoredPosition3D;
+        }
+
+        internal void Apply(RectTransform allocation)
+        {
+            _rect.anchorMin = allocation.anchorMin;
+            _rect.anchorMax = allocation.anchorMax;
+            _rect.pivot = allocation.pivot;
+            _rect.sizeDelta = allocation.sizeDelta;
+            _rect.anchoredPosition3D = allocation.anchoredPosition3D;
+        }
+
+        internal void Restore()
+        {
+            if (!_rect)
+            {
+                return;
+            }
+
+            _rect.anchorMin = _anchorMin;
+            _rect.anchorMax = _anchorMax;
+            _rect.pivot = _pivot;
+            _rect.sizeDelta = _size;
+            _rect.anchoredPosition3D = _position;
+        }
+    }
+
     internal static void FitActionItemCaption(CharacterActionItemForm form)
     {
         if (!CanFitActionItemCaption(form))

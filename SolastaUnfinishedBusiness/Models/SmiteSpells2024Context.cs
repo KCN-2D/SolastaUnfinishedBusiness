@@ -83,6 +83,7 @@ public static partial class SmiteSpells2024Context
         }
 
         SwitchRevisedSmiteEffects();
+        Tabletop2024Context.RefreshFeatSpellSelectionLists2024();
         Global.RefreshControlledCharacter();
 
         return;

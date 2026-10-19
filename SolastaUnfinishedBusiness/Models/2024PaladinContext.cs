@@ -344,6 +344,8 @@ public static partial class Tabletop2024Context
             break;
         }
 
+        RefreshFeatSpellSelectionLists2024(1);
+
         //Update all currently active characters
         var locationCharacterService = ServiceRepository.GetService<IGameLocationCharacterService>();
         if (locationCharacterService != null)

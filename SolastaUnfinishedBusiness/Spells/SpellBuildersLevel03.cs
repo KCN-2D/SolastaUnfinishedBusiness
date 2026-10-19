@@ -1167,7 +1167,19 @@ internal static partial class SpellBuilders
 
             if (activeCondition.Amount <= 0)
             {
-                rulesetAttacker.BreakConcentration();
+                var caster = EffectHelpers.GetCharacterByGuid(activeCondition.SourceGuid);
+                var sourceSpell = caster?.SpellsCastByMe.FirstOrDefault(spell =>
+                    spell.TrackedConditionGuids.Contains(activeCondition.Guid));
+
+                if (sourceSpell != null)
+                {
+                    caster.TerminateSpell(sourceSpell, true);
+                }
+                else
+                {
+                    // An orphaned, exhausted condition still ends without touching another spell.
+                    rulesetAttacker.RemoveCondition(activeCondition);
+                }
             }
         }
     }

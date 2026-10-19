@@ -56,7 +56,7 @@ internal sealed class ReactionRequestSelectTarget : ReactionRequest
 
     public override string SuboptionTag => _type;
 
-    public override bool IsStillValid => Candidates.Any(IsCandidateAvailable);
+    public override bool IsStillValid => SelectedTarget != null;
 
     internal bool IsCandidateAvailable(GameLocationCharacter candidate) => _candidateValidator(candidate);
 

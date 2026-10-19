@@ -18,25 +18,12 @@ internal static class DamageReceivedContext
     [ThreadStatic]
     private static bool _skipDifficultyScaling;
 
+    [ThreadStatic]
+    private static SustainedDamageScope _sustainedDamageScope;
+
     internal static bool SkipDifficultyScaling => _skipDifficultyScaling;
 
-    internal static bool BeginSustainedDamage(RulesetCharacter character)
-    {
-        var previous = _skipDifficultyScaling;
-        _skipDifficultyScaling = ReferenceEquals(_sharedRecipient, character);
-
-        if (_skipDifficultyScaling)
-        {
-            _sharedRecipient = null;
-        }
-
-        return previous;
-    }
-
-    internal static void EndSustainedDamage(bool previous)
-    {
-        _skipDifficultyScaling = previous;
-    }
+    internal static SustainedDamageScope BeginSustainedDamage(RulesetCharacter character) => new(character);
 
     internal static void Notify(RulesetCharacter character, int damage, string damageType, ulong sourceGuid)
     {
@@ -45,9 +32,74 @@ internal static class DamageReceivedContext
             return;
         }
 
+        var scope = _sustainedDamageScope;
         foreach (var handler in character.GetSubFeaturesByType<IDamageReceived>().Distinct().ToArray())
         {
             handler.OnDamageReceived(character, damage, damageType, sourceGuid);
+        }
+
+        scope?.Record(character, damage, damageType, sourceGuid);
+    }
+
+    internal sealed class SustainedDamageScope : IDisposable
+    {
+        private readonly RulesetCharacter _character;
+        private readonly int _hitPointsBefore;
+        private readonly SustainedDamageScope _previous;
+        private readonly bool _previousScaling;
+        private readonly List<(IReactToDamageReceived Handler, int Damage, string DamageType, ulong SourceGuid)>
+            _notifications = [];
+        private bool _completed;
+        private bool _disposed;
+
+        internal SustainedDamageScope(RulesetCharacter character)
+        {
+            _character = character;
+            _hitPointsBefore = character.CurrentHitPoints;
+            _previous = _sustainedDamageScope;
+            _previousScaling = _skipDifficultyScaling;
+            _sustainedDamageScope = this;
+            _skipDifficultyScaling = ReferenceEquals(_sharedRecipient, character);
+            if (_skipDifficultyScaling)
+            {
+                _sharedRecipient = null;
+            }
+        }
+
+        internal void Record(RulesetCharacter character, int damage, string damageType, ulong sourceGuid)
+        {
+            if (_disposed || _character != character)
+            {
+                return;
+            }
+            foreach (var handler in character.GetSubFeaturesByType<IReactToDamageReceived>().Distinct().ToArray())
+            {
+                _notifications.Add((handler, damage, damageType, sourceGuid));
+            }
+        }
+
+        internal void Complete()
+        {
+            if (_completed || _disposed)
+            {
+                return;
+            }
+            _completed = true;
+            var hitPointsAfter = _character.CurrentHitPoints;
+            GameLocationCharacterExtensions.QueueReactionsAfterApplication(_character, _notifications.Select(notification =>
+                notification.Handler.ReactToDamageReceived(_character, notification.Damage, notification.DamageType,
+                    notification.SourceGuid, _hitPointsBefore, hitPointsAfter)).ToArray());
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+            _disposed = true;
+            _sustainedDamageScope = _previous;
+            _skipDifficultyScaling = _previousScaling;
         }
     }
 

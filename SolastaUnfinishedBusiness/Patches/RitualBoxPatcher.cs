@@ -24,7 +24,7 @@ internal static class RitualBoxPatcher
             SpellDefinition __1,
             out IDisposable __state)
         {
-            __state = null;
+            __state = SpellCastingValidation.EnterSelectedRepertoire(null);
             SpellCastingValidation.BindTooltipRepertoire(__instance.GuiTooltip, null);
 
             if (__0 is not RulesetCharacterSimulacrum duplicate)
@@ -39,6 +39,7 @@ internal static class RitualBoxPatcher
             SpellCastingValidation.BindTooltipRepertoire(
                 __instance.GuiTooltip,
                 repertoire);
+            __state.Dispose();
             __state = SpellCastingValidation.EnterSelectedRepertoire(repertoire);
         }
 

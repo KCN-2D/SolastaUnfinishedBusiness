@@ -1094,8 +1094,6 @@ public static class CharacterBuildingManagerPatcher
 
         foreach (var feat in trainedFeats?.Where(IsDisplayableFinalizeFeat) ?? [])
         {
-            feat.GuiPresentation.hidden = false;
-
             if (hero.trainedFeats.Any(existingFeat =>
                     existingFeat != null &&
                     existingFeat.Name == feat.Name))
@@ -1104,11 +1102,6 @@ public static class CharacterBuildingManagerPatcher
             }
 
             hero.trainedFeats.Add(feat);
-        }
-
-        foreach (var feat in hero.trainedFeats.Where(IsDisplayableFinalizeFeat))
-        {
-            feat.GuiPresentation.hidden = false;
         }
     }
 
@@ -1903,8 +1896,10 @@ public static class CharacterBuildingManagerPatcher
         public static bool Prefix(CharacterHeroBuildingData heroBuildingData, SpellDefinition spell, string tag)
         {
             var replacement = LevelUpHelper.GetFeatSpellReplacement(heroBuildingData, tag);
-            return replacement == null || !replacement.GetSelected(heroBuildingData).Contains(spell) &&
-                replacement.CanSelect(heroBuildingData, spell);
+            var selectionPolicy = FeatHelpers.GetSpellSelectionTag(heroBuildingData, tag);
+            return (replacement == null || !replacement.GetSelected(heroBuildingData).Contains(spell) &&
+                    replacement.CanSelect(heroBuildingData, spell)) &&
+                   (selectionPolicy?.CanSelectSpell(heroBuildingData.HeroCharacter, spell) ?? true);
         }
     }
 

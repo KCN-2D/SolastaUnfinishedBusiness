@@ -34,6 +34,9 @@ internal static class LightingAndObscurementContext
 {
     private const int CloseRangePerceptionDistance = 2;
 
+    private static readonly Dictionary<MonsterDefinition, Dictionary<FeatureDefinitionSense, bool>>
+        MonsterOriginalSenseFeatures = new();
+
     private static Dictionary<GameLocationCharacter, RuleDefinitions.RollOutcome> GetOrCreatePerceptionRollCache(
         GameLocationCharacter sensor)
     {
@@ -51,26 +54,30 @@ internal static class LightingAndObscurementContext
         GetOrCreatePerceptionRollCache(sensor).TryAdd(target, RuleDefinitions.RollOutcome.Success);
     }
 
-    private static void AddSenseModeIfMissing(
-        RulesetCharacter character,
-        SenseMode.Type senseType,
-        int senseRange,
-        int sensePrecision)
+    private static List<SenseMode> GetMonsterObscurementSenseModes(RulesetCharacter character)
     {
-        if (character == null)
+        if (!Main.Settings.UseOfficialLightingObscurementAndVisionRules ||
+            !Main.Settings.OfficialObscurementRulesTweakMonsters || character is not RulesetCharacterMonster monster)
         {
-            return;
+            return character.SenseModes;
         }
 
-        foreach (var senseMode in character.SenseModes)
+        var additions = GetMonsterObscurementSenseAdjustments(monster.MonsterDefinition)
+            .Where(adjustment => adjustment.Present).Select(adjustment => adjustment.Sense).ToArray();
+        if (additions.Length == 0)
         {
-            if (senseMode.SenseType == senseType && senseMode.SenseRange >= senseRange)
-            {
-                return;
-            }
+            return character.SenseModes;
         }
 
-        character.SenseModes.Add(new SenseMode(senseType, senseRange, sensePrecision));
+        // Native providers can extend an existing SenseMode in place. Copy the modes as well as the list.
+        var senseModes = character.SenseModes.Select(mode =>
+            new SenseMode(mode.SenseType, mode.SenseRange, mode.StealthBreakerRange)).ToList();
+        foreach (var sense in additions)
+        {
+            sense.RefreshSenseModes(senseModes);
+        }
+
+        return senseModes;
     }
 
     private static string[] MonstersThatShouldHaveDarkvision { get; } =
@@ -115,12 +122,6 @@ internal static class LightingAndObscurementContext
 
     // These fixed patterns exceed the runtime's static Regex cache; reuse the parsed expressions.
     private static Regex[] MonsterDarkvisionPatterns { get; } = MonstersThatShouldHaveDarkvision
-        .Select(pattern => new Regex(pattern, RegexOptions.IgnoreCase)).ToArray();
-
-    private static Regex[] MonsterTruesightPatterns { get; } = MonstersThatShouldHaveTrueSight
-        .Select(pattern => new Regex(pattern, RegexOptions.IgnoreCase)).ToArray();
-
-    private static Regex[] MonsterBlindsightPatterns { get; } = MonstersThatShouldHaveBlindSight
         .Select(pattern => new Regex(pattern, RegexOptions.IgnoreCase)).ToArray();
 
     private static string[] EffectsThatTargetDistantIndividualsAndDontRequireSight { get; } =
@@ -503,16 +504,7 @@ internal static class LightingAndObscurementContext
 
         var senseModesToPrevent = new List<SenseMode.Type>();
 
-        if (Main.Settings.UseOfficialLightingObscurementAndVisionRules &&
-            Main.Settings.OfficialObscurementRulesTweakMonsters)
-        {
-            if (MonsterBlindsightPatterns.Any(pattern => pattern.IsMatch(sensorCharacter.Name)))
-                AddSenseModeIfMissing(sensorCharacter, SenseMode.Type.Blindsight, 10, 1);
-            if (MonsterDarkvisionPatterns.Any(pattern => pattern.IsMatch(sensorCharacter.Name)))
-                AddSenseModeIfMissing(sensorCharacter, SenseMode.Type.Darkvision, 60, 1);
-            if (MonsterTruesightPatterns.Any(pattern => pattern.IsMatch(sensorCharacter.Name)))
-                AddSenseModeIfMissing(sensorCharacter, SenseMode.Type.Truesight, 60, 1);
-        }
+        var senseModes = GetMonsterObscurementSenseModes(sensorCharacter);
 
         if (target != null)
         {
@@ -523,14 +515,14 @@ internal static class LightingAndObscurementContext
         }
 
         // See Invisibility supplements vision; it does not itself grant sight in darkness.
-        var detectsInvisibility = requireSight && sensorCharacter.SenseModes.Any(mode =>
+        var detectsInvisibility = requireSight && senseModes.Any(mode =>
             mode.SenseType == SenseMode.Type.DetectInvisibility && distance <= mode.SenseRange &&
             !senseModesToPrevent.Contains(mode.SenseType));
         SightPathContext.Obscurement? pathObscurement = null;
 
         // try to find any sense mode that is valid for the current lighting state and constraints
         // ReSharper disable once LoopCanBeConvertedToQuery
-        foreach (var senseMode in sensorCharacter.SenseModes
+        foreach (var senseMode in senseModes
                      .Where(x => !senseModesToPrevent.Contains(x.SenseType)))
         {
             var senseType = senseMode.SenseType;
@@ -1309,54 +1301,78 @@ internal static class LightingAndObscurementContext
 
     internal static void SwitchMonstersOnObscurementRules()
     {
-        foreach (var monster in DatabaseRepository.GetDatabase<MonsterDefinition>())
+        foreach (var monster in DatabaseRepository.GetDatabase<MonsterDefinition>()
+                     .Concat(MonsterOriginalSenseFeatures.Keys).Distinct().ToArray())
         {
-            var name = monster.Name;
+            SwitchMonsterObscurementSenses(monster, Main.Settings.OfficialObscurementRulesTweakMonsters);
+        }
+    }
 
-            if (Main.Settings.OfficialObscurementRulesTweakMonsters)
+    private static void SwitchMonsterObscurementSenses(MonsterDefinition monster, bool enabled)
+    {
+        if (!enabled)
+        {
+            if (!MonsterOriginalSenseFeatures.TryGetValue(monster, out var originalSenses))
             {
-                if (MonstersThatShouldHaveDarkvision.Any(m => Regex.IsMatch(name, m, RegexOptions.IgnoreCase)))
-                {
-                    monster.Features.TryAdd(SenseDarkvision);
-                }
+                return;
+            }
 
-                if (MonstersThatShouldHaveTrueSight.Contains(name))
+            foreach (var originalSense in originalSenses)
+            {
+                if (originalSense.Value)
                 {
-                    monster.Features.TryAdd(SenseTruesight16);
+                    monster.Features.TryAdd(originalSense.Key);
                 }
+                else
+                {
+                    monster.Features.Remove(originalSense.Key);
+                }
+            }
 
-                if (MonstersThatShouldHaveBlindSight.Contains(name))
-                {
-                    monster.Features.TryAdd(SenseBlindSight16);
-                }
+            MonsterOriginalSenseFeatures.Remove(monster);
+            return;
+        }
 
-                if (MonstersThatShouldNotHaveTremorSense.Contains(name))
-                {
-                    monster.Features.Remove(SenseTremorsense16);
-                }
+        foreach (var (sense, present) in GetMonsterObscurementSenseAdjustments(monster))
+        {
+            if (!MonsterOriginalSenseFeatures.TryGetValue(monster, out var originalSenses))
+            {
+                originalSenses = new Dictionary<FeatureDefinitionSense, bool>();
+                MonsterOriginalSenseFeatures.Add(monster, originalSenses);
+            }
+
+            // Record only this setting's sense features, so unrelated feature changes survive restoration.
+            originalSenses.TryAdd(sense, monster.Features.Contains(sense));
+            if (present)
+            {
+                monster.Features.TryAdd(sense);
             }
             else
             {
-                if (MonstersThatShouldHaveDarkvision.Contains(name))
-                {
-                    monster.Features.Remove(SenseDarkvision);
-                }
-
-                if (MonstersThatShouldHaveTrueSight.Contains(name))
-                {
-                    monster.Features.Remove(SenseTruesight16);
-                }
-
-                if (MonstersThatShouldHaveBlindSight.Contains(name))
-                {
-                    monster.Features.Remove(SenseBlindSight16);
-                }
-
-                if (MonstersThatShouldNotHaveTremorSense.Contains(name))
-                {
-                    monster.Features.TryAdd(SenseTremorsense16);
-                }
+                monster.Features.Remove(sense);
             }
+        }
+    }
+
+    private static IEnumerable<(FeatureDefinitionSense Sense, bool Present)> GetMonsterObscurementSenseAdjustments(
+        MonsterDefinition monster)
+    {
+        var name = monster.Name;
+        if (MonsterDarkvisionPatterns.Any(pattern => pattern.IsMatch(name)))
+        {
+            yield return (SenseDarkvision, true);
+        }
+        if (MonstersThatShouldHaveTrueSight.Contains(name))
+        {
+            yield return (SenseTruesight16, true);
+        }
+        if (MonstersThatShouldHaveBlindSight.Contains(name))
+        {
+            yield return (SenseBlindSight16, true);
+        }
+        if (MonstersThatShouldNotHaveTremorSense.Contains(name))
+        {
+            yield return (SenseTremorsense16, false);
         }
     }
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -27,7 +27,13 @@ public static class CharacterReactionItemPatcher
             [NotNull] CharacterReactionItem __instance,
             [NotNull] ReactionRequest reactionRequest)
         {
+            __instance.RestoreReactionDecisionButtonLayout();
             __instance.ClearReactionTargetPreview();
+
+            if (__instance.ReactionRequest is ReactionRequestSelectTarget)
+            {
+                __instance.ReactButton.interactable = true;
+            }
 
             if (reactionRequest is ReactionRequestSelectTarget or ReactionRequestWarcaster
                 or ReactionRequestSpendBundlePower or ReactionRequestSelectSmiteSpell ||
@@ -71,6 +77,11 @@ public static class CharacterReactionItemPatcher
         {
             var request = __instance.ReactionRequest;
             __instance.BindReactionTargetPreview();
+
+            if (request is ReactionRequestSelectTarget selectedTarget)
+            {
+                __instance.ReactButton.interactable = IsSelectedTargetAvailable(__instance, selectedTarget);
+            }
 
             if (request?.Character != null)
             {
@@ -120,6 +131,8 @@ public static class CharacterReactionItemPatcher
             {
                 SetupSpellPoints(__instance);
             }
+
+            __instance.FitReactionDecisionButtons();
 
             //BUGFIX: vanilla is collecting KI Points instead of Sorcery Points
             var reactionParams = __instance.reactionRequest.ReactionParams;
@@ -250,7 +263,13 @@ public static class CharacterReactionItemPatcher
         [UsedImplicitly]
         public static void Prefix([NotNull] CharacterReactionItem __instance)
         {
+            __instance.RestoreReactionDecisionButtonLayout();
             __instance.ClearReactionTargetPreview();
+
+            if (__instance.ReactionRequest is ReactionRequestSelectTarget)
+            {
+                __instance.ReactButton.interactable = true;
+            }
         }
 
         [UsedImplicitly]
@@ -311,6 +330,22 @@ public static class CharacterReactionItemPatcher
     public static class CheckRelevance_Patch
     {
         [UsedImplicitly]
+        public static bool Prefix([NotNull] CharacterReactionItem __instance)
+        {
+            if (__instance.CurrentState != CharacterReactionItem.ReactionState.Pending ||
+                __instance.ReactionRequest is not ReactionRequestSelectTarget target ||
+                !target.Candidates.Any(target.IsCandidateAvailable))
+            {
+                return true;
+            }
+
+            // Keep other targets selectable when only the current choice becomes
+            // invalid. Final command validation still requires that exact choice.
+            __instance.ReactButton.interactable = IsSelectedTargetAvailable(__instance, target);
+            return false;
+        }
+
+        [UsedImplicitly]
         public static void Postfix([NotNull] CharacterReactionItem __instance)
         {
             __instance.ValidateReactionTargetPreview();
@@ -339,6 +374,16 @@ public static class CharacterReactionItemPatcher
         {
             __instance.SuspendReactionTargetPreview();
         }
+    }
+
+    private static bool IsSelectedTargetAvailable(
+        CharacterReactionItem item, ReactionRequestSelectTarget request)
+    {
+        // Native selection changes the row toggles; the command commits the
+        // request's suboption only after React is clicked.
+        var option = item.GetSelectedSubItem();
+        return option >= 0 && option < request.Candidates.Count &&
+               request.IsCandidateAvailable(request.Candidates[option]);
     }
 
     private static void SetupSpellPoints(CharacterReactionItem item)
@@ -380,6 +425,10 @@ public static class CharacterReactionItemPatcher
         public static void Postfix([NotNull] CharacterReactionItem __instance)
         {
             SetupSpellPoints(__instance);
+            if (__instance.ReactionRequest is ReactionRequestSelectTarget selectedTarget)
+            {
+                __instance.ReactButton.interactable = IsSelectedTargetAvailable(__instance, selectedTarget);
+            }
             __instance.EnsureReactionChoiceVisible();
             __instance.RefreshReactionTargetPreview();
         }

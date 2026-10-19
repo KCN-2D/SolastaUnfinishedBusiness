@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -45,6 +46,56 @@ internal static class PowerProvider
         UpdateSharedPoolUses(actor, result);
 
         return result;
+    }
+
+    internal static int EnsureGrantedPowers([CanBeNull] RulesetCharacter actor)
+    {
+        if (actor == null)
+        {
+            return 0;
+        }
+
+        // Use the same owned feature tree as native GrantPowers, including current
+        // feat definitions. Bundle children that are not granted stay transient.
+        var features = new List<FeatureDefinition>();
+        actor.EnumerateFeaturesToBrowse<FeatureDefinitionPower>(features);
+        var powers = features.OfType<FeatureDefinitionPower>().ToArray();
+        var existing = actor.UsablePowers.Where(power => power?.PowerDefinition != null)
+            .Select(power => power.PowerDefinition).ToHashSet();
+        var overridden = powers.Select(power => power.OverriddenPower)
+            .Where(power => power != null).ToHashSet();
+        var added = new List<RulesetUsablePower>();
+
+        foreach (var group in powers.GroupBy(power => power))
+        {
+            var power = group.Key;
+
+            if (existing.Contains(power) || overridden.Contains(power))
+            {
+                continue;
+            }
+
+            actor.LookForFeatureOrigin(power, out var race, out var characterClass, out _);
+            var usablePower = new RulesetUsablePower(power, race, characterClass);
+
+            // Native grants add fixed uses when several owned features grant the
+            // same power. Only the new instance may be initialized or recharged.
+            usablePower.AddUses((group.Count() - 1) * power.FixedUsesPerRecharge);
+            UpdateUses(actor, usablePower);
+            actor.RefreshUsablePower(usablePower, actor.GetClassSpellRepertoire());
+            UpdateSaveDc(actor, usablePower, characterClass);
+            actor.UsablePowers.Add(usablePower);
+            added.Add(usablePower);
+        }
+
+        // An owned pool may appear after its children in the feature tree. Resolve
+        // shared uses only after all missing owners have been added.
+        foreach (var usablePower in added)
+        {
+            UpdateSharedPoolUses(actor, usablePower);
+        }
+
+        return added.Count;
     }
 
     private static void UpdateUses(
@@ -141,21 +192,21 @@ internal static class PowerProvider
         }
     }
 
+    internal static bool UsesIndependentResource([CanBeNull] FeatureDefinitionPower power)
+    {
+        return power is not null and not FeatureDefinitionPowerSharedPool && power.RechargeRate is
+            RechargeRate.OneMinute or RechargeRate.ShortRest or RechargeRate.LongRest or
+            RechargeRate.Dawn or RechargeRate.D6_6 or RechargeRate.None or
+            RechargeRate.D6_56 or RechargeRate.TurnStart;
+    }
+
     private static bool UsesIndependentFixedPool([CanBeNull] FeatureDefinitionPower power)
     {
-        return power is
+        return UsesIndependentResource(power) && power is
         {
             UsesDetermination: UsesDetermination.Fixed,
             FixedUsesPerRecharge: > 0,
-            CostPerUse: > 0,
-            RechargeRate: RechargeRate.OneMinute or
-                RechargeRate.ShortRest or
-                RechargeRate.LongRest or
-                RechargeRate.Dawn or
-                RechargeRate.D6_6 or
-                RechargeRate.None or
-                RechargeRate.D6_56 or
-                RechargeRate.TurnStart
+            CostPerUse: > 0
         };
     }
 

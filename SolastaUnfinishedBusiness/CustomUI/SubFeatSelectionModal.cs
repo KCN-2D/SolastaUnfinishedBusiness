@@ -74,13 +74,16 @@ internal class SubFeatSelectionModal : GuiGameScreen
     private RectTransform _attachment;
     private FeatItem _baseItem;
     private Button _button;
+    private Button _backButton;
     private RulesetCharacterHero _character;
     private RectTransform _featTable;
     private Image _image;
     private ProficiencyBaseItem.OnItemClickedHandler _itemClickHandler;
     private bool _localInitialized;
-
-    //TODO: handle controller
+    private FeatDefinition _currentFeat;
+    private IGroupedFeat _currentGroup;
+    private FeatDefinition _preferredSelection;
+    private readonly Stack<(FeatDefinition Feat, IGroupedFeat Group, FeatDefinition Selection)> _history = [];
 
     public override bool GrabsCameraControl => true;
 
@@ -96,6 +99,7 @@ internal class SubFeatSelectionModal : GuiGameScreen
         _group = gameObject.AddComponent<CanvasGroup>();
         _animator = gameObject.AddComponent<GuiModifierSubMenu>();
         _button = gameObject.AddComponent<Button>();
+        _button.navigation = new Navigation { mode = Navigation.Mode.None };
         base.Awake();
     }
 
@@ -111,9 +115,24 @@ internal class SubFeatSelectionModal : GuiGameScreen
         ProficiencyBaseItem.OnItemClickedHandler onItemClicked,
         RectTransform attachTo)
     {
+        _history.Clear();
+        BindPage(inspectedCharacter, basedOn, feat, group, onItemClicked, attachTo);
+    }
+
+    private void BindPage(RulesetCharacterHero inspectedCharacter,
+        FeatItem basedOn,
+        FeatDefinition feat,
+        IGroupedFeat group,
+        ProficiencyBaseItem.OnItemClickedHandler onItemClicked,
+        RectTransform attachTo,
+        FeatDefinition preferredSelection = null)
+    {
         _character = inspectedCharacter;
         _attachment = attachTo;
         _baseItem = basedOn;
+        _currentFeat = feat;
+        _currentGroup = group;
+        _preferredSelection = preferredSelection;
 
         Initialize();
         LocalInit();
@@ -199,6 +218,9 @@ internal class SubFeatSelectionModal : GuiGameScreen
         _character = null;
         _attachment = null;
         _baseItem = null;
+        _currentFeat = null;
+        _currentGroup = null;
+        _preferredSelection = null;
         _animator.Clean();
         _itemClickHandler = null;
 
@@ -216,6 +238,7 @@ internal class SubFeatSelectionModal : GuiGameScreen
     {
         if (_localInitialized)
         {
+            _history.Clear();
             Hide(true);
         }
     }
@@ -275,6 +298,24 @@ internal class SubFeatSelectionModal : GuiGameScreen
         _image.alphaHitTestMinimumThreshold = 0;
 
         _button.onClick.AddListener(OnCloseCb);
+
+        // Reuse the native modal control so mouse and controller both have a visible way back.
+        var message = Gui.GuiService.GetScreen<MessageModal>();
+        _backButton = Instantiate(message.cancelButton, transform, false);
+        _backButton.name = "SubFeatSelectionBack";
+        _backButton.onClick = new Button.ButtonClickedEvent();
+        _backButton.onClick.AddListener(OnCloseCb);
+        var backSetup = _backButton.GetComponent<GuiButtonSetup>();
+        backSetup.DeactivateGamepadBindingButton();
+        backSetup.enabled = false;
+        backSetup.BasicImage.gameObject.SetActive(false);
+        _backButton.GetComponentInChildren<GuiLabel>(true).Text = "Screen/&BackTitle";
+        var backRect = _backButton.GetComponent<RectTransform>();
+        backRect.anchorMin = backRect.anchorMax = new Vector2(0.5f, 0.06f);
+        backRect.pivot = new Vector2(0.5f, 0.5f);
+        backRect.anchoredPosition = Vector2.zero;
+        backRect.sizeDelta = new Vector2(220f, 44f);
+        _backButton.gameObject.SetActive(true);
 
         GuiTooltip.content = string.Empty;
         GuiTooltip.Disabled = false;
@@ -418,24 +459,19 @@ internal class SubFeatSelectionModal : GuiGameScreen
 
     private void OnItemSelected(ProficiencyBaseItem item)
     {
-        var handler = _itemClickHandler;
-
-        _itemClickHandler = null;
-
         if (item is FeatItem featItem
             && featItem.GuiFeatDefinition.FeatDefinition is { } feat
             && feat.GetFirstSubFeatureOfType<IGroupedFeat>() is { } group)
         {
-            var tmpCharacter = _character;
-            var tmpAttachment = _attachment;
-            var tmpItem = _baseItem;
-
-            Hide(true);
-            Bind(tmpCharacter, tmpItem, feat, group, handler, tmpAttachment);
-            Show();
+            _history.Push((_currentFeat, _currentGroup, feat));
+            NavigateTo(feat, group);
         }
         else
         {
+            var handler = _itemClickHandler;
+
+            _itemClickHandler = null;
+            _history.Clear();
             handler?.Invoke(item);
 
             Hide();
@@ -444,7 +480,27 @@ internal class SubFeatSelectionModal : GuiGameScreen
 
     private void OnCloseCb()
     {
+        if (_history.Count > 0)
+        {
+            var parent = _history.Pop();
+
+            NavigateTo(parent.Feat, parent.Group, parent.Selection);
+            return;
+        }
+
         Hide();
+    }
+
+    private void NavigateTo(FeatDefinition feat, IGroupedFeat group, FeatDefinition preferredSelection = null)
+    {
+        var character = _character;
+        var attachment = _attachment;
+        var baseItem = _baseItem;
+        var handler = _itemClickHandler;
+
+        Hide(true);
+        BindPage(character, baseItem, feat, group, handler, attachment, preferredSelection);
+        Show();
     }
 
     public override void OnBeginShow(bool instant = false)
@@ -455,6 +511,7 @@ internal class SubFeatSelectionModal : GuiGameScreen
         if (Gui.GamepadActive)
         {
             Gui.InputService.ClearCurrentSelectable();
+            SelectDefaultControl();
         }
 
         ServiceRepository.GetService<ITooltipService>().HideTooltip();
@@ -494,6 +551,20 @@ internal class SubFeatSelectionModal : GuiGameScreen
 
     public override void SelectDefaultControl()
     {
+        if (!Gui.GamepadActive)
+        {
+            return;
+        }
+
+        var items = _featTable.GetComponentsInChildren<FeatItem>(false)
+            .Where(item => item.button && item.button.IsInteractable())
+            .OrderByDescending(item => item.RectTransform.localPosition.y)
+            .ThenBy(item => item.RectTransform.localPosition.x)
+            .ToArray();
+        var selected = items.FirstOrDefault(item => item.GuiFeatDefinition.FeatDefinition == _preferredSelection)
+                       ?? items.FirstOrDefault();
+
+        Gui.InputService.SelectCurrentSelectable(selected ? selected.button : _backButton);
     }
 
     public override void RegisterCommands()

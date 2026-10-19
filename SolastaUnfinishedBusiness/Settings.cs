@@ -536,6 +536,7 @@ public class Settings : UnityModManager.ModSettings
     public bool EnablesAsiAndFeat { get; set; }
     [XmlElement("EnableGeneralFeats2024")]
     [Tag(Type = TagType.T2024)] public bool EnableTabletopFeatRules2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableEpicBoons2024 { get; set; } = true;
     [Obsolete("No longer used. Retained for backward compatibility only.")]
     [MultiplayerLocal] public bool HideCompletelyOriginalSolastaFeats { get; set; }
     public bool EnableFeatsAtEveryFourLevels { get; set; }

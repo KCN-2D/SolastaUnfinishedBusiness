@@ -102,21 +102,10 @@ internal static class ToolsDisplay
             RacesContext.SwitchSubrace(subrace, ModUi.IsTabletopDefinition(subrace));
         }
 
-        foreach (var feat in FeatsContext.Feats)
-        {
-            FeatsContext.SwitchFeat(
-                feat,
-                ModUi.IsTabletopDefinition(feat) &&
-                Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(feat));
-        }
-
-        foreach (var featGroup in FeatsContext.FeatGroups)
-        {
-            FeatsContext.SwitchFeatGroup(
-                featGroup,
-                ModUi.IsTabletopDefinition(featGroup) &&
-                Tabletop2024Context.IsFeatToggleAvailableInCurrentMode(featGroup));
-        }
+        ModUi.ApplyTabletopSelection(FeatsContext.Feats, FeatsContext.SwitchFeat, true,
+            Tabletop2024Context.IsFeatToggleAvailableInCurrentMode, preserveOtherChoices: false);
+        ModUi.ApplyTabletopSelection(FeatsContext.FeatGroups, FeatsContext.SwitchFeatGroup, true,
+            Tabletop2024Context.IsFeatToggleAvailableInCurrentMode, preserveOtherChoices: false);
 
         foreach (var fightingStyles in FightingStyleContext.FightingStyles)
         {

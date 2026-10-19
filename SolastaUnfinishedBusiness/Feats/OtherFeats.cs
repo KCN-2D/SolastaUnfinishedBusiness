@@ -2112,6 +2112,66 @@ internal static class OtherFeats
         return elementalAdeptGroup;
     }
 
+    internal static FeatureDefinition BuildElementalAdept2024Feature(string damageType)
+    {
+        return FeatureDefinitionDieRollModifierBuilder
+            .Create("DieRollModifierFeatElementalAdept2024" + damageType)
+            .SetGuiPresentationNoContent(true)
+            .SetModifiers(RollContext.MagicDamageValueRoll, 0, 2, 0, string.Empty)
+            .AddCustomSubFeatures(new ModifyDamageResistanceElementalAdept2024(damageType))
+            .AddToDB();
+    }
+
+    private sealed class ModifyDamageResistanceElementalAdept2024(string damageType)
+        : IModifyDamageAffinity, IValidateDieRollModifier
+    {
+        public bool CanModifyRoll(
+            RulesetCharacter character, List<FeatureDefinition> features, List<string> damageTypes)
+        {
+            if (!TryGetSpellDamage(character, null, out var form, out var effect, out var spell))
+            {
+                return false;
+            }
+
+            // The rule qualifies the spell, then changes any damage die in that spell.
+            return form.DamageType == damageType || HasChosenDamage(effect) || HasChosenDamage(spell);
+        }
+
+        public void ModifyDamageAffinity(RulesetActor defender, RulesetActor attacker, List<FeatureDefinition> features)
+        {
+            if (attacker?.GetSubFeaturesByType<IModifyDamageAffinity>().Contains(this) != true ||
+                !TryGetSpellDamage(attacker, defender, out _, out _, out _))
+            {
+                return;
+            }
+
+            features.RemoveAll(feature => feature is IDamageAffinityProvider
+                { DamageAffinityType: DamageAffinityType.Resistance } affinity && affinity.DamageType == damageType);
+        }
+
+        private bool HasChosenDamage(RulesetEffect effect) =>
+            effect.EffectDescription.EffectForms.Any(form => form.FormType == EffectForm.EffectFormType.Damage &&
+                                                           form.DamageForm.DamageType == damageType);
+
+        private static bool TryGetSpellDamage(RulesetActor source, RulesetActor target,
+            out DamageForm form, out RulesetEffect effect, out RulesetEffectSpell spell)
+        {
+            spell = null;
+            if (!OnHitEffectContext.TryGetCurrentDamageApplication(source, target, out form, out effect))
+            {
+                return false;
+            }
+
+            spell = effect switch
+            {
+                RulesetEffectSpell direct => direct,
+                RulesetEffectPower child => Tabletop2024Context.GetSpellDerivedPowerSpell(child),
+                _ => null
+            };
+            return spell != null && spell.SourceGuid == source.Guid;
+        }
+    }
+
     private sealed class ModifyDamageResistanceElementalAdept(params string[] damageTypes)
         : IModifyDamageAffinity, IValidateDieRollModifier, IAllowRerollDice
     {

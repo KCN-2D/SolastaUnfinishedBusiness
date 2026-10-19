@@ -758,6 +758,11 @@
       PublicKeyToken=b77a5c561934e089
     </value>
   </data>
+  <data name="CapabilityFeatTelekinetic" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>../Resources/Powers/CapabilityFeatTelekinetic.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+      PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
   <data name="TelekinesisPull" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>../Resources/Powers/TelekinesisPull.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
       PublicKeyToken=b77a5c561934e089
@@ -1551,16 +1556,6 @@
   </data>
   <data name="ActionGambit" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>../Resources/Actions/ActionGambit.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
-      PublicKeyToken=b03f5f7f11d50a3a
-    </value>
-  </data>
-  <data name="ActionCrystalDefenseOff" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>../Resources/Actions/ActionCrystalDefenseOff.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
-      PublicKeyToken=b03f5f7f11d50a3a
-    </value>
-  </data>
-  <data name="ActionCrystalDefenseOn" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>../Resources/Actions/ActionCrystalDefenseOn.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
       PublicKeyToken=b03f5f7f11d50a3a
     </value>
   </data>
@@ -4604,6 +4599,386 @@
   </data>
   <data name="CapabilityPowerMartialArcaneArcherSlowingArrow" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Powers\CapabilityPowerMartialArcaneArcherSlowingArrow.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonCombatProwess2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonCombatProwess2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonDimensionalTravel2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonDimensionalTravel2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonEnergyResistance2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonEnergyResistance2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonEruptingSpellpower2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonEruptingSpellpower2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonFate2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonFate2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonFortitude2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonFortitude2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonIrresistibleOffense2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonIrresistibleOffense2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonMagicSchoolMastery2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonMagicSchoolMastery2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonRecovery2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonRecovery2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonSkill2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonSkill2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonSpeed2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonSpeed2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonSpellRecall2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonSpellRecall2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonTheIronMind2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonTheIronMind2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonTheNightSpirit2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonTheNightSpirit2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonTruesight2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonTruesight2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonEpicBoons2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonEpicBoons2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="CapabilityEpicBoonEnergyRedirection2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Powers\CapabilityEpicBoonEnergyRedirection2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ConditionEpicBoonEnergyResistance2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Conditions\ConditionEpicBoonEnergyResistance2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ConditionEpicBoonTheNightSpirit2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Conditions\ConditionEpicBoonTheNightSpirit2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleBoonOfCombatProwess2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleBoonOfCombatProwess2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleBoonOfFate2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleBoonOfFate2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleBoonOfFortitude2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleBoonOfFortitude2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleBoonOfIrresistibleOffense2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleBoonOfIrresistibleOffense2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleBoonOfEnergyRedirection2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleBoonOfEnergyRedirection2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleBoonOfRecoveryLastStand2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleBoonOfRecoveryLastStand2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleBoonOfEruptingSpellpower2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleBoonOfEruptingSpellpower2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionTogglePowerSurge" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionTogglePowerSurge.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleLucky2024Advantage" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleLucky2024Advantage.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleAmazingDisplay" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleAmazingDisplay.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleArcaneArcher" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleArcaneArcher.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleAudaciousWhirl" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleAudaciousWhirl.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleBalefulScion" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleBalefulScion.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleBlessedStrikes" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleBlessedStrikes.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleBrutalStrike" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleBrutalStrike.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleCleavingAttack" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleCleavingAttack.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleCompellingStrike" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleCompellingStrike.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleCoordinatedAssault" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleCoordinatedAssault.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleCunningStrike" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleCunningStrike.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleDeadEye" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleDeadEye.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleDestructiveWrath" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleDestructiveWrath.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleDragonHide" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleDragonHide.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleDyingLight" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleDyingLight.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleElementalFury" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleElementalFury.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleEmbodimentOfLaw" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleEmbodimentOfLaw.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleExplorationFreeJump" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleExplorationFreeJump.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleFeatCrusher" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleFeatCrusher.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleForcePoweredStrike" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleForcePoweredStrike.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleGloomBlade" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleGloomBlade.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleGrappleOnUnarmed" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleGrappleOnUnarmed.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleGravityWell" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleGravityWell.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleHailOfBlades" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleHailOfBlades.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleImpishWrath" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleImpishWrath.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleMasterfulWhirl" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleMasterfulWhirl.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleMindSculpt" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleMindSculpt.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleNatureStrikes" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleNatureStrikes.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleOrcishFury" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleOrcishFury.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleOverChannel" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleOverChannel.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionTogglePaladinSmite" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionTogglePaladinSmite.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionTogglePowerAttack" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionTogglePowerAttack.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionTogglePressTheAdvantage" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionTogglePressTheAdvantage.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleQuiveringPalm" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleQuiveringPalm.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleSharpEye2024" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleSharpEye2024.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleSupremeWill" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleSupremeWill.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleTacticalMaster" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleTacticalMaster.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleThunderousStrike" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleThunderousStrike.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleWeaponMastery" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleWeaponMastery.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleZenShot" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleZenShot.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionToggleOathOfDemonHunterTrialMark" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionToggleOathOfDemonHunterTrialMark.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionModeCrystalDefenseOn" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionModeCrystalDefenseOn.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionModeCrystalDefenseOff" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionModeCrystalDefenseOff.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionModeFlightSuspend" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionModeFlightSuspend.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionModeFlightResume" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionModeFlightResume.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionModeLevitateSuspend" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionModeLevitateSuspend.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ActionModeLevitateResume" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionModeLevitateResume.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="FateResourceIcon" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\UI\FateResourceIcon.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="PowerPoolResourceIcon" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\UI\PowerPoolResourceIcon.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
         PublicKeyToken=b77a5c561934e089
     </value>
   </data>

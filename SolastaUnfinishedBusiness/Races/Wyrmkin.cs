@@ -424,7 +424,7 @@ internal static class RaceWyrmkinBuilder
             .SetActionType(ActionType.Main)
             .SetFormType(ActionFormType.Large)
             .RequiresAuthorization()
-            .SetGuiPresentation(Category.Action, Sprites.ActionCrystalDefenseOn, 20)
+            .SetGuiPresentation(Category.Action, Sprites.GetModeActionSprite(ExtraActionId.CrystalDefenseOn), 20)
             .SetActionScope(ActionScope.All)
             .AddToDB();
 
@@ -433,7 +433,7 @@ internal static class RaceWyrmkinBuilder
             .SetActionType(ActionType.Bonus)
             .SetFormType(ActionFormType.Large)
             .RequiresAuthorization()
-            .SetGuiPresentation(Category.Action, Sprites.ActionCrystalDefenseOff, 20)
+            .SetGuiPresentation(Category.Action, Sprites.GetModeActionSprite(ExtraActionId.CrystalDefenseOff), 20)
             .SetActionScope(ActionScope.All)
             .AddToDB();
 

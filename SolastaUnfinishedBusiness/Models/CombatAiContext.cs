@@ -17387,9 +17387,9 @@ internal static partial class CombatAiContext
     {
         var package = character.BehaviourPackage?.DecisionPackageDefinition;
 
-        if (hasSpellcasting && character.RulesetCharacter is RulesetCharacterMonster)
+        if (character.RulesetCharacter is RulesetCharacterMonster monster)
         {
-            return hasRangedBackup ? CombatAiRole.SupportCaster : CombatAiRole.OffensiveCaster;
+            return new EnemyBattleNativeFacts(monster).NativeCombatRole;
         }
 
         // A decision package suggests a preferred role; it cannot supply missing attack modes.
@@ -17555,7 +17555,8 @@ internal static partial class CombatAiContext
             return false;
         }
 
-        if (rulesetCharacter.SpellRepertoires.Any(repertoire => !IsEnemyBattleGrantedSpellRepertoire(repertoire)))
+        if (GetEnemyBattleOrdinarySpellRepertoires(rulesetCharacter)
+            .Any(repertoire => !IsEnemyBattleGrantedSpellRepertoire(repertoire)))
         {
             return true;
         }

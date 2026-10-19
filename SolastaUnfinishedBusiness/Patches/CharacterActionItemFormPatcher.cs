@@ -14,6 +14,18 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterActionItemFormPatcher
 {
+    [HarmonyPatch(typeof(CharacterActionItemForm), nameof(CharacterActionItemForm.Unbind))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Unbind_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterActionItemForm __instance)
+        {
+            UiTextHelpers.RestoreActionItemIcon(__instance.contentIcon);
+        }
+    }
+
     [HarmonyPatch(typeof(CharacterActionItemForm), nameof(CharacterActionItemForm.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

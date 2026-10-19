@@ -199,10 +199,10 @@ internal sealed class CharacterFeatureReplacement
             return;
         }
 
-        // Keep the same matching instance as native lookup, without discarding
-        // consumption recorded on another serialized copy of the same power.
+        // Preserve the instance already returned by PowerProvider and held by callers.
+        // Native lookup resolves the same instance after duplicates are removed.
         var duplicates = hero.UsablePowers.Where(usable => usable.PowerDefinition == power).ToArray();
-        var usablePower = duplicates.LastOrDefault() ?? hero.GetPowerFromDefinition(power);
+        var usablePower = duplicates.FirstOrDefault() ?? hero.GetPowerFromDefinition(power);
 
         if (usablePower == null && active)
         {
@@ -222,10 +222,10 @@ internal sealed class CharacterFeatureReplacement
             // Shared definitions can have more than one feature origin, but only one usable entry.
             hero.UsablePowers.RemoveAll(usable => usable.PowerDefinition == power && usable != usablePower);
 
-            if (power.RechargeRate != RuleDefinitions.RechargeRate.AtWill && duplicates.Length > 0)
+            if (PowerProvider.UsesIndependentResource(power) && duplicates.Length > 0)
             {
-                // Shared wrappers are recalculated from their root; their saved counts
-                // are not independent consumption and can use different cost units.
+                // Only this power's own uses can be merged. Shared wrappers and powers
+                // paid with character resources do not own their serialized use count.
                 PowerProvider.RestoreRemainingUses(hero, usablePower,
                     PowerProvider.GetEffectiveMaxUses(hero, usablePower),
                     duplicates.Min(usable => usable.RemainingUses));

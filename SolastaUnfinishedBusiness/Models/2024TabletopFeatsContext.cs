@@ -49,6 +49,7 @@ public static partial class Tabletop2024Context
     private const string Observant2024Family = "Observant2024";
     private const string KeenMind2024Family = "KeenMind2024";
     private const int GeneralFeat2024RequiredLevel = 4;
+    private const string EpicBoonCategoryName = "FeatGroupEpicBoons2024";
     private const string AthleteGroupFeatName = "FeatGroupAthlete";
     private const string Charger2024GroupFeatName = "FeatGroupCharger2024";
     private const string DualWielder2024GroupFeatName = "FeatGroupDualWielder2024";
@@ -202,6 +203,9 @@ public static partial class Tabletop2024Context
     private const string WarCaster2024GroupFeatName = "FeatGroupWarCaster2024";
 
     private static readonly List<TabletopFeat2024Profile> TabletopFeat2024Profiles = [];
+    private static IReadOnlyList<FeatDefinition> _epicBoonFeats = [];
+    private static FeatDefinition _epicBoonCategory;
+    private static readonly HashSet<string> EpicBoonRootNames = [];
     private static readonly Dictionary<string, bool> OriginalFeatHiddenStateByName = [];
     private static readonly Dictionary<string, FeatDefinition> IndependentTabletopFeatByCanonicalName = [];
     private static readonly Dictionary<string, FeatDefinition> DedicatedStandaloneHalfFeat2024ByCanonicalName = [];
@@ -351,7 +355,8 @@ public static partial class Tabletop2024Context
         "FeatGroupAgilityCombat",
         "FeatGroupTwoHandedCombat",
         "FeatGroupTwoWeaponCombat",
-        "FeatGroupUnarmoredCombat"
+        "FeatGroupUnarmoredCombat",
+        EpicBoonCategoryName
     ];
     private static readonly List<FeatDefinition> ManagedStandaloneTabletopFeats = [];
     private static readonly HashSet<string> ExplicitManagedLegacyRootNames =
@@ -593,6 +598,9 @@ public static partial class Tabletop2024Context
             BuildShadowTouched2024();
             BuildSpellSniper2024();
             BuildStandaloneHalfAsi2024Feats();
+            _epicBoonFeats = EpicBoons.CreateFeats();
+            EpicBoonRootNames.UnionWith(_epicBoonFeats.Select(feat => feat.Name));
+            _epicBoonCategory = GroupFeats.MakeGroup(EpicBoonCategoryName, null, _epicBoonFeats);
             MigrateRenamedManagedTabletopFeatSettingNames();
             LoadIndependentTabletopFeatCatalog();
             LoadTabletopFeat2024Profiles();
@@ -660,13 +668,24 @@ public static partial class Tabletop2024Context
         else
         {
             RestoreOriginalFeatHiddenStates();
+            SetFeatVisibility(_epicBoonCategory, false);
             ClearManagedTabletopContainerMappingsForInactiveMode();
 
             if (previousUse2024 && HasLegacyFeatGroupEnabledSnapshot)
             {
+                // Restore legacy category choices without overwriting independent managed-group preferences.
+                var enabledManagedGroups = Main.Settings.FeatGroupEnabled
+                    .Where(ManagedTabletopFeatNames.Contains)
+                    .ToArray();
                 Main.Settings.FeatGroupEnabled.Clear();
 
-                foreach (var groupName in LegacyFeatGroupEnabledSnapshot)
+                foreach (var groupName in LegacyFeatGroupEnabledSnapshot
+                             .Where(name => !ManagedTabletopFeatNames.Contains(name)))
+                {
+                    Main.Settings.FeatGroupEnabled.TryAdd(groupName);
+                }
+
+                foreach (var groupName in enabledManagedGroups)
                 {
                     Main.Settings.FeatGroupEnabled.TryAdd(groupName);
                 }
@@ -686,6 +705,12 @@ public static partial class Tabletop2024Context
 
     private static void InitializeManagedCatalogSettings()
     {
+        if (!Main.Settings.TabletopFeats2024Initialized.Contains(EpicBoonCategoryName))
+        {
+            EnableDefinitionBySettings(_epicBoonCategory);
+            Main.Settings.TabletopFeats2024Initialized.TryAdd(EpicBoonCategoryName);
+        }
+
         foreach (var managedRoot in IndependentTabletopFeatByCanonicalName
                      .Where(entry => entry.Value != null && SelectableManagedTabletopRootNames.Contains(entry.Value.Name)))
         {
@@ -1764,6 +1789,7 @@ public static partial class Tabletop2024Context
             "Feat/&FeatGiftOfTheMetallicDragon2024Description",
             sourceGroup,
             feats);
+        _featGroupGiftOfTheMetallicDragon2024.AddCustomSubFeatures(LegacyHalfAsiConversion.Marker);
     }
 
     private static void BuildStandaloneHalfAsi2024Feats()
@@ -1785,6 +1811,7 @@ public static partial class Tabletop2024Context
             }
 
             DedicatedStandaloneHalfFeat2024ByCanonicalName[overrideEntry.Key] = replacement;
+            replacement.AddCustomSubFeatures(LegacyHalfAsiConversion.Marker);
             SetFeatVisibility(replacement, false);
             RegisterManagedTabletopFeats(true, replacement);
         }
@@ -2471,7 +2498,7 @@ public static partial class Tabletop2024Context
     {
         var damageTypes = new[]
         {
-            DamageTypeAcid, DamageTypeCold, DamageTypeFire, DamageTypeLightning, DamageTypePoison, DamageTypeThunder
+            DamageTypeAcid, DamageTypeCold, DamageTypeFire, DamageTypeLightning, DamageTypeThunder
         };
         var attributes = new[]
         {
@@ -2483,34 +2510,65 @@ public static partial class Tabletop2024Context
         var groupFeats = new List<FeatDefinition>();
         FeatDefinition prerequisiteSource = null;
 
-        foreach (var damageType in damageTypes)
+        foreach (var damageType in damageTypes.Append(DamageTypePoison))
         {
             var feat = GetDefinition<FeatDefinition>($"FeatElementalAdept{damageType}");
             var damageTitle = Gui.Localize($"Rules/&{damageType}Title");
-            var baseDescription = Gui.Format("Feat/&FeatElementalAdeptDescription", damageTitle);
+            var baseDescription = Gui.Format("Feat/&FeatElementalAdept2024BaseDescription", damageTitle);
+            var family = ElementalAdept2024Family + damageType;
+            var variants = new List<FeatDefinition>();
+            var feature = OtherFeats.BuildElementalAdept2024Feature(damageType);
 
             prerequisiteSource ??= feat;
 
             foreach (var (attribute, modifier) in attributes)
             {
-                groupFeats.Add(
-                    Build2024HalfFeatVariant(
-                        feat,
-                        $"FeatElementalAdept2024{damageType}{attribute}",
-                        modifier,
-                        ElementalAdept2024Family,
-                        attribute,
-                        groupTitle,
-                        baseDescription,
-                        prerequisiteValue: null,
-                        explicitTitle: Gui.Format("Feat/&GeneralFeat2024VariantTitle2", groupTitle, damageTitle,
-                            GetAttributeTitle(attribute))));
+                var variant = Build2024HalfFeatVariant(
+                    feat,
+                    $"FeatElementalAdept2024{damageType}{attribute}",
+                    modifier,
+                    family,
+                    attribute,
+                    groupTitle,
+                    baseDescription,
+                    prerequisiteValue: null,
+                    explicitTitle: Gui.Format("Feat/&GeneralFeat2024VariantTitle2", groupTitle, damageTitle,
+                        GetAttributeTitle(attribute)));
+                variant.Features.RemoveAll(feat.Features.Contains);
+                variant.Features.Add(feature);
+                variant.SetSubFeatureOfType<FormattedDefinitionText>(new FormattedDefinitionText(
+                    () => Gui.Format("Feat/&GeneralFeat2024VariantTitle2",
+                        Gui.Localize("Feat/&FeatGroupElementalAdept2024Title"),
+                        Gui.Localize($"Rules/&{damageType}Title"), GetAttributeTitle(attribute)),
+                    () => BuildHalfFeatDescription(attribute,
+                        Gui.Format("Feat/&FeatElementalAdept2024BaseDescription",
+                            Gui.Localize($"Rules/&{damageType}Title")))));
+                variants.Add(variant);
             }
+
+            // Retain the former poison definitions for saved characters, outside the 2024 choices.
+            if (!damageTypes.Contains(damageType))
+            {
+                continue;
+            }
+
+            var damageGroup = BuildManagedGroupFromPrerequisiteSource(
+                $"FeatGroupElementalAdept2024{damageType}", family,
+                Gui.Format("Feat/&GeneralFeat2024VariantTitle", groupTitle, damageTitle),
+                baseDescription, feat, variants);
+            damageGroup.SetSubFeatureOfType<FormattedDefinitionText>(new FormattedDefinitionText(
+                () => Gui.Format("Feat/&GeneralFeat2024VariantTitle",
+                    Gui.Localize("Feat/&FeatGroupElementalAdept2024Title"),
+                    Gui.Localize($"Rules/&{damageType}Title")),
+                () => Gui.Format("Feat/&FeatElementalAdept2024BaseDescription",
+                    Gui.Localize($"Rules/&{damageType}Title"))));
+            GroupFeats.Groups.Remove(damageGroup);
+            groupFeats.Add(damageGroup);
         }
 
         _featGroupElementalAdept2024 = BuildManagedGroupFromPrerequisiteSource(
             "FeatGroupElementalAdept2024",
-            ElementalAdept2024Family,
+            null,
             groupTitle,
             Gui.Localize("Feat/&FeatGroupElementalAdept2024Description"),
             prerequisiteSource,
@@ -3186,8 +3244,16 @@ public static partial class Tabletop2024Context
         RegisterManagedTabletopFeats(true, _featGroupSpellSniper2024);
     }
 
-    internal static void RefreshFeatSpellSelectionLists2024()
+    internal static void RefreshFeatSpellSelectionLists2024(int? changedSpellLevel = null)
     {
+        EpicBoons.RefreshSchoolMasterySpellLists();
+
+        // The other feat grants only offer cantrips and first-level spells.
+        if (changedSpellLevel is > 1)
+        {
+            return;
+        }
+
         RefreshFeyTouched2024SpellLists();
         RefreshRitualCaster2024SpellList();
         RefreshShadowTouched2024SpellLists();
@@ -4282,6 +4348,17 @@ public static partial class Tabletop2024Context
 
         RegisterExplicitManagedCatalogEntries();
         RegisterExplicitIndependentLegacyRoots();
+        foreach (var epicBoon in _epicBoonFeats)
+        {
+            RegisterManagedCatalogEntry(
+                epicBoon.Name,
+                epicBoon,
+                selectableRoot: true,
+                standalone: epicBoon.GetFirstSubFeatureOfType<IGroupedFeat>() == null);
+        }
+
+        RegisterManagedTabletopFeats(true, _epicBoonCategory);
+
         PostConfigureManagedIndependentHalfFeats();
     }
 
@@ -4926,6 +5003,9 @@ public static partial class Tabletop2024Context
                 [GroupFeats.FeatGroupUnarmoredCombat])
         ]);
 
+        TabletopFeat2024Profiles.AddRange(_epicBoonFeats.Select(feat =>
+            new TabletopFeat2024Profile(feat, [], [_epicBoonCategory])));
+
         foreach (var independentFeat in IndependentTabletopFeatByCanonicalName)
         {
             if (ExplicitManagedLegacyRootNames.Contains(independentFeat.Key) ||
@@ -4950,7 +5030,7 @@ public static partial class Tabletop2024Context
         }
 
         foreach (var name in Main.Settings.TabletopFeats2024Initialized
-                     .Where(name => !SelectableManagedTabletopRootNames.Contains(name))
+                     .Where(name => !SelectableManagedTabletopRootNames.Contains(name) && name != EpicBoonCategoryName)
                      .ToArray())
         {
             Main.Settings.TabletopFeats2024Initialized.Remove(name);
@@ -5155,15 +5235,16 @@ public static partial class Tabletop2024Context
     {
         // Explicit grants must remain completable even when their optional catalog entry is hidden.
         // The pool still fixes the allowed variants; level, family and other prerequisites are checked on selection.
-        return IsVisibleInGameFeatSelection(feat) ||
+        return IsFeatEnabledByDependentSettings(feat) && (IsVisibleInGameFeatSelection(feat) ||
                Main.Settings.EnableTabletopFeatRules2024 &&
                IsSelectableManagedTabletopFeatLeaf(feat) &&
-               GetModeAwareRestrictedChoiceNames(pointPool).Contains(feat.Name);
+               GetModeAwareRestrictedChoiceNames(pointPool).Contains(feat.Name));
     }
 
     internal static bool IsAllowedInGameFeatSelectionByConfiguration(FeatDefinition feat)
     {
         return feat != null &&
+               IsFeatEnabledByDependentSettings(feat) &&
                !IsNonSelectableTabletopGroup(feat) &&
                IsVisibleBySettings(feat) &&
                (Main.Settings.EnableTabletopFeatRules2024
@@ -5264,12 +5345,36 @@ public static partial class Tabletop2024Context
         FeatDefinition feat,
         RulesetCharacterHero hero = null)
     {
-        var isChildVisible = feat?.GetFirstSubFeatureOfType<GroupedFeat>()?.IsChildVisible;
-        // Keep catalog categories, but choose all variants of a feat in one panel.
-        return (IsTabletopContainerGroup(feat)
-                ? GetAllowedGameFeatChildren(feat)
-                : EnumerateFeatAndDescendantLeaves(feat))
-            .Where(child => hero == null || isChildVisible == null || isChildVisible(hero, child))
+        if (feat == null || IsNonSelectableTabletopGroup(feat))
+        {
+            return [];
+        }
+
+        var visibilityPredicates = hero == null
+            ? []
+            : EnumerateManagedTabletopParentNames(feat.Name)
+                .Select(name => TryGetDefinition<FeatDefinition>(name, out var parent) ? parent : null)
+                .Prepend(feat)
+                .Select(parent => parent?.GetFirstSubFeatureOfType<GroupedFeat>()?.IsChildVisible)
+                .Where(predicate => predicate != null)
+                .Distinct()
+                .ToArray();
+        var children = GetAllowedGameFeatChildren(feat).ToArray();
+
+        if (children.Length == 0 &&
+            feat.GetFirstSubFeatureOfType<IGroupedFeat>() is { } group &&
+            !IsTabletopContainerGroup(feat))
+        {
+            children = group.GetSubFeats(true)
+                .Where(IsVisibleInGameFeatSelection)
+                .ToArray();
+        }
+
+        // Preserve choices such as spell school or class before choosing an ability variant.
+        return children
+            .Where(child => visibilityPredicates.Length == 0 ||
+                            EnumerateFeatAndDescendantLeaves(child)
+                                .Any(leaf => visibilityPredicates.All(predicate => predicate(hero, leaf))))
             .Distinct()
             .OrderBy(child => child.FormatTitle());
     }
@@ -5425,7 +5530,7 @@ public static partial class Tabletop2024Context
     {
         isSameFamily = false;
 
-        if (service == null || heroBuildingData == null || feat == null)
+        if (service == null || heroBuildingData == null || feat == null || !IsFeatEnabledByDependentSettings(feat))
         {
             return false;
         }
@@ -5716,43 +5821,6 @@ public static partial class Tabletop2024Context
         Main.Settings.RepairedLegacyFeatGroupEnabledAfter2024ContainerBugV2 = true;
     }
 
-    internal static IEnumerable<FeatDefinition> GetDisplayableManagedTabletopTrainedFeats(RulesetCharacterHero hero)
-    {
-        return GetDisplayableManagedTabletopTrainedFeats(hero, null);
-    }
-
-    internal static IEnumerable<FeatDefinition> GetDisplayableManagedTabletopTrainedFeats(
-        RulesetCharacterHero hero,
-        CharacterHeroBuildingData buildingData)
-    {
-        if (hero == null)
-        {
-            yield break;
-        }
-
-        var displayableFeats = new List<FeatDefinition>();
-
-        foreach (var feat in hero.TrainedFeats ?? [])
-        {
-            TryAddDisplayableManagedTabletopFeat(displayableFeats, feat);
-        }
-
-        if (buildingData?.LevelupTrainedFeats != null)
-        {
-            foreach (var feat in buildingData.LevelupTrainedFeats.Values
-                         .Where(feats => feats != null)
-                         .SelectMany(feats => feats))
-            {
-                TryAddDisplayableManagedTabletopFeat(displayableFeats, feat);
-            }
-        }
-
-        foreach (var feat in displayableFeats)
-        {
-            yield return feat;
-        }
-    }
-
     internal static bool HasTrainedOrSelectedDescendant(
         CharacterHeroBuildingData heroBuildingData,
         RulesetCharacterHero hero,
@@ -5910,7 +5978,10 @@ public static partial class Tabletop2024Context
 
     private static bool ShouldSuppressLegacyAutoEnable(string canonicalName)
     {
-        return IsOptInOnlyManagedTabletopCanonicalName(canonicalName);
+        return IsOptInOnlyManagedTabletopCanonicalName(canonicalName) ||
+               !string.IsNullOrEmpty(canonicalName) &&
+               IndependentTabletopFeatByCanonicalName.TryGetValue(canonicalName, out var feat) &&
+               IsOptInOnlyManagedTabletopFeat(feat);
     }
 
     private static bool IsMagicInitiateLeafCanonicalName(string canonicalName)
@@ -6051,18 +6122,8 @@ public static partial class Tabletop2024Context
 
         var groupedFeat = feat.GetFirstSubFeatureOfType<IGroupedFeat>();
         var children = requireCatalogVisibility
-            ? GetAllowedGameFeatChildren(feat).ToArray()
+            ? GetGameFeatSelectionChildren(feat).ToArray()
             : groupedFeat?.GetSubFeats(true).ToArray() ?? [];
-
-        if (requireCatalogVisibility &&
-            children.Length == 0 &&
-            groupedFeat != null &&
-            !IsTabletopContainerGroup(feat))
-        {
-            children = groupedFeat.GetSubFeats(true)
-                .Where(IsVisibleInGameFeatSelection)
-                .ToArray();
-        }
 
         if (children.Length == 0)
         {
@@ -6157,7 +6218,7 @@ public static partial class Tabletop2024Context
                 continue;
             }
 
-            var hasVisibleChildren = GetAllowedGameFeatChildren(group).Any();
+            var hasVisibleChildren = IsFeatEnabledByDependentSettings(group) && GetAllowedGameFeatChildren(group).Any();
 
             group.GuiPresentation.hidden = !hasVisibleChildren;
         }
@@ -7600,6 +7661,9 @@ public static partial class Tabletop2024Context
 
                 if (is2024)
                 {
+                    // Group builders also accept localized fallback text. Keep real
+                    // translation keys so changing language updates roots and leaves alike.
+                    PreserveHalfFeatTranslationKeys(feat);
                     TabletopFeat2024Names.Add(feat.Name);
                 }
             }
@@ -7613,7 +7677,7 @@ public static partial class Tabletop2024Context
 
     internal static bool IsFeatToggleAvailableInCurrentMode(FeatDefinition feat)
     {
-        if (feat == null)
+        if (feat == null || !IsFeatEnabledByDependentSettings(feat))
         {
             return false;
         }
@@ -7640,11 +7704,38 @@ public static partial class Tabletop2024Context
                ManagedTabletopFeatNames.Contains(featDefinition.Name);
     }
 
+    internal static bool AreEpicBoonsEffectivelyEnabled()
+    {
+        return Main.Settings.EnableTabletopFeatRules2024 && Main.Settings.EnableEpicBoons2024;
+    }
+
+    internal static bool IsEpicBoonDefinition(BaseDefinition definition)
+    {
+        return definition is FeatDefinition feat &&
+               (feat.Name == EpicBoonCategoryName ||
+                EnumerateManagedTabletopSelfAndParentNames(feat.Name).Any(EpicBoonRootNames.Contains));
+    }
+
+    private static bool IsFeatEnabledByDependentSettings(FeatDefinition feat)
+    {
+        return !IsEpicBoonDefinition(feat) || AreEpicBoonsEffectivelyEnabled();
+    }
+
     internal static bool IsOptInOnlyManagedTabletopFeat(FeatDefinition feat)
     {
         return feat != null &&
                IsManagedTabletopFeat(feat) &&
-               IsOptInOnlyManagedTabletopCanonicalName(GetCanonicalTabletopFeatName(feat.Name));
+               EnumerateManagedTabletopSelfAndParentNames(feat.Name).Any(name =>
+                   IsOptInOnlyManagedTabletopCanonicalName(GetCanonicalTabletopFeatName(name)) ||
+                   TryGetDefinition<FeatDefinition>(name, out var definition) &&
+                   definition.HasSubFeatureOfType<LegacyHalfAsiConversion>());
+    }
+
+    // Half-ASI conversions remain optional extensions of their published legacy feat.
+    // Put provenance on the constructed root so every registered variant inherits the same bulk-selection policy.
+    private sealed class LegacyHalfAsiConversion
+    {
+        internal static readonly LegacyHalfAsiConversion Marker = new();
     }
 
     internal static bool HasEquivalentTrainedFeat(RulesetCharacter character, FeatDefinition feat)
@@ -7751,7 +7842,8 @@ public static partial class Tabletop2024Context
 
         if (names.Contains("FeatGroupOrigin") ||
             names.Contains("FeatGroupFightingStyle") ||
-            names.Contains("FeatGroupMagicInitiate"))
+            names.Contains("FeatGroupMagicInitiate") ||
+            _epicBoonFeats.Any(epicBoon => names.Contains(epicBoon.Name)))
         {
             return true;
         }
@@ -7795,30 +7887,6 @@ public static partial class Tabletop2024Context
             profile.Replacement != null &&
             GetCanonicalTabletopFeatName(profile.Replacement.Name) == canonicalName &&
             profile.TargetGroups.Any(group => group?.Name == "FeatGroupOrigin"));
-    }
-
-    private static bool TryAddDisplayableManagedTabletopFeat(
-        ICollection<FeatDefinition> feats,
-        FeatDefinition feat)
-    {
-        if (feats == null ||
-            !IsDisplayableManagedTabletopLeaf(feat))
-        {
-            return false;
-        }
-
-        feat.GuiPresentation.hidden = false;
-
-        if (feats.Any(existingFeat =>
-                existingFeat &&
-                AreEquivalentTabletopFeatNames(existingFeat.Name, feat.Name)))
-        {
-            return false;
-        }
-
-        feats.Add(feat);
-
-        return true;
     }
 
     private static bool IsValidGreatWeaponMasterAttack(RulesetCharacter character, RulesetAttackMode attackMode)
@@ -8063,7 +8131,8 @@ public static partial class Tabletop2024Context
         {
             InitializeToggle();
 
-            var replacementVisible = use2024 && Tabletop2024Context.IsVisibleBySettings(replacement);
+            var replacementVisible = use2024 && Tabletop2024Context.IsFeatEnabledByDependentSettings(replacement) &&
+                                     Tabletop2024Context.IsVisibleBySettings(replacement);
 
             foreach (var legacyFeat in legacyFeats)
             {
@@ -9109,7 +9178,7 @@ public static partial class Tabletop2024Context
             promptName,
             Gui.Localize($"Reaction/&CustomReaction{promptName}Description"),
             () => context.Approve(power.Name),
-            resource: new ReactionResourcePowerPool(power, power.GuiPresentation.SpriteReference),
+            resource: new ReactionResourcePowerPool(power),
             target: actingCharacter, effectDefinition: power);
     }
 
@@ -10210,7 +10279,7 @@ public static partial class Tabletop2024Context
                     Category.Reaction, defender.Name, savingThrowData.Title),
                 ReactionValidated,
                 battleManager: battleManager,
-                resource: new ReactionResourcePowerPool(power, power.GuiPresentation.SpriteReference),
+                resource: new ReactionResourcePowerPool(power),
                 target: defender,
                 effectDefinition: power,
                 reactionStillValid: () => CanAlterSavingThrow(requireReaction: true));

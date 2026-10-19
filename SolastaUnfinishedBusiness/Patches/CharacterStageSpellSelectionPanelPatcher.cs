@@ -6,6 +6,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Feats;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -39,6 +40,55 @@ public static class CharacterStageSpellSelectionPanelPatcher
         public static void Postfix(CharacterStageSpellSelectionPanel __instance, ref bool __result)
         {
             __result &= LevelUpHelper.AreFeatSpellReplacementsValid(__instance.currentHero.GetHeroBuildingData());
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterStageSpellSelectionPanel), nameof(CharacterStageSpellSelectionPanel.CollectTags))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CollectTags_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(CharacterStageSpellSelectionPanel __instance)
+        {
+            MulticlassGameUi.OrderSpellLearnStepTags(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterStageSpellSelectionPanel), nameof(CharacterStageSpellSelectionPanel.BuildLearnSteps))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class BuildLearnSteps_Patch
+    {
+        [NotNull]
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
+        {
+            var format = typeof(string).GetMethod(nameof(string.Format), [typeof(string), typeof(object)]);
+            var replacement = new Func<string, object, string>(FormatSpecialTagTitle).Method;
+
+            return instructions.ReplaceCalls(format, 3, "CharacterStageSpellSelectionPanel.BuildLearnSteps",
+                new CodeInstruction(OpCodes.Call, replacement));
+        }
+
+        private static string FormatSpecialTagTitle(string format, object tag)
+        {
+            if (tag is string sourceTag && format is
+                "Tag/&{0}CantripSpecialTagTitle" or
+                "Tag/&{0}SpellSpecialTagTitle" or
+                "Tag/&{0}CantripOrSpellSpecialTagTitle")
+            {
+                // Explicit source presentations are already localized. Resolve them before
+                // native Bind queries a derived translation key that does not exist.
+                var title = FeatHelpers.GetSpellSelectionPresentation(sourceTag)?.FormatTitle(null);
+
+                if (!string.IsNullOrWhiteSpace(title))
+                {
+                    return title;
+                }
+            }
+
+            return string.Format(format, tag);
         }
     }
 

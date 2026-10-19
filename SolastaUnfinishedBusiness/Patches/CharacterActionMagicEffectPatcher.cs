@@ -1523,7 +1523,8 @@ public static class CharacterActionMagicEffectPatcher
                 if (__instance.AttackRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
                 {
                     // No need to test this even if the hit was automatic (natural 20). Warning: Critical Success can occur without rolling a 20 (Champion fighter crits at 19)
-                    if (__instance.AttackRoll != DiceMaxValue[(int)DieType.D20])
+                    if (__instance.AttackRoll != DiceMaxValue[(int)DieType.D20] &&
+                        !TryAlterOutcomeAttack.IsForcedHit(__instance, target, actionModifier))
                     {
                         // Can the target do anything to change the outcome of the hit?
                         yield return battleManager.HandleCharacterAttackHitPossible(
@@ -1547,20 +1548,23 @@ public static class CharacterActionMagicEffectPatcher
                     //END PATCH
 
                     // Execute the final step of the attack
-                    actingCharacter.RulesetCharacter.RollMagicAttack(
-                        rulesetEffect,
-                        rulesetTarget,
-                        rulesetEffect.GetEffectSource(),
-                        actionModifier.AttacktoHitTrends,
-                        actionModifier.AttackAdvantageTrends,
-                        false,
-                        actionModifier.AttackRollModifier,
-                        out outcome,
-                        out successDelta,
-                        __instance.AttackRoll,
-                        false);
-                    __instance.AttackRollOutcome = outcome;
-                    __instance.AttackSuccessDelta = successDelta;
+                    using (TryAlterOutcomeAttack.BeginAttackResolution(__instance, target, actionModifier))
+                    {
+                        actingCharacter.RulesetCharacter.RollMagicAttack(
+                            rulesetEffect,
+                            rulesetTarget,
+                            rulesetEffect.GetEffectSource(),
+                            actionModifier.AttacktoHitTrends,
+                            actionModifier.AttackAdvantageTrends,
+                            false,
+                            actionModifier.AttackRollModifier,
+                            out outcome,
+                            out successDelta,
+                            __instance.AttackRoll,
+                            false);
+                        __instance.AttackRollOutcome = outcome;
+                        __instance.AttackSuccessDelta = successDelta;
+                    }
 
                     // Is this still a success?
                     if (__instance.AttackRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)
@@ -1582,19 +1586,22 @@ public static class CharacterActionMagicEffectPatcher
                 }
                 else
                 {
-                    actingCharacter.RulesetCharacter.RollMagicAttack(
-                        rulesetEffect,
-                        rulesetTarget,
-                        rulesetEffect.GetEffectSource(),
-                        actionModifier.AttacktoHitTrends,
-                        actionModifier.AttackAdvantageTrends,
-                        false, actionModifier.AttackRollModifier,
-                        out outcome,
-                        out successDelta,
-                        __instance.AttackRoll,
-                        false);
-                    __instance.AttackRollOutcome = outcome;
-                    __instance.AttackSuccessDelta = successDelta;
+                    using (TryAlterOutcomeAttack.BeginAttackResolution(__instance, target, actionModifier))
+                    {
+                        actingCharacter.RulesetCharacter.RollMagicAttack(
+                            rulesetEffect,
+                            rulesetTarget,
+                            rulesetEffect.GetEffectSource(),
+                            actionModifier.AttacktoHitTrends,
+                            actionModifier.AttackAdvantageTrends,
+                            false, actionModifier.AttackRollModifier,
+                            out outcome,
+                            out successDelta,
+                            __instance.AttackRoll,
+                            false);
+                        __instance.AttackRollOutcome = outcome;
+                        __instance.AttackSuccessDelta = successDelta;
+                    }
                 }
 
                 // Possible condition interruption, after the attack is done. Example: if a creature attacks with the Rousing Shout condition

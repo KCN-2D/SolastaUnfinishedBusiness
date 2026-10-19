@@ -1,4 +1,5 @@
-﻿using JetBrains.Annotations;
+﻿using System.Collections.Generic;
+using JetBrains.Annotations;
 
 namespace SolastaUnfinishedBusiness.Interfaces;
 
@@ -12,4 +13,14 @@ public interface ICustomLevelUpLogic
     // Use this to remove the feature from the character. In particular this is used to allow level down functionality
     [UsedImplicitly]
     public void RemoveFeature(RulesetCharacterHero hero, [UsedImplicitly] string tag);
+}
+
+// Owned construction features expose the state rebuilt when a hero is recreated.
+// External changes, such as a consumed tome, do not participate in this contract.
+public interface ICustomLevelUpState
+{
+    IEnumerable<RulesetCondition> GetStateConditions(RulesetCharacterHero hero);
+
+    (int BaseValue, int MaxValue, int MaxEditableValue) GetAttributeIncreases(
+        RulesetCharacterHero hero, string attribute);
 }

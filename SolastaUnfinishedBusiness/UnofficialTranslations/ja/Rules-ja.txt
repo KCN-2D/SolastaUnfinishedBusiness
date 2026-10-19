@@ -606,7 +606,6 @@ Rules/&DieD6Title=D6
 Rules/&DieD8Title=D8
 Rules/&DivinationFormFormatIdentifyItem=アイテムのすべての特性を明らかにします。
 Rules/&DivinationFormFormatListCreatureFamilyInLocation=クリーチャー種別の存在を感知します：{0}。
-Rules/&DivinationFormFormatRevealEntitiesBearingTags={0}であるクリーチャーまたは物体を明らかにします。
 Rules/&DurationAnyRestFormat=いずれかの休憩まで
 Rules/&DurationDayPluralFormat={0}日
 Rules/&DurationDaySingleFormat={0}日
