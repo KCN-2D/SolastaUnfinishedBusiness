@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -1842,23 +1843,34 @@ internal static partial class SpellBuilders
         SpellDefinition spellWitherAndBloom,
         ConditionDefinition conditionWitherAndBloom) : IPowerOrSpellInitiatedByMe, IPowerOrSpellFinishedByMe, IPowerOrSpellTargetProvider
     {
-        private int _spellCastingAbilityModifier;
-        private GameLocationCharacter _target;
+        private sealed class CastingContext(GameLocationCharacter target, int abilityModifier)
+        {
+            internal GameLocationCharacter Target { get; } = target;
+            internal int AbilityModifier { get; } = abilityModifier;
+        }
+
+        private readonly ConditionalWeakTable<CharacterActionMagicEffect, CastingContext> _casts = new();
 
         public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
         {
+            if (!_casts.TryGetValue(action, out var context))
+            {
+                yield break;
+            }
+
+            _casts.Remove(action);
             if (action.Countered || action.ExecutionFailed)
             {
                 yield break;
             }
 
-            if (action.ActionParams.activeEffect is not RulesetEffectSpell rulesetEffectSpell ||
-                _target == null)
+            if (action.ActionParams.activeEffect is not RulesetEffectSpell rulesetEffectSpell)
             {
                 yield break;
             }
 
-            var rulesetTarget = _target.RulesetCharacter.GetOriginalHero();
+            var target = context.Target;
+            var rulesetTarget = target.RulesetCharacter.GetOriginalHero();
 
             if (rulesetTarget == null)
             {
@@ -1872,35 +1884,40 @@ internal static partial class SpellBuilders
 
             rulesetTarget.HitDieRolled += HitDieRolled;
 
-            while (--effectLevel > 0 &&
-                   rulesetTarget.RemainingHitDiceCount() > 0 &&
-                   rulesetTarget.MissingHitPoints > 0)
+            try
             {
-                var maxHitPoints = rulesetTarget.TryGetAttributeValue(AttributeDefinitions.HitPoints);
-                var remainingHitPoints = maxHitPoints - rulesetTarget.MissingHitPoints;
-
-                yield return _target.MyReactToDoNothing(
-                    ExtraActionId.DoNothingFree,
-                    attacker,
-                    "WitherAndBloom",
-                    "CustomReactionWitherAndBloomDescription".Formatted(Category.Reaction,
-                        remainingHitPoints.ToString(), maxHitPoints.ToString(), attacker.Name,
-                        _spellCastingAbilityModifier.ToString()),
-                    ReactionValidated,
-                    ReactionNotValidated,
-                    target: _target, effectDefinition: spellWitherAndBloom);
-
-                if (passed)
+                while (--effectLevel > 0 &&
+                       rulesetTarget.RemainingHitDiceCount() > 0 &&
+                       rulesetTarget.MissingHitPoints > 0)
                 {
-                    break;
+                    var maxHitPoints = rulesetTarget.TryGetAttributeValue(AttributeDefinitions.HitPoints);
+                    var remainingHitPoints = maxHitPoints - rulesetTarget.MissingHitPoints;
+
+                    yield return target.MyReactToDoNothing(
+                        ExtraActionId.DoNothingFree,
+                        attacker,
+                        "WitherAndBloom",
+                        "CustomReactionWitherAndBloomDescription".Formatted(Category.Reaction,
+                            remainingHitPoints.ToString(), maxHitPoints.ToString(), attacker.Name,
+                            context.AbilityModifier.ToString()),
+                        ReactionValidated,
+                        ReactionNotValidated,
+                        target: target, effectDefinition: spellWitherAndBloom);
+
+                    if (passed)
+                    {
+                        break;
+                    }
                 }
             }
-
-            rulesetTarget.HitDieRolled -= HitDieRolled;
+            finally
+            {
+                rulesetTarget.HitDieRolled -= HitDieRolled;
+            }
 
             if (hasHealed)
             {
-                EffectHelpers.StartVisualEffect(attacker, _target, CureWounds, EffectHelpers.EffectType.Effect);
+                EffectHelpers.StartVisualEffect(attacker, target, CureWounds, EffectHelpers.EffectType.Effect);
             }
 
             yield break;
@@ -1919,7 +1936,7 @@ internal static partial class SpellBuilders
 
         public IEnumerator OnPowerOrSpellInitiatedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
         {
-            _target = null;
+            _casts.Remove(action);
 
             if (action.ActionParams.activeEffect is not RulesetEffectSpell rulesetEffectSpell ||
                 action.ActionParams.TargetCharacters.Count == 0)
@@ -1927,7 +1944,7 @@ internal static partial class SpellBuilders
                 yield break;
             }
 
-            _target = action.ActionParams.TargetCharacters[0];
+            var target = action.ActionParams.TargetCharacters[0];
 
             action.ActionParams.TargetCharacters.SetRange(GetTargetCharacters(action));
 
@@ -1940,9 +1957,10 @@ internal static partial class SpellBuilders
 
             var rulesetAttacker = action.ActingCharacter.RulesetCharacter;
 
-            _spellCastingAbilityModifier = rulesetEffectSpell.ComputeSourceAbilityBonus(rulesetAttacker);
+            var context = new CastingContext(target, rulesetEffectSpell.ComputeSourceAbilityBonus(rulesetAttacker));
+            _casts.Add(action, context);
 
-            var rulesetTarget = _target.RulesetCharacter;
+            var rulesetTarget = target.RulesetCharacter;
 
             rulesetTarget.InflictCondition(
                 conditionWitherAndBloom.Name,
@@ -1954,7 +1972,7 @@ internal static partial class SpellBuilders
                 rulesetTarget.CurrentFaction.Name,
                 1,
                 conditionWitherAndBloom.Name,
-                _spellCastingAbilityModifier,
+                context.AbilityModifier,
                 0,
                 0);
         }

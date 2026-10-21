@@ -10,6 +10,7 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Subclasses;
 using TA;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterSubclassDefinitions;
@@ -297,6 +298,13 @@ public static partial class Tabletop2024Context
         LoadSorcererSorcerousRestoration();
         LoadWizardMemorizeSpell();
         LoadWeaponMastery();
+        ApplySettings();
+        SmiteSpells2024Context.LateLoad();
+        SorceryIncarnateContext.LateLoad();
+    }
+
+    internal static void ApplySettings()
+    {
         ApplyBackgroundOptions();
         SwitchBarbarianBrutalStrike();
         SwitchBarbarianInstinctivePounce();
@@ -424,8 +432,11 @@ public static partial class Tabletop2024Context
         SwitchWeaponMastery();
         SwitchMartialChampion();
         SwitchShineCantrip();
-        SmiteSpells2024Context.LateLoad();
-        SorceryIncarnateContext.LateLoad();
+        WizardAbjuration.SwapSavantAndSavant2024();
+        WizardEvocation.SwapSavantAndSavant2024();
+        WizardEvocation.SwapEvocationPotentCantripAndSculptSpell();
+        WizardEvocation.SwitchPotentCantrip2024();
+        SmiteSpells2024Context.SwitchSmiteSpells();
     }
 
     internal static void SwitchSpeciesBaseWalkSpeed()

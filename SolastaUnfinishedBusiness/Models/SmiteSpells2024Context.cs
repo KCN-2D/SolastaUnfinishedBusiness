@@ -53,6 +53,11 @@ public static partial class SmiteSpells2024Context
 
     internal static void SwitchSmiteSpells()
     {
+        if (SmiteSpellDefaults.Count == 0)
+        {
+            return;
+        }
+
         var wrathfulSmiteDescription = Main.Settings.EnableSmiteSpells2024
             ? "Spell/&WrathfulSmite2024Description"
             : "Spell/&WrathfulSmiteDescription";

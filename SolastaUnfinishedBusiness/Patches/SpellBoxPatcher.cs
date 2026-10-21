@@ -7,7 +7,6 @@ using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
-using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 
@@ -25,25 +24,6 @@ public static class SpellBoxPatcher
     private const string MulticlassExtraSpellTitle = "Screen/&MulticlassExtraSpellTitle";
     private const string MulticlassExtraSpellDescription = "Screen/&MulticlassExtraSpellDescription";
 
-    internal static string NormalizeSpellSourceTag(string tag)
-    {
-        if (string.IsNullOrEmpty(tag))
-        {
-            return tag;
-        }
-
-        // Structured tags identify a native feature or class; their payload is not a feat-selection suffix.
-        if (tag.StartsWith(AutoPreparedFeatureTag, StringComparison.OrdinalIgnoreCase) ||
-            IsMulticlassSpellSourceTag(tag))
-        {
-            return tag;
-        }
-
-        tag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(tag);
-
-        return tag == "DOMAIN" ? "Domain" : tag;
-    }
-
     [HarmonyPatch(typeof(SpellBox), nameof(SpellBox.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -58,7 +38,7 @@ public static class SpellBoxPatcher
             out string __state)
         {
             ClearSpellSource(__instance);
-            tag = NormalizeSpellSourceTag(tag);
+            tag = SpellSelectionContext.NormalizeSpellSourceTag(tag);
             __state = tag;
 
             if (IsMulticlassSpellSourceTag(tag))
@@ -141,7 +121,8 @@ public static class SpellBoxPatcher
                 }
             }
             else if (TryResolveMulticlassSpellSourceTag(tag, out title, out tooltipContent) ||
-                     TryResolveGrantedSpellSource(tag, spell, caster, castingSource, out title, out tooltipContent) ||
+                     SpellSelectionContext.TryResolveGrantedSpellSource(
+                         tag, spell, caster, castingSource, out title, out tooltipContent) ||
                      TryResolveLocalizedSpellSource(tag, spell, extraSpell,
                          out title, out tooltipContent) ||
                      TryResolveLocalizedSpellSource(tag, spell, !extraSpell,
@@ -160,47 +141,6 @@ public static class SpellBoxPatcher
         tooltipContent = Gui.Localize(AutoPreparedSpellSourceDescription);
 
         return true;
-    }
-
-    private static bool TryResolveGrantedSpellSource(
-        string tag,
-        SpellDefinition spell,
-        RulesetCharacter caster,
-        RulesetSpellRepertoire castingSource,
-        out string title,
-        out string tooltipContent)
-    {
-        title = string.Empty;
-        tooltipContent = string.Empty;
-
-        if (caster == null || !spell)
-        {
-            return false;
-        }
-
-        // Preparation belongs to its grant even when an independently learned class
-        // copy supplies the spell's casting origin. Never change that casting origin.
-        var sources = caster.SpellRepertoires.Where(repertoire =>
-        {
-            var spellTag = repertoire.SpellCastingFeature?.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>();
-            var matches = spellTag != null &&
-                          string.Equals(NormalizeSpellSourceTag(spellTag.Name), tag, StringComparison.OrdinalIgnoreCase) ||
-                          tag.Equals("Race", StringComparison.OrdinalIgnoreCase) && repertoire.SpellCastingRace;
-
-            return matches && CharacterInspectionScreenEnhancement.GetInspectionLearnedSpells(repertoire).Contains(spell);
-        }).ToArray();
-        if (sources.Length == 0)
-        {
-            return false;
-        }
-
-        var source = sources.Contains(castingSource)
-            ? castingSource
-            : SpellCastingResourceContext.SelectFeatCastingRepertoire(caster, sources);
-        title = source.FormatHeader();
-        return SpellUseTooltips.TryFormatSourceDescription(caster, source, spell, title,
-            source.SpellCastingFeature.SpellReadyness == RuleDefinitions.SpellReadyness.AllKnown ||
-            source.AutoPreparedSpells.Contains(spell), out tooltipContent);
     }
 
     private static bool TryResolveLocalizedSpellSource(

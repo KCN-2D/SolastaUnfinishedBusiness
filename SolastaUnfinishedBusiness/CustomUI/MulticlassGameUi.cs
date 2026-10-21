@@ -1583,7 +1583,7 @@ internal static class MulticlassGameUi
     {
         foreach (var pair in tagsBySpell.ToArray())
         {
-            var normalizedTag = SpellBoxPatcher.NormalizeSpellSourceTag(pair.Value);
+            var normalizedTag = SpellSelectionContext.NormalizeSpellSourceTag(pair.Value);
 
             if (normalizedTag != pair.Value)
             {

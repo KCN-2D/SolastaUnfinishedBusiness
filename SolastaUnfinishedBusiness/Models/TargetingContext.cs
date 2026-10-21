@@ -137,11 +137,23 @@ internal static class TargetingContext
     internal static string FormatPartyTargetWarning(GameLocationCharacter actor,
         IEnumerable<GameLocationCharacter> targets, bool hostileAid = false)
     {
-        var recipients = targets?.Where(target => target != null).Distinct().Take(2).ToArray() ?? [];
+        var affectedTargets = targets?.Where(target => target != null).Distinct().ToArray() ?? [];
+        var recipients = affectedTargets.Where(target => hostileAid
+                ? actor != null && actor.IsOppositeSide(target.Side)
+                : IsPartyAllyTarget(actor, target, true))
+            .ToArray();
+        if (recipients.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var includesSelf = recipients.Contains(actor);
+        var includesAllies = recipients.Any(target => target != actor);
         var key = hostileAid ? "Caption/&HostileAidWarning" :
-            recipients.Length > 1 ? "Caption/&PartyTargetsIncluded" :
-            recipients.Length == 1 && recipients[0] == actor ? "Caption/&SelfTargetWarning" :
-            "Caption/&FriendlyFireWarning";
+            includesSelf && includesAllies ? "Caption/&SelfAndPartyTargetsIncluded" :
+            affectedTargets.Length > 1 ? includesSelf
+                ? "Caption/&SelfTargetIncluded" : "Caption/&PartyTargetsIncluded" :
+            includesSelf ? "Caption/&SelfTargetWarning" : "Caption/&FriendlyFireWarning";
         return Gui.Colorize(Gui.Localize(key), Gui.ColorAlert);
     }
 

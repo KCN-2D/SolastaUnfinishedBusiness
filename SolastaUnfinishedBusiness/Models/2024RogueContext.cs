@@ -513,6 +513,8 @@ public static partial class Tabletop2024Context
 
         powerPool.AddCustomSubFeatures(
             ModifyPowerVisibility.Hidden,
+            new ReactionRequestSpendBundlePower.SelectionDisplaySettings("Tooltip/&PowerCostSneakAttackDice",
+                "Reaction/&SubitemSelectionDiceCostFormat", "Reaction/&SubitemSelectEffectsTitle"),
             new CustomBehaviorCunningStrike(powerPool, powerKnockOut, powerKnockOutApply, powerWithdraw));
 
         CustomActionIdContext.SetToggleDescription(ExtraActionId.CunningStrikeToggle, powerPool);

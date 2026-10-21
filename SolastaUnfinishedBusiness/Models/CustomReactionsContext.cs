@@ -46,8 +46,11 @@ internal static class CustomReactionsContext
 
         if (request is IReactionRequestMultiSelection { Selection: { Budget: { } budget } selection })
         {
-            sections.Add(Gui.Format("Reaction/&SubitemSelectionCostFormat",
-                selection.Cost.ToString(), budget.ToString()));
+            var cost = selection.Cost;
+            sections.Add(request is ReactionRequestSpendBundlePower { SelectionDisplay: { } display }
+                ? Gui.Format("Reaction/&SubitemSelectionResourceCostFormat", Gui.Localize(display.ResourceTitle),
+                    cost.ToString(), (budget - cost).ToString())
+                : Gui.Format("Reaction/&SubitemSelectionCostFormat", cost.ToString(), budget.ToString()));
         }
         if (request is IReactionRequestMultiSelection { Selection: { Count: > 0, IsGroupValid: false } })
         {

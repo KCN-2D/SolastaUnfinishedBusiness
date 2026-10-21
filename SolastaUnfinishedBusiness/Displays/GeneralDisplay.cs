@@ -68,21 +68,8 @@ internal static class ToolsDisplay
 
         if (tagType == TagType.T2024)
         {
-            ApplyTabletop2024RuntimeSettings();
+            Tabletop2024Context.ApplySettings();
         }
-    }
-
-    private static void ApplyTabletop2024RuntimeSettings()
-    {
-        Tabletop2024Context.SwitchRangerSpellCastingAtOne();
-        Tabletop2024Context.SwitchOneDndPreparedSpellsTables();
-        Tabletop2024Context.SwitchOneDndSpellCounterspell();
-        Tabletop2024Context.SwitchSpeciesBaseWalkSpeed();
-        SpeciesSpellcastingContext.Switch();
-        Tabletop2024Context.SwitchHalfOrcAdrenalineRush();
-        Tabletop2024Context.SwitchRogueSteadyAim();
-        Tabletop2024Context.SwitchAssassinAssassinate();
-        Tabletop2024Context.SwitchAssassinInfiltrationExpertise();
     }
 
     private static void SelectTabletopSet()

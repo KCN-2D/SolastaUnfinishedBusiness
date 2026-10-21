@@ -42,7 +42,7 @@ internal static class EpicBoons
             return Feats;
         }
 
-        Build("CombatProwess", [Feature("CombatProwess", new CombatProwess()),
+        Build("CombatProwess", [Feature("CombatProwess", "CombatProwess", new CombatProwess()),
             ReactionToggle("CombatProwess", ExtraActionId.BoonOfCombatProwess2024Toggle)]);
         BuildTravel();
         BuildEnergyResistance();
@@ -51,35 +51,43 @@ internal static class EpicBoons
         BuildFortitude();
         Build("IrresistibleOffense", [ReactionToggle("IrresistibleOffense", ExtraActionId.BoonOfIrresistibleOffense2024Toggle)],
             [AttributeDefinitions.Strength, AttributeDefinitions.Dexterity],
-            extra: ability => [Feature("IrresistibleOffense" + ability, new IrresistibleOffense(ability))]);
+            extra: ability => [Feature("IrresistibleOffense" + ability, "IrresistibleOffense", new IrresistibleOffense(ability))]);
         BuildSchoolMastery();
         BuildRecovery();
         BuildSkill();
         BuildSpeed();
         var recall = FeatureDefinitionMagicAffinityBuilder.Create("MagicAffinityBoonOfSpellRecall2024")
-            .SetGuiPresentationNoContent(true).SetPreserveSlotRolls(16, 4)
+            .SetGuiPresentation("FeatBoonOfSpellRecall2024", Category.Feat,
+                Sprites.GetPowerSprite("CapabilityEpicBoonSpellRecall2024"), hidden: true)
+            .SetPreserveSlotRolls(16, 4)
             .AddCustomSubFeatures(new SpellCastingResourceContext.SlotPreservationRoll(
                 DieType.D4, (roll, level) => roll == level)).AddToDB();
         Build("SpellRecall", [recall], MentalAbilities, caster: true);
         // Old saves can still reference this former component; retain its identity without the extra benefit.
         FeatureDefinitionSavingThrowAffinityBuilder.Create("SavingThrowAffinityBoonOfTheIronMind2024")
             .SetGuiPresentationNoContent(true).AddToDB();
-        Build("TheIronMind", [Feature("TheIronMind", new IronMind())]);
+        Build("TheIronMind", [Feature("TheIronMind", "TheIronMind", new IronMind())]);
         BuildNightSpirit();
         Build("Truesight", [FeatureDefinitionSenseBuilder.Create("SenseBoonOfTruesight2024")
-            .SetGuiPresentationNoContent(true).SetSense(SenseMode.Type.Truesight, 12).AddToDB()]);
+            .SetGuiPresentation("FeatBoonOfTruesight2024", Category.Feat,
+                Sprites.GetPowerSprite("CapabilityEpicBoonTruesight2024"), hidden: true)
+            .SetSense(SenseMode.Type.Truesight, 12).AddToDB()]);
         return Feats;
     }
 
     private static FeatDefinition GetBoon(string name) => GetDefinition<FeatDefinition>("FeatGroup" + Prefix + name + Suffix);
 
-    private static FeatureDefinition Feature(string name, params object[] behaviors) => FeatureDefinitionBuilder
-        .Create("Feature" + Prefix + name + Suffix).SetGuiPresentationNoContent(true)
+    private static FeatureDefinition Feature(string name, string owner, params object[] behaviors) => FeatureDefinitionBuilder
+        .Create("Feature" + Prefix + name + Suffix)
+        .SetGuiPresentation("Feat" + Prefix + owner + Suffix, Category.Feat,
+            Sprites.GetPowerSprite("CapabilityEpicBoon" + owner + Suffix), hidden: true)
         .AddCustomSubFeatures(behaviors).AddToDB();
 
-    private static FeatureDefinitionPower Pool(string name, RechargeRate recharge, int uses) =>
+    private static FeatureDefinitionPower Pool(string name, string owner, RechargeRate recharge, int uses) =>
         FeatureDefinitionPowerBuilder.Create("Power" + Prefix + name + "Pool" + Suffix)
-            .SetGuiPresentationNoContent(true).SetUsesFixed(ActivationTime.NoCost, recharge, 1, uses)
+            .SetGuiPresentation("Feat" + Prefix + owner + Suffix, Category.Feat,
+                Sprites.GetPowerSprite("CapabilityEpicBoon" + owner + Suffix), hidden: true)
+            .SetUsesFixed(ActivationTime.NoCost, recharge, 1, uses)
             .SetShowCasting(false)
             .AddCustomSubFeatures(ModifyPowerVisibility.Hidden).AddToDB();
 
@@ -102,7 +110,9 @@ internal static class EpicBoons
         return FeatureDefinitionActionAffinityBuilder.Create(
                 FeatureDefinitionActionAffinitys.ActionAffinitySorcererMetamagicToggle,
                 "ActionAffinity" + toggle)
-            .SetGuiPresentationNoContent(true).SetAuthorizedActions((Id)toggle).AddToDB();
+            .SetGuiPresentation("Feat" + Prefix + name + Suffix, Category.Feat,
+                Sprites.GetPowerSprite("CapabilityEpicBoon" + name + Suffix), hidden: true)
+            .SetAuthorizedActions((Id)toggle).AddToDB();
     }
 
     private static bool PromptEnabled(RulesetCharacter character, ExtraActionId toggle) =>
@@ -127,20 +137,13 @@ internal static class EpicBoons
                     .SetAmountOrigin(ConditionDefinition.OriginOfAmount.SourceGain)
                     .SetSpecialDuration(DurationType.Permanent).AddToDB();
                 increase = FeatureDefinitionBuilder.Create("FeatureBoonAbility" + abilityKey + Suffix)
-                    .SetGuiPresentationNoContent(true)
+                    .SetGuiPresentation(title, description, sprite, hidden: true)
                     .AddCustomSubFeatures(new EpicAbilityIncrease(ability, marker)).AddToDB();
                 AbilityIncreases.Add(abilityKey, increase);
             }
             var selectedAbility = ability;
+            // Features passed to this assembler can be shared; their creators own their presentation.
             var trainedFeatures = features.Concat(extra?.Invoke(ability) ?? []).Append(increase).ToArray();
-            foreach (var feature in trainedFeatures.Where(feature => feature.GuiPresentation.Hidden &&
-                         feature.GuiPresentation.Title == Gui.NoLocalization))
-            {
-                // Hidden components still identify their source in native rolls and combat feedback.
-                feature.GuiPresentation.title = title;
-                feature.GuiPresentation.description = description;
-                feature.GuiPresentation.spriteReference = sprite;
-            }
             var builder = FeatDefinitionWithPrerequisitesBuilder.Create("Feat" + family + variant + ability)
                 .SetGuiPresentation(title, description, sprite).SetFeatFamily(family)
                 .SetFeatures(trainedFeatures)
@@ -370,9 +373,10 @@ internal static class EpicBoons
             .SetSpecialDuration(DurationType.Round, 0, TurnOccurenceType.StartOfTurn).AddToDB();
         var behavior = new Fortitude(cooldown);
         Build("Fortitude", [FeatureDefinitionAttributeModifierBuilder.Create("AttributeModifierBoonOfFortitude2024")
-            .SetGuiPresentationNoContent(true)
+            .SetGuiPresentation("FeatBoonOfFortitude2024", Category.Feat,
+                Sprites.GetPowerSprite("CapabilityEpicBoonFortitude2024"), hidden: true)
             .SetModifier(FeatureDefinitionAttributeModifier.AttributeModifierOperation.Additive,
-                AttributeDefinitions.HitPoints, 40).AddToDB(), Feature("Fortitude", behavior),
+                AttributeDefinitions.HitPoints, 40).AddToDB(), Feature("Fortitude", "Fortitude", behavior),
             ReactionToggle("Fortitude", ExtraActionId.BoonOfFortitude2024Toggle)]);
     }
 
@@ -493,7 +497,9 @@ internal static class EpicBoons
             .SetGuiPresentationNoContent(true).SetPool(HeroDefinitions.PointsPoolType.Expertise, 1).AddToDB();
         var skills = DatabaseRepository.GetDatabase<SkillDefinition>().Select(skill => skill.Name).ToArray();
         Build("Skill", [FeatureDefinitionProficiencyBuilder.Create("ProficiencyBoonOfSkill2024")
-            .SetGuiPresentationNoContent(true).SetProficiencies(ProficiencyType.Skill, skills).AddToDB(),
+            .SetGuiPresentation("FeatBoonOfSkill2024", Category.Feat,
+                Sprites.GetPowerSprite("CapabilityEpicBoonSkill2024"), hidden: true)
+            .SetProficiencies(ProficiencyType.Skill, skills).AddToDB(),
             SkillFeats.ExpertisePool]);
     }
 
@@ -511,7 +517,9 @@ internal static class EpicBoons
                 .SetEffectForms(EffectFormBuilder.ConditionForm(ConditionDefinitions.ConditionDisengaging)).Build())
             .AddCustomSubFeatures(new EscapeGrapple()).AddToDB();
         Build("Speed", [power, FeatureDefinitionMovementAffinityBuilder.Create("MovementAffinityBoonOfSpeed2024")
-            .SetGuiPresentationNoContent(true).SetBaseSpeedAdditiveModifier(6).AddToDB()]);
+            .SetGuiPresentation("FeatBoonOfSpeed2024", Category.Feat,
+                Sprites.GetPowerSprite("CapabilityEpicBoonSpeed2024"), hidden: true)
+            .SetBaseSpeedAdditiveModifier(6).AddToDB()]);
     }
 
     private sealed class EscapeGrapple : IPowerOrSpellFinishedByMe
@@ -720,7 +728,7 @@ internal static class EpicBoons
 
     private static void BuildFate()
     {
-        var pool = Pool("Fate", RechargeRate.ShortRest, 1);
+        var pool = Pool("Fate", "Fate", RechargeRate.ShortRest, 1);
         var icon = Sprites.GetPowerSprite("CapabilityEpicBoonFate2024");
         pool.GuiPresentation.spriteReference = icon;
         pool.AddCustomSubFeatures(new ReactionResourcePowerPool(pool, Sprites.FateResourceIcon));
@@ -735,7 +743,7 @@ internal static class EpicBoons
         choices[0].AddCustomSubFeatures(TargetingContext.BeneficialEffect.Marker);
         choices[1].AddCustomSubFeatures(TargetingContext.HarmfulInterrupt.Marker);
         PowerBundle.RegisterPowerBundle(pool, false, choices);
-        Build("Fate", [pool, .. choices, Feature("Fate", new Fate(pool, choices[0], choices[1])),
+        Build("Fate", [pool, .. choices, Feature("Fate", "Fate", new Fate(pool, choices[0], choices[1])),
             ReactionToggle("Fate", ExtraActionId.BoonOfFate2024Toggle)]);
     }
 
@@ -830,7 +838,7 @@ internal static class EpicBoons
             powers.Add(power);
         }
         PowerBundle.RegisterPowerBundle(pool, false, powers);
-        var lastStand = Pool("RecoveryLastStand", RechargeRate.LongRest, 1);
+        var lastStand = Pool("RecoveryLastStand", "Recovery", RechargeRate.LongRest, 1);
         lastStand.GuiPresentation.spriteReference = Sprites.GetPowerSprite("CapabilityEpicBoonRecovery2024");
         lastStand.AddCustomSubFeatures(new LastStand(lastStand));
         Build("Recovery", [pool, lastStand, ReactionToggle("Recovery", ExtraActionId.BoonOfRecoveryLastStand2024Toggle)]);
@@ -877,7 +885,8 @@ internal static class EpicBoons
         var shadow = ConditionDefinitionBuilder.Create("ConditionBoonOfTheNightSpiritShadow2024")
             .SetGuiPresentationNoContent(true).SetSilent(Silent.WhenAddedOrRemoved).SetFeatures(resistances).AddToDB();
         var lightBuilder = FeatureDefinitionLightAffinityBuilder.Create("LightAffinityBoonOfTheNightSpirit2024")
-            .SetGuiPresentationNoContent(true);
+            .SetGuiPresentation("FeatBoonOfTheNightSpirit2024", Category.Feat,
+                Sprites.GetPowerSprite("CapabilityEpicBoonTheNightSpirit2024"), hidden: true);
         foreach (var state in new[] { LocationDefinitions.LightingState.Dim, LocationDefinitions.LightingState.Unlit,
                      LocationDefinitions.LightingState.Darkness })
             lightBuilder.AddLightingEffectAndCondition(new FeatureDefinitionLightAffinity.LightingEffectAndCondition
@@ -898,7 +907,7 @@ internal static class EpicBoons
                 GameLocationCharacter.GetFromActor(character)?.LightingState is
                     LocationDefinitions.LightingState.Dim or LocationDefinitions.LightingState.Unlit or
                     LocationDefinitions.LightingState.Darkness)).AddToDB();
-        Build("TheNightSpirit", [lightBuilder.AddToDB(), power, Feature("TheNightSpirit", new NightSpirit(invisible, power))]);
+        Build("TheNightSpirit", [lightBuilder.AddToDB(), power, Feature("TheNightSpirit", "TheNightSpirit", new NightSpirit(invisible, power))]);
     }
 
     private sealed class NightSpirit(ConditionDefinition invisible, FeatureDefinitionPower power) : IActionFinishedByMe,
@@ -957,7 +966,7 @@ internal static class EpicBoons
             .SetUsesFixed(ActivationTime.NoCost, RechargeRate.ShortRest, 1, 1).SetShowCasting(false)
             .AddCustomSubFeatures(ModifyPowerVisibility.Hidden).AddToDB();
         var behavior = new SpellOverload(ready, selected, power);
-        Build("EruptingSpellpower", [power, Feature("EruptingSpellpower", behavior),
+        Build("EruptingSpellpower", [power, Feature("EruptingSpellpower", "EruptingSpellpower", behavior),
             ReactionToggle("EruptingSpellpower", ExtraActionId.BoonOfEruptingSpellpower2024Toggle)], MentalAbilities, true);
     }
 
@@ -1217,7 +1226,9 @@ internal static class EpicBoons
                         .SetGuiPresentationNoContent(true).ClearSpells().FinalizeSpells(true, maximumLevel).AddToDB();
                     SchoolSpellLists.Add((list, schoolName, maximumLevel));
                     var casting = FeatureDefinitionCastSpellBuilder.Create("CastSpell" + sourceTag)
-                        .SetGuiPresentationNoContent(true).SetFocusType(EquipmentDefinitions.FocusType.Universal)
+                        .SetGuiPresentation("FeatBoonOfMagicSchoolMastery2024", Category.Feat,
+                            Sprites.GetPowerSprite("CapabilityEpicBoonMagicSchoolMastery2024"), hidden: true)
+                        .SetFocusType(EquipmentDefinitions.FocusType.Universal)
                         .SetSpellCastingOrigin(FeatureDefinitionCastSpell.CastingOrigin.Race)
                         .SetSpellKnowledge(SpellKnowledge.Selection).SetSpellReadyness(SpellReadyness.AllKnown)
                         .SetSlotsRecharge(RechargeRate.LongRest)
@@ -1239,11 +1250,14 @@ internal static class EpicBoons
                                     "2024Title"),
                                 () => Gui.Localize("Screen/&BoonOfMagicSchoolMastery" + (rote ? "Rote" : "Arcanum") +
                                     "2024Description")),
-                            selectionGroup: tag, selectionOrder: rote ? 0 : 1))
+                            selectionGroup: tag, selectionOrder: rote ? 0 : 1,
+                            sourceDescription: rote ? new FormattedDefinitionText(
+                                description: () => Gui.Localize("Screen/&GrantedSpellRoteSourceDescriptionFormat")) : null))
                         .AddToDB();
                     features.Add(casting);
                     features.Add(FeatureDefinitionPointPoolBuilder.Create("PointPool" + sourceTag)
-                        .SetGuiPresentationNoContent(true)
+                        .SetGuiPresentation("FeatBoonOfMagicSchoolMastery2024", Category.Feat,
+                            Sprites.GetPowerSprite("CapabilityEpicBoonMagicSchoolMastery2024"), hidden: true)
                         .SetSpellOrCantripPool(HeroDefinitions.PointsPoolType.Spell, 1, list, sourceTag, 1, maximumLevel)
                         .AddToDB());
                 }

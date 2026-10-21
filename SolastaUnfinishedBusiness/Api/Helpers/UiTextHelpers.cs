@@ -1986,7 +1986,8 @@ internal static class UiTextHelpers
                 continue;
             }
 
-            builder ??= new StringBuilder(text.Length + replacement.Length);
+            // Search can skip embedded matches before the first whole token; retain that prefix.
+            builder ??= new StringBuilder(text.Length + replacement.Length).Append(text, 0, index);
             builder.Append(text, index, found - index);
             builder.Append(replacement);
             index = found + token.Length;

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Feats;
@@ -30,6 +31,184 @@ internal static class SpellSelectionContext
         "FightingStyle/&{0}Title",
         "Feature/&{0}Title"
     ];
+
+    internal static string NormalizeSpellSourceTag(string tag)
+    {
+        if (string.IsNullOrEmpty(tag) ||
+            tag.StartsWith(SpellPreparationContext.FeatureTag + "|", StringComparison.OrdinalIgnoreCase) ||
+            tag.StartsWith(LevelUpHelper.ExtraClassTag + "|", StringComparison.OrdinalIgnoreCase) ||
+            tag.StartsWith(LevelUpHelper.ExtraSubclassTag + "|", StringComparison.OrdinalIgnoreCase))
+        {
+            return tag;
+        }
+
+        tag = Tabletop2024Context.GetTabletop2024FeatSpellSourceTag(tag);
+        return tag == "DOMAIN" ? "Domain" : tag;
+    }
+
+    internal static bool TryResolveGrantedSpellSource(
+        string tag,
+        SpellDefinition spell,
+        RulesetCharacter caster,
+        RulesetSpellRepertoire castingSource,
+        out string title,
+        out string description)
+    {
+        title = string.Empty;
+        description = string.Empty;
+        if (string.IsNullOrEmpty(tag) || caster == null || !spell)
+        {
+            return false;
+        }
+
+        tag = NormalizeSpellSourceTag(tag);
+
+        // Preparation belongs to its grant even when an independently learned class
+        // copy supplies the spell's casting origin. Never change that casting origin.
+        var sources = caster.SpellRepertoires.Where(repertoire =>
+        {
+            var spellTag = repertoire.SpellCastingFeature?.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>();
+            var matches = spellTag != null &&
+                          string.Equals(NormalizeSpellSourceTag(spellTag.Name), tag, StringComparison.OrdinalIgnoreCase) ||
+                          tag.Equals("Race", StringComparison.OrdinalIgnoreCase) && repertoire.SpellCastingRace;
+
+            return matches && CharacterInspectionScreenEnhancement.GetInspectionLearnedSpells(repertoire).Contains(spell);
+        }).ToArray();
+        if (sources.Length == 0)
+        {
+            return false;
+        }
+
+        var source = sources.Contains(castingSource) ? castingSource : SelectFeatCastingRepertoire(caster, sources);
+        title = source.FormatHeader();
+        var alwaysPrepared = source.SpellCastingFeature.SpellReadyness == RuleDefinitions.SpellReadyness.AllKnown ||
+                             source.AutoPreparedSpells.Contains(spell);
+        if (TryFormatSpellSourceDescription(caster, source, spell, title, alwaysPrepared, out description))
+        {
+            return true;
+        }
+
+        // A recognized grant must not borrow a family's fixed daily-use text when
+        // its actual resource policy differs. Native counters retain those details.
+        description = alwaysPrepared ? Gui.Localize("Screen/&AutoPreparedSpellSourceDescription") : null;
+        return alwaysPrepared;
+    }
+
+    private static bool TryFormatSpellSourceDescription(
+        RulesetCharacter caster,
+        RulesetSpellRepertoire repertoire,
+        SpellDefinition spell,
+        string sourceTitle,
+        bool alwaysPrepared,
+        out string description)
+    {
+        description = null;
+        if (caster == null || repertoire?.SpellCastingFeature == null || !spell)
+        {
+            return false;
+        }
+
+        if (spell.SpellLevel == 0)
+        {
+            description = Gui.Format("Screen/&FeatGrantedCantripDescriptionFormat", sourceTitle);
+            return true;
+        }
+
+        var feature = repertoire.SpellCastingFeature;
+        var tag = feature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>();
+        var resources = EnumerateResources(caster, spell, repertoire)
+            .Where(option => option.Kind == ResourceKind.FreeRepertoire && option.CastingRepertoire == repertoire)
+            .Select(option =>
+            {
+                option.GetUses(caster, out _, out var maximum);
+                return (Option: option, Maximum: maximum);
+            }).ToArray();
+
+        if (resources.Length == 0)
+        {
+            return false;
+        }
+
+        // Exceptional grants own a complete localized rules body. The common source
+        // resolver supplies only the actual casting level and maximum number of uses.
+        if (resources.Length == 1 && tag?.SourceDescription is { } sourceDescription)
+        {
+            var template = sourceDescription.FormatCharacterDescription(
+                sourceDescription.FormatDescription(null), caster);
+            if (!CustomTooltipProvider.IsUnavailableContent(template))
+            {
+                description = Gui.Format(template, resources[0].Option.SlotLevel.ToString(),
+                    resources[0].Maximum.ToString());
+                return true;
+            }
+        }
+
+        if (!alwaysPrepared || tag?.FreeCastingIgnoresComponents == true ||
+            resources.Any(resource => resource.Maximum <= 0))
+        {
+            return false;
+        }
+
+        var slotCastable = LevelUpHelper.EnumerateSlotCastableFeatSpells(caster)
+            .Any(entry => entry.Repertoire == repertoire && entry.Spell == spell);
+        var first = resources[0];
+        if (resources.Length == 1)
+        {
+            var shared = HasSharedSpellSourceUses(caster, repertoire, spell, first.Option.SlotLevel);
+            if (slotCastable && first.Maximum == 1)
+            {
+                if (feature.SlotsRecharge == RuleDefinitions.RechargeRate.LongRest &&
+                    first.Option.SlotLevel == spell.SpellLevel)
+                {
+                    description = Gui.Localize(shared
+                        ? "Screen/&FeatGrantedSpellSharedUseDescription"
+                        : "Screen/&FeatGrantedSpellSingleUseDescription");
+                    return true;
+                }
+
+                if (!shared && feature.SlotsRecharge == RuleDefinitions.RechargeRate.ShortRest)
+                {
+                    description = Gui.Format("Screen/&GrantedSpellShortRestSourceDescriptionFormat",
+                        first.Option.SlotLevel.ToString());
+                    return true;
+                }
+            }
+
+            if (!slotCastable && feature.SlotsRecharge == RuleDefinitions.RechargeRate.LongRest)
+            {
+                description = Gui.Format(shared
+                        ? "Screen/&GrantedSpellSharedFreeLongRestSourceDescriptionFormat"
+                        : "Screen/&GrantedSpellFreeLongRestSourceDescriptionFormat",
+                    first.Option.SlotLevel.ToString(), first.Maximum.ToString());
+                return true;
+            }
+        }
+        else if (!slotCastable && feature.SlotsRecharge == RuleDefinitions.RechargeRate.LongRest &&
+                 resources.All(resource => resource.Maximum == first.Maximum) &&
+                 resources.Select(resource => resource.Option.SlotLevel)
+                     .SequenceEqual(Enumerable.Range(first.Option.SlotLevel, resources.Length)) &&
+                 resources.Any(resource => HasSharedSpellSourceUses(caster, repertoire, spell, resource.Option.SlotLevel)))
+        {
+            description = Gui.Format("Screen/&GrantedSpellFreeLevelRangeSourceDescriptionFormat",
+                first.Option.SlotLevel.ToString(), resources[resources.Length - 1].Option.SlotLevel.ToString(),
+                first.Maximum.ToString());
+            return true;
+        }
+
+        // Other policies keep their existing source description instead of borrowing
+        // an unrelated grant's preparation, recharge or paid-slot permissions.
+        return false;
+    }
+
+    private static bool HasSharedSpellSourceUses(
+        RulesetCharacter caster,
+        RulesetSpellRepertoire repertoire,
+        SpellDefinition spell,
+        int slotLevel) => CharacterInspectionScreenEnhancement.GetInspectionLearnedSpells(repertoire)
+        .Where(candidate => candidate != spell && candidate.SpellLevel > 0)
+        .Any(candidate => EnumerateResources(caster, candidate, repertoire).Any(option =>
+            option.Kind == ResourceKind.FreeRepertoire && option.CastingRepertoire == repertoire &&
+            option.SlotLevel == slotLevel));
 
     internal static bool TryFormatSpellTagSourceTitle(
         RulesetSpellRepertoire repertoire,

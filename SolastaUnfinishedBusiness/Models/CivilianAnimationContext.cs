@@ -1556,14 +1556,16 @@ internal static class CivilianAnimationContext
 
         internal bool IsCurrent(GraphicsCharacter graphicsCharacter)
         {
-            return graphicsCharacter && graphicsCharacter.Animator == _animator && _animator &&
-                   _animator.runtimeAnimatorController == _appliedController &&
-                   graphicsCharacter.RulesetCharacter == _character;
+            return OwnsAnimator(graphicsCharacter) && _animator.runtimeAnimatorController == _appliedController;
         }
+
+        private bool OwnsAnimator(GraphicsCharacter graphicsCharacter) =>
+            graphicsCharacter && graphicsCharacter.Animator == _animator && _animator &&
+            graphicsCharacter.RulesetCharacter == _character;
 
         internal void Restore(GraphicsCharacter graphicsCharacter)
         {
-            if (IsAmbient && _animator && _animator.keepAnimatorControllerStateOnDisable)
+            if (IsAmbient && OwnsAnimator(graphicsCharacter) && _animator.keepAnimatorControllerStateOnDisable)
             {
                 _animator.keepAnimatorControllerStateOnDisable = _keepAnimatorStateOnDisable;
             }

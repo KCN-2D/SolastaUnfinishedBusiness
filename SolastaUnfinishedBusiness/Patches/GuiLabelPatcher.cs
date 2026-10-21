@@ -269,18 +269,6 @@ public static class GuiLabelPatcher
         }
     }
 
-    [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.RefreshStageDisks))]
-    [UsedImplicitly]
-    public static class RefreshStageDisks_Patch
-    {
-        [UsedImplicitly]
-        public static void Postfix(CharacterEditionScreen __instance)
-        {
-            // Stage binding precedes the native layout pass, so use its final disk spacing.
-            UiTextHelpers.FitCharacterEditionProgressBar(__instance);
-        }
-    }
-
     internal static void FitActionPanelTitles(CharacterActionPanel panel)
     {
         foreach (var label in panel.GetComponentsInChildren<GuiLabel>(true))

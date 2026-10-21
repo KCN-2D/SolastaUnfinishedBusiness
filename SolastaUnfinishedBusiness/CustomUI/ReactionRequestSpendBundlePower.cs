@@ -77,6 +77,20 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
     public ReactionSelection Selection { get; }
     public bool CanContinueSelection => Selection?.HasAvailableOptions == true && IsTriggerStillValid();
 
+    internal sealed class SelectionDisplaySettings(
+        string resourceTitle,
+        string optionCostFormat,
+        string selectionTitleFormat)
+    {
+        internal string ResourceTitle { get; } = resourceTitle;
+        internal string OptionCostFormat { get; } = optionCostFormat;
+        internal string SelectionTitleFormat { get; } = selectionTitleFormat;
+    }
+
+    internal SelectionDisplaySettings SelectionDisplay => Selection == null
+        ? null
+        : _masterPower.GetFirstSubFeatureOfType<SelectionDisplaySettings>();
+
     internal IReadOnlyList<FeatureDefinitionPower> SelectedPowers => Selection?.SelectedOptions
         .Select(PowerAt).ToArray() ?? [];
 

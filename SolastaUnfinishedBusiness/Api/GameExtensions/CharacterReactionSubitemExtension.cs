@@ -37,7 +37,9 @@ internal static class CharacterReactionSubitemExtension
         }
         item.subItemsCanvasGroup.interactable = true;
         item.ReactButton.interactable = selection.IsValid;
-        item.subItemsLabel.Text = Gui.Format("Reaction/&SubitemSelectMultipleTitle",
+        item.subItemsLabel.Text = Gui.Format(
+            (item.ReactionRequest as ReactionRequestSpendBundlePower)?.SelectionDisplay?.SelectionTitleFormat ??
+            "Reaction/&SubitemSelectMultipleTitle",
             selection.Maximum.ToString(), selection.Count.ToString());
         var tooltip = Gui.GetTooltip(item.subItemsLabel.gameObject);
         if (tooltip) tooltip.Content = "Reaction/&SubitemSelectMultipleDescription";
@@ -479,7 +481,9 @@ internal static class CharacterReactionSubitemExtension
                 .SetupTooltip(tooltip, reactionRequest.Character.RulesetActor);
         }
 
-        label.Text = power.GuiPresentation.Title;
+        label.Text = reactionRequest.SelectionDisplay is { } display
+            ? Gui.Format(display.OptionCostFormat, power.FormatTitle(), power.CostPerUse.ToString())
+            : power.GuiPresentation.Title;
         toggle.interactable = interactable;
         instance.canvasGroup.interactable = interactable;
         instance.SubitemSelected = subitemSelected;

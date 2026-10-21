@@ -688,9 +688,6 @@ internal static class OtherFeats
             .SetSpellsAtLevel(1, CureWounds)
             .FinalizeSpells(false, 1)
             .AddToDB();
-        var slots = Enumerable.Range(1, 20)
-            .Select(level => new FeatureDefinitionCastSpell.SlotsByLevelDuplet { Level = level, Slots = [1] })
-            .ToList();
         var variants = new List<FeatDefinition>();
 
         foreach (var (suffix, ability) in new[]
@@ -700,20 +697,9 @@ internal static class OtherFeats
                      ("Cha", AttributeDefinitions.Charisma)
                  })
         {
-            var casting = FeatureDefinitionCastSpellBuilder
-                .Create($"CastSpell{Name}{suffix}")
-                .SetGuiPresentationNoContent(true)
-                .SetSpellCastingOrigin(FeatureDefinitionCastSpell.CastingOrigin.Race)
-                .SetSpellKnowledge(SpellKnowledge.FixedList)
-                .SetSpellReadyness(SpellReadyness.AllKnown)
-                .SetSlotsRecharge(RechargeRate.LongRest)
-                .SetSlotsPerLevel(slots)
-                .SetUniqueLevelSlots(false)
-                .SetSpellList(spellList)
-                .SetSpellCastingAbility(ability)
-                .AddCustomSubFeatures(new FeatHelpers.SpellTag("GiftOfTheMetallicDragon",
-                    forceFixedList: true, allowSlotCasting: true))
-                .AddToDB();
+            var casting = FeatHelpers.BuildFixedFreeSpellCasting(
+                $"CastSpell{Name}{suffix}", spellList, ability, "GiftOfTheMetallicDragon", 1,
+                RechargeRate.LongRest, allowSlotCasting: true);
             variants.Add(FeatDefinitionBuilder
                 .Create($"{Name}{suffix}")
                 .SetGuiPresentation(Category.Feat)

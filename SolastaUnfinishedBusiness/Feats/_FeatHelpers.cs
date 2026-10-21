@@ -130,7 +130,8 @@ internal static class FeatHelpers
             bool unlimitedFreeCasting = false, bool dedicatedSelectionList = false,
             Func<RulesetCharacterHero, SpellDefinition, bool> selectionValidator = null,
             bool freeCastingIgnoresComponents = false, FormattedDefinitionText presentation = null,
-            string selectionGroup = null, int selectionOrder = 0)
+            string selectionGroup = null, int selectionOrder = 0,
+            FormattedDefinitionText sourceDescription = null)
         {
             Name = spellTag;
             ForceFixedList = forceFixedList;
@@ -140,6 +141,7 @@ internal static class FeatHelpers
             SelectionValidator = selectionValidator;
             FreeCastingIgnoresComponents = freeCastingIgnoresComponents;
             Presentation = presentation;
+            SourceDescription = sourceDescription;
             SelectionGroup = selectionGroup;
             SelectionOrder = selectionOrder;
             if (presentation != null)
@@ -156,6 +158,10 @@ internal static class FeatHelpers
         internal bool DedicatedSelectionList { get; }
         internal bool FreeCastingIgnoresComponents { get; }
         internal FormattedDefinitionText Presentation { get; }
+        // A complete post-learning tooltip for a grant with one free casting level,
+        // distinct from spell-selection instructions.
+        // Numeric placeholders are {0}: free casting level and {1}: maximum uses.
+        internal FormattedDefinitionText SourceDescription { get; }
         internal string SelectionGroup { get; }
         internal int SelectionOrder { get; }
         private Func<RulesetCharacterHero, SpellDefinition, bool> SelectionValidator { get; }

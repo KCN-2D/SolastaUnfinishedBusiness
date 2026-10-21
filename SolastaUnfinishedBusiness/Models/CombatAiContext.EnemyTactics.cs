@@ -7773,7 +7773,10 @@ internal static partial class CombatAiContext
     {
         outcome = action.AttackRollOutcome;
         successDelta = 0;
-        automaticHit = attackMode?.AutomaticHit == true;
+        // An explicit hit changes the result without replacing its original die.
+        // AC defenses cannot evade it, while damage defenses still apply to that hit.
+        automaticHit = attackMode?.AutomaticHit == true ||
+                       TryAlterOutcomeAttack.IsForcedHit(action, defender, modifier);
 
         if (!automaticHit)
         {

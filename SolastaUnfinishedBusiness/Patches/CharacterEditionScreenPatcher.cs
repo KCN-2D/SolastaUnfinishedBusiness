@@ -74,6 +74,18 @@ public static class CharacterEditionScreenPatcher
         ["States:"] = "Screen/&CharacterCheckerAnimationStatesTitle"
     };
 
+    [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.RefreshStageDisks))]
+    [UsedImplicitly]
+    public static class RefreshStageDisks_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(CharacterEditionScreen __instance)
+        {
+            // Stage binding precedes the native layout pass, so use its final disk spacing.
+            UiTextHelpers.FitCharacterEditionProgressBar(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.LoadStagePanels))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
