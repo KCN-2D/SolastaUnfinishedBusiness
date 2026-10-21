@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Linq;
 using System.Reflection.Emit;
 using HarmonyLib;
@@ -31,12 +30,7 @@ public static class SessionState_SetupPatcher
                 slotIndex < Main.Settings.DefaultPartyHeroes.Count)
             {
                 var name = Main.Settings.DefaultPartyHeroes.ElementAt(slotIndex);
-                var isBuiltIn = ToolsContext.IsBuiltIn(name);
-
-                filename = Path.Combine(
-                    !isBuiltIn
-                        ? TacticalAdventuresApplication.GameCharactersDirectory
-                        : TacticalAdventuresApplication.GameBuiltInCharactersDirectory, name) + ".chr";
+                filename = ToolsContext.GetCharacterFilename(name);
             }
 
             session.AssignCharacterToPlayer(playerIndex, slotIndex, filename, notify);

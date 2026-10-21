@@ -78,6 +78,7 @@ internal static class LevelUpHelper
         CustomModels.SwitchRenderer(false);
 
         LevelUpTab.Remove(rulesetCharacterHero);
+        Tabletop2024Context.ClearHumanOriginFeatSelection(rulesetCharacterHero);
     }
 
     [CanBeNull]

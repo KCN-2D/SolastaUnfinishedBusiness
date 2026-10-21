@@ -5,6 +5,7 @@ using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine.AddressableAssets;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionAttributeModifiers;
@@ -82,6 +83,11 @@ internal static class SkillFeats
         RulesetCharacterHero hero,
         string attribute)
     {
+        if (FeatsContext.IsKnownFeatPrerequisiteDisplay(feat, hero))
+        {
+            return (true, string.Empty);
+        }
+
         // A preview already includes the selected feat's +1. Do not invalidate that choice on refresh.
         var selected = GetBuildingData(hero)?.LevelupTrainedFeats.Values
             .SelectMany(feats => feats)

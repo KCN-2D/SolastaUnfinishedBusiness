@@ -270,7 +270,7 @@ ModUi/&EnableRangerRoving2024=Activez <color=#D89555>Roving</color> au niveau 6 
 ModUi/&EnableRangerSpellCastingAtLevel1=Activer le <color=#D89555>lancement de sorts</color> au niveau 1 au lieu de 2
 ModUi/&EnableRangerTireless2024=Activez <color=#D89555>Infatigable</color> pour remplacer <color=#D89555>Camouflage naturel</color> au niveau 10 <i><color=#F0DAA0>[obtenir des points de vie temporaires]</color></i>
 ModUi/&EnableRelearnSpells=Activer la sélection de sorts ou de sorts déjà appris à partir d'autres sources
-ModUi/&EnableRespecAction=Activer l'action <color=#D89555>RESPEC</color> après le repos <i><color=#F0DAA0>[ne pas utiliser RESPEC pendant une session multijoueur]</color></i>
+ModUi/&EnableRespecAction=Ajoute <color=#D89555>Réinitialiser</color> après un repos long (mode solo uniquement)
 ModUi/&EnableRitualOnAllCasters2024=Activer le lancement de <color=#D89555>rituel</color> sur tous les lanceurs de sorts
 ModUi/&EnableOneSpellSlotPerTurn2024=Applique la règle de 2024 qui ne permet de dépenser qu'un seul emplacement de sort pour lancer un sort à chaque tour <i><color=#F0DAA0>[les sorts mineurs et les sorts lancés sans emplacement ne sont pas concernés]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Activer la version 2024 de <color=#D89555>{0}</color> <i><color=#F0DAA0>[sauvegarde de Constitution ; en cas d'échec, l'incantation est interrompue sans dépenser l'emplacement du sort ciblé]</color></i>
@@ -595,10 +595,12 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Réinitialisera toutes les pr
 ModUi/&WeaponMasterySystemCustomizeToggle=Personnaliser les propriétés de maîtrise des armes
 ModUi/&WideScreenBattleUI=Activer l'interface utilisateur de combat sur écran large <i><color=#F0DAA0>(Pour les résolutions avec un rapport hauteur/largeur supérieur à 16:9)</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white>Définissez le seuil de chances de dé de <color=#D89555>Magie sauvage du sorcier</color> :</color>\n<i><color=#F0DAA0>[la poussée sauvage se déclenche si le résultat est inférieur ou égal au seuil]</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=Les augmentations de caractéristiques proviennent de l'historique plutôt que de la race ; les traits des humains sont ajustés en conséquence <i><color=#F0DAA0>(Races flexibles ne s'applique pas tant que cette option est activée)</color></i>
-ModUi/&EnableBackgroundBonusFeats=Remplace les traits d'historique par un don d'origine, deux maîtrises de compétences et une maîtrise d'outil selon les règles de 2024 <i><color=#F0DAA0>(Nécessite les augmentations de caractéristiques d'historique ; Historiques flexibles ne s'applique pas tant que cette option est activée)</color></i>
-ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Activez les augmentations de caractéristiques d'historique pour obtenir des dons d'origine grâce aux historiques.
-ModUi/&AddOriginFeatsToAutoLearn= + Ajouter les dons d'origine à l'apprentissage automatique
+ModUi/&EnableBackgroundAbilityScoreIncreases=Les augmentations de caractéristiques proviennent de l’historique plutôt que de la race ; les traits des humains sont ajustés en conséquence <i><color=#F0DAA0>(Nécessite les dons du jeu sur table de 2024 ; Races flexibles ne s’applique pas tant que cette option est activée)</color></i>
+ModUi/&BackgroundASIRequiresTabletopFeatRules2024=Activez les dons du jeu sur table de 2024 pour utiliser cette option.
+ModUi/&EnableBackgroundBonusFeats=Remplace les traits d’historique par un don d’origine, deux maîtrises de compétences et une maîtrise d’outil selon les règles de 2024 <i><color=#F0DAA0>(Nécessite les augmentations de caractéristiques d’historique et les dons sur table de 2024 ; Historiques flexibles ne s’applique pas tant que cette option est activée)</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Activez les augmentations de caractéristiques d’historique et les dons sur table de 2024 pour obtenir des dons d’origine grâce aux historiques.
+ModUi/&EnableBackgroundOriginFeatChoices=Choisissez entre deux dons d’origine pour chaque historique et obtenez la maîtrise d’outil associée à votre choix
+ModUi/&BackgroundOriginFeatChoicesRequiresBackgroundBonusFeats=Activez les dons d’origine des historiques pour pouvoir choisir entre eux.
 ModUi/&EnableGeneralFeats2024=Réorganiser les dons généraux selon les règles de 5.5e <i><color=#F0DAA0>[les dons de 2024 sont indépendants]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[Les dons de 2024 peuvent être activés séparément ci-dessous. Tant que cette option est activée, les anciens dons entièrement remplacés ne sont pas disponibles.]</color></i>
 ModUi/&EnableTabletopFeatRules2024=Utiliser le catalogue indépendant des dons du jeu sur table de 2024

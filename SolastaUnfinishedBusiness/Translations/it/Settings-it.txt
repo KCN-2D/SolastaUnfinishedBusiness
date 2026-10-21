@@ -270,7 +270,7 @@ ModUi/&EnableRangerRoving2024=Abilita <color=#D89555>Vagabondare</color> al live
 ModUi/&EnableRangerSpellCastingAtLevel1=Abilita <color=#D89555>lancio di incantesimi</color> al livello 1 invece che 2
 ModUi/&EnableRangerTireless2024=Abilita <color=#D89555>Instancabile</color> per sostituire <color=#D89555>Nasconditi in bella vista</color> al livello 10 <i><color=#F0DAA0>[ottieni punti ferita temporanei]</color></i>
 ModUi/&EnableRelearnSpells=Abilita la selezione di trucchetti o incantesimi già appresi da altre fonti
-ModUi/&EnableRespecAction=Abilita <color=#D89555>RESPEC</color> dopo l'azione di riposo <i><color=#F0DAA0>[non usare RESPEC durante una sessione multigiocatore]</color></i>
+ModUi/&EnableRespecAction=Aggiunge <color=#D89555>Riconfigura</color> dopo un riposo lungo (solo in giocatore singolo)
 ModUi/&EnableRitualOnAllCasters2024=Abilita il lancio di <color=#D89555>Rituale</color> su tutti gli incantatori
 ModUi/&EnableOneSpellSlotPerTurn2024=Applica la regola del 2024 che consente di spendere un solo slot incantesimo per lanciare un incantesimo in ogni turno <i><color=#F0DAA0>[i trucchetti e gli incantesimi lanciati senza slot non sono influenzati]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Abilita la versione 2024 di <color=#D89555>{0}</color> <i><color=#F0DAA0>[tiro salvezza su Costituzione; un fallimento interrompe il lancio senza spendere lo slot dell'incantesimo bersaglio]</color></i>
@@ -595,10 +595,12 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Ripristinerà tutte le propri
 ModUi/&WeaponMasterySystemCustomizeToggle=Personalizza le proprietà della padronanza delle armi
 ModUi/&WideScreenBattleUI=Abilita l'interfaccia utente della battaglia su schermo ampio <i><color=#F0DAA0>(per risoluzioni con proporzioni superiori a 16:9)</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white>Imposta la soglia di probabilità di dado <color=#D89555>Magia selvaggia dello stregone</color>:</color>\n<i><color=#F0DAA0>[L'ondata selvaggia si innesca se i tiri sono inferiori o uguali alla soglia]</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=Gli aumenti dei punteggi di caratteristica provengono dal background invece che dalla razza; i tratti umani vengono adeguati di conseguenza <i><color=#F0DAA0>(Razze flessibili non si applica mentre questa opzione è attiva)</color></i>
-ModUi/&EnableBackgroundBonusFeats=Sostituisce i tratti del background con un talento di origine, due competenze nelle abilità e una competenza negli strumenti secondo le regole del 2024 <i><color=#F0DAA0>(Richiede gli aumenti dei punteggi di caratteristica del background; Background flessibili non si applica mentre questa opzione è attiva)</color></i>
-ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Abilita gli aumenti dei punteggi di caratteristica del background per ottenere talenti di origine dai background.
-ModUi/&AddOriginFeatsToAutoLearn= + Aggiungi talenti di origine all'apprendimento automatico
+ModUi/&EnableBackgroundAbilityScoreIncreases=Gli aumenti dei punteggi di caratteristica provengono dal background invece che dalla razza; i tratti umani vengono adeguati di conseguenza <i><color=#F0DAA0>(Richiede i talenti da tavolo del 2024; Razze flessibili non si applica mentre questa opzione è attiva)</color></i>
+ModUi/&BackgroundASIRequiresTabletopFeatRules2024=Abilita i talenti da tavolo del 2024 per usare questa opzione.
+ModUi/&EnableBackgroundBonusFeats=Sostituisce i tratti del background con un talento di origine, due competenze nelle abilità e una competenza negli strumenti secondo le regole del 2024 <i><color=#F0DAA0>(Richiede gli aumenti dei punteggi di caratteristica del background e i talenti da tavolo del 2024; Background flessibili non si applica mentre questa opzione è attiva)</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Abilita gli aumenti dei punteggi di caratteristica del background e i talenti da tavolo del 2024 per ottenere talenti di origine dai background.
+ModUi/&EnableBackgroundOriginFeatChoices=Scegli tra due talenti di origine per ogni background e ottieni la competenza negli strumenti associata alla scelta
+ModUi/&BackgroundOriginFeatChoicesRequiresBackgroundBonusFeats=Abilita i talenti di origine dei background per poter scegliere tra essi.
 ModUi/&EnableGeneralFeats2024=Riorganizza i talenti generali per le regole 5.5e <i><color=#F0DAA0>[I talenti del 2024 sono implementazioni indipendenti]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[I talenti del 2024 si attivano singolarmente qui sotto. Quando questa opzione è attiva, i talenti precedenti completamente sostituiti non sono disponibili.]</color></i>
 ModUi/&EnableTabletopFeatRules2024=Usa il catalogo indipendente dei talenti da tavolo del 2024

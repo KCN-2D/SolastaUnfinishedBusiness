@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -13,17 +14,24 @@ public static class CharacterPoolManagerPatcher
     public static class SaveCharacter_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(RulesetCharacterHero heroCharacter)
+        public static bool Prefix(RulesetCharacterHero heroCharacter, ref string __result)
         {
+            if (ToolsContext.FunctorRespec.ShouldSuppressCharacterPoolSave(heroCharacter))
+            {
+                __result = string.Empty;
+                return false;
+            }
+
             //PATCH: Keeps last level up hero selected
             if (heroCharacter == null)
             {
-                return;
+                return true;
             }
 
             Global.LastLevelUpHeroName = Main.Settings.KeepCharactersPanelOpenAndHeroSelectedAfterLevelUp
                 ? heroCharacter.Name
                 : null;
+            return true;
         }
     }
 }

@@ -270,7 +270,7 @@ ModUi/&EnableRangerRoving2024=在第 6 级时启用<color=#D89555>越野</color>
 ModUi/&EnableRangerSpellCastingAtLevel1=在第 1 级（而非 2 级）启用<color=#D89555>施法</color>
 ModUi/&EnableRangerTireless2024=在第 10 级时启用<color=#D89555>不知疲倦</color>以替代<color=#D89555>遁术</color><i><color=#F0DAA0>[获得临时生命值]</color></i>
 ModUi/&EnableRelearnSpells=可以选择已从其他来源学到的戏法或法术
-ModUi/&EnableRespecAction=休息行动后启用 <color=#D89555>洗点</color> <i><color=#F0DAA0>[在多人游戏会话期间不要使用 洗点]</color></i>
+ModUi/&EnableRespecAction=在长休后添加<color=#D89555>洗点</color>行动（仅限单人模式）
 ModUi/&EnableRitualOnAllCasters2024=对所有施法者启用<color=#D89555>仪式</color>施法
 ModUi/&EnableOneSpellSlotPerTurn2024=启用2024版规则：每个回合只能为施放法术消耗一个法术位<i><color=#F0DAA0>[戏法和不消耗法术位施放的法术不受影响]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=启用<color=#D89555>{0}</color>的2024版<i><color=#F0DAA0>[体质豁免失败时打断施法，被打断法术所用的法术位不被消耗]</color></i>
@@ -595,10 +595,12 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=将把所有武器精通属�
 ModUi/&WeaponMasterySystemCustomizeToggle=自定义武器精通属性
 ModUi/&WideScreenBattleUI=启用宽屏战斗 UI<i><color=#F0DAA0>（适用于宽高比大于 16:9 的分辨率）</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white>设置<color=#D89555>术士狂野魔法</color>几率骰子阈值：</color>\n<i><color=#F0DAA0>[如果掷出的骰子小于或等于阈值，则触发狂野魔法浪涌]</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=改为从背景而非种族获得属性值提升，并相应调整人类特性<i><color=#F0DAA0>（启用此选项时，不应用灵活种族）</color></i>
-ModUi/&EnableBackgroundBonusFeats=将背景特性改为2024年版的一个起源专长、两项技能熟练和一项工具熟练<i><color=#F0DAA0>（需要背景属性值提升；启用此选项时，不应用灵活背景）</color></i>
-ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=要从背景获得起源专长，请启用从背景获得属性值提升的设置。
-ModUi/&AddOriginFeatsToAutoLearn= + 将起源专长加入自动习得
+ModUi/&EnableBackgroundAbilityScoreIncreases=改为从背景而非种族获得属性值提升，并相应调整人类特性<i><color=#F0DAA0>（需要2024版桌上规则专长；启用此选项时，不应用灵活种族）</color></i>
+ModUi/&BackgroundASIRequiresTabletopFeatRules2024=启用2024版桌上规则专长后即可使用此选项。
+ModUi/&EnableBackgroundBonusFeats=将背景特性改为2024年版的一个起源专长、两项技能熟练和一项工具熟练<i><color=#F0DAA0>（需要背景属性值提升和2024版桌上规则专长；启用此选项时，不应用灵活背景）</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=要从背景获得起源专长，请启用背景属性值提升和2024版桌上规则专长。
+ModUi/&EnableBackgroundOriginFeatChoices=从每个背景的两个起源专长中选择一个，并获得与所选专长对应的工具熟练
+ModUi/&BackgroundOriginFeatChoicesRequiresBackgroundBonusFeats=启用背景起源专长后即可选择。
 ModUi/&EnableGeneralFeats2024=按5.5版规则重组通用专长<i><color=#F0DAA0>[2024版专长独立实现]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[下方可单独切换2024版专长。启用时，已完全被替代的旧版专长无法使用。]</color></i>
 ModUi/&EnableTabletopFeatRules2024=使用独立的2024版桌上规则专长目录

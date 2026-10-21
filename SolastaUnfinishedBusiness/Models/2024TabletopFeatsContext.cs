@@ -668,7 +668,6 @@ public static partial class Tabletop2024Context
         else
         {
             RestoreOriginalFeatHiddenStates();
-            SetFeatVisibility(_epicBoonCategory, false);
             ClearManagedTabletopContainerMappingsForInactiveMode();
 
             if (previousUse2024 && HasLegacyFeatGroupEnabledSnapshot)
@@ -4357,7 +4356,13 @@ public static partial class Tabletop2024Context
                 standalone: epicBoon.GetFirstSubFeatureOfType<IGroupedFeat>() == null);
         }
 
-        RegisterManagedTabletopFeats(true, _epicBoonCategory);
+        // These categories belong to the 2024 catalog even when its active mappings are cleared.
+        // Theme groups remain shared with the legacy catalog.
+        foreach (var category in new[] { GroupFeats.FeatGroupOrigin, _epicBoonCategory })
+        {
+            RegisterManagedTabletopFeats(true, category);
+            ManagedTabletopFeatKinds[category.Name] = TabletopFeatCatalogKind.Container;
+        }
 
         PostConfigureManagedIndependentHalfFeats();
     }
@@ -5092,7 +5097,14 @@ public static partial class Tabletop2024Context
                      .Select(entry => entry.Key)
                      .ToArray())
         {
-            ManagedTabletopFeatKinds.Remove(groupName);
+            if (!ManagedTabletopFeatNames.Contains(groupName))
+            {
+                ManagedTabletopFeatKinds.Remove(groupName);
+            }
+            else if (TryGetDefinition<FeatDefinition>(groupName, out var category))
+            {
+                SetFeatVisibility(category, false);
+            }
         }
 
         ManagedTabletopContainerNamesByCanonicalName.Clear();
@@ -5105,7 +5117,7 @@ public static partial class Tabletop2024Context
         foreach (var groupName in ManagedTabletopContainerGroupNames.ToArray())
         {
             if (ManagedTabletopFeatKinds.TryGetValue(groupName, out var kind) &&
-                kind == TabletopFeatCatalogKind.Container)
+                kind == TabletopFeatCatalogKind.Container && !ManagedTabletopFeatNames.Contains(groupName))
             {
                 ManagedTabletopFeatKinds.Remove(groupName);
             }
@@ -5381,7 +5393,7 @@ public static partial class Tabletop2024Context
 
     internal static IEnumerable<FeatDefinition> GetAllowedGameFeatChildren(FeatDefinition feat)
     {
-        if (feat == null)
+        if (feat == null || !Main.Settings.EnableTabletopFeatRules2024 && IsManagedTabletopFeat(feat))
         {
             return [];
         }
@@ -5885,7 +5897,8 @@ public static partial class Tabletop2024Context
 
     internal static bool ShouldShowOriginFeatContainer()
     {
-        return Main.Settings.EnableTabletopFeatRules2024 && Main.Settings.EnableBackgroundASI;
+        // Origin is a feat category; background grants are an independent option.
+        return Main.Settings.EnableTabletopFeatRules2024;
     }
 
     internal static bool TrySetManagedTabletopParent(

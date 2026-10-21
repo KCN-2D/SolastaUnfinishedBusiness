@@ -34,7 +34,9 @@ internal static class PointPoolContext
             return;
         }
 
-        var pool = new PointPool(feature.PoolAmount, feature.RestrictedChoices, feature.UniqueChoices)
+        // Native PointPool keeps the supplied list. Normalization belongs to the
+        // character's pool and must not rewrite its shared definition or another hero.
+        var pool = new PointPool(feature.PoolAmount, feature.RestrictedChoices.ToList(), feature.UniqueChoices)
         {
             Description = feature.GuiPresentation.Description
         };

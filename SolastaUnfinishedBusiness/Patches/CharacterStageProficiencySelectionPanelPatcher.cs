@@ -250,23 +250,6 @@ public static class CharacterStageProficiencySelectionPanelPatcher
             return false;
         }
 
-        if (Tabletop2024Context.IsHumanOriginSkilledSkillTag(item.Tag))
-        {
-            title =
-                $"{Gui.Localize("Feature/&PointPoolHumanOriginFeatTitle")}: {Gui.Localize("Feature/&PointPoolSkilledTitle")}";
-
-            return true;
-        }
-
-        if (item.PoolType == Skill &&
-            Tabletop2024Context.IsBackgroundSkilledSkillTag(item.Tag))
-        {
-            title =
-                $"{Gui.Localize("Feature/&BackgroundBonusFeatTitle")}: {Gui.Localize("Feature/&PointPoolSkilledTitle")}";
-
-            return true;
-        }
-
         if (Tabletop2024Context.TryGetHumanOriginFeatLearnStepTitle(item.PoolType, item.Tag, out var humanOriginTitle))
         {
             title = humanOriginTitle;

@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Web.UI.WebControls;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -36,8 +35,6 @@ internal static class ToolsContext
 
     private const string RespecName = "RestActivityRespec";
 
-    private static List<string> BuiltInHeroNames { get; } = [];
-
     private static RestActivityDefinition RestActivityRespec { get; } = RestActivityDefinitionBuilder
         .Create(RespecName)
         .SetGuiPresentation(Category.RestActivity)
@@ -49,27 +46,18 @@ internal static class ToolsContext
             string.Empty)
         .AddToDB();
 
-    internal static bool IsBuiltIn(string name)
+    internal static string GetCharacterFilename(string name)
     {
-        return BuiltInHeroNames.Contains(name);
+        var pool = ServiceRepository.GetService<ICharacterPoolService>();
+        var custom = pool.BuildCharacterFilename(name, false);
+
+        return File.Exists(custom) ? custom : pool.BuildCharacterFilename(name, true);
     }
 
     internal static void Load()
     {
-        var gameBuiltInCharactersDirectory = TacticalAdventuresApplication.GameBuiltInCharactersDirectory;
-
-        if (Directory.Exists(gameBuiltInCharactersDirectory))
-        {
-            BuiltInHeroNames.AddRange(Directory
-                .GetFiles(gameBuiltInCharactersDirectory)
-                .Select(x => Path
-                    .GetFileName(x)
-                    .Replace(".chr", "")));
-        }
-
         ServiceRepository.GetService<IFunctorService>().RegisterFunctor(RespecName, new FunctorRespec());
         SwitchRespec();
-        // SwitchEncounterPercentageChance();
     }
 
     internal static void SwitchRespec()
@@ -79,17 +67,6 @@ internal static class ToolsContext
             : ActivityConditionDisabled;
     }
 
-#if false
-    internal static void SwitchEncounterPercentageChance()
-    {
-        foreach (var travelEventProbabilityDescription in DatabaseRepository.GetDatabase<TravelActivityDefinition>()
-                     .SelectMany(x => x.RandomEvents)
-                     .Where(x => x.EventDefinition.Name == "TravelEventEncounter"))
-        {
-            travelEventProbabilityDescription.basePercent = Main.Settings.EncounterPercentageChance;
-        }
-    }
-#endif
 
     public static void Rebase(Transform parent, int max)
     {
@@ -139,471 +116,746 @@ internal static class ToolsContext
 
     internal sealed class FunctorRespec : Functor
     {
-        private static readonly float STOP_ROUTINE = -1;
-        private static readonly float RETRY_ROUTINE = 0.1f; // Interval of retry (second)
+        private static RespecSession _session;
 
-        internal static bool IsRespecing { get; private set; }
-        internal static string OldHeroName { get; private set; }
-        internal static RulesetCharacterHero OldHero { get; private set; }
+        internal static bool IsRespecing => _session != null;
+
+        internal static bool CanStartFromCharacterPool(string filename)
+        {
+            if (IsRespecing || Gui.Game || string.IsNullOrEmpty(filename) || !File.Exists(filename))
+            {
+                return false;
+            }
+
+            var pool = ServiceRepository.GetService<ICharacterPoolService>();
+
+            if (pool == null || !pool.Pool.TryGetValue(filename, out var snapshot))
+            {
+                return false;
+            }
+
+            var level = snapshot.Levels?.Sum() ?? 0;
+            var maxLevel = Main.Settings.EnableLevel20 ? Level20Context.ModMaxLevel : Level20Context.GameMaxLevel;
+
+            if (level < 1 || level > maxLevel)
+            {
+                return false;
+            }
+
+            var destination = pool.BuildCharacterFilename(snapshot.Name, false);
+
+            // Built-in heroes become custom heroes; an existing custom hero owns its name.
+            return snapshot.BuiltIn
+                ? !File.Exists(destination)
+                : string.Equals(Path.GetFullPath(filename), Path.GetFullPath(destination),
+                    StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static IEnumerator StartFromCharacterPool(string filename, GuiScreen originScreen)
+        {
+            if (!CanStartFromCharacterPool(filename) || !originScreen)
+            {
+                yield break;
+            }
+
+            var pool = ServiceRepository.GetService<ICharacterPoolService>();
+            RulesetCharacterHero originalHero = null;
+            RespecSession session = null;
+
+            try
+            {
+                pool.LoadCharacter(filename, out originalHero, out _);
+                session = new RespecSession(originalHero, true);
+                _session = session;
+                originScreen.Hide(true);
+                yield return RebuildCharacter(session, null);
+            }
+            finally
+            {
+                ReleaseTransientHero(originalHero);
+                if (_session == session)
+                {
+                    _session = null;
+                }
+                originScreen.Show();
+            }
+        }
 
         public override IEnumerator Execute(
             FunctorParametersDescription functorParameters, FunctorExecutionContext context)
         {
             var guiConsoleScreen = Gui.GuiService.GetScreen<GuiConsoleScreen>();
-            var gameLocationScreenExploration = Gui.GuiService.GetScreen<GameLocationScreenExploration>();
+            var explorationScreen = Gui.GuiService.GetScreen<GameLocationScreenExploration>();
+            var restModal = Gui.GuiService.GetScreen<RestModal>();
 
-            if (!guiConsoleScreen || !gameLocationScreenExploration)
+            if (IsRespecing || functorParameters.RestingHero == null ||
+                !guiConsoleScreen || !explorationScreen || !restModal)
             {
                 yield break;
             }
 
-            if (!gameLocationScreenExploration.Visible)
+            if (!explorationScreen.Visible || Global.IsMultiplayer ||
+                ServiceRepository.GetService<INetworkingService>()?.InOnlineRoom == true)
             {
                 Gui.GuiService.ShowMessage(
                     MessageModal.Severity.Informative1,
-                    "RestActivity/&RestActivityRespecTitle", "Message/&RespecMultiplayerAbortDescription",
-                    "Message/&MessageOkTitle", string.Empty,
-                    null, null);
+                    "RestActivity/&RestActivityRespecTitle", "Message/&RespecCampaignUnavailableDescription",
+                    "Message/&MessageOkTitle", string.Empty, null, null);
+                yield break;
+            }
+
+            var keepCurrentState = restModal.KeepCurrentState;
+            var session = new RespecSession(functorParameters.RestingHero, false);
+            _session = session;
+
+            try
+            {
+                guiConsoleScreen.Hide(true);
+                explorationScreen.Hide(true);
+                restModal.KeepCurrentState = true;
+                restModal.Hide(true);
+                yield return RebuildCharacter(session, restModal);
+            }
+            finally
+            {
+                if (_session == session)
+                {
+                    _session = null;
+                }
+                restModal.Show();
+                restModal.Refresh();
+                restModal.KeepCurrentState = keepCurrentState;
+                guiConsoleScreen.Show();
+                explorationScreen.Show();
+            }
+        }
+
+        private static IEnumerator RebuildCharacter(
+            RespecSession session, GuiScreen originScreen)
+        {
+            var building = ServiceRepository.GetService<ICharacterBuildingService>();
+            var creation = Gui.GuiService.GetScreen<CharacterCreationScreen>();
+            var levelUp = Gui.GuiService.GetScreen<CharacterLevelUpScreen>();
+            var originalHero = session.OriginalHero;
+            var fromCharacterPool = session.FromCharacterPool;
+            var adopted = false;
+
+            try
+            {
+                session.Hero = building.CreateNewCharacter().HeroCharacter;
+                if (!fromCharacterPool)
+                {
+                    session.Hero.Register(true);
+                }
+                CopyRespecIdentityData(originalHero, session.Hero);
+
+                if (!Main.Settings.ForcePointBuyAbilityScores)
+                {
+                    CopyRespecAbilityScoresForDiceRollMode(originalHero, session.Hero);
+                }
+
+                if (creation.StagePanelsByName["AbilityScores"] is CharacterStageAbilityScoresPanel abilities)
+                {
+                    abilities.currentMethod = Main.Settings.ForcePointBuyAbilityScores
+                        ? CharacterStageAbilityScoresPanel.AbilityScoreMethod.PointSystem
+                        : CharacterStageAbilityScoresPanel.AbilityScoreMethod.DiceRolls;
+                }
+
+                // The session restores the origin only after every required level is complete.
+                creation.OriginScreen = null;
+                creation.CurrentHero = session.Hero;
+                creation.Show();
+                yield return WaitForEdition(creation, session);
+
+                if (session.Aborted || session.FinalizedLevel != 1)
+                {
+                    yield break;
+                }
+
+                if (fromCharacterPool)
+                {
+                    while (session.FinalizedLevel < session.TargetLevel && !session.Aborted)
+                    {
+                        building.LevelUpCharacter(session.Hero, true, true);
+                        levelUp.OriginScreen = null;
+                        levelUp.CurrentHero = session.Hero;
+                        levelUp.Show();
+                        var previousLevel = session.FinalizedLevel;
+                        yield return WaitForEdition(levelUp, session);
+
+                        if (session.FinalizedLevel <= previousLevel)
+                        {
+                            session.Aborted = true;
+                        }
+                    }
+
+                    if (session.Aborted)
+                    {
+                        yield break;
+                    }
+
+                    PreserveCharacterPoolData(originalHero, session.Hero);
+                    yield return SaveCharacterPoolHero(session);
+                }
+                else
+                {
+                    adopted = FinalizeCampaignRespec(originalHero, session.Hero);
+                }
+            }
+            finally
+            {
+                foreach (var coroutine in session.StageCoroutines)
+                {
+                    creation.StopCoroutine(coroutine);
+                }
+
+                session.RestoreIdentityControls();
+                CloseEdition(creation, session.Hero);
+                CloseEdition(levelUp, session.Hero);
+
+                if (session.Hero != null)
+                {
+                    Tabletop2024Context.ClearPendingFeatSelections(session.Hero);
+                    LevelUpHelper.UnregisterHero(session.Hero);
+                    building.ReleaseCharacter(session.Hero, true);
+
+                    if (!adopted)
+                    {
+                        ReleaseTransientHero(session.Hero);
+                    }
+                }
+
+                creation.OriginScreen = originScreen;
+                _session = null;
+            }
+        }
+
+        private static IEnumerator WaitForEdition(CharacterEditionScreen screen, RespecSession session)
+        {
+            while (screen.currentHero == session.Hero)
+            {
+                yield return null;
+            }
+
+            while (screen.Visible || screen.Hiding)
+            {
+                yield return null;
+            }
+        }
+
+        private static void CloseEdition(CharacterEditionScreen screen, RulesetCharacterHero hero)
+        {
+            if (hero == null || screen.currentHero != hero)
+            {
+                return;
+            }
+
+            screen.Hide(true);
+            screen.CurrentHero = null;
+        }
+
+        internal static void PrepareFinish(CharacterEditionScreen screen, ref bool continueLevelUp)
+        {
+            if (_session != null && _session.Hero == screen.currentHero)
+            {
+                continueLevelUp = false;
+            }
+        }
+
+        internal static void CharacterFinalized(RulesetCharacterHero hero)
+        {
+            if (_session != null && _session.Hero == hero)
+            {
+                _session.FinalizedLevel = hero.ClassesHistory.Count;
+            }
+        }
+
+        internal static void Abort(CharacterEditionScreen screen)
+        {
+            if (_session != null && _session.Hero == screen.currentHero)
+            {
+                _session.Aborted = true;
+            }
+        }
+
+        internal static bool ShouldSuppressCharacterPoolSave(RulesetCharacterHero hero) =>
+            _session is { FromCharacterPool: true, Saving: false } session && session.Hero == hero;
+
+        internal static bool IsOriginalName(RulesetCharacterHero hero, string name) =>
+            _session != null && _session.Hero == hero && string.Equals(name, _session.OriginalHero.Name, StringComparison.Ordinal);
+
+        internal static void StageEntered(CharacterEditionScreen screen, CharacterStagePanel panel)
+        {
+            var session = _session;
+
+            if (session == null || session.Hero != screen.currentHero || screen is not CharacterCreationScreen)
+            {
+                return;
+            }
+
+            session.StageCoroutines.Add(screen.StartCoroutine(InitializeStage(screen, panel, session)));
+        }
+
+        private static IEnumerator InitializeStage(
+            CharacterEditionScreen screen, CharacterStagePanel panel, RespecSession session)
+        {
+            // StageEntered precedes native transition and binding. Wait for that same stage's display.
+            do
+            {
+                yield return null;
+
+                if (_session != session || session.Aborted || screen.currentHero != session.Hero ||
+                    screen.CurrentStagePanel != panel)
+                {
+                    yield break;
+                }
+            } while (!panel.Visible || panel.Showing);
+
+            if (!session.InitializedStages.Add(panel))
+            {
+                if (panel is CharacterStageIdentityDefinitionPanel identity && session.FromCharacterPool)
+                {
+                    identity.firstNameInputField.text = session.Hero.Name = session.OriginalHero.Name;
+                    identity.lastNameInputField.text = session.Hero.SurName = session.OriginalHero.SurName;
+                    session.LockIdentityControls(identity);
+                }
 
                 yield break;
             }
 
-            IsRespecing = true;
-
-            var characterBuildingService = ServiceRepository.GetService<ICharacterBuildingService>();
-            OldHero = functorParameters.RestingHero;
-            var newHero = characterBuildingService.CreateNewCharacter().HeroCharacter;
-
-            // Register generating new guid, then copy basic data for the character info panel
-            newHero.Register(true);
-            CopyRespecIdentityData(OldHero, newHero);
-
-            if (!Main.Settings.ForcePointBuyAbilityScores)
+            switch (panel)
             {
-                CopyRespecAbilityScoresForDiceRollMode(OldHero, newHero);
+                case CharacterStageRaceSelectionPanel race:
+                    RestoreRace(race, session.OriginalHero);
+                    break;
+                case CharacterStageClassSelectionPanel classes:
+                    var classIndex = classes.compatibleClasses.IndexOf(session.OriginalHero.ClassesHistory.FirstOrDefault());
+                    if (classIndex >= 0)
+                    {
+                        classes.selectedClass = classIndex;
+                        classes.Refresh();
+                    }
+                    break;
+                case CharacterStageBackgroundSelectionPanel background:
+                    RestoreBackground(background, session.OriginalHero);
+                    break;
+                case CharacterStageAbilityScoresPanel abilities when !Main.Settings.ForcePointBuyAbilityScores:
+                    RestoreRolledAbilityScores(abilities, session.OriginalHero);
+                    break;
+                case CharacterStageIdentityDefinitionPanel identity:
+                    RestoreIdentity(identity, session.OriginalHero);
+                    if (session.FromCharacterPool)
+                    {
+                        session.LockIdentityControls(identity);
+                    }
+                    break;
             }
-
-            OldHeroName = OldHero.Name;
-
-            guiConsoleScreen.Hide(true);
-            gameLocationScreenExploration.Hide(true);
-
-            yield return StartRespec(newHero);
-
-            if (IsRespecing)
-            {
-                FinalizeRespec(OldHero, newHero);
-            }
-
-            guiConsoleScreen.Show();
-            gameLocationScreenExploration.Show();
         }
 
         private static void CopyRespecIdentityData(RulesetCharacterHero oldHero, RulesetCharacterHero newHero)
         {
             newHero.sex = oldHero.sex;
-            newHero.SurName = oldHero.surName;
-            newHero.Name = oldHero.name;
-            newHero.raceDefinition = oldHero.raceDefinition;
-            newHero.subRaceDefinition = oldHero.subRaceDefinition;
+            newHero.SurName = oldHero.SurName;
+            newHero.Name = oldHero.Name;
+            newHero.raceDefinition = oldHero.RaceDefinition;
+            newHero.subRaceDefinition = oldHero.SubRaceDefinition;
         }
 
         private static void CopyRespecAbilityScoresForDiceRollMode(
-            RulesetCharacterHero oldHero,
-            RulesetCharacterHero newHero)
+            RulesetCharacterHero oldHero, RulesetCharacterHero newHero)
         {
             foreach (var ability in AttributeDefinitions.AbilityScoreNames)
             {
-                if (!oldHero.TryGetAttribute(ability, out _) ||
-                    !newHero.TryGetAttribute(ability, out var newScore))
+                if (!oldHero.TryGetAttribute(ability, out _) || !newHero.TryGetAttribute(ability, out var score))
                 {
                     continue;
                 }
 
                 var preserved = GetRespecAbilityScore(oldHero, ability);
-                newScore.BaseValue = preserved.BaseValue;
-                newScore.MaxValue = Math.Max(newScore.MaxValue, preserved.MaxValue);
-                // Zero means the editable cap is not imposed by this attribute.
-                newScore.MaxEditableValue = newScore.MaxEditableValue <= 0 || preserved.MaxEditableValue <= 0
-                    ? 0 : Math.Max(newScore.MaxEditableValue, preserved.MaxEditableValue);
-                newScore.Refresh();
+                score.BaseValue = preserved.BaseValue;
+                score.MaxValue = Math.Max(score.MaxValue, preserved.MaxValue);
+                score.MaxEditableValue = score.MaxEditableValue <= 0 || preserved.MaxEditableValue <= 0
+                    ? 0 : Math.Max(score.MaxEditableValue, preserved.MaxEditableValue);
+                score.Refresh();
             }
         }
 
-        private static IEnumerator StartRespec(RulesetCharacterHero hero)
+        private static void RestoreRace(CharacterStageRaceSelectionPanel panel, RulesetCharacterHero original)
         {
-            var restModalScreen = Gui.GuiService.GetScreen<RestModal>();
-            var characterCreationScreen = Gui.GuiService.GetScreen<CharacterCreationScreen>();
+            var index = panel.eligibleRaces.IndexOf(original.RaceDefinition);
 
-            restModalScreen.KeepCurrentState = true;
-            restModalScreen.Hide(true);
-            characterCreationScreen.OriginScreen = restModalScreen;
-            characterCreationScreen.CurrentHero = hero;
-            characterCreationScreen.Show();
-            characterCreationScreen.CommonData.CharacterInfoLabel.gameObject.SetActive(false); // Hide "Character Info"
-            if ( characterCreationScreen.StagePanelsByName[ "RaceSelection" ] is CharacterStageRaceSelectionPanel racePanel ) {
-                RespecRaceStageEntered( characterCreationScreen, racePanel );
-            }
-            if ( characterCreationScreen.StagePanelsByName[ "ClassSelection" ] is CharacterStageClassSelectionPanel classPanel ) {
-                classPanel.selectedClass = 1; // Reset to detect panel activation.
-                RespecClassStageEntered( characterCreationScreen, classPanel );
-            }
-            if ( characterCreationScreen.StagePanelsByName[ "BackgroundSelection" ] is CharacterStageBackgroundSelectionPanel backgroundPanel ) {
-                backgroundPanel.selectedBackground = 1; // Reset to detect panel activation.
-                RespecBackgroundStageEntered( characterCreationScreen, backgroundPanel );
-            }
-            if ( characterCreationScreen.StagePanelsByName[ "AbilityScores" ] is CharacterStageAbilityScoresPanel abilityPanel ) {
-                PrepareRespecAbilityStage( characterCreationScreen, abilityPanel );
-            }
-            if ( characterCreationScreen.StagePanelsByName[ "IdentityDefinition" ] is CharacterStageIdentityDefinitionPanel idPanel ) {
-                idPanel.refreshingNames = true; // Set to detect panel activation.
-                RespecIdStageEntered( characterCreationScreen, idPanel);
+            if (index < 0)
+            {
+                return;
             }
 
-            while (characterCreationScreen.currentHero != null)
+            panel.selectedRace = index;
+
+            if (panel.sortedSubRaces.TryGetValue(original.RaceDefinition, out var subraces))
+            {
+                var subrace = subraces.IndexOf(original.SubRaceDefinition);
+                if (subrace >= 0)
+                {
+                    panel.selectedSubRace[index] = subrace;
+                }
+            }
+
+            panel.Refresh();
+            panel.CommonData.CharacterPlate.RefreshNameAndRace();
+        }
+
+        private static void RestoreBackground(
+            CharacterStageBackgroundSelectionPanel panel, RulesetCharacterHero original)
+        {
+            var index = panel.compatibleBackgrounds.IndexOf(original.BackgroundDefinition);
+
+            if (index < 0)
+            {
+                return;
+            }
+
+            panel.selectedBackground = index;
+            var flags = panel.selectedBackgroundPersonalityFlagsMap[original.BackgroundDefinition];
+            flags.Clear();
+            flags.AddRange(original.BackgroundOptionalPersonalityFlags);
+            panel.selectedAlignmentPersonalityFlags.Clear();
+            panel.selectedAlignmentPersonalityFlags.AddRange(original.AlignmentOptionaPersonalityFlags);
+            panel.Refresh();
+        }
+
+        private static void RestoreRolledAbilityScores(
+            CharacterStageAbilityScoresPanel panel, RulesetCharacterHero original)
+        {
+            var scores = AttributeDefinitions.AbilityScoreNames
+                .Select(ability => GetRespecBaseAbilityScore(original, ability)).OrderByDescending(score => score).ToArray();
+            panel.rollValues.SetRange(scores);
+            var available = scores.ToArray();
+            var priorities = panel.guiCharacter.MainClassDefinition.AbilityScoresPriority;
+
+            for (var i = 0; i < AttributeDefinitions.AbilityScoreNames.Length; i++)
+            {
+                var box = panel.abilityScoresTable.GetChild(i).GetComponent<AbilityRollBox>();
+                var ability = box.AbilityScore;
+                ability.BaseValue = GetRespecBaseAbilityScore(original, ability.Name);
+                ability.Refresh(false);
+                var index = Array.IndexOf(available, ability.BaseValue);
+                available[index] = int.MinValue;
+                panel.diceRollsTable.GetChild(index).GetComponent<AbilityRollBox>().Bind(index, 0, null);
+                box.Bind(ability, index, ability.CurrentValue, priorities?.IndexOf(ability.Name) is >= 0 and < 3,
+                    panel.OnScoreBoxDragStarted);
+            }
+
+            panel.Refresh();
+        }
+
+        private static void RestoreIdentity(
+            CharacterStageIdentityDefinitionPanel panel, RulesetCharacterHero original)
+        {
+            panel.firstNameInputField.text = panel.currentHero.Name = original.Name;
+            panel.lastNameInputField.text = panel.currentHero.SurName = original.SurName;
+            panel.backstoryInputField.text = original.AdditionalBackstory;
+            var options = panel.customizationOptionsBySelectedOrigin[
+                panel.selectedOptionsByPart[MorphotypeElementDefinition.ElementCategory.Origin]];
+
+            for (var i = 0; i < panel.modifiers.Count; i++)
+            {
+                var modifier = panel.modifiers[i];
+                var category = MorphotypeElementDefinition.CommonCategories[i];
+
+                if (!modifier.gameObject.activeSelf || !original.MorphotypeElements.TryGetValue(category, out var value))
+                {
+                    continue;
+                }
+
+                if (modifier.sliderGroup.gameObject.activeSelf &&
+                    original.MorphotypeElementAdditionalValues.TryGetValue(category, out var amount))
+                {
+                    modifier.slider.value = amount;
+                    modifier.OnSliderCb();
+                    modifier.OnSliderDragEndCb();
+                    continue;
+                }
+
+                if (!options.TryGetValue(category, out var values))
+                {
+                    continue;
+                }
+
+                var index = values.IndexOf(value);
+                if (index < 0)
+                {
+                    continue;
+                }
+
+                if (modifier.colorsGroup.gameObject.activeSelf)
+                {
+                    modifier.OnColorSelected(index);
+                }
+                else if (index < modifier.valuesList.Count)
+                {
+                    if (modifier.selectorGroup.gameObject.activeSelf || modifier.gamepadSelector.gameObject.activeSelf)
+                    {
+                        // An unavailable morph must not trap the UI in an unbounded selector loop.
+                        for (var step = 0; step < modifier.valuesList.Count && modifier.currentValue != index; step++)
+                        {
+                            modifier.OnSelectNext();
+                        }
+                    }
+                    else if (modifier.imagesGroup.gameObject.activeSelf)
+                    {
+                        modifier.OnImageSelected(index);
+                    }
+                }
+            }
+
+            var voice = panel.compatibleVoices.FindIndex(definition => definition.Name == original.voiceID);
+            if (voice >= 0)
+            {
+                panel.voiceModifier.OnLabelSelected(voice);
+            }
+
+            var pronoun = new List<Gui.LocalizationSpeakerGender> { Female, Male, NonBinary }.IndexOf(original.pronoun);
+            if (pronoun >= 0)
+            {
+                panel.pronounModifier.OnLabelSelected(pronoun);
+            }
+
+            panel.CommonData.CharacterPlate.CommonBind(new GuiCharacter(panel.currentHero));
+            panel.Refresh();
+        }
+
+        private static void PreserveCharacterPoolData(RulesetCharacterHero original, RulesetCharacterHero hero)
+        {
+            var inventory = original.CharacterInventory;
+            PreserveRebuiltSpellbooks(inventory, hero.CharacterInventory);
+            original.CharacterInventory = hero.CharacterInventory;
+            hero.CharacterInventory = inventory;
+            hero.CharacterInventory.BearerGuid = hero.Guid;
+            var items = new List<RulesetItem>();
+            inventory.EnumerateAllItems(items);
+            foreach (var item in items.Distinct())
+            {
+                item.BearerGuid = hero.Guid;
+            }
+
+            foreach (var repertoire in hero.SpellRepertoires)
+            {
+                repertoire.CharacterInventory = inventory;
+            }
+
+            hero.BuiltIn = false;
+            hero.Name = original.Name;
+            hero.SurName = original.SurName;
+            CopyPersistentHeroData(original, hero);
+            hero.RefreshAll();
+            hero.currentHitPoints = hero.TryGetAttributeValue(AttributeDefinitions.HitPoints);
+        }
+
+        private static void CopyPersistentHeroData(RulesetCharacterHero original, RulesetCharacterHero hero)
+        {
+            hero.Tags.AddRange(original.Tags.Where(tag => !hero.Tags.Contains(tag)));
+            var experience = hero.GetAttribute(AttributeDefinitions.Experience);
+            experience.BaseValue = original.GetAttribute(AttributeDefinitions.Experience).BaseValue;
+            experience.Refresh();
+            hero.criticalHits = original.criticalHits;
+            hero.criticalFailures = original.criticalFailures;
+            hero.inflictedDamage = original.inflictedDamage;
+            hero.slainEnemies = original.slainEnemies;
+            hero.sustainedInjuries = original.sustainedInjuries;
+            hero.restoredHealth = original.restoredHealth;
+            hero.usedMagicAndPowers = original.usedMagicAndPowers;
+            hero.knockOuts = original.knockOuts;
+        }
+
+        private static void PreserveRebuiltSpellbooks(RulesetInventory inventory, RulesetInventory rebuiltInventory)
+        {
+            var items = new List<RulesetItem>();
+            inventory.EnumerateAllItems(items);
+            var books = items.OfType<RulesetItemSpellbook>().ToList();
+            rebuiltInventory.EnumerateAllItems(items);
+            var rebuiltBooks = items.OfType<RulesetItemSpellbook>().Except(books).ToArray();
+            var factory = ServiceRepository.GetService<IRulesetItemFactoryService>();
+
+            foreach (var rebuilt in rebuiltBooks)
+            {
+                foreach (var spell in rebuilt.ScribedSpells)
+                {
+                    if (books.Any(book => book.ScribedSpells.Contains(spell)))
+                    {
+                        continue;
+                    }
+
+                    var destination = books.FirstOrDefault(book => book.CanScribeSpell(spell));
+                    if (destination == null)
+                    {
+                        destination = (RulesetItemSpellbook)factory.CreateStandardItem(rebuilt.ItemDefinition);
+                        inventory.PersonalContainer.AddSubItem(destination);
+                        books.Add(destination);
+                    }
+
+                    destination.ScribeSpell(spell);
+                }
+            }
+        }
+
+        private static IEnumerator SaveCharacterPoolHero(RespecSession session)
+        {
+            // SaveCharacter requests only a cached photo; creation releases that cache when it closes.
+            var photoReady = false;
+            ServiceRepository.GetService<IGraphicsCharacterPhotoService>().RequestCharacterPhoto(
+                session.Hero, _ => photoReady = true, false, 256, 384,
+                default(GraphicsCharacterPhotoManager.PhotoParameters));
+
+            while (!photoReady)
             {
                 yield return null;
             }
 
-            characterCreationScreen.Hide();
-            characterCreationScreen.RestoreOriginScreen();
-            restModalScreen.Refresh();
-            IsRespecing = !hero.TryGetHeroBuildingData(out _);
-        }
+            var pool = ServiceRepository.GetService<ICharacterPoolService>();
+            var completed = false;
+            void Saved() => completed = true;
+            pool.CharacterPoolRefreshed += Saved;
 
-        private static void RespecRaceStageEntered ( MonoBehaviour parent, CharacterStageRaceSelectionPanel panel ) {
-            parent.StartCoroutine( WaitAndDo( 0.1f, () => {
-                var race = OldHero.RaceDefinition;
-                var raceIndex = panel.eligibleRaces.IndexOf( race );
-                Main.Info( $"Respec [{OldHeroName}] Assign original race {race.Name}, index {raceIndex}" );
-                if ( ! IsRespecing || raceIndex < 0 ) return;
-                panel.selectedRace = raceIndex;
-                if ( race.IsContentAvailable ) {
-                    var subraceIndex = panel.sortedSubRaces[ race ]?.IndexOf(OldHero.SubRaceDefinition ) ?? -1;
-                    if ( subraceIndex >= 0 )
-                        panel.selectedSubRace[ raceIndex ] = subraceIndex;
+            try
+            {
+                session.Saving = true;
+                pool.SaveCharacter(session.Hero, true);
+
+                while (!completed)
+                {
+                    yield return null;
                 }
-                panel.Refresh();
-                panel.CommonData.CharacterPlate.RefreshNameAndRace();
-                panel.CommonData.CharacterInfoLabel.gameObject.SetActive( false ); // Hide "Character Info"
-            } ) );
-        }
-
-        private static void RespecClassStageEntered ( MonoBehaviour parent, CharacterStageClassSelectionPanel panel ) {
-            parent.StartIntervalCoroutine( () => {
-                if ( !IsRespecing) return STOP_ROUTINE;
-                if ( panel.selectedClass == 1 || panel.classesTable.childCount <= 0 ) return RETRY_ROUTINE;
-                var firstClass = OldHero.ClassesHistory.FirstOrDefault();
-                var index = panel.compatibleClasses.IndexOf( firstClass );
-                Main.Info( $"Respec [{OldHeroName}] Assign original class {firstClass.Name}, index {index}" );
-                if ( index < 0 ) return STOP_ROUTINE;
-                panel.selectedClass = index;
-                panel.RefreshNow();
-                return STOP_ROUTINE;
-            } );
-        }
-
-        private static void RespecBackgroundStageEntered ( MonoBehaviour parent, CharacterStageBackgroundSelectionPanel panel ) {
-            parent.StartIntervalCoroutine( () => {
-                if ( ! IsRespecing ) return STOP_ROUTINE;
-                if ( panel.selectedBackground == 1 || panel.backgroundsTable.childCount <= 0 ) return RETRY_ROUTINE;
-                var backrgound = OldHero.BackgroundDefinition;
-                var index = panel.compatibleBackgrounds.IndexOf( backrgound );
-                Main.Info( $"Respec [{OldHeroName}] Assign original background {backrgound.Name}, index {index}" );
-                if ( index < 0 ) return STOP_ROUTINE;
-                panel.selectedBackground = index;
-                panel.selectedBackgroundPersonalityFlagsMap[ backrgound ].Clear();
-                panel.selectedBackgroundPersonalityFlagsMap[ backrgound ].AddRange( OldHero.BackgroundOptionalPersonalityFlags );
-                panel.selectedAlignmentPersonalityFlags.Clear();
-                panel.selectedAlignmentPersonalityFlags.AddRange( OldHero.AlignmentOptionaPersonalityFlags );
-                panel.Refresh();
-                return STOP_ROUTINE;
-            } );
-        }
-
-        private static void PrepareRespecAbilityStage(MonoBehaviour parent, CharacterStageAbilityScoresPanel panel)
-        {
-            if (Main.Settings.ForcePointBuyAbilityScores)
-            {
-                RespecPointBuyAbilityStageEntered(panel);
             }
-            else
+            finally
             {
-                RespecDiceRollAbilityStageEntered(parent, panel);
+                pool.CharacterPoolRefreshed -= Saved;
+                session.Saving = false;
             }
         }
 
-        private static void RespecPointBuyAbilityStageEntered(CharacterStageAbilityScoresPanel panel)
+        private static bool FinalizeCampaignRespec(RulesetCharacterHero oldHero, RulesetCharacterHero newHero)
         {
-            panel.currentMethod = CharacterStageAbilityScoresPanel.AbilityScoreMethod.PointSystem;
-        }
+            var characterManager = ServiceRepository.GetService<IGameLocationCharacterService>() as GameLocationCharacterManager;
+            var gameLocationCharacter = GameLocationCharacter.GetFromActor(oldHero);
+            var campaignCharacters = Gui.GameCampaign?.Party.CharactersList;
+            var campaignCharacter = campaignCharacters?.Find(character => character.RulesetCharacter == oldHero);
 
-        private static void RespecDiceRollAbilityStageEntered ( MonoBehaviour parent, CharacterStageAbilityScoresPanel panel ) {
-            panel.currentMethod = CharacterStageAbilityScoresPanel.AbilityScoreMethod.DiceRolls;
-            panel.abilityScoresRolled = false; // Reset to detect panel activation.
-
-            parent.StartIntervalCoroutine( () => {
-                if ( !IsRespecing ) return STOP_ROUTINE;
-                if ( ! panel.abilityScoresRolled ) return RETRY_ROUTINE;
-                var abilityCount = AttributeDefinitions.AbilityScoreNames.Length;
-                var sortedScores = AttributeDefinitions.AbilityScoreNames.Select( e => GetRespecBaseAbilityScore( OldHero, e ) ).ToArray();
-                Array.Sort( sortedScores );
-                Array.Reverse( sortedScores );
-                Main.Info( $"Respec [{OldHeroName}] Assign original ability scores {string.Join( ", ", sortedScores )}" );
-                panel.rollValues.SetRange( sortedScores );
-                var mainClass = panel.guiCharacter.MainClassDefinition;
-                if ( mainClass.AbilityScoresPriority != null && mainClass.AbilityScoresPriority.Count == abilityCount ) {
-                    for ( int i = 0 ; i < abilityCount ; i++ ) {
-                        // Assign score
-                        var assignedBox = panel.abilityScoresTable.GetChild( i ).GetComponent< AbilityRollBox >();
-                        var abilityScore = assignedBox.AbilityScore;
-                        abilityScore.BaseValue = GetRespecBaseAbilityScore( OldHero, abilityScore.Name );
-                        abilityScore.Refresh( false );
-                        var isImportant = mainClass.AbilityScoresPriority.IndexOf( abilityScore.Name ) < 3;
-                        // Find index of roll and bind both boxes.
-                        var scoreIndex = Array.IndexOf( sortedScores, abilityScore.BaseValue );
-                        if ( scoreIndex < 0 ) scoreIndex = sortedScores.ToList().FindIndex( e => e > 0 );
-                        sortedScores[ scoreIndex ] = 0;
-                        var rollBox = panel.diceRollsTable.GetChild( scoreIndex ).GetComponent< AbilityRollBox >();
-                        rollBox.Bind( scoreIndex, 0, null );
-                        assignedBox.Bind( abilityScore, scoreIndex, abilityScore.CurrentValue, isImportant, new AbilityValueCell.DragStartedHandler( panel.OnScoreBoxDragStarted ) );
-                    }
-                }
-                panel.Refresh();
-                return STOP_ROUTINE;
-            } );
-        }
-
-        private static void RespecIdStageEntered ( MonoBehaviour parent, CharacterStageIdentityDefinitionPanel panel ) {
-            parent.StartIntervalCoroutine( () => {
-                if ( ! IsRespecing ) return STOP_ROUTINE;
-                if ( panel.refreshingNames ) return RETRY_ROUTINE;
-                Main.Info( $"Respec [{OldHeroName}] Assign original identity" );
-                panel.firstNameInputField.text = panel.currentHero.Name = OldHero.name;
-                panel.lastNameInputField.text = panel.currentHero.SurName = OldHero.surName;
-                panel.backstoryInputField.text = OldHero.additionalBackstory;
-
-                var morphOptions = panel.customizationOptionsBySelectedOrigin[ panel.selectedOptionsByPart[ MorphotypeElementDefinition.ElementCategory.Origin ] ];
-                var oldMorphs = OldHero.MorphotypeElements;
-                for ( int i = 0 ; i < panel.modifiers.Count ; i++ ) {
-                    var modifier = panel.modifiers[ i ];
-                    if ( ! modifier.gameObject.activeSelf ) continue;
-                    var category = MorphotypeElementDefinition.CommonCategories[ i ];
-                    if ( ! oldMorphs.TryGetValue( category, out var morphText ) ) continue;
-                    // Sliding Values
-                    if ( modifier.sliderGroup.gameObject.activeSelf 
-                            && OldHero.MorphotypeElementAdditionalValues.TryGetValue( category, out var num ) ) {
-                        //Main.Info( category.ToString() + " = " + num );
-                        modifier.slider.value = num;
-                        modifier.OnSliderCb();
-                        modifier.OnSliderDragEndCb();
-                        //panel.OnCustomizationAdditionalValueChanged( category, num );
-                        continue;
-                    }
-                    // Non-sliding values: colours, images (), or toggle
-                    var morphIndex = morphOptions[ category ].IndexOf( morphText );
-                    //Main.Info( category.ToString() + " = " + morphText + ", Index " + morphIndex );
-                    if ( morphIndex < 0 ) continue;
-                    if ( modifier.colorsGroup.gameObject.activeSelf ) {
-                        modifier.OnColorSelected( morphIndex );
-                    } else if ( morphIndex < modifier.valuesList.Count ) {
-                        if ( modifier.selectorGroup.gameObject.activeSelf || modifier.gamepadSelector.gameObject.activeSelf )
-                            while ( modifier.currentValue != morphIndex )
-                                modifier.OnSelectNext();
-                        else if ( modifier.imagesGroup.gameObject.activeSelf )
-                            modifier.OnImageSelected( morphIndex );
-                        else
-                            Main.Error( $"Respec [{OldHeroName}] Morph control not implemented: {category}" );
-                    }
-                    //panel.OnCustomizationChanged( category, morphIndex );
-                }
-
-                var voiceIndex = panel.compatibleVoices.FindIndex( e => string.Equals( e.Name, OldHero.voiceID ) );
-                if ( voiceIndex >= 0 )
-                    panel.voiceModifier.OnLabelSelected( voiceIndex );
-
-                var pronounIndex = new List<Gui.LocalizationSpeakerGender>{ Female, Male, NonBinary }.IndexOf( OldHero.pronoun );
-                if ( pronounIndex >= 0 )
-                    panel.pronounModifier.OnLabelSelected( pronounIndex );
-
-                panel.CommonData.CharacterPlate.CommonBind( new GuiCharacter( panel.currentHero ) );
-                panel.Refresh();
-                return STOP_ROUTINE;
-            } );
-        }
-
-        //TODO: prefer to use below code once I identify why RESPEC saves break on load
-#if false
-        private static void FinalizeRespec(
-            [NotNull] RulesetCharacterHero oldHero,
-            [NotNull] RulesetCharacterHero newHero)
-        {
-            //Init RESPEC
-            var locationManager =
-                ServiceRepository.GetService<IGameLocationService>() as GameLocationManager;
-            var characterManager =
-                ServiceRepository.GetService<IGameLocationCharacterService>() as GameLocationCharacterManager;
-            var entityFactoryManager =
-                ServiceRepository.GetService<IWorldLocationEntityFactoryService>() as
-                    WorldLocationEntityFactoryManager;
-
-            if (!characterManager || !entityFactoryManager)
+            if (!characterManager || gameLocationCharacter == null || campaignCharacter == null)
             {
-                IsRespecing = false;
+                return false;
+            }
 
+            var oldGuid = oldHero.Guid;
+            var newGuid = newHero.Guid;
+            EffectHelpers.GetAllEffectsBySourceGuid(oldGuid).ForEach(effect => effect.DoTerminate(oldHero));
+            EffectHelpers.GetAllEffectsBySourceGuid(newGuid).ForEach(effect => effect.SetGuid(oldGuid));
+            EffectHelpers.GetAllConditionsBySourceGuid(newGuid).ForEach(condition => condition.sourceGuid = oldGuid);
+            newHero.Unregister();
+            ServiceRepository.GetService<IRulesetEntityService>().SwapEntities(oldHero, newHero);
+            newHero.Register(false);
+            CopyPersistentHeroData(oldHero, newHero);
+            TransferConditionsOfCategory(oldHero, newHero, AttributeDefinitions.TagEffect);
+            CleanupOldHeroConditions(oldHero, newHero);
+            DropInventoryOnFloor(gameLocationCharacter);
+            campaignCharacter.RulesetCharacter = newHero;
+            UpdateRestPanelUi(campaignCharacters);
+            gameLocationCharacter.SetRuleset(newHero);
+            var factory = ServiceRepository.GetService<IWorldLocationEntityFactoryService>();
+            if (factory.TryFindWorldCharacter(gameLocationCharacter, out var worldCharacter))
+            {
+                worldCharacter.GraphicsCharacter.RulesetCharacter = newHero;
+            }
+
+            characterManager.dirtyParty = true;
+            characterManager.RefreshAllCharacters();
+            Gui.GuiService.ShowMessage(
+                MessageModal.Severity.Informative1,
+                "RestActivity/&RestActivityRespecTitle", "Message/&RespecSuccessfulDescription",
+                "Message/&MessageOkTitle", string.Empty, null, null);
+            return true;
+        }
+
+        private static void ReleaseTransientHero(RulesetCharacterHero hero)
+        {
+            if (hero == null)
+            {
                 return;
             }
 
-            var oldCharacter = GameLocationCharacter.GetFromActor(oldHero);
-            var oldExperience = oldHero.GetAttribute(AttributeDefinitions.Experience);
-            var oldGuid = oldHero.Guid;
-            var newGuid = newHero.Guid;
-
-            //Terminate all effects started by old character
-            EffectHelpers.GetAllEffectsBySourceGuid(oldGuid).ForEach(e => e.DoTerminate(oldHero));
-
-            //Replace source for all effects of new character
-            EffectHelpers.GetAllEffectsBySourceGuid(newGuid).ForEach(e => e.SetGuid(oldGuid));
-
-            //Replace source for all conditions of new character
-            EffectHelpers.GetAllConditionsBySourceGuid(newGuid).ForEach(c => c.sourceGuid = oldGuid);
-
-            //Unregister under new guid and assign older hero guid
-            newHero.Unregister();
-
-            //Create character will register new hero with oldGuid later on
-            ServiceRepository.GetService<IRulesetEntityService>().SwapEntities(oldHero, newHero);
-
-            //Copy tags and campaign stats
-            newHero.Tags.AddRange(oldHero.Tags);
-            newHero.Attributes[AttributeDefinitions.Experience] = oldExperience;
-            newHero.criticalHits = oldHero.criticalHits;
-            newHero.criticalFailures = oldHero.criticalFailures;
-            newHero.inflictedDamage = oldHero.inflictedDamage;
-            newHero.slainEnemies = oldHero.slainEnemies;
-            newHero.sustainedInjuries = oldHero.sustainedInjuries;
-            newHero.restoredHealth = oldHero.restoredHealth;
-            newHero.usedMagicAndPowers = oldHero.usedMagicAndPowers;
-            newHero.knockOuts = oldHero.knockOuts;
-
-            //Handle conditions
-            TransferConditionsOfCategory(oldHero, newHero, AttributeDefinitions.TagEffect);
-            CleanupOldHeroConditions(oldHero, newHero);
-
-            //Handle inventory
-            //DropInventoryOnFloor(oldCharacter);
-
-            //Create new character, spawn it, replace, and destroy old one
-            var newCharacter = characterManager.CreateCharacter(oldCharacter.ControllerId, newHero, Side.Ally);
-
-            TransferRelevantPersistentData(oldCharacter, newCharacter);
-            entityFactoryManager.SpawnCharacter(newCharacter);
-            entityFactoryManager.FinalizeSpawnCharacter(newCharacter);
-            characterManager.ReplaceCharacter(oldCharacter, newCharacter);
-            characterManager.RemoveCharacterFromTheGame(oldCharacter);
-            characterManager.KillCharacter(oldCharacter, true, true, true, true);
-            //entityFactoryManager.DestroyCharacter(oldCharacter);
-            
-            //Update game campaign party
-            var gameCampaignCharacters = Gui.GameCampaign.Party.CharactersList;
-
-            gameCampaignCharacters.Find(x => x.RulesetCharacter == oldHero).RulesetCharacter = newHero;
-
-            //Finalize RESPEC
-            UpdateRestPanelUi(gameCampaignCharacters);
-
-            Gui.GuiService.ShowMessage(
-                MessageModal.Severity.Informative1,
-                "RestActivity/&RestActivityRespecTitle", "Message/&RespecSuccessfulDescription",
-                "Message/&MessageOkTitle", string.Empty,
-                null, null);
-
-            IsRespecing = false;
-        }
-        
-                
-        private static void TransferRelevantPersistentData(
-            GameLocationCharacter oldCharacter, GameLocationCharacter newCharacter)
-        {
-            newCharacter.ControllerId = oldCharacter.ControllerId;
-            newCharacter.Orientation = oldCharacter.Orientation;
-            newCharacter.LocationPosition = oldCharacter.LocationPosition;
-            newCharacter.PerceptionState = oldCharacter.PerceptionState;
-            newCharacter.ContextualFormation = oldCharacter.ContextualFormation;
-        }
-#endif
-
-        private static void FinalizeRespec(
-            [NotNull] RulesetCharacterHero oldHero,
-            [NotNull] RulesetCharacterHero newHero)
-        {
-            var tags = oldHero.Tags;
-            var experience = oldHero.GetAttribute(AttributeDefinitions.Experience);
-            var gameCampaignCharacters = Gui.GameCampaign.Party.CharactersList;
-            var characterManager =
-                ServiceRepository.GetService<IGameLocationCharacterService>() as GameLocationCharacterManager;
-
-            if (characterManager)
+            var entities = ServiceRepository.GetService<IRulesetEntityService>()?.RulesetEntities;
+            if (entities == null)
             {
-                var gameLocationCharacter = GameLocationCharacter.GetFromActor(oldHero);
-
-                var oldGuid = oldHero.Guid;
-                var newGuid = newHero.Guid;
-
-                //Terminate all effects started by old character
-                EffectHelpers.GetAllEffectsBySourceGuid(oldGuid).ForEach(e => e.DoTerminate(oldHero));
-                //Replace source for all effects of new character
-                EffectHelpers.GetAllEffectsBySourceGuid(newGuid).ForEach(e => e.SetGuid(oldGuid));
-                //Replace source for all conditions of new character
-                EffectHelpers.GetAllConditionsBySourceGuid(newGuid).ForEach(c => c.sourceGuid = oldGuid);
-
-                newHero.Unregister(); //unregister under new guid
-                //Replace old character with new
-                ServiceRepository.GetService<IRulesetEntityService>().SwapEntities(oldHero, newHero);
-                newHero.Register(false); //register again under old guid
-
-                newHero.Tags.AddRange(tags);
-                newHero.Attributes[AttributeDefinitions.Experience] = experience;
-                newHero.criticalHits = oldHero.criticalHits;
-                newHero.criticalFailures = oldHero.criticalFailures;
-                newHero.inflictedDamage = oldHero.inflictedDamage;
-                newHero.slainEnemies = oldHero.slainEnemies;
-                newHero.sustainedInjuries = oldHero.sustainedInjuries;
-                newHero.restoredHealth = oldHero.restoredHealth;
-                newHero.usedMagicAndPowers = oldHero.usedMagicAndPowers;
-                newHero.knockOuts = oldHero.knockOuts;
-
-                TransferConditionsOfCategory(oldHero, newHero, AttributeDefinitions.TagEffect);
-                CleanupOldHeroConditions(oldHero, newHero);
-
-                DropInventoryOnFloor(gameLocationCharacter);
-
-                gameCampaignCharacters.Find(x => x.RulesetCharacter == oldHero).RulesetCharacter = newHero;
-
-                UpdateRestPanelUi(gameCampaignCharacters);
-
-                gameLocationCharacter.SetRuleset(newHero);
-
-                var worldLocationEntityFactoryService =
-                    ServiceRepository.GetService<IWorldLocationEntityFactoryService>();
-
-                if (worldLocationEntityFactoryService.TryFindWorldCharacter(gameLocationCharacter,
-                        out var worldLocationCharacter))
-                {
-                    worldLocationCharacter.GraphicsCharacter.RulesetCharacter = newHero;
-                }
-
-                characterManager.dirtyParty = true;
-                characterManager.RefreshAllCharacters();
+                return;
             }
 
-            Gui.GuiService.ShowMessage(
-                MessageModal.Severity.Informative1,
-                "RestActivity/&RestActivityRespecTitle", "Message/&RespecSuccessfulDescription",
-                "Message/&MessageOkTitle", string.Empty,
-                null, null);
+            var owned = new List<RulesetEntity> { hero, hero.PersonalLightSource };
+            owned.AddRange(hero.AllConditions);
+            var inventory = hero.CharacterInventory;
+            if (inventory != null)
+            {
+                owned.Add(inventory.PersonalContainer);
+                owned.AddRange(inventory.EnumerateAllSlots(true, false, false));
+                var items = new List<RulesetItem>();
+                inventory.EnumerateAllItems(items);
+                owned.AddRange(items);
+            }
 
-            IsRespecing = false;
+            // Unregister only this transient graph, including native-created slots with a zero-guid owner.
+            foreach (var entity in owned.Where(entity => entity != null).Distinct())
+            {
+                if (entities.TryGetValue(entity.Guid, out var registered) && ReferenceEquals(registered, entity))
+                {
+                    ServiceRepository.GetService<IRulesetEntityService>().UnregisterEntity(entity);
+                }
+            }
+        }
+
+        private sealed class RespecSession(RulesetCharacterHero originalHero, bool fromCharacterPool)
+        {
+            internal readonly RulesetCharacterHero OriginalHero = originalHero;
+            internal readonly bool FromCharacterPool = fromCharacterPool;
+            internal readonly int TargetLevel = Math.Max(1, originalHero.ClassesHistory.Count);
+            internal readonly List<UnityEngine.Coroutine> StageCoroutines = [];
+            internal readonly HashSet<CharacterStagePanel> InitializedStages = [];
+            internal RulesetCharacterHero Hero;
+            internal int FinalizedLevel;
+            internal bool Aborted;
+            internal bool Saving;
+            private CharacterStageIdentityDefinitionPanel _identity;
+            private (bool FirstReadOnly, bool LastReadOnly, bool FirstRoll, bool LastRoll, bool FirstEdit, bool LastEdit) _identityControls;
+
+            internal void LockIdentityControls(CharacterStageIdentityDefinitionPanel panel)
+            {
+                if (!_identity)
+                {
+                    _identity = panel;
+                    _identityControls = (panel.firstNameInputField.readOnly, panel.lastNameInputField.readOnly,
+                        panel.firstNameRollButton.interactable, panel.lastNameRollButton.interactable,
+                        panel.firstNameEditButton.interactable, panel.lastNameEditButton.interactable);
+                }
+
+                panel.firstNameInputField.readOnly = true;
+                panel.lastNameInputField.readOnly = true;
+                panel.firstNameRollButton.interactable = false;
+                panel.lastNameRollButton.interactable = false;
+                panel.firstNameEditButton.interactable = false;
+                panel.lastNameEditButton.interactable = false;
+            }
+
+            internal void RestoreIdentityControls()
+            {
+                if (!_identity)
+                {
+                    return;
+                }
+
+                _identity.firstNameInputField.readOnly = _identityControls.FirstReadOnly;
+                _identity.lastNameInputField.readOnly = _identityControls.LastReadOnly;
+                _identity.firstNameRollButton.interactable = _identityControls.FirstRoll;
+                _identity.lastNameRollButton.interactable = _identityControls.LastRoll;
+                _identity.firstNameEditButton.interactable = _identityControls.FirstEdit;
+                _identity.lastNameEditButton.interactable = _identityControls.LastEdit;
+            }
         }
 
         private static int GetRespecBaseAbilityScore(RulesetCharacterHero hero, string ability) =>
@@ -729,18 +981,4 @@ internal static class ToolsContext
             }
         }
     }
-
-    private static void StartIntervalCoroutine ( this MonoBehaviour coroutineObject, Func<float> actionReturnNextInterval )
-    {
-        var nextInterval = actionReturnNextInterval();
-        if ( nextInterval < 0 ) return;
-        coroutineObject.StartCoroutine( WaitAndDo( nextInterval, () => StartIntervalCoroutine( coroutineObject, actionReturnNextInterval ) ) );
-    }
-
-    private static IEnumerator WaitAndDo ( float waitSeconds, Action action )
-    {
-        yield return new WaitForSeconds(waitSeconds);
-        action();
-    }
-
 }

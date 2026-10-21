@@ -258,7 +258,7 @@ ModUi/&EnableRangerSpellCastingAtLevel1=<color=#D89555>呪文発動</color>を�
 ModUi/&EnableRangerTireless2024=10レベルで<color=#D89555>疲れ知らず</color>を有効にし、<color=#D89555>擬装</color>を置き換えます<i><color=#F0DAA0>（一時的ヒット・ポイントを得る）</color></i>
 ModUi/&EnableRangerAnyFightingStyle2024=<color=#D89555>レンジャー</color>が任意の戦闘スタイルを選択できるようにします<i><color=#F0DAA0>（大型武器戦闘と防護を追加）</color></i>
 ModUi/&EnableRelearnSpells=他の方法ですでに修得した初級呪文や呪文も選択できるようにします
-ModUi/&EnableRespecAction=休憩後の行動に<color=#D89555>リスペック</color>を追加します<i><color=#F0DAA0>（マルチプレイヤーセッション中は使用しないでください）</color></i>
+ModUi/&EnableRespecAction=大休憩後の行動に<color=#D89555>リスペック</color>を追加します（シングルプレイのみ）
 ModUi/&EnableRitualOnAllCasters2024=すべての呪文発動者が、準備済みの<color=#D89555>儀式</color>呪文を儀式発動できるようにします
 ModUi/&EnableOneSpellSlotPerTurn2024=1ターン中、呪文を発動するために消費できる呪文スロットを1つに制限します<i><color=#F0DAA0>（初級呪文と、呪文スロットを消費せずに発動する呪文には影響しません）</color></i>
 ModUi/&EnableOneDndCounterspellSpell=<color=#D89555>{0}</color>の2024年版を有効にします<i><color=#F0DAA0>（耐久力セーヴィング・スロー失敗で発動を妨害、妨害された呪文のスロットは非消費）</color></i>
@@ -595,10 +595,12 @@ ModUi/&WeaponMasterySystemCustomizeToggle=武器マスタリーの割り当て�
 ModUi/&WeaponMasterySystemCustomizeResetAll=すべてリセット
 ModUi/&WeaponMasterySystemCustomizeResetAllWarning=すべての武器マスタリーの割り当てを既定値に戻します
 ModUi/&WideScreenBattleUI=ワイドスクリーン用の戦闘UIを有効にします<i><color=#F0DAA0>（アスペクト比が16:9より横長の場合）</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=能力値上昇を種族ではなく背景から得るようにし、ヒューマンの特徴も調整します<i><color=#F0DAA0>（有効な間は、種族の能力値上昇を自由に選ぶ設定は適用されません）</color></i>
-ModUi/&EnableBackgroundBonusFeats=背景から得る特徴を、2024年版の起源特技1つ、技能習熟2つ、道具習熟1つに変更します<i><color=#F0DAA0>（背景による能力値上昇が必要です。有効な間は、背景の習熟を自由に選ぶ設定は適用されません）</color></i>
-ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=背景から起源特技を得るには、能力値上昇を背景から得る設定を有効にしてください。
-ModUi/&AddOriginFeatsToAutoLearn=+起源特技を自動習得の候補に追加します
+ModUi/&EnableBackgroundAbilityScoreIncreases=能力値上昇を種族ではなく背景から得るようにし、ヒューマンの特徴も調整します<i><color=#F0DAA0>（2024年版のテーブルトップ特技が必要です。有効な間は、種族の能力値上昇を自由に選ぶ設定は適用されません）</color></i>
+ModUi/&BackgroundASIRequiresTabletopFeatRules2024=2024年版のテーブルトップ特技を有効にすると使用できます。
+ModUi/&EnableBackgroundBonusFeats=背景から得る特徴を、2024年版の起源特技1つ、技能習熟2つ、道具習熟1つに変更します<i><color=#F0DAA0>（背景による能力値上昇と2024年版の特技が必要です。有効な間は、背景の習熟を自由に選ぶ設定は適用されません）</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=背景から起源特技を得るには、背景による能力値上昇と2024年版の特技を有効にしてください。
+ModUi/&EnableBackgroundOriginFeatChoices=起源特技を背景ごとの2候補から選び、選んだ特技に対応する道具習熟を得ます
+ModUi/&BackgroundOriginFeatChoicesRequiresBackgroundBonusFeats=背景の起源特技を有効にすると選択できます。
 ModUi/&EnableGeneralFeats2024=特技を2024年版のルールに合わせて再編します<i><color=#F0DAA0>（2024年版の特技を別に追加）</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>（2024年版の特技は、下の一覧で個別に有効・無効を切り替えられます。有効中は、上位互換の特技が追加された旧版の特技を選択できません）</color></i>
 ModUi/&EnableTabletopFeatRules2024=特技の一覧を2024年版のテーブルトップルールに限定します

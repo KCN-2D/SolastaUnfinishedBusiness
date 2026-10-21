@@ -850,6 +850,18 @@ public static class TooltipPanelPatcher
 public static class TooltipFeaturePrerequisites_Bind_Patch
 {
     [UsedImplicitly]
+    public static void Prefix(ITooltip tooltip, out (FeatDefinition feat, RulesetCharacterHero hero) __state)
+    {
+        FeatsContext.PushPrerequisiteDisplayContext(tooltip, out __state);
+    }
+
+    [UsedImplicitly]
+    public static void Finalizer((FeatDefinition feat, RulesetCharacterHero hero) __state)
+    {
+        FeatsContext.RestorePrerequisiteDisplayContext(__state);
+    }
+
+    [UsedImplicitly]
     public static void Postfix(TooltipFeaturePrerequisites __instance)
     {
         Tooltips.ModifyWidth<TooltipFeaturePrerequisitesWidthMod, TooltipFeaturePrerequisites>(__instance);

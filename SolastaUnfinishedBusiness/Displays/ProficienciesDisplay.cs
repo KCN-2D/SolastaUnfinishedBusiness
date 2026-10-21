@@ -52,7 +52,7 @@ internal static class ProficienciesDisplay
                 UI.AutoWidth()))
         {
             Main.Settings.TotalFeatsGrantedFirstLevel = intValue;
-            FeatsContext.SwitchFirstLevelTotalFeats();
+            Tabletop2024Context.ApplyBackgroundOptions();
         }
 
         UI.Label();

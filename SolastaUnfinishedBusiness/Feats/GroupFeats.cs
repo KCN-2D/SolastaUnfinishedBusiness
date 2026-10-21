@@ -45,6 +45,7 @@ internal static class GroupFeats
         MeltingTouch);
 
     internal static FeatDefinition FeatGroupFightingStyle { get; } = MakeGroup("FeatGroupFightingStyle", FightingStyle);
+    // Legacy equivalents index the 2024 Origin catalog; Tabletop2024Context owns its classification and publication.
     internal static FeatDefinition FeatGroupOrigin { get; } = MakeGroup("FeatGroupOrigin", null);
 
     //

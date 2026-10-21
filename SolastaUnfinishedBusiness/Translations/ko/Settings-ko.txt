@@ -270,7 +270,7 @@ ModUi/&EnableRangerRoving2024=레벨 6에서 <color=#D89555>이동</color> 가�
 ModUi/&EnableRangerSpellCastingAtLevel1=레벨 2 대신 레벨 1에서 <color=#D89555>주문 시전</color>을 활성화합니다.
 ModUi/&EnableRangerTireless2024=레벨 10에서 <color=#D89555>Hide in Plain Sight</color>를 대체하기 위해 <color=#D89555>Tireless</color>를 활성화하세요 <i><color=#F0DAA0>[임시 생명력 획득]</color></i>
 ModUi/&EnableRelearnSpells=다른 출처에서 이미 배운 주문이나 주문 선택 가능
-ModUi/&EnableRespecAction=휴식 동작 후 <color=#D89555>RESPEC</color> 활성화 <i><color=#F0DAA0>[멀티플레이어 세션 동안 RESPEC 사용하지 마세요]</color></i>
+ModUi/&EnableRespecAction=긴 휴식 후 <color=#D89555>캐릭터 재훈련</color>을 추가합니다 (싱글플레이 전용)
 ModUi/&EnableRitualOnAllCasters2024=모든 시전자에 <color=#D89555>의식</color> 시전 활성화
 ModUi/&EnableOneSpellSlotPerTurn2024=한 턴에 주문 시전으로 주문 슬롯을 하나만 소비할 수 있는 2024년 규칙을 적용합니다. <i><color=#F0DAA0>[소마법과 주문 슬롯을 소비하지 않는 시전에는 영향을 주지 않습니다]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=<color=#D89555>{0}</color>의 2024년판 활성화 <i><color=#F0DAA0>[건강 내성 굴림 실패 시 시전을 방해하며 대상 주문의 슬롯은 소모되지 않음]</color></i>
@@ -595,10 +595,12 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=모든 무기 숙달 속성�
 ModUi/&WeaponMasterySystemCustomizeToggle=무기 숙달 속성을 사용자 정의하십시오
 ModUi/&WideScreenBattleUI=와이드 스크린 전투 UI 활성화 <i><color=#F0DAA0>(가로세로 비율이 16:9보다 큰 해상도의 경우)</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white><color=#D89555>마법사 야생 마법</color> 확률 주사위 임계값 설정:</color>\n<i><color=#F0DAA0>[임계값 이하로 굴리면 야생 급증이 발동]</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=능력치 증가를 종족 대신 배경에서 얻으며 인간의 특성도 이에 맞게 조정합니다 <i><color=#F0DAA0>(이 옵션이 활성화된 동안 유연한 종족은 적용되지 않습니다)</color></i>
-ModUi/&EnableBackgroundBonusFeats=배경 특성을 2024년 규칙에 따라 기원 재주 하나, 기술 숙련 두 개, 도구 숙련 하나로 변경합니다 <i><color=#F0DAA0>(배경 능력치 증가가 필요합니다. 이 옵션이 활성화된 동안 유연한 배경은 적용되지 않습니다)</color></i>
-ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=배경에서 기원 재주를 얻으려면 배경에서 능력치 증가를 얻는 설정을 활성화하세요.
-ModUi/&AddOriginFeatsToAutoLearn= + 기원 재주 자동 습득 추가
+ModUi/&EnableBackgroundAbilityScoreIncreases=능력치 증가를 종족 대신 배경에서 얻으며 인간의 특성도 이에 맞게 조정합니다 <i><color=#F0DAA0>(2024년판 테이블탑 재주가 필요합니다. 이 옵션이 활성화된 동안 유연한 종족은 적용되지 않습니다)</color></i>
+ModUi/&BackgroundASIRequiresTabletopFeatRules2024=이 옵션을 사용하려면 2024년판 테이블탑 재주를 활성화하세요.
+ModUi/&EnableBackgroundBonusFeats=배경 특성을 2024년 규칙에 따라 기원 재주 하나, 기술 숙련 두 개, 도구 숙련 하나로 변경합니다 <i><color=#F0DAA0>(배경 능력치 증가와 2024년판 테이블탑 재주가 필요합니다. 이 옵션이 활성화된 동안 유연한 배경은 적용되지 않습니다)</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=배경에서 기원 재주를 얻으려면 배경 능력치 증가와 2024년판 테이블탑 재주를 활성화하세요.
+ModUi/&EnableBackgroundOriginFeatChoices=배경마다 두 기원 재주 중 하나를 선택하고 그 재주에 대응하는 도구 숙련을 얻습니다
+ModUi/&BackgroundOriginFeatChoicesRequiresBackgroundBonusFeats=배경 기원 재주를 활성화하면 선택할 수 있습니다.
 ModUi/&EnableGeneralFeats2024=5.5판 규칙에 맞게 일반 재주 재구성 <i><color=#F0DAA0>[2024년판 재주는 독립적으로 구현됩니다]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[아래에서 2024년판 재주를 개별적으로 변경할 수 있습니다. 이 옵션이 활성화된 동안 완전히 대체된 이전판 재주는 사용할 수 없습니다.]</color></i>
 ModUi/&EnableTabletopFeatRules2024=독립적인 2024년판 테이블탑 재주 목록 사용

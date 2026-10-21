@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Classes;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Races;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterRaceDefinitions;
@@ -148,8 +149,13 @@ internal static class ValidatorsFeat
     internal static Func<FeatDefinition, RulesetCharacterHero, (bool result, string output)> ValidateNotFightingStyle(
         [NotNull] BaseDefinition baseDefinition)
     {
-        return (_, hero) =>
+        return (feat, hero) =>
         {
+            if (FeatsContext.IsKnownFeatPrerequisiteDisplay(feat, hero))
+            {
+                return (true, string.Empty);
+            }
+
             var hasFightingStyle = hero.TrainedFightingStyles.Any(x => x.Name == baseDefinition.Name);
             var guiFormat = Gui.Format("Tooltip/&PreReqDoesNotKnow", baseDefinition.FormatTitle());
 

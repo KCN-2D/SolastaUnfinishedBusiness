@@ -1490,6 +1490,7 @@ public static class CharacterBuildingManagerPatcher
 
             //PATCH: unregisters the hero leveling up
             LevelUpHelper.UnregisterHero(hero);
+            ToolsContext.FunctorRespec.CharacterFinalized(hero);
         }
 
         private static void GrantCantripFromCustomAcquiredPool(RulesetCharacterHero hero, string name)

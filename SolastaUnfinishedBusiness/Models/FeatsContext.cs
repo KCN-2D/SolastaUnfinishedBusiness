@@ -47,6 +47,9 @@ internal static class FeatsContext
 
     internal static HashSet<FeatDefinition> Feats { get; private set; } = [];
     internal static HashSet<FeatDefinition> FeatGroups { get; private set; } = [];
+    [ThreadStatic]
+    private static (FeatDefinition feat, RulesetCharacterHero hero) _prerequisiteDisplayContext;
+
     private static readonly Dictionary<int, FeatSubPanelUiState> PanelUiStates = [];
     private static readonly HashSet<string> LegacyStructuralRootGroupNames =
     [
@@ -662,6 +665,40 @@ internal static class FeatsContext
                 item.Tooltip.AnchorMode = TooltipDefinitions.AnchorMode.LEFT_CENTER;
             }
         }
+    }
+
+    internal static void PushPrerequisiteDisplayContext(
+        ITooltip tooltip,
+        out (FeatDefinition feat, RulesetCharacterHero hero) previous)
+    {
+        previous = _prerequisiteDisplayContext;
+        _prerequisiteDisplayContext = default;
+
+        if (tooltip is not GuiTooltip source || source.Context is not RulesetCharacterHero hero ||
+            source.DataProvider is not GuiFeatDefinition wrapper ||
+            source.GetComponentInParent<FeatItem>() is not { } item ||
+            item.CurrentMode != ProficiencyBaseItem.InteractiveMode.Static ||
+            item.InspectedCharacter != hero || item.GuiFeatDefinition?.FeatDefinition != wrapper.FeatDefinition)
+        {
+            return;
+        }
+
+        // Static rows describe an acquired feat. Acquisition candidates retain their failure reasons.
+        if (BuildActualDisplayFeats(hero, false).Any(feat => feat == wrapper.FeatDefinition))
+        {
+            _prerequisiteDisplayContext = (wrapper.FeatDefinition, hero);
+        }
+    }
+
+    internal static void RestorePrerequisiteDisplayContext((FeatDefinition feat, RulesetCharacterHero hero) previous)
+    {
+        _prerequisiteDisplayContext = previous;
+    }
+
+    internal static bool IsKnownFeatPrerequisiteDisplay(FeatDefinition feat, RulesetCharacterHero hero)
+    {
+        return feat != null && hero != null &&
+               _prerequisiteDisplayContext.feat == feat && _prerequisiteDisplayContext.hero == hero;
     }
 
     internal static bool TryBuildFeatGroupContentsDescription(FeatDefinition feat, out string description)
@@ -1469,30 +1506,13 @@ internal static class FeatsContext
                 continue;
             }
 
-            if (alternateHuman && characterRaceDefinition == human)
+            var unlock = alternateHuman && characterRaceDefinition == human
+                ? featureUnlockByLevelHuman
+                : featureUnlockByLevelNonHuman;
+
+            if (unlock != null)
             {
-                if (featureUnlockByLevelHuman != null)
-                {
-                    human.FeatureUnlocks.Add(featureUnlockByLevelHuman);
-                }
-
-                var pointPoolAbilityScoreImprovement =
-                    new FeatureUnlockByLevel(PointPoolAbilityScoreImprovement, 1);
-                human.FeatureUnlocks.Add(pointPoolAbilityScoreImprovement);
-
-                var pointPoolHumanSkillPool = new FeatureUnlockByLevel(PointPoolHumanSkillPool, 1);
-                human.FeatureUnlocks.Add(pointPoolHumanSkillPool);
-
-                Remove(human,
-                    FeatureDefinitionAttributeModifiers
-                        .AttributeModifierHumanAbilityScoreIncrease);
-            }
-            else
-            {
-                if (featureUnlockByLevelNonHuman != null)
-                {
-                    characterRaceDefinition.FeatureUnlocks.Add(featureUnlockByLevelNonHuman);
-                }
+                characterRaceDefinition.FeatureUnlocks.Add(unlock);
             }
         }
     }
@@ -1512,27 +1532,13 @@ internal static class FeatsContext
                 continue;
             }
 
-            if (alternateHuman && characterRaceDefinition == human)
+            var unlock = alternateHuman && characterRaceDefinition == human
+                ? featureUnlockByLevelHuman
+                : featureUnlockByLevelNonHuman;
+
+            if (unlock != null)
             {
-                if (featureUnlockByLevelHuman != null)
-                {
-                    Remove(human, featureUnlockByLevelHuman);
-                }
-
-                Remove(human, PointPoolAbilityScoreImprovement);
-                Remove(human, PointPoolHumanSkillPool);
-
-                var humanAttributeIncrease = new FeatureUnlockByLevel(
-                    FeatureDefinitionAttributeModifiers.AttributeModifierHumanAbilityScoreIncrease, 1);
-
-                human.FeatureUnlocks.Add(humanAttributeIncrease);
-            }
-            else
-            {
-                if (featureUnlockByLevelNonHuman != null)
-                {
-                    Remove(characterRaceDefinition, featureUnlockByLevelNonHuman);
-                }
+                Remove(characterRaceDefinition, unlock);
             }
         }
     }
@@ -1541,21 +1547,8 @@ internal static class FeatsContext
         [NotNull] CharacterRaceDefinition characterRaceDefinition,
         BaseDefinition toRemove)
     {
-        var ndx = -1;
-
-        for (var i = 0; i < characterRaceDefinition.FeatureUnlocks.Count; i++)
-        {
-            if (characterRaceDefinition.FeatureUnlocks[i].Level == 1 &&
-                characterRaceDefinition.FeatureUnlocks[i].FeatureDefinition == toRemove)
-            {
-                ndx = i;
-            }
-        }
-
-        if (ndx >= 0)
-        {
-            characterRaceDefinition.FeatureUnlocks.RemoveAt(ndx);
-        }
+        characterRaceDefinition.FeatureUnlocks.RemoveAll(unlock =>
+            unlock.Level == 1 && unlock.FeatureDefinition == toRemove);
     }
 
     private static void Remove(

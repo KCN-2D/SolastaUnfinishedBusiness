@@ -270,7 +270,7 @@ ModUi/&EnableRangerRoving2024=Aktivieren Sie <color=#D89555>Umherziehen</color> 
 ModUi/&EnableRangerSpellCastingAtLevel1=Aktiviere <color=#D89555>Zauberwirken</color> auf Stufe 1 statt 2.
 ModUi/&EnableRangerTireless2024=Aktiviere <color=#D89555>Unermüdlich</color>, um <color=#D89555>Tarnung</color> auf Level 10 zu ersetzen <i><color=#F0DAA0>[temporäre Trefferpunkte erhalten]</color></i>
 ModUi/&EnableRelearnSpells=Aktivieren Sie die Auswahl von Zaubersprüchen oder Zaubersprüchen, die Sie bereits aus anderen Quellen gelernt haben.
-ModUi/&EnableRespecAction=Aktivieren Sie <color=#D89555>RESPEC</color> nach der Rest-Aktion <i><color=#F0DAA0>[RESPEC nicht während einer Multiplayer-Sitzung verwenden]</color></i>
+ModUi/&EnableRespecAction=Fügt <color=#D89555>Neuverteilung</color> nach einer langen Rast hinzu (nur im Einzelspielermodus)
 ModUi/&EnableRitualOnAllCasters2024=Aktivieren Sie das Wirken von <color=#D89555>Ritualen</color> für alle Zauberer.
 ModUi/&EnableOneSpellSlotPerTurn2024=Wendet die 2024-Regel an, nach der pro Zug nur ein Zauberplatz zum Wirken eines Zaubers verbraucht werden kann <i><color=#F0DAA0>[Zaubertricks und Zauber ohne Zauberplatz sind nicht betroffen]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Aktiviere die 2024-Version von <color=#D89555>{0}</color> <i><color=#F0DAA0>[Konstitutionsrettungswurf; bei Misserfolg wird das Wirken unterbrochen, ohne den Zauberplatz des Zielzaubers zu verbrauchen]</color></i>
@@ -595,10 +595,12 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Setzen Sie alle Waffen -Meist
 ModUi/&WeaponMasterySystemCustomizeToggle=Passen Sie die Meisterschaften der Waffenmeisterschaft an
 ModUi/&WideScreenBattleUI=Aktivieren Sie die Breitbild-Kampf-Benutzeroberfläche <i><color=#F0DAA0>(Für Auflösungen mit einem Seitenverhältnis von mehr als 16:9)</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white>Setze den Schwellenwert für die Chance des <color=#D89555>Sorcerer Wild Magic</color>-Würfels:</color>\n<i><color=#F0DAA0>[Wild Surge wird ausgelöst, wenn der Würfel kleiner oder gleich dem Schwellenwert ist]</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=Attributswerterhöhungen stammen vom Hintergrund statt vom Volk; die Merkmale der Menschen werden entsprechend angepasst <i><color=#F0DAA0>(Flexible Völker wird nicht angewendet, solange diese Option aktiviert ist)</color></i>
-ModUi/&EnableBackgroundBonusFeats=Ändert Hintergrundmerkmale in ein Herkunftstalent, zwei Fertigkeitsübungen und eine Werkzeugübung nach den Regeln von 2024 <i><color=#F0DAA0>(Erfordert Attributserhöhungen durch Hintergründe; Flexible Hintergründe wird nicht angewendet, solange diese Option aktiviert ist)</color></i>
-ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Aktivieren Sie Attributswerterhöhungen durch Hintergründe, um Herkunftstalente durch Hintergründe zu erhalten.
-ModUi/&AddOriginFeatsToAutoLearn= + Herkunftstalente zum automatischen Erlernen hinzufügen
+ModUi/&EnableBackgroundAbilityScoreIncreases=Attributswerterhöhungen stammen vom Hintergrund statt vom Volk; die Merkmale der Menschen werden entsprechend angepasst <i><color=#F0DAA0>(Erfordert Tabletop-Talente von 2024; Flexible Völker wird nicht angewendet, solange diese Option aktiviert ist)</color></i>
+ModUi/&BackgroundASIRequiresTabletopFeatRules2024=Aktiviere Tabletop-Talente von 2024, um diese Option zu verwenden.
+ModUi/&EnableBackgroundBonusFeats=Ändert Hintergrundmerkmale in ein Herkunftstalent, zwei Fertigkeitsübungen und eine Werkzeugübung nach den Regeln von 2024 <i><color=#F0DAA0>(Erfordert Attributswerterhöhungen durch Hintergründe und Tabletop-Talente von 2024; Flexible Hintergründe wird nicht angewendet, solange diese Option aktiviert ist)</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Aktiviere Attributswerterhöhungen durch Hintergründe und Tabletop-Talente von 2024, um Herkunftstalente durch Hintergründe zu erhalten.
+ModUi/&EnableBackgroundOriginFeatChoices=Wähle für jeden Hintergrund eines von zwei Herkunftstalenten und erhalte die zugehörige Werkzeugübung
+ModUi/&BackgroundOriginFeatChoicesRequiresBackgroundBonusFeats=Aktiviere Herkunftstalente durch Hintergründe, um zwischen ihnen zu wählen.
 ModUi/&EnableGeneralFeats2024=Allgemeine Talente nach den 5.5e-Regeln neu ordnen <i><color=#F0DAA0>[2024-Talente sind eigenständige Talente]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[Die Talente von 2024 lassen sich unten einzeln aktivieren. Solange diese Option aktiviert ist, stehen vollständig ersetzte ältere Talente nicht zur Verfügung.]</color></i>
 ModUi/&EnableTabletopFeatRules2024=Den eigenständigen Tabletop-Talentkatalog von 2024 verwenden

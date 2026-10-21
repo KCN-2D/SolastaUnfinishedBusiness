@@ -38,15 +38,18 @@ internal static class BackgroundsAndRacesDisplay
         toggle = Tabletop2024Context.IsFlexibleRacesEffectivelyEnabled();
         if (DisplayDependentBackgroundOption(
                 "ModUi/&EnableFlexibleRaces", ref toggle,
-                !Main.Settings.EnableBackgroundASI,
+                !Tabletop2024Context.IsBackgroundAsiEnabled(),
                 "ModUi/&FlexibleRacesDisabledByBackgroundASI"))
         {
             Main.Settings.EnableFlexibleRaces = toggle;
             Tabletop2024Context.ApplyBackgroundOptions();
         }
 
-        toggle = Main.Settings.EnableBackgroundASI;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableBackgroundAbilityScoreIncreases"), ref toggle, UI.AutoWidth()))
+        toggle = Tabletop2024Context.IsBackgroundAsiEnabled();
+        if (DisplayDependentBackgroundOption(
+                "ModUi/&EnableBackgroundAbilityScoreIncreases", ref toggle,
+                Main.Settings.EnableTabletopFeatRules2024,
+                "ModUi/&BackgroundASIRequiresTabletopFeatRules2024"))
         {
             Main.Settings.EnableBackgroundASI = toggle;
             Tabletop2024Context.ApplyBackgroundOptions();
@@ -54,10 +57,21 @@ internal static class BackgroundsAndRacesDisplay
 
         toggle = Tabletop2024Context.IsBackgroundBonusFeatsEnabled();
         if (DisplayDependentBackgroundOption(
-                "ModUi/&EnableBackgroundBonusFeats", ref toggle, Main.Settings.EnableBackgroundASI,
+                "ModUi/&EnableBackgroundBonusFeats", ref toggle,
+                Tabletop2024Context.IsBackgroundAsiEnabled(),
                 "ModUi/&BackgroundBonusFeatsRequiresBackgroundASI"))
         {
             Main.Settings.EnableBackgroundBonusFeats = toggle;
+            Tabletop2024Context.ApplyBackgroundOptions();
+        }
+
+        toggle = Tabletop2024Context.IsBackgroundOriginFeatChoicesEnabled();
+        if (DisplayDependentBackgroundOption(
+                "ModUi/&EnableBackgroundOriginFeatChoices", ref toggle,
+                Tabletop2024Context.IsBackgroundBonusFeatsEnabled(),
+                "ModUi/&BackgroundOriginFeatChoicesRequiresBackgroundBonusFeats"))
+        {
+            Main.Settings.EnableBackgroundOriginFeatChoices = toggle;
             Tabletop2024Context.ApplyBackgroundOptions();
         }
 
@@ -117,7 +131,7 @@ internal static class BackgroundsAndRacesDisplay
         var toggle = Tabletop2024Context.IsAlternateHumanEffectivelyEnabled();
 
         if (DisplayDependentBackgroundOption(
-                "ModUi/&EnableAlternateHuman", ref toggle, !Main.Settings.EnableBackgroundASI,
+                "ModUi/&EnableAlternateHuman", ref toggle, !Tabletop2024Context.IsBackgroundAsiEnabled(),
                 "ModUi/&EnableAlternateHumanForcedByBackgroundASI"))
         {
             Main.Settings.EnableAlternateHuman = toggle;

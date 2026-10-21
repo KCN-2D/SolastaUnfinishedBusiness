@@ -51,6 +51,12 @@ public static class CharacterStageBackgroundSelectionPanelPatcher
         {
             FeatureDescriptionItemPatcher.TryPersistCharacterCreationFeatureSetDefaultSelection(__0);
         }
+
+        [UsedImplicitly]
+        public static void Postfix([CanBeNull] FeatureDescriptionItem __0)
+        {
+            FeatureDescriptionItemPatcher.RefreshSelectionFeatureDisplayLayout(__0);
+        }
     }
 
     [HarmonyPatch(typeof(CharacterStageBackgroundSelectionPanel),

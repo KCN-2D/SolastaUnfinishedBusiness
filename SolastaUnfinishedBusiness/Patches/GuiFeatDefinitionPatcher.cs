@@ -33,8 +33,7 @@ public static class GuiFeatDefinitionPatcher
             ref bool __result,
             FeatDefinition feat,
             RulesetCharacterHero hero,
-            ref string prerequisiteOutput,
-            (bool active, bool disableLevel, bool disableRace, bool disableCastSpell) __state)
+            ref string prerequisiteOutput)
         {
             var matchesManagedTabletopLevel = Tabletop2024Context.TryValidateManagedTabletopFeatLevel4Prerequisite(
                 feat,
@@ -48,7 +47,6 @@ public static class GuiFeatDefinitionPatcher
             if (feat is not FeatDefinitionWithPrerequisites featDefinitionWithPrerequisites
                 || featDefinitionWithPrerequisites.Validators.Count == 0)
             {
-                Tabletop2024Context.RestoreModFeatPrerequisiteOverride(__state);
                 return;
             }
 
@@ -57,12 +55,16 @@ public static class GuiFeatDefinitionPatcher
             __result = __result && result;
             if (string.IsNullOrEmpty(output))
             {
-                Tabletop2024Context.RestoreModFeatPrerequisiteOverride(__state);
-
                 return;
             }
 
             AppendPrerequisiteOutput(ref prerequisiteOutput, output);
+        }
+
+        [UsedImplicitly]
+        public static void Finalizer(
+            (bool active, bool disableLevel, bool disableRace, bool disableCastSpell) __state)
+        {
             Tabletop2024Context.RestoreModFeatPrerequisiteOverride(__state);
         }
 
@@ -76,8 +78,9 @@ public static class GuiFeatDefinitionPatcher
                 .ReplaceCalls(
                     typeof(FeatDefinition).GetMethod("get_HasFamilyTag"),
                     "GuiFeatDefinition.IsFeatMatchingPrerequisites.HasFamilyTag",
+                    new CodeInstruction(OpCodes.Ldarg_2),
                     new CodeInstruction(OpCodes.Call,
-                        new Func<FeatDefinition, bool>(Tabletop2024Context.HasEffectiveFeatFamily).Method))
+                        new Func<FeatDefinition, RulesetCharacterHero, bool>(HasFamilyPrerequisite).Method))
                 .ReplaceCalls(
                     typeof(FeatDefinition).GetMethod("get_FamilyTag"),
                     "GuiFeatDefinition.IsFeatMatchingPrerequisites.FamilyTag",
@@ -91,6 +94,12 @@ public static class GuiFeatDefinitionPatcher
 
                 // PATCH: Remove asserts in DEBUG build
                 .RemoveBoolAsserts();
+        }
+
+        private static bool HasFamilyPrerequisite(FeatDefinition feat, RulesetCharacterHero hero)
+        {
+            return !FeatsContext.IsKnownFeatPrerequisiteDisplay(feat, hero) &&
+                   Tabletop2024Context.HasEffectiveFeatFamily(feat);
         }
 
         private static int CanCastSpells([NotNull] RulesetCharacterHero hero)

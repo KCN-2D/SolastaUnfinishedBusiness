@@ -1,3 +1,30 @@
+# Background ability scores and origin feats
+
+In UB settings, open **Character > Backgrounds & Races > General**. Enable these options in order: the 2024 tabletop feat catalog, background ability score increases, and background origin feats. To choose between two origin feats for each background, enable the additional feat-choice option. The selected origin feat determines the background’s tool proficiency. The background's ability score options and two skill proficiencies stay the same.
+
+With feat choices disabled, each background grants the first feat and its paired tool proficiency.
+
+| Background | First feat | Paired tool | Second feat | Paired tool |
+| --- | --- | --- | --- | --- |
+| Academic | Sharp Eye | Scroll Kit | Portal Jumper | Manacalon Rosary |
+| Acolyte | Magic Initiate (Cleric) | Lyre | Musician | Scroll Kit |
+| Ascetic | Healer | Herbalism Kit | Magic Initiate (Druid) | Scroll Kit |
+| Aristocrat | Skilled | Lyre | Lucky | Dice Set |
+| Artist | Musician | Disguise Kit | Skilled | Smith's tools |
+| Devoted | Arcane Omens | Dice Set | Magic Initiate (Cleric) | Scroll Kit |
+| Farmer | Tough | Smith's tools | Healer | Herbalism Kit |
+| Lawkeeper | Savage Attack | Smith's tools | Tavern Brawler | Scroll Kit |
+| Lowlife | Tavern Brawler | Thieves' Tools | Alert | Poisoner's Kit |
+| Militia | Alert | Dice Set | Savage Attack | Herbalism Kit |
+| Occultist | Portal Jumper | Manacalon Rosary | Arcane Omens | Poisoner's Kit |
+| Philosopher | Magic Initiate (Wizard) | Manacalon Rosary | Sharp Eye | Lyre |
+| Sellsword | Survivor | Smith's tools | Tough | Dice Set |
+| Spy | Arcane Eloquence | Disguise Kit | Magic Initiate (Wizard) | Thieves' Tools |
+| Troublemaker | Lucky | Dice Set | Arcane Eloquence | Thieves' Tools |
+| Wanderer | Magic Initiate (Druid) | Herbalism Kit | Survivor | Poisoner's Kit |
+
+The background descriptions and grants below describe the original backgrounds, before these options are applied.
+
 # 1. - Academic [SOL]
 
 You had two passions growing up: history and magic. Your teachers saw your interest and ensured that your potential was nurtured. Your mission in life is to discover the secrets of the past, both magical and mundane, so you took your backpack and set out to discover the wonders of Solasta for yourself.

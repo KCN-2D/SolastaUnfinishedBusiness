@@ -9,6 +9,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -111,8 +112,31 @@ public static class CharacterEditionScreenPatcher
         [UsedImplicitly]
         public static void Prefix([NotNull] CharacterEditionScreen __instance)
         {
+            ToolsContext.FunctorRespec.Abort(__instance);
             //PATCH: Unregisters hero from level up context (MULTICLASS)
             LevelUpHelper.UnregisterHero(__instance.currentHero);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.OnFinishCb))]
+    [UsedImplicitly]
+    public static class OnFinishCb_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterEditionScreen __instance, ref bool continueLevelUp)
+        {
+            ToolsContext.FunctorRespec.PrepareFinish(__instance, ref continueLevelUp);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.CharacterStagePanel_StageEntered))]
+    [UsedImplicitly]
+    public static class CharacterStagePanel_StageEntered_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(CharacterEditionScreen __instance, CharacterStagePanel stagePanel)
+        {
+            ToolsContext.FunctorRespec.StageEntered(__instance, stagePanel);
         }
     }
 

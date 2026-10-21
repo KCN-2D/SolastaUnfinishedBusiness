@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -32,16 +32,12 @@ public static partial class Tabletop2024Context
     private const string BackgroundSpyName = "Spy";
     private const string BackgroundTroublemakerName = "BackgroundTroublemaker";
     private const string BackgroundWandererName = "Wanderer";
-    private const string FeatSkilledName = SkillFeats.SkilledName;
     private const string HumanOriginFeatFeatureSetName = "FeatureSetHumanOriginFeat2024";
     private const string HumanOriginFeatChoiceFeatureSetPrefix = "FeatureSetHumanOriginFeat2024_";
     private const string HumanOriginFeatPointPoolName = "PointPoolHumanOriginFeat2024";
-    private const string HumanOriginFeatSkilledPointPoolName = "PointPoolHumanOriginFeatSkilled";
-    private const string BackgroundFeatSkilledPointPoolName = "PointPoolBackgroundFeatSkilled";
     private const string BackgroundFeatPointPoolPrefix = "PointPoolBackgroundFeat_";
     private const string BackgroundFeatDisplayPrefix = "FeatureBackgroundFeatDisplay_";
     private const string HumanOriginFeatTag = "02RaceHumanOriginFeat2024";
-    private const string HumanOriginFeatSkilledSkillTag = "02RaceHumanOriginFeat2024_SkilledSkills";
     private const string ToolGamingSetDiceTypeName = "GamingSetDiceType";
     private const string ToolMusicalInstrumentLyreTypeName = "MusicalInstrumentLyreType";
     private const string HalfElfVersatileBloodlineFeatureSetName =
@@ -69,74 +65,141 @@ public static partial class Tabletop2024Context
         { BackgroundTroublemakerName, (AttributeDefinitions.Dexterity, AttributeDefinitions.Constitution, AttributeDefinitions.Charisma) }
     };
 
-    private static readonly Dictionary<string, string> BackgroundFeatSets = new()
+    private static readonly Dictionary<string, (string Feat, string Tool)[]> BackgroundFeatSets = new()
     {
-        { BackgroundAcademicName, FeatSkilledName },
-        { BackgroundAcolyteName, "FeatMagicInitiateCleric" },
-        { BackgroundAesceticName, "FeatHealer" },
-        { BackgroundAristocratName, FeatSkilledName },
-        { BackgroundArtistName, "FeatMagicInitiateBard" },
-        { BackgroundLawkeeperName, "FeatSavageAttack" },
-        { BackgroundLowlifeName, "FeatLucky" },
-        { BackgroundOccultistName, "FeatMagicInitiateWarlock" },
-        { BackgroundPhilosopherName, "FeatMagicInitiateWizard" },
-        { BackgroundSellSwordName, "FeatSavageAttack" },
-        { BackgroundSpyName, "FeatAlert" },
-        { BackgroundWandererName, "FeatMagicInitiateDruid" },
-        { BackgroundDevotedName, "FeatMagicInitiateCleric" },
-        { BackgroundFarmerName, "FeatTough" },
-        { BackgroundMilitiaName, "FeatAlert" },
-        { BackgroundTroublemakerName, "FeatMagicInitiateSorcerer" }
+        {
+            BackgroundAcademicName,
+            [
+                ("FeatSharpEye2024", ToolTypeDefinitions.ScrollKitType.Name),
+                ("FeatGroupPortalJumper2024", ToolTypeDefinitions.EnchantingToolType.Name)
+            ]
+        },
+        {
+            BackgroundAcolyteName,
+            [
+                ("FeatMagicInitiateCleric", ToolMusicalInstrumentLyreTypeName),
+                ("FeatMusician2024", ToolTypeDefinitions.ScrollKitType.Name)
+            ]
+        },
+        {
+            BackgroundAesceticName,
+            [
+                ("FeatHealer", ToolTypeDefinitions.HerbalismKitType.Name),
+                ("FeatMagicInitiateDruid", ToolTypeDefinitions.ScrollKitType.Name)
+            ]
+        },
+        {
+            BackgroundAristocratName,
+            [
+                ("FeatSkilled", ToolMusicalInstrumentLyreTypeName),
+                ("FeatLucky", ToolGamingSetDiceTypeName)
+            ]
+        },
+        {
+            BackgroundArtistName,
+            [
+                ("FeatMusician2024", ToolTypeDefinitions.DisguiseKitType.Name),
+                ("FeatSkilled", ToolTypeDefinitions.ArtisanToolSmithToolsType.Name)
+            ]
+        },
+        {
+            BackgroundLawkeeperName,
+            [
+                ("FeatSavageAttack", ToolTypeDefinitions.ArtisanToolSmithToolsType.Name),
+                ("FeatTavernBrawler2024", ToolTypeDefinitions.ScrollKitType.Name)
+            ]
+        },
+        {
+            BackgroundLowlifeName,
+            [
+                ("FeatTavernBrawler2024", ToolTypeDefinitions.ThievesToolsType.Name),
+                ("FeatAlert", ToolTypeDefinitions.PoisonersKitType.Name)
+            ]
+        },
+        {
+            BackgroundOccultistName,
+            [
+                ("FeatGroupPortalJumper2024", ToolTypeDefinitions.EnchantingToolType.Name),
+                ("FeatGroupArcaneOmens2024", ToolTypeDefinitions.PoisonersKitType.Name)
+            ]
+        },
+        {
+            BackgroundPhilosopherName,
+            [
+                ("FeatMagicInitiateWizard", ToolTypeDefinitions.EnchantingToolType.Name),
+                ("FeatSharpEye2024", ToolMusicalInstrumentLyreTypeName)
+            ]
+        },
+        {
+            BackgroundSellSwordName,
+            [
+                ("FeatSurvivor2024", ToolTypeDefinitions.ArtisanToolSmithToolsType.Name),
+                ("FeatTough", ToolGamingSetDiceTypeName)
+            ]
+        },
+        {
+            BackgroundSpyName,
+            [
+                ("FeatGroupArcaneEloquence2024", ToolTypeDefinitions.DisguiseKitType.Name),
+                ("FeatMagicInitiateWizard", ToolTypeDefinitions.ThievesToolsType.Name)
+            ]
+        },
+        {
+            BackgroundWandererName,
+            [
+                ("FeatMagicInitiateDruid", ToolTypeDefinitions.HerbalismKitType.Name),
+                ("FeatSurvivor2024", ToolTypeDefinitions.PoisonersKitType.Name)
+            ]
+        },
+        {
+            BackgroundDevotedName,
+            [
+                ("FeatGroupArcaneOmens2024", ToolGamingSetDiceTypeName),
+                ("FeatMagicInitiateCleric", ToolTypeDefinitions.ScrollKitType.Name)
+            ]
+        },
+        {
+            BackgroundFarmerName,
+            [
+                ("FeatTough", ToolTypeDefinitions.ArtisanToolSmithToolsType.Name),
+                ("FeatHealer", ToolTypeDefinitions.HerbalismKitType.Name)
+            ]
+        },
+        {
+            BackgroundMilitiaName,
+            [
+                ("FeatAlert", ToolGamingSetDiceTypeName),
+                ("FeatSavageAttack", ToolTypeDefinitions.HerbalismKitType.Name)
+            ]
+        },
+        {
+            BackgroundTroublemakerName,
+            [
+                ("FeatLucky", ToolGamingSetDiceTypeName),
+                ("FeatGroupArcaneEloquence2024", ToolTypeDefinitions.ThievesToolsType.Name)
+            ]
+        }
     };
 
-    private static readonly Dictionary<string, string> BackgroundFeatSets2024 = new()
+    private static readonly Dictionary<string, (string SkillA, string SkillB)> BackgroundSkillSets = new()
     {
-        { BackgroundAcademicName, "FeatSharpEye2024" },
-        { BackgroundArtistName, "FeatMusician2024" },
-        { BackgroundDevotedName, "FeatGroupArcaneOmens2024" },
-        { BackgroundLawkeeperName, "FeatSurvivor2024" },
-        { BackgroundLowlifeName, "FeatTavernBrawler2024" },
-        { BackgroundOccultistName, "FeatGroupPortalJumper2024" },
-        { BackgroundSpyName, "FeatGroupArcaneEloquence2024" },
-        { BackgroundTroublemakerName, "FeatLucky" }
+        { BackgroundAcademicName, (SkillDefinitions.Investigation, SkillDefinitions.Perception) },
+        { BackgroundAcolyteName, (SkillDefinitions.Insight, SkillDefinitions.Religion) },
+        { BackgroundAesceticName, (SkillDefinitions.Medecine, SkillDefinitions.Religion) },
+        { BackgroundAristocratName, (SkillDefinitions.History, SkillDefinitions.Persuasion) },
+        { BackgroundArtistName, (SkillDefinitions.Acrobatics, SkillDefinitions.Performance) },
+        { BackgroundLawkeeperName, (SkillDefinitions.Investigation, SkillDefinitions.Intimidation) },
+        { BackgroundLowlifeName, (SkillDefinitions.Insight, SkillDefinitions.Stealth) },
+        { BackgroundOccultistName, (SkillDefinitions.Arcana, SkillDefinitions.Religion) },
+        { BackgroundPhilosopherName, (SkillDefinitions.Arcana, SkillDefinitions.History) },
+        { BackgroundSellSwordName, (SkillDefinitions.Athletics, SkillDefinitions.Intimidation) },
+        { BackgroundSpyName, (SkillDefinitions.Stealth, SkillDefinitions.Deception) },
+        { BackgroundWandererName, (SkillDefinitions.Stealth, SkillDefinitions.Survival) },
+        { BackgroundDevotedName, (SkillDefinitions.Investigation, SkillDefinitions.Persuasion) },
+        { BackgroundFarmerName, (SkillDefinitions.AnimalHandling, SkillDefinitions.Nature) },
+        { BackgroundMilitiaName, (SkillDefinitions.Athletics, SkillDefinitions.Perception) },
+        { BackgroundTroublemakerName, (SkillDefinitions.Deception, SkillDefinitions.SleightOfHand) }
     };
-
-    private static readonly Dictionary<string, (string SkillA, string SkillB, string ToolA, string ToolB)> BackgroundProficiencySets =
-        new()
-    {
-        { BackgroundAcademicName, (SkillDefinitions.Investigation, SkillDefinitions.Perception, ToolTypeDefinitions.ScrollKitType.Name, ToolTypeDefinitions.EnchantingToolType.Name) },
-        { BackgroundAcolyteName, (SkillDefinitions.Insight, SkillDefinitions.Religion, ToolTypeDefinitions.ScrollKitType.Name, ToolMusicalInstrumentLyreTypeName) },
-        { BackgroundAesceticName, (SkillDefinitions.Medecine, SkillDefinitions.Religion, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.ScrollKitType.Name) },
-        { BackgroundAristocratName, (SkillDefinitions.History, SkillDefinitions.Persuasion, ToolGamingSetDiceTypeName, ToolMusicalInstrumentLyreTypeName) },
-        { BackgroundArtistName, (SkillDefinitions.Acrobatics, SkillDefinitions.Performance, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name, ToolTypeDefinitions.DisguiseKitType.Name) },
-        { BackgroundLawkeeperName, (SkillDefinitions.Investigation, SkillDefinitions.Intimidation, ToolTypeDefinitions.ScrollKitType.Name, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
-        { BackgroundLowlifeName, (SkillDefinitions.Insight, SkillDefinitions.Stealth, ToolTypeDefinitions.ThievesToolsType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
-        { BackgroundOccultistName, (SkillDefinitions.Arcana, SkillDefinitions.Religion, ToolTypeDefinitions.EnchantingToolType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
-        { BackgroundPhilosopherName, (SkillDefinitions.Arcana, SkillDefinitions.History, ToolTypeDefinitions.EnchantingToolType.Name, ToolMusicalInstrumentLyreTypeName) },
-        { BackgroundSellSwordName, (SkillDefinitions.Athletics, SkillDefinitions.Intimidation, ToolGamingSetDiceTypeName, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
-        { BackgroundSpyName, (SkillDefinitions.Stealth, SkillDefinitions.Deception, ToolTypeDefinitions.DisguiseKitType.Name, ToolTypeDefinitions.ThievesToolsType.Name) },
-        { BackgroundWandererName, (SkillDefinitions.Stealth, SkillDefinitions.Survival, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.PoisonersKitType.Name) },
-        { BackgroundDevotedName, (SkillDefinitions.Investigation, SkillDefinitions.Persuasion, ToolTypeDefinitions.ScrollKitType.Name, ToolGamingSetDiceTypeName) },
-        { BackgroundFarmerName, (SkillDefinitions.AnimalHandling, SkillDefinitions.Nature, ToolTypeDefinitions.HerbalismKitType.Name, ToolTypeDefinitions.ArtisanToolSmithToolsType.Name) },
-        { BackgroundMilitiaName, (SkillDefinitions.Athletics, SkillDefinitions.Perception, ToolTypeDefinitions.HerbalismKitType.Name, ToolGamingSetDiceTypeName) },
-        { BackgroundTroublemakerName, (SkillDefinitions.Deception, SkillDefinitions.SleightOfHand, ToolGamingSetDiceTypeName, ToolTypeDefinitions.ThievesToolsType.Name) }
-    };
-
-    private static readonly string[] LegacyOriginFeatNames =
-    [
-        "FeatAlert",
-        "FeatHealer",
-        "FeatLucky",
-        "FeatMagicInitiateBard",
-        "FeatMagicInitiateCleric",
-        "FeatMagicInitiateDruid",
-        "FeatMagicInitiateSorcerer",
-        "FeatMagicInitiateWarlock",
-        "FeatMagicInitiateWizard",
-        "FeatSavageAttack",
-        FeatSkilledName,
-        "FeatTough"
-    ];
 
     private static readonly string[] Tabletop2024OriginFeatNames =
     [
@@ -152,18 +215,11 @@ public static partial class Tabletop2024Context
         "FeatGroupPortalJumper2024",
         "FeatSavageAttack",
         "FeatSharpEye2024",
-        FeatSkilledName,
+        "FeatSkilled",
         "FeatSurvivor2024",
         "FeatTavernBrawler2024",
         "FeatTough"
     ];
-
-    private static readonly string[] OriginFeatNames = LegacyOriginFeatNames
-        .Concat(Tabletop2024OriginFeatNames)
-        .Distinct()
-        .ToArray();
-
-    private static readonly HashSet<string> OriginRestrictedFeatNames = [.. OriginFeatNames];
 
     private static readonly string[] HalfElfVersatileBloodlineRaceNames = ["HalfElf", "RaceHalfElfVariant"];
 
@@ -174,8 +230,6 @@ public static partial class Tabletop2024Context
         AttributeDefinitions.Wisdom,
         AttributeDefinitions.Charisma
     ];
-
-    private static readonly HashSet<string> HumanOriginFeatChoiceNames = [.. OriginFeatNames];
 
     private enum RecordedBackgroundFeatMatch
     {
@@ -188,8 +242,10 @@ public static partial class Tabletop2024Context
     private static readonly HashSet<FeatureDefinitionFeatureSet> BackgroundAsiFeatureLookup = [];
     private static readonly Dictionary<string, FeatureDefinition> BackgroundBonusGrantFeatures = new();
     private static readonly Dictionary<string, FeatureDefinition> BackgroundBonusDisplayFeatures = new();
-    private static readonly Dictionary<string, (FeatureDefinition Skills, FeatureDefinition Tool)> BackgroundProficiencyFeatures = new();
-    private static readonly Dictionary<string, FeatureDefinition> BackgroundStoryCompatibilityFeatures = new();
+    private static readonly Dictionary<string, FeatureDefinitionFeatureSet> BackgroundOriginFeatFeatures = new();
+    private static readonly Dictionary<string, FeatureDefinitionFeatureSet> BackgroundOriginFeatChoiceFeatures = new();
+    private static readonly Dictionary<string, FeatureDefinition> BackgroundSkillFeatures = new();
+    private static readonly Dictionary<string, FeatureDefinition> BackgroundStoryFeatures = new();
     private static readonly Dictionary<string, FeatureDefinition[]> BackgroundOriginalFeatures = new();
     private static readonly Dictionary<string, FeatureDefinitionFeatureSet> HumanOriginFeatChoiceFeatures = new();
     private static readonly Dictionary<string, string> HumanOriginFeatSelections = new();
@@ -202,14 +258,25 @@ public static partial class Tabletop2024Context
     private static FeatureDefinitionFeatureSet HalfElfVersatileBloodlineFeatureSet;
     private static bool _backgroundOptionsLoaded;
 
+    internal static bool IsBackgroundAsiEnabled()
+    {
+        return Main.Settings.EnableTabletopFeatRules2024 && Main.Settings.EnableBackgroundASI;
+    }
+
     internal static bool IsAlternateHumanEffectivelyEnabled()
     {
-        return Main.Settings.EnableAlternateHuman && !Main.Settings.EnableBackgroundASI;
+        return Main.Settings.EnableAlternateHuman && !IsBackgroundAsiEnabled();
     }
 
     internal static bool IsBackgroundBonusFeatsEnabled()
     {
-        return Main.Settings.EnableBackgroundASI && Main.Settings.EnableBackgroundBonusFeats;
+        return IsBackgroundAsiEnabled() &&
+               Main.Settings.EnableBackgroundBonusFeats;
+    }
+
+    internal static bool IsBackgroundOriginFeatChoicesEnabled()
+    {
+        return IsBackgroundBonusFeatsEnabled() && Main.Settings.EnableBackgroundOriginFeatChoices;
     }
 
     internal static bool IsFlexibleBackgroundsEffectivelyEnabled()
@@ -219,7 +286,7 @@ public static partial class Tabletop2024Context
 
     internal static bool IsFlexibleRacesEffectivelyEnabled()
     {
-        return Main.Settings.EnableFlexibleRaces && !Main.Settings.EnableBackgroundASI;
+        return Main.Settings.EnableFlexibleRaces && !IsBackgroundAsiEnabled();
     }
 
     internal static void ApplyBackgroundOptions()
@@ -295,31 +362,27 @@ public static partial class Tabletop2024Context
             BackgroundAsiFeatureLookup.Add(featureSet);
         }
 
-        BuildLegacyBackgroundAsiCompatibilityDefinitions();
-
-        BuildLegacySkilledCompatibilityDefinitions();
-
-        // Source markers are saved database references; current background assignments only choose which to grant.
-        foreach (var featName in OriginFeatNames)
+        foreach (var featName in Tabletop2024OriginFeatNames)
         {
             BackgroundBonusGrantFeatures[featName] = BuildOriginFeatPointPool(featName);
 
             BackgroundBonusDisplayFeatures[featName] = BuildOriginFeatDisplayFeature(featName);
         }
 
-        foreach (var backgroundProficiencySet in BackgroundProficiencySets)
+        foreach (var entry in BackgroundSkillSets)
         {
-            var backgroundName = backgroundProficiencySet.Key;
-            var proficiencies = backgroundProficiencySet.Value;
+            BackgroundSkillFeatures[entry.Key] = BuildBackground2024SkillProficiency(
+                entry.Key, entry.Value.SkillA, entry.Value.SkillB);
+        }
 
-            BackgroundProficiencyFeatures[backgroundName] = (
-                BuildBackground2024SkillProficiency(backgroundName, proficiencies.SkillA, proficiencies.SkillB),
-                BuildBackground2024ToolProficiency(backgroundName, proficiencies.ToolA, proficiencies.ToolB));
+        foreach (var backgroundName in BackgroundFeatSets.Keys)
+        {
+            BackgroundOriginFeatFeatures[backgroundName] = BuildBackgroundOriginFeatFeatureSet(backgroundName);
         }
 
         if (TryGetDefinition<FeatureDefinition>("ProficiencySpyLanguage", out var spyLanguage))
         {
-            BackgroundStoryCompatibilityFeatures[BackgroundSpyName] = spyLanguage;
+            BackgroundStoryFeatures[BackgroundSpyName] = spyLanguage;
         }
 
         HumanOriginFeatPointPool = BuildHumanOriginFeatPointPool();
@@ -335,7 +398,7 @@ public static partial class Tabletop2024Context
             return;
         }
 
-        foreach (var featName in OriginFeatNames)
+        foreach (var featName in Tabletop2024OriginFeatNames)
         {
             if (BackgroundBonusGrantFeatures.TryGetValue(featName, out var grantedFeature) &&
                 grantedFeature is FeatureDefinitionPointPool pointPool)
@@ -353,7 +416,7 @@ public static partial class Tabletop2024Context
             }
 
             if (BackgroundBonusDisplayFeatures.TryGetValue(featName, out var displayFeature) &&
-                TryGetBackgroundBonusFeatGuiDefinition(featName, out var displayFeatDefinition))
+                TryResolveModeAwareFeatDefinition(featName, out var displayFeatDefinition))
             {
                 displayFeature.GuiPresentation.title = "Feature/&BackgroundBonusFeatTitle";
                 displayFeature.GuiPresentation.description = FormatOriginFeatGainDescription(displayFeatDefinition);
@@ -365,9 +428,9 @@ public static partial class Tabletop2024Context
         {
             HumanOriginFeatPointPool.RestrictedChoices.Clear();
 
-            foreach (var featName in GetModeAwareOriginFeatNames())
+            foreach (var featName in Tabletop2024OriginFeatNames)
             {
-                var featDefinition = BuildHumanOriginFeatChoice(featName);
+                var featDefinition = GetOriginFeatDefinition(featName);
 
                 if (featDefinition &&
                     !HumanOriginFeatPointPool.RestrictedChoices.Contains(featDefinition.Name))
@@ -377,14 +440,14 @@ public static partial class Tabletop2024Context
             }
         }
 
-        foreach (var featName in OriginFeatNames)
+        foreach (var featName in Tabletop2024OriginFeatNames)
         {
             if (!HumanOriginFeatChoiceFeatures.TryGetValue(featName, out var choiceFeature))
             {
                 continue;
             }
 
-            var featDefinition = BuildHumanOriginFeatChoice(featName);
+            var featDefinition = GetOriginFeatDefinition(featName);
 
             if (!featDefinition)
             {
@@ -400,7 +463,7 @@ public static partial class Tabletop2024Context
         {
             HumanOriginFeatFeatureSet.FeatureSet.Clear();
 
-            foreach (var featName in GetModeAwareOriginFeatNames())
+            foreach (var featName in Tabletop2024OriginFeatNames)
             {
                 if (HumanOriginFeatChoiceFeatures.TryGetValue(featName, out var choiceFeature))
                 {
@@ -408,16 +471,18 @@ public static partial class Tabletop2024Context
                 }
             }
         }
+
+        foreach (var entry in BackgroundOriginFeatFeatures)
+        {
+            var backgroundName = entry.Key;
+            var featureSet = entry.Value;
+            featureSet.FeatureSet.Clear();
+            featureSet.FeatureSet.AddRange(BackgroundFeatSets[backgroundName].Select(choice =>
+                BackgroundOriginFeatChoiceFeatures[GetBackgroundOriginFeatChoiceName(backgroundName, choice.Feat)]));
+        }
     }
 
-    private static IEnumerable<string> GetModeAwareOriginFeatNames()
-    {
-        return Main.Settings.EnableTabletopFeatRules2024
-            ? Tabletop2024OriginFeatNames
-            : LegacyOriginFeatNames;
-    }
-
-    private static bool TryGetModeAwareBackgroundFeatName(string backgroundName, out string featName)
+    private static bool TryGetBackgroundFeatName(string backgroundName, out string featName)
     {
         featName = null;
 
@@ -426,13 +491,14 @@ public static partial class Tabletop2024Context
             return false;
         }
 
-        if (Main.Settings.EnableTabletopFeatRules2024 &&
-            BackgroundFeatSets2024.TryGetValue(backgroundName, out featName))
+        if (!BackgroundFeatSets.TryGetValue(backgroundName, out var feats))
         {
-            return true;
+            return false;
         }
 
-        return BackgroundFeatSets.TryGetValue(backgroundName, out featName);
+        featName = feats[0].Feat;
+
+        return true;
     }
 
     private static string GetOriginFeatChoiceName(string featName)
@@ -440,7 +506,7 @@ public static partial class Tabletop2024Context
         var canonicalName = GetCanonicalTabletopFeatName(featName);
 
         if (string.IsNullOrEmpty(canonicalName) ||
-            OriginRestrictedFeatNames.Contains(canonicalName) ||
+            Tabletop2024OriginFeatNames.Contains(canonicalName) ||
             !TryGetDefinition<FeatDefinition>(featName, out var feat))
         {
             return canonicalName;
@@ -448,7 +514,7 @@ public static partial class Tabletop2024Context
 
         // Ability variants keep their own identity; their parent determines the origin choice.
         return EnumerateRestrictionAliasesForFeat(feat, null)
-                   .FirstOrDefault(OriginRestrictedFeatNames.Contains) ?? canonicalName;
+                   .FirstOrDefault(Tabletop2024OriginFeatNames.Contains) ?? canonicalName;
     }
 
     private static bool AreEquivalentOriginFeatNames(string left, string right)
@@ -484,7 +550,7 @@ public static partial class Tabletop2024Context
                          .Where(feat => feat != null)
                          .Select(feat => feat.Name))
             {
-                if (OriginRestrictedFeatNames.Contains(GetOriginFeatChoiceName(recordedFeatName)) &&
+                if (Tabletop2024OriginFeatNames.Contains(GetOriginFeatChoiceName(recordedFeatName)) &&
                     (isBackgroundTag ||
                      AreEquivalentOriginFeatNames(sourceFeatName, recordedFeatName)))
                 {
@@ -530,9 +596,7 @@ public static partial class Tabletop2024Context
                 continue;
             }
 
-            var markerFeatName = feature.Name == BackgroundFeatSkilledPointPoolName ? FeatSkilledName : null;
-            if (markerFeatName == null &&
-                !TryGetOriginFeatNameFromMarker(feature.Name, BackgroundFeatDisplayPrefix, out markerFeatName) &&
+            if (!TryGetOriginFeatNameFromMarker(feature.Name, BackgroundFeatDisplayPrefix, out var markerFeatName) &&
                 !TryGetBackgroundOriginFeatNameFromTag(feature.Name, out markerFeatName))
             {
                 continue;
@@ -622,9 +686,10 @@ public static partial class Tabletop2024Context
             return false;
         }
 
-        return buildingData != null &&
+        return !IsBackgroundOriginFeatChoicesEnabled() &&
+               buildingData != null &&
                !LevelUpHelper.IsLevelingUp(displayHero) &&
-               TryGetModeAwareBackgroundFeatName(displayHero.BackgroundDefinition.Name, out featName);
+               TryGetBackgroundFeatName(displayHero.BackgroundDefinition.Name, out featName);
     }
 
     private static bool TryGetReservedHeroBuildingData(
@@ -634,56 +699,6 @@ public static partial class Tabletop2024Context
         heroBuildingData = null;
 
         return hero != null && hero.TryGetHeroBuildingData(out heroBuildingData);
-    }
-
-    internal static HashSet<string> GetActiveOriginRestrictedFeatNames(RulesetCharacterHero hero)
-    {
-        HashSet<string> result = [];
-
-        if (!_backgroundOptionsLoaded ||
-            !IsBackgroundBonusFeatsEnabled() ||
-            !TryGetReservedHeroBuildingData(hero, out var heroBuildingData))
-        {
-            return result;
-        }
-
-        if (!heroBuildingData.PointPoolStacks.TryGetValue(HeroDefinitions.PointsPoolType.Feat, out var pointPoolStack))
-        {
-            return result;
-        }
-
-        var service = ServiceRepository.GetService<ICharacterBuildingService>();
-
-        if (service == null)
-        {
-            return result;
-        }
-
-        foreach (var tag in pointPoolStack.ActivePools.Keys)
-        {
-            var pointPool = service.GetPointPoolOfTypeAndTag(heroBuildingData, HeroDefinitions.PointsPoolType.Feat, tag);
-
-            var restrictedChoices = GetModeAwareRestrictedChoiceNames(pointPool);
-
-            if (restrictedChoices.Count == 0)
-            {
-                continue;
-            }
-
-            if (IsHumanOriginFeatTag(tag))
-            {
-                continue;
-            }
-
-            foreach (var featName in restrictedChoices
-                         .Select(GetOriginFeatChoiceName)
-                         .Where(OriginRestrictedFeatNames.Contains))
-            {
-                result.Add(featName);
-            }
-        }
-
-        return result;
     }
 
     internal static bool TryGetSingleOriginRestrictedFeat(
@@ -708,21 +723,18 @@ public static partial class Tabletop2024Context
             .Select(GetOriginFeatChoiceName)
             .ToHashSet();
 
-        if (restrictedChoices.Count == 0)
+        if (restrictedChoices.Count != 1)
         {
             return false;
         }
+
+        var backgroundFeatName = restrictedChoices.Single();
 
         if (heroBuildingData.HeroCharacter?.BackgroundDefinition == null ||
-            !TryGetModeAwareBackgroundFeatName(
-                heroBuildingData.HeroCharacter.BackgroundDefinition.Name,
-                out var backgroundFeatName) ||
-            !OriginRestrictedFeatNames.Contains(backgroundFeatName))
-        {
-            return false;
-        }
-
-        if (!restrictedChoices.Contains(backgroundFeatName))
+            !Tabletop2024OriginFeatNames.Contains(backgroundFeatName) ||
+            tag != AttributeDefinitions.TagBackground &&
+            (!TryGetBackgroundOriginFeatNameFromTag(tag, out var sourceFeatName) ||
+             !AreEquivalentOriginFeatNames(sourceFeatName, backgroundFeatName)))
         {
             return false;
         }
@@ -767,7 +779,7 @@ public static partial class Tabletop2024Context
         featDefinition = null;
 
         if (!_backgroundOptionsLoaded ||
-            !Main.Settings.EnableBackgroundASI ||
+            !IsBackgroundAsiEnabled() ||
             !IsBackgroundBonusFeatsEnabled() ||
             (hero?.BackgroundDefinition ?? buildingData?.HeroCharacter?.BackgroundDefinition) == null)
         {
@@ -796,7 +808,7 @@ public static partial class Tabletop2024Context
         var displayHero = hero ?? buildingData?.HeroCharacter;
 
         if (!_backgroundOptionsLoaded ||
-            !Main.Settings.EnableBackgroundASI ||
+            !IsBackgroundAsiEnabled() ||
             displayHero?.RaceDefinition?.Name != "Human" ||
             !TryGetHumanOriginFeatNameFromBuildingOrSelection(displayHero, buildingData, out var featName))
         {
@@ -816,7 +828,7 @@ public static partial class Tabletop2024Context
         var displayHero = hero ?? buildingData?.HeroCharacter;
 
         if (!_backgroundOptionsLoaded ||
-            !Main.Settings.EnableBackgroundASI ||
+            !IsBackgroundAsiEnabled() ||
             displayHero?.RaceDefinition?.Name != "Human" ||
             !TryGetHumanOriginFeatNameFromBuildingOrSelection(displayHero, buildingData, out var featName))
         {
@@ -832,6 +844,22 @@ public static partial class Tabletop2024Context
         string featName,
         out FeatDefinition featDefinition)
     {
+        var trainedFeats = buildingData?.LevelupTrainedFeats.TryGetValue(HumanOriginFeatTag, out var selected) == true
+            ? selected
+            : (hero?.TrainedFeats ?? []).Concat((hero?.FeatProficiencies ?? [])
+                .Select(name => TryGetDefinition<FeatDefinition>(name, out var feat) ? feat : null));
+        var recordedFeats = trainedFeats
+            .Where(feat => feat && AreEquivalentOriginFeatNames(feat.Name, featName))
+            .Distinct()
+            .ToArray();
+
+        if (recordedFeats.Length == 1)
+        {
+            featDefinition = recordedFeats[0];
+
+            return true;
+        }
+
         if (!TryResolveModeAwareFeatDefinition(featName, out featDefinition))
         {
             return false;
@@ -844,14 +872,14 @@ public static partial class Tabletop2024Context
         }
         else
         {
-            var recordedFeats = (hero?.TrainedFeats ?? [])
+            var matchingFeats = (hero?.TrainedFeats ?? [])
                 .Where(feat => feat != null && AreEquivalentOriginFeatNames(feat.Name, featName))
                 .Distinct()
                 .ToArray();
 
-            if (recordedFeats.Length == 1)
+            if (matchingFeats.Length == 1)
             {
-                featDefinition = recordedFeats[0];
+                featDefinition = matchingFeats[0];
             }
         }
 
@@ -870,7 +898,6 @@ public static partial class Tabletop2024Context
 
         if (!IsHumanOriginInspectionSourceFeature(sourceFeature) ||
             !_backgroundOptionsLoaded ||
-            !Main.Settings.EnableBackgroundASI ||
             hero?.RaceDefinition?.Name != "Human")
         {
             return false;
@@ -917,7 +944,7 @@ public static partial class Tabletop2024Context
         CollectHumanOriginMarkerFeatNames(hero.FeaturesOrigin?.Keys, markerFeatNames);
         CollectHumanOriginMarkerFeatNames(hero.FeaturesToBrowse, markerFeatNames);
 
-        if (sourceFeature != null && TryGetHumanOriginFeatNameFromMarker(sourceFeature.Name, out var markerFeatName))
+        if (sourceFeature != null && TryGetHumanOriginFeatName(sourceFeature, out var markerFeatName))
         {
             markerFeatNames.Add(markerFeatName);
         }
@@ -942,9 +969,8 @@ public static partial class Tabletop2024Context
             return TryResolveHumanOriginFeatDisplayDefinition(hero, buildingData, candidateFeatNames[0], out featDefinition);
         }
 
-        // Preserve old marker-only heroes and a repeatable feat taken from both origins.
-        // A marker must not invent an untrained feat when actual acquisition records exist.
-        var fallbackFeatNames = markerFeatNames.Where(name => recordedFeatNames.Length == 0 ||
+        // A repeatable feat may have been acquired from both the race and the background.
+        var fallbackFeatNames = markerFeatNames.Where(name =>
                 recordedFeatNames.All(recorded => AreEquivalentOriginFeatNames(recorded, backgroundFeatName)) &&
                 recordedFeatNames.Any(recorded => AreEquivalentOriginFeatNames(recorded, name)) &&
                 TryResolveModeAwareFeatDefinition(name, out var feat) && SkillFeats.IsRepeatable(feat))
@@ -968,7 +994,7 @@ public static partial class Tabletop2024Context
             return;
         }
 
-        var enableBackgroundAsi = Main.Settings.EnableBackgroundASI;
+        var enableBackgroundAsi = IsBackgroundAsiEnabled();
 
         SwitchBackgroundAsiFeatures(enableBackgroundAsi);
         SwitchRacialAsiFeaturesForBackgroundAsi(enableBackgroundAsi);
@@ -1047,24 +1073,21 @@ public static partial class Tabletop2024Context
 
         RemoveMatchingFeature(human.FeatureUnlocks, FeatureDefinitionAttributeModifiers.AttributeModifierHumanAbilityScoreIncrease);
         RemoveMatchingFeature(human.FeatureUnlocks, FeatureDefinitionPointPools.PointPoolAbilityScoreImprovement);
+        RemoveMatchingFeature(human.FeatureUnlocks, PointPoolHumanSkillPool);
         RemoveMatchingFeature(human.FeatureUnlocks, HumanOriginFeatFeatureSet);
         RemoveMatchingFeature(human.FeatureUnlocks, HumanOriginFeatPointPool);
-        RemoveLegacyHumanOriginFeatFeatures(human.FeatureUnlocks);
 
         if (enableBackgroundAsi)
         {
-            RemoveAlternateHumanBonusFeatPool(human.FeatureUnlocks);
             AddFeatureUnlock(human.FeatureUnlocks, PointPoolHumanSkillPool);
             AddFeatureUnlock(human.FeatureUnlocks, HumanOriginFeatFeatureSet);
             AddFeatureUnlock(human.FeatureUnlocks, HumanOriginFeatPointPool);
         }
         else
         {
-            HumanOriginFeatSelections.Clear();
-
-            if (!IsAlternateHumanEffectivelyEnabled())
+            if (IsAlternateHumanEffectivelyEnabled())
             {
-                RemoveMatchingFeature(human.FeatureUnlocks, PointPoolHumanSkillPool);
+                AddFeatureUnlock(human.FeatureUnlocks, PointPoolHumanSkillPool);
             }
 
             FeatureDefinition humanAsiFeature = IsAlternateHumanEffectivelyEnabled()
@@ -1163,20 +1186,20 @@ public static partial class Tabletop2024Context
 
     internal static bool IsHumanOriginFeatSelectionFeature(FeatureDefinition feature)
     {
-        return _backgroundOptionsLoaded && Main.Settings.EnableBackgroundASI && feature == HumanOriginFeatFeatureSet;
+        return _backgroundOptionsLoaded && IsBackgroundAsiEnabled() && feature == HumanOriginFeatFeatureSet;
     }
 
     internal static bool IsHumanOriginFeatChoiceFeature(FeatureDefinition feature)
     {
         return _backgroundOptionsLoaded &&
-               Main.Settings.EnableBackgroundASI &&
+               IsBackgroundAsiEnabled() &&
                HumanOriginFeatFeatureSet?.FeatureSet.Contains(feature) == true;
     }
 
     internal static bool IsBackgroundAsiSelectionFeature(FeatureDefinition feature)
     {
         return _backgroundOptionsLoaded &&
-               Main.Settings.EnableBackgroundASI &&
+               IsBackgroundAsiEnabled() &&
                feature is FeatureDefinitionFeatureSet featureSet &&
                BackgroundAsiFeatureLookup.Contains(featureSet);
     }
@@ -1184,7 +1207,7 @@ public static partial class Tabletop2024Context
     internal static bool IsHalfElfVersatileBloodlineSelectionFeature(FeatureDefinition feature)
     {
         return _backgroundOptionsLoaded &&
-               Main.Settings.EnableBackgroundASI &&
+               IsBackgroundAsiEnabled() &&
                feature == HalfElfVersatileBloodlineFeatureSet;
     }
 
@@ -1197,7 +1220,6 @@ public static partial class Tabletop2024Context
         selectedFeature = null;
 
         if (!_backgroundOptionsLoaded ||
-            !Main.Settings.EnableBackgroundASI ||
             !HalfElfVersatileBloodlineFeatureSet ||
             !HalfElfVersatileBloodlineFeatureSet.FeatureSet.Contains(sourceFeature))
         {
@@ -1213,7 +1235,9 @@ public static partial class Tabletop2024Context
     internal static bool IsPersistedCharacterCreationFeatureSetSelection(FeatureDefinition feature)
     {
         return IsBackgroundAsiSelectionFeature(feature) ||
-               IsHalfElfVersatileBloodlineSelectionFeature(feature);
+               IsHalfElfVersatileBloodlineSelectionFeature(feature) ||
+               IsBackgroundOriginFeatChoicesEnabled() &&
+               BackgroundOriginFeatFeatures.ContainsValue(feature as FeatureDefinitionFeatureSet);
     }
 
     internal static bool TryGetHumanOriginFeatLearnStepTitle(
@@ -1224,7 +1248,7 @@ public static partial class Tabletop2024Context
         title = null;
 
         if (!_backgroundOptionsLoaded ||
-            !Main.Settings.EnableBackgroundASI ||
+            !IsBackgroundAsiEnabled() ||
             poolType != HeroDefinitions.PointsPoolType.Feat ||
             !TryGetHumanOriginFeatTagTitle(tag, out title))
         {
@@ -1293,6 +1317,14 @@ public static partial class Tabletop2024Context
         return true;
     }
 
+    internal static void ClearHumanOriginFeatSelection(RulesetCharacterHero hero)
+    {
+        if (hero != null)
+        {
+            HumanOriginFeatSelections.Remove(GetHumanOriginSelectionKey(hero));
+        }
+    }
+
     internal static bool TryGetHumanOriginFeatToTrain(
         RulesetCharacterHero hero,
         string tag,
@@ -1339,9 +1371,7 @@ public static partial class Tabletop2024Context
         if (!_backgroundOptionsLoaded ||
             !IsBackgroundBonusFeatsEnabled() ||
             hero?.BackgroundDefinition == null ||
-            !TryGetModeAwareBackgroundFeatName(hero.BackgroundDefinition.Name, out var activeFeatName) ||
-            !BackgroundBonusGrantFeatures.TryGetValue(activeFeatName, out var activeGrantFeature) ||
-            feature != activeGrantFeature)
+            !TryGetBackgroundOriginFeatNameFromTag(feature?.Name, out var activeFeatName))
         {
             return false;
         }
@@ -1361,9 +1391,7 @@ public static partial class Tabletop2024Context
         }
 
         ClearHumanOriginFeatTraining(heroBuildingData);
-        ClearHumanOriginSkilledSkillTraining(heroBuildingData);
         RemoveHumanOriginFeatActivePool(heroBuildingData);
-        RemoveHumanOriginSkilledSkillActivePool(heroBuildingData);
     }
 
     internal static void ClearHumanOriginFeatTraining(CharacterHeroBuildingData heroBuildingData)
@@ -1424,7 +1452,7 @@ public static partial class Tabletop2024Context
         var canonicalFeatName = GetOriginFeatChoiceName(featName);
 
         return !string.IsNullOrEmpty(canonicalFeatName) &&
-               HumanOriginFeatChoiceNames.Contains(canonicalFeatName);
+               Tabletop2024OriginFeatNames.Contains(canonicalFeatName);
     }
 
     private static bool TryGetHumanOriginFeatNameFromBuildingOrSelection(
@@ -1466,16 +1494,6 @@ public static partial class Tabletop2024Context
         return tag == HumanOriginFeatTag;
     }
 
-    internal static bool IsHumanOriginSkilledSkillTag(string tag)
-    {
-        return tag == HumanOriginFeatSkilledSkillTag;
-    }
-
-    internal static bool IsBackgroundSkilledSkillTag(string tag)
-    {
-        return tag == BackgroundFeatSkilledPointPoolName;
-    }
-
     internal static bool IsBackgroundOriginFeatTag(string tag)
     {
         return TryGetBackgroundOriginFeatNameFromTag(tag, out _);
@@ -1497,7 +1515,7 @@ public static partial class Tabletop2024Context
         }
 
         var sourceFeatName = markerName.Substring(prefix.Length);
-        if (!OriginRestrictedFeatNames.Contains(GetOriginFeatChoiceName(sourceFeatName)) ||
+        if (!Tabletop2024OriginFeatNames.Contains(GetOriginFeatChoiceName(sourceFeatName)) ||
             !TryGetDefinition<FeatDefinition>(sourceFeatName, out _))
         {
             return false;
@@ -1520,8 +1538,7 @@ public static partial class Tabletop2024Context
             return false;
         }
 
-        ClearHumanOriginSkilledSkillTraining(heroBuildingData);
-        var changed = RemoveHumanOriginSkilledSkillActivePool(heroBuildingData);
+        var changed = false;
 
         if (!ShouldUseHumanOriginFeat(heroBuildingData))
         {
@@ -1543,7 +1560,7 @@ public static partial class Tabletop2024Context
 
         return IsValidHumanOriginFeatSelectionHero(hero) &&
                HumanOriginFeatSelections.TryGetValue(GetHumanOriginSelectionKey(hero), out featName) &&
-               GetModeAwareOriginFeatNames().Contains(featName);
+               Tabletop2024OriginFeatNames.Contains(featName);
     }
 
     private static bool TryGetHumanOriginFeatName(FeatureDefinition choiceFeature, out string featName)
@@ -1568,28 +1585,6 @@ public static partial class Tabletop2024Context
         return false;
     }
 
-    private static bool TryGetHumanOriginFeatNameFromMarker(string featureSetName, out string featName)
-    {
-        featName = null;
-
-        if (string.IsNullOrEmpty(featureSetName) ||
-            !featureSetName.StartsWith(HumanOriginFeatChoiceFeatureSetPrefix, System.StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var candidateFeatName = featureSetName.Substring(HumanOriginFeatChoiceFeatureSetPrefix.Length);
-
-        if (!HumanOriginFeatChoiceNames.Contains(candidateFeatName))
-        {
-            return false;
-        }
-
-        featName = candidateFeatName;
-
-        return true;
-    }
-
     private static void CollectHumanOriginMarkerFeatNames(
         IEnumerable<FeatureDefinition> features,
         HashSet<string> featNames)
@@ -1601,13 +1596,7 @@ public static partial class Tabletop2024Context
 
         foreach (var featureSet in features.OfType<FeatureDefinitionFeatureSet>())
         {
-            if (!featureSet.Name.StartsWith(HumanOriginFeatChoiceFeatureSetPrefix, System.StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            if (!TryGetHumanOriginFeatName(featureSet, out var featName) &&
-                !TryGetHumanOriginFeatNameFromMarker(featureSet.Name, out featName))
+            if (!TryGetHumanOriginFeatName(featureSet, out var featName))
             {
                 continue;
             }
@@ -1619,7 +1608,7 @@ public static partial class Tabletop2024Context
     private static bool IsValidHumanOriginFeatSelectionHero(RulesetCharacterHero hero)
     {
         return _backgroundOptionsLoaded &&
-               Main.Settings.EnableBackgroundASI &&
+               IsBackgroundAsiEnabled() &&
                hero?.RaceDefinition?.Name == "Human" &&
                !LevelUpHelper.IsLevelingUp(hero);
     }
@@ -1676,26 +1665,6 @@ public static partial class Tabletop2024Context
                pointPoolStack.ActivePools.Remove(HumanOriginFeatTag);
     }
 
-    private static bool RemoveHumanOriginSkilledSkillActivePool(CharacterHeroBuildingData heroBuildingData)
-    {
-        return heroBuildingData?.PointPoolStacks.TryGetValue(HeroDefinitions.PointsPoolType.Skill, out var pointPoolStack) ==
-               true &&
-               pointPoolStack.ActivePools.Remove(HumanOriginFeatSkilledSkillTag);
-    }
-
-    private static void ClearHumanOriginSkilledSkillTraining(CharacterHeroBuildingData heroBuildingData)
-    {
-        if (heroBuildingData == null)
-        {
-            return;
-        }
-
-        ServiceRepository.GetService<ICharacterBuildingService>()?.UntrainSkills(
-            heroBuildingData,
-            HumanOriginFeatSkilledSkillTag);
-        heroBuildingData.LevelupTrainedSkills.Remove(HumanOriginFeatSkilledSkillTag);
-    }
-
     internal static void SwitchBackgroundBonusFeats()
     {
         if (!_backgroundOptionsLoaded)
@@ -1707,7 +1676,7 @@ public static partial class Tabletop2024Context
 
         foreach (var backgroundName in BackgroundFeatSets.Keys)
         {
-            if (!TryGetModeAwareBackgroundFeatName(backgroundName, out var featName) ||
+            if (!TryGetBackgroundFeatName(backgroundName, out var featName) ||
                 !TryGetDefinition<CharacterBackgroundDefinition>(backgroundName, out var background) ||
                 !BackgroundBonusGrantFeatures.TryGetValue(featName, out var grantedFeature))
             {
@@ -1715,13 +1684,14 @@ public static partial class Tabletop2024Context
             }
 
             BackgroundBonusDisplayFeatures.TryGetValue(featName, out var displayFeature);
-            BackgroundProficiencyFeatures.TryGetValue(backgroundName, out var proficiencyFeatures);
-            BackgroundStoryCompatibilityFeatures.TryGetValue(backgroundName, out var storyCompatibilityFeature);
+            BackgroundSkillFeatures.TryGetValue(backgroundName, out var skillFeature);
+            var defaultChoice = BackgroundOriginFeatChoiceFeatures[GetBackgroundOriginFeatChoiceName(backgroundName, featName)];
+            BackgroundStoryFeatures.TryGetValue(backgroundName, out var storyFeature);
 
             CaptureOriginalBackgroundFeatures(backgroundName, background);
             RemoveManagedBackgroundBonusFeatures(
                 background,
-                storyCompatibilityFeature);
+                storyFeature);
             RestoreOriginalBackgroundFeatures(backgroundName, background);
 
             if (!enableBackgroundBonusFeats)
@@ -1732,19 +1702,29 @@ public static partial class Tabletop2024Context
             background.Features.RemoveAll(IsSuppressedBackground2024Feature);
 
             var insertIndex = GetBackgroundFeatureInsertIndex(backgroundName, background);
-            var featuresToInsert = new List<FeatureDefinition> { grantedFeature };
+            var featuresToInsert = new List<FeatureDefinition>();
 
-            AddBackgroundFeaturesIfValid(
-                featuresToInsert,
-                displayFeature,
-                proficiencyFeatures.Skills,
-                proficiencyFeatures.Tool,
-                storyCompatibilityFeature);
+            if (IsBackgroundOriginFeatChoicesEnabled())
+            {
+                featuresToInsert.Add(BackgroundOriginFeatFeatures[backgroundName]);
+            }
+            else
+            {
+                AddBackgroundFeaturesIfValid(featuresToInsert, grantedFeature, displayFeature);
+            }
+
+            AddBackgroundFeaturesIfValid(featuresToInsert, skillFeature);
+
+            if (!IsBackgroundOriginFeatChoicesEnabled())
+            {
+                AddBackgroundFeaturesIfValid(featuresToInsert,
+                    defaultChoice.FeatureSet.OfType<FeatureDefinitionProficiency>().Single());
+            }
+
+            AddBackgroundFeaturesIfValid(featuresToInsert, storyFeature);
 
             background.Features.InsertRange(insertIndex, featuresToInsert);
         }
-
-        SwitchAddOriginFeatsToAutoLearn();
     }
 
     private static void AddBackgroundFeaturesIfValid(
@@ -1756,19 +1736,6 @@ public static partial class Tabletop2024Context
             if (feature)
             {
                 features.Add(feature);
-            }
-        }
-    }
-
-    internal static void SwitchAddOriginFeatsToAutoLearn()
-    {
-        foreach (var characterClass in DatabaseRepository.GetDatabase<CharacterClassDefinition>())
-        {
-            foreach (var featName in characterClass.featAutolearnPreference
-                         .Where(featName => OriginRestrictedFeatNames.Contains(GetOriginFeatChoiceName(featName)))
-                         .ToArray())
-            {
-                characterClass.featAutolearnPreference.RemoveAll(name => name == featName);
             }
         }
     }
@@ -1842,47 +1809,6 @@ public static partial class Tabletop2024Context
             .AddToDB();
     }
 
-    private static void BuildLegacyBackgroundAsiCompatibilityDefinitions()
-    {
-        BuildLegacyBackgroundAsiChoiceSet(
-            BackgroundSpyName,
-            AttributeDefinitions.Constitution,
-            AttributeDefinitions.Dexterity,
-            AttributeDefinitions.Charisma);
-        BuildLegacyBackgroundAsiChoiceSet(
-            BackgroundDevotedName,
-            AttributeDefinitions.Constitution,
-            AttributeDefinitions.Intelligence,
-            AttributeDefinitions.Wisdom);
-        BuildLegacyBackgroundAsiChoiceSet(
-            BackgroundDevotedName,
-            AttributeDefinitions.Intelligence,
-            AttributeDefinitions.Constitution,
-            AttributeDefinitions.Wisdom);
-    }
-
-    private static void BuildLegacyBackgroundAsiChoiceSet(
-        string backgroundName,
-        string plusTwoAttribute,
-        string optionA,
-        string optionB)
-    {
-        BuildAttributeModifier(backgroundName, plusTwoAttribute, 1);
-
-        if (TryGetDefinition<FeatureDefinitionFeatureSet>(
-                $"FeatureSetBackgroundASI_{backgroundName}_{plusTwoAttribute}", out _))
-        {
-            return;
-        }
-
-        BuildBackgroundAsiChoiceSet(
-            backgroundName,
-            plusTwoAttribute,
-            optionA,
-            optionB,
-            BuildAttributeModifier(backgroundName, plusTwoAttribute, 2));
-    }
-
     private static FeatureDefinitionAttributeModifier BuildAttributeModifier(string backgroundName, string attribute, int amount)
     {
         var name = $"AttributeModifierBackgroundASI_{backgroundName}_{attribute}_{amount}";
@@ -1944,8 +1870,8 @@ public static partial class Tabletop2024Context
 
     private static FeatureDefinitionPointPool BuildHumanOriginFeatPointPool()
     {
-        var choices = GetModeAwareOriginFeatNames()
-            .Select(BuildHumanOriginFeatChoice)
+        var choices = Tabletop2024OriginFeatNames
+            .Select(GetOriginFeatDefinition)
             .Where(feat => feat)
             .Select(feat => feat.Name)
             .ToArray();
@@ -1962,12 +1888,12 @@ public static partial class Tabletop2024Context
 
     private static FeatureDefinitionFeatureSet BuildHumanOriginFeatFeatureSet()
     {
-        foreach (var featName in OriginFeatNames)
+        foreach (var featName in Tabletop2024OriginFeatNames)
         {
             BuildHumanOriginFeatChoiceFeatureSet(featName);
         }
 
-        var choices = GetModeAwareOriginFeatNames()
+        var choices = Tabletop2024OriginFeatNames
             .Select(featName => HumanOriginFeatChoiceFeatures.TryGetValue(featName, out var choiceFeature)
                 ? choiceFeature
                 : null)
@@ -1988,7 +1914,7 @@ public static partial class Tabletop2024Context
 
     private static FeatureDefinitionFeatureSet BuildHumanOriginFeatChoiceFeatureSet(string featName)
     {
-        var featDefinition = BuildHumanOriginFeatChoice(featName);
+        var featDefinition = GetOriginFeatDefinition(featName);
 
         if (!featDefinition)
         {
@@ -2003,30 +1929,13 @@ public static partial class Tabletop2024Context
                 featDefinition)
             .SetMode(FeatureDefinitionFeatureSet.FeatureSetMode.Union)
             .AddCustomSubFeatures(new FormattedDefinitionText(
-                () => BuildHumanOriginFeatChoice(featName)?.FormatTitle(),
-                () => BuildHumanOriginFeatChoice(featName)?.FormatDescription()))
+                () => GetOriginFeatDefinition(featName)?.FormatTitle(),
+                () => GetOriginFeatDefinition(featName)?.FormatDescription()))
             .AddToDB();
 
         HumanOriginFeatChoiceFeatures[featName] = choiceFeature;
 
         return choiceFeature;
-    }
-
-    private static FeatDefinition BuildHumanOriginFeatChoice(string featName)
-    {
-        return TryResolveModeAwareFeatDefinition(featName, out var featDefinition)
-            ? featDefinition
-            : null;
-    }
-
-    private static bool TryGetBackgroundBonusFeatGuiDefinition(string featName, out FeatDefinition featDefinition)
-    {
-        if (TryResolveModeAwareFeatDefinition(featName, out featDefinition))
-        {
-            return true;
-        }
-
-        return TryGetDefinition(featName, out featDefinition);
     }
 
     internal static string FormatOriginFeatGainDescription(BaseDefinition featDefinition)
@@ -2039,34 +1948,13 @@ public static partial class Tabletop2024Context
         return Gui.Format("Feature/&OriginFeatGainDescription", featTitle);
     }
 
-    private static void BuildLegacySkilledCompatibilityDefinitions()
-    {
-        // These names remain loadable for heroes saved before Skilled used the feat selection pipeline.
-        FeatureDefinitionBuilder
-            .Create("FeatureSkilledDisplay")
-            .SetGuiPresentation("Feature/&PointPoolSkilledTitle", "Feature/&PointPoolSkilledDescription")
-            .AddToDB();
-
-        FeatureDefinitionPointPoolBuilder
-            .Create(HumanOriginFeatSkilledPointPoolName)
-            .SetGuiPresentation("Feature/&PointPoolSkilledTitle", "Feature/&PointPoolSkilledDescription")
-            .SetPool(HeroDefinitions.PointsPoolType.Skill, 3)
-            .AddToDB();
-
-        FeatureDefinitionPointPoolBuilder
-            .Create(BackgroundFeatSkilledPointPoolName)
-            .SetGuiPresentationNoContent(true)
-            .SetPool(HeroDefinitions.PointsPoolType.Skill, 3)
-            .AddToDB();
-    }
-
     private static FeatureDefinition BuildOriginFeatDisplayFeature(string featName)
     {
-        TryGetBackgroundBonusFeatGuiDefinition(featName, out var featDefinition);
+        TryResolveModeAwareFeatDefinition(featName, out var featDefinition);
 
         string FormatDescription()
         {
-            TryGetBackgroundBonusFeatGuiDefinition(featName, out var currentFeatDefinition);
+            TryResolveModeAwareFeatDefinition(featName, out var currentFeatDefinition);
 
             return FormatOriginFeatGainDescription(currentFeatDefinition);
         }
@@ -2086,8 +1974,7 @@ public static partial class Tabletop2024Context
         return sourceFeature != null &&
                (sourceFeature == HumanOriginFeatFeatureSet ||
                 sourceFeature is FeatureDefinitionFeatureSet featureSet &&
-                (HumanOriginFeatChoiceFeatures.Values.Contains(featureSet) ||
-                 featureSet.Name.StartsWith(HumanOriginFeatChoiceFeatureSetPrefix, System.StringComparison.Ordinal)));
+                HumanOriginFeatChoiceFeatures.ContainsValue(featureSet));
     }
 
     private static FeatureDefinition BuildBackground2024SkillProficiency(
@@ -2107,18 +1994,95 @@ public static partial class Tabletop2024Context
             .AddToDB();
     }
 
-    private static FeatureDefinition BuildBackground2024ToolProficiency(
-        string backgroundName,
-        string toolA,
-        string toolB)
+    private static string GetBackgroundOriginFeatChoiceName(string backgroundName, string featName)
     {
-        return FeatureDefinitionPointPoolBuilder
-            .Create($"PointPoolBackground2024_{backgroundName}_Tool")
-            .SetGuiPresentation(
-                "Feature/&Background2024ToolTitle",
-                "Feature/&Background2024ToolDescription")
-            .SetPool(HeroDefinitions.PointsPoolType.Tool, 1)
-            .RestrictChoices(toolA, toolB)
+        return $"FeatureSetBackgroundOriginFeat_{backgroundName}_{featName}";
+    }
+
+    private static FeatureDefinitionFeatureSet BuildBackgroundOriginFeatFeatureSet(string backgroundName)
+    {
+        foreach (var choice in BackgroundFeatSets[backgroundName])
+        {
+            BuildBackgroundOriginFeatChoice(backgroundName, choice.Feat, choice.Tool);
+        }
+
+        return FeatureDefinitionFeatureSetBuilder
+            .Create($"FeatureSetBackgroundOriginFeat_{backgroundName}")
+            .SetGuiPresentation("Feature/&BackgroundBonusFeatTitle", string.Empty)
+            .SetMode(FeatureDefinitionFeatureSet.FeatureSetMode.Exclusion)
+            .AddToDB();
+    }
+
+    internal static bool TryFormatBackgroundOriginFeatChoiceDescription(
+        FeatureDefinition feature,
+        FeatureDefinition choice,
+        out string description)
+    {
+        description = null;
+
+        if (feature is not FeatureDefinitionFeatureSet featureSet ||
+            !BackgroundOriginFeatFeatures.ContainsValue(featureSet) ||
+            choice is not FeatureDefinitionFeatureSet choiceSet ||
+            !featureSet.FeatureSet.Contains(choiceSet))
+        {
+            return false;
+        }
+
+        description = choiceSet.FeatureSet.OfType<FeatureDefinitionProficiency>().Single().FormatDescription();
+
+        return true;
+    }
+
+    private static FeatDefinition GetOriginFeatDefinition(string featName)
+    {
+        return IndependentTabletopFeatByCanonicalName.TryGetValue(GetCanonicalTabletopFeatName(featName), out var feat)
+            ? feat
+            : GetDefinition<FeatDefinition>(featName);
+    }
+
+    private static void BuildBackgroundOriginFeatChoice(string backgroundName, string featName, string toolName)
+    {
+        var name = GetBackgroundOriginFeatChoiceName(backgroundName, featName);
+
+        if (BackgroundOriginFeatChoiceFeatures.ContainsKey(name))
+        {
+            return;
+        }
+
+        var toolFeature = BuildBackground2024ToolProficiency(backgroundName, toolName);
+
+        var featDefinition = GetOriginFeatDefinition(featName);
+        string FormatTitle() => featDefinition.FormatTitle();
+        string FormatDescription() => featDefinition.FormatDescription();
+
+        BackgroundOriginFeatChoiceFeatures[name] = FeatureDefinitionFeatureSetBuilder
+            .Create(name)
+            .SetGuiPresentation(FormatTitle(), FormatDescription(), featDefinition)
+            .SetMode(FeatureDefinitionFeatureSet.FeatureSetMode.Union)
+            .AddFeatureSet(BackgroundBonusGrantFeatures[featName], toolFeature)
+            .AddCustomSubFeatures(new FormattedDefinitionText(FormatTitle, FormatDescription))
+            .AddToDB();
+    }
+
+    private static FeatureDefinitionProficiency BuildBackground2024ToolProficiency(
+        string backgroundName,
+        string toolName)
+    {
+        var name = $"ProficiencyBackgroundOriginFeat_{backgroundName}_{toolName}";
+
+        if (TryGetDefinition<FeatureDefinitionProficiency>(name, out var toolFeature))
+        {
+            return toolFeature;
+        }
+
+        string FormatDescription() => Gui.Format("Feature/&Background2024ToolDescription",
+            GetDefinition<ToolTypeDefinition>(toolName).FormatTitle());
+
+        return FeatureDefinitionProficiencyBuilder
+            .Create(name)
+            .SetGuiPresentation("Feature/&Background2024ToolTitle", FormatDescription())
+            .SetProficiencies(ProficiencyType.Tool, toolName)
+            .AddCustomSubFeatures(new FormattedDefinitionText(description: FormatDescription))
             .AddToDB();
     }
 
@@ -2173,19 +2137,20 @@ public static partial class Tabletop2024Context
 
     private static void RemoveManagedBackgroundBonusFeatures(
         CharacterBackgroundDefinition background,
-        FeatureDefinition storyCompatibilityFeature)
+        FeatureDefinition storyFeature)
     {
         background.Features.RemoveAll(feature =>
             IsManagedBackgroundBonusFeature(feature) ||
-            feature == storyCompatibilityFeature);
+            feature == storyFeature);
     }
 
     private static bool IsManagedBackgroundBonusFeature(FeatureDefinition feature)
     {
         return BackgroundBonusGrantFeatures.ContainsValue(feature) ||
                BackgroundBonusDisplayFeatures.ContainsValue(feature) ||
-               BackgroundProficiencyFeatures.Values.Any(features =>
-                   feature == features.Skills || feature == features.Tool);
+               BackgroundOriginFeatFeatures.ContainsValue(feature as FeatureDefinitionFeatureSet) ||
+               BackgroundSkillFeatures.ContainsValue(feature) ||
+               BackgroundOriginFeatChoiceFeatures.Values.Any(choice => choice.FeatureSet.Contains(feature));
     }
 
     private static bool IsSuppressedBackground2024Feature(FeatureDefinition feature)
@@ -2218,31 +2183,6 @@ public static partial class Tabletop2024Context
         }
 
         unlocks.RemoveAll(unlock => unlock.FeatureDefinition == toRemove);
-    }
-
-    private static void RemoveAlternateHumanBonusFeatPool([NotNull] List<FeatureUnlockByLevel> unlocks)
-    {
-        if (Main.Settings.TotalFeatsGrantedFirstLevel == 0)
-        {
-            RemoveMatchingFeature(unlocks, PointPoolBonusFeat);
-
-            return;
-        }
-
-        var name = $"PointPool{Main.Settings.TotalFeatsGrantedFirstLevel + 1}BonusFeats";
-
-        if (TryGetDefinition<FeatureDefinitionPointPool>(name, out var pointPool))
-        {
-            RemoveMatchingFeature(unlocks, pointPool);
-        }
-    }
-
-    private static void RemoveLegacyHumanOriginFeatFeatures([NotNull] List<FeatureUnlockByLevel> unlocks)
-    {
-        if (TryGetDefinition<FeatureDefinitionFeatureSet>(HumanOriginFeatFeatureSetName, out var featureSet))
-        {
-            RemoveMatchingFeature(unlocks, featureSet);
-        }
     }
 
     private static void AddFeatureUnlock([NotNull] List<FeatureUnlockByLevel> unlocks, FeatureDefinition feature)

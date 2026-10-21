@@ -265,6 +265,21 @@ public static class FeatureDescriptionItemPatcher
             return false;
         }
 
+        var descriptionChanged = false;
+        var hasBackgroundTool = false;
+
+        if (item.featureDescription &&
+            TryGetSelectedFeatureChoice(item, out var choice) &&
+            Tabletop2024Context.TryFormatBackgroundOriginFeatChoiceDescription(FeatureRef(item), choice,
+                out var description))
+        {
+            hasBackgroundTool = true;
+            descriptionChanged = item.featureDescription.Text != description ||
+                                 !item.featureDescription.gameObject.activeSelf;
+            item.featureDescription.Text = description;
+            item.featureDescription.gameObject.SetActive(true);
+        }
+
         var selectionItem = IsSelectionFeatureItem(item);
         var hasChoice = AvailableFeaturesRef(item) is { Count: > 0 } &&
                         (item.choiceDropdown && item.choiceDropdown.gameObject.activeSelf ||
@@ -290,20 +305,39 @@ public static class FeatureDescriptionItemPatcher
         }
 
         state.Restore(item);
+        state.RefreshBackgroundToolTitle(item, hasBackgroundTool);
 
         // All choice rows share the same text/control structure. Reflow the entire row
         // so current description wrapping and control height always agree, in any host.
-        var changed = RefreshFeatureChoiceControls(item, itemRect);
+        var changed = RefreshFeatureChoiceControls(item, itemRect) || descriptionChanged;
         state.RecordLayout(item);
 
         var cursor = 0f;
 
         changed |= PlaceSelectionFeatureText(item.baseFeatureLabel, itemRect, ref cursor);
-        changed |= PlaceSelectionFeatureText(item.featureDescription, itemRect, ref cursor);
+
+        if (!hasBackgroundTool)
+        {
+            changed |= PlaceSelectionFeatureText(item.featureDescription, itemRect, ref cursor);
+        }
+
         changed |= PlaceSelectionFeatureControl(item.choiceDropdown ? item.choiceDropdown.transform as RectTransform : null,
             ref cursor);
         changed |= PlaceSelectionFeatureControl(item.choiceSelector ? item.choiceSelector.transform as RectTransform : null,
             ref cursor);
+
+        if (hasBackgroundTool)
+        {
+            // Keep the same section spacing as separate native feature rows.
+            var sectionSpacing = itemRect.parent
+                ? itemRect.parent.GetComponent<VerticalLayoutGroup>()?.spacing ?? SelectionFeatureControlSpacing
+                : SelectionFeatureControlSpacing;
+
+            cursor += Mathf.Max(SelectionFeatureControlSpacing, sectionSpacing);
+            changed |= PlaceSelectionFeatureText(state.BackgroundToolTitle, itemRect, ref cursor);
+            changed |= PlaceSelectionFeatureText(item.featureDescription, itemRect, ref cursor);
+        }
+
         changed |= PlaceSelectionFeatureControl(item.levelGroup, ref cursor);
 
         var requiredHeight = Mathf.Ceil(Mathf.Max(1f, cursor + SelectionFeatureItemPadding));
@@ -327,6 +361,11 @@ public static class FeatureDescriptionItemPatcher
         if (changed)
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(itemRect);
+
+            if (itemRect.parent is RectTransform parent)
+            {
+                LayoutRebuilder.MarkLayoutForRebuild(parent);
+            }
         }
 
         return changed;
@@ -897,6 +936,7 @@ public static class FeatureDescriptionItemPatcher
     private sealed class SelectionFeatureItemLayoutState : MonoBehaviour
     {
         private readonly RectTransformState titleState = new();
+        private readonly RectTransformState backgroundToolTitleState = new();
         private readonly RectTransformState descriptionState = new();
         private readonly RectTransformState dropdownState = new();
         private readonly RectTransformState selectorState = new();
@@ -913,9 +953,35 @@ public static class FeatureDescriptionItemPatcher
         private float minHeight;
         private float preferredHeight;
 
+        internal GuiLabel BackgroundToolTitle { get; private set; }
+
+        internal void RefreshBackgroundToolTitle(FeatureDescriptionItem item, bool visible)
+        {
+            if (visible && !BackgroundToolTitle)
+            {
+                BackgroundToolTitle = Instantiate(item.baseFeatureLabel, item.baseFeatureLabel.transform.parent);
+                BackgroundToolTitle.name = "BackgroundToolTitle";
+                backgroundToolTitleState.Save(BackgroundToolTitle.RectTransform);
+            }
+
+            if (!BackgroundToolTitle)
+            {
+                return;
+            }
+
+            BackgroundToolTitle.gameObject.SetActive(visible);
+
+            if (visible)
+            {
+                BackgroundToolTitle.Text = Gui.Localize("Feature/&Background2024ToolTitle");
+            }
+        }
+
         internal void Restore(FeatureDescriptionItem item)
         {
             Save(item);
+
+            RefreshBackgroundToolTitle(item, false);
 
             if (item.TryGetComponent<RectTransform>(out var itemRect))
             {
@@ -926,6 +992,7 @@ public static class FeatureDescriptionItemPatcher
             RestoreLayoutElement(item);
             titleState.Restore(item.baseFeatureLabel ? item.baseFeatureLabel.RectTransform : null);
             descriptionState.Restore(item.featureDescription ? item.featureDescription.RectTransform : null);
+            backgroundToolTitleState.Restore(BackgroundToolTitle ? BackgroundToolTitle.RectTransform : null);
             dropdownState.Restore(item.choiceDropdown ? item.choiceDropdown.transform as RectTransform : null);
             selectorState.Restore(item.choiceSelector ? item.choiceSelector.transform as RectTransform : null);
             levelState.Restore(item.levelGroup);

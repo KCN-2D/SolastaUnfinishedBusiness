@@ -189,6 +189,11 @@ internal static class EpicBoons
     private static (bool result, string output) ValidateAbility(RulesetCharacterHero hero, string ability,
         FeatDefinition candidate)
     {
+        if (FeatsContext.IsKnownFeatPrerequisiteDisplay(candidate, hero))
+        {
+            return (true, string.Empty);
+        }
+
         var pending = 0;
         if (hero != null && hero.TryGetHeroBuildingData(out var data))
         {

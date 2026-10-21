@@ -258,7 +258,7 @@ ModUi/&EnableRangerSpellCastingAtLevel1=Enable <color=#D89555>spellcasting</colo
 ModUi/&EnableRangerTireless2024=Enable <color=#D89555>Tireless</color> to replace <color=#D89555>Hide in Plain Sight</color> at level 10 <i><color=#F0DAA0>[get temporary hit points]</color></i>
 ModUi/&EnableRangerAnyFightingStyle2024=Enable <color=#D89555>Ranger</color> to choose any fighting style <i><color=#F0DAA0>[adds Great Weapon Fighting and Protection]</color></i>
 ModUi/&EnableRelearnSpells=Enable selection of cantrips or spells already learned from other sources
-ModUi/&EnableRespecAction=Enable the <color=#D89555>RESPEC</color> after rest action <i><color=#F0DAA0>[don't use RESPEC during a multiplayer session]</color></i>
+ModUi/&EnableRespecAction=Add <color=#D89555>Respec</color> after a long rest (single-player only)
 ModUi/&EnableRitualOnAllCasters2024=Enable <color=#D89555>Ritual</color> casting on all casters
 ModUi/&EnableOneSpellSlotPerTurn2024=Apply the 2024 rule that only one spell slot can be expended to cast a spell on each turn <i><color=#F0DAA0>[cantrips and spells cast without a spell slot are unaffected]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Enable the 2024 version of <color=#D89555>{0}</color> <i><color=#F0DAA0>[Constitution save; failure interrupts casting without expending the target spell's slot]</color></i>
@@ -595,10 +595,12 @@ ModUi/&WeaponMasterySystemCustomizeToggle=Customize weapon mastery properties
 ModUi/&WeaponMasterySystemCustomizeResetAll=Reset All
 ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Will reset all weapon mastery properties to default
 ModUi/&WideScreenBattleUI=Enable Wide Screen Battle UI <i><color=#F0DAA0>(For resolutions with an Aspect Ratio greater than 16:9)</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race; Human's features are adjusted accordingly <i><color=#F0DAA0>(Flexible Races does not apply while this option is enabled)</color></i>
-ModUi/&EnableBackgroundBonusFeats=Change background grants to a 2024 origin feat, two skill proficiencies and one tool proficiency <i><color=#F0DAA0>(Requires Background ASI; Flexible Backgrounds does not apply while this option is enabled)</color></i>
-ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Enable background ability score increases to grant origin feats from backgrounds.
-ModUi/&AddOriginFeatsToAutoLearn= + Add Origin Feats to Auto-Learn
+ModUi/&EnableBackgroundAbilityScoreIncreases=Ability score increases come from background instead of race; Human’s features are adjusted accordingly <i><color=#F0DAA0>(Requires 2024 tabletop feats; Flexible Races does not apply while this option is enabled)</color></i>
+ModUi/&BackgroundASIRequiresTabletopFeatRules2024=Enable 2024 tabletop feats to use this option.
+ModUi/&EnableBackgroundBonusFeats=Change background grants to a 2024 origin feat, two skill proficiencies and one tool proficiency <i><color=#F0DAA0>(Requires Background ASI and 2024 tabletop feats; Flexible Backgrounds does not apply while this option is enabled)</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Enable background ability score increases and 2024 tabletop feats to grant origin feats from backgrounds.
+ModUi/&EnableBackgroundOriginFeatChoices=Choose between two origin feats for each background and gain the tool proficiency paired with your choice
+ModUi/&BackgroundOriginFeatChoicesRequiresBackgroundBonusFeats=Enable background origin feats to choose between them.
 ModUi/&EnableGeneralFeats2024=Reorganize general feats for 5.5e rules <i><color=#F0DAA0>[2024 feats are independent implementations]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[2024 feats are toggled individually below. While this option is enabled, fully obsolete legacy feats become unavailable.]</color></i>
 ModUi/&EnableTabletopFeatRules2024=Use the independent 2024 tabletop feat catalog

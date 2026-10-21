@@ -16,18 +16,19 @@ public static class CharacterStageIdentityDefinitionPanelPatcher
     public static class CanProceedToNextStage_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(CharacterStageIdentityDefinitionPanel __instance, ref bool __result)
+        public static void Postfix(
+            CharacterStageIdentityDefinitionPanel __instance, ref string failureString, ref bool __result)
         {
             var name = __instance.currentHero.Name;
 
-            if (!Main.Settings.EnableRespecAction || !ToolsContext.FunctorRespec.IsRespecing ||
-                string.IsNullOrEmpty(name))
+            if (__result || !ToolsContext.FunctorRespec.IsOriginalName(__instance.currentHero, name) ||
+                failureString != Gui.Localize("Stage/&IdentityDefinitionStageFailDuplicateName"))
             {
                 return;
             }
 
-            __result = !Gui.GameCampaign || ToolsContext.FunctorRespec.OldHeroName == name ||
-                       !Gui.GameCampaign.Party.CharactersList.Exists(x => x.Name == name);
+            failureString = string.Empty;
+            __result = true;
         }
     }
 }

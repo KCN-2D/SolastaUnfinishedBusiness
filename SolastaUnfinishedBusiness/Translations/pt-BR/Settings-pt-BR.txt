@@ -270,7 +270,7 @@ ModUi/&EnableRangerRoving2024=Habilite <color=#D89555>Roving</color> no nível 6
 ModUi/&EnableRangerSpellCastingAtLevel1=Habilitar <color=#D89555>conjuração de feitiços</color> no nível 1 em vez de 2
 ModUi/&EnableRangerTireless2024=Habilite <color=#D89555>Incansável</color> para substituir <color=#D89555>Esconder-se à Vista de Todos</color> no nível 10 <i><color=#F0DAA0>[obter pontos de vida temporários]</color></i>
 ModUi/&EnableRelearnSpells=Habilitar seleção de truques ou magias já aprendidas de outras fontes
-ModUi/&EnableRespecAction=Habilitar <color=#D89555>RESPEC</color> após a ação de descanso <i><color=#F0DAA0>[não usar RESPEC durante uma sessão multijogador]</color></i>
+ModUi/&EnableRespecAction=Adiciona <color=#D89555>Reconfigurar</color> após um descanso longo (somente no modo de um jogador)
 ModUi/&EnableRitualOnAllCasters2024=Habilitar a conjuração de <color=#D89555>Ritual</color> em todos os conjuradores
 ModUi/&EnableOneSpellSlotPerTurn2024=Aplica a regra de 2024 que permite gastar apenas um espaço de magia para conjurar uma magia em cada turno <i><color=#F0DAA0>[truques e magias conjuradas sem espaço não são afetados]</color></i>
 ModUi/&EnableOneDndCounterspellSpell=Ativar a versão de 2024 de <color=#D89555>{0}</color> <i><color=#F0DAA0>[salvaguarda de Constituição; uma falha interrompe a conjuração sem gastar o espaço da magia alvo]</color></i>
@@ -595,10 +595,12 @@ ModUi/&WeaponMasterySystemCustomizeResetAllWarning=Redefinirá todas as propried
 ModUi/&WeaponMasterySystemCustomizeToggle=Personalize propriedades de domínio das armas
 ModUi/&WideScreenBattleUI=Ativar interface de batalha wide-screen <i><color=#F0DAA0>(Para resoluções com proporção superior à 16:9)</color></i>
 ModUi/&WildSurgeDieRollThreshold=<color=white>Definir limite de dado de chance de <color=#D89555>Magia Selvagem do Feiticeiro</color>:</color>\n<i><color=#F0DAA0>[onda selvagem é acionada se a rolagem for menor ou igual ao limite]</color></i>
-ModUi/&EnableBackgroundAbilityScoreIncreases=Os aumentos de atributo vêm do antecedente em vez da raça; as características humanas são ajustadas de acordo <i><color=#F0DAA0>(Raças flexíveis não se aplica enquanto esta opção estiver ativada)</color></i>
-ModUi/&EnableBackgroundBonusFeats=Substitui as características do antecedente por um talento de origem, duas proficiências em perícias e uma em ferramentas conforme as regras de 2024 <i><color=#F0DAA0>(Requer aumentos de atributo do antecedente; Antecedentes flexíveis não se aplica enquanto esta opção estiver ativada)</color></i>
-ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Ative os aumentos de atributo do antecedente para receber talentos de origem dos antecedentes.
-ModUi/&AddOriginFeatsToAutoLearn= + Adicionar Talentos de Origem ao Aprendizado Automático
+ModUi/&EnableBackgroundAbilityScoreIncreases=Os aumentos de atributo vêm do antecedente em vez da raça; as características humanas são ajustadas de acordo <i><color=#F0DAA0>(Requer os talentos de mesa de 2024; Raças flexíveis não se aplica enquanto esta opção estiver ativada)</color></i>
+ModUi/&BackgroundASIRequiresTabletopFeatRules2024=Ative os talentos de mesa de 2024 para usar esta opção.
+ModUi/&EnableBackgroundBonusFeats=Substitui as características do antecedente por um talento de origem, duas proficiências em perícias e uma em ferramentas conforme as regras de 2024 <i><color=#F0DAA0>(Requer aumentos de atributo do antecedente e talentos de mesa de 2024; Antecedentes flexíveis não se aplica enquanto esta opção estiver ativada)</color></i>
+ModUi/&BackgroundBonusFeatsRequiresBackgroundASI=Ative os aumentos de atributo do antecedente e os talentos de mesa de 2024 para receber talentos de origem dos antecedentes.
+ModUi/&EnableBackgroundOriginFeatChoices=Escolha entre dois talentos de origem para cada antecedente e receba a proficiência em ferramentas associada à escolha
+ModUi/&BackgroundOriginFeatChoicesRequiresBackgroundBonusFeats=Ative os talentos de origem dos antecedentes para escolher entre eles.
 ModUi/&EnableGeneralFeats2024=Reorganizar talentos gerais para as regras 5.5e <i><color=#F0DAA0>[Os talentos de 2024 são implementações independentes]</color></i>
 ModUi/&GeneralFeats2024Help=<i><color=#F0DAA0>[Os talentos de 2024 são ativados individualmente abaixo. Enquanto esta opção estiver ativada, os talentos antigos completamente substituídos ficam indisponíveis.]</color></i>
 ModUi/&EnableTabletopFeatRules2024=Usar o catálogo independente de talentos de mesa de 2024
